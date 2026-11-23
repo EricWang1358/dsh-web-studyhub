@@ -91,13 +91,14 @@ export function LearningPanel({ capture, scope = null, jobsOnly = false, pageHan
   const list = <SelectionJobList jobs={jobs} now={now} {...jobHandlers} />;
   // The jobs come first: progress is what the learner looks for after pressing the button, and it must not scroll away below the forms.
   // 原始 PDF: the reading panel keeps only its job cards on screen (progress, 停止 / 重试, the way to the deck); its passage and thread wait for 阅读.
-  if (jobsOnly) return jobs.length ? <section className="study-document-learning" data-jobs-only="true" ref={sectionRef}>{list}</section> : null;
+  if (jobsOnly) return (jobs.length || error) ? <section className="study-document-learning" data-jobs-only="true" ref={sectionRef}>{list}{error && <InlineMessage tone="error">{error}</InlineMessage>}</section> : null;
   // 原始 PDF: the question is about the page the reader shows (PageAsk.jsx), never about a selection made before.
   if (scope?.kind === 'page') return <PageAsk scope={scope} handOff={pageHandOff} onQuick={onQuick} resolution={resolution} refusal={pageRefusal} question={question} thread={thread} notice={notice} noticeWhy={noticeWhy} cut={pageCut} error={error}
     askReady={askReady} modelReady={modelReady} list={list} sectionRef={sectionRef} total={pageTotal} onPage={onPage} onRange={onRange} onContinue={onContinue} onQuestion={onQuestion} onAsk={onAsk} onAskInside={onAskInside} onRetryNode={onRetryNode} onToggleNode={onToggleNode} />;
   const modeSwitch = annotateReady && onMode ? <ModeSwitch mode={mode} onMode={onMode} /> : null;
   if (!capture?.quote) return <section className="study-document-learning" aria-label={ui('选段学习')} ref={sectionRef}>
     {list}
+    {error && <InlineMessage tone="error">{error}</InlineMessage>}
     {modeSwitch}
     <p className="muted">{ui('选中原文中的一段文字，再提问或补充题目。')}</p>
     {doubtLedgerOn && doubts.length > 0 && <DoubtLedger doubts={doubts} deckId={deckId} decks={decks} saveReady={saveReady} saveCall={call} onSaved={onSaved} onOpenCard={jobHandlers.onOpenCard} onSelectDoubt={onSelectDoubt} isCurrent={isCurrent} />}
@@ -174,6 +175,8 @@ export default function DocumentLearning({ call, document, capture, scope = null
   const [lastDeck, setLastDeck] = useState(recallDeck);
   const [starting, setStarting] = useState(false), [error, setError] = useState('');
   const [jobs, setJobs] = useState([]), [dismissed, setDismissed] = useState(() => new Set());
+  const busyOpsRef = useRef(new Set());
+  const [busyOps, setBusyOps] = useState(() => new Set());
   const [fallbackSnapshot, setFallbackSnapshot] = useState(null), [capabilities, setCapabilities] = useState(null), [bankDecks, setBankDecks] = useState(null);
   const sectionRef = useRef(null), [reveal, setReveal] = useState('');
   const jobsRef = useRef(jobs), noticeRef = useRef(null), publishedRef = useRef(onPublished);
@@ -391,15 +394,16 @@ export default function DocumentLearning({ call, document, capture, scope = null
   /** A click on a term, a quick follow-up or the box under an answer: a child of `parentId`. Only the refusal or the jump needs no model. */
   function askInside({ parentId, term = '', question: typed = '' }) {
     const current = threadRef.current, plan = planAsk(current, { parentId, term });
-    if (plan.action === 'open') { commit(revealNode(current, plan.node.id)); setFocusId(plan.node.id); return; }
-    if (plan.action === 'refuse') { const why = refusal(plan.reason); say(why.text, why.why); return; }
+    if (plan.action === 'open') { commit(revealNode(current, plan.node.id)); setFocusId(plan.node.id); return true; }
+    if (plan.action === 'refuse') { const why = refusal(plan.reason); say(why.text, why.why); return false; }
     const text = term ? uiFormat('「{0}」是什么意思？', [term]) : typed;
-    if (!text.trim()) return;
+    if (!text.trim()) return false;
     // A question inside an answer reads the part of the page that answer read (接着读).
     const id = crypto.randomUUID(), context = threadFor(current, parentId), offset = nodeOf(current, parentId)?.offset || 0;
     say();
     commit(addNode(current, { id, parentId, question: text, term, ...(offset ? { offset } : {}) }));
     run(id, { question: text, term, context, offset });
+    return true;
   }
   function retryNodeAsk(id) {
     const current = threadRef.current, node = nodeOf(current, id);
@@ -441,19 +445,32 @@ export default function DocumentLearning({ call, document, capture, scope = null
     } catch (e) { setError(startErrorText(e.message)); }
     finally { setStarting(false); }
   }
+  const markOpBusy = (key, on) => {
+    if (on) busyOpsRef.current.add(key);
+    else busyOpsRef.current.delete(key);
+    setBusyOps(new Set(busyOpsRef.current));
+  };
   /** Retry under the same operationId: it keeps what the job already saved and never writes twice. */
   async function retry(job) {
+    const key = job?.operationId || job?.id;
+    if (!key || busyOpsRef.current.has(key)) return;
+    markOpBusy(key, true);
     setError('');
     try {
       await begin({ selection: job.selection, deckId: job.deckId, count: job.requestedTotal ?? job.count, kind: job.kind, operationId: job.operationId });
     } catch (e) { setError(startErrorText(e.message)); }
+    finally { markOpBusy(key, false); }
   }
   async function cancel(job) {
+    const key = job?.operationId || job?.id;
+    if (!key || busyOpsRef.current.has(key)) return;
+    markOpBusy(key, true);
     setError('');
     try {
       await call('job.cancel', { jobId: job.id });
       setJobs(list => upsertJob(list, { ...job, status: JOB_STATUS.CANCELLING, stageCode: JOB_STATUS.CANCELLING }));
     } catch (e) { setError(e.message); }
+    finally { markOpBusy(key, false); }
   }
   const shown = jobs.filter(job => !dismissed.has(job.operationId));
   const doubtLedgerOn = readerDoubtLedger(snapshot?.settings?.practice);
@@ -473,6 +490,6 @@ export default function DocumentLearning({ call, document, capture, scope = null
     starting={starting} primary={primary} jobs={shown} now={now} call={call} sectionRef={sectionRef} canPractice={typeof onPractice === 'function'}
     saveReady={available('generation', 'selection.saveAnswer')} onSaved={onPublished} isCurrent={isCurrent} doubtLedgerOn={doubtLedgerOn} doubts={doubts} onSelectDoubt={selectDoubt}
     onQuestion={(text, label = '') => { setQuestion(text); setQuestionLabel(label); if (draftKey) drafts.current.set(draftKey, text); }} onAsk={ask} onDeck={setPickedDeck} onCount={setPickedCount} onKind={setPickedKind} onStart={start}
-    onCancel={cancel} onRetry={retry} onDismiss={job => setDismissed(current => new Set(current).add(job.operationId))}
+    onCancel={cancel} onRetry={retry} busyOps={busyOps} onDismiss={job => setDismissed(current => new Set(current).add(job.operationId))}
     onPractice={onPractice} onOpenDeck={onOpenDeck} onOpenCard={onOpenCard} />;
 }

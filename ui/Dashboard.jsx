@@ -6,7 +6,7 @@ import chartCss from "./charts/charts.css";
 import { useInjectCss } from "./shared.js";
 import EmptyStudyActions from "./EmptyStudyActions.jsx";
 import { RubricSkills } from "./CaseResult.jsx";
-import PageScope, { courseMatcher, decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
+import PageScope, { courseMatcher, decksInCourse, scopedAttemptsOf, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
 import { useCourseActive } from './CourseActive.jsx';
 import { FocusDurationPanel, ForecastPanel, MasteryPanel, TrendPanel } from "./charts/DashboardCharts.jsx";
 import { shortDeckTitles } from "./charts/chart-math.js";
@@ -87,18 +87,7 @@ export function StatsView({
 }) {
   const { busy } = useStudy();
   const decks = localDecks ?? decksInCourse(data, course);
-  const scopedAttempts = useMemo(() => {
-    const attempts = data?.attempts;
-    if (!Array.isArray(attempts) || !attempts.length) return attempts;
-    const matchCourse = courseMatcher(data, course);
-    const deckIds = new Set((decks || []).map((deck) => deck.id));
-    const knownDecks = new Map((data?.decks || []).map((deck) => [deck.id, deck]));
-    return attempts.filter((attempt) => {
-      if (attempt?.deckId && knownDecks.has(attempt.deckId)) return deckIds.has(attempt.deckId);
-      if (typeof attempt?.course === "string") return matchCourse(attempt.course);
-      return course === "*";
-    });
-  }, [data, decks, course]);
+  const scopedAttempts = useMemo(() => scopedAttemptsOf(data, course, decks), [data, decks, course]);
   const historicalFlows = useMemo(() => {
     const list = data?.workflowSessions;
     if (!Array.isArray(list) || !list.length) return [];

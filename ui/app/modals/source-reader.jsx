@@ -8,6 +8,7 @@ import { draftToOpen } from '../../document-preview/practice/practice-range.js';
 import { formatQuoteForNote, questionNoteCourse, questionNoteRef, questionNoteTitle } from '../../review/question-note.js';
 import { hasContext, pageAvailable } from '../../capabilities.js';
 import { useApp } from '../app-context.js';
+import { useStudyBusy } from '../../study-context.jsx';
 import ReaderRun from './ReaderRun.jsx';
 import { openCompanionTarget, resolveSourceCompanionTarget } from '../../companions/companion-ref.js';
 
@@ -22,7 +23,9 @@ import { openCompanionTarget, resolveSourceCompanionTarget } from '../../compani
     DocumentViewer props. `column`: shown beside the question instead of over it. */
 export function useSourceReader({ modal, onClose, column = false }) {
   const { data, host, core, nav, learn, intents, drafts, dailyPlan, selectionNotices, settingsEntry, set, session } = useApp();
-  const { call, act, busy, refresh } = core;
+  const studyBusy = useStudyBusy();
+  const { call, act, refresh } = core;
+  const busy = studyBusy || Boolean(core.busy);
   const toast = useToast();
   const source = modal.source;
   const canGenerate = pageAvailable(data, 'generate');
@@ -48,21 +51,29 @@ export function useSourceReader({ modal, onClose, column = false }) {
     ...(canBank ? (source.usedBy || []) : []).map(deck => ({ id: `deck:${deck.kind}:${deck.id}`, icon: 'book', label: deck.archived ? uiFormat('{0} · 已归档', [deck.title]) : deck.title, hint: ui('题组'),
       disabled: busy || deck.kind === 'draft' || !canPractice, run: () => live.current.learn.openLearningTarget({ kind: 'deck', id: deck.id }) })),
   ], [source, data.sources, data.root, !!dailyPlan, planState, planBusy, canBank, canPractice, busy]); // eslint-disable-line react-hooks/exhaustive-deps -- the plan is read through its state and busy
-  // 今日 「重读 N 段」 (#1018): 已重读 keeps the time on the mark (materials.marks.seen), then the reader moves on to the next passage; after the last one it stays where it is.
+  // 今日 「重读 N 段」 (#1018): 已重读 keeps the time on the mark (materials.marks.seen), then the reader moves on to the next valid passage; after the last one it stays where it is.
   const rereadItems = modal.reread?.items || [], rereadAt = modal.reread?.index ?? 0, rereadItem = rereadItems[rereadAt];
-  const prevItem = rereadAt > 0 ? rereadItems[rereadAt - 1] : null;
-  const prevSource = prevItem && (data.sources?.find(item => item.id === prevItem.selection.sourceId) || (prevItem.selection.sourceId === source?.id ? source : null));
+  const findValidReread = (from, step) => {
+    for (let i = from; i >= 0 && i < rereadItems.length; i += step) {
+      const candidate = rereadItems[i];
+      const found = data.sources?.find(item => item.id === candidate?.selection?.sourceId)
+        || (step < 0 && candidate?.selection?.sourceId === source?.id ? source : null);
+      if (found) return { index: i, item: candidate, source: found };
+    }
+    return null;
+  };
+  const prevMatch = findValidReread(rereadAt - 1, -1);
   const reread = source && rereadItem ? { position: rereadAt + 1, total: rereadItems.length,
-    ...(rereadAt > 0 && prevSource ? { onPrev: () => {
-      set.setModal({ ...modal, source: { ...prevSource, selection: prevItem.selection }, quote: prevItem.selection.quote, reread: { items: rereadItems, index: rereadAt - 1 } });
+    ...(prevMatch ? { onPrev: () => {
+      set.setModal({ ...modal, source: { ...prevMatch.source, selection: prevMatch.item.selection }, quote: prevMatch.item.selection.quote, reread: { items: rereadItems, index: prevMatch.index } });
     } } : {}),
     onDone: async () => {
       try {
         await call('materials.marks.seen', { sourceId: rereadItem.selection.sourceId, revision: rereadItem.revision, id: rereadItem.id });
       } catch (cause) { toast.error(errorMessage(cause)); return; }
       void refresh();
-      const next = rereadItems[rereadAt + 1], nextSource = next && data.sources?.find(item => item.id === next.selection.sourceId);
-      if (nextSource) { set.setModal({ ...modal, source: { ...nextSource, selection: next.selection }, quote: next.selection.quote, reread: { items: rereadItems, index: rereadAt + 1 } }); return; }
+      const nextMatch = findValidReread(rereadAt + 1, 1);
+      if (nextMatch) { set.setModal({ ...modal, source: { ...nextMatch.source, selection: nextMatch.item.selection }, quote: nextMatch.item.selection.quote, reread: { items: rereadItems, index: nextMatch.index } }); return; }
       toast.success(ui('今天要重读的段落都读完了'));
       set.setModal({ ...modal, reread: null });
     } } : null;

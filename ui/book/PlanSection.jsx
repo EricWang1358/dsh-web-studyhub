@@ -2,6 +2,8 @@ import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Badge, Button, Icon, Tooltip } from '../components/index.js';
 import { HandOff } from '../hand-off/HandOff.jsx';
+import { hasChatHost } from '../hand-off/use-hand-off.js';
+import { useStudy } from '../study-context.jsx';
 import { useInjectCss } from '../shared.js';
 import CrunchDay from './CrunchDay.jsx';
 import NextDays from './NextDays.jsx';
@@ -22,20 +24,23 @@ import css from './book-plan.css';
    CrunchDay's (onRead, onPractice, onMarkRead, onFlip, onMockStarted). */
 
 const HAND_OFF_DRAFT = '让主会话和你一起定备考计划；你同意之后才会存。';
+const HAND_OFF_DRAFT_COPY = '复制备考计划提示词，可粘贴到外部 AI 一起规划。';
 const HAND_OFF_REVISE = '让主会话和你一起看这份计划要不要改；你同意之后才会存。';
 
 const handOffInput = (plan, course) => ({ course, examDate: plan?.examDate ?? null, hasPlan: !!plan?.plan });
 
 /** The quiet line: one sentence, at most two links. */
 function QuietLine({ kind, plan, course, onExamDate }) {
+  const { host } = useStudy();
+  const canChat = hasChatHost(host);
   const input = handOffInput(plan, course);
   return (
     <p className="book-plan book-plan--quiet" data-plan={kind}>
-      {kind === 'invite' && <><span>{ui('还没有备考计划：和主会话一起定一份，它会按考试日期和各节的掌握情况来排。')}</span>
-        <HandOff id="course.plan" input={input} what={HAND_OFF_DRAFT} /></>}
+      {kind === 'invite' && <><span>{canChat ? ui('还没有备考计划：和主会话一起定一份，它会按考试日期和各节的掌握情况来排。') : ui('还没有备考计划：可复制提示词让 AI 按考试日期和各节掌握情况来排。')}</span>
+        <HandOff id="course.plan" input={input} what={HAND_OFF_DRAFT} copyWhat={HAND_OFF_DRAFT_COPY} /></>}
       {kind === 'need-exam' && <><span>{ui('备考计划要先有考试日期。')}</span>
         {onExamDate && <Button variant="link" size="sm" onClick={onExamDate}>{ui('设置考试日期')}</Button>}
-        <HandOff id="course.plan" input={input} what={HAND_OFF_DRAFT} lead="再和主会话一起定：" /></>}
+        <HandOff id="course.plan" input={input} what={HAND_OFF_DRAFT} copyWhat={HAND_OFF_DRAFT_COPY} lead="再和主会话一起定：" copyLead="再复制提示词去规划：" /></>}
       {kind === 'past' && <span>{ui('考试日期已过，备考计划不再排日子。')}</span>}
     </p>
   );

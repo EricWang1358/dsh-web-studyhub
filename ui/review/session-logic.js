@@ -195,11 +195,11 @@ export function shortcutAction(event, ctx) {
   if (event.shiftKey && event.code === 'KeyV') return result(ctx.page === 'review' && run?.card && !busy && run.mode !== 'exam' ? { type: 'voice-ask' } : null, true);
   if (event.shiftKey || (event.onButton && (event.key === 'Enter' || event.code === 'Space'))) return result(null);
   const letter = event.key.length === 1 ? event.key.toLowerCase() : '';
-  if (letter === 'a') return result({ type: 'autopilot' }, true);
+  if (letter === 'a' && ctx.page !== 'exam') return result({ type: 'autopilot' }, true);
   // Z: undo the current round's most recent answer/grade (#885), including right after the final card advanced to the summary.
   if (letter === 'z' && ctx.page === 'review' && run?.undoable && !busy && run.mode !== 'exam') return result({ type: 'undo' }, true);
-  // S from anywhere: resume the last round or start today's path.
-  if (letter === 's' && !busy && (ctx.page !== 'review' || !run || run.complete)) return result({ type: 'resume' }, true);
+  // S from anywhere outside timed exams: resume the last round or start today's path.
+  if (letter === 's' && !busy && ctx.page !== 'exam' && (ctx.page !== 'review' || !run || run.complete)) return result({ type: 'resume' }, true);
   if (ctx.page !== 'review' || !run?.card || busy) return result(null);
   if (ctx.endAsked && event.key === 'Enter') return result(null, true);
   const taskCard = run.mode !== 'flashcard' && run.card.kind === 'task';

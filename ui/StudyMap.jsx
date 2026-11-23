@@ -92,7 +92,9 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const onFocus = (next) => act("focus.set", next);
 
   const suggestMerges = (args) => call("deck.merge.suggest", args);
-  const mergeDecks = (args) => act("deck.merge", args, null, { rethrow: true });
+  const mergeDecks = (args) => act("deck.merge", args, (moved) => {
+    if (moved?.moved) toast.success(uiFormat("已合并 {0} 道题，全部保留", [moved.moved]));
+  }, { rethrow: true });
   useInjectCss(focusCss, "study-focus");
   useInjectCss(homeCss, "study-generate-home");
   useInjectCss(caseCss, "study-case-workspace");
@@ -110,7 +112,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
     [showParked, setShowParked] = useState(false),
     [showArchived, setShowArchived] = useState(false);
   const tree = useDeckTree(data.root, data.decks);
-  const merge = useMergeSuggestions({ suggestMerges, mergeDecks, course: data.focus?.course });
+  const merge = useMergeSuggestions({ suggestMerges, mergeDecks, course: data.focus?.course, root: data.root });
 
   const query = search.trim().toLowerCase();
   const folders = useCourseFolders(data, { query, showArchived, showOtherCourses, showParked });
@@ -164,7 +166,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
       <section key="first-run" className="page library-page map-page first-run-page" ref={pageRef}>
         {lead}
         {children}
-        <FirstRunLine line={line} form="page" sample={data.sample} on={lineOn} plan={firstRun?.plan}
+        <FirstRunLine line={line} form="page" sample={data.sample} sampleBusy={firstRun?.sampleBusy} on={lineOn} plan={firstRun?.plan}
           jobs={deckJobs.length ? <HomeActivity sectionRef={activityRef} jobs={deckJobs} drafts={drafts} data={data} modelReady={modelReadiness(data).ready}
             start={start} manage={manage} openDraft={openDraft} openAgent={host.openAgent} cancelJob={cancelJob} dismissJob={dismissJob}
             retryGeneration={retryGeneration} openModelSettings={openModelSettings} topUpDraft={topUpDraft} /> : null} />
@@ -188,7 +190,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
           ? <div className="today-stack" data-depth={0} data-tour="home-today"><FirstRunLine line={line} form="compact" todayLabel={home.todayLabel} on={lineOn} plan={firstRun?.plan} /></div>
           : <TodayCard plan={home.plan} todayLabel={home.todayLabel} quiet={nextHasButton} extra={<RereadLine data={data} />} />}
       </div>
-      <LazyDeskPlayStrip data={data} onPracticeDeck={(deckId) => start?.({ mode: "path", scope: [{ deckId }] })} />
+      <LazyDeskPlayStrip key={data.root} data={data} onPracticeDeck={(deckId) => start?.({ mode: "path", scope: [{ deckId }] })} />
       {/* 待发布 sits under the day's work; it opens on its own when unpublished drafts wait and today's round is empty or finished. */}
       <HomeDrafts drafts={drafts} data={data} modelReady={modelReadiness(data).ready} openDraft={openDraft} topUpDraft={topUpDraft} defaultOpen={autoOpenDrafts} />
       {(() => {

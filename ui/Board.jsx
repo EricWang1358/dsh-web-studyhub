@@ -144,7 +144,7 @@ function Column({ column, view, board, today, library, drag, drop, onDragStart, 
       {renaming
         ? <form className="board-column__rename" onSubmit={async (event) => { event.preventDefault(); if (name.trim() && await onRename(column, name.trim())) setRenaming(false); }}>
           <input className="board-input" autoFocus aria-label={ui("列名称")} value={name} maxLength={80} onChange={(event) => setName(event.target.value)}
-            onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); setRenaming(false); } }} onBlur={() => setRenaming(false)} />
+            onKeyDown={(event) => { if (event.key === "Escape" && !(event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229)) { event.stopPropagation(); setRenaming(false); } }} onBlur={() => setRenaming(false)} />
         </form>
         : <h2 className="board-column__title">{label}</h2>}
       <span className="board-count" aria-label={cardsText(taskIds.length)}>{filtering && shown.length !== taskIds.length ? `${shown.length}/${taskIds.length}` : taskIds.length}</span>
@@ -182,13 +182,23 @@ function Column({ column, view, board, today, library, drag, drop, onDragStart, 
 function NewColumn({ onAdd }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   if (!open) return <div className="board-column board-column--new"><Button className="board-column__new-btn" variant="quiet" size="sm" icon="plus" onClick={() => setOpen(true)}>{ui("新建列")}</Button></div>;
-  return <form className="board-column board-column--new is-editing" onSubmit={async (event) => { event.preventDefault(); if (name.trim() && await onAdd(name.trim())) { setName(""); setOpen(false); } }}>
-    <input className="board-input" autoFocus aria-label={ui("新列名称")} placeholder={ui("新列名称")} maxLength={80} value={name} onChange={(event) => setName(event.target.value)}
-      onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); setOpen(false); setName(""); } }} />
+  return <form className="board-column board-column--new is-editing" onSubmit={async (event) => {
+    event.preventDefault();
+    if (submitting || !name.trim()) return;
+    setSubmitting(true);
+    try {
+      if (await onAdd(name.trim())) { setName(""); setOpen(false); }
+    } finally {
+      setSubmitting(false);
+    }
+  }}>
+    <input className="board-input" autoFocus aria-label={ui("新列名称")} placeholder={ui("新列名称")} maxLength={80} disabled={submitting} value={name} onChange={(event) => setName(event.target.value)}
+      onKeyDown={(event) => { if (event.key === "Escape" && !submitting && !(event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229)) { event.stopPropagation(); setOpen(false); setName(""); } }} />
     <div className="board-column__rename-actions">
-      <Button type="submit" variant="primary" size="sm" disabled={!name.trim()}>{ui("添加")}</Button>
-      <Button variant="quiet" size="sm" onClick={() => { setOpen(false); setName(""); }}>{ui("取消")}</Button>
+      <Button type="submit" variant="primary" size="sm" busy={submitting} disabled={!name.trim()}>{ui("添加")}</Button>
+      <Button variant="quiet" size="sm" lock={submitting} onClick={() => { setOpen(false); setName(""); }}>{ui("取消")}</Button>
     </div>
   </form>;
 }
@@ -733,8 +743,10 @@ export default function Board({ state, library, today: todayProp, view: viewProp
     </>}
     {editingCard && <CardEditor key={editing.id} card={editingCard} board={board} baseRevision={editing.revision} library={library} today={today}
       labelSuggestions={labels.map((entry) => entry.label)} saving={saving} error={message} conflict={conflict} onClose={() => { setEditing(null); clearError?.(); }}
-      onSave={async (fields) => { setSaving(true); const ok = await run("board.card.edit", { id: editingCard.id, revision: editing.revision, ...fields }, { optimistic: false }); setSaving(false); if (ok) onBoardChanged?.(); return ok; }}
-      onArchive={async (card) => { setEditing(null); await archiveCard(card); }} onDelete={async (card) => { const ok = await deleteCard(card); if (ok) setEditing(null); return ok; }}
+      onReloadRevision={(rev) => { setEditing((cur) => (cur ? { ...cur, revision: rev } : cur)); clearError?.(); }}
+      onSave={async (fields) => { setSaving(true); try { const ok = await run("board.card.edit", { id: editingCard.id, revision: editing.revision, ...fields }, { optimistic: false }); if (ok) onBoardChanged?.(); return ok; } finally { setSaving(false); } }}
+      onArchive={async (card) => { setSaving(true); try { const ok = await archiveCard(card); if (ok) setEditing(null); return ok; } finally { setSaving(false); } }}
+      onDelete={async (card) => { const ok = await deleteCard(card); if (ok) setEditing(null); return ok; }}
       onOrigin={openRef(onOrigin) && ((workspace) => { setEditing(null); return openRef(onOrigin)(workspace); })}
       onStudyRef={openRef(onStudyRef) && ((ref) => { setEditing(null); return openRef(onStudyRef)(ref); })} />}
     {confirm && <DeleteCardDialog card={confirm.card} purge={confirm.kind === "purge"} onClose={() => setConfirm(null)}

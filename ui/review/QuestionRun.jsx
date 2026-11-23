@@ -319,7 +319,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                     <p>{publicationIssues.join("；")}</p>
                     <Button size="sm" onClick={() => assistAct("improve", uiFormat('发布检查发现：{0}', [publicationIssues.join('; ')]))}>{ui("交给后台修题")}</Button>
                   </Popover>}
-                <Tooltip layer content={ui("标记题目")}><Button icon="flag" variant="quiet" size="sm" aria-label={ui("标记题目")} className="sh-btn--icon question-meta__action" onClick={() => openModal({ type: "flag" })} /></Tooltip>
+                {run.card.flag
+                  ? <Tooltip layer content={uiFormat("已标记：{0}", [run.card.flag])}><Button icon="flag" variant="quiet" size="sm" aria-label={ui("已标记题目，点击查看或修改")} aria-pressed={!!run.card.flag} className="sh-btn--icon question-meta__action is-active" onClick={() => openModal({ type: "flag" })} /></Tooltip>
+                  : <Tooltip layer content={ui("标记题目")}><Button icon="flag" variant="quiet" size="sm" aria-label={ui("标记题目")} aria-pressed={!!run.card.flag} className="sh-btn--icon question-meta__action" onClick={() => openModal({ type: "flag" })} /></Tooltip>}
               </div>
             </div>
             <ProgressBar size="sm" className="card-progress" label={ui("复习进度")} value={position.at} max={Math.max(1, position.total)} />
@@ -436,7 +438,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             </>
           ) : rubricCard ? (
             <>
-              <RubricAnswer key={`rubric:${run.id}:${run.index}:${run.card.id}`} run={run} data={data} value={response} onChange={actions.setResponse} task={gradeTask}
+              <RubricAnswer key={`rubric:${run.id}:${run.index}:${run.card.id}`} run={run} data={data} value={response} onChange={actions.setResponse} task={gradeTask} onRefreshRun={session.pollNow}
                 onSubmit={(text) => assistAct("grade", text, [], undefined, { quiet: true })} onSetupModel={onModelSettings || (() => openSettings("settings-model"))} />
               {voice.answer}
               {prereqStrip}

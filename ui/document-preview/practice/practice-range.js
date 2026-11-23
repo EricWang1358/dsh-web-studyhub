@@ -167,9 +167,41 @@ export function draftToOpen(draftIds, drafts) {
   return null;
 }
 
-/** The sources an option covers, in reading order (for 为这几页出题): the pages of the entries, else the whole document. */
-export function sourceIdsOf(ids, { sections = [], documentSourceIds = [] } = {}) {
+/** The sources an option covers, in reading order (for 为这几页出题): the pages of the entries, else anchored AI outline ranges, else the whole document. */
+export function sourceIdsOf(ids, { sections = [], outline = [], documentSourceIds = [] } = {}) {
   if (!ids) return [...documentSourceIds];
   const found = [...new Set(sections.filter(section => ids.has(section.id) && section.sourceId).map(section => section.sourceId))];
-  return found.length ? found : [...documentSourceIds];
+  if (found.length) return found;
+  if (outline.length && sections.length) {
+    const ordered = [];
+    const order = new Map();
+    for (const section of sections) {
+      if (!section?.sourceId || order.has(section.sourceId)) continue;
+      order.set(section.sourceId, ordered.length);
+      ordered.push(section.sourceId);
+    }
+    if (ordered.length) {
+      const picked = new Set();
+      for (let i = 0; i < outline.length; i += 1) {
+        const entry = outline[i];
+        if (!ids.has(entry.id) || !entry.sourceId || !order.has(entry.sourceId)) continue;
+        const start = order.get(entry.sourceId);
+        let nextEntry = null;
+        for (let j = i + 1; j < outline.length; j += 1) {
+          if (outline[j]?.sourceId && order.has(outline[j].sourceId)) { nextEntry = outline[j]; break; }
+        }
+        let end;
+        if (!nextEntry) {
+          end = ordered.length - 1;
+        } else {
+          const nextStart = order.get(nextEntry.sourceId);
+          if (nextStart <= start) end = start;
+          else end = Number(nextEntry.offset) > 0 ? nextStart : nextStart - 1;
+        }
+        for (let at = start; at <= Math.max(start, end); at += 1) picked.add(at);
+      }
+      if (picked.size) return ordered.filter((_, index) => picked.has(index));
+    }
+  }
+  return [...documentSourceIds];
 }

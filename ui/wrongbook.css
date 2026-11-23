@@ -376,10 +376,11 @@
     .wb-clinic-feedback .wb-consent, .wb-clinic-feedback .wb-leech__notice { margin: 0; }
   }
   @container study (max-width: 640px) {
-    :where(.study-app, .study-seat) {
+    :is(.study-app, .study-seat) {
       .wb-clinic-actions { flex: 1 1 100%; }
       .wb-retrain { align-items: stretch; }
       .wb-retrain-copy { min-width: 0; }
+      .wb-retrain-copy small { white-space: normal; }
       .wb-retrain > .wb-retrain__btn { width: 100%; }
       .wb-retrain .wb-retrain__seg, .wb-retrain-pick { width: 100%; }
       .wb-retrain .wb-retrain__seg-item { flex: 1 1 100%; min-width: 0; justify-content: flex-start; white-space: normal; text-align: left; }
@@ -387,23 +388,17 @@
       .wb-meta { width: auto; max-width: 9em; }
       .wb-row-line .wb-prompt, .wb-rec-line .wb-prompt { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
       .wb-row.is-open .wb-row-line .wb-prompt { display: block; -webkit-line-clamp: unset; overflow: visible; }
-      .wb-row-toggle { flex-wrap: wrap; align-items: flex-start; }
+      .wb-row-toggle { flex-wrap: wrap; align-items: center; }
       .wb-row-toggle .wb-prompt { flex: 1 1 100%; padding-left: var(--space-6); }
       .wb-row-toggle .wb-meta { flex: 1 1 auto; }
       .wb-fixed { flex: 1 1 100%; padding-left: var(--space-6); }
       .wb-rec-toggle .wb-prompt { flex: 1 1 0; }
-      .wb-why { flex: 1 1 100%; white-space: normal; padding-left: var(--space-6); }
+      .wb-rec-line .wb-why { flex: 1 1 100%; white-space: normal; padding-left: var(--space-6); }
+      .wb-rec-line .wb-why-tip { flex: 1 1 100%; }
       .wb-detail { margin-left: var(--space-2); }
       .wb-var.is-failed { max-width: none; }
-    }
-    /* The label above its value on a narrow page: written with the weight of its base rule, which a :where() block does not beat (it left the label column
-       taking a third of the width, and formulas in the value scrolling inside a sliver). */
-    :is(.study-app, .study-seat) {
       .wb-fact { grid-template-columns: minmax(0, 1fr); gap: var(--space-half); }
       .wb-compare { grid-template-columns: minmax(0, 1fr); }
-    }
-    /* The groups and the filter bar of 3.0.2; written with the same weight as their base rules, which a :where() block would not beat. */
-    :is(.study-app, .study-seat) {
       .wb-group-toggle { flex: 1 1 100%; }
       .wb-group-actions { padding-left: var(--space-6); }
       .wb-filter { flex-basis: 100%; }
