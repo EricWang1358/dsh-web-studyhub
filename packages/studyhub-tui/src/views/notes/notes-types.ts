@@ -1,5 +1,6 @@
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
+import { cleanPathInput } from '../../host/sample-actions.js';
 import type { UiLanguage } from '../../types/contracts.js';
 
 export interface NoteCardRef {
@@ -147,7 +148,7 @@ export function defaultExportPath(libraryRoot: string, noteTitle: string): strin
 }
 
 export function expandUserPath(rawPath: string, libraryRoot: string): string {
-  const trimmed = rawPath.trim();
+  const trimmed = cleanPathInput(rawPath);
   if (!trimmed) return '';
   if (trimmed === '~') return homedir();
   if (trimmed.startsWith('~/') || trimmed.startsWith('~\\')) {

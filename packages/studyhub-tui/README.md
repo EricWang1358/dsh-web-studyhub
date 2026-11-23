@@ -31,6 +31,13 @@ npm run tui
 
 # 或指定学习库目录 / 主题 / 语言
 node packages/studyhub-tui/bin/studyhub-tui.mjs --root /path/to/.dsh-study --theme dsh-dark --lang zh
+
+# 无头 CLI 快路径（不启动 Ink，零模型调用，支持 --json 与 --ascii）
+node packages/studyhub-tui/bin/studyhub-tui.mjs --doctor --json
+node packages/studyhub-tui/bin/studyhub-tui.mjs --stats --library /path/to/.dsh-study
+node packages/studyhub-tui/bin/studyhub-tui.mjs --due --course "设计模式" --json
+node packages/studyhub-tui/bin/studyhub-tui.mjs --search Memento --limit 10
+node packages/studyhub-tui/bin/studyhub-tui.mjs --export --json
 ```
 
 ### Windows (PowerShell / Windows Terminal)

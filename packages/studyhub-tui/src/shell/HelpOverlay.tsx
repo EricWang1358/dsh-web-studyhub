@@ -246,6 +246,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       title: t(lang, '命令面板 · Palette', 'Command Palette'),
       items: [
         { key: '/#?@:', label: t(lang, '命令/题/段/课/页筛选', 'Cmd/card/text/course/page') },
+        { key: '/due /theme /lang', label: t(lang, '今日到期刷题/主题与语言持久化', 'Due queue / Theme & lang') },
         { key: '/ascii /math /recover', label: t(lang, 'ASCII/数学符号/恢复中断任务', 'ASCII / Math / Recover jobs') },
         { key: '/compact /hints', label: t(lang, '全16页跳转与界面偏好开关', 'All 16 views & UI toggles') },
         { key: 'I: /  e', label: t(lang, '收件箱筛选与导出 JSON', 'Inbox filter & JSON export') },

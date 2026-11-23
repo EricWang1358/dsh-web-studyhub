@@ -379,6 +379,7 @@ describe('Domain Shell Overlays: CommandPalette, HelpOverlay, SelectList & Inbox
         assert.ok(sourcesSec?.items.some((i) => i.key === 't'), `Missing t in Sources & Reader (${lang})`);
         assert.ok(tasksAudioSec?.items.some((i) => i.key === 'c'), `Missing c in Tasks & Audio (${lang})`);
         assert.ok(paletteSec?.items.some((i) => i.key === '/ascii /math /recover'), `Missing /ascii /math /recover in Palette (${lang})`);
+        assert.ok(paletteSec?.items.some((i) => i.key === '/due /theme /lang'), `Missing /due /theme /lang in Palette (${lang})`);
       }
     });
 
