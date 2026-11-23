@@ -2,20 +2,8 @@
 
 @layer study.features {
   :where(.study-app, .study-seat) {
-    /* Inline Socratic drawer beside the question (#1316): 2-column on wide screens so the question & options stay fully visible and interactive; single-column below on narrow screens. */
-    .review-body.has-socratic {
-      grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
-      column-gap: var(--space-4);
-      align-items: start;
-      padding-right: var(--space-4);
-    }
-
-    .review-body.has-socratic > .question-area {
-      grid-column: 1;
-      min-width: 0;
-    }
-
-    .review-body.has-socratic > .socratic-inline-drawer {
+    /* Inline Socratic drawer beside the question (#1316): grid container rules live in session.css (.review-body.has-socratic); drawer placement lives here. */
+    .has-socratic > .socratic-inline-drawer {
       grid-column: 2;
       position: sticky;
       top: 64px;
@@ -83,7 +71,7 @@
     .socratic-inline__title {
       margin: 0;
       font-size: var(--fs-md);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
       color: var(--text);
     }
 
@@ -113,7 +101,7 @@
       border: 1px solid var(--line-soft);
       background: var(--bg-surface);
       color: var(--text-muted);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       line-height: var(--lh-tight);
     }
 
@@ -133,7 +121,7 @@
     .socratic-inline__notice {
       flex: 0 0 auto;
       padding: var(--space-1-5) var(--space-3);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--text-dim);
       background: var(--bg-sunken);
       border-bottom: 1px solid var(--line-soft);
@@ -183,7 +171,7 @@
     }
 
     .socratic-inline__role {
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       font-weight: var(--fw-medium);
       color: var(--text);
     }
@@ -227,7 +215,7 @@
       background: var(--bg-sunken);
       display: grid;
       gap: var(--space-2);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--text-dim);
       line-height: var(--lh-snug);
     }
@@ -274,7 +262,7 @@
 
     .socratic-inline__error {
       margin: 0;
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--bad-ink);
     }
 
@@ -286,12 +274,7 @@
   /* Narrow screen: degrade cleanly below the question & options, never covering them. */
   @container study (max-width: 959px) {
     :where(.study-app, .study-seat) {
-      .review-body.has-socratic {
-        grid-template-columns: minmax(0, 1fr);
-        padding-right: 0;
-      }
-
-      .review-body.has-socratic > .socratic-inline-drawer {
+      .has-socratic > .socratic-inline-drawer {
         grid-column: 1;
         position: static;
         max-height: none;
@@ -302,12 +285,7 @@
 
   @media (max-width: 959px) {
     :where(.study-app, .study-seat) {
-      .review-body.has-socratic {
-        grid-template-columns: minmax(0, 1fr);
-        padding-right: 0;
-      }
-
-      .review-body.has-socratic > .socratic-inline-drawer {
+      .has-socratic > .socratic-inline-drawer {
         grid-column: 1;
         position: static;
         max-height: none;

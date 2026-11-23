@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
+import { browserStorage } from '../storage.js';
 import { backLabelOf, navLabelOf } from '../pages.js';
 import { trailKindOf } from '../review/way-back.js';
 import {
@@ -92,7 +93,7 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
   const latest = useRef(null);
   const liveEntryOf = () => session.getLive?.()?.entry ?? session.entry;
   latest.current = { page: nav.page, run: session.run, entry: liveEntryOf(), state: lib.state, flushDraft: session.flushDraft, getLive: session.getLive };
-  const safeStorage = () => (typeof window !== 'undefined' ? window.localStorage : null);
+  const safeStorage = () => browserStorage();
 
   // The verbs a learning target is shown with: the page's own state and the page are set together.
   const verbs = useMemo(() => ({

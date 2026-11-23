@@ -20,8 +20,8 @@
       margin-left: var(--space-2);
       flex-shrink: 0;
     }
-    .practice-return-chip,
-    .practice-resume-chip {
+    .practice-return-btn,
+    .practice-resume-btn {
       white-space: nowrap;
       flex-shrink: 0;
     }

@@ -1,7 +1,7 @@
 import React from 'react';
 import Markdown from '../Markdown.jsx';
 import { getUiLanguage, ui, uiFormat } from '../i18n.js';
-import { Badge, Button, Icon } from '../components/index.js';
+import { Badge, Button, Icon, LoadingState } from '../components/index.js';
 import { useStudyServices } from '../study-context.jsx';
 import { useInjectCss } from '../shared.js';
 import css from './socratic-inline.css';
@@ -16,6 +16,42 @@ import {
 } from './socratic-copy.js';
 
 const isImeComposing = (event) => Boolean(event?.nativeEvent?.isComposing || event?.isComposing || event?.keyCode === 229);
+
+/** Local drawer open/dismiss state for inline Socratic tutoring inside QuestionRun (#1316). */
+export function useSocraticInlineState({ run, closeAssist, reviewBodyRef }) {
+  const [open, setOpen] = React.useState(false);
+  const [dismissedKey, setDismissedKey] = React.useState('');
+  const allowed = run?.mode !== 'exam' && !run?.complete && Boolean(run?.card?.id);
+  const toggle = React.useCallback(() => {
+    if (run?.mode === 'exam' || run?.complete) return;
+    setOpen((prev) => !prev);
+  }, [run?.mode, run?.complete]);
+  const activate = React.useCallback(() => {
+    if (run?.mode === 'exam' || run?.complete) return;
+    closeAssist?.();
+    setOpen(true);
+  }, [closeAssist, run?.mode, run?.complete]);
+  const close = React.useCallback(() => setOpen(false), []);
+  const returnToQuestion = React.useCallback(() => {
+    setOpen(false);
+    requestAnimationFrame(() => reviewBodyRef?.current?.querySelector?.('.question-card')?.focus?.({ preventScroll: true }));
+  }, [reviewBodyRef]);
+  return { open: open && allowed, allowed, dismissedKey, setDismissedKey, toggle, activate, close, returnToQuestion };
+}
+
+/** One-line optional nudge shown after a wrong answer (never auto-opens the drawer). */
+export function SocraticWrongNudge({ show, entryKey, dismissedKey, onToggleSocratic, onDismiss }) {
+  if (!show || dismissedKey === entryKey) return null;
+  return (
+    <div className="socratic-nudge" data-testid="socratic-wrong-nudge" role="status">
+      <span className="socratic-nudge__text">{ui('要我用提问的方式带你想清楚吗？')}</span>
+      <span className="socratic-nudge__actions">
+        <Button variant="quiet" size="sm" onClick={onToggleSocratic}>{ui('苏格拉底带学')}</Button>
+        <Button variant="quiet" size="sm" aria-label={ui('关闭带学提示')} onClick={() => onDismiss(entryKey)}>{ui('不用')}</Button>
+      </span>
+    </div>
+  );
+}
 
 /**
  * Inline Socratic tutoring drawer sitting beside the question on wide screens and below on narrow screens (#1316).
@@ -270,7 +306,7 @@ const SocraticInlineDrawer = React.memo(function SocraticInlineDrawer({
         onScroll={handleHistoryScroll}
       >
         {loading && !turns.length ? (
-          <p className="muted small">{ui('正在载入带学进度…')}</p>
+          <LoadingState label={ui('正在载入带学进度…')} />
         ) : turns.map((turn) => (
           <article
             key={turn.id}

@@ -6,7 +6,7 @@ import { isSamePracticeLocation, peekPracticeFrame } from '../practice-context-s
 
 /**
  * Fixed top-bar chip (Issue #1319): visible on ANY page when the practice context stack is non-empty,
- * or shows a quiet "继续上次（第 N 题）" chip on startup when a saved position exists in localStorage.
+ * or shows a quiet "继续上次（第 N 题）" chip on startup when a saved position exists in browser storage.
  */
 export function PracticeReturnChip({
   stack = [],
@@ -36,7 +36,7 @@ export function PracticeReturnChip({
           variant="secondary"
           size="sm"
           icon="arrow-left"
-          className="practice-return-chip"
+          className="practice-return-btn"
           data-practice-return-chip=""
           data-stack-depth={String(depth)}
           data-usage="review.practice-return"
@@ -56,7 +56,7 @@ export function PracticeReturnChip({
         variant="quiet"
         size="sm"
         iconEnd="arrow-right"
-        className="practice-resume-chip"
+        className="practice-resume-btn"
         data-practice-resume-chip=""
         data-usage="review.practice-resume"
         lock={busy}

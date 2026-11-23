@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StudyService } from '../lib/service.js';
-import { SOCRATIC_MAX_TURNS, enforceSingleQuestion } from '../lib/socratic-inline.js';
+import { SOCRATIC_MAX_TURNS, enforceSingleQuestion } from '../lib/contexts/study/socratic-inline.js';
 import { studyStats, wrongBook } from '../lib/insights.js';
 import { wrongDetail } from '../lib/wrong-detail.js';
 import { assistantRefusal } from '../lib/assistant-boundary.js';
@@ -327,8 +327,9 @@ test('6) 统计计入 (#1308) + 错题本显示提示等级 + 宽/窄屏不遮�
   assert.equal(detail.socratic?.hintLevel, 1, 'wrongDetail exposes Socratic hint level');
 
   // Responsive CSS: 2-column beside question on wide screen, single-column below on narrow screen (<=959px), text wraps (#1309)
+  const sessionCss = readFileSync(new URL('../ui/review/session.css', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../ui/review/socratic-inline.css', import.meta.url), 'utf8');
-  assert.match(css, /\.review-body\.has-socratic\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(320px,\s*420px\)/s);
+  assert.match(sessionCss, /\.review-body\.has-socratic\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(320px,\s*420px\)/s);
   assert.match(css, /@container study \(max-width:\s*959px\)/);
   assert.match(css, /@media \(max-width:\s*959px\)/);
   assert.match(css, /\.socratic-inline__body\s*\{[^}]*overflow-wrap:\s*anywhere/s);
