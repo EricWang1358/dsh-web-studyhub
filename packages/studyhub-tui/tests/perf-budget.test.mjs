@@ -150,7 +150,7 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
     const budgets = [
       { file: 'cli.mjs', maxBytes: 15 * 1024 },
       { file: 'boot-frame.mjs', maxBytes: 5 * 1024 },
-      { file: 'App.mjs', maxBytes: 106 * 1024 },
+      { file: 'App.mjs', maxBytes: 64 * 1024 },
     ];
     for (const { file, maxBytes } of budgets) {
       const full = path.join(distDir, file);

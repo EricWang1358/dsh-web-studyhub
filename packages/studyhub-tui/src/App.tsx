@@ -12,8 +12,8 @@ import { nextThemeId } from './theme/index.js';
 import { AppShell } from './shell/AppShell.js';
 import { createDefaultShellActions, type ShellActions } from './shell/actions.js';
 
-// Eagerly load the default landing view; lazy-load secondary views & voice pack modal for fast cold start and lower idle RSS.
-import { LibraryView } from './views/library/LibraryView.js';
+// Lazy-load all views & voice pack modal for fast cold start, tiny App.mjs (~51 KB), and lower idle RSS.
+const LibraryView = lazy(() => import('./views/library/LibraryView.js').then((m) => ({ default: m.LibraryView })));
 
 const VoicePackModal = lazy(() => import('./views/library/VoicePackModal.js').then((m) => ({ default: m.VoicePackModal })));
 

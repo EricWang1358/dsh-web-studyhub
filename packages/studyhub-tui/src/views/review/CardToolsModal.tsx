@@ -189,6 +189,7 @@ export const CardToolsModal = memo(function CardToolsModal({
   const [promptDraft, setPromptDraft] = useState(initialPrompt);
   const [answerDraft, setAnswerDraft] = useState(initialAnswer);
   const [explanationDraft, setExplanationDraft] = useState(initialExplanation);
+  const [confirmDiscardEdit, setConfirmDiscardEdit] = useState(false);
   const baselineRef = useRef({
     prompt: initialPrompt,
     answer: initialAnswer,
@@ -279,6 +280,21 @@ export const CardToolsModal = memo(function CardToolsModal({
   const canAdjustGrade = canAdjustCloze || canAdjustRubric;
 
   const canEditAnswer = kind === 'flashcard' || kind === 'short_answer' || baselineRef.current.answer.length > 0;
+  const editDirty =
+    mode === 'edit' &&
+    (promptDraft !== baselineRef.current.prompt ||
+      (canEditAnswer && answerDraft !== baselineRef.current.answer) ||
+      explanationDraft !== baselineRef.current.explanation);
+
+  const requestCancelEdit = useCallback(() => {
+    if (busy) return;
+    if (editDirty) {
+      setConfirmDiscardEdit(true);
+      return;
+    }
+    setConfirmDiscardEdit(false);
+    setMode('menu');
+  }, [busy, editDirty]);
 
   const handleSaveEdit = useCallback(async () => {
     if (busy) return;
@@ -1213,11 +1229,15 @@ export const CardToolsModal = memo(function CardToolsModal({
         title={modalTitle}
         icon={asciiMode ? '*' : '⚙'}
         tone={mode === 'confirm-slay' ? 'error' : mode === 'terms' ? 'ai' : 'accent'}
-        subtitle={truncateDisplay(String(run.card?.topic || cardId), 24, ell)}
+        subtitle={
+          editDirty
+            ? t(lang, '未保存', 'unsaved')
+            : truncateDisplay(String(run.card?.topic || cardId), 24, ell)
+        }
         width={frameW}
         height={fixedFrameH}
         onClose={handleModalClose}
-        isActive={isActive && mode !== 'edit' && mode !== 'confirm-retry-rewrite' && !confirmCoachRevert && !(mode === 'prereqs' && prereqSearchActive && prereqSearchFocused)}
+        isActive={isActive && mode !== 'edit' && mode !== 'confirm-retry-rewrite' && !confirmCoachRevert && !confirmDiscardEdit && !(mode === 'prereqs' && prereqSearchActive && prereqSearchFocused)}
         hints={hints}
       >
         {mode === 'menu' && placementSummary ? (
@@ -1553,13 +1573,13 @@ export const CardToolsModal = memo(function CardToolsModal({
               submitOnEnter
               height={inputH}
               width={Math.max(12, innerW - 4)}
-              isActive={isActive && mode === 'edit' && editField === 'prompt' && !busy}
+              isActive={isActive && mode === 'edit' && !confirmDiscardEdit && editField === 'prompt' && !busy}
               onTab={() => {
                 cycleEditField();
                 return undefined;
               }}
               onSubmit={() => void handleSaveEdit()}
-              onCancel={() => setMode('menu')}
+              onCancel={requestCancelEdit}
             />
           </Box>
 
@@ -1581,13 +1601,13 @@ export const CardToolsModal = memo(function CardToolsModal({
                   submitOnEnter
                   height={Math.max(1, inputH - 1)}
                   width={Math.max(12, innerW - 4)}
-                  isActive={isActive && mode === 'edit' && editField === 'answer' && !busy}
+                  isActive={isActive && mode === 'edit' && !confirmDiscardEdit && editField === 'answer' && !busy}
                   onTab={() => {
                     cycleEditField();
                     return undefined;
                   }}
                   onSubmit={() => void handleSaveEdit()}
-                  onCancel={() => setMode('menu')}
+                  onCancel={requestCancelEdit}
                 />
               </Box>
             </>
@@ -1613,13 +1633,13 @@ export const CardToolsModal = memo(function CardToolsModal({
               submitOnEnter
               height={inputH}
               width={Math.max(12, innerW - 4)}
-              isActive={isActive && mode === 'edit' && editField === 'explanation' && !busy}
+              isActive={isActive && mode === 'edit' && !confirmDiscardEdit && editField === 'explanation' && !busy}
               onTab={() => {
                 cycleEditField();
                 return undefined;
               }}
               onSubmit={() => void handleSaveEdit()}
-              onCancel={() => setMode('menu')}
+              onCancel={requestCancelEdit}
             />
           </Box>
         </Box>
@@ -1724,6 +1744,29 @@ export const CardToolsModal = memo(function CardToolsModal({
         isActive={isActive && confirmCoachRevert}
         onConfirm={() => void handleConfirmCoachRevert()}
         onCancel={() => setConfirmCoachRevert(false)}
+      />
+    ) : null}
+
+    {confirmDiscardEdit ? (
+      <ConfirmDialog
+        title={t(lang, '放弃未保存的题目修改？', 'Discard unsaved card edits?')}
+        message={t(
+          lang,
+          '当前题干/答案/解析仍有未保存的修改。放弃后将恢复原内容并返回工具菜单。',
+          'You have unsaved edits to this card. Discarding will restore the original text and return to the menu.',
+        )}
+        confirmLabel={t(lang, '放弃修改', 'Discard')}
+        cancelLabel={t(lang, '继续编辑', 'Keep Editing')}
+        danger
+        isActive={isActive && confirmDiscardEdit}
+        onConfirm={() => {
+          setPromptDraft(baselineRef.current.prompt);
+          setAnswerDraft(baselineRef.current.answer);
+          setExplanationDraft(baselineRef.current.explanation);
+          setConfirmDiscardEdit(false);
+          setMode('menu');
+        }}
+        onCancel={() => setConfirmDiscardEdit(false)}
       />
     ) : null}
 

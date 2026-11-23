@@ -287,6 +287,7 @@ export const DraftEditor = memo(function DraftEditor({
   const [editField, setEditField] = useState<'prompt' | 'explanation'>('prompt');
   const [editPrompt, setEditPrompt] = useState('');
   const [editExplanation, setEditExplanation] = useState('');
+  const [confirmDiscardEdit, setConfirmDiscardEdit] = useState(false);
   const [lastRemoved, setLastRemoved] = useState<{
     draftId: string;
     index: number;
@@ -672,8 +673,23 @@ export const DraftEditor = memo(function DraftEditor({
   );
   useFooterHints(hints, isActive);
 
+  const editCardDirty =
+    overlay === 'edit-card' &&
+    Boolean(selectedCard) &&
+    (editPrompt !== String(selectedCard?.prompt || '') || editExplanation !== String(selectedCard?.explanation || ''));
+
+  const requestCloseEditCard = useCallback(() => {
+    if (editCardDirty) {
+      setConfirmDiscardEdit(true);
+      return;
+    }
+    setConfirmDiscardEdit(false);
+    setOverlay('none');
+  }, [editCardDirty]);
+
   useInput(
     (input, key) => {
+      if (confirmDiscardEdit) return;
       if (overlay === 'edit-card') {
         if (key.ctrl && input === 'n') {
           setEditField((f) => (f === 'prompt' ? 'explanation' : 'prompt'));
@@ -681,6 +697,7 @@ export const DraftEditor = memo(function DraftEditor({
           const next = draft.cards.map((c, idx) =>
             idx === selectedOriginalIndex ? { ...c, prompt: editPrompt, explanation: editExplanation } : c,
           );
+          setConfirmDiscardEdit(false);
           setOverlay('none');
           void saveDraftCards(next, t(lang, '题目修改已保存', 'Card updated'));
         }
@@ -1079,13 +1096,14 @@ export const DraftEditor = memo(function DraftEditor({
       {overlay === 'edit-card' && selectedCard ? (
         <Modal
           title={t(lang, `编辑第 ${selectedOriginalIndex + 1} 题`, `Edit Card #${selectedOriginalIndex + 1}`)}
+          subtitle={editCardDirty ? t(lang, '未保存', 'unsaved') : undefined}
           width={72}
-          isActive={isActive}
-          onClose={() => setOverlay('none')}
+          isActive={isActive && !confirmDiscardEdit}
+          onClose={confirmDiscardEdit ? undefined : requestCloseEditCard}
           hints={[
             { key: 'Ctrl+N', label: t(lang, '切换字段', 'Switch field') },
             { key: 'Ctrl+S', label: t(lang, '保存', 'Save') },
-            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+            { key: 'Esc', label: editCardDirty ? t(lang, '放弃/取消', 'Discard') : t(lang, '取消', 'Cancel') },
           ]}
         >
           <Text color={editField === 'prompt' ? theme.primary : theme.muted} bold={editField === 'prompt'}>
@@ -1094,11 +1112,11 @@ export const DraftEditor = memo(function DraftEditor({
           <TextInput
             value={editPrompt}
             onChange={setEditPrompt}
-            onCancel={() => setOverlay('none')}
+            onCancel={requestCloseEditCard}
             multiline
             height={4}
             width={modalContentWidth(72) - 4}
-            isActive={isActive && editField === 'prompt'}
+            isActive={isActive && !confirmDiscardEdit && editField === 'prompt'}
           />
           <Box marginTop={1}>
             <Text color={editField === 'explanation' ? theme.primary : theme.muted} bold={editField === 'explanation'}>
@@ -1108,13 +1126,33 @@ export const DraftEditor = memo(function DraftEditor({
           <TextInput
             value={editExplanation}
             onChange={setEditExplanation}
-            onCancel={() => setOverlay('none')}
+            onCancel={requestCloseEditCard}
             multiline
             height={5}
             width={modalContentWidth(72) - 4}
-            isActive={isActive && editField === 'explanation'}
+            isActive={isActive && !confirmDiscardEdit && editField === 'explanation'}
           />
         </Modal>
+      ) : null}
+
+      {confirmDiscardEdit ? (
+        <ConfirmDialog
+          title={t(lang, '放弃未保存的题目修改？', 'Discard unsaved card edits?')}
+          message={t(
+            lang,
+            '当前草稿题目仍有未保存的修改。放弃后将丢失这些编辑内容。',
+            'You have unsaved edits for this draft card. Closing now will discard them.',
+          )}
+          confirmLabel={t(lang, '放弃修改', 'Discard')}
+          cancelLabel={t(lang, '继续编辑', 'Keep Editing')}
+          danger
+          isActive={isActive && confirmDiscardEdit}
+          onConfirm={() => {
+            setConfirmDiscardEdit(false);
+            setOverlay('none');
+          }}
+          onCancel={() => setConfirmDiscardEdit(false)}
+        />
       ) : null}
 
       {/* Publish Preflight Dry-Run Modal */}

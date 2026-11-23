@@ -1401,6 +1401,49 @@ describe('Round 54: CardToolsModal [R] Failed Rewrite Retry (coach.rewrite.retry
       assert.ok(retryResultScreen.includes('没有待重试的改题'));
       assert.equal(modelCalls, 0, 'coach.rewrite.retry without failed task must make 0 model calls');
 
+      // Round 77: CardToolsModal edit mode Esc dirty guard (clean Esc immediate, dirty Esc confirms)
+      tty.send('1');
+      await tty.waitFor((s) => s.includes('1. 题干 (prompt)') && !s.includes('未保存'), {
+        timeoutMs: 5_000,
+        label: 'CardToolsModal edit mode opened clean',
+      });
+      tty.send('\x1b');
+      await tty.waitFor((s) => s.includes('[R] 重试失败的 AI 改题') && !s.includes('1. 题干 (prompt)'), {
+        timeoutMs: 5_000,
+        label: 'Clean CardToolsModal edit Esc returned immediately to menu',
+      });
+      tty.send('1');
+      await tty.waitFor((s) => s.includes('1. 题干 (prompt)'), {
+        timeoutMs: 5_000,
+        label: 'CardToolsModal edit mode reopened',
+      });
+      tty.send('UNSAVED_R77_CARD');
+      await tty.waitFor((s) => s.includes('UNSAVED_R77_CARD') && s.includes('未保存'), {
+        timeoutMs: 5_000,
+        label: 'CardToolsModal edit shows unsaved badge',
+      });
+      tty.send('\x1b');
+      const cardDiscardScreen = await tty.waitFor((s) => s.includes('放弃未保存的题目修改'), {
+        timeoutMs: 5_000,
+        label: 'CardToolsModal dirty Esc opened ConfirmDialog',
+      });
+      tty.assertHealthyScreen(cardDiscardScreen, 120, 36, 'CardToolsModal discard ConfirmDialog');
+      tty.send('n');
+      await tty.waitFor(
+        (s) => !s.includes('放弃未保存的题目修改') && s.includes('1. 题干 (prompt)') && s.includes('UNSAVED_R77_CARD'),
+        { timeoutMs: 5_000, label: 'CardToolsModal cancel discard preserved edit' },
+      );
+      tty.send('\x1b');
+      await tty.waitFor((s) => s.includes('放弃未保存的题目修改'), {
+        timeoutMs: 5_000,
+        label: 'CardToolsModal discard ConfirmDialog reopened',
+      });
+      tty.send('y');
+      await tty.waitFor(
+        (s) => !s.includes('放弃未保存的题目修改') && !s.includes('1. 题干 (prompt)') && s.includes('[R] 重试失败的 AI 改题'),
+        { timeoutMs: 5_000, label: 'CardToolsModal confirm discard restored menu' },
+      );
+
       tty.send('\x1b');
       await tty.flush(60);
       const closedTools = await tty.waitFor(

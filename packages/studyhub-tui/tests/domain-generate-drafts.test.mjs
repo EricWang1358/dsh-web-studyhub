@@ -1824,7 +1824,37 @@ describe('Domain Generate & Drafts: Suggest, Weak Topics, Path Planner, Source F
       tty.send('\x1b');
       await tty.waitFor(
         (s) => !s.includes('编辑第 2 题') && s.includes('[已筛选 1/3]'),
-        { label: 'Closed edit modal back to filtered DraftEditor (zh)' },
+        { label: 'Closed clean edit modal immediately back to filtered DraftEditor (zh)' },
+      );
+
+      // Round 77: dirty Esc in DraftEditor edit-card opens ConfirmDialog (n preserves, y discards)
+      tty.send('e');
+      await tty.waitFor((s) => s.includes('编辑第 2 题') && !s.includes('未保存'), {
+        label: 'Edit modal reopened clean (zh)',
+      });
+      tty.send('UNSAVED_R77_DRAFT');
+      await tty.waitFor((s) => s.includes('UNSAVED_R77_DRAFT') && s.includes('未保存'), {
+        label: 'DraftEditor edit modal shows unsaved badge',
+      });
+      tty.send('\x1b');
+      const discardDraftDialog = await tty.waitFor(
+        (s) => s.includes('放弃未保存的题目修改'),
+        { label: 'DraftEditor dirty Esc opened ConfirmDialog' },
+      );
+      tty.assertHealthyScreen(discardDraftDialog, 120, 36, 'DraftEditor discard ConfirmDialog');
+      tty.send('n');
+      await tty.waitFor(
+        (s) => !s.includes('放弃未保存的题目修改') && s.includes('编辑第 2 题') && s.includes('UNSAVED_R77_DRAFT'),
+        { label: 'DraftEditor discard cancel preserved unsaved edit' },
+      );
+      tty.send('\x1b');
+      await tty.waitFor((s) => s.includes('放弃未保存的题目修改'), {
+        label: 'DraftEditor discard ConfirmDialog reopened',
+      });
+      tty.send('y');
+      await tty.waitFor(
+        (s) => !s.includes('编辑第 2 题') && !s.includes('放弃未保存的题目修改') && s.includes('[已筛选 1/3]'),
+        { label: 'DraftEditor discard confirm closed edit modal cleanly' },
       );
 
       // Press 'X' to export filtered cards atomically to Markdown
