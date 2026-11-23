@@ -522,7 +522,7 @@ export function wrapDisplay(str: string, maxCols: number): string[] {
   return b.finish();
 }
 
-/** Character-level wrap (keeps every space; used for code blocks). ANSI-safe, preserves `\n`. */
+/** Character-level wrap (keeps every space; used for hard wrapping). ANSI-safe, preserves `\n`. */
 export function wrapHard(str: string, maxCols: number): string[] {
   const max = Math.max(1, Math.floor(maxCols) || 1);
   const b = new LineBuilder(max);
@@ -530,6 +530,77 @@ export function wrapHard(str: string, maxCols: number): string[] {
     if (li > 0) b.breakLine(false);
     b.hardAppend(tokenize(line));
   });
+  return b.finish();
+}
+
+const CODE_PRIMARY_BREAK = new Set([' ', ',', '.']);
+const CODE_SECONDARY_BREAK = new Set([';', '(', '[', '{', '/', '=', ':', '+', '-', '&', '|']);
+
+/**
+ * Code-aware wrap (preserves spaces & indentation, ANSI-safe, preserves `\n`).
+ * Prioritizes breaking after spaces, commas, and dots (then secondary code delimiters)
+ * so identifiers like `RoundingMode` are not split mid-word when a cleaner break exists.
+ */
+export function wrapCode(str: string, maxCols: number): string[] {
+  const max = Math.max(1, Math.floor(maxCols) || 1);
+  const b = new LineBuilder(max);
+
+  str.split('\n').forEach((line, li) => {
+    if (li > 0) b.breakLine(false);
+    const toks = tokenize(line);
+    let pos = 0;
+
+    while (pos < toks.length) {
+      // Scan forward as far as fits within `max` columns.
+      let w = 0;
+      let end = pos;
+      let hitLimit = false;
+      while (end < toks.length) {
+        const tok = toks[end];
+        if (!tok.ansi && tok.w > 0 && w + tok.w > max) {
+          hitLimit = true;
+          break;
+        }
+        w += tok.w;
+        end += 1;
+      }
+
+      if (!hitLimit) {
+        for (let i = pos; i < end; i++) b.appendTok(toks[i]);
+        break;
+      }
+
+      // If even a single visible token at pos exceeds `max`, hard-advance past it.
+      if (end === pos) {
+        b.appendTok(toks[pos]);
+        pos += 1;
+        if (pos < toks.length) b.breakLine(true);
+        continue;
+      }
+
+      // Find the rightmost clean break point in (pos, end) that leaves at least one non-space token before it.
+      let seenNonSpace = false;
+      let primaryBreak = -1;
+      let secondaryBreak = -1;
+      for (let i = pos; i < end; i++) {
+        const tok = toks[i];
+        if (tok.ansi || tok.w === 0) continue;
+        if (tok.s !== ' ') seenNonSpace = true;
+        if (!seenNonSpace) continue;
+        if (CODE_PRIMARY_BREAK.has(tok.s)) {
+          primaryBreak = i + 1;
+        } else if (CODE_SECONDARY_BREAK.has(tok.s)) {
+          secondaryBreak = i + 1;
+        }
+      }
+
+      const breakAt = primaryBreak > pos ? primaryBreak : secondaryBreak > pos ? secondaryBreak : end;
+      for (let i = pos; i < breakAt; i++) b.appendTok(toks[i]);
+      pos = breakAt;
+      if (pos < toks.length) b.breakLine(true);
+    }
+  });
+
   return b.finish();
 }
 

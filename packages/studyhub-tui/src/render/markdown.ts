@@ -15,8 +15,8 @@ import {
   expandTabs,
   padDisplay,
   truncateDisplay,
+  wrapCode,
   wrapDisplay,
-  wrapHard,
   type Align,
 } from './cjk.js';
 import { LruCache } from './lru.js';
@@ -400,7 +400,7 @@ function renderCode(tok: Tokens.Code, width: number, ctx: Ctx): string[] {
       }
     }
   }
-  if (width < 8) return wrapHard(body, width);
+  if (width < 8) return wrapCode(body, width);
   const border = (s.border ??= c.hex(theme.border));
   const muted = (s.muted ??= c.hex(theme.muted));
   const inner = width - 4;
@@ -422,7 +422,7 @@ function renderCode(tok: Tokens.Code, width: number, ctx: Ctx): string[] {
     bottom = border(`╰${'─'.repeat(width - 2)}╯`);
     vBar = border('│');
   }
-  const wrapped = wrapHard(body, inner);
+  const wrapped = wrapCode(body, inner);
   const lines: string[] = new Array(wrapped.length + 2);
   lines[0] = top;
   for (let i = 0; i < wrapped.length; i++) {

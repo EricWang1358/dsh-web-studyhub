@@ -26,7 +26,7 @@ import { TextInput } from '../../components/TextInput.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { LruCache } from '../../render/lru.js';
-import { displayWidth, truncateDisplay } from '../../render/cjk.js';
+import { displayWidth, truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import {
   FSRS_GRADES,
   MAX_TRANSLATION_CACHE,
@@ -1429,17 +1429,27 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
   const innerW = Math.max(20, cardPaneW - 4);
   const progressRatio = totalCount > 0 ? Math.min(1, answeredCount / totalCount) : 0;
+  const panelTitleStr = String(run.title || t(lang, 'FSRS-6 间隔复习', 'FSRS-6 Review'));
+  const panelBadgeStr = `${atNum}/${totalCount}`;
+  const panelSubtitleStr = `${kindLabel(kind, lang)}${topicName ? `${asciiMode ? ' - ' : ' · '}${topicName}` : ''}`;
+  // Detect whether Panel top border had to truncate title or subtitle on narrow widths.
+  const panelHeaderAvail = Math.max(
+    0,
+    cardPaneW - 4 - 2 - (displayWidth(` ${panelBadgeStr} `) + 1) - (panelSubtitleStr ? 2 : 0) - 1,
+  );
+  const panelHeaderTruncated =
+    displayWidth(`${asciiMode ? '>' : '▶'} ${panelTitleStr}`) + displayWidth(panelSubtitleStr) > panelHeaderAvail;
 
   return (
     <Box flexDirection="row" width={width} height={height}>
       {/* Main Question Workspace (hidden on narrow terminals while AI Drawer is open) */}
       {!(aiDrawerOpen && !sideBySideAi) ? (
         <Panel
-          title={String(run.title || t(lang, 'FSRS-6 间隔复习', 'FSRS-6 Review'))}
+          title={panelTitleStr}
           icon={asciiMode ? '>' : '▶'}
-          badge={`${atNum}/${totalCount}`}
+          badge={panelBadgeStr}
           badgeTone="primary"
-          subtitle={`${kindLabel(kind, lang)}${topicName ? ` · ${topicName}` : ''}`}
+          subtitle={panelSubtitleStr}
           focused={mainActive}
           width={cardPaneW}
           height={height}
@@ -1477,6 +1487,18 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
               <Badge label={mathUnicode ? (asciiMode ? 'Unicode' : '∑ Unicode') : 'TeX Raw'} tone="neutral" variant="outline" />
             </Box>
           </Box>
+          {panelHeaderTruncated ? (
+            <Box flexDirection="column" flexShrink={0} width={innerW}>
+              {wrapDisplay(
+                `${panelTitleStr}${asciiMode ? ' | ' : ' · '}${panelSubtitleStr}`,
+                innerW,
+              ).map((line, i) => (
+                <Text key={`hdr-${i}`} color={theme.muted}>
+                  {line}
+                </Text>
+              ))}
+            </Box>
+          ) : null}
 
           <Divider width={innerW} />
 
@@ -1724,10 +1746,10 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
               ) : null}
 
               {(() => {
-                const ell = asciiMode ? '...' : '…';
                 const undoLabel = asciiMode
                   ? t(lang, '[u] 可撤销', '[u] Undoable')
                   : t(lang, '↺ [u] 可撤销', '↺ [u] Undoable');
+                const yoursFull = userAnswerText ? `${t(lang, '你的作答', 'Yours')}: ${userAnswerText}` : '';
                 if (feedback) {
                   const statusLabel = feedback.correct
                     ? asciiMode
@@ -1745,39 +1767,49 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                     2 +
                     (feedback.level ? displayWidth(String(feedback.level)) + 3 : 0) +
                     (canUndo ? displayWidth(undoLabel) + 3 : 0);
+                  const fitsInline = Boolean(yoursFull) && usedW + 1 + displayWidth(yoursFull) <= innerW;
                   return (
-                    <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} marginBottom={0} width={innerW}>
-                      <Badge
-                        label={statusLabel}
-                        tone={feedback.correct ? 'success' : feedback.selfReported ? 'neutral' : 'error'}
-                      />
-                      {feedback.level ? <Badge label={String(feedback.level)} tone="accent" variant="soft" /> : null}
-                      {canUndo ? <Badge label={undoLabel} tone="info" variant="soft" /> : null}
-                      {userAnswerText ? (
-                        <Text color={theme.muted}>
-                          {truncateDisplay(
-                            `${t(lang, '你的作答', 'Yours')}: ${userAnswerText}`,
-                            Math.max(8, innerW - usedW - 1),
-                            ell,
-                          )}
-                        </Text>
+                    <Box flexDirection="column" flexShrink={0} marginBottom={0} width={innerW}>
+                      <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} width={innerW}>
+                        <Badge
+                          label={statusLabel}
+                          tone={feedback.correct ? 'success' : feedback.selfReported ? 'neutral' : 'error'}
+                        />
+                        {feedback.level ? <Badge label={String(feedback.level)} tone="accent" variant="soft" /> : null}
+                        {canUndo ? <Badge label={undoLabel} tone="info" variant="soft" /> : null}
+                        {fitsInline ? <Text color={theme.muted}>{yoursFull}</Text> : null}
+                      </Box>
+                      {yoursFull && !fitsInline ? (
+                        <Box flexDirection="column" flexShrink={0} width={innerW}>
+                          {wrapDisplay(yoursFull, innerW).map((line, i) => (
+                            <Text key={`ans-${i}`} color={theme.muted}>
+                              {line}
+                            </Text>
+                          ))}
+                        </Box>
                       ) : null}
                     </Box>
                   );
                 }
                 if (userAnswerText || canUndo) {
                   const usedW = canUndo ? displayWidth(undoLabel) + 3 : 0;
+                  const fitsInline = Boolean(yoursFull) && usedW + (canUndo ? 1 : 0) + displayWidth(yoursFull) <= innerW;
                   return (
-                    <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} marginBottom={0} width={innerW}>
-                      {canUndo ? <Badge label={undoLabel} tone="info" variant="soft" /> : null}
-                      {userAnswerText ? (
-                        <Text color={theme.muted}>
-                          {truncateDisplay(
-                            `${t(lang, '你的作答', 'Yours')}: ${userAnswerText}`,
-                            Math.max(8, innerW - usedW),
-                            ell,
-                          )}
-                        </Text>
+                    <Box flexDirection="column" flexShrink={0} marginBottom={0} width={innerW}>
+                      {canUndo || fitsInline ? (
+                        <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} width={innerW}>
+                          {canUndo ? <Badge label={undoLabel} tone="info" variant="soft" /> : null}
+                          {fitsInline ? <Text color={theme.muted}>{yoursFull}</Text> : null}
+                        </Box>
+                      ) : null}
+                      {yoursFull && !fitsInline ? (
+                        <Box flexDirection="column" flexShrink={0} width={innerW}>
+                          {wrapDisplay(yoursFull, innerW).map((line, i) => (
+                            <Text key={`ans-${i}`} color={theme.muted}>
+                              {line}
+                            </Text>
+                          ))}
+                        </Box>
                       ) : null}
                     </Box>
                   );
@@ -1986,28 +2018,49 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           <Box flexGrow={1} />
           <Box height={1} width={innerW} overflow="hidden">
             <Text color={theme.dim} wrap="truncate">
-              {truncateDisplay(
-                [
-                  canRubricGrade
-                    ? t(
-                        lang,
-                        '[h]讲解 [L]带学 [*]重点 [F]复述 [G]评分 [A]答题卡 [T]翻译 [S]同类 [D]工具 [Q]队列 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
-                        '[h]Help [L]Teach [*]Focus [F]Retell [G]Grade [A]AnswerCard [T]Trans [S]Sim [D]Tools [Q]Queue [E]Flag [s]Skip [u]Undo [,/.]Nav',
-                      )
-                    : t(
-                        lang,
-                        '[h]讲解 [L]带学 [*]重点 [F]复述 [A]答题卡 [T]翻译 [S]同类 [D]工具 [Q]队列 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
-                        '[h]Help [L]Teach [*]Focus [F]Retell [A]AnswerCard [T]Trans [S]Sim [D]Tools [Q]Queue [E]Flag [s]Skip [u]Undo [,/.]Nav',
-                      ),
-                  canAdjustGrade ? t(lang, '[J]改分', '[J]Adjust') : '',
-                  canAckCorrection ? t(lang, '[K]确认订正', '[K]Ack') : '',
-                  canCoachNudge ? t(lang, '[N]陪学点拨', '[N]Nudge') : '',
-                ]
-                  .filter(Boolean)
-                  .join(' '),
-                innerW,
-                asciiMode ? '...' : '…',
-              )}
+              {(() => {
+                const ell = asciiMode ? '...' : '…';
+                const items = [
+                  t(lang, '[h]讲解', '[h]Help'),
+                  t(lang, '[L]带学', '[L]Teach'),
+                  t(lang, '[*]重点', '[*]Focus'),
+                  t(lang, '[F]复述', '[F]Retell'),
+                  ...(canRubricGrade ? [t(lang, '[G]评分', '[G]Grade')] : []),
+                  t(lang, '[A]答题卡', '[A]AnswerCard'),
+                  t(lang, '[T]翻译', '[T]Trans'),
+                  t(lang, '[S]同类', '[S]Sim'),
+                  t(lang, '[D]工具', '[D]Tools'),
+                  t(lang, '[Q]队列', '[Q]Queue'),
+                  t(lang, '[E]标记', '[E]Flag'),
+                  t(lang, '[s]跳过', '[s]Skip'),
+                  t(lang, '[u]撤销', '[u]Undo'),
+                  t(lang, '[,/.]换题', '[,/.]Nav'),
+                  ...(canAdjustGrade ? [t(lang, '[J]改分', '[J]Adjust')] : []),
+                  ...(canAckCorrection ? [t(lang, '[K]确认订正', '[K]Ack')] : []),
+                  ...(canCoachNudge ? [t(lang, '[N]陪学点拨', '[N]Nudge')] : []),
+                ];
+                const full = items.join(' ');
+                if (displayWidth(full) <= innerW) return full;
+                const moreHint =
+                  innerW >= 32
+                    ? ` ${ell} ${t(lang, '按?看全部', 'Press ? for all')}`
+                    : ` ${ell} [?]`;
+                const budget = Math.max(0, innerW - displayWidth(moreHint));
+                const kept: string[] = [];
+                let used = 0;
+                for (const item of items) {
+                  const w = displayWidth(item);
+                  const sepW = kept.length > 0 ? 1 : 0;
+                  if (used + sepW + w > budget) break;
+                  kept.push(item);
+                  used += sepW + w;
+                }
+                return truncateDisplay(
+                  kept.length > 0 ? `${kept.join(' ')}${moreHint}` : moreHint.trimStart(),
+                  innerW,
+                  ell,
+                );
+              })()}
             </Text>
           </Box>
         </Panel>

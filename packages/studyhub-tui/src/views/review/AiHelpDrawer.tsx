@@ -11,6 +11,7 @@ import { TextInput } from '../../components/TextInput.js';
 import { useInputCapture } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
+import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import {
   MAX_AI_TURNS,
   buildCardHelpSystemPrompt,
@@ -347,9 +348,24 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
   }, [turns, streaming, streamingText, lang, ell]);
 
   const innerW = Math.max(20, width - 4);
-  const suggestH = suggestLoading ? 1 : suggestError ? 1 : suggestions.length > 0 ? suggestions.length : 0;
+  const suggestTextW = Math.max(8, innerW - 4);
+  const wrappedSuggestions = useMemo(
+    () => suggestions.map((q, idx) => ({ idx, q, lines: wrapDisplay(q, suggestTextW) })),
+    [suggestions, suggestTextW],
+  );
   const errorH = errorText ? 1 : 0;
-  const bodyH = Math.max(4, height - 6 - suggestH - errorH);
+  // Overhead inside Panel: border top/bottom (2) + status bar (1) + error (0|1) + input box (3) = 6 + errorH.
+  const flexSpace = Math.max(4, height - 6 - errorH);
+  const rawSuggestH = suggestLoading
+    ? 1
+    : suggestError
+      ? 1
+      : wrappedSuggestions.reduce((n, item) => n + item.lines.length, 0);
+  // Reserve at least 3 rows for transcript body (or 2 on ultra-short terminals) so input box is never pushed off screen.
+  const minBodyH = Math.min(3, Math.max(2, Math.floor(flexSpace * 0.25)));
+  const maxSuggestH = Math.max(0, flexSpace - minBodyH);
+  const suggestH = Math.min(rawSuggestH, maxSuggestH);
+  const bodyH = Math.max(2, flexSpace - suggestH);
 
   return (
     <Panel
@@ -363,8 +379,8 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       height={height}
       paddingX={1}
     >
-      <Box flexDirection="row" alignItems="center" justifyContent="space-between" marginBottom={0}>
-        <Box flexDirection="row" gap={1}>
+      <Box flexDirection="row" alignItems="center" justifyContent="space-between" height={1} width={innerW} flexShrink={0} overflow="hidden">
+        <Box flexDirection="row" gap={1} flexShrink={0}>
           {streaming ? (
             <Spinner
               label={
@@ -380,11 +396,21 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
           )}
           {savingNote ? <Spinner label={t(lang, `保存中${ell}`, `Saving${ell}`)} tone="success" active={isActive} /> : null}
         </Box>
-        <Text color={theme.dim}>{t(lang, '[s] 推荐追问 · [N] 存笔记 · [Esc] 关闭', '[s] Suggest Qs · [N] Note · [Esc] Close')}</Text>
+        <Text color={theme.dim} wrap="truncate">
+          {truncateDisplay(
+            t(
+              lang,
+              asciiMode ? '[s]追问 [N]存笔记 [Esc]关' : '[s] 推荐追问 · [N] 存笔记 · [Esc] 关闭',
+              asciiMode ? '[s]Qs [N]Note [Esc]Close' : '[s] Suggest Qs · [N] Note · [Esc] Close',
+            ),
+            Math.max(10, innerW - 10),
+            ell,
+          )}
+        </Text>
       </Box>
 
       {errorText ? (
-        <Box marginY={0} height={1} overflow="hidden">
+        <Box marginY={0} height={1} width={innerW} flexShrink={0} overflow="hidden">
           <Text color={theme.error} wrap="truncate">
             {`${asciiMode ? 'x' : '✕'} ${errorText} `}
             <Text color={theme.muted}>{t(lang, '([r] 重试)', '([r] Retry)')}</Text>
@@ -392,7 +418,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
         </Box>
       ) : null}
 
-      <Box height={bodyH} width={innerW} overflow="hidden" marginTop={0}>
+      <Box height={bodyH} width={innerW} flexShrink={0} overflow="hidden" marginTop={0}>
         <MarkdownView
           markdown={transcriptMd}
           width={innerW}
@@ -404,23 +430,29 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       </Box>
 
       {suggestLoading ? (
-        <Box height={1} width={innerW} overflow="hidden">
+        <Box height={1} width={innerW} flexShrink={0} overflow="hidden">
           <Spinner label={t(lang, `正在生成推荐追问${ell}`, `Suggesting follow-up questions${ell}`)} tone="ai" active={isActive} />
         </Box>
       ) : suggestError ? (
-        <Box height={1} width={innerW} overflow="hidden">
+        <Box height={1} width={innerW} flexShrink={0} overflow="hidden">
           <Text color={theme.warning} wrap="truncate">
             {`${asciiMode ? '!' : '▲'} ${suggestError}`}
           </Text>
         </Box>
-      ) : suggestions.length > 0 ? (
-        <Box flexDirection="column" height={suggestions.length} width={innerW} overflow="hidden">
-          {suggestions.map((q, idx) => (
-            <Box key={`${idx}:${q}`} height={1} width={innerW} overflow="hidden">
-              <Text color={theme.ai} bold>{`[${idx + 1}] `}</Text>
-              <Text color={theme.text} wrap="truncate">
-                {q}
-              </Text>
+      ) : wrappedSuggestions.length > 0 && suggestH > 0 ? (
+        <Box flexDirection="column" height={suggestH} width={innerW} flexShrink={0} overflow="hidden">
+          {wrappedSuggestions.map(({ idx, q, lines }) => (
+            <Box key={`${idx}:${q}`} flexDirection="column" width={innerW}>
+              {lines.map((line, lineIdx) => (
+                <Box key={`${idx}:${lineIdx}`} height={1} width={innerW} overflow="hidden">
+                  {lineIdx === 0 ? (
+                    <Text color={theme.ai} bold>{`[${idx + 1}] `}</Text>
+                  ) : (
+                    <Text>{'    '}</Text>
+                  )}
+                  <Text color={theme.text}>{line}</Text>
+                </Box>
+              ))}
             </Box>
           ))}
         </Box>
@@ -432,6 +464,8 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
         paddingX={1}
         height={3}
         width={innerW}
+        flexShrink={0}
+        overflow="hidden"
       >
         <TextInput
           value={inputValue}
@@ -439,11 +473,13 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
           isActive={isActive && inputFocused}
           width={Math.max(10, innerW - 6)}
           prompt={asciiMode ? '>' : '›'}
-          placeholder={
+          placeholder={truncateDisplay(
             inputFocused
               ? t(lang, `输入你的追问，Enter 发送${ell}`, `Type your follow-up question, Enter to send${ell}`)
-              : t(lang, '按 [i] 输入追问，[s] 推荐追问，[N] 存笔记', 'Press [i] to ask, [s] suggest Qs, [N] save note')
-          }
+              : t(lang, '按 [i] 输入追问，[s] 推荐追问，[N] 存笔记', 'Press [i] to ask, [s] suggest Qs, [N] save note'),
+            Math.max(10, innerW - 6),
+            ell,
+          )}
           onSubmit={(val) => {
             const trimmed = val.trim();
             if (!trimmed) return;

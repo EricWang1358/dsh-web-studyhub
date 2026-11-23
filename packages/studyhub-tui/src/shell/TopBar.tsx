@@ -53,14 +53,76 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
   const brand = asciiMode ? ' [SH] StudyHub ' : ' ▙▟ StudyHub ';
   const brandShort = asciiMode ? ' [SH] ' : ' ▙▟ ';
   const pageLabel = meta ? ` ${pIcon} ${t(lang, meta.labelZh, meta.labelEn)} ` : '';
-  const courseLabel = truncateDisplay(course ?? t(lang, '全部课程', 'All courses'), 18, ell);
-  const courseText = ` [c] ${courseLabel} `;
-  const modelLabel = truncateDisplay(`${mIcon} ${model.provider}${model.model ? `${sep}${model.model}` : ''}`, 30, ell);
-  const modelText = ` ${modelLabel} `;
+  const rawCourse = course ?? t(lang, '全部课程', 'All courses');
+  const rawModel = `${mIcon} ${model.provider}${model.model ? `${sep}${model.model}` : ''}`;
   const inboxText = asciiMode ? ` [I] M:${unread} ` : ` [I] ✉ ${unread} `;
   const dueText = ` ${t(lang, '今日', 'Due')} ${due} `;
   const jobsText = `  ${jobs} ${t(lang, '任务', 'jobs')} `;
   const helpText = ` [?] ${t(lang, '帮助', 'Help')}  [/] ${t(lang, '命令', 'Cmd')} `;
+
+  // Dynamic budget allocation for course & model so wide terminals never truncate unnecessarily.
+  const COURSE_CHROME = 7; // leading space + " [c] " + trailing space
+  const MODEL_CHROME = 3; // leading space + " " + " "
+  const rawCourseW = displayWidth(rawCourse);
+  const rawModelW = displayWidth(rawModel);
+
+  const staticWidths: Array<{ id: string; priority: number; width: number }> = [
+    { id: 'brand', priority: 100, width: displayWidth(brand) },
+    { id: 'page', priority: 60, width: displayWidth(pageLabel) + 1 },
+    ...(unread > 0 ? [{ id: 'inbox', priority: 55, width: displayWidth(inboxText) + 1 }] : []),
+    ...(jobs > 0 || refreshing ? [{ id: 'jobs', priority: 70, width: displayWidth(jobsText) + 1 }] : []),
+    { id: 'due', priority: 75, width: displayWidth(dueText) + 1 },
+    { id: 'help', priority: 50, width: displayWidth(helpText) + 1 },
+  ];
+
+  const kept = new Set<string>([...staticWidths.map((s) => s.id), 'course', 'model']);
+  const minCourseBudget = Math.min(rawCourseW, 18) + COURSE_CHROME;
+  const minModelBudget = Math.min(rawModelW, 24) + MODEL_CHROME;
+  const staticTotal = () => staticWidths.filter((s) => kept.has(s.id)).reduce((n, s) => n + s.width, 0);
+
+  // Drop lower-priority static segments first if even comfortable course+model caps do not fit.
+  const dropOrder = [...staticWidths].filter((s) => s.id !== 'brand').sort((a, b) => a.priority - b.priority);
+  for (const seg of dropOrder) {
+    if (staticTotal() + minCourseBudget + minModelBudget <= width - 1) break;
+    kept.delete(seg.id);
+  }
+
+  // Allocate all remaining horizontal space between course and model before truncating either.
+  let flexAvail = width - 1 - staticTotal() - COURSE_CHROME - MODEL_CHROME;
+  if (flexAvail < 8) {
+    kept.delete('course');
+    flexAvail = width - 1 - staticTotal() - MODEL_CHROME;
+    if (flexAvail < 4) {
+      kept.delete('model');
+      flexAvail = 0;
+    }
+  }
+
+  let courseCap = rawCourseW;
+  let modelCap = rawModelW;
+  if (kept.has('course') && kept.has('model')) {
+    if (rawCourseW + rawModelW > flexAvail) {
+      const baseCourse = Math.max(4, Math.floor(flexAvail * 0.45));
+      const baseModel = Math.max(4, flexAvail - baseCourse);
+      if (rawCourseW <= baseCourse) {
+        courseCap = rawCourseW;
+        modelCap = Math.max(4, flexAvail - rawCourseW);
+      } else if (rawModelW <= baseModel) {
+        modelCap = rawModelW;
+        courseCap = Math.max(4, flexAvail - rawModelW);
+      } else {
+        courseCap = baseCourse;
+        modelCap = baseModel;
+      }
+    }
+  } else if (kept.has('model')) {
+    modelCap = Math.min(rawModelW, Math.max(4, flexAvail));
+  }
+
+  const courseLabel = truncateDisplay(rawCourse, courseCap, ell);
+  const courseText = ` [c] ${courseLabel} `;
+  const modelLabel = truncateDisplay(rawModel, modelCap, ell);
+  const modelText = ` ${modelLabel} `;
 
   const left: Segment[] = [
     {
@@ -169,9 +231,8 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
     },
   ];
 
-  // Drop lowest-priority segments until the bar fits.
+  // Final safety pass in case any segment rounding still exceeds width - 1.
   const all = [...left, ...right];
-  const kept = new Set(all.map((s) => s.id));
   const total = () => all.filter((s) => kept.has(s.id)).reduce((n, s) => n + s.width, 0);
   const order = [...all].sort((a, b) => a.priority - b.priority);
   for (const seg of order) {
