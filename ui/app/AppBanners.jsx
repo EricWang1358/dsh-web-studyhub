@@ -3,6 +3,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { Banner, Button } from '../components/index.js';
 import { useAppSelector } from './app-context.js';
 import { useStudyBusy } from '../study-context.jsx';
+import { PracticeEndedBanner } from './PracticeReturnChip.jsx';
 
 /* The messages that stay until their cause is gone, all as the one Banner (ui-consistency #87): a recording in progress,
    files the library could not read, and the stashed edit of this window. None of them is accent-coloured: cinnabar is for the
@@ -48,6 +49,19 @@ export function RecoveryBanner() {
   );
 }
 
+/** Notice when returning to a question whose original run has already ended (Issue #1319). */
+export function PracticeEndedNotice() {
+  const learn = useAppSelector((s) => s.learn);
+  if (!learn?.practiceEnded) return null;
+  return (
+    <PracticeEndedBanner
+      ended={learn.practiceEnded}
+      onPracticeAgain={learn.practiceEndedAgain}
+      onDismiss={learn.dismissPracticeEnded}
+    />
+  );
+}
+
 /** The way back after following a link out of a page (the trail the learning navigation keeps). */
 export function ContextReturn() {
   const page = useAppSelector((s) => s.nav?.page);
@@ -55,6 +69,7 @@ export function ContextReturn() {
   const busy = useStudyBusy();
   if (!learn.hasTrail || ['review', 'notes'].includes(page)) return null;
   if (['book', 'outline'].includes(page) && learn.trailPage === 'review') return null;
+  if (learn.trailPage === 'review' && (learn.practiceStack?.length || 0) > 0) return null;
   return (
     <div className="context-return">
       <Button variant="link" size="sm" icon="arrow-left" lock={busy} onClick={learn.returnFromContext}>{learn.trailLabel}</Button>

@@ -150,5 +150,17 @@
   "提交复述": "Submit retelling",
   "提交作答": "Submit answer",
   "苏格拉底带学：用过 {0} 级提示，已通过复述": "Socratic tutor: used {0} hint, retelling passed",
-  "苏格拉底带学：用过 {0} 级提示": "Socratic tutor: used {0} hint"
+  "苏格拉底带学：用过 {0} 级提示": "Socratic tutor: used {0} hint",
+  "回到第 {0} 题": "Back to Q{0}",
+  "回到第 {0} 题（{1}）": "Back to Q{0} ({1})",
+  "按跳转顺序逐层返回，当前共 {0} 层练习上下文": "Step back in jump order ({0} layers in stack)",
+  "按跳转顺序逐层返回，当前共 {0} 层练习上下文#one": "Step back in jump order ({0} layer in stack)",
+  "回到离开前的这道题并恢复未提交作答": "Return to the question you left and restore your uncommitted draft",
+  "继续上次（第 {0} 题）": "Resume last (Q{0})",
+  "原来的第 {0} 题所在练习已结束。": "The practice round for Q{0} has already ended.",
+  "重新练这道题": "Practice this question again",
+  "同类题列表": "Similar questions",
+  "原题": "Original",
+  "做这道题": "Practice this",
+  "当前题": "Current"
 }

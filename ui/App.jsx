@@ -57,7 +57,7 @@ import { isActiveJob } from './job-visibility.js';
 import AppSidebar from './app/AppSidebar.jsx';
 import AppTopbar from './app/AppTopbar.jsx';
 import AppModalHost, { readerOpen } from './app/AppModalHost.jsx';
-import { ContextReturn, IngestBanner, StorageIssuesBanner } from './app/AppBanners.jsx';
+import { ContextReturn, IngestBanner, PracticeEndedNotice, StorageIssuesBanner } from './app/AppBanners.jsx';
 import { DisabledPage, PageView, StartPage } from './app/page-views.jsx';
 import { useInitialLanding } from './app/use-initial-landing.js';
 import { refuseLeavingPress } from './app/leave-guard.js';
@@ -163,6 +163,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                     <AppTopbar title={shellTitleOf(page, { run, decks: data?.decks })} />
                     <IngestBanner />
                     <StorageIssuesBanner />
+                    <PracticeEndedNotice />
                     <ContextReturn />
                     {data && pageAvailable(data, 'live') && liveReady && <LiveClass key={connection.binding.root} data={data} visible={page === 'live'}
                       onSettings={() => nav.navigate('settings')} onSources={() => nav.navigate('sources')}

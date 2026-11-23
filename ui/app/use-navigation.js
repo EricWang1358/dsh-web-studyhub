@@ -15,7 +15,7 @@ export function useNavigation({ core, lib, motion, rootRef, initialPage = 'libra
   const { setError } = core;
   const { setContextTrail, setExamRunId, setExamKind, setBoardStudyRef, setBoardCompose, setNoteInitialId, setGraphScope, setGraphMode, setSkeletonFocus, setManagedDeck,
     setFolderDraft, setWorkflowReturn, setTaskFocus } = lib.set;
-  const motionRef = useRef(motion), pageRef = useRef(page), referenceRef = useRef(() => null);
+  const motionRef = useRef(motion), pageRef = useRef(page), referenceRef = useRef(() => null), leaveReviewRef = useRef(null);
   motionRef.current = motion;
   pageRef.current = page;
   const { refs } = core;
@@ -44,7 +44,10 @@ export function useNavigation({ core, lib, motion, rootRef, initialPage = 'libra
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), []);
   useEffect(() => () => clearTimeout(refs.leaveTimer.current), [refs]);
-  const navigate = useCallback((id, options) => gate.leave(id, () => navigator.navigate(id, options)), [gate, navigator]);
+  const navigate = useCallback((id, options) => gate.leave(id, () => {
+    if (pageRef.current === 'review' && id !== 'review') leaveReviewRef.current?.(id, options);
+    navigator.navigate(id, options);
+  }), [gate, navigator]);
   const show = useMemo(() => {
     // The page's own state is set only once the learner has agreed to leave.
     const to = (id, before) => gate.leave(id, () => { before?.(); rawSetPage(id); });
@@ -64,5 +67,5 @@ export function useNavigation({ core, lib, motion, rootRef, initialPage = 'libra
   const forcePage = useCallback((id) => rawSetPage(id), [rawSetPage]);
   // A change that is no page but replaces the one on screen (a link that first switches the course) asks before it starts.
   const leaving = useCallback((go) => gate.leave(null, go), [gate]);
-  return { page, setPage, forcePage, pageTarget, setPageTarget, navPage: pageTarget || page, navigate, show, leaving, holdLeave: gate.hold, referenceRef };
+  return { page, setPage, forcePage, pageTarget, setPageTarget, navPage: pageTarget || page, navigate, show, leaving, holdLeave: gate.hold, referenceRef, leaveReviewRef };
 }
