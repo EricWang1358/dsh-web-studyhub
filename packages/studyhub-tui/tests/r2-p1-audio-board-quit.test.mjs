@@ -790,7 +790,9 @@ describe('Round 2 P1: AudioView results, BoardView read-only lock, Unified /quit
       await app.tty.waitFor((s) => s.includes('导出 Markdown 文件路径'), { timeoutMs: 6_000 });
       app.tty.send('\r');
       await app.tty.waitFor(
-        () => useTuiStore.getState().toasts.filter((t) => t.tone === 'success' && t.text.includes('已导出到')).length >= 2,
+        (s) =>
+          !s.includes('导出 Markdown 文件路径') &&
+          useTuiStore.getState().toasts.filter((t) => t.tone === 'success' && t.text.includes('已导出到')).length >= 2,
         { timeoutMs: 6_000, label: 'VoicePackModal second export succeeded without overwrite' },
       );
 

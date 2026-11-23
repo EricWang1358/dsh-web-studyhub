@@ -972,6 +972,7 @@ describe('Domain Generate & Drafts: Suggest, Weak Topics, Path Planner, Source F
         stdin: tty.stdin,
         stdout: tty.stdout,
         stderr: tty.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });
@@ -1144,6 +1145,7 @@ describe('Domain Generate & Drafts: Suggest, Weak Topics, Path Planner, Source F
         stdin: tty.stdin,
         stdout: tty.stdout,
         stderr: tty.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });
@@ -1269,6 +1271,7 @@ describe('Domain Generate & Drafts: Suggest, Weak Topics, Path Planner, Source F
         stdin: tty.stdin,
         stdout: tty.stdout,
         stderr: tty.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });
@@ -1419,6 +1422,7 @@ describe('Domain Generate & Drafts: Suggest, Weak Topics, Path Planner, Source F
         stdin: tty.stdin,
         stdout: tty.stdout,
         stderr: tty.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });

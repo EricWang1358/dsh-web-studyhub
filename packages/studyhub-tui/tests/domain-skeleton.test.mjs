@@ -261,6 +261,7 @@ describe('Round 38: SkeletonView safe deletion ([D] + ConfirmDialog) E2E', () =>
         stdin: tty.stdin,
         stdout: tty.stdout,
         stderr: tty.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });
@@ -834,6 +835,7 @@ describe('Round 50: SkeletonView Interactive Diagrams Manager (skeleton.diagram.
         stdin: tty.stdin,
         stdout: tty.stdout,
         stderr: tty.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });

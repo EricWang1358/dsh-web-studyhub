@@ -376,6 +376,7 @@ describe('Domain Sources Organization: FolderModal AI, OrganizeSources P2 Guard 
         stdin: ttyZh.stdin,
         stdout: ttyZh.stdout,
         stderr: ttyZh.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });
@@ -545,6 +546,7 @@ describe('Domain Sources Organization: FolderModal AI, OrganizeSources P2 Guard 
         stdin: ttyEn.stdin,
         stdout: ttyEn.stdout,
         stderr: ttyEn.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });

@@ -2070,6 +2070,7 @@ describe('Round 34: BookView Structure Management Host Integration & PTY E2E', (
         stdin: tty.stdin,
         stdout: tty.stdout,
         stderr: tty.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });
@@ -2324,6 +2325,7 @@ describe('Round 35: TasksView Trace Export (e) & Purge (D)', () => {
         stdin: tty.stdin,
         stdout: tty.stdout,
         stderr: tty.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });

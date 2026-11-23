@@ -294,6 +294,7 @@ async function openBookViewInPty(host, tty, { course, readyPredicate, label }) {
     stdin: tty.stdin,
     stdout: tty.stdout,
     stderr: tty.stderr,
+    interactive: true,
     exitOnCtrlC: false,
     patchConsole: false,
   });

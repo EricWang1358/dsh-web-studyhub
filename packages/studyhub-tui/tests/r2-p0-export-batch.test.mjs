@@ -415,6 +415,7 @@ describe('P1 #4: BookEditModal Esc dirty confirmation (PTY E2E + bundle isolatio
         stdin: tty.stdin,
         stdout: tty.stdout,
         stderr: tty.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });

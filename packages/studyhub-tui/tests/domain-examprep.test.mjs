@@ -243,6 +243,7 @@ describe('Round 45: AddFocusModal AI Focus Topic Matching (focus.suggest + P2 Co
         stdin: ttyZh.stdin,
         stdout: ttyZh.stdout,
         stderr: ttyZh.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });

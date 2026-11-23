@@ -521,6 +521,7 @@ describe('Domain Sources Operations: Pins, Reread, Links, Batch, Original File &
         stdin: tty.stdin,
         stdout: tty.stdout,
         stderr: tty.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });
@@ -808,6 +809,7 @@ describe('Domain Sources Operations: Pins, Reread, Links, Batch, Original File &
         stdin: tty.stdin,
         stdout: tty.stdout,
         stderr: tty.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });
@@ -1019,6 +1021,7 @@ describe('Domain Sources Operations: Pins, Reread, Links, Batch, Original File &
         stdin: tty.stdin,
         stdout: tty.stdout,
         stderr: tty.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });
@@ -1287,6 +1290,7 @@ describe('Domain Sources Operations: Pins, Reread, Links, Batch, Original File &
         stdin: tty.stdin,
         stdout: tty.stdout,
         stderr: tty.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });
@@ -1661,6 +1665,7 @@ describe('Domain Sources Operations: Pins, Reread, Links, Batch, Original File &
         stdin: tty.stdin,
         stdout: tty.stdout,
         stderr: tty.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });

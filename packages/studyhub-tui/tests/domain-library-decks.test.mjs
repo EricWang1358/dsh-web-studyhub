@@ -328,6 +328,7 @@ describe('Round 36: LibraryView deck reordering ([ / ]) E2E', () => {
         stdin: tty.stdin,
         stdout: tty.stdout,
         stderr: tty.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });
@@ -553,6 +554,7 @@ describe('Round 39: Slain Card Restore (card.restore) & Deck Folder Move (deck.m
         stdin: tty.stdin,
         stdout: tty.stdout,
         stderr: tty.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });
@@ -649,6 +651,7 @@ describe('Round 39: Slain Card Restore (card.restore) & Deck Folder Move (deck.m
         stdin: tty.stdin,
         stdout: tty.stdout,
         stderr: tty.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });
@@ -867,6 +870,7 @@ describe('Round 46: Atomic Batch Slay (card.review.batch)', () => {
           stdin: tty.stdin,
           stdout: tty.stdout,
           stderr: tty.stderr,
+          interactive: true,
           exitOnCtrlC: false,
           patchConsole: false,
         },
@@ -1066,6 +1070,7 @@ describe('Round 47: Batch Topic Retagging (card.update.batch)', () => {
           stdin: tty.stdin,
           stdout: tty.stdout,
           stderr: tty.stderr,
+          interactive: true,
           exitOnCtrlC: false,
           patchConsole: false,
         },
@@ -1254,6 +1259,7 @@ describe('Round 49: Batch Prerequisite Linking (card.link.batch via [L])', () =>
           stdin: tty.stdin,
           stdout: tty.stdout,
           stderr: tty.stderr,
+          interactive: true,
           exitOnCtrlC: false,
           patchConsole: false,
         },

@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { readdir } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { join, posix } from 'node:path';
 import { describe, test } from 'node:test';
 import { tsImport } from 'tsx/esm/api';
@@ -236,5 +236,37 @@ describe('P2 #8: Simulated win32 npm.cmd/npx.cmd & Windows long path handling', 
     const normalized = winPackEntries.map((p) => p.replace(/\\/g, '/'));
     assert.deepEqual(normalized, ['bin/studyhub-tui.mjs', 'dist/cli.mjs', 'docs/KEYBINDINGS.md']);
     assert.equal(posix.basename(normalized[0]), 'studyhub-tui.mjs');
+  });
+
+  test('3) Static CI guard: every non-debug Ink render() in tests/*.test.mjs explicitly passes interactive: true', async () => {
+    const files = (await readdir(testsDir)).filter((f) => f.endsWith('.test.mjs')).sort();
+    const offenders = [];
+    for (const file of files) {
+      const src = await readFile(join(testsDir, file), 'utf8');
+      for (const m of src.matchAll(/(?<![.\w])render\s*\(/g)) {
+        let depth = 0;
+        let i = m.index + m[0].length - 1;
+        for (; i < src.length; i += 1) {
+          if (src[i] === '(') depth += 1;
+          else if (src[i] === ')') {
+            depth -= 1;
+            if (depth === 0) break;
+          }
+        }
+        const callText = src.slice(m.index, i + 1);
+        const hasStreams = /\bstdout\b|\bstdin\b/.test(callText);
+        const hasInteractive = /\binteractive\s*:/.test(callText);
+        const hasDebug = /\bdebug\s*:\s*true/.test(callText);
+        if (hasStreams && !hasInteractive && !hasDebug) {
+          const line = src.slice(0, m.index).split('\n').length;
+          offenders.push(`${file}:${line}`);
+        }
+      }
+    }
+    assert.deepEqual(
+      offenders,
+      [],
+      `Found Ink render() calls omitting interactive: true (causes Ink to defer all frames under CI=true): ${offenders.join(', ')}`,
+    );
   });
 });

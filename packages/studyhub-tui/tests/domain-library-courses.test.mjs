@@ -318,6 +318,7 @@ describe('Round 37: Course Merge & Active/Inactive Toggle', () => {
       stdout: tty.stdout,
       stdin: tty.stdin,
       stderr: tty.stderr,
+      interactive: true,
       exitOnCtrlC: false,
       patchConsole: false,
     });
@@ -543,6 +544,7 @@ describe('Round 41: Course Glossary Term Mastery Marking', () => {
       stdout: tty.stdout,
       stdin: tty.stdin,
       stderr: tty.stderr,
+      interactive: true,
       exitOnCtrlC: false,
       patchConsole: false,
     });
@@ -759,6 +761,7 @@ describe('Round 64 Track 3: CourseSettingsModal Tab 3 [a] course.terms.attach', 
       stdout: tty.stdout,
       stdin: tty.stdin,
       stderr: tty.stderr,
+      interactive: true,
       exitOnCtrlC: false,
       patchConsole: false,
     });

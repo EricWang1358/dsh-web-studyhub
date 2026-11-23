@@ -337,6 +337,7 @@ describe('Round 42: Dashboard Knowledge Mastery Map', () => {
       stdout: tty.stdout,
       stdin: tty.stdin,
       stderr: tty.stderr,
+      interactive: true,
       exitOnCtrlC: false,
       patchConsole: false,
     });
@@ -497,6 +498,7 @@ describe('Round 45: StudyMapModal Tab 2 Prerequisite & Topic Dependency Graph', 
       stdout: tty.stdout,
       stdin: tty.stdin,
       stderr: tty.stderr,
+      interactive: true,
       exitOnCtrlC: false,
       patchConsole: false,
     });

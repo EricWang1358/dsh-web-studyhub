@@ -1618,6 +1618,7 @@ describe('Domain Tasks & Audio: AudioView, TasksView Jobs Control/Recovery/Paral
         stdin: tty.stdin,
         stdout: tty.stdout,
         stderr: tty.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });
@@ -1805,6 +1806,7 @@ describe('Domain Tasks & Audio: AudioView, TasksView Jobs Control/Recovery/Paral
         stdin: tty.stdin,
         stdout: tty.stdout,
         stderr: tty.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });
@@ -2047,6 +2049,7 @@ describe('Domain Tasks & Audio: AudioView, TasksView Jobs Control/Recovery/Paral
         stdin: tty.stdin,
         stdout: tty.stdout,
         stderr: tty.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });
@@ -2308,6 +2311,7 @@ describe('Domain Tasks & Audio: AudioView, TasksView Jobs Control/Recovery/Paral
         stdin: tty.stdin,
         stdout: tty.stdout,
         stderr: tty.stderr,
+        interactive: true,
         exitOnCtrlC: false,
         patchConsole: false,
       });
