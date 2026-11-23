@@ -35,6 +35,8 @@ import {
 } from '../../state/practice-stack.js';
 import { LruCache } from '../../render/lru.js';
 import { displayWidth, truncateDisplay, wrapDisplay } from '../../render/cjk.js';
+import { buildFileHyperlinkUrl, formatOsc8Link } from '../../render/osc8.js';
+import { buildReviewQuickActions } from './quick-actions.js';
 import {
   FSRS_GRADES,
   MAX_TRANSLATION_CACHE,
@@ -147,6 +149,7 @@ const CARD_UTIL_KEYS: readonly string[] = Object.freeze([
   'u',
   'o',
   'N',
+  'R',
 ]);
 const RATING_DIGIT_KEYS: readonly string[] = Object.freeze(['0', '1', '2', '3', '4', '5']);
 const CHOICE_DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2', '3', '4', '5', '6']);
@@ -1107,6 +1110,34 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     }
   }, [run, cardId, busy, canAckCorrection, host, applyRun, notify, lang]);
 
+  const canRedo = Boolean(run && cardId && (revealed || feedback));
+
+  const handleRedoCard = useCallback(async () => {
+    if (!run || !cardId || busyRef.current || busy) return;
+    if (!revealed && !feedback) {
+      notify(t(lang, '请先作答或翻看答案后再重做本题', 'Answer or reveal first to redo this card'), 'info');
+      return;
+    }
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const nextRun = await startReview(host, {
+        mode: 'path',
+        scope: [{ deckId: currentDeckIdOf(run) ?? '', cardId }],
+        fresh: true,
+      });
+      if (!mountedRef.current) return;
+      applyRun(nextRun, true);
+      notify(t(lang, '已重做当前题目', 'Restarted current card'), 'info');
+    } catch (err) {
+      if (!mountedRef.current) return;
+      notify(err instanceof Error ? err.message : t(lang, '重做题目失败', 'Failed to redo card'), 'error');
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusy(false);
+    }
+  }, [run, cardId, busy, revealed, feedback, host, applyRun, notify, lang]);
+
   // Phase-aware key claiming: only claim digits when rating (0-5) or picking choices (1-6 / 1-2)
   const anyModalOpen =
     aiDrawerOpen ||
@@ -1178,6 +1209,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     base.push({ key: 'h', label: t(lang, 'AI讲解', 'AI Help') });
     base.push({ key: 'T', label: t(lang, '带学/复述', 'Guided') });
     base.push({ key: '*', label: t(lang, '重点', 'Focus') });
+    if (canRedo) base.push({ key: 'R', label: t(lang, '重做', 'Redo') });
     base.push({ key: 'W', label: t(lang, '翻译', 'Trans') });
     base.push({ key: 'S', label: t(lang, '同类', 'Similar') });
     base.push({ key: 'D', label: t(lang, '工具', 'Tools') });
@@ -1202,6 +1234,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     canAdjustGrade,
     canAckCorrection,
     canCoachNudge,
+    canRedo,
     canUndo,
     mathUnicode,
     asciiMode,
@@ -1300,6 +1333,10 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
       }
       if (input === 'S') {
         setSimilarModalOpen(true);
+        return;
+      }
+      if (input === 'R') {
+        void handleRedoCard();
         return;
       }
       if (input === 'D') {
@@ -1576,6 +1613,18 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     void translationTick;
     return translationCacheRef.current.get(cardId) ?? null;
   }, [showTranslation, cardId, translationTick]);
+
+  const citationUrl = useMemo(() => {
+    if (!citation) return '';
+    const src = snapshot?.sources?.find((s) => s.id === citation.sourceId);
+    const rawPath =
+      (typeof src?.filePath === 'string' && src.filePath) ||
+      (typeof src?.path === 'string' && src.path) ||
+      (typeof src?.localPath === 'string' && src.localPath) ||
+      (typeof src?.url === 'string' && src.url) ||
+      '';
+    return rawPath ? buildFileHyperlinkUrl(rawPath, citation.pageNumber) : '';
+  }, [citation, snapshot?.sources]);
 
   const userAnswerText = useMemo(
     () => extractUserAnswerText(run, kind, selectedIds, clozeInputs, openDraft, lang),
@@ -2377,19 +2426,26 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                 </ClickableBox>
               ) : null}
 
-              {/* Source Citation Bar */}
+              {/* Source Citation Bar (with OSC 8 hyperlink when terminal supports it — Round 84 C2) */}
               {revealed && citation ? (
                 <ClickableBox
                   marginTop={0}
                   clickActive={mainActive}
-                  onClick={() => navigate('sources', { sourceId: citation.sourceId, pageNumber: citation.pageNumber })}
+                  onClick={() => {
+                    pushCurrentToPracticeStack('source');
+                    skipUnmountPushRef.current = true;
+                    navigate('sources', { sourceId: citation.sourceId, pageNumber: citation.pageNumber });
+                  }}
                 >
                   <Text color={theme.info}>
-                    {`${asciiMode ? '#' : '▤'} ${citation.title ? `${citation.title} ` : ''}${
-                      citation.pageNumber != null
-                        ? t(lang, `第 ${citation.pageNumber} 页`, `p.${citation.pageNumber}`)
-                        : ''
-                    } `}
+                    {(() => {
+                      const rawLabel = `${asciiMode ? '#' : '▤'} ${citation.title ? `${citation.title} ` : ''}${
+                        citation.pageNumber != null
+                          ? t(lang, `第 ${citation.pageNumber} 页`, `p.${citation.pageNumber}`)
+                          : ''
+                      }`;
+                      return `${formatOsc8Link(rawLabel, citationUrl, { asciiMode })} `;
+                    })()}
                   </Text>
                   <Text color={theme.accent} bold>
                     {t(lang, '[o] 跳转原文', '[o] Open Source')}
@@ -2434,73 +2490,62 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
             </Box>
           ) : null}
 
-          {/* Bottom utility status strip */}
+          {/* Bottom utility status strip — Quick Action Bar (Round 84 Track B3) */}
           <Box flexGrow={1} />
           <Box height={1} width={innerW} flexDirection="row" overflow="hidden">
             {(() => {
               const ell = asciiMode ? '...' : '…';
-              const items: Array<{ id: string; text: string; onClick: () => void }> = [
-                { id: 'h', text: t(lang, '[h]讲解', '[h]Help'), onClick: () => setAiDrawerOpen((v) => !v) },
-                {
-                  id: 'T',
-                  text: t(lang, '[T]带学', '[T]Guided'),
-                  onClick: () =>
-                    useTuiStore.getState().openAssistant({
-                      tab: 'guided',
-                      stage: 'retell',
-                      cardContext: {
-                        runId: run.id,
-                        deckId: currentDeckIdOf(run) ?? undefined,
-                        cardId: cardId ?? '',
-                        prompt: String(run.card?.prompt || ''),
-                        userAnswer: userAnswerText,
-                        kind,
-                      },
-                    }),
+              const actionHandlers: Record<string, () => void> = {
+                h: () => setAiDrawerOpen((v) => !v),
+                T: () =>
+                  useTuiStore.getState().openAssistant({
+                    tab: 'guided',
+                    stage: 'retell',
+                    cardContext: {
+                      runId: run.id,
+                      deckId: currentDeckIdOf(run) ?? undefined,
+                      cardId: cardId ?? '',
+                      prompt: String(run.card?.prompt || ''),
+                      userAnswer: userAnswerText,
+                      kind,
+                    },
+                  }),
+                S: () => setSimilarModalOpen(true),
+                '*': () => void handleToggleFocus(),
+                R: () => void handleRedoCard(),
+                G: () => void handleRubricGrade(),
+                A: () => setAnswerCardModalOpen(true),
+                W: () => void handleToggleTranslate(),
+                D: () => setCardToolsModalOpen(true),
+                Q: () => {
+                  if (run.mode !== 'exam') setQueueModalOpen(true);
+                  else notify(t(lang, '模拟考试队列已锁定，不能修改', 'Exam queue is locked'), 'info');
                 },
-                { id: '*', text: t(lang, '[*]重点', '[*]Focus'), onClick: () => void handleToggleFocus() },
-                ...(canRubricGrade
-                  ? [{ id: 'G', text: t(lang, '[G]评分', '[G]Grade'), onClick: () => void handleRubricGrade() }]
-                  : []),
-                { id: 'A', text: t(lang, '[A]答题卡', '[A]Card'), onClick: () => setAnswerCardModalOpen(true) },
-                { id: 'W', text: t(lang, '[W]翻译', '[W]Trans'), onClick: () => void handleToggleTranslate() },
-                { id: 'S', text: t(lang, '[S]同类', '[S]Sim'), onClick: () => setSimilarModalOpen(true) },
-                { id: 'D', text: t(lang, '[D]工具', '[D]Tools'), onClick: () => setCardToolsModalOpen(true) },
-                {
-                  id: 'Q',
-                  text: t(lang, '[Q]队列', '[Q]Queue'),
-                  onClick: () => {
-                    if (run.mode !== 'exam') setQueueModalOpen(true);
-                    else notify(t(lang, '模拟考试队列已锁定，不能修改', 'Exam queue is locked'), 'info');
-                  },
+                E: () => {
+                  setFlagReason('');
+                  setFlagModalOpen(true);
                 },
-                {
-                  id: 'E',
-                  text: t(lang, '[E]标记', '[E]Flag'),
-                  onClick: () => {
-                    setFlagReason('');
-                    setFlagModalOpen(true);
-                  },
+                s: () => {
+                  if (!feedback) handleSkip();
                 },
-                {
-                  id: 's',
-                  text: t(lang, '[s]跳过', '[s]Skip'),
-                  onClick: () => {
-                    if (!feedback) handleSkip();
-                  },
-                },
-                { id: 'u', text: t(lang, '[u]撤销', '[u]Undo'), onClick: () => handleUndo() },
-                { id: 'nav', text: t(lang, '[,/.]换题', '[,/.]Nav'), onClick: () => handleMove(1) },
-                ...(canAdjustGrade
-                  ? [{ id: 'J', text: t(lang, '[J]改分', '[J]Adjust'), onClick: () => setGradeAdjustModalOpen(true) }]
-                  : []),
-                ...(canAckCorrection
-                  ? [{ id: 'K', text: t(lang, '[K]确认订正', '[K]Ack'), onClick: () => void handleAckCorrection() }]
-                  : []),
-                ...(canCoachNudge
-                  ? [{ id: 'N', text: t(lang, '[N]陪学点拨', '[N]Nudge'), onClick: () => setNudgeModalOpen(true) }]
-                  : []),
-              ];
+                u: () => handleUndo(),
+                nav: () => handleMove(1),
+                J: () => setGradeAdjustModalOpen(true),
+                K: () => void handleAckCorrection(),
+                N: () => setNudgeModalOpen(true),
+              };
+              const items = buildReviewQuickActions({
+                lang,
+                isCardFocused,
+                canRubricGrade,
+                canRedo,
+                canAdjustGrade,
+                canAckCorrection,
+                canCoachNudge,
+              }).map((a) => ({
+                ...a,
+                onClick: actionHandlers[a.id] ?? (() => {}),
+              }));
               const fullW = items.reduce((n, it, i) => n + displayWidth(it.text) + (i > 0 ? 1 : 0), 0);
               let kept = items;
               let moreHint = '';
@@ -2526,7 +2571,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                     <React.Fragment key={item.id}>
                       {i > 0 ? <Text color={theme.dim}> </Text> : null}
                       <ClickableBox clickActive={mainActive} onClick={item.onClick} flexShrink={0}>
-                        <Text color={theme.dim}>{item.text}</Text>
+                        <Text color={item.primary ? theme.accent : theme.dim}>{item.text}</Text>
                       </ClickableBox>
                     </React.Fragment>
                   ))}

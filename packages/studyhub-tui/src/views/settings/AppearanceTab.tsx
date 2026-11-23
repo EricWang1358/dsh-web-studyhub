@@ -262,7 +262,10 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = memo(function Appeara
     `渲染: ${asciiMode ? 'ASCII' : 'Unicode'}${sep}公式: ${prefs.mathUnicode ? 'Unicode' : 'LaTeX'}${sep}鼠标 SGR 1006: ${mouseEnabled ? 'On' : 'Off'}`,
     `Render: ${asciiMode ? 'ASCII' : 'Unicode'}${sep}Math: ${prefs.mathUnicode ? 'Unicode' : 'LaTeX'}${sep}Mouse SGR 1006: ${mouseEnabled ? 'On' : 'Off'}`,
   );
-  const swatchGroups = innerW < 92 ? [themeSwatches.slice(0, 2), themeSwatches.slice(2)] : [themeSwatches];
+  const swatchGroups =
+    innerW < 92
+      ? [themeSwatches.slice(0, 3), themeSwatches.slice(3)]
+      : [themeSwatches];
 
   return (
     <Box flexDirection="column" width={width} height={height} overflow="hidden">

@@ -56,7 +56,13 @@ export interface ThemeTokens {
   heat: readonly [string, string, string, string, string];
 }
 
-export const THEME_IDS: readonly ThemeId[] = Object.freeze(['dsh-dark', 'warm-paper', 'nord', 'high-contrast']);
+export const THEME_IDS: readonly ThemeId[] = Object.freeze([
+  'dsh-dark',
+  'warm-paper',
+  'nord',
+  'high-contrast',
+  'warm-amber',
+]);
 
 function define(t: ThemeTokens): ThemeTokens {
   return Object.freeze({ ...t, heat: Object.freeze([...t.heat]) as ThemeTokens['heat'] });
@@ -179,11 +185,42 @@ const HIGH_CONTRAST: ThemeTokens = define({
   heat: ['#333333', '#005f87', '#0087d7', '#00afff', '#ffffff'],
 });
 
+/** Low-blue-light eye-care theme #1 (Round 84 Track A3): warm dark amber palette, calibrated >= 4.5:1 WCAG AA. */
+const WARM_AMBER: ThemeTokens = define({
+  id: 'warm-amber',
+  label: 'Warm Amber',
+  dark: true,
+  primary: '#e8a45a',
+  accent: '#d9b574',
+  success: '#8fc17d',
+  warning: '#f2c15c',
+  error: '#e87d6b',
+  ai: '#d39cc6',
+  info: '#8fb4a8',
+  text: '#ede0cc',
+  muted: '#b5a48e',
+  dim: '#8e7e6c',
+  border: '#44392e',
+  borderActive: '#e8a45a',
+  bg: '#1c1814',
+  surface: '#26201a',
+  selectionBg: '#3f3224',
+  selectionFg: '#fbf3e4',
+  heading: '#f4c88c',
+  code: '#f2c15c',
+  codeBg: '#2b231b',
+  link: '#d9b574',
+  quote: '#b5a48e',
+  track: '#332a21',
+  heat: ['#2b231b', '#5c4124', '#8f602b', '#c48338', '#f2c15c'],
+});
+
 const THEMES: Readonly<Record<ThemeId, ThemeTokens>> = Object.freeze({
   'dsh-dark': DSH_DARK,
   'warm-paper': WARM_PAPER,
   nord: NORD,
   'high-contrast': HIGH_CONTRAST,
+  'warm-amber': WARM_AMBER,
 });
 
 /** Resolve a palette by id (unknown ids fall back to `dsh-dark`). */

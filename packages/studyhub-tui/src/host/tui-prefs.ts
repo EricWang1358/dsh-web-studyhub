@@ -8,7 +8,13 @@ import { isAbsolute, join, resolve } from 'node:path';
 import type { AssistantCommandStat, LastPracticeContext, ThemeId, TuiPreferences, UiLanguage } from '../types/contracts.js';
 import { atomicWriteJsonFile } from './atomic-write.js';
 
-export const THEME_IDS: readonly ThemeId[] = Object.freeze(['dsh-dark', 'warm-paper', 'nord', 'high-contrast']);
+export const THEME_IDS: readonly ThemeId[] = Object.freeze([
+  'dsh-dark',
+  'warm-paper',
+  'nord',
+  'high-contrast',
+  'warm-amber',
+]);
 export const UI_LANGUAGES: readonly UiLanguage[] = Object.freeze(['zh', 'en']);
 export const MAX_RECENT_COMMANDS = 12;
 export const MAX_LAST_READ_PAGES = 100;

@@ -267,7 +267,7 @@ describe('parseCliArgs & cliHelpText', () => {
   });
 
   test('supports short flags, equals syntax, and all themes/pages', () => {
-    for (const theme of ['dsh-dark', 'warm-paper', 'nord', 'high-contrast']) {
+    for (const theme of ['dsh-dark', 'warm-paper', 'warm-amber', 'nord', 'high-contrast']) {
       const p = parseCliArgs(['--theme', theme]);
       assert.equal(p.theme, theme);
       assert.equal(p.error, undefined);
