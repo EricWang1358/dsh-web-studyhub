@@ -154,7 +154,7 @@ const OVER_PAGE = /^(?:(?:on)?[oO]pen\w*(?:Modal|Dialog|Sheet|Menu|Composer|Edit
 /** The handlers that take the learner somewhere: a router or a page setter (navigate, nav.show.page, setPage, setScreen, setView, setRoute), a go or open prop
     (onGo…, go…, onOpen…, open…), the settings, the library, the board, the sources, the wrong book, a way back (onBack, onExit), a practice run (onPractice…,
     practice…, startReview, onReviewWeak, act('review.start', …)). */
-const LEAVE = /^(?:navigate|go|goTo|goto|go[A-Z]\w*|enterRun|onSource|onSeek|on(?:Go|Open|Navigate|Practi[cs]e|Library|Board|Today|Sources|WrongBook|Jobs|Tasks|Back|Exit)\w*|on\w*Settings|open[A-Z]\w*|practi[cs]e[A-Z]?\w*|on\w*Practi[cs]e|start(?:Review|Round|Course|Path|Practice|Practise)\w*|onReviewWeak|set(?:Page|Screen|View|Route|Tab))$/;
+const LEAVE = /^(?:navigate|go|goTo|goto|go[A-Z]\w*|enterRun|returnToOrigin|onSource|onSeek|on(?:Go|Open|Navigate|Practi[cs]e|Library|Board|Today|Sources|WrongBook|Jobs|Tasks|Back|Exit)\w*|on\w*Settings|open[A-Z]\w*|practi[cs]e[A-Z]?\w*|on\w*Practi[cs]e|start(?:Review|Round|Course|Path|Practice|Practise)\w*|onReviewWeak|set(?:Page|Screen|View|Route|Tab))$/;
 /** A move inside the open document (the reader's chapter, page or outline): the learner stays in the same reader, as with a scroll. */
 const IN_DOC = /^(?:chapter|chapters|outline|toc|pages?|pdf|scroller)\.(?:go|goTo|open)\w*$/;
 /** The same moves called by the reader itself (DocumentViewer's goToPage / setPdfPage / seekSource, a jump to an entry of its own lists). */

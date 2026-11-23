@@ -123,7 +123,7 @@ export default function Manage({
           e.preventDefault();
           act(
             "deck.course",
-            { id: managedDeck.id, course: folderDraft },
+            { id: managedDeck.id, course: folderDraft.trim() },
             (moved) => {
               setManagedDeck({ ...managedDeck, course: moved.course, folder: "" });
               setFolderDraft(moved.course);
