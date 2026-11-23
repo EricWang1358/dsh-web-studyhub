@@ -13,6 +13,7 @@ import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { renderBarChart } from '../../render/charts.js';
+import { buildExamCountdownPlan, formatExamCountdownSummary } from './exam-planner.js';
 import { currentCourse, listCourses } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
 import { atomicWriteExportText, defaultBackupFilePath } from '../../host/atomic-write.js';
@@ -641,10 +642,24 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
     );
   }, [selectedTopic, width, lang, theme, asciiMode]);
 
+  const resolvedExamDate =
+    (typeof courseRecord?.exam?.date === 'string' ? courseRecord.exam.date : undefined) ??
+    crunch?.examDate ??
+    undefined;
+  const autoCountdownPlan = useMemo(
+    () => buildExamCountdownPlan({ examDate: resolvedExamDate, topics, lang }),
+    [resolvedExamDate, topics, lang],
+  );
+  const countdownSummary = useMemo(
+    () => formatExamCountdownSummary(autoCountdownPlan, lang, asciiMode),
+    [autoCountdownPlan, lang, asciiMode],
+  );
   const showFilterBar = tab === 'focus' && (filterEditing || filterQuery.length > 0);
+  const showCountdownBar = Boolean(countdownSummary) && !showFilterBar && height >= 16;
   const filterBarH = showFilterBar ? 1 : 0;
+  const countdownBarH = showCountdownBar ? 1 : 0;
   const headerH = 3;
-  const bodyH = Math.max(8, height - headerH - filterBarH - (errorMsg ? 1 : 0));
+  const bodyH = Math.max(8, height - headerH - filterBarH - countdownBarH - (errorMsg ? 1 : 0));
 
   const filterBadge = `[${filterEditing ? t(lang, '筛选', 'Filter') : t(lang, '已筛选', 'Filtered')} ${filteredTopics.length}/${topics.length}] `;
   const filterRightHint =
@@ -705,6 +720,13 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
         </Text>
       </Box>
       <Divider width={width} />
+      {showCountdownBar ? (
+        <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+          <Text color={theme.ai} wrap="truncate">
+            {truncateDisplay(countdownSummary, Math.max(10, width - 2), ell)}
+          </Text>
+        </Box>
+      ) : null}
       {showFilterBar ? (
         <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
           <Text color={filterEditing ? theme.primary : theme.accent} bold>

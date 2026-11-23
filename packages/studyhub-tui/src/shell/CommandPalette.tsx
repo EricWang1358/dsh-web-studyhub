@@ -5,6 +5,7 @@ import { t, useTuiStore, type TuiStoreState } from '../state/store.js';
 import { saveTuiPreferences } from '../host/tui-prefs.js';
 import { listThemes, nextThemeId, useTheme } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
+import { probeTerminalCompatMatrix } from '../render/terminal-compat.js';
 import { Modal } from '../components/Modal.js';
 import { TextInput } from '../components/TextInput.js';
 import { nextScrollOffset, parseSgrWheelDelta, useSgrMouseWheel } from '../components/VirtualList.js';
@@ -413,6 +414,20 @@ export function buildPaletteItems(
       );
     },
     ['density', 'compact', 'relaxed', 'spacing', '紧凑', '宽松', '间距'],
+  );
+  act(
+    'cmd:terminal',
+    '/terminal',
+    t(lang, '诊断终端能力矩阵（OSC 52/8/2/9 · tmux/screen · 色彩）', 'Inspect terminal capabilities (OSC 52/8/2/9, mux, color)'),
+    () => {
+      const m = probeTerminalCompatMatrix({ asciiMode });
+      const on = (b: boolean) => (b ? 'ON' : 'off');
+      notify(
+        `mux:${m.mux} L${m.colorLevel} | OSC52:${on(m.osc52Copy)} OSC8:${on(m.osc8Hyperlink)} OSC2:${on(m.osc2Title)} OSC9:${on(m.osc9Notify)}`,
+        'info',
+      );
+    },
+    ['terminal', 'osc', 'tmux', 'screen', 'doctor', '终端', '诊断', '能力'],
   );
   act(
     'cmd:recover',
