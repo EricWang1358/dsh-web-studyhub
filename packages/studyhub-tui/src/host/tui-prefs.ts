@@ -53,6 +53,10 @@ function parseTuiPreferencesObject(source: Record<string, unknown>): TuiPreferen
   const showKeyHints =
     typeof source.showKeyHints === 'boolean' ? source.showKeyHints : DEFAULT_TUI_PREFERENCES.showKeyHints;
   const proactiveHints = typeof source.proactiveHints === 'boolean' ? source.proactiveHints : undefined;
+  const dismissedBriefingDate =
+    typeof source.dismissedBriefingDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(source.dismissedBriefingDate.trim())
+      ? source.dismissedBriefingDate.trim()
+      : undefined;
   const asciiMode = typeof source.asciiMode === 'boolean' ? source.asciiMode : false;
 
   const recentCommands: string[] = [];
@@ -168,6 +172,7 @@ function parseTuiPreferencesObject(source: Record<string, unknown>): TuiPreferen
   return {
     ...base,
     ...(proactiveHints !== undefined ? { proactiveHints } : {}),
+    ...(dismissedBriefingDate ? { dismissedBriefingDate } : {}),
     ...(lastOpenAiPreset ? { lastOpenAiPreset } : {}),
     ...(lastReadPages ? { lastReadPages } : {}),
     ...(lastPracticeContext ? { lastPracticeContext } : {}),

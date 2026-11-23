@@ -102,6 +102,81 @@ export function nextScrollOffset(index: number, offset: number, height: number, 
   return clamp(next, 0, total - height);
 }
 
+interface VirtualListRowProps<T> {
+  item: T;
+  index: number;
+  selected: boolean;
+  width: number;
+  focused: boolean;
+  backgroundColor: string | undefined;
+  renderItem: (item: T, ctx: VirtualListRenderContext) => ReactNode;
+}
+
+function VirtualListRowInner<T>({
+  item,
+  index,
+  selected,
+  width,
+  focused,
+  backgroundColor,
+  renderItem,
+}: VirtualListRowProps<T>) {
+  return (
+    <Box height={1} width={width} overflow="hidden" backgroundColor={backgroundColor}>
+      {renderItem(item, { index, selected, width, focused })}
+    </Box>
+  );
+}
+
+/**
+ * Memoized single list row (Round 85 Track A4 — partial list refresh):
+ * Moving cursor within a window only re-invokes `renderItem` for the 2 rows whose
+ * `selected`/`backgroundColor` changed, skipping every unchanged visible row.
+ */
+const VirtualListRow = memo(VirtualListRowInner, (prev, next) => {
+  return (
+    prev.item === next.item &&
+    prev.index === next.index &&
+    prev.selected === next.selected &&
+    prev.width === next.width &&
+    prev.focused === next.focused &&
+    prev.backgroundColor === next.backgroundColor &&
+    prev.renderItem === next.renderItem
+  );
+}) as <T>(props: VirtualListRowProps<T>) => React.JSX.Element;
+
+interface ScrollbarColumnProps {
+  thumb: readonly boolean[];
+  height: number;
+  active: boolean;
+  primaryColor: string;
+  mutedColor: string;
+  borderColor: string;
+  thumbChar: string;
+  trackChar: string;
+}
+
+const ScrollbarColumn = memo(function ScrollbarColumn({
+  thumb,
+  height,
+  active,
+  primaryColor,
+  mutedColor,
+  borderColor,
+  thumbChar,
+  trackChar,
+}: ScrollbarColumnProps) {
+  return (
+    <Box flexDirection="column" width={1} height={height}>
+      {thumb.map((on, i) => (
+        <Text key={i} color={on ? (active ? primaryColor : mutedColor) : borderColor}>
+          {on ? thumbChar : trackChar}
+        </Text>
+      ))}
+    </Box>
+  );
+});
+
 function VirtualListInner<T>({
   items,
   height,
@@ -213,6 +288,7 @@ function VirtualListInner<T>({
   }
 
   const visible = items.slice(offset, offset + rows);
+  const selectedBg = highlightSelected ? (isActive ? theme.selectionBg : theme.surface) : undefined;
   return (
     <Box width={width} height={rows} flexDirection="row">
       <Box ref={listRef} flexDirection="column" width={contentWidth} height={rows} overflow="hidden">
@@ -221,26 +297,30 @@ function VirtualListInner<T>({
           const selected = index === cursor;
           const key = keyExtractor ? keyExtractor(item, index) : String(index);
           return (
-            <Box
+            <VirtualListRow
               key={key}
-              height={1}
+              item={item}
+              index={index}
+              selected={selected}
               width={contentWidth}
-              overflow="hidden"
-              backgroundColor={selected && highlightSelected ? (isActive ? theme.selectionBg : theme.surface) : undefined}
-            >
-              {renderItem(item, { index, selected, width: contentWidth, focused: isActive })}
-            </Box>
+              focused={isActive}
+              backgroundColor={selected ? selectedBg : undefined}
+              renderItem={renderItem}
+            />
           );
         })}
       </Box>
       {scrollable ? (
-        <Box flexDirection="column" width={1} height={rows}>
-          {thumb.map((on, i) => (
-            <Text key={i} color={on ? (isActive ? theme.primary : theme.muted) : theme.border}>
-              {on ? thumbChar : trackChar}
-            </Text>
-          ))}
-        </Box>
+        <ScrollbarColumn
+          thumb={thumb}
+          height={rows}
+          active={isActive}
+          primaryColor={theme.primary}
+          mutedColor={theme.muted}
+          borderColor={theme.border}
+          thumbChar={thumbChar}
+          trackChar={trackChar}
+        />
       ) : null}
     </Box>
   );

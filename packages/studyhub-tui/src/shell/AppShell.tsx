@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, memo, useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { Box, useApp, useInput, useWindowSize } from 'ink';
+import { Box, useApp, useInput } from 'ink';
 import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type KeyHint, type PageId, type ViewProps } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
 import { useTheme } from '../theme/tokens.js';
@@ -7,6 +7,7 @@ import { KeyHintBar, Spinner, ToastStack } from '../components/Badge.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import { RESERVED_GLOBAL_KEY_SET, isKeyClaimed } from '../components/focus.js';
 import { useMouseClickInputFallback } from '../components/mouse.js';
+import { useStableWindowSize } from '../components/resize.js';
 import { TopBar } from './TopBar.js';
 import { SideNav, sideNavWidth } from './SideNav.js';
 import { ShellActionsContext, createDefaultShellActions, requestQuit, type ShellActions } from './actions.js';
@@ -66,7 +67,7 @@ export const AppShell = memo(function AppShell({
 }: AppShellProps) {
   const theme = useTheme();
   const { exit } = useApp();
-  const { columns, rows } = useWindowSize();
+  const { columns, rows } = useStableWindowSize();
 
   const page = useTuiStore((s) => s.page);
   const lang = useTuiStore((s) => s.preferences.language);
