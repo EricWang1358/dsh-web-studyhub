@@ -191,8 +191,9 @@ export function shortcutAction(event, ctx) {
   if (event.key === 'Escape' && ctx.shortcutHelp) return result({ type: 'help-close' });
   if (event.key === 'Escape' && ctx.endAsked && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) return result({ type: 'end-cancel' }, true);
   if (event.key === 'Escape' && ctx.markingTerms && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) return result({ type: 'mark-terms-exit' }, true);
-  // Shift+V: ask 帮我弄懂 by voice (#1031), on any question outside an exam.
+  // Shift+V: ask 帮我弄懂 by voice (#1031), Shift+T: toggle inline Socratic tutoring beside the question (#1316), outside an exam.
   if (event.shiftKey && event.code === 'KeyV') return result(ctx.page === 'review' && run?.card && !busy && run.mode !== 'exam' ? { type: 'voice-ask' } : null, true);
+  if (event.shiftKey && event.code === 'KeyT') return result(ctx.page === 'review' && run?.card && !busy && run.mode !== 'exam' ? { type: 'socratic-toggle' } : null, true);
   if (event.shiftKey || (event.onButton && (event.key === 'Enter' || event.code === 'Space'))) return result(null);
   const letter = event.key.length === 1 ? event.key.toLowerCase() : '';
   if (letter === 'a') return result({ type: 'autopilot' }, true);

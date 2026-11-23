@@ -514,6 +514,17 @@ function RowDetail({ id, item, course, detail, variants, recs, shortName, rescue
   return (
     <div className="wb-detail" id={id}>
       {item.similarWin && <p className="muted" data-similar-win="">{similarWinLine()}</p>}
+      {(detail?.socratic || item.socratic) && (() => {
+        const soc = detail?.socratic || item.socratic;
+        const levelTag = `L${soc.hintLevel ?? 0}`;
+        return (
+          <p className="muted" data-socratic-meta="">
+            {soc.retellPassed
+              ? uiFormat("苏格拉底带学：用过 {0} 级提示，已通过复述", [levelTag])
+              : uiFormat("苏格拉底带学：用过 {0} 级提示", [levelTag])}
+          </p>
+        );
+      })()}
       {detail === "loading" || detail === undefined ? <LoadingState label={ui("正在读取详情…")} />
         : detail?.error ? <InlineMessage tone="error">{ui("没能读取这道题的详情。收起这道题再点开，就会重新读取。")}</InlineMessage>
           : (

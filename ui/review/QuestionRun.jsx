@@ -23,6 +23,7 @@ import { voteTipMoments } from "../guidance/practice-tips.js";
 import { reviewEntryKey } from "../async.js";
 import ModelErrorNote from "../ModelErrorNote.jsx";
 import TeachingPanel from "./TeachingPanel.jsx";
+import SocraticInlineDrawer from "./SocraticInlineDrawer.jsx";
 import { describeModelError, modelReadiness, plainAssistFailure } from "../generation-status.js";
 import { readableQualityIssue } from "../quality.js";
 import { ReadingBlock, useReadingProps } from "../reading-settings/ReadingSettings.jsx";
@@ -189,6 +190,22 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     answerShown: run.mode !== "exam" && ((showSolution && (run.solution?.followups?.some((item) => item?.kind !== "terms") ?? false)) || (showUnansweredFollowups && (run.followups?.some((item) => item?.kind !== "terms") ?? false))) });
   const [clozeFocusTick, setClozeFocusTick] = React.useState(0);
   const [termListOpen, setTermListOpen] = React.useState(false);
+  const [socraticOpen, setSocraticOpen] = React.useState(false);
+  const [socraticNudgeDismissedKey, setSocraticNudgeDismissedKey] = React.useState("");
+  const toggleSocratic = React.useCallback(() => {
+    if (run.mode === "exam" || run.complete) return;
+    setSocraticOpen((open) => !open);
+  }, [run.mode, run.complete]);
+  const activateSocratic = React.useCallback(() => {
+    if (run.mode === "exam" || run.complete) return;
+    closeAssist();
+    setSocraticOpen(true);
+  }, [closeAssist, run.mode, run.complete]);
+  const closeSocratic = React.useCallback(() => setSocraticOpen(false), []);
+  const returnToQuestion = React.useCallback(() => {
+    setSocraticOpen(false);
+    requestAnimationFrame(() => reviewBodyRef.current?.querySelector?.(".question-card")?.focus?.({ preventScroll: true }));
+  }, []);
   const reviewBodyRef = React.useRef(null);
   const choiceFeedbackRef = React.useRef(null);
   const verdictFocusRef = React.useRef(null);
@@ -221,7 +238,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const barStuck = !!run.feedback || barGrading;
   const liveAnnouncement = useQuestionRunA11y({ entryKey, run, hasFeedback, choice, isCloze, gradeTask, autoAdvanceActive, reviewBodyRef, choiceFeedbackRef, verdictFocusRef });
   const voice = useVoiceAnswer({ session: liveSession, data, model, rubricCard, setAssistMode, setAssistText: setAssistTextForVoice });
-  const roundSteps = useRoundSteps({ session: liveSession, run, sources: data?.sources, openModal, onNote: onMakeNote, toggleFocus: toggleCardFocus, voiceKeys: voice.keys,
+  const roundSteps = useRoundSteps({ session: liveSession, run, sources: data?.sources, openModal, onNote: onMakeNote, toggleFocus: toggleCardFocus, toggleSocratic, voiceKeys: voice.keys,
     focusCloze: isCloze && !run.feedback && !busy ? () => setClozeFocusTick((n) => n + 1) : undefined });
   const { caseSource, caseHighlights, saveHighlights } = useCaseHighlights({ run, data, call });
   const cardNotes = data?.noteBadges?.[run.card?.id] || [];
@@ -280,8 +297,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
       )}
     </div>
   );
+  const showSocraticDrawer = socraticOpen && run.mode !== "exam" && !run.complete && !!run.card?.id;
   return (
-    <div className={"review-body" + (termMarks.marking ? " is-marking" : "")} ref={reviewBodyRef}>
+    <div className={"review-body" + (termMarks.marking ? " is-marking" : "") + (showSocraticDrawer ? " has-socratic" : "")} ref={reviewBodyRef}>
       <div className="sh-visually-hidden" role="status" aria-live="polite" aria-atomic="true" data-live-announcer="question-run">
         {liveAnnouncement}
       </div>
@@ -562,6 +580,15 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           {run.feedback && run.mode !== "exam" && !run.complete && run.stubborn && (run.stubborn.isLeech || (answeredWrong && run.stubborn.missCount >= 2)) && (
             <StubbornCue stubborn={run.stubborn} onAsk={() => setAssistPanel("ask", { choices: ["plain", "mistake"] })} onImprove={() => setAssistPanel("improve")} />
           )}
+          {answeredWrong && run.mode !== "exam" && !run.complete && !showSocraticDrawer && socraticNudgeDismissedKey !== entryKey && (
+            <div className="socratic-nudge" data-testid="socratic-wrong-nudge" role="status">
+              <span className="socratic-nudge__text">{ui("要我用提问的方式带你想清楚吗？")}</span>
+              <span className="socratic-nudge__actions">
+                <Button variant="quiet" size="sm" onClick={() => { closeAssist(); setSocraticOpen(true); }}>{ui("苏格拉底带学")}</Button>
+                <Button variant="quiet" size="sm" aria-label={ui("关闭带学提示")} onClick={() => setSocraticNudgeDismissedKey(entryKey)}>{ui("不用")}</Button>
+              </span>
+            </div>
+          )}
           {autoAdvanceActive && (
             <div className={"question-card__autopilot" + (autoAdvancePaused ? " is-paused" : "")}
               key={"card-auto:" + (session.advanceKey || run.index)}
@@ -578,6 +605,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           <ReviewToolbar
             key={`${run.id}:${run.index}:${run.card?.id}`}
             assistMode={assistMode}
+            socraticOpen={showSocraticDrawer}
+            onToggleSocratic={run.mode !== "exam" && !run.complete ? toggleSocratic : undefined}
             markingTerms={termMarks.marking}
             onToggleMarkTerms={termMarks.toggleMarking}
             run={run} expanded={(run.revealed || showBack) ? explain : hint} revealed={!!(run.revealed || showBack)}
@@ -634,7 +663,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             <AssistFormPanel key={`assist:${entryKey}:${assistMode}`} mode={assistMode} seed={assistSeed} entryKey={entryKey}
               activeEntryKeyRef={activeEntryKeyRef} run={run} model={model} modelSettings={modelSettings} feedback={feedback}
               fixPhrases={fixPhrases} courseRules={courseRules} voiceAskButton={voice.askButton} assistAct={assistAct}
-              studyPrerequisites={studyPrerequisites} reviewBodyRef={reviewBodyRef} textSetterRef={assistTextSetterRef} onClose={closeAssist} />
+              studyPrerequisites={studyPrerequisites} reviewBodyRef={reviewBodyRef} textSetterRef={assistTextSetterRef}
+              onClose={closeAssist} onOpenSocratic={run.mode !== "exam" ? activateSocratic : undefined} />
           )}
           {inFlightTerms.length > 0 && (
             <p className="assist-status" role="status">
@@ -737,6 +767,20 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           nextDueNode={run.feedback ? <NextDue feedback={run.feedback} telemetry={run.feedbackTelemetry} whyOnly /> : null} />
         <TeachingPanel session={liveSession} data={data} model={model} onModelSettings={modelSettings} />
       </div>
+      {showSocraticDrawer && (
+        <SocraticInlineDrawer
+          key={`socratic:${run.deckId}:${run.card.id}`}
+          deckId={run.deckId}
+          cardId={run.card.id}
+          runId={run.id}
+          prompt={run.card.prompt || ""}
+          topic={run.card.topic || ""}
+          modelReady={model.ready}
+          onClose={closeSocratic}
+          onCloseToQuestion={returnToQuestion}
+          onNotify={notify}
+        />
+      )}
     </div>
   );
 }
