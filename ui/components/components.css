@@ -175,8 +175,10 @@
       text-decoration-color: currentColor;
     }
     .sh-btn--link:disabled { background: none; }
-    /* A link-style button that wraps still reads as running text. */
-    .sh-btn--link[class~="sh-btn--wrap"] { display: inline; text-align: start; }
+    /* A link-style button that wraps still reads as running text; its trailing icon stays with the last word (#1155). */
+    .sh-btn--link[class~="sh-btn--wrap"] { display: inline; min-width: 0; text-align: start; }
+    .sh-btn--link[class~="sh-btn--wrap"] .sh-spinner { display: inline-block; vertical-align: -0.18em; margin-inline-start: var(--space-1-5); }
+    .sh-btn__tail { white-space: nowrap; }
     .sh-btn--danger {
       background: transparent;
       border-color: var(--bad-line);
