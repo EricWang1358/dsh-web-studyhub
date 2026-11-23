@@ -12,8 +12,13 @@ import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
-import { renderBarChart } from '../../render/charts.js';
-import { buildExamCountdownPlan, formatExamCountdownSummary } from './exam-planner.js';
+import { renderBarChart, renderStatTable } from '../../render/charts.js';
+import {
+  buildExamCountdownPlan,
+  buildGapFillWorkflowSteps,
+  formatExamCountdownSummary,
+  renderExamScheduleTable,
+} from './exam-planner.js';
 import { buildExamGapAlert } from './exam-gap-alert.js';
 import { currentCourse, listCourses } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
@@ -34,7 +39,7 @@ import {
   type PrepTab,
 } from './types.js';
 
-const CLAIMED_KEYS = ['1', '2', 'a', 'd', 'g', 'G', 'm', 'p', 'P', ' ', '/', 'x', 'Z'] as const;
+const CLAIMED_KEYS = ['1', '2', 'a', 'd', 'g', 'G', 'm', 'p', 'P', ' ', '/', 'x', 'Z', 'T'] as const;
 
 export interface FormatExamPrepMarkdownParams {
   course?: string | null;
@@ -182,6 +187,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const [filterQuery, setFilterQuery] = useState('');
   const [filterEditing, setFilterEditing] = useState(false);
   const [gapAlertDismissed, setGapAlertDismissed] = useState(false);
+  const [showScheduleTable, setShowScheduleTable] = useState(false);
 
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [planModalOpen, setPlanModalOpen] = useState(false);
@@ -584,6 +590,10 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
         notify(t(lang, '本次会话已隐藏考期预警', 'Exam gap alert dismissed for this session'), 'info');
         return;
       }
+      if (input === 'T') {
+        setShowScheduleTable((v) => !v);
+        return;
+      }
       if (key.ctrl && input === 'r') {
         void loadAll();
         return;
@@ -868,12 +878,68 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
             )}
             right={(sz) => (
               <Panel
-                title={selectedTopic ? truncateDisplay(selectedTopic.topic, Math.max(10, sz.width - 14), asciiMode ? '...' : '…') : t(lang, '详情', 'Detail')}
+                title={
+                  showScheduleTable
+                    ? t(lang, '排程与重点矩阵 [T]详情', 'Schedule & Matrix [T]Detail')
+                    : selectedTopic
+                      ? truncateDisplay(selectedTopic.topic, Math.max(10, sz.width - 14), asciiMode ? '...' : '…')
+                      : t(lang, '详情', 'Detail')
+                }
+                subtitle={t(lang, '[T]排程表', '[T]Table')}
                 focused={focusPane === 'right'}
                 width={sz.width}
                 height={sz.height}
               >
-                {selectedTopic ? (
+                {showScheduleTable ? (
+                  <Box flexDirection="column" gap={0}>
+                    {(() => {
+                      const innerW = Math.max(16, sz.width - 4);
+                      const schedLines = renderExamScheduleTable(autoCountdownPlan, innerW, theme, { lang, ascii: asciiMode });
+                      const gapSteps = buildGapFillWorkflowSteps(autoCountdownPlan, lang);
+                      const matrixLines =
+                        schedLines.length > 0
+                          ? schedLines
+                          : renderStatTable(
+                              [
+                                { key: 'topic', label: t(lang, '重点', 'Topic'), align: 'left', minWidth: 8 },
+                                { key: 'status', label: t(lang, '状态', 'Status'), align: 'left', width: 6 },
+                                { key: 'cards', label: t(lang, '题数', 'Qty'), align: 'right', width: 4 },
+                                { key: 'mastery', label: t(lang, '掌握', 'Mast'), align: 'right', width: 5 },
+                              ],
+                              filteredTopics.slice(0, Math.max(2, sz.height - 5)).map((tp) => ({
+                                topic: tp.topic,
+                                status: focusStatusLabel(tp.status, lang),
+                                cards: tp.cards,
+                                mastery: tp.cards > 0 ? `${Math.round((tp.mastery || 0) * 100)}%` : '-',
+                              })),
+                              innerW,
+                              theme,
+                              { ascii: asciiMode },
+                            );
+                      return (
+                        <>
+                          {matrixLines.slice(0, Math.max(3, sz.height - (gapSteps.length > 0 ? 6 : 3))).map((line, i) => (
+                            <Text key={`ep-tbl-${i}`} wrap="truncate">
+                              {line}
+                            </Text>
+                          ))}
+                          {gapSteps.length > 0 ? (
+                            <Box flexDirection="column" marginTop={1}>
+                              <Text color={theme.accent} bold>
+                                {t(lang, '缺口自动补齐步骤（写操作需确认）:', 'Auto Gap-Fill Steps (writes confirmed):')}
+                              </Text>
+                              {gapSteps.slice(0, 3).map((s) => (
+                                <Text key={`gs-${s.index}`} color={s.requiresConfirm ? theme.warning : theme.muted} wrap="truncate">
+                                  {truncateDisplay(`${s.index + 1}. ${s.label}`, innerW, ell)}
+                                </Text>
+                              ))}
+                            </Box>
+                          ) : null}
+                        </>
+                      );
+                    })()}
+                  </Box>
+                ) : selectedTopic ? (
                   <Box flexDirection="column" gap={1}>
                     <Box gap={1}>
                       <Badge label={focusStatusLabel(selectedTopic.status, lang)} tone={focusStatusTone(selectedTopic.status)} />

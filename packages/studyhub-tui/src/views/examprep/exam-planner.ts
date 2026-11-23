@@ -6,6 +6,8 @@
  * computes daily card/topic quotas, and produces a rolling 7-day plan — 0 LLM tokens, pure O(n).
  */
 import type { UiLanguage } from '../../types/contracts.js';
+import type { ThemeTokens } from '../../theme/tokens.js';
+import { renderStatTable } from '../../render/charts.js';
 import type { FocusTopicProgress } from './types.js';
 
 export type ExamPhaseKind = 'gap_fill' | 'consolidate' | 'mock_polish';
@@ -279,4 +281,81 @@ export function formatExamCountdownSummary(
   return lang === 'en'
     ? `${icon} Auto Plan (${plan.daysLeft}d left): ${activePhase}${sep}~${plan.dailyCardTarget} cards/day${gapPart}`
     : `${icon} 考期倒推 (${plan.daysLeft}天)：${activePhase}${sep}日均 ${plan.dailyCardTarget} 题${gapPart}`;
+}
+
+export interface GapFillWorkflowStep {
+  index: number;
+  kind: 'generate_gap' | 'drill_weak' | 'mock_exam';
+  topic: string;
+  requiresConfirm: boolean;
+  label: string;
+}
+
+/**
+ * Build an ordered, P2-guarded gap-fill remediation workflow from an ExamCountdownPlan (Round 94 Track D8).
+ * Generation steps always require P2 confirmation; practice steps execute directly.
+ */
+export function buildGapFillWorkflowSteps(
+  plan: ExamCountdownPlan | null,
+  lang: UiLanguage,
+): GapFillWorkflowStep[] {
+  if (!plan || plan.status === 'past') return [];
+  const zh = lang !== 'en';
+  const steps: GapFillWorkflowStep[] = [];
+  for (const topic of plan.gapTopics.slice(0, 3)) {
+    steps.push({
+      index: steps.length,
+      kind: 'generate_gap',
+      topic,
+      requiresConfirm: true,
+      label: zh ? `补齐缺题：「${topic}」（AI 出题，需确认）` : `Gap-fill "${topic}" (AI generate, confirm)`,
+    });
+  }
+  for (const topic of plan.weakTopics.slice(0, 2)) {
+    steps.push({
+      index: steps.length,
+      kind: 'drill_weak',
+      topic,
+      requiresConfirm: false,
+      label: zh ? `专项巩固：「${topic}」（错题重练）` : `Drill weak "${topic}" (practice)`,
+    });
+  }
+  if (plan.daysLeft >= 1 && plan.daysLeft <= 10) {
+    steps.push({
+      index: steps.length,
+      kind: 'mock_exam',
+      topic: zh ? '全真限时模拟' : 'Timed Mock Exam',
+      requiresConfirm: false,
+      label: zh ? `考前检验：限时模拟卷（距考 ${plan.daysLeft} 天）` : `Exam check: Timed mock (${plan.daysLeft}d left)`,
+    });
+  }
+  return steps;
+}
+
+/** Render the rolling 7-day exam countdown schedule via borderless CJK-aligned `renderStatTable` (Round 94 Track A12). */
+export function renderExamScheduleTable(
+  plan: ExamCountdownPlan | null,
+  width: number,
+  theme: Pick<ThemeTokens, 'primary' | 'track' | 'muted' | 'dim' | 'heat' | 'text'>,
+  opts: { lang: UiLanguage; ascii?: boolean },
+): string[] {
+  if (!plan || plan.next7Days.length === 0) return [];
+  const zh = opts.lang !== 'en';
+  return renderStatTable(
+    [
+      { key: 'date', label: zh ? '日期' : 'Date', align: 'left', width: 10 },
+      { key: 'phase', label: zh ? '阶段' : 'Phase', align: 'left', minWidth: 8 },
+      { key: 'topic', label: zh ? '主攻重点' : 'Focus', align: 'left', minWidth: 8 },
+      { key: 'cards', label: zh ? '题量' : 'Qty', align: 'right', width: 4 },
+    ],
+    plan.next7Days.map((slot) => ({
+      date: slot.dateKey,
+      phase: slot.phaseLabel,
+      topic: slot.primaryTopic,
+      cards: slot.targetCards,
+    })),
+    width,
+    theme,
+    { ascii: opts.ascii },
+  );
 }
