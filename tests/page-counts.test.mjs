@@ -152,6 +152,18 @@ test('the course line counts pages with no searchable text as their own category
   assert.doesNotMatch(en, han);
 });
 
+test('format-upgrade-only pages say 待升级索引格式 instead of 还没建索引, and upgrade action wording matches (#1291)', () => {
+  const upgradePlan = plan({ toIndex: 4, toAdd: 0, toUpgrade: 4, unchanged: 584 });
+  const line = courseScopeLine(upgradePlan, COURSE);
+  assert.match(line, /4 页待升级索引格式/);
+  assert.doesNotMatch(line, /还没建索引/);
+  const upgradeTip = indexTip({ state: 'stale', stale: 0, migrate: 4, indexed: 400, total: 404 });
+  assert.match(upgradeTip[0], /正文没有改/);
+  assert.match(upgradeTip[0], /不调用 AI/);
+  const act = indexAction({ plan: upgradePlan, document: { info: { state: 'indexed', indexed: 404, total: 404 }, courses: [COURSE] }, course: COURSE, names: [COURSE] });
+  assert.equal(act.label, '为这门课升级 4 页索引格式');
+});
+
 test('whose pages are missing decides the button: this document’s own, or other materials’ that the course holds', () => {
   const own = { info: { state: 'partial', indexed: 100, total: 404 }, courses: [COURSE] };
   const done = { info: { state: 'indexed', indexed: 404, total: 404 }, courses: [COURSE] };

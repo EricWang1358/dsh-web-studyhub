@@ -79,10 +79,10 @@ StudyHub 读取 PDF 的文字层，按页保存，并把你选中的页面交给
   全新安装立即生效；替换已装的版本要重启 DSH，页面会说明。这一版 StudyHub 带了改过的检索扩展时（多数版本不带），页面会提供「更新检索扩展」。
 - **为什么不用另装别的。** 插件用 DSH 自己运行的 Node 启动服务器，并在自己的包旁边找到服务器的入口文件。服务器需要 Node 22 或以上；DSH 的 Node 太旧时，插件不会启动它，并在日志里说明原因。
 - **建立索引。** 点「为这门课建立检索索引」，课程的页面会逐页交给服务器，每页用自己的 id，所以每条命中都能精确对应到页。
-  - 只发送新的或改过的页；已不在学习库里的页会被移除。
+  - 只发送新的、改过的或待升级索引格式的页；已不在学习库里的页会被移除。
   - 在后台进行，有进度和「停止」按钮；已建好的部分会保留，下次接着建。
   - 这次建立是「任务」里的一项（「建立检索索引 · 课程名」）：显示已完成的页数和总页数、在本机运行不调用 AI，可以停止，停下时写出原因，完成后写出新增了多少页；进度旁的「在任务里查看」直接打开它。在同一个正在运行的 StudyHub 里，正在建的时候再点开始，显示的是正在建的那一次，不会另起一次；更新 StudyHub 后请重启 DSH，因为还留在内存里的旧版本看不到新版本的那一次。DSH 刚重启、还没有重新打开会话时，没有会话来管这个任务：这时索引按原来的方式建立，设置里照样有进度和「停止」，但不出现在「任务」里。
-  - 「资料」页和「创建题组」的资料列表里，每份文档都标出索引状态：「还没建索引」「正在建立索引」「索引建了一部分」「索引需要更新」（有页面改过）或「索引已建好」，并带这份资料自己的页数（「这份资料 404/404 页」；鼠标移上去会说明只数这份资料，不含课程里的其他资料）。
+  - 「资料」页和「创建题组」的资料列表里，每份文档都标出索引状态：「还没建索引」「正在建立索引」「索引建了一部分」「索引需要更新」（有页面改过）、「索引格式需要升级」（正文没有改，只是索引存放格式升级）或「索引已建好」，并带这份资料自己的页数（「这份资料 404/404 页」；鼠标移上去会说明只数这份资料，不含课程里的其他资料）。
   - 去哪里建：索引建了一部分、需要更新或还没建的徽标旁有「建立索引」（检索扩展还没安装时是「安装扩展」），列表旁还有一行说明有几份资料没建完（「资料」页在列表上方，「创建题组」在列表下面「添加资料」旁）。两处都会打开「设置 › 检索扩展」，并已选好这份资料所在的课程；要在那里点「为这门课建立检索索引」才会开始建。
   - 页数只有一种数法：行里、徽标和「大教材建议」写的都是**有文字的页数**。原文件页数更多时（比如原 PDF 422 页、有文字的 404 页），行里在旁边写一次「原 PDF 422 页」，悬停说明其余页是图片或空白页。
   - 「为这门课建立检索索引」旁的一行数的是**整门课**：写明这门课共多少页、含几份资料，还没建索引的页来自哪几份资料。这份资料自己已经建好、缺的是别的资料时，按钮改称「为这门课补建 N 页索引」，并且不再是最醒目的按钮。
@@ -222,8 +222,8 @@ StudyHub 从 DSH 读取工具的 JSON 参数说明（`ctx.tools.schemas()`），
 | `retrieval.status` | `{ selected, effective, missing?, queryArg?, limitArg?, explicit, hfEndpoint?, companion: { id, running }, extension: { canInstall, installed, enabled, version?, error?, desktop, outdated?, expected? }, hostCanSearch, providers, otherTools, limits }`（`extension` 由宿主处理器补上；扩展里有索引、且没有明确选过别的提供方时，它会成为 `effective`） |
 | `retrieval.extension.install { approvedBuilds? }` | `{ status: 'installed', restartRequired, application, version }` 或 `{ status: 'needs-approval', pending }`（带上 `approvedBuilds` 再调用一次）；错误码 `extension-no-installer`、`extension-download`、`extension-checksum`、`extension-install` |
 | `retrieval.extension.uninstall` | 移除扩展包；已选的扩展提供方回到 `builtin` |
-| `retrieval.index.plan { course? }` | `{ course, pages, toIndex, unchanged, toRemove, chars, firstRun, modelMb, canIndex }` |
-| `retrieval.index.coverage` | `{ indexed, stale, missing, hasIndex, canIndex, building }`：分别列出页面已在索引里、建索引后改过、还没建索引的资料 id；`building` 是正在进行的建立（如果有） |
+| `retrieval.index.plan { course? }` | `{ course, pages, toIndex, toAdd, toUpgrade, unchanged, toRemove, chars, firstRun, modelMb, canIndex }` |
+| `retrieval.index.coverage` | `{ indexed, stale, migrate?, missing, hasIndex, canIndex, building }`：分别列出页面已在索引里、建索引后正文改过（`stale`）、正文没改仅待升级索引格式（`migrate`）、还没建索引的资料 id；`building` 是正在进行的建立（如果有） |
 | `retrieval.index.start { course? }` / `.status` / `.cancel` | 后台建立：`{ runId, course, status: running\|complete\|failed\|cancelled, stage: preparing\|model\|indexing, done, total, added, removed, unchanged, failed, failedCount, firstRun, error?, errorCode? }`；每个学习库同一时间只建一个 |
 | `retrieval.endpoint.set { endpoint }` | 扩展的模型下载地址（https，留空为默认） |
 | `retrieval.set { provider, queryArg?, limitArg? }` | `provider`：`builtin`、`service` 或 `mcp:<工具>`；保存在 `$DSH_HOME/study/retrieval.json`（不含密钥） |

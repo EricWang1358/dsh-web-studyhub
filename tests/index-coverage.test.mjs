@@ -90,3 +90,19 @@ test('pages with no searchable text count as done, are counted on their own, and
     assert.doesNotMatch(en, /[㐀-鿿]/);
   } finally { setUiLanguage('zh'); }
 });
+
+test('pages needing only an index key-format upgrade are counted as migrate and never called edited (#1291)', () => {
+  const ids = ['a', 'b', 'c', 'd'];
+  const onlyUpgrade = documentIndexState(item(ids), coverage({ indexed: ['a', 'b'], migrate: ['c', 'd'] }));
+  assert.deepEqual([onlyUpgrade.state, onlyUpgrade.stale, onlyUpgrade.migrate], ['stale', 0, 2]);
+  assert.equal(indexLabel(onlyUpgrade, { canIndex: true }), '索引格式需要升级 · 这份资料有 2 页，正文没有改');
+  const mixed = documentIndexState(item(ids), coverage({ indexed: ['a'], stale: ['b'], migrate: ['c', 'd'] }));
+  assert.deepEqual([mixed.state, mixed.stale, mixed.migrate], ['stale', 1, 2]);
+  assert.equal(indexLabel(mixed, { canIndex: true }), '索引需要更新 · 这份资料有 1 页改过，2 页待升级格式');
+  setUiLanguage('en');
+  try {
+    const enUpgrade = renderToStaticMarkup(React.createElement(IndexBadge, { info: onlyUpgrade, coverage: { canIndex: true } }));
+    assert.match(enUpgrade, /Index format upgrade needed · 2 pages of this material \(content unchanged\)/);
+    assert.doesNotMatch(enUpgrade, /edited|[㐀-鿿]/);
+  } finally { setUiLanguage('zh'); }
+});
