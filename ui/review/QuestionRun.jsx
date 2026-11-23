@@ -216,6 +216,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const taskCard = run.mode !== "flashcard" && run.card?.kind === "task";
   const flashHead = useFlashHead(!choice && !isCloze && !rubricCard && !taskCard);
   const gradeTask = cardTasks.filter((task) => task.mode === "grade").at(-1);
+  // The bar is pinned to the bottom while an answer is shown or one is being graded: what takes the focus under it then stops above it (review.css).
+  const barGrading = !!(rubricCard && (run.grading || gradeTask?.status === "running"));
+  const barStuck = !!run.feedback || barGrading;
   const liveAnnouncement = useQuestionRunA11y({ entryKey, run, hasFeedback, choice, isCloze, gradeTask, autoAdvanceActive, reviewBodyRef, choiceFeedbackRef, verdictFocusRef });
   const voice = useVoiceAnswer({ session: liveSession, data, model, rubricCard, setAssistMode, setAssistText: setAssistTextForVoice });
   const roundSteps = useRoundSteps({ session: liveSession, run, sources: data?.sources, openModal, onNote: onMakeNote, toggleFocus: toggleCardFocus, voiceKeys: voice.keys,
@@ -288,6 +291,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           (!choice && !isCloze && !rubricCard && !taskCard ? "flash-area" : "") +
           (caseSource ? " has-case" : "")
         }
+        data-bar-stuck={barStuck ? "true" : undefined}
         style={readingMeasure ? { "--reading-measure": readingMeasure, "--review-column": "calc(var(--reading-measure) - 4px)", "--card-scale": cardScale } : undefined}
       >
         {run.contentUpdated && <InlineMessage tone="warning" className="review-updated">{ui("这道题已更新，现在显示的是新版，可以按新版重新作答。之前的作答历史都保留着。")}</InlineMessage>}
@@ -567,7 +571,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             </div>
           )}
         </div>
-        <div className="review-sticky-bar" data-answered={run.feedback ? "true" : undefined} data-grading={rubricCard && (run.grading || gradeTask?.status === "running") ? "true" : undefined}>
+        <div className="review-sticky-bar" data-answered={run.feedback ? "true" : undefined} data-grading={barGrading ? "true" : undefined}>
           {contextReturnLabel && <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour" lock={busy} onClick={onReturnContext}>{contextReturnLabel}</Button>}
           {detour && !contextReturnLabel && <Tooltip layer content={ui("回到从信箱跳过来之前正在做的题")} anchorClassName="review-detour">
             <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour__button" lock={busy} onClick={onReturnFromDetour}>{uiFormat("回到之前的第 {0} 题", [detour.index + 1])}</Button></Tooltip>}

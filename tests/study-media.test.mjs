@@ -99,3 +99,25 @@ test('image sources accept absolute web URLs and reject ambient paths and active
   assert.equal(safeStudyImage('https://example.org/figure.png'), 'https://example.org/figure.png');
   for (const source of ['javascript:alert(1)', 'data:image/svg+xml,<svg/>', 'file:///secret.png', 'C:\\private.png', '../figure.png', '/assets/figure.png', '//example.org/x.png', 'https://user:secret@example.org/x.png', 'https://example.org/\nx.png']) assert.equal(safeStudyImage(source), null);
 });
+
+/* The reader runs this scanner over every paragraph of a book when it opens one (2.2 MB for 800 pages): it tried five patterns and two formula openers
+   at every character, 350 ms a book. A literal is now refused from its first character and a formula from "$" or "\", 31 ms. What starts a literal is
+   pinned here, so the shortcut and the patterns cannot part ways. */
+test('code, fences, images, link targets and addresses keep their dollars; the same characters elsewhere do not hide a formula', () => {
+  const tick = String.fromCharCode(96), fence = tick.repeat(3), nbsp = String.fromCharCode(160);
+  const found = (text) => prepareStudyMath(text).formulas.map((formula) => formula.source);
+  assert.deepEqual(found(`a ${tick}$x$${tick} b`), [], 'inline code');
+  assert.deepEqual(found(`${fence}\n$x$\n${fence}\nthen $y$`), ['y'], 'a fence at the start of the text');
+  assert.deepEqual(found(`p\n  ${fence}tex\n$x$\n  ${fence}\n$y$`), ['y'], 'an indented fence');
+  assert.deepEqual(found(`p\n${nbsp}${fence}\n$x$\n${fence}`), [], 'a fence after a no-break space');
+  assert.deepEqual(found('~~~\n$x$\n~~~\n$y$'), ['y'], 'a tilde fence');
+  assert.deepEqual(found('a ~$x$~ b'), ['x'], 'a tilde in a line is text');
+  assert.deepEqual(found('![alt $x$](https://e.com/a.png) and $y$'), ['y'], 'an image');
+  assert.deepEqual(found('wow!$x$'), ['x'], 'an exclamation mark is text');
+  assert.deepEqual(found('[text](https://e.com/$x$) and $y$'), ['y'], 'a link target');
+  assert.deepEqual(found('a]$x$'), ['x'], 'a closing bracket is text');
+  assert.deepEqual(found('see https://e.com/a$b$c and $y$'), ['y'], 'a bare address');
+  assert.deepEqual(found('http is a word, the height h is $x$'), ['x'], 'the letter h and the word http are text');
+  assert.deepEqual(found('$x$ first, a $y$ after a space'), ['x', 'y']);
+  assert.deepEqual(splitStudyMath('no formula, no literal: plain words.'), ['no formula, no literal: plain words.']);
+});

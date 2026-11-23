@@ -23,7 +23,9 @@
     .daily-plan__board-link + .daily-plan__menu { margin-inline-start: 0; }
     .daily-plan__body { padding: var(--space-3) 0 var(--space-3); border-top: 1px solid var(--line-soft); }
     .daily-plan__body[hidden] { display: none; }
-    .daily-plan__body > * + * { margin-top: var(--space-4); }
+    /* Every child but the first. Not "> * + *": a sibling rule that names neither side makes the browser restyle the whole subtree after ANY element
+       added or removed anywhere in the panel (tests/page-switch-jank.test.mjs). */
+    .daily-plan__body > :where(:not(:first-child)) { margin-top: var(--space-4); }
     .daily-plan__pace { display: grid; gap: var(--space-2); }
     .daily-plan__pace > span { color: var(--text-muted); font-size: var(--fs-sm); }
     .daily-plan__next-bottom,

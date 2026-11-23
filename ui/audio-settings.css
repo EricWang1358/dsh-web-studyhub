@@ -5,7 +5,7 @@
     /* Audio transcription settings, the audio setup gate and the import pre-flight rows. Tokens only; 12 px floor.
        The provider card, steps, badges, fields and notes are shared components (ui/components/fields.css); only what is about audio is here. */
     .audio-advanced { margin-top: var(--space-5); }
-    .audio-advanced .settings-disclosure__body > * + * { margin-top: var(--space-5); }
+    .audio-advanced .settings-disclosure__body > :where(:not(:first-child)) { margin-top: var(--space-5); } /* not "> * + *": see tests/page-switch-jank.test.mjs */
     .audio-paid { display: grid; gap: var(--space-2); }
     /* 课堂实录's engine: the three choices, then the local engine's card (ui/LiveLocalCard.jsx). */
     .audio-live-engine { display: grid; gap: var(--space-3); min-width: 0; }

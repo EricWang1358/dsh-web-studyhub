@@ -132,3 +132,12 @@ test('wrapped segments: the thumb follows both axes, so a row that wraps (narrow
   assert.match(css, /\.sh-seg\s*\{[^}]*position:\s*relative/, 'the group is the thumb offset parent, so offsetTop/offsetLeft are group-relative');
   assert.match(read('ui/generate-form.css'), /\.generate-kind\s*\{[^}]*flex-wrap:\s*wrap/, 'the Generate kind row relies on wrapping');
 });
+
+test('the thumb is told when the chosen segment is disabled, so no rule has to ask the page with a :has()', () => {
+  const thumb = (out) => out.match(/<span[^>]*class="sh-seg__thumb"[^>]*>/)[0];
+  assert.doesNotMatch(thumb(seg()), /data-muted/, 'an enabled choice');
+  assert.match(thumb(seg({ value: 'c' })), /data-muted="true"/, 'the chosen option is disabled');
+  assert.match(thumb(seg({ disabled: true })), /data-muted="true"/, 'the whole control is disabled');
+  assert.doesNotMatch(thumb(seg({ value: 'zzz', disabled: true })), /data-muted/, 'nothing chosen: no thumb to mute');
+  assert.match(css, /\.sh-seg > \.sh-seg__thumb\[data-muted="true"\],\s*\.sh-seg:not\(\[data-thumb="on"\]\) > \.sh-seg__item\.is-active:disabled \{/);
+});

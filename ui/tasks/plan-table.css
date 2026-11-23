@@ -18,7 +18,7 @@
     }
     .tc-plan__goal { flex: none; margin: 0; padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--line-soft); font-size: var(--fs-sm); }
     .tc-plan__goal p { margin: 0; line-height: var(--lh-tight, 1.35); }
-    .tc-plan__goal p + p { margin-top: var(--space-1); color: var(--text-muted); font-size: var(--fs-sm); }
+    .tc-plan__goal p:where(:not(:first-child)) { margin-top: var(--space-1); color: var(--text-muted); font-size: var(--fs-sm); }
     .tc-plan__goal p:first-child { font-weight: var(--fw-medium); }
     .tc-plan__title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-3); margin: 0 0 var(--space-1); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
     .tc-plan__title small { color: var(--text-faint); font-weight: var(--fw-regular); }

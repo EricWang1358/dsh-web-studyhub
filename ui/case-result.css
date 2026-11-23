@@ -149,7 +149,7 @@
       font-size: var(--fs-sm);
       color: var(--text-dim);
     }
-    .rubric-flags li + li { border-top: 1px solid var(--line); }
+    .rubric-flags li:where(:not(:first-child)) { border-top: 1px solid var(--line); }
     .rubric-flags li.is-missing > :first-child { color: var(--warn-ink); }
     .rubric-flags q { color: var(--text); }
     .rubric-flags q.rubric-cue { color: var(--text); font-weight: var(--fw-medium); background: var(--warn-mark); border-radius: var(--radius-xs); }

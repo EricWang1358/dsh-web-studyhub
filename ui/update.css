@@ -120,7 +120,7 @@
     .update-dialog .update-done { display: grid; gap: var(--space-2); justify-items: start; }
     .update-dialog .update-stuck, .update-dialog .update-dialog__inline { margin-bottom: var(--space-3); }
     .update-dialog .update-stuck p { margin: 0; }
-    .update-dialog .update-stuck p + p { margin-top: var(--space-2); }
+    .update-dialog .update-stuck p:where(:not(:first-child)) { margin-top: var(--space-2); }
     .update-dialog .update-footer {
       display: flex;
       align-items: center;

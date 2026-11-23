@@ -154,7 +154,7 @@
     display: grid;
     gap: .6rem;
   }
-  .study-document-learning form+form {
+  .study-document-learning .study-learning-ask + form {
     margin-top: 1rem;
     padding-top: 1rem;
     border-top: 1px solid var(--line);
@@ -244,7 +244,9 @@
     padding: 0;
     border: 0;
   }
-  ::highlight(study-source-quote) {background: var(--warn-mark); color: inherit}
+  /* Under the viewer only: written bare, every element of the whole page resolved this style, quote or no quote. Always on there, not asked for by name
+     like the reader's other highlights (ui/highlight-gate.js): a material opened beside a question nearly always has its quote marked. */
+  .study-document-viewer ::highlight(study-source-quote) {background: var(--warn-mark); color: inherit}
   /* 「选段学习」 in the host's preview toolbar (#512): no study tokens and no .sh-btn rules reach it there, so it carries
      its whole look and matches the host's 28 px icon buttons (transparent, no border) instead of the browser's default button. */
   .study-document-native__open {

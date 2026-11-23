@@ -10,9 +10,11 @@
   :where(.study-app, .study-seat) {
     /* Matched on the reading page's elements outside a drawn formula (gate review of #996). Written for every element of the app (` ::highlight`), the
        browser resolved all 19 highlight styles of the reader for each element of a KaTeX drawing (~200 for a display formula): ~100 ms of style
-       a formula. Not on the page alone for its text to inherit: WebKit has no highlight inheritance, and each element keeps its own tokens (paper). */
-    .reader-page :not(.katex, .katex *)::highlight(study-find) { background-color: var(--warn-mark); color: inherit; }
-    .reader-page :not(.katex, .katex *)::highlight(study-find-current) { background-color: var(--warn-solid); color: inherit; }
+       a formula. Not on the page alone for its text to inherit: WebKit has no highlight inheritance, and each element keeps its own tokens (paper).
+       Each rule also asks for its own name on the page (data-highlights, kept by ui/highlight-gate.js): an element resolves the styles of the highlights
+       that exist, not of all of them (a chapter of 800 elements was 14,000 style resolutions to draw, about 200 ms). */
+    .reader-page[data-highlights~="study-find"] :not(.katex, .katex *)::highlight(study-find) { background-color: var(--warn-mark); color: inherit; }
+    .reader-page[data-highlights~="study-find-current"] :not(.katex, .katex *)::highlight(study-find-current) { background-color: var(--warn-solid); color: inherit; }
     /* 中英混排 (#744): the little space between Chinese and Latin the font itself does not give. A property, so no byte of the text changes:
        a copied selection, a quote back to the page and a search substring stay exactly the original. Engines without it ignore the line. */
     .source-md { white-space: normal; line-height: 1.8; text-autospace: normal; }
@@ -324,7 +326,7 @@
     .reader-html p { margin: 0 0 var(--reader-gap, 1em); line-height: inherit; text-wrap: pretty; }
     /* inherit: the app's global p leading must not win over 行距 */
     .reader-html :is(ul, ol) { margin: 0 0 var(--reader-gap, 1em); padding-left: 1.5em; }
-    .reader-html li + li { margin-top: 0.3em; }
+    .reader-html li:where(:not(:first-child)) { margin-top: 0.3em; }
     .reader-html blockquote { margin: 1.2em 0; padding: 0.1em 0 0.1em 1.1em; border-left: 2px solid var(--line-strong); color: var(--text-dim); }
     .reader-html blockquote > :last-child { margin-bottom: 0; }
     .reader-html table {

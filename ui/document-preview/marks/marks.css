@@ -9,24 +9,24 @@
 @layer study.features {
   :where(.study-app, .study-seat) {
     /* Matched outside a drawn formula only, like the find highlight in reader.css (which says why). */
-    .reader-page :not(.katex, .katex *)::highlight(study-mark-underline) {
+    .reader-page[data-highlights~="study-mark-underline"] :not(.katex, .katex *)::highlight(study-mark-underline) {
       text-decoration-line: underline;
       text-decoration-style: solid;
       text-decoration-thickness: 2px;
       text-decoration-color: var(--text);
       text-underline-offset: 0.18em;
     }
-    .reader-page :not(.katex, .katex *)::highlight(study-mark-bold) {
+    .reader-page[data-highlights~="study-mark-bold"] :not(.katex, .katex *)::highlight(study-mark-bold) {
       color: var(--text);
       text-shadow: 0.025em 0 0 currentColor, -0.025em 0 0 currentColor;
     }
-    .reader-page :not(.katex, .katex *)::highlight(study-mark-highlight) {
+    .reader-page[data-highlights~="study-mark-highlight"] :not(.katex, .katex *)::highlight(study-mark-highlight) {
       background-color: var(--warn-mark);
     }
-    .reader-page :not(.katex, .katex *)::highlight(study-mark-queue) {
+    .reader-page[data-highlights~="study-mark-queue"] :not(.katex, .katex *)::highlight(study-mark-queue) {
       background-color: var(--info-halo);
     }
-    .reader-page :not(.katex, .katex *)::highlight(study-mark-pending) {
+    .reader-page[data-highlights~="study-mark-pending"] :not(.katex, .katex *)::highlight(study-mark-pending) {
       text-decoration-line: underline;
       text-decoration-style: dotted;
       text-decoration-thickness: 2px;

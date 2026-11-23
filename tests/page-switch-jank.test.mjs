@@ -201,3 +201,123 @@ test('--production measures the bundle the harness serves, and leaves the reposi
   for (const file of ['scripts/qa/page-switch-perf.mjs', 'scripts/qa/ui-motion.mjs', 'scripts/qa/ui-profile.mjs'])
     assert.doesNotMatch(source(file), /buildPreview\(\{ production: true \}\)/, `${file} used to rebuild dist/ for production and then measure the harness's development bundle`);
 });
+
+/* A reader's report (2026-11-19): 「答题后显示对错以及资料库原文索引有点卡」, 「主要还是链接原文资料库的时候卡」. Measured at 1440 px with a material open
+   beside the question (a book of 800 pages, 800 elements in the reader): every answer and every next question restyled the whole page, 200 to 500 ms of
+   style each. Three causes in the stylesheets, each pinned below; the fourth, the reader's ::highlight() rules, is tests/highlight-gate.test.mjs.
+
+   1. A sibling selector whose left side names no class, id or attribute (`> * + *`, `li + li`, `p + p`). Chrome keeps such rules in one set that it
+      applies to the neighbours of EVERY element added or removed, anywhere, and restyles what the rule could reach under them: with three `> * + *`
+      rules in the sheet (the plan card's, the board's, the audio settings'), one hidden button put before the reader restyled all of the reader, and
+      thirteen tag + tag rules did the same for its paragraphs and spans (261 ms an insertion with them all, 1 ms with none). Say "not the first child"
+      (`> :where(:not(:first-child))`, `li:where(:not(:first-child))`) or name the left side. */
+/** A selector's compounds with the combinator before each ('' for the first, ' ' for a descendant). */
+function compoundsOf(selector) {
+  const out = [];
+  let depth = 0, quote = '', cur = '', pending = '';
+  const push = () => { if (cur.trim()) { out.push({ compound: cur.trim(), combinator: pending }); pending = ' '; } cur = ''; };
+  for (const ch of selector) {
+    if (quote) { cur += ch; if (ch === quote) quote = ''; continue; }
+    if (ch === '"' || ch === "'") { quote = ch; cur += ch; continue; }
+    if (ch === '(' || ch === '[') depth++;
+    else if (ch === ')' || ch === ']') depth--;
+    if (depth === 0 && ' >+~'.includes(ch)) { push(); if (ch !== ' ') pending = ch; continue; }
+    cur += ch;
+  }
+  push();
+  return out;
+}
+const namesItself = (compound) => /[.#[]/.test(withoutNegations(compound));
+/** Sibling selectors Chrome cannot tie to an element: the left side is `*`, a tag or a :not(), and the right side is more than one named element. */
+function unnamedSiblingSelectors(css) {
+  const found = new Set();
+  for (const d of parseCss(css).declarations) for (const flat of flatSelectors(d.ctx)) for (const selector of splitTop(flat, ',')) {
+    const parts = compoundsOf(selector);
+    parts.forEach((part, at) => {
+      if ((part.combinator !== '+' && part.combinator !== '~') || namesItself(parts[at - 1].compound)) return;
+      // One named element right after the combinator and nothing under it (`:not(.note) + .note`): only a neighbour of that name is looked at.
+      if (at === parts.length - 1 && namesItself(part.compound)) return;
+      found.add(selector);
+    });
+  }
+  return [...found];
+}
+
+test('the sibling guard tells a rule every insertion pays for from one tied to a named element', () => {
+  const scope = (body) => `@layer study.features {\n  :is(.study-app, .study-seat) {\n${body}\n  }\n}\n`;
+  assert.equal(unnamedSiblingSelectors(scope('.plan > * + * { margin-top: 0; }')).length, 1);
+  assert.equal(unnamedSiblingSelectors(scope('.list li + li { margin-top: 0; }')).length, 1);
+  assert.equal(unnamedSiblingSelectors(scope('.list li + li .item { border: 0; }')).length, 1);
+  assert.equal(unnamedSiblingSelectors(scope('.meta > small ~ small::before { content: "x"; }')).length, 1);
+  assert.equal(unnamedSiblingSelectors(scope('.prose :not(.note) + .note { margin: 0; }')).length, 0, 'only a .note beside the change is looked at');
+  assert.equal(unnamedSiblingSelectors(scope('.pop__label + .opt { margin: 0; }\n[data-x="a + b"] + p { margin: 0; }')).length, 0, 'a named left side');
+  assert.equal(unnamedSiblingSelectors(scope('.plan > :where(:not(:first-child)) { margin-top: 0; }\n.list li:where(:not(:first-child)) { margin-top: 0; }')).length, 0);
+});
+
+test('no stylesheet has a sibling rule that every insertion in the app pays for', () => {
+  const found = [];
+  for (const file of walk(join(ROOT, 'ui'), ['.css'])) {
+    const rel = relative(ROOT, file).split('\\').join('/');
+    for (const entry of unnamedSiblingSelectors(readFileSync(file, 'utf8'))) found.push(`${rel}: ${entry}`);
+  }
+  assert.deepEqual(found, []);
+});
+
+/* 2. A change of scroll-padding on the page's scroller (.study-app) restyles every element of the page in Chrome, whatever makes the change: a :has(),
+      an attribute or an inline style (200 ms with the reader open, measured each way). The room above the stuck answer bar was
+      `root:has(.review-sticky-bar[data-answered]) { scroll-padding-bottom }`, so every answer and every next question paid it. The question area now
+      gives what can take the focus a scroll-margin-bottom while the bar is stuck (the same clearance: WCAG 2.4.11), which restyles the question's own
+      controls. The one rule left flips when 创建题组 is entered and left, with the whole page, not inside it. */
+/** Rules that set scroll-padding on the app's root under a condition. */
+function statefulRootScrollPadding(css) {
+  const found = new Set();
+  for (const d of parseCss(css).declarations) {
+    if (!d.prop.startsWith('scroll-padding')) continue;
+    for (const flat of flatSelectors(d.ctx)) for (const selector of splitTop(flat, ',')) {
+      const subject = splitTop(selector, ' >+~').at(-1);
+      if (!/\.study-(app|seat)\b/.test(subject)) continue;
+      if (subject.replace(/\.study-(app|seat)\b|:is\(|:where\(|[(),\s]/g, '')) found.add(selector);
+    }
+  }
+  return [...found];
+}
+
+test('the page scroller\'s scroll-padding does not follow a state of the page', () => {
+  const scope = (body) => `:is(.study-app, .study-seat) {\n${body}\n}\n`;
+  assert.equal(statefulRootScrollPadding(scope('&:has(.bar[data-answered]) { scroll-padding-bottom: 8px; }')).length, 1);
+  assert.equal(statefulRootScrollPadding(scope('&[data-bar-stuck="true"] { scroll-padding-bottom: 8px; }')).length, 1);
+  assert.equal(statefulRootScrollPadding('.study-app { scroll-padding-top: 8px; }\n.study-app .strip[data-x] { scroll-padding-inline: 2px; }').length, 0);
+  const found = [];
+  for (const file of walk(join(ROOT, 'ui'), ['.css'])) {
+    const rel = relative(ROOT, file).split('\\').join('/');
+    if (statefulRootScrollPadding(readFileSync(file, 'utf8')).length) found.push(rel);
+  }
+  assert.deepEqual(found, ['ui/generate-home.css']);
+});
+
+test('the stuck answer bar keeps the focus clear of itself from the question area, not from the page scroller', () => {
+  const css = source('ui/review/review.css');
+  assert.doesNotMatch(css.replace(/\/\*[^]*?\*\//g, ''), /scroll-padding/);
+  assert.match(css, /\.question-area\[data-bar-stuck="true"\] > :not\(\.review-sticky-bar\) :is\(a\[href\], :enabled, summary, \[tabindex\], \[contenteditable\]\),/);
+  assert.match(css, /\[contenteditable\]\):not\(\.review-sticky-bar\) \{\s*scroll-margin-bottom: calc\(var\(--space-9\) \+ var\(--space-7\)\);/, 'the bar\'s own controls are not pushed away from the bar');
+  const run = source('ui/review/QuestionRun.jsx');
+  assert.match(run, /const barStuck = !!run\.feedback \|\| barGrading;/);
+  assert.match(run, /data-bar-stuck=\{barStuck \? "true" : undefined\}/);
+});
+
+/* 3. A :has() whose argument holds :disabled or :enabled. Chrome then looks for elements such a rule could affect every time ANY control is disabled or
+      enabled, and an answer disables or enables every option, tick and toolbar button at once: locking the practice page's buttons took 255 ms instead
+      of 129 with `.sh-seg:has(> .sh-seg__item.is-active:disabled) > .sh-seg__thumb` in the sheet. The thumb is told instead (data-muted). */
+test('no :has() asks whether a control is disabled; the segmented control tells its thumb', () => {
+  const found = [];
+  for (const file of walk(join(ROOT, 'ui'), ['.css'])) {
+    const rel = relative(ROOT, file).split('\\').join('/');
+    if (/:has\([^{}]*:(disabled|enabled)/.test(readFileSync(file, 'utf8').replace(/\/\*[^]*?\*\//g, ''))) found.push(rel);
+  }
+  assert.deepEqual(found, []);
+  assert.match(source('ui/components/components.css'), /\.sh-seg > \.sh-seg__thumb\[data-muted="true"\],/);
+  // The control only knows its own props: one inside a disabled <fieldset> is passed the same condition, or its thumb keeps the accent over greyed text.
+  assert.match(source('ui/board/CardEditor.jsx'), /<fieldset className="board-editor__fields" disabled=\{saving \|\| readOnly\}>/);
+  assert.match(source('ui/board/CardEditor.jsx'), /<SegmentedControl size="sm" label=\{ui\('备注模式'\)\}[^>]* disabled=\{saving \|\| readOnly\}/);
+  assert.match(source('ui/components/SegmentedControl.jsx'), /data-muted=\{activeIndex >= 0 && \(disabled \|\| options\[activeIndex\]\?\.disabled\) \? 'true' : undefined\}/);
+});

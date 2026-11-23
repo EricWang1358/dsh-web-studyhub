@@ -111,7 +111,7 @@ export function LearningPanel({ capture, scope = null, jobsOnly = false, pageHan
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
     {resolved && <>
       {!modelReady && <ReaderModelGate feature="passage" />}
-      <form onSubmit={onAsk}>
+      <form className="study-learning-ask" onSubmit={onAsk}>
         <label className="study-learning-label">{ui('针对这段原文提问')}<textarea className="study-learning-control" ref={area} value={question} required rows={2} disabled={asking}
           onChange={event => onQuestion?.(event.target.value, '')} placeholder={ui('例如：这里的因果关系是什么？')} /></label>
         <QuickIntents disabled={!askReady || asking} onAsk={(text, label, intent) => onQuick?.(text, label, intent)} onQuiz={() => {

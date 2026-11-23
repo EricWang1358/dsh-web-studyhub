@@ -68,7 +68,7 @@
     .generate-more > summary .sh-disclosure__label { white-space: nowrap; }
     /* A fold inside it (面试方向, 花费上限, 额外要求): its note follows its name on one line, or goes under it where the pane is too narrow for both; never cut bare, never on two lines. */
     .generate-more__body details > summary { flex-wrap: wrap; }
-    .generate-more__body details > summary > span + span { min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .generate-more__body details > summary > .sh-disclosure__label + span { min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     /* The choices that are not the defaults (难度, 语言, 公式写法) are what a run will use, so each is said whole: a summary too narrow for all of them on one line
        goes on under them after a 「·」 (the separator stays with the piece before it, so no line starts with one), never cutting a word (#1082). That is the
        summary shut. Open, it says its hint, on one line, as with nothing chosen; the choices are not drawn at all (display: none, so they hold no room), so a

@@ -64,6 +64,7 @@ import { sectionAtOffset } from '../../lib/sections.js';
 import { outlineFromSections, collectHeadings, withoutLabels, structureOutline, sectionNeighbours, chapterNeighbours, outlinePath } from './reader/outline.js';
 import { applyOutline, clearOutlineTags } from './reader/ai-outline.js';
 import { drawnSectionText, findRanges, paintMatches, textHits } from './reader/find.js';
+import { studyHighlights } from '../highlight-gate.js';
 import { chapterFindGroups, chapterOutline, findStop, withElsewhere } from './reader/chapters.js';
 import { useChapterGoal, useReaderChapters } from './reader/useReaderChapters.js';
 import { chapterName, chapterRange, chapterTitle, chapterPagerLabel, elsewhereCount, nextChapterWord, previousChapterWord } from './reader/chapter-copy.js';
@@ -670,11 +671,11 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   // A placed quote is centred and marked (until the next one); returns the unmarking.
   const markQuote = range => {
     const stopAnchor = anchorScroll(scroller.current, range, { center: true, smooth: false });
-    const hasHighlights = !!(window.CSS?.highlights && window.Highlight);
-    if (hasHighlights) window.CSS.highlights.set('study-source-quote', new window.Highlight(range));
+    const highlights = studyHighlights(); // the one way the panel writes a highlight (ui/highlight-gate.js)
+    highlights?.set('study-source-quote', new window.Highlight(range));
     return () => {
       stopAnchor();
-      if (hasHighlights) window.CSS?.highlights?.delete?.('study-source-quote');
+      highlights?.delete('study-source-quote');
     };
   };
   // A new view starts at the top; a page or slide opened from a link starts at that page.

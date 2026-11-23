@@ -107,7 +107,10 @@ export default function SegmentedControl({ label, value, options = [], onChange,
 
   return (
     <div ref={root} role="group" aria-label={label} className={cx('sh-seg', size === 'sm' && 'sh-seg--sm', size === 'xs' && 'sh-seg--xs', fill && 'sh-seg--fill', wrap && 'sh-seg--wrap', stack && 'sh-seg--stack', className)} onKeyDown={handleKeyDown} {...rest}>
-      <span ref={thumb} className="sh-seg__thumb" aria-hidden="true" data-index={activeIndex} data-count={options.length} />
+      {/* data-muted: the chosen item is disabled, so the thumb steps down with it. Stamped here, not asked of the page with :has(:disabled) (components.css).
+          It follows the props only: inside a disabled <fieldset>, pass `disabled` too (board/CardEditor.jsx). */}
+      <span ref={thumb} className="sh-seg__thumb" aria-hidden="true" data-index={activeIndex} data-count={options.length}
+        data-muted={activeIndex >= 0 && (disabled || options[activeIndex]?.disabled) ? 'true' : undefined} />
       {options.map((option, index) => {
         const active = option.value === value;
         return (
