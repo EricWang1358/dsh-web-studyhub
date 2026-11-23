@@ -250,38 +250,79 @@ async function answerCurrentCardWrong(tty, host, runId, cardNumberLabel) {
   assert.ok(card?.id, `Card ${cardNumberLabel} must exist in review.get`);
 
   if (card.kind === 'quiz' && Array.isArray(card.options) && card.options.length > 0) {
+    await tty.waitFor(
+      () =>
+        useDistTuiStore.getState().page === 'review' &&
+        useDistTuiStore.getState().footerHints.some((h) => h.key.includes('1-6')),
+      { timeoutMs: 10_000, label: `Card ${cardNumberLabel} MCQ ready for choice input` },
+    );
+    await tty.flush();
     const wrongIdx = card.options.findIndex((o) => !o.correct);
     const pick = wrongIdx >= 0 ? wrongIdx + 1 : 1;
     tty.send(String(pick));
     await tty.waitFor(
-      (s) => s.includes('下一题') || s.includes('错因') || s.includes('参考答案') || s.includes('解析'),
-      { timeoutMs: 6_000, label: `Card ${cardNumberLabel} MCQ wrong answer feedback` },
+      (s) =>
+        s.includes('下一题') ||
+        s.includes('错因') ||
+        s.includes('答案与解析') ||
+        useDistTuiStore.getState().footerHints.some((h) => h.label === '下一题' || h.label === 'Next'),
+      { timeoutMs: 10_000, label: `Card ${cardNumberLabel} MCQ wrong answer feedback` },
     );
   } else if (card.kind === 'truefalse') {
+    await tty.waitFor(
+      () =>
+        useDistTuiStore.getState().page === 'review' &&
+        useDistTuiStore.getState().footerHints.some((h) => h.key.includes('1/t')),
+      { timeoutMs: 10_000, label: `Card ${cardNumberLabel} TF ready for judge input` },
+    );
+    await tty.flush();
     const wrongKey = String(card.answer).toLowerCase() === 'true' ? '2' : '1';
     tty.send(wrongKey);
     await tty.waitFor(
-      (s) => s.includes('下一题') || s.includes('参考答案') || s.includes('解析'),
-      { timeoutMs: 6_000, label: `Card ${cardNumberLabel} TF wrong answer feedback` },
+      (s) =>
+        s.includes('下一题') ||
+        s.includes('答案与解析') ||
+        useDistTuiStore.getState().footerHints.some((h) => h.label === '下一题' || h.label === 'Next'),
+      { timeoutMs: 10_000, label: `Card ${cardNumberLabel} TF wrong answer feedback` },
     );
   } else if (card.kind === 'cloze') {
     tty.send('__wrong_cloze__');
     await tty.flush();
     tty.send('\r');
     await tty.waitFor(
-      (s) => s.includes('下一题') || s.includes('参考答案') || s.includes('解析'),
-      { timeoutMs: 6_000, label: `Card ${cardNumberLabel} cloze wrong answer feedback` },
+      (s) =>
+        s.includes('下一题') ||
+        s.includes('答案与解析') ||
+        useDistTuiStore.getState().footerHints.some((h) => h.label === '下一题' || h.label === 'Next'),
+      { timeoutMs: 10_000, label: `Card ${cardNumberLabel} cloze wrong answer feedback` },
     );
   } else {
-    tty.send(' ');
     await tty.waitFor(
-      (s) => !s.includes('翻开答案') && (s.includes('0') || s.includes('评分') || s.includes('参考答案')),
-      { timeoutMs: 6_000, label: `Card ${cardNumberLabel} flashcard flipped` },
+      () =>
+        useDistTuiStore.getState().page === 'review' &&
+        useDistTuiStore.getState().footerHints.some((h) => h.key.includes('Space') || h.key === '0-5'),
+      { timeoutMs: 10_000, label: `Card ${cardNumberLabel} self-graded card ready` },
     );
+    await tty.flush();
+    if (!useDistTuiStore.getState().footerHints.some((h) => h.key === '0-5')) {
+      tty.send(' ');
+      await tty.waitFor(
+        (s) =>
+          useDistTuiStore.getState().page === 'review' &&
+          s.includes('答案与解析') &&
+          useDistTuiStore.getState().footerHints.some((h) => h.key === '0-5'),
+        { timeoutMs: 10_000, label: `Card ${cardNumberLabel} flashcard flipped and 0-5 rating ready` },
+      );
+      // Flush one frame/effect turn so useClaimKeys registers digit key '1' before sending it.
+      await tty.flush();
+    }
     tty.send('1');
     await tty.waitFor(
-      (s) => s.includes('回答有误') || s.includes('下一题'),
-      { timeoutMs: 6_000, label: `Card ${cardNumberLabel} flashcard rated 1 (wrong)` },
+      (s) =>
+        s.includes('回答有误') ||
+        s.includes('下一题') ||
+        useDistTuiStore.getState().footerHints.some((h) => h.label === '下一题' || h.label === 'Next'),
+      { timeoutMs: 10_000, label: `Card ${cardNumberLabel} flashcard rated 1 (wrong)` },
     );
   }
 }
@@ -931,7 +972,12 @@ describe('Round 72 Track 1: WrongBookView `/` Live Wrong-Card Search & Filter', 
       const afterCard1 = await host.call('review.get', { runId: activeRunId });
       if ((afterCard1.value?.index ?? 0) === 0) {
         tty.send('\r');
-        await tty.waitFor((s) => s.includes('2/'), { timeoutMs: 6_000, label: 'Advanced to card 2' });
+        await tty.waitFor(
+          (s) =>
+            s.includes('2/') &&
+            !useDistTuiStore.getState().footerHints.some((h) => h.label === '下一题' || h.label === 'Next'),
+          { timeoutMs: 10_000, label: 'Advanced to card 2' },
+        );
       }
       await answerCurrentCardWrong(tty, host, activeRunId, 2);
 
