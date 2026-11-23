@@ -452,5 +452,63 @@ describe('CLI fast-path subprocess suite (--doctor / --stats / --search / --expo
       assert.match(stderrText, /Missing value for --course/);
     }
   });
+
+  test('12. Unit: buildDueReport & formatDueReport filter archived/systemKind, sort deterministically, and stay pure ASCII', async () => {
+    const cliCmdsMod = await import(pathToFileURL(resolve(pkgRoot, 'dist', 'cli-commands-chunk-check.mjs')).href).catch(
+      async () => {
+        const files = await readdir(resolve(pkgRoot, 'dist'));
+        const cmdFile = files.find((f) => f.startsWith('cli-commands-') && f.endsWith('.mjs'));
+        assert.ok(cmdFile, 'dist/cli-commands-*.mjs lazy chunk must exist');
+        return import(pathToFileURL(resolve(pkgRoot, 'dist', cmdFile)).href);
+      },
+    );
+    const { buildDueReport, formatDueReport } = cliCmdsMod;
+    assert.equal(typeof buildDueReport, 'function');
+    assert.equal(typeof formatDueReport, 'function');
+
+    const report = buildDueReport({
+      libraryRoot: '/tmp/lib',
+      version: '1.0.0',
+      generatedAt: '2026-11-23T00:00:00.000Z',
+      limit: 5,
+      snapshot: {
+        decks: [
+          { id: 'd-arch', title: 'Archived Deck', course: 'Math', archived: true, due: 99, count: 99 },
+          { id: 'd-sys', title: 'System Deck', course: 'Math', systemKind: 'wrong', due: 50, count: 50 },
+          { id: 'd-low', title: '线性代数 · 矩阵', course: '高等数学', due: 2, wrong: 1, count: 10, mastery: 85.4 },
+          { id: 'd-high', title: 'Operating Systems', course: 'CS101', due: 8, wrong: 3, count: 20, mastery: 120 },
+          { id: 'd-zero', title: 'Zero Due Deck', course: 'CS101', due: 0, wrong: 0, count: 5, mastery: -5 },
+        ],
+        progress: {
+          'd-high': { counts: { new: 4, weak: 3 }, mastery: 120 },
+        },
+      },
+    });
+
+    assert.equal(report.totals.decks, 3, 'archived and systemKind decks must be excluded');
+    assert.equal(report.totals.decksWithDue, 2);
+    assert.equal(report.totals.due, 10);
+    assert.equal(report.totals.weak, 4);
+    assert.equal(report.totals.newCards, 4);
+    assert.equal(report.totals.totalCards, 35);
+    assert.deepEqual(
+      report.decks.map((d) => d.id),
+      ['d-high', 'd-low', 'd-zero'],
+      'decks must sort by due desc',
+    );
+    assert.equal(report.decks[0].mastery, 100, 'mastery must clamp at 100');
+    assert.equal(report.decks[2].mastery, 0, 'mastery must clamp at 0');
+
+    const asciiText = formatDueReport(report, true);
+    assert.ok(!/[^\x00-\x7f]/.test(asciiText), `formatDueReport(report, true) must be pure ASCII:\n${asciiText}`);
+    assert.match(asciiText, /Queue: 10 due \| 4 weak \| 4 new \(2\/3 decks with due, 35 cards\)/);
+    assert.match(asciiText, /Operating Systems \[CS101\]: 8 due \| 3 weak \| 20 cards \| 100% mastery/);
+
+    const emptyReport = buildDueReport({ libraryRoot: '/tmp/empty', snapshot: { decks: [] }, courseFilter: 'Physics' });
+    assert.equal(emptyReport.totals.decks, 0);
+    const emptyAscii = formatDueReport(emptyReport, true);
+    assert.match(emptyAscii, /Course: Physics/);
+    assert.match(emptyAscii, /- \(none\)/);
+  });
   });
 });

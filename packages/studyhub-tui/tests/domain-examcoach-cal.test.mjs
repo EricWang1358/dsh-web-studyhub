@@ -983,6 +983,49 @@ describe('Round 68 Track 3: ExamCoachView [X] Atomic Markdown Export & HelpOverl
       assert.equal(useDistTuiStore.getState().page, 'examcoach');
       assert.equal(modelCalls, 0, 'ExamCoach [X] export must invoke 0 model calls');
 
+      // Round 78: ExamCoachView [N] note modal Esc dirty guard (clean Esc immediate; dirty Esc confirms)
+      tty.send('N');
+      await tty.waitFor((s) => s.includes('提交往年样卷 / 考法笔记') && !s.includes('未保存'), {
+        timeoutMs: 5_000,
+        label: 'ExamCoachView note modal opened clean',
+      });
+      tty.send('\x1b');
+      await tty.waitFor((s) => !s.includes('提交往年样卷 / 考法笔记') && !s.includes('放弃未保存'), {
+        timeoutMs: 5_000,
+        label: 'Clean ExamCoachView note modal Esc closed immediately',
+      });
+      tty.send('N');
+      await tty.waitFor((s) => s.includes('提交往年样卷 / 考法笔记'), {
+        timeoutMs: 5_000,
+        label: 'ExamCoachView note modal reopened',
+      });
+      tty.send('R78_COACH_NOTE');
+      await tty.waitFor((s) => s.includes('R78_COACH_NOTE') && s.includes('未保存'), {
+        timeoutMs: 5_000,
+        label: 'ExamCoachView note modal shows unsaved badge',
+      });
+      tty.send('\x1b');
+      const coachDiscardDialog = await tty.waitFor((s) => s.includes('放弃未保存的考法笔记'), {
+        timeoutMs: 5_000,
+        label: 'ExamCoachView dirty Esc opened ConfirmDialog',
+      });
+      tty.assertHealthyScreen(coachDiscardDialog, 120, 36, 'ExamCoachView discard ConfirmDialog');
+      tty.send('n');
+      await tty.waitFor(
+        (s) => !s.includes('放弃未保存的考法笔记') && s.includes('提交往年样卷 / 考法笔记') && s.includes('R78_COACH_NOTE'),
+        { timeoutMs: 5_000, label: 'ExamCoachView discard cancel preserved typed note' },
+      );
+      tty.send('\x1b');
+      await tty.waitFor((s) => s.includes('放弃未保存的考法笔记'), {
+        timeoutMs: 5_000,
+        label: 'ExamCoachView discard ConfirmDialog reopened',
+      });
+      tty.send('y');
+      await tty.waitFor((s) => !s.includes('提交往年样卷 / 考法笔记') && !s.includes('放弃未保存的考法笔记'), {
+        timeoutMs: 5_000,
+        label: 'ExamCoachView confirm discard closed note modal cleanly',
+      });
+
       // Also verify 80x24 narrow layout of ExamCoachView
       tty.resize(80, 24);
       const narrowCoach = await tty.waitFor(

@@ -55,11 +55,23 @@ function createInkHarness(element, { cols = 80, rows = 12, defaultWaitMs = 20 } 
   stdout.getColorDepth = () => 1;
 
   const frames = [];
+  const waiters = new Set();
+  const notifyWaiters = () => {
+    const latest = frames.at(-1) ?? '';
+    for (const w of [...waiters]) {
+      if (w.predicate(latest)) {
+        waiters.delete(w);
+        clearTimeout(w.timer);
+        w.resolve(latest);
+      }
+    }
+  };
   stdout.on('data', (chunk) => {
     const plain = stripAnsi(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
     // Ignore ANSI-only control chunks (e.g. bracketed-paste toggle \x1b[?2004h)
     if (plain.trim().length > 0) {
       frames.push(plain);
+      notifyWaiters();
     }
   });
 
@@ -80,13 +92,31 @@ function createInkHarness(element, { cols = 80, rows = 12, defaultWaitMs = 20 } 
     return frames.at(-1) ?? '';
   }
 
+  function waitForFrame(predicate, timeoutMs = 2_000, label = 'matching frame') {
+    const cur = lastFrame();
+    if (predicate(cur)) return Promise.resolve(cur);
+    return new Promise((resolvePromise, reject) => {
+      const entry = {
+        predicate,
+        resolve: resolvePromise,
+        timer: setTimeout(() => {
+          waiters.delete(entry);
+          reject(new Error(`Timed out waiting for ${label} after ${timeoutMs}ms. Last frame:\n${lastFrame()}`));
+        }, timeoutMs),
+      };
+      waiters.add(entry);
+    });
+  }
+
   function cleanup() {
+    for (const w of waiters) clearTimeout(w.timer);
+    waiters.clear();
     inst.unmount();
     stdin.destroy();
     stdout.destroy();
   }
 
-  return { send, lastFrame, cleanup };
+  return { send, lastFrame, waitForFrame, cleanup };
 }
 
 function createTextInputHarness({
@@ -426,32 +456,34 @@ describe('VirtualList & ScrollView Ink SGR mouse wheel rendering', () => {
         );
 
         try {
-          await sleep(30);
-          assert.match(h.lastFrame(), /> Item-00/);
+          const initFrame = await h.waitForFrame((f) => /> Item-00/.test(f), 2_000, 'initial Item-00');
+          assert.match(initFrame, /> Item-00/);
           if (ascii) {
-            assert.equal(UNICODE_BAR_RE.test(h.lastFrame()), false, 'ascii VirtualList must not emit Unicode box chars');
-            assert.ok(h.lastFrame().includes('#') || h.lastFrame().includes('|'));
+            assert.equal(UNICODE_BAR_RE.test(initFrame), false, 'ascii VirtualList must not emit Unicode box chars');
+            assert.ok(initFrame.includes('#') || initFrame.includes('|'));
           }
 
           // Wheel down (+3)
           await h.send('\u001b[<65;10;5M');
+          assert.match(await h.waitForFrame((f) => /> Item-03/.test(f), 2_000, 'Item-03'), /> Item-03/);
           assert.equal(seenIndices.at(-1), 3);
-          assert.match(h.lastFrame(), /> Item-03/);
 
           // Burst wheel down (+6 -> 9)
           await h.send('\u001b[<65;1;1M\u001b[<65;1;1M');
+          assert.match(await h.waitForFrame((f) => /> Item-09/.test(f), 2_000, 'Item-09'), /> Item-09/);
           assert.equal(seenIndices.at(-1), 9);
-          assert.match(h.lastFrame(), /> Item-09/);
 
           // Wheel up (-3 -> 6)
           await h.send('\u001b[<64;10;5M');
+          assert.match(await h.waitForFrame((f) => /> Item-06/.test(f), 2_000, 'Item-06'), /> Item-06/);
           assert.equal(seenIndices.at(-1), 6);
-          assert.match(h.lastFrame(), /> Item-06/);
 
           // ESC-stripped SGR wheel via useInput ([<65;10;5M -> 9, <64;10;5M -> 6)
           await h.send('[<65;10;5M');
+          await h.waitForFrame((f) => /> Item-09/.test(f), 2_000, 'ESC-stripped Item-09');
           assert.equal(seenIndices.at(-1), 9);
           await h.send('<64;10;5M');
+          await h.waitForFrame((f) => /> Item-06/.test(f), 2_000, 'ESC-stripped Item-06');
           assert.equal(seenIndices.at(-1), 6);
 
           // Non-wheel click and release must be ignored
@@ -462,8 +494,8 @@ describe('VirtualList & ScrollView Ink SGR mouse wheel rendering', () => {
 
           // Normal keyboard navigation still works without corruption
           await h.send('j');
+          assert.match(await h.waitForFrame((f) => /> Item-07/.test(f), 2_000, 'Item-07'), /> Item-07/);
           assert.equal(seenIndices.at(-1), 7);
-          assert.match(h.lastFrame(), /> Item-07/);
         } finally {
           h.cleanup();
         }
@@ -493,32 +525,34 @@ describe('VirtualList & ScrollView Ink SGR mouse wheel rendering', () => {
         );
 
         try {
-          await sleep(30);
-          assert.match(h.lastFrame(), /Line-00 content/);
+          const initFrame = await h.waitForFrame((f) => /Line-00 content/.test(f), 2_000, 'initial Line-00');
+          assert.match(initFrame, /Line-00 content/);
           if (ascii) {
-            assert.equal(UNICODE_BAR_RE.test(h.lastFrame()), false, 'ascii ScrollView must not emit Unicode box chars');
-            assert.ok(h.lastFrame().includes('#') || h.lastFrame().includes('|'));
+            assert.equal(UNICODE_BAR_RE.test(initFrame), false, 'ascii ScrollView must not emit Unicode box chars');
+            assert.ok(initFrame.includes('#') || initFrame.includes('|'));
           }
 
           // Wheel down (+3)
           await h.send('\u001b[<65;5;5M');
+          assert.match(await h.waitForFrame((f) => /Line-03 content/.test(f), 2_000, 'Line-03'), /Line-03 content/);
           assert.equal(seenTops.at(-1), 3);
-          assert.match(h.lastFrame(), /Line-03 content/);
 
           // Burst wheel down (+6 -> 9)
           await h.send('\u001b[<65;1;1M\u001b[<65;1;1M');
+          assert.match(await h.waitForFrame((f) => /Line-09 content/.test(f), 2_000, 'Line-09'), /Line-09 content/);
           assert.equal(seenTops.at(-1), 9);
-          assert.match(h.lastFrame(), /Line-09 content/);
 
           // Wheel up (-3 -> 6)
           await h.send('\u001b[<64;5;5M');
+          assert.match(await h.waitForFrame((f) => /Line-06 content/.test(f), 2_000, 'Line-06'), /Line-06 content/);
           assert.equal(seenTops.at(-1), 6);
-          assert.match(h.lastFrame(), /Line-06 content/);
 
           // ESC-stripped SGR wheel via useInput ([<65;5;5M -> 9, <64;5;5M -> 6)
           await h.send('[<65;5;5M');
+          await h.waitForFrame((f) => /Line-09 content/.test(f), 2_000, 'ESC-stripped Line-09');
           assert.equal(seenTops.at(-1), 9);
           await h.send('<64;5;5M');
+          await h.waitForFrame((f) => /Line-06 content/.test(f), 2_000, 'ESC-stripped Line-06');
           assert.equal(seenTops.at(-1), 6);
 
           // Non-wheel click and release must be ignored
@@ -529,8 +563,8 @@ describe('VirtualList & ScrollView Ink SGR mouse wheel rendering', () => {
 
           // Normal keyboard navigation still works without corruption
           await h.send('k');
+          assert.match(await h.waitForFrame((f) => /Line-05 content/.test(f), 2_000, 'Line-05'), /Line-05 content/);
           assert.equal(seenTops.at(-1), 5);
-          assert.match(h.lastFrame(), /Line-05 content/);
         } finally {
           h.cleanup();
         }

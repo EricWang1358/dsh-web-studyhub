@@ -771,39 +771,39 @@ describe('Round 25: CommandPalette Scoped Prefixes, RoundConfigModal & Review Un
     );
 
     tty.send('\x15');
-    await tty.waitFor((s) => s.includes('搜索页面、课程') || s.includes('Search pages'), {
+    await tty.waitFor((s) => !s.includes('?Bridge') && (s.includes('搜索页面、课程') || s.includes('Search pages')), {
       timeoutMs: 5_000,
       label: 'CommandPalette cleared before @示例',
     });
     tty.send('@示例');
     const courseFilterScreen = await tty.waitFor(
-      (s) => (s.includes('课程') || s.includes('Course')) && s.includes('示例课程 · 设计模式'),
+      (s) => s.includes('@示例') && (s.includes('课程') || s.includes('Course')) && s.includes('示例课程 · 设计模式'),
       { timeoutMs: 6_000, label: 'CommandPalette @示例 course filter' },
     );
     tty.assertHealthyScreen(courseFilterScreen, 120, 36, 'CommandPalette @示例');
     assert.ok(courseFilterScreen.includes('示例课程 · 设计模式'));
 
     tty.send('\x15');
-    await tty.waitFor((s) => s.includes('搜索页面、课程') || s.includes('Search pages'), {
+    await tty.waitFor((s) => !s.includes('@示例') && (s.includes('搜索页面、课程') || s.includes('Search pages')), {
       timeoutMs: 5_000,
       label: 'CommandPalette cleared before :设置',
     });
     tty.send(':设置');
     const pageFilterScreen = await tty.waitFor(
-      (s) => (s.includes('页面') || s.includes('Page')) && (s.includes('设置') || s.includes('Settings')),
+      (s) => s.includes(':设置') && (s.includes('页面') || s.includes('Page')) && (s.includes('设置') || s.includes('Settings')),
       { timeoutMs: 6_000, label: 'CommandPalette :设置 page filter' },
     );
     tty.assertHealthyScreen(pageFilterScreen, 120, 36, 'CommandPalette :设置');
     assert.ok(pageFilterScreen.includes('设置') || pageFilterScreen.includes('Settings'));
 
     tty.send('\x15');
-    await tty.waitFor((s) => s.includes('搜索页面、课程') || s.includes('Search pages'), {
+    await tty.waitFor((s) => !s.includes(':设置') && (s.includes('搜索页面、课程') || s.includes('Search pages')), {
       timeoutMs: 5_000,
       label: 'CommandPalette cleared before /theme',
     });
     tty.send('/theme');
     const themeFilterScreen = await tty.waitFor(
-      (s) => s.includes('/theme') && (s.includes('命令') || s.includes('Action')),
+      (s) => s.includes('/theme') && !s.includes(':设置') && !s.includes('@示例') && (s.includes('命令') || s.includes('Action')),
       { timeoutMs: 6_000, label: 'CommandPalette /theme command filter' },
     );
     tty.assertHealthyScreen(themeFilterScreen, 120, 36, 'CommandPalette /theme');

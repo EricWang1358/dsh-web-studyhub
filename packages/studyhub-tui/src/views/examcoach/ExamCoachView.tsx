@@ -350,6 +350,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
   const [noteField, setNoteField] = useState<'title' | 'text'>('text');
   const [noteTitle, setNoteTitle] = useState('');
   const [noteText, setNoteText] = useState('');
+  const [confirmDiscardNote, setConfirmDiscardNote] = useState(false);
 
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editField, setEditField] = useState<'quota' | 'priority' | 'time'>('quota');
@@ -365,12 +366,24 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
 
   const modalOpen =
     noteModalOpen ||
+    confirmDiscardNote ||
     editModalOpen ||
     prefsModalOpen ||
     consentPromptCards !== null ||
     confirmAiAnalyze ||
     confirmFlushPrep ||
     confirmGenerate !== null;
+
+  const noteModalDirty = noteModalOpen && (noteTitle.trim().length > 0 || noteText.trim().length > 0);
+  const requestCloseNoteModal = useCallback(() => {
+    if (busyRef.current || busyLabel !== null) return;
+    if (noteModalDirty) {
+      setConfirmDiscardNote(true);
+      return;
+    }
+    setConfirmDiscardNote(false);
+    setNoteModalOpen(false);
+  }, [busyLabel, noteModalDirty]);
   const mountedRef = useRef(true);
   const reqSeqRef = useRef(0);
   const busyRef = useRef(false);
@@ -1009,6 +1022,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
   // Modals input handling
   useInput(
     (input, key) => {
+      if (confirmDiscardNote) return;
       if (noteModalOpen) {
         if (key.tab) {
           setNoteField((f) => (f === 'title' ? 'text' : 'title'));
@@ -1560,14 +1574,18 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       {noteModalOpen ? (
         <Modal
           title={t(lang, '提交往年样卷 / 考法笔记', 'Submit Past-Paper / Exam-Style Notes')}
-          subtitle={t(lang, 'Tab 切换字段 · Ctrl+S 保存', 'Tab: Switch - Ctrl+S: Save')}
+          subtitle={
+            noteModalDirty
+              ? t(lang, '未保存', 'unsaved')
+              : t(lang, asciiMode ? 'Tab 切换 | Ctrl+S 保存' : 'Tab 切换字段 · Ctrl+S 保存', 'Tab: Switch - Ctrl+S: Save')
+          }
           width={Math.min(76, width - 4)}
-          onClose={() => setNoteModalOpen(false)}
-          isActive={isActive}
+          onClose={confirmDiscardNote ? undefined : requestCloseNoteModal}
+          isActive={isActive && !confirmDiscardNote}
           hints={[
             { key: 'Tab', label: t(lang, '切换输入框', 'Switch field') },
             { key: 'Ctrl+S', label: t(lang, '保存笔记', 'Save Note') },
-            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+            { key: 'Esc', label: noteModalDirty ? t(lang, '放弃/取消', 'Discard') : t(lang, '取消', 'Cancel') },
           ]}
         >
           <Box flexDirection="column" gap={1}>
@@ -1578,9 +1596,9 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
               value={noteTitle}
               onChange={setNoteTitle}
               placeholder={t(lang, '例如：2024 期末真题题型与考法说明', 'e.g. 2024 Final Exam Format Notes')}
-              isActive={isActive && noteModalOpen && noteField === 'title'}
+              isActive={isActive && noteModalOpen && !confirmDiscardNote && noteField === 'title'}
               width={modalContentWidth(Math.min(76, width - 4))}
-              onCancel={() => setNoteModalOpen(false)}
+              onCancel={requestCloseNoteModal}
               onSubmit={() => setNoteField('text')}
             />
             <Text color={noteField === 'text' ? theme.primary : theme.muted} bold>
@@ -1592,13 +1610,33 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
               multiline
               height={6}
               placeholder={t(lang, `粘贴老师划的题型分布、样卷例题或评分要点${ell}`, 'Paste exam format, sample questions, or grading notes...')}
-              isActive={isActive && noteModalOpen && noteField === 'text'}
+              isActive={isActive && noteModalOpen && !confirmDiscardNote && noteField === 'text'}
               width={modalContentWidth(Math.min(76, width - 4))}
-              onCancel={() => setNoteModalOpen(false)}
+              onCancel={requestCloseNoteModal}
               onSubmit={() => void saveCoachNote()}
             />
           </Box>
         </Modal>
+      ) : null}
+
+      {confirmDiscardNote ? (
+        <ConfirmDialog
+          title={t(lang, '放弃未保存的考法笔记？', 'Discard unsaved exam notes?')}
+          message={t(
+            lang,
+            '当前样卷 / 考法说明尚未保存。放弃后将丢失已输入内容。',
+            'You have unsaved past-paper / exam notes. Closing now will discard them.',
+          )}
+          confirmLabel={t(lang, '放弃修改', 'Discard')}
+          cancelLabel={t(lang, '继续编辑', 'Keep Editing')}
+          danger
+          isActive={isActive && confirmDiscardNote}
+          onConfirm={() => {
+            setConfirmDiscardNote(false);
+            setNoteModalOpen(false);
+          }}
+          onCancel={() => setConfirmDiscardNote(false)}
+        />
       ) : null}
 
       {/* Modal: Edit selected family quota / priority / timeBudget */}

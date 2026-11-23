@@ -2002,6 +2002,40 @@ describe('Domain Notes & Board: BoardView PTY E2E (zh & --ascii en)', () => {
       );
       tty.assertHealthyScreen(wheelUp, 120, 36, 'BoardView wheel up');
 
+      // Round 78: BoardCardModal Esc dirty guard (clean Esc immediate; dirty Esc -> ConfirmDialog)
+      tty.send('e');
+      await tty.waitFor((s) => s.includes('编辑看板任务') && !s.includes('未保存'), {
+        label: 'BoardCardModal edit opened clean',
+      });
+      tty.send('\x1b');
+      await tty.waitFor((s) => !s.includes('编辑看板任务') && !s.includes('放弃未保存'), {
+        label: 'Clean BoardCardModal Esc closed immediately',
+      });
+      tty.send('e');
+      await tty.waitFor((s) => s.includes('编辑看板任务'), { label: 'BoardCardModal edit reopened' });
+      tty.send(' R78_DIRTY');
+      await tty.waitFor((s) => s.includes('R78_DIRTY') && s.includes('未保存'), {
+        label: 'BoardCardModal shows unsaved badge',
+      });
+      tty.send('\x1b');
+      const boardDiscardDialog = await tty.waitFor((s) => s.includes('放弃未保存的看板卡片修改'), {
+        label: 'BoardCardModal dirty Esc opened ConfirmDialog',
+      });
+      tty.assertHealthyScreen(boardDiscardDialog, 120, 36, 'BoardCardModal discard ConfirmDialog');
+      tty.send('n');
+      await tty.waitFor(
+        (s) => !s.includes('放弃未保存的看板卡片修改') && s.includes('编辑看板任务') && s.includes('R78_DIRTY'),
+        { label: 'BoardCardModal discard cancel preserved typed edit' },
+      );
+      tty.send('\x1b');
+      await tty.waitFor((s) => s.includes('放弃未保存的看板卡片修改'), {
+        label: 'BoardCardModal discard ConfirmDialog reopened',
+      });
+      tty.send('y');
+      await tty.waitFor((s) => !s.includes('编辑看板任务') && !s.includes('放弃未保存的看板卡片修改'), {
+        label: 'BoardCardModal confirm discard closed cleanly',
+      });
+
       // Switch in-place to 80x24 --ascii en (reuses single mounted app)
       await rm(backupsDir, { recursive: true, force: true });
       tty.resize(80, 24);

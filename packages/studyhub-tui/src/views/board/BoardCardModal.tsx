@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useTheme } from '../../theme/tokens.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { TextInput } from '../../components/TextInput.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -36,12 +37,31 @@ export const BoardCardModal = memo(function BoardCardModal({
   const frameWidth = Math.max(46, Math.min(68, terminalCols - 6));
   const innerWidth = modalContentWidth(frameWidth);
 
-  const [title, setTitle] = useState(() => (mode === 'edit' ? card?.title || '' : ''));
-  const [course, setCourse] = useState(() => (mode === 'edit' ? card?.course || '' : initialCourse));
-  const [dueDate, setDueDate] = useState(() => (mode === 'edit' ? card?.dueDate || '' : ''));
-  const [column, setColumn] = useState<BoardColumnId>(() => (mode === 'edit' && card ? card.column : initialColumn));
+  const initTitle = mode === 'edit' ? card?.title || '' : '';
+  const initCourse = mode === 'edit' ? card?.course || '' : initialCourse;
+  const initDueDate = mode === 'edit' ? card?.dueDate || '' : '';
+  const initColumn: BoardColumnId = mode === 'edit' && card ? card.column : initialColumn;
+
+  const [title, setTitle] = useState(() => initTitle);
+  const [course, setCourse] = useState(() => initCourse);
+  const [dueDate, setDueDate] = useState(() => initDueDate);
+  const [column, setColumn] = useState<BoardColumnId>(() => initColumn);
   const [field, setField] = useState<Field>('title');
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [error, setError] = useState('');
+
+  const dirty =
+    mode === 'edit'
+      ? title !== initTitle || course !== initCourse || dueDate !== initDueDate || column !== initColumn
+      : title.trim().length > 0 || dueDate.trim().length > 0 || course !== initCourse || column !== initColumn;
+
+  const requestClose = useCallback(() => {
+    if (dirty) {
+      setConfirmDiscard(true);
+      return;
+    }
+    onClose();
+  }, [dirty, onClose]);
 
   const handleConfirm = useCallback(() => {
     const trimmed = title.trim();
@@ -64,50 +84,56 @@ export const BoardCardModal = memo(function BoardCardModal({
     });
   }, [title, dueDate, course, column, lang, onSubmit]);
 
-  useInput((input, key) => {
-    if (key.ctrl && input === 's') {
-      handleConfirm();
-      return;
-    }
-    if (key.tab || key.downArrow || key.upArrow) {
-      const dir = key.shift || key.upArrow ? -1 : 1;
-      const idx = FIELDS.indexOf(field);
-      setField(FIELDS[(idx + dir + FIELDS.length) % FIELDS.length]);
-      return;
-    }
-    if (field === 'column') {
-      if (key.leftArrow || input === 'h') {
-        const idx = BOARD_COLUMNS.indexOf(column);
-        setColumn(BOARD_COLUMNS[(idx + 2) % 3]);
-      } else if (key.rightArrow || input === 'l') {
-        const idx = BOARD_COLUMNS.indexOf(column);
-        setColumn(BOARD_COLUMNS[(idx + 1) % 3]);
-      } else if (input === '1') setColumn('todo');
-      else if (input === '2') setColumn('doing');
-      else if (input === '3') setColumn('done');
-      else if (key.return) handleConfirm();
-    }
-  });
+  useInput(
+    (input, key) => {
+      if (key.ctrl && input === 's') {
+        handleConfirm();
+        return;
+      }
+      if (key.tab || key.downArrow || key.upArrow) {
+        const dir = key.shift || key.upArrow ? -1 : 1;
+        const idx = FIELDS.indexOf(field);
+        setField(FIELDS[(idx + dir + FIELDS.length) % FIELDS.length]);
+        return;
+      }
+      if (field === 'column') {
+        if (key.leftArrow || input === 'h') {
+          const idx = BOARD_COLUMNS.indexOf(column);
+          setColumn(BOARD_COLUMNS[(idx + 2) % 3]);
+        } else if (key.rightArrow || input === 'l') {
+          const idx = BOARD_COLUMNS.indexOf(column);
+          setColumn(BOARD_COLUMNS[(idx + 1) % 3]);
+        } else if (input === '1') setColumn('todo');
+        else if (input === '2') setColumn('doing');
+        else if (input === '3') setColumn('done');
+        else if (key.return) handleConfirm();
+      }
+    },
+    { isActive: !confirmDiscard },
+  );
 
   const hints: KeyHint[] = useMemo(
     () => [
       { key: asciiMode ? 'Tab/Up/Dn' : 'Tab/↑↓', label: t(lang, '切换栏位', 'Next field') },
       { key: 'Enter', label: t(lang, '确认', 'Save') },
-      { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+      { key: 'Esc', label: dirty ? t(lang, '放弃/取消', 'Discard') : t(lang, '取消', 'Cancel') },
     ],
-    [asciiMode, lang],
+    [asciiMode, lang, dirty],
   );
 
   const colLabel = (c: BoardColumnId) =>
     c === 'todo' ? t(lang, '待办 Todo', 'Todo') : c === 'doing' ? t(lang, '进行中 Doing', 'Doing') : t(lang, '已完成 Done', 'Done');
 
   return (
+    <>
     <Modal
       title={mode === 'add' ? t(lang, '添加看板任务', 'Add Board Card') : t(lang, '编辑看板任务', 'Edit Board Card')}
+      subtitle={dirty ? t(lang, '未保存', 'unsaved') : undefined}
       icon={asciiMode ? '#' : '▦'}
       tone="primary"
       width={frameWidth}
-      onClose={onClose}
+      isActive={!confirmDiscard}
+      onClose={confirmDiscard ? undefined : requestClose}
       hints={hints}
     >
       <Box flexDirection="column" gap={0}>
@@ -121,8 +147,8 @@ export const BoardCardModal = memo(function BoardCardModal({
             if (title.trim()) setField('course');
             else setError(t(lang, '请输入任务标题', 'Please enter a card title'));
           }}
-          onCancel={onClose}
-          isActive={field === 'title'}
+          onCancel={requestClose}
+          isActive={!confirmDiscard && field === 'title'}
           width={innerWidth - 2}
           prompt={asciiMode ? '> ' : '› '}
           placeholder={t(lang, '例如：刷完第 5 章矩阵特征值错题', 'e.g. Review Chapter 5 eigenvalue mistakes')}
@@ -138,8 +164,8 @@ export const BoardCardModal = memo(function BoardCardModal({
             value={course}
             onChange={setCourse}
             onSubmit={() => setField('dueDate')}
-            onCancel={onClose}
-            isActive={field === 'course'}
+            onCancel={requestClose}
+            isActive={!confirmDiscard && field === 'course'}
             width={innerWidth - 2}
             prompt="# "
             placeholder={t(lang, '例如：线性代数', 'e.g. Linear Algebra')}
@@ -156,8 +182,8 @@ export const BoardCardModal = memo(function BoardCardModal({
             value={dueDate}
             onChange={setDueDate}
             onSubmit={handleConfirm}
-            onCancel={onClose}
-            isActive={field === 'dueDate'}
+            onCancel={requestClose}
+            isActive={!confirmDiscard && field === 'dueDate'}
             width={innerWidth - 2}
             prompt={asciiMode ? '@ ' : '◷ '}
             placeholder="2026-11-30"
@@ -198,5 +224,26 @@ export const BoardCardModal = memo(function BoardCardModal({
         ) : null}
       </Box>
     </Modal>
+
+    {confirmDiscard ? (
+      <ConfirmDialog
+        title={t(lang, '放弃未保存的看板卡片修改？', 'Discard unsaved board card changes?')}
+        message={t(
+          lang,
+          '当前看板任务仍有未保存的编辑内容。放弃后将丢失这些修改。',
+          'You have unsaved edits in this board card. Closing now will discard them.',
+        )}
+        confirmLabel={t(lang, '放弃修改', 'Discard')}
+        cancelLabel={t(lang, '继续编辑', 'Keep Editing')}
+        danger
+        isActive={confirmDiscard}
+        onConfirm={() => {
+          setConfirmDiscard(false);
+          onClose();
+        }}
+        onCancel={() => setConfirmDiscard(false)}
+      />
+    ) : null}
+    </>
   );
 });
