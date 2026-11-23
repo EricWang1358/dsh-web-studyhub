@@ -216,14 +216,71 @@ export function buildPaletteItems(
     items.push({ id, label, hint, category: catAction, action, keywords, shortcut });
 
   const themeArrow = asciiMode ? '->' : '→';
+  const applyTheme = (next: TuiPreferences['theme']) => {
+    state.setTheme(next);
+    persistPreferencePatch(host, { theme: next });
+    notify(t(lang, `主题已切换：${next}`, `Theme: ${next}`), 'info');
+  };
   act('cmd:sample', '/sample', t(lang, '载入示例课程', 'Load sample course'), () => actions.loadSample(), ['示例', 'demo', 'tour']);
-  act('cmd:theme', '/theme', t(lang, `切换主题 ${themeArrow} ${nextThemeId(state.preferences.theme)}`, `Cycle theme ${themeArrow} ${nextThemeId(state.preferences.theme)}`), () =>
-    state.setTheme(nextThemeId(state.preferences.theme)),
-  ['主题', 'color', 'palette']);
+  act(
+    'cmd:theme',
+    '/theme',
+    t(lang, `切换主题 ${themeArrow} ${nextThemeId(state.preferences.theme)}`, `Cycle theme ${themeArrow} ${nextThemeId(state.preferences.theme)}`),
+    () => applyTheme(nextThemeId(state.preferences.theme)),
+    ['主题', 'color', 'palette'],
+  );
   for (const th of listThemes()) {
-    act(`cmd:theme:${th.id}`, `/theme ${th.id}`, th.label, () => state.setTheme(th.id), ['主题', 'theme']);
+    act(`cmd:theme:${th.id}`, `/theme ${th.id}`, th.label, () => applyTheme(th.id), ['主题', 'theme']);
   }
-  act('cmd:lang', '/lang', lang === 'zh' ? 'Switch to English' : '切换到中文', () => state.setLanguage(lang === 'zh' ? 'en' : 'zh'), ['language', '语言', '中文', 'english']);
+  act(
+    'cmd:lang',
+    '/lang',
+    lang === 'zh' ? 'Switch to English' : '切换到中文',
+    () => {
+      const next: UiLanguage = lang === 'zh' ? 'en' : 'zh';
+      state.setLanguage(next);
+      (host as { setLanguage?: (l: UiLanguage) => void } | undefined)?.setLanguage?.(next);
+      persistPreferencePatch(host, { language: next });
+      notify(next === 'en' ? 'Language: English' : '界面语言：简体中文', 'info');
+    },
+    ['language', '语言', '中文', 'english'],
+  );
+  act(
+    'cmd:due',
+    '/due',
+    t(lang, '立即开始今日到期复习', 'Start today\'s due review queue'),
+    async () => {
+      if (!host) {
+        state.navigate('library');
+        return;
+      }
+      const focusCourse =
+        typeof (snap?.focus as { course?: unknown } | undefined)?.course === 'string'
+          ? String((snap?.focus as { course?: string }).course).trim()
+          : '';
+      try {
+        const res = await host.call<{ id?: string; runId?: string }>('review.start', {
+          filter: 'due',
+          ...(focusCourse ? { course: focusCourse } : {}),
+        });
+        const runId = res.ok ? res.value?.id || res.value?.runId : undefined;
+        if (runId) {
+          state.navigate('review', { runId });
+        } else {
+          notify(
+            !res.ok
+              ? res.error?.message || t(lang, '当前没有到期复习题', 'No due cards to review right now')
+              : t(lang, '当前没有到期复习题', 'No due cards to review right now'),
+            'info',
+          );
+          state.navigate('library');
+        }
+      } catch (err) {
+        notify(err instanceof Error ? err.message : String(err), 'error');
+      }
+    },
+    ['due', 'review', 'queue', '到期', '今日', '复习'],
+  );
   act(
     'cmd:ascii',
     '/ascii',

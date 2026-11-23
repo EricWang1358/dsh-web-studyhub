@@ -746,7 +746,49 @@ describe('Domain Shell Overlays: CommandPalette, HelpOverlay, SelectList & Inbox
       await itemsEnBack.find((i) => i.id === 'cmd:sidebar').action();
       assert.equal(notifications.at(-1)?.text, 'Sidebar expanded');
 
-      for (const existingId of ['cmd:theme', 'cmd:lang', 'cmd:ascii', 'cmd:math', 'cmd:recover']) {
+      const themeChanges = [];
+      const langChanges = [];
+      const hostLangChanges = [];
+      const hostCalls = [];
+      const mockHostWithTrackers = {
+        ...mockHost,
+        setLanguage: (l) => hostLangChanges.push(l),
+        call: async (action, payload) => {
+          hostCalls.push({ action, payload });
+          if (action === 'review.start' && payload?.filter === 'due') {
+            return { ok: true, value: { id: 'run-due-80' } };
+          }
+          return { ok: true, value: {} };
+        },
+      };
+      mockState.setTheme = (th) => {
+        prefs.theme = th;
+        themeChanges.push(th);
+      };
+      mockState.setLanguage = (l) => {
+        prefs.language = l;
+        langChanges.push(l);
+      };
+
+      const itemsR80 = OverlayMod.buildPaletteItems(mockState, mockActions, [], mockHostWithTrackers);
+      await itemsR80.find((i) => i.id === 'cmd:theme').action();
+      assert.equal(themeChanges.at(-1), 'warm-paper');
+      assert.match(notifications.at(-1)?.text ?? '', /warm-paper/);
+
+      await itemsR80.find((i) => i.id === 'cmd:theme:nord').action();
+      assert.equal(themeChanges.at(-1), 'nord');
+      assert.match(notifications.at(-1)?.text ?? '', /nord/);
+
+      await itemsR80.find((i) => i.id === 'cmd:lang').action();
+      assert.equal(langChanges.at(-1), 'zh');
+      assert.equal(hostLangChanges.at(-1), 'zh', '/lang must sync host.setLanguage');
+      assert.equal(notifications.at(-1)?.text, '界面语言：简体中文');
+
+      await itemsR80.find((i) => i.id === 'cmd:due').action();
+      assert.deepEqual(hostCalls.at(-1), { action: 'review.start', payload: { filter: 'due' } });
+      assert.deepEqual(navigated.at(-1), { page: 'review', ctx: { runId: 'run-due-80' } });
+
+      for (const existingId of ['cmd:theme', 'cmd:lang', 'cmd:ascii', 'cmd:math', 'cmd:recover', 'cmd:due']) {
         assert.ok(items.some((i) => i.id === existingId), `Existing command ${existingId} must remain intact`);
       }
     });
