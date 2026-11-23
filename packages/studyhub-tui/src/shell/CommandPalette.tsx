@@ -10,6 +10,8 @@ import { TextInput } from '../components/TextInput.js';
 import { nextScrollOffset, parseSgrWheelDelta, useSgrMouseWheel } from '../components/VirtualList.js';
 import { fuzzyFilter } from './fuzzy.js';
 import { listCourses, pageIcon } from './data.js';
+import { parseAssistantIntent } from './assistant-intent.js';
+import { planAssistantWorkflow } from './assistant-workflow.js';
 import type { ShellActions } from './actions.js';
 import { useShellActions } from './actions.js';
 
@@ -627,6 +629,84 @@ export interface CommandPaletteProps {
   initialQuery?: string;
 }
 
+/**
+ * Synthesize a live Natural-Language command item for CommandPalette using the shared
+ * `#1315` Assistant intent & workflow parsers (Round 89 Track B6).
+ * Returns `null` for slash/scoped commands or non-actionable queries.
+ */
+export function buildNaturalLanguagePaletteItem(
+  rawQuery: string,
+  ctx: {
+    snapshot: StudySnapshot | null;
+    lang: UiLanguage;
+    asciiMode: boolean;
+    cardId?: string | null;
+    deckId?: string | null;
+  },
+): CommandPaletteItem | null {
+  const q = rawQuery.trim();
+  if (q.length < 2 || q.startsWith('/') || q.startsWith(':') || q.startsWith('@') || q.startsWith('#') || q.startsWith('$')) {
+    return null;
+  }
+
+  const nlIcon = ctx.asciiMode ? '*' : '✦';
+  const category = t(ctx.lang, '自然语言', 'Natural Lang');
+
+  const wf = planAssistantWorkflow(q, {
+    snapshot: ctx.snapshot,
+    currentCardId: ctx.cardId,
+    currentDeckId: ctx.deckId,
+    lang: ctx.lang,
+  });
+  if (wf && wf.steps.some((s) => s.intent.kind !== 'chat' && s.intent.kind !== 'unsupported')) {
+    return {
+      id: 'nl:workflow',
+      label: `${nlIcon} ${t(ctx.lang, `多步执行 (${wf.steps.length} 步): ${q}`, `Multi-step (${wf.steps.length}): ${q}`)}`,
+      hint: t(ctx.lang, '交由 AI 助手逐步确认执行', 'Hand off to AI Assistant step-by-step'),
+      category,
+      action: () => {
+        useTuiStore.getState().openAssistant({ tab: 'assistant', focused: true });
+      },
+    };
+  }
+
+  const intent = parseAssistantIntent(q, {
+    snapshot: ctx.snapshot,
+    currentCardId: ctx.cardId,
+    currentDeckId: ctx.deckId,
+    lang: ctx.lang,
+  });
+  if (intent.kind === 'chat' || intent.kind === 'unsupported') return null;
+
+  return {
+    id: `nl:${intent.actionName}`,
+    label: `${nlIcon} ${intent.paramsSummary}`,
+    hint: intent.requiresConfirm
+      ? t(ctx.lang, '需在 AI 助手确认后执行', 'Requires confirmation in AI Assistant')
+      : t(ctx.lang, '自然语言直达', 'Natural language action'),
+    category,
+    action: () => {
+      const s = useTuiStore.getState();
+      if (intent.kind === 'navigate') {
+        s.navigate(intent.page, {
+          ...(intent.sourceId ? { sourceId: intent.sourceId } : {}),
+          ...(intent.pageNumber ? { pageNumber: intent.pageNumber } : {}),
+        });
+        return;
+      }
+      if (intent.kind === 'enter_guided') {
+        s.openAssistant({ tab: 'guided', stage: intent.stage ?? 'question', focused: true });
+        return;
+      }
+      if (intent.kind === 'readonly_stats') {
+        s.navigate('dashboard');
+        return;
+      }
+      s.openAssistant({ tab: 'assistant', focused: true });
+    },
+  };
+}
+
 export const CommandPalette = memo(function CommandPalette({
   host,
   isActive,
@@ -779,10 +859,23 @@ export const CommandPalette = memo(function CommandPalette({
     [items, parsed, preferences.recentCommands, lang],
   );
 
-  const results = useMemo(
-    () => (liveItems.length ? [...fuzzyResults, ...liveItems] : fuzzyResults),
-    [fuzzyResults, liveItems],
+  const assistantCardContext = useTuiStore((s) => s.assistantCardContext);
+  const nlItem = useMemo(
+    () =>
+      buildNaturalLanguagePaletteItem(query, {
+        snapshot,
+        lang,
+        asciiMode,
+        cardId: assistantCardContext?.cardId,
+        deckId: assistantCardContext?.deckId,
+      }),
+    [query, snapshot, lang, asciiMode, assistantCardContext?.cardId, assistantCardContext?.deckId],
   );
+
+  const results = useMemo(() => {
+    const base = liveItems.length ? [...fuzzyResults, ...liveItems] : fuzzyResults;
+    return nlItem ? [nlItem, ...base] : base;
+  }, [fuzzyResults, liveItems, nlItem]);
 
   const width = Math.min(84, Math.max(40, columns - 8));
   const listRows = Math.max(3, Math.min(13, rows - 11));
