@@ -19,6 +19,7 @@ import { ActiveSwitch, isParked } from './CourseActive.jsx';
 import { ExamAlignmentPointer, examPointerShown } from './ExamAlignmentPointer.jsx';
 import { alignmentReceipt } from './exam-alignment-words.js';
 import { daysUntilExam, examProfile, EXAM_SETTING_LIMITS } from '../lib/courses.js';
+import { courseRelative } from '../lib/course-tree.js';
 import { courseNameKey, findDuplicateCourses, groupCourseNames, rankCourses, similarCourses } from './course-names.js';
 import css from './course-settings.css';
 import focusIntakeCss from './focus-intake.css';
@@ -346,9 +347,15 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
     toast.success([uiFormat('已保存「{0}」的课程信息', [course.name]), moved].filter(Boolean).join(ui('；')));
     onClose?.('saved');
   });
+  const courseNames = (courses || []).map(item => item?.name).filter(Boolean);
+  const subCourseCount = (courses || []).filter(item => item && item.id !== course.id && courseRelative(item.name, course.name, courseNames) !== null).length;
   const rename = () => run('course.rename', { id: course.id, name: name.trim() }, result => {
     setConfirm(null); setNestedWarn(false); setName(result?.course?.name || name.trim());
-    toast.success([uiFormat('已改名为「{0}」，题组、资料和练习都已同步', [result?.course?.name || name.trim()]), alignmentReceipt(result?.alignment)].filter(Boolean).join(ui('；')));
+    const childCount = result?.subCourses?.length || 0;
+    const msg = childCount > 0
+      ? uiFormat('已改名为「{0}」，含 {1} 门子课程的题组、资料、全书和练习都已同步', [result?.course?.name || name.trim(), childCount])
+      : uiFormat('已改名为「{0}」，题组、资料和练习都已同步', [result?.course?.name || name.trim()]);
+    toast.success([msg, alignmentReceipt(result?.alignment)].filter(Boolean).join(ui('；')));
   });
   const merge = () => run('course.merge', { from: mergeIds, into: course.id }, result => {
     if (result?.course) setDraft(current => draftAfterMerge(course, current, result.course));
@@ -410,7 +417,9 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
           <Hint>{ui('改名需点右侧「改名」并确认，立即生效；不会随底部「保存课程信息」提交。')}</Hint>
           {confirm === 'rename' && renamed && <InlineConfirm tone="warning" title={uiFormat('把「{0}」改名为「{1}」？', [course.name, name.trim()])}
             confirmLabel={ui('确认改名')} busy={working || busy} returnFocusRef={renameTrigger} onConfirm={rename} onCancel={() => setConfirm(null)}>
-            <p>{ui('所有题组、资料、练习和学习流会一起改名；旧名称保留为别名，旧资料仍能找到这门课。')}</p>
+            <p>{subCourseCount > 0
+              ? uiFormat('将连同 {0} 门子课程一并改名，所有题组、资料、全书、练习和学习流会一起同步；旧名称保留为别名。', [subCourseCount])
+              : ui('所有题组、资料、练习和学习流会一起改名；旧名称保留为别名，旧资料仍能找到这门课。')}</p>
           </InlineConfirm>}
           <p className="course-settings__aliases">
             <span>{ui('别名（旧名称，只读）')}</span>
