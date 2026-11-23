@@ -271,8 +271,8 @@
     }
 
     .desk-play-slip__option[data-correct="true"] {
-      border-color: var(--ok);
-      background: color-mix(in srgb, var(--ok) 10%, var(--bg-surface));
+      border-color: var(--ok-line);
+      background: var(--ok-bg);
     }
 
     .desk-play-slip__option-key {
