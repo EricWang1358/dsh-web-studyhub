@@ -37,6 +37,21 @@ export interface PageMeta {
 export type ThemeId = 'dsh-dark' | 'warm-paper' | 'nord' | 'high-contrast';
 export type UiLanguage = 'zh' | 'en';
 
+export interface AssistantCommandStat {
+  count: number;
+  lastUsedAt: number;
+}
+
+export interface LastPracticeContext {
+  runId: string;
+  cardId: string;
+  deckId?: string;
+  cardIndex: number;
+  total?: number;
+  promptPreview?: string;
+  savedAt: number;
+}
+
 export interface TuiPreferences {
   theme: ThemeId;
   language: UiLanguage;
@@ -51,6 +66,10 @@ export interface TuiPreferences {
   lastOpenAiPreset?: string;
   /** Persistent last-read page per document (LRU-bounded at 100 entries). */
   lastReadPages?: Record<string, number>;
+  /** Last active practice card position for cross-restart resume (#1319). */
+  lastPracticeContext?: LastPracticeContext;
+  /** Per-page assistant command frequency for 3x chip promotion & recent pinning (#1315). */
+  assistantCommandStats?: Record<string, Record<string, AssistantCommandStat>>;
 }
 
 export interface HostCallResult<T = unknown> {

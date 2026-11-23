@@ -127,7 +127,7 @@ describe('#1310 usage guide completeness & keybinding sync', () => {
     }
 
     // Every Review bottom utility strip key
-    for (const reviewKey of ['h', 'L', '*', 'F', 'G', 'A', 'T', 'S', 'D', 'Q', 'E', 's', 'u', ',', '.', 'J', 'K', 'N', 'o', 'X']) {
+    for (const reviewKey of ['h', 'T', '*', 'G', 'A', 'W', 'S', 'D', 'Q', 'E', 's', 'u', ',', '.', 'J', 'K', 'N', 'o', 'X']) {
       assert.ok(
         guide.includes(`\`${reviewKey}\``),
         `docs/GUIDE.md missing Review bottom utility key \`${reviewKey}\``,

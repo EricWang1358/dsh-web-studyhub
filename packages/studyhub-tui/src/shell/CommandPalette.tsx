@@ -231,6 +231,22 @@ export function buildPaletteItems(
     '?',
   );
   act(
+    'cmd:assistant',
+    '/assistant',
+    t(lang, '打开右侧停靠 AI 助手（不抢焦点、自然语言、OSC 52 复制）', 'Open docked AI Assistant panel'),
+    () => useTuiStore.getState().openAssistant({ tab: 'assistant', focused: true }),
+    ['ai', 'assistant', '助手', '自然语言', '指令'],
+    'Ctrl+Space',
+  );
+  act(
+    'cmd:guided',
+    '/guided',
+    t(lang, `打开统一带学与复述工作台（提问${themeArrow}作答${themeArrow}判定${themeArrow}复述${themeArrow}小结）`, 'Open Guided Study & Retell tab'),
+    () => useTuiStore.getState().openAssistant({ tab: 'guided' }),
+    ['guided', 'socratic', 'retell', '带学', '复述', '苏格拉底'],
+    'T',
+  );
+  act(
     'cmd:theme',
     '/theme',
     t(lang, `切换主题 ${themeArrow} ${nextThemeId(state.preferences.theme)}`, `Cycle theme ${themeArrow} ${nextThemeId(state.preferences.theme)}`),

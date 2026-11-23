@@ -11,6 +11,30 @@ import type {
   TuiPreferences,
   UiLanguage,
 } from '../types/contracts.js';
+import {
+  popPracticeFrame,
+  pushPracticeFrame,
+  type PracticeContextFrame,
+} from './practice-stack.js';
+import type { GuidedStageId } from '../render/clipboard.js';
+
+export type AssistantTabId = 'assistant' | 'guided';
+
+export interface AssistantCardContext {
+  runId?: string;
+  deckId?: string;
+  cardId: string;
+  cardIndex?: number;
+  total?: number;
+  prompt?: string;
+  userAnswer?: string;
+  kind?: string;
+  isWrong?: boolean;
+  revealed?: boolean;
+  /** Optional active page filter or selected item label for full context awareness (#1315). */
+  filterQuery?: string;
+  selectedLabel?: string;
+}
 
 export const DEFAULT_PREFERENCES: TuiPreferences = {
   theme: 'dsh-dark',
@@ -59,6 +83,19 @@ export interface TuiStoreState {
   inboxOpen: boolean;
   showLaunchpad: boolean;
 
+  /** Practice Context Stack (#1319) — LIFO stack preserving question/draft/reading state across jumps. */
+  practiceStack: PracticeContextFrame[];
+  pendingPracticeRestore: PracticeContextFrame | null;
+
+  /** Persistent AI Assistant + Guided Study/Retell panel (#1315 Phase 1). Opening/closing NEVER touches practiceStack. */
+  assistantOpen: boolean;
+  /** True only when user explicitly focuses the docked panel (or fullscreen); false keeps page focus for answering/paging! */
+  assistantFocused: boolean;
+  assistantTab: AssistantTabId;
+  assistantStage: GuidedStageId;
+  assistantFullscreen: boolean;
+  assistantCardContext: AssistantCardContext | null;
+
   /** Core StudyHub backend state */
   snapshot: StudySnapshot | null;
   binding: BindingSnapshot | null;
@@ -87,6 +124,26 @@ export interface TuiStoreState {
   setVoicePackOpen: (open: boolean) => void;
   setInboxOpen: (open: boolean) => void;
   setShowLaunchpad: (show: boolean) => void;
+
+  pushPracticeContext: (frame: PracticeContextFrame) => void;
+  popPracticeContext: () => PracticeContextFrame | null;
+  returnViaPracticeStack: () => PracticeContextFrame | null;
+  consumePendingPracticeRestore: () => PracticeContextFrame | null;
+  clearPracticeStack: () => void;
+
+  openAssistant: (opts?: {
+    tab?: AssistantTabId;
+    stage?: GuidedStageId;
+    fullscreen?: boolean;
+    focused?: boolean;
+    cardContext?: AssistantCardContext | null;
+  }) => void;
+  closeAssistant: () => void;
+  setAssistantFocused: (focused: boolean) => void;
+  setAssistantTab: (tab: AssistantTabId) => void;
+  setAssistantStage: (stage: GuidedStageId) => void;
+  setAssistantFullscreen: (fullscreen: boolean) => void;
+  setAssistantCardContext: (ctx: AssistantCardContext | null) => void;
 
   setSnapshot: (snapshot: StudySnapshot | null) => void;
   setBinding: (binding: BindingSnapshot | null) => void;
@@ -127,6 +184,14 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
   voicePackOpen: false,
   inboxOpen: false,
   showLaunchpad: false,
+  practiceStack: [],
+  pendingPracticeRestore: null,
+  assistantOpen: false,
+  assistantFocused: false,
+  assistantTab: 'assistant',
+  assistantStage: 'question',
+  assistantFullscreen: false,
+  assistantCardContext: null,
 
   snapshot: null,
   binding: null,
@@ -188,6 +253,62 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
   setVoicePackOpen: (voicePackOpen) => set({ voicePackOpen }),
   setInboxOpen: (inboxOpen) => set({ inboxOpen }),
   setShowLaunchpad: (showLaunchpad) => set({ showLaunchpad }),
+
+  pushPracticeContext: (frame) =>
+    set((state) => ({
+      practiceStack: pushPracticeFrame(state.practiceStack, frame),
+    })),
+
+  popPracticeContext: () => {
+    const prev = get();
+    const { frame, rest } = popPracticeFrame(prev.practiceStack);
+    if (!frame) return null;
+    set({
+      practiceStack: rest,
+      ...(frame.kind === 'review' ? { pendingPracticeRestore: frame } : {}),
+    });
+    return frame;
+  },
+
+  returnViaPracticeStack: () => {
+    const frame = get().popPracticeContext();
+    if (!frame) return null;
+    if (frame.kind === 'review') {
+      get().navigate('review', {
+        ...(frame.runId ? { runId: frame.runId } : {}),
+        ...(frame.deckId ? { deckId: frame.deckId } : {}),
+      });
+    } else {
+      const ctx = frame.navContext ?? (frame.readingPos ? { sourceId: frame.readingPos.sourceId, pageNumber: frame.readingPos.pageNumber } : {});
+      get().navigate(frame.returnPage, ctx);
+    }
+    return frame;
+  },
+
+  consumePendingPracticeRestore: () => {
+    const frame = get().pendingPracticeRestore;
+    if (frame) set({ pendingPracticeRestore: null });
+    return frame;
+  },
+
+  clearPracticeStack: () => set({ practiceStack: [], pendingPracticeRestore: null }),
+
+  openAssistant: (opts) =>
+    set((state) => ({
+      assistantOpen: true,
+      assistantFocused: opts?.focused ?? true,
+      assistantTab: opts?.tab ?? state.assistantTab,
+      assistantStage: opts?.stage ?? state.assistantStage,
+      assistantFullscreen: opts?.fullscreen ?? state.assistantFullscreen,
+      ...(opts?.cardContext !== undefined ? { assistantCardContext: opts.cardContext } : {}),
+    })),
+
+  closeAssistant: () => set({ assistantOpen: false, assistantFocused: false, assistantFullscreen: false }),
+  setAssistantFocused: (assistantFocused) => set({ assistantFocused }),
+  setAssistantTab: (assistantTab) => set({ assistantTab }),
+  setAssistantStage: (assistantStage) => set({ assistantStage }),
+  setAssistantFullscreen: (assistantFullscreen) => set({ assistantFullscreen }),
+  setAssistantCardContext: (assistantCardContext) => set({ assistantCardContext }),
 
   setSnapshot: (snapshot) => {
     const activeRun =
