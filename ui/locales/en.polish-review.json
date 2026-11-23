@@ -93,5 +93,9 @@
   "设定": "Set",
   "设定今日题量目标，可实时估算还需几个番茄。": "Set a daily question goal to estimate remaining pomodoros.",
   "还需约 {0} 个番茄（含休息约 {1}）": "~{0} pomodoros left (~{1} incl. breaks)",
-  "还需约 {0} 个番茄（含休息约 {1}）#one": "~{0} pomodoro left (~{1} incl. breaks)"
+  "还需约 {0} 个番茄（含休息约 {1}）#one": "~{0} pomodoro left (~{1} incl. breaks)",
+  "已改名为「{0}」，含 {1} 门子课程的题组、资料、全书和练习都已同步": "Renamed to \"{0}\"; decks, materials, review book, and practice synced across {1} sub-courses",
+  "已改名为「{0}」，含 {1} 门子课程的题组、资料、全书和练习都已同步#one:1": "Renamed to \"{0}\"; decks, materials, review book, and practice synced across {1} sub-course",
+  "将连同 {0} 门子课程一并改名，所有题组、资料、全书、练习和学习流会一起同步；旧名称保留为别名。": "This will also rename {0} sub-courses and sync all decks, materials, review book, practice, and workflows; old names remain as aliases.",
+  "将连同 {0} 门子课程一并改名，所有题组、资料、全书、练习和学习流会一起同步；旧名称保留为别名。#one": "This will also rename {0} sub-course and sync all decks, materials, review book, practice, and workflows; old names remain as aliases."
 }

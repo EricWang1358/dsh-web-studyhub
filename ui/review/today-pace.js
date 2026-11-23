@@ -89,6 +89,7 @@ function clampElapsedMs(raw) {
  */
 export function computeTodayPace({
   attempts = [],
+  summary = null,
   goal = null,
   focusMinutes: focusProp = 25,
   breakMinutes: breakProp = 5,
@@ -99,49 +100,65 @@ export function computeTodayPace({
   const today = todayProp || (timeZone ? dayInTimeZone(now, timeZone) : localDate(new Date(now)));
   const focusMinutes = Math.max(1, Math.round(Number(focusProp) || 25));
   const breakMinutes = Math.max(0, Math.round(Number(breakProp) || 5));
-  const weekDays = new Set(recentLocalDays(today, 7));
 
   let todayCount = 0;
-  const todayElapsed = [];
-  const priorWeekElapsed = [];
+  let todaySampleCount = 0;
+  let todayMed = null;
+  let weekSampleCount = 0;
+  let weekMed = null;
 
-  for (const attempt of Array.isArray(attempts) ? attempts : []) {
-    if (!attempt || attempt.voidedAt || attempt.implicit) continue;
-    const ts = attemptTimestampMs(attempt);
-    if (!Number.isFinite(ts)) continue;
-    const day = timeZone ? dayInTimeZone(ts, timeZone) : localDate(new Date(ts));
-    if (!day) continue;
-    const elapsed = clampElapsedMs(attempt.elapsed_ms);
-    if (day === today) {
-      todayCount += 1;
-      if (elapsed !== null) todayElapsed.push(elapsed);
-    } else if (weekDays.has(day) && elapsed !== null) {
-      priorWeekElapsed.push(elapsed);
+  const useSummary = !timeZone && summary && typeof summary === 'object' && summary.date === today && Number.isFinite(Number(summary.todayCount));
+  if (useSummary) {
+    todayCount = Math.max(0, Math.round(Number(summary.todayCount) || 0));
+    todaySampleCount = Math.max(0, Math.round(Number(summary.todaySampleCount) || 0));
+    todayMed = Number.isFinite(Number(summary.todayMedianMs)) && Number(summary.todayMedianMs) > 0 ? Number(summary.todayMedianMs) : null;
+    weekSampleCount = Math.max(0, Math.round(Number(summary.weekSampleCount) || 0));
+    weekMed = Number.isFinite(Number(summary.weekMedianMs)) && Number(summary.weekMedianMs) > 0 ? Number(summary.weekMedianMs) : null;
+  } else {
+    const weekDays = new Set(recentLocalDays(today, 7));
+    const todayElapsed = [];
+    const priorWeekElapsed = [];
+
+    for (const attempt of Array.isArray(attempts) ? attempts : []) {
+      if (!attempt || attempt.voidedAt || attempt.implicit || attempt.imported) continue;
+      const ts = attemptTimestampMs(attempt);
+      if (!Number.isFinite(ts)) continue;
+      const day = timeZone ? dayInTimeZone(ts, timeZone) : localDate(new Date(ts));
+      if (!day) continue;
+      const elapsed = clampElapsedMs(attempt.elapsed_ms);
+      if (day === today) {
+        todayCount += 1;
+        if (elapsed !== null) todayElapsed.push(elapsed);
+      } else if (weekDays.has(day) && elapsed !== null) {
+        priorWeekElapsed.push(elapsed);
+      }
     }
+    todaySampleCount = todayElapsed.length;
+    todayMed = median(todayElapsed);
+    weekSampleCount = priorWeekElapsed.length;
+    weekMed = median(priorWeekElapsed);
   }
 
   let medianElapsedMs = COLD_START_ELAPSED_MS;
   let paceSource = 'cold-start';
   let preliminary = true;
 
-  if (todayElapsed.length >= BLEND_MIN_TODAY_SAMPLES) {
-    medianElapsedMs = median(todayElapsed);
+  if (todaySampleCount >= BLEND_MIN_TODAY_SAMPLES && todayMed !== null) {
+    medianElapsedMs = todayMed;
     paceSource = 'today';
     preliminary = false;
-  } else if (todayElapsed.length > 0) {
-    const todayMed = median(todayElapsed);
-    const weight = todayElapsed.length / BLEND_MIN_TODAY_SAMPLES;
-    const baseMed = priorWeekElapsed.length > 0 ? median(priorWeekElapsed) : COLD_START_ELAPSED_MS;
+  } else if (todaySampleCount > 0 && todayMed !== null) {
+    const weight = todaySampleCount / BLEND_MIN_TODAY_SAMPLES;
+    const baseMed = weekSampleCount > 0 && weekMed !== null ? weekMed : COLD_START_ELAPSED_MS;
     medianElapsedMs = weight * todayMed + (1 - weight) * baseMed;
     paceSource = 'blended';
-    preliminary = todayElapsed.length + priorWeekElapsed.length < BLEND_MIN_TODAY_SAMPLES;
-  } else if (priorWeekElapsed.length > 0) {
-    const weekMed = median(priorWeekElapsed);
-    if (priorWeekElapsed.length >= BLEND_MIN_TODAY_SAMPLES) {
+    preliminary = todaySampleCount + weekSampleCount < BLEND_MIN_TODAY_SAMPLES;
+  } else if (weekSampleCount > 0 && weekMed !== null) {
+    if (weekSampleCount >= BLEND_MIN_TODAY_SAMPLES) {
       medianElapsedMs = weekMed;
       preliminary = false;
     } else {
-      const weight = priorWeekElapsed.length / BLEND_MIN_TODAY_SAMPLES;
+      const weight = weekSampleCount / BLEND_MIN_TODAY_SAMPLES;
       medianElapsedMs = weight * weekMed + (1 - weight) * COLD_START_ELAPSED_MS;
       preliminary = true;
     }
@@ -173,8 +190,8 @@ export function computeTodayPace({
   return {
     today,
     todayCount,
-    todaySampleCount: todayElapsed.length,
-    weekSampleCount: priorWeekElapsed.length,
+    todaySampleCount,
+    weekSampleCount,
     focusMinutes,
     breakMinutes,
     medianElapsedMs,

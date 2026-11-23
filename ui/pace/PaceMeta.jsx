@@ -1,6 +1,7 @@
 import React from 'react';
 import { Tooltip } from '../components/index.js';
 import { cx } from '../components/css.js';
+import { useOptionalAppSelector } from '../app/app-context.js';
 import { useInjectCss } from '../shared.js';
 import { formatPaceLine } from './format-pace.js';
 import css from './pace-meta.css';
@@ -18,15 +19,21 @@ export function PaceMeta({
   asOf = null,
   overrideDailyCards = null,
   uncoveredPoints = null,
+  focusMinutes = null,
   hideMastered = false,
   inline = false,
   className = '',
 }) {
   useInjectCss(css, 'study-pace-meta');
+  const customWorkMinutes = useOptionalAppSelector((state) => {
+    const work = state.board?.state?.board?.timerPrefs?.workMinutes;
+    return Number.isFinite(Number(work)) && Number(work) > 0 ? Number(work) : null;
+  });
   const formatted = formatPaceLine(variant, forecast, pace, {
     asOf,
     overrideDailyCards,
     uncoveredPoints,
+    focusMinutes: focusMinutes ?? customWorkMinutes,
     hideMastered,
   });
   if (!formatted) return null;
