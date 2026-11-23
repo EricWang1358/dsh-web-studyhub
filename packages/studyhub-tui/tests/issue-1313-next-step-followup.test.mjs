@@ -28,7 +28,6 @@ const [
 ]);
 
 const {
-  NextStepFollowupBar,
   NEXT_STEP_PRESETS,
   NEXT_STEP_ACTIVATION_KEY,
   nextStepIdlePrompt,

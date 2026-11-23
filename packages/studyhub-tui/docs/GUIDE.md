@@ -285,11 +285,12 @@ node packages/studyhub-tui/bin/studyhub-tui.mjs --root /path/to/.dsh-study
 
 ## 6. 鼠标点击与滚轮支持
 
-- **如何开启**：启动时加 `--mouse` 或设置环境变量 `STUDYHUB_TUI_MOUSE=1`。
-  - 默认关闭鼠标捕获，以保留终端原生的鼠标拖选复制体验。
-  - 开启 `--mouse` 后，在多数终端（如 Windows Terminal / iTerm2 / GNOME Terminal）按住 **`Shift` + 鼠标拖动** 仍可正常划词复制。
-  - 用 `--no-mouse` 可强制禁用（不输出任何鼠标转义序列）。
-- **支持点击的区域**（全部操作均有等价键盘方式，危险操作照旧走确认框）：
+- **Alt 兼容原则**：**Alt+点击 = 鼠标操作；普通点击保留终端选择**（复制、拖选不中断，滚轮滚动照常生效）。
+- **如何开启与切换**：
+  - 启动时加 `--mouse` 或设置环境变量 `STUDYHUB_TUI_MOUSE=1` 开启 SGR 1000+1006 上报；用 `--no-mouse` 可完全禁用。
+  - 默认仅 **Alt+左键点击** 触发 TUI 动作，普通左键点击一律忽略，不干扰终端原生文字选择/复制。
+  - 如希望普通左键点击也直接生效，启动时加 `--mouse-alt=0` 或设置 `STUDYHUB_TUI_MOUSE_ALT=0`。
+- **支持 Alt+点击的区域**（全部操作均有等价键盘方式，危险操作照旧走确认框）：
   1. **侧栏**：点击任意页面或「继续练习」立即跳转。
   2. **所有列表行**（题组、资料、错题、任务、草稿、命令面板等）：点一下选中，再点一下打开（等价回车）；滚轮上下滚动。
   3. **刷题页**：点击选项作答、点击「翻开答案」、点击 FSRS 0–5 自评档、点击底部 `[h]讲解` 等功能标签、点击 AI 抽屉里的推荐追问或输入框。
@@ -312,7 +313,7 @@ node packages/studyhub-tui/bin/studyhub-tui.mjs --root /path/to/.dsh-study
 | `--export [相对路径]` | 一键原子化导出整个学习库 JSON 备份。**导出位置**：严格保存在 `<学习库根目录>/backups/` 下（默认文件名 `studyhub-backup-YYYY-MM-DD-HHmmss.json`） |
 | `--root <路径>` / `--library <路径>` | 指定学习库目录 |
 | `--page <id>` / `--theme <id>` / `--lang <zh\|en>` | 启动时指定默认进入的页面、主题或语言 |
-| `--mouse` / `--no-mouse` | 启用或禁用 SGR 鼠标点击与滚轮 |
+| `--mouse` / `--no-mouse` / `--mouse-alt=0` | 启用/禁用 SGR 鼠标；默认 Alt+点击生效、普通点击保留终端选择，`--mouse-alt=0` 放开普通点击 |
 | `--ascii` / `--unicode` | 强制开启或关闭纯 ASCII 边框与图标模式 |
 
 ---

@@ -39,7 +39,14 @@ export function globalShortcuts(lang: 'zh' | 'en', asciiMode = false): KeyHint[]
     { key: 'g/G', label: t(lang, '首尾跳转 (Home/End)', 'Top / bottom (Home/End)') },
     { key: 'Esc', label: t(lang, '关闭 / 取消', 'Close / cancel') },
     { key: 'Ctrl+S', label: t(lang, '提交 (Ctrl+J/Shift+Enter换行)', 'Submit (Ctrl+J/Shift+Enter nl)') },
-    { key: '--mouse', label: t(lang, '启用鼠标点击与滚轮 (Shift+拖选复制)', 'Enable mouse click/wheel (Shift+drag copy)') },
+    {
+      key: asciiMode ? 'Alt+Click' : t(lang, 'Alt+点击', 'Alt+Click'),
+      label: t(
+        lang,
+        'Alt+点击 = 鼠标操作；普通点击保留终端选择 (--mouse-alt=0 放开普通点击)',
+        'Alt+click = mouse action; plain click keeps terminal selection (--mouse-alt=0 allows plain)',
+      ),
+    },
   ];
 }
 
@@ -297,7 +304,7 @@ export function buildInAppGuideLines(lang: UiLanguage, width: number, asciiMode 
             heading: '4. Command Palette, Mouse & CLI Fast Paths',
             bullets: [
               'Ctrl+K prefixes: / commands (/due, /guide, /theme, /lang, /ascii, /math, /recover, /quit), # cards, ? passages, @ courses, : pages.',
-              'Mouse: launch with --mouse (or STUDYHUB_TUI_MOUSE=1) for clicks & wheel. Hold Shift+drag to copy text; --no-mouse disables completely.',
+              'Mouse: Alt+click = mouse action; plain click keeps terminal text selection/copy (launch with --mouse or STUDYHUB_TUI_MOUSE=1; wheel always works; --mouse-alt=0 or STUDYHUB_TUI_MOUSE_ALT=0 allows plain clicks).',
               'CLI fast paths (offline): --doctor, --stats, --due, --board, --search <q>, --export (writes to <libraryRoot>/backups/).',
               'Full Chinese manual with all 16 pages & task lookup table: packages/studyhub-tui/docs/GUIDE.md',
             ],
@@ -334,7 +341,7 @@ export function buildInAppGuideLines(lang: UiLanguage, width: number, asciiMode 
             heading: '四、命令面板、鼠标与命令行快路径',
             bullets: [
               'Ctrl+K 前缀：/ 命令（/due /guide /theme /lang /ascii /math /recover /quit）、# 搜题、? 搜原文、@ 切课程、: 跳页面。',
-              '鼠标：加 --mouse 或 STUDYHUB_TUI_MOUSE=1 启用点击与滚轮（按住 Shift 拖选复制）；--no-mouse 完全关闭。',
+              '鼠标：Alt+点击 = 鼠标操作；普通点击保留终端选择与复制（加 --mouse 或 STUDYHUB_TUI_MOUSE=1 启用，滚轮不受影响；--mouse-alt=0 或 STUDYHUB_TUI_MOUSE_ALT=0 允许普通点击生效）。',
               '无头 CLI：--doctor / --stats / --due / --board / --search / --export（备份导出到 <学习库>/backups/）。',
               '完整图文任务教程（含全部 16 页与「我想做 X 去哪里」对照表）：packages/studyhub-tui/docs/GUIDE.md',
             ],
@@ -376,7 +383,7 @@ export const HelpOverlay = memo(function HelpOverlay({ isActive, onClose, pageHi
         onClose();
         return;
       }
-      if (key.tab || input === 'g') {
+      if (key.tab) {
         setHelpTab(helpTab === 'shortcuts' ? 'guide' : 'shortcuts');
         return;
       }
@@ -460,14 +467,14 @@ export const HelpOverlay = memo(function HelpOverlay({ isActive, onClose, pageHi
     return combined;
   }, [colorLevel, theme.heading, theme.accent, theme.text, colW, keyW, labelW, textW, ell, lang, asciiMode, hints, twoCol, helpTab]);
 
-  const headerExtraRows = pageSummary ? 2 : 1;
+  const headerExtraRows = 1;
   const maxModalH = Math.max(10, rows - 2);
   const modalH = Math.min(maxModalH, packedLines.length + 5 + headerExtraRows);
   const bodyH = Math.max(3, modalH - 5 - headerExtraRows);
 
   return (
     <Modal
-      title={helpTab === 'guide' ? t(lang, '使用教程', 'Usage Guide') : t(lang, '快捷键与帮助', 'Shortcuts & Help')}
+      title={helpTab === 'guide' ? t(lang, '使用教程 · 快捷键', 'Usage Guide') : t(lang, '快捷键与帮助', 'Keyboard Shortcuts')}
       icon="?"
       subtitle={meta ? `${pageIcon(meta.id, asciiMode, meta.icon)} ${t(lang, meta.labelZh, meta.labelEn)}` : undefined}
       width={width}
@@ -475,42 +482,44 @@ export const HelpOverlay = memo(function HelpOverlay({ isActive, onClose, pageHi
       onClose={onClose}
       isActive={isActive}
       hints={[
-        { key: 'Tab / g', label: helpTab === 'guide' ? t(lang, '切快捷键', 'Shortcuts') : t(lang, '使用教程', 'Guide') },
+        { key: 'Tab / 1-2', label: helpTab === 'guide' ? t(lang, '切快捷键', 'Shortcuts') : t(lang, '使用教程', 'Guide') },
         { key: asciiMode ? 'j/k Ctrl+D/U' : 'j/k ↑↓ Ctrl+D/U', label: t(lang, '滚动', 'Scroll') },
         { key: 'g/G', label: t(lang, '首尾', 'Top/End') },
         { key: 'Esc / ? / q', label: t(lang, '关闭', 'Close') },
       ]}
     >
-      {pageSummary ? (
-        <Box height={1} width={innerW} overflow="hidden" flexShrink={0}>
-          <Text color={theme.accent} wrap="truncate">
-            {truncateDisplay(
-              `${t(lang, '当前页', 'This page')}: ${pageSummary}`,
-              innerW,
-              ell,
-            )}
-          </Text>
+      <Box height={1} width={innerW} flexDirection="row" justifyContent="space-between" gap={1} overflow="hidden" flexShrink={0}>
+        <Box flexDirection="row" gap={1} flexShrink={0}>
+          <ClickableBox clickActive={isActive} onClick={() => setHelpTab('shortcuts')}>
+            <Text
+              backgroundColor={helpTab === 'shortcuts' ? theme.primary : theme.surface}
+              color={helpTab === 'shortcuts' ? (theme.dark ? theme.bg : '#ffffff') : theme.muted}
+              bold={helpTab === 'shortcuts'}
+            >
+              {` [1] ${t(lang, '快捷键速查', 'Shortcuts')} `}
+            </Text>
+          </ClickableBox>
+          <ClickableBox clickActive={isActive} onClick={() => setHelpTab('guide')}>
+            <Text
+              backgroundColor={helpTab === 'guide' ? theme.primary : theme.surface}
+              color={helpTab === 'guide' ? (theme.dark ? theme.bg : '#ffffff') : theme.muted}
+              bold={helpTab === 'guide'}
+            >
+              {` [2] ${t(lang, '使用教程', 'Usage Guide')} `}
+            </Text>
+          </ClickableBox>
         </Box>
-      ) : null}
-      <Box height={1} width={innerW} flexDirection="row" gap={1} overflow="hidden" flexShrink={0}>
-        <ClickableBox clickActive={isActive} onClick={() => setHelpTab('shortcuts')}>
-          <Text
-            backgroundColor={helpTab === 'shortcuts' ? theme.primary : theme.surface}
-            color={helpTab === 'shortcuts' ? (theme.dark ? theme.bg : '#ffffff') : theme.muted}
-            bold={helpTab === 'shortcuts'}
-          >
-            {` [1] ${t(lang, '快捷键速查', 'Shortcuts')} `}
-          </Text>
-        </ClickableBox>
-        <ClickableBox clickActive={isActive} onClick={() => setHelpTab('guide')}>
-          <Text
-            backgroundColor={helpTab === 'guide' ? theme.primary : theme.surface}
-            color={helpTab === 'guide' ? (theme.dark ? theme.bg : '#ffffff') : theme.muted}
-            bold={helpTab === 'guide'}
-          >
-            {` [2/g] ${t(lang, '使用教程', 'Usage Guide')} `}
-          </Text>
-        </ClickableBox>
+        {pageSummary ? (
+          <Box flexShrink={1} overflow="hidden">
+            <Text color={theme.accent} wrap="truncate">
+              {truncateDisplay(
+                `${t(lang, '当前页', 'Page')}: ${pageSummary}`,
+                Math.max(10, innerW - 32),
+                ell,
+              )}
+            </Text>
+          </Box>
+        ) : null}
       </Box>
       <ScrollView lines={packedLines} width={innerW} height={bodyH} isActive={isActive} ascii={asciiMode} />
     </Modal>

@@ -339,7 +339,7 @@ describe('#1309 text truncation & code wrapping regressions', () => {
     // 80x24 narrow viewport (zh, en, ascii)
     for (const [language, asciiMode, expectedHint, answerPrefix] of [
       ['zh', false, '按?看全部', '你的作答'],
-      ['en', false, 'Press ? for all', 'Yours'],
+      ['en', false, '[?]All', 'Yours'],
       ['zh', true, '按?看全部', '你的作答'],
     ]) {
       resetStore({ language, asciiMode });

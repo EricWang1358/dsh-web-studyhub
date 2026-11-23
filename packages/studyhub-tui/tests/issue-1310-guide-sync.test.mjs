@@ -227,7 +227,7 @@ describe('#1310 usage guide completeness & keybinding sync', () => {
       assert.ok(f1.includes('当前页:'), 'HelpOverlay must display 1-line summary of current page');
       assert.ok(f1.includes('使用教程'), 'HelpOverlay must display Usage Guide tab');
       await new Promise((r) => setTimeout(r, 30));
-      h.write('g');
+      h.write('\t');
       const f2 = await h.waitFor((s) => s.includes('核心闭环'));
       assert.ok(f2.includes('三大保留全局键'));
     } finally {

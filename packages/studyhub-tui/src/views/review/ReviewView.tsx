@@ -2102,7 +2102,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                 ...(canRubricGrade
                   ? [{ id: 'G', text: t(lang, '[G]评分', '[G]Grade'), onClick: () => void handleRubricGrade() }]
                   : []),
-                { id: 'A', text: t(lang, '[A]答题卡', '[A]AnswerCard'), onClick: () => setAnswerCardModalOpen(true) },
+                { id: 'A', text: t(lang, '[A]答题卡', '[A]Card'), onClick: () => setAnswerCardModalOpen(true) },
                 { id: 'T', text: t(lang, '[T]翻译', '[T]Trans'), onClick: () => void handleToggleTranslate() },
                 { id: 'S', text: t(lang, '[S]同类', '[S]Sim'), onClick: () => setSimilarModalOpen(true) },
                 { id: 'D', text: t(lang, '[D]工具', '[D]Tools'), onClick: () => setCardToolsModalOpen(true) },
@@ -2147,7 +2147,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
               if (fullW > innerW) {
                 moreHint =
                   innerW >= 32
-                    ? ` ${ell} ${t(lang, '按?看全部', 'Press ? for all')}`
+                    ? ` ${ell} ${t(lang, '按?看全部', '[?]All')}`
                     : ` ${ell} [?]`;
                 const budget = Math.max(0, innerW - displayWidth(moreHint));
                 kept = [];

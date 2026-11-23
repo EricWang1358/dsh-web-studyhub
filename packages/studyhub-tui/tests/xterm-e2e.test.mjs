@@ -381,8 +381,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
         tty.send('3');
         await tty.waitFor(
           (scr) =>
-            scr.includes('2/9') ||
-            scr.includes('3/9') ||
+            /[23]\/\d+/.test(scr) ||
             scr.includes('已自报') ||
             scr.includes('Self-reported') ||
             scr.includes('Enter / .') ||

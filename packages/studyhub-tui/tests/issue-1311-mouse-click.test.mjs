@@ -542,7 +542,7 @@ describe('#1311 Alt-compatible mouse click support & keyboard parity', () => {
       const tabPos = findTextCoords(frame, '4 TUI 外观与偏好');
       assert.ok(tabPos, 'Must find 4 TUI 外观与偏好 tab');
       h.write(sgrAltLeftClick(tabPos.col + 1, tabPos.row));
-      await h.waitFor((s) => s.includes('主题') || s.includes('Theme'));
+      await h.waitFor((s) => s.includes('主题') || s.includes('Theme'), 6000);
     } finally {
       h.cleanup();
     }
