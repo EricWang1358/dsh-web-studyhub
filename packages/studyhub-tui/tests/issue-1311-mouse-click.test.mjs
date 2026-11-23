@@ -15,12 +15,11 @@ after(() => {
 
 const [
   mouseMod,
+  cliArgsMod,
   { TextInput },
   { VirtualList },
   { SelectList },
   { ConfirmDialog },
-  { SideNav },
-  { TopBar },
   { AppShell },
   { ReviewView },
   { AiHelpDrawer },
@@ -29,12 +28,11 @@ const [
   storeMod,
 ] = await Promise.all([
   import('../src/components/mouse.tsx'),
+  import('../src/cli-args.ts'),
   import('../src/components/TextInput.tsx'),
   import('../src/components/VirtualList.tsx'),
   import('../src/components/SelectList.tsx'),
   import('../src/components/ConfirmDialog.tsx'),
-  import('../src/shell/SideNav.tsx'),
-  import('../src/shell/TopBar.tsx'),
   import('../src/shell/AppShell.tsx'),
   import('../src/views/review/ReviewView.tsx'),
   import('../src/views/review/AiHelpDrawer.tsx'),
@@ -48,13 +46,22 @@ const {
   stripSgrMouseSequences,
   isSgrMouseSequence,
   dispatchMouseClick,
+  setMouseAltClickOnly,
+  isMouseAltClickOnly,
+  shouldHandleMouseClick,
   ClickableBox,
 } = mouseMod;
+const { parseCliArgs, shouldRequireAltClick } = cliArgsMod;
 const { useTuiStore, DEFAULT_PREFERENCES } = storeMod;
 
-/** Format 0-based (col, row) as intact SGR 1006 left-click press + release sequence. */
-function sgrLeftClick(col0, row0) {
+/** Format 0-based (col, row) as intact SGR 1006 plain left-click (button 0) press + release sequence. */
+function sgrPlainLeftClick(col0, row0) {
   return `\x1b[<0;${col0 + 1};${row0 + 1}M\x1b[<0;${col0 + 1};${row0 + 1}m`;
+}
+
+/** Format 0-based (col, row) as intact SGR 1006 Alt+left-click (button 0 + 8 = 8) press + release sequence. */
+function sgrAltLeftClick(col0, row0) {
+  return `\x1b[<8;${col0 + 1};${row0 + 1}M\x1b[<8;${col0 + 1};${row0 + 1}m`;
 }
 
 /** Find 0-based (col, row) of a substring inside a rendered plain-text frame. */
@@ -173,21 +180,41 @@ function resetStore(overrides = {}) {
   });
 }
 
-describe('#1311 mouse click support & keyboard parity', () => {
-  test('1. SGR mouse parser distinguishes left click, release, motion, and wheel', () => {
-    const evs = parseSgrMouseEvents('\x1b[<0;12;5M\x1b[<0;12;5m\x1b[<64;10;3M\x1b[<32;5;5M');
-    assert.equal(evs.length, 4);
+describe('#1311 Alt-compatible mouse click support & keyboard parity', () => {
+  test('1. SGR mouse parser reads Alt (+8) modifier, defaults to altClickOnly=true, and supports --mouse-alt=0 / STUDYHUB_TUI_MOUSE_ALT=0', () => {
+    assert.equal(isMouseAltClickOnly(), true, 'altClickOnly must default to true');
+    const evs = parseSgrMouseEvents('\x1b[<0;12;5M\x1b[<8;12;5M\x1b[<8;12;5m\x1b[<64;10;3M\x1b[<32;5;5M');
+    assert.equal(evs.length, 5);
     assert.equal(evs[0].isLeftClick, true);
-    assert.equal(evs[0].col, 11);
-    assert.equal(evs[0].row, 4);
-    assert.equal(evs[1].isLeftClick, false); // release
-    assert.equal(evs[2].wheelDelta, -3);
-    assert.equal(evs[3].isLeftClick, false); // motion/drag
-    assert.equal(isSgrMouseSequence('[<0;12;5M'), true);
-    assert.equal(stripSgrMouseSequences('abc[<0;12;5Mdef\x1b[<64;1;1Mghi'), 'abcdefghi');
+    assert.equal(evs[0].alt, false);
+    assert.equal(shouldHandleMouseClick(evs[0], true), false, 'plain click ignored when altClickOnly=true');
+    assert.equal(shouldHandleMouseClick(evs[0], false), true, 'plain click allowed when altClickOnly=false');
+
+    assert.equal(evs[1].isLeftClick, true);
+    assert.equal(evs[1].alt, true);
+    assert.equal(evs[1].col, 11);
+    assert.equal(evs[1].row, 4);
+    assert.equal(shouldHandleMouseClick(evs[1], true), true, 'Alt+click handled when altClickOnly=true');
+
+    assert.equal(evs[2].isLeftClick, false); // release
+    assert.equal(evs[3].wheelDelta, -3);
+    assert.equal(evs[4].isLeftClick, false); // motion/drag
+    assert.equal(isSgrMouseSequence('[<8;12;5M'), true);
+    assert.equal(stripSgrMouseSequences('abc[<8;12;5Mdef\x1b[<64;1;1Mghi'), 'abcdefghi');
+
+    // CLI flag & env var toggles
+    assert.equal(parseCliArgs([]).mouseAltClickOnly, undefined);
+    assert.equal(parseCliArgs(['--mouse-alt=0']).mouseAltClickOnly, false);
+    assert.equal(parseCliArgs(['--mouse-alt=1']).mouseAltClickOnly, true);
+    assert.equal(parseCliArgs(['--mouse-alt', '0']).mouseAltClickOnly, false);
+    assert.ok(parseCliArgs(['--mouse-alt=maybe']).error, 'invalid --mouse-alt must return error');
+    assert.equal(shouldRequireAltClick({}), true);
+    assert.equal(shouldRequireAltClick({ STUDYHUB_TUI_MOUSE_ALT: '1' }), true);
+    assert.equal(shouldRequireAltClick({ STUDYHUB_TUI_MOUSE_ALT: '0' }), false);
+    assert.equal(shouldRequireAltClick({ STUDYHUB_TUI_MOUSE_ALT: 'false' }), false);
   });
 
-  test('2. TextInput never inserts garbled characters on SGR mouse clicks or wheel events', async () => {
+  test('2. TextInput never inserts garbled characters on plain click, Alt+click, or wheel events', async () => {
     resetStore();
     let latestVal = '';
     function InputHost() {
@@ -204,8 +231,8 @@ describe('#1311 mouse click support & keyboard parity', () => {
     try {
       h.write('hi');
       await h.waitFor((s) => s.includes('hi'));
-      // Send intact and ESC-stripped SGR clicks & wheel bursts
-      h.write('\x1b[<0;5;1M\x1b[<0;5;1m[<0;5;1M[<64;5;1M<65;5;1M');
+      // Send intact and ESC-stripped plain clicks, Alt+clicks & wheel bursts
+      h.write('\x1b[<0;5;1M\x1b[<8;5;1M\x1b[<8;5;1m[<8;5;1M[<64;5;1M<65;5;1M');
       h.write('!');
       await h.waitFor((s) => s.includes('hi!'));
       assert.equal(latestVal, 'hi!');
@@ -214,8 +241,9 @@ describe('#1311 mouse click support & keyboard parity', () => {
     }
   });
 
-  test('3. SideNav & TopBar mouse clicks navigate pages and open shell overlays', async () => {
+  test('3. SideNav & TopBar: plain clicks are ignored by default; Alt+clicks navigate and open overlays', async () => {
     resetStore({ page: 'library' });
+    setMouseAltClickOnly(true);
     const mockHost = {
       call: async () => ({ ok: true, value: {} }),
       getSnapshot: async () => useTuiStore.getState().snapshot,
@@ -234,24 +262,35 @@ describe('#1311 mouse click support & keyboard parity', () => {
       const frame = await h.waitFor((s) => s.includes('VIEW:library') && s.includes('错题本'));
       const wrongPos = findTextCoords(frame, '错题本');
       assert.ok(wrongPos, 'Must find 错题本 in SideNav');
-      h.write(sgrLeftClick(wrongPos.col, wrongPos.row));
+
+      // Plain click must be IGNORED so terminal keeps native text selection/copy
+      h.write(sgrPlainLeftClick(wrongPos.col, wrongPos.row));
+      await new Promise((r) => setTimeout(r, 40));
+      assert.equal(useTuiStore.getState().page, 'library', 'plain click must NOT navigate SideNav when altClickOnly=true');
+
+      // Alt+click navigates to wrongbook
+      h.write(sgrAltLeftClick(wrongPos.col, wrongPos.row));
       await h.waitFor((s) => s.includes('VIEW:wrongbook'));
 
-      // Click TopBar [?] 帮助 -> opens HelpOverlay
+      // Alt+click TopBar [?] 帮助 -> opens HelpOverlay
       const frame2 = h.latest();
       const helpPos = findTextCoords(frame2, '帮助');
       assert.ok(helpPos, 'Must find 帮助 in TopBar');
-      h.write(sgrLeftClick(helpPos.col, helpPos.row));
+      h.write(sgrPlainLeftClick(helpPos.col, helpPos.row));
+      await new Promise((r) => setTimeout(r, 30));
+      assert.equal(useTuiStore.getState().helpOpen, false, 'plain click on TopBar must be ignored');
+      h.write(sgrAltLeftClick(helpPos.col, helpPos.row));
       await h.waitFor(() => useTuiStore.getState().helpOpen === true);
     } finally {
       h.cleanup();
     }
   });
 
-  test('4. VirtualList & SelectList: first click selects row, second click opens it (Enter)', async () => {
+  test('4. VirtualList & SelectList: plain click ignored, Alt+click selects/opens, wheel unaffected, and --mouse-alt=0 enables plain click', async () => {
     resetStore();
+    setMouseAltClickOnly(true);
     const selected = [];
-    const items = ['Deck Alpha', 'Deck Beta', 'Deck Gamma'];
+    const items = ['Deck Alpha', 'Deck Beta', 'Deck Gamma', 'Deck Delta', 'Deck Epsilon', 'Deck Zeta'];
 
     const h = createInkHarness(
       React.createElement(VirtualList, {
@@ -267,19 +306,40 @@ describe('#1311 mouse click support & keyboard parity', () => {
 
     try {
       await h.waitFor((s) => s.includes('> Deck Alpha'));
-      // First click on row 2 (Deck Gamma) selects it without opening
-      h.write(sgrLeftClick(4, 2));
+      // Plain click on row 2 must be ignored when altClickOnly=true
+      h.write(sgrPlainLeftClick(4, 2));
+      await new Promise((r) => setTimeout(r, 35));
+      assert.ok(h.latest().includes('> Deck Alpha'), 'plain click must not move VirtualList selection');
+
+      // Wheel down (button 65, no Alt) must STILL scroll unaffected
+      h.write('\x1b[<65;4;2M');
+      await h.waitFor((s) => s.includes('> Deck Delta'));
+      // Wheel up (button 64, no Alt) returns to Deck Alpha
+      h.write('\x1b[<64;4;2M');
+      await h.waitFor((s) => s.includes('> Deck Alpha'));
+
+      // First Alt+click on row 2 (Deck Gamma) selects it without opening
+      h.write(sgrAltLeftClick(4, 2));
       await h.waitFor((s) => s.includes('> Deck Gamma'));
       assert.equal(selected.length, 0);
-      // Second click on already-selected row 2 opens it
-      h.write(sgrLeftClick(4, 2));
+      // Second Alt+click on already-selected row 2 opens it
+      h.write(sgrAltLeftClick(4, 2));
       await new Promise((r) => setTimeout(r, 40));
       assert.deepEqual(selected, [{ item: 'Deck Gamma', idx: 2 }]);
+
+      // Disable altClickOnly (equivalent to --mouse-alt=0 / STUDYHUB_TUI_MOUSE_ALT=0) -> plain click now works!
+      setMouseAltClickOnly(false);
+      h.write(sgrPlainLeftClick(4, 1)); // select Deck Beta
+      await h.waitFor((s) => s.includes('> Deck Beta'));
+      h.write(sgrPlainLeftClick(4, 1)); // open Deck Beta
+      await new Promise((r) => setTimeout(r, 40));
+      assert.deepEqual(selected.at(-1), { item: 'Deck Beta', idx: 1 });
     } finally {
+      setMouseAltClickOnly(true);
       h.cleanup();
     }
 
-    // SelectList test
+    // SelectList test with Alt+click
     const picked = [];
     const h2 = createInkHarness(
       React.createElement(SelectList, {
@@ -295,10 +355,13 @@ describe('#1311 mouse click support & keyboard parity', () => {
     );
     try {
       await h2.waitFor((s) => s.includes('Option B'));
-      h2.write(sgrLeftClick(5, 1)); // select Option B
+      h2.write(sgrPlainLeftClick(5, 1)); // ignored
+      await new Promise((r) => setTimeout(r, 25));
+      assert.equal(picked.length, 0);
+      h2.write(sgrAltLeftClick(5, 1)); // select Option B
       await new Promise((r) => setTimeout(r, 30));
       assert.equal(picked.length, 0);
-      h2.write(sgrLeftClick(5, 1)); // open Option B
+      h2.write(sgrAltLeftClick(5, 1)); // open Option B
       await new Promise((r) => setTimeout(r, 30));
       assert.deepEqual(picked, ['b']);
     } finally {
@@ -306,8 +369,9 @@ describe('#1311 mouse click support & keyboard parity', () => {
     }
   });
 
-  test('5. Modal/ConfirmDialog blocks click-through to underlying page and supports clicking Cancel / esc x', async () => {
+  test('5. Modal/ConfirmDialog blocks Alt+click bleed-through and supports Alt+clicking Cancel', async () => {
     resetStore();
+    setMouseAltClickOnly(true);
     let backgroundClicked = 0;
     let cancelled = 0;
 
@@ -334,24 +398,30 @@ describe('#1311 mouse click support & keyboard parity', () => {
     const h = createInkHarness(React.createElement(ModalScene), { cols: 80, rows: 20 });
     try {
       const frame = await h.waitFor((s) => s.includes('取消 (n)') && s.includes('确认 (y)'));
-      // Click top-left (0, 0) where UNDERLYING_BG_BUTTON sits behind the modal
-      h.write(sgrLeftClick(2, 0));
+      // Alt+click top-left (2, 0) where UNDERLYING_BG_BUTTON sits behind the modal
+      h.write(sgrAltLeftClick(2, 0));
       await new Promise((r) => setTimeout(r, 30));
-      assert.equal(backgroundClicked, 0, 'Clicking outside modal must NOT bleed through to underlying page');
+      assert.equal(backgroundClicked, 0, 'Alt+clicking outside modal must NOT bleed through to underlying page');
 
-      // Click Cancel button inside modal
+      // Plain click on Cancel must be ignored
       const cancelPos = findTextCoords(frame, '取消 (n)');
       assert.ok(cancelPos, 'Must find 取消 (n) button');
-      h.write(sgrLeftClick(cancelPos.col + 1, cancelPos.row));
+      h.write(sgrPlainLeftClick(cancelPos.col + 1, cancelPos.row));
+      await new Promise((r) => setTimeout(r, 30));
+      assert.equal(cancelled, 0, 'Plain click must not close ConfirmDialog when altClickOnly=true');
+
+      // Alt+click Cancel button inside modal
+      h.write(sgrAltLeftClick(cancelPos.col + 1, cancelPos.row));
       await new Promise((r) => setTimeout(r, 40));
-      assert.equal(cancelled, 1, 'Clicking Cancel button must invoke onCancel');
+      assert.equal(cancelled, 1, 'Alt+clicking Cancel button must invoke onCancel');
     } finally {
       h.cleanup();
     }
   });
 
-  test('6. ReviewView option click, FSRS rating click, bottom bar click, and AiHelpDrawer suggestion click', async () => {
+  test('6. ReviewView option Alt+click and AiHelpDrawer suggestion Alt+click', async () => {
     resetStore({ page: 'review' });
+    setMouseAltClickOnly(true);
     const actions = [];
     const mockRun = {
       id: 'run-m1',
@@ -400,17 +470,22 @@ describe('#1311 mouse click support & keyboard parity', () => {
       const frame = await h.waitFor((s) => s.includes('AnswerFour'));
       const optPos = findTextCoords(frame, 'AnswerFour');
       assert.ok(optPos, 'Must locate option B');
-      h.write(sgrLeftClick(optPos.col, optPos.row));
+      // Plain click ignored
+      h.write(sgrPlainLeftClick(optPos.col, optPos.row));
+      await new Promise((r) => setTimeout(r, 35));
+      assert.equal(actions.some((a) => a.name === 'review.answer'), false, 'Plain click must not submit answer');
+      // Alt+click submits option B
+      h.write(sgrAltLeftClick(optPos.col, optPos.row));
       await h.waitFor((s) => s.includes('回答正确'));
       assert.ok(
         actions.some((a) => a.name === 'review.answer' && Array.isArray(a.payload?.selected) && a.payload.selected[0] === 'B'),
-        'Clicking option B must submit option B',
+        'Alt+clicking option B must submit option B',
       );
     } finally {
       h.cleanup();
     }
 
-    // AiHelpDrawer follow-up suggestion click
+    // AiHelpDrawer follow-up suggestion Alt+click
     const asked = [];
     const aiHost = {
       call: async (name) => (name === 'card.followup.suggest' ? { ok: true, value: { questions: ['CLICK_SUGGEST_ONE'] } } : { ok: true, value: {} }),
@@ -440,16 +515,17 @@ describe('#1311 mouse click support & keyboard parity', () => {
       const frame = await hAi.waitFor((s) => s.includes('CLICK_SUGGEST_ONE'));
       const sugPos = findTextCoords(frame, 'CLICK_SUGGEST_ONE');
       assert.ok(sugPos, 'Must find suggestion text');
-      hAi.write(sgrLeftClick(sugPos.col, sugPos.row));
+      hAi.write(sgrAltLeftClick(sugPos.col, sugPos.row));
       await new Promise((r) => setTimeout(r, 60));
-      assert.ok(asked.some((p) => p.includes('CLICK_SUGGEST_ONE')), 'Clicking recommended follow-up must trigger askAi');
+      assert.ok(asked.some((p) => p.includes('CLICK_SUGGEST_ONE')), 'Alt+clicking recommended follow-up must trigger askAi');
     } finally {
       hAi.cleanup();
     }
   });
 
-  test('7. SettingsView tabs switch on mouse click & --no-mouse never enables SGR mouse sequences', async () => {
+  test('7. SettingsView tabs switch on Alt+click & --no-mouse never enables SGR mouse sequences', async () => {
     resetStore({ page: 'settings' });
+    setMouseAltClickOnly(true);
     const mockHost = {
       call: async () => ({ ok: true, value: {} }),
       getConfig: () => null,
@@ -465,7 +541,7 @@ describe('#1311 mouse click support & keyboard parity', () => {
       const frame = await h.waitFor((s) => s.includes('4 TUI 外观与偏好'));
       const tabPos = findTextCoords(frame, '4 TUI 外观与偏好');
       assert.ok(tabPos, 'Must find 4 TUI 外观与偏好 tab');
-      h.write(sgrLeftClick(tabPos.col + 1, tabPos.row));
+      h.write(sgrAltLeftClick(tabPos.col + 1, tabPos.row));
       await h.waitFor((s) => s.includes('主题') || s.includes('Theme'));
     } finally {
       h.cleanup();

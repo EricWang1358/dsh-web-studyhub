@@ -40,10 +40,37 @@ export interface SgrMouseEvent {
   row: number;
   /** true for press (`M`), false for release (`m`). */
   press: boolean;
+  /** Modifier bits from SGR button field: Shift (+4), Alt/Meta (+8), Ctrl (+16). */
+  shift: boolean;
+  alt: boolean;
+  ctrl: boolean;
   /** true for primary left-button click (not motion/drag, not wheel, not release). */
   isLeftClick: boolean;
   /** Non-zero for scroll wheel events (-step up, +step down). */
   wheelDelta: number;
+}
+
+/**
+ * Alt-compatible click gate (#1311):
+ * Default `true` — only Alt+left-click (`button & 8`) triggers TUI actions, while plain clicks are
+ * ignored so the terminal keeps native text selection/copy. Set to `false` via `--mouse-alt=0` or
+ * `STUDYHUB_TUI_MOUSE_ALT=0` to allow plain clicks too. Wheel events are always unaffected.
+ */
+let altClickOnly = true;
+
+export function setMouseAltClickOnly(enabled: boolean): void {
+  altClickOnly = Boolean(enabled);
+}
+
+export function isMouseAltClickOnly(): boolean {
+  return altClickOnly;
+}
+
+export function shouldHandleMouseClick(
+  ev: Pick<SgrMouseEvent, 'isLeftClick' | 'alt'>,
+  requireAlt: boolean = altClickOnly,
+): boolean {
+  return ev.isLeftClick && (!requireAlt || ev.alt);
 }
 
 export interface MouseClickEvent {
@@ -77,6 +104,9 @@ export function parseSgrMouseEvents(input: string, wheelStep = 3): SgrMouseEvent
     const press = match[4] === 'M';
     if (!Number.isFinite(button) || !Number.isFinite(col1) || !Number.isFinite(row1)) continue;
     const isMotion = (button & 32) !== 0;
+    const shift = (button & 4) !== 0;
+    const alt = (button & 8) !== 0;
+    const ctrl = (button & 16) !== 0;
     const code = button & 0x43;
     let wheelDelta = 0;
     if (press && code === 64) wheelDelta = -unit;
@@ -87,6 +117,9 @@ export function parseSgrMouseEvents(input: string, wheelStep = 3): SgrMouseEvent
       col: Math.max(0, col1 - 1),
       row: Math.max(0, row1 - 1),
       press,
+      shift,
+      alt,
+      ctrl,
       isLeftClick,
       wheelDelta,
     });
@@ -228,7 +261,7 @@ function ensureStdinTap(stream: NodeJS.ReadStream & { read?: ReadFn }): StdinMou
           }
           if (tapState.clickSubscribers > 0) {
             for (const ev of events) {
-              if (ev.isLeftClick) {
+              if (shouldHandleMouseClick(ev)) {
                 tapState.lastTapClickSig = `${ev.col}:${ev.row}`;
                 tapState.lastTapClickAt = Date.now();
                 dispatchMouseClick(ev.col, ev.row);
@@ -304,7 +337,7 @@ export function useMouseClickInputFallback(active = true): void {
       const events = parseSgrMouseEvents(input);
       const now = Date.now();
       for (const ev of events) {
-        if (!ev.isLeftClick) continue;
+        if (!shouldHandleMouseClick(ev)) continue;
         const sig = `${ev.col}:${ev.row}`;
         if (tapState && tapState.lastTapClickSig === sig && now - tapState.lastTapClickAt < 80) {
           continue;
