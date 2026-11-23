@@ -6,6 +6,7 @@ import { useInjectCss } from '../shared.js';
 import { useUndoable } from '../use-undoable.js';
 import { AppContext } from '../app/app-context.js';
 import { companionSlideCheck } from '../../lib/practice-settings.js';
+import { courseScope } from '../../lib/course-tree.js';
 import { companionDeckRefsMap } from './companion-cards.js';
 import { Badge, Button, SegmentedControl, TextInput } from '../components/index.js';
 import css from './companions.css';
@@ -27,8 +28,12 @@ export default function CourseCompanionsBar({ course, data }) {
 
   const companions = useMemo(() => {
     if (!course) return [];
-    const rec = (data?.courses || []).find(c => c.name === course || (c.aliases || []).includes(course));
-    return (rec?.companions || []).filter(item => !undoable.hidden(`comp:${item.id}`));
+    const courses = data?.courses || [];
+    const within = courseScope(course, courses.map(c => c?.name).filter(Boolean));
+    return courses
+      .filter(c => within(c.name) || (c.aliases || []).some(within))
+      .flatMap(c => (c.companions || []).map(item => ({ ...item, course: c.name })))
+      .filter(item => !undoable.hidden(`comp:${item.id}`));
   }, [course, data?.courses, undoable]);
 
   const filtered = useMemo(() => {
@@ -52,7 +57,7 @@ export default function CourseCompanionsBar({ course, data }) {
     keys: [`comp:${item.id}`],
     message: uiFormat('已从课程移除伴学页「{0}」（工作区或原目录里的文件保留不变）。', [item.title]),
     commit: async () => {
-      await call('companion.remove', { id: item.id, course });
+      await call('companion.remove', { id: item.id, course: item.course || course });
       Promise.resolve(refresh?.()).catch(() => {});
       return true;
     },
@@ -155,7 +160,7 @@ export default function CourseCompanionsBar({ course, data }) {
                     </Button>
                   );
                 })()}
-                <Button iconEnd="arrow-right" size="sm" onClick={() => openModal({ type: 'companion', id: item.id, course })}>
+                <Button iconEnd="arrow-right" size="sm" onClick={() => openModal({ type: 'companion', id: item.id, course: item.course || course })}>
                   {item.progress?.slide > 1 && !item.progress?.completed ? ui('接着看') : ui('打开')}
                 </Button>
                 <Button size="sm" variant="quiet" onClick={() => remove(item)}>{ui('移除')}</Button>

@@ -621,7 +621,8 @@ function ReviewView({ feedback }) {
       onOpenBookSection: pageAvailable(data, 'book') ? async (place) => {
         if (!place?.leaf?.built || !place?.leaf?.key) return;
         await openReviewCoursePage({
-          place, data, core, session, learn, nav, targetPage: 'book',
+          place: place.leaf.course ? { ...place, course: place.leaf.course } : place,
+          data, core, session, learn, nav, targetPage: 'book',
           prepare: (targetCourse) => keepBook(data?.root, targetCourse, { target: place.leaf.key }),
         });
       } : undefined,

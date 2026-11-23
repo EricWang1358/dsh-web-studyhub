@@ -11,6 +11,7 @@ import ModelSetupGate from '../ModelSetupGate.jsx';
 import { ModelSettingsContext } from '../ModelErrorNote.jsx';
 import { HandOff } from '../hand-off/HandOff.jsx';
 import { countMaterials, groupSourcesByDocument } from '../../lib/source-groups.js';
+import { courseScope } from '../../lib/course-tree.js';
 import { Badge, Button, Checkbox, Chip, Dialog, Field, InlineMessage, SegmentedControl, Select, TextArea, TextInput } from '../components/index.js';
 import css from './companions.css';
 
@@ -81,8 +82,9 @@ export default function CompanionBuildDialog({ modal, onClose }) {
     const docs = groupSourcesByDocument(raw, { documents: data?.documents }).filter(doc => !doc.archived && doc.sourceIds.length > 0);
     const trimmed = course.trim();
     if (!trimmed) return docs.slice(0, 60);
-    return docs.filter(doc => Array.isArray(doc.courses) && doc.courses.some(c => String(c).trim() === trimmed)).slice(0, 60);
-  }, [course, data?.documents, data?.sources]);
+    const within = courseScope(trimmed, knownCourses);
+    return docs.filter(doc => Array.isArray(doc.courses) && doc.courses.some(c => within(String(c).trim()))).slice(0, 60);
+  }, [course, data?.documents, data?.sources, knownCourses]);
 
   const selectedDocumentCount = useMemo(
     () => countMaterials(data?.sources, [...selectedSources]),
