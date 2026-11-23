@@ -650,7 +650,7 @@ describe('Domain Book 1: Unplaced Section Placement (course.book.place)', () => 
       // Create an unplaced section via host, then press 'r' to refresh BookView
       const placedBody = 'ZH placed section body text.';
       const { alpha } = await createUnplacedFromSecondLeaf(host, COURSE, placedBody);
-      tty.send('r');
+      tty.send('\x12');
       const refreshed = await tty.waitFor(
         (s) => s.includes('未归位 1') && !s.includes('Beta Boundaries'),
         { label: 'BookView refreshed with Unplaced 1' },

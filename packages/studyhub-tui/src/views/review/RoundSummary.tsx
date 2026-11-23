@@ -121,7 +121,7 @@ export interface RoundSummaryProps {
   onBack?: () => void;
 }
 
-const CLAIMED_SUMMARY_KEYS: readonly string[] = Object.freeze(['w', 'r', 'g', 'b', 'v', '1', 'j', 'k', 'd']);
+const CLAIMED_SUMMARY_KEYS: readonly string[] = Object.freeze(['w', 'R', 'g', 'b', 'v', '1', 'j', 'k', 'd']);
 const SPLIT_BREAKPOINT = 84;
 
 function formatDebriefNextLabel(nextCode: string, lang: UiLanguage): string {
@@ -644,7 +644,7 @@ export const RoundSummary = memo(function RoundSummary({
         ? [{ key: 'd', label: debrief ? t(lang, '查看复盘', 'Debrief') : t(lang, 'AI复盘', 'Debrief') }]
         : []),
       { key: 'g', label: dailyGroup?.hasContent ? t(lang, '看复盘', 'View Recap') : t(lang, '每日复盘', 'Daily Recap') },
-      { key: 'r', label: t(lang, '再来一轮', 'New Round') },
+      { key: 'R', label: t(lang, '再来一轮', 'New Round') },
       { key: 'Esc/b/1', label: t(lang, '学习库', 'Library') },
     ],
     [selectedRow, previewExpanded, hasMissed, run.mode, debrief, dailyGroup?.hasContent, lang],
@@ -692,7 +692,7 @@ export const RoundSummary = memo(function RoundSummary({
         void triggerDailyRecap();
         return;
       }
-      if (input === 'r') {
+      if (input === 'R') {
         handleNewRound();
         return;
       }

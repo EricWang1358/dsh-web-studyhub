@@ -17,6 +17,7 @@ import {
   extractSolution,
   type NormalizedKind,
 } from './review-helpers.js';
+import { NextStepFollowupBar } from './NextStepFollowupBar.js';
 
 export interface CardToolsModalProps {
   host: HostClient;
@@ -168,6 +169,7 @@ export const CardToolsModal = memo(function CardToolsModal({
   const [termsItems, setTermsItems] = useState<ExtractedTermItem[]>([]);
   const [termsCached, setTermsCached] = useState(false);
   const [termsError, setTermsError] = useState<string | null>(null);
+  const [termsFollowupEngaged, setTermsFollowupEngaged] = useState(false);
 
   // Prerequisite links manager state
   const [prereqs, setPrereqs] = useState<PrereqItem[]>([]);
@@ -972,7 +974,7 @@ export const CardToolsModal = memo(function CardToolsModal({
         }
       }
     },
-    { isActive: isActive && mode !== 'edit' && mode !== 'confirm-retry-rewrite' && !confirmCoachRevert },
+    { isActive: isActive && mode !== 'edit' && mode !== 'confirm-retry-rewrite' && !confirmCoachRevert && !(mode === 'terms' && termsFollowupEngaged) },
   );
 
   const cycleEditField = useCallback(() => {
@@ -1007,6 +1009,7 @@ export const CardToolsModal = memo(function CardToolsModal({
     if (mode === 'terms') {
       return [
         { key: asciiMode ? 'j/k' : '↑/↓', label: t(lang, '滚动', 'Scroll') },
+        { key: 'a', label: t(lang, '后续指令', 'Next step') },
         { key: 'r', label: t(lang, '重试', 'Retry') },
         { key: 'Esc', label: t(lang, '返回', 'Back') },
       ];
@@ -1237,7 +1240,7 @@ export const CardToolsModal = memo(function CardToolsModal({
         width={frameW}
         height={fixedFrameH}
         onClose={handleModalClose}
-        isActive={isActive && mode !== 'edit' && mode !== 'confirm-retry-rewrite' && !confirmCoachRevert && !confirmDiscardEdit && !(mode === 'prereqs' && prereqSearchActive && prereqSearchFocused)}
+        isActive={isActive && mode !== 'edit' && mode !== 'confirm-retry-rewrite' && !confirmCoachRevert && !confirmDiscardEdit && !(mode === 'prereqs' && prereqSearchActive && prereqSearchFocused) && !(mode === 'terms' && termsFollowupEngaged)}
         hints={hints}
       >
         {mode === 'menu' && placementSummary ? (
@@ -1380,12 +1383,31 @@ export const CardToolsModal = memo(function CardToolsModal({
               height={Math.max(4, subBodyH - 2)}
             />
           ) : (
-            <ScrollView
-              lines={termLines}
-              width={innerW}
-              height={Math.max(3, subBodyH - 2)}
-              isActive={isActive && mode === 'terms' && !termsLoading}
-            />
+            <Box flexDirection="column" width={innerW} height={Math.max(4, subBodyH - 2)} overflow="hidden">
+              <ScrollView
+                lines={termLines}
+                width={innerW}
+                height={Math.max(
+                  3,
+                  subBodyH - 2 - (termsFollowupEngaged ? Math.min(11, Math.max(8, Math.floor((subBodyH - 2) * 0.58))) : 3),
+                )}
+                isActive={isActive && mode === 'terms' && !termsLoading && !termsFollowupEngaged}
+              />
+              <NextStepFollowupBar
+                host={host}
+                run={run}
+                cardId={cardId}
+                kind={kind}
+                toolLabel={t(lang, '生词提取', 'Vocab Extraction')}
+                resultContext={termsItems
+                  .map((it, idx) => `${idx + 1}. ${it.term}${it.definition ? `: ${it.definition}` : ''}`)
+                  .join('\n')}
+                width={innerW}
+                expandedHeight={Math.min(11, Math.max(8, Math.floor((subBodyH - 2) * 0.58)))}
+                isActive={isActive && mode === 'terms' && !termsLoading && termsItems.length > 0}
+                onFocusChange={setTermsFollowupEngaged}
+              />
+            </Box>
           )}
         </Box>
       ) : null}

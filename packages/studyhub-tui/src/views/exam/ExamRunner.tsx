@@ -37,7 +37,7 @@ export interface ExamRunnerProps {
   onAbortBack: () => void;
 }
 
-const BASE_CLAIMED = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'n', 'a', 'r', 'b'];
+const BASE_CLAIMED = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'n', 'a', 'b'];
 const CASE_CLAIMED = [...BASE_CLAIMED, 's', 'H', 'j', 'k', '[', ']'];
 const WIDE_CASE_BREAKPOINT = 104;
 

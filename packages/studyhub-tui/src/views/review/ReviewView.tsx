@@ -25,8 +25,9 @@ import { Panel } from '../../components/Panel.js';
 import { TextInput } from '../../components/TextInput.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
+import { ClickableBox } from '../../components/mouse.js';
 import { LruCache } from '../../render/lru.js';
-import { displayWidth, truncateDisplay } from '../../render/cjk.js';
+import { displayWidth, truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import {
   FSRS_GRADES,
   MAX_TRANSLATION_CACHE,
@@ -45,10 +46,12 @@ import {
   resolveClozeBlanks,
   resolveOptions,
   skipTargetIndex,
+  type AiTurn,
   type CardFeedbackShape,
   type CardOptionItem,
   type CardTranslation,
 } from './review-helpers.js';
+import type { SavedFollowupItem } from './AiHelpDrawer.js';
 import type { CoachNudgeNote } from './CoachNudgeModal.js';
 const AiHelpDrawer = lazy(() => import('./AiHelpDrawer.js').then((m) => ({ default: m.AiHelpDrawer })));
 const AnswerCardModal = lazy(() => import('./AnswerCardModal.js').then((m) => ({ default: m.AnswerCardModal })));
@@ -109,7 +112,7 @@ function isModelUnavailableMsg(msg: string): boolean {
 }
 
 const CARD_UTIL_KEYS: readonly string[] = Object.freeze([
-  'q',
+  'X',
   'Q',
   's',
   'm',
@@ -135,7 +138,7 @@ const CARD_UTIL_KEYS: readonly string[] = Object.freeze([
 const RATING_DIGIT_KEYS: readonly string[] = Object.freeze(['0', '1', '2', '3', '4', '5']);
 const CHOICE_DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2', '3', '4', '5', '6']);
 const TF_DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2']);
-const EMPTY_CLAIMED_KEYS: readonly string[] = Object.freeze(['r']);
+const EMPTY_CLAIMED_KEYS: readonly string[] = Object.freeze([]);
 
 interface GradeAdjustModalProps {
   lang: 'zh' | 'en';
@@ -268,6 +271,8 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
   // Overlays, rubric grading & translation
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
+  const [aiHistoryByCard, setAiHistoryByCard] = useState<Record<string, AiTurn[]>>({});
+  const [savedFollowupsByCard, setSavedFollowupsByCard] = useState<Record<string, SavedFollowupItem[]>>({});
   const [flagModalOpen, setFlagModalOpen] = useState(false);
   const [flagReason, setFlagReason] = useState('');
   const [similarModalOpen, setSimilarModalOpen] = useState(false);
@@ -1005,7 +1010,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     base.push({ key: 'A', label: t(lang, '答题卡', 'AnswerCard') });
     base.push({ key: 'm', label: mathUnicode ? 'Unicode' : 'LaTeX' });
     if (citation) base.push({ key: 'o', label: t(lang, '原文', 'Source') });
-    base.push({ key: 'q', label: t(lang, '结束', 'End') });
+    base.push({ key: 'X', label: t(lang, '结束', 'End') });
     return base;
   }, [
     loading,
@@ -1138,7 +1143,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
         handleMove(1);
         return;
       }
-      if (input === 'q') {
+      if (input === 'X') {
         setConfirmEndOpen(true);
         return;
       }
@@ -1264,7 +1269,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     (input, key) => {
       if (key.escape) goBack();
       else if (input === 'l' || input === 'L') navigate('library');
-      else if (input === 'r') void loadInitialRun(true);
+      else if ((key.ctrl && input === 'r') || input === 'R') void loadInitialRun(true);
     },
     { isActive: isActive && !loading && !run },
   );
@@ -1280,6 +1285,30 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     () => extractUserAnswerText(run, kind, selectedIds, clozeInputs, openDraft, lang),
     [run, kind, selectedIds, clozeInputs, openDraft, lang],
   );
+
+  const handleAiHistoryChange = useCallback((targetCardId: string, nextTurns: AiTurn[]) => {
+    setAiHistoryByCard((prev) => ({ ...prev, [targetCardId]: nextTurns }));
+  }, []);
+
+  const handleSavedFollowup = useCallback((targetCardId: string, item: SavedFollowupItem) => {
+    setSavedFollowupsByCard((prev) => {
+      const existing = prev[targetCardId] ?? [];
+      if (existing.some((x) => x.id === item.id)) return prev;
+      return { ...prev, [targetCardId]: [...existing, item] };
+    });
+  }, []);
+
+  const savedFollowupCount = useMemo(() => {
+    const sol = solution?.followups ?? [];
+    const extra = cardId ? savedFollowupsByCard[cardId] ?? [] : [];
+    if (extra.length === 0) return sol.length;
+    const seen = new Set(sol.map((f) => f.id).filter(Boolean));
+    let count = sol.length;
+    for (const item of extra) {
+      if (!item.id || !seen.has(item.id)) count += 1;
+    }
+    return count;
+  }, [solution, cardId, savedFollowupsByCard]);
 
   const stemMarkdown = useMemo(() => {
     if (!run) return '';
@@ -1375,7 +1404,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           hint={loadError || t(lang, '可以先去学习库挑选一个题组，或导入新资料生成题目。', 'Pick a deck in Library or generate cards from Sources.')}
           actions={[
             { key: 'L', label: t(lang, '返回学习库', 'Go to Library') },
-            { key: 'r', label: t(lang, '重新加载', 'Reload') },
+            { key: 'R', label: t(lang, '重新加载', 'Reload') },
           ]}
           width={Math.max(20, width - 4)}
           height={Math.max(6, height - 4)}
@@ -1429,17 +1458,27 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
   const innerW = Math.max(20, cardPaneW - 4);
   const progressRatio = totalCount > 0 ? Math.min(1, answeredCount / totalCount) : 0;
+  const panelTitleStr = String(run.title || t(lang, 'FSRS-6 间隔复习', 'FSRS-6 Review'));
+  const panelBadgeStr = `${atNum}/${totalCount}`;
+  const panelSubtitleStr = `${kindLabel(kind, lang)}${topicName ? `${asciiMode ? ' - ' : ' · '}${topicName}` : ''}`;
+  // Detect whether Panel top border had to truncate title or subtitle on narrow widths.
+  const panelHeaderAvail = Math.max(
+    0,
+    cardPaneW - 4 - 2 - (displayWidth(` ${panelBadgeStr} `) + 1) - (panelSubtitleStr ? 2 : 0) - 1,
+  );
+  const panelHeaderTruncated =
+    displayWidth(`${asciiMode ? '>' : '▶'} ${panelTitleStr}`) + displayWidth(panelSubtitleStr) > panelHeaderAvail;
 
   return (
     <Box flexDirection="row" width={width} height={height}>
       {/* Main Question Workspace (hidden on narrow terminals while AI Drawer is open) */}
       {!(aiDrawerOpen && !sideBySideAi) ? (
         <Panel
-          title={String(run.title || t(lang, 'FSRS-6 间隔复习', 'FSRS-6 Review'))}
+          title={panelTitleStr}
           icon={asciiMode ? '>' : '▶'}
-          badge={`${atNum}/${totalCount}`}
+          badge={panelBadgeStr}
           badgeTone="primary"
-          subtitle={`${kindLabel(kind, lang)}${topicName ? ` · ${topicName}` : ''}`}
+          subtitle={panelSubtitleStr}
           focused={mainActive}
           width={cardPaneW}
           height={height}
@@ -1477,6 +1516,18 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
               <Badge label={mathUnicode ? (asciiMode ? 'Unicode' : '∑ Unicode') : 'TeX Raw'} tone="neutral" variant="outline" />
             </Box>
           </Box>
+          {panelHeaderTruncated ? (
+            <Box flexDirection="column" flexShrink={0} width={innerW}>
+              {wrapDisplay(
+                `${panelTitleStr}${asciiMode ? ' | ' : ' · '}${panelSubtitleStr}`,
+                innerW,
+              ).map((line, i) => (
+                <Text key={`hdr-${i}`} color={theme.muted}>
+                  {line}
+                </Text>
+              ))}
+            </Box>
+          ) : null}
 
           <Divider width={innerW} />
 
@@ -1528,8 +1579,20 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                   ? (idx === 0 ? '[1/t]' : '[2/f]')
                   : `[${idx + 1}/${String.fromCharCode(97 + idx)}]`;
                 const trOptText = activeTranslation?.options?.find((o) => o.id === opt.id)?.text;
+                const onClickOption = () => {
+                  if (!mainActive || feedback) return;
+                  setCursorOpt(idx);
+                  if (kind === 'multiple') {
+                    setSelectedIds((prev) =>
+                      prev.includes(opt.id) ? prev.filter((x) => x !== opt.id) : [...prev, opt.id],
+                    );
+                  } else {
+                    setSelectedIds([opt.id]);
+                    handleSubmitChoice([opt.id]);
+                  }
+                };
                 return (
-                  <Box key={opt.id} flexDirection="column" width={innerW}>
+                  <ClickableBox key={opt.id} flexDirection="column" width={innerW} clickActive={mainActive && !feedback} onClick={onClickOption}>
                     <Box flexDirection="row" width={innerW}>
                       <Text color={isCursor ? theme.primary : theme.dim} bold={isCursor}>
                         {isCursor ? (asciiMode ? '> ' : '▸ ') : '  '}
@@ -1542,13 +1605,20 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                     {trOptText ? (
                       <Text color={theme.muted}>{`      EN: ${trOptText}`}</Text>
                     ) : null}
-                  </Box>
+                  </ClickableBox>
                 );
               })}
               {kind === 'multiple' && !feedback ? (
-                <Text color={theme.dim}>
-                  {t(lang, '  提示: 1-6/Space 勾选多选，Enter 提交答案', '  Hint: 1-6/Space to toggle, Enter to submit')}
-                </Text>
+                <ClickableBox
+                  clickActive={mainActive && selectedIds.length > 0}
+                  onClick={() => {
+                    if (selectedIds.length > 0) handleSubmitChoice(selectedIds);
+                  }}
+                >
+                  <Text color={theme.dim}>
+                    {t(lang, '  提示: 1-6/Space 勾选多选，Enter 提交答案', '  Hint: 1-6/Space to toggle, Enter to submit')}
+                  </Text>
+                </ClickableBox>
               ) : null}
             </Box>
           ) : null}
@@ -1668,9 +1738,9 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
           {/* Flashcard front prompt */}
           {kind === 'flashcard' && !isRubricEligibleKind && !revealed ? (
-            <Box marginTop={1}>
+            <ClickableBox marginTop={1} clickActive={mainActive} onClick={() => handleReveal()}>
               <Badge label={t(lang, '按 [Space] 或 [Enter] 翻开答案', 'Press [Space] or [Enter] to flip card')} tone="primary" variant="soft" />
-            </Box>
+            </ClickableBox>
           ) : null}
 
           {/* Post-Reveal / Post-Answer / Rubric Grading Panel */}
@@ -1724,10 +1794,10 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
               ) : null}
 
               {(() => {
-                const ell = asciiMode ? '...' : '…';
                 const undoLabel = asciiMode
                   ? t(lang, '[u] 可撤销', '[u] Undoable')
                   : t(lang, '↺ [u] 可撤销', '↺ [u] Undoable');
+                const yoursFull = userAnswerText ? `${t(lang, '你的作答', 'Yours')}: ${userAnswerText}` : '';
                 if (feedback) {
                   const statusLabel = feedback.correct
                     ? asciiMode
@@ -1745,39 +1815,49 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                     2 +
                     (feedback.level ? displayWidth(String(feedback.level)) + 3 : 0) +
                     (canUndo ? displayWidth(undoLabel) + 3 : 0);
+                  const fitsInline = Boolean(yoursFull) && usedW + 1 + displayWidth(yoursFull) <= innerW;
                   return (
-                    <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} marginBottom={0} width={innerW}>
-                      <Badge
-                        label={statusLabel}
-                        tone={feedback.correct ? 'success' : feedback.selfReported ? 'neutral' : 'error'}
-                      />
-                      {feedback.level ? <Badge label={String(feedback.level)} tone="accent" variant="soft" /> : null}
-                      {canUndo ? <Badge label={undoLabel} tone="info" variant="soft" /> : null}
-                      {userAnswerText ? (
-                        <Text color={theme.muted}>
-                          {truncateDisplay(
-                            `${t(lang, '你的作答', 'Yours')}: ${userAnswerText}`,
-                            Math.max(8, innerW - usedW - 1),
-                            ell,
-                          )}
-                        </Text>
+                    <Box flexDirection="column" flexShrink={0} marginBottom={0} width={innerW}>
+                      <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} width={innerW}>
+                        <Badge
+                          label={statusLabel}
+                          tone={feedback.correct ? 'success' : feedback.selfReported ? 'neutral' : 'error'}
+                        />
+                        {feedback.level ? <Badge label={String(feedback.level)} tone="accent" variant="soft" /> : null}
+                        {canUndo ? <Badge label={undoLabel} tone="info" variant="soft" /> : null}
+                        {fitsInline ? <Text color={theme.muted}>{yoursFull}</Text> : null}
+                      </Box>
+                      {yoursFull && !fitsInline ? (
+                        <Box flexDirection="column" flexShrink={0} width={innerW}>
+                          {wrapDisplay(yoursFull, innerW).map((line, i) => (
+                            <Text key={`ans-${i}`} color={theme.muted}>
+                              {line}
+                            </Text>
+                          ))}
+                        </Box>
                       ) : null}
                     </Box>
                   );
                 }
                 if (userAnswerText || canUndo) {
                   const usedW = canUndo ? displayWidth(undoLabel) + 3 : 0;
+                  const fitsInline = Boolean(yoursFull) && usedW + (canUndo ? 1 : 0) + displayWidth(yoursFull) <= innerW;
                   return (
-                    <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} marginBottom={0} width={innerW}>
-                      {canUndo ? <Badge label={undoLabel} tone="info" variant="soft" /> : null}
-                      {userAnswerText ? (
-                        <Text color={theme.muted}>
-                          {truncateDisplay(
-                            `${t(lang, '你的作答', 'Yours')}: ${userAnswerText}`,
-                            Math.max(8, innerW - usedW),
-                            ell,
-                          )}
-                        </Text>
+                    <Box flexDirection="column" flexShrink={0} marginBottom={0} width={innerW}>
+                      {canUndo || fitsInline ? (
+                        <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} width={innerW}>
+                          {canUndo ? <Badge label={undoLabel} tone="info" variant="soft" /> : null}
+                          {fitsInline ? <Text color={theme.muted}>{yoursFull}</Text> : null}
+                        </Box>
+                      ) : null}
+                      {yoursFull && !fitsInline ? (
+                        <Box flexDirection="column" flexShrink={0} width={innerW}>
+                          {wrapDisplay(yoursFull, innerW).map((line, i) => (
+                            <Text key={`ans-${i}`} color={theme.muted}>
+                              {line}
+                            </Text>
+                          ))}
+                        </Box>
                       ) : null}
                     </Box>
                   );
@@ -1935,9 +2015,30 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                 </Box>
               ) : null}
 
+              {/* Saved AI Explanations Hint */}
+              {revealed && savedFollowupCount > 0 ? (
+                <ClickableBox
+                  marginTop={0}
+                  clickActive={mainActive}
+                  onClick={() => setAiDrawerOpen(true)}
+                >
+                  <Text color={theme.ai}>
+                    {`${asciiMode ? '*' : '✦'} ${t(
+                      lang,
+                      `已存讲解 ${savedFollowupCount} 条，按 [h] 查看`,
+                      `${savedFollowupCount} saved explanation(s) — press [h] to view`,
+                    )}`}
+                  </Text>
+                </ClickableBox>
+              ) : null}
+
               {/* Source Citation Bar */}
               {revealed && citation ? (
-                <Box marginTop={0}>
+                <ClickableBox
+                  marginTop={0}
+                  clickActive={mainActive}
+                  onClick={() => navigate('sources', { sourceId: citation.sourceId, pageNumber: citation.pageNumber })}
+                >
                   <Text color={theme.info}>
                     {`${asciiMode ? '#' : '▤'} ${citation.title ? `${citation.title} ` : ''}${
                       citation.pageNumber != null
@@ -1948,7 +2049,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                   <Text color={theme.accent} bold>
                     {t(lang, '[o] 跳转原文', '[o] Open Source')}
                   </Text>
-                </Box>
+                </ClickableBox>
               ) : null}
 
               {/* FSRS-6 6-grade selector (0-5) */}
@@ -1961,9 +2062,11 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                         : t(lang, 'FSRS-6 记忆评分（按数字键 0-5）:', 'FSRS-6 Rating (Press 0-5):')}
                     </Text>
                     {canRubricGrade && !activeRubric ? (
-                      <Text color={theme.ai} bold>
-                        {t(lang, '[G] AI 按标准评分', '[G] AI Rubric Grade')}
-                      </Text>
+                      <ClickableBox clickActive={mainActive} onClick={() => void handleRubricGrade()}>
+                        <Text color={theme.ai} bold>
+                          {t(lang, '[G] AI 按标准评分', '[G] AI Rubric Grade')}
+                        </Text>
+                      </ClickableBox>
                     ) : null}
                   </Box>
                   <Box flexDirection="row" gap={1} marginTop={0} width={innerW} overflow="hidden">
@@ -1974,7 +2077,11 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                         innerW < 82
                           ? `${g.key}${lang === 'en' ? `:${textLabel}` : textLabel}`
                           : `${g.key} ${textLabel}${gap ? `${asciiMode ? ' - ' : ' · '}${gap}` : ''}`;
-                      return <Badge key={g.key} label={label} tone={g.tone} variant="soft" />;
+                      return (
+                        <ClickableBox key={g.key} clickActive={mainActive} onClick={() => handleFsrsGrade(g.grade)}>
+                          <Badge label={label} tone={g.tone} variant="soft" />
+                        </ClickableBox>
+                      );
                     })}
                   </Box>
                 </Box>
@@ -1984,31 +2091,97 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
           {/* Bottom utility status strip */}
           <Box flexGrow={1} />
-          <Box height={1} width={innerW} overflow="hidden">
-            <Text color={theme.dim} wrap="truncate">
-              {truncateDisplay(
-                [
-                  canRubricGrade
-                    ? t(
-                        lang,
-                        '[h]讲解 [L]带学 [*]重点 [F]复述 [G]评分 [A]答题卡 [T]翻译 [S]同类 [D]工具 [Q]队列 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
-                        '[h]Help [L]Teach [*]Focus [F]Retell [G]Grade [A]AnswerCard [T]Trans [S]Sim [D]Tools [Q]Queue [E]Flag [s]Skip [u]Undo [,/.]Nav',
-                      )
-                    : t(
-                        lang,
-                        '[h]讲解 [L]带学 [*]重点 [F]复述 [A]答题卡 [T]翻译 [S]同类 [D]工具 [Q]队列 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
-                        '[h]Help [L]Teach [*]Focus [F]Retell [A]AnswerCard [T]Trans [S]Sim [D]Tools [Q]Queue [E]Flag [s]Skip [u]Undo [,/.]Nav',
-                      ),
-                  canAdjustGrade ? t(lang, '[J]改分', '[J]Adjust') : '',
-                  canAckCorrection ? t(lang, '[K]确认订正', '[K]Ack') : '',
-                  canCoachNudge ? t(lang, '[N]陪学点拨', '[N]Nudge') : '',
-                ]
-                  .filter(Boolean)
-                  .join(' '),
-                innerW,
-                asciiMode ? '...' : '…',
-              )}
-            </Text>
+          <Box height={1} width={innerW} flexDirection="row" overflow="hidden">
+            {(() => {
+              const ell = asciiMode ? '...' : '…';
+              const items: Array<{ id: string; text: string; onClick: () => void }> = [
+                { id: 'h', text: t(lang, '[h]讲解', '[h]Help'), onClick: () => setAiDrawerOpen((v) => !v) },
+                { id: 'L', text: t(lang, '[L]带学', '[L]Teach'), onClick: () => setTeachModalOpen(true) },
+                { id: '*', text: t(lang, '[*]重点', '[*]Focus'), onClick: () => void handleToggleFocus() },
+                { id: 'F', text: t(lang, '[F]复述', '[F]Retell'), onClick: () => setRetellModalOpen(true) },
+                ...(canRubricGrade
+                  ? [{ id: 'G', text: t(lang, '[G]评分', '[G]Grade'), onClick: () => void handleRubricGrade() }]
+                  : []),
+                { id: 'A', text: t(lang, '[A]答题卡', '[A]Card'), onClick: () => setAnswerCardModalOpen(true) },
+                { id: 'T', text: t(lang, '[T]翻译', '[T]Trans'), onClick: () => void handleToggleTranslate() },
+                { id: 'S', text: t(lang, '[S]同类', '[S]Sim'), onClick: () => setSimilarModalOpen(true) },
+                { id: 'D', text: t(lang, '[D]工具', '[D]Tools'), onClick: () => setCardToolsModalOpen(true) },
+                {
+                  id: 'Q',
+                  text: t(lang, '[Q]队列', '[Q]Queue'),
+                  onClick: () => {
+                    if (run.mode !== 'exam') setQueueModalOpen(true);
+                    else notify(t(lang, '模拟考试队列已锁定，不能修改', 'Exam queue is locked'), 'info');
+                  },
+                },
+                {
+                  id: 'E',
+                  text: t(lang, '[E]标记', '[E]Flag'),
+                  onClick: () => {
+                    setFlagReason('');
+                    setFlagModalOpen(true);
+                  },
+                },
+                {
+                  id: 's',
+                  text: t(lang, '[s]跳过', '[s]Skip'),
+                  onClick: () => {
+                    if (!feedback) handleSkip();
+                  },
+                },
+                { id: 'u', text: t(lang, '[u]撤销', '[u]Undo'), onClick: () => handleUndo() },
+                { id: 'nav', text: t(lang, '[,/.]换题', '[,/.]Nav'), onClick: () => handleMove(1) },
+                ...(canAdjustGrade
+                  ? [{ id: 'J', text: t(lang, '[J]改分', '[J]Adjust'), onClick: () => setGradeAdjustModalOpen(true) }]
+                  : []),
+                ...(canAckCorrection
+                  ? [{ id: 'K', text: t(lang, '[K]确认订正', '[K]Ack'), onClick: () => void handleAckCorrection() }]
+                  : []),
+                ...(canCoachNudge
+                  ? [{ id: 'N', text: t(lang, '[N]陪学点拨', '[N]Nudge'), onClick: () => setNudgeModalOpen(true) }]
+                  : []),
+              ];
+              const fullW = items.reduce((n, it, i) => n + displayWidth(it.text) + (i > 0 ? 1 : 0), 0);
+              let kept = items;
+              let moreHint = '';
+              if (fullW > innerW) {
+                moreHint =
+                  innerW >= 32
+                    ? ` ${ell} ${t(lang, '按?看全部', '[?]All')}`
+                    : ` ${ell} [?]`;
+                const budget = Math.max(0, innerW - displayWidth(moreHint));
+                kept = [];
+                let used = 0;
+                for (const item of items) {
+                  const w = displayWidth(item.text);
+                  const sepW = kept.length > 0 ? 1 : 0;
+                  if (used + sepW + w > budget) break;
+                  kept.push(item);
+                  used += sepW + w;
+                }
+              }
+              return (
+                <>
+                  {kept.map((item, i) => (
+                    <React.Fragment key={item.id}>
+                      {i > 0 ? <Text color={theme.dim}> </Text> : null}
+                      <ClickableBox clickActive={mainActive} onClick={item.onClick} flexShrink={0}>
+                        <Text color={theme.dim}>{item.text}</Text>
+                      </ClickableBox>
+                    </React.Fragment>
+                  ))}
+                  {moreHint ? (
+                    <ClickableBox
+                      clickActive={mainActive}
+                      onClick={() => useTuiStore.getState().setHelpOpen(true)}
+                      flexShrink={0}
+                    >
+                      <Text color={theme.dim}>{truncateDisplay(moreHint, Math.max(1, innerW), ell)}</Text>
+                    </ClickableBox>
+                  ) : null}
+                </>
+              );
+            })()}
           </Box>
         </Panel>
       ) : null}
@@ -2029,6 +2202,10 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
             height={height}
             isActive={isActive && aiDrawerOpen && !flagModalOpen && !similarModalOpen && !cardToolsModalOpen && !queueModalOpen && !retellModalOpen && !teachModalOpen && !answerCardModalOpen && !gradeAdjustModalOpen && !nudgeModalOpen}
             mathUnicode={mathUnicode}
+            history={aiHistoryByCard[cardId]}
+            onHistoryChange={handleAiHistoryChange}
+            extraSavedFollowups={savedFollowupsByCard[cardId]}
+            onSavedFollowup={handleSavedFollowup}
             onClose={() => setAiDrawerOpen(false)}
           />
         ) : null}

@@ -633,7 +633,19 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
   );
 
   const listActive = isActive && !confirmAction && !busy && !loading;
-  useClaimKeys(['d', 'j', 'k', 'r', 'S'], listActive);
+  useClaimKeys(['d', 'j', 'k', 'R', 'S'], listActive);
+
+  useInput(
+    (input, key) => {
+      if (key.ctrl || key.meta) return;
+      if (input === 'r') {
+        const st = useTuiStore.getState();
+        onClose();
+        st.navigate('review', st.activeRunId ? { runId: st.activeRunId } : {});
+      }
+    },
+    { isActive: isActive && !confirmAction },
+  );
 
   useInput(
     (input, key) => {
@@ -650,7 +662,7 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
         }
         return;
       }
-      if (input === 'r' && tab === 'marks' && selectedMark) {
+      if (input === 'R' && tab === 'marks' && selectedMark) {
         void handleMarkReread();
         return;
       }
@@ -676,7 +688,7 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
       items.push({ key: 'd', label: t(lang, '删除', 'Delete') });
     } else if (tab === 'marks') {
       if (selectedMark) {
-        items.push({ key: 'r', label: t(lang, '重读', 'Reread') });
+        items.push({ key: 'R', label: t(lang, '重读', 'Reread') });
         items.push({ key: 'd', label: t(lang, '删除', 'Delete') });
       }
       if (staleMarkCount > 0) {

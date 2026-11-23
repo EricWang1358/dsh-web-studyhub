@@ -633,7 +633,7 @@ describe('Round 68 Track 2: ExamPrepView `/` live filter & `[x]` atomic Markdown
       });
       assert.equal(saveRes.ok, true, `course.save failed: ${saveRes.error?.message}`);
       await host.refreshSnapshot();
-      tty.send('r');
+      tty.send('\x12');
 
       const initialScreen = await tty.waitFor(
         (s) => {

@@ -5,6 +5,13 @@ import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { useTuiStore } from '../state/store.js';
 import { useInputCapture } from './focus.js';
+import {
+  ClickableBox,
+  MOUSE_LAYER_MODAL,
+  MouseLayerContext,
+  useMouseLayer,
+  useMouseModalBarrier,
+} from './mouse.js';
 
 export interface ModalProps {
   title: string;
@@ -54,7 +61,10 @@ export const Modal = memo(function Modal({
   const theme = useTheme();
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const { columns, rows } = useWindowSize();
+  const parentLayer = useMouseLayer();
+  const modalLayer = overlay ? Math.max(MOUSE_LAYER_MODAL, parentLayer + MOUSE_LAYER_MODAL) : parentLayer;
   useInputCapture(isActive && captureInput);
+  useMouseModalBarrier(isActive && overlay, modalLayer);
   useInput(
     (_input, key) => {
       if (key.escape) onClose?.();
@@ -70,42 +80,48 @@ export const Modal = memo(function Modal({
   const headText = truncateDisplay(head, Math.max(4, inner - displayWidth(sub) - (onClose ? 6 : 1)), ell);
 
   const frame = (
-    <Box
-      flexDirection="column"
-      width={frameWidth}
-      height={height ? Math.min(height, rows - 2) : undefined}
-      borderStyle={asciiMode ? 'classic' : 'round'}
-      borderColor={accent}
-      backgroundColor={theme.surface}
-      paddingX={1}
-    >
-      <Box height={1} flexShrink={0}>
-        <Text color={accent} bold>
-          {headText}
-        </Text>
-        <Box flexGrow={1} />
-        {sub ? <Text color={theme.muted}>{sub}</Text> : null}
-        {onClose ? <Text color={theme.dim}>{asciiMode ? '  esc x' : '  esc ✕'}</Text> : null}
-      </Box>
-      <Box height={1} flexShrink={0}>
-        <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(inner)}</Text>
-      </Box>
-      <Box flexDirection="column" paddingX={1} flexGrow={1} overflow="hidden">
-        {children}
-      </Box>
-      {hints && hints.length > 0 ? (
-        <Box height={1} flexShrink={0} marginTop={0} overflow="hidden">
-          {hints.map((h) => (
-            <Text key={`${h.key}:${h.label}`}>
-              <Text color={theme.accent} bold>
-                {h.key}
-              </Text>
-              <Text color={theme.muted}>{` ${h.label}   `}</Text>
-            </Text>
-          ))}
+    <MouseLayerContext.Provider value={modalLayer}>
+      <Box
+        flexDirection="column"
+        width={frameWidth}
+        height={height ? Math.min(height, rows - 2) : undefined}
+        borderStyle={asciiMode ? 'classic' : 'round'}
+        borderColor={accent}
+        backgroundColor={theme.surface}
+        paddingX={1}
+      >
+        <Box height={1} flexShrink={0}>
+          <Text color={accent} bold>
+            {headText}
+          </Text>
+          <Box flexGrow={1} />
+          {sub ? <Text color={theme.muted}>{sub}</Text> : null}
+          {onClose ? (
+            <ClickableBox onClick={() => onClose()} clickActive={isActive} clickLayer={modalLayer} flexShrink={0}>
+              <Text color={theme.dim}>{asciiMode ? '  esc x' : '  esc ✕'}</Text>
+            </ClickableBox>
+          ) : null}
         </Box>
-      ) : null}
-    </Box>
+        <Box height={1} flexShrink={0}>
+          <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(inner)}</Text>
+        </Box>
+        <Box flexDirection="column" paddingX={1} flexGrow={1} overflow="hidden">
+          {children}
+        </Box>
+        {hints && hints.length > 0 ? (
+          <Box height={1} flexShrink={0} marginTop={0} overflow="hidden">
+            {hints.map((h) => (
+              <Text key={`${h.key}:${h.label}`}>
+                <Text color={theme.accent} bold>
+                  {h.key}
+                </Text>
+                <Text color={theme.muted}>{` ${h.label}   `}</Text>
+              </Text>
+            ))}
+          </Box>
+        ) : null}
+      </Box>
+    </MouseLayerContext.Provider>
   );
 
   if (!overlay) return frame;

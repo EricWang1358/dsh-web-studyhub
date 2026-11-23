@@ -43,7 +43,7 @@ const SkeletonDiagramsModal = lazy(() =>
   import('./SkeletonDiagramsModal.js').then((m) => ({ default: m.SkeletonDiagramsModal })),
 );
 
-const CLAIMED_KEYS = ['r', 'L', 'R', 'G', 'E', 'D', 'M', '/', 'x'] as const;
+const CLAIMED_KEYS = ['L', 'R', 'G', 'E', 'D', 'M', '/', 'x'] as const;
 
 export { todayLocalYmd };
 
@@ -1345,7 +1345,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
         setSwitcherOpen(true);
         return;
       }
-      if (input === 'r') {
+      if (key.ctrl && input === 'r') {
         setReloadSeq((n) => n + 1);
         return;
       }

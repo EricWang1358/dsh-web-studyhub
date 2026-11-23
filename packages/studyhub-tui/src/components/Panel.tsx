@@ -78,11 +78,35 @@ export const Panel = memo(function Panel({
   let titleText = title ? `${icon ? `${icon} ` : ''}${title}` : '';
   let metaText = metaRaw;
   if (numericWidth !== undefined) {
-    // corners + dashes + spaces: "╭─ " + title + " " + badge + " " + rule + " " + meta + " ─╮"
-    const chrome = 3 + 1 + 4;
-    const avail = Math.max(0, numericWidth - chrome - displayWidth(badgeText));
-    metaText = truncateDisplay(metaRaw, Math.max(0, Math.min(displayWidth(metaRaw), Math.floor(avail * 0.4))), ellipsis);
-    titleText = truncateDisplay(titleText, Math.max(0, avail - displayWidth(metaText) - (metaText ? 1 : 0)), ellipsis);
+    // corners + spaces around title/badge/meta + at least 1 rule dash
+    const capsW = borderless ? 0 : 4;
+    const titleChrome = titleText ? 2 : 1;
+    const badgeChrome = badgeText ? displayWidth(badgeText) + 1 : 0;
+    const metaChrome = metaRaw ? 2 : 0;
+    const avail = Math.max(0, numericWidth - capsW - titleChrome - badgeChrome - metaChrome - 1);
+    const tW = displayWidth(titleText);
+    const mW = displayWidth(metaRaw);
+    if (tW + mW <= avail) {
+      metaText = metaRaw;
+    } else if (!metaRaw) {
+      titleText = truncateDisplay(titleText, avail, ellipsis);
+    } else if (!titleText) {
+      metaText = truncateDisplay(metaRaw, avail, ellipsis);
+    } else {
+      const baseTitle = Math.floor(avail * 0.58);
+      const baseMeta = avail - baseTitle;
+      let titleBudget = baseTitle;
+      let metaBudget = baseMeta;
+      if (tW <= baseTitle) {
+        titleBudget = tW;
+        metaBudget = Math.max(0, avail - tW);
+      } else if (mW <= baseMeta) {
+        metaBudget = mW;
+        titleBudget = Math.max(0, avail - mW);
+      }
+      titleText = truncateDisplay(titleText, titleBudget, ellipsis);
+      metaText = truncateDisplay(metaRaw, metaBudget, ellipsis);
+    }
   }
 
   const ruleText = ascii ? ASCII_RULE : UNICODE_RULE;

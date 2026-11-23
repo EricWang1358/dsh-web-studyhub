@@ -12,6 +12,7 @@
     "bin/",
     "dist/",
     "README.md",
+    "docs/GUIDE.md",
     "docs/KEYBINDINGS.md"
   ],
   "bin": {

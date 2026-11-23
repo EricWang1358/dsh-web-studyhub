@@ -10,15 +10,39 @@ import { Panel } from '../../components/Panel.js';
 import { TextInput } from '../../components/TextInput.js';
 import { useInputCapture } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
+import { ClickableBox } from '../../components/mouse.js';
 import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
+import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import {
   MAX_AI_TURNS,
   buildCardHelpSystemPrompt,
   buildCardHelpUserPrompt,
   currentDeckIdOf,
+  extractSolution,
   type AiTurn,
   type NormalizedKind,
 } from './review-helpers.js';
+
+export interface SavedFollowupItem {
+  id: string;
+  question: string;
+  answer: string;
+  at?: string;
+}
+
+export function followupsToAiTurns(
+  followups: ReadonlyArray<{ question?: string; answer?: string }> | undefined,
+): AiTurn[] {
+  if (!Array.isArray(followups) || followups.length === 0) return [];
+  const out: AiTurn[] = [];
+  for (const f of followups) {
+    const q = typeof f?.question === 'string' ? f.question.trim() : '';
+    const a = typeof f?.answer === 'string' ? f.answer.trim() : '';
+    if (q) out.push({ role: 'user', text: q });
+    if (a) out.push({ role: 'assistant', text: a });
+  }
+  return out.slice(-MAX_AI_TURNS);
+}
 
 export interface AiHelpDrawerProps {
   host: HostClient;
@@ -30,6 +54,12 @@ export interface AiHelpDrawerProps {
   height: number;
   isActive: boolean;
   mathUnicode: boolean;
+  /** Lifted per-card conversation history owned by ReviewView so closing/reopening never loses turns. */
+  history?: readonly AiTurn[];
+  onHistoryChange?: (cardId: string, nextTurns: AiTurn[]) => void;
+  /** Extra saved follow-ups recorded during this round before backend run refreshes. */
+  extraSavedFollowups?: readonly SavedFollowupItem[];
+  onSavedFollowup?: (cardId: string, item: SavedFollowupItem) => void;
   onClose: () => void;
 }
 
@@ -43,6 +73,10 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
   height,
   isActive,
   mathUnicode,
+  history: liftedHistory,
+  onHistoryChange,
+  extraSavedFollowups,
+  onSavedFollowup,
   onClose,
 }: AiHelpDrawerProps) {
   const theme = useTheme();
@@ -51,8 +85,8 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
   const ell = asciiMode ? '...' : '…';
   const notify = useTuiStore((s) => s.notify);
 
-  // Per-card history kept local and capped at MAX_AI_TURNS.
-  const [historyByCard, setHistoryByCard] = useState<Record<string, AiTurn[]>>({});
+  // Local fallback history when rendered standalone without lifted history props.
+  const [localHistoryByCard, setLocalHistoryByCard] = useState<Record<string, AiTurn[]>>({});
   const {
     text: streamingText,
     push: pushStreamingChunk,
@@ -65,6 +99,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
   const [inputValue, setInputValue] = useState('');
   const [inputFocused, setInputFocused] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
+  const [savedLatest, setSavedLatest] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestError, setSuggestError] = useState<string | null>(null);
@@ -95,12 +130,62 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
     resetStreaming();
     setReasoningChars(0);
     setErrorText(null);
+    setSavedLatest(false);
     setSuggestions([]);
     setSuggestLoading(false);
     setSuggestError(null);
   }, [cardId, resetStreaming]);
 
-  const turns = useMemo(() => historyByCard[cardId] ?? [], [historyByCard, cardId]);
+  const savedTurns = useMemo(() => {
+    const solFollowups = extractSolution(run)?.followups ?? [];
+    const merged: Array<{ id?: string; question?: string; answer?: string }> = [...solFollowups];
+    if (extraSavedFollowups && extraSavedFollowups.length > 0) {
+      const seen = new Set(solFollowups.map((f) => f.id).filter(Boolean));
+      for (const extra of extraSavedFollowups) {
+        if (!extra.id || !seen.has(extra.id)) merged.push(extra);
+      }
+    }
+    return followupsToAiTurns(merged);
+  }, [run, extraSavedFollowups]);
+
+  const turns = useMemo<AiTurn[]>(() => {
+    if (liftedHistory && liftedHistory.length > 0) return [...liftedHistory];
+    const local = localHistoryByCard[cardId];
+    if (local && local.length > 0) return local;
+    if (savedTurns.length > 0) return savedTurns;
+    return [];
+  }, [liftedHistory, localHistoryByCard, cardId, savedTurns]);
+
+  const turnsRef = useRef<AiTurn[]>(turns);
+  turnsRef.current = turns;
+
+  const isReusedOnly = useMemo(
+    () =>
+      savedTurns.length > 0 &&
+      !(liftedHistory && liftedHistory.length > savedTurns.length) &&
+      !(localHistoryByCard[cardId] && localHistoryByCard[cardId].length > savedTurns.length),
+    [savedTurns.length, liftedHistory, localHistoryByCard, cardId],
+  );
+
+  const commitTurns = useCallback(
+    (targetCardId: string, nextTurns: AiTurn[]) => {
+      const capped = nextTurns.slice(-MAX_AI_TURNS);
+      if (onHistoryChange) {
+        onHistoryChange(targetCardId, capped);
+      } else {
+        setLocalHistoryByCard((prev) => ({ ...prev, [targetCardId]: capped }));
+      }
+    },
+    [onHistoryChange],
+  );
+
+  const buildInitialPrompt = useCallback(
+    () =>
+      run.revealed || run.feedback
+        ? t(lang, '请帮我深入讲解这道题的考点、解题思路和容易混淆的误区。', 'Explain the core concept, solution reasoning, and common pitfalls for this question.')
+        : t(lang, '请先给我一点解题启发和思路提示，先不要直接剧透最终选项或答案。', 'Give me a conceptual hint and approach without spoiling the final answer yet.'),
+    [run.revealed, run.feedback, lang],
+  );
 
   const askAi = useCallback(
     async (question: string) => {
@@ -114,11 +199,13 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       const ctrl = new AbortController();
       abortRef.current = ctrl;
 
-      const priorTurns = historyByCard[cardId] ?? [];
+      const priorTurns = turnsRef.current;
       const userTurn: AiTurn = { role: 'user', text: q };
       const withUser = [...priorTurns, userTurn].slice(-MAX_AI_TURNS);
-      setHistoryByCard((prev) => ({ ...prev, [cardId]: withUser }));
+      turnsRef.current = withUser;
+      commitTurns(cardId, withUser);
       setStreaming(true);
+      setSavedLatest(false);
       resetStreaming();
       setReasoningChars(0);
       setErrorText(null);
@@ -149,10 +236,9 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
         const reply = (finalText || flushed).trim();
         if (reply) {
           const assistantTurn: AiTurn = { role: 'assistant', text: reply };
-          setHistoryByCard((prev) => {
-            const cur = prev[cardId] ?? withUser;
-            return { ...prev, [cardId]: [...cur, assistantTurn].slice(-MAX_AI_TURNS) };
-          });
+          const next = [...withUser, assistantTurn].slice(-MAX_AI_TURNS);
+          turnsRef.current = next;
+          commitTurns(cardId, next);
         }
         resetStreaming();
         setStreaming(false);
@@ -163,10 +249,9 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
         const partial = flushed.trim();
         if (partial) {
           const partialTurn: AiTurn = { role: 'assistant', text: partial };
-          setHistoryByCard((prev) => {
-            const cur = prev[cardId] ?? withUser;
-            return { ...prev, [cardId]: [...cur, partialTurn].slice(-MAX_AI_TURNS) };
-          });
+          const next = [...withUser, partialTurn].slice(-MAX_AI_TURNS);
+          turnsRef.current = next;
+          commitTurns(cardId, next);
           resetStreaming();
         }
         setErrorText(errorMessage(err));
@@ -182,20 +267,17 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
         }
       }
     },
-    [host, lang, historyByCard, cardId, run, kind, userAnswer, pushStreamingChunk, finishStreaming, resetStreaming],
+    [host, lang, cardId, run, kind, userAnswer, commitTurns, pushStreamingChunk, finishStreaming, resetStreaming],
   );
 
-  // Auto-explain when opened for a card with no history yet.
+  // Auto-explain ONLY when opened for a card with neither lifted history nor saved follow-ups.
   useEffect(() => {
     if (!isActive || !cardId) return;
-    if ((historyByCard[cardId]?.length ?? 0) === 0 && !autoAskedRef.current.has(cardId)) {
+    if (turns.length === 0 && savedTurns.length === 0 && !autoAskedRef.current.has(cardId)) {
       autoAskedRef.current.add(cardId);
-      const initialPrompt = run.revealed || run.feedback
-        ? t(lang, '请帮我深入讲解这道题的考点、解题思路和容易混淆的误区。', 'Explain the core concept, solution reasoning, and common pitfalls for this question.')
-        : t(lang, '请先给我一点解题启发和思路提示，先不要直接剧透最终选项或答案。', 'Give me a conceptual hint and approach without spoiling the final answer yet.');
-      void askAi(initialPrompt);
+      void askAi(buildInitialPrompt());
     }
-  }, [isActive, cardId, historyByCard, run.revealed, run.feedback, lang, askAi]);
+  }, [isActive, cardId, turns.length, savedTurns.length, buildInitialPrompt, askAi]);
 
   const fetchSuggestions = useCallback(async () => {
     if (suggestLoading || !cardId) return;
@@ -270,8 +352,15 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       notify(noteRes.error?.message || t(lang, '写入学习笔记失败', 'Failed to add Q&A to notes'), 'error');
       return;
     }
-    notify(t(lang, '已将问答保存到学习笔记', 'Saved Q&A to study notes'), 'success');
-  }, [savingNote, run, turns, host, lang, cardId, notify]);
+    setSavedLatest(true);
+    onSavedFollowup?.(cardId, {
+      id: followupRes.value.item.id,
+      question: questionText.slice(0, 1000),
+      answer: answerText.slice(0, 8000),
+      at: new Date().toISOString(),
+    });
+    notify(t(lang, '已将问答保存到学习笔记，下次打开将直接复用', 'Saved Q&A to notes (reused next time)'), 'success');
+  }, [savingNote, run, turns, host, lang, cardId, notify, onSavedFollowup]);
 
   const drawerHints: KeyHint[] = useMemo(
     () =>
@@ -282,11 +371,12 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
           ]
         : [
             { key: 'i / Enter', label: t(lang, '追问', 'Ask') },
+            { key: 'R', label: t(lang, '重新生成(调用模型)', 'Regen (calls AI)') },
             { key: 's', label: t(lang, '推荐追问', 'Suggest Qs') },
             ...(suggestions.length > 0
               ? [{ key: `1-${suggestions.length}`, label: t(lang, '快问', 'Quick') }]
               : []),
-            { key: 'N', label: t(lang, '存笔记', 'Save Note') },
+            { key: 'N', label: t(lang, '保存(下次复用)', 'Save (reuse)') },
             { key: asciiMode ? 'j/k' : '↑/↓', label: t(lang, '滚动', 'Scroll') },
             { key: 'Esc / h', label: t(lang, '关闭', 'Close') },
           ],
@@ -323,9 +413,15 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
         void saveLatestQaToNotes();
         return;
       }
-      if (input === 'r' && errorText && turns.length > 0) {
-        const lastUser = [...turns].reverse().find((x) => x.role === 'user');
-        if (lastUser) void askAi(lastUser.text);
+      if (input === 'R' && !streaming) {
+        if (errorText && turns.length > 0) {
+          const lastUser = [...turns].reverse().find((x) => x.role === 'user');
+          if (lastUser) {
+            void askAi(lastUser.text);
+            return;
+          }
+        }
+        void askAi(buildInitialPrompt());
       }
     },
     { isActive: isActive && !inputFocused },
@@ -347,9 +443,24 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
   }, [turns, streaming, streamingText, lang, ell]);
 
   const innerW = Math.max(20, width - 4);
-  const suggestH = suggestLoading ? 1 : suggestError ? 1 : suggestions.length > 0 ? suggestions.length : 0;
+  const suggestTextW = Math.max(8, innerW - 4);
+  const wrappedSuggestions = useMemo(
+    () => suggestions.map((q, idx) => ({ idx, q, lines: wrapDisplay(q, suggestTextW) })),
+    [suggestions, suggestTextW],
+  );
   const errorH = errorText ? 1 : 0;
-  const bodyH = Math.max(4, height - 6 - suggestH - errorH);
+  // Overhead inside Panel: border top/bottom (2) + status bar (1) + error (0|1) + input box (3) = 6 + errorH.
+  const flexSpace = Math.max(4, height - 6 - errorH);
+  const rawSuggestH = suggestLoading
+    ? 1
+    : suggestError
+      ? 1
+      : wrappedSuggestions.reduce((n, item) => n + item.lines.length, 0);
+  // Reserve at least 3 rows for transcript body (or 2 on ultra-short terminals) so input box is never pushed off screen.
+  const minBodyH = Math.min(3, Math.max(2, Math.floor(flexSpace * 0.25)));
+  const maxSuggestH = Math.max(0, flexSpace - minBodyH);
+  const suggestH = Math.min(rawSuggestH, maxSuggestH);
+  const bodyH = Math.max(2, flexSpace - suggestH);
 
   return (
     <Panel
@@ -363,8 +474,8 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       height={height}
       paddingX={1}
     >
-      <Box flexDirection="row" alignItems="center" justifyContent="space-between" marginBottom={0}>
-        <Box flexDirection="row" gap={1}>
+      <Box flexDirection="row" alignItems="center" justifyContent="space-between" height={1} width={innerW} flexShrink={0} overflow="hidden">
+        <Box flexDirection="row" gap={1} flexShrink={0}>
           {streaming ? (
             <Spinner
               label={
@@ -375,24 +486,42 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
               tone="ai"
               active={isActive && streaming}
             />
+          ) : isReusedOnly ? (
+            <Badge label={t(lang, '已复用讲解', 'Saved')} tone="success" variant="soft" />
           ) : (
             <Badge label={t(lang, '已就绪', 'Ready')} tone="ai" variant="soft" />
           )}
           {savingNote ? <Spinner label={t(lang, `保存中${ell}`, `Saving${ell}`)} tone="success" active={isActive} /> : null}
         </Box>
-        <Text color={theme.dim}>{t(lang, '[s] 推荐追问 · [N] 存笔记 · [Esc] 关闭', '[s] Suggest Qs · [N] Note · [Esc] Close')}</Text>
+        <Text color={theme.dim} wrap="truncate">
+          {truncateDisplay(
+            !streaming && !isReusedOnly && !savedLatest && turns.some((x) => x.role === 'assistant')
+              ? t(
+                  lang,
+                  '[N]保存下次直接看 · [R]重生成(调用模型)',
+                  '[N]Save to reuse · [R]Regen (AI call)',
+                )
+              : t(
+                  lang,
+                  asciiMode ? '[R]重生成(模型) [s]追问 [N]保存' : '[R] 重新生成(调用模型) · [s] 追问 · [N] 保存',
+                  asciiMode ? '[R]Regen(AI) [s]Qs [N]Save' : '[R] Regen (AI call) · [s] Qs · [N] Save',
+                ),
+            Math.max(10, innerW - 14),
+            ell,
+          )}
+        </Text>
       </Box>
 
       {errorText ? (
-        <Box marginY={0} height={1} overflow="hidden">
+        <Box marginY={0} height={1} width={innerW} flexShrink={0} overflow="hidden">
           <Text color={theme.error} wrap="truncate">
             {`${asciiMode ? 'x' : '✕'} ${errorText} `}
-            <Text color={theme.muted}>{t(lang, '([r] 重试)', '([r] Retry)')}</Text>
+            <Text color={theme.muted}>{t(lang, '([R] 重试)', '([R] Retry)')}</Text>
           </Text>
         </Box>
       ) : null}
 
-      <Box height={bodyH} width={innerW} overflow="hidden" marginTop={0}>
+      <Box height={bodyH} width={innerW} flexShrink={0} overflow="hidden" marginTop={0}>
         <MarkdownView
           markdown={transcriptMd}
           width={innerW}
@@ -404,34 +533,52 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       </Box>
 
       {suggestLoading ? (
-        <Box height={1} width={innerW} overflow="hidden">
+        <Box height={1} width={innerW} flexShrink={0} overflow="hidden">
           <Spinner label={t(lang, `正在生成推荐追问${ell}`, `Suggesting follow-up questions${ell}`)} tone="ai" active={isActive} />
         </Box>
       ) : suggestError ? (
-        <Box height={1} width={innerW} overflow="hidden">
+        <Box height={1} width={innerW} flexShrink={0} overflow="hidden">
           <Text color={theme.warning} wrap="truncate">
             {`${asciiMode ? '!' : '▲'} ${suggestError}`}
           </Text>
         </Box>
-      ) : suggestions.length > 0 ? (
-        <Box flexDirection="column" height={suggestions.length} width={innerW} overflow="hidden">
-          {suggestions.map((q, idx) => (
-            <Box key={`${idx}:${q}`} height={1} width={innerW} overflow="hidden">
-              <Text color={theme.ai} bold>{`[${idx + 1}] `}</Text>
-              <Text color={theme.text} wrap="truncate">
-                {q}
-              </Text>
-            </Box>
+      ) : wrappedSuggestions.length > 0 && suggestH > 0 ? (
+        <Box flexDirection="column" height={suggestH} width={innerW} flexShrink={0} overflow="hidden">
+          {wrappedSuggestions.map(({ idx, q, lines }) => (
+            <ClickableBox
+              key={`${idx}:${q}`}
+              flexDirection="column"
+              width={innerW}
+              clickActive={isActive && !streaming}
+              onClick={() => {
+                if (!streaming) void askAi(q);
+              }}
+            >
+              {lines.map((line, lineIdx) => (
+                <Box key={`${idx}:${lineIdx}`} height={1} width={innerW} overflow="hidden">
+                  {lineIdx === 0 ? (
+                    <Text color={theme.ai} bold>{`[${idx + 1}] `}</Text>
+                  ) : (
+                    <Text>{'    '}</Text>
+                  )}
+                  <Text color={theme.text}>{line}</Text>
+                </Box>
+              ))}
+            </ClickableBox>
           ))}
         </Box>
       ) : null}
 
-      <Box
+      <ClickableBox
         borderStyle={asciiMode ? 'classic' : 'single'}
         borderColor={inputFocused ? theme.ai : theme.border}
         paddingX={1}
         height={3}
         width={innerW}
+        flexShrink={0}
+        overflow="hidden"
+        clickActive={isActive && !inputFocused}
+        onClick={() => setInputFocused(true)}
       >
         <TextInput
           value={inputValue}
@@ -439,11 +586,13 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
           isActive={isActive && inputFocused}
           width={Math.max(10, innerW - 6)}
           prompt={asciiMode ? '>' : '›'}
-          placeholder={
+          placeholder={truncateDisplay(
             inputFocused
               ? t(lang, `输入你的追问，Enter 发送${ell}`, `Type your follow-up question, Enter to send${ell}`)
-              : t(lang, '按 [i] 输入追问，[s] 推荐追问，[N] 存笔记', 'Press [i] to ask, [s] suggest Qs, [N] save note')
-          }
+              : t(lang, '按 [i] 输入追问，[s] 推荐追问，[N] 存笔记', 'Press [i] to ask, [s] suggest Qs, [N] save note'),
+            Math.max(10, innerW - 6),
+            ell,
+          )}
           onSubmit={(val) => {
             const trimmed = val.trim();
             if (!trimmed) return;
@@ -453,7 +602,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
           }}
           onCancel={() => setInputFocused(false)}
         />
-      </Box>
+      </ClickableBox>
     </Panel>
   );
 });

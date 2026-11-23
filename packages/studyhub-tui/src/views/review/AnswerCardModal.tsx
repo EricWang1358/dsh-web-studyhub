@@ -10,6 +10,7 @@ import { MarkdownView } from '../../components/MarkdownView.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { currentDeckIdOf, kindLabel, type NormalizedKind } from './review-helpers.js';
+import { NextStepFollowupBar } from './NextStepFollowupBar.js';
 
 export interface AnswerCardSignal {
   word?: string;
@@ -705,6 +706,8 @@ export const AnswerCardModal = memo(function AnswerCardModal({
     }
   }, [drillBusy, canLaunchDrills, effectiveDeckId, cardId, host, lang, notify, onClose, navigate, onRunUpdated, onRefreshSnapshot]);
 
+  const [followupEngaged, setFollowupEngaged] = useState(false);
+
   useInput(
     (input) => {
       if (input === 'g') {
@@ -731,7 +734,7 @@ export const AnswerCardModal = memo(function AnswerCardModal({
         navigate('review', { deckId: targetDeckId, mode: 'path' });
       }
     },
-    { isActive },
+    { isActive: isActive && !followupEngaged },
   );
 
   const frameW = Math.max(48, Math.min(104, width - 4));
@@ -799,7 +802,9 @@ export const AnswerCardModal = memo(function AnswerCardModal({
     (checksLine ? 1 : 0) +
     (showBanner ? 1 : 0) +
     1; // divider
-  const contentH = Math.max(4, bodyH - fixedHeaderRows);
+  const canFollowup = Boolean(answerCard && !loading && !building);
+  const followupExpandedH = Math.min(11, Math.max(8, Math.floor(bodyH * 0.55)));
+  const contentH = Math.max(4, bodyH - fixedHeaderRows - (canFollowup ? (followupEngaged ? followupExpandedH : 3) : 0));
 
   const topicName = typeof cardDetail?.topic === 'string' && cardDetail.topic
     ? cardDetail.topic
@@ -830,7 +835,7 @@ export const AnswerCardModal = memo(function AnswerCardModal({
       width={frameW}
       height={frameH}
       onClose={onClose}
-      isActive={isActive}
+      isActive={isActive && !followupEngaged}
       hints={hints}
     >
       {/* Top Status & Action Badges */}
@@ -919,15 +924,31 @@ export const AnswerCardModal = memo(function AnswerCardModal({
           <Spinner label={t(lang, `正在读取答题卡${ell}`, `Loading answer card${ell}`)} active={isActive} />
         </Box>
       ) : answerCard ? (
-        <Box height={contentH} width={innerW} overflow="hidden">
-          <MarkdownView
-            markdown={cardMarkdown}
-            width={innerW}
-            height={contentH}
-            isActive={isActive && !building}
-            mathUnicode={mathUnicode}
-            ascii={asciiMode}
-          />
+        <Box flexDirection="column" width={innerW} flexGrow={1} overflow="hidden">
+          <Box height={contentH} width={innerW} overflow="hidden">
+            <MarkdownView
+              markdown={cardMarkdown}
+              width={innerW}
+              height={contentH}
+              isActive={isActive && !building && !followupEngaged}
+              mathUnicode={mathUnicode}
+              ascii={asciiMode}
+            />
+          </Box>
+          {canFollowup ? (
+            <NextStepFollowupBar
+              host={host}
+              run={run}
+              cardId={cardId}
+              kind={kind}
+              toolLabel={t(lang, '分析题答题卡', 'Case Answer Card')}
+              resultContext={cardMarkdown}
+              width={innerW}
+              expandedHeight={followupExpandedH}
+              isActive={isActive && canFollowup}
+              onFocusChange={setFollowupEngaged}
+            />
+          ) : null}
         </Box>
       ) : (
         <EmptyState

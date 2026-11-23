@@ -18,6 +18,7 @@ import {
   type SimilarCardItem,
   type SimilarCardReason,
 } from './review-helpers.js';
+import { NextStepFollowupBar } from './NextStepFollowupBar.js';
 
 export interface SimilarCardsModalProps {
   host: HostClient;
@@ -149,6 +150,8 @@ export const SimilarCardsModal = memo(function SimilarCardsModal({
     [launching, currentDeckId, cardId, host, notify, lang, onStartRun, onClose],
   );
 
+  const [followupEngaged, setFollowupEngaged] = useState(false);
+
   useInput(
     (input, key) => {
       if (launching) return;
@@ -165,19 +168,23 @@ export const SimilarCardsModal = memo(function SimilarCardsModal({
         void handleLaunchContrast(selectedItem);
       }
     },
-    { isActive },
+    { isActive: isActive && !followupEngaged },
   );
 
   const frameW = Math.max(48, Math.min(112, width - 4));
   const frameH = Math.max(16, Math.min(34, height - 2));
   const innerW = modalContentWidth(frameW);
   const bodyH = Math.max(7, frameH - 5);
+  const canFollowup = items.length > 0 && !loading && !error;
+  const followupExpandedH = Math.min(11, Math.max(8, Math.floor(bodyH * 0.5)));
+  const splitBodyH = Math.max(4, bodyH - (canFollowup ? (followupEngaged ? followupExpandedH : 3) : 0));
 
   const hints = useMemo<KeyHint[]>(() => {
     if (items.length > 0) {
       return [
         { key: 'Enter', label: t(lang, '对比练习', 'Contrast Practice') },
         { key: asciiMode ? 'Tab' : 'Tab/←→', label: t(lang, '切换面板', 'Pane') },
+        { key: 'a', label: t(lang, '后续指令', 'Next step') },
         { key: 'Esc', label: t(lang, '关闭', 'Close') },
       ];
     }
@@ -250,7 +257,7 @@ export const SimilarCardsModal = memo(function SimilarCardsModal({
       width={frameW}
       height={frameH}
       onClose={onClose}
-      isActive={isActive}
+      isActive={isActive && !followupEngaged}
       hints={hints}
     >
       {loading ? (
@@ -283,7 +290,7 @@ export const SimilarCardsModal = memo(function SimilarCardsModal({
           ) : null}
           <SplitPane
             width={innerW}
-            height={launching ? Math.max(4, bodyH - 1) : bodyH}
+            height={launching ? Math.max(4, splitBodyH - 1) : splitBodyH}
             leftWidth={0.4}
             minLeft={22}
             minRight={28}
@@ -310,7 +317,7 @@ export const SimilarCardsModal = memo(function SimilarCardsModal({
                   onSelect={(item) => {
                     void handleLaunchContrast(item);
                   }}
-                  isActive={isActive && !launching && activePane === 'left'}
+                  isActive={isActive && !launching && activePane === 'left' && !followupEngaged}
                   keyExtractor={(item) => `${item.deckId}:${item.cardId}`}
                   renderItem={renderSimilarRow}
                 />
@@ -322,12 +329,26 @@ export const SimilarCardsModal = memo(function SimilarCardsModal({
                   markdown={contrastMarkdown}
                   width={size.width}
                   height={size.height}
-                  isActive={isActive && activePane === 'right'}
+                  isActive={isActive && activePane === 'right' && !followupEngaged}
                   mathUnicode={mathUnicode}
                 />
               </Box>
             )}
           />
+          {canFollowup ? (
+            <NextStepFollowupBar
+              host={host}
+              run={run}
+              cardId={cardId}
+              kind={kind}
+              toolLabel={t(lang, '同类易混题对比', 'Similar Cards Contrast')}
+              resultContext={contrastMarkdown}
+              width={innerW}
+              expandedHeight={followupExpandedH}
+              isActive={isActive && canFollowup}
+              onFocusChange={setFollowupEngaged}
+            />
+          ) : null}
         </Box>
       )}
     </Modal>
