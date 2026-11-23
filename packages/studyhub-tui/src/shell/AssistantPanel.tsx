@@ -44,6 +44,7 @@ import {
   planAssistantWorkflow,
   type AssistantWorkflowPlan,
 } from './assistant-workflow.js';
+import { pruneTurnsWithSummary } from './assistant-memory.js';
 import { currentCourse, dueToday, modelInfo, wrongCount } from './data.js';
 
 export const MAX_ASSISTANT_TURNS = 16;
@@ -144,8 +145,8 @@ export function _getAssistantRetellRecords() {
 
 let turnSeq = 0;
 
-function trimTurns(turns: readonly AssistantTurn[]): AssistantTurn[] {
-  return turns.length > MAX_ASSISTANT_TURNS ? turns.slice(-MAX_ASSISTANT_TURNS) : [...turns];
+function trimTurns(turns: readonly AssistantTurn[], lang: UiLanguage = 'zh'): AssistantTurn[] {
+  return pruneTurnsWithSummary(turns, MAX_ASSISTANT_TURNS, lang);
 }
 
 function formatStageStrip(current: GuidedStageId, lang: UiLanguage, asciiMode: boolean): string {

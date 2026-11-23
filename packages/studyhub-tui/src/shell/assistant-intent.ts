@@ -127,7 +127,7 @@ const UNSUPPORTED_PATTERNS: ReadonlyArray<{
     altCmd: '查看统计',
   },
   {
-    re: /联网搜索|查天气|买机票|订外卖|点餐|search\s+google|weather/i,
+    re: /联网搜索|查.{0,4}天气|买机票|订外卖|点餐|search\s+google|weather/i,
     reasonZh: '当前助手聚焦本地学习库，不支持外部联网服务。',
     reasonEn: 'Assistant is scoped to your local study library.',
     altLabelZh: '改为：打开资料库检索本地讲义',
