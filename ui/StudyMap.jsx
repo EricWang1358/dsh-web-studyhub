@@ -1,5 +1,6 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { courseScope } from "../lib/course-tree.js";
 import { Button, Icon, useToast } from "./components/index.js";
 import { useStudy } from "./study-context.jsx";
 import { ModelSettingsContext, useModelSettingsLabel } from "./ModelErrorNote.jsx";
@@ -190,8 +191,15 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
       <LazyDeskPlayStrip data={data} onPracticeDeck={(deckId) => start?.({ mode: "path", scope: [{ deckId }] })} />
       {/* 待发布 sits under the day's work; it opens on its own when unpublished drafts wait and today's round is empty or finished. */}
       <HomeDrafts drafts={drafts} data={data} modelReady={modelReadiness(data).ready} openDraft={openDraft} topUpDraft={topUpDraft} defaultOpen={autoOpenDrafts} />
-      {Boolean(data.focus?.course && (data.courses || []).some((c) => (c.name === data.focus.course || (c.aliases || []).includes(data.focus.course)) && c.companions?.length > 0))
-        && <CourseCompanionsBar course={data.focus.course} data={data} />}
+      {(() => {
+        const target = data.focus?.course;
+        if (!target) return null;
+        const courses = data.courses || [];
+        const within = courseScope(target, courses.map((c) => c?.name).filter(Boolean));
+        return courses.some((c) => c?.companions?.length > 0 && (within(c.name) || (c.aliases || []).some(within)))
+          ? <CourseCompanionsBar course={target} data={data} />
+          : null;
+      })()}
       <CatalogHeading count={data.decks.filter((deck) => !!deck.archived === showArchived).length} showArchived={showArchived} hasDecks={data.decks.length > 0}
         hasSources={data.sources.length > 0} course={data.focus?.course} merge={merge} slain={data.decks.find((deck) => deck.systemKind === "slain")}
         addSource={addSource} createManual={createManual} importLibrary={importLibrary} manage={manage} onShowGraph={onShowGraph}
