@@ -36,6 +36,7 @@ import {
 import { LruCache } from '../../render/lru.js';
 import { displayWidth, truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import { buildFileHyperlinkUrl, formatOsc8Link } from '../../render/osc8.js';
+import { buildReviewWindowTitle, writeTerminalTitle } from '../../render/terminal-title.js';
 import { buildReviewQuickActions } from './quick-actions.js';
 import {
   FSRS_GRADES,
@@ -1629,6 +1630,22 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     stuckActivityTick,
     stuckNudgeDelayMs,
   ]);
+
+  // Round 87 Track C4: OSC 2 terminal window title with live review progress (restores on unmount)
+  useEffect(() => {
+    if (!run || isFinished) return undefined;
+    const total = Math.max(1, Number(run.total || run.navigation?.length || 1));
+    const at = Math.min(total, Number(run.position?.at ?? run.index + 1) || 1);
+    writeTerminalTitle(
+      buildReviewWindowTitle({ at, total, title: typeof run.title === 'string' ? run.title : undefined, lang }),
+      { asciiMode },
+    );
+    return undefined;
+  }, [run, isFinished, lang, asciiMode]);
+
+  useEffect(() => () => {
+    writeTerminalTitle('StudyHub', { asciiMode });
+  }, [asciiMode]);
 
   // Sync rich current card context into persistent AI Assistant without mutating practiceStack (#1315/#1319 coexistence)
   useEffect(() => {

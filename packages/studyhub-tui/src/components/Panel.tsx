@@ -59,7 +59,7 @@ export const Panel = memo(function Panel({
   flexGrow,
   flexShrink,
   flexBasis,
-  paddingX = 1,
+  paddingX: paddingXProp,
   paddingY = 0,
   direction = 'column',
   borderless = false,
@@ -70,6 +70,8 @@ export const Panel = memo(function Panel({
   const effectiveBorderless = borderless || quiet;
   const theme = useTheme();
   const storeAscii = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const compactMode = useTuiStore((s) => Boolean(s.preferences.compactMode));
+  const paddingX = paddingXProp ?? (compactMode ? 0 : 1);
   const ascii = asciiProp ?? storeAscii;
   const borderColor = tone ? toneColor(theme, tone) : focused ? theme.borderActive : theme.border;
   const titleColor = focused ? theme.primary : theme.text;

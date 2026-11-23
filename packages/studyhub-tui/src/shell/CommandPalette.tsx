@@ -394,6 +394,25 @@ export function buildPaletteItems(
     ['math', 'latex', 'unicode', 'formula', '数学', '公式'],
   );
   act(
+    'cmd:density',
+    '/density',
+    t(
+      lang,
+      state.preferences.compactMode ? '切换为宽松间距（默认，抗视觉疲劳）' : '切换为紧凑间距（容纳更多行）',
+      state.preferences.compactMode ? 'Switch to relaxed spacing (default)' : 'Switch to compact spacing (more rows)',
+    ),
+    () => {
+      const next = !Boolean(state.preferences.compactMode);
+      setPrefs({ compactMode: next });
+      persistPreferencePatch(host, { compactMode: next });
+      notify(
+        t(lang, next ? '已切换为紧凑间距档位' : '已切换为宽松间距档位', next ? 'Density: Compact' : 'Density: Relaxed'),
+        'info',
+      );
+    },
+    ['density', 'compact', 'relaxed', 'spacing', '紧凑', '宽松', '间距'],
+  );
+  act(
     'cmd:recover',
     '/recover',
     t(lang, '恢复中断的后台任务', 'Recover interrupted background jobs'),

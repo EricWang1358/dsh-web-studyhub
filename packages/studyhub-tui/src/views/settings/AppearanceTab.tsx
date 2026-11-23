@@ -225,9 +225,9 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = memo(function Appeara
     },
     {
       key: 'compactMode' as const,
-      label: t(lang, '紧凑布局模式', 'Compact Mode'),
-      value: prefs.compactMode ? t(lang, `紧凑 ${check}`, `Compact ${check}`) : t(lang, '标准', 'Standard'),
-      hint: t(lang, '减少卡片边距以在矮终端显示更多内容', 'Reduce padding for smaller terminals'),
+      label: t(lang, '界面间距档位', 'Spacing Density'),
+      value: prefs.compactMode ? t(lang, `紧凑 ${check}`, `Compact ${check}`) : t(lang, '宽松 (默认)', 'Relaxed (default)'),
+      hint: t(lang, '宽松更耐看、紧凑可容纳更多行，切换即时生效', 'Relaxed reduces fatigue; Compact fits more rows live'),
     },
     {
       key: 'showKeyHints' as const,

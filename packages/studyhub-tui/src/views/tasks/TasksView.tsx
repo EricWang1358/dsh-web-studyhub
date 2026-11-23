@@ -19,6 +19,7 @@ import { useFooterHints } from '../../components/hooks.js';
 import { useTheme } from '../../theme/tokens.js';
 import { useShellActions } from '../../shell/actions.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
+import { writeTerminalNotification } from '../../render/terminal-title.js';
 import { atomicWriteExportText, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
 import { tryAction } from '../../host/sample-actions.js';
 const WorkflowHistoryModal = lazy(() => import('./WorkflowHistoryModal.js').then((m) => ({ default: m.WorkflowHistoryModal })));
@@ -963,6 +964,26 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
 
   const [filterTab, setFilterTab] = useState<FilterTab>('all');
   const [filterQuery, setFilterQuery] = useState('');
+
+  // Round 87 Track C4: emit OSC 9 terminal notification when a previously active background job completes
+  const prevActiveJobsRef = useRef<Map<string, string>>(new Map());
+  useEffect(() => {
+    const jobs = snapshot?.jobs ?? [];
+    const nextActive = new Map<string, string>();
+    for (const j of jobs) {
+      const st = String(j.status ?? '').toLowerCase();
+      const title = String(j.title ?? j.type ?? j.id);
+      if (ACTIVE_STATUSES.has(st)) {
+        nextActive.set(j.id, title);
+      } else if ((st === 'complete' || st === 'completed' || st === 'done' || st === 'ok') && prevActiveJobsRef.current.has(j.id)) {
+        writeTerminalNotification(
+          t(lang, `StudyHub 后台任务完成：${title}`, `StudyHub task completed: ${title}`),
+          { asciiMode },
+        );
+      }
+    }
+    prevActiveJobsRef.current = nextActive;
+  }, [snapshot?.jobs, lang, asciiMode]);
   const [filterEditing, setFilterEditing] = useState(false);
   const [liveJobs, setLiveJobs] = useState<Array<Record<string, unknown>> | null>(null);
   const [controlOverrides, setControlOverrides] = useState<

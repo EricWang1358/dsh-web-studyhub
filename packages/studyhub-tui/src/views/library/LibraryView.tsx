@@ -19,6 +19,7 @@ import { useShellActions } from '../../shell/actions.js';
 import { getSampleStatus, removeSampleCourse, tryAction } from '../../host/sample-actions.js';
 import type { DeckExportInput } from './deck-export.js';
 import { buildDailyBriefing } from './daily-briefing.js';
+import { buildTodayHubItems, buildTodayHubMetrics } from './today-hub.js';
 
 const DeckManageModal = lazy(() => import('./DeckManageModal.js').then((m) => ({ default: m.DeckManageModal })));
 const VoicePackModal = lazy(() => import('./VoicePackModal.js').then((m) => ({ default: m.VoicePackModal })));
@@ -554,6 +555,44 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
     [asciiMode, host, lang, notify],
   );
 
+  const lastPracticeContext = useTuiStore((s) => s.preferences.lastPracticeContext);
+  const todayHubItems = useMemo(
+    () =>
+      buildTodayHubItems(
+        buildTodayHubMetrics({ snapshot, course, activeRunId, lastPracticeContext }),
+        lang,
+      ),
+    [snapshot, course, activeRunId, lastPracticeContext, lang],
+  );
+
+  const handleTodayHubClick = useCallback(
+    (id: 'resume' | 'due' | 'wrong' | 'todo') => {
+      if (id === 'resume') {
+        if (activeRunId) navigate('review', { runId: activeRunId });
+        else if (lastPracticeContext?.runId) navigate('review', { runId: lastPracticeContext.runId, deckId: lastPracticeContext.deckId });
+        else if (selectedDeck) handleStartReview(selectedDeck);
+        else navigate('review');
+        return;
+      }
+      if (id === 'due') {
+        const dueDeck =
+          (snapshot?.decks ?? [])
+            .filter((d) => !d.archived && (!course || d.course === course))
+            .sort((a, b) => (Number(b.due ?? b.dueCount ?? 0) || 0) - (Number(a.due ?? a.dueCount ?? 0) || 0))[0] ??
+          selectedDeck;
+        if (dueDeck) handleStartReview(dueDeck);
+        else navigate('review');
+        return;
+      }
+      if (id === 'wrong') {
+        navigate('wrongbook');
+        return;
+      }
+      navigate('board');
+    },
+    [activeRunId, lastPracticeContext, selectedDeck, snapshot?.decks, course, handleStartReview, navigate],
+  );
+
   const dailyBriefing = useMemo(
     () =>
       buildDailyBriefing({
@@ -964,6 +1003,24 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
               </Box>
             ) : null}
 
+            <Divider width={innerW} label={t(lang, '今日一键直达', 'Today Quick Launch')} />
+            <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
+              {todayHubItems.map((hub) => (
+                <ClickableBox
+                  key={hub.id}
+                  clickActive={viewActive && !filterEditing}
+                  onClick={() => handleTodayHubClick(hub.id)}
+                >
+                  <Text>
+                    <Text color={hub.tone === 'warning' ? theme.warning : hub.tone === 'error' ? theme.error : hub.tone === 'primary' ? theme.primary : theme.accent} bold>
+                      {`[${hub.key}]`}
+                    </Text>
+                    <Text color={theme.text}>{` ${hub.label}`}</Text>
+                  </Text>
+                </ClickableBox>
+              ))}
+            </Box>
+
             <Divider width={innerW} label={t(lang, '快捷操作', 'Quick Actions')} />
 
             {compactDetail ? (
@@ -1069,7 +1126,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
         </Panel>
       );
     },
-    [focusSection, selectedWork, selectedDeck, lang, asciiMode, theme, progressMap, resumeRunForDeck, sampleLoaded],
+    [focusSection, selectedWork, selectedDeck, lang, asciiMode, theme, progressMap, resumeRunForDeck, sampleLoaded, todayHubItems, handleTodayHubClick, viewActive, filterEditing],
   );
 
   const filterBadge = `[${t(lang, '筛选', filterEditing ? 'Filter' : 'Filtered')} ${filteredDecks.length}/${scopedDecks.length}] `;

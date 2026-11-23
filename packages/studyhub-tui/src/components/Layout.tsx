@@ -19,6 +19,25 @@ export const SECTION_GAP = 1;
 /** Comfortable reading measure cap (Round 83 Track A2): ultrawide screens center prose within 96 columns. */
 export const PROSE_MAX_COLS = 96;
 
+export type DensityMode = 'relaxed' | 'compact';
+
+export interface DensitySpacing {
+  mode: DensityMode;
+  panelPaddingX: number;
+  sectionGap: number;
+  rowGap: number;
+}
+
+/**
+ * Resolve layout spacing from user's compact/relaxed density preference (Round 87 Track A6).
+ * Defaults to `relaxed` (`compactMode = false`) for lower visual fatigue.
+ */
+export function resolveDensitySpacing(compactMode = false): DensitySpacing {
+  return compactMode
+    ? { mode: 'compact', panelPaddingX: 0, sectionGap: 0, rowGap: 0 }
+    : { mode: 'relaxed', panelPaddingX: PAGE_PADDING_X, sectionGap: SECTION_GAP, rowGap: 1 };
+}
+
 export interface ProseLayout {
   proseWidth: number;
   marginLeft: number;
