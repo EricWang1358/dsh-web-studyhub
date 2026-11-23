@@ -8,6 +8,7 @@
  */
 import { atomicWriteExportText, defaultBackupFilePath } from '../host/atomic-write.js';
 import type { UiLanguage } from '../types/contracts.js';
+import { detectMultiplexer, wrapMultiplexerPassthrough, type MultiplexerKind } from './terminal-compat.js';
 
 export type GuidedStageId = 'question' | 'answer' | 'judge' | 'retell' | 'summary';
 
@@ -57,16 +58,13 @@ export function stageLabel(stage: GuidedStageId, lang: UiLanguage = 'zh'): strin
 
 /**
  * Build an OSC 52 clipboard escape sequence for UTF-8 text.
- * Wraps with tmux DCS passthrough when `tmux` is true.
+ * Wraps with tmux or GNU screen DCS passthrough when inside a terminal multiplexer.
  */
-export function buildOsc52Sequence(text: string, opts?: { tmux?: boolean }): string {
+export function buildOsc52Sequence(text: string, opts?: { tmux?: boolean; mux?: MultiplexerKind }): string {
   const b64 = Buffer.from(text, 'utf8').toString('base64');
   const raw = `\x1b]52;c;${b64}\x07`;
-  if (opts?.tmux) {
-    // tmux passthrough requires doubling ESC inside DCS `Ptmux;...ST`
-    return `\x1bPtmux;\x1b${raw}\x1b\\`;
-  }
-  return raw;
+  const mux: MultiplexerKind = opts?.mux ?? (opts?.tmux ? 'tmux' : 'none');
+  return wrapMultiplexerPassthrough(raw, mux);
 }
 
 /**
@@ -81,11 +79,11 @@ export async function copyTextWithFallback(text: string, opts: CopyOptions = {})
 
   const env = opts.env ?? process.env;
   const stdout = opts.stdout ?? process.stdout;
-  const inTmux = Boolean(env.TMUX && String(env.TMUX).trim());
+  const mux = detectMultiplexer(env);
 
   if (!opts.forceFileFallback && stdout && stdout.isTTY && typeof stdout.write === 'function') {
     try {
-      const seq = buildOsc52Sequence(payload, { tmux: inTmux });
+      const seq = buildOsc52Sequence(payload, { mux });
       const written = stdout.write(seq);
       if (written !== false) {
         return { ok: true, method: 'osc52', chars, sequence: seq };

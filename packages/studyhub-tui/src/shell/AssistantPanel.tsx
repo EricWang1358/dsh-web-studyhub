@@ -38,6 +38,12 @@ import {
 import { displayWidth, truncateDisplay, wrapDisplay } from '../render/cjk.js';
 import { buildContextChips, recordCommandStat, type AssistantChip } from './assistant-chips.js';
 import { buildFallbackPrompt, parseAssistantIntent, type AssistantIntent } from './assistant-intent.js';
+import {
+  formatWorkflowChecklist,
+  markWorkflowStepResult,
+  planAssistantWorkflow,
+  type AssistantWorkflowPlan,
+} from './assistant-workflow.js';
 import { currentCourse, dueToday, modelInfo, wrongCount } from './data.js';
 
 export const MAX_ASSISTANT_TURNS = 16;
@@ -577,6 +583,59 @@ export const AssistantPanel = memo(function AssistantPanel({
         } finally {
           endExecution();
         }
+        return;
+      }
+
+      // Round 88 Track D4 (#1315 Phase 3): Multi-step workflow skeleton ("先 X 再 Y", step-by-step confirmation)
+      const workflowPlan = planAssistantWorkflow(text, {
+        snapshot,
+        currentCardId: cardCtx?.cardId,
+        currentDeckId: cardCtx?.deckId,
+        lang,
+      });
+      if (workflowPlan) {
+        let plan: AssistantWorkflowPlan = workflowPlan;
+        for (const step of workflowPlan.steps) {
+          if (step.intent.requiresConfirm) {
+            setPendingConfirm(step.intent);
+            appendTurn({
+              role: 'system',
+              stage: tab === 'guided' ? stage : undefined,
+              actionSummary: t(
+                lang,
+                `多步任务暂停于第 ${step.index + 1}/${plan.steps.length} 步（需确认）`,
+                `Paused at step ${step.index + 1}/${plan.steps.length} (confirmation required)`,
+              ),
+              text: `${formatWorkflowChecklist(plan, lang, asciiMode)}\n${step.intent.previewTitle}：${step.intent.previewMessage}`,
+            });
+            return;
+          }
+          if (step.intent.kind === 'navigate') {
+            navigate(step.intent.page, {
+              ...(step.intent.sourceId ? { sourceId: step.intent.sourceId } : {}),
+              ...(step.intent.pageNumber ? { pageNumber: step.intent.pageNumber } : {}),
+            });
+            plan = markWorkflowStepResult(plan, 'done', t(lang, '已跳转', 'Navigated'));
+          } else if (step.intent.kind === 'enter_guided') {
+            setTab('guided');
+            if (step.intent.stage) setStage(step.intent.stage);
+            plan = markWorkflowStepResult(plan, 'done', t(lang, '已进入带学', 'Guided ready'));
+          } else if (step.intent.kind === 'readonly_stats') {
+            plan = markWorkflowStepResult(
+              plan,
+              'done',
+              t(lang, `到期 ${dueToday(snapshot)} / 错题 ${wrongCount(snapshot)}`, `Due ${dueToday(snapshot)} / Wrong ${wrongCount(snapshot)}`),
+            );
+          } else {
+            plan = markWorkflowStepResult(plan, 'skipped', t(lang, '请单步继续', 'Continue individually'));
+          }
+        }
+        appendTurn({
+          role: 'assistant',
+          stage: tab === 'guided' ? stage : undefined,
+          actionSummary: t(lang, `多步任务已完成（${plan.steps.length} 步）`, `Completed ${plan.steps.length}-step plan`),
+          text: formatWorkflowChecklist(plan, lang, asciiMode),
+        });
         return;
       }
 
