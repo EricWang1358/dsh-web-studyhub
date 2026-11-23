@@ -158,17 +158,17 @@ test('teach.retell: one model call, the three parts back, only the aggregate on 
   assert.equal(JSON.stringify(state).includes(verdict.missed[0]), false, 'nor what the model said about them');
 
   study.complete = async () => '{"passed":"yes"}';
-  await assert.rejects(study.call('teach.retell', { deckId: 'd', cardId: 'orig', text: SECRET }), /retell/i);
+  await assert.rejects(study.call('teach.retell', { deckId: 'd', cardId: 'orig', text: SECRET }), /反馈格式有误/);
   assert.equal((await study.call('export')).decks[0].cards.find((c) => c.id === 'orig').retell.tries, 1, 'a failed check stores nothing');
   // An unreadable reply is not asked again: one check stays one model call.
   calls = 0;
   study.complete = async () => { calls += 1; return 'not json at all'; };
-  await assert.rejects(study.call('teach.retell', { deckId: 'd', cardId: 'orig', text: SECRET }), /retell/i);
+  await assert.rejects(study.call('teach.retell', { deckId: 'd', cardId: 'orig', text: SECRET }), /反馈格式有误/);
   assert.equal(calls, 1, 'no second call for an unreadable reply');
   study.complete = async () => null;
-  await assert.rejects(study.call('teach.retell', { deckId: 'd', cardId: 'orig', text: SECRET }), /Invalid retell feedback/, 'no text at all reads as unreadable, not a TypeError');
+  await assert.rejects(study.call('teach.retell', { deckId: 'd', cardId: 'orig', text: SECRET }), /反馈格式有误/, 'no text at all reads as unreadable, not a TypeError');
   study.complete = null;
-  await assert.rejects(study.call('teach.retell', { deckId: 'd', cardId: 'orig', text: SECRET }), /model/i);
+  await assert.rejects(study.call('teach.retell', { deckId: 'd', cardId: 'orig', text: SECRET }), /连接模型/);
 });
 
 /** A course with an outline and a review book of two points (as tests/course-book-crunch.test.mjs builds it). */
