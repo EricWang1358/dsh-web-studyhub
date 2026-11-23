@@ -223,6 +223,14 @@ export function buildPaletteItems(
   };
   act('cmd:sample', '/sample', t(lang, '载入示例课程', 'Load sample course'), () => actions.loadSample(), ['示例', 'demo', 'tour']);
   act(
+    'cmd:guide',
+    '/guide',
+    t(lang, '打开完整使用教程（在哪、干什么、怎么用）', 'Open full StudyHub TUI usage guide'),
+    () => state.setHelpOpen(true, 'guide'),
+    ['guide', 'tutorial', 'docs', 'manual', '教程', '指南', '新手', '帮助'],
+    '?',
+  );
+  act(
     'cmd:theme',
     '/theme',
     t(lang, `切换主题 ${themeArrow} ${nextThemeId(state.preferences.theme)}`, `Cycle theme ${themeArrow} ${nextThemeId(state.preferences.theme)}`),

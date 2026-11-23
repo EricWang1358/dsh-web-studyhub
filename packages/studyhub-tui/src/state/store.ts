@@ -53,6 +53,7 @@ export interface TuiStoreState {
   inputCaptured: boolean;
   commandPaletteOpen: boolean;
   helpOpen: boolean;
+  helpTab: 'shortcuts' | 'guide';
   coursePickerOpen: boolean;
   voicePackOpen: boolean;
   inboxOpen: boolean;
@@ -80,7 +81,8 @@ export interface TuiStoreState {
   goBack: () => void;
   setInputCaptured: (captured: boolean) => void;
   setCommandPaletteOpen: (open: boolean) => void;
-  setHelpOpen: (open: boolean) => void;
+  setHelpOpen: (open: boolean, tab?: 'shortcuts' | 'guide') => void;
+  setHelpTab: (tab: 'shortcuts' | 'guide') => void;
   setCoursePickerOpen: (open: boolean) => void;
   setVoicePackOpen: (open: boolean) => void;
   setInboxOpen: (open: boolean) => void;
@@ -120,6 +122,7 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
   inputCaptured: false,
   commandPaletteOpen: false,
   helpOpen: false,
+  helpTab: 'shortcuts',
   coursePickerOpen: false,
   voicePackOpen: false,
   inboxOpen: false,
@@ -175,7 +178,12 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
 
   setInputCaptured: (inputCaptured) => set({ inputCaptured }),
   setCommandPaletteOpen: (commandPaletteOpen) => set({ commandPaletteOpen }),
-  setHelpOpen: (helpOpen) => set({ helpOpen }),
+  setHelpOpen: (helpOpen, tab) =>
+    set((state) => ({
+      helpOpen,
+      helpTab: tab ?? (helpOpen ? 'shortcuts' : state.helpTab),
+    })),
+  setHelpTab: (helpTab) => set({ helpTab }),
   setCoursePickerOpen: (coursePickerOpen) => set({ coursePickerOpen }),
   setVoicePackOpen: (voicePackOpen) => set({ voicePackOpen }),
   setInboxOpen: (inboxOpen) => set({ inboxOpen }),
