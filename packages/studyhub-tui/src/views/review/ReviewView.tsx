@@ -46,10 +46,12 @@ import {
   resolveClozeBlanks,
   resolveOptions,
   skipTargetIndex,
+  type AiTurn,
   type CardFeedbackShape,
   type CardOptionItem,
   type CardTranslation,
 } from './review-helpers.js';
+import type { SavedFollowupItem } from './AiHelpDrawer.js';
 import type { CoachNudgeNote } from './CoachNudgeModal.js';
 const AiHelpDrawer = lazy(() => import('./AiHelpDrawer.js').then((m) => ({ default: m.AiHelpDrawer })));
 const AnswerCardModal = lazy(() => import('./AnswerCardModal.js').then((m) => ({ default: m.AnswerCardModal })));
@@ -269,6 +271,8 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
   // Overlays, rubric grading & translation
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
+  const [aiHistoryByCard, setAiHistoryByCard] = useState<Record<string, AiTurn[]>>({});
+  const [savedFollowupsByCard, setSavedFollowupsByCard] = useState<Record<string, SavedFollowupItem[]>>({});
   const [flagModalOpen, setFlagModalOpen] = useState(false);
   const [flagReason, setFlagReason] = useState('');
   const [similarModalOpen, setSimilarModalOpen] = useState(false);
@@ -1282,6 +1286,30 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     [run, kind, selectedIds, clozeInputs, openDraft, lang],
   );
 
+  const handleAiHistoryChange = useCallback((targetCardId: string, nextTurns: AiTurn[]) => {
+    setAiHistoryByCard((prev) => ({ ...prev, [targetCardId]: nextTurns }));
+  }, []);
+
+  const handleSavedFollowup = useCallback((targetCardId: string, item: SavedFollowupItem) => {
+    setSavedFollowupsByCard((prev) => {
+      const existing = prev[targetCardId] ?? [];
+      if (existing.some((x) => x.id === item.id)) return prev;
+      return { ...prev, [targetCardId]: [...existing, item] };
+    });
+  }, []);
+
+  const savedFollowupCount = useMemo(() => {
+    const sol = solution?.followups ?? [];
+    const extra = cardId ? savedFollowupsByCard[cardId] ?? [] : [];
+    if (extra.length === 0) return sol.length;
+    const seen = new Set(sol.map((f) => f.id).filter(Boolean));
+    let count = sol.length;
+    for (const item of extra) {
+      if (!item.id || !seen.has(item.id)) count += 1;
+    }
+    return count;
+  }, [solution, cardId, savedFollowupsByCard]);
+
   const stemMarkdown = useMemo(() => {
     if (!run) return '';
     const baseStem =
@@ -1987,6 +2015,23 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                 </Box>
               ) : null}
 
+              {/* Saved AI Explanations Hint */}
+              {revealed && savedFollowupCount > 0 ? (
+                <ClickableBox
+                  marginTop={0}
+                  clickActive={mainActive}
+                  onClick={() => setAiDrawerOpen(true)}
+                >
+                  <Text color={theme.ai}>
+                    {`${asciiMode ? '*' : '✦'} ${t(
+                      lang,
+                      `已存讲解 ${savedFollowupCount} 条，按 [h] 查看`,
+                      `${savedFollowupCount} saved explanation(s) — press [h] to view`,
+                    )}`}
+                  </Text>
+                </ClickableBox>
+              ) : null}
+
               {/* Source Citation Bar */}
               {revealed && citation ? (
                 <ClickableBox
@@ -2157,6 +2202,10 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
             height={height}
             isActive={isActive && aiDrawerOpen && !flagModalOpen && !similarModalOpen && !cardToolsModalOpen && !queueModalOpen && !retellModalOpen && !teachModalOpen && !answerCardModalOpen && !gradeAdjustModalOpen && !nudgeModalOpen}
             mathUnicode={mathUnicode}
+            history={aiHistoryByCard[cardId]}
+            onHistoryChange={handleAiHistoryChange}
+            extraSavedFollowups={savedFollowupsByCard[cardId]}
+            onSavedFollowup={handleSavedFollowup}
             onClose={() => setAiDrawerOpen(false)}
           />
         ) : null}
