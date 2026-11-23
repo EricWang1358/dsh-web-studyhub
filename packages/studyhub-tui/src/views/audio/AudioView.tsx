@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { readFile, stat } from 'node:fs/promises';
 import { basename, extname, isAbsolute, resolve } from 'node:path';
 import { Box, Text, useInput } from 'ink';
-import type { KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
+import type { HostCallResult, HostClient, KeyHint, StudySnapshot, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { Badge, EmptyState, Spinner, StatusPill, type PillStatus } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
@@ -157,6 +157,99 @@ const AUDIO_EXTS = ['.mp3', '.wav', '.m4a', '.ogg', '.flac', '.aac', '.webm'];
 const SUBTITLE_EXTS = ['.srt', '.vtt', '.txt', '.json'];
 const MAX_SUBTITLE_BYTES = 8 * 1024 * 1024;
 const CLAIMED_KEYS: readonly string[] = Object.freeze(['i', 'u', 'p', 'R', 's', 't', 'g', 'r', 'c', '/', 'x']);
+
+export function isAudioSourceRecord(src: Record<string, unknown>): boolean {
+  if (src.archived === true) return false;
+  if (src.audio && typeof src.audio === 'object') return true;
+  if (typeof src.id === 'string' && /^(audio|subtitle|live)-/.test(src.id)) return true;
+  const prov = typeof src.provenance === 'string' ? src.provenance : '';
+  const fmt = typeof src.format === 'string' ? src.format : '';
+  return prov === 'audio' || prov === 'audio-transcript' || fmt === 'audio' || fmt === 'srt' || fmt === 'vtt';
+}
+
+export function mapAudioSourceRecord(raw: Record<string, unknown>): AudioResultItem {
+  const audio = raw.audio && typeof raw.audio === 'object' ? (raw.audio as Record<string, unknown>) : undefined;
+  const courses = Array.isArray(raw.courses) ? raw.courses.filter((c): c is string => typeof c === 'string') : [];
+  const course = typeof raw.course === 'string' ? raw.course : courses[0];
+  const fileName =
+    (typeof raw.fileName === 'string' && raw.fileName) ||
+    (typeof raw.filename === 'string' && raw.filename) ||
+    (typeof audio?.fileName === 'string' && audio.fileName) ||
+    (typeof audio?.filename === 'string' && audio.filename) ||
+    undefined;
+  const durationSec =
+    typeof raw.durationSec === 'number'
+      ? raw.durationSec
+      : typeof raw.duration === 'number'
+        ? raw.duration
+        : typeof audio?.durationSec === 'number'
+          ? audio.durationSec
+          : typeof audio?.seconds === 'number'
+            ? audio.seconds
+            : undefined;
+  const provider =
+    (typeof raw.provider === 'string' && raw.provider) ||
+    (typeof audio?.provider === 'string' && audio.provider) ||
+    (typeof audio?.textProvider === 'string' && audio.textProvider) ||
+    undefined;
+  const createdAt =
+    (typeof raw.createdAt === 'string' && raw.createdAt) ||
+    (typeof audio?.importedAt === 'string' && audio.importedAt) ||
+    undefined;
+  const text = typeof raw.text === 'string' ? raw.text : undefined;
+  const transcript = typeof raw.transcript === 'string' ? raw.transcript : text;
+  const id = String(raw.id ?? '');
+  return {
+    ...raw,
+    id,
+    sourceId: typeof raw.sourceId === 'string' ? raw.sourceId : id,
+    ...(courses.length > 0 ? { courses } : {}),
+    ...(course ? { course } : {}),
+    ...(fileName ? { fileName, filename: fileName } : {}),
+    ...(durationSec !== undefined ? { durationSec } : {}),
+    ...(provider ? { provider } : {}),
+    ...(createdAt ? { createdAt } : {}),
+    ...(text !== undefined ? { text } : {}),
+    ...(transcript !== undefined ? { transcript } : {}),
+  } as AudioResultItem;
+}
+
+export async function fetchAudioSourceDetail(
+  host: HostClient,
+  sourceId: string,
+): Promise<HostCallResult<AudioResultItem>> {
+  const targetId = sourceId.trim();
+  if (!targetId) {
+    return { ok: false, error: { message: 'Audio source ID is required', code: 'INVALID_ARGS' } };
+  }
+  const srcRes = await tryAction<Record<string, unknown>>(host, 'source.get', {
+    id: targetId,
+    offset: 0,
+    limit: 60000,
+  });
+  if (!srcRes.ok || !srcRes.value || typeof srcRes.value !== 'object') {
+    return srcRes as HostCallResult<AudioResultItem>;
+  }
+  let fullText = typeof srcRes.value.text === 'string' ? srcRes.value.text : '';
+  const totalChars = typeof srcRes.value.chars === 'number' ? srcRes.value.chars : fullText.length;
+  const maxChars = Math.min(totalChars, 300_000);
+  let offset = fullText.length;
+  for (let chunk = 0; chunk < 4 && offset > 0 && offset < maxChars; chunk += 1) {
+    const nextRes = await tryAction<Record<string, unknown>>(host, 'source.get', {
+      id: targetId,
+      offset,
+      limit: 60000,
+    });
+    const part = nextRes.ok && typeof nextRes.value?.text === 'string' ? nextRes.value.text : '';
+    if (!part) break;
+    fullText += part;
+    offset += part.length;
+  }
+  return {
+    ok: true,
+    value: mapAudioSourceRecord({ ...srcRes.value, text: fullText, transcript: fullText }),
+  };
+}
 
 function formatGeneratedDate(generatedAt?: Date | string): string {
   if (typeof generatedAt === 'string' && generatedAt.trim()) {
@@ -665,20 +758,28 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
     } catch {
       timeZone = undefined;
     }
-    const [settingsRes, listRes, preflightRes, usageRes] = await Promise.all([
+    const [settingsRes, snapRes, preflightRes, usageRes] = await Promise.all([
       tryAction<AudioSettingsInfo>(host, 'audio.settings.get', {}),
-      tryAction<{ results?: AudioResultItem[] }>(host, 'audio.results', {}),
+      tryAction<StudySnapshot>(host, 'snapshot', {}),
       tryAction<AudioPreflightInfo>(host, 'audio.preflight', {}),
       tryAction<AudioUsageInfo>(host, 'audio.usage', timeZone ? { timeZone } : {}),
     ]);
     if (!mountedRef.current) return;
     setLoadingList(false);
     if (settingsRes.ok && settingsRes.value) setAudioSettings(settingsRes.value);
-    if (listRes.ok && Array.isArray(listRes.value?.results)) {
+    if (snapRes.ok && snapRes.value) {
+      const sources = Array.isArray(snapRes.value.sources) ? snapRes.value.sources : [];
+      const mapped: AudioResultItem[] = [];
+      for (const src of sources) {
+        if (src && typeof src === 'object' && isAudioSourceRecord(src as Record<string, unknown>)) {
+          const item = mapAudioSourceRecord(src as Record<string, unknown>);
+          if (item.id) mapped.push(item);
+        }
+      }
       setResultsError(null);
-      setResults(listRes.value.results);
-    } else if (!listRes.ok) {
-      setResultsError(listRes.error?.message || t(lang, '加载音频转写结果失败', 'Failed to load audio transcripts'));
+      setResults(mapped);
+    } else if (!snapRes.ok) {
+      setResultsError(snapRes.error?.message || t(lang, '加载音频转写结果失败', 'Failed to load audio transcripts'));
     } else {
       setResultsError(null);
       setResults([]);
@@ -774,7 +875,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
     let cancelled = false;
     setLoadingDetailId(selectedResult.id);
     setDetailError(null);
-    void tryAction<AudioResultItem>(host, 'audio.result.get', { id: selectedResult.id }).then((res) => {
+    void fetchAudioSourceDetail(host, selectedResult.id).then((res) => {
       if (cancelled) return;
       setLoadingDetailId(null);
       if (res.ok && res.value) {
@@ -1068,7 +1169,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
       ) {
         detail = selectedResult;
       } else {
-        const detailRes = await tryAction<AudioResultItem>(host, 'audio.result.get', { id: selectedResult.id });
+        const detailRes = await fetchAudioSourceDetail(host, selectedResult.id);
         if (!mountedRef.current) return;
         if (!detailRes.ok || !detailRes.value) {
           const msg = detailRes.error?.message || t(lang, '加载转写正文失败', 'Failed to load transcript detail');

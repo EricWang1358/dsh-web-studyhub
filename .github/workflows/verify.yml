@@ -188,7 +188,7 @@ jobs:
   # The one result to look at (and to require, if a branch ever needs a required check): green only when lint and every active test job are green.
   verify:
     if: always()
-    needs: [lint, test, test-windows, windows-smoke]
+    needs: [lint, test, test-windows, windows-smoke, tui-test, tui-windows-smoke]
     runs-on: ubuntu-latest
     steps:
       - name: Lint and every test shard passed
@@ -197,6 +197,8 @@ jobs:
           TEST: ${{ needs.test.result }}
           TEST_WIN: ${{ needs['test-windows'].result }}
           WIN_SMOKE: ${{ needs['windows-smoke'].result }}
+          TUI_TEST: ${{ needs['tui-test'].result }}
+          TUI_WIN_SMOKE: ${{ needs['tui-windows-smoke'].result }}
         run: |
-          echo "lint: $LINT, linux shards: $TEST, windows shards: $TEST_WIN, windows-smoke: $WIN_SMOKE"
-          [ "$LINT" = success ] && [ "$TEST" = success ] && { [ "$TEST_WIN" = success ] || [ "$TEST_WIN" = skipped ]; } && { [ "$WIN_SMOKE" = success ] || [ "$WIN_SMOKE" = skipped ]; }
+          echo "lint: $LINT, linux shards: $TEST, windows shards: $TEST_WIN, windows-smoke: $WIN_SMOKE, tui-test: $TUI_TEST, tui-windows-smoke: $TUI_WIN_SMOKE"
+          [ "$LINT" = success ] && [ "$TEST" = success ] && [ "$TUI_TEST" = success ] && { [ "$TEST_WIN" = success ] || [ "$TEST_WIN" = skipped ]; } && { [ "$WIN_SMOKE" = success ] || [ "$WIN_SMOKE" = skipped ]; } && { [ "$TUI_WIN_SMOKE" = success ] || [ "$TUI_WIN_SMOKE" = skipped ]; }

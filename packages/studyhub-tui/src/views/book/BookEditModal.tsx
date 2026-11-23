@@ -109,7 +109,8 @@ export const BookEditModal = memo(function BookEditModal({
   const [conflictNotice, setConflictNotice] = useState<string | null>(null);
   const [statusNote, setStatusNote] = useState<string | null>(null);
   const [confirmRevert, setConfirmRevert] = useState(false);
-  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [pendingDiscardAction, setPendingDiscardAction] = useState<null | 'close' | 'reload' | 'accept'>(null);
+  const confirmDiscard = pendingDiscardAction !== null;
 
   const mountedRef = useRef(true);
   const savingRef = useRef(false);
@@ -451,7 +452,7 @@ export const BookEditModal = memo(function BookEditModal({
   const requestClose = useCallback(() => {
     if (busy || confirmRevert || confirmDiscard) return;
     if (dirtyRef.current) {
-      setConfirmDiscard(true);
+      setPendingDiscardAction('close');
       return;
     }
     onClose();
@@ -477,7 +478,11 @@ export const BookEditModal = memo(function BookEditModal({
           return;
         }
         if (input === 'a' && topSuggestion) {
-          void handleSuggestion('accept');
+          if (dirtyRef.current) {
+            setPendingDiscardAction('accept');
+          } else {
+            void handleSuggestion('accept');
+          }
           return;
         }
         if (input === 'i' && topSuggestion) {
@@ -489,7 +494,11 @@ export const BookEditModal = memo(function BookEditModal({
           return;
         }
         if (input === 'r') {
-          void reloadBook();
+          if (dirtyRef.current) {
+            setPendingDiscardAction('reload');
+          } else {
+            void reloadBook();
+          }
           return;
         }
         if (key.return || input === 'e') {
@@ -777,22 +786,56 @@ export const BookEditModal = memo(function BookEditModal({
         />
       ) : null}
 
-      {confirmDiscard ? (
+      {pendingDiscardAction ? (
         <ConfirmDialog
-          title={t(lang, '放弃未保存的修改', 'Discard Unsaved Changes')}
-          message={t(
-            lang,
-            '有未保存的修改，确定放弃并关闭吗？',
-            'You have unsaved changes. Discard and close?',
-          )}
-          confirmLabel={t(lang, '放弃并关闭', 'Discard & Close')}
+          title={
+            pendingDiscardAction === 'reload'
+              ? t(lang, '放弃修改并重载', 'Discard Changes & Reload')
+              : pendingDiscardAction === 'accept'
+                ? t(lang, '放弃修改并采用建议', 'Discard Changes & Accept')
+                : t(lang, '放弃未保存的修改', 'Discard Unsaved Changes')
+          }
+          message={
+            pendingDiscardAction === 'reload'
+              ? t(
+                  lang,
+                  '有未保存的修改，重新加载将覆盖当前编辑内容，确定放弃并重载吗？',
+                  'You have unsaved changes. Reloading will overwrite your current edits. Discard and reload?',
+                )
+              : pendingDiscardAction === 'accept'
+                ? t(
+                    lang,
+                    '有未保存的修改，采用建议将覆盖当前编辑内容，确定放弃并采用吗？',
+                    'You have unsaved changes. Accepting this suggestion will overwrite your current edits. Discard and accept?',
+                  )
+                : t(
+                    lang,
+                    '有未保存的修改，确定放弃并关闭吗？',
+                    'You have unsaved changes. Discard and close?',
+                  )
+          }
+          confirmLabel={
+            pendingDiscardAction === 'reload'
+              ? t(lang, '放弃并重载', 'Discard & Reload')
+              : pendingDiscardAction === 'accept'
+                ? t(lang, '放弃并采用', 'Discard & Accept')
+                : t(lang, '放弃并关闭', 'Discard & Close')
+          }
           cancelLabel={t(lang, '继续编辑', 'Keep Editing')}
+          danger
           isActive={isActive && confirmDiscard}
           onConfirm={() => {
-            setConfirmDiscard(false);
-            onClose();
+            const action = pendingDiscardAction;
+            setPendingDiscardAction(null);
+            if (action === 'close') {
+              onClose();
+            } else if (action === 'reload') {
+              void reloadBook();
+            } else if (action === 'accept') {
+              void handleSuggestion('accept');
+            }
           }}
-          onCancel={() => setConfirmDiscard(false)}
+          onCancel={() => setPendingDiscardAction(null)}
         />
       ) : null}
     </Modal>

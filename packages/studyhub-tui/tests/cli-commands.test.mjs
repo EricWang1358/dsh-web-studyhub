@@ -510,5 +510,81 @@ describe('CLI fast-path subprocess suite (--doctor / --stats / --search / --expo
     assert.match(emptyAscii, /Course: Physics/);
     assert.match(emptyAscii, /- \(none\)/);
   });
+
+  test('13. --board --json, --board --ascii, --course filter, and corrupt tui-board.json refusal run fast without StudyRuntime', async () => {
+    const boardLib = join(baseDir, 'board-cli-lib');
+    const corruptLib = join(baseDir, 'board-cli-corrupt');
+    await Promise.all([mkdir(boardLib, { recursive: true }), mkdir(corruptLib, { recursive: true })]);
+    const today = todayLocalYmd();
+    await writeFile(
+      join(boardLib, 'tui-board.json'),
+      JSON.stringify({
+        version: 1,
+        updatedAt: '2026-11-23T00:00:00.000Z',
+        focusStats: { date: today, completedPomodoros: 3, focusedMinutes: 75 },
+        cards: [
+          { id: 'b1', title: 'Overdue OS Lab', column: 'todo', course: 'CS101', dueDate: '2020-01-01' },
+          { id: 'b2', title: 'Today Algorithm Drill', column: 'doing', course: 'CS101', dueDate: today },
+          { id: 'b3', title: 'Linear Algebra Sheet', column: 'done', course: 'Math', dueDate: '2020-01-01' },
+        ],
+      }),
+      'utf8',
+    );
+    await writeFile(join(corruptLib, 'tui-board.json'), '{not-valid-json', 'utf8');
+
+    const t0 = performance.now();
+    const { stdout: jsonOut, stderr: jsonErr } = await execFileAsync(
+      process.execPath,
+      [distCliPath, '--board', '--json', '--library', boardLib],
+      {
+        timeout: 15_000,
+        env: sanitizedTestEnv({ DSH_HOME: fakeDshHome }),
+      },
+    );
+    const elapsedMs = performance.now() - t0;
+    assert.equal(jsonErr, '');
+    assert.ok(elapsedMs < 3_000, `--board --json should avoid StudyRuntime boot, took ${elapsedMs.toFixed(1)}ms`);
+    const report = JSON.parse(jsonOut);
+    assert.equal(report.existed, true);
+    assert.deepEqual(report.counts, { total: 3, todo: 1, doing: 1, done: 1, overdue: 1, dueToday: 1 });
+    assert.equal(report.focusStats.completedPomodoros, 3);
+    assert.equal(report.focusStats.focusedMinutes, 75);
+    assert.deepEqual(
+      report.cards.map((c) => c.id),
+      ['b2', 'b1', 'b3'],
+      'cards sort doing -> todo -> done',
+    );
+
+    const { stdout: asciiOut, stderr: asciiErr } = await execFileAsync(
+      process.execPath,
+      [distCliPath, '--board', '--ascii', '--course', 'CS101', '--library', boardLib],
+      {
+        timeout: 15_000,
+        env: sanitizedTestEnv({ DSH_HOME: fakeDshHome }),
+      },
+    );
+    assert.equal(asciiErr, '');
+    assert.ok(!/[^\x00-\x7f]/.test(asciiOut), '--board --ascii output must be 100% pure ASCII');
+    assert.match(asciiOut, /StudyHub TUI Board \(v1\.0\.0\)/);
+    assert.match(asciiOut, /Course: CS101/);
+    assert.match(asciiOut, /Summary: 2 tasks \(1 doing \| 1 todo \| 0 done \| 1 overdue \| 1 due today\)/);
+    assert.match(asciiOut, /Overdue OS Lab \[CS101\] \(OVERDUE 2020-01-01\)/);
+    assert.match(asciiOut, /Today Algorithm Drill \[CS101\] \(TODAY /);
+    assert.ok(!asciiOut.includes('Linear Algebra Sheet'), '--course filter must exclude non-matching courses');
+
+    let corruptExit = 0;
+    let corruptErr = '';
+    try {
+      await execFileAsync(process.execPath, [distCliPath, '--board', '--json', '--library', corruptLib], {
+        timeout: 15_000,
+        env: sanitizedTestEnv({ DSH_HOME: fakeDshHome }),
+      });
+    } catch (err) {
+      corruptExit = err.code ?? 1;
+      corruptErr = String(err.stderr ?? '');
+    }
+    assert.notEqual(corruptExit, 0, 'corrupt tui-board.json must exit non-zero instead of pretending empty');
+    assert.match(corruptErr, /Failed to read board file/);
+  });
   });
 });

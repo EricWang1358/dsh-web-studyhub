@@ -343,9 +343,9 @@ describe('Domain Settings Retrieval: Coverage, Diagnostics Planner & Hybrid Prev
       assert.equal(useTuiStore.getState().helpOpen, true);
       let sawSkelEn = false;
       let sawOrigEn = false;
-      for (let step = 0; step < 12 && (!sawSkelEn || !sawOrigEn); step += 1) {
+      for (let step = 0; step < 20 && (!sawSkelEn || !sawOrigEn); step += 1) {
         ttyEn.send('\x04'); // Ctrl+D half-page scroll down
-        await ttyEn.flush(15);
+        await ttyEn.flush(25);
         const scr = ttyEn.readScreen();
         ttyEn.assertHealthyScreen(scr, 120, 36, `HelpOverlay scroll ${step} en --ascii`);
         ttyEn.assertAsciiPure(scr, `HelpOverlay scroll ${step} en --ascii`);

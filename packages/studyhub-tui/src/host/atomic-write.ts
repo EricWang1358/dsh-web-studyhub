@@ -175,10 +175,11 @@ export async function renameWithRetry(from: string, to: string, maxAttempts = 6)
 export async function atomicWriteTextFile(
   targetPath: string,
   content: string,
+  opts?: { mode?: number },
 ): Promise<{ bytes: number }> {
   await mkdir(dirname(targetPath), { recursive: true });
   const temp = `${targetPath}.${randomUUID()}.tmp`;
-  await writeFile(temp, content, 'utf8');
+  await writeFile(temp, content, opts?.mode !== undefined ? { encoding: 'utf8', mode: opts.mode } : 'utf8');
   try {
     await renameWithRetry(temp, targetPath);
   } catch (error) {
@@ -191,9 +192,10 @@ export async function atomicWriteTextFile(
 export async function atomicWriteJsonFile(
   targetPath: string,
   payload: unknown,
+  opts?: { mode?: number },
 ): Promise<{ bytes: number }> {
   const json = `${JSON.stringify(payload, null, 2)}\n`;
-  return atomicWriteTextFile(targetPath, json);
+  return atomicWriteTextFile(targetPath, json, opts);
 }
 
 /**

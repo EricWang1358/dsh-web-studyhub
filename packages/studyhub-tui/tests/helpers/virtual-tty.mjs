@@ -299,6 +299,7 @@ export function createVirtualTty(cols = 120, rows = 36) {
 
   // Event-driven listeners notified immediately when any xterm write finishes committing.
   const frameListeners = new Set();
+  const activeTimers = new Set();
 
   function notifyFrame() {
     if (frameListeners.size === 0) return;
@@ -391,7 +392,9 @@ export function createVirtualTty(cols = 120, rows = 36) {
         settled = true;
         frameListeners.delete(onFrame);
         clearTimeout(timer);
+        activeTimers.delete(timer);
         clearInterval(storePoll);
+        activeTimers.delete(storePoll);
       };
 
       const onFrame = () => {
@@ -403,10 +406,10 @@ export function createVirtualTty(cols = 120, rows = 36) {
         }
       };
 
-      // Lightweight fallback check for predicates inspecting external store state
-      // when no new xterm frame is emitted; frame-driven checks resolve in <1ms.
+      // Keep the waitFor timer ref'd so Node's test runner never exits early with
+      // "Promise resolution is still pending but the event loop has already resolved".
       const storePoll = setInterval(onFrame, 50);
-      storePoll.unref?.();
+      activeTimers.add(storePoll);
 
       const timer = setTimeout(() => {
         if (settled) return;
@@ -423,7 +426,7 @@ export function createVirtualTty(cols = 120, rows = 36) {
           ),
         );
       }, timeoutMs);
-      timer.unref?.();
+      activeTimers.add(timer);
 
       frameListeners.add(onFrame);
       // Re-check once on next immediate tick in case state updated synchronously right before subscribe.
@@ -463,6 +466,11 @@ export function createVirtualTty(cols = 120, rows = 36) {
   function dispose() {
     if (disposed) return;
     disposed = true;
+    for (const handle of activeTimers) {
+      clearTimeout(handle);
+      clearInterval(handle);
+    }
+    activeTimers.clear();
     frameListeners.clear();
     stdout.removeAllListeners();
     stdin.destroy();

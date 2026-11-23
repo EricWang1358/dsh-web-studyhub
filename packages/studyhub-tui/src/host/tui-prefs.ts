@@ -2,11 +2,11 @@
  * Zero-dependency validated, atomic persistence for TUI-only preferences at `<DSH_HOME || ~/.dsh>/study/tui.json`.
  * Lives beside StudyHub Desktop's `desktop.json` (never inside the study library).
  */
-import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
 import type { ThemeId, TuiPreferences, UiLanguage } from '../types/contracts.js';
+import { atomicWriteJsonFile } from './atomic-write.js';
 
 export const THEME_IDS: readonly ThemeId[] = Object.freeze(['dsh-dark', 'warm-paper', 'nord', 'high-contrast']);
 export const UI_LANGUAGES: readonly UiLanguage[] = Object.freeze(['zh', 'en']);
@@ -157,21 +157,6 @@ export async function loadTuiPreferences(location: TuiPrefsLocation = {}): Promi
   }
 }
 
-const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
-
-async function renameWithRetry(from: string, to: string): Promise<void> {
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      await rename(from, to);
-      return;
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException)?.code || '';
-      if (!RETRY_CODES.has(code) || attempt >= 5) throw error;
-      await new Promise((done) => setTimeout(done, 40 * (attempt + 1)));
-    }
-  }
-}
-
 let writeQueue: Promise<unknown> = Promise.resolve();
 
 /**
@@ -186,15 +171,7 @@ export async function saveTuiPreferences(
     const target = tuiPreferencesPath(location);
     const current = await loadTuiPreferences(location);
     const next = parseTuiPreferences({ ...current, ...prefs });
-    await mkdir(dirname(target), { recursive: true });
-    const temp = `${target}.${randomUUID()}.tmp`;
-    await writeFile(temp, `${JSON.stringify(next, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
-    try {
-      await renameWithRetry(temp, target);
-    } catch (error) {
-      await rm(temp, { force: true }).catch(() => {});
-      throw error;
-    }
+    await atomicWriteJsonFile(target, next, { mode: 0o600 });
     return next;
   });
   writeQueue = run.catch(() => {});

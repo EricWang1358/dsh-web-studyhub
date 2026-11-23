@@ -134,11 +134,15 @@ describe('P2 #10: sanitizedTestEnv & 0-network guard', () => {
       }
       assert.equal(scrubbed.DSH_HOME, '/tmp/test-dsh-home');
       assert.equal(scrubbed.CUSTOM_FLAG, '1');
-      if (process.env.PATH !== undefined) {
-        assert.equal(scrubbed.PATH, process.env.PATH);
+      const hostPath = process.env.PATH ?? process.env.Path;
+      const scrubbedPath = scrubbed.PATH ?? scrubbed.Path;
+      if (hostPath !== undefined) {
+        assert.equal(scrubbedPath, hostPath);
       }
-      if (process.env.HOME !== undefined) {
-        assert.equal(scrubbed.HOME, process.env.HOME);
+      const hostHome = process.env.HOME ?? process.env.USERPROFILE;
+      const scrubbedHome = scrubbed.HOME ?? scrubbed.USERPROFILE;
+      if (hostHome !== undefined) {
+        assert.equal(scrubbedHome, hostHome);
       }
 
       const withExplicitKey = sanitizedTestEnv({ OPENAI_API_KEY: 'explicit-override' });

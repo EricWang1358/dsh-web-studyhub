@@ -44,6 +44,11 @@ type ActiveModal =
   | { type: 'edit'; card: BoardCard }
   | { type: 'delete'; card: BoardCard };
 
+type PendingUpstreamOp =
+  | { kind: 'add'; localCardId: string }
+  | { kind: 'update'; upstreamCardId: string; patch: { column?: BoardColumnId; title?: string; due?: string } }
+  | { kind: 'remove'; upstreamCardId: string };
+
 type BoardCardMeta = BoardCard & {
   description?: unknown;
   priority?: unknown;
@@ -163,6 +168,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   const [readOnlyError, setReadOnlyError] = useState<string | null>(null);
   const [readOnlyPath, setReadOnlyPath] = useState<string>('');
   const [upstreamReadOnly, setUpstreamReadOnly] = useState(false);
+  const [upstreamSyncError, setUpstreamSyncError] = useState<{ count: number; message: string } | null>(null);
   const [activeCol, setActiveCol] = useState<BoardColumnId>('todo');
   const [cursorByCol, setCursorByCol] = useState<Record<BoardColumnId, number>>({ todo: 0, doing: 0, done: 0 });
   const [modal, setModal] = useState<ActiveModal>(null);
@@ -176,6 +182,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   const syncReqRef = useRef(0);
   const exportBusyRef = useRef(false);
   const upstreamQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingUpstreamOpsRef = useRef<Map<string, PendingUpstreamOp>>(new Map());
   const docRef = useRef(doc);
   docRef.current = doc;
   const readOnlyErrorRef = useRef<string | null>(readOnlyError);
@@ -185,10 +192,51 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   const isReadOnlyRef = useRef<boolean>(isReadOnly);
   isReadOnlyRef.current = isReadOnly;
 
-  const enqueueUpstream = useCallback((fn: () => Promise<void>) => {
+  const enqueueUpstream = useCallback((fn: () => Promise<unknown>) => {
     const next = upstreamQueueRef.current.then(fn, fn);
-    upstreamQueueRef.current = next.catch(() => {});
+    upstreamQueueRef.current = next.then(() => undefined, () => undefined);
     return next;
+  }, []);
+
+  const recordUpstreamFailure = useCallback(
+    (key: string, op: PendingUpstreamOp, message: string, shouldNotify = true) => {
+      const existing = pendingUpstreamOpsRef.current.get(key);
+      if (existing && existing.kind === 'update' && op.kind === 'update') {
+        pendingUpstreamOpsRef.current.set(key, {
+          kind: 'update',
+          upstreamCardId: op.upstreamCardId,
+          patch: { ...existing.patch, ...op.patch },
+        });
+      } else {
+        pendingUpstreamOpsRef.current.set(key, op);
+      }
+      if (mountedRef.current) {
+        setUpstreamSyncError({ count: pendingUpstreamOpsRef.current.size, message });
+        if (shouldNotify) {
+          notify(
+            t(
+              lang,
+              `同步写回学习库看板失败（${message}），已保留本地改动，按 [S] 重试`,
+              `Upstream board writeback failed (${message}); local edits kept — press [S] to retry`,
+            ),
+            'warning',
+          );
+        }
+      }
+    },
+    [lang, notify],
+  );
+
+  const clearUpstreamFailure = useCallback((key: string) => {
+    if (!pendingUpstreamOpsRef.current.delete(key)) return;
+    if (!mountedRef.current) return;
+    if (pendingUpstreamOpsRef.current.size === 0) {
+      setUpstreamSyncError(null);
+    } else {
+      setUpstreamSyncError((prev) =>
+        prev ? { count: pendingUpstreamOpsRef.current.size, message: prev.message } : null,
+      );
+    }
   }, []);
 
   const notifyReadOnly = useCallback(() => {
@@ -255,6 +303,11 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
       try {
         await enqueueUpstream(async () => {
           if (isReadOnlyRef.current) return;
+          const retryStatus =
+            pendingUpstreamOpsRef.current.size > 0
+              ? await retryPendingUpstreamOpsRef.current()
+              : { remaining: 0, lastError: null };
+          if (isReadOnlyRef.current) return;
           const res = await host.call<UpstreamBoardSnapshot>('board.get', {});
           if (!mountedRef.current || syncReqRef.current !== reqId) return;
           if (!res.ok || !res.value) {
@@ -275,15 +328,27 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
             isReadOnlyRef.current = Boolean(readOnlyErrorRef.current);
             setUpstreamReadOnly(false);
           }
+          const protectedUpstreamIds = new Set<string>();
+          for (const op of pendingUpstreamOpsRef.current.values()) {
+            if (op.kind === 'update' || op.kind === 'remove') {
+              protectedUpstreamIds.add(op.upstreamCardId);
+            }
+          }
           const upstreamSnapshot = res.value;
           const preview = mergeUpstreamBoard(
             docRef.current.cards,
             upstreamSnapshot,
             docRef.current.deletedUpstreamIds,
+            protectedUpstreamIds,
           );
           if (preview.changed) {
             await persistDoc((prev) => {
-              const merged = mergeUpstreamBoard(prev.cards, upstreamSnapshot, prev.deletedUpstreamIds);
+              const merged = mergeUpstreamBoard(
+                prev.cards,
+                upstreamSnapshot,
+                prev.deletedUpstreamIds,
+                protectedUpstreamIds,
+              );
               if (!merged.changed) return prev;
               return {
                 ...prev,
@@ -294,10 +359,21 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
             });
           }
           if (notifyResult && mountedRef.current) {
-            notify(
-              t(lang, `已同步 ${preview.syncedCount} 条学习库看板任务`, `Synced ${preview.syncedCount} StudyHub board tasks`),
-              'success',
-            );
+            if (retryStatus.remaining > 0) {
+              notify(
+                t(
+                  lang,
+                  `仍有 ${retryStatus.remaining} 条本地改动未能写回学习库看板（${retryStatus.lastError || '写入失败'}），已保留本地版本`,
+                  `${retryStatus.remaining} local board edit(s) still failed to write back (${retryStatus.lastError || 'write failed'}); local state preserved`,
+                ),
+                'warning',
+              );
+            } else {
+              notify(
+                t(lang, `已同步 ${preview.syncedCount} 条学习库看板任务`, `Synced ${preview.syncedCount} StudyHub board tasks`),
+                'success',
+              );
+            }
           }
         });
       } catch (err) {
@@ -360,13 +436,35 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   }, [libraryRoot]);
 
   const updateUpstreamDirect = useCallback(
-    async (upstreamCardId: string, patch: { column?: BoardColumnId; title?: string; due?: string }) => {
-      if (isReadOnlyRef.current) return;
+    async (
+      upstreamCardId: string,
+      patch: { column?: BoardColumnId; title?: string; due?: string },
+      opts: { notifyOnFailure?: boolean } = {},
+    ): Promise<{ ok: boolean; error?: string }> => {
+      const notifyOnFailure = opts.notifyOnFailure ?? true;
+      const opKey = `update:${upstreamCardId}`;
+      if (isReadOnlyRef.current) return { ok: false, error: 'readOnly' };
+      let lastError = t(lang, '修订冲突，写回未完成', 'Revision conflict; writeback incomplete');
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const boardRes = await host.call<UpstreamBoardSnapshot>('board.get', {});
-        if (!boardRes.ok || !boardRes.value || boardRes.value.readOnly) return;
+        if (!boardRes.ok || !boardRes.value) {
+          lastError = boardRes.error?.message || t(lang, '无法读取学习库看板', 'Failed to read upstream board');
+          recordUpstreamFailure(opKey, { kind: 'update', upstreamCardId, patch }, lastError, notifyOnFailure);
+          return { ok: false, error: lastError };
+        }
+        if (boardRes.value.readOnly) {
+          upstreamReadOnlyRef.current = true;
+          isReadOnlyRef.current = true;
+          if (mountedRef.current) setUpstreamReadOnly(true);
+          if (notifyOnFailure && mountedRef.current) notifyReadOnly();
+          return { ok: false, error: 'readOnly' };
+        }
         const upstream = boardRes.value;
-        if (!upstream.cards || !Object.hasOwn(upstream.cards, upstreamCardId)) return;
+        if (!upstream.cards || !Object.hasOwn(upstream.cards, upstreamCardId)) {
+          lastError = t(lang, '远端任务不存在或已被移除', 'Upstream card not found');
+          recordUpstreamFailure(opKey, { kind: 'update', upstreamCardId, patch }, lastError, notifyOnFailure);
+          return { ok: false, error: lastError };
+        }
 
         let revision = upstream.revision ?? 0;
         let retryConflict = false;
@@ -379,10 +477,12 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
             ...(patch.due !== undefined ? { due: patch.due } : {}),
           });
           if (!editRes.ok) {
-            if (editRes.error?.message && /revision conflict/i.test(editRes.error.message)) {
+            lastError = editRes.error?.message || t(lang, '更新远端任务失败', 'Failed to edit upstream card');
+            if (/revision conflict/i.test(lastError)) {
               retryConflict = true;
             } else {
-              return;
+              recordUpstreamFailure(opKey, { kind: 'update', upstreamCardId, patch }, lastError, notifyOnFailure);
+              return { ok: false, error: lastError };
             }
           } else if (typeof editRes.value?.revision === 'number') {
             revision = editRes.value.revision;
@@ -391,62 +491,126 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
 
         if (!retryConflict && patch.column) {
           const targetUpstreamCol = resolveUpstreamTargetColumn(upstream.columns, patch.column);
-          if (!targetUpstreamCol) return;
+          if (!targetUpstreamCol) {
+            lastError = t(lang, '未找到对应的远端看板列', 'Target upstream column not found');
+            recordUpstreamFailure(opKey, { kind: 'update', upstreamCardId, patch }, lastError, notifyOnFailure);
+            return { ok: false, error: lastError };
+          }
           const currentCol = upstream.columns?.find(
             (c) => Array.isArray(c.cardIds) && c.cardIds.includes(upstreamCardId),
           );
-          if (currentCol?.id === targetUpstreamCol) return;
-          const moveRes = await host.call('board.card.move', {
-            revision,
-            id: upstreamCardId,
-            column: targetUpstreamCol,
-          });
-          if (!moveRes.ok && moveRes.error?.message && /revision conflict/i.test(moveRes.error.message)) {
-            retryConflict = true;
+          if (currentCol?.id !== targetUpstreamCol) {
+            const moveRes = await host.call('board.card.move', {
+              revision,
+              id: upstreamCardId,
+              column: targetUpstreamCol,
+            });
+            if (!moveRes.ok) {
+              lastError = moveRes.error?.message || t(lang, '移动远端任务失败', 'Failed to move upstream card');
+              if (/revision conflict/i.test(lastError)) {
+                retryConflict = true;
+              } else {
+                recordUpstreamFailure(opKey, { kind: 'update', upstreamCardId, patch }, lastError, notifyOnFailure);
+                return { ok: false, error: lastError };
+              }
+            }
           }
         }
 
-        if (!retryConflict) return;
+        if (!retryConflict) {
+          clearUpstreamFailure(opKey);
+          return { ok: true };
+        }
       }
+      recordUpstreamFailure(opKey, { kind: 'update', upstreamCardId, patch }, lastError, notifyOnFailure);
+      return { ok: false, error: lastError };
     },
-    [host],
+    [host, lang, notifyReadOnly, recordUpstreamFailure, clearUpstreamFailure],
   );
 
   const removeUpstreamDirect = useCallback(
-    async (upstreamCardId: string) => {
-      if (isReadOnlyRef.current) return;
+    async (
+      upstreamCardId: string,
+      opts: { notifyOnFailure?: boolean } = {},
+    ): Promise<{ ok: boolean; error?: string }> => {
+      const notifyOnFailure = opts.notifyOnFailure ?? true;
+      const opKey = `remove:${upstreamCardId}`;
+      clearUpstreamFailure(`update:${upstreamCardId}`);
+      if (isReadOnlyRef.current) return { ok: false, error: 'readOnly' };
+      let lastError = t(lang, '修订冲突，远端删除未完成', 'Revision conflict; upstream delete incomplete');
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const boardRes = await host.call<UpstreamBoardSnapshot>('board.get', {});
-        if (!boardRes.ok || !boardRes.value || boardRes.value.readOnly) return;
+        if (!boardRes.ok || !boardRes.value) {
+          lastError = boardRes.error?.message || t(lang, '无法读取学习库看板', 'Failed to read upstream board');
+          recordUpstreamFailure(opKey, { kind: 'remove', upstreamCardId }, lastError, notifyOnFailure);
+          return { ok: false, error: lastError };
+        }
+        if (boardRes.value.readOnly) {
+          upstreamReadOnlyRef.current = true;
+          isReadOnlyRef.current = true;
+          if (mountedRef.current) setUpstreamReadOnly(true);
+          if (notifyOnFailure && mountedRef.current) notifyReadOnly();
+          return { ok: false, error: 'readOnly' };
+        }
         const upstream = boardRes.value;
         const inOpen = Boolean(upstream.cards && Object.hasOwn(upstream.cards, upstreamCardId));
         const inArchived = Array.isArray(upstream.archived)
           ? upstream.archived.some((c) => c && c.id === upstreamCardId)
           : false;
-        if (!inOpen && !inArchived) return;
+        if (!inOpen && !inArchived) {
+          clearUpstreamFailure(opKey);
+          return { ok: true };
+        }
 
         const rmRes = await host.call('board.card.remove', {
           revision: upstream.revision ?? 0,
           id: upstreamCardId,
         });
-        if (rmRes.ok) return;
-        if (!rmRes.error?.message || !/revision conflict/i.test(rmRes.error.message)) {
-          return;
+        if (rmRes.ok) {
+          clearUpstreamFailure(opKey);
+          return { ok: true };
+        }
+        lastError = rmRes.error?.message || t(lang, '删除远端任务失败', 'Failed to remove upstream card');
+        if (!/revision conflict/i.test(lastError)) {
+          recordUpstreamFailure(opKey, { kind: 'remove', upstreamCardId }, lastError, notifyOnFailure);
+          return { ok: false, error: lastError };
         }
       }
+      recordUpstreamFailure(opKey, { kind: 'remove', upstreamCardId }, lastError, notifyOnFailure);
+      return { ok: false, error: lastError };
     },
-    [host],
+    [host, lang, notifyReadOnly, recordUpstreamFailure, clearUpstreamFailure],
   );
 
   const addUpstreamDirect = useCallback(
-    async (localCardId: string) => {
-      if (isReadOnlyRef.current) return;
+    async (
+      localCardId: string,
+      opts: { notifyOnFailure?: boolean } = {},
+    ): Promise<{ ok: boolean; error?: string }> => {
+      const notifyOnFailure = opts.notifyOnFailure ?? true;
+      const opKey = `add:${localCardId}`;
+      if (isReadOnlyRef.current) return { ok: false, error: 'readOnly' };
+      let lastError = t(lang, '修订冲突，远端创建未完成', 'Revision conflict; upstream add incomplete');
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const localNow = docRef.current.cards.find((c) => c.id === localCardId);
-        if (!localNow || localNow.upstreamCardId) return;
+        if (!localNow || localNow.upstreamCardId) {
+          clearUpstreamFailure(opKey);
+          return { ok: true };
+        }
 
         const boardRes = await host.call<UpstreamBoardSnapshot>('board.get', {});
-        if (!boardRes.ok || !boardRes.value || boardRes.value.readOnly) return;
+        if (!boardRes.ok || !boardRes.value) {
+          lastError = boardRes.error?.message || t(lang, '无法读取学习库看板', 'Failed to read upstream board');
+          recordUpstreamFailure(opKey, { kind: 'add', localCardId }, lastError, notifyOnFailure);
+          return { ok: false, error: lastError };
+        }
+        if (boardRes.value.readOnly) {
+          upstreamReadOnlyRef.current = true;
+          isReadOnlyRef.current = true;
+          if (mountedRef.current) setUpstreamReadOnly(true);
+          if (notifyOnFailure && mountedRef.current) notifyReadOnly();
+          return { ok: false, error: 'readOnly' };
+        }
         const upstream = boardRes.value;
         const beforeIds = new Set(Object.keys(upstream.cards || {}));
         const targetUpstreamCol = resolveUpstreamTargetColumn(upstream.columns, localNow.column);
@@ -460,10 +624,12 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         });
 
         if (!addRes.ok) {
-          if (addRes.error?.message && /revision conflict/i.test(addRes.error.message)) {
+          lastError = addRes.error?.message || t(lang, '创建远端任务失败', 'Failed to add upstream card');
+          if (/revision conflict/i.test(lastError)) {
             continue;
           }
-          return;
+          recordUpstreamFailure(opKey, { kind: 'add', localCardId }, lastError, notifyOnFailure);
+          return { ok: false, error: lastError };
         }
 
         const afterCards = addRes.value?.cards || {};
@@ -476,8 +642,13 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
                 .reverse()
                 .find((id) => !beforeIds.has(id))
             : undefined);
-        if (!createdId) return;
+        if (!createdId) {
+          lastError = t(lang, '远端未返回新建任务 ID', 'Upstream did not return created card ID');
+          recordUpstreamFailure(opKey, { kind: 'add', localCardId }, lastError, notifyOnFailure);
+          return { ok: false, error: lastError };
+        }
 
+        clearUpstreamFailure(opKey);
         const latestLocal = docRef.current.cards.find((c) => c.id === localCardId);
         if (!latestLocal) {
           await persistDoc((prev) => ({
@@ -486,8 +657,8 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
             deletedUpstreamIds: recordDeletedUpstreamIds(prev.deletedUpstreamIds, createdId),
             updatedAt: new Date().toISOString(),
           }));
-          await removeUpstreamDirect(createdId);
-          return;
+          await removeUpstreamDirect(createdId, { notifyOnFailure });
+          return { ok: true };
         }
 
         await persistDoc((prev) => ({
@@ -501,17 +672,45 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         const titleChanged = latestLocal.title !== localNow.title;
         const dueChanged = (latestLocal.dueDate || '') !== (localNow.dueDate || '');
         if (colChanged || titleChanged || dueChanged) {
-          await updateUpstreamDirect(createdId, {
-            ...(colChanged ? { column: latestLocal.column } : {}),
-            ...(titleChanged ? { title: latestLocal.title } : {}),
-            ...(dueChanged ? { due: latestLocal.dueDate || '' } : {}),
-          });
+          await updateUpstreamDirect(
+            createdId,
+            {
+              ...(colChanged ? { column: latestLocal.column } : {}),
+              ...(titleChanged ? { title: latestLocal.title } : {}),
+              ...(dueChanged ? { due: latestLocal.dueDate || '' } : {}),
+            },
+            { notifyOnFailure },
+          );
         }
-        return;
+        return { ok: true };
       }
+      recordUpstreamFailure(opKey, { kind: 'add', localCardId }, lastError, notifyOnFailure);
+      return { ok: false, error: lastError };
     },
-    [host, persistDoc, removeUpstreamDirect, updateUpstreamDirect],
+    [host, lang, notifyReadOnly, persistDoc, removeUpstreamDirect, updateUpstreamDirect, recordUpstreamFailure, clearUpstreamFailure],
   );
+
+  const retryPendingUpstreamOpsRef = useRef<() => Promise<{ remaining: number; lastError: string | null }>>(async () => ({
+    remaining: 0,
+    lastError: null,
+  }));
+  retryPendingUpstreamOpsRef.current = async () => {
+    const entries = [...pendingUpstreamOpsRef.current.values()];
+    let lastError: string | null = null;
+    for (const op of entries) {
+      if (isReadOnlyRef.current) break;
+      let res: { ok: boolean; error?: string };
+      if (op.kind === 'add') {
+        res = await addUpstreamDirect(op.localCardId, { notifyOnFailure: false });
+      } else if (op.kind === 'update') {
+        res = await updateUpstreamDirect(op.upstreamCardId, op.patch, { notifyOnFailure: false });
+      } else {
+        res = await removeUpstreamDirect(op.upstreamCardId, { notifyOnFailure: false });
+      }
+      if (!res.ok && res.error) lastError = res.error;
+    }
+    return { remaining: pendingUpstreamOpsRef.current.size, lastError };
+  };
 
   const mirrorUpstreamUpdate = useCallback(
     (upstreamCardId: string, patch: { column?: BoardColumnId; title?: string; due?: string }) =>
@@ -1069,7 +1268,8 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   );
 
   const barH = pomodoroBarHeight(width);
-  const bannerH = isReadOnly ? 4 : 0;
+  const showSyncErrorBanner = !isReadOnly && Boolean(upstreamSyncError);
+  const bannerH = isReadOnly ? 4 : showSyncErrorBanner ? 1 : 0;
   const showFilterBar = filterEditing || filterQuery.length > 0;
   const filterBarH = showFilterBar ? 1 : 0;
   const ell = asciiMode ? '...' : '…';
@@ -1114,6 +1314,20 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
                 'Browse, filter (/), and export (x) only; all write actions locked',
               ),
           innerBannerW,
+          ell,
+        )}
+      </Text>
+    </Box>
+  ) : showSyncErrorBanner && upstreamSyncError ? (
+    <Box height={1} width={width} paddingX={1} overflow="hidden">
+      <Text color={theme.warning} bold wrap="truncate">
+        {truncateDisplay(
+          `${asciiMode ? '[!]' : '▲'} ${t(
+            lang,
+            `看板写回失败 (${upstreamSyncError.count} 条待重试): ${upstreamSyncError.message} · 按 [S] 重试`,
+            `Upstream sync failed (${upstreamSyncError.count} pending): ${upstreamSyncError.message} · Press [S] to retry`,
+          )}`,
+          Math.max(10, width - 2),
           ell,
         )}
       </Text>

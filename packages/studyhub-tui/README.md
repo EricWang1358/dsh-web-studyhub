@@ -36,6 +36,7 @@ node packages/studyhub-tui/bin/studyhub-tui.mjs --root /path/to/.dsh-study --the
 node packages/studyhub-tui/bin/studyhub-tui.mjs --doctor --json
 node packages/studyhub-tui/bin/studyhub-tui.mjs --stats --library /path/to/.dsh-study
 node packages/studyhub-tui/bin/studyhub-tui.mjs --due --course "设计模式" --json
+node packages/studyhub-tui/bin/studyhub-tui.mjs --board --library /path/to/.dsh-study --ascii
 node packages/studyhub-tui/bin/studyhub-tui.mjs --search Memento --limit 10
 node packages/studyhub-tui/bin/studyhub-tui.mjs --export --json
 ```

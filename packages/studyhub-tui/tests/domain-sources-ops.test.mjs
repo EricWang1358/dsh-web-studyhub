@@ -1386,6 +1386,23 @@ describe('Domain Sources Operations: Pins, Reread, Links, Batch, Original File &
 
       useTuiStore.setState({ toasts: [] });
       tty.send('a');
+      await tty.waitFor((s) => s.includes('归档 2 份资料') && s.includes('中断'), {
+        label: 'zh [a] batch archive opens ConfirmDialog with active practice warning',
+      });
+      // Cancel first with n — must NOT archive anything
+      tty.send('n');
+      await tty.waitFor((s) => !s.includes('归档 2 份资料'), {
+        label: 'zh [a] batch archive cancelled by n',
+      });
+      assert.equal(
+        (useTuiStore.getState().snapshot?.sources ?? []).filter((src) => (src.id === s1.id || src.id === s2.id) && src.archived).length,
+        0,
+      );
+      tty.send('a');
+      await tty.waitFor((s) => s.includes('归档 2 份资料'), {
+        label: 'zh [a] batch archive ConfirmDialog reopened',
+      });
+      tty.send('y');
       await tty.waitFor(
         () => {
           const st = useTuiStore.getState();
@@ -1408,6 +1425,10 @@ describe('Domain Sources Operations: Pins, Reread, Links, Batch, Original File &
 
       useTuiStore.setState({ toasts: [] });
       tty.send('a');
+      await tty.waitFor((s) => s.includes('恢复 2 份资料'), {
+        label: 'zh [a] batch restore opens ConfirmDialog',
+      });
+      tty.send('y');
       await tty.waitFor(
         () => {
           const st = useTuiStore.getState();

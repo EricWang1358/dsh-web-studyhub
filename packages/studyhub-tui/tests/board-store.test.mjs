@@ -50,6 +50,8 @@ after(async () => {
 });
 
 const REFACTORED_MODULES = [
+  'src/host/tui-prefs.ts',
+  'src/views/board/board-store.ts',
   'src/views/settings/WorkspaceTab.tsx',
   'src/shell/InboxModal.tsx',
   'src/views/board/BoardView.tsx',
@@ -460,8 +462,8 @@ describe('shared atomic-write helpers & deduplication', () => {
         `${rel} must not redefine RETRY_CODES locally`,
       );
       assert.ok(
-        /host\/atomic-write\.js['"]/.test(src),
-        `${rel} must import from leaf host/atomic-write.js`,
+        /(?:host\/|\.\/)atomic-write\.js['"]/.test(src),
+        `${rel} must import from leaf atomic-write.js`,
       );
       assert.ok(
         !/from\s+['"][^'"]*host\/index\.js['"]/.test(src),

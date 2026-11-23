@@ -751,12 +751,19 @@ describe('Domain Shell Overlays: CommandPalette, HelpOverlay, SelectList & Inbox
       const langChanges = [];
       const hostLangChanges = [];
       const hostCalls = [];
+      let dueDecksInSnapshot = [
+        { id: 'deck-low', title: 'Low Due Deck', course: 'OS', due: 1, archived: false },
+        { id: 'deck-top', title: 'Top Due Deck', course: 'OS', due: 6, archived: false },
+      ];
       const mockHostWithTrackers = {
         ...mockHost,
         setLanguage: (l) => hostLangChanges.push(l),
         call: async (action, payload) => {
           hostCalls.push({ action, payload });
-          if (action === 'review.start' && payload?.filter === 'due') {
+          if (action === 'snapshot') {
+            return { ok: true, value: { decks: dueDecksInSnapshot, progress: {} } };
+          }
+          if (action === 'review.start' && payload?.mode === 'due' && payload?.deckId === 'deck-top') {
             return { ok: true, value: { id: 'run-due-80' } };
           }
           return { ok: true, value: {} };
@@ -770,6 +777,7 @@ describe('Domain Shell Overlays: CommandPalette, HelpOverlay, SelectList & Inbox
         prefs.language = l;
         langChanges.push(l);
       };
+      mockState.snapshot = { decks: dueDecksInSnapshot, progress: {}, course: 'OS' };
 
       const itemsR80 = OverlayMod.buildPaletteItems(mockState, mockActions, [], mockHostWithTrackers);
       await itemsR80.find((i) => i.id === 'cmd:theme').action();
@@ -786,8 +794,21 @@ describe('Domain Shell Overlays: CommandPalette, HelpOverlay, SelectList & Inbox
       assert.equal(notifications.at(-1)?.text, '界面语言：简体中文');
 
       await itemsR80.find((i) => i.id === 'cmd:due').action();
-      assert.deepEqual(hostCalls.at(-1), { action: 'review.start', payload: { filter: 'due' } });
-      assert.deepEqual(navigated.at(-1), { page: 'review', ctx: { runId: 'run-due-80' } });
+      assert.deepEqual(hostCalls.at(-1), {
+        action: 'review.start',
+        payload: { mode: 'due', deckId: 'deck-top' },
+      });
+      assert.deepEqual(navigated.at(-1), { page: 'review', ctx: { runId: 'run-due-80', deckId: 'deck-top' } });
+
+      // Empty due queue must NOT call review.start and must show an actionable info toast
+      dueDecksInSnapshot = [{ id: 'deck-done', title: 'Done Deck', course: 'OS', due: 0, archived: false }];
+      mockState.snapshot = { decks: dueDecksInSnapshot, progress: {}, course: 'OS' };
+      const callCountBeforeEmptyDue = hostCalls.length;
+      const itemsEmptyDue = OverlayMod.buildPaletteItems(mockState, mockActions, [], mockHostWithTrackers);
+      await itemsEmptyDue.find((i) => i.id === 'cmd:due').action();
+      assert.equal(hostCalls.length, callCountBeforeEmptyDue, 'Empty due queue must not call review.start');
+      assert.equal(notifications.at(-1)?.tone, 'info');
+      assert.match(notifications.at(-1)?.text ?? '', /没有到期|No cards are due/i);
 
       for (const existingId of ['cmd:theme', 'cmd:lang', 'cmd:ascii', 'cmd:math', 'cmd:recover', 'cmd:due']) {
         assert.ok(items.some((i) => i.id === existingId), `Existing command ${existingId} must remain intact`);

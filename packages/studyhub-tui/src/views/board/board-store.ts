@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+import { atomicWriteJsonFile, todayLocalYmd } from '../../host/atomic-write.js';
+
+export { todayLocalYmd };
 
 export type BoardColumnId = 'todo' | 'doing' | 'done';
 
@@ -233,21 +236,6 @@ export async function loadBoard(libraryRoot: string): Promise<BoardDocument> {
   return res.doc;
 }
 
-const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
-
-async function renameWithRetry(from: string, to: string): Promise<void> {
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      await rename(from, to);
-      return;
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException)?.code || '';
-      if (!RETRY_CODES.has(code) || attempt >= 5) throw error;
-      await new Promise((done) => setTimeout(done, 40 * (attempt + 1)));
-    }
-  }
-}
-
 let writeQueue: Promise<unknown> = Promise.resolve();
 
 export async function saveBoard(libraryRoot: string, doc: BoardDocument): Promise<BoardDocument> {
@@ -258,15 +246,7 @@ export async function saveBoard(libraryRoot: string, doc: BoardDocument): Promis
       version: 1,
       updatedAt: new Date().toISOString(),
     });
-    await mkdir(dirname(target), { recursive: true });
-    const temp = `${target}.${randomUUID()}.tmp`;
-    await writeFile(temp, `${JSON.stringify(normalized, null, 2)}\n`, 'utf8');
-    try {
-      await renameWithRetry(temp, target);
-    } catch (error) {
-      await rm(temp, { force: true }).catch(() => {});
-      throw error;
-    }
+    await atomicWriteJsonFile(target, normalized);
     return normalized;
   });
   writeQueue = run.catch(() => {});
@@ -285,14 +265,6 @@ export function adjacentColumn(col: BoardColumnId, dir: -1 | 1, wrap = false): B
 
 export function cardsInColumn(cards: readonly BoardCard[], col: BoardColumnId): BoardCard[] {
   return cards.filter((c) => c.column === col);
-}
-
-export function todayLocalYmd(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
 }
 
 export function dueStatus(dueDate: string | undefined, column: BoardColumnId): 'none' | 'done' | 'overdue' | 'today' | 'upcoming' {
@@ -373,6 +345,7 @@ export function mergeUpstreamBoard(
   prevCards: readonly BoardCard[],
   upstream: UpstreamBoardSnapshot,
   deletedUpstreamIds?: readonly string[],
+  protectedUpstreamIds?: ReadonlySet<string>,
 ): { cards: BoardCard[]; syncedCount: number; changed: boolean } {
   const cardsMap = upstream.cards && typeof upstream.cards === 'object' ? upstream.cards : {};
   const columns = Array.isArray(upstream.columns) ? upstream.columns : [];
@@ -414,6 +387,12 @@ export function mergeUpstreamBoard(
     }
     if (deletedSet.has(card.upstreamCardId)) {
       changed = true;
+      continue;
+    }
+    if (protectedUpstreamIds?.has(card.upstreamCardId)) {
+      matchedUpstreamIds.add(card.upstreamCardId);
+      nextCards.push(card);
+      usedLocalIds.add(card.id);
       continue;
     }
     const up = entryByUpstreamId.get(card.upstreamCardId);

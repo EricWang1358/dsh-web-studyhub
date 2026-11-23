@@ -33,7 +33,7 @@ async function main() {
     return;
   }
 
-  if (parsed.doctor || parsed.stats || parsed.due || parsed.exportBackup || parsed.searchQuery !== undefined) {
+  if (parsed.doctor || parsed.stats || parsed.due || parsed.board || parsed.exportBackup || parsed.searchQuery !== undefined) {
     const cmds = await import('./cli-commands.js');
     if (parsed.doctor) {
       await cmds.runDoctorFastPath(parsed, PKG_VERSION);
@@ -45,6 +45,10 @@ async function main() {
     }
     if (parsed.due) {
       await cmds.runDueFastPath(parsed, PKG_VERSION);
+      return;
+    }
+    if (parsed.board) {
+      await cmds.runBoardFastPath(parsed, PKG_VERSION);
       return;
     }
     if (parsed.exportBackup) {
@@ -64,7 +68,7 @@ async function main() {
 
   const [
     React,
-    { render, Box, Text },
+    { render, Box, Text, useInput },
     { enterTerminalSession },
     { ShellBootFrame },
     { useTuiStore },
@@ -221,6 +225,15 @@ async function main() {
       return () => clearImmediate(timer);
     }, [ready]);
 
+    useInput(
+      (input, key) => {
+        if (key.ctrl && input === 'c') {
+          onSignal();
+        }
+      },
+      { isActive: !ready || Boolean(bootError) },
+    );
+
     if (bootError) {
       return React.createElement(
         Box,
@@ -251,7 +264,7 @@ async function main() {
 
   try {
     instance = render(React.createElement(BootstrapRoot), {
-      exitOnCtrlC: true,
+      exitOnCtrlC: false,
       patchConsole: true,
     });
     await instance.waitUntilExit();

@@ -54,7 +54,8 @@ type WorkEntry =
   | { kind: 'draft'; id: string; title: string; course: string; count: number; draft: DraftItem }
   | { kind: 'job'; id: string; title: string; course: string; status: string; error: string; job: JobItem };
 
-const CLAIMED_LIBRARY_KEYS = ['r', 'R', 'a', 'p', 'C', 'o', 'g', '[', ']', 'x', '/'] as const;
+const CLAIMED_LIBRARY_KEYS = ['r', 'R', 'p', 'C', 'o', 'g', '[', ']', 'x', '/'] as const;
+const CLAIMED_DECK_ARCHIVE_KEYS = ['a'] as const;
 
 function localDayKey(value: Date | string | number): string {
   const d = value instanceof Date ? value : new Date(value);
@@ -133,6 +134,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
   const [deckOpsOpen, setDeckOpsOpen] = useState(false);
   const [guidedOpen, setGuidedOpen] = useState(false);
   const [roundConfigOpen, setRoundConfigOpen] = useState(false);
+  const [confirmArchiveDeck, setConfirmArchiveDeck] = useState<DeckItem | null>(null);
   const [confirmDeleteDeck, setConfirmDeleteDeck] = useState<DeckItem | null>(null);
   const [busyAction, setBusyAction] = useState(false);
 
@@ -151,7 +153,15 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
   const [sampleLoaded, setSampleLoaded] = useState<boolean>(false);
 
   const modalOpen = Boolean(
-    manageDeckId || voiceOpen || dailyPlanOpen || courseSettingsOpen || deckOpsOpen || guidedOpen || roundConfigOpen || confirmDeleteDeck,
+    manageDeckId ||
+      voiceOpen ||
+      dailyPlanOpen ||
+      courseSettingsOpen ||
+      deckOpsOpen ||
+      guidedOpen ||
+      roundConfigOpen ||
+      confirmArchiveDeck ||
+      confirmDeleteDeck,
   );
   const viewActive = isActive && !modalOpen;
 
@@ -259,6 +269,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
   const clampedDeckIndex = filteredDecks.length === 0 ? 0 : Math.min(deckIndex, filteredDecks.length - 1);
   const selectedDeck = filteredDecks[clampedDeckIndex] ?? null;
   const selectedWork = workEntries[workIndex] ?? null;
+  useClaimKeys(CLAIMED_DECK_ARCHIVE_KEYS, viewActive && !filterEditing && focusSection === 'decks' && Boolean(selectedDeck));
 
   // KPI metrics
   const kpi = useMemo(() => {
@@ -612,8 +623,8 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       if (selectedDeck) {
         if (input === 'm') {
           setManageDeckId(selectedDeck.id);
-        } else if (input === 'a') {
-          void handleArchiveToggle(selectedDeck);
+        } else if (input === 'a' && focusSection === 'decks') {
+          setConfirmArchiveDeck(selectedDeck);
         } else if (input === 'd') {
           setConfirmDeleteDeck(selectedDeck);
         } else if (input === 'x') {
@@ -1210,6 +1221,42 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
           />
         ) : null}
       </Suspense>
+
+      {/* Archive / Restore Confirmation Dialog */}
+      {confirmArchiveDeck ? (
+        <ConfirmDialog
+          title={
+            confirmArchiveDeck.archived
+              ? t(lang, '恢复已归档题组', 'Restore Archived Deck')
+              : t(lang, '归档题组', 'Archive Deck')
+          }
+          message={
+            confirmArchiveDeck.archived
+              ? t(
+                  lang,
+                  `确定将「${confirmArchiveDeck.title ?? confirmArchiveDeck.id}」从归档中恢复为正常题组吗？`,
+                  `Restore "${confirmArchiveDeck.title ?? confirmArchiveDeck.id}" from archive?`,
+                )
+              : t(
+                  lang,
+                  `确定归档「${confirmArchiveDeck.title ?? confirmArchiveDeck.id}」吗？归档将中断该题组正在进行的练习。`,
+                  `Archive "${confirmArchiveDeck.title ?? confirmArchiveDeck.id}"? Archiving will interrupt any active practice sessions for this deck.`,
+                )
+          }
+          confirmLabel={
+            confirmArchiveDeck.archived ? t(lang, '确认恢复', 'Restore') : t(lang, '确认归档', 'Archive')
+          }
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          danger={!confirmArchiveDeck.archived}
+          isActive={isActive}
+          onConfirm={() => {
+            const target = confirmArchiveDeck;
+            setConfirmArchiveDeck(null);
+            void handleArchiveToggle(target);
+          }}
+          onCancel={() => setConfirmArchiveDeck(null)}
+        />
+      ) : null}
 
       {/* Delete Confirmation Dialog */}
       {confirmDeleteDeck ? (

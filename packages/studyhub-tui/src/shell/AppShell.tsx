@@ -118,6 +118,15 @@ export const AppShell = memo(function AppShell({
   useInput((input, key) => {
     const s = useTuiStore.getState();
     const r = routing.current;
+    if (key.ctrl && input === 'c') {
+      if (s.quitConfirmOpen) {
+        s.setQuitConfirmOpen(false);
+        rawQuitRef.current();
+      } else {
+        actions.quit();
+      }
+      return;
+    }
     if (key.ctrl && input === 'k') {
       if (s.commandPaletteOpen) {
         s.setCommandPaletteOpen(false);

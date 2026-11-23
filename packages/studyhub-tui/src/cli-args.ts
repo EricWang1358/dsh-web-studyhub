@@ -7,6 +7,7 @@ export interface ParsedCliArgs {
   doctor: boolean;
   stats: boolean;
   due: boolean;
+  board: boolean;
   exportBackup: boolean;
   exportPath?: string;
   searchQuery?: string;
@@ -166,6 +167,7 @@ export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
     doctor: { value: false, writable: true, enumerable: false, configurable: true },
     stats: { value: false, writable: true, enumerable: false, configurable: true },
     due: { value: false, writable: true, enumerable: false, configurable: true },
+    board: { value: false, writable: true, enumerable: false, configurable: true },
     exportBackup: { value: false, writable: true, enumerable: false, configurable: true },
     json: { value: false, writable: true, enumerable: false, configurable: true },
   });
@@ -190,6 +192,10 @@ export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
     }
     if (token === '--due') {
       Object.defineProperty(result, 'due', { value: true, writable: true, enumerable: true, configurable: true });
+      continue;
+    }
+    if (token === '--board') {
+      Object.defineProperty(result, 'board', { value: true, writable: true, enumerable: true, configurable: true });
       continue;
     }
     if (token === '--json') {
@@ -362,7 +368,9 @@ export function cliHelpText(version = '1.0.0'): string {
     '      --stats --json    Print offline library summary in JSON format and exit',
     '      --due             Print today\'s due review queue by deck (offline) and exit',
     '      --due --json      Print today\'s due review queue in JSON format and exit',
-    '      --course <name>   Filter --due output to matching course(s)',
+    '      --board           Print Kanban board tasks & Pomodoro summary (offline) and exit',
+    '      --board --json    Print Kanban board summary in JSON format and exit',
+    '      --course <name>   Filter --due / --board output to matching course(s)',
     '      --export [path]   Export full library JSON backup atomically and exit',
     '      --export --json   Export backup and print JSON receipt',
     '      --search <query>  Search cards & source passages offline and exit',

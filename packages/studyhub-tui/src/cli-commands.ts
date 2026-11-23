@@ -632,3 +632,216 @@ export async function runDueFastPath(parsed: ParsedCliArgs, version = '1.0.0'): 
     await host.dispose().catch(() => {});
   }
 }
+
+export interface BoardCliCard {
+  id: string;
+  title: string;
+  column: 'todo' | 'doing' | 'done';
+  course: string;
+  dueDate: string;
+  status: 'none' | 'done' | 'overdue' | 'today' | 'upcoming';
+}
+
+export interface BoardCliReport {
+  version: string;
+  libraryRoot: string;
+  boardPath: string;
+  existed: boolean;
+  courseFilter: string | null;
+  generatedAt: string;
+  counts: {
+    total: number;
+    todo: number;
+    doing: number;
+    done: number;
+    overdue: number;
+    dueToday: number;
+  };
+  focusStats: {
+    date: string;
+    completedPomodoros: number;
+    focusedMinutes: number;
+  } | null;
+  cards: BoardCliCard[];
+}
+
+/**
+ * Build a deterministic offline Kanban board summary from a parsed `BoardDocument`.
+ */
+export function buildBoardCliReport(opts: {
+  libraryRoot: string;
+  boardPath: string;
+  existed: boolean;
+  doc: {
+    cards?: ReadonlyArray<{ id: string; title: string; column: 'todo' | 'doing' | 'done'; course?: string; dueDate?: string }>;
+    focusStats?: { date: string; completedPomodoros: number; focusedMinutes: number };
+  };
+  todayYmd?: string;
+  courseFilter?: string;
+  version?: string;
+  generatedAt?: string;
+}): BoardCliReport {
+  const today = opts.todayYmd ?? new Date().toISOString().slice(0, 10);
+  const courseFilterRaw = (opts.courseFilter ?? '').trim();
+  const courseNeedle = courseFilterRaw.toLowerCase();
+  const colRank: Record<'todo' | 'doing' | 'done', number> = { doing: 0, todo: 1, done: 2 };
+
+  const cards: BoardCliCard[] = [];
+  let todo = 0;
+  let doing = 0;
+  let done = 0;
+  let overdue = 0;
+  let dueToday = 0;
+
+  for (const c of opts.doc.cards ?? []) {
+    const course = singleLine(c.course);
+    if (courseNeedle && !course.toLowerCase().includes(courseNeedle)) continue;
+    const dueDate = singleLine(c.dueDate);
+    let status: BoardCliCard['status'] = 'none';
+    if (dueDate) {
+      if (c.column === 'done') status = 'done';
+      else if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) status = 'upcoming';
+      else if (dueDate < today) status = 'overdue';
+      else if (dueDate === today) status = 'today';
+      else status = 'upcoming';
+    }
+    if (c.column === 'todo') todo += 1;
+    else if (c.column === 'doing') doing += 1;
+    else done += 1;
+    if (status === 'overdue') overdue += 1;
+    if (status === 'today') dueToday += 1;
+
+    cards.push({
+      id: c.id,
+      title: singleLine(c.title) || c.id,
+      column: c.column,
+      course,
+      dueDate,
+      status,
+    });
+  }
+
+  cards.sort(
+    (a, b) =>
+      colRank[a.column] - colRank[b.column] ||
+      (a.status === 'overdue' ? 0 : a.status === 'today' ? 1 : 2) -
+        (b.status === 'overdue' ? 0 : b.status === 'today' ? 1 : 2) ||
+      a.title.localeCompare(b.title),
+  );
+
+  return {
+    version: opts.version ?? '1.0.0',
+    libraryRoot: opts.libraryRoot,
+    boardPath: opts.boardPath,
+    existed: opts.existed,
+    courseFilter: courseFilterRaw || null,
+    generatedAt: opts.generatedAt ?? new Date().toISOString(),
+    counts: {
+      total: cards.length,
+      todo,
+      doing,
+      done,
+      overdue,
+      dueToday,
+    },
+    focusStats: opts.doc.focusStats ? { ...opts.doc.focusStats } : null,
+    cards,
+  };
+}
+
+/**
+ * Format a `BoardCliReport` for terminal output. Guaranteed 100% pure ASCII when `ascii` is true.
+ */
+export function formatBoardCliReport(report: BoardCliReport, ascii = false): string {
+  const rule = ascii ? '----------------------------------------' : '────────────────────────────────────────';
+  const bullet = ascii ? '-' : '•';
+  const clean = (s: string) => (ascii ? toPureAscii(singleLine(s)) : singleLine(s));
+  const c = report.counts;
+
+  const lines = [
+    `StudyHub TUI Board (v${clean(report.version)})`,
+    rule,
+    `Library: ${clean(report.libraryRoot || '(unset)')}`,
+    ...(report.courseFilter ? [`Course: ${clean(report.courseFilter)}`] : []),
+    `Summary: ${c.total} tasks (${c.doing} doing | ${c.todo} todo | ${c.done} done | ${c.overdue} overdue | ${c.dueToday} due today)`,
+  ];
+
+  if (report.focusStats) {
+    lines.push(
+      `Focus (${clean(report.focusStats.date)}): ${report.focusStats.completedPomodoros} pomodoros (${report.focusStats.focusedMinutes} min)`,
+    );
+  }
+
+  const sections: ReadonlyArray<{ col: 'doing' | 'todo' | 'done'; heading: string; mark: string }> = [
+    { col: 'doing', heading: 'Doing', mark: '[~]' },
+    { col: 'todo', heading: 'Todo', mark: '[ ]' },
+    { col: 'done', heading: 'Done', mark: '[x]' },
+  ];
+
+  for (const sec of sections) {
+    const colCards = report.cards.filter((card) => card.column === sec.col);
+    lines.push(`${sec.heading} (${colCards.length})`);
+    if (colCards.length === 0) {
+      lines.push(`  ${bullet} (none)`);
+    } else {
+      for (const card of colCards) {
+        const courseTag = card.course ? ` [${clipText(card.course, 28, ascii)}]` : '';
+        const dueTag =
+          card.status === 'overdue'
+            ? ` (OVERDUE ${clean(card.dueDate)})`
+            : card.status === 'today'
+              ? ` (TODAY ${clean(card.dueDate)})`
+              : card.dueDate
+                ? ` (${clean(card.dueDate)})`
+                : '';
+        lines.push(`  ${bullet} ${sec.mark} ${clipText(card.title, 72, ascii)}${courseTag}${dueTag}`);
+      }
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Run `--board` offline Kanban summary directly from `<libraryRoot>/tui-board.json` without mounting React/Ink/StudyRuntime.
+ */
+export async function runBoardFastPath(parsed: ParsedCliArgs, version = '1.0.0'): Promise<void> {
+  const [{ resolve: resolvePath }, { boardFilePath, loadBoardSafe, todayLocalYmd }] = await Promise.all([
+    import('node:path'),
+    import('./views/board/board-store.js'),
+  ]);
+
+  let libraryRoot = parsed.libraryRoot ? resolvePath(parsed.libraryRoot) : '';
+  if (!libraryRoot) {
+    const { createTuiHost } = await import('./host/tui-host.js');
+    const host = await createTuiHost({ skipAutoProbe: true, language: parsed.language });
+    try {
+      libraryRoot = host.getLibraryRoot();
+    } finally {
+      await host.dispose().catch(() => {});
+    }
+  }
+
+  const loaded = await loadBoardSafe(libraryRoot);
+  if (!loaded.ok) {
+    process.stderr.write(`Error: Failed to read board file ${loaded.path}: ${loaded.error}\n`);
+    process.exit(1);
+  }
+
+  const report = buildBoardCliReport({
+    libraryRoot,
+    boardPath: boardFilePath(libraryRoot),
+    existed: loaded.existed,
+    doc: loaded.doc,
+    todayYmd: todayLocalYmd(),
+    courseFilter: parsed.course,
+    version,
+  });
+
+  if (parsed.json) {
+    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  } else {
+    const ascii = parsed.asciiMode ?? shouldAutoAscii(process.env);
+    process.stdout.write(`${formatBoardCliReport(report, ascii)}\n`);
+  }
+}

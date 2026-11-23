@@ -573,4 +573,59 @@ describe('VirtualList & ScrollView Ink SGR mouse wheel rendering', () => {
       useTuiStore.setState({ preferences: prevPrefs });
     }
   });
+
+  test('ScrollView highlight (plain + ANSI) and n/N match jumping wrap cleanly', async () => {
+    const prevPrefs = useTuiStore.getState().preferences;
+    const { highlightLine } = await import('../src/components/ScrollView.tsx');
+    try {
+      resetStore(false);
+      // Plain + ANSI-colored highlightLine preserves escape sequences and inverts matched tokens
+      const plainHi = highlightLine('Memento pattern stores snapshot', 'snapshot');
+      assert.ok(plainHi.includes('\u001b[7msnapshot\u001b[27m'), `expected inverse highlight, got ${JSON.stringify(plainHi)}`);
+      const ansiHi = highlightLine('\u001b[36mBridge\u001b[0m decouples Bridge', 'bridge');
+      assert.equal((ansiHi.match(/\u001b\[7mBridge\u001b\[27m/g) ?? []).length, 2, 'must highlight all case-insensitive occurrences without breaking ANSI');
+
+      const lines = Array.from({ length: 24 }, (_, i) =>
+        i === 2 || i === 10 || i === 18 ? `Row-${String(i).padStart(2, '0')} TARGET match` : `Row-${String(i).padStart(2, '0')} filler`,
+      );
+      const seenTops = [];
+      const h = createInkHarness(
+        React.createElement(ScrollView, {
+          lines,
+          height: 5,
+          width: 30,
+          highlight: 'target',
+          onScroll: (top) => seenTops.push(top),
+        }),
+        { cols: 60, rows: 16, defaultWaitMs: 30 },
+      );
+      try {
+        await h.waitForFrame((f) => /Row-00 filler/.test(f), 2_000, 'initial Row-00');
+        await h.send('n');
+        await h.waitForFrame((f) => /Row-02 TARGET/.test(f) && !/Row-00 filler/.test(f), 2_000, 'jump to match 2');
+        assert.equal(seenTops.at(-1), 2);
+        await h.send('n');
+        await h.waitForFrame((f) => /Row-10 TARGET/.test(f), 2_000, 'jump to match 10');
+        assert.equal(seenTops.at(-1), 10);
+        await h.send('n');
+        await h.waitForFrame((f) => /Row-18 TARGET/.test(f), 2_000, 'jump to match 18');
+        assert.equal(seenTops.at(-1), 18);
+        // Wrap around forward -> 2
+        await h.send('n');
+        await h.waitForFrame((f) => /Row-02 TARGET/.test(f) && !/Row-18/.test(f), 2_000, 'wrap forward to match 2');
+        assert.equal(seenTops.at(-1), 2);
+        // Reverse jump wrap around -> 18, then back to 10
+        await h.send('N');
+        await h.waitForFrame((f) => /Row-18 TARGET/.test(f), 2_000, 'wrap reverse to match 18');
+        assert.equal(seenTops.at(-1), 18);
+        await h.send('N');
+        await h.waitForFrame((f) => /Row-10 TARGET/.test(f), 2_000, 'reverse to match 10');
+        assert.equal(seenTops.at(-1), 10);
+      } finally {
+        h.cleanup();
+      }
+    } finally {
+      useTuiStore.setState({ preferences: prevPrefs });
+    }
+  });
 });

@@ -1,6 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { basename } from 'node:path';
 import { Box, Text, useInput } from 'ink';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -12,6 +11,11 @@ import { TextInput } from '../../components/TextInput.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { currentCourse } from '../../shell/data.js';
 import type { VoicePackRenderProps } from '../../shell/AppShell.js';
+import {
+  atomicWriteExportText,
+  defaultBackupFilePath,
+  resolveSafeBackupExportPath,
+} from '../../host/atomic-write.js';
 import { cleanPathInput, getVoicePack, tryAction } from '../../host/sample-actions.js';
 
 export type VoicePackMode = 'due' | 'weak' | 'all';
@@ -143,19 +147,24 @@ export const VoicePackModal = memo(function VoicePackModal({
 
   const defaultExportPath = useMemo(() => {
     const baseDir = host.getLibraryRoot() || process.cwd();
-    const rawName = pack?.filename || `voice-pack-${mode}`;
-    const safeName = rawName.endsWith('.md') ? rawName : `${rawName}.md`;
-    return join(baseDir, safeName);
-  }, [host, pack?.filename, mode]);
+    const rawSlug = pack?.filename
+      ? pack.filename.replace(/\.md$/i, '')
+      : effectiveScope === 'deck' && activeDeck
+        ? `${activeDeck.title ?? activeDeck.id}-${mode}`
+        : effectiveScope === 'course' && activeCourse
+          ? `${activeCourse}-${mode}`
+          : mode;
+    return basename(defaultBackupFilePath(baseDir, 'studyhub-voicepack', '.md', rawSlug));
+  }, [host, pack?.filename, effectiveScope, activeDeck, activeCourse, mode]);
 
   const openExportPrompt = useCallback(() => {
     if (!pack?.markdown) {
       notify(t(lang, '当前没有可导出的内容', 'Nothing to export yet'), 'warning');
       return;
     }
-    setExportPath(savedPath || defaultExportPath);
+    setExportPath(defaultExportPath);
     setExporting(true);
-  }, [pack?.markdown, savedPath, defaultExportPath, notify, lang]);
+  }, [pack?.markdown, defaultExportPath, notify, lang]);
 
   const handleExportSubmit = useCallback(
     async (raw: string) => {
@@ -170,15 +179,23 @@ export const VoicePackModal = memo(function VoicePackModal({
         return;
       }
       const baseDir = host.getLibraryRoot() || process.cwd();
-      const withExt = cleaned.toLowerCase().endsWith('.md') ? cleaned : `${cleaned}.md`;
-      const targetPath = isAbsolute(withExt) ? withExt : resolve(baseDir, withExt);
+      let safePath: string;
+      try {
+        safePath = resolveSafeBackupExportPath(baseDir, cleaned, 'studyhub-voicepack', '.md', mode);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        notify(
+          t(lang, `导出路径必须在学习库 backups/ 目录内：${msg}`, `Export path must stay inside library backups/: ${msg}`),
+          'error',
+        );
+        return;
+      }
       setSaving(true);
       try {
-        await mkdir(dirname(targetPath), { recursive: true });
-        await writeFile(targetPath, md, 'utf8');
-        setSavedPath(targetPath);
+        const written = await atomicWriteExportText(safePath, md);
+        setSavedPath(written.path);
         setExporting(false);
-        notify(t(lang, `已导出到 ${targetPath}`, `Exported to ${targetPath}`), 'success');
+        notify(t(lang, `已导出到 ${written.path}`, `Exported to ${written.path}`), 'success');
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         notify(t(lang, `导出失败：${msg}`, `Export failed: ${msg}`), 'error');
@@ -186,7 +203,7 @@ export const VoicePackModal = memo(function VoicePackModal({
         setSaving(false);
       }
     },
-    [pack?.markdown, host, notify, lang],
+    [pack?.markdown, host, mode, notify, lang],
   );
 
   useInput(

@@ -254,18 +254,50 @@ export function buildPaletteItems(
         state.navigate('library');
         return;
       }
-      const focusCourse =
-        typeof (snap?.focus as { course?: unknown } | undefined)?.course === 'string'
-          ? String((snap?.focus as { course?: string }).course).trim()
-          : '';
       try {
+        let effectiveSnap = snap;
+        if (!effectiveSnap) {
+          const snapRes = await host.call<StudySnapshot>('snapshot', {});
+          if (snapRes.ok && snapRes.value) effectiveSnap = snapRes.value;
+        }
+        const focusCourse =
+          typeof (effectiveSnap?.focus as { course?: unknown } | undefined)?.course === 'string'
+            ? String((effectiveSnap?.focus as { course?: string }).course).trim()
+            : '';
+        const progressMap = (effectiveSnap?.progress && typeof effectiveSnap.progress === 'object'
+          ? effectiveSnap.progress
+          : {}) as Record<string, { due?: number } | undefined>;
+        const decks = Array.isArray(effectiveSnap?.decks) ? effectiveSnap.decks : [];
+        const dueCandidates = decks
+          .filter((d) => {
+            if (!d || typeof d !== 'object' || d.archived) return false;
+            const rec = d as Record<string, unknown>;
+            if (rec.systemKind) return false;
+            if (focusCourse && String(d.course ?? '').trim() !== focusCourse) return false;
+            return true;
+          })
+          .map((d) => {
+            const rec = d as Record<string, unknown>;
+            const due = Number(rec.due ?? d.dueCount ?? progressMap[d.id]?.due ?? 0) || 0;
+            return { id: d.id, due };
+          })
+          .filter((d) => d.id && d.due > 0)
+          .sort((a, b) => b.due - a.due);
+
+        const targetDeck = dueCandidates[0];
+        if (!targetDeck) {
+          notify(t(lang, '当前没有到期复习题', 'No due cards to review right now'), 'info');
+          state.navigate('library');
+          return;
+        }
+
         const res = await host.call<{ id?: string; runId?: string }>('review.start', {
-          filter: 'due',
-          ...(focusCourse ? { course: focusCourse } : {}),
+          mode: 'due',
+          deckId: targetDeck.id,
         });
         const runId = res.ok ? res.value?.id || res.value?.runId : undefined;
         if (runId) {
-          state.navigate('review', { runId });
+          state.navigate('review', { runId, deckId: targetDeck.id });
         } else {
           notify(
             !res.ok

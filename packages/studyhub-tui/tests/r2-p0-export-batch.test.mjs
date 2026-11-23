@@ -478,6 +478,21 @@ describe('P1 #4: BookEditModal Esc dirty confirmation (PTY E2E + bundle isolatio
       );
       assert.ok(preservedScreen.includes('UNSAVED_R2_EDIT'));
 
+      // Tab to actions bar -> press [r] while dirty -> opens reload ConfirmDialog, 'n' preserves edits
+      tty.send('\t');
+      await tty.waitFor((s) => s.includes('[操作栏'), { timeoutMs: 6_000, label: 'switched to BookEditModal actions bar' });
+      tty.send('r');
+      await tty.waitFor(
+        (s) => s.includes('放弃修改并重载') || s.includes('Discard Changes & Reload'),
+        { timeoutMs: 6_000, label: 'dirty [r] reload opens ConfirmDialog' },
+      );
+      tty.send('n');
+      const preservedAfterReloadCancel = await tty.waitFor(
+        (s) => !s.includes('放弃修改并重载') && s.includes('UNSAVED_R2_EDIT'),
+        { timeoutMs: 6_000, label: 'n cancels reload ConfirmDialog and keeps edits' },
+      );
+      assert.ok(preservedAfterReloadCancel.includes('UNSAVED_R2_EDIT'));
+
       // Dirty Esc -> ConfirmDialog -> 'y' discards and closes cleanly
       tty.send('\x1b');
       await tty.waitFor(
@@ -571,7 +586,7 @@ describe('P1 #5: Batch operations exceeding backend 100/200 caps', () => {
     assert.match(partialRes.error, /100\/250.*batch 2\/3/i);
   });
 
-  test('3) SourcesView batch archive, remove, and folder.set chunk >200 sourceIds into <=100 backend calls', async () => {
+  test('3) SourcesView archive & folder.set chunk <=100, while source.remove submits atomically in 1 batch (zero half-delete)', async () => {
     const sourceIds230 = Array.from({ length: 230 }, (_, i) => `src-p${i + 1}`);
     const calls = [];
     const mockHost = {
@@ -582,7 +597,6 @@ describe('P1 #5: Batch operations exceeding backend 100/200 caps', () => {
           return { ok: true, value: { sourceIds: args.sourceIds, archived: args.archived } };
         }
         if (action === 'source.remove') {
-          assert.ok(args.sourceIds.length <= 100);
           return { ok: true, value: { removed: args.sourceIds.length } };
         }
         if (action === 'source.folder.set') {
@@ -604,10 +618,27 @@ describe('P1 #5: Batch operations exceeding backend 100/200 caps', () => {
     const remRes = await executeBatchSourceRemove(mockHost, sourceIds230, 'zh');
     assert.equal(remRes.ok, true);
     assert.equal(remRes.removedCount, 230);
+    assert.equal(remRes.partial, false);
     assert.deepEqual(
       calls.filter((c) => c.action === 'source.remove').map((c) => c.args.sourceIds.length),
-      [100, 100, 30],
+      [230],
+      'source.remove must be sent as one atomic batch so a late citation error never causes half-delete',
     );
+
+    // Referenced source #225 fails the entire single atomic remove -> 0 removed, partial=false
+    const failRefHost = {
+      async call(action, args) {
+        if (action === 'source.remove' && args.sourceIds.includes('src-p225')) {
+          return { ok: false, error: { message: 'Source src-p225 is referenced by cards' } };
+        }
+        return { ok: true, value: { removed: args.sourceIds.length } };
+      },
+    };
+    const failRemRes = await executeBatchSourceRemove(failRefHost, sourceIds230, 'zh');
+    assert.equal(failRemRes.ok, false);
+    assert.equal(failRemRes.removedCount, 0);
+    assert.equal(failRemRes.partial, false);
+    assert.match(failRemRes.error, /src-p225/);
 
     const folderRes = await executeBatchSourceFolderSet(mockHost, sourceIds230, 'Lectures', 'zh');
     assert.equal(folderRes.ok, true);

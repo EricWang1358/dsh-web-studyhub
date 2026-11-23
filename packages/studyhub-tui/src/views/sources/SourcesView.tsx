@@ -174,6 +174,7 @@ type ActiveOverlay =
   | 'mineru'
   | 'rename'
   | 'course'
+  | 'archive'
   | 'delete'
   | 'search'
   | 'folders-filter'
@@ -509,27 +510,19 @@ export async function executeBatchSourceRemove(
   sourceIds: readonly string[],
   lang: 'zh' | 'en',
 ): Promise<{ ok: boolean; removedCount: number; partial: boolean; error?: string }> {
-  const chunks = chunkSourceBatch(sourceIds, SOURCE_BATCH_MAX);
-  let removedCount = 0;
-  for (let i = 0; i < chunks.length; i += 1) {
-    const chunk = chunks[i];
-    const res = await tryAction(host, 'source.remove', { sourceIds: chunk, confirm: true });
-    if (!res.ok) {
-      const baseErr =
-        res.error?.message || t(lang, '删除失败（可能被题组引用）', 'Delete failed (may be referenced by cards)');
-      const error =
-        removedCount > 0
-          ? t(
-              lang,
-              `已删除 ${removedCount}/${sourceIds.length} 份资料，第 ${i + 1}/${chunks.length} 批失败：${baseErr}`,
-              `Removed ${removedCount}/${sourceIds.length} source(s); batch ${i + 1}/${chunks.length} failed: ${baseErr}`,
-            )
-          : baseErr;
-      return { ok: false, removedCount, partial: removedCount > 0, error };
-    }
-    removedCount += chunk.length;
+  const uniqueIds = [...new Set(sourceIds.filter(Boolean))];
+  if (uniqueIds.length === 0) {
+    return { ok: true, removedCount: 0, partial: false };
   }
-  return { ok: true, removedCount, partial: false };
+  // Backend `source.remove` has no 100-item cap and runs an atomic citation check across all
+  // sourceIds; submitting as a single batch prevents half-deleting before hitting a referenced item.
+  const res = await tryAction(host, 'source.remove', { sourceIds: uniqueIds, confirm: true });
+  if (!res.ok) {
+    const baseErr =
+      res.error?.message || t(lang, '删除失败（可能被题组引用）', 'Delete failed (may be referenced by cards)');
+    return { ok: false, removedCount: 0, partial: false, error: baseErr };
+  }
+  return { ok: true, removedCount: uniqueIds.length, partial: false };
 }
 
 export async function executeBatchSourceFolderSet(
@@ -860,14 +853,16 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
     [busy, host, lang, notify, refresh, selectedItem, shownPinnedKeys],
   );
 
+  const [archivePendingGroups, setArchivePendingGroups] = useState<DocumentGroup[]>([]);
+
   const handleToggleArchive = useCallback(
-    async (singleItem?: DocumentGroup) => {
+    async (explicitGroups?: readonly DocumentGroup[]) => {
       if (busyRef.current || busy) return;
       const targetGroups =
-        selectedKeys.size > 0
-          ? allGroups.filter((g) => selectedKeys.has(g.key))
-          : singleItem
-            ? [singleItem]
+        explicitGroups && explicitGroups.length > 0
+          ? [...explicitGroups]
+          : selectedKeys.size > 0
+            ? allGroups.filter((g) => selectedKeys.has(g.key))
             : [];
       if (targetGroups.length === 0) return;
       const sourceIds = [...new Set(targetGroups.flatMap((g) => g.sourceIds))];
@@ -1146,7 +1141,8 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
 
   const listActive = isActive && !readerTarget && overlay === 'none';
 
-  useClaimKeys(['/', 'c', 'r', 'R', 'g', 'p', 'd', 'i', 'f', 'a', 'F', 'm', 'M', 'C', 'G', 'V', 'E', 'O', 'x', ' ', '[', ']'], listActive);
+  useClaimKeys(['/', 'c', 'r', 'R', 'g', 'p', 'd', 'i', 'f', 'F', 'm', 'M', 'C', 'G', 'V', 'E', 'O', 'x', ' ', '[', ']'], listActive);
+  useClaimKeys(['a'], listActive && (selectedKeys.size > 0 || Boolean(selectedItem)));
   useInputCapture(isActive && !readerTarget && (overlay === 'rename' || overlay === 'course' || overlay === 'search'));
 
   const hints: KeyHint[] = useMemo(
@@ -1219,7 +1215,11 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
       } else if (input === 'm' && selectedKeys.size > 0) {
         setOverlay('folders-assign-batch');
       } else if (input === 'a' && selectedKeys.size > 0) {
-        void handleToggleArchive();
+        const targets = allGroups.filter((g) => selectedKeys.has(g.key));
+        if (targets.length > 0) {
+          setArchivePendingGroups(targets);
+          setOverlay('archive');
+        }
       } else if (selectedItem) {
         if (input === ' ') {
           setSelectedKeys((prev) => {
@@ -1248,7 +1248,8 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
         } else if (input === 'p') {
           void handleTogglePin(selectedItem);
         } else if (input === 'a') {
-          void handleToggleArchive(selectedItem);
+          setArchivePendingGroups([selectedItem]);
+          setOverlay('archive');
         } else if (input === 'd') {
           setOverlay('delete');
         }
@@ -1607,6 +1608,56 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
           </Box>
         </Modal>
       ) : null}
+
+      {overlay === 'archive' && archivePendingGroups.length > 0 ? (() => {
+        const nextArchived = !archivePendingGroups.every((g) => g.archived);
+        const count = archivePendingGroups.length;
+        const firstTitle = archivePendingGroups[0].title;
+        return (
+          <ConfirmDialog
+            title={
+              nextArchived
+                ? count > 1
+                  ? t(lang, `归档 ${count} 份资料`, `Archive ${count} Materials`)
+                  : t(lang, '归档资料', 'Archive Material')
+                : count > 1
+                  ? t(lang, `恢复 ${count} 份资料`, `Restore ${count} Materials`)
+                  : t(lang, '恢复已归档资料', 'Restore Archived Material')
+            }
+            message={
+              nextArchived
+                ? count > 1
+                  ? t(
+                      lang,
+                      `确定归档已选的 ${count} 份资料吗？归档将隐藏这些资料，并可能中断关联题组正在进行的练习。`,
+                      `Archive ${count} selected materials? Archiving hides them and may interrupt active practice sessions using them.`,
+                    )
+                  : t(
+                      lang,
+                      `确定归档「${firstTitle}」吗？归档将隐藏该资料，并可能中断关联题组正在进行的练习。`,
+                      `Archive "${firstTitle}"? Archiving hides it and may interrupt active practice sessions using it.`,
+                    )
+                : count > 1
+                  ? t(lang, `确定从归档中恢复已选的 ${count} 份资料吗？`, `Restore ${count} selected materials from archive?`)
+                  : t(lang, `确定从归档中恢复「${firstTitle}」吗？`, `Restore "${firstTitle}" from archive?`)
+            }
+            confirmLabel={nextArchived ? t(lang, '确认归档', 'Archive') : t(lang, '确认恢复', 'Restore')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            danger={nextArchived}
+            isActive={isActive}
+            onConfirm={() => {
+              const groups = archivePendingGroups;
+              setOverlay('none');
+              setArchivePendingGroups([]);
+              void handleToggleArchive(groups);
+            }}
+            onCancel={() => {
+              setOverlay('none');
+              setArchivePendingGroups([]);
+            }}
+          />
+        );
+      })() : null}
 
       {overlay === 'delete' && selectedItem ? (
         <ConfirmDialog

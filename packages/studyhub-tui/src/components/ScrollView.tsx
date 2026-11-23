@@ -35,15 +35,18 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** Highlight `term` in a plain/ANSI line (matches searched on visible text only when line has no ANSI). */
-export function highlightLine(line: string, term: string): string {
+/** Highlight `term` in a plain/ANSI line (accepts precompiled RegExp for hot-path scroll rendering). */
+export function highlightLine(line: string, term: string, precompiled?: RegExp | null): string {
   if (!term) return line;
-  const re = new RegExp(escapeRegExp(term), 'gi');
+  const re = precompiled ?? new RegExp(escapeRegExp(term), 'gi');
+  re.lastIndex = 0;
   if (line.includes('\u001b')) {
     // Only highlight inside plain text runs between escape sequences.
-    return line.replace(/((?:\u001b\[[0-9;]*m)+)|([^\u001b]+)/g, (m, esc: string | undefined, txt: string | undefined) =>
-      esc ? esc : (txt ?? m).replace(re, (x) => `${INV_ON}${x}${INV_OFF}`),
-    );
+    return line.replace(/((?:\u001b\[[0-9;]*m)+)|([^\u001b]+)/g, (m, esc: string | undefined, txt: string | undefined) => {
+      if (esc) return esc;
+      re.lastIndex = 0;
+      return (txt ?? m).replace(re, (x) => `${INV_ON}${x}${INV_OFF}`);
+    });
   }
   return line.replace(re, (x) => `${INV_ON}${x}${INV_OFF}`);
 }
@@ -84,6 +87,8 @@ export const ScrollView = memo(function ScrollView({
   useEffect(() => {
     if (follow && !controlled) setInternal(maxTop);
   }, [follow, controlled, maxTop]);
+
+  const highlightRe = useMemo(() => (highlight ? new RegExp(escapeRegExp(highlight), 'gi') : null), [highlight]);
 
   const matchRows = useMemo(() => {
     if (!highlight) return [] as number[];
@@ -129,7 +134,13 @@ export const ScrollView = memo(function ScrollView({
         const next = matchRows.find((r) => r > top) ?? matchRows[0];
         scrollTo(next);
       } else if (input === 'N' && matchRows.length > 0) {
-        const prev = [...matchRows].reverse().find((r) => r < top) ?? matchRows[matchRows.length - 1];
+        let prev = matchRows[matchRows.length - 1];
+        for (let idx = matchRows.length - 1; idx >= 0; idx -= 1) {
+          if (matchRows[idx] < top) {
+            prev = matchRows[idx];
+            break;
+          }
+        }
         scrollTo(prev);
       }
     },
@@ -147,7 +158,7 @@ export const ScrollView = memo(function ScrollView({
     <Box flexDirection="row" width={width} height={rows}>
       <Box flexDirection="column" width={textWidth} height={rows} overflow="hidden">
         {visible.map((l, i) => {
-          const raw = highlight ? highlightLine(l, highlight) : l || ' ';
+          const raw = highlight ? highlightLine(l, highlight, highlightRe) : l || ' ';
           const cell = ascii && displayWidth(raw) > textWidth ? truncateDisplay(raw, textWidth, '...') : raw;
           return (
             <Box key={top + i} height={1} overflow="hidden">

@@ -120,7 +120,6 @@ function createMockHost(libraryRoot, overrides = {}) {
         return { ok: true, value: { providers: {}, transcription: false, text: false, live: false } };
       }
       if (action === 'audio.usage') return { ok: true, value: { providers: [] } };
-      if (action === 'audio.results') return { ok: true, value: { results: [] } };
       if (action === 'board.get') return { ok: true, value: { readOnly: false, cards: {}, columns: [] } };
       return { ok: false, error: { message: `Unhandled action: ${action}`, code: 'UNKNOWN' } };
     },
@@ -172,7 +171,7 @@ after(async () => {
 });
 
 describe('Round 2 P1: AudioView results, BoardView read-only lock, Unified /quit guard', () => {
-  test('P1 #3a: tui-host audio.results & audio.result.get resolve real library audio sources and AudioView displays & exports them', async () => {
+  test('P1 #3a / R3 #10: AudioView uses ONLY real snapshot + source.get actions (0 nonexistent audio.results/audio.result.get calls)', async () => {
     const box = await temps.make('audio-real');
     const dshHome = join(box, 'dsh');
     const libRoot = join(box, 'lib');
@@ -197,21 +196,18 @@ describe('Round 2 P1: AudioView results, BoardView read-only lock, Unified /quit
     });
     assert.equal(addRes.ok, true, `source.add failed: ${addRes.error?.message}`);
 
-    const listRes = await host.call('audio.results', {});
-    assert.equal(listRes.ok, true, `audio.results must succeed: ${listRes.error?.message}`);
-    assert.ok(Array.isArray(listRes.value?.results), 'audio.results must return results array');
-    assert.equal(listRes.value.results.length, 1, 'audio.results should include the audio/subtitle source');
-    assert.equal(listRes.value.results[0].id, 'subtitle-lecture-01');
-    assert.equal(listRes.value.results[0].title, 'Distributed Systems Lecture 01');
+    // Spy on host.call to guarantee AudioView NEVER invokes nonexistent audio.results / audio.result.get
+    const seenActions = [];
+    const origCall = host.call.bind(host);
+    const spyHost = {
+      ...host,
+      call: async (action, args) => {
+        seenActions.push(action);
+        return origCall(action, args);
+      },
+    };
 
-    const detailRes = await host.call('audio.result.get', { id: 'subtitle-lecture-01' });
-    assert.equal(detailRes.ok, true, `audio.result.get must succeed: ${detailRes.error?.message}`);
-    assert.ok(
-      String(detailRes.value?.transcript || detailRes.value?.text || '').includes('Raft consensus'),
-      'audio.result.get must return full transcript text',
-    );
-
-    const app = await mountApp(host, { initialPage: 'audio', autoLaunchpad: false });
+    const app = await mountApp(spyHost, { initialPage: 'audio', autoLaunchpad: false });
     try {
       const screen = await app.tty.waitFor(
         (s) =>
@@ -220,6 +216,10 @@ describe('Round 2 P1: AudioView results, BoardView read-only lock, Unified /quit
         { timeoutMs: 8_000, label: 'AudioView showing real library transcript' },
       );
       assert.ok(!screen.includes('Unknown action'), 'AudioView must not show Unknown action');
+      assert.equal(seenActions.includes('audio.results'), false, 'AudioView must NEVER call nonexistent audio.results');
+      assert.equal(seenActions.includes('audio.result.get'), false, 'AudioView must NEVER call nonexistent audio.result.get');
+      assert.equal(seenActions.includes('snapshot'), true, 'AudioView must read audio sources via real snapshot action');
+      assert.equal(seenActions.includes('source.get'), true, 'AudioView must load transcript body via real source.get action');
 
       // Export twice via [x] — must write unique timestamped slugged files in backups/ without overwriting
       app.tty.send('x');
@@ -250,10 +250,10 @@ describe('Round 2 P1: AudioView results, BoardView read-only lock, Unified /quit
     const libRoot = join(box, 'lib');
     await mkdir(libRoot, { recursive: true });
 
-    // 1. Error state when audio.results fails
+    // 1. Error state when snapshot fails during audio load
     const errHost = createMockHost(libRoot, {
       call: async (action) => {
-        if (action === 'audio.results') {
+        if (action === 'snapshot') {
           return { ok: false, error: { message: 'Audio backend unavailable', code: 'AUDIO_DOWN' } };
         }
         return undefined;
@@ -286,13 +286,23 @@ describe('Round 2 P1: AudioView results, BoardView read-only lock, Unified /quit
       await noProvHost.dispose();
     }
 
-    // 3. Detail fetch error is surfaced on right pane (not swallowed)
+    // 3. Detail fetch error via real source.get is surfaced on right pane (not swallowed)
     const detailErrHost = createMockHost(libRoot, {
       call: async (action) => {
-        if (action === 'audio.results') {
-          return { ok: true, value: { results: [{ id: 'aud-1', title: 'Missing Body Audio' }] } };
+        if (action === 'snapshot') {
+          return {
+            ok: true,
+            value: {
+              courses: [],
+              decks: [],
+              sources: [{ id: 'audio-1', title: 'Missing Body Audio', provenance: 'audio' }],
+              drafts: [],
+              jobs: [],
+              runs: [],
+            },
+          };
         }
-        if (action === 'audio.result.get') {
+        if (action === 'source.get') {
           return { ok: false, error: { message: 'Transcript shard corrupt' } };
         }
         return undefined;
@@ -496,6 +506,20 @@ describe('Round 2 P1: AudioView results, BoardView read-only lock, Unified /quit
       );
       assert.equal(exitCount, 0);
 
+      // Press Ctrl+C (\x03) -> ALSO guarded by unified quit dialog, n cancels
+      app.tty.send('\x03');
+      await app.tty.waitFor(
+        (s) => s.includes('确认退出') && s.includes('当前有进行中的考试/练习'),
+        { timeoutMs: 6_000, label: 'Quit ConfirmDialog shown on Ctrl+C in ExamRunner' },
+      );
+      assert.equal(exitCount, 0, 'Ctrl+C in active ExamRunner must NOT bypass quit guard');
+      app.tty.send('n');
+      await app.tty.waitFor(
+        (s) => !s.includes('确认退出') && s.includes('选择题卷'),
+        { timeoutMs: 6_000, label: 'ExamRunner preserved after cancelling Ctrl+C with n' },
+      );
+      assert.equal(exitCount, 0);
+
       // /quit -> confirm with y -> invokes onExit
       app.tty.send('\x0b');
       await app.tty.waitFor((s) => s.includes('命令面板'), { timeoutMs: 6_000 });
@@ -585,6 +609,216 @@ describe('Round 2 P1: AudioView results, BoardView read-only lock, Unified /quit
       app.tty.send('y');
       await app.tty.waitFor(() => exitCount === 1, { timeoutMs: 4_000, label: 'onExit called on y in ReviewView' });
       assert.equal(exitCount, 1);
+    } finally {
+      app.unmount();
+      await host.dispose();
+    }
+  });
+
+  test('R3 #4: LibraryView [a] requires confirmation warning about active practice; n cancels, y archives', async () => {
+    const box = await temps.make('lib-archive-confirm');
+    const dshHome = join(box, 'dsh');
+    const libRoot = join(box, 'lib');
+    await Promise.all([mkdir(dshHome, { recursive: true }), cloneSampleLibrary('zh', libRoot)]);
+    process.env.DSH_HOME = dshHome;
+
+    const host = await createTuiHost({
+      env: { DSH_HOME: dshHome },
+      home: join(box, 'home'),
+      libraryRoot: libRoot,
+      injectedComplete: createStubComplete(),
+      skipAutoProbe: true,
+      language: 'zh',
+      eventDebounceMs: 30,
+    });
+
+    const app = await mountApp(host, { initialPage: 'library', autoLaunchpad: false });
+    try {
+      await app.tty.waitFor((s) => s.includes('示例 · Memento 与 Bridge'), {
+        timeoutMs: 10_000,
+        label: 'LibraryView loaded for archive confirmation test',
+      });
+
+      app.tty.send('a');
+      const dialog = await app.tty.waitFor(
+        (s) => s.includes('归档题组') && s.includes('中断'),
+        { timeoutMs: 6_000, label: 'LibraryView archive ConfirmDialog rendered' },
+      );
+      assert.ok(dialog.includes('中断'), 'Archive confirmation must warn about interrupting active practice');
+
+      app.tty.send('n');
+      await app.tty.waitFor(
+        (s) => !s.includes('归档题组') && s.includes('示例 · Memento 与 Bridge'),
+        { timeoutMs: 6_000, label: 'n cancels deck archive' },
+      );
+      assert.equal(
+        useTuiStore.getState().snapshot?.decks?.some((d) => String(d.title).includes('Memento') && !d.archived),
+        true,
+        'Deck must remain unarchived after pressing n',
+      );
+
+      app.tty.send('a');
+      await app.tty.waitFor((s) => s.includes('归档题组'), { timeoutMs: 6_000 });
+      app.tty.send('y');
+      await app.tty.waitFor(
+        () => useTuiStore.getState().toasts.some((t) => t.text.includes('已归档')),
+        { timeoutMs: 6_000, label: 'y confirms deck archive' },
+      );
+    } finally {
+      app.unmount();
+      await host.dispose();
+    }
+  });
+
+  test('R3 #8: BoardView upstream writeback failure surfaces warning, preserves local edits across sync, and retries on [S]', async () => {
+    const box = await temps.make('board-writeback-fail');
+    const libRoot = join(box, 'lib');
+    await mkdir(libRoot, { recursive: true });
+
+    let allowMove = false;
+    let upstreamColumn = 'todo';
+    let moveAttempts = 0;
+    const host = createMockHost(libRoot, {
+      call: async (action, args) => {
+        if (action === 'board.get') {
+          return {
+            ok: true,
+            value: {
+              readOnly: false,
+              revision: 3,
+              columns: [
+                { id: 'todo', title: 'Todo', cardIds: upstreamColumn === 'todo' ? ['up-1'] : [] },
+                { id: 'doing', title: 'Doing', cardIds: upstreamColumn === 'doing' ? ['up-1'] : [] },
+                { id: 'done', title: 'Done', cardIds: upstreamColumn === 'done' ? ['up-1'] : [], done: true },
+              ],
+              cards: {
+                'up-1': { id: 'up-1', title: 'Writeback Guard Task' },
+              },
+            },
+          };
+        }
+        if (action === 'board.card.move') {
+          moveAttempts += 1;
+          if (!allowMove) {
+            return { ok: false, error: { message: 'Upstream disk temporarily busy' } };
+          }
+          upstreamColumn = args.column;
+          return { ok: true, value: { revision: 4 } };
+        }
+        return undefined;
+      },
+    });
+
+    const app = await mountApp(host, { initialPage: 'board' });
+    try {
+      await app.tty.waitFor((s) => s.includes('Writeback Guard Task'), {
+        timeoutMs: 6_000,
+        label: 'Upstream card synced into BoardView',
+      });
+
+      // Move card right (Todo -> Doing) while upstream writeback fails
+      app.tty.send('L');
+      await app.tty.waitFor(
+        (s) => s.includes('看板写回失败') && s.includes('Upstream disk temporarily busy') && s.includes('[S]'),
+        { timeoutMs: 6_000, label: 'Writeback failure banner rendered' },
+      );
+      assert.ok(moveAttempts >= 1, 'board.card.move must have been attempted');
+
+      // Press [S] while still failing -> local Doing column MUST NOT be overwritten by stale upstream Todo
+      app.tty.send('S');
+      await app.tty.waitFor(
+        () => useTuiStore.getState().toasts.some((t) => t.tone === 'warning' && t.text.includes('未能写回')),
+        { timeoutMs: 6_000, label: 'Retry still failing warns and keeps local state' },
+      );
+      const savedWhileFailing = JSON.parse(await readFile(join(libRoot, 'tui-board.json'), 'utf8'));
+      assert.equal(savedWhileFailing.cards[0].column, 'doing', 'Sync must NEVER overwrite dirty local card with stale upstream Todo');
+
+      // Recover backend -> press [S] -> pending writeback succeeds and warning banner disappears
+      allowMove = true;
+      app.tty.send('S');
+      await app.tty.waitFor(
+        (s) => !s.includes('看板写回失败') && upstreamColumn === 'doing',
+        { timeoutMs: 6_000, label: '[S] retry flushed pending writeback and cleared banner' },
+      );
+      assert.equal(upstreamColumn, 'doing', 'Upstream must reflect retried column move');
+    } finally {
+      app.unmount();
+      await host.dispose();
+    }
+  });
+
+  test('R3 #6: VoicePackModal exports inside library backups/ without overwriting and rejects path traversal', async () => {
+    const box = await temps.make('voicepack-sandbox');
+    const dshHome = join(box, 'dsh');
+    const libRoot = join(box, 'lib');
+    await Promise.all([mkdir(dshHome, { recursive: true }), cloneSampleLibrary('zh', libRoot)]);
+    process.env.DSH_HOME = dshHome;
+
+    const host = await createTuiHost({
+      env: { DSH_HOME: dshHome },
+      home: join(box, 'home'),
+      libraryRoot: libRoot,
+      injectedComplete: createStubComplete(),
+      skipAutoProbe: true,
+      language: 'zh',
+      eventDebounceMs: 30,
+    });
+
+    const app = await mountApp(host, { initialPage: 'library', autoLaunchpad: false });
+    try {
+      await app.tty.waitFor((s) => s.includes('示例 · Memento 与 Bridge'), {
+        timeoutMs: 10_000,
+        label: 'LibraryView loaded for VoicePackModal sandbox test',
+      });
+
+      app.tty.send('v');
+      await app.tty.waitFor(
+        (s) => (s.includes('语音带学包导出') || s.includes('Voice Study Pack')) && !s.includes('正在生成语音带学包'),
+        { timeoutMs: 8_000, label: 'VoicePackModal rendered' },
+      );
+
+      // 1. Export twice with default filename -> both succeed inside backups/ with unique filenames (no overwrite)
+      app.tty.send('e');
+      await app.tty.waitFor((s) => s.includes('导出 Markdown 文件路径'), { timeoutMs: 6_000 });
+      app.tty.send('\r');
+      await app.tty.waitFor(
+        (s) => s.includes('已导出到') && !s.includes('导出 Markdown 文件路径'),
+        { timeoutMs: 6_000, label: 'VoicePackModal first export succeeded' },
+      );
+
+      app.tty.send('e');
+      await app.tty.waitFor((s) => s.includes('导出 Markdown 文件路径'), { timeoutMs: 6_000 });
+      app.tty.send('\r');
+      await app.tty.waitFor(
+        () => useTuiStore.getState().toasts.filter((t) => t.tone === 'success' && t.text.includes('已导出到')).length >= 2,
+        { timeoutMs: 6_000, label: 'VoicePackModal second export succeeded without overwrite' },
+      );
+
+      const backupsDir = join(libRoot, 'backups');
+      const exportedFiles = (await readdir(backupsDir)).filter(
+        (f) => f.startsWith('studyhub-voicepack-') && f.endsWith('.md'),
+      );
+      assert.equal(exportedFiles.length, 2, `Expected 2 unique voicepack exports in backups/, got: ${exportedFiles.join(', ')}`);
+
+      // 2. Attempt path traversal ../escape.md -> rejected with error toast and NOT written outside backups/
+      app.tty.send('e');
+      await app.tty.waitFor((s) => s.includes('导出 Markdown 文件路径'), { timeoutMs: 6_000 });
+      app.tty.send('\x15'); // Ctrl+U clear line
+      await app.tty.flush();
+      app.tty.send('../escape.md');
+      await app.tty.waitFor((s) => s.includes('../escape.md'), { timeoutMs: 4_000 });
+      app.tty.send('\r');
+      await app.tty.waitFor(
+        () => useTuiStore.getState().toasts.some((t) => t.tone === 'error' && t.text.includes('backups/')),
+        { timeoutMs: 6_000, label: 'VoicePackModal rejected path traversal' },
+      );
+      let escapedExists = true;
+      try {
+        await readFile(join(libRoot, 'escape.md'), 'utf8');
+      } catch {
+        escapedExists = false;
+      }
+      assert.equal(escapedExists, false, 'Path traversal ../escape.md must NOT create file outside backups/');
     } finally {
       app.unmount();
       await host.dispose();
