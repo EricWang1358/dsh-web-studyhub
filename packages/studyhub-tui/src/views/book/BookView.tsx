@@ -34,8 +34,8 @@ const BookQaModal = lazy(() => import('./BookQaModal.js').then((m) => ({ default
 const BookRetellModal = lazy(() => import('./BookRetellModal.js').then((m) => ({ default: m.BookRetellModal })));
 const BookStructureModal = lazy(() => import('./BookStructureModal.js').then((m) => ({ default: m.BookStructureModal })));
 
-const BASE_CLAIMED_KEYS = ['B', 'E', 'H', 'M', 'P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']', '/'] as const;
-const REBUILD_CLAIMED_KEYS = ['B', 'E', 'H', 'M', 'P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']', 'a'] as const;
+const BASE_CLAIMED_KEYS = ['B', 'E', 'H', 'M', 'P', 'T', 'U', 'e', 'w', 'x', '[', ']', '/'] as const;
+const REBUILD_CLAIMED_KEYS = ['B', 'E', 'H', 'M', 'P', 'T', 'U', 'e', 'w', 'x', '[', ']', 'a'] as const;
 const STRUCTURE_FILE = 'book.structure';
 
 function tocItemMatchesFilter(item: FlatTocItem, rawQuery: string): boolean {
@@ -1278,7 +1278,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
         setBuildModalOpen(true);
         return;
       }
-      if (input === 'r') {
+      if (key.ctrl && input === 'r') {
         setReadCache({});
         setReloadSeq((n) => n + 1);
       }

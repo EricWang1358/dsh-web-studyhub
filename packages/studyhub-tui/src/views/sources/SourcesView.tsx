@@ -1141,7 +1141,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
 
   const listActive = isActive && !readerTarget && overlay === 'none';
 
-  useClaimKeys(['/', 'c', 'r', 'R', 'g', 'p', 'd', 'i', 'f', 'F', 'm', 'M', 'C', 'G', 'V', 'E', 'O', 'x', ' ', '[', ']'], listActive);
+  useClaimKeys(['/', 'c', 'e', 'R', 'g', 'p', 'd', 'i', 'f', 'F', 'm', 'M', 'C', 'G', 'V', 'E', 'O', 'x', ' ', '[', ']'], listActive);
   useClaimKeys(['a'], listActive && (selectedKeys.size > 0 || Boolean(selectedItem)));
   useInputCapture(isActive && !readerTarget && (overlay === 'rename' || overlay === 'course' || overlay === 'search'));
 
@@ -1170,7 +1170,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
             { key: 'F', label: t(lang, '文件夹', 'Folders') },
             { key: 'm', label: t(lang, '移至夹', 'Move') },
             { key: 'C', label: t(lang, '伴学页', 'Companions') },
-            { key: 'r', label: t(lang, '重命名', 'Rename') },
+            { key: 'e', label: t(lang, '重命名', 'Rename') },
             { key: 'c', label: t(lang, '课程', 'Course') },
             { key: 'p', label: t(lang, '置顶', 'Pin') },
             { key: '[/]', label: t(lang, '置顶排序', 'Reorder pin') },
@@ -1239,7 +1239,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
             sourceIds: selectedItem.sourceIds,
             ...(selectedItem.courses[0] ? { course: selectedItem.courses[0] } : focusCourse ? { course: focusCourse } : {}),
           });
-        } else if (input === 'r') {
+        } else if (input === 'e') {
           setRenameValue(selectedItem.title);
           setOverlay('rename');
         } else if (input === 'c') {

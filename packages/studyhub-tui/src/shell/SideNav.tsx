@@ -4,6 +4,7 @@ import { PAGE_REGISTRY, type NavGroup, type PageId, type PageMeta } from '../typ
 import { t, useTuiStore } from '../state/store.js';
 import { useTheme } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
+import { RESERVED_GLOBAL_KEY_SET, useClaimedKeys } from '../components/focus.js';
 import { draftCount, dueToday, pageIcon, runningJobs, wrongCount } from './data.js';
 
 export const SIDENAV_WIDTH = 24;
@@ -34,6 +35,7 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
   const page = useTuiStore((s) => s.page);
   const snapshot = useTuiStore((s) => s.snapshot);
   const activeRunId = useTuiStore((s) => s.activeRunId);
+  const claimedKeys = useClaimedKeys();
   const collapsed = width <= SIDENAV_COLLAPSED_WIDTH;
   const inner = Math.max(1, width - 1);
   const ell = asciiMode ? '...' : '…';
@@ -80,6 +82,7 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
     const badge = c && c.n > 0 ? (c.n > 99 ? '99+' : String(c.n)) : '';
     const icon = pageIcon(p.id, asciiMode, p.icon);
     const bar = active ? (asciiMode ? '>' : '▌') : ' ';
+    const keyOverridden = !RESERVED_GLOBAL_KEY_SET.has(p.shortcut) && claimedKeys.has(p.shortcut);
     if (collapsed) {
       return (
         <Box key={p.id} width={inner} height={1}>
@@ -87,12 +90,14 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
           <Text color={active ? theme.primary : theme.muted} bold={active}>
             {icon}
           </Text>
-          <Text color={badge ? c?.color : theme.dim}>{badge ? (asciiMode ? ' *' : ' •') : ` ${p.shortcut}`}</Text>
+          <Text color={badge ? c?.color : theme.dim}>
+            {badge ? (asciiMode ? ' *' : ' •') : keyOverridden ? '  ' : ` ${p.shortcut}`}
+          </Text>
         </Box>
       );
     }
     const label = t(lang, p.labelZh, p.labelEn);
-    const shortcutCol = ` ${p.shortcut} `;
+    const shortcutCol = keyOverridden ? '   ' : ` ${p.shortcut} `;
     const badgeStr = badge ? ` ${badge} ` : '';
     const leftW = displayWidth(bar) + 2 + displayWidth(icon);
     const rightW = displayWidth(badgeStr) + displayWidth(shortcutCol);

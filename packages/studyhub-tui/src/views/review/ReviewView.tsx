@@ -109,7 +109,7 @@ function isModelUnavailableMsg(msg: string): boolean {
 }
 
 const CARD_UTIL_KEYS: readonly string[] = Object.freeze([
-  'q',
+  'X',
   'Q',
   's',
   'm',
@@ -135,7 +135,7 @@ const CARD_UTIL_KEYS: readonly string[] = Object.freeze([
 const RATING_DIGIT_KEYS: readonly string[] = Object.freeze(['0', '1', '2', '3', '4', '5']);
 const CHOICE_DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2', '3', '4', '5', '6']);
 const TF_DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2']);
-const EMPTY_CLAIMED_KEYS: readonly string[] = Object.freeze(['r']);
+const EMPTY_CLAIMED_KEYS: readonly string[] = Object.freeze([]);
 
 interface GradeAdjustModalProps {
   lang: 'zh' | 'en';
@@ -1005,7 +1005,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     base.push({ key: 'A', label: t(lang, '答题卡', 'AnswerCard') });
     base.push({ key: 'm', label: mathUnicode ? 'Unicode' : 'LaTeX' });
     if (citation) base.push({ key: 'o', label: t(lang, '原文', 'Source') });
-    base.push({ key: 'q', label: t(lang, '结束', 'End') });
+    base.push({ key: 'X', label: t(lang, '结束', 'End') });
     return base;
   }, [
     loading,
@@ -1138,7 +1138,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
         handleMove(1);
         return;
       }
-      if (input === 'q') {
+      if (input === 'X') {
         setConfirmEndOpen(true);
         return;
       }
@@ -1264,7 +1264,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     (input, key) => {
       if (key.escape) goBack();
       else if (input === 'l' || input === 'L') navigate('library');
-      else if (input === 'r') void loadInitialRun(true);
+      else if ((key.ctrl && input === 'r') || input === 'R') void loadInitialRun(true);
     },
     { isActive: isActive && !loading && !run },
   );
@@ -1375,7 +1375,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           hint={loadError || t(lang, '可以先去学习库挑选一个题组，或导入新资料生成题目。', 'Pick a deck in Library or generate cards from Sources.')}
           actions={[
             { key: 'L', label: t(lang, '返回学习库', 'Go to Library') },
-            { key: 'r', label: t(lang, '重新加载', 'Reload') },
+            { key: 'R', label: t(lang, '重新加载', 'Reload') },
           ]}
           width={Math.max(20, width - 4)}
           height={Math.max(6, height - 4)}

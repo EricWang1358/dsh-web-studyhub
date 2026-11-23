@@ -318,7 +318,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
       if (afterReview.includes('页面渲染异常') || afterReview.includes('View Error')) {
         tty.send('1');
       } else {
-        tty.send('q');
+        tty.send('X');
         await tty.waitFor(
           (s) => s.includes('结束本轮练习') || s.includes('End This Round'),
           { timeoutMs: 6_000, label: `Confirm end round dialog @ ${cols}x${rows}` },
@@ -360,7 +360,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
     tty.send('r');
     const reviewScreen = await tty.waitFor(
       (s) =>
-        (s.includes('q  结束') || s.includes('q  End') || s.includes('AI讲解') || s.includes('AI Tutor')) &&
+        (s.includes('X  结束') || s.includes('X  End') || s.includes('AI讲解') || s.includes('AI Tutor')) &&
         !s.includes('正在准备复习队列') &&
         !s.includes('正在加载页面'),
       { timeoutMs: 10_000, label: 'Review active card' },
@@ -462,7 +462,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
       label: 'AI drawer closed',
     });
 
-    tty.send('q');
+    tty.send('X');
     await tty.waitFor(
       (s) => s.includes('结束本轮练习') || s.includes('End This Round'),
       { timeoutMs: 6_000, label: 'Confirm end round dialog' },

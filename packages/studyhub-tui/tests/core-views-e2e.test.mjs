@@ -445,8 +445,8 @@ describe('StudyHub TUI Core Views E2E, Deep Interactions & Memory Soak', () => {
     );
     assertScreenHealthy(tty, translatedScreen, 120, 36, 'Review bilingual translation');
 
-    // Exit Review: 'q' -> Confirm -> 'y' -> Round Summary -> 'b' -> Library
-    tty.send('q');
+    // Exit Review: 'X' -> Confirm -> 'y' -> Round Summary -> 'b' -> Library
+    tty.send('X');
     await tty.waitFor(
       (s) => s.includes('结束本轮练习') || s.includes('End This Round'),
       { timeoutMs: 6_000, label: 'Confirm end round dialog' },

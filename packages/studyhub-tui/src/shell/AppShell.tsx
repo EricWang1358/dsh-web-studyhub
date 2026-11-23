@@ -5,7 +5,7 @@ import { t, useTuiStore } from '../state/store.js';
 import { useTheme } from '../theme/tokens.js';
 import { KeyHintBar, Spinner, ToastStack } from '../components/Badge.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
-import { isKeyClaimed } from '../components/focus.js';
+import { RESERVED_GLOBAL_KEY_SET, isKeyClaimed } from '../components/focus.js';
 import { TopBar } from './TopBar.js';
 import { SideNav, sideNavWidth } from './SideNav.js';
 import { ShellActionsContext, createDefaultShellActions, requestQuit, type ShellActions } from './actions.js';
@@ -141,7 +141,7 @@ export const AppShell = memo(function AppShell({
     }
     if (r.overlayOpen || r.inputCaptured) return;
     if (key.ctrl || key.meta) return;
-    if (input && isKeyClaimed(input)) return;
+    if (input && !RESERVED_GLOBAL_KEY_SET.has(input) && isKeyClaimed(input)) return;
     if (key.backspace) {
       if (!isKeyClaimed('backspace')) s.goBack();
       return;
@@ -179,8 +179,16 @@ export const AppShell = memo(function AppShell({
     if (r.showLaunchpad && (input === 's' || input === 'i' || input === 'm')) return;
     const target = SHORTCUTS.get(input);
     if (target) {
-      if (target === 'review' && s.activeRunId) s.navigate('review', { runId: s.activeRunId });
-      else s.navigate(target);
+      if (target === 'review') {
+        if (s.page === 'review' && (!s.activeRunId || s.navContext.runId === s.activeRunId)) return;
+        if (s.activeRunId) s.navigate('review', { runId: s.activeRunId });
+        else {
+          const focusCourse = typeof s.snapshot?.focus?.course === 'string' && s.snapshot.focus.course ? s.snapshot.focus.course : undefined;
+          s.navigate('review', focusCourse ? { course: focusCourse } : {});
+        }
+      } else {
+        s.navigate(target);
+      }
     }
   });
 

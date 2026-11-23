@@ -54,7 +54,7 @@ type WorkEntry =
   | { kind: 'draft'; id: string; title: string; course: string; count: number; draft: DraftItem }
   | { kind: 'job'; id: string; title: string; course: string; status: string; error: string; job: JobItem };
 
-const CLAIMED_LIBRARY_KEYS = ['r', 'R', 'p', 'C', 'o', 'g', '[', ']', 'x', '/'] as const;
+const CLAIMED_LIBRARY_KEYS = ['R', 'p', 'C', 'o', 'g', '[', ']', 'x', '/'] as const;
 const CLAIMED_DECK_ARCHIVE_KEYS = ['a'] as const;
 
 function localDayKey(value: Date | string | number): string {
@@ -594,16 +594,6 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       }
       if (input === 'R') {
         setRoundConfigOpen(true);
-        return;
-      }
-      if (input === 'r') {
-        if (resumeRunForDeck) {
-          navigate('review', { runId: resumeRunForDeck });
-        } else if (selectedDeck) {
-          handleStartReview(selectedDeck);
-        } else {
-          navigate('review', course ? { course } : {});
-        }
         return;
       }
       if (focusSection === 'work' && selectedWork) {

@@ -86,7 +86,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'J / K', label: t(lang, '手动改AI分 / 确认订正', 'Adjust AI grade / Ack fix') },
         { key: 'N', label: t(lang, 'AI 陪学点拨与小检查', 'AI coach nudge & check') },
         { key: 'd', label: t(lang, '本轮 AI 复盘点评', 'Round AI debrief') },
-        { key: 'q', label: t(lang, '结束本轮 (二次确认)', 'End round (confirm)') },
+        { key: 'X', label: t(lang, '结束本轮 (二次确认)', 'End round (confirm)') },
       ],
     },
     {

@@ -1321,7 +1321,7 @@ describe('Reader Domain Suite 4: Marks Lifecycle & MarkPassageModal E2E', () => 
       assert.ok(marksTabScreen.includes('Alpha highlight passage'), 'Active mark quote must render');
       assert.ok(marksTabScreen.includes('旧版标记 1'), 'Stale badge count must render');
 
-      tty.send('r');
+      tty.send('R');
       const afterRereadScreen = await tty.waitFor(
         (s) => s.includes('[已重读]') && s.includes('重读时间'),
         { timeoutMs: 8_000, label: 'Mark marked as reread with [已重读] badge' },

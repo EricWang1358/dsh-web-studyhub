@@ -1,5 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { useTuiStore } from '../state/store.js';
+
+/**
+ * Reserved global shortcuts that no primary view or sub-view may claim or shadow.
+ * - `r`: Return to active review / resume practice
+ * - `q`: Global quit (guarded by Quit ConfirmDialog when a session is active)
+ * - `?`: Global Help overlay
+ */
+export const RESERVED_GLOBAL_KEYS: readonly string[] = Object.freeze(['r', 'q', '?']);
+export const RESERVED_GLOBAL_KEY_SET: ReadonlySet<string> = new Set(RESERVED_GLOBAL_KEYS);
 
 /**
  * Ref-counted global input capture.
@@ -37,18 +46,51 @@ export function useInputCapture(active: boolean): void {
  * while active, and AppShell then leaves that key to the view.
  */
 const claimed = new Map<string, number>();
+let claimedSnapshot: ReadonlySet<string> = new Set<string>();
+const claimListeners = new Set<() => void>();
+
+function notifyClaimListeners(): void {
+  claimedSnapshot = new Set<string>(claimed.keys());
+  for (const listener of claimListeners) listener();
+}
+
+function subscribeClaimedKeys(listener: () => void): () => void {
+  claimListeners.add(listener);
+  return () => {
+    claimListeners.delete(listener);
+  };
+}
+
+export function getClaimedKeysSnapshot(): ReadonlySet<string> {
+  return claimedSnapshot;
+}
+
+export function useClaimedKeys(): ReadonlySet<string> {
+  return useSyncExternalStore(subscribeClaimedKeys, getClaimedKeysSnapshot, getClaimedKeysSnapshot);
+}
 
 export function claimKeys(keys: readonly string[]): () => void {
-  for (const k of keys) claimed.set(k, (claimed.get(k) ?? 0) + 1);
+  let changed = false;
+  for (const k of keys) {
+    const prev = claimed.get(k) ?? 0;
+    claimed.set(k, prev + 1);
+    if (prev === 0) changed = true;
+  }
+  if (changed) notifyClaimListeners();
   let released = false;
   return () => {
     if (released) return;
     released = true;
+    let releaseChanged = false;
     for (const k of keys) {
       const n = (claimed.get(k) ?? 0) - 1;
-      if (n <= 0) claimed.delete(k);
-      else claimed.set(k, n);
+      if (n <= 0) {
+        if (claimed.delete(k)) releaseChanged = true;
+      } else {
+        claimed.set(k, n);
+      }
     }
+    if (releaseChanged) notifyClaimListeners();
   };
 }
 

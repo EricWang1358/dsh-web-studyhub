@@ -5,6 +5,7 @@ import { t, useTuiStore } from '../state/store.js';
 import { useTheme } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { Spinner } from '../components/Badge.js';
+import { useClaimedKeys } from '../components/focus.js';
 import { currentCourse, dueToday, modelInfo, pageIcon, runningJobs, unreadInboxCount } from './data.js';
 
 export interface TopBarProps {
@@ -36,6 +37,9 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
   const cfg = useTuiStore((s) => s.desktopConfig);
   const binding = useTuiStore((s) => s.binding);
   const refreshing = useTuiStore((s) => s.refreshing);
+  const claimedKeys = useClaimedKeys();
+  const courseKeyOverridden = claimedKeys.has('c');
+  const paletteKeyOverridden = claimedKeys.has('/');
 
   const meta = PAGE_REGISTRY.find((p) => p.id === page);
   const course = currentCourse(snapshot);
@@ -58,10 +62,12 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
   const inboxText = asciiMode ? ` [I] M:${unread} ` : ` [I] ✉ ${unread} `;
   const dueText = ` ${t(lang, '今日', 'Due')} ${due} `;
   const jobsText = `  ${jobs} ${t(lang, '任务', 'jobs')} `;
-  const helpText = ` [?] ${t(lang, '帮助', 'Help')}  [/] ${t(lang, '命令', 'Cmd')} `;
+  const cmdKeyLabel = paletteKeyOverridden ? '[Ctrl+K]' : '[/]';
+  const helpText = ` [?] ${t(lang, '帮助', 'Help')}  ${cmdKeyLabel} ${t(lang, '命令', 'Cmd')} `;
 
   // Dynamic budget allocation for course & model so wide terminals never truncate unnecessarily.
-  const COURSE_CHROME = 7; // leading space + " [c] " + trailing space
+  const coursePrefix = courseKeyOverridden ? ' ' : ' [c] ';
+  const COURSE_CHROME = displayWidth(coursePrefix) + 2; // leading space + prefix + trailing space
   const MODEL_CHROME = 3; // leading space + " " + " "
   const rawCourseW = displayWidth(rawCourse);
   const rawModelW = displayWidth(rawModel);
@@ -120,7 +126,7 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
   }
 
   const courseLabel = truncateDisplay(rawCourse, courseCap, ell);
-  const courseText = ` [c] ${courseLabel} `;
+  const courseText = `${coursePrefix}${courseLabel} `;
   const modelLabel = truncateDisplay(rawModel, modelCap, ell);
   const modelText = ` ${modelLabel} `;
 

@@ -1641,11 +1641,11 @@ export const DocumentReader = memo(function DocumentReader({
         ? ['s', 'f', 'backspace']
         : subMode === 'translate-view'
           ? ['L', 'R', 'backspace']
-          : ['[', ']', '/', 'g', 'G', 'm', 'M', 'a', 't', 'q', 'p', 'O', 'B', 'H', 'backspace'],
+          : ['[', ']', '/', 'g', 'G', 'm', 'M', 'a', 't', 'Q', 'p', 'O', 'B', 'H', 'backspace'],
     [subMode],
   );
   useClaimKeys(claimedKeys, readerInputActive && !isTyping);
-  useInputCapture(isActive && (subMode !== 'read' || Boolean(pendingTranslateConfirm)));
+  useInputCapture(isActive && (isTyping || drawerOpen || Boolean(pendingTranslateConfirm)));
 
   const hints: KeyHint[] = useMemo(() => {
     if (subMode === 'ask-view') {
@@ -1681,7 +1681,7 @@ export const DocumentReader = memo(function DocumentReader({
       { key: 'g', label: t(lang, '跳页', 'Go') },
       { key: '/', label: t(lang, '搜索', 'Search') },
       { key: 'm', label: t(lang, '公式', 'Math') },
-      { key: 'q', label: t(lang, '出题', 'Gen') },
+      { key: 'Q', label: t(lang, '出题', 'Gen') },
       { key: 'p', label: t(lang, '练题', 'Quiz') },
       { key: 'Esc', label: t(lang, '返回', 'Back') },
     ];
@@ -1775,7 +1775,7 @@ export const DocumentReader = memo(function DocumentReader({
         } else {
           setSubMode('mark');
         }
-      } else if (input === 'q') {
+      } else if (input === 'Q') {
         const sid = pageData?.sourceId || sourceId;
         if (sid) {
           navigate('generate', {

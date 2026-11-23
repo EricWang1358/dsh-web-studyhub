@@ -1856,7 +1856,7 @@ describe('Round 14: AnswerCardModal, VoicePackModal & Settings Workspace Restore
     tty.assertHealthyScreen(workspaceWide, 120, 36, 'Settings WorkspaceTab 120x36');
     assert.ok(workspaceWide.includes(rootTail), 'Workspace tab must render libraryRoot tail');
 
-    tty.send('r');
+    tty.send('\x12');
     await tty.flush();
     const afterRefresh = await tty.waitFor(
       (s) =>
