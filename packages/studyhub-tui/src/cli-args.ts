@@ -361,7 +361,7 @@ export function cliHelpText(version = '1.0.0'): string {
     '      --no-launchpad    Skip the first-run Launchpad even on an empty library',
     '      --skip-probe      Skip background CLI model discovery on startup',
     '      --ascii           Use ASCII-safe borders/bars (for legacy Windows PowerShell 5.1)',
-    '      --mouse           Enable SGR mouse wheel scrolling (or STUDYHUB_TUI_MOUSE=1; --no-mouse disables)',
+    '      --mouse           Enable SGR mouse click & wheel support (or STUDYHUB_TUI_MOUSE=1; Shift+drag copies; --no-mouse disables)',
     '      --doctor          Print cross-platform terminal, path & provider diagnostics and exit',
     '      --doctor --json   Print diagnostics in JSON format and exit (never prints API keys)',
     '      --stats           Print offline library summary (courses, decks, due & weak) and exit',

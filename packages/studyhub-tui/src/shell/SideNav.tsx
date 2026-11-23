@@ -5,6 +5,7 @@ import { t, useTuiStore } from '../state/store.js';
 import { useTheme } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { RESERVED_GLOBAL_KEY_SET, useClaimedKeys } from '../components/focus.js';
+import { ClickableBox } from '../components/mouse.js';
 import { draftCount, dueToday, pageIcon, runningJobs, wrongCount } from './data.js';
 
 export const SIDENAV_WIDTH = 24;
@@ -58,19 +59,26 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
   if (activeRunId) {
     const active = page === 'review';
     const playGlyph = asciiMode ? '>' : '▶';
+    const onClickResume = () => {
+      const st = useTuiStore.getState();
+      if (st.page === 'review' && st.navContext.runId === activeRunId) return;
+      st.navigate('review', { runId: activeRunId });
+    };
     if (collapsed) {
       push(
-        <Text key="resume" color={theme.success} bold>
-          {` ${playGlyph} r`}
-        </Text>,
+        <ClickableBox key="resume" width={inner} height={1} onClick={onClickResume}>
+          <Text color={theme.success} bold>
+            {` ${playGlyph} r`}
+          </Text>
+        </ClickableBox>,
       );
     } else {
       push(
-        <Box key="resume" width={inner} height={1}>
+        <ClickableBox key="resume" width={inner} height={1} onClick={onClickResume}>
           <Text backgroundColor={active ? theme.selectionBg : theme.surface} color={theme.success} bold>
             {truncateDisplay(` ${playGlyph} ${t(lang, '继续练习', 'Resume')}  r`, inner, ell).padEnd(0)}
           </Text>
-        </Box>,
+        </ClickableBox>,
       );
     }
     push(<Text key="resume-gap"> </Text>);
@@ -83,9 +91,14 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
     const icon = pageIcon(p.id, asciiMode, p.icon);
     const bar = active ? (asciiMode ? '>' : '▌') : ' ';
     const keyOverridden = !RESERVED_GLOBAL_KEY_SET.has(p.shortcut) && claimedKeys.has(p.shortcut);
+    const onClickPage = () => {
+      const st = useTuiStore.getState();
+      if (p.id === 'review' && st.activeRunId) st.navigate('review', { runId: st.activeRunId });
+      else st.navigate(p.id);
+    };
     if (collapsed) {
       return (
-        <Box key={p.id} width={inner} height={1}>
+        <ClickableBox key={p.id} width={inner} height={1} onClick={onClickPage}>
           <Text color={active ? theme.primary : theme.dim}>{bar}</Text>
           <Text color={active ? theme.primary : theme.muted} bold={active}>
             {icon}
@@ -93,7 +106,7 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
           <Text color={badge ? c?.color : theme.dim}>
             {badge ? (asciiMode ? ' *' : ' •') : keyOverridden ? '  ' : ` ${p.shortcut}`}
           </Text>
-        </Box>
+        </ClickableBox>
       );
     }
     const label = t(lang, p.labelZh, p.labelEn);
@@ -103,7 +116,7 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
     const rightW = displayWidth(badgeStr) + displayWidth(shortcutCol);
     const avail = Math.max(1, inner - leftW - rightW);
     return (
-      <Box key={p.id} width={inner} height={1} backgroundColor={active ? theme.selectionBg : undefined}>
+      <ClickableBox key={p.id} width={inner} height={1} backgroundColor={active ? theme.selectionBg : undefined} onClick={onClickPage}>
         <Text color={active ? theme.primary : theme.bg}>{bar}</Text>
         <Text color={active ? theme.primary : theme.muted}>{` ${icon} `}</Text>
         <Box flexGrow={1} overflow="hidden">
@@ -117,7 +130,7 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
           </Text>
         ) : null}
         <Text color={theme.dim}>{shortcutCol}</Text>
-      </Box>
+      </ClickableBox>
     );
   };
 

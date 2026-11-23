@@ -25,6 +25,7 @@ import { Panel } from '../../components/Panel.js';
 import { TextInput } from '../../components/TextInput.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
+import { ClickableBox } from '../../components/mouse.js';
 import { LruCache } from '../../render/lru.js';
 import { displayWidth, truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import {
@@ -1550,8 +1551,20 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                   ? (idx === 0 ? '[1/t]' : '[2/f]')
                   : `[${idx + 1}/${String.fromCharCode(97 + idx)}]`;
                 const trOptText = activeTranslation?.options?.find((o) => o.id === opt.id)?.text;
+                const onClickOption = () => {
+                  if (!mainActive || feedback) return;
+                  setCursorOpt(idx);
+                  if (kind === 'multiple') {
+                    setSelectedIds((prev) =>
+                      prev.includes(opt.id) ? prev.filter((x) => x !== opt.id) : [...prev, opt.id],
+                    );
+                  } else {
+                    setSelectedIds([opt.id]);
+                    handleSubmitChoice([opt.id]);
+                  }
+                };
                 return (
-                  <Box key={opt.id} flexDirection="column" width={innerW}>
+                  <ClickableBox key={opt.id} flexDirection="column" width={innerW} clickActive={mainActive && !feedback} onClick={onClickOption}>
                     <Box flexDirection="row" width={innerW}>
                       <Text color={isCursor ? theme.primary : theme.dim} bold={isCursor}>
                         {isCursor ? (asciiMode ? '> ' : '▸ ') : '  '}
@@ -1564,13 +1577,20 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                     {trOptText ? (
                       <Text color={theme.muted}>{`      EN: ${trOptText}`}</Text>
                     ) : null}
-                  </Box>
+                  </ClickableBox>
                 );
               })}
               {kind === 'multiple' && !feedback ? (
-                <Text color={theme.dim}>
-                  {t(lang, '  提示: 1-6/Space 勾选多选，Enter 提交答案', '  Hint: 1-6/Space to toggle, Enter to submit')}
-                </Text>
+                <ClickableBox
+                  clickActive={mainActive && selectedIds.length > 0}
+                  onClick={() => {
+                    if (selectedIds.length > 0) handleSubmitChoice(selectedIds);
+                  }}
+                >
+                  <Text color={theme.dim}>
+                    {t(lang, '  提示: 1-6/Space 勾选多选，Enter 提交答案', '  Hint: 1-6/Space to toggle, Enter to submit')}
+                  </Text>
+                </ClickableBox>
               ) : null}
             </Box>
           ) : null}
@@ -1690,9 +1710,9 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
           {/* Flashcard front prompt */}
           {kind === 'flashcard' && !isRubricEligibleKind && !revealed ? (
-            <Box marginTop={1}>
+            <ClickableBox marginTop={1} clickActive={mainActive} onClick={() => handleReveal()}>
               <Badge label={t(lang, '按 [Space] 或 [Enter] 翻开答案', 'Press [Space] or [Enter] to flip card')} tone="primary" variant="soft" />
-            </Box>
+            </ClickableBox>
           ) : null}
 
           {/* Post-Reveal / Post-Answer / Rubric Grading Panel */}
@@ -1969,7 +1989,11 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
               {/* Source Citation Bar */}
               {revealed && citation ? (
-                <Box marginTop={0}>
+                <ClickableBox
+                  marginTop={0}
+                  clickActive={mainActive}
+                  onClick={() => navigate('sources', { sourceId: citation.sourceId, pageNumber: citation.pageNumber })}
+                >
                   <Text color={theme.info}>
                     {`${asciiMode ? '#' : '▤'} ${citation.title ? `${citation.title} ` : ''}${
                       citation.pageNumber != null
@@ -1980,7 +2004,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                   <Text color={theme.accent} bold>
                     {t(lang, '[o] 跳转原文', '[o] Open Source')}
                   </Text>
-                </Box>
+                </ClickableBox>
               ) : null}
 
               {/* FSRS-6 6-grade selector (0-5) */}
@@ -1993,9 +2017,11 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                         : t(lang, 'FSRS-6 记忆评分（按数字键 0-5）:', 'FSRS-6 Rating (Press 0-5):')}
                     </Text>
                     {canRubricGrade && !activeRubric ? (
-                      <Text color={theme.ai} bold>
-                        {t(lang, '[G] AI 按标准评分', '[G] AI Rubric Grade')}
-                      </Text>
+                      <ClickableBox clickActive={mainActive} onClick={() => void handleRubricGrade()}>
+                        <Text color={theme.ai} bold>
+                          {t(lang, '[G] AI 按标准评分', '[G] AI Rubric Grade')}
+                        </Text>
+                      </ClickableBox>
                     ) : null}
                   </Box>
                   <Box flexDirection="row" gap={1} marginTop={0} width={innerW} overflow="hidden">
@@ -2006,7 +2032,11 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                         innerW < 82
                           ? `${g.key}${lang === 'en' ? `:${textLabel}` : textLabel}`
                           : `${g.key} ${textLabel}${gap ? `${asciiMode ? ' - ' : ' · '}${gap}` : ''}`;
-                      return <Badge key={g.key} label={label} tone={g.tone} variant="soft" />;
+                      return (
+                        <ClickableBox key={g.key} clickActive={mainActive} onClick={() => handleFsrsGrade(g.grade)}>
+                          <Badge label={label} tone={g.tone} variant="soft" />
+                        </ClickableBox>
+                      );
                     })}
                   </Box>
                 </Box>
@@ -2016,52 +2046,97 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
           {/* Bottom utility status strip */}
           <Box flexGrow={1} />
-          <Box height={1} width={innerW} overflow="hidden">
-            <Text color={theme.dim} wrap="truncate">
-              {(() => {
-                const ell = asciiMode ? '...' : '…';
-                const items = [
-                  t(lang, '[h]讲解', '[h]Help'),
-                  t(lang, '[L]带学', '[L]Teach'),
-                  t(lang, '[*]重点', '[*]Focus'),
-                  t(lang, '[F]复述', '[F]Retell'),
-                  ...(canRubricGrade ? [t(lang, '[G]评分', '[G]Grade')] : []),
-                  t(lang, '[A]答题卡', '[A]AnswerCard'),
-                  t(lang, '[T]翻译', '[T]Trans'),
-                  t(lang, '[S]同类', '[S]Sim'),
-                  t(lang, '[D]工具', '[D]Tools'),
-                  t(lang, '[Q]队列', '[Q]Queue'),
-                  t(lang, '[E]标记', '[E]Flag'),
-                  t(lang, '[s]跳过', '[s]Skip'),
-                  t(lang, '[u]撤销', '[u]Undo'),
-                  t(lang, '[,/.]换题', '[,/.]Nav'),
-                  ...(canAdjustGrade ? [t(lang, '[J]改分', '[J]Adjust')] : []),
-                  ...(canAckCorrection ? [t(lang, '[K]确认订正', '[K]Ack')] : []),
-                  ...(canCoachNudge ? [t(lang, '[N]陪学点拨', '[N]Nudge')] : []),
-                ];
-                const full = items.join(' ');
-                if (displayWidth(full) <= innerW) return full;
-                const moreHint =
+          <Box height={1} width={innerW} flexDirection="row" overflow="hidden">
+            {(() => {
+              const ell = asciiMode ? '...' : '…';
+              const items: Array<{ id: string; text: string; onClick: () => void }> = [
+                { id: 'h', text: t(lang, '[h]讲解', '[h]Help'), onClick: () => setAiDrawerOpen((v) => !v) },
+                { id: 'L', text: t(lang, '[L]带学', '[L]Teach'), onClick: () => setTeachModalOpen(true) },
+                { id: '*', text: t(lang, '[*]重点', '[*]Focus'), onClick: () => void handleToggleFocus() },
+                { id: 'F', text: t(lang, '[F]复述', '[F]Retell'), onClick: () => setRetellModalOpen(true) },
+                ...(canRubricGrade
+                  ? [{ id: 'G', text: t(lang, '[G]评分', '[G]Grade'), onClick: () => void handleRubricGrade() }]
+                  : []),
+                { id: 'A', text: t(lang, '[A]答题卡', '[A]AnswerCard'), onClick: () => setAnswerCardModalOpen(true) },
+                { id: 'T', text: t(lang, '[T]翻译', '[T]Trans'), onClick: () => void handleToggleTranslate() },
+                { id: 'S', text: t(lang, '[S]同类', '[S]Sim'), onClick: () => setSimilarModalOpen(true) },
+                { id: 'D', text: t(lang, '[D]工具', '[D]Tools'), onClick: () => setCardToolsModalOpen(true) },
+                {
+                  id: 'Q',
+                  text: t(lang, '[Q]队列', '[Q]Queue'),
+                  onClick: () => {
+                    if (run.mode !== 'exam') setQueueModalOpen(true);
+                    else notify(t(lang, '模拟考试队列已锁定，不能修改', 'Exam queue is locked'), 'info');
+                  },
+                },
+                {
+                  id: 'E',
+                  text: t(lang, '[E]标记', '[E]Flag'),
+                  onClick: () => {
+                    setFlagReason('');
+                    setFlagModalOpen(true);
+                  },
+                },
+                {
+                  id: 's',
+                  text: t(lang, '[s]跳过', '[s]Skip'),
+                  onClick: () => {
+                    if (!feedback) handleSkip();
+                  },
+                },
+                { id: 'u', text: t(lang, '[u]撤销', '[u]Undo'), onClick: () => handleUndo() },
+                { id: 'nav', text: t(lang, '[,/.]换题', '[,/.]Nav'), onClick: () => handleMove(1) },
+                ...(canAdjustGrade
+                  ? [{ id: 'J', text: t(lang, '[J]改分', '[J]Adjust'), onClick: () => setGradeAdjustModalOpen(true) }]
+                  : []),
+                ...(canAckCorrection
+                  ? [{ id: 'K', text: t(lang, '[K]确认订正', '[K]Ack'), onClick: () => void handleAckCorrection() }]
+                  : []),
+                ...(canCoachNudge
+                  ? [{ id: 'N', text: t(lang, '[N]陪学点拨', '[N]Nudge'), onClick: () => setNudgeModalOpen(true) }]
+                  : []),
+              ];
+              const fullW = items.reduce((n, it, i) => n + displayWidth(it.text) + (i > 0 ? 1 : 0), 0);
+              let kept = items;
+              let moreHint = '';
+              if (fullW > innerW) {
+                moreHint =
                   innerW >= 32
                     ? ` ${ell} ${t(lang, '按?看全部', 'Press ? for all')}`
                     : ` ${ell} [?]`;
                 const budget = Math.max(0, innerW - displayWidth(moreHint));
-                const kept: string[] = [];
+                kept = [];
                 let used = 0;
                 for (const item of items) {
-                  const w = displayWidth(item);
+                  const w = displayWidth(item.text);
                   const sepW = kept.length > 0 ? 1 : 0;
                   if (used + sepW + w > budget) break;
                   kept.push(item);
                   used += sepW + w;
                 }
-                return truncateDisplay(
-                  kept.length > 0 ? `${kept.join(' ')}${moreHint}` : moreHint.trimStart(),
-                  innerW,
-                  ell,
-                );
-              })()}
-            </Text>
+              }
+              return (
+                <>
+                  {kept.map((item, i) => (
+                    <React.Fragment key={item.id}>
+                      {i > 0 ? <Text color={theme.dim}> </Text> : null}
+                      <ClickableBox clickActive={mainActive} onClick={item.onClick} flexShrink={0}>
+                        <Text color={theme.dim}>{item.text}</Text>
+                      </ClickableBox>
+                    </React.Fragment>
+                  ))}
+                  {moreHint ? (
+                    <ClickableBox
+                      clickActive={mainActive}
+                      onClick={() => useTuiStore.getState().setHelpOpen(true)}
+                      flexShrink={0}
+                    >
+                      <Text color={theme.dim}>{truncateDisplay(moreHint, Math.max(1, innerW), ell)}</Text>
+                    </ClickableBox>
+                  ) : null}
+                </>
+              );
+            })()}
           </Box>
         </Panel>
       ) : null}

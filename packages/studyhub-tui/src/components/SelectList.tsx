@@ -1,10 +1,11 @@
 import React, { memo, useCallback, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text, useInput, type DOMElement } from 'ink';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
 import { t, useTuiStore } from '../state/store.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { DIGIT_KEYS, useClaimKeys } from './focus.js';
 import { nextScrollOffset, pageStep, parseSgrWheelDelta, useSgrMouseWheel } from './VirtualList.js';
+import { useClickRegion } from './mouse.js';
 
 export interface SelectOption<V = string> {
   value: V;
@@ -114,6 +115,23 @@ function SelectListInner<V>({
     if (next !== cursorRef.current) moveTo(next);
   });
 
+  const rowsRef = useRef<DOMElement | null>(null);
+  useClickRegion(
+    rowsRef,
+    (ev) => {
+      const idx = offsetRef.current + ev.localY;
+      if (idx < 0 || idx >= total) return;
+      const opt = options[idx];
+      if (!opt || opt.disabled) return;
+      if (idx === cursorRef.current) {
+        onSelect(opt, idx);
+      } else {
+        moveTo(idx);
+      }
+    },
+    { active: isActive && total > 0 },
+  );
+
   useInput(
     (input, key) => {
       if (total === 0) return;
@@ -157,38 +175,40 @@ function SelectListInner<V>({
   return (
     <Box flexDirection="column" width={width}>
       {off > 0 ? <Text color={theme.dim}>{`  ${asciiMode ? '^' : '↑'} ${off}`}</Text> : null}
-      {options.slice(off, off + rows).map((opt, i) => {
-        const idx = off + i;
-        const active = idx === cursor;
-        const num = numberShortcuts && idx < 9 ? `${idx + 1}` : ' ';
-        const badgeText = opt.badge !== undefined && opt.badge !== '' ? ` ${opt.badge} ` : '';
-        const isCurrent = currentValue !== undefined && opt.value === currentValue;
-        const lead = `${active ? (asciiMode ? '>' : '❯') : ' '} ${num} ${opt.icon ? `${opt.icon} ` : ''}`;
-        const tail = `${isCurrent ? (asciiMode ? ' *' : ' ✓') : ''}`;
-        const avail = Math.max(1, width - displayWidth(lead) - displayWidth(badgeText) - displayWidth(tail) - 1);
-        const label = truncateDisplay(opt.label, avail, ell);
-        const hint = opt.hint ? truncateDisplay(`  ${opt.hint}`, Math.max(0, avail - displayWidth(label)), ell) : '';
-        const fg = opt.disabled ? theme.dim : active ? (isActive ? theme.selectionFg : theme.text) : theme.text;
-        return (
-          <Box key={idx} height={1} width={width} backgroundColor={active ? (isActive ? theme.selectionBg : theme.surface) : undefined}>
-            <Box flexGrow={1} overflow="hidden">
-              <Text>
-                <Text color={active ? theme.primary : theme.dim}>{lead}</Text>
-                <Text color={fg} bold={active}>
-                  {label}
+      <Box ref={rowsRef} flexDirection="column" width={width}>
+        {options.slice(off, off + rows).map((opt, i) => {
+          const idx = off + i;
+          const active = idx === cursor;
+          const num = numberShortcuts && idx < 9 ? `${idx + 1}` : ' ';
+          const badgeText = opt.badge !== undefined && opt.badge !== '' ? ` ${opt.badge} ` : '';
+          const isCurrent = currentValue !== undefined && opt.value === currentValue;
+          const lead = `${active ? (asciiMode ? '>' : '❯') : ' '} ${num} ${opt.icon ? `${opt.icon} ` : ''}`;
+          const tail = `${isCurrent ? (asciiMode ? ' *' : ' ✓') : ''}`;
+          const avail = Math.max(1, width - displayWidth(lead) - displayWidth(badgeText) - displayWidth(tail) - 1);
+          const label = truncateDisplay(opt.label, avail, ell);
+          const hint = opt.hint ? truncateDisplay(`  ${opt.hint}`, Math.max(0, avail - displayWidth(label)), ell) : '';
+          const fg = opt.disabled ? theme.dim : active ? (isActive ? theme.selectionFg : theme.text) : theme.text;
+          return (
+            <Box key={idx} height={1} width={width} backgroundColor={active ? (isActive ? theme.selectionBg : theme.surface) : undefined}>
+              <Box flexGrow={1} overflow="hidden">
+                <Text>
+                  <Text color={active ? theme.primary : theme.dim}>{lead}</Text>
+                  <Text color={fg} bold={active}>
+                    {label}
+                  </Text>
+                  {hint ? <Text color={theme.muted}>{hint}</Text> : null}
+                  {isCurrent ? <Text color={theme.success}>{tail}</Text> : null}
                 </Text>
-                {hint ? <Text color={theme.muted}>{hint}</Text> : null}
-                {isCurrent ? <Text color={theme.success}>{tail}</Text> : null}
-              </Text>
+              </Box>
+              {badgeText ? (
+                <Text color={toneColor(theme, opt.badgeTone ?? 'accent')} backgroundColor={theme.surface}>
+                  {badgeText}
+                </Text>
+              ) : null}
             </Box>
-            {badgeText ? (
-              <Text color={toneColor(theme, opt.badgeTone ?? 'accent')} backgroundColor={theme.surface}>
-                {badgeText}
-              </Text>
-            ) : null}
-          </Box>
-        );
-      })}
+          );
+        })}
+      </Box>
       {off + rows < total ? <Text color={theme.dim}>{`  ${asciiMode ? 'v' : '↓'} ${total - off - rows}`}</Text> : null}
     </Box>
   );

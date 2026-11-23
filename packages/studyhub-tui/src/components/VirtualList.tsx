@@ -1,7 +1,8 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Box, Text, useInput, useStdin } from 'ink';
+import { Box, Text, useInput, type DOMElement } from 'ink';
 import { useTheme } from '../theme/tokens.js';
 import { t, useTuiStore } from '../state/store.js';
+import { useClickRegion, useSgrWheelTap } from './mouse.js';
 
 export interface VirtualListRenderContext {
   index: number;
@@ -43,7 +44,6 @@ function clamp(n: number, lo: number, hi: number): number {
 
 const SGR_MOUSE_CHUNK_RE = /^(?:(?:\u001b+\[|\[)?<\d+;\d+;\d+[Mm])+$/;
 const SGR_MOUSE_TOKEN_RE = /(?:\u001b+\[|\[)?<(\d+);\d+;\d+([Mm])/g;
-const INTACT_SGR_MOUSE_RE = /\u001b+\[<\d+;\d+;\d+[Mm]/g;
 
 /**
  * Parse SGR 1006 mouse wheel sequences (intact `\x1b[<64;c;rM` or ESC-stripped `[<64;c;rM` / `<64;c;rM`)
@@ -66,68 +66,13 @@ export function parseSgrWheelDelta(input: string, step = 3): number {
   return delta === 0 ? 0 : clamp(delta, -maxBurst, maxBurst);
 }
 
-type ReadFn = (size?: number) => unknown;
-interface StdinWheelTapState {
-  origRead: ReadFn;
-  wrappedRead: ReadFn;
-  listeners: Set<(delta: number) => void>;
-}
-const stdinWheelTaps = new WeakMap<object, StdinWheelTapState>();
-
 /**
  * Subscribe to intact SGR 1006 mouse wheel events on Ink's `stdin` stream before
- * Ink 6's `App` CSI filter drops complete non-Kitty control sequences (`key.name === ''`).
- * ESC-stripped sequences (`[<64;c;rM`, `<64;c;rM`) still flow through `useInput`.
+ * Ink's `App` CSI filter drops complete non-Kitty control sequences (`key.name === ''`).
+ * Delegates to the unified per-stdin mouse tap in `mouse.tsx`.
  */
 export function useSgrMouseWheel(isActive: boolean, onWheel: (delta: number) => void): void {
-  const { stdin } = useStdin();
-  const onWheelRef = useRef(onWheel);
-  onWheelRef.current = onWheel;
-
-  useEffect(() => {
-    const stream = stdin as (NodeJS.ReadStream & { read?: ReadFn }) | undefined;
-    if (!isActive || !stream || typeof stream.read !== 'function') return undefined;
-
-    let state = stdinWheelTaps.get(stream);
-    if (!state) {
-      const origRead = stream.read.bind(stream) as ReadFn;
-      const listeners = new Set<(delta: number) => void>();
-      const wrappedRead: ReadFn = (size?: number) => {
-        const chunk = origRead(size);
-        if (chunk !== null && chunk !== undefined && listeners.size > 0) {
-          const text = typeof chunk === 'string' ? chunk : Buffer.isBuffer(chunk) ? chunk.toString('utf8') : '';
-          if (text.includes('\u001b') && text.includes('[<')) {
-            const matches = text.match(INTACT_SGR_MOUSE_RE);
-            if (matches && matches.length > 0) {
-              const delta = parseSgrWheelDelta(matches.join(''));
-              if (delta !== 0) {
-                for (const fn of [...listeners]) fn(delta);
-              }
-            }
-          }
-        }
-        return chunk;
-      };
-      state = { origRead, wrappedRead, listeners };
-      stdinWheelTaps.set(stream, state);
-      stream.read = wrappedRead;
-    }
-
-    const listener = (delta: number) => {
-      onWheelRef.current(delta);
-    };
-    state.listeners.add(listener);
-
-    return () => {
-      state.listeners.delete(listener);
-      if (state.listeners.size === 0) {
-        if (stream.read === state.wrappedRead) {
-          stream.read = state.origRead;
-        }
-        stdinWheelTaps.delete(stream);
-      }
-    };
-  }, [isActive, stdin]);
+  useSgrWheelTap(isActive, onWheel);
 }
 
 /** Compute half-page or full-page step for a viewport of `height` rows. */
@@ -212,6 +157,22 @@ function VirtualListInner<T>({
     move(cursorRef.current + wheelDelta);
   });
 
+  const listRef = useRef<DOMElement | null>(null);
+  useClickRegion(
+    listRef,
+    (ev) => {
+      const idx = offsetRef.current + ev.localY;
+      if (idx < 0 || idx >= total) return;
+      if (idx === cursorRef.current) {
+        const item = items[idx];
+        if (item !== undefined) onSelect?.(item, idx);
+      } else {
+        move(idx);
+      }
+    },
+    { active: isActive && total > 0 },
+  );
+
   useInput(
     (input, key) => {
       if (total === 0) return;
@@ -254,7 +215,7 @@ function VirtualListInner<T>({
   const visible = items.slice(offset, offset + rows);
   return (
     <Box width={width} height={rows} flexDirection="row">
-      <Box flexDirection="column" width={contentWidth} height={rows} overflow="hidden">
+      <Box ref={listRef} flexDirection="column" width={contentWidth} height={rows} overflow="hidden">
         {visible.map((item, i) => {
           const index = offset + i;
           const selected = index === cursor;

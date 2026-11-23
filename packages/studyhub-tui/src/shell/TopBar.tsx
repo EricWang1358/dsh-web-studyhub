@@ -6,6 +6,7 @@ import { useTheme } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { Spinner } from '../components/Badge.js';
 import { useClaimedKeys } from '../components/focus.js';
+import { ClickableBox } from '../components/mouse.js';
 import { currentCourse, dueToday, modelInfo, pageIcon, runningJobs, unreadInboxCount } from './data.js';
 
 export interface TopBarProps {
@@ -156,12 +157,14 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
       priority: 80,
       width: displayWidth(courseText) + 1,
       node: (
-        <Text key="course">
-          <Text> </Text>
-          <Text backgroundColor={theme.surface} color={course ? theme.accent : theme.muted}>
-            {courseText}
+        <ClickableBox key="course" onClick={() => useTuiStore.getState().setCoursePickerOpen(true)}>
+          <Text>
+            <Text> </Text>
+            <Text backgroundColor={theme.surface} color={course ? theme.accent : theme.muted}>
+              {courseText}
+            </Text>
           </Text>
-        </Text>
+        </ClickableBox>
       ),
     },
   ];
@@ -173,12 +176,14 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
             priority: 55,
             width: displayWidth(inboxText) + 1,
             node: (
-              <Text key="inbox">
-                <Text> </Text>
-                <Text backgroundColor={theme.surface} color={theme.primary} bold>
-                  {inboxText}
+              <ClickableBox key="inbox" onClick={() => useTuiStore.getState().setInboxOpen(true)}>
+                <Text>
+                  <Text> </Text>
+                  <Text backgroundColor={theme.surface} color={theme.primary} bold>
+                    {inboxText}
+                  </Text>
                 </Text>
-              </Text>
+              </ClickableBox>
             ),
           } satisfies Segment,
         ]
@@ -190,11 +195,13 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
             priority: 70,
             width: displayWidth(jobsText) + 1,
             node: (
-              <Text key="jobs" backgroundColor={theme.surface}>
-                <Text> </Text>
-                <Spinner tone="ai" label={undefined} />
-                <Text color={theme.ai}>{jobsText.slice(1)}</Text>
-              </Text>
+              <ClickableBox key="jobs" onClick={() => useTuiStore.getState().navigate('tasks')}>
+                <Text backgroundColor={theme.surface}>
+                  <Text> </Text>
+                  <Spinner tone="ai" label={undefined} />
+                  <Text color={theme.ai}>{jobsText.slice(1)}</Text>
+                </Text>
+              </ClickableBox>
             ),
           } satisfies Segment,
         ]
@@ -204,12 +211,20 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
       priority: 75,
       width: displayWidth(dueText) + 1,
       node: (
-        <Text key="due">
-          <Text> </Text>
-          <Text backgroundColor={theme.surface} color={due > 0 ? theme.warning : theme.success}>
-            {dueText}
+        <ClickableBox
+          key="due"
+          onClick={() => {
+            const st = useTuiStore.getState();
+            st.navigate('review', st.activeRunId ? { runId: st.activeRunId } : {});
+          }}
+        >
+          <Text>
+            <Text> </Text>
+            <Text backgroundColor={theme.surface} color={due > 0 ? theme.warning : theme.success}>
+              {dueText}
+            </Text>
           </Text>
-        </Text>
+        </ClickableBox>
       ),
     },
     {
@@ -217,12 +232,14 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
       priority: 90,
       width: displayWidth(modelText) + 1,
       node: (
-        <Text key="model">
-          <Text> </Text>
-          <Text backgroundColor={model.ready ? theme.success : theme.warning} color={onPrimary} bold>
-            {modelText}
+        <ClickableBox key="model" onClick={() => useTuiStore.getState().navigate('settings', { mode: 'model' })}>
+          <Text>
+            <Text> </Text>
+            <Text backgroundColor={model.ready ? theme.success : theme.warning} color={onPrimary} bold>
+              {modelText}
+            </Text>
           </Text>
-        </Text>
+        </ClickableBox>
       ),
     },
     {
@@ -230,9 +247,14 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
       priority: 50,
       width: displayWidth(helpText) + 1,
       node: (
-        <Text key="help" color={theme.muted}>
-          {` ${helpText}`}
-        </Text>
+        <Box key="help" flexDirection="row">
+          <ClickableBox onClick={() => useTuiStore.getState().setHelpOpen(true)}>
+            <Text color={theme.muted}>{`  [?] ${t(lang, '帮助', 'Help')} `}</Text>
+          </ClickableBox>
+          <ClickableBox onClick={() => useTuiStore.getState().setCommandPaletteOpen(true)}>
+            <Text color={theme.muted}>{` ${cmdKeyLabel} ${t(lang, '命令', 'Cmd')} `}</Text>
+          </ClickableBox>
+        </Box>
       ),
     },
   ];

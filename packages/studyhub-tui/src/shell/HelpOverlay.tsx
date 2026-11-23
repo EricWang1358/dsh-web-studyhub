@@ -38,6 +38,7 @@ export function globalShortcuts(lang: 'zh' | 'en', asciiMode = false): KeyHint[]
     { key: 'g/G', label: t(lang, '首尾跳转 (Home/End)', 'Top / bottom (Home/End)') },
     { key: 'Esc', label: t(lang, '关闭 / 取消', 'Close / cancel') },
     { key: 'Ctrl+S', label: t(lang, '提交 (Ctrl+J/Shift+Enter换行)', 'Submit (Ctrl+J/Shift+Enter nl)') },
+    { key: '--mouse', label: t(lang, '启用鼠标点击与滚轮 (Shift+拖选复制)', 'Enable mouse click/wheel (Shift+drag copy)') },
   ];
 }
 

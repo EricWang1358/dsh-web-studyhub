@@ -10,6 +10,7 @@ import { Panel } from '../../components/Panel.js';
 import { TextInput } from '../../components/TextInput.js';
 import { useInputCapture } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
+import { ClickableBox } from '../../components/mouse.js';
 import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
 import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import {
@@ -442,7 +443,15 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       ) : wrappedSuggestions.length > 0 && suggestH > 0 ? (
         <Box flexDirection="column" height={suggestH} width={innerW} flexShrink={0} overflow="hidden">
           {wrappedSuggestions.map(({ idx, q, lines }) => (
-            <Box key={`${idx}:${q}`} flexDirection="column" width={innerW}>
+            <ClickableBox
+              key={`${idx}:${q}`}
+              flexDirection="column"
+              width={innerW}
+              clickActive={isActive && !streaming}
+              onClick={() => {
+                if (!streaming) void askAi(q);
+              }}
+            >
               {lines.map((line, lineIdx) => (
                 <Box key={`${idx}:${lineIdx}`} height={1} width={innerW} overflow="hidden">
                   {lineIdx === 0 ? (
@@ -453,12 +462,12 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
                   <Text color={theme.text}>{line}</Text>
                 </Box>
               ))}
-            </Box>
+            </ClickableBox>
           ))}
         </Box>
       ) : null}
 
-      <Box
+      <ClickableBox
         borderStyle={asciiMode ? 'classic' : 'single'}
         borderColor={inputFocused ? theme.ai : theme.border}
         paddingX={1}
@@ -466,6 +475,8 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
         width={innerW}
         flexShrink={0}
         overflow="hidden"
+        clickActive={isActive && !inputFocused}
+        onClick={() => setInputFocused(true)}
       >
         <TextInput
           value={inputValue}
@@ -489,7 +500,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
           }}
           onCancel={() => setInputFocused(false)}
         />
-      </Box>
+      </ClickableBox>
     </Panel>
   );
 });

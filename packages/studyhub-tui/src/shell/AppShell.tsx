@@ -6,6 +6,7 @@ import { useTheme } from '../theme/tokens.js';
 import { KeyHintBar, Spinner, ToastStack } from '../components/Badge.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import { RESERVED_GLOBAL_KEY_SET, isKeyClaimed } from '../components/focus.js';
+import { useMouseClickInputFallback } from '../components/mouse.js';
 import { TopBar } from './TopBar.js';
 import { SideNav, sideNavWidth } from './SideNav.js';
 import { ShellActionsContext, createDefaultShellActions, requestQuit, type ShellActions } from './actions.js';
@@ -114,6 +115,7 @@ export const AppShell = memo(function AppShell({
   routing.current = { overlayOpen, inputCaptured, showLaunchpad };
 
   const { navW, bodyH, contentW } = shellLayout(columns, rows, { sidebarCollapsed, showKeyHints, launchpad: showLaunchpad });
+  useMouseClickInputFallback(true);
 
   useInput((input, key) => {
     const s = useTuiStore.getState();
