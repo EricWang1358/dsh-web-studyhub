@@ -234,7 +234,6 @@ async function waitForLastReadPage(dshHome, docKey, expectedPage, timeoutMs = 4_
         );
       })();
     }, timeoutMs);
-    timer.unref?.();
 
     setImmediate(() => {
       void recheck();

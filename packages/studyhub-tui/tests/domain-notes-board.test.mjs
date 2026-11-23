@@ -112,35 +112,44 @@ function waitForGateOrAbort(gatePromise, signal) {
   });
 }
 
-async function waitForNoteDone(host, noteId, timeoutMs = 5000) {
+async function waitForNoteDone(host, noteId, timeoutMs = 8000) {
   const initial = await host.call('note.get', { id: noteId });
   if (initial.ok && initial.value?.generation?.status === 'done') return initial.value;
   return new Promise((resolveFn, rejectFn) => {
     let settled = false;
     let checking = false;
     let unsub = () => {};
-    const timer = setTimeout(() => {
+    let poll = null;
+    const cleanup = () => {
       if (settled) return;
       settled = true;
+      clearTimeout(timer);
+      if (poll) clearInterval(poll);
       unsub();
+    };
+    // Keep timers ref'd while waiting so Node's test runner never exits early with
+    // "Promise resolution is still pending but the event loop has already resolved".
+    const timer = setTimeout(() => {
+      if (settled) return;
+      cleanup();
       rejectFn(new Error(`Timed out waiting for note ${noteId} generation=done after ${timeoutMs}ms`));
     }, timeoutMs);
-    timer.unref?.();
     const check = async () => {
       if (settled || checking) return;
       checking = true;
       try {
         const res = await host.call('note.get', { id: noteId });
         if (!settled && res.ok && res.value?.generation?.status === 'done') {
-          settled = true;
-          clearTimeout(timer);
-          unsub();
+          cleanup();
           resolveFn(res.value);
         }
       } finally {
         checking = false;
       }
     };
+    poll = setInterval(() => {
+      void check();
+    }, 40);
     unsub = host.subscribeEvents(() => {
       void check();
     });

@@ -1,6 +1,6 @@
 // End-to-end xterm-headless TUI verification: node --test tests/xterm-e2e.test.mjs
 import assert from 'node:assert/strict';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, before, describe, test } from 'node:test';
@@ -30,6 +30,12 @@ const cjkImport = appCode.match(/import\s*\{[^}]*\bdisplayWidth\b[^}]*\}\s*from\
 assert.ok(cjkImport, 'dist/App.mjs must import displayWidth');
 const { displayWidth } = await import(pathToFileURL(resolve(distDir, cjkImport[1])).href);
 assert.equal(typeof displayWidth, 'function', 'dist/ must export displayWidth');
+
+const distFiles = (await readdir(distDir)).filter((f) => f.endsWith('.mjs') && f !== 'cli.mjs');
+const storeFile = distFiles.find((f) => f.startsWith('store-') && f.endsWith('.mjs'));
+assert.ok(storeFile, 'dist/ must include store-*.mjs');
+const { useTuiStore } = await import(pathToFileURL(join(distDir, storeFile)).href);
+assert.ok(useTuiStore, 'dist/store-*.mjs must export useTuiStore');
 
 const PREV_DSH_HOME = process.env.DSH_HOME;
 const temps = createTempTracker('studyhub-tui-e2e-');
@@ -107,23 +113,35 @@ function createE2eCompleteStub() {
   };
 }
 
+// Strip the SideNav column up to the vertical divider `│` so sidebar labels never false-match body checks.
+function stripSideNav(screen) {
+  const lines = screen.split('\n');
+  return lines
+    .slice(1, -1)
+    .map((line) => {
+      const sepIdx = line.indexOf('│');
+      return sepIdx >= 0 ? line.slice(sepIdx + 1) : line;
+    })
+    .join('\n');
+}
+
 // Navigation sequence using real keyboard shortcuts across all 16 views.
 const ALL_16_SWEEP = [
-  { id: 'library', key: null, expect: /学习库|Library/ },
+  { id: 'library', key: null, expect: /题组列表|今日待复习|Decks/ },
   { id: 'sources', key: '2', expect: /资料列表|Materials/ },
-  { id: 'generate', key: '3', expect: /新建出题任务|Generate/ },
-  { id: 'wrongbook', key: '4', expect: /错题列表|Mistakes/ },
+  { id: 'generate', key: '3', expect: /新建出题任务|草稿箱|Generate/ },
+  { id: 'wrongbook', key: '4', expect: /错题列表|错因分布|Mistakes/ },
   { id: 'exam', key: '5', expect: /组卷设置|Mock Exam/ },
   { id: 'dashboard', key: '6', expect: /学习统计与掌握度|Stats/ },
-  { id: 'book', key: '7', expect: /复习全书|Book/ },
-  { id: 'skeleton', key: '8', expect: /知识层级树|Skeleton/ },
+  { id: 'book', key: '7', expect: /复习全书|Review Book/ },
+  { id: 'skeleton', key: '8', expect: /知识层级树|课程骨架|Skeleton/ },
   { id: 'examcoach', key: '9', expect: /考试教练|Coach/ },
   { id: 'examprep', key: '0', expect: /备考补习|Exam Prep/ },
   { id: 'notes', key: 'n', expect: /学习笔记|Notes/ },
   { id: 'board', key: 'b', expect: /待办 Todo|Board/ },
-  { id: 'tasks', key: 't', expect: /后台任务|Jobs/ },
-  { id: 'settings', key: ',', expect: /设置.*模型配置|Settings/ },
-  { id: 'audio', key: 'a', expect: /音频转写|Audio/ },
+  { id: 'tasks', key: 't', expect: /运行中|后台任务|Jobs/ },
+  { id: 'settings', key: ',', expect: /模型配置|学习库路径|Settings/ },
+  { id: 'audio', key: 'a', expect: /音频转写|转写服务|音频导入|未配置转写服务|Audio/ },
   { id: 'review', key: '1r', expect: /AI讲解|AI Tutor|翻开答案|flip card|FSRS|1\/\d+/ },
 ];
 
@@ -235,15 +253,23 @@ describe('StudyHub TUI xterm-headless E2E', () => {
         });
       }
 
+      const visitedOrder = [];
       for (let i = 0; i < ALL_16_SWEEP.length; i += 1) {
         const step = ALL_16_SWEEP[i];
         if (step.key) {
           if (step.id === 'review' && step.key === '1r') {
             tty.send('1');
-            await tty.waitFor((s) => s.includes('题组列表') || s.includes('Decks'), {
-              timeoutMs: 8_000,
-              label: `LibraryView before review @ ${cols}x${rows}`,
-            });
+            await tty.waitFor(
+              (s) =>
+                useTuiStore.getState().page === 'library' &&
+                /题组列表|Decks/.test(stripSideNav(s)) &&
+                !s.includes('正在加载页面…') &&
+                !s.includes('Loading view…'),
+              {
+                timeoutMs: 8_000,
+                label: `LibraryView before review @ ${cols}x${rows}`,
+              },
+            );
             await tty.flush();
             tty.send('r');
           } else {
@@ -254,13 +280,22 @@ describe('StudyHub TUI xterm-headless E2E', () => {
           }
         }
         await tty.waitFor(
-          (s) =>
-            (step.expect.test(s) || s.includes('页面渲染异常') || s.includes('View Error')) &&
-            !s.includes('正在加载页面…') &&
-            !s.includes('Loading view…'),
+          (s) => {
+            const body = stripSideNav(s);
+            const onTargetPage = useTuiStore.getState().page === step.id;
+            const bodyReady =
+              step.expect.test(body) || s.includes('页面渲染异常') || s.includes('View Error');
+            return (
+              onTargetPage &&
+              bodyReady &&
+              !s.includes('正在加载页面…') &&
+              !s.includes('Loading view…')
+            );
+          },
           { timeoutMs: 10_000, label: `${step.id} @ ${cols}x${rows}` },
         );
         await tty.flush();
+        visitedOrder.push(useTuiStore.getState().page);
         const settled = tty.readScreen();
 
         const idxStr = String(i + 1).padStart(2, '0');
@@ -272,6 +307,11 @@ describe('StudyHub TUI xterm-headless E2E', () => {
           sweepFailures.push(err instanceof Error ? err.message : String(err));
         }
       }
+      assert.deepEqual(
+        visitedOrder,
+        ALL_16_SWEEP.map((s) => s.id),
+        `16-view sweep order must match ALL_16_SWEEP @ ${cols}x${rows}`,
+      );
 
       // From review (or ViewCrashFallback), exit cleanly back to library
       const afterReview = tty.readScreen();

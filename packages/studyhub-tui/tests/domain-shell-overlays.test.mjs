@@ -193,7 +193,6 @@ function createInkHarness(element, { cols = 60, rows = 16 } = {}) {
         frameListeners.delete(onFrame);
         rejectWait(new Error(`Timed out waiting for ${label}; lastFrame:\n${frames.at(-1) ?? ''}`));
       }, timeoutMs);
-      timer.unref?.();
       frameListeners.add(onFrame);
       setImmediate(onFrame);
     });

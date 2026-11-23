@@ -174,7 +174,6 @@ function runCliSubprocess(args, extraEnv = {}, timeoutMs = 10_000) {
       child.kill('SIGKILL');
       rejectFn(new Error(`CLI subprocess timed out after ${timeoutMs}ms: ${args.join(' ')}`));
     }, timeoutMs);
-    timer.unref?.();
 
     child.stdout.on('data', (chunk) => {
       stdout += Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk);
