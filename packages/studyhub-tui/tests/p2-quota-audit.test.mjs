@@ -48,15 +48,40 @@ function walkSourceFiles(dir) {
   return out.sort();
 }
 
+const sourceTextCache = new Map();
+const sourceAstCache = new Map();
+
+function readSourceText(filePath) {
+  let text = sourceTextCache.get(filePath);
+  if (text === undefined) {
+    text = fs.readFileSync(filePath, 'utf8');
+    sourceTextCache.set(filePath, text);
+  }
+  return text;
+}
+
 function parseSource(filePath) {
-  const sourceText = fs.readFileSync(filePath, 'utf8');
-  return ts.createSourceFile(
-    filePath,
-    sourceText,
-    ts.ScriptTarget.Latest,
-    true,
-    filePath.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
-  );
+  let sf = sourceAstCache.get(filePath);
+  if (!sf) {
+    const sourceText = readSourceText(filePath);
+    sf = ts.createSourceFile(
+      filePath,
+      sourceText,
+      ts.ScriptTarget.Latest,
+      true,
+      filePath.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+    );
+    sourceAstCache.set(filePath, sf);
+  }
+  return sf;
+}
+
+const ALL_GUARDED_ACTION_LIST = [...CONFIRM_GUARDED_ACTIONS];
+function hasAnyGuardedActionText(text) {
+  for (let i = 0; i < ALL_GUARDED_ACTION_LIST.length; i += 1) {
+    if (text.includes(ALL_GUARDED_ACTION_LIST[i])) return true;
+  }
+  return false;
 }
 
 function getStringLiteralText(node) {
@@ -94,6 +119,7 @@ describe('Permanent P2 Quota-Guard Static Audit', () => {
     const violations = [];
 
     for (const file of files) {
+      if (!readSourceText(file).includes('useEffect')) continue;
       const sf = parseSource(file);
       const rel = path.relative(pkgRoot, file);
 
@@ -133,6 +159,7 @@ describe('Permanent P2 Quota-Guard Static Audit', () => {
     const violations = [];
 
     for (const file of files) {
+      if (!hasAnyGuardedActionText(readSourceText(file))) continue;
       const sf = parseSource(file);
       const rel = path.relative(pkgRoot, file);
       const calledActions = new Set();

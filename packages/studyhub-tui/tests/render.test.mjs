@@ -1,17 +1,23 @@
-// Render-layer unit tests: `node --test tests/render.test.mjs`
+// Consolidated render, theme contrast, NO_COLOR audit, cloze helper, and streaming buffer unit tests:
+// `node --test tests/render.test.mjs`
 // Bundles src/render/index.ts with esbuild (deps external) and imports the result.
 process.env.FORCE_COLOR = process.env.FORCE_COLOR ?? '3'; // exercise the ANSI paths
 
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { build } from 'esbuild';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import fs from 'node:fs';
+import { after, describe, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { build } from 'esbuild';
+import { tsImport } from 'tsx/esm/api';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pkgRoot = path.resolve(here, '..');
+const srcRoot = path.join(pkgRoot, 'src');
+const binPath = path.join(pkgRoot, 'bin', 'studyhub-tui.mjs');
+
 const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'studyhub-render-'));
 const outfile = path.join(outDir, 'render.mjs');
 await build({
@@ -29,6 +35,20 @@ await build({
 fs.symlinkSync(path.join(pkgRoot, 'node_modules'), path.join(outDir, 'node_modules'), 'junction');
 const R = await import(pathToFileURL(outfile).href);
 process.on('exit', () => fs.rmSync(outDir, { recursive: true, force: true }));
+
+const [tokensMod, markdownMod, chartsMod, clozeMod, streamingMod] = await Promise.all([
+  tsImport('../src/theme/tokens.ts', import.meta.url),
+  tsImport('../src/render/markdown.ts', import.meta.url),
+  tsImport('../src/render/charts.ts', import.meta.url),
+  tsImport('../src/views/review/review-helpers.ts', import.meta.url),
+  tsImport('../src/components/useStreamingBuffer.ts', import.meta.url),
+]);
+
+const { THEME_IDS, getTheme, listThemes, getColorLevel, setColorLevel, makeChalk } = tokensMod;
+const { renderMarkdown, clearMarkdownCache } = markdownMod;
+const { renderBarChart, renderSparkline, renderHeatmap } = chartsMod;
+const { buildClozeBlankDiffs, formatClozeDisplay } = clozeMod;
+const { createStreamingCoalescer } = streamingMod;
 
 const ANSI = /\u001B\][\s\S]*?(?:\u0007|\u001B\\)|\u001B\[[\d;:]*[A-Za-z]/g;
 const strip = (s) => s.replace(ANSI, '');
@@ -599,4 +619,633 @@ test('LruCache evicts least-recently-used', () => {
   assert.equal(c.size, 2);
   c.clear();
   assert.equal(c.size, 0);
+});
+
+// ------------------------------------------------------------------------------- theme contrast
+
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+
+/** Parse `#rrggbb` into normalized [0, 1] RGB channels. */
+function hexToRgb(hex) {
+  assert.match(hex, HEX_COLOR_RE, `Expected 6-digit hex color, got ${hex}`);
+  return [
+    parseInt(hex.slice(1, 3), 16) / 255,
+    parseInt(hex.slice(3, 5), 16) / 255,
+    parseInt(hex.slice(5, 7), 16) / 255,
+  ];
+}
+
+/** WCAG 2.1 relative luminance (sRGB IEC 61966-2-1). */
+function relativeLuminance(hex) {
+  const [r, g, b] = hexToRgb(hex).map((c) =>
+    c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4,
+  );
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** WCAG 2.1 contrast ratio `(L1 + 0.05) / (L2 + 0.05)`. */
+function contrastRatio(fg, bg) {
+  const l1 = relativeLuminance(fg);
+  const l2 = relativeLuminance(bg);
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+describe('WCAG 2.1 theme contrast audit', () => {
+  test('all 4 expected themes are registered and valid', () => {
+    assert.deepEqual([...THEME_IDS], ['dsh-dark', 'warm-paper', 'nord', 'high-contrast']);
+    const themes = listThemes();
+    assert.equal(themes.length, 4);
+    for (const id of THEME_IDS) {
+      assert.equal(getTheme(id).id, id);
+    }
+  });
+
+  const ACCENT_TOKENS = ['heading', 'primary', 'accent', 'success', 'warning', 'error', 'ai', 'link'];
+
+  for (const themeId of THEME_IDS) {
+    const t = getTheme(themeId);
+    const isHighContrast = themeId === 'high-contrast';
+
+    describe(`theme: ${themeId}`, () => {
+      test('text on bg and surface meets AA / high-contrast thresholds', () => {
+        const minText = isHighContrast ? 10.0 : 4.5;
+        const onBg = contrastRatio(t.text, t.bg);
+        const onSurface = contrastRatio(t.text, t.surface);
+        assert.ok(
+          onBg >= minText,
+          `${themeId}: text (${t.text}) on bg (${t.bg}) = ${onBg.toFixed(2)}:1 < ${minText}:1`,
+        );
+        assert.ok(
+          onSurface >= minText,
+          `${themeId}: text (${t.text}) on surface (${t.surface}) = ${onSurface.toFixed(2)}:1 < ${minText}:1`,
+        );
+      });
+
+      test('selectionFg on selectionBg meets AA / high-contrast thresholds', () => {
+        const minSelection = isHighContrast ? 7.0 : 4.5;
+        const ratio = contrastRatio(t.selectionFg, t.selectionBg);
+        assert.ok(
+          ratio >= minSelection,
+          `${themeId}: selectionFg (${t.selectionFg}) on selectionBg (${t.selectionBg}) = ${ratio.toFixed(2)}:1 < ${minSelection}:1`,
+        );
+      });
+
+      test('muted on bg meets >= 3.5:1 threshold for crisp captions', () => {
+        const ratio = contrastRatio(t.muted, t.bg);
+        assert.ok(
+          ratio >= 3.5,
+          `${themeId}: muted (${t.muted}) on bg (${t.bg}) = ${ratio.toFixed(2)}:1 < 3.5:1`,
+        );
+      });
+
+      test('semantic & accent tokens on bg and surface meet >= 3.0:1 threshold', () => {
+        for (const token of ACCENT_TOKENS) {
+          const fg = t[token];
+          const onBg = contrastRatio(fg, t.bg);
+          const onSurface = contrastRatio(fg, t.surface);
+          assert.ok(
+            onBg >= 3.0,
+            `${themeId}: ${token} (${fg}) on bg (${t.bg}) = ${onBg.toFixed(2)}:1 < 3.0:1`,
+          );
+          assert.ok(
+            onSurface >= 3.0,
+            `${themeId}: ${token} (${fg}) on surface (${t.surface}) = ${onSurface.toFixed(2)}:1 < 3.0:1`,
+          );
+        }
+      });
+    });
+  }
+});
+
+// ------------------------------------------------------------------------------ NO_COLOR audit
+
+const ANSI_COLOR_RE = /\x1b\[(?:[349]\d|10[0-7]|38;[^\x1b]*|48;[^\x1b]*)m/;
+const ANY_ANSI_RE = /\x1b\[[0-9;]*m/;
+const TRUECOLOR_RE = /\x1b\[38;2;\d+;\d+;\d+m/;
+
+const RICH_MARKDOWN = [
+  '# Heading One',
+  '',
+  '## Heading Two',
+  '',
+  'Paragraph with **bold**, *italic*, ~~strike~~, and `inlineCode`.',
+  '',
+  'Visit [StudyHub](https://studyhub.example.com) for details.',
+  '',
+  '> Blockquote line with insight',
+  '',
+  '---',
+  '',
+  '- Unordered one',
+  '  - Nested two',
+  '- [x] Completed task',
+  '1. Ordered item',
+  '',
+  '```js',
+  'const answer = 42;',
+  '```',
+  '',
+  'Inline math $E = mc^2$ and block math:',
+  '',
+  '$$\\sum_{i=1}^{n} x_i$$',
+  '',
+  '| Col A | Col B |',
+  '|---|---|',
+  '| alpha | beta |',
+].join('\n');
+
+const initialColorLevel = getColorLevel();
+
+function walkTsFiles(dir) {
+  const out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...walkTsFiles(full));
+    } else if (entry.isFile() && /\.(ts|tsx)$/.test(entry.name)) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+function findRuntimeChalkViolations(source) {
+  const stripped = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  const violations = [];
+
+  for (const m of stripped.matchAll(/(?:^|[;\n])\s*import\s+([^;]*?)\s+from\s+['"]chalk['"]/g)) {
+    const clause = m[1].trim();
+    if (/^type\s+/.test(clause)) continue;
+
+    const braceStart = clause.indexOf('{');
+    const braceEnd = clause.lastIndexOf('}');
+    if (braceStart === -1 || braceEnd === -1) {
+      violations.push(`runtime import from 'chalk': ${m[0].trim()}`);
+      continue;
+    }
+
+    const outside = (clause.slice(0, braceStart) + clause.slice(braceEnd + 1)).replace(/,/g, '').trim();
+    if (outside.length > 0) {
+      violations.push(`default/namespace import from 'chalk': ${m[0].trim()}`);
+      continue;
+    }
+
+    const specifiers = clause
+      .slice(braceStart + 1, braceEnd)
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (specifiers.some((spec) => !/^type\s+/.test(spec))) {
+      violations.push(`non-type named import from 'chalk': ${m[0].trim()}`);
+    }
+  }
+
+  if (/\bimport\s+['"]chalk['"]/.test(stripped)) {
+    violations.push("side-effect import 'chalk'");
+  }
+  if (/\b(?:require|import)\s*\(\s*['"]chalk['"]\s*\)/.test(stripped)) {
+    violations.push("dynamic require/import('chalk')");
+  }
+  if (/\bnew\s+Chalk\b/.test(stripped)) {
+    violations.push('direct `new Chalk(...)` instantiation');
+  }
+
+  return violations;
+}
+
+after(() => {
+  setColorLevel(initialColorLevel);
+  clearMarkdownCache();
+});
+
+describe('NO_COLOR & ColorLevel audit', () => {
+  test('makeChalk respects runtime setColorLevel(0) and setColorLevel(3)', () => {
+    setColorLevel(0);
+    assert.equal(getColorLevel(), 0);
+    const c0 = makeChalk();
+    assert.equal(c0.level, 0);
+    assert.equal(c0.bold.hex('#4b6fff').underline('plain'), 'plain');
+
+    setColorLevel(3);
+    assert.equal(getColorLevel(), 3);
+    const c3 = makeChalk();
+    assert.equal(c3.level, 3);
+    const colored = c3.hex('#4b6fff')('styled');
+    assert.match(colored, TRUECOLOR_RE);
+    assert.match(colored, ANSI_COLOR_RE);
+  });
+
+  test('setColorLevel(0) strips all ANSI color escapes in renderMarkdown while keeping structure', () => {
+    clearMarkdownCache();
+    setColorLevel(0);
+    const t = getTheme('dsh-dark');
+    const output = renderMarkdown(RICH_MARKDOWN, { width: 64, theme: t });
+
+    assert.equal(ANSI_COLOR_RE.test(output), false, `Unexpected SGR color escape in:\n${output}`);
+    assert.equal(ANY_ANSI_RE.test(output), false, `Unexpected ANSI escape in:\n${output}`);
+
+    assert.ok(output.includes('Heading One'));
+    assert.ok(output.includes('─'.repeat(64)));
+    assert.ok(output.includes('Heading Two'));
+    assert.ok(output.includes('bold') && output.includes('italic') && output.includes('strike'));
+    assert.ok(output.includes(' inlineCode '));
+    assert.ok(output.includes('StudyHub (https://studyhub.example.com)'));
+    assert.ok(output.includes('▎ Blockquote line with insight'));
+    assert.ok(output.includes('• Unordered one'));
+    assert.ok(output.includes('  ◦ Nested two'));
+    assert.ok(output.includes('☑ Completed task'));
+    assert.ok(output.includes('1. Ordered item'));
+    assert.ok(output.includes('╭─ js '));
+    assert.ok(output.includes('const answer = 42;'));
+    assert.ok(output.includes('E = mc²'));
+    assert.ok(output.includes('∑ᵢ₌₁ⁿ xᵢ'));
+    assert.ok(output.includes('┌') && output.includes('│ Col A │ Col B │'));
+    assert.ok(output.includes('│ alpha │ beta  │'));
+  });
+
+  test('toggling setColorLevel(0) <-> setColorLevel(3) never returns stale LRU cache entries', () => {
+    clearMarkdownCache();
+    const t = getTheme('dsh-dark');
+    const opts = { width: 60, theme: t };
+
+    setColorLevel(0);
+    const uncolored = renderMarkdown(RICH_MARKDOWN, opts);
+    assert.equal(ANSI_COLOR_RE.test(uncolored), false);
+
+    setColorLevel(3);
+    const truecolor = renderMarkdown(RICH_MARKDOWN, opts);
+    assert.match(truecolor, TRUECOLOR_RE, 'Expected truecolor SGR 38;2;... escape at level 3');
+    assert.match(truecolor, ANSI_COLOR_RE);
+
+    setColorLevel(0);
+    const uncoloredAgain = renderMarkdown(RICH_MARKDOWN, opts);
+    assert.equal(ANSI_COLOR_RE.test(uncoloredAgain), false);
+    assert.equal(uncoloredAgain, uncolored);
+  });
+
+  test('spawning bin/studyhub-tui.mjs --help under NO_COLOR=1 emits zero ANSI escapes and exits 0', () => {
+    const res = spawnSync(process.execPath, [binPath, '--help'], {
+      cwd: pkgRoot,
+      env: { ...process.env, NO_COLOR: '1' },
+      encoding: 'utf8',
+    });
+
+    assert.equal(res.status, 0, `Expected exit 0, got ${res.status}: ${res.stderr}`);
+    assert.ok(res.stdout.includes('StudyHub TUI'));
+    assert.ok(res.stdout.includes('Usage:'));
+    assert.equal(ANSI_COLOR_RE.test(res.stdout), false, `Unexpected ANSI color in stdout: ${res.stdout}`);
+    assert.equal(ANSI_COLOR_RE.test(res.stderr), false, `Unexpected ANSI color in stderr: ${res.stderr}`);
+    assert.equal(ANY_ANSI_RE.test(res.stdout), false, `Unexpected ANSI escape in stdout: ${res.stdout}`);
+  });
+
+  test('static audit: zero src/**/*.ts(x) files outside src/theme/tokens.ts import runtime Chalk or default chalk', () => {
+    const files = walkTsFiles(srcRoot);
+    assert.ok(files.length > 0, 'Expected source files under src/');
+
+    const allowedFile = path.join(srcRoot, 'theme', 'tokens.ts');
+    assert.ok(files.includes(allowedFile), 'Expected src/theme/tokens.ts in scanned files');
+
+    const offending = [];
+    for (const file of files) {
+      if (file === allowedFile) continue;
+      const content = fs.readFileSync(file, 'utf8');
+      const violations = findRuntimeChalkViolations(content);
+      if (violations.length > 0) {
+        offending.push(`${path.relative(pkgRoot, file)}: ${violations.join('; ')}`);
+      }
+    }
+
+    assert.deepEqual(
+      offending,
+      [],
+      `Found runtime Chalk/chalk usage outside src/theme/tokens.ts:\n${offending.join('\n')}`,
+    );
+  });
+
+  test('renderBarChart, renderSparkline, and renderHeatmap emit zero ANSI color escapes under setColorLevel(0) and restore color under setColorLevel(3)', () => {
+    const t = getTheme('dsh-dark');
+    const barItems = [
+      { label: '数学', value: 120 },
+      { label: 'English', value: 45.5 },
+      { label: 'Physics', value: 0, color: '#ff0000' },
+    ];
+    const heatmapDays = [
+      { date: '2026-10-15', count: 2 },
+      { date: '2026-10-20', count: 5 },
+      { date: '2026-10-28', count: 9 },
+    ];
+    const sparkValues = [1, 3, 2, 5, 4, 8];
+
+    setColorLevel(0);
+    const bars0 = renderBarChart(barItems, 40, t);
+    const spark0 = renderSparkline(sparkValues);
+    const heat0 = renderHeatmap(heatmapDays, 10, t, { endDate: '2026-10-28', locale: 'en' });
+
+    assert.equal(bars0.length, barItems.length);
+    for (const line of bars0) {
+      assert.equal(ANSI_COLOR_RE.test(line), false, `Unexpected ANSI color in bar line: ${line}`);
+      assert.equal(ANY_ANSI_RE.test(line), false, `Unexpected ANSI escape in bar line: ${line}`);
+    }
+    assert.ok(bars0[0].includes('数学') && bars0[0].includes('120'));
+
+    assert.equal(ANSI_COLOR_RE.test(spark0), false, `Unexpected ANSI color in sparkline: ${spark0}`);
+    assert.equal(ANY_ANSI_RE.test(spark0), false, `Unexpected ANSI escape in sparkline: ${spark0}`);
+    assert.equal(spark0, '▁▃▂▅▄█');
+
+    assert.equal(heat0.length, 9);
+    for (const line of heat0) {
+      assert.equal(ANSI_COLOR_RE.test(line), false, `Unexpected ANSI color in heatmap line: ${line}`);
+      assert.equal(ANY_ANSI_RE.test(line), false, `Unexpected ANSI escape in heatmap line: ${line}`);
+    }
+    assert.ok(heat0[1].startsWith('Mon'));
+    assert.ok(heat0[8].includes('Less') && heat0[8].includes('More'));
+
+    setColorLevel(3);
+    const bars3 = renderBarChart(barItems, 40, t);
+    const spark3 = renderSparkline(sparkValues);
+    const heat3 = renderHeatmap(heatmapDays, 10, t, { endDate: '2026-10-28', locale: 'en' });
+
+    assert.ok(bars3.some((line) => TRUECOLOR_RE.test(line)), 'Expected truecolor escapes in renderBarChart at level 3');
+    assert.ok(bars3.some((line) => ANSI_COLOR_RE.test(line)), 'Expected ANSI color escapes in renderBarChart at level 3');
+    assert.ok(heat3.some((line) => TRUECOLOR_RE.test(line)), 'Expected truecolor escapes in renderHeatmap at level 3');
+    assert.ok(heat3.some((line) => ANSI_COLOR_RE.test(line)), 'Expected ANSI color escapes in renderHeatmap at level 3');
+    assert.equal(ANSI_COLOR_RE.test(spark3), false);
+    assert.equal(spark3, spark0);
+
+    setColorLevel(0);
+    const bars0Again = renderBarChart(barItems, 40, t);
+    const heat0Again = renderHeatmap(heatmapDays, 10, t, { endDate: '2026-10-28', locale: 'en' });
+    assert.deepEqual(bars0Again, bars0);
+    assert.deepEqual(heat0Again, heat0);
+  });
+});
+
+// -------------------------------------------------------------------------------- cloze helpers
+
+describe('buildClozeBlankDiffs', () => {
+  const blanks = [{ id: 'b1' }, { id: 'b2' }, { id: 'b3' }];
+
+  test('matches exact answers and normalizes case and whitespace', () => {
+    const solution = {
+      cloze: {
+        answers: [
+          { id: 'b1', value: 'Binary Search' },
+          { id: 'b2', value: 'O(log n)' },
+          { id: 'b3', value: 'Sorted' },
+        ],
+      },
+    };
+    const diffs = buildClozeBlankDiffs(
+      blanks,
+      { b1: '  binary search  ', b2: 'o(LOG n)', b3: 'Sorted' },
+      null,
+      solution,
+    );
+    assert.deepEqual(diffs, [
+      { id: 'b1', index: 1, userValue: 'binary search', expected: 'Binary Search', matched: true },
+      { id: 'b2', index: 2, userValue: 'o(LOG n)', expected: 'O(log n)', matched: true },
+      { id: 'b3', index: 3, userValue: 'Sorted', expected: 'Sorted', matched: true },
+    ]);
+  });
+
+  test('supports accept[] aliases case-insensitively with trimmed whitespace', () => {
+    const solution = {
+      cloze: {
+        answers: [
+          { id: 'b1', value: 'Hypertext Transfer Protocol', accept: ['HTTP', 'http/1.1'] },
+          { id: 'b2', value: '443', accept: ['port 443'] },
+        ],
+      },
+    };
+    const diffs = buildClozeBlankDiffs(
+      [{ id: 'b1' }, { id: 'b2' }],
+      { b1: '  http ', b2: ' PORT 443 ' },
+      null,
+      solution,
+    );
+    assert.deepEqual(diffs, [
+      { id: 'b1', index: 1, userValue: 'http', expected: 'Hypertext Transfer Protocol', matched: true },
+      { id: 'b2', index: 2, userValue: 'PORT 443', expected: '443', matched: true },
+    ]);
+  });
+
+  test('marks mismatches and empty answers as matched=false when expected is known', () => {
+    const solution = {
+      cloze: {
+        answers: [
+          { id: 'b1', value: 'Stack' },
+          { id: 'b2', value: 'Queue' },
+        ],
+      },
+    };
+    const diffs = buildClozeBlankDiffs(
+      [{ id: 'b1' }, { id: 'b2' }],
+      { b1: 'Heap', b2: '   ' },
+      null,
+      solution,
+    );
+    assert.deepEqual(diffs, [
+      { id: 'b1', index: 1, userValue: 'Heap', expected: 'Stack', matched: false },
+      { id: 'b2', index: 2, userValue: '', expected: 'Queue', matched: false },
+    ]);
+  });
+
+  test('prefers feedback.details for correct and expected and falls back to feedback.answers', () => {
+    const solution = {
+      cloze: {
+        answers: [
+          { id: 'b1', value: 'SolutionOne' },
+          { id: 'b2', value: 'SolutionTwo' },
+        ],
+      },
+    };
+    const feedback = {
+      answers: { b1: 'AliasOne', b2: 'WrongTwo' },
+      details: [
+        { id: 'b1', correct: true, expected: 'DetailOne' },
+        { id: 'b2', correct: false, expected: 'DetailTwo' },
+      ],
+    };
+    const diffs = buildClozeBlankDiffs(
+      [{ id: 'b1' }, { id: 'b2' }],
+      {},
+      feedback,
+      solution,
+    );
+    assert.deepEqual(diffs, [
+      { id: 'b1', index: 1, userValue: 'AliasOne', expected: 'DetailOne', matched: true },
+      { id: 'b2', index: 2, userValue: 'WrongTwo', expected: 'DetailTwo', matched: false },
+    ]);
+  });
+
+  test('returns matched=null when expected answer is unknown', () => {
+    const diffs = buildClozeBlankDiffs([{ id: 'b1' }], { b1: 'draft' }, null, null);
+    assert.deepEqual(diffs, [
+      { id: 'b1', index: 1, userValue: 'draft', expected: '', matched: null },
+    ]);
+  });
+});
+
+describe('formatClozeDisplay', () => {
+  const blanks = [{ id: 'b1' }, { id: 'b2' }];
+  const solution = {
+    cloze: {
+      answers: [
+        { id: 'b1', value: 'TCP' },
+        { id: 'b2', value: 'UDP' },
+      ],
+    },
+  };
+
+  test('renders Unicode brackets, full-width blanks, and arrows when ascii=false', () => {
+    const text = 'Use {{b1}} for reliability and {{b2}} for speed.';
+    assert.equal(
+      formatClozeDisplay(text, blanks, {}, false, solution, false),
+      'Use 〔#1: ＿＿＿〕 for reliability and 〔#2: ＿＿＿〕 for speed.',
+    );
+    assert.equal(
+      formatClozeDisplay(text, blanks, { b1: 'HTTP' }, true, solution, false),
+      'Use 〔#1: HTTP → **TCP**〕 for reliability and 〔#2: **UDP**〕 for speed.',
+    );
+  });
+
+  test('renders pure ASCII brackets, underscores, and arrows when ascii=true', () => {
+    const text = 'Use ___ for reliability and ___ for speed.';
+    const unrevealed = formatClozeDisplay(text, blanks, { b1: 'QUIC' }, false, solution, true);
+    assert.equal(unrevealed, 'Use [#1: QUIC] for reliability and [#2: ___] for speed.');
+    assert.ok(!/[^\x20-\x7e]/.test(unrevealed), 'unrevealed ASCII output must be 7-bit ASCII');
+
+    const revealed = formatClozeDisplay(text, blanks, { b1: 'QUIC' }, true, solution, true);
+    assert.equal(revealed, 'Use [#1: QUIC -> **TCP**] for reliability and [#2: **UDP**] for speed.');
+    assert.ok(!/[^\x20-\x7e]/.test(revealed), 'revealed ASCII output must be 7-bit ASCII');
+  });
+});
+
+// ----------------------------------------------------------------------------- streaming buffer
+
+describe('createStreamingCoalescer', () => {
+  test('coalesces 200 rapid-burst chunks into 1 trailing flush and preserves CJK + emoji output', (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const flushes = [];
+    const coalescer = createStreamingCoalescer((text) => {
+      flushes.push(text);
+    }, 24);
+
+    const chunks = Array.from({ length: 200 }, (_, i) => {
+      if (i % 5 === 0) return `知识点${i}🚀`;
+      if (i % 3 === 0) return `·推导(${i}) `;
+      return `tok_${i}|`;
+    });
+    const expected = chunks.join('');
+
+    // Synchronous burst of 200 chunks
+    for (const chunk of chunks) {
+      coalescer.push(chunk);
+    }
+    assert.equal(flushes.length, 0, 'should not flush synchronously before interval elapses');
+    assert.equal(coalescer.getText(), expected);
+
+    t.mock.timers.tick(24);
+
+    assert.equal(flushes.length, 1, 'trailing timer should deliver all 200 chunks in 1 flush');
+    assert.equal(flushes.at(-1), expected, 'concatenated CJK + emoji output must match exactly');
+    coalescer.dispose();
+  });
+
+  test('coalesces 200 spaced chunks across virtual intervals into <= 10 flushes', (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const flushes = [];
+    const coalescer = createStreamingCoalescer((text) => {
+      flushes.push(text);
+    }, 24);
+
+    const parts = [];
+    for (let i = 0; i < 200; i += 1) {
+      const chunk = i % 2 === 0 ? `段${i}✨` : `w${i} `;
+      parts.push(chunk);
+      coalescer.push(chunk);
+      if (i % 40 === 39) {
+        t.mock.timers.tick(10);
+      }
+    }
+    const final = coalescer.finish();
+    const expected = parts.join('');
+
+    assert.equal(final, expected);
+    assert.ok(
+      flushes.length >= 1 && flushes.length <= 10,
+      `expected 1..10 flushes (>95% reduction vs 200 pushes), got ${flushes.length}`,
+    );
+    assert.equal(flushes.at(-1), expected);
+    coalescer.dispose();
+  });
+
+  test('finish() and flush() synchronously deliver remaining buffered text with zero pending timers', (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const flushes = [];
+    const coalescer = createStreamingCoalescer((text) => {
+      flushes.push(text);
+    }, 50);
+
+    coalescer.push('Hello ');
+    coalescer.push('世界 ');
+    coalescer.push('🎓');
+    assert.equal(flushes.length, 0);
+
+    const out = coalescer.finish();
+    assert.equal(out, 'Hello 世界 🎓');
+    assert.deepEqual(flushes, ['Hello 世界 🎓']);
+
+    // Subsequent flush/finish when clean should be a no-op and no timer should fire later.
+    assert.equal(coalescer.flush(), 'Hello 世界 🎓');
+    assert.equal(coalescer.finish(), 'Hello 世界 🎓');
+    t.mock.timers.tick(100);
+    assert.equal(flushes.length, 1, 'no stray timer should fire after finish()');
+    coalescer.dispose();
+  });
+
+  test('set() coalesces full-text updates and finish() flushes synchronously', () => {
+    const flushes = [];
+    const coalescer = createStreamingCoalescer((text) => {
+      flushes.push(text);
+    }, 30);
+
+    coalescer.set('draft 1');
+    coalescer.set('draft 2 中文');
+    coalescer.set('final 🎯');
+    assert.equal(flushes.length, 0);
+
+    assert.equal(coalescer.finish(), 'final 🎯');
+    assert.deepEqual(flushes, ['final 🎯']);
+    coalescer.dispose();
+  });
+
+  test('reset() and dispose() cancel pending timers so nothing fires after abort or unmount', (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const resetFlushes = [];
+    const c1 = createStreamingCoalescer((text) => {
+      resetFlushes.push(text);
+    }, 20);
+    c1.push('aborted-chunk-1');
+    c1.push('aborted-chunk-2');
+    c1.reset();
+    assert.equal(c1.getText(), '');
+
+    const disposeFlushes = [];
+    const c2 = createStreamingCoalescer((text) => {
+      disposeFlushes.push(text);
+    }, 20);
+    c2.push('unmounted-chunk');
+    c2.dispose();
+    // Pushes after dispose must be ignored
+    c2.push('ignored-after-dispose');
+    assert.equal(c2.getText(), 'unmounted-chunk');
+
+    t.mock.timers.tick(50);
+
+    assert.equal(resetFlushes.length, 0, 'timer must be cancelled after reset()');
+    assert.equal(disposeFlushes.length, 0, 'timer must be cancelled after dispose()');
+  });
 });

@@ -22,9 +22,12 @@
     "start": "node bin/studyhub-tui.mjs",
     "dev": "tsx src/cli.tsx",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node --test --test-concurrency=2 tests/*.test.mjs",
-    "test:smoke": "npm run build && node --test tests/cli-args.test.mjs tests/cross-platform.test.mjs tests/host.test.mjs",
-    "test:e2e": "node --test tests/xterm-e2e.test.mjs",
+    "test": "node scripts/run-tests.mjs",
+    "test:unit": "node scripts/run-tests.mjs --unit",
+    "test:e2e": "node scripts/run-tests.mjs --e2e",
+    "test:timing": "node scripts/run-tests.mjs --timing",
+    "test:smoke": "node scripts/build.mjs && node --test tests/cli-args.test.mjs tests/cli-commands.test.mjs tests/host.test.mjs",
+    "test:e2e:core": "node scripts/build.mjs && node --test tests/xterm-e2e.test.mjs",
     "bench": "node scripts/bench.mjs"
   },
   "dependencies": {

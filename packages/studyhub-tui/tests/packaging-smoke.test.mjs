@@ -2,53 +2,42 @@
 // `node --test tests/packaging-smoke.test.mjs`
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
-import { PassThrough } from 'node:stream';
-import { after, describe, test } from 'node:test';
+import { readdir, readFile } from 'node:fs/promises';
 import { builtinModules } from 'node:module';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { after, describe, test } from 'node:test';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import v8 from 'node:v8';
 import vm from 'node:vm';
-import xtermPkg from '@xterm/headless';
 import { render } from 'ink';
 import React from 'react';
+import {
+  createTempTracker,
+  createVirtualTty,
+  disposeTerminalPool,
+  distDir,
+  loadDistRuntime,
+  pkgRoot,
+} from './helpers/virtual-tty.mjs';
 
 const execFileAsync = promisify(execFile);
-const { Terminal } = xtermPkg;
-
-const here = dirname(fileURLToPath(import.meta.url));
-const pkgRoot = resolve(here, '..');
-const distDir = resolve(pkgRoot, 'dist');
 const binEntry = resolve(pkgRoot, 'bin', 'studyhub-tui.mjs');
 
-const distFiles = (await readdir(distDir)).filter((f) => f.endsWith('.mjs') && f !== 'cli.mjs');
-const { StudyHubTuiApp } = await import(pathToFileURL(join(distDir, 'App.mjs')).href);
-
-let createTuiHost = null;
-let displayWidth = null;
-for (const f of distFiles) {
-  if (f === 'host.mjs' || f.startsWith('host-') || f.startsWith('tui-') || f.startsWith('chunk-')) {
-    const mod = await import(pathToFileURL(join(distDir, f)).href);
-    if (!createTuiHost && typeof mod.createTuiHost === 'function') createTuiHost = mod.createTuiHost;
-    if (!displayWidth && typeof mod.displayWidth === 'function') displayWidth = mod.displayWidth;
-  }
-}
+const runtime = await loadDistRuntime();
+const { StudyHubTuiApp, createTuiHost } = runtime;
+assert.ok(StudyHubTuiApp, 'dist/ must export StudyHubTuiApp');
 assert.ok(createTuiHost, 'dist/ must export createTuiHost');
+
+const appCode = await readFile(join(distDir, 'App.mjs'), 'utf8');
+const cjkImport = appCode.match(/import\s*\{[^}]*\bdisplayWidth\b[^}]*\}\s*from\s*["'](\.\/[^"']+\.mjs)["']/);
+assert.ok(cjkImport, 'dist/App.mjs must import displayWidth');
+const { displayWidth } = await import(pathToFileURL(resolve(distDir, cjkImport[1])).href);
 assert.ok(displayWidth, 'dist/ must export displayWidth');
 
 const PREV_DSH_HOME = process.env.DSH_HOME;
-const tempDirs = [];
-
-async function makeTempDir(label) {
-  const dir = await mkdtemp(join(tmpdir(), `studyhub-tui-pkg-soak-${label}-`));
-  tempDirs.push(dir);
-  return dir;
-}
-
-const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+const temps = createTempTracker('studyhub-tui-pkg-soak-');
 
 const RESOURCE_KINDS = ['FSEventWrap', 'StatWatcher', 'ProcessWrap', 'Timeout'];
 function resourceCounts() {
@@ -59,144 +48,42 @@ function resourceCounts() {
   return counts;
 }
 
-function createVirtualTty(cols, rows) {
-  const stdin = new PassThrough();
-  stdin.isTTY = true;
-  stdin.setRawMode = () => stdin;
-  stdin.ref = () => stdin;
-  stdin.unref = () => stdin;
+async function waitForResourceTeardown(baselineResources, timeoutMs = 500) {
+  const deadline = Date.now() + timeoutMs;
+  let afterRes = resourceCounts();
+  while (
+    Date.now() < deadline &&
+    RESOURCE_KINDS.some((kind) => (afterRes[kind] || 0) > (baselineResources[kind] || 0))
+  ) {
+    await new Promise((r) => setTimeout(r, 15));
+    afterRes = resourceCounts();
+  }
+  return afterRes;
+}
 
-  const stdout = new PassThrough();
-  stdout.isTTY = true;
-  stdout.columns = cols;
-  stdout.rows = rows;
-  stdout.getColorDepth = () => 24;
+function assertSoakHealthyScreen(tty, screen, expectedCols, expectedRows, contextLabel) {
+  tty.assertHealthyScreen(screen, expectedCols, expectedRows, contextLabel);
+  const lines = screen.split('\n');
+  assert.ok(lines.length <= expectedRows, `${contextLabel}: Row count ${lines.length} > ${expectedRows}`);
+  assert.ok(!/\bNaN\b/.test(screen), `${contextLabel}: NaN leaked`);
+  assert.ok(!/\bundefined\b/.test(screen), `${contextLabel}: undefined leaked`);
+  assert.ok(!screen.includes('[object Object]'), `${contextLabel}: [object Object] leaked`);
+  assert.ok(!screen.includes('\uFFFD'), `${contextLabel}: U+FFFD replacement char found`);
 
-  const stderr = new PassThrough();
-  stderr.isTTY = true;
-  stderr.columns = cols;
-  stderr.rows = rows;
+  const bodyLines = lines.slice(1, Math.max(1, expectedRows - 1));
+  const nonBlank = bodyLines.filter((l) => l.trim().length > 0);
+  assert.ok(nonBlank.length >= 2, `${contextLabel}: body unexpectedly blank`);
 
-  const term = new Terminal({
-    cols,
-    rows,
-    allowProposedApi: true,
-    convertEol: true,
-  });
-
-  let pendingWrites = Promise.resolve();
-  let firstFrameResolve = null;
-  let firstFrameSettled = false;
-  const firstFramePromise = new Promise((resolveFn) => {
-    firstFrameResolve = resolveFn;
-  });
-
-  stdout.on('data', (chunk) => {
-    const str = Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk);
-    pendingWrites = pendingWrites.then(
-      () =>
-        new Promise((resolveWrite) => {
-          term.write(str, () => {
-            if (!firstFrameSettled) {
-              firstFrameSettled = true;
-              firstFrameResolve?.();
-            }
-            resolveWrite();
-          });
-        }),
-    );
-  });
-
-  async function flush() {
-    await sleep(20);
-    await pendingWrites;
+  for (let i = 0; i < lines.length; i += 1) {
+    const w = displayWidth(lines[i]);
+    assert.ok(w <= expectedCols, `${contextLabel}: row ${i} width ${w} > ${expectedCols}: ${JSON.stringify(lines[i])}`);
   }
 
-  function readLines() {
-    const buf = term.buffer.active;
-    const lines = [];
-    for (let y = 0; y < term.rows; y += 1) {
-      const line = buf.getLine(buf.viewportY + y);
-      lines.push(line ? line.translateToString(true) : '');
-    }
-    return lines;
+  const buf = tty.term.buffer.active;
+  for (let y = 0; y < tty.term.rows; y += 1) {
+    const line = buf.getLine(buf.viewportY + y);
+    assert.ok(!line?.isWrapped, `${contextLabel}: xterm soft-wrapped row ${y}`);
   }
-
-  function readScreen() {
-    return readLines().join('\n');
-  }
-
-  function resize(newCols, newRows) {
-    stdout.columns = newCols;
-    stdout.rows = newRows;
-    stderr.columns = newCols;
-    stderr.rows = newRows;
-    term.resize(newCols, newRows);
-    stdout.emit('resize');
-  }
-
-  function send(data) {
-    stdin.write(data);
-  }
-
-  async function waitFor(predicate, { timeoutMs = 8_000, label = 'condition' } = {}) {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      await flush();
-      const screen = readScreen();
-      if (predicate(screen)) return screen;
-      await sleep(25);
-    }
-    const finalScreen = readScreen();
-    throw new Error(`Timed out waiting for ${label} after ${timeoutMs}ms.\n--- SCREEN ---\n${finalScreen}\n--------------`);
-  }
-
-  function assertHealthyScreen(screen, expectedCols, expectedRows, contextLabel) {
-    const lines = screen.split('\n');
-    assert.ok(
-      !screen.includes('页面渲染异常') && !screen.includes('View Error') && !/(?:^|\s)Error:\s/m.test(screen),
-      `${contextLabel}: View Error boundary rendered\n${screen}`,
-    );
-    assert.ok(!screen.includes('TypeError:') && !screen.includes('ReferenceError:'), `${contextLabel}: JS error rendered`);
-    assert.ok(!/\bNaN\b/.test(screen), `${contextLabel}: NaN leaked`);
-    assert.ok(!/\bundefined\b/.test(screen), `${contextLabel}: undefined leaked`);
-    assert.ok(!screen.includes('[object Object]'), `${contextLabel}: [object Object] leaked`);
-    assert.ok(!screen.includes('\uFFFD'), `${contextLabel}: U+FFFD replacement char found`);
-
-    const bodyLines = lines.slice(1, Math.max(1, expectedRows - 1));
-    const nonBlank = bodyLines.filter((l) => l.trim().length > 0);
-    assert.ok(nonBlank.length >= 2, `${contextLabel}: body unexpectedly blank`);
-
-    for (let i = 0; i < lines.length; i += 1) {
-      const w = displayWidth(lines[i]);
-      assert.ok(w <= expectedCols, `${contextLabel}: row ${i} width ${w} > ${expectedCols}: ${JSON.stringify(lines[i])}`);
-    }
-
-    const buf = term.buffer.active;
-    for (let y = 0; y < term.rows; y += 1) {
-      const line = buf.getLine(buf.viewportY + y);
-      assert.ok(!line?.isWrapped, `${contextLabel}: xterm soft-wrapped row ${y}`);
-    }
-  }
-
-  return {
-    stdin,
-    stdout,
-    stderr,
-    firstFramePromise,
-    flush,
-    readScreen,
-    resize,
-    send,
-    waitFor,
-    assertHealthyScreen,
-    dispose: () => {
-      term.dispose();
-      stdin.destroy();
-      stdout.destroy();
-      stderr.destroy();
-    },
-  };
 }
 
 function createStubComplete() {
@@ -253,11 +140,10 @@ function isViewReady(screen, bodyRe) {
 }
 
 after(async () => {
+  disposeTerminalPool();
   if (PREV_DSH_HOME === undefined) delete process.env.DSH_HOME;
   else process.env.DSH_HOME = PREV_DSH_HOME;
-  await Promise.all(
-    tempDirs.map((d) => rm(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 })),
-  );
+  await temps.cleanup();
 });
 
 describe('StudyHub TUI Packaging, Out-of-Repo Bin Smoke & 64-Transition Resize Soak', () => {
@@ -329,7 +215,7 @@ describe('StudyHub TUI Packaging, Out-of-Repo Bin Smoke & 64-Transition Resize S
     assert.equal(typeof gc, 'function', 'V8 gc() must be available');
 
     const baselineResources = resourceCounts();
-    const boxDir = await makeTempDir('soak');
+    const boxDir = await temps.make('soak');
     const dshHome = join(boxDir, 'dsh-home');
     const libraryRoot = join(boxDir, 'library');
     process.env.DSH_HOME = dshHome;
@@ -377,7 +263,7 @@ describe('StudyHub TUI Packaging, Out-of-Repo Bin Smoke & 64-Transition Resize S
       );
 
       gc();
-      await sleep(20);
+      await tty.flush();
       gc();
       const baselineHeapBytes = process.memoryUsage().heapUsed;
 
@@ -387,7 +273,7 @@ describe('StudyHub TUI Packaging, Out-of-Repo Bin Smoke & 64-Transition Resize S
           const step = SOAK_VIEWS[stepIdx];
           const vp = VIEWPORTS[(cycle + stepIdx) % VIEWPORTS.length];
           tty.resize(vp.cols, vp.rows);
-          await sleep(15);
+          await tty.flush();
 
           if (step.id === 'review') {
             tty.send('1');
@@ -404,10 +290,10 @@ describe('StudyHub TUI Packaging, Out-of-Repo Bin Smoke & 64-Transition Resize S
             (s) => isViewReady(s, step.match),
             { timeoutMs: 8_000, label: `cycle ${cycle + 1} ${step.id} @ ${vp.cols}x${vp.rows}` },
           );
-          await sleep(25);
           await tty.flush();
           const settled = tty.readScreen();
-          tty.assertHealthyScreen(
+          assertSoakHealthyScreen(
+            tty,
             settled || screen,
             vp.cols,
             vp.rows,
@@ -428,7 +314,7 @@ describe('StudyHub TUI Packaging, Out-of-Repo Bin Smoke & 64-Transition Resize S
       assert.equal(transitions, 64, 'expected exactly 64 view/resize transitions');
 
       gc();
-      await sleep(20);
+      await tty.flush();
       gc();
       const deltaMb = (process.memoryUsage().heapUsed - baselineHeapBytes) / (1024 * 1024);
       assert.ok(
@@ -443,10 +329,10 @@ describe('StudyHub TUI Packaging, Out-of-Repo Bin Smoke & 64-Transition Resize S
       }
       tty.dispose();
       await host.dispose();
+      disposeTerminalPool();
     }
 
-    await sleep(100);
-    const afterRes = resourceCounts();
+    const afterRes = await waitForResourceTeardown(baselineResources);
     for (const kind of RESOURCE_KINDS) {
       assert.ok(
         (afterRes[kind] || 0) <= (baselineResources[kind] || 0),

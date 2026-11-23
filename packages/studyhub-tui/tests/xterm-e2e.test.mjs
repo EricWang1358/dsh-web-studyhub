@@ -1,44 +1,38 @@
 // End-to-end xterm-headless TUI verification: node --test tests/xterm-e2e.test.mjs
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
-import { PassThrough } from 'node:stream';
+import { join, resolve } from 'node:path';
 import { after, before, describe, test } from 'node:test';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import xtermPkg from '@xterm/headless';
+import { pathToFileURL } from 'node:url';
+import v8 from 'node:v8';
+import vm from 'node:vm';
 import { render } from 'ink';
 import React from 'react';
+import {
+  createTempTracker,
+  createVirtualTty,
+  disposeTerminalPool,
+  distDir,
+  loadDistRuntime,
+} from './helpers/virtual-tty.mjs';
 
-const { Terminal } = xtermPkg;
-const here = dirname(fileURLToPath(import.meta.url));
-const pkgRoot = resolve(here, '..');
-const distDir = resolve(pkgRoot, 'dist');
 const screenDumpDir = join(tmpdir(), 'studyhub-tui-screens');
 
 // Load directly from built dist/ (avoids loading tsx/esbuild compiler overhead in RSS measurements).
-const distFiles = (await readdir(distDir)).filter((f) => f.endsWith('.mjs') && f !== 'cli.mjs');
-const { StudyHubTuiApp } = await import(pathToFileURL(join(distDir, 'App.mjs')).href);
+const runtime = await loadDistRuntime();
+const { StudyHubTuiApp, createTuiHost } = runtime;
+assert.ok(StudyHubTuiApp, 'dist/ must export StudyHubTuiApp');
+assert.ok(createTuiHost, 'dist/ must export createTuiHost');
 
-let H = null;
-let R = null;
-for (const f of distFiles) {
-  if (f === 'host.mjs' || f.startsWith('host-') || f.startsWith('tui-') || f.startsWith('chunk-')) {
-    const mod = await import(pathToFileURL(join(distDir, f)).href);
-    if (!H && typeof mod.createTuiHost === 'function' && typeof mod.saveTuiPreferences === 'function') H = mod;
-    if (!R && typeof mod.displayWidth === 'function') R = mod;
-  }
-}
-assert.ok(H?.createTuiHost, 'dist/ must export createTuiHost');
-assert.ok(R?.displayWidth, 'dist/ must export displayWidth');
+const appCode = await readFile(join(distDir, 'App.mjs'), 'utf8');
+const cjkImport = appCode.match(/import\s*\{[^}]*\bdisplayWidth\b[^}]*\}\s*from\s*["'](\.\/[^"']+\.mjs)["']/);
+assert.ok(cjkImport, 'dist/App.mjs must import displayWidth');
+const { displayWidth } = await import(pathToFileURL(resolve(distDir, cjkImport[1])).href);
+assert.equal(typeof displayWidth, 'function', 'dist/ must export displayWidth');
 
 const PREV_DSH_HOME = process.env.DSH_HOME;
-const tempDirs = [];
-async function makeTempDir(label) {
-  const d = await mkdtemp(join(tmpdir(), `studyhub-tui-e2e-${label}-`));
-  tempDirs.push(d);
-  return d;
-}
+const temps = createTempTracker('studyhub-tui-e2e-');
 
 const RESOURCE_KINDS = new Set(['FSEventWrap', 'StatWatcher', 'Timeout', 'ProcessWrap', 'TCPWrap', 'PipeWrap']);
 function resourceCounts() {
@@ -49,158 +43,44 @@ function resourceCounts() {
   return counts;
 }
 
-const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
-
-/**
- * Creates a real Ink-compatible virtual TTY backed by `@xterm/headless`.
- */
-function createVirtualTty(cols = 120, rows = 36) {
-  const stdin = new PassThrough();
-  stdin.isTTY = true;
-  stdin.setRawMode = () => stdin;
-  stdin.ref = () => stdin;
-  stdin.unref = () => stdin;
-
-  const stdout = new PassThrough();
-  stdout.isTTY = true;
-  stdout.columns = cols;
-  stdout.rows = rows;
-  stdout.getColorDepth = () => 24;
-
-  const stderr = new PassThrough();
-  stderr.isTTY = true;
-  stderr.columns = cols;
-  stderr.rows = rows;
-
-  const term = new Terminal({
-    cols,
-    rows,
-    allowProposedApi: true,
-    convertEol: true,
-  });
-
-  let pendingWrites = Promise.resolve();
-  let firstFrameResolve = null;
-  let firstFrameSettled = false;
-  const firstFramePromise = new Promise((resolveFn) => {
-    firstFrameResolve = resolveFn;
-  });
-
-  stdout.on('data', (chunk) => {
-    const str = Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk);
-    pendingWrites = pendingWrites.then(
-      () =>
-        new Promise((resolveWrite) => {
-          term.write(str, () => {
-            if (!firstFrameSettled) {
-              firstFrameSettled = true;
-              firstFrameResolve?.();
-            }
-            resolveWrite();
-          });
-        }),
-    );
-  });
-
-  async function flush() {
-    await sleep(30);
-    await pendingWrites;
+async function waitForResourceTeardown(baselineResources, timeoutMs = 500) {
+  const deadline = Date.now() + timeoutMs;
+  let afterRes = resourceCounts();
+  while (
+    Date.now() < deadline &&
+    ['FSEventWrap', 'StatWatcher', 'ProcessWrap', 'Timeout'].some(
+      (kind) => (afterRes[kind] || 0) > (baselineResources[kind] || 0),
+    )
+  ) {
+    await new Promise((r) => setTimeout(r, 15));
+    afterRes = resourceCounts();
   }
+  return afterRes;
+}
 
-  function readLines() {
-    const buf = term.buffer.active;
-    const lines = [];
-    for (let y = 0; y < term.rows; y += 1) {
-      const line = buf.getLine(buf.viewportY + y);
-      lines.push(line ? line.translateToString(true) : '');
-    }
-    return lines;
-  }
-
-  function readScreen() {
-    return readLines().join('\n');
-  }
-
-  function resize(newCols, newRows) {
-    stdout.columns = newCols;
-    stdout.rows = newRows;
-    stderr.columns = newCols;
-    stderr.rows = newRows;
-    term.resize(newCols, newRows);
-    stdout.emit('resize');
-  }
-
-  function send(data) {
-    stdin.write(data);
-  }
-
-  async function waitFor(predicate, { timeoutMs = 8_000, label = 'condition' } = {}) {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      await flush();
-      const screen = readScreen();
-      if (predicate(screen)) return screen;
-      await sleep(35);
-    }
-    const finalScreen = readScreen();
-    throw new Error(`Timed out waiting for ${label} after ${timeoutMs}ms.\n--- SCREEN ---\n${finalScreen}\n--------------`);
-  }
-
-  function assertHealthyScreen(screen, expectedCols, contextLabel) {
-    const lines = screen.split('\n');
+function assertScreenHealthy(tty, screen, expectedCols, expectedRows, contextLabel) {
+  tty.assertHealthyScreen(screen, expectedCols, expectedRows, contextLabel);
+  assert.ok(!screen.includes('\uFFFD'), `${contextLabel}: Replacement char U+FFFD found!\n${screen}`);
+  assert.ok(!screen.includes('\u001b'), `${contextLabel}: Unparsed escape sequence leaked into xterm buffer!\n${screen}`);
+  const lines = screen.split('\n');
+  for (let i = 0; i < lines.length; i += 1) {
+    const w = displayWidth(lines[i]);
     assert.ok(
-      !screen.includes('页面渲染异常') && !screen.includes('View Error'),
-      `${contextLabel}: ViewErrorBoundary triggered!\n${screen}`,
+      w <= expectedCols,
+      `${contextLabel}: Row ${i} exceeds cols (${w} > ${expectedCols}): ${JSON.stringify(lines[i])}`,
     );
-    assert.ok(
-      !screen.includes('TypeError:') && !screen.includes('ReferenceError:'),
-      `${contextLabel}: Runtime JS error rendered!\n${screen}`,
-    );
-    assert.ok(!screen.includes('\uFFFD'), `${contextLabel}: Replacement char U+FFFD found!\n${screen}`);
-    assert.ok(
-      !/\x1b\[|\u001b/.test(screen),
-      `${contextLabel}: Unparsed escape sequence leaked into xterm buffer!\n${screen}`,
-    );
-    for (let i = 0; i < lines.length; i += 1) {
-      const w = R.displayWidth(lines[i]);
-      assert.ok(
-        w <= expectedCols,
-        `${contextLabel}: Row ${i} exceeds cols (${w} > ${expectedCols}): ${JSON.stringify(lines[i])}`,
+  }
+  const buf = tty.term.buffer.active;
+  for (let y = 0; y < tty.term.rows; y += 1) {
+    const line = buf.getLine(buf.viewportY + y);
+    if (line) {
+      assert.equal(
+        line.isWrapped,
+        false,
+        `${contextLabel}: xterm soft-wrapped row ${y}: ${JSON.stringify(line.translateToString(true))}`,
       );
     }
-    const buf = term.buffer.active;
-    for (let y = 0; y < term.rows; y += 1) {
-      const line = buf.getLine(buf.viewportY + y);
-      if (line) {
-        assert.equal(
-          line.isWrapped,
-          false,
-          `${contextLabel}: xterm soft-wrapped row ${y}: ${JSON.stringify(line.translateToString(true))}`,
-        );
-      }
-    }
   }
-
-  return {
-    stdin,
-    stdout,
-    stderr,
-    term,
-    firstFramePromise,
-    flush,
-    readLines,
-    readScreen,
-    resize,
-    send,
-    waitFor,
-    assertHealthyScreen,
-    dispose: () => {
-      term.dispose();
-      stdin.destroy();
-      stdout.destroy();
-      stderr.destroy();
-    },
-  };
 }
 
 /** Deterministic model stub for E2E tests (streams AI explanations live). */
@@ -209,13 +89,19 @@ function createE2eCompleteStub() {
     const s = String(system || '');
     const p = String(prompt || '');
     if (p.includes('OK?')) return 'OK';
-    const chunks = s.includes('AI') || p.includes('?') || p.includes('？') || p.includes('讲解') || p.includes('Explain') || p.includes('hint')
-      ? ['[AI Tutor] ', 'Focus on ', 'encapsulating ', 'state transitions ', 'cleanly.']
-      : ['StudyHub ', 'TUI ', 'stream ', 'verified.'];
+    const chunks =
+      s.includes('AI') ||
+      p.includes('?') ||
+      p.includes('？') ||
+      p.includes('讲解') ||
+      p.includes('Explain') ||
+      p.includes('hint')
+        ? ['[AI Tutor] ', 'Focus on ', 'encapsulating ', 'state transitions ', 'cleanly.']
+        : ['StudyHub ', 'TUI ', 'stream ', 'verified.'];
     for (const chunk of chunks) {
       execution.signal?.throwIfAborted?.();
       execution.onOutput?.(chunk);
-      await sleep(8);
+      await new Promise((r) => setImmediate(r));
     }
     return chunks.join('');
   };
@@ -254,13 +140,13 @@ describe('StudyHub TUI xterm-headless E2E', () => {
 
   before(async () => {
     await mkdir(screenDumpDir, { recursive: true });
-    boxDir = await makeTempDir('main');
+    boxDir = await temps.make('main');
     dshHome = join(boxDir, 'dsh-home');
     libraryRoot = join(boxDir, 'library');
     process.env.DSH_HOME = dshHome;
     baselineResources = resourceCounts();
 
-    host = await H.createTuiHost({
+    host = await createTuiHost({
       env: { DSH_HOME: dshHome },
       home: join(boxDir, 'home'),
       libraryRoot,
@@ -299,11 +185,10 @@ describe('StudyHub TUI xterm-headless E2E', () => {
     }
     await host?.dispose();
     tty?.dispose();
+    disposeTerminalPool();
     if (PREV_DSH_HOME === undefined) delete process.env.DSH_HOME;
     else process.env.DSH_HOME = PREV_DSH_HOME;
-    await Promise.all(
-      tempDirs.map((d) => rm(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 })),
-    );
+    await temps.cleanup();
   });
 
   test('a) Launchpad -> Load Sample Course renders real decks, due counts, and mastery bars', async () => {
@@ -311,7 +196,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
       (s) => s.includes('载入示例课程体验') || s.includes('Load the sample course'),
       { label: 'Launchpad render' },
     );
-    tty.assertHealthyScreen(launchpadScreen, 120, 'Launchpad 120x36');
+    assertScreenHealthy(tty, launchpadScreen, 120, 36, 'Launchpad 120x36');
     await writeFile(join(screenDumpDir, '120x36-00-launchpad.txt'), launchpadScreen, 'utf8');
 
     // Press 's' to load sample course
@@ -319,14 +204,16 @@ describe('StudyHub TUI xterm-headless E2E', () => {
     await tty.waitFor(
       (s) =>
         !s.includes('载入示例课程体验') &&
-        (s.includes('示例 · Memento 与 Bridge') || s.includes('Sample · Memento')),
+        (s.includes('示例 · Memento 与 Bridge') || s.includes('Sample · Memento')) &&
+        /掌握度|Mastery/.test(s) &&
+        /\d+%/.test(s) &&
+        /\d+\s*题到期|\d+\s*due/i.test(s) &&
+        (s.includes('█') || s.includes('░')),
       { timeoutMs: 12_000, label: 'Library with sample course' },
     );
-    // Let LibraryView finish initial stats/sample status async sync
-    await sleep(200);
     await tty.flush();
     const settled = tty.readScreen();
-    tty.assertHealthyScreen(settled, 120, 'Library after sample load 120x36');
+    assertScreenHealthy(tty, settled, 120, 36, 'Library after sample load 120x36');
     assert.match(settled, /掌握度|Mastery/);
     assert.match(settled, /\d+%/);
     assert.match(settled, /\d+\s*题到期|\d+\s*due/i);
@@ -341,7 +228,6 @@ describe('StudyHub TUI xterm-headless E2E', () => {
     ]) {
       if (tty.stdout.columns !== cols || tty.stdout.rows !== rows) {
         tty.resize(cols, rows);
-        await sleep(80);
         await tty.flush();
         tty.send('1');
         await tty.waitFor((s) => s.includes('题组列表') || s.includes('Decks'), {
@@ -354,7 +240,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
         if (step.key) {
           for (const ch of step.key) {
             tty.send(ch);
-            await sleep(55);
+            await tty.flush();
           }
         }
         await tty.waitFor(
@@ -364,8 +250,6 @@ describe('StudyHub TUI xterm-headless E2E', () => {
             !s.includes('Loading view…'),
           { timeoutMs: 10_000, label: `${step.id} @ ${cols}x${rows}` },
         );
-        // Let view-level async fetches settle
-        await sleep(160);
         await tty.flush();
         const settled = tty.readScreen();
 
@@ -373,7 +257,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
         await writeFile(join(screenDumpDir, `${cols}x${rows}-${idxStr}-${step.id}.txt`), settled, 'utf8');
 
         try {
-          tty.assertHealthyScreen(settled, cols, `${step.id} @ ${cols}x${rows}`);
+          assertScreenHealthy(tty, settled, cols, rows, `${step.id} @ ${cols}x${rows}`);
         } catch (err) {
           sweepFailures.push(err instanceof Error ? err.message : String(err));
         }
@@ -403,8 +287,18 @@ describe('StudyHub TUI xterm-headless E2E', () => {
 
     // Resize back to 120x36 for interactive tests
     tty.resize(120, 36);
-    await sleep(80);
     await tty.flush();
+    tty.term.clear();
+    try {
+      v8.setFlagsFromString('--expose_gc');
+      const gcFn = vm.runInNewContext('gc');
+      if (typeof gcFn === 'function') {
+        gcFn();
+        gcFn();
+      }
+    } catch {
+      // Ignore if V8 flags are locked
+    }
     sweepRssMb = Math.round((process.memoryUsage().rss / (1024 * 1024)) * 10) / 10;
     assert.deepEqual(sweepFailures, [], `16-view sweep failures:\n${sweepFailures.join('\n\n')}`);
   });
@@ -412,12 +306,16 @@ describe('StudyHub TUI xterm-headless E2E', () => {
   test('c) Interactive FSRS-6 review + live streaming AI Help + Round Summary', async () => {
     tty.send('1');
     await tty.waitFor((s) => s.includes('题组列表') || s.includes('Decks'), { label: 'Library before review' });
+    await tty.flush();
     tty.send('r');
     const reviewScreen = await tty.waitFor(
-      (s) => (s.includes('1/') || s.includes('▶')) && !s.includes('正在准备复习队列'),
+      (s) =>
+        (s.includes('q  结束') || s.includes('q  End') || s.includes('AI讲解') || s.includes('AI Tutor')) &&
+        !s.includes('正在准备复习队列') &&
+        !s.includes('正在加载页面'),
       { timeoutMs: 10_000, label: 'Review active card' },
     );
-    tty.assertHealthyScreen(reviewScreen, 120, 'Review card #1');
+    assertScreenHealthy(tty, reviewScreen, 120, 36, 'Review card #1');
 
     // Answer cards until we exercise a self-graded FSRS-6 rating (`3` Good)
     let ratedFsrs = false;
@@ -455,11 +353,27 @@ describe('StudyHub TUI xterm-headless E2E', () => {
           { label: 'Objective card answered' },
         );
         tty.send('.');
-        await sleep(140);
+        await tty.waitFor(
+          (scr) =>
+            !scr.includes('回答正确') &&
+            !scr.includes('回答有误') &&
+            !scr.includes('Correct') &&
+            !scr.includes('Incorrect'),
+          { label: 'Advance past answered objective card' },
+        );
         continue;
       }
+      const prevCounter = s.match(/(\d+\/\d+)/)?.[1];
       tty.send('s');
-      await sleep(140);
+      await tty.waitFor(
+        (scr) =>
+          scr.match(/(\d+\/\d+)/)?.[1] !== prevCounter ||
+          scr.includes('翻开答案') ||
+          scr.includes('flip card') ||
+          scr.includes('本轮练习总结') ||
+          scr.includes('Round Summary'),
+        { label: 'Advance past skipped card' },
+      );
     }
     assert.equal(ratedFsrs, true, 'Rated at least one card with FSRS-6 Good (3)');
 
@@ -469,7 +383,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
       (s) => s.includes('AI 帮我理解') || s.includes('AI Tutor'),
       { label: 'AI Help drawer opened' },
     );
-    tty.assertHealthyScreen(aiDrawerOpened, 120, 'AI Help drawer');
+    assertScreenHealthy(tty, aiDrawerOpened, 120, 36, 'AI Help drawer');
 
     // Wait for auto-explain stream to finish, then send a custom follow-up question
     await tty.waitFor(
@@ -478,7 +392,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
     );
 
     tty.send('i');
-    await sleep(60);
+    await tty.flush();
     tty.send('Why is this pattern useful?');
     await tty.waitFor((s) => s.includes('Why is this pattern useful?'), {
       timeoutMs: 5_000,
@@ -490,7 +404,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
       (s) => s.includes('4/20') && s.includes('Why is this pattern useful?') && s.includes('[AI Tutor]'),
       { timeoutMs: 8_000, label: 'Follow-up AI streamed response' },
     );
-    tty.assertHealthyScreen(followUpScreen, 120, 'AI follow-up streamed');
+    assertScreenHealthy(tty, followUpScreen, 120, 36, 'AI follow-up streamed');
 
     // Close AI drawer (`Esc`) and end round (`q`) -> Round Summary
     tty.send('\x1b');
@@ -508,7 +422,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
       (s) => s.includes('再来一轮') || s.includes('New Round') || s.includes('本轮练习总结') || s.includes('Round Summary'),
       { timeoutMs: 8_000, label: 'Round Summary' },
     );
-    tty.assertHealthyScreen(summaryScreen, 120, 'Round Summary');
+    assertScreenHealthy(tty, summaryScreen, 120, 36, 'Round Summary');
 
     // Exit Round Summary back to Library
     tty.send('b');
@@ -522,7 +436,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
     const boardScreen = await tty.waitFor((s) => s.includes('待办 Todo') || s.includes('Board'), {
       label: 'Board view',
     });
-    tty.assertHealthyScreen(boardScreen, 120, 'Board empty');
+    assertScreenHealthy(tty, boardScreen, 120, 36, 'Board empty');
 
     // Add a card ('a')
     tty.send('a');
@@ -530,23 +444,42 @@ describe('StudyHub TUI xterm-headless E2E', () => {
       label: 'Board Add Card Modal',
     });
     tty.send('Master Memento Pattern');
-    await sleep(40);
+    await tty.waitFor((s) => s.includes('Master Memento Pattern'), {
+      label: 'Board card title typed',
+    });
     // Ctrl+S saves immediately from any field in BoardCardModal
     tty.send('\x13');
 
     const addedScreen = await tty.waitFor((s) => s.includes('Master Memento Pattern'), {
       label: 'Card added to Todo column',
     });
-    tty.assertHealthyScreen(addedScreen, 120, 'Board after add');
+    assertScreenHealthy(tty, addedScreen, 120, 36, 'Board after add');
 
     // Move card right ('L') from Todo -> Doing
     tty.send('L');
-    await sleep(160);
+    await tty.waitFor(
+      (s) => /进行中 Doing[^\n]*1/.test(s) || /Doing[^\n]*1/.test(s),
+      { timeoutMs: 6_000, label: 'Card moved to Doing column' },
+    );
     await tty.flush();
 
     const boardFile = join(libraryRoot, 'tui-board.json');
-    const raw = await readFile(boardFile, 'utf8');
-    const persisted = JSON.parse(raw);
+    let persisted = null;
+    const diskDeadline = Date.now() + 2_000;
+    while (Date.now() < diskDeadline) {
+      try {
+        const raw = await readFile(boardFile, 'utf8');
+        const parsed = JSON.parse(raw);
+        if (parsed?.cards?.[0]?.column === 'doing') {
+          persisted = parsed;
+          break;
+        }
+      } catch {
+        // Wait for async board persistence write to complete
+      }
+      await new Promise((r) => setTimeout(r, 15));
+    }
+    assert.ok(persisted, 'tui-board.json must be persisted with Doing column');
     assert.equal(persisted.version, 1);
     assert.equal(persisted.cards.length, 1);
     assert.equal(persisted.cards[0].title, 'Master Memento Pattern');
@@ -563,7 +496,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
     const paletteFiltered = await tty.waitFor((s) => s.includes('待办看板') || s.includes('Board'), {
       label: 'Command Palette fuzzy filter',
     });
-    tty.assertHealthyScreen(paletteFiltered, 120, 'Command Palette');
+    assertScreenHealthy(tty, paletteFiltered, 120, 36, 'Command Palette');
     tty.send('\x1b');
     await tty.waitFor((s) => !s.includes('命令面板') && !s.includes('Command Palette'), {
       label: 'Command Palette closed',
@@ -574,7 +507,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
     const helpScreen = await tty.waitFor((s) => s.includes('快捷键') || s.includes('Keyboard Shortcuts'), {
       label: 'Help overlay open',
     });
-    tty.assertHealthyScreen(helpScreen, 120, 'Help Overlay');
+    assertScreenHealthy(tty, helpScreen, 120, 36, 'Help Overlay');
     tty.send('?');
     await tty.waitFor((s) => !s.includes('快捷键') && !s.includes('Keyboard Shortcuts'), {
       label: 'Help overlay closed',
@@ -585,7 +518,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
     const pickerScreen = await tty.waitFor((s) => s.includes('切换课程') || s.includes('Switch Course'), {
       label: 'Course Picker open',
     });
-    tty.assertHealthyScreen(pickerScreen, 120, 'Course Picker');
+    assertScreenHealthy(tty, pickerScreen, 120, 36, 'Course Picker');
     tty.send('\x1b');
     await tty.waitFor((s) => !s.includes('切换课程') && !s.includes('Switch Course'), {
       label: 'Course Picker closed',
@@ -598,42 +531,49 @@ describe('StudyHub TUI xterm-headless E2E', () => {
     for (const [tabKey, expectRe] of [
       ['1', /当前生效模型|Active Model Route/],
       ['2', /学习库路径与工作区|Workspace/],
-      ['3', /FSRS|复习与出题/],
-      ['4', /TUI 外观与偏好|TUI Appearance/],
+      ['3', /FSRS/],
+      ['4', /配色主题 \(Theme\)|Color Theme/],
     ]) {
       tty.send(tabKey);
+      await tty.flush();
       const tabScreen = await tty.waitFor((s) => expectRe.test(s), {
         label: `Settings tab ${tabKey}`,
       });
-      tty.assertHealthyScreen(tabScreen, 120, `Settings tab ${tabKey}`);
+      assertScreenHealthy(tty, tabScreen, 120, 36, `Settings tab ${tabKey}`);
     }
 
     // Row 0 is Theme: dsh-dark -> warm-paper -> nord (press 'l' twice)
     tty.send('l');
-    await sleep(50);
+    await tty.flush();
+    await tty.waitFor((s) => s.includes('[ Warm Paper ]'), { label: 'Theme switched to Warm Paper' });
     tty.send('l');
-    await tty.waitFor((s) => s.includes('Nord'), { label: 'Theme switched to Nord' });
+    await tty.flush();
+    await tty.waitFor((s) => s.includes('[ Nord ]'), { label: 'Theme switched to Nord' });
 
     // Row 1 is Language: zh -> en -> zh
     tty.send('j');
-    await sleep(50);
+    await tty.flush();
+    await tty.waitFor((s) => /❯\s+界面语言|❯\s+UI Language/.test(s), {
+      label: 'Cursor moved to Language row',
+    });
     tty.send('l');
+    await tty.flush();
     const enScreen = await tty.waitFor((s) => s.includes('UI Language') && s.includes('English (en)'), {
       label: 'Language switched to English',
     });
-    tty.assertHealthyScreen(enScreen, 120, 'Settings Appearance EN');
+    assertScreenHealthy(tty, enScreen, 120, 36, 'Settings Appearance EN');
 
     tty.send('l');
     const zhScreen = await tty.waitFor((s) => s.includes('界面语言') && s.includes('简体中文 (zh)'), {
       label: 'Language switched back to Chinese',
     });
-    tty.assertHealthyScreen(zhScreen, 120, 'Settings Appearance ZH');
+    assertScreenHealthy(tty, zhScreen, 120, 36, 'Settings Appearance ZH');
   });
 
   test('g) Sources & Document Reader pagination + Page Ask AI + Esc exit', async () => {
     // Leave Settings (where 1-4 are tab keys) via '6' -> Dashboard, then '2' -> Sources
     tty.send('6');
-    await tty.waitFor((s) => s.includes('学习统计') || s.includes('Stats'), {
+    await tty.waitFor((s) => s.includes('学习统计与掌握度') || s.includes('Study Analytics'), {
       label: 'Leave Settings before Sources',
     });
     tty.send('2');
@@ -646,7 +586,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
       (s) => (s.includes('第 1 /') || s.includes('P. 1 /')) && (s.includes('∑ Unicode') || s.includes('TeX')),
       { timeoutMs: 8_000, label: 'DocumentReader opened' },
     );
-    tty.assertHealthyScreen(readerScreen, 120, 'DocumentReader page 1');
+    assertScreenHealthy(tty, readerScreen, 120, 36, 'DocumentReader page 1');
 
     // Open Page Ask AI (`a`), submit question, verify streamed output
     tty.send('a');
@@ -663,22 +603,29 @@ describe('StudyHub TUI xterm-headless E2E', () => {
       (s) => s.includes('StudyHub TUI stream verified') || s.includes('Focus on encapsulating'),
       { timeoutMs: 8_000, label: 'DocumentReader AI streamed response' },
     );
-    tty.assertHealthyScreen(aiReaderScreen, 120, 'DocumentReader Page Ask AI');
+    assertScreenHealthy(tty, aiReaderScreen, 120, 36, 'DocumentReader Page Ask AI');
 
     // Esc closes AI pane back to reader, second Esc exits reader back to Sources
     tty.send('\x1b');
-    await sleep(60);
+    await tty.waitFor(
+      (s) =>
+        !s.includes('StudyHub TUI stream verified') &&
+        !s.includes('Focus on encapsulating') &&
+        !s.includes('生成中') &&
+        (s.includes('O  目录') || s.includes('O  Outline')),
+      { timeoutMs: 6_000, label: 'DocumentReader AI pane closed' },
+    );
+    await tty.flush();
     tty.send('\x1b');
     const backToSources = await tty.waitFor((s) => s.includes('资料列表') || s.includes('Materials'), {
       timeoutMs: 8_000,
       label: 'Exited DocumentReader back to Sources',
     });
-    tty.assertHealthyScreen(backToSources, 120, 'Sources after DocumentReader exit');
+    assertScreenHealthy(tty, backToSources, 120, 36, 'Sources after DocumentReader exit');
   });
 
   test('h) Widescreen 160x44 & ASCII Compatibility Mode', async () => {
     tty.resize(160, 44);
-    await sleep(80);
     await tty.flush();
 
     const widescreenSweep = [
@@ -698,66 +645,84 @@ describe('StudyHub TUI xterm-headless E2E', () => {
           !s.includes('Loading view…'),
         { timeoutMs: 10_000, label: `${step.id} @ 160x44` },
       );
-      await sleep(160);
       await tty.flush();
       const settled = tty.readScreen();
       await writeFile(join(screenDumpDir, step.file), settled, 'utf8');
-      tty.assertHealthyScreen(settled, 160, `${step.id} @ 160x44`);
+      assertScreenHealthy(tty, settled, 160, 44, `${step.id} @ 160x44`);
     }
 
     // Switch to Settings -> Appearance tab (4) and enable ASCII Safe Mode (row index 3)
     tty.send('4');
-    await tty.waitFor((s) => /TUI 外观与偏好|TUI Appearance/.test(s), {
+    await tty.waitFor((s) => /配色主题 \(Theme\)|Color Theme/.test(s), {
       timeoutMs: 8_000,
       label: 'Settings Appearance tab @ 160x44',
     });
     for (let step = 0; step < 3; step += 1) {
       tty.send('j');
-      await sleep(40);
+      await tty.flush();
     }
     tty.send('l');
     const asciiSettings = await tty.waitFor(
-      (s) => s.includes('ASCII') && (s.includes('已开启') || s.includes('Enabled')),
+      (s) =>
+        s.includes('ASCII') &&
+        (s.includes('已开启') || s.includes('Enabled')) &&
+        s.includes('+') &&
+        s.includes('-'),
       { timeoutMs: 8_000, label: 'Enable asciiMode via Appearance tab' },
     );
-    await sleep(140);
     await tty.flush();
-    tty.assertHealthyScreen(asciiSettings, 160, 'Settings Appearance ASCII @ 160x44');
+    assertScreenHealthy(tty, asciiSettings, 160, 44, 'Settings Appearance ASCII @ 160x44');
     await writeFile(join(screenDumpDir, '160x44-14-settings-ascii.txt'), asciiSettings, 'utf8');
     assert.ok(asciiSettings.includes('+') && asciiSettings.includes('-'), 'Settings renders classic ASCII borders');
 
-    const persistedRaw = await readFile(join(dshHome, 'study', 'tui.json'), 'utf8');
-    const persistedPrefs = JSON.parse(persistedRaw);
-    assert.equal(persistedPrefs.asciiMode, true, 'asciiMode persisted to tui.json');
+    let persistedPrefs = null;
+    const persistDeadline = Date.now() + 2_000;
+    while (Date.now() < persistDeadline) {
+      try {
+        const persistedRaw = await readFile(join(dshHome, 'study', 'tui.json'), 'utf8');
+        persistedPrefs = JSON.parse(persistedRaw);
+        if (persistedPrefs.asciiMode === true) break;
+      } catch {
+        // Atomic rename may still be in flight
+      }
+      await new Promise((r) => setTimeout(r, 15));
+    }
+    assert.equal(persistedPrefs?.asciiMode, true, 'asciiMode persisted to tui.json');
 
     // Leave Settings (where 1-4 are tab keys) via '6' -> Dashboard, then '1' -> Library
     tty.send('6');
-    await tty.waitFor(
-      (s) => /学习统计与掌握度|Stats/.test(s) && !s.includes('正在加载页面…') && !s.includes('Loading view…'),
+    const dashAscii = await tty.waitFor(
+      (s) =>
+        /学习统计与掌握度|Stats/.test(s) &&
+        !s.includes('正在加载页面…') &&
+        !s.includes('Loading view…') &&
+        s.includes('+') &&
+        s.includes('-'),
       { timeoutMs: 8_000, label: 'Dashboard in ASCII mode @ 160x44' },
     );
-    await sleep(160);
     await tty.flush();
-    const dashAscii = tty.readScreen();
     await writeFile(join(screenDumpDir, '160x44-06-dashboard-ascii.txt'), dashAscii, 'utf8');
-    tty.assertHealthyScreen(dashAscii, 160, 'Dashboard ASCII @ 160x44');
+    assertScreenHealthy(tty, dashAscii, 160, 44, 'Dashboard ASCII @ 160x44');
     assert.ok(dashAscii.includes('+') && dashAscii.includes('-'), 'Dashboard renders classic ASCII borders');
 
     tty.send('1');
-    await tty.waitFor(
-      (s) => /题组列表|Decks/.test(s) && !s.includes('正在加载页面…') && !s.includes('Loading view…'),
+    const libAscii = await tty.waitFor(
+      (s) =>
+        /题组列表|Decks/.test(s) &&
+        !s.includes('正在加载页面…') &&
+        !s.includes('Loading view…') &&
+        s.includes('+') &&
+        s.includes('-') &&
+        /掌握度|Mastery/.test(s),
       { timeoutMs: 8_000, label: 'Library in ASCII mode @ 160x44' },
     );
-    await sleep(160);
     await tty.flush();
-    const libAscii = tty.readScreen();
     await writeFile(join(screenDumpDir, '160x44-01-library-ascii.txt'), libAscii, 'utf8');
-    tty.assertHealthyScreen(libAscii, 160, 'Library ASCII @ 160x44');
+    assertScreenHealthy(tty, libAscii, 160, 44, 'Library ASCII @ 160x44');
     assert.ok(libAscii.includes('+') && libAscii.includes('-'), 'Library renders classic ASCII borders');
     assert.match(libAscii, /掌握度|Mastery/);
 
     tty.resize(120, 36);
-    await sleep(80);
     await tty.flush();
   });
 
@@ -775,8 +740,9 @@ describe('StudyHub TUI xterm-headless E2E', () => {
 
     inkInstance.unmount();
     await host.dispose();
-    await sleep(100);
-    const afterRes = resourceCounts();
+    tty.dispose();
+    disposeTerminalPool();
+    const afterRes = await waitForResourceTeardown(baselineResources, 1500);
     for (const kind of ['FSEventWrap', 'StatWatcher', 'ProcessWrap', 'Timeout']) {
       assert.ok(
         (afterRes[kind] || 0) <= (baselineResources[kind] || 0),
