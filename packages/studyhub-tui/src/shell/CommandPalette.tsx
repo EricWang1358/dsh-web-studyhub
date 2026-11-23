@@ -755,6 +755,12 @@ export function buildNaturalLanguagePaletteItem(
         s.openAssistant({ tab: 'guided', stage: intent.stage ?? 'question', focused: true });
         return;
       }
+      if (intent.kind === 'set_preference') {
+        s.setPreferences(intent.patch);
+        persistPreferencePatch(undefined, intent.patch);
+        s.notify(t(ctx.lang, `已切换：${intent.paramsSummary}`, `Updated: ${intent.paramsSummary}`), 'success');
+        return;
+      }
       if (intent.kind === 'readonly_stats') {
         s.navigate('dashboard');
         return;

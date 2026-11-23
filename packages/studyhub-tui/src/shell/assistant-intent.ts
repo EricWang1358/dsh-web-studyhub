@@ -9,7 +9,7 @@
  * - Never hits a dead end: unsupported requests return nearest supported alternative + ready-to-copy prompt.
  * - Concise Chinese/English short phrases — never parrots raw user text.
  */
-import type { PageId, StudySnapshot, UiLanguage } from '../types/contracts.js';
+import type { PageId, StudySnapshot, TuiPreferences, UiLanguage } from '../types/contracts.js';
 import type { AssistantCardContext } from '../state/store.js';
 
 export type AssistantIntent =
@@ -20,6 +20,13 @@ export type AssistantIntent =
       sourceId?: string;
       pageNumber?: number;
       actionName: string;
+      paramsSummary: string;
+      requiresConfirm: false;
+    }
+  | {
+      kind: 'set_preference';
+      patch: Partial<Pick<TuiPreferences, 'theme' | 'compactMode' | 'proactiveHints'>>;
+      actionName: 'preferences.set';
       paramsSummary: string;
       requiresConfirm: false;
     }
@@ -281,6 +288,47 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
       kind: 'readonly_stats',
       actionName: 'snapshot',
       paramsSummary: '只读统计（0 模型调用）',
+      requiresConfirm: false,
+    };
+  }
+
+  // 5b) Eye-care theme & display density natural-language toggles (Round 96 Track B10)
+  if (/(切换|换成|开启|启用|使用|switch\s+to|use|set).*(护眼|暖暗|暖色|低对比|柔和|深色|亮色|纸感|高对比|nord|warm-amber|soft-sage|warm-paper|high-contrast|dsh-dark)/i.test(text)) {
+    let theme: TuiPreferences['theme'] | null = null;
+    if (/低对比|柔和|护眼浅|浅绿|soft[\s-]?sage/i.test(text)) theme = 'soft-sage';
+    else if (/暖暗|暖琥珀|夜间护眼|护眼|warm[\s-]?amber/i.test(text)) theme = 'warm-amber';
+    else if (/纸感|暖纸|亮色|warm[\s-]?paper/i.test(text)) theme = 'warm-paper';
+    else if (/高对比|high[\s-]?contrast/i.test(text)) theme = 'high-contrast';
+    else if (/nord/i.test(text)) theme = 'nord';
+    else if (/深色|默认|dsh[\s-]?dark/i.test(text)) theme = 'dsh-dark';
+    if (theme) {
+      return {
+        kind: 'set_preference',
+        patch: { theme },
+        actionName: 'preferences.set',
+        paramsSummary: `theme=${theme}`,
+        requiresConfirm: false,
+      };
+    }
+  }
+  if (/(切换|开启|进入|使用|设为|set|switch\s+to).*(紧凑模式|紧凑排版|compact\s+mode|宽松模式|宽松排版|relaxed\s+mode)/i.test(text)) {
+    const compactMode = /紧凑|compact/i.test(text);
+    return {
+      kind: 'set_preference',
+      patch: { compactMode },
+      actionName: 'preferences.set',
+      paramsSummary: `compactMode=${compactMode ? 'compact' : 'relaxed'}`,
+      requiresConfirm: false,
+    };
+  }
+
+  // 5c) Exam countdown / backward auto-schedule intent -> direct Exam Prep view (Round 96 Track B10)
+  if (/(排.*备考计划|按考期倒推|考期倒推|备考排程|冲刺计划|倒计时计划|exam\s+plan|exam\s+countdown|study\s+schedule)/i.test(text)) {
+    return {
+      kind: 'navigate',
+      page: 'examprep',
+      actionName: 'navigate(examprep)',
+      paramsSummary: lang === 'en' ? 'Exam Prep (countdown plan)' : '备考补习（考期倒推计划）',
       requiresConfirm: false,
     };
   }
