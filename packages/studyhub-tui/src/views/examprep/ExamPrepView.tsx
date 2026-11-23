@@ -14,6 +14,7 @@ import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { renderBarChart } from '../../render/charts.js';
 import { buildExamCountdownPlan, formatExamCountdownSummary } from './exam-planner.js';
+import { buildExamGapAlert } from './exam-gap-alert.js';
 import { currentCourse, listCourses } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
 import { atomicWriteExportText, defaultBackupFilePath } from '../../host/atomic-write.js';
@@ -33,7 +34,7 @@ import {
   type PrepTab,
 } from './types.js';
 
-const CLAIMED_KEYS = ['1', '2', 'a', 'd', 'g', 'G', 'm', 'p', 'P', ' ', '/', 'x'] as const;
+const CLAIMED_KEYS = ['1', '2', 'a', 'd', 'g', 'G', 'm', 'p', 'P', ' ', '/', 'x', 'Z'] as const;
 
 export interface FormatExamPrepMarkdownParams {
   course?: string | null;
@@ -180,6 +181,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const [crunchIdx, setCrunchIdx] = useState(0);
   const [filterQuery, setFilterQuery] = useState('');
   const [filterEditing, setFilterEditing] = useState(false);
+  const [gapAlertDismissed, setGapAlertDismissed] = useState(false);
 
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [planModalOpen, setPlanModalOpen] = useState(false);
@@ -577,6 +579,11 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
         setPlanModalOpen(true);
         return;
       }
+      if (input === 'Z' && examGapAlert) {
+        setGapAlertDismissed(true);
+        notify(t(lang, '本次会话已隐藏考期预警', 'Exam gap alert dismissed for this session'), 'info');
+        return;
+      }
       if (key.ctrl && input === 'r') {
         void loadAll();
         return;
@@ -642,6 +649,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
     );
   }, [selectedTopic, width, lang, theme, asciiMode]);
 
+  const proactiveHints = useTuiStore((s) => s.preferences.proactiveHints !== false);
   const resolvedExamDate =
     (typeof courseRecord?.exam?.date === 'string' ? courseRecord.exam.date : undefined) ??
     crunch?.examDate ??
@@ -650,9 +658,20 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
     () => buildExamCountdownPlan({ examDate: resolvedExamDate, topics, lang }),
     [resolvedExamDate, topics, lang],
   );
+  const examGapAlert = useMemo(
+    () =>
+      buildExamGapAlert({
+        plan: autoCountdownPlan,
+        proactiveHints,
+        dismissed: gapAlertDismissed,
+        lang,
+        asciiMode,
+      }),
+    [autoCountdownPlan, proactiveHints, gapAlertDismissed, lang, asciiMode],
+  );
   const countdownSummary = useMemo(
-    () => formatExamCountdownSummary(autoCountdownPlan, lang, asciiMode),
-    [autoCountdownPlan, lang, asciiMode],
+    () => examGapAlert?.message || formatExamCountdownSummary(autoCountdownPlan, lang, asciiMode),
+    [examGapAlert, autoCountdownPlan, lang, asciiMode],
   );
   const showFilterBar = tab === 'focus' && (filterEditing || filterQuery.length > 0);
   const showCountdownBar = Boolean(countdownSummary) && !showFilterBar && height >= 16;
