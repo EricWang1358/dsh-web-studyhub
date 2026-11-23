@@ -133,6 +133,6 @@ test('the CI workflow runs every shard of each system exactly once and its gate 
     assert.deepEqual(mine.map(entry => entry.shard).sort((a, b) => a - b), Array.from({ length: shards }, (_, at) => at + 1), `${os}: shards 1..${shards}, each once`);
   }
   assert.match(text, /node scripts\/test\.mjs --shard=\$\{\{ matrix\.shard \}\}\/\$\{\{ matrix\.shards \}\}/, 'each job runs its own shard');
-  assert.match(text, /needs:\s*\[lint,\s*test,\s*test-windows,\s*windows-smoke\]/, 'the gate waits for lint, test shards, and windows-smoke');
+  assert.match(text, /needs:\s*\[lint,\s*test,\s*test-windows,\s*windows-smoke,\s*tui-test,\s*tui-windows-smoke\]/, 'the gate waits for lint, test shards, windows-smoke, and TUI jobs');
   assert.match(text, /fail-fast:\s*false/, 'one failing shard does not hide the others');
 });

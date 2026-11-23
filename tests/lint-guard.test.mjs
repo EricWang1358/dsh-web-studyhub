@@ -9,8 +9,8 @@ import { walk, countLintDisables, ROOT } from '../scripts/qa/guardrail-baseline.
    Two ways round a rule are closed here: switching it off in a comment, and lowering it in the config. The third place, ui/, has old
    disable comments of its own (react-hooks/exhaustive-deps): they are the lintDisable ratchet of tests/ui-guardrails.test.mjs, which may only fall. */
 const rel = (abs) => abs.slice(ROOT.length).replace(/\\/g, '/').replace(/^\/+/, '');
-// Built by `npm run build`, never written by hand.
-const generated = (file) => /^lib\/client(\.|$)/.test(file);
+// Built by `npm run build` or installed/compiled inside workspace packages, never written by hand.
+const generated = (file) => /^lib\/client(\.|$)/.test(file) || /^packages\/[^/]+\/(?:node_modules|dist)\//.test(file);
 
 test('no lint rule is switched off in a comment outside ui/', () => {
   const hits = [];
