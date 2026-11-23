@@ -264,14 +264,10 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       title: t(lang, '命令面板 · Palette', 'Command Palette'),
       items: [
         { key: '/#?@:', label: t(lang, '命令/题/段/课/页筛选', 'Cmd/card/text/course/page') },
-        { key: '/due /theme /lang', label: t(lang, '今日到期刷题/主题与语言持久化', 'Due queue / Theme & lang') },
+        { key: '/due /theme /lang', label: t(lang, '今日到期/6主题(护眼)/语言', 'Due / 6 themes / Lang') },
         { key: '/ascii /math /recover', label: t(lang, 'ASCII/数学符号/恢复中断任务', 'ASCII / Math / Recover jobs') },
-        { key: '/compact /hints', label: t(lang, '全16页跳转与界面偏好开关', 'All 16 views & UI toggles') },
-        { key: 'I: /  e', label: t(lang, '收件箱筛选与导出 JSON', 'Inbox filter & JSON export') },
-        { key: 'Ctrl+Space', label: t(lang, '停靠/聚焦常驻 AI 助手与带学', 'Dock/focus AI Assistant & Guided') },
-        { key: '/density', label: t(lang, '切换紧凑/宽松间距档位', 'Toggle compact/relaxed density') },
-        { key: '/proactive', label: t(lang, '开关主动学习提示', 'Toggle proactive study nudges') },
-        { key: '/terminal', label: t(lang, '诊断终端能力矩阵 (OSC/mux)', 'Inspect terminal capabilities') },
+        { key: '/density /proactive /terminal /pin', label: t(lang, '紧凑密度/主动提示/终端诊断/书签', 'Density / Proactive / Diag / Pin') },
+        { key: 'Ctrl+Space / I:/ e', label: t(lang, '常驻AI助手 · 收件箱筛选导出', 'AI Assistant · Inbox filter/JSON') },
       ],
     },
   ];

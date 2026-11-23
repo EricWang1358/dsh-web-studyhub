@@ -124,10 +124,10 @@ describe('Round 93 Track B8 — HelpOverlay featureShortcuts sync', () => {
       assert.ok(allKeys.includes('Q'), `${lang}: WrongBook [Q] documented`);
       assert.ok(allKeys.includes('T'), `${lang}: Dashboard [T] documented`);
       assert.ok(allKeys.includes('Z'), `${lang}: ExamPrep [Z] documented`);
-      assert.ok(allKeys.includes('Ctrl+Space'), `${lang}: Assistant Ctrl+Space documented`);
-      assert.ok(allKeys.includes('/density'), `${lang}: /density documented`);
-      assert.ok(allKeys.includes('/proactive'), `${lang}: /proactive documented`);
-      assert.ok(allKeys.includes('/terminal'), `${lang}: /terminal documented`);
+      assert.ok(allKeys.some((k) => k.includes('Ctrl+Space')), `${lang}: Assistant Ctrl+Space documented`);
+      assert.ok(allKeys.some((k) => k.includes('/density')), `${lang}: /density documented`);
+      assert.ok(allKeys.some((k) => k.includes('/proactive')), `${lang}: /proactive documented`);
+      assert.ok(allKeys.some((k) => k.includes('/terminal')), `${lang}: /terminal documented`);
 
       for (const g of groups) {
         const keys = g.items.map((it) => it.key);
