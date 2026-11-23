@@ -51,7 +51,7 @@ export function useNavigation({ core, lib, motion, rootRef, initialPage = 'libra
     return {
       note: (id) => to('notes', () => setNoteInitialId(id)),
       skeleton: (id) => to('skeleton', () => setSkeletonFocus(id)),
-      deck: (deck) => to('manage', () => { setManagedDeck(deck); setFolderDraft(deck.course ?? deck.folder ?? ''); }),
+      deck: (deck) => to('manage', () => { setManagedDeck(deck); setFolderDraft(deck.folder ?? deck.course ?? ''); }),
       managedDeck: (deck) => to('manage', () => setManagedDeck(deck)),
       task: (jobId) => to('tasks', () => setTaskFocus({ jobId, nonce: Date.now() })),
       workflow: (sessionId) => to('workflows', () => setWorkflowReturn({ sessionId, nonce: Date.now() })),

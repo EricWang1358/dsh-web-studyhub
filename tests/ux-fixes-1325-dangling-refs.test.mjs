@@ -200,7 +200,7 @@ test("#1325-9: source.remove succeeds after completed runs (including previousVe
     await service.call("source.archive", { id: src.id, archived: true });
     await assert.rejects(
       () => service.call("source.remove", { id: src.id, confirm: true }),
-      /题组或草稿引用/,
+      /Source is referenced by a deck or draft/,
     );
 
     // Finish the run, archive and permanently delete the deck
@@ -232,7 +232,7 @@ test("#1325-9: source.remove succeeds after completed runs (including previousVe
     });
     await assert.rejects(
       () => service.call("source.remove", { id: src2.id, confirm: true }),
-      /进行中的练习引用/,
+      /Source is referenced by an active practice run/,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
