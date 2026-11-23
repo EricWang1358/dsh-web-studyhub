@@ -90,7 +90,7 @@ export default function CardEditor({ card, board, baseRevision, library, today, 
           <div className="board-field">
             <div className="board-field__bar">
               <span>{ui('备注 · 支持 Markdown')}</span>
-              <SegmentedControl size="sm" label={ui('备注模式')} value={tab} onChange={setTab} options={[{ value: 'write', label: ui('编辑') }, { value: 'preview', label: ui('预览') }]} />
+              <SegmentedControl size="sm" label={ui('备注模式')} value={tab} onChange={setTab} disabled={saving || readOnly} options={[{ value: 'write', label: ui('编辑') }, { value: 'preview', label: ui('预览') }]} />
             </div>
             {tab === 'write'
               ? <textarea className="board-input" rows={5} maxLength={50000} value={draft.note} aria-label={ui('备注 · 支持 Markdown')} onChange={(event) => set({ note: event.target.value })} />

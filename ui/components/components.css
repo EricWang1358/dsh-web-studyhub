@@ -264,7 +264,10 @@
     .sh-seg__item:not(.is-active):focus-visible { box-shadow: var(--ring); }
     /* Disabled segments step clearly below enabled inactive choices (--text-dim) without fading opacity or shifting width. */
     .sh-seg__item:disabled { color: color-mix(in srgb, var(--text-faint) 52%, transparent); cursor: default; }
-    .sh-seg:has(> .sh-seg__item.is-active:disabled) > .sh-seg__thumb,
+    /* The thumb is told that its chosen item is disabled (SegmentedControl stamps data-muted). `.sh-seg:has(> .sh-seg__item.is-active:disabled)` asked the
+       page instead, and a :has() that holds :disabled makes Chrome look for affected elements every time any control is disabled or enabled: with a
+       material open beside a question, locking its buttons for an answer took 255 ms instead of 129 (tests/page-switch-jank.test.mjs). */
+    .sh-seg > .sh-seg__thumb[data-muted="true"],
     .sh-seg:not([data-thumb="on"]) > .sh-seg__item.is-active:disabled {
       background: color-mix(in srgb, var(--text) 6%, transparent);
       border-color: var(--line);
@@ -725,7 +728,7 @@
       background: color-mix(in srgb, var(--sh-tone) 7%, var(--bg-surface));
     }
     .sh-inline ul { margin: var(--space-1) 0 0; padding-left: 1.1em; }
-    .sh-inline li + li { margin-top: var(--space-half); }
+    .sh-inline li:where(:not(:first-child)) { margin-top: var(--space-half); }
     .sh-job__failure .sh-inline { width: 100%; margin: 0; }
     .sh-job__body > .sh-inline { margin: 0; }
     .sh-secret__foot .sh-inline { overflow-wrap: anywhere; }

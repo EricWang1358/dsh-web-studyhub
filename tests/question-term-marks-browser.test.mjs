@@ -13,6 +13,7 @@ import { createPreviewServer, previewCall } from "../scripts/preview-server.mjs"
 import { launchChromium } from "../scripts/qa/browser.mjs";
 import { scrubProcessEnv } from "../scripts/qa/env.mjs";
 import { openPage, settleAnimations, startLateServer } from "../scripts/qa/layout-late.mjs";
+import { highlightDrawn } from "./helpers/highlight-drawn.mjs";
 
 const SHOTS = process.env.QUESTION_TERM_MARKS_SHOTS || "";
 
@@ -227,6 +228,7 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
         const expectedHl = lang === "en" ? 2 : 1;
         const hl = await highlightCount(page);
         if (hl >= 0) assert.ok(hl >= expectedHl, `${tag}: highlight spans all occurrences (${hl})`);
+        if (hl >= 0) assert.equal(await highlightDrawn(page, "study-term-mark"), true, `${tag}: and it is drawn on the question, not only registered`);
 
         // Click again (on 2nd occurrence in EN, same word in ZH) -> toggles off.
         await clickWord(page, backSel, toggleWord, lang === "en" ? 1 : 0);
@@ -608,6 +610,7 @@ test("course term persistence, pale study-term-seen highlight, click-to-stage, a
         const activeHlBefore = await highlightCount(page, "study-term-mark");
         if (seenHl >= 0) {
           assert.ok(seenHl >= 1, `${tag}: pale study-term-seen highlight paints seen unknown word on Card 2 (${seenHl})`);
+          assert.equal(await highlightDrawn(page, "study-term-seen"), true, `${tag}: and it is drawn on the question, not only registered`);
           assert.equal(activeHlBefore, 0, `${tag}: active study-term-mark is empty before clicking`);
         }
         await takeShot(page, `term-seen-${lang}-${width}`);
@@ -875,6 +878,7 @@ test("candidate unfamiliar words after wrong answers, 1-click mark, and 420px la
         assert.equal(candStyle, "dashed", `${tag}: candidate chips render with dashed border`);
         const candHl = await highlightCount(page, "study-term-candidate");
         if (candHl >= 0) assert.ok(candHl >= 1, `${tag}: study-term-candidate CSS highlight painted (${candHl})`);
+        if (candHl >= 0) assert.equal(await highlightDrawn(page, "study-term-candidate"), true, `${tag}: and it is drawn on the question, not only registered`);
 
         if (width === 420) {
           const stripBox = await page.locator(".term-strip").boundingBox();

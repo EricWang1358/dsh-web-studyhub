@@ -6,6 +6,7 @@ const DRAWN_STYLES = Object.freeze(['underline', 'bold', 'highlight']);
 import { generationFormDefaults } from '../../generation-status.js';
 import { generationRequest } from '../../generate-form.js';
 import { ui, uiFormat } from '../../i18n.js';
+import { studyHighlights } from '../../highlight-gate.js';
 
 /** The highlight names of the learner's strokes (links.css draws them; the link layer's own names are study-link-*). */
 export const MARK_HIGHLIGHTS = Object.freeze({ underline: 'study-mark-underline', bold: 'study-mark-bold', highlight: 'study-mark-highlight', queue: 'study-mark-queue', pending: 'study-mark-pending' });
@@ -45,8 +46,8 @@ export function paintMarks(entries, env = supported()) {
   }
   return () => { for (const name of names) registry.delete(name); };
 }
-const supported = () => typeof window !== 'undefined' && window.CSS?.highlights && typeof window.Highlight === 'function'
-  ? { registry: window.CSS.highlights, Highlight: window.Highlight } : { registry: null, Highlight: null };
+// The gated registry: a write also tells the reading page which highlights exist (ui/highlight-gate.js).
+const supported = () => { const registry = studyHighlights(); return registry ? { registry, Highlight: window.Highlight } : { registry: null, Highlight: null }; };
 
 /** The marks a selection lies in or covers: the same passage, or one that contains it (so 去掉下划线 is offered on any part of an underline). */
 export function marksAt(items = [], capture) {

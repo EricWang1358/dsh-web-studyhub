@@ -154,9 +154,13 @@
       bottom: 0;
       border-top: 1px solid var(--line-soft);
     }
-    /* Keep keyboard Tab focus clear of the sticky bottom review toolbar (WCAG 2.4.11). */
-    &:has(.review-sticky-bar[data-answered="true"], .review-sticky-bar[data-grading="true"]) {
-      scroll-padding-bottom: calc(var(--space-9) + var(--space-7));
+    /* Keep keyboard Tab focus clear of the stuck bottom review toolbar (WCAG 2.4.11 Focus Not Obscured): what can take the focus in the question area
+       stops that far above the bottom edge. It is NOT a scroll-padding-bottom on the page scroller (.study-app): any change of scroll-padding on that
+       box makes Chrome restyle every element of the page, 200 ms on each answer with a material open beside the question (tests/page-switch-jank.test.mjs).
+       The bar's own controls are left out: they are the bar. `:enabled` is every button, field and select that can be used, whatever its class. */
+    .question-area[data-bar-stuck="true"] > :not(.review-sticky-bar) :is(a[href], :enabled, summary, [tabindex], [contenteditable]),
+    .question-area[data-bar-stuck="true"] > :is(a[href], :enabled, summary, [tabindex], [contenteditable]):not(.review-sticky-bar) {
+      scroll-margin-bottom: calc(var(--space-9) + var(--space-7));
     }
     .review-undo {
       color: var(--accent-text);

@@ -92,7 +92,7 @@
     .course-list__chapters { list-style: none; margin: 0; padding: 0 0 var(--space-1); border-top: 1px dashed var(--line-soft);
       background: color-mix(in srgb, var(--bg-sunken) 55%, transparent); }
     .course-list__chapters .course-list__item { min-height: 44px; padding-left: calc(var(--space-3) + var(--space-6)); }
-    .course-list__chapters li + li .course-list__item { border-top: 1px solid var(--line-soft); }
+    .course-list__chapters li:where(:not(:first-child)) .course-list__item { border-top: 1px solid var(--line-soft); }
     .course-list__chapters .course-list__chapter--nested .course-list__item { padding-left: calc(var(--space-3) + var(--space-6) + var(--space-4) * var(--depth, 1)); }
     /* Library heading: the countdown sits beside the course name. */
     .course-heading .course-heading-exam { flex: none; align-self: center; padding: var(--space-1) var(--space-2); border-radius: var(--radius-pill);

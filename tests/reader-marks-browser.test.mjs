@@ -11,6 +11,7 @@ import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 import { until } from './helpers/wait.mjs';
 import { chooseMore } from './helpers/reader-more.mjs';
+import { highlightDrawn } from './helpers/highlight-drawn.mjs';
 
 /* The reader's right-click menu in the real page (owner request 2026-11-11): select words, right-click, and 下划线 / 加粗 / 荧光笔 them, put
    passages on the 待出题 list (also from the keyboard), take a mark off by right-clicking it, find every mark again after reopening, then
@@ -50,8 +51,11 @@ const select = (page, words) => page.evaluate(phrase => {
   }
   return null;
 }, words);
-/** The ranges painted in one highlight (0 when none). */
-const painted = (page, name) => page.evaluate(key => CSS.highlights.get(key)?.size ?? 0, name);
+/** The ranges painted in one highlight (0 when none, and 0 while its rule does not reach the text: a registered highlight the page does not draw). */
+const painted = async (page, name) => {
+  const ranges = await page.evaluate(key => CSS.highlights.get(key)?.size ?? 0, name);
+  return ranges && await highlightDrawn(page, name) ? ranges : 0;
+};
 const menu = page => page.getByRole('menu', { name: '选中文字的操作' });
 
 test('select, right-click, mark and queue; reopen; 一次性出题 runs in the background while reading on; 词解 shows on hover', { timeout: 600000 }, async t => {

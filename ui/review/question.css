@@ -758,15 +758,15 @@
     .review-body.is-marking :is(.question, .flip-face[aria-hidden="false"], .explanation) {
       cursor: text;
     }
-    .review-body :not(.katex, .katex *)::highlight(study-term-mark) {
+    .review-body[data-highlights~="study-term-mark"] :not(.katex, .katex *)::highlight(study-term-mark) {
       background-color: var(--warn-mark);
       color: inherit;
     }
-    .review-body :not(.katex, .katex *)::highlight(study-term-seen) {
+    .review-body[data-highlights~="study-term-seen"] :not(.katex, .katex *)::highlight(study-term-seen) {
       background-color: var(--warn-seen);
       color: inherit;
     }
-    .review-body :not(.katex, .katex *)::highlight(study-term-candidate) {
+    .review-body[data-highlights~="study-term-candidate"] :not(.katex, .katex *)::highlight(study-term-candidate) {
       background-color: transparent;
       color: inherit;
       text-decoration: underline dashed var(--warn);

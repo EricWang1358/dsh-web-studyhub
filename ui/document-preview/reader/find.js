@@ -3,6 +3,7 @@
    painted with the CSS Custom Highlight API: the page is never changed, so a
    search cannot disturb the passage marks or the selection tools. */
 import { spanFormulas } from './formula.js';
+import { highlightsSupported, studyHighlights } from '../../highlight-gate.js';
 
 /**
  * Folds text for matching: NFKC, lower case, runs of whitespace as one space, no leading
@@ -119,12 +120,12 @@ export function findRanges(root, query, { limit = 1000, caseSensitive = false } 
   return ranges;
 }
 
-export const supportsHighlights = () => typeof window !== 'undefined' && !!window.CSS?.highlights && typeof window.Highlight === 'function';
+export const supportsHighlights = highlightsSupported;
 
 /** Paint every match and the current one; returns the function that clears them. */
 export function paintMatches(ranges, current) {
-  if (!supportsHighlights()) return () => {};
-  const registry = window.CSS.highlights;
+  const registry = studyHighlights(); // gated: a write also tells the page which highlights exist (ui/highlight-gate.js)
+  if (!registry) return () => {};
   if (ranges.length) registry.set('study-find', new window.Highlight(...ranges)); else registry.delete('study-find');
   if (ranges[current]) registry.set('study-find-current', new window.Highlight(ranges[current])); else registry.delete('study-find-current');
   return () => { registry.delete('study-find'); registry.delete('study-find-current'); };

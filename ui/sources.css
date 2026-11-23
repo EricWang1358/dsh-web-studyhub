@@ -73,8 +73,8 @@
        nothing is cut while the line fits and only the courses give way when it does not (#1083). */
     .source-doc__meta { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; font-variant-numeric: tabular-nums; }
     .source-doc .source-main .source-doc__meta > small { flex: 0 1 auto; min-width: 0; max-width: none; margin: 0; }
-    .source-doc .source-main .source-doc__meta > small + small { flex: 1 0 auto; max-width: 100%; }
-    .source-doc__meta > small + small::before { content: "·"; margin-right: var(--space-2); color: var(--text-faint); }
+    .source-doc .source-main .source-doc__meta > small:where(:not(:first-child)) { flex: 1 0 auto; max-width: 100%; }
+    .source-doc__meta > small:where(:not(:first-child))::before { content: "·"; margin-right: var(--space-2); color: var(--text-faint); }
     /* The hover tip of a cut courses piece wraps its words inline, so the piece still ends in an ellipsis. */
     .source-doc .source-main .source-doc__facts-tip { display: inline; }
     /* The status line: mastery and coverage, then the index badge's slot. The slot is there from the first paint and at least --index-slot wide; it takes the rest
@@ -163,7 +163,7 @@
      in two (courses over format), a row's actions take their own line under its status line, and the index badge says its pages without the scope word. */
   :is(.study-app, .study-seat) .sources-page.is-narrow {
     .source-doc__meta { flex-direction: column; align-items: stretch; gap: 0; }
-    .source-doc__meta > small + small::before { content: none; }
+    .source-doc__meta > small:where(:not(:first-child))::before { content: none; }
     .source-doc .source-main small.source-doc__facts--gap { max-width: none; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
     .source-doc__line > .source-doc__actions { grid-row: 3; grid-column: text-start / -1; justify-content: safe flex-end; margin-top: var(--space-2); }
     /* Here a row's actions take their own line under it: a hairline between rows says which row they belong to. */

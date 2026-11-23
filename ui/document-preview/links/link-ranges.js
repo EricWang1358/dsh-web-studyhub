@@ -3,6 +3,7 @@
    walk over the text nodes of each page, painted with the CSS Custom Highlight API (like search), and looked up
    again with Range.isPointInRange on click. Pure helpers over a DOM-like container, so they run under node:test. */
 import { spanFormulas } from '../reader/formula.js';
+import { studyHighlights } from '../../highlight-gate.js';
 
 export const HIGHLIGHT_NAMES = Object.freeze({ question: 'study-link-question', qa: 'study-link-qa', annotation: 'study-link-annotation', note: 'study-link-note' });
 export const MASTERY_HIGHLIGHT_NAMES = Object.freeze({
@@ -118,8 +119,8 @@ export function locateGroups(container, groups) {
   return entries;
 }
 
-const supported = () => typeof window !== 'undefined' && window.CSS?.highlights && typeof window.Highlight === 'function'
-  ? { registry: window.CSS.highlights, Highlight: window.Highlight } : { registry: null, Highlight: null };
+// The gated registry: a write also tells the reading page which highlights exist (ui/highlight-gate.js).
+const supported = () => { const registry = studyHighlights(); return registry ? { registry, Highlight: window.Highlight } : { registry: null, Highlight: null }; };
 
 function bucketFor(group) {
   const kind = group.kind in PRIORITY ? group.kind : 'question', state = group.masteryState;

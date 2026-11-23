@@ -9,6 +9,7 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 import { openPage, startLateServer } from '../scripts/qa/layout-late.mjs';
 import { seedBigBook } from '../scripts/qa/big-book.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
+import { highlightDrawn } from './helpers/highlight-drawn.mjs';
 
 /* #489 items 3, 4, 11 in the real page at 1280 and 420 px on a book of 200 points: 在书里找 lists the points that have the words, one click goes to the point (not drawn until then, in
    逐节读) with the words marked, the same in 整章连着读; the 目录 of a big book shows chapters with the one being read open, and its caret opens another. Nothing scrolls sideways. */
@@ -72,6 +73,7 @@ test('复习全书 find and the big 目录 (1280 and 420 px)', { timeout: 420000
       await page.locator(`[data-book-step="${target.hid}"]`).waitFor({ timeout: 30000 });
       await page.waitForFunction(() => window.CSS.highlights.get('study-find')?.size > 0, null, { timeout: 30000 });
       assert.equal(await marks(page), 2, `${width}px: both places are marked`);
+      assert.equal(await highlightDrawn(page, 'study-find'), true, `${width}px: and the mark is drawn on the page, not only registered`);
       const seen = await page.evaluate(() => { const range = [...window.CSS.highlights.get('study-find')][0], box = range.getBoundingClientRect(); return { top: box.top, height: window.innerHeight, text: range.toString() }; });
       assert.equal(seen.text, '独一无二');
       assert.ok(seen.top >= 0 && seen.top < seen.height, `${width}px: the first one is on screen (${seen.top})`);

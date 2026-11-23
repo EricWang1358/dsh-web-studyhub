@@ -148,6 +148,7 @@
     "tests/report-kit-browser.test.mjs",
     "tests/restore-points.test.mjs",
     "tests/review-autopilot-way-back.test.mjs",
+    "tests/review-bar-focus-browser.test.mjs",
     "tests/review-run-context-browser.test.mjs",
     "tests/review-step-budget.test.mjs",
     "tests/round-setup-browser.test.mjs",

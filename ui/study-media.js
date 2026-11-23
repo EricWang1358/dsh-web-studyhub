@@ -6,8 +6,24 @@ export const STUDY_IMAGE_PATTERN = /!\[([^\]\n]*)\]\((?:<([^>\n]+)>|([^\s)]+))(?
 
 const MARKER = /[\uE000\uE001]/g;
 
+const BACKTICK = 96, TILDE = 126, BANG = 33, CLOSE_BRACKET = 93, LOWER_H = 104, NEWLINE = 10;
+const SPACE = /\s/;
+
+/** Whether a literal can start at `i` at all, read from its first character alone: a backtick (a span or a fence), "![" (an image), "](" (a link's
+ * address), "http" (a bare URL), or, at the start of a line, the blank or "~" a fence may open with. Every other place is refused before any slice or
+ * pattern is made: a reader's text is scanned one character at a time, and a book is millions of them. */
+function mayOpenLiteral(text, i) {
+  const code = text.charCodeAt(i);
+  if (code === BACKTICK) return true;
+  if (code === BANG) return text.charCodeAt(i + 1) === 91;
+  if (code === CLOSE_BRACKET) return text.charCodeAt(i + 1) === 40;
+  if (code === LOWER_H) return text.startsWith('http', i);
+  return (i === 0 || text.charCodeAt(i - 1) === NEWLINE) && (code === TILDE || SPACE.test(text[i]));
+}
+
 /** Code spans, fences, image/link addresses and bare URLs at `i`: literal text, never math. */
 function literalAt(text, i) {
+  if (!mayOpenLiteral(text, i)) return -1;
   const rest = text.slice(i);
   const fence = (i === 0 || text[i - 1] === '\n') && rest.match(/^\s*(`{3,}|~{3,})[^\n]*(?:\n|$)/);
   const ticks = rest.match(/^`+/);

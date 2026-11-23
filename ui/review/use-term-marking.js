@@ -2,6 +2,7 @@ import React from "react";
 import { reviewEntryKey } from "../async.js";
 import { isPassed } from "./session-logic.js";
 import { ui, uiLocale } from "../i18n.js";
+import { studyHighlights } from "../highlight-gate.js";
 import { MAX_MARKED_TERMS, clearCompletedTermEntries, collectInFlightTerms, filterCandidateTerms, mergeAdjacent, normalizeTerm, toggleTerm, wordAt } from "./term-marks.js";
 import { collectAllHighlightEntries, collectBlockSegments, isAllowedTextNode, isExcludedElement } from "./term-marking-dom.js";
 
@@ -18,10 +19,6 @@ function promptExcerpt(raw) {
   const clean = raw.replace(/\s+/g, " ").trim();
   if (!clean) return "";
   return clean.length > PROMPT_EXCERPT_MAX ? `${clean.slice(0, PROMPT_EXCERPT_MAX - 1).trimEnd()}…` : clean;
-}
-
-function supportsHighlights() {
-  return typeof CSS !== "undefined" && !!CSS.highlights && typeof Highlight === "function";
 }
 
 function caretAt(doc, x, y) {
@@ -640,10 +637,11 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
       activeSpansRef.current = [];
       seenSpansRef.current = [];
       candidateSpansRef.current = [];
-      if (supportsHighlights()) {
-        CSS.highlights.delete(TERM_HIGHLIGHT_NAME);
-        CSS.highlights.delete(SEEN_TERM_HIGHLIGHT_NAME);
-        CSS.highlights.delete(CANDIDATE_TERM_HIGHLIGHT_NAME);
+      const registry = studyHighlights(); // gated: a write also tells the question which highlights exist (ui/highlight-gate.js)
+      if (registry) {
+        registry.delete(TERM_HIGHLIGHT_NAME);
+        registry.delete(SEEN_TERM_HIGHLIGHT_NAME);
+        registry.delete(CANDIDATE_TERM_HIGHLIGHT_NAME);
       }
     };
     if (!body || disabledForState || (!terms.length && !seenUnknownTerms.length && !candidateTerms.length)) {
@@ -661,17 +659,18 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
       activeSpansRef.current = active.spans;
       seenSpansRef.current = seen.spans;
       candidateSpansRef.current = cand.spans;
-      if (supportsHighlights()) {
-        if (seen.ranges.length) CSS.highlights.set(SEEN_TERM_HIGHLIGHT_NAME, new Highlight(...seen.ranges));
-        else CSS.highlights.delete(SEEN_TERM_HIGHLIGHT_NAME);
-        if (cand.ranges.length) CSS.highlights.set(CANDIDATE_TERM_HIGHLIGHT_NAME, new Highlight(...cand.ranges));
-        else CSS.highlights.delete(CANDIDATE_TERM_HIGHLIGHT_NAME);
+      const registry = studyHighlights();
+      if (registry) {
+        if (seen.ranges.length) registry.set(SEEN_TERM_HIGHLIGHT_NAME, new Highlight(...seen.ranges));
+        else registry.delete(SEEN_TERM_HIGHLIGHT_NAME);
+        if (cand.ranges.length) registry.set(CANDIDATE_TERM_HIGHLIGHT_NAME, new Highlight(...cand.ranges));
+        else registry.delete(CANDIDATE_TERM_HIGHLIGHT_NAME);
         if (active.ranges.length) {
           const highlight = new Highlight(...active.ranges);
           try { highlight.priority = 1; } catch { /* a browser without highlight priority draws in registration order */ }
-          CSS.highlights.set(TERM_HIGHLIGHT_NAME, highlight);
+          registry.set(TERM_HIGHLIGHT_NAME, highlight);
         } else {
-          CSS.highlights.delete(TERM_HIGHLIGHT_NAME);
+          registry.delete(TERM_HIGHLIGHT_NAME);
         }
       }
     };

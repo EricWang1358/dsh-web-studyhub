@@ -22,7 +22,7 @@
     .cov-meter { display: inline-flex; align-items: center; gap: var(--space-1-5); min-width: 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
     .cov-meter__bar { display: inline-flex; flex: none; width: 3.25em; height: 6px; overflow: hidden; border-radius: var(--radius-pill); background: var(--bg-sunken); box-shadow: inset 0 0 0 1px var(--line); }
     .cov-meter__bar i { display: block; height: 100%; background: var(--cov-covered); }
-    .cov-meter__bar i + i { background: var(--warn); }
+    .cov-meter__bar i:where(:not(:first-child)) { background: var(--warn); }
     .cov-meter[data-state='none'] { color: var(--text-faint); }
     /* ── The bar (StackedBar with a kind per part) ─────────────────────── */
     .cov-bar [data-kind='covered'] { --sh-tone: var(--cov-covered); }

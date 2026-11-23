@@ -12,6 +12,7 @@ import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 import { until } from './helpers/wait.mjs';
 import { chooseMore } from './helpers/reader-more.mjs';
 import { backToQuestion } from './helpers/source-column.mjs';
+import { HIGHLIGHT_GATE, HIGHLIGHT_HOLDERS } from '../ui/highlight-gate.js';
 
 /* Scrolling a formula-heavy chapter does not stall (gate review of #996). A KaTeX drawing is 70–210 elements, and the reader's 19 highlight styles
    (find, link underlines, marks) were written for every element of the app (` ::highlight(…)`), so the browser resolved 19 highlight styles for each
@@ -93,10 +94,21 @@ const paints = async (page, name) => {
   }, FOUND_PAGE);
   await page.waitForTimeout(200);
   const plain = await page.screenshot({ clip: box });
-  await page.evaluate(name => { window.CSS.highlights.set(name, new window.Highlight(window.__paintRange)); }, name);
+  // Written straight on the registry here, not through the panel's gate, so the reading page is told the name the way the gate tells it (ui/highlight-gate.js).
+  const told = { name, gate: HIGHLIGHT_GATE, holders: Object.keys(HIGHLIGHT_HOLDERS).join(', ') };
+  await page.evaluate(({ name, gate, holders }) => {
+    window.CSS.highlights.set(name, new window.Highlight(window.__paintRange));
+    for (const holder of document.querySelectorAll(holders)) holder.setAttribute(gate, [holder.getAttribute(gate), name].filter(Boolean).join(' '));
+  }, told);
   await page.waitForTimeout(200);
   const marked = await page.screenshot({ clip: box });
-  await page.evaluate(name => { window.CSS.highlights.delete(name); }, name);
+  await page.evaluate(({ name, gate, holders }) => {
+    window.CSS.highlights.delete(name);
+    for (const holder of document.querySelectorAll(holders)) {
+      const left = (holder.getAttribute(gate) || '').split(' ').filter(item => item && item !== name).join(' ');
+      if (left) holder.setAttribute(gate, left); else holder.removeAttribute(gate);
+    }
+  }, told);
   return !plain.equals(marked);
 };
 
