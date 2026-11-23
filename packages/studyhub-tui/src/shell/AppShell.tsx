@@ -257,12 +257,13 @@ export const AppShell = memo(function AppShell({
     [host, contentW, contentH, contentActive],
   );
 
+  const compactMode = useTuiStore((s) => Boolean(s.preferences.compactMode));
   const tailHints: KeyHint[] = useMemo(
     () => [
       { key: 'Ctrl+K', label: t(lang, '命令', 'Cmd') },
-      { key: '?', label: footerHints.length > 4 ? t(lang, '全部键', 'All') : t(lang, '帮助', 'Help') },
+      { key: '?', label: compactMode && footerHints.length > 4 ? t(lang, '全部键', 'All') : t(lang, '帮助', 'Help') },
     ],
-    [lang, footerHints.length],
+    [lang, compactMode, footerHints.length],
   );
   const defaultHints: KeyHint[] = useMemo(
     () => [
@@ -275,10 +276,10 @@ export const AppShell = memo(function AppShell({
   );
   const practiceReturnLabel = useMemo(() => formatReturnHintLabel(practiceStack, lang), [practiceStack, lang]);
   const hints = useMemo(() => {
-    const base = footerHints.length ? footerHints.slice(0, 4) : defaultHints;
+    const base = footerHints.length ? (compactMode ? footerHints.slice(0, 4) : footerHints) : defaultHints;
     const prefix: KeyHint[] = practiceReturnLabel ? [{ key: 'r', label: practiceReturnLabel }] : [];
     return [...prefix, ...base, ...tailHints];
-  }, [practiceReturnLabel, footerHints, defaultHints, tailHints]);
+  }, [practiceReturnLabel, footerHints, compactMode, defaultHints, tailHints]);
 
   const toastW = Math.min(48, Math.max(28, Math.floor(columns * 0.4)));
   const toastRows = Math.min(2, toasts.length);

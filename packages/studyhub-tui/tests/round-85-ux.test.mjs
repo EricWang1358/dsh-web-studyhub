@@ -94,7 +94,7 @@ describe('Round 85 Track A4 — VirtualList partial row refresh', () => {
         keyExtractor,
         renderItem,
       }),
-      { stdout: tty.stdout, stdin: tty.stdin, exitOnCtrlC: false },
+      { stdout: tty.stdout, stdin: tty.stdin, exitOnCtrlC: false, interactive: true },
     );
 
     await tty.waitFor((s) => s.includes('> Deck Item #0'));
@@ -121,27 +121,34 @@ describe('Round 85 Track C3 — Flicker-free terminal resize coalescer', () => {
     const commits = [];
     const c = createResizeCoalescer({ columns: 120, rows: 36 }, (next) => commits.push(next), 35);
 
-    // Simulate 25 rapid drag ticks in < 10ms
+    // Simulate 25 rapid 1-col drag ticks in < 10ms: leading edge commits 1st tick immediately,
+    // middle 23 ticks coalesce, and trailing edge commits final size once (2 commits vs 25 raw!)
     for (let i = 1; i <= 25; i += 1) {
       c.push(120 - i, 36 - Math.floor(i / 5));
     }
-    assert.equal(commits.length, 0, 'Burst events must not commit synchronously before debounce settles');
+    assert.equal(commits.length, 1, 'Leading edge commits immediately; middle 24 drag ticks stay coalesced');
 
     await wait(65);
-    assert.equal(commits.length, 1, '25 burst ticks should coalesce into exactly 1 trailing commit');
-    assert.deepEqual(commits[0], { columns: 95, rows: 31 });
+    assert.equal(commits.length, 2, '25 drag ticks should coalesce into leading + 1 trailing commit');
+    assert.deepEqual(commits[commits.length - 1], { columns: 95, rows: 31 });
 
-    // Moving away and back to already-committed size cancels redundant commit
-    c.push(100, 31);
-    c.push(95, 31);
+    // Discrete large jump (e.g. 95x31 -> 120x36 maximize) commits immediately without desyncing Ink
+    c.push(120, 36);
+    assert.equal(commits.length, 3, 'Large discrete jump commits immediately');
+    assert.deepEqual(c.current(), { columns: 120, rows: 36 });
+
+    // Moving 2 cols away and back within debounce window cancels redundant trailing commit
+    c.push(118, 36);
+    c.push(120, 36);
     await wait(65);
-    assert.equal(commits.length, 1, 'Returning to committed size must produce 0 extra commits');
+    assert.equal(commits.length, 3, 'Returning to committed size within debounce window emits 0 extra commits');
 
-    // Dispose cancels pending timer cleanly
-    c.push(80, 24);
+    // Dispose cancels pending trailing drag commit cleanly
+    c.push(118, 36);
+    c.push(116, 36);
     c.dispose();
     await wait(65);
-    assert.equal(commits.length, 1, 'dispose() must cancel pending commit');
+    assert.deepEqual(c.current(), { columns: 118, rows: 36 }, 'dispose() cancels pending trailing commit');
 
     // Clamping & env override parsing
     assert.deepEqual(clampDimensions(5, 2), { columns: 20, rows: 6 });
@@ -245,6 +252,7 @@ describe('Round 85 Track D2 — Proactive Daily Study Briefing', () => {
       stdout: wideTty.stdout,
       stdin: wideTty.stdin,
       exitOnCtrlC: false,
+      interactive: true,
     });
     const wideText = await wideTty.waitFor((s) => s.includes('今日简报') && s.includes('Linear Algebra'));
     assert.match(wideText, /\[B\] 开始复习/);
@@ -275,6 +283,7 @@ describe('Round 85 Track D2 — Proactive Daily Study Briefing', () => {
       stdout: narrowTty.stdout,
       stdin: narrowTty.stdin,
       exitOnCtrlC: false,
+      interactive: true,
     });
     const narrowText = await narrowTty.waitFor((s) => s.includes('今日简报'));
     assert.match(narrowText, /\[B\] 开始复习/);

@@ -226,7 +226,7 @@ describe('Round 89 Track D5 — Proactive Round Completion Next-Step Suggestion'
     const wideTty = createTtyHarness(120, 36);
     const wide = render(
       React.createElement(RoundSummary, { host, run: mockRun, width: 116, height: 34, isActive: true, mathUnicode: false }),
-      { stdout: wideTty.stdout, stdin: wideTty.stdin, exitOnCtrlC: false },
+      { stdout: wideTty.stdout, stdin: wideTty.stdin, exitOnCtrlC: false, interactive: true },
     );
     const wideOut = await wideTty.waitFor((s) => s.includes('下一步建议'));
     assert.match(wideOut, /下一步建议.*\[w\]/);
@@ -235,7 +235,7 @@ describe('Round 89 Track D5 — Proactive Round Completion Next-Step Suggestion'
     const narrowTty = createTtyHarness(80, 24);
     const narrow = render(
       React.createElement(RoundSummary, { host, run: mockRun, width: 76, height: 22, isActive: true, mathUnicode: false }),
-      { stdout: narrowTty.stdout, stdin: narrowTty.stdin, exitOnCtrlC: false },
+      { stdout: narrowTty.stdout, stdin: narrowTty.stdin, exitOnCtrlC: false, interactive: true },
     );
     const narrowOut = await narrowTty.waitFor((s) => s.includes('本轮练习总结'));
     assert.match(narrowOut, /下一步建议/);

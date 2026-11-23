@@ -247,7 +247,7 @@ describe('Round 84 Track B3 — Review Quick Action Strip & [R] Redo', () => {
 
     // 120x36 snapshot + [R] redo interaction
     const wideTty = createTtyHarness(120, 36);
-    const wide = render(wrap(116, 34), { stdout: wideTty.stdout, stdin: wideTty.stdin, exitOnCtrlC: false });
+    const wide = render(wrap(116, 34), { stdout: wideTty.stdout, stdin: wideTty.stdin, exitOnCtrlC: false, interactive: true });
     const wideText = await wideTty.waitFor((s) => s.includes('[h]讲解'));
     assert.match(wideText, /\[h\]讲解/);
     assert.match(wideText, /\[T\]带学/);
@@ -266,7 +266,7 @@ describe('Round 84 Track B3 — Review Quick Action Strip & [R] Redo', () => {
     // 80x24 compact ASCII snapshot (no crash, fits cleanly with overflow hint)
     useTuiStore.setState({ activeRunId: 'run-r84' });
     const narrowTty = createTtyHarness(80, 24);
-    const narrow = render(wrap(76, 22), { stdout: narrowTty.stdout, stdin: narrowTty.stdin, exitOnCtrlC: false });
+    const narrow = render(wrap(76, 22), { stdout: narrowTty.stdout, stdin: narrowTty.stdin, exitOnCtrlC: false, interactive: true });
     const narrowText = await narrowTty.waitFor((s) => s.includes('[h]讲解'));
     assert.match(narrowText, /\[h\]讲解/);
     assert.match(narrowText, /\[T\]带学/);

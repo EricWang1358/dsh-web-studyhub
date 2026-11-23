@@ -98,7 +98,7 @@ describe('Round 87 Track A6 — Compact / Relaxed spacing density', () => {
     const tty1 = createTtyHarness(40, 6);
     const p1 = render(
       React.createElement(Panel, { title: 'Demo', width: 24, height: 4 }, React.createElement(Text, null, 'Body')),
-      { stdout: tty1.stdout, stdin: tty1.stdin, exitOnCtrlC: false },
+      { stdout: tty1.stdout, stdin: tty1.stdin, exitOnCtrlC: false, interactive: true },
     );
     const out1 = await tty1.waitFor((s) => s.includes('Body'));
     assert.match(out1, /\| Body/, 'Relaxed Panel should have 1-space left padding');
@@ -111,7 +111,7 @@ describe('Round 87 Track A6 — Compact / Relaxed spacing density', () => {
     const tty2 = createTtyHarness(40, 6);
     const p2 = render(
       React.createElement(Panel, { title: 'Demo', width: 24, height: 4 }, React.createElement(Text, null, 'Body')),
-      { stdout: tty2.stdout, stdin: tty2.stdin, exitOnCtrlC: false },
+      { stdout: tty2.stdout, stdin: tty2.stdin, exitOnCtrlC: false, interactive: true },
     );
     const out2 = await tty2.waitFor((s) => s.includes('Body'));
     assert.match(out2, /\|Body/, 'Compact Panel should have 0-space left padding');
@@ -199,6 +199,7 @@ describe('Round 87 Track B5 — Home Today Quick-Launch Hub', () => {
       stdout: wideTty.stdout,
       stdin: wideTty.stdin,
       exitOnCtrlC: false,
+      interactive: true,
     });
     const wideOut = await wideTty.waitFor((s) => s.includes('今日一键直达') && s.includes('到期复习(11)'));
     assert.match(wideOut, /\[r\] 继续练习/);
@@ -212,6 +213,7 @@ describe('Round 87 Track B5 — Home Today Quick-Launch Hub', () => {
       stdout: narrowTty.stdout,
       stdin: narrowTty.stdin,
       exitOnCtrlC: false,
+      interactive: true,
     });
     const narrowOut = await narrowTty.waitFor((s) => s.includes('Organic Chem'));
     assert.ok(narrowOut.length > 0);

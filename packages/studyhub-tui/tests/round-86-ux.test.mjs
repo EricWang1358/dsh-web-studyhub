@@ -134,6 +134,7 @@ describe('Round 86 Track B4 — Global key unification & 4-key page footer cap',
         theme: 'soft-sage',
         language: 'zh',
         asciiMode: true,
+        compactMode: true,
         showKeyHints: true,
       },
       footerHints: manyHints,
@@ -150,6 +151,7 @@ describe('Round 86 Track B4 — Global key unification & 4-key page footer cap',
       stdout: wideTty.stdout,
       stdin: wideTty.stdin,
       exitOnCtrlC: false,
+      interactive: true,
     });
     const wideOut = await wideTty.waitFor((s) => s.includes('BodyContent') && s.includes('全部键'));
     assert.ok(wideOut.includes('Start') && wideOut.includes('Guided'), 'Top 4 page hints must render');
@@ -163,6 +165,7 @@ describe('Round 86 Track B4 — Global key unification & 4-key page footer cap',
       stdout: narrowTty.stdout,
       stdin: narrowTty.stdin,
       exitOnCtrlC: false,
+      interactive: true,
     });
     const narrowOut = await narrowTty.waitFor((s) => s.includes('BodyContent'));
     assert.equal(narrowOut.includes('ExportMD'), false);
@@ -293,6 +296,7 @@ describe('Round 86 Track D3 — Proactive 3-wrong consecutive streak attribution
       stdout: tty.stdout,
       stdin: tty.stdin,
       exitOnCtrlC: false,
+      interactive: true,
     });
 
     await tty.waitFor((s) => s.includes('Limit Q1'));
