@@ -715,7 +715,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
         patch((current) => {
           let teachAnswer = current.teachAnswer;
           if (action === 'teach.start' && teachAnswer === draftAtStart) teachAnswer = readTeachingDraft(dataRoot(), next);
-          if (action === 'teach.answer' && next.index > args.stepIndex && teachAnswer === args.answer) teachAnswer = '';
+          if (action === 'teach.skip' || (action === 'teach.answer' && next.index > args.stepIndex && teachAnswer === args.answer)) teachAnswer = '';
           return { teaching: next, teachAnswer };
         });
       }
