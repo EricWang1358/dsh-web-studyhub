@@ -19,6 +19,8 @@ import { PAGE_REGISTRY, type HostClient, type PageId, type UiLanguage } from '..
 import { t, useTuiStore, type AssistantCardContext, type AssistantTabId } from '../state/store.js';
 import { getColorLevel, makeChalk, useTheme } from '../theme/tokens.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
+import { Modal, modalContentWidth } from '../components/Modal.js';
+import { SelectList, type SelectOption } from '../components/SelectList.js';
 import { SectionHeader } from '../components/Layout.js';
 import { Panel } from '../components/Panel.js';
 import { ScrollView } from '../components/ScrollView.js';
@@ -38,7 +40,10 @@ import {
 } from '../render/clipboard.js';
 import { displayWidth, truncateDisplay, wrapDisplay } from '../render/cjk.js';
 import { buildContextChips, recordCommandStat, type AssistantChip } from './assistant-chips.js';
-import { buildFallbackPrompt, parseAssistantIntent, type AssistantIntent } from './assistant-intent.js';
+import { buildFallbackPrompt, errorReasonWriteIntent, parseAssistantIntent, type AssistantIntent } from './assistant-intent.js';
+import { SET_ERROR_REASON_ACTION, errorReasonArgs, errorReasonName, type ErrorReasonTarget } from './error-reason-intent.js';
+import { ERROR_REASONS, reasonLabel, reasonShort } from '../views/wrongbook/helpers.js';
+import type { ErrorReasonId } from '../views/wrongbook/types.js';
 import {
   formatWorkflowChecklist,
   isWorkflowComplete,
@@ -227,6 +232,8 @@ export const AssistantPanel = memo(function AssistantPanel({
   const [lastUndo, setLastUndo] = useState<AssistantUndoEntry | null>(() => sessionMemory.lastUndo);
   const [lastFallback, setLastFallback] = useState(sessionMemory.lastFallback);
   const [pendingConfirm, setPendingConfirm] = useState<Extract<AssistantIntent, { kind: 'write_confirm' }> | null>(null);
+  // #1439: the card whose mistake reason the learner is choosing; the reason list is open while set.
+  const [reasonPickFor, setReasonPickFor] = useState<ErrorReasonTarget | null>(null);
 
   const stream = useStreamingBuffer();
   const abortRef = useRef<AbortController | null>(null);
@@ -508,25 +515,42 @@ export const AssistantPanel = memo(function AssistantPanel({
               text: saved.error?.message || t(lang, '保存通俗讲解失败，请重试。', 'Failed to save plain explanation.'),
             });
           }
-        } else if (intent.actionName === 'wrongbook.reason.set') {
-          if (!intent.params.cardId) {
+        } else if (intent.actionName === SET_ERROR_REASON_ACTION) {
+          const cardId = typeof intent.params.cardId === 'string' ? intent.params.cardId : '';
+          const deckId =
+            (typeof intent.params.deckId === 'string' && intent.params.deckId) ||
+            snapshot?.decks?.find((d) => Array.isArray(d.cards) && d.cards.some((c) => c.id === cardId))?.id ||
+            '';
+          if (!cardId || !deckId) {
             appendTurn({
               role: 'system',
               stage,
               actionSummary: '未定位题目',
-              text: t(lang, '请先打开一道题再标记错因。', 'Open a question first.'),
+              text: t(lang, '请先在刷题页打开一道题再标记错因。', 'Open a question in Review first.'),
             });
           } else {
-            const res = await tryAction(host, 'wrongbook.reason.set', intent.params);
+            const target: ErrorReasonTarget = { deckId, cardId };
+            const reasonId = intent.params.errorReason as ErrorReasonId;
+            const res = await tryAction<{ updated?: boolean }>(host, SET_ERROR_REASON_ACTION, errorReasonArgs(target, reasonId));
             if (!mountedRef.current) return;
-            if (res.ok) {
+            if (res.ok && res.value?.updated === false) {
+              appendTurn({
+                role: 'system',
+                stage,
+                actionSummary: t(lang, '没有作答记录', 'No answer on record'),
+                text: t(
+                  lang,
+                  '这道题还没有作答记录，标不了错因。答错的题会自动进入错题本。',
+                  'This question has no answer on record yet, so there is nothing to mark. Wrong answers enter the wrong-book on their own.',
+                ),
+              });
+            } else if (res.ok) {
               succeeded = true;
-              const appliedReason = String(intent.params.reason);
-              const undoParams = { ...intent.params, reason: '' };
+              const appliedReason = errorReasonName(reasonId, lang);
               registerUndo({
                 label: t(lang, `清除错因「${appliedReason}」`, `Clear reason "${appliedReason}"`),
                 run: async () => {
-                  await tryAction(host, 'wrongbook.reason.set', undoParams);
+                  await tryAction(host, SET_ERROR_REASON_ACTION, errorReasonArgs(target, null));
                   return t(lang, '已撤销：错题原因已清空。', 'Undone: wrong reason cleared.');
                 },
               });
@@ -548,7 +572,7 @@ export const AssistantPanel = memo(function AssistantPanel({
           }
         } else if (intent.actionName === 'export.wrongbook') {
           const root = host.getLibraryRoot?.() || snapshot?.root || '';
-          const wb = await tryAction<{ items?: Array<{ prompt?: string; answer?: string; reason?: string }> }>(
+          const wb = await tryAction<{ items?: Array<{ prompt?: string; errorReason?: string }> }>(
             host,
             'wrongbook',
             { course: intent.params.course ?? '*', view: 'weak', offset: 0, limit: 100 },
@@ -567,7 +591,7 @@ export const AssistantPanel = memo(function AssistantPanel({
               `# ${t(lang, '错题本导出', 'Wrong-Book Export')}`,
               '',
               ...(items.length > 0
-                ? items.map((it, idx) => `${idx + 1}. ${String(it.prompt || '').trim()}${it.reason ? `（错因：${it.reason}）` : ''}`)
+                ? items.map((it, idx) => `${idx + 1}. ${String(it.prompt || '').trim()}${it.errorReason ? t(lang, `（错因：${reasonLabel(it.errorReason, lang)}）`, ` (reason: ${reasonLabel(it.errorReason, lang)})`) : ''}`)
                 : [t(lang, '当前暂无错题记录。', 'No wrong cards found.')]),
               '',
             ].join('\n');
@@ -801,6 +825,21 @@ export const AssistantPanel = memo(function AssistantPanel({
         return;
       }
 
+      // 2b) Mark a mistake reason without naming one -> list the reasons (#1439)
+      if (intent.kind === 'pick_error_reason') {
+        if (!intent.target.cardId) {
+          appendTurn({
+            role: 'system',
+            stage: tab === 'guided' ? stage : undefined,
+            actionSummary: '未定位题目',
+            text: t(lang, '请先在刷题页打开一道题再标记错因。', 'Open a question in Review first.'),
+          });
+          return;
+        }
+        setReasonPickFor(intent.target);
+        return;
+      }
+
       // 3) Navigation (0 model calls + real [z] undo!)
       if (intent.kind === 'navigate') {
         const prevPage = useTuiStore.getState().page;
@@ -1028,6 +1067,36 @@ export const AssistantPanel = memo(function AssistantPanel({
     [setTab, handleSubmitInput],
   );
 
+  // #1439: the six reasons the wrong-book uses, for the learner to pick from.
+  const reasonOptions = useMemo<Array<SelectOption<ErrorReasonId>>>(
+    () =>
+      ERROR_REASONS.map((reason) => ({
+        value: reason.id,
+        label: t(lang, reason.zh, reason.en),
+        badge: reasonShort(reason.id, lang),
+        badgeTone: reason.tone,
+      })),
+    [lang],
+  );
+  const pickReason = useCallback(
+    (reason: ErrorReasonId) => {
+      if (!reasonPickFor) return;
+      setReasonPickFor(null);
+      // Picking is the decision, so it is written at once; [z] takes it back.
+      void executeConfirmedWrite(errorReasonWriteIntent(reasonPickFor, reason, lang));
+    },
+    [reasonPickFor, executeConfirmedWrite, lang],
+  );
+  const cancelReasonPick = useCallback(() => {
+    setReasonPickFor(null);
+    appendTurn({
+      role: 'system',
+      stage: tab === 'guided' ? stage : undefined,
+      actionSummary: '已取消',
+      text: t(lang, '已取消，数据未改动。', 'Cancelled; unchanged.'),
+    });
+  }, [appendTurn, tab, stage, lang]);
+
   // #1412: on the practice page Esc hands the keyboard back and the dock stays; the page's own Esc
   // ("back") folds it afterwards. Other pages have no such second step, so there Esc folds the dock.
   const escKeepsDock = Boolean(docked) && page === 'review';
@@ -1130,13 +1199,14 @@ export const AssistantPanel = memo(function AssistantPanel({
         }
       }
     },
-    { isActive: isActive && !pendingConfirm },
+    { isActive: isActive && !pendingConfirm && !reasonPickFor },
   );
 
   const fallbackSize = resolveAssistantPanelSize(columns, rows, fullscreen);
   const frameW = widthProp ?? fallbackSize.width;
   const frameH = heightProp ?? fallbackSize.height;
   const innerW = Math.max(24, frameW - 4);
+  const reasonPickW = Math.min(60, innerW);
   const bodyH = Math.max(6, frameH - 2);
   // Pack 2–4 context chips across 1 or 2 clean rows so chip labels are never chopped in half on docked panes
   const chipRows = useMemo(() => {
@@ -1182,7 +1252,7 @@ export const AssistantPanel = memo(function AssistantPanel({
     ],
     [lang, fullscreen, escKeepsDock],
   );
-  useModalFooterHints(dockFooterHints, isActive && !inputFocused && !pendingConfirm);
+  useModalFooterHints(dockFooterHints, isActive && !inputFocused && !pendingConfirm && !reasonPickFor);
 
   const colorLevel = getColorLevel();
   const transcriptLines = useMemo(() => {
@@ -1386,7 +1456,7 @@ export const AssistantPanel = memo(function AssistantPanel({
           lines={transcriptLines}
           height={scrollH}
           width={innerW}
-          isActive={isActive && !inputFocused && !pendingConfirm}
+          isActive={isActive && !inputFocused && !pendingConfirm && !reasonPickFor}
           follow
         />
 
@@ -1422,7 +1492,7 @@ export const AssistantPanel = memo(function AssistantPanel({
             onChange={setInputValue}
             onSubmit={(val) => void handleSubmitInput(val)}
             onCancel={() => setInputFocused(false)}
-            isActive={isActive && inputFocused && !pendingConfirm}
+            isActive={isActive && inputFocused && !pendingConfirm && !reasonPickFor}
             width={innerW}
             placeholder={
               tab === 'guided' && stage === 'retell'
@@ -1432,6 +1502,30 @@ export const AssistantPanel = memo(function AssistantPanel({
           />
         </ClickableBox>
       </Panel>
+
+      {reasonPickFor ? (
+        <Modal
+          title={t(lang, '选择错因', 'Pick a reason')}
+          icon={asciiMode ? '#' : '✎'}
+          tone="accent"
+          width={reasonPickW}
+          onClose={cancelReasonPick}
+          isActive={isActive}
+          hints={[
+            { key: '1-6', label: t(lang, '选择', 'Pick') },
+            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+          ]}
+        >
+          <Box marginY={1} flexDirection="column">
+            <SelectList
+              options={reasonOptions}
+              isActive={isActive}
+              width={modalContentWidth(reasonPickW)}
+              onSelect={(opt) => pickReason(opt.value)}
+            />
+          </Box>
+        </Modal>
+      ) : null}
 
       {pendingConfirm ? (
         <ConfirmDialog

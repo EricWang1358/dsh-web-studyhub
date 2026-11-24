@@ -3,7 +3,7 @@
  *
  * Strict constraints:
  * - Never invents backend actions — maps exclusively to existing `AppShell` navigation and
- *   `tui-host` actions (`snapshot`, `source.get`, `card.followup.add`, `wrongbook.reason.set`, etc.).
+ *   `tui-host` actions (`snapshot`, `source.get`, `card.followup.add`, `attempt.errorReason.set`, etc.).
  * - Every write/quota/export action sets `requiresConfirm: true` so the panel always renders a
  *   P2 `ConfirmDialog` preview before execution.
  * - Never hits a dead end: unsupported requests return nearest supported alternative + ready-to-copy prompt.
@@ -11,6 +11,14 @@
  */
 import type { PageId, StudySnapshot, TuiPreferences, UiLanguage } from '../types/contracts.js';
 import type { AssistantCardContext } from '../state/store.js';
+import type { ErrorReasonId } from '../views/wrongbook/types.js';
+import {
+  SET_ERROR_REASON_ACTION,
+  errorReasonArgs,
+  errorReasonFromText,
+  errorReasonName,
+  type ErrorReasonTarget,
+} from './error-reason-intent.js';
 
 export type AssistantIntent =
   | {
@@ -52,12 +60,20 @@ export type AssistantIntent =
     }
   | {
       kind: 'write_confirm';
-      actionName: 'wrongbook.reason.set' | 'export.wrongbook' | 'review.grade.adjust' | 'card.followup.add';
+      actionName: typeof SET_ERROR_REASON_ACTION | 'export.wrongbook' | 'review.grade.adjust' | 'card.followup.add';
       params: Record<string, unknown>;
       previewTitle: string;
       previewMessage: string;
       paramsSummary: string;
       requiresConfirm: true;
+    }
+  | {
+      /** The learner wants to mark a mistake reason but named none: the panel lists them (#1439). */
+      kind: 'pick_error_reason';
+      actionName: typeof SET_ERROR_REASON_ACTION;
+      target: ErrorReasonTarget;
+      paramsSummary: string;
+      requiresConfirm: false;
     }
   | {
       kind: 'unsupported';
@@ -75,6 +91,35 @@ export type AssistantIntent =
       paramsSummary: string;
       requiresConfirm: false;
     };
+
+/** A request to mark why a card was answered wrong. */
+const MARK_REASON_REQUEST = /(加入错题|标记(?:为)?错因|错因(?:标|设)为|mark.*mistake|wrongbook.*reason)/i;
+/** "mark as …" on its own counts only when what follows is a known reason. */
+const MARKS_AS = /标记为|标为/;
+/** The words after "mark as" / "reason:", up to the next punctuation. */
+const REASON_CLAUSE = /(?:标记为|标为|设为|原因[:：]?|reason[:：]?)\s*([^，。,.;；\n]+)/i;
+
+/** The confirmed write that stores `reason` on the card's latest wrong answer (#1439). */
+export function errorReasonWriteIntent(
+  target: ErrorReasonTarget,
+  reason: ErrorReasonId,
+  lang: UiLanguage,
+): Extract<AssistantIntent, { kind: 'write_confirm' }> {
+  const name = errorReasonName(reason, lang);
+  const card = target.cardId ?? (lang === 'en' ? 'current' : '当前题');
+  return {
+    kind: 'write_confirm',
+    actionName: SET_ERROR_REASON_ACTION,
+    params: errorReasonArgs(target, reason),
+    previewTitle: lang === 'en' ? 'Confirm Mark Wrong Reason' : '确认标记错题原因',
+    previewMessage:
+      lang === 'en'
+        ? `Will run: ${SET_ERROR_REASON_ACTION} (cardId=${card}, reason="${name}")`
+        : `将执行：${SET_ERROR_REASON_ACTION}（题目=${card}，错因=${name}）`,
+    paramsSummary: `cardId=${card}, errorReason=${reason}`,
+    requiresConfirm: true,
+  };
+}
 
 export interface ParseIntentContext {
   snapshot?: StudySnapshot | null;
@@ -238,24 +283,16 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
     };
   }
 
-  if (/(加入错题|标记(?:为)?错因|错因(?:标|设)为|mark.*mistake|wrongbook.*reason)/i.test(text)) {
-    const reasonMatch = text.match(/(?:标记为|错因(?:标|设)?为|原因[:：]?\s*)([^\s，。,.;；]+)/);
-    const reason = reasonMatch?.[1]?.trim() || '粗心';
+  const namedReason = errorReasonFromText(text.match(REASON_CLAUSE)?.[1] ?? '');
+  if (MARK_REASON_REQUEST.test(text) || (namedReason && MARKS_AS.test(text))) {
+    const target: ErrorReasonTarget = { deckId: ctx.currentDeckId, cardId: ctx.currentCardId };
+    if (namedReason) return errorReasonWriteIntent(target, namedReason, lang);
     return {
-      kind: 'write_confirm',
-      actionName: 'wrongbook.reason.set',
-      params: {
-        ...(ctx.currentDeckId ? { deckId: ctx.currentDeckId } : {}),
-        ...(ctx.currentCardId ? { cardId: ctx.currentCardId } : {}),
-        reason,
-      },
-      previewTitle: lang === 'en' ? 'Confirm Mark Wrong Reason' : '确认标记错题原因',
-      previewMessage:
-        lang === 'en'
-          ? `Will run: wrongbook.reason.set (cardId=${ctx.currentCardId ?? 'current'}, reason="${reason}")`
-          : `将执行：wrongbook.reason.set（题目=${ctx.currentCardId ?? '当前题'}，错因=${reason}）`,
-      paramsSummary: `cardId=${ctx.currentCardId ?? '当前题'}, reason=${reason}`,
-      requiresConfirm: true,
+      kind: 'pick_error_reason',
+      actionName: SET_ERROR_REASON_ACTION,
+      target,
+      paramsSummary: `cardId=${ctx.currentCardId ?? '当前题'}`,
+      requiresConfirm: false,
     };
   }
 
