@@ -7,6 +7,7 @@ import { Badge, Spinner } from '../../components/Badge.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/sample-actions.js';
+import { deckDueCount, deckWrongCount } from '../../shell/data.js';
 
 export type RoundScope = 'deck' | 'course' | 'all';
 export type RoundFilter = 'all' | 'due' | 'new' | 'wrong';
@@ -53,9 +54,9 @@ function defaultRoundSize(snapshot: StudySnapshot | null): number {
 function readDeckCounts(deck: DeckItem, progressMap: Record<string, DeckProgressEntry> | undefined) {
   const p = progressMap?.[deck.id];
   const total = Number(deck.count ?? p?.total ?? deck.cardCount ?? 0) || 0;
-  const due = Number(deck.due ?? p?.due ?? deck.dueCount ?? 0) || 0;
+  const due = deckDueCount(deck, progressMap);
   const newCount = Number(p?.counts?.new ?? deck.newCount ?? 0) || 0;
-  const wrong = Number(deck.wrong ?? p?.counts?.weak ?? deck.wrongCount ?? 0) || 0;
+  const wrong = deckWrongCount(deck, progressMap);
   return { total, due, newCount, wrong };
 }
 

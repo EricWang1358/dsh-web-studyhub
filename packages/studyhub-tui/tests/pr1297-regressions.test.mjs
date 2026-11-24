@@ -851,8 +851,13 @@ describe('PR #1297 P0, P1 & P2 regression suite', () => {
       ],
     };
     assert.equal(wrongCount(syntheticSnap), 4, 'wrongCount must sum d.wrong for unarchived decks');
-    assert.equal(dueToday(syntheticSnap), 6, 'dueToday fallback must sum d.due for unarchived decks');
-    assert.equal(dueToday({ ...syntheticSnap, today: { due: 9 } }), 9, 'dueToday prefers snapshot.today.due');
+    assert.equal(dueToday(syntheticSnap), 6, 'dueToday must sum active decks');
+    assert.equal(
+      dueToday({ ...syntheticSnap, today: { due: 9 } }),
+      6,
+      'dueToday uses active deck sum as single source of truth when decks exist (#1342)',
+    );
+    assert.equal(dueToday({ today: { due: 9 } }), 9, 'dueToday falls back to snapshot.today.due when decks are absent');
   });
 
   test('P1 #16: groupSourcesFromSnapshot excludes historical, examPointList, and courseOutline sources', () => {

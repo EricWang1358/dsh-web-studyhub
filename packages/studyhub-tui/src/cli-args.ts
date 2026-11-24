@@ -710,8 +710,8 @@ export function buildStatsSummary(opts: BuildStatsSummaryOptions): StatsSummary 
     activeDecks += 1;
     const p = d.id ? progress[d.id] : undefined;
     const deckCards = toFiniteCount(d.cardCount ?? rec.count ?? p?.total);
-    const deckDue = toFiniteCount(rec.due ?? d.dueCount ?? p?.due);
-    const deckWeak = toFiniteCount(rec.wrong ?? d.wrongCount ?? p?.counts?.weak);
+    const deckDue = toFiniteCount(p?.due ?? rec.due ?? d.dueCount);
+    const deckWeak = toFiniteCount(p?.counts?.weak ?? rec.wrong ?? d.wrongCount);
     cards += deckCards;
     deckDueSum += deckDue;
     deckWeakSum += deckWeak;

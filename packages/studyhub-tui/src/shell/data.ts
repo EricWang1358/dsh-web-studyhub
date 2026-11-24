@@ -1,5 +1,7 @@
 import type { BindingSnapshot, DesktopConfigSnapshot, PageId, StudySnapshot } from '../types/contracts.js';
 
+type DeckItem = NonNullable<StudySnapshot['decks']>[number];
+
 /** Pure selectors over the loose StudySnapshot shape (shared by shell widgets). */
 
 const ASCII_PAGE_ICONS: Record<PageId, string> = {
@@ -157,14 +159,61 @@ export function currentCourse(snapshot: StudySnapshot | null | undefined): strin
   return typeof c === 'string' && c ? c : null;
 }
 
-export function dueToday(snapshot: StudySnapshot | null | undefined): number {
-  const direct = Number(snapshot?.today?.due);
-  if (Number.isFinite(direct) && direct >= 0) return direct;
-  return (snapshot?.decks ?? []).reduce((n, d) => n + (d.archived ? 0 : Number(d.due ?? d.dueCount ?? 0) || 0), 0);
+export function isActiveStudyDeck(
+  deck: DeckItem | null | undefined,
+  course?: string | null,
+): deck is DeckItem {
+  if (!deck || typeof deck !== 'object' || deck.archived) return false;
+  if ((deck as Record<string, unknown>).systemKind) return false;
+  const targetCourse = typeof course === 'string' ? course.trim() : '';
+  if (targetCourse && String(deck.course ?? '').trim() !== targetCourse) return false;
+  return true;
 }
 
-export function wrongCount(snapshot: StudySnapshot | null | undefined): number {
-  return (snapshot?.decks ?? []).reduce((n, d) => n + (d.archived ? 0 : Number(d.wrong ?? d.wrongCount ?? 0) || 0), 0);
+export function deckDueCount(
+  deck: DeckItem | null | undefined,
+  progressMap?: Record<string, { due?: number } | undefined> | null,
+): number {
+  if (!deck) return 0;
+  const pDue = Number(progressMap?.[deck.id]?.due);
+  if (Number.isFinite(pDue) && pDue >= 0) return Math.trunc(pDue);
+  const dDue = Number(deck.due ?? deck.dueCount);
+  return Number.isFinite(dDue) && dDue >= 0 ? Math.trunc(dDue) : 0;
+}
+
+export function deckWrongCount(
+  deck: DeckItem | null | undefined,
+  progressMap?: Record<string, { counts?: { weak?: number } } | undefined> | null,
+): number {
+  if (!deck) return 0;
+  const pWeak = Number(progressMap?.[deck.id]?.counts?.weak);
+  if (Number.isFinite(pWeak) && pWeak >= 0) return Math.trunc(pWeak);
+  const dWrong = Number(deck.wrong ?? deck.wrongCount);
+  return Number.isFinite(dWrong) && dWrong >= 0 ? Math.trunc(dWrong) : 0;
+}
+
+export function dueToday(snapshot: StudySnapshot | null | undefined, course?: string | null): number {
+  if (!snapshot) return 0;
+  const decks = Array.isArray(snapshot.decks) ? snapshot.decks : [];
+  const activeCourse = course === undefined ? currentCourse(snapshot) : course;
+  const activeDecks = decks.filter((d) => isActiveStudyDeck(d, activeCourse));
+  const progressMap = snapshot.progress as Record<string, { due?: number } | undefined> | undefined;
+  if (activeDecks.length > 0) {
+    return activeDecks.reduce((n, d) => n + deckDueCount(d, progressMap), 0);
+  }
+  if (decks.length > 0) return 0;
+  const direct = Number(snapshot?.today?.due);
+  if (Number.isFinite(direct) && direct >= 0) return Math.trunc(direct);
+  return 0;
+}
+
+export function wrongCount(snapshot: StudySnapshot | null | undefined, course?: string | null): number {
+  if (!snapshot) return 0;
+  const decks = Array.isArray(snapshot.decks) ? snapshot.decks : [];
+  const activeCourse = course === undefined ? currentCourse(snapshot) : course;
+  const activeDecks = decks.filter((d) => isActiveStudyDeck(d, activeCourse));
+  const progressMap = snapshot.progress as Record<string, { counts?: { weak?: number } } | undefined> | undefined;
+  return activeDecks.reduce((n, d) => n + deckWrongCount(d, progressMap), 0);
 }
 
 const RUNNING = new Set(['running', 'queued', 'pending', 'active', 'in_progress', 'started', 'processing']);

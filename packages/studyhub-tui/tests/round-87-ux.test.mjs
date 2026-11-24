@@ -219,4 +219,97 @@ describe('Round 87 Track B5 — Home Today Quick-Launch Hub', () => {
     assert.ok(narrowOut.length > 0);
     narrow.unmount();
   });
+
+  test('#1342: header, daily briefing, today hub, deck list, and CLI --due/--stats agree on one due count (excluding new & system decks)', async () => {
+    const [shellDataMod, briefMod, cliCmdMod, cliArgsMod] = await Promise.all([
+      import('../src/shell/data.ts'),
+      import('../src/views/library/daily-briefing.ts'),
+      import('../src/cli-commands.ts'),
+      import('../src/cli-args.ts'),
+    ]);
+    const { dueToday } = shellDataMod;
+    const { buildDailyBriefing } = briefMod;
+    const { buildDueReport } = cliCmdMod;
+    const { buildStatsSummary } = cliArgsMod;
+
+    // Sample-library shape: today.due=2 (round slice), deck.due includes unpracticed new cards (4 & 1),
+    // progress[id].due is authoritative reviewed-and-due count (2 & 1 -> total 3), plus a system deck (excluded).
+    const sampleLikeSnap = {
+      focus: { course: '设计模式' },
+      courses: [{ id: 'c1', name: '设计模式' }],
+      today: { due: 2, weak: 3, new: 2 },
+      decks: [
+        { id: 'd1', title: 'Memento 与 Bridge', course: '设计模式', count: 9, due: 4, wrong: 2, archived: false },
+        { id: 'd2', title: '墨笺笔记', course: '设计模式', count: 2, due: 1, wrong: 1, archived: false },
+        { id: 'd-sys', title: '已斩题', course: '设计模式', systemKind: 'slain', count: 5, due: 5, wrong: 0, archived: false },
+      ],
+      progress: {
+        d1: { due: 2, total: 9, mastery: 50, counts: { new: 2, weak: 2, learning: 2, familiar: 2, mastered: 1 } },
+        d2: { due: 1, total: 2, mastery: 20, counts: { new: 0, weak: 1, learning: 1, familiar: 0, mastered: 0 } },
+        'd-sys': { due: 5, total: 5, mastery: 100, counts: { new: 0, weak: 0, learning: 0, familiar: 0, mastered: 5 } },
+      },
+    };
+
+    const headerDue = dueToday(sampleLikeSnap);
+    const hubMetrics = buildTodayHubMetrics({ snapshot: sampleLikeSnap, course: '设计模式', activeRunId: null });
+    const brief = buildDailyBriefing({ snapshot: sampleLikeSnap, course: '设计模式', lang: 'zh', proactiveHints: true });
+    const dueReport = buildDueReport({ snapshot: sampleLikeSnap, libraryRoot: '/tmp/lib', courseFilter: '设计模式' });
+    const statsReport = buildStatsSummary({ snapshot: sampleLikeSnap, libraryRoot: '/tmp/lib' });
+
+    assert.equal(headerDue, 3, 'Header dueToday must equal sum of active decks progress.due (3)');
+    assert.equal(hubMetrics.due, headerDue, 'Today hub due count must match header dueToday');
+    assert.ok(brief, 'Daily briefing must be returned');
+    assert.match(brief.headline, /\(2 题到期\)/, 'Daily briefing headline must reflect top deck progress.due (2)');
+    assert.match(brief.reason, /共 3 题到期/, 'Daily briefing total due must match header dueToday (3)');
+    assert.equal(dueReport.totals.due, headerDue, 'CLI --due total must match header dueToday');
+    assert.equal(statsReport.counts.due, headerDue, 'CLI --stats due must match header dueToday');
+
+    // Render LibraryView and assert page header, daily briefing, today hub, and deck rows all match!
+    const host = { async call() { return { ok: true, value: {} }; } };
+    useTuiStore.setState({
+      page: 'library',
+      activeRunId: null,
+      preferences: {
+        ...useTuiStore.getState().preferences,
+        language: 'zh',
+        asciiMode: true,
+        compactMode: false,
+        proactiveHints: true,
+        dismissedBriefingDate: undefined,
+      },
+      snapshot: sampleLikeSnap,
+    });
+    const tty = createTtyHarness(120, 36);
+    const inst = render(React.createElement(LibraryView, { host, width: 116, height: 34, isActive: true }), {
+      stdout: tty.stdout,
+      stdin: tty.stdin,
+      exitOnCtrlC: false,
+      interactive: true,
+    });
+    try {
+      const out = await tty.waitFor((s) => s.includes('今日一键直达') && s.includes('Memento'));
+      assert.match(out, /今日到期:\s*3/, 'Page header must show 今日到期: 3');
+      assert.match(out, /到期复习\(3\)/, 'Today hub must show 到期复习(3)');
+      assert.match(out, /\(2 题到期\)/, 'Daily briefing must show (2 题到期)');
+      assert.match(out, /待2/, 'First deck row must show 待2 (excluding unpracticed new cards)');
+      assert.match(out, /待1/, 'Second deck row must show 待1');
+    } finally {
+      inst.unmount();
+    }
+
+    // When only unpracticed new cards exist (progress.due=0, counts.new=4, legacy deck.due=4),
+    // Daily Briefing must reach Priority 3 ("到期题已清空，适合推进新知识")!
+    const newOnlySnap = {
+      focus: { course: 'CS101' },
+      today: { due: 0, weak: 0, new: 4, reviewed: 0, goal: 10 },
+      decks: [{ id: 'd-new', title: '新题组', course: 'CS101', count: 4, due: 4, wrong: 0, archived: false }],
+      progress: {
+        'd-new': { due: 0, total: 4, mastery: 0, counts: { new: 4, weak: 0, learning: 0, familiar: 0, mastered: 0 } },
+      },
+    };
+    assert.equal(dueToday(newOnlySnap), 0, 'Unpracticed new cards must not inflate dueToday');
+    const newOnlyBrief = buildDailyBriefing({ snapshot: newOnlySnap, course: 'CS101', lang: 'zh', proactiveHints: true });
+    assert.ok(newOnlyBrief, 'Expected Priority 3 new-card briefing');
+    assert.match(newOnlyBrief.reason, /到期题已清空，适合推进新知识/);
+  });
 });

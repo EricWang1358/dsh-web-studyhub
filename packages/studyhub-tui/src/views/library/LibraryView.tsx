@@ -14,7 +14,7 @@ import { ClickableBox } from '../../components/mouse.js';
 import { saveTuiPreferences } from '../../host/tui-prefs.js';
 import { useTheme } from '../../theme/tokens.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
-import { currentCourse, dueToday } from '../../shell/data.js';
+import { currentCourse, deckDueCount, deckWrongCount, dueToday, isActiveStudyDeck } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
 import { getSampleStatus, removeSampleCourse, tryAction } from '../../host/sample-actions.js';
 import type { DeckExportInput } from './deck-export.js';
@@ -82,9 +82,9 @@ function formatDateShort(raw: string | number | undefined | null, lang: 'zh' | '
 function deckStats(deck: DeckItem, progressMap: Record<string, DeckProgressEntry> | undefined) {
   const p = progressMap?.[deck.id];
   const total = Number(deck.count ?? p?.total ?? deck.cardCount ?? 0) || 0;
-  const due = Number(deck.due ?? p?.due ?? deck.dueCount ?? 0) || 0;
+  const due = deckDueCount(deck, progressMap);
   const newCount = Number(p?.counts?.new ?? deck.newCount ?? 0) || 0;
-  const wrong = Number(deck.wrong ?? p?.counts?.weak ?? deck.wrongCount ?? 0) || 0;
+  const wrong = deckWrongCount(deck, progressMap);
   const mastered = Number(p?.counts?.mastered ?? deck.masteredCount ?? 0) || 0;
   const familiar = Number(p?.counts?.familiar ?? 0) || 0;
   const learning = Number(p?.counts?.learning ?? 0) || 0;
@@ -575,10 +575,11 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
         return;
       }
       if (id === 'due') {
+        const progressMap = snapshot?.progress as Record<string, DeckProgressEntry> | undefined;
         const dueDeck =
           (snapshot?.decks ?? [])
-            .filter((d) => !d.archived && (!course || d.course === course))
-            .sort((a, b) => (Number(b.due ?? b.dueCount ?? 0) || 0) - (Number(a.due ?? a.dueCount ?? 0) || 0))[0] ??
+            .filter((d) => isActiveStudyDeck(d, course))
+            .sort((a, b) => deckDueCount(b, progressMap) - deckDueCount(a, progressMap))[0] ??
           selectedDeck;
         if (dueDeck) handleStartReview(dueDeck);
         else navigate('review');
@@ -590,7 +591,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       }
       navigate('board');
     },
-    [activeRunId, lastPracticeContext, selectedDeck, snapshot?.decks, course, handleStartReview, navigate],
+    [activeRunId, lastPracticeContext, selectedDeck, snapshot?.decks, snapshot?.progress, course, handleStartReview, navigate],
   );
 
   const dailyBriefing = useMemo(

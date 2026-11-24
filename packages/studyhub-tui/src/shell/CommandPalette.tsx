@@ -10,7 +10,7 @@ import { Modal } from '../components/Modal.js';
 import { TextInput } from '../components/TextInput.js';
 import { nextScrollOffset, parseSgrWheelDelta, useSgrMouseWheel } from '../components/VirtualList.js';
 import { fuzzyFilter } from './fuzzy.js';
-import { listCourses, pageIcon } from './data.js';
+import { deckDueCount, isActiveStudyDeck, listCourses, pageIcon } from './data.js';
 import { parseAssistantIntent } from './assistant-intent.js';
 import { planAssistantWorkflow } from './assistant-workflow.js';
 import type { ShellActions } from './actions.js';
@@ -323,18 +323,8 @@ export function buildPaletteItems(
           : {}) as Record<string, { due?: number } | undefined>;
         const decks = Array.isArray(effectiveSnap?.decks) ? effectiveSnap.decks : [];
         const dueCandidates = decks
-          .filter((d) => {
-            if (!d || typeof d !== 'object' || d.archived) return false;
-            const rec = d as Record<string, unknown>;
-            if (rec.systemKind) return false;
-            if (focusCourse && String(d.course ?? '').trim() !== focusCourse) return false;
-            return true;
-          })
-          .map((d) => {
-            const rec = d as Record<string, unknown>;
-            const due = Number(rec.due ?? d.dueCount ?? progressMap[d.id]?.due ?? 0) || 0;
-            return { id: d.id, due };
-          })
+          .filter((d) => isActiveStudyDeck(d, focusCourse))
+          .map((d) => ({ id: d.id, due: deckDueCount(d, progressMap) }))
           .filter((d) => d.id && d.due > 0)
           .sort((a, b) => b.due - a.due);
 
@@ -634,11 +624,15 @@ export function buildPaletteItems(
 
   const catDeck = t(lang, '题组', 'Deck');
   const deckGlyph = asciiMode ? '#' : '▦';
+  const snapProgress = (snap?.progress && typeof snap.progress === 'object' ? snap.progress : undefined) as
+    | Record<string, { due?: number } | undefined>
+    | undefined;
   for (const d of (snap?.decks ?? []).filter((x) => !x.archived).slice(0, MAX_ENTITY)) {
+    const due = deckDueCount(d, snapProgress);
     items.push({
       id: `deck:${d.id}`,
       label: `${deckGlyph} ${str(d.title) || str(d.name) || d.id}`,
-      hint: [str(d.course), d.dueCount ? t(lang, `${d.dueCount} 待复习`, `${d.dueCount} due`) : ''].filter(Boolean).join(' · ') || undefined,
+      hint: [str(d.course), due ? t(lang, `${due} 待复习`, `${due} due`) : ''].filter(Boolean).join(' · ') || undefined,
       category: catDeck,
       keywords: [str(d.course)],
       action: () => state.navigate('library', { deckId: d.id, course: d.course ?? null }),
