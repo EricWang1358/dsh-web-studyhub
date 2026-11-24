@@ -115,6 +115,24 @@ export function createSidecarConnection(initialInfo = {}) {
 }
 
 const DEFAULT_RPC_TIMEOUT_MS = 200_000;
+const PAYLOAD_TOO_LARGE_MSG = '请求体超过单次传输上限，请刷新页面后重试（备份文件会自动分片上传）。';
+
+function decodeSidecarResponse(response, envelope) {
+  if (!envelope || typeof envelope !== 'object') {
+    if (response.status === 413) return { error: Object.assign(new Error(PAYLOAD_TOO_LARGE_MSG), { code: 'payload-too-large' }) };
+    return { error: new Error(`StudyHub sidecar returned HTTP ${response.status}`) };
+  }
+  if (!envelope.ok) {
+    const rawMessage = envelope.code === 'payload-too-large' || response.status === 413
+      ? PAYLOAD_TOO_LARGE_MSG
+      : (envelope.error || 'StudyHub request failed');
+    const error = new Error(rawMessage);
+    if (envelope.code) error.code = envelope.code;
+    if (envelope.details !== undefined) error.details = envelope.details;
+    return { error };
+  }
+  return { value: envelope.value };
+}
 
 /** Create the StudyHub HTTP RPC transport (`POST ${baseUrl}/api/call` + `X-Study-Token`). */
 export function createDesktopCall(connectionOrInfo = {}, { timeoutMs = DEFAULT_RPC_TIMEOUT_MS } = {}) {
@@ -141,16 +159,9 @@ export function createDesktopCall(connectionOrInfo = {}, { timeoutMs = DEFAULT_R
     } catch {
       envelope = null;
     }
-    if (!envelope || typeof envelope !== 'object') {
-      throw new Error(`StudyHub sidecar returned HTTP ${response.status}`);
-    }
-    if (!envelope.ok) {
-      const error = new Error(envelope.error || 'StudyHub request failed');
-      if (envelope.code) error.code = envelope.code;
-      if (envelope.details !== undefined) error.details = envelope.details;
-      throw error;
-    }
-    return envelope.value;
+    const decoded = decodeSidecarResponse(response, envelope);
+    if (decoded.error) throw decoded.error;
+    return decoded.value;
   };
 }
 

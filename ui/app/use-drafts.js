@@ -97,7 +97,7 @@ export async function publishAndPractice({ call, act, toast, draft, intoDeck, sa
   };
   if (!save) return act('draft.publish.quick', publishArgs(draft), practise, { afterNavigation: true });
   return act('draft.save', { deck: draft }, async (saved, context = {}) => {
-    if ((context.isCurrent ?? (() => true))()) openDraft?.(saved);
+    if ((context.isCurrent ?? (() => true))()) openDraft?.(saved, { skipStash: true });
     await practise(await call('draft.publish.quick', publishArgs(saved)), context);
   }, { afterNavigation: true });
 }
@@ -122,6 +122,10 @@ export function useDrafts({ core, lib, nav, data, session }) {
   }, [root, draft, draftText, jsonMode, draftLoaded, notify, setRecovery]);
 
   const openDraft = useCallback((next, { navigation = false, skipStash = false } = {}) => {
+    if (skipStash && root && next?.id) {
+      dropDraftStash(root, next.id, browserSession());
+      setRecovery(latestRecovery(root, browserSession()));
+    }
     // Re-opening a draft that already has unsaved edits in this tab restores those edits instead of wiping them.
     const stashed = !skipStash ? pickRecoveryFor(root, next, browserSession()) : null;
     if (stashed) {
@@ -136,7 +140,7 @@ export function useDrafts({ core, lib, nav, data, session }) {
       setJsonMode(false);
     }
     if (navigation) nav.navigate('draft'); else nav.setPage('draft');
-  }, [root, nav, setDraft, setDraftLoaded, setDraftText, setJsonMode]);
+  }, [root, nav, setDraft, setDraftLoaded, setDraftText, setJsonMode, setRecovery]);
   /* The one 补题 action (为没覆盖的部分补题), for the home card, the draft page and the 任务 console alike: it covers the sections that have no question, into the same draft. */
   const topUpDraft = useCallback((target, sectionIds, options) => act('generate', topUpArgs(target, sectionIds, options), (job) => notify((options?.notice ?? topUpNotice)(target, job))), [act, notify]);
   const blankCard = useCallback(() => ({

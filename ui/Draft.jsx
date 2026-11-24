@@ -249,7 +249,7 @@ export default function Draft({
       toast.error(uiFormat("JSON 格式不正确：{0}", [e.message]));
       return;
     }
-    act("draft.save", { deck: d }, openDraft);
+    act("draft.save", { deck: d }, (saved) => openDraft(saved, { skipStash: true }));
   };
   const onDraftKeyDown = (event) => {
     if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
@@ -270,7 +270,7 @@ export default function Draft({
   const liveCited = !liveView ? null : coverageCount ? (liveView.coverage?.units === "page" ? [liveView.coverage.covered, liveView.coverage.leaves] : null)
       : liveView.materials ? [liveView.materials.covered, liveView.materials.selected] : null;
   React.useEffect(() => {
-    if (staleDraft && !updatingDraft && !unsavedDraft) openDraft(latestDraft);
+    if (staleDraft && !updatingDraft && !unsavedDraft) openDraft(latestDraft, { skipStash: true });
   }, [staleDraft, updatingDraft, unsavedDraft, latestDraft, openDraft]);
   // While a job works on this draft 发布并开始练 waits: the reason is said under the buttons (which job, which round) with the way out (stop it; what passed the checks stays).
   // While it works the library's copy moves ahead of the page's (stale): the line says so too, and the page loads the new content by itself when the work is done.
@@ -284,7 +284,7 @@ export default function Draft({
   function saveThen(next) {
     let d;
     try { d = jsonMode ? parseDraft(draftText) : draft; } catch (error) { toast.error(uiFormat("JSON 格式不正确：{0}", [error.message])); return undefined; }
-    return act("draft.save", { deck: d }, async (saved, { isCurrent = () => true } = {}) => { if (isCurrent()) openDraft(saved); await next(saved); }, { afterNavigation: true });
+    return act("draft.save", { deck: d }, async (saved, { isCurrent = () => true } = {}) => { if (isCurrent()) openDraft(saved, { skipStash: true }); await next(saved); }, { afterNavigation: true });
   }
   const topUp = (target, sectionIds, options) => (unsavedDraft
     ? saveThen(async (saved) => toast.success((options?.notice ?? topUpNotice)(saved, await call("generate", topUpArgs(saved, sectionIds, options)))))
@@ -305,7 +305,7 @@ export default function Draft({
     delete copy.baseVersion;
     delete copy.quality;
     if (copy.editorial) copy.editorial = { summary: ui("由旧草稿另存；发布前会重新检查") };
-    act("draft.save", { deck: copy }, openDraft);
+    act("draft.save", { deck: copy }, (saved) => openDraft(saved, { skipStash: true }));
   }
   function toggleJsonMode() {
     if (!jsonMode) setDraftText(JSON.stringify(draft, null, 2));
@@ -341,7 +341,7 @@ export default function Draft({
         action={canStopWork(work) ? { label: stopLabel(work), disabled: busy, onClick: stopWork } : undefined}>{hold}</Banner>}
       <div className="draft-notices">
         {staleDraft && unsavedDraft && <Banner tone="warning" role="status" title={ui("草稿已在后台更新")}
-          action={{ label: ui("载入最新草稿"), onClick: () => openDraft(latestDraft) }}>
+          action={{ label: ui("载入最新草稿"), onClick: () => openDraft(latestDraft, { skipStash: true }) }}>
           {ui("载入最新草稿可查看修题结果。本页尚未保存的修改会被替换。")}
         </Banner>}
         {missingDraft && <Banner tone="warning" role="status" title={ui("这份草稿已删除或发布")}

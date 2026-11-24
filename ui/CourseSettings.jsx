@@ -337,7 +337,8 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
   const likely = new Set([...(findDuplicateCourses(courses).get(course.id) || []).map(item => item.id), ...mergeFrom]);
   const mergeCandidates = [...others.filter(item => likely.has(item.id)), ...others.filter(item => !likely.has(item.id))];
   const change = patch => setDraft(current => ({ ...current, ...patch }));
-  const isDirty = JSON.stringify(payloadFromDraft(course, draft)) !== JSON.stringify(payloadFromDraft(course, draftFromCourse(course)))
+  // Evaluated live at interaction time (not cached at render) so child ref drafts (rules / notation) are always observed (#1367-8).
+  const hasUnsavedChanges = () => JSON.stringify(payloadFromDraft(course, draft)) !== JSON.stringify(payloadFromDraft(course, draftFromCourse(course)))
     || Boolean(ruleDraftRef.current?.hasDraft) || Boolean(notationDraftRef.current?.hasDraft);
   const run = async (action, args, done) => {
     setWorking(true); setError('');
@@ -413,11 +414,15 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
         ? ui('学法仍在编辑中，「保存课程信息」不会保存学法改动；请先在上方点「保存学法」或「取消」，或再点一次直接保存其余课程信息。')
         : ui('课程名称尚未点「改名」确认，「保存课程信息」不会改名；请先点「改名」，或再点一次直接保存其余课程信息。');
   const requestClose = (reason) => {
-    if (isDirty) { setLeavePrompt({ kind: 'close', reason }); return; }
+    if (hasUnsavedChanges()) { setLeavePrompt({ kind: 'close', reason }); return; }
     onClose?.(reason);
   };
+  const guardLeave = (onConfirm) => {
+    if (hasUnsavedChanges()) { setLeavePrompt({ kind: 'leave', onConfirm }); return; }
+    onConfirm?.();
+  };
   const requestOpenFocusIntake = () => {
-    if (isDirty) { setLeavePrompt({ kind: 'focus-intake' }); return; }
+    if (hasUnsavedChanges()) { setLeavePrompt({ kind: 'focus-intake' }); return; }
     onClose?.('focus-intake');
     openModal({ type: 'focusIntake', course: course.name });
   };
@@ -438,15 +443,15 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
       <section className="course-settings__block course-settings__first" aria-label={ui('考试日期')}>
         <Field label={ui('考试日期')} width="full" hint={ui('填了就会在首页倒数；其余都可以不填。')}>
           <TextInput type="date" value={draft.date} disabled={disabled} onChange={event => change({ date: event.target.value })} /></Field>
-        {examPointerShown(course.exam) && <ExamAlignmentPointer course={course.name} examDate={course.exam.date} onLeave={() => requestClose('dismiss')} />}
+        {examPointerShown(course.exam) && <ExamAlignmentPointer course={course.name} examDate={course.exam.date} onLeave={(proceed) => guardLeave(() => { onClose?.('dismiss'); proceed?.(); })} />}
       </section>
 
       {/* 学法 (#775): every course has one, the default package until it is changed. */}
       <CourseMethodCard key={course.id} course={course} data={data} readout={data?.focus?.courseId === course.id ? data.focus.method : null}
-        onClose={onClose} onEditingChange={editing => { setMethodEditing(editing); if (!editing) setNestedWarn(false); }} />
+        onClose={(reason) => guardLeave(() => onClose?.(reason))} onEditingChange={editing => { setMethodEditing(editing); if (!editing) setNestedWarn(false); }} />
 
       {/* Only a course the main chat made a custom plan for has the card. */}
-      <CustomPlanCard course={course} data={data} onClose={onClose} />
+      <CustomPlanCard course={course} data={data} onClose={(reason) => guardLeave(() => onClose?.(reason))} />
 
       <Disclosure className="course-settings__more" bodyClassName="course-settings__more-body" summary={ui('更多设置')} defaultOpen={startOpen}
         meta={joinMeta([draft.format !== 'other' ? examFormatLabel(draft.format) : '', String(draft.interviewRole ?? '').trim(), splitTopics(draft.focusTopics).length ? uiFormat('{0} 个重点知识点', [splitTopics(draft.focusTopics).length]) : '',
@@ -512,7 +517,8 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
           <Hint>{ui('复习、出题和案例分析会优先照顾这些知识点：重点题间隔更短，出题时自动提高配额并加深难度。')}</Hint>
           <TopicChips value={draft.focusTopics} disabled={disabled} suggestions={weakTopics} onChange={focusTopics => change({ focusTopics })} />
           {/* Read only, and of the saved topics: a chip not yet saved has nothing to read against. */}
-          <FocusProgressList course={course.name} saved={course.focusTopics} lock={disabled} onGenerateTopic={onGenerateTopic} />
+          <FocusProgressList course={course.name} saved={course.focusTopics} lock={disabled}
+            onGenerateTopic={onGenerateTopic ? (...args) => guardLeave(() => onGenerateTopic(...args)) : undefined} />
         </section>
 
         <Disclosure className="course-settings__disclosure" bodyClassName="course-settings__disclosure-body" summary={ui('出题守则')}
@@ -593,6 +599,17 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
           confirmLabel={ui('放弃改动')}
           cancelLabel={ui('继续编辑')}
           onConfirm={() => { const reason = leavePrompt.reason; setLeavePrompt(null); onClose?.(reason); }}
+          onClose={() => setLeavePrompt(null)}
+        />
+      )}
+      {leavePrompt?.kind === 'leave' && (
+        <ConfirmDialog
+          tone="warning"
+          title={ui('放弃未保存的改动？')}
+          description={ui('离开后会丢失刚才在课程设置里尚未保存的修改。')}
+          confirmLabel={ui('放弃改动')}
+          cancelLabel={ui('继续编辑')}
+          onConfirm={() => { const cb = leavePrompt.onConfirm; setLeavePrompt(null); cb?.(); }}
           onClose={() => setLeavePrompt(null)}
         />
       )}

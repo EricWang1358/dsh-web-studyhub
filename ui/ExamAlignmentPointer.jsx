@@ -29,7 +29,11 @@ export function ExamAlignmentPointer({ course, examDate, onLeave }) {
   useLiveEffect(live => {
     call('course.examAlignment.preview', {}).then(result => { if (live()) setPreview(result); }, () => { if (live()) setPreview(null); });
   }, [call, course, examDate]);
-  return <ExamAlignmentPointerView preview={preview} course={course} onOpen={() => { onLeave?.(); openSettings('settings-exam-alignment'); }} />;
+  const open = () => openSettings('settings-exam-alignment');
+  return <ExamAlignmentPointerView preview={preview} course={course} onOpen={() => {
+    if (typeof onLeave === 'function' && onLeave.length > 0) onLeave(open);
+    else { onLeave?.(); open(); }
+  }} />;
 }
 
 export default ExamAlignmentPointer;

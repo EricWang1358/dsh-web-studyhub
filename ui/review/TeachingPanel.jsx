@@ -19,7 +19,7 @@ const CALCULATION_STAGE_LABELS = {
 /** Step-by-step guided understanding / calculation panel extracted from QuestionRun. */
 export default function TeachingPanel({ session, data, model, onModelSettings }) {
   const { openModal } = useStudy();
-  const { entry, teachingBusy, teachingError, actions } = session;
+  const { entry, teachingBusy, teachingAction, teachingError, actions } = session;
   const { teaching, teachAnswer } = entry;
   const stepKey = teaching && !teaching.complete ? `${teaching.id}:${teaching.index}` : "";
   const prevStepRef = React.useRef(stepKey);
@@ -112,17 +112,19 @@ export default function TeachingPanel({ session, data, model, onModelSettings })
                 />
               </label>
               <div className="teaching-panel__actions">
-                <Button className="teaching-panel__submit" variant="secondary" size="sm" busy={teachingBusy} busyLabel={ui("正在检查…")} disabled={!teachAnswer.trim()}
+                <Button className="teaching-panel__submit" variant="secondary" size="sm"
+                  busy={teachingBusy && teachingAction === "teach.answer"} busyLabel={ui("正在检查…")}
+                  disabled={teachingBusy || !teachAnswer.trim()}
                   onPointerUp={(e) => e.currentTarget.closest(".study-app")?.focus({ preventScroll: true })} type="submit">{ui("检查理解")}</Button>
                 <Button className="teaching-panel__skip" variant="ghost" size="sm" disabled={teachingBusy}
                   onClick={() => skipStep(false)} type="button">{ui("跳过这一步")}</Button>
                 <Button className="teaching-panel__skip-all" variant="ghost" size="sm" disabled={teachingBusy}
                   onClick={() => skipStep(true)} type="button">{ui("剩下的直接讲给我听")}</Button>
               </div>
-              <TeachingStatus busy={teachingBusy} failure={teachingError} onCancel={actions.cancelTeaching} onRetry={actions.retryTeaching} />
             </form>
           </>
         )}
+        <TeachingStatus busy={teachingBusy} failure={teachingError} onCancel={actions.cancelTeaching} onRetry={actions.retryTeaching} />
       </ReadingBlock>
     </div>
   );

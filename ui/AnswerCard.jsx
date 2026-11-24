@@ -8,7 +8,7 @@ import { modelReadiness } from './generation-status.js';
 import { useStudy } from './study-context.jsx';
 import { usePolling } from './use-polling.js';
 import { isActiveJob } from '../lib/job-status.js';
-import { qaAddFailureText, useBookQa } from './book/BookQaButton.jsx';
+import { hasCourseBook, qaAddFailureText, useBookQa } from './book/BookQaButton.jsx';
 import css from './answer-card.css';
 
 /* 分析题答案卡 (复习全书 M5, lib/answer-card.js) in the feedback of a case question: the ONE full answer card in its parts, each quote and concept marked
@@ -100,7 +100,7 @@ function BookButton({ deckId, cardId, course = '', book }) {
   const [status, setStatus] = useState(() => ({ key: itemKey, working: false, error: '' }));
   const working = status.key === itemKey && status.working;
   const error = status.key === itemKey ? status.error : '';
-  if (!book.ready || !book.courses.has(course ?? '')) return null;
+  if (!book.ready || !hasCourseBook(book.courses, course ?? '')) return null;
   const added = book.cards.has(cardId);
   const run = async () => {
     const originKey = itemKey;
