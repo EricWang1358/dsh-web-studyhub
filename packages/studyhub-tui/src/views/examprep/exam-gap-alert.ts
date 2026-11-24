@@ -8,12 +8,12 @@
  *   3. Non-interrupting (never opens a modal, never steals focus, zero idle polling)
  */
 import type { UiLanguage } from '../../types/contracts.js';
-import type { ExamCountdownPlan } from './exam-planner.js';
+import type { ExamCoverage } from './exam-coverage.js';
 
 export const EXAM_GAP_ALERT_WINDOW_DAYS = 14;
 
 export interface ExamGapAlertInput {
-  plan: ExamCountdownPlan | null;
+  plan: ExamCoverage | null;
   proactiveHints?: boolean;
   dismissed?: boolean;
   lang: UiLanguage;

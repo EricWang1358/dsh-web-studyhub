@@ -33,7 +33,8 @@ const [
   wfMod,
   memMod,
   clusterMod,
-  plannerMod,
+  coverageMod,
+  displayMod,
   dailyMod,
   stuckMod,
   streakMod,
@@ -54,7 +55,8 @@ const [
   import('../src/shell/assistant-workflow.ts'),
   import('../src/shell/assistant-memory.ts'),
   import('../src/views/wrongbook/quick-triage.ts'),
-  import('../src/views/examprep/exam-planner.ts'),
+  import('../src/views/examprep/exam-coverage.ts'),
+  import('../src/views/examprep/course-plan-display.ts'),
   import('../src/views/library/daily-briefing.ts'),
   import('../src/views/review/stuck-nudge.ts'),
   import('../src/views/review/wrong-streak-nudge.ts'),
@@ -235,12 +237,7 @@ describe('Round 100 Final Milestone Audit — Pillars A, B, C, D', () => {
       gapAlertMod.buildExamGapAlert({
         proactiveHints: false,
         dismissed: false,
-        plan: plannerMod.buildExamCountdownPlan({
-          examDate: '2026-05-08',
-          topics: [{ topic: 'OS', status: 'none', cards: 0, mastery: 0, weakCards: [] }],
-          today: new Date(2026, 4, 1),
-          lang: 'zh',
-        }),
+        plan: coverageMod.buildExamCoverage([{ topic: 'OS', status: 'none', cards: 0, mastery: 0, weakCards: [] }], 7),
         lang: 'zh',
         asciiMode: false,
       }),
@@ -272,20 +269,20 @@ describe('Round 100 Final Milestone Audit — Pillars A, B, C, D', () => {
       assert.doesNotMatch(src, /\bsetInterval\s*\(/, `${rel} must never use setInterval idle polling`);
     }
 
-    // 3) Exam-date backward auto-scheduler + P2 gap-fill workflow + Markdown schedule
-    const plan = plannerMod.buildExamCountdownPlan({
-      examDate: '2026-05-15',
-      topics: [
+    // 3) Saved-plan display (the schedule is the backend's course.plan) + P2 gap-fill workflow + Markdown section
+    const coverage = coverageMod.buildExamCoverage(
+      [
         { topic: '虚拟内存', status: 'none', cards: 0, mastery: 0, weakCards: [] },
         { topic: '死锁', status: 'weak', cards: 6, mastery: 0.3, weakCards: ['w1'] },
       ],
-      today: new Date(2026, 4, 1),
-      lang: 'zh',
-    });
-    assert.ok(plan && plan.daysLeft === 14 && plan.next7Days.length === 7);
-    const steps = plannerMod.buildGapFillWorkflowSteps(plan, 'zh');
+      14,
+    );
+    assert.ok(coverage && coverage.daysLeft === 14);
+    const steps = coverageMod.buildGapFillWorkflowSteps(coverage, 'zh');
     assert.ok(steps.some((s) => s.kind === 'generate_gap' && s.requiresConfirm === true));
     assert.ok(steps.some((s) => s.kind === 'drill_weak' && s.requiresConfirm === false));
-    assert.match(plannerMod.formatExamScheduleMarkdown(plan, 'zh'), /考期倒推自动排程/);
+    const md = displayMod.formatExamScheduleMarkdown({ status: 'no-plan', course: 'OS', examDate: '2026-05-15' }, 'zh');
+    assert.match(md, /还没有备考计划/);
+    assert.doesNotMatch(md, /自动排程/);
   });
 });

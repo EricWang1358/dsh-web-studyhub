@@ -1,5 +1,5 @@
 // Round 97 comprehensive behavior tests:
-// - Track D10: `formatExamScheduleMarkdown` + automatic inclusion in `formatExamPrepMarkdown`
+// - Track D10: `formatExamScheduleMarkdown` (the saved 备考计划) + inclusion in `formatExamPrepMarkdown`
 // - Track A15: TasksView borderless queue stat table + OSC 2 running task title
 // - Track C10: CLI `--doctor` capability matrix (mux, OSC 52/8/2/9, DEC 1004) + 6 built-in themes
 import assert from 'node:assert/strict';
@@ -11,45 +11,56 @@ after(() => {
   unregisterTsx?.();
 });
 
-const [plannerMod, prepMod, cliMod] = await Promise.all([
-  import('../src/views/examprep/exam-planner.ts'),
+const [displayMod, prepMod, cliMod] = await Promise.all([
+  import('../src/views/examprep/course-plan-display.ts'),
   import('../src/views/examprep/ExamPrepView.tsx'),
   import('../src/cli-args.ts'),
 ]);
 
-const { buildExamCountdownPlan, formatExamScheduleMarkdown } = plannerMod;
+const { formatExamScheduleMarkdown } = displayMod;
 const { formatExamPrepMarkdown } = prepMod;
 const { buildDoctorReport, formatDoctorReport } = cliMod;
 
-describe('Round 97 Track D10 — Exam Countdown Schedule Markdown Export', () => {
-  it('embeds 7-day countdown schedule table & gap-fill checklist into ExamPrep Markdown export', () => {
+describe('Round 97 Track D10 — Saved Study Plan Markdown Export', () => {
+  it('embeds the saved 备考计划 schedule table & gap-fill checklist into ExamPrep Markdown export', () => {
     const topics = [
       { topic: '虚拟内存', status: 'none', cards: 0, mastery: 0, weakCards: [] },
       { topic: '进程调度', status: 'weak', cards: 10, mastery: 0.4, weakCards: ['c1', 'c2'] },
       { topic: '文件系统', status: 'todo', cards: 8, mastery: 0.6, weakCards: [] },
     ];
-    const today = new Date(2026, 4, 1); // 2026-05-01
-    const plan = buildExamCountdownPlan({
+    const coursePlan = {
+      status: 'ok',
+      course: 'Operating Systems',
       examDate: '2026-05-11',
-      topics,
-      lang: 'zh',
-      today,
-    });
-    const scheduleMd = formatExamScheduleMarkdown(plan, 'zh');
-    assert.match(scheduleMd, /考期倒推自动排程（距考 10 天/);
-    assert.match(scheduleMd, /\| 日期 \| 阶段 \| 主攻重点 \| 目标题量 \| 建议 \|/);
+      daysLeft: 10,
+      schedule: {
+        status: 'ok',
+        capacity: 120,
+        phases: [{ name: '备考', from: '2026-05-01', until: '2026-05-11' }],
+        days: [
+          { date: '2026-05-01', offset: 0, phase: '备考', mode: 'learn', points: ['p1'], done: [], minutes: 120, reason: { code: 'learn-size', count: 1, weak: 0 } },
+        ],
+      },
+      points: [{ id: 'p1', title: '页表' }],
+    };
+    const scheduleMd = formatExamScheduleMarkdown(coursePlan, 'zh');
+    assert.match(scheduleMd, /## 备考计划（距考 10 天 · 每日 120 分钟）/);
+    assert.match(scheduleMd, /\| 日期 \| 阶段 \| 模式 \| 安排 \| 分钟 \| 重点 \|/);
     assert.match(scheduleMd, /2026-05-01/);
-    assert.match(scheduleMd, /补齐缺题：「虚拟内存」/);
 
     const fullMd = formatExamPrepMarkdown({
       course: 'Operating Systems',
       examDate: '2026-05-11',
       topics,
+      coursePlan,
+      daysLeft: 10,
       lang: 'zh',
-      generatedAt: today,
+      generatedAt: '2026-05-01 09:00',
     });
-    assert.match(fullMd, /考期倒推自动排程/);
+    assert.match(fullMd, /## 备考计划（/);
+    assert.doesNotMatch(fullMd, /自动排程/);
     assert.match(fullMd, /建议行动清单/);
+    assert.match(fullMd, /补齐缺题：「虚拟内存」/);
   });
 });
 

@@ -18,20 +18,20 @@ after(() => {
 
 const [
   triageMod,
-  plannerMod,
+  coverageMod,
   alertMod,
   { WrongBookView },
   storeMod,
 ] = await Promise.all([
   import('../src/views/wrongbook/quick-triage.ts'),
-  import('../src/views/examprep/exam-planner.ts'),
+  import('../src/views/examprep/exam-coverage.ts'),
   import('../src/views/examprep/exam-gap-alert.ts'),
   import('../src/views/wrongbook/WrongBookView.tsx'),
   import('../src/state/store.ts'),
 ]);
 
 const { buildTopWrongCluster } = triageMod;
-const { buildExamCountdownPlan } = plannerMod;
+const { buildExamCoverage } = coverageMod;
 const { buildExamGapAlert } = alertMod;
 const { useTuiStore } = storeMod;
 
@@ -120,12 +120,11 @@ describe('Round 92 Track B7 & A10 — WrongBook Top Cluster Quick-Drill [Q] & Pr
 
 describe('Round 92 Track D7 — Proactive Exam Gap Alert (3 Guardrails)', () => {
   test('triggers within 14 days when gaps/weak topics exist and strictly honors disable switch & dismissal', () => {
-    const today = new Date(2026, 4, 10);
     const topics = [
       { topic: 'Integrals', status: 'none', cards: 0, mastery: 0, weakCards: [] },
       { topic: 'Series', status: 'weak', cards: 6, mastery: 0.2, weakCards: [{ deckId: 'd1', cardId: 'c9' }] },
     ];
-    const planNear = buildExamCountdownPlan({ examDate: '2026-05-16', topics, lang: 'zh', today });
+    const planNear = buildExamCoverage(topics, 6);
     const alert = buildExamGapAlert({ plan: planNear, proactiveHints: true, dismissed: false, lang: 'zh', asciiMode: true });
     assert.ok(alert);
     assert.equal(alert.urgent, true, '<= 7 days must be marked urgent');
@@ -142,7 +141,7 @@ describe('Round 92 Track D7 — Proactive Exam Gap Alert (3 Guardrails)', () => 
       null,
     );
     // Outside 14-day window stays calm/silent
-    const planFar = buildExamCountdownPlan({ examDate: '2026-06-20', topics, lang: 'zh', today });
+    const planFar = buildExamCoverage(topics, 41);
     assert.equal(
       buildExamGapAlert({ plan: planFar, proactiveHints: true, dismissed: false, lang: 'zh', asciiMode: true }),
       null,

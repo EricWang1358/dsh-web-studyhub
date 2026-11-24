@@ -14,12 +14,13 @@ import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { renderBarChart, renderStatTable } from '../../render/charts.js';
 import {
-  buildExamCountdownPlan,
-  buildGapFillWorkflowSteps,
+  escapeMdCell,
   formatExamCountdownSummary,
   formatExamScheduleMarkdown,
   renderExamScheduleTable,
-} from './exam-planner.js';
+  type CoursePlanResponse,
+} from './course-plan-display.js';
+import { buildExamCoverage, buildGapFillWorkflowSteps } from './exam-coverage.js';
 import { buildExamGapAlert } from './exam-gap-alert.js';
 import { currentCourse, listCourses } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
@@ -48,15 +49,12 @@ export interface FormatExamPrepMarkdownParams {
   topics?: readonly FocusTopicProgress[];
   crunchPoints?: readonly CrunchPoint[];
   planNotes?: string | null;
+  /** The saved 备考计划 as `course.plan` answers it; null/undefined = not loaded, no plan section. */
+  coursePlan?: CoursePlanResponse | null;
+  /** Days to the exam as the backend resolves them (`course.plan` or `book.crunch`), for the coverage actions. */
+  daysLeft?: number | null;
   lang?: UiLanguage;
   generatedAt?: Date | string;
-}
-
-function escapeMdCell(raw: unknown): string {
-  return String(raw ?? '')
-    .replace(/\|/g, '\\|')
-    .replace(/[\r\n]+/g, ' ')
-    .trim();
 }
 
 function formatGeneratedAt(generatedAt?: Date | string): string {
@@ -77,6 +75,8 @@ export function formatExamPrepMarkdown({
   topics = [],
   crunchPoints = [],
   planNotes,
+  coursePlan,
+  daysLeft,
   lang = 'en',
   generatedAt,
 }: FormatExamPrepMarkdownParams): string {
@@ -131,17 +131,15 @@ export function formatExamPrepMarkdown({
     lines.push('');
   }
 
-  if (typeof examDate === 'string' && examDate.trim()) {
-    const countdownPlan = buildExamCountdownPlan({
-      examDate: examDate.trim(),
-      topics: topicList,
-      lang,
-      today: generatedAt instanceof Date && !Number.isNaN(generatedAt.getTime()) ? generatedAt : undefined,
-    });
-    const scheduleMd = formatExamScheduleMarkdown(countdownPlan, lang);
-    if (scheduleMd) {
-      lines.push(scheduleMd, '');
-    }
+  const scheduleMd = formatExamScheduleMarkdown(coursePlan, lang);
+  if (scheduleMd) {
+    lines.push(scheduleMd, '');
+  }
+  const gapSteps = buildGapFillWorkflowSteps(buildExamCoverage(topicList, daysLeft), lang);
+  if (gapSteps.length > 0) {
+    lines.push(`## ${t(lang, '建议行动清单', 'Recommended Next Actions')}`, '');
+    for (const step of gapSteps) lines.push(`- [ ] ${escapeMdCell(step.label) || '-'}`);
+    lines.push('');
   }
 
   if (crunchList.length > 0) {
@@ -195,6 +193,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const [progress, setProgress] = useState<FocusProgressResult | null>(null);
   const [crunch, setCrunch] = useState<BookCrunchResult | null>(null);
   const [courseRecord, setCourseRecord] = useState<CourseRecordView | null>(null);
+  const [coursePlan, setCoursePlan] = useState<CoursePlanResponse | null>(null);
 
   const [topicIdx, setTopicIdx] = useState(0);
   const [crunchIdx, setCrunchIdx] = useState(0);
@@ -224,11 +223,14 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const loadAll = useCallback(async () => {
     const seq = ++reqSeqRef.current;
     setErrorMsg(null);
-    const [fpRes, crRes, cgRes] = await Promise.all([
+    const [fpRes, crRes, cgRes, cpRes] = await Promise.all([
       tryAction<FocusProgressResult>(host, 'course.focusProgress', course ? { course } : {}),
       tryAction<BookCrunchResult>(host, 'book.crunch', course ? { course } : {}),
       course
         ? tryAction<CourseRecordView>(host, 'course.get', { name: course })
+        : Promise.resolve({ ok: false as const, value: undefined }),
+      course
+        ? tryAction<CoursePlanResponse>(host, 'course.plan', { course })
         : Promise.resolve({ ok: false as const, value: undefined }),
     ]);
     if (!mountedRef.current || seq !== reqSeqRef.current) return;
@@ -236,6 +238,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
     else if (!fpRes.ok) setErrorMsg(fpRes.error?.message || t(lang, '加载重点进度失败', 'Failed to load focus progress'));
     if (crRes.ok && crRes.value) setCrunch(crRes.value);
     setCourseRecord(cgRes.ok && cgRes.value ? cgRes.value : null);
+    setCoursePlan(cpRes.ok && cpRes.value ? cpRes.value : null);
     setLoading(false);
   }, [host, course, lang]);
 
@@ -536,9 +539,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
     }
     exportBusyRef.current = true;
     try {
-      const examDate =
-        crunch?.examDate ??
-        (typeof courseRecord?.exam?.date === 'string' ? courseRecord.exam.date : null);
+      const examDate = coursePlan?.examDate ?? crunch?.examDate ?? null;
       const planNotes =
         typeof courseRecord?.plan?.notes === 'string' ? courseRecord.plan.notes : null;
       const markdown = formatExamPrepMarkdown({
@@ -547,6 +548,8 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
         topics,
         crunchPoints,
         planNotes,
+        coursePlan,
+        daysLeft: coursePlan?.daysLeft ?? crunch?.daysLeft ?? null,
         lang,
       });
       const defaultPath = defaultBackupFilePath(host.getLibraryRoot(), 'studyhub-examprep', '.md', course || undefined);
@@ -568,7 +571,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
     } finally {
       exportBusyRef.current = false;
     }
-  }, [asciiMode, course, courseRecord, crunch?.examDate, crunchPoints, host, lang, notify, topics]);
+  }, [asciiMode, course, courseRecord, coursePlan, crunch?.daysLeft, crunch?.examDate, crunchPoints, host, lang, notify, topics]);
 
   useInput(
     (input, key) => {
@@ -674,28 +677,23 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
   }, [selectedTopic, width, lang, theme, asciiMode]);
 
   const proactiveHints = useTuiStore((s) => s.preferences.proactiveHints !== false);
-  const resolvedExamDate =
-    (typeof courseRecord?.exam?.date === 'string' ? courseRecord.exam.date : undefined) ??
-    crunch?.examDate ??
-    undefined;
-  const autoCountdownPlan = useMemo(
-    () => buildExamCountdownPlan({ examDate: resolvedExamDate, topics, lang }),
-    [resolvedExamDate, topics, lang],
-  );
+  // Days to the exam come from the backend (course.plan resolves a child course's inherited date; book.crunch too).
+  const daysLeft = coursePlan?.daysLeft ?? crunch?.daysLeft;
+  const examCoverage = useMemo(() => buildExamCoverage(topics, daysLeft), [topics, daysLeft]);
   const examGapAlert = useMemo(
     () =>
       buildExamGapAlert({
-        plan: autoCountdownPlan,
+        plan: examCoverage,
         proactiveHints,
         dismissed: gapAlertDismissed,
         lang,
         asciiMode,
       }),
-    [autoCountdownPlan, proactiveHints, gapAlertDismissed, lang, asciiMode],
+    [examCoverage, proactiveHints, gapAlertDismissed, lang, asciiMode],
   );
   const countdownSummary = useMemo(
-    () => examGapAlert?.message || formatExamCountdownSummary(autoCountdownPlan, lang, asciiMode),
-    [examGapAlert, autoCountdownPlan, lang, asciiMode],
+    () => examGapAlert?.message || formatExamCountdownSummary(coursePlan, lang, asciiMode),
+    [examGapAlert, coursePlan, lang, asciiMode],
   );
   const showFilterBar = tab === 'focus' && (filterEditing || filterQuery.length > 0);
   const showCountdownBar = Boolean(countdownSummary) && !showFilterBar && height >= 16;
@@ -908,8 +906,8 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
                   <Box flexDirection="column" gap={0}>
                     {(() => {
                       const innerW = Math.max(16, sz.width - 4);
-                      const schedLines = renderExamScheduleTable(autoCountdownPlan, innerW, theme, { lang, ascii: asciiMode });
-                      const gapSteps = buildGapFillWorkflowSteps(autoCountdownPlan, lang);
+                      const schedLines = renderExamScheduleTable(coursePlan, innerW, theme, { lang, ascii: asciiMode });
+                      const gapSteps = buildGapFillWorkflowSteps(examCoverage, lang);
                       const matrixLines =
                         schedLines.length > 0
                           ? schedLines

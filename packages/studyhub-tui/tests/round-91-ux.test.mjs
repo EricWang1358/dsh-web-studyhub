@@ -1,6 +1,6 @@
 // Round 91 comprehensive behavior & layout tests:
-// - Track D6: Exam countdown backward auto-scheduler (`exam-planner.ts` phase split, gap detection,
-//             daily quota, 7-day rolling schedule) + live ExamPrepView countdown banner
+// - (Track D6, the TUI-side exam countdown auto-scheduler, was removed in the PR #1327 design fix: the schedule is
+//    the backend's `course.plan`; see tests/exam-plan-from-backend.test.mjs)
 // - Track A9: DashboardView `[T]` borderless CJK-aligned `renderStatTable` toggle at 120x36 & 80x24 ASCII
 // - Track C6: CommandPalette `/terminal` live terminal capability diagnostic toast
 // node --test tests/round-91-ux.test.mjs
@@ -17,18 +17,15 @@ after(() => {
 });
 
 const [
-  plannerMod,
   paletteMod,
   { DashboardView },
   storeMod,
 ] = await Promise.all([
-  import('../src/views/examprep/exam-planner.ts'),
   import('../src/shell/CommandPalette.tsx'),
   import('../src/views/dashboard/DashboardView.tsx'),
   import('../src/state/store.ts'),
 ]);
 
-const { buildExamCountdownPlan, formatExamCountdownSummary } = plannerMod;
 const { buildPaletteItems } = paletteMod;
 const { useTuiStore } = storeMod;
 
@@ -61,43 +58,6 @@ function createTtyHarness(columns, rows) {
     },
   };
 }
-
-describe('Round 91 Track D6 — Exam Countdown Auto-Scheduler & Gap-Fill Planner', () => {
-  test('works backward from examDate into 3 phases, detects coverage gaps, and builds 7-day rolling schedule', () => {
-    const today = new Date(2026, 4, 1); // 2026-05-01
-    const topics = [
-      { topic: 'Eigenvalues', status: 'none', cards: 0, mastery: 0, weakCards: [] },
-      { topic: 'SVD Decomposition', status: 'weak', cards: 10, mastery: 0.3, weakCards: [{ deckId: 'd1', cardId: 'c1' }, { deckId: 'd1', cardId: 'c2' }] },
-      { topic: 'Orthogonality', status: 'todo', cards: 12, mastery: 0.5, weakCards: [] },
-      { topic: 'Determinants', status: 'done', cards: 8, mastery: 0.95, weakCards: [] },
-    ];
-
-    const plan = buildExamCountdownPlan({ examDate: '2026-05-15', topics, dailyMinutes: 45, lang: 'zh', today });
-    assert.ok(plan);
-    assert.equal(plan.status, 'ok');
-    assert.equal(plan.daysLeft, 14);
-    assert.deepEqual(plan.gapTopics, ['Eigenvalues']);
-    assert.deepEqual(plan.weakTopics, ['SVD Decomposition']);
-    assert.deepEqual(plan.pendingTopics, ['Orthogonality']);
-    assert.equal(plan.phases.length, 3, '14 days with gap+weak+pending splits into 3 phases');
-    assert.deepEqual(plan.phases.map((p) => p.kind), ['gap_fill', 'consolidate', 'mock_polish']);
-    assert.equal(plan.phases.reduce((n, p) => n + p.days, 0), 14);
-    assert.equal(plan.next7Days.length, 7);
-    assert.match(plan.next7Days[0].note, /\[g\]/);
-
-    const banner = formatExamCountdownSummary(plan, 'zh', true);
-    assert.match(banner, /考期倒推 \(14天\).*补缺攻坚.*缺题 1 项/);
-
-    // Past date & exam day boundaries
-    const past = buildExamCountdownPlan({ examDate: '2026-04-20', topics, lang: 'zh', today });
-    assert.equal(past?.status, 'past');
-    assert.equal(formatExamCountdownSummary(past, 'zh', true), '');
-
-    const examDay = buildExamCountdownPlan({ examDate: '2026-05-01', topics, lang: 'en', today });
-    assert.equal(examDay?.status, 'today');
-    assert.match(formatExamCountdownSummary(examDay, 'en', true), /Exam Day/);
-  });
-});
 
 describe('Round 91 Track A9 — DashboardView [T] Stat Table Toggle', () => {
   test('toggles between Bar Chart and borderless CJK-aligned renderStatTable at 120x36 & 80x24 ASCII', async () => {

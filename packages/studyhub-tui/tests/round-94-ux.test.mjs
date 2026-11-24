@@ -1,6 +1,6 @@
 // Round 94 comprehensive behavior & layout tests:
 // - Track D8: Exam Gap-Fill Remediation Workflow (`buildGapFillWorkflowSteps` with P2 confirm on generate steps)
-// - Track A12: Borderless 7-day rolling exam schedule table (`renderExamScheduleTable` + `ExamPrepView` `[T]` toggle
+// - Track A12: Borderless exam schedule table of the saved 备考计划 (`renderExamScheduleTable` + `ExamPrepView` `[T]` toggle
 //              at 120x36 & 80x24 ASCII)
 // - Track C8: DEC 1004 terminal focus/blur reporting (`parseTerminalFocusEvent`, `supportsFocusReporting`,
 //             `resolveAdaptiveTickMs` 4x low-power blur throttling)
@@ -18,14 +18,16 @@ after(() => {
 });
 
 const [
-  plannerMod,
+  displayMod,
+  coverageMod,
   compatMod,
   tokensMod,
   cjkMod,
   { ExamPrepView },
   storeMod,
 ] = await Promise.all([
-  import('../src/views/examprep/exam-planner.ts'),
+  import('../src/views/examprep/course-plan-display.ts'),
+  import('../src/views/examprep/exam-coverage.ts'),
   import('../src/render/terminal-compat.ts'),
   import('../src/theme/tokens.ts'),
   import('../src/render/cjk.ts'),
@@ -33,7 +35,8 @@ const [
   import('../src/state/store.ts'),
 ]);
 
-const { buildExamCountdownPlan, buildGapFillWorkflowSteps, renderExamScheduleTable } = plannerMod;
+const { renderExamScheduleTable } = displayMod;
+const { buildExamCoverage, buildGapFillWorkflowSteps } = coverageMod;
 const {
   DEC_FOCUS_ENABLE,
   DEC_FOCUS_DISABLE,
@@ -75,31 +78,56 @@ function createTtyHarness(columns, rows) {
   };
 }
 
-describe('Round 94 Track D8 & A12 — Gap-Fill Workflow & 7-Day Exam Schedule Table [T]', () => {
-  test('generates P2-guarded gap-fill workflow steps and exact-width 7-day schedule table in ExamPrepView', async () => {
-    const today = new Date(2026, 4, 10);
+describe('Round 94 Track D8 & A12 — Gap-Fill Workflow & Saved-Plan Schedule Table [T]', () => {
+  test('generates P2-guarded gap-fill workflow steps and exact-width saved-plan schedule table in ExamPrepView', async () => {
     const topics = [
       { topic: 'Vector Spaces', status: 'none', cards: 0, mastery: 0, weakCards: [], counts: {} },
       { topic: 'Eigenvalues', status: 'weak', cards: 8, mastery: 0.25, weakCards: [{ deckId: 'd1', cardId: 'c1' }], counts: { weak: 4 } },
     ];
-    const plan = buildExamCountdownPlan({ examDate: '2026-05-18', topics, lang: 'zh', today });
-    const steps = buildGapFillWorkflowSteps(plan, 'zh');
-    assert.equal(steps.length, 3, 'Should include generate_gap + drill_weak + mock_exam');
+    const steps = buildGapFillWorkflowSteps(buildExamCoverage(topics, 8), 'zh');
+    assert.equal(steps.length, 2, 'generate_gap + drill_weak; mock exams are the saved plan\'s mockDates');
     assert.equal(steps[0].kind, 'generate_gap');
     assert.equal(steps[0].requiresConfirm, true, 'AI generation step MUST enforce P2 confirmation');
     assert.equal(steps[1].kind, 'drill_weak');
     assert.equal(steps[1].requiresConfirm, false);
-    assert.equal(steps[2].kind, 'mock_exam');
+
+    const futureDate = new Date(Date.now() + 8 * 86_400_000).toISOString().slice(0, 10);
+    const savedDay = (n, mode, minutes, reason) => ({
+      date: new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10),
+      offset: n,
+      phase: '备考',
+      mode,
+      points: [],
+      done: [],
+      minutes,
+      reason,
+    });
+    const savedPlan = {
+      status: 'ok',
+      course: 'Linear Algebra',
+      examDate: futureDate,
+      daysLeft: 8,
+      schedule: {
+        status: 'ok',
+        capacity: 180,
+        phases: [{ name: '备考', from: savedDay(0).date, until: futureDate }],
+        days: [
+          savedDay(0, 'learn', 180, { code: 'learn-size', count: 3, weak: 1 }),
+          savedDay(1, 'off', 0, { code: 'weekday' }),
+          savedDay(2, 'mock', 0, { code: 'mock' }),
+        ],
+      },
+      points: [],
+    };
 
     const theme = getTheme('warm-amber');
-    const lines = renderExamScheduleTable(plan, 56, theme, { lang: 'zh', ascii: true });
-    assert.equal(lines.length, 9, 'Header + rule + 7 daily rows');
+    const lines = renderExamScheduleTable(savedPlan, 56, theme, { lang: 'zh', ascii: true });
+    assert.equal(lines.length, 5, 'Header + rule + the 3 saved days');
     for (const l of lines) {
       assert.equal(displayWidth(stripAnsi(l)), 56);
     }
 
     // Live ExamPrepView [T] toggle at 120x36 & 80x24 ASCII
-    const futureDate = new Date(Date.now() + 8 * 86_400_000).toISOString().slice(0, 10);
     const host = {
       subscribeEvents: () => () => {},
       getLibraryRoot: () => '/tmp',
@@ -113,6 +141,7 @@ describe('Round 94 Track D8 & A12 — Gap-Fill Workflow & 7-Day Exam Schedule Ta
         if (action === 'course.get') {
           return { ok: true, value: { name: 'Linear Algebra', exam: { date: futureDate } } };
         }
+        if (action === 'course.plan') return { ok: true, value: savedPlan };
         return { ok: true, value: {} };
       },
     };
@@ -132,7 +161,7 @@ describe('Round 94 Track D8 & A12 — Gap-Fill Workflow & 7-Day Exam Schedule Ta
     await tty.waitFor((s) => s.includes('Vector Spaces'));
     tty.stdin.write('T');
     const tblOut = await tty.waitFor((s) => s.includes('排程与重点矩阵') && s.includes('缺口自动补齐步骤'));
-    assert.match(tblOut, /日期.*阶段.*主攻重点.*题量/);
+    assert.match(tblOut, /日期.*阶段.*安排.*分钟/);
     assert.match(tblOut, /补齐缺题.*Vector Spaces/);
     inst.unmount();
   });
