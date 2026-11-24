@@ -530,7 +530,9 @@ function renderCode(tok: Tokens.Code, width: number, ctx: Ctx): string[] {
       .flatMap((l) => wrapDisplay(`  ${mathStyle(ctx, l)}`, width));
   }
   const rawText = tok.text.includes('\r') ? tok.text.replace(CRLF_RE, '\n') : tok.text;
-  const code = expandTabs(rawText, 4);
+  // #1431: four-space indented code blocks are not skipped by `preprocessCjkEmphasis` (that scan only
+  // tracks fences and inline spans), so strip any CJK emphasis sentinel before framing the code.
+  const code = expandTabs(rawText.includes(CJK_EM_MARK) ? rawText.replace(CJK_EM_CLEAN_RE, '') : rawText, 4);
   let body = code;
   if (lang && c.level > 0) {
     const hl = getHighlighter();

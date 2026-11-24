@@ -11,9 +11,10 @@ after(() => {
   unregisterTsx?.();
 });
 
-const [{ renderMarkdown, clearMarkdownCache }, { getTheme, makeChalk, getColorLevel, setColorLevel }] = await Promise.all([
+const [{ renderMarkdown, clearMarkdownCache }, { getTheme, makeChalk, getColorLevel, setColorLevel }, { displayWidth }] = await Promise.all([
   import('../src/render/markdown.ts'),
   import('../src/theme/tokens.ts'),
+  import('../src/render/cjk.ts'),
 ]);
 
 test('#1421: **bold** and *italic* adjacent to Chinese punctuation render cleanly without raw asterisks or extra spaces', () => {
@@ -85,6 +86,36 @@ test('#1421: **bold** and *italic* adjacent to Chinese punctuation render cleanl
     clearMarkdownCache();
     const codeFence = renderMarkdown('```md\n**易错点：**后面的文字\n```', { width: 80, theme });
     assert.ok(stripAnsi(codeFence).includes('**易错点：**后面的文字'), 'fenced code block must preserve ** verbatim');
+  } finally {
+    setColorLevel(prevLevel);
+  }
+});
+
+test('#1431: four-space indented code blocks keep the sentinel out and the frame aligned', () => {
+  const prevLevel = getColorLevel();
+  setColorLevel(0);
+  try {
+    const theme = getTheme('dsh-dark');
+    const checkFrame = (out, width, label) => {
+      assert.ok(!out.includes('\uE004'), `${label}: sentinel leaked: ${JSON.stringify(out)}`);
+      assert.ok(!out.includes('文 **'), `${label}: stray spaces inserted: ${JSON.stringify(out)}`);
+      const lines = out.split('\n').filter((l) => l.includes('│'));
+      assert.ok(lines.length > 0, `${label}: expected a code frame`);
+      for (const line of lines) {
+        assert.equal(displayWidth(line), width, `${label}: frame line width: ${JSON.stringify(line)}`);
+      }
+      const codeLine = lines.find((l) => l.includes('文'));
+      assert.ok(codeLine, `${label}: expected code content line`);
+      assert.ok(codeLine.includes('│ 文**（x）**字'), `${label}: content must render verbatim: ${JSON.stringify(codeLine)}`);
+    };
+
+    clearMarkdownCache();
+    const flat = stripAnsi(renderMarkdown('说明：\n\n    文**（x）**字\n\n后文', { width: 50, theme }));
+    checkFrame(flat, 50, 'top-level indented code');
+
+    clearMarkdownCache();
+    const nested = stripAnsi(renderMarkdown('1. 步骤\n\n       文**（x）**字\n', { width: 50, theme }));
+    checkFrame(nested, 50, 'indented code under list item');
   } finally {
     setColorLevel(prevLevel);
   }
