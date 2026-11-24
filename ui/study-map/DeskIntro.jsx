@@ -98,7 +98,10 @@ export default function DeskIntro({ data, home, mastery, start, resume, endRun, 
         <details className="desk-more">
           <summary>{ui('其他开始方式')}</summary>
           <p className="desk-also">
-            {alternatives.map(([label, run, hint]) => <Button key={label} variant="link" lock={busy} title={hint} onClick={run}>{label}</Button>)}
+            {alternatives.map(([label, run, hint]) => {
+              const btn = <Button key={label} variant="link" lock={busy} onClick={run}>{label}</Button>;
+              return hint ? <Tooltip key={label} layer content={hint}>{btn}</Tooltip> : btn;
+            })}
           </p>
         </details>
       )}
