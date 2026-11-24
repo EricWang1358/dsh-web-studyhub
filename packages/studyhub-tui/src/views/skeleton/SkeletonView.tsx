@@ -518,10 +518,13 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const busyRef = useRef(false);
   const exportBusyRef = useRef(false);
   const lintReqRef = useRef(0);
+  const genAbortRef = useRef<AbortController | null>(null);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      genAbortRef.current?.abort();
+      genAbortRef.current = null;
     };
   }, []);
 
@@ -986,7 +989,11 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
         topics: availableTopics.slice(0, 20).map((x) => ({ topic: x.topic, count: x.count })),
         cards: cards.slice(0, 60).map((c) => ({ cardId: c.cardId, topic: c.topic, prompt: c.prompt.slice(0, 100) })),
       });
-      const raw = await host.streamComplete({ system: sys, prompt });
+      genAbortRef.current?.abort();
+      const ac = new AbortController();
+      genAbortRef.current = ac;
+      const raw = await host.streamComplete({ system: sys, prompt, signal: ac.signal });
+      if (!mountedRef.current || ac.signal.aborted) return;
       const parsed = extractJsonObject(raw);
       if (!parsed || !Array.isArray(parsed.nodes) || parsed.nodes.length === 0) {
         useTuiStore.getState().notify(
@@ -997,6 +1004,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       }
 
       const saved = await host.call<SkeletonDetail>('skeleton.save', { ...parsed, scope });
+      if (!mountedRef.current || ac.signal.aborted) return;
       if (saved.ok && saved.value?.id) {
         setSelectedSkeletonId(saved.value.id);
         setReloadSeq((n) => n + 1);
@@ -1005,7 +1013,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
         useTuiStore.getState().notify(saved.error?.message || t(lang, '骨架保存失败', 'Failed to save skeleton'), 'error');
       }
     } catch (err) {
-      if (mountedRef.current) {
+      if (mountedRef.current && !genAbortRef.current?.signal.aborted) {
         const msg = err instanceof Error ? err.message : String(err);
         useTuiStore.getState().notify(
           t(lang, `AI 骨架生成失败，未写入：${msg}`, `AI skeleton generation failed; nothing saved: ${msg}`),
@@ -1013,6 +1021,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
         );
       }
     } finally {
+      genAbortRef.current = null;
       busyRef.current = false;
       if (mountedRef.current) setBusyAction(null);
     }
