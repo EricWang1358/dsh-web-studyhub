@@ -261,6 +261,206 @@ function parsePageRange(pagesStr: unknown, fallbackTotal: number): { first: numb
   return { first: 1, last: Math.max(1, fallbackTotal) };
 }
 
+const MAX_PAGE_CHUNKS = 200;
+const SOURCE_GET_CHUNK_LIMIT = 60000;
+
+function formatTruncatedTail(lang: UiLanguage, loadedChars: number, totalChars: number): string {
+  const progress = totalChars > loadedChars ? ` (${loadedChars} / ${totalChars})` : '';
+  return (
+    '\n\n> ' +
+    t(
+      lang,
+      `后面的内容没有读出来${progress}，当前页未显示完整。`,
+      `The remaining content of this page could not be loaded${progress}.`,
+    )
+  );
+}
+
+export interface FullPageFetchResult {
+  ok: boolean;
+  page?: number;
+  sourceId?: string;
+  documentId?: string;
+  title?: string;
+  pages?: unknown;
+  text: string;
+  chars: number;
+  truncated: boolean;
+  error?: string;
+}
+
+/**
+ * Fetch an entire single page via `source.pages`, following `next.offset` chunks while `next.from`
+ * stays on the same page (#1418). Never silently drops the tail: if a follow-up chunk fails, preserves
+ * already-loaded text and appends an explicit tail notice.
+ */
+export async function fetchFullSourcePage(
+  host: Pick<HostClient, 'call'>,
+  opts: {
+    documentId?: string;
+    sourceId?: string;
+    from: number;
+    lang: UiLanguage;
+    isCancelled?: () => boolean;
+  },
+): Promise<FullPageFetchResult> {
+  const target: Record<string, unknown> = {
+    ...(opts.documentId ? { documentId: opts.documentId } : {}),
+    ...(!opts.documentId && opts.sourceId ? { sourceId: opts.sourceId } : {}),
+    from: opts.from,
+    to: opts.from,
+  };
+  const firstRes = await tryAction<Record<string, unknown>>(host as HostClient, 'source.pages', target);
+  if (!firstRes.ok || !firstRes.value) {
+    return { ok: false, text: '', chars: 0, truncated: false, error: firstRes.error?.message };
+  }
+  const val = firstRes.value;
+  const shown = Array.isArray(val.shown) ? (val.shown as Array<Record<string, unknown>>) : [];
+  const firstShown = shown[0];
+  if (!firstShown) {
+    return { ok: false, text: '', chars: 0, truncated: false };
+  }
+
+  const pageNum = Number(firstShown.page ?? opts.from);
+  const totalChars = Number(firstShown.chars ?? 0);
+  const parts: string[] = [String(firstShown.text ?? '')];
+  let currentOffset = 0;
+  let next = val.next as { from?: unknown; offset?: unknown } | undefined;
+  let truncated = false;
+
+  for (let step = 1; step < MAX_PAGE_CHUNKS; step++) {
+    if (opts.isCancelled?.()) {
+      return { ok: false, text: '', chars: 0, truncated: false };
+    }
+    const nextFrom = Number(next?.from);
+    const nextOffset = typeof next?.offset === 'number' && Number.isFinite(next.offset) ? next.offset : -1;
+    if (nextFrom !== pageNum || nextOffset <= currentOffset) break;
+
+    const chunkRes = await tryAction<Record<string, unknown>>(host as HostClient, 'source.pages', {
+      ...target,
+      from: pageNum,
+      to: pageNum,
+      offset: nextOffset,
+    });
+    if (opts.isCancelled?.()) {
+      return { ok: false, text: '', chars: 0, truncated: false };
+    }
+    if (!chunkRes.ok || !chunkRes.value) {
+      truncated = true;
+      break;
+    }
+    const chunkShown = Array.isArray(chunkRes.value.shown)
+      ? (chunkRes.value.shown as Array<Record<string, unknown>>)[0]
+      : undefined;
+    const chunkText = typeof chunkShown?.text === 'string' ? chunkShown.text : '';
+    if (!chunkText) {
+      truncated = true;
+      break;
+    }
+    parts.push(chunkText);
+    currentOffset = nextOffset;
+    next = chunkRes.value.next as { from?: unknown; offset?: unknown } | undefined;
+  }
+
+  // If still pointing at the same page after MAX_PAGE_CHUNKS, surface truncation honestly.
+  if (
+    !truncated &&
+    next &&
+    Number(next.from) === pageNum &&
+    typeof next.offset === 'number' &&
+    next.offset > currentOffset
+  ) {
+    truncated = true;
+  }
+
+  let text = parts.join('');
+  if (truncated) {
+    text += formatTruncatedTail(opts.lang, text.length, Math.max(totalChars, text.length));
+  }
+
+  return {
+    ok: true,
+    page: pageNum,
+    sourceId: String(firstShown.sourceId ?? opts.sourceId ?? ''),
+    documentId: typeof val.documentId === 'string' ? val.documentId : opts.documentId,
+    title: typeof val.title === 'string' ? val.title : undefined,
+    pages: val.pages,
+    text,
+    chars: totalChars || text.length,
+    truncated,
+  };
+}
+
+/**
+ * Fallback full-text loader via `source.get` that loops `offset` until `chars` is reached (#1418).
+ */
+export async function fetchFullSourceGet(
+  host: Pick<HostClient, 'call'>,
+  opts: {
+    id: string;
+    lang: UiLanguage;
+    isCancelled?: () => boolean;
+  },
+): Promise<FullPageFetchResult> {
+  const firstRes = await tryAction<Record<string, unknown>>(host as HostClient, 'source.get', {
+    id: opts.id,
+    offset: 0,
+    limit: SOURCE_GET_CHUNK_LIMIT,
+  });
+  if (!firstRes.ok || !firstRes.value) {
+    return { ok: false, text: '', chars: 0, truncated: false, error: firstRes.error?.message };
+  }
+  const firstVal = firstRes.value;
+  const totalChars = Number(firstVal.chars ?? 0);
+  const parts: string[] = [String(firstVal.text ?? '')];
+  let loaded = parts[0].length;
+  let truncated = false;
+
+  for (let step = 1; step < MAX_PAGE_CHUNKS && totalChars > 0 && loaded < totalChars; step++) {
+    if (opts.isCancelled?.()) {
+      return { ok: false, text: '', chars: 0, truncated: false };
+    }
+    const chunkRes = await tryAction<Record<string, unknown>>(host as HostClient, 'source.get', {
+      id: opts.id,
+      offset: loaded,
+      limit: SOURCE_GET_CHUNK_LIMIT,
+    });
+    if (opts.isCancelled?.()) {
+      return { ok: false, text: '', chars: 0, truncated: false };
+    }
+    if (!chunkRes.ok || !chunkRes.value) {
+      truncated = true;
+      break;
+    }
+    const chunkText = typeof chunkRes.value.text === 'string' ? chunkRes.value.text : '';
+    if (!chunkText) {
+      truncated = true;
+      break;
+    }
+    parts.push(chunkText);
+    loaded += chunkText.length;
+  }
+
+  if (!truncated && totalChars > 0 && loaded < totalChars) {
+    truncated = true;
+  }
+
+  let text = parts.join('');
+  if (truncated) {
+    text += formatTruncatedTail(opts.lang, text.length, Math.max(totalChars, text.length));
+  }
+
+  return {
+    ok: true,
+    page: 1,
+    sourceId: String(firstVal.id ?? opts.id),
+    title: typeof firstVal.title === 'string' ? firstVal.title : undefined,
+    text,
+    chars: totalChars || text.length,
+    truncated,
+  };
+}
+
 const LAST_READ_DEBOUNCE_MS = 400;
 const MAX_LAST_READ_KEY_LENGTH = 160;
 const MAX_LAST_READ_PAGE = 50_000;
@@ -686,87 +886,82 @@ export const DocumentReader = memo(function DocumentReader({
       }
 
       const targetFrom = currentPage;
-      const pagesRes = await tryAction<Record<string, unknown>>(host, 'source.pages', {
-        ...(docMeta.documentId ? { documentId: docMeta.documentId } : documentId ? { documentId } : {}),
-        ...(sourceId && !docMeta.documentId && !documentId ? { sourceId } : {}),
+      const pagesRes = await fetchFullSourcePage(host, {
+        documentId: docMeta.documentId || documentId,
+        sourceId,
         from: targetFrom,
-        to: targetFrom,
+        lang,
+        isCancelled: () => cancelled,
       });
 
       if (cancelled) return;
 
-      if (pagesRes.ok && pagesRes.value) {
-        const val = pagesRes.value;
-        const shown = Array.isArray(val.shown) ? (val.shown as Array<Record<string, unknown>>) : [];
-        const firstShown = shown[0];
-        const { first, last } = parsePageRange(val.pages, Math.max(totalPagesHint, targetFrom));
-        if (firstShown) {
-          const resolvedDocId = docMeta.documentId || (typeof val.documentId === 'string' ? val.documentId : documentId);
-          const resolvedFirstSourceId =
-            docMeta.firstSourceId || firstSourceIdRef.current || sourceId || String(firstShown.sourceId ?? '');
-          const resolvedTitle = docMeta.title || String(val.title || initialTitle || '文档阅读');
-          const resolvedDocKey = buildDocKey(resolvedDocId, resolvedFirstSourceId, resolvedTitle);
-          const hasExplicitPage = initialPage > 1;
-          if (!hasExplicitPage && !resumeCheckedRef.current && !userNavigatedRef.current) {
-            resumeCheckedRef.current = true;
-            const savedPage = resolvedDocKey
-              ? useTuiStore.getState().preferences.lastReadPages?.[resolvedDocKey]
-              : undefined;
-            if (
-              last > 1 &&
-              typeof savedPage === 'number' &&
-              Number.isSafeInteger(savedPage) &&
-              savedPage > 1 &&
-              savedPage <= last &&
-              savedPage !== targetFrom
-            ) {
-              lastPersistedRef.current = { docKey: resolvedDocKey, page: savedPage };
-              setCurrentPage(savedPage);
-              notify(
-                t(lang, `已恢复到上次阅读第 ${savedPage} 页`, `Resumed at page ${savedPage}`),
-                'info',
-              );
-              return;
-            }
+      if (pagesRes.ok) {
+        const { first, last } = parsePageRange(pagesRes.pages, Math.max(totalPagesHint, targetFrom));
+        const resolvedDocId = docMeta.documentId || pagesRes.documentId || documentId;
+        const resolvedFirstSourceId =
+          docMeta.firstSourceId || firstSourceIdRef.current || sourceId || String(pagesRes.sourceId ?? '');
+        const resolvedTitle = docMeta.title || String(pagesRes.title || initialTitle || '文档阅读');
+        const resolvedDocKey = buildDocKey(resolvedDocId, resolvedFirstSourceId, resolvedTitle);
+        const hasExplicitPage = initialPage > 1;
+        if (!hasExplicitPage && !resumeCheckedRef.current && !userNavigatedRef.current) {
+          resumeCheckedRef.current = true;
+          const savedPage = resolvedDocKey
+            ? useTuiStore.getState().preferences.lastReadPages?.[resolvedDocKey]
+            : undefined;
+          if (
+            last > 1 &&
+            typeof savedPage === 'number' &&
+            Number.isSafeInteger(savedPage) &&
+            savedPage > 1 &&
+            savedPage <= last &&
+            savedPage !== targetFrom
+          ) {
+            lastPersistedRef.current = { docKey: resolvedDocKey, page: savedPage };
+            setCurrentPage(savedPage);
+            notify(
+              t(lang, `已恢复到上次阅读第 ${savedPage} 页`, `Resumed at page ${savedPage}`),
+              'info',
+            );
+            return;
           }
-          setPageData({
-            page: Number(firstShown.page ?? targetFrom),
-            sourceId: String(firstShown.sourceId ?? sourceId ?? ''),
-            text: String(firstShown.text ?? ''),
-            chars: Number(firstShown.chars ?? 0),
-            firstPage: first,
-            lastPage: last,
-            revision: docMeta.revision,
-            documentId: resolvedDocId,
-            title: resolvedTitle,
-            format: docMeta.format || initialFormat,
-          });
-          setLoading(false);
-          return;
         }
+        setPageData({
+          page: Number(pagesRes.page ?? targetFrom),
+          sourceId: String(pagesRes.sourceId ?? sourceId ?? ''),
+          text: pagesRes.text,
+          chars: pagesRes.chars,
+          firstPage: first,
+          lastPage: last,
+          revision: docMeta.revision,
+          documentId: resolvedDocId,
+          title: resolvedTitle,
+          format: docMeta.format || initialFormat,
+        });
+        setLoading(false);
+        return;
       }
 
       // Fallback to source.get for single-source or non-paged items
       const fallbackId = sourceId;
       if (fallbackId) {
-        const getRes = await tryAction<Record<string, unknown>>(host, 'source.get', {
+        const getRes = await fetchFullSourceGet(host, {
           id: fallbackId,
-          offset: 0,
-          limit: 20000,
+          lang,
+          isCancelled: () => cancelled,
         });
         if (cancelled) return;
-        if (getRes.ok && getRes.value) {
-          const val = getRes.value;
+        if (getRes.ok) {
           setPageData({
             page: 1,
-            sourceId: String(val.id ?? fallbackId),
-            text: String(val.text ?? ''),
-            chars: Number(val.chars ?? 0),
+            sourceId: String(getRes.sourceId ?? fallbackId),
+            text: getRes.text,
+            chars: getRes.chars,
             firstPage: 1,
             lastPage: 1,
             revision: docMeta.revision,
             documentId: docMeta.documentId || documentId,
-            title: docMeta.title || String(val.title || initialTitle || '文档阅读'),
+            title: docMeta.title || String(getRes.title || initialTitle || '文档阅读'),
             format: docMeta.format || initialFormat,
           });
           setLoading(false);
@@ -775,7 +970,7 @@ export const DocumentReader = memo(function DocumentReader({
       }
 
       setLoadError(
-        pagesRes.error?.message ||
+        pagesRes.error ||
           t(lang, '无法读取该页内容', 'Unable to load this page'),
       );
       setLoading(false);
