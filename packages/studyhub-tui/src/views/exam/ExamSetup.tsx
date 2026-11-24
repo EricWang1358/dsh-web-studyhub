@@ -8,6 +8,7 @@ import { useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState } from '../../components/Badge.js';
 import { Panel } from '../../components/Panel.js';
 import { SplitPane } from '../../components/SplitPane.js';
+import { LAYOUT_BP } from '../../components/layout-tokens.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -651,7 +652,7 @@ export const ExamSetup = memo(function ExamSetup({
       leftWidth={0.56}
       minLeft={36}
       minRight={28}
-      breakpoint={88}
+      breakpoint={LAYOUT_BP.NARROW}
       activePane={pane === 'setup' ? 'left' : 'right'}
       leftLabel={t(lang, '组卷', 'Setup')}
       rightLabel={t(lang, '历史考卷', 'History')}

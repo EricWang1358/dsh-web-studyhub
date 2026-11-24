@@ -1,12 +1,14 @@
 import React, { Suspense, lazy, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Box, useApp } from 'ink';
+import { Box, Text, useApp } from 'ink';
 import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type PageId, type ViewProps } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
+import { useTheme } from '../theme/tokens.js';
+import { glyph } from '../render/glyphs.js';
 import { KeyHintBar, Spinner, ToastStack, estimateToastStackHeight } from '../components/Badge.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import { RESERVED_GLOBAL_KEY_SET, isKeyClaimed, resolveShellFooterHints, useContextualFooterTip, useModalHints } from '../components/focus.js';
 import { KEY_LAYER_GLOBAL, KEY_LAYER_SYSTEM, KeyScopeProvider, useKeyDispatcherBridge, useScopedInput } from '../components/key-dispatcher.js';
-import { LAYOUT_BP } from '../components/layout-tokens.js';
+import { LAYOUT_BP, isViewportTooSmall } from '../components/layout-tokens.js';
 import { useMouseClickInputFallback } from '../components/mouse.js';
 import { useStableWindowSize } from '../components/resize.js';
 import { TopBar } from './TopBar.js';
@@ -78,6 +80,7 @@ export const AppShell = memo(function AppShell({
   autoLaunchpad = true,
 }: AppShellProps) {
   const { exit } = useApp();
+  const theme = useTheme();
   const { columns, rows } = useStableWindowSize();
 
   const page = useTuiStore((s) => s.page);
@@ -341,6 +344,33 @@ export const AppShell = memo(function AppShell({
   const toastRows = Math.min(Math.max(1, rows - 3), estimateToastStackHeight(toasts, toastW, asciiMode));
   const toastTop = Math.max(1, rows - (showKeyHints ? 1 : 0) - toastRows);
 
+  if (isViewportTooSmall(columns, rows)) {
+    const times = glyph('times', asciiMode);
+    const warnGlyph = glyph('warn', asciiMode);
+    return (
+      <ShellActionsContext.Provider value={actions}>
+        <Box
+          flexDirection="column"
+          width={columns}
+          height={rows}
+          alignItems="center"
+          justifyContent="center"
+          paddingX={1}
+        >
+          <Text color={theme.warning} bold wrap="wrap">
+            {`${warnGlyph} ${t(lang, `终端窗口太小 (${columns}${times}${rows})`, `Terminal too small (${columns}${times}${rows})`)}`}
+          </Text>
+          <Text color={theme.text} wrap="wrap">
+            {t(lang, `请放大窗口至至少 80${times}24`, `Resize terminal to at least 80${times}24`)}
+          </Text>
+          <Text color={theme.dim} wrap="wrap">
+            {t(lang, '按 q 或 Ctrl+C 退出', 'Press q or Ctrl+C to quit')}
+          </Text>
+        </Box>
+      </ShellActionsContext.Provider>
+    );
+  }
+
   let main: ReactNode;
   if (showLaunchpad) {
     main = (
@@ -349,7 +379,7 @@ export const AppShell = memo(function AppShell({
       </Suspense>
     );
   } else if (loading && !snapshot) {
-    const ell = asciiMode ? '...' : '…';
+    const ell = glyph('ellipsis', asciiMode);
     main = (
       <Box width={contentW} height={bodyH} alignItems="center" justifyContent="center">
         <Spinner label={t(lang, `正在打开学习库${ell}`, `Opening library${ell}`)} />
@@ -426,7 +456,7 @@ export const AppShell = memo(function AppShell({
           <KeyHintBar
             hints={hints}
             width={columns}
-            right={refreshing ? (asciiMode ? t(lang, '* 同步中', '* syncing') : t(lang, '⟳ 同步中', '⟳ syncing')) : undefined}
+            right={refreshing ? t(lang, `${glyph('sync', asciiMode)} 同步中`, `${glyph('sync', asciiMode)} syncing`) : undefined}
             tip={contextualTipText}
           />
         ) : null}

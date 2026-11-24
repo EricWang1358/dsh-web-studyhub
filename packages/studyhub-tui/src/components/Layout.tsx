@@ -11,7 +11,9 @@ import React, { memo, type ReactNode } from 'react';
 import { Box, Text } from 'ink';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
+import { glyph, hairline } from '../render/glyphs.js';
 import { useTuiStore } from '../state/store.js';
+import { normalizeAsciiChrome } from './Badge.js';
 import { LAYOUT_CHROME } from './layout-tokens.js';
 
 export const GRID_GUTTER = LAYOUT_CHROME.GRID_GUTTER;
@@ -86,8 +88,90 @@ export const ProseContainer = memo(function ProseContainer({
   );
 });
 
-const UNICODE_HAIRLINE = '─'.repeat(400);
-const ASCII_HAIRLINE = '-'.repeat(400);
+const UNICODE_HAIRLINE = hairline(400, false);
+const ASCII_HAIRLINE = hairline(400, true);
+
+export interface ChromeLabelProps {
+  text: string;
+  maxWidth: number;
+  color?: string;
+  tone?: Tone;
+  bold?: boolean;
+  dimColor?: boolean;
+  ascii?: boolean;
+}
+
+/**
+ * Single-line UI chrome truncation primitive (#1354 D5).
+ * Only chrome titles, badges, and rail labels should truncate; learner content uses `<Prose>`.
+ */
+export const ChromeLabel = memo(function ChromeLabel({
+  text,
+  maxWidth,
+  color,
+  tone,
+  bold,
+  dimColor,
+  ascii: asciiProp,
+}: ChromeLabelProps) {
+  const theme = useTheme();
+  const storeAscii = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ascii = asciiProp ?? storeAscii;
+  const resolvedColor = color ?? (tone ? toneColor(theme, tone) : theme.text);
+  const clipped = truncateDisplay(normalizeAsciiChrome(text, ascii), Math.max(0, Math.floor(maxWidth)), glyph('ellipsis', ascii));
+  return (
+    <Text color={resolvedColor} bold={bold} dimColor={dimColor} wrap="truncate-end">
+      {clipped}
+    </Text>
+  );
+});
+
+export interface ProseProps {
+  width?: number;
+  maxCols?: number;
+  color?: string;
+  tone?: Tone;
+  bold?: boolean;
+  ascii?: boolean;
+  children: ReactNode;
+}
+
+/**
+ * Wrapping learner-content typography primitive (#1354 D5): never truncates content.
+ * Wraps cleanly within `computeProseLayout(width, maxCols)` on wide terminals.
+ */
+export const Prose = memo(function Prose({
+  width,
+  maxCols = PROSE_MAX_COLS,
+  color,
+  tone,
+  bold,
+  ascii: asciiProp,
+  children,
+}: ProseProps) {
+  const theme = useTheme();
+  const storeAscii = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ascii = asciiProp ?? storeAscii;
+  const resolvedColor = color ?? (tone ? toneColor(theme, tone) : theme.text);
+  const layout = typeof width === 'number' ? computeProseLayout(width, maxCols) : null;
+  const body = typeof children === 'string' ? normalizeAsciiChrome(children, ascii) : children;
+  if (!layout) {
+    return (
+      <Text color={resolvedColor} bold={bold} wrap="wrap">
+        {body}
+      </Text>
+    );
+  }
+  return (
+    <Box width={width} paddingLeft={layout.marginLeft} flexDirection="column">
+      <Box width={layout.proseWidth} flexDirection="column">
+        <Text color={resolvedColor} bold={bold} wrap="wrap">
+          {body}
+        </Text>
+      </Box>
+    </Box>
+  );
+});
 
 export interface SectionHeaderProps {
   title: string;
@@ -120,7 +204,7 @@ export const SectionHeader = memo(function SectionHeader({
   const theme = useTheme();
   const storeAscii = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const ascii = asciiProp ?? storeAscii;
-  const ell = ascii ? '...' : '…';
+  const ell = glyph('ellipsis', ascii);
   const ruleText = ascii ? ASCII_HAIRLINE : UNICODE_HAIRLINE;
 
   const badgeText = badge !== undefined && badge !== '' ? ` ${badge} ` : '';
@@ -197,7 +281,7 @@ export const PageHeader = memo(function PageHeader({
   const theme = useTheme();
   const storeAscii = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const ascii = asciiProp ?? storeAscii;
-  const ell = ascii ? '...' : '…';
+  const ell = glyph('ellipsis', ascii);
   const ruleText = ascii ? ASCII_HAIRLINE : UNICODE_HAIRLINE;
   const titleText = icon ? `${icon} ${title}` : title;
   const badgeText = badge !== undefined && badge !== '' ? ` ${badge} ` : '';

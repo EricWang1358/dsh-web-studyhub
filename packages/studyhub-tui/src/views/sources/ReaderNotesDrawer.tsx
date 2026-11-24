@@ -9,6 +9,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { SplitPane } from '../../components/SplitPane.js';
+import { LAYOUT_BP } from '../../components/layout-tokens.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
@@ -792,7 +793,7 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
             leftWidth={0.44}
             minLeft={22}
             minRight={26}
-            breakpoint={72}
+            breakpoint={LAYOUT_BP.SPLIT_MODAL}
             narrowMode="stack"
             divider
             left={({ width: lw, height: lh }) =>

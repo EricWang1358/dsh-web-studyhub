@@ -7,6 +7,7 @@ import { Badge, EmptyState } from '../../components/Badge.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Panel } from '../../components/Panel.js';
 import { SplitPane } from '../../components/SplitPane.js';
+import { LAYOUT_BP } from '../../components/layout-tokens.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { renderBarChart, renderStatTable } from '../../render/charts.js';
@@ -508,7 +509,7 @@ export const ExamReportView = memo(function ExamReportView({
       leftWidth={0.48}
       minLeft={32}
       minRight={30}
-      breakpoint={86}
+      breakpoint={LAYOUT_BP.SPLIT_DEFAULT}
       activePane={pane === 'list' ? 'left' : 'right'}
       leftLabel={t(lang, '成绩概览', 'Summary')}
       rightLabel={t(lang, '题目解析', 'Detail')}

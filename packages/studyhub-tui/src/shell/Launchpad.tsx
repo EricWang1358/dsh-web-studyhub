@@ -4,7 +4,9 @@ import { useScopedInput as useInput } from '../components/key-dispatcher.js';
 import { t, useTuiStore } from '../state/store.js';
 import { useTheme, type ThemeTokens } from '../theme/tokens.js';
 import { truncateDisplay } from '../render/cjk.js';
+import { glyph } from '../render/glyphs.js';
 import { Spinner } from '../components/Badge.js';
+import { LAYOUT_BP } from '../components/layout-tokens.js';
 import { detectAgy, modelInfo } from './data.js';
 import { useShellActions } from './actions.js';
 
@@ -65,10 +67,10 @@ export const Launchpad = memo(function Launchpad({ width, height, isActive }: La
   );
 
   const banner = pixelBanner('STUDY HUB');
-  const compact = height < 22 || width < 60;
+  const compact = height < 22 || width < LAYOUT_BP.MIN_VIEWPORT_COLS;
   const cardW = Math.min(64, width - 4);
-  const ell = asciiMode ? '...' : '…';
-  const dotSep = asciiMode ? ' - ' : ' · ';
+  const ell = glyph('ellipsis', asciiMode);
+  const dotSep = ` ${glyph('middot', asciiMode)} `;
   const mIcon = asciiMode
     ? model.mode === 'agy'
       ? '*'

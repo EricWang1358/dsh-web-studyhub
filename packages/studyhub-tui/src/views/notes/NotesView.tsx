@@ -12,7 +12,7 @@ import { Panel } from '../../components/Panel.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
-import { computeFilterBarLayout } from '../../components/layout-tokens.js';
+import { LAYOUT_BP, computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { formatReadingTimeLabel } from '../../render/longform.js';
@@ -1256,7 +1256,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         leftWidth={0.38}
         minLeft={28}
         minRight={34}
-        breakpoint={86}
+        breakpoint={LAYOUT_BP.SPLIT_DEFAULT}
         activePane={activePane}
         leftLabel={t(lang, `笔记 (${sortedNotes.length})`, `Notes (${sortedNotes.length})`)}
         rightLabel={t(lang, '正文阅读', 'Reader')}

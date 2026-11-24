@@ -22,6 +22,7 @@ import { useTheme } from '../../theme/tokens.js';
 import { Badge, Divider, EmptyState, ProgressBar, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { SectionHeader, computeProseLayout } from '../../components/Layout.js';
+import { LAYOUT_BP } from '../../components/layout-tokens.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Modal } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
@@ -1939,7 +1940,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
   }
 
   // Split view width if AI Drawer is open on wide terminals; overlay on narrow terminals
-  const sideBySideAi = aiDrawerOpen && width >= 104;
+  const sideBySideAi = aiDrawerOpen && width >= LAYOUT_BP.AI_DRAWER_SIDE;
   const cardPaneW = sideBySideAi ? Math.max(44, Math.floor(width * 0.56)) : width;
   const aiPaneW = sideBySideAi ? Math.max(32, width - cardPaneW - 1) : width;
 
