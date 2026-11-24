@@ -1,5 +1,6 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { courseScope } from "../lib/course-tree.js";
 import { Button, Icon, useToast } from "./components/index.js";
 import { useStudy } from "./study-context.jsx";
 import { ModelSettingsContext, useModelSettingsLabel } from "./ModelErrorNote.jsx";
@@ -91,7 +92,9 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const onFocus = (next) => act("focus.set", next);
 
   const suggestMerges = (args) => call("deck.merge.suggest", args);
-  const mergeDecks = (args) => act("deck.merge", args, null, { rethrow: true });
+  const mergeDecks = (args) => act("deck.merge", args, (moved) => {
+    if (moved?.moved) toast.success(uiFormat("已合并 {0} 道题，全部保留", [moved.moved]));
+  }, { rethrow: true });
   useInjectCss(focusCss, "study-focus");
   useInjectCss(homeCss, "study-generate-home");
   useInjectCss(caseCss, "study-case-workspace");
@@ -109,7 +112,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
     [showParked, setShowParked] = useState(false),
     [showArchived, setShowArchived] = useState(false);
   const tree = useDeckTree(data.root, data.decks);
-  const merge = useMergeSuggestions({ suggestMerges, mergeDecks, course: data.focus?.course });
+  const merge = useMergeSuggestions({ suggestMerges, mergeDecks, course: data.focus?.course, root: data.root });
 
   const query = search.trim().toLowerCase();
   const folders = useCourseFolders(data, { query, showArchived, showOtherCourses, showParked });
@@ -163,7 +166,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
       <section key="first-run" className="page library-page map-page first-run-page" ref={pageRef}>
         {lead}
         {children}
-        <FirstRunLine line={line} form="page" sample={data.sample} on={lineOn} plan={firstRun?.plan}
+        <FirstRunLine line={line} form="page" sample={data.sample} sampleBusy={firstRun?.sampleBusy} on={lineOn} plan={firstRun?.plan}
           jobs={deckJobs.length ? <HomeActivity sectionRef={activityRef} jobs={deckJobs} drafts={drafts} data={data} modelReady={modelReadiness(data).ready}
             start={start} manage={manage} openDraft={openDraft} openAgent={host.openAgent} cancelJob={cancelJob} dismissJob={dismissJob}
             retryGeneration={retryGeneration} openModelSettings={openModelSettings} topUpDraft={topUpDraft} /> : null} />
@@ -187,11 +190,18 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
           ? <div className="today-stack" data-depth={0} data-tour="home-today"><FirstRunLine line={line} form="compact" todayLabel={home.todayLabel} on={lineOn} plan={firstRun?.plan} /></div>
           : <TodayCard plan={home.plan} todayLabel={home.todayLabel} quiet={nextHasButton} extra={<RereadLine data={data} />} />}
       </div>
-      <LazyDeskPlayStrip data={data} onPracticeDeck={(deckId) => start?.({ mode: "path", scope: [{ deckId }] })} />
+      <LazyDeskPlayStrip key={data.root} data={data} onPracticeDeck={(deckId) => start?.({ mode: "path", scope: [{ deckId }] })} />
       {/* 待发布 sits under the day's work; it opens on its own when unpublished drafts wait and today's round is empty or finished. */}
       <HomeDrafts drafts={drafts} data={data} modelReady={modelReadiness(data).ready} openDraft={openDraft} topUpDraft={topUpDraft} defaultOpen={autoOpenDrafts} />
-      {Boolean(data.focus?.course && (data.courses || []).some((c) => (c.name === data.focus.course || (c.aliases || []).includes(data.focus.course)) && c.companions?.length > 0))
-        && <CourseCompanionsBar course={data.focus.course} data={data} />}
+      {(() => {
+        const target = data.focus?.course;
+        if (!target) return null;
+        const courses = data.courses || [];
+        const within = courseScope(target, courses.map((c) => c?.name).filter(Boolean));
+        return courses.some((c) => c?.companions?.length > 0 && (within(c.name) || (c.aliases || []).some(within)))
+          ? <CourseCompanionsBar course={target} data={data} />
+          : null;
+      })()}
       <CatalogHeading count={data.decks.filter((deck) => !!deck.archived === showArchived).length} showArchived={showArchived} hasDecks={data.decks.length > 0}
         hasSources={data.sources.length > 0} course={data.focus?.course} merge={merge} slain={data.decks.find((deck) => deck.systemKind === "slain")}
         addSource={addSource} createManual={createManual} importLibrary={importLibrary} manage={manage} onShowGraph={onShowGraph}

@@ -71,12 +71,14 @@ export function coachActions({ act, call, setProfile, memoryRevision }) {
   return {
     setConsent: (prep) => act('coach.consent', { prep }, async () => { invalidate('coach.status'); await reload(); }),
     setGoal: (goal) => act('coach.goal', { goal }, reload),
-    setPreferences: (preferences) => act('coach.preferences', { preferences }, reload),
-    addBullet: (bullet) => act('coach.profile', { addBullet: bullet, ...rev }, setProfile),
-    updateBullet: (patch) => act('coach.profile', { updateBullet: patch, ...rev }, setProfile),
-    removeBullet: (id) => act('coach.profile', { removeBullet: id, ...rev }, setProfile),
+    setPreferences: (preferences, onDone) => act('coach.preferences', { preferences }, async () => { await reload(); onDone?.(); }),
+    addBullet: (bullet, onDone) => act('coach.profile', { addBullet: bullet, ...rev }, (next) => { setProfile(next); onDone?.(next); }),
+    updateBullet: (patch, onDone) => act('coach.profile', { updateBullet: patch, ...rev }, (next) => { setProfile(next); onDone?.(next); }),
+    removeBullet: (id, onDone) => act('coach.profile', { removeBullet: id, ...rev }, (next) => { setProfile(next); onDone?.(next); }),
   };
 }
+
+const isImeComposing = (event) => Boolean(event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229);
 
 /** 陪学: what the profile changes, the goal, free-form study preferences, traceable editable learner bullets (with legacy summary fallback), and a confirmed reset. */
 export function CoachSection({ data = null, profile, setProfile, onOpenRef = null, confirmForget = false }) {
@@ -86,6 +88,7 @@ export function CoachSection({ data = null, profile, setProfile, onOpenRef = nul
   const [expanded, setExpanded] = useState(false);
   const [confirm, setConfirm] = useState(confirmForget);
   const [draftPref, setDraftPref] = useState('');
+  const [prefHint, setPrefHint] = useState('');
   const [draftBullet, setDraftBullet] = useState('');
   const [editingId, setEditingId] = useState('');
   const [editingText, setEditingText] = useState('');
@@ -103,19 +106,23 @@ export function CoachSection({ data = null, profile, setProfile, onOpenRef = nul
   const addPref = (value) => {
     const text = String(value ?? '').replace(/\s+/g, ' ').trim();
     if (!text || preferences.includes(text) || preferences.length >= LEARNER_PREFERENCES_MAX) return;
+    setPrefHint('');
     setPreferences([...preferences, text]);
   };
   const submitPref = () => {
-    if (!trimmedDraft || atMax) return;
-    if (!preferences.includes(trimmedDraft)) setPreferences([...preferences, trimmedDraft]);
-    setDraftPref('');
+    if (!trimmedDraft || atMax || busy) return;
+    if (preferences.includes(trimmedDraft)) {
+      setPrefHint(ui('这条偏好已经记过了。'));
+      return;
+    }
+    setPrefHint('');
+    setPreferences([...preferences, trimmedDraft], () => setDraftPref(''));
   };
   const removePref = (item) => setPreferences(preferences.filter(entry => entry !== item));
   const addUserBullet = () => {
-    if (!trimmedBullet || atBulletMax) return;
+    if (!trimmedBullet || atBulletMax || busy) return;
     const activeCourse = typeof data?.focus?.course === 'string' && data.focus.course.trim() ? data.focus.course.trim() : undefined;
-    addBullet({ text: trimmedBullet, ...(activeCourse ? { course: activeCourse } : {}), source: 'user', refs: [] });
-    setDraftBullet('');
+    addBullet({ text: trimmedBullet, ...(activeCourse ? { course: activeCourse } : {}), source: 'user', refs: [] }, () => setDraftBullet(''));
   };
   const selectBullet = (bullet) => {
     setEditingId(bullet.id);
@@ -126,13 +133,12 @@ export function CoachSection({ data = null, profile, setProfile, onOpenRef = nul
     setEditingText('');
   };
   const saveBullet = () => {
-    if (!editingId || !trimmedEdit) return;
-    updateBullet({ id: editingId, text: trimmedEdit });
-    cancelEdit();
+    if (!editingId || !trimmedEdit || busy) return;
+    updateBullet({ id: editingId, text: trimmedEdit }, () => cancelEdit());
   };
   const deleteBullet = (id) => {
-    if (editingId === id) cancelEdit();
-    removeBullet(id);
+    if (busy) return;
+    removeBullet(id, () => { if (editingId === id) cancelEdit(); });
   };
   const availableIdeas = PREFERENCE_IDEAS.filter(idea => !preferences.includes(idea) && !preferences.includes(ui(idea))).map(idea => ui(idea));
   const summary = profile.summary || '';
@@ -169,10 +175,11 @@ export function CoachSection({ data = null, profile, setProfile, onOpenRef = nul
             <div className="coach-prefs__entry">
               <TextInput id={id} className="learner-pref-input" aria-describedby={describedBy} value={draftPref} maxLength={LEARNER_PREFERENCE_MAX_CHARS}
                 disabled={busy || atMax} placeholder={ui('例如：先给直觉例子再推导、用伪代码对比边界…')}
-                onChange={event => setDraftPref(event.target.value)}
-                onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); submitPref(); } }} />
+                onChange={event => { setDraftPref(event.target.value); if (prefHint) setPrefHint(''); }}
+                onKeyDown={event => { if (isImeComposing(event)) return; if (event.key === 'Enter') { event.preventDefault(); submitPref(); } }} />
               <Button variant="secondary" size="sm" lock={busy} disabled={!trimmedDraft || atMax} onClick={submitPref}>{ui('添加')}</Button>
             </div>
+            {prefHint && <Hint className="coach-prefs__hint" role="status">{prefHint}</Hint>}
             {!atMax && availableIdeas.length > 0 && (
               <div className="coach-prefs__ideas">
                 <span className="coach-prefs__ideas-lead">{ui('灵感示例（点一下加入，也可自由填写）：')}</span>
@@ -203,6 +210,7 @@ export function CoachSection({ data = null, profile, setProfile, onOpenRef = nul
                       <TextInput className="coach-bullet-input" aria-label={ui('编辑')} value={editingText} maxLength={LEARNER_BULLET_MAX_CHARS}
                         disabled={busy} onChange={event => setEditingText(event.target.value)}
                         onKeyDown={event => {
+                          if (isImeComposing(event)) return;
                           if (event.key === 'Enter') { event.preventDefault(); saveBullet(); }
                           if (event.key === 'Escape') { event.preventDefault(); cancelEdit(); }
                         }} />
@@ -255,7 +263,7 @@ export function CoachSection({ data = null, profile, setProfile, onOpenRef = nul
           <TextInput className="coach-bullet-input" aria-label={ui('新增画像要点')} value={draftBullet} maxLength={LEARNER_BULLET_MAX_CHARS}
             disabled={busy || atBulletMax} placeholder={ui('补充一条易错规律或学习注意点…')}
             onChange={event => setDraftBullet(event.target.value)}
-            onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); addUserBullet(); } }} />
+            onKeyDown={event => { if (isImeComposing(event)) return; if (event.key === 'Enter') { event.preventDefault(); addUserBullet(); } }} />
           <Button variant="secondary" size="sm" lock={busy} disabled={!trimmedBullet || atBulletMax} onClick={addUserBullet}>{ui('添加要点')}</Button>
         </div>
         <ul className="coach-stats" aria-label={ui('你的反馈')}>

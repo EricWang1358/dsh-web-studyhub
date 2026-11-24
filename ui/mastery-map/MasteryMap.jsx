@@ -288,9 +288,11 @@ export default function MasteryMap({
   onOpenWrongBook,
   defaultLayout = 'heatmap',
   paceForecast: propPaceForecast,
+  practising = false,
 }) {
   useInjectCss(css, 'study-mastery-map');
-  const { busy } = useStudy();
+  const { busy: studyBusy } = useStudy();
+  const busy = studyBusy || practising;
   const storePaceForecast = useOptionalAppSelector((state) => state.data?.paceForecast);
   const paceForecast = propPaceForecast ?? storePaceForecast;
   const [filter, setFilter] = useState('all');
@@ -533,6 +535,18 @@ export default function MasteryMap({
               className="mm-search"
               value={query}
               onChange={(event) => { setQuery(event.target.value); setShowAll(false); }}
+              onKeyDown={(event) => {
+                if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
+                if (event.key !== 'Escape') return;
+                event.preventDefault();
+                event.stopPropagation();
+                if (query) {
+                  setQuery('');
+                  setShowAll(false);
+                } else {
+                  event.currentTarget?.blur?.();
+                }
+              }}
               placeholder={ui('搜索章节或知识点…')}
               aria-label={ui('搜索章节或知识点')}
               autoComplete="off"

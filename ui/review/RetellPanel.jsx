@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ui, uiFormat, uiLocale } from "../i18n.js";
+import { errorMessage, ui, uiFormat, uiLocale } from "../i18n.js";
 import { Button, Icon, InlineMessage, Tooltip } from "../components/index.js";
 import ModelSetupGate from "../ModelSetupGate.jsx";
 import ModelErrorNote from "../ModelErrorNote.jsx";
@@ -100,7 +100,7 @@ export default function RetellPanel({ op, args, draftKey, model, onModelSettings
       onDone?.(result);
     } catch (error) {
       if (!mountedRef.current || activeKeyRef.current !== originKey || reqIdRef.current !== reqId) return;
-      setFailure(error?.message || unread);
+      setFailure(errorMessage(error) || unread);
     } finally {
       if (mountedRef.current && activeKeyRef.current === originKey && reqIdRef.current === reqId) setChecking(false);
     }

@@ -220,11 +220,15 @@ test('Review, QuestionRun & ReviewToolbar: shows page badge, header reader quick
   })));
   assert.match(toolbarHtml, /还没学到第 94 页（本轮移出后续页）/);
 
-  // Pure plan helper computes exact removable indices and fallback when all cards in round are >= page.
+  // Pure plan helper computes exact removable refs/indices and fallback when all cards in round are >= page.
   const plan = m.deferUnstudiedPagesPlan(run);
   assert.deepEqual(plan, {
     kind: 'remove',
     page: 94,
+    remove: [
+      { deckId: 'd1', cardId: 'c94' },
+      { deckId: 'd1', cardId: 'c95' },
+    ],
     removeIndices: [1, 2],
     removedCount: 2,
   });
@@ -239,6 +243,7 @@ test('Review, QuestionRun & ReviewToolbar: shows page badge, header reader quick
   assert.deepEqual(allUnstudiedPlan, {
     kind: 'open-reader',
     page: 94,
+    remove: [],
     removeIndices: [],
     removedCount: 0,
   });

@@ -516,19 +516,26 @@ export function pointMatchesFilter(point, filter) {
   }
 }
 
-/** Whether a chapter matches the selected status filter (either itself or any of its points). */
+/** Whether a chapter matches the selected status filter (based on its points when present, or chapter-level summary otherwise). */
 export function chapterMatchesFilter(chapter, filter) {
+  const points = chapter.points || [];
   switch (filter) {
     case 'weak':
-      return isWeakOrDue(chapter) || (chapter.points || []).some((pt) => isWeakOrDue(pt));
+      return isWeakOrDue(chapter) || points.some((pt) => isWeakOrDue(pt));
     case 'uncovered':
-      return (chapter.uncoveredPoints || 0) > 0 || isUncovered(chapter);
+      return (chapter.uncoveredPoints || 0) > 0 || isUncovered(chapter) || points.some((pt) => isUncovered(pt));
     case 'learning':
-      return chapter.total > 0 && chapter.learned > 0 && !(chapter.mastery >= 80 && chapter.weak === 0);
+      return points.length > 0
+        ? points.some((pt) => pointMatchesFilter(pt, 'learning'))
+        : (chapter.total > 0 && chapter.learned > 0 && !(chapter.mastery >= 80 && chapter.weak === 0));
     case 'mastered':
-      return chapter.total > 0 && chapter.mastery >= 80 && chapter.weak === 0;
+      return points.length > 0
+        ? points.some((pt) => pointMatchesFilter(pt, 'mastered'))
+        : (chapter.total > 0 && chapter.mastery >= 80 && chapter.weak === 0);
     case 'new':
-      return chapter.total > 0 && chapter.learned === 0;
+      return points.length > 0
+        ? points.some((pt) => pointMatchesFilter(pt, 'new'))
+        : (chapter.total > 0 && chapter.learned === 0);
     case 'all':
     default:
       return true;

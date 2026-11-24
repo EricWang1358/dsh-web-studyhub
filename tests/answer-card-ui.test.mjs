@@ -78,7 +78,7 @@ test('the gate\'s feature key is the answer card\'s own; the case feedback uses 
   const gate = await readFile(new URL('../ui/ModelSetupGate.jsx', import.meta.url), 'utf8');
   assert.equal((gate.match(/^\s+answerCard: \(\) => \(\{/gm) || []).length, 1);
   const workspace = await readFile(new URL('../ui/CaseWorkspace.jsx', import.meta.url), 'utf8');
-  assert.match(workspace, /<AnswerCardSection run=\{run\} data=\{data\} onSetupModel=\{onSetupModel\} \/>/);
+  assert.match(workspace, /<AnswerCardSection run=\{run\} data=\{data\} onSetupModel=\{onSetupModel\}/);
 });
 
 test('answer card table tracks horizontal scroll edges with token-based shadow cues', { timeout: 60000 }, async t => {

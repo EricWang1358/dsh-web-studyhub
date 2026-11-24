@@ -60,7 +60,7 @@ export default function Manage({
   const peers = decks.filter((d) => d.id !== managedDeck.id && !d.systemKind && !d.archived);
   const deckCourseOf = (d) => d?.course ?? d?.folder ?? "";
   const deckIndex = decks.findIndex((d) => d.id === managedDeck.id);
-  const siblings = decks.filter((d) => deckCourseOf(d) === deckCourseOf(managedDeck));
+  const siblings = decks.filter((d) => !d.systemKind && !d.archived && deckCourseOf(d) === deckCourseOf(managedDeck));
   const siblingIndex = siblings.findIndex((d) => d.id === managedDeck.id);
   const moveOrder = (delta) => {
     const ids = decks.map((d) => d.id);
@@ -146,13 +146,14 @@ export default function Manage({
       </form>}
       {!managedDeck.systemKind && !managedDeck.archived && <Panel className="manage-panel" title={ui("整理题组")}
         description={ui("合并保留全部题目；拆分按主题移动。题目复习记录和前置题关联会一起保留。")}>
-        <div className="manage-section">
+        {siblings.length > 1 && <div className="manage-section">
           <span className="manage-label">{ui("题组顺序")}</span>
+          <p className="muted small">{uiFormat("当前在课程学习顺序中第 {0} / {1} 个（用于课程进度与推荐下一步；学习库目录按最近发布排序）。", [siblingIndex + 1, siblings.length])}</p>
           <div className="manage-row manage-row--pair">
             <Button className="manage-row__action" disabled={siblingIndex <= 0} lock={busy} onClick={() => moveOrder(-1)}>{ui("上移题组")}</Button>
             <Button className="manage-row__action" disabled={siblingIndex < 0 || siblingIndex >= siblings.length - 1} lock={busy} onClick={() => moveOrder(1)}>{ui("下移题组")}</Button>
           </div>
-        </div>
+        </div>}
         <form className="manage-section" onSubmit={(e) => {
           e.preventDefault();
           if (targetId) setMerging(true);
