@@ -353,7 +353,7 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
     kind: 'chat',
     actionName: 'assistant.chat',
     instruction: text,
-    paramsSummary: ctx.currentCardId ? `cardId=${ctx.currentCardId}` : '当前页面上下文',
+    paramsSummary: lang === 'en' ? 'Current study context' : '当前页面上下文',
     requiresConfirm: false,
   };
 }
