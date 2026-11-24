@@ -21,7 +21,7 @@ const FIELDS = ['calls', 'uncachedInputTokens', 'outputTokens', 'cacheReadTokens
 const PINNED = {
   "capture": {"generate":[1,767,158,0,0]},
   "card.followup.suggest": {"coach":[1,230,19,0,0]},
-  "card.followup": {"coach":[1,304,34,0,0]},
+  "card.followup": {"coach":[1,341,34,0,0]}, // was [1,304,34,0,0]: optional inline mermaid diagram guidance in follow-up answers (#1288)
   "card.translate": {"coach":[1,285,108,0,0]},
   "generate.suggest": {"generate":[2,536,2,391,0]}, // was [2,532,2,387,0]: generatable kinds include 'task' (lib/card-kinds.js)
   "ingest": {"generate":[1,572,194,0,0]},
