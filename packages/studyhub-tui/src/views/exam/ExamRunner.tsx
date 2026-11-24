@@ -693,6 +693,9 @@ export const ExamRunner = memo(function ExamRunner({
             markdown={currentWrittenCard.prompt || ''}
             width={innerW}
             height={Math.max(4, Math.floor(bodyH * 0.45))}
+            isActive={isActive && !isTyping && !confirmSubmit}
+            vimNavKeys={false}
+            spacePageDown={false}
           />
 
           <Box flexDirection="column" marginTop={1}>
@@ -705,8 +708,9 @@ export const ExamRunner = memo(function ExamRunner({
                     backgroundColor={picked ? theme.selectionBg : undefined}
                     color={picked ? theme.primary : theme.text}
                     bold={picked}
+                    wrap="wrap"
                   >
-                    {` [${keyNum}] ${picked ? (asciiMode ? '*' : '◉') : (asciiMode ? 'o' : '○')} ${truncateDisplay(opt.text, Math.max(10, innerW - 10), ellipsis)}`}
+                    {` [${keyNum}] ${picked ? (asciiMode ? '*' : '◉') : (asciiMode ? 'o' : '○')} ${opt.text}`}
                   </Text>
                 </Box>
               );
@@ -746,6 +750,9 @@ export const ExamRunner = memo(function ExamRunner({
             markdown={currentCaseCard.prompt || ''}
             width={innerW}
             height={Math.max(4, Math.floor(bodyH * 0.42))}
+            isActive={isActive && !isTyping && !confirmSubmit && !showScenarioOverlay}
+            vimNavKeys={false}
+            spacePageDown={false}
           />
 
           <Box flexDirection="column" marginTop={1}>
@@ -793,6 +800,9 @@ export const ExamRunner = memo(function ExamRunner({
             markdown={oral.entry.prompt || ''}
             width={innerW}
             height={Math.max(3, Math.floor(bodyH * 0.32))}
+            isActive={isActive && !isTyping && !confirmSubmit}
+            vimNavKeys={false}
+            spacePageDown={false}
           />
 
           <Box flexDirection="column" marginTop={1}>

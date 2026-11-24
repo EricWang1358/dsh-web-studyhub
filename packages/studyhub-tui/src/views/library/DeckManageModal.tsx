@@ -558,6 +558,7 @@ export const DeckManageModal = memo(function DeckManageModal({
   const [courseDraft, setCourseDraft] = useState('');
   const [topicValue, setTopicValue] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [previewScrollTop, setPreviewScrollTop] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [confirmBatchSlay, setConfirmBatchSlay] = useState(false);
   const busyRef = useRef(false);
@@ -1418,9 +1419,19 @@ export const DeckManageModal = memo(function DeckManageModal({
 
       const total = filteredCards.length;
       if (key.downArrow || (!key.ctrl && !key.meta && input === 'j')) {
-        if (total > 0) setSelectedIndex((i) => Math.min(total - 1, i + 1));
+        if (total > 0) {
+          setSelectedIndex((i) => Math.min(total - 1, i + 1));
+          setPreviewScrollTop(0);
+        }
       } else if (key.upArrow) {
-        if (total > 0) setSelectedIndex((i) => Math.max(0, i - 1));
+        if (total > 0) {
+          setSelectedIndex((i) => Math.max(0, i - 1));
+          setPreviewScrollTop(0);
+        }
+      } else if (!key.ctrl && !key.meta && input === 'J') {
+        setPreviewScrollTop((tTop) => tTop + 2);
+      } else if (!key.ctrl && !key.meta && input === 'K') {
+        setPreviewScrollTop((tTop) => Math.max(0, tTop - 2));
       } else if (key.ctrl && input === 'd') {
         if (total > 0) setSelectedIndex((i) => Math.min(total - 1, i + Math.max(1, Math.floor(listH / 2))));
       } else if (key.ctrl && input === 'u') {
@@ -2188,7 +2199,13 @@ export const DeckManageModal = memo(function DeckManageModal({
           <Divider width={innerW} />
           <Box height={previewH} width={innerW} overflow="hidden">
             {selectedCard ? (
-              <MarkdownView markdown={previewMarkdown} width={innerW} height={previewH} />
+              <MarkdownView
+                markdown={previewMarkdown}
+                width={innerW}
+                height={previewH}
+                scrollTop={previewScrollTop}
+                onScroll={setPreviewScrollTop}
+              />
             ) : (
               <Text color={theme.muted}>{t(lang, '选择一道题查看详情', 'Select a card to preview')}</Text>
             )}

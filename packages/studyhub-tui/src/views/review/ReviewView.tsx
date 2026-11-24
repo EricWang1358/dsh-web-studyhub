@@ -2495,6 +2495,9 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                     width={innerW}
                     height={Math.max(3, height - (innerW < 90 ? 22 : 18))}
                     mathUnicode={mathUnicode}
+                    isActive={mainActive && revealed}
+                    vimNavKeys={false}
+                    spacePageDown={false}
                   />
                 </Box>
               ) : null}
