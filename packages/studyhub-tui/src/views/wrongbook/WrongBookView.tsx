@@ -930,7 +930,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
         return;
       }
       if (!selectedItem) return;
-      if (input === ' ') {
+      if (input === ' ' && activePane === 'left') {
         const selKey = cardSelectionKey(selectedItem);
         setSelectedMap((prev) => {
           const next = new Map(prev);
