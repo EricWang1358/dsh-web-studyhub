@@ -51,6 +51,7 @@ export default function Manage({
   const [targetId, setTargetId] = useState("");
   const [merging, setMerging] = useState(false);
   const [confirmRecommend, setConfirmRecommend] = useState(false);
+  const [reordering, setReordering] = useState(false);
   const [splitTitle, setSplitTitle] = useState("");
   const [splitTopics, setSplitTopics] = useState([]);
   // The parts of the deck (lib/deck-parts.js): 「第一部分 12 题 · 第二部分 9 题」 and one part at a time on screen. Practice and mastery read the whole deck.
@@ -70,15 +71,20 @@ export default function Manage({
     act("deck.reorder", { ids }, () => toast.success(ui("题组顺序已保存")));
   };
   const recommendedOrder = siblings.length > 1 ? suggestDeckOrder(siblings) : null;
-  const applyRecommendedOrder = () => {
-    if (!recommendedOrder?.changed) { setConfirmRecommend(false); return; }
+  const applyRecommendedOrder = async () => {
+    if (!recommendedOrder?.changed || reordering) { setConfirmRecommend(false); return; }
     const siblingIds = new Set(siblings.map((d) => d.id));
     let cursor = 0;
     const ids = decks.map((d) => (siblingIds.has(d.id) ? recommendedOrder.ids[cursor++] : d.id));
-    act("deck.reorder", { ids }, () => {
-      setConfirmRecommend(false);
-      toast.success(ui("已按推荐顺序保存题组排序"));
-    });
+    setReordering(true);
+    try {
+      await act("deck.reorder", { ids }, () => {
+        setConfirmRecommend(false);
+        toast.success(ui("已按推荐顺序保存题组排序"));
+      });
+    } finally {
+      setReordering(false);
+    }
   };
   const unreviewed = reviewedCardStatus(managedDeck)?.changed ?? managedDeck.editorial?.uncheckedAtPublish ?? 0;
   const selfCited = selfCitedCardCount(managedDeck.cards, sources);
@@ -171,7 +177,7 @@ export default function Manage({
             </Tooltip>
           </div>
           {confirmRecommend && recommendedOrder?.changed && (
-            <InlineConfirm tone="primary" title={ui("按推荐学习顺序重排当前课程的题组？")} confirmLabel={ui("确认应用推荐顺序")} busy={busy}
+            <InlineConfirm tone="primary" title={ui("按推荐学习顺序重排当前课程的题组？")} confirmLabel={ui("确认应用推荐顺序")} busy={reordering}
               onConfirm={applyRecommendedOrder} onCancel={() => setConfirmRecommend(false)}>
               <p className="muted small">{ui("仅调整当前课程题组的顺序，不改动任何题目或复习记录；取消后保持原顺序不变。")}</p>
               <ol className="manage-recommend-list">
