@@ -20,7 +20,7 @@ const isImeComposing = (event) => Boolean(event?.nativeEvent?.isComposing || eve
 /**
  * Inline Socratic tutoring drawer sitting beside the question on wide screens and below on narrow screens (#1316).
  * Memoized so opening or typing never re-renders QuestionRun or steals focus from the question card.
- * Opening performs a pure read (`socratic.get`) with 0 model calls; model-backed steps respect P2 confirmation.
+ * Opening (`socratic.get`) makes 0 model calls; model-backed steps respect P2 confirmation.
  */
 const SocraticInlineDrawer = React.memo(function SocraticInlineDrawer({
   deckId,
@@ -55,7 +55,7 @@ const SocraticInlineDrawer = React.memo(function SocraticInlineDrawer({
   const nearBottomRef = React.useRef(true);
   const reqSeqRef = React.useRef(0);
 
-  // Opening the drawer performs a pure read (0 model calls) and restores any persisted card.socratic stage.
+  // Opening the drawer makes 0 model calls and restores any persisted card.socratic stage; saved help it shows again is recorded on this run's unanswered question.
   React.useEffect(() => {
     if (initialView) {
       setSocraticData(initialView);
@@ -71,7 +71,7 @@ const SocraticInlineDrawer = React.memo(function SocraticInlineDrawer({
     setError('');
     setDraft('');
     setPendingAction(null);
-    Promise.resolve(call('socratic.get', { deckId, cardId, language: getUiLanguage() }))
+    Promise.resolve(call('socratic.get', { deckId, cardId, ...(runId ? { runId } : {}), language: getUiLanguage() }))
       .then((res) => {
         if (reqSeqRef.current !== seq) return;
         setSocraticData(res || null);
@@ -84,7 +84,7 @@ const SocraticInlineDrawer = React.memo(function SocraticInlineDrawer({
         if (reqSeqRef.current === seq) setLoading(false);
       });
     return () => { reqSeqRef.current += 1; };
-  }, [deckId, cardId, call, initialView]);
+  }, [deckId, cardId, runId, call, initialView]);
 
   const record = socraticData?.state || null;
   const stage = record?.stage || 'ask';

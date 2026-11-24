@@ -552,6 +552,57 @@ test('11) Socratic steps never enter the answer log: 错因 lands on the real an
   assert.equal(taskProgress(state, task).done, 1);
 });
 
+test('12) reopening the drawer shows saved help again: it is recorded on the unanswered question of the new run', async (t) => {
+  let modelCalls = 0;
+  const service = await createSeededService(t, { complete: async () => { modelCalls += 1; return '{}'; } });
+
+  // Run A: L1, L2 and the reference answer, then the round ends without an answer.
+  const runA = await startRun(service);
+  for (const action of ['hint', 'hint', 'reveal']) await service.call('socratic.step', { ...ref, runId: runA.id, offline: true, action });
+  await service.call('review.end', { runId: runA.id });
+
+  // Run B: only open the drawer (no step), then answer correctly.
+  const runB = await startRun(service);
+  const opened = await service.call('socratic.get', { ...ref, runId: runB.id });
+  assert.equal(opened.state.revealed, true, 'the drawer shows the saved reference answer');
+  assert.equal(modelCalls, 0, 'opening stays at zero model calls');
+  await service.call('review.answer', { runId: runB.id, cardId: 'card-deadlock', selected: ['a'] });
+
+  const state = await service.store.read();
+  const answer = state.attempts.find((a) => a.runId === runB.id);
+  assert.equal(answer.assistance.askedTutorBeforeAnswer, true);
+  assert.equal(answer.assistance.hintUsed, true);
+  assert.equal(answer.assistance.revealedBeforeAnswer, true);
+  assert.equal(answer.grade, 3, 'not a clean pass');
+  assert.equal(questionSolidity(state.attempts)({ ...ref, level: 'learning' }).right, 0);
+});
+
+test('13) opening the drawer records nothing when there is no saved help, no run, or the question is answered', async (t) => {
+  const service = await createSeededService(t);
+  const run = await startRun(service);
+  const entry = async () => (await service.store.read()).runs.find((r) => r.id === run.id).entries[0];
+
+  await service.call('socratic.get', { ...ref, runId: run.id });
+  assert.equal((await entry()).assistance, undefined, 'no saved record: nothing shown but the opening question');
+
+  // A saved record that was reset holds only the opening question: still nothing to record.
+  await service.call('socratic.step', { ...ref, action: 'hint' });
+  await service.call('socratic.step', { ...ref, action: 'reset' });
+  await service.call('socratic.get', { ...ref, runId: run.id });
+  assert.equal((await entry()).assistance, undefined, 'an empty saved record records nothing');
+
+  // Saved help, but no run named: nothing to mark.
+  await service.call('socratic.step', { ...ref, action: 'reveal' });
+  await service.call('socratic.get', ref);
+  assert.equal((await entry()).assistance, undefined);
+
+  // Saved help on an answered question: the answer keeps what it proved.
+  await service.call('review.answer', { runId: run.id, cardId: 'card-deadlock', selected: ['a'] });
+  const before = structuredClone(await entry());
+  await service.call('socratic.get', { ...ref, runId: run.id });
+  assert.deepEqual(await entry(), before);
+});
+
 function pick(object, keys) {
   return Object.fromEntries(keys.map((key) => [key, object?.[key]]));
 }
