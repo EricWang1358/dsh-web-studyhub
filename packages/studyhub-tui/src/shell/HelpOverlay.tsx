@@ -298,7 +298,7 @@ export function buildInAppGuideLines(lang: UiLanguage, width: number, asciiMode 
           {
             heading: '3. Review Page, AI Drawer & Next-Step Instructions',
             bullets: [
-              'Bottom keys: [h] AI Tutor (reuses saved Q&As; [R] regenerates with AI call; [N] saves for reuse), [L] Socratic Teach, [F] Feynman Retell, [G] Rubric Grade, [A] Answer Card, [T] Translate, [S] Similar, [D] Card Tools, [Q] Queue, [E] Flag, [s] Skip, [u] Undo, [,/.] Prev/Next, [o] Source, [X] End Round.',
+              'Bottom keys: [h] AI Tutor (reuses saved Q&As; [R] regenerates with AI call; [N] saves for reuse), [T] Guided Study/Retell (AI Assistant; standalone modals: [L] Socratic Teach, [F] Feynman Retell), [S] Similar, [*] Focus, [G] Rubric Grade, [A] Answer Card, [W] Translate, [D] Card Tools, [Q] Queue, [E] Flag, [s] Skip, [u] Undo, [,/.] Prev/Next, [o] Source, [X] End Round.',
               'After any AI tool result (Vocab, Teach, Retell, Answer Card, Similar), press [a] at the bottom bar to give custom follow-up instructions or pick quick presets [1-4], then [N] to save.',
               'FSRS-6 Rating [0-5]: 0 Blackout, 1 Forgot, 2 Barely, 3 Hard, 4 Good (standard), 5 Easy. Misrated? Press [u] to undo.',
             ],
@@ -335,7 +335,7 @@ export function buildInAppGuideLines(lang: UiLanguage, width: number, asciiMode 
           {
             heading: '三、刷题页工具、AI 抽屉、后续指令与自评 0-5',
             bullets: [
-              '底部键：[h]讲解(复用已存讲解，[R]重生成调用模型，[N]保存供下次复用) [L]带学 [*]重点 [F]复述 [G]评分 [A]答题卡 [T]翻译 [S]同类 [D]工具 [Q]队列 [E]标记 [s]跳过 [u]撤销 [,/.]换题 [o]原文 [X]结束本轮。',
+              '底部键：[h]讲解(复用已存讲解，[R]重生成调用模型，[N]保存供下次复用) [T]带学(常驻助手带学/复述；独立弹窗：[L]苏格拉底带学 [F]费曼复述) [S]同类 [*]收藏 [G]评分 [A]答题卡 [W]翻译 [D]工具 [Q]队列 [E]标记 [s]跳过 [u]撤销 [,/.]换题 [o]原文 [X]结束本轮。',
               'AI 结果页（生词提取/带学/复述/答题卡/同类题）底部统一按 [a] 自由下指令，或选 [1-4] 快捷项，回答后按 [N] 存追问/笔记。',
               'FSRS-6 自评 [0-5]：0完全不会 / 1看答案才想起 / 2勉强或漏细节 / 3困难但对 / 4正常记住(常用) / 5秒杀。选错马上按 [u] 撤销。',
             ],
