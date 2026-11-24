@@ -2,7 +2,7 @@
  * Zero-dependency validated, atomic persistence for TUI-only preferences at `<DSH_HOME || ~/.dsh>/study/tui.json`.
  * Lives beside StudyHub Desktop's `desktop.json` (never inside the study library).
  */
-import { readFile } from 'node:fs/promises';
+import { copyFile, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import type { AssistantCommandStat, LastPracticeContext, PinnedTarget, ThemeId, TuiPreferences, UiLanguage } from '../types/contracts.js';
@@ -245,14 +245,63 @@ export function parseTuiPreferences(raw: unknown): TuiPreferences {
   }
 }
 
+export interface LoadTuiPreferencesResult {
+  prefs: TuiPreferences;
+  status: 'ok' | 'missing' | 'corrupt' | 'unreadable';
+  error?: string;
+}
+
+const PASSIVE_PREF_KEYS = new Set<string>([
+  'recentCommands',
+  'lastPracticeContext',
+  'lastReadPages',
+  'dismissedBriefingDate',
+  'assistantCommandStats',
+  'lastOpenAiPreset',
+]);
+
+function hasExplicitUserSetting(prefs: Partial<TuiPreferences>): boolean {
+  for (const [k, v] of Object.entries(prefs)) {
+    if (v !== undefined && !PASSIVE_PREF_KEYS.has(k)) return true;
+  }
+  return false;
+}
+
+/** Load preferences with explicit status so callers know whether the file was missing, corrupt, or unreadable (#1354 D11). */
+export async function loadTuiPreferencesSafe(location: TuiPrefsLocation = {}): Promise<LoadTuiPreferencesResult> {
+  const defaults = (): TuiPreferences => ({ ...DEFAULT_TUI_PREFERENCES, recentCommands: [] });
+  let text: string;
+  try {
+    text = await readFile(tuiPreferencesPath(location), 'utf8');
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException | null)?.code;
+    if (code === 'ENOENT') {
+      return { prefs: defaults(), status: 'missing' };
+    }
+    return {
+      prefs: defaults(),
+      status: 'unreadable',
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { prefs: defaults(), status: 'corrupt', error: 'Expected preferences JSON object' };
+    }
+    return { prefs: parseTuiPreferences(parsed), status: 'ok' };
+  } catch (err) {
+    return {
+      prefs: defaults(),
+      status: 'corrupt',
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 /** Load preferences; a missing, unreadable or corrupt file yields defaults. */
 export async function loadTuiPreferences(location: TuiPrefsLocation = {}): Promise<TuiPreferences> {
-  try {
-    const text = await readFile(tuiPreferencesPath(location), 'utf8');
-    return parseTuiPreferences(JSON.parse(text));
-  } catch {
-    return { ...DEFAULT_TUI_PREFERENCES, recentCommands: [] };
-  }
+  return (await loadTuiPreferencesSafe(location)).prefs;
 }
 
 let writeQueue: Promise<unknown> = Promise.resolve();
@@ -260,6 +309,13 @@ let writeQueue: Promise<unknown> = Promise.resolve();
 /**
  * Atomically persist preferences (temp file + rename, serialized). Accepts a partial patch which is
  * merged over what is currently stored. Returns the validated preferences actually written.
+ *
+ * Read-failure protection (#1354 D11):
+ * - If the existing file is unreadable (e.g. EACCES/EBUSY), never clobber it with defaults.
+ * - If the existing file is corrupt JSON:
+ *   - Passive/usage-only patches skip writing and leave the original file untouched on disk.
+ *   - Explicit user setting changes first back up the corrupt file to `tui.json.corrupt-<ts>.bak`
+ *     before writing the new preferences.
  */
 export async function saveTuiPreferences(
   prefs: Partial<TuiPreferences>,
@@ -267,8 +323,18 @@ export async function saveTuiPreferences(
 ): Promise<TuiPreferences> {
   const run = writeQueue.then(async () => {
     const target = tuiPreferencesPath(location);
-    const current = await loadTuiPreferences(location);
-    const next = parseTuiPreferences({ ...current, ...prefs });
+    const loaded = await loadTuiPreferencesSafe(location);
+    if (loaded.status === 'unreadable') {
+      throw new Error(`Existing tui.json could not be read (${loaded.error ?? 'unreadable'}); refusing to overwrite with defaults`);
+    }
+    const next = parseTuiPreferences({ ...loaded.prefs, ...prefs });
+    if (loaded.status === 'corrupt') {
+      if (!hasExplicitUserSetting(prefs)) {
+        return next;
+      }
+      const backupPath = `${target}.corrupt-${Date.now()}.bak`;
+      await copyFile(target, backupPath).catch(() => {});
+    }
     await atomicWriteJsonFile(target, next, { mode: 0o600 });
     return next;
   });

@@ -1253,8 +1253,8 @@ describe('Round 74 Track 2: DashboardView `/` Live Drill Filter', () => {
     );
     tty.assertHealthyScreen(reviewScreen, 120, 36, 'ReviewView launched from filtered Dashboard item zh 120x36');
 
-    // Return to Dashboard via '6' and test Esc clearing an applied filter when !filterOpen
-    tty.send('6');
+    // Return to Dashboard via Backspace (digits 0-9 are claimed inside ReviewView per #1351)
+    tty.send('\x7f');
     await tty.waitFor(
       (s) => useDistTuiStore.getState().page === 'dashboard' && s.includes('动态规划 Dynamic Prog'),
       { timeoutMs: 8_000, label: 'Returned to DashboardView (zh)' },

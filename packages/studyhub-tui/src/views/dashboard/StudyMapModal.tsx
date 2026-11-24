@@ -1240,9 +1240,9 @@ export const StudyMapModal = memo(function StudyMapModal({
 
       {/* Error banner */}
       {showErrorRow ? (
-        <Box height={1} flexShrink={0} overflow="hidden">
-          <Text color={theme.error} wrap="truncate">
-            {truncateDisplay(activeError, innerW, ell)}
+        <Box flexShrink={0}>
+          <Text color={theme.error} wrap="wrap">
+            {activeError}
           </Text>
         </Box>
       ) : null}

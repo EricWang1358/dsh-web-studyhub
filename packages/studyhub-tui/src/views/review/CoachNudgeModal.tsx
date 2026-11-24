@@ -447,8 +447,8 @@ export const CoachNudgeModal = memo(function CoachNudgeModal({
 
             {cleanError ? (
               <Box flexDirection="column" marginTop={1}>
-                <Text color={theme.error}>
-                  {truncateDisplay(cleanError, innerW, ell)}
+                <Text color={theme.error} wrap="wrap">
+                  {cleanError}
                 </Text>
                 {isModelUnavailableMsg(cleanError) ? (
                   <Text color={theme.muted}>
@@ -488,6 +488,7 @@ export const CoachNudgeModal = memo(function CoachNudgeModal({
               height={scrollH}
               width={innerW}
               isActive={modalActive && !isBusy}
+              vimNavKeys={false}
               follow={followBottom}
               ascii={asciiMode}
             />
@@ -499,8 +500,8 @@ export const CoachNudgeModal = memo(function CoachNudgeModal({
             ) : null}
 
             {cleanError ? (
-              <Box height={1}>
-                <Text color={theme.error}>{truncateDisplay(cleanError, innerW, ell)}</Text>
+              <Box>
+                <Text color={theme.error} wrap="wrap">{cleanError}</Text>
               </Box>
             ) : null}
           </Box>

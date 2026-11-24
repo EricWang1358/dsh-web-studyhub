@@ -762,7 +762,7 @@ export const MinerUModal = memo(function MinerUModal({
                   width={innerWidth}
                 >
                   <Text color={theme.error} bold wrap="wrap">
-                    {truncateDisplay(`${errMark} ${planError.message}`, Math.max(20, (innerWidth - 4) * 2), ell)}
+                    {`${errMark} ${planError.message}`}
                   </Text>
                   {isSettingsGuidanceError(planError.code, planError.message) ? (
                     <Text color={theme.warning} wrap="wrap">
@@ -920,8 +920,8 @@ export const MinerUModal = memo(function MinerUModal({
             </Box>
           ) : historyError && historyRecords.length === 0 ? (
             <Box height={Math.max(4, bodyHeight - 2)} width={innerWidth} flexDirection="column" alignItems="center" justifyContent="center">
-              <Text color={theme.error} bold>
-                {`${errMark} ${truncateDisplay(historyError, Math.max(16, innerWidth - 4), ell)}`}
+              <Text color={theme.error} bold wrap="wrap">
+                {`${errMark} ${historyError}`}
               </Text>
               <Box marginTop={1}>
                 <Text color={theme.muted}>{t(lang, '按 [R] 重新加载', 'Press [R] to reload')}</Text>

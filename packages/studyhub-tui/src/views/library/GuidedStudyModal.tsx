@@ -1758,10 +1758,10 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
                 captureInput={false}
               />
             </Box>
-            <Box height={1} overflow="hidden">
+            <Box>
               {qaError ? (
-                <Text color={theme.error} wrap="truncate-end">
-                  {`${asciiMode ? '!' : '✕'} ${truncateDisplay(qaError, Math.max(12, innerW - 4), ell)}`}
+                <Text color={theme.error} wrap="wrap">
+                  {`${asciiMode ? '!' : '✕'} ${qaError}`}
                 </Text>
               ) : (
                 <Text color={theme.muted} wrap="truncate-end">

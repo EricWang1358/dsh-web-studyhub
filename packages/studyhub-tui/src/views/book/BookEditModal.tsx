@@ -753,7 +753,7 @@ export const BookEditModal = memo(function BookEditModal({
           ) : error ? (
             <Box height={1} overflow="hidden" flexShrink={0}>
               <Text color={theme.error}>
-                {`${asciiMode ? '!' : '✕'} ${truncateDisplay(error, Math.max(10, innerW - 3), ell)}`}
+                {`${asciiMode ? '!' : '✕'} ${error}`}
               </Text>
             </Box>
           ) : statusNote ? (

@@ -899,7 +899,7 @@ export const OriginalFileModal = memo(function OriginalFileModal({
 
         {actionError ? (
           <Box marginTop={1}>
-            <Text color={theme.error}>{`${errMark} ${truncateDisplay(actionError, Math.max(16, innerWidth - 2), ell)}`}</Text>
+            <Text color={theme.error} wrap="wrap">{`${errMark} ${actionError}`}</Text>
           </Box>
         ) : null}
       </Modal>

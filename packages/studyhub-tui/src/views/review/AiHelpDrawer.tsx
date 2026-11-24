@@ -8,8 +8,7 @@ import { Badge, Spinner } from '../../components/Badge.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Panel } from '../../components/Panel.js';
 import { TextInput } from '../../components/TextInput.js';
-import { useInputCapture } from '../../components/focus.js';
-import { useFooterHints } from '../../components/hooks.js';
+import { useInputCapture, useModalFooterHints } from '../../components/focus.js';
 import { ClickableBox } from '../../components/mouse.js';
 import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
 import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
@@ -17,8 +16,9 @@ import {
   MAX_AI_TURNS,
   buildCardHelpSystemPrompt,
   buildCardHelpUserPrompt,
+  buildDailyQuestionNoteTitle,
   currentDeckIdOf,
-  extractSolution,
+  extractRunFollowups,
   type AiTurn,
   type NormalizedKind,
 } from './review-helpers.js';
@@ -110,8 +110,8 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
   cardIdRef.current = cardId;
   const autoAskedRef = useRef<Set<string>>(new Set());
 
-  // Capture global shortcuts while drawer is active.
-  useInputCapture(isActive);
+  // Opaque global input capture while drawer is mounted (#1376).
+  useInputCapture(true);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -137,12 +137,15 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
   }, [cardId, resetStreaming]);
 
   const savedTurns = useMemo(() => {
-    const solFollowups = extractSolution(run)?.followups ?? [];
+    const solFollowups = extractRunFollowups(run);
     const merged: Array<{ id?: string; question?: string; answer?: string }> = [...solFollowups];
     if (extraSavedFollowups && extraSavedFollowups.length > 0) {
-      const seen = new Set(solFollowups.map((f) => f.id).filter(Boolean));
       for (const extra of extraSavedFollowups) {
-        if (!extra.id || !seen.has(extra.id)) merged.push(extra);
+        const matchIdx = merged.findIndex(
+          (f) => (extra.id && f.id === extra.id) || (extra.question && f.question === extra.question),
+        );
+        if (matchIdx >= 0) merged[matchIdx] = extra;
+        else merged.push(extra);
       }
     }
     return followupsToAiTurns(merged);
@@ -333,6 +336,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       answer: answerText.slice(0, 8000),
       source: 'assistant',
       silent: true,
+      replace: true,
     });
     if (!mountedRef.current) return;
     if (!followupRes.ok || !followupRes.value?.item?.id) {
@@ -340,18 +344,17 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       notify(followupRes.error?.message || t(lang, '保存追问失败', 'Failed to save follow-up'), 'error');
       return;
     }
+    const noteTitle = buildDailyQuestionNoteTitle(run, useTuiStore.getState().snapshot?.decks, lang);
     const noteRes = await tryAction<{ status?: string }>(host, 'note.qa.add', {
       deckId,
       cardId,
       followupId: followupRes.value.item.id,
+      title: noteTitle,
       language: lang,
     });
     if (!mountedRef.current) return;
     setSavingNote(false);
-    if (!noteRes.ok) {
-      notify(noteRes.error?.message || t(lang, '写入学习笔记失败', 'Failed to add Q&A to notes'), 'error');
-      return;
-    }
+    // Step 1 (card.followup.add) already succeeded on disk; reflect saved state immediately even if note write fails.
     setSavedLatest(true);
     onSavedFollowup?.(cardId, {
       id: followupRes.value.item.id,
@@ -359,7 +362,19 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       answer: answerText.slice(0, 8000),
       at: new Date().toISOString(),
     });
-    notify(t(lang, '已将问答保存到学习笔记，下次打开将直接复用', 'Saved Q&A to notes (reused next time)'), 'success');
+    if (!noteRes.ok) {
+      const reason = noteRes.error?.message || t(lang, '写入学习笔记失败', 'Failed to add Q&A to notes');
+      notify(
+        t(
+          lang,
+          `已保存到本题讲解（下次可直接复用），但写入学习笔记失败：${reason}`,
+          `Saved to question explanations (reused next time), but adding to notes failed: ${reason}`,
+        ),
+        'warning',
+      );
+      return;
+    }
+    notify(t(lang, '已保存到本题讲解与学习笔记，下次打开将直接复用', 'Saved Q&A to notes (reused next time)'), 'success');
   }, [savingNote, run, turns, host, lang, cardId, notify, onSavedFollowup]);
 
   const drawerHints: KeyHint[] = useMemo(
@@ -382,7 +397,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
           ],
     [inputFocused, suggestions.length, lang, asciiMode],
   );
-  useFooterHints(drawerHints, isActive);
+  useModalFooterHints(drawerHints, isActive);
 
   useInput(
     (input, key) => {
@@ -513,8 +528,8 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       </Box>
 
       {errorText ? (
-        <Box marginY={0} height={1} width={innerW} flexShrink={0} overflow="hidden">
-          <Text color={theme.error} wrap="truncate">
+        <Box marginY={0} width={innerW} flexShrink={0}>
+          <Text color={theme.error} wrap="wrap">
             {`${asciiMode ? 'x' : '✕'} ${errorText} `}
             <Text color={theme.muted}>{t(lang, '([R] 重试)', '([R] Retry)')}</Text>
           </Text>

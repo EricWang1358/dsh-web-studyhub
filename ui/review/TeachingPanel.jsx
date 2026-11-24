@@ -39,12 +39,19 @@ export default function TeachingPanel({ session, data, model, onModelSettings })
     if (teachingBusy || !teachAnswer.trim()) return;
     actions.teachingAct("teach.answer", { id: teaching.id, stepIndex: teaching.index, answer: teachAnswer });
   };
+  const skipStep = (all = false) => {
+    if (teachingBusy) return;
+    actions.teachingAct("teach.skip", { id: teaching.id, stepIndex: teaching.index, ...(all ? { all: true } : {}) });
+  };
+  const skippedSteps = Array.isArray(teaching.skippedSteps) ? teaching.skippedSteps : [];
+  const wrongTries = Number.isInteger(teaching.wrongTries) ? teaching.wrongTries : 0;
 
   return (
     <div className="teaching-panel">
       <ReadingBlock as="section" measure className="explanation">
         <div className="eyebrow">
           {uiFormat("{0} · {1} / {2}", [teaching.mode === "calculation" ? ui("计算题引导练习") : ui("逐步理解"), Math.min(teaching.index + 1, teaching.total), teaching.total])}
+          {skippedSteps.length > 0 ? ` · ${uiFormat("已跳过 {0} 步", [skippedSteps.length])}` : ""}
         </div>
         <ProgressBar className="teaching-progress" size="sm" value={teaching.index} max={teaching.total}
           label={teaching.mode === "calculation" ? ui("计算题引导练习") : ui("逐步理解")} />
@@ -54,6 +61,16 @@ export default function TeachingPanel({ session, data, model, onModelSettings })
           <>
             <h3>{ui("把理解迁移到下一题")}</h3>
             <Markdown text={teaching.transfer} />
+            {skippedSteps.length > 0 && (
+              <div className="teaching-skipped-summary">
+                <p className="muted small">{uiFormat("已跳过 {0} 步（不计为已掌握，可回头再看）：", [skippedSteps.length])}</p>
+                <ul>
+                  {skippedSteps.map((item) => (
+                    <li key={item.index}>{uiFormat("第 {0} 步：{1}", [(item.index ?? 0) + 1, item.lesson || ""])}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <LazySimilarTry session={session} data={data} model={model} onModelSettings={onModelSettings} />
           </>
         ) : (
@@ -70,6 +87,9 @@ export default function TeachingPanel({ session, data, model, onModelSettings })
                 <CitationDisclosure card={teaching} sources={data.sources}
                   onOpenSource={(source, quote, peekPage) => openModal({ type: "source", source, quote, peekPage, back: true })} />
               </>
+            )}
+            {wrongTries >= 2 && (
+              <p className="muted small teaching-wrong-nudge">{ui("连续答错两次了，可以看要点并继续：点击「跳过这一步」或「剩下的直接讲给我听」。")}</p>
             )}
             <form onSubmit={(e) => { e.preventDefault(); submitStep(); }}>
               <label className="teaching-panel__field">
@@ -91,8 +111,14 @@ export default function TeachingPanel({ session, data, model, onModelSettings })
                   }}
                 />
               </label>
-              <Button className="teaching-panel__submit" variant="secondary" size="sm" busy={teachingBusy} busyLabel={ui("正在检查…")} disabled={!teachAnswer.trim()}
-                onPointerUp={(e) => e.currentTarget.closest(".study-app")?.focus({ preventScroll: true })} type="submit">{ui("检查理解")}</Button>
+              <div className="teaching-panel__actions">
+                <Button className="teaching-panel__submit" variant="secondary" size="sm" busy={teachingBusy} busyLabel={ui("正在检查…")} disabled={!teachAnswer.trim()}
+                  onPointerUp={(e) => e.currentTarget.closest(".study-app")?.focus({ preventScroll: true })} type="submit">{ui("检查理解")}</Button>
+                <Button className="teaching-panel__skip" variant="ghost" size="sm" disabled={teachingBusy}
+                  onClick={() => skipStep(false)} type="button">{ui("跳过这一步")}</Button>
+                <Button className="teaching-panel__skip-all" variant="ghost" size="sm" disabled={teachingBusy}
+                  onClick={() => skipStep(true)} type="button">{ui("剩下的直接讲给我听")}</Button>
+              </div>
               <TeachingStatus busy={teachingBusy} failure={teachingError} onCancel={actions.cancelTeaching} onRetry={actions.retryTeaching} />
             </form>
           </>

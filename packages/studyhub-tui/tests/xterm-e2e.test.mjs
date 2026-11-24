@@ -499,9 +499,10 @@ describe('StudyHub TUI xterm-headless E2E', () => {
     // Ctrl+S saves immediately from any field in BoardCardModal
     tty.send('\x13');
 
-    const addedScreen = await tty.waitFor((s) => s.includes('Master Memento Pattern'), {
-      label: 'Card added to Todo column',
-    });
+    const addedScreen = await tty.waitFor(
+      (s) => s.includes('Master Memento Pattern') && !s.includes('添加看板任务') && !s.includes('Add Board Card'),
+      { label: 'Card added to Todo column' },
+    );
     assertScreenHealthy(tty, addedScreen, 120, 36, 'Board after add');
 
     // Move card right ('L') from Todo -> Doing
