@@ -212,6 +212,7 @@ export async function savePageAskToNote(params: SavePageAskParams): Promise<Save
   const cleanQuestion = question.trim() || t(lang, `第 ${page} 页提问`, `Page ${page} question`);
   const docLabel = title || t(lang, '资料阅读', 'Material');
 
+  let savedFollowup = false;
   let savedNote = false;
   let savedNoteId: string | undefined;
   let noteError: string | undefined;
@@ -239,8 +240,10 @@ export async function savePageAskToNote(params: SavePageAskParams): Promise<Save
         answer: cleanAnswer.slice(0, 8000),
         source: 'assistant',
         silent: true,
+        replace: true,
       });
       if (followupRes.ok && followupRes.value?.item?.id) {
+        savedFollowup = true;
         const noteRes = await tryAction<{ status?: string; note?: { id?: string } }>(host, 'note.qa.add', {
           deckId: target.deckId,
           cardId: target.cardId,
@@ -345,10 +348,32 @@ export async function savePageAskToNote(params: SavePageAskParams): Promise<Save
     };
   }
   if (savedAnnotation) {
+    if (savedFollowup && !savedNote) {
+      return {
+        ok: true,
+        savedTo: 'annotation',
+        message: t(
+          lang,
+          `已保存批注问答与关联题卡讲解，但写入学习笔记失败：${noteError || '请稍后重试'}`,
+          `Saved annotation & card explanation, but writing to Study Notes failed: ${noteError || 'please retry'}`,
+        ),
+      };
+    }
     return {
       ok: true,
       savedTo: 'annotation',
       message: t(lang, '已保存为本页批注问答 (按 B 查看)', 'Saved as page annotation (press B to view)'),
+    };
+  }
+  if (savedFollowup) {
+    return {
+      ok: true,
+      savedTo: 'note',
+      message: t(
+        lang,
+        `已保存到关联题卡讲解，但写入学习笔记失败：${noteError || '请稍后重试'}`,
+        `Saved to linked card explanation, but writing to Study Notes failed: ${noteError || 'please retry'}`,
+      ),
     };
   }
   return {
