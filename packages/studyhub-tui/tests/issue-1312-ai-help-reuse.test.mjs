@@ -362,4 +362,74 @@ describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () =>
       h.cleanup();
     }
   });
+
+  test('4. (#1336) Pressing N passes non-empty title to note.qa.add and reports partial success if note write fails', async () => {
+    resetStore();
+    useTuiStore.setState({
+      snapshot: { courses: [{ id: 'c1', name: '操作系统' }], decks: [{ id: 'deck-u1', title: '内存管理', course: '操作系统' }], sources: [], jobs: [] },
+    });
+    const noteCalls = [];
+    let failNote = false;
+
+    const mockRun = {
+      id: 'run-note-title',
+      deckId: 'deck-u1',
+      title: '内存管理',
+      index: 0,
+      total: 1,
+      answered: 1,
+      revealed: true,
+      card: { id: 'card-n1', deckId: 'deck-u1', kind: 'single', prompt: 'What is paging?', options: [{ id: 'A', text: 'Fixed frames' }] },
+      feedback: { correct: true, selected: ['A'] },
+      solution: { answer: 'A' },
+    };
+
+    const mockHost = {
+      call: async (name, payload) => {
+        if (name === 'review.start' || name === 'study.start') return { ok: true, value: mockRun };
+        if (name === 'card.followup.add') return { ok: true, value: { item: { id: 'fu-n1' } } };
+        if (name === 'note.qa.add') {
+          noteCalls.push(payload);
+          if (!payload?.title || !String(payload.title).trim()) {
+            return { ok: false, error: { message: '文章标题 is required' } };
+          }
+          if (failNote) {
+            return { ok: false, error: { message: 'AI 正在起草这篇笔记' } };
+          }
+          return { ok: true, value: { status: 'created' } };
+        }
+        return { ok: true, value: {} };
+      },
+      streamComplete: async () => 'EXPLANATION_FOR_NOTE',
+      getSnapshot: async () => useTuiStore.getState().snapshot,
+    };
+
+    const h = createInkHarness(
+      React.createElement(ReviewView, { host: mockHost, width: 120, height: 28, isActive: true }),
+      { cols: 120, rows: 28 },
+    );
+
+    try {
+      await h.waitFor((s) => s.includes('What is paging?'));
+      h.write('h');
+      await h.waitFor((s) => s.includes('EXPLANATION_FOR_NOTE'));
+      h.write('N');
+      await new Promise((r) => setTimeout(r, 80));
+      assert.equal(noteCalls.length, 1);
+      assert.ok(typeof noteCalls[0].title === 'string' && noteCalls[0].title.includes('操作系统'), 'note.qa.add must receive a non-empty daily course note title');
+
+      // Now simulate note.qa.add failing while card.followup.add succeeds -> still updates card hint & clearly reports partial success
+      failNote = true;
+      useTuiStore.setState({ toasts: [] });
+      h.write('N');
+      await new Promise((r) => setTimeout(r, 80));
+      const toasts = useTuiStore.getState().toasts;
+      assert.ok(
+        toasts.some((toast) => String(toast.text ?? '').includes('已保存到本题讲解') && String(toast.text ?? '').includes('写入学习笔记失败')),
+        `Expected partial-success toast, got: ${JSON.stringify(toasts)}`,
+      );
+    } finally {
+      h.cleanup();
+    }
+  });
 });
