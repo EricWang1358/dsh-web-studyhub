@@ -344,11 +344,9 @@ export function applyConfigPatch(current, patch) {
   const codex = patch.codex && typeof patch.codex === 'object'
     ? mergeCliPatch(base.codex, /** @type {Record<string, unknown>} */ (patch.codex), VALID_CODEX_EFFORTS)
     : base.codex;
+  const reasoningEffort = typeof patch.reasoningEffort === 'string' ? trimText(patch.reasoningEffort) : base.reasoningEffort;
 
-  return {
-    config: { ...base, mode, openai, agy, codex },
-    keyDropped,
-  };
+  return { config: { ...base, mode, openai, agy, codex, reasoningEffort }, keyDropped };
 }
 
 /**

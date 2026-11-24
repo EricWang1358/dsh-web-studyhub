@@ -18,6 +18,7 @@ import { useFooterHints } from '../../components/hooks.js';
 import { useShellActions } from '../../shell/actions.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/sample-actions.js';
+import { runOptimisticWrite } from '../../host/tx-write.js';
 import { atomicWriteExportText, defaultBackupFilePath } from '../../host/atomic-write.js';
 
 export interface DraftEditorProps {
@@ -403,10 +404,20 @@ export const DraftEditor = memo(function DraftEditor({
       if (!draft || busy) return false;
       setBusy(true);
       const updated = { ...draft, cards: nextCards };
-      const res = await tryAction<FullDraft>(host, 'draft.save', { deck: updated });
+      const res = await runOptimisticWrite({
+        getSnapshot: () => draft,
+        applyOptimistic: () => setDraft(updated),
+        write: async () => {
+          const out = await tryAction<FullDraft>(host, 'draft.save', { deck: updated });
+          return out.ok
+            ? { ok: true, value: out.value }
+            : { ok: false, error: out.error?.message || t(lang, '保存草稿失败', 'Save draft failed') };
+        },
+        restoreSnapshot: (prev) => setDraft(prev),
+      });
       setBusy(false);
       if (!res.ok) {
-        notify(res.error?.message || t(lang, '保存草稿失败', 'Save draft failed'), 'error');
+        notify(res.error || t(lang, '保存草稿失败', 'Save draft failed'), 'error');
         return false;
       }
       if (res.value && Array.isArray(res.value.cards)) {
