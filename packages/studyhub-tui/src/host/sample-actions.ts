@@ -180,8 +180,8 @@ export function cleanPathInput(input: string): string {
   const text = String(input ?? '').trim();
   const quoted = text.match(/^(?:&\s*)?(['"])(.*)\1$/s);
   if (quoted) return quoted[2].trim();
-  // POSIX shells escape spaces in dragged paths; never touch Windows drive or UNC paths.
-  if (process.platform !== 'win32' && !WIN_DRIVE_PATH_RE.test(text) && !WIN_UNC_PATH_RE.test(text)) {
+  // POSIX / Git-Bash shells escape spaces in dragged paths (`\ `); never touch Windows drive or UNC paths.
+  if (!WIN_DRIVE_PATH_RE.test(text) && !WIN_UNC_PATH_RE.test(text)) {
     return text.replace(/\\ /g, ' ');
   }
   return text;
