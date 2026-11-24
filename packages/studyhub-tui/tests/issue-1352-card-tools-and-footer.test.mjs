@@ -244,9 +244,17 @@ test('#1352 Part 2: Opening CardToolsModal inside AppShell replaces bottom globa
   await h.waitFor((s) => s.includes('归并排序的时间复杂度'), 4000, 'review card visible');
   await new Promise((r) => setTimeout(r, 50));
 
-  // Press 'D' to open CardToolsModal
+  // Press 'D' to open CardToolsModal and wait for Modal footer hints effect to settle
   h.write('D');
-  const modalFrame = await h.waitFor((s) => s.includes('编辑题目') && s.includes('斩题'), 4000, 'CardToolsModal opened');
+  const modalFrame = await h.waitFor(
+    (s) => {
+      if (!s.includes('编辑题目') || !s.includes('斩题')) return false;
+      const bar = s.split('\n').filter((l) => l.trim().length > 0).at(-1) || '';
+      return !bar.includes('1-9  页面') && bar.includes('Esc');
+    },
+    4000,
+    'CardToolsModal opened with modal footer hints',
+  );
 
   // Bottom bar (last non-empty line) must NOT show global default hints "1-9 页面" / "c 课程" / "q 退出"
   const lines = modalFrame.split('\n').filter((l) => l.trim().length > 0);

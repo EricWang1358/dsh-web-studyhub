@@ -1,4 +1,23 @@
 import type { BindingSnapshot, DesktopConfigSnapshot, PageId, StudySnapshot } from '../types/contracts.js';
+import type { ContextualTip, ContextualTipInput } from './contextual-tips.js';
+
+export type SelectContextualTipFn = (input: ContextualTipInput) => ContextualTip | null;
+let cachedTipSelector: SelectContextualTipFn | null = null;
+
+export function getCachedContextualTipSelector(): SelectContextualTipFn | null {
+  return cachedTipSelector;
+}
+
+export async function loadContextualTipSelector(): Promise<SelectContextualTipFn | null> {
+  if (cachedTipSelector) return cachedTipSelector;
+  try {
+    const m = await import('./contextual-tips.js');
+    cachedTipSelector = m.selectContextualTip;
+    return cachedTipSelector;
+  } catch {
+    return null;
+  }
+}
 
 /** Pure selectors over the loose StudySnapshot shape (shared by shell widgets). */
 

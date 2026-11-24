@@ -1,18 +1,17 @@
 import React, { Suspense, lazy, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Box, useApp, useInput } from 'ink';
-import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type KeyHint, type PageId, type ViewProps } from '../types/contracts.js';
+import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type PageId, type ViewProps } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
 import { useTheme } from '../theme/tokens.js';
 import { KeyHintBar, Spinner, ToastStack } from '../components/Badge.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
-import { RESERVED_GLOBAL_KEY_SET, isKeyClaimed, useModalHints } from '../components/focus.js';
+import { RESERVED_GLOBAL_KEY_SET, isKeyClaimed, resolveShellFooterHints, useContextualFooterTip, useModalHints } from '../components/focus.js';
 import { useMouseClickInputFallback } from '../components/mouse.js';
 import { useStableWindowSize } from '../components/resize.js';
 import { TopBar } from './TopBar.js';
 import { SideNav, sideNavWidth } from './SideNav.js';
 import { ShellActionsContext, createDefaultShellActions, requestQuit, type ShellActions } from './actions.js';
-import { isLibraryEmpty, modelInfo } from './data.js';
-import { selectContextualTip } from './contextual-tips.js';
+import { isLibraryEmpty } from './data.js';
 import { formatReturnHintLabel } from '../state/practice-stack.js';
 
 const Launchpad = lazy(() => import('./Launchpad.js').then((m) => ({ default: m.Launchpad })));
@@ -92,10 +91,6 @@ export const AppShell = memo(function AppShell({
   const loading = useTuiStore((s) => s.loading);
   const refreshing = useTuiStore((s) => s.refreshing);
   const snapshot = useTuiStore((s) => s.snapshot);
-  const desktopConfig = useTuiStore((s) => s.desktopConfig);
-  const binding = useTuiStore((s) => s.binding);
-  const assistantCardContext = useTuiStore((s) => s.assistantCardContext);
-  const proactiveHints = useTuiStore((s) => s.preferences.proactiveHints !== false);
   const dismissToast = useTuiStore((s) => s.dismissToast);
   const keystrokeCountRef = useRef(0);
   const [tipRotation, setTipRotation] = useState(0);
@@ -269,54 +264,26 @@ export const AppShell = memo(function AppShell({
   );
 
   const compactMode = useTuiStore((s) => Boolean(s.preferences.compactMode));
-  const tailHints: KeyHint[] = useMemo(
-    () => [
-      { key: 'Ctrl+K', label: t(lang, '命令', 'Cmd') },
-      { key: '?', label: compactMode && footerHints.length > 4 ? t(lang, '全部键', 'All') : t(lang, '帮助', 'Help') },
-    ],
-    [lang, compactMode, footerHints.length],
-  );
-  const defaultHints: KeyHint[] = useMemo(
-    () => [
-      { key: '1-9', label: t(lang, '页面', 'Pages') },
-      { key: 'c', label: t(lang, '课程', 'Course') },
-      { key: '[ ]', label: t(lang, '切换', 'Cycle') },
-      { key: 'q', label: t(lang, '退出', 'Quit') },
-    ],
-    [lang],
-  );
   const modalHints = useModalHints();
   const practiceReturnLabel = useMemo(() => formatReturnHintLabel(practiceStack, lang), [practiceStack, lang]);
-  const hints = useMemo(() => {
-    if (modalHints && modalHints.length > 0) {
-      return modalHints;
-    }
-    if (footerHints.length > 0) {
-      const base = compactMode ? footerHints.slice(0, 4) : footerHints;
-      if (inputCaptured) return base;
-      const prefix: KeyHint[] = practiceReturnLabel ? [{ key: 'r', label: practiceReturnLabel }] : [];
-      return [...prefix, ...base, ...tailHints];
-    }
-    if (inputCaptured || overlayOpen) {
-      return [{ key: 'Esc', label: t(lang, '关闭', 'Close') }];
-    }
-    const prefix: KeyHint[] = practiceReturnLabel ? [{ key: 'r', label: practiceReturnLabel }] : [];
-    return [...prefix, ...defaultHints, ...tailHints];
-  }, [modalHints, inputCaptured, overlayOpen, practiceReturnLabel, footerHints, compactMode, defaultHints, tailHints, lang]);
+  const hints = useMemo(
+    () =>
+      resolveShellFooterHints({
+        modalHints,
+        footerHints,
+        inputCaptured,
+        overlayOpen,
+        compactMode,
+        practiceReturnLabel,
+        lang,
+      }),
+    [modalHints, footerHints, inputCaptured, overlayOpen, compactMode, practiceReturnLabel, lang],
+  );
 
-  const contextualTip = useMemo(() => {
-    if (overlayOpen || showLaunchpad || inputCaptured || (modalHints && modalHints.length > 0)) return null;
-    const ready = modelInfo(desktopConfig, binding, snapshot, asciiMode).ready;
-    return selectContextualTip({
-      page,
-      card: page === 'review' ? assistantCardContext : null,
-      modelReady: ready,
-      proactiveHints,
-      lang,
-      asciiMode,
-      rotation: tipRotation,
-    });
-  }, [overlayOpen, showLaunchpad, desktopConfig, binding, snapshot, asciiMode, page, assistantCardContext, proactiveHints, lang, tipRotation]);
+  const contextualTipText = useContextualFooterTip(
+    overlayOpen || showLaunchpad || inputCaptured || Boolean(modalHints && modalHints.length > 0),
+    tipRotation,
+  );
 
   const toastW = Math.min(48, Math.max(28, Math.floor(columns * 0.4)));
   const toastRows = Math.min(2, toasts.length);
@@ -402,7 +369,7 @@ export const AppShell = memo(function AppShell({
             hints={hints}
             width={columns}
             right={refreshing ? (asciiMode ? t(lang, '* 同步中', '* syncing') : t(lang, '⟳ 同步中', '⟳ syncing')) : undefined}
-            tip={contextualTip?.text}
+            tip={contextualTipText}
           />
         ) : null}
 
