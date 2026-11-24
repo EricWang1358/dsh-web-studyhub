@@ -206,6 +206,16 @@ test('#1350: pressing b or c on single-choice question selects option without ju
   assert.deepEqual(h.submitted[0].selected, ['B']);
   assert.equal(useTuiStore.getState().page, 'review', 'pressing b on choice card must NOT jump to board');
 
+  // After answering (feedback / explanation visible): pressing 'b' or 'c' must STILL stay on 'review'
+  // and must NOT jump to board or open course picker!
+  h.write('b');
+  await new Promise((r) => setTimeout(r, 40));
+  assert.equal(useTuiStore.getState().page, 'review', 'pressing b AFTER answering choice card must NOT jump to board');
+  h.write('c');
+  await new Promise((r) => setTimeout(r, 40));
+  assert.equal(useTuiStore.getState().coursePickerOpen, false, 'pressing c AFTER answering choice card must NOT open course picker');
+  assert.equal(useTuiStore.getState().page, 'review');
+
   // Advance to q2
   h.write('\r');
   await h.waitFor((s) => s.includes('第二题') && s.includes('ACK'), 4000, 'q2 visible');
