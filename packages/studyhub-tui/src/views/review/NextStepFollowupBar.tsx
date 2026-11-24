@@ -16,7 +16,8 @@ import { errorMessage, tryAction, type ReviewRun } from '../../host/sample-actio
 import { Badge, Spinner } from '../../components/Badge.js';
 import { ScrollView } from '../../components/ScrollView.js';
 import { TextInput } from '../../components/TextInput.js';
-import { ClickableBox } from '../../components/mouse.js';
+import { useInputCapture } from '../../components/focus.js';
+import { ClickableBox, MOUSE_LAYER_MODAL, useMouseLayer, useMouseModalBarrier } from '../../components/mouse.js';
 import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
 import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import {
@@ -180,6 +181,11 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
   turnsRef.current = turns;
 
   const engaged = expanded || inputFocused;
+  const parentMouseLayer = useMouseLayer();
+  // Host modals set `<Modal isActive={false}>` while engaged so Esc collapses this bar instead of closing the modal.
+  // Maintain input capture & mouse modal occlusion seamlessly for the entire engaged lifetime (#1344).
+  useInputCapture(isActive && engaged);
+  useMouseModalBarrier(isActive && engaged, Math.max(MOUSE_LAYER_MODAL, parentMouseLayer));
 
   useEffect(() => {
     onFocusChange?.(engaged);

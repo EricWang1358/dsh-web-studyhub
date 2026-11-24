@@ -15,12 +15,14 @@ after(() => {
 
 const [
   nextStepMod,
+  { AppShell },
   { CardToolsModal },
   { TeachModal },
   { RetellModal },
   storeMod,
 ] = await Promise.all([
   import('../src/views/review/NextStepFollowupBar.tsx'),
+  import('../src/shell/AppShell.tsx'),
   import('../src/views/review/CardToolsModal.tsx'),
   import('../src/views/review/TeachModal.tsx'),
   import('../src/views/review/RetellModal.tsx'),
@@ -384,6 +386,93 @@ describe('#1313 unified AI result follow-up bar', () => {
       assert.ok(retellPrompts[0].includes('RETELL_RIGHT_POINT_XYZ'));
     } finally {
       hRetell.cleanup();
+    }
+  });
+
+  test('4. #1344: Expanded NextStepFollowupBar inside AppShell captures input so 1-4 / a / c never trigger global navigation', async () => {
+    resetStore();
+    useTuiStore.setState({ page: 'review' });
+    const retellHost = {
+      call: async (name) => {
+        if (name === 'teach.retell') {
+          return {
+            ok: true,
+            value: {
+              passed: true,
+              gap: 'none',
+              right: ['RETELL_POINT_1344'],
+              missed: [],
+              wrong: [],
+              note: 'Solid',
+            },
+          };
+        }
+        return { ok: true, value: {} };
+      },
+      streamComplete: async () => 'FOLLOWUP_ANSWER_1344',
+    };
+
+    const h = createInkHarness(
+      React.createElement(AppShell, {
+        host: retellHost,
+        autoLaunchpad: false,
+        renderPage: (_page, view) =>
+          React.createElement(RetellModal, {
+            host: retellHost,
+            run: baseRun,
+            cardId: 'card-1313',
+            kind: 'short_answer',
+            width: view.width,
+            height: view.height,
+            isActive: view.isActive,
+            mathUnicode: true,
+            onClose: () => {},
+            onNavigateToSource: () => {},
+          }),
+      }),
+      { cols: 110, rows: 32 },
+    );
+
+    try {
+      await h.waitFor((s) => s.includes('费曼复述'));
+      h.write('通过心跳维持主从关系');
+      await h.waitFor((s) => s.includes('通过心跳维持主从关系'));
+      h.write('\x13'); // Ctrl+S -> verdict phase
+      await h.waitFor((s) => s.includes('RETELL_POINT_1344') && s.includes('接下来想做什么'));
+      await new Promise((r) => setTimeout(r, 30));
+
+      // Expand follow-up bar, submit one turn so bar stays expanded in non-typing control mode
+      h.write('a');
+      await h.waitFor((s) => s.includes('[1]通俗讲解'));
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('再讲详细点');
+      await h.waitFor((s) => s.includes('再讲详细点'));
+      h.write('\r');
+      await h.waitFor((s) => s.includes('FOLLOWUP_ANSWER_1344'));
+      await new Promise((r) => setTimeout(r, 40));
+
+      // Now bar is expanded & inputFocused === false: inputCaptured MUST remain true!
+      assert.equal(useTuiStore.getState().inputCaptured, true, 'Expanded follow-up bar must keep inputCaptured=true');
+
+      // Press 'c' (global course picker) -> must NOT open course picker
+      h.write('c');
+      await new Promise((r) => setTimeout(r, 40));
+      assert.equal(useTuiStore.getState().coursePickerOpen, false, 'c must NOT trigger global CoursePicker');
+      assert.equal(useTuiStore.getState().page, 'review');
+
+      // Press '1' (preset [1] 通俗讲解, also global Library shortcut!) -> must stay on 'review' and fill preset!
+      h.write('1');
+      await h.waitFor((s) => s.includes('通俗易懂的讲解'));
+      assert.equal(useTuiStore.getState().page, 'review', 'Pressing 1 on expanded follow-up bar must NOT jump to library');
+
+      // Esc exits typing back to expanded control mode, then press 'a' -> must focus input, NOT jump to audio!
+      h.write('\x1b');
+      await new Promise((r) => setTimeout(r, 40));
+      h.write('a');
+      await new Promise((r) => setTimeout(r, 40));
+      assert.equal(useTuiStore.getState().page, 'review', 'Pressing a on expanded follow-up bar must NOT jump to audio');
+    } finally {
+      h.cleanup();
     }
   });
 });
