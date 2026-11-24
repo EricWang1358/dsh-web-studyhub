@@ -676,7 +676,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
           const outlineId = await resolvePendingOutlineId(course);
           if (!outlineId) {
             useTuiStore.getState().notify(
-              t(lang, '未能获取待应用总纲的 outlineId，请按 [r] 刷新后重试', 'Missing pending outlineId; press [r] to refresh and try again'),
+              t(lang, '未能获取待应用总纲的 outlineId，请按 [Ctrl+R] 刷新后重试', 'Missing pending outlineId; press [Ctrl+R] to refresh and try again'),
               'error',
             );
             return;
@@ -744,7 +744,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
       const outlineId = await resolvePendingOutlineId(course);
       if (!outlineId) {
         useTuiStore.getState().notify(
-          t(lang, '未能获取待撤销总纲的 outlineId，请按 [r] 刷新后重试', 'Missing pending outlineId; press [r] to refresh and try again'),
+          t(lang, '未能获取待撤销总纲的 outlineId，请按 [Ctrl+R] 刷新后重试', 'Missing pending outlineId; press [Ctrl+R] to refresh and try again'),
           'error',
         );
         return;
@@ -1080,7 +1080,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             { key: 'u', label: t(lang, '撤销重组', 'Undo rebuild') },
             { key: 'g', label: t(lang, '构建选项', 'Build') },
             { key: 'P', label: t(lang, '精选问答', 'Pinned QA') },
-            { key: 'r', label: t(lang, '刷新', 'Refresh') },
+            { key: 'Ctrl+R', label: t(lang, '刷新', 'Refresh') },
           ]
         : [
             { key: 'Tab', label: t(lang, '切换窗格', 'Pane') },
@@ -1108,7 +1108,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             },
             { key: 'z', label: t(lang, '撤销结构', 'Undo struct') },
             { key: 'g', label: t(lang, '生成/重建', 'Build') },
-            { key: 'r', label: t(lang, '刷新', 'Refresh') },
+            { key: 'Ctrl+R', label: t(lang, '刷新', 'Refresh') },
           ],
     [lang, mathUnicode, selectedItem?.leaf, status, unplacedSections.length],
   );
@@ -1321,7 +1321,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
           title={t(lang, '无法打开复习全书', 'Cannot open review book')}
           hint={error}
           actions={[
-            { key: 'r', label: t(lang, '重试', 'Retry') },
+            { key: 'Ctrl+R', label: t(lang, '重试', 'Retry') },
             { key: 'c', label: t(lang, '切换课程', 'Switch course') },
           ]}
           width={width - 2}

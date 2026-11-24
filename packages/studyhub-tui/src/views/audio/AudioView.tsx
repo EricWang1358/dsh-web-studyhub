@@ -1257,7 +1257,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
       { key: 's', label: t(lang, '转写设置', 'Providers') },
       { key: 't', label: t(lang, '测试连通', 'Test Keys') },
       { key: 'g', label: t(lang, '据此出题', 'Generate') },
-      { key: 'r', label: t(lang, '刷新', 'Refresh') },
+      { key: 'Ctrl+R', label: t(lang, '刷新', 'Refresh') },
       { key: '/', label: t(lang, '筛选', 'Filter') },
       { key: 'x', label: t(lang, '导出MD', 'Export') },
       ...(filterQuery ? [{ key: 'Esc', label: t(lang, '清筛选', 'Clear') }] : []),
@@ -1492,11 +1492,11 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                     icon={asciiMode ? '!' : '▲'}
                     title={t(lang, '加载音频转写记录失败', 'Failed to load transcripts')}
                     hint={truncateDisplay(
-                      `${resultsError} — ${t(lang, '按 [r] 重试', 'Press [r] to retry')}`,
+                      `${resultsError} — ${t(lang, '按 [Ctrl+R] 重试', 'Press [Ctrl+R] to retry')}`,
                       Math.max(20, (lw - 4) * 2),
                       ell,
                     )}
-                    actions={[{ key: 'r', label: t(lang, '重试', 'Retry') }]}
+                    actions={[{ key: 'Ctrl+R', label: t(lang, '重试', 'Retry') }]}
                     width={Math.max(12, lw - 4)}
                     height={Math.max(4, lh - 2)}
                   />
@@ -1547,7 +1547,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                   {resultsError ? (
                     <Text color={theme.error} wrap="truncate">
                       {truncateDisplay(
-                        `${t(lang, '列表加载失败', 'Load error')}: ${resultsError} ([r])`,
+                        `${t(lang, '列表加载失败', 'Load error')}: ${resultsError} (Ctrl+R)`,
                         Math.max(12, lw - 4),
                         ell,
                       )}
@@ -1714,11 +1714,11 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                         icon={asciiMode ? '!' : '▲'}
                         title={t(lang, '加载转写正文失败', 'Failed to load transcript')}
                         hint={truncateDisplay(
-                          `${detailError.message} — ${t(lang, '按 [r] 重试', 'Press [r] to retry')}`,
+                          `${detailError.message} — ${t(lang, '按 [Ctrl+R] 重试', 'Press [Ctrl+R] to retry')}`,
                           Math.max(20, innerW * 2),
                           ell,
                         )}
-                        actions={[{ key: 'r', label: t(lang, '重试', 'Retry') }]}
+                        actions={[{ key: 'Ctrl+R', label: t(lang, '重试', 'Retry') }]}
                         width={innerW}
                         height={scrollH}
                       />
