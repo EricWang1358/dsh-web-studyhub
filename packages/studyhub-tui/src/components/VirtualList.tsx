@@ -36,6 +36,11 @@ export interface VirtualListProps<T> {
   scrollPadding?: number;
   /** Override store asciiMode preference (`#` / `|` scrollbar when true). */
   ascii?: boolean;
+  /**
+   * Allow vim-style `g` / `G` to jump to first / last row (default `false` so views binding `g` / `G`
+   * for domain actions never suffer dual-trigger cursor jumps; `Home` / `End` always work). (#1349)
+   */
+  enableEdgeJumpKeys?: boolean;
 }
 
 function clamp(n: number, lo: number, hi: number): number {
@@ -194,6 +199,7 @@ function VirtualListInner<T>({
   highlightSelected = true,
   scrollPadding = 1,
   ascii: asciiProp,
+  enableEdgeJumpKeys = false,
 }: VirtualListProps<T>) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
@@ -262,8 +268,8 @@ function VirtualListInner<T>({
       else if (key.pageUp || (key.ctrl && input === 'b')) move(cursor - pageStep(rows, 'full'));
       else if (key.downArrow || (!key.ctrl && !key.meta && input === 'j')) move(cursor + 1);
       else if (key.upArrow || (!key.ctrl && !key.meta && input === 'k')) move(cursor - 1);
-      else if (key.home || (!key.ctrl && !key.meta && input === 'g')) move(0);
-      else if (key.end || (!key.ctrl && !key.meta && input === 'G')) move(total - 1);
+      else if (key.home || (enableEdgeJumpKeys && !key.ctrl && !key.meta && input === 'g')) move(0);
+      else if (key.end || (enableEdgeJumpKeys && !key.ctrl && !key.meta && input === 'G')) move(total - 1);
       else if (key.return) {
         const item = items[cursor];
         if (item !== undefined) onSelect?.(item, cursor);

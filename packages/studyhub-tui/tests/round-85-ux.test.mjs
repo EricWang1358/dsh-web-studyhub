@@ -289,4 +289,66 @@ describe('Round 85 Track D2 — Proactive Daily Study Briefing', () => {
     assert.match(narrowText, /\[B\] 开始复习/);
     narrow.unmount();
   });
+
+  test('#1349: Pressing g on the 2nd deck in LibraryView opens Guided Study for that deck without jumping cursor to row 0', async () => {
+    const snapshot = {
+      focus: { course: 'OS' },
+      courses: [{ id: 'OS', name: 'OS' }],
+      decks: [
+        { id: 'deck-first', title: 'First Deck Alpha', course: 'OS', due: 2, wrong: 0, newCount: 0, count: 10 },
+        { id: 'deck-second', title: 'Second Deck Beta', course: 'OS', due: 5, wrong: 1, newCount: 0, count: 12 },
+      ],
+      today: { due: 7, reviewed: 0, streak: 1 },
+      progress: {},
+    };
+    const host = {
+      async call() {
+        return { ok: true, value: { sessions: [] } };
+      },
+    };
+
+    useTuiStore.setState({
+      page: 'library',
+      preferences: {
+        ...useTuiStore.getState().preferences,
+        language: 'zh',
+        asciiMode: true,
+        proactiveHints: false,
+      },
+      snapshot,
+      navContext: null,
+    });
+
+    const tty = createTtyHarness(120, 36);
+    const inst = render(React.createElement(LibraryView, { host, width: 116, height: 34, isActive: true }), {
+      stdout: tty.stdout,
+      stdin: tty.stdin,
+      exitOnCtrlC: false,
+      interactive: true,
+      debug: true,
+    });
+    try {
+      await tty.waitFor((s) => s.includes('First Deck Alpha') && s.includes('Second Deck Beta'));
+      // Move selection down to 2nd deck
+      tty.stdin.write('j');
+      await tty.waitFor((s) => s.includes('5 题到期'));
+      await new Promise((r) => setTimeout(r, 40));
+
+      // Press 'g' -> GuidedStudyModal must target Second Deck Beta (NOT jump cursor back to First Deck Alpha!)
+      tty.stdin.write('g');
+      const modalText = await tty.waitFor((s) => s.includes('新建带学目标'));
+      const modalSlice = modalText.slice(modalText.lastIndexOf('AI 带学工作台'));
+      assert.ok(
+        modalSlice.includes('Second Deck Beta'),
+        `Pressing g on row 2 must open Guided Study for Second Deck Beta, got:\n${modalSlice}`,
+      );
+      assert.equal(
+        modalSlice.includes('First Deck Alpha'),
+        false,
+        `Pressing g on row 2 must NOT jump cursor to row 0 (First Deck Alpha), got:\n${modalSlice}`,
+      );
+    } finally {
+      inst.unmount();
+    }
+  });
 });
