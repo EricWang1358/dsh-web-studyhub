@@ -310,7 +310,30 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
   setAssistantTab: (assistantTab) => set({ assistantTab }),
   setAssistantStage: (assistantStage) => set({ assistantStage }),
   setAssistantFullscreen: (assistantFullscreen) => set({ assistantFullscreen }),
-  setAssistantCardContext: (assistantCardContext) => set({ assistantCardContext }),
+  setAssistantCardContext: (next) =>
+    set((state) => {
+      const prev = state.assistantCardContext;
+      if (prev === next) return state;
+      if (
+        prev &&
+        next &&
+        prev.runId === next.runId &&
+        prev.deckId === next.deckId &&
+        prev.cardId === next.cardId &&
+        prev.cardIndex === next.cardIndex &&
+        prev.total === next.total &&
+        prev.prompt === next.prompt &&
+        prev.userAnswer === next.userAnswer &&
+        prev.kind === next.kind &&
+        prev.isWrong === next.isWrong &&
+        prev.revealed === next.revealed &&
+        prev.isExam === next.isExam &&
+        prev.hasCitation === next.hasCitation
+      ) {
+        return state;
+      }
+      return { assistantCardContext: next };
+    }),
 
   setSnapshot: (snapshot) => {
     const activeRun =
