@@ -99,6 +99,17 @@ export default function CourseCompanionsBar({ course, data }) {
           )}
         </div>
         <div className="sh-comp-bar__btns">
+          {isEmpty && (
+            <Button
+              size="sm"
+              variant="quiet"
+              iconEnd="arrow-right"
+              data-companion-sample-btn=""
+              onClick={() => openModal({ type: 'companion', id: 'sample-geography-sea-breeze', preview: true, title: ui('地理 · 海陆风热力环流') })}
+            >
+              {ui('一键预览示例：地理 · 海陆风')}
+            </Button>
+          )}
           {companions.length > 6 && (filtered.length > collapseCap || expanded) && (
             <Button size="sm" variant="quiet" onClick={() => setExpanded(v => !v)}>
               {expanded ? ui('收起列表') : uiFormat('展开全部 {0} 节', [formatNumber(filtered.length)])}

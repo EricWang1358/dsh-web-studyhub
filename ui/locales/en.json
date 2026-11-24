@@ -1907,5 +1907,13 @@
   "复制这一章的导图大纲提示词，可粘贴到外部 AI 进一步补全。": "Copy this chapter's mind-map outline prompt to refine with an external AI.",
   "确认整本生成复习全书？": "Generate the whole review book?",
   "确认整本生成总纲？": "Generate the whole course outline?",
-  "大教材整本生成耗时和用量较高；也可以先生成总纲，再在全书页用「只生成部分章节」按需分批生成。": "Whole-book generation on large textbooks takes more time and tokens. You can also generate the outline first, then build selected chapters in batches on the review book page."
+  "大教材整本生成耗时和用量较高；也可以先生成总纲，再在全书页用「只生成部分章节」按需分批生成。": "Whole-book generation on large textbooks takes more time and tokens. You can also generate the outline first, then build selected chapters in batches on the review book page.",
+  "一键预览示例：地理 · 海陆风": "Preview sample: Geography · Sea & Land Breeze",
+  "免配置、零消耗，直接体验昼夜温差滑块、等压面框图与自测互动（不写入学习库）。": "Zero setup, zero tokens — try the day/night thermal slider, isobaric diagram, and quick checks without modifying your library.",
+  "立即预览": "Preview now",
+  "地理 · 海陆风热力环流": "Geography · Sea & Land Breeze Thermal Circulation",
+  "高级选项": "Advanced options",
+  "交互母版 · 题库联动 · 挂载本地目录": "Archetype · Card sync · Local mount",
+  "示例预览 · 不写入学习库": "Sample preview · read-only",
+  "当前为免配置只读示例预览，互动操作与自测均在内存中运行，不会写入或改动你的学习库。": "This is a built-in read-only sample preview. Interactive sliders and quick checks run in memory and never modify your study library."
 }
