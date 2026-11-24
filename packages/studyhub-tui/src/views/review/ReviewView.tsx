@@ -2114,7 +2114,9 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                   }}
                 >
                   <Text color={theme.dim}>
-                    {t(lang, '  提示: 1-6/Space 勾选多选，Enter 提交答案', '  Hint: 1-6/Space to toggle, Enter to submit')}
+                    {mainActive
+                      ? t(lang, '  提示: 1-6/Space 勾选多选，Enter 提交答案', '  Hint: 1-6/Space to toggle, Enter to submit')
+                      : t(lang, '  提示: 按 Esc 返回题卡后选择并提交', '  Hint: Press Esc to return to card to submit')}
                   </Text>
                 </ClickableBox>
               ) : null}
@@ -2137,7 +2139,9 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                         ? asciiMode
                           ? t(lang, 'Tab 下一空 | Enter 下一空/提交 | Esc 退出', 'Tab next blank | Enter next/submit | Esc blur')
                           : t(lang, 'Tab 下一空 · Enter 下一空/提交 · Esc 退出', 'Tab next blank · Enter next/submit · Esc blur')
-                        : t(lang, '按 [i] 或 [Enter] 开始填空', 'Press [i] or [Enter] to fill blanks'),
+                        : mainActive
+                          ? t(lang, '按 [i] 或 [Enter] 开始填空', 'Press [i] or [Enter] to fill blanks')
+                          : t(lang, '按 [Esc] 返回题卡后开始填空', 'Press [Esc] to return to card to fill blanks'),
                       Math.max(10, innerW - 10),
                       asciiMode ? '...' : '…',
                     )}
@@ -2194,17 +2198,19 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
             <Box flexDirection="column" marginTop={1} width={innerW}>
               <SectionHeader
                 title={
-                  openDraft.trim()
-                    ? t(
-                        lang,
-                        '你的作答（[i] 编辑，Enter 翻看，[G] AI 按标准评分，[Space] 翻看）:',
-                        'Your answer ([i] edit, Enter reveal, [G] AI rubric grade, [Space] reveal):',
-                      )
-                    : t(
-                        lang,
-                        '你的作答（按 [i] 输入，Enter 翻看答案；或按 [Space] 直接翻看）:',
-                        'Your answer ([i] to type, Enter to reveal; or [Space] to reveal):',
-                      )
+                  !mainActive
+                    ? t(lang, '你的作答（按 [Esc] 返回题卡后编辑或翻看）:', 'Your answer (press [Esc] to return to card):')
+                    : openDraft.trim()
+                      ? t(
+                          lang,
+                          '你的作答（[i] 编辑，Enter 翻看，[G] AI 按标准评分，[Space] 翻看）:',
+                          'Your answer ([i] edit, Enter reveal, [G] AI rubric grade, [Space] reveal):',
+                        )
+                      : t(
+                          lang,
+                          '你的作答（按 [i] 输入，Enter 翻看答案；或按 [Space] 直接翻看）:',
+                          'Your answer ([i] to type, Enter to reveal; or [Space] to reveal):',
+                        )
                 }
                 width={innerW}
                 ascii={asciiMode}
@@ -2234,10 +2240,18 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
             </Box>
           ) : null}
 
-          {/* Flashcard front prompt */}
+          {/* Flashcard front prompt (#1420: avoid conflicting [Enter] hint while a drawer/modal holds focus) */}
           {kind === 'flashcard' && !isRubricEligibleKind && !revealed ? (
             <ClickableBox marginTop={1} marginLeft={computeProseLayout(innerW).marginLeft} clickActive={mainActive} onClick={() => handleReveal()}>
-              <Badge label={t(lang, '按 [Space] 或 [Enter] 翻开答案', 'Press [Space] or [Enter] to flip card')} tone="primary" variant="soft" />
+              <Badge
+                label={
+                  mainActive
+                    ? t(lang, '按 [Space] 或 [Enter] 翻开答案', 'Press [Space] or [Enter] to flip card')
+                    : t(lang, '按 [Esc] 返回题卡后翻开答案', 'Press [Esc] to return to card and flip')
+                }
+                tone={mainActive ? 'primary' : 'muted'}
+                variant="soft"
+              />
             </ClickableBox>
           ) : null}
 
