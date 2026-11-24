@@ -398,8 +398,48 @@ export const AssistantPanel = memo(function AssistantPanel({
   const executeConfirmedWrite = useCallback(
     async (intent: Extract<AssistantIntent, { kind: 'write_confirm' }>) => {
       setPendingConfirm(null);
-      beginExecution(intent.actionName === 'export.wrongbook' ? '导出错题本' : '标记错题原因');
+      beginExecution(
+        intent.actionName === 'export.wrongbook'
+          ? '导出错题本'
+          : intent.actionName === 'card.followup.add'
+            ? '保存通俗讲解'
+            : '标记错题原因',
+      );
       try {
+        if (intent.actionName === 'card.followup.add') {
+          if (!intent.params.cardId) {
+            appendTurn({
+              role: 'system',
+              stage,
+              actionSummary: t(lang, '未定位题目', 'No active question'),
+              text: t(lang, '请先打开一道题再保存讲解。', 'Open a question first to save this explanation.'),
+            });
+            return;
+          }
+          const saved = await tryAction(host, 'card.followup.add', intent.params);
+          if (!mountedRef.current) return;
+          if (saved.ok) {
+            appendTurn({
+              role: 'system',
+              stage,
+              actionSummary: t(lang, '已保存通俗讲解', 'Plain explanation saved'),
+              text: t(
+                lang,
+                '已保存通俗讲解到当前题目，下次打开可直接复用。',
+                'Saved plain explanation to this question for reuse next time.',
+              ),
+            });
+            notify(t(lang, '通俗讲解已保存', 'Plain explanation saved'), 'success');
+          } else {
+            appendTurn({
+              role: 'system',
+              stage,
+              actionSummary: t(lang, '保存失败', 'Save failed'),
+              text: saved.error?.message || t(lang, '保存通俗讲解失败，请重试。', 'Failed to save plain explanation.'),
+            });
+          }
+          return;
+        }
         if (intent.actionName === 'wrongbook.reason.set') {
           if (!intent.params.cardId) {
             appendTurn({
@@ -597,7 +637,7 @@ export const AssistantPanel = memo(function AssistantPanel({
       if (workflowPlan) {
         let plan: AssistantWorkflowPlan = workflowPlan;
         for (const step of workflowPlan.steps) {
-          if (step.intent.requiresConfirm) {
+          if (step.intent.kind === 'write_confirm') {
             setPendingConfirm(step.intent);
             appendTurn({
               role: 'system',
@@ -827,19 +867,11 @@ export const AssistantPanel = memo(function AssistantPanel({
         if (!mountedRef.current) return;
         const cleanReply = (reply || stream.text).trim();
 
-        let actionSummary = `已完成：${intent.actionName}`;
-        if (isPlainExplain && cardCtx?.cardId && cleanReply) {
-          const saved = await tryAction(host, 'card.followup.add', {
-            ...(cardCtx.deckId ? { deckId: cardCtx.deckId } : {}),
-            cardId: cardCtx.cardId,
-            question: text,
-            answer: cleanReply,
-          });
-          if (saved.ok) {
-            actionSummary = `已完成并保存：card.followup.add（${cardCtx.cardId}）`;
-            notify(t(lang, '通俗讲解已保存', 'Plain explanation saved'), 'success');
-          }
-        }
+        const actionSummary = isPlainExplain
+          ? cardCtx?.cardId && cleanReply
+            ? t(lang, '通俗讲解已生成（待确认保存）', 'Plain explanation ready (confirm to save)')
+            : t(lang, '已生成通俗讲解', 'Plain explanation ready')
+          : t(lang, '已生成回答', 'Reply ready');
 
         appendTurn({
           role: 'assistant',
@@ -847,6 +879,29 @@ export const AssistantPanel = memo(function AssistantPanel({
           actionSummary,
           text: cleanReply || t(lang, '未收到有效回复。', 'Empty reply.'),
         });
+        if (isPlainExplain && cardCtx?.cardId && cleanReply) {
+          setPendingConfirm({
+            kind: 'write_confirm',
+            actionName: 'card.followup.add',
+            params: {
+              ...(cardCtx.deckId ? { deckId: cardCtx.deckId } : {}),
+              cardId: cardCtx.cardId,
+              question: text,
+              answer: cleanReply,
+              source: 'assistant',
+              replace: true,
+              silent: true,
+            },
+            previewTitle: t(lang, '确认保存到本题讲解', 'Confirm Save Explanation'),
+            previewMessage: t(
+              lang,
+              '将把这条通俗讲解保存到当前题目的已存讲解中，方便下次直接复用。',
+              'Save this plain explanation to the current question so it can be reused next time?',
+            ),
+            paramsSummary: t(lang, '当前题 · 保存通俗讲解', 'Current question · save plain explanation'),
+            requiresConfirm: true,
+          });
+        }
         if (tab === 'guided') {
           if (stage === 'question') setStage('answer');
           else if (stage === 'answer') setStage('judge');
