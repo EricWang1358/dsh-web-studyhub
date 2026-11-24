@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Box, Text, useInput, usePaste } from 'ink';
+import { Box, Text, measureElement, useCursor, useInput, usePaste, type DOMElement } from 'ink';
 import stripAnsi from 'strip-ansi';
 import { useTheme } from '../theme/tokens.js';
 import { displayWidth, splitGraphemes } from '../render/cjk.js';
@@ -138,6 +138,18 @@ function hWindow(cells: string[], cursor: number, width: number, prevStart: numb
   return { start, end };
 }
 
+/**
+ * Positions the real terminal cursor via Ink 8's `useCursor()` while mounted so IME
+ * candidate windows follow the active TextInput (#1413). Mounting only when `isActive`
+ * guarantees an inactive sibling TextInput never clobbers the active input's cursor,
+ * and unmounting on blur/unmount automatically restores cursor hiding.
+ */
+const ActiveImeCursor = memo(function ActiveImeCursor({ x, y }: { x: number; y: number }) {
+  const { setCursorPosition } = useCursor();
+  setCursorPosition({ x, y });
+  return null;
+});
+
 export const TextInput = memo(function TextInput({
   value,
   onChange,
@@ -163,6 +175,14 @@ export const TextInput = memo(function TextInput({
   const lastValue = useRef(value);
   const hStart = useRef(0);
   const vStart = useRef(0);
+  const boxRef = useRef<DOMElement | null>(null);
+  const [origin, setOrigin] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    if (!isActive || !boxRef.current) return;
+    const m = measureElement(boxRef.current);
+    setOrigin((prev) => (prev && prev.x === m.x && prev.y === m.y ? prev : { x: m.x, y: m.y }));
+  });
 
   // External value change → clamp / move cursor to end.
   useEffect(() => {
@@ -304,6 +324,7 @@ export const TextInput = memo(function TextInput({
   const maskChar = mask === true ? (asciiMode ? '*' : '•') : typeof mask === 'string' && mask ? mask : null;
   const renderedPrompt = prompt ? normalizeAsciiChrome(prompt, asciiMode) : prompt;
   const renderedPlaceholder = placeholder ? normalizeAsciiChrome(placeholder, asciiMode) : placeholder;
+  const promptOffset = renderedPrompt ? displayWidth(renderedPrompt) + 1 : 0;
   const promptEl = renderedPrompt ? (
     <Text color={isActive ? theme.primary : theme.muted}>{`${renderedPrompt} `}</Text>
   ) : null;
@@ -313,7 +334,8 @@ export const TextInput = memo(function TextInput({
     hStart.current = 0;
     vStart.current = 0;
     return (
-      <Box width={fieldWidth + (renderedPrompt ? displayWidth(renderedPrompt) + 1 : 0)} height={multiline ? height : 1}>
+      <Box ref={boxRef} width={fieldWidth + promptOffset} height={multiline ? height : 1}>
+        {isActive && origin ? <ActiveImeCursor x={origin.x + promptOffset} y={origin.y} /> : null}
         {promptEl}
         <Text>
           {isActive ? <Text inverse>{renderedPlaceholder ? chars(renderedPlaceholder)[0] : ' '}</Text> : null}
@@ -333,6 +355,7 @@ export const TextInput = memo(function TextInput({
     const win = hWindow(display, at, fieldWidth, hStart.current);
     hStart.current = win.start;
     const before = display.slice(win.start, at).join('');
+    const beforeVisible = win.start > 0 ? chars(before).slice(1).join('') : before;
     const atChar = at < display.length ? display[at] : ' ';
     let afterCells = display.slice(at + 1, win.end);
     if (win.start > 0 && at === win.start) {
@@ -345,12 +368,14 @@ export const TextInput = memo(function TextInput({
       afterCells = afterCells.slice(0, keep);
     }
     const after = afterCells.join('');
+    const cursorLocalX = promptOffset + (win.start > 0 ? 1 : 0) + displayWidth(beforeVisible);
     return (
-      <Box height={1}>
+      <Box ref={boxRef} height={1}>
+        {isActive && origin ? <ActiveImeCursor x={origin.x + cursorLocalX} y={origin.y} /> : null}
         {promptEl}
         <Text color={theme.text} wrap="truncate">
           {win.start > 0 ? <Text color={theme.dim}>{asciiMode ? '<' : '‹'}</Text> : null}
-          {win.start > 0 ? chars(before).slice(1).join('') : before}
+          {beforeVisible}
           {isActive ? <Text inverse>{atChar}</Text> : at < display.length ? atChar : ''}
           {after}
         </Text>
@@ -372,23 +397,31 @@ export const TextInput = memo(function TextInput({
   vs = Math.max(0, Math.min(vs, Math.max(0, lines.length - rows)));
   vStart.current = vs;
 
+  const curLine = lines[curRow] ?? [];
+  const curWin = hWindow(curLine, curCol, fieldWidth, 0);
+  const multiCursorLocalX = promptOffset + displayWidth(curLine.slice(curWin.start, curCol).join(''));
+  const multiCursorLocalY = Math.max(0, curRow - vs);
+
   return (
-    <Box flexDirection="column" height={rows}>
+    <Box ref={boxRef} flexDirection="column" height={rows}>
+      {isActive && origin ? (
+        <ActiveImeCursor x={origin.x + multiCursorLocalX} y={origin.y + multiCursorLocalY} />
+      ) : null}
       {lines.slice(vs, vs + rows).map((line, i) => {
         const r = vs + i;
         const isCurRow = r === curRow;
-        const win = hWindow(line, isCurRow ? curCol : 0, fieldWidth, 0);
+        const win = isCurRow ? curWin : hWindow(line, 0, fieldWidth, 0);
         if (!isCurRow || !isActive) {
           return (
             <Box key={r} height={1}>
-              {i === 0 ? promptEl : renderedPrompt ? <Text>{' '.repeat(displayWidth(renderedPrompt) + 1)}</Text> : null}
+              {i === 0 ? promptEl : renderedPrompt ? <Text>{' '.repeat(promptOffset)}</Text> : null}
               <Text color={theme.text}>{line.slice(win.start, win.end).join('') || ' '}</Text>
             </Box>
           );
         }
         return (
           <Box key={r} height={1}>
-            {i === 0 ? promptEl : renderedPrompt ? <Text>{' '.repeat(displayWidth(renderedPrompt) + 1)}</Text> : null}
+            {i === 0 ? promptEl : renderedPrompt ? <Text>{' '.repeat(promptOffset)}</Text> : null}
             <Text color={theme.text}>
               {line.slice(win.start, curCol).join('')}
               <Text inverse>{curCol < line.length ? line[curCol] : ' '}</Text>
