@@ -514,10 +514,10 @@ export const AssistantPanel = memo(function AssistantPanel({
       sessionMemory.lastFallback = null;
       recordUsage(text);
 
-      // Guided Study Retell stage submits directly to existing `card.retell`
+      // Guided Study Retell stage submits directly to backend `teach.retell` (#1348)
       if (tab === 'guided' && stage === 'retell') {
         appendTurn({ role: 'user', stage: 'retell', text });
-        if (!cardCtx?.cardId) {
+        if (!cardCtx?.cardId || !cardCtx?.deckId) {
           appendTurn({
             role: 'system',
             stage: 'retell',
@@ -533,17 +533,24 @@ export const AssistantPanel = memo(function AssistantPanel({
             missed?: string[];
             wrong?: string[];
             gap?: string;
-          }>(host, 'card.retell', {
-            ...(cardCtx.deckId ? { deckId: cardCtx.deckId } : {}),
+            note?: string;
+          }>(host, 'teach.retell', {
+            deckId: cardCtx.deckId,
             cardId: cardCtx.cardId,
-            answer: text,
-            stage: 'retell',
+            text,
             language: lang,
           });
           if (!mountedRef.current) return;
           if (!res.ok || !res.value) {
+            const rawErr = res.error?.message?.trim() || '';
+            const isModelErr =
+              !rawErr ||
+              /model|provider|api\s*key|未配置|未就绪|模型|timeout|超时|unavailable|quota|rate\s*limit/i.test(rawErr);
+            const summaryLabel = isModelErr
+              ? t(lang, '模型暂不可用', 'Model unavailable')
+              : t(lang, '复述评估失败', 'Retell evaluation failed');
             const fb = {
-              reason: res.error?.message || t(lang, '模型暂不可用，无法在线评估复述。', 'Model unavailable for retell.'),
+              reason: rawErr || t(lang, '模型暂不可用，无法在线评估复述。', 'Model unavailable for retell.'),
               altLabel: t(lang, '改为：按 [S] 跳过复述，或按 [P] 复制提示词到外部模型', 'Alternative: [S] skip or [P] copy prompt'),
               altCommand: '查看统计',
               instruction: text,
@@ -553,7 +560,7 @@ export const AssistantPanel = memo(function AssistantPanel({
             appendTurn({
               role: 'system',
               stage: 'retell',
-              actionSummary: '模型暂不可用',
+              actionSummary: summaryLabel,
               text: `${fb.reason} ${fb.altLabel}`,
             });
             return;
@@ -572,11 +579,14 @@ export const AssistantPanel = memo(function AssistantPanel({
             ...(Array.isArray(v.right) && v.right.length ? [`讲对了：${v.right.join('；')}`] : []),
             ...(Array.isArray(v.missed) && v.missed.length ? [`漏掉了：${v.missed.join('；')}`] : []),
             ...(Array.isArray(v.wrong) && v.wrong.length ? [`讲错了：${v.wrong.join('；')}`] : []),
+            ...(typeof v.note === 'string' && v.note.trim() ? [v.note.trim()] : []),
           ];
           appendTurn({
             role: 'assistant',
             stage: 'retell',
-            actionSummary: `已完成：card.retell（stage=retell, passed=${Boolean(v.passed)}）`,
+            actionSummary: v.passed
+              ? t(lang, '复述评估已完成（已通过）', 'Retell evaluation complete (passed)')
+              : t(lang, '复述评估已完成（待补强）', 'Retell evaluation complete (needs review)'),
             text: lines.join('\n'),
             verdict: { passed: Boolean(v.passed), right: v.right ?? [], missed: v.missed ?? [], wrong: v.wrong ?? [], gap: v.gap },
           });

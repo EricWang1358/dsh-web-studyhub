@@ -695,4 +695,124 @@ describe('Round 82 Track D0 (#1315 Phase 1): Persistent AI Assistant, Guided/Ret
       h.cleanup();
     }
   });
+
+  test('4. #1348: Guided Study retell stage calls real teach.retell ({ deckId, cardId, text, language }) and labels non-model errors honestly', async () => {
+    _resetAssistantSessionMemory();
+    resetStore({
+      assistantOpen: true,
+      assistantFocused: true,
+      assistantTab: 'guided',
+      assistantStage: 'retell',
+      assistantCardContext: {
+        runId: 'r-retell-1',
+        deckId: 'd-retell',
+        cardId: 'c-retell',
+        prompt: 'TCP 拥塞控制四个阶段',
+      },
+    });
+
+    const retellCalls = [];
+    const mockHost = {
+      call: async (action, args) => {
+        retellCalls.push({ action, args });
+        if (action === 'teach.retell') {
+          return {
+            ok: true,
+            value: {
+              passed: true,
+              right: ['慢启动与拥塞避免'],
+              missed: [],
+              wrong: [],
+              gap: 'none',
+            },
+          };
+        }
+        return { ok: false, error: { message: `Unknown study action: ${action}` } };
+      },
+      getLibraryRoot: () => '/tmp',
+    };
+
+    const h = createInkHarness(
+      React.createElement(
+        Box,
+        { width: 96, height: 28 },
+        React.createElement(AssistantPanel, {
+          host: mockHost,
+          isActive: true,
+          width: 96,
+          height: 28,
+          docked: true,
+          onClose: () => {},
+        }),
+      ),
+      { cols: 96, rows: 28 },
+    );
+
+    try {
+      await h.waitFor((s) => s.includes('[复述]'));
+      h.write('i');
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('慢启动指数增长，拥塞避免线性增长');
+      await h.waitFor((s) => s.includes('慢启动指数增长'));
+      h.write('\r');
+
+      const verdictFrame = await h.waitFor((s) => s.includes('复述通过') && s.includes('慢启动与拥塞避免'));
+      assert.equal(retellCalls.length, 1);
+      assert.equal(retellCalls[0].action, 'teach.retell', 'Must call real backend action teach.retell (not card.retell)');
+      assert.equal(retellCalls[0].args.deckId, 'd-retell');
+      assert.equal(retellCalls[0].args.cardId, 'c-retell');
+      assert.equal(retellCalls[0].args.text, '慢启动指数增长，拥塞避免线性增长');
+      assert.equal(verdictFrame.includes('card.retell'), false, 'Must not leak nonexistent action name card.retell');
+      assert.equal(useTuiStore.getState().assistantStage, 'summary');
+    } finally {
+      h.cleanup();
+    }
+
+    // Error case: backend error that is NOT a model-availability error must NOT be mislabeled as "模型暂不可用"
+    _resetAssistantSessionMemory();
+    resetStore({
+      assistantOpen: true,
+      assistantFocused: true,
+      assistantTab: 'guided',
+      assistantStage: 'retell',
+      assistantCardContext: {
+        runId: 'r-retell-2',
+        deckId: 'd-retell',
+        cardId: 'c-missing',
+        prompt: 'TCP 拥塞控制',
+      },
+    });
+    const errHost = {
+      call: async () => ({ ok: false, error: { message: 'Card not found in deck' } }),
+      getLibraryRoot: () => '/tmp',
+    };
+    const hErr = createInkHarness(
+      React.createElement(
+        Box,
+        { width: 96, height: 28 },
+        React.createElement(AssistantPanel, {
+          host: errHost,
+          isActive: true,
+          width: 96,
+          height: 28,
+          docked: true,
+          onClose: () => {},
+        }),
+      ),
+      { cols: 96, rows: 28 },
+    );
+    try {
+      await hErr.waitFor((s) => s.includes('[复述]'));
+      hErr.write('i');
+      await new Promise((r) => setTimeout(r, 30));
+      hErr.write('我的复述内容');
+      await hErr.waitFor((s) => s.includes('我的复述内容'));
+      hErr.write('\r');
+      const errFrame = await hErr.waitFor((s) => s.includes('Card not found in deck'));
+      assert.equal(errFrame.includes('模型暂不可用'), false, 'Non-model backend error must not be mislabeled as 模型暂不可用');
+      assert.ok(errFrame.includes('复述评估失败'), 'Should label non-model failure honestly as 复述评估失败');
+    } finally {
+      hErr.cleanup();
+    }
+  });
 });
