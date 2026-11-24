@@ -1295,7 +1295,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       }
       if (key.escape && filterQuery) {
         setFilterQuery('');
-        return;
+        return true;
       }
       if (input === '/' && !key.ctrl && !key.meta) {
         setFilterEditing(true);

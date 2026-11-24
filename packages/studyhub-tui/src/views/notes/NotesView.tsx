@@ -971,11 +971,11 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
       }
       if ((key.leftArrow || input === 'h' || key.escape) && activePane === 'right') {
         setActivePane('left');
-        return;
+        return true;
       }
       if (key.escape && filterQuery) {
         setFilterQuery('');
-        return;
+        return true;
       }
       if (input === '/' && !key.ctrl && !key.meta) {
         setFilterEditing(true);

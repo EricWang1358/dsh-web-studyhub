@@ -897,7 +897,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       if (modalOpen || filterOpen) return;
       if (key.escape && filterQuery && tab !== 'mock') {
         handleFilterClear();
-        return;
+        return true;
       }
       if (input === '/' && !key.ctrl && !key.meta && canFilter) {
         setFocusPane('left');

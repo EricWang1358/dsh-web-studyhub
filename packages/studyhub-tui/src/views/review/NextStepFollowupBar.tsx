@@ -355,7 +355,7 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
         resetStreaming();
         setStreaming(false);
         setExpanded(false);
-        return;
+        return true;
       }
       if (key.ctrl || key.meta) return;
       if (input === NEXT_STEP_ACTIVATION_KEY || input === 'i' || key.return) {

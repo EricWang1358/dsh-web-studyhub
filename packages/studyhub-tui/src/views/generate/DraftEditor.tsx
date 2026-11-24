@@ -468,6 +468,19 @@ export const DraftEditor = memo(function DraftEditor({
     }
   }, [busy, draft, lang, lastRemoved, normalizedFilter, saveDraftCards]);
 
+  // #1429: single save path for the edit-card modal, shared by the modal's Ctrl+S handler and
+  // both multi-line TextInputs (via onSubmit). Before this, the inputs sat at a higher key layer
+  // than the view handler and swallowed Ctrl+S, so saving a card edit did nothing.
+  const saveEditCard = useCallback(() => {
+    if (!draft || !selectedCard || selectedOriginalIndex < 0 || busy) return;
+    const next = draft.cards.map((c, idx) =>
+      idx === selectedOriginalIndex ? { ...c, prompt: editPrompt, explanation: editExplanation } : c,
+    );
+    setConfirmDiscardEdit(false);
+    setOverlay('none');
+    void saveDraftCards(next, t(lang, '题目修改已保存', 'Card updated'));
+  }, [busy, draft, editExplanation, editPrompt, lang, saveDraftCards, selectedCard, selectedOriginalIndex]);
+
   const checkSimilar = useCallback(async () => {
     if (!draft || busy) return;
     setBusy(true);
@@ -706,13 +719,8 @@ export const DraftEditor = memo(function DraftEditor({
       if (overlay === 'edit-card') {
         if (key.ctrl && input === 'n') {
           setEditField((f) => (f === 'prompt' ? 'explanation' : 'prompt'));
-        } else if (key.ctrl && input === 's' && draft && selectedCard && selectedOriginalIndex >= 0) {
-          const next = draft.cards.map((c, idx) =>
-            idx === selectedOriginalIndex ? { ...c, prompt: editPrompt, explanation: editExplanation } : c,
-          );
-          setConfirmDiscardEdit(false);
-          setOverlay('none');
-          void saveDraftCards(next, t(lang, '题目修改已保存', 'Card updated'));
+        } else if (key.ctrl && input === 's') {
+          saveEditCard();
         }
         return;
       }
@@ -737,7 +745,7 @@ export const DraftEditor = memo(function DraftEditor({
 
       if (key.escape && filterQuery) {
         setFilterQuery('');
-        return;
+        return true;
       }
 
       if (input === 'd' && draftsList.length > 0) {
@@ -1120,6 +1128,7 @@ export const DraftEditor = memo(function DraftEditor({
             value={editPrompt}
             onChange={setEditPrompt}
             onCancel={requestCloseEditCard}
+            onSubmit={saveEditCard}
             multiline
             height={4}
             width={modalContentWidth(72) - 4}
@@ -1134,6 +1143,7 @@ export const DraftEditor = memo(function DraftEditor({
             value={editExplanation}
             onChange={setEditExplanation}
             onCancel={requestCloseEditCard}
+            onSubmit={saveEditCard}
             multiline
             height={5}
             width={modalContentWidth(72) - 4}

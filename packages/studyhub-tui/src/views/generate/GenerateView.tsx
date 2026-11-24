@@ -609,7 +609,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
       if (key.escape && filterQuery) {
         setFilterQuery('');
         setSourceCursor(0);
-        return;
+        return true;
       }
 
       if (input === '/' && !key.ctrl && !key.meta) {

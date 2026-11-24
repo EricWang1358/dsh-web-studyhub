@@ -471,7 +471,7 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
       // Detail pane shortcuts
       if (key.escape || (key.leftArrow && activeRoute.kind !== 'preset')) {
         setPane('routes');
-        return;
+        return true;
       }
 
       if (activeRoute.kind === 'agy') {

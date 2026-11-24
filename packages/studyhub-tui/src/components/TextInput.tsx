@@ -236,7 +236,12 @@ export const TextInput = memo(function TextInput({
         return true;
       }
       if (key.ctrl && input === 's' && multiline) {
-        onSubmit?.(value);
+        // #1429: Ctrl+S is the save key on every page that shows the multi-line editor.
+        // Only claim it when this input actually owns the submit action; otherwise let it
+        // fall through to the owning view/modal (e.g. DraftEditor's edit-card save) instead
+        // of silently swallowing the key while the footer still advertises "Ctrl+S 保存".
+        if (!onSubmit) return false;
+        onSubmit(value);
         return true;
       }
       if (key.tab) {

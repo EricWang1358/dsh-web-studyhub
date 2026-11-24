@@ -1298,7 +1298,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
       if (key.escape && filterQuery) {
         setFilterQuery('');
         setSelectedIndex(0);
-        return;
+        return true;
       }
       if (input === '/' && !key.ctrl && !key.meta) {
         setFilterEditing(true);

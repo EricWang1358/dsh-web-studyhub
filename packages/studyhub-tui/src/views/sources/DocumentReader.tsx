@@ -1742,7 +1742,7 @@ export const DocumentReader = memo(function DocumentReader({
           resetTranslation();
           onClose();
         }
-        return;
+        return true;
       }
       if (subMode === 'ask-view') {
         if (input === 's' && !aiBusy) {

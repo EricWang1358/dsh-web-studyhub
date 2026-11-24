@@ -376,7 +376,7 @@ export const GeneratePathModal = memo(function GeneratePathModal({
       if (!modalActive) return;
       if (key.escape || (!key.ctrl && !key.meta && input === 'q')) {
         onClose();
-        return;
+        return true;
       }
       if (key.downArrow || (!key.ctrl && !key.meta && input === 'j')) {
         setCursor((c) => Math.min(Math.max(0, steps.length - 1), c + 1));

@@ -113,7 +113,7 @@ export const ExamReportView = memo(function ExamReportView({
       if (busy) return;
       if (input === 'b' || key.escape) {
         onBack();
-        return;
+        return true;
       }
       if ((input === 'w' || input === 'p') && weakScope.length > 0) {
         onPracticeWeak(weakScope);

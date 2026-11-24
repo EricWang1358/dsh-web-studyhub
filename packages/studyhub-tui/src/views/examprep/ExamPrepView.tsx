@@ -580,7 +580,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
       if (modalOpen || filterEditing) return;
       if (key.escape && tab === 'focus' && filterQuery) {
         setFilterQuery('');
-        return;
+        return true;
       }
       if (input === '/' && !key.ctrl && !key.meta && tab === 'focus') {
         setFilterEditing(true);

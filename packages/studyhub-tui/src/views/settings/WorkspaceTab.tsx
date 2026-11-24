@@ -526,7 +526,7 @@ const RetrievalDiagModal = memo(function RetrievalDiagModal({
     (input, key) => {
       if (key.escape || input === 'q') {
         onClose();
-        return;
+        return true;
       }
       if (subBusy) return;
       if (input === 's') {
@@ -889,7 +889,7 @@ const ReleaseUpdateModal = memo(function ReleaseUpdateModal({
     (input, key) => {
       if (key.escape || input === 'q') {
         onClose();
-        return;
+        return true;
       }
       if (input === 'r') {
         onRefresh();
@@ -1069,7 +1069,7 @@ const UsageReportModal = memo(function UsageReportModal({
     (input, key) => {
       if (key.escape || input === 'q') {
         onClose();
-        return;
+        return true;
       }
       if (input === '1') {
         onSelectPeriod(7);
@@ -1290,7 +1290,7 @@ const LibraryContextModal = memo(function LibraryContextModal({
     (input, key) => {
       if (key.escape || input === 'q') {
         onClose();
-        return;
+        return true;
       }
       if (input === 'r') {
         onRefresh();

@@ -739,7 +739,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
       if (key.escape && filterQuery) {
         setFilterQuery('');
         setSelectedIdx(0);
-        return;
+        return true;
       }
       if (input === '/' && !key.ctrl && !key.meta) {
         setFilterOpen(true);

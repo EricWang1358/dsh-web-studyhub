@@ -658,7 +658,7 @@ export const RoundSummary = memo(function RoundSummary({
     (input, key) => {
       if (isNarrow && previewExpanded && (key.escape || key.leftArrow)) {
         setPreviewExpanded(false);
-        return;
+        return true;
       }
       if ((key.return || input === ' ' || input === 'v') && selectedRow) {
         setDetailScrollTop(0);

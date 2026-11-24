@@ -873,12 +873,12 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       }
       if (key.leftArrow || (key.escape && narrowLayout && activePane === 'right')) {
         setActivePane('left');
-        return;
+        return true;
       }
       if (key.escape && filterQuery) {
         setFilterQuery('');
         setSelectedIdx(0);
-        return;
+        return true;
       }
       if (input === '/' && !key.ctrl && !key.meta) {
         setActivePane('left');

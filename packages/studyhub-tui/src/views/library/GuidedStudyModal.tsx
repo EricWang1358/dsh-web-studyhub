@@ -1145,7 +1145,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
       if (subMode === 'artifact-form') {
         if (key.escape) {
           handleCancelArtifactForm();
-          return;
+          return true;
         }
         if (key.tab) {
           setArtifactField((prev) => (prev === 'title' ? 'kind' : prev === 'kind' ? 'markdown' : 'title'));
@@ -1184,7 +1184,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
       if (subMode === 'qa-form') {
         if (key.escape) {
           handleCancelQaForm();
-          return;
+          return true;
         }
         if (key.tab) {
           setQaField((prev) => (prev === 'question' ? 'answer' : 'question'));
@@ -1203,14 +1203,16 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
       if (subMode === 'branch-pick') {
         if (key.escape || input === 'b') {
           setSubMode(branchReturnSubMode);
+          return true;
         }
+        // Do NOT claim other keys: the picker's SelectList sits at a lower layer and needs them.
         return;
       }
 
       if (subMode === 'artifact') {
         if (key.escape || input === 'b') {
           setSubMode('workbench');
-          return;
+          return true;
         }
         if (key.tab) {
           setSubMode('sessions');

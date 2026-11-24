@@ -387,7 +387,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
         resetStreaming();
         setStreaming(false);
         onClose();
-        return;
+        return true;
       }
       if (input === 'i' || key.return) {
         setInputFocused(true);

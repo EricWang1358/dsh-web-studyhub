@@ -1684,7 +1684,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
       if (key.escape && filterQuery) {
         setFilterQuery('');
         setSelectedIndex(0);
-        return;
+        return true;
       }
       if (input === '/' && !key.ctrl && !key.meta) {
         setFilterEditing(true);
