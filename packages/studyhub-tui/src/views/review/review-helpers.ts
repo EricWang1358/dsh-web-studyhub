@@ -354,6 +354,31 @@ export function extractSolution(run: ReviewRun | null | undefined): CardSolution
   return raw as CardSolutionShape;
 }
 
+/**
+ * Extract saved AI follow-ups from both `run.solution.followups` (after reveal) and
+ * top-level `run.followups` (projected before reveal by `lib/study-state.js` for non-exam runs, #1335).
+ */
+export function extractSavedFollowups(
+  run: ReviewRun | null | undefined,
+): Array<{ id?: string; question?: string; answer?: string; at?: string }> {
+  if (!run || run.mode === 'exam') return [];
+  const solFollowups = extractSolution(run)?.followups;
+  const topFollowups = Array.isArray((run as { followups?: unknown }).followups)
+    ? ((run as { followups?: Array<{ id?: string; question?: string; answer?: string; at?: string }> }).followups ?? [])
+    : [];
+  const primary = Array.isArray(solFollowups) && solFollowups.length > 0 ? solFollowups : topFollowups;
+  const secondary = primary === solFollowups ? topFollowups : [];
+  if (secondary.length === 0) return [...primary];
+  const seen = new Set(primary.map((f) => f?.id).filter(Boolean));
+  const merged: Array<{ id?: string; question?: string; answer?: string; at?: string }> = [...primary];
+  for (const item of secondary) {
+    if (!item || (item.id && seen.has(item.id))) continue;
+    if (item.id) seen.add(item.id);
+    merged.push(item);
+  }
+  return merged;
+}
+
 export function extractReferenceAnswer(
   run: ReviewRun | null | undefined,
   kind: NormalizedKind,

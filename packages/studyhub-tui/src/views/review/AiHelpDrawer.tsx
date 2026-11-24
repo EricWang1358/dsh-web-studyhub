@@ -18,7 +18,7 @@ import {
   buildCardHelpSystemPrompt,
   buildCardHelpUserPrompt,
   currentDeckIdOf,
-  extractSolution,
+  extractSavedFollowups,
   type AiTurn,
   type NormalizedKind,
 } from './review-helpers.js';
@@ -137,7 +137,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
   }, [cardId, resetStreaming]);
 
   const savedTurns = useMemo(() => {
-    const solFollowups = extractSolution(run)?.followups ?? [];
+    const solFollowups = extractSavedFollowups(run);
     const merged: Array<{ id?: string; question?: string; answer?: string }> = [...solFollowups];
     if (extraSavedFollowups && extraSavedFollowups.length > 0) {
       const seen = new Set(solFollowups.map((f) => f.id).filter(Boolean));

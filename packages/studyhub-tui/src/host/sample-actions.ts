@@ -261,6 +261,7 @@ export interface ReviewRun {
   closed?: boolean;
   revealed?: boolean;
   feedback?: Record<string, unknown> | null;
+  followups?: Array<{ id?: string; question?: string; answer?: string; at?: string }>;
   entry?: { cardId?: string; card?: { id: string; kind?: string; [k: string]: unknown }; [k: string]: unknown } | null;
   queueVersion?: number;
   [k: string]: unknown;

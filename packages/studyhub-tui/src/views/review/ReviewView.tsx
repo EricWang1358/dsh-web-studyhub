@@ -47,6 +47,7 @@ import {
   extractCitation,
   extractFeedback,
   extractReferenceAnswer,
+  extractSavedFollowups,
   extractSolution,
   extractUserAnswerText,
   formatClozeDisplay,
@@ -1701,16 +1702,16 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
   }, []);
 
   const savedFollowupCount = useMemo(() => {
-    const sol = solution?.followups ?? [];
+    const persisted = extractSavedFollowups(run);
     const extra = cardId ? savedFollowupsByCard[cardId] ?? [] : [];
-    if (extra.length === 0) return sol.length;
-    const seen = new Set(sol.map((f) => f.id).filter(Boolean));
-    let count = sol.length;
+    if (extra.length === 0) return persisted.length;
+    const seen = new Set(persisted.map((f) => f.id).filter(Boolean));
+    let count = persisted.length;
     for (const item of extra) {
       if (!item.id || !seen.has(item.id)) count += 1;
     }
     return count;
-  }, [solution, cardId, savedFollowupsByCard]);
+  }, [run, cardId, savedFollowupsByCard]);
 
   const stemMarkdown = useMemo(() => {
     if (!run) return '';
@@ -2194,6 +2195,23 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
             </ClickableBox>
           ) : null}
 
+          {/* Saved AI Explanations Hint before reveal (#1335) */}
+          {!(revealed || activeRubric || gradingBusy || gradeError) && savedFollowupCount > 0 && run.mode !== 'exam' ? (
+            <ClickableBox
+              marginTop={1}
+              clickActive={mainActive}
+              onClick={() => setAiDrawerOpen(true)}
+            >
+              <Text color={theme.ai}>
+                {`${asciiMode ? '*' : '✦'} ${t(
+                  lang,
+                  `已存讲解 ${savedFollowupCount} 条，按 [h] 查看`,
+                  `${savedFollowupCount} saved explanation(s) — press [h] to view`,
+                )}`}
+              </Text>
+            </ClickableBox>
+          ) : null}
+
           {/* Post-Reveal / Post-Answer / Rubric Grading Panel */}
           {revealed || activeRubric || gradingBusy || gradeError ? (
             <Box flexDirection="column" marginTop={1} width={innerW} flexGrow={1} overflow="hidden">
@@ -2495,8 +2513,8 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                 </ClickableBox>
               ) : null}
 
-              {/* Saved AI Explanations Hint */}
-              {revealed && savedFollowupCount > 0 ? (
+              {/* Saved AI Explanations Hint (shown before and after reveal in non-exam mode, #1335) */}
+              {savedFollowupCount > 0 && run.mode !== 'exam' ? (
                 <ClickableBox
                   marginTop={0}
                   clickActive={mainActive}

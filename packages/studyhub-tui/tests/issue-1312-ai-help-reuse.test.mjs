@@ -300,4 +300,70 @@ describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () =>
       hStandalone.cleanup();
     }
   });
+
+  test('3. #1335: Unrevealed card (before flip) with run.followups shows saved hint and reuses saved explanation with 0 model calls', async () => {
+    resetStore();
+    let modelCalls = 0;
+
+    // Exact shape produced by lib/study-state.js:511-512 when entry.revealed is false:
+    // run.followups is populated (non-exam mode), while run.solution is absent.
+    const unrevealedRun = {
+      id: 'run-unrevealed-1335',
+      deckId: 'deck-u1',
+      mode: 'practice',
+      title: 'Design Patterns',
+      index: 0,
+      total: 2,
+      answered: 0,
+      revealed: false,
+      card: {
+        id: 'card-unrevealed-1335',
+        deckId: 'deck-u1',
+        kind: 'single',
+        prompt: 'Which pattern captures and restores internal state without violating encapsulation?',
+        options: [
+          { id: 'A', text: 'Memento' },
+          { id: 'B', text: 'Bridge' },
+        ],
+      },
+      followups: [
+        {
+          id: 'fu-before-flip-1',
+          question: '请先给我一点解题启发和思路提示',
+          answer: 'SAVED_HINT_BEFORE_FLIP_1335',
+        },
+      ],
+    };
+
+    const mockHost = {
+      call: async (name) => {
+        if (name === 'review.start' || name === 'study.start') return { ok: true, value: unrevealedRun };
+        return { ok: true, value: {} };
+      },
+      streamComplete: async () => {
+        modelCalls += 1;
+        return `UNEXPECTED_MODEL_CALL_${modelCalls}`;
+      },
+      getSnapshot: async () => ({ courses: [], decks: [], jobs: [] }),
+    };
+
+    const h = createInkHarness(
+      React.createElement(ReviewView, { host: mockHost, width: 120, height: 28, isActive: true }),
+      { cols: 120, rows: 28 },
+    );
+
+    try {
+      const reviewFrame = await h.waitFor((s) => s.includes('已存讲解 1 条，按 [h] 查看'));
+      assert.ok(reviewFrame.includes('已存讲解 1 条，按 [h] 查看'), 'Card must show saved explanation hint before flip');
+
+      // Open drawer before flipping -> must reuse run.followups with 0 model calls
+      h.write('h');
+      const drawerFrame = await h.waitFor((s) => s.includes('SAVED_HINT_BEFORE_FLIP_1335'));
+      await new Promise((r) => setTimeout(r, 80));
+      assert.equal(modelCalls, 0, 'Opening AiHelpDrawer before flip must reuse run.followups with 0 model calls');
+      assert.ok(drawerFrame.includes('已复用讲解'), 'Drawer must show reused badge before flip');
+    } finally {
+      h.cleanup();
+    }
+  });
 });
