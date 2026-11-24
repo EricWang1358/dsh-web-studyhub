@@ -190,7 +190,9 @@ export function useAiConversation({
           },
         });
         if (!mountedRef.current || ctrl.signal.aborted) {
-          if (mountedRef.current && ctrl.signal.aborted) setStatus('aborted');
+          // Only the call still owning `abortRef` may publish status (#1453): a superseded call
+          // settles after a newer `send()` already started streaming, and must not overwrite it.
+          if (mountedRef.current && ctrl.signal.aborted && abortRef.current === ctrl) setStatus('aborted');
           return false;
         }
         const flushed = finishStreaming();
@@ -205,7 +207,7 @@ export function useAiConversation({
         return true;
       } catch (err) {
         if (!mountedRef.current || ctrl.signal.aborted) {
-          if (mountedRef.current && ctrl.signal.aborted) setStatus('aborted');
+          if (mountedRef.current && ctrl.signal.aborted && abortRef.current === ctrl) setStatus('aborted');
           return false;
         }
         const flushed = finishStreaming();

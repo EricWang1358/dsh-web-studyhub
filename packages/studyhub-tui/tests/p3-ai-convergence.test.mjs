@@ -47,6 +47,16 @@ function renderDebug(element, cols = 80, rows = 24) {
   };
 }
 
+/** Ink/React applies hook state on its own scheduler; poll instead of racing a fixed sleep. */
+async function waitFor(predicate, timeoutMs = 2000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (predicate()) return true;
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  return false;
+}
+
 describe('P3 (#1354 D7): Unified AI Dialogue, Prompts, useAiConversation & <AiConversation>', () => {
   test('1. Static guardrail: all 6 AI dialogue surfaces share host/ai-dialogue.ts with zero scattered system prompts', () => {
     const promptConsumers = [
@@ -80,11 +90,13 @@ describe('P3 (#1354 D7): Unified AI Dialogue, Prompts, useAiConversation & <AiCo
     );
     assert.match(compCode, /buildCompanionUserPrompt/, 'CompanionsModal.tsx must use buildCompanionUserPrompt()');
 
+    // AssistantPanel keeps its pre-convergence single-segment prompt copy (#1453 review): the
+    // multi-turn `messages` rewrite is owned by #1447, so this branch must not ship a competing builder.
     const assistantCode = fs.readFileSync(path.join(srcDir, 'shell/AssistantPanel.tsx'), 'utf8');
-    assert.match(
+    assert.doesNotMatch(
       assistantCode,
       /buildAssistantTurnUserPrompt/,
-      'AssistantPanel.tsx must use buildAssistantTurnUserPrompt() instead of hand-assembling prompt arrays',
+      'AssistantPanel.tsx must not use buildAssistantTurnUserPrompt() (#1447 owns multi-turn there)',
     );
   });
 
@@ -126,7 +138,6 @@ describe('P3 (#1354 D7): Unified AI Dialogue, Prompts, useAiConversation & <AiCo
       lastPage: 20,
       pageText: 'Virtual memory maps virtual pages to physical frames.',
       question: 'What is a page table?',
-      lang: 'en',
     });
     assert.ok(readerPrompt.includes('OS Slides') && readerPrompt.includes('Page 4/20') && readerPrompt.includes('What is a page table?'));
 
@@ -134,18 +145,8 @@ describe('P3 (#1354 D7): Unified AI Dialogue, Prompts, useAiConversation & <AiCo
       title: 'Binary Trees',
       summaryContext: 'Slide 1: Tree traversal',
       question: 'Why inorder for BST?',
-      lang: 'zh',
     });
     assert.ok(companionPrompt.includes('Binary Trees') && companionPrompt.includes('Why inorder for BST?'));
-
-    const assistantPrompt = ai.buildAssistantTurnUserPrompt({
-      cardPrompt: 'Explain deadlock',
-      userAnswer: 'Circular wait',
-      history: [{ role: 'user', text: 'Hi' }, { role: 'assistant', text: 'Hello' }],
-      question: 'Give an example',
-      lang: 'zh',
-    });
-    assert.ok(assistantPrompt.includes('Explain deadlock') && assistantPrompt.includes('Give an example'));
 
     // Scope key combines id + content digest (#1354 D7)
     const k1 = ai.buildConversationScopeKey('card-1', 'Original prompt');
@@ -206,8 +207,7 @@ describe('P3 (#1354 D7): Unified AI Dialogue, Prompts, useAiConversation & <AiCo
         system: 'sys',
         buildPrompt: (q) => q,
       });
-      await new Promise((r) => setTimeout(r, 20));
-      assert.equal(api.status, 'done');
+      assert.equal(await waitFor(() => api.status === 'done'), true, `expected done, got ${api.status}`);
       assert.equal(api.turns.length, 2);
       assert.equal(api.turns[0].text, 'Explain TCP');
       assert.equal(api.turns[1].text, 'Part 1 Part 2');
@@ -220,8 +220,7 @@ describe('P3 (#1354 D7): Unified AI Dialogue, Prompts, useAiConversation & <AiCo
         system: 'sys',
         buildPrompt: (q) => q,
       });
-      await new Promise((r) => setTimeout(r, 20));
-      assert.equal(api.status, 'error');
+      assert.equal(await waitFor(() => api.status === 'error'), true, `expected error, got ${api.status}`);
       assert.match(api.errorText || '', /upstream 503/);
       assert.equal(api.turns.at(-1)?.text, 'Partial insight');
 
@@ -235,7 +234,7 @@ describe('P3 (#1354 D7): Unified AI Dialogue, Prompts, useAiConversation & <AiCo
       await new Promise((r) => setTimeout(r, 15));
       api.abort();
       await pending;
-      await new Promise((r) => setTimeout(r, 20));
+      assert.equal(await waitFor(() => api.status === 'aborted'), true, `expected aborted, got ${api.status}`);
       assert.equal(abortObserved, true, 'abort() must trigger AbortSignal on in-flight streamComplete');
       assert.equal(api.status, 'aborted');
       assert.equal(api.streaming, false);

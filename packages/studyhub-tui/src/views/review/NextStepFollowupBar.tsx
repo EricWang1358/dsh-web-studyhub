@@ -19,6 +19,7 @@ import {
   buildUnifiedAiSystemPrompt,
   canExposeReferenceAnswer,
   persistCardQaToFollowupAndNote,
+  type DialogueTurn,
 } from '../../host/ai-dialogue.js';
 import { AiConversation } from '../../components/AiConversation.js';
 import { Badge, Spinner } from '../../components/Badge.js';
@@ -155,6 +156,12 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
   const [inputFocused, setInputFocused] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [savingNote, setSavingNote] = useState(false);
+  // Lifted per-(card+tool) transcript. Kept in the component (not inside the hook's scope map) so
+  // leaving a card and coming back starts from an empty bar again, as before #1354 (#1453 review).
+  const [historyTurns, setHistoryTurns] = useState<DialogueTurn[]>([]);
+  const handleHistoryChange = useCallback((_scopeKey: string, nextTurns: DialogueTurn[]) => {
+    setHistoryTurns(nextTurns);
+  }, []);
 
   const mountedRef = useRef(true);
   const conversation = useAiConversation({
@@ -162,6 +169,8 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
     scopeKey: `${cardId}\0${toolLabel}`,
     lang,
     maxTurns: MAX_AI_TURNS,
+    history: historyTurns,
+    onHistoryChange: handleHistoryChange,
   });
   const {
     turns,
@@ -193,11 +202,13 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
     };
   }, [onFocusChange]);
 
-  // Reset UI expansion state when card or tool changes (conversation hook handles stream/scope reset).
+  // Reset UI expansion state and the transcript when card or tool changes (the hook aborts the
+  // in-flight stream and resets its scope on the same change).
   useEffect(() => {
     setExpanded(false);
     setInputFocused(false);
     setInputValue('');
+    setHistoryTurns([]);
   }, [cardId, toolLabel]);
 
   const sendInstruction = useCallback(

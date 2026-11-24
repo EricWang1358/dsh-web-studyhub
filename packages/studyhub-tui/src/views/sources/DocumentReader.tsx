@@ -1086,7 +1086,6 @@ export const DocumentReader = memo(function DocumentReader({
             lastPage: pageData.lastPage,
             pageText: pageData.text,
             question: q,
-            lang,
           });
           const final = await host.streamComplete({
             system,

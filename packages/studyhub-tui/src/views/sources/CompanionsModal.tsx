@@ -1092,7 +1092,6 @@ export const CompanionsModal = memo(function CompanionsModal({
             title: compTitle,
             summaryContext,
             question: q,
-            lang,
           });
           const final = await host.streamComplete({
             system,

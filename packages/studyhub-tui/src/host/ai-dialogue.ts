@@ -92,9 +92,9 @@ export function buildUnifiedAiSystemPrompt(
       case 'guided':
         return `You are StudyHub Guided Study Tutor (current stage: ${opts?.stageLabel || 'Guided'}). Reply in concise sentences focusing on one point at a time; never repeat the user prompt.`;
       case 'reader_page':
-        return 'You are the StudyHub reading tutor. Answer based strictly on the provided page text; clearly mark any general background knowledge. Output concise Markdown.';
+        return 'You are the StudyHub terminal tutor. Answer based strictly on the provided page text; clearly mark any general background knowledge. Output concise Markdown.';
       case 'companion':
-        return 'You are the StudyHub companion tutor. Answer the learner question concisely in Markdown and LaTeX using the interactive companion context.';
+        return 'You are the StudyHub Interactive Companion tutor. Answer the learner question concisely in Markdown using the companion context.';
       case 'assistant':
       default:
         return 'You are the StudyHub TUI assistant. Reply concisely; never repeat the user prompt.';
@@ -110,9 +110,9 @@ export function buildUnifiedAiSystemPrompt(
     case 'guided':
       return `你是 StudyHub 带学导师，当前阶段「${opts?.stageLabel || '带学'}」。中文短句，一次聚焦一个点，不复述用户原话。`;
     case 'reader_page':
-      return '你是 StudyHub 阅读助教。请严格基于提供的当前页面内容回答用户问题；如需补充通用背景，请明确标注。使用简洁 Markdown 输出。';
+      return '你是 StudyHub 终端助教。请严格基于提供的当前页面内容回答用户问题；如需补充通用背景，请明确标注。使用简洁 Markdown 输出。';
     case 'companion':
-      return '你是 StudyHub 伴学导师。请基于伴学课内容与结构简洁回答学习者的困惑，使用 Markdown 与 LaTeX 数学公式。';
+      return '你是 StudyHub 交互伴学导师。请基于伴学课内容与结构简洁回答学习者的困惑，使用 Markdown 与 LaTeX 数学公式。';
     case 'assistant':
     default:
       return '你是 StudyHub 学习助手，中文短句直接给答案或步骤，不复述用户原话。';
@@ -214,90 +214,33 @@ export function buildCardDialogueUserPrompt(params: CardDialoguePromptParams): s
   return lines.join('\n\n');
 }
 
-/** Canonical page-reading Q&A user prompt builder for `DocumentReader` (#1354 D7). */
+/**
+ * Canonical page-reading Q&A user prompt builder for `DocumentReader` (#1354 D7).
+ * Copy is intentionally byte-identical to the pre-convergence inline prompt (#1453 review).
+ */
 export function buildReaderPageUserPrompt(params: {
   title: string;
   page: number;
   lastPage: number;
   pageText: string;
   question: string;
-  history?: readonly DialogueTurn[];
   maxChars?: number;
-  lang: UiLanguage;
 }): string {
-  const { title, page, lastPage, pageText, question, history, maxChars = 14000, lang } = params;
-  const en = lang === 'en';
-  const lines: string[] = [
-    `Document: ${title} (Page ${page}/${lastPage})`,
-    `--- PAGE TEXT ---\n${pageText.slice(0, maxChars)}\n--- END ---`,
-  ];
-  if (history && history.length > 0) {
-    lines.push(en ? 'Prior Conversation:' : '此前对话:');
-    for (const turn of history.slice(-8)) {
-      lines.push(`${turn.role === 'user' ? (en ? 'Student' : '学生') : en ? 'Tutor' : '助教'}: ${turn.text}`);
-    }
-  }
-  lines.push(`${en ? 'Question' : '问题'}: ${question}`);
-  return lines.join('\n\n');
+  const { title, page, lastPage, pageText, question, maxChars = 14000 } = params;
+  return `Document: ${title} (Page ${page}/${lastPage})\n\n--- PAGE TEXT ---\n${pageText.slice(0, maxChars)}\n--- END ---\n\nQuestion: ${question}`;
 }
 
-/** Canonical interactive companion Q&A user prompt builder for `CompanionsModal` (#1354 D7). */
+/**
+ * Canonical interactive companion Q&A user prompt builder for `CompanionsModal` (#1354 D7).
+ * Copy is intentionally byte-identical to the pre-convergence inline prompt (#1453 review).
+ */
 export function buildCompanionUserPrompt(params: {
   title: string;
   summaryContext: string;
   question: string;
-  history?: readonly DialogueTurn[];
-  lang: UiLanguage;
 }): string {
-  const { title, summaryContext, question, history, lang } = params;
-  const en = lang === 'en';
-  const lines: string[] = [`Companion: ${title}`];
-  if (summaryContext.trim()) lines.push(summaryContext.trim());
-  if (history && history.length > 0) {
-    lines.push(en ? 'Prior Conversation:' : '此前对话:');
-    for (const turn of history.slice(-8)) {
-      lines.push(`${turn.role === 'user' ? (en ? 'Student' : '学生') : en ? 'Tutor' : '助教'}: ${turn.text}`);
-    }
-  }
-  lines.push(`${en ? 'Learner Question' : '学习者问题'}: ${question}`);
-  return lines.join('\n\n');
-}
-
-/** Canonical assistant-panel user prompt builder for `AssistantPanel` (#1354 D7). */
-export function buildAssistantTurnUserPrompt(params: {
-  cardPrompt?: string;
-  userAnswer?: string;
-  history?: ReadonlyArray<{ role: string; text: string }>;
-  question: string;
-  maxHistoryTurns?: number;
-  maxTurnChars?: number;
-  lang: UiLanguage;
-}): string {
-  const {
-    cardPrompt,
-    userAnswer,
-    history,
-    question,
-    maxHistoryTurns = 6,
-    maxTurnChars = 300,
-    lang,
-  } = params;
-  const en = lang === 'en';
-  const recent =
-    history && history.length > 0
-      ? history
-          .slice(-maxHistoryTurns)
-          .map((x) => `${x.role}: ${x.text.slice(0, maxTurnChars)}`)
-          .join('\n')
-      : '';
-  return [
-    cardPrompt ? `${en ? 'Current Question' : '当前题目'}：${cardPrompt}` : '',
-    userAnswer ? `${en ? 'My Answer' : '我的作答'}：${userAnswer}` : '',
-    recent ? `${en ? 'Recent Context' : '近期上下文'}：\n${recent}` : '',
-    `${en ? 'Instruction' : '指令'}：${question}`,
-  ]
-    .filter(Boolean)
-    .join('\n\n');
+  const { title, summaryContext, question } = params;
+  return `Companion: ${title}\n\n${summaryContext}\n\nLearner Question: ${question}`;
 }
 
 export interface PersistCardQaParams {
