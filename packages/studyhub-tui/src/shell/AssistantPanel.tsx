@@ -18,7 +18,9 @@ import { Box, Text, useInput, useStdout, useWindowSize } from 'ink';
 import { PAGE_REGISTRY, type HostClient, type PageId, type UiLanguage } from '../types/contracts.js';
 import { t, useTuiStore, type AssistantCardContext, type AssistantTabId } from '../state/store.js';
 import { useTheme } from '../theme/tokens.js';
+import { type KeyHint } from '../components/Badge.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
+import { useModalFooterHints } from '../components/focus.js';
 import { SectionHeader } from '../components/Layout.js';
 import { Panel } from '../components/Panel.js';
 import { ScrollView } from '../components/ScrollView.js';
@@ -1018,13 +1020,40 @@ export const AssistantPanel = memo(function AssistantPanel({
       return;
     }
     if (docked) {
-      // Return keyboard focus to main page first, or collapse cleanly
+      // Return keyboard focus to the left page while keeping the docked panel visible (#1412).
       setFocused(false);
-      onClose();
       return;
     }
     onClose();
   }, [busy, endExecution, notify, lang, inputFocused, fullscreen, setFullscreen, docked, setFocused, onClose]);
+
+  const panelFooterHints = useMemo<readonly KeyHint[]>(() => {
+    if (inputFocused) {
+      return [
+        { key: 'Enter', label: t(lang, '发送', 'Send') },
+        { key: 'Esc', label: t(lang, '退出输入', 'Blur input') },
+      ];
+    }
+    const hints: KeyHint[] = [
+      { key: 'i', label: t(lang, '输入', 'Input') },
+      { key: '1-4', label: t(lang, '快捷指令', 'Quick chips') },
+      { key: 'Tab', label: t(lang, '助手/带学', 'Tab') },
+      ...(tab === 'guided' && stage === 'retell'
+        ? [{ key: 'S', label: t(lang, '跳过复述', 'Skip retell') }]
+        : []),
+      { key: 'F', label: fullscreen ? t(lang, '还原', 'Restore') : t(lang, '全屏', 'Fullscreen') },
+      {
+        key: 'Esc',
+        label: fullscreen
+          ? t(lang, '退出全屏', 'Exit full')
+          : docked
+            ? t(lang, '还回页面', 'Back to page')
+            : t(lang, '关闭', 'Close'),
+      },
+    ];
+    return hints;
+  }, [inputFocused, lang, tab, stage, fullscreen, docked]);
+  useModalFooterHints(panelFooterHints, isActive && !pendingConfirm);
 
   useInput(
     (input, key) => {
@@ -1198,8 +1227,8 @@ export const AssistantPanel = memo(function AssistantPanel({
           fullscreen
             ? t(lang, '全屏 (Esc分栏)', 'Full (Esc split)')
             : isActive
-              ? t(lang, '已聚焦 (Esc收起)', 'Focused (Esc hide)')
-              : t(lang, '停靠不抢焦点 (Ctrl+Space聚焦)', 'Docked (Ctrl+Space focus)')
+              ? t(lang, '已聚焦 (Esc还回页面)', 'Focused (Esc to page)')
+              : t(lang, '停靠不抢焦点 (Ctrl+G聚焦)', 'Docked (Ctrl+G focus)')
         }
         focused={isActive}
         width={frameW}

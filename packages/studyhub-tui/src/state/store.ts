@@ -231,6 +231,11 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
 
   goBack: () => {
     const prev = get();
+    // When the docked assistant is open passively (unfocused), first back/Esc collapses it without leaving the page (#1412).
+    if (prev.assistantOpen && !prev.assistantFocused && !prev.assistantFullscreen) {
+      set({ assistantOpen: false, assistantFocused: false, assistantFullscreen: false });
+      return;
+    }
     if (prev.history.length === 0) {
       if (prev.page !== 'library') set({ page: 'library', navContext: {} });
       return;
