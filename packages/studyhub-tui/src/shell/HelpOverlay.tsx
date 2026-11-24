@@ -524,7 +524,7 @@ export const HelpOverlay = memo(function HelpOverlay({ isActive, onClose, pageHi
           </Box>
         ) : null}
       </Box>
-      <ScrollView lines={packedLines} width={innerW} height={bodyH} isActive={isActive} ascii={asciiMode} />
+      <ScrollView lines={packedLines} width={innerW} height={bodyH} isActive={isActive} ascii={asciiMode} vimJumpKeys />
     </Modal>
   );
 });
