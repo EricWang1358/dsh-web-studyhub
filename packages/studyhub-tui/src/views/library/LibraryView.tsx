@@ -9,7 +9,7 @@ import { Panel } from '../../components/Panel.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
-import { computeFilterBarLayout } from '../../components/layout-tokens.js';
+import { LAYOUT_BP, computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { ClickableBox } from '../../components/mouse.js';
 import { saveTuiPreferences } from '../../host/tui-prefs.js';
@@ -1269,7 +1269,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       <SplitPane
         width={width}
         height={bodyHeight}
-        breakpoint={86}
+        breakpoint={LAYOUT_BP.SPLIT_DEFAULT}
         narrowMode="stack"
         leftWidth={0.44}
         minLeft={28}

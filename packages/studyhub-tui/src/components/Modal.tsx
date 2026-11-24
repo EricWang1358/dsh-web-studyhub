@@ -3,6 +3,7 @@ import { Box, Text } from 'ink';
 import type { KeyHint } from '../types/contracts.js';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
+import { glyph, hairline } from '../render/glyphs.js';
 import { useTuiStore } from '../state/store.js';
 import { useInputCapture, useModalFooterHints } from './focus.js';
 import { KEY_LAYER_MODAL_FRAME, KeyScopeProvider, useKeyScopeDepth, useScopedInput } from './key-dispatcher.js';
@@ -88,7 +89,7 @@ export const Modal = memo(function Modal({
   );
   const inner = frameWidth - LAYOUT_CHROME.PANEL_CHROME_X;
   const accent = toneColor(theme, tone);
-  const ell = asciiMode ? '...' : '…';
+  const ell = glyph('ellipsis', asciiMode);
   const head = `${icon ? `${icon} ` : ''}${title}`;
   const sub = subtitle ? truncateDisplay(subtitle, Math.max(0, Math.floor(inner * 0.45)), ell) : '';
   const headText = truncateDisplay(head, Math.max(4, inner - displayWidth(sub) - (onClose ? 6 : 1)), ell);
@@ -113,12 +114,12 @@ export const Modal = memo(function Modal({
           {sub ? <Text color={theme.muted}>{sub}</Text> : null}
           {onClose ? (
             <ClickableBox onClick={() => onClose()} clickActive={isActive} clickLayer={modalLayer} flexShrink={0}>
-              <Text color={theme.dim}>{asciiMode ? '  esc x' : '  esc ✕'}</Text>
+              <Text color={theme.dim}>{`  esc ${glyph('close', asciiMode)}`}</Text>
             </ClickableBox>
           ) : null}
         </Box>
         <Box height={1} flexShrink={0}>
-          <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(inner)}</Text>
+          <Text color={theme.border}>{hairline(inner, asciiMode)}</Text>
         </Box>
         <Box flexDirection="column" paddingX={1} flexGrow={1} overflow="hidden">
           {children}

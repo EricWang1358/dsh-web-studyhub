@@ -5,16 +5,28 @@
  * hand-computing breakpoints, sidebar widths, modal padding, or filter-bar dimensions.
  */
 import { displayWidth } from '../render/cjk.js';
+import { glyph } from '../render/glyphs.js';
 import type { UiLanguage } from '../types/contracts.js';
 
-/** Canonical viewport / pane width breakpoints (columns). */
+/** Canonical viewport / pane width breakpoints (columns / rows). */
 export const LAYOUT_BP = Object.freeze({
+  /** Minimum usable terminal dimensions below which AppShell shows the resize guard (#1354 D5). */
+  MIN_VIEWPORT_COLS: 60,
+  MIN_VIEWPORT_ROWS: 18,
+  /** Content-width 4-tier classification thresholds (#1354 D5): <60 narrow, 60-84 compact, 85-119 regular, >=120 wide. */
+  CONTENT_NARROW: 60,
+  CONTENT_COMPACT: 85,
+  CONTENT_WIDE: 120,
   /** Filter bar shows short `Esc` hint at/above this width. */
   FILTER_SHORT: 46,
   /** Filter bar shows full `Enter apply | Esc clear` hint at/above this width. */
   FILTER_FULL: 66,
+  /** Modal / drawer / compact view split-pane collapse threshold (#1354 D5). */
+  SPLIT_MODAL: 72,
   /** Docked assistant switches to side-by-side layout at/above this inner width. */
   DOCK_SIDE_BY_SIDE: 78,
+  /** Compact split-pane threshold (e.g. RoundSummary, TasksView, WorkspaceTab). */
+  SPLIT_COMPACT: 84,
   /** Default SplitPane collapse threshold (120-col terminal minus 24-col rail = 94). */
   SPLIT_DEFAULT: 86,
   /** Narrow pane threshold for compact toolbars / stacked secondary panes. */
@@ -23,12 +35,16 @@ export const LAYOUT_BP = Object.freeze({
   COMPACT: 90,
   /** Wide pane threshold for multi-column badges / prose measure. */
   WIDE: 96,
-  /** Terminal width below which SideNav auto-collapses to icon rail. */
-  SIDENAV_AUTO_COLLAPSE: 100,
-  /** Review AI drawer side-by-side threshold. */
-  AI_DRAWER_SIDE: 104,
   /** Extra-wide dashboard / table threshold. */
   EXTRA_WIDE: 110,
+  /**
+   * Terminal width below which SideNav auto-collapses to the 6-col icon rail.
+   * Equals SPLIT_DEFAULT (86) + SIDENAV_EXPANDED (24) + 2 = 112 so expanding SideNav
+   * never shrinks contentW below SPLIT_DEFAULT (eliminates 99->100->112 oscillation, #1354 D5).
+   */
+  SIDENAV_AUTO_COLLAPSE: 112,
+  /** Review AI drawer side-by-side threshold. */
+  AI_DRAWER_SIDE: 104,
 });
 
 /** Canonical structural chrome dimensions (columns / rows). */
@@ -51,6 +67,20 @@ export const LAYOUT_CHROME = Object.freeze({
 });
 
 export type PaneTier = 'narrow' | 'medium' | 'wide' | 'xwide';
+export type ContentTier = 'narrow' | 'compact' | 'regular' | 'wide';
+
+/** Classify content-area width into the 4 canonical responsive tiers (#1354 D5). */
+export function resolveContentTier(contentWidth: number): ContentTier {
+  if (contentWidth < LAYOUT_BP.CONTENT_NARROW) return 'narrow';
+  if (contentWidth < LAYOUT_BP.CONTENT_COMPACT) return 'compact';
+  if (contentWidth < LAYOUT_BP.CONTENT_WIDE) return 'regular';
+  return 'wide';
+}
+
+/** True when the terminal is smaller than the minimum usable viewport (60x18, #1354 D5). */
+export function isViewportTooSmall(columns: number, rows: number): boolean {
+  return columns < LAYOUT_BP.MIN_VIEWPORT_COLS || rows < LAYOUT_BP.MIN_VIEWPORT_ROWS;
+}
 
 export function resolvePaneBreakpoint(width: number): {
   isNarrow: boolean;
@@ -68,7 +98,7 @@ export function resolvePaneBreakpoint(width: number): {
 }
 
 export function ellipsisGlyph(asciiMode: boolean): string {
-  return asciiMode ? '...' : '…';
+  return glyph('ellipsis', asciiMode);
 }
 
 export interface FilterBarLayout {

@@ -201,6 +201,8 @@ export interface ToastItem {
 export interface KeyHint {
   key: string;
   label: string;
+  /** Display priority in KeyHintBar when horizontal space is tight (#1354 D4). Defaults to 'primary'. */
+  priority?: 'primary' | 'secondary';
 }
 
 export interface NavigationContext {

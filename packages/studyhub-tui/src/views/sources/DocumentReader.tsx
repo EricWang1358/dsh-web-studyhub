@@ -7,6 +7,7 @@ import { useTheme } from '../../theme/tokens.js';
 import { Badge, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { computeProseLayout } from '../../components/Layout.js';
+import { LAYOUT_BP } from '../../components/layout-tokens.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Panel } from '../../components/Panel.js';
 import { ScrollView } from '../../components/ScrollView.js';
@@ -1501,7 +1502,7 @@ export const DocumentReader = memo(function DocumentReader({
       let anchorOffset: number | undefined;
       let selectedExcerpt: string | undefined;
       if (pageScrollTop > 0 && pageData.text) {
-        const isSide = (subMode === 'ask-view' || subMode === 'translate-view') && width >= 88;
+        const isSide = (subMode === 'ask-view' || subMode === 'translate-view') && width >= LAYOUT_BP.NARROW;
         const readerW = isSide ? Math.max(24, Math.floor(width * 0.56)) : width;
         const textCols = Math.max(11, readerW - 5);
         const wrapped = wrapDisplay(pageData.text, textCols);
@@ -1818,8 +1819,8 @@ export const DocumentReader = memo(function DocumentReader({
     { isActive: readerInputActive },
   );
 
-  const showSide = (subMode === 'ask-view' || subMode === 'translate-view') && width >= 88;
-  const showBottom = (subMode === 'ask-view' || subMode === 'translate-view') && width < 88;
+  const showSide = (subMode === 'ask-view' || subMode === 'translate-view') && width >= LAYOUT_BP.NARROW;
+  const showBottom = (subMode === 'ask-view' || subMode === 'translate-view') && width < LAYOUT_BP.NARROW;
   const barRows = isTyping ? 2 : 0;
   const bodyH = Math.max(4, height - 3 - barRows);
   const readerH = showBottom ? Math.max(3, Math.floor(bodyH * 0.52)) : bodyH;
@@ -1838,7 +1839,7 @@ export const DocumentReader = memo(function DocumentReader({
       : t(lang, '未读', 'Unread')
     : '';
   const progressBadgeLabel =
-    chapterStateTag && width >= 88 ? `${progressPrefix} (${chapterStateTag})` : progressPrefix;
+    chapterStateTag && width >= LAYOUT_BP.NARROW ? `${progressPrefix} (${chapterStateTag})` : progressPrefix;
 
   return (
     <Box flexDirection="column" width={width} height={height}>

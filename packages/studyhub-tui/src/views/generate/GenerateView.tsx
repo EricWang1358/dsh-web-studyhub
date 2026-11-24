@@ -14,7 +14,7 @@ import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { useInputCapture } from '../../components/focus.js';
-import { computeFilterBarLayout } from '../../components/layout-tokens.js';
+import { LAYOUT_BP, computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { currentCourse, listCourses, modelInfo } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
@@ -862,10 +862,10 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
           <SplitPane
             width={width}
             height={bodyH}
-            leftWidth={width < 86 ? 0.45 : 0.5}
+            leftWidth={width < LAYOUT_BP.SPLIT_DEFAULT ? 0.45 : 0.5}
             minLeft={24}
             minRight={38}
-            breakpoint={68}
+            breakpoint={LAYOUT_BP.SPLIT_MODAL}
             leftLabel={t(lang, '选择资料', 'Sources')}
             rightLabel={t(lang, '出题参数 & 费用预估', 'Options & Estimate')}
             left={({ width: lw, height: lh }) => (
