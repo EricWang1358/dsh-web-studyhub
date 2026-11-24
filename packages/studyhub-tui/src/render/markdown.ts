@@ -79,6 +79,145 @@ export function markdownCacheSize(): number {
 
 const INLINE_PH = /\uE000(\d+)\uE001/g;
 const BLOCK_PH = /\uE002(\d+)\uE003/g;
+const CJK_EM_MARK = '\uE004';
+const CJK_EM_CLEAN_RE = /\uE004 | \uE004|\uE004/g;
+const CJK_PUNCT_RE = /[\u3000-\u303F\uFF01-\uFF0F\uFF1A-\uFF20\uFF3B-\uFF40\uFF5B-\uFF65“”‘’…]/;
+const NON_WS_NON_PUNCT_RE = /[^\s*\p{P}\p{S}]/u;
+
+/**
+ * CommonMark §6.2 rejects emphasis delimiters adjacent to CJK punctuation when there is no
+ * surrounding space (e.g. `**易错点：**后面的文字` or `核心**（注意）**概念`). Insert a
+ * reversible sentinel-tagged space outside code fences/spans only where a delimiter's flanking
+ * rule would otherwise fail, then strip the sentinel+space in `renderTextRun` (#1421).
+ */
+function fixCjkEmphasisLine(line: string): string {
+  if (!line.includes('*')) return line;
+  const parts = line.split(INLINE_CODE_SPAN_RE);
+  let boldOpen = false;
+  let emOpen = false;
+  let changed = false;
+
+  const hasLater = (partIdx: number, pos: number, stars: number): boolean => {
+    const token = '*'.repeat(stars);
+    for (let p = partIdx; p < parts.length; p++) {
+      if (p % 2 === 1) continue;
+      const seg = parts[p];
+      let from = p === partIdx ? pos : 0;
+      while (from < seg.length) {
+        const at = seg.indexOf(token, from);
+        if (at === -1) break;
+        const prev = at > 0 ? seg[at - 1] : '';
+        const next = at + stars < seg.length ? seg[at + stars] : '';
+        if (prev !== '\\' && prev !== '*' && next !== '*') return true;
+        from = at + stars;
+      }
+    }
+    return false;
+  };
+
+  for (let p = 0; p < parts.length; p++) {
+    if (p % 2 === 1) continue; // skip inline code spans
+    const seg = parts[p];
+    if (!seg.includes('*')) continue;
+    let out = '';
+    let i = 0;
+    while (i < seg.length) {
+      if (seg[i] === '\\' && i + 1 < seg.length) {
+        out += seg[i] + seg[i + 1];
+        i += 2;
+        continue;
+      }
+      if (seg[i] !== '*') {
+        out += seg[i];
+        i += 1;
+        continue;
+      }
+      let end = i;
+      while (end < seg.length && seg[end] === '*') end += 1;
+      const runLen = end - i;
+      const run = seg.slice(i, end);
+      const prev = i > 0 ? seg[i - 1] : p > 0 ? '`' : '';
+      const next = end < seg.length ? seg[end] : p + 1 < parts.length ? '`' : '';
+
+      if (runLen === 2) {
+        if (!boldOpen) {
+          if (hasLater(p, end, 2)) {
+            if (prev && NON_WS_NON_PUNCT_RE.test(prev) && next && CJK_PUNCT_RE.test(next)) {
+              out += `${CJK_EM_MARK} ${run}`;
+              changed = true;
+            } else {
+              out += run;
+            }
+            boldOpen = true;
+          } else {
+            out += run;
+          }
+        } else {
+          if (prev && CJK_PUNCT_RE.test(prev) && next && NON_WS_NON_PUNCT_RE.test(next)) {
+            out += `${run} ${CJK_EM_MARK}`;
+            changed = true;
+          } else {
+            out += run;
+          }
+          boldOpen = false;
+        }
+      } else if (runLen === 1) {
+        if (!emOpen) {
+          if (hasLater(p, end, 1)) {
+            if (prev && NON_WS_NON_PUNCT_RE.test(prev) && next && CJK_PUNCT_RE.test(next)) {
+              out += `${CJK_EM_MARK} ${run}`;
+              changed = true;
+            } else {
+              out += run;
+            }
+            emOpen = true;
+          } else {
+            out += run;
+          }
+        } else {
+          if (prev && CJK_PUNCT_RE.test(prev) && next && NON_WS_NON_PUNCT_RE.test(next)) {
+            out += `${run} ${CJK_EM_MARK}`;
+            changed = true;
+          } else {
+            out += run;
+          }
+          emOpen = false;
+        }
+      } else {
+        out += run;
+      }
+      i = end;
+    }
+    parts[p] = out;
+  }
+  return changed ? parts.join('') : line;
+}
+
+function preprocessCjkEmphasis(md: string): string {
+  if (!md.includes('*')) return md;
+  const lines = md.split('\n');
+  let fence: { ch: string; len: number } | null = null;
+  let changed = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (fence) {
+      const close = FENCE_CLOSE.exec(line);
+      if (close && close[1][0] === fence.ch && close[1].length >= fence.len) fence = null;
+      continue;
+    }
+    const open = FENCE_OPEN.exec(line);
+    if (open) {
+      fence = { ch: open[1][0], len: open[1].length };
+      continue;
+    }
+    const fixed = fixCjkEmphasisLine(line);
+    if (fixed !== line) {
+      lines[i] = fixed;
+      changed = true;
+    }
+  }
+  return changed ? lines.join('\n') : md;
+}
 
 interface MathStore {
   inline: string[];
@@ -292,7 +431,8 @@ function softBreaks(s: string): string {
 }
 
 function renderTextRun(text: string, ctx: Ctx): string {
-  return restoreMath(softBreaks(decodeEntities(text)), ctx);
+  const cleaned = text.includes(CJK_EM_MARK) ? text.replace(CJK_EM_CLEAN_RE, '') : text;
+  return restoreMath(softBreaks(decodeEntities(cleaned)), ctx);
 }
 
 type AnyToken = Token & { tokens?: Token[]; text?: string };
@@ -655,7 +795,8 @@ function renderUncached(
   colorLevel: ColorLevel,
 ): string[] {
   const normalized = md.includes('\r') ? md.replace(CRLF_RE, '\n') : md;
-  const { src, store } = protectMath(normalized, mathOn);
+  const { src: mathSafe, store } = protectMath(normalized, mathOn);
+  const src = preprocessCjkEmphasis(mathSafe);
   const c = makeChalk(colorLevel);
   const ctx: Ctx = { theme, c, s: colorLevel === 0 ? NO_COLOR_STYLES : {}, store, listDepth: 0, mathOn, ascii };
   let lines: string[];
