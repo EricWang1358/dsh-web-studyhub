@@ -496,7 +496,7 @@ export const DraftEditor = memo(function DraftEditor({
     setSimilarItems(items);
     setSimilarCursor(0);
     setOverlay('similar-results');
-  }, [busy, draft, host, lang, notify]);
+  }, [asciiMode, busy, draft, host, lang, notify]);
 
   const repairDraft = useCallback(async () => {
     if (!draft || busy) return;
@@ -527,7 +527,7 @@ export const DraftEditor = memo(function DraftEditor({
         : t(lang, '草稿已修复并刷新', 'Draft repaired and reloaded'),
       'success',
     );
-  }, [busy, draft, host, lang, loadDraft, notify, refresh]);
+  }, [asciiMode, busy, draft, host, lang, loadDraft, notify, refresh]);
 
   const closePublishPlan = useCallback(() => {
     planSeqRef.current += 1;

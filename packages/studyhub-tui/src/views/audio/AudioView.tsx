@@ -1598,71 +1598,71 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
               )}
             </Panel>
           )}
-          right={({ width: rw, height: rh }) => (
-            <Panel
-              title={
-                selectedJob
-                  ? selectedJob.title
-                  : selectedResult?.title || t(lang, '文稿内容', 'Transcript')
-              }
-              subtitle={
-                selectedJob
-                  ? selectedJob.retryable
-                    ? t(lang, '[R] 重试任务', '[R] Retry')
-                    : selectedJob.status
-                  : selectedResult
-                    ? correctionsSummary.pending > 0
-                      ? t(lang, '[c] 复核存疑  [g] 出题', '[c] Review  [g] Gen')
-                      : t(lang, '[g] 据此出题', '[g] Generate')
-                    : undefined
-              }
-              width={rw}
-              height={rh}
-            >
-              {selectedJob ? (
-                <Box flexDirection="column" width={Math.max(12, rw - 4)}>
-                  <Box flexDirection="row" alignItems="center">
-                    <StatusPill label={selectedJob.status} status={jobPillStatus(selectedJob.status)} />
-                    <Text color={theme.dim}>{`  ID: ${selectedJob.id}`}</Text>
-                  </Box>
-                  {selectedJob.phase ? (
+          right={({ width: rw, height: rh }) => {
+            const innerW = Math.max(12, rw - 4);
+            const innerH = Math.max(2, rh - 2);
+            const hasStatus = correctionsSummary.pending > 0 || correctionsSummary.applied > 0;
+            const maxSamples = innerH >= 7 ? 3 : innerH >= 5 ? 1 : 0;
+            const sampleItems = correctionsSummary.pending > 0 ? correctionsSummary.items.slice(0, maxSamples) : [];
+            const statusMargin = hasStatus && innerH >= 6 ? 1 : 0;
+            const headerRows = (hasStatus ? 1 : 0) + sampleItems.length + statusMargin;
+            const scrollH = Math.max(2, innerH - headerRows);
+            return (
+              <Panel
+                title={
+                  selectedJob
+                    ? selectedJob.title
+                    : selectedResult?.title || t(lang, '文稿内容', 'Transcript')
+                }
+                subtitle={
+                  selectedJob
+                    ? selectedJob.retryable
+                      ? t(lang, '[R] 重试任务', '[R] Retry')
+                      : selectedJob.status
+                    : selectedResult
+                      ? correctionsSummary.pending > 0
+                        ? t(lang, '[c] 复核存疑  [g] 出题', '[c] Review  [g] Gen')
+                        : t(lang, '[g] 据此出题', '[g] Generate')
+                      : undefined
+                }
+                width={rw}
+                height={rh}
+              >
+                {selectedJob ? (
+                  <Box flexDirection="column" width={innerW}>
+                    <Box flexDirection="row" alignItems="center">
+                      <StatusPill label={selectedJob.status} status={jobPillStatus(selectedJob.status)} />
+                      <Text color={theme.dim}>{`  ID: ${selectedJob.id}`}</Text>
+                    </Box>
+                    {selectedJob.phase ? (
+                      <Box marginTop={1}>
+                        <Text color={theme.muted}>
+                          {truncateDisplay(`${t(lang, '阶段: ', 'Stage: ')}${selectedJob.phase}`, innerW, ell)}
+                        </Text>
+                      </Box>
+                    ) : null}
+                    {selectedJob.error ? (
+                      <Box marginTop={1}>
+                        <Text color={theme.error} wrap="wrap">
+                          {`${t(lang, '原因: ', 'Error: ')}${selectedJob.error}`}
+                        </Text>
+                      </Box>
+                    ) : null}
                     <Box marginTop={1}>
-                      <Text color={theme.muted}>
-                        {truncateDisplay(`${t(lang, '阶段: ', 'Stage: ')}${selectedJob.phase}`, Math.max(12, rw - 4), ell)}
+                      <Text color={selectedJob.retryable ? theme.primary : theme.dim}>
+                        {selectedJob.retryable
+                          ? t(lang, '按 [R] 重试此失败或已取消的音频任务。', 'Press [R] to retry this failed or canceled audio job.')
+                          : t(lang, '任务进行中，请前往任务页查看进度。', 'Job is active; check Tasks view for progress.')}
                       </Text>
                     </Box>
-                  ) : null}
-                  {selectedJob.error ? (
-                    <Box marginTop={1}>
-                      <Text color={theme.error} wrap="wrap">
-                        {`${t(lang, '原因: ', 'Error: ')}${selectedJob.error}`}
-                      </Text>
-                    </Box>
-                  ) : null}
-                  <Box marginTop={1}>
-                    <Text color={selectedJob.retryable ? theme.primary : theme.dim}>
-                      {selectedJob.retryable
-                        ? t(lang, '按 [R] 重试此失败或已取消的音频任务。', 'Press [R] to retry this failed or canceled audio job.')
-                        : t(lang, '任务进行中，请前往任务页查看进度。', 'Job is active; check Tasks view for progress.')}
-                    </Text>
                   </Box>
-                </Box>
-              ) : !selectedResult ? (
-                <EmptyState
-                  title={t(lang, '选择一条转写记录查看全文', 'Select a transcript')}
-                  width={Math.max(12, rw - 4)}
-                  height={Math.max(4, rh - 2)}
-                />
-              ) : (() => {
-                const innerW = Math.max(12, rw - 4);
-                const innerH = Math.max(2, rh - 2);
-                const hasStatus = correctionsSummary.pending > 0 || correctionsSummary.applied > 0;
-                const maxSamples = innerH >= 7 ? 3 : innerH >= 5 ? 1 : 0;
-                const sampleItems = correctionsSummary.pending > 0 ? correctionsSummary.items.slice(0, maxSamples) : [];
-                const statusMargin = hasStatus && innerH >= 6 ? 1 : 0;
-                const headerRows = (hasStatus ? 1 : 0) + sampleItems.length + statusMargin;
-                const scrollH = Math.max(2, innerH - headerRows);
-                return (
+                ) : !selectedResult ? (
+                  <EmptyState
+                    title={t(lang, '选择一条转写记录查看全文', 'Select a transcript')}
+                    width={innerW}
+                    height={Math.max(4, rh - 2)}
+                  />
+                ) : (
                   <Box flexDirection="column" width={innerW} height={innerH}>
                     {hasStatus ? (
                       <Box flexDirection="column" marginBottom={statusMargin}>
@@ -1744,10 +1744,10 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                       />
                     )}
                   </Box>
-                );
-              })()}
-            </Panel>
-          )}
+                )}
+              </Panel>
+            );
+          }}
         />
       </Box>
 

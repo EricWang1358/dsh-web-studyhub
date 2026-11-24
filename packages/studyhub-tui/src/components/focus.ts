@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { KeyHint } from '../types/contracts.js';
 import { useTuiStore } from '../state/store.js';
 import { getCachedContextualTipSelector, loadContextualTipSelector, modelInfo, type SelectContextualTipFn } from '../shell/data.js';
@@ -102,10 +102,13 @@ export function isKeyClaimed(key: string): boolean {
 }
 
 export function useClaimKeys(keys: readonly string[], active: boolean): void {
+  const keysRef = useRef(keys);
+  keysRef.current = keys;
   const sig = keys.join('\u0000');
   useEffect(() => {
-    if (!active || keys.length === 0) return undefined;
-    return claimKeys(keys);
+    const current = keysRef.current;
+    if (!active || current.length === 0) return undefined;
+    return claimKeys(current);
   }, [active, sig]);
 }
 
@@ -147,11 +150,14 @@ export function useModalHints(): readonly KeyHint[] | null {
 }
 
 export function useModalFooterHints(hints: readonly KeyHint[] | undefined, active: boolean): void {
+  const hintsRef = useRef(hints);
+  hintsRef.current = hints;
   const sig = hints && hints.length > 0 ? hints.map((h) => `${h.key}\u0001${h.label}`).join('\u0000') : '';
   useEffect(() => {
-    if (!active || !hints || hints.length === 0) return undefined;
+    const current = hintsRef.current;
+    if (!active || !current || current.length === 0) return undefined;
     const id = nextModalHintId++;
-    modalHintStack.push({ id, hints });
+    modalHintStack.push({ id, hints: current });
     notifyModalHintListeners();
     return () => {
       const idx = modalHintStack.findIndex((e) => e.id === id);

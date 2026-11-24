@@ -381,7 +381,7 @@ export const MinerUModal = memo(function MinerUModal({
       busyRef.current = false;
       if (mountedRef.current) setBusy(false);
     }
-  }, [filePath, host, lang]);
+  }, [ell, filePath, host, lang]);
 
   const submitConvert = useCallback(async () => {
     if (busyRef.current || !planResult) return;
@@ -430,7 +430,7 @@ export const MinerUModal = memo(function MinerUModal({
       busyRef.current = false;
       if (mountedRef.current) setBusy(false);
     }
-  }, [courseInput, host, lang, loadHistory, notify, onQueued, planResult]);
+  }, [courseInput, ell, host, lang, loadHistory, notify, onQueued, planResult]);
 
   const selectedRecord = historyRecords[selectedHistoryIdx];
 
@@ -476,7 +476,7 @@ export const MinerUModal = memo(function MinerUModal({
       busyRef.current = false;
       if (mountedRef.current) setBusy(false);
     }
-  }, [host, lang, loadHistory, notify, onQueued, selectedRecord]);
+  }, [ell, host, lang, loadHistory, notify, onQueued, selectedRecord]);
 
   const isTypingField = tab === 'plan' && !queuedResult && (focusField === 'path' || focusField === 'course');
 

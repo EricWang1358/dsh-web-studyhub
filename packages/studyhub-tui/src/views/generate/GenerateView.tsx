@@ -450,6 +450,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
     refresh,
     notify,
     lang,
+    ell,
     navigate,
   ]);
 
@@ -932,13 +933,26 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
                 )}
               </Panel>
             )}
-            right={({ width: rw, height: rh }) => (
+            right={({ width: rw, height: rh }) => {
+              const panelInnerW = Math.max(14, rw - 4);
+              const weakLine = (() => {
+                if (weakTopics.length === 0) return '';
+                const weakPrefix = `${t(lang, '薄弱点', 'Weak')}: `;
+                const weakSuffix = ` [${t(lang, 'W 填入', 'W Fill')}]`;
+                const topicMax = Math.max(6, panelInnerW - displayWidth(weakPrefix) - displayWidth(weakSuffix));
+                return truncateDisplay(
+                  `${weakPrefix}${truncateDisplay(weakTopics.slice(0, 3).join(', '), topicMax, ell)}${weakSuffix}`,
+                  panelInnerW,
+                  ell,
+                );
+              })();
+              return (
               <Panel
                 title={t(lang, '2. 出题设置与预估', '2. Generation Settings')}
                 width={rw}
                 height={rh}
               >
-                <Box flexDirection="column" width={Math.max(14, rw - 4)}>
+                <Box flexDirection="column" width={panelInnerW}>
                   <Text color={theme.muted}>
                     {t(lang, '[c] 课程归属: ', '[c] Course: ')}
                     <Text color={theme.text} bold>
@@ -978,23 +992,10 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
                     <Text color={theme.muted}>{t(lang, '[f] 重点与额外指令:', '[f] Focus / Instructions:')}</Text>
                     <Text color={focusText ? theme.text : theme.dim}>
                       {focusText
-                        ? truncateDisplay(focusText, Math.max(20, (rw - 4) * 2 - 4), ell)
+                        ? truncateDisplay(focusText, Math.max(20, panelInnerW * 2 - 4), ell)
                         : t(lang, '（无，按材料自动规划重点）', '(None — auto plan from materials)')}
                     </Text>
-                    {weakTopics.length > 0
-                      ? (() => {
-                          const panelInnerW = Math.max(14, rw - 4);
-                          const weakPrefix = `${t(lang, '薄弱点', 'Weak')}: `;
-                          const weakSuffix = ` [${t(lang, 'W 填入', 'W Fill')}]`;
-                          const topicMax = Math.max(6, panelInnerW - displayWidth(weakPrefix) - displayWidth(weakSuffix));
-                          const line = `${weakPrefix}${truncateDisplay(weakTopics.slice(0, 3).join(', '), topicMax, ell)}${weakSuffix}`;
-                          return (
-                            <Text color={theme.warning}>
-                              {truncateDisplay(line, panelInnerW, ell)}
-                            </Text>
-                          );
-                        })()
-                      : null}
+                    {weakLine ? <Text color={theme.warning}>{weakLine}</Text> : null}
                   </Box>
 
                   <Box marginTop={1} flexDirection="column">
@@ -1027,7 +1028,8 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
                   </Box>
                 </Box>
               </Panel>
-            )}
+              );
+            }}
           />
         )}
       </Box>

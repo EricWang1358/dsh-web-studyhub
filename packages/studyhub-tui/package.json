@@ -23,7 +23,7 @@
     "build": "node scripts/build.mjs",
     "start": "node bin/studyhub-tui.mjs",
     "dev": "tsx src/cli.tsx",
-    "lint": "eslint --config ../../eslint.config.js src",
+    "lint": "node scripts/lint.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/run-tests.mjs",
     "test:unit": "node scripts/run-tests.mjs --unit",

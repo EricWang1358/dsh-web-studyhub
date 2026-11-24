@@ -209,8 +209,11 @@ export const TeachModal = memo(function TeachModal({
     [host, run.id, run.index, run.queueVersion, cardId, lang, initialTeaching],
   );
 
+  const loadSessionRef = useRef(loadSession);
+  loadSessionRef.current = loadSession;
+
   useEffect(() => {
-    void loadSession(teachMode, true);
+    void loadSessionRef.current(teachMode, true);
   }, [run.id, cardId, teachMode]);
 
   const handleSubmitAnswer = useCallback(

@@ -240,7 +240,11 @@ function eraseTypeScriptSyntax(code, fileName) {
     }
 
     // TypeScript `this` parameter in function/method signatures
-    if (ts.isParameter(node) && node.name.kind === ts.SyntaxKind.ThisKeyword) {
+    if (
+      ts.isParameter(node)
+      && (node.name.kind === ts.SyntaxKind.ThisKeyword
+        || (ts.isIdentifier(node.name) && (node.name.text === "this" || node.name.escapedText === "this")))
+    ) {
       maskRange(node.getStart(sf), node.getEnd());
       maskNextChar(node.getEnd(), ",");
       return;

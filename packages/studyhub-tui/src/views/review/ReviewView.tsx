@@ -650,8 +650,11 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     [host, navContext.runId, navContext.deckId, navContext.course, navContext.mode, activeRunId, snapshot, applyRun, clearDraftTimer, lang],
   );
 
+  const loadInitialRunRef = useRef(loadInitialRun);
+  loadInitialRunRef.current = loadInitialRun;
+
   useEffect(() => {
-    void loadInitialRun(false);
+    void loadInitialRunRef.current(false);
     // Re-run only when navigation context explicitly targets a new run/deck/course.
   }, [navContext.runId, navContext.deckId, navContext.course, navContext.mode]);
 
@@ -1172,7 +1175,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
       return [...baseUtil, ...CHOICE_LETTER_KEYS];
     }
     return baseUtil;
-  }, [isActive, loading, run, isFinished, isRubricEligibleKind, canAdjustGrade, canAckCorrection, kind]);
+  }, [isActive, run, isFinished, isRubricEligibleKind, canAdjustGrade, canAckCorrection, kind]);
 
   const hints: KeyHint[] = useMemo(() => {
     if (loading || !run || isFinished) return [];
@@ -1240,7 +1243,6 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     canRedo,
     canUndo,
     mathUnicode,
-    asciiMode,
     citation,
     lang,
   ]);

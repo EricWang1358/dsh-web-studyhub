@@ -404,7 +404,10 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
     return String(fallbackDeck?.course ?? '').trim();
   }, [course, selectedDeckId, snapshot?.courses, snapshot?.decks]);
 
-  const listCourseArg = scopeFilter === 'course' && resolvedCourseId ? { courseId: resolvedCourseId } : {};
+  const listCourseArg = useMemo(
+    () => (scopeFilter === 'course' && resolvedCourseId ? { courseId: resolvedCourseId } : {}),
+    [scopeFilter, resolvedCourseId],
+  );
 
   const loadSessions = useCallback(
     async (preferSessionId?: string): Promise<StudySessionRecord | null> => {
@@ -459,7 +462,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
         : null;
       return preferred;
     },
-    [host, scopeFilter, resolvedCourseId, lang],
+    [host, listCourseArg, lang],
   );
 
   useEffect(() => {
