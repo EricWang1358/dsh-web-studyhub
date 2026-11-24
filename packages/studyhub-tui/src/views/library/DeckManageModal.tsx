@@ -12,6 +12,7 @@ import { VirtualList, type VirtualListRenderContext } from '../../components/Vir
 import { useTheme } from '../../theme/tokens.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { startReview, tryAction } from '../../host/sample-actions.js';
+import { runAtomicSteps } from '../../host/tx-write.js';
 import { listCourses } from '../../shell/data.js';
 import { formatLabel, groupSourcesFromSnapshot, type DocumentGroup } from '../sources/source-helpers.js';
 
@@ -845,34 +846,53 @@ export const DeckManageModal = memo(function DeckManageModal({
         notify(editDraftWarning, 'warning');
         return;
       }
-      const editRes = await tryAction<Record<string, unknown> & { draftVersion?: number }>(host, 'deck.edit', { id: deck.id });
-      if (!editRes.ok || !editRes.value) {
+      const tx = await runAtomicSteps([
+        {
+          name: 'deck.edit',
+          run: async () => {
+            const editRes = await tryAction<Record<string, unknown> & { draftVersion?: number }>(host, 'deck.edit', {
+              id: deck.id,
+            });
+            if (!editRes.ok || !editRes.value) {
+              return { ok: false, error: editRes.error?.message || t(lang, '无法创建编辑草稿', 'Could not create edit draft') };
+            }
+            if ((editRes.value.draftVersion ?? 1) !== 1) {
+              return { ok: false, error: editDraftWarning };
+            }
+            return { ok: true, value: editRes.value };
+          },
+          rollback: async (val) => {
+            const orphanDraftId = typeof (val as { id?: unknown } | undefined)?.id === 'string'
+              ? String((val as { id: string }).id)
+              : '';
+            if (orphanDraftId) {
+              await tryAction(host, 'draft.delete', { id: orphanDraftId }).catch(() => {});
+            }
+          },
+        },
+        {
+          name: 'draft.save',
+          run: async (prev) => {
+            const editVal = prev[0] as Record<string, unknown>;
+            const draft = { ...editVal, title: nextTitle };
+            const saveRes = await tryAction<{ id: string; draftVersion?: number }>(host, 'draft.save', { deck: draft });
+            if (!saveRes.ok || !saveRes.value) {
+              return { ok: false, error: saveRes.error?.message || t(lang, '保存标题失败', 'Failed to save title') };
+            }
+            return { ok: true, value: saveRes.value };
+          },
+        },
+      ]);
+      if (!tx.ok) {
         setBusy(false);
         setMode('browse');
-        notify(editRes.error?.message || t(lang, '无法创建编辑草稿', 'Could not create edit draft'), 'error');
+        notify(tx.error, tx.error === editDraftWarning ? 'warning' : 'error');
         return;
       }
-      if ((editRes.value.draftVersion ?? 1) !== 1) {
-        setBusy(false);
-        setMode('browse');
-        notify(editDraftWarning, 'warning');
-        return;
-      }
-      const draft = { ...editRes.value, title: nextTitle };
-      const saveRes = await tryAction<{ id: string; draftVersion?: number }>(host, 'draft.save', { deck: draft });
-      if (!saveRes.ok || !saveRes.value) {
-        const orphanDraftId = typeof editRes.value.id === 'string' ? editRes.value.id : '';
-        if (orphanDraftId) {
-          await tryAction(host, 'draft.delete', { id: orphanDraftId }).catch(() => {});
-        }
-        setBusy(false);
-        setMode('browse');
-        notify(saveRes.error?.message || t(lang, '保存标题失败', 'Failed to save title'), 'error');
-        return;
-      }
+      const savedDraft = tx.results[1] as { id: string; draftVersion?: number };
       const pubRes = await tryAction(host, 'draft.publish.quick', {
-        id: saveRes.value.id,
-        draftVersion: saveRes.value.draftVersion,
+        id: savedDraft.id,
+        draftVersion: savedDraft.draftVersion,
       });
       setBusy(false);
       setMode('browse');
@@ -886,7 +906,7 @@ export const DeckManageModal = memo(function DeckManageModal({
           'warning',
         );
         onClose();
-        navigate('generate', { draftId: saveRes.value.id });
+        navigate('generate', { draftId: savedDraft.id });
       }
     },
     [deck, host, lang, notify, onUpdated, onClose, navigate],
