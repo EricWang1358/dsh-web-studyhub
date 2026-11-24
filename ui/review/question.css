@@ -638,12 +638,60 @@
     .teaching-panel form { display: grid; gap: var(--space-3-5); margin-top: var(--space-4-5); }
     .teaching-panel form > .teaching-panel__field { display: grid; gap: var(--space-2-5); }
     .teaching-panel form > .teaching-panel__submit { justify-self: end; min-width: 0; max-width: 100%; white-space: normal; text-align: center; }
+    .teaching-panel__actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: var(--space-2);
+    }
+    .teaching-wrong-nudge {
+      margin: var(--space-2-5) 0 0;
+      padding: var(--space-2) var(--space-3);
+      border-radius: var(--radius-sm);
+      background: var(--bg-sunken);
+      border: 1px solid var(--line-soft);
+    }
+    .teaching-skipped-summary {
+      margin-top: var(--space-4);
+      padding: var(--space-3) var(--space-3-5);
+      border-radius: var(--radius-sm);
+      background: var(--bg-sunken);
+      border: 1px solid var(--line-soft);
+      display: grid;
+      gap: var(--space-2-5);
+    }
+    .teaching-skipped-summary ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: var(--space-2-5);
+    }
+    .teaching-skipped-summary__item {
+      display: grid;
+      gap: var(--space-1);
+      padding-top: var(--space-2);
+      border-top: 1px solid var(--line-soft);
+    }
+    .teaching-skipped-summary__item:first-child { padding-top: 0; border-top: 0; }
+    .teaching-skipped-summary__step { font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--text-dim); }
+    .teaching-skipped-summary__answer {
+      display: grid;
+      gap: var(--space-1);
+      padding: var(--space-2) var(--space-2-5);
+      border-radius: var(--radius-xs);
+      background: var(--bg-surface);
+      border: 1px solid var(--line-soft);
+    }
   }
   @container study (max-width: 480px) {
     :where(.study-app, .study-seat) {
       .teaching-panel .explanation { padding: var(--space-4); }
       .teaching-context > div { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
       .teaching-panel form > .teaching-panel__submit { width: 100%; }
+      .teaching-panel__actions { justify-content: stretch; }
+      .teaching-panel__actions > .sh-btn { flex: 1 1 100%; justify-content: center; }
     }
   }
   :where(.study-app, .study-seat) {

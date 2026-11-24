@@ -1915,5 +1915,6 @@
   "第 {0} 步：{1}": "Step {0}: {1}",
   "连续答错两次了，可以看要点并继续：点击「跳过这一步」或「剩下的直接讲给我听」。": "Missed twice in a row — view the key takeaway and keep moving: click \"Skip this step\" or \"Explain the rest to me\".",
   "跳过这一步": "Skip this step",
-  "剩下的直接讲给我听": "Explain the rest to me"
+  "剩下的直接讲给我听": "Explain the rest to me",
+  "参考回答": "Reference answer"
 }
