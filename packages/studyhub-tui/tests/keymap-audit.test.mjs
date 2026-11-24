@@ -724,3 +724,15 @@ test('featureShortcuts documents Rounds 5-26 & PR #1297 shortcuts cleanly in zh 
     assert.ok(paletteSec?.items.some((i) => i.key === '/#?@:' && (i.label.includes('筛选') || i.label.includes('course/page'))), `missing Palette [/#?@:] label in ${lang}`);
   }
 });
+
+test('Audit #1385: ExamSetup and GenerateView do not bind lowercase [k] alongside VirtualList, and ExamSetup uses [R] for resume badge', () => {
+  const examSetup = fs.readFileSync(path.join(srcRoot, 'views/exam/ExamSetup.tsx'), 'utf8');
+  assert.ok(!/input\s*===\s*['"]k['"]/.test(examSetup), 'ExamSetup must not bind lowercase k (conflicts with VirtualList up)');
+  assert.ok(/input\s*===\s*['"]K['"]/.test(examSetup), 'ExamSetup must use uppercase K for question kinds');
+  assert.ok(!examSetup.includes("'r 继续未交卷考试'") && !examSetup.includes("'r Resume Open Exam'"), 'ExamSetup must not show stale lowercase r resume hint');
+  assert.ok(examSetup.includes("'R 继续未交卷考试'") && examSetup.includes("'R Resume Open Exam'"), 'ExamSetup must show uppercase R resume hint');
+
+  const genView = fs.readFileSync(path.join(srcRoot, 'views/generate/GenerateView.tsx'), 'utf8');
+  assert.ok(!/input\s*===\s*['"]k['"]/.test(genView), 'GenerateView must not bind lowercase k (conflicts with VirtualList up)');
+  assert.ok(/input\s*===\s*['"]K['"]/.test(genView), 'GenerateView must use uppercase K for question kind');
+});

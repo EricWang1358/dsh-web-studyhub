@@ -39,7 +39,7 @@ const WRITTEN_COUNTS = [10, 20, 30] as const;
 const ORAL_COUNTS = [3, 5, 8, 10] as const;
 const TIME_LIMITS = [15, 30, 60] as const;
 const WRITTEN_KINDS: readonly WrittenKinds[] = ['all', 'balanced', 'quiz', 'multi'];
-const CLAIMED = ['1', '2', '3', 'c', 't', 'k', 'R', 'h', 'l', 'x'];
+const CLAIMED = ['1', '2', '3', 'c', 't', 'K', 'R', 'h', 'l', 'x'];
 
 export interface ExamHistoryExportRecord {
   runId?: string;
@@ -439,7 +439,7 @@ export const ExamSetup = memo(function ExamSetup({
           setLimitIdx((i) => (i + 1) % TIME_LIMITS.length);
           return;
         }
-        if (input === 'k' && mode === 'written') {
+        if (input === 'K' && !key.ctrl && !key.meta && mode === 'written') {
           setKindIdx((i) => (i + 1) % WRITTEN_KINDS.length);
           return;
         }
@@ -512,7 +512,7 @@ export const ExamSetup = memo(function ExamSetup({
               </Text>
             </Box>
             <Box>
-              <Text color={theme.muted}>{t(lang, '[k] 题型: ', '[k] Kinds: ')}</Text>
+              <Text color={theme.muted}>{t(lang, '[K] 题型: ', '[K] Kinds: ')}</Text>
               <Badge label={kindsLabel(kinds)} tone="accent" variant="soft" />
             </Box>
           </Box>
@@ -535,7 +535,7 @@ export const ExamSetup = memo(function ExamSetup({
 
         {resumableRun ? (
           <Box marginBottom={1}>
-            <Badge label={t(lang, 'r 继续未交卷考试', 'r Resume Open Exam')} tone="warning" />
+            <Badge label={t(lang, 'R 继续未交卷考试', 'R Resume Open Exam')} tone="warning" />
             <Text color={theme.muted}>{` ${truncateDisplay(String(resumableRun.title || ''), Math.max(8, innerW - 22), ellipsis)}`}</Text>
           </Box>
         ) : null}

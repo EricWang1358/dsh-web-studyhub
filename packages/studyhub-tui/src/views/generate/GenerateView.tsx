@@ -534,7 +534,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
   const filterInputActive =
     isActive && tab === 'new' && overlay === 'none' && !shellOverlay && !suggestLoading && filterEditing;
 
-  useClaimKeys(['c', 'k', 'n', 'p', 'f', 'S', 'W', 'P', 'a', 'g', 'i', '/'], wizardActive && !filterEditing);
+  useClaimKeys(['c', 'K', 'n', 'p', 'f', 'S', 'W', 'P', 'a', 'g', 'i', '/'], wizardActive && !filterEditing);
   useInputCapture(isActive && tab === 'new' && (overlay === 'scope' || overlay === 'focus'));
   useInputCapture(isActive && tab === 'new' && overlay === 'none' && filterEditing);
 
@@ -573,7 +573,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
       { key: 'Space', label: t(lang, '勾选资料', 'Toggle Src') },
       { key: 'i', label: t(lang, '录题', 'Capture') },
       { key: 'c', label: t(lang, '换课程', 'Course') },
-      { key: 'k', label: t(lang, '题型', 'Kind') },
+      { key: 'K', label: t(lang, '题型', 'Kind') },
       { key: 'n', label: t(lang, '题数', 'Count') },
       { key: 'p', label: t(lang, '页码范围', 'Pages') },
       { key: 'f', label: t(lang, '出题要求', 'Focus') },
@@ -666,7 +666,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
         const names = ['', ...courses.map((c) => c.key)];
         const idx = names.indexOf(courseName);
         setCourseName(names[(idx + 1) % names.length]);
-      } else if (input === 'k') {
+      } else if (input === 'K' && !key.ctrl && !key.meta) {
         setKindIndex((i) => (i + 1) % QUESTION_KINDS.length);
       } else if (input === 'n') {
         setCountIndex((i) => (i + 1) % TARGET_COUNTS.length);
@@ -922,7 +922,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
                   </Text>
 
                   <Box flexDirection="row" flexWrap="wrap" marginTop={1}>
-                    <Text color={theme.muted}>{t(lang, '[k] 题型: ', '[k] Kind: ')}</Text>
+                    <Text color={theme.muted}>{t(lang, '[K] 题型: ', '[K] Kind: ')}</Text>
                     <Badge
                       label={lang === 'en' ? selectedKind.en : selectedKind.zh}
                       tone="primary"
