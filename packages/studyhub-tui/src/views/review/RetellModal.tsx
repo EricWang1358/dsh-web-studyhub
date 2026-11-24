@@ -4,6 +4,11 @@ import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction, type ReviewRun } from '../../host/sample-actions.js';
+import {
+  isModelUnavailableError,
+  submitRetellEvaluation,
+  type UnifiedRetellVerdict,
+} from '../../host/ai-dialogue.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Divider, Spinner } from '../../components/Badge.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
@@ -22,20 +27,7 @@ import { NextStepFollowupBar } from './NextStepFollowupBar.js';
 
 export const RETELL_TEXT_MAX = 4000;
 
-export interface RetellVerdict {
-  passed: boolean;
-  right: string[];
-  missed: string[];
-  wrong: string[];
-  cite: number | null;
-  gap: 'none' | 'missed' | 'wrong';
-  record?: {
-    tries?: number;
-    passes?: number;
-    gap?: string;
-    at?: string;
-  };
-}
+export type RetellVerdict = UnifiedRetellVerdict;
 
 interface HydratedCitation {
   sourceId?: string;
@@ -57,12 +49,6 @@ export interface RetellModalProps {
   mathUnicode: boolean;
   onClose: () => void;
   onNavigateToSource: (location: CardSourceLocation) => void;
-}
-
-function isModelUnavailableError(message: string): boolean {
-  return /configure a model|model.*unavailable|no.*model|api.?key|unauthorized|forbidden|\b401\b|\b403\b|econnrefused|timed out|timeout|未配置|可用.*模型|模型不可用/i.test(
-    message,
-  );
 }
 
 function toNumberOrUndefined(value: unknown): number | undefined {
@@ -215,7 +201,7 @@ export const RetellModal = memo(function RetellModal({
       setSubmitting(true);
       setEditing(false);
       setErrorText(null);
-      const res = await tryAction<RetellVerdict>(host, 'teach.retell', {
+      const res = await submitRetellEvaluation(host, {
         deckId,
         cardId: targetCardId,
         text,
@@ -223,12 +209,11 @@ export const RetellModal = memo(function RetellModal({
       });
       if (!mountedRef.current || cardIdRef.current !== targetCardId) return;
       setSubmitting(false);
-      if (!res.ok || !res.value) {
-        const msg = res.error?.message || t(lang, '费曼复述评估失败', 'Feynman retell check failed');
-        setErrorText(msg);
+      if (!res.ok) {
+        setErrorText(res.error);
         return;
       }
-      setVerdict(res.value);
+      setVerdict(res.verdict);
     },
     [submitting, draft, deckId, cardId, host, lang, notify],
   );

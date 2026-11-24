@@ -1,4 +1,9 @@
 import type { ReviewRun } from '../../host/sample-actions.js';
+import {
+  buildCardDialogueUserPrompt,
+  buildUnifiedAiSystemPrompt,
+  canExposeReferenceAnswer,
+} from '../../host/ai-dialogue.js';
 import type { UiLanguage } from '../../types/contracts.js';
 import { t } from '../../state/store.js';
 
@@ -507,9 +512,7 @@ export function buildDailyQuestionNoteTitle(
 }
 
 export function buildCardHelpSystemPrompt(lang: UiLanguage): string {
-  return lang === 'en'
-    ? 'You are a concise, insightful study tutor inside a terminal flashcard/quiz app. Explain concepts clearly using structured bullet points and standard Markdown/LaTeX math ($...$ or $$...$$). Focus on why the answer is right, why common traps are wrong, and intuitive mental models.'
-    : '你是终端学习助手里的专业助教。请用简洁清晰的中文（支持 Markdown 与 LaTeX 数学公式 $...$ / $$...$$）为学生讲解当前题目：点明核心概念、解题思路、易错点辨析与直觉记忆法。';
+  return buildUnifiedAiSystemPrompt('explain', lang);
 }
 
 export function buildCardHelpUserPrompt(params: {
@@ -523,26 +526,21 @@ export function buildCardHelpUserPrompt(params: {
   const { run, kind, userAnswer, history, question, lang } = params;
   const card = (run.card || {}) as Record<string, unknown>;
   const sol = extractSolution(run);
-  const lines: string[] = [];
-  lines.push(`题目类型: ${kindLabel(kind, lang)}${card.topic ? ` | 知识点: ${String(card.topic)}` : ''}`);
-  lines.push(`题干:\n${String(card.prompt || '')}`);
+  const revealed = canExposeReferenceAnswer(run);
   const opts = resolveOptions(card, kind, lang);
-  if (opts.length > 0) {
-    lines.push('选项:\n' + opts.map((o, i) => `${i + 1}. ${o.text}`).join('\n'));
-  }
-  if (userAnswer) lines.push(`学生作答: ${userAnswer}`);
-  if (run.revealed || run.feedback) {
-    lines.push(`参考答案: ${extractReferenceAnswer(run, kind, lang)}`);
-    if (sol?.explanation) lines.push(`原解析: ${sol.explanation}`);
-    if (sol?.misconception) lines.push(`常见误区: ${sol.misconception}`);
-  }
-  if (history.length > 0) {
-    const recent = history.slice(-MAX_AI_TURNS);
-    lines.push('此前对话:');
-    for (const turn of recent) {
-      lines.push(`${turn.role === 'user' ? '学生' : '助教'}: ${turn.text}`);
-    }
-  }
-  lines.push(`当前问题: ${question}`);
-  return lines.join('\n\n');
+  return buildCardDialogueUserPrompt({
+    kindLabel: kindLabel(kind, lang),
+    topic: card.topic ? String(card.topic) : undefined,
+    prompt: String(card.prompt || ''),
+    options: opts.map((o) => o.text),
+    userAnswer,
+    revealed,
+    referenceAnswer: revealed ? extractReferenceAnswer(run, kind, lang) : undefined,
+    explanation: sol?.explanation,
+    misconception: sol?.misconception,
+    history,
+    maxHistoryTurns: MAX_AI_TURNS,
+    question,
+    lang,
+  });
 }

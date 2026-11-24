@@ -30,6 +30,11 @@ import { ClickableBox } from '../components/mouse.js';
 import { useModalFooterHints } from '../components/focus.js';
 import { useStreamingBuffer } from '../components/useStreamingBuffer.js';
 import { tryAction } from '../host/sample-actions.js';
+import {
+  buildUnifiedAiSystemPrompt,
+  formatRetellVerdictLines,
+  submitRetellEvaluation,
+} from '../host/ai-dialogue.js';
 import { atomicWriteExportText, defaultBackupFilePath } from '../host/atomic-write.js';
 import { saveTuiPreferences } from '../host/tui-prefs.js';
 import {
@@ -697,29 +702,17 @@ export const AssistantPanel = memo(function AssistantPanel({
         }
         beginExecution(t(lang, '评估费曼复述', 'Evaluating retell'));
         try {
-          const res = await tryAction<{
-            passed?: boolean;
-            right?: string[];
-            missed?: string[];
-            wrong?: string[];
-            gap?: string;
-          }>(host, 'teach.retell', {
+          const res = await submitRetellEvaluation(host, {
             deckId: resolvedDeckId,
             cardId: cardCtx.cardId,
             text,
             language: lang,
           });
           if (!mountedRef.current) return;
-          if (!res.ok || !res.value) {
-            const rawErr = res.error?.message || '';
-            const isModelErr =
-              !rawErr ||
-              /configure a model|model.*unavailable|no.*model|api.?key|unauthorized|forbidden|\b401\b|\b403\b|econnrefused|timed out|timeout|未配置|可用.*模型|模型不可用/i.test(
-                rawErr,
-              );
+          if (!res.ok) {
             const fb = {
-              reason: rawErr || t(lang, '模型暂不可用，无法在线评估复述。', 'Model unavailable for retell.'),
-              altLabel: isModelErr
+              reason: res.error || t(lang, '模型暂不可用，无法在线评估复述。', 'Model unavailable for retell.'),
+              altLabel: res.isModelError
                 ? t(lang, '改为：按 [S] 跳过复述，或按 [P] 复制提示词到外部模型', 'Alternative: [S] skip or [P] copy prompt')
                 : t(lang, '可按 [S] 跳过复述，或重试提交', 'Press [S] to skip retell or try again'),
               altCommand: '查看统计',
@@ -730,32 +723,27 @@ export const AssistantPanel = memo(function AssistantPanel({
             appendTurn({
               role: 'system',
               stage: 'retell',
-              actionSummary: isModelErr ? t(lang, '模型暂不可用', 'Model unavailable') : t(lang, '复述评估失败', 'Retell failed'),
+              actionSummary: res.isModelError ? t(lang, '模型暂不可用', 'Model unavailable') : t(lang, '复述评估失败', 'Retell failed'),
               text: `${fb.reason} ${fb.altLabel}`,
             });
             return;
           }
-          const v = res.value;
+          const v = res.verdict;
           sessionMemory.retellRecords.push({
             cardId: cardCtx.cardId,
             stage: 'retell',
-            passed: Boolean(v.passed),
+            passed: v.passed,
             skipped: false,
             gap: v.gap,
             at: Date.now(),
           });
-          const lines = [
-            v.passed ? t(lang, '复述通过。', 'Retell passed.') : t(lang, '复述待补强。', 'Needs review.'),
-            ...(Array.isArray(v.right) && v.right.length ? [`讲对了：${v.right.join('；')}`] : []),
-            ...(Array.isArray(v.missed) && v.missed.length ? [`漏掉了：${v.missed.join('；')}`] : []),
-            ...(Array.isArray(v.wrong) && v.wrong.length ? [`讲错了：${v.wrong.join('；')}`] : []),
-          ];
+          const lines = formatRetellVerdictLines(v, lang);
           appendTurn({
             role: 'assistant',
             stage: 'retell',
             actionSummary: v.passed ? t(lang, '复述评估：通过', 'Retell check: passed') : t(lang, '复述评估：待补强', 'Retell check: needs review'),
             text: lines.join('\n'),
-            verdict: { passed: Boolean(v.passed), right: v.right ?? [], missed: v.missed ?? [], wrong: v.wrong ?? [], gap: v.gap },
+            verdict: { passed: v.passed, right: v.right, missed: v.missed, wrong: v.wrong, gap: v.gap },
           });
           setStage('summary');
         } finally {
@@ -954,14 +942,11 @@ export const AssistantPanel = memo(function AssistantPanel({
         .join('\n');
 
       try {
-        const system =
-          lang === 'en'
-            ? 'You are the StudyHub TUI assistant. Reply concisely; never repeat the user prompt.'
-            : isPlainExplain
-              ? '你是 StudyHub 学习助手。用大白话+生活类比为当前题写通俗讲解，180字内，直接给干货，不要复述用户原话。'
-              : tab === 'guided'
-                ? `你是 StudyHub 带学导师，当前阶段「${stageLabel(stage, 'zh')}」。中文短句，一次聚焦一个点，不复述用户原话。`
-                : '你是 StudyHub 学习助手，中文短句直接给答案或步骤，不复述用户原话。';
+        const system = buildUnifiedAiSystemPrompt(
+          isPlainExplain ? 'plain_explain' : tab === 'guided' ? 'guided' : 'assistant',
+          lang,
+          { stageLabel: stageLabel(stage, lang) },
+        );
         const promptParts = [
           cardCtx?.prompt ? `当前题目：${cardCtx.prompt}` : '',
           cardCtx?.userAnswer ? `我的作答：${cardCtx.userAnswer}` : '',
