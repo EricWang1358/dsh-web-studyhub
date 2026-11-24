@@ -207,7 +207,7 @@ export const RetellModal = memo(function RetellModal({
       }
       if (!deckId) {
         setEditing(false);
-        setErrorText(t(lang, '缺少题组 ID，无法调用费曼复述评估', 'Missing deckId for teach.retell'));
+        setErrorText(t(lang, '缺少题组信息，无法调用费曼复述评估', 'Missing deck context; cannot evaluate Feynman retell'));
         return;
       }
       const targetCardId = cardId;

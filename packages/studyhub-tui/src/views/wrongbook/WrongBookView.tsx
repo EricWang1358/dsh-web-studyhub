@@ -1670,7 +1670,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
         >
           <Box flexDirection="column" marginY={1} gap={1}>
             <Text color={theme.muted}>
-              {t(lang, '请输入问题描述（将写入 card.flag 供后台检查）：', 'Describe the issue (saved to card.flag):')}
+              {t(lang, '请输入问题描述（将记录为待修标记供后续核查）：', 'Describe the issue (saved as a review flag):')}
             </Text>
             <TextInput
               value={flagText}

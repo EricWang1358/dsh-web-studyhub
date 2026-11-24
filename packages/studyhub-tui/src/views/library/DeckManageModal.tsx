@@ -1731,7 +1731,7 @@ export const DeckManageModal = memo(function DeckManageModal({
 
       {mode === 'rename' ? (
         <Box flexDirection="column" flexShrink={0}>
-          <Text color={theme.accent}>{t(lang, '输入新题组标题 (通过 deck.edit 保存):', 'New deck title (via deck.edit):')}</Text>
+          <Text color={theme.accent}>{t(lang, '输入新题组标题（Enter 保存）:', 'New deck title (Enter to save):')}</Text>
           <Box borderStyle={asciiMode ? 'classic' : 'round'} borderColor={theme.borderActive} paddingX={1}>
             <TextInput
               value={renameValue}
