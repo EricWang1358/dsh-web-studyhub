@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { randomUUID } from 'node:crypto';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text, useWindowSize } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';

@@ -14,7 +14,8 @@
  * 10. `marked`-free (`ScrollView` + `wrapDisplay`).
  */
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput, useStdout, useWindowSize } from 'ink';
+import { Box, Text, useStdout, useWindowSize } from 'ink';
+import { useScopedInput as useInput } from '../components/key-dispatcher.js';
 import { PAGE_REGISTRY, type HostClient, type PageId, type UiLanguage } from '../types/contracts.js';
 import { t, useTuiStore, type AssistantCardContext, type AssistantTabId } from '../state/store.js';
 import { getColorLevel, makeChalk, useTheme } from '../theme/tokens.js';

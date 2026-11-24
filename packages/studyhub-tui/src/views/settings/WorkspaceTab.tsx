@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isAbsolute, relative, resolve } from 'node:path';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { BindingSnapshot, HostClient } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import {

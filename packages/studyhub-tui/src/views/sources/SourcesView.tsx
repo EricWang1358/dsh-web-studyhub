@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text, useWindowSize } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { Badge, EmptyState, Spinner } from '../../components/Badge.js';

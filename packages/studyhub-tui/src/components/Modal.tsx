@@ -1,10 +1,11 @@
 import React, { memo, type ReactNode } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
 import type { KeyHint } from '../types/contracts.js';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { useTuiStore } from '../state/store.js';
 import { useInputCapture, useModalFooterHints } from './focus.js';
+import { KEY_LAYER_MODAL_FRAME, KeyScopeProvider, useKeyScopeDepth, useScopedInput } from './key-dispatcher.js';
 import { useStableWindowSize } from './resize.js';
 import {
   ClickableBox,
@@ -64,16 +65,21 @@ export const Modal = memo(function Modal({
   const { columns, rows } = useStableWindowSize();
   const parentLayer = useMouseLayer();
   const modalLayer = overlay ? Math.max(MOUSE_LAYER_MODAL, parentLayer + MOUSE_LAYER_MODAL) : parentLayer;
+  const keyDepth = useKeyScopeDepth();
   // Opaque modal capture (#1354 D1): while mounted, a modal always captures global input
   // and blocks background mouse clicks even if its own isActive is temporarily false (e.g. busy/nested child).
   useInputCapture(captureInput);
   useMouseModalBarrier(overlay, modalLayer);
   useModalFooterHints(hints, isActive && overlay);
-  useInput(
+  useScopedInput(
     (_input, key) => {
-      if (key.escape) onClose?.();
+      if (key.escape) {
+        onClose?.();
+        return true;
+      }
+      return false;
     },
-    { isActive: isActive && Boolean(onClose) },
+    { isActive: isActive && Boolean(onClose), layer: KEY_LAYER_MODAL_FRAME, depth: keyDepth, id: 'Modal:esc' },
   );
   const frameWidth = Math.max(24, Math.min(width ?? 72, columns - 4));
   const inner = frameWidth - 4;
@@ -84,7 +90,8 @@ export const Modal = memo(function Modal({
   const headText = truncateDisplay(head, Math.max(4, inner - displayWidth(sub) - (onClose ? 6 : 1)), ell);
 
   const frame = (
-    <MouseLayerContext.Provider value={modalLayer}>
+    <KeyScopeProvider depth={keyDepth} opaque={false}>
+      <MouseLayerContext.Provider value={modalLayer}>
       <Box
         flexDirection="column"
         width={frameWidth}
@@ -126,6 +133,7 @@ export const Modal = memo(function Modal({
         ) : null}
       </Box>
     </MouseLayerContext.Provider>
+    </KeyScopeProvider>
   );
 
   if (!overlay) return frame;

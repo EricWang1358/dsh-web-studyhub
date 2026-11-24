@@ -1,5 +1,6 @@
 import React, { memo, useMemo, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { UiLanguage } from '../../types/contracts.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState } from '../../components/Badge.js';
