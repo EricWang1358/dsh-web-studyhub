@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
+import { PassThrough } from 'node:stream';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import React from 'react';
@@ -52,6 +53,65 @@ function renderDebugToString(element, cols = 80, rows = 24) {
   const inst = render(element, { stdout, stdin, debug: true, exitOnCtrlC: false });
   inst.unmount();
   return out;
+}
+
+const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+
+/** Live ink render with a fake TTY so tests can resize and send keys between frames. */
+function createLiveHarness(element, { cols = 80, rows = 24 } = {}) {
+  const stdin = new PassThrough();
+  stdin.isTTY = true;
+  stdin.setRawMode = () => stdin;
+  stdin.ref = () => stdin;
+  stdin.unref = () => stdin;
+
+  const stdout = new PassThrough();
+  stdout.isTTY = true;
+  stdout.columns = cols;
+  stdout.rows = rows;
+  stdout.getColorDepth = () => 1;
+
+  const frames = [];
+  const waiters = new Set();
+  const notify = () => {
+    const latest = frames.at(-1) ?? '';
+    for (const w of [...waiters]) {
+      if (w.predicate(latest)) {
+        waiters.delete(w);
+        clearTimeout(w.timer);
+        w.resolve(latest);
+      }
+    }
+  };
+  stdout.on('data', (chunk) => {
+    const text = String(chunk);
+    const plain = text.replace(/\u001B\[[0-9;?]*[a-zA-Z]/g, '');
+    if (plain.trim().length > 0) {
+      frames.push(plain);
+      notify();
+    }
+  });
+
+  const inst = render(element, { stdout, stdin, debug: true, exitOnCtrlC: false, patchConsole: false });
+
+  const lastFrame = () => frames.at(-1) ?? '';
+  const waitForFrame = (predicate, timeoutMs = 2_000, label = 'matching frame') => {
+    const cur = lastFrame();
+    if (predicate(cur)) return Promise.resolve(cur);
+    return new Promise((resolvePromise, rejectPromise) => {
+      const entry = {
+        predicate,
+        resolve: resolvePromise,
+        timer: setTimeout(() => {
+          waiters.delete(entry);
+          rejectPromise(new Error(`Timed out waiting for ${label} after ${timeoutMs}ms. Last frame:\n${lastFrame()}`));
+        }, timeoutMs),
+      };
+      waiters.add(entry);
+    });
+  };
+
+  return { inst, stdin, stdout, frames, lastFrame, waitForFrame, sleep };
 }
 
 describe('P2 (#1354 D4/D5): Typography, Breakpoints, Overflow & Glyph Convergence', () => {
@@ -171,6 +231,58 @@ describe('P2 (#1354 D4/D5): Typography, Breakpoints, Overflow & Glyph Convergenc
     useTuiStore.setState({ preferences: { ...DEFAULT_PREFERENCES, language: 'zh', asciiMode: false } });
     const renderedZh = renderDebugToString(React.createElement(KeyHintBar, { hints: manyHints, width: 64 }), 64, 3);
     assert.ok(renderedZh.includes('1-6') && renderedZh.includes(`+${narrow.hiddenCount}`), `Rendered KeyHintBar must show primary key & +N badge: ${renderedZh}`);
+
+    // Regression (#1452): the compact `?+N` badge reserves exactly the columns it paints. An extra reserved
+    // column (and the old `… ? +N` spelling) evicted the last hint on the 80-col NotesView and 120-col
+    // WrongBook/Book footers, which is what the terminal tests wait for.
+    const notesHintsEn = [
+      { key: 'a', label: 'New' },
+      { key: 'e', label: 'Edit' },
+      { key: 'g', label: 'AI Draft' },
+      { key: 'o', label: 'Open Ref' },
+      { key: 'L', label: 'Link' },
+      { key: 'M', label: 'To Sources' },
+      { key: 'R', label: 'Recap' },
+      { key: 'x', label: 'Export' },
+      { key: 'd', label: 'Del' },
+    ];
+    const notes80 = computeKeyHintBarLayout(notesHintsEn, 80, { asciiMode: true, lang: 'en' });
+    assert.ok(
+      notes80.shown.some((h) => h.label === 'To Sources'),
+      `80-col NotesView footer must keep "To Sources" alongside the compact badge: ${JSON.stringify(notes80)}`,
+    );
+    assert.equal(notes80.overflowText, '?+3', `80-col overflow badge must be compact: ${notes80.overflowText}`);
+    assert.ok(notes80.usedWidth <= 80);
+
+    const wrongBookHintsZh = [
+      { key: 'Tab/h/l', label: '切换标签' },
+      { key: 'Space', label: '多选' },
+      { key: 'e', label: '标错因' },
+      { key: 't', label: '分流处理' },
+      { key: 'Enter/p', label: '重练' },
+      { key: 'P', label: '批量练' },
+      { key: 'V', label: '变式练' },
+      { key: 'X', label: '导出错题' },
+      { key: 'x', label: '同类题' },
+      { key: 'o', label: '看原文' },
+    ];
+    const wb120 = computeKeyHintBarLayout(wrongBookHintsZh, 120, { asciiMode: false, lang: 'zh' });
+    assert.ok(
+      wb120.shown.some((h) => h.label === '导出错题'),
+      `120-col WrongBookView footer must keep "导出错题" alongside the compact badge: ${JSON.stringify(wb120)}`,
+    );
+    assert.ok(wb120.usedWidth <= 120);
+
+    // The reserved badge width must be exactly what the badge paints: no phantom column between
+    // the last hint and the badge, and no hint evicted for a column the badge never uses.
+    const uniformHints = Array.from({ length: 8 }, (_, i) => ({ key: String(i + 1), label: 'ab' }));
+    const exact = computeKeyHintBarLayout(uniformHints, 24, { asciiMode: true, lang: 'en' });
+    assert.ok(exact.usedWidth <= 24, `usedWidth ${exact.usedWidth} must fit 24`);
+    const oneLess = computeKeyHintBarLayout(uniformHints, exact.usedWidth - 1, { asciiMode: true, lang: 'en' });
+    assert.ok(
+      oneLess.shown.length < exact.shown.length,
+      `painted width must be tight: at ${exact.usedWidth - 1} cols one hint must drop (exact: ${JSON.stringify(exact)}, oneLess: ${JSON.stringify(oneLess)})`,
+    );
   });
 
   test('6. Typography primitives <ChromeLabel> (truncates chrome) and <Prose> (wraps content without truncation)', async () => {
@@ -188,15 +300,17 @@ describe('P2 (#1354 D4/D5): Typography, Breakpoints, Overflow & Glyph Convergenc
     assert.ok(proseOut.includes('TAIL_INTACT'), `Prose must wrap without truncating content: ${proseOut}`);
   });
 
-  test('7. Viewport-too-small guard screen renders cleanly in AppShell when terminal < 60x18', async () => {
+  test('7. Viewport-too-small guard overlays the shell instead of unmounting it (#1452)', async () => {
     const { AppShell } = await import('../src/shell/AppShell.tsx');
     const { useTuiStore, DEFAULT_PREFERENCES } = await import('../src/state/store.ts');
+    const { Text } = await import('ink');
     useTuiStore.setState({
       page: 'library',
       loading: false,
       snapshot: { decks: [], courses: [], sources: [], jobs: [] },
       showLaunchpad: false,
       toasts: [],
+      quitConfirmOpen: false,
       preferences: { ...DEFAULT_PREFERENCES, language: 'zh', asciiMode: true },
     });
 
@@ -208,21 +322,65 @@ describe('P2 (#1354 D4/D5): Typography, Breakpoints, Overflow & Glyph Convergenc
       close: async () => {},
     };
 
-    let pageRendered = false;
-    const out = renderDebugToString(
+    let mountCount = 0;
+    let pageRenders = 0;
+    let quitCalls = 0;
+    let guardCalls = 0;
+
+    const ProbePage = () => {
+      React.useEffect(() => {
+        mountCount += 1;
+      }, []);
+      React.useEffect(() => useTuiStore.getState().registerQuitGuard(() => { guardCalls += 1; return true; }), []);
+      return React.createElement(Text, null, 'PAGE_BODY_MARKER');
+    };
+
+    const { inst, stdout, stdin, lastFrame, waitForFrame } = createLiveHarness(
       React.createElement(AppShell, {
         host: noopHost,
         autoLaunchpad: false,
+        actions: { quit: () => { quitCalls += 1; } },
         renderPage: () => {
-          pageRendered = true;
-          return React.createElement('box');
+          pageRenders += 1;
+          return React.createElement(ProbePage);
         },
       }),
-      48,
-      14,
+      { cols: 100, rows: 30 },
     );
-    assert.equal(pageRendered, false, 'AppShell must not render page content when viewport < 60x18');
-    assert.ok(out.includes('80x24') || out.includes('80×24'), `Too-small guard must recommend 80x24: ${out}`);
-    assert.ok(out.includes('48x14') || out.includes('48×14'), `Too-small guard must show current size: ${out}`);
+
+    try {
+      await waitForFrame((f) => f.includes('PAGE_BODY_MARKER'), 3_000, 'page content at 100x30');
+      const rendersBefore = pageRenders;
+      assert.equal(mountCount, 1, 'page must be mounted once at a usable size');
+
+      // Shrink below the 60x18 minimum: the page must stay mounted underneath the notice.
+      stdout.columns = 48;
+      stdout.rows = 14;
+      stdout.emit('resize');
+
+      const narrow = await waitForFrame((f) => /48[x×]14/.test(f), 3_000, 'too-small notice at 48x14');
+      assert.ok(/60[x×]18/.test(narrow), `Too-small notice must state the real 60x18 minimum: ${narrow}`);
+      assert.equal(mountCount, 1, 'shrinking the terminal must not remount the page (input/cursor/scroll state survive)');
+      assert.ok(pageRenders > rendersBefore, 'the page must keep rendering under the notice');
+      assert.ok(
+        !lastFrame().includes('PAGE_BODY_MARKER'),
+        `the notice must paint over the page instead of leaving it half visible: ${lastFrame()}`,
+      );
+
+      // The page's registered quit guard must still run: `q` asks for confirmation, it must not quit outright.
+      stdin.write('q');
+      await sleep(80);
+      assert.equal(guardCalls, 1, 'the page-registered quit guard must still be consulted while the notice is shown');
+      assert.equal(quitCalls, 0, 'a registered quit guard must block the immediate exit');
+
+      // Growing back restores the full shell without remounting the page.
+      stdout.columns = 100;
+      stdout.rows = 30;
+      stdout.emit('resize');
+      await waitForFrame((f) => !/48[x×]14/.test(f) && f.includes('PAGE_BODY_MARKER'), 3_000, 'restored shell');
+      assert.equal(mountCount, 1, 'growing back must not remount the page either');
+    } finally {
+      inst.unmount();
+    }
   });
 });

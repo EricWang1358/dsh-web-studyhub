@@ -293,16 +293,18 @@ export function computeKeyHintBarLayout(
   } else {
     const formatOverflow = (count: number, hasHelpKey: boolean): string => {
       if (count <= 0) return '';
-      return hasHelpKey ? `${ell} +${count}` : `${ell} ? +${count}`;
+      return hasHelpKey ? `+${count}` : `?+${count}`;
     };
 
     // Greedily pack hints while guaranteeing space for the compact overflow badge.
+    // The badge reserves exactly the columns it paints: no extra padding column, otherwise the last
+    // hint of an 80/120-col view footer gets evicted for a column nothing occupies (#1452).
     const packed: typeof normalized = [];
     for (let i = 0; i < normalized.length; i += 1) {
       const entry = normalized[i];
       const nextHidden = normalized.length - (packed.length + 1);
       const hasHelp = packed.some((p) => p.hint.key === '?') || entry.hint.key === '?';
-      const badgeReserve = nextHidden > 0 ? displayWidth(formatOverflow(nextHidden, hasHelp)) + 1 : 0;
+      const badgeReserve = nextHidden > 0 ? displayWidth(formatOverflow(nextHidden, hasHelp)) : 0;
       if (used + entry.itemWidth + badgeReserve > budget) break;
       packed.push(entry);
       used += entry.itemWidth;
@@ -314,7 +316,7 @@ export function computeKeyHintBarLayout(
       const candidate = formatOverflow(hiddenCount, hasHelp);
       const avail = Math.max(0, budget - used);
       overflowText = displayWidth(candidate) <= avail ? candidate : truncateDisplay(`+${hiddenCount}`, avail, ell);
-      if (overflowText) used += displayWidth(overflowText) + 1;
+      if (overflowText) used += displayWidth(overflowText);
     }
   }
 

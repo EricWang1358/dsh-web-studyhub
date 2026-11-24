@@ -80,7 +80,6 @@ export const AppShell = memo(function AppShell({
   autoLaunchpad = true,
 }: AppShellProps) {
   const { exit } = useApp();
-  const theme = useTheme();
   const { columns, rows } = useStableWindowSize();
 
   const page = useTuiStore((s) => s.page);
@@ -343,34 +342,10 @@ export const AppShell = memo(function AppShell({
   const toastW = Math.min(52, Math.max(28, Math.floor(columns * 0.45)));
   const toastRows = Math.min(Math.max(1, rows - 3), estimateToastStackHeight(toasts, toastW, asciiMode));
   const toastTop = Math.max(1, rows - (showKeyHints ? 1 : 0) - toastRows);
-
-  if (isViewportTooSmall(columns, rows)) {
-    const times = glyph('times', asciiMode);
-    const warnGlyph = glyph('warn', asciiMode);
-    return (
-      <ShellActionsContext.Provider value={actions}>
-        <Box
-          flexDirection="column"
-          width={columns}
-          height={rows}
-          alignItems="center"
-          justifyContent="center"
-          paddingX={1}
-        >
-          <Text color={theme.warning} bold wrap="wrap">
-            {`${warnGlyph} ${t(lang, `终端窗口太小 (${columns}${times}${rows})`, `Terminal too small (${columns}${times}${rows})`)}`}
-          </Text>
-          <Text color={theme.text} wrap="wrap">
-            {t(lang, `请放大窗口至至少 80${times}24`, `Resize terminal to at least 80${times}24`)}
-          </Text>
-          <Text color={theme.dim} wrap="wrap">
-            {t(lang, '按 q 或 Ctrl+C 退出', 'Press q or Ctrl+C to quit')}
-          </Text>
-        </Box>
-      </ShellActionsContext.Provider>
-    );
-  }
-
+  // Below 60x18 the shell stays mounted and a notice is drawn over it instead: unmounting would
+  // throw away in-progress input, cursor and scroll positions, and would drop the quit guards that
+  // pages register, so `q` would exit without the unsaved-work confirmation (#1452).
+  const tooSmall = isViewportTooSmall(columns, rows);
   let main: ReactNode;
   if (showLaunchpad) {
     main = (
@@ -505,6 +480,7 @@ export const AppShell = memo(function AppShell({
           </KeyScopeProvider>
         ) : null}
         {overlays}
+        {tooSmall ? <TooSmallViewportNotice columns={columns} rows={rows} asciiMode={asciiMode} lang={lang} /> : null}
         {quitConfirmOpen ? (
           <KeyScopeProvider>
             <ConfirmDialog
@@ -529,6 +505,50 @@ export const AppShell = memo(function AppShell({
         ) : null}
       </Box>
     </ShellActionsContext.Provider>
+  );
+});
+
+/** Opaque notice drawn over the shell when the terminal is below 60x18; the shell underneath keeps its state (#1452). */
+const TooSmallViewportNotice = memo(function TooSmallViewportNotice({
+  columns,
+  rows,
+  asciiMode,
+  lang,
+}: {
+  columns: number;
+  rows: number;
+  asciiMode: boolean;
+  lang: 'zh' | 'en';
+}) {
+  const theme = useTheme();
+  const times = glyph('times', asciiMode);
+  const warnGlyph = glyph('warn', asciiMode);
+  const minCols = LAYOUT_BP.MIN_VIEWPORT_COLS;
+  const minRows = LAYOUT_BP.MIN_VIEWPORT_ROWS;
+  return (
+    <Box
+      position="absolute"
+      top={0}
+      left={0}
+      width="100%"
+      height="100%"
+      flexDirection="column"
+      alignItems="center"
+      justifyContent="center"
+      paddingX={1}
+      backgroundColor={theme.surface}
+      overflow="hidden"
+    >
+      <Text color={theme.warning} bold wrap="wrap">
+        {`${warnGlyph} ${t(lang, `终端窗口太小 (${columns}${times}${rows})`, `Terminal too small (${columns}${times}${rows})`)}`}
+      </Text>
+      <Text color={theme.text} wrap="wrap">
+        {t(lang, `请放大窗口至至少 ${minCols}${times}${minRows}`, `Resize terminal to at least ${minCols}${times}${minRows}`)}
+      </Text>
+      <Text color={theme.dim} wrap="wrap">
+        {t(lang, '按 q 或 Ctrl+C 退出', 'Press q or Ctrl+C to quit')}
+      </Text>
+    </Box>
   );
 });
 
