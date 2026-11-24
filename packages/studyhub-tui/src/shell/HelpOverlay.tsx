@@ -257,7 +257,7 @@ export function buildInAppGuideLines(lang: UiLanguage, width: number, asciiMode 
           {
             heading: '1. First-Time Setup & Three Screen Areas',
             bullets: [
-              'TopBar: active page, course [c], inbox [I], running jobs, due count, model status, [?] Help & [/]/[Ctrl+K] Palette.',
+              'TopBar: active page, course [c], inbox [I] (press [h] inside for recent toast history, last 50 multi-line notices), running jobs, due count, model status, [?] Help & [/]/[Ctrl+K] Palette.',
               'SideNav: Daily / Exam / Tools groups + top Resume [r]. Keys overridden by the current page are automatically hidden on SideNav.',
               'Reserved global keys (never shadowed): [r] Return to active review, [q] Safe quit (confirms during practice/exam), [?] Help/Guide.',
               'Models: press [,] -> [1] Models to activate agy CLI or OpenAI-compatible provider. Offline 0-token features still work without a model.',
@@ -294,7 +294,7 @@ export function buildInAppGuideLines(lang: UiLanguage, width: number, asciiMode 
           {
             heading: '一、第一次打开：看懂三块区域与保留键',
             bullets: [
-              '顶栏：当前页面、课程 [c]、收件箱 [I]、后台任务、今日到期、模型状态、[?] 帮助与命令面板。',
+              '顶栏：当前页面、课程 [c]、收件箱 [I]（按 [h] 切「近期提示」可回看最近 50 条多行提示）、后台任务、今日到期、模型状态、[?] 帮助与命令面板。',
               '左侧栏：每日/考试/整理 15 页 + 顶部「继续练习 r」。当前页覆盖了某个字母键时，侧栏会自动隐藏该键避免误导。',
               '三大保留全局键（任何页面不覆盖）：[r] 回到题目/继续练习、[q] 安全退出（刷题/考试中带确认）、[?] 帮助与教程。',
               '配模型：按 [,] -> [1] 模型启用 agy CLI 或 OpenAI 兼容预设；没配模型时阅读、刷已有题、错题分流、看板和 CLI 仍可正常用。',

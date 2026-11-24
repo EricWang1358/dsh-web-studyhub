@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { resolve } from 'node:path';
-import { Box, Text, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../components/resize.js';
 import { useScopedInput as useInput } from '../components/key-dispatcher.js';
 import type { HostClient, NavigationContext, PageId, UiLanguage } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
@@ -123,7 +124,7 @@ export function resolveInboxTarget(
 
 export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: InboxModalProps) {
   const theme = useTheme();
-  const { columns, rows } = useWindowSize();
+  const { columns, rows } = useStableWindowSize();
   const actions = useShellActions();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));

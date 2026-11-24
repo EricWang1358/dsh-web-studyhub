@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
 import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -205,7 +206,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
   const shellOverlay = useTuiStore(
     (s) => s.commandPaletteOpen || s.helpOpen || s.coursePickerOpen || s.inboxOpen || s.voicePackOpen,
   );
-  const { columns } = useWindowSize();
+  const { columns } = useStableWindowSize();
   const { refresh } = useShellActions();
 
   const [tab, setTab] = useState<SubTab>(navContext.draftId ? 'drafts' : 'new');

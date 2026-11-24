@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { pathToFileURL } from 'node:url';
-import { Box, Text, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
 import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -493,7 +494,7 @@ export const CompanionsModal = memo(function CompanionsModal({
   const snapshot = useTuiStore((s) => s.snapshot);
   const navigate = useTuiStore((s) => s.navigate);
   const notify = useTuiStore((s) => s.notify);
-  const { columns, rows: termRows } = useWindowSize();
+  const { columns, rows: termRows } = useStableWindowSize();
 
   const mountedRef = useRef(true);
   const busyRef = useRef(false);

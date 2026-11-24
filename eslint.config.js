@@ -209,6 +209,7 @@ export default [
     ignores: [
       "packages/studyhub-tui/src/components/key-dispatcher.ts",
       "packages/studyhub-tui/src/components/mouse.tsx",
+      "packages/studyhub-tui/src/components/resize.ts",
     ],
     rules: {
       "no-restricted-imports": ["error", {
@@ -216,6 +217,37 @@ export default [
           name: "ink",
           importNames: ["useInput"],
           message: "Use useScopedInput from components/key-dispatcher.js instead of raw ink useInput (#1354 D1).",
+        }, {
+          name: "ink",
+          importNames: ["useWindowSize"],
+          message: "Use useStableWindowSize from components/resize.js instead of raw ink useWindowSize (#1354 P4).",
+        }],
+      }],
+    },
+  },
+  {
+    files: ["packages/studyhub-tui/src/components/resize.ts"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        paths: [{
+          name: "ink",
+          importNames: ["useInput"],
+          message: "Use useScopedInput from components/key-dispatcher.js instead of raw ink useInput (#1354 D1).",
+        }],
+      }],
+    },
+  },
+  {
+    files: [
+      "packages/studyhub-tui/src/components/key-dispatcher.ts",
+      "packages/studyhub-tui/src/components/mouse.tsx",
+    ],
+    rules: {
+      "no-restricted-imports": ["error", {
+        paths: [{
+          name: "ink",
+          importNames: ["useWindowSize"],
+          message: "Use useStableWindowSize from components/resize.js instead of raw ink useWindowSize (#1354 P4).",
         }],
       }],
     },

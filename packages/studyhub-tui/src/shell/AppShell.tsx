@@ -129,7 +129,9 @@ export const AppShell = memo(function AppShell({
   const voiceOverlay = voiceOpen && Boolean(renderVoicePack);
   // Right-docked passive assistant (`assistantOpen && !assistantFocused && !assistantFullscreen`) NEVER steals focus!
   const assistantCapturesFocus = assistantOpen && (assistantFocused || assistantFullscreen);
-  const overlayOpen = paletteOpen || helpOpen || courseOpen || inboxOpen || voiceOverlay || quitConfirmOpen || assistantCapturesFocus;
+  const shellModalOpen = paletteOpen || helpOpen || courseOpen || inboxOpen || voiceOverlay || quitConfirmOpen;
+  const assistantScopeActive = assistantCapturesFocus && !shellModalOpen;
+  const overlayOpen = shellModalOpen || assistantCapturesFocus;
 
   // Render-time snapshot of routing state: every useInput handler for ONE keystroke sees
   // the state from BEFORE that keystroke (so closing an overlay with `?` never reopens it).
@@ -222,6 +224,15 @@ export const AppShell = memo(function AppShell({
       const r = routing.current;
       if (r.overlayOpen || r.inputCaptured) return false;
       if (key.ctrl || key.meta) return false;
+      // #1428: unified 2-step Esc across every docked page — when no modal/filter/view handler
+      // consumed Esc, fold the passive assistant dock cleanly without leaving the current page.
+      if (key.escape) {
+        if (s.assistantOpen && !s.assistantFocused && !s.assistantFullscreen) {
+          s.closeAssistant();
+          return true;
+        }
+        return false;
+      }
       if (input && !RESERVED_GLOBAL_KEY_SET.has(input) && isKeyClaimed(input)) return false;
       if (key.backspace) {
         if (!isKeyClaimed('backspace')) {
@@ -356,48 +367,54 @@ export const AppShell = memo(function AppShell({
           {navW > 0 ? <SideNav width={navW} height={bodyH} /> : null}
           {assistantOpen && assistantFullscreen ? (
             <Box flexDirection="column" width={columns - navW} height={bodyH} paddingX={1} overflow="hidden">
-              <Suspense fallback={null}>
-                <AssistantPanel
-                  host={host}
-                  isActive={!paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !quitConfirmOpen}
-                  width={Math.max(40, columns - navW - 2)}
-                  height={bodyH}
-                  docked
-                  onClose={() => useTuiStore.getState().closeAssistant()}
-                />
-              </Suspense>
+              <KeyScopeProvider opaque={assistantScopeActive}>
+                <Suspense fallback={null}>
+                  <AssistantPanel
+                    host={host}
+                    isActive={!paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !quitConfirmOpen}
+                    width={Math.max(40, columns - navW - 2)}
+                    height={bodyH}
+                    docked
+                    onClose={() => useTuiStore.getState().closeAssistant()}
+                  />
+                </Suspense>
+              </KeyScopeProvider>
             </Box>
           ) : dockSideBySide ? (
             <Box flexDirection="row" width={columns - navW} height={bodyH} paddingX={1} overflow="hidden">
               <Box flexDirection="column" width={contentW} height={bodyH} overflow="hidden">
                 {main}
               </Box>
-              <Suspense fallback={null}>
-                <AssistantPanel
-                  host={host}
-                  isActive={assistantFocused && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !quitConfirmOpen}
-                  width={dockW}
-                  height={bodyH}
-                  docked
-                  onClose={() => useTuiStore.getState().closeAssistant()}
-                />
-              </Suspense>
+              <KeyScopeProvider opaque={assistantScopeActive}>
+                <Suspense fallback={null}>
+                  <AssistantPanel
+                    host={host}
+                    isActive={assistantFocused && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !quitConfirmOpen}
+                    width={dockW}
+                    height={bodyH}
+                    docked
+                    onClose={() => useTuiStore.getState().closeAssistant()}
+                  />
+                </Suspense>
+              </KeyScopeProvider>
             </Box>
           ) : dockActive ? (
             <Box flexDirection="column" width={columns - navW} height={bodyH} paddingX={1} overflow="hidden">
               <Box flexDirection="column" width={contentW} height={contentH} overflow="hidden">
                 {main}
               </Box>
-              <Suspense fallback={null}>
-                <AssistantPanel
-                  host={host}
-                  isActive={assistantFocused && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !quitConfirmOpen}
-                  width={dockW}
-                  height={dockH}
-                  docked
-                  onClose={() => useTuiStore.getState().closeAssistant()}
-                />
-              </Suspense>
+              <KeyScopeProvider opaque={assistantScopeActive}>
+                <Suspense fallback={null}>
+                  <AssistantPanel
+                    host={host}
+                    isActive={assistantFocused && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !quitConfirmOpen}
+                    width={dockW}
+                    height={dockH}
+                    docked
+                    onClose={() => useTuiStore.getState().closeAssistant()}
+                  />
+                </Suspense>
+              </KeyScopeProvider>
             </Box>
           ) : (
             <Box flexDirection="column" width={columns - navW} height={bodyH} paddingX={1} overflow="hidden">

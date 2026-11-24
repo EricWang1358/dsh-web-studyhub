@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { randomUUID } from 'node:crypto';
-import { Box, Text, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
 import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -328,7 +329,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
   onUpdated,
 }: GuidedStudyModalProps) {
   const theme = useTheme();
-  const { columns } = useWindowSize();
+  const { columns } = useStableWindowSize();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const ell = asciiMode ? '...' : '…';
