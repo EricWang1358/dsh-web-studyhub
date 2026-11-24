@@ -126,13 +126,20 @@ describe('#1310 usage guide completeness & keybinding sync', () => {
       assert.ok(guide.includes(`\`${k}\``), `docs/GUIDE.md missing reserved global key \`${k}\``);
     }
 
-    // Every Review bottom utility strip key
-    for (const reviewKey of ['h', 'T', '*', 'G', 'A', 'W', 'S', 'D', 'Q', 'E', 's', 'u', ',', '.', 'J', 'K', 'N', 'o', 'X']) {
+    // Every Review bottom utility strip key + standalone Teach/Retell modals (#1341)
+    for (const reviewKey of ['h', 'T', 'L', 'F', '*', 'G', 'A', 'W', 'S', 'D', 'Q', 'E', 's', 'u', ',', '.', 'J', 'K', 'N', 'o', 'X']) {
       assert.ok(
         guide.includes(`\`${reviewKey}\``),
-        `docs/GUIDE.md missing Review bottom utility key \`${reviewKey}\``,
+        `docs/GUIDE.md missing Review key \`${reviewKey}\``,
       );
     }
+    assert.equal(guide.includes('[T]翻译'), false, 'docs/GUIDE.md must NOT map [T] to Translate');
+
+    // KEYBINDINGS.md also documents T (Guided/Retell), W (Translate), and L/F (standalone modals)
+    const keybindings = fs.readFileSync(path.join(pkgRoot, 'docs/KEYBINDINGS.md'), 'utf8');
+    const reviewKbLine = keybindings.split('\n').find((l) => l.includes('Card Tools & AI')) ?? '';
+    assert.ok(reviewKbLine.includes('`T`') && reviewKbLine.includes('`W`'), 'docs/KEYBINDINGS.md Review section must document T and W');
+    assert.ok(reviewKbLine.includes('`L`') && reviewKbLine.includes('`F`'), 'docs/KEYBINDINGS.md Review section must document standalone L and F modals');
 
     // Core task sections & CLI flags
     for (const required of [
@@ -209,9 +216,19 @@ describe('#1310 usage guide completeness & keybinding sync', () => {
     await guideCmd.action();
     assert.deepEqual(openedArgs, { open: true, tab: 'guide' });
 
-    // In-app guide lines are non-empty in zh and en
-    assert.ok(buildInAppGuideLines('zh', 80, false).length > 10);
-    assert.ok(buildInAppGuideLines('en', 80, true).length > 10);
+    // In-app guide lines are non-empty in zh and en AND stay in sync with ReviewView keys (#1341)
+    const zhGuide = buildInAppGuideLines('zh', 120, false).join('\n');
+    const enGuide = buildInAppGuideLines('en', 120, true).join('\n');
+    assert.ok(zhGuide.split('\n').length > 10);
+    assert.ok(enGuide.split('\n').length > 10);
+    assert.ok(zhGuide.includes('[T]带学'), 'Chinese in-app guide must map [T] to 带学');
+    assert.ok(zhGuide.includes('[W]翻译'), 'Chinese in-app guide must map [W] to 翻译');
+    assert.equal(zhGuide.includes('[T]翻译'), false, 'Chinese in-app guide must NOT map [T] to 翻译');
+    assert.ok(zhGuide.includes('[L]') && zhGuide.includes('[F]'), 'Chinese in-app guide must clarify standalone [L]/[F] modals');
+    assert.ok(enGuide.includes('[T] Guided'), 'English in-app guide must map [T] to Guided Study');
+    assert.ok(enGuide.includes('[W] Translate'), 'English in-app guide must map [W] to Translate');
+    assert.equal(enGuide.includes('[T] Translate'), false, 'English in-app guide must NOT map [T] to Translate');
+    assert.ok(enGuide.includes('[L]') && enGuide.includes('[F]'), 'English in-app guide must clarify standalone [L]/[F] modals');
 
     // HelpOverlay renders 1-line description for current page and toggles to Usage Guide tab
     const h = createInkHarness(
