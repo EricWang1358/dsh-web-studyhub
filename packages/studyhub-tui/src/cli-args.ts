@@ -23,6 +23,7 @@ export interface ParsedCliArgs {
   skipAutoProbe: boolean;
   asciiMode?: boolean;
   mouse?: boolean;
+  mouseAltClickOnly?: boolean;
   error?: string;
 }
 
@@ -32,7 +33,7 @@ export interface ColorCapability {
   reason: string;
 }
 
-const VALID_THEMES = new Set<ThemeId>(['dsh-dark', 'warm-paper', 'nord', 'high-contrast']);
+const VALID_THEMES = new Set<ThemeId>(['dsh-dark', 'warm-paper', 'nord', 'high-contrast', 'warm-amber', 'soft-sage']);
 const VALID_PAGES = new Set<PageId>(PAGE_REGISTRY.map((p) => p.id));
 const TRUECOLOR_TERM_PROGRAMS = new Set([
   'wezterm',
@@ -154,6 +155,17 @@ export function shouldEnableMouse(env: NodeJS.ProcessEnv = process.env): boolean
   return false;
 }
 
+/**
+ * Alt-compatible mouse click mode (#1311).
+ * Defaults to `true` (only Alt+click triggers TUI actions; plain clicks preserve terminal selection).
+ * Set `STUDYHUB_TUI_MOUSE_ALT=0` (or `--mouse-alt=0`) to allow plain clicks as well.
+ */
+export function shouldRequireAltClick(env: NodeJS.ProcessEnv = process.env): boolean {
+  const flag = String(env.STUDYHUB_TUI_MOUSE_ALT ?? '').trim().toLowerCase();
+  if (flag === '0' || flag === 'false' || flag === 'no' || flag === 'off') return false;
+  return true;
+}
+
 export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
   const result = {
     help: false,
@@ -242,6 +254,21 @@ export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
       return undefined;
     };
 
+    if (flag === '--mouse-alt') {
+      const val = takeValue();
+      const norm = String(val ?? '').trim().toLowerCase();
+      if (norm === '0' || norm === 'false' || norm === 'no' || norm === 'off') {
+        result.mouseAltClickOnly = false;
+        continue;
+      }
+      if (norm === '1' || norm === 'true' || norm === 'yes' || norm === 'on') {
+        result.mouseAltClickOnly = true;
+        continue;
+      }
+      result.error = `Invalid --mouse-alt "${val ?? ''}". Expected 0 or 1`;
+      return result;
+    }
+
     if (flag === '--export') {
       Object.defineProperty(result, 'exportBackup', { value: true, writable: true, enumerable: true, configurable: true });
       const val = takeValue();
@@ -304,7 +331,7 @@ export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
     if (flag === '--theme') {
       const val = takeValue();
       if (!val || !VALID_THEMES.has(val as ThemeId)) {
-        result.error = `Invalid --theme "${val ?? ''}". Valid: dsh-dark, warm-paper, nord, high-contrast`;
+        result.error = `Invalid --theme "${val ?? ''}". Valid: dsh-dark, warm-paper, nord, high-contrast, warm-amber, soft-sage`;
         return result;
       }
       result.theme = val as ThemeId;
@@ -355,13 +382,14 @@ export function cliHelpText(version = '1.0.0'): string {
     'Options:',
     '  -r, --root <path>     Open a specific StudyHub library directory (.dsh-study or folder; alias: --library)',
     '  -p, --page <id>       Start directly on a page (library, review, sources, generate, ...)',
-    '      --theme <id>      Theme: dsh-dark | warm-paper | nord | high-contrast',
+    '      --theme <id>      Theme: dsh-dark | warm-paper | nord | high-contrast | warm-amber | soft-sage',
     '      --lang <zh|en>    UI language: zh (default) | en',
     '      --no-alt-screen   Render inline without switching to the alternate screen buffer',
     '      --no-launchpad    Skip the first-run Launchpad even on an empty library',
     '      --skip-probe      Skip background CLI model discovery on startup',
     '      --ascii           Use ASCII-safe borders/bars (for legacy Windows PowerShell 5.1)',
-    '      --mouse           Enable SGR mouse wheel scrolling (or STUDYHUB_TUI_MOUSE=1; --no-mouse disables)',
+    '      --mouse           Enable SGR mouse support (or STUDYHUB_TUI_MOUSE=1; Alt+click = UI action, plain click keeps terminal selection; --no-mouse disables)',
+    '      --mouse-alt=0     Allow plain left-click without Alt (or STUDYHUB_TUI_MOUSE_ALT=0; default 1 = Alt+click only)',
     '      --doctor          Print cross-platform terminal, path & provider diagnostics and exit',
     '      --doctor --json   Print diagnostics in JSON format and exit (never prints API keys)',
     '      --stats           Print offline library summary (courses, decks, due & weak) and exit',

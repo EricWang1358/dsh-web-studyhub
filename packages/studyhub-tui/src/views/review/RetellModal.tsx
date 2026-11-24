@@ -17,6 +17,7 @@ import {
   type CardSourceLocation,
   type NormalizedKind,
 } from './review-helpers.js';
+import { NextStepFollowupBar } from './NextStepFollowupBar.js';
 
 export const RETELL_TEXT_MAX = 4000;
 
@@ -231,6 +232,8 @@ export const RetellModal = memo(function RetellModal({
     [submitting, draft, deckId, cardId, host, lang, notify],
   );
 
+  const [followupEngaged, setFollowupEngaged] = useState(false);
+
   useInput(
     (input) => {
       if (submitting || editing) return;
@@ -253,7 +256,7 @@ export const RetellModal = memo(function RetellModal({
         onClose();
       }
     },
-    { isActive: isActive && !editing && !submitting },
+    { isActive: isActive && !editing && !submitting && !followupEngaged },
   );
 
   const verdictTier = useMemo<'pass' | 'partial' | 'gap' | null>(() => {
@@ -380,7 +383,7 @@ export const RetellModal = memo(function RetellModal({
       width={frameW}
       height={frameH}
       onClose={onClose}
-      isActive={isActive && (!editing || submitting)}
+      isActive={isActive && (!editing || submitting) && !followupEngaged}
       hints={hints}
     >
       {/* Question Stem Preview */}
@@ -501,11 +504,24 @@ export const RetellModal = memo(function RetellModal({
             <MarkdownView
               markdown={verdictMarkdown}
               width={innerW}
-              height={Math.max(4, bodyH - stemH - 3)}
-              isActive={isActive && !editing && !submitting}
+              height={Math.max(3, bodyH - stemH - 3 - (followupEngaged ? Math.min(11, Math.max(8, Math.floor(bodyH * 0.5))) : 3))}
+              isActive={isActive && !editing && !submitting && !followupEngaged}
               mathUnicode={mathUnicode}
             />
           </Box>
+          <NextStepFollowupBar
+            host={host}
+            run={run}
+            cardId={cardId}
+            kind={kind}
+            userAnswer={draft}
+            toolLabel={t(lang, '费曼复述评估', 'Feynman Retell')}
+            resultContext={verdictMarkdown}
+            width={innerW}
+            expandedHeight={Math.min(11, Math.max(8, Math.floor(bodyH * 0.5)))}
+            isActive={isActive && !editing && !submitting && Boolean(verdict)}
+            onFocusChange={setFollowupEngaged}
+          />
         </Box>
       ) : null}
     </Modal>

@@ -39,7 +39,7 @@ const CoachPreferencesModal = lazy(() => import('./CoachPreferencesModal.js').th
 
 const BASE_CLAIMED_KEYS = [
   '1', '2', '3', '4',
-  'a', 'A', 'b', 'e', 'f', 'g', 'G', 'm', 'n', 'N', 'p', 'P', 'r', 'v', 'x', 'X', 'y', 'z',
+  'a', 'A', 'b', 'e', 'f', 'g', 'G', 'm', 'n', 'N', 'p', 'P', 'v', 'x', 'X', 'y', 'z',
 ] as const;
 
 export function filterCoachFamilies<T extends CoachTaskFamily>(
@@ -911,7 +911,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         setFocusPane((p) => (p === 'left' ? 'right' : 'left'));
         return;
       }
-      if (input === 'r') {
+      if (key.ctrl && input === 'r') {
         void loadAll();
         return;
       }

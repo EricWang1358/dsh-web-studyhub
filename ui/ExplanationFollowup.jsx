@@ -3,7 +3,20 @@ import React from "react";
 import Markdown from "./Markdown.jsx";
 import { Badge, Button, InlineMessage, TextInput, Tooltip } from "./components/index.js";
 import { useStudy } from "./study-context.jsx";
+import { courseParent } from "../lib/course-tree.js";
 import BookQaButton, { BookQaAuto } from "./book/BookQaButton.jsx";
+
+function hasCourseBook(bookCourses, course) {
+  if (!bookCourses || !bookCourses.size || typeof course !== "string") return false;
+  if (bookCourses.has(course)) return true;
+  const known = [...bookCourses];
+  let parent = courseParent(course, known);
+  while (parent) {
+    if (bookCourses.has(parent)) return true;
+    parent = courseParent(parent, known);
+  }
+  return false;
+}
 
 /* bookQa (optional): { course, mode: 'manual' | 'auto', onMode(mode), book (ui/book/BookQaButton.jsx useBookQa, shared with the page), note } — the card's
    course and the 自动加入复习全书 setting (settings.book.qaToBook). With a book for that course each Q&A has 「加入复习全书」. The automatic adds are made by
@@ -13,7 +26,7 @@ import BookQaButton, { BookQaAuto } from "./book/BookQaButton.jsx";
 export default function ExplanationFollowup({ run, readOnly = false, onDerive, onAskMore = null, deriving = false, bookQa = null, noteQa = null, cardNotes = [], onOpenBookSection = null }) {
   const { call } = useStudy();
   const book = bookQa?.book;
-  const withBook = !!book && book.ready && book.courses.has(bookQa.course ?? "");
+  const withBook = !!book && book.ready && hasCourseBook(book.courses, bookQa.course ?? "");
   const canReadBookSection = run?.mode !== "exam" && !run?.complete && typeof onOpenBookSection === "function";
   const [open, setOpen] = React.useState(false);
   const [questions, setQuestions] = React.useState([]);

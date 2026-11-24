@@ -9,7 +9,7 @@ import { locateGroups } from '../links/link-ranges.js';
 import { captureSelection } from '../selection.js';
 import { createHost, createMark, paragraphAround, scanParagraphs } from './dom.js';
 import {
-  SIDE_MIN_COLUMN, blockState, buttonState, effectiveMode, hostShown, initialState, isShown, jobActive, jobToShow, keyedParagraphs, loadTranslationSettings, passageOf, reducer, saveTranslationSettings,
+  SIDE_MIN_COLUMN, blockState, buttonState, effectiveMode, hostShown, initialState, isShown, jobActive, jobToShow, keyedParagraphs, loadTranslationSettings, passageOf, reconcileSelectionKeys, reducer, resolveRetryEntry, saveTranslationSettings,
 } from './model.js';
 import TranslationBlock from './TranslationBlock.jsx';
 import GlossaryDialog from './GlossaryDialog.jsx';
@@ -32,7 +32,7 @@ const escapeAttribute = value => String(value).replace(/["\\]/g, '\\$&');
 let counter = 0;
 const nextId = prefix => `${prefix}-${Date.now().toString(36)}-${(counter += 1)}`;
 
-const emptyLayer = () => ({ paragraphs: [], byKey: new Map(), byElement: new Map(), marks: new Map(), hosts: new Map(), pinned: new Map(), origOpen: new Set(), active: null, requests: new Map(), timers: new Map() });
+const emptyLayer = () => ({ paragraphs: [], byKey: new Map(), byElement: new Map(), marks: new Map(), hosts: new Map(), pinned: new Map(), selectionEntries: new Map(), scannedTarget: null, origOpen: new Set(), active: null, requests: new Map(), timers: new Map() });
 
 function teardown(layer) {
   for (const mark of layer.marks.values()) mark.remove();
@@ -85,7 +85,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
   const [settings, setSettings] = useState(loadTranslationSettings), [state, dispatch] = useReducer(reducer, initialState);
   const [available, setSupported] = useState(false), [version, setVersion] = useState(0), [hosts, setHosts] = useState(() => new Map()), [page, setPage] = useState(null);
   const supported = enabled && available;
-  const [chip, setChip] = useState(null), [floating, setFloating] = useState(null), [menuOpen, setMenuOpen] = useState(false), [scopes, setScopes] = useState([]);
+  const [chip, setChip] = useState(null), [floating, setFloating] = useState(null), [menuOpen, setMenuOpen] = useState(false), [scopes, setScopes] = useState([]), [reprice, setReprice] = useState(0);
   const [glossaryOpen, setGlossaryOpen] = useState(false), [jobs, setJobs] = useState([]), [dismissed, setDismissed] = useState(() => new Set());
   const layer = useRef(emptyLayer()), latest = useRef({}), scopeDefs = useRef([]), reading = view === 'read';
   // The chip and the 原文 card float at the end of a selection: the live Range they follow, and the elements placed against it (useRangeAnchor).
@@ -107,22 +107,32 @@ export default function useBilingual({ call, document: doc, source, view, paged,
   useEffect(() => { saveTranslationSettings(settings); }, [settings]);
 
   /* ---------- the translations of this revision ---------- */
+  const refreshSeq = useRef(0), targetSeq = useRef(0);
   const refresh = useCallback(async ({ revealNew = false, revealKeys } = {}) => {
     if (!enabled || !identityKey) return;
+    const seq = (refreshSeq.current += 1);
     try {
       const list = await call('materials.translation.list', JSON.parse(identityKey));
+      if (refreshSeq.current !== seq) return;
       if (list?.items) { dispatch({ type: 'loaded', list, revealNew, revealKeys }); setSupported(true); } else setSupported(false);
-    } catch { setSupported(false); }
+    } catch { if (refreshSeq.current === seq) setSupported(false); }
   }, [call, identityKey, enabled]);
   const startedScopeKeys = useRef(new Set());
-  useEffect(() => { startedScopeKeys.current.clear(); dispatch({ type: 'reset' }); void refresh(); }, [refresh]);
+  useEffect(() => {
+    startedScopeKeys.current.clear();
+    layer.current.pinned.clear();
+    layer.current.selectionEntries.clear();
+    setFloating(null);
+    dispatch({ type: 'reset' });
+    void refresh();
+  }, [refresh]);
 
   /* ---------- the layer in the reading column ---------- */
   // Marks: one 译 at the end of each paragraph that has something to translate. The glyph is CSS, so it is no text of the paragraph.
   useIsoLayoutEffect(() => {
     const container = body.current, own = layer.current;
     teardown(own);
-    if (!container || !supported || !reading) { setVersion(count => count + 1); return undefined; }
+    if (!container || !supported || !reading) { own.scannedTarget = null; setVersion(count => count + 1); return undefined; }
     const scanned = keyedParagraphs(scanParagraphs(container, source.id));
     own.paragraphs = scanned;
     own.byKey = new Map(scanned.map(paragraph => [paragraph.key, paragraph]));
@@ -135,6 +145,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
       paragraph.element.append(mark);
       own.marks.set(paragraph.key, mark);
     }
+    own.scannedTarget = target;
     setVersion(count => count + 1);
     return () => teardown(own);
   }, [body, supported, reading, rendered, target, source.id, language]);
@@ -201,12 +212,20 @@ export default function useBilingual({ call, document: doc, source, view, paged,
       const result = await call('materials.translation.translate', { ...identity, target, requestId, passages: entries.map(entry => entry.passage), ...(retranslate ? { retranslate: true, comment } : {}) });
       if (result?.available === false || result?.status === 'unavailable') { dispatch({ type: 'unavailable', keys }); return; }
       const results = result.results.map(item => ({ ...item, key: item.key || entries[item.index]?.key }));
-      // A selection's block is anchored where the selection ended; the key the backend gives it replaces the one it had while waiting.
-      for (const item of results) { const wasTemp = entries[item.index]?.key; if (item.item && wasTemp && wasTemp !== item.key && own.pinned.has(wasTemp)) own.pinned.set(item.key, own.pinned.get(wasTemp)); }
+      // A selection's block is anchored where the selection ended; the key the backend gives it replaces the one it had while waiting (for both kept and rejected outcomes).
+      const remapped = reconcileSelectionKeys(own, entries, results);
+      if (remapped.size) setFloating(current => current && remapped.has(current.key) ? { ...current, key: remapped.get(current.key) } : current);
       dispatch({ type: 'settled', results, keys, reveal: latest.current.mode === 'hidden' });
       return results;
     } catch (error) {
-      if (/cancel/i.test(error?.message || '')) dispatch({ type: 'cancelled', keys }); else dispatch({ type: 'failed', keys, message: error?.message });
+      if (/cancel/i.test(error?.message || '')) {
+        dispatch({ type: 'cancelled', keys });
+        const kept = latest.current.items || {};
+        for (const key of keys) {
+          if (!kept[key]) { own.selectionEntries.delete(key); own.pinned.delete(key); }
+        }
+        setFloating(current => current && keys.includes(current.key) && !kept[current.key] ? null : current);
+      } else dispatch({ type: 'failed', keys, message: error?.message });
     } finally { keys.forEach(key => { own.requests.delete(key); }); }
   }, [call, identity, target]);
 
@@ -243,12 +262,11 @@ export default function useBilingual({ call, document: doc, source, view, paged,
       floatRange.current = capture.range.cloneRange();
       if (page) setFloating({ key: tempKey });
     }
+    const entry = { key: tempKey, passage: selectionPassage({ ...capture, sourceId: capture.sourceId || source.id }) };
+    layer.current.selectionEntries.set(tempKey, entry);
     setChip(null);
-    // In the 原文 view the card follows the selection's translation from the call out to the kept one.
-    void send([{ key: tempKey, passage: selectionPassage({ ...capture, sourceId: capture.sourceId || source.id }) }]).then(results => {
-      const made = results?.[0];
-      if (!block && made?.item) setFloating(current => current?.key === tempKey ? { ...current, key: made.key } : current);
-    });
+    // In the 原文 view the card follows the selection's translation from the call out to the kept or rejected result inside send().
+    void send([entry]);
   }, [body, reading, page, send, source.id]);
 
   /* The active paragraph (hover or focus) and the selection: the two things Alt+T and the chip act on. */
@@ -285,7 +303,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
     container.addEventListener('click', click, true);
     return () => { container.removeEventListener('pointerover', track); container.removeEventListener('pointerleave', leave); container.removeEventListener('focusin', track); container.removeEventListener('click', click, true); };
   }, [body, supported, view, version]);
-  useEffect(() => { latest.current = { onMark, mode }; });
+  useEffect(() => { latest.current = { onMark, mode, items: state.items }; });
 
   // The chip follows a selection of words worth translating, at its end: above it, in the shared anchoring, through the interface zoom.
   const placeChip = useRangeAnchor({ elementRef: chipElement, host: page, rangeRef: chipRange, scrollerRef: scroller, active: !!chip && !floating, trigger: chip?.text, placement: 'top-end', hideAway: true });
@@ -374,22 +392,37 @@ export default function useBilingual({ call, document: doc, source, view, paged,
     }
   }, [jobs, refresh, announce]);
 
-  const openMenu = useCallback(async open => {
-    setMenuOpen(open);
-    if (!open || !identity) return;
-    if (!batchEnabled) { scopeDefs.current = []; setScopes([]); return; }
+  const openMenu = useCallback(open => { setMenuOpen(open); }, []);
+  useEffect(() => {
+    if (!menuOpen || !identityKey || !supported) return undefined;
+    if (!batchEnabled || !reading) {
+      scopeDefs.current = [];
+      setScopes([]);
+      return undefined;
+    }
+    if (layer.current.scannedTarget !== target) return undefined;
+    let cancelled = false;
+    const reqIdentity = JSON.parse(identityKey);
     const spans = spanKeys();
     const defs = [{ id: 'page', label: paged ? ui('翻译本页') : ui('翻译本节'), short: paged ? ui('本页') : ui('本节'), paragraphs: spans.page },
       ...(spans.chapter ? [{ id: 'chapter', label: ui('翻译本章'), short: ui('本章'), paragraphs: spans.chapter }] : [])];
     scopeDefs.current = defs;
     setScopes(defs.map(def => ({ id: def.id, label: def.label, status: 'loading' })));
-    for (const def of defs) {
-      try {
-        const priced = await call('generation.translation.start', { ...identity, target, passages: def.paragraphs.map(passageOf), estimate: true });
-        setScopes(list => list.map(scope => scope.id === def.id ? { ...scope, status: 'ready', counts: priced.counts, estimate: priced.estimate, modelAvailable: priced.modelAvailable } : scope));
-      } catch { setScopes(list => list.map(scope => scope.id === def.id ? { ...scope, status: 'error' } : scope)); }
-    }
-  }, [call, identity, target, spanKeys, paged, batchEnabled]);
+    (async () => {
+      for (const def of defs) {
+        if (cancelled) return;
+        try {
+          const priced = await call('generation.translation.start', { ...reqIdentity, target, passages: def.paragraphs.map(passageOf), estimate: true });
+          if (cancelled) return;
+          setScopes(list => list.map(scope => scope.id === def.id ? { ...scope, status: 'ready', counts: priced.counts, estimate: priced.estimate, modelAvailable: priced.modelAvailable } : scope));
+        } catch {
+          if (cancelled) return;
+          setScopes(list => list.map(scope => scope.id === def.id ? { ...scope, status: 'error' } : scope));
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [menuOpen, supported, reading, batchEnabled, version, target, identityKey, paged, call, spanKeys, reprice]);
 
   const start = useCallback(async scopeId => {
     const def = scopeDefs.current.find(item => item.id === scopeId);
@@ -408,8 +441,18 @@ export default function useBilingual({ call, document: doc, source, view, paged,
 
   const setTarget = useCallback(async next => {
     if (!identity || next === target) return;
-    try { await call('materials.translation.glossary.set', { ...identity, target: next }); await refresh(); void openMenu(true); } catch (error) { announce({ text: error?.message || ui('出现未知错误'), tone: 'error' }); }
-  }, [call, identity, target, refresh, announce, openMenu]);
+    const seq = (targetSeq.current += 1);
+    if (menuOpen && reading && batchEnabled) setScopes(list => list.map(scope => ({ ...scope, status: 'loading' })));
+    try {
+      await call('materials.translation.glossary.set', { ...identity, target: next });
+      if (targetSeq.current !== seq) return;
+      await refresh();
+    } catch (error) {
+      if (targetSeq.current !== seq) return;
+      if (menuOpen && reading && batchEnabled) setReprice(count => count + 1);
+      announce({ text: error?.message || ui('出现未知错误'), tone: 'error' });
+    }
+  }, [call, identity, target, menuOpen, reading, batchEnabled, refresh, announce]);
 
   const showAll = useCallback(value => {
     const spans = spanKeys(), keys = spans.page.map(paragraph => paragraph.key).filter(key => state.items[key]);
@@ -437,7 +480,17 @@ export default function useBilingual({ call, document: doc, source, view, paged,
     const common = { target, onGlossary: () => setGlossaryOpen(true) };
     if (undoable && !item) return <TranslationBlock {...common} state="undo" onUndo={() => undo(key)} />;
     if (pending && !item) return <TranslationBlock {...common} state="pending" onCancel={() => cancel(key)} />;
-    if (error && !item) return <TranslationBlock {...common} state="error" error={error} onRetry={() => { const paragraph = layer.current.byKey.get(key); if (paragraph) void send([paragraphEntry(paragraph)]); }} onDismiss={() => { dispatch({ type: 'dismiss-error', keys: [key] }); layer.current.pinned.delete(key); }} />;
+    if (error && !item) {
+      const retryEntry = resolveRetryEntry(layer.current, key, error);
+      return <TranslationBlock {...common} state="error" error={error}
+        onRetry={retryEntry ? () => { void send([retryEntry]); } : undefined}
+        onDismiss={() => {
+          dispatch({ type: 'dismiss-error', keys: [key] });
+          layer.current.pinned.delete(key);
+          layer.current.selectionEntries.delete(key);
+          setFloating(current => current?.key === key ? null : current);
+        }} />;
+    }
     if (!item) return null;
     const entry = () => entryOfItem(item);
     const isOpen = blockState(state, key, mode) === 'open';
@@ -464,7 +517,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
       onPrice={batchEnabled ? priceAgain : undefined} onRetranslate={batchEnabled ? retranslateMany : undefined} onClose={() => setGlossaryOpen(false)} />}
   </>;
   const hasTranslations = Object.keys(state.items).length > 0;
-  const panelProps = { scopes, target, modelAvailable: state.modelAvailable, stale: state.stale, busy: active, hasTranslations, onStart: start, onExpandAll: () => showAll(true), onCollapseAll: () => showAll(false),
+  const panelProps = { scopes, target, reading, modelAvailable: state.modelAvailable, stale: state.stale, busy: active, hasTranslations, onStart: start, onExpandAll: () => showAll(true), onCollapseAll: () => showAll(false),
     onGlossary: () => { setMenuOpen(false); setGlossaryOpen(true); }, onTarget: setTarget };
   return {
     supported,

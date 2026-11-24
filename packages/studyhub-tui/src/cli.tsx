@@ -11,6 +11,7 @@ import {
   resolveColorCapability,
   shouldAutoAscii,
   shouldEnableMouse,
+  shouldRequireAltClick,
 } from './cli-args.js';
 
 const PKG_VERSION = '1.0.0';
@@ -61,6 +62,7 @@ async function main() {
 
   const resolvedAscii = parsed.asciiMode ?? (shouldAutoAscii(process.env) ? true : undefined);
   const resolvedMouse = parsed.mouse ?? shouldEnableMouse(process.env);
+  const resolvedMouseAlt = parsed.mouseAltClickOnly ?? shouldRequireAltClick(process.env);
   const colorCap = resolveColorCapability(process.env, { isTTY: Boolean(process.stdout.isTTY) });
   if (colorCap.level === 0) {
     process.env.FORCE_COLOR = '0';
@@ -73,6 +75,7 @@ async function main() {
     { ShellBootFrame },
     { useTuiStore },
     { setColorLevel },
+    { setMouseAltClickOnly },
   ] = await Promise.all([
     import('react'),
     import('ink'),
@@ -80,9 +83,11 @@ async function main() {
     import('./shell/ShellBootFrame.js'),
     import('./state/store.js'),
     import('./theme/tokens.js'),
+    import('./components/mouse.js'),
   ]);
 
   setColorLevel(colorCap.level);
+  setMouseAltClickOnly(resolvedMouseAlt);
 
   if (parsed.theme) useTuiStore.getState().setTheme(parsed.theme);
   if (parsed.language) useTuiStore.getState().setLanguage(parsed.language);

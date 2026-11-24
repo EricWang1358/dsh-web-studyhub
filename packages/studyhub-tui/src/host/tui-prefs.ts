@@ -5,10 +5,17 @@
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
-import type { ThemeId, TuiPreferences, UiLanguage } from '../types/contracts.js';
+import type { AssistantCommandStat, LastPracticeContext, ThemeId, TuiPreferences, UiLanguage } from '../types/contracts.js';
 import { atomicWriteJsonFile } from './atomic-write.js';
 
-export const THEME_IDS: readonly ThemeId[] = Object.freeze(['dsh-dark', 'warm-paper', 'nord', 'high-contrast']);
+export const THEME_IDS: readonly ThemeId[] = Object.freeze([
+  'dsh-dark',
+  'warm-paper',
+  'nord',
+  'high-contrast',
+  'warm-amber',
+  'soft-sage',
+]);
 export const UI_LANGUAGES: readonly UiLanguage[] = Object.freeze(['zh', 'en']);
 export const MAX_RECENT_COMMANDS = 12;
 export const MAX_LAST_READ_PAGES = 100;
@@ -46,6 +53,11 @@ function parseTuiPreferencesObject(source: Record<string, unknown>): TuiPreferen
     typeof source.compactMode === 'boolean' ? source.compactMode : DEFAULT_TUI_PREFERENCES.compactMode;
   const showKeyHints =
     typeof source.showKeyHints === 'boolean' ? source.showKeyHints : DEFAULT_TUI_PREFERENCES.showKeyHints;
+  const proactiveHints = typeof source.proactiveHints === 'boolean' ? source.proactiveHints : undefined;
+  const dismissedBriefingDate =
+    typeof source.dismissedBriefingDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(source.dismissedBriefingDate.trim())
+      ? source.dismissedBriefingDate.trim()
+      : undefined;
   const asciiMode = typeof source.asciiMode === 'boolean' ? source.asciiMode : false;
 
   const recentCommands: string[] = [];
@@ -88,6 +100,66 @@ function parseTuiPreferencesObject(source: Record<string, unknown>): TuiPreferen
     }
   }
 
+  let lastPracticeContext: LastPracticeContext | undefined;
+  if (source.lastPracticeContext && typeof source.lastPracticeContext === 'object' && !Array.isArray(source.lastPracticeContext)) {
+    const raw = source.lastPracticeContext as Record<string, unknown>;
+    const runId = typeof raw.runId === 'string' ? raw.runId.trim().slice(0, 128) : '';
+    const cardId = typeof raw.cardId === 'string' ? raw.cardId.trim().slice(0, 128) : '';
+    const cardIndex = typeof raw.cardIndex === 'number' && Number.isSafeInteger(raw.cardIndex) && raw.cardIndex >= 0 ? raw.cardIndex : 0;
+    if (runId && cardId) {
+      const deckId = typeof raw.deckId === 'string' && raw.deckId.trim() ? raw.deckId.trim().slice(0, 128) : undefined;
+      const total = typeof raw.total === 'number' && Number.isSafeInteger(raw.total) && raw.total > 0 ? raw.total : undefined;
+      const promptPreview =
+        typeof raw.promptPreview === 'string' && raw.promptPreview.trim() ? raw.promptPreview.trim().slice(0, 120) : undefined;
+      const savedAt = typeof raw.savedAt === 'number' && Number.isFinite(raw.savedAt) && raw.savedAt > 0 ? raw.savedAt : Date.now();
+      lastPracticeContext = {
+        runId,
+        cardId,
+        ...(deckId ? { deckId } : {}),
+        cardIndex,
+        ...(total ? { total } : {}),
+        ...(promptPreview ? { promptPreview } : {}),
+        savedAt,
+      };
+    }
+  }
+
+  let assistantCommandStats: Record<string, Record<string, AssistantCommandStat>> | undefined;
+  if (
+    source.assistantCommandStats &&
+    typeof source.assistantCommandStats === 'object' &&
+    !Array.isArray(source.assistantCommandStats)
+  ) {
+    const out: Record<string, Record<string, AssistantCommandStat>> = {};
+    let pageCount = 0;
+    for (const [pageKey, rawMap] of Object.entries(source.assistantCommandStats as Record<string, unknown>)) {
+      if (pageCount >= 16) break;
+      if (!rawMap || typeof rawMap !== 'object' || Array.isArray(rawMap)) continue;
+      const cleanMap: Record<string, AssistantCommandStat> = {};
+      let cmdCount = 0;
+      for (const [cmd, rawStat] of Object.entries(rawMap as Record<string, unknown>)) {
+        if (cmdCount >= 20) break;
+        const cleanCmd = cmd.trim().slice(0, 60);
+        if (!cleanCmd || !rawStat || typeof rawStat !== 'object') continue;
+        const rec = rawStat as Record<string, unknown>;
+        const count = typeof rec.count === 'number' && Number.isFinite(rec.count) && rec.count > 0 ? Math.floor(rec.count) : 0;
+        const lastUsedAt =
+          typeof rec.lastUsedAt === 'number' && Number.isFinite(rec.lastUsedAt) && rec.lastUsedAt > 0
+            ? Math.floor(rec.lastUsedAt)
+            : 0;
+        if (count > 0) {
+          cleanMap[cleanCmd] = { count, lastUsedAt };
+          cmdCount += 1;
+        }
+      }
+      if (cmdCount > 0) {
+        out[pageKey.trim().slice(0, 32)] = cleanMap;
+        pageCount += 1;
+      }
+    }
+    if (pageCount > 0) assistantCommandStats = out;
+  }
+
   const base: TuiPreferences = {
     theme,
     language,
@@ -100,8 +172,12 @@ function parseTuiPreferencesObject(source: Record<string, unknown>): TuiPreferen
   };
   return {
     ...base,
+    ...(proactiveHints !== undefined ? { proactiveHints } : {}),
+    ...(dismissedBriefingDate ? { dismissedBriefingDate } : {}),
     ...(lastOpenAiPreset ? { lastOpenAiPreset } : {}),
     ...(lastReadPages ? { lastReadPages } : {}),
+    ...(lastPracticeContext ? { lastPracticeContext } : {}),
+    ...(assistantCommandStats ? { assistantCommandStats } : {}),
   };
 }
 

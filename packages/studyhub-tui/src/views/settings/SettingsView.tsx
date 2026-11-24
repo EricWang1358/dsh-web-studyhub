@@ -8,6 +8,7 @@ import { useTheme } from '../../theme/tokens.js';
 import { Spinner } from '../../components/Badge.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
+import { ClickableBox } from '../../components/mouse.js';
 import { ModelsTab } from './ModelsTab.js';
 import { SETTINGS_TABS, type SettingsTabId } from './types.js';
 
@@ -128,14 +129,15 @@ export const SettingsView: React.FC<ViewProps> = ({ host, width, height, isActiv
             const active = item.id === tab;
             const label = lang === 'en' ? item.labelEn : item.labelZh;
             return (
-              <Text
-                key={item.id}
-                backgroundColor={active ? theme.primary : theme.surface}
-                color={active ? (theme.dark ? theme.bg : '#ffffff') : theme.muted}
-                bold={active}
-              >
-                {` ${item.num} ${label} `}
-              </Text>
+              <ClickableBox key={item.id} onClick={() => setTab(item.id)} clickActive={allowTabKeys}>
+                <Text
+                  backgroundColor={active ? theme.primary : theme.surface}
+                  color={active ? (theme.dark ? theme.bg : '#ffffff') : theme.muted}
+                  bold={active}
+                >
+                  {` ${item.num} ${label} `}
+                </Text>
+              </ClickableBox>
             );
           })}
         </Box>

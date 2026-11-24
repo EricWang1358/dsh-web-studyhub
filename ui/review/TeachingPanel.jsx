@@ -6,6 +6,7 @@ import { ReadingBlock } from "../reading-settings/ReadingSettings.jsx";
 import { Button, ProgressBar } from "../components/index.js";
 import { useStudy } from "../study-context.jsx";
 import SimilarTry from "./SimilarTry.jsx";
+import TeachingStatus from "./TeachingStatus.jsx";
 
 const CALCULATION_STAGE_LABELS = {
   conditions: "已知条件与未知量",
@@ -18,7 +19,7 @@ const CALCULATION_STAGE_LABELS = {
 /** Step-by-step guided understanding / calculation panel extracted from QuestionRun. */
 export default function TeachingPanel({ session, data, model, onModelSettings }) {
   const { openModal } = useStudy();
-  const { entry, teachingBusy, actions } = session;
+  const { entry, teachingBusy, teachingError, actions } = session;
   const { teaching, teachAnswer } = entry;
   const stepKey = teaching && !teaching.complete ? `${teaching.id}:${teaching.index}` : "";
   const prevStepRef = React.useRef(stepKey);
@@ -90,8 +91,9 @@ export default function TeachingPanel({ session, data, model, onModelSettings })
                   }}
                 />
               </label>
-              <Button className="teaching-panel__submit" variant="primary" disabled={teachingBusy || !teachAnswer.trim()}
+              <Button className="teaching-panel__submit" variant="secondary" size="sm" busy={teachingBusy} busyLabel={ui("正在检查…")} disabled={!teachAnswer.trim()}
                 onPointerUp={(e) => e.currentTarget.closest(".study-app")?.focus({ preventScroll: true })} type="submit">{ui("检查理解")}</Button>
+              <TeachingStatus busy={teachingBusy} failure={teachingError} onCancel={actions.cancelTeaching} onRetry={actions.retryTeaching} />
             </form>
           </>
         )}

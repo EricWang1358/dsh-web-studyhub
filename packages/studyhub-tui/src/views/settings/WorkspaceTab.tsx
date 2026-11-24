@@ -2213,7 +2213,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     updateModalOpen ||
     usageReportOpen ||
     libraryCtxOpen;
-  const claimed = useMemo(() => ['e', 's', 'x', 'r', 'c', 'f', 'u', 'U', 'a', 'A', 'v', 't', 'i', 'L'], []);
+  const claimed = useMemo(() => ['e', 's', 'x', 'c', 'f', 'u', 'U', 'a', 'A', 'v', 't', 'i', 'L'], []);
   useClaimKeys(claimed, isActive && !modalOpen);
 
   useInput(
@@ -2286,7 +2286,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
         void runRetrievalDiag();
         return;
       }
-      if (input === 'r') {
+      if (key.ctrl && input === 'r') {
         void loadPoints();
         void loadRetrieval();
         void loadUsage();

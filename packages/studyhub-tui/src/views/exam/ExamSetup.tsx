@@ -39,7 +39,7 @@ const WRITTEN_COUNTS = [10, 20, 30] as const;
 const ORAL_COUNTS = [3, 5, 8, 10] as const;
 const TIME_LIMITS = [15, 30, 60] as const;
 const WRITTEN_KINDS: readonly WrittenKinds[] = ['all', 'balanced', 'quiz', 'multi'];
-const CLAIMED = ['1', '2', '3', 'c', 't', 'k', 'r', 'h', 'l', 'x'];
+const CLAIMED = ['1', '2', '3', 'c', 't', 'k', 'R', 'h', 'l', 'x'];
 
 export interface ExamHistoryExportRecord {
   runId?: string;
@@ -425,7 +425,7 @@ export const ExamSetup = memo(function ExamSetup({
       if (input === '1') { setMode('written'); setScopeIdx(0); return; }
       if (input === '2') { setMode('case'); setScopeIdx(0); return; }
       if (input === '3') { setMode('oral'); setScopeIdx(0); return; }
-      if (input === 'r' && resumableRun && onResume) {
+      if (input === 'R' && resumableRun && onResume) {
         onResume();
         return;
       }

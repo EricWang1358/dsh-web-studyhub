@@ -704,7 +704,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
   }, [asciiMode, bindingRoot, course, courseStats, dailyPlan, host, lang, notify, stats, usage, usageDays]);
 
   const viewInputActive = isActive && !mapModalOpen;
-  const claimedKeys = useMemo(() => ['j', 'k', 'r', 'p', 'w', 'f', 'm', 'd', 'x', '/'], []);
+  const claimedKeys = useMemo(() => ['j', 'k', 'p', 'w', 'f', 'm', 'd', 'x', '/'], []);
   useClaimKeys(claimedKeys, viewInputActive);
   useInputCapture(viewInputActive && filterOpen);
 
@@ -755,7 +755,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
         void handleExportReport();
         return;
       }
-      if (input === 'r') {
+      if (key.ctrl && input === 'r') {
         void refreshSnapshot().then(() => loadData());
         return;
       }

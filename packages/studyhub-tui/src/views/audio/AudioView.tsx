@@ -156,7 +156,7 @@ type ProviderKeyField = 'siliconflowKey' | 'groqKey' | 'freeKey' | 'paidKey';
 const AUDIO_EXTS = ['.mp3', '.wav', '.m4a', '.ogg', '.flac', '.aac', '.webm'];
 const SUBTITLE_EXTS = ['.srt', '.vtt', '.txt', '.json'];
 const MAX_SUBTITLE_BYTES = 8 * 1024 * 1024;
-const CLAIMED_KEYS: readonly string[] = Object.freeze(['i', 'u', 'p', 'R', 's', 't', 'g', 'r', 'c', '/', 'x']);
+const CLAIMED_KEYS: readonly string[] = Object.freeze(['i', 'u', 'p', 'R', 's', 't', 'g', 'c', '/', 'x']);
 
 export function isAudioSourceRecord(src: Record<string, unknown>): boolean {
   if (src.archived === true) return false;
@@ -1322,7 +1322,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
         setOverlay('settings');
       } else if (input === 't') {
         void handleTestProviders();
-      } else if (input === 'r') {
+      } else if (key.ctrl && input === 'r') {
         setDetailError(null);
         setActiveTranscript({ id: '', text: '', detail: null });
         void Promise.all([loadAudioData(), refresh()]);

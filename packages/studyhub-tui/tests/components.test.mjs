@@ -486,10 +486,11 @@ describe('VirtualList & ScrollView Ink SGR mouse wheel rendering', () => {
           await h.waitForFrame((f) => /> Item-06/.test(f), 2_000, 'ESC-stripped Item-06');
           assert.equal(seenIndices.at(-1), 6);
 
-          // Non-wheel click and release must be ignored
+          // Release events and right-click must be ignored by wheel/selection
           const countBeforeIgnored = seenIndices.length;
-          await h.send('\u001b[<0;10;5M');
+          await h.send('\u001b[<2;10;5M');
           await h.send('\u001b[<64;10;5m');
+          await h.send('\u001b[<0;10;5m');
           assert.equal(seenIndices.length, countBeforeIgnored);
 
           // Normal keyboard navigation still works without corruption

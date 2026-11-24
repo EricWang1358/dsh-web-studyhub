@@ -348,6 +348,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
   const [artifactIndex, setArtifactIndex] = useState(0);
 
   const [creating, setCreating] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const [newGoalTitle, setNewGoalTitle] = useState('');
   const [createError, setCreateError] = useState('');
   const [confirmEnd, setConfirmEnd] = useState(false);
@@ -1258,6 +1259,10 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
         setScopeFilter((prev) => (prev === 'course' ? 'all' : 'course'));
         return;
       }
+      if (input === 'F') {
+        setFullscreen((v) => !v);
+        return;
+      }
       if (input === 'n') {
         openCreateInput();
         return;
@@ -1301,8 +1306,9 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
     { isActive: modalInputActive },
   );
 
-  // Frame geometry respecting 5-row Modal chrome across 80x24, 120x36, 160x44
-  const frameW = Math.max(46, Math.min(96, Math.min(width, columns) - 4));
+  // Frame geometry (#1315): default to max usable pane width up to 120 cols (was 96) & height - 2; [F] fullscreen
+  const paneCols = Math.min(width, columns);
+  const frameW = fullscreen ? Math.max(46, Math.max(width, columns) - 2) : Math.max(46, Math.min(120, paneCols - 4));
   const frameH = Math.max(16, Math.min(34, height - 2));
   const innerW = modalContentWidth(frameW);
   const bodyH = Math.max(8, frameH - 5);

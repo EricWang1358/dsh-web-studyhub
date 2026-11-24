@@ -15,6 +15,8 @@ import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
+import { buildRoundNextStepSuggestion } from './round-next-step.js';
+import { dueToday } from '../../shell/data.js';
 
 interface LookBackOption {
   id?: string;
@@ -121,7 +123,7 @@ export interface RoundSummaryProps {
   onBack?: () => void;
 }
 
-const CLAIMED_SUMMARY_KEYS: readonly string[] = Object.freeze(['w', 'r', 'g', 'b', 'v', '1', 'j', 'k', 'd']);
+const CLAIMED_SUMMARY_KEYS: readonly string[] = Object.freeze(['w', 'R', 'g', 'b', 'v', '1', 'j', 'k', 'd']);
 const SPLIT_BREAKPOINT = 84;
 
 function formatDebriefNextLabel(nextCode: string, lang: UiLanguage): string {
@@ -644,7 +646,7 @@ export const RoundSummary = memo(function RoundSummary({
         ? [{ key: 'd', label: debrief ? t(lang, '查看复盘', 'Debrief') : t(lang, 'AI复盘', 'Debrief') }]
         : []),
       { key: 'g', label: dailyGroup?.hasContent ? t(lang, '看复盘', 'View Recap') : t(lang, '每日复盘', 'Daily Recap') },
-      { key: 'r', label: t(lang, '再来一轮', 'New Round') },
+      { key: 'R', label: t(lang, '再来一轮', 'New Round') },
       { key: 'Esc/b/1', label: t(lang, '学习库', 'Library') },
     ],
     [selectedRow, previewExpanded, hasMissed, run.mode, debrief, dailyGroup?.hasContent, lang],
@@ -692,7 +694,7 @@ export const RoundSummary = memo(function RoundSummary({
         void triggerDailyRecap();
         return;
       }
-      if (input === 'r') {
+      if (input === 'R') {
         handleNewRound();
         return;
       }
@@ -757,7 +759,24 @@ export const RoundSummary = memo(function RoundSummary({
 
   const ellipsis = asciiMode ? '...' : '…';
   const headerH = height <= 24 ? 4 : 5;
-  const bodyH = Math.max(6, height - headerH);
+  const proactiveHints = useTuiStore((s) => s.preferences.proactiveHints !== false);
+  const snapshot = useTuiStore((s) => s.snapshot);
+  const nextStepSuggestion = useMemo(
+    () =>
+      buildRoundNextStepSuggestion({
+        answered,
+        correct,
+        weakCount: Math.max(rows.filter((r) => r.status === 'wrong').length, Math.max(0, answered - correct)),
+        weakTopics,
+        remainingDue: dueToday(snapshot),
+        lang,
+        asciiMode,
+        proactiveHints,
+      }),
+    [answered, correct, rows, weakTopics, snapshot, lang, asciiMode, proactiveHints],
+  );
+  const effectiveHeaderH = nextStepSuggestion && height >= 16 ? Math.max(headerH, 5) : headerH;
+  const bodyH = Math.max(6, height - effectiveHeaderH);
   const headerInnerW = Math.max(16, width - 4);
   const barW = Math.min(20, Math.max(8, Math.floor(width * 0.16)));
   const statsPrefix = `${t(lang, '已答', 'Ans')} ${answered}/${totalQuestions}  ${t(lang, '答对', 'OK')} ${correct}`;
@@ -782,7 +801,7 @@ export const RoundSummary = memo(function RoundSummary({
         badge={answered > 0 ? `${accuracy}%` : t(lang, '已结束', 'Ended')}
         badgeTone={accuracy >= 70 ? 'success' : answered > 0 ? 'warning' : 'neutral'}
         width={width}
-        height={headerH}
+        height={effectiveHeaderH}
         ascii={asciiMode}
       >
         <Box flexDirection="row" alignItems="center" gap={1} height={1} overflow="hidden">
@@ -819,6 +838,13 @@ export const RoundSummary = memo(function RoundSummary({
             </Text>
           ) : null}
         </Box>
+        {nextStepSuggestion && height >= 16 ? (
+          <Box height={1} overflow="hidden">
+            <Text color={theme.ai} wrap="truncate">
+              {truncateDisplay(nextStepSuggestion.text, headerInnerW, ellipsis)}
+            </Text>
+          </Box>
+        ) : null}
       </Panel>
 
       <SplitPane

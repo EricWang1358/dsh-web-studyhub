@@ -2,9 +2,22 @@ import React from "react";
 import { ui } from "../i18n.js";
 import { reviewEntryKey } from "../async.js";
 import { resolveBookSettings } from "../../lib/book-settings.js";
+import { courseParent } from "../../lib/course-tree.js";
 import { qaAddFailureText, useBookQa } from "../book/BookQaButton.jsx";
 import { autoAddPlan, seeFollowups } from "../book/qa-auto.js";
 import { AUTO_ADVANCE_MS, finishedTask } from "./session-logic.js";
+
+function hasCourseBook(bookCourses, course) {
+  if (!bookCourses || !bookCourses.size || typeof course !== "string") return false;
+  if (bookCourses.has(course)) return true;
+  const known = [...bookCourses];
+  let parent = courseParent(course, known);
+  while (parent) {
+    if (bookCourses.has(parent)) return true;
+    parent = courseParent(parent, known);
+  }
+  return false;
+}
 
 /** Sync Q&A auto-add state and failures with the course book while practicing a question. */
 export function useBookQaSync({ run, data, call }) {
@@ -34,7 +47,7 @@ export function useBookQaSync({ run, data, call }) {
     const seen = seeFollowups(qaSeen.current, reviewEntryKey(run), allFollowups.map((item) => item.id), !!(run.solution || run.followups));
     qaSeen.current = seen.state;
     const expectedKey = currentCardKey;
-    for (const id of autoAddPlan({ mode: qaToBook, withBook: book.ready && book.courses.has(bookCourse), fresh: seen.fresh, tried: qaTried.current, added: book.ids })) {
+    for (const id of autoAddPlan({ mode: qaToBook, withBook: book.ready && hasCourseBook(book.courses, bookCourse), fresh: seen.fresh, tried: qaTried.current, added: book.ids })) {
       qaTried.current.add(id);
       book.add({ deckId: run.deckId, cardId: run.card.id, followupId: id })
         .then(() => { if (activeCardKeyRef.current === expectedKey) setBookNote(""); })

@@ -56,7 +56,7 @@ type BoardCardMeta = BoardCard & {
   due?: unknown;
 };
 
-const CLAIMED_KEYS = ['a', 'S', 'P', 'R', 'M', '+', '-', 'r', '/', 'x'] as const;
+const CLAIMED_KEYS = ['a', 'S', 'P', 'R', 'M', '+', '-', '/', 'x'] as const;
 const WIDE_BREAKPOINT = 78;
 
 function cleanSingleLine(raw: unknown): string {
@@ -852,7 +852,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         void handleExportMarkdown();
         return;
       }
-      if (input === 'r') {
+      if (key.ctrl && input === 'r') {
         void reloadBoard({ notifyOnReload: true });
         return;
       }

@@ -48,6 +48,7 @@ function pillStateTag(snap) {
 export default function ReviewFocusPill({
   boardState,
   attempts = [],
+  todayPaceSummary = null,
   focusTitle = '',
   root = '',
   today: todayProp,
@@ -124,13 +125,14 @@ export default function ReviewFocusPill({
     open
       ? computeTodayPace({
           attempts,
+          summary: todayPaceSummary,
           goal,
           focusMinutes: prefs.workMinutes,
           breakMinutes: prefs.breakMinutes,
           today,
         })
       : null
-  ), [open, attempts, goal, prefs.workMinutes, prefs.breakMinutes, today]);
+  ), [open, attempts, todayPaceSummary, goal, prefs.workMinutes, prefs.breakMinutes, today]);
 
   const paceLine = todayPace ? formatTodayPaceLine(todayPace) : '';
   const effectiveTitle = typeof focusTitle === 'string' && focusTitle.trim() ? focusTitle.trim() : ui('自由专注');

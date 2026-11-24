@@ -90,7 +90,17 @@ export function applyOutline(root, entries) {
     const id = `ai-${index}`, element = blockOf(range, root), tagged = !!element && !element.hasAttribute(AI_ATTRIBUTE);
     if (tagged) element.setAttribute(AI_ATTRIBUTE, id);
     else if (element) return; // two entries on one block: the first keeps it
-    items.push({ id, level: entry.level, title: entry.title, kind: entry.kind, range, tagged });
+    const anchor = entry.anchor;
+    items.push({
+      id,
+      level: entry.level,
+      title: entry.title,
+      kind: entry.kind,
+      range,
+      tagged,
+      ...(anchor?.sourceId ? { sourceId: anchor.sourceId } : {}),
+      ...(Number.isFinite(anchor?.offset) ? { offset: anchor.offset } : {}),
+    });
   });
   return items;
 }

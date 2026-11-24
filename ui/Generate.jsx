@@ -94,16 +94,35 @@ export default function Generate({
   // its way every row holds the badge's slot, and it keeps that column's width after, badge or none; its facts are one line either way, so no row moves (#1084).
   const [indexCoverage, , indexStatus] = useIndexCoverage(call);
   const known = courseNamesOf(data);
+  const activeSourceIds = React.useMemo(
+    () => new Set((data.sources || []).filter((source) => source && !source.archived && !source.historical).map((source) => source.id)),
+    [data.sources],
+  );
+  const validSelectedSources = React.useMemo(
+    () => selectedSources.filter((id) => activeSourceIds.has(id)),
+    [selectedSources, activeSourceIds],
+  );
+  // Prune archived/deleted source IDs whenever the snapshot's sources list refreshes (without racing a just-imported selection before refresh lands).
+  const prevSourcesRef = React.useRef(data.sources);
+  React.useEffect(() => {
+    if (prevSourcesRef.current === data.sources) return;
+    prevSourcesRef.current = data.sources;
+    setSelectedSources((current) => {
+      if (!Array.isArray(current) || !current.length) return current;
+      const next = current.filter((id) => activeSourceIds.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [data.sources, activeSourceIds, setSelectedSources]);
   const referenceSourceIds = gen.referenceSourceIds || [];
-  const referenceState = referenceSelection(data.sources, referenceSourceIds, selectedSources, gen.referenceLimits, gen.referenceFormat);
+  const referenceState = referenceSelection(data.sources, referenceSourceIds, validSelectedSources, gen.referenceLimits, gen.referenceFormat);
   const evidenceSources = data.sources.filter(source => !referenceSourceIds.includes(source.id));
-  const generationCourse = gen.course ?? courseForSources({ sources: data.sources }, selectedSources, sourceScope === '*' ? '' : sourceScope, known);
-  const stats = React.useMemo(() => selectionStats(data.sources, selectedSources), [data.sources, selectedSources]);
+  const generationCourse = gen.course ?? courseForSources({ sources: data.sources }, validSelectedSources, sourceScope === '*' ? '' : sourceScope, known);
+  const stats = React.useMemo(() => selectionStats(data.sources, validSelectedSources), [data.sources, validSelectedSources]);
   const selectedPdfPages = stats.pages;
   const model = modelReadiness(data);
   // 大教材 (WP28): what DSH can search with, read once, and what this page does with a selection of this size.
   const { data: retrieval } = useRetrievalStatus({ initialData: initialRetrieval ?? undefined, enabled: !initialRetrieval });
-  const advice = generateAdvice({ sources: data.sources, selectedIds: selectedSources, focus: gen.focus, retrieval });
+  const advice = generateAdvice({ sources: data.sources, selectedIds: validSelectedSources, focus: gen.focus, retrieval });
   // The learner's goal tells whether the target role belongs on the form; read once, quietly.
   const [goal, setGoal] = React.useState('');
   useLiveEffect((live) => {
@@ -112,11 +131,12 @@ export default function Generate({
   // 帮我想想: asked on click only; a result belongs to the sources and course it was asked for.
   const [assist, setAssist] = React.useState({ phase: 'idle', result: null, applied: false });
   const assistToken = React.useRef(0);
-  const selectionKey = `${generationCourse}|${selectedSources.join(',')}`;
+  const selectionKey = `${generationCourse}|${validSelectedSources.join(',')}`;
   React.useEffect(() => { assistToken.current += 1; setAssist({ phase: 'idle', result: null, applied: false }); }, [selectionKey]);
   // 分步出题: the plan of steps and what it does live in one hook so the form's own button can queue it; the choice of how to go on is this page's (TooBigChoice).
-  const path = useGenerationPath({ sources: data.sources, selectedIds: selectedSources, gen, course: generationCourse, goal, indexCoverage,
-    onQueued: () => { setGen(current => freshGeneration(current, data.settings?.generation)); setPage("library"); } });
+  const path = useGenerationPath({ sources: data.sources, selectedIds: validSelectedSources, gen, course: generationCourse, goal, indexCoverage,
+    onQueued: () => { setGen(current => freshGeneration(current, data.settings?.generation)); setPage("library"); },
+    onGoLibrary: () => setPage("library") });
   const [chosenMode, setChosenMode] = React.useState(initialGenerationMode);
   const modes = availableModes({ advice, pathReady: path.available, retrieval });
   const mode = effectiveMode(chosenMode, modes, advice);
@@ -149,7 +169,7 @@ export default function Generate({
     const token = ++assistToken.current;
     setAssist({ phase: 'loading', result: null, applied: false });
     let result;
-    try { result = await call('generate.suggest', { sourceIds: selectedSources, course: generationCourse, ...(goal ? { goal } : {}) }); }
+    try { result = await call('generate.suggest', { sourceIds: validSelectedSources, course: generationCourse, ...(goal ? { goal } : {}) }); }
     catch (error) { result = { source: 'local', focus: [], unavailable: { reason: 'failed', message: String(error?.message || '') } }; }
     if (token === assistToken.current) setAssist({ phase: 'done', result, applied: false });
   }
@@ -167,7 +187,7 @@ export default function Generate({
   // Before the first paint (a layout effect): the page is drawn at once, and the line and the ticks are in its first frame, never a line that pushes the list down (#1084).
   const [opening, setOpening] = React.useState(null);
   React.useLayoutEffect(() => {
-    if (selectedSources.length) return;
+    if (validSelectedSources.length) return;
     const found = openingSelection(data, { scope: sourceScope, known, exclude: referenceSourceIds });
     if (!found.sourceIds.length) return;
     setSelectedSources(found.sourceIds);
@@ -187,13 +207,13 @@ export default function Generate({
   function submit(event) {
     event.preventDefault();
     if (pathMode) { if (model.ready && !busy && !path.queueing && path.included.length && !referenceState.reason) path.queue(); return; }
-    if (!model.ready || busy || !selectedSources.length || advice.blocked || referenceState.reason || invalidQuota) return;
+    if (!model.ready || busy || !validSelectedSources.length || advice.blocked || referenceState.reason || invalidQuota) return;
     // Land where the progress card is (P26).
-    startGeneration({ act, notify, setGen, data, gen, course: generationCourse, sourceIds: selectedSources,
+    startGeneration({ act, notify, setGen, data, gen, course: generationCourse, sourceIds: validSelectedSources,
       then: (job) => (onStarted ? onStarted(job) : setPage("library")) });
   }
   // The case form opens with the materials ticked on this tab (its own selection when it comes from the reader): the learner already chose them, and the form says so.
-  const carried = caseEvidence(data.sources, referenceSourceIds).filter((source) => selectedSources.includes(source.id)).map((source) => source.id);
+  const carried = caseEvidence(data.sources, referenceSourceIds).filter((source) => validSelectedSources.includes(source.id)).map((source) => source.id);
   const caseStart = caseInitial?.sourceIds ? caseInitial : { ...(carried.length ? { sourceIds: carried, broughtOver: carried.length, ...(generationCourse ? { course: generationCourse } : {}) } : {}), ...caseInitial };
 
   const activeFocusCount = activeCourseRecord?.focusTopics?.length || 0;
@@ -206,22 +226,23 @@ export default function Generate({
   const depth = gen.depth ?? depthOf(data.settings?.generation), cell = { density: level, depth, count: custom };
   const applies = depthApplies({ kind: gen.kind, kinds: kindsOfForm(gen) });
   // The form's own request (a form without a depth of its own sends none, and the backend reads the saved one, as the run does).
-  const estimateRequest = estimateRequestOf(gen, { course: generationCourse, sourceIds: selectedSources, reasoningEffort });
+  const estimateRequest = estimateRequestOf(gen, { course: generationCourse, sourceIds: validSelectedSources, reasoningEffort });
   // Whether the run will be written in one pass (the depth, and the kinds chosen here): the level's words say that strategy's density.
   const onePass = writesInOnePass({ ...estimateRequest, performance: performanceOfDepth(depth) });
-  const planned = useUsageEstimate(call, estimateRequest, { enabled: selectedSources.length > 0 && !referenceState.reason && !pathMode });
+  const planned = useUsageEstimate(call, estimateRequest, { enabled: validSelectedSources.length > 0 && !referenceState.reason && !pathMode });
   const plannedCoverage = planned.status === 'ready' ? planned.estimate?.coverage : null, plannedGoal = plannedCoverage?.goal ?? null;
   // A summary promises questions: not for a button that is off (the reason is said below), and for the steps it is their own total.
   const blocked = !pathMode && advice.blocked;
+  const formBlocked = blocked || (!pathMode && invalidQuota) || Boolean(referenceState.reason);
   // The rough cost of each preset (and, with 更多选项 open, of every cell of the matrix), read from the estimate of each cell for these materials (ui/presets/cost.js).
   const priced = foldOpen ? MATRIX_CELLS : PRESET_CELLS;
-  const pricing = pricesCells({ applies, sources: selectedSources.length, count: custom, held: pathMode || blocked || Boolean(referenceState.reason) });
+  const pricing = pricesCells({ applies, sources: validSelectedSources.length, count: custom, held: pathMode || formBlocked });
   const cellEstimates = useCellEstimates(call, estimateRequest, priced, { enabled: pricing });
   const costs = pricing ? cellCosts(cellEstimates, priced) : null;
   const pickPreset = (id) => { const chosen = presetCell(id); if (chosen) setGen({ ...gen, coverageLevel: chosen.density, customCount: '', depth: chosen.depth }); };
-  const summary = pathMode ? pathSummary(path.included) : blocked ? '' : summaryLine({ ...stats, count: plannedGoal, low: plannedCoverage?.goalLow ?? null, difficulty: gen.difficulty, language: gen.language, minutes: plannedGoal ? estimateMinutes(data.jobs, plannedGoal) : null }, { choices: false });
+  const summary = pathMode ? (referenceState.reason ? '' : pathSummary(path.included)) : formBlocked ? '' : summaryLine({ ...stats, count: plannedGoal, low: plannedCoverage?.goalLow ?? null, difficulty: gen.difficulty, language: gen.language, minutes: plannedGoal ? estimateMinutes(data.jobs, plannedGoal) : null }, { choices: false });
   // The plan is priced for these materials: the tokens in the bar, the rest of the plan under it.
-  const estimating = !pathMode && !blocked && selectedSources.length > 0 && !referenceState.reason;
+  const estimating = !pathMode && !formBlocked && validSelectedSources.length > 0;
   const barRoom = useStickyRoom('--generate-bar-room');
   return (
     <section className="page generate-page">
@@ -262,10 +283,10 @@ export default function Generate({
             <fieldset data-tour="generate-sources">
               <legend>{ui("01 / 选择资料")}</legend>
               {/* Why these are ticked (only while the ticks are still the ones the page opened with). */}
-              {openingStands(opening, selectedSources) && <p className="generate-opening muted" data-opening-reason>{openingLine(opening.reason)}</p>}
+              {openingStands(opening, validSelectedSources) && <p className="generate-opening muted" data-opening-reason>{openingLine(opening.reason)}</p>}
               {/* One row per document with its pages on demand; counts are in documents (WP3, P18). */}
               {/* 添加资料 under the list is the one way to add material from here (the shared import dialog, WP3); the index line shares its line. */}
-              <SourcePicker sources={evidenceSources} selected={selectedSources} onChange={setSelectedSources} indexCoverage={indexCoverage} indexPending={indexStatus === 'loading'}
+              <SourcePicker sources={evidenceSources} selected={validSelectedSources} onChange={setSelectedSources} indexCoverage={indexCoverage} indexPending={indexStatus === 'loading'}
                 courses={data.focus?.courses} scope={sourceScope} onScopeChange={setSourceScope}
                 materialFolders={data.materialFolders ?? data.settings?.materialFolders} modelReady={model.ready}
                 disabled={busy} onAdd={openImport}
@@ -275,7 +296,7 @@ export default function Generate({
                 card={advice.tooBig && !retrievalReady(retrieval) ? <LargeDocumentCard reason="selection" detail={{ chars: advice.chars }} retrieval={retrieval} onOpenSettings={openLargeDocumentSettings}
                   runnable courses={data.focus?.courses} defaultCourse={generationCourse} /> : null}>
                 {pathMode && <GenerationPath path={path} disabled={busy || !model.ready || !!referenceState.reason} onSettings={openSettings} onUseStep={narrowToStep} />}
-                {retrievalMode && <RetrievalPanel advice={advice} sourceIds={selectedSources} focus={gen.focus} course={generationCourse} onApply={setSelectedSources} disabled={busy} />}
+                {retrievalMode && <RetrievalPanel advice={advice} sourceIds={validSelectedSources} focus={gen.focus} course={generationCourse} onApply={setSelectedSources} disabled={busy} />}
               </TooBigChoice>}
             </fieldset>
             <fieldset className="generate-form" data-tour="generate-options">
@@ -314,7 +335,7 @@ export default function Generate({
                 {/* The matrix of 出题方式: the 覆盖强度 (with 自定义 and 自动补到完整), the depth, and the rough cost of every combination. */}
                 {!pathMode && <FormGroup title={ui("出题方式与题量")}>
                   <FormRow label={ui("覆盖强度")} data-tour="generate-coverage">
-                    <CoverageStrength compact part="choice" level={level} customCount={gen.customCount ?? ''} state={planned} stats={stats} enabled={selectedSources.length > 0 && !referenceState.reason} disabled={busy} onePass={onePass}
+                    <CoverageStrength compact part="choice" level={level} customCount={gen.customCount ?? ''} state={planned} stats={stats} enabled={validSelectedSources.length > 0 && !referenceState.reason} disabled={busy} onePass={onePass}
                       onChoice={(patch) => setGen({ ...gen, ...patch })} onCustom={(customCount) => setGen({ ...gen, customCount })}
                       auto={autoOf({ ...gen, coverageLevel: level })} onAuto={(autoComplete) => setGen({ ...gen, autoComplete })} />
                   </FormRow>
@@ -399,7 +420,7 @@ export default function Generate({
               <div className="generate-submit__lines">
                 {/* Whole pieces (「·」 between them): a line too narrow for all of them leaves the last ones out, never half a word (#1082). */}
                 {summary ? <p className="generate-summary" role="status">{summary.split(' · ').map((piece, at) => <React.Fragment key={at}>{at ? ' ' : ''}<span className="generate-summary__piece">{at ? `· ${piece}` : piece}</span></React.Fragment>)}</p>
-                  : <p className="muted generate-submit__note" role="status">{model.ready && !selectedSources.length ? ui("先在「01 / 选择资料」勾选资料。") : ""}</p>}
+                  : <p className="muted generate-submit__note" role="status">{model.ready && !validSelectedSources.length ? ui("先在「01 / 选择资料」勾选资料。") : ""}</p>}
                 {!pathMode && <div className="generate-submit__cost" data-generate-estimate>
                   {estimating && <TokenEstimateView state={planned} totalOnly pieces />}
                 </div>}
@@ -415,7 +436,7 @@ export default function Generate({
                   </Button>
                 </Tooltip>
               ) : (
-                <Button variant="primary" type="submit" icon="sparkle" className="generate-submit__btn" busy={busy} disabled={!selectedSources.length || advice.blocked || !!referenceState.reason || invalidQuota}
+                <Button variant="primary" type="submit" icon="sparkle" className="generate-submit__btn" busy={busy} disabled={!validSelectedSources.length || advice.blocked || !!referenceState.reason || invalidQuota}
                   data-tour="generate-submit" data-usage="generate.submit">
                   {running ? ui("加入生成队列") : ui("生成并检查题组")}
                 </Button>
@@ -423,6 +444,12 @@ export default function Generate({
               {/* Why the button is off, once: with pages picked by topic the panel above already says the topic is missing, so here it is only what to do. */}
               {model.ready && blocked && (retrievalMode ? <Hint>{ui("写下主题后才能生成。")}</Hint>
                 : <InlineMessage tone="warning">{ui("所选资料超过一次生成的上限。请按章节缩小选择，或按上面的建议用检索工具。")}</InlineMessage>)}
+              {model.ready && !blocked && !pathMode && invalidQuota && (
+                <InlineMessage tone="warning">{ui("请到「更多选项 › 额外要求」为至少一种题型分配 1 道题。")}</InlineMessage>
+              )}
+              {model.ready && !blocked && referenceState.reason && (
+                <InlineMessage tone="warning">{referenceState.reason}</InlineMessage>
+              )}
               {model.ready && running && <p className="muted generate-submit__note">{ui("已有出题任务在进行，新的会排在它后面。")}</p>}
             </div>
             <div className="generate-run" data-generate-run>
@@ -430,7 +457,7 @@ export default function Generate({
                 {path.groups.map(group => <p key={group.message} className="gen-path__failure">{group.message}{" "}<small>{group.steps.length > 3
                   ? uiFormat("（{0} 等 {1} 步）", [group.steps.slice(0, 3).join("、"), group.steps.length]) : uiFormat("（{0}）", [group.steps.join("、")])}</small></p>)}
               </InlineMessage>}
-              {!pathMode && selectedSources.length > 0 && <EffectiveRequirementsStrip gen={gen} focusCount={activeFocusCount} referenceCount={referenceSourceIds.length} ruleCount={generationRulesOf(data, generationCourse).length} />}
+              {!pathMode && validSelectedSources.length > 0 && <EffectiveRequirementsStrip gen={gen} focusCount={activeFocusCount} referenceCount={referenceSourceIds.length} ruleCount={generationRulesOf(data, generationCourse).length} />}
               {/* The rest of the plan, said once: how much it covers, in how many rounds and model calls (the ⓘ has the stages), and whether the rest goes on by
                   itself (the count and the tokens are the bar's). */}
               {estimating && <div className="generate-estimate" data-generate-coverage>
