@@ -296,7 +296,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
 
   const clampedTopicIdx = filteredTopics.length > 0 ? Math.min(topicIdx, filteredTopics.length - 1) : 0;
   const selectedTopic: FocusTopicProgress | undefined = filteredTopics[clampedTopicIdx];
-  const crunchPoints = crunch?.points ?? [];
+  const crunchPoints = useMemo(() => crunch?.points ?? [], [crunch?.points]);
   const selectedCrunch: CrunchPoint | undefined = crunchPoints[Math.min(crunchIdx, Math.max(0, crunchPoints.length - 1))];
 
   const noQuestionTopics = useMemo(
@@ -376,7 +376,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
       }
     }
     notify(t(lang, '当前暂无可练薄弱重点题；可按 g 为空重点补齐出题', 'No unmastered focus questions ready; press g for gap-fill'), 'info');
-  }, [busyLabel, selectedTopic, progress?.weakScope, host, course, lang, navigate, notify]);
+  }, [busyLabel, ell, normalizedFilter, selectedTopic, progress?.weakScope, host, course, lang, navigate, notify]);
 
   const requestGapFill = useCallback((targetTopics: string[]) => {
     if (busyRef.current || busyLabel !== null) return;
@@ -445,7 +445,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
       busyRef.current = false;
       if (mountedRef.current) setBusyLabel(null);
     }
-  }, [busyLabel, course, snapshot?.sources, host, lang, notify, navigate]);
+  }, [busyLabel, ell, course, snapshot?.sources, host, lang, notify, navigate]);
 
   const confirmRemoveTopic = useCallback(async (topicToRemove: string) => {
     if (!course || busyRef.current || busyLabel !== null) return;
@@ -480,7 +480,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
       busyRef.current = false;
       if (mountedRef.current) setBusyLabel(null);
     }
-  }, [busyLabel, course, snapshot?.courses, host, topics, lang, notify, refreshSnapshot, loadAll]);
+  }, [busyLabel, ell, course, snapshot?.courses, host, topics, lang, notify, refreshSnapshot, loadAll]);
 
   const toggleCrunchMark = useCallback(async (kind: 'read' | 'seen') => {
     if (!selectedCrunch || !course || busyRef.current || busyLabel !== null) return;
@@ -524,7 +524,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
       busyRef.current = false;
       if (mountedRef.current) setBusyLabel(null);
     }
-  }, [busyLabel, course, selectedCrunch, host, lang, navigate, notify]);
+  }, [busyLabel, ell, course, selectedCrunch, host, lang, navigate, notify]);
 
   const exportExamPrep = useCallback(async () => {
     if (exportBusyRef.current) return;
@@ -884,70 +884,68 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
                 )}
               </Panel>
             )}
-            right={(sz) => (
-              <Panel
-                title={
-                  showScheduleTable
-                    ? t(lang, '排程与重点矩阵 [T]详情', 'Schedule & Matrix [T]Detail')
-                    : selectedTopic
-                      ? truncateDisplay(selectedTopic.topic, Math.max(10, sz.width - 14), asciiMode ? '...' : '…')
-                      : t(lang, '详情', 'Detail')
-                }
-                subtitle={t(lang, '[T]排程表', '[T]Table')}
-                focused={focusPane === 'right'}
-                width={sz.width}
-                height={sz.height}
-              >
-                {showScheduleTable ? (
-                  <Box flexDirection="column" gap={0}>
-                    {(() => {
-                      const innerW = Math.max(16, sz.width - 4);
-                      const schedLines = renderExamScheduleTable(coursePlan, innerW, theme, { lang, ascii: asciiMode });
-                      const gapSteps = buildGapFillWorkflowSteps(examCoverage, lang);
-                      const matrixLines =
-                        schedLines.length > 0
-                          ? schedLines
-                          : renderStatTable(
-                              [
-                                { key: 'topic', label: t(lang, '重点', 'Topic'), align: 'left', minWidth: 8 },
-                                { key: 'status', label: t(lang, '状态', 'Status'), align: 'left', width: 6 },
-                                { key: 'cards', label: t(lang, '题数', 'Qty'), align: 'right', width: 4 },
-                                { key: 'mastery', label: t(lang, '掌握', 'Mast'), align: 'right', width: 5 },
-                              ],
-                              filteredTopics.slice(0, Math.max(2, sz.height - 5)).map((tp) => ({
-                                topic: tp.topic,
-                                status: focusStatusLabel(tp.status, lang),
-                                cards: tp.cards,
-                                mastery: tp.cards > 0 ? `${Math.round((tp.mastery || 0) * 100)}%` : '-',
-                              })),
-                              innerW,
-                              theme,
-                              { ascii: asciiMode },
-                            );
-                      return (
-                        <>
-                          {matrixLines.slice(0, Math.max(3, sz.height - (gapSteps.length > 0 ? 6 : 3))).map((line, i) => (
-                            <Text key={`ep-tbl-${i}`} wrap="truncate">
-                              {line}
+            right={(sz) => {
+              const schedInnerW = Math.max(16, sz.width - 4);
+              const schedLines = showScheduleTable
+                ? renderExamScheduleTable(coursePlan, schedInnerW, theme, { lang, ascii: asciiMode })
+                : [];
+              const gapSteps = showScheduleTable ? buildGapFillWorkflowSteps(examCoverage, lang) : [];
+              const matrixLines = !showScheduleTable
+                ? []
+                : schedLines.length > 0
+                  ? schedLines
+                  : renderStatTable(
+                      [
+                        { key: 'topic', label: t(lang, '重点', 'Topic'), align: 'left', minWidth: 8 },
+                        { key: 'status', label: t(lang, '状态', 'Status'), align: 'left', width: 6 },
+                        { key: 'cards', label: t(lang, '题数', 'Qty'), align: 'right', width: 4 },
+                        { key: 'mastery', label: t(lang, '掌握', 'Mast'), align: 'right', width: 5 },
+                      ],
+                      filteredTopics.slice(0, Math.max(2, sz.height - 5)).map((tp) => ({
+                        topic: tp.topic,
+                        status: focusStatusLabel(tp.status, lang),
+                        cards: tp.cards,
+                        mastery: tp.cards > 0 ? `${Math.round((tp.mastery || 0) * 100)}%` : '-',
+                      })),
+                      schedInnerW,
+                      theme,
+                      { ascii: asciiMode },
+                    );
+              return (
+                <Panel
+                  title={
+                    showScheduleTable
+                      ? t(lang, '排程与重点矩阵 [T]详情', 'Schedule & Matrix [T]Detail')
+                      : selectedTopic
+                        ? truncateDisplay(selectedTopic.topic, Math.max(10, sz.width - 14), asciiMode ? '...' : '…')
+                        : t(lang, '详情', 'Detail')
+                  }
+                  subtitle={t(lang, '[T]排程表', '[T]Table')}
+                  focused={focusPane === 'right'}
+                  width={sz.width}
+                  height={sz.height}
+                >
+                  {showScheduleTable ? (
+                    <Box flexDirection="column" gap={0}>
+                      {matrixLines.slice(0, Math.max(3, sz.height - (gapSteps.length > 0 ? 6 : 3))).map((line, i) => (
+                        <Text key={`ep-tbl-${i}`} wrap="truncate">
+                          {line}
+                        </Text>
+                      ))}
+                      {gapSteps.length > 0 ? (
+                        <Box flexDirection="column" marginTop={1}>
+                          <Text color={theme.accent} bold>
+                            {t(lang, '缺口自动补齐步骤（写操作需确认）:', 'Auto Gap-Fill Steps (writes confirmed):')}
+                          </Text>
+                          {gapSteps.slice(0, 3).map((s) => (
+                            <Text key={`gs-${s.index}`} color={s.requiresConfirm ? theme.warning : theme.muted} wrap="truncate">
+                              {truncateDisplay(`${s.index + 1}. ${s.label}`, schedInnerW, ell)}
                             </Text>
                           ))}
-                          {gapSteps.length > 0 ? (
-                            <Box flexDirection="column" marginTop={1}>
-                              <Text color={theme.accent} bold>
-                                {t(lang, '缺口自动补齐步骤（写操作需确认）:', 'Auto Gap-Fill Steps (writes confirmed):')}
-                              </Text>
-                              {gapSteps.slice(0, 3).map((s) => (
-                                <Text key={`gs-${s.index}`} color={s.requiresConfirm ? theme.warning : theme.muted} wrap="truncate">
-                                  {truncateDisplay(`${s.index + 1}. ${s.label}`, innerW, ell)}
-                                </Text>
-                              ))}
-                            </Box>
-                          ) : null}
-                        </>
-                      );
-                    })()}
-                  </Box>
-                ) : selectedTopic ? (
+                        </Box>
+                      ) : null}
+                    </Box>
+                  ) : selectedTopic ? (
                   <Box flexDirection="column" gap={1}>
                     <Box gap={1}>
                       <Badge label={focusStatusLabel(selectedTopic.status, lang)} tone={focusStatusTone(selectedTopic.status)} />
@@ -976,7 +974,8 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
                   </Box>
                 ) : null}
               </Panel>
-            )}
+              );
+            }}
           />
         )
       ) : crunchPoints.length === 0 ? (

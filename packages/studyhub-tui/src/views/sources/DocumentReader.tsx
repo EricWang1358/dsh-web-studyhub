@@ -2132,53 +2132,7 @@ export const DocumentReader = memo(function DocumentReader({
               ? t(lang, '确认重新翻译本页', 'Confirm Page Retranslation')
               : t(lang, '确认翻译本页', 'Confirm Page Translation')
           }
-          message={(() => {
-            const targetNameLabel =
-              pendingTranslateConfirm.target === 'en'
-                ? t(lang, '英文 (en)', 'English (en)')
-                : t(lang, '中文 (zh)', 'Chinese (zh)');
-            const { toTranslate, cached, reused } = pendingTranslateConfirm.counts;
-            const estCalls = formatEstimateRange(pendingTranslateConfirm.estimate?.calls) || '1';
-            const estTokens = resolveEstimateTokensText(pendingTranslateConfirm.estimate) || '-';
-            const reusedParts: string[] = [];
-            if (cached > 0) reusedParts.push(t(lang, `已缓存 ${cached}`, `cached ${cached}`));
-            if (reused > 0) reusedParts.push(t(lang, `可复用 ${reused}`, `reused ${reused}`));
-            const extraNote = reusedParts.length > 0 ? ` (${reusedParts.join(', ')})` : '';
-            return (
-              <Box flexDirection="column">
-                <Text color={theme.text} wrap="wrap">
-                  {t(
-                    lang,
-                    `目标语言: ${targetNameLabel} | 待翻译 ${toTranslate} 段${extraNote}`,
-                    `Target: ${targetNameLabel} | ${toTranslate} passage(s) to translate${extraNote}`,
-                  )}
-                </Text>
-                <Text color={theme.muted} wrap="wrap">
-                  {t(
-                    lang,
-                    `预计调用: ~${estCalls} 次 | 预计用量: ~${estTokens} tokens`,
-                    `Est. calls: ~${estCalls} | Est. tokens: ~${estTokens}`,
-                  )}
-                </Text>
-                {!pendingTranslateConfirm.modelAvailable ? (
-                  <Text color={theme.warning} wrap="wrap">
-                    {t(
-                      lang,
-                      '提示: 当前未配置可用模型，执行可能失败。',
-                      'Note: No model configured; execution may fail.',
-                    )}
-                  </Text>
-                ) : null}
-                <Text color={theme.dim} wrap="wrap">
-                  {t(
-                    lang,
-                    '译文将自动保存至资料库，翻译中按 Esc 可中止。',
-                    'Translations auto-save to library; Esc aborts in-flight.',
-                  )}
-                </Text>
-              </Box>
-            );
-          })()}
+          message={renderTranslateConfirmMessage(pendingTranslateConfirm, lang, theme)}
           confirmLabel={t(lang, '开始翻译', 'Translate')}
           cancelLabel={t(lang, '取消', 'Cancel')}
           width={Math.min(62, Math.max(40, width - 4))}
@@ -2265,3 +2219,55 @@ export const DocumentReader = memo(function DocumentReader({
     </Box>
   );
 });
+
+function renderTranslateConfirmMessage(
+  confirm: PendingTranslateConfirm,
+  lang: 'zh' | 'en',
+  theme: ReturnType<typeof useTheme>,
+): React.ReactElement {
+  const targetNameLabel =
+    confirm.target === 'en'
+      ? t(lang, '英文 (en)', 'English (en)')
+      : t(lang, '中文 (zh)', 'Chinese (zh)');
+  const { toTranslate, cached, reused } = confirm.counts;
+  const estCalls = formatEstimateRange(confirm.estimate?.calls) || '1';
+  const estTokens = resolveEstimateTokensText(confirm.estimate) || '-';
+  const reusedParts: string[] = [];
+  if (cached > 0) reusedParts.push(t(lang, `已缓存 ${cached}`, `cached ${cached}`));
+  if (reused > 0) reusedParts.push(t(lang, `可复用 ${reused}`, `reused ${reused}`));
+  const extraNote = reusedParts.length > 0 ? ` (${reusedParts.join(', ')})` : '';
+  return (
+    <Box flexDirection="column">
+      <Text color={theme.text} wrap="wrap">
+        {t(
+          lang,
+          `目标语言: ${targetNameLabel} | 待翻译 ${toTranslate} 段${extraNote}`,
+          `Target: ${targetNameLabel} | ${toTranslate} passage(s) to translate${extraNote}`,
+        )}
+      </Text>
+      <Text color={theme.muted} wrap="wrap">
+        {t(
+          lang,
+          `预计调用: ~${estCalls} 次 | 预计用量: ~${estTokens} tokens`,
+          `Est. calls: ~${estCalls} | Est. tokens: ~${estTokens}`,
+        )}
+      </Text>
+      {!confirm.modelAvailable ? (
+        <Text color={theme.warning} wrap="wrap">
+          {t(
+            lang,
+            '提示: 当前未配置可用模型，执行可能失败。',
+            'Note: No model configured; execution may fail.',
+          )}
+        </Text>
+      ) : null}
+      <Text color={theme.dim} wrap="wrap">
+        {t(
+          lang,
+          '译文将自动保存至资料库，翻译中按 Esc 可中止。',
+          'Translations auto-save to library; Esc aborts in-flight.',
+        )}
+      </Text>
+    </Box>
+  );
+}

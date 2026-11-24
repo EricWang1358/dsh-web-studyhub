@@ -88,9 +88,14 @@ export const ExamReportView = memo(function ExamReportView({
     return [...wrong, ...skipped];
   }, [state]);
 
-  const caseQuestions: CaseQuestionReport[] =
-    state.kind === 'written' && state.report.case ? state.report.case.questions : [];
-  const oralEntries = state.kind === 'oral' ? state.report.entries : [];
+  const caseQuestions: CaseQuestionReport[] = useMemo(
+    () => (state.kind === 'written' && state.report.case ? state.report.case.questions : []),
+    [state],
+  );
+  const oralEntries = useMemo(
+    () => (state.kind === 'oral' ? state.report.entries : []),
+    [state],
+  );
 
   const totalList = isCaseReport
     ? caseQuestions.length

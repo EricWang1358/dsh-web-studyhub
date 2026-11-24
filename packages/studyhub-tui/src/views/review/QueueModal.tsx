@@ -289,9 +289,12 @@ export const QueueModal = memo(function QueueModal({
     [host, run.id, hydrateMissingDeckMeta, onRunUpdated, lang],
   );
 
+  const reloadRunRef = useRef(reloadRun);
+  reloadRunRef.current = reloadRun;
+
   useEffect(() => {
     setLoading(true);
-    void reloadRun({ syncCursorToCurrent: true }).finally(() => {
+    void reloadRunRef.current({ syncCursorToCurrent: true }).finally(() => {
       if (mountedRef.current) setLoading(false);
     });
     // Only fetch on mount / run id change

@@ -1049,7 +1049,7 @@ export const StudyPlanModal = memo(function StudyPlanModal({
       busyRef.current = false;
       if (mountedRef.current) setBusyLabel(null);
     }
-  }, [busyLabel, host, effectiveCourse, lang, notify]);
+  }, [busyLabel, ell, host, effectiveCourse, lang, notify]);
 
   const handleConfirmFill = useCallback(async () => {
     if (busyRef.current) return;
@@ -1078,7 +1078,7 @@ export const StudyPlanModal = memo(function StudyPlanModal({
       busyRef.current = false;
       if (mountedRef.current) setBusyLabel(null);
     }
-  }, [host, effectiveCourse, lang, notify, loadReadiness, loadPlan, onUpdated]);
+  }, [ell, host, effectiveCourse, lang, notify, loadReadiness, loadPlan, onUpdated]);
 
   const modalActive = isActive && confirmFill === null && !confirmApply;
 

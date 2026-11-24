@@ -923,7 +923,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
     } finally {
       if (mountedRef.current) setExporting(false);
     }
-  }, [modal, exporting, exportPath, host, lang, displayedNote?.markdown, notify]);
+  }, [modal, exporting, exportPath, host, lang, displayedNote?.id, displayedNote?.markdown, notify]);
 
   const linkedRefs = useMemo(
     () => extractLinkedRefs(displayedNote, snapshot?.decks, snapshot?.sources),
@@ -1345,6 +1345,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
           const cardTotal = displayedNote.cards?.length ?? displayedNote.cardCount ?? 0;
           const subtitle = [coursesLabel, `${cardTotal}${t(lang, '题', 'q')}`, effectiveMath ? (asciiMode ? 'Math' : '∑') : 'TeX'].filter(Boolean).join(' · ');
           const ell = asciiMode ? '...' : '…';
+          const { proseWidth, marginLeft } = computeProseLayout(readerW);
           return (
             <Panel
               title={displayedNote.title || t(lang, '学习笔记', 'Study Note')}
@@ -1422,25 +1423,20 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
                 </Box>
               ) : null}
               <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(Math.max(4, readerW))}</Text>
-              {(() => {
-                const { proseWidth, marginLeft } = computeProseLayout(readerW);
-                return (
-                  <Box width={readerW} height={readerH} paddingLeft={marginLeft} overflow="hidden">
-                    <MarkdownView
-                      markdown={
-                        displayedNote.markdown ||
-                        (displayedNote.status === 'published' && !daily
-                          ? t(lang, '_（已关联公开文章，按 `L` 更新外链）_', '_Published externally — press `L` to update link_')
-                          : t(lang, '_（暂无正文内容，按 `e` 编辑）_', '_Empty note — press `e` to edit_'))
-                      }
-                      width={proseWidth}
-                      height={readerH}
-                      isActive={pageActive && activePane === 'right'}
-                      mathUnicode={effectiveMath}
-                    />
-                  </Box>
-                );
-              })()}
+              <Box width={readerW} height={readerH} paddingLeft={marginLeft} overflow="hidden">
+                <MarkdownView
+                  markdown={
+                    displayedNote.markdown ||
+                    (displayedNote.status === 'published' && !daily
+                      ? t(lang, '_（已关联公开文章，按 `L` 更新外链）_', '_Published externally — press `L` to update link_')
+                      : t(lang, '_（暂无正文内容，按 `e` 编辑）_', '_Empty note — press `e` to edit_'))
+                  }
+                  width={proseWidth}
+                  height={readerH}
+                  isActive={pageActive && activePane === 'right'}
+                  mathUnicode={effectiveMath}
+                />
+              </Box>
             </Panel>
           );
         }}

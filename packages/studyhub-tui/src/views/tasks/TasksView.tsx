@@ -1094,21 +1094,27 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
   }, [filteredJobs.length, selectedIndex]);
 
   const selectedJob = filteredJobs[selectedIndex];
+  const selectedJobRef = useRef(selectedJob);
+  selectedJobRef.current = selectedJob;
+  const selectedJobId = selectedJob?.id;
+  const selectedJobStatus = selectedJob?.status;
+  const selectedJobCallsLen = selectedJob?.calls.length ?? 0;
 
   // Fetch `job.output` and `job.trace` for selected job (capped at MAX_LOG_LINES).
   useEffect(() => {
-    if (!isActive || !selectedJob) {
+    const job = selectedJobRef.current;
+    if (!isActive || !job || !selectedJobId) {
       setOutputLines([]);
       setTraceLines([]);
       return;
     }
     let cancelled = false;
-    const latestCall = [...selectedJob.calls].reverse().find((c) => c.status === 'running') ?? selectedJob.calls.at(-1);
+    const latestCall = [...job.calls].reverse().find((c) => c.status === 'running') ?? job.calls.at(-1);
 
     const loadDetails = async () => {
       if (latestCall?.id) {
         const outRes = await tryAction<{ text?: string; supported?: boolean }>(host, 'job.output', {
-          jobId: selectedJob.id,
+          jobId: selectedJobId,
           callId: latestCall.id,
           cursor: 0,
         });
@@ -1131,7 +1137,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
           tokenUsage?: { uncachedInputTokens?: number; outputTokens?: number };
         }>;
         unavailableReason?: string;
-      }>(host, 'job.trace', { jobId: selectedJob.id });
+      }>(host, 'job.trace', { jobId: selectedJobId });
       if (!cancelled && traceRes.ok && traceRes.value) {
         const calls = traceRes.value.calls ?? [];
         if (calls.length === 0) {
@@ -1158,7 +1164,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
     return () => {
       cancelled = true;
     };
-  }, [asciiMode, host, isActive, selectedJob?.id, selectedJob?.status, selectedJob?.calls.length, traceReloadTick]);
+  }, [asciiMode, host, isActive, selectedJobId, selectedJobStatus, selectedJobCallsLen, traceReloadTick]);
 
   const resolveLibraryRoot = useCallback((): string => {
     const hostWithInfo = host as HostClient & { getInfo?: () => { libraryRoot?: string } | null };

@@ -1620,7 +1620,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
       await Promise.all([onRefreshBinding(), refreshSnapshot()]);
       notify(t(lang, `学习库已切换到 ${cleaned}`, `Library switched to ${cleaned}`), 'success');
     },
-    [host, lang, notify, onRefreshBinding, refreshSnapshot],
+    [ell, host, lang, notify, onRefreshBinding, refreshSnapshot],
   );
 
   const handleConfirmLocation = useCallback(async () => {
@@ -1634,7 +1634,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     }
     await onRefreshBinding();
     notify(t(lang, '已确认当前学习库位置', 'Library location confirmed'), 'success');
-  }, [host, lang, notify, onRefreshBinding]);
+  }, [ell, host, lang, notify, onRefreshBinding]);
 
   const handleToggleSample = useCallback(async () => {
     if (busyAction) return;
@@ -1652,7 +1652,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     } finally {
       if (mountedRef.current) setBusyAction(null);
     }
-  }, [busyAction, host, lang, notify, refreshSnapshot, sampleLoaded]);
+  }, [busyAction, ell, host, lang, notify, refreshSnapshot, sampleLoaded]);
 
   const handleRemoveSample = useCallback(async () => {
     setConfirmSampleRemove(false);
@@ -1666,7 +1666,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     } finally {
       if (mountedRef.current) setBusyAction(null);
     }
-  }, [host, lang, notify, refreshSnapshot]);
+  }, [ell, host, lang, notify, refreshSnapshot]);
 
   const handleRestorePoint = useCallback(
     async (point: RestorePointEntry) => {
@@ -1682,7 +1682,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
       await Promise.all([refreshSnapshot(), loadPoints()]);
       notify(t(lang, '已恢复到选定备份点', 'Restored selected backup'), 'success');
     },
-    [host, lang, loadPoints, notify, refreshSnapshot],
+    [ell, host, lang, loadPoints, notify, refreshSnapshot],
   );
 
   const handleExportBackup = useCallback(

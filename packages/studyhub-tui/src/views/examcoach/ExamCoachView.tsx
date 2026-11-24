@@ -434,14 +434,14 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
     return unsub;
   }, [host, loadAll]);
 
-  const families = spec?.taskFamilies ?? [];
+  const families = useMemo(() => spec?.taskFamilies ?? [], [spec?.taskFamilies]);
   const filteredFamilies = useMemo(() => filterCoachFamilies(families, filterQuery), [families, filterQuery]);
   const selectedFamily: CoachTaskFamily | undefined =
     filteredFamilies[Math.min(familyIdx, Math.max(0, filteredFamilies.length - 1))];
   const filteredWrongItems = useMemo(() => filterCoachWrongItems(wrongItems, filterQuery), [wrongItems, filterQuery]);
   const selectedWrong: WrongBookEntry | undefined =
     filteredWrongItems[Math.min(wrongIdx, Math.max(0, filteredWrongItems.length - 1))];
-  const evidencePoints = courseEvidence?.points ?? [];
+  const evidencePoints = useMemo(() => courseEvidence?.points ?? [], [courseEvidence?.points]);
   const filteredEvidencePoints = useMemo(
     () => filterCoachEvidencePoints(evidencePoints, filterQuery),
     [evidencePoints, filterQuery],
@@ -534,7 +534,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       busyRef.current = false;
       if (mountedRef.current) setBusyLabel(null);
     }
-  }, [busyLabel, host, course, lang, notify]);
+  }, [busyLabel, ell, host, course, lang, notify]);
 
   const toggleConfirm = useCallback(async (patch: Record<string, boolean>) => {
     if (!selectedFamily || busyRef.current || busyLabel !== null) return;
@@ -596,7 +596,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       busyRef.current = false;
       if (mountedRef.current) setBusyLabel(null);
     }
-  }, [busyLabel, noteText, noteTitle, course, host, lang, notify, refreshSnapshot, loadAll]);
+  }, [busyLabel, ell, noteText, noteTitle, course, host, lang, notify, refreshSnapshot, loadAll]);
 
   const saveFamilyEdits = useCallback(async () => {
     if (!spec || !selectedFamily || busyRef.current || busyLabel !== null) return;
@@ -626,7 +626,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       busyRef.current = false;
       if (mountedRef.current) setBusyLabel(null);
     }
-  }, [busyLabel, spec, selectedFamily, editQuota, editPriority, editTimeSec, host, course, lang, notify]);
+  }, [busyLabel, ell, spec, selectedFamily, editQuota, editPriority, editTimeSec, host, course, lang, notify]);
 
   const queueVariants = useCallback(async (cards: Array<{ deckId: string; cardId: string }>, consent?: boolean) => {
     if (busyRef.current || busyLabel !== null) return;
@@ -659,7 +659,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       busyRef.current = false;
       if (mountedRef.current) setBusyLabel(null);
     }
-  }, [busyLabel, host, lang, notify]);
+  }, [busyLabel, ell, host, lang, notify]);
 
   const startCoachPractice = useCallback(async (originCardIds?: string[]) => {
     if (busyRef.current || busyLabel !== null) return;
@@ -678,7 +678,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       busyRef.current = false;
       if (mountedRef.current) setBusyLabel(null);
     }
-  }, [busyLabel, host, lang, notify, refreshSnapshot, navigate]);
+  }, [busyLabel, ell, host, lang, notify, refreshSnapshot, navigate]);
 
   const startPointPractice = useCallback(async (point: CourseEvidencePoint | undefined) => {
     if (!point || busyRef.current || busyLabel !== null) return;
@@ -708,7 +708,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       busyRef.current = false;
       if (mountedRef.current) setBusyLabel(null);
     }
-  }, [busyLabel, host, course, lang, navigate, notify]);
+  }, [busyLabel, ell, host, course, lang, navigate, notify]);
 
   const buildRequestPreview = useCallback(async () => {
     if (busyRef.current || busyLabel !== null) return;
@@ -727,7 +727,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       busyRef.current = false;
       if (mountedRef.current) setBusyLabel(null);
     }
-  }, [busyLabel, host, course, lang, notify]);
+  }, [busyLabel, ell, host, course, lang, notify]);
 
   const checkStrictMock = useCallback(async () => {
     if (busyRef.current || busyLabel !== null) return;
@@ -758,7 +758,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       busyRef.current = false;
       if (mountedRef.current) setBusyLabel(null);
     }
-  }, [busyLabel, families, host, course, lang, notify]);
+  }, [busyLabel, ell, families, host, course, lang, notify]);
 
   const requestCalibratedGenerate = useCallback(async () => {
     if (busyRef.current || busyLabel !== null) return;
@@ -781,7 +781,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       busyRef.current = false;
       if (mountedRef.current) setBusyLabel(null);
     }
-  }, [busyLabel, host, course, lang, notify]);
+  }, [busyLabel, ell, host, course, lang, notify]);
 
   const executeCalibratedGenerate = useCallback(async (built: CompiledRequestResult) => {
     if (busyRef.current || busyLabel !== null) return;
@@ -800,7 +800,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       busyRef.current = false;
       if (mountedRef.current) setBusyLabel(null);
     }
-  }, [busyLabel, host, lang, notify, navigate]);
+  }, [busyLabel, ell, host, lang, notify, navigate]);
 
   const flushCoachPrep = useCallback(async () => {
     if (busyRef.current || busyLabel !== null) return;

@@ -83,9 +83,12 @@ export const ExamRunner = memo(function ExamRunner({
   const [localHighlights, setLocalHighlights] = useState<CaseHighlight[]>([]);
   const [fallbackScenarioText, setFallbackScenarioText] = useState<string | null>(null);
   const autoSubmittedRef = useRef(false);
+  const runRef = useRef(run);
+  runRef.current = run;
 
   // Sync case drafts & highlights when run opens / changes
   useEffect(() => {
+    const currentRun = runRef.current;
     autoSubmittedRef.current = false;
     setFlagged(new Set());
     setConfirmSubmit(false);
@@ -96,14 +99,14 @@ export const ExamRunner = memo(function ExamRunner({
     setScenarioScrollTop(0);
     setSelectedParaIdx(0);
     setFallbackScenarioText(null);
-    if (run?.examKinds === 'case' && Array.isArray(run.responses)) {
+    if (currentRun?.examKinds === 'case' && Array.isArray(currentRun.responses)) {
       const map: Record<string, string> = {};
-      for (const r of run.responses) map[r.cardId] = r.response || '';
+      for (const r of currentRun.responses) map[r.cardId] = r.response || '';
       setCaseDrafts(map);
     } else {
       setCaseDrafts({});
     }
-    setLocalHighlights(Array.isArray(run?.highlights) ? run.highlights : []);
+    setLocalHighlights(Array.isArray(currentRun?.highlights) ? currentRun.highlights : []);
   }, [run?.id, oral?.id]);
 
   // Keep local highlights synchronized with server run updates
@@ -162,9 +165,12 @@ export const ExamRunner = memo(function ExamRunner({
   const oscAt = kind === 'oral' ? (oral?.index ?? 0) + 1 : kind === 'case' ? caseIdx + 1 : (run?.index ?? 0) + 1;
   const oscTotal = kind === 'oral' ? (oral?.total ?? 1) : kind === 'case' ? Math.max(1, run?.paperCards?.length ?? 1) : Math.max(1, run?.total ?? 1);
   const oscMinuteBucket = Math.floor((remainingMs ?? elapsedMs) / 60_000);
+  const oscTimerRef = useRef({ remainingMs, elapsedMs });
+  oscTimerRef.current = { remainingMs, elapsedMs };
   useEffect(() => {
     if (!hasActiveExam || !isActive) return undefined;
-    const timerText = remainingMs !== null ? formatDurationMs(remainingMs) : formatDurationMs(elapsedMs);
+    const { remainingMs: rem, elapsedMs: el } = oscTimerRef.current;
+    const timerText = rem !== null ? formatDurationMs(rem) : formatDurationMs(el);
     writeTerminalTitle(
       buildExamWindowTitle({ kind, at: oscAt, total: oscTotal, timerText, lang }),
       { asciiMode },

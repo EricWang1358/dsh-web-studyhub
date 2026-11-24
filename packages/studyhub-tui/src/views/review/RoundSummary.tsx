@@ -464,11 +464,14 @@ export const RoundSummary = memo(function RoundSummary({
   const fallbackRowsRef = useRef(fallbackRows);
   fallbackRowsRef.current = fallbackRows;
 
+  const runDebriefRef = useRef((run as { debrief?: DebriefResult }).debrief ?? null);
+  runDebriefRef.current = (run as { debrief?: DebriefResult }).debrief ?? null;
+
   useEffect(() => {
     let cancelled = false;
     setPreviewExpanded(false);
     setDetailScrollTop(0);
-    setDebrief((run as { debrief?: DebriefResult }).debrief ?? null);
+    setDebrief(runDebriefRef.current);
     setDebriefOpen(false);
     setConfirmDebriefOpen(false);
     debriefBusyRef.current = false;
@@ -554,7 +557,10 @@ export const RoundSummary = memo(function RoundSummary({
   const correct = Number((run as { correct?: number }).correct ?? rows.filter((r) => r.status === 'right').length) || 0;
   const accuracy = answered > 0 ? Math.round((correct / answered) * 100) : 0;
   const rawWeakTopics = (run as Record<string, unknown>).weakTopics;
-  const weakTopics = Array.isArray(rawWeakTopics) ? (rawWeakTopics as string[]).filter(Boolean) : [];
+  const weakTopics = useMemo(
+    () => (Array.isArray(rawWeakTopics) ? (rawWeakTopics as string[]).filter(Boolean) : []),
+    [rawWeakTopics],
+  );
   const rawMissed = (run as Record<string, unknown>).missedCards;
   const hasMissed =
     rows.some((r) => r.status === 'wrong') ||
