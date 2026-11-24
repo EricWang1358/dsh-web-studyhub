@@ -55,7 +55,8 @@ export const Button = forwardRef(function Button({ variant = 'secondary', size =
   // A wrapping link with a trailing arrow keeps the arrow glued to the last word so the icon never drops onto a line by itself (#1155).
   let body = label;
   let trailing = endNode;
-  if (kind === 'link' && wrap && endNode && typeof label === 'string' && label.length > 0) {
+  const hasInlineTrail = typeof iconEndClassName === 'string' && iconEndClassName.includes('sh-icon--trail');
+  if (kind === 'link' && wrap && endNode && hasInlineTrail && typeof label === 'string' && label.length > 0) {
     const match = /^(.*\s)(\S+)$/s.exec(label);
     if (match) {
       body = <>{match[1]}<span className="sh-btn__tail">{match[2]}{endNode}</span></>;
