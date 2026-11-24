@@ -118,6 +118,15 @@ function resetStore() {
   });
 }
 
+async function pollUntil(pred, timeoutMs = 4000, label = 'condition') {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (pred()) return;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  throw new Error(`pollUntil(${label}) timed out after ${timeoutMs}ms`);
+}
+
 describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () => {
   test('1. Card with no saved followups auto-explains once; closing and reopening in same round reuses history (0 extra model calls)', async () => {
     resetStore();
@@ -412,21 +421,30 @@ describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () =>
     try {
       await h.waitFor((s) => s.includes('What is paging?'));
       h.write('h');
-      await h.waitFor((s) => s.includes('EXPLANATION_FOR_NOTE'));
+      await h.waitFor((s) => s.includes('EXPLANATION_FOR_NOTE') && s.includes('已就绪'));
+      await new Promise((r) => setTimeout(r, 30));
       h.write('N');
-      await new Promise((r) => setTimeout(r, 80));
+      await pollUntil(() => noteCalls.length >= 1, 4000, 'first note.qa.add call');
+      await pollUntil(
+        () => useTuiStore.getState().toasts.some((toast) => String(toast.text ?? '').includes('已保存')),
+        4000,
+        'first save toast',
+      );
       assert.equal(noteCalls.length, 1);
       assert.ok(typeof noteCalls[0].title === 'string' && noteCalls[0].title.includes('操作系统'), 'note.qa.add must receive a non-empty daily course note title');
 
       // Now simulate note.qa.add failing while card.followup.add succeeds -> still updates card hint & clearly reports partial success
       failNote = true;
       useTuiStore.setState({ toasts: [] });
+      await new Promise((r) => setTimeout(r, 30));
       h.write('N');
-      await new Promise((r) => setTimeout(r, 80));
-      const toasts = useTuiStore.getState().toasts;
-      assert.ok(
-        toasts.some((toast) => String(toast.text ?? '').includes('已保存到本题讲解') && String(toast.text ?? '').includes('写入学习笔记失败')),
-        `Expected partial-success toast, got: ${JSON.stringify(toasts)}`,
+      await pollUntil(
+        () =>
+          useTuiStore
+            .getState()
+            .toasts.some((toast) => String(toast.text ?? '').includes('已保存到本题讲解') && String(toast.text ?? '').includes('写入学习笔记失败')),
+        4000,
+        'partial-success toast',
       );
     } finally {
       h.cleanup();
@@ -496,18 +514,20 @@ describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () =>
         await h.waitFor((s) => s.includes('What is a semaphore?'));
         // First generation A -> press N to save and wait deterministically for backend commit
         h.write('h');
-        await h.waitFor((s) => s.includes('EXPLANATION_OLD_A'));
+        await h.waitFor((s) => s.includes('EXPLANATION_OLD_A') && s.includes('已就绪'));
         await new Promise((r) => setTimeout(r, 40));
         h.write('N');
-        await h.waitFor(() => followupSaveCount >= 1, 5000);
-        await h.waitFor((s) => !s.includes('正在保存') && !s.includes('Saving'), 5000);
+        await pollUntil(() => followupSaveCount >= 1, 5000, 'first card.followup.add');
+        await pollUntil(() => useTuiStore.getState().toasts.length > 0, 5000, 'first save finished');
 
         // Regenerate B (same default question) -> press N to save again and wait deterministically
+        useTuiStore.setState({ toasts: [] });
         h.write('R');
-        await h.waitFor((s) => s.includes('EXPLANATION_NEW_B'), 5000);
+        await h.waitFor((s) => s.includes('EXPLANATION_NEW_B') && s.includes('已就绪'), 5000);
         await new Promise((r) => setTimeout(r, 40));
         h.write('N');
-        await h.waitFor(() => followupSaveCount >= 2, 5000);
+        await pollUntil(() => followupSaveCount >= 2, 5000, 'second card.followup.add');
+        await pollUntil(() => useTuiStore.getState().toasts.length > 0, 5000, 'second save finished');
       } finally {
         h.cleanup();
       }
