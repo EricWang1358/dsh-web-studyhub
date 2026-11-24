@@ -545,7 +545,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
   );
 
   const handleVariantPractice = useCallback(async () => {
-    if (busyRef.current || busyAction) return;
+    if (busyRef.current) return;
     busyRef.current = true;
     setBusyAction(true);
     try {
@@ -589,7 +589,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       busyRef.current = false;
       if (mountedRef.current) setBusyAction(false);
     }
-  }, [busyAction, host, lang, navigate, notify, refreshSnapshot, selectedItem, selectedMap, setActiveRunId]);
+  }, [host, lang, navigate, notify, refreshSnapshot, selectedItem, selectedMap, setActiveRunId]);
 
   const setErrorReason = useCallback(
     async (reason: ErrorReasonId | null) => {

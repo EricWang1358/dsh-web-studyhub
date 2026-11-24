@@ -14,7 +14,7 @@ const NEXT_HINT_ID = "review-next-hint";
  * (mark it, note, task, derive a prerequisite, term list, slay). `moreDefaultOpen` opens the menu at first render.
  * `onThumb('up' | 'down')` and `thumbVote` are the page's 评价: its ThumbFeedback keeps the vote and the keys; `thumbs` is that component (it draws only the tag tray).
  */
-export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, onAsk, onImprove, onDerive, onTermList, onSlay, onToggleFocus, onDeferUnstudiedPages, onNote, onTask, onReviewAction, thumbs, onThumb, thumbVote, enOn, enBusy, onToggleEn, autoTerms, autoTermsBusy, onToggleAutoTerms, assistMode, markingTerms = false, onToggleMarkTerms, autopilot, onToggleAutopilot, selfGradeAdvance, onToggleSelfGradeAdvance, onUndo, autoAdvanceActive = false, autoAdvancePaused = false, autoAdvanceMs = 0, onSkip, onEndRound, moreDefaultOpen = false }) {
+export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, onAsk, onImprove, onDerive, onTermList, onSlay, onToggleFocus, onDeferUnstudiedPages, onNote, onTask, onReviewAction, thumbs, onThumb, thumbVote, enOn, enBusy, onToggleEn, autoTerms, autoTermsBusy, onToggleAutoTerms, assistMode, socraticOpen = false, onToggleSocratic, markingTerms = false, onToggleMarkTerms, autopilot, onToggleAutopilot, selfGradeAdvance, onToggleSelfGradeAdvance, onUndo, autoAdvanceActive = false, autoAdvancePaused = false, autoAdvanceMs = 0, onSkip, onEndRound, moreDefaultOpen = false }) {
   const busy = useStudyBusy();
   const [readingOpen, setReadingOpen] = React.useState(false);
   // Say why 下一题 is unavailable instead of leaving a dim button: an unanswered question waits for its answer (one whose AI grade is on its way is answered: the grade lands on it later, #1031); a pending step is still saving.
@@ -76,6 +76,19 @@ export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, o
           {(revealed ?? run.revealed) ? ui("讲解") : ui("提示")}
         </Button>}
         <Button variant="quiet" icon="sparkle" className="tool-action tool-help" data-tour="review-help" data-usage="review.help" aria-expanded={assistMode === "ask"} onClick={onAsk}>{ui("帮我弄懂")}</Button>
+        {!exam && !run.complete && onToggleSocratic && (
+          <Button
+            variant="quiet"
+            icon="book"
+            className="tool-action"
+            data-usage="review.socratic"
+            aria-pressed={!!socraticOpen}
+            aria-keyshortcuts="Shift+T"
+            onClick={onToggleSocratic}
+          >
+            {ui("带学")}
+          </Button>
+        )}
         <Button variant="quiet" icon="edit" className="tool-action" data-tour="review-improve" data-usage="review.improve" aria-expanded={assistMode === "improve"} onClick={onImprove}>{ui("修题")}</Button>
         {!exam && !run.complete && (
           <Button
