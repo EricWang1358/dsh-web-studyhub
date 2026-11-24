@@ -312,6 +312,8 @@ export const AddFocusModal: React.FC<AddFocusModalProps> = ({
     }
   }, [roleInput, jdInput, ell, host, topicsInput, lang]);
 
+  const createdSourceIdRef = useRef<string | null>(null);
+
   const handleSave = useCallback(async () => {
     if (busyRef.current) return;
     const trimmedCourse = courseName.trim();
@@ -347,14 +349,23 @@ export const AddFocusModal: React.FC<AddFocusModalProps> = ({
       let guidanceIds = [...(courseRecord?.guidanceSourceIds ?? [])];
       const sourceBody = rawText.trim() || (stagedInfo ? `Screenshot staged: ${stagedInfo}\n${imageNotes.trim()}`.trim() : '');
       if (saveAsMaterial && sourceBody) {
-        const added = await tryAction<{ id: string }>(host, 'source.add', {
-          title: `${trimmedCourse} · ${t(lang, '考试重点记录', 'Exam Focus Notes')}`,
-          text: sourceBody.slice(0, 100_000),
-          courses: [trimmedCourse],
-          format: 'md',
-        });
-        if (added.ok && added.value?.id && !guidanceIds.includes(added.value.id)) {
-          guidanceIds = [...guidanceIds, added.value.id];
+        if (createdSourceIdRef.current) {
+          if (!guidanceIds.includes(createdSourceIdRef.current)) {
+            guidanceIds = [...guidanceIds, createdSourceIdRef.current];
+          }
+        } else {
+          const added = await tryAction<{ id: string }>(host, 'source.add', {
+            title: `${trimmedCourse} · ${t(lang, '考试重点记录', 'Exam Focus Notes')}`,
+            text: sourceBody.slice(0, 100_000),
+            courses: [trimmedCourse],
+            format: 'md',
+          });
+          if (added.ok && added.value?.id) {
+            createdSourceIdRef.current = added.value.id;
+            if (!guidanceIds.includes(added.value.id)) {
+              guidanceIds = [...guidanceIds, added.value.id];
+            }
+          }
         }
       }
 
@@ -369,9 +380,19 @@ export const AddFocusModal: React.FC<AddFocusModalProps> = ({
       });
       if (!mountedRef.current) return;
       if (!saved.ok) {
-        setErrorMsg(saved.error?.message || t(lang, '保存失败', 'Failed to save focus topics'));
+        const errMsg = saved.error?.message || t(lang, '保存失败', 'Failed to save focus topics');
+        setErrorMsg(
+          createdSourceIdRef.current
+            ? t(
+                lang,
+                `参考资料已入库，但保存课程重点失败（${errMsg}）；重试保存将复用已建资料而不重复创建`,
+                `Reference material was saved, but saving course focus failed (${errMsg}); retrying will reuse it without duplicating`,
+              )
+            : errMsg,
+        );
         return;
       }
+      createdSourceIdRef.current = null;
       notify(t(lang, `已保存「${trimmedCourse}」共 ${finalTopics.length} 项重点`, `Saved ${finalTopics.length} focus topic(s) for ${trimmedCourse}`), 'success');
       onSaved(finalTopics.length);
     } finally {
