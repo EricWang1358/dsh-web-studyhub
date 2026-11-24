@@ -728,7 +728,7 @@ export const QueueModal = memo(function QueueModal({
       {errorText ? (
         <Box height={1}>
           <Text color={theme.error} wrap="truncate">
-            {`${asciiMode ? 'x' : '✕'} ${truncateDisplay(errorText, Math.max(10, innerW - 3))}`}
+            {`${asciiMode ? 'x' : '✕'} ${errorText}`}
           </Text>
         </Box>
       ) : null}

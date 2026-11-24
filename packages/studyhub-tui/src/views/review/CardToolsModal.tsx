@@ -1282,7 +1282,7 @@ export const CardToolsModal = memo(function CardToolsModal({
 
         {errorText ? (
           <Box marginBottom={0}>
-            <Text color={theme.error}>{`${asciiMode ? 'x' : '✕'} ${truncateDisplay(errorText, innerW - 2, ell)}`}</Text>
+            <Text color={theme.error} wrap="wrap">{`${asciiMode ? 'x' : '✕'} ${errorText}`}</Text>
           </Box>
         ) : null}
 

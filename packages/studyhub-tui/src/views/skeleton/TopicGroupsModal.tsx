@@ -365,7 +365,7 @@ export const TopicGroupsModal = memo(function TopicGroupsModal({
           <Text color={theme.error} bold>
             {t(lang, '加载失败', 'Load failed')}
           </Text>
-          <Text color={theme.muted}>{truncateDisplay(error, innerW, ell)}</Text>
+          <Text color={theme.muted} wrap="wrap">{error}</Text>
         </Box>
       ) : (
         <Box flexDirection="column" width={innerW} height={innerH}>
@@ -693,7 +693,7 @@ export const NodeEditModal = memo(function NodeEditModal({
           {saving ? (
             <Spinner label={t(lang, '正在保存节点...', 'Saving node...')} active={isActive} />
           ) : error ? (
-            <Text color={theme.error}>{truncateDisplay(error, innerW, ell)}</Text>
+            <Text color={theme.error} wrap="wrap">{error}</Text>
           ) : (
             <Text color={theme.dim}>
               {truncateDisplay(

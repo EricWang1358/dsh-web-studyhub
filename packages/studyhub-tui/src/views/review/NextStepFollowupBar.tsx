@@ -495,7 +495,7 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
       {errorText ? (
         <Box height={1} width={innerW} overflow="hidden">
           <Text color={theme.error} wrap="truncate">
-            {`${asciiMode ? 'x' : '✕'} ${truncateDisplay(errorText, Math.max(10, innerW - 3), ell)}`}
+            {`${asciiMode ? 'x' : '✕'} ${errorText}`}
           </Text>
         </Box>
       ) : null}

@@ -803,7 +803,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
       ) : null}
       {errorMsg ? (
         <Box height={1} width={width} paddingX={1}>
-          <Text color={theme.error}>{`${asciiMode ? '!' : '✕'} ${truncateDisplay(errorMsg, Math.max(10, width - 4), asciiMode ? '...' : '…')}`}</Text>
+          <Text color={theme.error} wrap="wrap">{`${asciiMode ? '!' : '✕'} ${errorMsg}`}</Text>
         </Box>
       ) : null}
 

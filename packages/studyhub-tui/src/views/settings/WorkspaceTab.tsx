@@ -637,7 +637,7 @@ const RetrievalDiagModal = memo(function RetrievalDiagModal({
           </Box>
           {subError ? (
             <Box marginTop={1}>
-              <Text color={theme.error}>{truncateDisplay(subError, contentW, ell)}</Text>
+              <Text color={theme.error} wrap="wrap">{subError}</Text>
             </Box>
           ) : null}
           {subBusy ? (
@@ -672,7 +672,7 @@ const RetrievalDiagModal = memo(function RetrievalDiagModal({
           </Box>
           {subError ? (
             <Box marginTop={1}>
-              <Text color={theme.error}>{truncateDisplay(subError, contentW, ell)}</Text>
+              <Text color={theme.error} wrap="wrap">{subError}</Text>
             </Box>
           ) : null}
           {subBusy ? (
@@ -798,7 +798,7 @@ const RetrievalDiagModal = memo(function RetrievalDiagModal({
 
           {error || subError ? (
             <Box marginTop={1}>
-              <Text color={theme.error}>{truncateDisplay(error || subError || '', contentW, ell)}</Text>
+              <Text color={theme.error} wrap="wrap">{error || subError || ''}</Text>
             </Box>
           ) : null}
 

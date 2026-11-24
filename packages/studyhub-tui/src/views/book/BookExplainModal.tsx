@@ -346,7 +346,7 @@ export const BookExplainModal = memo(function BookExplainModal({
       ) : errorText ? (
         <Box flexDirection="row" gap={1} width={innerW} height={1} overflow="hidden">
           <Badge label={asciiMode ? '! 错误' : '▲ 错误'} tone="error" />
-          <Text color={theme.error}>{truncateDisplay(errorText, Math.max(12, innerW - 12), ell)}</Text>
+          <Text color={theme.error} wrap="wrap">{errorText}</Text>
         </Box>
       ) : (
         <Box height={1} width={innerW} overflow="hidden">

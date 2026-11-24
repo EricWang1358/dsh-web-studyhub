@@ -1198,7 +1198,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       <Divider width={width} />
       {errorMsg ? (
         <Box height={1} width={width} paddingX={1}>
-          <Text color={theme.error}>{`${asciiMode ? '!' : '✕'} ${truncateDisplay(errorMsg, Math.max(10, width - 4), asciiMode ? '...' : '…')}`}</Text>
+          <Text color={theme.error} wrap="wrap">{`${asciiMode ? '!' : '✕'} ${errorMsg}`}</Text>
         </Box>
       ) : null}
 

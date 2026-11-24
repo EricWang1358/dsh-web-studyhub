@@ -615,7 +615,7 @@ export const AddFocusModal: React.FC<AddFocusModalProps> = ({
           ) : null}
 
           {statusNote ? <Text color={theme.info}>{truncateDisplay(statusNote, contentW, ell)}</Text> : null}
-          {errorMsg ? <Text color={theme.error}>{`${asciiMode ? '!' : '✕'} ${truncateDisplay(errorMsg, contentW, ell)}`}</Text> : null}
+          {errorMsg ? <Text color={theme.error} wrap="wrap">{`${asciiMode ? '!' : '✕'} ${errorMsg}`}</Text> : null}
         </Box>
       </Modal>
 
