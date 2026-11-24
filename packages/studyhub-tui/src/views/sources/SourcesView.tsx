@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
 import { useStableWindowSize } from '../../components/resize.js';
-import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
+import { KeyScope, useKeyScope } from '../../input/hooks.js';
 import type { HostClient, KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
@@ -12,7 +12,7 @@ import { ScrollView } from '../../components/ScrollView.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
-import { useClaimKeys, useInputCapture } from '../../components/focus.js';
+import { useInputCapture } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { useTheme } from '../../theme/tokens.js';
 import { currentCourse } from '../../shell/data.js';
@@ -333,20 +333,24 @@ const BatchFolderModal = memo(function BatchFolderModal({
     [busy, folders.length, host, lang, notify, onRefresh],
   );
 
-  const listActive = isActive && subMode === 'list' && !busy;
-  useInput(
-    (input) => {
-      if (!listActive || busyRef.current || busy) return;
+  const batchFolderActive = useKeyScope({
+    id: 'SourcesView:batchFolder',
+    active: isActive && !busy,
+    onKey: (input) => {
+      if (busyRef.current || busy) return false;
       if (input === 'a') {
         setErr(null);
         setInputValue('');
         setSubMode('create');
-      } else if (input === '0' || input === 'x') {
-        void assignAll(null);
+        return true;
       }
+      if (input === '0' || input === 'x') {
+        void assignAll(null);
+        return true;
+      }
+      return false;
     },
-    { isActive: listActive },
-  );
+  });
 
   const hints: KeyHint[] = useMemo(
     () =>
@@ -391,20 +395,22 @@ const BatchFolderModal = memo(function BatchFolderModal({
             {t(lang, '新建文件夹名称:', 'New folder name:')}
           </Text>
           <Box marginTop={1}>
-            <TextInput
-              value={inputValue}
-              onChange={setInputValue}
-              onSubmit={(val) => void handleCreateSubmit(val)}
-              onCancel={() => {
-                setErr(null);
-                setSubMode('list');
-              }}
-              placeholder={t(lang, '例如：讲义、历年真题、实验笔记', 'e.g. Lectures, Past Exams')}
-              width={Math.max(16, innerWidth - 4)}
-              maxLength={80}
-              isActive={isActive && !busy && subMode === 'create'}
-              prompt={asciiMode ? '>' : '›'}
-            />
+            <KeyScope id="sources:batchFolder-create" opaque active={isActive && !busy && subMode === 'create'}>
+              <TextInput
+                value={inputValue}
+                onChange={setInputValue}
+                onSubmit={(val) => void handleCreateSubmit(val)}
+                onCancel={() => {
+                  setErr(null);
+                  setSubMode('list');
+                }}
+                placeholder={t(lang, '例如：讲义、历年真题、实验笔记', 'e.g. Lectures, Past Exams')}
+                width={Math.max(16, innerWidth - 4)}
+                maxLength={80}
+                isActive={isActive && !busy && subMode === 'create'}
+                prompt={asciiMode ? '>' : '›'}
+              />
+            </KeyScope>
           </Box>
         </Box>
       ) : (
@@ -423,7 +429,7 @@ const BatchFolderModal = memo(function BatchFolderModal({
             selectedIndex={selectedIndex}
             onChange={(idx) => setSelectedIndex(idx)}
             onSelect={(row) => void assignAll(row.kind === 'folder' ? row.name : null)}
-            isActive={listActive}
+            isActive={batchFolderActive}
             keyExtractor={(row) => row.id}
             renderItem={(row, ctx) => {
               const countText = `${row.count}`;
@@ -1141,11 +1147,134 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
     selectedKeys,
   ]);
 
-  const listActive = isActive && !readerTarget && overlay === 'none';
-
-  useClaimKeys(['/', 'c', 'e', 'R', 'g', 'p', 'd', 'i', 'f', 'F', 'm', 'M', 'C', 'G', 'V', 'E', 'O', 'x', ' ', '[', ']'], listActive);
-  useClaimKeys(['a'], listActive && (selectedKeys.size > 0 || Boolean(selectedItem)));
+  const sourceClaimedKeys = useMemo<readonly string[]>(() => {
+    const base = ['/', 'c', 'e', 'R', 'g', 'p', 'd', 'i', 'f', 'F', 'm', 'M', 'C', 'G', 'V', 'E', 'O', 'x', ' ', '[', ']'];
+    return selectedKeys.size > 0 || Boolean(selectedItem) ? [...base, 'a'] : base;
+  }, [selectedKeys.size, selectedItem]);
   useInputCapture(isActive && !readerTarget && (overlay === 'rename' || overlay === 'course' || overlay === 'search'));
+
+  const pageActive = useKeyScope({
+    id: 'SourcesView:main',
+    active: isActive && !readerTarget,
+    keys: sourceClaimedKeys,
+    onKey: (input, key) => {
+      if (busyRef.current || busy) return false;
+      if (key.escape && selectedKeys.size > 0) {
+        setSelectedKeys(new Set());
+        return true;
+      }
+      if (input === '[' || input === ']') {
+        void handleMovePin(input === '[' ? 'up' : 'down');
+        return true;
+      }
+      if (input === 'i') {
+        setOverlay('import');
+        return true;
+      }
+      if (input === 'M') {
+        setOverlay('mineru');
+        return true;
+      }
+      if (input === '/') {
+        setOverlay('search');
+        return true;
+      }
+      if (input === 'f') {
+        setCourseFilterOn((v) => !v);
+        return true;
+      }
+      if (input === 'F') {
+        setOverlay('folders-filter');
+        return true;
+      }
+      if (input === 'C') {
+        setOverlay('companions');
+        return true;
+      }
+      if (input === 'G') {
+        setOverlay('organize');
+        return true;
+      }
+      if (input === 'R') {
+        setOverlay('reread');
+        return true;
+      }
+      if (input === 'E') {
+        void handleEnrich();
+        return true;
+      }
+      if (input === 'x') {
+        void handleExportCatalog();
+        return true;
+      }
+      if (input === 'm' && selectedKeys.size > 0) {
+        setOverlay('folders-assign-batch');
+        return true;
+      }
+      if (input === 'a' && selectedKeys.size > 0) {
+        const targets = allGroups.filter((g) => selectedKeys.has(g.key));
+        if (targets.length > 0) {
+          setArchivePendingGroups(targets);
+          setOverlay('archive');
+        }
+        return true;
+      }
+      if (selectedItem) {
+        if (input === ' ') {
+          setSelectedKeys((prev) => {
+            const next = new Set(prev);
+            if (next.has(selectedItem.key)) next.delete(selectedItem.key);
+            else next.add(selectedItem.key);
+            return next;
+          });
+          return true;
+        }
+        if (input === 'V') {
+          setOverlay('coverage');
+          return true;
+        }
+        if (input === 'O') {
+          setOverlay('original');
+          return true;
+        }
+        if (input === 'm') {
+          setOverlay('folders-assign');
+          return true;
+        }
+        if (input === 'g') {
+          navigate('generate', {
+            sourceIds: selectedItem.sourceIds,
+            ...(selectedItem.courses[0] ? { course: selectedItem.courses[0] } : focusCourse ? { course: focusCourse } : {}),
+          });
+          return true;
+        }
+        if (input === 'e') {
+          setRenameValue(selectedItem.title);
+          setOverlay('rename');
+          return true;
+        }
+        if (input === 'c') {
+          setCourseValue(selectedItem.courses.join(', '));
+          setOverlay('course');
+          return true;
+        }
+        if (input === 'p') {
+          void handleTogglePin(selectedItem);
+          return true;
+        }
+        if (input === 'a') {
+          setArchivePendingGroups([selectedItem]);
+          setOverlay('archive');
+          return true;
+        }
+        if (input === 'd') {
+          setOverlay('delete');
+          return true;
+        }
+      }
+      return false;
+    },
+  });
 
   const hints: KeyHint[] = useMemo(
     () =>
@@ -1183,82 +1312,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
           ],
     [lang, selectedKeys.size],
   );
-  useFooterHints(hints, isActive && !readerTarget);
-
-  useInput(
-    (input, key) => {
-      if (!listActive || busyRef.current || busy) return;
-      if (key.escape && selectedKeys.size > 0) {
-        setSelectedKeys(new Set());
-        return true;
-      }
-      if (input === '[' || input === ']') {
-        void handleMovePin(input === '[' ? 'up' : 'down');
-      } else if (input === 'i') {
-        setOverlay('import');
-      } else if (input === 'M') {
-        setOverlay('mineru');
-      } else if (input === '/') {
-        setOverlay('search');
-      } else if (input === 'f') {
-        setCourseFilterOn((v) => !v);
-      } else if (input === 'F') {
-        setOverlay('folders-filter');
-      } else if (input === 'C') {
-        setOverlay('companions');
-      } else if (input === 'G') {
-        setOverlay('organize');
-      } else if (input === 'R') {
-        setOverlay('reread');
-      } else if (input === 'E') {
-        void handleEnrich();
-      } else if (input === 'x') {
-        void handleExportCatalog();
-      } else if (input === 'm' && selectedKeys.size > 0) {
-        setOverlay('folders-assign-batch');
-      } else if (input === 'a' && selectedKeys.size > 0) {
-        const targets = allGroups.filter((g) => selectedKeys.has(g.key));
-        if (targets.length > 0) {
-          setArchivePendingGroups(targets);
-          setOverlay('archive');
-        }
-      } else if (selectedItem) {
-        if (input === ' ') {
-          setSelectedKeys((prev) => {
-            const next = new Set(prev);
-            if (next.has(selectedItem.key)) next.delete(selectedItem.key);
-            else next.add(selectedItem.key);
-            return next;
-          });
-        } else if (input === 'V') {
-          setOverlay('coverage');
-        } else if (input === 'O') {
-          setOverlay('original');
-        } else if (input === 'm') {
-          setOverlay('folders-assign');
-        } else if (input === 'g') {
-          navigate('generate', {
-            sourceIds: selectedItem.sourceIds,
-            ...(selectedItem.courses[0] ? { course: selectedItem.courses[0] } : focusCourse ? { course: focusCourse } : {}),
-          });
-        } else if (input === 'e') {
-          setRenameValue(selectedItem.title);
-          setOverlay('rename');
-        } else if (input === 'c') {
-          setCourseValue(selectedItem.courses.join(', '));
-          setOverlay('course');
-        } else if (input === 'p') {
-          void handleTogglePin(selectedItem);
-        } else if (input === 'a') {
-          setArchivePendingGroups([selectedItem]);
-          setOverlay('archive');
-        } else if (input === 'd') {
-          setOverlay('delete');
-        }
-      }
-    },
-    { isActive: listActive },
-  );
+  useFooterHints(hints, pageActive);
 
   // If DocumentReader is open, delegate full view area to it.
   if (readerTarget) {
@@ -1356,22 +1410,24 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
         {overlay === 'search' ? (
           <Box flexDirection="row" alignItems="center">
             <Text color={theme.primary}>{t(lang, '筛选资料: ', 'Filter: ')}</Text>
-            <TextInput
-              value={searchQuery}
-              onChange={setSearchQuery}
-              onSubmit={() => setOverlay('none')}
-              onCancel={() => {
-                setSearchQuery('');
-                setOverlay('none');
-              }}
-              placeholder={t(
-                lang,
-                asciiMode ? '输入标题、格式或课程名...' : '输入标题、格式或课程名…',
-                asciiMode ? 'Title, format or course...' : 'Title, format or course…',
-              )}
-              width={Math.max(20, width - 16)}
-              isActive={isActive && overlay === 'search'}
-            />
+            <KeyScope id="sources:search" opaque active={isActive && overlay === 'search'}>
+              <TextInput
+                value={searchQuery}
+                onChange={setSearchQuery}
+                onSubmit={() => setOverlay('none')}
+                onCancel={() => {
+                  setSearchQuery('');
+                  setOverlay('none');
+                }}
+                placeholder={t(
+                  lang,
+                  asciiMode ? '输入标题、格式或课程名...' : '输入标题、格式或课程名…',
+                  asciiMode ? 'Title, format or course...' : 'Title, format or course…',
+                )}
+                width={Math.max(20, width - 16)}
+                isActive={isActive && overlay === 'search'}
+              />
+            </KeyScope>
           </Box>
         ) : searchQuery ? (
           <Box flexDirection="row">
@@ -1395,7 +1451,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
               badge={filteredGroups.length}
               width={lw}
               height={lh}
-              focused={listActive}
+              focused={pageActive}
             >
               {filteredGroups.length === 0 ? (
                 <EmptyState
@@ -1412,7 +1468,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
                   selectedIndex={selectedIndex}
                   onChange={(idx) => setSelectedIndex(idx)}
                   onSelect={(item) => openSelectedReader(item)}
-                  isActive={listActive}
+                  isActive={pageActive}
                   keyExtractor={(item) => item.key}
                   renderItem={(item, ctx) => {
                     const fmt = formatLabel(item.format);
@@ -1529,86 +1585,97 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
         />
       </Box>
 
-      {/* Modals */}
-      <Suspense fallback={null}>
-        {overlay === 'import' ? (
-          <ImportModal
-            host={host}
-            defaultCourse={focusCourse}
-            isActive={isActive}
-            onClose={() => setOverlay('none')}
-            onImported={refresh}
-          />
-        ) : null}
+      {/* Modals (each wrapped in its own opaque KeyScope outside Suspense) */}
+      {overlay === 'import' ? (
+        <KeyScope id="sources:import" opaque>
+          <Suspense fallback={null}>
+            <ImportModal
+              host={host}
+              defaultCourse={focusCourse}
+              isActive={isActive}
+              onClose={() => setOverlay('none')}
+              onImported={refresh}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {overlay === 'mineru' ? (
-          <MinerUModal
-            host={host}
-            defaultCourse={focusCourse}
-            isActive={isActive}
-            onQueued={refresh}
-            onOpenTasks={(jobId) => {
-              setOverlay('none');
-              navigate('tasks', jobId ? { jobId } : {});
-            }}
-            onClose={() => setOverlay('none')}
-          />
-        ) : null}
+      {overlay === 'mineru' ? (
+        <KeyScope id="sources:mineru" opaque>
+          <Suspense fallback={null}>
+            <MinerUModal
+              host={host}
+              defaultCourse={focusCourse}
+              isActive={isActive}
+              onQueued={refresh}
+              onOpenTasks={(jobId) => {
+                setOverlay('none');
+                navigate('tasks', jobId ? { jobId } : {});
+              }}
+              onClose={() => setOverlay('none')}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
       {overlay === 'rename' && selectedItem ? (
-        <Modal
-          title={t(lang, '重命名资料', 'Rename Material')}
-          width={62}
-          isActive={isActive}
-          onClose={() => setOverlay('none')}
-          hints={[
-            { key: 'Enter', label: t(lang, '保存', 'Save') },
-            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
-          ]}
-        >
-          <Text color={theme.muted}>{t(lang, '新标题 (不影响原文与引用):', 'New title (preserves text & citations):')}</Text>
-          <Box marginTop={1}>
-            <TextInput
-              value={renameValue}
-              onChange={setRenameValue}
-              onSubmit={(val) => void handleRenameSubmit(val)}
-              onCancel={() => setOverlay('none')}
-              width={modalContentWidth(62) - 4}
-              isActive={isActive}
-              prompt={asciiMode ? '>' : '›'}
-            />
-          </Box>
-        </Modal>
+        <KeyScope id="sources:rename" opaque>
+          <Modal
+            title={t(lang, '重命名资料', 'Rename Material')}
+            width={62}
+            isActive={isActive}
+            onClose={() => setOverlay('none')}
+            hints={[
+              { key: 'Enter', label: t(lang, '保存', 'Save') },
+              { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+            ]}
+          >
+            <Text color={theme.muted}>{t(lang, '新标题 (不影响原文与引用):', 'New title (preserves text & citations):')}</Text>
+            <Box marginTop={1}>
+              <TextInput
+                value={renameValue}
+                onChange={setRenameValue}
+                onSubmit={(val) => void handleRenameSubmit(val)}
+                onCancel={() => setOverlay('none')}
+                width={modalContentWidth(62) - 4}
+                isActive={isActive}
+                prompt={asciiMode ? '>' : '›'}
+              />
+            </Box>
+          </Modal>
+        </KeyScope>
       ) : null}
 
       {overlay === 'course' && selectedItem ? (
-        <Modal
-          title={t(lang, '分配所属课程', 'Assign Course')}
-          subtitle={selectedItem.title}
-          width={64}
-          isActive={isActive}
-          onClose={() => setOverlay('none')}
-          hints={[
-            { key: 'Enter', label: t(lang, '保存', 'Save') },
-            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
-          ]}
-        >
-          <Text color={theme.muted}>
-            {t(lang, '输入课程名称（多个用逗号分隔，留空则取消归属）:', 'Enter course name(s), comma-separated (blank to unassign):')}
-          </Text>
-          <Box marginTop={1}>
-            <TextInput
-              value={courseValue}
-              onChange={setCourseValue}
-              onSubmit={(val) => void handleCourseSubmit(val)}
-              onCancel={() => setOverlay('none')}
-              placeholder={t(lang, '例如：操作系统, 计算机网络', 'e.g. Operating Systems')}
-              width={modalContentWidth(64) - 4}
-              isActive={isActive}
-              prompt={asciiMode ? '>' : '›'}
-            />
-          </Box>
-        </Modal>
+        <KeyScope id="sources:course" opaque>
+          <Modal
+            title={t(lang, '分配所属课程', 'Assign Course')}
+            subtitle={selectedItem.title}
+            width={64}
+            isActive={isActive}
+            onClose={() => setOverlay('none')}
+            hints={[
+              { key: 'Enter', label: t(lang, '保存', 'Save') },
+              { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+            ]}
+          >
+            <Text color={theme.muted}>
+              {t(lang, '输入课程名称（多个用逗号分隔，留空则取消归属）:', 'Enter course name(s), comma-separated (blank to unassign):')}
+            </Text>
+            <Box marginTop={1}>
+              <TextInput
+                value={courseValue}
+                onChange={setCourseValue}
+                onSubmit={(val) => void handleCourseSubmit(val)}
+                onCancel={() => setOverlay('none')}
+                placeholder={t(lang, '例如：操作系统, 计算机网络', 'e.g. Operating Systems')}
+                width={modalContentWidth(64) - 4}
+                isActive={isActive}
+                prompt={asciiMode ? '>' : '›'}
+              />
+            </Box>
+          </Modal>
+        </KeyScope>
       ) : null}
 
       {overlay === 'archive' && archivePendingGroups.length > 0 ? (() => {
@@ -1616,157 +1683,186 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
         const count = archivePendingGroups.length;
         const firstTitle = archivePendingGroups[0].title;
         return (
-          <ConfirmDialog
-            title={
-              nextArchived
-                ? count > 1
-                  ? t(lang, `归档 ${count} 份资料`, `Archive ${count} Materials`)
-                  : t(lang, '归档资料', 'Archive Material')
-                : count > 1
-                  ? t(lang, `恢复 ${count} 份资料`, `Restore ${count} Materials`)
-                  : t(lang, '恢复已归档资料', 'Restore Archived Material')
-            }
-            message={
-              nextArchived
-                ? count > 1
-                  ? t(
-                      lang,
-                      `确定归档已选的 ${count} 份资料吗？归档将隐藏这些资料，并可能中断关联题组正在进行的练习。`,
-                      `Archive ${count} selected materials? Archiving hides them and may interrupt active practice sessions using them.`,
-                    )
-                  : t(
-                      lang,
-                      `确定归档「${firstTitle}」吗？归档将隐藏该资料，并可能中断关联题组正在进行的练习。`,
-                      `Archive "${firstTitle}"? Archiving hides it and may interrupt active practice sessions using it.`,
-                    )
-                : count > 1
-                  ? t(lang, `确定从归档中恢复已选的 ${count} 份资料吗？`, `Restore ${count} selected materials from archive?`)
-                  : t(lang, `确定从归档中恢复「${firstTitle}」吗？`, `Restore "${firstTitle}" from archive?`)
-            }
-            confirmLabel={nextArchived ? t(lang, '确认归档', 'Archive') : t(lang, '确认恢复', 'Restore')}
-            cancelLabel={t(lang, '取消', 'Cancel')}
-            danger={nextArchived}
-            isActive={isActive}
-            onConfirm={() => {
-              const groups = archivePendingGroups;
-              setOverlay('none');
-              setArchivePendingGroups([]);
-              void handleToggleArchive(groups);
-            }}
-            onCancel={() => {
-              setOverlay('none');
-              setArchivePendingGroups([]);
-            }}
-          />
+          <KeyScope id="sources:archive" opaque>
+            <ConfirmDialog
+              title={
+                nextArchived
+                  ? count > 1
+                    ? t(lang, `归档 ${count} 份资料`, `Archive ${count} Materials`)
+                    : t(lang, '归档资料', 'Archive Material')
+                  : count > 1
+                    ? t(lang, `恢复 ${count} 份资料`, `Restore ${count} Materials`)
+                    : t(lang, '恢复已归档资料', 'Restore Archived Material')
+              }
+              message={
+                nextArchived
+                  ? count > 1
+                    ? t(
+                        lang,
+                        `确定归档已选的 ${count} 份资料吗？归档将隐藏这些资料，并可能中断关联题组正在进行的练习。`,
+                        `Archive ${count} selected materials? Archiving hides them and may interrupt active practice sessions using them.`,
+                      )
+                    : t(
+                        lang,
+                        `确定归档「${firstTitle}」吗？归档将隐藏该资料，并可能中断关联题组正在进行的练习。`,
+                        `Archive "${firstTitle}"? Archiving hides it and may interrupt active practice sessions using it.`,
+                      )
+                  : count > 1
+                    ? t(lang, `确定从归档中恢复已选的 ${count} 份资料吗？`, `Restore ${count} selected materials from archive?`)
+                    : t(lang, `确定从归档中恢复「${firstTitle}」吗？`, `Restore "${firstTitle}" from archive?`)
+              }
+              confirmLabel={nextArchived ? t(lang, '确认归档', 'Archive') : t(lang, '确认恢复', 'Restore')}
+              cancelLabel={t(lang, '取消', 'Cancel')}
+              danger={nextArchived}
+              isActive={isActive}
+              onConfirm={() => {
+                const groups = archivePendingGroups;
+                setOverlay('none');
+                setArchivePendingGroups([]);
+                void handleToggleArchive(groups);
+              }}
+              onCancel={() => {
+                setOverlay('none');
+                setArchivePendingGroups([]);
+              }}
+            />
+          </KeyScope>
         );
       })() : null}
 
       {overlay === 'delete' && selectedItem ? (
-        <ConfirmDialog
-          title={t(lang, '永久删除资料', 'Delete Material')}
-          message={t(
-            lang,
-            `确定要删除「${selectedItem.title}」（共 ${selectedItem.pageCount} 页）吗？若被题组引用将拒绝删除。`,
-            `Permanently delete "${selectedItem.title}" (${selectedItem.pageCount} pages)? Referenced sources are protected.`,
-          )}
-          confirmLabel={t(lang, '确认删除', 'Delete')}
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          danger
-          isActive={isActive}
-          onConfirm={() => void handleDeleteConfirm()}
-          onCancel={() => setOverlay('none')}
-        />
+        <KeyScope id="sources:delete" opaque>
+          <ConfirmDialog
+            title={t(lang, '永久删除资料', 'Delete Material')}
+            message={t(
+              lang,
+              `确定要删除「${selectedItem.title}」（共 ${selectedItem.pageCount} 页）吗？若被题组引用将拒绝删除。`,
+              `Permanently delete "${selectedItem.title}" (${selectedItem.pageCount} pages)? Referenced sources are protected.`,
+            )}
+            confirmLabel={t(lang, '确认删除', 'Delete')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            danger
+            isActive={isActive}
+            onConfirm={() => void handleDeleteConfirm()}
+            onCancel={() => setOverlay('none')}
+          />
+        </KeyScope>
       ) : null}
 
       {overlay === 'folders-filter' || overlay === 'folders-assign' ? (
-        <FolderModal
-          host={host}
-          mode={overlay === 'folders-assign' ? 'assign' : 'filter'}
-          folders={materialFolders.folders}
-          folderCounts={folderCounts}
-          totalCount={courseScopedGroups.length}
-          activeFolder={folderFilter}
-          selectedItem={selectedItem}
-          isActive={isActive}
-          onSelectFilter={(nextFolder) => {
-            setFolderFilter(nextFolder);
-            setSelectedIndex(0);
-          }}
-          onRefresh={refresh}
-          onClose={() => setOverlay('none')}
-        />
+        <KeyScope id="sources:folders" opaque>
+          <Suspense fallback={null}>
+            <FolderModal
+              host={host}
+              mode={overlay === 'folders-assign' ? 'assign' : 'filter'}
+              folders={materialFolders.folders}
+              folderCounts={folderCounts}
+              totalCount={courseScopedGroups.length}
+              activeFolder={folderFilter}
+              selectedItem={selectedItem}
+              isActive={isActive}
+              onSelectFilter={(nextFolder) => {
+                setFolderFilter(nextFolder);
+                setSelectedIndex(0);
+              }}
+              onRefresh={refresh}
+              onClose={() => setOverlay('none')}
+            />
+          </Suspense>
+        </KeyScope>
       ) : null}
 
       {overlay === 'folders-assign-batch' && selectedKeys.size > 0 ? (
-        <BatchFolderModal
-          host={host}
-          selectedKeys={[...selectedKeys]}
-          folders={materialFolders.folders}
-          folderCounts={folderCounts}
-          isActive={isActive}
-          onRefresh={refresh}
-          onAssigned={() => setSelectedKeys(new Set())}
-          onClose={() => setOverlay('none')}
-        />
+        <KeyScope id="sources:folders-batch" opaque>
+          <BatchFolderModal
+            host={host}
+            selectedKeys={[...selectedKeys]}
+            folders={materialFolders.folders}
+            folderCounts={folderCounts}
+            isActive={isActive}
+            onRefresh={refresh}
+            onAssigned={() => setSelectedKeys(new Set())}
+            onClose={() => setOverlay('none')}
+          />
+        </KeyScope>
       ) : null}
 
       {overlay === 'companions' ? (
-        <CompanionsModal
-          host={host}
-          defaultCourse={focusCourse}
-          isActive={isActive}
-          onChanged={refresh}
-          onClose={() => setOverlay('none')}
-        />
+        <KeyScope id="sources:companions" opaque>
+          <Suspense fallback={null}>
+            <CompanionsModal
+              host={host}
+              defaultCourse={focusCourse}
+              isActive={isActive}
+              onChanged={refresh}
+              onClose={() => setOverlay('none')}
+            />
+          </Suspense>
+        </KeyScope>
       ) : null}
 
       {overlay === 'organize' ? (
-        <OrganizeSourcesModal
-          host={host}
-          groups={filteredGroups}
-          allGroups={allGroups}
-          isActive={isActive}
-          onSaved={refresh}
-          onClose={() => setOverlay('none')}
-        />
+        <KeyScope id="sources:organize" opaque>
+          <Suspense fallback={null}>
+            <OrganizeSourcesModal
+              host={host}
+              groups={filteredGroups}
+              allGroups={allGroups}
+              isActive={isActive}
+              onSaved={refresh}
+              onClose={() => setOverlay('none')}
+            />
+          </Suspense>
+        </KeyScope>
       ) : null}
 
-        {overlay === 'coverage' && selectedItem ? (
-          <SourceCoverageModal
-            host={host}
-            item={selectedItem}
-            defaultCourse={focusCourse}
-            isActive={isActive}
-            onGenerate={(sourceIds, course) => {
-              navigate('generate', {
-                sourceIds,
-                ...(course ? { course } : {}),
-              });
-            }}
-            onClose={() => setOverlay('none')}
-          />
-        ) : null}
+      {overlay === 'coverage' && selectedItem ? (
+        <KeyScope id="sources:coverage" opaque>
+          <Suspense fallback={null}>
+            <SourceCoverageModal
+              host={host}
+              item={selectedItem}
+              defaultCourse={focusCourse}
+              isActive={isActive}
+              onGenerate={(sourceIds, course) => {
+                navigate('generate', {
+                  sourceIds,
+                  ...(course ? { course } : {}),
+                });
+              }}
+              onClose={() => setOverlay('none')}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {overlay === 'reread' ? (
-          <RereadQueueModal
-            host={host}
-            course={courseFilterOn ? focusCourse : undefined}
-            isActive={isActive}
-            onOpenSource={handleOpenRereadSource}
-            onClose={() => setOverlay('none')}
-          />
-        ) : null}
+      {overlay === 'reread' ? (
+        <KeyScope id="sources:reread" opaque>
+          <Suspense fallback={null}>
+            <RereadQueueModal
+              host={host}
+              course={courseFilterOn ? focusCourse : undefined}
+              isActive={isActive}
+              onOpenSource={handleOpenRereadSource}
+              onClose={() => setOverlay('none')}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {overlay === 'original' && selectedItem ? (
-          <OriginalFileModal
-            host={host}
-            item={selectedItem}
-            isActive={isActive}
-            onRefresh={refresh}
-            onClose={() => setOverlay('none')}
-          />
-        ) : null}
-      </Suspense>
+      {overlay === 'original' && selectedItem ? (
+        <KeyScope id="sources:original" opaque>
+          <Suspense fallback={null}>
+            <OriginalFileModal
+              host={host}
+              item={selectedItem}
+              isActive={isActive}
+              onRefresh={refresh}
+              onClose={() => setOverlay('none')}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
     </Box>
   );
 });

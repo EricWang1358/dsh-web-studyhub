@@ -52,8 +52,8 @@ const EMPTY_KEY = {
 };
 
 describe('P1-a: Unified Key Dispatcher & Conflict Matrix (#1354 D1)', () => {
-  test('1. Static guardrail: ZERO direct Ink useInput imports outside components/key-dispatcher.ts and components/mouse.tsx', () => {
-    const ALLOWED = new Set(['components/key-dispatcher.ts', 'components/mouse.tsx']);
+  test('1. Static guardrail: ZERO direct Ink useInput imports outside input/hooks.ts and components/mouse.tsx', () => {
+    const ALLOWED = new Set(['input/hooks.ts', 'components/mouse.tsx']);
     const violations = [];
     for (const file of ALL_SRC) {
       const r = rel(file);

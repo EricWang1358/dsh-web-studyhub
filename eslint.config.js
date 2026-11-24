@@ -207,7 +207,7 @@ export default [
   {
     files: ["packages/studyhub-tui/src/**/*.{ts,tsx}"],
     ignores: [
-      "packages/studyhub-tui/src/components/key-dispatcher.ts",
+      "packages/studyhub-tui/src/input/hooks.ts",
       "packages/studyhub-tui/src/components/mouse.tsx",
       "packages/studyhub-tui/src/components/resize.ts",
     ],
@@ -216,7 +216,7 @@ export default [
         paths: [{
           name: "ink",
           importNames: ["useInput"],
-          message: "Use useScopedInput from components/key-dispatcher.js instead of raw ink useInput (#1354 D1).",
+          message: "Use useKeyScope from input/hooks.js (or useScopedInput) instead of raw ink useInput (#1354 D1).",
         }, {
           name: "ink",
           importNames: ["useWindowSize"],
@@ -232,14 +232,14 @@ export default [
         paths: [{
           name: "ink",
           importNames: ["useInput"],
-          message: "Use useScopedInput from components/key-dispatcher.js instead of raw ink useInput (#1354 D1).",
+          message: "Use useKeyScope from input/hooks.js (or useScopedInput) instead of raw ink useInput (#1354 D1).",
         }],
       }],
     },
   },
   {
     files: [
-      "packages/studyhub-tui/src/components/key-dispatcher.ts",
+      "packages/studyhub-tui/src/input/hooks.ts",
       "packages/studyhub-tui/src/components/mouse.tsx",
     ],
     rules: {
