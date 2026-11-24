@@ -2,7 +2,7 @@
  * Pure Quick Action Strip model for ReviewView (Round 84 Track B3).
  *
  * Groups the 5 highest-frequency per-card actions cleanly at the front:
- *   [T] 带学 · [h] 讲解 · [S] 同类 · [*] 收藏 · [R] 重做
+ *   [t] 带学 · [h] 讲解 · [S] 同类 · [*] 收藏 · [R] 重做
  * followed by contextual secondary tools, keeping narrow screens readable with `按?看全部`.
  */
 import type { UiLanguage } from '../../types/contracts.js';
@@ -29,7 +29,7 @@ export function buildReviewQuickActions(opts: BuildQuickActionsOptions): ReviewQ
   const zh = lang !== 'en';
   return [
     { id: 'h', key: 'h', text: zh ? '[h]讲解' : '[h]Help', primary: true },
-    { id: 'T', key: 'T', text: zh ? '[T]带学' : '[T]Guided', primary: true },
+    { id: 'T', key: 't', text: zh ? '[t]带学' : '[t]Guided', primary: true },
     { id: 'S', key: 'S', text: zh ? '[S]同类' : '[S]Sim', primary: true },
     { id: '*', key: '*', text: zh ? (isCardFocused ? '[*]已收藏' : '[*]收藏') : isCardFocused ? '[*]Saved' : '[*]Focus', primary: true },
     ...(canRedo ? [{ id: 'R', key: 'R', text: zh ? '[R]重做' : '[R]Redo', primary: true }] : []),
