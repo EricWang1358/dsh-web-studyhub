@@ -53,7 +53,7 @@ function defaultRoundSize(snapshot: StudySnapshot | null): number {
 function readDeckCounts(deck: DeckItem, progressMap: Record<string, DeckProgressEntry> | undefined) {
   const p = progressMap?.[deck.id];
   const total = Number(deck.count ?? p?.total ?? deck.cardCount ?? 0) || 0;
-  const due = Number(deck.due ?? p?.due ?? deck.dueCount ?? 0) || 0;
+  const due = Number(p?.due ?? deck.due ?? deck.dueCount ?? 0) || 0;
   const newCount = Number(p?.counts?.new ?? deck.newCount ?? 0) || 0;
   const wrong = Number(deck.wrong ?? p?.counts?.weak ?? deck.wrongCount ?? 0) || 0;
   return { total, due, newCount, wrong };

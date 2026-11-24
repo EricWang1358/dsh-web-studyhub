@@ -5,6 +5,7 @@
  * into concise one-key + Alt+click launch tiles on the Library home view.
  */
 import type { LastPracticeContext, StudySnapshot, UiLanguage } from '../../types/contracts.js';
+import { deckDueCount, isActiveStudyDeck } from '../../shell/data.js';
 
 export interface TodayHubMetrics {
   hasResume: boolean;
@@ -34,12 +35,12 @@ export function buildTodayHubMetrics(opts: {
 }): TodayHubMetrics {
   const snap = opts.snapshot;
   const progressMap = (snap?.progress as Record<string, DeckProgressLike> | undefined) ?? undefined;
-  const decks = (snap?.decks ?? []).filter((d) => !d.archived && (!opts.course || d.course === opts.course));
+  const decks = (snap?.decks ?? []).filter((d) => isActiveStudyDeck(d, opts.course));
   let due = 0;
   let wrong = 0;
   for (const d of decks) {
     const p = progressMap?.[d.id];
-    due += Number(d.due ?? p?.due ?? d.dueCount ?? 0) || 0;
+    due += deckDueCount(d, progressMap);
     wrong += Number(d.wrong ?? p?.counts?.weak ?? d.wrongCount ?? 0) || 0;
   }
   const rawBoard = Array.isArray((snap as Record<string, unknown> | null | undefined)?.boardTasks)

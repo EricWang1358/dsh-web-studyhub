@@ -332,7 +332,7 @@ export function buildPaletteItems(
           })
           .map((d) => {
             const rec = d as Record<string, unknown>;
-            const due = Number(rec.due ?? d.dueCount ?? progressMap[d.id]?.due ?? 0) || 0;
+            const due = Number(progressMap[d.id]?.due ?? rec.due ?? d.dueCount ?? 0) || 0;
             return { id: d.id, due };
           })
           .filter((d) => d.id && d.due > 0)
