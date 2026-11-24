@@ -4,8 +4,7 @@ import { Chip } from "../components/index.js";
 import ModelSetupGate from "../ModelSetupGate.jsx";
 import { reviewEntryKey } from "../async.js";
 import TeachingStatus from "./TeachingStatus.jsx";
-import SimilarTry from "./SimilarTry.jsx";
-import RetellPanel from "./RetellPanel.jsx";
+import { LazyRetellPanel as RetellPanel, LazySimilarTry as SimilarTry } from "./LazyLearningLoop.jsx";
 import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget } from "../companions/companion-ref.js";
 
 /* The ways to learn from an answered question, in one row under its explanation and Q&A (ui/review/QuestionRun.jsx): 逐步理解 and 计算题引导练习 (guided

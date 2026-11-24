@@ -9,6 +9,7 @@ import { atomicWriteExportText, defaultBackupFilePath, todayLocalYmd } from '../
 import { tryAction, type ReviewRun } from '../../host/sample-actions.js';
 import { toneColor, useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
+import { computeProseLayout } from '../../components/Layout.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
@@ -20,6 +21,8 @@ import { useClaimKeys, useInputCapture } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { renderProgressBar } from '../../render/charts.js';
+import { buildFileHyperlinkUrl, formatOsc8Link } from '../../render/osc8.js';
+import { buildTopWrongCluster } from './quick-triage.js';
 import {
   ERROR_REASONS,
   REASON_FILTER_ORDER,
@@ -48,7 +51,7 @@ import type {
 const PAGE_LIMIT = 100;
 const MAX_FETCH_ITEMS = 300;
 const PRACTICE_BATCH_CAP = 50;
-const CLAIMED_KEYS: readonly string[] = Object.freeze(['t', 'e', 'p', 'o', 'f', 'm', ' ', 'B', 'V', 'x', 'X', '/']);
+const CLAIMED_KEYS: readonly string[] = Object.freeze(['t', 'e', 'p', 'o', 'f', 'm', ' ', 'B', 'V', 'x', 'X', '/', 'Q']);
 
 export interface WrongBookExportOption {
   id?: string;
@@ -542,7 +545,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
   );
 
   const handleVariantPractice = useCallback(async () => {
-    if (busyRef.current || busyAction) return;
+    if (busyRef.current) return;
     busyRef.current = true;
     setBusyAction(true);
     try {
@@ -586,7 +589,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       busyRef.current = false;
       if (mountedRef.current) setBusyAction(false);
     }
-  }, [busyAction, host, lang, navigate, notify, refreshSnapshot, selectedItem, selectedMap, setActiveRunId]);
+  }, [host, lang, navigate, notify, refreshSnapshot, selectedItem, selectedMap, setActiveRunId]);
 
   const setErrorReason = useCallback(
     async (reason: ErrorReasonId | null) => {
@@ -976,6 +979,19 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
         } else {
           notify(t(lang, '该题暂无关联原文页码', 'No source citation for this question'), 'info');
         }
+      } else if (input === 'Q') {
+        const cluster = buildTopWrongCluster(visibleItems, lang);
+        if (!cluster) {
+          notify(t(lang, '当前列表暂无 >=2 题的高频错题聚类', 'Need >=2 related wrong cards for quick cluster drill'), 'info');
+        } else {
+          void tryAction<ReviewRun>(host, 'review.start', { mode: 'path', scope: cluster.scope, fresh: true }).then((res) => {
+            if (res.ok && res.value?.id) {
+              navigate('review', { runId: res.value.id });
+            } else {
+              notify(res.error?.message || t(lang, '启动高频错题练习失败', 'Failed to start cluster drill'), 'error');
+            }
+          });
+        }
       }
     },
     { isActive: listNavActive },
@@ -1242,36 +1258,48 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
             </Box>
           ) : null}
 
-          {/* Scrollable Detail Markdown */}
-          <Box height={mdHeight} width={innerW} overflow="hidden">
-            {detailLoading && !detail ? (
-              <Box height={mdHeight} alignItems="center" justifyContent="center">
-                <Spinner label={asciiMode ? t(lang, '加载题目详情...', 'Loading detail...') : t(lang, '加载题目详情…', 'Loading detail…')} active={isActive} />
+          {/* Scrollable Detail Markdown (centered within 96-col measure on ultrawide screens — Round 92 A10) */}
+          {(() => {
+            const { proseWidth, marginLeft } = computeProseLayout(innerW);
+            return (
+              <Box height={mdHeight} width={innerW} paddingLeft={marginLeft} overflow="hidden">
+                {detailLoading && !detail ? (
+                  <Box height={mdHeight} alignItems="center" justifyContent="center">
+                    <Spinner label={asciiMode ? t(lang, '加载题目详情...', 'Loading detail...') : t(lang, '加载题目详情…', 'Loading detail…')} active={isActive} />
+                  </Box>
+                ) : (
+                  <MarkdownView
+                    markdown={detailMarkdown}
+                    width={proseWidth}
+                    height={mdHeight}
+                    isActive={detailScrollActive}
+                    scrollTop={detailScrollTop}
+                    onScroll={setDetailScrollTop}
+                  />
+                )}
               </Box>
-            ) : (
-              <MarkdownView
-                markdown={detailMarkdown}
-                width={innerW}
-                height={mdHeight}
-                isActive={detailScrollActive}
-                scrollTop={detailScrollTop}
-                onScroll={setDetailScrollTop}
-              />
-            )}
-          </Box>
+            );
+          })()}
 
-          {/* Source Citation Bar (optional) */}
+          {/* Source Citation Bar (optional, with safe OSC 8 hyperlink when terminal supports it) */}
           {citationRow > 0 ? (
             <Box height={1} overflow="hidden">
               <Text color={theme.accent}>
-                {truncateDisplay(
-                  (() => {
-                    const cit = selectedItem.citations?.find((c) => c?.sourceId);
-                    return `[o] ${t(lang, '跳转原文', 'Source')}: ${cit?.title || cit?.sourceId || ''}${cit?.page != null ? ` p.${cit.page}` : ''}`;
-                  })(),
-                  innerW,
-                  asciiMode ? '...' : '…',
-                )}
+                {(() => {
+                  const cit = selectedItem.citations?.find((c) => c?.sourceId);
+                  const rawLabel = truncateDisplay(
+                    `[o] ${t(lang, '跳转原文', 'Source')}: ${cit?.title || cit?.sourceId || ''}${cit?.page != null ? ` p.${cit.page}` : ''}`,
+                    innerW,
+                    asciiMode ? '...' : '…',
+                  );
+                  const src = cit?.sourceId ? snapshot?.sources?.find((s) => s.id === cit.sourceId) : undefined;
+                  const rawPath =
+                    (typeof src?.filePath === 'string' && src.filePath) ||
+                    (typeof src?.path === 'string' && src.path) ||
+                    '';
+                  const url = rawPath ? buildFileHyperlinkUrl(rawPath, cit?.page) : '';
+                  return formatOsc8Link(rawLabel, url, { asciiMode });
+                })()}
               </Text>
             </Box>
           ) : null}
@@ -1378,6 +1406,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       relatedRecs,
       selectedMap.size,
       asciiMode,
+      snapshot?.sources,
     ],
   );
 

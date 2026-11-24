@@ -27,12 +27,15 @@ export const emptyEntry = () => ({ selected: [], hint: false, explain: false, re
 export function entryForRun(run, restored, reader) {
   const back = restored?.key === reviewEntryKey(run) && !run.feedback ? restored : null;
   const saved = back || run.feedback ? null : restoredDraft(run);
+  const backCloze = back?.clozeValues && typeof back.clozeValues === 'object' && !Array.isArray(back.clozeValues)
+    ? back.clozeValues
+    : null;
   return {
     selected: back?.selected || run.feedback?.selected || saved?.selected || [],
     hint: back?.hint || false,
     explain: back?.explain || false,
     response: back?.response || saved?.text || '',
-    clozeValues: back?.clozeValues || saved?.stepInputs || {},
+    clozeValues: backCloze || saved?.stepInputs || {},
     teaching: run.teaching || null,
     teachAnswer: reader.draft(run.teaching) || back?.teachAnswer || '',
     assistance: run.feedback ? null : mergeAssistance(run.assistance, back?.assistance),
@@ -191,8 +194,9 @@ export function shortcutAction(event, ctx) {
   if (event.key === 'Escape' && ctx.shortcutHelp) return result({ type: 'help-close' });
   if (event.key === 'Escape' && ctx.endAsked && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) return result({ type: 'end-cancel' }, true);
   if (event.key === 'Escape' && ctx.markingTerms && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) return result({ type: 'mark-terms-exit' }, true);
-  // Shift+V: ask 帮我弄懂 by voice (#1031), on any question outside an exam.
+  // Shift+V: ask 帮我弄懂 by voice (#1031), Shift+T: toggle inline Socratic tutoring beside the question (#1316), outside an exam.
   if (event.shiftKey && event.code === 'KeyV') return result(ctx.page === 'review' && run?.card && !busy && run.mode !== 'exam' ? { type: 'voice-ask' } : null, true);
+  if (event.shiftKey && event.code === 'KeyT') return result(ctx.page === 'review' && run?.card && !busy && run.mode !== 'exam' ? { type: 'socratic-toggle' } : null, true);
   if (event.shiftKey || (event.onButton && (event.key === 'Enter' || event.code === 'Space'))) return result(null);
   const letter = event.key.length === 1 ? event.key.toLowerCase() : '';
   if (letter === 'a' && ctx.page !== 'exam') return result({ type: 'autopilot' }, true);

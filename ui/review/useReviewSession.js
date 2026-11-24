@@ -865,7 +865,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     else if (action.type === 'choose') choose(action.id);
     else if (action.type === 'clear-choice') patch({ selected: [] });
     else if (action.type === 'skip') skipQuestion();
-    else if (['note', 'focus', 'source', 'voice', 'voice-ask', 'focus-cloze'].includes(action.type)) questionKeys.current[action.type]?.();
+    else if (['note', 'focus', 'source', 'voice', 'voice-ask', 'focus-cloze', 'socratic-toggle'].includes(action.type)) questionKeys.current[action.type]?.();
   };
   useEffect(() => {
     const handler = (event) => keyHandler.current?.(event);

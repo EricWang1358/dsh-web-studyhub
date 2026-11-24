@@ -1,18 +1,19 @@
 import { useCallback, useContext } from 'react';
 import { ui } from './i18n.js';
-import { FINDER_ENTRIES } from './finder/entries.js';
+import { DAILY_FEATURES, pageEntries } from './finder/entries-base.js';
 import { finderAvailability } from './finder/availability.js';
 import { USAGE_REGISTRY_BY_KEY } from './usage/registry.js';
 import { modelReadiness } from './generation-status.js';
 import { browserSession, browserStorage, readJSON, writeJSON } from './storage.js';
 import { courseMatcher, decksInCourse, writePageScope } from './PageScope.jsx';
+import { PAGES } from './pages.js';
 import { useStudy } from './study-context.jsx';
 import { useHandOff } from './hand-off/use-hand-off.js';
 import { AppContext } from './app/app-context.js';
 import { ACTIVITIES, ALTERNATIVES_MAX, atLeast, courseMethod, gateRule, stageScope } from '../lib/course-method.js';
 import { isLibraryListSource } from '../lib/exam-point-list.js';
 
-/* 「也可以」 (#775, 4.5 S1): maps a stage's alternative activities onto StudyHub's single-source feature index (ui/finder/entries.js), host capability check
+/* 「也可以」 (#775, 4.5 S1): maps a stage's alternative activities onto StudyHub's single-source feature index (ui/finder/entries.js, read through ui/finder/entries-base.js so the index itself stays out of the first load), host capability check
    (ui/finder/availability.js), model readiness, and usage/history records — no parallel feature table.
    - Host or model missing -> hidden ("只显示现在能用的功能，比如没连模型就不推荐口试").
    - Course prerequisite missing -> shown on the card as disabled with plain reason (「导入讲义后可用」 / 「发布题组后可用」), omitted at round end.
@@ -30,7 +31,7 @@ export const ACTIVITY_LABELS = Object.freeze({
   project: '整理笔记',
 });
 
-const ENTRY_BY_ID = new Map(FINDER_ENTRIES.map(entry => [entry.id, entry]));
+const ENTRY_BY_ID = new Map([...pageEntries(PAGES), ...DAILY_FEATURES].map(entry => [entry.id, entry]));
 
 const ACTIVITY_SPECS = Object.freeze({
   publish: Object.freeze({ entryId: 'page-sources', usageKeys: Object.freeze(['import.add', 'nav.sources']) }),
