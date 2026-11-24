@@ -669,7 +669,7 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
                   <Text color={theme.muted}>{t(lang, '路径:', 'Path:')}</Text>
                   <Text color={theme.dim}>{truncateDisplay(agyProvider?.executablePath || config?.agy?.executablePath || '-', innerW - 8, asciiMode ? '...' : '…')}</Text>
                 </Box>
-                <Box flexDirection="row" flexWrap="wrap" gap={1} marginY={0}>
+                <Box flexDirection="row" flexWrap="wrap" columnGap={1} marginY={0}>
                   <Box flexShrink={0}>
                     <Text color={theme.muted}>{t(lang, '思考强度 [e]:', 'Effort [e]:')}</Text>
                   </Box>
@@ -900,7 +900,7 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
                       `Preset models (${asciiMode ? '<-/->' : '←/→'} on Model row):`,
                     )}
                   </Text>
-                  <Box flexDirection="row" flexWrap="wrap" gap={1}>
+                  <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
                     {selectedPreset.models.map((m) => (
                       <Text
                         key={m}

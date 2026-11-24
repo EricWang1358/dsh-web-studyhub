@@ -493,7 +493,7 @@ export const ExamSetup = memo(function ExamSetup({
 
         {mode === 'written' ? (
           <Box flexDirection="column" marginBottom={1}>
-            <Box gap={2} flexWrap="wrap">
+            <Box columnGap={2} flexWrap="wrap">
               <Text>
                 <Text color={theme.muted}>{t(lang, '[c] 题数: ', '[c] Count: ')}</Text>
                 {WRITTEN_COUNTS.map((n) => (

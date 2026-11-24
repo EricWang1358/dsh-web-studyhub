@@ -634,7 +634,7 @@ export const ExamRunner = memo(function ExamRunner({
       </Box>
 
       {/* Navigator strip */}
-      <Box flexWrap="wrap" gap={1} marginBottom={1}>
+      <Box flexWrap="wrap" columnGap={1} marginBottom={1}>
         {navTokens.slice(0, 30).map((tok) => {
           const sym = asciiMode ? (tok.flag ? '!' : tok.answered ? '*' : 'o') : tok.flag ? '⚑' : tok.answered ? '●' : '○';
           return (
@@ -718,7 +718,7 @@ export const ExamRunner = memo(function ExamRunner({
       {/* Case Paper Body */}
       {kind === 'case' && currentCaseCard ? (
         <Box flexDirection="column" height={bodyH} overflow="hidden">
-          <Box gap={1} marginBottom={1} flexWrap="wrap">
+          <Box columnGap={1} marginBottom={1} flexWrap="wrap">
             <Badge
               label={`${currentCaseCard.marks ?? 0} ${t(lang, '分', 'pts')}`}
               tone="accent"
