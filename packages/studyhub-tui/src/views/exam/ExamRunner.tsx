@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
-import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
+import { KeyScope, useKeyScope } from '../../input/hooks.js';
 import type { UiLanguage } from '../../types/contracts.js';
 import { Badge, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
@@ -8,7 +8,6 @@ import { MarkdownView } from '../../components/MarkdownView.js';
 import { Panel } from '../../components/Panel.js';
 import { ScrollView } from '../../components/ScrollView.js';
 import { TextInput } from '../../components/TextInput.js';
-import { useClaimKeys } from '../../components/focus.js';
 import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import { buildExamWindowTitle, writeTerminalTitle } from '../../render/terminal-title.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -345,17 +344,16 @@ export const ExamRunner = memo(function ExamRunner({
 
   const currentSelected = currentWrittenCard ? (picksMap.get(currentWrittenCard.id) ?? []) : [];
 
-  const isTyping = editingField !== 'none';
-  useClaimKeys(kind === 'case' ? CASE_CLAIMED : BASE_CLAIMED, isActive && !isTyping && !confirmSubmit);
-
-  useInput(
-    (input, key) => {
-      if (confirmSubmit || isTyping) return;
+  const pageActive = useKeyScope({
+    id: 'ExamRunner:main',
+    active: isActive,
+    keys: kind === 'case' ? CASE_CLAIMED : BASE_CLAIMED,
+    onKey: (input, key) => {
       if (key.ctrl && input === 's') {
         setConfirmSubmit(true);
-        return;
+        return true;
       }
-      if (busy) return;
+      if (busy) return false;
 
       if (kind === 'written' && run && currentWrittenCard) {
         const opts = currentWrittenCard.options ?? [];
@@ -364,7 +362,7 @@ export const ExamRunner = memo(function ExamRunner({
         if (/^[1-9]$/.test(input)) {
           const idx = Number(input) - 1;
           const opt = opts[idx];
-          if (!opt) return;
+          if (!opt) return true;
           if (isMulti) {
             const exists = currentSelected.includes(opt.id);
             const next = exists
@@ -375,7 +373,7 @@ export const ExamRunner = memo(function ExamRunner({
             const next = currentSelected.includes(opt.id) ? [] : [opt.id];
             onSelectPick(currentWrittenCard.id, next);
           }
-          return;
+          return true;
         }
         if (input === 'f') {
           setFlagged((prev) => {
@@ -384,55 +382,57 @@ export const ExamRunner = memo(function ExamRunner({
             else next.add(currentWrittenCard.id);
             return next;
           });
-          return;
+          return true;
         }
         if (input === 'n' || key.rightArrow || (key.tab && !key.shift)) {
           const nextIdx = (run.index + 1) % Math.max(1, totalCount);
           onJumpWritten(nextIdx);
-          return;
+          return true;
         }
         if (input === 'p' || key.leftArrow || (key.tab && key.shift)) {
           const prevIdx = (run.index - 1 + Math.max(1, totalCount)) % Math.max(1, totalCount);
           onJumpWritten(prevIdx);
-          return;
+          return true;
         }
         if (key.escape) {
           onAbortBack();
+          return true;
         }
-        return;
+        return false;
       }
 
       if (kind === 'case' && currentCaseCard) {
         if (input === 's' && hasScenario) {
           if (isWideCase) setScenarioOpenWide((v) => !v);
           else setScenarioOpenNarrow((v) => !v);
-          return;
+          return true;
         }
         if (input === 'H' && hasScenario) {
           if (!isWideCase && !scenarioOpenNarrow) {
             setScenarioOpenNarrow(true);
           }
           toggleParagraphHighlight();
-          return;
+          return true;
         }
         if (input === '[' && scenarioVisible) {
           stepParagraph(-1);
-          return;
+          return true;
         }
         if (input === ']' && scenarioVisible) {
           stepParagraph(1);
-          return;
+          return true;
         }
         if (showScenarioOverlay) {
           if (key.escape) {
             setScenarioOpenNarrow(false);
+            return true;
           }
-          return;
+          return false;
         }
         if (input === 'e' || key.return) {
           setDraftText(caseDrafts[currentCaseCard.id] ?? '');
           setEditingField('case');
-          return;
+          return true;
         }
         if (input === 'f') {
           setFlagged((prev) => {
@@ -441,48 +441,50 @@ export const ExamRunner = memo(function ExamRunner({
             else next.add(currentCaseCard.id);
             return next;
           });
-          return;
+          return true;
         }
         if (input === 'n' || key.rightArrow || (key.tab && !key.shift)) {
           setCaseIdx((i) => (i + 1) % Math.max(1, caseCards.length));
-          return;
+          return true;
         }
         if (input === 'p' || key.leftArrow || (key.tab && key.shift)) {
           setCaseIdx((i) => (i - 1 + Math.max(1, caseCards.length)) % Math.max(1, caseCards.length));
-          return;
+          return true;
         }
         if (key.escape) {
           onAbortBack();
+          return true;
         }
-        return;
+        return false;
       }
 
       if (kind === 'oral' && oral?.entry) {
         if (input === 'e' || key.return) {
           setDraftText(oral.entry.answer || '');
           setEditingField('oral-main');
-          return;
+          return true;
         }
         if (input === 'u' && oral.entry.followup) {
           setDraftText(oral.entry.followupAnswer || '');
           setEditingField('oral-followup');
-          return;
+          return true;
         }
         if (input === 'a' && !oral.entry.followup && oral.entry.answer.trim()) {
           onOralFollowup(oral.entry.cardId);
-          return;
+          return true;
         }
         if (input === 'n' && oral.index < oral.total - 1) {
           onOralNext();
-          return;
+          return true;
         }
         if (key.escape) {
           onAbortBack();
+          return true;
         }
       }
+      return false;
     },
-    { isActive: isActive && !isTyping && !confirmSubmit },
-  );
+  });
 
   // Header status
   const answeredCount =
@@ -592,7 +594,7 @@ export const ExamRunner = memo(function ExamRunner({
           height={scrollH}
           scrollTop={scenarioScrollTop}
           onScroll={handleScenarioScroll}
-          isActive={isActive && !isTyping && !confirmSubmit && scenarioVisible}
+          isActive={pageActive && scenarioVisible}
           ascii={asciiMode}
         />
       </Panel>
@@ -693,7 +695,7 @@ export const ExamRunner = memo(function ExamRunner({
             markdown={currentWrittenCard.prompt || ''}
             width={innerW}
             height={Math.max(4, Math.floor(bodyH * 0.45))}
-            isActive={isActive && !isTyping && !confirmSubmit}
+            isActive={pageActive}
             vimNavKeys={false}
             spacePageDown={false}
           />
@@ -750,7 +752,7 @@ export const ExamRunner = memo(function ExamRunner({
             markdown={currentCaseCard.prompt || ''}
             width={innerW}
             height={Math.max(4, Math.floor(bodyH * 0.42))}
-            isActive={isActive && !isTyping && !confirmSubmit && !showScenarioOverlay}
+            isActive={pageActive && !showScenarioOverlay}
             vimNavKeys={false}
             spacePageDown={false}
           />
@@ -762,20 +764,22 @@ export const ExamRunner = memo(function ExamRunner({
                 : t(lang, '你的作答 (按 e 编辑):', 'Your response (press e to edit):')}
             </Text>
             {editingField === 'case' ? (
-              <TextInput
-                value={draftText}
-                onChange={setDraftText}
-                multiline
-                height={Math.max(4, Math.floor(bodyH * 0.35))}
-                width={innerW}
-                isActive={isActive}
-                onSubmit={(val) => {
-                  setCaseDrafts((prev) => ({ ...prev, [currentCaseCard.id]: val }));
-                  onSaveCaseResponse(currentCaseCard.id, val);
-                  setEditingField('none');
-                }}
-                onCancel={() => setEditingField('none')}
-              />
+              <KeyScope id="exam-runner:case-editor" opaque>
+                <TextInput
+                  value={draftText}
+                  onChange={setDraftText}
+                  multiline
+                  height={Math.max(4, Math.floor(bodyH * 0.35))}
+                  width={innerW}
+                  isActive={isActive}
+                  onSubmit={(val) => {
+                    setCaseDrafts((prev) => ({ ...prev, [currentCaseCard.id]: val }));
+                    onSaveCaseResponse(currentCaseCard.id, val);
+                    setEditingField('none');
+                  }}
+                  onCancel={() => setEditingField('none')}
+                />
+              </KeyScope>
             ) : (
               <Text color={(caseDrafts[currentCaseCard.id] ?? '').trim() ? theme.text : theme.dim}>
                 {(caseDrafts[currentCaseCard.id] ?? '').trim() ||
@@ -800,7 +804,7 @@ export const ExamRunner = memo(function ExamRunner({
             markdown={oral.entry.prompt || ''}
             width={innerW}
             height={Math.max(3, Math.floor(bodyH * 0.32))}
-            isActive={isActive && !isTyping && !confirmSubmit}
+            isActive={pageActive}
             vimNavKeys={false}
             spacePageDown={false}
           />
@@ -812,19 +816,21 @@ export const ExamRunner = memo(function ExamRunner({
                 : t(lang, '你的回答 (按 e 编辑):', 'Your answer (press e to edit):')}
             </Text>
             {editingField === 'oral-main' ? (
-              <TextInput
-                value={draftText}
-                onChange={setDraftText}
-                multiline
-                height={Math.max(3, Math.floor(bodyH * 0.25))}
-                width={innerW}
-                isActive={isActive}
-                onSubmit={(val) => {
-                  onSaveOralAnswer(oral.entry!.cardId, val, 'main');
-                  setEditingField('none');
-                }}
-                onCancel={() => setEditingField('none')}
-              />
+              <KeyScope id="exam-runner:oral-main-editor" opaque>
+                <TextInput
+                  value={draftText}
+                  onChange={setDraftText}
+                  multiline
+                  height={Math.max(3, Math.floor(bodyH * 0.25))}
+                  width={innerW}
+                  isActive={isActive}
+                  onSubmit={(val) => {
+                    onSaveOralAnswer(oral.entry!.cardId, val, 'main');
+                    setEditingField('none');
+                  }}
+                  onCancel={() => setEditingField('none')}
+                />
+              </KeyScope>
             ) : (
               <Text color={oral.entry.answer.trim() ? theme.text : theme.dim}>
                 {oral.entry.answer.trim() ||
@@ -839,19 +845,21 @@ export const ExamRunner = memo(function ExamRunner({
                 {t(lang, `考官追问: ${oral.entry.followup}`, `Follow-up: ${oral.entry.followup}`)}
               </Text>
               {editingField === 'oral-followup' ? (
-                <TextInput
-                  value={draftText}
-                  onChange={setDraftText}
-                  multiline
-                  height={3}
-                  width={innerW}
-                  isActive={isActive}
-                  onSubmit={(val) => {
-                    onSaveOralAnswer(oral.entry!.cardId, val, 'followup');
-                    setEditingField('none');
-                  }}
-                  onCancel={() => setEditingField('none')}
-                />
+                <KeyScope id="exam-runner:oral-followup-editor" opaque>
+                  <TextInput
+                    value={draftText}
+                    onChange={setDraftText}
+                    multiline
+                    height={3}
+                    width={innerW}
+                    isActive={isActive}
+                    onSubmit={(val) => {
+                      onSaveOralAnswer(oral.entry!.cardId, val, 'followup');
+                      setEditingField('none');
+                    }}
+                    onCancel={() => setEditingField('none')}
+                  />
+                </KeyScope>
               ) : (
                 <Text color={oral.entry.followupAnswer.trim() ? theme.text : theme.dim}>
                   {oral.entry.followupAnswer.trim() ||
@@ -880,31 +888,33 @@ export const ExamRunner = memo(function ExamRunner({
       )}
 
       {confirmSubmit ? (
-        <ConfirmDialog
-          title={t(lang, '确认交卷', 'Submit Exam')}
-          message={
-            kind === 'oral'
-              ? t(
-                  lang,
-                  `已回答 ${answeredCount}/${totalCount} 题。提交后将由 AI 考官统一评分并计入复习计划。`,
-                  `Answered ${answeredCount}/${totalCount}. Submit for AI assessment and scheduling?`,
-                )
-              : t(
-                  lang,
-                  `已作答 ${answeredCount}/${totalCount} 题。确认交卷并生成考试报告吗？`,
-                  `Answered ${answeredCount}/${totalCount}. Submit paper and grade now?`,
-                )
-          }
-          confirmLabel={t(lang, '确认交卷', 'Submit')}
-          cancelLabel={t(lang, '继续作答', 'Cancel')}
-          isActive={isActive}
-          onConfirm={() => {
-            setConfirmSubmit(false);
-            if (kind === 'oral') onSubmitOral();
-            else onSubmitWritten(kind === 'case' ? caseDrafts : undefined);
-          }}
-          onCancel={() => setConfirmSubmit(false)}
-        />
+        <KeyScope id="exam-runner:confirm-submit" opaque>
+          <ConfirmDialog
+            title={t(lang, '确认交卷', 'Submit Exam')}
+            message={
+              kind === 'oral'
+                ? t(
+                    lang,
+                    `已回答 ${answeredCount}/${totalCount} 题。提交后将由 AI 考官统一评分并计入复习计划。`,
+                    `Answered ${answeredCount}/${totalCount}. Submit for AI assessment and scheduling?`,
+                  )
+                : t(
+                    lang,
+                    `已作答 ${answeredCount}/${totalCount} 题。确认交卷并生成考试报告吗？`,
+                    `Answered ${answeredCount}/${totalCount}. Submit paper and grade now?`,
+                  )
+            }
+            confirmLabel={t(lang, '确认交卷', 'Submit')}
+            cancelLabel={t(lang, '继续作答', 'Cancel')}
+            isActive={isActive}
+            onConfirm={() => {
+              setConfirmSubmit(false);
+              if (kind === 'oral') onSubmitOral();
+              else onSubmitWritten(kind === 'case' ? caseDrafts : undefined);
+            }}
+            onCancel={() => setConfirmSubmit(false)}
+          />
+        </KeyScope>
       ) : null}
     </Box>
   );
