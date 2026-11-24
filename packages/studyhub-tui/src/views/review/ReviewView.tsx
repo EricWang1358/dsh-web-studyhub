@@ -1176,13 +1176,11 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
       ...(canAdjustGrade ? ['J'] : []),
       ...(canAckCorrection ? ['K'] : []),
     ];
-    // Claim option letters a-f for the entire lifecycle of choice cards (before AND after reveal/feedback)
-    // so pressing b/c while reviewing the explanation never unexpectedly jumps to Board or CoursePicker (#1350).
-    if (kind === 'single' || kind === 'multiple') {
+    if (!revealed && !feedback && (kind === 'single' || kind === 'multiple')) {
       return [...baseUtil, ...CHOICE_LETTER_KEYS];
     }
     return baseUtil;
-  }, [isActive, loading, run, isFinished, isRubricEligibleKind, canAdjustGrade, canAckCorrection, kind]);
+  }, [isActive, loading, run, isFinished, isRubricEligibleKind, canAdjustGrade, canAckCorrection, revealed, feedback, kind]);
   useClaimKeys(claimedKeys, mainActive);
 
   const hints: KeyHint[] = useMemo(() => {
