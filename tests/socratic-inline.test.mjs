@@ -14,6 +14,7 @@ import { extractLearnerPace } from '../lib/pace/forecast.js';
 import { recapGroups } from '../lib/daily-recap.js';
 import { wrongDetail } from '../lib/wrong-detail.js';
 import { assistantRefusal } from '../lib/assistant-boundary.js';
+import { questionSolidity } from '../lib/evidence/point-evidence.js';
 import { taskProgress } from '../lib/daily-plan/tasks.js';
 import { loadUi } from './helpers/ui-module.mjs';
 
@@ -450,6 +451,75 @@ test('7) #1323-12: 智能单问截断（忽略引号/代码/URL/三元）+ 参�
 const ref = { deckId: 'deck-os', cardId: 'card-deadlock' };
 const startRun = (service) => service.call('review.start', { mode: 'path', scope: [ref] });
 
+test('8) help taken in the drawer before answering marks the run answer as assisted, never a clean pass', async (t) => {
+  const service = await createSeededService(t);
+  const run = await startRun(service);
+  const step = (args) => service.call('socratic.step', { ...ref, runId: run.id, offline: true, ...args });
+
+  // Open the drawer on the unanswered question: L1, L2, then the reference answer; back to the question, answer correctly.
+  await step({ action: 'hint' });
+  await step({ action: 'hint' });
+  await step({ action: 'reveal' });
+  await service.call('review.answer', { runId: run.id, cardId: 'card-deadlock', selected: ['a'] });
+
+  const state = await service.store.read();
+  const answers = state.attempts.filter((a) => a.runId === run.id);
+  assert.equal(answers.length, 1, 'one answer in the log: the learner\'s');
+  const [answer] = answers;
+  assert.equal(answer.assistance.used, true);
+  assert.equal(answer.assistance.askedTutorBeforeAnswer, true);
+  assert.equal(answer.assistance.hintUsed, true);
+  assert.equal(answer.assistance.revealedBeforeAnswer, true);
+  assert.equal(answer.grade, 3, 'a right answer after the hint ladder is graded as hinted (3), not a clean 4');
+
+  const solidity = questionSolidity(state.attempts)({ ...ref, level: 'learning' });
+  assert.equal(solidity.exposedSolution, true, 'the exposure check sees the reference answer shown before answering');
+  assert.equal(solidity.right, 0, 'no independent pass');
+  assert.equal(solidity.assistedOnly, true);
+});
+
+test('9) the evidence follows what the drawer showed: asking only marks the tutor, a hint marks the hint', async (t) => {
+  const service = await createSeededService(t);
+  const run = await startRun(service);
+  const step = (args) => service.call('socratic.step', { ...ref, runId: run.id, offline: true, ...args });
+  const entryAssistance = async () => (await service.store.read()).runs.find((r) => r.id === run.id).entries[0].assistance;
+
+  // A right answer at L0 in the drawer: the tutor was asked, no hint and no answer was shown.
+  await step({ text: '按全局顺序编号并要求升序申请资源，破坏了循环等待条件，不会形成环路等待。' });
+  assert.deepEqual(
+    { used: true, askedTutorBeforeAnswer: true, hintUsed: false, revealedBeforeAnswer: false },
+    pick(await entryAssistance(), ['used', 'askedTutorBeforeAnswer', 'hintUsed', 'revealedBeforeAnswer']),
+  );
+
+  // Reset and take one hint: the hint is recorded too, and evidence only adds up.
+  await step({ action: 'reset' });
+  await step({ action: 'hint' });
+  const marked = await entryAssistance();
+  assert.equal(marked.hintUsed, true);
+  assert.equal(marked.revealedBeforeAnswer, false);
+
+  // Once answered, a later Socratic step changes nothing in the stored answer.
+  await service.call('review.answer', { runId: run.id, cardId: 'card-deadlock', selected: ['b'] });
+  const before = structuredClone((await service.store.read()).attempts);
+  await step({ action: 'reveal' });
+  assert.deepEqual((await service.store.read()).attempts, before);
+});
+
+test('10) no run: a step without runId writes the card only; an exam in progress refuses Socratic steps', async (t) => {
+  const service = await createSeededService(t);
+  const run = await startRun(service);
+  await service.call('socratic.step', { ...ref, action: 'reveal' });
+  const state = await service.store.read();
+  assert.equal(state.runs.find((r) => r.id === run.id).entries[0].assistance, undefined, 'a step outside a run marks no run');
+  assert.equal(state.decks[0].cards[0].socratic.stage, 'retell');
+
+  const exam = await service.call('review.start', { mode: 'exam', scope: [ref] });
+  await assert.rejects(
+    service.call('socratic.step', { ...ref, runId: exam.id, action: 'reveal' }),
+    /exam/i,
+  );
+});
+
 test('11) Socratic steps never enter the answer log: 错因 lands on the real answer and the daily plan does not count an unanswered question', async (t) => {
   const service = await createSeededService(t);
 
@@ -481,3 +551,7 @@ test('11) Socratic steps never enter the answer log: 错因 lands on the real an
   assert.equal(state.attempts.length, 1);
   assert.equal(taskProgress(state, task).done, 1);
 });
+
+function pick(object, keys) {
+  return Object.fromEntries(keys.map((key) => [key, object?.[key]]));
+}
