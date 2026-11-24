@@ -649,7 +649,6 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
   useEffect(() => {
     void loadInitialRun(false);
     // Re-run only when navigation context explicitly targets a new run/deck/course.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navContext.runId, navContext.deckId, navContext.course, navContext.mode]);
 
   const kind = normalizeCardKind(run);

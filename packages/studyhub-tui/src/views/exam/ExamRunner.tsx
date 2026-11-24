@@ -172,7 +172,6 @@ export const ExamRunner = memo(function ExamRunner({
     );
     return undefined;
     // Intentionally keyed on minute bucket + question index to keep terminal title writes low-frequency.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasActiveExam, isActive, kind, oscAt, oscTotal, oscMinuteBucket, lang, asciiMode]);
 
   useEffect(() => {

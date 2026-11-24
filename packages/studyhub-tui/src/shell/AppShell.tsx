@@ -2,7 +2,6 @@ import React, { Suspense, lazy, memo, useEffect, useMemo, useRef, useState, type
 import { Box, useApp } from 'ink';
 import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type PageId, type ViewProps } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
-import { useTheme } from '../theme/tokens.js';
 import { KeyHintBar, Spinner, ToastStack } from '../components/Badge.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import { RESERVED_GLOBAL_KEY_SET, isKeyClaimed, resolveShellFooterHints, useContextualFooterTip, useModalHints } from '../components/focus.js';
@@ -77,7 +76,6 @@ export const AppShell = memo(function AppShell({
   overlays,
   autoLaunchpad = true,
 }: AppShellProps) {
-  const theme = useTheme();
   const { exit } = useApp();
   const { columns, rows } = useStableWindowSize();
 
