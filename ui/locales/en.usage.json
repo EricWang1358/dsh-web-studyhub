@@ -41,6 +41,7 @@
   "写案例和评分标准": "Write the case and its marking criteria",
   "写讲解": "Write the lesson",
   "起标题": "Write the title",
+  "分批内容分类": "Batch content classification",
   "正在统计模型用量…": "Counting model usage…",
   "还没有模型用量记录。出题、陪学或生成讲解之后，这里会显示 token 用量。": "No model usage recorded yet. After you write questions, study with the coach or generate a lesson, token usage appears here.",
   "音频转写按分钟计，不在这里；见「音频转写」页的「用量与额度」。": "Audio transcription is counted in minutes, not here; see Usage and limits on the Audio transcription page.",

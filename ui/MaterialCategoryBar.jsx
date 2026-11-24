@@ -21,7 +21,13 @@ import {
   buildMaterialTypeOptions,
   resolveMaterialFolders,
 } from './material-facets.js';
-import { useMaterialClassify } from './use-material-classify.js';
+import {
+  AUTO_MAX_FOLDERS,
+  CLASSIFY_BATCH_SIZE,
+  LARGE_MAX_FOLDERS,
+  useMaterialClassify,
+} from './use-material-classify.js';
+import { TokenEstimate } from './TokenUsage.jsx';
 import css from './source-picker.css';
 
 /* Shared compact selector bar + batched AI topic classification panel for both
@@ -74,8 +80,24 @@ export default function MaterialCategoryBar({
       ? modelReadiness(appData).ready
       : true;
 
-  const classifyItems = Array.isArray(targetItems) && targetItems.length > 0 ? targetItems : items;
+  const classifyItems = useMemo(
+    () => (Array.isArray(targetItems) && targetItems.length > 0 ? targetItems : items),
+    [targetItems, items],
+  );
   const classify = useMaterialClassify({ items: classifyItems, course });
+
+  const classifyKeys = useMemo(
+    () => [...new Set(classifyItems.map(item => item?.key).filter(Boolean))],
+    [classifyItems],
+  );
+  const scopeCourse = typeof course === 'string' && course.trim() && course.trim() !== '*' ? course.trim() : '';
+  const estimateRequest = useMemo(() => ({
+    feature: 'classify',
+    keys: classifyKeys,
+    ...(scopeCourse ? { course: scopeCourse } : {}),
+    maxFolders: classifyKeys.length > CLASSIFY_BATCH_SIZE ? LARGE_MAX_FOLDERS : AUTO_MAX_FOLDERS,
+  }), [classifyKeys, scopeCourse]);
+  const showEstimate = open && modelReady && !disabled && classify.phase === 'idle' && classifyKeys.length > 0;
 
   const aiButton = (
     <Button
@@ -118,13 +140,20 @@ export default function MaterialCategoryBar({
             disabled={disabled}
           />
         </div>
-        {modelReady ? (
-          aiButton
-        ) : (
-          <Tooltip layer content={ui('AI 智能分类需要先配置模型；按类型和已有分类筛选不需要。')}>
-            <span className="material-category-bar__ai-gate" tabIndex={0}>{aiButton}</span>
-          </Tooltip>
-        )}
+        <div className="material-category-bar__ai">
+          {modelReady ? (
+            aiButton
+          ) : (
+            <Tooltip layer content={ui('AI 智能分类需要先配置模型；按类型和已有分类筛选不需要。')}>
+              <span className="material-category-bar__ai-gate" tabIndex={0}>{aiButton}</span>
+            </Tooltip>
+          )}
+          {showEstimate && (
+            <span className="material-category-bar__estimate" data-classify-estimate>
+              <TokenEstimate pieces enabled={showEstimate} request={estimateRequest} />
+            </span>
+          )}
+        </div>
       </div>
 
       {classify.phase === 'running' && (
