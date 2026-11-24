@@ -259,7 +259,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
 
   /* ── entering and leaving a question ── */
   // `moved`: the host restarted the question's timer (a move, or the way back to it), so the hidden time counted so far no longer belongs to it.
-  const enterRun = useCallback((next, input, moved = false) => {
+  const enterRun = useCallback((next, input, moved = false, { stayOnGuided = false } = {}) => {
     if (!next) return;
     const root = refs.dataRef.current?.root;
     // The same open question handed back (a reveal's answer, the conversation opening it again): what is on screen is newer than what the library had when it answered.
@@ -270,11 +270,11 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     if (moved && draftable(next)) awayClock.current = openClock(draftKey(root, next), Date.now(), document.hidden === true);
     setRun(next);
     if (!same) setShowBack(!!next.revealed);
-    if (!embeddedIn && nav.page !== 'guided') setPage('review');
+    if (!embeddedIn && !(stayOnGuided && nav.page === 'guided')) setPage('review');
     const opened = entryForRun(next, input, { draft: (teaching) => readTeachingDraft(refs.dataRef.current?.root, teaching) });
     setEntry(same ? keepTyped(opened, entryRef.current) : opened);
   }, [nav.show, setPage, refs, embeddedIn, nav.page, syncDraft, setEntry]);
-  const enterMovedRun = useCallback((next, input) => enterRun(next, input, true), [enterRun]);
+  const enterMovedRun = useCallback((next, input, options) => enterRun(next, input, true, options), [enterRun]);
   const revealFlights = useRef(new Map());
   const revealKeyOf = (r) => (r?.card?.id ? `${r.id}:${r.index}:${r.card.id}:${r.queueVersion || 0}` : '');
   const toggleMarkTerms = useCallback(() => {
@@ -411,7 +411,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
           playSound('flip');
         }
         clearPending();
-        enterRun(result, undefined, action === 'review.move' || !!result?.selfGradeAdvanced || action === 'review.undo');
+        enterRun(result, undefined, action === 'review.move' || !!result?.selfGradeAdvanced || action === 'review.undo', { stayOnGuided: pageRef.current === 'guided' });
         if (action === 'review.answer' && result?.selfGradeAdvanced && result?.gradedFeedback && latest?.mode !== 'exam') {
           const gap = nextDueGap(result.gradedFeedback);
           const scope = reviewNoticeScope(refs.bindingRoot.current, 'review', result);

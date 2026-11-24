@@ -4,7 +4,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
 import { Button, Checkbox, Dialog, FileDrop, Hint, Icon, InlineMessage, LoadingState, RadioCard, RadioCardGroup, Tooltip } from '../components/index.js';
 import css from './original-file.css';
-import { ORIGINAL_MAX_BYTES, bigFileLine, bigFileWhy, canAttach, collapseNotice, defaultMode, explainFailure, issueOf, modeOptions, noticeCollapsed, originalLine, reportHeadline, reportLines, tooBigForBrowser } from './original-file.js';
+import { ORIGINAL_MAX_BYTES, bigFileLine, bigFileWhy, canAttach, canSyncReferencedText, collapseNotice, defaultMode, explainFailure, issueOf, modeOptions, noticeCollapsed, originalLine, reportHeadline, reportLines, tooBigForBrowser } from './original-file.js';
 import { formatBytes } from '../format.js';
 import { guidanceAllows } from '../guidance/budget.js';
 import { toBase64 } from '../upload.js';
@@ -28,7 +28,7 @@ export function OriginalNotice({ document, onAction, onSync, syncing = false, co
   useInjectCss(css, 'study-original-file');
   const [closedHere, setClosedHere] = useState(() => new Set());
   if (!document || document.originalAvailable) return null;
-  const issue = issueOf(document.original);
+  const issue = issueOf(document.original, { canSyncText: canSyncReferencedText(document) });
   if (!issue) return null;
   const id = String(document.documentId || document.id || '');
   // 设置 › 引导 can switch the full notice off (master switch or its own): it is then the quiet line, which keeps 补全原文件….
@@ -86,7 +86,8 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
   }, []);
   useEffect(() => { if (intent === 'copy' && info?.path && !picked) void checkPath(info.path, 'copy'); }, [info?.path]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const issue = info ? issueOf(info) : null;
+  const canSyncText = canSyncReferencedText({ revision: target.revision, original: info });
+  const issue = info ? issueOf(info, { canSyncText }) : null;
   const pickerOn = !!info && !done && (issue !== null || choosing);
   const busy = phase === 'verifying' || phase === 'attaching';
   const format = target.format || info?.format || 'pdf';
@@ -178,7 +179,7 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
       setPhase('done');
       setChoosing(false);
       onChanged?.(result);
-    } catch (failure) { settle(setSyncing, false); settle(setError, failure?.message || ''); settle(setPhase, 'idle'); }
+    } catch (failure) { settle(setSyncing, false); settle(setError, explainFailure(failure?.message || '', { context: 'sync' })); settle(setPhase, 'idle'); }
   }
 
   const title = info && info.status !== 'none' ? uiFormat('原文件：{0}', [target.title]) : uiFormat('补全原文件：{0}', [target.title]);
@@ -197,7 +198,7 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
     {!done && info && !issue && !choosing && <>
       <Status tone="success"><Tooltip layer content={info.path || ''}><span tabIndex={info.path ? 0 : undefined}>{info.mode === 'copy' ? uiFormat('原文件已经复制在资料库里（{0}），不受原文件移动影响。', [formatBytes(info.bytes)]) : uiFormat('原文件：引用 {0}', [info.path])}</span></Tooltip></Status>
       {info.mode === 'reference' && <div className="original-actions">
-        <Button size="sm" variant="secondary" busy={syncing} lock={busy} onClick={syncLatest}>{ui('同步最新文件内容')}</Button>
+        {canSyncText && <Button size="sm" variant="secondary" busy={syncing} lock={busy} onClick={syncLatest}>{ui('同步最新文件内容')}</Button>}
         <Button size="sm" variant="secondary" lock={busy} onClick={() => setChoosing(true)}>{ui('重新指定…')}</Button>
         <Button size="sm" variant="secondary" lock={busy} onClick={() => { setChoosing(true); void checkPath(info.path, 'copy'); }}>{ui('改为复制到资料库')}</Button>
         <Button size="sm" variant="quiet" lock={busy} onClick={detach}>{ui('不再引用')}</Button>

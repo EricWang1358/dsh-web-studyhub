@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { browserStorage } from '../storage.js';
 import { backLabelOf, navLabelOf } from '../pages.js';
@@ -104,6 +104,9 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
     showWorkflow: nav.show.workflow, showExam: nav.show.exam, showLibrary: nav.show.library, showPage: nav.show.page,
   }), [session.enterRun, session.enterMovedRun, nav.show, setModal]);
 
+  const [lastPracticeVersion, setLastPracticeVersion] = useState(0);
+  const bumpLastPractice = useCallback(() => setLastPracticeVersion((v) => v + 1), []);
+
   const pushPracticeContext = useCallback((overrides = {}) => {
     const { run, state, getLive } = latest.current;
     const entry = getLive?.()?.entry ?? latest.current.entry;
@@ -120,8 +123,9 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
     setPracticeStack((previous) => pushPracticeFrame(previous, frame));
     setPracticeEnded(null);
     saveLastPracticePosition(safeStorage(), root, frame);
+    bumpLastPractice();
     return frame;
-  }, [refs, setPracticeEnded, setPracticeStack]);
+  }, [bumpLastPractice, refs, setPracticeEnded, setPracticeStack]);
 
   if (nav.leaveReviewRef) {
     nav.leaveReviewRef.current = (nextPage) => {
@@ -142,6 +146,7 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
     if (!currentRoot || !activeRunId || !activeCardId) return;
     if (activeRunComplete) {
       clearLastPracticePosition(safeStorage(), currentRoot);
+      bumpLastPractice();
       return;
     }
     const { run: currentRun, getLive, entry: fallbackEntry } = latest.current;
@@ -152,8 +157,11 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
       originKind: 'other',
       course: refs.dataRef.current?.focus?.course ?? null,
     });
-    if (frame) saveLastPracticePosition(safeStorage(), currentRoot, frame);
-  }, [currentRoot, activeRunId, activeRunIndex, activeCardId, activeRunComplete, refs]);
+    if (frame) {
+      saveLastPracticePosition(safeStorage(), currentRoot, frame);
+      bumpLastPractice();
+    }
+  }, [currentRoot, activeRunId, activeRunIndex, activeCardId, activeRunComplete, bumpLastPractice, refs]);
 
   const captureContext = useCallback((overrides = {}) => {
     const { page, run, state, getLive } = latest.current;
@@ -353,48 +361,63 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
     if (result.status === 'ended') {
       setPracticeStack(nextStack);
       clearLastPracticePosition(safeStorage(), refs.dataRef.current?.root || '');
+      bumpLastPractice();
       return false;
     }
     return false;
-  }, [call, guard, refresh, refs, session, setContextTrail, setError, setFocusRequest, setModal, setPracticeEnded, setPracticeStack]);
+  }, [bumpLastPractice, call, guard, refresh, refs, session, setContextTrail, setError, setFocusRequest, setModal, setPracticeEnded, setPracticeStack]);
 
   const returnFromPracticeStack = useCallback(async () => {
     if (!(await draftSaved())) return false;
-    const { frame, stack: nextStack } = popPracticeFrame(latest.current.state.practiceStack);
-    if (!frame) return false;
-    return restoreFromFrame(frame, nextStack);
-  }, [draftSaved, restoreFromFrame]);
+    let outcome = false;
+    nav.leaving(() => {
+      const { frame, stack: nextStack } = popPracticeFrame(latest.current.state.practiceStack);
+      if (!frame) return;
+      outcome = restoreFromFrame(frame, nextStack);
+    });
+    return outcome;
+  }, [draftSaved, nav, restoreFromFrame]);
 
   const returnToOriginalPractice = useCallback(async () => {
     if (!(await draftSaved())) return false;
-    const { frame, stack: nextStack } = popToOriginalFrame(latest.current.state.practiceStack);
-    if (!frame) return false;
-    return restoreFromFrame(frame, nextStack);
-  }, [draftSaved, restoreFromFrame]);
+    let outcome = false;
+    nav.leaving(() => {
+      const { frame, stack: nextStack } = popToOriginalFrame(latest.current.state.practiceStack);
+      if (!frame) return;
+      outcome = restoreFromFrame(frame, nextStack);
+    });
+    return outcome;
+  }, [draftSaved, nav, restoreFromFrame]);
 
   const resumeLastPractice = useCallback(async () => {
-    const root = refs.dataRef.current?.root || '';
-    const saved = readLastPracticePosition(safeStorage(), root);
-    if (!saved) return false;
-    return restoreFromFrame(saved, []);
-  }, [refs, restoreFromFrame]);
+    let outcome = false;
+    nav.leaving(() => {
+      const root = refs.dataRef.current?.root || '';
+      const saved = readLastPracticePosition(safeStorage(), root);
+      if (!saved) return;
+      outcome = restoreFromFrame(saved, []);
+    });
+    return outcome;
+  }, [nav, refs, restoreFromFrame]);
 
   const dismissPracticeEnded = useCallback(() => setPracticeEnded(null), [setPracticeEnded]);
 
   const practiceEndedAgain = useCallback(async (scope) => {
     if (!Array.isArray(scope) || !scope.length) return;
-    setPracticeEnded(null);
-    const live = guard();
-    setError('');
-    try {
-      const next = await call('review.start', practiceArgs(scope, { fresh: true }));
-      if (!live()) return;
-      setModal(null);
-      session.enterRun(next);
-    } catch (error) {
-      if (live()) setError(errorMessage(error));
-    }
-  }, [call, guard, session, setError, setModal, setPracticeEnded]);
+    nav.leaving(async () => {
+      setPracticeEnded(null);
+      const live = guard();
+      setError('');
+      try {
+        const next = await call('review.start', practiceArgs(scope, { fresh: true }));
+        if (!live()) return;
+        setModal(null);
+        session.enterRun(next);
+      } catch (error) {
+        if (live()) setError(errorMessage(error));
+      }
+    });
+  }, [call, guard, nav, session, setError, setModal, setPracticeEnded]);
 
   // A source opened where a place of its text is (a part of a question run, 在资料中查看): the reader is told the offset and finds the section it is in (the library's snapshot has no text to
   // do it here), the way the way back to a stored reading position hands it a section.
@@ -427,7 +450,7 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
   const practiceStack = lib.state.practiceStack || [];
   const lastPractice = useMemo(
     () => (practiceStack.length === 0 && currentRoot ? readLastPracticePosition(safeStorage(), currentRoot) : null),
-    [currentRoot, practiceStack.length, activeRunId, activeRunComplete],
+    [currentRoot, practiceStack.length, lastPracticeVersion],
   );
   return { captureContext, rememberContext, contextLabel, openLearningTarget, currentStudyReference, openBoardReference, openBoardWithContext,
     returnFromContext, returnFromDetour, returnToReading, openAudioSources, openSourceAt, verbs,
