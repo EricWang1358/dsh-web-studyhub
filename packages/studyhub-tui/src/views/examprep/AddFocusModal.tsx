@@ -452,7 +452,7 @@ export const AddFocusModal: React.FC<AddFocusModalProps> = ({
       >
         <Box flexDirection="column" gap={1}>
           {/* Mode Switcher */}
-          <Box gap={1} flexWrap="wrap">
+          <Box columnGap={1} flexWrap="wrap">
             <Badge
               label={`1: ${t(lang, '粘贴考纲', 'Paste Text')}`}
               tone={mode === 'text' ? 'primary' : 'muted'}

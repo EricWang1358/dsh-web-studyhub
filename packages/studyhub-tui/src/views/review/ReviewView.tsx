@@ -2302,7 +2302,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                   const fitsInline = Boolean(yoursFull) && usedW + 1 + displayWidth(yoursFull) <= innerW;
                   return (
                     <Box flexDirection="column" flexShrink={0} marginBottom={0} width={innerW}>
-                      <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} width={innerW}>
+                      <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} columnGap={1} width={innerW}>
                         <Badge
                           label={statusLabel}
                           tone={feedback.correct ? 'success' : feedback.selfReported ? 'neutral' : 'error'}
@@ -2329,7 +2329,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                   return (
                     <Box flexDirection="column" flexShrink={0} marginBottom={0} width={innerW}>
                       {canUndo || fitsInline ? (
-                        <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} width={innerW}>
+                        <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} columnGap={1} width={innerW}>
                           {canUndo ? <Badge label={undoLabel} tone="info" variant="soft" /> : null}
                           {fitsInline ? <Text color={theme.muted}>{yoursFull}</Text> : null}
                         </Box>
@@ -2414,7 +2414,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
               ) : null}
 
               {activeRubric ? (
-                <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} marginY={0} width={innerW}>
+                <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} columnGap={1} marginY={0} width={innerW}>
                   <Badge
                     label={`${t(lang, 'Rubric 得分', 'Rubric')} ${activeRubric.total}/${activeRubric.max}`}
                     tone={
@@ -2462,7 +2462,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
               ) : null}
 
               {canAckCorrection ? (
-                <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} marginY={0} width={innerW}>
+                <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} columnGap={1} marginY={0} width={innerW}>
                   <Badge
                     label={truncateDisplay(
                       asciiMode
