@@ -2,7 +2,7 @@ import React, { memo, useEffect, useState } from 'react';
 import { Box, Text } from 'ink';
 import type { KeyHint, ToastItem } from '../types/contracts.js';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
-import { displayWidth, truncateDisplay } from '../render/cjk.js';
+import { displayWidth, truncateDisplay, wrapDisplay } from '../render/cjk.js';
 import { renderProgressBar } from '../render/charts.js';
 import { useTuiStore } from '../state/store.js';
 
@@ -293,6 +293,38 @@ export interface ToastStackProps {
 
 const TOAST_ICON: Record<ToastItem['tone'], string> = { info: 'ℹ', success: '✔', warning: '▲', error: '✖' };
 const ASCII_TOAST_ICON: Record<ToastItem['tone'], string> = { info: 'i', success: '+', warning: '!', error: 'x' };
+const MAX_TOAST_LINES = 4;
+
+/** Wrap toast message across up to `maxLines` lines without single-line clipping (#1354 P2-b). */
+export function wrapToastLines(text: string, maxWidth: number, asciiMode: boolean, maxLines = MAX_TOAST_LINES): string[] {
+  const safeW = Math.max(8, Math.floor(maxWidth));
+  const ell = asciiMode ? '...' : '…';
+  const normalized = normalizeAsciiChrome(text, asciiMode).replace(/\r\n?/g, '\n').trim();
+  if (!normalized) return [''];
+  const rawLines = wrapDisplay(normalized, safeW);
+  if (rawLines.length <= maxLines) return rawLines;
+  const kept = rawLines.slice(0, maxLines);
+  kept[maxLines - 1] = truncateDisplay(`${kept[maxLines - 1]} ${rawLines.slice(maxLines).join(' ')}`, safeW, ell);
+  return kept;
+}
+
+/** Scale auto-dismiss TTL by severity and wrapped line count so multi-line warnings/errors stay readable. */
+export function toastAutoDismissMs(toast: Pick<ToastItem, 'tone'>, baseMs: number, lineCount = 1): number {
+  if (baseMs <= 0) return 0;
+  const severityMul = toast.tone === 'error' ? 2.5 : toast.tone === 'warning' ? 1.5 : 1;
+  const extraLineMs = Math.max(0, lineCount - 1) * 800;
+  return Math.round(baseMs * severityMul + extraLineMs);
+}
+
+/** Estimate total terminal rows needed for the visible ToastStack slice so AppShell positions it cleanly. */
+export function estimateToastStackHeight(toasts: readonly ToastItem[], width: number, asciiMode: boolean): number {
+  const visible = toasts.slice(-2);
+  let total = 0;
+  for (const t of visible) {
+    total += wrapToastLines(t.text, Math.max(8, width - 6), asciiMode).length;
+  }
+  return total;
+}
 
 const ToastRow = memo(function ToastRow({
   toast,
@@ -307,29 +339,33 @@ const ToastRow = memo(function ToastRow({
 }) {
   const theme = useTheme();
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const lines = wrapToastLines(toast.text, Math.max(8, width - 6), asciiMode);
+  const lineCount = lines.length;
   useEffect(() => {
-    if (autoDismissMs <= 0) return undefined;
-    const ttl = toast.tone === 'error' ? autoDismissMs * 2 : autoDismissMs;
+    const ttl = toastAutoDismissMs(toast, autoDismissMs, lineCount);
+    if (ttl <= 0) return undefined;
     const remaining = Math.max(250, ttl - (Date.now() - toast.createdAt));
     const timer = setTimeout(() => onDismiss(toast.id), remaining);
     return () => clearTimeout(timer);
-  }, [toast.id, toast.tone, toast.createdAt, autoDismissMs, onDismiss]);
+  }, [toast, lineCount, autoDismissMs, onDismiss]);
   const color = toneColor(theme, toast.tone);
-  const normalizedText = normalizeAsciiChrome(toast.text, asciiMode).replace(/\s+/g, ' ');
-  const text = truncateDisplay(normalizedText, Math.max(4, width - 6), asciiMode ? '...' : '…');
   const bar = asciiMode ? '|' : '▎';
   const icon = (asciiMode ? ASCII_TOAST_ICON : TOAST_ICON)[toast.tone];
   return (
-    <Box height={1} overflow="hidden">
-      <Text backgroundColor={theme.surface} wrap={asciiMode ? undefined : 'truncate-end'}>
-        <Text color={color} bold>{`${bar} ${icon} `}</Text>
-        <Text color={theme.text}>{`${text} `}</Text>
-      </Text>
+    <Box flexDirection="column" alignItems="flex-end">
+      {lines.map((line, idx) => (
+        <Box key={idx} height={1} overflow="hidden">
+          <Text backgroundColor={theme.surface}>
+            <Text color={color} bold>{idx === 0 ? `${bar} ${icon} ` : `${bar}   `}</Text>
+            <Text color={theme.text}>{`${line} `}</Text>
+          </Text>
+        </Box>
+      ))}
     </Box>
   );
 });
 
-export const ToastStack = memo(function ToastStack({ toasts, onDismiss, width = 44, autoDismissMs = 4000 }: ToastStackProps) {
+export const ToastStack = memo(function ToastStack({ toasts, onDismiss, width = 44, autoDismissMs = 5000 }: ToastStackProps) {
   if (toasts.length === 0) return null;
   const visible = toasts.slice(-2);
   return (

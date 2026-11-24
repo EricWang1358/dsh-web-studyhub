@@ -2,7 +2,7 @@ import React, { Suspense, lazy, memo, useEffect, useMemo, useRef, useState, type
 import { Box, useApp } from 'ink';
 import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type PageId, type ViewProps } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
-import { KeyHintBar, Spinner, ToastStack } from '../components/Badge.js';
+import { KeyHintBar, Spinner, ToastStack, estimateToastStackHeight } from '../components/Badge.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import { RESERVED_GLOBAL_KEY_SET, isKeyClaimed, resolveShellFooterHints, useContextualFooterTip, useModalHints } from '../components/focus.js';
 import { KEY_LAYER_GLOBAL, KEY_LAYER_SYSTEM, KeyScopeProvider, useKeyDispatcherBridge, useScopedInput } from '../components/key-dispatcher.js';
@@ -325,8 +325,8 @@ export const AppShell = memo(function AppShell({
     tipRotation,
   );
 
-  const toastW = Math.min(48, Math.max(28, Math.floor(columns * 0.4)));
-  const toastRows = Math.min(2, toasts.length);
+  const toastW = Math.min(52, Math.max(28, Math.floor(columns * 0.45)));
+  const toastRows = Math.min(Math.max(1, rows - 3), estimateToastStackHeight(toasts, toastW, asciiMode));
   const toastTop = Math.max(1, rows - (showKeyHints ? 1 : 0) - toastRows);
 
   let main: ReactNode;

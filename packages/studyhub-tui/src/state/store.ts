@@ -51,6 +51,7 @@ export const DEFAULT_PREFERENCES: TuiPreferences = {
 
 const MAX_HISTORY = 24;
 const MAX_TOASTS = 4;
+export const MAX_TOAST_HISTORY = 50;
 
 export interface PomodoroState {
   phase: 'work' | 'break';
@@ -111,6 +112,8 @@ export interface TuiStoreState {
 
   /** UI feedback */
   toasts: ToastItem[];
+  /** Persistent recent notifications ring buffer (up to MAX_TOAST_HISTORY) for recall after auto-dismiss (#1354 P2-b). */
+  toastHistory: ToastItem[];
   footerHints: KeyHint[];
   preferences: TuiPreferences;
   pomodoro: PomodoroState;
@@ -159,6 +162,7 @@ export interface TuiStoreState {
 
   notify: (text: string, tone?: ToastItem['tone']) => void;
   dismissToast: (id: string) => void;
+  clearToastHistory: () => void;
   setFooterHints: (hints: KeyHint[]) => void;
 
   setPreferences: (patch: Partial<TuiPreferences>) => void;
@@ -206,6 +210,7 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
   quitGuard: null,
 
   toasts: [],
+  toastHistory: [],
   footerHints: [],
   preferences: { ...DEFAULT_PREFERENCES },
   pomodoro: { ...DEFAULT_POMODORO },
@@ -372,6 +377,7 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
     const item: ToastItem = { id, text, tone, createdAt: Date.now() };
     set((state) => ({
       toasts: [...state.toasts.slice(-(MAX_TOASTS - 1)), item],
+      toastHistory: [...state.toastHistory.slice(-(MAX_TOAST_HISTORY - 1)), item],
     }));
   },
 
@@ -379,6 +385,8 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
     set((state) => ({
       toasts: state.toasts.filter((t) => t.id !== id),
     })),
+
+  clearToastHistory: () => set({ toastHistory: [] }),
 
   setFooterHints: (footerHints) => set({ footerHints }),
 
