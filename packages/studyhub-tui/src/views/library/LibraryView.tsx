@@ -14,7 +14,7 @@ import { ClickableBox } from '../../components/mouse.js';
 import { saveTuiPreferences } from '../../host/tui-prefs.js';
 import { useTheme } from '../../theme/tokens.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
-import { currentCourse, dueToday } from '../../shell/data.js';
+import { currentCourse, deckDueCount, dueToday, isActiveStudyDeck } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
 import { getSampleStatus, removeSampleCourse, tryAction } from '../../host/sample-actions.js';
 import type { DeckExportInput } from './deck-export.js';
@@ -82,7 +82,7 @@ function formatDateShort(raw: string | number | undefined | null, lang: 'zh' | '
 function deckStats(deck: DeckItem, progressMap: Record<string, DeckProgressEntry> | undefined) {
   const p = progressMap?.[deck.id];
   const total = Number(deck.count ?? p?.total ?? deck.cardCount ?? 0) || 0;
-  const due = Number(deck.due ?? p?.due ?? deck.dueCount ?? 0) || 0;
+  const due = deckDueCount(deck, progressMap);
   const newCount = Number(p?.counts?.new ?? deck.newCount ?? 0) || 0;
   const wrong = Number(deck.wrong ?? p?.counts?.weak ?? deck.wrongCount ?? 0) || 0;
   const mastered = Number(p?.counts?.mastered ?? deck.masteredCount ?? 0) || 0;
@@ -280,7 +280,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
 
   // KPI metrics
   const kpi = useMemo(() => {
-    const due = dueToday(snapshot);
+    const due = dueToday(snapshot, course);
     const todayKey = localDayKey(new Date());
     const reviewedDirect = Number(snapshot?.today?.reviewed);
     const reviewed = Number.isFinite(reviewedDirect)
@@ -305,7 +305,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
     const focusProgress = fpRaw && fpRaw.total > 0 ? fpRaw : null;
 
     return { due, reviewed, streak, masteryPct, focusProgress };
-  }, [snapshot, scopedDecks, progressMap, streak]);
+  }, [snapshot, course, scopedDecks, progressMap, streak]);
 
   const resumeRunForDeck = useMemo(() => {
     const runs = snapshot?.runs ?? [];
@@ -577,8 +577,8 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       if (id === 'due') {
         const dueDeck =
           (snapshot?.decks ?? [])
-            .filter((d) => !d.archived && (!course || d.course === course))
-            .sort((a, b) => (Number(b.due ?? b.dueCount ?? 0) || 0) - (Number(a.due ?? a.dueCount ?? 0) || 0))[0] ??
+            .filter((d) => isActiveStudyDeck(d, course))
+            .sort((a, b) => deckDueCount(b, progressMap) - deckDueCount(a, progressMap))[0] ??
           selectedDeck;
         if (dueDeck) handleStartReview(dueDeck);
         else navigate('review');
@@ -590,7 +590,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       }
       navigate('board');
     },
-    [activeRunId, lastPracticeContext, selectedDeck, snapshot?.decks, course, handleStartReview, navigate],
+    [activeRunId, lastPracticeContext, selectedDeck, snapshot?.decks, progressMap, course, handleStartReview, navigate],
   );
 
   const dailyBriefing = useMemo(
