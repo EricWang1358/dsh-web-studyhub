@@ -7,6 +7,7 @@
 // Run: node --test tests/input-scope-stack.test.mjs
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { after, describe, test } from 'node:test';
@@ -62,6 +63,11 @@ const MIGRATED_VIEWS = [
   'views/review/ReviewView.tsx',
   'views/library/LibraryView.tsx',
   'views/sources/SourcesView.tsx',
+  'views/wrongbook/WrongBookView.tsx',
+  'views/notes/NotesView.tsx',
+  'views/board/BoardView.tsx',
+  'views/tasks/TasksView.tsx',
+  'views/audio/AudioView.tsx',
 ];
 
 function collectIdentifiersAndCalls(filePath) {
@@ -105,10 +111,21 @@ describe('P1 Unified Input Dispatcher & Scope Stack (#1354 D1)', () => {
     assert.ok(!shimSrc.includes("from 'ink'"), 'components/key-dispatcher.ts must NOT hold a second Ink useInput listener');
   });
 
-  test('2. Static migration guardrail: ReviewView, LibraryView, and SourcesView have ZERO useInput/useClaimKeys/mainActive', () => {
+  test('2. Static migration guardrail: migrated views (Batch 1 + Batch 2) have ZERO useInput/useClaimKeys/manual modal-gate booleans', () => {
     const FORBIDDEN_IMPORTS = ['useInput', 'useScopedInput', 'useClaimKeys'];
     const FORBIDDEN_CALLS = ['useInput', 'useScopedInput', 'useClaimKeys'];
-    const FORBIDDEN_VARS = ['mainActive', 'anyModalOpen', 'viewActive', 'listActive'];
+    const FORBIDDEN_VARS = [
+      'mainActive',
+      'anyModalOpen',
+      'viewActive',
+      'listActive',
+      'modalOpen',
+      'noModalActive',
+      'boardNavActive',
+      'listNavActive',
+      'viewInputActive',
+      'hasOverlay',
+    ];
 
     for (const rel of MIGRATED_VIEWS) {
       const full = path.join(SRC_ROOT, rel);
@@ -497,6 +514,158 @@ describe('P1 Unified Input Dispatcher & Scope Stack (#1354 D1)', () => {
       assert.equal(useTuiStore.getState().page, 'review', 'post-feedback b on choice card must not jump to board');
     } finally {
       inst.unmount();
+    }
+  });
+
+  test('7. Batch 2 views live scope isolation: BoardView, NotesView, WrongBookView, TasksView & AudioView filter opaque scopes isolate typing and restore global nav', async () => {
+    const { AppShell } = await import('../src/shell/AppShell.tsx');
+    const { BoardView } = await import('../src/views/board/BoardView.tsx');
+    const { NotesView } = await import('../src/views/notes/NotesView.tsx');
+    const { WrongBookView } = await import('../src/views/wrongbook/WrongBookView.tsx');
+    const { TasksView } = await import('../src/views/tasks/TasksView.tsx');
+    const { AudioView } = await import('../src/views/audio/AudioView.tsx');
+    const { useTuiStore } = await import('../src/state/store.ts');
+
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'studyhub-p1-batch2-'));
+    const snapshot = {
+      revision: 1,
+      courses: [{ id: 'c1', name: 'OS' }],
+      decks: [{ id: 'd1', title: 'Virtual Memory', course: 'OS', cardCount: 2, dueCount: 1 }],
+      focus: { course: 'OS' },
+      stats: { totalCards: 2, dueToday: 1, reviewedToday: 0 },
+      sources: [],
+      tasks: [],
+      wrongBook: [],
+      notes: [],
+      modelReady: false,
+    };
+    const host = {
+      call: async (action) => {
+        if (action === 'snapshot') return { ok: true, value: snapshot };
+        if (action === 'wrongbook.list') return { ok: true, value: { items: [], counts: { active: 0, leech: 0, history: 0, total: 0 } } };
+        if (action === 'wrongbook.recommend') return { ok: true, value: { items: [] } };
+        if (action === 'notes.list') return { ok: true, value: { notes: [] } };
+        if (action === 'notes.daily.status') return { ok: true, value: { groups: [] } };
+        if (action === 'board.load') return { ok: true, value: { columns: { todo: [], doing: [], done: [] }, cards: [] } };
+        if (action === 'audio.results' || action === 'audio.preflight' || action === 'audio.settings' || action === 'audio.usage') {
+          return { ok: true, value: { items: [], results: [] } };
+        }
+        return { ok: true, value: {} };
+      },
+      subscribeEvents: () => () => {},
+      getLibraryRoot: () => tmpRoot,
+      getConfig: () => null,
+      dispose: async () => {},
+    };
+
+    useTuiStore.setState({
+      page: 'board',
+      navContext: {},
+      history: [],
+      loading: false,
+      refreshing: false,
+      showLaunchpad: false,
+      inputCaptured: false,
+      commandPaletteOpen: false,
+      helpOpen: false,
+      coursePickerOpen: false,
+      inboxOpen: false,
+      voicePackOpen: false,
+      quitConfirmOpen: false,
+      assistantOpen: false,
+      assistantFocused: false,
+      assistantFullscreen: false,
+      practiceStack: [],
+      toasts: [],
+      snapshot,
+    });
+
+    const { stdin, stdout } = createMockStreams(120, 36);
+    const inst = render(
+      React.createElement(AppShell, {
+        host,
+        autoLaunchpad: false,
+        renderPage: (p, view) => {
+          if (p === 'board') return React.createElement(BoardView, view);
+          if (p === 'notes') return React.createElement(NotesView, view);
+          if (p === 'wrongbook') return React.createElement(WrongBookView, view);
+          if (p === 'tasks') return React.createElement(TasksView, view);
+          return React.createElement(AudioView, view);
+        },
+      }),
+      { stdin, stdout, interactive: true, exitOnCtrlC: false },
+    );
+
+    try {
+      await wait(100);
+      // --- BoardView filter isolation ---
+      stdin.write('/');
+      await wait(60);
+      stdin.write('adn');
+      await wait(60);
+      assert.equal(useTuiStore.getState().page, 'board', 'typing a/d/n in BoardView filter must not navigate away or open add modal');
+      stdin.write('\u001b');
+      await wait(60);
+      stdin.write('n');
+      await wait(80);
+      assert.equal(useTuiStore.getState().page, 'notes', 'after closing BoardView filter, global n navigates to notes');
+
+      // --- NotesView filter isolation ---
+      stdin.write('/');
+      await wait(60);
+      stdin.write('ba4t');
+      await wait(60);
+      assert.equal(useTuiStore.getState().page, 'notes', 'typing b/a/4/t in NotesView filter must not navigate away or open modal');
+      stdin.write('\u001b');
+      await wait(60);
+      stdin.write('4');
+      await wait(80);
+      assert.equal(useTuiStore.getState().page, 'wrongbook', 'after closing NotesView filter, global 4 navigates to wrongbook');
+
+      // --- WrongBookView filter isolation ---
+      stdin.write('/');
+      await wait(60);
+      stdin.write('bea');
+      await wait(60);
+      assert.equal(useTuiStore.getState().page, 'wrongbook', 'typing b/e/a in WrongBookView filter must not navigate away');
+      stdin.write('\u001b');
+      await wait(60);
+      // 't' is claimed by WrongBookView (triage), so after closing filter 't' stays on wrongbook, while unclaimed 'a' navigates to audio
+      stdin.write('t');
+      await wait(60);
+      assert.equal(useTuiStore.getState().page, 'wrongbook', 'WrongBookView claimed key t must stay on wrongbook after filter closes');
+      stdin.write('a');
+      await wait(80);
+      assert.equal(useTuiStore.getState().page, 'audio', 'after closing WrongBookView filter, unclaimed global a navigates to audio');
+
+      // --- AudioView filter isolation ---
+      stdin.write('/');
+      await wait(60);
+      stdin.write('bis');
+      await wait(60);
+      assert.equal(useTuiStore.getState().page, 'audio', 'typing b/i/s in AudioView filter must not navigate away or open import/settings modal');
+      stdin.write('\u001b');
+      await wait(60);
+      stdin.write('b');
+      await wait(80);
+      assert.equal(useTuiStore.getState().page, 'board', 'after closing AudioView filter, unclaimed global b navigates to board');
+
+      // --- TasksView filter isolation ---
+      useTuiStore.getState().navigate('tasks');
+      await wait(80);
+      stdin.write('/');
+      await wait(60);
+      stdin.write('abw');
+      await wait(60);
+      assert.equal(useTuiStore.getState().page, 'tasks', 'typing a/b/w in TasksView filter must not navigate away or open workflow modal');
+      stdin.write('\u001b');
+      await wait(60);
+      stdin.write('b');
+      await wait(80);
+      assert.equal(useTuiStore.getState().page, 'board', 'after closing TasksView filter, unclaimed global b navigates to board');
+    } finally {
+      inst.unmount();
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
   });
 });
