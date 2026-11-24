@@ -219,4 +219,103 @@ describe('Round 87 Track B5 — Home Today Quick-Launch Hub', () => {
     assert.ok(narrowOut.length > 0);
     narrow.unmount();
   });
+
+  test('#1353: LibraryView deck detail shows Mastery bar & Breakdown counts at 80x24 (no blank Breakdown section) and no 2-line wrap gap at 120x36', async () => {
+    const snapshot = {
+      focus: { course: '设计模式' },
+      courses: [{ id: 'c1', name: '设计模式' }],
+      decks: [
+        {
+          id: 'd1',
+          title: '示例 · Memento 与 Bridge',
+          course: '设计模式',
+          sample: true,
+          count: 9,
+          due: 4,
+          wrong: 2,
+          topics: ['Memento', 'Bridge', '封装'],
+          archived: false,
+        },
+        {
+          id: 'd2',
+          title: '示例案例 · 墨笺笔记',
+          course: '设计模式',
+          sample: true,
+          count: 2,
+          due: 1,
+          wrong: 1,
+          archived: false,
+        },
+      ],
+      today: { due: 3, reviewed: 1, streak: 2 },
+      progress: {
+        d1: { due: 2, total: 9, mastery: 44, counts: { new: 2, weak: 2, learning: 2, familiar: 2, mastered: 1 } },
+        d2: { due: 1, total: 2, mastery: 20, counts: { new: 0, weak: 1, learning: 1, familiar: 0, mastered: 0 } },
+      },
+    };
+    const host = { async call() { return { ok: true, value: {} }; } };
+    useTuiStore.setState({
+      page: 'library',
+      activeRunId: null,
+      preferences: {
+        ...useTuiStore.getState().preferences,
+        language: 'zh',
+        asciiMode: true,
+        compactMode: false,
+        proactiveHints: true,
+        dismissedBriefingDate: undefined,
+      },
+      snapshot,
+    });
+
+    // 1) 80x24 viewport (content area inside AppShell is ~78x19)
+    const tty80 = createTtyHarness(80, 24);
+    const inst80 = render(React.createElement(LibraryView, { host, width: 78, height: 19, isActive: true }), {
+      stdout: tty80.stdout,
+      stdin: tty80.stdin,
+      exitOnCtrlC: false,
+      interactive: true,
+      debug: true,
+    });
+    try {
+      const out80 = await tty80.waitFor((s) => s.includes('Memento') && s.includes('今日一键直达'));
+      const lastFrame80 = out80.slice(Math.max(0, out80.lastIndexOf('今日到期')));
+      assert.ok(lastFrame80.includes('掌握度'), `80x24 detail must display 掌握度 progress bar:\n${lastFrame80}`);
+      assert.ok(lastFrame80.includes('题量分布'), `80x24 detail should display 题量分布:\n${lastFrame80}`);
+      assert.ok(
+        lastFrame80.includes('总题:9') || lastFrame80.includes('总题数: 9'),
+        `80x24 detail must display breakdown counts right below 题量分布 (never an empty header):\n${lastFrame80}`,
+      );
+      const lines80 = lastFrame80.split('\n');
+      const divIdx80 = lines80.findIndex((l) => l.includes('题量分布'));
+      const cntIdx80 = lines80.findIndex((l) => l.includes('总题:9') || l.includes('总题数: 9'));
+      assert.equal(cntIdx80, divIdx80 + 1, `Breakdown counts must sit immediately below 题量分布 at 80x24:\n${lastFrame80}`);
+    } finally {
+      inst80.unmount();
+    }
+
+    // 2) 120x36 viewport (content area inside AppShell with sidebar is ~96x31)
+    const tty120 = createTtyHarness(120, 36);
+    const inst120 = render(React.createElement(LibraryView, { host, width: 96, height: 31, isActive: true }), {
+      stdout: tty120.stdout,
+      stdin: tty120.stdin,
+      exitOnCtrlC: false,
+      interactive: true,
+      debug: true,
+    });
+    try {
+      const out120 = await tty120.waitFor((s) => s.includes('题量分布') && s.includes('薄弱/错题'));
+      const lastFrame120 = out120.slice(Math.max(0, out120.lastIndexOf('今日到期')));
+      const lines = lastFrame120.split('\n');
+      const totalIdx = lines.findIndex((l) => l.includes('总题数'));
+      const weakIdx = lines.findIndex((l) => l.includes('薄弱/错题'));
+      assert.ok(totalIdx >= 0 && weakIdx >= 0, `Expected both 总题数 and 薄弱/错题 at 120x36:\n${lastFrame120}`);
+      assert.ok(
+        weakIdx - totalIdx <= 1,
+        `120x36 breakdown rows must not have blank gap rows between them (totalIdx=${totalIdx}, weakIdx=${weakIdx}):\n${lastFrame120}`,
+      );
+    } finally {
+      inst120.unmount();
+    }
+  });
 });
