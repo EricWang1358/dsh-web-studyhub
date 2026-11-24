@@ -48,11 +48,11 @@ export type AssistantIntent =
       actionName: 'card.followup.add';
       instruction: string;
       paramsSummary: string;
-      requiresConfirm: false;
+      requiresConfirm: true;
     }
   | {
       kind: 'write_confirm';
-      actionName: 'wrongbook.reason.set' | 'export.wrongbook' | 'review.grade.adjust';
+      actionName: 'wrongbook.reason.set' | 'export.wrongbook' | 'review.grade.adjust' | 'card.followup.add';
       params: Record<string, unknown>;
       previewTitle: string;
       previewMessage: string;
@@ -247,14 +247,14 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
     };
   }
 
-  // 3) Single-step generation: plain explanation & save
+  // 3) Single-step generation: plain explanation (saving to card requires P2 confirmation, #1338)
   if (/(通俗讲解|大白话讲|讲解新增|重新讲解|换个例子讲|plain\s+explain|add.*explanation)/i.test(text)) {
     return {
       kind: 'generate_plain_explain',
       actionName: 'card.followup.add',
       instruction: text,
-      paramsSummary: `cardId=${ctx.currentCardId ?? '当前题'}, save=card.followup.add`,
-      requiresConfirm: false,
+      paramsSummary: lang === 'en' ? 'plain explanation (confirm before saving)' : '生成通俗讲解（保存前确认）',
+      requiresConfirm: true,
     };
   }
 
