@@ -1,11 +1,11 @@
-import React, { Suspense, lazy, memo, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import React, { Suspense, lazy, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Box, useApp, useInput } from 'ink';
-import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type KeyHint, type PageId, type ViewProps } from '../types/contracts.js';
+import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type PageId, type ViewProps } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
 import { useTheme } from '../theme/tokens.js';
 import { KeyHintBar, Spinner, ToastStack } from '../components/Badge.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
-import { RESERVED_GLOBAL_KEY_SET, isKeyClaimed } from '../components/focus.js';
+import { RESERVED_GLOBAL_KEY_SET, isKeyClaimed, resolveShellFooterHints, useContextualFooterTip, useModalHints } from '../components/focus.js';
 import { useMouseClickInputFallback } from '../components/mouse.js';
 import { useStableWindowSize } from '../components/resize.js';
 import { TopBar } from './TopBar.js';
@@ -92,6 +92,8 @@ export const AppShell = memo(function AppShell({
   const refreshing = useTuiStore((s) => s.refreshing);
   const snapshot = useTuiStore((s) => s.snapshot);
   const dismissToast = useTuiStore((s) => s.dismissToast);
+  const keystrokeCountRef = useRef(0);
+  const [tipRotation, setTipRotation] = useState(0);
 
   const rawQuitRef = useRef<() => void>(() => exit());
   rawQuitRef.current = actionOverrides?.quit ?? (() => exit());
@@ -137,6 +139,10 @@ export const AppShell = memo(function AppShell({
   useMouseClickInputFallback(true);
 
   useInput((input, key) => {
+    keystrokeCountRef.current += 1;
+    if (keystrokeCountRef.current % 10 === 0) {
+      setTipRotation((n) => n + 1);
+    }
     const s = useTuiStore.getState();
     const r = routing.current;
     if (key.ctrl && input === 'c') {
@@ -258,28 +264,26 @@ export const AppShell = memo(function AppShell({
   );
 
   const compactMode = useTuiStore((s) => Boolean(s.preferences.compactMode));
-  const tailHints: KeyHint[] = useMemo(
-    () => [
-      { key: 'Ctrl+K', label: t(lang, '命令', 'Cmd') },
-      { key: '?', label: compactMode && footerHints.length > 4 ? t(lang, '全部键', 'All') : t(lang, '帮助', 'Help') },
-    ],
-    [lang, compactMode, footerHints.length],
-  );
-  const defaultHints: KeyHint[] = useMemo(
-    () => [
-      { key: '1-9', label: t(lang, '页面', 'Pages') },
-      { key: 'c', label: t(lang, '课程', 'Course') },
-      { key: '[ ]', label: t(lang, '切换', 'Cycle') },
-      { key: 'q', label: t(lang, '退出', 'Quit') },
-    ],
-    [lang],
-  );
+  const modalHints = useModalHints();
   const practiceReturnLabel = useMemo(() => formatReturnHintLabel(practiceStack, lang), [practiceStack, lang]);
-  const hints = useMemo(() => {
-    const base = footerHints.length ? (compactMode ? footerHints.slice(0, 4) : footerHints) : defaultHints;
-    const prefix: KeyHint[] = practiceReturnLabel ? [{ key: 'r', label: practiceReturnLabel }] : [];
-    return [...prefix, ...base, ...tailHints];
-  }, [practiceReturnLabel, footerHints, compactMode, defaultHints, tailHints]);
+  const hints = useMemo(
+    () =>
+      resolveShellFooterHints({
+        modalHints,
+        footerHints,
+        inputCaptured,
+        overlayOpen,
+        compactMode,
+        practiceReturnLabel,
+        lang,
+      }),
+    [modalHints, footerHints, inputCaptured, overlayOpen, compactMode, practiceReturnLabel, lang],
+  );
+
+  const contextualTipText = useContextualFooterTip(
+    overlayOpen || showLaunchpad || inputCaptured || Boolean(modalHints && modalHints.length > 0),
+    tipRotation,
+  );
 
   const toastW = Math.min(48, Math.max(28, Math.floor(columns * 0.4)));
   const toastRows = Math.min(2, toasts.length);
@@ -365,6 +369,7 @@ export const AppShell = memo(function AppShell({
             hints={hints}
             width={columns}
             right={refreshing ? (asciiMode ? t(lang, '* 同步中', '* syncing') : t(lang, '⟳ 同步中', '⟳ syncing')) : undefined}
+            tip={contextualTipText}
           />
         ) : null}
 

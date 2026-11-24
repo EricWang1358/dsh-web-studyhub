@@ -9,6 +9,7 @@
  *   3. Non-interrupting inline banner (never opens a modal or steals focus; zero idle polling)
  */
 import type { StudySnapshot, UiLanguage } from '../../types/contracts.js';
+import { deckDueCount, isActiveStudyDeck } from '../../shell/data.js';
 
 export type DailyBriefingTarget =
   | { kind: 'deck'; deckId: string; deckTitle: string }
@@ -50,9 +51,7 @@ export function buildDailyBriefing(opts: BuildDailyBriefingOptions): DailyBriefi
   if (!snap) return null;
 
   const progressMap = (snap.progress as Record<string, DeckProgressLike> | undefined) ?? undefined;
-  const activeDecks = (snap.decks ?? []).filter(
-    (d) => !d.archived && (!opts.course || d.course === opts.course),
-  );
+  const activeDecks = (snap.decks ?? []).filter((d) => isActiveStudyDeck(d, opts.course));
   if (activeDecks.length === 0) return null;
 
   const zh = opts.lang !== 'en';
@@ -60,7 +59,7 @@ export function buildDailyBriefing(opts: BuildDailyBriefingOptions): DailyBriefi
   const ranked = activeDecks.map((d) => {
     const p = progressMap?.[d.id];
     const title = String(d.title ?? d.name ?? d.id);
-    const due = Number(d.due ?? p?.due ?? d.dueCount ?? 0) || 0;
+    const due = deckDueCount(d, progressMap);
     const wrong = Number(d.wrong ?? p?.counts?.weak ?? d.wrongCount ?? 0) || 0;
     const newCount = Number(p?.counts?.new ?? d.newCount ?? 0) || 0;
     return { id: d.id, title, due, wrong, newCount };

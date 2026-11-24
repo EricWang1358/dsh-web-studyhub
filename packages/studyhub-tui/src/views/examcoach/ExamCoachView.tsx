@@ -477,7 +477,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         { key: 'g/G', label: t(lang, '生成变式/批量', 'Variants') },
         { key: 'f', label: t(lang, '立即备题', 'Prep Queue') },
         { key: 'p/P', label: t(lang, '教练练习', 'Coach Practice') },
-        { key: 'r', label: t(lang, '刷新', 'Refresh') },
+        { key: 'Ctrl+R', label: t(lang, '刷新', 'Refresh') },
         filterHint,
         exportHint,
       ];
@@ -488,7 +488,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         { key: 'Tab', label: t(lang, '切换栏', 'Pane') },
         { key: 'p', label: t(lang, '练习当前考点', 'Practice') },
         { key: 'P', label: t(lang, '学习偏好', 'Preferences') },
-        { key: 'r', label: t(lang, '刷新', 'Refresh') },
+        { key: 'Ctrl+R', label: t(lang, '刷新', 'Refresh') },
         filterHint,
         exportHint,
       ];
@@ -1198,7 +1198,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       <Divider width={width} />
       {errorMsg ? (
         <Box height={1} width={width} paddingX={1}>
-          <Text color={theme.error}>{`${asciiMode ? '!' : '✕'} ${truncateDisplay(errorMsg, Math.max(10, width - 4), asciiMode ? '...' : '…')}`}</Text>
+          <Text color={theme.error} wrap="wrap">{`${asciiMode ? '!' : '✕'} ${errorMsg}`}</Text>
         </Box>
       ) : null}
 

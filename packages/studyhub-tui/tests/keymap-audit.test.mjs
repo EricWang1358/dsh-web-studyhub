@@ -291,11 +291,18 @@ function auditViewGlobalClaims(filePath) {
     ) {
       const pattern = node.expression.expression.text;
       const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
-      const rangeMatch = /^\^\[(\d)-(\d)\]\$$/.exec(pattern.slice(1, -1));
+      const body = pattern.slice(1, pattern.lastIndexOf('/'));
+      const rangeMatch = /^\^\[(\d)-(\d)\]\$$/.exec(body);
       if (rangeMatch) {
         const start = Number(rangeMatch[1]);
         const end = Number(rangeMatch[2]);
         for (let d = start; d <= end; d += 1) recordHit(String(d), line);
+      }
+      const letterRangeMatch = /^\^\[([a-z])-([a-z])\]\$$/.exec(body) || /^\^\[([A-Z])-([A-Z])\]\$$/.exec(body);
+      if (letterRangeMatch) {
+        const start = letterRangeMatch[1].charCodeAt(0);
+        const end = letterRangeMatch[2].charCodeAt(0);
+        for (let code = start; code <= end; code += 1) recordHit(String.fromCharCode(code), line);
       }
     }
     ts.forEachChild(node, walkInputCallback);
@@ -442,6 +449,77 @@ test('#1314: reserved global keys (r, q, ?) must never be claimed by any primary
     violations,
     [],
     `Views must not claim reserved global keys (${RESERVED.join(', ')}):\n${violations.join('\n')}`,
+  );
+});
+
+test('#1345: primary views and sub-views must not display stale lowercase [r] hints for Ctrl+R refresh/reload or R restart', () => {
+  const primaryViews = listPrimaryViews();
+  const subViews = [
+    path.join(srcRoot, 'views/exam/ExamSetup.tsx'),
+    path.join(srcRoot, 'views/exam/ExamRunner.tsx'),
+    path.join(srcRoot, 'views/generate/DraftEditor.tsx'),
+    path.join(srcRoot, 'views/sources/DocumentReader.tsx'),
+    path.join(srcRoot, 'views/review/RoundSummary.tsx'),
+    path.join(srcRoot, 'views/settings/ModelsTab.tsx'),
+    path.join(srcRoot, 'views/settings/WorkspaceTab.tsx'),
+    path.join(srcRoot, 'views/settings/AppearanceTab.tsx'),
+    path.join(srcRoot, 'views/settings/StudyGenTab.tsx'),
+  ];
+
+  const STALE_TEXT_RE = /\[r\]\s*(?:刷新|重载|重试|再来一轮|Refresh|Reload|Retry|New\b|to retry|to reload|to refresh)|\(\s*r\s*(?:重载|:\s*reload)\s*\)|\(?\[r\]\)/;
+  const violations = [];
+
+  for (const filePath of [...primaryViews, ...subViews]) {
+    const sf = parseTsx(filePath);
+    const componentName = path.basename(filePath, '.tsx');
+    const viewNode = findPrimaryComponentNode(sf, componentName);
+    if (!viewNode) continue;
+    const rel = path.relative(pkgRoot, filePath);
+
+    function visit(node, inModal) {
+      if (ts.isJsxElement(node)) {
+        const tag = node.openingElement.tagName.getText(sf);
+        const childInModal = inModal || tag === 'Modal';
+        ts.forEachChild(node, (child) => visit(child, childInModal));
+        return;
+      }
+      if (!inModal) {
+        // Check `{ key: 'r', label: ... }` object literals inside primary component (allow LibraryView global Resume)
+        if (ts.isObjectLiteralExpression(node)) {
+          let keyProp = null;
+          let labelText = '';
+          for (const prop of node.properties) {
+            if (ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name)) {
+              if (prop.name.text === 'key' && (ts.isStringLiteral(prop.initializer) || ts.isNoSubstitutionTemplateLiteral(prop.initializer))) {
+                keyProp = prop.initializer.text;
+              }
+              if (prop.name.text === 'label') {
+                labelText = prop.initializer.getText(sf);
+              }
+            }
+          }
+          if (keyProp === 'r' && !(componentName === 'LibraryView' && /继续|Resume/i.test(labelText))) {
+            const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+            violations.push(`${rel}:${line} stale hint { key: 'r', label: ${labelText} }`);
+          }
+        }
+        // Check string literals with stale `[r] 刷新/重载/重试/再来一轮` text
+        if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+          if (STALE_TEXT_RE.test(node.text)) {
+            const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+            violations.push(`${rel}:${line} stale text "${node.text.slice(0, 80)}"`);
+          }
+        }
+      }
+      ts.forEachChild(node, (child) => visit(child, inModal));
+    }
+    visit(viewNode, false);
+  }
+
+  assert.deepEqual(
+    violations,
+    [],
+    `Stale lowercase 'r' hints found in primary/sub views (should be Ctrl+R or R):\n${violations.join('\n')}`,
   );
 });
 

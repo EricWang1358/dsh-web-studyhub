@@ -264,8 +264,12 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
       },
     };
     const res = await tryAction<TuiConfigSnapshot>(host, 'desktop.config.save', patch);
+    let effortError: string | null = null;
     if (res.ok && openaiEffort !== (config?.reasoningEffort || '')) {
-      await tryAction(host, 'binding.set', { reasoningEffort: openaiEffort });
+      const effRes = await tryAction(host, 'binding.set', { reasoningEffort: openaiEffort });
+      if (!effRes.ok) {
+        effortError = effRes.error?.message || t(lang, '推理强度保存失败', 'Failed to save reasoning effort');
+      }
     }
     if (res.ok) {
       setPreferences({ lastOpenAiPreset: openaiPresetId });
@@ -280,6 +284,17 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
       return;
     }
     setOpenaiApiKey('');
+    if (effortError) {
+      notify(
+        t(
+          lang,
+          `已保存 ${openaiPresetId} · ${openaiModel}，但推理强度未生效（${effortError}）`,
+          `Saved ${openaiPresetId} · ${openaiModel}, but reasoning effort failed (${effortError})`,
+        ),
+        'warning',
+      );
+      return;
+    }
     notify(t(lang, `已切换到 ${openaiPresetId} · ${openaiModel}`, `Saved OpenAI (${openaiPresetId} · ${openaiModel})`), 'success');
   }, [
     config?.reasoningEffort,
@@ -669,7 +684,7 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
                   <Text color={theme.muted}>{t(lang, '路径:', 'Path:')}</Text>
                   <Text color={theme.dim}>{truncateDisplay(agyProvider?.executablePath || config?.agy?.executablePath || '-', innerW - 8, asciiMode ? '...' : '…')}</Text>
                 </Box>
-                <Box flexDirection="row" flexWrap="wrap" gap={1} marginY={0}>
+                <Box flexDirection="row" flexWrap="wrap" columnGap={1} marginY={0}>
                   <Box flexShrink={0}>
                     <Text color={theme.muted}>{t(lang, '思考强度 [e]:', 'Effort [e]:')}</Text>
                   </Box>
@@ -900,7 +915,7 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
                       `Preset models (${asciiMode ? '<-/->' : '←/→'} on Model row):`,
                     )}
                   </Text>
-                  <Box flexDirection="row" flexWrap="wrap" gap={1}>
+                  <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
                     {selectedPreset.models.map((m) => (
                       <Text
                         key={m}

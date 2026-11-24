@@ -606,11 +606,11 @@ export const SkeletonDiagramsModal = memo(function SkeletonDiagramsModal({
                   isActive={isActive && !confirmRemoveOpen && mode === 'attach' && !attaching && attachField === 'title'}
                 />
               </Box>
-              <Box height={1} width={innerW} marginTop={1} overflow="hidden">
+              <Box width={innerW} marginTop={1}>
                 {attaching ? (
                   <Spinner label={t(lang, '正在校验并挂载图表...', 'Validating and attaching diagram...')} active={isActive} />
                 ) : attachError ? (
-                  <Text color={theme.error}>{truncateDisplay(attachError, innerW, ell)}</Text>
+                  <Text color={theme.error} wrap="wrap">{attachError}</Text>
                 ) : (
                   <Text color={theme.dim}>
                     {truncateDisplay(
@@ -635,7 +635,7 @@ export const SkeletonDiagramsModal = memo(function SkeletonDiagramsModal({
               <Text color={theme.error} bold>
                 {t(lang, '加载图表列表失败', 'Failed to load diagram list')}
               </Text>
-              <Text color={theme.muted}>{truncateDisplay(listError, innerW, ell)}</Text>
+              <Text color={theme.muted} wrap="wrap">{listError}</Text>
             </Box>
           ) : diagrams.length === 0 ? (
             <EmptyState

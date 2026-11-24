@@ -14,7 +14,7 @@ import { ClickableBox } from '../../components/mouse.js';
 import { saveTuiPreferences } from '../../host/tui-prefs.js';
 import { useTheme } from '../../theme/tokens.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
-import { currentCourse, dueToday } from '../../shell/data.js';
+import { currentCourse, deckDueCount, dueToday, isActiveStudyDeck } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
 import { getSampleStatus, removeSampleCourse, tryAction } from '../../host/sample-actions.js';
 import type { DeckExportInput } from './deck-export.js';
@@ -82,7 +82,7 @@ function formatDateShort(raw: string | number | undefined | null, lang: 'zh' | '
 function deckStats(deck: DeckItem, progressMap: Record<string, DeckProgressEntry> | undefined) {
   const p = progressMap?.[deck.id];
   const total = Number(deck.count ?? p?.total ?? deck.cardCount ?? 0) || 0;
-  const due = Number(deck.due ?? p?.due ?? deck.dueCount ?? 0) || 0;
+  const due = deckDueCount(deck, progressMap);
   const newCount = Number(p?.counts?.new ?? deck.newCount ?? 0) || 0;
   const wrong = Number(deck.wrong ?? p?.counts?.weak ?? deck.wrongCount ?? 0) || 0;
   const mastered = Number(p?.counts?.mastered ?? deck.masteredCount ?? 0) || 0;
@@ -280,7 +280,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
 
   // KPI metrics
   const kpi = useMemo(() => {
-    const due = dueToday(snapshot);
+    const due = dueToday(snapshot, course);
     const todayKey = localDayKey(new Date());
     const reviewedDirect = Number(snapshot?.today?.reviewed);
     const reviewed = Number.isFinite(reviewedDirect)
@@ -305,7 +305,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
     const focusProgress = fpRaw && fpRaw.total > 0 ? fpRaw : null;
 
     return { due, reviewed, streak, masteryPct, focusProgress };
-  }, [snapshot, scopedDecks, progressMap, streak]);
+  }, [snapshot, course, scopedDecks, progressMap, streak]);
 
   const resumeRunForDeck = useMemo(() => {
     const runs = snapshot?.runs ?? [];
@@ -577,8 +577,8 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       if (id === 'due') {
         const dueDeck =
           (snapshot?.decks ?? [])
-            .filter((d) => !d.archived && (!course || d.course === course))
-            .sort((a, b) => (Number(b.due ?? b.dueCount ?? 0) || 0) - (Number(a.due ?? a.dueCount ?? 0) || 0))[0] ??
+            .filter((d) => isActiveStudyDeck(d, course))
+            .sort((a, b) => deckDueCount(b, progressMap) - deckDueCount(a, progressMap))[0] ??
           selectedDeck;
         if (dueDeck) handleStartReview(dueDeck);
         else navigate('review');
@@ -590,7 +590,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       }
       navigate('board');
     },
-    [activeRunId, lastPracticeContext, selectedDeck, snapshot?.decks, course, handleStartReview, navigate],
+    [activeRunId, lastPracticeContext, selectedDeck, snapshot?.decks, progressMap, course, handleStartReview, navigate],
   );
 
   const dailyBriefing = useMemo(
@@ -939,7 +939,11 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       const st = deckStats(selectedDeck, progressMap);
       const ell = asciiMode ? '...' : '…';
       const topicsLine = (selectedDeck as { topics?: string[] }).topics?.slice(0, 5).join(asciiMode ? ' - ' : ' · ') || '';
+      const innerH = Math.max(1, size.height - 2);
       const compactDetail = size.height <= 12;
+      const showBreakdown = innerH >= 4;
+      const showQuickLaunch = innerH >= 6;
+      const showQuickActions = innerH >= 8;
 
       return (
         <Panel
@@ -950,9 +954,9 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
           width={size.width}
           height={size.height}
         >
-          <Box flexDirection="column" gap={0}>
+          <Box flexDirection="column" gap={0} overflow="hidden">
             {/* Pills row */}
-            <Box flexDirection="row" gap={1} flexWrap="wrap">
+            <Box flexDirection="row" columnGap={1} flexWrap="wrap" flexShrink={0}>
               <Badge label={selectedDeck.course || t(lang, '未分课', 'General')} tone="accent" variant="soft" />
               {selectedDeck.archived ? <StatusPill label={t(lang, '已归档', 'Archived')} status="warn" /> : null}
               {(selectedDeck as Record<string, unknown>).sample ? (
@@ -965,7 +969,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
               )}
             </Box>
 
-            <Box marginTop={compactDetail ? 0 : 1}>
+            <Box marginTop={compactDetail ? 0 : 1} flexShrink={0}>
               <ProgressBar
                 ratio={st.mastery / 100}
                 width={Math.min(44, innerW)}
@@ -974,21 +978,25 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
               />
             </Box>
 
-            <Divider width={innerW} label={t(lang, '题量分布', 'Breakdown')} />
+            {showBreakdown ? (
+              <>
+                <Divider width={innerW} label={t(lang, '题量分布', 'Breakdown')} />
 
-            <Box flexDirection="row" gap={2} flexWrap="wrap">
-              <Text color={theme.text}>{t(lang, '总题数', 'Total')}: <Text bold>{st.total}</Text></Text>
-              <Text color={theme.success}>{t(lang, '已掌握', 'Mastered')}: <Text bold>{st.mastered}</Text></Text>
-              <Text color={theme.info}>{t(lang, '熟悉/学习中', 'Learning')}: <Text bold>{st.familiar + st.learning}</Text></Text>
-              <Text color={theme.accent}>{t(lang, '新题', 'New')}: <Text bold>{st.newCount}</Text></Text>
-              <Text color={theme.error}>{t(lang, '薄弱/错题', 'Weak')}: <Text bold>{st.wrong}</Text></Text>
-              {st.flagged > 0 ? (
-                <Text color={theme.warning}>{t(lang, '待修标记', 'Flagged')}: <Text bold>{st.flagged}</Text></Text>
-              ) : null}
-            </Box>
+                <Box flexDirection="row" columnGap={compactDetail ? 1 : 2} flexWrap="wrap" flexShrink={0}>
+                  <Text color={theme.text}>{t(lang, '总题数', 'Total')}: <Text bold>{st.total}</Text></Text>
+                  <Text color={theme.success}>{t(lang, '已掌握', 'Mastered')}: <Text bold>{st.mastered}</Text></Text>
+                  <Text color={theme.info}>{t(lang, compactDetail ? '学习中' : '熟悉/学习中', 'Learning')}: <Text bold>{st.familiar + st.learning}</Text></Text>
+                  <Text color={theme.accent}>{t(lang, '新题', 'New')}: <Text bold>{st.newCount}</Text></Text>
+                  <Text color={theme.error}>{t(lang, compactDetail ? '错题' : '薄弱/错题', 'Weak')}: <Text bold>{st.wrong}</Text></Text>
+                  {st.flagged > 0 ? (
+                    <Text color={theme.warning}>{t(lang, '待修标记', 'Flagged')}: <Text bold>{st.flagged}</Text></Text>
+                  ) : null}
+                </Box>
+              </>
+            ) : null}
 
             {!compactDetail ? (
-              <Box marginTop={0}>
+              <Box marginTop={0} flexShrink={0}>
                 <Text color={theme.muted}>
                   {t(lang, '最近学习', 'Last studied')}: <Text color={theme.text}>{formatDateShort(st.lastStudied, lang)}</Text>
                 </Text>
@@ -996,67 +1004,75 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
             ) : null}
 
             {!compactDetail && topicsLine ? (
-              <Box marginTop={0}>
+              <Box marginTop={0} flexShrink={0}>
                 <Text color={theme.muted}>
                   {t(lang, '涵盖主题', 'Topics')}: <Text color={theme.text}>{truncateDisplay(topicsLine, Math.max(12, innerW - 12), ell)}</Text>
                 </Text>
               </Box>
             ) : null}
 
-            <Divider width={innerW} label={t(lang, '今日一键直达', 'Today Quick Launch')} />
-            <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
-              {todayHubItems.map((hub) => (
-                <ClickableBox
-                  key={hub.id}
-                  clickActive={viewActive && !filterEditing}
-                  onClick={() => handleTodayHubClick(hub.id)}
-                >
-                  <Text>
-                    <Text color={hub.tone === 'warning' ? theme.warning : hub.tone === 'error' ? theme.error : hub.tone === 'primary' ? theme.primary : theme.accent} bold>
-                      {`[${hub.key}]`}
+            {showQuickLaunch ? (
+              <>
+                <Divider width={innerW} label={t(lang, '今日一键直达', 'Today Quick Launch')} />
+                <Box flexDirection="row" flexWrap="wrap" columnGap={2} flexShrink={0}>
+                  {todayHubItems.map((hub) => (
+                    <ClickableBox
+                      key={hub.id}
+                      clickActive={viewActive && !filterEditing}
+                      onClick={() => handleTodayHubClick(hub.id)}
+                    >
+                      <Text>
+                        <Text color={hub.tone === 'warning' ? theme.warning : hub.tone === 'error' ? theme.error : hub.tone === 'primary' ? theme.primary : theme.accent} bold>
+                          {`[${hub.key}]`}
+                        </Text>
+                        <Text color={theme.text}>{` ${hub.label}`}</Text>
+                      </Text>
+                    </ClickableBox>
+                  ))}
+                </Box>
+              </>
+            ) : null}
+
+            {showQuickActions ? (
+              <>
+                <Divider width={innerW} label={t(lang, '快捷操作', 'Quick Actions')} />
+
+                {compactDetail ? (
+                  <Box flexDirection="column" flexShrink={0}>
+                    <Text wrap={asciiMode ? undefined : 'truncate-end'}>
+                      <Text color={theme.primary} bold>[Enter]</Text>
+                      <Text color={theme.text}> {t(lang, '练习', 'Practice')} </Text>
+                      <Text color={theme.accent} bold>[R]</Text>
+                      <Text color={theme.text}> {t(lang, '配轮', 'Round')} </Text>
+                      <Text color={theme.primary} bold>[p]</Text>
+                      <Text color={theme.text}> {t(lang, '计划', 'Plan')} </Text>
+                      <Text color={theme.ai} bold>[g]</Text>
+                      <Text color={theme.text}> {t(lang, 'AI带学', 'Guided')} </Text>
+                      <Text color={theme.accent} bold>[C]</Text>
+                      <Text color={theme.text}> {t(lang, '课程', 'Course')} </Text>
+                      <Text color={theme.accent} bold>[r]</Text>
+                      <Text color={theme.text}> {t(lang, '继续', 'Resume')}</Text>
                     </Text>
-                    <Text color={theme.text}>{` ${hub.label}`}</Text>
-                  </Text>
-                </ClickableBox>
-              ))}
-            </Box>
-
-            <Divider width={innerW} label={t(lang, '快捷操作', 'Quick Actions')} />
-
-            {compactDetail ? (
-              <Box flexDirection="column">
-                <Text wrap={asciiMode ? undefined : 'truncate-end'}>
-                  <Text color={theme.primary} bold>[Enter]</Text>
-                  <Text color={theme.text}> {t(lang, '练习', 'Practice')} </Text>
-                  <Text color={theme.accent} bold>[R]</Text>
-                  <Text color={theme.text}> {t(lang, '配轮', 'Round')} </Text>
-                  <Text color={theme.primary} bold>[p]</Text>
-                  <Text color={theme.text}> {t(lang, '计划', 'Plan')} </Text>
-                  <Text color={theme.ai} bold>[g]</Text>
-                  <Text color={theme.text}> {t(lang, 'AI带学', 'Guided')} </Text>
-                  <Text color={theme.accent} bold>[C]</Text>
-                  <Text color={theme.text}> {t(lang, '课程', 'Course')} </Text>
-                  <Text color={theme.accent} bold>[r]</Text>
-                  <Text color={theme.text}> {t(lang, '继续', 'Resume')}</Text>
-                </Text>
-                <Text wrap={asciiMode ? undefined : 'truncate-end'}>
-                  <Text color={theme.primary} bold>[o]</Text>
-                  <Text color={theme.text}> {t(lang, '操作', 'Ops')}  </Text>
-                  <Text color={theme.accent} bold>[m]</Text>
-                  <Text color={theme.text}> {t(lang, '卡片', 'Cards')}  </Text>
-                  <Text color={theme.accent} bold>[/]</Text>
-                  <Text color={theme.text}> {t(lang, '排序', 'Order')}  </Text>
-                  <Text color={theme.ai} bold>[v]</Text>
-                  <Text color={theme.text}> {t(lang, '语音', 'Voice')}  </Text>
-                  <Text color={theme.warning} bold>[a]</Text>
-                  <Text color={theme.text}> {t(lang, '归档', 'Arch')}  </Text>
-                  <Text color={theme.error} bold>[d]</Text>
-                  <Text color={theme.text}> {t(lang, '删除', 'Del')}  </Text>
-                  <Text color={theme.success} bold>[s]</Text>
-                  <Text color={theme.text}> {t(lang, '示例', 'Sample')}</Text>
-                </Text>
-              </Box>
-            ) : (
+                    {innerH >= 9 ? (
+                      <Text wrap={asciiMode ? undefined : 'truncate-end'}>
+                        <Text color={theme.primary} bold>[o]</Text>
+                        <Text color={theme.text}> {t(lang, '操作', 'Ops')}  </Text>
+                        <Text color={theme.accent} bold>[m]</Text>
+                        <Text color={theme.text}> {t(lang, '卡片', 'Cards')}  </Text>
+                        <Text color={theme.accent} bold>[/]</Text>
+                        <Text color={theme.text}> {t(lang, '排序', 'Order')}  </Text>
+                        <Text color={theme.ai} bold>[v]</Text>
+                        <Text color={theme.text}> {t(lang, '语音', 'Voice')}  </Text>
+                        <Text color={theme.warning} bold>[a]</Text>
+                        <Text color={theme.text}> {t(lang, '归档', 'Arch')}  </Text>
+                        <Text color={theme.error} bold>[d]</Text>
+                        <Text color={theme.text}> {t(lang, '删除', 'Del')}  </Text>
+                        <Text color={theme.success} bold>[s]</Text>
+                        <Text color={theme.text}> {t(lang, '示例', 'Sample')}</Text>
+                      </Text>
+                    ) : null}
+                  </Box>
+                ) : (
               <Box flexDirection="column">
                 <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
                   <Text>
@@ -1121,7 +1137,9 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
                   </Text>
                 </Box>
               </Box>
-            )}
+                )}
+              </>
+            ) : null}
           </Box>
         </Panel>
       );

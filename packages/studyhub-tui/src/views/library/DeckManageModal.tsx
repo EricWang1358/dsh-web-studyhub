@@ -558,6 +558,7 @@ export const DeckManageModal = memo(function DeckManageModal({
   const [courseDraft, setCourseDraft] = useState('');
   const [topicValue, setTopicValue] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [previewScrollTop, setPreviewScrollTop] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [confirmBatchSlay, setConfirmBatchSlay] = useState(false);
   const busyRef = useRef(false);
@@ -859,6 +860,10 @@ export const DeckManageModal = memo(function DeckManageModal({
       const draft = { ...editRes.value, title: nextTitle };
       const saveRes = await tryAction<{ id: string; draftVersion?: number }>(host, 'draft.save', { deck: draft });
       if (!saveRes.ok || !saveRes.value) {
+        const orphanDraftId = typeof editRes.value.id === 'string' ? editRes.value.id : '';
+        if (orphanDraftId) {
+          await tryAction(host, 'draft.delete', { id: orphanDraftId }).catch(() => {});
+        }
         setBusy(false);
         setMode('browse');
         notify(saveRes.error?.message || t(lang, '保存标题失败', 'Failed to save title'), 'error');
@@ -1418,9 +1423,19 @@ export const DeckManageModal = memo(function DeckManageModal({
 
       const total = filteredCards.length;
       if (key.downArrow || (!key.ctrl && !key.meta && input === 'j')) {
-        if (total > 0) setSelectedIndex((i) => Math.min(total - 1, i + 1));
+        if (total > 0) {
+          setSelectedIndex((i) => Math.min(total - 1, i + 1));
+          setPreviewScrollTop(0);
+        }
       } else if (key.upArrow) {
-        if (total > 0) setSelectedIndex((i) => Math.max(0, i - 1));
+        if (total > 0) {
+          setSelectedIndex((i) => Math.max(0, i - 1));
+          setPreviewScrollTop(0);
+        }
+      } else if (!key.ctrl && !key.meta && input === 'J') {
+        setPreviewScrollTop((tTop) => tTop + 2);
+      } else if (!key.ctrl && !key.meta && input === 'K') {
+        setPreviewScrollTop((tTop) => Math.max(0, tTop - 2));
       } else if (key.ctrl && input === 'd') {
         if (total > 0) setSelectedIndex((i) => Math.min(total - 1, i + Math.max(1, Math.floor(listH / 2))));
       } else if (key.ctrl && input === 'u') {
@@ -1731,7 +1746,7 @@ export const DeckManageModal = memo(function DeckManageModal({
 
       {mode === 'rename' ? (
         <Box flexDirection="column" flexShrink={0}>
-          <Text color={theme.accent}>{t(lang, '输入新题组标题 (通过 deck.edit 保存):', 'New deck title (via deck.edit):')}</Text>
+          <Text color={theme.accent}>{t(lang, '输入新题组标题（Enter 保存）:', 'New deck title (Enter to save):')}</Text>
           <Box borderStyle={asciiMode ? 'classic' : 'round'} borderColor={theme.borderActive} paddingX={1}>
             <TextInput
               value={renameValue}
@@ -1959,8 +1974,8 @@ export const DeckManageModal = memo(function DeckManageModal({
                 </Text>
               </Box>
               {suppError ? (
-                <Box height={1}>
-                  <Text color={theme.error}>{truncateDisplay(suppError, innerW, ell)}</Text>
+                <Box>
+                  <Text color={theme.error} wrap="wrap">{suppError}</Text>
                 </Box>
               ) : null}
               <Divider width={innerW} />
@@ -2094,7 +2109,7 @@ export const DeckManageModal = memo(function DeckManageModal({
           )}
           {convertError ? (
             <Box marginTop={1}>
-              <Text color={theme.error}>{truncateDisplay(convertError, innerW * 2, ell)}</Text>
+              <Text color={theme.error} wrap="wrap">{convertError}</Text>
             </Box>
           ) : null}
           {busy ? (
@@ -2127,8 +2142,8 @@ export const DeckManageModal = memo(function DeckManageModal({
             </Text>
           </Box>
           {linkError ? (
-            <Box height={1}>
-              <Text color={theme.error}>{truncateDisplay(linkError, innerW, ell)}</Text>
+            <Box>
+              <Text color={theme.error} wrap="wrap">{linkError}</Text>
             </Box>
           ) : null}
           <Divider width={innerW} />
@@ -2188,7 +2203,13 @@ export const DeckManageModal = memo(function DeckManageModal({
           <Divider width={innerW} />
           <Box height={previewH} width={innerW} overflow="hidden">
             {selectedCard ? (
-              <MarkdownView markdown={previewMarkdown} width={innerW} height={previewH} />
+              <MarkdownView
+                markdown={previewMarkdown}
+                width={innerW}
+                height={previewH}
+                scrollTop={previewScrollTop}
+                onScroll={setPreviewScrollTop}
+              />
             ) : (
               <Text color={theme.muted}>{t(lang, '选择一道题查看详情', 'Select a card to preview')}</Text>
             )}

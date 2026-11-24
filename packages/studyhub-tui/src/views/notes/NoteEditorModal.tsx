@@ -159,6 +159,8 @@ export const NoteEditorModal = memo(function NoteEditorModal({
     });
   }, []);
 
+  const createdNoteRef = useRef<NoteItem | null>(null);
+
   const handleSave = useCallback(async () => {
     if (savingRef.current || saving) return;
     const trimmedTitle = title.trim();
@@ -166,7 +168,7 @@ export const NoteEditorModal = memo(function NoteEditorModal({
       setError(t(lang, '请输入笔记标题', 'Please enter a note title'));
       return;
     }
-    if (mode === 'create' && selectedCards.length === 0) {
+    if (mode === 'create' && !createdNoteRef.current && selectedCards.length === 0) {
       setError(
         candidates.length === 0
           ? t(lang, '当前学习库暂无题目，请先导入或创建至少 1 道题目后再新建笔记', 'No cards in library yet; add at least 1 card before creating a note')
@@ -179,17 +181,21 @@ export const NoteEditorModal = memo(function NoteEditorModal({
     setError('');
     try {
       if (mode === 'create') {
-        const createdRes = await host.call<NoteItem>('note.create', {
-          title: trimmedTitle,
-          cards: selectedCards,
-          language: lang,
-        });
-        if (!mountedRef.current) return;
-        if (!createdRes.ok || !createdRes.value) {
-          setError(createdRes.error?.message || t(lang, '创建笔记失败', 'Failed to create note'));
-          return;
+        let finalNote = createdNoteRef.current;
+        if (!finalNote) {
+          const createdRes = await host.call<NoteItem>('note.create', {
+            title: trimmedTitle,
+            cards: selectedCards,
+            language: lang,
+          });
+          if (!mountedRef.current) return;
+          if (!createdRes.ok || !createdRes.value) {
+            setError(createdRes.error?.message || t(lang, '创建笔记失败', 'Failed to create note'));
+            return;
+          }
+          finalNote = createdRes.value;
+          createdNoteRef.current = finalNote;
         }
-        let finalNote = createdRes.value;
         const customMd = markdown.trim();
         if (customMd) {
           const fullMd = customMd.startsWith('# ') ? customMd : `# ${trimmedTitle}\n\n${customMd}\n`;
@@ -200,8 +206,20 @@ export const NoteEditorModal = memo(function NoteEditorModal({
             expectedRevision: finalNote.revision ?? 0,
           });
           if (!mountedRef.current) return;
-          if (saveRes.ok && saveRes.value) finalNote = saveRes.value;
+          if (!saveRes.ok || !saveRes.value) {
+            const errMsg = saveRes.error?.message || t(lang, '保存正文失败', 'Failed to write note body');
+            setError(
+              t(
+                lang,
+                `笔记已创建但正文写入失败（${errMsg}），重试保存将直接写入正文而不会重复创建`,
+                `Note created but writing body failed (${errMsg}); retrying will update it without duplicating`,
+              ),
+            );
+            return;
+          }
+          finalNote = saveRes.value;
         }
+        createdNoteRef.current = null;
         onSaved(finalNote, true);
       } else if (note) {
         const saveRes = await host.call<NoteItem>('note.save', {
@@ -392,7 +410,7 @@ export const NoteEditorModal = memo(function NoteEditorModal({
 
         {error ? (
           <Box marginTop={1}>
-            <Text color={theme.error}>{`${asciiMode ? '!' : '✕'} ${truncateDisplay(error, innerWidth, asciiMode ? '...' : '…')}`}</Text>
+            <Text color={theme.error} wrap="wrap">{`${asciiMode ? '!' : '✕'} ${error}`}</Text>
           </Box>
         ) : null}
 

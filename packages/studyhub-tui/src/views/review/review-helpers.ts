@@ -354,6 +354,38 @@ export function extractSolution(run: ReviewRun | null | undefined): CardSolution
   return raw as CardSolutionShape;
 }
 
+export interface RunFollowupItem {
+  id?: string;
+  question?: string;
+  answer?: string;
+  at?: string;
+}
+
+/**
+ * Extract saved follow-up explanations from both `run.followups` (exposed by the backend
+ * before revealing the answer, except in exam mode) and `run.solution.followups`.
+ */
+export function extractRunFollowups(run: ReviewRun | null | undefined): RunFollowupItem[] {
+  const sol = extractSolution(run)?.followups;
+  const rawTop = (run as { followups?: unknown } | null | undefined)?.followups;
+  const top = Array.isArray(rawTop) ? (rawTop as RunFollowupItem[]) : [];
+  const solList = Array.isArray(sol) ? (sol as RunFollowupItem[]) : [];
+  if (solList.length === 0) return top;
+  if (top.length === 0) return solList;
+  const merged: RunFollowupItem[] = [];
+  const seen = new Set<string>();
+  for (const list of [top, solList]) {
+    for (const item of list) {
+      if (!item || typeof item !== 'object') continue;
+      const key = item.id || `${item.question ?? ''}\0${item.answer ?? ''}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(item);
+    }
+  }
+  return merged;
+}
+
 export function extractReferenceAnswer(
   run: ReviewRun | null | undefined,
   kind: NormalizedKind,
@@ -453,6 +485,25 @@ export function currentDeckIdOf(run: ReviewRun | null | undefined): string | nul
     ? ((rawScope as Array<{ deckId?: string }>)[0]?.deckId ?? null)
     : null;
   return firstScope || null;
+}
+
+/** Build the daily course study-note title expected by `note.qa.add` (mirrors `ui/review/question-note.js`). */
+export function buildDailyQuestionNoteTitle(
+  run: ReviewRun | null | undefined,
+  decks: ReadonlyArray<{ id?: string; course?: string; folder?: string }> | undefined,
+  lang: UiLanguage,
+  now: Date = new Date(),
+): string {
+  const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const deckId = currentDeckIdOf(run);
+  const deck = deckId && Array.isArray(decks) ? decks.find((d) => d.id === deckId) : null;
+  const cardRec = run?.card as Record<string, unknown> | null | undefined;
+  const runRec = run as Record<string, unknown> | null | undefined;
+  const course = String(deck?.course ?? deck?.folder ?? cardRec?.course ?? runRec?.course ?? '').trim();
+  if (lang === 'en') {
+    return course ? `${day} · ${course} · Study Notes` : `Study Notes · ${day}`;
+  }
+  return course ? `${day} · ${course} · 学习笔记` : `学习笔记 · ${day}`;
 }
 
 export function buildCardHelpSystemPrompt(lang: UiLanguage): string {

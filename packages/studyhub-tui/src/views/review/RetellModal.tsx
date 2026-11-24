@@ -207,7 +207,7 @@ export const RetellModal = memo(function RetellModal({
       }
       if (!deckId) {
         setEditing(false);
-        setErrorText(t(lang, '缺少题组 ID，无法调用费曼复述评估', 'Missing deckId for teach.retell'));
+        setErrorText(t(lang, '缺少题组信息，无法调用费曼复述评估', 'Missing deck context; cannot evaluate Feynman retell'));
         return;
       }
       const targetCardId = cardId;
@@ -455,7 +455,7 @@ export const RetellModal = memo(function RetellModal({
           <Box flexDirection="row" gap={1}>
             <Badge label={asciiMode ? '! 模型暂不可用' : '▲ 评估暂不可用'} tone="warning" />
             <Text color={theme.error} bold>
-              {truncateDisplay(errorText, Math.max(12, innerW - 20))}
+              {errorText}
             </Text>
           </Box>
           <Text color={theme.muted}>

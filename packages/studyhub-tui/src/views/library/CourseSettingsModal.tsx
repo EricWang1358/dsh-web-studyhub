@@ -1597,7 +1597,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
           subMode === 'presets' ? (
             <Box flexDirection="column" height={tabBodyH} overflow="hidden">
               <Text color={theme.accent} bold>
-                {t(lang, '选择预设学习模式 (保存至 course.method.save):', 'Choose a preset learning mode:')}
+                {t(lang, '选择预设学习模式:', 'Choose a preset learning mode:')}
               </Text>
               <Box marginTop={1}>
                 <SelectList
