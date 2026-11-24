@@ -2255,6 +2255,7 @@ export const DocumentReader = memo(function DocumentReader({
             sourceId={pageData?.sourceId || sourceId}
             revision={pageData?.revision}
             title={pageData?.title || initialTitle}
+            pageText={pageData?.text ?? ''}
             isActive={isActive}
             onClose={() => setSubMode('read')}
           />
