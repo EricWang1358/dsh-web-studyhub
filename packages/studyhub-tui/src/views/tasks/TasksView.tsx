@@ -1,7 +1,8 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { Box, Text, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
 import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -636,7 +637,7 @@ const JobOutputModal = memo(function JobOutputModal({
   asciiMode: boolean;
 }) {
   const theme = useTheme();
-  const { columns, rows } = useWindowSize();
+  const { columns, rows } = useStableWindowSize();
   const ell = asciiMode ? '...' : '…';
 
   const defaultCallIdx = useMemo(() => {
@@ -830,7 +831,7 @@ const JobMessageModal = memo(function JobMessageModal({
   asciiMode: boolean;
 }) {
   const theme = useTheme();
-  const { columns } = useWindowSize();
+  const { columns } = useStableWindowSize();
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState('');

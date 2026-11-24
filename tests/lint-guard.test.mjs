@@ -63,6 +63,15 @@ test('the cheap correctness rules are errors for every kind of source file, and 
     'TUI ESLint config must reject raw ink useInput imports outside key-dispatcher.ts',
   );
 
+  // P4 (#1354): Verify ESLint actively rejects raw ink useWindowSize imports outside components/resize.ts.
+  const [winSizeViolation] = await eslint.lintText("import { useWindowSize } from 'ink';\nexport const w = useWindowSize;\n", {
+    filePath: join(ROOT, 'packages/studyhub-tui/src/views/fake-view.tsx'),
+  });
+  assert.ok(
+    winSizeViolation.messages.some((m) => m.ruleId === 'no-restricted-imports'),
+    'TUI ESLint config must reject raw ink useWindowSize imports outside components/resize.ts',
+  );
+
   // Verify CI tui-test job runs ESLint and typecheck on TUI sources.
   const verifyYml = readFileSync(join(ROOT, '.github/workflows/verify.yml'), 'utf8');
   assert.match(verifyYml, /tui-test:[\s\S]*?eslint packages\/studyhub-tui\/src/, 'tui-test CI job must run ESLint on TUI sources');

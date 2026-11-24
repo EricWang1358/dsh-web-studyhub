@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
 import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -117,7 +118,7 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const notify = useTuiStore((s) => s.notify);
-  const { columns, rows: termRows } = useWindowSize();
+  const { columns, rows: termRows } = useStableWindowSize();
 
   const [tab, setTab] = useState<ModalTab>('glossary');
   const [target, setTarget] = useState<'zh' | 'en'>(lang === 'en' ? 'en' : 'zh');

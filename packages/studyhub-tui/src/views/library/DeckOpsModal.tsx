@@ -1,7 +1,8 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { readFile, stat } from 'node:fs/promises';
 import { basename, isAbsolute, resolve } from 'node:path';
-import { Box, Text, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
 import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, StudySnapshot } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -282,7 +283,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
 }: DeckOpsModalProps) {
   const theme = useTheme();
   const actions = useShellActions();
-  const { columns, rows } = useWindowSize();
+  const { columns, rows } = useStableWindowSize();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const ell = asciiMode ? '...' : '…';

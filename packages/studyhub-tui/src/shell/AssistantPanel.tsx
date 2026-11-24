@@ -14,7 +14,8 @@
  * 10. `marked`-free (`ScrollView` + `wrapDisplay`).
  */
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useStdout, useWindowSize } from 'ink';
+import { Box, Text, useStdout } from 'ink';
+import { useStableWindowSize } from '../components/resize.js';
 import {
   KEY_LAYER_DRAWER,
   KEY_LAYER_MODAL_FRAME,
@@ -185,7 +186,7 @@ export const AssistantPanel = memo(function AssistantPanel({
   copyStdout,
 }: AssistantPanelProps) {
   const theme = useTheme();
-  const { columns, rows } = useWindowSize();
+  const { columns, rows } = useStableWindowSize();
   const { stdout } = useStdout();
   const page = useTuiStore((s) => s.page);
   const lang = useTuiStore((s) => s.preferences.language);
