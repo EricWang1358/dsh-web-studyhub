@@ -68,6 +68,10 @@ const MIGRATED_VIEWS = [
   'views/board/BoardView.tsx',
   'views/tasks/TasksView.tsx',
   'views/audio/AudioView.tsx',
+  'views/dashboard/DashboardView.tsx',
+  'views/examcoach/ExamCoachView.tsx',
+  'views/examprep/ExamPrepView.tsx',
+  'views/skeleton/SkeletonView.tsx',
 ];
 
 function collectIdentifiersAndCalls(filePath) {
@@ -111,7 +115,7 @@ describe('P1 Unified Input Dispatcher & Scope Stack (#1354 D1)', () => {
     assert.ok(!shimSrc.includes("from 'ink'"), 'components/key-dispatcher.ts must NOT hold a second Ink useInput listener');
   });
 
-  test('2. Static migration guardrail: migrated views (Batch 1 + Batch 2) have ZERO useInput/useClaimKeys/manual modal-gate booleans', () => {
+  test('2. Static migration guardrail: migrated views (Batch 1 + 2 + 3a) have ZERO useInput/useClaimKeys/manual modal-gate booleans', () => {
     const FORBIDDEN_IMPORTS = ['useInput', 'useScopedInput', 'useClaimKeys'];
     const FORBIDDEN_CALLS = ['useInput', 'useScopedInput', 'useClaimKeys'];
     const FORBIDDEN_VARS = [
@@ -666,6 +670,138 @@ describe('P1 Unified Input Dispatcher & Scope Stack (#1354 D1)', () => {
     } finally {
       inst.unmount();
       fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  test('8. Batch 3a views live scope isolation: DashboardView, ExamCoachView, ExamPrepView & SkeletonView filter opaque scopes isolate typing and restore global nav', async () => {
+    const { AppShell } = await import('../src/shell/AppShell.tsx');
+    const { DashboardView } = await import('../src/views/dashboard/DashboardView.tsx');
+    const { ExamCoachView } = await import('../src/views/examcoach/ExamCoachView.tsx');
+    const { ExamPrepView } = await import('../src/views/examprep/ExamPrepView.tsx');
+    const { SkeletonView } = await import('../src/views/skeleton/SkeletonView.tsx');
+    const { useTuiStore } = await import('../src/state/store.ts');
+
+    const snapshot = {
+      revision: 1,
+      courses: [{ id: 'c1', name: 'OS' }],
+      decks: [{ id: 'd1', title: 'Virtual Memory', course: 'OS', cardCount: 4, dueCount: 2 }],
+      focus: { course: 'OS' },
+      stats: { totalCards: 4, dueToday: 2, reviewedToday: 0 },
+      sources: [],
+      tasks: [],
+      wrongBook: [],
+      notes: [],
+      skeletons: [],
+      modelReady: false,
+    };
+    const host = {
+      call: async (action) => {
+        if (action === 'snapshot') return { ok: true, value: snapshot };
+        if (action === 'stats.overview') return { ok: true, value: { totals: { cards: 4, due: 2 }, weakTopics: [], forecast: [], heatmap: [] } };
+        if (action === 'coach.calibration.get') return { ok: true, value: { spec: { course: 'OS', specVersion: 1, families: [{ id: 'f1', title: 'Paging', primaryFormat: 'single', quota: 4 }] }, evidence: null } };
+        if (action === 'coach.status') return { ok: true, value: { enabled: false, ready: 0, preparing: false, tasks: [] } };
+        if (action === 'coach.evidence.summary') return { ok: true, value: { summary: { total: 0, solid: 0, in_progress: 0, shaky: 0, unstarted: 0 }, points: [] } };
+        if (action === 'wrongbook.list') return { ok: true, value: { items: [], counts: { active: 0, leech: 0, history: 0, total: 0 } } };
+        if (action === 'focus.progress') return { ok: true, value: { topics: [{ topic: 'Paging', status: 'learning', cards: 2, mastery: 0.5, weakCards: [] }], done: 0, none: 0 } };
+        if (action === 'book.crunch') return { ok: true, value: { status: 'ok', points: [] } };
+        if (action === 'course.plan') return { ok: true, value: null };
+        if (action === 'skeleton.list') return { ok: true, value: { skeletons: [] } };
+        return { ok: true, value: {} };
+      },
+      subscribeEvents: () => () => {},
+      getLibraryRoot: () => '/tmp/demo',
+      getConfig: () => null,
+      dispose: async () => {},
+    };
+
+    useTuiStore.setState({
+      page: 'dashboard',
+      navContext: {},
+      history: [],
+      loading: false,
+      refreshing: false,
+      showLaunchpad: false,
+      inputCaptured: false,
+      commandPaletteOpen: false,
+      helpOpen: false,
+      coursePickerOpen: false,
+      inboxOpen: false,
+      voicePackOpen: false,
+      quitConfirmOpen: false,
+      assistantOpen: false,
+      assistantFocused: false,
+      assistantFullscreen: false,
+      practiceStack: [],
+      toasts: [],
+      snapshot,
+    });
+
+    const { stdin, stdout } = createMockStreams(120, 36);
+    const inst = render(
+      React.createElement(AppShell, {
+        host,
+        autoLaunchpad: false,
+        renderPage: (p, view) => {
+          if (p === 'dashboard') return React.createElement(DashboardView, view);
+          if (p === 'examcoach') return React.createElement(ExamCoachView, view);
+          if (p === 'examprep') return React.createElement(ExamPrepView, view);
+          return React.createElement(SkeletonView, view);
+        },
+      }),
+      { stdin, stdout, interactive: true, exitOnCtrlC: false },
+    );
+
+    try {
+      await wait(100);
+      // --- DashboardView filter isolation ---
+      stdin.write('/');
+      await wait(60);
+      stdin.write('bm9');
+      await wait(60);
+      assert.equal(useTuiStore.getState().page, 'dashboard', 'typing b/m/9 in DashboardView filter must not navigate away or open map modal');
+      stdin.write('\u001b');
+      await wait(60);
+      stdin.write('9');
+      await wait(100);
+      assert.equal(useTuiStore.getState().page, 'examcoach', 'after closing DashboardView filter, global 9 navigates to examcoach');
+
+      // --- ExamCoachView filter isolation ---
+      stdin.write('/');
+      await wait(60);
+      stdin.write('0np');
+      await wait(60);
+      assert.equal(useTuiStore.getState().page, 'examcoach', 'typing 0/n/p in ExamCoachView filter must not navigate away or open modals');
+      stdin.write('\u001b');
+      await wait(60);
+      stdin.write('0');
+      await wait(100);
+      assert.equal(useTuiStore.getState().page, 'examprep', 'after closing ExamCoachView filter, global 0 navigates to examprep');
+
+      // --- ExamPrepView filter isolation ---
+      stdin.write('/');
+      await wait(60);
+      stdin.write('8ap');
+      await wait(60);
+      assert.equal(useTuiStore.getState().page, 'examprep', 'typing 8/a/p in ExamPrepView filter must not navigate away or open AddFocusModal');
+      stdin.write('\u001b');
+      await wait(60);
+      stdin.write('8');
+      await wait(100);
+      assert.equal(useTuiStore.getState().page, 'skeleton', 'after closing ExamPrepView filter, global 8 navigates to skeleton');
+
+      // --- SkeletonView filter isolation ---
+      stdin.write('/');
+      await wait(60);
+      stdin.write('6gr');
+      await wait(60);
+      assert.equal(useTuiStore.getState().page, 'skeleton', 'typing 6/g/r in SkeletonView filter must not navigate away or open generate confirm');
+      stdin.write('\u001b');
+      await wait(60);
+      stdin.write('6');
+      await wait(100);
+      assert.equal(useTuiStore.getState().page, 'dashboard', 'after closing SkeletonView filter, global 6 navigates to dashboard');
+    } finally {
+      inst.unmount();
     }
   });
 });

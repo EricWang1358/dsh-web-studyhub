@@ -1,7 +1,8 @@
-import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { resolve } from 'node:path';
 import { Box, Text } from 'ink';
-import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
+import { KEY_LAYER_MODAL } from '../../input/dispatcher.js';
+import { KeyScope, useKeyScope } from '../../input/hooks.js';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { atomicWriteExportText, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
@@ -16,7 +17,6 @@ import { SelectList, type SelectOption } from '../../components/SelectList.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, parseSgrWheelDelta, useSgrMouseWheel, type VirtualListRenderContext } from '../../components/VirtualList.js';
-import { useClaimKeys } from '../../components/focus.js';
 import { computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { padDisplay, truncateDisplay } from '../../render/cjk.js';
@@ -46,6 +46,28 @@ const SkeletonDiagramsModal = lazy(() =>
 );
 
 const CLAIMED_KEYS = ['L', 'R', 'G', 'E', 'D', 'M', '/', 'x'] as const;
+
+const LintModalHotkeys = memo(function LintModalHotkeys({
+  isActive,
+  onRerun,
+}: {
+  isActive: boolean;
+  onRerun: () => void;
+}) {
+  useKeyScope({
+    id: 'SkeletonView:lint',
+    active: isActive,
+    layer: KEY_LAYER_MODAL,
+    onKey: (input) => {
+      if (input === 'r') {
+        onRerun();
+        return true;
+      }
+      return false;
+    },
+  });
+  return null;
+});
 
 export { todayLocalYmd };
 
@@ -1244,11 +1266,6 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
     }
   }, []);
 
-  const modalOpen =
-    switcherOpen || lintOpen || routeOpen || groupsOpen || nodeEditOpen || diagramsOpen || confirmGenOpen || confirmDeleteOpen;
-  useClaimKeys(CLAIMED_KEYS, isActive && !modalOpen && !filterEditing);
-  useSgrMouseWheel(isActive && !modalOpen && !filterEditing, moveTreeCursorByWheel);
-
   const hints: KeyHint[] = useMemo(
     () => [
       { key: 'j/k', label: t(lang, '移动', 'Move') },
@@ -1267,7 +1284,6 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
     ],
     [lang, detail, selectedNode, diagramCount],
   );
-  useFooterHints(hints, isActive && !modalOpen);
 
   const showFilterBar = filterEditing || filterQuery.length > 0;
   const filterBarH = showFilterBar ? 1 : 0;
@@ -1278,20 +1294,15 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
     return Math.max(0, Math.min(selectedLineIdx - half, treeLines.length - treeViewportH));
   }, [selectedLineIdx, treeLines.length, treeViewportH]);
 
-  useInput(
-    (input) => {
-      if (input === 'r') void runLint();
-    },
-    { isActive: isActive && lintOpen && !lintLoading },
-  );
-
-  useInput(
-    (input, key) => {
-      if (modalOpen || filterEditing) return;
+  const pageActive = useKeyScope({
+    id: 'SkeletonView:main',
+    active: isActive,
+    keys: CLAIMED_KEYS,
+    onKey: (input, key) => {
       const wheelDelta = parseSgrWheelDelta(input);
       if (wheelDelta !== 0) {
         moveTreeCursorByWheel(wheelDelta);
-        return;
+        return true;
       }
       if (key.escape && filterQuery) {
         setFilterQuery('');
@@ -1299,31 +1310,31 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       }
       if (input === '/' && !key.ctrl && !key.meta) {
         setFilterEditing(true);
-        return;
+        return true;
       }
       if (input === 'x' && !key.ctrl && !key.meta) {
         void exportSkeleton();
-        return;
+        return true;
       }
       if (key.tab) {
         setActivePane((p) => (p === 'left' ? 'right' : 'left'));
-        return;
+        return true;
       }
       if (input === 'L') {
         void runLint();
-        return;
+        return true;
       }
       if (input === 'R') {
         setRouteOpen(true);
-        return;
+        return true;
       }
       if (input === 'G') {
         setGroupsOpen(true);
-        return;
+        return true;
       }
       if (input === 'E' && detail && selectedNode) {
         setNodeEditOpen(true);
-        return;
+        return true;
       }
       if (input === 'M') {
         if (detail) {
@@ -1336,44 +1347,50 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
               'warning',
             );
         }
-        return;
+        return true;
       }
       if (input === 'D' && detail) {
         if (!busyRef.current && busyAction === null) {
           setConfirmDeleteOpen(true);
         }
-        return;
+        return true;
       }
       if (input === 'p') {
         void practiseNode();
-        return;
+        return true;
       }
       if (input === 'g') {
         requestGenerateSkeleton();
-        return;
+        return true;
       }
       if (input === 's' && skeletons.length > 0) {
         setSwitcherOpen(true);
-        return;
+        return true;
       }
       if (key.ctrl && input === 'r') {
         setReloadSeq((n) => n + 1);
-        return;
+        return true;
       }
 
-      if (activePane !== 'left' || treeLines.length === 0) return;
+      if (activePane !== 'left' || treeLines.length === 0) return false;
 
       if (key.downArrow || input === 'j') {
         const nextIdx = Math.min(treeLines.length - 1, Math.max(0, selectedLineIdx) + 1);
         setSelectedNodeId(treeLines[nextIdx]?.id ?? null);
-      } else if (key.upArrow || input === 'k') {
+        return true;
+      }
+      if (key.upArrow || input === 'k') {
         const prevIdx = Math.max(0, (selectedLineIdx < 0 ? 0 : selectedLineIdx) - 1);
         setSelectedNodeId(treeLines[prevIdx]?.id ?? null);
-      } else if (input === ' ' || key.return) {
+        return true;
+      }
+      if (input === ' ' || key.return) {
         const cur = treeLines[selectedLineIdx];
         if (cur?.hasChildren) toggleExpand(cur.id);
         else if (cur) setActivePane('right');
-      } else if (input === 'l' || key.rightArrow) {
+        return true;
+      }
+      if (input === 'l' || key.rightArrow) {
         const cur = treeLines[selectedLineIdx];
         if (cur?.hasChildren && !cur.expanded) toggleExpand(cur.id, true);
         else if (cur?.hasChildren && cur.expanded && treeLines[selectedLineIdx + 1]) {
@@ -1381,7 +1398,9 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
         } else {
           setActivePane('right');
         }
-      } else if (input === 'h' || key.leftArrow) {
+        return true;
+      }
+      if (input === 'h' || key.leftArrow) {
         const cur = treeLines[selectedLineIdx];
         if (cur?.hasChildren && cur.expanded) {
           toggleExpand(cur.id, false);
@@ -1389,15 +1408,20 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
           const pid = parentById.get(cur.id);
           if (pid) setSelectedNodeId(pid);
         }
-      } else if (input === 'e') {
+        return true;
+      }
+      if (input === 'e') {
         if (detail) {
           const allParents = detail.nodes.filter((n) => detail.nodes.some((c) => c.parent === n.id)).map((n) => n.id);
           setExpandedIds((prev) => (prev.size >= allParents.length ? new Set() : new Set(allParents)));
         }
+        return true;
       }
+      return false;
     },
-    { isActive: isActive && !modalOpen && !filterEditing },
-  );
+  });
+  useSgrMouseWheel(pageActive, moveTreeCursorByWheel);
+  useFooterHints(hints, pageActive);
 
   const switcherOptions: SelectOption<string>[] = useMemo(
     () =>
@@ -1474,35 +1498,37 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const filterBadge = `[${filterEditing ? t(lang, '筛选', 'Filter') : t(lang, '已筛选', 'Filtered')} ${treeLines.length}/${baseTreeLines.length}] `;
   const { rightHint: filterRightHint, inputWidth: filterInputW } = computeFilterBarLayout(width, filterBadge, lang, filterEditing);
   const filterBarNode = showFilterBar ? (
-    <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
-      <Text color={filterEditing ? theme.primary : theme.accent} bold>
-        {filterBadge}
-      </Text>
-      <Box flexGrow={1} overflow="hidden">
-        <TextInput
-          value={filterQuery}
-          onChange={(val) => setFilterQuery(val)}
-          onSubmit={(val) => {
-            if (!val.trim()) setFilterQuery('');
-            setFilterEditing(false);
-          }}
-          onCancel={() => {
-            setFilterQuery('');
-            setFilterEditing(false);
-          }}
-          isActive={isActive && !modalOpen && filterEditing}
-          width={filterInputW}
-          prompt="/"
-          placeholder={t(lang, `关键词${ell}`, `keyword${ell}`)}
-          maxLength={120}
-        />
-      </Box>
-      {filterRightHint ? (
-        <Text color={theme.dim} wrap="truncate">
-          {filterRightHint}
+    <KeyScope id="skeleton:filter" opaque active={isActive && filterEditing}>
+      <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+        <Text color={filterEditing ? theme.primary : theme.accent} bold>
+          {filterBadge}
         </Text>
-      ) : null}
-    </Box>
+        <Box flexGrow={1} overflow="hidden">
+          <TextInput
+            value={filterQuery}
+            onChange={(val) => setFilterQuery(val)}
+            onSubmit={(val) => {
+              if (!val.trim()) setFilterQuery('');
+              setFilterEditing(false);
+            }}
+            onCancel={() => {
+              setFilterQuery('');
+              setFilterEditing(false);
+            }}
+            isActive={isActive && filterEditing}
+            width={filterInputW}
+            prompt="/"
+            placeholder={t(lang, `关键词${ell}`, `keyword${ell}`)}
+            maxLength={120}
+          />
+        </Box>
+        {filterRightHint ? (
+          <Text color={theme.dim} wrap="truncate">
+            {filterRightHint}
+          </Text>
+        ) : null}
+      </Box>
+    </KeyScope>
   ) : null;
 
   return (
@@ -1660,7 +1686,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
                   lines={inspectorLines}
                   width={innerW}
                   height={Math.max(2, innerH - (selectedStats ? 2 : 0))}
-                  isActive={isActive && activePane === 'right' && !modalOpen && !filterEditing}
+                  isActive={pageActive && activePane === 'right'}
                 />
               </Panel>
             );
@@ -1669,191 +1695,214 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       )}
 
       {switcherOpen ? (
-        <Modal
-          title={t(lang, '选择已保存的知识骨架', 'Switch Knowledge Skeleton')}
-          icon={asciiMode ? '&' : '⎇'}
-          onClose={() => setSwitcherOpen(false)}
-          isActive={isActive}
-          width={Math.min(70, Math.max(40, width - 6))}
-          hints={[
-            { key: 'Enter', label: t(lang, '打开', 'Open') },
-            { key: 'Esc', label: t(lang, '关闭', 'Close') },
-          ]}
-        >
-          <SelectList
-            options={switcherOptions}
-            currentValue={selectedSkeletonId ?? undefined}
-            width={modalContentWidth(Math.min(70, Math.max(40, width - 6)))}
-            maxHeight={10}
+        <KeyScope id="skeleton:switcher" opaque>
+          <Modal
+            title={t(lang, '选择已保存的知识骨架', 'Switch Knowledge Skeleton')}
+            icon={asciiMode ? '&' : '⎇'}
+            onClose={() => setSwitcherOpen(false)}
             isActive={isActive}
-            onSelect={(opt) => {
-              setSelectedSkeletonId(opt.value);
-              setSwitcherOpen(false);
-            }}
-          />
-        </Modal>
+            width={Math.min(70, Math.max(40, width - 6))}
+            hints={[
+              { key: 'Enter', label: t(lang, '打开', 'Open') },
+              { key: 'Esc', label: t(lang, '关闭', 'Close') },
+            ]}
+          >
+            <SelectList
+              options={switcherOptions}
+              currentValue={selectedSkeletonId ?? undefined}
+              width={modalContentWidth(Math.min(70, Math.max(40, width - 6)))}
+              maxHeight={10}
+              isActive={isActive}
+              onSelect={(opt) => {
+                setSelectedSkeletonId(opt.value);
+                setSwitcherOpen(false);
+              }}
+            />
+          </Modal>
+        </KeyScope>
       ) : null}
 
       {lintOpen ? (
-        <Modal
-          title={t(lang, '骨架结构自检', 'Skeleton Lint & Health')}
-          subtitle={detail?.title}
-          icon={asciiMode ? '!' : '⚑'}
-          tone={lintError ? 'error' : lintFindings.length > 0 ? 'warning' : 'success'}
-          onClose={() => setLintOpen(false)}
-          isActive={isActive}
-          width={lintModalW}
-          height={lintModalH}
-          hints={[
-            { key: 'j/k', label: t(lang, '滚动', 'Scroll') },
-            { key: 'r', label: t(lang, '重检', 'Re-run') },
-            { key: 'Esc', label: t(lang, '关闭', 'Close') },
-          ]}
-        >
-          {lintLoading ? (
-            <Box height={Math.max(4, lintListH + 2)} alignItems="center" justifyContent="center">
-              <Spinner label={t(lang, '正在检查骨架与题目结构...', 'Linting skeleton structure...')} active={isActive} />
-            </Box>
-          ) : lintError ? (
-            <Box flexDirection="column" gap={1} paddingY={1}>
-              <StatusPill status="error" label={t(lang, '检查失败', 'Lint failed')} />
-              <Text color={theme.error} wrap="wrap">{lintError}</Text>
-            </Box>
-          ) : (
-            <Box flexDirection="column">
-              <Box height={1} justifyContent="space-between" overflow="hidden">
-                <StatusPill
-                  status={lintFindings.length === 0 ? 'ok' : 'warn'}
-                  label={
-                    lintFindings.length === 0
-                      ? t(lang, '骨架结构健康', 'Skeleton structure looks healthy')
-                      : t(lang, `发现 ${lintFindings.length} 项结构提示`, `${lintFindings.length} structural finding(s)`)
-                  }
-                />
-                <Text color={theme.muted}>
-                  {lintResult
-                    ? t(lang, `${lintResult.total}题 / ${lintResult.flagged}标红`, `${lintResult.total} cards / ${lintResult.flagged} flagged`)
-                    : detail
-                      ? t(lang, `${detail.nodes.length}节点`, `${detail.nodes.length} nodes`)
-                      : ''}
-                </Text>
+        <KeyScope id="skeleton:lint" opaque>
+          <LintModalHotkeys isActive={isActive && !lintLoading} onRerun={() => void runLint()} />
+          <Modal
+            title={t(lang, '骨架结构自检', 'Skeleton Lint & Health')}
+            subtitle={detail?.title}
+            icon={asciiMode ? '!' : '⚑'}
+            tone={lintError ? 'error' : lintFindings.length > 0 ? 'warning' : 'success'}
+            onClose={() => setLintOpen(false)}
+            isActive={isActive}
+            width={lintModalW}
+            height={lintModalH}
+            hints={[
+              { key: 'j/k', label: t(lang, '滚动', 'Scroll') },
+              { key: 'r', label: t(lang, '重检', 'Re-run') },
+              { key: 'Esc', label: t(lang, '关闭', 'Close') },
+            ]}
+          >
+            {lintLoading ? (
+              <Box height={Math.max(4, lintListH + 2)} alignItems="center" justifyContent="center">
+                <Spinner label={t(lang, '正在检查骨架与题目结构...', 'Linting skeleton structure...')} active={isActive} />
               </Box>
-              <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(Math.max(4, lintInnerW))}</Text>
-              {lintFindings.length === 0 ? (
-                <Box height={lintListH} flexDirection="column" alignItems="center" justifyContent="center" gap={1}>
-                  <Text color={theme.success} bold>
-                    {t(lang, '骨架结构健康', 'Skeleton structure looks healthy')}
-                  </Text>
+            ) : lintError ? (
+              <Box flexDirection="column" gap={1} paddingY={1}>
+                <StatusPill status="error" label={t(lang, '检查失败', 'Lint failed')} />
+                <Text color={theme.error} wrap="wrap">{lintError}</Text>
+              </Box>
+            ) : (
+              <Box flexDirection="column">
+                <Box height={1} justifyContent="space-between" overflow="hidden">
+                  <StatusPill
+                    status={lintFindings.length === 0 ? 'ok' : 'warn'}
+                    label={
+                      lintFindings.length === 0
+                        ? t(lang, '骨架结构健康', 'Skeleton structure looks healthy')
+                        : t(lang, `发现 ${lintFindings.length} 项结构提示`, `${lintFindings.length} structural finding(s)`)
+                    }
+                  />
                   <Text color={theme.muted}>
-                    {truncateDisplay(
-                      lintResult
-                        ? t(
-                            lang,
-                            `已检查 ${lintResult.total} 道题与 ${detail?.nodes.length ?? 0} 个节点，未发现孤立主题或断链。`,
-                            `Checked ${lintResult.total} cards and ${detail?.nodes.length ?? 0} nodes; no issues or orphaned topics found.`,
-                          )
-                        : t(lang, '当前作用域暂无可检查的题卡或结构问题。', 'No cards in scope or structural issues detected.'),
-                      lintInnerW,
-                      asciiMode ? '...' : '…',
-                    )}
+                    {lintResult
+                      ? t(lang, `${lintResult.total}题 / ${lintResult.flagged}标红`, `${lintResult.total} cards / ${lintResult.flagged} flagged`)
+                      : detail
+                        ? t(lang, `${detail.nodes.length}节点`, `${detail.nodes.length} nodes`)
+                        : ''}
                   </Text>
                 </Box>
-              ) : (
-                <VirtualList
-                  items={lintFindings}
-                  width={lintInnerW}
-                  height={lintListH}
-                  selectedIndex={lintCursor}
-                  onChange={(idx) => setLintCursor(idx)}
-                  isActive={isActive && lintOpen}
-                  keyExtractor={(item) => item.id}
-                  renderItem={renderLintRow}
-                  ascii={asciiMode}
-                />
-              )}
-            </Box>
-          )}
-        </Modal>
+                <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(Math.max(4, lintInnerW))}</Text>
+                {lintFindings.length === 0 ? (
+                  <Box height={lintListH} flexDirection="column" alignItems="center" justifyContent="center" gap={1}>
+                    <Text color={theme.success} bold>
+                      {t(lang, '骨架结构健康', 'Skeleton structure looks healthy')}
+                    </Text>
+                    <Text color={theme.muted}>
+                      {truncateDisplay(
+                        lintResult
+                          ? t(
+                              lang,
+                              `已检查 ${lintResult.total} 道题与 ${detail?.nodes.length ?? 0} 个节点，未发现孤立主题或断链。`,
+                              `Checked ${lintResult.total} cards and ${detail?.nodes.length ?? 0} nodes; no issues or orphaned topics found.`,
+                            )
+                          : t(lang, '当前作用域暂无可检查的题卡或结构问题。', 'No cards in scope or structural issues detected.'),
+                        lintInnerW,
+                        asciiMode ? '...' : '…',
+                      )}
+                    </Text>
+                  </Box>
+                ) : (
+                  <VirtualList
+                    items={lintFindings}
+                    width={lintInnerW}
+                    height={lintListH}
+                    selectedIndex={lintCursor}
+                    onChange={(idx) => setLintCursor(idx)}
+                    isActive={isActive && lintOpen}
+                    keyExtractor={(item) => item.id}
+                    renderItem={renderLintRow}
+                    ascii={asciiMode}
+                  />
+                )}
+              </Box>
+            )}
+          </Modal>
+        </KeyScope>
       ) : null}
 
-      <Suspense fallback={null}>
-        {routeOpen ? (
-          <CourseRouteModal
-            host={host}
-            activeCourse={activeCourse}
-            isActive={isActive && routeOpen}
-            onClose={() => setRouteOpen(false)}
-          />
-        ) : null}
-        {groupsOpen ? (
-          <TopicGroupsModal
-            host={host}
-            activeCourse={activeCourse}
-            isActive={isActive && groupsOpen}
-            onClose={() => setGroupsOpen(false)}
-            onSaved={() => setReloadSeq((n) => n + 1)}
-          />
-        ) : null}
-        {nodeEditOpen && detail && selectedNode ? (
-          <NodeEditModal
-            host={host}
-            skeletonId={detail.id}
-            node={selectedNode}
-            isActive={isActive && nodeEditOpen}
-            onClose={() => setNodeEditOpen(false)}
-            onSaved={() => void refreshDetail()}
-          />
-        ) : null}
-        {diagramsOpen && detail ? (
-          <SkeletonDiagramsModal
-            host={host}
-            skeletonId={detail.id}
-            skeletonTitle={detail.title}
-            isActive={isActive && diagramsOpen}
-            onClose={() => setDiagramsOpen(false)}
-            onCountChange={setDiagramCount}
-          />
-        ) : null}
-      </Suspense>
+      {routeOpen ? (
+        <KeyScope id="skeleton:route" opaque>
+          <Suspense fallback={null}>
+            <CourseRouteModal
+              host={host}
+              activeCourse={activeCourse}
+              isActive={isActive && routeOpen}
+              onClose={() => setRouteOpen(false)}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
+      {groupsOpen ? (
+        <KeyScope id="skeleton:groups" opaque>
+          <Suspense fallback={null}>
+            <TopicGroupsModal
+              host={host}
+              activeCourse={activeCourse}
+              isActive={isActive && groupsOpen}
+              onClose={() => setGroupsOpen(false)}
+              onSaved={() => setReloadSeq((n) => n + 1)}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
+      {nodeEditOpen && detail && selectedNode ? (
+        <KeyScope id="skeleton:node-edit" opaque>
+          <Suspense fallback={null}>
+            <NodeEditModal
+              host={host}
+              skeletonId={detail.id}
+              node={selectedNode}
+              isActive={isActive && nodeEditOpen}
+              onClose={() => setNodeEditOpen(false)}
+              onSaved={() => void refreshDetail()}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
+      {diagramsOpen && detail ? (
+        <KeyScope id="skeleton:diagrams" opaque>
+          <Suspense fallback={null}>
+            <SkeletonDiagramsModal
+              host={host}
+              skeletonId={detail.id}
+              skeletonTitle={detail.title}
+              isActive={isActive && diagramsOpen}
+              onClose={() => setDiagramsOpen(false)}
+              onCountChange={setDiagramCount}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
       {confirmGenOpen ? (
-        <ConfirmDialog
-          title={t(lang, '确认生成知识骨架', 'Confirm Skeleton Generation')}
-          message={t(
-            lang,
-            `将为「${activeCourse || '全部课程'}」调用 AI 生成知识骨架（覆盖 ${topics.length} 个主题，共 ${topics.reduce((sum, tp) => sum + (tp.count || 0), 0)} 题，预计发起 1 次 AI 模型调用）。确认继续吗？`,
-            `Generate knowledge skeleton for "${activeCourse || 'All Courses'}" (${topics.length} topics, ${topics.reduce((sum, tp) => sum + (tp.count || 0), 0)} cards; ~1 AI model call). Continue?`,
-          )}
-          confirmLabel={t(lang, '开始生成', 'Generate')}
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          isActive={isActive}
-          onConfirm={() => {
-            setConfirmGenOpen(false);
-            void generateSkeleton();
-          }}
-          onCancel={() => setConfirmGenOpen(false)}
-        />
+        <KeyScope id="skeleton:confirm-gen" opaque>
+          <ConfirmDialog
+            title={t(lang, '确认生成知识骨架', 'Confirm Skeleton Generation')}
+            message={t(
+              lang,
+              `将为「${activeCourse || '全部课程'}」调用 AI 生成知识骨架（覆盖 ${topics.length} 个主题，共 ${topics.reduce((sum, tp) => sum + (tp.count || 0), 0)} 题，预计发起 1 次 AI 模型调用）。确认继续吗？`,
+              `Generate knowledge skeleton for "${activeCourse || 'All Courses'}" (${topics.length} topics, ${topics.reduce((sum, tp) => sum + (tp.count || 0), 0)} cards; ~1 AI model call). Continue?`,
+            )}
+            confirmLabel={t(lang, '开始生成', 'Generate')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            isActive={isActive}
+            onConfirm={() => {
+              setConfirmGenOpen(false);
+              void generateSkeleton();
+            }}
+            onCancel={() => setConfirmGenOpen(false)}
+          />
+        </KeyScope>
       ) : null}
 
       {confirmDeleteOpen && detail ? (
-        <ConfirmDialog
-          title={t(lang, '确认删除知识骨架', 'Delete Knowledge Skeleton')}
-          message={t(
-            lang,
-            `确定永久删除当前知识骨架「${detail.title}」吗？关联的图表也会一并删除，题组与卡片本身不受影响。`,
-            `Permanently delete skeleton "${detail.title}"? Associated diagrams will also be removed, while decks and cards remain untouched.`,
-          )}
-          confirmLabel={t(lang, '永久删除', 'Delete')}
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          danger
-          width={Math.min(62, Math.max(40, width - 6))}
-          isActive={isActive}
-          onConfirm={() => {
-            setConfirmDeleteOpen(false);
-            void deleteSkeleton();
-          }}
-          onCancel={() => setConfirmDeleteOpen(false)}
-        />
+        <KeyScope id="skeleton:confirm-delete" opaque>
+          <ConfirmDialog
+            title={t(lang, '确认删除知识骨架', 'Delete Knowledge Skeleton')}
+            message={t(
+              lang,
+              `确定永久删除当前知识骨架「${detail.title}」吗？关联的图表也会一并删除，题组与卡片本身不受影响。`,
+              `Permanently delete skeleton "${detail.title}"? Associated diagrams will also be removed, while decks and cards remain untouched.`,
+            )}
+            confirmLabel={t(lang, '永久删除', 'Delete')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            danger
+            width={Math.min(62, Math.max(40, width - 6))}
+            isActive={isActive}
+            onConfirm={() => {
+              setConfirmDeleteOpen(false);
+              void deleteSkeleton();
+            }}
+            onCancel={() => setConfirmDeleteOpen(false)}
+          />
+        </KeyScope>
       ) : null}
     </Box>
   );

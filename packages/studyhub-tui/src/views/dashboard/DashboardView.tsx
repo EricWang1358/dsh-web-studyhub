@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
-import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
+import { KeyScope, useKeyScope } from '../../input/hooks.js';
 import type { StudySnapshot, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { atomicWriteExportText, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
@@ -12,7 +12,7 @@ import { EmptyState, Spinner } from '../../components/Badge.js';
 import { Panel } from '../../components/Panel.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
-import { useClaimKeys, useInputCapture } from '../../components/focus.js';
+import { useInputCapture } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import {
@@ -706,10 +706,8 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
     }
   }, [asciiMode, bindingRoot, course, courseStats, dailyPlan, host, lang, notify, stats, usage, usageDays]);
 
-  const viewInputActive = isActive && !mapModalOpen;
   const claimedKeys = useMemo(() => ['j', 'k', 'p', 'w', 'f', 'm', 'd', 'x', '/', 'T'], []);
-  useClaimKeys(claimedKeys, viewInputActive);
-  useInputCapture(viewInputActive && filterOpen);
+  useInputCapture(isActive && !mapModalOpen && filterOpen);
 
   const footerHints = useMemo(
     () => [
@@ -732,10 +730,12 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
     ],
     [lang, extraWide, showForecast, usageDays],
   );
-  useFooterHints(footerHints, viewInputActive);
 
-  useInput(
-    (input, key) => {
+  const pageActive = useKeyScope({
+    id: 'DashboardView:main',
+    active: isActive,
+    keys: claimedKeys,
+    onKey: (input, key) => {
       if (key.escape && filterQuery) {
         setFilterQuery('');
         setSelectedIdx(0);
@@ -744,31 +744,31 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
       if (input === '/' && !key.ctrl && !key.meta) {
         setFilterOpen(true);
         setSelectedIdx(0);
-        return;
+        return true;
       }
       if (input === 'm') {
         setMapModalOpen(true);
-        return;
+        return true;
       }
       if (input === 'd') {
         void handleCycleUsageDays();
-        return;
+        return true;
       }
       if (input === 'x') {
         void handleExportReport();
-        return;
+        return true;
       }
       if (key.ctrl && input === 'r') {
         void refreshSnapshot().then(() => loadData());
-        return;
+        return true;
       }
       if (input === 'f') {
         setShowForecast((prev) => !prev);
-        return;
+        return true;
       }
       if (input === 'T') {
         setShowMasteryTable((prev) => !prev);
-        return;
+        return true;
       }
       if (input === 'w') {
         const allWeak = stats?.weakScope ?? weakTopics.flatMap((wt) => wt.cards ?? []);
@@ -776,15 +776,17 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
           allWeak,
           t(lang, '暂无待强化薄弱题', 'No weak questions to practise'),
         );
-        return;
+        return true;
       }
       if (input === 'p') {
         const idx = Math.min(selectedIdx, Math.max(0, filteredDrillItems.length - 1));
         launchDrillItem(filteredDrillItems[idx]);
+        return true;
       }
+      return false;
     },
-    { isActive: viewInputActive && !filterOpen },
-  );
+  });
+  useFooterHints(footerHints, pageActive);
 
   const totals = stats?.totals;
   const totalCards = totals?.cards ?? activeDecks.reduce((n, d) => n + (Number(d.cardCount) || 0), 0);
@@ -1230,44 +1232,46 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
         badge={drillPanelBadge}
         badgeTone={drillPanelBadgeTone}
         subtitle={drillPanelSubtitle}
-        focused={viewInputActive}
+        focused={pageActive}
         width={width}
         height={drillListPanelH}
       >
         {filterOpen ? (
-          <Box height={1} width={innerPanelW} backgroundColor={theme.surface} overflow="hidden">
-            <Text color={theme.primary} bold>
-              {filterBarBadge}
-            </Text>
-            <Box flexGrow={1} overflow="hidden">
-              <TextInput
-                value={filterQuery}
-                onChange={(next) => {
-                  setFilterQuery(next);
-                  setSelectedIdx(0);
-                }}
-                onSubmit={(val) => {
-                  if (!val.trim()) setFilterQuery('');
-                  setFilterOpen(false);
-                }}
-                onCancel={() => {
-                  setFilterQuery('');
-                  setFilterOpen(false);
-                  setSelectedIdx(0);
-                }}
-                isActive={viewInputActive && filterOpen}
-                width={filterInputW}
-                prompt="/"
-                placeholder={t(lang, `知识点/课程${ell}`, `topic/course${ell}`)}
-                maxLength={120}
-              />
-            </Box>
-            {filterBarHint ? (
-              <Text color={theme.dim} wrap="truncate">
-                {filterBarHint}
+          <KeyScope id="dashboard:filter" opaque active={isActive && filterOpen}>
+            <Box height={1} width={innerPanelW} backgroundColor={theme.surface} overflow="hidden">
+              <Text color={theme.primary} bold>
+                {filterBarBadge}
               </Text>
-            ) : null}
-          </Box>
+              <Box flexGrow={1} overflow="hidden">
+                <TextInput
+                  value={filterQuery}
+                  onChange={(next) => {
+                    setFilterQuery(next);
+                    setSelectedIdx(0);
+                  }}
+                  onSubmit={(val) => {
+                    if (!val.trim()) setFilterQuery('');
+                    setFilterOpen(false);
+                  }}
+                  onCancel={() => {
+                    setFilterQuery('');
+                    setFilterOpen(false);
+                    setSelectedIdx(0);
+                  }}
+                  isActive={isActive && filterOpen}
+                  width={filterInputW}
+                  prompt="/"
+                  placeholder={t(lang, `知识点/课程${ell}`, `topic/course${ell}`)}
+                  maxLength={120}
+                />
+              </Box>
+              {filterBarHint ? (
+                <Text color={theme.dim} wrap="truncate">
+                  {filterBarHint}
+                </Text>
+              ) : null}
+            </Box>
+          </KeyScope>
         ) : null}
         {drillItems.length === 0 ? (
           <EmptyState
@@ -1309,22 +1313,24 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
             onSelect={(item) => launchDrillItem(item)}
             renderItem={renderDrillRow}
             keyExtractor={(item) => item.key}
-            isActive={viewInputActive && !filterOpen}
+            isActive={pageActive}
           />
         )}
       </Panel>
 
-      <Suspense fallback={null}>
-        {mapModalOpen ? (
-          <StudyMapModal
-            host={host}
-            width={width}
-            height={height}
-            isActive={isActive && mapModalOpen}
-            onClose={() => setMapModalOpen(false)}
-          />
-        ) : null}
-      </Suspense>
+      {mapModalOpen ? (
+        <KeyScope id="dashboard:study-map" opaque>
+          <Suspense fallback={null}>
+            <StudyMapModal
+              host={host}
+              width={width}
+              height={height}
+              isActive={isActive && mapModalOpen}
+              onClose={() => setMapModalOpen(false)}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
     </Box>
   );
 };

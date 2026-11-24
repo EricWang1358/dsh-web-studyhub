@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
-import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
+import { KeyScope, useKeyScope } from '../../input/hooks.js';
 import type { KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -10,7 +10,6 @@ import { Panel } from '../../components/Panel.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
-import { useClaimKeys } from '../../components/focus.js';
 import { computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
@@ -209,7 +208,6 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const [deleteTopicTarget, setDeleteTopicTarget] = useState<string | null>(null);
   const [gapFillConfirm, setGapFillConfirm] = useState<{ topics: string[]; count: number } | null>(null);
 
-  const modalOpen = addModalOpen || planModalOpen || deleteTopicTarget !== null || gapFillConfirm !== null;
   const mountedRef = useRef(true);
   const reqSeqRef = useRef(0);
   const busyRef = useRef(false);
@@ -306,8 +304,6 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
     [filteredTopics],
   );
   const inProgressCount = useMemo(() => topics.filter((tp) => focusStatusGroup(tp.status) === 'in_progress').length, [topics]);
-
-  useClaimKeys(CLAIMED_KEYS, isActive && !modalOpen && !filterEditing);
 
   const hints = useMemo<KeyHint[]>(() => {
     if (tab === 'focus') {
@@ -575,89 +571,91 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
     }
   }, [asciiMode, course, courseRecord, coursePlan, crunch?.daysLeft, crunch?.examDate, crunchPoints, host, lang, notify, topics]);
 
-  useInput(
-    (input, key) => {
-      if (modalOpen || filterEditing) return;
+  const pageActive = useKeyScope({
+    id: 'ExamPrepView:main',
+    active: isActive,
+    keys: CLAIMED_KEYS,
+    onKey: (input, key) => {
       if (key.escape && tab === 'focus' && filterQuery) {
         setFilterQuery('');
         return true;
       }
       if (input === '/' && !key.ctrl && !key.meta && tab === 'focus') {
         setFilterEditing(true);
-        return;
+        return true;
       }
       if (input === 'x' && !key.ctrl && !key.meta) {
         void exportExamPrep();
-        return;
+        return true;
       }
-      if (input === '1') { setTab('focus'); return; }
-      if (input === '2') { setTab('crunch'); setFilterEditing(false); return; }
+      if (input === '1') { setTab('focus'); return true; }
+      if (input === '2') { setTab('crunch'); setFilterEditing(false); return true; }
       if (key.tab) {
         setFocusPane((p) => (p === 'left' ? 'right' : 'left'));
-        return;
+        return true;
       }
       if (input === 'a') {
         setAddModalOpen(true);
-        return;
+        return true;
       }
       if (input === 'P') {
         setPlanModalOpen(true);
-        return;
+        return true;
       }
       if (input === 'Z' && examGapAlert) {
         setGapAlertDismissed(true);
         notify(t(lang, '本次会话已隐藏考期预警', 'Exam gap alert dismissed for this session'), 'info');
-        return;
+        return true;
       }
       if (input === 'T') {
         setShowScheduleTable((v) => !v);
-        return;
+        return true;
       }
       if (key.ctrl && input === 'r') {
         void loadAll();
-        return;
+        return true;
       }
 
       if (tab === 'focus') {
         if (input === 'p') {
           void practiceUnmastered();
-          return;
+          return true;
         }
         if (input === 'g') {
-          if (busyRef.current || busyLabel !== null) return;
+          if (busyRef.current || busyLabel !== null) return true;
           const list = selectedTopic && selectedTopic.status === 'none'
             ? [selectedTopic.topic]
             : noQuestionTopics.slice(0, 5);
           requestGapFill(list);
-          return;
+          return true;
         }
         if (input === 'G') {
-          if (busyRef.current || busyLabel !== null) return;
+          if (busyRef.current || busyLabel !== null) return true;
           requestGapFill(noQuestionTopics.slice(0, 10));
-          return;
+          return true;
         }
         if (input === 'd' && selectedTopic) {
-          if (busyRef.current || busyLabel !== null) return;
+          if (busyRef.current || busyLabel !== null) return true;
           setDeleteTopicTarget(selectedTopic.topic);
-          return;
+          return true;
         }
       } else if (tab === 'crunch') {
         if (input === ' ') {
           void toggleCrunchMark('seen');
-          return;
+          return true;
         }
         if (input === 'm') {
           void toggleCrunchMark('read');
-          return;
+          return true;
         }
         if (input === 'p') {
           void startCrunchMock();
-          return;
+          return true;
         }
       }
+      return false;
     },
-    { isActive: isActive && !modalOpen && !filterEditing },
-  );
+  });
 
   // Memoized FSRS distribution bars for selected focus point
   const distBars = useMemo(() => {
@@ -765,35 +763,37 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
         </Box>
       ) : null}
       {showFilterBar ? (
-        <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
-          <Text color={filterEditing ? theme.primary : theme.accent} bold>
-            {filterBadge}
-          </Text>
-          <Box flexGrow={1} overflow="hidden">
-            <TextInput
-              value={filterQuery}
-              onChange={(val) => setFilterQuery(val)}
-              onSubmit={(val) => {
-                if (!val.trim()) setFilterQuery('');
-                setFilterEditing(false);
-              }}
-              onCancel={() => {
-                setFilterQuery('');
-                setFilterEditing(false);
-              }}
-              isActive={isActive && !modalOpen && tab === 'focus' && filterEditing}
-              width={filterInputW}
-              prompt="/"
-              placeholder={t(lang, `主题/状态/题组${ell}`, `topic/status/deck${ell}`)}
-              maxLength={120}
-            />
-          </Box>
-          {filterRightHint ? (
-            <Text color={theme.dim} wrap="truncate">
-              {filterRightHint}
+        <KeyScope id="examprep:filter" opaque active={isActive && tab === 'focus' && filterEditing}>
+          <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+            <Text color={filterEditing ? theme.primary : theme.accent} bold>
+              {filterBadge}
             </Text>
-          ) : null}
-        </Box>
+            <Box flexGrow={1} overflow="hidden">
+              <TextInput
+                value={filterQuery}
+                onChange={(val) => setFilterQuery(val)}
+                onSubmit={(val) => {
+                  if (!val.trim()) setFilterQuery('');
+                  setFilterEditing(false);
+                }}
+                onCancel={() => {
+                  setFilterQuery('');
+                  setFilterEditing(false);
+                }}
+                isActive={isActive && tab === 'focus' && filterEditing}
+                width={filterInputW}
+                prompt="/"
+                placeholder={t(lang, `主题/状态/题组${ell}`, `topic/status/deck${ell}`)}
+                maxLength={120}
+              />
+            </Box>
+            {filterRightHint ? (
+              <Text color={theme.dim} wrap="truncate">
+                {filterRightHint}
+              </Text>
+            ) : null}
+          </Box>
+        </KeyScope>
       ) : null}
       {errorMsg ? (
         <Box height={1} width={width} paddingX={1}>
@@ -856,7 +856,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
                     height={Math.max(3, sz.height - 2)}
                     selectedIndex={clampedTopicIdx}
                     onChange={setTopicIdx}
-                    isActive={isActive && !modalOpen && !filterEditing && focusPane === 'left'}
+                    isActive={pageActive && focusPane === 'left'}
                     ascii={asciiMode}
                     renderItem={(tp, ctx) => {
                       const st = focusStatusLabel(tp.status, lang);
@@ -1017,7 +1017,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
                 height={Math.max(3, sz.height - 2)}
                 selectedIndex={crunchIdx}
                 onChange={setCrunchIdx}
-                isActive={isActive && !modalOpen && !filterEditing && focusPane === 'left'}
+                isActive={pageActive && focusPane === 'left'}
                 ascii={asciiMode}
                 renderItem={(pt, ctx) => {
                   const mark = asciiMode ? (pt.done ? '+' : pt.seen ? '~' : 'o') : (pt.done ? '✓' : pt.seen ? '◐' : '○');
@@ -1076,82 +1076,90 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
       )}
 
       {/* [a] Add Exam Focus Modal */}
-      <Suspense fallback={null}>
-        {addModalOpen ? (
-          <AddFocusModal
-            host={host}
-            course={course}
-            existingTopics={topics.map((tp) => tp.topic)}
-            width={width}
-            isActive={isActive}
-            onClose={() => setAddModalOpen(false)}
-            onSaved={() => {
-              setAddModalOpen(false);
-              void refreshSnapshot().then(() => loadAll());
-            }}
-          />
-        ) : null}
-      </Suspense>
+      {addModalOpen ? (
+        <KeyScope id="examprep:add-focus" opaque>
+          <Suspense fallback={null}>
+            <AddFocusModal
+              host={host}
+              course={course}
+              existingTopics={topics.map((tp) => tp.topic)}
+              width={width}
+              isActive={isActive}
+              onClose={() => setAddModalOpen(false)}
+              onSaved={() => {
+                setAddModalOpen(false);
+                void refreshSnapshot().then(() => loadAll());
+              }}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
       {/* [P] Course Study Plan & Readiness Modal */}
-      <Suspense fallback={null}>
-        {planModalOpen ? (
-          <StudyPlanModal
-            host={host}
-            course={course}
-            width={width}
-            height={height}
-            isActive={isActive}
-            onClose={() => setPlanModalOpen(false)}
-            onUpdated={() => {
-              void refreshSnapshot().then(() => loadAll());
-            }}
-          />
-        ) : null}
-      </Suspense>
+      {planModalOpen ? (
+        <KeyScope id="examprep:study-plan" opaque>
+          <Suspense fallback={null}>
+            <StudyPlanModal
+              host={host}
+              course={course}
+              width={width}
+              height={height}
+              isActive={isActive}
+              onClose={() => setPlanModalOpen(false)}
+              onUpdated={() => {
+                void refreshSnapshot().then(() => loadAll());
+              }}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
       {/* Confirm remove focus topic */}
       {deleteTopicTarget ? (
-        <ConfirmDialog
-          title={t(lang, '移除重点条目', 'Remove Focus Topic')}
-          message={t(lang, `确认从「${course}」的重点清单中移除「${deleteTopicTarget}」？已生成的题目不会被删除。`, `Remove "${deleteTopicTarget}" from "${course}" focus list? Existing cards are kept.`)}
-          confirmLabel={t(lang, '移除', 'Remove')}
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          danger
-          isActive={isActive}
-          onConfirm={() => void confirmRemoveTopic(deleteTopicTarget)}
-          onCancel={() => setDeleteTopicTarget(null)}
-        />
+        <KeyScope id="examprep:delete-topic" opaque>
+          <ConfirmDialog
+            title={t(lang, '移除重点条目', 'Remove Focus Topic')}
+            message={t(lang, `确认从「${course}」的重点清单中移除「${deleteTopicTarget}」？已生成的题目不会被删除。`, `Remove "${deleteTopicTarget}" from "${course}" focus list? Existing cards are kept.`)}
+            confirmLabel={t(lang, '移除', 'Remove')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            danger
+            isActive={isActive}
+            onConfirm={() => void confirmRemoveTopic(deleteTopicTarget)}
+            onCancel={() => setDeleteTopicTarget(null)}
+          />
+        </KeyScope>
       ) : null}
 
       {/* Confirm gap-fill AI generation */}
       {gapFillConfirm ? (
-        <ConfirmDialog
-          title={t(lang, '确认重点补齐出题', 'Confirm Gap-Fill Generation')}
-          message={
-            <Box flexDirection="column" gap={1}>
-              <Text color={theme.text}>
-                {t(
-                  lang,
-                  `即将为 ${gapFillConfirm.topics.length} 个缺失重点主题调用 AI 出题，预计发起约 1 次生成任务（约 ${gapFillConfirm.count} 题），确认继续吗？`,
-                  `Will generate questions for ${gapFillConfirm.topics.length} missing focus topics (~1 AI generation job, ~${gapFillConfirm.count} questions). Continue?`,
-                )}
-              </Text>
-              <Text color={theme.muted}>
-                {`${t(lang, '目标主题', 'Topics')}: ${gapFillConfirm.topics.slice(0, 5).join(', ')}${gapFillConfirm.topics.length > 5 ? ` (+${gapFillConfirm.topics.length - 5})` : ''}`}
-              </Text>
-            </Box>
-          }
-          confirmLabel={t(lang, '开始出题', 'Generate')}
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          isActive={isActive}
-          onConfirm={() => {
-            const list = gapFillConfirm.topics;
-            setGapFillConfirm(null);
-            void generateGapFill(list);
-          }}
-          onCancel={() => setGapFillConfirm(null)}
-        />
+        <KeyScope id="examprep:gap-fill" opaque>
+          <ConfirmDialog
+            title={t(lang, '确认重点补齐出题', 'Confirm Gap-Fill Generation')}
+            message={
+              <Box flexDirection="column" gap={1}>
+                <Text color={theme.text}>
+                  {t(
+                    lang,
+                    `即将为 ${gapFillConfirm.topics.length} 个缺失重点主题调用 AI 出题，预计发起约 1 次生成任务（约 ${gapFillConfirm.count} 题），确认继续吗？`,
+                    `Will generate questions for ${gapFillConfirm.topics.length} missing focus topics (~1 AI generation job, ~${gapFillConfirm.count} questions). Continue?`,
+                  )}
+                </Text>
+                <Text color={theme.muted}>
+                  {`${t(lang, '目标主题', 'Topics')}: ${gapFillConfirm.topics.slice(0, 5).join(', ')}${gapFillConfirm.topics.length > 5 ? ` (+${gapFillConfirm.topics.length - 5})` : ''}`}
+                </Text>
+              </Box>
+            }
+            confirmLabel={t(lang, '开始出题', 'Generate')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            isActive={isActive}
+            onConfirm={() => {
+              const list = gapFillConfirm.topics;
+              setGapFillConfirm(null);
+              void generateGapFill(list);
+            }}
+            onCancel={() => setGapFillConfirm(null)}
+          />
+        </KeyScope>
       ) : null}
     </Box>
   );
