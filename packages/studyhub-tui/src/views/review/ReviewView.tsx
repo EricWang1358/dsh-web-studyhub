@@ -1717,7 +1717,15 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
   const handleSavedFollowup = useCallback((targetCardId: string, item: SavedFollowupItem) => {
     setSavedFollowupsByCard((prev) => {
       const existing = prev[targetCardId] ?? [];
-      if (existing.some((x) => x.id === item.id)) return prev;
+      const itemQ = item.question.replace(/\s+/g, ' ').trim();
+      const idx = existing.findIndex(
+        (x) => x.id === item.id || (itemQ && x.question.replace(/\s+/g, ' ').trim() === itemQ),
+      );
+      if (idx >= 0) {
+        const next = [...existing];
+        next[idx] = item;
+        return { ...prev, [targetCardId]: next };
+      }
       return { ...prev, [targetCardId]: [...existing, item] };
     });
   }, []);
@@ -1726,10 +1734,13 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     const sol = solution?.followups ?? [];
     const extra = cardId ? savedFollowupsByCard[cardId] ?? [] : [];
     if (extra.length === 0) return sol.length;
-    const seen = new Set(sol.map((f) => f.id).filter(Boolean));
+    const seenIds = new Set(sol.map((f) => f.id).filter(Boolean));
+    const seenQs = new Set(sol.map((f) => (typeof f.question === 'string' ? f.question.replace(/\s+/g, ' ').trim() : '')).filter(Boolean));
     let count = sol.length;
     for (const item of extra) {
-      if (!item.id || !seen.has(item.id)) count += 1;
+      const q = item.question.replace(/\s+/g, ' ').trim();
+      if ((item.id && seenIds.has(item.id)) || (q && seenQs.has(q))) continue;
+      count += 1;
     }
     return count;
   }, [solution, cardId, savedFollowupsByCard]);

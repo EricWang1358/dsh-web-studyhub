@@ -140,9 +140,15 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
     const solFollowups = extractSolution(run)?.followups ?? [];
     const merged: Array<{ id?: string; question?: string; answer?: string }> = [...solFollowups];
     if (extraSavedFollowups && extraSavedFollowups.length > 0) {
-      const seen = new Set(solFollowups.map((f) => f.id).filter(Boolean));
       for (const extra of extraSavedFollowups) {
-        if (!extra.id || !seen.has(extra.id)) merged.push(extra);
+        const extraQ = typeof extra.question === 'string' ? extra.question.replace(/\s+/g, ' ').trim() : '';
+        const matchIdx = merged.findIndex(
+          (f) =>
+            (extra.id && f.id === extra.id) ||
+            (extraQ && typeof f.question === 'string' && f.question.replace(/\s+/g, ' ').trim() === extraQ),
+        );
+        if (matchIdx >= 0) merged[matchIdx] = extra;
+        else merged.push(extra);
       }
     }
     return followupsToAiTurns(merged);
@@ -332,6 +338,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       question: questionText.slice(0, 1000),
       answer: answerText.slice(0, 8000),
       source: 'assistant',
+      replace: true,
       silent: true,
     });
     if (!mountedRef.current) return;

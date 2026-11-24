@@ -207,3 +207,28 @@ test("improving a card keeps the learner's earlier Q&A, flagged when the questio
   await service.call("card.followup", { ...ref, question: "那 add 呢" });
   assert.equal((await service.call("card.get", ref)).card.followups.length, 2);
 });
+
+test("#1337: card.followup.add with a regenerated answer for the same question replaces the old answer and stays idempotent for identical answer", async (t) => {
+  const service = await setup(t, async () => JSON.stringify(reply));
+  const q = "请帮我深入讲解这道题的考点、解题思路和容易混淆的误区。";
+
+  const first = await service.call("card.followup.add", { ...ref, question: q, answer: "EXPLANATION_A", source: "assistant", silent: true });
+  assert.equal(first.item.answer, "EXPLANATION_A");
+
+  // Saving the exact same question + exact same answer is idempotent
+  const sameAgain = await service.call("card.followup.add", { ...ref, question: q, answer: "EXPLANATION_A", source: "assistant", silent: true });
+  assert.equal(sameAgain.item.id, first.item.id);
+  assert.equal((await service.call("card.get", ref)).card.followups.length, 1);
+
+  // Saving a regenerated new answer B for the same question replaces A with B (and issues a fresh id so note.qa.add picks it up)
+  const second = await service.call("card.followup.add", { ...ref, question: q, answer: "EXPLANATION_B", source: "assistant", silent: true });
+  assert.equal(second.item.answer, "EXPLANATION_B");
+  assert.notEqual(second.item.id, first.item.id);
+
+  // Reloading from disk returns the regenerated explanation B, never stale A
+  const reopened = new StudyService(service.store.root);
+  const stored = (await reopened.call("card.get", ref)).card.followups;
+  assert.equal(stored.length, 1);
+  assert.equal(stored[0].answer, "EXPLANATION_B");
+  assert.equal(stored[0].id, second.item.id);
+});

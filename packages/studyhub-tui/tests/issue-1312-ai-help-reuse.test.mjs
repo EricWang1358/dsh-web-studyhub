@@ -196,6 +196,13 @@ describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () =>
       assert.equal(modelCalls, 2, 'Pressing R must explicitly invoke model');
       assert.equal(savedCalls.length, 1, 'Regenerate must NOT overwrite saved followup until user presses N again');
       assert.ok(regenFrame.includes('EXPLANATION_V2'));
+
+      // #1337: Pressing N after R saves the regenerated answer V2 (and updates saved state on card)
+      h.write('N');
+      await new Promise((r) => setTimeout(r, 80));
+      assert.equal(savedCalls.length, 2, 'Pressing N after R must call card.followup.add again');
+      assert.equal(savedCalls[1].answer, 'EXPLANATION_V2');
+      assert.equal(savedCalls[1].replace, true, '#1337: explicit save after regenerate requests replacement');
     } finally {
       h.cleanup();
     }
