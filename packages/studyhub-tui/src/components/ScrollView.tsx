@@ -26,6 +26,8 @@ export interface ScrollViewProps {
   follow?: boolean;
   /** Override store asciiMode preference (`#` / `|` scrollbar when true). */
   ascii?: boolean;
+  /** Opt in to Vim `g` (top) / `G` (bottom) jump keys. Default false so parent shortcuts never conflict (#1374). */
+  vimJumpKeys?: boolean;
 }
 
 const INV_ON = '\u001b[7m';
@@ -63,6 +65,7 @@ export const ScrollView = memo(function ScrollView({
   showIndicator = true,
   follow = false,
   ascii: asciiProp,
+  vimJumpKeys = false,
 }: ScrollViewProps) {
   const theme = useTheme();
   const storeAscii = useTuiStore((s) => Boolean(s.preferences.asciiMode));
@@ -128,8 +131,8 @@ export const ScrollView = memo(function ScrollView({
       else if (key.pageUp || (key.ctrl && input === 'b')) scrollTo(top - pageStep(rows, 'full'));
       else if (key.downArrow || (!key.ctrl && !key.meta && input === 'j')) scrollTo(top + 1);
       else if (key.upArrow || (!key.ctrl && !key.meta && input === 'k')) scrollTo(top - 1);
-      else if (key.home || (!key.ctrl && !key.meta && input === 'g')) scrollTo(0);
-      else if (key.end || (!key.ctrl && !key.meta && input === 'G')) scrollTo(maxTop);
+      else if (key.home || (vimJumpKeys && !key.ctrl && !key.meta && input === 'g')) scrollTo(0);
+      else if (key.end || (vimJumpKeys && !key.ctrl && !key.meta && input === 'G')) scrollTo(maxTop);
       else if (input === 'n' && matchRows.length > 0) {
         const next = matchRows.find((r) => r > top) ?? matchRows[0];
         scrollTo(next);
