@@ -1915,5 +1915,12 @@
   "第 {0} 步：{1}": "Step {0}: {1}",
   "连续答错两次了，可以看要点并继续：点击「跳过这一步」或「剩下的直接讲给我听」。": "Missed twice in a row — view the key takeaway and keep moving: click \"Skip this step\" or \"Explain the rest to me\".",
   "跳过这一步": "Skip this step",
-  "剩下的直接讲给我听": "Explain the rest to me"
+  "剩下的直接讲给我听": "Explain the rest to me",
+  "示意图": "Diagram",
+  "流程图": "Flowchart",
+  "状态图": "State diagram",
+  "查看源码": "View source",
+  "查看图示": "View diagram",
+  "源码": "Source",
+  "图示": "Diagram"
 }

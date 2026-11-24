@@ -284,6 +284,8 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
   const activeRunId = useTuiStore((s) => s.activeRunId);
   const snapshot = useTuiStore((s) => s.snapshot);
   const setActiveRunId = useTuiStore((s) => s.setActiveRunId);
+  // A run an assistant action got back (#1447): apply it so this page shows what the backend has.
+  const pendingReviewRunSeq = useTuiStore((s) => s.pendingReviewRunSeq);
   const navigate = useTuiStore((s) => s.navigate);
   const goBack = useTuiStore((s) => s.goBack);
   const notify = useTuiStore((s) => s.notify);
@@ -569,6 +571,19 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     },
     [setActiveRunId, refresh],
   );
+
+  // An assistant action (slay, undo, queue edit, grade change, correction) returns the run it changed;
+  // applying it here keeps this page on the question the backend is on (#1447).
+  useEffect(() => {
+    if (!pendingReviewRunSeq) return;
+    const next = useTuiStore.getState().consumePendingReviewRun();
+    if (!next) return;
+    const nextId = typeof next.id === 'string' ? next.id : '';
+    const onScreen = navContext.runId || activeRunId || '';
+    // Do not push a round the learner has already left onto a different one.
+    if (nextId && onScreen && nextId !== onScreen) return;
+    applyRun(next as unknown as ReviewRun, true);
+  }, [pendingReviewRunSeq, applyRun, navContext.runId, activeRunId]);
 
   const loadInitialRun = useCallback(
     async (forceFresh = false) => {
@@ -1677,25 +1692,63 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     writeTerminalTitle('StudyHub', { asciiMode });
   }, [asciiMode]);
 
-  // Sync rich current card context into persistent AI Assistant without mutating practiceStack (#1315/#1319 coexistence)
+  // Sync rich current card context into persistent AI Assistant without mutating practiceStack (#1315/#1319/#1445)
   const hasCitation = Boolean(citation);
   useEffect(() => {
     if (!run || !cardId || isFinished) return;
+    const rawOpts = Array.isArray(run.card?.options)
+      ? run.card.options.map((o) => ({ id: String(o.id ?? ''), text: String(o.text ?? '') }))
+      : undefined;
+    const solOptions = Array.isArray(solution?.options) ? solution.options : [];
+    const correctTexts = solOptions
+      .filter((o) => o && o.correct)
+      .map((o) => {
+        const match = rawOpts?.find((ro) => ro.id === o.id);
+        return match?.text ? `${match.text}` : String(o.text || o.id || '');
+      })
+      .filter(Boolean);
+    const standardAnswer =
+      (typeof solution?.answer === 'string' && solution.answer.trim()) ||
+      (Array.isArray(solution?.blanks) && solution.blanks.length > 0 ? solution.blanks.join(' / ') : '') ||
+      (correctTexts.length > 0 ? correctTexts.join('；') : '');
+    const rawCitations = Array.isArray(solution?.citations) && solution.citations.length > 0
+      ? solution.citations
+      : Array.isArray(run.card?.citations)
+        ? run.card.citations
+        : [];
+    const mappedCitations = rawCitations
+      .filter((c): c is NonNullable<typeof c> => Boolean(c && (c.sourceId || c.quote)))
+      .map((c) => {
+        const src = c.sourceId ? snapshot?.sources?.find((s) => s.id === c.sourceId) : undefined;
+        return {
+          ...(c.sourceId ? { sourceId: c.sourceId } : {}),
+          ...(src?.title || src?.name ? { sourceTitle: String(src.title || src.name) } : {}),
+          ...(typeof c.page === 'number' ? { pageNumber: c.page } : {}),
+          ...(typeof c.quote === 'string' && c.quote.trim() ? { quote: c.quote.trim() } : {}),
+        };
+      });
     useTuiStore.getState().setAssistantCardContext({
       runId: run.id,
       deckId: currentDeckIdOf(run) ?? undefined,
       cardId,
       cardIndex: typeof run.index === 'number' ? run.index : 0,
       total: typeof run.total === 'number' ? run.total : undefined,
+      ...(typeof run.card?.topic === 'string' && run.card.topic ? { topic: run.card.topic } : {}),
       prompt: String(run.card?.prompt || ''),
+      ...(rawOpts && rawOpts.length > 0 ? { options: rawOpts } : {}),
       userAnswer: extractUserAnswerText(run, kind, selectedIds, clozeInputs, openDraft, lang),
+      ...(standardAnswer ? { answer: standardAnswer } : {}),
+      ...(typeof solution?.explanation === 'string' && solution.explanation.trim()
+        ? { explanation: solution.explanation.trim() }
+        : {}),
+      ...(mappedCitations.length > 0 ? { citations: mappedCitations } : {}),
       kind,
       isWrong: Boolean(feedback && feedback.correct === false),
       revealed,
       isExam: run.mode === 'exam',
       hasCitation,
     });
-  }, [run, cardId, isFinished, kind, selectedIds, clozeInputs, openDraft, feedback, revealed, hasCitation, lang]);
+  }, [run, cardId, isFinished, kind, selectedIds, clozeInputs, openDraft, feedback, revealed, hasCitation, lang, solution, snapshot?.sources]);
 
   // Hooks above, early returns below.
   const activeTranslation = useMemo<CardTranslation | null>(() => {

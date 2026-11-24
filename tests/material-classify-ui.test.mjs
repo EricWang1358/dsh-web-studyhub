@@ -26,6 +26,8 @@ const compiled = await build({
       export * from './ui/material-facets.js';
       export * from './ui/use-material-classify.js';
       export { default as MaterialCategoryBar } from './ui/MaterialCategoryBar.jsx';
+      export { TokenEstimateView } from './ui/TokenUsage.jsx';
+      export { estimateSummary, stageLabel } from './ui/token-usage.js';
       export { default as SourcePicker, documentSearchText } from './ui/SourcePicker.jsx';
       export { default as Generate } from './ui/Generate.jsx';
       export { default as CaseCreate } from './ui/CaseCreate.jsx';
@@ -61,6 +63,9 @@ const {
   buildApplyAssignments,
   canApplyProposalGroups,
   MaterialCategoryBar,
+  TokenEstimateView,
+  estimateSummary,
+  stageLabel,
   SourcePicker,
   documentSearchText,
   Generate,
@@ -440,7 +445,7 @@ test('SSR mounts MaterialCategoryBar in Generate, CaseCreate, and Sources, skips
   );
   assert.match(caseZh, /data-material-category-bar/);
 
-  // Model disconnected disables AI classify button cleanly
+  // Model disconnected disables AI classify button cleanly and does NOT render usage estimate (#1184)
   const disconnectedBar = renderToStaticMarkup(
     withStudy(
       StudyServicesContext,
@@ -449,6 +454,49 @@ test('SSR mounts MaterialCategoryBar in Generate, CaseCreate, and Sources, skips
     ),
   );
   assert.match(disconnectedBar, /data-ai-classify[^>]*disabled|<button[^>]*disabled[^>]*data-ai-classify/);
+  assert.doesNotMatch(disconnectedBar, /data-token-estimate/, 'no usage estimate when model is unavailable');
+
+  // Shut bar (open={false}, e.g. collapsed SourcePicker drawer) does NOT render or request usage estimate (#1182, #1184)
+  const shutBar = renderToStaticMarkup(
+    withStudy(
+      StudyServicesContext,
+      h(MaterialCategoryBar, { items: groupSourcesByDocument(sources), modelReady: true, open: false }),
+      { act: noop, call: noop, busy: false },
+    ),
+  );
+  assert.doesNotMatch(shutBar, /data-token-estimate/, 'no usage estimate while drawer is shut');
+
+  // Open bar with ready model renders the classify usage estimate slot before clicking AI 智能分类 (#1184)
+  const openBar = renderToStaticMarkup(
+    withStudy(
+      StudyServicesContext,
+      h(MaterialCategoryBar, { items: groupSourcesByDocument(sources), modelReady: true, open: true }),
+      { act: noop, call: noop, busy: false },
+    ),
+  );
+  assert.match(openBar, /data-classify-estimate/);
+  assert.match(openBar, /data-token-estimate/);
+
+  // Single-number upper-bound classify estimate renders without a range dash in zh and en (#1184)
+  const singleEst = {
+    feature: 'classify',
+    uncachedInputTokens: { low: 4800, high: 4800 },
+    cacheReadTokens: { low: 0, high: 0 },
+    outputTokens: { low: 400, high: 400 },
+    inputTokens: { low: 4800, high: 4800 },
+    totalTokens: { low: 5200, high: 5200 },
+    calls: { low: 1, high: 1 },
+    stages: [{ id: 'classify', calls: 1, inputTokens: { low: 4800, high: 4800 }, outputTokens: { low: 400, high: 400 } }],
+    notes: ['retries'],
+  };
+  assert.equal(estimateSummary(singleEst), '预计 5.2K tok · 1 次模型调用');
+  assert.doesNotMatch(estimateSummary(singleEst), /–/, 'single upper-bound number has no range dash');
+  assert.equal(stageLabel('classify', 'classify'), '内容分类');
+  assert.equal(stageLabel('taxonomy', 'classify'), '归纳主题目录');
+  assert.equal(stageLabel('classifyBatch', 'classify'), '分批内容分类');
+  const estViewZh = renderToStaticMarkup(h(TokenEstimateView, { state: { status: 'ready', estimate: singleEst }, defaultOpen: true }));
+  assert.match(estViewZh, /预计 5\.2K tok/);
+  assert.match(estViewZh, /内容分类/);
 
   // English mode: zero untranslated Han characters across Generate and Sources!
   try {
@@ -487,7 +535,13 @@ test('SSR mounts MaterialCategoryBar in Generate, CaseCreate, and Sources, skips
       }),
     );
     assert.match(sourcesEn, /AI classify/);
+    assert.match(sourcesEn, /data-classify-estimate/);
     assert.doesNotMatch(sourcesEn.replace(/<[^>]+>/g, ' '), han, 'English Sources page has zero Han characters');
+
+    assert.equal(estimateSummary(singleEst), 'Estimated 5.2K tok · 1 model call');
+    assert.doesNotMatch(stageLabel('classify', 'classify'), han);
+    assert.doesNotMatch(stageLabel('taxonomy', 'classify'), han);
+    assert.doesNotMatch(stageLabel('classifyBatch', 'classify'), han);
   } finally {
     setUiLanguage('zh');
   }
@@ -672,6 +726,11 @@ test('Browser E2E: narrowing 01 / 选择资料 by type & category selects only m
   assert.equal(await filtersToggle.getAttribute('aria-expanded'), 'false');
   await filtersToggle.click();
   await page.locator('[data-tour="generate-sources"] .material-category-bar__controls').waitFor();
+  // #1184: opening the bar shows a single-number upper-bound usage estimate before clicking AI 智能分类
+  await page.locator('[data-tour="generate-sources"] [data-classify-estimate] [data-token-estimate][data-status="ready"]').waitFor();
+  const estLine = await page.locator('[data-tour="generate-sources"] [data-classify-estimate]').innerText();
+  assert.match(estLine, /预计 .+ tok/);
+  assert.doesNotMatch(estLine, /–/, 'single upper-bound number without range dash');
 
   // Clear initial auto-selection, filter by 内容分类 -> 计算机网络 (2), and click 选择当前范围
   const clearBtn = page.locator('[data-tour="generate-sources"] .source-picker__actions button', { hasText: '清空选择' });
