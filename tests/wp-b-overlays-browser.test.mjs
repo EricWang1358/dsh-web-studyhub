@@ -181,6 +181,12 @@ test('Tooltip shows on keyboard focus, is described by aria-describedby and hide
   await page.locator('#after').focus();
   await subject.hover();
   await tip.waitFor({ state: 'visible' });
+  // WCAG 1.4.13 (#1174): Escape closes the hovered tooltip without moving the pointer even while focus sits elsewhere.
+  await page.keyboard.press('Escape');
+  await tip.waitFor({ state: 'hidden' });
+  await page.mouse.move(800, 600);
+  await subject.hover();
+  await tip.waitFor({ state: 'visible' });
   await page.mouse.move(800, 600);
   await tip.waitFor({ state: 'hidden' });
 });
