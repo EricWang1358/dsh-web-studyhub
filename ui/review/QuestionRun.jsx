@@ -31,7 +31,7 @@ import AnswerState from "./AnswerState.jsx";
 import { Banner, Button, DisclosureToggle, Icon, InlineMessage, Popover, ProgressBar, Spinner, TextInput, Tooltip, foldLabel } from "../components/index.js";
 import { useStudyBusy, useStudyServices } from "../study-context.jsx";
 import { useLiveSession } from "./useReviewSession.js";
-import SimilarTry from "./SimilarTry.jsx";
+import { LazySimilarTry } from "./LazyLearningLoop.jsx";
 import { useFixPhrases } from "./use-fix-phrases.js";
 import { playSound } from "../sound-effects.js";
 import { useFlashHead } from "./use-flash-head.js";
@@ -731,7 +731,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           </ReadingBlock>
         )}
         {answeredWrong && run.mode !== "exam" && !run.returnTo && !entry.teaching?.complete && (
-          <div className="post-answer-wrong-try"><SimilarTry session={liveSession} data={data} model={model} onModelSettings={modelSettings} /></div>
+          <div className="post-answer-wrong-try"><LazySimilarTry session={liveSession} data={data} model={model} onModelSettings={modelSettings} /></div>
         )}
         <PostAnswerDetails session={liveSession} data={data} model={model} onModelSettings={modelSettings} openModal={openModal} showSolution={showSolution} verdict={verdict} enOn={enOn} enAnswer={enAnswer} defaultOpen={!!inline} misconceptionShownAbove={answeredWrong} nextDueNode={run.feedback ? <NextDue feedback={run.feedback} telemetry={run.feedbackTelemetry} whyOnly /> : null} />
         <TeachingPanel session={liveSession} data={data} model={model} onModelSettings={modelSettings} />

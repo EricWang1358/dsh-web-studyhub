@@ -3,6 +3,7 @@ import { Box, Text, useInput } from 'ink';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState, Spinner, StatusPill } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { computeProseLayout } from '../../components/Layout.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
@@ -12,6 +13,8 @@ import { VirtualList, type VirtualListRenderContext } from '../../components/Vir
 import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
+import { formatReadingTimeLabel } from '../../render/longform.js';
+import { buildFileHyperlinkUrl, formatOsc8Link } from '../../render/osc8.js';
 import { useShellActions } from '../../shell/actions.js';
 import { atomicWriteExportText, defaultBackupFilePath } from '../../host/atomic-write.js';
 import { errorMessage, tryAction } from '../../host/sample-actions.js';
@@ -1351,9 +1354,15 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
                     </Text>
                   ) : (
                     <Text color={theme.muted}>
-                      {daily && displayedNote.daily
-                        ? `${displayedNote.daily.day || ''} · ${t(lang, `已练 ${displayedNote.daily.answeredCount ?? 0} 题 / 待回顾 ${displayedNote.daily.wrongCount ?? 0}`, `${displayedNote.daily.answeredCount ?? 0} answered / ${displayedNote.daily.wrongCount ?? 0} to review`)}`
-                        : `${t(lang, '更新于', 'Updated')} ${formatShortDate(displayedNote.updatedAt, lang)}`}
+                      {(() => {
+                        const readTime = displayedNote.markdown ? formatReadingTimeLabel(displayedNote.markdown, lang) : '';
+                        const sep = asciiMode ? ' - ' : ' · ';
+                        const base =
+                          daily && displayedNote.daily
+                            ? `${displayedNote.daily.day || ''}${sep}${t(lang, `已练 ${displayedNote.daily.answeredCount ?? 0} 题 / 待回顾 ${displayedNote.daily.wrongCount ?? 0}`, `${displayedNote.daily.answeredCount ?? 0} answered / ${displayedNote.daily.wrongCount ?? 0} to review`)}`
+                            : `${t(lang, '更新于', 'Updated')} ${formatShortDate(displayedNote.updatedAt, lang)}`;
+                        return readTime ? `${base}${sep}${readTime}` : base;
+                      })()}
                     </Text>
                   )}
                 </Box>
@@ -1372,11 +1381,20 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
                   ) : null}
                   {linkedRefs.source ? (
                     <Text color={theme.info}>
-                      {truncateDisplay(
-                        `[${linkedRefs.card ? 'O' : 'o'}] ${t(lang, '关联资料', 'Source')}: ${linkedRefs.source.label}${linkedRefs.source.pageNumber !== undefined ? ` p.${linkedRefs.source.pageNumber}` : ''}`,
-                        linkedRefs.card ? Math.max(14, Math.floor(readerW * 0.42)) : readerW,
-                        ell,
-                      )}
+                      {(() => {
+                        const rawLabel = truncateDisplay(
+                          `[${linkedRefs.card ? 'O' : 'o'}] ${t(lang, '关联资料', 'Source')}: ${linkedRefs.source.label}${linkedRefs.source.pageNumber !== undefined ? ` p.${linkedRefs.source.pageNumber}` : ''}`,
+                          linkedRefs.card ? Math.max(14, Math.floor(readerW * 0.42)) : readerW,
+                          ell,
+                        );
+                        const src = snapshot?.sources?.find((s) => s.id === linkedRefs.source?.sourceId);
+                        const rawPath =
+                          (typeof src?.filePath === 'string' && src.filePath) ||
+                          (typeof src?.path === 'string' && src.path) ||
+                          '';
+                        const url = rawPath ? buildFileHyperlinkUrl(rawPath, linkedRefs.source.pageNumber) : '';
+                        return formatOsc8Link(rawLabel, url, { asciiMode });
+                      })()}
                     </Text>
                   ) : null}
                 </Box>
@@ -1384,22 +1402,31 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
               {hasPublishRow ? (
                 <Box height={1} overflow="hidden" gap={1}>
                   <Badge label={t(lang, '外链', 'Link')} tone="success" variant="soft" />
-                  <Text color={theme.info}>{truncateDisplay(publishUrl, Math.max(10, readerW - 9), ell)}</Text>
+                  <Text color={theme.info}>
+                    {formatOsc8Link(truncateDisplay(publishUrl, Math.max(10, readerW - 9), ell), publishUrl, { asciiMode })}
+                  </Text>
                 </Box>
               ) : null}
               <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(Math.max(4, readerW))}</Text>
-              <MarkdownView
-                markdown={
-                  displayedNote.markdown ||
-                  (displayedNote.status === 'published' && !daily
-                    ? t(lang, '_（已关联公开文章，按 `L` 更新外链）_', '_Published externally — press `L` to update link_')
-                    : t(lang, '_（暂无正文内容，按 `e` 编辑）_', '_Empty note — press `e` to edit_'))
-                }
-                width={readerW}
-                height={readerH}
-                isActive={noModalActive && !filterEditing && activePane === 'right'}
-                mathUnicode={effectiveMath}
-              />
+              {(() => {
+                const { proseWidth, marginLeft } = computeProseLayout(readerW);
+                return (
+                  <Box width={readerW} height={readerH} paddingLeft={marginLeft} overflow="hidden">
+                    <MarkdownView
+                      markdown={
+                        displayedNote.markdown ||
+                        (displayedNote.status === 'published' && !daily
+                          ? t(lang, '_（已关联公开文章，按 `L` 更新外链）_', '_Published externally — press `L` to update link_')
+                          : t(lang, '_（暂无正文内容，按 `e` 编辑）_', '_Empty note — press `e` to edit_'))
+                      }
+                      width={proseWidth}
+                      height={readerH}
+                      isActive={noModalActive && !filterEditing && activePane === 'right'}
+                      mathUnicode={effectiveMath}
+                    />
+                  </Box>
+                );
+              })()}
             </Panel>
           );
         }}

@@ -44,6 +44,7 @@ import {
   planAssistantWorkflow,
   type AssistantWorkflowPlan,
 } from './assistant-workflow.js';
+import { pruneTurnsWithSummary } from './assistant-memory.js';
 import { currentCourse, dueToday, modelInfo, wrongCount } from './data.js';
 
 export const MAX_ASSISTANT_TURNS = 16;
@@ -144,8 +145,8 @@ export function _getAssistantRetellRecords() {
 
 let turnSeq = 0;
 
-function trimTurns(turns: readonly AssistantTurn[]): AssistantTurn[] {
-  return turns.length > MAX_ASSISTANT_TURNS ? turns.slice(-MAX_ASSISTANT_TURNS) : [...turns];
+function trimTurns(turns: readonly AssistantTurn[], lang: UiLanguage = 'zh'): AssistantTurn[] {
+  return pruneTurnsWithSummary(turns, MAX_ASSISTANT_TURNS, lang);
 }
 
 function formatStageStrip(current: GuidedStageId, lang: UiLanguage, asciiMode: boolean): string {
@@ -715,6 +716,40 @@ export const AssistantPanel = memo(function AssistantPanel({
           ),
         });
         notify(t(lang, `已定位：${intent.paramsSummary}`, `Navigated: ${intent.paramsSummary}`), 'success');
+        return;
+      }
+
+      // 3b) Preference update (theme / density — 0 model calls + persisted + [z] undo)
+      if (intent.kind === 'set_preference') {
+        const curPrefs = useTuiStore.getState().preferences;
+        const prevPatch: Partial<typeof curPrefs> = {};
+        if (intent.patch.theme !== undefined) prevPatch.theme = curPrefs.theme;
+        if (intent.patch.compactMode !== undefined) prevPatch.compactMode = curPrefs.compactMode;
+        if (intent.patch.proactiveHints !== undefined) prevPatch.proactiveHints = curPrefs.proactiveHints;
+        const dshHome = (host as { dshHome?: string } | undefined)?.dshHome;
+        const persist = (patch: Partial<typeof curPrefs>) => {
+          useTuiStore.getState().setPreferences(patch);
+          void saveTuiPreferences(patch, dshHome ? { env: { DSH_HOME: dshHome } } : undefined).catch(() => {});
+        };
+        persist(intent.patch);
+        registerUndo({
+          label: t(lang, '恢复原偏好', 'Restore previous preference'),
+          run: async () => {
+            persist(prevPatch);
+            return t(lang, '已撤销：偏好设置已恢复。', 'Undone: preferences restored.');
+          },
+        });
+        appendTurn({
+          role: 'system',
+          stage: tab === 'guided' ? stage : undefined,
+          actionSummary: `已完成：${intent.actionName}（${intent.paramsSummary}）`,
+          text: t(
+            lang,
+            `已应用偏好（${intent.paramsSummary}）并持久化。按 [z] 可撤销。`,
+            `Applied (${intent.paramsSummary}) and saved. [z] undo.`,
+          ),
+        });
+        notify(t(lang, `已切换：${intent.paramsSummary}`, `Updated: ${intent.paramsSummary}`), 'success');
         return;
       }
 

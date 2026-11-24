@@ -12,7 +12,16 @@ import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
-import { renderBarChart } from '../../render/charts.js';
+import { renderBarChart, renderStatTable } from '../../render/charts.js';
+import {
+  escapeMdCell,
+  formatExamCountdownSummary,
+  formatExamScheduleMarkdown,
+  renderExamScheduleTable,
+  type CoursePlanResponse,
+} from './course-plan-display.js';
+import { buildExamCoverage, buildGapFillWorkflowSteps } from './exam-coverage.js';
+import { buildExamGapAlert } from './exam-gap-alert.js';
 import { currentCourse, listCourses } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
 import { atomicWriteExportText, defaultBackupFilePath } from '../../host/atomic-write.js';
@@ -32,7 +41,7 @@ import {
   type PrepTab,
 } from './types.js';
 
-const CLAIMED_KEYS = ['1', '2', 'a', 'd', 'g', 'G', 'm', 'p', 'P', ' ', '/', 'x'] as const;
+const CLAIMED_KEYS = ['1', '2', 'a', 'd', 'g', 'G', 'm', 'p', 'P', ' ', '/', 'x', 'Z', 'T'] as const;
 
 export interface FormatExamPrepMarkdownParams {
   course?: string | null;
@@ -40,15 +49,12 @@ export interface FormatExamPrepMarkdownParams {
   topics?: readonly FocusTopicProgress[];
   crunchPoints?: readonly CrunchPoint[];
   planNotes?: string | null;
+  /** The saved 备考计划 as `course.plan` answers it; null/undefined = not loaded, no plan section. */
+  coursePlan?: CoursePlanResponse | null;
+  /** Days to the exam as the backend resolves them (`course.plan` or `book.crunch`), for the coverage actions. */
+  daysLeft?: number | null;
   lang?: UiLanguage;
   generatedAt?: Date | string;
-}
-
-function escapeMdCell(raw: unknown): string {
-  return String(raw ?? '')
-    .replace(/\|/g, '\\|')
-    .replace(/[\r\n]+/g, ' ')
-    .trim();
 }
 
 function formatGeneratedAt(generatedAt?: Date | string): string {
@@ -69,6 +75,8 @@ export function formatExamPrepMarkdown({
   topics = [],
   crunchPoints = [],
   planNotes,
+  coursePlan,
+  daysLeft,
   lang = 'en',
   generatedAt,
 }: FormatExamPrepMarkdownParams): string {
@@ -123,6 +131,17 @@ export function formatExamPrepMarkdown({
     lines.push('');
   }
 
+  const scheduleMd = formatExamScheduleMarkdown(coursePlan, lang);
+  if (scheduleMd) {
+    lines.push(scheduleMd, '');
+  }
+  const gapSteps = buildGapFillWorkflowSteps(buildExamCoverage(topicList, daysLeft), lang);
+  if (gapSteps.length > 0) {
+    lines.push(`## ${t(lang, '建议行动清单', 'Recommended Next Actions')}`, '');
+    for (const step of gapSteps) lines.push(`- [ ] ${escapeMdCell(step.label) || '-'}`);
+    lines.push('');
+  }
+
   if (crunchList.length > 0) {
     lines.push(`## ${t(lang, '期末冲刺清单', 'Final-Week Crunch')}`, '');
     for (const pt of crunchList) {
@@ -174,11 +193,14 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const [progress, setProgress] = useState<FocusProgressResult | null>(null);
   const [crunch, setCrunch] = useState<BookCrunchResult | null>(null);
   const [courseRecord, setCourseRecord] = useState<CourseRecordView | null>(null);
+  const [coursePlan, setCoursePlan] = useState<CoursePlanResponse | null>(null);
 
   const [topicIdx, setTopicIdx] = useState(0);
   const [crunchIdx, setCrunchIdx] = useState(0);
   const [filterQuery, setFilterQuery] = useState('');
   const [filterEditing, setFilterEditing] = useState(false);
+  const [gapAlertDismissed, setGapAlertDismissed] = useState(false);
+  const [showScheduleTable, setShowScheduleTable] = useState(false);
 
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [planModalOpen, setPlanModalOpen] = useState(false);
@@ -201,11 +223,14 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const loadAll = useCallback(async () => {
     const seq = ++reqSeqRef.current;
     setErrorMsg(null);
-    const [fpRes, crRes, cgRes] = await Promise.all([
+    const [fpRes, crRes, cgRes, cpRes] = await Promise.all([
       tryAction<FocusProgressResult>(host, 'course.focusProgress', course ? { course } : {}),
       tryAction<BookCrunchResult>(host, 'book.crunch', course ? { course } : {}),
       course
         ? tryAction<CourseRecordView>(host, 'course.get', { name: course })
+        : Promise.resolve({ ok: false as const, value: undefined }),
+      course
+        ? tryAction<CoursePlanResponse>(host, 'course.plan', { course })
         : Promise.resolve({ ok: false as const, value: undefined }),
     ]);
     if (!mountedRef.current || seq !== reqSeqRef.current) return;
@@ -213,6 +238,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
     else if (!fpRes.ok) setErrorMsg(fpRes.error?.message || t(lang, '加载重点进度失败', 'Failed to load focus progress'));
     if (crRes.ok && crRes.value) setCrunch(crRes.value);
     setCourseRecord(cgRes.ok && cgRes.value ? cgRes.value : null);
+    setCoursePlan(cpRes.ok && cpRes.value ? cpRes.value : null);
     setLoading(false);
   }, [host, course, lang]);
 
@@ -513,9 +539,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
     }
     exportBusyRef.current = true;
     try {
-      const examDate =
-        crunch?.examDate ??
-        (typeof courseRecord?.exam?.date === 'string' ? courseRecord.exam.date : null);
+      const examDate = coursePlan?.examDate ?? crunch?.examDate ?? null;
       const planNotes =
         typeof courseRecord?.plan?.notes === 'string' ? courseRecord.plan.notes : null;
       const markdown = formatExamPrepMarkdown({
@@ -524,6 +548,8 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
         topics,
         crunchPoints,
         planNotes,
+        coursePlan,
+        daysLeft: coursePlan?.daysLeft ?? crunch?.daysLeft ?? null,
         lang,
       });
       const defaultPath = defaultBackupFilePath(host.getLibraryRoot(), 'studyhub-examprep', '.md', course || undefined);
@@ -545,7 +571,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
     } finally {
       exportBusyRef.current = false;
     }
-  }, [asciiMode, course, courseRecord, crunch?.examDate, crunchPoints, host, lang, notify, topics]);
+  }, [asciiMode, course, courseRecord, coursePlan, crunch?.daysLeft, crunch?.examDate, crunchPoints, host, lang, notify, topics]);
 
   useInput(
     (input, key) => {
@@ -574,6 +600,15 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
       }
       if (input === 'P') {
         setPlanModalOpen(true);
+        return;
+      }
+      if (input === 'Z' && examGapAlert) {
+        setGapAlertDismissed(true);
+        notify(t(lang, '本次会话已隐藏考期预警', 'Exam gap alert dismissed for this session'), 'info');
+        return;
+      }
+      if (input === 'T') {
+        setShowScheduleTable((v) => !v);
         return;
       }
       if (key.ctrl && input === 'r') {
@@ -641,10 +676,31 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
     );
   }, [selectedTopic, width, lang, theme, asciiMode]);
 
+  const proactiveHints = useTuiStore((s) => s.preferences.proactiveHints !== false);
+  // Days to the exam come from the backend (course.plan resolves a child course's inherited date; book.crunch too).
+  const daysLeft = coursePlan?.daysLeft ?? crunch?.daysLeft;
+  const examCoverage = useMemo(() => buildExamCoverage(topics, daysLeft), [topics, daysLeft]);
+  const examGapAlert = useMemo(
+    () =>
+      buildExamGapAlert({
+        plan: examCoverage,
+        proactiveHints,
+        dismissed: gapAlertDismissed,
+        lang,
+        asciiMode,
+      }),
+    [examCoverage, proactiveHints, gapAlertDismissed, lang, asciiMode],
+  );
+  const countdownSummary = useMemo(
+    () => examGapAlert?.message || formatExamCountdownSummary(coursePlan, lang, asciiMode),
+    [examGapAlert, coursePlan, lang, asciiMode],
+  );
   const showFilterBar = tab === 'focus' && (filterEditing || filterQuery.length > 0);
+  const showCountdownBar = Boolean(countdownSummary) && !showFilterBar && height >= 16;
   const filterBarH = showFilterBar ? 1 : 0;
+  const countdownBarH = showCountdownBar ? 1 : 0;
   const headerH = 3;
-  const bodyH = Math.max(8, height - headerH - filterBarH - (errorMsg ? 1 : 0));
+  const bodyH = Math.max(8, height - headerH - filterBarH - countdownBarH - (errorMsg ? 1 : 0));
 
   const filterBadge = `[${filterEditing ? t(lang, '筛选', 'Filter') : t(lang, '已筛选', 'Filtered')} ${filteredTopics.length}/${topics.length}] `;
   const filterRightHint =
@@ -705,6 +761,13 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
         </Text>
       </Box>
       <Divider width={width} />
+      {showCountdownBar ? (
+        <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+          <Text color={theme.ai} wrap="truncate">
+            {truncateDisplay(countdownSummary, Math.max(10, width - 2), ell)}
+          </Text>
+        </Box>
+      ) : null}
       {showFilterBar ? (
         <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
           <Text color={filterEditing ? theme.primary : theme.accent} bold>
@@ -827,12 +890,68 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
             )}
             right={(sz) => (
               <Panel
-                title={selectedTopic ? truncateDisplay(selectedTopic.topic, Math.max(10, sz.width - 14), asciiMode ? '...' : '…') : t(lang, '详情', 'Detail')}
+                title={
+                  showScheduleTable
+                    ? t(lang, '排程与重点矩阵 [T]详情', 'Schedule & Matrix [T]Detail')
+                    : selectedTopic
+                      ? truncateDisplay(selectedTopic.topic, Math.max(10, sz.width - 14), asciiMode ? '...' : '…')
+                      : t(lang, '详情', 'Detail')
+                }
+                subtitle={t(lang, '[T]排程表', '[T]Table')}
                 focused={focusPane === 'right'}
                 width={sz.width}
                 height={sz.height}
               >
-                {selectedTopic ? (
+                {showScheduleTable ? (
+                  <Box flexDirection="column" gap={0}>
+                    {(() => {
+                      const innerW = Math.max(16, sz.width - 4);
+                      const schedLines = renderExamScheduleTable(coursePlan, innerW, theme, { lang, ascii: asciiMode });
+                      const gapSteps = buildGapFillWorkflowSteps(examCoverage, lang);
+                      const matrixLines =
+                        schedLines.length > 0
+                          ? schedLines
+                          : renderStatTable(
+                              [
+                                { key: 'topic', label: t(lang, '重点', 'Topic'), align: 'left', minWidth: 8 },
+                                { key: 'status', label: t(lang, '状态', 'Status'), align: 'left', width: 6 },
+                                { key: 'cards', label: t(lang, '题数', 'Qty'), align: 'right', width: 4 },
+                                { key: 'mastery', label: t(lang, '掌握', 'Mast'), align: 'right', width: 5 },
+                              ],
+                              filteredTopics.slice(0, Math.max(2, sz.height - 5)).map((tp) => ({
+                                topic: tp.topic,
+                                status: focusStatusLabel(tp.status, lang),
+                                cards: tp.cards,
+                                mastery: tp.cards > 0 ? `${Math.round((tp.mastery || 0) * 100)}%` : '-',
+                              })),
+                              innerW,
+                              theme,
+                              { ascii: asciiMode },
+                            );
+                      return (
+                        <>
+                          {matrixLines.slice(0, Math.max(3, sz.height - (gapSteps.length > 0 ? 6 : 3))).map((line, i) => (
+                            <Text key={`ep-tbl-${i}`} wrap="truncate">
+                              {line}
+                            </Text>
+                          ))}
+                          {gapSteps.length > 0 ? (
+                            <Box flexDirection="column" marginTop={1}>
+                              <Text color={theme.accent} bold>
+                                {t(lang, '缺口自动补齐步骤（写操作需确认）:', 'Auto Gap-Fill Steps (writes confirmed):')}
+                              </Text>
+                              {gapSteps.slice(0, 3).map((s) => (
+                                <Text key={`gs-${s.index}`} color={s.requiresConfirm ? theme.warning : theme.muted} wrap="truncate">
+                                  {truncateDisplay(`${s.index + 1}. ${s.label}`, innerW, ell)}
+                                </Text>
+                              ))}
+                            </Box>
+                          ) : null}
+                        </>
+                      );
+                    })()}
+                  </Box>
+                ) : selectedTopic ? (
                   <Box flexDirection="column" gap={1}>
                     <Box gap={1}>
                       <Badge label={focusStatusLabel(selectedTopic.status, lang)} tone={focusStatusTone(selectedTopic.status)} />

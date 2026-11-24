@@ -5,7 +5,7 @@ import CitationDisclosure from "../CitationDisclosure.jsx";
 import { ReadingBlock } from "../reading-settings/ReadingSettings.jsx";
 import { Button, ProgressBar } from "../components/index.js";
 import { useStudy } from "../study-context.jsx";
-import SimilarTry from "./SimilarTry.jsx";
+import { LazySimilarTry } from "./LazyLearningLoop.jsx";
 import TeachingStatus from "./TeachingStatus.jsx";
 
 const CALCULATION_STAGE_LABELS = {
@@ -54,7 +54,7 @@ export default function TeachingPanel({ session, data, model, onModelSettings })
           <>
             <h3>{ui("把理解迁移到下一题")}</h3>
             <Markdown text={teaching.transfer} />
-            <SimilarTry session={session} data={data} model={model} onModelSettings={onModelSettings} />
+            <LazySimilarTry session={session} data={data} model={model} onModelSettings={onModelSettings} />
           </>
         ) : (
           <>
