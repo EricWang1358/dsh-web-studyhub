@@ -8,8 +8,7 @@ import { Badge, Spinner } from '../../components/Badge.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Panel } from '../../components/Panel.js';
 import { TextInput } from '../../components/TextInput.js';
-import { useInputCapture } from '../../components/focus.js';
-import { useFooterHints } from '../../components/hooks.js';
+import { useInputCapture, useModalFooterHints } from '../../components/focus.js';
 import { ClickableBox } from '../../components/mouse.js';
 import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
 import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
@@ -111,8 +110,8 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
   cardIdRef.current = cardId;
   const autoAskedRef = useRef<Set<string>>(new Set());
 
-  // Capture global shortcuts while drawer is active.
-  useInputCapture(isActive);
+  // Opaque global input capture while drawer is mounted (#1376).
+  useInputCapture(true);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -398,7 +397,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
           ],
     [inputFocused, suggestions.length, lang, asciiMode],
   );
-  useFooterHints(drawerHints, isActive);
+  useModalFooterHints(drawerHints, isActive);
 
   useInput(
     (input, key) => {
@@ -529,8 +528,8 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       </Box>
 
       {errorText ? (
-        <Box marginY={0} height={1} width={innerW} flexShrink={0} overflow="hidden">
-          <Text color={theme.error} wrap="truncate">
+        <Box marginY={0} width={innerW} flexShrink={0}>
+          <Text color={theme.error} wrap="wrap">
             {`${asciiMode ? 'x' : '✕'} ${errorText} `}
             <Text color={theme.muted}>{t(lang, '([R] 重试)', '([R] Retry)')}</Text>
           </Text>
