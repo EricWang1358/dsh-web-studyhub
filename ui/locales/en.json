@@ -1920,5 +1920,8 @@
   "内置文本同步最多支持 {0} MB；大文件请点「重新指定…」仅更新原文件引用，保留现有文字。": "Built-in text sync supports up to {0} MB; for larger files, click \"Relink…\" to update the file reference while keeping the existing text.",
   "配置文件已损坏": "Configuration file is corrupted",
   "备份并重置配置": "Back up and reset configuration",
-  "配置文件无法读取（{0}）。请先备份并重置，再保存模型或更改学习库目录。": "Could not read the configuration file ({0}). Back up and reset it first before saving model settings or changing the library folder."
+  "配置文件无法读取（{0}）。请先备份并重置，再保存模型或更改学习库目录。": "Could not read the configuration file ({0}). Back up and reset it first before saving model settings or changing the library folder.",
+  "正在评估…": "Assessing…",
+  "补评估未评题目": "Assess remaining answers",
+  "重新评估": "Re-assess"
 }

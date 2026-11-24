@@ -164,6 +164,11 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
     if (alive()) showRun(next);
   }));
   const submit = runAction('submit', () => exam.submit({ before: saveAnswers, clearRun: true, after: forgetDrafts }));
+  const reassess = runAction('assess', () => exam.perform(async alive => {
+    if (!report?.runId) return;
+    const next = await call("oral.assess", { runId: report.runId });
+    if (alive()) exam.showReport(next);
+  }));
   const practiceWeak = () => exam.perform(async alive => {
     const next = await call("review.start", { mode: "path", scope: report.weakScope, fresh: true });
     if (!alive()) return;
@@ -183,11 +188,12 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
     else void submit();
   };
   const indexedEntries = report ? (report.entries || []).map((entry, index) => ({ entry, index })) : [];
-  const needWorkEntries = indexedEntries.filter(({ entry }) => !entry.answer?.trim() || (entry.assessment && entry.assessment.band !== "strong"));
+  const needWorkEntries = indexedEntries.filter(({ entry }) => !entry.answer?.trim() || !entry.assessment || entry.assessment.band !== "strong");
   const canFilterWeak = report?.feedbackStatus === "assessed" && needWorkEntries.length > 0 && needWorkEntries.length < indexedEntries.length;
   const visibleEntries = canFilterWeak && weakOnly ? needWorkEntries : indexedEntries;
-  const allStrong = Boolean(report && report.feedbackStatus === "assessed" && report.total > 0 && report.strong === report.total && report.developing === 0 && report.weak === 0);
-  const allAssessedTopicsClear = Boolean(report && report.feedbackStatus === "assessed" && report.assessed > 0 && !report.weakTopics?.length && report.weak === 0 && report.developing === 0);
+  const unassessedAnswered = report ? Math.max(0, (report.answered || 0) - (report.assessed || 0)) : 0;
+  const allStrong = Boolean(report && report.feedbackStatus === "assessed" && report.total > 0 && report.strong === report.total && report.developing === 0 && report.weak === 0 && unassessedAnswered === 0);
+  const allAssessedTopicsClear = Boolean(report && report.feedbackStatus === "assessed" && report.assessed > 0 && report.assessed === report.answered && !report.weakTopics?.length && report.weak === 0 && report.developing === 0);
   const onAnswerKeyDown = (event) => {
     if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
     if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !event.altKey) {
@@ -262,8 +268,16 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
             : <p className="muted">{ui("本次没有已评估的薄弱主题。")}</p>}
         {!!report.weakScope?.length && <Button iconEnd="arrow-right" busy={busy} onClick={practiceWeak}>{ui("直接练这些题")}</Button>}
       </div>
-      <div className="oral-actions"><Button icon="arrow-left" variant="primary" onClick={onExit}>{ui("回到学习库")}</Button>
-        <Button onClick={() => exam.leave()}>{ui("再来一轮")}</Button></div>
+      {report.assessmentError && <p className="oral-report__error" role="alert">{report.assessmentError}</p>}
+      <div className="oral-actions">
+        <Button icon="arrow-left" variant="primary" onClick={onExit}>{ui("回到学习库")}</Button>
+        {unassessedAnswered > 0 && (
+          <Button busy={busy && pendingAction === 'assess'} busyLabel={ui("正在评估…")} lock={busy && pendingAction !== 'assess'} onClick={reassess}>
+            {report.assessed > 0 ? ui("补评估未评题目") : ui("重新评估")}
+          </Button>
+        )}
+        <Button onClick={() => exam.leave()}>{ui("再来一轮")}</Button>
+      </div>
       <details className="result-details"><summary>{ui("查看逐题反馈与原回答")}</summary>
         {canFilterWeak && (
           <div className="oral-report-toolbar">
