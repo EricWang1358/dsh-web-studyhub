@@ -2454,7 +2454,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
       <Panel
         title={t(lang, '学习库自动备份点 (Enter 恢复)', 'Library Restore Points (Enter to Restore)')}
         badge={restorePoints.length}
-        subtitle={loadingPoints ? t(lang, `加载中${ell}`, `Loading${ell}`) : t(lang, '[r] 刷新', '[r] Refresh')}
+        subtitle={loadingPoints ? t(lang, `加载中${ell}`, `Loading${ell}`) : t(lang, '[Ctrl+R] 刷新', '[Ctrl+R] Refresh')}
         width={width}
         height={listPanelH}
       >
