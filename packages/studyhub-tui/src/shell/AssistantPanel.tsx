@@ -16,7 +16,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput, useStdout, useWindowSize } from 'ink';
 import { PAGE_REGISTRY, type HostClient, type PageId, type UiLanguage } from '../types/contracts.js';
-import { t, useTuiStore, type AssistantCardContext, type AssistantTabId } from '../state/store.js';
+import { t, useTuiStore, type AssistantCardContext, type AssistantTabId, type ReviewRunLike } from '../state/store.js';
 import { getColorLevel, makeChalk, useTheme } from '../theme/tokens.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import { Modal, modalContentWidth } from '../components/Modal.js';
@@ -335,6 +335,11 @@ export const AssistantPanel = memo(function AssistantPanel({
     if (mountedRef.current) setLastUndo(entry);
   }, []);
 
+  /** Hand a run the backend returned to Review, so an assistant edit is visible there at once (#1447). */
+  const applyRunFromAssistant = useCallback((run: unknown) => {
+    useTuiStore.getState().setPendingReviewRun((run ?? null) as ReviewRunLike | null);
+  }, []);
+
   const doCopy = useCallback(
     async (text: string, whatZh: string, whatEn: string) => {
       const res = await copyTextWithFallback(text, {
@@ -500,14 +505,22 @@ export const AssistantPanel = memo(function AssistantPanel({
       );
       let succeeded = false;
       try {
-        const lastAi = [...sessionMemory.turns].reverse().find((x) => x.role === 'assistant')?.text;
+        const recentTurns = [...sessionMemory.turns];
+        const lastAi = [...recentTurns].reverse().find((x) => x.role === 'assistant')?.text;
+        // The learner's own question, so the note keeps both sides of the Q&A (#1447).
+        const lastAiIndex = recentTurns.map((x) => x.role).lastIndexOf('assistant');
+        const lastUserQuestion = lastAiIndex < 0
+          ? undefined
+          : [...recentTurns.slice(0, lastAiIndex)].reverse().find((x) => x.role === 'user' && x.text.trim())?.text;
         const outcome = await executeAssistantWriteAction(intent, {
           host,
           snapshot,
           cardCtx,
           lastAssistantReply: lastAi,
+          lastLearnerQuestion: lastUserQuestion,
           lang,
           navigate,
+          applyRun: applyRunFromAssistant,
         });
         if (!mountedRef.current) return;
         succeeded = outcome.succeeded;
@@ -718,6 +731,17 @@ export const AssistantPanel = memo(function AssistantPanel({
         return;
       }
 
+      // 0b) One more fact is needed (which grade, which knowledge point) — ask, never guess (#1447).
+      if (intent.kind === 'clarify') {
+        appendTurn({
+          role: 'system',
+          stage: tab === 'guided' ? stage : undefined,
+          actionSummary: t(lang, '需要补充信息', 'Need one more detail'),
+          text: intent.question,
+        });
+        return;
+      }
+
       // 1) Switch to Guided Study tab
       if (intent.kind === 'enter_guided') {
         setTab('guided');
@@ -755,6 +779,7 @@ export const AssistantPanel = memo(function AssistantPanel({
             cardCtx,
             lang,
             navigate,
+            applyRun: applyRunFromAssistant,
           });
           if (!mountedRef.current) return;
           if (outcome.undo) registerUndo(outcome.undo);

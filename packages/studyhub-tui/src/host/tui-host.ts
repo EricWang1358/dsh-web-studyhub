@@ -8,10 +8,9 @@
  * - `streamComplete` for live token-by-token Q&A over the active provider.
  * - Debounced library event forwarding, `refreshSnapshot()`, and a leak-free `dispose()`.
  */
-import { existsSync, realpathSync, statSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
-import { delimiter, extname, isAbsolute, join, relative, resolve, win32 } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { delimiter, join, resolve, win32 } from 'node:path';
 import type {
   BindingSnapshot,
   ChatMessage,
@@ -45,61 +44,11 @@ import {
   type EnvProviderDetection,
 } from './presets.js';
 import { isHeadlessOrSsh } from '../terminal.js';
+import { allowedOpenRoots, resolveAllowedLocalHtmlUrl } from './local-html.js';
+
+export { resolveAllowedLocalHtmlUrl } from './local-html.js';
 
 type EnvLike = Record<string, string | undefined>;
-
-const ALLOWED_LOCAL_HTML_EXTS = new Set(['.html', '.htm']);
-const LOCAL_URL_BIDI_RE = /\p{Cf}/u;
-
-/**
- * Validate a `file://` URL against an allowlist of local `.html`/`.htm` files strictly inside
- * one of the bound study library roots (#1441). Resolves realpaths to block symlink/traversal escapes.
- * Returns canonical `file://` href when allowed, or `null` when refused.
- */
-export function resolveAllowedLocalHtmlUrl(value: unknown, libraryRoots: readonly string[]): string | null {
-  const raw = typeof value === 'string' ? value.trim() : '';
-  if (!raw || raw.length > 2000 || LOCAL_URL_BIDI_RE.test(raw) || /[\x00-\x1f\x7f]/.test(raw)) return null;
-  let parsed: URL;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    return null;
-  }
-  if (parsed.protocol !== 'file:') return null;
-  if (parsed.hostname && parsed.hostname.toLowerCase() !== 'localhost') return null;
-
-  let filePath: string;
-  try {
-    filePath = fileURLToPath(parsed);
-  } catch {
-    return null;
-  }
-  if (!ALLOWED_LOCAL_HTML_EXTS.has(extname(filePath).toLowerCase())) return null;
-
-  let fileReal: string;
-  try {
-    fileReal = realpathSync(resolve(filePath));
-    if (!statSync(fileReal).isFile()) return null;
-  } catch {
-    return null;
-  }
-  if (!ALLOWED_LOCAL_HTML_EXTS.has(extname(fileReal).toLowerCase())) return null;
-
-  for (const root of libraryRoots) {
-    if (!root || typeof root !== 'string') continue;
-    let rootReal: string;
-    try {
-      rootReal = realpathSync(resolve(root));
-    } catch {
-      rootReal = resolve(root);
-    }
-    const rel = relative(rootReal, fileReal);
-    if (rel && !rel.startsWith('..') && !isAbsolute(rel)) {
-      return pathToFileURL(fileReal).href;
-    }
-  }
-  return null;
-}
 
 export interface CreateTuiHostOptions {
   /** Pin the study library folder (CLI `--root`); wins over `desktop.json` like `STUDYHUB_LIBRARY`. */
@@ -387,12 +336,36 @@ export async function createTuiHost(options: CreateTuiHostOptions = {}): Promise
   });
 
   let allowedLibraryRoots = (): string[] => (options.libraryRoot ? [options.libraryRoot] : []);
+  /** Companion pages opened from their link live in the learner's authorized external folders (#1447). */
+  let trustedCompanionRoots: string[] = [];
+  let desktopCall: ((action: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
+  const refreshTrustedCompanionRoots = async () => {
+    if (!desktopCall) return;
+    try {
+      const answer = (await desktopCall('companion.roots.get', {})) as
+        | { ok?: boolean; value?: { roots?: unknown } }
+        | null
+        | undefined;
+      const roots = answer?.ok && Array.isArray(answer.value?.roots) ? answer.value!.roots : [];
+      trustedCompanionRoots = roots.filter((p): p is string => typeof p === 'string' && p.trim().length > 0);
+    } catch {
+      // No list only means no external companion folder is authorized; the library roots still apply.
+    }
+  };
 
-  const openExternal = (value: unknown) => {
-    const url = deps.openableExternalUrl(value) ?? resolveAllowedLocalHtmlUrl(value, allowedLibraryRoots());
+  const openExternal = async (value: unknown) => {
+    let url = deps.openableExternalUrl(value);
+    if (!url) {
+      url = resolveAllowedLocalHtmlUrl(value, allowedOpenRoots(allowedLibraryRoots(), trustedCompanionRoots));
+      if (!url) {
+        // The learner may have authorized a companion folder after startup: read the list once and retry.
+        await refreshTrustedCompanionRoots();
+        url = resolveAllowedLocalHtmlUrl(value, allowedOpenRoots(allowedLibraryRoots(), trustedCompanionRoots));
+      }
+    }
     if (!url) {
       throw Object.assign(
-        new Error('仅允许打开有效的 http://、https:// 链接或学习库目录内的本地 HTML 文件'),
+        new Error('仅允许打开有效的 http://、https:// 链接，或学习库 / 已授权伴学目录内的本地 HTML 文件'),
         { code: 'link-refused' },
       );
     }
@@ -439,6 +412,8 @@ export async function createTuiHost(options: CreateTuiHostOptions = {}): Promise
     const lib = desktop.library as { root?: string; pickedRoot?: string };
     return [lib.root, lib.pickedRoot].filter((p): p is string => typeof p === 'string' && p.length > 0);
   };
+  desktopCall = desktop.call as (action: string, args?: Record<string, unknown>) => Promise<unknown>;
+  void refreshTrustedCompanionRoots();
   const syncCustomPaths = () => {
     customPaths.agy = desktop.config.agy.executablePath;
     customPaths.codex = desktop.config.codex.executablePath;

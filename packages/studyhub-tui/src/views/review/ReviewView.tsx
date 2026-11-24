@@ -283,6 +283,8 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
   const activeRunId = useTuiStore((s) => s.activeRunId);
   const snapshot = useTuiStore((s) => s.snapshot);
   const setActiveRunId = useTuiStore((s) => s.setActiveRunId);
+  // A run an assistant action got back (#1447): apply it so this page shows what the backend has.
+  const pendingReviewRunSeq = useTuiStore((s) => s.pendingReviewRunSeq);
   const navigate = useTuiStore((s) => s.navigate);
   const goBack = useTuiStore((s) => s.goBack);
   const notify = useTuiStore((s) => s.notify);
@@ -568,6 +570,19 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     },
     [setActiveRunId, refresh],
   );
+
+  // An assistant action (slay, undo, queue edit, grade change, correction) returns the run it changed;
+  // applying it here keeps this page on the question the backend is on (#1447).
+  useEffect(() => {
+    if (!pendingReviewRunSeq) return;
+    const next = useTuiStore.getState().consumePendingReviewRun();
+    if (!next) return;
+    const nextId = typeof next.id === 'string' ? next.id : '';
+    const onScreen = navContext.runId || activeRunId || '';
+    // Do not push a round the learner has already left onto a different one.
+    if (nextId && onScreen && nextId !== onScreen) return;
+    applyRun(next as unknown as ReviewRun, true);
+  }, [pendingReviewRunSeq, applyRun, navContext.runId, activeRunId]);
 
   const loadInitialRun = useCallback(
     async (forceFresh = false) => {

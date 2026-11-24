@@ -134,16 +134,17 @@ describe('#1444 Intent Coverage Matrix (意图覆盖表)', () => {
         assert.equal(intent.params.deckId, 'deck-os');
       },
     },
-    // 8. 改判评分
+    // 8. 改判评分 (#1447: only the grade the learner named, no invented 4)
     {
       name: '改判评分 (review.grade.adjust)',
-      input: '这题我答对了，改判为正确',
+      input: '这题我答对了，改判为5分',
       expectKind: 'write_confirm',
       expectAction: 'review.grade.adjust',
       verify: (intent) => {
         assert.equal(intent.params.runId, 'run-1');
         assert.equal(intent.params.cardId, 'card-tlb');
-        assert.equal(intent.params.grade, 4);
+        assert.equal(intent.params.grade, 5);
+        assert.match(intent.previewMessage, /掌握/);
       },
     },
     // 9. 确认订正
@@ -180,10 +181,11 @@ describe('#1444 Intent Coverage Matrix (意图覆盖表)', () => {
     {
       name: '提取术语 (card.terms)',
       input: '把这题里的术语提取出来',
-      expectKind: 'run_action',
+      expectKind: 'write_confirm',
       expectAction: 'card.terms',
       verify: (intent) => {
         assert.equal(intent.params.cardId, 'card-tlb');
+        assert.equal(intent.requiresConfirm, true, '#1447: it spends model quota');
       },
     },
     // 14. 按讲义出题
@@ -227,15 +229,16 @@ describe('#1444 Intent Coverage Matrix (意图覆盖表)', () => {
         assert.equal(intent.params.cardId, 'card-tlb');
       },
     },
-    // 16a. 跳过本题
+    // 16a. 跳过本题 (#1447: review.skip at execution time, never review.move{direction:1})
     {
-      name: '跳过本题 (review.move)',
+      name: '跳过本题 (review.skip)',
       input: '跳过这题',
       expectKind: 'run_action',
-      expectAction: 'review.move',
+      expectAction: 'review.skip',
       verify: (intent) => {
         assert.equal(intent.params.runId, 'run-1');
-        assert.equal(intent.params.direction, 1);
+        assert.equal(intent.params.cardId, 'card-tlb', 'skip needs the question it leaves');
+        assert.equal(intent.params.direction, undefined);
       },
     },
     // 16b. 撤销上一题评分
@@ -252,10 +255,11 @@ describe('#1444 Intent Coverage Matrix (意图覆盖表)', () => {
     {
       name: '翻译本题 (card.translate)',
       input: '把这题翻译成英文',
-      expectKind: 'run_action',
+      expectKind: 'write_confirm',
       expectAction: 'card.translate',
       verify: (intent) => {
         assert.equal(intent.params.cardId, 'card-tlb');
+        assert.equal(intent.requiresConfirm, true, '#1447: it spends model quota');
       },
     },
     // 18. 调整本轮题序

@@ -10,10 +10,11 @@
 import type { HostClient, PageId, StudySnapshot, UiLanguage } from '../types/contracts.js';
 import type { AssistantCardContext } from '../state/store.js';
 import { t, useTuiStore } from '../state/store.js';
-import { tryAction } from '../host/sample-actions.js';
+import { tryAction, type ReviewRun } from '../host/sample-actions.js';
 import { atomicWriteExportText, defaultBackupFilePath } from '../host/atomic-write.js';
 import { SET_ERROR_REASON_ACTION, errorReasonArgs, errorReasonName, type ErrorReasonTarget } from './error-reason-intent.js';
 import { reasonLabel } from '../views/wrongbook/helpers.js';
+import { buildDailyQuestionNoteTitle, skipTargetIndex } from '../views/review/review-helpers.js';
 import type { ErrorReasonId } from '../views/wrongbook/types.js';
 import type { AssistantIntent } from './assistant-intent.js';
 
@@ -35,8 +36,26 @@ export interface AssistantActionDeps {
   snapshot: StudySnapshot | null;
   cardCtx: AssistantCardContext | null;
   lastAssistantReply?: string;
+  /** The learner's own question that the last assistant reply answered (#1447: notes keep both sides). */
+  lastLearnerQuestion?: string;
   lang: UiLanguage;
   navigate: (page: PageId, ctx?: Record<string, unknown>) => void;
+  /** Hand a run the backend returned to Review, so the page shows what the backend now has (#1447). */
+  applyRun?: (run: ReviewRun | null) => void;
+}
+
+/**
+ * Undo hooks must see the backend's answer: `tryAction` never throws, so an unchecked hook would
+ * report "已撤销" even when the write was refused (#1447, e.g. `card.restore` on a full deck).
+ */
+function checkedUndo<T>(
+  res: { ok: boolean; value?: T; error?: { message?: string } },
+  lang: UiLanguage,
+  fallbackZh: string,
+  fallbackEn: string,
+): T | undefined {
+  if (!res.ok) throw new Error(res.error?.message || t(lang, fallbackZh, fallbackEn));
+  return res.value;
 }
 
 function resolveDeckId(params: Record<string, unknown>, snapshot: StudySnapshot | null, cardId: string): string {
@@ -93,7 +112,134 @@ export async function executeAssistantReadAction(
     };
   }
 
-  if (intent.actionName === 'card.terms') {
+  if (intent.actionName === 'review.skip') {
+    if (!runId) return needCardOutcome(lang, '跳过本题', 'skip this question');
+    const got = await tryAction<ReviewRun>(host, 'review.get', { runId });
+    if (!got.ok || !got.value) {
+      return {
+        succeeded: false,
+        actionSummary: t(lang, '读取本轮失败', 'Could not read the round'),
+        text: got.error?.message || t(lang, '无法读取本轮练习进度，请稍后重试。', 'Could not read this round.'),
+      };
+    }
+    const run = got.value;
+    const previousIndex = typeof run.index === 'number' ? run.index : 0;
+    const currentCard = (typeof run.card?.id === 'string' && run.card.id) || cardId;
+    const applyRun = (next: ReviewRun | undefined) => {
+      if (next) deps.applyRun?.(next);
+    };
+
+    // An answered question may step forward (`review.move` allows it); an unanswered one may not.
+    if (run.feedback) {
+      const res = await tryAction<ReviewRun>(host, 'review.move', { runId, direction: 1 });
+      if (!res.ok || !res.value) {
+        return {
+          succeeded: false,
+          actionSummary: t(lang, '跳过失败', 'Skip failed'),
+          text: res.error?.message || t(lang, '无法切换到下一题。', 'Could not move to the next question.'),
+        };
+      }
+      applyRun(res.value);
+      return {
+        succeeded: true,
+        actionSummary: t(lang, '已跳到下一题', 'Moved to next question'),
+        text: t(lang, '已切换到下一题。按 [z] 可回到上一题。', 'Moved to the next question. Press [z] to go back.'),
+        undo: {
+          label: t(lang, '返回上一题', 'Return to previous question'),
+          run: async () => {
+            const back = await tryAction<ReviewRun>(host, 'review.move', { runId, index: previousIndex });
+            checkedUndo(back, lang, '无法回到上一题。', 'Could not return to the previous question.');
+            applyRun(back.value);
+            return t(lang, '已撤销：已回到上一题。', 'Undone: returned to previous question.');
+          },
+        },
+        toast: { message: t(lang, '已切换到下一题', 'Moved to next question'), tone: 'info' },
+      };
+    }
+
+    // An ungradable question leaves the round through the backend's own skip (#1447).
+    if (run.card?.publicationUngrable) {
+      const res = await tryAction<ReviewRun>(host, 'review.skip', {
+        runId,
+        cardId: currentCard,
+        queueVersion: typeof run.queueVersion === 'number' ? run.queueVersion : 0,
+      });
+      if (!res.ok || !res.value) {
+        return {
+          succeeded: false,
+          actionSummary: t(lang, '跳过失败', 'Skip failed'),
+          text: res.error?.message || t(lang, '无法跳过这道题。', 'Could not skip this question.'),
+        };
+      }
+      applyRun(res.value);
+      return {
+        succeeded: true,
+        actionSummary: t(lang, '已跳过本题', 'Skipped question'),
+        text: t(lang, '本题不可判分，已从本轮移出。', 'This question cannot be graded, so it left the round.'),
+        toast: { message: t(lang, '已跳过本题', 'Skipped'), tone: 'info' },
+      };
+    }
+
+    // Any other question: compute the target first (`ReviewView.handleSkip`), never `{direction:1}`.
+    const target = skipTargetIndex(run);
+    if (target === null) {
+      return {
+        succeeded: false,
+        actionSummary: t(lang, '这是最后一题待答题目', 'Last unanswered question'),
+        text: t(
+          lang,
+          '本轮只剩这一道待答题目，无法跳过：可以直接作答，或按 [c] 结束本轮。',
+          'This is the last unanswered question this round: answer it, or end the round.',
+        ),
+      };
+    }
+    const res = await tryAction<ReviewRun>(host, 'review.move', { runId, index: target });
+    if (!res.ok || !res.value) {
+      return {
+        succeeded: false,
+        actionSummary: t(lang, '跳过失败', 'Skip failed'),
+        text: res.error?.message || t(lang, '无法切换到下一题。', 'Could not move to the next question.'),
+      };
+    }
+    applyRun(res.value);
+    return {
+      succeeded: true,
+      actionSummary: t(lang, '已跳过本题', 'Skipped question'),
+      text: t(lang, '已跳过本题，稍后仍会回到这一题。按 [z] 可立刻返回。', 'Skipped; it stays in this round. Press [z] to return now.'),
+      undo: {
+        label: t(lang, '返回本题', 'Return to this question'),
+        run: async () => {
+          const back = await tryAction<ReviewRun>(host, 'review.move', { runId, index: previousIndex });
+          checkedUndo(back, lang, '无法回到这道题。', 'Could not return to this question.');
+          applyRun(back.value);
+          return t(lang, '已撤销：已回到这道题。', 'Undone: returned to this question.');
+        },
+      },
+      toast: { message: t(lang, '已跳过本题', 'Skipped'), tone: 'info' },
+    };
+  }
+
+  return {
+    succeeded: false,
+    actionSummary: t(lang, '执行失败', 'Action failed'),
+    text: t(lang, '未识别的只读动作。', 'Unrecognized read action.'),
+  };
+}
+
+/**
+ * Actions that spend model quota and cache a result: they run only after the learner confirmed (#1447).
+ * Kept separate from the read actions so the parser can keep them behind `requiresConfirm`.
+ */
+async function executeQuotaAction(
+  intent: Extract<AssistantIntent, { kind: 'write_confirm' }>,
+  deps: AssistantActionDeps,
+): Promise<AssistantActionOutcome> {
+  const { host, snapshot, cardCtx, lang } = deps;
+  const action = intent.actionName;
+  const cardId = (typeof intent.params.cardId === 'string' && intent.params.cardId) || cardCtx?.cardId || '';
+  const deckId = resolveDeckId(intent.params, snapshot, cardId);
+
+  if (action === 'card.terms') {
     if (!cardId) return needCardOutcome(lang, '提取术语', 'extract terms');
     const res = await tryAction<{ terms?: unknown[] }>(host, 'card.terms', {
       ...(deckId ? { deckId } : {}),
@@ -128,59 +274,25 @@ export async function executeAssistantReadAction(
     };
   }
 
-  if (intent.actionName === 'card.translate') {
-    if (!cardId) return needCardOutcome(lang, '翻译题目', 'translate this card');
-    const res = await tryAction<{ translation?: { prompt?: string; answer?: string; explanation?: string } | null }>(
-      host,
-      'card.translate',
-      { ...(deckId ? { deckId } : {}), cardId },
-    );
-    if (!res.ok || !res.value?.translation) {
-      return {
-        succeeded: false,
-        actionSummary: t(lang, '翻译失败', 'Translation failed'),
-        text: res.error?.message || t(lang, '翻译本题失败，请检查模型配置。', 'Failed to translate this card.'),
-      };
-    }
-    const tr = res.value.translation;
-    const lines = [tr.prompt, tr.answer ? `${t(lang, '译文答案', 'Answer')}: ${tr.answer}` : '', tr.explanation || ''].filter(Boolean);
+  if (!cardId) return needCardOutcome(lang, '翻译题目', 'translate this card');
+  const res = await tryAction<{ translation?: { prompt?: string; answer?: string; explanation?: string } | null }>(
+    host,
+    'card.translate',
+    { ...(deckId ? { deckId } : {}), cardId },
+  );
+  if (!res.ok || !res.value?.translation) {
     return {
-      succeeded: true,
-      actionSummary: t(lang, '已完成：题目翻译', 'Done: card translated'),
-      text: lines.join('\n') || t(lang, '翻译完成，可在刷题页按 [W] 切换显示。', 'Translated; press [W] in Review to toggle.'),
+      succeeded: false,
+      actionSummary: t(lang, '翻译失败', 'Translation failed'),
+      text: res.error?.message || t(lang, '翻译本题失败，请检查模型配置。', 'Failed to translate this card.'),
     };
   }
-
-  if (intent.actionName === 'review.move') {
-    if (!runId) return needCardOutcome(lang, '跳过本题', 'skip this question');
-    const dir = typeof intent.params.direction === 'number' ? intent.params.direction : 1;
-    const res = await tryAction(host, 'review.move', { runId, direction: dir });
-    if (!res.ok) {
-      return {
-        succeeded: false,
-        actionSummary: t(lang, '跳过失败', 'Skip failed'),
-        text: res.error?.message || t(lang, '无法切换到下一题。', 'Could not move to the next question.'),
-      };
-    }
-    return {
-      succeeded: true,
-      actionSummary: t(lang, '已跳过本题', 'Skipped question'),
-      text: t(lang, '已切换到下一题。按 [z] 可返回上一题。', 'Moved to the next question. Press [z] to go back.'),
-      undo: {
-        label: t(lang, '返回上一题', 'Return to previous question'),
-        run: async () => {
-          await tryAction(host, 'review.move', { runId, direction: -dir });
-          return t(lang, '已撤销：已回到上一题。', 'Undone: returned to previous question.');
-        },
-      },
-      toast: { message: t(lang, '已切换到下一题', 'Moved to next question'), tone: 'info' },
-    };
-  }
-
+  const tr = res.value.translation;
+  const lines = [tr.prompt, tr.answer ? `${t(lang, '译文答案', 'Answer')}: ${tr.answer}` : '', tr.explanation || ''].filter(Boolean);
   return {
-    succeeded: false,
-    actionSummary: t(lang, '执行失败', 'Action failed'),
-    text: t(lang, '未识别的只读动作。', 'Unrecognized read action.'),
+    succeeded: true,
+    actionSummary: t(lang, '已完成：题目翻译', 'Done: card translated'),
+    text: lines.join('\n') || t(lang, '翻译完成，可在刷题页按 [W] 切换显示。', 'Translated; press [W] in Review to toggle.'),
   };
 }
 
@@ -189,12 +301,16 @@ export async function executeAssistantWriteAction(
   intent: Extract<AssistantIntent, { kind: 'write_confirm' }>,
   deps: AssistantActionDeps,
 ): Promise<AssistantActionOutcome> {
-  const { host, snapshot, cardCtx, lastAssistantReply, lang, navigate } = deps;
+  const { host, snapshot, cardCtx, lastAssistantReply, lastLearnerQuestion, lang, navigate } = deps;
   const cardId = (typeof intent.params.cardId === 'string' && intent.params.cardId) || cardCtx?.cardId || '';
   const deckId = resolveDeckId(intent.params, snapshot, cardId);
   const runId = (typeof intent.params.runId === 'string' && intent.params.runId) || cardCtx?.runId || '';
 
   switch (intent.actionName) {
+    case 'card.terms':
+    case 'card.translate':
+      return executeQuotaAction(intent, deps);
+
     case 'card.followup.add': {
       const saved = await tryAction(host, 'card.followup.add', {
         ...intent.params,
@@ -357,26 +473,46 @@ export async function executeAssistantWriteAction(
 
     case 'note.qa.add': {
       if (!cardId || !deckId) return needCardOutcome(lang, '存到笔记', 'save to notes');
-      let followupId: string | undefined;
-      if (lastAssistantReply && lastAssistantReply.trim()) {
-        const fuRes = await tryAction<{ item?: { id?: string } }>(host, 'card.followup.add', {
-          deckId,
-          cardId,
-          question: t(lang, '助手解答', 'Assistant Q&A'),
-          answer: lastAssistantReply.trim(),
-          source: 'assistant',
-          silent: true,
-          replace: true,
-        });
-        if (fuRes.ok && fuRes.value?.item?.id) followupId = fuRes.value.item.id;
+      // `note.qa.add` looks the Q&A up by `followupId` and throws when it is missing, so the
+      // follow-up is saved first and a failure stops here (#1447, mirrors `AiHelpDrawer`).
+      const answerText = String(lastAssistantReply ?? '').trim().slice(0, 8000);
+      if (!answerText) {
+        return {
+          succeeded: false,
+          actionSummary: t(lang, '还没有可保存的解答', 'No answer to save yet'),
+          text: t(lang, '这道题上还没有助手的解答，先提问再保存。', 'Ask about this card first; there is no answer to save yet.'),
+        };
       }
-      const noteTitle = `${t(lang, '学习笔记', 'Study Note')} · ${cardCtx?.topic || cardCtx?.prompt?.slice(0, 18) || t(lang, '当前题', 'Card')}`;
+      const questionText = (String(lastLearnerQuestion ?? '').trim() || t(lang, '帮我理解这道题', 'Help me understand this question')).slice(0, 1000);
+      const fuRes = await tryAction<{ item?: { id?: string } }>(host, 'card.followup.add', {
+        deckId,
+        cardId,
+        question: questionText,
+        answer: answerText,
+        source: 'assistant',
+        silent: true,
+        replace: true,
+      });
+      const followupId = fuRes.ok ? fuRes.value?.item?.id : undefined;
+      if (!followupId) {
+        return {
+          succeeded: false,
+          actionSummary: t(lang, '保存问答失败', 'Failed to save the Q&A'),
+          text: fuRes.error?.message || t(lang, '保存问答到本题失败，未写入笔记。', 'Could not save the Q&A to this card; nothing was written to notes.'),
+        };
+      }
+      const decks = Array.isArray(snapshot?.decks) ? snapshot.decks : [];
+      const noteTitle = buildDailyQuestionNoteTitle(
+        { deckId, index: 0, card: null } as unknown as ReviewRun,
+        decks,
+        lang,
+      );
       const res = await tryAction<{ status?: string; note?: { title?: string } }>(host, 'note.qa.add', {
         title: noteTitle,
         deckId,
         cardId,
+        followupId,
         language: lang,
-        ...(followupId ? { followupId } : {}),
       });
       if (!res.ok) {
         return {
@@ -399,6 +535,9 @@ export async function executeAssistantWriteAction(
       const reason = typeof intent.params.reason === 'string' && intent.params.reason.trim()
         ? intent.params.reason.trim()
         : t(lang, '需复核/待改进', 'Flagged via assistant');
+      // What was there before, so undo restores it instead of clearing a flag the learner set earlier (#1447).
+      const before = await tryAction<{ card?: { flag?: string } }>(host, 'card.get', { deckId, cardId });
+      const previousFlag = typeof before.value?.card?.flag === 'string' ? before.value.card.flag : '';
       const res = await tryAction(host, 'card.flag', { deckId, cardId, reason });
       if (!res.ok) {
         return {
@@ -414,8 +553,11 @@ export async function executeAssistantWriteAction(
         undo: {
           label: t(lang, '取消问题标记', 'Clear question flag'),
           run: async () => {
-            await tryAction(host, 'card.flag', { deckId, cardId, reason: '' });
-            return t(lang, '已撤销：题目问题标记已清除。', 'Undone: question flag cleared.');
+            const back = await tryAction(host, 'card.flag', { deckId, cardId, reason: previousFlag });
+            checkedUndo(back, lang, '无法恢复原来的问题标记。', 'Could not restore the previous flag.');
+            return previousFlag
+              ? t(lang, `已撤销：恢复原来的问题标记「${previousFlag}」。`, `Undone: restored the previous flag "${previousFlag}".`)
+              : t(lang, '已撤销：题目问题标记已清除。', 'Undone: question flag cleared.');
           },
         },
         toast: { message: t(lang, '已标记题目问题', 'Question flagged'), tone: 'success' },
@@ -424,8 +566,16 @@ export async function executeAssistantWriteAction(
 
     case 'review.grade.adjust': {
       if (!runId || !cardId) return needCardOutcome(lang, '改判评分', 'adjust grade');
-      const grade = typeof intent.params.grade === 'number' ? intent.params.grade : 4;
-      const res = await tryAction(host, 'review.grade.adjust', {
+      const grade = typeof intent.params.grade === 'number' ? intent.params.grade : undefined;
+      if (grade === undefined) {
+        // The learner never named a grade: ask, never invent one (#1447).
+        return {
+          succeeded: false,
+          actionSummary: t(lang, '未指定分数', 'No grade given'),
+          text: t(lang, '请告诉我改成几分（0–5，3 分及以上算掌握）。', 'Tell me the grade to set (0–5; 3 and above counts as correct).'),
+        };
+      }
+      const res = await tryAction<ReviewRun>(host, 'review.grade.adjust', {
         runId,
         cardId,
         ...(typeof intent.params.entryIndex === 'number' ? { entryIndex: intent.params.entryIndex } : {}),
@@ -438,17 +588,25 @@ export async function executeAssistantWriteAction(
           text: res.error?.message || t(lang, '当前题目无法改判评分（仅 AI 批改题支持改判）。', 'Could not adjust grade for this card.'),
         };
       }
+      // The backend decides: `grade >= 3` is correct (`lib/contexts/study/grading-ops.js`).
+      const feedback = res.value?.feedback as { correct?: boolean } | null | undefined;
+      const countedCorrect = typeof feedback?.correct === 'boolean' ? feedback.correct : grade >= 3;
+      if (res.value) deps.applyRun?.(res.value);
       return {
         succeeded: true,
-        actionSummary: t(lang, `已改判评分为 ${grade} 分`, `Adjusted grade to ${grade}`),
-        text: t(lang, `已完成：本题评分已改判为 ${grade} 分并同步更新复习计划。`, `Adjusted grade to ${grade} and updated schedule.`),
+        actionSummary: countedCorrect
+          ? t(lang, `已改判为 ${grade} 分（判定为掌握）`, `Adjusted to ${grade} (counts as correct)`)
+          : t(lang, `已改判为 ${grade} 分（仍算未掌握）`, `Adjusted to ${grade} (still not mastered)`),
+        text: countedCorrect
+          ? t(lang, `已完成：本题评分已改判为 ${grade} 分（判定为掌握）并重算复习计划。`, `Adjusted to ${grade} (correct) and rescheduled.`)
+          : t(lang, `已完成：本题评分已改判为 ${grade} 分，仍算未掌握，已安排在后面重练。`, `Adjusted to ${grade}; it still counts as not mastered and was queued for a retry.`),
         toast: { message: t(lang, `评分已改判为 ${grade} 分`, `Grade adjusted to ${grade}`), tone: 'success' },
       };
     }
 
     case 'review.correction.ack': {
       if (!runId || !cardId) return needCardOutcome(lang, '确认订正', 'acknowledge correction');
-      const res = await tryAction(host, 'review.correction.ack', {
+      const res = await tryAction<ReviewRun>(host, 'review.correction.ack', {
         runId,
         cardId,
         ...(typeof intent.params.entryIndex === 'number' ? { entryIndex: intent.params.entryIndex } : {}),
@@ -460,6 +618,7 @@ export async function executeAssistantWriteAction(
           text: res.error?.message || t(lang, '当前题目没有待确认的订正项。', 'No pending correction to acknowledge.'),
         };
       }
+      if (res.value) deps.applyRun?.(res.value);
       return {
         succeeded: true,
         actionSummary: t(lang, '已确认订正并加入重练', 'Correction acknowledged'),
@@ -508,7 +667,7 @@ export async function executeAssistantWriteAction(
 
     case 'card.slay': {
       if (!cardId || !deckId) return needCardOutcome(lang, '斩题', 'slay this question');
-      const res = await tryAction(host, 'card.slay', { deckId, cardId, ...(runId ? { runId } : {}) });
+      const res = await tryAction<ReviewRun>(host, 'card.slay', { deckId, cardId, ...(runId ? { runId } : {}) });
       if (!res.ok) {
         return {
           succeeded: false,
@@ -516,6 +675,8 @@ export async function executeAssistantWriteAction(
           text: res.error?.message || t(lang, '斩题失败，请重试。', 'Failed to slay card.'),
         };
       }
+      // The backend answers with the projected run, so Review follows it instead of showing a stale question (#1447).
+      if (runId && res.value) deps.applyRun?.(res.value);
       return {
         succeeded: true,
         actionSummary: t(lang, '已斩题', 'Card slain'),
@@ -523,7 +684,9 @@ export async function executeAssistantWriteAction(
         undo: {
           label: t(lang, '恢复斩题', 'Restore slain card'),
           run: async () => {
-            await tryAction(host, 'card.restore', { cardId });
+            // `card.restore` is refused when the original deck is full or archived: say so, never "已撤销" (#1447).
+            const back = await tryAction(host, 'card.restore', { cardId });
+            checkedUndo(back, lang, '恢复失败，题目仍在斩题组。', 'Restore failed; the card is still in the Slain deck.');
             return t(lang, '已撤销：题目已恢复到原题组。', 'Undone: card restored to original deck.');
           },
         },
@@ -534,6 +697,9 @@ export async function executeAssistantWriteAction(
     case 'card.suspend': {
       if (!cardId || !deckId) return needCardOutcome(lang, '暂停或恢复题目', 'suspend/resume this question');
       const suspended = intent.params.suspended !== false;
+      // Restore the value that was there, not the opposite of what we asked for (#1447).
+      const before = await tryAction<{ card?: { suspended?: boolean } }>(host, 'card.get', { deckId, cardId });
+      const wasSuspended = before.value?.card?.suspended === true;
       const res = await tryAction(host, 'card.suspend', { deckId, cardId, suspended });
       if (!res.ok) {
         return {
@@ -551,7 +717,8 @@ export async function executeAssistantWriteAction(
         undo: {
           label: suspended ? t(lang, '恢复本题', 'Resume card') : t(lang, '暂停本题', 'Suspend card'),
           run: async () => {
-            await tryAction(host, 'card.suspend', { deckId, cardId, suspended: !suspended });
+            const back = await tryAction(host, 'card.suspend', { deckId, cardId, suspended: wasSuspended });
+            checkedUndo(back, lang, '无法还原暂停状态。', 'Could not restore the suspend state.');
             return t(lang, '已撤销：题目暂停状态已还原。', 'Undone: suspend state restored.');
           },
         },
@@ -562,6 +729,11 @@ export async function executeAssistantWriteAction(
     case 'card.focus': {
       if (!cardId) return needCardOutcome(lang, '标记考纲重点', 'toggle focus star');
       const focus = intent.params.focus !== false;
+      const before = await tryAction<{ card?: { focus?: boolean } }>(host, 'card.get', {
+        ...(deckId ? { deckId } : {}),
+        cardId,
+      });
+      const wasFocus = before.value?.card?.focus === true;
       const res = await tryAction<{ focus?: boolean }>(host, 'card.focus', {
         ...(deckId ? { deckId } : {}),
         cardId,
@@ -584,7 +756,8 @@ export async function executeAssistantWriteAction(
         undo: {
           label: applied ? t(lang, '取消重点标记', 'Remove Focus') : t(lang, '恢复重点标记', 'Restore Focus'),
           run: async () => {
-            await tryAction(host, 'card.focus', { ...(deckId ? { deckId } : {}), cardId, focus: !applied });
+            const back = await tryAction(host, 'card.focus', { ...(deckId ? { deckId } : {}), cardId, focus: wasFocus });
+            checkedUndo(back, lang, '无法还原重点标记。', 'Could not restore the Focus mark.');
             return t(lang, '已撤销：重点标记已还原。', 'Undone: focus mark restored.');
           },
         },
@@ -594,7 +767,14 @@ export async function executeAssistantWriteAction(
 
     case 'review.undo': {
       if (!runId) return needCardOutcome(lang, '撤销评分', 'undo last rating');
-      const res = await tryAction(host, 'review.undo', { runId });
+      // `attemptId` comes from the run's own `undoable` (ReviewView passes it too); without it the
+      // backend undoes by run only, which can pick the wrong attempt.
+      const current = await tryAction<ReviewRun>(host, 'review.get', { runId });
+      const undoable = current.value?.undoable;
+      const attemptId = undoable && typeof undoable === 'object' && typeof (undoable as { attemptId?: unknown }).attemptId === 'string'
+        ? (undoable as { attemptId: string }).attemptId
+        : undefined;
+      const res = await tryAction<ReviewRun>(host, 'review.undo', { runId, ...(attemptId ? { attemptId } : {}) });
       if (!res.ok) {
         return {
           succeeded: false,
@@ -602,6 +782,8 @@ export async function executeAssistantWriteAction(
           text: res.error?.message || t(lang, '当前没有可撤销的评分记录。', 'Nothing to undo in this round.'),
         };
       }
+      // Review must go back to the question the backend restored, including its previous feedback (#1447).
+      if (res.value) deps.applyRun?.(res.value);
       return {
         succeeded: true,
         actionSummary: t(lang, '已撤销上一题评分', 'Undid last rating'),
@@ -612,8 +794,31 @@ export async function executeAssistantWriteAction(
 
     case 'review.queue.edit': {
       if (!runId || !cardId) return needCardOutcome(lang, '调整本轮题序', 'reorder the queue');
-      const ref = { ...(deckId ? { deckId } : {}), cardId };
-      const res = await tryAction(host, 'review.queue.edit', {
+      // `remove` is refused for an answered (or grading) question while `add` still appends a copy,
+      // so an answered card would silently duplicate. Read the round first and refuse honestly (#1447).
+      const got = await tryAction<ReviewRun>(host, 'review.get', { runId });
+      if (!got.ok || !got.value) {
+        return {
+          succeeded: false,
+          actionSummary: t(lang, '读取本轮失败', 'Could not read the round'),
+          text: got.error?.message || t(lang, '无法读取本轮练习进度，请稍后重试。', 'Could not read this round.'),
+        };
+      }
+      const run = got.value;
+      const runDeckId = run.navigation?.find((item) => item.index === run.index)?.deckId || deckId;
+      const ref = { ...(runDeckId ? { deckId: runDeckId } : {}), cardId };
+      if (run.feedback) {
+        return {
+          succeeded: false,
+          actionSummary: t(lang, '本题已作答，未调整题序', 'Question already answered'),
+          text: t(
+            lang,
+            '这道题已经作答，挪到末尾会在本轮多出一道重复题，所以没有改动。按 [n] 继续下一题即可。',
+            'This question is already answered; moving it would add a duplicate, so nothing changed. Press [n] for the next question.',
+          ),
+        };
+      }
+      const res = await tryAction<ReviewRun & { kept?: Array<{ cardId?: string; reason?: string }> }>(host, 'review.queue.edit', {
         runId,
         remove: [ref],
         add: [ref],
@@ -627,6 +832,22 @@ export async function executeAssistantWriteAction(
           text: res.error?.message || t(lang, '当前题目已作答或无法移动，未调整题序。', 'Could not move this card in the queue.'),
         };
       }
+      const kept = Array.isArray(res.value?.kept) ? res.value.kept : [];
+      if (kept.some((item) => item?.cardId === cardId)) {
+        // The backend kept the question (still on screen / being graded) but appended the copy:
+        // take the copy back out so the round is unchanged, and say the move did not happen.
+        await tryAction(host, 'review.queue.edit', { runId, remove: [ref] });
+        return {
+          succeeded: false,
+          actionSummary: t(lang, '未调整题序', 'Not moved'),
+          text: t(
+            lang,
+            '这道题暂时不能挪动（已作答或正在批改），本轮题序未变。',
+            'This question cannot move right now (answered or being graded); the round is unchanged.',
+          ),
+        };
+      }
+      if (res.value) deps.applyRun?.(res.value);
       return {
         succeeded: true,
         actionSummary: t(lang, '已将本题挪到本轮最后', 'Moved card to end'),

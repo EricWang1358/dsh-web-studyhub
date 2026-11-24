@@ -36,9 +36,12 @@ export type AssistantWriteActionName =
   | 'card.suspend'
   | 'card.focus'
   | 'review.undo'
-  | 'review.queue.edit';
+  | 'review.queue.edit'
+  /** Spends model quota and writes a cache, so the learner confirms it (#1447). */
+  | 'card.terms'
+  | 'card.translate';
 
-export type AssistantReadActionName = 'review.similar' | 'card.terms' | 'card.translate' | 'review.move';
+export type AssistantReadActionName = 'review.similar' | 'review.skip';
 
 export type AssistantIntent =
   | {
@@ -110,6 +113,14 @@ export type AssistantIntent =
       reason: string;
       alternativeLabel: string;
       alternativeCommand: string;
+      paramsSummary: string;
+      requiresConfirm: false;
+    }
+  | {
+      /** The request needs one more fact from the learner (which grade, which knowledge point) (#1447). */
+      kind: 'clarify';
+      actionName: 'assistant.clarify';
+      question: string;
       paramsSummary: string;
       requiresConfirm: false;
     }
@@ -247,6 +258,68 @@ const MANUAL_ACTION_GUIDANCE: ReadonlyArray<{
   },
 ];
 
+/** Ask, don't act: "这题判对了吗" / "前置题怎么用" / "刷错题有用吗" are questions, not action commands (#1447). */
+const ASKING_RE =
+  /(?:吗|呢|嘛|么)[？?]?\s*$|(?:是否|有没有|对不对|是不是|行不行|好不好|可不可以|能不能|会不会|要不要|怎么用|有什么用|有啥用|干什么用|怎么弄|如何用|咋用)|[?？]\s*$/i;
+
+function isAsking(text: string): boolean {
+  return ASKING_RE.test(String(text ?? '').trim());
+}
+
+/** A study request the learner phrased as an imperative ("把这道题讲清楚一点") is chat, never an unsupported action (#1447). */
+const STUDY_REQUEST_HINT_RE =
+  /(?:讲(?:解|清楚|一下|给我)?|解释|说明|推导|证明|分析|理解|举例|展开|总结|对比|梳理|为什么|怎么|如何|是什么|什么意思|原理|思路|步骤)/;
+
+/**
+ * The grade the learner actually named (#1447). Returns `undefined` when none is written, so the
+ * caller can ask instead of inventing one — "改判为0分" must never become 4.
+ */
+export function extractExplicitGrade(text: string): number | undefined {
+  const patterns = [
+    /(?<![\d.])([0-5])\s*分/,
+    /(?:grade|评分|分数)\s*(?:改|调|设|换)?\s*(?:成|为|=|:|：)?\s*([0-5])(?![\d.])/i,
+    /(?:改判|判为|判成|改成|改为|调到|调为)\s*(?:为|成)?\s*([0-5])(?![\d.])/,
+  ];
+  for (const re of patterns) {
+    const m = String(text ?? '').match(re);
+    if (!m) continue;
+    const n = Number.parseInt(m[1], 10);
+    if (Number.isInteger(n) && n >= 0 && n <= 5) return n;
+  }
+  return undefined;
+}
+
+/**
+ * The knowledge point a prerequisite question should test (#1447): what the learner wrote after a
+ * colon/quotes, else the current card's topic. The raw command sentence is never used as a topic.
+ */
+export function extractPrerequisiteTopic(rawInput: string): string | undefined {
+  const raw = String(rawInput ?? '').trim();
+  if (!raw) return undefined;
+  const quoted = raw.match(/[「“"《【]([^」”"》】]{2,120})[」”"》】]/);
+  if (quoted) return quoted[1].trim();
+  const afterColon = raw.match(/[:：]\s*(.+)$/);
+  if (afterColon) {
+    const topic = afterColon[1]
+      .replace(/[。.!！?？]+$/g, '')
+      .replace(/^(?:请|帮我|麻烦)?\s*/, '')
+      .trim();
+    if (topic.length >= 2 && topic.length <= 200) return topic;
+  }
+  const stripped = raw
+    .replace(/^(?:请|帮我|帮忙|给我|麻烦)\s*/, '')
+    .replace(/^(?:再)?(?:出|生成|建|添加|补|要|来|做)(?:一?道|个)?\s*/i, '')
+    .replace(/(?:前置|基础|补强)(?:补强|基础)?题?/g, '')
+    .replace(/(?:下次|以后|之后|再|并关联|关联|巩固|补强|练习|一下|的知识点|的知识|相关的?|这道题|这道|本题|这题)/g, '')
+    .replace(/[\s，,。.、；;：:！!？?]+/g, '')
+    .trim();
+  return stripped.length >= 2 && stripped.length <= 200 ? stripped : undefined;
+}
+
+function clarifyIntent(question: string, paramsSummary: string): Extract<AssistantIntent, { kind: 'clarify' }> {
+  return { kind: 'clarify', actionName: 'assistant.clarify', question, paramsSummary, requiresConfirm: false };
+}
+
 const STUDY_QUESTION_RE =
   /^(?:什么是|啥是|请问(?:什么是)?|解释(?:一下)?|说明(?:一下)?|讲讲|聊聊|对比|比较|如何理解|怎么理解|为什么|为何|what\s+is\b|explain\b|how\s+does\b|why\s+does\b|difference\s+between\b)/i;
 const STUDY_QUESTION_END_RE =
@@ -343,6 +416,8 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
   const text = String(rawInput ?? '').trim();
   const lang = ctx.lang ?? 'zh';
   const conceptualQuestion = isConceptualStudyQuestion(text);
+  // A question the learner asked ("这题判对了吗", "前置题怎么用") is answered in chat; it never becomes an action (#1447).
+  const asking = isAsking(text);
   const { card, cardId, deckId, runId, entryIndex, course } = resolveCardContext(ctx);
 
   // 0) Unsupported out-of-scope actions -> nearest alternative + copy-prompt fallback
@@ -380,9 +455,18 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
   }
 
   // 2) Card & Study Write/Confirm Actions (#1444 + #1439 + #1315)
-  if (!conceptualQuestion) {
-    // 2a) Prerequisite question derivation & link (#1444 #1)
-    if (/(?:出|生成|建|补)(?:一?道)?前置(?:补强|基础)?题|前置题(?:补强|下次|关联)?|(?:derive|create|make).*prerequisite/i.test(text)) {
+  if (!conceptualQuestion && !asking) {
+    // 2a) Prerequisite question derivation & link (#1444 #1, #1447: a knowledge point, never the command)
+    if (/(?:出|生成|建|补|添加|要|来|做)(?:一?道|个)?\s*(?:前置|基础|补强)|前置(?:补强|基础)?题\s*(?:补强|下次|巩固|关联)|(?:derive|create|make)\s+(?:a\s+)?prerequisite/i.test(text)) {
+      const topic = extractPrerequisiteTopic(text) ?? (typeof card?.topic === 'string' && card.topic.trim() ? card.topic.trim() : undefined);
+      if (!topic) {
+        return clarifyIntent(
+          lang === 'en'
+            ? 'Which knowledge point should the prerequisite question test? For example: “prerequisite for virtual memory”.'
+            : '请先写下这道前置题要考的知识点，例如「出前置题：虚拟内存」。',
+          lang === 'en' ? 'prerequisite needs a knowledge point' : '前置题缺知识点',
+        );
+      }
       return {
         kind: 'write_confirm',
         actionName: 'assist.start',
@@ -392,16 +476,16 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
           ...(runId ? { runId } : {}),
           mode: 'derive',
           derive: { relation: 'prerequisite' },
-          text,
+          text: topic.slice(0, 1000),
           uiLanguage: lang,
         },
         humanLabel: lang === 'en' ? 'Generate & link prerequisite question' : '生成前置题并关联到本题',
         previewTitle: lang === 'en' ? 'Confirm Prerequisite Question' : '确认生成前置题并关联',
         previewMessage:
           lang === 'en'
-            ? 'Will start a background assist task to create a prerequisite question and link it to the current card.'
-            : '将启动后台助教任务：基于当前题目生成一道前置补强题，并自动关联到本题。',
-        paramsSummary: lang === 'en' ? 'derive prerequisite & link' : '出前置题并关联',
+            ? `Will start a background assist task for the knowledge point “${topic}” and link the new prerequisite question to this card.`
+            : `将围绕知识点「${topic}」启动后台助教任务，生成一道前置补强题并自动关联到本题。`,
+        paramsSummary: lang === 'en' ? `derive prerequisite: ${topic}` : `前置题：${topic}`,
         requiresConfirm: true,
       };
     }
@@ -464,8 +548,8 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
         previewTitle: lang === 'en' ? 'Confirm Save to Notes' : '确认存到学习笔记',
         previewMessage:
           lang === 'en'
-            ? 'Will save the current card Q&A and latest assistant answer into your study note.'
-            : '将把当前题目与最近一条助手解答写入今天的学习笔记。',
+            ? 'Will save this card’s latest Q&A (your question and the assistant’s answer) into today’s study note.'
+            : '将把本题最近一次问答（你提的问题 + 助手解答）写入今天的学习笔记。',
         paramsSummary: lang === 'en' ? 'save Q&A to note' : '写入学习笔记',
         requiresConfirm: true,
       };
@@ -479,7 +563,7 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
         params: {
           ...(deckId ? { deckId } : {}),
           ...(cardId ? { cardId } : {}),
-          reason: text,
+          reason: text.slice(0, 500),
         },
         humanLabel: lang === 'en' ? 'Flag question issue' : '标记题目有问题',
         previewTitle: lang === 'en' ? 'Confirm Flag Question' : '确认标记题目问题',
@@ -492,10 +576,19 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
       };
     }
 
-    // 2f) Override / adjust AI grade (#1444 #8)
-    if (/(?:改判|判(?:我)?(?:对|正确)|这(?:道)?题我答对了|(?:把评分|成绩)改(?:成|为)(?:正确|答对|通过|\d\s*分)|\b(?:override|adjust)\s+grade\b|\bmark\s+(?:as\s+)?correct\b)/i.test(text)) {
-      const explicitGrade = extractInt(text, /([1-5])\s*分/);
-      const grade = explicitGrade !== undefined && explicitGrade >= 1 && explicitGrade <= 5 ? explicitGrade : 4;
+    // 2f) Override / adjust AI grade (#1444 #8, #1447: only the grade the learner named)
+    if (/(?:改判|判(?:我)?(?:对|正确)|这(?:道)?题我答对了|(?:把|将)?(?:评分|成绩|分数)(?:改|调)(?:成|为)|\b(?:override|adjust)\s+grade\b|\bmark\s+(?:as\s+)?correct\b)/i.test(text)) {
+      const grade = extractExplicitGrade(text);
+      if (grade === undefined) {
+        return clarifyIntent(
+          lang === 'en'
+            ? 'Which grade should it be? (0–5; 3 and above counts as correct.)'
+            : '请告诉我改成几分（0–5，3 分及以上算掌握）。',
+          lang === 'en' ? 'grade needed' : '待确认分数',
+        );
+      }
+      // The backend (`grading-ops.js`) counts `grade >= 3` as correct; a 0–2 keeps the question due.
+      const isCorrect = grade >= 3;
       return {
         kind: 'write_confirm',
         actionName: 'review.grade.adjust',
@@ -507,10 +600,13 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
         },
         humanLabel: lang === 'en' ? `Adjust grade to ${grade}` : `改判评分为 ${grade} 分`,
         previewTitle: lang === 'en' ? 'Confirm Grade Adjustment' : '确认改判评分',
-        previewMessage:
-          lang === 'en'
-            ? `Will adjust the current AI-graded answer to grade ${grade} (correct).`
-            : `将把当前题目的 AI 评分改判为 ${grade} 分（判定为正确）并重算复习计划。`,
+        previewMessage: isCorrect
+          ? lang === 'en'
+            ? `Will set the current AI-graded answer to grade ${grade} (counts as correct) and reschedule it.`
+            : `将把当前题目的 AI 评分改判为 ${grade} 分（判定为掌握）并重算复习计划。`
+          : lang === 'en'
+            ? `Will set the current AI-graded answer to grade ${grade} (still not mastered) and reschedule it.`
+            : `将把当前题目的 AI 评分改判为 ${grade} 分（仍算未掌握，会继续安排复习）并重算复习计划。`,
         paramsSummary: `grade=${grade}`,
         requiresConfirm: true,
       };
@@ -759,40 +855,53 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
     }
 
     if (/(?:提取.*(?:术语|生词)|(?:术语|生词).*提取|列出(?:本题|这(?:道)?题)?(?:核心)?(?:术语|生词)|\bextract\s+terms?\b)/i.test(text)) {
+      // Both spend model quota and cache the result, so the learner previews them first (#1447).
       return {
-        kind: 'run_action',
+        kind: 'write_confirm',
         actionName: 'card.terms',
         params: {
           ...(deckId ? { deckId } : {}),
           ...(cardId ? { cardId } : {}),
         },
         humanLabel: lang === 'en' ? 'Extract key terms' : '提取核心术语',
+        previewTitle: lang === 'en' ? 'Confirm Term Extraction' : '确认提取核心术语',
+        previewMessage:
+          lang === 'en'
+            ? 'Will call the model once to extract this card’s key terms and cache them on the card.'
+            : '将调用一次模型提取本题核心术语，并把结果缓存到本题（消耗模型额度）。',
         paramsSummary: lang === 'en' ? 'extract card terms' : '提取本题术语',
-        requiresConfirm: false,
+        requiresConfirm: true,
       };
     }
 
     if (/(?:翻译(?:这(?:道)?题|本题)|(?:把|将)这(?:道)?题翻译(?:成|为)|\btranslate\s+(?:this\s+)?(?:card|question)\b)/i.test(text)) {
       return {
-        kind: 'run_action',
+        kind: 'write_confirm',
         actionName: 'card.translate',
         params: {
           ...(deckId ? { deckId } : {}),
           ...(cardId ? { cardId } : {}),
         },
         humanLabel: lang === 'en' ? 'Translate current question' : '翻译本题',
+        previewTitle: lang === 'en' ? 'Confirm Translation' : '确认翻译本题',
+        previewMessage:
+          lang === 'en'
+            ? 'Will call the model once to translate this card and cache the translation (uses model quota).'
+            : '将调用一次模型把本题翻译成英文并缓存结果（消耗模型额度）。',
         paramsSummary: lang === 'en' ? 'translate current question' : '翻译当前题目',
-        requiresConfirm: false,
+        requiresConfirm: true,
       };
     }
 
-    if (/^(?:请|帮我)?(?:跳过这(?:道)?题|先跳过|跳过本题|跳到下一题|下一题|skip(?:\s+this)?(?:\s+(?:card|question))?)$/i.test(text)) {
+    // Skip: an ungradable question leaves the round (`review.skip`); any other one moves by index.
+    // `review.move {direction:1}` throws "Answer this question before continuing" on an unanswered card (#1447).
+    if (/^(?:请|帮我)?\s*(?:跳过这(?:道)?题|先跳过|跳过本题|跳到下一题|下一题|skip(?:\s+this)?(?:\s+(?:card|question))?)[。.!！]?$/i.test(text)) {
       return {
         kind: 'run_action',
-        actionName: 'review.move',
+        actionName: 'review.skip',
         params: {
           ...(runId ? { runId } : {}),
-          direction: 1,
+          ...(cardId ? { cardId } : {}),
         },
         humanLabel: lang === 'en' ? 'Skip to next question' : '跳过本题',
         paramsSummary: lang === 'en' ? 'next question' : '跳到下一题',
@@ -942,8 +1051,9 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
     }
   }
 
-  // 6b) Unrecognized action-like commands MUST NOT fall back to chat claiming "done" (#1444)
-  if (!conceptualQuestion && ACTION_LIKE_REQUEST_RE.test(text)) {
+  // 6b) Unrecognized action-like commands MUST NOT fall back to chat claiming "done" (#1444).
+  // A study request phrased with 把/将 ("把这道题讲清楚一点") is chat, not an unsupported action (#1447).
+  if (!conceptualQuestion && !asking && ACTION_LIKE_REQUEST_RE.test(text) && !STUDY_REQUEST_HINT_RE.test(text)) {
     return {
       kind: 'unsupported',
       actionName: 'unsupported',
