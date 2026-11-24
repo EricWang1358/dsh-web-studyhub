@@ -4,6 +4,11 @@ import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction, errorMessage, type ReviewRun } from '../../host/sample-actions.js';
+import {
+  buildInitialExplainPrompt,
+  canExposeReferenceAnswer,
+  persistCardQaToFollowupAndNote,
+} from '../../host/ai-dialogue.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Spinner } from '../../components/Badge.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
@@ -184,11 +189,8 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
   );
 
   const buildInitialPrompt = useCallback(
-    () =>
-      run.revealed || run.feedback
-        ? t(lang, '请帮我深入讲解这道题的考点、解题思路和容易混淆的误区。', 'Explain the core concept, solution reasoning, and common pitfalls for this question.')
-        : t(lang, '请先给我一点解题启发和思路提示，先不要直接剧透最终选项或答案。', 'Give me a conceptual hint and approach without spoiling the final answer yet.'),
-    [run.revealed, run.feedback, lang],
+    () => buildInitialExplainPrompt(canExposeReferenceAnswer(run), lang),
+    [run, lang],
   );
 
   const askAi = useCallback(
@@ -330,49 +332,26 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
     const questionText = prevUser?.text || t(lang, '帮我理解这道题', 'Help me understand this question');
 
     setSavingNote(true);
-    const followupRes = await tryAction<{ item?: { id?: string } }>(host, 'card.followup.add', {
-      deckId,
-      cardId,
-      question: questionText.slice(0, 1000),
-      answer: answerText.slice(0, 8000),
-      source: 'assistant',
-      silent: true,
-      replace: true,
-    });
-    if (!mountedRef.current) return;
-    if (!followupRes.ok || !followupRes.value?.item?.id) {
-      setSavingNote(false);
-      notify(followupRes.error?.message || t(lang, '保存追问失败', 'Failed to save follow-up'), 'error');
-      return;
-    }
     const noteTitle = buildDailyQuestionNoteTitle(run, useTuiStore.getState().snapshot?.decks, lang);
-    const noteRes = await tryAction<{ status?: string }>(host, 'note.qa.add', {
+    const saved = await persistCardQaToFollowupAndNote({
+      host,
       deckId,
       cardId,
-      followupId: followupRes.value.item.id,
-      title: noteTitle,
-      language: lang,
+      question: questionText,
+      answer: answerText,
+      noteTitle,
+      lang,
     });
     if (!mountedRef.current) return;
     setSavingNote(false);
-    // Step 1 (card.followup.add) already succeeded on disk; reflect saved state immediately even if note write fails.
+    if (!saved.ok || !saved.savedItem) {
+      notify(saved.error || t(lang, '保存追问失败', 'Failed to save follow-up'), 'error');
+      return;
+    }
     setSavedLatest(true);
-    onSavedFollowup?.(cardId, {
-      id: followupRes.value.item.id,
-      question: questionText.slice(0, 1000),
-      answer: answerText.slice(0, 8000),
-      at: new Date().toISOString(),
-    });
-    if (!noteRes.ok) {
-      const reason = noteRes.error?.message || t(lang, '写入学习笔记失败', 'Failed to add Q&A to notes');
-      notify(
-        t(
-          lang,
-          `已保存到本题讲解（下次可直接复用），但写入学习笔记失败：${reason}`,
-          `Saved to question explanations (reused next time), but adding to notes failed: ${reason}`,
-        ),
-        'warning',
-      );
+    onSavedFollowup?.(cardId, saved.savedItem);
+    if (!saved.noteSaved && saved.warning) {
+      notify(saved.warning, 'warning');
       return;
     }
     notify(t(lang, '已保存到本题讲解与学习笔记，下次打开将直接复用', 'Saved Q&A to notes (reused next time)'), 'success');
