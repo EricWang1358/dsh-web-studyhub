@@ -97,7 +97,11 @@ function extractAppShellGlobalKeys(sf) {
     ) {
       usesPageRegistryMap = true;
     }
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'useInput') {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      (node.expression.text === 'useInput' || node.expression.text === 'useScopedInput')
+    ) {
       function scanInputFn(n) {
         if (ts.isSwitchStatement(n) && ts.isIdentifier(n.expression) && n.expression.text === 'input') {
           for (const clause of n.caseBlock.clauses) {

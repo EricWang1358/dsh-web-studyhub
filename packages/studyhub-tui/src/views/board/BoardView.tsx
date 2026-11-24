@@ -1,7 +1,8 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import { atomicWriteExportText, defaultBackupFilePath } from '../../host/atomic-write.js';
 import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';

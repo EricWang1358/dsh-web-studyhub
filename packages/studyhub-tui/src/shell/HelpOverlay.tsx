@@ -1,5 +1,6 @@
 import React, { memo, useMemo } from 'react';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text, useWindowSize } from 'ink';
+import { useScopedInput as useInput } from '../components/key-dispatcher.js';
 import { PAGE_REGISTRY, type KeyHint, type UiLanguage } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
 import { getColorLevel, makeChalk, useTheme } from '../theme/tokens.js';

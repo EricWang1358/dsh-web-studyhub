@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';

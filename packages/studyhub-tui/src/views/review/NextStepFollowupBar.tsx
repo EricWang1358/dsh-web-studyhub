@@ -8,7 +8,8 @@
  *   same streaming reply & `[N]` save-to-followup/notes action (reuses `card.followup.add` + `note.qa.add`).
  */
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';

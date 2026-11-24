@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { resolve } from 'node:path';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text, useWindowSize } from 'ink';
+import { useScopedInput as useInput } from '../components/key-dispatcher.js';
 import type { HostClient, NavigationContext, PageId, UiLanguage } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';

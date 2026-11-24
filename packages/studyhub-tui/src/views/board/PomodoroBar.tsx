@@ -1,5 +1,6 @@
 import React, { memo, useEffect, useRef } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import { ProgressBar } from '../../components/Badge.js';
 import { useTheme } from '../../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';

@@ -1,7 +1,8 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Box, Text, useInput, type DOMElement } from 'ink';
+import { Box, Text, type DOMElement } from 'ink';
 import { useTheme } from '../theme/tokens.js';
 import { t, useTuiStore } from '../state/store.js';
+import { KEY_LAYER_WIDGET, useScopedInput } from './key-dispatcher.js';
 import { useClickRegion, useSgrWheelTap } from './mouse.js';
 
 export interface VirtualListRenderContext {
@@ -254,28 +255,32 @@ function VirtualListInner<T>({
     { active: isActive && total > 0 },
   );
 
-  useInput(
+  useScopedInput(
     (input, key) => {
-      if (total === 0) return;
+      if (total === 0) return false;
       const wheelDelta = parseSgrWheelDelta(input);
       if (wheelDelta !== 0) {
         move(cursorRef.current + wheelDelta);
-        return;
+        return true;
       }
-      if (key.ctrl && input === 'd') move(cursor + pageStep(rows, 'half'));
-      else if (key.ctrl && input === 'u') move(cursor - pageStep(rows, 'half'));
-      else if (key.pageDown || (key.ctrl && input === 'f')) move(cursor + pageStep(rows, 'full'));
-      else if (key.pageUp || (key.ctrl && input === 'b')) move(cursor - pageStep(rows, 'full'));
-      else if (key.downArrow || (vimNavKeys && !key.ctrl && !key.meta && input === 'j')) move(cursor + 1);
-      else if (key.upArrow || (vimNavKeys && !key.ctrl && !key.meta && input === 'k')) move(cursor - 1);
-      else if (key.home || (vimJumpKeys && !key.ctrl && !key.meta && input === 'g')) move(0);
-      else if (key.end || (vimJumpKeys && !key.ctrl && !key.meta && input === 'G')) move(total - 1);
-      else if (key.return) {
+      if (key.ctrl && input === 'd') { move(cursor + pageStep(rows, 'half')); return true; }
+      if (key.ctrl && input === 'u') { move(cursor - pageStep(rows, 'half')); return true; }
+      if (key.pageDown || (key.ctrl && input === 'f')) { move(cursor + pageStep(rows, 'full')); return true; }
+      if (key.pageUp || (key.ctrl && input === 'b')) { move(cursor - pageStep(rows, 'full')); return true; }
+      if (key.downArrow || (vimNavKeys && !key.ctrl && !key.meta && input === 'j')) { move(cursor + 1); return true; }
+      if (key.upArrow || (vimNavKeys && !key.ctrl && !key.meta && input === 'k')) { move(cursor - 1); return true; }
+      if (key.home || (vimJumpKeys && !key.ctrl && !key.meta && input === 'g')) { move(0); return true; }
+      if (key.end || (vimJumpKeys && !key.ctrl && !key.meta && input === 'G')) { move(total - 1); return true; }
+      if (key.return) {
         const item = items[cursor];
-        if (item !== undefined) onSelect?.(item, cursor);
+        if (item !== undefined && onSelect) {
+          onSelect(item, cursor);
+          return true;
+        }
       }
+      return false;
     },
-    { isActive },
+    { isActive, layer: KEY_LAYER_WIDGET, id: 'VirtualList' },
   );
 
   const scrollable = showScrollbar && total > rows;

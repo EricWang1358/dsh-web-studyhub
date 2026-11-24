@@ -1,9 +1,10 @@
 import React, { memo, useCallback, useRef, useState } from 'react';
-import { Box, Text, useInput, type DOMElement } from 'ink';
+import { Box, Text, type DOMElement } from 'ink';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
 import { t, useTuiStore } from '../state/store.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { DIGIT_KEYS, useClaimKeys } from './focus.js';
+import { KEY_LAYER_WIDGET, useScopedInput } from './key-dispatcher.js';
 import { nextScrollOffset, pageStep, parseSgrWheelDelta, useSgrMouseWheel } from './VirtualList.js';
 import { useClickRegion } from './mouse.js';
 
@@ -135,42 +136,58 @@ function SelectListInner<V>({
     { active: isActive && total > 0 },
   );
 
-  useInput(
+  useScopedInput(
     (input, key) => {
-      if (total === 0) return;
+      if (total === 0) return false;
       const wheelDelta = parseSgrWheelDelta(input);
       if (wheelDelta !== 0) {
         const next = stepClamped(cursorRef.current, wheelDelta);
         if (next !== cursorRef.current) moveTo(next);
-        return;
+        return true;
       }
       if (key.pageDown || (key.ctrl && input === 'd')) {
         const next = stepClamped(cursor, pageStep(rows, 'half'));
         if (next !== cursor) moveTo(next);
-      } else if (key.pageUp || (key.ctrl && input === 'u')) {
+        return true;
+      }
+      if (key.pageUp || (key.ctrl && input === 'u')) {
         const next = stepClamped(cursor, -pageStep(rows, 'half'));
         if (next !== cursor) moveTo(next);
-      } else if (key.downArrow || (!key.ctrl && !key.meta && input === 'j') || (key.tab && !key.shift)) {
+        return true;
+      }
+      if (key.downArrow || (!key.ctrl && !key.meta && input === 'j') || (key.tab && !key.shift)) {
         moveTo(step(cursor, 1));
-      } else if (key.upArrow || (!key.ctrl && !key.meta && input === 'k') || (key.tab && key.shift)) {
+        return true;
+      }
+      if (key.upArrow || (!key.ctrl && !key.meta && input === 'k') || (key.tab && key.shift)) {
         moveTo(step(cursor, -1));
-      } else if (key.home || (vimJumpKeys && !key.ctrl && !key.meta && input === 'g')) {
+        return true;
+      }
+      if (key.home || (vimJumpKeys && !key.ctrl && !key.meta && input === 'g')) {
         moveTo(0);
-      } else if (key.end || (vimJumpKeys && !key.ctrl && !key.meta && input === 'G')) {
+        return true;
+      }
+      if (key.end || (vimJumpKeys && !key.ctrl && !key.meta && input === 'G')) {
         moveTo(total - 1);
-      } else if (key.return) {
+        return true;
+      }
+      if (key.return) {
         const opt = options[cursor];
         if (opt && !opt.disabled) onSelect(opt, cursor);
-      } else if (numberShortcuts && /^[1-9]$/.test(input)) {
+        return true;
+      }
+      if (numberShortcuts && /^[1-9]$/.test(input)) {
         const idx = Number(input) - 1;
         const opt = options[idx];
         if (opt && !opt.disabled) {
           moveTo(idx);
           onSelect(opt, idx);
+          return true;
         }
       }
+      return false;
     },
-    { isActive },
+    { isActive, layer: KEY_LAYER_WIDGET, id: 'SelectList' },
   );
 
   if (total === 0) return <Text color={theme.muted}>{resolvedEmptyText}</Text>;

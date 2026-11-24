@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isAbsolute, resolve } from 'node:path';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text, useWindowSize } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import type { Tone } from '../../theme/tokens.js';
 import { useTheme } from '../../theme/tokens.js';
