@@ -308,7 +308,7 @@ function SectionRow({ section, index, onChange, onRemove, disabled }) {
 /**
  * Props: data (snapshot: courses, sources, focus), courseId, onClose; act (called with rethrow so errors stay in the panel) and busy come from useStudy().
  */
-export default function CourseSettings({ data, courseId, onClose, mergeFrom = [], onGenerateTopic }) {
+export default function CourseSettings({ data, courseId, onClose: closePanel, mergeFrom = [], onGenerateTopic }) {
   const { act, busy, openModal } = useStudy();
   const toast = useToast();
   useInjectCss(css, 'study-course-settings');
@@ -371,7 +371,7 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
       const moved = alignmentReceipt(result?.alignment);
       toast.success([uiFormat('已保存「{0}」的课程信息', [course.name]), moved].filter(Boolean).join(ui('；')));
       if (afterSave) afterSave(result);
-      else onClose?.('saved');
+      else closePanel?.('saved');
     });
   };
   const courseNames = (courses || []).map(item => item?.name).filter(Boolean);
@@ -414,15 +414,16 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
         : ui('课程名称尚未点「改名」确认，「保存课程信息」不会改名；请先点「改名」，或再点一次直接保存其余课程信息。');
   const requestClose = (reason) => {
     if (draftDirty || ruleDraftRef.current?.hasDraft || notationDraftRef.current?.hasDraft) { setLeavePrompt({ kind: 'close', reason }); return; }
-    onClose?.(reason);
+    closePanel?.(reason);
   };
   const guardLeave = (onConfirm) => {
     if (draftDirty || ruleDraftRef.current?.hasDraft || notationDraftRef.current?.hasDraft) { setLeavePrompt({ kind: 'leave', onConfirm }); return; }
     onConfirm?.();
   };
+  const onClose = reason => guardLeave(() => closePanel?.(reason));
   const requestOpenFocusIntake = () => {
     if (draftDirty || ruleDraftRef.current?.hasDraft || notationDraftRef.current?.hasDraft) { setLeavePrompt({ kind: 'focus-intake' }); return; }
-    onClose?.('focus-intake');
+    closePanel?.('focus-intake');
     openModal({ type: 'focusIntake', course: course.name });
   };
   const mergeNames = others.filter(item => mergeIds.includes(item.id)).map(item => item.name);
@@ -442,15 +443,15 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
       <section className="course-settings__block course-settings__first" aria-label={ui('考试日期')}>
         <Field label={ui('考试日期')} width="full" hint={ui('填了就会在首页倒数；其余都可以不填。')}>
           <TextInput type="date" value={draft.date} disabled={disabled} onChange={event => change({ date: event.target.value })} /></Field>
-        {examPointerShown(course.exam) && <ExamAlignmentPointer course={course.name} examDate={course.exam.date} onLeave={(proceed) => guardLeave(() => { onClose?.('dismiss'); proceed?.(); })} />}
+        {examPointerShown(course.exam) && <ExamAlignmentPointer course={course.name} examDate={course.exam.date} onLeave={(proceed) => guardLeave(() => { closePanel?.('dismiss'); proceed?.(); })} />}
       </section>
 
       {/* 学法 (#775): every course has one, the default package until it is changed. */}
       <CourseMethodCard key={course.id} course={course} data={data} readout={data?.focus?.courseId === course.id ? data.focus.method : null}
-        onClose={(reason) => guardLeave(() => onClose?.(reason))} onEditingChange={editing => { setMethodEditing(editing); if (!editing) setNestedWarn(false); }} />
+        onClose={onClose} onEditingChange={editing => { setMethodEditing(editing); if (!editing) setNestedWarn(false); }} />
 
       {/* Only a course the main chat made a custom plan for has the card. */}
-      <CustomPlanCard course={course} data={data} onClose={(reason) => guardLeave(() => onClose?.(reason))} />
+      <CustomPlanCard course={course} data={data} onClose={onClose} />
 
       <Disclosure className="course-settings__more" bodyClassName="course-settings__more-body" summary={ui('更多设置')} defaultOpen={startOpen}
         meta={joinMeta([draft.format !== 'other' ? examFormatLabel(draft.format) : '', String(draft.interviewRole ?? '').trim(), splitTopics(draft.focusTopics).length ? uiFormat('{0} 个重点知识点', [splitTopics(draft.focusTopics).length]) : '',
@@ -584,7 +585,7 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
           confirmLabel={ui('保存并录入重点')}
           cancelLabel={ui('继续编辑')}
           onConfirm={async () => {
-            const ok = await save({ afterSave: () => { setLeavePrompt(null); onClose?.('focus-intake'); openModal({ type: 'focusIntake', course: course.name }); } });
+            const ok = await save({ afterSave: () => { setLeavePrompt(null); closePanel?.('focus-intake'); openModal({ type: 'focusIntake', course: course.name }); } });
             if (!ok) setLeavePrompt(null);
           }}
           onClose={() => setLeavePrompt(null)}
@@ -597,7 +598,7 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
           description={ui('离开后会丢失刚才在课程设置里尚未保存的修改。')}
           confirmLabel={ui('放弃改动')}
           cancelLabel={ui('继续编辑')}
-          onConfirm={() => { const reason = leavePrompt.reason; setLeavePrompt(null); onClose?.(reason); }}
+          onConfirm={() => { const reason = leavePrompt.reason; setLeavePrompt(null); closePanel?.(reason); }}
           onClose={() => setLeavePrompt(null)}
         />
       )}

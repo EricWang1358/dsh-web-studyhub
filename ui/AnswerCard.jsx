@@ -100,7 +100,7 @@ function BookButton({ deckId, cardId, course = '', book }) {
   const [status, setStatus] = useState(() => ({ key: itemKey, working: false, error: '' }));
   const working = status.key === itemKey && status.working;
   const error = status.key === itemKey ? status.error : '';
-  if (!book.ready || !hasCourseBook(book.courses, course ?? '')) return null;
+  if (!book.ready || !(book.courses.has(course ?? '') || hasCourseBook(book.courses, course ?? ''))) return null;
   const added = book.cards.has(cardId);
   const run = async () => {
     const originKey = itemKey;

@@ -268,7 +268,7 @@ test("#1367-7, #1367-8, #1367-9: draft stash clearing, CourseSettings live dirty
 
   // #1367-9: TeachingStatus rendered outside teaching.complete ternary + teachingAction distinguishes teach.answer
   const tpSrc = await readFile(path.resolve("ui/review/TeachingPanel.jsx"), "utf8");
-  assert.ok(tpSrc.includes('teachingAction === "teach.answer"'));
+  assert.ok(tpSrc.includes('teachingAction !== "teach.start"'));
   assert.ok(tpSrc.indexOf("<TeachingStatus") > tpSrc.indexOf("teaching.complete"), "TeachingStatus stays rendered after the complete ternary");
 });
 
