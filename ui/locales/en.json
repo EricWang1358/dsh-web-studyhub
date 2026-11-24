@@ -1931,4 +1931,8 @@
   "交互母版 · 题库联动 · 挂载本地目录": "Archetype · Card sync · Local mount",
   "示例预览 · 不写入学习库": "Sample preview · read-only",
   "当前为免配置只读示例预览，互动操作与自测均在内存中运行，不会写入或改动你的学习库。": "This is a built-in read-only sample preview. Interactive sliders and quick checks run in memory and never modify your study library."
+,
+  "适用于编程与工程类课程：优先把大段口述代码执行改成 3–16 行最小可读代码块，并禁止在代码注释里泄题。": "For programming and engineering courses: convert multi-sentence verbalized code steps into minimal 3–16 line fenced code blocks and never leak answers in code comments.",
+  "加入代码阅读题推荐守则": "Add code-reading question rule",
+  "已加入代码阅读题推荐守则": "Code-reading rule added"
 }
