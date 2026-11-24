@@ -49,7 +49,7 @@ function pageKey(id: PageId, fallback: string): string {
 
 const KEYS = {
   help: reviewKey('h', 'h'),
-  guided: reviewKey('T', 'T'),
+  guided: reviewKey('T', 't'),
   similar: reviewKey('S', 'S'),
   focus: reviewKey('*', '*'),
   skip: reviewKey('s', 's'),

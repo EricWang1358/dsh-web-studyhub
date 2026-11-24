@@ -195,6 +195,7 @@ interface StyleCache {
   muted?: StyleFn;
   ai?: StyleFn;
   border?: StyleFn;
+  codeFrame?: StyleFn;
   headingBold?: StyleFn;
   h1?: StyleFn;
   h2?: StyleFn;
@@ -215,6 +216,7 @@ const NO_COLOR_STYLES: StyleCache = Object.freeze({
   muted: identityStyle,
   ai: identityStyle,
   border: identityStyle,
+  codeFrame: identityStyle,
   headingBold: identityStyle,
   h1: identityStyle,
   h2: identityStyle,
@@ -401,7 +403,9 @@ function renderCode(tok: Tokens.Code, width: number, ctx: Ctx): string[] {
     }
   }
   if (width < 8) return wrapCode(body, width);
-  const border = (s.border ??= c.hex(theme.border));
+  // #1414: the frame uses `dim`, not `border`: panel borders may be faint, but a code frame that fades into
+  // the terminal background leaves the language label looking like a stray line of text.
+  const border = (s.codeFrame ??= c.hex(theme.dim));
   const muted = (s.muted ??= c.hex(theme.muted));
   const inner = width - 4;
   let label = lang ? ` ${lang} ` : '';

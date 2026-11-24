@@ -34,6 +34,7 @@ import {
   type PracticeOriginKind,
 } from '../../state/practice-stack.js';
 import { LruCache } from '../../render/lru.js';
+import { renderMarkdownLines } from '../../render/markdown.js';
 import { displayWidth, truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import { buildFileHyperlinkUrl, formatOsc8Link } from '../../render/osc8.js';
 import { buildReviewWindowTitle, writeTerminalTitle } from '../../render/terminal-title.js';
@@ -1192,7 +1193,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
         base.push({ key: '1-6/Space', label: t(lang, '勾选', 'Toggle') });
         base.push({ key: 'Enter', label: t(lang, '提交', 'Submit') });
       } else if (kind === 'true_false') {
-        base.push({ key: asciiMode ? '1/t - 2/f' : '1/t · 2/f', label: t(lang, '判断', 'Judge') });
+        base.push({ key: '1/2', label: t(lang, '判断', 'Judge') });
       } else if (kind === 'fill_blank') {
         base.push({ key: 'i/Enter', label: t(lang, '填空', 'Type') });
       } else if (isRubricEligibleKind) {
@@ -1219,7 +1220,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
       base.push({ key: 'N', label: t(lang, '陪学点拨', 'Nudge') });
     }
     base.push({ key: 'h', label: t(lang, 'AI讲解', 'AI Help') });
-    base.push({ key: 'T', label: t(lang, '带学/复述', 'Guided') });
+    base.push({ key: 't', label: t(lang, '带学/复述', 'Guided') });
     base.push({ key: '*', label: t(lang, '重点', 'Focus') });
     if (canRedo) base.push({ key: 'R', label: t(lang, '重做', 'Redo') });
     base.push({ key: 'W', label: t(lang, '翻译', 'Trans') });
@@ -1324,7 +1325,8 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
         }
         return;
       }
-      if (input === 'T') {
+      // #1408: `t` is the documented key; `T` stays as a silent alias for old muscle memory.
+      if (input === 't' || input === 'T') {
         useTuiStore.getState().openAssistant({
           tab: 'guided',
           stage: 'retell',
@@ -1445,11 +1447,11 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
       }
 
       if (kind === 'true_false') {
-        if (input === '1' || input === 't') {
+        if (input === '1') {
           const id = options[0]?.id || 'true';
           setSelectedIds([id]);
           handleSubmitChoice([id]);
-        } else if (input === '2' || input === 'f') {
+        } else if (input === '2') {
           const id = options[1]?.id || 'false';
           setSelectedIds([id]);
           handleSubmitChoice([id]);
@@ -1915,6 +1917,15 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     cardId && cardId in focusOverrideByCard ? focusOverrideByCard[cardId] : Boolean(run.card?.focus);
 
   const innerW = Math.max(20, cardPaneW - 4);
+  // The explanation takes only the rows it needs (up to the old fixed budget), so a short answer
+  // stays centred with the question instead of being pinned to the top of a tall pane (#1415).
+  const postAnswerMaxH = Math.max(3, height - (innerW < 90 ? 22 : 18));
+  const postAnswerViewH = postAnswerMarkdown
+    ? Math.min(
+        postAnswerMaxH,
+        Math.max(1, renderMarkdownLines(postAnswerMarkdown, { width: Math.max(8, innerW - 1), theme, mathUnicode, ascii: asciiMode }).length),
+      )
+    : postAnswerMaxH;
   const progressRatio = totalCount > 0 ? Math.min(1, answeredCount / totalCount) : 0;
   const panelTitleStr = String(run.title || t(lang, 'FSRS-6 间隔复习', 'FSRS-6 Review'));
   const panelBadgeStr = `${atNum}/${totalCount}`;
@@ -1989,6 +2000,9 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
 
           <Divider width={innerW} />
 
+          {/* Equal spacers above and below keep the card in the middle of a tall terminal (#1415). */}
+          <Box flexGrow={1} />
+
           {/* Question Stem (Round 83 A2: cap prose at 96 cols and center on ultrawide viewports) */}
           {(() => {
             const { proseWidth, marginLeft } = computeProseLayout(innerW);
@@ -2060,7 +2074,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                   }
                 }
                 const keyTag = kind === 'true_false'
-                  ? (idx === 0 ? '[1/t]' : '[2/f]')
+                  ? (idx === 0 ? '[1]' : '[2]')
                   : `[${idx + 1}/${String.fromCharCode(97 + idx)}]`;
                 const trOptText = activeTranslation?.options?.find((o) => o.id === opt.id)?.text;
                 const onClickOption = () => {
@@ -2222,14 +2236,14 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
 
           {/* Flashcard front prompt */}
           {kind === 'flashcard' && !isRubricEligibleKind && !revealed ? (
-            <ClickableBox marginTop={1} clickActive={mainActive} onClick={() => handleReveal()}>
+            <ClickableBox marginTop={1} marginLeft={computeProseLayout(innerW).marginLeft} clickActive={mainActive} onClick={() => handleReveal()}>
               <Badge label={t(lang, '按 [Space] 或 [Enter] 翻开答案', 'Press [Space] or [Enter] to flip card')} tone="primary" variant="soft" />
             </ClickableBox>
           ) : null}
 
           {/* Post-Reveal / Post-Answer / Rubric Grading Panel */}
           {revealed || activeRubric || gradingBusy || gradeError ? (
-            <Box flexDirection="column" marginTop={1} width={innerW} flexGrow={1} overflow="hidden">
+            <Box flexDirection="column" marginTop={1} width={innerW} flexShrink={1} overflow="hidden">
               <Divider
                 width={innerW}
                 label={
@@ -2489,11 +2503,11 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
               ) : null}
 
               {postAnswerMarkdown ? (
-                <Box marginTop={0} flexGrow={1} overflow="hidden">
+                <Box marginTop={0} flexShrink={1} overflow="hidden">
                   <MarkdownView
                     markdown={postAnswerMarkdown}
                     width={innerW}
-                    height={Math.max(3, height - (innerW < 90 ? 22 : 18))}
+                    height={postAnswerViewH}
                     mathUnicode={mathUnicode}
                     isActive={mainActive && revealed}
                     vimNavKeys={false}

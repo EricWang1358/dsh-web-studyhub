@@ -49,6 +49,17 @@ const NAV_ORDER: readonly PageId[] = PAGE_REGISTRY.filter((p) => p.group !== nul
 const SHORTCUTS = new Map<string, PageId>(PAGE_REGISTRY.map((p) => [p.shortcut, p.id]));
 
 /** Pure layout math for the shell, exported for tests and the App. */
+/**
+ * Width of the assistant dock when it sits beside the page (#1411): just under half of the
+ * area right of the sidebar, capped so the page keeps most of a very wide terminal.
+ */
+export function assistantDockWidth(availableW: number): number {
+  return Math.min(ASSISTANT_DOCK_MAX_W, Math.max(ASSISTANT_DOCK_MIN_W, Math.floor(availableW * ASSISTANT_DOCK_RATIO)));
+}
+const ASSISTANT_DOCK_RATIO = 0.46;
+const ASSISTANT_DOCK_MIN_W = 36;
+const ASSISTANT_DOCK_MAX_W = 66;
+
 export function shellLayout(columns: number, rows: number, opts: { sidebarCollapsed: boolean; showKeyHints: boolean; launchpad?: boolean }) {
   const navW = opts.launchpad ? 0 : sideNavWidth(columns, opts.sidebarCollapsed);
   const bodyH = Math.max(3, rows - 1 - (opts.showKeyHints ? 1 : 0));
@@ -132,7 +143,7 @@ export const AppShell = memo(function AppShell({
   });
   const dockActive = assistantOpen && !assistantFullscreen && !showLaunchpad;
   const dockSideBySide = dockActive && columns - navW >= 78;
-  const dockW = dockSideBySide ? Math.min(54, Math.max(36, Math.floor((columns - navW) * 0.42))) : Math.max(20, columns - navW - 2);
+  const dockW = dockSideBySide ? assistantDockWidth(columns - navW) : Math.max(20, columns - navW - 2);
   const dockH = dockSideBySide ? bodyH : Math.max(8, Math.floor(bodyH * 0.42));
   const contentW = dockSideBySide ? Math.max(24, columns - navW - dockW - 2) : fullContentW;
   const contentH = dockActive && !dockSideBySide ? Math.max(6, bodyH - dockH) : bodyH;

@@ -17,13 +17,14 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { Box, Text, useInput, useStdout, useWindowSize } from 'ink';
 import { PAGE_REGISTRY, type HostClient, type PageId, type UiLanguage } from '../types/contracts.js';
 import { t, useTuiStore, type AssistantCardContext, type AssistantTabId } from '../state/store.js';
-import { useTheme } from '../theme/tokens.js';
+import { getColorLevel, makeChalk, useTheme } from '../theme/tokens.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import { SectionHeader } from '../components/Layout.js';
 import { Panel } from '../components/Panel.js';
 import { ScrollView } from '../components/ScrollView.js';
 import { TextInput } from '../components/TextInput.js';
 import { ClickableBox } from '../components/mouse.js';
+import { useModalFooterHints } from '../components/focus.js';
 import { useStreamingBuffer } from '../components/useStreamingBuffer.js';
 import { tryAction } from '../host/sample-actions.js';
 import { atomicWriteExportText, defaultBackupFilePath } from '../host/atomic-write.js';
@@ -46,6 +47,7 @@ import {
   type AssistantWorkflowPlan,
 } from './assistant-workflow.js';
 import { pruneTurnsWithSummary } from './assistant-memory.js';
+import { buildTranscriptPalette, formatTurnLines, turnsInScope } from './assistant-transcript.js';
 import { currentCourse, dueToday, modelInfo, wrongCount } from './data.js';
 
 export const MAX_ASSISTANT_TURNS = 16;
@@ -62,6 +64,8 @@ export const GUIDED_STAGES: readonly GuidedStageId[] = Object.freeze([
 export interface AssistantTurn extends CopyTurnRecord {
   id: string;
   at: number;
+  /** The card this turn was about; '' or absent when asked away from any card (#1426). */
+  scope?: string;
   skipped?: boolean;
   verdict?: {
     passed: boolean;
@@ -197,7 +201,18 @@ export const AssistantPanel = memo(function AssistantPanel({
   const model = useMemo(() => modelInfo(cfg, binding, snapshot), [cfg, binding, snapshot]);
   const modelReady = Boolean(model.ready || host.streamComplete);
 
-  const [turns, setTurns] = useState<AssistantTurn[]>(() => [...sessionMemory.turns]);
+  const [allTurns, setTurns] = useState<AssistantTurn[]>(() => [...sessionMemory.turns]);
+  // #1426: only the conversation about the card in view is shown; the rest folds into one line.
+  const turnScope = cardCtx?.cardId ?? '';
+  const turnScopeRef = useRef(turnScope);
+  turnScopeRef.current = turnScope;
+  const [showEarlier, setShowEarlier] = useState(false);
+  useEffect(() => {
+    setShowEarlier(false);
+  }, [turnScope]);
+  const scopedTurns = useMemo(() => turnsInScope(allTurns, turnScope), [allTurns, turnScope]);
+  const earlierTurnCount = scopedTurns.earlier;
+  const turns = showEarlier ? allTurns : scopedTurns.current;
   const [selectedTurnIdx, setSelectedTurnIdx] = useState<number>(() => Math.max(0, sessionMemory.turns.length - 1));
   const [inputValue, setInputValue] = useState('');
   const [inputFocused, setInputFocused] = useState(false);
@@ -282,7 +297,7 @@ export const AssistantPanel = memo(function AssistantPanel({
   );
 
   const appendTurn = useCallback((turn: Omit<AssistantTurn, 'id' | 'at'>) => {
-    const entry: AssistantTurn = { ...turn, id: `at-${++turnSeq}`, at: Date.now() };
+    const entry: AssistantTurn = { ...turn, id: `at-${++turnSeq}`, at: Date.now(), scope: turnScopeRef.current };
     const next = trimTurns([...sessionMemory.turns, entry]);
     sessionMemory.turns = next;
     if (mountedRef.current) {
@@ -612,7 +627,7 @@ export const AssistantPanel = memo(function AssistantPanel({
   }, [cardCtx?.cardId, appendTurn, setStage, notify, lang]);
 
   const handleSubmitInput = useCallback(
-    async (raw: string) => {
+    async (raw: string, opts?: { viaCommand?: boolean }) => {
       const text = raw.trim();
       if (!text || busy) return;
       setInputValue('');
@@ -620,10 +635,12 @@ export const AssistantPanel = memo(function AssistantPanel({
       setLastFallback(null);
       sessionMemory.lastFallback = null;
       recordUsage(text);
+      // Always show what was asked, so every answer below has its question above it (#1410).
+      const userTurn = appendTurn({ role: 'user', stage: tab === 'guided' ? stage : undefined, text });
 
-      // Guided Study Retell stage submits to backend `teach.retell` (#1348)
-      if (tab === 'guided' && stage === 'retell') {
-        appendTurn({ role: 'user', stage: 'retell', text });
+      // Guided Study Retell stage submits to backend `teach.retell` (#1348). Only text the learner
+      // typed counts as a retell: chips and the [A] alternative are commands, not answers (#1406).
+      if (tab === 'guided' && stage === 'retell' && !opts?.viaCommand) {
         if (!cardCtx?.cardId) {
           appendTurn({
             role: 'system',
@@ -882,7 +899,8 @@ export const AssistantPanel = memo(function AssistantPanel({
       stream.reset();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
-      const recentContext = sessionMemory.turns
+      const recentContext = turnsInScope(sessionMemory.turns, turnScopeRef.current).current
+        .filter((x) => x.id !== userTurn.id)
         .slice(-6)
         .map((x) => `${x.role}: ${x.text.slice(0, 200)}`)
         .join('\n');
@@ -997,7 +1015,7 @@ export const AssistantPanel = memo(function AssistantPanel({
         setTab('guided');
         return;
       }
-      void handleSubmitInput(chip.command);
+      void handleSubmitInput(chip.command, { viaCommand: true });
     },
     [setTab, handleSubmitInput],
   );
@@ -1018,9 +1036,9 @@ export const AssistantPanel = memo(function AssistantPanel({
       return;
     }
     if (docked) {
-      // Return keyboard focus to main page first, or collapse cleanly
+      // Hand the keyboard back to the page and stay visible, so the page's own shortcuts work while
+      // the conversation is still readable (#1412). A second Esc (page "back") folds the dock.
       setFocused(false);
-      onClose();
       return;
     }
     onClose();
@@ -1052,6 +1070,10 @@ export const AssistantPanel = memo(function AssistantPanel({
         setFullscreen(!fullscreen);
         return;
       }
+      if (input === 'o' && earlierTurnCount > 0) {
+        setShowEarlier((shown) => !shown);
+        return;
+      }
       if (input === 'i' || input === 'a' || key.return) {
         setInputFocused(true);
         return;
@@ -1065,7 +1087,7 @@ export const AssistantPanel = memo(function AssistantPanel({
         return;
       }
       if (input === 'A' && lastFallback) {
-        void handleSubmitInput(lastFallback.altCommand);
+        void handleSubmitInput(lastFallback.altCommand, { viaCommand: true });
         return;
       }
       if (input === 'c') {
@@ -1138,17 +1160,45 @@ export const AssistantPanel = memo(function AssistantPanel({
       : '';
   const contextLine = `${t(lang, '当前', 'Context')}：${pageName}${cardPos}${courseName ? ` · ${courseName}` : ''}`;
 
+  // #1412: while the dock holds the keyboard the footer shows the dock's own keys, not a generic "Esc close".
+  const dockFooterHints = useMemo(
+    () => [
+      { key: 'Esc', label: fullscreen ? t(lang, '退出全屏', 'Exit full') : docked ? t(lang, '回页面', 'Back to page') : t(lang, '关闭', 'Close') },
+      { key: 'i', label: t(lang, '输入', 'Type') },
+      { key: '1-4', label: t(lang, '推荐动作', 'Quick actions') },
+      { key: 'Tab', label: t(lang, '助手/带学', 'Tabs') },
+      { key: 'Ctrl+G', label: t(lang, '收起', 'Hide') },
+    ],
+    [lang, fullscreen, docked],
+  );
+  useModalFooterHints(dockFooterHints, isActive && !inputFocused && !pendingConfirm);
+
+  const colorLevel = getColorLevel();
   const transcriptLines = useMemo(() => {
     const out: string[] = [];
     const wrapW = Math.max(18, innerW - 2);
+    const chalk = makeChalk(colorLevel);
+    const palette = buildTranscriptPalette(theme, chalk);
+    const labels = {
+      user: t(lang, '我', 'You'),
+      assistant: t(lang, '助手', 'AI'),
+      system: t(lang, '状态', 'Status'),
+      stage: t(lang, '阶段', 'Stage'),
+    };
     if (!modelReady) {
       out.push(
         ...wrapDisplay(
           t(lang, '模型未就绪：本地导航与导出可用，生成类可按 [P] 复制提示词。', 'Model offline: navigation works; press [P] to copy prompt.'),
           wrapW,
-        ),
+        ).map((line) => chalk.hex(theme.warning)(line)),
         '',
       );
+    }
+    if (earlierTurnCount > 0) {
+      const fold = showEarlier
+        ? t(lang, `已展开之前的对话 ${earlierTurnCount} 条 · 按 [o] 收起`, `Showing ${earlierTurnCount} earlier turn(s) · [o] to fold`)
+        : t(lang, `之前的对话 ${earlierTurnCount} 条已收起 · 按 [o] 展开`, `${earlierTurnCount} earlier turn(s) folded · [o] to show`);
+      out.push(...wrapDisplay(fold, wrapW).map((line) => chalk.hex(theme.dim)(line)), '');
     }
     if (turns.length === 0 && !busy) {
       const intro =
@@ -1157,37 +1207,33 @@ export const AssistantPanel = memo(function AssistantPanel({
             ? t(lang, '复述阶段：按 [i] 用自己的话复述要点，或按 [S] 跳过并记录。', 'Retell: [i] explain in your own words, or [S] skip.')
             : t(lang, '带学模式：按 [i] 回答或追问，[p/n] 切阶段，Tab 切助手不丢进度。', 'Guided Study: [i] answer, [p/n] stages, Tab switches tab.')
           : t(lang, '按 [1-4] 直达推荐动作，或按 [i] 输入自然语言指令。', 'Press [1-4] for quick actions, or [i] for natural language.');
-      out.push(...wrapDisplay(intro, wrapW));
+      out.push(...wrapDisplay(intro, wrapW).map((line) => chalk.hex(theme.muted)(line)));
     }
 
     for (const entry of turns) {
-      const prefix =
-        entry.role === 'user'
-          ? t(lang, '我', 'You')
-          : entry.role === 'assistant'
-            ? t(lang, '助手', 'AI')
-            : t(lang, '状态', 'Status');
-      const stTag = entry.stage ? ` [${t(lang, '阶段', 'Stage')}: ${stageLabel(entry.stage, lang)}]` : '';
-      out.push(`${prefix}${stTag}:`);
-      if (entry.actionSummary) {
-        out.push(...wrapDisplay(`  > ${entry.actionSummary}`, wrapW));
-      }
-      for (const para of entry.text.split('\n')) {
-        out.push(...wrapDisplay(para ? `  ${para}` : ' ', wrapW));
-      }
-      out.push('');
+      out.push(
+        ...formatTurnLines(
+          {
+            role: entry.role,
+            text: entry.text,
+            actionSummary: entry.actionSummary,
+            stageLabel: entry.stage ? stageLabel(entry.stage, lang) : undefined,
+          },
+          { wrapW, labels, palette },
+        ),
+      );
     }
 
     if (busy) {
       const live = stream.text.trim();
       if (live) {
         for (const para of live.split('\n')) {
-          out.push(...wrapDisplay(`  ${para}`, wrapW));
+          out.push(...wrapDisplay(`  ${para}`, wrapW).map((line) => palette.body.assistant(line)));
         }
       }
     }
     return out;
-  }, [innerW, modelReady, lang, turns, busy, tab, stage, stream.text]);
+  }, [innerW, modelReady, lang, turns, earlierTurnCount, showEarlier, busy, tab, stage, stream.text, theme, colorLevel]);
 
   return (
     <Box flexDirection="column" width={frameW} height={frameH}>
@@ -1198,8 +1244,8 @@ export const AssistantPanel = memo(function AssistantPanel({
           fullscreen
             ? t(lang, '全屏 (Esc分栏)', 'Full (Esc split)')
             : isActive
-              ? t(lang, '已聚焦 (Esc收起)', 'Focused (Esc hide)')
-              : t(lang, '停靠不抢焦点 (Ctrl+Space聚焦)', 'Docked (Ctrl+Space focus)')
+              ? t(lang, '已聚焦 (Esc回页面)', 'Focused (Esc to page)')
+              : t(lang, '停靠不抢焦点 (Ctrl+G聚焦 · Esc收起)', 'Docked (Ctrl+G focus · Esc hide)')
         }
         focused={isActive}
         width={frameW}
@@ -1299,7 +1345,7 @@ export const AssistantPanel = memo(function AssistantPanel({
               clickActive
               onClick={() => {
                 setFocused(true);
-                void handleSubmitInput(lastFallback.altCommand);
+                void handleSubmitInput(lastFallback.altCommand, { viaCommand: true });
               }}
             >
               <Text color={theme.accent} bold>

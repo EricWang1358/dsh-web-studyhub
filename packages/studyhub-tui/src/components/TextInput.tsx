@@ -1,11 +1,12 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Box, Text, useInput, usePaste } from 'ink';
+import { Box, Text, useInput, usePaste, type DOMElement } from 'ink';
 import stripAnsi from 'strip-ansi';
 import { useTheme } from '../theme/tokens.js';
 import { displayWidth, splitGraphemes } from '../render/cjk.js';
 import { useTuiStore } from '../state/store.js';
 import { normalizeAsciiChrome } from './Badge.js';
 import { useInputCapture } from './focus.js';
+import { ImeCursorAnchor } from './ime-cursor.js';
 import { isSgrMouseSequence, stripSgrMouseSequences } from './mouse.js';
 
 export interface TextInputProps {
@@ -163,6 +164,7 @@ export const TextInput = memo(function TextInput({
   const lastValue = useRef(value);
   const hStart = useRef(0);
   const vStart = useRef(0);
+  const rootRef = useRef<DOMElement>(null);
 
   // External value change → clamp / move cursor to end.
   useEffect(() => {
@@ -308,12 +310,14 @@ export const TextInput = memo(function TextInput({
     <Text color={isActive ? theme.primary : theme.muted}>{`${renderedPrompt} `}</Text>
   ) : null;
   const fieldWidth = Math.max(1, width);
+  const promptW = renderedPrompt ? displayWidth(renderedPrompt) + 1 : 0;
 
   if (value.length === 0) {
     hStart.current = 0;
     vStart.current = 0;
     return (
-      <Box width={fieldWidth + (renderedPrompt ? displayWidth(renderedPrompt) + 1 : 0)} height={multiline ? height : 1}>
+      <Box ref={rootRef} width={fieldWidth + promptW} height={multiline ? height : 1}>
+        {isActive ? <ImeCursorAnchor anchorRef={rootRef} dx={promptW} dy={0} /> : null}
         {promptEl}
         <Text>
           {isActive ? <Text inverse>{renderedPlaceholder ? chars(renderedPlaceholder)[0] : ' '}</Text> : null}
@@ -345,12 +349,15 @@ export const TextInput = memo(function TextInput({
       afterCells = afterCells.slice(0, keep);
     }
     const after = afterCells.join('');
+    const shownBefore = win.start > 0 ? chars(before).slice(1).join('') : before;
+    const caretDx = promptW + (win.start > 0 ? 1 : 0) + displayWidth(shownBefore);
     return (
-      <Box height={1}>
+      <Box ref={rootRef} height={1}>
+        {isActive ? <ImeCursorAnchor anchorRef={rootRef} dx={caretDx} dy={0} /> : null}
         {promptEl}
         <Text color={theme.text} wrap="truncate">
           {win.start > 0 ? <Text color={theme.dim}>{asciiMode ? '<' : '‹'}</Text> : null}
-          {win.start > 0 ? chars(before).slice(1).join('') : before}
+          {shownBefore}
           {isActive ? <Text inverse>{atChar}</Text> : at < display.length ? atChar : ''}
           {after}
         </Text>
@@ -371,9 +378,13 @@ export const TextInput = memo(function TextInput({
   if (curRow >= vs + rows) vs = curRow - rows + 1;
   vs = Math.max(0, Math.min(vs, Math.max(0, lines.length - rows)));
   vStart.current = vs;
+  const caretLine = lines[curRow] ?? [];
+  const caretWin = hWindow(caretLine, curCol, fieldWidth, 0);
+  const caretDx = promptW + displayWidth(caretLine.slice(caretWin.start, curCol).join(''));
 
   return (
-    <Box flexDirection="column" height={rows}>
+    <Box ref={rootRef} flexDirection="column" height={rows}>
+      {isActive ? <ImeCursorAnchor anchorRef={rootRef} dx={caretDx} dy={curRow - vs} /> : null}
       {lines.slice(vs, vs + rows).map((line, i) => {
         const r = vs + i;
         const isCurRow = r === curRow;

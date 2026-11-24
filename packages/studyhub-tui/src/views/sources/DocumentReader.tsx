@@ -17,6 +17,7 @@ import { errorMessage, startReview, tryAction } from '../../host/sample-actions.
 import { MAX_LAST_READ_PAGES, saveTuiPreferences } from '../../host/tui-prefs.js';
 import { wrapDisplay } from '../../render/cjk.js';
 import { formatLongformProse, formatReadingTimeLabel } from '../../render/longform.js';
+import { readWholePage, readWholeSource, type WholeText } from './page-loader.js';
 
 const ReaderOutlineDrawer = lazy(() =>
   import('./ReaderOutlineDrawer.js').then((m) => ({ default: m.ReaderOutlineDrawer })),
@@ -686,9 +687,17 @@ export const DocumentReader = memo(function DocumentReader({
       }
 
       const targetFrom = currentPage;
-      const pagesRes = await tryAction<Record<string, unknown>>(host, 'source.pages', {
+      const pageTarget = {
         ...(docMeta.documentId ? { documentId: docMeta.documentId } : documentId ? { documentId } : {}),
         ...(sourceId && !docMeta.documentId && !documentId ? { sourceId } : {}),
+      };
+      // #1418: a slice that failed to arrive is said out loud at the end of the page.
+      const shownText = (whole: WholeText): string =>
+        whole.incomplete
+          ? `${whole.text}\n\n${t(lang, '（后面的内容没有读出来，重新打开这份资料可以重试。）', '(The rest could not be read. Reopen this material to retry.)')}`
+          : whole.text;
+      const pagesRes = await tryAction<Record<string, unknown>>(host, 'source.pages', {
+        ...pageTarget,
         from: targetFrom,
         to: targetFrom,
       });
@@ -729,10 +738,16 @@ export const DocumentReader = memo(function DocumentReader({
               return;
             }
           }
+          // #1418: `source.pages` hands out about 6000 characters a call; read the page to its end.
+          const wholePage = await readWholePage(
+            (sliceArgs) => tryAction<Record<string, unknown>>(host, 'source.pages', { ...pageTarget, ...sliceArgs }),
+            val,
+          );
+          if (cancelled) return;
           setPageData({
             page: Number(firstShown.page ?? targetFrom),
             sourceId: String(firstShown.sourceId ?? sourceId ?? ''),
-            text: String(firstShown.text ?? ''),
+            text: shownText(wholePage),
             chars: Number(firstShown.chars ?? 0),
             firstPage: first,
             lastPage: last,
@@ -757,10 +772,15 @@ export const DocumentReader = memo(function DocumentReader({
         if (cancelled) return;
         if (getRes.ok && getRes.value) {
           const val = getRes.value;
+          const wholeSource = await readWholeSource(
+            (sliceArgs) => tryAction<Record<string, unknown>>(host, 'source.get', { id: fallbackId, ...sliceArgs }),
+            val,
+          );
+          if (cancelled) return;
           setPageData({
             page: 1,
             sourceId: String(val.id ?? fallbackId),
-            text: String(val.text ?? ''),
+            text: shownText(wholeSource),
             chars: Number(val.chars ?? 0),
             firstPage: 1,
             lastPage: 1,
