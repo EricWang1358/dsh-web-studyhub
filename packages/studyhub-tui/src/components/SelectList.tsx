@@ -36,6 +36,8 @@ export interface SelectListProps<V = string> {
   /** Mark the option whose value equals `currentValue` with ✓. */
   currentValue?: V;
   emptyText?: string;
+  /** Opt in to Vim `g` (top) / `G` (bottom) jump keys. Default false so parent shortcuts never conflict (#1375). */
+  vimJumpKeys?: boolean;
 }
 
 function SelectListInner<V>({
@@ -50,6 +52,7 @@ function SelectListInner<V>({
   numberShortcuts = true,
   currentValue,
   emptyText,
+  vimJumpKeys = false,
 }: SelectListProps<V>) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
@@ -151,9 +154,9 @@ function SelectListInner<V>({
         moveTo(step(cursor, 1));
       } else if (key.upArrow || (!key.ctrl && !key.meta && input === 'k') || (key.tab && key.shift)) {
         moveTo(step(cursor, -1));
-      } else if (key.home || (!key.ctrl && !key.meta && input === 'g')) {
+      } else if (key.home || (vimJumpKeys && !key.ctrl && !key.meta && input === 'g')) {
         moveTo(0);
-      } else if (key.end || (!key.ctrl && !key.meta && input === 'G')) {
+      } else if (key.end || (vimJumpKeys && !key.ctrl && !key.meta && input === 'G')) {
         moveTo(total - 1);
       } else if (key.return) {
         const opt = options[cursor];
