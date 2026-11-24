@@ -432,4 +432,95 @@ describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () =>
       h.cleanup();
     }
   });
+
+  test('5. (#1337) Regenerating explanation for the same question and pressing N replaces saved answer on backend StudyService', async () => {
+    const { mkdtemp, rm } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { StudyService } = await import('../../../lib/service.js');
+
+    const root = await mkdtemp(join(tmpdir(), 'studyhub-1337-'));
+    const service = new StudyService(root, { complete: async () => '{}' });
+    try {
+      await service.store.update((state) => {
+        state.decks.push({
+          id: 'd-1337',
+          title: 'OS',
+          course: '操作系统',
+          cards: [
+            {
+              id: 'c-1337',
+              kind: 'quiz',
+              prompt: 'What is a semaphore?',
+              answer: 'Synchronization primitive',
+              options: [{ id: 'A', text: 'Synchronization primitive', correct: true }],
+            },
+          ],
+        });
+      });
+
+      resetStore();
+      useTuiStore.setState({
+        snapshot: { courses: [{ id: 'c1', name: '操作系统' }], decks: [{ id: 'd-1337', title: 'OS', course: '操作系统' }], sources: [], jobs: [] },
+      });
+
+      const run = await service.call('review.start', { mode: 'quiz', deckId: 'd-1337', fresh: true });
+      const revealedRun = await service.call('review.answer', { runId: run.id, cardId: 'c-1337', selected: ['A'] });
+
+      let genCount = 0;
+      const realHost = {
+        call: async (action, payload) => {
+          if (action === 'review.start' || action === 'study.start') return { ok: true, value: revealedRun };
+          try {
+            const value = await service.call(action, payload);
+            return { ok: true, value };
+          } catch (err) {
+            return { ok: false, error: { message: err instanceof Error ? err.message : String(err) } };
+          }
+        },
+        streamComplete: async () => {
+          genCount += 1;
+          return genCount === 1 ? 'EXPLANATION_OLD_A' : 'EXPLANATION_NEW_B';
+        },
+        getSnapshot: async () => useTuiStore.getState().snapshot,
+      };
+
+      const h = createInkHarness(
+        React.createElement(ReviewView, { host: realHost, width: 120, height: 28, isActive: true }),
+        { cols: 120, rows: 28 },
+      );
+
+      try {
+        await h.waitFor((s) => s.includes('What is a semaphore?'));
+        // First generation A -> press N to save
+        h.write('h');
+        await h.waitFor((s) => s.includes('EXPLANATION_OLD_A'));
+        h.write('N');
+        await new Promise((r) => setTimeout(r, 120));
+
+        // Regenerate B (same default question) -> press N to save again
+        h.write('R');
+        await h.waitFor((s) => s.includes('EXPLANATION_NEW_B'));
+        h.write('N');
+        await new Promise((r) => setTimeout(r, 120));
+      } finally {
+        h.cleanup();
+      }
+
+      // Reload from disk via a fresh review.get — must persist B, not stale A!
+      const reloaded = await service.call('review.get', { runId: run.id });
+      const savedAnswers = (reloaded.followups || []).map((f) => f.answer);
+      assert.ok(
+        savedAnswers.includes('EXPLANATION_NEW_B'),
+        `Expected regenerated answer EXPLANATION_NEW_B to be persisted, got: ${JSON.stringify(savedAnswers)}`,
+      );
+      assert.ok(
+        !savedAnswers.includes('EXPLANATION_OLD_A'),
+        `Expected stale EXPLANATION_OLD_A to be replaced, got: ${JSON.stringify(savedAnswers)}`,
+      );
+    } finally {
+      service.dispose();
+      await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    }
+  });
 });
