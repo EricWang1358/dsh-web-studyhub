@@ -1144,7 +1144,7 @@ export const CompanionsModal = memo(function CompanionsModal({
           openTarget = rawPath;
         }
       }
-      const res = await tryAction(host, 'app.open', { url: openTarget, path: rawPath });
+      const res = await tryAction(host, 'app.open', { url: openTarget });
       if (!mountedRef.current) return;
       if (res.ok) {
         notify(t(lang, `已请求外部打开: ${rawPath}`, `Opened externally: ${rawPath}`), 'success');
