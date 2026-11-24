@@ -101,6 +101,7 @@ export interface RefreshResult {
 export interface StreamCompleteParams {
   system: string;
   prompt: string;
+  messages?: Array<{ role: 'user' | 'assistant'; content: string }>;
   signal?: AbortSignal;
   onChunk?: (delta: string) => void;
   onReasoning?: (chars: number) => void;
@@ -582,6 +583,7 @@ export async function createTuiHost(options: CreateTuiHostOptions = {}): Promise
         onOutput,
         onChunk: onOutput,
         onReasoning: params.onReasoning,
+        ...(Array.isArray(params.messages) && params.messages.length > 0 ? { messages: params.messages } : {}),
         task: 'assist',
         stream: true,
         language,

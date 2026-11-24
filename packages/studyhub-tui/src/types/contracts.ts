@@ -163,6 +163,11 @@ export interface LibraryEvent {
   payload?: Record<string, unknown>;
 }
 
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export interface HostClient {
   /** Execute any StudyRuntime or Desktop host action. */
   call<T = any>(action: string, args?: Record<string, unknown>): Promise<HostCallResult<T>>;
@@ -176,6 +181,8 @@ export interface HostClient {
   streamComplete?(params: {
     system: string;
     prompt: string;
+    /** Optional multi-turn chat history forwarded natively to chat-completions endpoints (#1422). */
+    messages?: ChatMessage[];
     signal?: AbortSignal;
     onChunk?: (delta: string) => void;
     onReasoning?: (chars: number) => void;

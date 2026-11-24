@@ -68,13 +68,18 @@ function resolveEffort(config, execution) {
   return normalizeReasoningEffort(raw);
 }
 
-function buildChatBody({ model, system, prompt, maxTokens, effort, stream, includeStreamOptions }) {
+function buildChatBody({ model, system, prompt, messages, maxTokens, effort, stream, includeStreamOptions }) {
+  const validTurns = Array.isArray(messages)
+    ? messages
+      .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+      .map((m) => ({ role: m.role, content: m.content }))
+    : [];
   const payload = {
     model,
     stream,
     messages: [
       { role: 'system', content: String(system ?? '') },
-      { role: 'user', content: String(prompt ?? '') },
+      ...(validTurns.length > 0 ? validTurns : [{ role: 'user', content: String(prompt ?? '') }]),
     ],
   };
   if (stream && includeStreamOptions) {
@@ -243,6 +248,7 @@ export function createOpenAiCompleteAdapter(config, {
         model: endpoint.model,
         system,
         prompt,
+        messages: execution?.messages,
         maxTokens: execution?.maxTokens,
         effort,
         stream,

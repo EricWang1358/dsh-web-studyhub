@@ -14,11 +14,14 @@ import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
 import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import {
   MAX_AI_TURNS,
+  buildCardHelpMessages,
   buildCardHelpSystemPrompt,
   buildCardHelpUserPrompt,
   buildDailyQuestionNoteTitle,
   currentDeckIdOf,
+  extractCitation,
   extractRunFollowups,
+  extractSolution,
   type AiTurn,
   type NormalizedKind,
 } from './review-helpers.js';
@@ -109,6 +112,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
   const cardIdRef = useRef(cardId);
   cardIdRef.current = cardId;
   const autoAskedRef = useRef<Set<string>>(new Set());
+  const sourceExcerptCacheRef = useRef<Map<string, string>>(new Map());
 
   // Opaque global input capture while drawer is mounted (#1376).
   useInputCapture(true);
@@ -190,6 +194,50 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
     [run.revealed, run.feedback, lang],
   );
 
+  const resolveSourceExcerpt = useCallback(async (): Promise<string> => {
+    const sol = extractSolution(run);
+    const card = (run.card || {}) as Record<string, unknown>;
+    const rawCites =
+      sol?.citations ?? (Array.isArray(card.citations) ? (card.citations as Array<{ quote?: string }>) : undefined);
+    if (Array.isArray(rawCites) && rawCites.some((c) => typeof c?.quote === 'string' && c.quote.trim().length > 0)) {
+      return '';
+    }
+    const cite = extractCitation(run);
+    if (!cite?.sourceId) return '';
+    const cacheKey = `${cite.sourceId}#${cite.pageNumber ?? 0}`;
+    if (sourceExcerptCacheRef.current.has(cacheKey)) {
+      return sourceExcerptCacheRef.current.get(cacheKey) || '';
+    }
+    let excerpt = '';
+    try {
+      if (cite.pageNumber) {
+        const res = await tryAction<{ pages?: Array<{ text?: string }>; text?: string }>(host, 'source.pages', {
+          id: cite.sourceId,
+          from: cite.pageNumber,
+          to: cite.pageNumber,
+        });
+        if (res.ok && res.value) {
+          const firstPage = Array.isArray(res.value.pages) ? res.value.pages[0]?.text : res.value.text;
+          if (typeof firstPage === 'string') excerpt = firstPage.trim().slice(0, 800);
+        }
+      } else {
+        const res = await tryAction<{ text?: string; source?: { text?: string } }>(host, 'source.get', {
+          id: cite.sourceId,
+          offset: 0,
+          limit: 800,
+        });
+        if (res.ok && res.value) {
+          const raw = res.value.text ?? res.value.source?.text ?? '';
+          if (typeof raw === 'string') excerpt = raw.trim().slice(0, 800);
+        }
+      }
+    } catch {
+      excerpt = '';
+    }
+    sourceExcerptCacheRef.current.set(cacheKey, excerpt);
+    return excerpt;
+  }, [host, run]);
+
   const askAi = useCallback(
     async (question: string) => {
       const q = question.trim();
@@ -203,6 +251,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       abortRef.current = ctrl;
 
       const priorTurns = turnsRef.current;
+      const isFollowup = priorTurns.length > 0;
       const userTurn: AiTurn = { role: 'user', text: q };
       const withUser = [...priorTurns, userTurn].slice(-MAX_AI_TURNS);
       turnsRef.current = withUser;
@@ -214,16 +263,29 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       setErrorText(null);
 
       try {
+        const sourceExcerpt = await resolveSourceExcerpt();
+        if (!mountedRef.current || ctrl.signal.aborted) return;
+        const messages = buildCardHelpMessages({
+          run,
+          kind,
+          userAnswer,
+          sourceExcerpt,
+          history: priorTurns,
+          question: q,
+          lang,
+        });
         const finalText = await host.streamComplete({
-          system: buildCardHelpSystemPrompt(lang),
+          system: buildCardHelpSystemPrompt(lang, isFollowup),
           prompt: buildCardHelpUserPrompt({
             run,
             kind,
             userAnswer,
+            sourceExcerpt,
             history: priorTurns,
             question: q,
             lang,
           }),
+          messages,
           signal: ctrl.signal,
           onChunk: (delta) => {
             if (!mountedRef.current || ctrl.signal.aborted) return;
@@ -270,7 +332,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
         }
       }
     },
-    [host, lang, cardId, run, kind, userAnswer, commitTurns, pushStreamingChunk, finishStreaming, resetStreaming],
+    [host, lang, cardId, run, kind, userAnswer, commitTurns, pushStreamingChunk, finishStreaming, resetStreaming, resolveSourceExcerpt],
   );
 
   // Auto-explain ONLY when opened for a card with neither lifted history nor saved follow-ups.
