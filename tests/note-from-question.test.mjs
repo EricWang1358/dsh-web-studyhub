@@ -235,3 +235,12 @@ test('a draft interrupted by a restart (stored as running, no live job) does not
   await addFollowup(service, 'f2', 'What does the originator need?', 'Access to its own state.');
   assert.equal((await service.call('note.qa.add', { ...ref, followupId: 'f2' })).status, 'added');
 });
+
+test('#1336: note.qa.add without explicit title creates a daily course study note instead of rejecting', async t => {
+  const { service } = await library(t);
+  await service.store.update(state => { state.decks[0].course = 'Design Patterns'; });
+  const res = await service.call('note.qa.add', { deckId: 'deck', cardId: 'c1', followupId: 'f1', language: 'zh' });
+  assert.equal(res.status, 'created');
+  assert.match(res.note.title, /^\d{4}-\d{2}-\d{2} · Design Patterns · 学习笔记$/);
+  assert.match(res.note.markdown, /Why can the caretaker not read it\?/);
+});

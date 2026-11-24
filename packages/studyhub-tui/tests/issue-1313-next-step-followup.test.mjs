@@ -256,6 +256,8 @@ describe('#1313 unified AI result follow-up bar', () => {
       await new Promise((r) => setTimeout(r, 80));
       assert.equal(savedFollowups.length, 1, 'N must save via card.followup.add');
       assert.equal(savedNotes.length, 1, 'N must save via note.qa.add');
+      assert.equal(typeof savedNotes[0].title, 'string', '#1336: NextStepFollowupBar note.qa.add must include a title');
+      assert.ok(savedNotes[0].title.trim().length > 0, '#1336: NextStepFollowupBar note.qa.add title must be non-empty');
     } finally {
       h.cleanup();
     }

@@ -17,6 +17,7 @@ import {
   MAX_AI_TURNS,
   buildCardHelpSystemPrompt,
   buildCardHelpUserPrompt,
+  buildDailyQuestionNoteTitle,
   currentDeckIdOf,
   extractSolution,
   type AiTurn,
@@ -340,26 +341,38 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       notify(followupRes.error?.message || t(lang, '保存追问失败', 'Failed to save follow-up'), 'error');
       return;
     }
+    const savedItem: SavedFollowupItem = {
+      id: followupRes.value.item.id,
+      question: questionText.slice(0, 1000),
+      answer: answerText.slice(0, 8000),
+      at: new Date().toISOString(),
+    };
+    setSavedLatest(true);
+    onSavedFollowup?.(cardId, savedItem);
+
+    const noteTitle = buildDailyQuestionNoteTitle(run, useTuiStore.getState().snapshot?.decks, lang);
     const noteRes = await tryAction<{ status?: string }>(host, 'note.qa.add', {
       deckId,
       cardId,
-      followupId: followupRes.value.item.id,
+      followupId: savedItem.id,
+      title: noteTitle,
       language: lang,
     });
     if (!mountedRef.current) return;
     setSavingNote(false);
     if (!noteRes.ok) {
-      notify(noteRes.error?.message || t(lang, '写入学习笔记失败', 'Failed to add Q&A to notes'), 'error');
+      const reason = noteRes.error?.message || t(lang, '未知错误', 'unknown error');
+      notify(
+        t(
+          lang,
+          `已保存到本题讲解（下次打开将复用），但写入学习笔记失败：${reason}`,
+          `Saved to card explanations (reused next time), but failed to write to study notes: ${reason}`,
+        ),
+        'warning',
+      );
       return;
     }
-    setSavedLatest(true);
-    onSavedFollowup?.(cardId, {
-      id: followupRes.value.item.id,
-      question: questionText.slice(0, 1000),
-      answer: answerText.slice(0, 8000),
-      at: new Date().toISOString(),
-    });
-    notify(t(lang, '已将问答保存到学习笔记，下次打开将直接复用', 'Saved Q&A to notes (reused next time)'), 'success');
+    notify(t(lang, '已将问答保存到本题讲解与学习笔记，下次打开将直接复用', 'Saved Q&A to card & study notes (reused next time)'), 'success');
   }, [savingNote, run, turns, host, lang, cardId, notify, onSavedFollowup]);
 
   const drawerHints: KeyHint[] = useMemo(

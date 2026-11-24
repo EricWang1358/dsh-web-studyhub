@@ -455,6 +455,35 @@ export function currentDeckIdOf(run: ReviewRun | null | undefined): string | nul
   return firstScope || null;
 }
 
+/**
+ * Build today's canonical daily course study note title for `note.qa.add` (#1336),
+ * mirroring web's `ui/review/question-note.js` (`YYYY-MM-DD · <course> · 学习笔记`).
+ */
+export function buildDailyQuestionNoteTitle(
+  run: ReviewRun | null | undefined,
+  decks: ReadonlyArray<{ id?: string; course?: string; folder?: string }> | null | undefined,
+  lang: UiLanguage,
+  now: Date = new Date(),
+): string {
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const day = `${yyyy}-${mm}-${dd}`;
+  const deckId = currentDeckIdOf(run);
+  const deck = deckId && Array.isArray(decks) ? decks.find((d) => d?.id === deckId) : null;
+  const rawCourse =
+    deck?.course ??
+    deck?.folder ??
+    (run?.card as { course?: unknown } | null | undefined)?.course ??
+    (run as { course?: unknown } | null | undefined)?.course ??
+    '';
+  const course = typeof rawCourse === 'string' ? rawCourse.trim() : '';
+  if (lang === 'en') {
+    return course ? `${day} · ${course} · Study Notes` : `Study Notes · ${day}`;
+  }
+  return course ? `${day} · ${course} · 学习笔记` : `学习笔记 · ${day}`;
+}
+
 export function buildCardHelpSystemPrompt(lang: UiLanguage): string {
   return lang === 'en'
     ? 'You are a concise, insightful study tutor inside a terminal flashcard/quiz app. Explain concepts clearly using structured bullet points and standard Markdown/LaTeX math ($...$ or $$...$$). Focus on why the answer is right, why common traps are wrong, and intuitive mental models.'

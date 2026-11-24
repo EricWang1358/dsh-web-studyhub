@@ -231,7 +231,8 @@ export async function savePageAskToNote(params: SavePageAskParams): Promise<Save
     );
     if (linked.length > 0) {
       const target = linked[0];
-      const noteTitle = course ? `${course} · ${docLabel}` : docLabel;
+      const fallbackLabel = lang === 'en' ? 'Study Notes' : '学习笔记';
+      const noteTitle = (course ? `${course} · ${docLabel || fallbackLabel}` : docLabel || fallbackLabel).trim();
       const followupRes = await tryAction<{ item?: { id?: string } }>(host, 'card.followup.add', {
         deckId: target.deckId,
         cardId: target.cardId,

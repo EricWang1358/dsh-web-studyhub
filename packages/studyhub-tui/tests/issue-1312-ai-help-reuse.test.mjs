@@ -123,6 +123,7 @@ describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () =>
     resetStore();
     let modelCalls = 0;
     const savedCalls = [];
+    const savedNoteCalls = [];
 
     const mockRun = {
       id: 'run-reuse-1',
@@ -150,7 +151,10 @@ describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () =>
           savedCalls.push(payload);
           return { ok: true, value: { item: { id: `fu-${savedCalls.length}` } } };
         }
-        if (name === 'note.qa.add') return { ok: true, value: { status: 'ok' } };
+        if (name === 'note.qa.add') {
+          savedNoteCalls.push(payload);
+          return { ok: true, value: { status: 'ok' } };
+        }
         return { ok: true, value: {} };
       },
       streamComplete: async () => {
@@ -177,6 +181,9 @@ describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () =>
       h.write('N');
       await new Promise((r) => setTimeout(r, 80));
       assert.equal(savedCalls.length, 1, 'N must save followup');
+      assert.equal(savedNoteCalls.length, 1, 'N must call note.qa.add');
+      assert.equal(typeof savedNoteCalls[0].title, 'string', '#1336: note.qa.add must include a title string');
+      assert.ok(savedNoteCalls[0].title.trim().length > 0, '#1336: note.qa.add title must be non-empty');
 
       // Close drawer with h, then verify ReviewView shows saved explanation hint
       h.write('h');
@@ -298,6 +305,73 @@ describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () =>
       assert.equal(modelCalls, 1, 'Standalone AiHelpDrawer with saved followups must make 0 additional model calls');
     } finally {
       hStandalone.cleanup();
+    }
+  });
+
+  test('3. #1336: Partial failure when note.qa.add fails still records saved followup on card and reports both steps clearly', async () => {
+    resetStore();
+    useTuiStore.setState({
+      snapshot: { courses: [{ name: 'Operating Systems' }], decks: [{ id: 'deck-u1', title: 'OS Memory', course: 'Operating Systems' }], sources: [], jobs: [] },
+    });
+    const notePayloads = [];
+    const mockRun = {
+      id: 'run-partial-1336',
+      deckId: 'deck-u1',
+      title: 'OS Memory',
+      index: 0,
+      total: 1,
+      answered: 1,
+      revealed: true,
+      card: {
+        id: 'card-partial-1336',
+        deckId: 'deck-u1',
+        kind: 'single',
+        prompt: 'What is thrashing?',
+        options: [{ id: 'A', text: 'Excessive paging' }],
+      },
+      feedback: { correct: true, selected: ['A'] },
+      solution: { answer: 'A', explanation: 'High page fault rate.' },
+    };
+
+    const mockHost = {
+      call: async (name, payload) => {
+        if (name === 'review.start' || name === 'study.start') return { ok: true, value: mockRun };
+        if (name === 'card.followup.add') return { ok: true, value: { item: { id: 'fu-partial-1' } } };
+        if (name === 'note.qa.add') {
+          notePayloads.push(payload);
+          return { ok: false, error: { message: 'AI 正在起草这篇笔记' } };
+        }
+        return { ok: true, value: {} };
+      },
+      streamComplete: async () => 'THRASHING_EXPLANATION',
+      getSnapshot: async () => ({ courses: [], decks: [{ id: 'deck-u1', title: 'OS Memory', course: 'Operating Systems' }], jobs: [] }),
+    };
+
+    const h = createInkHarness(
+      React.createElement(ReviewView, { host: mockHost, width: 120, height: 28, isActive: true }),
+      { cols: 120, rows: 28 },
+    );
+    try {
+      await h.waitFor((s) => s.includes('What is thrashing?'));
+      h.write('h');
+      await h.waitFor((s) => s.includes('THRASHING_EXPLANATION'));
+      h.write('N');
+      await new Promise((r) => setTimeout(r, 100));
+      assert.equal(notePayloads.length, 1);
+      assert.match(notePayloads[0].title, /Operating Systems/, '#1336: note title includes course name');
+      const toasts = useTuiStore.getState().toasts;
+      assert.ok(
+        toasts.some((item) => {
+          const msg = String(item.text ?? item.message ?? '');
+          return msg.includes('已保存到本题讲解') && msg.includes('写入学习笔记失败');
+        }),
+        `Expected partial-save message naming both steps, got: ${JSON.stringify(toasts)}`,
+      );
+      h.write('h');
+      const closedFrame = await h.waitFor((s) => s.includes('已存讲解 1 条，按 [h] 查看'));
+      assert.ok(closedFrame.includes('已存讲解 1 条，按 [h] 查看'), 'Card must still reflect saved followup after note step failure');
+    } finally {
+      h.cleanup();
     }
   });
 });
