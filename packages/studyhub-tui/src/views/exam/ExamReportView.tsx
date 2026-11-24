@@ -179,7 +179,7 @@ export const ExamReportView = memo(function ExamReportView({
           height={paneH}
           ascii={asciiMode}
         >
-          <Box gap={1} marginBottom={1} flexWrap="wrap">
+          <Box columnGap={1} marginBottom={1} flexWrap="wrap">
             <Badge label={`${c.total}/${c.max} ${t(lang, '分', 'pts')}`} tone={scoreTone} />
             <Badge label={band.label} tone={band.tone} variant="soft" />
             {c.pending > 0 ? (
@@ -303,7 +303,7 @@ export const ExamReportView = memo(function ExamReportView({
           height={paneH}
           ascii={asciiMode}
         >
-          <Box gap={1} marginBottom={1} flexWrap="wrap">
+          <Box columnGap={1} marginBottom={1} flexWrap="wrap">
             <Badge label={`${r.correct}/${r.total} ${t(lang, '正确', 'OK')}`} tone={scoreTone} />
             <Badge label={band.label} tone={band.tone} variant="soft" />
             {r.durationMs ? (
@@ -410,7 +410,7 @@ export const ExamReportView = memo(function ExamReportView({
         height={paneH}
         ascii={asciiMode}
       >
-        <Box gap={1} marginBottom={1} flexWrap="wrap">
+        <Box columnGap={1} marginBottom={1} flexWrap="wrap">
           {r.role ? <Badge label={r.role} tone="ai" variant="soft" /> : null}
           <Badge label={`${t(lang, '优秀', 'Strong')} ${r.strong}`} tone="success" />
           <Badge label={`${t(lang, '尚可', 'Dev')} ${r.developing}`} tone="warning" variant="soft" />

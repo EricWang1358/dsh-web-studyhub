@@ -525,7 +525,7 @@ export function buildDueReport(opts: {
 
     const p = progress[id];
     const total = finiteNonNeg(deck.count ?? deck.cardCount ?? p?.total);
-    const due = finiteNonNeg(deck.due ?? deck.dueCount ?? p?.due);
+    const due = finiteNonNeg(p?.due ?? deck.due ?? deck.dueCount);
     const weak = finiteNonNeg(deck.wrong ?? deck.wrongCount ?? p?.counts?.weak);
     const newCount = finiteNonNeg(p?.counts?.new ?? deck.newCount);
     const rawMastery = typeof p?.mastery === 'number' ? p.mastery : typeof deck.mastery === 'number' ? deck.mastery : 0;

@@ -1572,8 +1572,8 @@ export const CompanionsModal = memo(function CompanionsModal({
           ) : null}
           {attachErr ? (
             <Box marginTop={1}>
-              <Text color={theme.error} wrap="truncate-end">
-                {truncateDisplay(`${errMark} ${attachErr}`, innerW, ell)}
+              <Text color={theme.error} wrap="wrap">
+                {`${errMark} ${attachErr}`}
               </Text>
             </Box>
           ) : null}
@@ -1669,8 +1669,8 @@ export const CompanionsModal = memo(function CompanionsModal({
                 </Box>
               ) : buildErr ? (
                 <Box marginTop={1}>
-                  <Text color={theme.error} wrap="truncate-end">
-                    {truncateDisplay(`${errMark} ${buildErr}`, Math.max(16, innerW - 4), ell)}
+                  <Text color={theme.error} wrap="wrap">
+                    {`${errMark} ${buildErr}`}
                   </Text>
                 </Box>
               ) : (
@@ -1751,8 +1751,8 @@ export const CompanionsModal = memo(function CompanionsModal({
                 </Box>
               ) : buildErr ? (
                 <Box marginTop={1}>
-                  <Text color={theme.error} wrap="truncate-end">
-                    {truncateDisplay(`${errMark} ${buildErr}`, innerW, ell)}
+                  <Text color={theme.error} wrap="wrap">
+                    {`${errMark} ${buildErr}`}
                   </Text>
                 </Box>
               ) : (
@@ -1837,8 +1837,8 @@ export const CompanionsModal = memo(function CompanionsModal({
             </Box>
           ) : catchupErr ? (
             <Box marginTop={1}>
-              <Text color={theme.error} wrap="truncate-end">
-                {truncateDisplay(`${errMark} ${catchupErr}`, innerW, ell)}
+              <Text color={theme.error} wrap="wrap">
+                {`${errMark} ${catchupErr}`}
               </Text>
             </Box>
           ) : null}
@@ -1966,8 +1966,8 @@ export const CompanionsModal = memo(function CompanionsModal({
                   {listLoading ? (
                     <Spinner label={t(lang, `加载中${ell}`, `Loading${ell}`)} />
                   ) : listErr ? (
-                    <Text color={theme.error} wrap="truncate-end">
-                      {truncateDisplay(`${errMark} ${listErr}`, Math.max(10, lw - 4), ell)}
+                    <Text color={theme.error} wrap="wrap">
+                      {`${errMark} ${listErr}`}
                     </Text>
                   ) : companions.length === 0 ? (
                     <EmptyState
@@ -2027,8 +2027,8 @@ export const CompanionsModal = memo(function CompanionsModal({
                   ) : detailLoading ? (
                     <Spinner label={t(lang, `读取伴学结构${ell}`, `Loading companion${ell}`)} />
                   ) : detailErr ? (
-                    <Text color={theme.error} wrap="truncate-end">
-                      {truncateDisplay(`${errMark} ${detailErr}`, Math.max(10, rw - 4), ell)}
+                    <Text color={theme.error} wrap="wrap">
+                      {`${errMark} ${detailErr}`}
                     </Text>
                   ) : (
                     <MarkdownView

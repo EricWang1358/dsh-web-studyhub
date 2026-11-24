@@ -47,6 +47,7 @@ import {
   extractCitation,
   extractFeedback,
   extractReferenceAnswer,
+  extractRunFollowups,
   extractSolution,
   extractUserAnswerText,
   formatClozeDisplay,
@@ -160,9 +161,8 @@ const CARD_UTIL_KEYS: readonly string[] = Object.freeze([
   'N',
   'R',
 ]);
-const RATING_DIGIT_KEYS: readonly string[] = Object.freeze(['0', '1', '2', '3', '4', '5']);
-const CHOICE_DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2', '3', '4', '5', '6']);
-const TF_DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2']);
+const ALL_REVIEW_DIGIT_KEYS: readonly string[] = Object.freeze(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']);
+const CHOICE_LETTER_KEYS: readonly string[] = Object.freeze(['a', 'b', 'c', 'd', 'e', 'f']);
 const EMPTY_CLAIMED_KEYS: readonly string[] = Object.freeze([]);
 
 interface GradeAdjustModalProps {
@@ -1171,17 +1171,16 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     if (isFinished) return [];
     const baseUtil = [
       ...CARD_UTIL_KEYS,
+      ...ALL_REVIEW_DIGIT_KEYS,
       ...(isRubricEligibleKind ? ['G'] : []),
       ...(canAdjustGrade ? ['J'] : []),
       ...(canAckCorrection ? ['K'] : []),
     ];
-    if (needsRating) return [...baseUtil, ...RATING_DIGIT_KEYS];
-    if (!revealed && !feedback) {
-      if (kind === 'true_false') return [...baseUtil, ...TF_DIGIT_KEYS];
-      if (kind === 'single' || kind === 'multiple') return [...baseUtil, ...CHOICE_DIGIT_KEYS];
+    if (!revealed && !feedback && (kind === 'single' || kind === 'multiple')) {
+      return [...baseUtil, ...CHOICE_LETTER_KEYS];
     }
     return baseUtil;
-  }, [isActive, loading, run, isFinished, isRubricEligibleKind, canAdjustGrade, canAckCorrection, needsRating, revealed, feedback, kind]);
+  }, [isActive, loading, run, isFinished, isRubricEligibleKind, canAdjustGrade, canAckCorrection, revealed, feedback, kind]);
   useClaimKeys(claimedKeys, mainActive);
 
   const hints: KeyHint[] = useMemo(() => {
@@ -1670,6 +1669,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
   }, [asciiMode]);
 
   // Sync rich current card context into persistent AI Assistant without mutating practiceStack (#1315/#1319 coexistence)
+  const hasCitation = Boolean(citation);
   useEffect(() => {
     if (!run || !cardId || isFinished) return;
     useTuiStore.getState().setAssistantCardContext({
@@ -1683,8 +1683,10 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
       kind,
       isWrong: Boolean(feedback && feedback.correct === false),
       revealed,
+      isExam: run.mode === 'exam',
+      hasCitation,
     });
-  }, [run, cardId, isFinished, kind, selectedIds, clozeInputs, openDraft, feedback, revealed, lang]);
+  }, [run, cardId, isFinished, kind, selectedIds, clozeInputs, openDraft, feedback, revealed, hasCitation, lang]);
 
   // Hooks above, early returns below.
   const activeTranslation = useMemo<CardTranslation | null>(() => {
@@ -1717,22 +1719,31 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
   const handleSavedFollowup = useCallback((targetCardId: string, item: SavedFollowupItem) => {
     setSavedFollowupsByCard((prev) => {
       const existing = prev[targetCardId] ?? [];
-      if (existing.some((x) => x.id === item.id)) return prev;
+      const idx = existing.findIndex(
+        (x) => (item.id && x.id === item.id) || (item.question && x.question === item.question),
+      );
+      if (idx >= 0) {
+        const next = [...existing];
+        next[idx] = item;
+        return { ...prev, [targetCardId]: next };
+      }
       return { ...prev, [targetCardId]: [...existing, item] };
     });
   }, []);
 
   const savedFollowupCount = useMemo(() => {
-    const sol = solution?.followups ?? [];
+    const sol = extractRunFollowups(run);
     const extra = cardId ? savedFollowupsByCard[cardId] ?? [] : [];
     if (extra.length === 0) return sol.length;
-    const seen = new Set(sol.map((f) => f.id).filter(Boolean));
+    const seenIds = new Set(sol.map((f) => f.id).filter(Boolean));
+    const seenQuestions = new Set(sol.map((f) => f.question).filter(Boolean));
     let count = sol.length;
     for (const item of extra) {
-      if (!item.id || !seen.has(item.id)) count += 1;
+      if ((item.id && seenIds.has(item.id)) || (item.question && seenQuestions.has(item.question))) continue;
+      count += 1;
     }
     return count;
-  }, [solution, cardId, savedFollowupsByCard]);
+  }, [run, cardId, savedFollowupsByCard]);
 
   const stemMarkdown = useMemo(() => {
     if (!run) return '';
@@ -2246,8 +2257,8 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                 <Box flexDirection="column" marginY={0}>
                   <Box flexDirection="row" gap={1}>
                     <Badge label={asciiMode ? '! AI评分不可用' : '▲ AI评分不可用'} tone="warning" />
-                    <Text color={theme.error}>
-                      {truncateDisplay(gradeError, Math.max(12, innerW - 18), asciiMode ? '...' : '…')}
+                    <Text color={theme.error} wrap="wrap">
+                      {gradeError}
                     </Text>
                   </Box>
                   <Text color={theme.muted}>
@@ -2291,7 +2302,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                   const fitsInline = Boolean(yoursFull) && usedW + 1 + displayWidth(yoursFull) <= innerW;
                   return (
                     <Box flexDirection="column" flexShrink={0} marginBottom={0} width={innerW}>
-                      <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} width={innerW}>
+                      <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} columnGap={1} width={innerW}>
                         <Badge
                           label={statusLabel}
                           tone={feedback.correct ? 'success' : feedback.selfReported ? 'neutral' : 'error'}
@@ -2318,7 +2329,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                   return (
                     <Box flexDirection="column" flexShrink={0} marginBottom={0} width={innerW}>
                       {canUndo || fitsInline ? (
-                        <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} width={innerW}>
+                        <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} columnGap={1} width={innerW}>
                           {canUndo ? <Badge label={undoLabel} tone="info" variant="soft" /> : null}
                           {fitsInline ? <Text color={theme.muted}>{yoursFull}</Text> : null}
                         </Box>
@@ -2403,7 +2414,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
               ) : null}
 
               {activeRubric ? (
-                <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} marginY={0} width={innerW}>
+                <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} columnGap={1} marginY={0} width={innerW}>
                   <Badge
                     label={`${t(lang, 'Rubric 得分', 'Rubric')} ${activeRubric.total}/${activeRubric.max}`}
                     tone={
@@ -2451,7 +2462,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
               ) : null}
 
               {canAckCorrection ? (
-                <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} marginY={0} width={innerW}>
+                <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} columnGap={1} marginY={0} width={innerW}>
                   <Badge
                     label={truncateDisplay(
                       asciiMode
@@ -2484,6 +2495,9 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                     width={innerW}
                     height={Math.max(3, height - (innerW < 90 ? 22 : 18))}
                     mathUnicode={mathUnicode}
+                    isActive={mainActive && revealed}
+                    vimNavKeys={false}
+                    spacePageDown={false}
                   />
                 </Box>
               ) : null}
@@ -2522,23 +2536,6 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                 <ClickableBox marginTop={0} clickActive={mainActive} onClick={() => setFatigueBanner(null)}>
                   <Text color={theme.info} wrap="truncate">
                     {truncateDisplay(fatigueBanner, innerW, asciiMode ? '...' : '…')}
-                  </Text>
-                </ClickableBox>
-              ) : null}
-
-              {/* Saved AI Explanations Hint */}
-              {revealed && savedFollowupCount > 0 ? (
-                <ClickableBox
-                  marginTop={0}
-                  clickActive={mainActive}
-                  onClick={() => setAiDrawerOpen(true)}
-                >
-                  <Text color={theme.ai}>
-                    {`${asciiMode ? '*' : '✦'} ${t(
-                      lang,
-                      `已存讲解 ${savedFollowupCount} 条，按 [h] 查看`,
-                      `${savedFollowupCount} saved explanation(s) — press [h] to view`,
-                    )}`}
                   </Text>
                 </ClickableBox>
               ) : null}
@@ -2605,6 +2602,24 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                 </Box>
               ) : null}
             </Box>
+          ) : null}
+
+          {/* Saved AI Explanations Hint (visible both before and after revealing answer, #1335) */}
+          {savedFollowupCount > 0 ? (
+            <ClickableBox
+              marginTop={revealed ? 0 : 1}
+              flexShrink={0}
+              clickActive={mainActive}
+              onClick={() => setAiDrawerOpen(true)}
+            >
+              <Text color={theme.ai}>
+                {`${asciiMode ? '*' : '✦'} ${t(
+                  lang,
+                  `已存讲解 ${savedFollowupCount} 条，按 [h] 查看`,
+                  `${savedFollowupCount} saved explanation(s) — press [h] to view`,
+                )}`}
+              </Text>
+            </ClickableBox>
           ) : null}
 
           {/* Bottom utility status strip — Quick Action Bar (Round 84 Track B3) */}

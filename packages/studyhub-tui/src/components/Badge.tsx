@@ -227,14 +227,19 @@ export interface KeyHintBarProps {
   width: number;
   /** Optional right-aligned status text (e.g. "3/120"). */
   right?: string;
+  /** Optional quiet contextual usage tip rendered ONLY in leftover right whitespace (#1317). */
+  tip?: string;
 }
 
+const MIN_CONTEXTUAL_TIP_COLS = 24;
+
 /** One-line footer: `␣key␣ label  ␣key␣ label …`, dropping hints that don't fit. */
-export const KeyHintBar = memo(function KeyHintBar({ hints, width, right }: KeyHintBarProps) {
+export const KeyHintBar = memo(function KeyHintBar({ hints, width, right, tip }: KeyHintBarProps) {
   const theme = useTheme();
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const rightText = right
-    ? truncateDisplay(normalizeAsciiChrome(right, asciiMode), Math.max(0, Math.floor(width / 3)), asciiMode ? '...' : '…')
+    ? truncateDisplay(normalizeAsciiChrome(right, asciiMode), Math.max(0, Math.floor(width / 3)), ell)
     : '';
   const budget = width - (rightText ? displayWidth(rightText) + 2 : 0) - 1;
   const shown: KeyHint[] = [];
@@ -247,6 +252,15 @@ export const KeyHintBar = memo(function KeyHintBar({ hints, width, right }: KeyH
     used += w;
     shown.push({ ...h, key: normKey, label: normLabel });
   }
+  let tipText = '';
+  if (!rightText && tip) {
+    const remaining = budget - used - 2;
+    if (remaining >= MIN_CONTEXTUAL_TIP_COLS) {
+      const prefix = asciiMode ? '* ' : '💡 ';
+      const norm = normalizeAsciiChrome(`${prefix}${tip}`, asciiMode);
+      tipText = truncateDisplay(norm, remaining, ell);
+    }
+  }
   return (
     <Box width={width} height={1} overflow="hidden">
       <Box flexGrow={1}>
@@ -258,7 +272,11 @@ export const KeyHintBar = memo(function KeyHintBar({ hints, width, right }: KeyH
           </Text>
         ))}
       </Box>
-      {rightText ? <Text color={theme.dim}>{`${rightText} `}</Text> : null}
+      {rightText ? (
+        <Text color={theme.dim}>{`${rightText} `}</Text>
+      ) : tipText ? (
+        <Text color={theme.dim}>{`${tipText} `}</Text>
+      ) : null}
     </Box>
   );
 });

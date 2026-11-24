@@ -219,4 +219,46 @@ describe('Round 87 Track B5 — Home Today Quick-Launch Hub', () => {
     assert.ok(narrowOut.length > 0);
     narrow.unmount();
   });
+
+  test('#1342: header dueToday, daily briefing, today hub, and deck list share one consistent due source (progress.due, excluding system decks & unstudied new cards)', async () => {
+    const [{ dueToday }, { buildDailyBriefing }] = await Promise.all([
+      import('../src/shell/data.ts'),
+      import('../src/views/library/daily-briefing.ts'),
+    ]);
+
+    const sampleLikeSnap = {
+      today: { due: 2, reviewed: 0, goal: 20 },
+      decks: [
+        { id: 'd1', title: '示例 · 设计模式', course: '示例课', due: 4, count: 9, wrong: 2 },
+        { id: 'd2', title: '示例 · 案例', course: '示例课', due: 1, count: 2, wrong: 1 },
+        { id: 'sys1', title: '系统题组', course: '示例课', systemKind: 'onboarding', due: 5, count: 5 },
+      ],
+      progress: {
+        d1: { due: 2, counts: { new: 2, weak: 2 } },
+        d2: { due: 1, counts: { new: 0, weak: 1 } },
+        sys1: { due: 5, counts: { new: 0, weak: 0 } },
+      },
+    };
+
+    const headerDue = dueToday(sampleLikeSnap, '示例课');
+    const hub = buildTodayHubMetrics({ snapshot: sampleLikeSnap, course: '示例课', activeRunId: null });
+    const brief = buildDailyBriefing({ snapshot: sampleLikeSnap, course: '示例课', lang: 'zh', now: new Date('2026-06-01T10:00:00Z') });
+
+    assert.equal(headerDue, 3, 'dueToday must sum progress[deck].due for active non-system decks (2 + 1 = 3)');
+    assert.equal(hub.due, headerDue, 'Today Hub due count must match header dueToday');
+    assert.ok(brief && brief.headline.includes('(2 题到期)'), `Briefing should show top deck due=2, got: ${brief?.headline}`);
+    assert.ok(brief && brief.reason.includes('共 3 题到期'), `Briefing total should match header due=3, got: ${brief?.reason}`);
+
+    // When all reviewed due cards are cleared (progress.due = 0) while deck.due still counts unstudied new cards,
+    // daily briefing must reach Priority 3 (new cards) instead of claiming cards are due.
+    const onlyNewSnap = {
+      today: { due: 0, reviewed: 1, goal: 20 },
+      decks: [{ id: 'd-new', title: '新章节', course: '示例课', due: 5, count: 5, wrong: 0 }],
+      progress: { 'd-new': { due: 0, counts: { new: 5, weak: 0 } } },
+    };
+    assert.equal(dueToday(onlyNewSnap, '示例课'), 0);
+    assert.equal(buildTodayHubMetrics({ snapshot: onlyNewSnap, course: '示例课', activeRunId: null }).due, 0);
+    const newBrief = buildDailyBriefing({ snapshot: onlyNewSnap, course: '示例课', lang: 'zh', now: new Date('2026-06-01T10:00:00Z') });
+    assert.ok(newBrief && !newBrief.headline.includes('题到期'), `Expected Priority 3 new-card brief, got: ${newBrief?.headline}`);
+  });
 });

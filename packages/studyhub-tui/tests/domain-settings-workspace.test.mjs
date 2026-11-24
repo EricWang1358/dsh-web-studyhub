@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { render } from 'ink';
@@ -153,22 +153,23 @@ describe('Domain Settings & Workspace: Hygiene, Host Integration & PTY E2E', () 
       assert.equal(/src\/components\/MarkdownView\.tsx/.test(code), false, `${chunk} must not bundle MarkdownView`);
     }
 
-    const defPath = defaultBackupPath('/tmp/studyhub-lib');
-    assert.ok(defPath.startsWith(join('/tmp/studyhub-lib', 'backups')), `unexpected defaultBackupPath: ${defPath}`);
+    const libRoot = resolve('/tmp/studyhub-lib');
+    const defPath = defaultBackupPath(libRoot);
+    assert.ok(defPath.startsWith(join(libRoot, 'backups')), `unexpected defaultBackupPath: ${defPath}`);
     assert.match(defPath, /studyhub-backup-\d{4}-\d{2}-\d{2}-\d{6}\.json$/);
 
-    assert.equal(resolveBackupPath('   ', '/tmp/studyhub-lib'), '');
+    assert.equal(resolveBackupPath('   ', libRoot), '');
     assert.equal(
-      resolveBackupPath('snap-one', '/tmp/studyhub-lib'),
-      join('/tmp/studyhub-lib', 'backups', 'snap-one.json'),
+      resolveBackupPath('snap-one', libRoot),
+      join(libRoot, 'backups', 'snap-one.json'),
     );
     assert.equal(
-      resolveBackupPath('/tmp/studyhub-lib/backups/nested-snap', '/tmp/studyhub-lib'),
-      join('/tmp/studyhub-lib', 'backups', 'nested-snap.json'),
+      resolveBackupPath(join(libRoot, 'backups', 'nested-snap'), libRoot),
+      join(libRoot, 'backups', 'nested-snap.json'),
     );
-    assert.throws(() => resolveBackupPath('/var/tmp/custom.json', '/tmp/studyhub-lib'), /Unsafe export path/);
-    assert.throws(() => resolveBackupPath('~/my-bak', '/tmp/studyhub-lib'), /Unsafe export path/);
-    assert.throws(() => resolveBackupPath('../escape.json', '/tmp/studyhub-lib'), /Unsafe export path/);
+    assert.throws(() => resolveBackupPath('/var/tmp/custom.json', libRoot), /Unsafe export path/);
+    assert.throws(() => resolveBackupPath('~/my-bak', libRoot), /Unsafe export path/);
+    assert.throws(() => resolveBackupPath('../escape.json', libRoot), /Unsafe export path/);
 
     const emptySummary = summarizeExportPayload(null);
     assert.equal(emptySummary.decksCount, 0);
@@ -1249,9 +1250,11 @@ describe('Domain Settings & Workspace: Hygiene, Host Integration & PTY E2E', () 
       await ttyZh.waitFor((s) => s.includes('学习库') || s.includes('Library'), {
         label: 'Initial Library view rendered (zh)',
       });
-      await ttyZh.flush();
+      await ttyZh.flush(60);
 
       ttyZh.send(',');
+      await ttyZh.flush(40);
+      if (useTuiStore.getState().page !== 'settings') ttyZh.send(',');
       await ttyZh.waitFor(
         (s) =>
           useTuiStore.getState().page === 'settings' &&

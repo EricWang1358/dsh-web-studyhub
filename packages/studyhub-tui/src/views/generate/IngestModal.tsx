@@ -761,7 +761,7 @@ export const IngestModal = memo(function IngestModal({
 
       {error ? (
         <Box marginTop={1}>
-          <Text color={theme.error}>{`${errMark} ${truncateDisplay(error, innerWidth, ell)}`}</Text>
+          <Text color={theme.error} wrap="wrap">{`${errMark} ${error}`}</Text>
         </Box>
       ) : null}
 

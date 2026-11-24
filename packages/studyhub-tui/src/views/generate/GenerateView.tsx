@@ -867,6 +867,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
                     onChange={(idx) => setSourceCursor(idx)}
                     onSelect={() => void handleSubmitGeneration()}
                     isActive={wizardActive && !filterEditing}
+                    vimNavKeys={false}
                     keyExtractor={(d) => d.key}
                     renderItem={(doc, ctx) => {
                       const pickedCount = doc.sourceIds.filter((id) => selectedSourceIds.has(id)).length;

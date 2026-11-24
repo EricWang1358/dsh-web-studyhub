@@ -1,6 +1,4 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { randomUUID } from 'node:crypto';
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { Box, Text, useInput, useWindowSize } from 'ink';
@@ -21,7 +19,7 @@ import { useShellActions } from '../../shell/actions.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { renderStatTable } from '../../render/charts.js';
 import { buildTaskProgressTitle, writeTerminalNotification, writeTerminalTitle } from '../../render/terminal-title.js';
-import { atomicWriteExportText, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
+import { atomicWriteExportText, atomicWriteJsonFile, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
 import { tryAction } from '../../host/sample-actions.js';
 const WorkflowHistoryModal = lazy(() => import('./WorkflowHistoryModal.js').then((m) => ({ default: m.WorkflowHistoryModal })));
 const MarkdownView = lazy(() => import('../../components/MarkdownView.js').then((m) => ({ default: m.MarkdownView })));
@@ -246,8 +244,6 @@ export async function exportJobTraceToFile(
 ): Promise<string> {
   const baseRoot = libraryRoot?.trim() ? resolve(libraryRoot.trim()) : tmpdir();
   const exportsDir = resolve(join(baseRoot, 'exports'));
-  await mkdir(exportsDir, { recursive: true });
-
   const safeJobId = sanitizeJobIdForFilename(jobId);
   const fileName = `trace-${safeJobId}-${formatTraceTimestamp()}.json`;
   const targetPath = resolve(join(exportsDir, fileName));
@@ -255,15 +251,7 @@ export async function exportJobTraceToFile(
     throw new Error(`Refusing trace export outside exports directory: ${targetPath}`);
   }
 
-  const tmpPath = join(exportsDir, `.${fileName}.${randomUUID()}.tmp`);
-  const serialized = `${JSON.stringify(tracePayload ?? null, null, 2)}\n`;
-  try {
-    await writeFile(tmpPath, serialized, 'utf8');
-    await rename(tmpPath, targetPath);
-  } catch (err) {
-    await rm(tmpPath, { force: true }).catch(() => {});
-    throw err;
-  }
+  await atomicWriteJsonFile(targetPath, tracePayload ?? null);
   return targetPath;
 }
 
@@ -938,8 +926,8 @@ const JobMessageModal = memo(function JobMessageModal({
           </Box>
         ) : validationError ? (
           <Box marginTop={1}>
-            <Text color={theme.error} wrap="truncate-end">
-              {truncateDisplay(`${asciiMode ? '! ' : '✕ '}${validationError}`, innerW, ell)}
+            <Text color={theme.error} wrap="wrap">
+              {`${asciiMode ? '! ' : '✕ '}${validationError}`}
             </Text>
           </Box>
         ) : null}
