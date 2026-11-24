@@ -9,7 +9,7 @@ import { SplitPane } from '../../components/SplitPane.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { truncateDisplay } from '../../render/cjk.js';
-import { renderBarChart } from '../../render/charts.js';
+import { renderBarChart, renderStatTable } from '../../render/charts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import type { CaseQuestionReport, ExamReport, ReportItem, ReportState } from './types.js';
 import {
@@ -262,17 +262,32 @@ export const ExamReportView = memo(function ExamReportView({
     if (state.kind === 'written') {
       const r = state.report;
       const bars = renderBarChart(topicBarItems, innerW, theme, { ascii: asciiMode });
-      const kindParts = (r.byKind ?? []).map((k) => {
-        const kLabel =
-          k.kind === 'multi'
-            ? t(lang, '多选', 'Multi')
-            : k.kind === 'truefalse'
-              ? t(lang, '判断', 'T/F')
-              : t(lang, '单选', 'Single');
-        return `${kLabel} ${k.correct}/${k.total}`;
-      });
-      const showKindLine = kindParts.length > 1;
-      const summaryLines = 5 + bars.length + (showKindLine ? 1 : 0);
+      // Round 96 Track A14: Borderless stat table for question-kind score breakdown
+      const kindTableLines =
+        (r.byKind ?? []).length > 0
+          ? renderStatTable(
+              [
+                { key: 'kind', label: t(lang, '题型', 'Kind'), align: 'left', minWidth: 6 },
+                { key: 'ratio', label: t(lang, '正确/总数', 'OK/Total'), align: 'right', minWidth: 8 },
+                { key: 'pct', label: t(lang, '正确率', 'Acc'), align: 'right', minWidth: 6 },
+              ],
+              (r.byKind ?? []).map((k) => {
+                const kLabel =
+                  k.kind === 'multi'
+                    ? t(lang, '多选', 'Multi')
+                    : k.kind === 'truefalse'
+                      ? t(lang, '判断', 'T/F')
+                      : t(lang, '单选', 'Single');
+                const pct = k.total > 0 ? Math.round((k.correct / k.total) * 100) : 0;
+                return { kind: kLabel, ratio: `${k.correct}/${k.total}`, pct: `${pct}%` };
+              }),
+              innerW,
+              theme,
+              { ascii: asciiMode, headerRule: paneH >= 20 },
+            )
+          : [];
+      const showKindTable = kindTableLines.length > 0 && paneH >= 16;
+      const summaryLines = 5 + bars.length + (showKindTable ? kindTableLines.length + 1 : 0);
       const listH = Math.max(4, paneH - summaryLines - 2);
       const scoreTone = r.scorePct >= 80 ? 'success' : r.scorePct >= 60 ? 'warning' : 'error';
       const band = scoreBandBadge(r.scorePct, lang);
@@ -300,11 +315,11 @@ export const ExamReportView = memo(function ExamReportView({
             ) : null}
           </Box>
 
-          {showKindLine ? (
-            <Box marginBottom={0}>
-              <Text color={theme.muted}>
-                {truncateDisplay(kindParts.join(' · '), innerW, ellipsis)}
-              </Text>
+          {showKindTable ? (
+            <Box flexDirection="column" marginBottom={1}>
+              {kindTableLines.map((line, i) => (
+                <Text key={`kt-${i}`}>{line}</Text>
+              ))}
             </Box>
           ) : null}
 
