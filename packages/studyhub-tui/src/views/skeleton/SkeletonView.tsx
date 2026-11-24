@@ -17,8 +17,9 @@ import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, parseSgrWheelDelta, useSgrMouseWheel, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
+import { computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
-import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
+import { padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { renderTreeLines, type TreeLine, type TreeNode } from '../../render/charts.js';
 import type {
   CardMasteryInfo,
@@ -1471,13 +1472,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
     : t(lang, '★掌握  ◐学习  ✕薄弱  ⚑考纲重点', '★Mastered ◐Learning ✕Weak ⚑Focus');
 
   const filterBadge = `[${filterEditing ? t(lang, '筛选', 'Filter') : t(lang, '已筛选', 'Filtered')} ${treeLines.length}/${baseTreeLines.length}] `;
-  const filterRightHint =
-    width >= 66
-      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
-      : width >= 46
-        ? ' Esc'
-        : '';
-  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
+  const { rightHint: filterRightHint, inputWidth: filterInputW } = computeFilterBarLayout(width, filterBadge, lang, filterEditing);
   const filterBarNode = showFilterBar ? (
     <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
       <Text color={filterEditing ? theme.primary : theme.accent} bold>

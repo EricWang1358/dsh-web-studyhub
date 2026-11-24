@@ -11,6 +11,7 @@ import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
+import { computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { renderBarChart, renderStatTable } from '../../render/charts.js';
@@ -704,13 +705,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const bodyH = Math.max(8, height - headerH - filterBarH - countdownBarH - (errorMsg ? 1 : 0));
 
   const filterBadge = `[${filterEditing ? t(lang, '筛选', 'Filter') : t(lang, '已筛选', 'Filtered')} ${filteredTopics.length}/${topics.length}] `;
-  const filterRightHint =
-    width >= 66
-      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
-      : width >= 46
-        ? ' Esc'
-        : '';
-  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
+  const { rightHint: filterRightHint, inputWidth: filterInputW } = computeFilterBarLayout(width, filterBadge, lang, filterEditing);
 
   return (
     <Box flexDirection="column" width={width} height={height} overflow="hidden">

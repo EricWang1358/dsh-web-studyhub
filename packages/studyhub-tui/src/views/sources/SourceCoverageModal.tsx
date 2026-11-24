@@ -4,7 +4,9 @@ import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { Badge, EmptyState, ProgressBar, Spinner } from '../../components/Badge.js';
-import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { Modal } from '../../components/Modal.js';
+import { clampModalFrame } from '../../components/layout-tokens.js';
+import { sideNavWidth } from '../../shell/SideNav.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { useTheme, type Tone } from '../../theme/tokens.js';
 import { useShellActions } from '../../shell/actions.js';
@@ -724,12 +726,15 @@ export const SourceCoverageModal = memo(function SourceCoverageModal({
     return out;
   }, [activeTab, lang, linkedCardRows.length, linkedLoading, loading]);
 
-  const approxNavW = sidebarCollapsed || columns < 100 ? 6 : 22;
+  const approxNavW = sideNavWidth(columns, sidebarCollapsed);
   const maxContentW = Math.max(48, columns - approxNavW - 2);
-  const frameWidth = Math.max(48, Math.min(88, maxContentW - 2));
-  const frameHeight = Math.max(15, Math.min(30, termRows - 2));
-  const innerWidth = modalContentWidth(frameWidth);
-  const innerHeight = Math.max(8, frameHeight - 5);
+  const { frameWidth, frameHeight, innerWidth, innerHeight } = clampModalFrame(columns, termRows, {
+    maxWidth: Math.min(88, maxContentW - 2),
+    minWidth: 48,
+    maxHeight: 30,
+    minHeight: 15,
+    headerFooterRows: 5,
+  });
   const bodyHeight = Math.max(6, innerHeight - 1);
 
   const ell = asciiMode ? '...' : '…';

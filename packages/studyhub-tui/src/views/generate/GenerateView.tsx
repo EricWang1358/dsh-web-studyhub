@@ -12,6 +12,7 @@ import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys, useInputCapture } from '../../components/focus.js';
+import { computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { currentCourse, listCourses, modelInfo } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
@@ -713,13 +714,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
   const draftCount = snapshot?.drafts?.length ?? 0;
 
   const filterBadge = `[${t(lang, '筛选', filterEditing ? 'Filter' : 'Filtered')} ${filteredDocs.length}/${baseDocs.length}] `;
-  const filterRightHint =
-    width >= 66
-      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
-      : width >= 46
-        ? ' Esc'
-        : '';
-  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
+  const { rightHint: filterRightHint, inputWidth: filterInputW } = computeFilterBarLayout(width, filterBadge, lang, filterEditing);
 
   return (
     <Box flexDirection="column" width={width} height={height}>

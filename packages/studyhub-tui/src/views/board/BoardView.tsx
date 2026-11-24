@@ -10,6 +10,7 @@ import { Panel } from '../../components/Panel.js';
 import { TextInput } from '../../components/TextInput.js';
 import { parseSgrWheelDelta, useSgrMouseWheel } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
+import { computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { useTheme } from '../../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
@@ -1403,13 +1404,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   ) : null;
 
   const filterBadge = `[${filterEditing ? t(lang, '过滤', 'Filter') : t(lang, '已过滤', 'Filtered')} ${filteredCards.length}/${doc.cards.length}] `;
-  const filterRightHint =
-    width >= 66
-      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
-      : width >= 46
-        ? ' Esc'
-        : '';
-  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
+  const { rightHint: filterRightHint, inputWidth: filterInputW } = computeFilterBarLayout(width, filterBadge, lang, filterEditing);
   const filterBarNode = showFilterBar ? (
     <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
       <Text color={filterEditing ? theme.primary : theme.accent} bold>
