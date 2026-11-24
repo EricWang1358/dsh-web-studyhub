@@ -22,6 +22,7 @@ import {
   BOARD_COLUMNS,
   boardFilePath,
   cardsInColumn,
+  createBoardSaveCoordinator,
   dueStatus,
   emptyBoard,
   loadBoardSafe,
@@ -33,6 +34,7 @@ import {
   type BoardCard,
   type BoardColumnId,
   type BoardDocument,
+  type BoardSaveCoordinator,
   type UpstreamBoardSnapshot,
 } from './board-store.js';
 
@@ -183,8 +185,20 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   const exportBusyRef = useRef(false);
   const upstreamQueueRef = useRef<Promise<void>>(Promise.resolve());
   const pendingUpstreamOpsRef = useRef<Map<string, PendingUpstreamOp>>(new Map());
+  const inflightUpstreamIdsRef = useRef<Map<string, number>>(new Map());
+  const saveCoordRef = useRef<{ root: string; coord: BoardSaveCoordinator } | null>(null);
+  if (!saveCoordRef.current || saveCoordRef.current.root !== libraryRoot) {
+    const targetRoot = libraryRoot;
+    saveCoordRef.current = {
+      root: targetRoot,
+      coord: createBoardSaveCoordinator({
+        initialDoc: emptyBoard(),
+        saveFn: (nextDoc) => saveBoard(targetRoot, nextDoc),
+      }),
+    };
+  }
   const docRef = useRef(doc);
-  docRef.current = doc;
+  docRef.current = saveCoordRef.current.coord.getDoc();
   const readOnlyErrorRef = useRef<string | null>(readOnlyError);
   readOnlyErrorRef.current = readOnlyError;
   const upstreamReadOnlyRef = useRef<boolean>(upstreamReadOnly);
@@ -196,6 +210,30 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
     const next = upstreamQueueRef.current.then(fn, fn);
     upstreamQueueRef.current = next.then(() => undefined, () => undefined);
     return next;
+  }, []);
+
+  const markInflightUpstream = useCallback((upstreamCardId: string) => {
+    const prev = inflightUpstreamIdsRef.current.get(upstreamCardId) ?? 0;
+    inflightUpstreamIdsRef.current.set(upstreamCardId, prev + 1);
+  }, []);
+
+  const unmarkInflightUpstream = useCallback((upstreamCardId: string) => {
+    const prev = inflightUpstreamIdsRef.current.get(upstreamCardId) ?? 0;
+    if (prev <= 1) inflightUpstreamIdsRef.current.delete(upstreamCardId);
+    else inflightUpstreamIdsRef.current.set(upstreamCardId, prev - 1);
+  }, []);
+
+  const getProtectedUpstreamIds = useCallback(() => {
+    const protectedIds = new Set<string>();
+    for (const op of pendingUpstreamOpsRef.current.values()) {
+      if (op.kind === 'update' || op.kind === 'remove') {
+        protectedIds.add(op.upstreamCardId);
+      }
+    }
+    for (const [id, count] of inflightUpstreamIdsRef.current.entries()) {
+      if (count > 0) protectedIds.add(id);
+    }
+    return protectedIds;
   }, []);
 
   const recordUpstreamFailure = useCallback(
@@ -274,22 +312,21 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         if (mountedRef.current) notifyReadOnly();
         return;
       }
-      const nextDoc = updater(docRef.current);
-      docRef.current = nextDoc;
-      setDoc(nextDoc);
-      try {
-        const saved = await saveBoard(libraryRoot, nextDoc);
-        if (mountedRef.current) {
-          docRef.current = saved;
-          setDoc(saved);
-        }
-      } catch (err) {
-        if (mountedRef.current) {
-          notify(err instanceof Error ? err.message : t(lang, '保存看板失败', 'Failed to save board'), 'error');
-        }
-      }
+      const coord = saveCoordRef.current!.coord;
+      await coord.persist(
+        updater,
+        (nextDoc) => {
+          docRef.current = nextDoc;
+          if (mountedRef.current) setDoc(nextDoc);
+        },
+        (err) => {
+          if (mountedRef.current) {
+            notify(err instanceof Error ? err.message : t(lang, '保存看板失败', 'Failed to save board'), 'error');
+          }
+        },
+      );
     },
-    [libraryRoot, notify, lang, notifyReadOnly],
+    [notify, lang, notifyReadOnly],
   );
 
   const syncUpstreamBoard = useCallback(
@@ -328,26 +365,23 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
             isReadOnlyRef.current = Boolean(readOnlyErrorRef.current);
             setUpstreamReadOnly(false);
           }
-          const protectedUpstreamIds = new Set<string>();
-          for (const op of pendingUpstreamOpsRef.current.values()) {
-            if (op.kind === 'update' || op.kind === 'remove') {
-              protectedUpstreamIds.add(op.upstreamCardId);
-            }
-          }
+          const protectedUpstreamIds = getProtectedUpstreamIds();
           const upstreamSnapshot = res.value;
+          const currentLocal = saveCoordRef.current!.coord.getDoc();
           const preview = mergeUpstreamBoard(
-            docRef.current.cards,
+            currentLocal.cards,
             upstreamSnapshot,
-            docRef.current.deletedUpstreamIds,
+            currentLocal.deletedUpstreamIds,
             protectedUpstreamIds,
           );
           if (preview.changed) {
             await persistDoc((prev) => {
+              const latestProtected = getProtectedUpstreamIds();
               const merged = mergeUpstreamBoard(
                 prev.cards,
                 upstreamSnapshot,
                 prev.deletedUpstreamIds,
-                protectedUpstreamIds,
+                latestProtected,
               );
               if (!merged.changed) return prev;
               return {
@@ -358,6 +392,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
               };
             });
           }
+          await saveCoordRef.current?.coord.flush();
           if (notifyResult && mountedRef.current) {
             if (retryStatus.remaining > 0) {
               notify(
@@ -389,7 +424,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         }
       }
     },
-    [host, lang, notify, persistDoc, notifyReadOnly, enqueueUpstream],
+    [host, lang, notify, persistDoc, notifyReadOnly, enqueueUpstream, getProtectedUpstreamIds],
   );
 
   const syncUpstreamRef = useRef(syncUpstreamBoard);
@@ -399,6 +434,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
     async ({ notifyOnReload = false }: { notifyOnReload?: boolean } = {}) => {
       const reqId = ++loadReqRef.current;
       setLoading(true);
+      await saveCoordRef.current?.coord.flush();
       const res = await loadBoardSafe(libraryRoot);
       if (!mountedRef.current || loadReqRef.current !== reqId) return;
       setLoading(false);
@@ -409,6 +445,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         isReadOnlyRef.current = true;
         setReadOnlyError(res.error);
         setReadOnlyPath(res.path);
+        saveCoordRef.current?.coord.replaceDoc(res.doc);
         docRef.current = res.doc;
         setDoc(res.doc);
         if (notifyOnReload) notifyReadOnly();
@@ -418,6 +455,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
       isReadOnlyRef.current = false;
       setReadOnlyError(null);
       setReadOnlyPath('');
+      saveCoordRef.current?.coord.replaceDoc(res.doc);
       docRef.current = res.doc;
       setDoc(res.doc);
       if (notifyOnReload) {
@@ -725,9 +763,18 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   };
 
   const mirrorUpstreamUpdate = useCallback(
-    (upstreamCardId: string, patch: { column?: BoardColumnId; title?: string; due?: string }) =>
-      enqueueUpstream(() => updateUpstreamDirect(upstreamCardId, patch)),
-    [enqueueUpstream, updateUpstreamDirect],
+    (upstreamCardId: string, patch: { column?: BoardColumnId; title?: string; due?: string }) => {
+      markInflightUpstream(upstreamCardId);
+      return enqueueUpstream(async () => {
+        try {
+          await saveCoordRef.current?.coord.flush();
+          return await updateUpstreamDirect(upstreamCardId, patch);
+        } finally {
+          unmarkInflightUpstream(upstreamCardId);
+        }
+      });
+    },
+    [enqueueUpstream, updateUpstreamDirect, markInflightUpstream, unmarkInflightUpstream],
   );
 
   const normalizedFilter = filterQuery.trim().toLowerCase();
@@ -1269,7 +1316,15 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
             });
             if (resolvedUpstreamId) {
               const targetUpstreamId = resolvedUpstreamId;
-              void enqueueUpstream(() => removeUpstreamDirect(targetUpstreamId));
+              markInflightUpstream(targetUpstreamId);
+              void enqueueUpstream(async () => {
+                try {
+                  await saveCoordRef.current?.coord.flush();
+                  return await removeUpstreamDirect(targetUpstreamId);
+                } finally {
+                  unmarkInflightUpstream(targetUpstreamId);
+                }
+              });
             }
             notify(t(lang, `已删除「${gone.title}」`, `Deleted "${gone.title}"`), 'success');
           }}
