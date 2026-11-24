@@ -22,7 +22,7 @@ export function useDismiss({ open: isOpen, onClose, refs, escape = true, returnF
   const latest = useRef({});
   latest.current = { onClose, refs, returnFocusRef };
   useEffect(() => {
-    if (!isOpen) return undefined;
+    if (!isOpen || typeof document === 'undefined') return undefined;
     const token = {};
     open.push(token);
     const inside = target => elementsOf(latest.current.refs).some(element => element.contains(target));
