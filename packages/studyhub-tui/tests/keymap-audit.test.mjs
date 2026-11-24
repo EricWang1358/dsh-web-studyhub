@@ -724,3 +724,119 @@ test('featureShortcuts documents Rounds 5-26 & PR #1297 shortcuts cleanly in zh 
     assert.ok(paletteSec?.items.some((i) => i.key === '/#?@:' && (i.label.includes('筛选') || i.label.includes('course/page'))), `missing Palette [/#?@:] label in ${lang}`);
   }
 });
+
+test('#1345: Non-modal views must never advertise reserved lowercase r/q/? hints for non-global actions (use Ctrl+R / R)', () => {
+  const RESERVED_NON_MODAL_KEYS = new Set(['r', 'q', '?']);
+  const viewsRoot = path.join(srcRoot, 'views');
+  const targetFiles = walkTsxFiles(viewsRoot).filter((f) => {
+    const base = path.basename(f);
+    // Audit all primary views, tabs, and RoundSummary (excluding dedicated *Modal.tsx / *Drawer.tsx files)
+    return base.endsWith('View.tsx') || base.endsWith('Tab.tsx') || base === 'RoundSummary.tsx';
+  });
+
+  const violations = [];
+
+  for (const filePath of targetFiles) {
+    const rel = path.relative(pkgRoot, filePath).replace(/\\/g, '/');
+    const sf = parseTsx(filePath);
+    const componentName = path.basename(filePath, '.tsx');
+    const primaryNode = findPrimaryComponentNode(sf, componentName);
+    if (!primaryNode) continue;
+
+    function isInsideModalJsx(node) {
+      let cur = node.parent;
+      while (cur && cur !== primaryNode) {
+        if (ts.isJsxElement(cur)) {
+          const tag = cur.openingElement.tagName.getText(sf);
+          if (tag === 'Modal' || tag.endsWith('Modal')) return true;
+        }
+        if (ts.isJsxSelfClosingElement(cur)) {
+          const tag = cur.tagName.getText(sf);
+          if (tag === 'Modal' || tag.endsWith('Modal')) return true;
+        }
+        cur = cur.parent;
+      }
+      return false;
+    }
+
+    function visit(node) {
+      // Do not descend into inline <Modal ...> subtrees (modal-local r/q/? keys are captured by Modal)
+      if (ts.isJsxElement(node)) {
+        const tag = node.openingElement.tagName.getText(sf);
+        if (tag === 'Modal' || tag.endsWith('Modal')) return;
+      }
+      if (ts.isJsxSelfClosingElement(node)) {
+        const tag = node.tagName.getText(sf);
+        if (tag === 'Modal' || tag.endsWith('Modal')) return;
+      }
+
+      // 1) Object literals `{ key: 'r' | 'q' | '?', label: ... }`
+      if (ts.isObjectLiteralExpression(node) && !isInsideModalJsx(node)) {
+        let keyVal = null;
+        let labelText = '';
+        for (const prop of node.properties) {
+          if (!ts.isPropertyAssignment(prop)) continue;
+          const propName = prop.name.getText(sf);
+          if (propName === 'key' && (ts.isStringLiteral(prop.initializer) || ts.isNoSubstitutionTemplateLiteral(prop.initializer))) {
+            keyVal = prop.initializer.text;
+          }
+          if (propName === 'label') {
+            labelText = prop.initializer.getText(sf);
+          }
+        }
+        if (keyVal && RESERVED_NON_MODAL_KEYS.has(keyVal)) {
+          // Intentional global return-to-review / resume hint in LibraryView or help hint in ReviewView is allowed
+          const isGlobalResume = keyVal === 'r' && /(继续上次|Resume|回到|返回复习|Return)/i.test(labelText);
+          const isGlobalHelp = keyVal === '?' && /(帮助|全部|Help|All)/i.test(labelText);
+          if (!isGlobalResume && !isGlobalHelp) {
+            const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+            violations.push(`${rel}:${line} declares non-modal hint { key: '${keyVal}', label: ${labelText} }`);
+          }
+        }
+      }
+
+      // 2) String / template literals advertising `[r]` for refresh/reload/retry/new round
+      if (
+        (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) &&
+        !isInsideModalJsx(node)
+      ) {
+        const text = node.text;
+        if (
+          /\[r\]/i.test(text) &&
+          /(刷新|重载|重试|再来一轮|refresh|reload|retry|new\s*round|\bnew\b)/i.test(text) &&
+          !/\[R\]/.test(text)
+        ) {
+          const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+          violations.push(`${rel}:${line} has stale lowercase [r] hint copy: ${JSON.stringify(text)}`);
+        }
+        if (/\(\[r\]\)/.test(text)) {
+          const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+          violations.push(`${rel}:${line} has stale lowercase ([r]) retry hint: ${JSON.stringify(text)}`);
+        }
+      }
+
+      ts.forEachChild(node, visit);
+    }
+
+    visit(primaryNode);
+  }
+
+  // Also verify docs/KEYBINDINGS.md does not advertise lowercase `r` for non-modal refresh/reload/resume-exam
+  const kbDoc = fs.readFileSync(path.join(pkgRoot, 'docs/KEYBINDINGS.md'), 'utf8');
+  for (const staleDocPattern of [
+    /`r` resume active exam/,
+    /· `r` refresh\b/,
+    /· `r` reload\b/,
+    /`r` refresh restore points/,
+  ]) {
+    if (staleDocPattern.test(kbDoc)) {
+      violations.push(`docs/KEYBINDINGS.md still matches stale ${staleDocPattern}`);
+    }
+  }
+
+  assert.deepEqual(
+    violations,
+    [],
+    `Found stale non-modal reserved key hints (use Ctrl+R for refresh/reload, R for new round/resume exam):\n  - ${violations.join('\n  - ')}`,
+  );
+});

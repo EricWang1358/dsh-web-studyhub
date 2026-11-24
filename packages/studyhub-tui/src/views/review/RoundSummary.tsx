@@ -945,8 +945,8 @@ export const RoundSummary = memo(function RoundSummary({
                       <Text color={theme.dim} wrap="truncate">
                         {truncateDisplay(
                           hasMissed
-                            ? t(lang, '[Enter/Space/v] 答案解析  [w] 重练  [r] 再来一轮  [b] 返回', '[Enter/Space/v] Preview  [w] Retry  [r] New  [b] Back')
-                            : t(lang, '[Enter/Space/v] 答案解析  [r] 再来一轮  [b/Esc] 返回', '[Enter/Space/v] Preview  [r] New Round  [b/Esc] Back'),
+                            ? t(lang, '[Enter/Space/v] 答案解析  [w] 重练  [R] 再来一轮  [b] 返回', '[Enter/Space/v] Preview  [w] Retry  [R] New  [b] Back')
+                            : t(lang, '[Enter/Space/v] 答案解析  [R] 再来一轮  [b/Esc] 返回', '[Enter/Space/v] Preview  [R] New Round  [b/Esc] Back'),
                           listW,
                           ellipsis,
                         )}

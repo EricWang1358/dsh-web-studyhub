@@ -975,7 +975,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
       ];
     }
     return [
-      ...(isReadOnly ? [{ key: 'r', label: t(lang, '重载', 'Reload') }] : []),
+      ...(isReadOnly ? [{ key: 'Ctrl+R', label: t(lang, '重载', 'Reload') }] : []),
       { key: 'h/l', label: t(lang, '切列', 'Col') },
       { key: 'j/k', label: t(lang, '移动', 'Nav') },
       ...(!isReadOnly
@@ -1291,13 +1291,13 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
             readOnlyError
               ? t(
                   lang,
-                  '看板只读锁定: 修复/备份 tui-board.json 后按 [r] 重载',
-                  'Read-only lock: fix/backup tui-board.json then press [r] to reload',
+                  '看板只读锁定: 修复/备份 tui-board.json 后按 [Ctrl+R] 重载',
+                  'Read-only lock: fix/backup tui-board.json then press [Ctrl+R] to reload',
                 )
               : t(
                   lang,
-                  '看板只读锁定: 学习库看板为只读状态，已禁用编辑与同步，按 [r] 重载',
-                  'Read-only lock: StudyHub board is read-only; edits & sync disabled — press [r] to reload',
+                  '看板只读锁定: 学习库看板为只读状态，已禁用编辑与同步，按 [Ctrl+R] 重载',
+                  'Read-only lock: StudyHub board is read-only; edits & sync disabled — press [Ctrl+R] to reload',
                 )
           }`,
           innerBannerW,
