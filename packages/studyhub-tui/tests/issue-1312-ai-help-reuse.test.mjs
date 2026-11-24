@@ -468,11 +468,13 @@ describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () =>
       const revealedRun = await service.call('review.answer', { runId: run.id, cardId: 'c-1337', selected: ['A'] });
 
       let genCount = 0;
+      let followupSaveCount = 0;
       const realHost = {
         call: async (action, payload) => {
           if (action === 'review.start' || action === 'study.start') return { ok: true, value: revealedRun };
           try {
             const value = await service.call(action, payload);
+            if (action === 'card.followup.add') followupSaveCount += 1;
             return { ok: true, value };
           } catch (err) {
             return { ok: false, error: { message: err instanceof Error ? err.message : String(err) } };
@@ -492,17 +494,20 @@ describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () =>
 
       try {
         await h.waitFor((s) => s.includes('What is a semaphore?'));
-        // First generation A -> press N to save
+        // First generation A -> press N to save and wait deterministically for backend commit
         h.write('h');
         await h.waitFor((s) => s.includes('EXPLANATION_OLD_A'));
+        await new Promise((r) => setTimeout(r, 40));
         h.write('N');
-        await new Promise((r) => setTimeout(r, 120));
+        await h.waitFor(() => followupSaveCount >= 1, 5000);
+        await h.waitFor((s) => !s.includes('正在保存') && !s.includes('Saving'), 5000);
 
-        // Regenerate B (same default question) -> press N to save again
+        // Regenerate B (same default question) -> press N to save again and wait deterministically
         h.write('R');
-        await h.waitFor((s) => s.includes('EXPLANATION_NEW_B'));
+        await h.waitFor((s) => s.includes('EXPLANATION_NEW_B'), 5000);
+        await new Promise((r) => setTimeout(r, 40));
         h.write('N');
-        await new Promise((r) => setTimeout(r, 120));
+        await h.waitFor(() => followupSaveCount >= 2, 5000);
       } finally {
         h.cleanup();
       }
