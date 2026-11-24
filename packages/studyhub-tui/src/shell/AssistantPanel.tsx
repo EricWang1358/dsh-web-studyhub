@@ -15,7 +15,11 @@
  */
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useStdout, useWindowSize } from 'ink';
-import { useScopedInput as useInput } from '../components/key-dispatcher.js';
+import {
+  KEY_LAYER_DRAWER,
+  KEY_LAYER_MODAL_FRAME,
+  useScopedInput as useInput,
+} from '../components/key-dispatcher.js';
 import { PAGE_REGISTRY, type HostClient, type PageId, type UiLanguage } from '../types/contracts.js';
 import { t, useTuiStore, type AssistantCardContext, type AssistantTabId } from '../state/store.js';
 import { getColorLevel, makeChalk, useTheme } from '../theme/tokens.js';
@@ -1014,9 +1018,9 @@ export const AssistantPanel = memo(function AssistantPanel({
     [setTab, handleSubmitInput],
   );
 
-  // #1412: on the practice page Esc hands the keyboard back and the dock stays; the page's own Esc
-  // ("back") folds it afterwards. Other pages have no such second step, so there Esc folds the dock.
-  const escKeepsDock = Boolean(docked) && page === 'review';
+  // #1412 / #1428: unified 2-step Esc on every docked page — 1st Esc hands the keyboard back
+  // while keeping the dock visible; 2nd Esc (when no page modal/filter claims it) folds the dock.
+  const escKeepsDock = Boolean(docked);
   const handleEscape = useCallback(() => {
     if (busy) {
       abortRef.current?.abort();
@@ -1034,7 +1038,7 @@ export const AssistantPanel = memo(function AssistantPanel({
     }
     if (escKeepsDock) {
       // Hand the keyboard back to the page and stay visible, so the page's own shortcuts work while
-      // the conversation is still readable (#1412). A second Esc (page "back") folds the dock.
+      // the conversation is still readable (#1412 / #1428). A second Esc folds the passive dock.
       setFocused(false);
       return;
     }
@@ -1043,80 +1047,95 @@ export const AssistantPanel = memo(function AssistantPanel({
 
   useInput(
     (input, key) => {
-      if (pendingConfirm) return;
+      if (pendingConfirm) return false;
       if (key.escape) {
         handleEscape();
-        return;
+        return true;
       }
-      if (inputFocused) return;
+      if (inputFocused) return false;
 
       if (key.tab) {
         const next: AssistantTabId = tab === 'assistant' ? 'guided' : 'assistant';
         setTab(next);
-        return;
+        return true;
       }
       // Number keys 1-4 trigger the top context chips directly!
       if (/^[1-4]$/.test(input)) {
         const idx = Number.parseInt(input, 10) - 1;
         if (chips[idx]) {
           runChip(chips[idx]);
-          return;
+          return true;
         }
       }
       if (input === 'F') {
         setFullscreen(!fullscreen);
-        return;
+        return true;
       }
       if (input === 'o' && earlierTurnCount > 0) {
         setShowEarlier((shown) => !shown);
-        return;
+        return true;
       }
       if (input === 'i' || input === 'a' || key.return) {
         setInputFocused(true);
-        return;
+        return true;
       }
       if (input === 'z') {
         void handleUndo();
-        return;
+        return true;
       }
       if (input === 'P') {
         handleCopyFallbackPrompt();
-        return;
+        return true;
       }
       if (input === 'A' && lastFallback) {
         void handleSubmitInput(lastFallback.altCommand, { viaCommand: true });
-        return;
+        return true;
       }
       if (input === 'c') {
         handleCopyCurrent();
-        return;
+        return true;
       }
       if (input === 'C') {
         handleCopyFullSession();
-        return;
+        return true;
       }
       if (input === 'y') {
         handleCopyLastReply();
-        return;
+        return true;
       }
       if (tab === 'guided') {
         if (input === 'S' && stage === 'retell') {
           handleSkipRetell();
-          return;
+          return true;
         }
         if (input === 'n') {
           const idx = GUIDED_STAGES.indexOf(stage);
           if (idx >= 0 && idx < GUIDED_STAGES.length - 1) setStage(GUIDED_STAGES[idx + 1]);
-          return;
+          return true;
         }
         if (input === 'p') {
           const idx = GUIDED_STAGES.indexOf(stage);
           if (idx > 0) setStage(GUIDED_STAGES[idx - 1]);
-          return;
+          return true;
         }
       }
+      return false;
     },
-    { isActive: isActive && !pendingConfirm },
+    { isActive: isActive && !pendingConfirm, layer: KEY_LAYER_DRAWER, id: 'AssistantPanel:main' },
+  );
+
+  // #1354 D1 / #1428: single-letter catch-all sink below ScrollView (KEY_LAYER_WIDGET) so while the
+  // assistant panel holds focus, no unbound single-letter key can ever leak to the left page or shell.
+  useInput(
+    (input, key) => {
+      if (!key.ctrl && !key.meta && input.length === 1) return true;
+      return false;
+    },
+    {
+      isActive: isActive && !pendingConfirm && !inputFocused,
+      layer: KEY_LAYER_MODAL_FRAME,
+      id: 'AssistantPanel:sink',
+    },
   );
 
   const fallbackSize = resolveAssistantPanelSize(columns, rows, fullscreen);

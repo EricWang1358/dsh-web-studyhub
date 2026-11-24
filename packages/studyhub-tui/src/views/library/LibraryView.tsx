@@ -644,7 +644,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       }
       if (key.escape && filterQuery) {
         setFilterQuery('');
-        return;
+        return true;
       }
       if (input === '/' && !key.ctrl && !key.meta) {
         setFocusSection('decks');

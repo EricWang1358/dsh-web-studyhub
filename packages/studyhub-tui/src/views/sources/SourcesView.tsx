@@ -1189,7 +1189,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
       if (!listActive || busyRef.current || busy) return;
       if (key.escape && selectedKeys.size > 0) {
         setSelectedKeys(new Set());
-        return;
+        return true;
       }
       if (input === '[' || input === ']') {
         void handleMovePin(input === '[' ? 'up' : 'down');

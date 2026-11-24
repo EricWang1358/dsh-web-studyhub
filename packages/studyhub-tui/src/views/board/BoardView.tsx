@@ -889,7 +889,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
       }
       if (key.escape && filterQuery) {
         setFilterQuery('');
-        return;
+        return true;
       }
       if (input === '/' && !key.ctrl && !key.meta) {
         setFilterEditing(true);
