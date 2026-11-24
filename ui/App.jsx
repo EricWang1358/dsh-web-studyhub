@@ -48,7 +48,7 @@ import { useHostLinks } from './app/use-host-links.js';
 import HandOffSheet from './hand-off/HandOffSheet.jsx';
 import { useTour } from './app/use-tour.js';
 import { useFinder } from './finder/use-finder.js';
-import FinderSheet from './finder/FinderSheet.jsx';
+import FinderSheet from './finder/lazy-sheet.jsx';
 import { freshGeneration, useLibraryConnection } from './app/use-library-connection.js';
 import { useWarmEntry, useWarmSync } from './app/use-warm-session.js';
 import { useReviewSession } from './review/useReviewSession.js';
