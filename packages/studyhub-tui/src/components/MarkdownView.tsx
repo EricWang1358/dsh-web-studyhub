@@ -25,6 +25,10 @@ export interface MarkdownViewProps {
   onScroll?: (top: number) => void;
   /** Opt in to Vim `g` / `G` jump keys in scrollable mode (default false, #1374). */
   vimJumpKeys?: boolean;
+  /** Enable Vim `j` / `k` scroll keys in scrollable mode (default true, #1386). */
+  vimNavKeys?: boolean;
+  /** Enable `Space` page-down in scrollable mode (default true, #1390). */
+  spacePageDown?: boolean;
 }
 
 /** Memoized Markdown + Math renderer (LRU-cached in render/markdown.ts). */
@@ -40,6 +44,8 @@ export const MarkdownView = memo(function MarkdownView({
   scrollTop,
   onScroll,
   vimJumpKeys = false,
+  vimNavKeys = true,
+  spacePageDown = true,
 }: MarkdownViewProps) {
   const theme = useTheme();
   const prefMath = useTuiStore((s) => s.preferences.mathUnicode);
@@ -77,6 +83,8 @@ export const MarkdownView = memo(function MarkdownView({
         scrollTop={scrollTop}
         onScroll={onScroll}
         vimJumpKeys={vimJumpKeys}
+        vimNavKeys={vimNavKeys}
+        spacePageDown={spacePageDown}
       />
     );
   }

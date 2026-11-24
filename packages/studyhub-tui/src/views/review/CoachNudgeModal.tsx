@@ -488,6 +488,7 @@ export const CoachNudgeModal = memo(function CoachNudgeModal({
               height={scrollH}
               width={innerW}
               isActive={modalActive && !isBusy}
+              vimNavKeys={false}
               follow={followBottom}
               ascii={asciiMode}
             />
