@@ -621,7 +621,7 @@ export const AssistantPanel = memo(function AssistantPanel({
       sessionMemory.lastFallback = null;
       recordUsage(text);
 
-      // Guided Study Retell stage submits directly to existing `card.retell`
+      // Guided Study Retell stage submits to backend `teach.retell` (#1348)
       if (tab === 'guided' && stage === 'retell') {
         appendTurn({ role: 'user', stage: 'retell', text });
         if (!cardCtx?.cardId) {
@@ -629,6 +629,19 @@ export const AssistantPanel = memo(function AssistantPanel({
             role: 'system',
             stage: 'retell',
             text: t(lang, '请先在刷题页打开一道题再复述。', 'Open a card in Review first.'),
+          });
+          return;
+        }
+        const resolvedDeckId =
+          cardCtx.deckId ||
+          snapshot?.decks?.find((d) => Array.isArray(d.cards) && d.cards.some((c) => c.id === cardCtx.cardId))?.id ||
+          '';
+        if (!resolvedDeckId) {
+          appendTurn({
+            role: 'system',
+            stage: 'retell',
+            actionSummary: t(lang, '复述评估失败', 'Retell evaluation failed'),
+            text: t(lang, '缺少题组信息，请返回刷题页重新打开本题后再复述。', 'Missing deck context; reopen this card in Review and try again.'),
           });
           return;
         }
@@ -640,18 +653,25 @@ export const AssistantPanel = memo(function AssistantPanel({
             missed?: string[];
             wrong?: string[];
             gap?: string;
-          }>(host, 'card.retell', {
-            ...(cardCtx.deckId ? { deckId: cardCtx.deckId } : {}),
+          }>(host, 'teach.retell', {
+            deckId: resolvedDeckId,
             cardId: cardCtx.cardId,
-            answer: text,
-            stage: 'retell',
+            text,
             language: lang,
           });
           if (!mountedRef.current) return;
           if (!res.ok || !res.value) {
+            const rawErr = res.error?.message || '';
+            const isModelErr =
+              !rawErr ||
+              /configure a model|model.*unavailable|no.*model|api.?key|unauthorized|forbidden|\b401\b|\b403\b|econnrefused|timed out|timeout|未配置|可用.*模型|模型不可用/i.test(
+                rawErr,
+              );
             const fb = {
-              reason: res.error?.message || t(lang, '模型暂不可用，无法在线评估复述。', 'Model unavailable for retell.'),
-              altLabel: t(lang, '改为：按 [S] 跳过复述，或按 [P] 复制提示词到外部模型', 'Alternative: [S] skip or [P] copy prompt'),
+              reason: rawErr || t(lang, '模型暂不可用，无法在线评估复述。', 'Model unavailable for retell.'),
+              altLabel: isModelErr
+                ? t(lang, '改为：按 [S] 跳过复述，或按 [P] 复制提示词到外部模型', 'Alternative: [S] skip or [P] copy prompt')
+                : t(lang, '可按 [S] 跳过复述，或重试提交', 'Press [S] to skip retell or try again'),
               altCommand: '查看统计',
               instruction: text,
             };
@@ -660,7 +680,7 @@ export const AssistantPanel = memo(function AssistantPanel({
             appendTurn({
               role: 'system',
               stage: 'retell',
-              actionSummary: '模型暂不可用',
+              actionSummary: isModelErr ? t(lang, '模型暂不可用', 'Model unavailable') : t(lang, '复述评估失败', 'Retell failed'),
               text: `${fb.reason} ${fb.altLabel}`,
             });
             return;
@@ -683,7 +703,7 @@ export const AssistantPanel = memo(function AssistantPanel({
           appendTurn({
             role: 'assistant',
             stage: 'retell',
-            actionSummary: `已完成：card.retell（stage=retell, passed=${Boolean(v.passed)}）`,
+            actionSummary: v.passed ? t(lang, '复述评估：通过', 'Retell check: passed') : t(lang, '复述评估：待补强', 'Retell check: needs review'),
             text: lines.join('\n'),
             verdict: { passed: Boolean(v.passed), right: v.right ?? [], missed: v.missed ?? [], wrong: v.wrong ?? [], gap: v.gap },
           });
