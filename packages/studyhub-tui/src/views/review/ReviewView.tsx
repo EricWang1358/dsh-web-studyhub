@@ -163,6 +163,7 @@ const CARD_UTIL_KEYS: readonly string[] = Object.freeze([
 ]);
 const RATING_DIGIT_KEYS: readonly string[] = Object.freeze(['0', '1', '2', '3', '4', '5']);
 const CHOICE_DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2', '3', '4', '5', '6']);
+const CHOICE_LETTER_KEYS: readonly string[] = Object.freeze(['a', 'b', 'c', 'd', 'e', 'f']);
 const TF_DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2']);
 const EMPTY_CLAIMED_KEYS: readonly string[] = Object.freeze([]);
 
@@ -1179,7 +1180,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     if (needsRating) return [...baseUtil, ...RATING_DIGIT_KEYS];
     if (!revealed && !feedback) {
       if (kind === 'true_false') return [...baseUtil, ...TF_DIGIT_KEYS];
-      if (kind === 'single' || kind === 'multiple') return [...baseUtil, ...CHOICE_DIGIT_KEYS];
+      if (kind === 'single' || kind === 'multiple') return [...baseUtil, ...CHOICE_DIGIT_KEYS, ...CHOICE_LETTER_KEYS];
     }
     return baseUtil;
   }, [isActive, loading, run, isFinished, isRubricEligibleKind, canAdjustGrade, canAckCorrection, needsRating, revealed, feedback, kind]);
