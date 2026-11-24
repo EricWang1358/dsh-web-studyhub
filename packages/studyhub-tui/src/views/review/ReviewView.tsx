@@ -1684,8 +1684,10 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
       kind,
       isWrong: Boolean(feedback && feedback.correct === false),
       revealed,
+      isExam: run.mode === 'exam',
+      hasCitation: Boolean(citation),
     });
-  }, [run, cardId, isFinished, kind, selectedIds, clozeInputs, openDraft, feedback, revealed, lang]);
+  }, [run, cardId, isFinished, kind, selectedIds, clozeInputs, openDraft, feedback, revealed, citation, lang]);
 
   // Hooks above, early returns below.
   const activeTranslation = useMemo<CardTranslation | null>(() => {

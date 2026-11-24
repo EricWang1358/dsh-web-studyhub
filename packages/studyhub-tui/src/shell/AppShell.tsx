@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, memo, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import React, { Suspense, lazy, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Box, useApp, useInput } from 'ink';
 import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type KeyHint, type PageId, type ViewProps } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
@@ -11,7 +11,8 @@ import { useStableWindowSize } from '../components/resize.js';
 import { TopBar } from './TopBar.js';
 import { SideNav, sideNavWidth } from './SideNav.js';
 import { ShellActionsContext, createDefaultShellActions, requestQuit, type ShellActions } from './actions.js';
-import { isLibraryEmpty } from './data.js';
+import { isLibraryEmpty, modelInfo } from './data.js';
+import { selectContextualTip } from './contextual-tips.js';
 import { formatReturnHintLabel } from '../state/practice-stack.js';
 
 const Launchpad = lazy(() => import('./Launchpad.js').then((m) => ({ default: m.Launchpad })));
@@ -91,7 +92,13 @@ export const AppShell = memo(function AppShell({
   const loading = useTuiStore((s) => s.loading);
   const refreshing = useTuiStore((s) => s.refreshing);
   const snapshot = useTuiStore((s) => s.snapshot);
+  const desktopConfig = useTuiStore((s) => s.desktopConfig);
+  const binding = useTuiStore((s) => s.binding);
+  const assistantCardContext = useTuiStore((s) => s.assistantCardContext);
+  const proactiveHints = useTuiStore((s) => s.preferences.proactiveHints !== false);
   const dismissToast = useTuiStore((s) => s.dismissToast);
+  const keystrokeCountRef = useRef(0);
+  const [tipRotation, setTipRotation] = useState(0);
 
   const rawQuitRef = useRef<() => void>(() => exit());
   rawQuitRef.current = actionOverrides?.quit ?? (() => exit());
@@ -137,6 +144,10 @@ export const AppShell = memo(function AppShell({
   useMouseClickInputFallback(true);
 
   useInput((input, key) => {
+    keystrokeCountRef.current += 1;
+    if (keystrokeCountRef.current % 10 === 0) {
+      setTipRotation((n) => n + 1);
+    }
     const s = useTuiStore.getState();
     const r = routing.current;
     if (key.ctrl && input === 'c') {
@@ -281,6 +292,20 @@ export const AppShell = memo(function AppShell({
     return [...prefix, ...base, ...tailHints];
   }, [practiceReturnLabel, footerHints, compactMode, defaultHints, tailHints]);
 
+  const contextualTip = useMemo(() => {
+    if (overlayOpen || showLaunchpad) return null;
+    const ready = modelInfo(desktopConfig, binding, snapshot, asciiMode).ready;
+    return selectContextualTip({
+      page,
+      card: page === 'review' ? assistantCardContext : null,
+      modelReady: ready,
+      proactiveHints,
+      lang,
+      asciiMode,
+      rotation: tipRotation,
+    });
+  }, [overlayOpen, showLaunchpad, desktopConfig, binding, snapshot, asciiMode, page, assistantCardContext, proactiveHints, lang, tipRotation]);
+
   const toastW = Math.min(48, Math.max(28, Math.floor(columns * 0.4)));
   const toastRows = Math.min(2, toasts.length);
   const toastTop = Math.max(1, rows - (showKeyHints ? 1 : 0) - toastRows);
@@ -365,6 +390,7 @@ export const AppShell = memo(function AppShell({
             hints={hints}
             width={columns}
             right={refreshing ? (asciiMode ? t(lang, '* 同步中', '* syncing') : t(lang, '⟳ 同步中', '⟳ syncing')) : undefined}
+            tip={contextualTip?.text}
           />
         ) : null}
 

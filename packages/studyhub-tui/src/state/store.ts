@@ -31,6 +31,8 @@ export interface AssistantCardContext {
   kind?: string;
   isWrong?: boolean;
   revealed?: boolean;
+  isExam?: boolean;
+  hasCitation?: boolean;
   /** Optional active page filter or selected item label for full context awareness (#1315). */
   filterQuery?: string;
   selectedLabel?: string;
