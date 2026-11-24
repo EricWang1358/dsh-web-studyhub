@@ -169,6 +169,13 @@ test('generated native modules resolve through classic chunk factories and share
   const reaction = math.renderStudyFormula(String.raw`\ce{2H2(g) + O2(g) -> 2H2O(l)}`, true);
   assert.match(reaction, /<math[\s>]/);
   assert.match(reaction, /<msub>/, 'native chemistry must use the registered mhchem engine');
+  // StudyDiagram mirrors StudyMath: dynamic import inside its effect keeps the diagram renderer out of boot and workspace closures.
+  const diagramEntry = Object.entries(result.metafile.outputs).find(([, record]) => record.entryPoint === 'ui/study-diagram-render.js');
+  assert.ok(diagramEntry, 'inline diagrams must keep their own optional renderer boundary');
+  const diagramName = basename(diagramEntry[0]);
+  assert.ok(!loadedAtBoot.includes(`${packageId}/${diagramName}`), 'the diagram renderer must stay optional at host activation');
+  const diagramMod = await asyncModule(`./${diagramName}`);
+  assert.match(diagramMod.renderStudyDiagram('flowchart LR\n  A[Start] --> B[End]').svg, /<svg[\s>]/);
   for (const [input, verify] of [
     ['lib/chemistry-balance.js', module => assert.equal(module.balanceEquation('H2 + O2 -> H2O').equation, '2 H2 + O2 -> 2 H2O')],
     ['lib/symbolic-proof.js', module => assert.equal(module.proveIdentity('(x+1)^2', 'x^2+2*x+1').status, 'proved')],

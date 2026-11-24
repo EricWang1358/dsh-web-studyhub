@@ -262,6 +262,8 @@ img{max-width:100%;height:auto}
 hr{border:0;border-top:1px solid var(--line)}
 .math-block{display:block;max-width:100%;margin:.5rem 0;overflow-x:auto}
 .math-block .katex-display{margin:0}
+.md-diagram-static{margin:.7rem 0;padding:.65rem;border:1px solid var(--line);border-radius:6px;background:var(--soft);overflow-x:auto;text-align:center}
+.md-diagram-svg{display:block;margin:0 auto;max-width:100%;height:auto}
 .math{display:inline-block;max-width:100%;overflow-x:auto;vertical-align:middle}
 .math .katex{line-height:1}
 .eqno{margin-left:1em;color:var(--mute)}
@@ -283,6 +285,6 @@ hr{border:0;border-top:1px solid var(--line)}
   h2.chapter{break-before:page}
   .contents{break-after:page}
   .footnotes{break-before:avoid}
-  tr,figure,.math-block{break-inside:avoid}
+  tr,figure,.math-block,.md-diagram-static{break-inside:avoid}
 }
 `;

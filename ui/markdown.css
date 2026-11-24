@@ -193,6 +193,58 @@
       background: transparent;
       font-size: inherit;
     }
+    .md-diagram {
+      margin: 0.5em 0 0.9em;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      overflow: hidden;
+    }
+    .md-diagram-head {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-height: 32px;
+      padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3-5);
+      border-bottom: 1px solid var(--line-soft);
+      background: var(--bg-sunken);
+    }
+    .md-diagram-label {
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+    }
+    .md-diagram-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      margin-inline-start: auto;
+    }
+    .md-diagram-canvas,
+    .md-diagram-static {
+      padding: var(--space-3);
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      scrollbar-width: thin;
+      scrollbar-color: var(--line-strong) transparent;
+      text-align: center;
+    }
+    .md-diagram-static {
+      margin: 0.5em 0 0.9em;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+    }
+    .md-diagram-svg {
+      display: block;
+      margin-inline: auto;
+      max-width: 100%;
+      height: auto;
+    }
+    .md .md-diagram .md-diagram-source {
+      margin: 0;
+      border: 0;
+      border-radius: 0;
+    }
     .md blockquote {
       margin: 0.4em 0 0.9em;
       padding: var(--space-half) 0 var(--space-half) var(--space-3);
@@ -364,7 +416,7 @@
     .prereq-item .md {
       flex: 1;
     }
-    .flashcard .flip-face:not([aria-hidden="true"]) :is(.md-image-open, .md-math, .md-code, .md-code-copy, .md-math-copy, .md-details > summary, .en-block__toggle) { pointer-events: auto; }
+    .flashcard .flip-face:not([aria-hidden="true"]) :is(.md-image-open, .md-math, .md-code, .md-code-copy, .md-math-copy, .md-diagram, .md-details > summary, .en-block__toggle) { pointer-events: auto; }
     .en-block__toggle {
       display: inline-flex;
       align-items: center;
