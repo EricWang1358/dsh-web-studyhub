@@ -90,6 +90,23 @@ describe('Round 88 Track D4 — Multi-step Assistant workflow skeleton (#1315 Ph
     // Cancellation terminates workflow cleanly
     const cancelled = cancelWorkflowPlan(afterStep1);
     assert.equal(currentWorkflowStep(cancelled), null);
+
+    // #1339: Compound plain questions with semicolons or 「然后」/「再」 must NOT become a workflow plan
+    assert.equal(
+      planAssistantWorkflow('讲讲 Memento；再讲讲 Bridge', { snapshot: { sources: [] }, currentCardId: 'card-1', lang: 'zh' }),
+      null,
+      'Pure chat questions with semicolon must return null so the full sentence goes to the model',
+    );
+    assert.equal(
+      planAssistantWorkflow('先解释什么是死锁，然后再举个例子', { snapshot: { sources: [] }, lang: 'zh' }),
+      null,
+      'Pure chat questions with 先...然后...再 must return null',
+    );
+    assert.equal(
+      planAssistantWorkflow('explain TCP handshake then explain UDP', { snapshot: { sources: [] }, lang: 'en' }),
+      null,
+      'Pure English chat questions with then must return null',
+    );
   });
 });
 

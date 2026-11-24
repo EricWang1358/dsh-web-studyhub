@@ -27,6 +27,15 @@ export interface AssistantWorkflowPlan {
 
 const MAX_WORKFLOW_STEPS = 5;
 
+/** Intents that perform an executable StudyHub action in a multi-step workflow (#1339). */
+const EXECUTABLE_WORKFLOW_KINDS = new Set<AssistantIntent['kind']>([
+  'navigate',
+  'write_confirm',
+  'enter_guided',
+  'readonly_stats',
+  'set_preference',
+]);
+
 /**
  * Split a compound instruction into 2..5 ordered clauses.
  * Returns `null` for ordinary single-step instructions so the single-step path stays untouched.
@@ -76,6 +85,12 @@ export function planAssistantWorkflow(
       status: index === 0 && intent.requiresConfirm ? 'awaiting_confirm' : 'pending',
     };
   });
+
+  // #1339: Only treat compound input as a multi-step workflow when at least one clause is an executable action.
+  // Plain questions with semicolons or 「然后」/「再」/then must pass through intact to the model.
+  if (!steps.some((step) => EXECUTABLE_WORKFLOW_KINDS.has(step.intent.kind))) {
+    return null;
+  }
 
   return {
     id: `wf-${Date.now()}`,
@@ -141,7 +156,11 @@ export function formatWorkflowChecklist(
       ? lang === 'en' ? ' (confirm)' : '（需确认）'
       : '';
     const suffix = s.result ? ` — ${s.result}` : '';
-    lines.push(`${icon} ${s.index + 1}. ${s.intent.paramsSummary || s.rawClause}${confirmTag}${suffix}`);
+    const stepLabel =
+      s.intent.kind === 'chat' || /^cardId=/i.test(s.intent.paramsSummary)
+        ? s.rawClause
+        : s.intent.paramsSummary || s.rawClause;
+    lines.push(`${icon} ${s.index + 1}. ${stepLabel}${confirmTag}${suffix}`);
   }
   return lines.join('\n');
 }
