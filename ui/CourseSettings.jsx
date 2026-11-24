@@ -338,8 +338,7 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
   const mergeCandidates = [...others.filter(item => likely.has(item.id)), ...others.filter(item => !likely.has(item.id))];
   const change = patch => setDraft(current => ({ ...current, ...patch }));
   // Evaluated live at interaction time (not cached at render) so child ref drafts (rules / notation) are always observed (#1367-8).
-  const hasUnsavedChanges = () => JSON.stringify(payloadFromDraft(course, draft)) !== JSON.stringify(payloadFromDraft(course, draftFromCourse(course)))
-    || Boolean(ruleDraftRef.current?.hasDraft) || Boolean(notationDraftRef.current?.hasDraft);
+  const draftDirty = JSON.stringify(payloadFromDraft(course, draft)) !== JSON.stringify(payloadFromDraft(course, draftFromCourse(course)));
   const run = async (action, args, done) => {
     setWorking(true); setError('');
     try { await act(action, args, done, { rethrow: true }); return true; }
@@ -414,15 +413,15 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
         ? ui('学法仍在编辑中，「保存课程信息」不会保存学法改动；请先在上方点「保存学法」或「取消」，或再点一次直接保存其余课程信息。')
         : ui('课程名称尚未点「改名」确认，「保存课程信息」不会改名；请先点「改名」，或再点一次直接保存其余课程信息。');
   const requestClose = (reason) => {
-    if (hasUnsavedChanges()) { setLeavePrompt({ kind: 'close', reason }); return; }
+    if (draftDirty || ruleDraftRef.current?.hasDraft || notationDraftRef.current?.hasDraft) { setLeavePrompt({ kind: 'close', reason }); return; }
     onClose?.(reason);
   };
   const guardLeave = (onConfirm) => {
-    if (hasUnsavedChanges()) { setLeavePrompt({ kind: 'leave', onConfirm }); return; }
+    if (draftDirty || ruleDraftRef.current?.hasDraft || notationDraftRef.current?.hasDraft) { setLeavePrompt({ kind: 'leave', onConfirm }); return; }
     onConfirm?.();
   };
   const requestOpenFocusIntake = () => {
-    if (hasUnsavedChanges()) { setLeavePrompt({ kind: 'focus-intake' }); return; }
+    if (draftDirty || ruleDraftRef.current?.hasDraft || notationDraftRef.current?.hasDraft) { setLeavePrompt({ kind: 'focus-intake' }); return; }
     onClose?.('focus-intake');
     openModal({ type: 'focusIntake', course: course.name });
   };

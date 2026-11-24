@@ -538,13 +538,14 @@ function SettingsView() {
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       // Originals attached by path stay where the learner keeps them; say how many are not in this file.
-      const notes = [];
       const referenced = backup.portableMaterials?.referencedOriginals?.length;
-      if (referenced) notes.push(uiFormat('其中 {0} 份原文件只记了路径，没有放进备份；换电脑后需要重新指定。', [referenced]));
       const missing = backup.portableMaterials?.missingAttachments;
-      if (missing) notes.push(uiFormat('有 {0} 份已丢失的原件副本已跳过，对应资料仅以文字形态写入备份。', [missing]));
-      if (blob.size > 60 * 1024 * 1024) notes.push(uiFormat('备份体积较大（约 {0} MB），恢复时将自动分片上传，请耐心等待。', [Math.round(blob.size / (1024 * 1024))]));
-      if (notes.length) notify({ text: [ui('备份已导出。'), ...notes].join(' '), tone: missing ? 'warning' : 'success', persistent: true });
+      const largeMb = blob.size > 60 * 1024 * 1024 ? Math.round(blob.size / (1024 * 1024)) : 0;
+      const parts = [];
+      if (referenced) parts.push(uiFormat('备份已导出。其中 {0} 份原文件只记了路径，没有放进备份；换电脑后需要重新指定。', [referenced]));
+      if (missing) parts.push(uiFormat('有 {0} 份已丢失的原件副本已跳过，对应资料仅以文字形态写入备份。', [missing]));
+      if (largeMb) parts.push(uiFormat('备份体积较大（约 {0} MB），恢复时将自动分片上传，请耐心等待。', [largeMb]));
+      if (parts.length) notify({ text: referenced ? parts.join(' ') : [ui('备份已导出。'), ...parts].join(' '), tone: missing ? 'warning' : 'success', persistent: true });
     } catch (failure) {
       setError(failure.message);
     }

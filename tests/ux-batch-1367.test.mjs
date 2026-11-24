@@ -258,12 +258,12 @@ test("#1367-7, #1367-8, #1367-9: draft stash clearing, CourseSettings live dirty
   assert.equal(pickRecoveryFor("/tmp/root", { id: "dr1" }, mockStorage), null, "skipStash clears stash cleanly");
 
   const draftSrc = await readFile(path.resolve("ui/Draft.jsx"), "utf8");
-  assert.ok(draftSrc.includes("openDraft(saved, { skipStash: true })"));
+  assert.ok(draftSrc.includes("openDraft(next, { skipStash: true })"));
   assert.ok(draftSrc.includes("openDraft(latestDraft, { skipStash: true })"));
 
-  // #1367-8: live hasUnsavedChanges + guardLeave in CourseSettings
+  // #1367-8: live child-ref dirty check + guardLeave in CourseSettings
   const csSrc = await readFile(path.resolve("ui/CourseSettings.jsx"), "utf8");
-  assert.ok(csSrc.includes("const hasUnsavedChanges = () =>"));
+  assert.ok(csSrc.includes("if (draftDirty || ruleDraftRef.current?.hasDraft || notationDraftRef.current?.hasDraft)"));
   assert.ok(csSrc.includes("leavePrompt?.kind === 'leave'"));
 
   // #1367-9: TeachingStatus rendered outside teaching.complete ternary + teachingAction distinguishes teach.answer

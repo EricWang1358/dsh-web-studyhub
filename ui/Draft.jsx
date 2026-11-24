@@ -241,6 +241,7 @@ export default function Draft({
     cardEl?.querySelector("summary")?.focus?.({ preventScroll: true });
   };
   const jumpToNextFlagged = () => jumpToFlagged(1);
+  const replaceDraft = React.useCallback((next) => openDraft(next, { skipStash: true }), [openDraft]);
   const saveDraft = () => {
     let d;
     try {
@@ -249,7 +250,7 @@ export default function Draft({
       toast.error(uiFormat("JSON 格式不正确：{0}", [e.message]));
       return;
     }
-    act("draft.save", { deck: d }, (saved) => openDraft(saved, { skipStash: true }));
+    act("draft.save", { deck: d }, replaceDraft);
   };
   const onDraftKeyDown = (event) => {
     if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
@@ -305,7 +306,7 @@ export default function Draft({
     delete copy.baseVersion;
     delete copy.quality;
     if (copy.editorial) copy.editorial = { summary: ui("由旧草稿另存；发布前会重新检查") };
-    act("draft.save", { deck: copy }, (saved) => openDraft(saved, { skipStash: true }));
+    act("draft.save", { deck: copy }, replaceDraft);
   }
   function toggleJsonMode() {
     if (!jsonMode) setDraftText(JSON.stringify(draft, null, 2));
