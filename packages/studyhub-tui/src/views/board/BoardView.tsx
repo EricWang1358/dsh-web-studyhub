@@ -2,7 +2,7 @@ import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, u
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { Box, Text } from 'ink';
-import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
+import { KeyScope, useKeyScope } from '../../input/hooks.js';
 import { atomicWriteExportText, defaultBackupFilePath } from '../../host/atomic-write.js';
 import { runAtomicSteps } from '../../host/tx-write.js';
 import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
@@ -10,7 +10,6 @@ import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { Panel } from '../../components/Panel.js';
 import { TextInput } from '../../components/TextInput.js';
 import { parseSgrWheelDelta, useSgrMouseWheel } from '../../components/VirtualList.js';
-import { useClaimKeys } from '../../components/focus.js';
 import { computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -914,17 +913,15 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
     [activeCol, grouped],
   );
 
-  const noModalActive = isActive && modal === null;
-  const boardNavActive = noModalActive && !filterEditing;
-  useClaimKeys(CLAIMED_KEYS, noModalActive);
-  useSgrMouseWheel(boardNavActive, moveCursorByWheel);
-
-  useInput(
-    (input, key) => {
+  const pageActive = useKeyScope({
+    id: 'BoardView:main',
+    active: isActive,
+    keys: CLAIMED_KEYS,
+    onKey: (input, key) => {
       const wheelDelta = parseSgrWheelDelta(input);
       if (wheelDelta !== 0) {
         moveCursorByWheel(wheelDelta);
-        return;
+        return true;
       }
       if (key.escape && filterQuery) {
         setFilterQuery('');
@@ -932,104 +929,106 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
       }
       if (input === '/' && !key.ctrl && !key.meta) {
         setFilterEditing(true);
-        return;
+        return true;
       }
       if (input === 'x' && !key.ctrl && !key.meta) {
         void handleExportMarkdown();
-        return;
+        return true;
       }
       if (key.ctrl && input === 'r') {
         void reloadBoard({ notifyOnReload: true });
-        return;
+        return true;
       }
       if (key.leftArrow || input === 'h') {
         const prevCol = adjacentColumn(activeCol, -1, true);
         if (prevCol) setActiveCol(prevCol);
-        return;
+        return true;
       }
       if (key.rightArrow || input === 'l') {
         const nextCol = adjacentColumn(activeCol, 1, true);
         if (nextCol) setActiveCol(nextCol);
-        return;
+        return true;
       }
       if (key.downArrow || input === 'j') {
-        if (activeColCards.length === 0) return;
+        if (activeColCards.length === 0) return true;
         setCursorByCol((prev) => ({
           ...prev,
           [activeCol]: Math.min(activeColCards.length - 1, activeIdx + 1),
         }));
-        return;
+        return true;
       }
       if (key.upArrow || input === 'k') {
-        if (activeColCards.length === 0) return;
+        if (activeColCards.length === 0) return true;
         setCursorByCol((prev) => ({
           ...prev,
           [activeCol]: Math.max(0, activeIdx - 1),
         }));
-        return;
+        return true;
       }
       if (input === 'a') {
         if (isReadOnlyRef.current) {
           notifyReadOnly();
-          return;
+          return true;
         }
         setModal({ type: 'add' });
-        return;
+        return true;
       }
       if (input === 'S') {
         if (isReadOnlyRef.current) {
           notifyReadOnly();
-          return;
+          return true;
         }
         void syncUpstreamBoard({ notifyResult: true });
-        return;
+        return true;
       }
-      if (!selectedCard) return;
+      if (!selectedCard) return false;
       if (input === 'H') {
         if (isReadOnlyRef.current) {
           notifyReadOnly();
-          return;
+          return true;
         }
         const leftCol = adjacentColumn(selectedCard.column, -1, false);
         if (leftCol) moveCard(selectedCard, leftCol);
-        return;
+        return true;
       }
       if (input === 'L') {
         if (isReadOnlyRef.current) {
           notifyReadOnly();
-          return;
+          return true;
         }
         const rightCol = adjacentColumn(selectedCard.column, 1, false);
         if (rightCol) moveCard(selectedCard, rightCol);
-        return;
+        return true;
       }
       if (input === 'm') {
         if (isReadOnlyRef.current) {
           notifyReadOnly();
-          return;
+          return true;
         }
         const nextCol = adjacentColumn(selectedCard.column, 1, true);
         if (nextCol) moveCard(selectedCard, nextCol);
-        return;
+        return true;
       }
       if (input === 'e' || key.return) {
         if (isReadOnlyRef.current) {
           notifyReadOnly();
-          return;
+          return true;
         }
         setModal({ type: 'edit', card: selectedCard });
-        return;
+        return true;
       }
       if (input === 'd') {
         if (isReadOnlyRef.current) {
           notifyReadOnly();
-          return;
+          return true;
         }
         setModal({ type: 'delete', card: selectedCard });
+        return true;
       }
+      return false;
     },
-    { isActive: boardNavActive },
-  );
+  });
+  useSgrMouseWheel(pageActive, moveCursorByWheel);
 
   const handleFocusComplete = useCallback(
     (minutes: number) => {
@@ -1229,134 +1228,138 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
 
   const renderModals = () => (
     <>
-      <Suspense fallback={null}>
-        {modal?.type === 'add' || modal?.type === 'edit' ? (
-          <BoardCardModal
-          mode={modal.type}
-          lang={lang}
-          initialColumn={activeCol}
-          initialCourse={focusCourse || ''}
-          card={modal.type === 'edit' ? modal.card : null}
-          terminalCols={width}
-          onClose={() => setModal(null)}
-          onSubmit={(data) => {
-            const now = new Date().toISOString();
-            if (modal.type === 'add') {
-              const nextCard: BoardCard = {
-                id: randomUUID().slice(0, 12),
-                title: data.title,
-                column: data.column,
-                ...(data.course ? { course: data.course } : {}),
-                ...(data.dueDate ? { dueDate: data.dueDate } : {}),
-                createdAt: now,
-                updatedAt: now,
-              };
-              const targetCount = docRef.current.cards.filter((c) => c.column === data.column).length;
-              setActiveCol(data.column);
+      {modal?.type === 'add' || modal?.type === 'edit' ? (
+        <KeyScope id="board:card-modal" opaque>
+          <Suspense fallback={null}>
+            <BoardCardModal
+              mode={modal.type}
+              lang={lang}
+              initialColumn={activeCol}
+              initialCourse={focusCourse || ''}
+              card={modal.type === 'edit' ? modal.card : null}
+              terminalCols={width}
+              onClose={() => setModal(null)}
+              onSubmit={(data) => {
+                const now = new Date().toISOString();
+                if (modal.type === 'add') {
+                  const nextCard: BoardCard = {
+                    id: randomUUID().slice(0, 12),
+                    title: data.title,
+                    column: data.column,
+                    ...(data.course ? { course: data.course } : {}),
+                    ...(data.dueDate ? { dueDate: data.dueDate } : {}),
+                    createdAt: now,
+                    updatedAt: now,
+                  };
+                  const targetCount = docRef.current.cards.filter((c) => c.column === data.column).length;
+                  setActiveCol(data.column);
+                  setCursorByCol((prev) => ({
+                    ...prev,
+                    [data.column]: targetCount,
+                  }));
+                  setModal(null);
+                  void persistDoc((prev) => ({
+                    ...prev,
+                    version: 1,
+                    cards: [...prev.cards, nextCard],
+                    updatedAt: now,
+                  }));
+                  void enqueueUpstream(() => addUpstreamDirect(nextCard.id));
+                  notify(t(lang, `已添加「${nextCard.title}」`, `Added "${nextCard.title}"`), 'success');
+                } else {
+                  const target = modal.card;
+                  let resolvedUpstreamId = target.upstreamCardId;
+                  setActiveCol(data.column);
+                  setModal(null);
+                  void persistDoc((prev) => {
+                    const latest = prev.cards.find((c) => c.id === target.id);
+                    if (!resolvedUpstreamId && latest?.upstreamCardId) resolvedUpstreamId = latest.upstreamCardId;
+                    return {
+                      ...prev,
+                      version: 1,
+                      cards: prev.cards.map((c) =>
+                        c.id === target.id
+                          ? {
+                              id: c.id,
+                              title: data.title,
+                              column: data.column,
+                              ...(data.course ? { course: data.course } : {}),
+                              ...(data.dueDate ? { dueDate: data.dueDate } : {}),
+                              ...(c.upstreamCardId ? { upstreamCardId: c.upstreamCardId } : {}),
+                              createdAt: c.createdAt,
+                              updatedAt: now,
+                            }
+                          : c,
+                      ),
+                      updatedAt: now,
+                    };
+                  });
+                  if (resolvedUpstreamId) {
+                    const titleChanged = data.title !== target.title;
+                    const dueChanged = (data.dueDate || '') !== (target.dueDate || '');
+                    const colChanged = data.column !== target.column;
+                    if (titleChanged || dueChanged || colChanged) {
+                      void mirrorUpstreamUpdate(resolvedUpstreamId, {
+                        ...(colChanged ? { column: data.column } : {}),
+                        ...(titleChanged ? { title: data.title } : {}),
+                        ...(dueChanged ? { due: data.dueDate || '' } : {}),
+                      });
+                    }
+                  }
+                  notify(t(lang, '任务已更新', 'Card updated'), 'success');
+                }
+              }}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
+
+      {modal?.type === 'delete' ? (
+        <KeyScope id="board:delete" opaque>
+          <ConfirmDialog
+            title={t(lang, '删除任务', 'Delete Card')}
+            message={t(lang, `确定删除任务「${modal.card.title}」吗？`, `Delete card "${modal.card.title}"?`)}
+            confirmLabel={t(lang, '删除', 'Delete')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            danger
+            onConfirm={() => {
+              const gone = modal.card;
+              setModal(null);
               setCursorByCol((prev) => ({
                 ...prev,
-                [data.column]: targetCount,
+                [gone.column]: Math.max(0, Math.min(prev[gone.column], Math.max(0, grouped[gone.column].length - 2))),
               }));
-              setModal(null);
-              void persistDoc((prev) => ({
-                ...prev,
-                version: 1,
-                cards: [...prev.cards, nextCard],
-                updatedAt: now,
-              }));
-              void enqueueUpstream(() => addUpstreamDirect(nextCard.id));
-              notify(t(lang, `已添加「${nextCard.title}」`, `Added "${nextCard.title}"`), 'success');
-            } else {
-              const target = modal.card;
-              let resolvedUpstreamId = target.upstreamCardId;
-              setActiveCol(data.column);
-              setModal(null);
+              let resolvedUpstreamId = gone.upstreamCardId;
               void persistDoc((prev) => {
-                const latest = prev.cards.find((c) => c.id === target.id);
+                const latest = prev.cards.find((c) => c.id === gone.id);
                 if (!resolvedUpstreamId && latest?.upstreamCardId) resolvedUpstreamId = latest.upstreamCardId;
                 return {
                   ...prev,
                   version: 1,
-                  cards: prev.cards.map((c) =>
-                    c.id === target.id
-                      ? {
-                          id: c.id,
-                          title: data.title,
-                          column: data.column,
-                          ...(data.course ? { course: data.course } : {}),
-                          ...(data.dueDate ? { dueDate: data.dueDate } : {}),
-                          ...(c.upstreamCardId ? { upstreamCardId: c.upstreamCardId } : {}),
-                          createdAt: c.createdAt,
-                          updatedAt: now,
-                        }
-                      : c,
-                  ),
-                  updatedAt: now,
+                  cards: prev.cards.filter((c) => c.id !== gone.id),
+                  ...(resolvedUpstreamId
+                    ? { deletedUpstreamIds: recordDeletedUpstreamIds(prev.deletedUpstreamIds, resolvedUpstreamId) }
+                    : {}),
+                  updatedAt: new Date().toISOString(),
                 };
               });
               if (resolvedUpstreamId) {
-                const titleChanged = data.title !== target.title;
-                const dueChanged = (data.dueDate || '') !== (target.dueDate || '');
-                const colChanged = data.column !== target.column;
-                if (titleChanged || dueChanged || colChanged) {
-                  void mirrorUpstreamUpdate(resolvedUpstreamId, {
-                    ...(colChanged ? { column: data.column } : {}),
-                    ...(titleChanged ? { title: data.title } : {}),
-                    ...(dueChanged ? { due: data.dueDate || '' } : {}),
-                  });
-                }
+                const targetUpstreamId = resolvedUpstreamId;
+                markInflightUpstream(targetUpstreamId);
+                void enqueueUpstream(async () => {
+                  try {
+                    await saveCoordRef.current?.coord.flush();
+                    return await removeUpstreamDirect(targetUpstreamId);
+                  } finally {
+                    unmarkInflightUpstream(targetUpstreamId);
+                  }
+                });
               }
-              notify(t(lang, '任务已更新', 'Card updated'), 'success');
-            }
-          }}
-        />
-        ) : null}
-      </Suspense>
-
-      {modal?.type === 'delete' ? (
-        <ConfirmDialog
-          title={t(lang, '删除任务', 'Delete Card')}
-          message={t(lang, `确定删除任务「${modal.card.title}」吗？`, `Delete card "${modal.card.title}"?`)}
-          confirmLabel={t(lang, '删除', 'Delete')}
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          danger
-          onConfirm={() => {
-            const gone = modal.card;
-            setModal(null);
-            setCursorByCol((prev) => ({
-              ...prev,
-              [gone.column]: Math.max(0, Math.min(prev[gone.column], Math.max(0, grouped[gone.column].length - 2))),
-            }));
-            let resolvedUpstreamId = gone.upstreamCardId;
-            void persistDoc((prev) => {
-              const latest = prev.cards.find((c) => c.id === gone.id);
-              if (!resolvedUpstreamId && latest?.upstreamCardId) resolvedUpstreamId = latest.upstreamCardId;
-              return {
-                ...prev,
-                version: 1,
-                cards: prev.cards.filter((c) => c.id !== gone.id),
-                ...(resolvedUpstreamId
-                  ? { deletedUpstreamIds: recordDeletedUpstreamIds(prev.deletedUpstreamIds, resolvedUpstreamId) }
-                  : {}),
-                updatedAt: new Date().toISOString(),
-              };
-            });
-            if (resolvedUpstreamId) {
-              const targetUpstreamId = resolvedUpstreamId;
-              markInflightUpstream(targetUpstreamId);
-              void enqueueUpstream(async () => {
-                try {
-                  await saveCoordRef.current?.coord.flush();
-                  return await removeUpstreamDirect(targetUpstreamId);
-                } finally {
-                  unmarkInflightUpstream(targetUpstreamId);
-                }
-              });
-            }
-            notify(t(lang, `已删除「${gone.title}」`, `Deleted "${gone.title}"`), 'success');
-          }}
-          onCancel={() => setModal(null)}
-        />
+              notify(t(lang, `已删除「${gone.title}」`, `Deleted "${gone.title}"`), 'success');
+            }}
+            onCancel={() => setModal(null)}
+          />
+        </KeyScope>
       ) : null}
     </>
   );
@@ -1431,35 +1434,37 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   const filterBadge = `[${filterEditing ? t(lang, '过滤', 'Filter') : t(lang, '已过滤', 'Filtered')} ${filteredCards.length}/${doc.cards.length}] `;
   const { rightHint: filterRightHint, inputWidth: filterInputW } = computeFilterBarLayout(width, filterBadge, lang, filterEditing);
   const filterBarNode = showFilterBar ? (
-    <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
-      <Text color={filterEditing ? theme.primary : theme.accent} bold>
-        {filterBadge}
-      </Text>
-      <Box flexGrow={1} overflow="hidden">
-        <TextInput
-          value={filterQuery}
-          onChange={(val) => setFilterQuery(val)}
-          onSubmit={(val) => {
-            if (!val.trim()) setFilterQuery('');
-            setFilterEditing(false);
-          }}
-          onCancel={() => {
-            setFilterQuery('');
-            setFilterEditing(false);
-          }}
-          isActive={noModalActive && filterEditing}
-          width={filterInputW}
-          prompt="/"
-          placeholder={t(lang, `关键词${ell}`, `keyword${ell}`)}
-          maxLength={120}
-        />
-      </Box>
-      {filterRightHint ? (
-        <Text color={theme.dim} wrap="truncate">
-          {filterRightHint}
+    <KeyScope id="board:filter" opaque active={isActive && filterEditing}>
+      <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+        <Text color={filterEditing ? theme.primary : theme.accent} bold>
+          {filterBadge}
         </Text>
-      ) : null}
-    </Box>
+        <Box flexGrow={1} overflow="hidden">
+          <TextInput
+            value={filterQuery}
+            onChange={(val) => setFilterQuery(val)}
+            onSubmit={(val) => {
+              if (!val.trim()) setFilterQuery('');
+              setFilterEditing(false);
+            }}
+            onCancel={() => {
+              setFilterQuery('');
+              setFilterEditing(false);
+            }}
+            isActive={isActive && filterEditing}
+            width={filterInputW}
+            prompt="/"
+            placeholder={t(lang, `关键词${ell}`, `keyword${ell}`)}
+            maxLength={120}
+          />
+        </Box>
+        {filterRightHint ? (
+          <Text color={theme.dim} wrap="truncate">
+            {filterRightHint}
+          </Text>
+        ) : null}
+      </Box>
+    </KeyScope>
   ) : null;
 
   const pomodoroNode = (
@@ -1467,7 +1472,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
       width={width}
       lang={lang}
       asciiMode={asciiMode}
-      isActive={boardNavActive}
+      isActive={pageActive}
       selectedCardTitle={selectedCard?.title}
       focusStats={doc.focusStats}
       onFocusComplete={handleFocusComplete}
