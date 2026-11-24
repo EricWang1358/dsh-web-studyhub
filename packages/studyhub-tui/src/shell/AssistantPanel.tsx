@@ -62,6 +62,8 @@ export const GUIDED_STAGES: readonly GuidedStageId[] = Object.freeze([
 export interface AssistantTurn extends CopyTurnRecord {
   id: string;
   at: number;
+  /** Card id this turn belongs to (`null` for off-card / general assistant turns, #1426). */
+  cardId?: string | null;
   skipped?: boolean;
   verdict?: {
     passed: boolean;
@@ -193,12 +195,20 @@ export const AssistantPanel = memo(function AssistantPanel({
   const navigate = useTuiStore((s) => s.navigate);
 
   const cardCtx = cardContextProp !== undefined ? cardContextProp : storeCardCtx;
+  const scopeCardId = (page === 'review' || cardContextProp !== undefined) && cardCtx?.cardId ? cardCtx.cardId : null;
+  const scopeCardIdRef = useRef<string | null>(scopeCardId);
+  scopeCardIdRef.current = scopeCardId;
   const courseName = currentCourse(snapshot);
   const model = useMemo(() => modelInfo(cfg, binding, snapshot), [cfg, binding, snapshot]);
   const modelReady = Boolean(model.ready || host.streamComplete);
 
   const [turns, setTurns] = useState<AssistantTurn[]>(() => [...sessionMemory.turns]);
+  const [showPriorTurns, setShowPriorTurns] = useState(false);
   const [selectedTurnIdx, setSelectedTurnIdx] = useState<number>(() => Math.max(0, sessionMemory.turns.length - 1));
+
+  useEffect(() => {
+    setShowPriorTurns(false);
+  }, [scopeCardId]);
   const [inputValue, setInputValue] = useState('');
   const [inputFocused, setInputFocused] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -282,7 +292,12 @@ export const AssistantPanel = memo(function AssistantPanel({
   );
 
   const appendTurn = useCallback((turn: Omit<AssistantTurn, 'id' | 'at'>) => {
-    const entry: AssistantTurn = { ...turn, id: `at-${++turnSeq}`, at: Date.now() };
+    const entry: AssistantTurn = {
+      ...turn,
+      cardId: turn.cardId !== undefined ? turn.cardId : scopeCardIdRef.current,
+      id: `at-${++turnSeq}`,
+      at: Date.now(),
+    };
     const next = trimTurns([...sessionMemory.turns, entry]);
     sessionMemory.turns = next;
     if (mountedRef.current) {
@@ -291,6 +306,16 @@ export const AssistantPanel = memo(function AssistantPanel({
     }
     return entry;
   }, []);
+
+  const { currentTurns, priorOtherTurns } = useMemo(() => {
+    const current: AssistantTurn[] = [];
+    const prior: AssistantTurn[] = [];
+    for (const entry of turns) {
+      if ((entry.cardId ?? null) === scopeCardId) current.push(entry);
+      else prior.push(entry);
+    }
+    return { currentTurns: current, priorOtherTurns: prior };
+  }, [turns, scopeCardId]);
 
   const registerUndo = useCallback((entry: AssistantUndoEntry | null) => {
     sessionMemory.lastUndo = entry;
@@ -323,26 +348,31 @@ export const AssistantPanel = memo(function AssistantPanel({
     [copyStdout, stdout, host, snapshot?.root, notify, lang],
   );
 
+  const visibleTurns = useMemo(
+    () => (showPriorTurns ? turns : currentTurns),
+    [showPriorTurns, turns, currentTurns],
+  );
+
   const handleCopyCurrent = useCallback(() => {
-    const target = turns[selectedTurnIdx] ?? turns[turns.length - 1];
+    const target = visibleTurns[selectedTurnIdx] ?? visibleTurns[visibleTurns.length - 1];
     if (!target) {
       notify(t(lang, '暂无可复制条目', 'Nothing to copy yet'), 'info');
       return;
     }
     void doCopy(target.text, '当前条目', 'current entry');
-  }, [turns, selectedTurnIdx, doCopy, notify, lang]);
+  }, [visibleTurns, selectedTurnIdx, doCopy, notify, lang]);
 
   const handleCopyLastReply = useCallback(() => {
-    const lastAi = [...turns].reverse().find((x) => x.role === 'assistant');
+    const lastAi = [...visibleTurns].reverse().find((x) => x.role === 'assistant');
     if (!lastAi) {
       notify(t(lang, '暂无回答可复制', 'No AI reply yet'), 'info');
       return;
     }
     void doCopy(lastAi.text, '最后回答', 'last reply');
-  }, [turns, doCopy, notify, lang]);
+  }, [visibleTurns, doCopy, notify, lang]);
 
   const handleCopyFullSession = useCallback(() => {
-    if (turns.length === 0 && !cardCtx?.prompt) {
+    if (visibleTurns.length === 0 && !cardCtx?.prompt) {
       notify(t(lang, '当前会话为空', 'Session is empty'), 'info');
       return;
     }
@@ -351,11 +381,11 @@ export const AssistantPanel = memo(function AssistantPanel({
       prompt: cardCtx?.prompt,
       userAnswer: cardCtx?.userAnswer,
       currentStage: stage,
-      turns,
+      turns: visibleTurns,
       lang,
     });
     void doCopy(md, '完整会话', 'full session');
-  }, [turns, cardCtx, tab, stage, lang, doCopy, notify]);
+  }, [visibleTurns, cardCtx, tab, stage, lang, doCopy, notify]);
 
   const handleCopyFallbackPrompt = useCallback(() => {
     const promptText = buildFallbackPrompt({
@@ -883,6 +913,7 @@ export const AssistantPanel = memo(function AssistantPanel({
       const ctrl = new AbortController();
       abortRef.current = ctrl;
       const recentContext = sessionMemory.turns
+        .filter((x) => (x.cardId ?? null) === scopeCardIdRef.current)
         .slice(-6)
         .map((x) => `${x.role}: ${x.text.slice(0, 200)}`)
         .join('\n');
@@ -1068,6 +1099,10 @@ export const AssistantPanel = memo(function AssistantPanel({
         void handleSubmitInput(lastFallback.altCommand);
         return;
       }
+      if (input === 'H' && priorOtherTurns.length > 0) {
+        setShowPriorTurns((prev) => !prev);
+        return;
+      }
       if (input === 'c') {
         handleCopyCurrent();
         return;
@@ -1141,26 +1176,7 @@ export const AssistantPanel = memo(function AssistantPanel({
   const transcriptLines = useMemo(() => {
     const out: string[] = [];
     const wrapW = Math.max(18, innerW - 2);
-    if (!modelReady) {
-      out.push(
-        ...wrapDisplay(
-          t(lang, '模型未就绪：本地导航与导出可用，生成类可按 [P] 复制提示词。', 'Model offline: navigation works; press [P] to copy prompt.'),
-          wrapW,
-        ),
-        '',
-      );
-    }
-    if (turns.length === 0 && !busy) {
-      const intro =
-        tab === 'guided'
-          ? stage === 'retell'
-            ? t(lang, '复述阶段：按 [i] 用自己的话复述要点，或按 [S] 跳过并记录。', 'Retell: [i] explain in your own words, or [S] skip.')
-            : t(lang, '带学模式：按 [i] 回答或追问，[p/n] 切阶段，Tab 切助手不丢进度。', 'Guided Study: [i] answer, [p/n] stages, Tab switches tab.')
-          : t(lang, '按 [1-4] 直达推荐动作，或按 [i] 输入自然语言指令。', 'Press [1-4] for quick actions, or [i] for natural language.');
-      out.push(...wrapDisplay(intro, wrapW));
-    }
-
-    for (const entry of turns) {
+    const pushTurn = (entry: AssistantTurn) => {
       const prefix =
         entry.role === 'user'
           ? t(lang, '我', 'You')
@@ -1176,7 +1192,40 @@ export const AssistantPanel = memo(function AssistantPanel({
         out.push(...wrapDisplay(para ? `  ${para}` : ' ', wrapW));
       }
       out.push('');
+    };
+
+    if (!modelReady) {
+      out.push(
+        ...wrapDisplay(
+          t(lang, '模型未就绪：本地导航与导出可用，生成类可按 [P] 复制提示词。', 'Model offline: navigation works; press [P] to copy prompt.'),
+          wrapW,
+        ),
+        '',
+      );
     }
+
+    if (priorOtherTurns.length > 0) {
+      const toggleLine = showPriorTurns
+        ? t(lang, `已展开之前的对话 ${priorOtherTurns.length} 条（按 [H] 收起）`, `Showing ${priorOtherTurns.length} prior turns ([H] collapse)`)
+        : t(lang, `之前的对话 ${priorOtherTurns.length} 条已收起（按 [H] 展开）`, `${priorOtherTurns.length} prior turns collapsed ([H] expand)`);
+      out.push(...wrapDisplay(toggleLine, wrapW), '');
+      if (showPriorTurns) {
+        for (const entry of priorOtherTurns) pushTurn(entry);
+        out.push(asciiMode ? '---' : '───', '');
+      }
+    }
+
+    if (currentTurns.length === 0 && !busy) {
+      const intro =
+        tab === 'guided'
+          ? stage === 'retell'
+            ? t(lang, '复述阶段：按 [i] 用自己的话复述要点，或按 [S] 跳过并记录。', 'Retell: [i] explain in your own words, or [S] skip.')
+            : t(lang, '带学模式：按 [i] 回答或追问，[p/n] 切阶段，Tab 切助手不丢进度。', 'Guided Study: [i] answer, [p/n] stages, Tab switches tab.')
+          : t(lang, '按 [1-4] 直达推荐动作，或按 [i] 输入自然语言指令。', 'Press [1-4] for quick actions, or [i] for natural language.');
+      out.push(...wrapDisplay(intro, wrapW));
+    }
+
+    for (const entry of currentTurns) pushTurn(entry);
 
     if (busy) {
       const live = stream.text.trim();
@@ -1187,7 +1236,7 @@ export const AssistantPanel = memo(function AssistantPanel({
       }
     }
     return out;
-  }, [innerW, modelReady, lang, turns, busy, tab, stage, stream.text]);
+  }, [innerW, modelReady, lang, currentTurns, priorOtherTurns, showPriorTurns, asciiMode, busy, tab, stage, stream.text]);
 
   return (
     <Box flexDirection="column" width={frameW} height={frameH}>
