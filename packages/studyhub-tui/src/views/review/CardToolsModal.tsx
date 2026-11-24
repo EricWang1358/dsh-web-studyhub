@@ -1073,7 +1073,7 @@ export const CardToolsModal = memo(function CardToolsModal({
       title: t(lang, '编辑题目', 'Edit Question'),
       desc: t(lang, '修改题干、参考答案或解析并刷新队列', 'Edit prompt, reference answer, or explanation'),
       enabled: true,
-      badge: 'card.update',
+      badge: t(lang, '可编辑', 'Edit'),
     },
     {
       key: '2',
@@ -1089,7 +1089,7 @@ export const CardToolsModal = memo(function CardToolsModal({
       title: t(lang, '斩题 / 永久掌握', 'Slay / Mastered'),
       desc: t(lang, '移入斩题组不再复习，并推进下一题', 'Move to Slain deck and advance'),
       enabled: true,
-      badge: 'card.slay',
+      badge: t(lang, '移出队列', 'Permanent'),
     },
     {
       key: '4',
@@ -1120,9 +1120,9 @@ export const CardToolsModal = memo(function CardToolsModal({
     {
       key: '6',
       title: t(lang, '提取核心术语 / 生词', 'Extract Technical Terms'),
-      desc: t(lang, 'AI 识别本题中的关键专业术语与生词', 'Extract unfamiliar technical terms via card.terms'),
+      desc: t(lang, 'AI 识别本题中的关键专业术语与生词', 'Extract unfamiliar technical terms with AI'),
       enabled: true,
-      badge: 'card.terms',
+      badge: t(lang, 'AI 提取', 'AI Extract'),
     },
     {
       key: '7',
@@ -1139,7 +1139,7 @@ export const CardToolsModal = memo(function CardToolsModal({
       title: t(lang, '前置题目关联', 'Prerequisite Links'),
       desc: t(lang, '查看、搜索并管理本题依赖的前置题目', 'View, search, and link/unlink prerequisite cards'),
       enabled: true,
-      badge: prereqs.length > 0 ? t(lang, `${prereqs.length} 题`, `${prereqs.length} linked`) : 'card.link',
+      badge: prereqs.length > 0 ? t(lang, `${prereqs.length} 题`, `${prereqs.length} linked`) : t(lang, '未关联', 'None'),
     },
     {
       key: '9',
@@ -1151,7 +1151,7 @@ export const CardToolsModal = memo(function CardToolsModal({
           ? t(lang, '已赞', 'Upvoted')
           : lastFeedbackVote === 'down'
             ? t(lang, '已反馈', 'Flagged')
-            : 'coach.feedback',
+            : t(lang, '待反馈', 'Feedback'),
     },
     {
       key: '0',
@@ -1168,7 +1168,7 @@ export const CardToolsModal = memo(function CardToolsModal({
       title: t(lang, '重试失败的 AI 改题', 'Retry Failed AI Rewrite'),
       desc: t(lang, '确认后重新排队此前失败的教练改题任务', 'Confirm and re-queue a failed AI rewrite task'),
       enabled: true,
-      badge: 'coach.rewrite.retry',
+      badge: t(lang, '需确认', 'Confirm'),
     },
   ];
 
@@ -1797,8 +1797,8 @@ export const CardToolsModal = memo(function CardToolsModal({
         title={t(lang, '重试 AI 改题任务', 'Retry Failed AI Rewrite')}
         message={t(
           lang,
-          '确定调用 coach.rewrite.retry 为本题重新排队此前失败的 AI 改题任务？若取消或本题没有待重试的改题，不会产生模型调用。',
-          'Call coach.rewrite.retry to re-queue a failed AI rewrite for this card? Cancelling or having no failed rewrite makes 0 model calls.',
+          '确定为本题重新排队此前失败的 AI 改题任务？若取消或本题没有待重试的改题，不会产生模型调用。',
+          'Re-queue the failed AI rewrite task for this card? Cancelling or having no failed rewrite makes 0 model calls.',
         )}
         confirmLabel={t(lang, '确认重试', 'Retry')}
         cancelLabel={t(lang, '取消', 'Cancel')}

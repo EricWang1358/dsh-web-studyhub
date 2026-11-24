@@ -1354,25 +1354,31 @@ describe('Round 54: CardToolsModal [R] Failed Rewrite Retry (coach.rewrite.retry
 
       tty.send('D');
       const menuScreen = await tty.waitFor(
-        (s) => s.includes('题目工具箱') && s.includes('[R] 重试失败的 AI 改题') && s.includes('coach.rewrite.retry'),
+        (s) => s.includes('题目工具箱') && s.includes('[R] 重试失败的 AI 改题'),
         { timeoutMs: 8_000, label: 'zh CardToolsModal menu rendered with [R]' },
       );
       tty.assertHealthyScreen(menuScreen, 120, 36, '120x36 zh CardToolsModal menu');
       assert.ok(menuScreen.includes('题目工具箱'));
       assert.ok(menuScreen.includes('[R] 重试失败的 AI 改题'));
+      // #1352: No internal action names leaked in menu and no global page hints in bottom bar while modal is open
+      for (const leaked of ['card.update', 'card.slay', 'card.terms', 'card.link', 'coach.feedback', 'coach.rewrite.retry']) {
+        assert.equal(menuScreen.includes(leaked), false, `CardToolsModal menu must not leak internal action "${leaked}"`);
+      }
+      assert.equal(menuScreen.includes('1-9 页面'), false, 'Bottom footer must not show global 1-9 页面 while CardToolsModal is open');
+      assert.equal(menuScreen.includes('c 课程'), false, 'Bottom footer must not show global c 课程 while CardToolsModal is open');
       assert.equal(modelCalls, 0, 'opening CardToolsModal must make 0 model calls');
 
       tty.send('R');
       const confirmScreen = await tty.waitFor(
         (s) =>
           s.includes('重试 AI 改题任务') &&
-          s.includes('确认重试 (y)') &&
-          s.includes('coach.rewrite.retry'),
+          s.includes('确认重试 (y)'),
         { timeoutMs: 5_000, label: 'zh ConfirmDialog opened on [R]' },
       );
       tty.assertHealthyScreen(confirmScreen, 120, 36, '120x36 zh ConfirmDialog');
       assert.ok(confirmScreen.includes('重试 AI 改题任务'));
       assert.ok(confirmScreen.includes('确认重试 (y)'));
+      assert.equal(confirmScreen.includes('coach.rewrite.retry'), false, 'ConfirmDialog must not leak coach.rewrite.retry');
       assert.equal(modelCalls, 0, 'opening P2 ConfirmDialog must make 0 model calls');
 
       tty.send('n');

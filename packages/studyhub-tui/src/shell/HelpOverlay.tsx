@@ -484,6 +484,7 @@ export const HelpOverlay = memo(function HelpOverlay({ isActive, onClose, pageHi
       height={modalH}
       onClose={onClose}
       isActive={isActive}
+      publishFooterHints={false}
       hints={[
         { key: 'Tab / 1-2', label: helpTab === 'guide' ? t(lang, '切快捷键', 'Shortcuts') : t(lang, '使用教程', 'Guide') },
         { key: asciiMode ? 'j/k Ctrl+D/U' : 'j/k ↑↓ Ctrl+D/U', label: t(lang, '滚动', 'Scroll') },

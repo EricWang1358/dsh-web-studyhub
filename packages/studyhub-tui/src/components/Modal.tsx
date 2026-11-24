@@ -5,6 +5,7 @@ import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { useTuiStore } from '../state/store.js';
 import { useInputCapture } from './focus.js';
+import { useFooterHints } from './hooks.js';
 import {
   ClickableBox,
   MOUSE_LAYER_MODAL,
@@ -36,8 +37,12 @@ export interface ModalProps {
   overlay?: boolean;
   /** Mark store.inputCaptured while open (default true). */
   captureInput?: boolean;
+  /** Publish this modal's `hints` to the global bottom footer bar while active (default true). (#1352) */
+  publishFooterHints?: boolean;
   children?: ReactNode;
 }
+
+const EMPTY_MODAL_HINTS: readonly KeyHint[] = Object.freeze([]);
 
 /** Inner content width for a modal of `frameWidth` (border 2 + padding 4). */
 export function modalContentWidth(frameWidth: number): number {
@@ -56,6 +61,7 @@ export const Modal = memo(function Modal({
   hints,
   overlay = true,
   captureInput = true,
+  publishFooterHints = true,
   children,
 }: ModalProps) {
   const theme = useTheme();
@@ -64,6 +70,7 @@ export const Modal = memo(function Modal({
   const parentLayer = useMouseLayer();
   const modalLayer = overlay ? Math.max(MOUSE_LAYER_MODAL, parentLayer + MOUSE_LAYER_MODAL) : parentLayer;
   useInputCapture(isActive && captureInput);
+  useFooterHints(hints ?? EMPTY_MODAL_HINTS, isActive && overlay && publishFooterHints && Boolean(hints?.length));
   useMouseModalBarrier(isActive && overlay, modalLayer);
   useInput(
     (_input, key) => {

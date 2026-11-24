@@ -276,10 +276,13 @@ export const AppShell = memo(function AppShell({
   );
   const practiceReturnLabel = useMemo(() => formatReturnHintLabel(practiceStack, lang), [practiceStack, lang]);
   const hints = useMemo(() => {
+    if (inputCaptured && footerHints.length === 0) {
+      return [{ key: 'Esc', label: t(lang, '关闭 / 取消', 'Close / Cancel') }, ...tailHints];
+    }
     const base = footerHints.length ? (compactMode ? footerHints.slice(0, 4) : footerHints) : defaultHints;
-    const prefix: KeyHint[] = practiceReturnLabel ? [{ key: 'r', label: practiceReturnLabel }] : [];
+    const prefix: KeyHint[] = !inputCaptured && practiceReturnLabel ? [{ key: 'r', label: practiceReturnLabel }] : [];
     return [...prefix, ...base, ...tailHints];
-  }, [practiceReturnLabel, footerHints, compactMode, defaultHints, tailHints]);
+  }, [inputCaptured, practiceReturnLabel, footerHints, compactMode, defaultHints, tailHints, lang]);
 
   const toastW = Math.min(48, Math.max(28, Math.floor(columns * 0.4)));
   const toastRows = Math.min(2, toasts.length);

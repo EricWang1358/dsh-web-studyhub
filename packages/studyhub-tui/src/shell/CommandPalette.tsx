@@ -1000,6 +1000,7 @@ export const CommandPalette = memo(function CommandPalette({
       width={width}
       onClose={onClose}
       isActive={isActive}
+      publishFooterHints={false}
       hints={[
         { key: asciiMode ? 'Up/Dn' : '↑↓', label: t(lang, '选择', 'Select') },
         { key: 'Enter', label: t(lang, '执行', 'Run') },
