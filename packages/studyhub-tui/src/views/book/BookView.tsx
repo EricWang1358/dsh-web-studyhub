@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
-import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
+import { KeyScope, useKeyScope } from '../../input/hooks.js';
 import type { KeyHint, StudySnapshot, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { saveTuiPreferences } from '../../host/tui-prefs.js';
@@ -15,7 +15,7 @@ import { SelectList, type SelectOption } from '../../components/SelectList.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
-import { useClaimKeys, useInputCapture } from '../../components/focus.js';
+import { useInputCapture } from '../../components/focus.js';
 import { computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
@@ -946,26 +946,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
   const reason = bookData?.reason ?? tocData?.reason ?? '';
   const bookTitle = bookData?.title ?? tocData?.title ?? t(lang, '复习全书', 'Review Book');
 
-  const modalOpen =
-    aiBlocksOpen ||
-    buildModalOpen ||
-    crunchModalOpen ||
-    editModalOpen ||
-    explainOpen ||
-    exportModalOpen ||
-    historyOpen ||
-    qaModalOpen ||
-    retellModalOpen ||
-    structureModalOpen ||
-    confirmDeleteOpen ||
-    confirmRevertOpen ||
-    confirmUndoRebuildOpen ||
-    Boolean(mockConfirmPlan);
-  useClaimKeys(
-    status === 'rebuild-pending' ? REBUILD_CLAIMED_KEYS : BASE_CLAIMED_KEYS,
-    isActive && !modalOpen && !filterEditing,
-  );
-  useInputCapture(isActive && !modalOpen && filterEditing);
+  useInputCapture(isActive && filterEditing);
 
   const planMockExam = useCallback(async () => {
     if (busyRef.current || busyAction) return;
@@ -1114,50 +1095,50 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
           ],
     [lang, mathUnicode, selectedItem?.leaf, status, unplacedSections.length],
   );
-  useFooterHints(hints, isActive && !modalOpen);
-
-  useInput(
-    (input, key) => {
-      if (modalOpen || filterEditing) return;
+  const pageActive = useKeyScope({
+    id: 'BookView:main',
+    active: isActive,
+    keys: status === 'rebuild-pending' ? REBUILD_CLAIMED_KEYS : BASE_CLAIMED_KEYS,
+    onKey: (input, key) => {
       if (key.escape && filterQuery) {
         setFilterQuery('');
         setSelectedIndex(0);
-        return;
+        return true;
       }
       if (input === '/' && !key.ctrl && !key.meta) {
         if (items.length > 0) {
           setActivePane('left');
           setFilterEditing(true);
         }
-        return;
+        return true;
       }
       if (key.tab || input === 'h' || input === 'l' || key.leftArrow || key.rightArrow) {
         if (input === 'h' || key.leftArrow) setActivePane('left');
         else if (input === 'l' || key.rightArrow) setActivePane('right');
         else setActivePane((p) => (p === 'left' ? 'right' : 'left'));
-        return;
+        return true;
       }
       if (key.return && activePane === 'left' && visibleItems.length > 0) {
         setActivePane('right');
-        return;
+        return true;
       }
       if (status === 'rebuild-pending') {
         if (input === 'a') {
           void runBuild('apply-rebuild');
-          return;
+          return true;
         }
         if (input === 'u') {
           setConfirmUndoRebuildOpen(true);
-          return;
+          return true;
         }
       }
       if (input === 'm') {
         toggleMath();
-        return;
+        return true;
       }
       if (input === 'e') {
         setEditModalOpen(true);
-        return;
+        return true;
       }
       if (input === 'H') {
         if (effectiveCourse && status === 'ok') {
@@ -1168,12 +1149,12 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             'info',
           );
         }
-        return;
+        return true;
       }
       if (input === 'R') {
         setStructureModalMode('rename');
         setStructureModalOpen(true);
-        return;
+        return true;
       }
       if (input === 'U') {
         if (status === 'rebuild-pending') {
@@ -1181,26 +1162,26 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             t(lang, '请先处理待确认的总纲重组（按 [a] 应用或 [u] 撤销）', 'Resolve pending outline rebuild first ([a] apply or [u] undo)'),
             'warning',
           );
-          return;
+          return true;
         }
         if (unplacedSections.length === 0) {
           useTuiStore.getState().notify(
             t(lang, '当前没有未归位段落', 'No unplaced sections to place'),
             'info',
           );
-          return;
+          return true;
         }
         setStructureModalMode('place');
         setStructureModalOpen(true);
-        return;
+        return true;
       }
       if (input === '[') {
         void moveSelectedNode('up');
-        return;
+        return true;
       }
       if (input === ']') {
         void moveSelectedNode('down');
-        return;
+        return true;
       }
       if (input === 'D') {
         if (status === 'ok' && selectedItem) {
@@ -1208,7 +1189,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
         } else {
           useTuiStore.getState().notify(t(lang, '请先选择一个目录节点', 'Select a TOC node first'), 'warning');
         }
-        return;
+        return true;
       }
       if (input === 'z') {
         if (status === 'ok') {
@@ -1216,15 +1197,15 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
         } else {
           useTuiStore.getState().notify(t(lang, '当前没有可撤销的目录调整', 'No review book structure to revert'), 'info');
         }
-        return;
+        return true;
       }
       if (input === 'p') {
         void practiseSection();
-        return;
+        return true;
       }
       if (input === 'P') {
         setQaModalOpen(true);
-        return;
+        return true;
       }
       if (input === 'T') {
         if (status !== 'ok' || !selectedItem) {
@@ -1232,17 +1213,17 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             t(lang, '请先打开复习全书并选择一个知识点', 'Open a review book and select a knowledge point first'),
             'warning',
           );
-          return;
+          return true;
         }
         if (!selectedItem.leaf) {
           useTuiStore.getState().notify(
             t(lang, '章节标题不支持费曼复述，请选择具体叶子知识点', 'Chapter headers cannot be retold — select a leaf knowledge point'),
             'warning',
           );
-          return;
+          return true;
         }
         setRetellModalOpen(true);
-        return;
+        return true;
       }
       if (input === 'E') {
         if (effectiveCourse && status === 'ok' && selectedItem?.leaf && (selectedItem.node?.hid || selectedItem.hid)) {
@@ -1253,7 +1234,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             'info',
           );
         }
-        return;
+        return true;
       }
       if (input === 'B') {
         if (effectiveCourse && status === 'ok') {
@@ -1264,31 +1245,33 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             'info',
           );
         }
-        return;
+        return true;
       }
       if (input === 'M') {
         void planMockExam();
-        return;
+        return true;
       }
       if (input === 'w') {
         setCrunchModalOpen(true);
-        return;
+        return true;
       }
       if (input === 'x') {
         setExportModalOpen(true);
-        return;
+        return true;
       }
       if (input === 'g') {
         setBuildModalOpen(true);
-        return;
+        return true;
       }
       if (key.ctrl && input === 'r') {
         setReadCache({});
         setReloadSeq((n) => n + 1);
+        return true;
       }
+      return false;
     },
-    { isActive: isActive && !modalOpen && !filterEditing },
-  );
+  });
+  useFooterHints(hints, pageActive);
 
   const showFilterBar = status === 'ok' && items.length > 0 && (filterEditing || filterQuery.length > 0);
   const headerH = 2;
@@ -1364,39 +1347,41 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
 
       {/* Inline `/` Live TOC Filter Bar */}
       {showFilterBar ? (
-        <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
-          <Text color={filterEditing ? theme.primary : theme.accent} bold>
-            {filterBadge}
-          </Text>
-          <Box flexGrow={1} overflow="hidden">
-            <TextInput
-              value={filterQuery}
-              onChange={(val) => {
-                setFilterQuery(val);
-                setSelectedIndex(0);
-              }}
-              onSubmit={(val) => {
-                if (!val.trim()) setFilterQuery('');
-                setFilterEditing(false);
-              }}
-              onCancel={() => {
-                setFilterQuery('');
-                setFilterEditing(false);
-                setSelectedIndex(0);
-              }}
-              isActive={isActive && !modalOpen && filterEditing}
-              width={filterInputW}
-              prompt="/"
-              placeholder={t(lang, `标题/编号/HID/文件名${ell}`, `title/number/hid/file${ell}`)}
-              maxLength={120}
-            />
-          </Box>
-          {filterRightHint ? (
-            <Text color={theme.dim} wrap="truncate">
-              {filterRightHint}
+        <KeyScope id="book:filter" opaque active={isActive && filterEditing}>
+          <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+            <Text color={filterEditing ? theme.primary : theme.accent} bold>
+              {filterBadge}
             </Text>
-          ) : null}
-        </Box>
+            <Box flexGrow={1} overflow="hidden">
+              <TextInput
+                value={filterQuery}
+                onChange={(val) => {
+                  setFilterQuery(val);
+                  setSelectedIndex(0);
+                }}
+                onSubmit={(val) => {
+                  if (!val.trim()) setFilterQuery('');
+                  setFilterEditing(false);
+                }}
+                onCancel={() => {
+                  setFilterQuery('');
+                  setFilterEditing(false);
+                  setSelectedIndex(0);
+                }}
+                isActive={isActive && filterEditing}
+                width={filterInputW}
+                prompt="/"
+                placeholder={t(lang, `标题/编号/HID/文件名${ell}`, `title/number/hid/file${ell}`)}
+                maxLength={120}
+              />
+            </Box>
+            {filterRightHint ? (
+              <Text color={theme.dim} wrap="truncate">
+                {filterRightHint}
+              </Text>
+            ) : null}
+          </Box>
+        </KeyScope>
       ) : null}
 
       {/* Main content */}
@@ -1460,7 +1445,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
                 selectedIndex={clampedSelectedIndex}
                 onChange={(idx) => setSelectedIndex(idx)}
                 onSelect={() => setActivePane('right')}
-                isActive={isActive && activePane === 'left' && !modalOpen && !filterEditing}
+                isActive={pageActive && activePane === 'left'}
                 emptyText={normalizedFilter ? t(lang, '没有匹配的章节或知识点', 'No matching TOC items') : undefined}
                 emptyHint={normalizedFilter ? t(lang, '按 Esc 清除筛选或按 / 修改', asciiMode ? 'Esc clear | / edit' : 'Esc clear · / edit') : undefined}
                 keyExtractor={(it) => it.hid}
@@ -1521,7 +1506,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
                     markdown={markdown}
                     width={proseWidth}
                     height={Math.max(3, size.height - 2)}
-                    isActive={isActive && activePane === 'right' && !modalOpen && !filterEditing}
+                    isActive={pageActive && activePane === 'right'}
                     mathUnicode={mathUnicode}
                   />
                 </Box>
@@ -1532,269 +1517,313 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
       )}
 
       {buildModalOpen ? (
-        <Modal
-          title={t(lang, '构建 / 重建复习全书', 'Build Outline & Review Book')}
-          subtitle={effectiveCourse ?? undefined}
-          icon={asciiMode ? '=' : '▣'}
-          onClose={() => setBuildModalOpen(false)}
-          isActive={isActive}
-          width={Math.min(72, Math.max(44, width - 6))}
-          hints={[
-            { key: 'Enter', label: t(lang, '执行', 'Run') },
-            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
-          ]}
-        >
-          <SelectList
-            options={buildOptions}
-            width={modalContentWidth(Math.min(72, Math.max(44, width - 6)))}
-            maxHeight={10}
+        <KeyScope id="book:build" opaque>
+          <Modal
+            title={t(lang, '构建 / 重建复习全书', 'Build Outline & Review Book')}
+            subtitle={effectiveCourse ?? undefined}
+            icon={asciiMode ? '=' : '▣'}
+            onClose={() => setBuildModalOpen(false)}
             isActive={isActive}
-            onSelect={(opt) => void runBuild(opt.value)}
-          />
-        </Modal>
+            width={Math.min(72, Math.max(44, width - 6))}
+            hints={[
+              { key: 'Enter', label: t(lang, '执行', 'Run') },
+              { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+            ]}
+          >
+            <SelectList
+              options={buildOptions}
+              width={modalContentWidth(Math.min(72, Math.max(44, width - 6)))}
+              maxHeight={10}
+              isActive={isActive}
+              onSelect={(opt) => void runBuild(opt.value)}
+            />
+          </Modal>
+        </KeyScope>
       ) : null}
 
-      <Suspense fallback={null}>
-        {aiBlocksOpen ? (
-          <BookAiBlocksModal
-            host={host}
-            course={effectiveCourse ?? null}
-            selectedItem={selectedItem ?? null}
-            bookData={bookData}
-            isActive={isActive && aiBlocksOpen}
-            width={width}
-            height={height}
-            onClose={() => setAiBlocksOpen(false)}
-            onUpdated={(view) => {
-              if (selectedItem?.hid) pendingFocusHidRef.current = selectedItem.hid;
-              setReadCache({});
-              if (view && view.status === 'ok') {
-                setBookData(view);
-                setStructureVersion(extractStructureVersion(view));
-              } else {
+      {aiBlocksOpen ? (
+        <KeyScope id="book:ai-blocks" opaque>
+          <Suspense fallback={null}>
+            <BookAiBlocksModal
+              host={host}
+              course={effectiveCourse ?? null}
+              selectedItem={selectedItem ?? null}
+              bookData={bookData}
+              isActive={isActive && aiBlocksOpen}
+              width={width}
+              height={height}
+              onClose={() => setAiBlocksOpen(false)}
+              onUpdated={(view) => {
+                if (selectedItem?.hid) pendingFocusHidRef.current = selectedItem.hid;
+                setReadCache({});
+                if (view && view.status === 'ok') {
+                  setBookData(view);
+                  setStructureVersion(extractStructureVersion(view));
+                } else {
+                  setReloadSeq((n) => n + 1);
+                }
+              }}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
+
+      {crunchModalOpen ? (
+        <KeyScope id="book:crunch" opaque>
+          <Suspense fallback={null}>
+            <BookCrunchModal
+              host={host}
+              course={effectiveCourse ?? null}
+              isActive={isActive && crunchModalOpen}
+              width={width}
+              height={height}
+              onClose={() => setCrunchModalOpen(false)}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
+
+      {editModalOpen ? (
+        <KeyScope id="book:edit" opaque>
+          <Suspense fallback={null}>
+            <BookEditModal
+              host={host}
+              course={effectiveCourse ?? null}
+              selectedItem={selectedItem ?? null}
+              bookData={bookData}
+              isActive={isActive && editModalOpen}
+              width={width}
+              height={height}
+              onClose={() => setEditModalOpen(false)}
+              onSaved={() => {
+                setReadCache({});
                 setReloadSeq((n) => n + 1);
-              }
-            }}
-          />
-        ) : null}
+              }}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {crunchModalOpen ? (
-          <BookCrunchModal
-            host={host}
-            course={effectiveCourse ?? null}
-            isActive={isActive && crunchModalOpen}
-            width={width}
-            height={height}
-            onClose={() => setCrunchModalOpen(false)}
-          />
-        ) : null}
+      {explainOpen ? (
+        <KeyScope id="book:explain" opaque>
+          <Suspense fallback={null}>
+            <BookExplainModal
+              host={host}
+              course={effectiveCourse ?? null}
+              selectedItem={selectedItem ?? null}
+              isActive={isActive && explainOpen}
+              width={width}
+              height={height}
+              onClose={() => setExplainOpen(false)}
+              onStarted={() => {
+                if (selectedItem?.hid) pendingFocusHidRef.current = selectedItem.hid;
+                setReadCache({});
+                setReloadSeq((n) => n + 1);
+              }}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {editModalOpen ? (
-          <BookEditModal
-            host={host}
-            course={effectiveCourse ?? null}
-            selectedItem={selectedItem ?? null}
-            bookData={bookData}
-            isActive={isActive && editModalOpen}
-            width={width}
-            height={height}
-            onClose={() => setEditModalOpen(false)}
-            onSaved={() => {
-              setReadCache({});
-              setReloadSeq((n) => n + 1);
-            }}
-          />
-        ) : null}
+      {exportModalOpen ? (
+        <KeyScope id="book:export" opaque>
+          <Suspense fallback={null}>
+            <BookExportModal
+              host={host}
+              course={effectiveCourse ?? null}
+              isActive={isActive && exportModalOpen}
+              width={width}
+              height={height}
+              onClose={() => setExportModalOpen(false)}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {explainOpen ? (
-          <BookExplainModal
-            host={host}
-            course={effectiveCourse ?? null}
-            selectedItem={selectedItem ?? null}
-            isActive={isActive && explainOpen}
-            width={width}
-            height={height}
-            onClose={() => setExplainOpen(false)}
-            onStarted={() => {
-              if (selectedItem?.hid) pendingFocusHidRef.current = selectedItem.hid;
-              setReadCache({});
-              setReloadSeq((n) => n + 1);
-            }}
-          />
-        ) : null}
+      {historyOpen ? (
+        <KeyScope id="book:history" opaque>
+          <Suspense fallback={null}>
+            <BookHistoryModal
+              host={host}
+              course={effectiveCourse ?? null}
+              selectedItem={selectedItem ?? null}
+              bookData={bookData}
+              isActive={isActive && historyOpen}
+              width={width}
+              height={height}
+              onClose={() => setHistoryOpen(false)}
+              onReverted={() => {
+                if (selectedItem?.hid) pendingFocusHidRef.current = selectedItem.hid;
+                setReadCache({});
+                setReloadSeq((n) => n + 1);
+              }}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {exportModalOpen ? (
-          <BookExportModal
-            host={host}
-            course={effectiveCourse ?? null}
-            isActive={isActive && exportModalOpen}
-            width={width}
-            height={height}
-            onClose={() => setExportModalOpen(false)}
-          />
-        ) : null}
+      {qaModalOpen ? (
+        <KeyScope id="book:qa" opaque>
+          <Suspense fallback={null}>
+            <BookQaModal
+              host={host}
+              course={effectiveCourse ?? null}
+              selectedNodeId={selectedItem?.key ?? null}
+              selectedHid={selectedItem?.hid ?? null}
+              isActive={isActive && qaModalOpen}
+              width={width}
+              height={height}
+              onClose={() => setQaModalOpen(false)}
+              onChanged={() => {
+                setReadCache({});
+                setReloadSeq((n) => n + 1);
+              }}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {historyOpen ? (
-          <BookHistoryModal
-            host={host}
-            course={effectiveCourse ?? null}
-            selectedItem={selectedItem ?? null}
-            bookData={bookData}
-            isActive={isActive && historyOpen}
-            width={width}
-            height={height}
-            onClose={() => setHistoryOpen(false)}
-            onReverted={() => {
-              if (selectedItem?.hid) pendingFocusHidRef.current = selectedItem.hid;
-              setReadCache({});
-              setReloadSeq((n) => n + 1);
-            }}
-          />
-        ) : null}
+      {retellModalOpen ? (
+        <KeyScope id="book:retell" opaque>
+          <Suspense fallback={null}>
+            <BookRetellModal
+              host={host}
+              course={effectiveCourse ?? null}
+              selectedItem={selectedItem ?? null}
+              isActive={isActive && retellModalOpen}
+              width={width}
+              height={height}
+              mathUnicode={mathUnicode}
+              onClose={() => setRetellModalOpen(false)}
+              onRetold={() => {
+                if (selectedItem?.hid) pendingFocusHidRef.current = selectedItem.hid;
+                setReadCache({});
+                setReloadSeq((n) => n + 1);
+              }}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {qaModalOpen ? (
-          <BookQaModal
-            host={host}
-            course={effectiveCourse ?? null}
-            selectedNodeId={selectedItem?.key ?? null}
-            selectedHid={selectedItem?.hid ?? null}
-            isActive={isActive && qaModalOpen}
-            width={width}
-            height={height}
-            onClose={() => setQaModalOpen(false)}
-            onChanged={() => {
-              setReadCache({});
-              setReloadSeq((n) => n + 1);
-            }}
-          />
-        ) : null}
-
-        {retellModalOpen ? (
-          <BookRetellModal
-            host={host}
-            course={effectiveCourse ?? null}
-            selectedItem={selectedItem ?? null}
-            isActive={isActive && retellModalOpen}
-            width={width}
-            height={height}
-            mathUnicode={mathUnicode}
-            onClose={() => setRetellModalOpen(false)}
-            onRetold={() => {
-              if (selectedItem?.hid) pendingFocusHidRef.current = selectedItem.hid;
-              setReadCache({});
-              setReloadSeq((n) => n + 1);
-            }}
-          />
-        ) : null}
-
-        {structureModalOpen ? (
-          <BookStructureModal
-            host={host}
-            course={effectiveCourse ?? null}
-            mode={structureModalMode}
-            selectedItem={selectedItem ?? null}
-            unplacedSections={unplacedSections}
-            leafPoints={leafPoints}
-            structureVersion={structureVersion}
-            isActive={isActive && structureModalOpen}
-            width={width}
-            height={height}
-            onClose={() => setStructureModalOpen(false)}
-            onRenamed={(nextVer, hid) => {
-              if (typeof nextVer === 'number') setStructureVersion(nextVer);
-              if (hid) pendingFocusHidRef.current = hid;
-              setReadCache({});
-              setReloadSeq((n) => n + 1);
-            }}
-            onPlaced={(nextVer, toHid) => {
-              if (typeof nextVer === 'number') setStructureVersion(nextVer);
-              if (toHid) pendingFocusHidRef.current = toHid;
-              setReadCache({});
-              setReloadSeq((n) => n + 1);
-            }}
-            onConflict={() => {
-              if (selectedItem?.hid) pendingFocusHidRef.current = selectedItem.hid;
-              setReadCache({});
-              setReloadSeq((n) => n + 1);
-            }}
-          />
-        ) : null}
-      </Suspense>
+      {structureModalOpen ? (
+        <KeyScope id="book:structure" opaque>
+          <Suspense fallback={null}>
+            <BookStructureModal
+              host={host}
+              course={effectiveCourse ?? null}
+              mode={structureModalMode}
+              selectedItem={selectedItem ?? null}
+              unplacedSections={unplacedSections}
+              leafPoints={leafPoints}
+              structureVersion={structureVersion}
+              isActive={isActive && structureModalOpen}
+              width={width}
+              height={height}
+              onClose={() => setStructureModalOpen(false)}
+              onRenamed={(nextVer, hid) => {
+                if (typeof nextVer === 'number') setStructureVersion(nextVer);
+                if (hid) pendingFocusHidRef.current = hid;
+                setReadCache({});
+                setReloadSeq((n) => n + 1);
+              }}
+              onPlaced={(nextVer, toHid) => {
+                if (typeof nextVer === 'number') setStructureVersion(nextVer);
+                if (toHid) pendingFocusHidRef.current = toHid;
+                setReadCache({});
+                setReloadSeq((n) => n + 1);
+              }}
+              onConflict={() => {
+                if (selectedItem?.hid) pendingFocusHidRef.current = selectedItem.hid;
+                setReadCache({});
+                setReloadSeq((n) => n + 1);
+              }}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
       {confirmDeleteOpen && selectedItem ? (
-        <ConfirmDialog
-          title={t(lang, '删除目录节点', 'Delete TOC Node')}
-          message={t(
-            lang,
-            `确定删除「${selectedItem.number} ${selectedItem.title}」吗？子节点将上提一级，你写的笔记与问答会保留在「未归位 (Unplaced)」中，不会丢失。`,
-            `Delete "${selectedItem.number} ${selectedItem.title}"? Child items will be promoted, and learner notes & Q&A will be kept safely in Unplaced (未归位).`,
-          )}
-          confirmLabel={t(lang, '删除', 'Delete')}
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          danger
-          isActive={isActive && confirmDeleteOpen}
-          onConfirm={() => void deleteSelectedNode()}
-          onCancel={() => setConfirmDeleteOpen(false)}
-        />
+        <KeyScope id="book:confirm-delete" opaque>
+          <ConfirmDialog
+            title={t(lang, '删除目录节点', 'Delete TOC Node')}
+            message={t(
+              lang,
+              `确定删除「${selectedItem.number} ${selectedItem.title}」吗？子节点将上提一级，你写的笔记与问答会保留在「未归位 (Unplaced)」中，不会丢失。`,
+              `Delete "${selectedItem.number} ${selectedItem.title}"? Child items will be promoted, and learner notes & Q&A will be kept safely in Unplaced (未归位).`,
+            )}
+            confirmLabel={t(lang, '删除', 'Delete')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            danger
+            isActive={isActive && confirmDeleteOpen}
+            onConfirm={() => void deleteSelectedNode()}
+            onCancel={() => setConfirmDeleteOpen(false)}
+          />
+        </KeyScope>
       ) : null}
 
       {confirmRevertOpen ? (
-        <ConfirmDialog
-          title={t(lang, '撤销上次目录调整', 'Revert Last Structure Edit')}
-          message={t(
-            lang,
-            '确定撤销最近一次章节改名、移动或删除操作吗？之后单独编辑过的讲义正文会保留。',
-            'Revert the latest rename, move, or delete structure change? Any section text edited afterward will be kept.',
-          )}
-          confirmLabel={t(lang, '撤销', 'Revert')}
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          danger
-          isActive={isActive && confirmRevertOpen}
-          onConfirm={() => void revertStructure()}
-          onCancel={() => setConfirmRevertOpen(false)}
-        />
+        <KeyScope id="book:confirm-revert" opaque>
+          <ConfirmDialog
+            title={t(lang, '撤销上次目录调整', 'Revert Last Structure Edit')}
+            message={t(
+              lang,
+              '确定撤销最近一次章节改名、移动或删除操作吗？之后单独编辑过的讲义正文会保留。',
+              'Revert the latest rename, move, or delete structure change? Any section text edited afterward will be kept.',
+            )}
+            confirmLabel={t(lang, '撤销', 'Revert')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            danger
+            isActive={isActive && confirmRevertOpen}
+            onConfirm={() => void revertStructure()}
+            onCancel={() => setConfirmRevertOpen(false)}
+          />
+        </KeyScope>
       ) : null}
 
       {confirmUndoRebuildOpen ? (
-        <ConfirmDialog
-          title={t(lang, '撤销本次总纲重组', 'Undo Outline Rebuild')}
-          message={t(
-            lang,
-            '确定放弃本次待确认的新总纲重组并回到原来的总纲结构吗？原有笔记不会被改动。',
-            'Discard the pending outline rebuild and keep the previous outline structure? Existing notes stay unchanged.',
-          )}
-          confirmLabel={t(lang, '撤销重组', 'Undo rebuild')}
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          danger
-          isActive={isActive && confirmUndoRebuildOpen}
-          onConfirm={() => void undoPendingRebuild()}
-          onCancel={() => setConfirmUndoRebuildOpen(false)}
-        />
+        <KeyScope id="book:confirm-undo-rebuild" opaque>
+          <ConfirmDialog
+            title={t(lang, '撤销本次总纲重组', 'Undo Outline Rebuild')}
+            message={t(
+              lang,
+              '确定放弃本次待确认的新总纲重组并回到原来的总纲结构吗？原有笔记不会被改动。',
+              'Discard the pending outline rebuild and keep the previous outline structure? Existing notes stay unchanged.',
+            )}
+            confirmLabel={t(lang, '撤销重组', 'Undo rebuild')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            danger
+            isActive={isActive && confirmUndoRebuildOpen}
+            onConfirm={() => void undoPendingRebuild()}
+            onCancel={() => setConfirmUndoRebuildOpen(false)}
+          />
+        </KeyScope>
       ) : null}
 
       {mockConfirmPlan ? (
-        <ConfirmDialog
-          title={t(lang, '章节模拟卷确认', 'Chapter Mock Exam')}
-          message={(() => {
-            const { plan, title } = mockConfirmPlan;
-            const mins = plan.limitMinutes ?? 30;
-            const skipped = Object.values(plan.leftOut ?? {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
-            const capNoteZh = plan.capped ? `（共 ${plan.eligible} 道可选）` : '';
-            const capNoteEn = plan.capped ? ` (${plan.eligible} eligible)` : '';
-            const skipNoteZh = skipped > 0 ? `，已跳过 ${skipped} 道非选择题` : '';
-            const skipNoteEn = skipped > 0 ? `, ${skipped} non-choice skipped` : '';
-            return t(
-              lang,
-              `已为「${title}」规划 ${plan.count} 道选择题${capNoteZh}，预计限时 ${mins} 分钟${skipNoteZh}。是否立即开始模拟考试？`,
-              `Planned ${plan.count} choice questions for "${title}"${capNoteEn}, ${mins} min limit${skipNoteEn}. Start mock exam now?`,
-            );
-          })()}
-          confirmLabel={t(lang, '开始模考', 'Start Mock')}
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          isActive={isActive && Boolean(mockConfirmPlan)}
-          onConfirm={() => void confirmMockStart()}
-          onCancel={() => setMockConfirmPlan(null)}
-        />
+        <KeyScope id="book:confirm-mock" opaque>
+          <ConfirmDialog
+            title={t(lang, '章节模拟卷确认', 'Chapter Mock Exam')}
+            message={(() => {
+              const { plan, title } = mockConfirmPlan;
+              const mins = plan.limitMinutes ?? 30;
+              const skipped = Object.values(plan.leftOut ?? {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
+              const capNoteZh = plan.capped ? `（共 ${plan.eligible} 道可选）` : '';
+              const capNoteEn = plan.capped ? ` (${plan.eligible} eligible)` : '';
+              const skipNoteZh = skipped > 0 ? `，已跳过 ${skipped} 道非选择题` : '';
+              const skipNoteEn = skipped > 0 ? `, ${skipped} non-choice skipped` : '';
+              return t(
+                lang,
+                `已为「${title}」规划 ${plan.count} 道选择题${capNoteZh}，预计限时 ${mins} 分钟${skipNoteZh}。是否立即开始模拟考试？`,
+                `Planned ${plan.count} choice questions for "${title}"${capNoteEn}, ${mins} min limit${skipNoteEn}. Start mock exam now?`,
+              );
+            })()}
+            confirmLabel={t(lang, '开始模考', 'Start Mock')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            isActive={isActive && Boolean(mockConfirmPlan)}
+            onConfirm={() => void confirmMockStart()}
+            onCancel={() => setMockConfirmPlan(null)}
+          />
+        </KeyScope>
       ) : null}
     </Box>
   );
