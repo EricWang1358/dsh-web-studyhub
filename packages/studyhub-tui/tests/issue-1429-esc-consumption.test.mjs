@@ -27,7 +27,7 @@ const SRC_ROOT = path.resolve(__dirname, '../src');
 const { AppShell } = await import('../src/shell/AppShell.tsx');
 const { useTuiStore } = await import('../src/state/store.ts');
 const { KEY_LAYER_GLOBAL, KEY_LAYER_VIEW, useKeyDispatcherBridge, useScopedInput } = await import(
-  '../src/components/key-dispatcher.ts',
+  '../src/components/key-dispatcher.ts'
 );
 const { TextInput } = await import('../src/components/TextInput.tsx');
 const { DocumentReader } = await import('../src/views/sources/DocumentReader.tsx');
