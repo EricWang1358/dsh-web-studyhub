@@ -7,26 +7,26 @@
  * - Consistent across all AI result pages: same key (`a`), same prompt copy, same quick presets,
  *   same streaming reply & `[N]` save-to-followup/notes action (reuses `card.followup.add` + `note.qa.add`).
  */
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
 import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
-import { errorMessage, type ReviewRun } from '../../host/sample-actions.js';
+import type { ReviewRun } from '../../host/sample-actions.js';
 import {
   buildCardDialogueUserPrompt,
   buildUnifiedAiSystemPrompt,
   canExposeReferenceAnswer,
   persistCardQaToFollowupAndNote,
 } from '../../host/ai-dialogue.js';
+import { AiConversation } from '../../components/AiConversation.js';
 import { Badge, Spinner } from '../../components/Badge.js';
-import { ScrollView } from '../../components/ScrollView.js';
 import { TextInput } from '../../components/TextInput.js';
 import { useInputCapture } from '../../components/focus.js';
 import { ClickableBox, useMouseLayer, useMouseModalBarrier } from '../../components/mouse.js';
-import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
-import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
+import { useAiConversation } from '../../components/useAiConversation.js';
+import { truncateDisplay } from '../../render/cjk.js';
 import {
   MAX_AI_TURNS,
   buildDailyQuestionNoteTitle,
@@ -154,22 +154,24 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
   const [expanded, setExpanded] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
   const [inputValue, setInputValue] = useState('');
-  const [turns, setTurns] = useState<AiTurn[]>([]);
-  const [streaming, setStreaming] = useState(false);
-  const [errorText, setErrorText] = useState<string | null>(null);
   const [savingNote, setSavingNote] = useState(false);
 
-  const {
-    text: streamingText,
-    push: pushStreamingChunk,
-    finish: finishStreaming,
-    reset: resetStreaming,
-  } = useStreamingBuffer();
-
-  const abortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
-  const turnsRef = useRef<AiTurn[]>(turns);
-  turnsRef.current = turns;
+  const conversation = useAiConversation({
+    host,
+    scopeKey: `${cardId}\0${toolLabel}`,
+    lang,
+    maxTurns: MAX_AI_TURNS,
+  });
+  const {
+    turns,
+    turnsRef,
+    streaming,
+    streamingText,
+    errorText,
+    send: sendConversation,
+    abort: abortConversation,
+  } = conversation;
 
   const engaged = expanded || inputFocused;
 
@@ -187,96 +189,40 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      abortRef.current?.abort();
-      abortRef.current = null;
       onFocusChange?.(false);
     };
   }, [onFocusChange]);
 
-  // Reset conversation when card or tool changes.
+  // Reset UI expansion state when card or tool changes (conversation hook handles stream/scope reset).
   useEffect(() => {
-    abortRef.current?.abort();
-    abortRef.current = null;
     setExpanded(false);
     setInputFocused(false);
     setInputValue('');
-    setTurns([]);
-    setStreaming(false);
-    setErrorText(null);
-    resetStreaming();
-  }, [cardId, toolLabel, resetStreaming]);
+  }, [cardId, toolLabel]);
 
   const sendInstruction = useCallback(
     async (raw: string) => {
       const instruction = raw.trim();
       if (!instruction) return;
-      if (typeof host.streamComplete !== 'function') {
-        setErrorText(t(lang, '当前 Host 未提供流式 AI 接口', 'Streaming AI completion is unavailable on this host'));
-        setExpanded(true);
-        return;
-      }
-      abortRef.current?.abort();
-      const ctrl = new AbortController();
-      abortRef.current = ctrl;
-
-      const prior = turnsRef.current;
-      const withUser = [...prior, { role: 'user' as const, text: instruction }].slice(-MAX_AI_TURNS);
-      turnsRef.current = withUser;
-      setTurns(withUser);
       setExpanded(true);
       setInputFocused(false);
-      setStreaming(true);
-      setErrorText(null);
-      resetStreaming();
-
-      try {
-        const finalText = await host.streamComplete({
-          system: buildNextStepSystemPrompt(lang),
-          prompt: buildNextStepUserPrompt({
+      await sendConversation({
+        question: instruction,
+        system: buildNextStepSystemPrompt(lang),
+        buildPrompt: (q, prior) =>
+          buildNextStepUserPrompt({
             run,
             kind,
             userAnswer,
             toolLabel,
             resultContext,
             history: prior,
-            instruction,
+            instruction: q,
             lang,
           }),
-          signal: ctrl.signal,
-          onChunk: (delta) => {
-            if (!mountedRef.current || ctrl.signal.aborted) return;
-            pushStreamingChunk(delta);
-          },
-        });
-        if (!mountedRef.current || ctrl.signal.aborted) return;
-        const flushed = finishStreaming();
-        const reply = (finalText || flushed).trim();
-        if (reply) {
-          const next = [...withUser, { role: 'assistant' as const, text: reply }].slice(-MAX_AI_TURNS);
-          turnsRef.current = next;
-          setTurns(next);
-        }
-        resetStreaming();
-        setStreaming(false);
-      } catch (err) {
-        if (!mountedRef.current || ctrl.signal.aborted) return;
-        const flushed = finishStreaming();
-        setStreaming(false);
-        const partial = flushed.trim();
-        if (partial) {
-          const next = [...withUser, { role: 'assistant' as const, text: partial }].slice(-MAX_AI_TURNS);
-          turnsRef.current = next;
-          setTurns(next);
-          resetStreaming();
-        }
-        setErrorText(errorMessage(err));
-      } finally {
-        if (abortRef.current === ctrl) {
-          abortRef.current = null;
-        }
-      }
+      });
     },
-    [host, lang, run, kind, userAnswer, toolLabel, resultContext, pushStreamingChunk, finishStreaming, resetStreaming],
+    [sendConversation, lang, run, kind, userAnswer, toolLabel, resultContext],
   );
 
   const saveLatestToNotes = useCallback(async () => {
@@ -319,7 +265,7 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
       return;
     }
     notify(t(lang, '已保存为本题追问与学习笔记', 'Saved as card follow-up & study note'), 'success');
-  }, [savingNote, run, host, lang, cardId, toolLabel, notify]);
+  }, [savingNote, run, host, lang, cardId, toolLabel, notify, turnsRef]);
 
   const openAndFocus = useCallback(() => {
     setExpanded(true);
@@ -351,9 +297,7 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
   useInput(
     (input, key) => {
       if (key.escape) {
-        abortRef.current?.abort();
-        resetStreaming();
-        setStreaming(false);
+        abortConversation();
         setExpanded(false);
         return;
       }
@@ -375,32 +319,6 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
   );
 
   const innerW = Math.max(20, width);
-  const scrollTextW = Math.max(12, innerW - 3);
-
-  const transcriptLines = useMemo<string[]>(() => {
-    const out: string[] = [];
-    for (const turn of turns) {
-      const prefix =
-        turn.role === 'user'
-          ? `${asciiMode ? '>' : '▸'} ${t(lang, '你', 'You')}: `
-          : `${asciiMode ? '*' : '✦'} AI: `;
-      const paragraphs = turn.text.split('\n');
-      paragraphs.forEach((p, pIdx) => {
-        const rawLine = pIdx === 0 ? `${prefix}${p}` : p;
-        const wrapped = wrapDisplay(rawLine, scrollTextW);
-        for (const wLine of wrapped) out.push(wLine);
-      });
-      out.push('');
-    }
-    if (streaming) {
-      const live = streamingText || t(lang, `正在思考并回应${ell}`, `Thinking${ell}`);
-      for (const p of live.split('\n')) {
-        for (const wLine of wrapDisplay(p, scrollTextW)) out.push(wLine);
-      }
-    }
-    while (out.length > 0 && out[out.length - 1] === '') out.pop();
-    return out;
-  }, [turns, streaming, streamingText, scrollTextW, asciiMode, lang, ell]);
 
   if (!expanded) {
     return (
@@ -425,10 +343,9 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
     );
   }
 
-  // Expanded panel: header(1) + presets(1) + error(0|1) + scroll(scrollH) + input(3)
-  const errH = errorText ? 1 : 0;
+  // Expanded panel: header(1) + presets(1) + conversation(convH) + input(3)
   const boxH = Math.max(8, expandedHeight);
-  const scrollH = Math.max(2, boxH - 5 - errH);
+  const convH = Math.max(2, boxH - 5);
 
   return (
     <Box flexDirection="column" width={innerW} height={boxH} flexShrink={0} overflow="hidden">
@@ -465,40 +382,21 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
         ))}
       </Box>
 
-      {errorText ? (
-        <Box height={1} width={innerW} overflow="hidden">
-          <Text color={theme.error} wrap="truncate">
-            {`${asciiMode ? 'x' : '✕'} ${errorText}`}
-          </Text>
-        </Box>
-      ) : null}
-
-      {/* Transcript / Empty hint */}
-      <Box height={scrollH} width={innerW} overflow="hidden">
-        {transcriptLines.length > 0 ? (
-          <ScrollView
-            lines={transcriptLines}
-            width={innerW}
-            height={scrollH}
-            isActive={isActive && expanded && !inputFocused}
-            ascii={asciiMode}
-          />
-        ) : (
-          <Box paddingX={1} alignItems="center">
-            <Text color={theme.muted} wrap="truncate">
-              {truncateDisplay(
-                t(
-                  lang,
-                  `已自动带上本题与「${toolLabel}」结果，直接输入要求或点上方快捷项`,
-                  `Card & "${toolLabel}" output attached automatically — type your instruction or pick a preset`,
-                ),
-                Math.max(12, innerW - 2),
-                ell,
-              )}
-            </Text>
-          </Box>
+      {/* Unified Transcript / Error / Empty hint (#1354 D7) */}
+      <AiConversation
+        turns={turns}
+        streaming={streaming}
+        streamingText={streamingText}
+        errorText={errorText}
+        width={innerW}
+        height={convH}
+        isActive={isActive && expanded && !inputFocused}
+        emptyText={t(
+          lang,
+          `已自动带上本题与「${toolLabel}」结果，直接输入要求或点上方快捷项`,
+          `Card & "${toolLabel}" output attached automatically — type your instruction or pick a preset`,
         )}
-      </Box>
+      />
 
       {/* Free-form input */}
       <ClickableBox

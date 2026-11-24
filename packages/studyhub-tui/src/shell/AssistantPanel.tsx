@@ -34,6 +34,7 @@ import { useModalFooterHints } from '../components/focus.js';
 import { useStreamingBuffer } from '../components/useStreamingBuffer.js';
 import { tryAction } from '../host/sample-actions.js';
 import {
+  buildAssistantTurnUserPrompt,
   buildUnifiedAiSystemPrompt,
   formatRetellVerdictLines,
   submitRetellEvaluation,
@@ -901,11 +902,9 @@ export const AssistantPanel = memo(function AssistantPanel({
       stream.reset();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
-      const recentContext = turnsInScope(sessionMemory.turns, turnScopeRef.current).current
-        .filter((x) => x.id !== userTurn.id)
-        .slice(-6)
-        .map((x) => `${x.role}: ${x.text.slice(0, 200)}`)
-        .join('\n');
+      const scopedPrior = turnsInScope(sessionMemory.turns, turnScopeRef.current).current.filter(
+        (x) => x.id !== userTurn.id,
+      );
 
       try {
         const system = buildUnifiedAiSystemPrompt(
@@ -913,16 +912,17 @@ export const AssistantPanel = memo(function AssistantPanel({
           lang,
           { stageLabel: stageLabel(stage, lang) },
         );
-        const promptParts = [
-          cardCtx?.prompt ? `当前题目：${cardCtx.prompt}` : '',
-          cardCtx?.userAnswer ? `我的作答：${cardCtx.userAnswer}` : '',
-          recentContext ? `近期上下文：\n${recentContext}` : '',
-          `指令：${text}`,
-        ].filter(Boolean);
+        const prompt = buildAssistantTurnUserPrompt({
+          cardPrompt: cardCtx?.prompt,
+          userAnswer: cardCtx?.userAnswer,
+          history: scopedPrior,
+          question: text,
+          lang,
+        });
 
         const reply = await host.streamComplete({
           system,
-          prompt: promptParts.join('\n\n'),
+          prompt,
           signal: ctrl.signal,
           onChunk: (delta) => stream.push(delta),
         });

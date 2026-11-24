@@ -3,7 +3,7 @@ import { Box, Text } from 'ink';
 import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import { tryAction, errorMessage, type ReviewRun } from '../../host/sample-actions.js';
+import { tryAction, type ReviewRun } from '../../host/sample-actions.js';
 import {
   buildInitialExplainPrompt,
   canExposeReferenceAnswer,
@@ -16,7 +16,7 @@ import { Panel } from '../../components/Panel.js';
 import { TextInput } from '../../components/TextInput.js';
 import { useInputCapture, useModalFooterHints } from '../../components/focus.js';
 import { ClickableBox } from '../../components/mouse.js';
-import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
+import { useAiConversation } from '../../components/useAiConversation.js';
 import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import {
   MAX_AI_TURNS,
@@ -91,17 +91,6 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
   const ell = asciiMode ? '...' : '…';
   const notify = useTuiStore((s) => s.notify);
 
-  // Local fallback history when rendered standalone without lifted history props.
-  const [localHistoryByCard, setLocalHistoryByCard] = useState<Record<string, AiTurn[]>>({});
-  const {
-    text: streamingText,
-    push: pushStreamingChunk,
-    finish: finishStreaming,
-    reset: resetStreaming,
-  } = useStreamingBuffer();
-  const [streaming, setStreaming] = useState(false);
-  const [reasoningChars, setReasoningChars] = useState(0);
-  const [errorText, setErrorText] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [inputFocused, setInputFocused] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
@@ -110,7 +99,6 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestError, setSuggestError] = useState<string | null>(null);
 
-  const abortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
   const cardIdRef = useRef(cardId);
   cardIdRef.current = cardId;
@@ -123,24 +111,16 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      abortRef.current?.abort();
-      abortRef.current = null;
     };
   }, []);
 
-  // Abort any in-flight stream and reset card-specific suggestions when card changes.
+  // Reset card-specific suggestions and saved badge when card changes.
   useEffect(() => {
-    abortRef.current?.abort();
-    abortRef.current = null;
-    setStreaming(false);
-    resetStreaming();
-    setReasoningChars(0);
-    setErrorText(null);
     setSavedLatest(false);
     setSuggestions([]);
     setSuggestLoading(false);
     setSuggestError(null);
-  }, [cardId, resetStreaming]);
+  }, [cardId]);
 
   const savedTurns = useMemo(() => {
     const solFollowups = extractRunFollowups(run);
@@ -157,35 +137,31 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
     return followupsToAiTurns(merged);
   }, [run, extraSavedFollowups]);
 
-  const turns = useMemo<AiTurn[]>(() => {
-    if (liftedHistory && liftedHistory.length > 0) return [...liftedHistory];
-    const local = localHistoryByCard[cardId];
-    if (local && local.length > 0) return local;
-    if (savedTurns.length > 0) return savedTurns;
-    return [];
-  }, [liftedHistory, localHistoryByCard, cardId, savedTurns]);
-
-  const turnsRef = useRef<AiTurn[]>(turns);
-  turnsRef.current = turns;
+  const conversation = useAiConversation({
+    host,
+    scopeKey: cardId,
+    lang,
+    maxTurns: MAX_AI_TURNS,
+    history: liftedHistory,
+    onHistoryChange,
+    seedTurns: savedTurns,
+  });
+  const {
+    turns,
+    streaming,
+    streamingText,
+    reasoningChars,
+    errorText,
+    hasLocalOrLiftedHistory,
+    send: sendConversation,
+    abort: abortConversation,
+  } = conversation;
 
   const isReusedOnly = useMemo(
     () =>
       savedTurns.length > 0 &&
-      !(liftedHistory && liftedHistory.length > savedTurns.length) &&
-      !(localHistoryByCard[cardId] && localHistoryByCard[cardId].length > savedTurns.length),
-    [savedTurns.length, liftedHistory, localHistoryByCard, cardId],
-  );
-
-  const commitTurns = useCallback(
-    (targetCardId: string, nextTurns: AiTurn[]) => {
-      const capped = nextTurns.slice(-MAX_AI_TURNS);
-      if (onHistoryChange) {
-        onHistoryChange(targetCardId, capped);
-      } else {
-        setLocalHistoryByCard((prev) => ({ ...prev, [targetCardId]: capped }));
-      }
-    },
-    [onHistoryChange],
+      (!hasLocalOrLiftedHistory || turns.length <= savedTurns.length),
+    [savedTurns.length, hasLocalOrLiftedHistory, turns.length],
   );
 
   const buildInitialPrompt = useCallback(
@@ -195,31 +171,12 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
 
   const askAi = useCallback(
     async (question: string) => {
-      const q = question.trim();
-      if (!q) return;
-      if (typeof host.streamComplete !== 'function') {
-        setErrorText(t(lang, '当前 Host 未提供流式 AI 接口', 'Streaming AI completion is unavailable on this host'));
-        return;
-      }
-      abortRef.current?.abort();
-      const ctrl = new AbortController();
-      abortRef.current = ctrl;
-
-      const priorTurns = turnsRef.current;
-      const userTurn: AiTurn = { role: 'user', text: q };
-      const withUser = [...priorTurns, userTurn].slice(-MAX_AI_TURNS);
-      turnsRef.current = withUser;
-      commitTurns(cardId, withUser);
-      setStreaming(true);
-      setSavedLatest(false);
-      resetStreaming();
-      setReasoningChars(0);
-      setErrorText(null);
-
-      try {
-        const finalText = await host.streamComplete({
-          system: buildCardHelpSystemPrompt(lang),
-          prompt: buildCardHelpUserPrompt({
+      await sendConversation({
+        question,
+        system: buildCardHelpSystemPrompt(lang),
+        onBeforeSend: () => setSavedLatest(false),
+        buildPrompt: (q, priorTurns) =>
+          buildCardHelpUserPrompt({
             run,
             kind,
             userAnswer,
@@ -227,53 +184,9 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
             question: q,
             lang,
           }),
-          signal: ctrl.signal,
-          onChunk: (delta) => {
-            if (!mountedRef.current || ctrl.signal.aborted) return;
-            pushStreamingChunk(delta);
-          },
-          onReasoning: (chars) => {
-            if (!mountedRef.current || ctrl.signal.aborted) return;
-            setReasoningChars(chars);
-          },
-        });
-        if (!mountedRef.current || ctrl.signal.aborted) return;
-        const flushed = finishStreaming();
-        const reply = (finalText || flushed).trim();
-        if (reply) {
-          const assistantTurn: AiTurn = { role: 'assistant', text: reply };
-          const next = [...withUser, assistantTurn].slice(-MAX_AI_TURNS);
-          turnsRef.current = next;
-          commitTurns(cardId, next);
-        }
-        resetStreaming();
-        setStreaming(false);
-      } catch (err) {
-        if (!mountedRef.current || ctrl.signal.aborted) return;
-        const flushed = finishStreaming();
-        setStreaming(false);
-        const partial = flushed.trim();
-        if (partial) {
-          const partialTurn: AiTurn = { role: 'assistant', text: partial };
-          const next = [...withUser, partialTurn].slice(-MAX_AI_TURNS);
-          turnsRef.current = next;
-          commitTurns(cardId, next);
-          resetStreaming();
-        }
-        setErrorText(errorMessage(err));
-      } finally {
-        if (abortRef.current === ctrl) {
-          abortRef.current = null;
-          if (!mountedRef.current || ctrl.signal.aborted) {
-            resetStreaming();
-            if (mountedRef.current) setStreaming(false);
-          } else {
-            finishStreaming();
-          }
-        }
-      }
+      });
     },
-    [host, lang, cardId, run, kind, userAnswer, commitTurns, pushStreamingChunk, finishStreaming, resetStreaming],
+    [sendConversation, lang, run, kind, userAnswer],
   );
 
   // Auto-explain ONLY when opened for a card with neither lifted history nor saved follow-ups.
@@ -383,9 +296,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
     (input, key) => {
       if (inputFocused) return;
       if (key.escape || input === 'h') {
-        abortRef.current?.abort();
-        resetStreaming();
-        setStreaming(false);
+        abortConversation();
         onClose();
         return;
       }

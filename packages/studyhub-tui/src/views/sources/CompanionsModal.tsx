@@ -17,6 +17,7 @@ import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
 import { currentCourse } from '../../shell/data.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { cleanPathInput, errorMessage, tryAction } from '../../host/sample-actions.js';
+import { buildCompanionUserPrompt, buildUnifiedAiSystemPrompt } from '../../host/ai-dialogue.js';
 import { completeFsPath, expandHomePath } from './path-complete.js';
 import { groupSourcesFromSnapshot } from './source-helpers.js';
 
@@ -1086,12 +1087,13 @@ export const CompanionsModal = memo(function CompanionsModal({
           setAskAnswer(md);
           finishAskAnswer();
         } else if (typeof host.streamComplete === 'function') {
-          const system = t(
+          const system = buildUnifiedAiSystemPrompt('companion', lang);
+          const prompt = buildCompanionUserPrompt({
+            title: compTitle,
+            summaryContext,
+            question: q,
             lang,
-            '你是 StudyHub 交互伴学导师。请基于伴学课内容与结构简洁回答学习者的困惑，使用 Markdown 与 LaTeX 数学公式。',
-            'You are the StudyHub Interactive Companion tutor. Answer the learner question concisely in Markdown using the companion context.',
-          );
-          const prompt = `Companion: ${compTitle}\n\n${summaryContext}\n\nLearner Question: ${q}`;
+          });
           const final = await host.streamComplete({
             system,
             prompt,

@@ -16,6 +16,7 @@ import { useClaimKeys, useInputCapture } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
 import { errorMessage, startReview, tryAction } from '../../host/sample-actions.js';
+import { buildReaderPageUserPrompt, buildUnifiedAiSystemPrompt } from '../../host/ai-dialogue.js';
 import { MAX_LAST_READ_PAGES, saveTuiPreferences } from '../../host/tui-prefs.js';
 import { wrapDisplay } from '../../render/cjk.js';
 import { formatLongformProse, formatReadingTimeLabel } from '../../render/longform.js';
@@ -1078,12 +1079,15 @@ export const DocumentReader = memo(function DocumentReader({
 
       try {
         if (typeof host.streamComplete === 'function') {
-          const system = t(
+          const system = buildUnifiedAiSystemPrompt('reader_page', lang);
+          const prompt = buildReaderPageUserPrompt({
+            title: pageData.title,
+            page: pageData.page,
+            lastPage: pageData.lastPage,
+            pageText: pageData.text,
+            question: q,
             lang,
-            '你是 StudyHub 终端助教。请严格基于提供的当前页面内容回答用户问题；如需补充通用背景，请明确标注。使用简洁 Markdown 输出。',
-            'You are the StudyHub terminal tutor. Answer based strictly on the provided page text; clearly mark any general background knowledge. Output concise Markdown.',
-          );
-          const prompt = `Document: ${pageData.title} (Page ${pageData.page}/${pageData.lastPage})\n\n--- PAGE TEXT ---\n${pageData.text.slice(0, 14000)}\n--- END ---\n\nQuestion: ${q}`;
+          });
           const final = await host.streamComplete({
             system,
             prompt,
