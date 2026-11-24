@@ -6,7 +6,7 @@
    tripNotice   the toast that says where the control is, when it cannot simply be lit: the path, then what is left to do. Nothing when the control was
                 found where the entry says it is. */
 import { ui, uiFormat } from '../i18n.js';
-import { PREPARE_STEPS } from './entries.js';
+import { PREPARE_STEPS } from './entries-base.js';
 
 /** `{ here, land, settings }` for an entry and the page the learner is on. `here`: look on this page first; `land`: the page to go to otherwise (null: stay); `settings`: the anchor to open Settings at. */
 export function planTrip(entry, { page }) {
