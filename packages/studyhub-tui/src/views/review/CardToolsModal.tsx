@@ -362,7 +362,7 @@ export const CardToolsModal = memo(function CardToolsModal({
   const handleToggleSuspend = useCallback(async () => {
     if (busy) return;
     if (!deckId) {
-      setErrorText(t(lang, '缺少题组 ID，无法暂停/恢复', 'Missing deckId for card.suspend'));
+      setErrorText(t(lang, '缺少题组信息，无法暂停/恢复题目', 'Missing deck context; cannot pause or resume card'));
       return;
     }
     const nextSuspended = !suspended;
@@ -393,7 +393,7 @@ export const CardToolsModal = memo(function CardToolsModal({
   const handleConfirmSlay = useCallback(async () => {
     if (busy) return;
     if (!deckId) {
-      setErrorText(t(lang, '缺少题组 ID，无法斩题', 'Missing deckId for card.slay'));
+      setErrorText(t(lang, '缺少题组信息，无法斩题', 'Missing deck context; cannot slay card'));
       return;
     }
     setBusy(true);

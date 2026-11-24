@@ -510,7 +510,7 @@ export const AssistantPanel = memo(function AssistantPanel({
               appendTurn({
                 role: 'system',
                 stage,
-                actionSummary: `已完成：wrongbook.reason.set（${intent.paramsSummary}）`,
+                actionSummary: t(lang, `已标记错因「${appliedReason}」`, `Marked reason: ${appliedReason}`),
                 text: t(lang, `已完成：错因已标为「${appliedReason}」。按 [z] 可撤销。`, `Done: marked "${appliedReason}". Press [z] to undo.`),
               });
               notify(t(lang, `错因已标为「${appliedReason}」`, `Marked "${appliedReason}"`), 'success');
