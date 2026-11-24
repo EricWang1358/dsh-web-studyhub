@@ -392,7 +392,7 @@ export const NoteEditorModal = memo(function NoteEditorModal({
 
         {error ? (
           <Box marginTop={1}>
-            <Text color={theme.error}>{`${asciiMode ? '!' : '✕'} ${truncateDisplay(error, innerWidth, asciiMode ? '...' : '…')}`}</Text>
+            <Text color={theme.error} wrap="wrap">{`${asciiMode ? '!' : '✕'} ${error}`}</Text>
           </Box>
         ) : null}
 

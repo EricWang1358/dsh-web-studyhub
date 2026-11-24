@@ -449,7 +449,7 @@ export const BookStructureModal = memo(function BookStructureModal({
 
             {error ? (
               <Text color={theme.error}>
-                {`${asciiMode ? '!' : '✕'} ${truncateDisplay(error, Math.max(8, innerW - 3), ell)}`}
+                {`${asciiMode ? '!' : '✕'} ${error}`}
               </Text>
             ) : null}
           </Box>
@@ -511,7 +511,7 @@ export const BookStructureModal = memo(function BookStructureModal({
 
           {error ? (
             <Text color={theme.error}>
-              {`${asciiMode ? '!' : '✕'} ${truncateDisplay(error, Math.max(8, innerW - 3), ell)}`}
+              {`${asciiMode ? '!' : '✕'} ${error}`}
             </Text>
           ) : null}
         </Box>

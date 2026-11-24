@@ -455,7 +455,7 @@ export const RetellModal = memo(function RetellModal({
           <Box flexDirection="row" gap={1}>
             <Badge label={asciiMode ? '! 模型暂不可用' : '▲ 评估暂不可用'} tone="warning" />
             <Text color={theme.error} bold>
-              {truncateDisplay(errorText, Math.max(12, innerW - 20))}
+              {errorText}
             </Text>
           </Box>
           <Text color={theme.muted}>

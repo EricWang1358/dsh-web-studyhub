@@ -455,7 +455,7 @@ export const RoundConfigModal = memo(function RoundConfigModal({
           <Spinner label={t(lang, '正在生成本轮题目…', 'Starting practice round…')} active={isActive} />
         ) : error ? (
           <Text color={theme.error} wrap="wrap">
-            {`${asciiMode ? '! ' : '✕ '}${truncateDisplay(error, Math.max(20, innerW * 2 - 4), ell)}`}
+            {`${asciiMode ? '! ' : '✕ '}${error}`}
           </Text>
         ) : (
           <>

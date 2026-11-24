@@ -1272,7 +1272,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
               ) : error && sortedNotes.length === 0 ? (
                 <EmptyState
                   title={t(lang, '加载笔记失败', 'Failed to load notes')}
-                  hint={truncateDisplay(error, Math.max(16, paneW - 6), asciiMode ? '...' : '…')}
+                  hint={error}
                   icon="!"
                   width={paneW - 4}
                   height={listH}

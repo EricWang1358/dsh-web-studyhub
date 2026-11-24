@@ -662,7 +662,7 @@ export const ExamRunner = memo(function ExamRunner({
 
       {error ? (
         <Box marginBottom={1}>
-          <Text color={theme.error}>{truncateDisplay(error, innerW, ellipsis)}</Text>
+          <Text color={theme.error} wrap="wrap">{error}</Text>
         </Box>
       ) : null}
 

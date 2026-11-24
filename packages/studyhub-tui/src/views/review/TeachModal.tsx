@@ -520,7 +520,7 @@ export const TeachModal = memo(function TeachModal({
           <Box flexDirection="row" gap={1}>
             <Badge label={asciiMode ? '! 暂不可用' : '▲ 无法开启'} tone="warning" />
             <Text color={theme.error} bold>
-              {truncateDisplay(errorText, Math.max(12, innerW - 18))}
+              {errorText}
             </Text>
           </Box>
           <Text color={theme.muted}>
