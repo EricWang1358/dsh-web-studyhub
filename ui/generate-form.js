@@ -94,6 +94,21 @@ export const DIFFICULTIES = Object.freeze([
   { value: 'application', get label() { return ui('应用迁移'); } },
   { value: 'advanced', get label() { return ui('深入辨析'); } },
 ]);
+/** 学习者基础 (#1292): optional foundation level; empty string is default/unspecified. */
+export const LEARNER_LEVELS = Object.freeze([
+  { value: '', get label() { return ui('不指定'); } },
+  { value: 'zero', get label() { return ui('零基础'); } },
+  { value: 'rusty', get label() { return ui('遗忘复健'); } },
+  { value: 'sprint', get label() { return ui('冲刺刷题'); } },
+]);
+export function learnerLevelNote(value) {
+  return ({
+    '': ui('默认：按资料本身内容和所选难度出题，不额外补前置卡。'),
+    zero: ui('零基础：自动扫描资料默认假设但未展开的前置概念，额外补最多 6 张前置基础卡并建立前置依赖；已掌握术语自动跳过。'),
+    rusty: ui('遗忘复健：优先考核心心智模型、主干机制和容易忘的基础前提，再进边缘细节。'),
+    sprint: ui('冲刺刷题：跳过入门定义背诵，侧重高频应用、边界取舍与易错辨析。'),
+  })[value || ''] || '';
+}
 export const LANGUAGES = Object.freeze([
   { value: '中文', get label() { return ui('中文'); } },
   { value: 'English', get label() { return 'English'; } },
@@ -145,20 +160,22 @@ const depthPerformance = (gen) => (DEPTHS.includes(gen?.depth) ? { performance: 
 
 /** The generation request the form sends: the form as typed, the 覆盖强度, the 出题深度 and, only when the learner typed one, a total number of questions. A request without a count is planned by its level. */
 export function generationRequest(gen, { course, sourceIds }) {
-  const { count: _saved, customCount: _typed, autoComplete: _chosen, tokenBudget: _budget, kindCounts: _kc, depth: _depth, ...rest } = gen, custom = customCountOf(gen), budget = parseTokenBudget(gen.tokenBudget);
+  const { count: _saved, customCount: _typed, autoComplete: _chosen, tokenBudget: _budget, kindCounts: _kc, depth: _depth, learnerLevel: _learnerLevel, ...rest } = gen, custom = customCountOf(gen), budget = parseTokenBudget(gen.tokenBudget);
   const patchedKinds = kindsPatch(kindsOfForm(gen), gen.kindCounts);
   const cleanedKinds = patchedKinds.kindCounts ? patchedKinds : { kind: patchedKinds.kind, kinds: patchedKinds.kinds };
-  return { ...rest, ...cleanedKinds, course, sourceIds, notation: normalizeNotation(gen.notation), coverageLevel: levelOf(gen.coverageLevel), autoComplete: autoOf(gen), ...depthPerformance(gen), ...(budget ? { tokenBudget: budget } : {}), ...(custom ? { count: custom } : {}) };
+  const learnerLevel = typeof gen.learnerLevel === 'string' && gen.learnerLevel ? gen.learnerLevel : '';
+  return { ...rest, ...cleanedKinds, course, sourceIds, notation: normalizeNotation(gen.notation), coverageLevel: levelOf(gen.coverageLevel), autoComplete: autoOf(gen), ...depthPerformance(gen), ...(learnerLevel ? { learnerLevel } : {}), ...(budget ? { tokenBudget: budget } : {}), ...(custom ? { count: custom } : {}) };
 }
 
 /** What `usage.estimate` is asked for the same form and materials: the plan of the chosen 覆盖强度 (or the typed number), priced from the real prompts. The
     form's estimate line and the first-run line's third step ask with this one request, so both say the same before anything is spent. */
 export function estimateRequestOf(gen, { course, sourceIds, reasoningEffort = '' }) {
   const custom = customCountOf(gen);
+  const learnerLevel = typeof gen.learnerLevel === 'string' && gen.learnerLevel ? gen.learnerLevel : '';
   return { feature: 'generate', sourceIds, referenceSourceIds: gen.referenceSourceIds || [], referenceLimits: gen.referenceLimits, referenceFormat: gen.referenceFormat,
     coverageLevel: levelOf(gen.coverageLevel ?? DEFAULT_LEVEL), ...(custom ? { count: custom } : {}), kind: gen.kind, kinds: kindsOfForm(gen),
     ...(gen.kindCounts ? { kindCounts: gen.kindCounts } : {}), ...(gen.moduleOverrides ? { moduleOverrides: gen.moduleOverrides } : {}), ...depthPerformance(gen),
-    difficulty: gen.difficulty, language: gen.language, course, ...(reasoningEffort ? { reasoningEffort } : {}) };
+    difficulty: gen.difficulty, ...(learnerLevel ? { learnerLevel } : {}), language: gen.language, course, ...(reasoningEffort ? { reasoningEffort } : {}) };
 }
 
 /** Whether the run goes on by itself (「自动补到完整」): what the learner chose, else what the level's row of the table says (lib/coverage-strength.js: 精简 waits for the learner, 标准 and 完整 go on). */
@@ -268,6 +285,7 @@ export function chosenOptions(gen = {}, plain = {}) {
   const label = (list, value) => list.find((item) => item.value === value)?.label || '';
   return [
     gen.difficulty && gen.difficulty !== (plain.difficulty ?? 'mixed') && label(DIFFICULTIES, gen.difficulty),
+    (gen.learnerLevel ?? '') !== (plain.learnerLevel ?? '') && label(LEARNER_LEVELS, gen.learnerLevel ?? ''),
     gen.language && gen.language !== plain.language && languageLabel(gen.language),
     (gen.notation ?? 'auto') !== (plain.notation ?? 'auto') && label(NOTATION_CHOICES, gen.notation),
   ].filter(Boolean);
@@ -334,6 +352,7 @@ export function moreValuesOf(gen = {}, defaults = {}) {
   if (typeof gen.autoComplete === 'boolean') return true;
   if (extraValuesOf(gen)) return true;
   if (['difficulty', 'language'].some(key => defaults[key] !== undefined && gen[key] !== undefined && gen[key] !== defaults[key])) return true;
+  if ((gen.learnerLevel ?? '') !== (defaults.learnerLevel ?? '')) return true;
   return (gen.notation ?? 'auto') !== (defaults.notation ?? 'auto');
 }
 
