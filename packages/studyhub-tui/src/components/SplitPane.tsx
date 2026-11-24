@@ -2,6 +2,7 @@ import React, { memo, type ReactNode } from 'react';
 import { Box, Text } from 'ink';
 import { useTheme } from '../theme/tokens.js';
 import { t, useTuiStore } from '../state/store.js';
+import { LAYOUT_BP } from './layout-tokens.js';
 
 export interface PaneSize {
   width: number;
@@ -45,7 +46,7 @@ export function computeSplit(
   width: number,
   opts: { leftWidth?: number; minLeft?: number; minRight?: number; breakpoint?: number; gap?: number } = {},
 ): { narrow: boolean; left: number; right: number; gap: number } {
-  const { leftWidth = 0.4, minLeft = 24, minRight = 32, breakpoint = 86, gap = 1 } = opts;
+  const { leftWidth = 0.4, minLeft = 24, minRight = 32, breakpoint = LAYOUT_BP.SPLIT_DEFAULT, gap = 1 } = opts;
   if (width < breakpoint) return { narrow: true, left: width, right: width, gap: 0 };
   let left = leftWidth <= 1 ? Math.round(width * leftWidth) : Math.round(leftWidth);
   left = Math.max(minLeft, Math.min(left, width - minRight - gap));
@@ -62,7 +63,7 @@ export const SplitPane = memo(function SplitPane({
   leftWidth = 0.4,
   minLeft = 24,
   minRight = 32,
-  breakpoint = 86,
+  breakpoint = LAYOUT_BP.SPLIT_DEFAULT,
   activePane = 'left',
   narrowMode = 'tabs',
   leftLabel,

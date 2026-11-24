@@ -5,14 +5,15 @@ import { t, useTuiStore } from '../state/store.js';
 import { useTheme } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { RESERVED_GLOBAL_KEY_SET, useClaimedKeys } from '../components/focus.js';
+import { LAYOUT_BP, LAYOUT_CHROME } from '../components/layout-tokens.js';
 import { ClickableBox } from '../components/mouse.js';
 import { formatReturnHintLabel } from '../state/practice-stack.js';
 import { draftCount, dueToday, pageIcon, runningJobs, wrongCount } from './data.js';
 
-export const SIDENAV_WIDTH = 24;
-export const SIDENAV_COLLAPSED_WIDTH = 6;
+export const SIDENAV_WIDTH = LAYOUT_CHROME.SIDENAV_EXPANDED;
+export const SIDENAV_COLLAPSED_WIDTH = LAYOUT_CHROME.SIDENAV_COLLAPSED;
 /** Below this terminal width the rail auto-collapses to icons. */
-export const SIDENAV_AUTO_COLLAPSE = 100;
+export const SIDENAV_AUTO_COLLAPSE = LAYOUT_BP.SIDENAV_AUTO_COLLAPSE;
 
 export function sideNavWidth(columns: number, collapsedPref: boolean): number {
   return collapsedPref || columns < SIDENAV_AUTO_COLLAPSE ? SIDENAV_COLLAPSED_WIDTH : SIDENAV_WIDTH;

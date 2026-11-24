@@ -6,6 +6,7 @@ import { KeyHintBar, Spinner, ToastStack } from '../components/Badge.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import { RESERVED_GLOBAL_KEY_SET, isKeyClaimed, resolveShellFooterHints, useContextualFooterTip, useModalHints } from '../components/focus.js';
 import { KEY_LAYER_GLOBAL, KEY_LAYER_SYSTEM, KeyScopeProvider, useKeyDispatcherBridge, useScopedInput } from '../components/key-dispatcher.js';
+import { LAYOUT_BP } from '../components/layout-tokens.js';
 import { useMouseClickInputFallback } from '../components/mouse.js';
 import { useStableWindowSize } from '../components/resize.js';
 import { TopBar } from './TopBar.js';
@@ -130,7 +131,7 @@ export const AppShell = memo(function AppShell({
     launchpad: showLaunchpad || (assistantOpen && assistantFullscreen),
   });
   const dockActive = assistantOpen && !assistantFullscreen && !showLaunchpad;
-  const dockSideBySide = dockActive && columns - navW >= 78;
+  const dockSideBySide = dockActive && columns - navW >= LAYOUT_BP.DOCK_SIDE_BY_SIDE;
   const dockW = dockSideBySide ? Math.min(54, Math.max(36, Math.floor((columns - navW) * 0.42))) : Math.max(20, columns - navW - 2);
   const dockH = dockSideBySide ? bodyH : Math.max(8, Math.floor(bodyH * 0.42));
   const contentW = dockSideBySide ? Math.max(24, columns - navW - dockW - 2) : fullContentW;

@@ -9,6 +9,7 @@ import { Modal, modalContentWidth } from '../components/Modal.js';
 import { ScrollView } from '../components/ScrollView.js';
 import { ClickableBox } from '../components/mouse.js';
 import { pageIcon } from './data.js';
+import { buildGlobalHelpShortcuts } from './global-keymap.js';
 
 export interface HelpOverlayProps {
   isActive: boolean;
@@ -23,33 +24,7 @@ export interface ShortcutSection {
 }
 
 export function globalShortcuts(lang: 'zh' | 'en', asciiMode = false): KeyHint[] {
-  return [
-    { key: 'Ctrl+K  /', label: t(lang, '命令面板 / 全文搜题与原文', 'Command palette & search') },
-    { key: 'Ctrl+Space', label: t(lang, '停靠 AI 助手 / 带学 (Ctrl+G聚焦 c/C/y复制 F全屏)', 'Dock AI Assistant (Ctrl+G focus, c/C/y copy, F full)') },
-    { key: '?', label: t(lang, '帮助', 'Help') },
-    { key: 'c', label: t(lang, '切换课程', 'Switch course') },
-    { key: 'I', label: t(lang, '收件箱与通知', 'Notification inbox') },
-    { key: '1-9 0', label: t(lang, '跳转页面', 'Jump to page') },
-    { key: '[  ]', label: t(lang, '上/下一页面', 'Prev / next page') },
-    { key: asciiMode ? 'Bksp' : '⌫', label: t(lang, '返回', 'Back') },
-    { key: '\\', label: t(lang, '折叠侧栏', 'Toggle sidebar') },
-    { key: 'Ctrl+R', label: t(lang, '刷新', 'Refresh') },
-    { key: 'q', label: t(lang, '退出', 'Quit') },
-    { key: asciiMode ? 'j/k' : 'j/k ↑↓', label: t(lang, '列表 / 行移动', 'Move up / down') },
-    { key: 'Ctrl+D/U', label: t(lang, '半页下/上翻', 'Half-page scroll') },
-    { key: 'Ctrl+F/B', label: t(lang, '整页下/上翻', 'Full-page scroll') },
-    { key: 'g/G', label: t(lang, '首尾跳转 (Home/End)', 'Top / bottom (Home/End)') },
-    { key: 'Esc', label: t(lang, '关闭 / 取消', 'Close / cancel') },
-    { key: 'Ctrl+S', label: t(lang, '提交 (Ctrl+J/Shift+Enter换行)', 'Submit (Ctrl+J/Shift+Enter nl)') },
-    {
-      key: asciiMode ? 'Alt+Click' : t(lang, 'Alt+点击', 'Alt+Click'),
-      label: t(
-        lang,
-        'Alt+点击 = 鼠标操作；普通点击保留终端选择 (--mouse-alt=0 放开普通点击)',
-        'Alt+click = mouse action; plain click keeps terminal selection (--mouse-alt=0 allows plain)',
-      ),
-    },
-  ];
+  return buildGlobalHelpShortcuts(lang, asciiMode);
 }
 
 export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {

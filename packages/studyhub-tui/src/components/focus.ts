@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import type { KeyHint } from '../types/contracts.js';
 import { useTuiStore } from '../state/store.js';
 import { getCachedContextualTipSelector, loadContextualTipSelector, modelInfo, type SelectContextualTipFn } from '../shell/data.js';
+import { buildCloseFooterHint, buildDefaultFooterHints, buildFooterTailHints } from '../shell/global-keymap.js';
 
 /**
  * Reserved global shortcuts that no primary view or sub-view may claim or shadow.
@@ -172,29 +173,19 @@ export interface ShellFooterHintsInput {
   lang: 'zh' | 'en';
 }
 
-/** Compute the active bottom KeyHintBar entries, prioritizing modal > page > default global hints (#1352). */
+/** Compute the active bottom KeyHintBar entries, prioritizing modal > page > default global hints (#1352 / #1354 P2-a). */
 export function resolveShellFooterHints(inp: ShellFooterHintsInput): KeyHint[] {
-  const zh = inp.lang === 'zh';
   if (inp.modalHints && inp.modalHints.length > 0) return [...inp.modalHints];
-  const tail: KeyHint[] = [
-    { key: 'Ctrl+K', label: zh ? '命令' : 'Cmd' },
-    { key: '?', label: inp.compactMode && inp.footerHints.length > 4 ? (zh ? '全部键' : 'All') : zh ? '帮助' : 'Help' },
-  ];
+  const tail = buildFooterTailHints(inp.lang, inp.compactMode && inp.footerHints.length > 4);
   const prefix: KeyHint[] = inp.practiceReturnLabel ? [{ key: 'r', label: inp.practiceReturnLabel }] : [];
   if (inp.footerHints.length > 0) {
     const base = inp.compactMode ? inp.footerHints.slice(0, 4) : [...inp.footerHints];
     return inp.inputCaptured ? base : [...prefix, ...base, ...tail];
   }
   if (inp.inputCaptured || inp.overlayOpen) {
-    return [{ key: 'Esc', label: zh ? '关闭' : 'Close' }];
+    return [buildCloseFooterHint(inp.lang)];
   }
-  const defaults: KeyHint[] = [
-    { key: '1-9', label: zh ? '页面' : 'Pages' },
-    { key: 'c', label: zh ? '课程' : 'Course' },
-    { key: '[ ]', label: zh ? '切换' : 'Cycle' },
-    { key: 'q', label: zh ? '退出' : 'Quit' },
-  ];
-  return [...prefix, ...defaults, ...tail];
+  return [...prefix, ...buildDefaultFooterHints(inp.lang), ...tail];
 }
 
 /** Lazy-loaded contextual footer usage tip selector hook (#1317). */

@@ -6,6 +6,7 @@ import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { useTuiStore } from '../state/store.js';
 import { useInputCapture, useModalFooterHints } from './focus.js';
 import { KEY_LAYER_MODAL_FRAME, KeyScopeProvider, useKeyScopeDepth, useScopedInput } from './key-dispatcher.js';
+import { LAYOUT_CHROME } from './layout-tokens.js';
 import { useStableWindowSize } from './resize.js';
 import {
   ClickableBox,
@@ -43,7 +44,7 @@ export interface ModalProps {
 
 /** Inner content width for a modal of `frameWidth` (border 2 + padding 4). */
 export function modalContentWidth(frameWidth: number): number {
-  return Math.max(10, frameWidth - 6);
+  return Math.max(10, frameWidth - LAYOUT_CHROME.MODAL_CHROME_X);
 }
 
 export const Modal = memo(function Modal({
@@ -81,8 +82,11 @@ export const Modal = memo(function Modal({
     },
     { isActive: isActive && Boolean(onClose), layer: KEY_LAYER_MODAL_FRAME, depth: keyDepth, id: 'Modal:esc' },
   );
-  const frameWidth = Math.max(24, Math.min(width ?? 72, columns - 4));
-  const inner = frameWidth - 4;
+  const frameWidth = Math.max(
+    LAYOUT_CHROME.MODAL_MIN_WIDTH,
+    Math.min(width ?? LAYOUT_CHROME.MODAL_DEFAULT_WIDTH, columns - LAYOUT_CHROME.MODAL_MARGIN_X),
+  );
+  const inner = frameWidth - LAYOUT_CHROME.PANEL_CHROME_X;
   const accent = toneColor(theme, tone);
   const ell = asciiMode ? '...' : '…';
   const head = `${icon ? `${icon} ` : ''}${title}`;

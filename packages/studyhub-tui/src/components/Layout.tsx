@@ -12,12 +12,13 @@ import { Box, Text } from 'ink';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { useTuiStore } from '../state/store.js';
+import { LAYOUT_CHROME } from './layout-tokens.js';
 
-export const GRID_GUTTER = 1;
-export const PAGE_PADDING_X = 1;
-export const SECTION_GAP = 1;
+export const GRID_GUTTER = LAYOUT_CHROME.GRID_GUTTER;
+export const PAGE_PADDING_X = LAYOUT_CHROME.PAGE_PADDING_X;
+export const SECTION_GAP = LAYOUT_CHROME.SECTION_GAP;
 /** Comfortable reading measure cap (Round 83 Track A2): ultrawide screens center prose within 96 columns. */
-export const PROSE_MAX_COLS = 96;
+export const PROSE_MAX_COLS: number = LAYOUT_CHROME.PROSE_MAX_COLS;
 
 export type DensityMode = 'relaxed' | 'compact';
 

@@ -14,10 +14,11 @@ import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys, useInputCapture } from '../../components/focus.js';
+import { computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { useTheme } from '../../theme/tokens.js';
 import { useShellActions } from '../../shell/actions.js';
-import { displayWidth, truncateDisplay } from '../../render/cjk.js';
+import { truncateDisplay } from '../../render/cjk.js';
 import { renderStatTable } from '../../render/charts.js';
 import { buildTaskProgressTitle, writeTerminalNotification, writeTerminalTitle } from '../../render/terminal-title.js';
 import { atomicWriteExportText, atomicWriteJsonFile, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
@@ -1736,13 +1737,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
   const splitH = Math.max(4, height - topBarH - filterBarH);
   const ell = asciiMode ? '...' : '…';
   const filterBadge = `[${filterEditing ? t(lang, '筛选', 'Filter') : t(lang, '已筛选', 'Filtered')} ${filteredJobs.length}/${tabJobs.length}] `;
-  const filterRightHint =
-    width >= 66
-      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
-      : width >= 46
-        ? ' Esc'
-        : '';
-  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
+  const { rightHint: filterRightHint, inputWidth: filterInputW } = computeFilterBarLayout(width, filterBadge, lang, filterEditing);
 
   const runningCount = allNormalized.activeAndRecent.filter((j) => ACTIVE_STATUSES.has(j.status)).length;
   const allCount = allNormalized.activeAndRecent.length + allNormalized.archived.length;
