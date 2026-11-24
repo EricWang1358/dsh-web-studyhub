@@ -1671,6 +1671,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
   }, [asciiMode]);
 
   // Sync rich current card context into persistent AI Assistant without mutating practiceStack (#1315/#1319 coexistence)
+  const hasCitation = Boolean(citation);
   useEffect(() => {
     if (!run || !cardId || isFinished) return;
     useTuiStore.getState().setAssistantCardContext({
@@ -1685,9 +1686,9 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
       isWrong: Boolean(feedback && feedback.correct === false),
       revealed,
       isExam: run.mode === 'exam',
-      hasCitation: Boolean(citation),
+      hasCitation,
     });
-  }, [run, cardId, isFinished, kind, selectedIds, clozeInputs, openDraft, feedback, revealed, citation, lang]);
+  }, [run, cardId, isFinished, kind, selectedIds, clozeInputs, openDraft, feedback, revealed, hasCitation, lang]);
 
   // Hooks above, early returns below.
   const activeTranslation = useMemo<CardTranslation | null>(() => {
