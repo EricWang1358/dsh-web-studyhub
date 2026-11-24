@@ -20,14 +20,27 @@ import type { GuidedStageId } from '../render/clipboard.js';
 
 export type AssistantTabId = 'assistant' | 'guided';
 
+export interface AssistantCardCitation {
+  sourceId?: string;
+  sourceTitle?: string;
+  pageNumber?: number;
+  quote?: string;
+}
+
 export interface AssistantCardContext {
   runId?: string;
   deckId?: string;
   cardId: string;
   cardIndex?: number;
   total?: number;
+  topic?: string;
   prompt?: string;
+  options?: Array<{ id: string; text: string; correct?: boolean }>;
   userAnswer?: string;
+  /** Fixed grounding fields for true multi-turn assistant tutoring (#1445). */
+  answer?: string;
+  explanation?: string;
+  citations?: AssistantCardCitation[];
   kind?: string;
   isWrong?: boolean;
   revealed?: boolean;
@@ -37,6 +50,15 @@ export interface AssistantCardContext {
   filterQuery?: string;
   selectedLabel?: string;
 }
+
+/** The parts of a review run the store hands from the assistant to ReviewView (#1447). */
+export type ReviewRunLike = {
+  id?: string;
+  index?: number;
+  deckId?: string | null;
+  card?: { id?: string; [k: string]: unknown } | null;
+  [k: string]: unknown;
+};
 
 export const DEFAULT_PREFERENCES: TuiPreferences = {
   theme: 'dsh-dark',
@@ -88,6 +110,16 @@ export interface TuiStoreState {
   /** Practice Context Stack (#1319) — LIFO stack preserving question/draft/reading state across jumps. */
   practiceStack: PracticeContextFrame[];
   pendingPracticeRestore: PracticeContextFrame | null;
+
+  /**
+   * The run an assistant action got back from the backend (#1447). Review consumes it and applies it,
+   * so a slay/undo/queue edit/grade change made in the assistant is visible there immediately.
+   */
+  pendingReviewRun: ReviewRunLike | null;
+  /** Bumped with every pending run, so an identical run is still applied. */
+  pendingReviewRunSeq: number;
+  setPendingReviewRun: (run: ReviewRunLike | null) => void;
+  consumePendingReviewRun: () => ReviewRunLike | null;
 
   /** Persistent AI Assistant + Guided Study/Retell panel (#1315 Phase 1). Opening/closing NEVER touches practiceStack. */
   assistantOpen: boolean;
@@ -188,6 +220,8 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
   showLaunchpad: false,
   practiceStack: [],
   pendingPracticeRestore: null,
+  pendingReviewRun: null,
+  pendingReviewRunSeq: 0,
   assistantOpen: false,
   assistantFocused: false,
   assistantTab: 'assistant',
@@ -300,6 +334,18 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
   },
 
   clearPracticeStack: () => set({ practiceStack: [], pendingPracticeRestore: null }),
+
+  setPendingReviewRun: (run) =>
+    set((state) => ({
+      pendingReviewRun: run,
+      pendingReviewRunSeq: run ? state.pendingReviewRunSeq + 1 : state.pendingReviewRunSeq,
+    })),
+
+  consumePendingReviewRun: () => {
+    const run = get().pendingReviewRun;
+    if (run) set({ pendingReviewRun: null });
+    return run;
+  },
 
   openAssistant: (opts) =>
     set((state) => ({

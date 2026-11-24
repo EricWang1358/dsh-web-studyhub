@@ -1144,7 +1144,7 @@ export const CompanionsModal = memo(function CompanionsModal({
           openTarget = rawPath;
         }
       }
-      const res = await tryAction(host, 'app.open', { url: openTarget, path: rawPath });
+      const res = await tryAction(host, 'app.open', { url: openTarget });
       if (!mountedRef.current) return;
       if (res.ok) {
         notify(t(lang, `已请求外部打开: ${rawPath}`, `Opened externally: ${rawPath}`), 'success');
@@ -1152,7 +1152,11 @@ export const CompanionsModal = memo(function CompanionsModal({
       } else {
         setPathNotice(rawPath);
         notify(
-          t(lang, `终端模式请用浏览器打开: ${rawPath}`, `Open HTML in browser: ${rawPath}`),
+          t(
+            lang,
+            `无法直接打开（${res.error?.message || '路径不在允许范围'}）：${rawPath}。请用浏览器打开。`,
+            `Cannot open directly (${res.error?.message || 'path not allowed'}): ${rawPath}. Open it in a browser instead.`,
+          ),
           'info',
         );
       }
