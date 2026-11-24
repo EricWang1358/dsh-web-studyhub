@@ -1,10 +1,11 @@
 import React, { memo, type ReactNode } from 'react';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text, useInput } from 'ink';
 import type { KeyHint } from '../types/contracts.js';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { useTuiStore } from '../state/store.js';
 import { useInputCapture, useModalFooterHints } from './focus.js';
+import { useStableWindowSize } from './resize.js';
 import {
   ClickableBox,
   MOUSE_LAYER_MODAL,
@@ -60,7 +61,7 @@ export const Modal = memo(function Modal({
 }: ModalProps) {
   const theme = useTheme();
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
-  const { columns, rows } = useWindowSize();
+  const { columns, rows } = useStableWindowSize();
   const parentLayer = useMouseLayer();
   const modalLayer = overlay ? Math.max(MOUSE_LAYER_MODAL, parentLayer + MOUSE_LAYER_MODAL) : parentLayer;
   // Opaque modal capture (#1354 D1): while mounted, a modal always captures global input
