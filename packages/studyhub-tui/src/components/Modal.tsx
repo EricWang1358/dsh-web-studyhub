@@ -4,7 +4,7 @@ import type { KeyHint } from '../types/contracts.js';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { useTuiStore } from '../state/store.js';
-import { useInputCapture } from './focus.js';
+import { useInputCapture, useModalFooterHints } from './focus.js';
 import {
   ClickableBox,
   MOUSE_LAYER_MODAL,
@@ -63,8 +63,11 @@ export const Modal = memo(function Modal({
   const { columns, rows } = useWindowSize();
   const parentLayer = useMouseLayer();
   const modalLayer = overlay ? Math.max(MOUSE_LAYER_MODAL, parentLayer + MOUSE_LAYER_MODAL) : parentLayer;
-  useInputCapture(isActive && captureInput);
-  useMouseModalBarrier(isActive && overlay, modalLayer);
+  // Opaque modal capture (#1354 D1): while mounted, a modal always captures global input
+  // and blocks background mouse clicks even if its own isActive is temporarily false (e.g. busy/nested child).
+  useInputCapture(captureInput);
+  useMouseModalBarrier(overlay, modalLayer);
+  useModalFooterHints(hints, isActive && overlay);
   useInput(
     (_input, key) => {
       if (key.escape) onClose?.();
