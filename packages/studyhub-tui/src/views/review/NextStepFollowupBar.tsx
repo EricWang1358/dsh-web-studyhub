@@ -21,6 +21,7 @@ import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
 import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import {
   MAX_AI_TURNS,
+  buildDailyQuestionNoteTitle,
   currentDeckIdOf,
   extractReferenceAnswer,
   kindLabel,
@@ -314,16 +315,26 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
       notify(fuRes.error?.message || t(lang, '保存追问失败', 'Failed to save follow-up'), 'error');
       return;
     }
+    const noteTitle = buildDailyQuestionNoteTitle(run, useTuiStore.getState().snapshot?.decks, lang);
     const noteRes = await tryAction<{ status?: string }>(host, 'note.qa.add', {
       deckId,
       cardId,
       followupId: fuRes.value.item.id,
+      title: noteTitle,
       language: lang,
     });
     if (!mountedRef.current) return;
     setSavingNote(false);
     if (!noteRes.ok) {
-      notify(noteRes.error?.message || t(lang, '写入学习笔记失败', 'Failed to save to study notes'), 'error');
+      const reason = noteRes.error?.message || t(lang, '写入学习笔记失败', 'Failed to save to study notes');
+      notify(
+        t(
+          lang,
+          `已保存为本题追问，但写入学习笔记失败：${reason}`,
+          `Saved as card follow-up, but adding to study notes failed: ${reason}`,
+        ),
+        'warning',
+      );
       return;
     }
     notify(t(lang, '已保存为本题追问与学习笔记', 'Saved as card follow-up & study note'), 'success');

@@ -487,6 +487,25 @@ export function currentDeckIdOf(run: ReviewRun | null | undefined): string | nul
   return firstScope || null;
 }
 
+/** Build the daily course study-note title expected by `note.qa.add` (mirrors `ui/review/question-note.js`). */
+export function buildDailyQuestionNoteTitle(
+  run: ReviewRun | null | undefined,
+  decks: ReadonlyArray<{ id?: string; course?: string; folder?: string }> | undefined,
+  lang: UiLanguage,
+  now: Date = new Date(),
+): string {
+  const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const deckId = currentDeckIdOf(run);
+  const deck = deckId && Array.isArray(decks) ? decks.find((d) => d.id === deckId) : null;
+  const cardRec = run?.card as Record<string, unknown> | null | undefined;
+  const runRec = run as Record<string, unknown> | null | undefined;
+  const course = String(deck?.course ?? deck?.folder ?? cardRec?.course ?? runRec?.course ?? '').trim();
+  if (lang === 'en') {
+    return course ? `${day} · ${course} · Study Notes` : `Study Notes · ${day}`;
+  }
+  return course ? `${day} · ${course} · 学习笔记` : `学习笔记 · ${day}`;
+}
+
 export function buildCardHelpSystemPrompt(lang: UiLanguage): string {
   return lang === 'en'
     ? 'You are a concise, insightful study tutor inside a terminal flashcard/quiz app. Explain concepts clearly using structured bullet points and standard Markdown/LaTeX math ($...$ or $$...$$). Focus on why the answer is right, why common traps are wrong, and intuitive mental models.'

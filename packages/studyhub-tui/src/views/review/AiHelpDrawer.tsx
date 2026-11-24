@@ -17,6 +17,7 @@ import {
   MAX_AI_TURNS,
   buildCardHelpSystemPrompt,
   buildCardHelpUserPrompt,
+  buildDailyQuestionNoteTitle,
   currentDeckIdOf,
   extractRunFollowups,
   type AiTurn,
@@ -340,18 +341,17 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       notify(followupRes.error?.message || t(lang, '保存追问失败', 'Failed to save follow-up'), 'error');
       return;
     }
+    const noteTitle = buildDailyQuestionNoteTitle(run, useTuiStore.getState().snapshot?.decks, lang);
     const noteRes = await tryAction<{ status?: string }>(host, 'note.qa.add', {
       deckId,
       cardId,
       followupId: followupRes.value.item.id,
+      title: noteTitle,
       language: lang,
     });
     if (!mountedRef.current) return;
     setSavingNote(false);
-    if (!noteRes.ok) {
-      notify(noteRes.error?.message || t(lang, '写入学习笔记失败', 'Failed to add Q&A to notes'), 'error');
-      return;
-    }
+    // Step 1 (card.followup.add) already succeeded on disk; reflect saved state immediately even if note write fails.
     setSavedLatest(true);
     onSavedFollowup?.(cardId, {
       id: followupRes.value.item.id,
@@ -359,7 +359,19 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       answer: answerText.slice(0, 8000),
       at: new Date().toISOString(),
     });
-    notify(t(lang, '已将问答保存到学习笔记，下次打开将直接复用', 'Saved Q&A to notes (reused next time)'), 'success');
+    if (!noteRes.ok) {
+      const reason = noteRes.error?.message || t(lang, '写入学习笔记失败', 'Failed to add Q&A to notes');
+      notify(
+        t(
+          lang,
+          `已保存到本题讲解（下次可直接复用），但写入学习笔记失败：${reason}`,
+          `Saved to question explanations (reused next time), but adding to notes failed: ${reason}`,
+        ),
+        'warning',
+      );
+      return;
+    }
+    notify(t(lang, '已保存到本题讲解与学习笔记，下次打开将直接复用', 'Saved Q&A to notes (reused next time)'), 'success');
   }, [savingNote, run, turns, host, lang, cardId, notify, onSavedFollowup]);
 
   const drawerHints: KeyHint[] = useMemo(
