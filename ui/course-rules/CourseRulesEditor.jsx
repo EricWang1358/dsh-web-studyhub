@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, Hint, IconButton, TextInput } from '../components/index.js';
-import { GENERATION_RULE_LIMITS, canAddGenerationRule } from '../../lib/course-rules.js';
+import { Button, Hint, IconButton, TextInput, Tooltip } from '../components/index.js';
+import { GENERATION_RULE_LIMITS, RECOMMENDED_CODE_READING_RULE, canAddGenerationRule } from '../../lib/course-rules.js';
 
 /* 出题守则 (#889) in the course settings (ui/CourseSettings.jsx, 更多设置): the course's rules, each editable in place and with its own delete, and a line to add
    one more. `value` is the list being edited; the panel's 保存课程信息 saves it with the rest of the course (course.save, which trims, drops empty lines and
@@ -31,6 +31,8 @@ export default function CourseRulesEditor({ value, onChange, disabled, draftRef 
     };
   }
   const add = () => { if (!check.ok) return; onChange([...value, text.trim()]); setText(''); };
+  const codePresetCheck = canAddGenerationRule(value, RECOMMENDED_CODE_READING_RULE);
+  const addCodePreset = () => { if (!codePresetCheck.ok) return; onChange([...value, RECOMMENDED_CODE_READING_RULE]); };
   return (
     <div className="course-rules" data-course-rules="">
       <Hint>{uiFormat('给这门课出题时，规划、出题和审阅都会照这些守则来，每次出题前的「预览本次出题要求」里也能看到。每条一句话，最多 {0} 条；改了守则，之前审阅过的草稿原来的审阅就不再算数。', [GENERATION_RULE_LIMITS.count])}</Hint>
@@ -46,6 +48,13 @@ export default function CourseRulesEditor({ value, onChange, disabled, draftRef 
           placeholder={ui('例如：题干要自带情境和条件，不出只有一句空问的题')} onChange={(event) => setText(event.target.value)}
           onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent?.isComposing) { event.preventDefault(); add(); } }} />
         <Button size="sm" variant="secondary" icon="plus" disabled={disabled || !check.ok} onClick={add}>{ui('添加守则')}</Button>
+      </div>
+      <div className="course-rules__presets">
+        <Tooltip content={ui('适用于编程与工程类课程：优先把大段口述代码执行改成 3–16 行最小可读代码块，并禁止在代码注释里泄题。')} placement="top-start">
+          <Button size="sm" variant="quiet" icon="plus" disabled={disabled || !codePresetCheck.ok} onClick={addCodePreset}>
+            {codePresetCheck.reason === 'saved' ? ui('已加入代码阅读题推荐守则') : ui('加入代码阅读题推荐守则')}
+          </Button>
+        </Tooltip>
       </div>
       {!check.ok && check.reason !== 'empty' && <p className="muted small" role="status">{WHY[check.reason]()}</p>}
     </div>
