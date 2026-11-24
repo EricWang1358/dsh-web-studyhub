@@ -9,6 +9,7 @@ import { ScrollView } from '../../components/ScrollView.js';
 import { TextInput } from '../../components/TextInput.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
+import { buildExamWindowTitle, writeTerminalTitle } from '../../render/terminal-title.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { getColorLevel, makeChalk, useTheme } from '../../theme/tokens.js';
 import type { CaseHighlight, ExamCard, OralView, RunView } from './types.js';
@@ -156,6 +157,29 @@ export const ExamRunner = memo(function ExamRunner({
       onSubmitWritten(kind === 'case' ? caseDrafts : undefined);
     }
   }, [kind, run, remainingMs, busy, caseDrafts, onSubmitWritten]);
+
+  // Round 96 Track C9: Live OSC 2 terminal window title during mock exam (minute-granularity to avoid spam)
+  const oscAt = kind === 'oral' ? (oral?.index ?? 0) + 1 : kind === 'case' ? caseIdx + 1 : (run?.index ?? 0) + 1;
+  const oscTotal = kind === 'oral' ? (oral?.total ?? 1) : kind === 'case' ? Math.max(1, run?.paperCards?.length ?? 1) : Math.max(1, run?.total ?? 1);
+  const oscMinuteBucket = Math.floor((remainingMs ?? elapsedMs) / 60_000);
+  useEffect(() => {
+    if (!hasActiveExam || !isActive) return undefined;
+    const timerText = remainingMs !== null ? formatDurationMs(remainingMs) : formatDurationMs(elapsedMs);
+    writeTerminalTitle(
+      buildExamWindowTitle({ kind, at: oscAt, total: oscTotal, timerText, lang }),
+      { asciiMode },
+    );
+    return undefined;
+    // Intentionally keyed on minute bucket + question index to keep terminal title writes low-frequency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasActiveExam, isActive, kind, oscAt, oscTotal, oscMinuteBucket, lang, asciiMode]);
+
+  useEffect(() => {
+    if (!hasActiveExam) return undefined;
+    return () => {
+      writeTerminalTitle('StudyHub', { asciiMode });
+    };
+  }, [hasActiveExam, asciiMode]);
 
   const caseCards: ExamCard[] = useMemo(
     () => (kind === 'case' ? (run?.paperCards ?? (run?.card ? [run.card] : [])) : []),

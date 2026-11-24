@@ -19,7 +19,8 @@ import { useFooterHints } from '../../components/hooks.js';
 import { useTheme } from '../../theme/tokens.js';
 import { useShellActions } from '../../shell/actions.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
-import { writeTerminalNotification } from '../../render/terminal-title.js';
+import { renderStatTable } from '../../render/charts.js';
+import { buildTaskProgressTitle, writeTerminalNotification, writeTerminalTitle } from '../../render/terminal-title.js';
 import { atomicWriteExportText, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
 import { tryAction } from '../../host/sample-actions.js';
 const WorkflowHistoryModal = lazy(() => import('./WorkflowHistoryModal.js').then((m) => ({ default: m.WorkflowHistoryModal })));
@@ -1796,6 +1797,26 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
     ? (outputLines.length > 0 ? outputLines : [t(lang, '（暂无实时输出文本；按 [v] 查看调用轨迹）', '(No live output text yet; press [v] for trace)')])
     : (traceLines.length > 0 ? traceLines : [t(lang, '（暂无调用轨迹）', '(No trace calls available)')]);
 
+  // Round 97 Track A15: Live OSC 2 window title when jobs are running (restored on idle/unmount)
+  useEffect(() => {
+    if (!isActive) return undefined;
+    if (runningCount > 0) {
+      writeTerminalTitle(
+        buildTaskProgressTitle({ runningCount, label: controlTarget?.title, lang }),
+        { asciiMode },
+      );
+    } else {
+      writeTerminalTitle('StudyHub', { asciiMode });
+    }
+    return undefined;
+  }, [isActive, runningCount, controlTarget?.title, lang, asciiMode]);
+
+  useEffect(() => {
+    return () => {
+      writeTerminalTitle('StudyHub', { asciiMode });
+    };
+  }, [asciiMode]);
+
   return (
     <Box flexDirection="column" width={width} height={height}>
       {/* Filter Header */}
@@ -1987,11 +2008,33 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
               height={rh}
             >
               {!selectedJob ? (
-                <EmptyState
-                  title={t(lang, '选择一个任务查看详情', 'Select a job')}
-                  width={Math.max(12, rw - 4)}
-                  height={Math.max(4, rh - 2)}
-                />
+                <Box flexDirection="column" width={Math.max(12, rw - 4)} height={Math.max(4, rh - 2)}>
+                  {rh >= 12 ? (
+                    <Box flexDirection="column" marginBottom={1}>
+                      {renderStatTable(
+                        [
+                          { key: 'queue', label: t(lang, '任务队列', 'Queue'), align: 'left', minWidth: 8 },
+                          { key: 'count', label: t(lang, '数量', 'Count'), align: 'right', minWidth: 5 },
+                        ],
+                        [
+                          { queue: t(lang, '运行中', 'Running'), count: runningCount },
+                          { queue: t(lang, '全部任务', 'All Jobs'), count: allCount },
+                          { queue: t(lang, '已归档', 'Archived'), count: archivedCount },
+                        ],
+                        Math.max(18, rw - 4),
+                        theme,
+                        { ascii: asciiMode },
+                      ).map((line, idx) => (
+                        <Text key={`tq-${idx}`}>{line}</Text>
+                      ))}
+                    </Box>
+                  ) : null}
+                  <EmptyState
+                    title={t(lang, '选择一个任务查看详情', 'Select a job')}
+                    width={Math.max(12, rw - 4)}
+                    height={Math.max(4, rh - (rh >= 12 ? 8 : 2))}
+                  />
+                </Box>
               ) : (
                 <Box flexDirection="column" width={Math.max(12, rw - 4)} height={Math.max(2, rh - 2)}>
                   <Box flexDirection="row" alignItems="center" flexWrap="wrap">

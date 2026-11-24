@@ -5,7 +5,7 @@
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
-import type { AssistantCommandStat, LastPracticeContext, ThemeId, TuiPreferences, UiLanguage } from '../types/contracts.js';
+import type { AssistantCommandStat, LastPracticeContext, PinnedTarget, ThemeId, TuiPreferences, UiLanguage } from '../types/contracts.js';
 import { atomicWriteJsonFile } from './atomic-write.js';
 
 export const THEME_IDS: readonly ThemeId[] = Object.freeze([
@@ -19,6 +19,7 @@ export const THEME_IDS: readonly ThemeId[] = Object.freeze([
 export const UI_LANGUAGES: readonly UiLanguage[] = Object.freeze(['zh', 'en']);
 export const MAX_RECENT_COMMANDS = 12;
 export const MAX_LAST_READ_PAGES = 100;
+export const MAX_PINNED_TARGETS = 5;
 const MAX_LAST_READ_KEY_LENGTH = 160;
 const MAX_LAST_READ_PAGE = 50_000;
 
@@ -160,6 +161,26 @@ function parseTuiPreferencesObject(source: Record<string, unknown>): TuiPreferen
     if (pageCount > 0) assistantCommandStats = out;
   }
 
+  let pinnedTargets: PinnedTarget[] | undefined;
+  if (Array.isArray(source.pinnedTargets)) {
+    const seenPins = new Set<string>();
+    const outPins: PinnedTarget[] = [];
+    for (const raw of source.pinnedTargets) {
+      if (!raw || typeof raw !== 'object') continue;
+      const r = raw as Record<string, unknown>;
+      const kind = r.kind === 'page' || r.kind === 'deck' || r.kind === 'source' ? r.kind : null;
+      const id = typeof r.id === 'string' ? r.id.trim().slice(0, 128) : '';
+      const label = typeof r.label === 'string' ? r.label.trim().slice(0, 64) : '';
+      if (!kind || !id || !label) continue;
+      const key = `${kind}:${id}`;
+      if (seenPins.has(key)) continue;
+      seenPins.add(key);
+      outPins.push({ kind, id, label });
+      if (outPins.length >= MAX_PINNED_TARGETS) break;
+    }
+    if (outPins.length > 0) pinnedTargets = outPins;
+  }
+
   const base: TuiPreferences = {
     theme,
     language,
@@ -178,6 +199,7 @@ function parseTuiPreferencesObject(source: Record<string, unknown>): TuiPreferen
     ...(lastReadPages ? { lastReadPages } : {}),
     ...(lastPracticeContext ? { lastPracticeContext } : {}),
     ...(assistantCommandStats ? { assistantCommandStats } : {}),
+    ...(pinnedTargets ? { pinnedTargets } : {}),
   };
 }
 
