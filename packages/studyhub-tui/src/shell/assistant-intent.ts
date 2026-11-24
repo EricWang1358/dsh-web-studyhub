@@ -111,7 +111,7 @@ const UNSUPPORTED_PATTERNS: ReadonlyArray<{
   altCmd: string;
 }> = [
   {
-    re: /发邮件|发送邮件|发微信|发消息|推送给|群发|send\s+email|wechat|slack|telegram/i,
+    re: /(?:发邮件|发送邮件|发微信|群发|推送给|(?:帮我|请)?(?:给|向)\S{1,12}发消息|\bsend\s+(?:an?\s+)?email\b|\bsend\s+(?:a\s+)?(?:message|msg)\s+(?:on|to|via)\s+(?:wechat|slack|telegram)\b)/i,
     reasonZh: '当前终端不支持外部通信发送。',
     reasonEn: 'External messaging is not supported in TUI.',
     altLabelZh: '改为：导出本课错题 Markdown 后手动分享',
@@ -119,7 +119,7 @@ const UNSUPPORTED_PATTERNS: ReadonlyArray<{
     altCmd: '导出本课错题 Markdown',
   },
   {
-    re: /删掉整个硬盘|清空电脑|格式化|执行\s*shell|跑系统命令|rm\s+-rf|format\s+disk/i,
+    re: /(?:删掉整个硬盘|清空电脑|格式化(?:硬盘|磁盘|电脑|系统|[A-Z]盘|U盘|分区)|执行\s*shell|跑系统命令|\brm\s+-rf\b|\bformat\s+(?:disk|drive|[a-z]:)\b)/i,
     reasonZh: '安全限制：助手仅执行 StudyHub 学习动作，不操作系统文件。',
     reasonEn: 'Safety guard: assistant only runs StudyHub study actions.',
     altLabelZh: '改为：查看学习库统计概况',
@@ -127,7 +127,7 @@ const UNSUPPORTED_PATTERNS: ReadonlyArray<{
     altCmd: '查看统计',
   },
   {
-    re: /联网搜索|查.{0,4}天气|买机票|订外卖|点餐|search\s+google|weather/i,
+    re: /(?:联网搜索|查.{0,4}天气|买机票|订外卖|点餐|\bsearch\s+google\b|\bcheck\s+weather\b)/i,
     reasonZh: '当前助手聚焦本地学习库，不支持外部联网服务。',
     reasonEn: 'Assistant is scoped to your local study library.',
     altLabelZh: '改为：打开资料库检索本地讲义',
@@ -135,6 +135,15 @@ const UNSUPPORTED_PATTERNS: ReadonlyArray<{
     altCmd: '跳到资料库',
   },
 ];
+
+const STUDY_QUESTION_RE =
+  /^(?:什么是|啥是|请问(?:什么是)?|解释(?:一下)?|说明(?:一下)?|讲讲|聊聊|对比|比较|如何理解|怎么理解|为什么|为何|what\s+is\b|explain\b|how\s+does\b|why\s+does\b|difference\s+between\b)/i;
+const STUDY_QUESTION_END_RE =
+  /(?:是什么|有什么区别|有哪些|的方法|的原理|怎么实现|是怎么实现的|是什么意思)[？?]?$/i;
+
+function isConceptualStudyQuestion(text: string): boolean {
+  return STUDY_QUESTION_RE.test(text) || STUDY_QUESTION_END_RE.test(text);
+}
 
 function extractInt(text: string, re: RegExp): number | undefined {
   const m = text.match(re);
@@ -178,19 +187,22 @@ export function buildFallbackPrompt(opts: {
 export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext = {}): AssistantIntent {
   const text = String(rawInput ?? '').trim();
   const lang = ctx.lang ?? 'zh';
+  const conceptualQuestion = isConceptualStudyQuestion(text);
 
   // 0) Unsupported out-of-scope actions -> nearest alternative + copy-prompt fallback (never dead-end!)
-  for (const u of UNSUPPORTED_PATTERNS) {
-    if (u.re.test(text)) {
-      return {
-        kind: 'unsupported',
-        actionName: 'unsupported',
-        reason: lang === 'en' ? u.reasonEn : u.reasonZh,
-        alternativeLabel: lang === 'en' ? u.altLabelEn : u.altLabelZh,
-        alternativeCommand: u.altCmd,
-        paramsSummary: 'fallback',
-        requiresConfirm: false,
-      };
+  if (!conceptualQuestion) {
+    for (const u of UNSUPPORTED_PATTERNS) {
+      if (u.re.test(text)) {
+        return {
+          kind: 'unsupported',
+          actionName: 'unsupported',
+          reason: lang === 'en' ? u.reasonEn : u.reasonZh,
+          alternativeLabel: lang === 'en' ? u.altLabelEn : u.altLabelZh,
+          alternativeCommand: u.altCmd,
+          paramsSummary: 'fallback',
+          requiresConfirm: false,
+        };
+      }
     }
   }
 
@@ -258,10 +270,16 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
     };
   }
 
-  // 4) Source navigation with optional source index & page number
-  const pageNumber = extractInt(text, /(?:第\s*(\d+)\s*页|p\.?\s*(\d+)|page\s*(\d+))/i);
+  // 4) Source navigation with optional source index & page number (#1340: require word boundaries and navigation intent)
+  const pageNumber = extractInt(text, /(?:第\s*(\d+)\s*页|(?:^|[\s,，(（])p\.?\s*(\d+)\b|\bpage\s*(\d+)\b)/i);
   const sourceOrdinal = extractInt(text, /第\s*(\d+)\s*(?:份|个|篇)?(?:讲义|资料|文档|pdf)/i);
-  if (pageNumber !== undefined || (/(跳|打开|去|定位|看|open|go\s+to|jump)/i.test(text) && /资料|讲义|原文|阅读器|source|reader/i.test(text))) {
+  const isStandalonePageRef = /^(?:第\s*\d+\s*页|p\.?\s*\d+|page\s*\d+)$/i.test(text);
+  const hasSourceNavVerb = /(?:跳到?|打开|定位|查看|看看|(?<![观查])看(?:一下)?(?:资料|讲义|原文)|(?<![过失消除省免来])去|\bopen\b|\bgo\s+to\b|\bjump(?:\s+to)?\b)/i.test(text);
+  if (
+    !conceptualQuestion &&
+    (isStandalonePageRef ||
+      (hasSourceNavVerb && (pageNumber !== undefined || /资料|讲义|原文|阅读器|source|reader/i.test(text))))
+  ) {
     const sources = Array.isArray(ctx.snapshot?.sources) ? ctx.snapshot.sources : [];
     const idx = sourceOrdinal !== undefined ? sourceOrdinal - 1 : 0;
     const picked = sources[idx] ?? sources[0];
@@ -333,8 +351,8 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
     };
   }
 
-  // 6) Direct page navigation
-  if (/(跳到|打开|进入|切到|切换到|去|回到|open|go\s+to|jump\s+to|switch\s+to)/i.test(text)) {
+  // 6) Direct page navigation (#1340: avoid matching "过去" or conceptual questions)
+  if (!conceptualQuestion && /(跳到|打开|进入|切到|切换到|(?<![过失消除省免来])去|回到|\bopen\b|\bgo\s+to\b|\bjump\s+to\b|\bswitch\s+to\b)/i.test(text)) {
     for (const p of PAGE_PATTERNS) {
       if (p.re.test(text)) {
         return {
