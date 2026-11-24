@@ -619,11 +619,12 @@ export const AssistantPanel = memo(function AssistantPanel({
       setInputFocused(false);
       setLastFallback(null);
       sessionMemory.lastFallback = null;
+      const priorTurns = sessionMemory.turns.slice(-6);
+      appendTurn({ role: 'user', stage: tab === 'guided' ? stage : undefined, text });
       recordUsage(text);
 
       // Guided Study Retell stage submits to backend `teach.retell` (#1348)
       if (tab === 'guided' && stage === 'retell') {
-        appendTurn({ role: 'user', stage: 'retell', text });
         if (!cardCtx?.cardId) {
           appendTurn({
             role: 'system',
@@ -882,8 +883,7 @@ export const AssistantPanel = memo(function AssistantPanel({
       stream.reset();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
-      const recentContext = sessionMemory.turns
-        .slice(-6)
+      const recentContext = priorTurns
         .map((x) => `${x.role}: ${x.text.slice(0, 200)}`)
         .join('\n');
 
