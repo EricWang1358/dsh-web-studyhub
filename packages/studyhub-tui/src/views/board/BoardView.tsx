@@ -309,6 +309,8 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
     };
   }, []);
 
+  const persistQueueRef = useRef<Promise<void>>(Promise.resolve());
+
   const persistDoc = useCallback(
     async (updater: (prev: BoardDocument) => BoardDocument) => {
       if (isReadOnlyRef.current) {

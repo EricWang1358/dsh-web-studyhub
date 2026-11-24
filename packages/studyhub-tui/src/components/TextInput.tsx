@@ -284,7 +284,8 @@ export const TextInput = memo(function TextInput({
           const { row } = cursorRowCol(cs, at);
           setCursor(indexFromRowCol(cs, row, Number.MAX_SAFE_INTEGER));
         } else setCursor(cs.length);
-        return true;
+        // Allow parent modals that bind Ctrl+E (e.g. AddFocusModal extract/match) to handle it too.
+        return Boolean(key.end);
       }
       if (key.ctrl && input === 'u') {
         commit(cs.slice(at).join(''), 0);
