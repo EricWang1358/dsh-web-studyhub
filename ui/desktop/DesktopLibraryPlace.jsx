@@ -30,13 +30,17 @@ const driveOf = (root) => /^[a-z]:/i.exec(String(root || ''))?.[0].toUpperCase()
 /** Whether the library already holds something a move would have to take along. */
 const hasContent = (data) => (data?.decks?.length || 0) + (data?.sources?.length || 0) > 0;
 
+const shouldHideLibraryPlace = (binding) => {
+  const place = binding?.libraryPlace;
+  return !place || place.confirmed || Boolean(binding.libraryProblem) || Boolean(binding.configProblem);
+};
+
 export default function DesktopLibraryPlace({ data }) {
   useInjectCss(css, 'study-desktop');
   const app = useContext(AppContext);
-  const binding = app?.connection.binding, place = binding?.libraryPlace;
-  // A library problem (the saved folder cannot be opened and a fallback is in use) keeps the card away: 「就用这里」 would confirm the fallback and the library
-  // would quietly move back when the drive returns. The library notice in Settings reports the problem; the card comes back once it is gone.
-  if (!place || place.confirmed || binding.libraryProblem) return null;
+  const binding = app?.connection.binding;
+  if (shouldHideLibraryPlace(binding)) return null;
+  const place = binding.libraryPlace;
   const { host, core, connection } = app;
   const confirm = () => confirmLibraryPlace({
     call: core.call, setBusy: core.setBusy, setError: core.setError,

@@ -66,7 +66,7 @@ function localizeEffectiveLabel(effective, language) {
     .replace('OpenAI 兼容接口', 'OpenAI-compatible');
 }
 
-function buildConfigResponse({ config, providers, configPath, keyDropped, language = 'zh' }) {
+function buildConfigResponse({ config, providers, configPath, configProblem = null, keyDropped, language = 'zh' }) {
   const redacted = redactDesktopConfig(config);
   const localizedProviders = localizeProviders(providers, language);
   const effective = resolveEffectiveModel(config, localizedProviders);
@@ -81,6 +81,7 @@ function buildConfigResponse({ config, providers, configPath, keyDropped, langua
       defaultConcurrency: effective.defaultConcurrency,
     },
     configPath,
+    configProblem,
     presets: OPENAI_PRESETS,
     ...(keyDropped !== undefined ? { keyDropped } : {}),
   };
@@ -100,6 +101,7 @@ async function buildBindingView({ ctx, state, route, systemDrive, providerDiscov
     workspaceRoot: state.library.root,
     defaultRoot: state.library.defaultRoot,
     libraryProblem: state.library.problem,
+    configProblem: state.configProblem || null,
     libraryPlace: libraryPlaceOf({
       confirmed: state.config.libraryPlaceConfirmed, rootSource: state.library.rootSource, root: state.library.root, systemDrive,
     }),
@@ -116,14 +118,16 @@ async function buildBindingView({ ctx, state, route, systemDrive, providerDiscov
 
 const langOf = (args) => (args?.uiLanguage === 'en' ? 'en' : 'zh');
 
-function createDesktopActionHandlers(deps) {
-  const { configStore, providerDiscovery, completePort, openExternal, openCliTerminal, getState, reloadState, getRoute, ctx, forward, systemDrive, notifyLibraryChanged } = deps;
-  const bindingView = () => buildBindingView({ ctx, state: getState(), route: getRoute() || null, systemDrive, providerDiscovery });
+function createConfigHandlers({ configStore, providerDiscovery, completePort, getState, reloadState }) {
+  const configReply = async (args, keyDropped) => {
+    const providers = await providerDiscovery.scan({ force: false });
+    return buildConfigResponse({
+      config: getState().config, providers, configPath: configStore.configPath,
+      configProblem: getState().configProblem || null, keyDropped, language: langOf(args),
+    });
+  };
   return {
-    'desktop.config.get': async (args) => {
-      const providers = await providerDiscovery.scan({ force: false });
-      return buildConfigResponse({ config: getState().config, providers, configPath: configStore.configPath, language: langOf(args) });
-    },
+    'desktop.config.get': (args) => configReply(args),
     'desktop.providers.scan': async (args) => ({
       providers: localizeProviders(await providerDiscovery.scan({ force: args?.force === true }), langOf(args)),
     }),
@@ -131,22 +135,28 @@ function createDesktopActionHandlers(deps) {
       const { config: nextConfig, keyDropped } = applyConfigPatch(getState().config, args || {});
       await configStore.save(nextConfig);
       await reloadState();
-      const providers = await providerDiscovery.scan({ force: false });
-      return buildConfigResponse({
-        config: getState().config, providers, configPath: configStore.configPath, keyDropped, language: langOf(args),
-      });
+      return configReply(args, keyDropped);
+    },
+    'desktop.config.recover': async (args) => {
+      const rec = typeof configStore.recover === 'function' ? await configStore.recover() : { backupPath: '' };
+      if (typeof configStore.recover !== 'function') await configStore.save({}, { force: true });
+      await reloadState();
+      return { recovered: true, backupPath: rec?.backupPath || '', config: await configReply(args) };
     },
     'desktop.config.test': async (args) => {
       await providerDiscovery.scan({ force: false });
       const { uiLanguage: _lang, ...draft } = args || {};
       return completePort.testConnection(Object.keys(draft).length ? draft : null, langOf(args));
     },
-    'app.open': async (args) => {
-      await openExternal(args?.url);
-      return { ok: true };
-    },
-    // Only the CLI's name is read from the page: the program is the one discovery found ready, the folder is the one the learner picked for
-    // the library (a DSH workspace when the library is the `.dsh-study` inside it, so the CLI sees the notes beside it too).
+  };
+}
+
+function createDesktopActionHandlers(deps) {
+  const { configStore, providerDiscovery, openExternal, openCliTerminal, getState, reloadState, getRoute, ctx, forward, systemDrive, notifyLibraryChanged } = deps;
+  const bindingView = () => buildBindingView({ ctx, state: getState(), route: getRoute() || null, systemDrive, providerDiscovery });
+  return {
+    ...createConfigHandlers(deps),
+    'app.open': async (args) => { await openExternal(args?.url); return { ok: true }; },
     'desktop.cli.open': async (args) => {
       const { pickedRoot, root } = getState().library;
       const request = cliLaunchRequest(await providerDiscovery.scan({ force: false }), args?.provider, pickedRoot || root);
@@ -158,24 +168,14 @@ function createDesktopActionHandlers(deps) {
       try {
         const shouldSaveRoot = typeof args?.root === 'string'
           && !(args.root === '' && getState().library.rootSource !== 'custom' && typeof args?.reasoningEffort === 'string');
-        if (shouldSaveRoot) {
-          await configStore.saveLibraryRoot(args.root);
-          await reloadState();
-        }
+        if (shouldSaveRoot) { await configStore.saveLibraryRoot(args.root); await reloadState(); }
         if (typeof args?.reasoningEffort === 'string') {
           await configStore.save({ ...getState().config, reasoningEffort: args.reasoningEffort.trim() });
         }
-      } finally {
-        await reloadState();
-      }
+      } finally { await reloadState(); }
       return bindingView();
     },
-    // 就用这里: the learner accepts the library where it is.
-    'desktop.library.confirm': async () => {
-      await configStore.confirmLibraryPlace();
-      await reloadState();
-      return bindingView();
-    },
+    'desktop.library.confirm': async () => { await configStore.confirmLibraryPlace(); await reloadState(); return bindingView(); },
     'webGemini.status': () => ({ enabled: false, toolName: '', waitSeconds: 600, minWaitSeconds: 30, maxWaitSeconds: 1800, effectiveTool: null, missing: null, available: false, hasToolRegistry: false, tools: [], active: false }),
     'webGemini.set': () => ({ enabled: false, toolName: '', waitSeconds: 600, minWaitSeconds: 30, maxWaitSeconds: 1800, effectiveTool: null, missing: null, available: false, hasToolRegistry: false, tools: [], active: false }),
     'webGemini.test': () => ({ ok: false, toolName: '', reason: 'missing', latencyMs: 0, message: 'Desktop edition does not use DSH ask-gemini-mcp.' }),

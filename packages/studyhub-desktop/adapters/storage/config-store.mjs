@@ -62,6 +62,35 @@ async function atomicWriteJson(filePath, data) {
   }
 }
 
+function corruptConfigError(configPath, cause) {
+  const detail = cause instanceof Error ? cause.message : String(cause);
+  return Object.assign(
+    new Error(`Existing desktop.json could not be read (${detail}); refusing to overwrite`),
+    { code: 'config-corrupt', details: { configPath, reason: detail } },
+  );
+}
+
+async function readStoredConfigWithStatus(configPath) {
+  try {
+    const raw = await readFile(configPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('desktop.json root must be a JSON object');
+    }
+    return { config: normalizeDesktopConfig(parsed), configProblem: null };
+  } catch (error) {
+    if (error?.code === 'ENOENT') return { config: defaultDesktopConfig(), configProblem: null };
+    return {
+      config: defaultDesktopConfig(),
+      configProblem: {
+        code: 'config-corrupt',
+        path: configPath,
+        reason: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
+}
+
 async function readStoredConfig(configPath, { strictIo = false } = {}) {
   try {
     const raw = await readFile(configPath, 'utf8');
@@ -72,7 +101,7 @@ async function readStoredConfig(configPath, { strictIo = false } = {}) {
     return normalizeDesktopConfig(parsed);
   } catch (error) {
     if (error?.code === 'ENOENT') return defaultDesktopConfig();
-    if (strictIo) throw error;
+    if (strictIo) throw corruptConfigError(configPath, error);
     return defaultDesktopConfig();
   }
 }
@@ -128,6 +157,12 @@ async function resolveLibraryRoot({ config, env, defaultRoot, fallbackRoot, conf
   throw new Error('无法创建或写入默认学习库目录');
 }
 
+async function backupCorruptConfig(configPath) {
+  const backupPath = `${configPath}.corrupt-${Date.now()}.bak`;
+  await copyFile(configPath, backupPath).catch(() => {});
+  return backupPath;
+}
+
 /**
  * Create atomic JSON config persistence for StudyHub Desktop.
  * Persists `desktop.json` strictly under StudyHub home (`<DSH_HOME || ~/.dsh>/study/desktop.json`),
@@ -154,27 +189,30 @@ export function createConfigStore({
   };
 
   async function load() {
-    const config = await readStoredConfig(configPath);
+    const { config, configProblem } = await readStoredConfigWithStatus(configPath);
     const library = await resolveLibraryRoot({ config, env, defaultRoot, fallbackRoot, configPath });
-    return { config, library };
+    return { config, library, configProblem };
   }
 
   function save(nextConfig, opts) {
     return serializeWrite(async () => {
-      try {
-        await readStoredConfig(configPath, { strictIo: true });
-      } catch (error) {
-        if (!opts?.force) {
-          throw new Error(
-            `Existing desktop.json could not be read (${error instanceof Error ? error.message : String(error)}); refusing to overwrite`,
-          );
-        }
-        const backupPath = `${configPath}.corrupt-${Date.now()}.bak`;
-        await copyFile(configPath, backupPath).catch(() => {});
+      try { await readStoredConfig(configPath, { strictIo: true }); } catch (error) {
+        if (!opts?.force) throw error;
+        await backupCorruptConfig(configPath);
       }
       const normalized = normalizeDesktopConfig(nextConfig);
       await atomicWriteJson(configPath, normalized);
       return normalized;
+    });
+  }
+
+  /** Explicitly back up a corrupted desktop.json and reset it to clean defaults (#1436 Item 8). */
+  function recover() {
+    return serializeWrite(async () => {
+      const backupPath = await backupCorruptConfig(configPath);
+      const clean = defaultDesktopConfig();
+      await atomicWriteJson(configPath, clean);
+      return { recovered: true, backupPath, config: clean };
     });
   }
 
@@ -214,6 +252,7 @@ export function createConfigStore({
     defaultRoot,
     load,
     save,
+    recover,
     saveLibraryRoot,
     confirmLibraryPlace,
   });

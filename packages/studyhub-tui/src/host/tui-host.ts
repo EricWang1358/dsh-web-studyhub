@@ -270,13 +270,14 @@ function createOverlayStore(base: DesktopConfigStore, detection: EnvProviderDete
       lastStored = loaded.config;
       return { ...loaded, config: overlayEnvProvider(loaded.config, detection) };
     },
-    save(next) {
+    save(next, opts) {
       // The env key is used in memory only: never persist it into desktop.json.
       const scrubbed = detection && next?.openai?.apiKey === detection.apiKey
         ? { ...next, openai: { ...next.openai, apiKey: '' } }
         : next;
-      return base.save(scrubbed);
+      return base.save(scrubbed, opts);
     },
+    ...(typeof base.recover === 'function' ? { recover: () => base.recover!() } : {}),
     saveLibraryRoot: (root) => base.saveLibraryRoot(root),
     confirmLibraryPlace: () => base.confirmLibraryPlace(),
   };
