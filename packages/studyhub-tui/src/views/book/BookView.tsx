@@ -6,6 +6,7 @@ import { saveTuiPreferences } from '../../host/tui-prefs.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { computeProseLayout } from '../../components/Layout.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
@@ -16,6 +17,7 @@ import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys, useInputCapture } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
+import { formatReadingTimeLabel } from '../../render/longform.js';
 import type {
   BookNode,
   BookOpenResult,
@@ -1494,30 +1496,42 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
               />
             </Panel>
           )}
-          right={(size) => (
-            <Panel
-              title={selectedItem ? `${selectedItem.number} ${selectedItem.title}` : t(lang, '正文', 'Reader')}
-              badge={
-                selectedItem?.leaf && selectedRetold.passed
-                  ? t(lang, asciiMode ? '+ 讲清楚过' : '✓ 讲清楚过', asciiMode ? '+ Retold' : '✓ Retold')
-                  : undefined
-              }
-              badgeTone="success"
-              subtitle={selectedItem?.leaf ? t(lang, '[T] 费曼复述  [p] 练5题  [m] 公式', '[T] Retell  [p] Practise 5  [m] Math') : undefined}
-              focused={activePane === 'right'}
-              width={size.width}
-              height={size.height}
-              paddingX={1}
-            >
-              <MarkdownView
-                markdown={markdown}
-                width={Math.max(16, size.width - 4)}
-                height={Math.max(3, size.height - 2)}
-                isActive={isActive && activePane === 'right' && !modalOpen && !filterEditing}
-                mathUnicode={mathUnicode}
-              />
-            </Panel>
-          )}
+          right={(size) => {
+            const innerW = Math.max(16, size.width - 4);
+            const { proseWidth, marginLeft } = computeProseLayout(innerW);
+            const readTime = markdown ? formatReadingTimeLabel(markdown, lang) : '';
+            const baseSub = selectedItem?.leaf
+              ? t(lang, '[T] 费曼复述  [p] 练5题  [m] 公式', '[T] Retell  [p] Practise 5  [m] Math')
+              : '';
+            const subSep = asciiMode ? ' - ' : ' · ';
+            const subtitle = baseSub && readTime ? `${readTime}${subSep}${baseSub}` : baseSub || readTime || undefined;
+            return (
+              <Panel
+                title={selectedItem ? `${selectedItem.number} ${selectedItem.title}` : t(lang, '正文', 'Reader')}
+                badge={
+                  selectedItem?.leaf && selectedRetold.passed
+                    ? t(lang, asciiMode ? '+ 讲清楚过' : '✓ 讲清楚过', asciiMode ? '+ Retold' : '✓ Retold')
+                    : undefined
+                }
+                badgeTone="success"
+                subtitle={subtitle}
+                focused={activePane === 'right'}
+                width={size.width}
+                height={size.height}
+                paddingX={1}
+              >
+                <Box width={innerW} height={Math.max(3, size.height - 2)} paddingLeft={marginLeft} overflow="hidden">
+                  <MarkdownView
+                    markdown={markdown}
+                    width={proseWidth}
+                    height={Math.max(3, size.height - 2)}
+                    isActive={isActive && activePane === 'right' && !modalOpen && !filterEditing}
+                    mathUnicode={mathUnicode}
+                  />
+                </Box>
+              </Panel>
+            );
+          }}
         />
       )}
 

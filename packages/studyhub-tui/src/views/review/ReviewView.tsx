@@ -76,6 +76,7 @@ import {
   shouldTriggerWrongStreakNudge,
   type WrongStreakState,
 } from './wrong-streak-nudge.js';
+import { buildFatigueNudgeBanner, shouldShowFatigueNudge } from './fatigue-nudge.js';
 const AiHelpDrawer = lazy(() => import('./AiHelpDrawer.js').then((m) => ({ default: m.AiHelpDrawer })));
 const AnswerCardModal = lazy(() => import('./AnswerCardModal.js').then((m) => ({ default: m.AnswerCardModal })));
 const CardToolsModal = lazy(() => import('./CardToolsModal.js').then((m) => ({ default: m.CardToolsModal })));
@@ -332,6 +333,8 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
   const lastNudgeAtRef = useRef<number | null>(null);
   const wrongStreakRef = useRef<WrongStreakState>(createWrongStreakState());
   const [wrongStreakBanner, setWrongStreakBanner] = useState<string | null>(null);
+  const fatigueShownRef = useRef(false);
+  const [fatigueBanner, setFatigueBanner] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
   const busyRef = useRef(false);
@@ -1561,7 +1564,26 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
   useEffect(() => {
     setStuckNudgeVisible(false);
     setWrongStreakBanner(null);
+    setFatigueBanner(null);
   }, [cardKey]);
+
+  // Round 95 Track D9: Proactive pacing fatigue rest suggestion (>= 25 answered in round, max 1/round, opt-out)
+  useEffect(() => {
+    const answeredInRound = Number(run?.answered ?? 0) || 0;
+    if (
+      shouldShowFatigueNudge({
+        enabled: proactiveHints,
+        isActive,
+        isEditing: clozeEditing || openEditing,
+        anyModalOpen,
+        answeredInRound,
+        alreadyShownInRound: fatigueShownRef.current,
+      })
+    ) {
+      fatigueShownRef.current = true;
+      setFatigueBanner(buildFatigueNudgeBanner(answeredInRound, lang, asciiMode));
+    }
+  }, [run?.answered, proactiveHints, isActive, clozeEditing, openEditing, anyModalOpen, lang, asciiMode]);
 
   // Round 86 Track D3: Proactive 3-wrong streak attribution suggestion (opt-out, rate-limited, non-interrupting)
   useEffect(() => {
@@ -2509,6 +2531,15 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                 >
                   <Text color={theme.warning} wrap="truncate">
                     {truncateDisplay(wrongStreakBanner, innerW, asciiMode ? '...' : '…')}
+                  </Text>
+                </ClickableBox>
+              ) : null}
+
+              {/* Calm Proactive Pacing Rest Suggestion (Round 95 Track D9 — max 1/round, opt-out, never steals focus) */}
+              {fatigueBanner && proactiveHints && !wrongStreakBanner ? (
+                <ClickableBox marginTop={0} clickActive={mainActive} onClick={() => setFatigueBanner(null)}>
+                  <Text color={theme.info} wrap="truncate">
+                    {truncateDisplay(fatigueBanner, innerW, asciiMode ? '...' : '…')}
                   </Text>
                 </ClickableBox>
               ) : null}

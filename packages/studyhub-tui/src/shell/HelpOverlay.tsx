@@ -137,6 +137,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       title: t(lang, '错题本 · Wrong Book', 'Wrong Book'),
       items: [
         { key: 'Space / B', label: t(lang, '勾选并批量练错题', 'Select & batch practice') },
+        { key: 'Q', label: t(lang, '高频错题聚类一键急救', 'Top weak cluster quick drill') },
         { key: 'V', label: t(lang, '练错题变式', 'Practice variants') },
         { key: 'X', label: t(lang, '导出错题复习卷 (Markdown)', 'Export wrong cards (Markdown)') },
         { key: '/', label: t(lang, '关键词筛选错题', 'Filter wrong cards by keyword') },
@@ -147,6 +148,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       items: [
         { key: 'Enter/p', label: t(lang, '钻取练习', 'Drill practice') },
         { key: 'f', label: t(lang, '7天预测', '7d forecast') },
+        { key: 'T', label: t(lang, '切换课程掌握度统计表', 'Toggle course mastery table') },
         { key: 'm', label: t(lang, '知识地图 / 依赖图', 'Study map & prereq graph') },
         { key: 'd / x', label: t(lang, '切换用量周期 / 导出进度报告', 'Usage window / Export report') },
         { key: '/', label: t(lang, '筛选薄弱点与课程', 'Filter weak topics & courses') },
@@ -174,6 +176,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       items: [
         { key: 'P', label: t(lang, '备考计划与定制向导', 'Study plan & custom wizard') },
         { key: 'a', label: t(lang, '添加重点 / AI 匹配主题', 'Add focus & AI suggest') },
+        { key: 'Z', label: t(lang, '隐藏本次考期缺口预警', 'Dismiss exam gap alert') },
         { key: '/ / x', label: t(lang, '筛选重点 / 导出备考计划 MD', 'Filter focus / Export prep MD') },
       ],
     },
@@ -261,10 +264,10 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       title: t(lang, '命令面板 · Palette', 'Command Palette'),
       items: [
         { key: '/#?@:', label: t(lang, '命令/题/段/课/页筛选', 'Cmd/card/text/course/page') },
-        { key: '/due /theme /lang', label: t(lang, '今日到期刷题/主题与语言持久化', 'Due queue / Theme & lang') },
+        { key: '/due /theme /lang', label: t(lang, '今日到期/6主题(护眼)/语言', 'Due / 6 themes / Lang') },
         { key: '/ascii /math /recover', label: t(lang, 'ASCII/数学符号/恢复中断任务', 'ASCII / Math / Recover jobs') },
-        { key: '/compact /hints', label: t(lang, '全16页跳转与界面偏好开关', 'All 16 views & UI toggles') },
-        { key: 'I: /  e', label: t(lang, '收件箱筛选与导出 JSON', 'Inbox filter & JSON export') },
+        { key: '/density /proactive /terminal /pin', label: t(lang, '紧凑密度/主动提示/终端诊断/书签', 'Density / Proactive / Diag / Pin') },
+        { key: 'Ctrl+Space / I:/ e', label: t(lang, '常驻AI助手 · 收件箱筛选导出', 'AI Assistant · Inbox filter/JSON') },
       ],
     },
   ];

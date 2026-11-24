@@ -18,6 +18,7 @@ import {
   renderBarChart,
   renderHeatmap,
   renderProgressBar,
+  renderStatTable,
   type BarChartItem,
   type HeatmapDay,
 } from '../../render/charts.js';
@@ -414,6 +415,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
   const [filterOpen, setFilterOpen] = useState(false);
   const [busyPractice, setBusyPractice] = useState(false);
   const [showForecast, setShowForecast] = useState(false);
+  const [showMasteryTable, setShowMasteryTable] = useState(false);
   const [mapModalOpen, setMapModalOpen] = useState(false);
 
   const reqSeq = useRef(0);
@@ -704,7 +706,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
   }, [asciiMode, bindingRoot, course, courseStats, dailyPlan, host, lang, notify, stats, usage, usageDays]);
 
   const viewInputActive = isActive && !mapModalOpen;
-  const claimedKeys = useMemo(() => ['j', 'k', 'p', 'w', 'f', 'm', 'd', 'x', '/'], []);
+  const claimedKeys = useMemo(() => ['j', 'k', 'p', 'w', 'f', 'm', 'd', 'x', '/', 'T'], []);
   useClaimKeys(claimedKeys, viewInputActive);
   useInputCapture(viewInputActive && filterOpen);
 
@@ -761,6 +763,10 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
       }
       if (input === 'f') {
         setShowForecast((prev) => !prev);
+        return;
+      }
+      if (input === 'T') {
+        setShowMasteryTable((prev) => !prev);
         return;
       }
       if (input === 'w') {
@@ -1138,31 +1144,71 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
           </Panel>
         ) : (
           <Panel
-            title={wide ? t(lang, '课程掌握度与 FSRS 分布', 'Course Mastery & FSRS States') : t(lang, '掌握度 & FSRS', 'Mastery & FSRS')}
-            subtitle={!extraWide ? `[f] ${t(lang, '预测', 'Forecast')}` : undefined}
+            title={
+              showMasteryTable
+                ? wide
+                  ? t(lang, '课程掌握度统计表 [T]图表', 'Course Mastery Table [T]Bars')
+                  : t(lang, '掌握度表 [T]', 'Table [T]')
+                : wide
+                  ? t(lang, '课程掌握度与 FSRS 分布', 'Course Mastery & FSRS States')
+                  : t(lang, '掌握度 & FSRS', 'Mastery & FSRS')
+            }
+            subtitle={!extraWide ? `[f] ${t(lang, '预测', 'Forecast')}` : `[T] ${showMasteryTable ? t(lang, '柱图', 'Bars') : t(lang, '表格', 'Table')}`}
             width={rightW}
             height={midH}
           >
-            {barChartLines.length > 0 ? (
-              barChartLines.slice(0, wide ? 6 : 3).map((line, i) => (
-                <Text key={`bar-${i}`} wrap="truncate">
-                  {line}
+            {showMasteryTable ? (
+              courseStats.length > 0 ? (
+                renderStatTable(
+                  [
+                    { key: 'course', label: t(lang, '课程', 'Course'), align: 'left' },
+                    { key: 'total', label: t(lang, '题数', 'Cards'), align: 'right', minWidth: 4 },
+                    { key: 'due', label: t(lang, '到期', 'Due'), align: 'right', minWidth: 4 },
+                    { key: 'mastery', label: t(lang, '掌握', 'Mast'), align: 'right', minWidth: 5 },
+                  ],
+                  courseStats.slice(0, Math.max(2, midH - 4)).map((c) => ({
+                    course: c.label,
+                    total: c.totalCards,
+                    due: c.dueCount,
+                    mastery: `${c.masteryPct}%`,
+                  })),
+                  Math.max(18, rightW - 4),
+                  theme,
+                  { ascii: asciiMode },
+                ).map((line, i) => (
+                  <Text key={`tbl-${i}`} wrap="truncate">
+                    {line}
+                  </Text>
+                ))
+              ) : (
+                <Text color={theme.muted} wrap="truncate">
+                  {t(lang, '暂无课程掌握度数据', 'No course mastery data yet')}
                 </Text>
-              ))
+              )
             ) : (
-              <Text color={theme.muted} wrap="truncate">
-                {t(lang, '暂无课程掌握度数据', 'No course mastery data yet')}
-              </Text>
-            )}
-            <Box marginTop={wide ? 1 : 0} flexDirection="column">
-              {fsrsRows.map((row) => (
-                <Box key={row.label} flexDirection="row" height={1}>
-                  <Text color={theme.muted}>{padDisplay(row.label, row.labelW)}</Text>
-                  <Text>{row.bar}</Text>
-                  <Text color={theme.dim}>{` (${row.count})`}</Text>
+              <>
+                {barChartLines.length > 0 ? (
+                  barChartLines.slice(0, wide ? 6 : 3).map((line, i) => (
+                    <Text key={`bar-${i}`} wrap="truncate">
+                      {line}
+                    </Text>
+                  ))
+                ) : (
+                  <Text color={theme.muted} wrap="truncate">
+                    {t(lang, '暂无课程掌握度数据', 'No course mastery data yet')}
+                  </Text>
+                )}
+                <Box marginTop={wide ? 1 : 0} flexDirection="column">
+                  {fsrsRows.map((row) => (
+                    <Box key={row.label} flexDirection="row" height={1}>
+                      <Text color={theme.muted}>{padDisplay(row.label, row.labelW)}</Text>
+                      <Text>{row.bar}</Text>
+                      <Text color={theme.dim}>{` (${row.count})`}</Text>
+                    </Box>
+                  ))}
                 </Box>
-              ))}
-            </Box>
+              </>
+            )}
           </Panel>
         )}
 

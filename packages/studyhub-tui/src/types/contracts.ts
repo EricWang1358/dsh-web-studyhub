@@ -52,6 +52,12 @@ export interface LastPracticeContext {
   savedAt: number;
 }
 
+export interface PinnedTarget {
+  kind: 'page' | 'deck' | 'source';
+  id: string;
+  label: string;
+}
+
 export interface TuiPreferences {
   theme: ThemeId;
   language: UiLanguage;
@@ -74,6 +80,8 @@ export interface TuiPreferences {
   lastPracticeContext?: LastPracticeContext;
   /** Per-page assistant command frequency for 3x chip promotion & recent pinning (#1315). */
   assistantCommandStats?: Record<string, Record<string, AssistantCommandStat>>;
+  /** Pinned quick-jump bookmarks (max 5, Round 95 Track B9). */
+  pinnedTargets?: PinnedTarget[];
 }
 
 export interface HostCallResult<T = unknown> {
