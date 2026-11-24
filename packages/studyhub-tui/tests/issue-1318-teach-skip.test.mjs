@@ -307,3 +307,54 @@ test('#1318 TUI TeachModal: skip shortcut, "跳过，下一问", 2-wrong nudge, 
   assert.equal(getModelCalls(), 3, 'early finish must make 0 extra model calls');
   assert.ok(!completeFrame.includes('✓ 已掌握'), 'all-skipped completion must not claim mastered');
 });
+
+test('#1318 x #1322/#1355 rebase merge conflict guard: skip-before-model + nonRetryableError + TeachingPanel + domain-contracts coexist', async (t) => {
+  const { readFileSync } = await import('node:fs');
+  const { fileURLToPath } = await import('node:url');
+  const { dirname, resolve } = await import('node:path');
+  const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+
+  // 1) lib/teaching.js runtime: skip phrase succeeds with complete=null (0 calls),
+  //    while non-skip answer with complete=null throws main's nonRetryableError('teaching-no-model').
+  const { service, run, getModelCalls } = await setupTeachingService(t);
+  const started = await service.call('teach.start', { runId: run.id, index: 0, mode: 'understanding' });
+  assert.equal(getModelCalls(), 1);
+
+  const { answerTeaching } = await import('../../../lib/teaching.js');
+  const noModelErr = await answerTeaching(service.store, null, {
+    id: started.id,
+    stepIndex: 0,
+    answer: 'normal non-skip answer',
+  }).then(
+    () => null,
+    (err) => err,
+  );
+  assert.ok(noModelErr, 'non-skip answerTeaching without model must throw');
+  assert.equal(noModelErr.code, 'teaching-no-model', 'must preserve main nonRetryableError code teaching-no-model');
+  assert.equal(noModelErr.retryable, false, 'must preserve nonRetryableError retryable=false');
+
+  const skippedWithoutModel = await answerTeaching(service.store, null, {
+    id: started.id,
+    stepIndex: 0,
+    answer: '跳过',
+  });
+  assert.equal(skippedWithoutModel.skipped, true, 'skip phrase must bypass model requirement with 0 calls');
+  assert.equal(skippedWithoutModel.index, 1, 'skip phrase must advance to step 1');
+  assert.equal(getModelCalls(), 1, 'skip phrase without model must make 0 extra model calls');
+
+  // 2) lib/runtime/domain-contracts.js & lib/contexts/study/operations.js: teach.skip & socratic.* coexist.
+  const contractsSrc = readFileSync(resolve(repoRoot, 'lib/runtime/domain-contracts.js'), 'utf8');
+  assert.ok(contractsSrc.includes("'teach.skip': ['teaching']"), 'domain-contracts must keep teach.skip');
+  assert.ok(contractsSrc.includes("'socratic.get': ['runs']") && contractsSrc.includes("'socratic.step': ['decks', 'runs']"), 'domain-contracts must keep socratic.get/step');
+
+  const opsSrc = readFileSync(resolve(repoRoot, 'lib/contexts/study/operations.js'), 'utf8');
+  assert.ok(opsSrc.includes('skipTeaching') && opsSrc.includes('./socratic-inline.js'), 'study operations must import both skipTeaching and socratic-inline');
+
+  // 3) ui/review/TeachingPanel.jsx: preserves main's LazySimilarTry + TeachingStatus + busyLabel AND #1318 skip UI.
+  const panelSrc = readFileSync(resolve(repoRoot, 'ui/review/TeachingPanel.jsx'), 'utf8');
+  assert.ok(panelSrc.includes('<LazySimilarTry'), 'TeachingPanel must keep main LazySimilarTry');
+  assert.ok(panelSrc.includes('<TeachingStatus'), 'TeachingPanel must keep main TeachingStatus');
+  assert.ok(panelSrc.includes('busyLabel='), 'TeachingPanel must keep main busyLabel on submit button');
+  assert.ok(panelSrc.includes('teaching-skipped-summary'), 'TeachingPanel must keep #1318 skipped summary');
+  assert.ok(panelSrc.includes('teaching-panel__skip') && panelSrc.includes('teaching-panel__skip-all'), 'TeachingPanel must keep #1318 skip buttons');
+});
