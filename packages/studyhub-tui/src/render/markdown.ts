@@ -401,7 +401,7 @@ function renderCode(tok: Tokens.Code, width: number, ctx: Ctx): string[] {
     }
   }
   if (width < 8) return wrapCode(body, width);
-  const border = (s.border ??= c.hex(theme.border));
+  const border = (s.dim ??= c.hex(theme.dim));
   const muted = (s.muted ??= c.hex(theme.muted));
   const inner = width - 4;
   let label = lang ? ` ${lang} ` : '';
