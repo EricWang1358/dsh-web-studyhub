@@ -468,6 +468,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
 
         let revision = upstream.revision ?? 0;
         let retryConflict = false;
+        let editApplied = false;
 
         if (patch.title !== undefined || patch.due !== undefined) {
           const editRes = await host.call<{ revision?: number }>('board.card.edit', {
@@ -484,16 +485,23 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
               recordUpstreamFailure(opKey, { kind: 'update', upstreamCardId, patch }, lastError, notifyOnFailure);
               return { ok: false, error: lastError };
             }
-          } else if (typeof editRes.value?.revision === 'number') {
-            revision = editRes.value.revision;
+          } else {
+            editApplied = true;
+            if (typeof editRes.value?.revision === 'number') {
+              revision = editRes.value.revision;
+            }
           }
         }
 
         if (!retryConflict && patch.column) {
+          const remainingPatch = editApplied ? { column: patch.column } : patch;
           const targetUpstreamCol = resolveUpstreamTargetColumn(upstream.columns, patch.column);
           if (!targetUpstreamCol) {
-            lastError = t(lang, '未找到对应的远端看板列', 'Target upstream column not found');
-            recordUpstreamFailure(opKey, { kind: 'update', upstreamCardId, patch }, lastError, notifyOnFailure);
+            const baseErr = t(lang, '未找到对应的远端看板列', 'Target upstream column not found');
+            lastError = editApplied
+              ? t(lang, `任务内容已更新，但列移动失败：${baseErr}`, `Card details updated, but column move failed: ${baseErr}`)
+              : baseErr;
+            recordUpstreamFailure(opKey, { kind: 'update', upstreamCardId, patch: remainingPatch }, lastError, notifyOnFailure);
             return { ok: false, error: lastError };
           }
           const currentCol = upstream.columns?.find(
@@ -506,11 +514,15 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
               column: targetUpstreamCol,
             });
             if (!moveRes.ok) {
-              lastError = moveRes.error?.message || t(lang, '移动远端任务失败', 'Failed to move upstream card');
-              if (/revision conflict/i.test(lastError)) {
+              const rawErr = moveRes.error?.message || t(lang, '移动远端任务失败', 'Failed to move upstream card');
+              if (/revision conflict/i.test(rawErr)) {
+                lastError = rawErr;
                 retryConflict = true;
               } else {
-                recordUpstreamFailure(opKey, { kind: 'update', upstreamCardId, patch }, lastError, notifyOnFailure);
+                lastError = editApplied
+                  ? t(lang, `任务内容已更新，但列移动失败：${rawErr}`, `Card details updated, but column move failed: ${rawErr}`)
+                  : rawErr;
+                recordUpstreamFailure(opKey, { kind: 'update', upstreamCardId, patch: remainingPatch }, lastError, notifyOnFailure);
                 return { ok: false, error: lastError };
               }
             }
