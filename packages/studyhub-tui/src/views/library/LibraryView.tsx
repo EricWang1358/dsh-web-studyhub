@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
-import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
+import { KeyScope, useKeyScope } from '../../input/hooks.js';
 import type { KeyHint, StudySnapshot, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { Badge, Divider, EmptyState, ProgressBar, StatusPill } from '../../components/Badge.js';
@@ -9,7 +9,6 @@ import { Panel } from '../../components/Panel.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
-import { useClaimKeys } from '../../components/focus.js';
 import { computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { ClickableBox } from '../../components/mouse.js';
@@ -161,21 +160,6 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
   const [streak, setStreak] = useState<number>(0);
   const [sampleLoaded, setSampleLoaded] = useState<boolean>(false);
 
-  const modalOpen = Boolean(
-    manageDeckId ||
-      voiceOpen ||
-      dailyPlanOpen ||
-      courseSettingsOpen ||
-      deckOpsOpen ||
-      guidedOpen ||
-      roundConfigOpen ||
-      confirmArchiveDeck ||
-      confirmDeleteDeck,
-  );
-  const viewActive = isActive && !modalOpen;
-
-  useClaimKeys(CLAIMED_LIBRARY_KEYS, viewActive && !filterEditing);
-
   // Sync streak & sample status cleanly without polluting global store
   useEffect(() => {
     let alive = true;
@@ -278,7 +262,13 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
   const clampedDeckIndex = filteredDecks.length === 0 ? 0 : Math.min(deckIndex, filteredDecks.length - 1);
   const selectedDeck = filteredDecks[clampedDeckIndex] ?? null;
   const selectedWork = workEntries[workIndex] ?? null;
-  useClaimKeys(CLAIMED_DECK_ARCHIVE_KEYS, viewActive && !filterEditing && focusSection === 'decks' && Boolean(selectedDeck));
+  const libraryKeys = useMemo(
+    () =>
+      focusSection === 'decks' && Boolean(selectedDeck)
+        ? [...CLAIMED_LIBRARY_KEYS, ...CLAIMED_DECK_ARCHIVE_KEYS]
+        : CLAIMED_LIBRARY_KEYS,
+    [focusSection, selectedDeck],
+  );
 
   // KPI metrics
   const kpi = useMemo(() => {
@@ -631,16 +621,19 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
     setDailyPlanOpen(true);
   }, [dailyBriefing, snapshot?.decks, handleStartReview, navigate]);
 
-  useInput(
-    (input, key) => {
-      if (busyRef.current || busyAction || !viewActive || filterEditing) return;
+  const pageActive = useKeyScope({
+    id: 'LibraryView:main',
+    active: isActive,
+    keys: libraryKeys,
+    onKey: (input, key) => {
+      if (busyRef.current || busyAction) return false;
       if (input === 'B' && dailyBriefing) {
         handleAcceptBriefing();
-        return;
+        return true;
       }
       if (input === 'Z' && dailyBriefing) {
         handleDismissBriefing();
-        return;
+        return true;
       }
       if (key.escape && filterQuery) {
         setFilterQuery('');
@@ -649,72 +642,79 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       if (input === '/' && !key.ctrl && !key.meta) {
         setFocusSection('decks');
         setFilterEditing(true);
-        return;
+        return true;
       }
       if (key.tab && workEntries.length > 0) {
         setFocusSection((prev) => (prev === 'decks' ? 'work' : 'decks'));
-        return;
+        return true;
       }
       if (input === '[' || input === ']') {
         void handleMoveDeck(input === '[' ? 'up' : 'down');
-        return;
+        return true;
       }
       if (input === 'h') {
         setShowArchived((v) => !v);
-        return;
+        return true;
       }
       if (input === 's') {
         void handleSampleToggle();
-        return;
+        return true;
       }
       if (input === 'v') {
         setVoiceOpen(true);
-        return;
+        return true;
       }
       if (input === 'p') {
         setDailyPlanOpen(true);
-        return;
+        return true;
       }
       if (input === 'g') {
         setGuidedOpen(true);
-        return;
+        return true;
       }
       if (input === 'C') {
         setCourseSettingsOpen(true);
-        return;
+        return true;
       }
       if (input === 'R') {
         setRoundConfigOpen(true);
-        return;
+        return true;
       }
       if (focusSection === 'work' && selectedWork) {
         if (input === 'y' && selectedWork.kind === 'job') {
           void handleRetryJob(selectedWork.job);
-          return;
+          return true;
         }
         if (input === 'o') {
           handleOpenWork(selectedWork);
-          return;
+          return true;
         }
       }
       if (input === 'o') {
         setDeckOpsOpen(true);
-        return;
+        return true;
       }
       if (selectedDeck) {
         if (input === 'm') {
           setManageDeckId(selectedDeck.id);
-        } else if (input === 'a' && focusSection === 'decks') {
+          return true;
+        }
+        if (input === 'a' && focusSection === 'decks') {
           setConfirmArchiveDeck(selectedDeck);
-        } else if (input === 'd') {
+          return true;
+        }
+        if (input === 'd') {
           setConfirmDeleteDeck(selectedDeck);
-        } else if (input === 'x') {
+          return true;
+        }
+        if (input === 'x') {
           void handleExportDeck(selectedDeck);
+          return true;
         }
       }
+      return false;
     },
-    { isActive: viewActive && !filterEditing },
-  );
+  });
 
   const hints = useMemo<KeyHint[]>(
     () => [
@@ -736,7 +736,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
     ],
     [focusSection, lang, sampleLoaded],
   );
-  useFooterHints(hints, viewActive);
+  useFooterHints(hints, pageActive);
 
   // Layout geometry
   const kpiHeight = kpi.focusProgress ? 3 : 2;
@@ -835,7 +835,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
                 selectedIndex={clampedDeckIndex}
                 onChange={setDeckIndex}
                 onSelect={handleStartReview}
-                isActive={viewActive && !filterEditing && focusSection === 'decks'}
+                isActive={pageActive && focusSection === 'decks'}
                 keyExtractor={(d) => d.id}
                 renderItem={renderDeckRow}
               />
@@ -860,7 +860,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
                 selectedIndex={workIndex}
                 onChange={setWorkIndex}
                 onSelect={handleOpenWork}
-                isActive={viewActive && !filterEditing && focusSection === 'work'}
+                isActive={pageActive && focusSection === 'work'}
                 keyExtractor={(w) => `${w.kind}:${w.id}`}
                 renderItem={renderWorkRow}
               />
@@ -879,8 +879,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       focusSection,
       clampedDeckIndex,
       handleStartReview,
-      viewActive,
-      filterEditing,
+      pageActive,
       renderDeckRow,
       workIndex,
       handleOpenWork,
@@ -1020,7 +1019,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
                   {todayHubItems.map((hub) => (
                     <ClickableBox
                       key={hub.id}
-                      clickActive={viewActive && !filterEditing}
+                      clickActive={pageActive}
                       onClick={() => handleTodayHubClick(hub.id)}
                     >
                       <Text>
@@ -1146,7 +1145,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
         </Panel>
       );
     },
-    [focusSection, selectedWork, selectedDeck, lang, asciiMode, theme, progressMap, resumeRunForDeck, sampleLoaded, todayHubItems, handleTodayHubClick, viewActive, filterEditing],
+    [focusSection, selectedWork, selectedDeck, lang, asciiMode, theme, progressMap, resumeRunForDeck, sampleLoaded, todayHubItems, handleTodayHubClick, pageActive],
   );
 
   const filterBadge = `[${t(lang, '筛选', filterEditing ? 'Filter' : 'Filtered')} ${filteredDecks.length}/${scopedDecks.length}] `;
@@ -1216,12 +1215,12 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
                   {truncateDisplay(fullLeft, leftBudget, ell)}
                 </Text>
                 <Box flexDirection="row" flexShrink={0}>
-                  <ClickableBox clickActive={viewActive && !filterEditing} onClick={handleAcceptBriefing}>
+                  <ClickableBox clickActive={pageActive} onClick={handleAcceptBriefing}>
                     <Text color={theme.accent} bold>
                       {actionTxt}
                     </Text>
                   </ClickableBox>
-                  <ClickableBox clickActive={viewActive && !filterEditing} onClick={handleDismissBriefing}>
+                  <ClickableBox clickActive={pageActive} onClick={handleDismissBriefing}>
                     <Text color={theme.dim}>{dismissTxt}</Text>
                   </ClickableBox>
                 </Box>
@@ -1238,23 +1237,25 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
             {filterBadge}
           </Text>
           <Box flexGrow={1} overflow="hidden">
-            <TextInput
-              value={filterQuery}
-              onChange={setFilterQuery}
-              onSubmit={(val) => {
-                if (!val.trim()) setFilterQuery('');
-                setFilterEditing(false);
-              }}
-              onCancel={() => {
-                setFilterQuery('');
-                setFilterEditing(false);
-              }}
-              isActive={viewActive && filterEditing}
-              width={filterInputW}
-              prompt="/"
-              placeholder={t(lang, `关键词${ell}`, `keyword${ell}`)}
-              maxLength={120}
-            />
+            <KeyScope id="library:filter" opaque active={isActive && filterEditing}>
+              <TextInput
+                value={filterQuery}
+                onChange={setFilterQuery}
+                onSubmit={(val) => {
+                  if (!val.trim()) setFilterQuery('');
+                  setFilterEditing(false);
+                }}
+                onCancel={() => {
+                  setFilterQuery('');
+                  setFilterEditing(false);
+                }}
+                isActive={isActive && filterEditing}
+                width={filterInputW}
+                prompt="/"
+                placeholder={t(lang, `关键词${ell}`, `keyword${ell}`)}
+                maxLength={120}
+              />
+            </KeyScope>
           </Box>
           {filterRightHint ? (
             <Text color={theme.dim} wrap="truncate">
@@ -1278,167 +1279,197 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
         right={renderRightPane}
       />
 
-      {/* Lazy-loaded Heavy Modals (only parsed when opened) */}
-      <Suspense fallback={null}>
-        {manageDeckId ? (
-          <DeckManageModal
-            host={host}
-            deckId={manageDeckId}
-            isActive={isActive}
-            width={width}
-            height={height}
-            onClose={() => setManageDeckId(null)}
-            onUpdated={() => {
-              void actions.refresh();
-            }}
-          />
-        ) : null}
+      {/* Lazy-loaded Heavy Modals (each wrapped in its own opaque KeyScope outside Suspense) */}
+      {manageDeckId ? (
+        <KeyScope id="library:deck-manage" opaque>
+          <Suspense fallback={null}>
+            <DeckManageModal
+              host={host}
+              deckId={manageDeckId}
+              isActive={isActive}
+              width={width}
+              height={height}
+              onClose={() => setManageDeckId(null)}
+              onUpdated={() => {
+                void actions.refresh();
+              }}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {voiceOpen ? (
-          <VoicePackModal
-            host={host}
-            isActive={isActive}
-            onClose={() => setVoiceOpen(false)}
-            width={width}
-            height={height}
-            initialCourse={course}
-            initialDeckId={selectedDeck?.id ?? null}
-          />
-        ) : null}
+      {voiceOpen ? (
+        <KeyScope id="library:voice-pack" opaque>
+          <Suspense fallback={null}>
+            <VoicePackModal
+              host={host}
+              isActive={isActive}
+              onClose={() => setVoiceOpen(false)}
+              width={width}
+              height={height}
+              initialCourse={course}
+              initialDeckId={selectedDeck?.id ?? null}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {dailyPlanOpen ? (
-          <DailyPlanModal
-            host={host}
-            isActive={isActive}
-            width={width}
-            height={height}
-            onClose={() => setDailyPlanOpen(false)}
-            onUpdated={() => {
-              void actions.refresh();
-            }}
-          />
-        ) : null}
+      {dailyPlanOpen ? (
+        <KeyScope id="library:daily-plan" opaque>
+          <Suspense fallback={null}>
+            <DailyPlanModal
+              host={host}
+              isActive={isActive}
+              width={width}
+              height={height}
+              onClose={() => setDailyPlanOpen(false)}
+              onUpdated={() => {
+                void actions.refresh();
+              }}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {courseSettingsOpen ? (
-          <CourseSettingsModal
-            host={host}
-            course={course ?? selectedDeck?.course ?? null}
-            isActive={isActive}
-            width={width}
-            height={height}
-            onClose={() => setCourseSettingsOpen(false)}
-            onUpdated={() => {
-              void actions.refresh();
-            }}
-          />
-        ) : null}
+      {courseSettingsOpen ? (
+        <KeyScope id="library:course-settings" opaque>
+          <Suspense fallback={null}>
+            <CourseSettingsModal
+              host={host}
+              course={course ?? selectedDeck?.course ?? null}
+              isActive={isActive}
+              width={width}
+              height={height}
+              onClose={() => setCourseSettingsOpen(false)}
+              onUpdated={() => {
+                void actions.refresh();
+              }}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {deckOpsOpen ? (
-          <DeckOpsModal
-            host={host}
-            selectedDeckId={selectedDeck?.id ?? null}
-            isActive={isActive}
-            width={width}
-            height={height}
-            onClose={() => setDeckOpsOpen(false)}
-            onUpdated={() => {
-              void actions.refresh();
-            }}
-          />
-        ) : null}
+      {deckOpsOpen ? (
+        <KeyScope id="library:deck-ops" opaque>
+          <Suspense fallback={null}>
+            <DeckOpsModal
+              host={host}
+              selectedDeckId={selectedDeck?.id ?? null}
+              isActive={isActive}
+              width={width}
+              height={height}
+              onClose={() => setDeckOpsOpen(false)}
+              onUpdated={() => {
+                void actions.refresh();
+              }}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {guidedOpen ? (
-          <GuidedStudyModal
-            host={host}
-            course={course ?? selectedDeck?.course ?? null}
-            selectedDeckId={selectedDeck?.id ?? null}
-            selectedDeckTitle={selectedDeck ? String(selectedDeck.title ?? selectedDeck.name ?? selectedDeck.id) : null}
-            isActive={isActive}
-            width={width}
-            height={height}
-            onClose={() => setGuidedOpen(false)}
-            onUpdated={() => {
-              void actions.refresh();
-            }}
-          />
-        ) : null}
+      {guidedOpen ? (
+        <KeyScope id="library:guided-study" opaque>
+          <Suspense fallback={null}>
+            <GuidedStudyModal
+              host={host}
+              course={course ?? selectedDeck?.course ?? null}
+              selectedDeckId={selectedDeck?.id ?? null}
+              selectedDeckTitle={selectedDeck ? String(selectedDeck.title ?? selectedDeck.name ?? selectedDeck.id) : null}
+              isActive={isActive}
+              width={width}
+              height={height}
+              onClose={() => setGuidedOpen(false)}
+              onUpdated={() => {
+                void actions.refresh();
+              }}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {roundConfigOpen ? (
-          <RoundConfigModal
-            host={host}
-            isActive={isActive}
-            width={width}
-            height={height}
-            selectedDeckId={selectedDeck?.id ?? null}
-            selectedDeckTitle={selectedDeck ? String(selectedDeck.title ?? selectedDeck.name ?? selectedDeck.id) : null}
-            activeCourse={course ?? selectedDeck?.course ?? null}
-            onClose={() => setRoundConfigOpen(false)}
-          />
-        ) : null}
-      </Suspense>
+      {roundConfigOpen ? (
+        <KeyScope id="library:round-config" opaque>
+          <Suspense fallback={null}>
+            <RoundConfigModal
+              host={host}
+              isActive={isActive}
+              width={width}
+              height={height}
+              selectedDeckId={selectedDeck?.id ?? null}
+              selectedDeckTitle={selectedDeck ? String(selectedDeck.title ?? selectedDeck.name ?? selectedDeck.id) : null}
+              activeCourse={course ?? selectedDeck?.course ?? null}
+              onClose={() => setRoundConfigOpen(false)}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
       {/* Archive / Restore Confirmation Dialog */}
       {confirmArchiveDeck ? (
-        <ConfirmDialog
-          title={
-            confirmArchiveDeck.archived
-              ? t(lang, '恢复已归档题组', 'Restore Archived Deck')
-              : t(lang, '归档题组', 'Archive Deck')
-          }
-          message={
-            confirmArchiveDeck.archived
-              ? t(
-                  lang,
-                  `确定将「${confirmArchiveDeck.title ?? confirmArchiveDeck.id}」从归档中恢复为正常题组吗？`,
-                  `Restore "${confirmArchiveDeck.title ?? confirmArchiveDeck.id}" from archive?`,
-                )
-              : t(
-                  lang,
-                  `确定归档「${confirmArchiveDeck.title ?? confirmArchiveDeck.id}」吗？归档将中断该题组正在进行的练习。`,
-                  `Archive "${confirmArchiveDeck.title ?? confirmArchiveDeck.id}"? Archiving will interrupt any active practice sessions for this deck.`,
-                )
-          }
-          confirmLabel={
-            confirmArchiveDeck.archived ? t(lang, '确认恢复', 'Restore') : t(lang, '确认归档', 'Archive')
-          }
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          danger={!confirmArchiveDeck.archived}
-          isActive={isActive}
-          onConfirm={() => {
-            const target = confirmArchiveDeck;
-            setConfirmArchiveDeck(null);
-            void handleArchiveToggle(target);
-          }}
-          onCancel={() => setConfirmArchiveDeck(null)}
-        />
+        <KeyScope id="library:confirm-archive" opaque>
+          <ConfirmDialog
+            title={
+              confirmArchiveDeck.archived
+                ? t(lang, '恢复已归档题组', 'Restore Archived Deck')
+                : t(lang, '归档题组', 'Archive Deck')
+            }
+            message={
+              confirmArchiveDeck.archived
+                ? t(
+                    lang,
+                    `确定将「${confirmArchiveDeck.title ?? confirmArchiveDeck.id}」从归档中恢复为正常题组吗？`,
+                    `Restore "${confirmArchiveDeck.title ?? confirmArchiveDeck.id}" from archive?`,
+                  )
+                : t(
+                    lang,
+                    `确定归档「${confirmArchiveDeck.title ?? confirmArchiveDeck.id}」吗？归档将中断该题组正在进行的练习。`,
+                    `Archive "${confirmArchiveDeck.title ?? confirmArchiveDeck.id}"? Archiving will interrupt any active practice sessions for this deck.`,
+                  )
+            }
+            confirmLabel={
+              confirmArchiveDeck.archived ? t(lang, '确认恢复', 'Restore') : t(lang, '确认归档', 'Archive')
+            }
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            danger={!confirmArchiveDeck.archived}
+            isActive={isActive}
+            onConfirm={() => {
+              const target = confirmArchiveDeck;
+              setConfirmArchiveDeck(null);
+              void handleArchiveToggle(target);
+            }}
+            onCancel={() => setConfirmArchiveDeck(null)}
+          />
+        </KeyScope>
       ) : null}
 
       {/* Delete Confirmation Dialog */}
       {confirmDeleteDeck ? (
-        <ConfirmDialog
-          title={t(lang, '永久删除题组', 'Delete Deck Permanently')}
-          message={
-            confirmDeleteDeck.archived
-              ? t(
-                  lang,
-                  `确定永久删除「${confirmDeleteDeck.title ?? confirmDeleteDeck.id}」？此操作不可恢复。`,
-                  `Permanently delete "${confirmDeleteDeck.title ?? confirmDeleteDeck.id}"? This cannot be undone.`,
-                )
-              : t(
-                  lang,
-                  `将先归档并永久删除「${confirmDeleteDeck.title ?? confirmDeleteDeck.id}」，此操作不可恢复。`,
-                  `Archive and permanently delete "${confirmDeleteDeck.title ?? confirmDeleteDeck.id}"? This cannot be undone.`,
-                )
-          }
-          confirmLabel={t(lang, '确认删除', 'Delete')}
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          danger
-          isActive={isActive}
-          onConfirm={() => {
-            void handleDeleteConfirmed();
-          }}
-          onCancel={() => setConfirmDeleteDeck(null)}
-        />
+        <KeyScope id="library:confirm-delete" opaque>
+          <ConfirmDialog
+            title={t(lang, '永久删除题组', 'Delete Deck Permanently')}
+            message={
+              confirmDeleteDeck.archived
+                ? t(
+                    lang,
+                    `确定永久删除「${confirmDeleteDeck.title ?? confirmDeleteDeck.id}」？此操作不可恢复。`,
+                    `Permanently delete "${confirmDeleteDeck.title ?? confirmDeleteDeck.id}"? This cannot be undone.`,
+                  )
+                : t(
+                    lang,
+                    `将先归档并永久删除「${confirmDeleteDeck.title ?? confirmDeleteDeck.id}」，此操作不可恢复。`,
+                    `Archive and permanently delete "${confirmDeleteDeck.title ?? confirmDeleteDeck.id}"? This cannot be undone.`,
+                  )
+            }
+            confirmLabel={t(lang, '确认删除', 'Delete')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            danger
+            isActive={isActive}
+            onConfirm={() => {
+              void handleDeleteConfirmed();
+            }}
+            onCancel={() => setConfirmDeleteDeck(null)}
+          />
+        </KeyScope>
       ) : null}
     </Box>
   );
