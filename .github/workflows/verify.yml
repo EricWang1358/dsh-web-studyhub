@@ -184,6 +184,11 @@ jobs:
           tests/r2-p2-win-env-shard.test.mjs
           tests/host.test.mjs
           tests/cli-args.test.mjs
+          tests/board-store.test.mjs
+          tests/round-84-ux.test.mjs
+          tests/domain-settings-workspace.test.mjs
+          tests/r2-p0-export-batch.test.mjs
+          tests/domain-library-decks.test.mjs
 
   # The one result to look at (and to require, if a branch ever needs a required check): green only when lint and every active test job are green.
   verify:

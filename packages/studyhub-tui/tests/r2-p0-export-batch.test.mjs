@@ -232,7 +232,7 @@ describe('P0 #1: Export filenames include context slug + timestamp and never ove
 
 describe('P0 #2: --export & WorkspaceTab backup path sandbox under <libraryRoot>/backups/', () => {
   test('1) resolveSafeBackupExportPath & WorkspaceTab resolveBackupPath reject traversal/absolute paths and contain inside backups/', () => {
-    const libRoot = '/tmp/studyhub-sandbox-lib';
+    const libRoot = resolve('/tmp/studyhub-sandbox-lib');
     const def = defaultBackupPath(libRoot);
     assert.ok(def.startsWith(join(libRoot, 'backups', 'studyhub-backup-')));
     assert.match(def, /studyhub-backup-\d{4}-\d{2}-\d{2}-\d{6}\.json$/);

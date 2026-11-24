@@ -6,8 +6,10 @@
 // - Track B3: Review Quick Action Strip (`quick-actions.ts`) + [R] Redo current card behavior
 // node --test tests/round-84-ux.test.mjs
 import assert from 'node:assert/strict';
+import { resolve } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { after, describe, test } from 'node:test';
+import { pathToFileURL } from 'node:url';
 import { render } from 'ink';
 import React from 'react';
 import { register } from 'tsx/esm/api';
@@ -138,7 +140,7 @@ describe('Round 84 Track C2 — OSC 8 terminal hyperlinks with safe fallback', (
 
   test('builds file:// URLs with page anchors and rejects unsafe schemes or control chars', () => {
     const url = buildFileHyperlinkUrl('/tmp/notes/ch3.pdf', 12);
-    assert.equal(url, 'file:///tmp/notes/ch3.pdf#page=12');
+    assert.equal(url, `${pathToFileURL(resolve('/tmp/notes/ch3.pdf')).href}#page=12`);
     assert.equal(buildFileHyperlinkUrl('https://example.com/doc'), 'https://example.com/doc');
 
     const linked = formatOsc8Link('ch3.pdf p.12', url, { enabled: true });
