@@ -1,4 +1,5 @@
 import { useEffect, useSyncExternalStore } from 'react';
+import type { KeyHint } from '../types/contracts.js';
 import { useTuiStore } from '../state/store.js';
 
 /**
@@ -108,3 +109,56 @@ export function useClaimKeys(keys: readonly string[], active: boolean): void {
 }
 
 export const DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
+
+/**
+ * Stack of active modal footer key hints (#1352 / #1354 D4).
+ * When a modal is open, the shell's bottom KeyHintBar renders the top-most active
+ * modal's own keys instead of falling back to global page-jump shortcuts.
+ */
+interface ModalHintEntry {
+  id: number;
+  hints: readonly KeyHint[];
+}
+let nextModalHintId = 1;
+const modalHintStack: ModalHintEntry[] = [];
+let modalHintsSnapshot: readonly KeyHint[] | null = null;
+const modalHintListeners = new Set<() => void>();
+
+function notifyModalHintListeners(): void {
+  const top = modalHintStack.length > 0 ? modalHintStack[modalHintStack.length - 1].hints : null;
+  modalHintsSnapshot = top;
+  for (const listener of modalHintListeners) listener();
+}
+
+function subscribeModalHints(listener: () => void): () => void {
+  modalHintListeners.add(listener);
+  return () => {
+    modalHintListeners.delete(listener);
+  };
+}
+
+export function getModalHintsSnapshot(): readonly KeyHint[] | null {
+  return modalHintsSnapshot;
+}
+
+export function useModalHints(): readonly KeyHint[] | null {
+  return useSyncExternalStore(subscribeModalHints, getModalHintsSnapshot, getModalHintsSnapshot);
+}
+
+export function useModalFooterHints(hints: readonly KeyHint[] | undefined, active: boolean): void {
+  const sig = hints && hints.length > 0 ? hints.map((h) => `${h.key}\u0001${h.label}`).join('\u0000') : '';
+  useEffect(() => {
+    if (!active || !hints || hints.length === 0) return undefined;
+    const id = nextModalHintId++;
+    modalHintStack.push({ id, hints });
+    notifyModalHintListeners();
+    return () => {
+      const idx = modalHintStack.findIndex((e) => e.id === id);
+      if (idx >= 0) {
+        modalHintStack.splice(idx, 1);
+        notifyModalHintListeners();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, sig]);
+}

@@ -5,7 +5,7 @@ import { t, useTuiStore } from '../state/store.js';
 import { useTheme } from '../theme/tokens.js';
 import { KeyHintBar, Spinner, ToastStack } from '../components/Badge.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
-import { RESERVED_GLOBAL_KEY_SET, isKeyClaimed } from '../components/focus.js';
+import { RESERVED_GLOBAL_KEY_SET, isKeyClaimed, useModalHints } from '../components/focus.js';
 import { useMouseClickInputFallback } from '../components/mouse.js';
 import { useStableWindowSize } from '../components/resize.js';
 import { TopBar } from './TopBar.js';
@@ -285,15 +285,27 @@ export const AppShell = memo(function AppShell({
     ],
     [lang],
   );
+  const modalHints = useModalHints();
   const practiceReturnLabel = useMemo(() => formatReturnHintLabel(practiceStack, lang), [practiceStack, lang]);
   const hints = useMemo(() => {
-    const base = footerHints.length ? (compactMode ? footerHints.slice(0, 4) : footerHints) : defaultHints;
+    if (modalHints && modalHints.length > 0) {
+      return modalHints;
+    }
+    if (footerHints.length > 0) {
+      const base = compactMode ? footerHints.slice(0, 4) : footerHints;
+      if (inputCaptured) return base;
+      const prefix: KeyHint[] = practiceReturnLabel ? [{ key: 'r', label: practiceReturnLabel }] : [];
+      return [...prefix, ...base, ...tailHints];
+    }
+    if (inputCaptured || overlayOpen) {
+      return [{ key: 'Esc', label: t(lang, '关闭', 'Close') }];
+    }
     const prefix: KeyHint[] = practiceReturnLabel ? [{ key: 'r', label: practiceReturnLabel }] : [];
-    return [...prefix, ...base, ...tailHints];
-  }, [practiceReturnLabel, footerHints, compactMode, defaultHints, tailHints]);
+    return [...prefix, ...defaultHints, ...tailHints];
+  }, [modalHints, inputCaptured, overlayOpen, practiceReturnLabel, footerHints, compactMode, defaultHints, tailHints, lang]);
 
   const contextualTip = useMemo(() => {
-    if (overlayOpen || showLaunchpad) return null;
+    if (overlayOpen || showLaunchpad || inputCaptured || (modalHints && modalHints.length > 0)) return null;
     const ready = modelInfo(desktopConfig, binding, snapshot, asciiMode).ready;
     return selectContextualTip({
       page,

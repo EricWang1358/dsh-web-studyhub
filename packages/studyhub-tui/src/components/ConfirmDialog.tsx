@@ -61,8 +61,13 @@ export const ConfirmDialog = memo(function ConfirmDialog({
       </Text>
     </ClickableBox>
   );
+  const dialogHints = [
+    { key: 'y/Enter', label: resolvedConfirm },
+    { key: 'n/Esc', label: resolvedCancel },
+    { key: 'Tab', label: t(lang, '切换按钮', 'Switch') },
+  ];
   return (
-    <Modal title={title} icon={danger ? (asciiMode ? '!' : '▲') : '?'} tone={danger ? 'error' : 'primary'} width={width} onClose={onCancel} isActive={effectiveActive} overlay={overlay}>
+    <Modal title={title} icon={danger ? (asciiMode ? '!' : '▲') : '?'} tone={danger ? 'error' : 'primary'} width={width} onClose={onCancel} isActive={effectiveActive} overlay={overlay} hints={dialogHints}>
       <Box marginY={1} flexDirection="column">
         {typeof message === 'string' ? <Text color={theme.text}>{message}</Text> : message}
       </Box>
