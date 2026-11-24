@@ -229,7 +229,7 @@ interface StdinMouseTapState {
 const stdinMouseTaps = new WeakMap<object, StdinMouseTapState>();
 
 function ensureStdinTap(stream: NodeJS.ReadStream & { read?: ReadFn }): StdinMouseTapState {
-  let state = stdinMouseTaps.get(stream);
+  const state = stdinMouseTaps.get(stream);
   if (state) return state;
 
   const origRead = (stream.read as ReadFn).bind(stream);

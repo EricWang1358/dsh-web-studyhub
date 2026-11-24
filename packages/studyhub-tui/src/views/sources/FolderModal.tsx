@@ -181,7 +181,6 @@ export const FolderModal = memo(function FolderModal({
     const idx = items.findIndex((r) => r.kind === 'folder' && r.name === targetName);
     if (idx >= 0) setSelectedIndex(idx);
     // Only run on initial open / mode change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
   useEffect(() => {

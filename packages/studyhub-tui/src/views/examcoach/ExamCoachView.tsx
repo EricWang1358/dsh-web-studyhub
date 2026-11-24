@@ -321,7 +321,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
 
   const activeCourse = currentCourse(snapshot);
   const knownCourses = useMemo(() => listCourses(snapshot).map((c) => c.key), [snapshot]);
-  const [courseOverride, setCourseOverride] = useState<string | null>(null);
+  const [courseOverride] = useState<string | null>(null);
   const course = courseOverride !== null ? courseOverride : activeCourse || knownCourses[0] || '';
   const model = useMemo(() => modelInfo(desktopConfig, binding, snapshot, asciiMode), [desktopConfig, binding, snapshot, asciiMode]);
 

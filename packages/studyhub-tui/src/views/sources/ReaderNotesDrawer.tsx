@@ -508,9 +508,10 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
       setResolvedDocId(nextDocId);
       setResolvedRevision(nextRev);
 
-      const nextStaleAnnotCount = Array.isArray(annotRes.ok ? annotRes.value?.stale : null)
-        ? (annotRes.value?.stale as Array<{ count?: number }>).reduce((sum, s) => sum + Number(s.count ?? 0), 0)
-        : 0;
+      const staleList = annotRes.ok && Array.isArray(annotRes.value?.stale)
+        ? (annotRes.value.stale as Array<{ count?: number }>)
+        : [];
+      const nextStaleAnnotCount = staleList.reduce((sum, s) => sum + Number(s.count ?? 0), 0);
       setStaleAnnotCount(nextStaleAnnotCount);
       setAnnotations(annotItems);
       setAnnotIndex(0);

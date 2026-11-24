@@ -73,7 +73,7 @@ export function itemKey(item: Pick<WrongBookItem, 'deckId' | 'cardId' | '_view'>
 export function plainSnippet(prompt: unknown): string {
   return String(prompt ?? '')
     .replace(/\$\$[\s\S]*?\$\$|\$[^$\n]+\$/g, ' [式] ')
-    .replace(/[#>*`_\[\]\(\)]/g, ' ')
+    .replace(/[#>*`_[\]()]/g, ' ')
     .replace(/\{\{[^{}]+\}\}/g, '___')
     .replace(/\s+/g, ' ')
     .trim();
@@ -139,7 +139,6 @@ export interface TriageActionInfo {
 export function triageSummary(item: WrongBookItem, lang: UiLanguage): TriageActionInfo {
   const triage = item.triage;
   const route = triage?.route ?? 'fsrs_only';
-  const isZeroToken = triage?.tokens !== 'light';
 
   switch (route) {
     case 'confusable_contrast': {

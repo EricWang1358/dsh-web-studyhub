@@ -317,7 +317,7 @@ export function buildPaletteItems(
         }
         const focusCourse =
           typeof (effectiveSnap?.focus as { course?: unknown } | undefined)?.course === 'string'
-            ? String((effectiveSnap?.focus as { course?: string }).course).trim()
+            ? String((effectiveSnap?.focus as { course?: string } | undefined)?.course ?? '').trim()
             : '';
         const progressMap = (effectiveSnap?.progress && typeof effectiveSnap.progress === 'object'
           ? effectiveSnap.progress

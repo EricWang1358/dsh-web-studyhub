@@ -95,7 +95,7 @@ export const BookExportModal = memo(function BookExportModal({
   course,
   isActive,
   width,
-  height,
+  height: _height,
   onClose,
 }: BookExportModalProps) {
   const theme = useTheme();

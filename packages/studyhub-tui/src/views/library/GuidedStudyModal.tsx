@@ -458,7 +458,6 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
         : null;
       return preferred;
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [host, scopeFilter, resolvedCourseId, lang],
   );
 

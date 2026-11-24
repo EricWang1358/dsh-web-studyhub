@@ -216,7 +216,6 @@ export const TeachModal = memo(function TeachModal({
 
   useEffect(() => {
     void loadSession(teachMode, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run.id, cardId, teachMode]);
 
   const handleSubmitAnswer = useCallback(

@@ -476,7 +476,6 @@ export const AnswerCardModal = memo(function AnswerCardModal({
     );
 
     void hydrateCardAndBook();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardId]);
 
   const finishJobAndReload = useCallback(async () => {

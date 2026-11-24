@@ -299,7 +299,6 @@ function summarizeStartedFill(started: NonNullable<CustomFillResponse['started']
 }
 
 const CUSTOM_PURPOSES: readonly CustomPurpose[] = ['preview', 'follow', 'review', 'openbook'];
-const CUSTOM_SCOPES: readonly Exclude<CustomScopeKind, 'chapters'>[] = ['all', 'exam'];
 const BOOK_PARTS: readonly BookPart[] = ['explain', 'terms', 'formulas', 'index', 'confusables', 'answerKit', 'cheatSheet'];
 const STRENGTH_LEVELS: readonly QuestionStrength[] = ['lean', 'standard', 'full'];
 const DEFAULT_MINUTES_PER_DAY = 180;

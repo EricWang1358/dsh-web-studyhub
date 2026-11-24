@@ -295,7 +295,6 @@ export const QueueModal = memo(function QueueModal({
       if (mountedRef.current) setLoading(false);
     });
     // Only fetch on mount / run id change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run.id]);
 
   const queueEntries = useMemo(() => {

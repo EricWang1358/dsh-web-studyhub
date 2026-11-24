@@ -46,7 +46,7 @@ export const BookExplainModal = memo(function BookExplainModal({
   selectedItem,
   isActive,
   width,
-  height,
+  height: _height,
   onClose,
   onStarted,
 }: BookExplainModalProps) {

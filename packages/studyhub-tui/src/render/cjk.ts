@@ -17,8 +17,8 @@ const ANSI_SOURCE =
   '\\u001B\\][\\s\\S]*?(?:\\u0007|\\u001B\\\\|\\u009C)|[\\u001B\\u009B][[\\]()#;?]*(?:\\d{1,4}(?:[;:]\\d{0,4})*)?[\\dA-PR-TZcf-nq-uy=><~]';
 const ANSI_RE = new RegExp(ANSI_SOURCE, 'g');
 
-const ZERO_WIDTH_CLUSTER = /^[\p{Mn}\p{Me}\p{Cf}\u200B-\u200F\u2028-\u202E\u2060-\u2064\uFE00-\uFE0F\u{E0000}-\u{E007F}]+$/u;
-const ZERO_WIDTH_CP = /^[\p{Mn}\p{Me}\p{Cf}\u200B-\u200F\uFE00-\uFE0F]$/u;
+const ZERO_WIDTH_CLUSTER = /^[\p{Mn}\p{Me}\p{Cf}\u2028\u2029\u{E0000}-\u{E007F}]+$/u;
+const ZERO_WIDTH_CP = /^[\p{Mn}\p{Me}\p{Cf}]$/u;
 const PICTOGRAPHIC = /\p{Extended_Pictographic}/u;
 const EMOJI_PRESENTATION_START = /^\p{Emoji_Presentation}/u;
 const REGIONAL_INDICATOR_START = /^\p{Regional_Indicator}/u;
@@ -375,7 +375,11 @@ class LineBuilder {
   /** true when the current line was produced by an automatic wrap (drop leading spaces). */
   wrapped = false;
 
-  constructor(readonly max: number) {}
+  readonly max: number;
+
+  constructor(max: number) {
+    this.max = max;
+  }
 
   appendTok(tok: Tok): void {
     if (tok.ansi) {

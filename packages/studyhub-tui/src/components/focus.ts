@@ -105,7 +105,6 @@ export function useClaimKeys(keys: readonly string[], active: boolean): void {
   useEffect(() => {
     if (!active || keys.length === 0) return undefined;
     return claimKeys(keys);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, sig]);
 }
 
@@ -160,7 +159,6 @@ export function useModalFooterHints(hints: readonly KeyHint[] | undefined, activ
         notifyModalHintListeners();
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, sig]);
 }
 

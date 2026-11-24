@@ -208,7 +208,6 @@ export const BookEditModal = memo(function BookEditModal({
       cancelled = true;
     };
     // Run once on mount (or when course/lang changes) so we don't clobber edits mid-session.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [host, course, lang]);
 
   // Synchronize text buffer when activeFile changes cleanly (e.g. initial mount with bookData or slot switch).
