@@ -535,7 +535,7 @@ export const ExamSetup = memo(function ExamSetup({
 
         {resumableRun ? (
           <Box marginBottom={1}>
-            <Badge label={t(lang, 'r 继续未交卷考试', 'r Resume Open Exam')} tone="warning" />
+            <Badge label={t(lang, 'R 继续未交卷考试', 'R Resume Open Exam')} tone="warning" />
             <Text color={theme.muted}>{` ${truncateDisplay(String(resumableRun.title || ''), Math.max(8, innerW - 22), ellipsis)}`}</Text>
           </Box>
         ) : null}
@@ -548,7 +548,7 @@ export const ExamSetup = memo(function ExamSetup({
 
         <Text color={theme.muted} bold>
           {asciiMode
-            ? t(lang, '选择范围（j/k 选择，Enter 开始考试）:', 'Select Scope (j/k move, Enter start):')
+            ? t(lang, '选择范围（Up/Down 选择，Enter 开始考试）:', 'Select Scope (Up/Down move, Enter start):')
             : t(lang, '选择范围（↑/↓ 选择，Enter 开始考试）:', 'Select Scope (↑/↓ move, Enter start):')}
         </Text>
         <VirtualList
@@ -559,6 +559,7 @@ export const ExamSetup = memo(function ExamSetup({
           onChange={(idx) => setScopeIdx(idx)}
           onSelect={(item) => onStart({ mode, scopeId: item.id, count, minutes, kinds }, item)}
           isActive={isActive && pane === 'setup' && !busy}
+          vimNavKeys={false}
           emptyText={
             mode === 'case'
               ? t(lang, '暂无案例分析题组', 'No case-study decks found')

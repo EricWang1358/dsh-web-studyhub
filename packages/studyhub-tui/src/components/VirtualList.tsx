@@ -38,6 +38,8 @@ export interface VirtualListProps<T> {
   ascii?: boolean;
   /** Opt in to Vim `g` (top) / `G` (bottom) jump keys. Default false so page shortcuts like `g` never conflict (#1349). */
   vimJumpKeys?: boolean;
+  /** Enable Vim `j` / `k` navigation keys in addition to arrow keys. Set false when parent binds `j` or `k` (#1385). */
+  vimNavKeys?: boolean;
 }
 
 function clamp(n: number, lo: number, hi: number): number {
@@ -197,6 +199,7 @@ function VirtualListInner<T>({
   scrollPadding = 1,
   ascii: asciiProp,
   vimJumpKeys = false,
+  vimNavKeys = true,
 }: VirtualListProps<T>) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
@@ -263,8 +266,8 @@ function VirtualListInner<T>({
       else if (key.ctrl && input === 'u') move(cursor - pageStep(rows, 'half'));
       else if (key.pageDown || (key.ctrl && input === 'f')) move(cursor + pageStep(rows, 'full'));
       else if (key.pageUp || (key.ctrl && input === 'b')) move(cursor - pageStep(rows, 'full'));
-      else if (key.downArrow || (!key.ctrl && !key.meta && input === 'j')) move(cursor + 1);
-      else if (key.upArrow || (!key.ctrl && !key.meta && input === 'k')) move(cursor - 1);
+      else if (key.downArrow || (vimNavKeys && !key.ctrl && !key.meta && input === 'j')) move(cursor + 1);
+      else if (key.upArrow || (vimNavKeys && !key.ctrl && !key.meta && input === 'k')) move(cursor - 1);
       else if (key.home || (vimJumpKeys && !key.ctrl && !key.meta && input === 'g')) move(0);
       else if (key.end || (vimJumpKeys && !key.ctrl && !key.meta && input === 'G')) move(total - 1);
       else if (key.return) {
