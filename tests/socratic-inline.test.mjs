@@ -14,6 +14,8 @@ import { extractLearnerPace } from '../lib/pace/forecast.js';
 import { recapGroups } from '../lib/daily-recap.js';
 import { wrongDetail } from '../lib/wrong-detail.js';
 import { assistantRefusal } from '../lib/assistant-boundary.js';
+import { questionSolidity } from '../lib/evidence/point-evidence.js';
+import { taskProgress } from '../lib/daily-plan/tasks.js';
 import { loadUi } from './helpers/ui-module.mjs';
 
 const uiMod = await loadUi(`
@@ -312,10 +314,8 @@ test('6) 统计隔离与独立口径 (#1323-11) + 错题本保留薄弱并显示
     text: '给资源按全局顺序编号并升序申请，破坏循环等待条件',
     offline: true,
   });
-  assert.ok(right.attempt, 'socratic answer records persisted attempt');
-  assert.equal(right.attempt.assessment, 'socratic');
-  assert.equal(right.attempt.grade, 3, 'L1-assisted right answer grades as 3');
-  assert.equal(right.attempt.socratic.hintLevel, 1);
+  assert.equal(right.state.stage, 'retell');
+  assert.equal(right.state.maxHintLevelUsed, 1);
 
   await service.call('socratic.step', {
     deckId: 'deck-os',
@@ -328,11 +328,16 @@ test('6) 统计隔离与独立口径 (#1323-11) + 错题本保留薄弱并显示
   const state = await service.store.read();
   const card = state.decks[0].cards[0];
 
+  // 0) The answer log holds answers only: the Socratic steps live on card.socratic, never in state.attempts
+  assert.deepEqual(state.attempts.map((a) => a.assessment), ['graded'], 'only the official answer is in the answer log');
+
   // 1) WrongBook MUST NOT be cleared out of `weak` by Socratic pass, and still exposes Socratic hintLevel
   const wb = wrongBook(state, { course: '操作系统', view: 'weak' });
   const wbItem = wb.items.find((it) => it.cardId === 'card-deadlock');
   assert.ok(wbItem, 'Socratic pass must NOT clear an unresolved mistake from WrongBook weak');
   assert.equal(wbItem.socratic?.hintLevel, 1, 'wrongBook row exposes highest Socratic hint level');
+  assert.equal(wbItem.socratic?.stage, 'summary');
+  assert.equal(wbItem.socratic?.retellPassed, true);
   const detail = wrongDetail(state, { deckId: 'deck-os', cardId: 'card-deadlock' });
   assert.equal(detail.socratic?.hintLevel, 1, 'wrongDetail exposes Socratic hint level');
 
@@ -351,10 +356,13 @@ test('6) 统计隔离与独立口径 (#1323-11) + 错题本保留薄弱并显示
   assert.equal(stats.totals.attempts, 1, 'official attempt counted once, never double-counted with socratic');
   assert.equal(stats.totals.gradedAttempts, 1);
   assert.equal(stats.totals.correctRate, 0, 'official wrong answer rate stays honest (0%), not inflated by socratic');
-  assert.equal(stats.totals.socraticAttempts, 1, 'socratic tutoring tracked separately in totals.socraticAttempts');
-  assert.equal(stats.totals.socraticRetold, 1, 'completed socratic retell tracked separately in totals.socraticRetold');
+  assert.deepEqual(stats.totals.socratic, {
+    cards: 1,
+    retold: 1,
+    hintLevels: { 0: 0, 1: 1, 2: 0 },
+    stages: { answer: 0, judge: 0, retell: 0, summary: 1 },
+  }, 'socratic tutoring is counted from card.socratic: one question, retold, used L1, finished');
   assert.equal(stats.trend.at(-1)?.gradedCount, 1);
-  assert.equal(stats.trend.at(-1)?.socraticCount, 1);
 
   const todayPace = uiMod.computeTodayPace({ attempts: state.attempts, now });
   assert.equal(todayPace.todayCount, 1, 'today-pace must not double-count socratic attempts');
@@ -439,3 +447,162 @@ test('7) #1323-12: 智能单问截断（忽略引号/代码/URL/三元）+ 参�
   assert.match(revealed.state.turns.at(-1).text, /参考答案：/);
   assert.match(revealed.state.turns.at(-1).text, /简要讲解：/);
 });
+
+const ref = { deckId: 'deck-os', cardId: 'card-deadlock' };
+const startRun = (service) => service.call('review.start', { mode: 'path', scope: [ref] });
+
+test('8) help taken in the drawer before answering marks the run answer as assisted, never a clean pass', async (t) => {
+  const service = await createSeededService(t);
+  const run = await startRun(service);
+  const step = (args) => service.call('socratic.step', { ...ref, runId: run.id, offline: true, ...args });
+
+  // Open the drawer on the unanswered question: L1, L2, then the reference answer; back to the question, answer correctly.
+  await step({ action: 'hint' });
+  await step({ action: 'hint' });
+  await step({ action: 'reveal' });
+  await service.call('review.answer', { runId: run.id, cardId: 'card-deadlock', selected: ['a'] });
+
+  const state = await service.store.read();
+  const answers = state.attempts.filter((a) => a.runId === run.id);
+  assert.equal(answers.length, 1, 'one answer in the log: the learner\'s');
+  const [answer] = answers;
+  assert.equal(answer.assistance.used, true);
+  assert.equal(answer.assistance.askedTutorBeforeAnswer, true);
+  assert.equal(answer.assistance.hintUsed, true);
+  assert.equal(answer.assistance.revealedBeforeAnswer, true);
+  assert.equal(answer.grade, 3, 'a right answer after the hint ladder is graded as hinted (3), not a clean 4');
+
+  const solidity = questionSolidity(state.attempts)({ ...ref, level: 'learning' });
+  assert.equal(solidity.exposedSolution, true, 'the exposure check sees the reference answer shown before answering');
+  assert.equal(solidity.right, 0, 'no independent pass');
+  assert.equal(solidity.assistedOnly, true);
+});
+
+test('9) the evidence follows what the drawer showed: asking only marks the tutor, a hint marks the hint', async (t) => {
+  const service = await createSeededService(t);
+  const run = await startRun(service);
+  const step = (args) => service.call('socratic.step', { ...ref, runId: run.id, offline: true, ...args });
+  const entryAssistance = async () => (await service.store.read()).runs.find((r) => r.id === run.id).entries[0].assistance;
+
+  // A right answer at L0 in the drawer: the tutor was asked, no hint and no answer was shown.
+  await step({ text: '按全局顺序编号并要求升序申请资源，破坏了循环等待条件，不会形成环路等待。' });
+  assert.deepEqual(
+    { used: true, askedTutorBeforeAnswer: true, hintUsed: false, revealedBeforeAnswer: false },
+    pick(await entryAssistance(), ['used', 'askedTutorBeforeAnswer', 'hintUsed', 'revealedBeforeAnswer']),
+  );
+
+  // Reset and take one hint: the hint is recorded too, and evidence only adds up.
+  await step({ action: 'reset' });
+  await step({ action: 'hint' });
+  const marked = await entryAssistance();
+  assert.equal(marked.hintUsed, true);
+  assert.equal(marked.revealedBeforeAnswer, false);
+
+  // Once answered, a later Socratic step changes nothing in the stored answer.
+  await service.call('review.answer', { runId: run.id, cardId: 'card-deadlock', selected: ['b'] });
+  const before = structuredClone((await service.store.read()).attempts);
+  await step({ action: 'reveal' });
+  assert.deepEqual((await service.store.read()).attempts, before);
+});
+
+test('10) no run: a step without runId writes the card only; an exam in progress refuses Socratic steps', async (t) => {
+  const service = await createSeededService(t);
+  const run = await startRun(service);
+  await service.call('socratic.step', { ...ref, action: 'reveal' });
+  const state = await service.store.read();
+  assert.equal(state.runs.find((r) => r.id === run.id).entries[0].assistance, undefined, 'a step outside a run marks no run');
+  assert.equal(state.decks[0].cards[0].socratic.stage, 'retell');
+
+  const exam = await service.call('review.start', { mode: 'exam', scope: [ref] });
+  await assert.rejects(
+    service.call('socratic.step', { ...ref, runId: exam.id, action: 'reveal' }),
+    /exam/i,
+  );
+});
+
+test('11) Socratic steps never enter the answer log: 错因 lands on the real answer and the daily plan does not count an unanswered question', async (t) => {
+  const service = await createSeededService(t);
+
+  // Every kind of step on a question outside a run: nothing in state.attempts.
+  const step = (args) => service.call('socratic.step', { ...ref, offline: true, ...args });
+  await step({ text: '不知道' });
+  await step({ text: '按全局顺序编号并要求升序申请资源，破坏了循环等待条件，不会形成环路等待。' });
+  await step({ text: '因为死锁需要四个必要条件同时成立，全局升序编号后不会形成循环等待环路，所以能预防死锁。' });
+  await step({ action: 'reset' });
+  await step({ action: 'reveal' });
+  assert.deepEqual((await service.store.read()).attempts, []);
+
+  // Daily plan: a Socratic step before answering does not make the question done.
+  const run = await startRun(service);
+  await service.store.update((s) => { s.runs.find((r) => r.id === run.id).dailyPlanTaskId = 'task-1'; });
+  const task = { id: 'task-1', learningTask: { kind: 'practice', scope: [ref] } };
+  await service.call('socratic.step', { ...ref, runId: run.id, offline: true, action: 'reset' });
+  await service.call('socratic.step', { ...ref, runId: run.id, offline: true, text: '按全局顺序编号并要求升序申请资源，破坏了循环等待条件，不会形成环路等待。' });
+  assert.equal(taskProgress(await service.store.read(), task).done, 0, 'an unanswered question is not done');
+
+  // 错因 after a wrong answer and a Socratic step is saved on the wrong answer.
+  await service.call('review.answer', { runId: run.id, cardId: 'card-deadlock', selected: ['b'] });
+  await service.call('socratic.step', { ...ref, runId: run.id, offline: true, action: 'reveal' });
+  await service.call('attempt.errorReason.set', { ...ref, runId: run.id, errorReason: 'concept' });
+  const state = await service.store.read();
+  const wrong = state.attempts.find((a) => a.runId === run.id);
+  assert.equal(wrong.grade, 1);
+  assert.equal(wrong.errorReason, 'concept');
+  assert.equal(state.attempts.length, 1);
+  assert.equal(taskProgress(state, task).done, 1);
+});
+
+test('12) reopening the drawer shows saved help again: it is recorded on the unanswered question of the new run', async (t) => {
+  let modelCalls = 0;
+  const service = await createSeededService(t, { complete: async () => { modelCalls += 1; return '{}'; } });
+
+  // Run A: L1, L2 and the reference answer, then the round ends without an answer.
+  const runA = await startRun(service);
+  for (const action of ['hint', 'hint', 'reveal']) await service.call('socratic.step', { ...ref, runId: runA.id, offline: true, action });
+  await service.call('review.end', { runId: runA.id });
+
+  // Run B: only open the drawer (no step), then answer correctly.
+  const runB = await startRun(service);
+  const opened = await service.call('socratic.get', { ...ref, runId: runB.id });
+  assert.equal(opened.state.revealed, true, 'the drawer shows the saved reference answer');
+  assert.equal(modelCalls, 0, 'opening stays at zero model calls');
+  await service.call('review.answer', { runId: runB.id, cardId: 'card-deadlock', selected: ['a'] });
+
+  const state = await service.store.read();
+  const answer = state.attempts.find((a) => a.runId === runB.id);
+  assert.equal(answer.assistance.askedTutorBeforeAnswer, true);
+  assert.equal(answer.assistance.hintUsed, true);
+  assert.equal(answer.assistance.revealedBeforeAnswer, true);
+  assert.equal(answer.grade, 3, 'not a clean pass');
+  assert.equal(questionSolidity(state.attempts)({ ...ref, level: 'learning' }).right, 0);
+});
+
+test('13) opening the drawer records nothing when there is no saved help, no run, or the question is answered', async (t) => {
+  const service = await createSeededService(t);
+  const run = await startRun(service);
+  const entry = async () => (await service.store.read()).runs.find((r) => r.id === run.id).entries[0];
+
+  await service.call('socratic.get', { ...ref, runId: run.id });
+  assert.equal((await entry()).assistance, undefined, 'no saved record: nothing shown but the opening question');
+
+  // A saved record that was reset holds only the opening question: still nothing to record.
+  await service.call('socratic.step', { ...ref, action: 'hint' });
+  await service.call('socratic.step', { ...ref, action: 'reset' });
+  await service.call('socratic.get', { ...ref, runId: run.id });
+  assert.equal((await entry()).assistance, undefined, 'an empty saved record records nothing');
+
+  // Saved help, but no run named: nothing to mark.
+  await service.call('socratic.step', { ...ref, action: 'reveal' });
+  await service.call('socratic.get', ref);
+  assert.equal((await entry()).assistance, undefined);
+
+  // Saved help on an answered question: the answer keeps what it proved.
+  await service.call('review.answer', { runId: run.id, cardId: 'card-deadlock', selected: ['a'] });
+  const before = structuredClone(await entry());
+  await service.call('socratic.get', { ...ref, runId: run.id });
+  assert.deepEqual(await entry(), before);
+});
+
+function pick(object, keys) {
+  return Object.fromEntries(keys.map((key) => [key, object?.[key]]));
+}

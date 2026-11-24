@@ -120,7 +120,7 @@ export function computeTodayPace({
     const priorWeekElapsed = [];
 
     for (const attempt of Array.isArray(attempts) ? attempts : []) {
-      if (!attempt || attempt.voidedAt || attempt.implicit || attempt.imported || attempt.assessment === 'socratic' || attempt.source === 'socratic') continue;
+      if (!attempt || attempt.voidedAt || attempt.implicit || attempt.imported) continue;
       const ts = attemptTimestampMs(attempt);
       if (!Number.isFinite(ts)) continue;
       const day = timeZone ? dayInTimeZone(ts, timeZone) : localDate(new Date(ts));
