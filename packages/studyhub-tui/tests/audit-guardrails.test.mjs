@@ -103,13 +103,15 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
     );
   });
 
-  test('[Cat 2: Truncation] Zero truncateDisplay() calls slicing error messages (#1354 D5, #1379)', () => {
+  test('[Cat 2: Truncation] Zero truncateDisplay() calls slicing error or warning messages (#1354 D5, #1379, #1391)', () => {
     const violations = [];
+    const ERR_TRUNC_RE =
+      /truncateDisplay\s*\(\s*(?:(?:[a-zA-Z0-9_]*Error|[a-zA-Z0-9_]*Err|errorText|errorMsg|failure|proposal\.failure\.message|warnings\[0\])\b|normalizeAsciiChrome\s*\(\s*error\b|`[^`]*\$\{[^}]*(?:Error|Err)\b)/;
     for (const file of ALL_SRC_FILES) {
       const r = rel(file);
       const lines = fs.readFileSync(file, 'utf8').split('\n');
       lines.forEach((line, idx) => {
-        if (/truncateDisplay\s*\(\s*(?:error|errorText|errorMsg|subError|failure)\b/.test(line)) {
+        if (ERR_TRUNC_RE.test(line)) {
           violations.push(`${r}:${idx + 1}: ${line.trim()}`);
         }
       });
@@ -117,7 +119,7 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
     assert.deepEqual(
       violations,
       [],
-      `Found error messages truncated via truncateDisplay() (wrap errors with wrap="wrap" instead):\n${violations.join('\n')}`,
+      `Found error/warning messages truncated via truncateDisplay() (wrap errors with wrap="wrap" instead):\n${violations.join('\n')}`,
     );
   });
 
@@ -239,5 +241,137 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
     const bak = files.find((f) => f.startsWith('tui-board.json.corrupt-') && f.endsWith('.bak'));
     assert.ok(bak, `expected corrupt backup before forced overwrite; files=${files.join(', ')}`);
     assert.equal(await readFile(path.join(dir, bak), 'utf8'), corruptRaw);
+  });
+
+  test('[Cat 1: Round-2 Key Conflicts] Views binding k/Space alongside VirtualList/ScrollView disable conflicting child bindings (#1385, #1386, #1387)', () => {
+    const examSetup = fs.readFileSync(path.join(SRC_ROOT, 'views/exam/ExamSetup.tsx'), 'utf8');
+    assert.ok(examSetup.includes('vimNavKeys={false}'), 'ExamSetup VirtualList must set vimNavKeys={false} so k only cycles kinds (#1385)');
+    assert.ok(!examSetup.includes("'r 继续未交卷考试'"), 'ExamSetup must not display stale lowercase r hint (#1385)');
+
+    const genView = fs.readFileSync(path.join(SRC_ROOT, 'views/generate/GenerateView.tsx'), 'utf8');
+    assert.ok(genView.includes('vimNavKeys={false}'), 'GenerateView VirtualList must set vimNavKeys={false} so k only cycles kinds (#1385)');
+
+    const coachNudge = fs.readFileSync(path.join(SRC_ROOT, 'views/review/CoachNudgeModal.tsx'), 'utf8');
+    assert.ok(coachNudge.includes('vimNavKeys={false}'), 'CoachNudgeModal ScrollView must set vimNavKeys={false} so k only triggers got-it (#1386)');
+
+    const wrongBook = fs.readFileSync(path.join(SRC_ROOT, 'views/wrongbook/WrongBookView.tsx'), 'utf8');
+    assert.ok(
+      /input\s*===\s*['"] ['"]\s*&&\s*activePane\s*===\s*['"]left['"]/.test(wrongBook),
+      'WrongBookView Space multi-select must be gated to activePane === "left" (#1387)',
+    );
+  });
+
+  test('[Cat 2: Scrollability & Resize] Scrollable MarkdownViews wire focus/scrollTop and Modal uses useStableWindowSize (#1390, #1392)', () => {
+    const modal = fs.readFileSync(path.join(SRC_ROOT, 'components/Modal.tsx'), 'utf8');
+    assert.ok(modal.includes('useStableWindowSize'), 'Modal.tsx must use debounced useStableWindowSize (#1392)');
+    assert.ok(!/\buseWindowSize\b/.test(modal), 'Modal.tsx must not call raw useWindowSize (#1392)');
+
+    const review = fs.readFileSync(path.join(SRC_ROOT, 'views/review/ReviewView.tsx'), 'utf8');
+    assert.ok(
+      /markdown=\{postAnswerMarkdown\}[\s\S]{0,240}isActive=\{mainActive && revealed\}/.test(review),
+      'ReviewView postAnswerMarkdown MarkdownView must enable scrolling after reveal (#1390)',
+    );
+
+    const deckManage = fs.readFileSync(path.join(SRC_ROOT, 'views/library/DeckManageModal.tsx'), 'utf8');
+    assert.ok(
+      /markdown=\{previewMarkdown\}[\s\S]{0,240}scrollTop=\{previewScrollTop\}/.test(deckManage),
+      'DeckManageModal preview MarkdownView must wire previewScrollTop (#1390)',
+    );
+
+    const examRunner = fs.readFileSync(path.join(SRC_ROOT, 'views/exam/ExamRunner.tsx'), 'utf8');
+    assert.ok(
+      !/truncateDisplay\s*\(\s*opt\.text/.test(examRunner),
+      'ExamRunner MCQ options must wrap instead of truncating opt.text (#1390)',
+    );
+  });
+
+  test('[Cat 3: AI Stream Abort] Every view calling host.streamComplete() passes an AbortController signal (#1393)', () => {
+    const violations = [];
+    for (const file of ALL_SRC_FILES) {
+      const r = rel(file);
+      if (r.startsWith('host/') || r.startsWith('types/')) continue;
+      const code = fs.readFileSync(file, 'utf8');
+      if (!/streamComplete\s*\(/.test(code)) continue;
+      if (!/AbortController/.test(code) || !/\bsignal\s*:/.test(code)) {
+        violations.push(`${r}: calls streamComplete() without AbortController signal`);
+      }
+    }
+    assert.deepEqual(violations, [], `Streaming AI views missing AbortController cleanup:\n${violations.join('\n')}`);
+  });
+
+  test('[Cat 4: Round-2 Multi-Write] ModelsTab, DeckManageModal, and shell/actions handle step-2 failures truthfully (#1394)', () => {
+    const modelsTab = fs.readFileSync(path.join(SRC_ROOT, 'views/settings/ModelsTab.tsx'), 'utf8');
+    assert.ok(
+      modelsTab.includes('effortError') && modelsTab.includes('binding.set'),
+      'ModelsTab must inspect binding.set result and warn on partial save (#1394)',
+    );
+    const deckManage = fs.readFileSync(path.join(SRC_ROOT, 'views/library/DeckManageModal.tsx'), 'utf8');
+    assert.ok(
+      deckManage.includes("'draft.delete'"),
+      'DeckManageModal must clean up orphan edit draft if draft.save fails during rename (#1394)',
+    );
+    const shellActions = fs.readFileSync(path.join(SRC_ROOT, 'shell/actions.ts'), 'utf8');
+    assert.ok(
+      shellActions.includes('focusRes') && shellActions.includes('!focusRes.ok'),
+      'shell/actions.ts createCourse must inspect focus.set failure (#1394)',
+    );
+  });
+
+  test('[Cat 5 Runtime] desktop config-store refuses to overwrite corrupt desktop.json by default and backs up when forced (#1388)', async (t) => {
+    const { createConfigStore } = await import('../../studyhub-desktop/adapters/storage/config-store.mjs');
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'studyhub-1388-cfg-'));
+    t.after(() => rm(dir, { recursive: true, force: true }));
+    const store = createConfigStore({ env: { DSH_HOME: dir }, home: dir, documentsDir: path.join(dir, 'docs') });
+    await fs.promises.mkdir(path.dirname(store.configPath), { recursive: true });
+    const corruptRaw = '{"mode":"openai","openai":{"apiKey":"sk-secret"BROKEN';
+    await writeFile(store.configPath, corruptRaw, 'utf8');
+
+    await assert.rejects(
+      store.save({ mode: 'openai' }),
+      /refusing to overwrite|could not be read/i,
+      'config-store.save must refuse to overwrite corrupt desktop.json',
+    );
+    await assert.rejects(
+      store.confirmLibraryPlace(),
+      /JSON|Unexpected|Expected/i,
+      'config-store.confirmLibraryPlace must reject on corrupt desktop.json instead of overwriting with defaults',
+    );
+    assert.equal(await readFile(store.configPath, 'utf8'), corruptRaw, 'corrupt desktop.json must remain intact');
+
+    await store.save({ mode: 'openai' }, { force: true });
+    const files = await readdir(path.dirname(store.configPath));
+    const bak = files.find((f) => f.startsWith('desktop.json.corrupt-') && f.endsWith('.bak'));
+    assert.ok(bak, `expected corrupt backup before forced overwrite; files=${files.join(', ')}`);
+    assert.equal(await readFile(path.join(path.dirname(store.configPath), bak), 'utf8'), corruptRaw);
+  });
+
+  test('[Cat 5 Runtime] lib/update-check.js and lib/usage-frequency.js back up corrupt files and retry transient renames (#1389)', async (t) => {
+    const repoRoot = path.resolve(SRC_ROOT, '../../..');
+    for (const relFile of ['lib/update-check.js', 'lib/usage-frequency.js']) {
+      const code = fs.readFileSync(path.join(repoRoot, relFile), 'utf8');
+      assert.ok(code.includes('renameWithRetry'), `${relFile} must use renameWithRetry for Windows EBUSY/EPERM safety (#1389)`);
+      assert.ok(code.includes('.corrupt-'), `${relFile} must back up corrupt JSON before overwriting (#1389)`);
+    }
+
+    const { createUsageFrequency, usageFrequencyPath } = await import('../../../lib/usage-frequency.js');
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'studyhub-1389-usage-'));
+    const prevHome = process.env.DSH_HOME;
+    process.env.DSH_HOME = dir;
+    t.after(async () => {
+      if (prevHome === undefined) delete process.env.DSH_HOME;
+      else process.env.DSH_HOME = prevHome;
+      await rm(dir, { recursive: true, force: true });
+    });
+    const target = usageFrequencyPath();
+    await fs.promises.mkdir(path.dirname(target), { recursive: true });
+    const corruptRaw = '{"enabled":true,BROKEN';
+    await writeFile(target, corruptRaw, 'utf8');
+
+    const uf = createUsageFrequency();
+    await uf.set({ enabled: true });
+    const files = await readdir(path.dirname(target));
+    const bak = files.find((f) => f.startsWith('usage-frequency.json.corrupt-') && f.endsWith('.bak'));
+    assert.ok(bak, `expected usage-frequency.json.corrupt-*.bak backup; files=${files.join(', ')}`);
+    assert.equal(await readFile(path.join(path.dirname(target), bak), 'utf8'), corruptRaw);
   });
 });
