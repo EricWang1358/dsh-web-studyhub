@@ -386,4 +386,81 @@ describe('#1313 unified AI result follow-up bar', () => {
       hRetell.cleanup();
     }
   });
+
+  test('4. (#1344) Inside AppShell, pressing 1-4 or a when NextStepFollowupBar is expanded (non-typing) does NOT trigger global page jumps', async () => {
+    const { AppShell } = await import('../src/shell/AppShell.tsx');
+    resetStore();
+    useTuiStore.setState({ page: 'review', activeRunId: baseRun.id });
+
+    const teachHost = {
+      call: async (name) => {
+        if (name === 'teach.get' || name === 'teach.start') {
+          return {
+            ok: true,
+            value: {
+              id: 'ts-1344',
+              mode: 'understanding',
+              index: 2,
+              total: 2,
+              complete: true,
+              takeaway: 'TEACH_SUMMARY_1344',
+            },
+          };
+        }
+        return { ok: true, value: {} };
+      },
+      streamComplete: async () => 'REPLY_1344',
+    };
+
+    const h = createInkHarness(
+      React.createElement(AppShell, {
+        host: teachHost,
+        autoLaunchpad: false,
+        renderPage: (_page, view) =>
+          React.createElement(TeachModal, {
+            host: teachHost,
+            run: baseRun,
+            cardId: 'card-1313',
+            kind: 'short_answer',
+            width: view.width,
+            height: view.height,
+            isActive: view.isActive,
+            mathUnicode: true,
+            onClose: () => {},
+          }),
+      }),
+      { cols: 120, rows: 32 },
+    );
+
+    try {
+      await h.waitFor((s) => s.includes('带学完成') && s.includes('接下来想做什么'));
+      await new Promise((r) => setTimeout(r, 30));
+      // Expand & submit an instruction so bar stays expanded with inputFocused=false
+      h.write('a');
+      await h.waitFor((s) => s.includes('[1]通俗讲解'));
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('说说核心要点');
+      await h.waitFor((s) => s.includes('说说核心要点'));
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('\r');
+      await h.waitFor((s) => s.includes('REPLY_1344'));
+      await new Promise((r) => setTimeout(r, 40));
+
+      assert.equal(useTuiStore.getState().inputCaptured, true, 'Expanded follow-up bar must keep inputCaptured=true');
+
+      // Press '1' (preset 1) -> must fill preset, NOT jump globally to library!
+      h.write('1');
+      await new Promise((r) => setTimeout(r, 60));
+      assert.equal(useTuiStore.getState().page, 'review', 'Pressing 1 in expanded follow-up bar must NOT jump to library');
+
+      // Blur input (Esc) while bar remains expanded, then press 'a' -> must focus input, NOT jump globally to audio!
+      h.write('\x1b');
+      await new Promise((r) => setTimeout(r, 40));
+      h.write('a');
+      await new Promise((r) => setTimeout(r, 60));
+      assert.equal(useTuiStore.getState().page, 'review', 'Pressing a in expanded follow-up bar must NOT jump to audio');
+    } finally {
+      h.cleanup();
+    }
+  });
 });

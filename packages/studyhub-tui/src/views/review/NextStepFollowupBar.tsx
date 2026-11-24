@@ -16,7 +16,8 @@ import { errorMessage, tryAction, type ReviewRun } from '../../host/sample-actio
 import { Badge, Spinner } from '../../components/Badge.js';
 import { ScrollView } from '../../components/ScrollView.js';
 import { TextInput } from '../../components/TextInput.js';
-import { ClickableBox } from '../../components/mouse.js';
+import { useInputCapture } from '../../components/focus.js';
+import { ClickableBox, useMouseLayer, useMouseModalBarrier } from '../../components/mouse.js';
 import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
 import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import {
@@ -181,6 +182,12 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
   turnsRef.current = turns;
 
   const engaged = expanded || inputFocused;
+
+  // #1344: Host modals set Modal.isActive=false while this bar is engaged; keep global
+  // shortcut capture and modal mouse barrier active for the entire engaged period.
+  useInputCapture(isActive && engaged);
+  const mouseLayer = useMouseLayer();
+  useMouseModalBarrier(isActive && engaged && mouseLayer > 0, mouseLayer);
 
   useEffect(() => {
     onFocusChange?.(engaged);
