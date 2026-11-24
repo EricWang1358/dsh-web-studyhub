@@ -17,6 +17,9 @@ import { assistantRefusal } from '../lib/assistant-boundary.js';
 import { questionSolidity } from '../lib/evidence/point-evidence.js';
 import { taskProgress } from '../lib/daily-plan/tasks.js';
 import { loadUi } from './helpers/ui-module.mjs';
+import { contentKey } from '../lib/card-content.js';
+import { staleReviewEntries } from '../lib/study-state.js';
+import { claimGrading, GRADING_BUSY } from '../lib/contexts/study/grading-marker.js';
 
 const uiMod = await loadUi(`
   export { default as SocraticInlineDrawer } from './ui/review/SocraticInlineDrawer.jsx';
@@ -601,6 +604,71 @@ test('13) opening the drawer records nothing when there is no saved help, no run
   const before = structuredClone(await entry());
   await service.call('socratic.get', { ...ref, runId: run.id });
   assert.deepEqual(await entry(), before);
+});
+
+const SCHEDULE = { due_at: '2030-01-01T00:00:00.000Z', stability: 42, difficulty: 5, reps: 7, lapses: 0, state: 2, last_review: '2026-11-01T00:00:00.000Z' };
+// A question the publish checks accept as it is (the shared seed is a short one), with a schedule and 讲清楚过 to lose.
+const QUOTE = '按全局顺序申请资源可以破坏循环等待条件。';
+const PUBLISHABLE = { citations: [{ sourceId: 'source-os', quote: QUOTE }], objective: '说明按序申请为何能预防死锁', hint: '想想死锁的四个必要条件', misconception: '误以为破坏的是互斥条件',
+  options: [{ id: 'a', text: '破坏了循环等待条件', explanation: '按序申请不会成环', correct: true }, { id: 'b', text: '破坏了互斥条件', explanation: '资源仍然互斥', correct: false },
+    { id: 'c', text: '破坏了不可剥夺条件', explanation: '资源仍不可剥夺', correct: false }] };
+const seedPublishable = (service) => service.store.update((s) => {
+  s.sources.push({ id: 'source-os', title: '死锁', text: QUOTE });
+  Object.assign(s.decks[0].cards[0], structuredClone(PUBLISHABLE), { review: structuredClone(SCHEDULE), retell: { passed: 1, at: 1 } });
+});
+const liveCardOf = async (service) => (await service.store.read()).decks.find((deck) => deck.id === 'deck-os').cards.find((card) => card.id === 'card-deadlock');
+
+test('14) the drawer\'s record is the learner\'s, not the question: an unchanged deck edit keeps the schedule, 讲清楚过 and the record', async (t) => {
+  const service = await createSeededService(t);
+  await seedPublishable(service);
+  const before = contentKey(await liveCardOf(service));
+
+  // The deck is opened for editing, one hint is taken in the drawer, the edit is published as it was.
+  const draft = await service.call('deck.edit', { id: 'deck-os' });
+  await service.call('socratic.step', { ...ref, offline: true, action: 'hint' });
+  assert.equal(contentKey(await liveCardOf(service)), before, 'a Socratic step does not change what the question asks');
+  await service.call('draft.publish.quick', { id: draft.id });
+
+  const card = await liveCardOf(service);
+  assert.deepEqual(pick(card.review, ['due_at', 'stability', 'reps']), pick(SCHEDULE, ['due_at', 'stability', 'reps']), 'the schedule is not reset');
+  assert.deepEqual(card.retell, { passed: 1, at: 1 });
+  assert.equal(card.socratic.hintLevel, 1, 'the live card\'s record survives, not the draft\'s older copy');
+});
+
+test('15) a step leaves the round alone, an edit of the answer drops the record, and an undo of a wording fix keeps it', async (t) => {
+  const service = await createSeededService(t);
+  await seedPublishable(service);
+  const run = await startRun(service);
+  await service.call('socratic.step', { ...ref, runId: run.id, offline: true, action: 'hint' });
+  const state = await service.store.read();
+  assert.equal(staleReviewEntries(state, state.runs.find((item) => item.id === run.id)).length, 0, 'the round does not see a changed question after a step');
+  await service.call('review.end', { runId: run.id });
+
+  // A wording fix (the explanation) keeps the record; undoing it must not bring an older record back.
+  await service.call('card.update', { ...ref, patch: { explanation: '按序申请破坏了循环等待，所以不会死锁。' }, reason: 'wording' });
+  await service.call('socratic.step', { ...ref, offline: true, action: 'hint' });
+  assert.equal((await liveCardOf(service)).socratic.hintLevel, 2);
+  await service.call('card.revert', { ...ref });
+  const reverted = await liveCardOf(service);
+  assert.equal(reverted.socratic.hintLevel, 2, 'card.revert restores the question, not the learner\'s record');
+  assert.ok((reverted.revisions || []).every((revision) => !('socratic' in revision.content)), 'no revision stores the transcript');
+
+  // A changed answer is a new question: like 讲清楚过, the old dialogue says nothing about it.
+  await service.call('card.update', { ...ref, reason: 'answer', patch: {
+    answer: '破坏了互斥条件。',
+    options: PUBLISHABLE.options.map((option) => ({ ...option, correct: option.id === 'b' })),
+  } });
+  assert.equal((await liveCardOf(service)).socratic, undefined);
+});
+
+test('16) while an answer is being graded the drawer does not show the reference answer either', async (t) => {
+  const service = await createSeededService(t);
+  const run = await startRun(service);
+  await service.store.update((s) => { claimGrading(s.runs.find((item) => item.id === run.id).entries[0], 'task-1'); });
+  await assert.rejects(service.call('socratic.step', { ...ref, runId: run.id, offline: true, action: 'reveal' }), (error) => error.message.includes(GRADING_BUSY));
+  assert.notEqual((await liveCardOf(service)).socratic?.revealed, true);
+  // A hint is not the answer: it stays available.
+  await service.call('socratic.step', { ...ref, runId: run.id, offline: true, action: 'hint' });
 });
 
 function pick(object, keys) {
