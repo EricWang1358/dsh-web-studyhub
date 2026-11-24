@@ -144,6 +144,22 @@ describe('Round 89 Track B6 — CommandPalette Natural Language (shared #1315 pa
     assert.ok(wfItem);
     assert.equal(wfItem.id, 'nl:workflow');
     assert.match(wfItem.label, /多步执行 \(2 步\)/);
+
+    // #1340: Search terms like "step 2", "app 3", "第3页", "过去统计的方法" must NOT synthesize jump items
+    assert.equal(buildNaturalLanguagePaletteItem('step 2', baseCtx), null);
+    assert.equal(buildNaturalLanguagePaletteItem('app 3', baseCtx), null);
+    assert.equal(buildNaturalLanguagePaletteItem('第3页', baseCtx), null);
+    assert.equal(buildNaturalLanguagePaletteItem('过去统计的方法', baseCtx), null);
+
+    // #1340: When regular fuzzy/live search matches exist, NL item must be ranked AFTER them (never hijacking Enter)
+    const { mergePaletteResults } = paletteMod;
+    assert.equal(typeof mergePaletteResults, 'function', 'CommandPalette must export mergePaletteResults');
+    const regularMatch = { id: 'page:stats', label: '学习统计', category: '页面', action: () => {} };
+    const mergedWithRegular = mergePaletteResults([regularMatch], [], navItem);
+    assert.equal(mergedWithRegular[0].id, 'page:stats', 'Regular search hits must precede NL suggestion');
+    assert.equal(mergedWithRegular[1].id, navItem.id);
+    const mergedOnlyNl = mergePaletteResults([], [], navItem);
+    assert.equal(mergedOnlyNl[0].id, navItem.id, 'When no regular hits exist, NL suggestion is first');
   });
 });
 

@@ -511,4 +511,54 @@ describe('#1315 Phase 1 Full-Workflow Assistant UX Acceptance Gate', () => {
       h.cleanup();
     }
   });
+
+  test('6. #1340: Learning questions containing "格式化" go straight to the model instead of safety refusal', async () => {
+    resetStore({
+      page: 'library',
+      assistantOpen: true,
+      assistantFocused: true,
+    });
+    const streamPrompts = [];
+    const mockHost = {
+      call: async () => ({ ok: true, value: {} }),
+      getLibraryRoot: () => '/tmp',
+      streamComplete: async ({ prompt, onChunk }) => {
+        streamPrompts.push(String(prompt ?? ''));
+        const reply = '格式化字符串是用占位符把变量按指定格式拼进字符串的模板。';
+        onChunk?.(reply);
+        return reply;
+      },
+    };
+
+    const h = createInkHarness(
+      React.createElement(
+        Box,
+        { width: 96, height: 28 },
+        React.createElement(AssistantPanel, {
+          host: mockHost,
+          isActive: true,
+          width: 96,
+          height: 28,
+          docked: true,
+          onClose: () => {},
+        }),
+      ),
+      { cols: 96, rows: 28 },
+    );
+
+    try {
+      await h.waitFor((s) => s.includes('AI 助手'));
+      h.write('i');
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('什么是格式化字符串');
+      await h.waitFor((s) => s.includes('什么是格式化字符串'));
+      h.write('\r');
+      const frame = await h.waitFor((s) => s.includes('占位符把变量按指定格式拼进字符串'));
+      assert.equal(frame.includes('安全限制'), false, 'Must not trigger safety refusal for format-string question');
+      assert.equal(streamPrompts.length, 1, 'Model must be invoked once');
+      assert.match(streamPrompts[0], /什么是格式化字符串/);
+    } finally {
+      h.cleanup();
+    }
+  });
 });

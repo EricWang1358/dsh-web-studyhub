@@ -84,22 +84,22 @@ export interface ParseIntentContext {
 }
 
 const PAGE_PATTERNS: ReadonlyArray<{ page: PageId; re: RegExp; zh: string; en: string }> = [
-  { page: 'sources', re: /资料库|资料页|讲义|原文|阅读器|sources?|reader/i, zh: '资料', en: 'Sources' },
-  { page: 'wrongbook', re: /错题本|错题|mistakes?|wrongbook/i, zh: '错题本', en: 'Mistakes' },
-  { page: 'dashboard', re: /统计|仪表盘|学习进度|stats|dashboard/i, zh: '学习统计', en: 'Stats' },
-  { page: 'library', re: /学习库|题组列表|首页|library/i, zh: '学习库', en: 'Library' },
-  { page: 'generate', re: /创建题组|草稿|出题页|generate/i, zh: '创建题组', en: 'Generate' },
-  { page: 'exam', re: /模拟考|考试页|mock\s*exam/i, zh: '模拟考试', en: 'Mock Exam' },
-  { page: 'book', re: /复习全书|全书|review\s*book/i, zh: '复习全书', en: 'Review Book' },
-  { page: 'skeleton', re: /知识骨架|骨架|skeleton/i, zh: '知识骨架', en: 'Skeleton' },
-  { page: 'examcoach', re: /考试教练|教练|exam\s*coach/i, zh: '考试教练', en: 'Exam Coach' },
-  { page: 'examprep', re: /备考补习|备考|exam\s*prep/i, zh: '备考补习', en: 'Exam Prep' },
-  { page: 'notes', re: /学习笔记|笔记页|notes/i, zh: '学习笔记', en: 'Notes' },
-  { page: 'board', re: /待办看板|看板|番茄钟|board/i, zh: '待办看板', en: 'Board' },
-  { page: 'tasks', re: /后台任务|任务页|jobs|tasks/i, zh: '后台任务', en: 'Tasks' },
-  { page: 'audio', re: /音频转写|音频|audio/i, zh: '音频转写', en: 'Audio' },
-  { page: 'settings', re: /设置|模型配置|settings/i, zh: '设置', en: 'Settings' },
-  { page: 'review', re: /刷题|继续练习|回(?:到)?(?:原)?题|review/i, zh: '刷题复习', en: 'Review' },
+  { page: 'sources', re: /资料库|资料页|讲义|原文|阅读器|\bsources?\b|\breader\b/i, zh: '资料', en: 'Sources' },
+  { page: 'wrongbook', re: /错题本|错题|\bmistakes?\b|\bwrongbook\b/i, zh: '错题本', en: 'Mistakes' },
+  { page: 'dashboard', re: /统计|仪表盘|学习进度|\bstats\b|\bdashboard\b/i, zh: '学习统计', en: 'Stats' },
+  { page: 'library', re: /学习库|题组列表|首页|\blibrary\b/i, zh: '学习库', en: 'Library' },
+  { page: 'generate', re: /创建题组|草稿|出题页|\bgenerate\b/i, zh: '创建题组', en: 'Generate' },
+  { page: 'exam', re: /模拟考|考试页|\bmock\s*exam\b/i, zh: '模拟考试', en: 'Mock Exam' },
+  { page: 'book', re: /复习全书|全书|\breview\s*book\b/i, zh: '复习全书', en: 'Review Book' },
+  { page: 'skeleton', re: /知识骨架|骨架|\bskeleton\b/i, zh: '知识骨架', en: 'Skeleton' },
+  { page: 'examcoach', re: /考试教练|教练|\bexam\s*coach\b/i, zh: '考试教练', en: 'Exam Coach' },
+  { page: 'examprep', re: /备考补习|备考|\bexam\s*prep\b/i, zh: '备考补习', en: 'Exam Prep' },
+  { page: 'notes', re: /学习笔记|笔记页|\bnotes\b/i, zh: '学习笔记', en: 'Notes' },
+  { page: 'board', re: /待办看板|看板|番茄钟|\bboard\b/i, zh: '待办看板', en: 'Board' },
+  { page: 'tasks', re: /后台任务|任务页|\bjobs\b|\btasks\b/i, zh: '后台任务', en: 'Tasks' },
+  { page: 'audio', re: /音频转写|音频|\baudio\b/i, zh: '音频转写', en: 'Audio' },
+  { page: 'settings', re: /设置|模型配置|\bsettings\b/i, zh: '设置', en: 'Settings' },
+  { page: 'review', re: /刷题|继续练习|回(?:到)?(?:原)?题|\breview\b/i, zh: '刷题复习', en: 'Review' },
 ];
 
 const UNSUPPORTED_PATTERNS: ReadonlyArray<{
@@ -111,7 +111,7 @@ const UNSUPPORTED_PATTERNS: ReadonlyArray<{
   altCmd: string;
 }> = [
   {
-    re: /发邮件|发送邮件|发微信|发消息|推送给|群发|send\s+email|wechat|slack|telegram/i,
+    re: /(?:^|(?:帮我|请|替我|给我|把.{0,12}))(?:发(?:送)?邮件|发微信|群发)|(?:发(?:送)?邮件|发微信|发(?:送)?消息|推送)给|给.{1,10}发(?:送)?(?:邮件|微信|消息)|(?:帮我|请|替我)(?:发(?:送)?消息|(?:用|通过)\s*(?:wechat|slack|telegram)\s*发)|\b(?:send|post|push)\s+(?:an?\s+)?(?:email|message)\s+(?:to|via|on)\b|\b(?:send|post|push)\s+(?:to|via|on)\s+(?:wechat|slack|telegram)\b/i,
     reasonZh: '当前终端不支持外部通信发送。',
     reasonEn: 'External messaging is not supported in TUI.',
     altLabelZh: '改为：导出本课错题 Markdown 后手动分享',
@@ -119,7 +119,7 @@ const UNSUPPORTED_PATTERNS: ReadonlyArray<{
     altCmd: '导出本课错题 Markdown',
   },
   {
-    re: /删掉整个硬盘|清空电脑|格式化|执行\s*shell|跑系统命令|rm\s+-rf|format\s+disk/i,
+    re: /删掉整个硬盘|清空电脑|格式化\s*(?:整个|我的)?\s*(?:硬盘|磁盘|电脑|系统|分区|[a-zA-Z]\s*盘|U\s*盘|驱动器)|(?:^|(?:帮我|请|立即|直接)\s*)执行\s*shell|跑系统命令|(?:^|(?:帮我|请)\s*)(?:执行|运行)\s*rm\s+-rf|^rm\s+-rf|\bformat\s+(?:my\s+|the\s+)?(?:disk|drive|hard\s*drive|system|c:)/i,
     reasonZh: '安全限制：助手仅执行 StudyHub 学习动作，不操作系统文件。',
     reasonEn: 'Safety guard: assistant only runs StudyHub study actions.',
     altLabelZh: '改为：查看学习库统计概况',
@@ -135,6 +135,12 @@ const UNSUPPORTED_PATTERNS: ReadonlyArray<{
     altCmd: '跳到资料库',
   },
 ];
+
+const SOURCE_NAV_VERB_RE =
+  /(?:跳(?:转)?(?:到)?|打开|翻到|翻看|定位(?:到)?|前往|查看|(?<![过出下上失消省除减])去(?:到)?(?=(?:第\s*\d+|资料|讲义|原文|阅读器|sources?|reader))|\b(?:open|go\s+to|jump(?:\s+to)?|goto)\b)/i;
+
+const PAGE_NAV_VERB_RE =
+  /(?:跳到|跳转(?:到)?|打开|进入|切到|切换到|回到|返回(?:到)?|前往|(?<![过出下上失消省除减])去(?:到)?(?=(?:资料|讲义|原文|阅读器|错题|统计|仪表盘|学习|题组|首页|创建|模拟考|考试|复习全书|全书|知识骨架|骨架|教练|备考|笔记|看板|任务|音频|设置|刷题|原题|sources?|reader|mistakes?|wrongbook|stats|dashboard|library|generate|mock\s*exam|review|book|skeleton|exam|notes|board|jobs|tasks|audio|settings))|\b(?:open|go\s+to|jump\s+to|switch\s+to|goto)\b)/i;
 
 function extractInt(text: string, re: RegExp): number | undefined {
   const m = text.match(re);
@@ -259,9 +265,11 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
   }
 
   // 4) Source navigation with optional source index & page number
-  const pageNumber = extractInt(text, /(?:第\s*(\d+)\s*页|p\.?\s*(\d+)|page\s*(\d+))/i);
+  const pageNumber = extractInt(text, /(?:第\s*(\d+)\s*页|(?<![a-z0-9_])p\.\s*(\d+)\b|(?<![a-z0-9_])p(\d+)\b|\bpage\s*(\d+)\b)/i);
   const sourceOrdinal = extractInt(text, /第\s*(\d+)\s*(?:份|个|篇)?(?:讲义|资料|文档|pdf)/i);
-  if (pageNumber !== undefined || (/(跳|打开|去|定位|看|open|go\s+to|jump)/i.test(text) && /资料|讲义|原文|阅读器|source|reader/i.test(text))) {
+  const hasSourceNavVerb = SOURCE_NAV_VERB_RE.test(text);
+  const hasSourceNoun = /资料|讲义|原文|阅读器|\bsources?\b|\breader\b/i.test(text);
+  if (hasSourceNavVerb && (pageNumber !== undefined || hasSourceNoun)) {
     const sources = Array.isArray(ctx.snapshot?.sources) ? ctx.snapshot.sources : [];
     const idx = sourceOrdinal !== undefined ? sourceOrdinal - 1 : 0;
     const picked = sources[idx] ?? sources[0];
@@ -334,7 +342,7 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
   }
 
   // 6) Direct page navigation
-  if (/(跳到|打开|进入|切到|切换到|去|回到|open|go\s+to|jump\s+to|switch\s+to)/i.test(text)) {
+  if (PAGE_NAV_VERB_RE.test(text)) {
     for (const p of PAGE_PATTERNS) {
       if (p.re.test(text)) {
         return {

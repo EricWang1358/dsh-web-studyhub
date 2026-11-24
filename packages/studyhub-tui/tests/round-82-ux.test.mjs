@@ -586,6 +586,31 @@ describe('Round 82 Track D0 (#1315 Phase 1): Persistent AI Assistant, Guided/Ret
     assert.equal(exp.kind, 'write_confirm');
     assert.equal(exp.actionName, 'export.wrongbook');
     assert.equal(exp.requiresConfirm, true);
+
+    // #1340: Ordinary learning questions must NOT be misclassified as unsupported/navigation
+    for (const q of [
+      '什么是格式化字符串',
+      'Python 怎么格式化日期输出',
+      '进程间怎么发消息',
+      'WeChat 和 Slack 的长连接协议有什么区别',
+      'step 2',
+      'app 3',
+      '第3页',
+      '第3页的公式怎么推导',
+      '过去统计的方法',
+      '怎么看懂讲义里的证明',
+    ]) {
+      const intent = parseAssistantIntent(q, { snapshot: snap, currentCardId: 'c1' });
+      assert.equal(intent.kind, 'chat', `Expected "${q}" to route to chat, got ${intent.kind} (${intent.actionName})`);
+    }
+
+    // Explicit destructive/external-messaging commands still hit safety/scope fallback
+    assert.equal(parseAssistantIntent('帮我格式化硬盘', { snapshot: snap }).kind, 'unsupported');
+    assert.equal(parseAssistantIntent('帮我发消息给同学', { snapshot: snap }).kind, 'unsupported');
+    assert.equal(parseAssistantIntent('执行 rm -rf /', { snapshot: snap }).kind, 'unsupported');
+    // Explicit navigation still works
+    assert.equal(parseAssistantIntent('去错题本', { snapshot: snap }).kind, 'navigate');
+    assert.equal(parseAssistantIntent('翻到 p.12', { snapshot: snap }).pageNumber, 12);
   });
 
   test('3. AssistantPanel sizing (min(cols-4, 120), rows-2), [F] fullscreen + Esc split, Tab preserves stage, skip retell & P2 confirm cancel', async () => {

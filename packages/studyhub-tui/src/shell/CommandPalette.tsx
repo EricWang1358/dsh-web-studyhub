@@ -770,6 +770,15 @@ export function buildNaturalLanguagePaletteItem(
   };
 }
 
+export function mergePaletteResults(
+  fuzzyResults: readonly CommandPaletteItem[],
+  liveItems: readonly CommandPaletteItem[],
+  nlItem: CommandPaletteItem | null,
+): CommandPaletteItem[] {
+  const base = liveItems.length ? [...fuzzyResults, ...liveItems] : [...fuzzyResults];
+  return nlItem ? [...base, nlItem] : base;
+}
+
 export const CommandPalette = memo(function CommandPalette({
   host,
   isActive,
@@ -935,10 +944,10 @@ export const CommandPalette = memo(function CommandPalette({
     [query, snapshot, lang, asciiMode, assistantCardContext?.cardId, assistantCardContext?.deckId],
   );
 
-  const results = useMemo(() => {
-    const base = liveItems.length ? [...fuzzyResults, ...liveItems] : fuzzyResults;
-    return nlItem ? [nlItem, ...base] : base;
-  }, [fuzzyResults, liveItems, nlItem]);
+  const results = useMemo(
+    () => mergePaletteResults(fuzzyResults, liveItems, nlItem),
+    [fuzzyResults, liveItems, nlItem],
+  );
 
   const width = Math.min(84, Math.max(40, columns - 8));
   const listRows = Math.max(3, Math.min(13, rows - 11));
