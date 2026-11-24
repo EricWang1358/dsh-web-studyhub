@@ -475,14 +475,17 @@ describe('shared atomic-write helpers & deduplication', () => {
   test('7) notes-types expandUserPath handles PowerShell drag-and-drop, Explorer quotes, bash escapes, and ~/~\\', async () => {
     const { expandUserPath } = await tsImport('../src/views/notes/notes-types.ts', import.meta.url);
     const { homedir } = await import('node:os');
-    const root = '/tmp/studyhub-notes-root';
+    const root = resolve('/tmp/studyhub-notes-root');
     assert.equal(expandUserPath('', root), '');
     assert.equal(expandUserPath('~', root), homedir());
     assert.equal(expandUserPath('~/study/note.md', root), join(homedir(), 'study/note.md'));
     assert.equal(expandUserPath('~\\study\\note.md', root), join(homedir(), 'study\\note.md'));
-    assert.equal(expandUserPath('"/tmp/my note.md"', root), '/tmp/my note.md');
-    assert.equal(expandUserPath("& '/tmp/ps note.md'", root), '/tmp/ps note.md');
-    assert.equal(expandUserPath('/tmp/bash\\ escaped.md', root), '/tmp/bash escaped.md');
-    assert.equal(expandUserPath('relative/out.md', root), join(root, 'relative/out.md'));
+    assert.equal(expandUserPath('"/tmp/my note.md"', root), resolve('/tmp/my note.md'));
+    assert.equal(expandUserPath("& '/tmp/ps note.md'", root), resolve('/tmp/ps note.md'));
+    assert.equal(
+      expandUserPath('/tmp/bash\\ escaped.md', root),
+      process.platform === 'win32' ? resolve('/tmp/bash\\ escaped.md') : resolve('/tmp/bash escaped.md'),
+    );
+    assert.equal(expandUserPath('relative/out.md', root), resolve(root, 'relative/out.md'));
   });
 });

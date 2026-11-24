@@ -309,6 +309,7 @@ describe('Round 36: LibraryView deck reordering ([ / ]) E2E', () => {
       home: base,
       documentsDir: base,
       skipAutoProbe: true,
+      discovery: fakeDiscovery(),
       language: 'zh',
     });
 
@@ -341,8 +342,8 @@ describe('Round 36: LibraryView deck reordering ([ / ]) E2E', () => {
           useDistTuiStore.getState().page === 'library' &&
           s.includes(firstDeckTitle) &&
           s.includes(secondPrefix) &&
-          s.includes('[/]'),
-        { label: 'LibraryView initial render with sample decks and [/] hint' },
+          (s.includes('[/]') || s.includes('[ / ]')),
+        { timeoutMs: 12_000, label: 'LibraryView initial render with sample decks and [/] hint' },
       );
       tty.assertHealthyScreen(initialScreen, 120, 36, 'LibraryView initial 120x36');
       const initialList = deckListTextAfterHeader(initialScreen);

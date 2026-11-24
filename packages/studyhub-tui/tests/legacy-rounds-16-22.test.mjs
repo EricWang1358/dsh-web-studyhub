@@ -1958,41 +1958,52 @@ describe('Round 22: SourcesView MinerUModal & ReviewView QueueModal', () => {
       { timeoutMs: 8_000, label: 'MinerUModal restored to 120x36' },
     );
 
-    const missingPdf = join(boxDir, 'does-not-exist-round22.pdf');
-    tty.send(missingPdf);
-    await tty.waitFor((s) => s.includes('does-not-exist-round22.pdf'), {
-      timeoutMs: 8_000,
-      label: 'Missing PDF path typed into MinerUModal',
-    });
-    tty.send('\r');
+    try {
+      const missingPdf = join(boxDir, 'does-not-exist-round22.pdf');
+      tty.send(missingPdf);
+      await tty.waitFor((s) => s.includes('does-not-exist-round22.pdf'), {
+        timeoutMs: 8_000,
+        label: 'Missing PDF path typed into MinerUModal',
+      });
+      tty.send('\r');
 
-    const errorScreen = await tty.waitFor(
-      (s) =>
-        (s.includes('MinerU 扫描/长 PDF 转换') || s.includes('MinerU Scanned / Long PDF')) &&
-        !s.includes('正在本地读取页数与分段计划') &&
-        !s.includes('Reading PDF pages') &&
-        (s.includes('✕ ') || s.includes('[X]') || s.includes('x ')),
-      { timeoutMs: 12_000, label: 'MinerUModal inline error rendered for missing PDF' },
-    );
-    tty.assertHealthyScreen(errorScreen, 120, 36, 'MinerUModal missing PDF inline error at 120x36');
-    assert.ok(
-      errorScreen.includes('✕ ') || errorScreen.includes('[X]') || errorScreen.includes('x '),
-      'Missing PDF must show inline error marker',
-    );
-    await tty.flush(80);
+      const errorScreen = await tty.waitFor(
+        (s) => {
+          // Strip modal chrome close button ("esc ✕" / "esc x") so we wait for the actual inline planError!
+          const body = s.replace(/esc\s+[✕x]/g, '');
+          return (
+            (s.includes('MinerU 扫描/长 PDF 转换') || s.includes('MinerU Scanned / Long PDF')) &&
+            !s.includes('正在本地读取页数与分段计划') &&
+            !s.includes('Reading PDF pages') &&
+            (body.includes('✕ ') || body.includes('[X]') || body.includes('x '))
+          );
+        },
+        { timeoutMs: 12_000, label: 'MinerUModal inline error rendered for missing PDF' },
+      );
+      tty.assertHealthyScreen(errorScreen, 120, 36, 'MinerUModal missing PDF inline error at 120x36');
+      const errorBody = errorScreen.replace(/esc\s+[✕x]/g, '');
+      assert.ok(
+        errorBody.includes('✕ ') || errorBody.includes('[X]') || errorBody.includes('x '),
+        'Missing PDF must show inline error marker',
+      );
+      await tty.flush(80);
 
-    tty.send('\x14');
-    const historyWide = await tty.waitFor(
-      (s) =>
-        (s.includes('[r] 重试') || s.includes('[r] Retry')) &&
-        !s.includes('正在加载 MinerU 转换历史') &&
-        (s.includes('暂无 MinerU 转换记录') || s.includes('No MinerU conversions yet') || /记录 \d+|Records \d+/.test(s)),
-      { timeoutMs: 8_000, label: 'MinerUModal Tab 2 History rendered at 120x36' },
-    );
-    tty.assertHealthyScreen(historyWide, 120, 36, 'MinerUModal Tab 2 History at 120x36');
-    assert.ok(historyWide.includes('[r] 重试') || historyWide.includes('[r] Retry'));
-
-    tty.send('\x1b');
+      tty.send('\x14');
+      const historyWide = await tty.waitFor(
+        (s) =>
+          (s.includes('[r] 重试') || s.includes('[r] Retry')) &&
+          !s.includes('正在加载 MinerU 转换历史') &&
+          (s.includes('暂无 MinerU 转换记录') || s.includes('No MinerU conversions yet') || /记录 \d+|Records \d+/.test(s)),
+        { timeoutMs: 8_000, label: 'MinerUModal Tab 2 History rendered at 120x36' },
+      );
+      tty.assertHealthyScreen(historyWide, 120, 36, 'MinerUModal Tab 2 History at 120x36');
+      assert.ok(historyWide.includes('[r] 重试') || historyWide.includes('[r] Retry'));
+    } finally {
+      const cur = tty.readScreen();
+      if (cur.includes('MinerU 扫描/长 PDF 转换') || cur.includes('MinerU Scanned / Long PDF')) {
+        tty.send('\x1b');
+      }
+    }
     const afterClose = await tty.waitFor(
       (s) =>
         !s.includes('MinerU 扫描/长 PDF 转换') &&
