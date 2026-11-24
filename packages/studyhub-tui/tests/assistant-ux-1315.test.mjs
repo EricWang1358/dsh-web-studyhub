@@ -529,4 +529,75 @@ describe('#1315 Phase 1 Full-Workflow Assistant UX Acceptance Gate', () => {
       h.cleanup();
     }
   });
+
+  test('6. (#1339) Semicolon/然后 ordinary questions go to model; multi-step workflow resumes remaining steps after confirm', async () => {
+    resetStore({
+      page: 'review',
+      assistantOpen: true,
+      assistantFocused: true,
+      assistantCardContext: { runId: 'r6', deckId: 'd1', cardId: 'card-internal-999', prompt: '设计模式对比' },
+    });
+    const promptsSent = [];
+    const reasonCalls = [];
+    const mockHost = {
+      call: async (name, args) => {
+        if (name === 'wrongbook.reason.set') {
+          reasonCalls.push(args);
+          return { ok: true, value: { ok: true } };
+        }
+        return { ok: true, value: {} };
+      },
+      getLibraryRoot: () => '/tmp',
+      streamComplete: async ({ prompt }) => {
+        promptsSent.push(prompt);
+        return 'Memento 负责保存与恢复状态，Bridge 分离抽象与实现。';
+      },
+    };
+
+    const h = createInkHarness(
+      React.createElement(
+        Box,
+        { width: 96, height: 28 },
+        React.createElement(AssistantPanel, {
+          host: mockHost,
+          isActive: true,
+          width: 96,
+          height: 28,
+          docked: true,
+          onClose: () => {},
+        }),
+      ),
+      { cols: 96, rows: 28 },
+    );
+
+    try {
+      await h.waitFor((s) => s.includes('AI 助手'));
+      h.write('i');
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('讲讲 Memento；再讲讲 Bridge');
+      await h.waitFor((s) => s.includes('讲讲 Memento；再讲讲 Bridge'));
+      h.write('\r');
+      const replyFrame = await h.waitFor((s) => s.includes('Memento 负责保存与恢复状态'));
+      assert.equal(promptsSent.length, 1, 'Ordinary semicolon question must invoke model once');
+      assert.ok(promptsSent[0].includes('讲讲 Memento；再讲讲 Bridge'), 'Entire question must be sent to model');
+      assert.ok(!replyFrame.includes('card-internal-999'), 'Must not leak internal cardId');
+      assert.ok(!replyFrame.includes('多步任务已完成'), 'Must not treat plain question as multi-step workflow');
+
+      // Real multi-step workflow: write step first -> confirm -> remaining step (navigate to dashboard) continues!
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('i');
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('先把这题加入错题本并标记为粗心，再跳到统计');
+      await h.waitFor((s) => s.includes('先把这题加入错题本并标记为粗心，再跳到统计'));
+      h.write('\r');
+      await h.waitFor((s) => s.includes('确认标记错题原因'));
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('y');
+      await h.waitFor(() => useTuiStore.getState().page === 'dashboard');
+      assert.equal(reasonCalls.length, 1, 'Confirmed write step must execute');
+      assert.equal(useTuiStore.getState().page, 'dashboard', 'Step after confirmed write must automatically continue');
+    } finally {
+      h.cleanup();
+    }
+  });
 });
