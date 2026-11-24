@@ -406,7 +406,7 @@ export const DraftEditor = memo(function DraftEditor({
       const updated = { ...draft, cards: nextCards };
       const res = await runOptimisticWrite({
         getSnapshot: () => draft,
-        applyOptimistic: () => setDraft(updated),
+        applyOptimistic: () => {},
         write: async () => {
           const out = await tryAction<FullDraft>(host, 'draft.save', { deck: updated });
           return out.ok

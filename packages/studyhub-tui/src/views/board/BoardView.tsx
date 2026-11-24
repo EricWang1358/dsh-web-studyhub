@@ -271,6 +271,8 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
     };
   }, []);
 
+  const persistQueueRef = useRef<Promise<void>>(Promise.resolve());
+
   const persistDoc = useCallback(
     async (updater: (prev: BoardDocument) => BoardDocument) => {
       if (isReadOnlyRef.current) {
@@ -280,17 +282,23 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
       const nextDoc = updater(docRef.current);
       docRef.current = nextDoc;
       setDoc(nextDoc);
-      try {
-        const saved = await saveBoard(libraryRoot, nextDoc);
-        if (mountedRef.current) {
-          docRef.current = saved;
-          setDoc(saved);
+      const task = persistQueueRef.current.then(async () => {
+        if (isReadOnlyRef.current) return;
+        const latestToWrite = docRef.current;
+        try {
+          const saved = await saveBoard(libraryRoot, latestToWrite);
+          if (mountedRef.current && docRef.current === latestToWrite) {
+            docRef.current = saved;
+            setDoc(saved);
+          }
+        } catch (err) {
+          if (mountedRef.current) {
+            notify(err instanceof Error ? err.message : t(lang, '保存看板失败', 'Failed to save board'), 'error');
+          }
         }
-      } catch (err) {
-        if (mountedRef.current) {
-          notify(err instanceof Error ? err.message : t(lang, '保存看板失败', 'Failed to save board'), 'error');
-        }
-      }
+      });
+      persistQueueRef.current = task.catch(() => {});
+      await task;
     },
     [libraryRoot, notify, lang, notifyReadOnly],
   );

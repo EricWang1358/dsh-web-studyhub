@@ -197,7 +197,8 @@ export const AppShell = memo(function AppShell({
       }
       if (key.ctrl && input === 'r') {
         void actions.refresh();
-        return true;
+        // Allow the active view (e.g. BoardView, BookView) to also reload its domain state.
+        return false;
       }
       return false;
     },
@@ -402,12 +403,6 @@ export const AppShell = memo(function AppShell({
           />
         ) : null}
 
-        {toasts.length > 0 ? (
-          <Box position="absolute" top={toastTop} left={Math.max(0, columns - toastW - 1)} width={toastW}>
-            <ToastStack toasts={toasts} onDismiss={dismissToast} width={toastW} />
-          </Box>
-        ) : null}
-
         {paletteOpen ? (
           <KeyScopeProvider>
             <Suspense fallback={null}>
@@ -469,6 +464,11 @@ export const AppShell = memo(function AppShell({
           </KeyScopeProvider>
         ) : null}
         {voiceOpen && !renderVoicePack ? <VoicePackFallback /> : null}
+        {toasts.length > 0 ? (
+          <Box position="absolute" top={toastTop} left={Math.max(0, columns - toastW - 1)} width={toastW}>
+            <ToastStack toasts={toasts} onDismiss={dismissToast} width={toastW} />
+          </Box>
+        ) : null}
       </Box>
     </ShellActionsContext.Provider>
   );
