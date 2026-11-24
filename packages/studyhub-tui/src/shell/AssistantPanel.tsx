@@ -879,6 +879,7 @@ export const AssistantPanel = memo(function AssistantPanel({
               answer: cleanReply,
               source: 'assistant',
               silent: true,
+              replace: true,
             },
             previewTitle: t(lang, '保存通俗讲解到本题', 'Save Plain Explanation'),
             previewMessage: t(

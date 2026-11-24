@@ -308,6 +308,7 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
       answer: answerText.slice(0, 8000),
       source: 'assistant',
       silent: true,
+      replace: true,
     });
     if (!mountedRef.current) return;
     if (!fuRes.ok || !fuRes.value?.item?.id) {
