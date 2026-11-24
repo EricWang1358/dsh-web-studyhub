@@ -58,6 +58,7 @@ import {
   type AssistantWorkflowPlan,
 } from './assistant-workflow.js';
 import { pruneTurnsWithSummary } from './assistant-memory.js';
+import { buildConversationRequest, extractSharedHistoryMessages } from './assistant-conversation.js';
 import { buildTranscriptPalette, formatTurnLines, turnsInScope } from './assistant-transcript.js';
 import { currentCourse, dueToday, modelInfo, wrongCount } from './data.js';
 
@@ -702,6 +703,9 @@ export const AssistantPanel = memo(function AssistantPanel({
         }
         beginExecution(t(lang, '评估费曼复述', 'Evaluating retell'));
         try {
+          const sharedHistory = extractSharedHistoryMessages(
+            turnsInScope(sessionMemory.turns, turnScopeRef.current).current.filter((x) => x.id !== userTurn.id),
+          );
           const res = await tryAction<{
             passed?: boolean;
             right?: string[];
@@ -713,6 +717,7 @@ export const AssistantPanel = memo(function AssistantPanel({
             cardId: cardCtx.cardId,
             text,
             language: lang,
+            ...(sharedHistory.length > 0 ? { conversationHistory: sharedHistory } : {}),
           });
           if (!mountedRef.current) return;
           if (!res.ok || !res.value) {
@@ -952,31 +957,33 @@ export const AssistantPanel = memo(function AssistantPanel({
       stream.reset();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
-      const recentContext = turnsInScope(sessionMemory.turns, turnScopeRef.current).current
-        .filter((x) => x.id !== userTurn.id)
-        .slice(-6)
-        .map((x) => `${x.role}: ${x.text.slice(0, 200)}`)
-        .join('\n');
+      const scopedPriorTurns = turnsInScope(sessionMemory.turns, turnScopeRef.current).current.filter(
+        (x) => x.id !== userTurn.id,
+      );
+      const conversation = buildConversationRequest({
+        turns: scopedPriorTurns,
+        currentUserText: text,
+        card: cardCtx,
+        tab,
+        stage,
+        isPlainExplain,
+        lang,
+      });
+
+      if (conversation.compressed && conversation.noticeText) {
+        appendTurn({
+          role: 'system',
+          stage: tab === 'guided' ? stage : undefined,
+          actionSummary: t(lang, `已压缩较早对话（${conversation.compressedCount} 条）`, `Condensed ${conversation.compressedCount} earlier turn(s)`),
+          text: conversation.noticeText,
+        });
+      }
 
       try {
-        const system =
-          lang === 'en'
-            ? 'You are the StudyHub TUI assistant. Reply concisely; never repeat the user prompt.'
-            : isPlainExplain
-              ? '你是 StudyHub 学习助手。用大白话+生活类比为当前题写通俗讲解，180字内，直接给干货，不要复述用户原话。'
-              : tab === 'guided'
-                ? `你是 StudyHub 带学导师，当前阶段「${stageLabel(stage, 'zh')}」。中文短句，一次聚焦一个点，不复述用户原话。`
-                : '你是 StudyHub 学习助手，中文短句直接给答案或步骤，不复述用户原话。';
-        const promptParts = [
-          cardCtx?.prompt ? `当前题目：${cardCtx.prompt}` : '',
-          cardCtx?.userAnswer ? `我的作答：${cardCtx.userAnswer}` : '',
-          recentContext ? `近期上下文：\n${recentContext}` : '',
-          `指令：${text}`,
-        ].filter(Boolean);
-
         const reply = await host.streamComplete({
-          system,
-          prompt: promptParts.join('\n\n'),
+          system: conversation.system,
+          prompt: conversation.fallbackPrompt,
+          messages: conversation.messages,
           signal: ctrl.signal,
           onChunk: (delta) => stream.push(delta),
         });

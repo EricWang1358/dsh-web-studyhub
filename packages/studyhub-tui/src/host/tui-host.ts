@@ -14,6 +14,7 @@ import { delimiter, extname, isAbsolute, join, relative, resolve, win32 } from '
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type {
   BindingSnapshot,
+  ChatMessage,
   DesktopConfigSnapshot,
   HostCallResult,
   HostClient,
@@ -155,6 +156,7 @@ export interface RefreshResult {
 export interface StreamCompleteParams {
   system: string;
   prompt: string;
+  messages?: readonly ChatMessage[];
   signal?: AbortSignal;
   onChunk?: (delta: string) => void;
   onReasoning?: (chars: number) => void;
@@ -647,6 +649,7 @@ export async function createTuiHost(options: CreateTuiHostOptions = {}): Promise
         onOutput,
         onChunk: onOutput,
         onReasoning: params.onReasoning,
+        ...(Array.isArray(params.messages) && params.messages.length > 0 ? { messages: params.messages } : {}),
         task: 'assist',
         stream: true,
         language,

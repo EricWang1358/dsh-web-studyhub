@@ -20,14 +20,27 @@ import type { GuidedStageId } from '../render/clipboard.js';
 
 export type AssistantTabId = 'assistant' | 'guided';
 
+export interface AssistantCardCitation {
+  sourceId?: string;
+  sourceTitle?: string;
+  pageNumber?: number;
+  quote?: string;
+}
+
 export interface AssistantCardContext {
   runId?: string;
   deckId?: string;
   cardId: string;
   cardIndex?: number;
   total?: number;
+  topic?: string;
   prompt?: string;
+  options?: Array<{ id: string; text: string; correct?: boolean }>;
   userAnswer?: string;
+  /** Fixed grounding fields for true multi-turn assistant tutoring (#1445). */
+  answer?: string;
+  explanation?: string;
+  citations?: AssistantCardCitation[];
   kind?: string;
   isWrong?: boolean;
   revealed?: boolean;

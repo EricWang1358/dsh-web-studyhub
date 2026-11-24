@@ -163,6 +163,11 @@ export interface LibraryEvent {
   payload?: Record<string, unknown>;
 }
 
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
 export interface HostClient {
   /** Execute any StudyRuntime or Desktop host action. */
   call<T = any>(action: string, args?: Record<string, unknown>): Promise<HostCallResult<T>>;
@@ -176,6 +181,8 @@ export interface HostClient {
   streamComplete?(params: {
     system: string;
     prompt: string;
+    /** Optional true multi-turn message history (#1445). When provided, OpenAI-compatible routes send it natively. */
+    messages?: readonly ChatMessage[];
     signal?: AbortSignal;
     onChunk?: (delta: string) => void;
     onReasoning?: (chars: number) => void;
