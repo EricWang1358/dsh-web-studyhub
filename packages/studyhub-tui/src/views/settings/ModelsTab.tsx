@@ -264,8 +264,12 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
       },
     };
     const res = await tryAction<TuiConfigSnapshot>(host, 'desktop.config.save', patch);
+    let effortError: string | null = null;
     if (res.ok && openaiEffort !== (config?.reasoningEffort || '')) {
-      await tryAction(host, 'binding.set', { reasoningEffort: openaiEffort });
+      const effRes = await tryAction(host, 'binding.set', { reasoningEffort: openaiEffort });
+      if (!effRes.ok) {
+        effortError = effRes.error?.message || t(lang, '推理强度保存失败', 'Failed to save reasoning effort');
+      }
     }
     if (res.ok) {
       setPreferences({ lastOpenAiPreset: openaiPresetId });
@@ -280,6 +284,17 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
       return;
     }
     setOpenaiApiKey('');
+    if (effortError) {
+      notify(
+        t(
+          lang,
+          `已保存 ${openaiPresetId} · ${openaiModel}，但推理强度未生效（${effortError}）`,
+          `Saved ${openaiPresetId} · ${openaiModel}, but reasoning effort failed (${effortError})`,
+        ),
+        'warning',
+      );
+      return;
+    }
     notify(t(lang, `已切换到 ${openaiPresetId} · ${openaiModel}`, `Saved OpenAI (${openaiPresetId} · ${openaiModel})`), 'success');
   }, [
     config?.reasoningEffort,

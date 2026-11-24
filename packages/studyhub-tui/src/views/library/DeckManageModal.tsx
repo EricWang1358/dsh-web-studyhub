@@ -860,6 +860,10 @@ export const DeckManageModal = memo(function DeckManageModal({
       const draft = { ...editRes.value, title: nextTitle };
       const saveRes = await tryAction<{ id: string; draftVersion?: number }>(host, 'draft.save', { deck: draft });
       if (!saveRes.ok || !saveRes.value) {
+        const orphanDraftId = typeof editRes.value.id === 'string' ? editRes.value.id : '';
+        if (orphanDraftId) {
+          await tryAction(host, 'draft.delete', { id: orphanDraftId }).catch(() => {});
+        }
         setBusy(false);
         setMode('browse');
         notify(saveRes.error?.message || t(lang, '保存标题失败', 'Failed to save title'), 'error');
