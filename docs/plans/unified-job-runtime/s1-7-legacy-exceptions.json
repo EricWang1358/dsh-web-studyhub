@@ -24,7 +24,8 @@
     "lib/contexts/generation/book/jobs/course-book-build.js",
     "lib/contexts/generation/book-ai/jobs/course-book-ai.js",
     "lib/contexts/generation/answer-card/jobs/case-answer-card.js",
-    "lib/contexts/generation/companion/jobs/companion-lesson-build.js"
+    "lib/contexts/generation/companion/jobs/companion-lesson-build.js",
+    "lib/contexts/generation/course-organize/jobs/course-organize.js"
   ],
   "entries": [
     {
