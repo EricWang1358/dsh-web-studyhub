@@ -1264,19 +1264,24 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
       if (stuckNudgeVisible) setStuckNudgeVisible(false);
       setStuckActivityTick((v) => v + 1);
       if (key.escape) {
-        const stack = useTuiStore.getState().practiceStack;
+        const st = useTuiStore.getState();
+        if (st.assistantOpen && !st.assistantFocused && !st.assistantFullscreen) {
+          st.closeAssistant();
+          return true;
+        }
+        const stack = st.practiceStack;
         const top = stack[stack.length - 1];
         if (top && top.originKind === 'similar') {
           skipUnmountPushRef.current = true;
-          const popped = useTuiStore.getState().returnViaPracticeStack();
+          const popped = st.returnViaPracticeStack();
           if (popped && popped.kind === 'review') {
             skipUnmountPushRef.current = false;
             void loadInitialRun(false);
           }
-          return;
+          return true;
         }
         goBack();
-        return;
+        return true;
       }
       if (!run || !run.card || busy) return;
 
