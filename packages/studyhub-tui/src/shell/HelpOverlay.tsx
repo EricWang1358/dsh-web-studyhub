@@ -1,6 +1,7 @@
 import React, { memo, useMemo } from 'react';
-import { Box, Text, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
 import { useScopedInput as useInput } from '../components/key-dispatcher.js';
+import { useStableWindowSize } from '../components/resize.js';
 import { PAGE_REGISTRY, type KeyHint, type UiLanguage } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
 import { getColorLevel, makeChalk, useTheme } from '../theme/tokens.js';
@@ -345,7 +346,7 @@ export function buildInAppGuideLines(lang: UiLanguage, width: number, asciiMode 
 
 export const HelpOverlay = memo(function HelpOverlay({ isActive, onClose, pageHints }: HelpOverlayProps) {
   const theme = useTheme();
-  const { columns, rows } = useWindowSize();
+  const { columns, rows } = useStableWindowSize();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const footer = useTuiStore((s) => s.footerHints);
