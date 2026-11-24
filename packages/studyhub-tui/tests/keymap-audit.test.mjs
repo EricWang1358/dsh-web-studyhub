@@ -772,7 +772,7 @@ test('featureShortcuts documents Rounds 5-26 & PR #1297 shortcuts cleanly in zh 
     assert.ok(librarySec?.items.some((i) => i.key === 'm: Space/F/S' && (i.label.includes('批量') || i.label.includes('batch'))), `missing Library [m: Space/F/S] label in ${lang}`);
     assert.ok(reviewSec?.items.some((i) => i.key === '0-5' && (i.label.includes('六级') || i.label.includes('six-grade'))), `missing Review [0-5] label in ${lang}`);
     assert.ok(!reviewSec?.items.some((i) => i.key.includes('1-4') || i.label.includes('1-4')), `stale [1-4] rating text in Review (${lang})`);
-    assert.ok(reviewSec?.items.some((i) => i.key === 'T' && (i.label.includes('带学') || i.label.includes('Guided'))), `missing Review [T] Guided/Retell label in ${lang}`);
+    assert.ok(reviewSec?.items.some((i) => i.key === 't' && (i.label.includes('带学') || i.label.includes('Guided'))), `missing Review [t] Guided/Retell label in ${lang}`);
     assert.ok(reviewSec?.items.some((i) => i.key === 'A' && (i.label.includes('答题卡') || i.label.includes('Answer card'))), `missing Review [A] label in ${lang}`);
     assert.ok(reviewSec?.items.some((i) => i.key === 'Q' && (i.label.includes('队列编辑') || i.label.includes('Edit queue'))), `missing Review [Q] label in ${lang}`);
     assert.ok(reviewSec?.items.some((i) => i.key === '*' && (i.label.includes('重点') || i.label.includes('focus'))), `missing Review [*] label in ${lang}`);
