@@ -300,4 +300,66 @@ describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () =>
       hStandalone.cleanup();
     }
   });
+
+  test('3. (#1335) Before revealing answer, saved run.followups is reused with 0 model calls and shows card hint', async () => {
+    resetStore();
+    let modelCalls = 0;
+
+    const preRevealRun = {
+      id: 'run-reuse-3',
+      deckId: 'deck-u1',
+      title: 'OS Memory (Before Reveal)',
+      index: 0,
+      total: 2,
+      answered: 0,
+      revealed: false,
+      card: {
+        id: 'card-pre-reveal',
+        deckId: 'deck-u1',
+        kind: 'single',
+        prompt: 'What is thrashing?',
+        options: [
+          { id: 'A', text: 'Excessive paging activity' },
+          { id: 'B', text: 'CPU overclocking' },
+        ],
+      },
+      followups: [
+        {
+          id: 'fu-pre-1',
+          question: '请先给我一点解题启发',
+          answer: 'PRE_REVEAL_SAVED_HINT_XYZ',
+        },
+      ],
+    };
+
+    const mockHost = {
+      call: async (name) => {
+        if (name === 'review.start' || name === 'study.start') return { ok: true, value: preRevealRun };
+        return { ok: true, value: {} };
+      },
+      streamComplete: async () => {
+        modelCalls += 1;
+        return `UNWANTED_GEN_${modelCalls}`;
+      },
+      getSnapshot: async () => ({ courses: [], decks: [], jobs: [] }),
+    };
+
+    const h = createInkHarness(
+      React.createElement(ReviewView, { host: mockHost, width: 120, height: 28, isActive: true }),
+      { cols: 120, rows: 28 },
+    );
+
+    try {
+      const reviewFrame = await h.waitFor((s) => s.includes('已存讲解 1 条，按 [h] 查看'));
+      assert.ok(reviewFrame.includes('已存讲解 1 条，按 [h] 查看'), 'Card must show saved explanation hint before reveal');
+
+      h.write('h');
+      const drawerFrame = await h.waitFor((s) => s.includes('PRE_REVEAL_SAVED_HINT_XYZ'));
+      await new Promise((r) => setTimeout(r, 80));
+      assert.equal(modelCalls, 0, 'Opening AI help before reveal with run.followups must make 0 model calls');
+      assert.ok(drawerFrame.includes('已复用讲解'), 'Drawer should indicate saved explanation is reused');
+    } finally {
+      h.cleanup();
+    }
+  });
 });

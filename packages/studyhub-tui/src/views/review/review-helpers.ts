@@ -354,6 +354,38 @@ export function extractSolution(run: ReviewRun | null | undefined): CardSolution
   return raw as CardSolutionShape;
 }
 
+export interface RunFollowupItem {
+  id?: string;
+  question?: string;
+  answer?: string;
+  at?: string;
+}
+
+/**
+ * Extract saved follow-up explanations from both `run.followups` (exposed by the backend
+ * before revealing the answer, except in exam mode) and `run.solution.followups`.
+ */
+export function extractRunFollowups(run: ReviewRun | null | undefined): RunFollowupItem[] {
+  const sol = extractSolution(run)?.followups;
+  const rawTop = (run as { followups?: unknown } | null | undefined)?.followups;
+  const top = Array.isArray(rawTop) ? (rawTop as RunFollowupItem[]) : [];
+  const solList = Array.isArray(sol) ? (sol as RunFollowupItem[]) : [];
+  if (solList.length === 0) return top;
+  if (top.length === 0) return solList;
+  const merged: RunFollowupItem[] = [];
+  const seen = new Set<string>();
+  for (const list of [top, solList]) {
+    for (const item of list) {
+      if (!item || typeof item !== 'object') continue;
+      const key = item.id || `${item.question ?? ''}\0${item.answer ?? ''}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(item);
+    }
+  }
+  return merged;
+}
+
 export function extractReferenceAnswer(
   run: ReviewRun | null | undefined,
   kind: NormalizedKind,

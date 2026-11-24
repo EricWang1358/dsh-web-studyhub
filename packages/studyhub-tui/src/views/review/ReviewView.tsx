@@ -47,6 +47,7 @@ import {
   extractCitation,
   extractFeedback,
   extractReferenceAnswer,
+  extractRunFollowups,
   extractSolution,
   extractUserAnswerText,
   formatClozeDisplay,
@@ -1723,7 +1724,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
   }, []);
 
   const savedFollowupCount = useMemo(() => {
-    const sol = solution?.followups ?? [];
+    const sol = extractRunFollowups(run);
     const extra = cardId ? savedFollowupsByCard[cardId] ?? [] : [];
     if (extra.length === 0) return sol.length;
     const seen = new Set(sol.map((f) => f.id).filter(Boolean));
@@ -1732,7 +1733,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
       if (!item.id || !seen.has(item.id)) count += 1;
     }
     return count;
-  }, [solution, cardId, savedFollowupsByCard]);
+  }, [run, cardId, savedFollowupsByCard]);
 
   const stemMarkdown = useMemo(() => {
     if (!run) return '';
@@ -2526,23 +2527,6 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                 </ClickableBox>
               ) : null}
 
-              {/* Saved AI Explanations Hint */}
-              {revealed && savedFollowupCount > 0 ? (
-                <ClickableBox
-                  marginTop={0}
-                  clickActive={mainActive}
-                  onClick={() => setAiDrawerOpen(true)}
-                >
-                  <Text color={theme.ai}>
-                    {`${asciiMode ? '*' : '✦'} ${t(
-                      lang,
-                      `已存讲解 ${savedFollowupCount} 条，按 [h] 查看`,
-                      `${savedFollowupCount} saved explanation(s) — press [h] to view`,
-                    )}`}
-                  </Text>
-                </ClickableBox>
-              ) : null}
-
               {/* Source Citation Bar (with OSC 8 hyperlink when terminal supports it — Round 84 C2) */}
               {revealed && citation ? (
                 <ClickableBox
@@ -2605,6 +2589,24 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                 </Box>
               ) : null}
             </Box>
+          ) : null}
+
+          {/* Saved AI Explanations Hint (visible both before and after revealing answer, #1335) */}
+          {savedFollowupCount > 0 ? (
+            <ClickableBox
+              marginTop={revealed ? 0 : 1}
+              flexShrink={0}
+              clickActive={mainActive}
+              onClick={() => setAiDrawerOpen(true)}
+            >
+              <Text color={theme.ai}>
+                {`${asciiMode ? '*' : '✦'} ${t(
+                  lang,
+                  `已存讲解 ${savedFollowupCount} 条，按 [h] 查看`,
+                  `${savedFollowupCount} saved explanation(s) — press [h] to view`,
+                )}`}
+              </Text>
+            </ClickableBox>
           ) : null}
 
           {/* Bottom utility status strip — Quick Action Bar (Round 84 Track B3) */}
