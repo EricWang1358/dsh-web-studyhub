@@ -62,7 +62,7 @@ function mountInk(element, { cols = 80, rows = 16 } = {}) {
     raw += Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk);
   });
 
-  const instance = render(element, { stdout, stdin, exitOnCtrlC: false, patchConsole: false });
+  const instance = render(element, { stdout, stdin, exitOnCtrlC: false, patchConsole: false, interactive: true });
   return {
     raw: () => raw,
     clearRaw: () => {
