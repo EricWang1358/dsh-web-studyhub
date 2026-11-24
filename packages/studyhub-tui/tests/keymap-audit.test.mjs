@@ -291,11 +291,22 @@ function auditViewGlobalClaims(filePath) {
     ) {
       const pattern = node.expression.expression.text;
       const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
-      const rangeMatch = /^\^\[(\d)-(\d)\]\$$/.exec(pattern.slice(1, -1));
-      if (rangeMatch) {
-        const start = Number(rangeMatch[1]);
-        const end = Number(rangeMatch[2]);
-        for (let d = start; d <= end; d += 1) recordHit(String(d), line);
+      // Expand single-character regex classes like /^[1-6]$/, /^[a-f]$/, /^[a-fA-F]$/ (#1350)
+      const bodyMatch = /^\^\[([^\]]+)\]\$$/.exec(pattern.slice(1, pattern.lastIndexOf('/')));
+      if (bodyMatch) {
+        const cls = bodyMatch[1];
+        for (let i = 0; i < cls.length; i += 1) {
+          if (i + 2 < cls.length && cls[i + 1] === '-') {
+            const startCode = cls.charCodeAt(i);
+            const endCode = cls.charCodeAt(i + 2);
+            for (let c = startCode; c <= endCode; c += 1) {
+              recordHit(String.fromCharCode(c), line);
+            }
+            i += 2;
+          } else {
+            recordHit(cls[i], line);
+          }
+        }
       }
     }
     ts.forEachChild(node, walkInputCallback);

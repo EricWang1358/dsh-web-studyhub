@@ -511,4 +511,79 @@ describe('#1315 Phase 1 Full-Workflow Assistant UX Acceptance Gate', () => {
       h.cleanup();
     }
   });
+
+  test('6. #1350: Choice letters b and c select options on ReviewView without triggering global Board or CoursePicker', async () => {
+    const makeChoiceRun = (cardId) => ({
+      id: `run-${cardId}`,
+      title: '选择题按键测试',
+      index: 0,
+      total: 2,
+      answered: 0,
+      revealed: false,
+      card: {
+        id: cardId,
+        deckId: 'd1',
+        kind: 'single',
+        prompt: `单选题 ${cardId}：请选择正确选项`,
+        options: [
+          { id: 'A', text: '选项甲' },
+          { id: 'B', text: '选项乙' },
+          { id: 'C', text: '选项丙' },
+          { id: 'D', text: '选项丁' },
+        ],
+      },
+    });
+
+    for (const [keyChar, expectedOpt] of [
+      ['b', 'B'],
+      ['c', 'C'],
+    ]) {
+      const cardId = `card-1350-${expectedOpt}`;
+      const mockRun = makeChoiceRun(cardId);
+      resetStore({ page: 'review', activeRunId: mockRun.id });
+      const submitted = [];
+      const mockHost = {
+        call: async (name, payload) => {
+          if (name === 'review.get' || name === 'review.start') return { ok: true, value: mockRun };
+          if (name === 'review.answer') {
+            submitted.push(payload);
+            return {
+              ok: true,
+              value: {
+                ...mockRun,
+                answered: 1,
+                revealed: true,
+                feedback: { correct: true, selected: payload.selected },
+                solution: { answer: expectedOpt, options: [{ id: expectedOpt, correct: true }] },
+              },
+            };
+          }
+          return { ok: true, value: {} };
+        },
+        getLibraryRoot: () => '/tmp',
+      };
+
+      const h = createInkHarness(
+        React.createElement(AppShell, {
+          host: mockHost,
+          autoLaunchpad: false,
+          renderPage: (_page, view) => React.createElement(ReviewView, { ...view }),
+        }),
+        { cols: 120, rows: 32 },
+      );
+
+      try {
+        await h.waitFor((s) => s.includes('选项乙') && s.includes('选项丙'));
+        await new Promise((r) => setTimeout(r, 30));
+        h.write(keyChar);
+        await h.waitFor((s) => s.includes('回答正确'));
+        assert.equal(submitted.length, 1, `Pressing ${keyChar} must submit option ${expectedOpt}`);
+        assert.equal(submitted[0].selected[0], expectedOpt);
+        assert.equal(useTuiStore.getState().page, 'review', `Pressing ${keyChar} must NOT navigate away from review`);
+        assert.equal(useTuiStore.getState().coursePickerOpen, false, `Pressing ${keyChar} must NOT open CoursePicker`);
+      } finally {
+        h.cleanup();
+      }
+    }
+  });
 });
