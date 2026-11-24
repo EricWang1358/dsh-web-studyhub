@@ -612,17 +612,17 @@ export const AssistantPanel = memo(function AssistantPanel({
   }, [cardCtx?.cardId, appendTurn, setStage, notify, lang]);
 
   const handleSubmitInput = useCallback(
-    async (raw: string) => {
+    async (raw: string, source: 'user' | 'chip' | 'fallback' = 'user') => {
       const text = raw.trim();
       if (!text || busy) return;
       setInputValue('');
       setInputFocused(false);
       setLastFallback(null);
       sessionMemory.lastFallback = null;
-      recordUsage(text);
 
-      // Guided Study Retell stage submits to backend `teach.retell` (#1348)
-      if (tab === 'guided' && stage === 'retell') {
+      // Guided Study Retell stage submits to backend `teach.retell` (#1348),
+      // strictly for learner-typed input — programmatic chips and [A] fallback must run command parsing (#1406).
+      if (source === 'user' && tab === 'guided' && stage === 'retell') {
         appendTurn({ role: 'user', stage: 'retell', text });
         if (!cardCtx?.cardId) {
           appendTurn({
@@ -713,6 +713,8 @@ export const AssistantPanel = memo(function AssistantPanel({
         }
         return;
       }
+
+      recordUsage(text);
 
       // Round 88 Track D4 (#1315 Phase 3): Multi-step workflow skeleton ("先 X 再 Y", step-by-step confirmation)
       const workflowPlan = planAssistantWorkflow(text, {
@@ -997,7 +999,7 @@ export const AssistantPanel = memo(function AssistantPanel({
         setTab('guided');
         return;
       }
-      void handleSubmitInput(chip.command);
+      void handleSubmitInput(chip.command, 'chip');
     },
     [setTab, handleSubmitInput],
   );
@@ -1065,7 +1067,7 @@ export const AssistantPanel = memo(function AssistantPanel({
         return;
       }
       if (input === 'A' && lastFallback) {
-        void handleSubmitInput(lastFallback.altCommand);
+        void handleSubmitInput(lastFallback.altCommand, 'fallback');
         return;
       }
       if (input === 'c') {
@@ -1299,7 +1301,7 @@ export const AssistantPanel = memo(function AssistantPanel({
               clickActive
               onClick={() => {
                 setFocused(true);
-                void handleSubmitInput(lastFallback.altCommand);
+                void handleSubmitInput(lastFallback.altCommand, 'fallback');
               }}
             >
               <Text color={theme.accent} bold>
@@ -1359,7 +1361,7 @@ export const AssistantPanel = memo(function AssistantPanel({
           <TextInput
             value={inputValue}
             onChange={setInputValue}
-            onSubmit={(val) => void handleSubmitInput(val)}
+            onSubmit={(val) => void handleSubmitInput(val, 'user')}
             onCancel={() => setInputFocused(false)}
             isActive={isActive && inputFocused && !pendingConfirm}
             width={innerW}
