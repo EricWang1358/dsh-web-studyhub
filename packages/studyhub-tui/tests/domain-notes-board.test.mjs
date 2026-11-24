@@ -1349,6 +1349,16 @@ describe('Domain Notes & Board: NotesView PTY E2E (zh & --ascii en)', () => {
           tty.assertHealthyScreen(initial, pass.cols, pass.rows, `NotesView initial (${pass.name})`);
           if (pass.asciiMode) tty.assertAsciiPure(initial, `NotesView initial (${pass.name})`);
 
+          if (idx > 0) {
+            // NotesView intentionally preserves selection on the previous note when a new note arrives out-of-band;
+            // move cursor up to the newly created top row explicitly (VirtualList no longer hijacks [g], #1349).
+            tty.send('k');
+            await tty.waitFor(
+              (s) => new RegExp(`[>▸]\\s+[-+*·•]\\s+${pass.noteTitle}`).test(s),
+              { label: `select ${pass.noteTitle} (${pass.name})` },
+            );
+          }
+
           tty.send('g');
           const confirmOpen = await tty.waitFor(
             (s) =>
