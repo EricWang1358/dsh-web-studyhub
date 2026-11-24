@@ -146,7 +146,7 @@ describe('#1428 follow-ups (①②③) — Guardrails & Regression', () => {
         autoLaunchpad: false,
         renderPage: () => React.createElement(ProbePage),
       }),
-      { stdin, stdout, exitOnCtrlC: false },
+      { stdin, stdout, interactive: true, exitOnCtrlC: false },
     );
 
     try {
@@ -217,7 +217,7 @@ describe('#1428 follow-ups (①②③) — Guardrails & Regression', () => {
           autoLaunchpad: false,
           renderPage: (_p, view) => React.createElement(EscProbePage, { isActive: view.isActive }),
         }),
-        { stdin, stdout, exitOnCtrlC: false },
+        { stdin, stdout, interactive: true, exitOnCtrlC: false },
       );
 
       try {
@@ -344,7 +344,7 @@ describe('#1428 follow-ups (①②③) — Guardrails & Regression', () => {
     }
 
     const { stdin, stdout } = createMockStreams(40, 15);
-    const inst = render(React.createElement(LayoutShiftHarness), { stdin, stdout, exitOnCtrlC: false });
+    const inst = render(React.createElement(LayoutShiftHarness), { stdin, stdout, interactive: true, exitOnCtrlC: false });
     try {
       await wait(80);
       const firstOrigin = absoluteOrigin(fieldRefOut?.current);
