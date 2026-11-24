@@ -1,5 +1,5 @@
 import React, { cloneElement, isValidElement, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { ui, uiFormat } from './i18n.js';
+import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, Disclosure, Field, FileDrop, Icon, InlineMessage, SegmentedControl, TextArea, TextInput } from './components/index.js';
 import CourseField, { parseCourses } from './CourseField.jsx';
@@ -531,14 +531,18 @@ export default function ImportHub({
   }
   const drop = id => setItems(current => current.filter(entry => entry.id !== id));
   const [restoring, setRestoring] = useState('');
+  const [restoreError, setRestoreError] = useState('');
   // 恢复 the lines a converted book left out as repeated (the same op as the conversion's note): the row then says they are back.
   const putBack = async item => {
     if (restoring) return;
     setRestoring(item.id);
+    setRestoreError('');
     try {
       await restoreRepeated(call, item.result.documentId);
       setItems(current => current.map(entry => entry.id === item.id ? { ...entry, result: { ...entry.result, repeated: undefined, restored: true } } : entry));
-    } catch { /* the row keeps its 恢复: the host said why in its own notice */ } finally { setRestoring(''); }
+    } catch (error) {
+      setRestoreError(errorMessage(error));
+    } finally { setRestoring(''); }
   };
   // 深度定制这本书 (skills/study-custom) on the row of a finished book of CUSTOM_BOOK_PAGES pages or more, once (ui/custom-entry.js)
   const customAction = item => {
@@ -569,6 +573,7 @@ export default function ImportHub({
       <SegmentedControl className="import-hub__tabs" iconClassName="import-hub__tab-icon" label={ui('添加方式')} value={tab} options={tabs} disabled={running} onChange={setTab} />
       {stray && <p className="import-hub__stray" role="status"><Icon name="info" className="import-hub__stray-icon sh-icon--inline" />{strayText}</p>}
       {tab === 'files' && <div className="import-hub__files">
+        {restoreError && <InlineMessage tone="error">{restoreError}</InlineMessage>}
         {!running && (failed > 0 || finished > 0) && <InlineMessage tone={failed > 0 ? 'warning' : 'success'} boxed className="import-hub__summary" actionsBelow
           title={failed > 0
             ? (finished ? uiFormat('{0} 个文件已导入，{1} 个没有导入', [finished, failed]) : uiFormat('{0} 个文件没有导入', [failed]))
