@@ -342,7 +342,7 @@ export const BookExportModal = memo(function BookExportModal({
             {estimating ? (
               <Spinner label={t(lang, `正在更新 A4 页数估算${ell}`, `Updating A4 estimate${ell}`)} active={isActive} />
             ) : estimateError ? (
-              <Text color={theme.error}>{truncateDisplay(estimateError, innerW, ell)}</Text>
+              <Text color={theme.error} wrap="wrap">{estimateError}</Text>
             ) : est ? (
               <>
                 <Box flexDirection="row" gap={1} height={1} overflow="hidden">
@@ -422,8 +422,8 @@ export const BookExportModal = memo(function BookExportModal({
           ) : null}
           {exportError ? (
             <Box marginTop={0}>
-              <Text color={theme.error}>
-                {`${asciiMode ? '!' : '✕'} ${truncateDisplay(exportError, Math.max(10, innerW - 3), ell)}`}
+              <Text color={theme.error} wrap="wrap">
+                {`${asciiMode ? '!' : '✕'} ${exportError}`}
               </Text>
             </Box>
           ) : null}

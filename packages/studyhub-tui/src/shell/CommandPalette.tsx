@@ -332,7 +332,7 @@ export function buildPaletteItems(
           })
           .map((d) => {
             const rec = d as Record<string, unknown>;
-            const due = Number(rec.due ?? d.dueCount ?? progressMap[d.id]?.due ?? 0) || 0;
+            const due = Number(progressMap[d.id]?.due ?? rec.due ?? d.dueCount ?? 0) || 0;
             return { id: d.id, due };
           })
           .filter((d) => d.id && d.due > 0)
@@ -937,7 +937,8 @@ export const CommandPalette = memo(function CommandPalette({
 
   const results = useMemo(() => {
     const base = liveItems.length ? [...fuzzyResults, ...liveItems] : fuzzyResults;
-    return nlItem ? [nlItem, ...base] : base;
+    if (!nlItem) return base;
+    return base.length > 0 ? [...base, nlItem] : [nlItem];
   }, [fuzzyResults, liveItems, nlItem]);
 
   const width = Math.min(84, Math.max(40, columns - 8));

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir as osHomedir } from 'node:os';
 import { isAbsolute, join, resolve, sep } from 'node:path';
 import { workspaceLibrary } from '../../../../lib/host.js';
@@ -65,10 +65,14 @@ async function atomicWriteJson(filePath, data) {
 async function readStoredConfig(configPath, { strictIo = false } = {}) {
   try {
     const raw = await readFile(configPath, 'utf8');
-    return normalizeDesktopConfig(JSON.parse(raw));
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('desktop.json root must be a JSON object');
+    }
+    return normalizeDesktopConfig(parsed);
   } catch (error) {
     if (error?.code === 'ENOENT') return defaultDesktopConfig();
-    if (strictIo && RENAME_RETRY_CODES.has(error?.code)) throw error;
+    if (strictIo) throw error;
     return defaultDesktopConfig();
   }
 }
@@ -155,8 +159,19 @@ export function createConfigStore({
     return { config, library };
   }
 
-  function save(nextConfig) {
+  function save(nextConfig, opts) {
     return serializeWrite(async () => {
+      try {
+        await readStoredConfig(configPath, { strictIo: true });
+      } catch (error) {
+        if (!opts?.force) {
+          throw new Error(
+            `Existing desktop.json could not be read (${error instanceof Error ? error.message : String(error)}); refusing to overwrite`,
+          );
+        }
+        const backupPath = `${configPath}.corrupt-${Date.now()}.bak`;
+        await copyFile(configPath, backupPath).catch(() => {});
+      }
       const normalized = normalizeDesktopConfig(nextConfig);
       await atomicWriteJson(configPath, normalized);
       return normalized;

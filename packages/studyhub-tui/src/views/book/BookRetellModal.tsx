@@ -375,7 +375,7 @@ export const BookRetellModal = memo(function BookRetellModal({
           <Box flexDirection="row" gap={1}>
             <Badge label={asciiMode ? '! 评估暂不可用' : '▲ 评估暂不可用'} tone="warning" />
             <Text color={theme.error} bold>
-              {truncateDisplay(errorText, Math.max(12, innerW - 20), ell)}
+              {errorText}
             </Text>
           </Box>
           <Text color={theme.muted}>

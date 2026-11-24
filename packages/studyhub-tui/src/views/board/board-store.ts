@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { copyFile, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { atomicWriteJsonFile, todayLocalYmd } from '../../host/atomic-write.js';
 
@@ -238,9 +238,23 @@ export async function loadBoard(libraryRoot: string): Promise<BoardDocument> {
 
 let writeQueue: Promise<unknown> = Promise.resolve();
 
-export async function saveBoard(libraryRoot: string, doc: BoardDocument): Promise<BoardDocument> {
+export async function saveBoard(
+  libraryRoot: string,
+  doc: BoardDocument,
+  opts?: { force?: boolean },
+): Promise<BoardDocument> {
   const target = boardFilePath(libraryRoot);
   const run = writeQueue.then(async () => {
+    const existing = await loadBoardSafe(libraryRoot);
+    if (!existing.ok) {
+      if (!opts?.force) {
+        throw new Error(
+          `Existing tui-board.json could not be read (${existing.error}); refusing to overwrite with defaults`,
+        );
+      }
+      const backupPath = `${target}.corrupt-${Date.now()}.bak`;
+      await copyFile(target, backupPath).catch(() => {});
+    }
     const normalized = parseBoardDocument({
       ...doc,
       version: 1,

@@ -634,7 +634,7 @@ export const ExamRunner = memo(function ExamRunner({
       </Box>
 
       {/* Navigator strip */}
-      <Box flexWrap="wrap" gap={1} marginBottom={1}>
+      <Box flexWrap="wrap" columnGap={1} marginBottom={1}>
         {navTokens.slice(0, 30).map((tok) => {
           const sym = asciiMode ? (tok.flag ? '!' : tok.answered ? '*' : 'o') : tok.flag ? '⚑' : tok.answered ? '●' : '○';
           return (
@@ -662,7 +662,7 @@ export const ExamRunner = memo(function ExamRunner({
 
       {error ? (
         <Box marginBottom={1}>
-          <Text color={theme.error}>{truncateDisplay(error, innerW, ellipsis)}</Text>
+          <Text color={theme.error} wrap="wrap">{error}</Text>
         </Box>
       ) : null}
 
@@ -693,6 +693,9 @@ export const ExamRunner = memo(function ExamRunner({
             markdown={currentWrittenCard.prompt || ''}
             width={innerW}
             height={Math.max(4, Math.floor(bodyH * 0.45))}
+            isActive={isActive && !isTyping && !confirmSubmit}
+            vimNavKeys={false}
+            spacePageDown={false}
           />
 
           <Box flexDirection="column" marginTop={1}>
@@ -705,8 +708,9 @@ export const ExamRunner = memo(function ExamRunner({
                     backgroundColor={picked ? theme.selectionBg : undefined}
                     color={picked ? theme.primary : theme.text}
                     bold={picked}
+                    wrap="wrap"
                   >
-                    {` [${keyNum}] ${picked ? (asciiMode ? '*' : '◉') : (asciiMode ? 'o' : '○')} ${truncateDisplay(opt.text, Math.max(10, innerW - 10), ellipsis)}`}
+                    {` [${keyNum}] ${picked ? (asciiMode ? '*' : '◉') : (asciiMode ? 'o' : '○')} ${opt.text}`}
                   </Text>
                 </Box>
               );
@@ -718,7 +722,7 @@ export const ExamRunner = memo(function ExamRunner({
       {/* Case Paper Body */}
       {kind === 'case' && currentCaseCard ? (
         <Box flexDirection="column" height={bodyH} overflow="hidden">
-          <Box gap={1} marginBottom={1} flexWrap="wrap">
+          <Box columnGap={1} marginBottom={1} flexWrap="wrap">
             <Badge
               label={`${currentCaseCard.marks ?? 0} ${t(lang, '分', 'pts')}`}
               tone="accent"
@@ -746,6 +750,9 @@ export const ExamRunner = memo(function ExamRunner({
             markdown={currentCaseCard.prompt || ''}
             width={innerW}
             height={Math.max(4, Math.floor(bodyH * 0.42))}
+            isActive={isActive && !isTyping && !confirmSubmit && !showScenarioOverlay}
+            vimNavKeys={false}
+            spacePageDown={false}
           />
 
           <Box flexDirection="column" marginTop={1}>
@@ -793,6 +800,9 @@ export const ExamRunner = memo(function ExamRunner({
             markdown={oral.entry.prompt || ''}
             width={innerW}
             height={Math.max(3, Math.floor(bodyH * 0.32))}
+            isActive={isActive && !isTyping && !confirmSubmit}
+            vimNavKeys={false}
+            spacePageDown={false}
           />
 
           <Box flexDirection="column" marginTop={1}>

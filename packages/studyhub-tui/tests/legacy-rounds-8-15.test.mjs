@@ -1221,6 +1221,9 @@ describe('Round 11: Review Mastery, Guided Study, Exam Alignment & BookCrunch', 
 
   test('2) AI Guided Study Workbench (g in LibraryView: create -> pause -> resume -> end -> Esc)', async () => {
     const { tty } = ctx;
+    // Leave ReviewView first (digits 0-9 are claimed inside ReviewView per #1351)
+    tty.send(']');
+    await tty.waitFor((s) => !s.includes('按?看全部'), { timeoutMs: 4_000, label: 'Left ReviewView' });
     tty.send('1');
     const libScreen = await tty.waitFor(
       (s) => (s.includes('题组列表') || s.includes('Decks')) && !s.includes('正在加载页面'),

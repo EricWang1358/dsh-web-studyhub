@@ -726,7 +726,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
       { key: 'm', label: t(lang, '知识地图', 'Map') },
       { key: 'd', label: t(lang, `用量:${usageDays}天`, `Usage:${usageDays}d`) },
       { key: 'x', label: t(lang, '导出报告', 'Export MD') },
-      { key: 'r', label: t(lang, '刷新', 'Refresh') },
+      { key: 'Ctrl+R', label: t(lang, '刷新', 'Refresh') },
       { key: '/', label: t(lang, '筛选', 'Filter') },
     ],
     [lang, extraWide, showForecast, usageDays],

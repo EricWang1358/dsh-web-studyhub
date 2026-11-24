@@ -272,7 +272,7 @@ export const RereadQueueModal = memo(function RereadQueueModal({
       ) : error ? (
         <Box height={innerHeight} width={innerWidth} flexDirection="column" justifyContent="center" alignItems="center">
           <Text color={theme.error} bold>
-            {`${errMark} ${truncateDisplay(error, Math.max(20, innerWidth - 4), ell)}`}
+            {`${errMark} ${error}`}
           </Text>
           <Box marginTop={1}>
             <Text color={theme.muted}>

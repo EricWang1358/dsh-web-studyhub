@@ -77,6 +77,13 @@ export function planAssistantWorkflow(
     };
   });
 
+  // #1339: Only treat input as a multi-step workflow when at least one clause is an executable action.
+  // Ordinary questions containing semicolons or "然后"/"再" stay a single prompt for the model.
+  const hasExecutableAction = steps.some(
+    (s) => s.intent.kind !== 'chat' && s.intent.kind !== 'unsupported',
+  );
+  if (!hasExecutableAction) return null;
+
   return {
     id: `wf-${Date.now()}`,
     steps,
@@ -141,7 +148,8 @@ export function formatWorkflowChecklist(
       ? lang === 'en' ? ' (confirm)' : '（需确认）'
       : '';
     const suffix = s.result ? ` — ${s.result}` : '';
-    lines.push(`${icon} ${s.index + 1}. ${s.intent.paramsSummary || s.rawClause}${confirmTag}${suffix}`);
+    const label = s.intent.kind === 'chat' ? s.rawClause : (s.intent.paramsSummary || s.rawClause);
+    lines.push(`${icon} ${s.index + 1}. ${label}${confirmTag}${suffix}`);
   }
   return lines.join('\n');
 }

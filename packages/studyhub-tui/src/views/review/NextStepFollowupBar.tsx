@@ -16,11 +16,13 @@ import { errorMessage, tryAction, type ReviewRun } from '../../host/sample-actio
 import { Badge, Spinner } from '../../components/Badge.js';
 import { ScrollView } from '../../components/ScrollView.js';
 import { TextInput } from '../../components/TextInput.js';
-import { ClickableBox } from '../../components/mouse.js';
+import { useInputCapture } from '../../components/focus.js';
+import { ClickableBox, useMouseLayer, useMouseModalBarrier } from '../../components/mouse.js';
 import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
 import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import {
   MAX_AI_TURNS,
+  buildDailyQuestionNoteTitle,
   currentDeckIdOf,
   extractReferenceAnswer,
   kindLabel,
@@ -181,6 +183,12 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
 
   const engaged = expanded || inputFocused;
 
+  // #1344: Host modals set Modal.isActive=false while this bar is engaged; keep global
+  // shortcut capture and modal mouse barrier active for the entire engaged period.
+  useInputCapture(isActive && engaged);
+  const mouseLayer = useMouseLayer();
+  useMouseModalBarrier(isActive && engaged && mouseLayer > 0, mouseLayer);
+
   useEffect(() => {
     onFocusChange?.(engaged);
   }, [engaged, onFocusChange]);
@@ -307,6 +315,7 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
       answer: answerText.slice(0, 8000),
       source: 'assistant',
       silent: true,
+      replace: true,
     });
     if (!mountedRef.current) return;
     if (!fuRes.ok || !fuRes.value?.item?.id) {
@@ -314,16 +323,26 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
       notify(fuRes.error?.message || t(lang, '保存追问失败', 'Failed to save follow-up'), 'error');
       return;
     }
+    const noteTitle = buildDailyQuestionNoteTitle(run, useTuiStore.getState().snapshot?.decks, lang);
     const noteRes = await tryAction<{ status?: string }>(host, 'note.qa.add', {
       deckId,
       cardId,
       followupId: fuRes.value.item.id,
+      title: noteTitle,
       language: lang,
     });
     if (!mountedRef.current) return;
     setSavingNote(false);
     if (!noteRes.ok) {
-      notify(noteRes.error?.message || t(lang, '写入学习笔记失败', 'Failed to save to study notes'), 'error');
+      const reason = noteRes.error?.message || t(lang, '写入学习笔记失败', 'Failed to save to study notes');
+      notify(
+        t(
+          lang,
+          `已保存为本题追问，但写入学习笔记失败：${reason}`,
+          `Saved as card follow-up, but adding to study notes failed: ${reason}`,
+        ),
+        'warning',
+      );
       return;
     }
     notify(t(lang, '已保存为本题追问与学习笔记', 'Saved as card follow-up & study note'), 'success');
@@ -476,7 +495,7 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
       {errorText ? (
         <Box height={1} width={innerW} overflow="hidden">
           <Text color={theme.error} wrap="truncate">
-            {`${asciiMode ? 'x' : '✕'} ${truncateDisplay(errorText, Math.max(10, innerW - 3), ell)}`}
+            {`${asciiMode ? 'x' : '✕'} ${errorText}`}
           </Text>
         </Box>
       ) : null}

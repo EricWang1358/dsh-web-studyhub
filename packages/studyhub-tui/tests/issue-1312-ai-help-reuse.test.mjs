@@ -118,6 +118,15 @@ function resetStore() {
   });
 }
 
+async function pollUntil(pred, timeoutMs = 4000, label = 'condition') {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (pred()) return;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  throw new Error(`pollUntil(${label}) timed out after ${timeoutMs}ms`);
+}
+
 describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () => {
   test('1. Card with no saved followups auto-explains once; closing and reopening in same round reuses history (0 extra model calls)', async () => {
     resetStore();
@@ -298,6 +307,245 @@ describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () =>
       assert.equal(modelCalls, 1, 'Standalone AiHelpDrawer with saved followups must make 0 additional model calls');
     } finally {
       hStandalone.cleanup();
+    }
+  });
+
+  test('3. (#1335) Before revealing answer, saved run.followups is reused with 0 model calls and shows card hint', async () => {
+    resetStore();
+    let modelCalls = 0;
+
+    const preRevealRun = {
+      id: 'run-reuse-3',
+      deckId: 'deck-u1',
+      title: 'OS Memory (Before Reveal)',
+      index: 0,
+      total: 2,
+      answered: 0,
+      revealed: false,
+      card: {
+        id: 'card-pre-reveal',
+        deckId: 'deck-u1',
+        kind: 'single',
+        prompt: 'What is thrashing?',
+        options: [
+          { id: 'A', text: 'Excessive paging activity' },
+          { id: 'B', text: 'CPU overclocking' },
+        ],
+      },
+      followups: [
+        {
+          id: 'fu-pre-1',
+          question: '请先给我一点解题启发',
+          answer: 'PRE_REVEAL_SAVED_HINT_XYZ',
+        },
+      ],
+    };
+
+    const mockHost = {
+      call: async (name) => {
+        if (name === 'review.start' || name === 'study.start') return { ok: true, value: preRevealRun };
+        return { ok: true, value: {} };
+      },
+      streamComplete: async () => {
+        modelCalls += 1;
+        return `UNWANTED_GEN_${modelCalls}`;
+      },
+      getSnapshot: async () => ({ courses: [], decks: [], jobs: [] }),
+    };
+
+    const h = createInkHarness(
+      React.createElement(ReviewView, { host: mockHost, width: 120, height: 28, isActive: true }),
+      { cols: 120, rows: 28 },
+    );
+
+    try {
+      const reviewFrame = await h.waitFor((s) => s.includes('已存讲解 1 条，按 [h] 查看'));
+      assert.ok(reviewFrame.includes('已存讲解 1 条，按 [h] 查看'), 'Card must show saved explanation hint before reveal');
+
+      h.write('h');
+      const drawerFrame = await h.waitFor((s) => s.includes('PRE_REVEAL_SAVED_HINT_XYZ'));
+      await new Promise((r) => setTimeout(r, 80));
+      assert.equal(modelCalls, 0, 'Opening AI help before reveal with run.followups must make 0 model calls');
+      assert.ok(drawerFrame.includes('已复用讲解'), 'Drawer should indicate saved explanation is reused');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test('4. (#1336) Pressing N passes non-empty title to note.qa.add and reports partial success if note write fails', async () => {
+    resetStore();
+    useTuiStore.setState({
+      snapshot: { courses: [{ id: 'c1', name: '操作系统' }], decks: [{ id: 'deck-u1', title: '内存管理', course: '操作系统' }], sources: [], jobs: [] },
+    });
+    const noteCalls = [];
+    let failNote = false;
+
+    const mockRun = {
+      id: 'run-note-title',
+      deckId: 'deck-u1',
+      title: '内存管理',
+      index: 0,
+      total: 1,
+      answered: 1,
+      revealed: true,
+      card: { id: 'card-n1', deckId: 'deck-u1', kind: 'single', prompt: 'What is paging?', options: [{ id: 'A', text: 'Fixed frames' }] },
+      feedback: { correct: true, selected: ['A'] },
+      solution: { answer: 'A' },
+    };
+
+    const mockHost = {
+      call: async (name, payload) => {
+        if (name === 'review.start' || name === 'study.start') return { ok: true, value: mockRun };
+        if (name === 'card.followup.add') return { ok: true, value: { item: { id: 'fu-n1' } } };
+        if (name === 'note.qa.add') {
+          noteCalls.push(payload);
+          if (!payload?.title || !String(payload.title).trim()) {
+            return { ok: false, error: { message: '文章标题 is required' } };
+          }
+          if (failNote) {
+            return { ok: false, error: { message: 'AI 正在起草这篇笔记' } };
+          }
+          return { ok: true, value: { status: 'created' } };
+        }
+        return { ok: true, value: {} };
+      },
+      streamComplete: async () => 'EXPLANATION_FOR_NOTE',
+      getSnapshot: async () => useTuiStore.getState().snapshot,
+    };
+
+    const h = createInkHarness(
+      React.createElement(ReviewView, { host: mockHost, width: 120, height: 28, isActive: true }),
+      { cols: 120, rows: 28 },
+    );
+
+    try {
+      await h.waitFor((s) => s.includes('What is paging?'));
+      h.write('h');
+      await h.waitFor((s) => s.includes('EXPLANATION_FOR_NOTE') && s.includes('已就绪'));
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('N');
+      await pollUntil(() => noteCalls.length >= 1, 4000, 'first note.qa.add call');
+      await pollUntil(
+        () => useTuiStore.getState().toasts.some((toast) => String(toast.text ?? '').includes('已保存')),
+        4000,
+        'first save toast',
+      );
+      assert.equal(noteCalls.length, 1);
+      assert.ok(typeof noteCalls[0].title === 'string' && noteCalls[0].title.includes('操作系统'), 'note.qa.add must receive a non-empty daily course note title');
+
+      // Now simulate note.qa.add failing while card.followup.add succeeds -> still updates card hint & clearly reports partial success
+      failNote = true;
+      useTuiStore.setState({ toasts: [] });
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('N');
+      await pollUntil(
+        () =>
+          useTuiStore
+            .getState()
+            .toasts.some((toast) => String(toast.text ?? '').includes('已保存到本题讲解') && String(toast.text ?? '').includes('写入学习笔记失败')),
+        4000,
+        'partial-success toast',
+      );
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test('5. (#1337) Regenerating explanation for the same question and pressing N replaces saved answer on backend StudyService', async () => {
+    const { mkdtemp, rm } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { StudyService } = await import('../../../lib/service.js');
+
+    const root = await mkdtemp(join(tmpdir(), 'studyhub-1337-'));
+    const service = new StudyService(root, { complete: async () => '{}' });
+    try {
+      await service.store.update((state) => {
+        state.decks.push({
+          id: 'd-1337',
+          title: 'OS',
+          course: '操作系统',
+          cards: [
+            {
+              id: 'c-1337',
+              kind: 'quiz',
+              prompt: 'What is a semaphore?',
+              answer: 'Synchronization primitive',
+              options: [{ id: 'A', text: 'Synchronization primitive', correct: true }],
+            },
+          ],
+        });
+      });
+
+      resetStore();
+      useTuiStore.setState({
+        snapshot: { courses: [{ id: 'c1', name: '操作系统' }], decks: [{ id: 'd-1337', title: 'OS', course: '操作系统' }], sources: [], jobs: [] },
+      });
+
+      const run = await service.call('review.start', { mode: 'quiz', deckId: 'd-1337', fresh: true });
+      const revealedRun = await service.call('review.answer', { runId: run.id, cardId: 'c-1337', selected: ['A'] });
+
+      let genCount = 0;
+      let followupSaveCount = 0;
+      const realHost = {
+        call: async (action, payload) => {
+          if (action === 'review.start' || action === 'study.start') return { ok: true, value: revealedRun };
+          try {
+            const value = await service.call(action, payload);
+            if (action === 'card.followup.add') followupSaveCount += 1;
+            return { ok: true, value };
+          } catch (err) {
+            return { ok: false, error: { message: err instanceof Error ? err.message : String(err) } };
+          }
+        },
+        streamComplete: async () => {
+          genCount += 1;
+          return genCount === 1 ? 'EXPLANATION_OLD_A' : 'EXPLANATION_NEW_B';
+        },
+        getSnapshot: async () => useTuiStore.getState().snapshot,
+      };
+
+      const h = createInkHarness(
+        React.createElement(ReviewView, { host: realHost, width: 120, height: 28, isActive: true }),
+        { cols: 120, rows: 28 },
+      );
+
+      try {
+        await h.waitFor((s) => s.includes('What is a semaphore?'));
+        // First generation A -> press N to save and wait deterministically for backend commit
+        h.write('h');
+        await h.waitFor((s) => s.includes('EXPLANATION_OLD_A') && s.includes('已就绪'));
+        await new Promise((r) => setTimeout(r, 40));
+        h.write('N');
+        await pollUntil(() => followupSaveCount >= 1, 5000, 'first card.followup.add');
+        await pollUntil(() => useTuiStore.getState().toasts.length > 0, 5000, 'first save finished');
+
+        // Regenerate B (same default question) -> press N to save again and wait deterministically
+        useTuiStore.setState({ toasts: [] });
+        h.write('R');
+        await h.waitFor((s) => s.includes('EXPLANATION_NEW_B') && s.includes('已就绪'), 5000);
+        await new Promise((r) => setTimeout(r, 40));
+        h.write('N');
+        await pollUntil(() => followupSaveCount >= 2, 5000, 'second card.followup.add');
+        await pollUntil(() => useTuiStore.getState().toasts.length > 0, 5000, 'second save finished');
+      } finally {
+        h.cleanup();
+      }
+
+      // Reload from disk via a fresh review.get — must persist B, not stale A!
+      const reloaded = await service.call('review.get', { runId: run.id });
+      const savedAnswers = (reloaded.followups || []).map((f) => f.answer);
+      assert.ok(
+        savedAnswers.includes('EXPLANATION_NEW_B'),
+        `Expected regenerated answer EXPLANATION_NEW_B to be persisted, got: ${JSON.stringify(savedAnswers)}`,
+      );
+      assert.ok(
+        !savedAnswers.includes('EXPLANATION_OLD_A'),
+        `Expected stale EXPLANATION_OLD_A to be replaced, got: ${JSON.stringify(savedAnswers)}`,
+      );
+    } finally {
+      service.dispose();
+      await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     }
   });
 });
