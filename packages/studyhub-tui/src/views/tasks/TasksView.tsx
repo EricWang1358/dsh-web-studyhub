@@ -926,8 +926,8 @@ const JobMessageModal = memo(function JobMessageModal({
           </Box>
         ) : validationError ? (
           <Box marginTop={1}>
-            <Text color={theme.error} wrap="truncate-end">
-              {truncateDisplay(`${asciiMode ? '! ' : '✕ '}${validationError}`, innerW, ell)}
+            <Text color={theme.error} wrap="wrap">
+              {`${asciiMode ? '! ' : '✕ '}${validationError}`}
             </Text>
           </Box>
         ) : null}

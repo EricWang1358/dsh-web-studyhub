@@ -1363,8 +1363,8 @@ export const CardToolsModal = memo(function CardToolsModal({
             </Box>
           ) : termsError ? (
             <Box height={Math.max(3, subBodyH - 2)} flexDirection="column" justifyContent="center" gap={1}>
-              <Text color={theme.error} bold>
-                {`${asciiMode ? '!' : '▲'} ${truncateDisplay(termsError, innerW - 2, ell)}`}
+              <Text color={theme.error} bold wrap="wrap">
+                {`${asciiMode ? '!' : '▲'} ${termsError}`}
               </Text>
               <Text color={theme.muted}>
                 {t(

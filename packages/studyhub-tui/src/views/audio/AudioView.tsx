@@ -1631,8 +1631,8 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                   ) : null}
                   {selectedJob.error ? (
                     <Box marginTop={1}>
-                      <Text color={theme.error}>
-                        {truncateDisplay(`${t(lang, '原因: ', 'Error: ')}${selectedJob.error}`, Math.max(12, rw - 4), ell)}
+                      <Text color={theme.error} wrap="wrap">
+                        {`${t(lang, '原因: ', 'Error: ')}${selectedJob.error}`}
                       </Text>
                     </Box>
                   ) : null}

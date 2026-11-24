@@ -2257,8 +2257,8 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                 <Box flexDirection="column" marginY={0}>
                   <Box flexDirection="row" gap={1}>
                     <Badge label={asciiMode ? '! AI评分不可用' : '▲ AI评分不可用'} tone="warning" />
-                    <Text color={theme.error}>
-                      {truncateDisplay(gradeError, Math.max(12, innerW - 18), asciiMode ? '...' : '…')}
+                    <Text color={theme.error} wrap="wrap">
+                      {gradeError}
                     </Text>
                   </Box>
                   <Text color={theme.muted}>

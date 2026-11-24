@@ -479,11 +479,11 @@ export const TopicGroupsModal = memo(function TopicGroupsModal({
                 emptyText={t(lang, '当前范围暂无可用主题', 'No topics available in scope')}
                 ascii={asciiMode}
               />
-              <Box height={1} width={innerW} overflow="hidden">
+              <Box width={innerW}>
                 {saving ? (
                   <Spinner label={t(lang, '正在保存分组...', 'Saving topic group...')} active={isActive} />
                 ) : saveError ? (
-                  <Text color={theme.error}>{truncateDisplay(saveError, innerW, ell)}</Text>
+                  <Text color={theme.error} wrap="wrap">{saveError}</Text>
                 ) : (
                   <Text color={theme.dim}>
                     {truncateDisplay(

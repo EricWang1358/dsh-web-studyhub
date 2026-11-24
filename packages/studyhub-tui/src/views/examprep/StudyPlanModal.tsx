@@ -1263,7 +1263,7 @@ export const StudyPlanModal = memo(function StudyPlanModal({
         <EmptyState
           icon={asciiMode ? '!' : '✕'}
           title={t(lang, '加载备考计划失败', 'Failed to load study plan')}
-          hint={truncateDisplay(planError, Math.max(12, innerW - 4), ell)}
+          hint={planError}
           actions={[{ key: 'r', label: t(lang, '重试', 'Retry') }]}
           width={innerW}
           height={tabBodyH}
@@ -1494,7 +1494,7 @@ export const StudyPlanModal = memo(function StudyPlanModal({
         <EmptyState
           icon={asciiMode ? '!' : '✕'}
           title={t(lang, '加载章节就绪度失败', 'Failed to load readiness')}
-          hint={truncateDisplay(readinessError, Math.max(12, innerW - 4), ell)}
+          hint={readinessError}
           actions={[{ key: 'r', label: t(lang, '重试', 'Retry') }]}
           width={innerW}
           height={tabBodyH}
@@ -1676,7 +1676,7 @@ export const StudyPlanModal = memo(function StudyPlanModal({
         <EmptyState
           icon={asciiMode ? '!' : '✕'}
           title={t(lang, '加载深度定制失败', 'Failed to load custom plan')}
-          hint={truncateDisplay(customError, Math.max(12, innerW - 4), ell)}
+          hint={customError}
           actions={[{ key: 'r', label: t(lang, '重试', 'Retry') }]}
           width={innerW}
           height={tabBodyH}

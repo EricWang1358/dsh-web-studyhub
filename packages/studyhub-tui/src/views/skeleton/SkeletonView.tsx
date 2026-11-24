@@ -1721,7 +1721,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
           ) : lintError ? (
             <Box flexDirection="column" gap={1} paddingY={1}>
               <StatusPill status="error" label={t(lang, '检查失败', 'Lint failed')} />
-              <Text color={theme.error}>{truncateDisplay(lintError, lintInnerW, asciiMode ? '...' : '…')}</Text>
+              <Text color={theme.error} wrap="wrap">{lintError}</Text>
             </Box>
           ) : (
             <Box flexDirection="column">

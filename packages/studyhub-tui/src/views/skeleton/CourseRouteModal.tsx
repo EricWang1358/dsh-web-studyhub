@@ -324,8 +324,8 @@ export const CourseRouteModal = memo(function CourseRouteModal({
               <Spinner label={t(lang, '正在启动章节练习...', 'Starting chapter review...')} active={isActive} />
             </Box>
           ) : actionError ? (
-            <Box height={1} width={innerW} overflow="hidden">
-              <Text color={theme.error}>{truncateDisplay(actionError, innerW, ell)}</Text>
+            <Box width={innerW}>
+              <Text color={theme.error} wrap="wrap">{actionError}</Text>
             </Box>
           ) : null}
         </Box>

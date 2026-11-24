@@ -981,7 +981,7 @@ const ReleaseUpdateModal = memo(function ReleaseUpdateModal({
           ) : null}
 
           {error ? (
-            <Text color={theme.error}>{truncateDisplay(normalizeAsciiChrome(error, asciiMode), contentW, ell)}</Text>
+            <Text color={theme.error} wrap="wrap">{normalizeAsciiChrome(error, asciiMode)}</Text>
           ) : null}
 
           {noteLines.length > 0 ? (
@@ -1231,8 +1231,8 @@ const UsageReportModal = memo(function UsageReportModal({
           ) : null}
 
           {error ? (
-            <Text color={theme.error}>
-              {truncateDisplay(normalizeAsciiChrome(error, asciiMode), contentW, ell)}
+            <Text color={theme.error} wrap="wrap">
+              {normalizeAsciiChrome(error, asciiMode)}
             </Text>
           ) : null}
 
@@ -1422,8 +1422,8 @@ const LibraryContextModal = memo(function LibraryContextModal({
           ) : null}
 
           {error ? (
-            <Text color={theme.error}>
-              {truncateDisplay(normalizeAsciiChrome(error, asciiMode), contentW, ell)}
+            <Text color={theme.error} wrap="wrap">
+              {normalizeAsciiChrome(error, asciiMode)}
             </Text>
           ) : null}
 

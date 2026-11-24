@@ -1974,8 +1974,8 @@ export const DeckManageModal = memo(function DeckManageModal({
                 </Text>
               </Box>
               {suppError ? (
-                <Box height={1}>
-                  <Text color={theme.error}>{truncateDisplay(suppError, innerW, ell)}</Text>
+                <Box>
+                  <Text color={theme.error} wrap="wrap">{suppError}</Text>
                 </Box>
               ) : null}
               <Divider width={innerW} />
@@ -2109,7 +2109,7 @@ export const DeckManageModal = memo(function DeckManageModal({
           )}
           {convertError ? (
             <Box marginTop={1}>
-              <Text color={theme.error}>{truncateDisplay(convertError, innerW * 2, ell)}</Text>
+              <Text color={theme.error} wrap="wrap">{convertError}</Text>
             </Box>
           ) : null}
           {busy ? (
@@ -2142,8 +2142,8 @@ export const DeckManageModal = memo(function DeckManageModal({
             </Text>
           </Box>
           {linkError ? (
-            <Box height={1}>
-              <Text color={theme.error}>{truncateDisplay(linkError, innerW, ell)}</Text>
+            <Box>
+              <Text color={theme.error} wrap="wrap">{linkError}</Text>
             </Box>
           ) : null}
           <Divider width={innerW} />
