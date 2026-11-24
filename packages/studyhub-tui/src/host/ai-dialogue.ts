@@ -9,7 +9,7 @@
  *
  * Zero React / `marked` dependencies so every lazy chunk can import it cleanly.
  */
-import type { HostClient, UiLanguage } from '../types/contracts.js';
+import type { ChatMessage, HostClient, UiLanguage } from '../types/contracts.js';
 import { tryAction } from './sample-actions.js';
 
 export type UnifiedAiMode = 'explain' | 'plain_explain' | 'followup' | 'guided' | 'assistant';
@@ -254,13 +254,23 @@ export async function persistCardQaToFollowupAndNote(params: PersistCardQaParams
 /** Unified Feynman retell submission via backend `teach.retell`, shared by RetellModal and AssistantPanel. */
 export async function submitRetellEvaluation(
   host: HostClient,
-  params: { deckId: string; cardId: string; text: string; language: UiLanguage },
+  params: {
+    deckId: string;
+    cardId: string;
+    text: string;
+    language: UiLanguage;
+    /** Prior assistant turns (#1445): retell evaluation must see the shared session context. */
+    conversationHistory?: ChatMessage[];
+  },
 ): Promise<{ ok: true; verdict: UnifiedRetellVerdict } | { ok: false; error: string; isModelError: boolean }> {
   const res = await tryAction<Partial<UnifiedRetellVerdict>>(host, 'teach.retell', {
     deckId: params.deckId,
     cardId: params.cardId,
     text: params.text,
     language: params.language,
+    ...(params.conversationHistory && params.conversationHistory.length > 0
+      ? { conversationHistory: params.conversationHistory }
+      : {}),
   });
   if (!res.ok || !res.value) {
     const err = res.error?.message || '';
