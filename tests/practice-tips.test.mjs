@@ -188,3 +188,22 @@ test('the hook hands the rule the exam flag of the run and the tour flag of the 
   assert.match(run, /usePracticeTip\(\{[^}]*tourRunning: !!tourRunning/);
   assert.ok(run.split(String.fromCharCode(10)).length <= 745, 'QuestionRun stays about the size it was (739 lines before, 744 now: the tip logic and its component live in their own files)');
 });
+
+test('#1276: practice tip card uses roomy padding, normal sm button height, toolbar clearance, and a tip ring distinct from focus-visible', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const css = await readFile(new URL('../ui/review/review.css', import.meta.url), 'utf8');
+  const jsx = await readFile(new URL('../ui/review/PracticeTip.jsx', import.meta.url), 'utf8');
+
+  // Roomier vertical padding & snug line-height on .practice-tip[popover], normal sm button (no squashed min-height: 0 / padding: 0).
+  assert.match(css, /\.practice-tip\[popover\][^{]*\{[^}]*padding:\s*var\(--space-2\)\s+var\(--space-3-5\);/s);
+  assert.match(css, /\.practice-tip\[popover\][^{]*\{[^}]*line-height:\s*var\(--lh-snug\);/s);
+  assert.doesNotMatch(css, /\.practice-tip__ok[^{]*\{[^}]*min-height:\s*0/s, '知道了 keeps normal small-button height');
+
+  // Tip ring uses dashed --info-ink + --info-bg (not solid --accent-soft identical to :focus-visible), while :focus-visible still wins on keyboard focus.
+  assert.match(css, /\[data-practice-tip-ring\]\s*\{[^}]*outline:\s*2px\s+dashed\s+var\(--info-ink\);[^}]*background:\s*var\(--info-bg\);/s);
+  assert.doesNotMatch(css, /\[data-practice-tip-ring\]\s*\{[^}]*outline:\s*2px\s+solid\s+var\(--accent-soft\)/s);
+  assert.match(css, /\[data-practice-tip-ring\]:focus-visible\s*\{[^}]*outline:\s*2px\s+solid\s+var\(--accent-soft\);/s);
+
+  // Clearance from the toolbar divider: gap >= 8 * scale.
+  assert.match(jsx, /gap:\s*8\s*\*\s*scale/);
+});

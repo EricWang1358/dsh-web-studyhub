@@ -92,7 +92,7 @@ export default function PracticeTip({ id, onClose, onShown }) {
       const narrow = measure();
       card.style.maxWidth = '';
       const area = target.closest('.question-area') || document.body, clear = keepClear(area, card);
-      const where = { sizes: [wide, narrow], keepClear: clear, bounds: { left: 0, top: BAR_HEIGHT, right: window.innerWidth, bottom: window.innerHeight }, gap: 4 * scale, margin: 8 * scale, pad: 2 * scale };
+      const where = { sizes: [wide, narrow], keepClear: clear, bounds: { left: 0, top: BAR_HEIGHT, right: window.innerWidth, bottom: window.innerHeight }, gap: 8 * scale, margin: 8 * scale, pad: 2 * scale };
       // The tip goes next to its control; a link far from the toolbar (出成前置题, down in the answer) may also use the toolbar's free band while both are on screen,
       // the ring on the link says which control it is about.
       let spot = tipSpot({ anchor: at, ...originOf(target.closest('.question-tools, .followup-derive'), at, target.closest('.question-toolbar')), ...where });
@@ -145,7 +145,7 @@ export default function PracticeTip({ id, onClose, onShown }) {
   }, []);
   return (
     <div ref={element} popover="manual" role="status" className="practice-tip" data-practice-tip={id}>
-      <p className="practice-tip__words">{ui(words)}{' '}
+      <p className="practice-tip__words"><span className="practice-tip__text">{ui(words)}</span>
         <Button size="sm" className="practice-tip__ok" onClick={event => {
           // A click leaves the keyboard on the page, not on a button that is about to go: Enter still means 下一题.
           if (event.detail > 0) event.currentTarget.closest('.study-app')?.focus({ preventScroll: true });
