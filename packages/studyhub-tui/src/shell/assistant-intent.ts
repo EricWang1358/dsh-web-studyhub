@@ -199,6 +199,33 @@ function extractInt(text: string, re: RegExp): number | undefined {
   return Number.isFinite(n) && n >= 1 ? n : undefined;
 }
 
+/**
+ * Derive a learner-facing question title when saving a plain explanation via `card.followup.add` (#1442).
+ * Generic commands ("讲解新增通俗讲解", "用大白话讲一下这题", "plain explain") become "通俗讲解" /
+ * "Plain Explanation"; when the learner included a specific question, that question is preserved.
+ */
+export function resolvePlainExplainQuestionTitle(rawInstruction: string, lang: UiLanguage = 'zh'): string {
+  const defaultTitle = lang === 'en' ? 'Plain Explanation' : '通俗讲解';
+  const raw = String(rawInstruction ?? '').trim();
+  if (!raw) return defaultTitle;
+
+  const strippedPrefix = raw
+    .replace(
+      /^(?:(?:请|帮我|给我|给(?:这道|这|本)题|再|重新)?(?:讲解新增|新增|生成|写一条|来一条|来个|用|换个例子|重新)?\s*(?:通俗讲解|大白话(?:讲(?:一?下|讲)?)?|通俗(?:地)?讲(?:一?下|讲)?|讲(?:一?下|讲)|plain\s+explain|add\s+(?:a\s+)?(?:plain\s+)?explanation|explain\s+simply)\s*[:：,，]?\s*)+/i,
+      '',
+    )
+    .trim();
+
+  const remainderCheck = strippedPrefix
+    .replace(/^(?:给|为|关于|针对|一下|一?遍|这道题|这题|本题|当前题|this\s+question|this\s+card|for\s+this\s+question|about\s+this)\s*/gi, '')
+    .replace(/(?:这道题|这题|本题|当前题|通俗讲解|大白话|讲解)$/gi, '')
+    .replace(/[\s，。？！,.?!:：;；]+/g, '')
+    .trim();
+
+  if (!remainderCheck || remainderCheck.length < 3) return defaultTitle;
+  return strippedPrefix || defaultTitle;
+}
+
 /** Build a clean, self-contained prompt for the `[P] 复制提示词` fallback (never dead-ends). */
 export function buildFallbackPrompt(opts: {
   instruction?: string;

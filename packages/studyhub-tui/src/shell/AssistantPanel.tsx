@@ -40,7 +40,13 @@ import {
 } from '../render/clipboard.js';
 import { displayWidth, truncateDisplay, wrapDisplay } from '../render/cjk.js';
 import { buildContextChips, recordCommandStat, type AssistantChip } from './assistant-chips.js';
-import { buildFallbackPrompt, errorReasonWriteIntent, parseAssistantIntent, type AssistantIntent } from './assistant-intent.js';
+import {
+  buildFallbackPrompt,
+  errorReasonWriteIntent,
+  parseAssistantIntent,
+  resolvePlainExplainQuestionTitle,
+  type AssistantIntent,
+} from './assistant-intent.js';
 import { SET_ERROR_REASON_ACTION, errorReasonArgs, errorReasonName, type ErrorReasonTarget } from './error-reason-intent.js';
 import { ERROR_REASONS, reasonLabel, reasonShort } from '../views/wrongbook/helpers.js';
 import type { ErrorReasonId } from '../views/wrongbook/types.js';
@@ -995,7 +1001,7 @@ export const AssistantPanel = memo(function AssistantPanel({
             params: {
               ...(cardCtx.deckId ? { deckId: cardCtx.deckId } : {}),
               cardId: cardCtx.cardId,
-              question: text,
+              question: resolvePlainExplainQuestionTitle(text, lang),
               answer: cleanReply,
               source: 'assistant',
               silent: true,
