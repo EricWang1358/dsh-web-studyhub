@@ -17,6 +17,8 @@ after(() => {
   }
 });
 
+const { sourcePages } = await import('../../../lib/book-pages.js');
+
 const [helpersMod, drawerMod, storeMod, openaiMod] = await Promise.all([
   import('../src/views/review/review-helpers.ts'),
   import('../src/views/review/AiHelpDrawer.tsx'),
@@ -210,6 +212,30 @@ describe('#1422: AiHelpDrawer multi-turn follow-up context & prompt specializati
     ]);
   });
 
+  test('real sourcePages backend: a citation needs sourceId (not id) and the passage is shown[].text', () => {
+    const hash = 'a'.repeat(64);
+    const state = {
+      sources: [
+        {
+          id: 'src-raft',
+          title: 'Raft Paper',
+          text: 'Raft guarantees that any two quorums share at least one server with the latest committed log entry.',
+          document: { format: 'pdf', id: hash, page: 7, materialId: `document-${hash}-pdf`, bookTitle: 'raft.pdf' },
+        },
+      ],
+    };
+    // What the drawer used to pass: { id, from, to } is rejected by the real backend.
+    assert.throws(
+      () => sourcePages(state, { id: 'src-raft', from: 7, to: 7 }),
+      (err) => err?.code === 'source-pages-target',
+      'source.pages must refuse args without sourceId/documentId',
+    );
+    const { result } = sourcePages(state, { sourceId: 'src-raft', from: 7, to: 7 });
+    assert.equal(result.pages, '7-7', 'pages is the page range string, not the page list');
+    assert.equal(result.shown[0].page, 7);
+    assert.match(result.shown[0].text, /share at least one server/);
+  });
+
   test('AiHelpDrawer fetches cited source passage and sends multi-turn messages + follow-up system prompt on follow-up', async () => {
     resetStore();
     const streamCalls = [];
@@ -244,21 +270,24 @@ describe('#1422: AiHelpDrawer multi-turn follow-up context & prompt specializati
       },
     };
 
+    // The citation page lives in a real paged material, and the mock desktop backend is the real sourcePages.
+    const hash = 'b'.repeat(64);
+    const pagesState = {
+      sources: [
+        {
+          id: 'src-raft',
+          title: 'Raft Paper',
+          text: 'Raft guarantees that any two quorums share at least one server with the latest committed log entry.',
+          document: { format: 'pdf', id: hash, page: 7, materialId: `document-${hash}-pdf`, bookTitle: 'raft.pdf' },
+        },
+      ],
+    };
+
     const mockHost = {
       call: async (action, args) => {
         if (action === 'source.pages') {
           sourceCalls.push(args);
-          return {
-            ok: true,
-            value: {
-              pages: [
-                {
-                  page: 7,
-                  text: 'Raft guarantees that any two quorums share at least one server with the latest committed log entry.',
-                },
-              ],
-            },
-          };
+          return { ok: true, value: sourcePages(pagesState, args).result };
         }
         return { ok: true, value: {} };
       },
@@ -308,8 +337,10 @@ describe('#1422: AiHelpDrawer multi-turn follow-up context & prompt specializati
 
       assert.equal(streamCalls.length, 1);
       assert.equal(sourceCalls.length, 1, 'should fetch cited source page once when citation lacks inline quote');
-      assert.equal(sourceCalls[0].id, 'src-raft');
+      assert.equal(sourceCalls[0].sourceId, 'src-raft', 'source.pages must be called with sourceId, not id');
+      assert.equal(sourceCalls[0].id, undefined, 'the backend rejects { id } with source-pages-target');
       assert.equal(sourceCalls[0].from, 7);
+      assert.equal(sourceCalls[0].to, 7);
       assert.ok(
         Array.isArray(streamCalls[0].messages) && streamCalls[0].messages.length === 1,
         'initial turn must pass 1-turn messages array',
@@ -353,6 +384,95 @@ describe('#1422: AiHelpDrawer multi-turn follow-up context & prompt specializati
       assert.ok(streamCalls[1].messages[1].content.includes('法定人数'));
       assert.equal(streamCalls[1].messages[2].role, 'user');
       assert.equal(streamCalls[1].messages[2].content, '刚才说的交集是什么意思？');
+    } finally {
+      inst.unmount();
+      tty.dispose();
+    }
+  });
+
+  test('a failed request with no output drops the unanswered user turn before the next question', async () => {
+    resetStore();
+    const streamCalls = [];
+
+    const mockRun = {
+      id: 'run-drawer-1422-failure',
+      deckId: 'deck-os',
+      index: 0,
+      total: 2,
+      answered: 1,
+      revealed: true,
+      card: {
+        id: 'card-1422-failure',
+        deckId: 'deck-os',
+        kind: 'single',
+        prompt: 'Why does Raft require a majority quorum?',
+        options: [
+          { id: 'A', text: 'Any two majorities intersect so committed entries persist' },
+          { id: 'B', text: 'To reduce network bandwidth' },
+        ],
+      },
+      feedback: { correct: false, grade: 1, selected: ['B'] },
+      solution: { answer: 'A', explanation: 'Quorum intersection guarantees committed entries persist.' },
+    };
+
+    const mockHost = {
+      call: async () => ({ ok: true, value: {} }),
+      streamComplete: async (params) => {
+        streamCalls.push(params);
+        if (streamCalls.length === 1) throw new Error('upstream 429');
+        return '交集指的是任意两个过半集合至少重叠一台节点。';
+      },
+      subscribeEvents: () => () => {},
+      getLibraryRoot: () => '/tmp',
+      getConfig: () => null,
+      dispose: async () => {},
+    };
+
+    const tty = createVirtualTty(100, 32);
+    const inst = render(
+      React.createElement(AiHelpDrawer, {
+        host: mockHost,
+        run: mockRun,
+        cardId: 'card-1422-failure',
+        kind: 'single',
+        userAnswer: 'To reduce network bandwidth',
+        width: 96,
+        height: 30,
+        isActive: true,
+        mathUnicode: true,
+        onClose: () => {},
+      }),
+      {
+        stdin: tty.stdin,
+        stdout: tty.stdout,
+        stderr: tty.stderr,
+        interactive: true,
+        exitOnCtrlC: false,
+        patchConsole: false,
+      },
+    );
+
+    try {
+      await tty.firstFramePromise;
+      await tty.waitFor((s) => s.includes('429'), { timeoutMs: 6_000, label: 'Initial request failure rendered' });
+      assert.equal(streamCalls.length, 1, 'only the initial automatic question was attempted');
+      assert.equal(streamCalls[0].messages.length, 1);
+
+      tty.send('i');
+      await tty.waitFor((s) => s.includes('输入你的追问'), { timeoutMs: 4_000, label: 'Follow-up input focused' });
+      tty.send('刚才说的交集是什么意思？');
+      await tty.waitFor((s) => s.includes('刚才说的交集是什么意思？'), { timeoutMs: 4_000, label: 'Follow-up typed' });
+      tty.send('\r');
+      await tty.waitFor((s) => s.includes('任意两个过半集合至少重叠一台节点'), { timeoutMs: 6_000, label: 'Follow-up answer rendered' });
+
+      assert.equal(streamCalls.length, 2);
+      const followupMessages = streamCalls[1].messages;
+      assert.deepEqual(
+        followupMessages.map((m) => m.role),
+        ['user'],
+        'the unanswered failed question must not leave two user messages in a row',
+      );
+      assert.ok(followupMessages[0].content.includes('刚才说的交集是什么意思？'));
     } finally {
       inst.unmount();
       tty.dispose();

@@ -211,14 +211,18 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
     let excerpt = '';
     try {
       if (cite.pageNumber) {
-        const res = await tryAction<{ pages?: Array<{ text?: string }>; text?: string }>(host, 'source.pages', {
-          id: cite.sourceId,
+        // The backend (lib/book-pages.js) addresses a material by sourceId/documentId and answers with `shown[]`;
+        // `pages` is only the page-range string, and `{ id }` is refused with `source-pages-target`.
+        const res = await tryAction<{ shown?: Array<{ text?: string }>; text?: string }>(host, 'source.pages', {
+          sourceId: cite.sourceId,
           from: cite.pageNumber,
           to: cite.pageNumber,
         });
         if (res.ok && res.value) {
-          const firstPage = Array.isArray(res.value.pages) ? res.value.pages[0]?.text : res.value.text;
-          if (typeof firstPage === 'string') excerpt = firstPage.trim().slice(0, 800);
+          const shown = Array.isArray(res.value.shown)
+            ? res.value.shown.map((page) => (typeof page?.text === 'string' ? page.text.trim() : '')).filter(Boolean)
+            : [];
+          if (shown.length > 0) excerpt = shown.join('\n').slice(0, 800);
         }
       } else {
         const res = await tryAction<{ text?: string; source?: { text?: string } }>(host, 'source.get', {
@@ -304,6 +308,10 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
           const next = [...withUser, assistantTurn].slice(-MAX_AI_TURNS);
           turnsRef.current = next;
           commitTurns(cardId, next);
+        } else {
+          // Nothing came back: drop the unanswered user turn so the next request never sends two `user` messages in a row.
+          turnsRef.current = priorTurns;
+          commitTurns(cardId, priorTurns);
         }
         resetStreaming();
         setStreaming(false);
@@ -318,6 +326,10 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
           turnsRef.current = next;
           commitTurns(cardId, next);
           resetStreaming();
+        } else {
+          // A failed request produced nothing at all: drop the unanswered user turn (see the success path).
+          turnsRef.current = priorTurns;
+          commitTurns(cardId, priorTurns);
         }
         setErrorText(errorMessage(err));
       } finally {

@@ -13,6 +13,7 @@ import { mkdir } from 'node:fs/promises';
 import { delimiter, join, resolve, win32 } from 'node:path';
 import type {
   BindingSnapshot,
+  ChatMessage,
   DesktopConfigSnapshot,
   HostCallResult,
   HostClient,
@@ -101,7 +102,7 @@ export interface RefreshResult {
 export interface StreamCompleteParams {
   system: string;
   prompt: string;
-  messages?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  messages?: readonly ChatMessage[];
   signal?: AbortSignal;
   onChunk?: (delta: string) => void;
   onReasoning?: (chars: number) => void;

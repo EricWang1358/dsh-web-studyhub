@@ -69,18 +69,22 @@ function resolveEffort(config, execution) {
 }
 
 function buildChatBody({ model, system, prompt, messages, maxTokens, effort, stream, includeStreamOptions }) {
-  const validTurns = Array.isArray(messages)
-    ? messages
-      .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-      .map((m) => ({ role: m.role, content: m.content }))
-    : [];
+  const normalizedMessages =
+    Array.isArray(messages) && messages.length > 0
+      ? [
+          { role: 'system', content: String(system ?? '') },
+          ...messages
+            .filter((m) => m && (m.role === 'user' || m.role === 'assistant' || m.role === 'system'))
+            .map((m) => ({ role: m.role, content: String(m.content ?? '') })),
+        ]
+      : [
+          { role: 'system', content: String(system ?? '') },
+          { role: 'user', content: String(prompt ?? '') },
+        ];
   const payload = {
     model,
     stream,
-    messages: [
-      { role: 'system', content: String(system ?? '') },
-      ...(validTurns.length > 0 ? validTurns : [{ role: 'user', content: String(prompt ?? '') }]),
-    ],
+    messages: normalizedMessages,
   };
   if (stream && includeStreamOptions) {
     payload.stream_options = { include_usage: true };

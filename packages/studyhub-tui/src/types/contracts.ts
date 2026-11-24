@@ -164,7 +164,7 @@ export interface LibraryEvent {
 }
 
 export interface ChatMessage {
-  role: 'user' | 'assistant';
+  role: 'system' | 'user' | 'assistant';
   content: string;
 }
 
@@ -181,8 +181,8 @@ export interface HostClient {
   streamComplete?(params: {
     system: string;
     prompt: string;
-    /** Optional multi-turn chat history forwarded natively to chat-completions endpoints (#1422). */
-    messages?: ChatMessage[];
+    /** Optional true multi-turn message history (#1445). When provided, OpenAI-compatible routes send it natively. */
+    messages?: readonly ChatMessage[];
     signal?: AbortSignal;
     onChunk?: (delta: string) => void;
     onReasoning?: (chars: number) => void;
