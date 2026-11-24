@@ -1250,9 +1250,11 @@ describe('Domain Settings & Workspace: Hygiene, Host Integration & PTY E2E', () 
       await ttyZh.waitFor((s) => s.includes('学习库') || s.includes('Library'), {
         label: 'Initial Library view rendered (zh)',
       });
-      await ttyZh.flush();
+      await ttyZh.flush(60);
 
       ttyZh.send(',');
+      await ttyZh.flush(40);
+      if (useTuiStore.getState().page !== 'settings') ttyZh.send(',');
       await ttyZh.waitFor(
         (s) =>
           useTuiStore.getState().page === 'settings' &&
