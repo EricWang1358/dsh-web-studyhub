@@ -260,7 +260,7 @@ describe('#1315 Phase 1 Full-Workflow Assistant UX Acceptance Gate', () => {
     }
   });
 
-  test('2. Scenario: 答错讲解 (wrong card chips prioritize 通俗讲解 & 加入错题本 -> streams & saves via card.followup.add)', async () => {
+  test('2. Scenario: 答错讲解 (#1338: streams plain explanation first, asks P2 confirm before card.followup.add, human-readable output)', async () => {
     resetStore({
       page: 'review',
       assistantOpen: true,
@@ -309,11 +309,29 @@ describe('#1315 Phase 1 Full-Workflow Assistant UX Acceptance Gate', () => {
     try {
       const frame = await h.waitFor((s) => s.includes('[1]通俗讲解') && s.includes('[2]加入错题本') && s.includes('第 3/8 题(答错)'));
       assert.ok(frame.includes('第 3/8 题(答错)'), 'Context ribbon must show card index & wrong status');
-      // Press [1] chip directly (no typing needed!)
+      // Press [1] chip directly -> generates explanation and opens confirmation dialog WITHOUT writing yet
       h.write('1');
-      await h.waitFor((s) => s.includes('桌面便利贴') && s.includes('已完成并保存'));
+      const confirmFrame = await h.waitFor((s) => s.includes('保存通俗讲解到本题') && s.includes('将执行：'));
+      assert.equal(savedCalls.length, 0, 'Must NOT write card.followup.add before user confirms');
+      assert.ok(!confirmFrame.includes('card.followup.add'), 'Confirmation should use human-readable wording');
+
+      // Cancelling keeps explanation without writing to disk
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('n');
+      await h.waitFor((s) => s.includes('已取消') && s.includes('桌面便利贴'));
+      assert.equal(savedCalls.length, 0, 'Cancelling confirmation must not write to card');
+
+      // Trigger again and confirm with y -> writes once with human-readable confirmation (no actionName or cardId)
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('1');
+      await h.waitFor((s) => s.includes('保存通俗讲解到本题'));
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('y');
+      const savedFrame = await h.waitFor((s) => s.includes('已保存到本题讲解'));
       assert.equal(savedCalls.length, 1);
       assert.equal(savedCalls[0].cardId, 'c-wrong');
+      assert.ok(!savedFrame.includes('card.followup.add'), 'Must not leak internal action name in UI');
+      assert.ok(!savedFrame.includes('c-wrong'), 'Must not leak raw card ID in UI');
     } finally {
       h.cleanup();
     }

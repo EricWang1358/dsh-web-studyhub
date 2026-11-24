@@ -398,8 +398,39 @@ export const AssistantPanel = memo(function AssistantPanel({
   const executeConfirmedWrite = useCallback(
     async (intent: Extract<AssistantIntent, { kind: 'write_confirm' }>) => {
       setPendingConfirm(null);
-      beginExecution(intent.actionName === 'export.wrongbook' ? '导出错题本' : '标记错题原因');
+      beginExecution(
+        intent.actionName === 'export.wrongbook'
+          ? t(lang, '导出错题本', 'Exporting wrong-book')
+          : intent.actionName === 'card.followup.add'
+            ? t(lang, '保存通俗讲解', 'Saving plain explanation')
+            : t(lang, '标记错题原因', 'Marking wrong reason'),
+      );
       try {
+        if (intent.actionName === 'card.followup.add') {
+          const saved = await tryAction(host, 'card.followup.add', intent.params);
+          if (!mountedRef.current) return;
+          if (saved.ok) {
+            appendTurn({
+              role: 'system',
+              stage: tab === 'guided' ? stage : undefined,
+              actionSummary: t(lang, '已保存到本题讲解', 'Saved to question'),
+              text: t(
+                lang,
+                '已将通俗讲解保存到当前题目，下次打开可直接复用。',
+                'Saved plain explanation to this question for reuse next time.',
+              ),
+            });
+            notify(t(lang, '通俗讲解已保存到本题', 'Plain explanation saved'), 'success');
+          } else {
+            appendTurn({
+              role: 'system',
+              stage: tab === 'guided' ? stage : undefined,
+              actionSummary: t(lang, '保存失败', 'Save failed'),
+              text: saved.error?.message || t(lang, '保存通俗讲解失败，请重试。', 'Failed to save plain explanation.'),
+            });
+          }
+          return;
+        }
         if (intent.actionName === 'wrongbook.reason.set') {
           if (!intent.params.cardId) {
             appendTurn({
@@ -479,7 +510,7 @@ export const AssistantPanel = memo(function AssistantPanel({
         endExecution();
       }
     },
-    [host, snapshot?.root, stage, lang, beginExecution, endExecution, appendTurn, registerUndo, notify],
+    [host, snapshot?.root, tab, stage, lang, beginExecution, endExecution, appendTurn, registerUndo, notify],
   );
 
   const handleSkipRetell = useCallback(() => {
@@ -597,7 +628,7 @@ export const AssistantPanel = memo(function AssistantPanel({
       if (workflowPlan) {
         let plan: AssistantWorkflowPlan = workflowPlan;
         for (const step of workflowPlan.steps) {
-          if (step.intent.requiresConfirm) {
+          if (step.intent.kind === 'write_confirm') {
             setPendingConfirm(step.intent);
             appendTurn({
               role: 'system',
@@ -827,19 +858,9 @@ export const AssistantPanel = memo(function AssistantPanel({
         if (!mountedRef.current) return;
         const cleanReply = (reply || stream.text).trim();
 
-        let actionSummary = `已完成：${intent.actionName}`;
-        if (isPlainExplain && cardCtx?.cardId && cleanReply) {
-          const saved = await tryAction(host, 'card.followup.add', {
-            ...(cardCtx.deckId ? { deckId: cardCtx.deckId } : {}),
-            cardId: cardCtx.cardId,
-            question: text,
-            answer: cleanReply,
-          });
-          if (saved.ok) {
-            actionSummary = `已完成并保存：card.followup.add（${cardCtx.cardId}）`;
-            notify(t(lang, '通俗讲解已保存', 'Plain explanation saved'), 'success');
-          }
-        }
+        const actionSummary = isPlainExplain
+          ? t(lang, '已完成：通俗讲解已生成', 'Done: plain explanation ready')
+          : t(lang, '已完成：回答已生成', 'Done: reply ready');
 
         appendTurn({
           role: 'assistant',
@@ -847,6 +868,28 @@ export const AssistantPanel = memo(function AssistantPanel({
           actionSummary,
           text: cleanReply || t(lang, '未收到有效回复。', 'Empty reply.'),
         });
+        if (isPlainExplain && cardCtx?.cardId && cleanReply) {
+          setPendingConfirm({
+            kind: 'write_confirm',
+            actionName: 'card.followup.add',
+            params: {
+              ...(cardCtx.deckId ? { deckId: cardCtx.deckId } : {}),
+              cardId: cardCtx.cardId,
+              question: text,
+              answer: cleanReply,
+              source: 'assistant',
+              silent: true,
+            },
+            previewTitle: t(lang, '保存通俗讲解到本题', 'Save Plain Explanation'),
+            previewMessage: t(
+              lang,
+              '将执行：将这条通俗讲解保存到当前题目，方便下次直接查看（取消则仅保留在本次对话）。',
+              'Will save this plain explanation to the current question for reuse next time (cancel to keep in chat only).',
+            ),
+            paramsSummary: t(lang, '保存到当前题目', 'save to current question'),
+            requiresConfirm: true,
+          });
+        }
         if (tab === 'guided') {
           if (stage === 'question') setStage('answer');
           else if (stage === 'answer') setStage('judge');
