@@ -50,7 +50,8 @@ import { pruneTurnsWithSummary } from './assistant-memory.js';
 import { buildTranscriptPalette, formatTurnLines, turnsInScope } from './assistant-transcript.js';
 import { currentCourse, dueToday, modelInfo, wrongCount } from './data.js';
 
-export const MAX_ASSISTANT_TURNS = 16;
+/** Each exchange is two turns now that the learner's instruction is recorded too (#1410). */
+export const MAX_ASSISTANT_TURNS = 32;
 export const SLOW_EXECUTION_NOTICE_MS = 2000;
 
 export const GUIDED_STAGES: readonly GuidedStageId[] = Object.freeze([
@@ -206,6 +207,10 @@ export const AssistantPanel = memo(function AssistantPanel({
   const turnScope = cardCtx?.cardId ?? '';
   const turnScopeRef = useRef(turnScope);
   turnScopeRef.current = turnScope;
+  // A request keeps the scope it started in: its reply is filed under the card it was asked on,
+  // even when the learner has moved to another card before it arrives.
+  const requestScopeRef = useRef<string | null>(null);
+  const [busyScope, setBusyScope] = useState('');
   const [showEarlier, setShowEarlier] = useState(false);
   useEffect(() => {
     setShowEarlier(false);
@@ -240,6 +245,8 @@ export const AssistantPanel = memo(function AssistantPanel({
   const beginExecution = useCallback(
     (label: string) => {
       clearSlowTimer();
+      requestScopeRef.current = turnScopeRef.current;
+      setBusyScope(turnScopeRef.current);
       setBusy(true);
       setExecStatus(t(lang, `正在执行：${label}`, `Running: ${label}`));
       slowTimerRef.current = setTimeout(() => {
@@ -252,6 +259,7 @@ export const AssistantPanel = memo(function AssistantPanel({
 
   const endExecution = useCallback(() => {
     clearSlowTimer();
+    requestScopeRef.current = null;
     if (mountedRef.current) {
       setBusy(false);
       setExecStatus(null);
@@ -297,7 +305,7 @@ export const AssistantPanel = memo(function AssistantPanel({
   );
 
   const appendTurn = useCallback((turn: Omit<AssistantTurn, 'id' | 'at'>) => {
-    const entry: AssistantTurn = { ...turn, id: `at-${++turnSeq}`, at: Date.now(), scope: turnScopeRef.current };
+    const entry: AssistantTurn = { ...turn, id: `at-${++turnSeq}`, at: Date.now(), scope: requestScopeRef.current ?? turnScopeRef.current };
     const next = trimTurns([...sessionMemory.turns, entry]);
     sessionMemory.turns = next;
     if (mountedRef.current) {
@@ -366,11 +374,11 @@ export const AssistantPanel = memo(function AssistantPanel({
       prompt: cardCtx?.prompt,
       userAnswer: cardCtx?.userAnswer,
       currentStage: stage,
-      turns,
+      turns: allTurns,
       lang,
     });
     void doCopy(md, '完整会话', 'full session');
-  }, [turns, cardCtx, tab, stage, lang, doCopy, notify]);
+  }, [turns, allTurns, cardCtx, tab, stage, lang, doCopy, notify]);
 
   const handleCopyFallbackPrompt = useCallback(() => {
     const promptText = buildFallbackPrompt({
@@ -1020,6 +1028,9 @@ export const AssistantPanel = memo(function AssistantPanel({
     [setTab, handleSubmitInput],
   );
 
+  // #1412: on the practice page Esc hands the keyboard back and the dock stays; the page's own Esc
+  // ("back") folds it afterwards. Other pages have no such second step, so there Esc folds the dock.
+  const escKeepsDock = Boolean(docked) && page === 'review';
   const handleEscape = useCallback(() => {
     if (busy) {
       abortRef.current?.abort();
@@ -1035,14 +1046,14 @@ export const AssistantPanel = memo(function AssistantPanel({
       setFullscreen(false);
       return;
     }
-    if (docked) {
+    if (escKeepsDock) {
       // Hand the keyboard back to the page and stay visible, so the page's own shortcuts work while
       // the conversation is still readable (#1412). A second Esc (page "back") folds the dock.
       setFocused(false);
       return;
     }
     onClose();
-  }, [busy, endExecution, notify, lang, inputFocused, fullscreen, setFullscreen, docked, setFocused, onClose]);
+  }, [busy, endExecution, notify, lang, inputFocused, fullscreen, setFullscreen, escKeepsDock, setFocused, onClose]);
 
   useInput(
     (input, key) => {
@@ -1163,13 +1174,13 @@ export const AssistantPanel = memo(function AssistantPanel({
   // #1412: while the dock holds the keyboard the footer shows the dock's own keys, not a generic "Esc close".
   const dockFooterHints = useMemo(
     () => [
-      { key: 'Esc', label: fullscreen ? t(lang, '退出全屏', 'Exit full') : docked ? t(lang, '回页面', 'Back to page') : t(lang, '关闭', 'Close') },
+      { key: 'Esc', label: fullscreen ? t(lang, '退出全屏', 'Exit full') : escKeepsDock ? t(lang, '回页面', 'Back to page') : t(lang, '收起', 'Hide') },
       { key: 'i', label: t(lang, '输入', 'Type') },
       { key: '1-4', label: t(lang, '推荐动作', 'Quick actions') },
       { key: 'Tab', label: t(lang, '助手/带学', 'Tabs') },
       { key: 'Ctrl+G', label: t(lang, '收起', 'Hide') },
     ],
-    [lang, fullscreen, docked],
+    [lang, fullscreen, escKeepsDock],
   );
   useModalFooterHints(dockFooterHints, isActive && !inputFocused && !pendingConfirm);
 
@@ -1224,7 +1235,7 @@ export const AssistantPanel = memo(function AssistantPanel({
       );
     }
 
-    if (busy) {
+    if (busy && busyScope === turnScope) {
       const live = stream.text.trim();
       if (live) {
         for (const para of live.split('\n')) {
@@ -1233,7 +1244,7 @@ export const AssistantPanel = memo(function AssistantPanel({
       }
     }
     return out;
-  }, [innerW, modelReady, lang, turns, earlierTurnCount, showEarlier, busy, tab, stage, stream.text, theme, colorLevel]);
+  }, [innerW, modelReady, lang, turns, earlierTurnCount, showEarlier, busy, busyScope, turnScope, tab, stage, stream.text, theme, colorLevel]);
 
   return (
     <Box flexDirection="column" width={frameW} height={frameH}>
@@ -1244,8 +1255,12 @@ export const AssistantPanel = memo(function AssistantPanel({
           fullscreen
             ? t(lang, '全屏 (Esc分栏)', 'Full (Esc split)')
             : isActive
-              ? t(lang, '已聚焦 (Esc回页面)', 'Focused (Esc to page)')
-              : t(lang, '停靠不抢焦点 (Ctrl+G聚焦 · Esc收起)', 'Docked (Ctrl+G focus · Esc hide)')
+              ? escKeepsDock
+                ? t(lang, '已聚焦 (Esc回页面)', 'Focused (Esc to page)')
+                : t(lang, '已聚焦 (Esc收起)', 'Focused (Esc hide)')
+              : escKeepsDock
+                ? t(lang, '停靠不抢焦点 (Ctrl+G聚焦 · Esc收起)', 'Docked (Ctrl+G focus · Esc hide)')
+                : t(lang, '停靠不抢焦点 (Ctrl+G聚焦)', 'Docked (Ctrl+G focus)')
         }
         focused={isActive}
         width={frameW}

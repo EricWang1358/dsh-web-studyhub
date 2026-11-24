@@ -20,9 +20,14 @@ export const SOURCE_SLICE_CHARS = 60000;
 
 export interface WholeText {
   text: string;
-  /** True when a later slice could not be read: `text` is only the part that arrived. */
+  /** True when the text stops early: `text` is only the part that arrived. */
   incomplete: boolean;
+  /** True when it stopped at the slice cap rather than on a failed request (retrying will not help). */
+  hitLimit?: boolean;
 }
+
+/** Lets the caller abandon a load (the reader moved to another page) before the next request. */
+export type Abandoned = () => boolean;
 
 function firstShown(value: Fields): Fields | undefined {
   return Array.isArray(value.shown) ? (value.shown[0] as Fields | undefined) : undefined;
@@ -36,7 +41,7 @@ function continuationOffset(value: Fields, page: number, readFrom: number): numb
 }
 
 /** The full text of the page that `first` (a `source.pages` answer for one page) only started. */
-export async function readWholePage(call: SliceCall, first: Fields): Promise<WholeText> {
+export async function readWholePage(call: SliceCall, first: Fields, abandoned: Abandoned = () => false): Promise<WholeText> {
   const opening = firstShown(first);
   const page = Number(opening?.page);
   let text = String(opening?.text ?? '');
@@ -45,6 +50,7 @@ export async function readWholePage(call: SliceCall, first: Fields): Promise<Who
   for (let slice = 0; slice < MAX_FOLLOW_UP_SLICES; slice += 1) {
     const offset = continuationOffset(value, page, readFrom);
     if (offset === null) return { text, incomplete: false };
+    if (abandoned()) return { text, incomplete: true };
     const res = await call({ from: page, to: page, offset });
     const part = res.ok && res.value ? firstShown(res.value)?.text : undefined;
     if (typeof part !== 'string' || !part || !res.value) return { text, incomplete: true };
@@ -52,15 +58,16 @@ export async function readWholePage(call: SliceCall, first: Fields): Promise<Who
     value = res.value;
     readFrom = offset;
   }
-  return { text, incomplete: true };
+  return { text, incomplete: true, hitLimit: true };
 }
 
 /** The full text of the source that `first` (a `source.get` answer from offset 0) only started. */
-export async function readWholeSource(call: SliceCall, first: Fields): Promise<WholeText> {
+export async function readWholeSource(call: SliceCall, first: Fields, abandoned: Abandoned = () => false): Promise<WholeText> {
   let text = String(first.text ?? '');
   const total = Number(first.chars ?? 0);
   for (let slice = 0; text.length < total; slice += 1) {
-    if (slice >= MAX_FOLLOW_UP_SLICES) return { text, incomplete: true };
+    if (slice >= MAX_FOLLOW_UP_SLICES) return { text, incomplete: true, hitLimit: true };
+    if (abandoned()) return { text, incomplete: true };
     const res = await call({ offset: text.length, limit: SOURCE_SLICE_CHARS });
     const part = res.ok && res.value ? res.value.text : undefined;
     if (typeof part !== 'string' || !part) return { text, incomplete: true };

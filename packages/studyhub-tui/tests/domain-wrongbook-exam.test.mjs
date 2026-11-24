@@ -272,7 +272,7 @@ async function answerCurrentCardWrong(tty, host, runId, cardNumberLabel) {
     await tty.waitFor(
       () =>
         useDistTuiStore.getState().page === 'review' &&
-        useDistTuiStore.getState().footerHints.some((h) => h.key.includes('1/t')),
+        useDistTuiStore.getState().footerHints.some((h) => h.key.includes('1/2')),
       { timeoutMs: 10_000, label: `Card ${cardNumberLabel} TF ready for judge input` },
     );
     await tty.flush();

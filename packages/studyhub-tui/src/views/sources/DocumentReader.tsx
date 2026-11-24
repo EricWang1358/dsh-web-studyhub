@@ -692,10 +692,13 @@ export const DocumentReader = memo(function DocumentReader({
         ...(sourceId && !docMeta.documentId && !documentId ? { sourceId } : {}),
       };
       // #1418: a slice that failed to arrive is said out loud at the end of the page.
-      const shownText = (whole: WholeText): string =>
-        whole.incomplete
-          ? `${whole.text}\n\n${t(lang, '（后面的内容没有读出来，重新打开这份资料可以重试。）', '(The rest could not be read. Reopen this material to retry.)')}`
-          : whole.text;
+      const shownText = (whole: WholeText): string => {
+        if (!whole.incomplete) return whole.text;
+        const note = whole.hitLimit
+          ? t(lang, '（这一页太长，这里只显示了前面的部分。）', '(This page is too long; only the first part is shown.)')
+          : t(lang, '（后面的内容没有读出来，重新打开这份资料可以重试。）', '(The rest could not be read. Reopen this material to retry.)');
+        return `${whole.text}\n\n${note}`;
+      };
       const pagesRes = await tryAction<Record<string, unknown>>(host, 'source.pages', {
         ...pageTarget,
         from: targetFrom,
@@ -742,6 +745,7 @@ export const DocumentReader = memo(function DocumentReader({
           const wholePage = await readWholePage(
             (sliceArgs) => tryAction<Record<string, unknown>>(host, 'source.pages', { ...pageTarget, ...sliceArgs }),
             val,
+            () => cancelled,
           );
           if (cancelled) return;
           setPageData({
@@ -775,6 +779,7 @@ export const DocumentReader = memo(function DocumentReader({
           const wholeSource = await readWholeSource(
             (sliceArgs) => tryAction<Record<string, unknown>>(host, 'source.get', { id: fallbackId, ...sliceArgs }),
             val,
+            () => cancelled,
           );
           if (cancelled) return;
           setPageData({

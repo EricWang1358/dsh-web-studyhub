@@ -231,9 +231,9 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
 
   goBack: () => {
     const prev = get();
-    // #1412: the docked assistant is the top-most layer: "back" on the page folds it away first, so a
-    // second Esc after returning the keyboard to the page never leaves the page by surprise.
-    if (prev.assistantOpen && !prev.assistantFocused && !prev.assistantFullscreen) {
+    // #1412: on the practice page the docked assistant is the top-most layer: "back" folds it away
+    // first, so a second Esc after returning the keyboard to the page never ends the run by surprise.
+    if (prev.page === 'review' && prev.assistantOpen && !prev.assistantFocused && !prev.assistantFullscreen) {
       set({ assistantOpen: false, assistantFocused: false, assistantFullscreen: false });
       return;
     }

@@ -310,3 +310,14 @@ test('#1426: the dock shows only the turns about the card in view and counts the
   assert.deepEqual(turnsInScope(turns, 'card-3'), { current: [], earlier: 4 }, 'a new card opens clean');
   assert.deepEqual(turnsInScope(turns, ''), { current: [turns[2]], earlier: 3 }, 'away from a card: only card-less turns');
 });
+
+test('#1412: away from the practice page a passive dock never swallows "back"', () => {
+  const store = useTuiStore.getState();
+  store.navigate('sources');
+  store.navigate('board');
+  useTuiStore.setState({ assistantOpen: true, assistantFocused: false, assistantFullscreen: false });
+  useTuiStore.getState().goBack();
+  assert.equal(useTuiStore.getState().page, 'sources', 'back still goes back');
+  assert.equal(useTuiStore.getState().assistantOpen, true, 'and leaves the passive dock alone');
+  useTuiStore.setState({ assistantOpen: false });
+});

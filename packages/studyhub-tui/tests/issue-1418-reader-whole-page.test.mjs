@@ -84,3 +84,11 @@ test('#1418: the source.get fallback is read to its end too', async () => {
   assert.equal(whole.text.length, text.length);
   assert.deepEqual(calls.map((c) => c.offset), [0, 20000, 20000 + SOURCE_SLICE_CHARS]);
 });
+
+test('#1418: a load the reader has abandoned asks for nothing more', async () => {
+  const { call, calls } = libraryWith(longText);
+  const first = (await call({ from: 1, to: 1 })).value;
+  const whole = await readWholePage(call, first, () => true);
+  assert.equal(calls.length, 1, 'no follow-up request after the reader moved on');
+  assert.equal(whole.incomplete, true);
+});
