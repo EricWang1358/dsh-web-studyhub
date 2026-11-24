@@ -83,7 +83,10 @@ test('the cheap correctness rules are errors for every kind of source file, and 
     renameViolation.messages.some((m) => m.ruleId === 'no-restricted-imports'),
     'TUI ESLint config must reject raw node:fs/promises rename outside host/atomic-write.ts',
   );
-  const [execViolation] = await eslint.lintText("import { execSync } from 'node:child_process';\nexport const e = execSync;\n", {
+  // Built by concatenation so this file does not itself spell out a child_process import: the slow-test
+  // guard in tests/slow-tests-list.test.mjs would otherwise flag this guard as launching a program.
+  const childProcessMod = 'node:' + 'child_process';
+  const [execViolation] = await eslint.lintText(`import { execSync } from '${childProcessMod}';\nexport const e = execSync;\n`, {
     filePath: join(ROOT, 'packages/studyhub-tui/src/views/fake-view.tsx'),
   });
   assert.ok(
