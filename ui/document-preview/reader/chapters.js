@@ -76,10 +76,11 @@ export const adjacentChapters = (chapters, index) => ({ previous: index > 0 ? ch
 export function withElsewhere(entries, placed, { drawn, known }) {
   const byId = new Map(placed.map(item => [item.id, item]));
   return (entries || []).map((entry, index) => {
-    const id = `ai-${index}`, sourceId = entry.anchor?.sourceId;
-    // Every entry keeps the page it is on, so the questions of a chapter not drawn are placed under the entries by page (practice-range.js sourcePlacer).
-    if (byId.has(id)) return sourceId ? { ...byId.get(id), sourceId } : byId.get(id);
-    return sourceId && known.has(sourceId) && !drawn.has(sourceId) ? { id, level: entry.level, title: entry.title, kind: entry.kind, sourceId, elsewhere: true } : null;
+    const id = `ai-${index}`, sourceId = entry.anchor?.sourceId, offset = entry.anchor?.offset;
+    const anchorMeta = { ...(sourceId ? { sourceId } : {}), ...(Number.isFinite(offset) ? { offset } : {}) };
+    // Every entry keeps the page and offset it is on, so the questions and ranges of chapters not drawn align accurately.
+    if (byId.has(id)) return Object.keys(anchorMeta).length ? { ...byId.get(id), ...anchorMeta } : byId.get(id);
+    return sourceId && known.has(sourceId) && !drawn.has(sourceId) ? { id, level: entry.level, title: entry.title, kind: entry.kind, ...anchorMeta, elsewhere: true } : null;
   }).filter(Boolean);
 }
 

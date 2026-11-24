@@ -410,9 +410,9 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const slides = isSlideFormat(format);
   const pageLabel = useCallback(page => slides ? uiFormat('第 {0} 张', [page]) : uiFormat('第 {0} 页', [page]), [slides]);
   // A recording's entry says which one it is; a part that carries on from the previous volume says so.
-  const recordingLabel = item => item.kind === 'recording' ? uiFormat('录音 {0}', [item.recording]) : item.continued ? ui('接上一卷') : '';
-  const labelOf = useCallback(section => section.kind === 'page' ? pageLabel(section.page) : recordingLabel(section), [pageLabel, language]); // eslint-disable-line react-hooks/exhaustive-deps
-  const itemLabel = item => item.kind === 'chapter' ? chapterRange(item.chapter, slides) : item.page ? pageLabel(item.page) : recordingLabel(item);
+  const recordingLabel = useCallback(item => item.kind === 'recording' ? uiFormat('录音 {0}', [item.recording]) : item.continued ? ui('接上一卷') : '', []);
+  const labelOf = useCallback(section => section.kind === 'page' ? pageLabel(section.page) : recordingLabel(section), [pageLabel, recordingLabel, language]); // eslint-disable-line react-hooks/exhaustive-deps
+  const itemLabel = useCallback(item => item.kind === 'chapter' ? chapterRange(item.chapter, slides) : item.page ? pageLabel(item.page) : recordingLabel(item), [slides, pageLabel, recordingLabel]);
   const textOutline = useMemo(() => outlineFromSections(allSections), [allSections]);
   const chapterEntries = useMemo(() => chaptered ? chapterOutline(chapter.chapters.map(entry => ({ ...entry, title: chapterTitle(entry) })), textOutline) : null,
     [chaptered, chapter.chapters, textOutline, language]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -893,7 +893,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       const ids = new Set(sections.map(section => section.id));
       return buildMindMap({ title: chapter.current ? chapterTitle(chapter.current) : materialName, sections, outline: outline.filter(item => ids.has(item.id)) });
     }
-    return buildMindMap({ title: materialName, outline, activeId, branch: true });
+    return buildMindMap({ title: materialName, sections: paged ? sections : [], outline, activeId, branch: true });
   }, [paged, aiOn, sections, outline, activeId, chapter.current, materialName, language]); // eslint-disable-line react-hooks/exhaustive-deps
   const jumpMap = node => {
     const target = node.target || {};

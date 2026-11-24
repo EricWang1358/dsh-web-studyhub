@@ -1,5 +1,7 @@
 # StudyHub TUI (`@ericwang1358/studyhub-tui`)
 
+> 📖 **新手请先看：[完整中文使用教程（docs/GUIDE.md）](./docs/GUIDE.md)** — 按任务讲清楚每个功能「在哪、干什么、怎么用」；也可在应用内按 `?` 切到「使用教程」或 `Ctrl+K` 输入 `/guide` 直接阅读。纯按键对照表见 [docs/KEYBINDINGS.md](./docs/KEYBINDINGS.md)。
+
 [StudyHub](../../README.md) 的高性能全功能交互式终端客户端（TUI），参考 [dsh-TUI](https://github.com/ccch1mneyyy/dsh-TUI) 的技术栈与交互美学设计，完整复刻 StudyHub 16 个核心与进阶功能视图，同时原生支持 **Linux bash** 与 **Windows PowerShell / Windows Terminal**。
 
 ## 核心特性
@@ -74,7 +76,7 @@ node .\packages\studyhub-tui\bin\studyhub-tui.mjs --ascii
 | 全局 | `q` / `Ctrl+C` | 安全退出并自动恢复终端 |
 | 多行输入 | `Ctrl+S` / `Ctrl+J` / `Shift+Enter` | 多行编辑器提交（`Ctrl+J` 或 `Shift+Enter` 插入换行） |
 | 学习库 (`1`) | `p` / `g` / `C` / `o` / `R` / `m` | 今日计划 / AI 带学 / 课程设置 / 导入·合并·拆分 / 定制本轮 / 补题(`+`)·转换(`k`)·批量(`Space/F/S`) |
-| 刷题复习 (`r`) | `0-5` / `u` / `q` / `L` / `A` / `*` / `T` / `S` / `D` / `Q` / `F` / `G` | FSRS-6 六级自评 / 撤销评分 / 二次确认结束 / 带学 / 答题卡 / 重点 / 翻译 / 同类 / 工具 / 队列 / 复述 / AI 批改 |
+| 刷题复习 (`r`) | `0-5` / `u` / `X` / `L` / `A` / `*` / `T` / `S` / `D` / `Q` / `F` / `G` | FSRS-6 六级自评 / 撤销评分 / 二次确认结束本轮 / 带学 / 答题卡 / 重点 / 翻译 / 同类 / 工具 / 队列 / 复述 / AI 批改 |
 | 资料与阅读 (`2`) | `G` / `V` / `F` / `m` / `M` / `C` / `O` / `B` | AI 归类 / 引用覆盖率 / 文件夹筛选 / 移至文件夹（或切 LaTeX）/ MinerU PDF / 伴学 / 大纲 / 书签 |
 | 出题与草稿 (`3`) | `i` / `S` / `R` / `u` | 录题导入 / 草稿查重 / 草稿修复 / 撤销移除草稿题 |
 | 复习全书 (`7`) | `w` / `P` / `e` / `x` | 期末一周冲刺与模考 / 书内精选问答 / 编辑与回退 / 导出 Markdown |

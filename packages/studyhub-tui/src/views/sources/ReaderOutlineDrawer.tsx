@@ -628,7 +628,13 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
   useClaimKeys(['g', 's', 'j', 'k', ' ', 'm', 'X'], isActive && !confirmClear);
 
   useInput(
-    (input) => {
+    (input, key) => {
+      if (!key.ctrl && !key.meta && input === 'r') {
+        const st = useTuiStore.getState();
+        onClose();
+        st.navigate('review', st.activeRunId ? { runId: st.activeRunId } : {});
+        return;
+      }
       if (input === 'g') {
         void handleSuggest();
       } else if (input === 's' && proposal) {

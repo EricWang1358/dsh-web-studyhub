@@ -415,7 +415,7 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
 
   const maxVisible = Math.max(4, height - 4);
   const dialogOpen = confirmResetPractice || confirmResetExamPrep;
-  const claimed = useMemo(() => ['j', 'k', 'h', 'l', 'r', ' ', 'g', 'G'], []);
+  const claimed = useMemo(() => ['j', 'k', 'h', 'l', ' ', 'g', 'G'], []);
   useClaimKeys(claimed, isActive && !dialogOpen);
 
   useSgrMouseWheel(isActive && !dialogOpen, (wheelDelta) => {
@@ -429,7 +429,7 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
         setCursor((c) => Math.max(0, Math.min(ROW_IDS.length - 1, c + wheelDelta)));
         return;
       }
-      if (input === 'r') {
+      if (key.ctrl && input === 'r') {
         void loadSettings();
         return;
       }

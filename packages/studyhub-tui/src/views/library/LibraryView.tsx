@@ -10,12 +10,16 @@ import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
+import { ClickableBox } from '../../components/mouse.js';
+import { saveTuiPreferences } from '../../host/tui-prefs.js';
 import { useTheme } from '../../theme/tokens.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { currentCourse, dueToday } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
 import { getSampleStatus, removeSampleCourse, tryAction } from '../../host/sample-actions.js';
 import type { DeckExportInput } from './deck-export.js';
+import { buildDailyBriefing } from './daily-briefing.js';
+import { buildTodayHubItems, buildTodayHubMetrics } from './today-hub.js';
 
 const DeckManageModal = lazy(() => import('./DeckManageModal.js').then((m) => ({ default: m.DeckManageModal })));
 const VoicePackModal = lazy(() => import('./VoicePackModal.js').then((m) => ({ default: m.VoicePackModal })));
@@ -54,7 +58,7 @@ type WorkEntry =
   | { kind: 'draft'; id: string; title: string; course: string; count: number; draft: DraftItem }
   | { kind: 'job'; id: string; title: string; course: string; status: string; error: string; job: JobItem };
 
-const CLAIMED_LIBRARY_KEYS = ['r', 'R', 'p', 'C', 'o', 'g', '[', ']', 'x', '/'] as const;
+const CLAIMED_LIBRARY_KEYS = ['R', 'p', 'C', 'o', 'g', '[', ']', 'x', '/', 'B', 'Z'] as const;
 const CLAIMED_DECK_ARCHIVE_KEYS = ['a'] as const;
 
 function localDayKey(value: Date | string | number): string {
@@ -114,6 +118,9 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
   const actions = useShellActions();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const proactiveHints = useTuiStore((s) => s.preferences.proactiveHints !== false);
+  const dismissedBriefingDate = useTuiStore((s) => s.preferences.dismissedBriefingDate);
+  const setPreferences = useTuiStore((s) => s.setPreferences);
   const snapshot = useTuiStore((s) => s.snapshot);
   const activeRunId = useTuiStore((s) => s.activeRunId);
   const navigate = useTuiStore((s) => s.navigate);
@@ -548,9 +555,91 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
     [asciiMode, host, lang, notify],
   );
 
+  const lastPracticeContext = useTuiStore((s) => s.preferences.lastPracticeContext);
+  const todayHubItems = useMemo(
+    () =>
+      buildTodayHubItems(
+        buildTodayHubMetrics({ snapshot, course, activeRunId, lastPracticeContext }),
+        lang,
+      ),
+    [snapshot, course, activeRunId, lastPracticeContext, lang],
+  );
+
+  const handleTodayHubClick = useCallback(
+    (id: 'resume' | 'due' | 'wrong' | 'todo') => {
+      if (id === 'resume') {
+        if (activeRunId) navigate('review', { runId: activeRunId });
+        else if (lastPracticeContext?.runId) navigate('review', { runId: lastPracticeContext.runId, deckId: lastPracticeContext.deckId });
+        else if (selectedDeck) handleStartReview(selectedDeck);
+        else navigate('review');
+        return;
+      }
+      if (id === 'due') {
+        const dueDeck =
+          (snapshot?.decks ?? [])
+            .filter((d) => !d.archived && (!course || d.course === course))
+            .sort((a, b) => (Number(b.due ?? b.dueCount ?? 0) || 0) - (Number(a.due ?? a.dueCount ?? 0) || 0))[0] ??
+          selectedDeck;
+        if (dueDeck) handleStartReview(dueDeck);
+        else navigate('review');
+        return;
+      }
+      if (id === 'wrong') {
+        navigate('wrongbook');
+        return;
+      }
+      navigate('board');
+    },
+    [activeRunId, lastPracticeContext, selectedDeck, snapshot?.decks, course, handleStartReview, navigate],
+  );
+
+  const dailyBriefing = useMemo(
+    () =>
+      buildDailyBriefing({
+        snapshot,
+        course,
+        lang,
+        proactiveHints,
+        dismissedBriefingDate,
+      }),
+    [snapshot, course, lang, proactiveHints, dismissedBriefingDate],
+  );
+
+  const handleDismissBriefing = useCallback(() => {
+    if (!dailyBriefing) return;
+    setPreferences({ dismissedBriefingDate: dailyBriefing.dateKey });
+    void saveTuiPreferences({ dismissedBriefingDate: dailyBriefing.dateKey }).catch(() => {});
+    notify(t(lang, '今日简报已收起（明日自动恢复）', 'Daily brief dismissed for today'), 'info');
+  }, [dailyBriefing, setPreferences, notify, lang]);
+
+  const handleAcceptBriefing = useCallback(() => {
+    if (!dailyBriefing) return;
+    const { target } = dailyBriefing;
+    if (target.kind === 'deck') {
+      const targetDeck = (snapshot?.decks ?? []).find((d) => d.id === target.deckId);
+      if (targetDeck) {
+        handleStartReview(targetDeck);
+        return;
+      }
+    }
+    if (target.kind === 'wrongbook') {
+      navigate('wrongbook');
+      return;
+    }
+    setDailyPlanOpen(true);
+  }, [dailyBriefing, snapshot?.decks, handleStartReview, navigate]);
+
   useInput(
     (input, key) => {
       if (busyRef.current || busyAction || !viewActive || filterEditing) return;
+      if (input === 'B' && dailyBriefing) {
+        handleAcceptBriefing();
+        return;
+      }
+      if (input === 'Z' && dailyBriefing) {
+        handleDismissBriefing();
+        return;
+      }
       if (key.escape && filterQuery) {
         setFilterQuery('');
         return;
@@ -594,16 +683,6 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       }
       if (input === 'R') {
         setRoundConfigOpen(true);
-        return;
-      }
-      if (input === 'r') {
-        if (resumeRunForDeck) {
-          navigate('review', { runId: resumeRunForDeck });
-        } else if (selectedDeck) {
-          handleStartReview(selectedDeck);
-        } else {
-          navigate('review', course ? { course } : {});
-        }
         return;
       }
       if (focusSection === 'work' && selectedWork) {
@@ -661,7 +740,9 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
   const kpiHeight = kpi.focusProgress ? 3 : 2;
   const showFilterBar = filterEditing || filterQuery.length > 0;
   const filterBarHeight = showFilterBar ? 1 : 0;
-  const bodyHeight = Math.max(6, height - kpiHeight - filterBarHeight);
+  const showBriefingBar = Boolean(dailyBriefing) && !showFilterBar;
+  const briefingBarHeight = showBriefingBar ? 1 : 0;
+  const bodyHeight = Math.max(6, height - kpiHeight - filterBarHeight - briefingBarHeight);
 
   const renderDeckRow = useCallback(
     (deck: DeckItem, ctx: VirtualListRenderContext) => {
@@ -922,6 +1003,24 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
               </Box>
             ) : null}
 
+            <Divider width={innerW} label={t(lang, '今日一键直达', 'Today Quick Launch')} />
+            <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
+              {todayHubItems.map((hub) => (
+                <ClickableBox
+                  key={hub.id}
+                  clickActive={viewActive && !filterEditing}
+                  onClick={() => handleTodayHubClick(hub.id)}
+                >
+                  <Text>
+                    <Text color={hub.tone === 'warning' ? theme.warning : hub.tone === 'error' ? theme.error : hub.tone === 'primary' ? theme.primary : theme.accent} bold>
+                      {`[${hub.key}]`}
+                    </Text>
+                    <Text color={theme.text}>{` ${hub.label}`}</Text>
+                  </Text>
+                </ClickableBox>
+              ))}
+            </Box>
+
             <Divider width={innerW} label={t(lang, '快捷操作', 'Quick Actions')} />
 
             {compactDetail ? (
@@ -1027,7 +1126,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
         </Panel>
       );
     },
-    [focusSection, selectedWork, selectedDeck, lang, asciiMode, theme, progressMap, resumeRunForDeck, sampleLoaded],
+    [focusSection, selectedWork, selectedDeck, lang, asciiMode, theme, progressMap, resumeRunForDeck, sampleLoaded, todayHubItems, handleTodayHubClick, viewActive, filterEditing],
   );
 
   const filterBadge = `[${t(lang, '筛选', filterEditing ? 'Filter' : 'Filtered')} ${filteredDecks.length}/${scopedDecks.length}] `;
@@ -1075,6 +1174,48 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
         ) : null}
         <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(Math.max(1, width - 2))}</Text>
       </Box>
+
+      {/* Calm Proactive Daily Briefing Strip (Round 85 Track D2 — opt-out, 1/day, never steals focus) */}
+      {showBriefingBar && dailyBriefing ? (
+        <Box
+          height={1}
+          width={width}
+          backgroundColor={theme.surface}
+          overflow="hidden"
+          paddingX={1}
+          flexDirection="row"
+          justifyContent="space-between"
+        >
+          {(() => {
+            const actionTxt = ` ${dailyBriefing.actionLabel}`;
+            const dismissTxt = width >= 64 ? ` ${t(lang, '[Z]今日隐藏', '[Z]Hide')}` : ' [Z]';
+            const rightW = displayWidth(actionTxt) + displayWidth(dismissTxt);
+            const leftBudget = Math.max(12, width - 2 - rightW - 2);
+            const sep = asciiMode ? ' - ' : ' · ';
+            const fullLeft =
+              width >= 96
+                ? `${asciiMode ? '*' : '✦'} ${dailyBriefing.headline}${sep}${dailyBriefing.reason}`
+                : `${asciiMode ? '*' : '✦'} ${dailyBriefing.headline}`;
+            return (
+              <>
+                <Text color={theme.ai} wrap="truncate">
+                  {truncateDisplay(fullLeft, leftBudget, ell)}
+                </Text>
+                <Box flexDirection="row" flexShrink={0}>
+                  <ClickableBox clickActive={viewActive && !filterEditing} onClick={handleAcceptBriefing}>
+                    <Text color={theme.accent} bold>
+                      {actionTxt}
+                    </Text>
+                  </ClickableBox>
+                  <ClickableBox clickActive={viewActive && !filterEditing} onClick={handleDismissBriefing}>
+                    <Text color={theme.dim}>{dismissTxt}</Text>
+                  </ClickableBox>
+                </Box>
+              </>
+            );
+          })()}
+        </Box>
+      ) : null}
 
       {/* Inline `/` Live Deck Search & Filter Bar */}
       {showFilterBar ? (

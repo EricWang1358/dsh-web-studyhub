@@ -1138,7 +1138,7 @@ describe('Round 26: SkeletonView CourseRoute, TopicGroups & NodeEdit Modals', ()
     tty.assertHealthyScreen(reviewScreen, 120, 36, 'ReviewView from CourseRouteModal');
     assert.equal(useTuiStore.getState().page, 'review');
 
-    tty.send('q');
+    tty.send('X');
     await tty.waitFor((s) => s.includes('结束本轮练习') || s.includes('End This Round'), {
       timeoutMs: 6_000,
       label: 'ReviewView End Round ConfirmDialog',

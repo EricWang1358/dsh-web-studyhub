@@ -692,6 +692,8 @@ describe('Round 53: CoachPreferencesModal Learner Memory Bullets CRUD', () => {
       );
       zhTty.assertHealthyScreen(zhHelp, 120, 36, 'zh HelpOverlay 120x36');
       zhTty.send(' ');
+      await zhTty.flush(30);
+      zhTty.send('j');
       const zhHelpScrolled = await zhTty.waitFor(
         (s) => s.includes('本轮 AI 复盘点评'),
         { timeoutMs: 5_000, label: 'zh HelpOverlay scrolled to Review debrief' },

@@ -3,6 +3,7 @@ import { Box, Text, useInput } from 'ink';
 import { useTheme } from '../theme/tokens.js';
 import { t, useTuiStore } from '../state/store.js';
 import { Modal } from './Modal.js';
+import { ClickableBox } from './mouse.js';
 
 export interface ConfirmDialogProps {
   title: string;
@@ -53,10 +54,12 @@ export const ConfirmDialog = memo(function ConfirmDialog({
     { isActive: effectiveActive },
   );
   const confirmColor = danger ? theme.error : theme.primary;
-  const btn = (label: string, active: boolean, color: string, hot: string) => (
-    <Text backgroundColor={active ? color : theme.bg} color={active ? (theme.dark ? theme.bg : '#ffffff') : color} bold={active}>
-      {` ${label} (${hot}) `}
-    </Text>
+  const btn = (label: string, active: boolean, color: string, hot: string, onPress: () => void) => (
+    <ClickableBox onClick={onPress} clickActive={effectiveActive}>
+      <Text backgroundColor={active ? color : theme.bg} color={active ? (theme.dark ? theme.bg : '#ffffff') : color} bold={active}>
+        {` ${label} (${hot}) `}
+      </Text>
+    </ClickableBox>
   );
   return (
     <Modal title={title} icon={danger ? (asciiMode ? '!' : '▲') : '?'} tone={danger ? 'error' : 'primary'} width={width} onClose={onCancel} isActive={effectiveActive} overlay={overlay}>
@@ -64,8 +67,8 @@ export const ConfirmDialog = memo(function ConfirmDialog({
         {typeof message === 'string' ? <Text color={theme.text}>{message}</Text> : message}
       </Box>
       <Box justifyContent="flex-end" gap={2}>
-        {btn(resolvedCancel, focus === 'cancel', theme.muted, 'n')}
-        {btn(resolvedConfirm, focus === 'confirm', confirmColor, 'y')}
+        {btn(resolvedCancel, focus === 'cancel', theme.muted, 'n', onCancel)}
+        {btn(resolvedConfirm, focus === 'confirm', confirmColor, 'y', onConfirm)}
       </Box>
     </Modal>
   );

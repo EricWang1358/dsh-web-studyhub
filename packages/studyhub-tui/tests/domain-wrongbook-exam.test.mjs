@@ -801,8 +801,8 @@ describe('Round 66 Track 3: WrongBookView [X] Atomic Markdown Study Sheet Export
         );
       }
 
-      // End round cleanly ('q' -> 'y')
-      tty.send('q');
+      // End round cleanly ('X' -> 'y')
+      tty.send('X');
       await tty.waitFor((s) => s.includes('结束本轮练习'), { timeoutMs: 6_000, label: 'End round dialog' });
       tty.send('y');
       await tty.waitFor((s) => !s.includes('结束本轮练习'), { timeoutMs: 6_000, label: 'Exited review round' });
@@ -981,8 +981,8 @@ describe('Round 72 Track 1: WrongBookView `/` Live Wrong-Card Search & Filter', 
       }
       await answerCurrentCardWrong(tty, host, activeRunId, 2);
 
-      // End round cleanly ('q' -> 'y')
-      tty.send('q');
+      // End round cleanly ('X' -> 'y')
+      tty.send('X');
       await tty.waitFor((s) => s.includes('结束本轮练习'), { timeoutMs: 6_000, label: 'End round dialog' });
       tty.send('y');
       await tty.waitFor((s) => !s.includes('结束本轮练习'), { timeoutMs: 6_000, label: 'Exited review round' });

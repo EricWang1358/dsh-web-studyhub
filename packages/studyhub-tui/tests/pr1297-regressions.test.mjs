@@ -225,7 +225,7 @@ describe('PR #1297 P0, P1 & P2 regression suite', () => {
     );
     assertScreenHealthy(tty, activeReview, 120, 36, 'ReviewView active question');
 
-    tty.send('q');
+    tty.send('X');
     const confirmEnd = await tty.waitFor(
       (s) => s.includes('结束本轮练习') || s.includes('End This Round'),
       { timeoutMs: 6_000, label: 'ReviewView end round ConfirmDialog' },
@@ -250,7 +250,7 @@ describe('PR #1297 P0, P1 & P2 regression suite', () => {
     );
     assertScreenHealthy(tty, preservedScreen, 120, 36, 'ReviewView preserved after cancel');
 
-    tty.send('q');
+    tty.send('X');
     await tty.waitFor(
       (s) => s.includes('结束本轮练习') || s.includes('End This Round'),
       { timeoutMs: 6_000, label: 'ReviewView end round ConfirmDialog (2nd time)' },
@@ -342,7 +342,7 @@ describe('PR #1297 P0, P1 & P2 regression suite', () => {
     }
 
     // Exit review back to LibraryView
-    tty.send('q');
+    tty.send('X');
     await tty.waitFor(
       (s) => s.includes('结束本轮练习') || s.includes('End This Round'),
       { timeoutMs: 6_000, label: 'ReviewView quit ConfirmDialog' },
@@ -501,10 +501,10 @@ describe('PR #1297 P0, P1 & P2 regression suite', () => {
     );
 
     await unlink(boardPath);
-    tty.send('r');
+    tty.send('\x12');
     const recoveredScreen = await tty.waitFor(
       (s) => !s.includes('看板只读锁定') && !s.includes('Read-only lock'),
-      { timeoutMs: 8_000, label: 'BoardView recovered after r reload' },
+      { timeoutMs: 8_000, label: 'BoardView recovered after Ctrl+R reload' },
     );
     assertScreenHealthy(tty, recoveredScreen, 120, 36, 'BoardView recovered');
 

@@ -412,6 +412,39 @@ test('every primary view and sub-view claims all global shortcut keys handled in
   assert.deepEqual(failures, [], `Unclaimed global key collisions found:\n${failures.join('\n')}`);
 });
 
+test('#1314: reserved global keys (r, q, ?) must never be claimed by any primary view or sub-view', () => {
+  const RESERVED = ['r', 'q', '?'];
+  const primaryViews = listPrimaryViews();
+  const subViews = [
+    path.join(srcRoot, 'views/exam/ExamSetup.tsx'),
+    path.join(srcRoot, 'views/exam/ExamRunner.tsx'),
+    path.join(srcRoot, 'views/generate/DraftEditor.tsx'),
+    path.join(srcRoot, 'views/sources/DocumentReader.tsx'),
+    path.join(srcRoot, 'views/sources/ReaderNotesDrawer.tsx'),
+    path.join(srcRoot, 'views/sources/ReaderOutlineDrawer.tsx'),
+    path.join(srcRoot, 'views/review/RoundSummary.tsx'),
+    path.join(srcRoot, 'views/settings/ModelsTab.tsx'),
+    path.join(srcRoot, 'views/settings/WorkspaceTab.tsx'),
+    path.join(srcRoot, 'views/settings/AppearanceTab.tsx'),
+    path.join(srcRoot, 'views/settings/StudyGenTab.tsx'),
+  ];
+
+  const violations = [];
+  for (const filePath of [...primaryViews, ...subViews]) {
+    const result = auditViewGlobalClaims(filePath);
+    const bad = result.claimed.filter((k) => RESERVED.includes(k));
+    if (bad.length > 0) {
+      violations.push(`${result.file} (${result.component}): claims reserved global key(s) ${bad.map((k) => `'${k}'`).join(', ')}`);
+    }
+  }
+
+  assert.deepEqual(
+    violations,
+    [],
+    `Views must not claim reserved global keys (${RESERVED.join(', ')}):\n${violations.join('\n')}`,
+  );
+});
+
 test('src/App.tsx never imports ./views/*/index.js barrels (Round 22 Barrel-Bypass NFR)', () => {
   const appPath = path.join(srcRoot, 'App.tsx');
   const sf = parseTsx(appPath);
@@ -629,7 +662,7 @@ test('featureShortcuts documents Rounds 5-26 & PR #1297 shortcuts cleanly in zh 
     }
 
     const allKeys = sections.flatMap((s) => s.items.map((i) => i.key));
-    for (const k of ['p', 'g', 'C', 'o', 'R', 'm: + / k', 'm: Space/F/S', '0-5', 'T', 'S', 'D', 'F', 'G', 'L', 'A', 'Q', '*', 'u', 'q', 'i', 'S / R', 'Ctrl+S/J', 'w', 'P', 'e', 'x', 'Space / B', 'Enter/p', 'f', 's', 'H', 'E', 'V', 'm', 'M', 'O', 'B', 'P / Space', '+/-', 'R', 'w / o / m', '/#?@:']) {
+    for (const k of ['p', 'g', 'C', 'o', 'R', 'm: + / k', 'm: Space/F/S', '0-5', 'T', 'S', 'D', 'F', 'G', 'L', 'A', 'Q', '*', 'u', 'X', 'i', 'S / R', 'Ctrl+S/J', 'w', 'P', 'e', 'x', 'Space / B', 'Enter/p', 'f', 's', 'H', 'E', 'V', 'm', 'M', 'O', 'B', 'P / Space', '+/-', 'R', 'w / o / m', '/#?@:']) {
       assert.ok(allKeys.includes(k), `missing feature shortcut ${k} in ${lang}`);
     }
     const keysJoined = allKeys.join('\n');
@@ -657,12 +690,12 @@ test('featureShortcuts documents Rounds 5-26 & PR #1297 shortcuts cleanly in zh 
     assert.ok(librarySec?.items.some((i) => i.key === 'm: Space/F/S' && (i.label.includes('批量') || i.label.includes('batch'))), `missing Library [m: Space/F/S] label in ${lang}`);
     assert.ok(reviewSec?.items.some((i) => i.key === '0-5' && (i.label.includes('六级') || i.label.includes('six-grade'))), `missing Review [0-5] label in ${lang}`);
     assert.ok(!reviewSec?.items.some((i) => i.key.includes('1-4') || i.label.includes('1-4')), `stale [1-4] rating text in Review (${lang})`);
-    assert.ok(reviewSec?.items.some((i) => i.key === 'L' && (i.label.includes('带学') || i.label.includes('Socratic'))), `missing Review [L] label in ${lang}`);
+    assert.ok(reviewSec?.items.some((i) => i.key === 'T' && (i.label.includes('带学') || i.label.includes('Guided'))), `missing Review [T] Guided/Retell label in ${lang}`);
     assert.ok(reviewSec?.items.some((i) => i.key === 'A' && (i.label.includes('答题卡') || i.label.includes('Answer card'))), `missing Review [A] label in ${lang}`);
     assert.ok(reviewSec?.items.some((i) => i.key === 'Q' && (i.label.includes('队列编辑') || i.label.includes('Edit queue'))), `missing Review [Q] label in ${lang}`);
     assert.ok(reviewSec?.items.some((i) => i.key === '*' && (i.label.includes('重点') || i.label.includes('focus'))), `missing Review [*] label in ${lang}`);
     assert.ok(reviewSec?.items.some((i) => i.key === 'u' && (i.label.includes('撤销') || i.label.includes('Undo'))), `missing Review [u] label in ${lang}`);
-    assert.ok(reviewSec?.items.some((i) => i.key === 'q' && (i.label.includes('结束本轮') || i.label.includes('End round'))), `missing Review [q] label in ${lang}`);
+    assert.ok(reviewSec?.items.some((i) => i.key === 'X' && (i.label.includes('结束本轮') || i.label.includes('End round'))), `missing Review [X] label in ${lang}`);
     assert.ok(generateSec?.items.some((i) => i.key === 'i' && (i.label.includes('录题') || i.label.includes('Capture'))), `missing Generate [i] label in ${lang}`);
     assert.ok(generateSec?.items.some((i) => i.key === 'S / R' && (i.label.includes('查重') || i.label.includes('similar'))), `missing Generate [S / R] label in ${lang}`);
     assert.ok(generateSec?.items.some((i) => i.key === 'u' && (i.label.includes('撤销') || i.label.includes('Undo'))), `missing Generate [u] undo label in ${lang}`);

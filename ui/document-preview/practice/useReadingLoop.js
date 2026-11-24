@@ -162,7 +162,7 @@ export function useReadingLoop({ call, document, source, version, view, paged, u
   const start = useCallback(option => ({ refs: refsOf(option.cards), reading: capture(option) }), [capture]);
   // Where the reader is now, without a practice range: the place 上次读到 keeps (reader/useLastRead.js).
   const herePlace = useCallback(() => capture(null), [capture]);
-  const generateIds = useCallback(option => sourceIdsOf(option.ids, { sections: pageSections ? sections : [], documentSourceIds: document?.sourceIds || [source.id] }), [pageSections, sections, document?.sourceIds, source.id]);
+  const generateIds = useCallback(option => sourceIdsOf(option.ids, { sections: paged ? sections : [], outline, documentSourceIds: document?.sourceIds || [source.id] }), [paged, sections, outline, document?.sourceIds, source.id]);
 
   // 4. Back to a stored position: the section and the offset into it lead, the scroll offset and the progress follow.
   const resumed = useRef(null);

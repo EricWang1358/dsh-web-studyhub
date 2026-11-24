@@ -437,16 +437,16 @@ describe('StudyHub TUI Core Views E2E, Deep Interactions & Memory Soak', () => {
       { label: 'CardToolsModal closed' },
     );
 
-    // Press 'T' -> Bilingual translation via stub model
-    tty.send('T');
+    // Press 'W' -> Bilingual translation via stub model (T is now unified Guided/Retell per #1315)
+    tty.send('W');
     const translatedScreen = await tty.waitFor(
       (s) => s.includes('EN 译') && s.includes('[EN]'),
       { timeoutMs: 8_000, label: 'Bilingual translation rendered' },
     );
     assertScreenHealthy(tty, translatedScreen, 120, 36, 'Review bilingual translation');
 
-    // Exit Review: 'q' -> Confirm -> 'y' -> Round Summary -> 'b' -> Library
-    tty.send('q');
+    // Exit Review: 'X' -> Confirm -> 'y' -> Round Summary -> 'b' -> Library
+    tty.send('X');
     await tty.waitFor(
       (s) => s.includes('结束本轮练习') || s.includes('End This Round'),
       { timeoutMs: 6_000, label: 'Confirm end round dialog' },
@@ -725,7 +725,7 @@ describe('StudyHub TUI Core Views E2E, Deep Interactions & Memory Soak', () => {
     const reviewScreen = await tty.waitFor(
       (s) =>
         (s.includes('[D]工具') || s.includes('[D]Tools')) &&
-        (s.includes('[L]带学') || s.includes('[L]Teach')) &&
+        (s.includes('[T]带学') || s.includes('[T]Guided') || s.includes('[L]带学') || s.includes('[L]Teach')) &&
         !s.includes('正在准备复习队列'),
       { timeoutMs: 10_000, label: 'ReviewView launched from WrongBookView' },
     );

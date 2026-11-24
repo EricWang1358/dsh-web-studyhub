@@ -6,6 +6,7 @@ import { displayWidth, splitGraphemes } from '../render/cjk.js';
 import { useTuiStore } from '../state/store.js';
 import { normalizeAsciiChrome } from './Badge.js';
 import { useInputCapture } from './focus.js';
+import { isSgrMouseSequence, stripSgrMouseSequences } from './mouse.js';
 
 export interface TextInputProps {
   value: string;
@@ -44,8 +45,10 @@ export interface TextInputProps {
  */
 export function sanitizePastedText(raw: string, opts?: { multiline?: boolean }): string {
   const multiline = opts?.multiline ?? false;
-  let clean = raw.replace(/\u001b\[[0-9;:]*[u~]/g, '');
+  let clean = stripSgrMouseSequences(raw);
+  clean = clean.replace(/\u001b\[[0-9;:]*[u~]/g, '');
   clean = stripAnsi(clean).replace(/\u001b\[?$/g, '');
+  clean = stripSgrMouseSequences(clean);
   clean = clean
     .replace(/\[(?:\d+(?:[:;]\d*)*)[u~]/g, '')
     .replace(/(?<![A-Za-z0-9])\d+(?::\d*)*;\d+(?:[:;]\d*)*[u~]/g, '');
@@ -197,6 +200,7 @@ export const TextInput = memo(function TextInput({
   useInput(
     (input, key) => {
       if (key.eventType === 'release') return;
+      if (input && isSgrMouseSequence(input)) return;
       const cs = chars(value);
       const at = Math.min(cursor, cs.length);
       if (key.escape) {

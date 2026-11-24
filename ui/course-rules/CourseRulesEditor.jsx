@@ -12,9 +12,24 @@ const WHY = {
   full: () => uiFormat('最多 {0} 条，先删掉一条', [GENERATION_RULE_LIMITS.count]),
 };
 
-export default function CourseRulesEditor({ value, onChange, disabled }) {
+export function mergePendingRuleDraft(rules, text) {
+  const trimmed = String(text ?? '').trim();
+  if (!trimmed) return { status: 'empty', next: rules };
+  const check = canAddGenerationRule(rules, trimmed);
+  if (!check.ok) return { status: 'invalid', reason: WHY[check.reason]?.() || ui('这条出题守则无效，请修改后再保存。'), next: rules };
+  return { status: 'merged', next: [...rules, trimmed] };
+}
+
+export default function CourseRulesEditor({ value, onChange, disabled, draftRef }) {
   const [text, setText] = useState('');
   const check = canAddGenerationRule(value, text);
+  if (draftRef) {
+    draftRef.current = {
+      hasDraft: Boolean(text.trim()),
+      resolve: (current = value) => mergePendingRuleDraft(current, text),
+      clear: () => setText(''),
+    };
+  }
   const add = () => { if (!check.ok) return; onChange([...value, text.trim()]); setText(''); };
   return (
     <div className="course-rules" data-course-rules="">

@@ -32,7 +32,7 @@ import {
   type PrepTab,
 } from './types.js';
 
-const CLAIMED_KEYS = ['1', '2', 'a', 'd', 'g', 'G', 'm', 'p', 'P', 'r', ' ', '/', 'x'] as const;
+const CLAIMED_KEYS = ['1', '2', 'a', 'd', 'g', 'G', 'm', 'p', 'P', ' ', '/', 'x'] as const;
 
 export interface FormatExamPrepMarkdownParams {
   course?: string | null;
@@ -576,7 +576,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
         setPlanModalOpen(true);
         return;
       }
-      if (input === 'r') {
+      if (key.ctrl && input === 'r') {
         void loadAll();
         return;
       }

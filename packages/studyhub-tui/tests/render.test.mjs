@@ -654,10 +654,10 @@ function contrastRatio(fg, bg) {
 }
 
 describe('WCAG 2.1 theme contrast audit', () => {
-  test('all 4 expected themes are registered and valid', () => {
-    assert.deepEqual([...THEME_IDS], ['dsh-dark', 'warm-paper', 'nord', 'high-contrast']);
+  test('all expected themes are registered and valid', () => {
+    assert.deepEqual([...THEME_IDS], ['dsh-dark', 'warm-paper', 'nord', 'high-contrast', 'warm-amber', 'soft-sage']);
     const themes = listThemes();
-    assert.equal(themes.length, 4);
+    assert.equal(themes.length, THEME_IDS.length);
     for (const id of THEME_IDS) {
       assert.equal(getTheme(id).id, id);
     }
@@ -1273,7 +1273,7 @@ describe('WCAG 2.1 Theme Contrast Audit (all 4 palettes)', () => {
 
   test('every theme meets WCAG AA (>= 4.5:1) for all semantic foreground tokens and >= 3.0:1 for dim', () => {
     const fgTokens = ['text', 'muted', 'primary', 'accent', 'success', 'warning', 'error', 'ai', 'info', 'heading', 'code', 'link', 'quote'];
-    for (const id of ['dsh-dark', 'warm-paper', 'nord', 'high-contrast']) {
+    for (const id of ['dsh-dark', 'warm-paper', 'nord', 'high-contrast', 'warm-amber', 'soft-sage']) {
       const th = getTheme(id);
       assert.ok(contrastRatio(th.text, th.bg) >= 10.0, `${id}: text vs bg must be >= 10:1`);
       assert.ok(contrastRatio(th.text, th.surface) >= 8.0, `${id}: text vs surface must be >= 8:1`);
