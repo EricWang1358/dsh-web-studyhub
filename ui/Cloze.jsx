@@ -4,7 +4,7 @@ import css from "./graph.css";
 import { useInjectCss } from "./shared.js";
 import { Button, Icon, Tooltip } from "./components/index.js";
 import MathText from "./MathText.jsx";
-import { clozeRuns } from "../lib/cloze-text.js";
+import { clozeBlankIds, clozeRuns } from "../lib/cloze-text.js";
 import { clozeBlankKeyAction } from "./review/session-logic.js";
 
 /* Fill-in-the-blank card, display only: grading lives on the server
@@ -41,10 +41,8 @@ export default function Cloze({ card, values, onChange, onSubmit, focusRequest =
   // Split the text on {{id}} markers: text runs keep their spacing (pre-wrap
   // keeps spacing/newlines) and draw their formulas, each marker becomes a blank slot in place.
   const parts = useMemo(() => clozeRuns(text), [text]);
-  const blankIds = useMemo(
-    () => parts.flatMap((p) => (p.t === "code-block" ? p.runs.filter((r) => r.t === "blank").map((r) => r.id) : p.t === "blank" ? [p.id] : [])),
-    [parts],
-  );
+  const blankIds = useMemo(() => clozeBlankIds(text), [text]);
+  const hasMultilineBlank = useMemo(() => parts.some((p) => p.t === "code-block" && p.runs.some((r) => r.t === "blank")), [parts]);
   const inputRefs = useRef({});
   const latest = useRef({ blankIds, values });
   latest.current = { blankIds, values };
@@ -110,48 +108,64 @@ export default function Cloze({ card, values, onChange, onSubmit, focusRequest =
         </Tooltip>
       );
     }
+    // A blank inside a fenced code block takes lines (#1403): a textarea keeps the newlines a single-line input would swallow.
+    const multiline = inCode;
+    const keyDown = (e) => {
+      const action = clozeBlankKeyAction(
+        {
+          key: e.key,
+          repeat: e.repeat,
+          isComposing: e.isComposing || e.nativeEvent?.isComposing,
+          keyCode: e.keyCode || e.nativeEvent?.keyCode,
+          ctrlKey: e.ctrlKey,
+          metaKey: e.metaKey,
+          shiftKey: e.shiftKey,
+          altKey: e.altKey,
+        },
+        { blankIds, currentId: id, values, multiline },
+      );
+      if (!action) return;
+      if (action.type === "blur") {
+        const cardEl = e.currentTarget.closest?.(".question-card");
+        if (cardEl?.focus) cardEl.focus({ preventScroll: true });
+        else e.currentTarget.blur();
+        return;
+      }
+      e.preventDefault();
+      if (action.type === "focus") inputRefs.current[action.id]?.focus();
+      else if (action.type === "submit") onSubmit?.();
+    };
+    const shared = {
+      ref: (el) => {
+        if (el) inputRefs.current[id] = el;
+        else delete inputRefs.current[id];
+      },
+      autoComplete: "off",
+      autoCapitalize: "off",
+      spellCheck: false,
+      value: val,
+      disabled,
+      "aria-label": uiFormat("第 {0} 个空", [nthBlank]),
+      onChange: (e) => onChange?.(id, e.target.value),
+      onKeyDown: keyDown,
+    };
+    if (multiline)
+      return (
+        <textarea
+          key={key}
+          {...shared}
+          className={`cloze-blank cloze-blank--input cloze-blank--multiline${codeClass}`}
+          rows={Math.min(10, Math.max(2, String(val).split("\n").length + (String(val).endsWith("\n") ? 1 : 0)))}
+          wrap="off"
+        />
+      );
     return (
       <input
         key={key}
-        ref={(el) => {
-          if (el) inputRefs.current[id] = el;
-          else delete inputRefs.current[id];
-        }}
+        {...shared}
         className={`cloze-blank cloze-blank--input${codeClass}`}
         type="text"
-        autoComplete="off"
-        autoCapitalize="off"
-        spellCheck={false}
-        value={val}
-        disabled={disabled}
         style={{ width: `${Math.min(40, Math.max(6, chLen(val) + 2))}ch` }}
-        aria-label={uiFormat("第 {0} 个空", [nthBlank])}
-        onChange={(e) => onChange?.(id, e.target.value)}
-        onKeyDown={(e) => {
-          const action = clozeBlankKeyAction(
-            {
-              key: e.key,
-              repeat: e.repeat,
-              isComposing: e.isComposing || e.nativeEvent?.isComposing,
-              keyCode: e.keyCode || e.nativeEvent?.keyCode,
-              ctrlKey: e.ctrlKey,
-              metaKey: e.metaKey,
-              shiftKey: e.shiftKey,
-              altKey: e.altKey,
-            },
-            { blankIds, currentId: id, values },
-          );
-          if (!action) return;
-          if (action.type === "blur") {
-            const cardEl = e.currentTarget.closest?.(".question-card");
-            if (cardEl?.focus) cardEl.focus({ preventScroll: true });
-            else e.currentTarget.blur();
-            return;
-          }
-          e.preventDefault();
-          if (action.type === "focus") inputRefs.current[action.id]?.focus();
-          else if (action.type === "submit") onSubmit?.();
-        }}
       />
     );
   };
@@ -162,9 +176,11 @@ export default function Cloze({ card, values, onChange, onSubmit, focusRequest =
         <div className="cloze-hint">
           {!onSubmit
             ? ui("把空格补全")
-            : blankIds.length > 1
-              ? <>{ui("把空格补全 · 按 Enter 跳到下一空或提交 · Esc 退回题目")}{" · "}{ui("Shift+Enter 回上一空")}</>
-              : ui("把空格补全 · 按 Enter 提交 · Esc 退回题目")}
+            : hasMultilineBlank
+              ? ui("把空格补全 · 代码块里的空可填多行：Enter 换行，Ctrl/⌘+Enter 提交 · Esc 退回题目")
+              : blankIds.length > 1
+                ? <>{ui("把空格补全 · 按 Enter 跳到下一空或提交 · Esc 退回题目")}{" · "}{ui("Shift+Enter 回上一空")}</>
+                : ui("把空格补全 · 按 Enter 提交 · Esc 退回题目")}
         </div>
       )}
       {showSummary && (

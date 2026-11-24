@@ -290,6 +290,19 @@
       font-family: var(--font-stack-mono);
       text-align: left;
     }
+    /* A blank inside a code block takes several lines (#1403): a textarea, monospace and preformatted so Enter/newlines stand. */
+    .cloze-blank--multiline {
+      display: block;
+      width: 100%;
+      min-height: 2.6em;
+      margin: var(--space-1) 0;
+      font-family: var(--font-stack-mono);
+      line-height: 1.7;
+      white-space: pre;
+      overflow-wrap: normal;
+      tab-size: 2;
+      resize: vertical;
+    }
     .cloze-expected--multiline {
       white-space: pre;
       display: inline-block;
