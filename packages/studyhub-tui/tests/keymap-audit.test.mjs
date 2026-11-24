@@ -291,11 +291,18 @@ function auditViewGlobalClaims(filePath) {
     ) {
       const pattern = node.expression.expression.text;
       const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
-      const rangeMatch = /^\^\[(\d)-(\d)\]\$$/.exec(pattern.slice(1, -1));
+      const body = pattern.slice(1, pattern.lastIndexOf('/'));
+      const rangeMatch = /^\^\[(\d)-(\d)\]\$$/.exec(body);
       if (rangeMatch) {
         const start = Number(rangeMatch[1]);
         const end = Number(rangeMatch[2]);
         for (let d = start; d <= end; d += 1) recordHit(String(d), line);
+      }
+      const letterRangeMatch = /^\^\[([a-z])-([a-z])\]\$$/.exec(body) || /^\^\[([A-Z])-([A-Z])\]\$$/.exec(body);
+      if (letterRangeMatch) {
+        const start = letterRangeMatch[1].charCodeAt(0);
+        const end = letterRangeMatch[2].charCodeAt(0);
+        for (let code = start; code <= end; code += 1) recordHit(String.fromCharCode(code), line);
       }
     }
     ts.forEachChild(node, walkInputCallback);
