@@ -15,6 +15,7 @@ import { useStudy } from './study-context.jsx';
 import { HandOff } from './hand-off/HandOff.jsx';
 import { useLiveEffect } from './use-async.js';
 import { joinMeta } from './format.js';
+import { callsText } from './token-usage.js';
 import { ActiveSwitch, isParked } from './CourseActive.jsx';
 import { ExamAlignmentPointer, examPointerShown } from './ExamAlignmentPointer.jsx';
 import { alignmentReceipt } from './exam-alignment-words.js';
@@ -33,6 +34,80 @@ import focusIntakeCss from './focus-intake.css';
 
 const FORMAT_LABELS = { 'open-book-case': '开卷案例', 'closed-book': '闭卷', mixed: '混合', other: '其他' };
 export const examFormatLabel = format => ui(FORMAT_LABELS[format] || FORMAT_LABELS.other);
+
+/** 批量整理前置依赖与生词 (#1293). 开始整理 first asks the dry run of course.organize.start (counts only: no model call, nothing written); the run starts only
+ *  from the confirmation, which says how many questions and about how many model calls. Nothing to do is said instead of starting a job. */
+export function CourseOrganizeSection({ courseName, disabled }) {
+  const { call, navigate } = useStudy();
+  const toast = useToast();
+  const trigger = useRef(null);
+  const [step, setStep] = useState(null); // null | 'checking' | 'starting'
+  const [offer, setOffer] = useState(null); // the dry run's answer, while it is shown
+  const [receipt, setReceipt] = useState(null);
+  const preview = offer?.preview || {};
+  const calls = preview.modelCalls || { low: 0, high: 0 };
+  const nothing = !!offer && !(preview.candidateLinks > 0) && !(calls.high > 0);
+
+  const check = async () => {
+    if (!courseName || step) return;
+    setStep('checking'); setOffer(null);
+    try { setOffer(await call('course.organize.start', { course: courseName, mode: 'all', dryRun: true })); }
+    catch (error) { toast.error(errorMessage(error)); }
+    finally { setStep(null); }
+  };
+  const start = async () => {
+    if (!courseName || step) return;
+    setStep('starting');
+    try {
+      const res = await call('course.organize.start', { course: courseName, mode: 'all' });
+      setOffer(null); setReceipt(res);
+      if (res?.alreadyRunning) {
+        toast.info(ui('这门课的批量整理任务已在后台运行，可在任务台查看进度。'));
+      } else if (res?.hasModel === false) {
+        toast.info(ui('已启动离线前置依赖整理；当前未配置可用模型，生词预提取会自动跳过并在任务台提示。'));
+      } else {
+        toast.success(ui('已启动前置依赖与生词整理任务，可在任务台查看进度或随时取消。'));
+      }
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setStep(null);
+    }
+  };
+
+  return (
+    <Disclosure className="course-settings__disclosure" bodyClassName="course-settings__disclosure-body" summary={ui('批量整理前置依赖与生词')}
+      meta={receipt?.jobId ? ui('已加入任务台') : ui('后台任务')}>
+      <Hint>{ui('按课程词表与章节先后批量建立无环前置依赖（每题最多 12 条，不覆盖已有链接）；若已配置模型，同时为缺少生词缓存的题目预提取生词。任务在后台运行，可随时取消。')}</Hint>
+      <div className="course-settings__organize-actions">
+        <Tooltip content={ui('新增前置链接后，未掌握的前置题会在学习路径中提前出现；已有前置与生词缓存不会被覆盖。')} placement="top-start">
+          <Button ref={trigger} size="sm" variant="secondary" icon="sparkle" busy={step === 'checking'} disabled={disabled || !courseName || !!step || (!!offer && !nothing)} onClick={check}>
+            {ui('开始整理前置依赖与生词')}
+          </Button>
+        </Tooltip>
+        {receipt?.jobId && typeof navigate === 'function' && (
+          <Button size="sm" variant="link" iconEnd="arrow-right" onClick={() => navigate('jobs')}>
+            {ui('去任务台查看进度')}
+          </Button>
+        )}
+      </div>
+      {nothing && <InlineMessage tone="info">{preview.uncachedTermCards > 0
+        ? ui('这门课没有可新增的前置链接；预提取生词需要先配置模型。')
+        : ui('这门课没有需要整理的：能建的前置链接都已建好，题目的生词也都已提取。')}</InlineMessage>}
+      {offer && !nothing && <InlineConfirm tone="warning" title={uiFormat('整理「{0}」的前置依赖与生词？', [courseName])} confirmLabel={ui('确认整理')}
+        busy={step === 'starting'} returnFocusRef={trigger} onConfirm={start} onCancel={() => setOffer(null)}>
+        <p>{offer.hasModel === false
+          ? uiFormat('范围：{0} 题，待尝试建立 {1} 条前置链接；未配置模型，不会预提取生词。', [preview.totalCards ?? 0, preview.candidateLinks ?? 0])
+          : uiFormat('范围：{0} 题，待尝试建立 {1} 条前置链接，待预提取生词 {2} 题。', [preview.totalCards ?? 0, preview.candidateLinks ?? 0, preview.uncachedTermCards ?? 0])}</p>
+        {calls.high > 0 && <p>
+          <Tooltip content={ui('每道题问一次模型；回复格式不对时再问一次，所以是一个范围。建立前置链接不调用模型。')} placement="top-start">
+            <span tabIndex={0}>{uiFormat('预提取生词约需 {0}。', [callsText(calls)])}</span>
+          </Tooltip>
+        </p>}
+      </InlineConfirm>}
+    </Disclosure>
+  );
+}
 const text = value => value === undefined || value === null ? '' : String(value);
 const number = value => { const trimmed = String(value ?? '').trim(); return trimmed === '' ? undefined : Number(trimmed); };
 export { splitTopics };
@@ -553,6 +628,8 @@ export default function CourseSettings({ data, courseId, onClose: closePanel, me
           <Checkbox label={ui('闪卡也可以用 AI 批改')} checked={draft.aiGradeFlashcards === true} disabled={disabled} onChange={checked => change({ aiGradeFlashcards: checked })}
             hint={ui('说出或写下答案后，可以让 AI 按参考答案批改并给出订正；默认还是翻面自评。要用 AI 模型。')} />
         </section>
+
+        <CourseOrganizeSection courseName={course.name} disabled={disabled} />
 
         <Disclosure className="course-settings__disclosure" bodyClassName="course-settings__disclosure-body" summary={ui('考官指引')}
           meta={draft.guidanceSourceIds.length ? uiFormat('已选 {0} 份', [draft.guidanceSourceIds.length]) : guidance.length ? uiFormat('有 {0} 份建议', [guidance.length]) : ui('未选择')}
