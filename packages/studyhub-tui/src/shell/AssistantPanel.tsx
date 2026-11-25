@@ -564,7 +564,7 @@ export const AssistantPanel = memo(function AssistantPanel({
         endExecution();
       }
     },
-    [host, snapshot, cardCtx, tab, stage, lang, asciiMode, navigate, beginExecution, endExecution, appendTurn, registerUndo, notify, runWorkflowSteps],
+    [host, snapshot, cardCtx, tab, stage, lang, asciiMode, navigate, beginExecution, endExecution, appendTurn, registerUndo, notify, runWorkflowSteps, applyRunFromAssistant],
   );
 
   const handleSkipRetell = useCallback(() => {
@@ -1012,6 +1012,7 @@ export const AssistantPanel = memo(function AssistantPanel({
       setStage,
       notify,
       runWorkflowSteps,
+      applyRunFromAssistant,
     ],
   );
 
