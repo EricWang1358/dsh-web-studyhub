@@ -8,7 +8,8 @@ import { AppContext, useOptionalAppSelector } from "./app/app-context.js";
 import PaceMeta from "./pace/PaceMeta.jsx";
 import { cardMatchesReview, reviewedCardStatus } from "../lib/review-integrity.js";
 import { aiDraftedCitedCardCount, selfCitedCardCount } from "../lib/source-provenance.js";
-import { Badge, Banner, Button, CheckboxInput, Combobox, ConfirmDialog, PageHeader, Panel, SegmentedControl, useToast } from "./components/index.js";
+import { Badge, Banner, Button, CheckboxInput, Combobox, ConfirmDialog, InlineConfirm, PageHeader, Panel, SegmentedControl, Tooltip, useToast } from "./components/index.js";
+import { suggestDeckOrder } from "./deck-order-suggest.js";
 import { partOf, partsOf } from "../lib/deck-parts.js";
 import { partLabel, partsLine } from "./deck-parts.js";
 import { formatDateTime } from './format.js';
@@ -49,6 +50,8 @@ export default function Manage({
   const toast = useToast();
   const [targetId, setTargetId] = useState("");
   const [merging, setMerging] = useState(false);
+  const [confirmRecommend, setConfirmRecommend] = useState(false);
+  const [reordering, setReordering] = useState(false);
   const [splitTitle, setSplitTitle] = useState("");
   const [splitTopics, setSplitTopics] = useState([]);
   // The parts of the deck (lib/deck-parts.js): 「第一部分 12 题 · 第二部分 9 题」 and one part at a time on screen. Practice and mastery read the whole deck.
@@ -66,6 +69,22 @@ export default function Manage({
     const other = decks.findIndex((d) => d.id === siblings[siblingIndex + delta]?.id);
     [ids[deckIndex], ids[other]] = [ids[other], ids[deckIndex]];
     act("deck.reorder", { ids }, () => toast.success(ui("题组顺序已保存")));
+  };
+  const recommendedOrder = siblings.length > 1 ? suggestDeckOrder(siblings) : null;
+  const applyRecommendedOrder = async () => {
+    if (!recommendedOrder?.changed || reordering) { setConfirmRecommend(false); return; }
+    const siblingIds = new Set(siblings.map((d) => d.id));
+    let cursor = 0;
+    const ids = decks.map((d) => (siblingIds.has(d.id) ? recommendedOrder.ids[cursor++] : d.id));
+    setReordering(true);
+    try {
+      await act("deck.reorder", { ids }, () => {
+        setConfirmRecommend(false);
+        toast.success(ui("已按推荐顺序保存题组排序"));
+      });
+    } finally {
+      setReordering(false);
+    }
   };
   const unreviewed = reviewedCardStatus(managedDeck)?.changed ?? managedDeck.editorial?.uncheckedAtPublish ?? 0;
   const selfCited = selfCitedCardCount(managedDeck.cards, sources);
@@ -151,7 +170,21 @@ export default function Manage({
           <div className="manage-row manage-row--pair">
             <Button className="manage-row__action" disabled={siblingIndex <= 0} lock={busy} onClick={() => moveOrder(-1)}>{ui("上移题组")}</Button>
             <Button className="manage-row__action" disabled={siblingIndex < 0 || siblingIndex >= siblings.length - 1} lock={busy} onClick={() => moveOrder(1)}>{ui("下移题组")}</Button>
+            <Tooltip layer content={ui("按「前置筑基 → 章节精讲 → 源码实验 → 综合大卷」给出建议顺序；仅在你确认后才写入，不会自动改写已排好的顺序。")}>
+              <Button className="manage-row__action" variant="quiet" disabled={!recommendedOrder?.changed} lock={busy} onClick={() => setConfirmRecommend(true)}>
+                {recommendedOrder?.changed ? ui("按推荐顺序排…") : ui("已符合推荐顺序")}
+              </Button>
+            </Tooltip>
           </div>
+          {confirmRecommend && recommendedOrder?.changed && (
+            <InlineConfirm tone="primary" title={ui("按推荐学习顺序重排当前课程的题组？")} confirmLabel={ui("确认应用推荐顺序")} busy={reordering}
+              onConfirm={applyRecommendedOrder} onCancel={() => setConfirmRecommend(false)}>
+              <p className="muted small">{ui("仅调整当前课程题组的顺序，不改动任何题目或复习记录；取消后保持原顺序不变。")}</p>
+              <ol className="manage-recommend-list">
+                {recommendedOrder.items.map((item) => <li key={item.id}>{item.title}</li>)}
+              </ol>
+            </InlineConfirm>
+          )}
         </div>}
         <form className="manage-section" onSubmit={(e) => {
           e.preventDefault();

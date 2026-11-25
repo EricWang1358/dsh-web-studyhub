@@ -339,15 +339,16 @@ describe('shared atomic-write helpers & deduplication', () => {
     const fixedDate = new Date(2026, 0, 9, 14, 5, 3);
     assert.equal(localTimestampCompact(fixedDate), '2026-01-09-140503');
 
-    const res = defaultBackupFilePath('/tmp/lib', 'studyhub-test', 'md', fixedDate);
-    assert.equal(res, join('/tmp/lib', 'backups', 'studyhub-test-2026-01-09-140503.md'));
+    const lib = resolve('/tmp/lib');
+    const res = defaultBackupFilePath(lib, 'studyhub-test', 'md', fixedDate);
+    assert.equal(res, join(lib, 'backups', 'studyhub-test-2026-01-09-140503.md'));
     assert.ok(res.endsWith(join('backups', 'studyhub-test-2026-01-09-140503.md')));
 
-    const dotExt = defaultBackupFilePath('/tmp/lib', 'studyhub-test', '.json', fixedDate);
-    assert.equal(dotExt, join('/tmp/lib', 'backups', 'studyhub-test-2026-01-09-140503.json'));
+    const dotExt = defaultBackupFilePath(lib, 'studyhub-test', '.json', fixedDate);
+    assert.equal(dotExt, join(lib, 'backups', 'studyhub-test-2026-01-09-140503.json'));
 
-    const withSlug = defaultBackupFilePath('/tmp/lib', 'studyhub-deck', 'md', 'CS 101: 操作系统', fixedDate);
-    assert.equal(withSlug, join('/tmp/lib', 'backups', 'studyhub-deck-CS-101-操作系统-2026-01-09-140503.md'));
+    const withSlug = defaultBackupFilePath(lib, 'studyhub-deck', 'md', 'CS 101: 操作系统', fixedDate);
+    assert.equal(withSlug, join(lib, 'backups', 'studyhub-deck-CS-101-操作系统-2026-01-09-140503.md'));
 
     assert.equal(sanitizeExportSlug('  ../weird/name:test?  '), 'weird-name-test');
   });
@@ -473,16 +474,25 @@ describe('shared atomic-write helpers & deduplication', () => {
   });
 
   test('7) notes-types expandUserPath handles PowerShell drag-and-drop, Explorer quotes, bash escapes, and ~/~\\', async () => {
-    const { expandUserPath } = await tsImport('../src/views/notes/notes-types.ts', import.meta.url);
+    const [{ expandUserPath }, { cleanPathInput }] = await Promise.all([
+      tsImport('../src/views/notes/notes-types.ts', import.meta.url),
+      tsImport('../src/host/sample-actions.ts', import.meta.url),
+    ]);
     const { homedir } = await import('node:os');
-    const root = '/tmp/studyhub-notes-root';
+    const root = resolve('/tmp/studyhub-notes-root');
     assert.equal(expandUserPath('', root), '');
     assert.equal(expandUserPath('~', root), homedir());
     assert.equal(expandUserPath('~/study/note.md', root), join(homedir(), 'study/note.md'));
     assert.equal(expandUserPath('~\\study\\note.md', root), join(homedir(), 'study\\note.md'));
-    assert.equal(expandUserPath('"/tmp/my note.md"', root), '/tmp/my note.md');
-    assert.equal(expandUserPath("& '/tmp/ps note.md'", root), '/tmp/ps note.md');
-    assert.equal(expandUserPath('/tmp/bash\\ escaped.md', root), '/tmp/bash escaped.md');
-    assert.equal(expandUserPath('relative/out.md', root), join(root, 'relative/out.md'));
+    assert.equal(expandUserPath('"/tmp/my note.md"', root), resolve('/tmp/my note.md'));
+    assert.equal(expandUserPath("& '/tmp/ps note.md'", root), resolve('/tmp/ps note.md'));
+    assert.equal(expandUserPath('/tmp/bash\\ escaped.md', root), resolve('/tmp/bash escaped.md'));
+    assert.equal(expandUserPath('relative/out.md', root), resolve(root, 'relative/out.md'));
+    // Cross-platform bash-escaped spaces (including Git Bash on Windows) unescape `\ `,
+    // while Windows drive and UNC paths remain intact.
+    assert.equal(cleanPathInput('/tmp/bash\\ escaped.md'), '/tmp/bash escaped.md');
+    assert.equal(cleanPathInput('notes/my\\ file\\ v2.md'), 'notes/my file v2.md');
+    assert.equal(cleanPathInput('C:\\Users\\Alice\\ My Notes.md'), 'C:\\Users\\Alice\\ My Notes.md');
+    assert.equal(cleanPathInput('\\\\server\\share\\ My Notes.md'), '\\\\server\\share\\ My Notes.md');
   });
 });

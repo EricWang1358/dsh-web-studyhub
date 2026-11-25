@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, ThemeId, TuiPreferences, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { THEME_IDS, saveTuiPreferences } from '../../host/tui-prefs.js';

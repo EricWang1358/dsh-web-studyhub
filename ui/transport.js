@@ -7,6 +7,11 @@ const ROUTES = {
 const missingRoute = (e) => /HTTP (404|405)\b/.test(e?.message || "");
 // DSH 0.2.1 answers 403 on plugin routes to every browser that is not the owner's (remote access; @deepseek-ai/dsh-client-connection lib/index.js:829-831).
 const ownerOnly = (e) => /HTTP 403\b/.test(e?.message || "");
+const payloadTooLarge = (e) => /HTTP 413\b|\bToo large\b|Request body too large/i.test(e?.message || "");
+const payloadTooLargeError = (cause) => Object.assign(new Error("请求体超过单次传输上限，请刷新页面后重试（备份文件会自动分片上传）。"), {
+  code: "payload-too-large",
+  cause,
+});
 const ownerOnlyError = (cause) => Object.assign(new Error("StudyHub 只对这台电脑上的 DSH 主人开放；通过远程访问打开的浏览器不能使用它。StudyHub is only available to the owner of this DSH, not to remote-access browsers."), {
   code: "STUDY_OWNER_ONLY",
   cause,
@@ -35,6 +40,7 @@ export function createStudyCall(connection, sessionId) {
       result = await send(route);
     } catch (e) {
       if (ownerOnly(e)) throw ownerOnlyError(e);
+      if (payloadTooLarge(e)) throw payloadTooLargeError(e);
       if (!missingRoute(e)) throw e;
       const other = route === "native" ? "legacy" : "native";
       try {

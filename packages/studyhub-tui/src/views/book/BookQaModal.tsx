@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -9,6 +10,7 @@ import { MarkdownView } from '../../components/MarkdownView.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
 import { SplitPane, computeSplit } from '../../components/SplitPane.js';
+import { LAYOUT_BP } from '../../components/layout-tokens.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/sample-actions.js';
@@ -435,7 +437,7 @@ export const BookQaModal = memo(function BookQaModal({
   const innerW = modalContentWidth(frameW);
   const bodyH = Math.max(8, frameH - 5);
   const contentH = Math.max(6, bodyH - 2);
-  const split = computeSplit(innerW, { leftWidth: 0.4, minLeft: 24, minRight: 30, breakpoint: 66 });
+  const split = computeSplit(innerW, { leftWidth: 0.4, minLeft: 24, minRight: 30, breakpoint: LAYOUT_BP.SPLIT_MODAL });
 
   useInput(
     (input, key) => {
@@ -594,7 +596,7 @@ export const BookQaModal = memo(function BookQaModal({
                 leftWidth={0.4}
                 minLeft={24}
                 minRight={30}
-                breakpoint={66}
+                breakpoint={LAYOUT_BP.SPLIT_MODAL}
                 activePane={activePane}
                 leftLabel={t(lang, '问答列表', 'Q&A Items')}
                 rightLabel={t(lang, '内容预览', 'Preview')}

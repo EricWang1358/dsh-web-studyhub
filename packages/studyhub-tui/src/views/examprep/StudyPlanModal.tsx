@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -298,7 +299,6 @@ function summarizeStartedFill(started: NonNullable<CustomFillResponse['started']
 }
 
 const CUSTOM_PURPOSES: readonly CustomPurpose[] = ['preview', 'follow', 'review', 'openbook'];
-const CUSTOM_SCOPES: readonly Exclude<CustomScopeKind, 'chapters'>[] = ['all', 'exam'];
 const BOOK_PARTS: readonly BookPart[] = ['explain', 'terms', 'formulas', 'index', 'confusables', 'answerKit', 'cheatSheet'];
 const STRENGTH_LEVELS: readonly QuestionStrength[] = ['lean', 'standard', 'full'];
 const DEFAULT_MINUTES_PER_DAY = 180;
@@ -1049,7 +1049,7 @@ export const StudyPlanModal = memo(function StudyPlanModal({
       busyRef.current = false;
       if (mountedRef.current) setBusyLabel(null);
     }
-  }, [busyLabel, host, effectiveCourse, lang, notify]);
+  }, [busyLabel, ell, host, effectiveCourse, lang, notify]);
 
   const handleConfirmFill = useCallback(async () => {
     if (busyRef.current) return;
@@ -1078,7 +1078,7 @@ export const StudyPlanModal = memo(function StudyPlanModal({
       busyRef.current = false;
       if (mountedRef.current) setBusyLabel(null);
     }
-  }, [host, effectiveCourse, lang, notify, loadReadiness, loadPlan, onUpdated]);
+  }, [ell, host, effectiveCourse, lang, notify, loadReadiness, loadPlan, onUpdated]);
 
   const modalActive = isActive && confirmFill === null && !confirmApply;
 
@@ -1263,7 +1263,7 @@ export const StudyPlanModal = memo(function StudyPlanModal({
         <EmptyState
           icon={asciiMode ? '!' : '✕'}
           title={t(lang, '加载备考计划失败', 'Failed to load study plan')}
-          hint={truncateDisplay(planError, Math.max(12, innerW - 4), ell)}
+          hint={planError}
           actions={[{ key: 'r', label: t(lang, '重试', 'Retry') }]}
           width={innerW}
           height={tabBodyH}
@@ -1494,7 +1494,7 @@ export const StudyPlanModal = memo(function StudyPlanModal({
         <EmptyState
           icon={asciiMode ? '!' : '✕'}
           title={t(lang, '加载章节就绪度失败', 'Failed to load readiness')}
-          hint={truncateDisplay(readinessError, Math.max(12, innerW - 4), ell)}
+          hint={readinessError}
           actions={[{ key: 'r', label: t(lang, '重试', 'Retry') }]}
           width={innerW}
           height={tabBodyH}
@@ -1676,7 +1676,7 @@ export const StudyPlanModal = memo(function StudyPlanModal({
         <EmptyState
           icon={asciiMode ? '!' : '✕'}
           title={t(lang, '加载深度定制失败', 'Failed to load custom plan')}
-          hint={truncateDisplay(customError, Math.max(12, innerW - 4), ell)}
+          hint={customError}
           actions={[{ key: 'r', label: t(lang, '重试', 'Retry') }]}
           width={innerW}
           height={tabBodyH}

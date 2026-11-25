@@ -90,6 +90,18 @@ describe('Round 88 Track D4 — Multi-step Assistant workflow skeleton (#1315 Ph
     // Cancellation terminates workflow cleanly
     const cancelled = cancelWorkflowPlan(afterStep1);
     assert.equal(currentWorkflowStep(cancelled), null);
+
+    // #1339: ordinary questions containing semicolons or "然后"/"再" must NOT become multi-step workflows
+    assert.equal(
+      planAssistantWorkflow('讲讲 Memento；再讲讲 Bridge', { currentCardId: 'card-secret-id', lang: 'zh' }),
+      null,
+      'Plain questions separated by semicolon must return null so the full prompt goes to the model',
+    );
+    assert.equal(
+      planAssistantWorkflow('先解释一下分页，然后说说分段的区别', { currentCardId: 'card-secret-id', lang: 'zh' }),
+      null,
+      'Plain questions using 先...然后 must return null when no executable action is present',
+    );
   });
 });
 

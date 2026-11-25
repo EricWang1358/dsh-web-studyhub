@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -12,10 +13,12 @@ import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys, useInputCapture } from '../../components/focus.js';
+import { computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { useShellActions } from '../../shell/actions.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/sample-actions.js';
+import { runOptimisticWrite } from '../../host/tx-write.js';
 import { atomicWriteExportText, defaultBackupFilePath } from '../../host/atomic-write.js';
 
 export interface DraftEditorProps {
@@ -401,10 +404,20 @@ export const DraftEditor = memo(function DraftEditor({
       if (!draft || busy) return false;
       setBusy(true);
       const updated = { ...draft, cards: nextCards };
-      const res = await tryAction<FullDraft>(host, 'draft.save', { deck: updated });
+      const res = await runOptimisticWrite({
+        getSnapshot: () => draft,
+        applyOptimistic: () => {},
+        write: async () => {
+          const out = await tryAction<FullDraft>(host, 'draft.save', { deck: updated });
+          return out.ok
+            ? { ok: true, value: out.value }
+            : { ok: false, error: out.error?.message || t(lang, '保存草稿失败', 'Save draft failed') };
+        },
+        restoreSnapshot: (prev) => setDraft(prev),
+      });
       setBusy(false);
       if (!res.ok) {
-        notify(res.error?.message || t(lang, '保存草稿失败', 'Save draft failed'), 'error');
+        notify(res.error || t(lang, '保存草稿失败', 'Save draft failed'), 'error');
         return false;
       }
       if (res.value && Array.isArray(res.value.cards)) {
@@ -455,6 +468,19 @@ export const DraftEditor = memo(function DraftEditor({
     }
   }, [busy, draft, lang, lastRemoved, normalizedFilter, saveDraftCards]);
 
+  // #1429: single save path for the edit-card modal, shared by the modal's Ctrl+S handler and
+  // both multi-line TextInputs (via onSubmit). Before this, the inputs sat at a higher key layer
+  // than the view handler and swallowed Ctrl+S, so saving a card edit did nothing.
+  const saveEditCard = useCallback(() => {
+    if (!draft || !selectedCard || selectedOriginalIndex < 0 || busy) return;
+    const next = draft.cards.map((c, idx) =>
+      idx === selectedOriginalIndex ? { ...c, prompt: editPrompt, explanation: editExplanation } : c,
+    );
+    setConfirmDiscardEdit(false);
+    setOverlay('none');
+    void saveDraftCards(next, t(lang, '题目修改已保存', 'Card updated'));
+  }, [busy, draft, editExplanation, editPrompt, lang, saveDraftCards, selectedCard, selectedOriginalIndex]);
+
   const checkSimilar = useCallback(async () => {
     if (!draft || busy) return;
     setBusy(true);
@@ -483,7 +509,7 @@ export const DraftEditor = memo(function DraftEditor({
     setSimilarItems(items);
     setSimilarCursor(0);
     setOverlay('similar-results');
-  }, [busy, draft, host, lang, notify]);
+  }, [asciiMode, busy, draft, host, lang, notify]);
 
   const repairDraft = useCallback(async () => {
     if (!draft || busy) return;
@@ -514,7 +540,7 @@ export const DraftEditor = memo(function DraftEditor({
         : t(lang, '草稿已修复并刷新', 'Draft repaired and reloaded'),
       'success',
     );
-  }, [busy, draft, host, lang, loadDraft, notify, refresh]);
+  }, [asciiMode, busy, draft, host, lang, loadDraft, notify, refresh]);
 
   const closePublishPlan = useCallback(() => {
     planSeqRef.current += 1;
@@ -693,13 +719,8 @@ export const DraftEditor = memo(function DraftEditor({
       if (overlay === 'edit-card') {
         if (key.ctrl && input === 'n') {
           setEditField((f) => (f === 'prompt' ? 'explanation' : 'prompt'));
-        } else if (key.ctrl && input === 's' && draft && selectedCard && selectedOriginalIndex >= 0) {
-          const next = draft.cards.map((c, idx) =>
-            idx === selectedOriginalIndex ? { ...c, prompt: editPrompt, explanation: editExplanation } : c,
-          );
-          setConfirmDiscardEdit(false);
-          setOverlay('none');
-          void saveDraftCards(next, t(lang, '题目修改已保存', 'Card updated'));
+        } else if (key.ctrl && input === 's') {
+          saveEditCard();
         }
         return;
       }
@@ -724,7 +745,7 @@ export const DraftEditor = memo(function DraftEditor({
 
       if (key.escape && filterQuery) {
         setFilterQuery('');
-        return;
+        return true;
       }
 
       if (input === 'd' && draftsList.length > 0) {
@@ -839,13 +860,7 @@ export const DraftEditor = memo(function DraftEditor({
   const ell = asciiMode ? '...' : '…';
 
   const filterBadge = `[${filterEditing ? t(lang, '筛选', 'Filter') : t(lang, '已筛选', 'Filtered')} ${filteredEntries.length}/${totalCards}] `;
-  const filterRightHint =
-    width >= 66
-      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
-      : width >= 46
-        ? ' Esc'
-        : '';
-  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
+  const { rightHint: filterRightHint, inputWidth: filterInputW } = computeFilterBarLayout(width, filterBadge, lang, filterEditing);
 
   const planModalW = Math.max(44, Math.min(72, width - 4));
   const planInnerW = modalContentWidth(planModalW);
@@ -1113,6 +1128,7 @@ export const DraftEditor = memo(function DraftEditor({
             value={editPrompt}
             onChange={setEditPrompt}
             onCancel={requestCloseEditCard}
+            onSubmit={saveEditCard}
             multiline
             height={4}
             width={modalContentWidth(72) - 4}
@@ -1127,6 +1143,7 @@ export const DraftEditor = memo(function DraftEditor({
             value={editExplanation}
             onChange={setEditExplanation}
             onCancel={requestCloseEditCard}
+            onSubmit={saveEditCard}
             multiline
             height={5}
             width={modalContentWidth(72) - 4}

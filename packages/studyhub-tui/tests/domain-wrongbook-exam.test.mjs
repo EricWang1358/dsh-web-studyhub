@@ -272,7 +272,7 @@ async function answerCurrentCardWrong(tty, host, runId, cardNumberLabel) {
     await tty.waitFor(
       () =>
         useDistTuiStore.getState().page === 'review' &&
-        useDistTuiStore.getState().footerHints.some((h) => h.key.includes('1/t')),
+        useDistTuiStore.getState().footerHints.some((h) => h.key.includes('1/2')),
       { timeoutMs: 10_000, label: `Card ${cardNumberLabel} TF ready for judge input` },
     );
     await tty.flush();
@@ -801,11 +801,14 @@ describe('Round 66 Track 3: WrongBookView [X] Atomic Markdown Study Sheet Export
         );
       }
 
-      // End round cleanly ('X' -> 'y')
+      // End round cleanly ('X' -> 'y') and wait for RoundSummary to mount before sending '4'
       tty.send('X');
       await tty.waitFor((s) => s.includes('结束本轮练习'), { timeoutMs: 6_000, label: 'End round dialog' });
       tty.send('y');
-      await tty.waitFor((s) => !s.includes('结束本轮练习'), { timeoutMs: 6_000, label: 'Exited review round' });
+      await tty.waitFor((s) => !s.includes('结束本轮练习') && (s.includes('本轮练习总结') || s.includes('Round Summary')), {
+        timeoutMs: 6_000,
+        label: 'Exited review round to summary',
+      });
 
       // Navigate to WrongBook ('4')
       tty.send('4');
@@ -981,11 +984,14 @@ describe('Round 72 Track 1: WrongBookView `/` Live Wrong-Card Search & Filter', 
       }
       await answerCurrentCardWrong(tty, host, activeRunId, 2);
 
-      // End round cleanly ('X' -> 'y')
+      // End round cleanly ('X' -> 'y') and wait for RoundSummary to mount before sending '4'
       tty.send('X');
       await tty.waitFor((s) => s.includes('结束本轮练习'), { timeoutMs: 6_000, label: 'End round dialog' });
       tty.send('y');
-      await tty.waitFor((s) => !s.includes('结束本轮练习'), { timeoutMs: 6_000, label: 'Exited review round' });
+      await tty.waitFor((s) => !s.includes('结束本轮练习') && (s.includes('本轮练习总结') || s.includes('Round Summary')), {
+        timeoutMs: 6_000,
+        label: 'Exited review round to summary',
+      });
 
       // Navigate to WrongBook ('4')
       tty.send('4');

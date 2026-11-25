@@ -1,8 +1,10 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction, type ReviewRun } from '../../host/sample-actions.js';
+import { isModelUnavailableError } from '../../host/ai-dialogue.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Divider, Spinner } from '../../components/Badge.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
@@ -12,6 +14,12 @@ import { truncateDisplay } from '../../render/cjk.js';
 import { kindLabel, type NormalizedKind } from './review-helpers.js';
 import { NextStepFollowupBar } from './NextStepFollowupBar.js';
 
+export interface SkippedTeachingStep {
+  index: number;
+  lesson?: string;
+  answer?: string;
+}
+
 export interface TeachingSessionView {
   id: string;
   mode: 'understanding' | 'calculation' | string;
@@ -20,6 +28,11 @@ export interface TeachingSessionView {
   lesson?: string;
   check?: string;
   feedback?: string;
+  skippedSteps?: SkippedTeachingStep[];
+  masteredCount?: number;
+  wrongTries?: number;
+  skipped?: boolean;
+  skippedAll?: boolean;
   stage?: string;
   assumptions?: string;
   units?: string;
@@ -45,12 +58,6 @@ interface TeachTurn {
   role: 'tutor' | 'learner' | 'feedback';
   text: string;
   passed?: boolean;
-}
-
-function isModelUnavailableError(message: string): boolean {
-  return /configure a model|model.*unavailable|no.*model|api.?key|unauthorized|forbidden|\b401\b|\b403\b|econnrefused|timed out|timeout|未配置|可用.*模型|模型不可用/i.test(
-    message,
-  );
 }
 
 function needsAnswerFirstError(message: string): boolean {
@@ -79,9 +86,29 @@ function formatStepMarkdown(session: TeachingSessionView, lang: UiLanguage): str
 }
 
 function formatCompletionMarkdown(session: TeachingSessionView, lang: UiLanguage): string {
-  const parts: string[] = [`### ${t(lang, '带学完成 · 核心迁移法则', 'Teaching Complete · Transfer Rule')}`];
+  const skipped = Array.isArray(session.skippedSteps) ? session.skippedSteps : [];
+  const mastered = typeof session.masteredCount === 'number'
+    ? session.masteredCount
+    : Math.max(0, (session.total || 0) - skipped.length);
+  const total = Math.max(1, session.total || 1);
+  const parts: string[] = [
+    `### ${t(lang, '带学完成 · 核心迁移法则', 'Teaching Complete · Transfer Rule')}`,
+  ];
   if (session.transfer) parts.push(session.transfer);
-  else parts.push(t(lang, '已完成全部前置阶梯检验，可以继续下一题复习。', 'All prerequisite steps mastered. Ready to continue your review.'));
+  else parts.push(t(lang, '已完成本轮带学，可以继续下一题复习。', 'Guided teaching finished. Ready to continue your review.'));
+  if (skipped.length > 0) {
+    const summaryTitle = t(
+      lang,
+      `#### 已跳过步骤（${skipped.length} 步未计为已掌握，已掌握 ${mastered}/${total} 步）`,
+      `#### Skipped Steps (${skipped.length} not counted as mastered; mastered ${mastered}/${total})`,
+    );
+    const items = skipped.map((item) => {
+      const num = (item.index ?? 0) + 1;
+      const body = item.lesson ? item.lesson : t(lang, '（见上方要点）', '(see key point above)');
+      return t(lang, `- 第 ${num} 步：${body}`, `- Step ${num}: ${body}`);
+    });
+    parts.push(`${summaryTitle}\n${items.join('\n')}`);
+  }
   return parts.join('\n\n');
 }
 
@@ -182,9 +209,11 @@ export const TeachModal = memo(function TeachModal({
     [host, run.id, run.index, run.queueVersion, cardId, lang, initialTeaching],
   );
 
+  const loadSessionRef = useRef(loadSession);
+  loadSessionRef.current = loadSession;
+
   useEffect(() => {
-    void loadSession(teachMode, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void loadSessionRef.current(teachMode, true);
   }, [run.id, cardId, teachMode]);
 
   const handleSubmitAnswer = useCallback(
@@ -217,7 +246,8 @@ export const TeachModal = memo(function TeachModal({
       }
 
       const next = res.value;
-      const passed = Boolean(next.complete || next.index > prevIndex);
+      const skipped = Boolean(next.skipped);
+      const passed = skipped ? undefined : Boolean(next.complete || next.index > prevIndex);
       setSession(next);
       setTurns((prev) => {
         const appended = [...prev];
@@ -238,14 +268,88 @@ export const TeachModal = memo(function TeachModal({
     [submitting, loading, session, draft, notify, lang, host],
   );
 
+  const handleSkipStep = useCallback(
+    async (all = false) => {
+      if (submitting || loading || !session || session.complete) return;
+      const seq = reqSeqRef.current;
+      const prevIndex = session.index;
+      setSubmitting(true);
+      setErrorText(null);
+      setDraft('');
+      setTurns((prev) => [
+        ...prev,
+        {
+          role: 'learner',
+          text: all
+            ? t(lang, '剩下的直接讲给我听', 'Show all remaining key points')
+            : t(lang, '跳过这一步', 'Skip this step'),
+        },
+      ]);
+
+      const res = await tryAction<TeachingSessionView>(host, 'teach.skip', {
+        id: session.id,
+        stepIndex: prevIndex,
+        ...(all ? { all: true } : {}),
+      });
+      if (!mountedRef.current || reqSeqRef.current !== seq) return;
+      setSubmitting(false);
+
+      if (!res.ok || !res.value) {
+        setErrorText(res.error?.message || t(lang, '跳过当前步骤失败', 'Failed to skip teaching step'));
+        setInputFocused(false);
+        return;
+      }
+
+      const next = res.value;
+      setSession(next);
+      setTurns((prev) => {
+        const appended = [...prev];
+        if (next.feedback) {
+          appended.push({ role: 'feedback', text: next.feedback });
+        }
+        if (next.complete) {
+          appended.push({ role: 'tutor', text: formatCompletionMarkdown(next, lang) });
+        } else if (next.index > prevIndex) {
+          appended.push({ role: 'tutor', text: formatStepMarkdown(next, lang) });
+        }
+        return appended;
+      });
+      if (next.complete) {
+        setInputFocused(false);
+      }
+    },
+    [submitting, loading, session, lang, host],
+  );
+
   const [followupEngaged, setFollowupEngaged] = useState(false);
   const canType = Boolean(session && !session.complete && !loading && !errorText);
   const canFollowup = Boolean(session?.complete && !loading && !errorText);
   const inputActive = isActive && canType && inputFocused && !submitting;
+  const skippedCount = session?.skippedSteps?.length ?? 0;
+  const wrongTries = session?.wrongTries ?? 0;
+  const showWrongNudge = canType && wrongTries >= 2;
+
+  useInput(
+    (input, key) => {
+      if (loading || submitting || !canType) return;
+      if (key.ctrl && input === 'n') {
+        void handleSkipStep(false);
+      }
+    },
+    { isActive: isActive && canType && !followupEngaged },
+  );
 
   useInput(
     (input, key) => {
       if (loading || submitting) return;
+      if ((input === 's' || input === 'S') && canType) {
+        void handleSkipStep(false);
+        return;
+      }
+      if ((input === 'e' || input === 'E') && canType) {
+        void handleSkipStep(true);
+        return;
+      }
       if (input === 'r') {
         void loadSession(teachMode, false);
         return;
@@ -296,8 +400,9 @@ export const TeachModal = memo(function TeachModal({
   const showInput = canType;
   const followupExpandedH = Math.min(11, Math.max(8, Math.floor(bodyH * 0.55)));
   const followupReservedH = canFollowup ? (followupEngaged ? followupExpandedH : 3) : 0;
-  // Status bar (1) + Divider (1) + Input box (3 when shown) + Follow-up bar (when complete)
-  const scrollH = Math.max(3, bodyH - (showInput ? 5 : 2) - followupReservedH);
+  const nudgeReservedH = showWrongNudge ? 1 : 0;
+  // Status bar (1) + Divider (1) + Input box (3 when shown) + Wrong-try nudge (1 when shown) + Follow-up bar (when complete)
+  const scrollH = Math.max(3, bodyH - (showInput ? 5 : 2) - nudgeReservedH - followupReservedH);
 
   const topicName = typeof run.card?.topic === 'string' && run.card.topic ? run.card.topic : '';
   const stepLabel = session
@@ -313,12 +418,17 @@ export const TeachModal = memo(function TeachModal({
     if (inputActive) {
       return [
         { key: 'Enter', label: t(lang, '提交回答', 'Submit') },
-        { key: 'Tab', label: t(lang, '滚动对话', 'Scroll') },
+        { key: 'Ctrl+N', label: t(lang, '跳过此步', 'Skip step') },
+        { key: 'Tab', label: t(lang, '滚动/操作', 'Scroll/Actions') },
         { key: 'Esc', label: t(lang, '关闭', 'Close') },
       ];
     }
     const items: KeyHint[] = [];
-    if (canType) items.push({ key: 'i/Tab', label: t(lang, '继续作答', 'Reply') });
+    if (canType) {
+      items.push({ key: 'i/Tab', label: t(lang, '继续作答', 'Reply') });
+      items.push({ key: 's', label: t(lang, '跳过此步', 'Skip') });
+      items.push({ key: 'e', label: t(lang, '剩余直接讲', 'Show rest') });
+    }
     if (canFollowup) items.push({ key: 'a', label: t(lang, '后续指令', 'Next step') });
     if (turns.length > 0) items.push({ key: asciiMode ? 'j/k' : '↑/↓', label: t(lang, '滚动', 'Scroll') });
     items.push({ key: 'm', label: teachMode === 'understanding' ? t(lang, '切计算', 'Calc') : t(lang, '切理解', 'Concept') });
@@ -355,11 +465,29 @@ export const TeachModal = memo(function TeachModal({
             variant="soft"
           />
           <Badge label={`${t(lang, '阶梯', 'Step')} ${stepLabel}`} tone="primary" variant="soft" />
-          {session?.complete ? (
+          {skippedCount > 0 ? (
             <Badge
-              label={asciiMode ? '+ Complete' : '✓ 已掌握 · Complete'}
-              tone="success"
+              label={t(lang, `已跳过 ${skippedCount}`, `Skipped ${skippedCount}`)}
+              tone="warning"
+              variant="soft"
             />
+          ) : null}
+          {session?.complete ? (
+            skippedCount > 0 ? (
+              <Badge
+                label={t(
+                  lang,
+                  `已完成 (掌握 ${session.masteredCount ?? 0}/${session.total})`,
+                  `Done (${session.masteredCount ?? 0}/${session.total} mastered)`,
+                )}
+                tone="primary"
+              />
+            ) : (
+              <Badge
+                label={asciiMode ? '+ Complete' : '✓ 已掌握 · Complete'}
+                tone="success"
+              />
+            )
           ) : null}
         </Box>
         {submitting ? (
@@ -367,8 +495,12 @@ export const TeachModal = memo(function TeachModal({
         ) : (
           <Text color={theme.dim}>
             {truncateDisplay(
-              inputActive ? t(lang, '[Tab] 滚动对话', '[Tab] Scroll') : t(lang, '[m] 切模式 · [r] 重载', '[m] Mode · [r] Reload'),
-              Math.max(10, Math.floor(innerW * 0.4)),
+              inputActive
+                ? t(lang, '[Ctrl+N] 跳过 · [Tab] 操作', '[Ctrl+N] Skip · [Tab] Actions')
+                : canType
+                  ? t(lang, '[s] 跳过 · [e] 剩余直接讲', '[s] Skip · [e] Show rest')
+                  : t(lang, '[m] 切模式 · [r] 重载', '[m] Mode · [r] Reload'),
+              Math.max(10, Math.floor(innerW * 0.42)),
             )}
           </Text>
         )}
@@ -386,7 +518,7 @@ export const TeachModal = memo(function TeachModal({
           <Box flexDirection="row" gap={1}>
             <Badge label={asciiMode ? '! 暂不可用' : '▲ 无法开启'} tone="warning" />
             <Text color={theme.error} bold>
-              {truncateDisplay(errorText, Math.max(12, innerW - 18))}
+              {errorText}
             </Text>
           </Box>
           <Text color={theme.muted}>
@@ -418,7 +550,7 @@ export const TeachModal = memo(function TeachModal({
               height={scrollH}
               isActive={isActive && !inputActive && !followupEngaged}
               mathUnicode={mathUnicode}
-              follow={inputActive || submitting}
+              follow={inputActive || submitting || Boolean(session?.complete)}
             />
           </Box>
 
@@ -435,6 +567,21 @@ export const TeachModal = memo(function TeachModal({
               isActive={isActive && canFollowup}
               onFocusChange={setFollowupEngaged}
             />
+          ) : null}
+
+          {showWrongNudge ? (
+            <Box height={1} width={innerW} flexDirection="row" alignItems="center">
+              <Text color={theme.warning}>
+                {truncateDisplay(
+                  t(
+                    lang,
+                    `已连续答错 ${wrongTries} 次，可以看要点并继续：按 [Ctrl+N]（或 Tab 后按 [s]）跳过此步，或输入「跳过」`,
+                    `${wrongTries} wrong tries - view key point & continue: press [Ctrl+N] (or Tab then [s]) to skip, or type "skip"`,
+                  ),
+                  innerW,
+                )}
+              </Text>
+            </Box>
           ) : null}
 
           {showInput ? (
@@ -454,7 +601,11 @@ export const TeachModal = memo(function TeachModal({
                 placeholder={
                   submitting
                     ? t(lang, `正在提交${ell}`, `Submitting${ell}`)
-                    : t(lang, '输入你的回答，Enter 提交 · Tab 切换滚动 · Esc 关闭', 'Your answer (Enter submit · Tab scroll · Esc close)')
+                    : t(
+                        lang,
+                        '输入回答（或输入「跳过」），Enter 提交 · Ctrl+N 跳过 · Tab 操作',
+                        'Your answer (or type "skip") | Enter submit | Ctrl+N skip | Tab actions',
+                      )
                 }
                 onTab={() => {
                   setInputFocused(false);

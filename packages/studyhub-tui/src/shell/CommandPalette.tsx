@@ -1,5 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../components/resize.js';
+import { useScopedInput as useInput } from '../components/key-dispatcher.js';
 import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type PageId, type StudySnapshot, type TuiPreferences, type UiLanguage } from '../types/contracts.js';
 import { t, useTuiStore, type TuiStoreState } from '../state/store.js';
 import { saveTuiPreferences } from '../host/tui-prefs.js';
@@ -316,7 +318,7 @@ export function buildPaletteItems(
         }
         const focusCourse =
           typeof (effectiveSnap?.focus as { course?: unknown } | undefined)?.course === 'string'
-            ? String((effectiveSnap?.focus as { course?: string }).course).trim()
+            ? String((effectiveSnap?.focus as { course?: string } | undefined)?.course ?? '').trim()
             : '';
         const progressMap = (effectiveSnap?.progress && typeof effectiveSnap.progress === 'object'
           ? effectiveSnap.progress
@@ -332,7 +334,7 @@ export function buildPaletteItems(
           })
           .map((d) => {
             const rec = d as Record<string, unknown>;
-            const due = Number(rec.due ?? d.dueCount ?? progressMap[d.id]?.due ?? 0) || 0;
+            const due = Number(progressMap[d.id]?.due ?? rec.due ?? d.dueCount ?? 0) || 0;
             return { id: d.id, due };
           })
           .filter((d) => d.id && d.due > 0)
@@ -715,7 +717,7 @@ export function buildNaturalLanguagePaletteItem(
     currentDeckId: ctx.deckId,
     lang: ctx.lang,
   });
-  if (wf && wf.steps.some((s) => s.intent.kind !== 'chat' && s.intent.kind !== 'unsupported')) {
+  if (wf && wf.steps.some((s) => s.intent.kind !== 'chat' && s.intent.kind !== 'boundary')) {
     return {
       id: 'nl:workflow',
       label: `${nlIcon} ${t(ctx.lang, `多步执行 (${wf.steps.length} 步): ${q}`, `Multi-step (${wf.steps.length}): ${q}`)}`,
@@ -733,7 +735,7 @@ export function buildNaturalLanguagePaletteItem(
     currentDeckId: ctx.deckId,
     lang: ctx.lang,
   });
-  if (intent.kind === 'chat' || intent.kind === 'unsupported') return null;
+  if (intent.kind === 'chat' || intent.kind === 'boundary') return null;
 
   return {
     id: `nl:${intent.actionName}`,
@@ -778,7 +780,7 @@ export const CommandPalette = memo(function CommandPalette({
   initialQuery = '',
 }: CommandPaletteProps) {
   const theme = useTheme();
-  const { columns, rows } = useWindowSize();
+  const { columns, rows } = useStableWindowSize();
   const actions = useShellActions();
   const snapshot = useTuiStore((s) => s.snapshot);
   const preferences = useTuiStore((s) => s.preferences);
@@ -937,7 +939,8 @@ export const CommandPalette = memo(function CommandPalette({
 
   const results = useMemo(() => {
     const base = liveItems.length ? [...fuzzyResults, ...liveItems] : fuzzyResults;
-    return nlItem ? [nlItem, ...base] : base;
+    if (!nlItem) return base;
+    return base.length > 0 ? [...base, nlItem] : [nlItem];
   }, [fuzzyResults, liveItems, nlItem]);
 
   const width = Math.min(84, Math.max(40, columns - 8));
