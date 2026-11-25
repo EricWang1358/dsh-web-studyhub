@@ -13,11 +13,14 @@ import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
-import { errorMessage, type ReviewRun } from '../../host/sample-actions.js';
+import type { ReviewRun } from '../../host/sample-actions.js';
 import {
+  aiStreamUnavailableMessage,
   buildCardDialogueUserPrompt,
   buildUnifiedAiSystemPrompt,
   canExposeReferenceAnswer,
+  describeAiDialogueError,
+  isAiStreamingAvailable,
   persistCardQaToFollowupAndNote,
 } from '../../host/ai-dialogue.js';
 import { Badge, Spinner } from '../../components/Badge.js';
@@ -25,6 +28,7 @@ import { ScrollView } from '../../components/ScrollView.js';
 import { TextInput } from '../../components/TextInput.js';
 import { useInputCapture } from '../../components/focus.js';
 import { ClickableBox, useMouseLayer, useMouseModalBarrier } from '../../components/mouse.js';
+import { useAiConversation } from '../../components/useAiConversation.js';
 import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
 import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import {
@@ -166,7 +170,7 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
     reset: resetStreaming,
   } = useStreamingBuffer();
 
-  const abortRef = useRef<AbortController | null>(null);
+  const { send: sendAiTurn, abort: abortAiTurn } = useAiConversation(host, lang);
   const mountedRef = useRef(true);
   const turnsRef = useRef<AiTurn[]>(turns);
   turnsRef.current = turns;
@@ -187,11 +191,10 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      abortRef.current?.abort();
-      abortRef.current = null;
+      abortAiTurn();
       onFocusChange?.(false);
     };
-  }, [onFocusChange]);
+  }, [onFocusChange, abortAiTurn]);
 
   // Reset the conversation whenever the question/result it is grounded in changes (#1453).
   //
@@ -207,8 +210,7 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
   const cardScopeId = cardId || (typeof run.card?.id === 'string' ? run.card.id : '');
   const resultScope = resultContext ?? '';
   useEffect(() => {
-    abortRef.current?.abort();
-    abortRef.current = null;
+    abortAiTurn();
     // Clear the ref synchronously too: a send issued in the same tick as the prop change must
     // not pick up the previous question's turns from the last committed render.
     turnsRef.current = [];
@@ -219,20 +221,17 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
     setStreaming(false);
     setErrorText(null);
     resetStreaming();
-  }, [run.id, cardScopeId, toolLabel, resultScope, resetStreaming]);
+  }, [run.id, cardScopeId, toolLabel, resultScope, resetStreaming, abortAiTurn]);
 
   const sendInstruction = useCallback(
     async (raw: string) => {
       const instruction = raw.trim();
       if (!instruction) return;
-      if (typeof host.streamComplete !== 'function') {
-        setErrorText(t(lang, '当前 Host 未提供流式 AI 接口', 'Streaming AI completion is unavailable on this host'));
+      if (!isAiStreamingAvailable(host)) {
+        setErrorText(aiStreamUnavailableMessage(lang));
         setExpanded(true);
         return;
       }
-      abortRef.current?.abort();
-      const ctrl = new AbortController();
-      abortRef.current = ctrl;
 
       const prior = turnsRef.current;
       const withUser = [...prior, { role: 'user' as const, text: instruction }].slice(-MAX_AI_TURNS);
@@ -245,7 +244,7 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
       resetStreaming();
 
       try {
-        const finalText = await host.streamComplete({
+        const outcome = await sendAiTurn({
           system: buildNextStepSystemPrompt(lang),
           prompt: buildNextStepUserPrompt({
             run,
@@ -257,41 +256,58 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
             instruction,
             lang,
           }),
-          signal: ctrl.signal,
           onChunk: (delta) => {
-            if (!mountedRef.current || ctrl.signal.aborted) return;
+            if (!mountedRef.current) return;
             pushStreamingChunk(delta);
           },
         });
-        if (!mountedRef.current || ctrl.signal.aborted) return;
+        if (!mountedRef.current || outcome.status === 'superseded') return;
+        if (outcome.status === 'aborted') {
+          resetStreaming();
+          setStreaming(false);
+          return;
+        }
         const flushed = finishStreaming();
-        const reply = (finalText || flushed).trim();
+        setStreaming(false);
+        if (outcome.status === 'error' || outcome.status === 'unavailable') {
+          const partial = flushed.trim();
+          if (partial) {
+            const next = [...withUser, { role: 'assistant' as const, text: partial }].slice(-MAX_AI_TURNS);
+            turnsRef.current = next;
+            setTurns(next);
+            resetStreaming();
+          }
+          setErrorText(outcome.error);
+          return;
+        }
+        const reply = (outcome.text || flushed).trim();
         if (reply) {
           const next = [...withUser, { role: 'assistant' as const, text: reply }].slice(-MAX_AI_TURNS);
           turnsRef.current = next;
           setTurns(next);
         }
         resetStreaming();
-        setStreaming(false);
       } catch (err) {
-        if (!mountedRef.current || ctrl.signal.aborted) return;
-        const flushed = finishStreaming();
+        // Defensive: the shared transport never throws.
+        if (!mountedRef.current) return;
         setStreaming(false);
-        const partial = flushed.trim();
-        if (partial) {
-          const next = [...withUser, { role: 'assistant' as const, text: partial }].slice(-MAX_AI_TURNS);
-          turnsRef.current = next;
-          setTurns(next);
-          resetStreaming();
-        }
-        setErrorText(errorMessage(err));
-      } finally {
-        if (abortRef.current === ctrl) {
-          abortRef.current = null;
-        }
+        resetStreaming();
+        setErrorText(describeAiDialogueError(err, lang));
       }
     },
-    [host, lang, run, kind, userAnswer, toolLabel, resultContext, pushStreamingChunk, finishStreaming, resetStreaming],
+    [
+      host,
+      lang,
+      run,
+      kind,
+      userAnswer,
+      toolLabel,
+      resultContext,
+      pushStreamingChunk,
+      finishStreaming,
+      resetStreaming,
+      sendAiTurn,
+    ],
   );
 
   const saveLatestToNotes = useCallback(async () => {
@@ -366,7 +382,7 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
   useInput(
     (input, key) => {
       if (key.escape) {
-        abortRef.current?.abort();
+        abortAiTurn();
         resetStreaming();
         setStreaming(false);
         setExpanded(false);
