@@ -199,6 +199,13 @@ test('#1293-2: StudyService course.organize.start runs offline without a model, 
   const ch2 = exported.decks.find(d => d.title === 'Ch2 Virtual Memory');
   assert.equal(ch2.cards[0].requires?.length, 1);
   assert.equal(ch2.cards[0].requires[0].cardId, ch1.cards[0].id);
+  // A link the planner made says so, so a wrong batch can be told apart from links the learner made by hand.
+  assert.equal(ch2.cards[0].requires[0].origin, 'course-organize');
+  await service.call('deck.import', { course: 'Systems', text: JSON.stringify({ title: 'Ch3', course: 'Systems', cards: [{ id: 's3', kind: 'flashcard', topic: 'Paging', prompt: 'Why page?', answer: 'Fixed-size frames.', explanation: 'Avoids external fragmentation.' }] }) });
+  const handDeck = (await service.call('export')).decks.find(d => d.title === 'Ch3');
+  await service.call('card.link', { deckId: handDeck.id, cardId: handDeck.cards[0].id, requires: { deckId: ch1.id, cardId: ch1.cards[0].id } });
+  const handLink = (await service.call('export')).decks.find(d => d.id === handDeck.id).cards[0].requires[0];
+  assert.deepEqual(handLink, { deckId: ch1.id, cardId: ch1.cards[0].id }, 'a hand-made link carries no origin');
 });
 
 test('#1293-3: StudyService course.organize.start with mock light model links prerequisites and pre-extracts card.terms without overwriting existing cache, and supports cancellation', async t => {
