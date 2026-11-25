@@ -1927,5 +1927,12 @@
   "已启动离线前置依赖整理；当前未配置可用模型，生词预提取会自动跳过并在任务台提示。": "Started offline prerequisite linking; no model is configured, so term pre-extraction will be skipped with a notice in Tasks.",
   "已启动前置依赖与生词整理任务，可在任务台查看进度或随时取消。": "Started prerequisite & term organization job; track progress or cancel anytime in Tasks.",
   "范围：{0} 题，待尝试建立 {1} 条前置链接；未配置模型，生词预提取已跳过。": "Scope — cards: {0}, candidate links: {1} (no model configured; term extraction skipped).",
-  "范围：{0} 题，待尝试建立 {1} 条前置链接，待预提取生词 {2} 题。": "Scope — cards: {0}, candidate links: {1}, pending terms: {2}."
+  "范围：{0} 题，待尝试建立 {1} 条前置链接，待预提取生词 {2} 题。": "Scope — cards: {0}, candidate links: {1}, pending terms: {2}.",
+  "示意图": "Diagram",
+  "流程图": "Flowchart",
+  "状态图": "State diagram",
+  "查看源码": "View source",
+  "查看图示": "View diagram",
+  "源码": "Source",
+  "图示": "Diagram"
 }

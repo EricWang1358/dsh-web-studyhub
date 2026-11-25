@@ -1,8 +1,14 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction, errorMessage, type ReviewRun } from '../../host/sample-actions.js';
+import {
+  buildInitialExplainPrompt,
+  canExposeReferenceAnswer,
+  persistCardQaToFollowupAndNote,
+} from '../../host/ai-dialogue.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Spinner } from '../../components/Badge.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
@@ -14,11 +20,14 @@ import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
 import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import {
   MAX_AI_TURNS,
+  buildCardHelpMessages,
   buildCardHelpSystemPrompt,
   buildCardHelpUserPrompt,
   buildDailyQuestionNoteTitle,
   currentDeckIdOf,
+  extractCitation,
   extractRunFollowups,
+  extractSolution,
   type AiTurn,
   type NormalizedKind,
 } from './review-helpers.js';
@@ -109,6 +118,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
   const cardIdRef = useRef(cardId);
   cardIdRef.current = cardId;
   const autoAskedRef = useRef<Set<string>>(new Set());
+  const sourceExcerptCacheRef = useRef<Map<string, string>>(new Map());
 
   // Opaque global input capture while drawer is mounted (#1376).
   useInputCapture(true);
@@ -183,12 +193,57 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
   );
 
   const buildInitialPrompt = useCallback(
-    () =>
-      run.revealed || run.feedback
-        ? t(lang, '请帮我深入讲解这道题的考点、解题思路和容易混淆的误区。', 'Explain the core concept, solution reasoning, and common pitfalls for this question.')
-        : t(lang, '请先给我一点解题启发和思路提示，先不要直接剧透最终选项或答案。', 'Give me a conceptual hint and approach without spoiling the final answer yet.'),
-    [run.revealed, run.feedback, lang],
+    () => buildInitialExplainPrompt(canExposeReferenceAnswer(run), lang),
+    [run, lang],
   );
+
+  const resolveSourceExcerpt = useCallback(async (): Promise<string> => {
+    const sol = extractSolution(run);
+    const card = (run.card || {}) as Record<string, unknown>;
+    const rawCites =
+      sol?.citations ?? (Array.isArray(card.citations) ? (card.citations as Array<{ quote?: string }>) : undefined);
+    if (Array.isArray(rawCites) && rawCites.some((c) => typeof c?.quote === 'string' && c.quote.trim().length > 0)) {
+      return '';
+    }
+    const cite = extractCitation(run);
+    if (!cite?.sourceId) return '';
+    const cacheKey = `${cite.sourceId}#${cite.pageNumber ?? 0}`;
+    if (sourceExcerptCacheRef.current.has(cacheKey)) {
+      return sourceExcerptCacheRef.current.get(cacheKey) || '';
+    }
+    let excerpt = '';
+    try {
+      if (cite.pageNumber) {
+        // The backend (lib/book-pages.js) addresses a material by sourceId/documentId and answers with `shown[]`;
+        // `pages` is only the page-range string, and `{ id }` is refused with `source-pages-target`.
+        const res = await tryAction<{ shown?: Array<{ text?: string }>; text?: string }>(host, 'source.pages', {
+          sourceId: cite.sourceId,
+          from: cite.pageNumber,
+          to: cite.pageNumber,
+        });
+        if (res.ok && res.value) {
+          const shown = Array.isArray(res.value.shown)
+            ? res.value.shown.map((page) => (typeof page?.text === 'string' ? page.text.trim() : '')).filter(Boolean)
+            : [];
+          if (shown.length > 0) excerpt = shown.join('\n').slice(0, 800);
+        }
+      } else {
+        const res = await tryAction<{ text?: string; source?: { text?: string } }>(host, 'source.get', {
+          id: cite.sourceId,
+          offset: 0,
+          limit: 800,
+        });
+        if (res.ok && res.value) {
+          const raw = res.value.text ?? res.value.source?.text ?? '';
+          if (typeof raw === 'string') excerpt = raw.trim().slice(0, 800);
+        }
+      }
+    } catch {
+      excerpt = '';
+    }
+    sourceExcerptCacheRef.current.set(cacheKey, excerpt);
+    return excerpt;
+  }, [host, run]);
 
   const askAi = useCallback(
     async (question: string) => {
@@ -203,6 +258,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       abortRef.current = ctrl;
 
       const priorTurns = turnsRef.current;
+      const isFollowup = priorTurns.length > 0;
       const userTurn: AiTurn = { role: 'user', text: q };
       const withUser = [...priorTurns, userTurn].slice(-MAX_AI_TURNS);
       turnsRef.current = withUser;
@@ -214,16 +270,29 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       setErrorText(null);
 
       try {
+        const sourceExcerpt = await resolveSourceExcerpt();
+        if (!mountedRef.current || ctrl.signal.aborted) return;
+        const messages = buildCardHelpMessages({
+          run,
+          kind,
+          userAnswer,
+          sourceExcerpt,
+          history: priorTurns,
+          question: q,
+          lang,
+        });
         const finalText = await host.streamComplete({
-          system: buildCardHelpSystemPrompt(lang),
+          system: buildCardHelpSystemPrompt(lang, isFollowup),
           prompt: buildCardHelpUserPrompt({
             run,
             kind,
             userAnswer,
+            sourceExcerpt,
             history: priorTurns,
             question: q,
             lang,
           }),
+          messages,
           signal: ctrl.signal,
           onChunk: (delta) => {
             if (!mountedRef.current || ctrl.signal.aborted) return;
@@ -242,6 +311,10 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
           const next = [...withUser, assistantTurn].slice(-MAX_AI_TURNS);
           turnsRef.current = next;
           commitTurns(cardId, next);
+        } else {
+          // Nothing came back: drop the unanswered user turn so the next request never sends two `user` messages in a row.
+          turnsRef.current = priorTurns;
+          commitTurns(cardId, priorTurns);
         }
         resetStreaming();
         setStreaming(false);
@@ -256,6 +329,10 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
           turnsRef.current = next;
           commitTurns(cardId, next);
           resetStreaming();
+        } else {
+          // A failed request produced nothing at all: drop the unanswered user turn (see the success path).
+          turnsRef.current = priorTurns;
+          commitTurns(cardId, priorTurns);
         }
         setErrorText(errorMessage(err));
       } finally {
@@ -270,7 +347,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
         }
       }
     },
-    [host, lang, cardId, run, kind, userAnswer, commitTurns, pushStreamingChunk, finishStreaming, resetStreaming],
+    [host, lang, cardId, run, kind, userAnswer, commitTurns, pushStreamingChunk, finishStreaming, resetStreaming, resolveSourceExcerpt],
   );
 
   // Auto-explain ONLY when opened for a card with neither lifted history nor saved follow-ups.
@@ -329,49 +406,26 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
     const questionText = prevUser?.text || t(lang, '帮我理解这道题', 'Help me understand this question');
 
     setSavingNote(true);
-    const followupRes = await tryAction<{ item?: { id?: string } }>(host, 'card.followup.add', {
-      deckId,
-      cardId,
-      question: questionText.slice(0, 1000),
-      answer: answerText.slice(0, 8000),
-      source: 'assistant',
-      silent: true,
-      replace: true,
-    });
-    if (!mountedRef.current) return;
-    if (!followupRes.ok || !followupRes.value?.item?.id) {
-      setSavingNote(false);
-      notify(followupRes.error?.message || t(lang, '保存追问失败', 'Failed to save follow-up'), 'error');
-      return;
-    }
     const noteTitle = buildDailyQuestionNoteTitle(run, useTuiStore.getState().snapshot?.decks, lang);
-    const noteRes = await tryAction<{ status?: string }>(host, 'note.qa.add', {
+    const saved = await persistCardQaToFollowupAndNote({
+      host,
       deckId,
       cardId,
-      followupId: followupRes.value.item.id,
-      title: noteTitle,
-      language: lang,
+      question: questionText,
+      answer: answerText,
+      noteTitle,
+      lang,
     });
     if (!mountedRef.current) return;
     setSavingNote(false);
-    // Step 1 (card.followup.add) already succeeded on disk; reflect saved state immediately even if note write fails.
+    if (!saved.ok || !saved.savedItem) {
+      notify(saved.error || t(lang, '保存追问失败', 'Failed to save follow-up'), 'error');
+      return;
+    }
     setSavedLatest(true);
-    onSavedFollowup?.(cardId, {
-      id: followupRes.value.item.id,
-      question: questionText.slice(0, 1000),
-      answer: answerText.slice(0, 8000),
-      at: new Date().toISOString(),
-    });
-    if (!noteRes.ok) {
-      const reason = noteRes.error?.message || t(lang, '写入学习笔记失败', 'Failed to add Q&A to notes');
-      notify(
-        t(
-          lang,
-          `已保存到本题讲解（下次可直接复用），但写入学习笔记失败：${reason}`,
-          `Saved to question explanations (reused next time), but adding to notes failed: ${reason}`,
-        ),
-        'warning',
-      );
+    onSavedFollowup?.(cardId, saved.savedItem);
+    if (!saved.noteSaved && saved.warning) {
+      notify(saved.warning, 'warning');
       return;
     }
     notify(t(lang, '已保存到本题讲解与学习笔记，下次打开将直接复用', 'Saved Q&A to notes (reused next time)'), 'success');
@@ -407,7 +461,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
         resetStreaming();
         setStreaming(false);
         onClose();
-        return;
+        return true;
       }
       if (input === 'i' || key.return) {
         setInputFocused(true);

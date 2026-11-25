@@ -252,7 +252,7 @@ describe('Round 84 Track B3 — Review Quick Action Strip & [R] Redo', () => {
     const wide = render(wrap(116, 34), { stdout: wideTty.stdout, stdin: wideTty.stdin, exitOnCtrlC: false, interactive: true });
     const wideText = await wideTty.waitFor((s) => s.includes('[h]讲解'));
     assert.match(wideText, /\[h\]讲解/);
-    assert.match(wideText, /\[T\]带学/);
+    assert.match(wideText, /\[t\]带学/);
     assert.match(wideText, /\[S\]同类/);
     assert.match(wideText, /\[\*\]收藏/);
     assert.match(wideText, /\[R\]重做/);
@@ -271,7 +271,7 @@ describe('Round 84 Track B3 — Review Quick Action Strip & [R] Redo', () => {
     const narrow = render(wrap(76, 22), { stdout: narrowTty.stdout, stdin: narrowTty.stdin, exitOnCtrlC: false, interactive: true });
     const narrowText = await narrowTty.waitFor((s) => s.includes('[h]讲解'));
     assert.match(narrowText, /\[h\]讲解/);
-    assert.match(narrowText, /\[T\]带学/);
+    assert.match(narrowText, /\[t\]带学/);
     assert.match(narrowText, /按\?看全部|\[\?\]/);
     narrow.unmount();
   });

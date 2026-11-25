@@ -186,3 +186,20 @@ test('empty focus topics offer an entry into existing generation from both cours
   assert.equal(m.appendFocus('死锁', ['页面置换', '死锁', '银行家算法']), '死锁；页面置换；银行家算法');
   assert.match(visible(render(h(m.FocusProgressLine, { progress: noWeak, courseId: 'course-os', lock: false, start: noop, onGenerateFocus: noop }), 'en')), /Generate for empty focus topics/);
 });
+
+test('narrow viewports: focus action links wrap instead of overflowing and keep the trailing arrow glued to the last word (#1155)', () => {
+  const css = readFileSync('ui/components/components.css', 'utf8');
+  assert.match(css, /\.sh-btn--link\[class~="sh-btn--wrap"\][^{]*\{[^}]*display:\s*inline;[^}]*min-width:\s*0;/);
+  assert.match(css, /\.sh-btn__tail\s*\{\s*white-space:\s*nowrap;\s*\}/);
+
+  const enWeak = render(h(m.FocusProgressLine, { progress, courseId: 'course-os', lock: false, start: noop, onCourseSettings: noop }), 'en');
+  assert.match(enWeak, /class="sh-btn sh-btn--link sh-btn--md sh-btn--wrap"[^>]*>Practise the focus topics you can&#x27;t do <span class="sh-btn__tail">yet<svg[^>]*sh-icon--inline sh-icon--trail/);
+  assert.match(visible(enWeak), /Practise the focus topics you can't do yet/);
+
+  const noWeak = { ...progress, weak: 0, none: 1, weakScope: [], topics: [{ topic: 'Paging', cards: 0, counts: counts(), mastery: 0, status: 'none', weakCards: [] }] };
+  const enEmpty = render(h(m.FocusProgressLine, { progress: noWeak, courseId: 'course-os', lock: false, start: noop, onCourseSettings: noop, onGenerateFocus: noop }), 'en');
+  assert.match(enEmpty, /class="sh-btn sh-btn--link sh-btn--md sh-btn--wrap"[^>]*>Generate for empty focus <span class="sh-btn__tail">topics<svg[^>]*sh-icon--inline sh-icon--trail/);
+
+  const zhWeak = render(h(m.FocusProgressLine, { progress, courseId: 'course-os', lock: false, start: noop, onCourseSettings: noop }), 'zh');
+  assert.match(zhWeak, /class="sh-btn sh-btn--link sh-btn--md sh-btn--wrap"[^>]*><span class="sh-btn__tail">练还不会的重点<svg[^>]*sh-icon--inline sh-icon--trail/);
+});

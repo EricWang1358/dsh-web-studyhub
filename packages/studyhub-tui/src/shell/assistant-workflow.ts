@@ -80,7 +80,7 @@ export function planAssistantWorkflow(
   // #1339: Only treat input as a multi-step workflow when at least one clause is an executable action.
   // Ordinary questions containing semicolons or "然后"/"再" stay a single prompt for the model.
   const hasExecutableAction = steps.some(
-    (s) => s.intent.kind !== 'chat' && s.intent.kind !== 'unsupported',
+    (s) => s.intent.kind !== 'chat' && s.intent.kind !== 'boundary',
   );
   if (!hasExecutableAction) return null;
 
@@ -123,15 +123,40 @@ export function cancelWorkflowPlan(plan: AssistantWorkflowPlan): AssistantWorkfl
   return { ...plan, cancelled: true };
 }
 
+export function formatWorkflowOutcomeSummary(
+  plan: AssistantWorkflowPlan,
+  lang: UiLanguage,
+): string {
+  const doneCount = plan.steps.filter((s) => s.status === 'done').length;
+  const skippedCount = plan.steps.filter((s) => s.status === 'skipped').length;
+  const failedCount = plan.steps.filter((s) => s.status === 'failed').length;
+  if (skippedCount === 0 && failedCount === 0) {
+    return lang === 'en'
+      ? `Completed ${doneCount}-step plan`
+      : `多步任务已完成（${doneCount} 步）`;
+  }
+  if (lang === 'en') {
+    const parts = [`${doneCount} done`];
+    if (skippedCount > 0) parts.push(`${skippedCount} skipped`);
+    if (failedCount > 0) parts.push(`${failedCount} failed`);
+    return `Multi-step plan partially completed (${parts.join(', ')})`;
+  }
+  const parts = [`已执行 ${doneCount} 步`];
+  if (skippedCount > 0) parts.push(`跳过 ${skippedCount} 步`);
+  if (failedCount > 0) parts.push(`失败 ${failedCount} 步`);
+  return `多步任务部分完成（${parts.join('，')}）`;
+}
+
 export function formatWorkflowChecklist(
   plan: AssistantWorkflowPlan,
   lang: UiLanguage,
   asciiMode: boolean,
 ): string {
+  const doneCount = plan.steps.filter((s) => s.status === 'done').length;
   const header =
     lang === 'en'
-      ? `Multi-step plan (${Math.min(plan.activeIndex, plan.steps.length)}/${plan.steps.length}):`
-      : `多步任务计划（已完成 ${Math.min(plan.activeIndex, plan.steps.length)}/${plan.steps.length}）：`;
+      ? `Multi-step plan (${doneCount}/${plan.steps.length} done):`
+      : `多步任务计划（已执行 ${doneCount}/${plan.steps.length}）：`;
   const lines = [header];
   for (const s of plan.steps) {
     const icon =

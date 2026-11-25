@@ -1,7 +1,8 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { homedir } from 'node:os';
 import { isAbsolute, resolve } from 'node:path';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { atomicWriteExportText, atomicWriteTextFile, defaultBackupFilePath } from '../../host/atomic-write.js';
@@ -94,7 +95,7 @@ export const BookExportModal = memo(function BookExportModal({
   course,
   isActive,
   width,
-  height,
+  height: _height,
   onClose,
 }: BookExportModalProps) {
   const theme = useTheme();

@@ -20,14 +20,27 @@ import type { GuidedStageId } from '../render/clipboard.js';
 
 export type AssistantTabId = 'assistant' | 'guided';
 
+export interface AssistantCardCitation {
+  sourceId?: string;
+  sourceTitle?: string;
+  pageNumber?: number;
+  quote?: string;
+}
+
 export interface AssistantCardContext {
   runId?: string;
   deckId?: string;
   cardId: string;
   cardIndex?: number;
   total?: number;
+  topic?: string;
   prompt?: string;
+  options?: Array<{ id: string; text: string; correct?: boolean }>;
   userAnswer?: string;
+  /** Fixed grounding fields for true multi-turn assistant tutoring (#1445). */
+  answer?: string;
+  explanation?: string;
+  citations?: AssistantCardCitation[];
   kind?: string;
   isWrong?: boolean;
   revealed?: boolean;
@@ -37,6 +50,15 @@ export interface AssistantCardContext {
   filterQuery?: string;
   selectedLabel?: string;
 }
+
+/** The parts of a review run the store hands from the assistant to ReviewView (#1447). */
+export type ReviewRunLike = {
+  id?: string;
+  index?: number;
+  deckId?: string | null;
+  card?: { id?: string; [k: string]: unknown } | null;
+  [k: string]: unknown;
+};
 
 export const DEFAULT_PREFERENCES: TuiPreferences = {
   theme: 'dsh-dark',
@@ -51,6 +73,7 @@ export const DEFAULT_PREFERENCES: TuiPreferences = {
 
 const MAX_HISTORY = 24;
 const MAX_TOASTS = 4;
+export const MAX_TOAST_HISTORY = 50;
 
 export interface PomodoroState {
   phase: 'work' | 'break';
@@ -89,6 +112,16 @@ export interface TuiStoreState {
   practiceStack: PracticeContextFrame[];
   pendingPracticeRestore: PracticeContextFrame | null;
 
+  /**
+   * The run an assistant action got back from the backend (#1447). Review consumes it and applies it,
+   * so a slay/undo/queue edit/grade change made in the assistant is visible there immediately.
+   */
+  pendingReviewRun: ReviewRunLike | null;
+  /** Bumped with every pending run, so an identical run is still applied. */
+  pendingReviewRunSeq: number;
+  setPendingReviewRun: (run: ReviewRunLike | null) => void;
+  consumePendingReviewRun: () => ReviewRunLike | null;
+
   /** Persistent AI Assistant + Guided Study/Retell panel (#1315 Phase 1). Opening/closing NEVER touches practiceStack. */
   assistantOpen: boolean;
   /** True only when user explicitly focuses the docked panel (or fullscreen); false keeps page focus for answering/paging! */
@@ -111,6 +144,8 @@ export interface TuiStoreState {
 
   /** UI feedback */
   toasts: ToastItem[];
+  /** Persistent recent notifications ring buffer (up to MAX_TOAST_HISTORY) for recall after auto-dismiss (#1354 P2-b). */
+  toastHistory: ToastItem[];
   footerHints: KeyHint[];
   preferences: TuiPreferences;
   pomodoro: PomodoroState;
@@ -159,6 +194,7 @@ export interface TuiStoreState {
 
   notify: (text: string, tone?: ToastItem['tone']) => void;
   dismissToast: (id: string) => void;
+  clearToastHistory: () => void;
   setFooterHints: (hints: KeyHint[]) => void;
 
   setPreferences: (patch: Partial<TuiPreferences>) => void;
@@ -188,6 +224,8 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
   showLaunchpad: false,
   practiceStack: [],
   pendingPracticeRestore: null,
+  pendingReviewRun: null,
+  pendingReviewRunSeq: 0,
   assistantOpen: false,
   assistantFocused: false,
   assistantTab: 'assistant',
@@ -206,6 +244,7 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
   quitGuard: null,
 
   toasts: [],
+  toastHistory: [],
   footerHints: [],
   preferences: { ...DEFAULT_PREFERENCES },
   pomodoro: { ...DEFAULT_POMODORO },
@@ -231,6 +270,12 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
 
   goBack: () => {
     const prev = get();
+    // #1412: on the practice page the docked assistant is the top-most layer: "back" folds it away
+    // first, so a second Esc after returning the keyboard to the page never ends the run by surprise.
+    if (prev.page === 'review' && prev.assistantOpen && !prev.assistantFocused && !prev.assistantFullscreen) {
+      set({ assistantOpen: false, assistantFocused: false, assistantFullscreen: false });
+      return;
+    }
     if (prev.history.length === 0) {
       if (prev.page !== 'library') set({ page: 'library', navContext: {} });
       return;
@@ -294,6 +339,18 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
   },
 
   clearPracticeStack: () => set({ practiceStack: [], pendingPracticeRestore: null }),
+
+  setPendingReviewRun: (run) =>
+    set((state) => ({
+      pendingReviewRun: run,
+      pendingReviewRunSeq: run ? state.pendingReviewRunSeq + 1 : state.pendingReviewRunSeq,
+    })),
+
+  consumePendingReviewRun: () => {
+    const run = get().pendingReviewRun;
+    if (run) set({ pendingReviewRun: null });
+    return run;
+  },
 
   openAssistant: (opts) =>
     set((state) => ({
@@ -366,6 +423,7 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
     const item: ToastItem = { id, text, tone, createdAt: Date.now() };
     set((state) => ({
       toasts: [...state.toasts.slice(-(MAX_TOASTS - 1)), item],
+      toastHistory: [...state.toastHistory.slice(-(MAX_TOAST_HISTORY - 1)), item],
     }));
   },
 
@@ -373,6 +431,8 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
     set((state) => ({
       toasts: state.toasts.filter((t) => t.id !== id),
     })),
+
+  clearToastHistory: () => set({ toastHistory: [] }),
 
   setFooterHints: (footerHints) => set({ footerHints }),
 

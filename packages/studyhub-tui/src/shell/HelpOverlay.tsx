@@ -1,5 +1,7 @@
 import React, { memo, useMemo } from 'react';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../components/key-dispatcher.js';
+import { useStableWindowSize } from '../components/resize.js';
 import { PAGE_REGISTRY, type KeyHint, type UiLanguage } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
 import { getColorLevel, makeChalk, useTheme } from '../theme/tokens.js';
@@ -8,6 +10,7 @@ import { Modal, modalContentWidth } from '../components/Modal.js';
 import { ScrollView } from '../components/ScrollView.js';
 import { ClickableBox } from '../components/mouse.js';
 import { pageIcon } from './data.js';
+import { buildGlobalHelpShortcuts } from './global-keymap.js';
 
 export interface HelpOverlayProps {
   isActive: boolean;
@@ -22,33 +25,7 @@ export interface ShortcutSection {
 }
 
 export function globalShortcuts(lang: 'zh' | 'en', asciiMode = false): KeyHint[] {
-  return [
-    { key: 'Ctrl+K  /', label: t(lang, '命令面板 / 全文搜题与原文', 'Command palette & search') },
-    { key: 'Ctrl+Space', label: t(lang, '停靠 AI 助手 / 带学 (Ctrl+G聚焦 c/C/y复制 F全屏)', 'Dock AI Assistant (Ctrl+G focus, c/C/y copy, F full)') },
-    { key: '?', label: t(lang, '帮助', 'Help') },
-    { key: 'c', label: t(lang, '切换课程', 'Switch course') },
-    { key: 'I', label: t(lang, '收件箱与通知', 'Notification inbox') },
-    { key: '1-9 0', label: t(lang, '跳转页面', 'Jump to page') },
-    { key: '[  ]', label: t(lang, '上/下一页面', 'Prev / next page') },
-    { key: asciiMode ? 'Bksp' : '⌫', label: t(lang, '返回', 'Back') },
-    { key: '\\', label: t(lang, '折叠侧栏', 'Toggle sidebar') },
-    { key: 'Ctrl+R', label: t(lang, '刷新', 'Refresh') },
-    { key: 'q', label: t(lang, '退出', 'Quit') },
-    { key: asciiMode ? 'j/k' : 'j/k ↑↓', label: t(lang, '列表 / 行移动', 'Move up / down') },
-    { key: 'Ctrl+D/U', label: t(lang, '半页下/上翻', 'Half-page scroll') },
-    { key: 'Ctrl+F/B', label: t(lang, '整页下/上翻', 'Full-page scroll') },
-    { key: 'g/G', label: t(lang, '首尾跳转 (Home/End)', 'Top / bottom (Home/End)') },
-    { key: 'Esc', label: t(lang, '关闭 / 取消', 'Close / cancel') },
-    { key: 'Ctrl+S', label: t(lang, '提交 (Ctrl+J/Shift+Enter换行)', 'Submit (Ctrl+J/Shift+Enter nl)') },
-    {
-      key: asciiMode ? 'Alt+Click' : t(lang, 'Alt+点击', 'Alt+Click'),
-      label: t(
-        lang,
-        'Alt+点击 = 鼠标操作；普通点击保留终端选择 (--mouse-alt=0 放开普通点击)',
-        'Alt+click = mouse action; plain click keeps terminal selection (--mouse-alt=0 allows plain)',
-      ),
-    },
-  ];
+  return buildGlobalHelpShortcuts(lang, asciiMode);
 }
 
 export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
@@ -79,7 +56,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'Space/Enter', label: t(lang, '翻开答案 / 提交选择', 'Reveal answer / submit') },
         { key: '0-5', label: t(lang, 'FSRS-6 六级记忆自评', 'FSRS-6 six-grade rating') },
         { key: 'h', label: t(lang, 'AI 帮我理解 / 讲解抽屉', 'AI Tutor / explanation drawer') },
-        { key: 'T', label: t(lang, '带学（可直接进复述阶段）', 'Guided Study (direct to Retell stage)') },
+        { key: 't', label: t(lang, '带学（可直接进复述阶段）', 'Guided Study (direct to Retell stage)') },
         { key: '*', label: t(lang, '标记重点', 'Toggle focus') },
         { key: 'G', label: t(lang, 'AI 评分标准批改', 'AI rubric grade') },
         { key: 'A', label: t(lang, '答题卡 / 案例强化', 'Answer card & drills') },
@@ -280,7 +257,7 @@ export function buildInAppGuideLines(lang: UiLanguage, width: number, asciiMode 
           {
             heading: '1. First-Time Setup & Three Screen Areas',
             bullets: [
-              'TopBar: active page, course [c], inbox [I], running jobs, due count, model status, [?] Help & [/]/[Ctrl+K] Palette.',
+              'TopBar: active page, course [c], inbox [I] (press [h] inside for recent toast history, last 50 multi-line notices), running jobs, due count, model status, [?] Help & [/]/[Ctrl+K] Palette.',
               'SideNav: Daily / Exam / Tools groups + top Resume [r]. Keys overridden by the current page are automatically hidden on SideNav.',
               'Reserved global keys (never shadowed): [r] Return to active review, [q] Safe quit (confirms during practice/exam), [?] Help/Guide.',
               'Models: press [,] -> [1] Models to activate agy CLI or OpenAI-compatible provider. Offline 0-token features still work without a model.',
@@ -298,7 +275,7 @@ export function buildInAppGuideLines(lang: UiLanguage, width: number, asciiMode 
           {
             heading: '3. Review Page, AI Drawer & Next-Step Instructions',
             bullets: [
-              'Bottom keys: [h] AI Tutor (reuses saved Q&As; [R] regenerates with AI call; [N] saves for reuse), [T] Guided Study/Retell (AI Assistant; standalone modals: [L] Socratic Teach, [F] Feynman Retell), [S] Similar, [*] Focus, [G] Rubric Grade, [A] Answer Card, [W] Translate, [D] Card Tools, [Q] Queue, [E] Flag, [s] Skip, [u] Undo, [,/.] Prev/Next, [o] Source, [X] End Round.',
+              'Bottom keys: [h] AI Tutor (reuses saved Q&As; [R] regenerates with AI call; [N] saves for reuse), [t] Guided Study/Retell (AI Assistant; standalone modals: [L] Socratic Teach, [F] Feynman Retell), [S] Similar, [*] Focus, [G] Rubric Grade, [A] Answer Card, [W] Translate, [D] Card Tools, [Q] Queue, [E] Flag, [s] Skip, [u] Undo, [,/.] Prev/Next, [o] Source, [X] End Round.',
               'After any AI tool result (Vocab, Teach, Retell, Answer Card, Similar), press [a] at the bottom bar to give custom follow-up instructions or pick quick presets [1-4], then [N] to save.',
               'FSRS-6 Rating [0-5]: 0 Blackout, 1 Forgot, 2 Barely, 3 Hard, 4 Good (standard), 5 Easy. Misrated? Press [u] to undo.',
             ],
@@ -317,7 +294,7 @@ export function buildInAppGuideLines(lang: UiLanguage, width: number, asciiMode 
           {
             heading: '一、第一次打开：看懂三块区域与保留键',
             bullets: [
-              '顶栏：当前页面、课程 [c]、收件箱 [I]、后台任务、今日到期、模型状态、[?] 帮助与命令面板。',
+              '顶栏：当前页面、课程 [c]、收件箱 [I]（按 [h] 切「近期提示」可回看最近 50 条多行提示）、后台任务、今日到期、模型状态、[?] 帮助与命令面板。',
               '左侧栏：每日/考试/整理 15 页 + 顶部「继续练习 r」。当前页覆盖了某个字母键时，侧栏会自动隐藏该键避免误导。',
               '三大保留全局键（任何页面不覆盖）：[r] 回到题目/继续练习、[q] 安全退出（刷题/考试中带确认）、[?] 帮助与教程。',
               '配模型：按 [,] -> [1] 模型启用 agy CLI 或 OpenAI 兼容预设；没配模型时阅读、刷已有题、错题分流、看板和 CLI 仍可正常用。',
@@ -335,7 +312,7 @@ export function buildInAppGuideLines(lang: UiLanguage, width: number, asciiMode 
           {
             heading: '三、刷题页工具、AI 抽屉、后续指令与自评 0-5',
             bullets: [
-              '底部键：[h]讲解(复用已存讲解，[R]重生成调用模型，[N]保存供下次复用) [T]带学(常驻助手带学/复述；独立弹窗：[L]苏格拉底带学 [F]费曼复述) [S]同类 [*]收藏 [G]评分 [A]答题卡 [W]翻译 [D]工具 [Q]队列 [E]标记 [s]跳过 [u]撤销 [,/.]换题 [o]原文 [X]结束本轮。',
+              '底部键：[h]讲解(复用已存讲解，[R]重生成调用模型，[N]保存供下次复用) [t]带学(常驻助手带学/复述；独立弹窗：[L]苏格拉底带学 [F]费曼复述) [S]同类 [*]收藏 [G]评分 [A]答题卡 [W]翻译 [D]工具 [Q]队列 [E]标记 [s]跳过 [u]撤销 [,/.]换题 [o]原文 [X]结束本轮。',
               'AI 结果页（生词提取/带学/复述/答题卡/同类题）底部统一按 [a] 自由下指令，或选 [1-4] 快捷项，回答后按 [N] 存追问/笔记。',
               'FSRS-6 自评 [0-5]：0完全不会 / 1看答案才想起 / 2勉强或漏细节 / 3困难但对 / 4正常记住(常用) / 5秒杀。选错马上按 [u] 撤销。',
             ],
@@ -369,7 +346,7 @@ export function buildInAppGuideLines(lang: UiLanguage, width: number, asciiMode 
 
 export const HelpOverlay = memo(function HelpOverlay({ isActive, onClose, pageHints }: HelpOverlayProps) {
   const theme = useTheme();
-  const { columns, rows } = useWindowSize();
+  const { columns, rows } = useStableWindowSize();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const footer = useTuiStore((s) => s.footerHints);

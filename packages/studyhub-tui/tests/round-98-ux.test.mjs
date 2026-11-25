@@ -129,7 +129,7 @@ describe('Round 98 Track B11 — All-6-Themes WCAG Accessibility & Zero Dead End
     // Zero dead-end verification across all unsupported categories
     for (const raw of ['帮我发邮件给同学', '帮我格式化硬盘', '执行 rm -rf /', '帮我查明天天气']) {
       const intent = parseAssistantIntent(raw, { lang: 'zh' });
-      assert.equal(intent.kind, 'unsupported', `Expected unsupported for "${raw}"`);
+      assert.equal(intent.kind, 'boundary', `Expected boundary for "${raw}"`);
       assert.ok(intent.alternativeLabel.length > 0);
       assert.ok(intent.alternativeCommand.length > 0);
       const prompt = buildFallbackPrompt({ instruction: raw, course: 'OS', lang: 'zh' });

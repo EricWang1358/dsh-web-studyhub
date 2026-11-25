@@ -205,24 +205,47 @@ test('总纲: open from the home, expand, pick two questions in two chapters, pr
 });
 
 /* The round does not depend on the day (#1131: the test looked date-dependent because it failed after midnight; the cause was a loop that raced the answer of a grade, and the same
-   failure happened at noon). Run it with the page's clock and the service's clock fixed at several days, on both sides of midnight, a year end and a day in March. Both clocks are fixed to the same instant. (With both fixed in mid-October the page stayed in its loading state while either clock alone did not; that is not understood
-   and not this test's question, so no October day is in the list.) */
-const DAYS = ['2026-11-17T12:00:00+08:00', '2026-11-17T23:59:40+08:00', '2026-11-18T00:00:20+08:00', '2026-11-18T03:20:00+08:00', '2026-12-31T23:59:50+00:00', '2027-03-01T00:00:10-08:00'];
+   failure happened at noon). Run it with the page's clock and the service's clock fixed at several days, including mid-October, both sides of midnight, a year end and a day in March.
+   Both clocks are fixed to the same instant.
+   (#1152: playwright-core's Clock.setFixedTime embeds Node's Date.now() into the browser initScript's controller.log('setFixedTime', Date.now(), timeMillis). If Node's Date is mocked
+   BEFORE setFixedTime runs, Chromium's ClockController._replayLogOnce() advances ticks by (realDateNow - mockedDay); for a day 25–49 days in the past (e.g. Oct 15 when run in Nov,
+   or Nov 17 once Dec 12 passes), ticks > 2^31 - 1 and _updateRealTimeTimer()'s negative delay (100 - ticks) wraps around WebIDL signed 32-bit long (ToInt32) to +10..24 days, freezing
+   every page timer including React's Suspense throttle on deferredView. Fixing the browser clock BEFORE enabling Node's mock.timers keeps lastLogTime at real wall-clock time while both
+   browser Date and server Date stay frozen at `day`.) */
+const DAYS = [
+  '2026-10-15T12:00:00+08:00',
+  '2026-11-17T12:00:00+08:00',
+  '2026-11-17T23:59:40+08:00',
+  '2026-11-18T00:00:20+08:00',
+  '2026-11-18T03:20:00+08:00',
+  '2026-12-31T23:59:50+00:00',
+  '2027-03-01T00:00:10-08:00',
+];
 
-test('总纲: the practice round of two picked questions finishes on any day (the clock fixed at six days, both sides of midnight)', { timeout: 600000 }, async (t) => {
+/** Fix the browser clock while Node's Date is still real, then freeze Node's Date for the server (#1152). */
+async function freezePageThenServerClock(context, day, timers = mock.timers) {
+  const target = new Date(day);
+  await context.clock.setFixedTime(target);
+  timers.enable({ apis: ['Date'], now: target });
+  return target.getTime();
+}
+
+test('总纲: the practice round of two picked questions finishes on any day (the clock fixed at seven days, including mid-October and both sides of midnight)', { timeout: 600000 }, async (t) => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-outline-days-'));
   await buildPreview({ outdir: dist });
   try {
     for (const day of DAYS) {
-      mock.timers.enable({ apis: ['Date'], now: new Date(day) });
-      const running = await startLateServer({ distDir: dist, seed });
+      const { page, errors, context } = await openPage(browser, null, { width: 420, height: 1000, theme: 'dark' });
+      let running;
       try {
-        const { page, errors, context } = await openPage(browser, running, { width: 420, height: 1000, theme: 'dark' });
-        await context.clock.setFixedTime(new Date(day));
+        const expectedMs = await freezePageThenServerClock(context, day);
+        running = await startLateServer({ distDir: dist, seed });
         await slowGrades(page);
         await page.goto(running.server.url);
+        assert.equal(Date.now(), expectedMs, `${day}: server clock is fixed to the target day`);
+        assert.equal(await page.evaluate(() => Date.now()), expectedMs, `${day}: browser clock is fixed to the target day`);
         await page.locator('.course-header .outline-entry').click();
         await page.locator('.outline-tree').waitFor({ timeout: 30000 });
         const book = await page.locator('.outline-tree > .outline-row').first().getAttribute('data-key');
@@ -235,8 +258,34 @@ test('总纲: the practice round of two picked questions finishes on any day (th
         assert.deepEqual((await answerRound(page, 2)).sort(), ['i1', 'i2'], `${day}: each picked question is answered once`);
         assert.equal((await page.locator('.result-next .sh-btn--primary').innerText()).replace(/\s+/g, ' ').trim(), '回到总纲', `${day}: the round ends on the way back to the 总纲`);
         assert.deepEqual(errors, [], `${day}: no page errors`);
-        await context.close();
-      } finally { await running.close(); mock.timers.reset(); }
+      } finally {
+        mock.timers.reset();
+        await context.close().catch(() => {});
+        if (running) await running.close();
+      }
     }
   } finally { await browser.close(); await rm(dist, { recursive: true, force: true }); }
+});
+
+test('#1152: freezePageThenServerClock sets browser clock before mocking Node Date so Playwright ClockController never overflows WebIDL int32 timers', async (t) => {
+  const oct15 = '2026-10-15T12:00:00+08:00';
+  const expectedMs = new Date(oct15).getTime();
+  let nodeNowDuringSetFixedTime = null;
+  const fakeContext = {
+    clock: {
+      async setFixedTime(date) {
+        nodeNowDuringSetFixedTime = Date.now();
+        assert.equal(date.getTime(), expectedMs);
+      },
+    },
+  };
+  const realBefore = Date.now();
+  try {
+    await freezePageThenServerClock(fakeContext, oct15, t.mock.timers);
+    assert.ok(Math.abs(nodeNowDuringSetFixedTime - realBefore) < 5000, 'setFixedTime must observe real Node Date.now(), not the mocked past date');
+    assert.equal(Date.now(), expectedMs, 'server clock is frozen at the target October instant after setFixedTime');
+  } finally {
+    t.mock.timers.reset();
+  }
+  assert.ok(DAYS.includes(oct15), 'mid-October is restored to the multi-day outline test matrix');
 });

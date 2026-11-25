@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { getReview, tryAction, type ReviewRun } from '../../host/sample-actions.js';
@@ -288,13 +289,15 @@ export const QueueModal = memo(function QueueModal({
     [host, run.id, hydrateMissingDeckMeta, onRunUpdated, lang],
   );
 
+  const reloadRunRef = useRef(reloadRun);
+  reloadRunRef.current = reloadRun;
+
   useEffect(() => {
     setLoading(true);
-    void reloadRun({ syncCursorToCurrent: true }).finally(() => {
+    void reloadRunRef.current({ syncCursorToCurrent: true }).finally(() => {
       if (mountedRef.current) setLoading(false);
     });
     // Only fetch on mount / run id change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run.id]);
 
   const queueEntries = useMemo(() => {

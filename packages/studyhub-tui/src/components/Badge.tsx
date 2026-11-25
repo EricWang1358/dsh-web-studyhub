@@ -2,8 +2,9 @@ import React, { memo, useEffect, useState } from 'react';
 import { Box, Text } from 'ink';
 import type { KeyHint, ToastItem } from '../types/contracts.js';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
-import { displayWidth, truncateDisplay } from '../render/cjk.js';
+import { displayWidth, truncateDisplay, wrapDisplay } from '../render/cjk.js';
 import { renderProgressBar } from '../render/charts.js';
+import { glyph } from '../render/glyphs.js';
 import { useTuiStore } from '../state/store.js';
 
 const ASCII_CHROME_MAP: Record<string, string> = {
@@ -186,12 +187,12 @@ export interface EmptyStateProps {
 export const EmptyState = memo(function EmptyState({ title, hint, icon, actions, width, height }: EmptyStateProps) {
   const theme = useTheme();
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
-  const glyph = icon ? normalizeAsciiChrome(icon, asciiMode) : (asciiMode ? 'o' : '◌');
+  const glyphChar = icon ? normalizeAsciiChrome(icon, asciiMode) : glyph('empty', asciiMode);
   const normTitle = normalizeAsciiChrome(title, asciiMode);
   const normHint = hint ? normalizeAsciiChrome(hint, asciiMode) : undefined;
   return (
     <Box flexDirection="column" alignItems="center" justifyContent="center" width={width} height={height} flexGrow={height ? 0 : 1}>
-      <Text color={theme.dim}>{glyph}</Text>
+      <Text color={theme.dim}>{glyphChar}</Text>
       <Box marginTop={1}>
         <Text color={theme.text} bold>
           {normTitle}
@@ -233,49 +234,135 @@ export interface KeyHintBarProps {
 
 const MIN_CONTEXTUAL_TIP_COLS = 24;
 
-/** One-line footer: `␣key␣ label  ␣key␣ label …`, dropping hints that don't fit. */
-export const KeyHintBar = memo(function KeyHintBar({ hints, width, right, tip }: KeyHintBarProps) {
-  const theme = useTheme();
-  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
-  const ell = asciiMode ? '...' : '…';
-  const rightText = right
-    ? truncateDisplay(normalizeAsciiChrome(right, asciiMode), Math.max(0, Math.floor(width / 3)), ell)
+export interface KeyHintBarLayoutResult {
+  shown: KeyHint[];
+  hiddenCount: number;
+  overflowText: string;
+  rightText: string;
+  tipText: string;
+  usedWidth: number;
+}
+
+/**
+ * Pure priority + overflow layout math for `KeyHintBar` (#1354 D4).
+ * Orders `primary` (and default) hints ahead of `secondary` hints while preserving
+ * relative order, and emits a compact `+N` overflow indicator whenever hints are clipped.
+ */
+export function computeKeyHintBarLayout(
+  hints: readonly KeyHint[],
+  width: number,
+  opts: { asciiMode?: boolean; lang?: 'zh' | 'en'; right?: string; tip?: string } = {},
+): KeyHintBarLayoutResult {
+  const safeWidth = Math.max(0, Math.floor(width));
+  const asciiMode = Boolean(opts.asciiMode);
+  const ell = glyph('ellipsis', asciiMode);
+  const rightText = opts.right
+    ? truncateDisplay(normalizeAsciiChrome(opts.right, asciiMode), Math.max(0, Math.floor(safeWidth / 3)), ell)
     : '';
-  const budget = width - (rightText ? displayWidth(rightText) + 2 : 0) - 1;
-  const shown: KeyHint[] = [];
-  let used = 1;
+  const rightCost = rightText ? displayWidth(rightText) + 1 : 0;
+  const budget = Math.max(0, safeWidth - (rightText ? rightCost + 1 : 0));
+
+  // Stable priority partition: primary (or unset) first, secondary second.
+  const ordered: KeyHint[] = [];
   for (const h of hints) {
+    if (h.priority !== 'secondary') ordered.push(h);
+  }
+  for (const h of hints) {
+    if (h.priority === 'secondary') ordered.push(h);
+  }
+
+  const normalized = ordered.map((h) => {
     const normKey = normalizeAsciiChrome(h.key, asciiMode);
     const normLabel = normalizeAsciiChrome(h.label, asciiMode);
-    const w = displayWidth(normKey) + 2 + 1 + displayWidth(normLabel) + 2;
-    if (used + w > budget) break;
-    used += w;
-    shown.push({ ...h, key: normKey, label: normLabel });
-  }
-  let tipText = '';
-  if (!rightText && tip) {
-    const remaining = budget - used - 2;
-    if (remaining >= MIN_CONTEXTUAL_TIP_COLS) {
-      const prefix = asciiMode ? '* ' : '💡 ';
-      const norm = normalizeAsciiChrome(`${prefix}${tip}`, asciiMode);
-      tipText = truncateDisplay(norm, remaining, ell);
+    const itemWidth = displayWidth(normKey) + 2 + 1 + displayWidth(normLabel) + 2;
+    return { hint: { ...h, key: normKey, label: normLabel }, itemWidth };
+  });
+
+  // Pass 1: try fitting every hint with zero overflow.
+  let totalAll = 1;
+  for (const entry of normalized) totalAll += entry.itemWidth;
+
+  let shown: KeyHint[] = [];
+  let used = 1;
+  let hiddenCount = 0;
+  let overflowText = '';
+
+  if (totalAll <= budget) {
+    shown = normalized.map((e) => e.hint);
+    used = totalAll;
+  } else {
+    const formatOverflow = (count: number, hasHelpKey: boolean): string => {
+      if (count <= 0) return '';
+      return hasHelpKey ? `+${count}` : `?+${count}`;
+    };
+
+    // Greedily pack hints while guaranteeing space for the compact overflow badge.
+    // The badge reserves exactly the columns it paints: no extra padding column, otherwise the last
+    // hint of an 80/120-col view footer gets evicted for a column nothing occupies (#1452).
+    const packed: typeof normalized = [];
+    for (let i = 0; i < normalized.length; i += 1) {
+      const entry = normalized[i];
+      const nextHidden = normalized.length - (packed.length + 1);
+      const hasHelp = packed.some((p) => p.hint.key === '?') || entry.hint.key === '?';
+      const badgeReserve = nextHidden > 0 ? displayWidth(formatOverflow(nextHidden, hasHelp)) : 0;
+      if (used + entry.itemWidth + badgeReserve > budget) break;
+      packed.push(entry);
+      used += entry.itemWidth;
+    }
+    shown = packed.map((p) => p.hint);
+    hiddenCount = Math.max(0, normalized.length - shown.length);
+    if (hiddenCount > 0) {
+      const hasHelp = shown.some((h) => h.key === '?');
+      const candidate = formatOverflow(hiddenCount, hasHelp);
+      const avail = Math.max(0, budget - used);
+      overflowText = displayWidth(candidate) <= avail ? candidate : truncateDisplay(`+${hiddenCount}`, avail, ell);
+      if (overflowText) used += displayWidth(overflowText);
     }
   }
+
+  let tipText = '';
+  if (!rightText && !overflowText && opts.tip) {
+    const remaining = budget - used - 2;
+    if (remaining >= MIN_CONTEXTUAL_TIP_COLS) {
+      const prefix = `${glyph('tip', asciiMode)} `;
+      const norm = normalizeAsciiChrome(`${prefix}${opts.tip}`, asciiMode);
+      tipText = truncateDisplay(norm, remaining, ell);
+      if (tipText) used += displayWidth(tipText) + 1;
+    }
+  }
+
+  return {
+    shown,
+    hiddenCount,
+    overflowText,
+    rightText,
+    tipText,
+    usedWidth: Math.min(safeWidth, used + rightCost),
+  };
+}
+
+/** One-line footer: `␣key␣ label  ␣key␣ label …`, prioritizing primary hints and showing a compact `+N` overflow badge. */
+export const KeyHintBar = memo(function KeyHintBar({ hints, width, right, tip }: KeyHintBarProps) {
+  const theme = useTheme();
+  const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const layout = computeKeyHintBarLayout(hints, width, { asciiMode, lang, right, tip });
   return (
     <Box width={width} height={1} overflow="hidden">
       <Box flexGrow={1}>
         <Text> </Text>
-        {shown.map((h) => (
+        {layout.shown.map((h) => (
           <Text key={`${h.key}:${h.label}`}>
             <Text backgroundColor={theme.surface} color={theme.accent} bold>{` ${h.key} `}</Text>
             <Text color={theme.muted}>{` ${h.label}  `}</Text>
           </Text>
         ))}
+        {layout.overflowText ? <Text color={theme.dim}>{layout.overflowText}</Text> : null}
       </Box>
-      {rightText ? (
-        <Text color={theme.dim}>{`${rightText} `}</Text>
-      ) : tipText ? (
-        <Text color={theme.dim}>{`${tipText} `}</Text>
+      {layout.rightText ? (
+        <Text color={theme.dim}>{`${layout.rightText} `}</Text>
+      ) : layout.tipText ? (
+        <Text color={theme.dim}>{`${layout.tipText} `}</Text>
       ) : null}
     </Box>
   );
@@ -293,6 +380,38 @@ export interface ToastStackProps {
 
 const TOAST_ICON: Record<ToastItem['tone'], string> = { info: 'ℹ', success: '✔', warning: '▲', error: '✖' };
 const ASCII_TOAST_ICON: Record<ToastItem['tone'], string> = { info: 'i', success: '+', warning: '!', error: 'x' };
+const MAX_TOAST_LINES = 4;
+
+/** Wrap toast message across up to `maxLines` lines without single-line clipping (#1354 P2-b). */
+export function wrapToastLines(text: string, maxWidth: number, asciiMode: boolean, maxLines = MAX_TOAST_LINES): string[] {
+  const safeW = Math.max(8, Math.floor(maxWidth));
+  const ell = glyph('ellipsis', asciiMode);
+  const normalized = normalizeAsciiChrome(text, asciiMode).replace(/\r\n?/g, '\n').trim();
+  if (!normalized) return [''];
+  const rawLines = wrapDisplay(normalized, safeW);
+  if (rawLines.length <= maxLines) return rawLines;
+  const kept = rawLines.slice(0, maxLines);
+  kept[maxLines - 1] = truncateDisplay(`${kept[maxLines - 1]} ${rawLines.slice(maxLines).join(' ')}`, safeW, ell);
+  return kept;
+}
+
+/** Scale auto-dismiss TTL by severity and wrapped line count so multi-line warnings/errors stay readable. */
+export function toastAutoDismissMs(toast: Pick<ToastItem, 'tone'>, baseMs: number, lineCount = 1): number {
+  if (baseMs <= 0) return 0;
+  const severityMul = toast.tone === 'error' ? 2.5 : toast.tone === 'warning' ? 1.5 : 1;
+  const extraLineMs = Math.max(0, lineCount - 1) * 800;
+  return Math.round(baseMs * severityMul + extraLineMs);
+}
+
+/** Estimate total terminal rows needed for the visible ToastStack slice so AppShell positions it cleanly. */
+export function estimateToastStackHeight(toasts: readonly ToastItem[], width: number, asciiMode: boolean): number {
+  const visible = toasts.slice(-2);
+  let total = 0;
+  for (const t of visible) {
+    total += wrapToastLines(t.text, Math.max(8, width - 6), asciiMode).length;
+  }
+  return total;
+}
 
 const ToastRow = memo(function ToastRow({
   toast,
@@ -307,29 +426,33 @@ const ToastRow = memo(function ToastRow({
 }) {
   const theme = useTheme();
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const lines = wrapToastLines(toast.text, Math.max(8, width - 6), asciiMode);
+  const lineCount = lines.length;
   useEffect(() => {
-    if (autoDismissMs <= 0) return undefined;
-    const ttl = toast.tone === 'error' ? autoDismissMs * 2 : autoDismissMs;
+    const ttl = toastAutoDismissMs(toast, autoDismissMs, lineCount);
+    if (ttl <= 0) return undefined;
     const remaining = Math.max(250, ttl - (Date.now() - toast.createdAt));
     const timer = setTimeout(() => onDismiss(toast.id), remaining);
     return () => clearTimeout(timer);
-  }, [toast.id, toast.tone, toast.createdAt, autoDismissMs, onDismiss]);
+  }, [toast, lineCount, autoDismissMs, onDismiss]);
   const color = toneColor(theme, toast.tone);
-  const normalizedText = normalizeAsciiChrome(toast.text, asciiMode).replace(/\s+/g, ' ');
-  const text = truncateDisplay(normalizedText, Math.max(4, width - 6), asciiMode ? '...' : '…');
-  const bar = asciiMode ? '|' : '▎';
+  const bar = glyph('bar', asciiMode);
   const icon = (asciiMode ? ASCII_TOAST_ICON : TOAST_ICON)[toast.tone];
   return (
-    <Box height={1} overflow="hidden">
-      <Text backgroundColor={theme.surface} wrap={asciiMode ? undefined : 'truncate-end'}>
-        <Text color={color} bold>{`${bar} ${icon} `}</Text>
-        <Text color={theme.text}>{`${text} `}</Text>
-      </Text>
+    <Box flexDirection="column" alignItems="flex-end">
+      {lines.map((line, idx) => (
+        <Box key={idx} height={1} overflow="hidden">
+          <Text backgroundColor={theme.surface}>
+            <Text color={color} bold>{idx === 0 ? `${bar} ${icon} ` : `${bar}   `}</Text>
+            <Text color={theme.text}>{`${line} `}</Text>
+          </Text>
+        </Box>
+      ))}
     </Box>
   );
 });
 
-export const ToastStack = memo(function ToastStack({ toasts, onDismiss, width = 44, autoDismissMs = 4000 }: ToastStackProps) {
+export const ToastStack = memo(function ToastStack({ toasts, onDismiss, width = 44, autoDismissMs = 5000 }: ToastStackProps) {
   if (toasts.length === 0) return null;
   const visible = toasts.slice(-2);
   return (
@@ -352,9 +475,9 @@ export interface DividerProps {
 export const Divider = memo(function Divider({ width, label, char }: DividerProps) {
   const theme = useTheme();
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
-  const lineChar = char ?? (asciiMode ? '-' : '─');
+  const lineChar = char ?? glyph('rule', asciiMode);
   if (!label) return <Text color={theme.border}>{lineChar.repeat(Math.max(0, width))}</Text>;
-  const l = truncateDisplay(label, Math.max(0, width - 6), asciiMode ? '...' : '…');
+  const l = truncateDisplay(label, Math.max(0, width - 6), glyph('ellipsis', asciiMode));
   const rest = Math.max(0, width - displayWidth(l) - 4);
   return (
     <Text>

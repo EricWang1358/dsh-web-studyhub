@@ -391,7 +391,7 @@ describe('#1309 text truncation & code wrapping regressions', () => {
       const reviewSec = sections.find((s) => s.title.includes('Review'));
       assert.ok(reviewSec, `HelpOverlay missing Review section for ${lang}`);
       const keysText = reviewSec.items.map((x) => x.key).join(' ');
-      for (const expectedKey of ['h', 'T', '*', 'A', 'W', 'S', 'D', 'Q', 'E', 's', 'u', ',']) {
+      for (const expectedKey of ['h', 't', '*', 'A', 'W', 'S', 'D', 'Q', 'E', 's', 'u', ',']) {
         assert.ok(
           keysText.includes(expectedKey),
           `HelpOverlay Review section (${lang}) missing key "${expectedKey}" in: ${keysText}`,

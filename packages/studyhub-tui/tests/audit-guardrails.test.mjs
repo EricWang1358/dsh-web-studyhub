@@ -268,7 +268,7 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
 
     const review = fs.readFileSync(path.join(SRC_ROOT, 'views/review/ReviewView.tsx'), 'utf8');
     assert.ok(
-      /markdown=\{postAnswerMarkdown\}[\s\S]{0,240}isActive=\{mainActive && revealed\}/.test(review),
+      /markdown=\{postAnswerMarkdown\}[\s\S]{0,240}isActive=\{(?:cardScopeActive|mainActive) && revealed\}/.test(review),
       'ReviewView postAnswerMarkdown MarkdownView must enable scrolling after reveal (#1390)',
     );
 
@@ -302,8 +302,8 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
   test('[Cat 4: Round-2 Multi-Write] ModelsTab, DeckManageModal, and shell/actions handle step-2 failures truthfully (#1394)', () => {
     const modelsTab = fs.readFileSync(path.join(SRC_ROOT, 'views/settings/ModelsTab.tsx'), 'utf8');
     assert.ok(
-      modelsTab.includes('effortError') && modelsTab.includes('binding.set'),
-      'ModelsTab must inspect binding.set result and warn on partial save (#1394)',
+      modelsTab.includes('reasoningEffort: openaiEffort') && !modelsTab.includes("'binding.set'"),
+      'ModelsTab must save OpenAI config and reasoningEffort in one single atomic desktop.config.save write (#1394 / #1354 P3-b)',
     );
     const deckManage = fs.readFileSync(path.join(SRC_ROOT, 'views/library/DeckManageModal.tsx'), 'utf8');
     assert.ok(

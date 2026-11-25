@@ -163,6 +163,26 @@ test('domain contracts: source.folder.apply writes only settings; source.folder.
   assert.equal(estimate.batchCount, 1);
   assert.ok(Number.isInteger(estimate.estimatedInputTokens) && estimate.estimatedInputTokens > 0);
   assert.ok(Number.isInteger(estimate.estimatedOutputTokens) && estimate.estimatedOutputTokens > 0);
+
+  // #1184: usage.estimate { feature: 'classify' } returns a single-number upper-bound estimate without calling any model
+  const usageEst = await service.call('usage.estimate', { feature: 'classify', course: 'Java 八股' });
+  assert.equal(usageEst.feature, 'classify');
+  assert.equal(usageEst.itemCount, 2);
+  assert.equal(usageEst.calls.low, 1);
+  assert.equal(usageEst.calls.high, 1);
+  assert.equal(usageEst.inputTokens.low, estimate.estimatedInputTokens);
+  assert.equal(usageEst.inputTokens.high, estimate.estimatedInputTokens);
+  assert.equal(usageEst.outputTokens.low, estimate.estimatedOutputTokens);
+  assert.equal(usageEst.outputTokens.high, estimate.estimatedOutputTokens);
+  assert.equal(usageEst.totalTokens.low, estimate.estimatedInputTokens + estimate.estimatedOutputTokens);
+  assert.equal(usageEst.totalTokens.high, usageEst.totalTokens.low, 'single upper-bound number (low === high)');
+  assert.equal(usageEst.stages.length, 1);
+  assert.equal(usageEst.stages[0].id, 'classify');
+
+  const emptyUsageEst = await service.call('usage.estimate', { feature: 'classify', course: 'NoSuchCourse' });
+  assert.equal(emptyUsageEst.calls.high, 0);
+  assert.equal(emptyUsageEst.totalTokens.high, 0);
+
   const afterSnap = await service.call('snapshot');
   assert.equal(afterSnap.revision, beforeSnap.revision);
 });
@@ -399,6 +419,19 @@ test('source.folder.suggest scales to 350 items via 1 taxonomy call + 6 batched 
   const est = await service.call('source.folder.suggest', { course: 'Java 八股', estimate: true });
   assert.equal(est.itemCount, 350);
   assert.equal(est.batchCount, 1 + Math.ceil(350 / FOLDER_SUGGEST_BATCH));
+  assert.equal(modelCalls.length, 0);
+
+  // #1184: usage.estimate { feature: 'classify' } splits 2-stage (>60 items) into taxonomy + classifyBatch stages with upper-bound single totals
+  const largeUsageEst = await service.call('usage.estimate', { feature: 'classify', course: 'Java 八股' });
+  assert.equal(largeUsageEst.calls.low, est.batchCount);
+  assert.equal(largeUsageEst.calls.high, est.batchCount);
+  assert.equal(largeUsageEst.totalTokens.low, est.estimatedInputTokens + est.estimatedOutputTokens);
+  assert.equal(largeUsageEst.totalTokens.high, largeUsageEst.totalTokens.low);
+  assert.deepEqual(largeUsageEst.stages.map(s => [s.id, s.calls]), [['taxonomy', 1], ['classifyBatch', Math.ceil(350 / FOLDER_SUGGEST_BATCH)]]);
+  assert.equal(
+    largeUsageEst.stages.reduce((sum, s) => sum + s.inputTokens.high + s.outputTokens.high, 0),
+    largeUsageEst.totalTokens.high,
+  );
   assert.equal(modelCalls.length, 0);
 
   // Taxonomy-only call (1 compact call over all 350 items!)
