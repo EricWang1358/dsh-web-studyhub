@@ -268,7 +268,7 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
 
     const review = fs.readFileSync(path.join(SRC_ROOT, 'views/review/ReviewView.tsx'), 'utf8');
     assert.ok(
-      /markdown=\{postAnswerMarkdown\}[\s\S]{0,240}isActive=\{mainActive && revealed\}/.test(review),
+      /markdown=\{postAnswerMarkdown\}[\s\S]{0,240}isActive=\{(?:cardScopeActive|mainActive) && revealed\}/.test(review),
       'ReviewView postAnswerMarkdown MarkdownView must enable scrolling after reveal (#1390)',
     );
 
