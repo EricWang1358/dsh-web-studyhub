@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { copyFile, mkdir, readFile, stat } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -13,6 +14,7 @@ import { TextInput } from '../../components/TextInput.js';
 import { useInputCapture } from '../../components/focus.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { cleanPathInput, tryAction } from '../../host/sample-actions.js';
+import { runIdempotentTwoStep } from '../../host/tx-write.js';
 import {
   detectImageMimeFromBytes,
   mergeUniqueTopics,
@@ -346,49 +348,55 @@ export const AddFocusModal: React.FC<AddFocusModalProps> = ({
         if (got.ok && got.value) courseRecord = got.value;
       }
 
-      let guidanceIds = [...(courseRecord?.guidanceSourceIds ?? [])];
+      const baseGuidanceIds = [...(courseRecord?.guidanceSourceIds ?? [])];
       const sourceBody = rawText.trim() || (stagedInfo ? `Screenshot staged: ${stagedInfo}\n${imageNotes.trim()}`.trim() : '');
-      if (saveAsMaterial && sourceBody) {
-        if (createdSourceIdRef.current) {
-          if (!guidanceIds.includes(createdSourceIdRef.current)) {
-            guidanceIds = [...guidanceIds, createdSourceIdRef.current];
-          }
-        } else {
+      const finalTopics = mergeUniqueTopics(existingTopics, parsedTopics);
+
+      const tx = await runIdempotentTwoStep<string, boolean>({
+        cachedStep1: createdSourceIdRef.current,
+        setCachedStep1: (val) => {
+          createdSourceIdRef.current = val;
+        },
+        step1: async () => {
+          if (!saveAsMaterial || !sourceBody) return { ok: true, value: '' };
           const added = await tryAction<{ id: string }>(host, 'source.add', {
             title: `${trimmedCourse} · ${t(lang, '考试重点记录', 'Exam Focus Notes')}`,
             text: sourceBody.slice(0, 100_000),
             courses: [trimmedCourse],
             format: 'md',
           });
-          if (added.ok && added.value?.id) {
-            createdSourceIdRef.current = added.value.id;
-            if (!guidanceIds.includes(added.value.id)) {
-              guidanceIds = [...guidanceIds, added.value.id];
-            }
+          if (!added.ok || !added.value?.id) return { ok: true, value: '' };
+          return { ok: true, value: added.value.id };
+        },
+        step2: async (addedSourceId) => {
+          const guidanceIds =
+            addedSourceId && !baseGuidanceIds.includes(addedSourceId)
+              ? [...baseGuidanceIds, addedSourceId]
+              : baseGuidanceIds;
+          const saved = await tryAction(host, 'course.save', {
+            ...(courseRecord?.id ? { id: courseRecord.id } : {}),
+            name: trimmedCourse,
+            ...(courseRecord?.exam ? { exam: courseRecord.exam } : {}),
+            ...(courseRecord?.plan ? { plan: courseRecord.plan } : {}),
+            guidanceSourceIds: guidanceIds,
+            focusTopics: finalTopics,
+          });
+          if (!saved.ok) {
+            return { ok: false, error: saved.error?.message || t(lang, '保存失败', 'Failed to save focus topics') };
           }
-        }
-      }
-
-      const finalTopics = mergeUniqueTopics(existingTopics, parsedTopics);
-      const saved = await tryAction(host, 'course.save', {
-        ...(courseRecord?.id ? { id: courseRecord.id } : {}),
-        name: trimmedCourse,
-        ...(courseRecord?.exam ? { exam: courseRecord.exam } : {}),
-        ...(courseRecord?.plan ? { plan: courseRecord.plan } : {}),
-        guidanceSourceIds: guidanceIds,
-        focusTopics: finalTopics,
+          return { ok: true, value: true };
+        },
       });
       if (!mountedRef.current) return;
-      if (!saved.ok) {
-        const errMsg = saved.error?.message || t(lang, '保存失败', 'Failed to save focus topics');
+      if (!tx.ok) {
         setErrorMsg(
-          createdSourceIdRef.current
+          tx.step1Succeeded && tx.step1Value
             ? t(
                 lang,
-                `参考资料已入库，但保存课程重点失败（${errMsg}）；重试保存将复用已建资料而不重复创建`,
-                `Reference material was saved, but saving course focus failed (${errMsg}); retrying will reuse it without duplicating`,
+                `参考资料已入库，但保存课程重点失败（${tx.error}）；重试保存将复用已建资料而不重复创建`,
+                `Reference material was saved, but saving course focus failed (${tx.error}); retrying will reuse it without duplicating`,
               )
-            : errMsg,
+            : tx.error,
         );
         return;
       }

@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { resolve } from 'node:path';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { currentCourse } from '../../shell/data.js';
@@ -18,6 +19,7 @@ import { SplitPane, type PaneSize } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { useClaimKeys, useInputCapture } from '../../components/focus.js';
+import { LAYOUT_BP, computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { renderProgressBar } from '../../render/charts.js';
@@ -848,7 +850,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
 
   useFooterHints(footerHints, viewInputActive);
 
-  const narrowLayout = width < 90;
+  const narrowLayout = width < LAYOUT_BP.COMPACT;
 
   useInput(
     (input, key) => {
@@ -871,12 +873,12 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       }
       if (key.leftArrow || (key.escape && narrowLayout && activePane === 'right')) {
         setActivePane('left');
-        return;
+        return true;
       }
       if (key.escape && filterQuery) {
         setFilterQuery('');
         setSelectedIdx(0);
-        return;
+        return true;
       }
       if (input === '/' && !key.ctrl && !key.meta) {
         setActivePane('left');
@@ -1450,13 +1452,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
 
   const ell = asciiMode ? '...' : '…';
   const filterBadge = `[${t(lang, '筛选', filterEditing ? 'Filter' : 'Filtered')} ${visibleItems.length}/${tabItems.length}] `;
-  const filterRightHint =
-    width >= 66
-      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
-      : width >= 46
-        ? ' Esc'
-        : '';
-  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
+  const { rightHint: filterRightHint, inputWidth: filterInputW } = computeFilterBarLayout(width, filterBadge, lang, filterEditing);
 
   return (
     <Box flexDirection="column" width={width} height={height}>

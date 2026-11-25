@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -1741,7 +1742,7 @@ export const DocumentReader = memo(function DocumentReader({
           resetTranslation();
           onClose();
         }
-        return;
+        return true;
       }
       if (subMode === 'ask-view') {
         if (input === 's' && !aiBusy) {

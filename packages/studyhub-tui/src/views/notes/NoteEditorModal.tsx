@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
@@ -7,6 +8,7 @@ import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { TextInput } from '../../components/TextInput.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { t, useTuiStore } from '../../state/store.js';
+import { runIdempotentTwoStep } from '../../host/tx-write.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import type { CardSearchOption, NoteItem } from './notes-types.js';
 
@@ -181,46 +183,52 @@ export const NoteEditorModal = memo(function NoteEditorModal({
     setError('');
     try {
       if (mode === 'create') {
-        let finalNote = createdNoteRef.current;
-        if (!finalNote) {
-          const createdRes = await host.call<NoteItem>('note.create', {
-            title: trimmedTitle,
-            cards: selectedCards,
-            language: lang,
-          });
-          if (!mountedRef.current) return;
-          if (!createdRes.ok || !createdRes.value) {
-            setError(createdRes.error?.message || t(lang, '创建笔记失败', 'Failed to create note'));
-            return;
-          }
-          finalNote = createdRes.value;
-          createdNoteRef.current = finalNote;
-        }
         const customMd = markdown.trim();
-        if (customMd) {
-          const fullMd = customMd.startsWith('# ') ? customMd : `# ${trimmedTitle}\n\n${customMd}\n`;
-          const saveRes = await host.call<NoteItem>('note.save', {
-            id: finalNote.id,
-            title: trimmedTitle,
-            markdown: fullMd,
-            expectedRevision: finalNote.revision ?? 0,
-          });
-          if (!mountedRef.current) return;
-          if (!saveRes.ok || !saveRes.value) {
-            const errMsg = saveRes.error?.message || t(lang, '保存正文失败', 'Failed to write note body');
-            setError(
-              t(
-                lang,
-                `笔记已创建但正文写入失败（${errMsg}），重试保存将直接写入正文而不会重复创建`,
-                `Note created but writing body failed (${errMsg}); retrying will update it without duplicating`,
-              ),
-            );
-            return;
-          }
-          finalNote = saveRes.value;
+        const tx = await runIdempotentTwoStep<NoteItem, NoteItem>({
+          cachedStep1: createdNoteRef.current,
+          setCachedStep1: (val) => {
+            createdNoteRef.current = val;
+          },
+          step1: async () => {
+            const createdRes = await host.call<NoteItem>('note.create', {
+              title: trimmedTitle,
+              cards: selectedCards,
+              language: lang,
+            });
+            if (!createdRes.ok || !createdRes.value) {
+              return { ok: false, error: createdRes.error?.message || t(lang, '创建笔记失败', 'Failed to create note') };
+            }
+            return { ok: true, value: createdRes.value };
+          },
+          step2: async (createdNote) => {
+            if (!customMd) return { ok: true, value: createdNote };
+            const fullMd = customMd.startsWith('# ') ? customMd : `# ${trimmedTitle}\n\n${customMd}\n`;
+            const saveRes = await host.call<NoteItem>('note.save', {
+              id: createdNote.id,
+              title: trimmedTitle,
+              markdown: fullMd,
+              expectedRevision: createdNote.revision ?? 0,
+            });
+            if (!saveRes.ok || !saveRes.value) {
+              return { ok: false, error: saveRes.error?.message || t(lang, '保存正文失败', 'Failed to write note body') };
+            }
+            return { ok: true, value: saveRes.value };
+          },
+        });
+        if (!mountedRef.current) return;
+        if (!tx.ok) {
+          setError(
+            tx.step1Succeeded
+              ? t(
+                  lang,
+                  `笔记已创建但正文写入失败（${tx.error}），重试保存将直接写入正文而不会重复创建`,
+                  `Note created but writing body failed (${tx.error}); retrying will update it without duplicating`,
+                )
+              : tx.error,
+          );
+          return;
         }
-        createdNoteRef.current = null;
-        onSaved(finalNote, true);
+        onSaved(tx.step2Value, true);
       } else if (note) {
         const saveRes = await host.call<NoteItem>('note.save', {
           id: note.id,

@@ -1,14 +1,17 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import { atomicWriteExportText, defaultBackupFilePath } from '../../host/atomic-write.js';
+import { runAtomicSteps } from '../../host/tx-write.js';
 import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { Panel } from '../../components/Panel.js';
 import { TextInput } from '../../components/TextInput.js';
 import { parseSgrWheelDelta, useSgrMouseWheel } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
+import { computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { useTheme } from '../../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
@@ -507,63 +510,87 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         let revision = upstream.revision ?? 0;
         let retryConflict = false;
         let editApplied = false;
+        const prevUpstreamCard = upstream.cards[upstreamCardId] as { title?: string; due?: string } | undefined;
+
+        const steps: Array<{
+          name: string;
+          run: () => Promise<{ ok: boolean; value?: number; error?: string }>;
+          rollback?: (rev: unknown) => Promise<void>;
+        }> = [];
 
         if (patch.title !== undefined || patch.due !== undefined) {
-          const editRes = await host.call<{ revision?: number }>('board.card.edit', {
-            revision,
-            id: upstreamCardId,
-            ...(patch.title !== undefined ? { title: patch.title } : {}),
-            ...(patch.due !== undefined ? { due: patch.due } : {}),
+          steps.push({
+            name: 'board.card.edit',
+            run: async () => {
+              const editRes = await host.call<{ revision?: number }>('board.card.edit', {
+                revision,
+                id: upstreamCardId,
+                ...(patch.title !== undefined ? { title: patch.title } : {}),
+                ...(patch.due !== undefined ? { due: patch.due } : {}),
+              });
+              if (!editRes.ok) {
+                return { ok: false, error: editRes.error?.message || t(lang, '更新远端任务失败', 'Failed to edit upstream card') };
+              }
+              editApplied = true;
+              if (typeof editRes.value?.revision === 'number') {
+                revision = editRes.value.revision;
+              }
+              return { ok: true, value: revision };
+            },
+            rollback: async (revAfterEdit) => {
+              if (!prevUpstreamCard) return;
+              const rbRes = await host.call('board.card.edit', {
+                revision: typeof revAfterEdit === 'number' ? revAfterEdit : revision,
+                id: upstreamCardId,
+                ...(patch.title !== undefined && prevUpstreamCard.title !== undefined ? { title: prevUpstreamCard.title } : {}),
+                ...(patch.due !== undefined ? { due: prevUpstreamCard.due ?? '' } : {}),
+              });
+              if (!rbRes.ok) {
+                throw new Error(rbRes.error?.message || 'rollback edit failed');
+              }
+              editApplied = false;
+            },
           });
-          if (!editRes.ok) {
-            lastError = editRes.error?.message || t(lang, '更新远端任务失败', 'Failed to edit upstream card');
-            if (/revision conflict/i.test(lastError)) {
-              retryConflict = true;
-            } else {
-              recordUpstreamFailure(opKey, { kind: 'update', upstreamCardId, patch }, lastError, notifyOnFailure);
-              return { ok: false, error: lastError };
-            }
-          } else {
-            editApplied = true;
-            if (typeof editRes.value?.revision === 'number') {
-              revision = editRes.value.revision;
-            }
-          }
         }
 
-        if (!retryConflict && patch.column) {
-          const remainingPatch = editApplied ? { column: patch.column } : patch;
-          const targetUpstreamCol = resolveUpstreamTargetColumn(upstream.columns, patch.column);
-          if (!targetUpstreamCol) {
-            const baseErr = t(lang, '未找到对应的远端看板列', 'Target upstream column not found');
+        if (patch.column) {
+          const targetCol = patch.column;
+          steps.push({
+            name: 'board.card.move',
+            run: async () => {
+              const targetUpstreamCol = resolveUpstreamTargetColumn(upstream.columns, targetCol);
+              if (!targetUpstreamCol) {
+                return { ok: false, error: t(lang, '未找到对应的远端看板列', 'Target upstream column not found') };
+              }
+              const currentCol = upstream.columns?.find(
+                (c) => Array.isArray(c.cardIds) && c.cardIds.includes(upstreamCardId),
+              );
+              if (currentCol?.id === targetUpstreamCol) return { ok: true, value: revision };
+              const moveRes = await host.call('board.card.move', {
+                revision,
+                id: upstreamCardId,
+                column: targetUpstreamCol,
+              });
+              if (!moveRes.ok) {
+                return { ok: false, error: moveRes.error?.message || t(lang, '移动远端任务失败', 'Failed to move upstream card') };
+              }
+              return { ok: true, value: revision };
+            },
+          });
+        }
+
+        const tx = await runAtomicSteps(steps);
+        if (!tx.ok) {
+          if (/revision conflict/i.test(tx.error)) {
+            lastError = tx.error;
+            retryConflict = true;
+          } else {
+            const remainingPatch = editApplied && patch.column ? { column: patch.column } : patch;
             lastError = editApplied
-              ? t(lang, `任务内容已更新，但列移动失败：${baseErr}`, `Card details updated, but column move failed: ${baseErr}`)
-              : baseErr;
+              ? t(lang, `任务内容已更新，但列移动失败：${tx.error}`, `Card details updated, but column move failed: ${tx.error}`)
+              : tx.error;
             recordUpstreamFailure(opKey, { kind: 'update', upstreamCardId, patch: remainingPatch }, lastError, notifyOnFailure);
             return { ok: false, error: lastError };
-          }
-          const currentCol = upstream.columns?.find(
-            (c) => Array.isArray(c.cardIds) && c.cardIds.includes(upstreamCardId),
-          );
-          if (currentCol?.id !== targetUpstreamCol) {
-            const moveRes = await host.call('board.card.move', {
-              revision,
-              id: upstreamCardId,
-              column: targetUpstreamCol,
-            });
-            if (!moveRes.ok) {
-              const rawErr = moveRes.error?.message || t(lang, '移动远端任务失败', 'Failed to move upstream card');
-              if (/revision conflict/i.test(rawErr)) {
-                lastError = rawErr;
-                retryConflict = true;
-              } else {
-                lastError = editApplied
-                  ? t(lang, `任务内容已更新，但列移动失败：${rawErr}`, `Card details updated, but column move failed: ${rawErr}`)
-                  : rawErr;
-                recordUpstreamFailure(opKey, { kind: 'update', upstreamCardId, patch: remainingPatch }, lastError, notifyOnFailure);
-                return { ok: false, error: lastError };
-              }
-            }
           }
         }
 
@@ -901,7 +928,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
       }
       if (key.escape && filterQuery) {
         setFilterQuery('');
-        return;
+        return true;
       }
       if (input === '/' && !key.ctrl && !key.meta) {
         setFilterEditing(true);
@@ -1402,13 +1429,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   ) : null;
 
   const filterBadge = `[${filterEditing ? t(lang, '过滤', 'Filter') : t(lang, '已过滤', 'Filtered')} ${filteredCards.length}/${doc.cards.length}] `;
-  const filterRightHint =
-    width >= 66
-      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
-      : width >= 46
-        ? ' Esc'
-        : '';
-  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
+  const { rightHint: filterRightHint, inputWidth: filterInputW } = computeFilterBarLayout(width, filterBadge, lang, filterEditing);
   const filterBarNode = showFilterBar ? (
     <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
       <Text color={filterEditing ? theme.primary : theme.accent} bold>

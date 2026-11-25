@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { UiLanguage } from '../../types/contracts.js';
 import { Badge, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
@@ -171,7 +172,6 @@ export const ExamRunner = memo(function ExamRunner({
     );
     return undefined;
     // Intentionally keyed on minute bucket + question index to keep terminal title writes low-frequency.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasActiveExam, isActive, kind, oscAt, oscTotal, oscMinuteBucket, lang, asciiMode]);
 
   useEffect(() => {

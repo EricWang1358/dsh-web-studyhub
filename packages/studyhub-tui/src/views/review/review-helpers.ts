@@ -1,3 +1,4 @@
+import { buildUnifiedAiSystemPrompt } from '../../host/ai-dialogue.js';
 import type { ReviewRun } from '../../host/sample-actions.js';
 import type { UiLanguage } from '../../types/contracts.js';
 import { t } from '../../state/store.js';
@@ -512,9 +513,9 @@ export function buildCardHelpSystemPrompt(lang: UiLanguage, isFollowup = false):
       ? 'You are a follow-up study tutor inside a terminal flashcard/quiz app. Using the prior conversation turns and card context, directly and precisely answer the learner\'s current follow-up question (resolving references like "just now", "that term", or "the previous step") without re-explaining the entire card from scratch. Use concise Markdown and LaTeX math ($...$ or $$...$$).'
       : '你是终端学习助手里的追问助教。请结合上方对话历史与题目上下文，直接、精准地回答学生当前这个追问（准确理解「刚才」「那个词」「上一步」等指代），不要从头复述整道题或重复已经讲过的内容。请用简洁清晰的中文（支持 Markdown 与 LaTeX 数学公式 $...$ / $$...$$）。';
   }
-  return lang === 'en'
-    ? 'You are a concise, insightful study tutor inside a terminal flashcard/quiz app. Explain concepts clearly using structured bullet points and standard Markdown/LaTeX math ($...$ or $$...$$). Focus on why the answer is right, why common traps are wrong, and intuitive mental models.'
-    : '你是终端学习助手里的专业助教。请用简洁清晰的中文（支持 Markdown 与 LaTeX 数学公式 $...$ / $$...$$）为学生讲解当前题目：点明核心概念、解题思路、易错点辨析与直觉记忆法。';
+  // Non-follow-up explain prompts stay unified in host/ai-dialogue.ts (#1354 P3-a);
+  // the follow-up variant above stays the richer #1422/#1435 text from main.
+  return buildUnifiedAiSystemPrompt('explain', lang);
 }
 
 export function buildCardHelpContext(params: {

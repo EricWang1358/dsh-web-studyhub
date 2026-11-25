@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -298,7 +299,6 @@ function summarizeStartedFill(started: NonNullable<CustomFillResponse['started']
 }
 
 const CUSTOM_PURPOSES: readonly CustomPurpose[] = ['preview', 'follow', 'review', 'openbook'];
-const CUSTOM_SCOPES: readonly Exclude<CustomScopeKind, 'chapters'>[] = ['all', 'exam'];
 const BOOK_PARTS: readonly BookPart[] = ['explain', 'terms', 'formulas', 'index', 'confusables', 'answerKit', 'cheatSheet'];
 const STRENGTH_LEVELS: readonly QuestionStrength[] = ['lean', 'standard', 'full'];
 const DEFAULT_MINUTES_PER_DAY = 180;

@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -320,7 +321,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
 
   const activeCourse = currentCourse(snapshot);
   const knownCourses = useMemo(() => listCourses(snapshot).map((c) => c.key), [snapshot]);
-  const [courseOverride, setCourseOverride] = useState<string | null>(null);
+  const [courseOverride] = useState<string | null>(null);
   const course = courseOverride !== null ? courseOverride : activeCourse || knownCourses[0] || '';
   const model = useMemo(() => modelInfo(desktopConfig, binding, snapshot, asciiMode), [desktopConfig, binding, snapshot, asciiMode]);
 
@@ -896,7 +897,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       if (modalOpen || filterOpen) return;
       if (key.escape && filterQuery && tab !== 'mock') {
         handleFilterClear();
-        return;
+        return true;
       }
       if (input === '/' && !key.ctrl && !key.meta && canFilter) {
         setFocusPane('left');

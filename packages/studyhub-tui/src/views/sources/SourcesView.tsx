@@ -1,5 +1,7 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
@@ -215,7 +217,7 @@ const BatchFolderModal = memo(function BatchFolderModal({
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const notify = useTuiStore((s) => s.notify);
-  const { columns, rows: termRows } = useWindowSize();
+  const { columns, rows: termRows } = useStableWindowSize();
   const ell = asciiMode ? '...' : '…';
 
   const [subMode, setSubMode] = useState<'list' | 'create'>('list');
@@ -1188,7 +1190,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
       if (!listActive || busyRef.current || busy) return;
       if (key.escape && selectedKeys.size > 0) {
         setSelectedKeys(new Set());
-        return;
+        return true;
       }
       if (input === '[' || input === ']') {
         void handleMovePin(input === '[' ? 'up' : 'down');

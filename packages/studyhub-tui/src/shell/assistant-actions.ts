@@ -77,9 +77,8 @@ export async function executeAssistantReadAction(
   intent: Extract<AssistantIntent, { kind: 'run_action' }>,
   deps: AssistantActionDeps,
 ): Promise<AssistantActionOutcome> {
-  const { host, snapshot, cardCtx, lang } = deps;
+  const { host, cardCtx, lang } = deps;
   const cardId = (typeof intent.params.cardId === 'string' && intent.params.cardId) || cardCtx?.cardId || '';
-  const deckId = resolveDeckId(intent.params, snapshot, cardId);
   const runId = (typeof intent.params.runId === 'string' && intent.params.runId) || cardCtx?.runId || '';
 
   if (intent.actionName === 'review.similar') {

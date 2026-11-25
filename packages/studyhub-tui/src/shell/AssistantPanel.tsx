@@ -14,7 +14,13 @@
  * 10. `marked`-free (`ScrollView` + `wrapDisplay`).
  */
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput, useStdout, useWindowSize } from 'ink';
+import { Box, Text, useStdout } from 'ink';
+import { useStableWindowSize } from '../components/resize.js';
+import {
+  KEY_LAYER_DRAWER,
+  KEY_LAYER_MODAL_FRAME,
+  useScopedInput as useInput,
+} from '../components/key-dispatcher.js';
 import { PAGE_REGISTRY, type HostClient, type PageId, type UiLanguage } from '../types/contracts.js';
 import { t, useTuiStore, type AssistantCardContext, type AssistantTabId, type ReviewRunLike } from '../state/store.js';
 import { getColorLevel, makeChalk, useTheme } from '../theme/tokens.js';
@@ -28,7 +34,7 @@ import { TextInput } from '../components/TextInput.js';
 import { ClickableBox } from '../components/mouse.js';
 import { useModalFooterHints } from '../components/focus.js';
 import { useStreamingBuffer } from '../components/useStreamingBuffer.js';
-import { tryAction } from '../host/sample-actions.js';
+import { formatRetellVerdictLines, submitRetellEvaluation } from '../host/ai-dialogue.js';
 import { saveTuiPreferences } from '../host/tui-prefs.js';
 import {
   copyTextWithFallback,
@@ -188,7 +194,7 @@ export const AssistantPanel = memo(function AssistantPanel({
   copyStdout,
 }: AssistantPanelProps) {
   const theme = useTheme();
-  const { columns, rows } = useWindowSize();
+  const { columns, rows } = useStableWindowSize();
   const { stdout } = useStdout();
   const page = useTuiStore((s) => s.page);
   const lang = useTuiStore((s) => s.preferences.language);
@@ -624,13 +630,7 @@ export const AssistantPanel = memo(function AssistantPanel({
           const sharedHistory = extractSharedHistoryMessages(
             turnsInScope(sessionMemory.turns, turnScopeRef.current).current.filter((x) => x.id !== userTurn.id),
           );
-          const res = await tryAction<{
-            passed?: boolean;
-            right?: string[];
-            missed?: string[];
-            wrong?: string[];
-            gap?: string;
-          }>(host, 'teach.retell', {
+          const res = await submitRetellEvaluation(host, {
             deckId: resolvedDeckId,
             cardId: cardCtx.cardId,
             text,
@@ -638,16 +638,10 @@ export const AssistantPanel = memo(function AssistantPanel({
             ...(sharedHistory.length > 0 ? { conversationHistory: sharedHistory } : {}),
           });
           if (!mountedRef.current) return;
-          if (!res.ok || !res.value) {
-            const rawErr = res.error?.message || '';
-            const isModelErr =
-              !rawErr ||
-              /configure a model|model.*unavailable|no.*model|api.?key|unauthorized|forbidden|\b401\b|\b403\b|econnrefused|timed out|timeout|未配置|可用.*模型|模型不可用/i.test(
-                rawErr,
-              );
+          if (!res.ok) {
             const fb = {
-              reason: rawErr || t(lang, '模型暂不可用，无法在线评估复述。', 'Model unavailable for retell.'),
-              altLabel: isModelErr
+              reason: res.error || t(lang, '模型暂不可用，无法在线评估复述。', 'Model unavailable for retell.'),
+              altLabel: res.isModelError
                 ? t(lang, '改为：按 [S] 跳过复述，或按 [P] 复制提示词到外部模型', 'Alternative: [S] skip or [P] copy prompt')
                 : t(lang, '可按 [S] 跳过复述，或重试提交', 'Press [S] to skip retell or try again'),
               altCommand: '查看统计',
@@ -658,32 +652,27 @@ export const AssistantPanel = memo(function AssistantPanel({
             appendTurn({
               role: 'system',
               stage: 'retell',
-              actionSummary: isModelErr ? t(lang, '模型暂不可用', 'Model unavailable') : t(lang, '复述评估失败', 'Retell failed'),
+              actionSummary: res.isModelError ? t(lang, '模型暂不可用', 'Model unavailable') : t(lang, '复述评估失败', 'Retell failed'),
               text: `${fb.reason} ${fb.altLabel}`,
             });
             return;
           }
-          const v = res.value;
+          const v = res.verdict;
           sessionMemory.retellRecords.push({
             cardId: cardCtx.cardId,
             stage: 'retell',
-            passed: Boolean(v.passed),
+            passed: v.passed,
             skipped: false,
             gap: v.gap,
             at: Date.now(),
           });
-          const lines = [
-            v.passed ? t(lang, '复述通过。', 'Retell passed.') : t(lang, '复述待补强。', 'Needs review.'),
-            ...(Array.isArray(v.right) && v.right.length ? [`讲对了：${v.right.join('；')}`] : []),
-            ...(Array.isArray(v.missed) && v.missed.length ? [`漏掉了：${v.missed.join('；')}`] : []),
-            ...(Array.isArray(v.wrong) && v.wrong.length ? [`讲错了：${v.wrong.join('；')}`] : []),
-          ];
+          const lines = formatRetellVerdictLines(v, lang);
           appendTurn({
             role: 'assistant',
             stage: 'retell',
             actionSummary: v.passed ? t(lang, '复述评估：通过', 'Retell check: passed') : t(lang, '复述评估：待补强', 'Retell check: needs review'),
             text: lines.join('\n'),
-            verdict: { passed: Boolean(v.passed), right: v.right ?? [], missed: v.missed ?? [], wrong: v.wrong ?? [], gap: v.gap },
+            verdict: { passed: v.passed, right: v.right, missed: v.missed, wrong: v.wrong, gap: v.gap },
           });
           setStage('summary');
         } finally {
@@ -1073,7 +1062,9 @@ export const AssistantPanel = memo(function AssistantPanel({
 
   // #1412: on the practice page Esc hands the keyboard back and the dock stays; the page's own Esc
   // ("back") folds it afterwards. Other pages have no such second step, so there Esc folds the dock.
-  const escKeepsDock = Boolean(docked) && page === 'review';
+  // #1412 / #1428: unified 2-step Esc on every docked page — 1st Esc hands the keyboard back
+  // while keeping the dock visible; 2nd Esc (when no page modal/filter claims it) folds the dock.
+  const escKeepsDock = Boolean(docked);
   const handleEscape = useCallback(() => {
     if (busy) {
       abortRef.current?.abort();
@@ -1091,7 +1082,7 @@ export const AssistantPanel = memo(function AssistantPanel({
     }
     if (escKeepsDock) {
       // Hand the keyboard back to the page and stay visible, so the page's own shortcuts work while
-      // the conversation is still readable (#1412). A second Esc (page "back") folds the dock.
+      // the conversation is still readable (#1412 / #1428). A second Esc folds the passive dock.
       setFocused(false);
       return;
     }
@@ -1100,80 +1091,95 @@ export const AssistantPanel = memo(function AssistantPanel({
 
   useInput(
     (input, key) => {
-      if (pendingConfirm) return;
+      if (pendingConfirm) return false;
       if (key.escape) {
         handleEscape();
-        return;
+        return true;
       }
-      if (inputFocused) return;
+      if (inputFocused) return false;
 
       if (key.tab) {
         const next: AssistantTabId = tab === 'assistant' ? 'guided' : 'assistant';
         setTab(next);
-        return;
+        return true;
       }
       // Number keys 1-4 trigger the top context chips directly!
       if (/^[1-4]$/.test(input)) {
         const idx = Number.parseInt(input, 10) - 1;
         if (chips[idx]) {
           runChip(chips[idx]);
-          return;
+          return true;
         }
       }
       if (input === 'F') {
         setFullscreen(!fullscreen);
-        return;
+        return true;
       }
       if (input === 'o' && earlierTurnCount > 0) {
         setShowEarlier((shown) => !shown);
-        return;
+        return true;
       }
       if (input === 'i' || input === 'a' || key.return) {
         setInputFocused(true);
-        return;
+        return true;
       }
       if (input === 'z') {
         void handleUndo();
-        return;
+        return true;
       }
       if (input === 'P') {
         handleCopyFallbackPrompt();
-        return;
+        return true;
       }
       if (input === 'A' && lastFallback) {
         void handleSubmitInput(lastFallback.altCommand, { viaCommand: true });
-        return;
+        return true;
       }
       if (input === 'c') {
         handleCopyCurrent();
-        return;
+        return true;
       }
       if (input === 'C') {
         handleCopyFullSession();
-        return;
+        return true;
       }
       if (input === 'y') {
         handleCopyLastReply();
-        return;
+        return true;
       }
       if (tab === 'guided') {
         if (input === 'S' && stage === 'retell') {
           handleSkipRetell();
-          return;
+          return true;
         }
         if (input === 'n') {
           const idx = GUIDED_STAGES.indexOf(stage);
           if (idx >= 0 && idx < GUIDED_STAGES.length - 1) setStage(GUIDED_STAGES[idx + 1]);
-          return;
+          return true;
         }
         if (input === 'p') {
           const idx = GUIDED_STAGES.indexOf(stage);
           if (idx > 0) setStage(GUIDED_STAGES[idx - 1]);
-          return;
+          return true;
         }
       }
+      return false;
     },
-    { isActive: isActive && !pendingConfirm && !reasonPickFor },
+    { isActive: isActive && !pendingConfirm && !reasonPickFor, layer: KEY_LAYER_DRAWER, id: 'AssistantPanel:main' },
+  );
+
+  // #1354 D1 / #1428: single-letter catch-all sink below ScrollView (KEY_LAYER_WIDGET) so while the
+  // assistant panel holds focus, no unbound single-letter key can ever leak to the left page or shell.
+  useInput(
+    (input, key) => {
+      if (!key.ctrl && !key.meta && input.length === 1) return true;
+      return false;
+    },
+    {
+      isActive: isActive && !pendingConfirm && !inputFocused,
+      layer: KEY_LAYER_MODAL_FRAME,
+      id: 'AssistantPanel:sink',
+    },
   );
 
   const fallbackSize = resolveAssistantPanelSize(columns, rows, fullscreen);

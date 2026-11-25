@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useShellActions } from '../../shell/actions.js';
@@ -663,7 +664,6 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
   useEffect(() => {
     void loadInitialRun(false);
     // Re-run only when navigation context explicitly targets a new run/deck/course.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navContext.runId, navContext.deckId, navContext.course, navContext.mode]);
 
   const kind = normalizeCardKind(run);
@@ -1192,11 +1192,13 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
       ...(canAdjustGrade ? ['J'] : []),
       ...(canAckCorrection ? ['K'] : []),
     ];
-    if (!revealed && !feedback && (kind === 'single' || kind === 'multiple')) {
+    // Claim option letters a-f for the entire lifecycle of choice cards (before AND after reveal/feedback)
+    // so pressing b/c while reviewing the explanation never unexpectedly jumps to Board or CoursePicker (#1350).
+    if (kind === 'single' || kind === 'multiple') {
       return [...baseUtil, ...CHOICE_LETTER_KEYS];
     }
     return baseUtil;
-  }, [isActive, loading, run, isFinished, isRubricEligibleKind, canAdjustGrade, canAckCorrection, revealed, feedback, kind]);
+  }, [isActive, loading, run, isFinished, isRubricEligibleKind, canAdjustGrade, canAckCorrection, kind]);
   useClaimKeys(claimedKeys, mainActive);
 
   const hints: KeyHint[] = useMemo(() => {
@@ -1277,19 +1279,24 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
       if (stuckNudgeVisible) setStuckNudgeVisible(false);
       setStuckActivityTick((v) => v + 1);
       if (key.escape) {
-        const stack = useTuiStore.getState().practiceStack;
+        const st = useTuiStore.getState();
+        if (st.assistantOpen && !st.assistantFocused && !st.assistantFullscreen) {
+          st.closeAssistant();
+          return true;
+        }
+        const stack = st.practiceStack;
         const top = stack[stack.length - 1];
         if (top && top.originKind === 'similar') {
           skipUnmountPushRef.current = true;
-          const popped = useTuiStore.getState().returnViaPracticeStack();
+          const popped = st.returnViaPracticeStack();
           if (popped && popped.kind === 'review') {
             skipUnmountPushRef.current = false;
             void loadInitialRun(false);
           }
-          return;
+          return true;
         }
         goBack();
-        return;
+        return true;
       }
       if (!run || !run.card || busy) return;
 

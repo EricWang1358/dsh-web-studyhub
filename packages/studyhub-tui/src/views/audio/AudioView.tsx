@@ -1,7 +1,8 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { readFile, stat } from 'node:fs/promises';
 import { basename, extname, isAbsolute, resolve } from 'node:path';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostCallResult, HostClient, KeyHint, StudySnapshot, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { Badge, EmptyState, Spinner, StatusPill, type PillStatus } from '../../components/Badge.js';
@@ -13,11 +14,12 @@ import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys, useInputCapture } from '../../components/focus.js';
+import { LAYOUT_BP, computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { useTheme } from '../../theme/tokens.js';
 import { currentCourse } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
-import { displayWidth, truncateDisplay } from '../../render/cjk.js';
+import { truncateDisplay } from '../../render/cjk.js';
 import { atomicWriteExportText, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
 import { cleanPathInput, tryAction } from '../../host/sample-actions.js';
 import { completeFsPath, expandHomePath } from '../sources/path-complete.js';
@@ -1296,7 +1298,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
       if (key.escape && filterQuery) {
         setFilterQuery('');
         setSelectedIndex(0);
-        return;
+        return true;
       }
       if (input === '/' && !key.ctrl && !key.meta) {
         setFilterEditing(true);
@@ -1337,7 +1339,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
     { isActive },
   );
 
-  const narrowBar = width < 88;
+  const narrowBar = width < LAYOUT_BP.NARROW;
   const bannerH = 2;
   const diagH = 4;
   const showFilterBar = filterEditing || filterQuery.length > 0;
@@ -1348,13 +1350,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
   const preflightLine = truncateDisplay(formatPreflightLine(preflight, lang, asciiMode), diagInnerW, ell);
   const usageLine = truncateDisplay(formatUsageLine(usage, lang, asciiMode), diagInnerW, ell);
   const filterBadge = `[${filterEditing ? t(lang, '筛选', 'Filter') : t(lang, '已筛选', 'Filtered')} ${filteredResults.length}/${results.length}] `;
-  const filterRightHint =
-    width >= 66
-      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
-      : width >= 46
-        ? ' Esc'
-        : '';
-  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
+  const { rightHint: filterRightHint, inputWidth: filterInputW } = computeFilterBarLayout(width, filterBadge, lang, filterEditing);
 
   return (
     <Box flexDirection="column" width={width} height={height}>

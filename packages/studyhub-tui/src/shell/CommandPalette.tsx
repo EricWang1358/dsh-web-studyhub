@@ -1,5 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../components/resize.js';
+import { useScopedInput as useInput } from '../components/key-dispatcher.js';
 import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type PageId, type StudySnapshot, type TuiPreferences, type UiLanguage } from '../types/contracts.js';
 import { t, useTuiStore, type TuiStoreState } from '../state/store.js';
 import { saveTuiPreferences } from '../host/tui-prefs.js';
@@ -316,7 +318,7 @@ export function buildPaletteItems(
         }
         const focusCourse =
           typeof (effectiveSnap?.focus as { course?: unknown } | undefined)?.course === 'string'
-            ? String((effectiveSnap?.focus as { course?: string }).course).trim()
+            ? String((effectiveSnap?.focus as { course?: string } | undefined)?.course ?? '').trim()
             : '';
         const progressMap = (effectiveSnap?.progress && typeof effectiveSnap.progress === 'object'
           ? effectiveSnap.progress
@@ -778,7 +780,7 @@ export const CommandPalette = memo(function CommandPalette({
   initialQuery = '',
 }: CommandPaletteProps) {
   const theme = useTheme();
-  const { columns, rows } = useWindowSize();
+  const { columns, rows } = useStableWindowSize();
   const actions = useShellActions();
   const snapshot = useTuiStore((s) => s.snapshot);
   const preferences = useTuiStore((s) => s.preferences);

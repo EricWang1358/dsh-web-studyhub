@@ -1,5 +1,6 @@
 import React, { memo, useMemo, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { UiLanguage } from '../../types/contracts.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState } from '../../components/Badge.js';
@@ -112,7 +113,7 @@ export const ExamReportView = memo(function ExamReportView({
       if (busy) return;
       if (input === 'b' || key.escape) {
         onBack();
-        return;
+        return true;
       }
       if ((input === 'w' || input === 'p') && weakScope.length > 0) {
         onPracticeWeak(weakScope);

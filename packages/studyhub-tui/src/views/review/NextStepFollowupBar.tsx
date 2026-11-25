@@ -8,11 +8,18 @@
  *   same streaming reply & `[N]` save-to-followup/notes action (reuses `card.followup.add` + `note.qa.add`).
  */
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
-import { errorMessage, tryAction, type ReviewRun } from '../../host/sample-actions.js';
+import { errorMessage, type ReviewRun } from '../../host/sample-actions.js';
+import {
+  buildCardDialogueUserPrompt,
+  buildUnifiedAiSystemPrompt,
+  canExposeReferenceAnswer,
+  persistCardQaToFollowupAndNote,
+} from '../../host/ai-dialogue.js';
 import { Badge, Spinner } from '../../components/Badge.js';
 import { ScrollView } from '../../components/ScrollView.js';
 import { TextInput } from '../../components/TextInput.js';
@@ -80,9 +87,7 @@ export function nextStepIdlePrompt(lang: UiLanguage): string {
 }
 
 export function buildNextStepSystemPrompt(lang: UiLanguage): string {
-  return lang === 'en'
-    ? 'You are StudyHub AI Tutor. The user just viewed an AI study tool output for a flashcard/question and is giving a follow-up instruction. Use the provided question, user answer, and tool output directly as context without asking them to paste anything again. Be concise, accurate, and directly fulfill the instruction.'
-    : '你是 StudyHub 学习助教。用户刚刚查看了某道题的 AI 工具结果，现在直接下达后续指令。请直接基于提供的题目、用户作答和本次工具输出作答，不要让用户重复粘贴内容；回答清晰、准确、直奔主题。';
+  return buildUnifiedAiSystemPrompt('followup', lang);
 }
 
 export function buildNextStepUserPrompt(params: {
@@ -96,36 +101,21 @@ export function buildNextStepUserPrompt(params: {
   lang: UiLanguage;
 }): string {
   const { run, kind, userAnswer, toolLabel, resultContext, history, instruction, lang } = params;
-  const lines: string[] = [];
-  const prompt = String(run.card?.prompt ?? '').trim();
-  const topic = typeof run.card?.topic === 'string' ? run.card.topic.trim() : '';
-  const refAns = extractReferenceAnswer(run, kind, lang);
-
-  lines.push(lang === 'en' ? `Question Type: ${kindLabel(kind, lang)}` : `题型：${kindLabel(kind, lang)}`);
-  if (topic) lines.push(lang === 'en' ? `Topic: ${topic}` : `主题：${topic}`);
-  if (prompt) lines.push(lang === 'en' ? `Question:\n${prompt}` : `题干：\n${prompt}`);
-  if (userAnswer && userAnswer.trim()) {
-    lines.push(lang === 'en' ? `User Answer: ${userAnswer.trim()}` : `用户作答：${userAnswer.trim()}`);
-  }
-  if (refAns) {
-    lines.push(lang === 'en' ? `Reference Answer: ${refAns}` : `参考答案：${refAns}`);
-  }
-  if (resultContext.trim()) {
-    lines.push(
-      lang === 'en'
-        ? `Previous AI Tool Output (${toolLabel}):\n${resultContext.trim().slice(0, 6000)}`
-        : `本次 AI 工具输出（${toolLabel}）：\n${resultContext.trim().slice(0, 6000)}`,
-    );
-  }
-  if (history.length > 0) {
-    lines.push(lang === 'en' ? 'Prior Follow-up Conversation:' : '此前后续对话：');
-    for (const turn of history.slice(-6)) {
-      const who = turn.role === 'user' ? (lang === 'en' ? 'User' : '用户') : 'AI';
-      lines.push(`${who}: ${turn.text}`);
-    }
-  }
-  lines.push(lang === 'en' ? `User's Next Instruction:\n${instruction}` : `用户接下来的指令：\n${instruction}`);
-  return lines.join('\n\n');
+  const revealed = canExposeReferenceAnswer(run);
+  return buildCardDialogueUserPrompt({
+    kindLabel: kindLabel(kind, lang),
+    topic: typeof run.card?.topic === 'string' ? run.card.topic.trim() : undefined,
+    prompt: String(run.card?.prompt ?? '').trim(),
+    userAnswer,
+    revealed,
+    referenceAnswer: revealed ? extractReferenceAnswer(run, kind, lang) : undefined,
+    toolLabel,
+    toolOutput: resultContext,
+    history,
+    maxHistoryTurns: 6,
+    question: instruction,
+    lang,
+  });
 }
 
 export interface NextStepFollowupBarProps {
@@ -308,41 +298,24 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
     const questionText = prevUser?.text || `[${toolLabel}] ${t(lang, '后续指令', 'Follow-up')}`;
 
     setSavingNote(true);
-    const fuRes = await tryAction<{ item?: { id?: string } }>(host, 'card.followup.add', {
-      deckId,
-      cardId,
-      question: questionText.slice(0, 1000),
-      answer: answerText.slice(0, 8000),
-      source: 'assistant',
-      silent: true,
-      replace: true,
-    });
-    if (!mountedRef.current) return;
-    if (!fuRes.ok || !fuRes.value?.item?.id) {
-      setSavingNote(false);
-      notify(fuRes.error?.message || t(lang, '保存追问失败', 'Failed to save follow-up'), 'error');
-      return;
-    }
     const noteTitle = buildDailyQuestionNoteTitle(run, useTuiStore.getState().snapshot?.decks, lang);
-    const noteRes = await tryAction<{ status?: string }>(host, 'note.qa.add', {
+    const saved = await persistCardQaToFollowupAndNote({
+      host,
       deckId,
       cardId,
-      followupId: fuRes.value.item.id,
-      title: noteTitle,
-      language: lang,
+      question: questionText,
+      answer: answerText,
+      noteTitle,
+      lang,
     });
     if (!mountedRef.current) return;
     setSavingNote(false);
-    if (!noteRes.ok) {
-      const reason = noteRes.error?.message || t(lang, '写入学习笔记失败', 'Failed to save to study notes');
-      notify(
-        t(
-          lang,
-          `已保存为本题追问，但写入学习笔记失败：${reason}`,
-          `Saved as card follow-up, but adding to study notes failed: ${reason}`,
-        ),
-        'warning',
-      );
+    if (!saved.ok) {
+      notify(saved.error || t(lang, '保存追问失败', 'Failed to save follow-up'), 'error');
+      return;
+    }
+    if (!saved.noteSaved && saved.warning) {
+      notify(saved.warning, 'warning');
       return;
     }
     notify(t(lang, '已保存为本题追问与学习笔记', 'Saved as card follow-up & study note'), 'success');
@@ -382,7 +355,7 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
         resetStreaming();
         setStreaming(false);
         setExpanded(false);
-        return;
+        return true;
       }
       if (key.ctrl || key.meta) return;
       if (input === NEXT_STEP_ACTIVATION_KEY || input === 'i' || key.return) {

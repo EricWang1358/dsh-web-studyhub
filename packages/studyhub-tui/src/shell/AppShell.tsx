@@ -1,11 +1,12 @@
 import React, { Suspense, lazy, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Box, useApp, useInput } from 'ink';
+import { Box, useApp } from 'ink';
 import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type PageId, type ViewProps } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
-import { useTheme } from '../theme/tokens.js';
-import { KeyHintBar, Spinner, ToastStack } from '../components/Badge.js';
+import { KeyHintBar, Spinner, ToastStack, estimateToastStackHeight } from '../components/Badge.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import { RESERVED_GLOBAL_KEY_SET, isKeyClaimed, resolveShellFooterHints, useContextualFooterTip, useModalHints } from '../components/focus.js';
+import { KEY_LAYER_GLOBAL, KEY_LAYER_SYSTEM, KeyScopeProvider, useKeyDispatcherBridge, useScopedInput } from '../components/key-dispatcher.js';
+import { LAYOUT_BP } from '../components/layout-tokens.js';
 import { useMouseClickInputFallback } from '../components/mouse.js';
 import { useStableWindowSize } from '../components/resize.js';
 import { TopBar } from './TopBar.js';
@@ -76,7 +77,6 @@ export const AppShell = memo(function AppShell({
   overlays,
   autoLaunchpad = true,
 }: AppShellProps) {
-  const theme = useTheme();
   const { exit } = useApp();
   const { columns, rows } = useStableWindowSize();
 
@@ -129,7 +129,9 @@ export const AppShell = memo(function AppShell({
   const voiceOverlay = voiceOpen && Boolean(renderVoicePack);
   // Right-docked passive assistant (`assistantOpen && !assistantFocused && !assistantFullscreen`) NEVER steals focus!
   const assistantCapturesFocus = assistantOpen && (assistantFocused || assistantFullscreen);
-  const overlayOpen = paletteOpen || helpOpen || courseOpen || inboxOpen || voiceOverlay || quitConfirmOpen || assistantCapturesFocus;
+  const shellModalOpen = paletteOpen || helpOpen || courseOpen || inboxOpen || voiceOverlay || quitConfirmOpen;
+  const assistantScopeActive = assistantCapturesFocus && !shellModalOpen;
+  const overlayOpen = shellModalOpen || assistantCapturesFocus;
 
   // Render-time snapshot of routing state: every useInput handler for ONE keystroke sees
   // the state from BEFORE that keystroke (so closing an overlay with `?` never reopens it).
@@ -142,113 +144,149 @@ export const AppShell = memo(function AppShell({
     launchpad: showLaunchpad || (assistantOpen && assistantFullscreen),
   });
   const dockActive = assistantOpen && !assistantFullscreen && !showLaunchpad;
-  const dockSideBySide = dockActive && columns - navW >= 78;
+  const dockSideBySide = dockActive && columns - navW >= LAYOUT_BP.DOCK_SIDE_BY_SIDE;
   const dockW = dockSideBySide ? assistantDockWidth(columns - navW) : Math.max(20, columns - navW - 2);
   const dockH = dockSideBySide ? bodyH : Math.max(8, Math.floor(bodyH * 0.42));
   const contentW = dockSideBySide ? Math.max(24, columns - navW - dockW - 2) : fullContentW;
   const contentH = dockActive && !dockSideBySide ? Math.max(6, bodyH - dockH) : bodyH;
   useMouseClickInputFallback(true);
+  useKeyDispatcherBridge(true);
 
-  useInput((input, key) => {
-    keystrokeCountRef.current += 1;
-    if (keystrokeCountRef.current % 10 === 0) {
-      setTipRotation((n) => n + 1);
-    }
-    const s = useTuiStore.getState();
-    const r = routing.current;
-    if (key.ctrl && input === 'c') {
-      if (s.quitConfirmOpen) {
-        s.setQuitConfirmOpen(false);
-        rawQuitRef.current();
-      } else {
-        actions.quit();
+  useScopedInput(
+    (input, key) => {
+      keystrokeCountRef.current += 1;
+      if (keystrokeCountRef.current % 10 === 0) {
+        setTipRotation((n) => n + 1);
       }
-      return;
-    }
-    if (key.ctrl && input === 'k') {
-      if (s.commandPaletteOpen) {
-        s.setCommandPaletteOpen(false);
-      } else if (!r.overlayOpen && !r.inputCaptured) {
-        s.setCommandPaletteOpen(true);
-      }
-      return;
-    }
-    // Ctrl+Space (NUL `\x00` or Ctrl+@ / Ctrl+Space) opens docked WITHOUT stealing focus; 2nd press focuses; 3rd collapses!
-    const isCtrlSpace = input === '\u0000' || (key.ctrl && (input === ' ' || input === '@'));
-    if (isCtrlSpace) {
-      if (!s.assistantOpen) {
-        if (!r.overlayOpen && !r.inputCaptured) s.openAssistant({ focused: false });
-      } else if (!s.assistantFocused && !s.assistantFullscreen) {
-        s.setAssistantFocused(true);
-      } else {
-        s.closeAssistant();
-      }
-      return;
-    }
-    if (key.ctrl && input === 'g') {
-      if (s.assistantOpen && (s.assistantFocused || s.assistantFullscreen)) {
-        s.closeAssistant();
-      } else if (!r.overlayOpen && !r.inputCaptured) {
-        s.openAssistant({ focused: true });
-      }
-      return;
-    }
-    if (key.ctrl && input === 'r') {
-      void actions.refresh();
-      return;
-    }
-    if (r.overlayOpen || r.inputCaptured) return;
-    if (key.ctrl || key.meta) return;
-    if (input && !RESERVED_GLOBAL_KEY_SET.has(input) && isKeyClaimed(input)) return;
-    if (key.backspace) {
-      if (!isKeyClaimed('backspace')) s.goBack();
-      return;
-    }
-    switch (input) {
-      case '/':
-        s.setCommandPaletteOpen(true);
-        return;
-      case '?':
-        s.setHelpOpen(true);
-        return;
-      case 'c':
-        s.setCoursePickerOpen(true);
-        return;
-      case 'I':
-        s.setInboxOpen(true);
-        return;
-      case 'q':
-        actions.quit();
-        return;
-      case '\\':
-        s.toggleSidebar();
-        return;
-      case '[':
-      case ']': {
-        const idx = NAV_ORDER.indexOf(s.page);
-        const dir = input === ']' ? 1 : -1;
-        const next = NAV_ORDER[(Math.max(0, idx) + dir + NAV_ORDER.length) % NAV_ORDER.length];
-        s.navigate(next);
-        return;
-      }
-      default:
-        break;
-    }
-    if (r.showLaunchpad && (input === 's' || input === 'i' || input === 'm')) return;
-    const target = SHORTCUTS.get(input);
-    if (target) {
-      if (target === 'review') {
-        if (s.practiceStack.length > 0) {
-          s.returnViaPracticeStack();
-          return;
+      const s = useTuiStore.getState();
+      const r = routing.current;
+      if (key.ctrl && input === 'c') {
+        if (s.quitConfirmOpen) {
+          s.setQuitConfirmOpen(false);
+          rawQuitRef.current();
+        } else {
+          actions.quit();
         }
-        if (s.page === 'review' && (!s.activeRunId || s.navContext.runId === s.activeRunId)) return;
-        if (s.activeRunId) s.navigate('review', { runId: s.activeRunId });
-        else {
-          const focusCourse = typeof s.snapshot?.focus?.course === 'string' && s.snapshot.focus.course ? s.snapshot.focus.course : undefined;
-          s.navigate('review', focusCourse ? { course: focusCourse } : {});
+        return true;
+      }
+      if (key.ctrl && input === 'k') {
+        if (s.commandPaletteOpen) {
+          s.setCommandPaletteOpen(false);
+          return true;
         }
-      } else {
+        if (!r.overlayOpen && !r.inputCaptured) {
+          s.setCommandPaletteOpen(true);
+          return true;
+        }
+        return false;
+      }
+      // Ctrl+Space (NUL `\x00` or Ctrl+@ / Ctrl+Space) opens docked WITHOUT stealing focus; 2nd press focuses; 3rd collapses!
+      const isCtrlSpace = input === '\u0000' || (key.ctrl && (input === ' ' || input === '@'));
+      if (isCtrlSpace) {
+        if (!s.assistantOpen) {
+          if (!r.overlayOpen && !r.inputCaptured) {
+            s.openAssistant({ focused: false });
+            return true;
+          }
+          return false;
+        }
+        if (!s.assistantFocused && !s.assistantFullscreen) {
+          s.setAssistantFocused(true);
+        } else {
+          s.closeAssistant();
+        }
+        return true;
+      }
+      if (key.ctrl && input === 'g') {
+        if (s.assistantOpen && (s.assistantFocused || s.assistantFullscreen)) {
+          s.closeAssistant();
+          return true;
+        }
+        if (!r.overlayOpen && !r.inputCaptured) {
+          s.openAssistant({ focused: true });
+          return true;
+        }
+        return false;
+      }
+      if (key.ctrl && input === 'r') {
+        void actions.refresh();
+        // Allow the active view (e.g. BoardView, BookView) to also reload its domain state.
+        return false;
+      }
+      return false;
+    },
+    { isActive: true, layer: KEY_LAYER_SYSTEM, id: 'AppShell:system' },
+  );
+
+  useScopedInput(
+    (input, key) => {
+      const s = useTuiStore.getState();
+      const r = routing.current;
+      if (r.overlayOpen || r.inputCaptured) return false;
+      if (key.ctrl || key.meta) return false;
+      // #1428: unified 2-step Esc across every docked page — when no modal/filter/view handler
+      // consumed Esc, fold the passive assistant dock cleanly without leaving the current page.
+      if (key.escape) {
+        if (s.assistantOpen && !s.assistantFocused && !s.assistantFullscreen) {
+          s.closeAssistant();
+          return true;
+        }
+        return false;
+      }
+      if (input && !RESERVED_GLOBAL_KEY_SET.has(input) && isKeyClaimed(input)) return false;
+      if (key.backspace) {
+        if (!isKeyClaimed('backspace')) {
+          s.goBack();
+          return true;
+        }
+        return false;
+      }
+      switch (input) {
+        case '/':
+          s.setCommandPaletteOpen(true);
+          return true;
+        case '?':
+          s.setHelpOpen(true);
+          return true;
+        case 'c':
+          s.setCoursePickerOpen(true);
+          return true;
+        case 'I':
+          s.setInboxOpen(true);
+          return true;
+        case 'q':
+          actions.quit();
+          return true;
+        case '\\':
+          s.toggleSidebar();
+          return true;
+        case '[':
+        case ']': {
+          const idx = NAV_ORDER.indexOf(s.page);
+          const dir = input === ']' ? 1 : -1;
+          const next = NAV_ORDER[(Math.max(0, idx) + dir + NAV_ORDER.length) % NAV_ORDER.length];
+          s.navigate(next);
+          return true;
+        }
+        default:
+          break;
+      }
+      if (r.showLaunchpad && (input === 's' || input === 'i' || input === 'm')) return false;
+      const target = SHORTCUTS.get(input);
+      if (target) {
+        if (target === 'review') {
+          if (s.practiceStack.length > 0) {
+            s.returnViaPracticeStack();
+            return true;
+          }
+          if (s.page === 'review' && (!s.activeRunId || s.navContext.runId === s.activeRunId)) return true;
+          if (s.activeRunId) s.navigate('review', { runId: s.activeRunId });
+          else {
+            const focusCourse = typeof s.snapshot?.focus?.course === 'string' && s.snapshot.focus.course ? s.snapshot.focus.course : undefined;
+            s.navigate('review', focusCourse ? { course: focusCourse } : {});
+          }
+          return true;
+        }
         // Preserve intermediate reader location in stack if leaving sources while a practice stack is active (#1319)
         if (s.practiceStack.length > 0 && s.page === 'sources' && target !== 'sources' && s.navContext.sourceId) {
           s.pushPracticeContext({
@@ -264,9 +302,12 @@ export const AppShell = memo(function AppShell({
           });
         }
         s.navigate(target);
+        return true;
       }
-    }
-  });
+      return false;
+    },
+    { isActive: true, layer: KEY_LAYER_GLOBAL, id: 'AppShell:global' },
+  );
 
   const contentActive = !overlayOpen && !showLaunchpad;
   const view: ViewProps = useMemo(
@@ -296,8 +337,8 @@ export const AppShell = memo(function AppShell({
     tipRotation,
   );
 
-  const toastW = Math.min(48, Math.max(28, Math.floor(columns * 0.4)));
-  const toastRows = Math.min(2, toasts.length);
+  const toastW = Math.min(52, Math.max(28, Math.floor(columns * 0.45)));
+  const toastRows = Math.min(Math.max(1, rows - 3), estimateToastStackHeight(toasts, toastW, asciiMode));
   const toastTop = Math.max(1, rows - (showKeyHints ? 1 : 0) - toastRows);
 
   let main: ReactNode;
@@ -326,48 +367,54 @@ export const AppShell = memo(function AppShell({
           {navW > 0 ? <SideNav width={navW} height={bodyH} /> : null}
           {assistantOpen && assistantFullscreen ? (
             <Box flexDirection="column" width={columns - navW} height={bodyH} paddingX={1} overflow="hidden">
-              <Suspense fallback={null}>
-                <AssistantPanel
-                  host={host}
-                  isActive={!paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !quitConfirmOpen}
-                  width={Math.max(40, columns - navW - 2)}
-                  height={bodyH}
-                  docked
-                  onClose={() => useTuiStore.getState().closeAssistant()}
-                />
-              </Suspense>
+              <KeyScopeProvider opaque={assistantScopeActive}>
+                <Suspense fallback={null}>
+                  <AssistantPanel
+                    host={host}
+                    isActive={!paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !quitConfirmOpen}
+                    width={Math.max(40, columns - navW - 2)}
+                    height={bodyH}
+                    docked
+                    onClose={() => useTuiStore.getState().closeAssistant()}
+                  />
+                </Suspense>
+              </KeyScopeProvider>
             </Box>
           ) : dockSideBySide ? (
             <Box flexDirection="row" width={columns - navW} height={bodyH} paddingX={1} overflow="hidden">
               <Box flexDirection="column" width={contentW} height={bodyH} overflow="hidden">
                 {main}
               </Box>
-              <Suspense fallback={null}>
-                <AssistantPanel
-                  host={host}
-                  isActive={assistantFocused && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !quitConfirmOpen}
-                  width={dockW}
-                  height={bodyH}
-                  docked
-                  onClose={() => useTuiStore.getState().closeAssistant()}
-                />
-              </Suspense>
+              <KeyScopeProvider opaque={assistantScopeActive}>
+                <Suspense fallback={null}>
+                  <AssistantPanel
+                    host={host}
+                    isActive={assistantFocused && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !quitConfirmOpen}
+                    width={dockW}
+                    height={bodyH}
+                    docked
+                    onClose={() => useTuiStore.getState().closeAssistant()}
+                  />
+                </Suspense>
+              </KeyScopeProvider>
             </Box>
           ) : dockActive ? (
             <Box flexDirection="column" width={columns - navW} height={bodyH} paddingX={1} overflow="hidden">
               <Box flexDirection="column" width={contentW} height={contentH} overflow="hidden">
                 {main}
               </Box>
-              <Suspense fallback={null}>
-                <AssistantPanel
-                  host={host}
-                  isActive={assistantFocused && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !quitConfirmOpen}
-                  width={dockW}
-                  height={dockH}
-                  docked
-                  onClose={() => useTuiStore.getState().closeAssistant()}
-                />
-              </Suspense>
+              <KeyScopeProvider opaque={assistantScopeActive}>
+                <Suspense fallback={null}>
+                  <AssistantPanel
+                    host={host}
+                    isActive={assistantFocused && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !quitConfirmOpen}
+                    width={dockW}
+                    height={dockH}
+                    docked
+                    onClose={() => useTuiStore.getState().closeAssistant()}
+                  />
+                </Suspense>
+              </KeyScopeProvider>
             </Box>
           ) : (
             <Box flexDirection="column" width={columns - navW} height={bodyH} paddingX={1} overflow="hidden">
@@ -384,48 +431,53 @@ export const AppShell = memo(function AppShell({
           />
         ) : null}
 
-        {toasts.length > 0 ? (
-          <Box position="absolute" top={toastTop} left={Math.max(0, columns - toastW - 1)} width={toastW}>
-            <ToastStack toasts={toasts} onDismiss={dismissToast} width={toastW} />
-          </Box>
-        ) : null}
-
         {paletteOpen ? (
-          <Suspense fallback={null}>
-            <CommandPalette
-              host={host}
-              isActive={paletteOpen}
-              onClose={() => useTuiStore.getState().setCommandPaletteOpen(false)}
-              extraCommands={extraCommands}
-            />
-          </Suspense>
+          <KeyScopeProvider>
+            <Suspense fallback={null}>
+              <CommandPalette
+                host={host}
+                isActive={paletteOpen}
+                onClose={() => useTuiStore.getState().setCommandPaletteOpen(false)}
+                extraCommands={extraCommands}
+              />
+            </Suspense>
+          </KeyScopeProvider>
         ) : null}
         {helpOpen && !paletteOpen ? (
-          <Suspense fallback={null}>
-            <HelpOverlay isActive={helpOpen} onClose={() => useTuiStore.getState().setHelpOpen(false)} />
-          </Suspense>
+          <KeyScopeProvider>
+            <Suspense fallback={null}>
+              <HelpOverlay isActive={helpOpen} onClose={() => useTuiStore.getState().setHelpOpen(false)} />
+            </Suspense>
+          </KeyScopeProvider>
         ) : null}
         {courseOpen && !paletteOpen && !helpOpen ? (
-          <Suspense fallback={null}>
-            <CoursePickerModal isActive={courseOpen} onClose={() => useTuiStore.getState().setCoursePickerOpen(false)} />
-          </Suspense>
+          <KeyScopeProvider>
+            <Suspense fallback={null}>
+              <CoursePickerModal isActive={courseOpen} onClose={() => useTuiStore.getState().setCoursePickerOpen(false)} />
+            </Suspense>
+          </KeyScopeProvider>
         ) : null}
         {inboxOpen && !paletteOpen && !helpOpen && !courseOpen ? (
-          <Suspense fallback={null}>
-            <InboxModal host={host} isActive={inboxOpen} onClose={() => useTuiStore.getState().setInboxOpen(false)} />
-          </Suspense>
+          <KeyScopeProvider>
+            <Suspense fallback={null}>
+              <InboxModal host={host} isActive={inboxOpen} onClose={() => useTuiStore.getState().setInboxOpen(false)} />
+            </Suspense>
+          </KeyScopeProvider>
         ) : null}
-        {voiceOverlay && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && renderVoicePack
-          ? renderVoicePack({
+        {voiceOverlay && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && renderVoicePack ? (
+          <KeyScopeProvider>
+            {renderVoicePack({
               isActive: true,
               onClose: () => useTuiStore.getState().setVoicePackOpen(false),
               width: columns,
               height: rows,
-            })
-          : null}
+            })}
+          </KeyScopeProvider>
+        ) : null}
         {overlays}
         {quitConfirmOpen ? (
-          <ConfirmDialog
+          <KeyScopeProvider>
+            <ConfirmDialog
             title={t(lang, '确认退出', 'Quit StudyHub')}
             message={t(lang, '当前有进行中的考试/练习，确认退出吗？', 'Session in progress. Quit StudyHub?')}
             confirmLabel={t(lang, '退出', 'Quit')}
@@ -437,8 +489,14 @@ export const AppShell = memo(function AppShell({
             }}
             onCancel={() => useTuiStore.getState().setQuitConfirmOpen(false)}
           />
+          </KeyScopeProvider>
         ) : null}
         {voiceOpen && !renderVoicePack ? <VoicePackFallback /> : null}
+        {toasts.length > 0 ? (
+          <Box position="absolute" top={toastTop} left={Math.max(0, columns - toastW - 1)} width={toastW}>
+            <ToastStack toasts={toasts} onDismiss={dismissToast} width={toastW} />
+          </Box>
+        ) : null}
       </Box>
     </ShellActionsContext.Provider>
   );

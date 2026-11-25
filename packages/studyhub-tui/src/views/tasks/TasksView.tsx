@@ -1,7 +1,9 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { Badge, EmptyState, ProgressBar, Spinner, StatusPill, type PillStatus } from '../../components/Badge.js';
@@ -13,10 +15,11 @@ import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys, useInputCapture } from '../../components/focus.js';
+import { computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { useTheme } from '../../theme/tokens.js';
 import { useShellActions } from '../../shell/actions.js';
-import { displayWidth, truncateDisplay } from '../../render/cjk.js';
+import { truncateDisplay } from '../../render/cjk.js';
 import { renderStatTable } from '../../render/charts.js';
 import { buildTaskProgressTitle, writeTerminalNotification, writeTerminalTitle } from '../../render/terminal-title.js';
 import { atomicWriteExportText, atomicWriteJsonFile, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
@@ -634,7 +637,7 @@ const JobOutputModal = memo(function JobOutputModal({
   asciiMode: boolean;
 }) {
   const theme = useTheme();
-  const { columns, rows } = useWindowSize();
+  const { columns, rows } = useStableWindowSize();
   const ell = asciiMode ? '...' : '…';
 
   const defaultCallIdx = useMemo(() => {
@@ -828,7 +831,7 @@ const JobMessageModal = memo(function JobMessageModal({
   asciiMode: boolean;
 }) {
   const theme = useTheme();
-  const { columns } = useWindowSize();
+  const { columns } = useStableWindowSize();
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState('');
@@ -1681,7 +1684,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
       if (key.escape && filterQuery) {
         setFilterQuery('');
         setSelectedIndex(0);
-        return;
+        return true;
       }
       if (input === '/' && !key.ctrl && !key.meta) {
         setFilterEditing(true);
@@ -1735,13 +1738,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
   const splitH = Math.max(4, height - topBarH - filterBarH);
   const ell = asciiMode ? '...' : '…';
   const filterBadge = `[${filterEditing ? t(lang, '筛选', 'Filter') : t(lang, '已筛选', 'Filtered')} ${filteredJobs.length}/${tabJobs.length}] `;
-  const filterRightHint =
-    width >= 66
-      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
-      : width >= 46
-        ? ' Esc'
-        : '';
-  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
+  const { rightHint: filterRightHint, inputWidth: filterInputW } = computeFilterBarLayout(width, filterBadge, lang, filterEditing);
 
   const runningCount = allNormalized.activeAndRecent.filter((j) => ACTIVE_STATUSES.has(j.status)).length;
   const allCount = allNormalized.activeAndRecent.length + allNormalized.archived.length;
