@@ -10,6 +10,7 @@ import { clozeBlankIds, splitSpokenBlanks } from "../voice/cloze-split.js";
 import { suggestedGrade } from "../voice/suggest-grade.js";
 import CorrectionCard from "./CorrectionCard.jsx";
 import CorrectionsPending from "./CorrectionsPending.jsx";
+import { courseProfileFromState } from "../../lib/case-study.js";
 
 /* Voice answering on the practice page (#1031). Voice is an input method: the text goes into the inputs typing uses and is submitted by the paths
    typing uses. A cloze's blanks are filled from 「第一空 …」 (ui/voice/cloze-split.js; a transcript that does not match fills none and shows above the
@@ -33,7 +34,7 @@ export function useVoiceAnswer({ session, data, model, rubricCard, setAssistMode
   const [pending, setPending] = React.useState(null);
   const said = spoken.key === key ? spoken : { text: "", mismatch: false };
   const deck = data?.decks?.find((item) => item.id === run.deckId);
-  const aiFlash = kind === "flash" && model.ready && !!(data?.courses || []).find((course) => course.name === (deck?.course ?? deck?.folder))?.practice?.aiGradeFlashcards;
+  const aiFlash = kind === "flash" && model.ready && !!courseProfileFromState(data, deck?.course ?? deck?.folder ?? "").practice?.aiGradeFlashcards;
   const aiOpen = kind === "open" && (rubricCard || model.ready);
   // `scope`: a transcript that comes back after the learner moved to another question is dropped, never put into (or graded on) that one; moving on while
   // recording stops the microphone. The question's identity, not reviewEntryKey: a queue edit or a resync leaves the same question on screen.

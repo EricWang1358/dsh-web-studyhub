@@ -65,7 +65,7 @@ test('archiving cited evidence preserves questions; a referenced member blocks t
   const before = (await call('export')).decks;
   await call('source.archive', { sourceIds: ['a', 'b'], archived: true });
   assert.deepEqual((await call('export')).decks, before);
-  await assert.rejects(call('source.remove', { sourceIds: ['a', 'b'], confirm: true }), /referenced/);
+  await assert.rejects(call('source.remove', { sourceIds: ['a', 'b'], confirm: true }), /引用|referenced/);
   assert.equal((await call('export')).sources.length, 2);
   await call('source.archive', { id: 'b', archived: false });
   assert.equal((await call('source.get', { id: 'b' })).text, 'Retained evidence B');

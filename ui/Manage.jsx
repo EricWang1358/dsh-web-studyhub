@@ -16,6 +16,8 @@ import { formatDateTime } from './format.js';
 import { deckChoices, deckEntries } from './deck-picker-entries.js';
 import { offerDeckArchived } from './archive-entries.js';
 import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget } from './companions/companion-ref.js';
+import CourseField from './CourseField.jsx';
+import { deckCourseOf } from './deck-course.js';
 
 /** The question before a merge removes the source deck: an in-app confirmation (host webviews may block the browser's own). */
 export function MergeDeckDialog({ deck, target, onConfirm, onClose }) {
@@ -61,8 +63,7 @@ export default function Manage({
   const topics = [...new Set(managedDeck.cards.map((c) => c.topic || ui("未分类")))];
   const peers = decks.filter((d) => d.id !== managedDeck.id && !d.systemKind && !d.archived);
   const deckIndex = decks.findIndex((d) => d.id === managedDeck.id);
-  const deckCourse = (d) => d.course ?? d.folder ?? "";
-  const siblings = decks.filter((d) => !d.systemKind && !d.archived && deckCourse(d) === deckCourse(managedDeck));
+  const siblings = decks.filter((d) => !d.systemKind && !d.archived && deckCourseOf(d) === deckCourseOf(managedDeck));
   const siblingIndex = siblings.findIndex((d) => d.id === managedDeck.id);
   const moveOrder = (delta) => {
     const ids = decks.map((d) => d.id);
@@ -135,33 +136,33 @@ export default function Manage({
           {selfCited > 0 && <p>{uiFormat("{0} 题只引用导入题目自身；请先在草稿中换成原始资料引用。", [selfCited])}</p>}
         </Banner>
       )}
-      <form
+      {!managedDeck.systemKind && <form
         className="manage-folder"
         onSubmit={(e) => {
           e.preventDefault();
           act(
-            "deck.move",
-            { id: managedDeck.id, folder: folderDraft },
+            "deck.course",
+            { id: managedDeck.id, course: folderDraft.trim() },
             (moved) => {
-              setManagedDeck({ ...managedDeck, folder: moved.folder });
-              setFolderDraft(moved.folder);
-              toast.success(moved.folder ? uiFormat("已放入目录「{0}」",[moved.folder]) : ui("已移到目录顶层"));
+              setManagedDeck({ ...managedDeck, course: moved.course, folder: "" });
+              setFolderDraft(moved.course);
+              toast.success(moved.course ? uiFormat("已归入课程「{0}」", [moved.course]) : ui("已移回未分类"));
             },
           );
         }}
       >
-        <label className="manage-label" htmlFor="manage-folder-input">{ui("所在目录")}</label>
-        <div className="manage-row">
-          <input
-            id="manage-folder-input"
-            className="manage-row__control"
-            value={folderDraft}
-            onChange={(e) => setFolderDraft(e.target.value)}
-            placeholder={ui("所在目录，例如：设计模式 / 第 4 章（留空为顶层）")}
-          />
-          <Button className="manage-row__action" disabled={folderDraft === (managedDeck.folder || "")} lock={busy} type="submit">{ui("保存目录")}</Button>
+        <CourseField
+          courses={focus?.courses || courses || []}
+          value={folderDraft}
+          onChange={setFolderDraft}
+          label={ui("所属课程")}
+          current={deckCourseOf(managedDeck)}
+          disabled={busy}
+        />
+        <div className="manage-folder__actions">
+          <Button className="manage-row__action" disabled={folderDraft.trim() === deckCourseOf(managedDeck).trim()} lock={busy} type="submit">{ui("保存课程")}</Button>
         </div>
-      </form>
+      </form>}
       {!managedDeck.systemKind && !managedDeck.archived && <Panel className="manage-panel" title={ui("整理题组")}
         description={ui("合并保留全部题目；拆分按主题移动。题目复习记录和前置题关联会一起保留。")}>
         {siblings.length > 1 && <div className="manage-section">

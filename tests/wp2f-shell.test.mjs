@@ -67,7 +67,7 @@ test('the intents replace the copies: one place builds a practice request, one o
   assert.doesNotMatch(shell, /mode:\s*['"]path['"]/, 'practice requests are built by practiceArgs');
   assert.equal(count(await readFile('ui/learning-navigation.js', 'utf8'), /mode:\s*'path'/g), 1);
   assert.ok(count(app, /setGenSource\(/g) <= 2);
-  assert.equal(count(shell, /setFolderDraft\(deck\.folder/g), 1);
+  assert.equal(count(shell, /setFolderDraft\(deckCourseOf\(deck\)\)/g), 1);
   assert.equal(count(shell, /setHint\(false\)/g), 0, 'the entry is one object: emptyEntry()');
 });
 

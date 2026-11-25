@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useRef, useState } from "react";
-import { ui } from "../i18n.js";
+import { ui, uiFormat } from "../i18n.js";
 import { Badge, Button, InlineMessage, Spinner, Tooltip } from "../components/index.js";
 import ModelSetupGate from "../ModelSetupGate.jsx";
 import { useStudy, useStudyBusy } from "../study-context.jsx";
@@ -119,9 +119,16 @@ export default function SimilarTry({ session, data, model, onModelSettings }) {
   if (run?.mode === "exam") return null;
   if (!inSimilarDetour && (!answeredWrong(run) || run?.returnTo)) return null;
   const origin = run.similarFor || { deckId: run.deckId, cardId: run.card.id };
+  const originDeck = inSimilarDetour ? (data?.decks || []).find((deck) => deck.id === origin.deckId) : null;
+  const originCardFromData = originDeck?.cards?.find((card) => card.id === origin.cardId) || null;
   const originCardInfo = learn?.practiceOrigin
     ? { deckId: learn.practiceOrigin.deckId, cardId: learn.practiceOrigin.cardId, prompt: learn.practiceOrigin.prompt, topic: learn.practiceOrigin.topic }
-    : { deckId: origin.deckId, cardId: origin.cardId, prompt: run.card?.prompt || "", topic: run.card?.topic || "" };
+    : originCardFromData
+      ? { deckId: origin.deckId, cardId: origin.cardId, prompt: originCardFromData.prompt || "", topic: originCardFromData.topic || "" }
+      : { deckId: origin.deckId, cardId: origin.cardId, prompt: run.card?.prompt || "", topic: run.card?.topic || "" };
+  const originPrompt = inSimilarDetour
+    ? String(originCardInfo.prompt || "").replace(/\s+/g, " ").trim().slice(0, 60)
+    : "";
 
   const detour = (cardId, deckId = run.deckId) => {
     learn?.pushPracticeContext?.({ originKind: "similar" });
@@ -185,7 +192,7 @@ export default function SimilarTry({ session, data, model, onModelSettings }) {
     </Tooltip>
   );
   return (
-    <div className="similar-try">
+    <div className={inSimilarDetour ? "similar-try similar-try--detour" : "similar-try"} data-similar-detour={inSimilarDetour ? "" : undefined}>
       {!inSimilarDetour && (variantReady
         ? <Button size="sm" variant="primary" iconEnd="arrow-right" className="similar-try__go" lock={busy} data-usage="review.similar-variant-go"
           onClick={() => detour(variant.resultCardId, variant.deckId)}>{ui("做这道变式题")}</Button>
@@ -195,6 +202,7 @@ export default function SimilarTry({ session, data, model, onModelSettings }) {
           {ui("回到原题")}
         </Button>
       )}
+      {inSimilarDetour && originPrompt && <span className="similar-try__note">{uiFormat("原题：{0}", [originPrompt])}</span>}
       <Button size="sm" variant="quiet" data-usage="review.similar-list" lock={busy} busy={here.kind === "finding"} onClick={toggleSimilarList}>
         {ui("同类题列表")}
       </Button>

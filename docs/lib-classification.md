@@ -28,7 +28,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/book-flip.js`: 1 ui file; 1 other lib file
 - `lib/book-settings.js`: 6 ui files; contexts generation, system; 7 other lib files
 - `lib/card-kinds.js`: 14 ui files; contexts generation, library, recording, study; 26 other lib files
-- `lib/case-study.js`: 5 ui files; contexts generation, library, study; 10 other lib files
+- `lib/case-study.js`: 6 ui files; contexts generation, library, study; 10 other lib files
 - `lib/chemistry-balance.js`: 1 ui file
 - `lib/cloze-text.js`: 3 ui files; 3 other lib files
 - `lib/converted-document.js`: 1 ui file; contexts audio, materials; 2 other lib files
@@ -43,10 +43,10 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/course-method-progress.js`: 1 ui file; contexts courses, library, study; 7 other lib files
 - `lib/course-method-schedule.js`: 1 ui file; contexts courses, library
 - `lib/course-method.js`: 4 ui files; context courses; 5 other lib files
-- `lib/course-rules.js`: 3 ui files; context authoring; 3 other lib files
+- `lib/course-rules.js`: 4 ui files; context authoring; 3 other lib files
 - `lib/course-setup.js`: 1 ui file
 - `lib/course-tree.js`: 13 ui files; contexts generation, library, materials, study; 20 other lib files
-- `lib/courses.js`: 11 ui files; contexts authoring, coach, courses, generation, library, study; 15 other lib files
+- `lib/courses.js`: 12 ui files; contexts authoring, coach, courses, generation, library, study; 15 other lib files
 - `lib/coverage-run.js`: 6 ui files; contexts generation, library; 5 other lib files
 - `lib/coverage-strength.js`: 5 ui files; context generation; 5 other lib files
 - `lib/coverage.js`: 3 ui files; context generation; 5 other lib files
@@ -184,7 +184,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/recording-state.js`: contexts library, recording
 - `lib/rubric-grading.js`: contexts authoring, study; 4 other lib files
 - `lib/skeleton-diagrams.js`: contexts library, skeleton; 3 other lib files
-- `lib/skeleton.js`: contexts library, skeleton; 3 other lib files
+- `lib/skeleton.js`: contexts authoring, library, skeleton, study; 3 other lib files
 - `lib/slay.js`: contexts bank, coach, study; 1 other lib file
 - `lib/solution-exposure.js`: contexts jobs, study; 5 other lib files
 - `lib/source-query.js`: contexts bank, library

@@ -281,7 +281,7 @@ export function CoachSection({ data = null, profile, setProfile, onOpenRef = nul
           setProfile(next);
           toast.success(ui('已清空陪学画像和未使用的定制题；练习记录不受影响。'));
         }, { rethrow: true })}>
-        <Hint>{ui('练习记录和复习进度不受影响；之后做完一轮，陪学会重新写画像。')}</Hint>
+        <Hint>{ui('练习记录和复习进度不受影响，考试教练方案与样题暴露记录也会保留；之后做完一轮，陪学会重新写画像。')}</Hint>
       </ConfirmDialog>}
     </SettingsSection>
   );

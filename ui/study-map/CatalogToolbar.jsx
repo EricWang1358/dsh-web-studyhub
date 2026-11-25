@@ -10,7 +10,7 @@ export default function CatalogToolbar({ search, onSearch, showArchived, onToggl
   return (
     <div className="map-toolbar">
       <div className="map-tools">
-        <TextInput type="search" className="map-tools__search" aria-label={ui('搜索题组或主题')} value={search} onChange={(event) => onSearch(event.target.value)} placeholder={ui('搜索题组、目录或主题')}
+        <TextInput type="search" className="map-tools__search" aria-label={ui('搜索题组或主题')} value={search} onChange={(event) => onSearch(event.target.value)} placeholder={ui('搜索题组、课程或主题')}
           onKeyDown={(event) => {
             if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
             if (event.key !== 'Escape') return;
