@@ -1,5 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -51,7 +53,7 @@ export const CourseRouteModal = memo(function CourseRouteModal({
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
-  const { columns, rows } = useWindowSize();
+  const { columns, rows } = useStableWindowSize();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -262,7 +264,7 @@ export const CourseRouteModal = memo(function CourseRouteModal({
           <Text color={theme.error} bold>
             {t(lang, '加载路线失败', 'Failed to load route')}
           </Text>
-          <Text color={theme.muted}>{truncateDisplay(error, innerW, ell)}</Text>
+          <Text color={theme.muted} wrap="wrap">{error}</Text>
         </Box>
       ) : chapters.length === 0 ? (
         <EmptyState
@@ -324,8 +326,8 @@ export const CourseRouteModal = memo(function CourseRouteModal({
               <Spinner label={t(lang, '正在启动章节练习...', 'Starting chapter review...')} active={isActive} />
             </Box>
           ) : actionError ? (
-            <Box height={1} width={innerW} overflow="hidden">
-              <Text color={theme.error}>{truncateDisplay(actionError, innerW, ell)}</Text>
+            <Box width={innerW}>
+              <Text color={theme.error} wrap="wrap">{actionError}</Text>
             </Box>
           ) : null}
         </Box>

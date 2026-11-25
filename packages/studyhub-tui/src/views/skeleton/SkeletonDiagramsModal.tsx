@@ -1,5 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -110,7 +112,7 @@ export const SkeletonDiagramsModal = memo(function SkeletonDiagramsModal({
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
-  const { columns, rows } = useWindowSize();
+  const { columns, rows } = useStableWindowSize();
 
   const [mode, setMode] = useState<ModalMode>('list');
   const [loadingList, setLoadingList] = useState(true);
@@ -606,11 +608,11 @@ export const SkeletonDiagramsModal = memo(function SkeletonDiagramsModal({
                   isActive={isActive && !confirmRemoveOpen && mode === 'attach' && !attaching && attachField === 'title'}
                 />
               </Box>
-              <Box height={1} width={innerW} marginTop={1} overflow="hidden">
+              <Box width={innerW} marginTop={1}>
                 {attaching ? (
                   <Spinner label={t(lang, '正在校验并挂载图表...', 'Validating and attaching diagram...')} active={isActive} />
                 ) : attachError ? (
-                  <Text color={theme.error}>{truncateDisplay(attachError, innerW, ell)}</Text>
+                  <Text color={theme.error} wrap="wrap">{attachError}</Text>
                 ) : (
                   <Text color={theme.dim}>
                     {truncateDisplay(
@@ -635,7 +637,7 @@ export const SkeletonDiagramsModal = memo(function SkeletonDiagramsModal({
               <Text color={theme.error} bold>
                 {t(lang, '加载图表列表失败', 'Failed to load diagram list')}
               </Text>
-              <Text color={theme.muted}>{truncateDisplay(listError, innerW, ell)}</Text>
+              <Text color={theme.muted} wrap="wrap">{listError}</Text>
             </Box>
           ) : diagrams.length === 0 ? (
             <EmptyState

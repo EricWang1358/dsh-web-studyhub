@@ -1,6 +1,8 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { pathToFileURL } from 'node:url';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -492,7 +494,7 @@ export const CompanionsModal = memo(function CompanionsModal({
   const snapshot = useTuiStore((s) => s.snapshot);
   const navigate = useTuiStore((s) => s.navigate);
   const notify = useTuiStore((s) => s.notify);
-  const { columns, rows: termRows } = useWindowSize();
+  const { columns, rows: termRows } = useStableWindowSize();
 
   const mountedRef = useRef(true);
   const busyRef = useRef(false);
@@ -1144,7 +1146,7 @@ export const CompanionsModal = memo(function CompanionsModal({
           openTarget = rawPath;
         }
       }
-      const res = await tryAction(host, 'app.open', { url: openTarget, path: rawPath });
+      const res = await tryAction(host, 'app.open', { url: openTarget });
       if (!mountedRef.current) return;
       if (res.ok) {
         notify(t(lang, `已请求外部打开: ${rawPath}`, `Opened externally: ${rawPath}`), 'success');
@@ -1152,7 +1154,11 @@ export const CompanionsModal = memo(function CompanionsModal({
       } else {
         setPathNotice(rawPath);
         notify(
-          t(lang, `终端模式请用浏览器打开: ${rawPath}`, `Open HTML in browser: ${rawPath}`),
+          t(
+            lang,
+            `无法直接打开（${res.error?.message || '路径不在允许范围'}）：${rawPath}。请用浏览器打开。`,
+            `Cannot open directly (${res.error?.message || 'path not allowed'}): ${rawPath}. Open it in a browser instead.`,
+          ),
           'info',
         );
       }
@@ -1572,8 +1578,8 @@ export const CompanionsModal = memo(function CompanionsModal({
           ) : null}
           {attachErr ? (
             <Box marginTop={1}>
-              <Text color={theme.error} wrap="truncate-end">
-                {truncateDisplay(`${errMark} ${attachErr}`, innerW, ell)}
+              <Text color={theme.error} wrap="wrap">
+                {`${errMark} ${attachErr}`}
               </Text>
             </Box>
           ) : null}
@@ -1669,8 +1675,8 @@ export const CompanionsModal = memo(function CompanionsModal({
                 </Box>
               ) : buildErr ? (
                 <Box marginTop={1}>
-                  <Text color={theme.error} wrap="truncate-end">
-                    {truncateDisplay(`${errMark} ${buildErr}`, Math.max(16, innerW - 4), ell)}
+                  <Text color={theme.error} wrap="wrap">
+                    {`${errMark} ${buildErr}`}
                   </Text>
                 </Box>
               ) : (
@@ -1751,8 +1757,8 @@ export const CompanionsModal = memo(function CompanionsModal({
                 </Box>
               ) : buildErr ? (
                 <Box marginTop={1}>
-                  <Text color={theme.error} wrap="truncate-end">
-                    {truncateDisplay(`${errMark} ${buildErr}`, innerW, ell)}
+                  <Text color={theme.error} wrap="wrap">
+                    {`${errMark} ${buildErr}`}
                   </Text>
                 </Box>
               ) : (
@@ -1837,8 +1843,8 @@ export const CompanionsModal = memo(function CompanionsModal({
             </Box>
           ) : catchupErr ? (
             <Box marginTop={1}>
-              <Text color={theme.error} wrap="truncate-end">
-                {truncateDisplay(`${errMark} ${catchupErr}`, innerW, ell)}
+              <Text color={theme.error} wrap="wrap">
+                {`${errMark} ${catchupErr}`}
               </Text>
             </Box>
           ) : null}
@@ -1966,8 +1972,8 @@ export const CompanionsModal = memo(function CompanionsModal({
                   {listLoading ? (
                     <Spinner label={t(lang, `加载中${ell}`, `Loading${ell}`)} />
                   ) : listErr ? (
-                    <Text color={theme.error} wrap="truncate-end">
-                      {truncateDisplay(`${errMark} ${listErr}`, Math.max(10, lw - 4), ell)}
+                    <Text color={theme.error} wrap="wrap">
+                      {`${errMark} ${listErr}`}
                     </Text>
                   ) : companions.length === 0 ? (
                     <EmptyState
@@ -2027,8 +2033,8 @@ export const CompanionsModal = memo(function CompanionsModal({
                   ) : detailLoading ? (
                     <Spinner label={t(lang, `读取伴学结构${ell}`, `Loading companion${ell}`)} />
                   ) : detailErr ? (
-                    <Text color={theme.error} wrap="truncate-end">
-                      {truncateDisplay(`${errMark} ${detailErr}`, Math.max(10, rw - 4), ell)}
+                    <Text color={theme.error} wrap="wrap">
+                      {`${errMark} ${detailErr}`}
                     </Text>
                   ) : (
                     <MarkdownView

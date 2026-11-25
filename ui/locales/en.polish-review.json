@@ -175,5 +175,12 @@
   "已改名为「{0}」，含 {1} 门子课程的题组、资料、全书和练习都已同步": "Renamed to \"{0}\"; decks, materials, review book, and practice synced across {1} sub-courses",
   "已改名为「{0}」，含 {1} 门子课程的题组、资料、全书和练习都已同步#one:1": "Renamed to \"{0}\"; decks, materials, review book, and practice synced across {1} sub-course",
   "将连同 {0} 门子课程一并改名，所有题组、资料、全书、练习和学习流会一起同步；旧名称保留为别名。": "This will also rename {0} sub-courses and sync all decks, materials, review book, practice, and workflows; old names remain as aliases.",
-  "将连同 {0} 门子课程一并改名，所有题组、资料、全书、练习和学习流会一起同步；旧名称保留为别名。#one": "This will also rename {0} sub-course and sync all decks, materials, review book, practice, and workflows; old names remain as aliases."
+  "将连同 {0} 门子课程一并改名，所有题组、资料、全书、练习和学习流会一起同步；旧名称保留为别名。#one": "This will also rename {0} sub-course and sync all decks, materials, review book, practice, and workflows; old names remain as aliases.",
+  "仅保留文字（清除丢失副本引用）": "Keep text only (clear missing copy link)",
+  "备份已导出。": "Backup exported.",
+  "其中 {0} 份原文件只记了路径，没有放进备份；换电脑后需要重新指定。": "{0} originals were linked by path only and are not inside this backup; re-link them on another computer.",
+  "其中 {0} 份原文件只记了路径，没有放进备份；换电脑后需要重新指定。#one": "{0} original was linked by path only and is not inside this backup; re-link it on another computer.",
+  "有 {0} 份已丢失的原件副本已跳过，对应资料仅以文字形态写入备份。": "{0} missing original copies were skipped and saved as text-only materials.",
+  "有 {0} 份已丢失的原件副本已跳过，对应资料仅以文字形态写入备份。#one": "{0} missing original copy was skipped and saved as text-only.",
+  "备份体积较大（约 {0} MB），恢复时将自动分片上传，请耐心等待。": "This backup is large (~{0} MB); restoring will upload it in chunks automatically."
 }

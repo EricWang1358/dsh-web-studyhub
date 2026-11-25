@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -449,7 +450,7 @@ export const BookStructureModal = memo(function BookStructureModal({
 
             {error ? (
               <Text color={theme.error}>
-                {`${asciiMode ? '!' : '✕'} ${truncateDisplay(error, Math.max(8, innerW - 3), ell)}`}
+                {`${asciiMode ? '!' : '✕'} ${error}`}
               </Text>
             ) : null}
           </Box>
@@ -511,7 +512,7 @@ export const BookStructureModal = memo(function BookStructureModal({
 
           {error ? (
             <Text color={theme.error}>
-              {`${asciiMode ? '!' : '✕'} ${truncateDisplay(error, Math.max(8, innerW - 3), ell)}`}
+              {`${asciiMode ? '!' : '✕'} ${error}`}
             </Text>
           ) : null}
         </Box>

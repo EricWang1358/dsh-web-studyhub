@@ -4,6 +4,7 @@ import katex from "katex/dist/katex.js";
 import "katex/dist/contrib/mhchem.js";
 import { safeStudyImage } from './study-media.js';
 import { installMathStyle } from './study-math-render.js';
+import { isDiagramFenceLang, renderStudyDiagramHtml } from './study-diagram-render.js';
 
 // Parser and math renderer are bundled locally. Maths is drawn as the formula unit draws it (ui/study-math-render.js, #996): KaTeX's HTML with its own
 // fonts, the MathML beside it for screen readers; the stylesheet goes into the document with the first note rendered.
@@ -20,6 +21,16 @@ export function createMarkdown(mathRules = {}, { markerCaptions = false } = {}) 
     token.attrSet('src', src); token.attrSet('loading', 'lazy'); token.attrSet('referrerpolicy', 'no-referrer');
     const caption = env?.imageCaptions !== false && token.content ? `<span class="md-image-caption"${marker}>` + md.utils.escapeHtml(token.content) + '</span>' : '';
     return '<span class="md-image md-image-static">' + renderImage(tokens, index, options, env, self) + caption + '</span>';
+  };
+  const renderFence = md.renderer.rules.fence;
+  md.renderer.rules.fence = (tokens, index, options, env, self) => {
+    const token = tokens[index];
+    const lang = String(token.info || '').trim().split(/\s+/)[0];
+    if (isDiagramFenceLang(lang)) {
+      const rendered = renderStudyDiagramHtml(token.content);
+      if (rendered) return rendered;
+    }
+    return renderFence ? renderFence(tokens, index, options, env, self) : self.renderToken(tokens, index, options);
   };
   return md;
 }

@@ -6,8 +6,10 @@
 // - Track B3: Review Quick Action Strip (`quick-actions.ts`) + [R] Redo current card behavior
 // node --test tests/round-84-ux.test.mjs
 import assert from 'node:assert/strict';
+import { resolve } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { after, describe, test } from 'node:test';
+import { pathToFileURL } from 'node:url';
 import { render } from 'ink';
 import React from 'react';
 import { register } from 'tsx/esm/api';
@@ -138,7 +140,7 @@ describe('Round 84 Track C2 — OSC 8 terminal hyperlinks with safe fallback', (
 
   test('builds file:// URLs with page anchors and rejects unsafe schemes or control chars', () => {
     const url = buildFileHyperlinkUrl('/tmp/notes/ch3.pdf', 12);
-    assert.equal(url, 'file:///tmp/notes/ch3.pdf#page=12');
+    assert.equal(url, `${pathToFileURL(resolve('/tmp/notes/ch3.pdf')).href}#page=12`);
     assert.equal(buildFileHyperlinkUrl('https://example.com/doc'), 'https://example.com/doc');
 
     const linked = formatOsc8Link('ch3.pdf p.12', url, { enabled: true });
@@ -250,7 +252,7 @@ describe('Round 84 Track B3 — Review Quick Action Strip & [R] Redo', () => {
     const wide = render(wrap(116, 34), { stdout: wideTty.stdout, stdin: wideTty.stdin, exitOnCtrlC: false, interactive: true });
     const wideText = await wideTty.waitFor((s) => s.includes('[h]讲解'));
     assert.match(wideText, /\[h\]讲解/);
-    assert.match(wideText, /\[T\]带学/);
+    assert.match(wideText, /\[t\]带学/);
     assert.match(wideText, /\[S\]同类/);
     assert.match(wideText, /\[\*\]收藏/);
     assert.match(wideText, /\[R\]重做/);
@@ -269,7 +271,7 @@ describe('Round 84 Track B3 — Review Quick Action Strip & [R] Redo', () => {
     const narrow = render(wrap(76, 22), { stdout: narrowTty.stdout, stdin: narrowTty.stdin, exitOnCtrlC: false, interactive: true });
     const narrowText = await narrowTty.waitFor((s) => s.includes('[h]讲解'));
     assert.match(narrowText, /\[h\]讲解/);
-    assert.match(narrowText, /\[T\]带学/);
+    assert.match(narrowText, /\[t\]带学/);
     assert.match(narrowText, /按\?看全部|\[\?\]/);
     narrow.unmount();
   });

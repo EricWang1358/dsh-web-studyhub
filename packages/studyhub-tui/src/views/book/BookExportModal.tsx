@@ -1,7 +1,8 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { homedir } from 'node:os';
 import { isAbsolute, resolve } from 'node:path';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { atomicWriteExportText, atomicWriteTextFile, defaultBackupFilePath } from '../../host/atomic-write.js';
@@ -94,7 +95,7 @@ export const BookExportModal = memo(function BookExportModal({
   course,
   isActive,
   width,
-  height,
+  height: _height,
   onClose,
 }: BookExportModalProps) {
   const theme = useTheme();
@@ -342,7 +343,7 @@ export const BookExportModal = memo(function BookExportModal({
             {estimating ? (
               <Spinner label={t(lang, `正在更新 A4 页数估算${ell}`, `Updating A4 estimate${ell}`)} active={isActive} />
             ) : estimateError ? (
-              <Text color={theme.error}>{truncateDisplay(estimateError, innerW, ell)}</Text>
+              <Text color={theme.error} wrap="wrap">{estimateError}</Text>
             ) : est ? (
               <>
                 <Box flexDirection="row" gap={1} height={1} overflow="hidden">
@@ -422,8 +423,8 @@ export const BookExportModal = memo(function BookExportModal({
           ) : null}
           {exportError ? (
             <Box marginTop={0}>
-              <Text color={theme.error}>
-                {`${asciiMode ? '!' : '✕'} ${truncateDisplay(exportError, Math.max(10, innerW - 3), ell)}`}
+              <Text color={theme.error} wrap="wrap">
+                {`${asciiMode ? '!' : '✕'} ${exportError}`}
               </Text>
             </Box>
           ) : null}

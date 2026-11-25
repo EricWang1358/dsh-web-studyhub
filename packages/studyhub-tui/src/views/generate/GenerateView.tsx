@@ -1,5 +1,8 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
+import { KEY_LAYER_MODAL } from '../../input/dispatcher.js';
+import { KeyScope, useKeyScope } from '../../input/hooks.js';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -10,7 +13,8 @@ import { Panel } from '../../components/Panel.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
-import { useClaimKeys, useInputCapture } from '../../components/focus.js';
+import { useInputCapture } from '../../components/focus.js';
+import { LAYOUT_BP, computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { currentCourse, listCourses, modelInfo } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
@@ -24,6 +28,30 @@ const GeneratePathModal = lazy(() => import('./GeneratePathModal.js').then((m) =
 
 type SubTab = 'new' | 'drafts';
 type GenOverlay = 'none' | 'scope' | 'focus' | 'ingest' | 'path' | 'suggest-confirm' | 'suggest-loading' | 'suggest-result';
+
+const GENERATE_CLAIMED_KEYS = ['c', 'k', 'n', 'p', 'f', 'S', 'W', 'P', 'a', 'g', 'i', '/'] as const;
+
+const SuggestResultHotkeys = memo(function SuggestResultHotkeys({
+  isActive,
+  onApply,
+}: {
+  isActive: boolean;
+  onApply: () => void;
+}) {
+  useKeyScope({
+    id: 'GenerateView:suggest-result',
+    active: isActive,
+    layer: KEY_LAYER_MODAL,
+    onKey: (input, key) => {
+      if (input === 'a' || input === 'A' || key.return) {
+        onApply();
+        return true;
+      }
+      return false;
+    },
+  });
+  return null;
+});
 
 interface SuggestUnavailable {
   reason?: string;
@@ -203,7 +231,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
   const shellOverlay = useTuiStore(
     (s) => s.commandPaletteOpen || s.helpOpen || s.coursePickerOpen || s.inboxOpen || s.voicePackOpen,
   );
-  const { columns } = useWindowSize();
+  const { columns } = useStableWindowSize();
   const { refresh } = useShellActions();
 
   const [tab, setTab] = useState<SubTab>(navContext.draftId ? 'drafts' : 'new');
@@ -422,6 +450,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
     refresh,
     notify,
     lang,
+    ell,
     navigate,
   ]);
 
@@ -530,11 +559,9 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
     );
   }, [weakTopics, focusText, lang, notify]);
 
-  const wizardActive = isActive && tab === 'new' && overlay === 'none' && !inputCaptured && !suggestLoading;
   const filterInputActive =
     isActive && tab === 'new' && overlay === 'none' && !shellOverlay && !suggestLoading && filterEditing;
 
-  useClaimKeys(['c', 'k', 'n', 'p', 'f', 'S', 'W', 'P', 'a', 'g', 'i', '/'], wizardActive && !filterEditing);
   useInputCapture(isActive && tab === 'new' && (overlay === 'scope' || overlay === 'focus'));
   useInputCapture(isActive && tab === 'new' && overlay === 'none' && filterEditing);
 
@@ -585,47 +612,41 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
     ],
     [lang, model.ready],
   );
-  useFooterHints(wizardHints, isActive && tab === 'new' && !inputCaptured);
-
-  useInput(
-    (input, key) => {
-      if (!isActive || shellOverlay) return;
-      if (overlay === 'suggest-result') {
-        if (input === 'a' || input === 'A' || key.return) {
-          handleApplySuggest();
-        }
-        return;
-      }
-      if (overlay !== 'none' || inputCaptured || busyRef.current || suggestLoading || filterEditing) return;
+  const pageActive = useKeyScope({
+    id: 'GenerateView:main',
+    active: isActive && !shellOverlay && !inputCaptured && !suggestLoading,
+    keys: tab === 'new' ? GENERATE_CLAIMED_KEYS : undefined,
+    onKey: (input, key) => {
+      if (busyRef.current) return false;
       if (key.tab) {
         setTab((cur) => (cur === 'new' ? 'drafts' : 'new'));
-        return;
+        return true;
       }
-      if (tab !== 'new') return;
+      if (tab !== 'new') return false;
 
       if (key.escape && filterQuery) {
         setFilterQuery('');
         setSourceCursor(0);
-        return;
+        return true;
       }
 
       if (input === '/' && !key.ctrl && !key.meta) {
         setFilterEditing(true);
-        return;
+        return true;
       }
 
       if (input === 'i' && !key.ctrl && !key.meta) {
         setOverlay('ingest');
-        return;
+        return true;
       }
 
       if (key.ctrl && input === 's') {
         void handleSubmitGeneration();
-        return;
+        return true;
       }
       if (input === 'W' && !key.ctrl && !key.meta) {
         handleFillWeakTopics();
-        return;
+        return true;
       }
       if (input === 'P' && !key.ctrl && !key.meta) {
         if (selectedSourceIds.size === 0) {
@@ -637,17 +658,17 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
             ),
             'warning',
           );
-          return;
+          return true;
         }
         setOverlay('path');
-        return;
+        return true;
       }
       if (input === 'S' && !key.ctrl && !key.meta) {
         if (!model.ready) {
           navigate('settings', { mode: 'model' });
-          return;
+          return true;
         }
-        if (busyRef.current || suggestLoading) return;
+        if (busyRef.current || suggestLoading) return true;
         if (effectiveSourceIds.length === 0) {
           notify(
             t(
@@ -657,26 +678,36 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
             ),
             'warning',
           );
-          return;
+          return true;
         }
         setOverlay('suggest-confirm');
-        return;
+        return true;
       }
       if (input === 'c') {
         const names = ['', ...courses.map((c) => c.key)];
         const idx = names.indexOf(courseName);
         setCourseName(names[(idx + 1) % names.length]);
-      } else if (input === 'k') {
+        return true;
+      }
+      if (input === 'k') {
         setKindIndex((i) => (i + 1) % QUESTION_KINDS.length);
-      } else if (input === 'n') {
+        return true;
+      }
+      if (input === 'n') {
         setCountIndex((i) => (i + 1) % TARGET_COUNTS.length);
-      } else if (input === 'p') {
+        return true;
+      }
+      if (input === 'p') {
         setOverlay('scope');
-      } else if (input === 'f') {
+        return true;
+      }
+      if (input === 'f') {
         setOverlay('focus');
-      } else if (input === 'a') {
+        return true;
+      }
+      if (input === 'a') {
         const visibleIds = filteredDocs.flatMap((d) => d.sourceIds);
-        if (visibleIds.length === 0) return;
+        if (visibleIds.length === 0) return true;
         setSelectedSourceIds((prev) => {
           const allVisibleSelected = visibleIds.every((id) => prev.has(id));
           const next = new Set(prev);
@@ -687,7 +718,9 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
           }
           return next;
         });
-      } else if (input === ' ') {
+        return true;
+      }
+      if (input === ' ') {
         const doc = filteredDocs[sourceCursor];
         if (doc) {
           setSelectedSourceIds((prev) => {
@@ -700,10 +733,13 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
             return next;
           });
         }
+        return true;
       }
+      return false;
     },
-    { isActive },
-  );
+  });
+  const wizardPanelActive = pageActive && tab === 'new';
+  useFooterHints(wizardHints, wizardPanelActive);
 
   const showFilterBar = tab === 'new' && (filterEditing || filterQuery.length > 0);
   const filterBarH = showFilterBar ? 1 : 0;
@@ -712,13 +748,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
   const draftCount = snapshot?.drafts?.length ?? 0;
 
   const filterBadge = `[${t(lang, '筛选', filterEditing ? 'Filter' : 'Filtered')} ${filteredDocs.length}/${baseDocs.length}] `;
-  const filterRightHint =
-    width >= 66
-      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
-      : width >= 46
-        ? ' Esc'
-        : '';
-  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
+  const { rightHint: filterRightHint, inputWidth: filterInputW } = computeFilterBarLayout(width, filterBadge, lang, filterEditing);
 
   return (
     <Box flexDirection="column" width={width} height={height}>
@@ -770,39 +800,41 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
 
       {/* Inline Live Material Filter Bar */}
       {showFilterBar ? (
-        <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
-          <Text color={filterEditing ? theme.primary : theme.accent} bold>
-            {filterBadge}
-          </Text>
-          <Box flexGrow={1} overflow="hidden">
-            <TextInput
-              value={filterQuery}
-              onChange={(val) => {
-                setFilterQuery(val);
-                setSourceCursor(0);
-              }}
-              onSubmit={(val) => {
-                if (!val.trim()) setFilterQuery('');
-                setFilterEditing(false);
-              }}
-              onCancel={() => {
-                setFilterQuery('');
-                setFilterEditing(false);
-                setSourceCursor(0);
-              }}
-              isActive={filterInputActive}
-              width={filterInputW}
-              prompt="/"
-              placeholder={t(lang, `关键词${ell}`, `keyword${ell}`)}
-              maxLength={120}
-            />
-          </Box>
-          {filterRightHint ? (
-            <Text color={theme.dim} wrap="truncate">
-              {filterRightHint}
+        <KeyScope id="generate:filter" opaque active={filterInputActive}>
+          <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+            <Text color={filterEditing ? theme.primary : theme.accent} bold>
+              {filterBadge}
             </Text>
-          ) : null}
-        </Box>
+            <Box flexGrow={1} overflow="hidden">
+              <TextInput
+                value={filterQuery}
+                onChange={(val) => {
+                  setFilterQuery(val);
+                  setSourceCursor(0);
+                }}
+                onSubmit={(val) => {
+                  if (!val.trim()) setFilterQuery('');
+                  setFilterEditing(false);
+                }}
+                onCancel={() => {
+                  setFilterQuery('');
+                  setFilterEditing(false);
+                  setSourceCursor(0);
+                }}
+                isActive={filterInputActive}
+                width={filterInputW}
+                prompt="/"
+                placeholder={t(lang, `关键词${ell}`, `keyword${ell}`)}
+                maxLength={120}
+              />
+            </Box>
+            {filterRightHint ? (
+              <Text color={theme.dim} wrap="truncate">
+                {filterRightHint}
+              </Text>
+            ) : null}
+          </Box>
+        </KeyScope>
       ) : null}
 
       {/* Body */}
@@ -830,10 +862,10 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
           <SplitPane
             width={width}
             height={bodyH}
-            leftWidth={width < 86 ? 0.45 : 0.5}
+            leftWidth={width < LAYOUT_BP.SPLIT_DEFAULT ? 0.45 : 0.5}
             minLeft={24}
             minRight={38}
-            breakpoint={68}
+            breakpoint={LAYOUT_BP.SPLIT_MODAL}
             leftLabel={t(lang, '选择资料', 'Sources')}
             rightLabel={t(lang, '出题参数 & 费用预估', 'Options & Estimate')}
             left={({ width: lw, height: lh }) => (
@@ -842,7 +874,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
                 badge={`${effectiveSourceIds.length}p`}
                 width={lw}
                 height={lh}
-                focused={wizardActive && !filterEditing}
+                focused={wizardPanelActive}
               >
                 {baseDocs.length === 0 ? (
                   <EmptyState
@@ -866,7 +898,8 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
                     selectedIndex={sourceCursor}
                     onChange={(idx) => setSourceCursor(idx)}
                     onSelect={() => void handleSubmitGeneration()}
-                    isActive={wizardActive && !filterEditing}
+                    isActive={wizardPanelActive}
+                    vimNavKeys={false}
                     keyExtractor={(d) => d.key}
                     renderItem={(doc, ctx) => {
                       const pickedCount = doc.sourceIds.filter((id) => selectedSourceIds.has(id)).length;
@@ -900,13 +933,26 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
                 )}
               </Panel>
             )}
-            right={({ width: rw, height: rh }) => (
+            right={({ width: rw, height: rh }) => {
+              const panelInnerW = Math.max(14, rw - 4);
+              const weakLine = (() => {
+                if (weakTopics.length === 0) return '';
+                const weakPrefix = `${t(lang, '薄弱点', 'Weak')}: `;
+                const weakSuffix = ` [${t(lang, 'W 填入', 'W Fill')}]`;
+                const topicMax = Math.max(6, panelInnerW - displayWidth(weakPrefix) - displayWidth(weakSuffix));
+                return truncateDisplay(
+                  `${weakPrefix}${truncateDisplay(weakTopics.slice(0, 3).join(', '), topicMax, ell)}${weakSuffix}`,
+                  panelInnerW,
+                  ell,
+                );
+              })();
+              return (
               <Panel
                 title={t(lang, '2. 出题设置与预估', '2. Generation Settings')}
                 width={rw}
                 height={rh}
               >
-                <Box flexDirection="column" width={Math.max(14, rw - 4)}>
+                <Box flexDirection="column" width={panelInnerW}>
                   <Text color={theme.muted}>
                     {t(lang, '[c] 课程归属: ', '[c] Course: ')}
                     <Text color={theme.text} bold>
@@ -946,23 +992,10 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
                     <Text color={theme.muted}>{t(lang, '[f] 重点与额外指令:', '[f] Focus / Instructions:')}</Text>
                     <Text color={focusText ? theme.text : theme.dim}>
                       {focusText
-                        ? truncateDisplay(focusText, Math.max(20, (rw - 4) * 2 - 4), ell)
+                        ? truncateDisplay(focusText, Math.max(20, panelInnerW * 2 - 4), ell)
                         : t(lang, '（无，按材料自动规划重点）', '(None — auto plan from materials)')}
                     </Text>
-                    {weakTopics.length > 0
-                      ? (() => {
-                          const panelInnerW = Math.max(14, rw - 4);
-                          const weakPrefix = `${t(lang, '薄弱点', 'Weak')}: `;
-                          const weakSuffix = ` [${t(lang, 'W 填入', 'W Fill')}]`;
-                          const topicMax = Math.max(6, panelInnerW - displayWidth(weakPrefix) - displayWidth(weakSuffix));
-                          const line = `${weakPrefix}${truncateDisplay(weakTopics.slice(0, 3).join(', '), topicMax, ell)}${weakSuffix}`;
-                          return (
-                            <Text color={theme.warning}>
-                              {truncateDisplay(line, panelInnerW, ell)}
-                            </Text>
-                          );
-                        })()
-                      : null}
+                    {weakLine ? <Text color={theme.warning}>{weakLine}</Text> : null}
                   </Box>
 
                   <Box marginTop={1} flexDirection="column">
@@ -995,123 +1028,138 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
                   </Box>
                 </Box>
               </Panel>
-            )}
+              );
+            }}
           />
         )}
       </Box>
 
       {/* Modals for scope / focus */}
       {overlay === 'scope' ? (
-        <Modal
-          title={t(lang, '设置页码范围', 'Page Scope')}
-          width={56}
-          isActive={isActive}
-          onClose={() => setOverlay('none')}
-          hints={[
-            { key: 'Enter', label: t(lang, '确定', 'Apply') },
-            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
-          ]}
-        >
-          <Text color={theme.muted}>{t(lang, '输入 all 或页码范围（例如 1-5, 8）:', 'Enter "all" or page ranges (e.g. 1-5, 8):')}</Text>
-          <Box marginTop={1}>
-            <TextInput
-              value={pageScope}
-              onChange={setPageScope}
-              onSubmit={() => setOverlay('none')}
-              onCancel={() => setOverlay('none')}
-              width={modalContentWidth(56) - 4}
-              isActive={isActive}
-              prompt={asciiMode ? '>' : '›'}
-            />
-          </Box>
-        </Modal>
+        <KeyScope id="generate:scope" opaque>
+          <Modal
+            title={t(lang, '设置页码范围', 'Page Scope')}
+            width={56}
+            isActive={isActive}
+            onClose={() => setOverlay('none')}
+            hints={[
+              { key: 'Enter', label: t(lang, '确定', 'Apply') },
+              { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+            ]}
+          >
+            <Text color={theme.muted}>{t(lang, '输入 all 或页码范围（例如 1-5, 8）:', 'Enter "all" or page ranges (e.g. 1-5, 8):')}</Text>
+            <Box marginTop={1}>
+              <TextInput
+                value={pageScope}
+                onChange={setPageScope}
+                onSubmit={() => setOverlay('none')}
+                onCancel={() => setOverlay('none')}
+                width={modalContentWidth(56) - 4}
+                isActive={isActive}
+                prompt={asciiMode ? '>' : '›'}
+              />
+            </Box>
+          </Modal>
+        </KeyScope>
       ) : null}
 
       {overlay === 'focus' ? (
-        <Modal
-          title={t(lang, '自定义出题重点 / 要求', 'Custom Focus / Instructions')}
-          width={68}
-          isActive={isActive}
-          onClose={() => setOverlay('none')}
-          hints={[
-            { key: 'Ctrl+S', label: t(lang, '保存', 'Save') },
-            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
-          ]}
-        >
-          <TextInput
-            value={focusText}
-            onChange={setFocusText}
-            onSubmit={() => setOverlay('none')}
-            onCancel={() => setOverlay('none')}
-            placeholder={t(lang, '例如：侧重计算题与易错概念辨析，解析给出推导步骤', 'e.g. Focus on numerical derivations and common misconceptions')}
-            multiline
-            height={4}
-            width={modalContentWidth(68) - 4}
+        <KeyScope id="generate:focus" opaque>
+          <Modal
+            title={t(lang, '自定义出题重点 / 要求', 'Custom Focus / Instructions')}
+            width={68}
             isActive={isActive}
-          />
-        </Modal>
+            onClose={() => setOverlay('none')}
+            hints={[
+              { key: 'Ctrl+S', label: t(lang, '保存', 'Save') },
+              { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+            ]}
+          >
+            <TextInput
+              value={focusText}
+              onChange={setFocusText}
+              onSubmit={() => setOverlay('none')}
+              onCancel={() => setOverlay('none')}
+              placeholder={t(lang, '例如：侧重计算题与易错概念辨析，解析给出推导步骤', 'e.g. Focus on numerical derivations and common misconceptions')}
+              multiline
+              height={4}
+              width={modalContentWidth(68) - 4}
+              isActive={isActive}
+            />
+          </Modal>
+        </KeyScope>
       ) : null}
 
-      <Suspense fallback={null}>
-        {overlay === 'ingest' ? (
-          <IngestModal
-            host={host}
-            defaultCourse={courseName || currentCourse(snapshot)}
-            isActive={isActive && overlay === 'ingest'}
-            onClose={() => setOverlay('none')}
-            onDone={refresh}
-          />
-        ) : null}
-        {overlay === 'path' ? (
-          <GeneratePathModal
-            host={host}
-            groups={allDocs}
-            selectedSourceIds={selectedSourceIds}
-            course={courseName || undefined}
-            isActive={isActive && overlay === 'path'}
-            onApplyStep={handleApplyPathStep}
-            onClose={() => setOverlay('none')}
-          />
-        ) : null}
-      </Suspense>
+      {overlay === 'ingest' ? (
+        <KeyScope id="generate:ingest" opaque>
+          <Suspense fallback={null}>
+            <IngestModal
+              host={host}
+              defaultCourse={courseName || currentCourse(snapshot)}
+              isActive={isActive && overlay === 'ingest'}
+              onClose={() => setOverlay('none')}
+              onDone={refresh}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
+      {overlay === 'path' ? (
+        <KeyScope id="generate:path" opaque>
+          <Suspense fallback={null}>
+            <GeneratePathModal
+              host={host}
+              groups={allDocs}
+              selectedSourceIds={selectedSourceIds}
+              course={courseName || undefined}
+              isActive={isActive && overlay === 'path'}
+              onApplyStep={handleApplyPathStep}
+              onClose={() => setOverlay('none')}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
       {overlay === 'suggest-confirm' ? (
-        <ConfirmDialog
-          title={t(lang, 'AI 帮我想想', 'AI Study Focus Suggestion')}
-          message={t(
-            lang,
-            `将发起 1 次轻量 AI 调用（仅发送已选 ${effectiveSourceIds.length} 份资料的标题/目录与薄弱知识点，不发送正文且不会立即出题），为你推荐出题重点。是否继续？`,
-            `This will make 1 lightweight AI call over ${effectiveSourceIds.length} selected source title(s)/headings and weak topics to suggest a study focus (no cards generated yet). Continue?`,
-          )}
-          confirmLabel={t(lang, '开始分析', 'Suggest')}
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          width={62}
-          isActive={isActive && overlay === 'suggest-confirm' && !suggestLoading}
-          onConfirm={() => void handleRunSuggest()}
-          onCancel={() => {
-            if (!busyRef.current) setOverlay('none');
-          }}
-        />
+        <KeyScope id="generate:suggest-confirm" opaque>
+          <ConfirmDialog
+            title={t(lang, 'AI 帮我想想', 'AI Study Focus Suggestion')}
+            message={t(
+              lang,
+              `将发起 1 次轻量 AI 调用（仅发送已选 ${effectiveSourceIds.length} 份资料的标题/目录与薄弱知识点，不发送正文且不会立即出题），为你推荐出题重点。是否继续？`,
+              `This will make 1 lightweight AI call over ${effectiveSourceIds.length} selected source title(s)/headings and weak topics to suggest a study focus (no cards generated yet). Continue?`,
+            )}
+            confirmLabel={t(lang, '开始分析', 'Suggest')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            width={62}
+            isActive={isActive && overlay === 'suggest-confirm' && !suggestLoading}
+            onConfirm={() => void handleRunSuggest()}
+            onCancel={() => {
+              if (!busyRef.current) setOverlay('none');
+            }}
+          />
+        </KeyScope>
       ) : null}
 
       {overlay === 'suggest-loading' ? (
-        <Modal
-          title={t(lang, 'AI 帮我想想', 'AI Study Focus Suggestion')}
-          icon={asciiMode ? '*' : '✦'}
-          width={56}
-          isActive={isActive && overlay === 'suggest-loading'}
-        >
-          <Box paddingY={1}>
-            <Spinner
-              label={
-                asciiMode
-                  ? t(lang, '正在分析资料目录与薄弱知识点...', 'Analyzing source outlines and weak topics...')
-                  : t(lang, '正在分析资料目录与薄弱知识点…', 'Analyzing source outlines and weak topics…')
-              }
-              active={isActive}
-            />
-          </Box>
-        </Modal>
+        <KeyScope id="generate:suggest-loading" opaque>
+          <Modal
+            title={t(lang, 'AI 帮我想想', 'AI Study Focus Suggestion')}
+            icon={asciiMode ? '*' : '✦'}
+            width={56}
+            isActive={isActive && overlay === 'suggest-loading'}
+          >
+            <Box paddingY={1}>
+              <Spinner
+                label={
+                  asciiMode
+                    ? t(lang, '正在分析资料目录与薄弱知识点...', 'Analyzing source outlines and weak topics...')
+                    : t(lang, '正在分析资料目录与薄弱知识点…', 'Analyzing source outlines and weak topics…')
+                }
+                active={isActive}
+              />
+            </Box>
+          </Modal>
+        </KeyScope>
       ) : null}
 
       {overlay === 'suggest-result' && suggestResult
@@ -1139,79 +1187,82 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
             const bullet = asciiMode ? '- ' : '• ';
 
             return (
-              <Modal
-                title={t(lang, 'AI 出题重点建议', 'AI Focus Suggestion')}
-                subtitle={isModel ? t(lang, 'AI 推荐', 'AI') : t(lang, '本地回退', 'Local')}
-                icon={asciiMode ? '*' : '✦'}
-                tone={isModel ? 'primary' : 'warning'}
-                width={modalW}
-                isActive={isActive && overlay === 'suggest-result'}
-                onClose={() => setOverlay('none')}
-                hints={
-                  canApply
-                    ? [
-                        { key: 'a', label: t(lang, '应用到出题设置', 'Apply to Form') },
-                        { key: 'Esc', label: t(lang, '关闭', 'Close') },
-                      ]
-                    : [{ key: 'Esc', label: t(lang, '关闭', 'Close') }]
-                }
-              >
-                <Box flexDirection="column" width={innerW}>
-                  <Box flexDirection="row" alignItems="center">
-                    <Badge
-                      label={isModel ? t(lang, 'AI 推荐重点', 'AI Suggested Focus') : t(lang, '本地目录与错题建议', 'Local Outline & Weak-Topic Suggestion')}
-                      tone={isModel ? 'success' : 'warning'}
-                      variant="soft"
-                    />
-                    {suggestResult.basis ? (
-                      <Text color={theme.dim}>
-                        {`  ${suggestResult.basis.sources ?? 0} ${t(lang, '资料', 'src')}${sepDot}${suggestResult.basis.weakTopics ?? 0} ${t(lang, '薄弱点', 'weak')}`}
+              <KeyScope id="generate:suggest-result" opaque>
+                <SuggestResultHotkeys isActive={isActive && !shellOverlay} onApply={handleApplySuggest} />
+                <Modal
+                  title={t(lang, 'AI 出题重点建议', 'AI Focus Suggestion')}
+                  subtitle={isModel ? t(lang, 'AI 推荐', 'AI') : t(lang, '本地回退', 'Local')}
+                  icon={asciiMode ? '*' : '✦'}
+                  tone={isModel ? 'primary' : 'warning'}
+                  width={modalW}
+                  isActive={isActive && overlay === 'suggest-result'}
+                  onClose={() => setOverlay('none')}
+                  hints={
+                    canApply
+                      ? [
+                          { key: 'a', label: t(lang, '应用到出题设置', 'Apply to Form') },
+                          { key: 'Esc', label: t(lang, '关闭', 'Close') },
+                        ]
+                      : [{ key: 'Esc', label: t(lang, '关闭', 'Close') }]
+                  }
+                >
+                  <Box flexDirection="column" width={innerW}>
+                    <Box flexDirection="row" alignItems="center">
+                      <Badge
+                        label={isModel ? t(lang, 'AI 推荐重点', 'AI Suggested Focus') : t(lang, '本地目录与错题建议', 'Local Outline & Weak-Topic Suggestion')}
+                        tone={isModel ? 'success' : 'warning'}
+                        variant="soft"
+                      />
+                      {suggestResult.basis ? (
+                        <Text color={theme.dim}>
+                          {`  ${suggestResult.basis.sources ?? 0} ${t(lang, '资料', 'src')}${sepDot}${suggestResult.basis.weakTopics ?? 0} ${t(lang, '薄弱点', 'weak')}`}
+                        </Text>
+                      ) : null}
+                    </Box>
+
+                    {unavailableMsg ? (
+                      <Box marginTop={1}>
+                        <Text color={theme.warning} wrap="wrap">
+                          {truncateDisplay(unavailableMsg, Math.max(24, innerW * 2 - 4), ell)}
+                        </Text>
+                      </Box>
+                    ) : null}
+
+                    <Box marginTop={1} flexDirection="column">
+                      <Text color={theme.primary} bold>
+                        {t(lang, '推荐练习重点:', 'Recommended Focus:')}
                       </Text>
+                      {focusItems.length === 0 ? (
+                        <Text color={theme.dim}>
+                          {t(lang, '（暂无可推荐重点，可先检查资料目录或补充练习记录）', '(No focus items available yet)')}
+                        </Text>
+                      ) : (
+                        focusItems.map((item, idx) => (
+                          <Text key={`${idx}-${item}`} color={theme.text}>
+                            {`${bullet}${truncateDisplay(item, Math.max(12, innerW - 4), ell)}`}
+                          </Text>
+                        ))
+                      )}
+                    </Box>
+
+                    {recParts.length > 0 ? (
+                      <Box marginTop={1}>
+                        <Text color={theme.accent} wrap="wrap">
+                          {truncateDisplay(`${t(lang, '建议参数: ', 'Settings: ')}${recParts.join(sepDot)}`, Math.max(20, innerW * 2 - 4), ell)}
+                        </Text>
+                      </Box>
+                    ) : null}
+
+                    {suggestResult.why ? (
+                      <Box marginTop={1}>
+                        <Text color={theme.muted} wrap="wrap">
+                          {truncateDisplay(`${t(lang, '建议依据: ', 'Reason: ')}${suggestResult.why}`, Math.max(24, innerW * 2 - 4), ell)}
+                        </Text>
+                      </Box>
                     ) : null}
                   </Box>
-
-                  {unavailableMsg ? (
-                    <Box marginTop={1}>
-                      <Text color={theme.warning} wrap="wrap">
-                        {truncateDisplay(unavailableMsg, Math.max(24, innerW * 2 - 4), ell)}
-                      </Text>
-                    </Box>
-                  ) : null}
-
-                  <Box marginTop={1} flexDirection="column">
-                    <Text color={theme.primary} bold>
-                      {t(lang, '推荐练习重点:', 'Recommended Focus:')}
-                    </Text>
-                    {focusItems.length === 0 ? (
-                      <Text color={theme.dim}>
-                        {t(lang, '（暂无可推荐重点，可先检查资料目录或补充练习记录）', '(No focus items available yet)')}
-                      </Text>
-                    ) : (
-                      focusItems.map((item, idx) => (
-                        <Text key={`${idx}-${item}`} color={theme.text}>
-                          {`${bullet}${truncateDisplay(item, Math.max(12, innerW - 4), ell)}`}
-                        </Text>
-                      ))
-                    )}
-                  </Box>
-
-                  {recParts.length > 0 ? (
-                    <Box marginTop={1}>
-                      <Text color={theme.accent} wrap="wrap">
-                        {truncateDisplay(`${t(lang, '建议参数: ', 'Settings: ')}${recParts.join(sepDot)}`, Math.max(20, innerW * 2 - 4), ell)}
-                      </Text>
-                    </Box>
-                  ) : null}
-
-                  {suggestResult.why ? (
-                    <Box marginTop={1}>
-                      <Text color={theme.muted} wrap="wrap">
-                        {truncateDisplay(`${t(lang, '建议依据: ', 'Reason: ')}${suggestResult.why}`, Math.max(24, innerW * 2 - 4), ell)}
-                      </Text>
-                    </Box>
-                  ) : null}
-                </Box>
-              </Modal>
+                </Modal>
+              </KeyScope>
             );
           })()
         : null}

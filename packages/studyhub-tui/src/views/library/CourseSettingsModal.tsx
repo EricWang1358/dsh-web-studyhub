@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -1597,7 +1598,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
           subMode === 'presets' ? (
             <Box flexDirection="column" height={tabBodyH} overflow="hidden">
               <Text color={theme.accent} bold>
-                {t(lang, '选择预设学习模式 (保存至 course.method.save):', 'Choose a preset learning mode:')}
+                {t(lang, '选择预设学习模式:', 'Choose a preset learning mode:')}
               </Text>
               <Box marginTop={1}>
                 <SelectList

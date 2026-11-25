@@ -9,7 +9,7 @@ import { MasteryMark } from "../document-preview/practice/MasteryMark.jsx";
 import { fixedOptionLabel, optionMark } from "../option-label.js";
 import QuestionSourcePage from "./QuestionSourcePage.jsx";
 import LearningActions from "./LearningActions.jsx";
-import { clozeRuns } from "../../lib/cloze-text.js";
+import { clozeBlankIds } from "../../lib/cloze-text.js";
 import { reviewEntryKey } from "../async.js";
 
 export const MAX_QUESTION_META_BADGES = 2;
@@ -176,7 +176,7 @@ export function PostAnswerDetails({ session, data, model, onModelSettings, openM
 export function ClozeQuestion({ run, clozeValues, clozeFocusTick, enOn, enStem, enAnswer, voiceAnswer, actions, pendingCloze = false }) {
   const busy = useStudyBusy();
   const { reviewAct, setClozeValue } = actions;
-  const clozeIds = clozeRuns(run.card?.cloze?.text || "").filter((part) => part.t === "blank").map((part) => part.id);
+  const clozeIds = clozeBlankIds(run.card?.cloze?.text || "");
   const filledCloze = clozeIds.filter((id) => String(clozeValues?.[id] ?? "").trim()).length;
   const canMarkEquivalent = run.mode !== "exam" && !run.retry && !run.complete && !!run.feedback && !run.feedback.correct;
   return (

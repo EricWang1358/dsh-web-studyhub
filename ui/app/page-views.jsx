@@ -530,7 +530,8 @@ function SettingsView() {
   async function exportData() {
     try {
       const backup = await call('export');
-      const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = backupFileName();
@@ -538,7 +539,13 @@ function SettingsView() {
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       // Originals attached by path stay where the learner keeps them; say how many are not in this file.
       const referenced = backup.portableMaterials?.referencedOriginals?.length;
-      if (referenced) notify({ text: uiFormat('备份已导出。其中 {0} 份原文件只记了路径，没有放进备份；换电脑后需要重新指定。', [referenced]), tone: 'success', persistent: true });
+      const missing = backup.portableMaterials?.missingAttachments;
+      const largeMb = blob.size > 60 * 1024 * 1024 ? Math.round(blob.size / (1024 * 1024)) : 0;
+      const parts = [];
+      if (referenced) parts.push(uiFormat('备份已导出。其中 {0} 份原文件只记了路径，没有放进备份；换电脑后需要重新指定。', [referenced]));
+      if (missing) parts.push(uiFormat('有 {0} 份已丢失的原件副本已跳过，对应资料仅以文字形态写入备份。', [missing]));
+      if (largeMb) parts.push(uiFormat('备份体积较大（约 {0} MB），恢复时将自动分片上传，请耐心等待。', [largeMb]));
+      if (parts.length) notify({ text: referenced ? parts.join(' ') : [ui('备份已导出。'), ...parts].join(' '), tone: missing ? 'warning' : 'success', persistent: true });
     } catch (failure) {
       setError(failure.message);
     }

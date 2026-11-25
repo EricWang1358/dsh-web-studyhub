@@ -1,5 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -603,7 +605,7 @@ export const WorkflowHistoryModal = memo(function WorkflowHistoryModal({
   onClose,
 }: WorkflowHistoryModalProps) {
   const theme = useTheme();
-  const { columns, rows } = useWindowSize();
+  const { columns, rows } = useStableWindowSize();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const ell = asciiMode ? '...' : '…';
@@ -975,7 +977,7 @@ export const WorkflowHistoryModal = memo(function WorkflowHistoryModal({
           ) : contextError ? (
             <EmptyState
               title={t(lang, '无法读取工作流上下文', 'Could not load workflow context')}
-              hint={truncateDisplay(contextError, Math.max(20, innerW - 4), ell)}
+              hint={contextError}
               icon={asciiMode ? '!' : '⚠'}
               width={innerW}
               height={bodyH}
@@ -1028,7 +1030,7 @@ export const WorkflowHistoryModal = memo(function WorkflowHistoryModal({
         <Box width={innerW} height={bodyH} flexDirection="column" alignItems="center" justifyContent="center">
           <EmptyState
             title={t(lang, '无法读取历史学习流', 'Could not load workflow history')}
-            hint={truncateDisplay(listError, Math.max(20, innerW - 4), ell)}
+            hint={listError}
             icon={asciiMode ? '!' : '⚠'}
             width={innerW}
             height={bodyH}
@@ -1154,7 +1156,7 @@ export const WorkflowHistoryModal = memo(function WorkflowHistoryModal({
                     ) : selectedSession && detailError && !activeDetail ? (
                       <EmptyState
                         title={t(lang, '无法读取步骤详情', 'Unable to load session details')}
-                        hint={truncateDisplay(detailError, Math.max(16, detailW - 2), ell)}
+                        hint={detailError}
                         width={detailW}
                         height={Math.max(2, bodyH - 2)}
                       />

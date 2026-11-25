@@ -231,56 +231,65 @@ if (listOnly) {
 }
 
 const allTimings = [];
+const tierResults = [];
 let overallExit = 0;
 
 if (!e2eOnly && unitFiles.length > 0) {
   const t0 = performance.now();
   const rels = unitFiles.map((f) => f.rel);
   console.log(`\n[tier:unit] Running ${rels.length} unit/static suites (concurrency=${unitConcurrency})...`);
+  let tierCode = 0;
   if (showTiming) {
     const { exitCode, results } = await runWithTiming(rels, unitConcurrency);
     allTimings.push(...results.map((r) => ({ ...r, tier: 'unit' })));
-    if (exitCode !== 0) overallExit = exitCode;
+    tierCode = exitCode;
   } else {
-    const code = await runNodeTest(rels, unitConcurrency);
-    if (code !== 0) overallExit = code;
+    tierCode = await runNodeTest(rels, unitConcurrency);
   }
-  console.log(`[tier:unit] Finished in ${((performance.now() - t0) / 1000).toFixed(2)}s`);
+  if (tierCode !== 0) overallExit = tierCode;
+  tierResults.push({ tier: 'unit', count: rels.length, code: tierCode });
+  console.log(`[tier:unit] Finished in ${((performance.now() - t0) / 1000).toFixed(2)}s (${tierCode === 0 ? 'PASS' : 'FAIL'})`);
 }
 
 // Run CPU-sensitive microbenchmark budget suites isolated (concurrency=1) to prevent parallel CPU jitter.
-if (!e2eOnly && benchFiles.length > 0 && overallExit === 0) {
+// Always continue into remaining tiers so failures in earlier tiers never hide later tier results (#1343).
+if (!e2eOnly && benchFiles.length > 0) {
   const t0 = performance.now();
   const rels = benchFiles.map((f) => f.rel);
   console.log(`\n[tier:bench] Running ${rels.length} NFR perf/scale budget suites (isolated, concurrency=1)...`);
+  let tierCode = 0;
   if (showTiming) {
     const { exitCode, results } = await runWithTiming(rels, 1);
     allTimings.push(...results.map((r) => ({ ...r, tier: 'bench' })));
-    if (exitCode !== 0) overallExit = exitCode;
+    tierCode = exitCode;
   } else {
-    const code = await runNodeTest(rels, 1);
-    if (code !== 0) overallExit = code;
+    tierCode = await runNodeTest(rels, 1);
   }
-  console.log(`[tier:bench] Finished in ${((performance.now() - t0) / 1000).toFixed(2)}s`);
+  if (tierCode !== 0) overallExit = tierCode;
+  tierResults.push({ tier: 'bench', count: rels.length, code: tierCode });
+  console.log(`[tier:bench] Finished in ${((performance.now() - t0) / 1000).toFixed(2)}s (${tierCode === 0 ? 'PASS' : 'FAIL'})`);
 }
 
-if (!unitOnly && e2eFiles.length > 0 && overallExit === 0) {
+if (!unitOnly && e2eFiles.length > 0) {
   const t0 = performance.now();
   const rels = e2eFiles.map((f) => f.rel);
   console.log(`\n[tier:e2e] Running ${rels.length} PTY/xterm E2E suites (concurrency=${e2eConcurrency})...`);
+  let tierCode = 0;
   if (showTiming) {
     const { exitCode, results } = await runWithTiming(rels, e2eConcurrency);
     allTimings.push(...results.map((r) => ({ ...r, tier: 'e2e' })));
-    if (exitCode !== 0) overallExit = exitCode;
+    tierCode = exitCode;
   } else {
-    const code = await runNodeTest(rels, e2eConcurrency);
-    if (code !== 0) overallExit = code;
+    tierCode = await runNodeTest(rels, e2eConcurrency);
   }
-  console.log(`[tier:e2e] Finished in ${((performance.now() - t0) / 1000).toFixed(2)}s`);
+  if (tierCode !== 0) overallExit = tierCode;
+  tierResults.push({ tier: 'e2e', count: rels.length, code: tierCode });
+  console.log(`[tier:e2e] Finished in ${((performance.now() - t0) / 1000).toFixed(2)}s (${tierCode === 0 ? 'PASS' : 'FAIL'})`);
 }
 
 const totalSec = ((performance.now() - totalStart) / 1000).toFixed(2);
-console.log(`\n[studyhub-tui] Total test wall time: ${totalSec}s (${unitFiles.length} unit + ${benchFiles.length} bench + ${e2eFiles.length} e2e = ${entries.length} files)`);
+const tierSummary = tierResults.map((r) => `${r.tier}:${r.code === 0 ? 'PASS' : 'FAIL'}(${r.count})`).join(' | ');
+console.log(`\n[studyhub-tui] Total test wall time: ${totalSec}s (${unitFiles.length} unit + ${benchFiles.length} bench + ${e2eFiles.length} e2e = ${entries.length} files) [${tierSummary}]`);
 
 if (showTiming && allTimings.length > 0) {
   allTimings.sort((a, b) => b.ms - a.ms);

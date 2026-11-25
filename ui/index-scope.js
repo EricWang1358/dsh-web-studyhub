@@ -44,12 +44,17 @@ export function adviceTip() {
 
 /** The hover of the index badge: [what it means for this document, why pages are skipped (only when some are), what it does not count]. */
 export function indexTip(info) {
-  const { indexed, total, stale, skipped } = info || {}, n = (value) => formatNumber(value ?? 0);
+  const { indexed, total, stale = 0, migrate = 0, skipped } = info || {}, n = (value) => formatNumber(value ?? 0);
+  const staleTip = stale > 0 && migrate > 0
+    ? uiFormat('这份资料有 {0} 页在编目录之后改过，另有 {1} 页正文没变、只是索引格式需要升级；在本机重新写入，不调用 AI，不耗 token。', [n(stale), n(migrate)])
+    : migrate > 0
+      ? uiFormat('这份资料有 {0} 页正文没有改，只是索引的存放格式升级了；在本机重新写入，不调用 AI，不耗 token。', [n(migrate)])
+      : uiFormat('这份资料有 {0} 页在编目录之后改过，目录里还是旧内容。', [n(stale)]);
   const first = !info ? '' : info.state === 'indexed' ? (skipped > 0 ? uiFormat('这份资料 {1} 页里，{0} 页已编进检索目录，{2} 页无检索文字（跳过）：对整本书提问或出题时，只把相关页面发给 AI。', [n(indexed), n(total), n(skipped)])
     : uiFormat('这份资料的 {0} 页都已编进检索目录：对整本书提问或出题时，只把相关页面发给 AI。', [n(total)]))
     : info.state === 'partial' ? (skipped > 0 ? uiFormat('这份资料 {1} 页里，{0} 页已编进检索目录，{2} 页无检索文字（跳过），其余还没编。', [n(indexed), n(total), n(skipped)])
       : uiFormat('这份资料 {1} 页里，{0} 页已编进检索目录，其余还没编。', [n(indexed), n(total)]))
-      : info.state === 'stale' ? uiFormat('这份资料有 {0} 页在编目录之后改过，目录里还是旧内容。', [n(stale)])
+      : info.state === 'stale' ? staleTip
         : info.state === 'building' ? uiFormat('正在编检索目录；这份资料现在已编 {0}/{1} 页。', [n(indexed), n(total)])
           : info.state === 'reset' ? ui('索引已经重置，需要重新建立索引。')
           : ui('这份资料还没有检索目录；建好后，对整本书提问或出题时只把相关页面发给 AI。');
@@ -72,7 +77,14 @@ export function courseScopeLine(plan, course) {
   const shown = (plan.missing || []).slice(0, NAMED);
   const names = shown.map((entry) => uiFormat('《{0}》（{1} 页）', [clip(displayTitle(entry.title)), formatNumber(entry.pages)])).join(ui('、'));
   const more = plan.missingDocuments > shown.length ? uiFormat('等 {0} 份', [plan.missingDocuments]) : '';
-  return `${head}${uiFormat('：其中 {0} 页还没建索引', [formatNumber(plan.toIndex)])}${names ? `${uiFormat('，来自{0}', [`${names}${more}`])}` : ''}${plan.skipped > 0 ? uiFormat('；{0} 页已经建好，{1} 页无检索文字（跳过）。', [formatNumber(plan.unchanged), noText]) : uiFormat('；{0} 页已经建好。', [formatNumber(plan.unchanged)])}`;
+  const toUpgrade = plan.toUpgrade || 0;
+  const toAdd = Math.max(0, (plan.toIndex || 0) - toUpgrade);
+  const pendingText = toUpgrade > 0 && toAdd === 0
+    ? uiFormat('：其中 {0} 页待升级索引格式（正文没有改）', [formatNumber(toUpgrade)])
+    : toUpgrade > 0
+      ? uiFormat('：其中 {0} 页还没建索引，{1} 页待升级索引格式', [formatNumber(toAdd), formatNumber(toUpgrade)])
+      : uiFormat('：其中 {0} 页还没建索引', [formatNumber(plan.toIndex)]);
+  return `${head}${pendingText}${names ? `${uiFormat('，来自{0}', [`${names}${more}`])}` : ''}${plan.skipped > 0 ? uiFormat('；{0} 页已经建好，{1} 页无检索文字（跳过）。', [formatNumber(plan.unchanged), noText]) : uiFormat('；{0} 页已经建好。', [formatNumber(plan.unchanged)])}`;
 }
 
 /**
@@ -119,6 +131,7 @@ export function indexAction({ plan, document, course, names }) {
   const generic = { label: ui('为这门课建立检索索引'), variant: 'primary', note: '' };
   if (!plan || indexTarget(document, course, names) !== 'others') return generic;
   if (!plan.toIndex) return { ...generic, variant: 'secondary' };
-  return { label: uiFormat('为这门课补建 {0} 页索引', [formatNumber(plan.toIndex)]), variant: 'secondary',
+  const onlyUpgrade = (plan.toUpgrade || 0) > 0 && plan.toUpgrade === plan.toIndex;
+  return { label: onlyUpgrade ? uiFormat('为这门课升级 {0} 页索引格式', [formatNumber(plan.toUpgrade)]) : uiFormat('为这门课补建 {0} 页索引', [formatNumber(plan.toIndex)]), variant: 'secondary',
     note: uiFormat('这份资料自己的 {0} 页已经全部建好；还没建的是这门课里其他资料的页。', [formatNumber(document.info.total)]) };
 }

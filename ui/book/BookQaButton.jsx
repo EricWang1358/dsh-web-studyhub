@@ -3,6 +3,7 @@ import { ui, errorMessage } from '../i18n.js';
 import { Button, InlineMessage, Switch, Tooltip } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
 import { useLiveEffect } from '../use-async.js';
+export { hasCourseBook } from './qa-auto.js';
 
 /* 「加入复习全书」 (M3, docs/plans/review-book.md) on a follow-up of a question: one button, the same on the practice page and in a point's 本节问答. It
    calls book.qa.add / book.qa.remove (lib/course-book-qa.js); the card keeps its follow-up either way. Added, it reads 已加入 · 撤回. */

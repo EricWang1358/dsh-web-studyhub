@@ -1,5 +1,7 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { KEY_LAYER_MODAL } from '../../input/dispatcher.js';
+import { KeyScope, useKeyScope } from '../../input/hooks.js';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useShellActions } from '../../shell/actions.js';
@@ -20,11 +22,11 @@ import { useTheme } from '../../theme/tokens.js';
 import { Badge, Divider, EmptyState, ProgressBar, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { SectionHeader, computeProseLayout } from '../../components/Layout.js';
+import { LAYOUT_BP } from '../../components/layout-tokens.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Modal } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
 import { TextInput } from '../../components/TextInput.js';
-import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { ClickableBox } from '../../components/mouse.js';
 import { saveTuiPreferences } from '../../host/tui-prefs.js';
@@ -34,6 +36,7 @@ import {
   type PracticeOriginKind,
 } from '../../state/practice-stack.js';
 import { LruCache } from '../../render/lru.js';
+import { renderMarkdownLines } from '../../render/markdown.js';
 import { displayWidth, truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import { buildFileHyperlinkUrl, formatOsc8Link } from '../../render/osc8.js';
 import { buildReviewWindowTitle, writeTerminalTitle } from '../../render/terminal-title.js';
@@ -47,6 +50,7 @@ import {
   extractCitation,
   extractFeedback,
   extractReferenceAnswer,
+  extractRunFollowups,
   extractSolution,
   extractUserAnswerText,
   formatClozeDisplay,
@@ -160,9 +164,8 @@ const CARD_UTIL_KEYS: readonly string[] = Object.freeze([
   'N',
   'R',
 ]);
-const RATING_DIGIT_KEYS: readonly string[] = Object.freeze(['0', '1', '2', '3', '4', '5']);
-const CHOICE_DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2', '3', '4', '5', '6']);
-const TF_DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2']);
+const ALL_REVIEW_DIGIT_KEYS: readonly string[] = Object.freeze(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']);
+const CHOICE_LETTER_KEYS: readonly string[] = Object.freeze(['a', 'b', 'c', 'd', 'e', 'f']);
 const EMPTY_CLAIMED_KEYS: readonly string[] = Object.freeze([]);
 
 interface GradeAdjustModalProps {
@@ -199,27 +202,31 @@ function GradeAdjustModal({
     }
   }, [isActive, currentGrade]);
 
-  useInput(
-    (input, key) => {
-      if (busy) return;
+  useKeyScope({
+    id: 'ReviewView:gradeAdjust',
+    active: isActive,
+    layer: KEY_LAYER_MODAL,
+    onKey: (input, key) => {
+      if (busy) return false;
       if (/^[0-5]$/.test(input)) {
         onSelect(Number(input));
-        return;
+        return true;
       }
       if (input === 'j' || key.downArrow) {
         setCursor((prev) => (prev + 1) % FSRS_GRADES.length);
-        return;
+        return true;
       }
       if (input === 'k' || key.upArrow) {
         setCursor((prev) => (prev - 1 + FSRS_GRADES.length) % FSRS_GRADES.length);
-        return;
+        return true;
       }
       if (key.return) {
         onSelect(FSRS_GRADES[cursor]?.grade ?? cursor);
+        return true;
       }
+      return false;
     },
-    { isActive },
-  );
+  });
 
   return (
     <Modal
@@ -282,6 +289,8 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
   const activeRunId = useTuiStore((s) => s.activeRunId);
   const snapshot = useTuiStore((s) => s.snapshot);
   const setActiveRunId = useTuiStore((s) => s.setActiveRunId);
+  // A run an assistant action got back (#1447): apply it so this page shows what the backend has.
+  const pendingReviewRunSeq = useTuiStore((s) => s.pendingReviewRunSeq);
   const navigate = useTuiStore((s) => s.navigate);
   const goBack = useTuiStore((s) => s.goBack);
   const notify = useTuiStore((s) => s.notify);
@@ -568,6 +577,19 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     [setActiveRunId, refresh],
   );
 
+  // An assistant action (slay, undo, queue edit, grade change, correction) returns the run it changed;
+  // applying it here keeps this page on the question the backend is on (#1447).
+  useEffect(() => {
+    if (!pendingReviewRunSeq) return;
+    const next = useTuiStore.getState().consumePendingReviewRun();
+    if (!next) return;
+    const nextId = typeof next.id === 'string' ? next.id : '';
+    const onScreen = navContext.runId || activeRunId || '';
+    // Do not push a round the learner has already left onto a different one.
+    if (nextId && onScreen && nextId !== onScreen) return;
+    applyRun(next as unknown as ReviewRun, true);
+  }, [pendingReviewRunSeq, applyRun, navContext.runId, activeRunId]);
+
   const loadInitialRun = useCallback(
     async (forceFresh = false) => {
       clearDraftTimer();
@@ -644,10 +666,12 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     [host, navContext.runId, navContext.deckId, navContext.course, navContext.mode, activeRunId, snapshot, applyRun, clearDraftTimer, lang],
   );
 
+  const loadInitialRunRef = useRef(loadInitialRun);
+  loadInitialRunRef.current = loadInitialRun;
+
   useEffect(() => {
-    void loadInitialRun(false);
+    void loadInitialRunRef.current(false);
     // Re-run only when navigation context explicitly targets a new run/deck/course.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navContext.runId, navContext.deckId, navContext.course, navContext.mode]);
 
   const kind = normalizeCardKind(run);
@@ -1151,38 +1175,23 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     }
   }, [run, cardId, busy, revealed, feedback, host, applyRun, notify, lang]);
 
-  // Phase-aware key claiming: only claim digits when rating (0-5) or picking choices (1-6 / 1-2)
-  const anyModalOpen =
-    aiDrawerOpen ||
-    flagModalOpen ||
-    similarModalOpen ||
-    cardToolsModalOpen ||
-    queueModalOpen ||
-    retellModalOpen ||
-    teachModalOpen ||
-    answerCardModalOpen ||
-    gradeAdjustModalOpen ||
-    nudgeModalOpen ||
-    confirmEndOpen;
-  const mainActive = isActive && !anyModalOpen && !clozeEditing && !openEditing && !isFinished;
-  const claimedKeys = useMemo<readonly string[]>(() => {
-    if (!isActive || loading) return [];
-    if (!run) return EMPTY_CLAIMED_KEYS;
-    if (isFinished) return [];
+  // Declarative keys claimed by the active card scope (auto-paused when any modal or inline editor pushes an opaque KeyScope)
+  const cardClaimedKeys = useMemo<readonly string[]>(() => {
+    if (!isActive || !run || isFinished) return [];
     const baseUtil = [
       ...CARD_UTIL_KEYS,
+      ...ALL_REVIEW_DIGIT_KEYS,
       ...(isRubricEligibleKind ? ['G'] : []),
       ...(canAdjustGrade ? ['J'] : []),
       ...(canAckCorrection ? ['K'] : []),
     ];
-    if (needsRating) return [...baseUtil, ...RATING_DIGIT_KEYS];
-    if (!revealed && !feedback) {
-      if (kind === 'true_false') return [...baseUtil, ...TF_DIGIT_KEYS];
-      if (kind === 'single' || kind === 'multiple') return [...baseUtil, ...CHOICE_DIGIT_KEYS];
+    // Claim option letters a-f for the entire lifecycle of choice cards (before AND after reveal/feedback)
+    // so pressing b/c while reviewing the explanation never unexpectedly jumps to Board or CoursePicker (#1350).
+    if (kind === 'single' || kind === 'multiple') {
+      return [...baseUtil, ...CHOICE_LETTER_KEYS];
     }
     return baseUtil;
-  }, [isActive, loading, run, isFinished, isRubricEligibleKind, canAdjustGrade, canAckCorrection, needsRating, revealed, feedback, kind]);
-  useClaimKeys(claimedKeys, mainActive);
+  }, [isActive, run, isFinished, isRubricEligibleKind, canAdjustGrade, canAckCorrection, kind]);
 
   const hints: KeyHint[] = useMemo(() => {
     if (loading || !run || isFinished) return [];
@@ -1193,7 +1202,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
         base.push({ key: '1-6/Space', label: t(lang, '勾选', 'Toggle') });
         base.push({ key: 'Enter', label: t(lang, '提交', 'Submit') });
       } else if (kind === 'true_false') {
-        base.push({ key: asciiMode ? '1/t - 2/f' : '1/t · 2/f', label: t(lang, '判断', 'Judge') });
+        base.push({ key: '1/2', label: t(lang, '判断', 'Judge') });
       } else if (kind === 'fill_blank') {
         base.push({ key: 'i/Enter', label: t(lang, '填空', 'Type') });
       } else if (isRubricEligibleKind) {
@@ -1220,7 +1229,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
       base.push({ key: 'N', label: t(lang, '陪学点拨', 'Nudge') });
     }
     base.push({ key: 'h', label: t(lang, 'AI讲解', 'AI Help') });
-    base.push({ key: 'T', label: t(lang, '带学/复述', 'Guided') });
+    base.push({ key: 't', label: t(lang, '带学/复述', 'Guided') });
     base.push({ key: '*', label: t(lang, '重点', 'Focus') });
     if (canRedo) base.push({ key: 'R', label: t(lang, '重做', 'Redo') });
     base.push({ key: 'W', label: t(lang, '翻译', 'Trans') });
@@ -1250,62 +1259,67 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     canRedo,
     canUndo,
     mathUnicode,
-    asciiMode,
     citation,
     lang,
   ]);
-  useFooterHints(hints, isActive && !anyModalOpen && !isFinished);
-
-  // Main keyboard controller for active question
-  useInput(
-    (input, key) => {
+  // Main keyboard scope for active question (automatically masked when any child modal/drawer/editor pushes an opaque KeyScope)
+  const cardScopeActive = useKeyScope({
+    id: 'ReviewView:card',
+    active: isActive && Boolean(run) && !isFinished,
+    keys: cardClaimedKeys,
+    onKey: (input, key) => {
       if (stuckNudgeVisible) setStuckNudgeVisible(false);
       setStuckActivityTick((v) => v + 1);
       if (key.escape) {
-        const stack = useTuiStore.getState().practiceStack;
+        const st = useTuiStore.getState();
+        if (st.assistantOpen && !st.assistantFocused && !st.assistantFullscreen) {
+          st.closeAssistant();
+          return true;
+        }
+        const stack = st.practiceStack;
         const top = stack[stack.length - 1];
         if (top && top.originKind === 'similar') {
           skipUnmountPushRef.current = true;
-          const popped = useTuiStore.getState().returnViaPracticeStack();
+          const popped = st.returnViaPracticeStack();
           if (popped && popped.kind === 'review') {
             skipUnmountPushRef.current = false;
             void loadInitialRun(false);
           }
-          return;
+          return true;
         }
         goBack();
-        return;
+        return true;
       }
-      if (!run || !run.card || busy) return;
+      if (!run || !run.card || busy) return false;
 
       // Global card utilities
       if (input === 'h') {
         setAiDrawerOpen(true);
-        return;
+        return true;
       }
       if (input === 'F') {
         setRetellModalOpen(true);
-        return;
+        return true;
       }
       if (input === 'L') {
         setTeachModalOpen(true);
-        return;
+        return true;
       }
       if (input === '*') {
         void handleToggleFocus();
-        return;
+        return true;
       }
       if (input === 'G' && isRubricEligibleKind) {
         void handleRubricGrade();
-        return;
+        return true;
       }
       if (input === 'J' && canAdjustGrade) {
         setGradeAdjustModalOpen(true);
-        return;
+        return true;
       }
       if (input === 'K' && canAckCorrection) {
         void handleAckCorrection();
-        return;
+        return true;
       }
       if (input === 'N') {
         if (canCoachNudge) {
@@ -1323,9 +1337,10 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
             'info',
           );
         }
-        return;
+        return true;
       }
-      if (input === 'T') {
+      // #1408: `t` is the documented key; `T` stays as a silent alias for old muscle memory.
+      if (input === 't' || input === 'T') {
         useTuiStore.getState().openAssistant({
           tab: 'guided',
           stage: 'retell',
@@ -1338,23 +1353,23 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
             kind,
           },
         });
-        return;
+        return true;
       }
       if (input === 'W') {
         void handleToggleTranslate();
-        return;
+        return true;
       }
       if (input === 'S') {
         setSimilarModalOpen(true);
-        return;
+        return true;
       }
       if (input === 'R') {
         void handleRedoCard();
-        return;
+        return true;
       }
       if (input === 'D') {
         setCardToolsModalOpen(true);
-        return;
+        return true;
       }
       if (input === 'Q') {
         if (run.mode !== 'exam') {
@@ -1362,46 +1377,46 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
         } else {
           notify(t(lang, '模拟考试队列已锁定，不能修改', 'Exam queue is locked'), 'info');
         }
-        return;
+        return true;
       }
       if (input === 'A') {
         setAnswerCardModalOpen(true);
-        return;
+        return true;
       }
       if (input === 'm') {
         setPreferences({ mathUnicode: !mathUnicode });
-        return;
+        return true;
       }
       if (input === 'E') {
         setFlagReason('');
         setFlagModalOpen(true);
-        return;
+        return true;
       }
       if (input === 'o' && citation) {
         pushCurrentToPracticeStack('source');
         skipUnmountPushRef.current = true;
         navigate('sources', { sourceId: citation.sourceId, pageNumber: citation.pageNumber });
-        return;
+        return true;
       }
       if (input === 'u' && !key.ctrl && !key.meta) {
         handleUndo();
-        return;
+        return true;
       }
       if (input === 's' && !feedback) {
         handleSkip();
-        return;
+        return true;
       }
       if (input === ',' || key.leftArrow) {
         handleMove(-1);
-        return;
+        return true;
       }
       if (input === '.' || key.rightArrow) {
         handleMove(1);
-        return;
+        return true;
       }
       if (input === 'X') {
         setConfirmEndOpen(true);
-        return;
+        return true;
       }
 
       // Rating phase for flashcards & self-graded open questions
@@ -1409,71 +1424,87 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
         const gradeSpec = FSRS_GRADES.find((g) => g.key === input);
         if (gradeSpec) {
           handleFsrsGrade(gradeSpec.grade);
+          return true;
         }
-        return;
+        return false;
       }
 
       // Post-feedback phase: Enter advances to next card
       if (feedback) {
         if (key.return) {
           handleMove(1);
+          return true;
         }
-        return;
+        return false;
       }
 
       // Answering phase by kind
       if (kind === 'flashcard') {
         if (input === ' ' || key.return) {
           handleReveal();
+          return true;
         }
-        return;
+        return false;
       }
 
       if (isRubricEligibleKind) {
         if (input === ' ') {
           handleReveal();
-        } else if (input === 'i' || key.return) {
-          setOpenEditing(true);
+          return true;
         }
-        return;
+        if (input === 'i' || key.return) {
+          setOpenEditing(true);
+          return true;
+        }
+        return false;
       }
 
       if (kind === 'fill_blank') {
         if (input === 'i' || key.return) {
           setClozeEditing(true);
+          return true;
         }
-        return;
+        return false;
       }
 
       if (kind === 'true_false') {
-        if (input === '1' || input === 't') {
+        if (input === '1') {
           const id = options[0]?.id || 'true';
           setSelectedIds([id]);
           handleSubmitChoice([id]);
-        } else if (input === '2' || input === 'f') {
+          return true;
+        }
+        if (input === '2') {
           const id = options[1]?.id || 'false';
           setSelectedIds([id]);
           handleSubmitChoice([id]);
-        } else if (key.downArrow || input === 'j') {
+          return true;
+        }
+        if (key.downArrow || input === 'j') {
           setCursorOpt((prev) => Math.min(Math.max(0, options.length - 1), prev + 1));
-        } else if (key.upArrow || input === 'k') {
+          return true;
+        }
+        if (key.upArrow || input === 'k') {
           setCursorOpt((prev) => Math.max(0, prev - 1));
-        } else if (key.return && options[cursorOpt]) {
+          return true;
+        }
+        if (key.return && options[cursorOpt]) {
           const id = options[cursorOpt].id;
           setSelectedIds([id]);
           handleSubmitChoice([id]);
+          return true;
         }
-        return;
+        return false;
       }
 
       if (kind === 'single' || kind === 'multiple') {
         if (key.downArrow || input === 'j') {
           setCursorOpt((prev) => Math.min(Math.max(0, options.length - 1), prev + 1));
-          return;
+          return true;
         }
         if (key.upArrow || input === 'k') {
           setCursorOpt((prev) => Math.max(0, prev - 1));
-          return;
+          return true;
         }
         let pickedIdx = -1;
         if (/^[1-6]$/.test(input)) pickedIdx = Number(input) - 1;
@@ -1490,7 +1521,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
               prev.includes(targetId) ? prev.filter((x) => x !== targetId) : [...prev, targetId],
             );
           }
-          return;
+          return true;
         }
 
         if (kind === 'multiple') {
@@ -1499,26 +1530,31 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
             setSelectedIds((prev) =>
               prev.includes(targetId) ? prev.filter((x) => x !== targetId) : [...prev, targetId],
             );
-            return;
+            return true;
           }
           if (key.return) {
             if (selectedIds.length > 0) {
               handleSubmitChoice(selectedIds);
-            } else if (options[cursorOpt]) {
+              return true;
+            }
+            if (options[cursorOpt]) {
               const targetId = options[cursorOpt].id;
               setSelectedIds([targetId]);
               handleSubmitChoice([targetId]);
+              return true;
             }
           }
         } else if (kind === 'single' && key.return && options[cursorOpt]) {
           const targetId = options[cursorOpt].id;
           setSelectedIds([targetId]);
           handleSubmitChoice([targetId]);
+          return true;
         }
       }
+      return false;
     },
-    { isActive: mainActive },
-  );
+  });
+  useFooterHints(hints, cardScopeActive);
 
   // Empty & ended-restore state shortcuts
   const handleRetryEndedCard = useCallback(async () => {
@@ -1541,23 +1577,38 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     }
   }, [endedRestoreFrame, host, applyRun]);
 
-  useInput(
-    (input, key) => {
+  useKeyScope({
+    id: 'ReviewView:empty',
+    active: isActive && !loading && (!run || Boolean(endedRestoreFrame)),
+    keys: EMPTY_CLAIMED_KEYS,
+    onKey: (input, key) => {
       if (endedRestoreFrame) {
         if (input === 'R' || key.return) {
           void handleRetryEndedCard();
-        } else if (key.escape || input === 'l' || input === 'L') {
+          return true;
+        }
+        if (key.escape || input === 'l' || input === 'L') {
           setEndedRestoreFrame(null);
           navigate('library');
+          return true;
         }
-        return;
+        return false;
       }
-      if (key.escape) goBack();
-      else if (input === 'l' || input === 'L') navigate('library');
-      else if ((key.ctrl && input === 'r') || input === 'R') void loadInitialRun(true);
+      if (key.escape) {
+        goBack();
+        return true;
+      }
+      if (input === 'l' || input === 'L') {
+        navigate('library');
+        return true;
+      }
+      if ((key.ctrl && input === 'r') || input === 'R') {
+        void loadInitialRun(true);
+        return true;
+      }
+      return false;
     },
-    { isActive: isActive && !loading && (!run || Boolean(endedRestoreFrame)) },
-  );
+  });
 
   // Round 83 Track D1: Proactive 20s stuck nudge (one-shot timer, rate-limited, opt-out, never interrupts typing!)
   useEffect(() => {
@@ -1574,7 +1625,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
         enabled: proactiveHints,
         isActive,
         isEditing: clozeEditing || openEditing,
-        anyModalOpen,
+        anyModalOpen: !cardScopeActive,
         answeredInRound,
         alreadyShownInRound: fatigueShownRef.current,
       })
@@ -1582,7 +1633,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
       fatigueShownRef.current = true;
       setFatigueBanner(buildFatigueNudgeBanner(answeredInRound, lang, asciiMode));
     }
-  }, [run?.answered, proactiveHints, isActive, clozeEditing, openEditing, anyModalOpen, lang, asciiMode]);
+  }, [run?.answered, proactiveHints, isActive, clozeEditing, openEditing, cardScopeActive, lang, asciiMode]);
 
   // Round 86 Track D3: Proactive 3-wrong streak attribution suggestion (opt-out, rate-limited, non-interrupting)
   useEffect(() => {
@@ -1601,7 +1652,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
         enabled: proactiveHints,
         isActive,
         isEditing: clozeEditing || openEditing,
-        anyModalOpen,
+        anyModalOpen: !cardScopeActive,
         state: next,
       })
     ) {
@@ -1612,7 +1663,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
       };
       setWrongStreakBanner(buildWrongStreakBanner(next.recentWrong, lang, asciiMode));
     }
-  }, [cardId, feedback, proactiveHints, isActive, clozeEditing, openEditing, anyModalOpen, run, kind, selectedIds, clozeInputs, openDraft, lang, asciiMode]);
+  }, [cardId, feedback, proactiveHints, isActive, clozeEditing, openEditing, cardScopeActive, run, kind, selectedIds, clozeInputs, openDraft, lang, asciiMode]);
 
   useEffect(() => {
     if (
@@ -1622,7 +1673,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
         revealed,
         hasFeedback: Boolean(feedback),
         isEditing: clozeEditing || openEditing,
-        anyModalOpen,
+        anyModalOpen: !cardScopeActive,
         cardId,
         nudgedCardIds: nudgedCardIdsRef.current,
         roundNudgeCount: roundNudgeCountRef.current,
@@ -1647,7 +1698,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     feedback,
     clozeEditing,
     openEditing,
-    anyModalOpen,
+    cardScopeActive,
     cardId,
     stuckActivityTick,
     stuckNudgeDelayMs,
@@ -1669,22 +1720,63 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     writeTerminalTitle('StudyHub', { asciiMode });
   }, [asciiMode]);
 
-  // Sync rich current card context into persistent AI Assistant without mutating practiceStack (#1315/#1319 coexistence)
+  // Sync rich current card context into persistent AI Assistant without mutating practiceStack (#1315/#1319/#1445)
+  const hasCitation = Boolean(citation);
   useEffect(() => {
     if (!run || !cardId || isFinished) return;
+    const rawOpts = Array.isArray(run.card?.options)
+      ? run.card.options.map((o) => ({ id: String(o.id ?? ''), text: String(o.text ?? '') }))
+      : undefined;
+    const solOptions = Array.isArray(solution?.options) ? solution.options : [];
+    const correctTexts = solOptions
+      .filter((o) => o && o.correct)
+      .map((o) => {
+        const match = rawOpts?.find((ro) => ro.id === o.id);
+        return match?.text ? `${match.text}` : String(o.text || o.id || '');
+      })
+      .filter(Boolean);
+    const standardAnswer =
+      (typeof solution?.answer === 'string' && solution.answer.trim()) ||
+      (Array.isArray(solution?.blanks) && solution.blanks.length > 0 ? solution.blanks.join(' / ') : '') ||
+      (correctTexts.length > 0 ? correctTexts.join('；') : '');
+    const rawCitations = Array.isArray(solution?.citations) && solution.citations.length > 0
+      ? solution.citations
+      : Array.isArray(run.card?.citations)
+        ? run.card.citations
+        : [];
+    const mappedCitations = rawCitations
+      .filter((c): c is NonNullable<typeof c> => Boolean(c && (c.sourceId || c.quote)))
+      .map((c) => {
+        const src = c.sourceId ? snapshot?.sources?.find((s) => s.id === c.sourceId) : undefined;
+        return {
+          ...(c.sourceId ? { sourceId: c.sourceId } : {}),
+          ...(src?.title || src?.name ? { sourceTitle: String(src.title || src.name) } : {}),
+          ...(typeof c.page === 'number' ? { pageNumber: c.page } : {}),
+          ...(typeof c.quote === 'string' && c.quote.trim() ? { quote: c.quote.trim() } : {}),
+        };
+      });
     useTuiStore.getState().setAssistantCardContext({
       runId: run.id,
       deckId: currentDeckIdOf(run) ?? undefined,
       cardId,
       cardIndex: typeof run.index === 'number' ? run.index : 0,
       total: typeof run.total === 'number' ? run.total : undefined,
+      ...(typeof run.card?.topic === 'string' && run.card.topic ? { topic: run.card.topic } : {}),
       prompt: String(run.card?.prompt || ''),
+      ...(rawOpts && rawOpts.length > 0 ? { options: rawOpts } : {}),
       userAnswer: extractUserAnswerText(run, kind, selectedIds, clozeInputs, openDraft, lang),
+      ...(standardAnswer ? { answer: standardAnswer } : {}),
+      ...(typeof solution?.explanation === 'string' && solution.explanation.trim()
+        ? { explanation: solution.explanation.trim() }
+        : {}),
+      ...(mappedCitations.length > 0 ? { citations: mappedCitations } : {}),
       kind,
       isWrong: Boolean(feedback && feedback.correct === false),
       revealed,
+      isExam: run.mode === 'exam',
+      hasCitation,
     });
-  }, [run, cardId, isFinished, kind, selectedIds, clozeInputs, openDraft, feedback, revealed, lang]);
+  }, [run, cardId, isFinished, kind, selectedIds, clozeInputs, openDraft, feedback, revealed, hasCitation, lang, solution, snapshot?.sources]);
 
   // Hooks above, early returns below.
   const activeTranslation = useMemo<CardTranslation | null>(() => {
@@ -1717,22 +1809,31 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
   const handleSavedFollowup = useCallback((targetCardId: string, item: SavedFollowupItem) => {
     setSavedFollowupsByCard((prev) => {
       const existing = prev[targetCardId] ?? [];
-      if (existing.some((x) => x.id === item.id)) return prev;
+      const idx = existing.findIndex(
+        (x) => (item.id && x.id === item.id) || (item.question && x.question === item.question),
+      );
+      if (idx >= 0) {
+        const next = [...existing];
+        next[idx] = item;
+        return { ...prev, [targetCardId]: next };
+      }
       return { ...prev, [targetCardId]: [...existing, item] };
     });
   }, []);
 
   const savedFollowupCount = useMemo(() => {
-    const sol = solution?.followups ?? [];
+    const sol = extractRunFollowups(run);
     const extra = cardId ? savedFollowupsByCard[cardId] ?? [] : [];
     if (extra.length === 0) return sol.length;
-    const seen = new Set(sol.map((f) => f.id).filter(Boolean));
+    const seenIds = new Set(sol.map((f) => f.id).filter(Boolean));
+    const seenQuestions = new Set(sol.map((f) => f.question).filter(Boolean));
     let count = sol.length;
     for (const item of extra) {
-      if (!item.id || !seen.has(item.id)) count += 1;
+      if ((item.id && seenIds.has(item.id)) || (item.question && seenQuestions.has(item.question))) continue;
+      count += 1;
     }
     return count;
-  }, [solution, cardId, savedFollowupsByCard]);
+  }, [run, cardId, savedFollowupsByCard]);
 
   const stemMarkdown = useMemo(() => {
     if (!run) return '';
@@ -1892,7 +1993,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
   }
 
   // Split view width if AI Drawer is open on wide terminals; overlay on narrow terminals
-  const sideBySideAi = aiDrawerOpen && width >= 104;
+  const sideBySideAi = aiDrawerOpen && width >= LAYOUT_BP.AI_DRAWER_SIDE;
   const cardPaneW = sideBySideAi ? Math.max(44, Math.floor(width * 0.56)) : width;
   const aiPaneW = sideBySideAi ? Math.max(32, width - cardPaneW - 1) : width;
 
@@ -1904,6 +2005,15 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     cardId && cardId in focusOverrideByCard ? focusOverrideByCard[cardId] : Boolean(run.card?.focus);
 
   const innerW = Math.max(20, cardPaneW - 4);
+  // The explanation takes only the rows it needs (up to the old fixed budget), so a short answer
+  // stays centred with the question instead of being pinned to the top of a tall pane (#1415).
+  const postAnswerMaxH = Math.max(3, height - (innerW < 90 ? 22 : 18));
+  const postAnswerViewH = postAnswerMarkdown
+    ? Math.min(
+        postAnswerMaxH,
+        Math.max(1, renderMarkdownLines(postAnswerMarkdown, { width: Math.max(8, innerW - 1), theme, mathUnicode, ascii: asciiMode }).length),
+      )
+    : postAnswerMaxH;
   const progressRatio = totalCount > 0 ? Math.min(1, answeredCount / totalCount) : 0;
   const panelTitleStr = String(run.title || t(lang, 'FSRS-6 间隔复习', 'FSRS-6 Review'));
   const panelBadgeStr = `${atNum}/${totalCount}`;
@@ -1926,7 +2036,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
           badge={panelBadgeStr}
           badgeTone="primary"
           subtitle={panelSubtitleStr}
-          focused={mainActive}
+          focused={cardScopeActive}
           width={cardPaneW}
           height={height}
           paddingX={1}
@@ -1978,6 +2088,9 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
 
           <Divider width={innerW} />
 
+          {/* Equal spacers above and below keep the card in the middle of a tall terminal (#1415). */}
+          <Box flexGrow={1} />
+
           {/* Question Stem (Round 83 A2: cap prose at 96 cols and center on ultrawide viewports) */}
           {(() => {
             const { proseWidth, marginLeft } = computeProseLayout(innerW);
@@ -1999,7 +2112,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                 {truncateDisplay(buildStuckNudgeMessage(lang, asciiMode), Math.max(12, innerW - 10), asciiMode ? '...' : '…')}
               </Text>
               <ClickableBox
-                clickActive={mainActive}
+                clickActive={cardScopeActive}
                 onClick={() => {
                   setStuckNudgeVisible(false);
                   setPreferences({ proactiveHints: false });
@@ -2049,11 +2162,11 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                   }
                 }
                 const keyTag = kind === 'true_false'
-                  ? (idx === 0 ? '[1/t]' : '[2/f]')
+                  ? (idx === 0 ? '[1]' : '[2]')
                   : `[${idx + 1}/${String.fromCharCode(97 + idx)}]`;
                 const trOptText = activeTranslation?.options?.find((o) => o.id === opt.id)?.text;
                 const onClickOption = () => {
-                  if (!mainActive || feedback) return;
+                  if (!cardScopeActive || feedback) return;
                   setCursorOpt(idx);
                   if (kind === 'multiple') {
                     setSelectedIds((prev) =>
@@ -2065,7 +2178,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                   }
                 };
                 return (
-                  <ClickableBox key={opt.id} flexDirection="column" width={innerW} clickActive={mainActive && !feedback} onClick={onClickOption}>
+                  <ClickableBox key={opt.id} flexDirection="column" width={innerW} clickActive={cardScopeActive && !feedback} onClick={onClickOption}>
                     <Box flexDirection="row" width={innerW}>
                       <Text color={isCursor ? theme.primary : theme.dim} bold={isCursor}>
                         {isCursor ? (asciiMode ? '> ' : '▸ ') : '  '}
@@ -2083,13 +2196,15 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
               })}
               {kind === 'multiple' && !feedback ? (
                 <ClickableBox
-                  clickActive={mainActive && selectedIds.length > 0}
+                  clickActive={cardScopeActive && selectedIds.length > 0}
                   onClick={() => {
                     if (selectedIds.length > 0) handleSubmitChoice(selectedIds);
                   }}
                 >
                   <Text color={theme.dim}>
-                    {t(lang, '  提示: 1-6/Space 勾选多选，Enter 提交答案', '  Hint: 1-6/Space to toggle, Enter to submit')}
+                    {cardScopeActive
+                      ? t(lang, '  提示: 1-6/Space 勾选多选，Enter 提交答案', '  Hint: 1-6/Space to toggle, Enter to submit')
+                      : t(lang, '  提示: 按 Esc 返回题卡后选择并提交', '  Hint: Press Esc to return to card to submit')}
                   </Text>
                 </ClickableBox>
               ) : null}
@@ -2112,7 +2227,9 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                         ? asciiMode
                           ? t(lang, 'Tab 下一空 | Enter 下一空/提交 | Esc 退出', 'Tab next blank | Enter next/submit | Esc blur')
                           : t(lang, 'Tab 下一空 · Enter 下一空/提交 · Esc 退出', 'Tab next blank · Enter next/submit · Esc blur')
-                        : t(lang, '按 [i] 或 [Enter] 开始填空', 'Press [i] or [Enter] to fill blanks'),
+                        : cardScopeActive
+                          ? t(lang, '按 [i] 或 [Enter] 开始填空', 'Press [i] or [Enter] to fill blanks')
+                          : t(lang, '按 [Esc] 返回题卡后开始填空', 'Press [Esc] to return to card to fill blanks'),
                       Math.max(10, innerW - 10),
                       asciiMode ? '...' : '…',
                     )}
@@ -2132,32 +2249,34 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                     width={Math.min(innerW, 64)}
                   >
                     <Text color={theme.muted}>{`#${idx + 1} `}</Text>
-                    <TextInput
-                      value={clozeInputs[blank.id] ?? ''}
-                      onChange={(val) => {
-                        const next = { ...clozeInputs, [blank.id]: val };
-                        setClozeInputs(next);
-                        scheduleDraftSave({ stepInputs: next });
-                      }}
-                      isActive={isActive && !anyModalOpen && isThisActive}
-                      width={Math.max(12, Math.min(innerW, 64) - 10)}
-                      placeholder={t(lang, '输入答案 (Enter 下一空/提交, Esc 退出)', 'Type answer (Enter next/submit, Esc blur)')}
-                      onTab={() => {
-                        setActiveBlankIdx((idx + 1) % clozeData.blanks.length);
-                        return undefined;
-                      }}
-                      onSubmit={(val) => {
-                        const updated = { ...clozeInputs, [blank.id]: val };
-                        setClozeInputs(updated);
-                        if (idx + 1 < clozeData.blanks.length) {
-                          setActiveBlankIdx(idx + 1);
-                        } else {
-                          setClozeEditing(false);
-                          handleSubmitCloze(updated);
-                        }
-                      }}
-                      onCancel={() => setClozeEditing(false)}
-                    />
+                    <KeyScope id={`review:cloze-${blank.id}`} opaque active={isActive && isThisActive}>
+                      <TextInput
+                        value={clozeInputs[blank.id] ?? ''}
+                        onChange={(val) => {
+                          const next = { ...clozeInputs, [blank.id]: val };
+                          setClozeInputs(next);
+                          scheduleDraftSave({ stepInputs: next });
+                        }}
+                        isActive={isActive && isThisActive}
+                        width={Math.max(12, Math.min(innerW, 64) - 10)}
+                        placeholder={t(lang, '输入答案 (Enter 下一空/提交, Esc 退出)', 'Type answer (Enter next/submit, Esc blur)')}
+                        onTab={() => {
+                          setActiveBlankIdx((idx + 1) % clozeData.blanks.length);
+                          return undefined;
+                        }}
+                        onSubmit={(val) => {
+                          const updated = { ...clozeInputs, [blank.id]: val };
+                          setClozeInputs(updated);
+                          if (idx + 1 < clozeData.blanks.length) {
+                            setActiveBlankIdx(idx + 1);
+                          } else {
+                            setClozeEditing(false);
+                            handleSubmitCloze(updated);
+                          }
+                        }}
+                        onCancel={() => setClozeEditing(false)}
+                      />
+                    </KeyScope>
                   </Box>
                 );
               })}
@@ -2169,56 +2288,68 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
             <Box flexDirection="column" marginTop={1} width={innerW}>
               <SectionHeader
                 title={
-                  openDraft.trim()
-                    ? t(
-                        lang,
-                        '你的作答（[i] 编辑，Enter 翻看，[G] AI 按标准评分，[Space] 翻看）:',
-                        'Your answer ([i] edit, Enter reveal, [G] AI rubric grade, [Space] reveal):',
-                      )
-                    : t(
-                        lang,
-                        '你的作答（按 [i] 输入，Enter 翻看答案；或按 [Space] 直接翻看）:',
-                        'Your answer ([i] to type, Enter to reveal; or [Space] to reveal):',
-                      )
+                  !cardScopeActive
+                    ? t(lang, '你的作答（按 [Esc] 返回题卡后编辑或翻看）:', 'Your answer (press [Esc] to return to card):')
+                    : openDraft.trim()
+                      ? t(
+                          lang,
+                          '你的作答（[i] 编辑，Enter 翻看，[G] AI 按标准评分，[Space] 翻看）:',
+                          'Your answer ([i] edit, Enter reveal, [G] AI rubric grade, [Space] reveal):',
+                        )
+                      : t(
+                          lang,
+                          '你的作答（按 [i] 输入，Enter 翻看答案；或按 [Space] 直接翻看）:',
+                          'Your answer ([i] to type, Enter to reveal; or [Space] to reveal):',
+                        )
                 }
                 width={innerW}
                 ascii={asciiMode}
                 focused={openEditing}
               />
               <Box paddingX={1} width={innerW}>
-                <TextInput
-                  value={openDraft}
-                  onChange={(val) => {
-                    setOpenDraft(val);
-                    scheduleDraftSave({ text: val });
-                  }}
-                  isActive={isActive && !anyModalOpen && openEditing}
-                  width={Math.max(16, innerW - 4)}
-                  placeholder={
-                    asciiMode
-                      ? t(lang, '输入你的思路或简答...', 'Type your answer or key points...')
-                      : t(lang, '输入你的思路或简答…', 'Type your answer or key points…')
-                  }
-                  onSubmit={() => {
-                    setOpenEditing(false);
-                    handleReveal();
-                  }}
-                  onCancel={() => setOpenEditing(false)}
-                />
+                <KeyScope id="review:open-input" opaque active={isActive && openEditing}>
+                  <TextInput
+                    value={openDraft}
+                    onChange={(val) => {
+                      setOpenDraft(val);
+                      scheduleDraftSave({ text: val });
+                    }}
+                    isActive={isActive && openEditing}
+                    width={Math.max(16, innerW - 4)}
+                    placeholder={
+                      asciiMode
+                        ? t(lang, '输入你的思路或简答...', 'Type your answer or key points...')
+                        : t(lang, '输入你的思路或简答…', 'Type your answer or key points…')
+                    }
+                    onSubmit={() => {
+                      setOpenEditing(false);
+                      handleReveal();
+                    }}
+                    onCancel={() => setOpenEditing(false)}
+                  />
+                </KeyScope>
               </Box>
             </Box>
           ) : null}
 
-          {/* Flashcard front prompt */}
+          {/* Flashcard front prompt (#1420: avoid conflicting [Enter] hint while a drawer/modal holds focus) */}
           {kind === 'flashcard' && !isRubricEligibleKind && !revealed ? (
-            <ClickableBox marginTop={1} clickActive={mainActive} onClick={() => handleReveal()}>
-              <Badge label={t(lang, '按 [Space] 或 [Enter] 翻开答案', 'Press [Space] or [Enter] to flip card')} tone="primary" variant="soft" />
+            <ClickableBox marginTop={1} marginLeft={computeProseLayout(innerW).marginLeft} clickActive={cardScopeActive} onClick={() => handleReveal()}>
+              <Badge
+                label={
+                  cardScopeActive
+                    ? t(lang, '按 [Space] 或 [Enter] 翻开答案', 'Press [Space] or [Enter] to flip card')
+                    : t(lang, '按 [Esc] 返回题卡后翻开答案', 'Press [Esc] to return to card and flip')
+                }
+                tone={cardScopeActive ? 'primary' : 'muted'}
+                variant="soft"
+              />
             </ClickableBox>
           ) : null}
 
           {/* Post-Reveal / Post-Answer / Rubric Grading Panel */}
           {revealed || activeRubric || gradingBusy || gradeError ? (
-            <Box flexDirection="column" marginTop={1} width={innerW} flexGrow={1} overflow="hidden">
+            <Box flexDirection="column" marginTop={1} width={innerW} flexShrink={1} overflow="hidden">
               <Divider
                 width={innerW}
                 label={
@@ -2246,8 +2377,8 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                 <Box flexDirection="column" marginY={0}>
                   <Box flexDirection="row" gap={1}>
                     <Badge label={asciiMode ? '! AI评分不可用' : '▲ AI评分不可用'} tone="warning" />
-                    <Text color={theme.error}>
-                      {truncateDisplay(gradeError, Math.max(12, innerW - 18), asciiMode ? '...' : '…')}
+                    <Text color={theme.error} wrap="wrap">
+                      {gradeError}
                     </Text>
                   </Box>
                   <Text color={theme.muted}>
@@ -2291,7 +2422,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                   const fitsInline = Boolean(yoursFull) && usedW + 1 + displayWidth(yoursFull) <= innerW;
                   return (
                     <Box flexDirection="column" flexShrink={0} marginBottom={0} width={innerW}>
-                      <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} width={innerW}>
+                      <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} columnGap={1} width={innerW}>
                         <Badge
                           label={statusLabel}
                           tone={feedback.correct ? 'success' : feedback.selfReported ? 'neutral' : 'error'}
@@ -2318,7 +2449,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                   return (
                     <Box flexDirection="column" flexShrink={0} marginBottom={0} width={innerW}>
                       {canUndo || fitsInline ? (
-                        <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} width={innerW}>
+                        <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} columnGap={1} width={innerW}>
                           {canUndo ? <Badge label={undoLabel} tone="info" variant="soft" /> : null}
                           {fitsInline ? <Text color={theme.muted}>{yoursFull}</Text> : null}
                         </Box>
@@ -2403,7 +2534,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
               ) : null}
 
               {activeRubric ? (
-                <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} marginY={0} width={innerW}>
+                <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} columnGap={1} marginY={0} width={innerW}>
                   <Badge
                     label={`${t(lang, 'Rubric 得分', 'Rubric')} ${activeRubric.total}/${activeRubric.max}`}
                     tone={
@@ -2451,7 +2582,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
               ) : null}
 
               {canAckCorrection ? (
-                <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} marginY={0} width={innerW}>
+                <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} columnGap={1} marginY={0} width={innerW}>
                   <Badge
                     label={truncateDisplay(
                       asciiMode
@@ -2478,12 +2609,15 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
               ) : null}
 
               {postAnswerMarkdown ? (
-                <Box marginTop={0} flexGrow={1} overflow="hidden">
+                <Box marginTop={0} flexShrink={1} overflow="hidden">
                   <MarkdownView
                     markdown={postAnswerMarkdown}
                     width={innerW}
-                    height={Math.max(3, height - (innerW < 90 ? 22 : 18))}
+                    height={postAnswerViewH}
                     mathUnicode={mathUnicode}
+                    isActive={cardScopeActive && revealed}
+                    vimNavKeys={false}
+                    spacePageDown={false}
                   />
                 </Box>
               ) : null}
@@ -2492,7 +2626,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
               {wrongStreakBanner && proactiveHints ? (
                 <ClickableBox
                   marginTop={0}
-                  clickActive={mainActive}
+                  clickActive={cardScopeActive}
                   onClick={() => {
                     setWrongStreakBanner(null);
                     useTuiStore.getState().openAssistant({
@@ -2519,26 +2653,9 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
 
               {/* Calm Proactive Pacing Rest Suggestion (Round 95 Track D9 — max 1/round, opt-out, never steals focus) */}
               {fatigueBanner && proactiveHints && !wrongStreakBanner ? (
-                <ClickableBox marginTop={0} clickActive={mainActive} onClick={() => setFatigueBanner(null)}>
+                <ClickableBox marginTop={0} clickActive={cardScopeActive} onClick={() => setFatigueBanner(null)}>
                   <Text color={theme.info} wrap="truncate">
                     {truncateDisplay(fatigueBanner, innerW, asciiMode ? '...' : '…')}
-                  </Text>
-                </ClickableBox>
-              ) : null}
-
-              {/* Saved AI Explanations Hint */}
-              {revealed && savedFollowupCount > 0 ? (
-                <ClickableBox
-                  marginTop={0}
-                  clickActive={mainActive}
-                  onClick={() => setAiDrawerOpen(true)}
-                >
-                  <Text color={theme.ai}>
-                    {`${asciiMode ? '*' : '✦'} ${t(
-                      lang,
-                      `已存讲解 ${savedFollowupCount} 条，按 [h] 查看`,
-                      `${savedFollowupCount} saved explanation(s) — press [h] to view`,
-                    )}`}
                   </Text>
                 </ClickableBox>
               ) : null}
@@ -2547,7 +2664,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
               {revealed && citation ? (
                 <ClickableBox
                   marginTop={0}
-                  clickActive={mainActive}
+                  clickActive={cardScopeActive}
                   onClick={() => {
                     pushCurrentToPracticeStack('source');
                     skipUnmountPushRef.current = true;
@@ -2580,7 +2697,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                         : t(lang, 'FSRS-6 记忆评分（按数字键 0-5）:', 'FSRS-6 Rating (Press 0-5):')}
                     </Text>
                     {canRubricGrade && !activeRubric ? (
-                      <ClickableBox clickActive={mainActive} onClick={() => void handleRubricGrade()}>
+                      <ClickableBox clickActive={cardScopeActive} onClick={() => void handleRubricGrade()}>
                         <Text color={theme.ai} bold>
                           {t(lang, '[G] AI 按标准评分', '[G] AI Rubric Grade')}
                         </Text>
@@ -2596,7 +2713,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                           ? `${g.key}${lang === 'en' ? `:${textLabel}` : textLabel}`
                           : `${g.key} ${textLabel}${gap ? `${asciiMode ? ' - ' : ' · '}${gap}` : ''}`;
                       return (
-                        <ClickableBox key={g.key} clickActive={mainActive} onClick={() => handleFsrsGrade(g.grade)}>
+                        <ClickableBox key={g.key} clickActive={cardScopeActive} onClick={() => handleFsrsGrade(g.grade)}>
                           <Badge label={label} tone={g.tone} variant="soft" />
                         </ClickableBox>
                       );
@@ -2605,6 +2722,24 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                 </Box>
               ) : null}
             </Box>
+          ) : null}
+
+          {/* Saved AI Explanations Hint (visible both before and after revealing answer, #1335) */}
+          {savedFollowupCount > 0 ? (
+            <ClickableBox
+              marginTop={revealed ? 0 : 1}
+              flexShrink={0}
+              clickActive={cardScopeActive}
+              onClick={() => setAiDrawerOpen(true)}
+            >
+              <Text color={theme.ai}>
+                {`${asciiMode ? '*' : '✦'} ${t(
+                  lang,
+                  `已存讲解 ${savedFollowupCount} 条，按 [h] 查看`,
+                  `${savedFollowupCount} saved explanation(s) — press [h] to view`,
+                )}`}
+              </Text>
+            </ClickableBox>
           ) : null}
 
           {/* Bottom utility status strip — Quick Action Bar (Round 84 Track B3) */}
@@ -2687,14 +2822,14 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                   {kept.map((item, i) => (
                     <React.Fragment key={item.id}>
                       {i > 0 ? <Text color={theme.dim}> </Text> : null}
-                      <ClickableBox clickActive={mainActive} onClick={item.onClick} flexShrink={0}>
+                      <ClickableBox clickActive={cardScopeActive} onClick={item.onClick} flexShrink={0}>
                         <Text color={item.primary ? theme.accent : theme.dim}>{item.text}</Text>
                       </ClickableBox>
                     </React.Fragment>
                   ))}
                   {moreHint ? (
                     <ClickableBox
-                      clickActive={mainActive}
+                      clickActive={cardScopeActive}
                       onClick={() => useTuiStore.getState().setHelpOpen(true)}
                       flexShrink={0}
                     >
@@ -2710,248 +2845,247 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
 
       {sideBySideAi ? <Box width={1} /> : null}
 
-      {/* Lazy-loaded Heavy Modals & AI Drawer (only parsed when opened) */}
-      <Suspense fallback={null}>
-        {/* AI Streaming Help Drawer */}
-        {aiDrawerOpen && cardId ? (
-          <AiHelpDrawer
-            host={host}
-            run={run}
-            cardId={cardId}
-            kind={kind}
-            userAnswer={userAnswerText}
-            width={aiPaneW}
-            height={height}
-            isActive={isActive && aiDrawerOpen && !flagModalOpen && !similarModalOpen && !cardToolsModalOpen && !queueModalOpen && !retellModalOpen && !teachModalOpen && !answerCardModalOpen && !gradeAdjustModalOpen && !nudgeModalOpen}
-            mathUnicode={mathUnicode}
-            history={aiHistoryByCard[cardId]}
-            onHistoryChange={handleAiHistoryChange}
-            extraSavedFollowups={savedFollowupsByCard[cardId]}
-            onSavedFollowup={handleSavedFollowup}
-            onClose={() => setAiDrawerOpen(false)}
-          />
-        ) : null}
+      {/* Lazy-loaded Heavy Modals & AI Drawer (each isolated in its own LIFO opaque KeyScope outside Suspense) */}
+      {aiDrawerOpen && cardId ? (
+        <KeyScope id="review:ai-drawer" opaque>
+          <Suspense fallback={null}>
+            <AiHelpDrawer
+              host={host}
+              run={run}
+              cardId={cardId}
+              kind={kind}
+              userAnswer={userAnswerText}
+              width={aiPaneW}
+              height={height}
+              isActive={isActive}
+              mathUnicode={mathUnicode}
+              history={aiHistoryByCard[cardId]}
+              onHistoryChange={handleAiHistoryChange}
+              extraSavedFollowups={savedFollowupsByCard[cardId]}
+              onSavedFollowup={handleSavedFollowup}
+              onClose={() => setAiDrawerOpen(false)}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {/* Socratic Teach Mode Modal */}
-        {teachModalOpen && cardId ? (
-          <TeachModal
-            host={host}
-            run={run}
-            cardId={cardId}
-            kind={kind}
-            width={width}
-            height={height}
-            isActive={isActive && teachModalOpen && !flagModalOpen}
-            mathUnicode={mathUnicode}
-            onClose={() => setTeachModalOpen(false)}
-          />
-        ) : null}
+      {teachModalOpen && cardId ? (
+        <KeyScope id="review:teach" opaque>
+          <Suspense fallback={null}>
+            <TeachModal
+              host={host}
+              run={run}
+              cardId={cardId}
+              kind={kind}
+              width={width}
+              height={height}
+              isActive={isActive}
+              mathUnicode={mathUnicode}
+              onClose={() => setTeachModalOpen(false)}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {/* Feynman Retell Modal */}
-        {retellModalOpen && cardId ? (
-          <RetellModal
-            host={host}
-            run={run}
-            cardId={cardId}
-            kind={kind}
-            width={width}
-            height={height}
-            isActive={isActive && retellModalOpen && !flagModalOpen && !teachModalOpen}
-            mathUnicode={mathUnicode}
-            onClose={() => setRetellModalOpen(false)}
-            onNavigateToSource={(loc) => {
-              pushCurrentToPracticeStack('source');
-              skipUnmountPushRef.current = true;
-              navigate('sources', { sourceId: loc.sourceId, pageNumber: loc.pageNumber });
-            }}
-          />
-        ) : null}
+      {retellModalOpen && cardId ? (
+        <KeyScope id="review:retell" opaque>
+          <Suspense fallback={null}>
+            <RetellModal
+              host={host}
+              run={run}
+              cardId={cardId}
+              kind={kind}
+              width={width}
+              height={height}
+              isActive={isActive}
+              mathUnicode={mathUnicode}
+              onClose={() => setRetellModalOpen(false)}
+              onNavigateToSource={(loc) => {
+                pushCurrentToPracticeStack('source');
+                skipUnmountPushRef.current = true;
+                navigate('sources', { sourceId: loc.sourceId, pageNumber: loc.pageNumber });
+              }}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {/* Similar / Confusable Cards Modal */}
-        {similarModalOpen && cardId ? (
-          <SimilarCardsModal
-            host={host}
-            run={run}
-            cardId={cardId}
-            kind={kind}
-            width={width}
-            height={height}
-            isActive={isActive && similarModalOpen && !flagModalOpen && !cardToolsModalOpen && !retellModalOpen && !teachModalOpen}
-            mathUnicode={mathUnicode}
-            onClose={() => setSimilarModalOpen(false)}
-            onStartRun={(nextRun) => {
-              pushCurrentToPracticeStack('similar');
-              applyRun(nextRun, true);
-            }}
-          />
-        ) : null}
+      {similarModalOpen && cardId ? (
+        <KeyScope id="review:similar" opaque>
+          <Suspense fallback={null}>
+            <SimilarCardsModal
+              host={host}
+              run={run}
+              cardId={cardId}
+              kind={kind}
+              width={width}
+              height={height}
+              isActive={isActive}
+              mathUnicode={mathUnicode}
+              onClose={() => setSimilarModalOpen(false)}
+              onStartRun={(nextRun) => {
+                pushCurrentToPracticeStack('similar');
+                applyRun(nextRun, true);
+              }}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {/* Power-User Card Tools Drawer/Modal */}
-        {cardToolsModalOpen && cardId ? (
-          <CardToolsModal
-            host={host}
-            run={run}
-            cardId={cardId}
-            kind={kind}
-            width={width}
-            height={height}
-            isActive={isActive && cardToolsModalOpen && !flagModalOpen && !retellModalOpen && !teachModalOpen}
-            onClose={() => setCardToolsModalOpen(false)}
-            onRunUpdated={(nextRun) => applyRun(nextRun, true)}
-            onCardEdited={(editedId) => {
-              translationCacheRef.current.delete(editedId);
-              setShowTranslation(false);
-            }}
-            onFocusChanged={(cid, focused) => {
-              setFocusOverrideByCard((prev) => ({ ...prev, [cid]: focused }));
-            }}
-            onRefreshSnapshot={() => void refresh()}
-          />
-        ) : null}
+      {cardToolsModalOpen && cardId ? (
+        <KeyScope id="review:card-tools" opaque>
+          <Suspense fallback={null}>
+            <CardToolsModal
+              host={host}
+              run={run}
+              cardId={cardId}
+              kind={kind}
+              width={width}
+              height={height}
+              isActive={isActive}
+              onClose={() => setCardToolsModalOpen(false)}
+              onRunUpdated={(nextRun) => applyRun(nextRun, true)}
+              onCardEdited={(editedId) => {
+                translationCacheRef.current.delete(editedId);
+                setShowTranslation(false);
+              }}
+              onFocusChanged={(cid, focused) => {
+                setFocusOverrideByCard((prev) => ({ ...prev, [cid]: focused }));
+              }}
+              onRefreshSnapshot={() => void refresh()}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {/* Live Review Queue Inspector & Editor */}
-        {queueModalOpen && run.mode !== 'exam' ? (
-          <QueueModal
-            host={host}
-            run={run}
-            width={width}
-            height={height}
-            isActive={
-              isActive &&
-              queueModalOpen &&
-              !flagModalOpen &&
-              !teachModalOpen &&
-              !retellModalOpen &&
-              !similarModalOpen &&
-              !cardToolsModalOpen &&
-              !answerCardModalOpen
-            }
-            onClose={() => setQueueModalOpen(false)}
-            onRunUpdated={(nextRun) => applyRun(nextRun, true)}
-          />
-        ) : null}
+      {queueModalOpen && run.mode !== 'exam' ? (
+        <KeyScope id="review:queue" opaque>
+          <Suspense fallback={null}>
+            <QueueModal
+              host={host}
+              run={run}
+              width={width}
+              height={height}
+              isActive={isActive}
+              onClose={() => setQueueModalOpen(false)}
+              onRunUpdated={(nextRun) => applyRun(nextRun, true)}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {/* Case Answer Card Modal */}
-        {answerCardModalOpen && cardId ? (
-          <AnswerCardModal
-            host={host}
-            run={run}
-            cardId={cardId}
-            kind={kind}
-            width={width}
-            height={height}
-            isActive={
-              isActive &&
-              answerCardModalOpen &&
-              !flagModalOpen &&
-              !teachModalOpen &&
-              !retellModalOpen &&
-              !similarModalOpen &&
-              !cardToolsModalOpen
-            }
-            mathUnicode={mathUnicode}
-            onClose={() => setAnswerCardModalOpen(false)}
-            onRunUpdated={(nextRun) => applyRun(nextRun, true)}
-            onRefreshSnapshot={() => void refresh()}
-          />
-        ) : null}
+      {answerCardModalOpen && cardId ? (
+        <KeyScope id="review:answer-card" opaque>
+          <Suspense fallback={null}>
+            <AnswerCardModal
+              host={host}
+              run={run}
+              cardId={cardId}
+              kind={kind}
+              width={width}
+              height={height}
+              isActive={isActive}
+              mathUnicode={mathUnicode}
+              onClose={() => setAnswerCardModalOpen(false)}
+              onRunUpdated={(nextRun) => applyRun(nextRun, true)}
+              onRefreshSnapshot={() => void refresh()}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
-        {/* Coach Nudge Modal */}
-        {nudgeModalOpen && cardId && canCoachNudge ? (
-          <CoachNudgeModal
-            host={host}
-            run={run}
-            cardId={cardId}
-            width={width}
-            height={height}
-            isActive={
-              isActive &&
-              nudgeModalOpen &&
-              !flagModalOpen &&
-              !teachModalOpen &&
-              !retellModalOpen &&
-              !similarModalOpen &&
-              !cardToolsModalOpen &&
-              !answerCardModalOpen &&
-              !queueModalOpen &&
-              !gradeAdjustModalOpen &&
-              !confirmEndOpen
-            }
-            initialNote={nudgeCacheRef.current.get(nudgeCacheKey) ?? null}
-            onNoteUpdate={(note) => {
-              nudgeCacheRef.current.set(nudgeCacheKey, note);
-            }}
-            onClose={() => setNudgeModalOpen(false)}
-          />
-        ) : null}
-      </Suspense>
+      {nudgeModalOpen && cardId && canCoachNudge ? (
+        <KeyScope id="review:nudge" opaque>
+          <Suspense fallback={null}>
+            <CoachNudgeModal
+              host={host}
+              run={run}
+              cardId={cardId}
+              width={width}
+              height={height}
+              isActive={isActive}
+              initialNote={nudgeCacheRef.current.get(nudgeCacheKey) ?? null}
+              onNoteUpdate={(note) => {
+                nudgeCacheRef.current.set(nudgeCacheKey, note);
+              }}
+              onClose={() => setNudgeModalOpen(false)}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
       {/* Quick Flag Modal */}
       {flagModalOpen ? (
-        <Modal
-          title={t(lang, '标记当前题目', 'Flag Current Card')}
-          icon={asciiMode ? '!' : '⚑'}
-          tone="warning"
-          isActive={isActive && flagModalOpen}
-          onClose={() => setFlagModalOpen(false)}
-          hints={[
-            { key: 'Enter', label: t(lang, '提交标记', 'Submit') },
-            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
-          ]}
-        >
-          <Text color={theme.muted}>
-            {t(lang, '输入问题标记说明（如：答案有误、解析不清、需重点复习）：', 'Enter a reason (e.g. unclear stem, wrong key, review later):')}
-          </Text>
-          <Box borderStyle={asciiMode ? 'classic' : 'single'} borderColor={theme.primary} paddingX={1} marginTop={1}>
-            <TextInput
-              value={flagReason}
-              onChange={setFlagReason}
-              isActive={isActive && flagModalOpen}
-              width={54}
-              placeholder={asciiMode ? t(lang, '输入标记原因...', 'Reason...') : t(lang, '输入标记原因…', 'Reason…')}
-              onSubmit={() => void handleSubmitFlag()}
-              onCancel={() => setFlagModalOpen(false)}
-            />
-          </Box>
-        </Modal>
+        <KeyScope id="review:flag" opaque>
+          <Modal
+            title={t(lang, '标记当前题目', 'Flag Current Card')}
+            icon={asciiMode ? '!' : '⚑'}
+            tone="warning"
+            isActive={isActive}
+            onClose={() => setFlagModalOpen(false)}
+            hints={[
+              { key: 'Enter', label: t(lang, '提交标记', 'Submit') },
+              { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+            ]}
+          >
+            <Text color={theme.muted}>
+              {t(lang, '输入问题标记说明（如：答案有误、解析不清、需重点复习）：', 'Enter a reason (e.g. unclear stem, wrong key, review later):')}
+            </Text>
+            <Box borderStyle={asciiMode ? 'classic' : 'single'} borderColor={theme.primary} paddingX={1} marginTop={1}>
+              <TextInput
+                value={flagReason}
+                onChange={setFlagReason}
+                isActive={isActive}
+                width={54}
+                placeholder={asciiMode ? t(lang, '输入标记原因...', 'Reason...') : t(lang, '输入标记原因…', 'Reason…')}
+                onSubmit={() => void handleSubmitFlag()}
+                onCancel={() => setFlagModalOpen(false)}
+              />
+            </Box>
+          </Modal>
+        </KeyScope>
       ) : null}
 
       {/* Manual AI Grade Adjust Modal */}
       {gradeAdjustModalOpen && canAdjustGrade ? (
-        <GradeAdjustModal
-          lang={lang}
-          asciiMode={asciiMode}
-          width={width}
-          currentGrade={typeof feedback?.grade === 'number' ? feedback.grade : undefined}
-          originalGrade={typeof feedback?.gradeOriginal === 'number' ? feedback.gradeOriginal : undefined}
-          busy={busy}
-          isActive={isActive && gradeAdjustModalOpen}
-          onSelect={(grade) => void handleAdjustGrade(grade)}
-          onClose={() => {
-            if (!busyRef.current) setGradeAdjustModalOpen(false);
-          }}
-        />
+        <KeyScope id="review:grade-adjust" opaque>
+          <GradeAdjustModal
+            lang={lang}
+            asciiMode={asciiMode}
+            width={width}
+            currentGrade={typeof feedback?.grade === 'number' ? feedback.grade : undefined}
+            originalGrade={typeof feedback?.gradeOriginal === 'number' ? feedback.gradeOriginal : undefined}
+            busy={busy}
+            isActive={isActive}
+            onSelect={(grade) => void handleAdjustGrade(grade)}
+            onClose={() => {
+              if (!busyRef.current) setGradeAdjustModalOpen(false);
+            }}
+          />
+        </KeyScope>
       ) : null}
 
       {/* End Round Confirmation Dialog */}
       {confirmEndOpen ? (
-        <ConfirmDialog
-          title={t(lang, '结束本轮练习', 'End This Round')}
-          message={t(
-            lang,
-            `当前已作答 ${answeredCount}/${totalCount} 题。结束后本轮不可恢复，将直接进入本轮总结；如需暂离请按 [1] 返回学习库（保留进度）。`,
-            `Answered ${answeredCount}/${totalCount}. Ending closes this round permanently; press [1] to return to Library and keep progress.`,
-          )}
-          confirmLabel={t(lang, '结束本轮', 'End Round')}
-          cancelLabel={t(lang, '继续练习', 'Keep Going')}
-          danger
-          isActive={isActive}
-          onConfirm={() => {
-            setConfirmEndOpen(false);
-            handleEndRound();
-          }}
-          onCancel={() => setConfirmEndOpen(false)}
-        />
+        <KeyScope id="review:confirm-end" opaque>
+          <ConfirmDialog
+            title={t(lang, '结束本轮练习', 'End This Round')}
+            message={t(
+              lang,
+              `当前已作答 ${answeredCount}/${totalCount} 题。结束后本轮不可恢复，将直接进入本轮总结；如需暂离请按 [1] 返回学习库（保留进度）。`,
+              `Answered ${answeredCount}/${totalCount}. Ending closes this round permanently; press [1] to return to Library and keep progress.`,
+            )}
+            confirmLabel={t(lang, '结束本轮', 'End Round')}
+            cancelLabel={t(lang, '继续练习', 'Keep Going')}
+            danger
+            isActive={isActive}
+            onConfirm={() => {
+              setConfirmEndOpen(false);
+              handleEndRound();
+            }}
+            onCancel={() => setConfirmEndOpen(false)}
+          />
+        </KeyScope>
       ) : null}
     </Box>
   );
