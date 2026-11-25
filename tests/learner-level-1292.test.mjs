@@ -21,6 +21,9 @@ import { loadUi } from './helpers/ui-module.mjs';
 
 const CJK_RE = /[\u4e00-\u9fff]/;
 
+/** What a prerequisite card needs besides its prompt and answer (objective, hint, misconception, and a quote of the material): the cards of the scan are cards like any other (#1400). */
+const gapFields = n => ({ objective: `Prerequisite objective ${n}`, hint: `Hint ${n}.`, misconception: `Misconception ${n}.`, sourceId: 'src-mvcc', quote: 'MVCC avoids read locks by keeping row versions' });
+
 const SAMPLE_SOURCES = [
   {
     id: 'src-mvcc',
@@ -98,6 +101,7 @@ test('#1292-3: prereqGapScan skips known course terms, caps at 6 cards, links pr
           prompt: 'What is a database transaction ID (xid)?',
           answer: 'A monotonically increasing identifier assigned to each write transaction.',
           explanation: 'MVCC tags row versions with xids so snapshots know which versions are visible.',
+          ...gapFields(1),
           targetCardIds: ['c1', 'c2'],
         },
         {
@@ -106,6 +110,7 @@ test('#1292-3: prereqGapScan skips known course terms, caps at 6 cards, links pr
           prompt: 'What does a database snapshot represent?',
           answer: 'The set of committed transaction IDs visible at a point in time.',
           explanation: 'Snapshots provide consistent reads without blocking writers.',
+          ...gapFields(2),
           targetCardIds: ['c1'],
         },
         {
@@ -115,6 +120,7 @@ test('#1292-3: prereqGapScan skips known course terms, caps at 6 cards, links pr
           prompt: 'What is a dead tuple?',
           answer: 'An obsolete row version.',
           explanation: 'Vacuum cleans it.',
+          ...gapFields(3),
           targetCardIds: ['c1'],
         },
         // Excess cards beyond cap (create 8 total to verify MAX_GAP_PREREQ_CARDS = 6)
@@ -124,6 +130,7 @@ test('#1292-3: prereqGapScan skips known course terms, caps at 6 cards, links pr
           prompt: `Foundational prerequisite concept #${i + 1}?`,
           answer: `Answer ${i + 1}.`,
           explanation: `Explanation ${i + 1}.`,
+          ...gapFields(i + 4),
           targetCardIds: ['c2'],
         })),
       ],
