@@ -6,15 +6,46 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { planCourseOrganize, runCourseOrganize, MAX_PREREQS_PER_CARD } from '../lib/contexts/generation/course-organize/organize.js';
 import { translateSource } from '../lib/translation-source.js';
+import { usageLedger } from '../lib/model-usage.js';
+import { createFakeModel } from '../scripts/fake-model.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
+import { managedRuntimeOptions } from './helpers/runtime-switch.mjs';
 
 const CJK_RE = /[\u4e00-\u9fff]/;
 
-async function createLibrary(t) {
+/** A library on the job runtime as DSH runs it: a live executor, and the job's model host when `model` is given (the suite's fake model). */
+async function createLibrary(t, model = null) {
   const root = await mkdtemp(join(tmpdir(), 'study-course-organize-1293-'));
-  const service = new StudyService(root);
-  t.after(async () => { service.dispose(); await rm(root, { recursive: true, force: true }); });
-  return service;
+  const { starts: _starts, ...runtime } = managedRuntimeOptions({ complete: model || undefined, paths: [] });
+  const service = new StudyService(root, { ...(model ? { complete: model, completeLight: model } : {}), ...runtime });
+  t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true }); });
+  return { root, service };
+}
+
+const organizeJobs = service => [...service.runtime.work.jobs.values()].filter(job => job.type === 'course-organize');
+
+/** Two chapters of a neutral course: the second card mentions the first card's topic, so the planner offers one link; neither card has cached terms. */
+async function seedCompilers(service) {
+  await service.call('deck.import', {
+    course: 'Compilers',
+    text: JSON.stringify({
+      title: 'Ch1 Intro',
+      course: 'Compilers',
+      cards: [
+        { id: 'm1', kind: 'flashcard', topic: 'Lexer', prompt: 'What does a Lexer produce?', answer: 'A stream of tokens from source characters.', explanation: 'Feeds the parser.' },
+      ],
+    }),
+  });
+  await service.call('deck.import', {
+    course: 'Compilers',
+    text: JSON.stringify({
+      title: 'Ch2 Parsing',
+      course: 'Compilers',
+      cards: [
+        { id: 'm2', kind: 'flashcard', topic: 'AST', prompt: 'How does a parser build an AST from Lexer tokens?', answer: 'Applies grammar productions.', explanation: 'Produces a syntax tree.' },
+      ],
+    }),
+  });
 }
 
 async function waitForJobTerminal(service, jobId, timeoutMs = 5000) {
@@ -124,7 +155,7 @@ test('#1293-1: deterministic prerequisite planner links glossary and earlier-cha
 });
 
 test('#1293-2: StudyService course.organize.start runs offline without a model, appears in jobs list, and reports no-model cleanly', async t => {
-  const service = await createLibrary(t);
+  const { service } = await createLibrary(t);
   await service.call('deck.import', {
     course: 'Systems',
     text: JSON.stringify({
@@ -170,34 +201,10 @@ test('#1293-2: StudyService course.organize.start runs offline without a model, 
 });
 
 test('#1293-3: StudyService course.organize.start with mock light model links prerequisites and pre-extracts card.terms without overwriting existing cache, and supports cancellation', async t => {
-  const service = await createLibrary(t);
-  await service.call('deck.import', {
-    course: 'Compilers',
-    text: JSON.stringify({
-      title: 'Ch1 Intro',
-      course: 'Compilers',
-      cards: [
-        { id: 'm1', kind: 'flashcard', topic: 'Lexer', prompt: 'What does a Lexer produce?', answer: 'A stream of tokens from source characters.', explanation: 'Feeds the parser.' },
-      ],
-    }),
-  });
-  await service.call('deck.import', {
-    course: 'Compilers',
-    text: JSON.stringify({
-      title: 'Ch2 Parsing',
-      course: 'Compilers',
-      cards: [
-        { id: 'm2', kind: 'flashcard', topic: 'AST', prompt: 'How does a parser build an AST from Lexer tokens?', answer: 'Applies grammar productions.', explanation: 'Produces a syntax tree.' },
-      ],
-    }),
-  });
-
   let modelCalls = 0;
-  service.complete = async (_system, prompt) => {
-    modelCalls += 1;
-    if (prompt.includes('Lexer produce')) return JSON.stringify({ terms: ['Lexer', 'tokens'] });
-    return JSON.stringify({ terms: ['AST', 'grammar productions'] });
-  };
+  const fake = createFakeModel({ usage: true });
+  const { service } = await createLibrary(t, async (...args) => { modelCalls += 1; return fake(...args); });
+  await seedCompilers(service);
 
   const started = await service.call('course.organize.start', { course: 'Compilers', mode: 'all' });
   const done = await waitForJobTerminal(service, started.jobId);
@@ -235,6 +242,35 @@ test('#1293-3: StudyService course.organize.start with mock light model links pr
     }),
   );
   assert.equal(callsBeforeAbort, 1, 'stops immediately after abort signal');
+});
+
+test('#1293-6: every model call of the job goes through its own gateway: a Step and a Call per call on the job record, booked once in the usage ledger', async t => {
+  const log = [];
+  const { root, service } = await createLibrary(t, createFakeModel({ log, usage: true }));
+  await seedCompilers(service);
+  const ledger = usageLedger(root);
+  const before = (await ledger.summary({ days: 1 })).byFeature.other?.calls || 0;
+
+  const started = await service.call('course.organize.start', { course: 'Compilers', mode: 'all' });
+  const done = await waitForJobTerminal(service, started.jobId);
+  assert.equal(done.status, 'complete');
+  assert.equal(done.termsExtracted, 2);
+  const asked = log.filter(entry => entry.handler === 'card.terms').length;
+  assert.equal(asked, 2);
+
+  const [job] = organizeJobs(service);
+  const { contract } = job;
+  const steps = contract.runtime.steps.filter(step => step.stepKey.startsWith('terms:'));
+  assert.equal(steps.length, asked, 'one Step per model call');
+  assert.ok(steps.every(step => step.status === 'complete'));
+  assert.equal(contract.calls.length, asked, 'one Call per model call on the job record');
+  for (const call of contract.calls) {
+    assert.deepEqual([call.status, call.observation.boundary, call.feature, call.runner], ['ok', 'host-attempt', 'other', 'direct']);
+    assert.ok(call.tokens > 0, 'the usage the host reported rides on the Call');
+  }
+  assert.equal(contract.result.completeness, 'complete');
+  const after = (await ledger.summary({ days: 1 })).byFeature.other?.calls || 0;
+  assert.equal(after - before, asked, 'the usage ledger counted each call once, by the gateway');
 });
 
 test('#1293-4: CourseSettings exposes secondary batch organize UI with Tooltip and clean English i18n', async () => {
