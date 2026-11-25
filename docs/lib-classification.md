@@ -45,7 +45,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/course-method.js`: 4 ui files; context courses; 5 other lib files
 - `lib/course-rules.js`: 3 ui files; context authoring; 3 other lib files
 - `lib/course-setup.js`: 1 ui file
-- `lib/course-tree.js`: 14 ui files; contexts generation, library, materials, study; 20 other lib files
+- `lib/course-tree.js`: 13 ui files; contexts generation, library, materials, study; 20 other lib files
 - `lib/courses.js`: 11 ui files; contexts authoring, coach, courses, generation, library, study; 15 other lib files
 - `lib/coverage-run.js`: 6 ui files; contexts generation, library; 5 other lib files
 - `lib/coverage-strength.js`: 5 ui files; context generation; 5 other lib files
@@ -170,7 +170,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/job-structure.js`: contexts jobs, library
 - `lib/learner-facts.js`: contexts coach, library; 2 other lib files
 - `lib/learning-scope.js`: contexts skeleton, study; 5 other lib files
-- `lib/mastery.js`: contexts courses, generation, library, study; 33 other lib files
+- `lib/mastery.js`: contexts courses, generation, library, study; 36 other lib files
 - `lib/material-source-versions.js`: contexts generation, library; 6 other lib files
 - `lib/mineru-history.js`: contexts audio, jobs, materials; 1 other lib file
 - `lib/mineru-job.js`: contexts audio, jobs; 1 other lib file

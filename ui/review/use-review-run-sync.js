@@ -2,22 +2,9 @@ import React from "react";
 import { ui } from "../i18n.js";
 import { reviewEntryKey } from "../async.js";
 import { resolveBookSettings } from "../../lib/book-settings.js";
-import { courseParent } from "../../lib/course-tree.js";
-import { qaAddFailureText, useBookQa } from "../book/BookQaButton.jsx";
+import { hasCourseBook, qaAddFailureText, useBookQa } from "../book/BookQaButton.jsx";
 import { autoAddPlan, seeFollowups } from "../book/qa-auto.js";
 import { AUTO_ADVANCE_MS, finishedTask } from "./session-logic.js";
-
-function hasCourseBook(bookCourses, course) {
-  if (!bookCourses || !bookCourses.size || typeof course !== "string") return false;
-  if (bookCourses.has(course)) return true;
-  const known = [...bookCourses];
-  let parent = courseParent(course, known);
-  while (parent) {
-    if (bookCourses.has(parent)) return true;
-    parent = courseParent(parent, known);
-  }
-  return false;
-}
 
 /** Sync Q&A auto-add state and failures with the course book while practicing a question. */
 export function useBookQaSync({ run, data, call }) {
@@ -33,7 +20,8 @@ export function useBookQaSync({ run, data, call }) {
   }, [call]);
 
   const book = useBookQa();
-  const bookCourse = data?.decks?.find((deck) => deck.id === run.deckId)?.course ?? "";
+  const bookDeck = data?.decks?.find((deck) => deck.id === run.deckId);
+  const bookCourse = bookDeck?.course ?? bookDeck?.folder ?? "";
   const [bookNote, setBookNote] = React.useState("");
   const activeCardKeyRef = React.useRef("");
   const currentCardKey = `${run.id}:${run.index}:${run.card?.id || ""}`;
