@@ -6,7 +6,21 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { auditSource, auditTree, buildSourceIndex, maskSource, normalizeTitle, objectKeys, parseArgs, run } from '../scripts/test-audit.mjs';
+import {
+  auditSource,
+  auditTree,
+  buildSourceIndex,
+  diffAgainstBaseline,
+  formatAnnotations,
+  maskSource,
+  normalizeTitle,
+  objectKeys,
+  parseArgs,
+  parseBaselineMarkdown,
+  renderDiffReport,
+  renderMarkdown,
+  run,
+} from '../scripts/test-audit.mjs';
 
 const INDEX = {
   fields: new Set(['publicCard', 'sourcePages', 'run', 'id', 'ok', 'error']),
@@ -126,12 +140,23 @@ test('normalizeTitle folds case and punctuation; objectKeys reads one level of a
   assert.deepEqual(objectKeys("{ id: 'c1', 'sourcePages': [], nested: { ignored: true }, method() {} }"), ['id', 'sourcePages', 'nested', 'method']);
 });
 
-test('parseArgs defaults, --only, --top, --json and --write', () => {
-  assert.deepEqual(parseArgs([]), { write: false, json: false, only: [1, 2, 3, 4, 5, 6, 7], top: 25, root: null });
+test('parseArgs defaults, --only, --top, --json, --write, --compare-baseline and --annotations', () => {
+  assert.deepEqual(parseArgs([]), {
+    write: false,
+    json: false,
+    only: [1, 2, 3, 4, 5, 6, 7],
+    top: 25,
+    root: null,
+    compareBaseline: null,
+    annotations: false,
+  });
   assert.deepEqual(parseArgs(['--only=2,1', '--top=9', '--json', '--write']).only, [1, 2]);
   assert.equal(parseArgs(['--top=9']).top, 9);
   assert.equal(parseArgs(['--json']).json, true);
   assert.equal(parseArgs(['--write']).write, true);
+  assert.equal(parseArgs(['--compare-baseline']).compareBaseline, 'docs/test-audit.md');
+  assert.equal(parseArgs(['--compare-baseline=custom/audit.md']).compareBaseline, 'custom/audit.md');
+  assert.equal(parseArgs(['--annotations']).annotations, true);
   assert.throws(() => parseArgs(['--only=9']), /category/i);
 });
 
@@ -171,6 +196,268 @@ test.skip('later', () => { assert.equal(MAX_ITEMS, 7); });
   assert.match(report, /tests\/dirty\.test\.mjs:4/);
   assert.ok(logged.join('\n').includes('Report written'));
   assert.ok(existsSync(join(root, 'docs/test-audit.md')));
+});
+
+test('parseBaselineMarkdown parses rendered markdown including No hits and >20 overflow items', () => {
+  const overflowHits = Array.from({ length: 25 }, (_, index) => ({
+    category: 1,
+    file: 'tests/big.test.mjs',
+    line: 10 + index,
+    message: `读取源码变量 src（'lib/a.js'）后对文本片段断言 #${index}`,
+  }));
+  const mockResult = {
+    scanned: { testFiles: 2, helperFiles: 0, testBlocks: 5 },
+    totals: {
+      hits: 27,
+      byCategory: { 1: 25, 2: 0, 3: 0, 4: 0, 5: 0, 6: 2, 7: 0 },
+    },
+    files: [
+      { file: 'tests/big.test.mjs', score: 250, counts: { 1: 25 }, hits: overflowHits },
+      {
+        file: 'tests/consts.test.mjs',
+        score: 8,
+        counts: { 6: 2 },
+        hits: [
+          { category: 6, file: 'tests/consts.test.mjs', line: 12, message: '断言常量 MAX_ITEMS 等于它自己的定义值 7：没有行为含义' },
+          { category: 6, file: 'tests/consts.test.mjs', line: 18, message: '断言常量 CONTRACT_VERSION 等于它自己的定义值 1：没有行为含义' },
+        ],
+      },
+    ],
+  };
+
+  const markdown = renderMarkdown(mockResult, { top: 10 });
+  assert.match(markdown, /No hits\./);
+  assert.match(markdown, /…and 5 more in this file/);
+
+  const parsed = parseBaselineMarkdown(markdown);
+  assert.equal(parsed.totals.hits, 27);
+  assert.deepEqual(parsed.totals.byCategory, { 1: 25, 2: 0, 3: 0, 4: 0, 5: 0, 6: 2, 7: 0 });
+  assert.equal(parsed.counts['tests/big.test.mjs'][1], 25);
+  assert.equal(parsed.hits['tests/big.test.mjs'][1].length, 20, 'first 20 hits recorded individually');
+  assert.equal(parsed.counts['tests/consts.test.mjs'][6], 2);
+  assert.equal(parsed.hits['tests/consts.test.mjs'][6][0].line, 12);
+  assert.equal(parsed.hits['tests/consts.test.mjs'][6][1].line, 18);
+
+  // CRLF line endings produce the exact same result.
+  const parsedCrlf = parseBaselineMarkdown(markdown.replace(/\n/g, '\r\n'));
+  assert.deepEqual(parsedCrlf, parsed);
+});
+
+test('parseBaselineMarkdown parses the real docs/test-audit.md consistently', async () => {
+  const realMarkdown = await readFile(new URL('../docs/test-audit.md', import.meta.url), 'utf8');
+  const parsed = parseBaselineMarkdown(realMarkdown);
+  for (const id of [1, 2, 3, 4, 5, 6, 7]) {
+    let summed = 0;
+    for (const fileCounts of Object.values(parsed.counts)) summed += fileCounts[id] ?? 0;
+    assert.equal(summed, parsed.totals.byCategory[id], `category ${id} per-file counts match heading total`);
+  }
+});
+
+test('diffAgainstBaseline reports ONLY newly added or increased hits and ignores unchanged/decreased files', () => {
+  const baseline = parseBaselineMarkdown(renderMarkdown({
+    scanned: { testFiles: 3, helperFiles: 0, testBlocks: 6 },
+    totals: { hits: 5, byCategory: { 1: 3, 2: 0, 3: 0, 4: 0, 5: 0, 6: 2, 7: 0 } },
+    files: [
+      {
+        file: 'tests/unchanged.test.mjs',
+        score: 10,
+        counts: { 1: 1 },
+        hits: [{ category: 1, file: 'tests/unchanged.test.mjs', line: 5, message: 'hit A' }],
+      },
+      {
+        file: 'tests/improved.test.mjs',
+        score: 20,
+        counts: { 1: 2 },
+        hits: [
+          { category: 1, file: 'tests/improved.test.mjs', line: 10, message: 'old 1' },
+          { category: 1, file: 'tests/improved.test.mjs', line: 20, message: 'old 2' },
+        ],
+      },
+      {
+        file: 'tests/grew.test.mjs',
+        score: 8,
+        counts: { 6: 2 },
+        hits: [
+          { category: 6, file: 'tests/grew.test.mjs', line: 15, message: 'const A' },
+          { category: 6, file: 'tests/grew.test.mjs', line: 25, message: 'const B' },
+        ],
+      },
+    ],
+  }));
+
+  const current = {
+    totals: { hits: 6, byCategory: { 1: 3, 2: 0, 3: 0, 4: 0, 5: 0, 6: 3, 7: 0 } },
+    files: [
+      {
+        file: 'tests/unchanged.test.mjs',
+        score: 10,
+        counts: { 1: 1 },
+        hits: [{ category: 1, file: 'tests/unchanged.test.mjs', line: 9, message: 'hit A' }],
+      },
+      {
+        file: 'tests/improved.test.mjs',
+        score: 10,
+        counts: { 1: 1 },
+        hits: [{ category: 1, file: 'tests/improved.test.mjs', line: 10, message: 'old 1' }],
+      },
+      {
+        file: 'tests/grew.test.mjs',
+        score: 12,
+        counts: { 6: 3 },
+        hits: [
+          { category: 6, file: 'tests/grew.test.mjs', line: 15, message: 'const A' },
+          { category: 6, file: 'tests/grew.test.mjs', line: 20, message: 'const NEW' },
+          { category: 6, file: 'tests/grew.test.mjs', line: 28, message: 'const B' },
+        ],
+      },
+      {
+        file: 'tests/brand-new.test.mjs',
+        score: 10,
+        counts: { 1: 1 },
+        hits: [{ category: 1, file: 'tests/brand-new.test.mjs', line: 4, message: 'brand new grep' }],
+      },
+    ],
+  };
+
+  const diff = diffAgainstBaseline(current, baseline);
+  assert.equal(diff.newHits, 2);
+  assert.equal(diff.removedHits, 1);
+  assert.equal(diff.netDelta, 1);
+  assert.equal(diff.improvedFiles, 1);
+  assert.deepEqual(diff.files.map(entry => entry.file), ['tests/brand-new.test.mjs', 'tests/grew.test.mjs']);
+  assert.equal(diff.files[1].hits.length, 1);
+  assert.equal(diff.files[1].hits[0].line, 20, 'line-shift matching isolates the newly inserted hit');
+  assert.equal(diff.files[1].hits[0].message, 'const NEW');
+
+  const report = renderDiffReport(diff, { baselinePath: 'docs/test-audit.md' });
+  assert.match(report, /advisory, non-blocking/i);
+  assert.match(report, /\+2 new hit\(s\)/);
+  assert.match(report, /tests\/brand-new\.test\.mjs:4/);
+  assert.match(report, /tests\/grew\.test\.mjs:20/);
+  assert.doesNotMatch(report, /tests\/unchanged\.test\.mjs/);
+  assert.doesNotMatch(report, /tests\/improved\.test\.mjs/);
+
+  const annotations = formatAnnotations(diff, { max: 20 });
+  assert.equal(annotations.length, 2);
+  assert.match(annotations[0], /^::warning file=tests\/brand-new\.test\.mjs,line=4,title=test-audit \(cat 1\)::/);
+  assert.match(annotations[1], /^::warning file=tests\/grew\.test\.mjs,line=20,title=test-audit \(cat 6\)::/);
+});
+
+test('run --compare-baseline handles clean tree, newly added hits with GITHUB_STEP_SUMMARY & annotations, and missing baseline without failing', async t => {
+  const root = await fixture(t, {
+    'lib/cards.js': "export const MAX_ITEMS = 7;\nexport const cardOf = ({ topic }) => ({ publicCard: topic });\n",
+    'docs/.keep': '',
+    'tests/clean.test.mjs': `import test from 'node:test';
+import assert from 'node:assert/strict';
+test('a card keeps its topic', () => { assert.equal(cardOf({ topic: 'x' }).publicCard, 'x'); });
+`,
+    'tests/existing.test.mjs': `import { readFileSync } from 'node:fs';
+test('existing source check', () => {
+  const card = readFileSync('lib/cards.js', 'utf8');
+  assert.ok(card.includes('publicCard'));
+});
+`,
+  });
+
+  // 1. Missing baseline -> advisory notice, exitCode remains unset / 0.
+  const prevExitCode = process.exitCode;
+  const missingLogs = [];
+  const missingSummary = join(root, 'summary-missing.md');
+  const missingRes = run(['--root=' + root, '--compare-baseline=docs/test-audit.md', '--annotations'], {
+    log: line => missingLogs.push(line),
+    env: { GITHUB_STEP_SUMMARY: missingSummary },
+  });
+  assert.equal(missingRes.baselineMissing, true);
+  assert.equal(process.exitCode, prevExitCode);
+  assert.match(missingLogs.join('\n'), /baseline file not found/i);
+  assert.match(await readFile(missingSummary, 'utf8'), /baseline file not found/i);
+
+  // 2. Write baseline, then compare clean tree -> 0 new hits, 1-line status, no annotations.
+  run(['--root=' + root, '--write'], { log: () => {} });
+  const cleanLogs = [];
+  const cleanSummary = join(root, 'summary-clean.md');
+  const cleanRes = run(['--root=' + root, '--compare-baseline=docs/test-audit.md', '--annotations'], {
+    log: line => cleanLogs.push(line),
+    env: { GITHUB_STEP_SUMMARY: cleanSummary },
+  });
+  assert.equal(cleanRes.diff.newHits, 0);
+  assert.equal(process.exitCode, prevExitCode);
+  assert.equal(cleanLogs.length, 1);
+  assert.match(cleanLogs[0], /0 new low-value test hits/);
+  assert.doesNotMatch(cleanLogs.join('\n'), /::warning/);
+  assert.match(await readFile(cleanSummary, 'utf8'), /0 new low-value test hits/);
+
+  // 3. Add a new low-value test -> reports only the new file, writes summary, emits ::warning, still exits 0.
+  await writeFile(join(root, 'tests/regression.test.mjs'), `import { readFileSync } from 'node:fs';
+test('newly added grep test', () => {
+  const card = readFileSync('lib/cards.js', 'utf8');
+  assert.ok(card.includes('MAX_ITEMS'));
+});
+`);
+  const regLogs = [];
+  const regSummary = join(root, 'summary-reg.md');
+  const regRes = run(['--root=' + root, '--compare-baseline=docs/test-audit.md', '--annotations'], {
+    log: line => regLogs.push(line),
+    env: { GITHUB_STEP_SUMMARY: regSummary },
+  });
+  assert.equal(regRes.diff.newHits, 1);
+  assert.deepEqual(regRes.diff.files.map(entry => entry.file), ['tests/regression.test.mjs']);
+  assert.equal(process.exitCode, prevExitCode, 'advisory mode must never set non-zero exitCode');
+  assert.match(regLogs.join('\n'), /tests\/regression\.test\.mjs:4/);
+  assert.match(regLogs.join('\n'), /::warning file=tests\/regression\.test\.mjs,line=4,title=test-audit \(cat 1\)::/);
+  assert.doesNotMatch(regLogs.join('\n'), /tests\/existing\.test\.mjs/);
+  const summaryText = await readFile(regSummary, 'utf8');
+  assert.match(summaryText, /## Test audit \(advisory, non-blocking\)/);
+  assert.match(summaryText, /tests\/regression\.test\.mjs/);
+});
+
+test('diffAgainstBaseline handles >20 overflow baseline accurately and caps annotations at 20', () => {
+  const baseHits = Array.from({ length: 24 }, (_, idx) => ({
+    category: 1,
+    file: 'tests/large.test.mjs',
+    line: 10 + idx,
+    message: 'existing grep pattern',
+  }));
+  const baseline = parseBaselineMarkdown(renderMarkdown({
+    scanned: { testFiles: 1, helperFiles: 0, testBlocks: 1 },
+    totals: { hits: 24, byCategory: { 1: 24, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 } },
+    files: [{ file: 'tests/large.test.mjs', score: 240, counts: { 1: 24 }, hits: baseHits }],
+  }));
+
+  // Same 24 hits -> 0 new hits despite markdown truncation at 20.
+  const unchanged = diffAgainstBaseline({
+    totals: { hits: 24, byCategory: { 1: 24, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 } },
+    files: [{ file: 'tests/large.test.mjs', score: 240, counts: { 1: 24 }, hits: baseHits }],
+  }, baseline);
+  assert.equal(unchanged.newHits, 0);
+
+  // Add 1 brand-new hit -> delta is 1 and representative list picks the new hit.
+  const withOneMore = [...baseHits, { category: 1, file: 'tests/large.test.mjs', line: 99, message: 'brand new pattern' }];
+  const grew = diffAgainstBaseline({
+    totals: { hits: 25, byCategory: { 1: 25, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 } },
+    files: [{ file: 'tests/large.test.mjs', score: 250, counts: { 1: 25 }, hits: withOneMore }],
+  }, baseline);
+  assert.equal(grew.newHits, 1);
+  assert.equal(grew.hits.length, 1);
+  assert.equal(grew.hits[0].line, 99);
+  assert.equal(grew.hits[0].message, 'brand new pattern');
+
+  // 25 new hits in a new file -> formatAnnotations caps at 20.
+  const manyNew = Array.from({ length: 25 }, (_, idx) => ({
+    category: 6,
+    file: 'tests/many.test.mjs',
+    line: idx + 1,
+    message: `const #${idx}`,
+  }));
+  const manyDiff = diffAgainstBaseline({
+    totals: { hits: 49, byCategory: { 1: 24, 2: 0, 3: 0, 4: 0, 5: 0, 6: 25, 7: 0 } },
+    files: [
+      { file: 'tests/large.test.mjs', score: 240, counts: { 1: 24 }, hits: baseHits },
+      { file: 'tests/many.test.mjs', score: 100, counts: { 6: 25 }, hits: manyNew },
+    ],
+  }, baseline);
+  assert.equal(manyDiff.newHits, 25);
+  assert.equal(formatAnnotations(manyDiff).length, 20);
 });
 
 /** A throwaway checkout with the given files. */
