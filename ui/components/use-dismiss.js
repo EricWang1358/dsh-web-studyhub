@@ -54,7 +54,8 @@ export function useDismiss({ open: isOpen, onClose, refs, escape = true, escapeA
   const latest = useRef({});
   latest.current = { onClose, refs, returnFocusRef, escapeAnywhere };
   useEffect(() => {
-    if (!isOpen) return undefined;
+    // No document (a render outside the browser): nothing to listen on, and registerDismiss reads `document` for its default.
+    if (!isOpen || typeof document === 'undefined') return undefined;
     return registerDismiss({ getLatest: () => latest.current, escape, capture });
   }, [isOpen, escape, capture]);
 }

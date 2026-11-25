@@ -222,6 +222,11 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       await page.waitForTimeout(1200);
       assert.equal(await anyTip(page).count(), 0, `${where}: voting is the moment, not the answer`);
       await voteDown(page, words);
+      // #1269 / #1275: voting down keeps the tag tray open until the learner picks tags or dismisses it; the tip yields while the tray is open, then appears once dismissed.
+      await page.locator('.thumb-tray').waitFor({ state: 'visible', timeout: 5000 });
+      assert.equal(await tipOf(page, 'practice.fix-first').isVisible(), false, `${where}: the 修题 tip yields while the tag tray is open`);
+      await page.keyboard.press('Escape');
+      await page.locator('.thumb-tray').waitFor({ state: 'detached', timeout: 5000 });
       await tipOf(page, 'practice.fix-first').waitFor({ state: 'visible', timeout: 15000 });
       assert.deepEqual(await offenders(page), [], `${where}: the 修题 tip lies over empty space only`);
       assert.deepEqual(await ringed(page), ['review.improve'], `${where}: its control carries the ring`);
