@@ -714,3 +714,28 @@ test('skill-moment hook: matches the command at a command start only, and inject
   assert.equal(bad.status, 0);
   assert.equal(bad.stdout, '');
 });
+
+test('the Codex and Antigravity hook command finds the script from the repo root, from .agents/ and from a subfolder, and allows outside the repo', async () => {
+  // Antigravity runs workspace hooks in .agents/; neither agent documents the directory, so run the real command through the shell.
+  const { command } = JSON.parse(await readFile(join(REPO_ROOT, '.agents/hooks.json'), 'utf8'))['skill-moments'].PreToolUse[0].hooks[0];
+  const agy = JSON.stringify({ toolCall: { name: 'run_command', args: { CommandLine: 'git switch main' } } });
+  const codex = JSON.stringify({ tool_input: { command: 'git switch main' } });
+  const hook = (cwd, input) => {
+    const out = spawnSync(command, { cwd, input, shell: true, encoding: 'utf8' });
+    assert.equal(out.status, 0, out.stderr);
+    return out.stdout;
+  };
+  for (const cwd of [REPO_ROOT, join(REPO_ROOT, '.agents'), join(REPO_ROOT, 'tests')]) {
+    const answer = JSON.parse(hook(cwd, '﻿' + agy)); // Windows PowerShell 5.1 pipes text with a BOM
+    assert.equal(answer.decision, 'ask', cwd);
+    assert.match(answer.reason, /\[C22\]/);
+    assert.match(JSON.parse(hook(cwd, codex)).hookSpecificOutput.additionalContext, /\[C22\]/, cwd);
+  }
+  const outside = await tmp();
+  try {
+    assert.deepEqual(JSON.parse(hook(outside, agy)), { decision: 'allow' }, 'Antigravity needs a decision even when the script is missing');
+    assert.equal(hook(outside, codex), '');
+  } finally {
+    await rm(outside, { recursive: true, force: true });
+  }
+});

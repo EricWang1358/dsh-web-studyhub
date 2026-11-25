@@ -68,7 +68,7 @@ function main(only) {
   process.stdin.on('end', () => {
     let input = null;
     try {
-      input = JSON.parse(raw);
+      input = JSON.parse(raw.replace(/^﻿/, '')); // Windows PowerShell 5.1 prefixes piped text with a BOM
       const { moments } = JSON.parse(readFileSync(join(here, 'skill-moments.json'), 'utf8'));
       const out = respond(input, moments, name => readFileSync(join(skillsDir, name, 'SKILL.md'), 'utf8'), only);
       if (out) process.stdout.write(out);

@@ -5,7 +5,7 @@
         "matcher": "run_command",
         "hooks": [
           {
-            "command": "node .claude/hooks/skill-moment.mjs",
+            "command": "node -e \"const fs=require('fs'),path=require('path'),url=require('url');let d=process.cwd();for(;;){const s=path.join(d,'.claude','hooks','skill-moment.mjs');if(fs.existsSync(s)){process.argv[1]=s;import(url.pathToFileURL(s).href);break}const u=path.dirname(d);if(u===d){let r='';process.stdin.on('data',c=>r+=c).on('end',()=>{if(r.includes('toolCall'))process.stdout.write(JSON.stringify({decision:'allow'}))});break}d=u}\"",
             "timeout": 10
           }
         ]
