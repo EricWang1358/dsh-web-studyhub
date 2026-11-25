@@ -1,6 +1,6 @@
 import React, { memo, useMemo, useState } from 'react';
 import { Box, Text } from 'ink';
-import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
+import { useKeyScope } from '../../input/hooks.js';
 import type { UiLanguage } from '../../types/contracts.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState } from '../../components/Badge.js';
@@ -8,7 +8,6 @@ import { MarkdownView } from '../../components/MarkdownView.js';
 import { Panel } from '../../components/Panel.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { VirtualList } from '../../components/VirtualList.js';
-import { useClaimKeys } from '../../components/focus.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { renderBarChart, renderStatTable } from '../../render/charts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -80,8 +79,6 @@ export const ExamReportView = memo(function ExamReportView({
   const [pane, setPane] = useState<'list' | 'detail'>('list');
   const [selectedIdx, setSelectedIdx] = useState(0);
 
-  useClaimKeys(CLAIMED, isActive);
-
   const isCaseReport = state.kind === 'written' && Boolean(state.report.case);
 
   const writtenItems: ReportItem[] = useMemo(() => {
@@ -108,25 +105,29 @@ export const ExamReportView = memo(function ExamReportView({
     [state, lang],
   );
 
-  useInput(
-    (input, key) => {
-      if (busy) return;
+  useKeyScope({
+    id: 'ExamReportView:main',
+    active: isActive,
+    keys: CLAIMED,
+    onKey: (input, key) => {
+      if (busy) return false;
       if (input === 'b' || key.escape) {
         onBack();
         return true;
       }
       if ((input === 'w' || input === 'p') && weakScope.length > 0) {
         onPracticeWeak(weakScope);
-        return;
+        return true;
       }
       if (key.tab || input === 'h' || input === 'l' || key.leftArrow || key.rightArrow) {
         if (input === 'h' || key.leftArrow) setPane('list');
         else if (input === 'l' || key.rightArrow) setPane('detail');
         else setPane((p) => (p === 'list' ? 'detail' : 'list'));
+        return true;
       }
+      return false;
     },
-    { isActive },
-  );
+  });
 
   const detailMarkdown = useMemo(() => {
     if (state.kind === 'written') {

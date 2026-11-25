@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
-import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
+import { KEY_LAYER_MODAL } from '../../input/dispatcher.js';
+import { KeyScope, useKeyScope } from '../../input/hooks.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState, Spinner, StatusPill } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
@@ -11,7 +12,6 @@ import { Panel } from '../../components/Panel.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
-import { useClaimKeys } from '../../components/focus.js';
 import { computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
@@ -50,6 +50,34 @@ type ActiveModal =
   | { type: 'confirm-cancel-gen'; note: NoteItem };
 
 const CLAIMED_KEYS = ['a', 'g', 'o', 'R', 'L', 'C', 'M', '/'] as const;
+
+const LinkModalHotkeys = memo(function LinkModalHotkeys({
+  isActive,
+  onPreparePublish,
+  onLookupPublished,
+}: {
+  isActive: boolean;
+  onPreparePublish: () => void;
+  onLookupPublished: () => void;
+}) {
+  useKeyScope({
+    id: 'NotesView:link',
+    active: isActive,
+    layer: KEY_LAYER_MODAL,
+    onKey: (input, key) => {
+      if (key.ctrl && (input === 'p' || input === 'P')) {
+        onPreparePublish();
+        return true;
+      }
+      if (key.ctrl && (input === 'l' || input === 'L')) {
+        onLookupPublished();
+        return true;
+      }
+      return false;
+    },
+  });
+  return null;
+});
 
 function matchesNoteFilter(note: NoteItem, normalizedQuery: string): boolean {
   const raw = note as unknown as Record<string, unknown>;
@@ -942,32 +970,19 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
   );
 
   const busy = generatingRecap || generatingDraft || cancellingRecap || cancellingGen || openingRef || exporting || linking;
-  const noModalActive = isActive && modal === null;
-  useClaimKeys(CLAIMED_KEYS, noModalActive && !filterEditing);
 
-  useInput(
-    (input, key) => {
-      if (key.ctrl && (input === 'p' || input === 'P')) {
-        void handlePreparePublish();
-        return;
-      }
-      if (key.ctrl && (input === 'l' || input === 'L')) {
-        void handleLookupPublished();
-      }
-    },
-    { isActive: isActive && modal?.type === 'link' },
-  );
-
-  useInput(
-    (input, key) => {
-      if (!noModalActive || filterEditing) return;
+  const pageActive = useKeyScope({
+    id: 'NotesView:main',
+    active: isActive,
+    keys: CLAIMED_KEYS,
+    onKey: (input, key) => {
       if (key.tab) {
         setActivePane((p) => (p === 'left' ? 'right' : 'left'));
-        return;
+        return true;
       }
       if ((key.rightArrow || input === 'l') && activePane === 'left' && displayedNote) {
         setActivePane('right');
-        return;
+        return true;
       }
       if ((key.leftArrow || input === 'h' || key.escape) && activePane === 'right') {
         setActivePane('left');
@@ -979,62 +994,62 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
       }
       if (input === '/' && !key.ctrl && !key.meta) {
         setFilterEditing(true);
-        return;
+        return true;
       }
       if (input === 'a') {
         setModal({ type: 'create' });
-        return;
+        return true;
       }
       if (input === 'R') {
         void triggerDailyRecap();
-        return;
+        return true;
       }
       if (input === 'C') {
-        if (busy) return;
+        if (busy) return true;
         if (displayedNote && !isDailyNote(displayedNote) && displayedNote.generation?.status === 'running') {
           setModal({ type: 'confirm-cancel-gen', note: displayedNote });
-          return;
+          return true;
         }
         if (!runningRecapTarget) {
           notify(t(lang, '当前没有正在生成的每日总结', 'No daily recap is currently running'), 'info');
-          return;
+          return true;
         }
         setModal({ type: 'cancelRecap', noteId: runningRecapTarget.id, label: runningRecapTarget.label });
-        return;
+        return true;
       }
       if (input === 'f' && focusCourse) {
         setFilterCourseOnly((v) => !v);
-        return;
+        return true;
       }
       if (input === 'm') {
         setMathOverride((prev) => !(prev ?? mathPref));
-        return;
+        return true;
       }
-      if (!displayedNote) return;
+      if (!displayedNote) return false;
       if (input === 'g') {
-        if (busy) return;
+        if (busy) return true;
         if (isDailyNote(displayedNote)) {
           notify(t(lang, '每日总结请按 [R] 更新今日总结', 'Use [R] to update Daily Recap'), 'info');
-          return;
+          return true;
         }
         if (displayedNote.status !== 'draft') {
           notify(t(lang, '已发布笔记不能重新 AI 起草', 'Published notes cannot be re-drafted by AI'), 'warning');
-          return;
+          return true;
         }
         if (displayedNote.generation?.status === 'running') {
           notify(t(lang, '该笔记正在 AI 起草中（按 [C] 可停止）', 'Note draft is already running (press [C] to stop)'), 'info');
-          return;
+          return true;
         }
         setModal({ type: 'confirm-generate', note: displayedNote });
-        return;
+        return true;
       }
       if (input === 'o') {
         void openLinkedRef(false);
-        return;
+        return true;
       }
       if (input === 'O' && linkedRefs.source) {
         void openLinkedRef(true);
-        return;
+        return true;
       }
       if (input === 'L') {
         setLinkUrl(getNotePublishUrl(displayedNote));
@@ -1042,19 +1057,19 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         setLinkField('url');
         setLinkError('');
         setModal({ type: 'link', note: displayedNote });
-        return;
+        return true;
       }
       if (input === 'M') {
         void handleImportNoteToSources();
-        return;
+        return true;
       }
       if (input === 'e') {
         if (!isNoteWritable(displayedNote)) {
           notify(t(lang, '已发布笔记不能直接修改，请新建草稿', 'Published notes cannot be overwritten; create a new draft'), 'warning');
-          return;
+          return true;
         }
         setModal({ type: 'edit', note: displayedNote });
-        return;
+        return true;
       }
       if (input === 'x') {
         setExportPath(
@@ -1067,14 +1082,15 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         );
         setExportError('');
         setModal({ type: 'export', note: displayedNote });
-        return;
+        return true;
       }
       if (input === 'd') {
         setModal({ type: 'delete', note: displayedNote });
+        return true;
       }
+      return false;
     },
-    { isActive: noModalActive && !filterEditing },
-  );
+  });
 
   const hints: KeyHint[] = useMemo(
     () => [
@@ -1202,35 +1218,37 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
   return (
     <Box flexDirection="column" width={width} height={height}>
       {showFilterBar ? (
-        <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
-          <Text color={filterEditing ? theme.primary : theme.accent} bold>
-            {filterBadge}
-          </Text>
-          <Box flexGrow={1} overflow="hidden">
-            <TextInput
-              value={filterQuery}
-              onChange={setFilterQuery}
-              onSubmit={(val) => {
-                if (!val.trim()) setFilterQuery('');
-                setFilterEditing(false);
-              }}
-              onCancel={() => {
-                setFilterQuery('');
-                setFilterEditing(false);
-              }}
-              isActive={noModalActive && filterEditing}
-              width={filterInputW}
-              prompt="/"
-              placeholder={t(lang, `标题/正文/课程/标签${ell}`, `title/content/course/tag${ell}`)}
-              maxLength={120}
-            />
-          </Box>
-          {filterRightHint ? (
-            <Text color={theme.dim} wrap="truncate">
-              {filterRightHint}
+        <KeyScope id="notes:filter" opaque active={isActive && filterEditing}>
+          <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+            <Text color={filterEditing ? theme.primary : theme.accent} bold>
+              {filterBadge}
             </Text>
-          ) : null}
-        </Box>
+            <Box flexGrow={1} overflow="hidden">
+              <TextInput
+                value={filterQuery}
+                onChange={setFilterQuery}
+                onSubmit={(val) => {
+                  if (!val.trim()) setFilterQuery('');
+                  setFilterEditing(false);
+                }}
+                onCancel={() => {
+                  setFilterQuery('');
+                  setFilterEditing(false);
+                }}
+                isActive={isActive && filterEditing}
+                width={filterInputW}
+                prompt="/"
+                placeholder={t(lang, `标题/正文/课程/标签${ell}`, `title/content/course/tag${ell}`)}
+                maxLength={120}
+              />
+            </Box>
+            {filterRightHint ? (
+              <Text color={theme.dim} wrap="truncate">
+                {filterRightHint}
+              </Text>
+            ) : null}
+          </Box>
+        </KeyScope>
       ) : null}
       <SplitPane
         width={width}
@@ -1279,7 +1297,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
                   width={Math.max(12, paneW - 4)}
                   height={listH}
                   selectedIndex={selectedIndex}
-                  isActive={noModalActive && !filterEditing && activePane === 'left'}
+                  isActive={pageActive && activePane === 'left'}
                   keyExtractor={(item) => item.id}
                   onChange={(_idx, item) => {
                     pendingSelectIdRef.current = null;
@@ -1417,7 +1435,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
                       }
                       width={proseWidth}
                       height={readerH}
-                      isActive={noModalActive && !filterEditing && activePane === 'right'}
+                      isActive={pageActive && activePane === 'right'}
                       mathUnicode={effectiveMath}
                     />
                   </Box>
@@ -1428,66 +1446,70 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         }}
       />
 
-      <Suspense fallback={null}>
-        {modal?.type === 'create' || modal?.type === 'edit' ? (
-          <NoteEditorModal
-            mode={modal.type}
-            host={host}
-            lang={lang}
-            note={modal.type === 'edit' ? modal.note : null}
-            focusCourse={focusCourse}
-            availableDecks={decksForModal}
-            terminalRows={height}
-            terminalCols={width}
-            onClose={() => setModal(null)}
-            onSaved={(saved, created) => {
-              setModal(null);
-              pendingSelectIdRef.current = saved.id;
-              setSelectedId(saved.id);
-              setActiveNote(saved);
-              notify(
-                created ? t(lang, `已创建笔记「${saved.title}」`, `Created "${saved.title}"`) : t(lang, '笔记已保存', 'Note saved'),
-                'success',
-              );
-              void fetchNotesAndDaily(true);
-              void refreshSnapshot();
-            }}
-          />
-        ) : null}
-      </Suspense>
+      {modal?.type === 'create' || modal?.type === 'edit' ? (
+        <KeyScope id="notes:editor" opaque>
+          <Suspense fallback={null}>
+            <NoteEditorModal
+              mode={modal.type}
+              host={host}
+              lang={lang}
+              note={modal.type === 'edit' ? modal.note : null}
+              focusCourse={focusCourse}
+              availableDecks={decksForModal}
+              terminalRows={height}
+              terminalCols={width}
+              onClose={() => setModal(null)}
+              onSaved={(saved, created) => {
+                setModal(null);
+                pendingSelectIdRef.current = saved.id;
+                setSelectedId(saved.id);
+                setActiveNote(saved);
+                notify(
+                  created ? t(lang, `已创建笔记「${saved.title}」`, `Created "${saved.title}"`) : t(lang, '笔记已保存', 'Note saved'),
+                  'success',
+                );
+                void fetchNotesAndDaily(true);
+                void refreshSnapshot();
+              }}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
 
       {modal?.type === 'export' ? (
-        <Modal
-          title={t(lang, '导出 Markdown 笔记', 'Export Note as Markdown')}
-          icon={asciiMode ? '>' : '↗'}
-          tone="accent"
-          width={Math.max(50, Math.min(76, width - 6))}
-          onClose={exporting ? undefined : () => setModal(null)}
-          hints={[
-            { key: 'Enter', label: t(lang, '导出', 'Export') },
-            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
-          ]}
-        >
-          <Box flexDirection="column" gap={1}>
-            <Text color={theme.muted}>
-              {t(lang, `笔记：${modal.note.title}`, `Note: ${modal.note.title}`)}
-            </Text>
-            <Text color={theme.text} bold>
-              {t(lang, '保存路径（支持相对路径或 ~）：', 'Destination path (relative or ~ supported):')}
-            </Text>
-            <TextInput
-              value={exportPath}
-              onChange={setExportPath}
-              onSubmit={() => void handleExportConfirm()}
-              onCancel={() => setModal(null)}
-              isActive={!exporting}
-              width={modalContentWidth(Math.max(50, Math.min(76, width - 6))) - 2}
-              prompt={asciiMode ? '> ' : '› '}
-              captureInput={false}
-            />
-            {exportError ? <Text color={theme.error}>{`${asciiMode ? 'x' : '✕'} ${exportError}`}</Text> : null}
-          </Box>
-        </Modal>
+        <KeyScope id="notes:export" opaque>
+          <Modal
+            title={t(lang, '导出 Markdown 笔记', 'Export Note as Markdown')}
+            icon={asciiMode ? '>' : '↗'}
+            tone="accent"
+            width={Math.max(50, Math.min(76, width - 6))}
+            onClose={exporting ? undefined : () => setModal(null)}
+            hints={[
+              { key: 'Enter', label: t(lang, '导出', 'Export') },
+              { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+            ]}
+          >
+            <Box flexDirection="column" gap={1}>
+              <Text color={theme.muted}>
+                {t(lang, `笔记：${modal.note.title}`, `Note: ${modal.note.title}`)}
+              </Text>
+              <Text color={theme.text} bold>
+                {t(lang, '保存路径（支持相对路径或 ~）：', 'Destination path (relative or ~ supported):')}
+              </Text>
+              <TextInput
+                value={exportPath}
+                onChange={setExportPath}
+                onSubmit={() => void handleExportConfirm()}
+                onCancel={() => setModal(null)}
+                isActive={!exporting}
+                width={modalContentWidth(Math.max(50, Math.min(76, width - 6))) - 2}
+                prompt={asciiMode ? '> ' : '› '}
+                captureInput={false}
+              />
+              {exportError ? <Text color={theme.error}>{`${asciiMode ? 'x' : '✕'} ${exportError}`}</Text> : null}
+            </Box>
+          </Modal>
+        </KeyScope>
       ) : null}
 
       {modal?.type === 'link' ? (
@@ -1496,147 +1518,162 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
           const linkInnerWidth = modalContentWidth(linkModalWidth);
           const ell = asciiMode ? '...' : '…';
           return (
-            <Modal
-              title={t(lang, '关联公开文章链接', 'Link Published Article URL')}
-              subtitle={linkField === 'home' ? t(lang, 'Tab 切到文章链接', 'Tab: Article URL') : t(lang, 'Tab 设置主页', 'Tab: CSDN Home')}
-              icon={asciiMode ? '>' : '↗'}
-              tone="accent"
-              width={linkModalWidth}
-              onClose={linking ? undefined : () => setModal(null)}
-              hints={[
-                { key: 'Ctrl+P', label: t(lang, '准备发布', 'Prepare') },
-                { key: 'Ctrl+L', label: t(lang, '自动查找', 'Lookup') },
-                { key: 'Enter', label: t(lang, '保存', 'Save') },
-                { key: 'Esc', label: t(lang, '关闭', 'Close') },
-              ]}
-            >
-              <Box flexDirection="column" gap={1}>
-                <Text color={theme.muted}>
-                  {truncateDisplay(t(lang, `笔记：${modal.note.title}`, `Note: ${modal.note.title}`), linkInnerWidth, ell)}
-                </Text>
-                {linkField === 'home' ? (
-                  <>
-                    <Text color={theme.text} bold>
-                      {t(lang, 'CSDN 公开主页（如 https://blog.csdn.net/username）：', 'CSDN Public Home (e.g. https://blog.csdn.net/username):')}
-                    </Text>
-                    <TextInput
-                      value={linkHome}
-                      onChange={setLinkHome}
-                      onSubmit={() => void handleSaveHome()}
-                      onCancel={() => setModal(null)}
-                      onTab={() => {
-                        setLinkField('url');
-                        setLinkError('');
-                      }}
-                      isActive={!linking}
-                      width={linkInnerWidth - 2}
-                      placeholder="https://blog.csdn.net/username"
-                      prompt={asciiMode ? '> ' : '› '}
-                      captureInput={false}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <Text color={theme.muted}>
-                      {truncateDisplay(
-                        csdnHome
-                          ? t(lang, `CSDN 主页: ${csdnHome} (Tab 修改)`, `CSDN Home: ${csdnHome} (Tab to edit)`)
-                          : t(lang, '未设置 CSDN 主页（按 Tab 填写主页）', 'CSDN Home not set (press Tab to configure)'),
-                        linkInnerWidth,
-                        ell,
-                      )}
-                    </Text>
-                    <Text color={theme.text} bold>
-                      {t(lang, '公开文章链接：', 'Published article URL:')}
-                    </Text>
-                    <TextInput
-                      value={linkUrl}
-                      onChange={setLinkUrl}
-                      onSubmit={() => void handleLinkConfirm()}
-                      onCancel={() => setModal(null)}
-                      onTab={() => {
-                        setLinkField('home');
-                        setLinkError('');
-                      }}
-                      isActive={!linking}
-                      width={linkInnerWidth - 2}
-                      placeholder="https://blog.csdn.net/username/article/details/123456"
-                      prompt={asciiMode ? '> ' : '› '}
-                      captureInput={false}
-                    />
-                  </>
-                )}
-                {linkError ? <Text color={theme.error}>{`${asciiMode ? 'x' : '✕'} ${linkError}`}</Text> : null}
-              </Box>
-            </Modal>
+            <KeyScope id="notes:link" opaque>
+              <LinkModalHotkeys
+                isActive={isActive}
+                onPreparePublish={() => void handlePreparePublish()}
+                onLookupPublished={() => void handleLookupPublished()}
+              />
+              <Modal
+                title={t(lang, '关联公开文章链接', 'Link Published Article URL')}
+                subtitle={linkField === 'home' ? t(lang, 'Tab 切到文章链接', 'Tab: Article URL') : t(lang, 'Tab 设置主页', 'Tab: CSDN Home')}
+                icon={asciiMode ? '>' : '↗'}
+                tone="accent"
+                width={linkModalWidth}
+                onClose={linking ? undefined : () => setModal(null)}
+                hints={[
+                  { key: 'Ctrl+P', label: t(lang, '准备发布', 'Prepare') },
+                  { key: 'Ctrl+L', label: t(lang, '自动查找', 'Lookup') },
+                  { key: 'Enter', label: t(lang, '保存', 'Save') },
+                  { key: 'Esc', label: t(lang, '关闭', 'Close') },
+                ]}
+              >
+                <Box flexDirection="column" gap={1}>
+                  <Text color={theme.muted}>
+                    {truncateDisplay(t(lang, `笔记：${modal.note.title}`, `Note: ${modal.note.title}`), linkInnerWidth, ell)}
+                  </Text>
+                  {linkField === 'home' ? (
+                    <>
+                      <Text color={theme.text} bold>
+                        {t(lang, 'CSDN 公开主页（如 https://blog.csdn.net/username）：', 'CSDN Public Home (e.g. https://blog.csdn.net/username):')}
+                      </Text>
+                      <TextInput
+                        value={linkHome}
+                        onChange={setLinkHome}
+                        onSubmit={() => void handleSaveHome()}
+                        onCancel={() => setModal(null)}
+                        onTab={() => {
+                          setLinkField('url');
+                          setLinkError('');
+                        }}
+                        isActive={!linking}
+                        width={linkInnerWidth - 2}
+                        placeholder="https://blog.csdn.net/username"
+                        prompt={asciiMode ? '> ' : '› '}
+                        captureInput={false}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <Text color={theme.muted}>
+                        {truncateDisplay(
+                          csdnHome
+                            ? t(lang, `CSDN 主页: ${csdnHome} (Tab 修改)`, `CSDN Home: ${csdnHome} (Tab to edit)`)
+                            : t(lang, '未设置 CSDN 主页（按 Tab 填写主页）', 'CSDN Home not set (press Tab to configure)'),
+                          linkInnerWidth,
+                          ell,
+                        )}
+                      </Text>
+                      <Text color={theme.text} bold>
+                        {t(lang, '公开文章链接：', 'Published article URL:')}
+                      </Text>
+                      <TextInput
+                        value={linkUrl}
+                        onChange={setLinkUrl}
+                        onSubmit={() => void handleLinkConfirm()}
+                        onCancel={() => setModal(null)}
+                        onTab={() => {
+                          setLinkField('home');
+                          setLinkError('');
+                        }}
+                        isActive={!linking}
+                        width={linkInnerWidth - 2}
+                        placeholder="https://blog.csdn.net/username/article/details/123456"
+                        prompt={asciiMode ? '> ' : '› '}
+                        captureInput={false}
+                      />
+                    </>
+                  )}
+                  {linkError ? <Text color={theme.error}>{`${asciiMode ? 'x' : '✕'} ${linkError}`}</Text> : null}
+                </Box>
+              </Modal>
+            </KeyScope>
           );
         })()
       ) : null}
 
       {modal?.type === 'confirm-generate' ? (
-        <ConfirmDialog
-          title={t(lang, 'AI 起草笔记正文', 'AI Draft Note')}
-          message={(() => {
-            const cardCount = modal.note.cardCount ?? modal.note.cards?.length ?? 0;
-            return t(
-              lang,
-              `将调用已配置模型为笔记「${modal.note.title}」（关联 ${cardCount} 张题卡）起草正文。继续吗？`,
-              `Invoke the configured model to draft "${modal.note.title}" (${cardCount} linked card${cardCount === 1 ? '' : 's'}). Continue?`,
-            );
-          })()}
-          confirmLabel={t(lang, '开始起草', 'Generate')}
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          onConfirm={() => void handleGenerateConfirm(modal.note)}
-          onCancel={() => setModal(null)}
-        />
+        <KeyScope id="notes:confirm-generate" opaque>
+          <ConfirmDialog
+            title={t(lang, 'AI 起草笔记正文', 'AI Draft Note')}
+            message={(() => {
+              const cardCount = modal.note.cardCount ?? modal.note.cards?.length ?? 0;
+              return t(
+                lang,
+                `将调用已配置模型为笔记「${modal.note.title}」（关联 ${cardCount} 张题卡）起草正文。继续吗？`,
+                `Invoke the configured model to draft "${modal.note.title}" (${cardCount} linked card${cardCount === 1 ? '' : 's'}). Continue?`,
+              );
+            })()}
+            confirmLabel={t(lang, '开始起草', 'Generate')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            onConfirm={() => void handleGenerateConfirm(modal.note)}
+            onCancel={() => setModal(null)}
+          />
+        </KeyScope>
       ) : null}
 
       {modal?.type === 'confirm-cancel-gen' ? (
-        <ConfirmDialog
-          title={t(lang, '停止 AI 起草笔记', 'Stop AI Note Draft')}
-          message={t(
-            lang,
-            `确定停止「${modal.note.title}」的 AI 起草吗？`,
-            `Stop AI drafting for "${modal.note.title}"?`,
-          )}
-          confirmLabel={t(lang, '停止起草', 'Stop')}
-          cancelLabel={t(lang, '继续生成', 'Keep Running')}
-          danger
-          onConfirm={() => void handleCancelGenConfirm(modal.note)}
-          onCancel={() => setModal(null)}
-        />
+        <KeyScope id="notes:confirm-cancel-gen" opaque>
+          <ConfirmDialog
+            title={t(lang, '停止 AI 起草笔记', 'Stop AI Note Draft')}
+            message={t(
+              lang,
+              `确定停止「${modal.note.title}」的 AI 起草吗？`,
+              `Stop AI drafting for "${modal.note.title}"?`,
+            )}
+            confirmLabel={t(lang, '停止起草', 'Stop')}
+            cancelLabel={t(lang, '继续生成', 'Keep Running')}
+            danger
+            onConfirm={() => void handleCancelGenConfirm(modal.note)}
+            onCancel={() => setModal(null)}
+          />
+        </KeyScope>
       ) : null}
 
       {modal?.type === 'cancelRecap' ? (
-        <ConfirmDialog
-          title={t(lang, '停止生成每日总结', 'Cancel Daily Recap')}
-          message={t(
-            lang,
-            `确定停止「${modal.label || '今日学习总结'}」的生成吗？已完成的部分会保留。`,
-            `Stop generating "${modal.label || 'Daily Recap'}"? Completed sections will be kept.`,
-          )}
-          confirmLabel={t(lang, '停止生成', 'Stop')}
-          cancelLabel={t(lang, '继续生成', 'Keep Running')}
-          danger
-          onConfirm={() => void handleCancelRecapConfirm(modal.noteId)}
-          onCancel={() => setModal(null)}
-        />
+        <KeyScope id="notes:cancel-recap" opaque>
+          <ConfirmDialog
+            title={t(lang, '停止生成每日总结', 'Cancel Daily Recap')}
+            message={t(
+              lang,
+              `确定停止「${modal.label || '今日学习总结'}」的生成吗？已完成的部分会保留。`,
+              `Stop generating "${modal.label || 'Daily Recap'}"? Completed sections will be kept.`,
+            )}
+            confirmLabel={t(lang, '停止生成', 'Stop')}
+            cancelLabel={t(lang, '继续生成', 'Keep Running')}
+            danger
+            onConfirm={() => void handleCancelRecapConfirm(modal.noteId)}
+            onCancel={() => setModal(null)}
+          />
+        </KeyScope>
       ) : null}
 
       {modal?.type === 'delete' ? (
-        <ConfirmDialog
-          title={t(lang, '删除笔记', 'Delete Note')}
-          message={t(
-            lang,
-            `确定永久删除笔记「${modal.note.title}」吗？此操作不可恢复。`,
-            `Permanently delete note "${modal.note.title}"? This cannot be undone.`,
-          )}
-          confirmLabel={t(lang, '删除', 'Delete')}
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          danger
-          onConfirm={() => void handleDeleteNote(modal.note)}
-          onCancel={() => setModal(null)}
-        />
+        <KeyScope id="notes:delete" opaque>
+          <ConfirmDialog
+            title={t(lang, '删除笔记', 'Delete Note')}
+            message={t(
+              lang,
+              `确定永久删除笔记「${modal.note.title}」吗？此操作不可恢复。`,
+              `Permanently delete note "${modal.note.title}"? This cannot be undone.`,
+            )}
+            confirmLabel={t(lang, '删除', 'Delete')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            danger
+            onConfirm={() => void handleDeleteNote(modal.note)}
+            onCancel={() => setModal(null)}
+          />
+        </KeyScope>
       ) : null}
     </Box>
   );

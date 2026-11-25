@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { Box, Text } from 'ink';
 import { useStableWindowSize } from '../../components/resize.js';
-import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
+import { KEY_LAYER_MODAL } from '../../input/dispatcher.js';
+import { KeyScope, useKeyScope } from '../../input/hooks.js';
 import type { HostClient, KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { Badge, EmptyState, ProgressBar, Spinner, StatusPill, type PillStatus } from '../../components/Badge.js';
@@ -14,7 +15,7 @@ import { ScrollView } from '../../components/ScrollView.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
-import { useClaimKeys, useInputCapture } from '../../components/focus.js';
+import { useInputCapture } from '../../components/focus.js';
 import { computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -688,27 +689,32 @@ const JobOutputModal = memo(function JobOutputModal({
     };
   }, [host, isActive, job.id, activeCall?.id, reloadTick]);
 
-  useInput(
-    (input, key) => {
-      if (!isActive) return;
+  useKeyScope({
+    id: 'TasksView:output-modal',
+    active: isActive,
+    layer: KEY_LAYER_MODAL,
+    onKey: (input, key) => {
       if (input === 'r') {
         setReloadTick((n) => n + 1);
-        return;
+        return true;
       }
       if (input === 'm') {
         setViewMode((m) => (m === 'auto' ? 'json' : 'auto'));
-        return;
+        return true;
       }
       if (job.calls.length > 1) {
         if (key.leftArrow || input === '[') {
           setCallIdx((i) => Math.max(0, i - 1));
-        } else if (key.rightArrow || input === ']') {
+          return true;
+        }
+        if (key.rightArrow || input === ']') {
           setCallIdx((i) => Math.min(job.calls.length - 1, i + 1));
+          return true;
         }
       }
+      return false;
     },
-    { isActive },
-  );
+  });
 
   const frameW = Math.min(108, Math.max(46, columns - 4));
   const frameH = Math.min(34, Math.max(15, rows - 2));
@@ -1642,10 +1648,6 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
     }
   }, [asciiMode, filterQuery, filterTab, filteredJobs, host, lang, notify]);
 
-  const modalOpen = confirmDeleteOpen || confirmPurgeTraceOpen || outputModalOpen || messageModalOpen || workflowModalOpen;
-  const listActive = isActive && !modalOpen;
-  const listNavActive = listActive && !filterEditing;
-  useClaimKeys(CLAIMED_KEYS, listNavActive);
   useInputCapture(isActive && filterEditing);
 
   const showParallelHint = Boolean(
@@ -1678,9 +1680,11 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
   );
   useFooterHints(hints, isActive);
 
-  useInput(
-    (input, key) => {
-      if (!listNavActive) return;
+  const pageActive = useKeyScope({
+    id: 'TasksView:main',
+    active: isActive,
+    keys: CLAIMED_KEYS,
+    onKey: (input, key) => {
       if (key.escape && filterQuery) {
         setFilterQuery('');
         setSelectedIndex(0);
@@ -1688,48 +1692,95 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
       }
       if (input === '/' && !key.ctrl && !key.meta) {
         setFilterEditing(true);
-        return;
+        return true;
       }
       if (input === 'X' && !key.ctrl && !key.meta) {
         void handleExportTasksMarkdown();
-        return;
+        return true;
       }
       if (key.tab) {
         setFilterTab((tCur) => (tCur === 'running' ? 'all' : tCur === 'all' ? 'archived' : 'running'));
-        return;
+        return true;
       }
-      if (input === '1') setFilterTab('running');
-      else if (input === '2') setFilterTab('all');
-      else if (input === '3') setFilterTab('archived');
-      else if (input === 'p') void handleTogglePause();
-      else if (input === 'P') void handleStartParallel();
-      else if (input === 'R') void handleRecoverInterrupted();
-      else if (input === '+' || input === '=') void handleAdjustConcurrency(1);
-      else if (input === '-') void handleAdjustConcurrency(-1);
-      else if (input === 'o') {
+      if (input === '1') {
+        setFilterTab('running');
+        return true;
+      }
+      if (input === '2') {
+        setFilterTab('all');
+        return true;
+      }
+      if (input === '3') {
+        setFilterTab('archived');
+        return true;
+      }
+      if (input === 'p') {
+        void handleTogglePause();
+        return true;
+      }
+      if (input === 'P') {
+        void handleStartParallel();
+        return true;
+      }
+      if (input === 'R') {
+        void handleRecoverInterrupted();
+        return true;
+      }
+      if (input === '+' || input === '=') {
+        void handleAdjustConcurrency(1);
+        return true;
+      }
+      if (input === '-') {
+        void handleAdjustConcurrency(-1);
+        return true;
+      }
+      if (input === 'o') {
         if (!selectedJob) notify(t(lang, '请先选择一个任务', 'Select a job first'), 'info');
         else setOutputModalOpen(true);
-      } else if (input === 'm') {
+        return true;
+      }
+      if (input === 'm') {
         if (!selectedJob) notify(t(lang, '请先选择一个任务', 'Select a job first'), 'info');
         else if (!ACTIVE_STATUSES.has(selectedJob.status)) {
           notify(t(lang, '仅运行中的任务可发送补充说明', 'Only active jobs accept refinement messages'), 'info');
         } else {
           setMessageModalOpen(true);
         }
-      } else if (input === 'w') setWorkflowModalOpen(true);
-      else if (input === 'v') setDetailMode((m) => (m === 'output' ? 'trace' : 'output'));
-      else if (input === 'e') {
+        return true;
+      }
+      if (input === 'w') {
+        setWorkflowModalOpen(true);
+        return true;
+      }
+      if (input === 'v') {
+        setDetailMode((m) => (m === 'output' ? 'trace' : 'output'));
+        return true;
+      }
+      if (input === 'e') {
         if (!selectedJob) notify(t(lang, '请先选择一个任务', 'Select a job first'), 'info');
         else void handleExportTrace();
-      } else if (input === 'D') {
+        return true;
+      }
+      if (input === 'D') {
         if (!selectedJob) notify(t(lang, '请先选择一个任务', 'Select a job first'), 'info');
         else setConfirmPurgeTraceOpen(true);
-      } else if (input === 'x') void handleCancel();
-      else if (input === 'a') void handleArchive();
-      else if (input === 'd' && selectedJob) setConfirmDeleteOpen(true);
+        return true;
+      }
+      if (input === 'x') {
+        void handleCancel();
+        return true;
+      }
+      if (input === 'a') {
+        void handleArchive();
+        return true;
+      }
+      if (input === 'd' && selectedJob) {
+        setConfirmDeleteOpen(true);
+        return true;
+      }
+      return false;
     },
-    { isActive: listNavActive },
-  );
+  });
 
   const narrowBar = width < 84;
   const topBarH = 2;
@@ -1881,39 +1932,41 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
 
       {/* Inline Live Filter Bar ([/]) */}
       {showFilterBar ? (
-        <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
-          <Text color={filterEditing ? theme.primary : theme.accent} bold>
-            {filterBadge}
-          </Text>
-          <Box flexGrow={1} overflow="hidden">
-            <TextInput
-              value={filterQuery}
-              onChange={(val) => {
-                setFilterQuery(val);
-                setSelectedIndex(0);
-              }}
-              onSubmit={(val) => {
-                if (!val.trim()) setFilterQuery('');
-                setFilterEditing(false);
-              }}
-              onCancel={() => {
-                setFilterQuery('');
-                setFilterEditing(false);
-                setSelectedIndex(0);
-              }}
-              isActive={listActive && filterEditing}
-              width={filterInputW}
-              prompt="/"
-              placeholder={t(lang, `标题/类型/状态/课程/阶段/ID${ell}`, `title/type/status/course/stage/id${ell}`)}
-              maxLength={120}
-            />
-          </Box>
-          {filterRightHint ? (
-            <Text color={theme.dim} wrap="truncate">
-              {filterRightHint}
+        <KeyScope id="tasks:filter" opaque active={isActive && filterEditing}>
+          <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+            <Text color={filterEditing ? theme.primary : theme.accent} bold>
+              {filterBadge}
             </Text>
-          ) : null}
-        </Box>
+            <Box flexGrow={1} overflow="hidden">
+              <TextInput
+                value={filterQuery}
+                onChange={(val) => {
+                  setFilterQuery(val);
+                  setSelectedIndex(0);
+                }}
+                onSubmit={(val) => {
+                  if (!val.trim()) setFilterQuery('');
+                  setFilterEditing(false);
+                }}
+                onCancel={() => {
+                  setFilterQuery('');
+                  setFilterEditing(false);
+                  setSelectedIndex(0);
+                }}
+                isActive={isActive && filterEditing}
+                width={filterInputW}
+                prompt="/"
+                placeholder={t(lang, `标题/类型/状态/课程/阶段/ID${ell}`, `title/type/status/course/stage/id${ell}`)}
+                maxLength={120}
+              />
+            </Box>
+            {filterRightHint ? (
+              <Text color={theme.dim} wrap="truncate">
+                {filterRightHint}
+              </Text>
+            ) : null}
+          </Box>
+        </KeyScope>
       ) : null}
 
       {/* SplitPane */}
@@ -1930,7 +1983,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
               badge={filteredJobs.length}
               width={lw}
               height={lh}
-              focused={listNavActive}
+              focused={pageActive}
             >
               {filteredJobs.length === 0 ? (
                 <EmptyState
@@ -1961,7 +2014,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
                       notify(t(lang, '该任务暂无关联草稿', 'No draft linked to this job'), 'info');
                     }
                   }}
-                  isActive={listNavActive}
+                  isActive={pageActive}
                   keyExtractor={(j) => `${j.archived ? 'arch-' : ''}${j.id}`}
                   renderItem={(job, ctx) => {
                     const active = ACTIVE_STATUSES.has(job.status);
@@ -2090,80 +2143,90 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
       </Box>
 
       {confirmDeleteOpen && selectedJob ? (
-        <ConfirmDialog
-          title={t(lang, '删除任务记录', 'Dismiss Job')}
-          message={t(
-            lang,
-            `确认移除任务「${selectedJob.title}」的记录吗？（保留已生成的草稿）`,
-            `Remove job record "${selectedJob.title}"? (Generated drafts are preserved.)`,
-          )}
-          confirmLabel={t(lang, '确认移除', 'Remove')}
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          danger
-          isActive={isActive}
-          onConfirm={() => void handleDeleteConfirm()}
-          onCancel={() => setConfirmDeleteOpen(false)}
-        />
+        <KeyScope id="tasks:confirm-delete" opaque>
+          <ConfirmDialog
+            title={t(lang, '删除任务记录', 'Dismiss Job')}
+            message={t(
+              lang,
+              `确认移除任务「${selectedJob.title}」的记录吗？（保留已生成的草稿）`,
+              `Remove job record "${selectedJob.title}"? (Generated drafts are preserved.)`,
+            )}
+            confirmLabel={t(lang, '确认移除', 'Remove')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            danger
+            isActive={isActive}
+            onConfirm={() => void handleDeleteConfirm()}
+            onCancel={() => setConfirmDeleteOpen(false)}
+          />
+        </KeyScope>
       ) : null}
 
       {confirmPurgeTraceOpen && selectedJob ? (
-        <ConfirmDialog
-          title={t(lang, '清空请求轨迹', 'Purge Request Traces')}
-          message={t(
-            lang,
-            `确认清空任务「${selectedJob.title}」的缓存请求轨迹吗？（任务记录与草稿保持不变）`,
-            `Purge saved request traces for "${selectedJob.title}"? (The job record itself stays intact.)`,
-          )}
-          confirmLabel={t(lang, '确认清空', 'Purge')}
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          danger
-          isActive={isActive}
-          onConfirm={() => void handlePurgeTraceConfirm()}
-          onCancel={() => setConfirmPurgeTraceOpen(false)}
-        />
+        <KeyScope id="tasks:confirm-purge-trace" opaque>
+          <ConfirmDialog
+            title={t(lang, '清空请求轨迹', 'Purge Request Traces')}
+            message={t(
+              lang,
+              `确认清空任务「${selectedJob.title}」的缓存请求轨迹吗？（任务记录与草稿保持不变）`,
+              `Purge saved request traces for "${selectedJob.title}"? (The job record itself stays intact.)`,
+            )}
+            confirmLabel={t(lang, '确认清空', 'Purge')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            danger
+            isActive={isActive}
+            onConfirm={() => void handlePurgeTraceConfirm()}
+            onCancel={() => setConfirmPurgeTraceOpen(false)}
+          />
+        </KeyScope>
       ) : null}
 
       {outputModalOpen && selectedJob ? (
-        <JobOutputModal
-          host={host}
-          job={selectedJob}
-          isActive={isActive && outputModalOpen}
-          onClose={() => setOutputModalOpen(false)}
-          lang={lang}
-          asciiMode={asciiMode}
-        />
+        <KeyScope id="tasks:output" opaque>
+          <JobOutputModal
+            host={host}
+            job={selectedJob}
+            isActive={isActive && outputModalOpen}
+            onClose={() => setOutputModalOpen(false)}
+            lang={lang}
+            asciiMode={asciiMode}
+          />
+        </KeyScope>
       ) : null}
 
       {messageModalOpen && selectedJob ? (
-        <JobMessageModal
-          host={host}
-          job={selectedJob}
-          isActive={isActive && messageModalOpen}
-          onClose={() => setMessageModalOpen(false)}
-          onSent={(receipt) => {
-            setMessageModalOpen(false);
-            const receiptMsg =
-              receipt.delivery === 'delivered'
-                ? t(lang, '补充说明已实时送达当前子任务', 'Refinement delivered to active workers')
-                : receipt.delivery === 'partial'
-                  ? t(lang, '补充说明已部分送达，并保留至后续阶段', 'Partially delivered; saved for next stage')
-                  : t(lang, '补充说明已保存，将在下一阶段生效', 'Saved; will apply to next stage');
-            notify(receiptMsg, 'success');
-          }}
-          lang={lang}
-          asciiMode={asciiMode}
-        />
+        <KeyScope id="tasks:message" opaque>
+          <JobMessageModal
+            host={host}
+            job={selectedJob}
+            isActive={isActive && messageModalOpen}
+            onClose={() => setMessageModalOpen(false)}
+            onSent={(receipt) => {
+              setMessageModalOpen(false);
+              const receiptMsg =
+                receipt.delivery === 'delivered'
+                  ? t(lang, '补充说明已实时送达当前子任务', 'Refinement delivered to active workers')
+                  : receipt.delivery === 'partial'
+                    ? t(lang, '补充说明已部分送达，并保留至后续阶段', 'Partially delivered; saved for next stage')
+                    : t(lang, '补充说明已保存，将在下一阶段生效', 'Saved; will apply to next stage');
+              notify(receiptMsg, 'success');
+            }}
+            lang={lang}
+            asciiMode={asciiMode}
+          />
+        </KeyScope>
       ) : null}
 
-      <Suspense fallback={null}>
-        {workflowModalOpen ? (
-          <WorkflowHistoryModal
-            host={host}
-            isActive={isActive && workflowModalOpen}
-            onClose={() => setWorkflowModalOpen(false)}
-          />
-        ) : null}
-      </Suspense>
+      {workflowModalOpen ? (
+        <KeyScope id="tasks:workflow" opaque>
+          <Suspense fallback={null}>
+            <WorkflowHistoryModal
+              host={host}
+              isActive={isActive && workflowModalOpen}
+              onClose={() => setWorkflowModalOpen(false)}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
     </Box>
   );
 });
