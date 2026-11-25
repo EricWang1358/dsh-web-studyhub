@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 
 const mod = await loadUi(`
   export { setUiLanguage } from './ui/i18n.js';
@@ -404,27 +405,64 @@ test('DeskChimeDialog, FocusAmbientControls, DeskAtelierPanel and TodayTimer ren
   }
 });
 
-test('desk-chime.css and Wave 2 sources satisfy StudyHub opacity, contrast, motion, layer and architecture guardrails', async () => {
-  const css = await readFile(new URL('../ui/desk-atelier/desk-chime.css', import.meta.url), 'utf8');
-  assert.match(css, /@layer study\.features/);
-  assert.doesNotMatch(css, /:has\(/);
-  assert.doesNotMatch(css, /var\(--fw-strong\)/);
-  assert.doesNotMatch(css, /var\(--paper\)|var\(--shadow-card\)|var\(--shadow-sm\)/);
-  assert.match(css, /@keyframes sh-desk-chime-sway/);
-  assert.match(css, /@keyframes sh-desk-chime-ring/);
-  assert.match(css, /\[data-contrast="high"\][\s\S]*?\.desk-ambient-canvas[\s\S]*?display:\s*none/);
-  assert.match(css, /@media \(forced-colors: active\)[\s\S]*?\.desk-ambient-canvas[\s\S]*?display:\s*none/);
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
-  assert.match(css, /\[data-motion="reduced"\]/);
-  assert.match(css, /\[data-motion="off"\]/);
-  const opacityMatch = css.match(/\.desk-ambient-canvas\s*\{[^}]*opacity:\s*([0-9.]+)/);
-  assert.ok(opacityMatch, 'ambient canvas declares explicit opacity');
-  assert.ok(Number(opacityMatch[1]) <= 0.18, `ambient canvas opacity (${opacityMatch[1]}) must stay <= 0.18`);
+test('desk-chime.css and Wave 2 runtime satisfy StudyHub opacity, contrast, motion, timer and storage guardrails', () => {
+  // Repo-wide @layer, :has(), and undefined CSS custom-property rules are already enforced by
+  // tests/css-layers.test.mjs, tests/page-switch-jank.test.mjs, and tests/ui-guardrails.test.mjs.
+  // Here we parse desk-chime.css for feature-specific motion/contrast/opacity contracts.
+  const { declarations, blocks } = parseCss(readFileSync(new URL('../ui/desk-atelier/desk-chime.css', import.meta.url), 'utf8'));
+  const keyframeNames = blocks
+    .map((b) => b.prelude.match(/^@keyframes\s+([\w-]+)/)?.[1])
+    .filter(Boolean);
+  assert.ok(keyframeNames.includes('sh-desk-chime-sway'), 'sh-desk-chime-sway keyframes declared');
+  assert.ok(keyframeNames.includes('sh-desk-chime-ring'), 'sh-desk-chime-ring keyframes declared');
+  assert.equal(declarations.some((d) => /var\(--fw-strong\)/.test(d.value)), false, 'desk-chime.css must not use var(--fw-strong)');
 
-  for (const file of ['DeskChimeDialog.jsx', 'chime-synth.js', 'FocusAmbientCanvas.jsx']) {
-    const src = await readFile(new URL(`../ui/desk-atelier/${file}`, import.meta.url), 'utf8');
-    assert.doesNotMatch(src, /\bsetInterval\s*\(/, `${file} must not use setInterval`);
-    assert.doesNotMatch(src, /React\.lazy/, `${file} must not use React.lazy`);
-    assert.doesNotMatch(src, /\blocalStorage\b|\bsessionStorage\b/, `${file} must use ui/storage.js`);
+  const hasHiddenAmbient = (ctxPattern) => declarations.some(
+    (d) => d.prop === 'display' && d.value === 'none'
+      && /\.desk-ambient-canvas\b/.test(d.ctx.at(-1))
+      && ctxPattern.test(d.ctx.join(' | ')),
+  );
+  assert.equal(hasHiddenAmbient(/\[data-contrast="high"\]/), true, 'ambient canvas hides in high contrast');
+  assert.equal(hasHiddenAmbient(/@media \(forced-colors: active\)/), true, 'ambient canvas hides in forced-colors');
+  assert.equal(hasHiddenAmbient(/@media \(prefers-reduced-motion: reduce\)/), true, 'ambient canvas hides under prefers-reduced-motion');
+  assert.equal(hasHiddenAmbient(/\[data-motion="reduced"\]/), true, 'ambient canvas hides under data-motion="reduced"');
+  assert.equal(hasHiddenAmbient(/\[data-motion="off"\]/), true, 'ambient canvas hides under data-motion="off"');
+
+  const opacityDecl = declarations.find((d) => d.ctx.at(-1) === '.desk-ambient-canvas' && d.prop === 'opacity');
+  assert.ok(opacityDecl, 'ambient canvas declares explicit opacity');
+  assert.ok(Number(opacityDecl.value) <= 0.18, `ambient canvas opacity (${opacityDecl.value}) must stay <= 0.18`);
+
+  // Runtime behavior: zero setInterval usage during render/strike/stop, synchronous SSR (no React.lazy),
+  // and safe storage fallback via ui/storage.js even if host localStorage/sessionStorage throws.
+  const origSetInterval = globalThis.setInterval;
+  const origLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const origSessionStorage = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage');
+  const env = createFakeAudioEnv();
+  let intervalCalls = 0;
+  try {
+    globalThis.setInterval = (...args) => { intervalCalls += 1; return origSetInterval(...args); };
+    const throwStorage = {
+      configurable: true,
+      get() { throw new Error('storage blocked'); },
+    };
+    Object.defineProperty(globalThis, 'localStorage', throwStorage);
+    Object.defineProperty(globalThis, 'sessionStorage', throwStorage);
+
+    assert.equal(loadAmbientMode(), 'off', 'loadAmbientMode tolerates blocked browser storage via ui/storage.js');
+    assert.equal(saveAmbientMode('rain-ripples'), 'rain-ripples', 'saveAmbientMode tolerates blocked browser storage via ui/storage.js');
+
+    assert.match(renderToStaticMarkup(React.createElement(DeskChimeDialog, { onClose: () => {} })), /desk-chime/, 'DeskChimeDialog renders synchronously without React.lazy');
+    assert.match(renderToStaticMarkup(React.createElement(FocusAmbientCanvas, { mode: 'rain-ripples' })), /desk-ambient-canvas/, 'FocusAmbientCanvas renders synchronously without React.lazy');
+
+    assert.equal(strikeChimeBar('D4'), true);
+    stopAllChimes();
+    assert.equal(intervalCalls, 0, 'chime synth and ambient components never register setInterval');
+  } finally {
+    globalThis.setInterval = origSetInterval;
+    if (origLocalStorage) Object.defineProperty(globalThis, 'localStorage', origLocalStorage);
+    else delete globalThis.localStorage;
+    if (origSessionStorage) Object.defineProperty(globalThis, 'sessionStorage', origSessionStorage);
+    else delete globalThis.sessionStorage;
+    env.restore();
   }
 });

@@ -1,7 +1,10 @@
+// test-audit-allowlist: static-css-guard — CSS mask-image / scroll-padding-inline declarations in scroll-fade.css & skeleton.css and cross-surface strip wiring cannot be evaluated without a browser CSSOM/layout engine (browser measuring is covered by tests/scroll-fade-browser.test.mjs); pure edge math and CSS AST assertions run here.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createEdgeTracker, edgeTracker, scrollEdges, scrollEdgesX } from '../ui/components/scroll-edges.js';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 
 /* #747: a strip that scrolls sideways hid its scrollbar and gave no sign that more was off screen. One hook (ui/components/use-scroll-edges.js) and one
    stylesheet (ui/components/scroll-fade.css) say which side still has content and fade that side, and only that side; the scroll position, the keyboard
@@ -32,15 +35,36 @@ test('the vertical rule is unchanged, and the one tracker serves both axes', () 
   assert.equal(edgeTracker((edges) => published.push(edges)) instanceof Function, true);
 });
 
-test('the shared stylesheet fades one side, the other, or both, and nothing else', async () => {
-  const css = await readFile('ui/components/scroll-fade.css', 'utf8');
-  assert.match(css, /\.sh-fade-x\[data-fade-start\]\s*\{[^}]*mask-image: linear-gradient\(to right/);
-  assert.match(css, /\.sh-fade-x\[data-fade-end\]\s*\{[^}]*mask-image: linear-gradient\(to left/);
-  assert.match(css, /\.sh-fade-x\[data-fade-start\]\[data-fade-end\]\s*\{[^}]*mask-image: linear-gradient\(to right, transparent 0/);
-  assert.equal((css.match(/mask-image:/g) || []).length, 6, 'three rules, the prefixed and the plain property each');
-  assert.doesNotMatch(css, /\n\s*(overflow|scroll-behavior|scroll-snap-type|position|display)\s*:/, 'a fade paints; it never moves or un-scrolls anything');
-  assert.match(css, /--sh-fade-size, 28px/, 'the fade has one default width, and a strip may set its own');
-  assert.match(css, /\.sh-fade-x--pad\s*\{\s*scroll-padding-inline: var\(--sh-fade-size, 28px\)/, 'a focused item scrolls in clear of the fade');
+test('the shared stylesheet fades one side, the other, or both, and nothing else', () => {
+  const { declarations } = parseCss(readFileSync('ui/components/scroll-fade.css', 'utf8'));
+  const masks = declarations.filter((d) => d.prop === 'mask-image' || d.prop === '-webkit-mask-image');
+  assert.equal(masks.length, 6, 'three rules, the prefixed and the plain property each');
+  assert.ok(
+    masks.some((d) => d.ctx.at(-1) === '.sh-fade-x[data-fade-start]' && d.prop === 'mask-image' && /^linear-gradient\(to right/.test(d.value)),
+    'start edge fades to the right',
+  );
+  assert.ok(
+    masks.some((d) => d.ctx.at(-1) === '.sh-fade-x[data-fade-end]' && d.prop === 'mask-image' && /^linear-gradient\(to left/.test(d.value)),
+    'end edge fades to the left',
+  );
+  assert.ok(
+    masks.some((d) => d.ctx.at(-1) === '.sh-fade-x[data-fade-start][data-fade-end]' && d.prop === 'mask-image' && /^linear-gradient\(to right, transparent 0/.test(d.value)),
+    'both edges fade inward',
+  );
+  const forbidden = new Set(['overflow', 'scroll-behavior', 'scroll-snap-type', 'position', 'display']);
+  assert.deepEqual(
+    declarations.filter((d) => forbidden.has(d.prop)),
+    [],
+    'a fade paints; it never moves or un-scrolls anything',
+  );
+  assert.ok(
+    masks.every((d) => d.value.includes('--sh-fade-size, 28px')),
+    'the fade has one default width, and a strip may set its own',
+  );
+  assert.ok(
+    declarations.some((d) => d.ctx.at(-1) === '.sh-fade-x--pad' && d.prop === 'scroll-padding-inline' && d.value === 'var(--sh-fade-size, 28px)'),
+    'a focused item scrolls in clear of the fade',
+  );
 });
 
 test('every sideways strip in the app takes the hook and the class', async () => {
@@ -59,7 +83,15 @@ test('every sideways strip in the app takes the hook and the class', async () =>
     assert.match(source, /data-fade-end=\{/, `${file}: ${what} tells the stylesheet about its end edge`);
   }
   // The spine's own copy of the rules went with it.
-  const spine = await readFile('ui/skeleton.css', 'utf8');
-  assert.doesNotMatch(spine, /spine-strip\[data-(start|end)\]/, 'the spine no longer carries a second fade implementation');
-  assert.match(spine, /--sh-fade-size: 36px/, 'it only sets how wide its fade is');
+  const spineDecls = parseCss(readFileSync('ui/skeleton.css', 'utf8')).declarations;
+  assert.equal(
+    spineDecls.some((d) => /spine-strip\[data-(start|end)\]/.test(d.ctx.at(-1))),
+    false,
+    'the spine no longer carries a second fade implementation',
+  );
+  assert.equal(
+    spineDecls.some((d) => d.ctx.at(-1) === '.spine-strip' && d.prop === '--sh-fade-size' && d.value === '36px'),
+    true,
+    'it only sets how wide its fade is',
+  );
 });
