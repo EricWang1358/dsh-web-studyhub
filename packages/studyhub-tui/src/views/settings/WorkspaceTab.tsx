@@ -72,6 +72,8 @@ interface RetrievalCoverageShape {
   indexed: string[];
   stale: string[];
   missing: string[];
+  /** Pages whose text is unchanged but whose index key format is old (#1291): present only when there are some. */
+  migrate?: string[];
   skipped?: string[];
   reset?: string[];
   hasIndex: boolean;
@@ -246,7 +248,7 @@ function describeRetrievalBadge(
   return { label: t(lang, '未启用', 'Disabled'), tone: 'muted' };
 }
 
-function describeRetrievalCoverage(
+export function describeRetrievalCoverage(
   coverage: RetrievalCoverageShape | null,
   lang: 'zh' | 'en',
   asciiMode: boolean,
@@ -255,7 +257,10 @@ function describeRetrievalCoverage(
   const indexedCount = Array.isArray(coverage.indexed) ? coverage.indexed.length : 0;
   const staleCount = Array.isArray(coverage.stale) ? coverage.stale.length : 0;
   const missingCount = Array.isArray(coverage.missing) ? coverage.missing.length : 0;
-  const total = indexedCount + staleCount + missingCount;
+  // Pages awaiting the key-format upgrade left `stale` for `migrate` (#1291): they still belong to the library, so they
+  // stay in the total and get their own count instead of vanishing from the row.
+  const migrateCount = Array.isArray(coverage.migrate) ? coverage.migrate.length : 0;
+  const total = indexedCount + staleCount + missingCount + migrateCount;
   const sep = asciiMode ? ', ' : ' · ';
   if (total === 0) {
     return coverage.building
@@ -265,6 +270,9 @@ function describeRetrievalCoverage(
   const parts = [t(lang, `索引 ${indexedCount}/${total}`, `Idx ${indexedCount}/${total}`)];
   if (staleCount > 0) {
     parts.push(t(lang, `过期 ${staleCount}`, `${staleCount} stale`));
+  }
+  if (migrateCount > 0) {
+    parts.push(t(lang, `待升级 ${migrateCount}`, `${migrateCount} to upgrade`));
   }
   if (coverage.building) {
     parts.push(t(lang, '构建中', 'building'));
