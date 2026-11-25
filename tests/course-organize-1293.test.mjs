@@ -502,3 +502,23 @@ test('#1293-12: the batch undo removes only the links the job made (its origin);
   assert.deepEqual(handAfter.requires, [{ deckId: organised.requires[0].deckId, cardId: organised.requires[0].cardId }], 'the hand-made link stays, without an origin');
   assert.equal((await service.call('course.organize.undo', { course: 'Compilers' })).removed, 0, 'a second undo removes nothing');
 });
+
+test('#1293-14: the batch undo removes every automatic link of a large course, not only the first 200', async t => {
+  const { service } = await createLibrary(t);
+  const total = 230;
+  await service.call('deck.import', { course: 'Compilers', text: JSON.stringify({ title: 'Ch1 Intro', course: 'Compilers', cards: [
+    { id: 'base', kind: 'flashcard', topic: 'Lexer', prompt: 'What does a Lexer produce?', answer: 'A stream of tokens from source characters.', explanation: 'Feeds the parser.' },
+  ] }) });
+  await service.call('deck.import', { course: 'Compilers', text: JSON.stringify({ title: 'Ch2 Drills', course: 'Compilers',
+    cards: Array.from({ length: total }, (_, n) => ({ id: `d${n}`, kind: 'flashcard', topic: `Drill ${n}`, prompt: `Drill question number ${n}?`, answer: `Answer number ${n}.`, explanation: `Why number ${n}.` })) }) });
+  // As the job leaves them: one automatic link on every drill, to the first chapter's question.
+  await service.store.update(state => {
+    const base = state.decks.find(deck => deck.title === 'Ch1 Intro');
+    for (const card of state.decks.find(deck => deck.title === 'Ch2 Drills').cards) card.requires = [{ deckId: base.id, cardId: base.cards[0].id, origin: 'course-organize' }];
+  });
+
+  const undone = await service.call('course.organize.undo', { course: 'Compilers' });
+  assert.equal(undone.removed, total);
+  const left = (await service.call('export')).decks.find(deck => deck.title === 'Ch2 Drills').cards.filter(card => card.requires?.length);
+  assert.equal(left.length, 0, 'no automatic link is left');
+});
