@@ -13,6 +13,7 @@ import { mkdir } from 'node:fs/promises';
 import { delimiter, join, resolve, win32 } from 'node:path';
 import type {
   BindingSnapshot,
+  ChatMessage,
   DesktopConfigSnapshot,
   HostCallResult,
   HostClient,
@@ -43,6 +44,9 @@ import {
   type EnvProviderDetection,
 } from './presets.js';
 import { isHeadlessOrSsh } from '../terminal.js';
+import { allowedOpenRoots, resolveAllowedLocalHtmlUrl } from './local-html.js';
+
+export { resolveAllowedLocalHtmlUrl } from './local-html.js';
 
 type EnvLike = Record<string, string | undefined>;
 
@@ -101,6 +105,7 @@ export interface RefreshResult {
 export interface StreamCompleteParams {
   system: string;
   prompt: string;
+  messages?: readonly ChatMessage[];
   signal?: AbortSignal;
   onChunk?: (delta: string) => void;
   onReasoning?: (chars: number) => void;
@@ -331,9 +336,40 @@ export async function createTuiHost(options: CreateTuiHostOptions = {}): Promise
     getCustomPath: (id) => customPaths[id] || '',
   });
 
-  const openExternal = (value: unknown) => {
-    const url = deps.openableExternalUrl(value);
-    if (!url) throw Object.assign(new Error('仅允许打开有效的 http:// 或 https:// 链接'), { code: 'link-refused' });
+  let allowedLibraryRoots = (): string[] => (options.libraryRoot ? [options.libraryRoot] : []);
+  /** Companion pages opened from their link live in the learner's authorized external folders (#1447). */
+  let trustedCompanionRoots: string[] = [];
+  let desktopCall: ((action: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
+  const refreshTrustedCompanionRoots = async () => {
+    if (!desktopCall) return;
+    try {
+      const answer = (await desktopCall('companion.roots.get', {})) as
+        | { ok?: boolean; value?: { roots?: unknown } }
+        | null
+        | undefined;
+      const roots = answer?.ok && Array.isArray(answer.value?.roots) ? answer.value!.roots : [];
+      trustedCompanionRoots = roots.filter((p): p is string => typeof p === 'string' && p.trim().length > 0);
+    } catch {
+      // No list only means no external companion folder is authorized; the library roots still apply.
+    }
+  };
+
+  const openExternal = async (value: unknown) => {
+    let url = deps.openableExternalUrl(value);
+    if (!url) {
+      url = resolveAllowedLocalHtmlUrl(value, allowedOpenRoots(allowedLibraryRoots(), trustedCompanionRoots));
+      if (!url) {
+        // The learner may have authorized a companion folder after startup: read the list once and retry.
+        await refreshTrustedCompanionRoots();
+        url = resolveAllowedLocalHtmlUrl(value, allowedOpenRoots(allowedLibraryRoots(), trustedCompanionRoots));
+      }
+    }
+    if (!url) {
+      throw Object.assign(
+        new Error('仅允许打开有效的 http://、https:// 链接，或学习库 / 已授权伴学目录内的本地 HTML 文件'),
+        { code: 'link-refused' },
+      );
+    }
     let opened = false;
     const opener = externalOpener(platform, env);
     if (opener) {
@@ -373,6 +409,12 @@ export async function createTuiHost(options: CreateTuiHostOptions = {}): Promise
     libraryEvents,
     systemDrive: env.SystemDrive || 'C:',
   });
+  allowedLibraryRoots = () => {
+    const lib = desktop.library as { root?: string; pickedRoot?: string };
+    return [lib.root, lib.pickedRoot].filter((p): p is string => typeof p === 'string' && p.length > 0);
+  };
+  desktopCall = desktop.call as (action: string, args?: Record<string, unknown>) => Promise<unknown>;
+  void refreshTrustedCompanionRoots();
   const syncCustomPaths = () => {
     customPaths.agy = desktop.config.agy.executablePath;
     customPaths.codex = desktop.config.codex.executablePath;
@@ -583,6 +625,7 @@ export async function createTuiHost(options: CreateTuiHostOptions = {}): Promise
         onOutput,
         onChunk: onOutput,
         onReasoning: params.onReasoning,
+        ...(Array.isArray(params.messages) && params.messages.length > 0 ? { messages: params.messages } : {}),
         task: 'assist',
         stream: true,
         language,

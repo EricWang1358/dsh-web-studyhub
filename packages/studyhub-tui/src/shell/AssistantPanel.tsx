@@ -14,9 +14,15 @@
  * 10. `marked`-free (`ScrollView` + `wrapDisplay`).
  */
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput, useStdout, useWindowSize } from 'ink';
+import { Box, Text, useStdout } from 'ink';
+import { useStableWindowSize } from '../components/resize.js';
+import {
+  KEY_LAYER_DRAWER,
+  KEY_LAYER_MODAL_FRAME,
+  useScopedInput as useInput,
+} from '../components/key-dispatcher.js';
 import { PAGE_REGISTRY, type HostClient, type PageId, type UiLanguage } from '../types/contracts.js';
-import { t, useTuiStore, type AssistantCardContext, type AssistantTabId } from '../state/store.js';
+import { t, useTuiStore, type AssistantCardContext, type AssistantTabId, type ReviewRunLike } from '../state/store.js';
 import { getColorLevel, makeChalk, useTheme } from '../theme/tokens.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import { Modal, modalContentWidth } from '../components/Modal.js';
@@ -28,8 +34,7 @@ import { TextInput } from '../components/TextInput.js';
 import { ClickableBox } from '../components/mouse.js';
 import { useModalFooterHints } from '../components/focus.js';
 import { useStreamingBuffer } from '../components/useStreamingBuffer.js';
-import { tryAction } from '../host/sample-actions.js';
-import { atomicWriteExportText, defaultBackupFilePath } from '../host/atomic-write.js';
+import { formatRetellVerdictLines, submitRetellEvaluation } from '../host/ai-dialogue.js';
 import { saveTuiPreferences } from '../host/tui-prefs.js';
 import {
   copyTextWithFallback,
@@ -40,18 +45,31 @@ import {
 } from '../render/clipboard.js';
 import { displayWidth, truncateDisplay, wrapDisplay } from '../render/cjk.js';
 import { buildContextChips, recordCommandStat, type AssistantChip } from './assistant-chips.js';
-import { buildFallbackPrompt, errorReasonWriteIntent, parseAssistantIntent, type AssistantIntent } from './assistant-intent.js';
-import { SET_ERROR_REASON_ACTION, errorReasonArgs, errorReasonName, type ErrorReasonTarget } from './error-reason-intent.js';
-import { ERROR_REASONS, reasonLabel, reasonShort } from '../views/wrongbook/helpers.js';
+import {
+  buildFallbackPrompt,
+  errorReasonWriteIntent,
+  parseAssistantIntent,
+  resolvePlainExplainQuestionTitle,
+  type AssistantIntent,
+} from './assistant-intent.js';
+import {
+  executeAssistantReadAction,
+  executeAssistantWriteAction,
+  readCurrentGradeStatus,
+} from './assistant-actions.js';
+import type { ErrorReasonTarget } from './error-reason-intent.js';
+import { ERROR_REASONS, reasonShort } from '../views/wrongbook/helpers.js';
 import type { ErrorReasonId } from '../views/wrongbook/types.js';
 import {
   formatWorkflowChecklist,
+  formatWorkflowOutcomeSummary,
   isWorkflowComplete,
   markWorkflowStepResult,
   planAssistantWorkflow,
   type AssistantWorkflowPlan,
 } from './assistant-workflow.js';
 import { pruneTurnsWithSummary } from './assistant-memory.js';
+import { buildConversationRequest, extractSharedHistoryMessages } from './assistant-conversation.js';
 import { buildTranscriptPalette, formatTurnLines, turnsInScope } from './assistant-transcript.js';
 import { currentCourse, dueToday, modelInfo, wrongCount } from './data.js';
 
@@ -180,7 +198,7 @@ export const AssistantPanel = memo(function AssistantPanel({
   copyStdout,
 }: AssistantPanelProps) {
   const theme = useTheme();
-  const { columns, rows } = useWindowSize();
+  const { columns, rows } = useStableWindowSize();
   const { stdout } = useStdout();
   const page = useTuiStore((s) => s.page);
   const lang = useTuiStore((s) => s.preferences.language);
@@ -325,6 +343,11 @@ export const AssistantPanel = memo(function AssistantPanel({
   const registerUndo = useCallback((entry: AssistantUndoEntry | null) => {
     sessionMemory.lastUndo = entry;
     if (mountedRef.current) setLastUndo(entry);
+  }, []);
+
+  /** Hand a run the backend returned to Review, so an assistant edit is visible there at once (#1447). */
+  const applyRunFromAssistant = useCallback((run: unknown) => {
+    useTuiStore.getState().setPendingReviewRun((run ?? null) as ReviewRunLike | null);
   }, []);
 
   const doCopy = useCallback(
@@ -472,7 +495,7 @@ export const AssistantPanel = memo(function AssistantPanel({
       appendTurn({
         role: 'assistant',
         stage: tab === 'guided' ? stage : undefined,
-        actionSummary: t(lang, `多步任务已完成（${plan.steps.length} 步）`, `Completed ${plan.steps.length}-step plan`),
+        actionSummary: formatWorkflowOutcomeSummary(plan, lang),
         text: formatWorkflowChecklist(plan, lang, asciiMode),
       });
     },
@@ -483,130 +506,42 @@ export const AssistantPanel = memo(function AssistantPanel({
     async (intent: Extract<AssistantIntent, { kind: 'write_confirm' }>) => {
       setPendingConfirm(null);
       beginExecution(
-        intent.actionName === 'export.wrongbook'
-          ? t(lang, '导出错题本', 'Exporting wrong-book')
-          : intent.actionName === 'card.followup.add'
-            ? t(lang, '保存通俗讲解', 'Saving plain explanation')
-            : t(lang, '标记错题原因', 'Marking wrong reason'),
+        intent.humanLabel ||
+          (intent.actionName === 'export.wrongbook'
+            ? t(lang, '导出错题本', 'Exporting wrong-book')
+            : intent.actionName === 'card.followup.add'
+              ? t(lang, '保存通俗讲解', 'Saving plain explanation')
+              : t(lang, '标记错题原因', 'Marking wrong reason')),
       );
       let succeeded = false;
       try {
-        if (intent.actionName === 'card.followup.add') {
-          const saved = await tryAction(host, 'card.followup.add', intent.params);
-          if (!mountedRef.current) return;
-          if (saved.ok) {
-            succeeded = true;
-            appendTurn({
-              role: 'system',
-              stage: tab === 'guided' ? stage : undefined,
-              actionSummary: t(lang, '已保存到本题讲解', 'Saved to question'),
-              text: t(
-                lang,
-                '已将通俗讲解保存到当前题目，下次打开可直接复用。',
-                'Saved plain explanation to this question for reuse next time.',
-              ),
-            });
-            notify(t(lang, '通俗讲解已保存到本题', 'Plain explanation saved'), 'success');
-          } else {
-            appendTurn({
-              role: 'system',
-              stage: tab === 'guided' ? stage : undefined,
-              actionSummary: t(lang, '保存失败', 'Save failed'),
-              text: saved.error?.message || t(lang, '保存通俗讲解失败，请重试。', 'Failed to save plain explanation.'),
-            });
-          }
-        } else if (intent.actionName === SET_ERROR_REASON_ACTION) {
-          const cardId = typeof intent.params.cardId === 'string' ? intent.params.cardId : '';
-          const deckId =
-            (typeof intent.params.deckId === 'string' && intent.params.deckId) ||
-            snapshot?.decks?.find((d) => Array.isArray(d.cards) && d.cards.some((c) => c.id === cardId))?.id ||
-            '';
-          if (!cardId || !deckId) {
-            appendTurn({
-              role: 'system',
-              stage,
-              actionSummary: '未定位题目',
-              text: t(lang, '请先在刷题页打开一道题再标记错因。', 'Open a question in Review first.'),
-            });
-          } else {
-            const target: ErrorReasonTarget = { deckId, cardId };
-            const reasonId = intent.params.errorReason as ErrorReasonId;
-            const res = await tryAction<{ updated?: boolean }>(host, SET_ERROR_REASON_ACTION, errorReasonArgs(target, reasonId));
-            if (!mountedRef.current) return;
-            if (res.ok && res.value?.updated === false) {
-              appendTurn({
-                role: 'system',
-                stage,
-                actionSummary: t(lang, '没有作答记录', 'No answer on record'),
-                text: t(
-                  lang,
-                  '这道题还没有作答记录，标不了错因。答错的题会自动进入错题本。',
-                  'This question has no answer on record yet, so there is nothing to mark. Wrong answers enter the wrong-book on their own.',
-                ),
-              });
-            } else if (res.ok) {
-              succeeded = true;
-              const appliedReason = errorReasonName(reasonId, lang);
-              registerUndo({
-                label: t(lang, `清除错因「${appliedReason}」`, `Clear reason "${appliedReason}"`),
-                run: async () => {
-                  await tryAction(host, SET_ERROR_REASON_ACTION, errorReasonArgs(target, null));
-                  return t(lang, '已撤销：错题原因已清空。', 'Undone: wrong reason cleared.');
-                },
-              });
-              appendTurn({
-                role: 'system',
-                stage,
-                actionSummary: t(lang, `已标记错因「${appliedReason}」`, `Marked reason: ${appliedReason}`),
-                text: t(lang, `已完成：错因已标为「${appliedReason}」。按 [z] 可撤销。`, `Done: marked "${appliedReason}". Press [z] to undo.`),
-              });
-              notify(t(lang, `错因已标为「${appliedReason}」`, `Marked "${appliedReason}"`), 'success');
-            } else {
-              appendTurn({
-                role: 'system',
-                stage,
-                actionSummary: '执行失败',
-                text: res.error?.message || t(lang, '写入错题原因失败，请重试。', 'Failed to mark wrong reason.'),
-              });
-            }
-          }
-        } else if (intent.actionName === 'export.wrongbook') {
-          const root = host.getLibraryRoot?.() || snapshot?.root || '';
-          const wb = await tryAction<{ items?: Array<{ prompt?: string; errorReason?: string }> }>(
-            host,
-            'wrongbook',
-            { course: intent.params.course ?? '*', view: 'weak', offset: 0, limit: 100 },
-          );
-          if (!mountedRef.current) return;
-          const items = Array.isArray(wb.value?.items) ? wb.value.items : [];
-          if (!root) {
-            appendTurn({
-              role: 'system',
-              stage,
-              actionSummary: '未绑定学习库',
-              text: t(lang, '未绑定学习库目录，无法导出。', 'No library root bound.'),
-            });
-          } else {
-            const md = [
-              `# ${t(lang, '错题本导出', 'Wrong-Book Export')}`,
-              '',
-              ...(items.length > 0
-                ? items.map((it, idx) => `${idx + 1}. ${String(it.prompt || '').trim()}${it.errorReason ? t(lang, `（错因：${reasonLabel(it.errorReason, lang)}）`, ` (reason: ${reasonLabel(it.errorReason, lang)})`) : ''}`)
-                : [t(lang, '当前暂无错题记录。', 'No wrong cards found.')]),
-              '',
-            ].join('\n');
-            const outPath = defaultBackupFilePath(root, 'studyhub-wrongbook', 'md');
-            const saved = await atomicWriteExportText(outPath, md);
-            succeeded = true;
-            appendTurn({
-              role: 'system',
-              stage,
-              actionSummary: `已完成：导出 ${items.length} 道错题`,
-              text: t(lang, `已导出 ${items.length} 道错题至 ${saved.path}`, `Exported ${items.length} cards to ${saved.path}`),
-            });
-            notify(t(lang, `已导出至 ${saved.path}`, `Exported to ${saved.path}`), 'success');
-          }
-        }
+        const recentTurns = [...sessionMemory.turns];
+        const lastAi = [...recentTurns].reverse().find((x) => x.role === 'assistant')?.text;
+        // The learner's own question, so the note keeps both sides of the Q&A (#1447).
+        const lastAiIndex = recentTurns.map((x) => x.role).lastIndexOf('assistant');
+        const lastUserQuestion = lastAiIndex < 0
+          ? undefined
+          : [...recentTurns.slice(0, lastAiIndex)].reverse().find((x) => x.role === 'user' && x.text.trim())?.text;
+        const outcome = await executeAssistantWriteAction(intent, {
+          host,
+          snapshot,
+          cardCtx,
+          lastAssistantReply: lastAi,
+          lastLearnerQuestion: lastUserQuestion,
+          lang,
+          navigate,
+          applyRun: applyRunFromAssistant,
+        });
+        if (!mountedRef.current) return;
+        succeeded = outcome.succeeded;
+        if (outcome.undo) registerUndo(outcome.undo);
+        appendTurn({
+          role: 'system',
+          stage: tab === 'guided' ? stage : undefined,
+          actionSummary: outcome.actionSummary,
+          text: outcome.text,
+        });
+        if (outcome.toast) notify(outcome.toast.message, outcome.toast.tone);
         // Resume remaining steps in a multi-step workflow after confirmation (#1339)
         const wf = pendingWorkflowRef.current;
         if (wf && mountedRef.current) {
@@ -623,7 +558,7 @@ export const AssistantPanel = memo(function AssistantPanel({
               role: 'assistant',
               stage: tab === 'guided' ? stage : undefined,
               actionSummary: succeeded
-                ? t(lang, `多步任务已完成（${nextPlan.steps.length} 步）`, `Completed ${nextPlan.steps.length}-step plan`)
+                ? formatWorkflowOutcomeSummary(nextPlan, lang)
                 : t(lang, '多步任务已中止', 'Multi-step plan stopped'),
               text: formatWorkflowChecklist(nextPlan, lang, asciiMode),
             });
@@ -633,7 +568,7 @@ export const AssistantPanel = memo(function AssistantPanel({
         endExecution();
       }
     },
-    [host, snapshot?.root, tab, stage, lang, asciiMode, beginExecution, endExecution, appendTurn, registerUndo, notify, runWorkflowSteps],
+    [host, snapshot, cardCtx, tab, stage, lang, asciiMode, navigate, beginExecution, endExecution, appendTurn, registerUndo, notify, runWorkflowSteps, applyRunFromAssistant],
   );
 
   const handleSkipRetell = useCallback(() => {
@@ -696,29 +631,21 @@ export const AssistantPanel = memo(function AssistantPanel({
         }
         beginExecution(t(lang, '评估费曼复述', 'Evaluating retell'));
         try {
-          const res = await tryAction<{
-            passed?: boolean;
-            right?: string[];
-            missed?: string[];
-            wrong?: string[];
-            gap?: string;
-          }>(host, 'teach.retell', {
+          const sharedHistory = extractSharedHistoryMessages(
+            turnsInScope(sessionMemory.turns, turnScopeRef.current).current.filter((x) => x.id !== userTurn.id),
+          );
+          const res = await submitRetellEvaluation(host, {
             deckId: resolvedDeckId,
             cardId: cardCtx.cardId,
             text,
             language: lang,
+            ...(sharedHistory.length > 0 ? { conversationHistory: sharedHistory } : {}),
           });
           if (!mountedRef.current) return;
-          if (!res.ok || !res.value) {
-            const rawErr = res.error?.message || '';
-            const isModelErr =
-              !rawErr ||
-              /configure a model|model.*unavailable|no.*model|api.?key|unauthorized|forbidden|\b401\b|\b403\b|econnrefused|timed out|timeout|未配置|可用.*模型|模型不可用/i.test(
-                rawErr,
-              );
+          if (!res.ok) {
             const fb = {
-              reason: rawErr || t(lang, '模型暂不可用，无法在线评估复述。', 'Model unavailable for retell.'),
-              altLabel: isModelErr
+              reason: res.error || t(lang, '模型暂不可用，无法在线评估复述。', 'Model unavailable for retell.'),
+              altLabel: res.isModelError
                 ? t(lang, '改为：按 [S] 跳过复述，或按 [P] 复制提示词到外部模型', 'Alternative: [S] skip or [P] copy prompt')
                 : t(lang, '可按 [S] 跳过复述，或重试提交', 'Press [S] to skip retell or try again'),
               altCommand: '查看统计',
@@ -729,32 +656,27 @@ export const AssistantPanel = memo(function AssistantPanel({
             appendTurn({
               role: 'system',
               stage: 'retell',
-              actionSummary: isModelErr ? t(lang, '模型暂不可用', 'Model unavailable') : t(lang, '复述评估失败', 'Retell failed'),
+              actionSummary: res.isModelError ? t(lang, '模型暂不可用', 'Model unavailable') : t(lang, '复述评估失败', 'Retell failed'),
               text: `${fb.reason} ${fb.altLabel}`,
             });
             return;
           }
-          const v = res.value;
+          const v = res.verdict;
           sessionMemory.retellRecords.push({
             cardId: cardCtx.cardId,
             stage: 'retell',
-            passed: Boolean(v.passed),
+            passed: v.passed,
             skipped: false,
             gap: v.gap,
             at: Date.now(),
           });
-          const lines = [
-            v.passed ? t(lang, '复述通过。', 'Retell passed.') : t(lang, '复述待补强。', 'Needs review.'),
-            ...(Array.isArray(v.right) && v.right.length ? [`讲对了：${v.right.join('；')}`] : []),
-            ...(Array.isArray(v.missed) && v.missed.length ? [`漏掉了：${v.missed.join('；')}`] : []),
-            ...(Array.isArray(v.wrong) && v.wrong.length ? [`讲错了：${v.wrong.join('；')}`] : []),
-          ];
+          const lines = formatRetellVerdictLines(v, lang);
           appendTurn({
             role: 'assistant',
             stage: 'retell',
             actionSummary: v.passed ? t(lang, '复述评估：通过', 'Retell check: passed') : t(lang, '复述评估：待补强', 'Retell check: needs review'),
             text: lines.join('\n'),
-            verdict: { passed: Boolean(v.passed), right: v.right ?? [], missed: v.missed ?? [], wrong: v.wrong ?? [], gap: v.gap },
+            verdict: { passed: v.passed, right: v.right, missed: v.missed, wrong: v.wrong, gap: v.gap },
           });
           setStage('summary');
         } finally {
@@ -768,6 +690,7 @@ export const AssistantPanel = memo(function AssistantPanel({
         snapshot,
         currentCardId: cardCtx?.cardId,
         currentDeckId: cardCtx?.deckId,
+        card: cardCtx,
         lang,
       });
       if (workflowPlan) {
@@ -779,11 +702,12 @@ export const AssistantPanel = memo(function AssistantPanel({
         snapshot,
         currentCardId: cardCtx?.cardId,
         currentDeckId: cardCtx?.deckId,
+        card: cardCtx,
         lang,
       });
 
-      // 0) Unsupported -> nearest alternative + [P] Copy prompt fallback (never parroting raw input!)
-      if (intent.kind === 'unsupported') {
+      // 0) Capability boundary -> say what it can/cannot do, name a real entry, never "已完成" (#1458)
+      if (intent.kind === 'boundary') {
         const fb = {
           reason: intent.reason,
           altLabel: intent.alternativeLabel,
@@ -794,8 +718,32 @@ export const AssistantPanel = memo(function AssistantPanel({
         setLastFallback(fb);
         appendTurn({
           role: 'system',
-          actionSummary: '能力边界兜底',
-          text: `${intent.reason}\n${intent.alternativeLabel}\n也可按 [P] 复制带上下文的提示词。`,
+          actionSummary: t(lang, '能力边界：不能直接执行', 'Capability boundary: not executed'),
+          text: `${intent.canDo}\n${intent.cannotDo}\n${intent.entryLabel}\n${t(lang, '也可按 [P] 复制带上下文的提示词。', 'You can also press [P] to copy the prompt with context.')}`,
+        });
+        return;
+      }
+
+      // 0a) "这题判对了吗" -> read the real verdict, never change it (#1458)
+      if (intent.kind === 'read_grade_status') {
+        const outcome = await readCurrentGradeStatus({ host, snapshot, cardCtx, lang, navigate });
+        if (!mountedRef.current) return;
+        appendTurn({
+          role: 'assistant',
+          stage: tab === 'guided' ? stage : undefined,
+          actionSummary: outcome.actionSummary,
+          text: outcome.text,
+        });
+        return;
+      }
+
+      // 0b) One more fact is needed (which grade, which knowledge point) — ask, never guess (#1447).
+      if (intent.kind === 'clarify') {
+        appendTurn({
+          role: 'system',
+          stage: tab === 'guided' ? stage : undefined,
+          actionSummary: t(lang, '需要补充信息', 'Need one more detail'),
+          text: intent.question,
         });
         return;
       }
@@ -818,10 +766,39 @@ export const AssistantPanel = memo(function AssistantPanel({
         appendTurn({
           role: 'system',
           stage: tab === 'guided' ? stage : undefined,
-          actionSummary: `将执行：${intent.actionName}（${intent.paramsSummary}）`,
+          actionSummary: intent.humanLabel
+            ? `将执行：${intent.humanLabel}`
+            : `将执行：${intent.actionName}（${intent.paramsSummary}）`,
           text: intent.previewMessage,
         });
         setPendingConfirm(intent);
+        return;
+      }
+
+      // 2a) Read-only / lightweight card/review action (#1444)
+      if (intent.kind === 'run_action') {
+        beginExecution(intent.humanLabel);
+        try {
+          const outcome = await executeAssistantReadAction(intent, {
+            host,
+            snapshot,
+            cardCtx,
+            lang,
+            navigate,
+            applyRun: applyRunFromAssistant,
+          });
+          if (!mountedRef.current) return;
+          if (outcome.undo) registerUndo(outcome.undo);
+          appendTurn({
+            role: 'assistant',
+            stage: tab === 'guided' ? stage : undefined,
+            actionSummary: outcome.actionSummary,
+            text: outcome.text,
+          });
+          if (outcome.toast) notify(outcome.toast.message, outcome.toast.tone);
+        } finally {
+          endExecution();
+        }
         return;
       }
 
@@ -942,35 +919,38 @@ export const AssistantPanel = memo(function AssistantPanel({
       }
 
       const isPlainExplain = intent.kind === 'generate_plain_explain';
-      beginExecution(isPlainExplain ? '生成通俗讲解' : '生成回答');
+      const isExplainRequest = isPlainExplain || intent.kind === 'explain_card';
+      beginExecution(isPlainExplain ? '生成通俗讲解' : isExplainRequest ? '生成讲解' : '生成回答');
       stream.reset();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
-      const recentContext = turnsInScope(sessionMemory.turns, turnScopeRef.current).current
-        .filter((x) => x.id !== userTurn.id)
-        .slice(-6)
-        .map((x) => `${x.role}: ${x.text.slice(0, 200)}`)
-        .join('\n');
+      const scopedPriorTurns = turnsInScope(sessionMemory.turns, turnScopeRef.current).current.filter(
+        (x) => x.id !== userTurn.id,
+      );
+      const conversation = buildConversationRequest({
+        turns: scopedPriorTurns,
+        currentUserText: text,
+        card: cardCtx,
+        tab,
+        stage,
+        isPlainExplain: isExplainRequest,
+        lang,
+      });
+
+      if (conversation.compressed && conversation.noticeText) {
+        appendTurn({
+          role: 'system',
+          stage: tab === 'guided' ? stage : undefined,
+          actionSummary: t(lang, `已压缩较早对话（${conversation.compressedCount} 条）`, `Condensed ${conversation.compressedCount} earlier turn(s)`),
+          text: conversation.noticeText,
+        });
+      }
 
       try {
-        const system =
-          lang === 'en'
-            ? 'You are the StudyHub TUI assistant. Reply concisely; never repeat the user prompt.'
-            : isPlainExplain
-              ? '你是 StudyHub 学习助手。用大白话+生活类比为当前题写通俗讲解，180字内，直接给干货，不要复述用户原话。'
-              : tab === 'guided'
-                ? `你是 StudyHub 带学导师，当前阶段「${stageLabel(stage, 'zh')}」。中文短句，一次聚焦一个点，不复述用户原话。`
-                : '你是 StudyHub 学习助手，中文短句直接给答案或步骤，不复述用户原话。';
-        const promptParts = [
-          cardCtx?.prompt ? `当前题目：${cardCtx.prompt}` : '',
-          cardCtx?.userAnswer ? `我的作答：${cardCtx.userAnswer}` : '',
-          recentContext ? `近期上下文：\n${recentContext}` : '',
-          `指令：${text}`,
-        ].filter(Boolean);
-
         const reply = await host.streamComplete({
-          system,
-          prompt: promptParts.join('\n\n'),
+          system: conversation.system,
+          prompt: conversation.fallbackPrompt,
+          messages: conversation.messages,
           signal: ctrl.signal,
           onChunk: (delta) => stream.push(delta),
         });
@@ -978,9 +958,10 @@ export const AssistantPanel = memo(function AssistantPanel({
         if (!mountedRef.current) return;
         const cleanReply = (reply || stream.text).trim();
 
-        const actionSummary = isPlainExplain
-          ? t(lang, '已完成：通俗讲解已生成', 'Done: plain explanation ready')
-          : t(lang, '已完成：回答已生成', 'Done: reply ready');
+        // #1444: Chat replies NEVER claim "已完成" (no action was executed, only text was generated).
+        const actionSummary = isExplainRequest
+          ? t(lang, '讲解已生成（未改动题目）', 'Explanation ready (card unchanged)')
+          : t(lang, 'AI 回答（仅对话，未改动数据）', 'AI reply (chat only)');
 
         appendTurn({
           role: 'assistant',
@@ -995,7 +976,7 @@ export const AssistantPanel = memo(function AssistantPanel({
             params: {
               ...(cardCtx.deckId ? { deckId: cardCtx.deckId } : {}),
               cardId: cardCtx.cardId,
-              question: text,
+              question: resolvePlainExplainQuestionTitle(text, lang),
               answer: cleanReply,
               source: 'assistant',
               silent: true,
@@ -1049,6 +1030,7 @@ export const AssistantPanel = memo(function AssistantPanel({
       setStage,
       notify,
       runWorkflowSteps,
+      applyRunFromAssistant,
     ],
   );
 
@@ -1099,7 +1081,9 @@ export const AssistantPanel = memo(function AssistantPanel({
 
   // #1412: on the practice page Esc hands the keyboard back and the dock stays; the page's own Esc
   // ("back") folds it afterwards. Other pages have no such second step, so there Esc folds the dock.
-  const escKeepsDock = Boolean(docked) && page === 'review';
+  // #1412 / #1428: unified 2-step Esc on every docked page — 1st Esc hands the keyboard back
+  // while keeping the dock visible; 2nd Esc (when no page modal/filter claims it) folds the dock.
+  const escKeepsDock = Boolean(docked);
   const handleEscape = useCallback(() => {
     if (busy) {
       abortRef.current?.abort();
@@ -1117,7 +1101,7 @@ export const AssistantPanel = memo(function AssistantPanel({
     }
     if (escKeepsDock) {
       // Hand the keyboard back to the page and stay visible, so the page's own shortcuts work while
-      // the conversation is still readable (#1412). A second Esc (page "back") folds the dock.
+      // the conversation is still readable (#1412 / #1428). A second Esc folds the passive dock.
       setFocused(false);
       return;
     }
@@ -1126,80 +1110,95 @@ export const AssistantPanel = memo(function AssistantPanel({
 
   useInput(
     (input, key) => {
-      if (pendingConfirm) return;
+      if (pendingConfirm) return false;
       if (key.escape) {
         handleEscape();
-        return;
+        return true;
       }
-      if (inputFocused) return;
+      if (inputFocused) return false;
 
       if (key.tab) {
         const next: AssistantTabId = tab === 'assistant' ? 'guided' : 'assistant';
         setTab(next);
-        return;
+        return true;
       }
       // Number keys 1-4 trigger the top context chips directly!
       if (/^[1-4]$/.test(input)) {
         const idx = Number.parseInt(input, 10) - 1;
         if (chips[idx]) {
           runChip(chips[idx]);
-          return;
+          return true;
         }
       }
       if (input === 'F') {
         setFullscreen(!fullscreen);
-        return;
+        return true;
       }
       if (input === 'o' && earlierTurnCount > 0) {
         setShowEarlier((shown) => !shown);
-        return;
+        return true;
       }
       if (input === 'i' || input === 'a' || key.return) {
         setInputFocused(true);
-        return;
+        return true;
       }
       if (input === 'z') {
         void handleUndo();
-        return;
+        return true;
       }
       if (input === 'P') {
         handleCopyFallbackPrompt();
-        return;
+        return true;
       }
       if (input === 'A' && lastFallback) {
         void handleSubmitInput(lastFallback.altCommand, { viaCommand: true });
-        return;
+        return true;
       }
       if (input === 'c') {
         handleCopyCurrent();
-        return;
+        return true;
       }
       if (input === 'C') {
         handleCopyFullSession();
-        return;
+        return true;
       }
       if (input === 'y') {
         handleCopyLastReply();
-        return;
+        return true;
       }
       if (tab === 'guided') {
         if (input === 'S' && stage === 'retell') {
           handleSkipRetell();
-          return;
+          return true;
         }
         if (input === 'n') {
           const idx = GUIDED_STAGES.indexOf(stage);
           if (idx >= 0 && idx < GUIDED_STAGES.length - 1) setStage(GUIDED_STAGES[idx + 1]);
-          return;
+          return true;
         }
         if (input === 'p') {
           const idx = GUIDED_STAGES.indexOf(stage);
           if (idx > 0) setStage(GUIDED_STAGES[idx - 1]);
-          return;
+          return true;
         }
       }
+      return false;
     },
-    { isActive: isActive && !pendingConfirm && !reasonPickFor },
+    { isActive: isActive && !pendingConfirm && !reasonPickFor, layer: KEY_LAYER_DRAWER, id: 'AssistantPanel:main' },
+  );
+
+  // #1354 D1 / #1428: single-letter catch-all sink below ScrollView (KEY_LAYER_WIDGET) so while the
+  // assistant panel holds focus, no unbound single-letter key can ever leak to the left page or shell.
+  useInput(
+    (input, key) => {
+      if (!key.ctrl && !key.meta && input.length === 1) return true;
+      return false;
+    },
+    {
+      isActive: isActive && !pendingConfirm && !inputFocused,
+      layer: KEY_LAYER_MODAL_FRAME,
+      id: 'AssistantPanel:sink',
+    },
   );
 
   const fallbackSize = resolveAssistantPanelSize(columns, rows, fullscreen);

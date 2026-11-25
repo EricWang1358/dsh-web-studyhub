@@ -1,8 +1,10 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction, type ReviewRun } from '../../host/sample-actions.js';
+import { isModelUnavailableError } from '../../host/ai-dialogue.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Divider, Spinner } from '../../components/Badge.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
@@ -56,12 +58,6 @@ interface TeachTurn {
   role: 'tutor' | 'learner' | 'feedback';
   text: string;
   passed?: boolean;
-}
-
-function isModelUnavailableError(message: string): boolean {
-  return /configure a model|model.*unavailable|no.*model|api.?key|unauthorized|forbidden|\b401\b|\b403\b|econnrefused|timed out|timeout|未配置|可用.*模型|模型不可用/i.test(
-    message,
-  );
 }
 
 function needsAnswerFirstError(message: string): boolean {
@@ -213,9 +209,11 @@ export const TeachModal = memo(function TeachModal({
     [host, run.id, run.index, run.queueVersion, cardId, lang, initialTeaching],
   );
 
+  const loadSessionRef = useRef(loadSession);
+  loadSessionRef.current = loadSession;
+
   useEffect(() => {
-    void loadSession(teachMode, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void loadSessionRef.current(teachMode, true);
   }, [run.id, cardId, teachMode]);
 
   const handleSubmitAnswer = useCallback(

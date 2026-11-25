@@ -95,6 +95,7 @@ export interface CompleteExecution {
   onOutput?: (delta: string) => void;
   onChunk?: (delta: string) => void;
   onReasoning?: (chars: number) => void;
+  messages?: Array<{ role: 'user' | 'assistant'; content: string }>;
   task?: string;
   stream?: boolean;
   timeoutMs?: number;

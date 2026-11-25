@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { currentCourse } from '../../shell/data.js';
@@ -446,17 +447,21 @@ export const AnswerCardModal = memo(function AnswerCardModal({
     setLoading(false);
   }, [host, effectiveDeckId, cardId, course, run]);
 
+  const hydrateInitRef = useRef({ clearPoll, hydrateCardAndBook, run, snapshot });
+  hydrateInitRef.current = { clearPoll, hydrateCardAndBook, run, snapshot };
+
   // Reset & load when card changes
   useEffect(() => {
-    clearPoll();
+    const ctx = hydrateInitRef.current;
+    ctx.clearPoll();
     setLoading(true);
     setErrorBanner(null);
     setDrillResult(null);
-    const solAc = (run as { solution?: { answerCard?: AnswerCardData } } | null)?.solution?.answerCard;
+    const solAc = (ctx.run as { solution?: { answerCard?: AnswerCardData } } | null)?.solution?.answerCard;
     setAnswerCard(solAc && typeof solAc === 'object' ? solAc : null);
 
     // Check if an answer-card job for this card is already running in snapshot
-    const activeJob = snapshot?.jobs?.find((j) => {
+    const activeJob = ctx.snapshot?.jobs?.find((j) => {
       if (!isActiveJobStatus(j.status)) return false;
       if (j.type !== 'case-answer-card' && j.kind !== 'case-answer-card') return false;
       const detailCardId =
@@ -474,8 +479,7 @@ export const AnswerCardModal = memo(function AnswerCardModal({
         : null,
     );
 
-    void hydrateCardAndBook();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void ctx.hydrateCardAndBook();
   }, [cardId]);
 
   const finishJobAndReload = useCallback(async () => {

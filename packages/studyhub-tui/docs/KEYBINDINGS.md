@@ -11,10 +11,10 @@ Complete keyboard reference for `@ericwang1358/studyhub-tui`, synchronized with 
 | Key | Action | Notes |
 | --- | --- | --- |
 | `Ctrl+K` / `/` | Command palette & search | Opens Command Palette v3 (`Ctrl+K` toggles even during overlays) |
-| `Ctrl+Space` / `Ctrl+G` | Right-docked AI Assistant & Guided Study | Non-blocking right dock (`Ctrl+Space` opens without stealing focus; 2nd press focuses; `Ctrl+G` opens+focuses); 2–4 context chips (`[1-4]`), `[Tab]` Assistant/Guided+Retell, `[z]` undo, `[P]` copy prompt, `[F]` fullscreen, `c`/`C`/`y` OSC 52 copy (see `docs/ASSISTANT-UX.md`) |
+| `Ctrl+Space` / `Ctrl+G` | Right-docked AI Assistant & Guided Study | Non-blocking right dock (`Ctrl+Space` opens without stealing focus; 2nd press focuses; `Ctrl+G` opens+focuses); unified 2-step `Esc` on every docked page (1st `Esc` hands keyboard back keeping dock visible, 2nd `Esc` folds dock); 2–4 context chips (`[1-4]`), `[Tab]` Assistant/Guided+Retell, `[z]` undo, `[P]` copy prompt, `[F]` fullscreen, `c`/`C`/`y` OSC 52 copy (see `docs/ASSISTANT-UX.md`) |
 | `?` | Context help overlay | Shows global, current-page, and feature shortcuts (`?` / `q` / `Esc` closes) |
 | `c` | Switch course | Opens `CoursePickerModal` |
-| `I` | Notification inbox | Opens `InboxModal` (`/` keyword filter, `e` atomic `inbox.raw` JSON export) |
+| `I` | Notification inbox & toast history | Opens `InboxModal` (`/` keyword filter, `e` atomic `inbox.raw` JSON export, `h` switches to「近期提示」/ recent multi-line toast history keeping the last 50 notices, `C` clears toast history) |
 | `1-9`, `0`, `n`, `b`, `t`, `a`, `,`, `r` | Jump directly to page | See 16-page registry below |
 | `[` / `]` | Previous / next page | Cycles across the 15 main nav pages (`group !== null`) |
 | `Backspace` (`Bksp`) | Go back | Pops navigation history |

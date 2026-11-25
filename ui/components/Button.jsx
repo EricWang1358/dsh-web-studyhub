@@ -50,14 +50,30 @@ export const Button = forwardRef(function Button({ variant = 'secondary', size =
   const working = busy || (!!lock && mine);
   const replaceEnd = working && busyLabel == null && !icon && !!iconEnd;
   const spinOver = working && busyLabel == null && !icon && !iconEnd;
+  const label = working && busyLabel != null ? busyLabel : children;
+  const endNode = replaceEnd ? <span className="sh-spinner" aria-hidden="true" /> : glyph(iconEnd, iconSize, iconEndClassName);
+  // A wrapping link with a trailing arrow keeps the arrow glued to the last word so the icon never drops onto a line by itself (#1155).
+  let body = label;
+  let trailing = endNode;
+  const hasInlineTrail = typeof iconEndClassName === 'string' && iconEndClassName.includes('sh-icon--trail');
+  if (kind === 'link' && wrap && endNode && hasInlineTrail && typeof label === 'string' && label.length > 0) {
+    const match = /^(.*\s)(\S+)$/s.exec(label);
+    if (match) {
+      body = <>{match[1]}<span className="sh-btn__tail">{match[2]}{endNode}</span></>;
+      trailing = null;
+    } else if ([...label].length <= 10) {
+      body = <span className="sh-btn__tail">{label}{endNode}</span>;
+      trailing = null;
+    }
+  }
   return (
     <button ref={ref} type={type} onClick={press}
       className={cx('sh-btn', `sh-btn--${kind}`, `sh-btn--${scale}`, wrap && 'sh-btn--wrap', block && 'sh-btn--block',
         ALIGNS.has(align) && `sh-btn--${align}`, pill && 'sh-btn--pill', spinOver && 'sh-btn--spin-over', className)}
       disabled={disabled || busy || !!lock} aria-busy={working || undefined} {...rest}>
       {working && !replaceEnd ? <span className="sh-spinner" aria-hidden="true" /> : glyph(icon, iconSize, iconClassName)}
-      {working && busyLabel != null ? busyLabel : children}
-      {replaceEnd ? <span className="sh-spinner" aria-hidden="true" /> : glyph(iconEnd, iconSize, iconEndClassName)}
+      {body}
+      {trailing}
     </button>
   );
 });

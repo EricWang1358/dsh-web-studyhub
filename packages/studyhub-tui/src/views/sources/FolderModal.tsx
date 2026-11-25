@@ -1,5 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -108,7 +110,7 @@ export const FolderModal = memo(function FolderModal({
   const snapshot = useTuiStore((s) => s.snapshot);
   const ell = asciiMode ? '...' : '…';
   const notify = useTuiStore((s) => s.notify);
-  const { columns, rows: termRows } = useWindowSize();
+  const { columns, rows: termRows } = useStableWindowSize();
 
   const focusCourse = useMemo(() => {
     const raw = (snapshot?.focus as { course?: unknown } | undefined)?.course;
@@ -165,22 +167,25 @@ export const FolderModal = memo(function FolderModal({
     ];
   }, [folders, folderCounts, lang, mode, totalCount]);
 
+  const initFocusRef = useRef({ activeFolder, items, selectedFolder: selectedItem?.folder });
+  initFocusRef.current = { activeFolder, items, selectedFolder: selectedItem?.folder };
+
   // Pre-position cursor on active filter or current source folder on mount.
   useEffect(() => {
-    const targetName = mode === 'assign' ? (selectedItem?.folder || '') : activeFolder;
+    const { activeFolder: initFolder, items: initItems, selectedFolder } = initFocusRef.current;
+    const targetName = mode === 'assign' ? (selectedFolder || '') : initFolder;
     if (targetName === null) {
       setSelectedIndex(0);
       return;
     }
     if (targetName === '') {
-      const idx = items.findIndex((r) => r.kind === 'unfiled' || r.kind === 'unfile');
+      const idx = initItems.findIndex((r) => r.kind === 'unfiled' || r.kind === 'unfile');
       if (idx >= 0) setSelectedIndex(idx);
       return;
     }
-    const idx = items.findIndex((r) => r.kind === 'folder' && r.name === targetName);
+    const idx = initItems.findIndex((r) => r.kind === 'folder' && r.name === targetName);
     if (idx >= 0) setSelectedIndex(idx);
     // Only run on initial open / mode change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
   useEffect(() => {

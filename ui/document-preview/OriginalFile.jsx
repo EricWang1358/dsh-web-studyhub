@@ -204,9 +204,10 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
         <Button size="sm" variant="quiet" lock={busy} onClick={detach}>{ui('不再引用')}</Button>
       </div>}
     </>}
-    {(issue?.canSync || issue?.canCopy) && !picked && !done && <div className="original-actions">
+    {(issue?.canSync || issue?.canCopy || (info?.mode === 'copy' && info?.status === 'missing')) && !picked && !done && <div className="original-actions">
       {issue?.canSync && <Button size="sm" variant="primary" busy={syncing} lock={busy} onClick={syncLatest}>{ui('同步最新文件内容')}</Button>}
-      {issue?.canCopy && <Button size="sm" variant="secondary" lock={busy} onClick={() => checkPath(info.path, 'copy')}>{ui('改为复制到资料库')}</Button>}</div>}
+      {issue?.canCopy && <Button size="sm" variant="secondary" lock={busy} onClick={() => checkPath(info.path, 'copy')}>{ui('改为复制到资料库')}</Button>}
+      {info?.mode === 'copy' && info?.status === 'missing' && <Button size="sm" variant="quiet" lock={busy} onClick={detach}>{ui('仅保留文字（清除丢失副本引用）')}</Button>}</div>}
     {pickerOn && <section className="original-pick" aria-label={ui('选择原文件')}>
       {info.convertedFrom && !picked && <div className="original-converted">
         <Status tone="info">{uiFormat('这本书是从 {0}（{1}）转换来的，文件还在原处。', [info.convertedFrom.filename, formatBytes(info.convertedFrom.bytes)])}</Status>

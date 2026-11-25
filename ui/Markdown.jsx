@@ -9,6 +9,7 @@ import { prepareStudyMath, STUDY_IMAGE_PATTERN } from "./study-media.js";
 import { useCopyFeedback } from "./use-copy-feedback.js";
 import StudyMath from "./StudyMath.jsx";
 import StudyImage from "./StudyImage.jsx";
+import StudyDiagram from "./StudyDiagram.jsx";
 
 const NO_TABLE_EDGES = { left: false, right: false };
 const tableEdgesX = (element) => ({
@@ -292,13 +293,19 @@ function blocks(rows, options) {
         body.push(rows[i]);
       i++;
       const raw = body.join("\n");
-      out.push(
+      const codeFallback =
         options.links !== false ? (
           <CodeBlock key={key} lang={lang} content={raw} />
         ) : (
           <pre key={key} className="md-code">
             <code>{raw}</code>
           </pre>
+        );
+      out.push(
+        lang === "mermaid" || lang === "diagram" ? (
+          <StudyDiagram key={key} content={raw} interactive={options.links !== false} fallback={codeFallback} />
+        ) : (
+          codeFallback
         ),
       );
       continue;

@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { startReview, tryAction, type ReviewRun } from '../../host/sample-actions.js';
@@ -8,6 +9,7 @@ import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { SplitPane } from '../../components/SplitPane.js';
+import { LAYOUT_BP } from '../../components/layout-tokens.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { ClickableBox } from '../../components/mouse.js';
 import { originReviewFrame } from '../../state/practice-stack.js';
@@ -334,7 +336,7 @@ export const SimilarCardsModal = memo(function SimilarCardsModal({
             leftWidth={0.4}
             minLeft={22}
             minRight={28}
-            breakpoint={74}
+            breakpoint={LAYOUT_BP.SPLIT_MODAL}
             activePane={activePane}
             divider
             leftLabel={t(lang, '同类题', 'Similar')}

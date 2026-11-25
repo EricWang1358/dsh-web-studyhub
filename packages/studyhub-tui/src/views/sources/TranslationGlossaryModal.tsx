@@ -1,5 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -18,6 +20,8 @@ export interface TranslationGlossaryModalProps {
   sourceId?: string;
   revision?: string;
   title?: string;
+  /** Current document page text used as context for AI glossary term suggestions (#1419). */
+  pageText?: string;
   isActive: boolean;
   onClose: () => void;
 }
@@ -90,7 +94,13 @@ type ModalTab = 'glossary' | 'saved';
 type AddStep = 'none' | 'term' | 'to';
 type ConfirmAction =
   | { kind: 'delete-saved'; item: SavedTranslationItem }
-  | { kind: 'clear-saved'; count: number };
+  | { kind: 'clear-saved'; count: number }
+  | { kind: 'ai-suggest'; term: string };
+
+interface SuggestNote {
+  text: string;
+  tone: 'info' | 'warning' | 'success';
+}
 
 function targetLabel(target: 'zh' | 'en', lang: UiLanguage): string {
   if (target === 'en') {
@@ -103,12 +113,93 @@ function compactOneLine(text: string): string {
   return String(text ?? '').replace(/\s+/g, ' ').trim();
 }
 
+export function buildGlossarySuggestSystemPrompt(target: 'zh' | 'en'): string {
+  if (target === 'en') {
+    return (
+      'You are a domain-accurate terminology translator for study materials. ' +
+      'Given a source term and document context, reply with ONLY the single most standard English translation of that term ' +
+      '(or keep the original term if conventionally untranslated). No quotes, no numbering, no explanation.'
+    );
+  }
+  return (
+    '你是学习资料的专业术语翻译助手。根据文档标题、上下文与已有术语表，为给定术语给出最准确、常用的中文译法' +
+    '（若学科惯例保留原文则直接返回原文）。只输出这一个译法本身，不要加引号、编号或任何解释。'
+  );
+}
+
+export function buildGlossarySuggestPrompt(params: {
+  term: string;
+  target: 'zh' | 'en';
+  title?: string;
+  pageText?: string;
+  glossary?: readonly GlossaryEntry[];
+}): string {
+  const { term, target, title, pageText, glossary } = params;
+  const parts: string[] = [];
+  parts.push(`目标语言: ${target === 'en' ? 'English (en)' : '简体中文 (zh)'}`);
+  if (title?.trim()) parts.push(`资料标题: ${title.trim()}`);
+  if (glossary && glossary.length > 0) {
+    const sample = glossary
+      .slice(0, 15)
+      .map((g) => `${g.term} -> ${g.to || '(keep)'}`)
+      .join('; ');
+    parts.push(`已有术语表: ${sample}`);
+  }
+  const rawPage = String(pageText ?? '').trim();
+  if (rawPage) {
+    const lowerPage = rawPage.toLowerCase();
+    const lowerTerm = term.trim().toLowerCase();
+    const hit = lowerTerm ? lowerPage.indexOf(lowerTerm) : -1;
+    let snippet: string;
+    if (hit >= 0) {
+      const start = Math.max(0, hit - 400);
+      const end = Math.min(rawPage.length, hit + lowerTerm.length + 800);
+      snippet = rawPage.slice(start, end).trim();
+    } else {
+      snippet = rawPage.slice(0, 1200).trim();
+    }
+    if (snippet) parts.push(`资料上下文:\n${snippet}`);
+  }
+  parts.push(`需要给出固定译法的术语原文: ${term.trim()}`);
+  return parts.join('\n\n');
+}
+
+export function parseGlossarySuggestion(raw: string): string {
+  const lines = String(raw ?? '')
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('```'));
+  if (lines.length === 0) return '';
+  let candidate = lines[0];
+  // Strip leading labels such as "译法：", "建议译法:", "Translation:", "->"
+  candidate = candidate.replace(/^(?:(?:建议)?译法|翻译|Translation|Suggested(?:\s+translation)?)\s*[:：\-—→>]\s*/i, '');
+  // Strip simple markdown emphasis/code wrappers
+  candidate = candidate.replace(/^`+([^`]+)`+$/, '$1').replace(/^\*\*([^*]+)\*\*$/, '$1').replace(/^__([^_]+)__$/, '$1').trim();
+  // Strip balanced surrounding quotes/brackets
+  const pairs: ReadonlyArray<[string, string]> = [
+    ['"', '"'],
+    ["'", "'"],
+    ['「', '」'],
+    ['『', '』'],
+    ['“', '”'],
+    ['《', '》'],
+  ];
+  for (const [open, close] of pairs) {
+    if (candidate.startsWith(open) && candidate.endsWith(close) && candidate.length > open.length + close.length) {
+      candidate = candidate.slice(open.length, candidate.length - close.length).trim();
+    }
+  }
+  return candidate.replace(/\s+/g, ' ').trim().slice(0, 160);
+}
+
 export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
   host,
   documentId,
   sourceId,
   revision,
   title,
+  pageText,
   isActive,
   onClose,
 }: TranslationGlossaryModalProps) {
@@ -116,7 +207,7 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const notify = useTuiStore((s) => s.notify);
-  const { columns, rows: termRows } = useWindowSize();
+  const { columns, rows: termRows } = useStableWindowSize();
 
   const [tab, setTab] = useState<ModalTab>('glossary');
   const [target, setTarget] = useState<'zh' | 'en'>(lang === 'en' ? 'en' : 'zh');
@@ -134,16 +225,31 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
   const [addStep, setAddStep] = useState<AddStep>('none');
   const [draftTerm, setDraftTerm] = useState('');
   const [draftTo, setDraftTo] = useState('');
+  const [modelAvailable, setModelAvailable] = useState<boolean>(() =>
+    Boolean(host.getConfig()?.effective?.ready || useTuiStore.getState().snapshot?.modelReady),
+  );
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestNote, setSuggestNote] = useState<SuggestNote | null>(null);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
 
   const mountedRef = useRef(true);
   const busyRef = useRef(false);
+  const suggestAbortRef = useRef<AbortController | null>(null);
+  const userEditedToRef = useRef(false);
+
+  const cancelAiSuggest = useCallback(() => {
+    suggestAbortRef.current?.abort();
+    suggestAbortRef.current = null;
+    if (mountedRef.current) setSuggesting(false);
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
       busyRef.current = false;
+      suggestAbortRef.current?.abort();
+      suggestAbortRef.current = null;
     };
   }, []);
 
@@ -202,12 +308,17 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
         const nextSaved = Array.isArray(listRes.value?.items) ? listRes.value.items : [];
         const nextStale = Array.isArray(listRes.value?.stale) ? listRes.value.stale : [];
         const nextOther = Number(listRes.value?.otherTarget ?? 0) || 0;
+        const nextModelAvailable =
+          typeof listRes.value?.modelAvailable === 'boolean'
+            ? listRes.value.modelAvailable
+            : Boolean(host.getConfig()?.effective?.ready || useTuiStore.getState().snapshot?.modelReady);
 
         setTarget(nextTarget);
         setGlossary(nextGlossary);
         setSavedItems(nextSaved);
         setStaleGroups(nextStale);
         setOtherTargetCount(nextOther);
+        setModelAvailable(nextModelAvailable);
       } catch (err) {
         if (mountedRef.current) {
           setLoadError(errorMessage(err));
@@ -261,10 +372,12 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
           return;
         }
         const updatedGlossary = Array.isArray(res.value.glossary) ? res.value.glossary : nextGlossary;
+        cancelAiSuggest();
         setGlossary(updatedGlossary);
         setAddStep('none');
         setDraftTerm('');
         setDraftTo('');
+        setSuggestNote(null);
         await refreshSavedList(target);
         if (!mountedRef.current) return;
 
@@ -299,7 +412,7 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
         if (mountedRef.current) setBusy(false);
       }
     },
-    [host, identityPayload, lang, notify, refreshSavedList, target],
+    [host, identityPayload, lang, notify, refreshSavedList, target, cancelAiSuggest],
   );
 
   const handleToggleTarget = useCallback(async () => {
@@ -340,6 +453,7 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
 
   const handleConfirmSavedDelete = useCallback(
     async (action: ConfirmAction) => {
+      if (action.kind === 'ai-suggest') return;
       if (busyRef.current) return;
       busyRef.current = true;
       setBusy(true);
@@ -374,6 +488,67 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
     [host, identityPayload, lang, notify, refreshSavedList, target],
   );
 
+  const canSuggestWithAi = Boolean(modelAvailable && typeof host.streamComplete === 'function');
+
+  const requestAiSuggestion = useCallback(
+    async (term: string) => {
+      if (typeof host.streamComplete !== 'function') return;
+      cancelAiSuggest();
+      const ctrl = new AbortController();
+      suggestAbortRef.current = ctrl;
+      setSuggesting(true);
+      setSuggestNote(null);
+      try {
+        const raw = await host.streamComplete({
+          system: buildGlossarySuggestSystemPrompt(target),
+          prompt: buildGlossarySuggestPrompt({ term, target, title, pageText, glossary }),
+          signal: ctrl.signal,
+        });
+        if (!mountedRef.current || ctrl.signal.aborted) return;
+        const suggestion = parseGlossarySuggestion(raw);
+        if (userEditedToRef.current) return;
+        if (suggestion) {
+          setDraftTo(suggestion);
+          setSuggestNote({
+            tone: 'success',
+            text: t(
+              lang,
+              'AI 建议已填入：直接 Enter 保存，或编辑/Ctrl+U 改写',
+              'AI suggestion pre-filled: Enter to save, or edit / Ctrl+U to replace',
+            ),
+          });
+        } else {
+          setSuggestNote({
+            tone: 'warning',
+            text: t(
+              lang,
+              'AI 未返回有效译法，请手动输入（留空保持原文）',
+              'AI returned no suggestion; enter manually (empty=keep)',
+            ),
+          });
+        }
+      } catch (err) {
+        if (!mountedRef.current || ctrl.signal.aborted) return;
+        if (!userEditedToRef.current) {
+          setSuggestNote({
+            tone: 'warning',
+            text: t(
+              lang,
+              `AI 建议失败（${errorMessage(err)}），请手动输入译法`,
+              `AI suggestion failed (${errorMessage(err)}); enter manually`,
+            ),
+          });
+        }
+      } finally {
+        if (suggestAbortRef.current === ctrl) {
+          suggestAbortRef.current = null;
+          if (mountedRef.current) setSuggesting(false);
+        }
+      }
+    },
+    [cancelAiSuggest, glossary, host, lang, pageText, target, title],
+  );
+
   const handleSubmitTermStep = useCallback(
     (rawVal: string) => {
       const cleaned = rawVal.replace(/\s+/g, ' ').trim();
@@ -381,15 +556,40 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
         notify(t(lang, '术语原文不能为空', 'Source term cannot be empty'), 'warning');
         return;
       }
+      cancelAiSuggest();
+      userEditedToRef.current = false;
       setDraftTerm(cleaned);
       setDraftTo('');
+      if (canSuggestWithAi) {
+        setSuggestNote(null);
+        setConfirmAction({ kind: 'ai-suggest', term: cleaned });
+        return;
+      }
+      setSuggestNote({
+        tone: 'warning',
+        text: t(
+          lang,
+          '未配置可用模型，已切回手动输入（在设置配好模型后可自动建议译法）',
+          'No AI model configured; fell back to manual input (configure a model in Settings)',
+        ),
+      });
       setAddStep('to');
     },
-    [lang, notify],
+    [canSuggestWithAi, cancelAiSuggest, lang, notify],
+  );
+
+  const handleChangeToStep = useCallback(
+    (nextVal: string) => {
+      userEditedToRef.current = true;
+      if (suggestAbortRef.current) cancelAiSuggest();
+      setDraftTo(nextVal);
+    },
+    [cancelAiSuggest],
   );
 
   const handleSubmitToStep = useCallback(
     (rawVal: string) => {
+      cancelAiSuggest();
       const cleanedTo = rawVal.replace(/\s+/g, ' ').trim();
       const term = draftTerm.trim();
       if (!term) {
@@ -403,7 +603,7 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
           : [...glossary, { term, to: cleanedTo }];
       void persistGlossary(nextGlossary, 'save', term);
     },
-    [draftTerm, glossary, persistGlossary],
+    [cancelAiSuggest, draftTerm, glossary, persistGlossary],
   );
 
   const modalNavActive = isActive && addStep === 'none' && confirmAction === null;
@@ -433,8 +633,11 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
 
       if (tab === 'glossary') {
         if (input === 'a') {
+          cancelAiSuggest();
+          userEditedToRef.current = false;
           setDraftTerm('');
           setDraftTo('');
+          setSuggestNote(null);
           setAddStep('term');
           return;
         }
@@ -513,7 +716,8 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
   const selectedGlossary = glossary[glossaryIndex];
   const selectedSaved = savedItems[savedIndex];
 
-  const addRows = tab === 'glossary' && addStep !== 'none' ? 3 : 0;
+  const hasStep2Status = tab === 'glossary' && addStep === 'to' && (suggesting || Boolean(suggestNote));
+  const addRows = tab === 'glossary' && addStep !== 'none' ? (hasStep2Status ? 4 : 3) : 0;
   const showPreview =
     addRows === 0 &&
     innerHeight >= 11 &&
@@ -644,7 +848,7 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
               )}
 
               {addStep !== 'none' ? (
-                <Box flexDirection="column" height={3} width={innerWidth} overflow="hidden">
+                <Box flexDirection="column" height={addRows} width={innerWidth} overflow="hidden">
                   <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(innerWidth)}</Text>
                   <Text color={theme.accent} bold wrap="truncate-end">
                     {truncateDisplay(
@@ -659,6 +863,33 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
                       ell,
                     )}
                   </Text>
+                  {hasStep2Status ? (
+                    <Box height={1} width={innerWidth} flexDirection="row" alignItems="center">
+                      {suggesting ? (
+                        <Spinner
+                          label={
+                            asciiMode
+                              ? t(lang, 'AI 正在按资料上下文建议译法...', 'AI suggesting translation from context...')
+                              : t(lang, 'AI 正在按资料上下文建议译法…', 'AI suggesting translation from context…')
+                          }
+                          active={isActive}
+                        />
+                      ) : suggestNote ? (
+                        <Text
+                          color={
+                            suggestNote.tone === 'success'
+                              ? theme.success
+                              : suggestNote.tone === 'warning'
+                                ? theme.warning
+                                : theme.dim
+                          }
+                          wrap="truncate-end"
+                        >
+                          {truncateDisplay(suggestNote.text, innerWidth, ell)}
+                        </Text>
+                      ) : null}
+                    </Box>
+                  ) : null}
                   <Box height={1} width={innerWidth} flexDirection="row" alignItems="center">
                     <Box flexShrink={0}>
                       <Text color={theme.primary} bold>
@@ -667,12 +898,15 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
                     </Box>
                     <TextInput
                       value={addStep === 'term' ? draftTerm : draftTo}
-                      onChange={addStep === 'term' ? setDraftTerm : setDraftTo}
+                      onChange={addStep === 'term' ? setDraftTerm : handleChangeToStep}
                       onSubmit={addStep === 'term' ? handleSubmitTermStep : handleSubmitToStep}
                       onCancel={() => {
+                        cancelAiSuggest();
+                        userEditedToRef.current = false;
                         setAddStep('none');
                         setDraftTerm('');
                         setDraftTo('');
+                        setSuggestNote(null);
                       }}
                       placeholder={
                         addStep === 'term'
@@ -798,27 +1032,65 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
       {confirmAction ? (
         <ConfirmDialog
           title={
-            confirmAction.kind === 'clear-saved'
-              ? t(lang, '清空当前版本译文', 'Clear Saved Translations')
-              : t(lang, '删除已存译文', 'Delete Saved Translation')
+            confirmAction.kind === 'ai-suggest'
+              ? t(lang, 'AI 建议译法', 'AI Suggest Translation')
+              : confirmAction.kind === 'clear-saved'
+                ? t(lang, '清空当前版本译文', 'Clear Saved Translations')
+                : t(lang, '删除已存译文', 'Delete Saved Translation')
           }
           message={
-            confirmAction.kind === 'clear-saved'
+            confirmAction.kind === 'ai-suggest'
               ? t(
                   lang,
-                  `确定清空当前版本在 ${target} 下的全部 ${confirmAction.count} 条已存译文吗？`,
-                  `Clear all ${confirmAction.count} saved translations (${target}) for this revision?`,
+                  `将调用模型为术语 "${confirmAction.term}" 建议 ${targetLabel(target, lang)} 译法（预计调用: 1 次轻量模型调用）。\n确认后自动填入输入框，可直接回车保存或修改；取消则直接手动输入。`,
+                  `Call AI to suggest a ${targetLabel(target, lang)} translation for "${confirmAction.term}" (est. 1 lightweight model call).\nConfirm to pre-fill the input (editable), or cancel to type manually.`,
                 )
-              : t(
-                  lang,
-                  `确定删除这条已存译文吗？\n"${truncateDisplay(compactOneLine(confirmAction.item.quote), 44, ell)}"`,
-                  `Delete this saved translation?\n"${truncateDisplay(compactOneLine(confirmAction.item.quote), 44, ell)}"`,
-                )
+              : confirmAction.kind === 'clear-saved'
+                ? t(
+                    lang,
+                    `确定清空当前版本在 ${target} 下的全部 ${confirmAction.count} 条已存译文吗？`,
+                    `Clear all ${confirmAction.count} saved translations (${target}) for this revision?`,
+                  )
+                : t(
+                    lang,
+                    `确定删除这条已存译文吗？\n"${truncateDisplay(compactOneLine(confirmAction.item.quote), 44, ell)}"`,
+                    `Delete this saved translation?\n"${truncateDisplay(compactOneLine(confirmAction.item.quote), 44, ell)}"`,
+                  )
           }
-          danger
+          confirmLabel={
+            confirmAction.kind === 'ai-suggest' ? t(lang, 'AI 建议', 'Suggest with AI') : undefined
+          }
+          cancelLabel={
+            confirmAction.kind === 'ai-suggest' ? t(lang, '手动输入', 'Manual input') : undefined
+          }
+          danger={confirmAction.kind !== 'ai-suggest'}
           isActive={isActive && !busy}
-          onConfirm={() => void handleConfirmSavedDelete(confirmAction)}
-          onCancel={() => setConfirmAction(null)}
+          onConfirm={() => {
+            if (confirmAction.kind === 'ai-suggest') {
+              const term = confirmAction.term;
+              setConfirmAction(null);
+              setAddStep('to');
+              void requestAiSuggestion(term);
+              return;
+            }
+            void handleConfirmSavedDelete(confirmAction);
+          }}
+          onCancel={() => {
+            if (confirmAction.kind === 'ai-suggest') {
+              setConfirmAction(null);
+              setSuggestNote({
+                tone: 'info',
+                text: t(
+                  lang,
+                  '已跳过 AI 建议，可手动输入译法（留空保持原文）',
+                  'Skipped AI suggestion; enter manually (empty=keep)',
+                ),
+              });
+              setAddStep('to');
+              return;
+            }
+            setConfirmAction(null);
+          }}
         />
       ) : null}
     </>

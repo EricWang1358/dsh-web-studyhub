@@ -32,6 +32,8 @@ jobs:
           path: packages/studyhub-tui/dist
           key: tui-dist-${{ runner.os }}-${{ hashFiles('packages/studyhub-tui/src/**', 'packages/studyhub-tui/package.json', 'packages/studyhub-tui/scripts/build.mjs') }}
       - run: npm run lint
+      - run: npm --prefix packages/studyhub-tui run lint
+      - run: npm --prefix packages/studyhub-tui run typecheck
       - run: npm run build
       - run: npm run tui:build
 
@@ -153,6 +155,9 @@ jobs:
         with:
           path: packages/studyhub-tui/dist
           key: tui-dist-${{ runner.os }}-${{ hashFiles('packages/studyhub-tui/src/**', 'packages/studyhub-tui/package.json', 'packages/studyhub-tui/scripts/build.mjs') }}
+      - name: Lint and typecheck StudyHub TUI
+        if: matrix.tui_shard == 1
+        run: npx eslint --max-warnings=0 packages/studyhub-tui/src packages/studyhub-tui/tests packages/studyhub-tui/scripts packages/studyhub-tui/bin && npm --prefix packages/studyhub-tui run typecheck
       - run: node packages/studyhub-tui/scripts/run-tests.mjs --shard=${{ matrix.tui_shard }}/3
 
   tui-windows-smoke:

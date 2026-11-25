@@ -337,15 +337,21 @@ describe('Domain Settings Retrieval: Coverage, Diagnostics Planner & Hybrid Prev
       assert.ok(wsEnNarrow.split('\n').length <= 24);
 
       ttyEn.resize(120, 36);
-      await ttyEn.waitFor((s) => s.includes('Retrieval:'), { label: 'WorkspaceTab restored 120x36 (en --ascii)' });
+      await ttyEn.waitFor(
+        (s) => s.includes('Retrieval:') && s.split('\n').length >= 30,
+        { label: 'WorkspaceTab restored 120x36 (en --ascii)' },
+      );
       ttyEn.send('?');
-      await ttyEn.waitFor((s) => s.includes('Keyboard Shortcuts'), { label: 'HelpOverlay opened (en --ascii)' });
+      const helpEnInit = await ttyEn.waitFor(
+        (s) => s.includes('Keyboard Shortcuts') && s.split('\n').length >= 30,
+        { label: 'HelpOverlay opened (en --ascii)' },
+      );
       assert.equal(useTuiStore.getState().helpOpen, true);
-      let sawSkelEn = false;
-      let sawOrigEn = false;
-      for (let step = 0; step < 20 && (!sawSkelEn || !sawOrigEn); step += 1) {
+      let sawSkelEn = helpEnInit.includes('Skeleton diagrams');
+      let sawOrigEn = helpEnInit.includes('Original file / Outline TOC');
+      for (let step = 0; step < 24 && (!sawSkelEn || !sawOrigEn); step += 1) {
         ttyEn.send('\x04'); // Ctrl+D half-page scroll down
-        await ttyEn.flush(25);
+        await ttyEn.flush(40);
         const scr = ttyEn.readScreen();
         ttyEn.assertHealthyScreen(scr, 120, 36, `HelpOverlay scroll ${step} en --ascii`);
         ttyEn.assertAsciiPure(scr, `HelpOverlay scroll ${step} en --ascii`);

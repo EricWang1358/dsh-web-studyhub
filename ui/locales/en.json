@@ -1923,5 +1923,12 @@
   "配置文件无法读取（{0}）。请先备份并重置，再保存模型或更改学习库目录。": "Could not read the configuration file ({0}). Back up and reset it first before saving model settings or changing the library folder.",
   "正在评估…": "Assessing…",
   "补评估未评题目": "Assess remaining answers",
-  "重新评估": "Re-assess"
+  "重新评估": "Re-assess",
+  "示意图": "Diagram",
+  "流程图": "Flowchart",
+  "状态图": "State diagram",
+  "查看源码": "View source",
+  "查看图示": "View diagram",
+  "源码": "Source",
+  "图示": "Diagram"
 }

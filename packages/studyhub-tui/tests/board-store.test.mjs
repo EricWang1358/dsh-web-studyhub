@@ -474,7 +474,10 @@ describe('shared atomic-write helpers & deduplication', () => {
   });
 
   test('7) notes-types expandUserPath handles PowerShell drag-and-drop, Explorer quotes, bash escapes, and ~/~\\', async () => {
-    const { expandUserPath } = await tsImport('../src/views/notes/notes-types.ts', import.meta.url);
+    const [{ expandUserPath }, { cleanPathInput }] = await Promise.all([
+      tsImport('../src/views/notes/notes-types.ts', import.meta.url),
+      tsImport('../src/host/sample-actions.ts', import.meta.url),
+    ]);
     const { homedir } = await import('node:os');
     const root = resolve('/tmp/studyhub-notes-root');
     assert.equal(expandUserPath('', root), '');
@@ -483,11 +486,13 @@ describe('shared atomic-write helpers & deduplication', () => {
     assert.equal(expandUserPath('~\\study\\note.md', root), join(homedir(), 'study\\note.md'));
     assert.equal(expandUserPath('"/tmp/my note.md"', root), resolve('/tmp/my note.md'));
     assert.equal(expandUserPath("& '/tmp/ps note.md'", root), resolve('/tmp/ps note.md'));
-    if (process.platform !== 'win32') {
-      assert.equal(expandUserPath('/tmp/bash\\ escaped.md', root), resolve('/tmp/bash escaped.md'));
-    } else {
-      assert.equal(expandUserPath('C:\\Users\\demo\\note.md', root), resolve('C:\\Users\\demo\\note.md'));
-    }
+    assert.equal(expandUserPath('/tmp/bash\\ escaped.md', root), resolve('/tmp/bash escaped.md'));
     assert.equal(expandUserPath('relative/out.md', root), resolve(root, 'relative/out.md'));
+    // Cross-platform bash-escaped spaces (including Git Bash on Windows) unescape `\ `,
+    // while Windows drive and UNC paths remain intact.
+    assert.equal(cleanPathInput('/tmp/bash\\ escaped.md'), '/tmp/bash escaped.md');
+    assert.equal(cleanPathInput('notes/my\\ file\\ v2.md'), 'notes/my file v2.md');
+    assert.equal(cleanPathInput('C:\\Users\\Alice\\ My Notes.md'), 'C:\\Users\\Alice\\ My Notes.md');
+    assert.equal(cleanPathInput('\\\\server\\share\\ My Notes.md'), '\\\\server\\share\\ My Notes.md');
   });
 });

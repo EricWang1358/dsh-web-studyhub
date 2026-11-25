@@ -4,15 +4,17 @@ import { PAGE_REGISTRY, type NavGroup, type PageId, type PageMeta } from '../typ
 import { t, useTuiStore } from '../state/store.js';
 import { useTheme } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
+import { glyph, hairline } from '../render/glyphs.js';
 import { RESERVED_GLOBAL_KEY_SET, useClaimedKeys } from '../components/focus.js';
+import { LAYOUT_BP, LAYOUT_CHROME } from '../components/layout-tokens.js';
 import { ClickableBox } from '../components/mouse.js';
 import { formatReturnHintLabel } from '../state/practice-stack.js';
 import { draftCount, dueToday, pageIcon, runningJobs, wrongCount } from './data.js';
 
-export const SIDENAV_WIDTH = 24;
-export const SIDENAV_COLLAPSED_WIDTH = 6;
+export const SIDENAV_WIDTH = LAYOUT_CHROME.SIDENAV_EXPANDED;
+export const SIDENAV_COLLAPSED_WIDTH = LAYOUT_CHROME.SIDENAV_COLLAPSED;
 /** Below this terminal width the rail auto-collapses to icons. */
-export const SIDENAV_AUTO_COLLAPSE = 100;
+export const SIDENAV_AUTO_COLLAPSE = LAYOUT_BP.SIDENAV_AUTO_COLLAPSE;
 
 export function sideNavWidth(columns: number, collapsedPref: boolean): number {
   return collapsedPref || columns < SIDENAV_AUTO_COLLAPSE ? SIDENAV_COLLAPSED_WIDTH : SIDENAV_WIDTH;
@@ -41,7 +43,7 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
   const claimedKeys = useClaimedKeys();
   const collapsed = width <= SIDENAV_COLLAPSED_WIDTH;
   const inner = Math.max(1, width - 1);
-  const ell = asciiMode ? '...' : '…';
+  const ell = glyph('ellipsis', asciiMode);
 
   const counts: Partial<Record<PageId, { n: number; color: string }>> = {
     library: { n: dueToday(snapshot), color: theme.warning },
@@ -61,7 +63,7 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
   const returnLabel = formatReturnHintLabel(practiceStack, lang);
   if (activeRunId || returnLabel) {
     const active = page === 'review' && !returnLabel;
-    const playGlyph = asciiMode ? '>' : '▶';
+    const playGlyph = glyph('play', asciiMode);
     const onClickResume = () => {
       const st = useTuiStore.getState();
       if (st.practiceStack.length > 0) {
@@ -97,7 +99,7 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
     const c = counts[p.id];
     const badge = c && c.n > 0 ? (c.n > 99 ? '99+' : String(c.n)) : '';
     const icon = pageIcon(p.id, asciiMode, p.icon);
-    const bar = active ? (asciiMode ? '>' : '▌') : ' ';
+    const bar = active ? glyph('activeBar', asciiMode) : ' ';
     const keyOverridden = !RESERVED_GLOBAL_KEY_SET.has(p.shortcut) && claimedKeys.has(p.shortcut);
     const onClickPage = () => {
       const st = useTuiStore.getState();
@@ -148,7 +150,7 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
     if (collapsed) {
       push(
         <Text key={`g-${g.id}`} color={theme.border}>
-          {' ' + (asciiMode ? '-' : '─').repeat(Math.max(0, inner - 2))}
+          {' ' + hairline(Math.max(0, inner - 2), asciiMode)}
         </Text>,
       );
     } else {

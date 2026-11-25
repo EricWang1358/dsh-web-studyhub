@@ -261,6 +261,55 @@
       background: var(--bg-sunken);
       border: 1px solid var(--line);
     }
+    .cloze-code-block {
+      margin: var(--space-2) 0;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--line);
+      background: var(--bg-sunken);
+      overflow: hidden;
+    }
+    .cloze-code-block__lang {
+      font-family: var(--font-stack-mono);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+      color: var(--text-muted);
+      padding: var(--space-1) var(--space-3);
+      border-bottom: 1px solid var(--line);
+    }
+    .cloze-code-block__pre {
+      margin: 0;
+      padding: var(--space-3);
+      overflow-x: auto;
+      font-family: var(--font-stack-mono);
+      font-size: var(--fs-sm);
+      line-height: 1.7;
+      white-space: pre;
+      tab-size: 2;
+    }
+    .cloze-blank--code {
+      font-family: var(--font-stack-mono);
+      text-align: left;
+    }
+    /* A blank inside a code block takes several lines (#1403): a textarea, monospace and preformatted so Enter/newlines stand. */
+    .cloze-blank--multiline {
+      display: block;
+      width: 100%;
+      min-height: 2.6em;
+      margin: var(--space-1) 0;
+      font-family: var(--font-stack-mono);
+      line-height: 1.7;
+      white-space: pre;
+      overflow-wrap: normal;
+      tab-size: 2;
+      resize: vertical;
+    }
+    .cloze-expected--multiline {
+      white-space: pre;
+      display: inline-block;
+      vertical-align: top;
+      font-family: var(--font-stack-mono);
+      tab-size: 2;
+    }
     .cloze-blank {
       display: inline-block;
       vertical-align: baseline;

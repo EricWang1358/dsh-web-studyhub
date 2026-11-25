@@ -1,12 +1,12 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useKeyScope } from '../../input/hooks.js';
 import type { BindingSnapshot, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction } from '../../host/sample-actions.js';
 import type { TuiConfigSnapshot } from '../../host/tui-host.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Spinner } from '../../components/Badge.js';
-import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { ClickableBox } from '../../components/mouse.js';
 import { ModelsTab } from './ModelsTab.js';
@@ -67,19 +67,20 @@ export const SettingsView: React.FC<ViewProps> = ({ host, width, height, isActiv
     void Promise.all([refreshConfig(), refreshBinding()]);
   }, [refreshConfig, refreshBinding]);
 
-  const allowTabKeys = isActive && !inputCaptured && !editingText;
   const claimedDigits = useMemo(() => ['1', '2', '3', '4'], []);
-  useClaimKeys(claimedDigits, allowTabKeys);
-
-  useInput(
-    (input) => {
+  const tabKeysActive = useKeyScope({
+    id: 'SettingsView:tabs',
+    active: isActive && !inputCaptured && !editingText,
+    keys: claimedDigits,
+    onKey: (input) => {
       const idx = ['1', '2', '3', '4'].indexOf(input);
       if (idx >= 0) {
         setTab(SETTINGS_TABS[idx].id);
+        return true;
       }
+      return false;
     },
-    { isActive: allowTabKeys },
-  );
+  });
 
   const footerHints = useMemo(() => {
     const base = [{ key: '1-4', label: t(lang, '切换标签', 'Switch tab') }];
@@ -129,7 +130,7 @@ export const SettingsView: React.FC<ViewProps> = ({ host, width, height, isActiv
             const active = item.id === tab;
             const label = lang === 'en' ? item.labelEn : item.labelZh;
             return (
-              <ClickableBox key={item.id} onClick={() => setTab(item.id)} clickActive={allowTabKeys}>
+              <ClickableBox key={item.id} onClick={() => setTab(item.id)} clickActive={tabKeysActive}>
                 <Text
                   backgroundColor={active ? theme.primary : theme.surface}
                   color={active ? (theme.dark ? theme.bg : '#ffffff') : theme.muted}
