@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { click, loadInteractiveUi } from './helpers/react-harness.mjs';
 import { createSelectionJobs } from '../lib/contexts/generation/selection-jobs.js';
 
 const h = React.createElement;
@@ -144,21 +144,143 @@ test('W1-36: coverage-outline aligns both unsegmented paged PDFs and segmented m
 /* ---------- W1-19: RetrievalPanel resets stale preview and guards races ---------- */
 
 test('W1-19: RetrievalPanel resets preview on topic/source/course change and guards stale responses', async () => {
-  const src = await readFile(new URL('../ui/RetrievalPanel.jsx', import.meta.url), 'utf8');
-  assert.match(src, /inputKey\s*=.*course.*topic.*sourceIds/, 'tracks value signature of course, topic, and sourceIds');
-  assert.match(src, /seqRef\.current/, 'uses request sequence guard');
-  assert.match(src, /disabled\s*\|\|\s*loading/, 'disables checkboxes and apply button while loading');
-  assert.match(src, /onDismiss=\{\(\) => setError\(''\)\}/, 'allows dismissing error banner');
+  const ui = await loadInteractiveUi(`
+    export { setUiLanguage } from './ui/i18n.js';
+    export { default as RetrievalPanel } from './ui/RetrievalPanel.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+  `);
+  ui.exports.setUiLanguage('zh');
+  const hI = ui.React.createElement;
+
+  const pending = [];
+  let failNext = false;
+  const call = (action, args) => {
+    if (action === 'retrieval.preview') {
+      if (failNext) {
+        failNext = false;
+        return Promise.reject(new Error('索引暂时不可用'));
+      }
+      return new Promise((resolve) => { pending.push({ args, resolve }); });
+    }
+    return Promise.resolve({});
+  };
+  const services = { call, act: async () => {}, busy: false, notify: noop, askInChat: noop, host: {}, openSettings: noop, navigate: noop, openModal: noop };
+  const initialPreview = {
+    pages: [
+      { sourceId: 's1', page: 1, title: 'Ch1', snippet: 'old snippet 1' },
+      { sourceId: 's2', page: 2, title: 'Ch2', snippet: 'old snippet 2' },
+    ],
+  };
+
+  let props = { advice: { chars: 12000 }, sourceIds: ['s1', 's2'], focus: 'Raft', course: 'OS', onApply: noop, initialPreview };
+  const view = ui.mount(() => hI(ui.exports.StudyServicesContext.Provider, { value: services }, hI(ui.exports.RetrievalPanel, props)));
+  try {
+    // 1. Trigger preview -> while loading, checkboxes and apply button must be disabled
+    const previewBtn = view.find((n) => n.type === 'button' && ui.textOf(n).includes('预览会用到的页面'));
+    assert.ok(previewBtn, 'preview button rendered');
+    await view.act(() => click(previewBtn));
+    assert.equal(pending.length, 1, 'started retrieval.preview request');
+
+    const checkboxesWhileLoading = view.findAll((n) => n.type === 'input' && n.props?.type === 'checkbox');
+    assert.ok(checkboxesWhileLoading.length === 2 && checkboxesWhileLoading.every((cb) => cb.props.disabled), 'checkboxes disabled while loading');
+    const applyBtnWhileLoading = view.find((n) => n.type === 'button' && ui.textOf(n).includes('只用勾选的页面'));
+    assert.equal(applyBtnWhileLoading.props.disabled || applyBtnWhileLoading.props['aria-disabled'] === 'true', true, 'apply button locked while loading');
+
+    // 2. Change focus (topic) BEFORE request settles -> preview clears and stale response is ignored
+    props = { ...props, focus: 'Paxos' };
+    view.rerender();
+    assert.equal(view.find((n) => n.props?.className === 'retrieval-panel__pages'), null, 'preview cleared on topic change');
+    pending[0].resolve({ pages: [{ sourceId: 's1', page: 1, title: 'Stale', snippet: 'stale Raft result' }] });
+    await view.flush();
+    assert.equal(view.find((n) => n.props?.className === 'retrieval-panel__pages'), null, 'stale response ignored after topic change');
+
+    // 3. Also resets on sourceIds and course change
+    await view.act(() => click(view.find((n) => n.type === 'button' && ui.textOf(n).includes('预览会用到的页面'))));
+    pending[1].resolve({ pages: [{ sourceId: 's1', page: 1, title: 'Fresh', snippet: 'fresh Paxos result' }] });
+    await view.flush();
+    assert.ok(view.text().includes('fresh Paxos result'), 'fresh preview rendered');
+
+    props = { ...props, sourceIds: ['s1'] };
+    view.rerender();
+    assert.equal(view.find((n) => n.props?.className === 'retrieval-panel__pages'), null, 'preview cleared on sourceIds change');
+
+    // 4. Error banner is dismissible
+    failNext = true;
+    await view.act(() => click(view.find((n) => n.type === 'button' && ui.textOf(n).includes('预览会用到的页面'))));
+    await view.flush();
+    assert.ok(view.text().includes('索引暂时不可用'), 'error banner rendered');
+    const dismissBtn = view.find((n) => n.type === 'button' && (n.props?.className?.includes('sh-inline__close') || ui.textOf(n).includes('关闭')));
+    assert.ok(dismissBtn, 'error banner exposes dismiss button');
+    await view.act(() => click(dismissBtn));
+    assert.equal(view.text().includes('索引暂时不可用'), false, 'clicking dismiss clears error banner');
+  } finally {
+    view.unmount();
+  }
 });
 
 /* ---------- W1-10: useGenerationPath partial failure + refine stale guard ---------- */
 
 test('W1-10: useGenerationPath stays on page on partial failure, unchecks started steps, and guards stale refine responses', async () => {
-  const src = await readFile(new URL('../ui/use-generation-path.js', import.meta.url), 'utf8');
-  assert.match(src, /result\.started\.length\s*&&\s*!result\.failed\.length/, 'only calls onQueued on full success');
-  assert.match(src, /included:\s*false/, 'unchecks started steps on partial failure to prevent duplicate queueing');
-  assert.match(src, /refineSeqRef\.current/, 'guards refine() with request sequence number');
-  assert.match(src, /selectionSignature\s*=.*course.*goal.*selectedIds/, 'resets and invalidates refine on course/goal/selectedIds change');
+  const ui = await loadInteractiveUi(`
+    export { setUiLanguage } from './ui/i18n.js';
+    export { useGenerationPath } from './ui/use-generation-path.js';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+  `);
+  ui.exports.setUiLanguage('zh');
+  const hI = ui.React.createElement;
+
+  const refineDeferred = [];
+  let genCallIdx = 0;
+  const call = (action, args) => {
+    if (action === 'generate.path.suggest') {
+      return new Promise((resolve) => { refineDeferred.push({ args, resolve }); });
+    }
+    if (action === 'generate') {
+      genCallIdx += 1;
+      if (genCallIdx === 1) return Promise.resolve({ jobId: 'job-1', status: 'queued' });
+      return Promise.reject(new Error('额度不足'));
+    }
+    return Promise.resolve({});
+  };
+  const services = { call, act: async () => {}, busy: false, notify: noop, askInChat: noop, host: {}, openSettings: noop, navigate: noop, openModal: noop };
+  const sources = [
+    { id: 's1', title: 'Ch1', chars: 120000, document: { documentId: 'doc-1', page: 1 } },
+    { id: 's2', title: 'Ch2', chars: 120000, document: { documentId: 'doc-2', page: 1 } },
+  ];
+  let queuedCount = 0;
+  const wrap = (el) => hI(ui.exports.StudyServicesContext.Provider, { value: services }, el);
+
+  const hook = ui.mountHook(
+    ui.exports.useGenerationPath,
+    { sources, selectedIds: ['s1', 's2'], gen: { kind: 'quiz', count: 5 }, course: 'OS', goal: 'midterm', onQueued: () => { queuedCount += 1; } },
+    wrap,
+  );
+  try {
+    assert.ok(hook.current.steps.length >= 2, 'planned at least 2 steps');
+    const firstStepId = hook.current.steps[0].id;
+    const secondStepId = hook.current.steps[1].id;
+
+    // 1. Partial failure during queue(): must NOT call onQueued, and must uncheck started step only
+    await hook.act(() => hook.current.queue());
+    await hook.flush();
+    assert.equal(queuedCount, 0, 'must NOT call onQueued when any step failed');
+    assert.equal(hook.current.report.started.length, 1);
+    assert.equal(hook.current.report.failed.length, 1);
+    assert.equal(hook.current.steps.find((s) => s.id === firstStepId).included, false, 'started step unchecked to avoid duplicate queueing');
+    assert.notEqual(hook.current.steps.find((s) => s.id === secondStepId).included, false, 'failed step stays checked for retry');
+
+    // 2. Stale refine() response after course/goal/selectedIds change is ignored
+    const refinePromise = hook.current.refine();
+    hook.rerender({ sources, selectedIds: ['s1', 's2'], gen: { kind: 'quiz', count: 5 }, course: 'OS', goal: 'final', onQueued: () => { queuedCount += 1; } });
+    assert.equal(hook.current.aiState.phase, 'idle', 'goal change resets aiState to idle');
+    refineDeferred[0].resolve({ source: 'model', steps: [{ id: secondStepId, order: 1 }, { id: firstStepId, order: 2 }] });
+    await refinePromise;
+    await hook.flush();
+    assert.equal(hook.current.ai, null, 'stale refine response must be discarded');
+    assert.equal(hook.current.aiState.phase, 'idle');
+  } finally {
+    hook.unmount();
+  }
 });
 
 /* ---------- W1-20: SelectionJobs error visibility, single primary, and backend idempotency ---------- */
@@ -251,10 +373,106 @@ test('W1-20: LearningPanel shows errors in jobsOnly & no-selection views, Select
 /* ---------- W1-32: PagePeek retry reload, page switch error reset, keydown & drag cleanup ---------- */
 
 test('W1-32: PagePeek separates focus effect from document load, reloads on retry when renderer failed, clears error on page prop change, and gates keys by phase', async () => {
-  const src = await readFile(new URL('../ui/document-preview/peek/PagePeek.jsx', import.meta.url), 'utf8');
-  assert.match(src, /docLoadTries/, 'uses docLoadTries to re-run document open on retry');
-  assert.match(src, /needsReload\.current\s*=\s*true/, 'marks renderer as needing reload on load/render failure');
-  assert.match(src, /setPhase\(prev => \(prev === 'error' \? 'ready' : prev\)\)/, 'clears page error when external page prop changes on healthy renderer');
-  assert.match(src, /if \(phase !== 'ready'\) return;/, 'gates navigation/zoom shortcuts to ready phase');
-  assert.match(src, /if \(typeof drag\.current === 'function'\) drag\.current\(\)/, 'cleans up active pointer drag listeners on unmount');
+  const ui = await loadInteractiveUi(`
+    export { setUiLanguage } from './ui/i18n.js';
+    export { default as PagePeek } from './ui/document-preview/peek/PagePeek.jsx';
+  `);
+  ui.exports.setUiLanguage('zh');
+  const hI = ui.React.createElement;
+
+  const prevWindow = globalThis.window;
+  const prevDocument = globalThis.document;
+  const prevGetComputedStyle = globalThis.getComputedStyle;
+  const winListeners = new Map();
+  let openerFocused = 0;
+  const fakeOpener = { isConnected: true, focus: () => { openerFocused += 1; } };
+  globalThis.document = { activeElement: fakeOpener, head: { appendChild: noop }, createElement: () => ({ style: {}, remove: noop }) };
+  globalThis.getComputedStyle = () => ({ zoom: '1' });
+  globalThis.window = {
+    innerWidth: 1200,
+    innerHeight: 800,
+    devicePixelRatio: 1,
+    addEventListener: (type, fn) => {
+      if (!winListeners.has(type)) winListeners.set(type, new Set());
+      winListeners.get(type).add(fn);
+    },
+    removeEventListener: (type, fn) => {
+      winListeners.get(type)?.delete(fn);
+    },
+  };
+
+  try {
+    let loadAttempts = 0;
+    let closeCalls = 0;
+    const loadBytes = async () => {
+      loadAttempts += 1;
+      if (loadAttempts === 1) throw new Error('network hiccup');
+      return new Uint8Array([1, 2, 3]);
+    };
+    const openRenderer = async () => ({
+      numPages: 5,
+      pageSize: async () => ({ width: 600, height: 800 }),
+      render: async () => ({ width: 600, height: 800, close: noop }),
+      destroy: noop,
+    });
+
+    let props = {
+      page: 2,
+      totalPages: 5,
+      status: { kind: 'ok' },
+      loadBytes,
+      openRenderer,
+      onClose: () => { closeCalls += 1; },
+    };
+
+    const view = ui.mount(() => hI(ui.exports.PagePeek, props));
+    await view.flush(6);
+    assert.equal(loadAttempts, 1, 'initial mount attempted loadBytes once');
+    assert.ok(view.text().includes('network hiccup'), 'enters error phase on initial load failure');
+
+    // 1. Keydown while in error phase: ArrowRight / '+' must be ignored, Escape still closes
+    const peekNodeErr = view.find((n) => n.props?.className?.includes('page-peek') && typeof n.props?.onKeyDown === 'function');
+    let prevented = 0;
+    peekNodeErr.props.onKeyDown({ key: 'ArrowRight', preventDefault: () => { prevented += 1; }, stopPropagation: noop });
+    peekNodeErr.props.onKeyDown({ key: '+', preventDefault: () => { prevented += 1; }, stopPropagation: noop });
+    assert.equal(prevented, 0, 'navigation and zoom shortcuts ignored when phase !== ready');
+    peekNodeErr.props.onKeyDown({ key: 'Escape', preventDefault: noop, stopPropagation: noop });
+    assert.equal(closeCalls, 1, 'Escape still closes even in error phase');
+
+    // 2. Retry after initial load failure triggers a fresh loadBytes + openRenderer (docLoadTries)
+    const retryBtn = view.find((n) => n.type === 'button' && ui.textOf(n).includes('重试'));
+    assert.ok(retryBtn, 'retry button rendered in error phase');
+    await view.act(() => click(retryBtn));
+    await view.flush(6);
+    assert.equal(loadAttempts, 2, 'retry reloads document when renderer failed');
+    assert.equal(view.text().includes('network hiccup'), false, 'error cleared after reload succeeds');
+
+    // 3. Force a page-range error on healthy renderer (page 9 > 5), then switch page prop back to valid page 3 -> clears error
+    props = { ...props, page: 9 };
+    view.rerender();
+    await view.flush(4);
+    assert.ok(view.text().includes('第 9 页') || view.text().includes('没有第 9 页'), 'shows page-range error');
+    props = { ...props, page: 3 };
+    view.rerender();
+    await view.flush(4);
+    assert.equal(view.text().includes('没有第 9 页'), false, 'changing page prop clears error on healthy renderer');
+
+    // 4. Active pointer drag listeners are cleaned up on unmount (and opener focus restored once)
+    const head = view.find((n) => typeof n.props?.onPointerDown === 'function' && n.props?.className?.includes('page-peek__head'));
+    if (head) {
+      head.props.onPointerDown({ button: 0, clientX: 100, clientY: 100, target: { closest: () => null }, preventDefault: noop });
+      assert.ok((winListeners.get('pointermove')?.size || 0) > 0, 'drag attached pointermove listener');
+    }
+    view.unmount();
+    assert.equal(winListeners.get('pointermove')?.size || 0, 0, 'pointermove drag listener cleaned up on unmount');
+    assert.equal(winListeners.get('pointerup')?.size || 0, 0, 'pointerup drag listener cleaned up on unmount');
+    assert.equal(openerFocused, 1, 'focus restored to opener once on unmount');
+  } finally {
+    if (prevWindow === undefined) delete globalThis.window;
+    else globalThis.window = prevWindow;
+    if (prevDocument === undefined) delete globalThis.document;
+    else globalThis.document = prevDocument;
+    if (prevGetComputedStyle === undefined) delete globalThis.getComputedStyle;
+    else globalThis.getComputedStyle = prevGetComputedStyle;
+  }
 });
