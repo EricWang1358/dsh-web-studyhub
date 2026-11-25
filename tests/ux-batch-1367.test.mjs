@@ -52,6 +52,7 @@ test("#1367-1: Socratic attempts excluded from daily-plan, study-progress, study
     learningTask: { kind: "practice", scope: [{ deckId: "d1", cardId: "c1" }] },
   };
   const state = {
+    decks: [{ id: "d1", cards: [{ id: "c1" }] }],
     runs: [{ id: "run-1", dailyPlanTaskId: "task-1", deckId: "d1", entries: [{ deckId: "d1", card: { id: "c1" }, feedback: null }] }],
     attempts: [socraticAtt],
   };
