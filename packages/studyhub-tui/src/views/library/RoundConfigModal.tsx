@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, StudySnapshot } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -53,7 +54,7 @@ function defaultRoundSize(snapshot: StudySnapshot | null): number {
 function readDeckCounts(deck: DeckItem, progressMap: Record<string, DeckProgressEntry> | undefined) {
   const p = progressMap?.[deck.id];
   const total = Number(deck.count ?? p?.total ?? deck.cardCount ?? 0) || 0;
-  const due = Number(deck.due ?? p?.due ?? deck.dueCount ?? 0) || 0;
+  const due = Number(p?.due ?? deck.due ?? deck.dueCount ?? 0) || 0;
   const newCount = Number(p?.counts?.new ?? deck.newCount ?? 0) || 0;
   const wrong = Number(deck.wrong ?? p?.counts?.weak ?? deck.wrongCount ?? 0) || 0;
   return { total, due, newCount, wrong };
@@ -455,7 +456,7 @@ export const RoundConfigModal = memo(function RoundConfigModal({
           <Spinner label={t(lang, '正在生成本轮题目…', 'Starting practice round…')} active={isActive} />
         ) : error ? (
           <Text color={theme.error} wrap="wrap">
-            {`${asciiMode ? '! ' : '✕ '}${truncateDisplay(error, Math.max(20, innerW * 2 - 4), ell)}`}
+            {`${asciiMode ? '! ' : '✕ '}${error}`}
           </Text>
         ) : (
           <>

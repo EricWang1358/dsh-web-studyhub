@@ -579,7 +579,7 @@ describe('Round 82 Track D0 (#1315 Phase 1): Persistent AI Assistant, Guided/Ret
 
     const write = parseAssistantIntent('把这题加入错题本并标记为粗心', { snapshot: snap, currentCardId: 'c1', currentDeckId: 'd1' });
     assert.equal(write.kind, 'write_confirm');
-    assert.equal(write.actionName, 'wrongbook.reason.set');
+    assert.equal(write.actionName, 'attempt.errorReason.set');
     assert.equal(write.requiresConfirm, true);
 
     const exp = parseAssistantIntent('导出本课错题 Markdown', { snapshot: snap });
@@ -687,9 +687,9 @@ describe('Round 82 Track D0 (#1315 Phase 1): Persistent AI Assistant, Guided/Ret
       h.write('n');
       await h.waitFor((s) => s.includes('已取消，数据未改动'));
       assert.equal(
-        hostCalls.some((c) => c.action === 'wrongbook.reason.set'),
+        hostCalls.some((c) => c.action === 'attempt.errorReason.set'),
         false,
-        'Cancelling ConfirmDialog must NOT call wrongbook.reason.set',
+        'Cancelling ConfirmDialog must NOT call attempt.errorReason.set',
       );
     } finally {
       h.cleanup();

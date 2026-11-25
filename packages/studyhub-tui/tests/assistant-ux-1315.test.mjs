@@ -6,12 +6,12 @@
 //   4. 批量导出 ("导出本课错题 Markdown" -> ConfirmDialog "将执行：..." -> confirm writes atomic file + 1-line result)
 //   5. 做不了兜底 (unsupported request -> nearest alternative [A] + [P] copy prompt via OSC 52 / fallback file)
 //   6. 焦点不丢失 (Ctrl+Space docks assistant on right without stealing focus: user still answers option 1 on ReviewView!)
-//   7. 撤销可用 (wrongbook.reason.set confirmed -> [z] calls inverse action to restore previous reason)
+//   7. 撤销可用 (attempt.errorReason.set confirmed -> [z] calls inverse action to restore previous reason)
 //   8. 越用越顺手 (same command repeated 3x auto-promotes to permanent page chip & recent pins to top) + >2s progress notice
 // node --test tests/assistant-ux-1315.test.mjs
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -260,7 +260,7 @@ describe('#1315 Phase 1 Full-Workflow Assistant UX Acceptance Gate', () => {
     }
   });
 
-  test('2. Scenario: 答错讲解 (wrong card chips prioritize 通俗讲解 & 加入错题本 -> streams & saves via card.followup.add)', async () => {
+  test('2. Scenario: 答错讲解 (#1338: streams plain explanation first, asks P2 confirm before card.followup.add, human-readable output)', async () => {
     resetStore({
       page: 'review',
       assistantOpen: true,
@@ -307,13 +307,31 @@ describe('#1315 Phase 1 Full-Workflow Assistant UX Acceptance Gate', () => {
     );
 
     try {
-      const frame = await h.waitFor((s) => s.includes('[1]通俗讲解') && s.includes('[2]加入错题本') && s.includes('第 3/8 题(答错)'));
+      const frame = await h.waitFor((s) => s.includes('[1]通俗讲解') && s.includes('[2]标记错因') && s.includes('第 3/8 题(答错)'));
       assert.ok(frame.includes('第 3/8 题(答错)'), 'Context ribbon must show card index & wrong status');
-      // Press [1] chip directly (no typing needed!)
+      // Press [1] chip directly -> generates explanation and opens confirmation dialog WITHOUT writing yet
       h.write('1');
-      await h.waitFor((s) => s.includes('桌面便利贴') && s.includes('已完成并保存'));
+      const confirmFrame = await h.waitFor((s) => s.includes('保存通俗讲解到本题') && s.includes('将执行：'));
+      assert.equal(savedCalls.length, 0, 'Must NOT write card.followup.add before user confirms');
+      assert.ok(!confirmFrame.includes('card.followup.add'), 'Confirmation should use human-readable wording');
+
+      // Cancelling keeps explanation without writing to disk
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('n');
+      await h.waitFor((s) => s.includes('已取消') && s.includes('桌面便利贴'));
+      assert.equal(savedCalls.length, 0, 'Cancelling confirmation must not write to card');
+
+      // Trigger again and confirm with y -> writes once with human-readable confirmation (no actionName or cardId)
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('1');
+      await h.waitFor((s) => s.includes('保存通俗讲解到本题'));
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('y');
+      const savedFrame = await h.waitFor((s) => s.includes('已保存到本题讲解'));
       assert.equal(savedCalls.length, 1);
       assert.equal(savedCalls[0].cardId, 'c-wrong');
+      assert.ok(!savedFrame.includes('card.followup.add'), 'Must not leak internal action name in UI');
+      assert.ok(!savedFrame.includes('c-wrong'), 'Must not leak raw card ID in UI');
     } finally {
       h.cleanup();
     }
@@ -376,11 +394,11 @@ describe('#1315 Phase 1 Full-Workflow Assistant UX Acceptance Gate', () => {
     const mockHost = {
       call: async (name, args) => {
         if (name === 'wrongbook') {
-          return { ok: true, value: { items: [{ prompt: '死锁预防策略', reason: '概念不清' }] } };
+          return { ok: true, value: { items: [{ prompt: '死锁预防策略', errorReason: 'concept' }] } };
         }
-        if (name === 'wrongbook.reason.set') {
+        if (name === 'attempt.errorReason.set') {
           reasonCalls.push(args);
-          return { ok: true, value: { ok: true } };
+          return { ok: true, value: { ok: true, updated: true } };
         }
         return { ok: true, value: {} };
       },
@@ -410,24 +428,28 @@ describe('#1315 Phase 1 Full-Workflow Assistant UX Acceptance Gate', () => {
       await h.waitFor((s) => s.includes('将执行：export.wrongbook'));
       h.write('y');
       await h.waitFor((s) => s.includes('已导出 1 道错题至'));
+      // The wrong-book rows carry `errorReason` (an id); the export names it as the wrong-book does.
+      const exportDir = join(libDir, 'backups');
+      const [exported] = (await readdir(exportDir)).filter((name) => name.startsWith('studyhub-wrongbook'));
+      assert.match(await readFile(join(exportDir, exported), 'utf8'), /死锁预防策略（错因：概念混淆）/);
 
-      // Now execute write action wrongbook.reason.set -> confirm -> press [z] Undo!
+      // Now execute write action attempt.errorReason.set -> confirm -> press [z] Undo!
       h.write('i');
       await new Promise((r) => setTimeout(r, 30));
       h.write('把这题加入错题本并标记为粗心');
       await h.waitFor((s) => s.includes('把这题加入错题本并标记为粗心'));
       h.write('\r');
-      await h.waitFor((s) => s.includes('将执行：wrongbook.reason.set'));
+      await h.waitFor((s) => s.includes('将执行：attempt.errorReason.set'));
       h.write('y');
-      await h.waitFor((s) => s.includes('已完成：错因已标为「粗心」'));
+      await h.waitFor((s) => s.includes('已完成：错因已标为「粗心手滑」'));
       assert.equal(reasonCalls.length, 1);
-      assert.equal(reasonCalls[0].reason, '粗心');
+      assert.deepEqual(reasonCalls[0], { deckId: 'd1', cardId: 'c-4', errorReason: 'slip' });
 
       // Undo via [z]
       h.write('z');
       await h.waitFor((s) => s.includes('已撤销：错题原因已清空'));
       assert.equal(reasonCalls.length, 2);
-      assert.equal(reasonCalls[1].reason, '');
+      assert.deepEqual(reasonCalls[1], { deckId: 'd1', cardId: 'c-4', errorReason: null });
     } finally {
       h.cleanup();
     }
@@ -507,6 +529,77 @@ describe('#1315 Phase 1 Full-Workflow Assistant UX Acceptance Gate', () => {
       h.write('2'); // chip [2] 通俗讲解
       await h.waitFor((s) => s.includes('正在执行：生成通俗讲解') && s.includes('耗时较长'));
       await h.waitFor((s) => s.includes('分段按逻辑划分'));
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test('6. (#1339) Semicolon/然后 ordinary questions go to model; multi-step workflow resumes remaining steps after confirm', async () => {
+    resetStore({
+      page: 'review',
+      assistantOpen: true,
+      assistantFocused: true,
+      assistantCardContext: { runId: 'r6', deckId: 'd1', cardId: 'card-internal-999', prompt: '设计模式对比' },
+    });
+    const promptsSent = [];
+    const reasonCalls = [];
+    const mockHost = {
+      call: async (name, args) => {
+        if (name === 'attempt.errorReason.set') {
+          reasonCalls.push(args);
+          return { ok: true, value: { ok: true, updated: true } };
+        }
+        return { ok: true, value: {} };
+      },
+      getLibraryRoot: () => '/tmp',
+      streamComplete: async ({ prompt }) => {
+        promptsSent.push(prompt);
+        return 'Memento 负责保存与恢复状态，Bridge 分离抽象与实现。';
+      },
+    };
+
+    const h = createInkHarness(
+      React.createElement(
+        Box,
+        { width: 96, height: 28 },
+        React.createElement(AssistantPanel, {
+          host: mockHost,
+          isActive: true,
+          width: 96,
+          height: 28,
+          docked: true,
+          onClose: () => {},
+        }),
+      ),
+      { cols: 96, rows: 28 },
+    );
+
+    try {
+      await h.waitFor((s) => s.includes('AI 助手'));
+      h.write('i');
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('讲讲 Memento；再讲讲 Bridge');
+      await h.waitFor((s) => s.includes('讲讲 Memento；再讲讲 Bridge'));
+      h.write('\r');
+      const replyFrame = await h.waitFor((s) => s.includes('Memento 负责保存与恢复状态'));
+      assert.equal(promptsSent.length, 1, 'Ordinary semicolon question must invoke model once');
+      assert.ok(promptsSent[0].includes('讲讲 Memento；再讲讲 Bridge'), 'Entire question must be sent to model');
+      assert.ok(!replyFrame.includes('card-internal-999'), 'Must not leak internal cardId');
+      assert.ok(!replyFrame.includes('多步任务已完成'), 'Must not treat plain question as multi-step workflow');
+
+      // Real multi-step workflow: write step first -> confirm -> remaining step (navigate to dashboard) continues!
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('i');
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('先把这题加入错题本并标记为粗心，再跳到统计');
+      await h.waitFor((s) => s.includes('先把这题加入错题本并标记为粗心，再跳到统计'));
+      h.write('\r');
+      await h.waitFor((s) => s.includes('确认标记错题原因'));
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('y');
+      await h.waitFor(() => useTuiStore.getState().page === 'dashboard');
+      assert.equal(reasonCalls.length, 1, 'Confirmed write step must execute');
+      assert.equal(useTuiStore.getState().page, 'dashboard', 'Step after confirmed write must automatically continue');
     } finally {
       h.cleanup();
     }

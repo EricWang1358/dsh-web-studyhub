@@ -1354,7 +1354,7 @@ describe('Round 54: CardToolsModal [R] Failed Rewrite Retry (coach.rewrite.retry
 
       tty.send('D');
       const menuScreen = await tty.waitFor(
-        (s) => s.includes('题目工具箱') && s.includes('[R] 重试失败的 AI 改题') && s.includes('coach.rewrite.retry'),
+        (s) => s.includes('题目工具箱') && s.includes('[R] 重试失败的 AI 改题') && s.includes('重试任务'),
         { timeoutMs: 8_000, label: 'zh CardToolsModal menu rendered with [R]' },
       );
       tty.assertHealthyScreen(menuScreen, 120, 36, '120x36 zh CardToolsModal menu');
@@ -1367,7 +1367,7 @@ describe('Round 54: CardToolsModal [R] Failed Rewrite Retry (coach.rewrite.retry
         (s) =>
           s.includes('重试 AI 改题任务') &&
           s.includes('确认重试 (y)') &&
-          s.includes('coach.rewrite.retry'),
+          s.includes('重新排队'),
         { timeoutMs: 5_000, label: 'zh ConfirmDialog opened on [R]' },
       );
       tty.assertHealthyScreen(confirmScreen, 120, 36, '120x36 zh ConfirmDialog');

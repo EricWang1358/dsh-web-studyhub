@@ -5,6 +5,9 @@ import { Badge, Button, ConfirmDialog, Hint, Icon, InlineConfirm, InlineMessage,
 import { backupFileName } from './backup-name.js';
 import { useStudy } from '../study-context.jsx';
 import { isActiveJob } from '../job-visibility.js';
+import { uploadInChunks } from '../upload.js';
+
+const CHUNKED_RESTORE_THRESHOLD = 16 * 1024 * 1024;
 
 export { backupFileName };
 
@@ -115,7 +118,7 @@ export function BackupSection({ root, exportData, onRestored, jobs = [], nav, in
       if (request !== readRequest.current) return;
       const state = JSON.parse(text);
       if (!isFullBackup(state)) throw new Error(ui('这不是完整学习库备份'));
-      setFile({ name: chosen.name, size: chosen.size, state });
+      setFile({ name: chosen.name, size: chosen.size, state, rawFile: chosen });
     } catch (e) {
       if (request === readRequest.current) setError(uiFormat('无法读取备份：{0}', [errorMessage(e)]));
     } finally { if (request === readRequest.current && input.current) input.current.value = ''; }
@@ -124,7 +127,13 @@ export function BackupSection({ root, exportData, onRestored, jobs = [], nav, in
   // A failure stays inside the confirmation (the dialog shows it and the learner can try again); the library is untouched.
   async function restore() {
     try {
-      await act('restore', { state: file.state }, (result) => { setFile(null); onRestored?.(result); }, { rethrow: true });
+      const needsChunked = Boolean(file?.rawFile && typeof call === 'function' && (Number(file.size) || 0) > CHUNKED_RESTORE_THRESHOLD);
+      if (needsChunked) {
+        const uploadId = await uploadInChunks(call, 'backup', file.rawFile);
+        await act('restore', { uploadId }, (result) => { setFile(null); onRestored?.(result); }, { rethrow: true });
+      } else {
+        await act('restore', { state: file.state }, (result) => { setFile(null); onRestored?.(result); }, { rethrow: true });
+      }
     } catch (e) {
       throw new Error(uiFormat('恢复没有完成，当前学习库保持不变：{0}', [errorMessage(e)]));
     }

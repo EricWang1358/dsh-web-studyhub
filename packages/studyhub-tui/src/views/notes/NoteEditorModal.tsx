@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
@@ -7,6 +8,7 @@ import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { TextInput } from '../../components/TextInput.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { t, useTuiStore } from '../../state/store.js';
+import { runIdempotentTwoStep } from '../../host/tx-write.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import type { CardSearchOption, NoteItem } from './notes-types.js';
 
@@ -159,6 +161,8 @@ export const NoteEditorModal = memo(function NoteEditorModal({
     });
   }, []);
 
+  const createdNoteRef = useRef<NoteItem | null>(null);
+
   const handleSave = useCallback(async () => {
     if (savingRef.current || saving) return;
     const trimmedTitle = title.trim();
@@ -166,7 +170,7 @@ export const NoteEditorModal = memo(function NoteEditorModal({
       setError(t(lang, '请输入笔记标题', 'Please enter a note title'));
       return;
     }
-    if (mode === 'create' && selectedCards.length === 0) {
+    if (mode === 'create' && !createdNoteRef.current && selectedCards.length === 0) {
       setError(
         candidates.length === 0
           ? t(lang, '当前学习库暂无题目，请先导入或创建至少 1 道题目后再新建笔记', 'No cards in library yet; add at least 1 card before creating a note')
@@ -179,30 +183,52 @@ export const NoteEditorModal = memo(function NoteEditorModal({
     setError('');
     try {
       if (mode === 'create') {
-        const createdRes = await host.call<NoteItem>('note.create', {
-          title: trimmedTitle,
-          cards: selectedCards,
-          language: lang,
+        const customMd = markdown.trim();
+        const tx = await runIdempotentTwoStep<NoteItem, NoteItem>({
+          cachedStep1: createdNoteRef.current,
+          setCachedStep1: (val) => {
+            createdNoteRef.current = val;
+          },
+          step1: async () => {
+            const createdRes = await host.call<NoteItem>('note.create', {
+              title: trimmedTitle,
+              cards: selectedCards,
+              language: lang,
+            });
+            if (!createdRes.ok || !createdRes.value) {
+              return { ok: false, error: createdRes.error?.message || t(lang, '创建笔记失败', 'Failed to create note') };
+            }
+            return { ok: true, value: createdRes.value };
+          },
+          step2: async (createdNote) => {
+            if (!customMd) return { ok: true, value: createdNote };
+            const fullMd = customMd.startsWith('# ') ? customMd : `# ${trimmedTitle}\n\n${customMd}\n`;
+            const saveRes = await host.call<NoteItem>('note.save', {
+              id: createdNote.id,
+              title: trimmedTitle,
+              markdown: fullMd,
+              expectedRevision: createdNote.revision ?? 0,
+            });
+            if (!saveRes.ok || !saveRes.value) {
+              return { ok: false, error: saveRes.error?.message || t(lang, '保存正文失败', 'Failed to write note body') };
+            }
+            return { ok: true, value: saveRes.value };
+          },
         });
         if (!mountedRef.current) return;
-        if (!createdRes.ok || !createdRes.value) {
-          setError(createdRes.error?.message || t(lang, '创建笔记失败', 'Failed to create note'));
+        if (!tx.ok) {
+          setError(
+            tx.step1Succeeded
+              ? t(
+                  lang,
+                  `笔记已创建但正文写入失败（${tx.error}），重试保存将直接写入正文而不会重复创建`,
+                  `Note created but writing body failed (${tx.error}); retrying will update it without duplicating`,
+                )
+              : tx.error,
+          );
           return;
         }
-        let finalNote = createdRes.value;
-        const customMd = markdown.trim();
-        if (customMd) {
-          const fullMd = customMd.startsWith('# ') ? customMd : `# ${trimmedTitle}\n\n${customMd}\n`;
-          const saveRes = await host.call<NoteItem>('note.save', {
-            id: finalNote.id,
-            title: trimmedTitle,
-            markdown: fullMd,
-            expectedRevision: finalNote.revision ?? 0,
-          });
-          if (!mountedRef.current) return;
-          if (saveRes.ok && saveRes.value) finalNote = saveRes.value;
-        }
-        onSaved(finalNote, true);
+        onSaved(tx.step2Value, true);
       } else if (note) {
         const saveRes = await host.call<NoteItem>('note.save', {
           id: note.id,
@@ -392,7 +418,7 @@ export const NoteEditorModal = memo(function NoteEditorModal({
 
         {error ? (
           <Box marginTop={1}>
-            <Text color={theme.error}>{`${asciiMode ? '!' : '✕'} ${truncateDisplay(error, innerWidth, asciiMode ? '...' : '…')}`}</Text>
+            <Text color={theme.error} wrap="wrap">{`${asciiMode ? '!' : '✕'} ${error}`}</Text>
           </Box>
         ) : null}
 

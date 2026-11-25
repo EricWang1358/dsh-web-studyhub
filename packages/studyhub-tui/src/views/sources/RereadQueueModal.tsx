@@ -1,5 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -81,7 +83,7 @@ export const RereadQueueModal = memo(function RereadQueueModal({
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const notify = useTuiStore((s) => s.notify);
-  const { columns, rows: termRows } = useWindowSize();
+  const { columns, rows: termRows } = useStableWindowSize();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -272,7 +274,7 @@ export const RereadQueueModal = memo(function RereadQueueModal({
       ) : error ? (
         <Box height={innerHeight} width={innerWidth} flexDirection="column" justifyContent="center" alignItems="center">
           <Text color={theme.error} bold>
-            {`${errMark} ${truncateDisplay(error, Math.max(20, innerWidth - 4), ell)}`}
+            {`${errMark} ${error}`}
           </Text>
           <Box marginTop={1}>
             <Text color={theme.muted}>

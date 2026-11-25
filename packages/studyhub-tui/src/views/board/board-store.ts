@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { copyFile, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { atomicWriteJsonFile, todayLocalYmd } from '../../host/atomic-write.js';
 
@@ -236,11 +236,26 @@ export async function loadBoard(libraryRoot: string): Promise<BoardDocument> {
   return res.doc;
 }
 
-let writeQueue: Promise<unknown> = Promise.resolve();
+const writeQueues = new Map<string, Promise<unknown>>();
 
-export async function saveBoard(libraryRoot: string, doc: BoardDocument): Promise<BoardDocument> {
+export async function saveBoard(
+  libraryRoot: string,
+  doc: BoardDocument,
+  opts?: { force?: boolean },
+): Promise<BoardDocument> {
   const target = boardFilePath(libraryRoot);
-  const run = writeQueue.then(async () => {
+  const prev = writeQueues.get(target) ?? Promise.resolve();
+  const run = prev.then(async () => {
+    const existing = await loadBoardSafe(libraryRoot);
+    if (!existing.ok) {
+      if (!opts?.force) {
+        throw new Error(
+          `Existing tui-board.json could not be read (${existing.error}); refusing to overwrite with defaults`,
+        );
+      }
+      const backupPath = `${target}.corrupt-${Date.now()}.bak`;
+      await copyFile(target, backupPath).catch(() => {});
+    }
     const normalized = parseBoardDocument({
       ...doc,
       version: 1,
@@ -249,8 +264,82 @@ export async function saveBoard(libraryRoot: string, doc: BoardDocument): Promis
     await atomicWriteJsonFile(target, normalized);
     return normalized;
   });
-  writeQueue = run.catch(() => {});
+  const tail = run.catch(() => {});
+  writeQueues.set(target, tail);
+  void tail.finally(() => {
+    if (writeQueues.get(target) === tail) {
+      writeQueues.delete(target);
+    }
+  });
   return run;
+}
+
+export interface BoardSaveCoordinator {
+  getDoc: () => BoardDocument;
+  replaceDoc: (doc: BoardDocument) => void;
+  persist: (
+    updater: (prev: BoardDocument) => BoardDocument,
+    onState: (doc: BoardDocument) => void,
+    onError?: (err: unknown) => void,
+  ) => Promise<BoardDocument>;
+  flush: () => Promise<void>;
+}
+
+/**
+ * Serializes board persistence and guards against out-of-order stale save completion (#1430):
+ * - Optimistically updates `currentDoc` and `onState` synchronously using the latest doc.
+ * - Assigns a monotonic sequence number so an earlier slow save can NEVER revert newer memory/UI state.
+ * - Serializes disk writes FIFO and skips superseded intermediate writes while always persisting the latest state.
+ */
+export function createBoardSaveCoordinator(opts: {
+  initialDoc?: BoardDocument;
+  saveFn: (doc: BoardDocument) => Promise<BoardDocument>;
+}): BoardSaveCoordinator {
+  let currentDoc = opts.initialDoc ?? emptyBoard();
+  let seq = 0;
+  let queue: Promise<void> = Promise.resolve();
+
+  return {
+    getDoc: () => currentDoc,
+    replaceDoc: (next: BoardDocument) => {
+      seq += 1;
+      currentDoc = next;
+    },
+    persist: (updater, onState, onError) => {
+      const prev = currentDoc;
+      const nextDoc = updater(prev);
+      if (nextDoc === prev) {
+        return queue.then(() => currentDoc);
+      }
+      const mySeq = ++seq;
+      currentDoc = nextDoc;
+      onState(nextDoc);
+
+      const task = queue.then(async () => {
+        if (seq !== mySeq) return currentDoc;
+        try {
+          const saved = await opts.saveFn(nextDoc);
+          if (seq === mySeq) {
+            currentDoc = saved;
+            onState(saved);
+          }
+          return saved;
+        } catch (err) {
+          onError?.(err);
+          return currentDoc;
+        }
+      });
+      queue = task.then(() => undefined, () => undefined);
+      return task;
+    },
+    flush: async () => {
+      let pending: Promise<void>;
+      do {
+        pending = queue;
+        await pending;
+      } while (queue !== pending);
+    },
+  };
 }
 
 export function adjacentColumn(col: BoardColumnId, dir: -1 | 1, wrap = false): BoardColumnId | null {

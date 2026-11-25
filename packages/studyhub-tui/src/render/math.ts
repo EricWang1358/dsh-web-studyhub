@@ -259,7 +259,11 @@ class TexParser {
   private i = 0;
   private matrixDepth = 0;
 
-  constructor(private readonly s: string) {}
+  private readonly s: string;
+
+  constructor(s: string) {
+    this.s = s;
+  }
 
   parse(): string {
     return this.parseSeq(null);

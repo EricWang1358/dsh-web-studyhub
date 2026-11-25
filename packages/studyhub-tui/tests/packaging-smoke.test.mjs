@@ -182,8 +182,8 @@ describe('StudyHub TUI Packaging, Out-of-Repo Bin Smoke & 64-Transition Resize S
 
   test('2. npm pack --dry-run --json ships only runtime artifacts and documentation', async () => {
     const pkgJson = JSON.parse(await readFile(join(pkgRoot, 'package.json'), 'utf8'));
-    assert.deepEqual(pkgJson.files, ['bin/', 'dist/', 'README.md', 'docs/GUIDE.md', 'docs/KEYBINDINGS.md']);
-    assert.equal(pkgJson.engines?.node, '>=22.0.0');
+    assert.deepEqual(pkgJson.files, ['bin/', 'dist/', 'README.md', 'docs/GUIDE.md', 'docs/KEYBINDINGS.md', 'docs/ASSISTANT-UX.md']);
+    assert.equal(pkgJson.engines?.node, '>=22.19');
 
     const npmCmd = resolveNpmCommand('npm');
     const { stdout } = await execFileAsync(npmCmd.command, ['pack', '--dry-run', '--json'], {
@@ -207,6 +207,7 @@ describe('StudyHub TUI Packaging, Out-of-Repo Bin Smoke & 64-Transition Resize S
       'README.md',
       'docs/GUIDE.md',
       'docs/KEYBINDINGS.md',
+      'docs/ASSISTANT-UX.md',
     ];
     for (const reqPath of required) {
       assert.ok(packedPaths.includes(reqPath), `npm pack must include ${reqPath}`);

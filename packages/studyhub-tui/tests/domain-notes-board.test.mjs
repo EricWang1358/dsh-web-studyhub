@@ -1349,6 +1349,15 @@ describe('Domain Notes & Board: NotesView PTY E2E (zh & --ascii en)', () => {
           tty.assertHealthyScreen(initial, pass.cols, pass.rows, `NotesView initial (${pass.name})`);
           if (pass.asciiMode) tty.assertAsciiPure(initial, `NotesView initial (${pass.name})`);
 
+          if (idx > 0) {
+            // Move selection to the newly created top note (VirtualList `g` no longer jumps to top per #1349)
+            tty.send('\x1b[H');
+            await tty.waitFor((s) => s.includes(`> - ${pass.noteTitle}`) || s.includes(`▸`), {
+              timeoutMs: 3_000,
+              label: `Select ${pass.noteTitle} via Home`,
+            });
+          }
+
           tty.send('g');
           const confirmOpen = await tty.waitFor(
             (s) =>

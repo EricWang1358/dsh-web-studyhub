@@ -1,7 +1,8 @@
 import React, { memo, useState, type ReactNode } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
 import { useTheme } from '../theme/tokens.js';
 import { t, useTuiStore } from '../state/store.js';
+import { KEY_LAYER_MODAL, useKeyScopeDepth, useScopedInput } from './key-dispatcher.js';
 import { Modal } from './Modal.js';
 import { ClickableBox } from './mouse.js';
 
@@ -40,18 +41,29 @@ export const ConfirmDialog = memo(function ConfirmDialog({
   const resolvedConfirm = confirmLabel ?? t(lang, '确认', 'Confirm');
   const resolvedCancel = cancelLabel ?? t(lang, '取消', 'Cancel');
   const [focus, setFocus] = useState<'confirm' | 'cancel'>(danger ? 'cancel' : 'confirm');
-  useInput(
+  const keyDepth = useKeyScopeDepth();
+  useScopedInput(
     (input, key) => {
-      if (input === 'y' || input === 'Y') onConfirm();
-      else if (input === 'n' || input === 'N') onCancel();
-      else if (key.leftArrow || key.rightArrow || key.tab || input === 'h' || input === 'l') {
+      if (input === 'y' || input === 'Y') {
+        onConfirm();
+        return true;
+      }
+      if (input === 'n' || input === 'N') {
+        onCancel();
+        return true;
+      }
+      if (key.leftArrow || key.rightArrow || key.tab || input === 'h' || input === 'l') {
         setFocus((f) => (f === 'confirm' ? 'cancel' : 'confirm'));
-      } else if (key.return) {
+        return true;
+      }
+      if (key.return) {
         if (focus === 'confirm') onConfirm();
         else onCancel();
+        return true;
       }
+      return false;
     },
-    { isActive: effectiveActive },
+    { isActive: effectiveActive, layer: KEY_LAYER_MODAL, depth: keyDepth, id: 'ConfirmDialog' },
   );
   const confirmColor = danger ? theme.error : theme.primary;
   const btn = (label: string, active: boolean, color: string, hot: string, onPress: () => void) => (
@@ -61,8 +73,13 @@ export const ConfirmDialog = memo(function ConfirmDialog({
       </Text>
     </ClickableBox>
   );
+  const dialogHints = [
+    { key: 'y/Enter', label: resolvedConfirm },
+    { key: 'n/Esc', label: resolvedCancel },
+    { key: 'Tab', label: t(lang, '切换按钮', 'Switch') },
+  ];
   return (
-    <Modal title={title} icon={danger ? (asciiMode ? '!' : '▲') : '?'} tone={danger ? 'error' : 'primary'} width={width} onClose={onCancel} isActive={effectiveActive} overlay={overlay}>
+    <Modal title={title} icon={danger ? (asciiMode ? '!' : '▲') : '?'} tone={danger ? 'error' : 'primary'} width={width} onClose={onCancel} isActive={effectiveActive} overlay={overlay} hints={dialogHints}>
       <Box marginY={1} flexDirection="column">
         {typeof message === 'string' ? <Text color={theme.text}>{message}</Text> : message}
       </Box>
