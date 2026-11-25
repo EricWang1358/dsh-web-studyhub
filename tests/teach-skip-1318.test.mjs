@@ -65,8 +65,11 @@ async function setup(t) {
 test("#1318: skip-all phrases are recognised, single-skip phrases are not swallowed by them", () => {
   // zh: the learner names the rest, not one step
   assert.equal(isTeachSkipAllPhrase("直接讲完"), true);
+  assert.equal(isTeachSkipAllPhrase("直接讲完吧"), true);
+  assert.equal(isTeachSkipAllPhrase("那剩下的直接讲吧"), true);
   assert.equal(isTeachSkipAllPhrase("剩下的直接讲给我听"), true);
   assert.equal(isTeachSkipAllPhrase("剩下的都讲一遍。"), true);
+  assert.equal(isTeachSkipAllPhrase("直接告诉我剩下的"), true);
   assert.equal(isTeachSkipAllPhrase("全部跳过"), true);
   // en
   assert.equal(isTeachSkipAllPhrase("skip all"), true);
