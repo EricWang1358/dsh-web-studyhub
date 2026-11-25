@@ -258,3 +258,25 @@ test('#1436 Item 5d: renaming an ordinary referenced PDF does not turn it into a
   assert.equal(origUi.canSyncReferencedText({ ...beforeRefusal, original: { mode: 'reference', bytes: 4096 } }), false, 'the reader hides sync for pages marked converted');
   await assert.rejects(call('materials.document.get', { documentId: imported.documentId, refresh: true }), /转换|不能.*覆盖|重新绑定|重新转换/);
 });
+
+test('#1436 Item 5e: the empty-projection guard belongs to a text sync; an ordinary re-import of the learner\'s own file is still theirs to make', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'studyhub-1436-item5-reimport-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const service = new StudyService(root);
+  t.after(() => service.dispose());
+  const call = (name, args) => service.call(name, args);
+
+  const first = Buffer.from('# 笔记\n\n第一版正文，读了能用的那一段。\n', 'utf8');
+  const imported = await call('materials.document.import', { filename: 'notes.md', dataBase64: first.toString('base64') });
+  const before = await call('materials.document.get', { documentId: imported.documentId });
+  assert.ok(before.sources.length > 0, 'the first import holds readable pages');
+
+  // Replacing the file with a version that extracts no text (a scan of the same chapter, say) is an ordinary re-import of the learner's file,
+  // not a silent text sync: it is accepted, and the sync path keeps its guard (see 5b).
+  const scanned = Buffer.from('   \n\n', 'utf8');
+  const replaced = await call('materials.document.import', { documentId: imported.documentId, filename: 'notes.md', dataBase64: scanned.toString('base64') });
+  assert.notEqual(replaced.revision, imported.revision, 'the re-import makes its own revision');
+  const after = await call('materials.document.get', { documentId: imported.documentId });
+  assert.equal(after.revision, replaced.revision, 'the re-imported version is current');
+  assert.equal(after.sources.length, 0, 'the scanned version holds no extracted text, as the learner chose');
+});
