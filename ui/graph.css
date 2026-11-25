@@ -308,6 +308,7 @@
       display: inline-block;
       vertical-align: top;
       font-family: var(--font-stack-mono);
+      tab-size: 2;
     }
     .cloze-blank {
       display: inline-block;
