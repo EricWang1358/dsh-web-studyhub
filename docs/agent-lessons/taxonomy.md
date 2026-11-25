@@ -13,7 +13,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Not this class: C02 is how the second path came to exist; C01 is forgetting it when changing behaviour.
 - Pairs: #62 (formula display fixed for text sources only) ↔ #341 (crash-safe publish added to the publish job but not to the supplement run's own publish)
 - Evidence: 28 cards over 10 surfaces (cards.mjs stats at revision 25); first refs #13 #62 #209 #229 #231
-- Home: question in `.claude/skills/verify-before-done`
+- Home: question in `.claude/skills/verify-before-done`; hook `declare-done` in `.claude/hooks/skill-moments.json`
 - Status: recurring, costly
 
 ## C02 A component or mechanism was rebuilt, copied or overridden per caller
@@ -33,7 +33,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Not this class: C04 (the right checks exist but did not run); C20 (the change itself breaks a property).
 - Pairs: #1118 (a button sized for the Chinese label overflowed in English) ↔ #753 (chapter detection built for the numbering already seen split a real book into wrong chapters); #875 (a transcription option trusted from its name) ↔ #255 (a library assumed not to mutate its input)
 - Evidence: 91 cards over 15 surfaces (cards.mjs stats at revision 25); first refs #17 #19 #20 #21 #29
-- Home: question in `.claude/skills/verify-before-done`
+- Home: question in `.claude/skills/verify-before-done`; hook `declare-done` in `.claude/hooks/skill-moments.json`
 - Status: recurring, costly
 
 ## C04 The checks that ran were narrower than the change's reach
@@ -43,7 +43,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Not this class: C03 (wrong environment); C16 (no check exists).
 - Pairs: #1251 (smart selection skipped whole-tree guards) ↔ #1355 (three green PRs together exceeded the first-load ceiling)
 - Evidence: 23 cards over 4 surfaces (cards.mjs stats at revision 25); first refs #329 #373 #391 #411 #633
-- Home: question in `.claude/skills/verify-before-done`
+- Home: question in `.claude/skills/verify-before-done`; hook `declare-done` in `.claude/hooks/skill-moments.json`
 - Status: recurring, costly
 
 ## C05 (merged into C02)
@@ -210,14 +210,14 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Home: question in `.claude/skills/decide-from-data`
 - Status: recurring, costly
 
-## C22 A broad operation was scoped by exclusion or wildcard over a place others share
+## C22 A broad operation acted on a place others share as if it were the only user
 - Layer: logic · Moment: implement
-- Condition: a cleanup, add or delete selected its targets as "everything except what I own" or by a broad pattern, in a location other components or sessions also use, and so removed or committed things it did not create.
-- Catch: Does this operation name only the items I created or intend, or does it select by exclusion or wildcard in a place others use?
-- Not this class: C02 (a second owner of the same thing); C20 (a rewrite that breaks a property of the data).
+- Condition: a cleanup, add, delete or whole-checkout change (switching branch, pulling, rebasing, resetting, stashing) ran in a location other components or sessions also use, selected its targets by exclusion, wildcard or "the whole tree", and so removed, committed, moved or misread things it did not create.
+- Catch: Does this operation touch only the items I created or intend, or does it select by exclusion or wildcard, or switch, pull, rebase, reset or stash a checkout that another session may be using?
+- Not this class: C02 (a second owner of the same thing); C20 (a rewrite that breaks a property of the data); C42 (two workers given the same item).
 - Pairs: #25 (an upgrade cleanup deleted every file in a shared folder except the one it installed) ↔ #36 (a broad add committed six files of another session)
-- Evidence: 2 cards over 2 surfaces (cards.mjs stats at revision 25); first refs #25 #36
-- Home: question in `.claude/skills/decide-from-data`
+- Evidence: 2 cards over 2 surfaces (cards.mjs stats at revision 25); first refs #25 #36. Captured after: #1481 (2026-11-25: a session switched branch in a checkout another session was editing, and that session's untracked test failed the whole-tree run).
+- Home: question in `.claude/skills/decide-from-data`; hook `shared-checkout` in `.claude/hooks/skill-moments.json`
 - Status: costly
 
 ## C23 Accessibility semantics were added without checking what keyboard and screen-reader users get
@@ -257,7 +257,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Not this class: C02 (a second live owner built on purpose); C16 (a rule with no guard, nothing superseded).
 - Pairs: #133 (a dead import component still under test) ↔ #155 (dozens of unused selectors after code was removed); #73 (an old focus trap left running after a new dialog replaced it)
 - Evidence: 8 cards over 5 surfaces (cards.mjs stats at revision 25); first refs #73 #133 #155 #340 #685
-- Home: question in `.claude/skills/verify-before-done`
+- Home: question in `.claude/skills/verify-before-done`; hook `declare-done` in `.claude/hooks/skill-moments.json`
 - Status: recurring
 
 ## C27 Content arriving after first paint moved or overwrote what the user already saw or chose
@@ -307,7 +307,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Not this class: C01 (a change made on one path while siblings keep the old behaviour); C02 (a second owner built beside an existing one); C04 (checks exist but did not run).
 - Pairs: #279 (a receipt field was 0 on the new path) ↔ #287 (an explicit retry refused after a clearly observed failure); #309 (the new path lost the old rate-limit retry)
 - Evidence: 6 cards over 3 surfaces (cards.mjs stats at revision 25); first refs #279 #287 #290 #309 #330
-- Home: question in `.claude/skills/verify-before-done`
+- Home: question in `.claude/skills/verify-before-done`; hook `declare-done` in `.claude/hooks/skill-moments.json`
 - Status: recurring
 
 ## C32 State left over from an earlier attempt, cycle or context was reused without being reset or checked
@@ -357,7 +357,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Not this class: C19 (production code deciding on unsettled state); C03 (judging the product from a stand-in); C16 (a rule with no check).
 - Pairs: #307 (a test read the clock twice across midnight) ↔ #298 (a second run had to start inside a fixed window); #285 (a helper copied a directory still being written), #318 (mocked timers stalled retries)
 - Evidence: 28 cards over 4 surfaces (cards.mjs stats at revision 25); first refs #260 #285 #293 #298 #307
-- Home: question in `.claude/skills/verify-before-done`
+- Home: question in `.claude/skills/verify-before-done`; hook `declare-done` in `.claude/hooks/skill-moments.json`
 - Status: recurring, costly
 
 ## C37 A rule or boundary picked its targets by the names already known, not by the capability that makes them matter
@@ -377,7 +377,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Not this class: C16 (a rule with no check at all; C38 is one specific untested compatibility direction); C32 (a stale record reused on resume).
 - Pairs: #331 (new manifest keys rejected by the previous release's closed schema) ↔ #360 (a stored version never compared, so an older reader overwrote a newer file); #339
 - Evidence: 6 cards over 4 surfaces (cards.mjs stats at revision 25); first refs #331 #339 #360 #487 #611
-- Home: question in `.claude/skills/verify-before-done`
+- Home: question in `.claude/skills/verify-before-done`; hook `declare-done` in `.claude/hooks/skill-moments.json`; hook `release` in `.claude/hooks/skill-moments.json`
 - Status: recurring, costly
 
 ## C39 A run took a setting's value from the wrong moment
@@ -407,7 +407,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Not this class: C04 (the checks exist but did not run on the merged result); C01 (a fix reached one code path, not one branch); C42 (the work was handed out twice).
 - Pairs: #251 (a stacked PR merged into its base, so the shipping branch lacked a phase) ↔ #474 (a finished fix sat on a side branch and was in neither of the last two releases); #473 #491
 - Evidence: 6 cards over 2 surfaces (cards.mjs stats at revision 25); first refs #251 #473 #474 #491 #750
-- Home: question in `.claude/skills/verify-before-done`
+- Home: question in `.claude/skills/verify-before-done`; hook `declare-done` in `.claude/hooks/skill-moments.json`; hook `release` in `.claude/hooks/skill-moments.json`
 - Status: recurring
 
 ## C42 The same work item was handed to parallel workers with no claim on it
@@ -417,7 +417,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Not this class: C35 (a restart repeats finished steps; here two workers start the same item); C02 (a second live component built on purpose).
 - Pairs: #498 ↔ #500 (two duplicate implementations of one issue by parallel workers; find a more different second pair when one turns up)
 - Evidence: 2 cards over 1 surfaces (cards.mjs stats at revision 25); first refs #498 #500
-- Home: question in `.claude/skills/verify-before-done`
+- Home: question in `.claude/skills/verify-before-done`; hook `declare-done` in `.claude/hooks/skill-moments.json`
 - Status: costly
 
 ## C43 A failure was handled by one generic response without telling its kind apart
