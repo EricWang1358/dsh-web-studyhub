@@ -45,6 +45,9 @@ export default function TeachingPanel({ session, data, model, onModelSettings })
   };
   const skippedSteps = Array.isArray(teaching.skippedSteps) ? teaching.skippedSteps : [];
   const wrongTries = Number.isInteger(teaching.wrongTries) ? teaching.wrongTries : 0;
+  // Only the step check itself says 正在检查…: 跳过这一步 / 剩下的直接讲给我听 (teach.skip) and switching modes (teach.start)
+  // keep the button quiet, while a session that reports no action at all keeps the old behaviour.
+  const checkingStep = teachingBusy && teachingAction !== "teach.skip" && teachingAction !== "teach.start";
 
   return (
     <div className="teaching-panel">
@@ -113,7 +116,7 @@ export default function TeachingPanel({ session, data, model, onModelSettings })
               </label>
               <div className="teaching-panel__actions">
                 <Button className="teaching-panel__submit" variant="secondary" size="sm"
-                  busy={teachingBusy && teachingAction === "teach.answer"} busyLabel={ui("正在检查…")}
+                  busy={checkingStep} busyLabel={ui("正在检查…")}
                   disabled={teachingBusy || !teachAnswer.trim()}
                   onPointerUp={(e) => e.currentTarget.closest(".study-app")?.focus({ preventScroll: true })} type="submit">{ui("检查理解")}</Button>
                 <Button className="teaching-panel__skip" variant="ghost" size="sm" disabled={teachingBusy}

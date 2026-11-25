@@ -22,7 +22,8 @@ export function ExamAlignmentPointerView({ preview, course, onOpen }) {
 }
 
 /** Reads the preview for the course (again when its saved exam date changes) and opens Settings at the switch, closing the course
-    panel first through `onLeave`. */
+    panel first through `onLeave(proceed)`: the host owns navigation, so it runs `proceed` once it is safe (after a leave prompt).
+    Without `onLeave` the switch opens directly. */
 export function ExamAlignmentPointer({ course, examDate, onLeave }) {
   const { call, openSettings } = useStudy();
   const [preview, setPreview] = useState(null);
@@ -30,10 +31,7 @@ export function ExamAlignmentPointer({ course, examDate, onLeave }) {
     call('course.examAlignment.preview', {}).then(result => { if (live()) setPreview(result); }, () => { if (live()) setPreview(null); });
   }, [call, course, examDate]);
   const open = () => openSettings('settings-exam-alignment');
-  return <ExamAlignmentPointerView preview={preview} course={course} onOpen={() => {
-    if (typeof onLeave === 'function' && onLeave.length > 0) onLeave(open);
-    else { onLeave?.(); open(); }
-  }} />;
+  return <ExamAlignmentPointerView preview={preview} course={course} onOpen={() => (onLeave ? onLeave(open) : open())} />;
 }
 
 export default ExamAlignmentPointer;

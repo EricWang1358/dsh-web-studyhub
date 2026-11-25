@@ -18,17 +18,23 @@ import { exportCompanionFiles } from "../lib/companion/companions.js";
 import { exportAttachments, retainOriginal } from "../lib/contexts/materials/files.js";
 import { hasCourseBook } from "../ui/book/qa-auto.js";
 import { loadUi } from "./helpers/ui-module.mjs";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { MAX_BACKUP_UPLOAD_BYTES } from "../lib/audio-upload.js";
+import { backupUploadsHome } from "../lib/mineru-paths.js";
 
 const uiMod = await loadUi(`
   export { putDraftStash, pickRecoveryFor, dropDraftStash } from "./ui/app/use-drafts.js";
+  export { default as TeachingPanel } from "./ui/review/TeachingPanel.jsx";
 `);
 const { putDraftStash, pickRecoveryFor, dropDraftStash } = uiMod;
+const h = React.createElement;
 
 function tempRoot(tag = "1367") {
   return fs.mkdtempSync(path.join(os.tmpdir(), `studyhub-${tag}-`));
 }
 
-test("#1367-1: Socratic attempts excluded from daily-plan, study-progress, study-scene, and exam-coach (while pre-answer socratic exposure disqualifies unseen independence)", () => {
+test("#1367-1: Socratic attempts excluded from daily-plan, study-progress, study-scene, and exam-coach formal counts", () => {
   const socraticAtt = {
     id: "att-soc-1",
     runId: "run-1",
@@ -99,8 +105,76 @@ test("#1367-1: Socratic attempts excluded from daily-plan, study-progress, study
     timestamp: "2026-11-24T01:05:00.000Z",
   };
   const r2 = computeCoachEvidence({ ...coachStateOnlySoc, attempts: [socraticAtt, formalAfterSoc] }, { course: "OS", spec });
-  assert.equal(r2.capabilityEvidence.unseenIndependentPassCount, 0);
-  assert.equal(r2.capabilityEvidence.assistedOrExposedCount, 1);
+  // A Socratic step never enters the answer log as an answer, and the log alone cannot prove a hint or the answer was shown:
+  // the formal answer is judged on its own assistance (#1367-1, corrected by the #1395 review).
+  assert.equal(r2.capabilityEvidence.unseenIndependentPassCount, 1);
+  assert.equal(r2.capabilityEvidence.assistedOrExposedCount, 0);
+});
+
+test("#1367-1b: open-and-close never disqualifies a later independent pass; a hint or the answer counts only in its own round", async () => {
+  const spec = normalizeCoachSpec({
+    taskFamilies: [{ id: "f1", title: "Paging", primaryFormat: "open", quota: 1, questionsPerUnit: 1, priority: "core", topics: ["Paging"] }],
+  }, "OS");
+  const card = {
+    id: "c1", kind: "open", topic: "Paging", prompt: "Explain TLB hit ratio.", answer: "Hit rate * access time.",
+    explanation: "TLB caches page table entries.", objective: "Compute EAT", hint: "Consider hit and miss.",
+    misconception: "Forgetting memory access.", coachSpecVersion: spec.specVersion,
+  };
+  const formal = {
+    id: "att-formal", runId: "run-open", deckId: "d1", quiz_id: "c1", topic: "Paging", assessment: "rubric",
+    score: 10, maxScore: 10, grade: 4, correct: true, timestamp: "2026-11-24T01:05:00.000Z", elapsed_ms: 90000,
+  };
+  const coachState = (cards, attempts) => ({
+    courses: [{ id: "co1", name: "OS" }],
+    sources: [],
+    decks: [{ id: "d1", title: "OS", course: "OS", cards }],
+    attempts,
+    feedback: [],
+    learner: { solutionExposures: [] },
+  });
+
+  // Opening the drawer writes nothing on the card: the later correct answer stays an unseen independent pass.
+  const root = tempRoot("1367-1b");
+  try {
+    const service = new StudyService(root);
+    await service.store.update((s) => {
+      s.courses = [{ id: "co1", name: "OS" }];
+      s.decks = [{ id: "d1", title: "OS", course: "OS", cards: [card] }];
+    });
+    const ref = { deckId: "d1", cardId: "c1" };
+    const opened = await service.call("socratic.get", ref);
+    assert.equal(opened.persisted, false, "opening the drawer is a read, not a Socratic record");
+    assert.equal((await service.store.read()).decks[0].cards[0].socratic, undefined, "open-and-close leaves no record on the card");
+    const untouched = await service.store.read();
+    const afterOpen = computeCoachEvidence(coachState(untouched.decks[0].cards, [formal]), { course: "OS", spec });
+    assert.equal(afterOpen.capabilityEvidence.unseenIndependentPassCount, 1, "a card whose drawer was only opened still counts an independent pass");
+    assert.equal(afterOpen.capabilityEvidence.assistedOrExposedCount, 0);
+
+    // A hint taken in a round stamps that round on the record.
+    const run = await service.call("review.start", { mode: "path", scope: [ref] });
+    await service.call("socratic.step", { ...ref, runId: run.id, action: "hint", offline: true });
+    const hinted = (await service.store.read()).decks[0].cards[0];
+    assert.equal(hinted.socratic.hintLevel, 1);
+    assert.equal(hinted.socratic.helpRunId, run.id, "the hint remembers the round it was given in");
+
+    // Same round: the answer to that round is assisted, never a clean pass.
+    const answeredAt = new Date(Date.now() + 60_000).toISOString();
+    const sameRound = computeCoachEvidence(coachState([hinted], [{ ...formal, runId: run.id, timestamp: answeredAt }]), { course: "OS", spec });
+    assert.equal(sameRound.capabilityEvidence.assistedOrExposedCount, 1);
+    assert.equal(sameRound.capabilityEvidence.unseenIndependentPassCount, 0);
+
+    // A later round with the same record still counts as independent: the old hint does not follow the question forever.
+    const laterRound = computeCoachEvidence(coachState([hinted], [{ ...formal, runId: "run-later" }]), { course: "OS", spec });
+    assert.equal(laterRound.capabilityEvidence.unseenIndependentPassCount, 1);
+    assert.equal(laterRound.capabilityEvidence.assistedOrExposedCount, 0);
+
+    // A record from before this rule (no helpRunId) never disqualifies anything: history is not re-judged.
+    const legacy = { ...hinted, socratic: { hintLevel: 2, maxHintLevelUsed: 2, revealed: true } };
+    const rerun = computeCoachEvidence(coachState([legacy], [{ ...formal, runId: "run-later" }]), { course: "OS", spec });
+    assert.equal(rerun.capabilityEvidence.unseenIndependentPassCount, 1);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("#1367-2: ENOENT attachment is skipped during export (stripping dangling attachment so restore succeeds), while tampered bytes still throw", async () => {
@@ -266,10 +340,24 @@ test("#1367-7, #1367-8, #1367-9: draft stash clearing, CourseSettings live dirty
   assert.ok(csSrc.includes("if (draftDirty || ruleDraftRef.current?.hasDraft || notationDraftRef.current?.hasDraft)"));
   assert.ok(csSrc.includes("leavePrompt?.kind === 'leave'"));
 
-  // #1367-9: TeachingStatus rendered outside teaching.complete ternary + teachingAction distinguishes teach.answer
-  const tpSrc = await readFile(path.resolve("ui/review/TeachingPanel.jsx"), "utf8");
-  assert.ok(tpSrc.includes('teachingAction !== "teach.start"'));
-  assert.ok(tpSrc.indexOf("<TeachingStatus") > tpSrc.indexOf("teaching.complete"), "TeachingStatus stays rendered after the complete ternary");
+  // #1367-9: rendered behaviour — the busy label belongs to teach.answer alone, and the status outlives the complete ternary.
+  const panel = (session) => renderToStaticMarkup(h(uiMod.TeachingPanel, {
+    session: {
+      entry: { teaching: session.teaching, teachAnswer: "破坏循环等待条件" },
+      teachingBusy: Boolean(session.busy), teachingAction: session.action ?? "", teachingError: session.error ?? "",
+      actions: { teachingAct: () => {}, setTeachAnswer: () => {}, cancelTeaching: () => {}, retryTeaching: () => {} },
+    },
+    data: { sources: [] }, model: {}, onModelSettings: () => {},
+  }));
+  const step = { id: "t1", index: 0, total: 3, mode: "understanding", lesson: "先看这一步", check: "为什么按序申请就不会死锁？", complete: false };
+  const skipping = panel({ teaching: step, busy: true, action: "teach.skip" });
+  assert.ok(!skipping.includes("正在检查…"), "跳过这一步 must not label 检查理解 as 正在检查…");
+  assert.ok(skipping.includes("正在准备当前步骤…"), "the shared status line still reports the step in flight");
+  const checking = panel({ teaching: step, busy: true, action: "teach.answer" });
+  assert.ok(checking.includes("正在检查…"), "检查理解 labels its own step 正在检查…");
+  const done = panel({ teaching: { id: "t1", index: 2, total: 3, mode: "understanding", complete: true, transfer: "把这道题迁移到下一题" }, error: "这一步失败了" });
+  assert.ok(done.includes("把这道题迁移到下一题"));
+  assert.ok(done.includes("这一步失败了"), "the status line is rendered after the complete branch too");
 });
 
 test("#1367-10: chunked backup.upload.* + restore { uploadId } restores full backup and removes temp file", async () => {
@@ -301,7 +389,39 @@ test("#1367-10: chunked backup.upload.* + restore { uploadId } restores full bac
     const restoredDecks = (await service.store.read()).decks;
     assert.equal(restoredDecks.length, 1);
     assert.equal(restoredDecks[0].title, "Chunked Restore Deck");
-    assert.equal(fs.existsSync(path.join(root, "backup-uploads", started.uploadId)), false, "temp backup upload folder must be cleaned up");
+    assert.equal(fs.existsSync(path.join(root, "backup-uploads")), false, "a backup upload must never create a folder inside the library");
+    assert.equal(fs.existsSync(path.join(backupUploadsHome(root), started.uploadId)), false, "temp backup upload folder must be cleaned up");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("#1367-10b: the backup cap is what restore can actually parse, the temp copy waits outside the library, and a read failure is named as one", async () => {
+  // Restore parses the whole file as one string; the cap has to stay below the V8 string ceiling (~512 MB) with room to parse.
+  assert.ok(MAX_BACKUP_UPLOAD_BYTES < 400 * 1024 * 1024, "the upload cap must be a size JSON.parse can actually take");
+
+  const root = tempRoot("1367-10b");
+  try {
+    const service = new StudyService(root);
+    await assert.rejects(
+      () => service.call("backup.upload.start", { name: "huge.json", size: MAX_BACKUP_UPLOAD_BYTES + 1 }),
+      /256 MB/, "an oversized backup is refused with the real limit, not accepted and then mis-parsed",
+    );
+
+    const bytes = Buffer.from(JSON.stringify({ decks: [] }), "utf8");
+    const started = await service.call("backup.upload.start", { name: "studyhub-backup.json", size: bytes.length });
+    const tempDir = path.join(backupUploadsHome(root), started.uploadId);
+    assert.ok(fs.existsSync(tempDir), "the upload waits in the app's own temp home");
+    assert.equal(fs.existsSync(path.join(root, "backup-uploads")), false, "nothing is written into the synced library");
+
+    await service.call("backup.upload.chunk", { uploadId: started.uploadId, offset: 0, data: bytes.toString("base64") });
+    await service.call("backup.upload.finish", { uploadId: started.uploadId });
+    fs.rmSync(path.join(tempDir, "studyhub-backup.json"));
+    await assert.rejects(() => service.call("restore", { uploadId: started.uploadId }), (e) => {
+      assert.match(e.message, /读不出来/, "an unreadable file is reported as unreadable");
+      assert.doesNotMatch(e.message, /不是有效的 JSON/, "and never blamed on the JSON");
+      return true;
+    });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
