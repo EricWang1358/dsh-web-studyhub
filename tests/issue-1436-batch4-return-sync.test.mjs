@@ -5,9 +5,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
+import { Store } from '../lib/store.js';
+import { createMaterialsOperations } from '../lib/contexts/materials/operations.js';
+import { makeTextPdf } from './helpers/text-pdf.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 
 const origUi = await loadUi(`
@@ -205,4 +209,52 @@ test('#1436 Item 5c: UI helpers disable sync for converted/oversized docs and lo
   const syncErr = origUi.explainFailure('Document must be a file of at most 40 MB', { context: 'sync' });
   assert.doesNotMatch(syncErr, /复制进资料库/, 'sync context must not emit contradictory copy-limit message');
   assert.match(syncErr, /40 MB/);
+});
+
+test('#1436 Item 5d: renaming an ordinary referenced PDF does not turn it into a "deeply converted" book: syncing stays offered and accepted; a converted version is still refused', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'studyhub-1436-item5-rename-'));
+  const outside = await mkdtemp(join(tmpdir(), 'studyhub-1436-item5-rename-files-'));
+  t.after(async () => { await rm(root, { recursive: true, force: true }); await rm(outside, { recursive: true, force: true }); });
+  const store = new Store(root);
+  const ops = createMaterialsOperations({
+    root,
+    read: async () => { const state = await store.read(); return structuredClone({ sources: state.sources, documents: state.documents || [] }); },
+    update: (fn) => store.update(async (state) => {
+      const own = { sources: state.sources, documents: state.documents || [] };
+      const result = await fn(own); state.sources = own.sources; state.documents = own.documents; return result;
+    }),
+  });
+  const call = (action, args = {}) => ops.handlers[action](args, {});
+
+  // An ordinary text PDF whose original is attached ONLY by reference (the by-path import).
+  const pdfPath = join(outside, 'Lecture.pdf');
+  const v1 = await makeTextPdf([['Virtual memory isolates address spaces across processes in modern kernels.'], ['Paging splits memory into fixed size frames for every process.']]);
+  await writeFile(pdfPath, v1);
+  const imported = await call('materials.document.import', { filename: 'Lecture.pdf', dataBase64: v1.toString('base64') });
+  await store.update((state) => { for (const doc of state.documents) { delete doc.externalPath; for (const ver of doc.versions) ver.attachment = null; } });
+  await rm(join(root, 'attachments'), { recursive: true, force: true });
+  assert.equal((await call('materials.original.attach', { documentId: imported.documentId, path: pdfPath, mode: 'reference' })).status, 'attached');
+
+  // Renaming writes `bookTitle` onto every paged source (lib/document-title.js) - ordinary PDFs included.
+  const renamed = await call('materials.document.rename', { documentId: imported.documentId, title: 'Lecture notes, week 1' });
+  assert.equal(renamed.status, 'renamed');
+  const state = await store.read();
+  assert.ok(state.sources.every((source) => source.document.bookTitle === 'Lecture notes, week 1'), 'the rename wrote bookTitle on the ordinary pages');
+
+  // The reader still offers the sync button for what it is shown...
+  const shown = await call('materials.document.get', { documentId: imported.documentId });
+  assert.equal(origUi.canSyncReferencedText({ ...shown, original: { mode: 'reference', bytes: 4096 } }), true, 'a renamed ordinary PDF is not a converted book to the reader');
+
+  // ...and the backend accepts it: a changed file on disk is synced.
+  const v2 = await makeTextPdf([['Virtual memory isolates address spaces across processes in modern kernels.'], ['Segmentation was replaced by paging in this second edition of the notes.']]);
+  await writeFile(pdfPath, v2);
+  const synced = await call('materials.document.get', { documentId: imported.documentId, refresh: true });
+  assert.notEqual(synced.revision, shown.revision, 'the sync stored a new revision');
+  assert.ok(synced.sources.some((source) => /second edition/.test(source.text)), 'the new file content is what the reader shows');
+
+  // A converted version (its pages are marked as converter output) is still refused, with its pages untouched.
+  await store.update((s) => { for (const source of s.sources) source.document.origin = 'converted'; });
+  const beforeRefusal = await call('materials.document.get', { documentId: imported.documentId });
+  assert.equal(origUi.canSyncReferencedText({ ...beforeRefusal, original: { mode: 'reference', bytes: 4096 } }), false, 'the reader hides sync for pages marked converted');
+  await assert.rejects(call('materials.document.get', { documentId: imported.documentId, refresh: true }), /转换|不能.*覆盖|重新绑定|重新转换/);
 });

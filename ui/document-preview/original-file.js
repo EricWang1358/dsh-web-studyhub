@@ -81,7 +81,7 @@ export function canSyncReferencedText(document) {
   const original = document.original || null;
   if (original?.convertedFrom) return false;
   if (/-conv\d*(?:-whole)?$/i.test(String(document.revision || ''))) return false;
-  if (Array.isArray(document.sources) && document.sources.some(source => Boolean(source?.document?.bookTitle))) return false;
+  if (Array.isArray(document.sources) && document.sources.some(source => source?.document?.origin === 'converted')) return false;
   if (original?.tooLargeForReader) return false;
   if (Number.isFinite(original?.bytes) && original.bytes > ORIGINAL_MAX_BYTES) return false;
   return true;
