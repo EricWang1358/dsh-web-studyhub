@@ -601,7 +601,6 @@ export const AssistantPanel = memo(function AssistantPanel({
       setInputFocused(false);
       setLastFallback(null);
       sessionMemory.lastFallback = null;
-      recordUsage(text);
       // Always show what was asked, so every answer below has its question above it (#1410).
       const userTurn = appendTurn({ role: 'user', stage: tab === 'guided' ? stage : undefined, text });
 
@@ -684,6 +683,10 @@ export const AssistantPanel = memo(function AssistantPanel({
         }
         return;
       }
+
+      // Only real commands feed the adaptive chip stats: retell prose is an answer, and counting it
+      // would promote "answers" into command chips or evict genuine commands (#1406).
+      recordUsage(text);
 
       // Round 88 Track D4 (#1315 Phase 3): Multi-step workflow skeleton ("先 X 再 Y", step-by-step confirmation)
       const workflowPlan = planAssistantWorkflow(text, {
