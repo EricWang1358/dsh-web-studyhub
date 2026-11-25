@@ -181,6 +181,20 @@ async function backupCorruptConfig(configPath) {
 }
 
 /**
+ * Back up a corrupted desktop.json and reset it to clean defaults. The file is read again first: one that reads fine (or is absent) is left
+ * alone, a read error is no proof of corruption and stops here, and a backup that fails stops the reset.
+ */
+async function recoverStoredConfig(configPath) {
+  const found = await inspectStoredConfig(configPath);
+  if (found.kind === 'unreadable') throw unreadableConfigError(configPath, found.error);
+  if (found.kind !== 'corrupt') return { recovered: false, reason: found.kind === 'ok' ? 'readable' : 'missing', backupPath: '' };
+  const backupPath = await backupCorruptConfig(configPath);
+  const clean = defaultDesktopConfig();
+  await atomicWriteJson(configPath, clean);
+  return { recovered: true, backupPath, config: clean };
+}
+
+/**
  * Create atomic JSON config persistence for StudyHub Desktop.
  * Persists `desktop.json` strictly under StudyHub home (`<DSH_HOME || ~/.dsh>/study/desktop.json`),
  * never inside the study library root.
@@ -224,21 +238,8 @@ export function createConfigStore({
     });
   }
 
-  /**
-   * Explicitly back up a corrupted desktop.json and reset it to clean defaults (#1436 Item 8). The file is read again first: one that reads
-   * fine (or is absent) is left alone, a read error is no proof of corruption and stops here, and a backup that fails stops the reset.
-   */
-  function recover() {
-    return serializeWrite(async () => {
-      const found = await inspectStoredConfig(configPath);
-      if (found.kind === 'unreadable') throw unreadableConfigError(configPath, found.error);
-      if (found.kind !== 'corrupt') return { recovered: false, reason: found.kind === 'ok' ? 'readable' : 'missing', backupPath: '' };
-      const backupPath = await backupCorruptConfig(configPath);
-      const clean = defaultDesktopConfig();
-      await atomicWriteJson(configPath, clean);
-      return { recovered: true, backupPath, config: clean };
-    });
-  }
+  /** Explicitly back up a corrupted desktop.json and reset it to clean defaults (#1436 Item 8); see recoverStoredConfig. */
+  const recover = () => serializeWrite(() => recoverStoredConfig(configPath));
 
   function saveLibraryRoot(rawRoot) {
     return serializeWrite(async () => {
