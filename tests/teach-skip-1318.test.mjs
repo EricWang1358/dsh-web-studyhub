@@ -4,7 +4,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StudyService } from "../lib/service.js";
-import { isSkipIntent, isSkipAllIntent } from "../lib/teaching.js";
+import { isTeachSkipAllPhrase, isTeachSkipPhrase } from "../lib/teaching.js";
+import { libraryContracts } from "../lib/study-contracts.js";
+
+/* #1318: skipping a guided-teaching step (and revealing the rest) never calls the model and never counts as mastery.
+   The base behaviour landed with #1396; what this file holds is the part that was still missing: the learner can say
+   「直接讲完」 / "skip all" as their *answer* and the remaining steps are revealed instead of being graded as an answer. */
 
 const quote = "TCP uses sequence numbers and cumulative acknowledgements for reliable delivery.";
 const plan = () => ({
@@ -19,7 +24,7 @@ const plan = () => ({
 
 async function setup(t) {
   const root = await mkdtemp(join(tmpdir(), "study-teach-skip-1318-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
   let modelCalls = 0;
   const service = new StudyService(root, {
     complete: async (_sys, prompt) => {
@@ -57,85 +62,95 @@ async function setup(t) {
   return { service, run, getCalls: () => modelCalls };
 }
 
-test("#1318: isSkipIntent detects Chinese/English skip phrases without catching real explanations", () => {
-  assert.equal(isSkipIntent("跳过"), true);
-  assert.equal(isSkipIntent("跳过，下一问"), true);
-  assert.equal(isSkipIntent("不会"), true);
-  assert.equal(isSkipIntent("skip"), true);
-  assert.equal(isSkipIntent("I don't know."), true);
-  assert.equal(isSkipAllIntent("剩下的直接讲给我听"), true);
-  assert.equal(isSkipAllIntent("skip all"), true);
-  // Real explanation mentioning 跳过 must NOT trigger skip
-  assert.equal(isSkipIntent("TCP 接收端不会跳过丢失的字节，而是重复确认上一个连续字节"), false);
+test("#1318: skip-all phrases are recognised, single-skip phrases are not swallowed by them", () => {
+  // zh: the learner names the rest, not one step
+  assert.equal(isTeachSkipAllPhrase("直接讲完"), true);
+  assert.equal(isTeachSkipAllPhrase("剩下的直接讲给我听"), true);
+  assert.equal(isTeachSkipAllPhrase("剩下的都讲一遍。"), true);
+  assert.equal(isTeachSkipAllPhrase("全部跳过"), true);
+  // en
+  assert.equal(isTeachSkipAllPhrase("skip all"), true);
+  assert.equal(isTeachSkipAllPhrase("Show me the rest."), true);
+  assert.equal(isTeachSkipAllPhrase("skip the remaining steps"), true);
+  // one step stays one step
+  assert.equal(isTeachSkipAllPhrase("跳过"), false);
+  assert.equal(isTeachSkipAllPhrase("skip this step"), false);
+  assert.equal(isTeachSkipAllPhrase("我不会"), false);
+  assert.equal(isTeachSkipPhrase("直接讲完"), false);
+  // a real explanation that happens to contain the words is an answer, not an intent
+  assert.equal(isTeachSkipAllPhrase("剩下的直接讲给我听是一种取巧，真正的理解需要自己推导每一步的因果"), false);
+  assert.equal(isTeachSkipAllPhrase("skip all the checks because the cache is warm"), false);
 });
 
-test("#1318: teach.skip and skip phrases advance with 0 model calls, reveal key points, exclude skipped from mastered, and suggest skip after 2 misses", async (t) => {
+test("#1318: typing 「直接讲完」 as the answer reveals every remaining step with 0 model calls", async (t) => {
   const { service, run, getCalls } = await setup(t);
   const started = await service.call("teach.start", { runId: run.id, mode: "understanding", language: "zh" });
-  assert.equal(getCalls(), 1);
+  assert.equal(getCalls(), 1, "plan generation is the only model call so far");
   assert.equal(started.index, 0);
-  assert.equal(started.suggestSkip, false);
-  assert.equal(started.skippedCount, 0);
-  assert.equal(JSON.stringify(started).includes("First byte of the segment"), false, "answer stays hidden before skip");
 
-  // Two wrong answers on step 0 -> suggestSkip becomes true
-  const miss1 = await service.call("teach.answer", { id: started.id, stepIndex: 0, answer: "wrong 1" });
-  assert.equal(getCalls(), 2);
-  assert.equal(miss1.index, 0);
-  assert.equal(miss1.stepAttempts, 1);
-  assert.equal(miss1.suggestSkip, false);
+  const revealed = await service.call("teach.answer", { id: started.id, stepIndex: 0, answer: "直接讲完" });
+  assert.equal(getCalls(), 1, "skip-all MUST NOT call the model");
+  assert.equal(revealed.complete, true);
+  assert.equal(revealed.masteredCount, 0, "a revealed step is never mastery");
+  assert.deepEqual(revealed.skippedSteps.map((step) => step.index), [0, 1, 2]);
+  assert.match(revealed.feedback, /Step 1: Each byte has a sequence number/);
+  assert.match(revealed.feedback, /Step 2: Cumulative ACK/);
+  assert.match(revealed.feedback, /Step 3: Missing segments/);
+  assert.ok(revealed.transfer);
 
-  const miss2 = await service.call("teach.answer", { id: started.id, stepIndex: 0, answer: "wrong 2" });
-  assert.equal(getCalls(), 3);
-  assert.equal(miss2.index, 0);
-  assert.equal(miss2.stepAttempts, 2);
-  assert.equal(miss2.suggestSkip, true);
-
-  // Explicit teach.skip on step 0 -> 0 model calls, shows step 0 lesson + reference, advances to step 1
-  const afterSkip0 = await service.call("teach.skip", { id: started.id, stepIndex: 0 });
-  assert.equal(getCalls(), 3, "teach.skip MUST NOT call the model");
-  assert.equal(afterSkip0.index, 1);
-  assert.equal(afterSkip0.stepAttempts, 0);
-  assert.equal(afterSkip0.suggestSkip, false);
-  assert.equal(afterSkip0.skippedCount, 1);
-  assert.equal(afterSkip0.masteredCount, 0);
-  assert.match(afterSkip0.feedback, /Step 1: Each byte has a sequence number/);
-  assert.equal(afterSkip0.stepStatuses[0], "skipped");
-
-  // Natural-language skip phrase via teach.answer on step 1 -> ALSO 0 model calls!
-  const afterPhraseSkip1 = await service.call("teach.answer", { id: started.id, stepIndex: 1, answer: "跳过，下一问" });
-  assert.equal(getCalls(), 3, "skip phrase in teach.answer MUST NOT call the model");
-  assert.equal(afterPhraseSkip1.index, 2);
-  assert.equal(afterPhraseSkip1.skippedCount, 2);
-  assert.equal(afterPhraseSkip1.masteredCount, 0);
-  assert.match(afterPhraseSkip1.feedback, /Step 2: Cumulative ACK/);
-
-  // Pass step 2 normally -> 1 model call, completes session, lists skipped steps 0 & 1 and masteredCount === 1
-  const done = await service.call("teach.answer", { id: started.id, stepIndex: 2, answer: "correct timeout or 3 dup ACKs" });
-  assert.equal(getCalls(), 4);
-  assert.equal(done.complete, true);
-  assert.equal(done.masteredCount, 1);
-  assert.equal(done.skippedCount, 2);
-  assert.deepEqual(done.skippedSteps.map((s) => s.index), [0, 1]);
-  assert.deepEqual(done.stepStatuses, ["skipped", "skipped", "mastered"]);
-
-  const stored = (await service.store.read()).teaching.find((x) => x.id === started.id);
-  assert.equal(stored.mastered_rungs.length, 1);
-  assert.equal(stored.skipped_rungs.length, 2);
+  const stored = (await service.store.read()).teaching.find((item) => item.id === started.id);
+  assert.equal(stored.mastered_rungs.length, 0);
+  assert.equal(stored.skipped_rungs.length, 3);
 });
 
-test("#1318: teach.skip { all: true } ends teaching immediately with all remaining lessons and 0 model calls", async (t) => {
+test("#1318: an English learner typing \"skip all\" gets the same reveal, in English", async (t) => {
+  const { service, run, getCalls } = await setup(t);
+  const started = await service.call("teach.start", { runId: run.id, mode: "understanding", language: "en" });
+  assert.equal(getCalls(), 1);
+  const revealed = await service.call("teach.answer", { id: started.id, stepIndex: 0, answer: "Skip the rest please." });
+  assert.equal(getCalls(), 1, "skip-all MUST NOT call the model");
+  assert.equal(revealed.complete, true);
+  assert.equal(revealed.skippedSteps.length, 3);
+  assert.match(revealed.feedback, /Skipped remaining 3 step/);
+  assert.match(revealed.feedback, /not counted as mastered/);
+});
+
+test("#1318: a single skip still advances one step, two misses nudge, and only a passed check counts as mastery", async (t) => {
   const { service, run, getCalls } = await setup(t);
   const started = await service.call("teach.start", { runId: run.id, mode: "understanding", language: "zh" });
-  assert.equal(getCalls(), 1);
+  assert.equal(JSON.stringify(started).includes("First byte of the segment"), false, "rung answers stay hidden before reveal");
 
-  const finished = await service.call("teach.skip", { id: started.id, stepIndex: 0, all: true });
-  assert.equal(getCalls(), 1, "skip all MUST NOT call the model");
-  assert.equal(finished.complete, true);
-  assert.equal(finished.masteredCount, 0);
-  assert.equal(finished.skippedCount, 3);
-  assert.match(finished.feedback, /Step 1/);
-  assert.match(finished.feedback, /Step 2/);
-  assert.match(finished.feedback, /Step 3/);
-  assert.ok(finished.transfer);
+  const miss = await service.call("teach.answer", { id: started.id, stepIndex: 0, answer: "wrong" });
+  assert.equal(miss.index, 0);
+  assert.equal(miss.wrongTries, 1);
+  const miss2 = await service.call("teach.answer", { id: started.id, stepIndex: 0, answer: "wrong again" });
+  assert.equal(miss2.wrongTries, 2, "two misses are what the panel's nudge keys on");
+
+  const skippedOnce = await service.call("teach.answer", { id: started.id, stepIndex: 0, answer: "跳过" });
+  assert.equal(getCalls(), 3, "a typed single skip MUST NOT call the model");
+  assert.equal(skippedOnce.index, 1);
+  assert.equal(skippedOnce.wrongTries, 0);
+  assert.equal(skippedOnce.skippedSteps.length, 1);
+  assert.equal(skippedOnce.masteredCount, 0);
+
+  const done = await service.call("teach.answer", { id: started.id, stepIndex: 1, answer: "skip all" });
+  assert.equal(done.complete, true);
+  assert.equal(done.masteredCount, 0);
+  assert.equal(done.skippedSteps.length, 3);
+});
+
+test("#1318/#1395: skipping records no help evidence, so it is never counted as using a hint", async (t) => {
+  const { service, run, getCalls } = await setup(t);
+  const started = await service.call("teach.start", { runId: run.id, mode: "understanding", language: "zh" });
+  await service.call("teach.answer", { id: started.id, stepIndex: 0, answer: "直接讲完" });
+  assert.equal(getCalls(), 1);
+  const state = await service.store.read();
+  const card = state.decks.flatMap((deck) => deck.cards).find((item) => item.id === "c1");
+  assert.equal(card.socratic, undefined, "a skipped rung must not write a Socratic help record");
+  const entry = state.runs.find((item) => item.id === run.id).entries.find((item) => item.card.id === "c1");
+  assert.equal(entry?.socratic, undefined, "and must not stamp help onto the round's question either");
+});
+
+test("#1318: the model-facing contract names teach.skip so the assistant can reveal the rest", () => {
+  assert.match(libraryContracts.learning, /teach\.start \{runId\}, teach\.get \{id\}, teach\.answer \{id,answer\}, teach\.skip/);
 });
