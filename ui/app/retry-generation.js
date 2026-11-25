@@ -46,6 +46,7 @@ export function retryForm(job, { sources } = {}) {
     if (typeof asked.difficulty === 'string' && asked.difficulty) patch.difficulty = asked.difficulty;
     if (typeof asked.language === 'string' && asked.language) patch.language = asked.language;
     if (typeof asked.notation === 'string' && asked.notation) patch.notation = asked.notation;
+    if (typeof asked.learnerLevel === 'string' && asked.learnerLevel) patch.learnerLevel = asked.learnerLevel;
     if (Array.isArray(asked.referenceSourceIds)) {
       const wantedRefs = asked.referenceSourceIds.filter((id) => typeof id === 'string' && id);
       patch.referenceSourceIds = available ? wantedRefs.filter((id) => available.has(id)) : [...wantedRefs];

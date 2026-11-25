@@ -95,7 +95,8 @@ test("confirmed import filing preserves original title and merges all new cards"
   assert.equal(state.decks[0].originalTitle, first.originalTitle);
   await service.call("focus.set", { course: "Platform Engineering" });
   const fresh = await service.call("review.start", { mode: "new", currentCourse: true, count: 2, fresh: true });
-  assert.equal(fresh.card.prompt, "A different prompt", "recent imported cards lead even after merging into an older deck");
+  assert.equal(fresh.total, 2);
+  assert.equal(fresh.card.prompt, state.decks[0].cards[0].prompt, "merged deck preserves deck reading order (#1296)");
 });
 
 test("older JSON-import sources without provenance still show the self-citation warning", () => {

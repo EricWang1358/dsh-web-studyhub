@@ -8,13 +8,16 @@ import { AppContext, useOptionalAppSelector } from "./app/app-context.js";
 import PaceMeta from "./pace/PaceMeta.jsx";
 import { cardMatchesReview, reviewedCardStatus } from "../lib/review-integrity.js";
 import { aiDraftedCitedCardCount, selfCitedCardCount } from "../lib/source-provenance.js";
-import { Badge, Banner, Button, CheckboxInput, Combobox, ConfirmDialog, PageHeader, Panel, SegmentedControl, useToast } from "./components/index.js";
+import { Badge, Banner, Button, CheckboxInput, Combobox, ConfirmDialog, InlineConfirm, PageHeader, Panel, SegmentedControl, Tooltip, useToast } from "./components/index.js";
+import { suggestDeckOrder } from "./deck-order-suggest.js";
 import { partOf, partsOf } from "../lib/deck-parts.js";
 import { partLabel, partsLine } from "./deck-parts.js";
 import { formatDateTime } from './format.js';
 import { deckChoices, deckEntries } from './deck-picker-entries.js';
 import { offerDeckArchived } from './archive-entries.js';
 import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget } from './companions/companion-ref.js';
+import CourseField from './CourseField.jsx';
+import { deckCourseOf } from './deck-course.js';
 
 /** The question before a merge removes the source deck: an in-app confirmation (host webviews may block the browser's own). */
 export function MergeDeckDialog({ deck, target, onConfirm, onClose }) {
@@ -49,6 +52,8 @@ export default function Manage({
   const toast = useToast();
   const [targetId, setTargetId] = useState("");
   const [merging, setMerging] = useState(false);
+  const [confirmRecommend, setConfirmRecommend] = useState(false);
+  const [reordering, setReordering] = useState(false);
   const [splitTitle, setSplitTitle] = useState("");
   const [splitTopics, setSplitTopics] = useState([]);
   // The parts of the deck (lib/deck-parts.js): 「第一部分 12 题 · 第二部分 9 题」 and one part at a time on screen. Practice and mastery read the whole deck.
@@ -58,14 +63,29 @@ export default function Manage({
   const topics = [...new Set(managedDeck.cards.map((c) => c.topic || ui("未分类")))];
   const peers = decks.filter((d) => d.id !== managedDeck.id && !d.systemKind && !d.archived);
   const deckIndex = decks.findIndex((d) => d.id === managedDeck.id);
-  const deckCourse = (d) => d.course ?? d.folder ?? "";
-  const siblings = decks.filter((d) => !d.systemKind && !d.archived && deckCourse(d) === deckCourse(managedDeck));
+  const siblings = decks.filter((d) => !d.systemKind && !d.archived && deckCourseOf(d) === deckCourseOf(managedDeck));
   const siblingIndex = siblings.findIndex((d) => d.id === managedDeck.id);
   const moveOrder = (delta) => {
     const ids = decks.map((d) => d.id);
     const other = decks.findIndex((d) => d.id === siblings[siblingIndex + delta]?.id);
     [ids[deckIndex], ids[other]] = [ids[other], ids[deckIndex]];
     act("deck.reorder", { ids }, () => toast.success(ui("题组顺序已保存")));
+  };
+  const recommendedOrder = siblings.length > 1 ? suggestDeckOrder(siblings) : null;
+  const applyRecommendedOrder = async () => {
+    if (!recommendedOrder?.changed || reordering) { setConfirmRecommend(false); return; }
+    const siblingIds = new Set(siblings.map((d) => d.id));
+    let cursor = 0;
+    const ids = decks.map((d) => (siblingIds.has(d.id) ? recommendedOrder.ids[cursor++] : d.id));
+    setReordering(true);
+    try {
+      await act("deck.reorder", { ids }, () => {
+        setConfirmRecommend(false);
+        toast.success(ui("已按推荐顺序保存题组排序"));
+      });
+    } finally {
+      setReordering(false);
+    }
   };
   const unreviewed = reviewedCardStatus(managedDeck)?.changed ?? managedDeck.editorial?.uncheckedAtPublish ?? 0;
   const selfCited = selfCitedCardCount(managedDeck.cards, sources);
@@ -116,33 +136,33 @@ export default function Manage({
           {selfCited > 0 && <p>{uiFormat("{0} 题只引用导入题目自身；请先在草稿中换成原始资料引用。", [selfCited])}</p>}
         </Banner>
       )}
-      <form
+      {!managedDeck.systemKind && <form
         className="manage-folder"
         onSubmit={(e) => {
           e.preventDefault();
           act(
-            "deck.move",
-            { id: managedDeck.id, folder: folderDraft },
+            "deck.course",
+            { id: managedDeck.id, course: folderDraft.trim() },
             (moved) => {
-              setManagedDeck({ ...managedDeck, folder: moved.folder });
-              setFolderDraft(moved.folder);
-              toast.success(moved.folder ? uiFormat("已放入目录「{0}」",[moved.folder]) : ui("已移到目录顶层"));
+              setManagedDeck({ ...managedDeck, course: moved.course, folder: "" });
+              setFolderDraft(moved.course);
+              toast.success(moved.course ? uiFormat("已归入课程「{0}」", [moved.course]) : ui("已移回未分类"));
             },
           );
         }}
       >
-        <label className="manage-label" htmlFor="manage-folder-input">{ui("所在目录")}</label>
-        <div className="manage-row">
-          <input
-            id="manage-folder-input"
-            className="manage-row__control"
-            value={folderDraft}
-            onChange={(e) => setFolderDraft(e.target.value)}
-            placeholder={ui("所在目录，例如：设计模式 / 第 4 章（留空为顶层）")}
-          />
-          <Button className="manage-row__action" disabled={folderDraft === (managedDeck.folder || "")} lock={busy} type="submit">{ui("保存目录")}</Button>
+        <CourseField
+          courses={focus?.courses || courses || []}
+          value={folderDraft}
+          onChange={setFolderDraft}
+          label={ui("所属课程")}
+          current={deckCourseOf(managedDeck)}
+          disabled={busy}
+        />
+        <div className="manage-folder__actions">
+          <Button className="manage-row__action" disabled={folderDraft.trim() === deckCourseOf(managedDeck).trim()} lock={busy} type="submit">{ui("保存课程")}</Button>
         </div>
-      </form>
+      </form>}
       {!managedDeck.systemKind && !managedDeck.archived && <Panel className="manage-panel" title={ui("整理题组")}
         description={ui("合并保留全部题目；拆分按主题移动。题目复习记录和前置题关联会一起保留。")}>
         {siblings.length > 1 && <div className="manage-section">
@@ -151,7 +171,21 @@ export default function Manage({
           <div className="manage-row manage-row--pair">
             <Button className="manage-row__action" disabled={siblingIndex <= 0} lock={busy} onClick={() => moveOrder(-1)}>{ui("上移题组")}</Button>
             <Button className="manage-row__action" disabled={siblingIndex < 0 || siblingIndex >= siblings.length - 1} lock={busy} onClick={() => moveOrder(1)}>{ui("下移题组")}</Button>
+            <Tooltip layer content={ui("按「前置筑基 → 章节精讲 → 源码实验 → 综合大卷」给出建议顺序；仅在你确认后才写入，不会自动改写已排好的顺序。")}>
+              <Button className="manage-row__action" variant="quiet" disabled={!recommendedOrder?.changed} lock={busy} onClick={() => setConfirmRecommend(true)}>
+                {recommendedOrder?.changed ? ui("按推荐顺序排…") : ui("已符合推荐顺序")}
+              </Button>
+            </Tooltip>
           </div>
+          {confirmRecommend && recommendedOrder?.changed && (
+            <InlineConfirm tone="primary" title={ui("按推荐学习顺序重排当前课程的题组？")} confirmLabel={ui("确认应用推荐顺序")} busy={reordering}
+              onConfirm={applyRecommendedOrder} onCancel={() => setConfirmRecommend(false)}>
+              <p className="muted small">{ui("仅调整当前课程题组的顺序，不改动任何题目或复习记录；取消后保持原顺序不变。")}</p>
+              <ol className="manage-recommend-list">
+                {recommendedOrder.items.map((item) => <li key={item.id}>{item.title}</li>)}
+              </ol>
+            </InlineConfirm>
+          )}
         </div>}
         <form className="manage-section" onSubmit={(e) => {
           e.preventDefault();

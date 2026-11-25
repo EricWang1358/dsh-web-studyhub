@@ -259,7 +259,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
 
   /* ── entering and leaving a question ── */
   // `moved`: the host restarted the question's timer (a move, or the way back to it), so the hidden time counted so far no longer belongs to it.
-  const enterRun = useCallback((next, input, moved = false) => {
+  const enterRun = useCallback((next, input, moved = false, { stayOnGuided = false } = {}) => {
     if (!next) return;
     const root = refs.dataRef.current?.root;
     // The same open question handed back (a reveal's answer, the conversation opening it again): what is on screen is newer than what the library had when it answered.
@@ -270,11 +270,11 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     if (moved && draftable(next)) awayClock.current = openClock(draftKey(root, next), Date.now(), document.hidden === true);
     setRun(next);
     if (!same) setShowBack(!!next.revealed);
-    if (!embeddedIn && nav.page !== 'guided') setPage('review');
+    if (!embeddedIn && !(stayOnGuided && nav.page === 'guided')) setPage('review');
     const opened = entryForRun(next, input, { draft: (teaching) => readTeachingDraft(refs.dataRef.current?.root, teaching) });
     setEntry(same ? keepTyped(opened, entryRef.current) : opened);
   }, [nav.show, setPage, refs, embeddedIn, nav.page, syncDraft, setEntry]);
-  const enterMovedRun = useCallback((next, input) => enterRun(next, input, true), [enterRun]);
+  const enterMovedRun = useCallback((next, input, options) => enterRun(next, input, true, options), [enterRun]);
   const revealFlights = useRef(new Map());
   const revealKeyOf = (r) => (r?.card?.id ? `${r.id}:${r.index}:${r.card.id}:${r.queueVersion || 0}` : '');
   const toggleMarkTerms = useCallback(() => {
@@ -411,7 +411,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
           playSound('flip');
         }
         clearPending();
-        enterRun(result, undefined, action === 'review.move' || !!result?.selfGradeAdvanced || action === 'review.undo');
+        enterRun(result, undefined, action === 'review.move' || !!result?.selfGradeAdvanced || action === 'review.undo', { stayOnGuided: pageRef.current === 'guided' });
         if (action === 'review.answer' && result?.selfGradeAdvanced && result?.gradedFeedback && latest?.mode !== 'exam') {
           const gap = nextDueGap(result.gradedFeedback);
           const scope = reviewNoticeScope(refs.bindingRoot.current, 'review', result);
@@ -910,6 +910,17 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     };
     return { ...destination, label: continueLabel(destination), note: continueNote(destination), go };
   }, [run, act, enterRun, refs]);
+  const returnToOrigin = useCallback(() => {
+    const current = runRef.current;
+    if (!current?.returnTo) return;
+    const originId = current.returnTo;
+    return act('review.get', { runId: originId }, (result) => {
+      if (!result || result.closedAt || !result.card) {
+        notify?.(ui('原练习轮次已结束，已为你打开该轮次结果。'));
+      }
+      enterRun(result, returnInput.current?.runId === originId ? returnInput.current.input : undefined);
+    });
+  }, [act, enterRun, notify]);
   const activeAutoAdvance = Boolean(autoAdvance && autoAdvance === advanceKey);
   const coach = useMemo(() => ({
     autopilot,
@@ -926,7 +937,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     debrief: null,
   }), [autopilot, core, onCoachPractice, continueTo, act, enterRun, canShortcut, cancelAutoAdvance, activeAutoAdvance, liveStore, setAutoAdvancePaused]);
   const actions = useMemo(() => ({
-    reviewAct, choose, clearChoice: () => patch({ selected: [] }), flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, toggleAutoTerms,
+    reviewAct, choose, clearChoice: () => patch({ selected: [] }), flipCard, assistCard, slayCard, studyPrerequisites, returnToOrigin, teachingAct, cancelTeaching, retryTeaching, toggleEn, toggleAutoTerms,
     toggleHelp: () => { if (runRef.current?.feedback) setExplainHidden((value) => !value); else if (runRef.current?.revealed) patch((value) => ({ explain: !value.explain })); else toggleHint(); },
     noteAssistance,
     // Opening a question to read its Q&A (a 信箱 letter): the explanation shows and the autopilot is held on this question, whatever the answer was.
@@ -947,7 +958,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     toggleMarkTerms,
     exitMarkTerms,
     endRound,
-  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, toggleAutoTerms, patch, setExplainHidden, toggleAutopilot, toggleSelfGradeAdvance, undoAnswer, setAutoAdvancePaused, toggleHint, noteAssistance, skipQuestion, toggleMarkTerms, exitMarkTerms, endRound]);
+  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, returnToOrigin, teachingAct, cancelTeaching, retryTeaching, toggleEn, toggleAutoTerms, patch, setExplainHidden, toggleAutopilot, toggleSelfGradeAdvance, undoAnswer, setAutoAdvancePaused, toggleHint, noteAssistance, skipQuestion, toggleMarkTerms, exitMarkTerms, endRound]);
   const currentEntryKey = reviewEntryKey(run);
   const teachingAction = teachingPending[currentEntryKey] || '';
   const teachingBusy = !!teachingAction;

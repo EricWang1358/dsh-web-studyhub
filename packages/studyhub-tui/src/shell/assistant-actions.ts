@@ -16,6 +16,7 @@ import { SET_ERROR_REASON_ACTION, errorReasonArgs, errorReasonName, type ErrorRe
 import { reasonLabel } from '../views/wrongbook/helpers.js';
 import { buildDailyQuestionNoteTitle, skipTargetIndex } from '../views/review/review-helpers.js';
 import type { ErrorReasonId } from '../views/wrongbook/types.js';
+import { countsAsCorrect, gradeLabel, gradeShortLabel } from '../grade-scale.js';
 import type { AssistantIntent } from './assistant-intent.js';
 
 export interface AssistantUndoHook {
@@ -336,7 +337,13 @@ export async function readCurrentGradeStatus(deps: AssistantActionDeps): Promise
       : correct === false
         ? t(lang, '判为答错', 'marked wrong')
         : t(lang, '已批改', 'graded');
-  const gradeText = grade !== undefined ? (lang === 'en' ? ` (grade ${grade})` : `（${grade} 分）`) : '';
+  const gradeMeaning = grade !== undefined ? gradeLabel(grade, lang) : '';
+  const gradeText =
+    grade !== undefined
+      ? lang === 'en'
+        ? ` (grade ${grade}${gradeMeaning ? ` · ${gradeMeaning}` : ''})`
+        : `（${grade} 分${gradeMeaning ? ` · ${gradeMeaning}` : ''}）`
+      : '';
   return {
     succeeded: true,
     actionSummary: t(lang, '查询判定状态', 'Verdict status'),
@@ -712,17 +719,20 @@ export async function executeAssistantWriteAction(
       }
       // The backend decides: `grade >= 3` is correct (`lib/contexts/study/grading-ops.js`).
       const feedback = res.value?.feedback as { correct?: boolean } | null | undefined;
-      const countedCorrect = typeof feedback?.correct === 'boolean' ? feedback.correct : grade >= 3;
+      const countedCorrect = typeof feedback?.correct === 'boolean' ? feedback.correct : countsAsCorrect(grade);
+      // The result repeats what the grade means (#1459): 0 and 1 are different answers, not one “wrong”.
+      const meaning = gradeLabel(grade, lang);
+      const meaningShort = gradeShortLabel(grade, lang);
       if (res.value) deps.applyRun?.(res.value);
       return {
         succeeded: true,
         actionSummary: countedCorrect
-          ? t(lang, `已改判为 ${grade} 分（判定为掌握）`, `Adjusted to ${grade} (counts as correct)`)
-          : t(lang, `已改判为 ${grade} 分（仍算未掌握）`, `Adjusted to ${grade} (still not mastered)`),
+          ? t(lang, `已改判为 ${grade} 分 · ${meaningShort}（判定为掌握）`, `Adjusted to ${grade} · ${meaningShort} (counts as correct)`)
+          : t(lang, `已改判为 ${grade} 分 · ${meaningShort}（仍算未掌握）`, `Adjusted to ${grade} · ${meaningShort} (still not mastered)`),
         text: countedCorrect
-          ? t(lang, `已完成：本题评分已改判为 ${grade} 分（判定为掌握）并重算复习计划。`, `Adjusted to ${grade} (correct) and rescheduled.`)
-          : t(lang, `已完成：本题评分已改判为 ${grade} 分，仍算未掌握，已安排在后面重练。`, `Adjusted to ${grade}; it still counts as not mastered and was queued for a retry.`),
-        toast: { message: t(lang, `评分已改判为 ${grade} 分`, `Grade adjusted to ${grade}`), tone: 'success' },
+          ? t(lang, `已完成：本题评分已改判为 ${grade} 分（${meaning}，判定为掌握）并重算复习计划。`, `Adjusted to ${grade} — ${meaning} (correct) — and rescheduled.`)
+          : t(lang, `已完成：本题评分已改判为 ${grade} 分（${meaning}，仍算未掌握），已安排在后面重练。`, `Adjusted to ${grade} — ${meaning} (still not mastered); it was queued for a retry.`),
+        toast: { message: t(lang, `评分已改判为 ${grade} 分（${meaningShort}）`, `Grade adjusted to ${grade} (${meaningShort})`), tone: 'success' },
       };
     }
 

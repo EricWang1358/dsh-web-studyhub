@@ -36,6 +36,8 @@ const EXCLUDED_SELECTOR = [
   ".followup-picker",
   ".note-qa-button",
   ".question-book-link",
+  ".socratic-inline-drawer",
+  ".socratic-nudge",
   '[aria-hidden="true"]',
 ].join(", ");
 

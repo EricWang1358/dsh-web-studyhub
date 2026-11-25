@@ -75,8 +75,20 @@ export function originalLine(original) {
   return { tone: 'muted', text: ui('原文件：未保存') };
 }
 
+/** Whether built-in text sync (`refresh: true`) is safe for this referenced document (#1436 Item 5). */
+export function canSyncReferencedText(document) {
+  if (!document) return false;
+  const original = document.original || null;
+  if (original?.convertedFrom) return false;
+  if (/-conv\d*(?:-whole)?$/i.test(String(document.revision || ''))) return false;
+  if (Array.isArray(document.sources) && document.sources.some(source => source?.document?.origin === 'converted')) return false;
+  if (original?.tooLargeForReader) return false;
+  if (Number.isFinite(original?.bytes) && original.bytes > ORIGINAL_MAX_BYTES) return false;
+  return true;
+}
+
 /** What is wrong with the original (null when it is fine), and what can be done about it. */
-export function issueOf(original) {
+export function issueOf(original, { canSyncText } = {}) {
   const state = original || { mode: null, status: 'none' };
   if (state.status === 'ok') return null;
   if (state.mode === null || state.status === 'none') return { kind: 'none', message: null, canCopy: false };
@@ -84,7 +96,8 @@ export function issueOf(original) {
   if (state.status === 'missing') return { kind: 'missing', message: uiFormat('找不到原文件：{0}', [state.path]), canCopy: false };
   if (state.status === 'unreadable') return { kind: 'unreadable', message: uiFormat('无法读取原文件：{0}', [state.path]), canCopy: false };
   if (state.reason === 'redirected') return { kind: 'redirected', message: uiFormat('这个路径现在指向别处：{0}', [state.path]), canCopy: true, canSync: false };
-  return { kind: 'changed', message: ui('文件已被修改，和保存的文字对不上'), canCopy: true, canSync: true };
+  const allowSync = canSyncText === undefined ? true : Boolean(canSyncText);
+  return { kind: 'changed', message: ui('文件已被修改，和保存的文字对不上'), canCopy: true, canSync: allowSync };
 }
 
 const percent = value => `${Math.round(value * 1000) / 10}%`;
@@ -131,13 +144,17 @@ export function canAttach({ phase, report, picked, mode, confirmed }) {
 }
 
 /** The host's English refusals, in the learner's language. Anything unknown is shown as it is. */
-export function explainFailure(message) {
+export function explainFailure(message, { context } = {}) {
   const text = String(message || '');
   let found;
   if ((found = /The file was not found: (.+)$/.exec(text))) return uiFormat('找不到这个文件：{0}', [found[1]]);
   if (/Document path must be absolute/.test(text)) return ui('请填写完整路径（从盘符或 / 开始）');
   if ((found = /The path is not a file: (.+)$/.exec(text))) return uiFormat('这个路径不是文件：{0}', [found[1]]);
-  if ((found = /at most (\d+) MB/.exec(text)) || (found = /exceeds (\d+) MB/.exec(text))) return uiFormat('复制进资料库最多 {0} MB；更大的文件请只记住位置（填写完整路径）', [found[1]]);
+  if ((found = /at most (\d+) MB/.exec(text)) || (found = /exceeds (\d+) MB/.exec(text))) {
+    return context === 'sync'
+      ? uiFormat('内置文本同步最多支持 {0} MB；大文件请点「重新指定…」仅更新原文件引用，保留现有文字。', [found[1]])
+      : uiFormat('复制进资料库最多 {0} MB；更大的文件请只记住位置（填写完整路径）', [found[1]]);
+  }
   if ((found = /same type as the document \((\w+)\)/.exec(text))) return uiFormat('这不是 {0} 文件，请选择和资料同类型的文件', [found[1].toUpperCase()]);
   if (/cannot be read/.test(text)) return ui('无法读取这个文件，请检查文件权限');
   if (/audio transcript/.test(text)) return ui('音频逐字稿没有原文件可附');

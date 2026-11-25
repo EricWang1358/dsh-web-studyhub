@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { copyFile, mkdir, readFile, stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { Box, Text } from 'ink';
+import { atomicCopyFile } from '../../host/atomic-write.js';
 import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -209,9 +210,8 @@ export const AddFocusModal: React.FC<AddFocusModalProps> = ({
       if (!stagedLabel) {
         const libRoot = host.getLibraryRoot() || process.cwd();
         const destDir = join(libRoot, 'studyhub-work', 'focus-intake', randomUUID().slice(0, 8));
-        await mkdir(destDir, { recursive: true });
         const destFile = join(destDir, basename(resolved));
-        await copyFile(resolved, destFile);
+        await atomicCopyFile(resolved, destFile);
         stagedLabel = destFile;
       }
 

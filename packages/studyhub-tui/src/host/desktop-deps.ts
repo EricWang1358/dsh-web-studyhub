@@ -34,8 +34,9 @@ export interface DesktopConfigStore {
   dshHome: string;
   configPath: string;
   defaultRoot: string;
-  load(): Promise<{ config: RawDesktopConfig; library: LibraryState }>;
-  save(next: RawDesktopConfig): Promise<RawDesktopConfig>;
+  load(): Promise<{ config: RawDesktopConfig; library: LibraryState; configProblem?: unknown }>;
+  save(next: RawDesktopConfig, opts?: { force?: boolean }): Promise<RawDesktopConfig>;
+  recover?(): Promise<unknown>;
   saveLibraryRoot(root: string): Promise<string>;
   confirmLibraryPlace(): Promise<void>;
 }

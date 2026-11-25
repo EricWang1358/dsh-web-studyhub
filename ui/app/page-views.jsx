@@ -677,14 +677,14 @@ function GuidedStudyView() {
   const started = lib.guidedSession || data?.activeStudySession || null;
   // The session as it is now and its new question's preparation (#547): the main chat starts it, the reviewed question opens here as a round of one.
   const { session: guidedSession, prepState, clearFailure, refresh: readGuidedSession } = useGuidedQuestion({ session: started, call: core.call,
-    onReady: (result) => { if (result.run) session.enterRun(result.run); core.refresh(); } });
+    onReady: (result) => { if (result.run) session.enterRun(result.run, undefined, false, { stayOnGuided: true }); core.refresh(); } });
   const run = session.run;
   const currentCard = run?.card || (run?.entries ? run.entries[run.index]?.card : null);
 
   const handleReveal = (runId) => {
     if (session.actions?.flipCard) return session.actions.flipCard();
     if (session.actions?.reviewAct) return session.actions.reviewAct('review.reveal');
-    return core.act('review.reveal', { runId: runId || run?.id, cardId: currentCard?.id }, session.enterRun);
+    return core.act('review.reveal', { runId: runId || run?.id, cardId: currentCard?.id }, (next) => session.enterRun(next, undefined, false, { stayOnGuided: true }));
   };
 
   // A choice question is answered with the options the learner picked (graded by the card), any other kind with the learner's own grade.
@@ -692,7 +692,7 @@ function GuidedStudyView() {
   const handleAnswer = async (answer) => {
     const args = typeof answer === 'object' && answer ? answer : { grade: answer };
     const done = session.actions?.reviewAct ? await session.actions.reviewAct('review.answer', args)
-      : await core.act('review.answer', { runId: run?.id, cardId: currentCard?.id, ...args }, session.enterRun);
+      : await core.act('review.answer', { runId: run?.id, cardId: currentCard?.id, ...args }, (next) => session.enterRun(next, undefined, false, { stayOnGuided: true }));
     void readGuidedSession();
     return done;
   };
@@ -719,7 +719,7 @@ function GuidedStudyView() {
 
   const handleNext = (runId) => {
     if (session.actions?.reviewAct) return session.actions.reviewAct('review.move', { direction: 1 });
-    return core.act('review.move', { runId: runId || run?.id, direction: 1 }, session.enterRun);
+    return core.act('review.move', { runId: runId || run?.id, direction: 1 }, (next) => session.enterRun(next, undefined, true, { stayOnGuided: true }));
   };
 
   // 请教主会话 before answering is help the answer got (#542), recorded before it is sent; the receipt is the one the workbench shows when nobody listens.

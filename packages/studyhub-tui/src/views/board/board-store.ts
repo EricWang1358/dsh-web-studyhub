@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { copyFile, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { atomicWriteJsonFile, todayLocalYmd } from '../../host/atomic-write.js';
+import { atomicCopyFile, atomicWriteJsonFile, todayLocalYmd } from '../../host/atomic-write.js';
+import type { UiLanguage } from '../../types/contracts.js';
+import { t } from '../../state/store.js';
 
 export { todayLocalYmd };
 
@@ -254,7 +256,7 @@ export async function saveBoard(
         );
       }
       const backupPath = `${target}.corrupt-${Date.now()}.bak`;
-      await copyFile(target, backupPath).catch(() => {});
+      await atomicCopyFile(target, backupPath).catch(() => {});
     }
     const normalized = parseBoardDocument({
       ...doc,
@@ -272,6 +274,21 @@ export async function saveBoard(
     }
   });
   return run;
+}
+
+/**
+ * User-facing notice for a failed board save (#1454): the optimistic change is rolled back, so the
+ * message must say the edit was NOT saved and the board reverted, and still include the raw error.
+ */
+export function boardSaveFailureNotice(err: unknown, lang: UiLanguage = 'zh'): string {
+  const detail =
+    err instanceof Error ? err.message : typeof err === 'string' ? err : err === undefined || err === null ? '' : String(err);
+  const base = t(
+    lang,
+    '修改没有保存，已恢复到上次保存的内容',
+    'Changes were not saved - the board was reverted to the last saved content',
+  );
+  return detail ? `${base}（${detail}）` : base;
 }
 
 export interface BoardSaveCoordinator {
@@ -296,6 +313,7 @@ export function createBoardSaveCoordinator(opts: {
   saveFn: (doc: BoardDocument) => Promise<BoardDocument>;
 }): BoardSaveCoordinator {
   let currentDoc = opts.initialDoc ?? emptyBoard();
+  let lastPersistedDoc = currentDoc;
   let seq = 0;
   let queue: Promise<void> = Promise.resolve();
 
@@ -304,6 +322,7 @@ export function createBoardSaveCoordinator(opts: {
     replaceDoc: (next: BoardDocument) => {
       seq += 1;
       currentDoc = next;
+      lastPersistedDoc = next;
     },
     persist: (updater, onState, onError) => {
       const prev = currentDoc;
@@ -319,12 +338,17 @@ export function createBoardSaveCoordinator(opts: {
         if (seq !== mySeq) return currentDoc;
         try {
           const saved = await opts.saveFn(nextDoc);
+          lastPersistedDoc = saved;
           if (seq === mySeq) {
             currentDoc = saved;
             onState(saved);
           }
           return saved;
         } catch (err) {
+          if (seq === mySeq) {
+            currentDoc = lastPersistedDoc;
+            onState(lastPersistedDoc);
+          }
           onError?.(err);
           return currentDoc;
         }

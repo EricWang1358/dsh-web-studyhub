@@ -423,10 +423,27 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
   }, [data, course]);
   const [deckId, setDeckId] = useState("");
   const deck = decks.find((item) => item.id === deckId) || decks[0] || null;
-  // The course profile (WP13) proposes the time model; the learner can override it for this paper.
-  const profile = useMemo(() => courseProfileFromState({ courses: data?.courses }, course === "*" ? "" : course), [data?.courses, course]);
+  // The course profile (WP13) proposes the time model (inheriting along courseAncestors); the learner can override it for this paper.
+  const effectiveCourse = course && course !== "*" ? course : (deck?.course ?? deck?.folder ?? "");
+  const profile = useMemo(() => courseProfileFromState({ courses: data?.courses, sources: data?.sources }, effectiveCourse), [data?.courses, data?.sources, effectiveCourse]);
   const [settings, setSettings] = useState(() => ({ minutesPerMark: profile.exam.minutesPerMark || DEFAULT_MINUTES_PER_MARK,
     readingMinutes: Number.isFinite(profile.exam.readingMinutes) ? profile.exam.readingMinutes : null, handwriting: false }));
+  const profileDefaultsRef = useRef({ course: effectiveCourse, minutesPerMark: profile.exam.minutesPerMark || DEFAULT_MINUTES_PER_MARK,
+    readingMinutes: Number.isFinite(profile.exam.readingMinutes) ? profile.exam.readingMinutes : null });
+  useEffect(() => {
+    const nextMin = profile.exam.minutesPerMark || DEFAULT_MINUTES_PER_MARK;
+    const nextRead = Number.isFinite(profile.exam.readingMinutes) ? profile.exam.readingMinutes : null;
+    const prev = profileDefaultsRef.current;
+    profileDefaultsRef.current = { course: effectiveCourse, minutesPerMark: nextMin, readingMinutes: nextRead };
+    setSettings((current) => {
+      if (prev.course !== effectiveCourse) return { ...current, minutesPerMark: nextMin, readingMinutes: nextRead };
+      return {
+        ...current,
+        minutesPerMark: current.minutesPerMark === prev.minutesPerMark ? nextMin : current.minutesPerMark,
+        readingMinutes: current.readingMinutes === prev.readingMinutes ? nextRead : current.readingMinutes,
+      };
+    });
+  }, [effectiveCourse, profile.exam.minutesPerMark, profile.exam.readingMinutes]);
   const [answers, setAnswers] = useState({}), [highlights, setHighlights] = useState([]), [session, setSession] = useState(null);
   const [stepState, setStepState] = useState(null);
   const [activeId, setActiveId] = useState(null), [view, setView] = useState("questions");
@@ -816,8 +833,10 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
   /* setup */
   const reading = settings.readingMinutes ?? (deck ? defaultReadingMinutes(deck.caseMarks, settings.minutesPerMark) : 0);
   const writing = deck ? Math.round(deck.caseMarks * settings.minutesPerMark) : 0;
-  const courseRecord = (data?.courses || []).find((item) => item && item.name === course);
-  const examFormatName = { "open-book-case": ui("开卷案例"), "closed-book": ui("闭卷"), mixed: ui("混合"), other: ui("其他") }[courseRecord?.exam?.format];
+  const examFormatName = profile?.examFormatSource
+    ? { "open-book-case": ui("开卷案例"), "closed-book": ui("闭卷"), mixed: ui("混合"), other: ui("其他") }[profile.exam?.format]
+    : undefined;
+  const examFormatCourse = profile?.examFormatSource || effectiveCourse;
   return (
     <section className="page exam case-paper">
       {header || <PageHeader eyebrow={ui("模拟考试")} title={ui("案例分析卷")} />}
@@ -890,7 +909,7 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
                 }} />
             </label>
           </div>
-          {examFormatName && <small className="es-hint">{uiFormat("来自课程「{0}」的考试设置：{1}（可在课程设置里修改）", [course, examFormatName])}</small>}
+          {examFormatName && <small className="es-hint">{uiFormat("来自课程「{0}」的考试设置：{1}（可在课程设置里修改）", [examFormatCourse, examFormatName])}</small>}
           <Checkbox checked={settings.handwriting} onChange={(handwriting) => setSettings({ ...settings, handwriting })} label={ui("纸笔练习模式")}
             hint={ui("计时阶段隐藏输入框，你在纸上写；时间到后再录入要点批改，录入时间不计时。")} />
         </div>}

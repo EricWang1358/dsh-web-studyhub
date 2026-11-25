@@ -13,6 +13,7 @@
 import type { PageId, StudySnapshot, TuiPreferences, UiLanguage } from '../types/contracts.js';
 import type { AssistantCardContext } from '../state/store.js';
 import type { ErrorReasonId } from '../views/wrongbook/types.js';
+import { gradeLabel, gradeShortLabel, gradeVerdictLabel } from '../grade-scale.js';
 import {
   SET_ERROR_REASON_ACTION,
   errorReasonArgs,
@@ -703,7 +704,10 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
         );
       }
       // The backend (`grading-ops.js`) counts `grade >= 3` as correct; a 0–2 keeps the question due.
-      const isCorrect = grade >= 3;
+      // The preview says what the grade means (#1459), so 0 and 1 never read the same.
+      const meaning = gradeLabel(grade, lang);
+      const meaningShort = gradeShortLabel(grade, lang);
+      const verdict = gradeVerdictLabel(grade, lang);
       return {
         kind: 'write_confirm',
         actionName: 'review.grade.adjust',
@@ -713,15 +717,13 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
           ...(typeof entryIndex === 'number' ? { entryIndex } : {}),
           grade,
         },
-        humanLabel: lang === 'en' ? `Adjust grade to ${grade}` : `改判评分为 ${grade} 分`,
+        humanLabel:
+          lang === 'en' ? `Adjust grade to ${grade} (${meaningShort})` : `改判评分为 ${grade} 分（${meaningShort}）`,
         previewTitle: lang === 'en' ? 'Confirm Grade Adjustment' : '确认改判评分',
-        previewMessage: isCorrect
-          ? lang === 'en'
-            ? `Will set the current AI-graded answer to grade ${grade} (counts as correct) and reschedule it.`
-            : `将把当前题目的 AI 评分改判为 ${grade} 分（判定为掌握）并重算复习计划。`
-          : lang === 'en'
-            ? `Will set the current AI-graded answer to grade ${grade} (still not mastered) and reschedule it.`
-            : `将把当前题目的 AI 评分改判为 ${grade} 分（仍算未掌握，会继续安排复习）并重算复习计划。`,
+        previewMessage:
+          lang === 'en'
+            ? `Will set the current AI-graded answer to grade ${grade} — ${meaning} (${verdict}) — and reschedule it.`
+            : `将把当前题目的 AI 评分改判为 ${grade} 分（${meaning}，${verdict}）并重算复习计划。`,
         paramsSummary: `grade=${grade}`,
         requiresConfirm: true,
       };
