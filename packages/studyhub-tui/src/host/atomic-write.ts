@@ -11,10 +11,25 @@
  */
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, rename, rm } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
 
 const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
+const IGNORABLE_SYNC_CODES = new Set(['EINVAL', 'ENOSYS', 'ENOTSUP', 'EROFS']);
+
+export interface AtomicFsOps {
+  writeAndSync?: (tempPath: string, data: string | Uint8Array, mode?: number) => Promise<void>;
+  rename?: (from: string, to: string) => Promise<void>;
+  onSync?: (tempPath: string) => void;
+}
+
+export interface AtomicWriteOptions {
+  mode?: number;
+  /** Flush file contents to disk via fsync before atomic rename (default true). */
+  sync?: boolean;
+  /** Internal / test fault-injection hooks. */
+  fsOps?: AtomicFsOps;
+}
 
 export function todayLocalYmd(now: Date = new Date()): string {
   const y = now.getFullYear();
@@ -159,10 +174,15 @@ export function resolveSafeBackupExportPath(
   return resolveUniqueFilePath(candidate);
 }
 
-export async function renameWithRetry(from: string, to: string, maxAttempts = 6): Promise<void> {
+export async function renameWithRetry(
+  from: string,
+  to: string,
+  maxAttempts = 6,
+  renameImpl: (src: string, dst: string) => Promise<void> = rename,
+): Promise<void> {
   for (let attempt = 0; ; attempt += 1) {
     try {
-      await rename(from, to);
+      await renameImpl(from, to);
       return;
     } catch (error) {
       const code = (error as NodeJS.ErrnoException)?.code || '';
@@ -172,30 +192,224 @@ export async function renameWithRetry(from: string, to: string, maxAttempts = 6)
   }
 }
 
-export async function atomicWriteTextFile(
+async function defaultWriteAndSync(
+  tempPath: string,
+  data: string | Uint8Array,
+  opts?: AtomicWriteOptions,
+): Promise<void> {
+  const fh = await open(tempPath, 'w', opts?.mode);
+  try {
+    if (typeof data === 'string') {
+      await fh.writeFile(data, 'utf8');
+    } else {
+      await fh.writeFile(data);
+    }
+    if (opts?.sync !== false) {
+      try {
+        await fh.sync();
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException)?.code || '';
+        if (!IGNORABLE_SYNC_CODES.has(code)) throw err;
+      }
+      opts?.fsOps?.onSync?.(tempPath);
+    }
+  } finally {
+    await fh.close();
+  }
+}
+
+async function atomicWritePayload(
   targetPath: string,
-  content: string,
-  opts?: { mode?: number },
+  data: string | Uint8Array,
+  opts?: AtomicWriteOptions,
 ): Promise<{ bytes: number }> {
   await mkdir(dirname(targetPath), { recursive: true });
   const temp = `${targetPath}.${randomUUID()}.tmp`;
-  await writeFile(temp, content, opts?.mode !== undefined ? { encoding: 'utf8', mode: opts.mode } : 'utf8');
+  const renameImpl = opts?.fsOps?.rename ?? rename;
   try {
-    await renameWithRetry(temp, targetPath);
+    if (opts?.fsOps?.writeAndSync) {
+      await opts.fsOps.writeAndSync(temp, data, opts.mode);
+    } else {
+      await defaultWriteAndSync(temp, data, opts);
+    }
+    await renameWithRetry(temp, targetPath, 6, renameImpl);
   } catch (error) {
     await rm(temp, { force: true }).catch(() => {});
     throw error;
   }
-  return { bytes: Buffer.byteLength(content, 'utf8') };
+  const bytes = typeof data === 'string' ? Buffer.byteLength(data, 'utf8') : data.byteLength;
+  return { bytes };
+}
+
+export async function atomicWriteTextFile(
+  targetPath: string,
+  content: string,
+  opts?: AtomicWriteOptions,
+): Promise<{ bytes: number }> {
+  return atomicWritePayload(targetPath, content, opts);
 }
 
 export async function atomicWriteJsonFile(
   targetPath: string,
   payload: unknown,
-  opts?: { mode?: number },
+  opts?: AtomicWriteOptions,
 ): Promise<{ bytes: number }> {
   const json = `${JSON.stringify(payload, null, 2)}\n`;
   return atomicWriteTextFile(targetPath, json, opts);
+}
+
+/**
+ * Atomically copy `srcPath` to `destPath` via temp + fsync + rename so backups and staged
+ * intake files are never half-written on failure (#1354 P3-b).
+ */
+export async function atomicCopyFile(
+  srcPath: string,
+  destPath: string,
+  opts?: AtomicWriteOptions,
+): Promise<{ bytes: number }> {
+  const bytes = await readFile(srcPath);
+  return atomicWritePayload(destPath, bytes, opts);
+}
+
+export interface AtomicBatchEntry {
+  path: string;
+  content: string | Uint8Array;
+  mode?: number;
+}
+
+/** A target whose restore/removal failed while rolling back a failed batch write (#1454). */
+export interface AtomicBatchRollbackFailure {
+  path: string;
+  error: unknown;
+}
+
+function errText(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  try {
+    return JSON.stringify(err) ?? String(err);
+  } catch {
+    return String(err);
+  }
+}
+
+/**
+ * Raised when a batch write failed AND at least one already-committed target could not be restored
+ * or removed (#1454). The original commit error plus every rollback failure are reported together,
+ * because the on-disk state may now mix old and new contents and the caller must not assume a
+ * clean revert just because it only saw the first error.
+ */
+export class AtomicBatchWriteError extends Error {
+  readonly originalError: unknown;
+  readonly rollbackFailures: readonly AtomicBatchRollbackFailure[];
+
+  constructor(originalError: unknown, rollbackFailures: readonly AtomicBatchRollbackFailure[]) {
+    const details = rollbackFailures.map((f) => `${f.path}: ${errText(f.error)}`).join('; ');
+    super(
+      `Atomic batch write failed (${errText(originalError)}); rollback also failed for ${rollbackFailures.length} file(s): ${details}. On-disk state may mix old and new contents.`,
+      { cause: originalError },
+    );
+    this.name = 'AtomicBatchWriteError';
+    this.originalError = originalError;
+    this.rollbackFailures = rollbackFailures;
+  }
+}
+
+/**
+ * Multi-file transactional atomic write (#1354 P3-b):
+ * 1. Stages & fsyncs EVERY temp file before touching any target.
+ * 2. Snapshots prior target bytes, then renames each temp -> target.
+ * 3. If ANY stage or rename fails, rolls back EVERY already-renamed target (restoring prior bytes
+ *    or removing newly created targets) and deletes every staged `.tmp` file.
+ * 4. If a rollback step itself fails, throws `AtomicBatchWriteError` carrying both the original
+ *    commit error and every failed restore, so callers know the disk may be in a mixed state (#1454).
+ */
+export async function atomicWriteFilesBatch(
+  entries: readonly AtomicBatchEntry[],
+  opts?: Pick<AtomicWriteOptions, 'sync' | 'fsOps'>,
+): Promise<{ count: number; totalBytes: number }> {
+  if (entries.length === 0) return { count: 0, totalBytes: 0 };
+
+  const renameImpl = opts?.fsOps?.rename ?? rename;
+  const staged: Array<{
+    target: string;
+    temp: string;
+    bytes: number;
+    hadOriginal: boolean;
+    originalBytes: Buffer | null;
+  }> = [];
+
+  try {
+    // Phase 1: Stage & fsync all temp files before mutating any destination
+    for (const entry of entries) {
+      await mkdir(dirname(entry.path), { recursive: true });
+      const temp = `${entry.path}.${randomUUID()}.tmp`;
+      const record = {
+        target: entry.path,
+        temp,
+        bytes: typeof entry.content === 'string' ? Buffer.byteLength(entry.content, 'utf8') : entry.content.byteLength,
+        hadOriginal: false,
+        originalBytes: null as Buffer | null,
+      };
+      staged.push(record);
+      if (opts?.fsOps?.writeAndSync) {
+        await opts.fsOps.writeAndSync(temp, entry.content, entry.mode);
+      } else {
+        await defaultWriteAndSync(temp, entry.content, { mode: entry.mode, sync: opts?.sync, fsOps: opts?.fsOps });
+      }
+    }
+
+    // Phase 2: Snapshot pre-existing targets for deterministic rollback
+    for (const item of staged) {
+      try {
+        item.originalBytes = await readFile(item.target);
+        item.hadOriginal = true;
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException)?.code;
+        if (code !== 'ENOENT') throw err;
+        item.hadOriginal = false;
+        item.originalBytes = null;
+      }
+    }
+
+    // Phase 3: Commit renames sequentially; roll back already-committed files in LIFO order on failure
+    const committed: typeof staged = [];
+    for (const item of staged) {
+      try {
+        await renameWithRetry(item.temp, item.target, 6, renameImpl);
+        committed.push(item);
+      } catch (commitErr) {
+        const rollbackFailures: AtomicBatchRollbackFailure[] = [];
+        for (let i = committed.length - 1; i >= 0; i -= 1) {
+          const prev = committed[i];
+          try {
+            if (prev.hadOriginal && prev.originalBytes !== null) {
+              await atomicWritePayload(prev.target, prev.originalBytes, {
+                sync: opts?.sync,
+                fsOps: opts?.fsOps,
+              });
+            } else {
+              await rm(prev.target, { force: true });
+            }
+          } catch (restoreErr) {
+            rollbackFailures.push({ path: prev.target, error: restoreErr });
+          }
+        }
+        if (rollbackFailures.length > 0) {
+          throw new AtomicBatchWriteError(commitErr, rollbackFailures);
+        }
+        throw commitErr;
+      }
+    }
+
+    return {
+      count: staged.length,
+      totalBytes: staged.reduce((sum, item) => sum + item.bytes, 0),
+    };
+  } catch (error) {
+    await Promise.all(staged.map((item) => rm(item.temp, { force: true }).catch(() => {})));
+    throw error;
+  }
 }
 
 /**

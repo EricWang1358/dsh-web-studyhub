@@ -81,14 +81,16 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, on
  * What the 任务 console shows of a PDF conversion beyond the timeline: the 运行环境 (what does the work), the window in hand with the service's own state,
  * the pace and what is left, and the windows done and to come. The card on the page says none of this; it is the same text the card used to carry.
  */
-export function PdfDetail({ job, expandChunks }) {
+export function PdfDetail({ job, expandChunks, onChanged }) {
   useInjectCss(css, 'study-mineru');
+  const { refresh } = useStudy();
   const running = isActiveJob(job), now = useNow(1000, { enabled: running });
   const count = job.chunk?.count || 1, index = job.chunk?.index || 0, adaptive = job.route === 'local' && !!job.local?.adaptive;
+  const handleRestored = () => { onChanged?.(); refresh?.(); };
   return (
     <div className="pdf-detail">
       {isHeldTask(job) && !running && !job.archived && <HeldEntry job={job} />}
-      {job.status === 'complete' && <RepeatedNote documentId={job.documentId} repeated={job.repeated} />}
+      {job.status === 'complete' && <RepeatedNote documentId={job.documentId} repeated={job.repeated} onRestored={handleRestored} />}
       {job.status === 'complete' && <Hint as="small" data-reconvert-hint>{ui('想先删掉识别错的文字再导入：重新选这份 PDF，在「更多设置」里打开「导入前先让我改」。已经导入的这份不会变。')}</Hint>}
       <ConversionEnvironment env={job.env} converter={job.converter} service={job.service} now={now} />
       {running && job.phase !== 'queued' && <>
@@ -293,7 +295,7 @@ const STATUS_TONE = { running: 'info', complete: 'success', failed: 'error', can
 const STAGE_TEXT = { start: () => ui('启动'), 'start-service': () => ui('启动本机服务'), queued: () => ui('排队'), split: () => ui('切分 PDF'), upload: () => ui('上传'), parse: () => ui('云端解析'), local: () => ui('本地解析'),
   download: () => ui('下载结果'), merge: () => ui('合并各段'), save: () => ui('保存为资料') };
 
-function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry, onRemove, onOpenSettings }) {
+function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry, onRemove, onOpenSettings, onRestored }) {
   const status = row.status, finished = !!row.finishedAt && status !== 'running' && status !== 'interrupted';
   const route = row.converter === 'marker' ? 'Marker · ' + ui('本地') : row.route === 'local' ? uiFormat('本地 · {0}', [row.tier || 'mineru']) : capital(ui('云端'));
   const size = Number.isFinite(row.bytes) ? formatBytes(row.bytes) : '', pages = Number.isFinite(row.pages) ? (row.pages === 1 ? ui('1 页') : uiFormat('{0} 页', [row.pages])) : '';
@@ -324,7 +326,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry,
         {status === 'complete' && (document?.exists
           ? <small className="pdf-history__result">{imported === 1 ? uiFormat('已导入为「{0}」· 共 1 页', [title]) : uiFormat('已导入为「{0}」· 共 {1} 页', [title, imported])}</small>
           : <Hint as="small">{ui('已导入的资料已被删除')}</Hint>)}
-        {status === 'complete' && document?.exists && <RepeatedNote documentId={row.documentId} repeated={document.repeated} />}
+        {status === 'complete' && document?.exists && <RepeatedNote documentId={row.documentId} repeated={document.repeated} onRestored={onRestored} />}
         {status === 'complete' && row.skippedPages > 0 && <Hint as="small">{uiFormat('没有可读文字而跳过的页：{0}', [row.skippedPages])}</Hint>}
         {status === 'interrupted' && <small>{ui('上次没有做完（应用被关闭，或意外中断）。')}</small>}
         {status === 'cancelled' && <small>{ui('已解析好的段落会保留，再选同一个文件不会重复解析。')}</small>}
@@ -441,7 +443,7 @@ export function PdfConvertHistory({ act, data, jobs, onOpenSources, onOpenJob, o
       <h5 className="pdf-history__day">{dayHeading(group)}</h5>
       <ul className="pdf-history__list">
         {group.rows.map(row => <HistoryRow key={row.id} row={row} now={clock} working={working} onOpen={target => onOpenSources?.(target.document?.sourceIds || [])}
-          onShowJob={showJob} onEditHeld={setEditing} onRetry={retry} onRemove={remove} onOpenSettings={onOpenSettings} />)}
+          onShowJob={showJob} onEditHeld={setEditing} onRetry={retry} onRemove={remove} onOpenSettings={onOpenSettings} onRestored={() => { void load(); onChanged?.(); }} />)}
       </ul>
     </div>)}
     {more > 0 && <Button variant="quiet" size="sm" onClick={() => setShown(current => current + HISTORY_PAGE)}>{uiFormat('显示更多（还有 {0} 条）', [more])}</Button>}

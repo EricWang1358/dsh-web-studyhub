@@ -236,6 +236,12 @@
       align-items: start;
       padding-right: var(--space-4);
     }
+    /* When the right-hand source dock is mounted, stack Socratic below the question so @container study on .review-body
+       cannot leave an empty 420px column beside a narrow question slit (#1436). */
+    .review-page.has-source > .review-body.has-socratic {
+      grid-template-columns: minmax(0, 1fr);
+      padding-right: 0;
+    }
     .socratic-nudge {
       display: flex;
       align-items: center;

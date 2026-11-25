@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { constants } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir as osHomedir } from 'node:os';
 import { isAbsolute, join, resolve, sep } from 'node:path';
@@ -26,8 +27,11 @@ async function verifyWritableDirectory(dirPath) {
   const target = resolve(dirPath);
   await mkdir(target, { recursive: true });
   const probe = join(target, `.studyhub-write-check-${randomUUID()}.tmp`);
-  await writeFile(probe, 'ok', 'utf8');
-  await rm(probe, { force: true });
+  try {
+    await writeFile(probe, 'ok', 'utf8');
+  } finally {
+    await rm(probe, { force: true }).catch(() => {});
+  }
   return target;
 }
 
@@ -53,8 +57,8 @@ async function atomicWriteJson(filePath, data) {
   const target = resolve(filePath);
   await mkdir(resolve(target, '..'), { recursive: true });
   const temp = `${target}.${randomUUID()}.tmp`;
-  await writeFile(temp, `${JSON.stringify(data, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
   try {
+    await writeFile(temp, `${JSON.stringify(data, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
     await renameWithRetry(temp, target);
   } catch (error) {
     await rm(temp, { force: true }).catch(() => {});
@@ -62,19 +66,63 @@ async function atomicWriteJson(filePath, data) {
   }
 }
 
-async function readStoredConfig(configPath, { strictIo = false } = {}) {
-  try {
-    const raw = await readFile(configPath, 'utf8');
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      throw new Error('desktop.json root must be a JSON object');
-    }
-    return normalizeDesktopConfig(parsed);
-  } catch (error) {
-    if (error?.code === 'ENOENT') return defaultDesktopConfig();
-    if (strictIo) throw error;
-    return defaultDesktopConfig();
+const reasonOf = (error) => (error instanceof Error ? error.message : String(error));
+
+function corruptConfigError(configPath, cause) {
+  const detail = reasonOf(cause);
+  return Object.assign(
+    new Error(`Existing desktop.json could not be read (${detail}); refusing to overwrite`),
+    { code: 'config-corrupt', details: { configPath, reason: detail } },
+  );
+}
+
+function unreadableConfigError(configPath, cause) {
+  const detail = reasonOf(cause);
+  return Object.assign(
+    new Error(`desktop.json could not be read right now (${detail}); it was not changed`),
+    { code: 'config-unreadable', details: { configPath, reason: detail } },
+  );
+}
+
+function backupFailedError(configPath, cause) {
+  const detail = reasonOf(cause);
+  return Object.assign(
+    new Error(`desktop.json could not be backed up (${detail}); it was not reset`),
+    { code: 'config-backup-failed', details: { configPath, reason: detail } },
+  );
+}
+
+/**
+ * What desktop.json is right now, from one fresh read. Only a parse failure (or a root that is not an object) is `corrupt`:
+ * any other read error (a locked file, a permission error) says nothing about its contents and is `unreadable`.
+ */
+async function inspectStoredConfig(configPath) {
+  let raw;
+  try { raw = await readFile(configPath, 'utf8'); } catch (error) {
+    return error?.code === 'ENOENT' ? { kind: 'missing' } : { kind: 'unreadable', error };
   }
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('desktop.json root must be a JSON object');
+    return { kind: 'ok', config: normalizeDesktopConfig(parsed) };
+  } catch (error) {
+    return { kind: 'corrupt', error };
+  }
+}
+
+async function readStoredConfigWithStatus(configPath) {
+  const found = await inspectStoredConfig(configPath);
+  if (found.kind === 'ok') return { config: found.config, configProblem: null };
+  const configProblem = found.kind === 'corrupt' ? { code: 'config-corrupt', path: configPath, reason: reasonOf(found.error) } : null;
+  return { config: defaultDesktopConfig(), configProblem };
+}
+
+async function readStoredConfig(configPath, { strictIo = false } = {}) {
+  const found = await inspectStoredConfig(configPath);
+  if (found.kind === 'ok') return found.config;
+  if (strictIo && found.kind === 'corrupt') throw corruptConfigError(configPath, found.error);
+  if (strictIo && found.kind === 'unreadable') throw unreadableConfigError(configPath, found.error);
+  return defaultDesktopConfig();
 }
 
 /**
@@ -128,6 +176,27 @@ async function resolveLibraryRoot({ config, env, defaultRoot, fallbackRoot, conf
   throw new Error('无法创建或写入默认学习库目录');
 }
 
+/** Copy the corrupt file aside. A copy that fails stops the caller: the original is the only record of the learner's folder and model settings. */
+async function backupCorruptConfig(configPath) {
+  const backupPath = `${configPath}.corrupt-${Date.now()}.bak`;
+  try { await copyFile(configPath, backupPath, constants.COPYFILE_EXCL); } catch (error) { throw backupFailedError(configPath, error); }
+  return backupPath;
+}
+
+/**
+ * Back up a corrupted desktop.json and reset it to clean defaults. The file is read again first: one that reads fine (or is absent) is left
+ * alone, a read error is no proof of corruption and stops here, and a backup that fails stops the reset.
+ */
+async function recoverStoredConfig(configPath) {
+  const found = await inspectStoredConfig(configPath);
+  if (found.kind === 'unreadable') throw unreadableConfigError(configPath, found.error);
+  if (found.kind !== 'corrupt') return { recovered: false, reason: found.kind === 'ok' ? 'readable' : 'missing', backupPath: '' };
+  const backupPath = await backupCorruptConfig(configPath);
+  const clean = defaultDesktopConfig();
+  await atomicWriteJson(configPath, clean);
+  return { recovered: true, backupPath, config: clean };
+}
+
 /**
  * Create atomic JSON config persistence for StudyHub Desktop.
  * Persists `desktop.json` strictly under StudyHub home (`<DSH_HOME || ~/.dsh>/study/desktop.json`),
@@ -154,29 +223,26 @@ export function createConfigStore({
   };
 
   async function load() {
-    const config = await readStoredConfig(configPath);
+    const { config, configProblem } = await readStoredConfigWithStatus(configPath);
     const library = await resolveLibraryRoot({ config, env, defaultRoot, fallbackRoot, configPath });
-    return { config, library };
+    return { config, library, configProblem };
   }
 
   function save(nextConfig, opts) {
     return serializeWrite(async () => {
-      try {
-        await readStoredConfig(configPath, { strictIo: true });
-      } catch (error) {
-        if (!opts?.force) {
-          throw new Error(
-            `Existing desktop.json could not be read (${error instanceof Error ? error.message : String(error)}); refusing to overwrite`,
-          );
-        }
-        const backupPath = `${configPath}.corrupt-${Date.now()}.bak`;
-        await copyFile(configPath, backupPath).catch(() => {});
+      try { await readStoredConfig(configPath, { strictIo: true }); } catch (error) {
+        // `force` resets a corrupt file (after its backup); a file that is only unreadable right now is never overwritten.
+        if (!opts?.force || error?.code !== 'config-corrupt') throw error;
+        await backupCorruptConfig(configPath);
       }
       const normalized = normalizeDesktopConfig(nextConfig);
       await atomicWriteJson(configPath, normalized);
       return normalized;
     });
   }
+
+  /** Explicitly back up a corrupted desktop.json and reset it to clean defaults (#1436 Item 8); see recoverStoredConfig. */
+  const recover = () => serializeWrite(() => recoverStoredConfig(configPath));
 
   function saveLibraryRoot(rawRoot) {
     return serializeWrite(async () => {
@@ -214,6 +280,7 @@ export function createConfigStore({
     defaultRoot,
     load,
     save,
+    recover,
     saveLibraryRoot,
     confirmLibraryPlace,
   });

@@ -68,9 +68,21 @@ export default function TeachingPanel({ session, data, model, onModelSettings })
               <div className="teaching-skipped-summary">
                 <p className="muted small">{uiFormat("已跳过 {0} 步（不计为已掌握，可回头再看）：", [skippedSteps.length])}</p>
                 <ul>
-                  {skippedSteps.map((item) => (
-                    <li key={item.index}>{uiFormat("第 {0} 步：{1}", [(item.index ?? 0) + 1, item.lesson || ""])}</li>
-                  ))}
+                  {skippedSteps.map((item) => {
+                    const hasRefAnswer = Boolean(item.answer && item.answer !== item.lesson);
+                    return (
+                      <li key={item.index} className="teaching-skipped-summary__item">
+                        <div className="teaching-skipped-summary__step">{uiFormat("第 {0} 步", [(item.index ?? 0) + 1])}</div>
+                        <Markdown className="teaching-skipped-summary__lesson" text={item.lesson || ""} />
+                        {hasRefAnswer && (
+                          <div className="teaching-skipped-summary__answer">
+                            <span className="muted small">{ui("参考回答")}</span>
+                            <Markdown text={item.answer} />
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}
@@ -119,9 +131,9 @@ export default function TeachingPanel({ session, data, model, onModelSettings })
                   busy={checkingStep} busyLabel={ui("正在检查…")}
                   disabled={teachingBusy || !teachAnswer.trim()}
                   onPointerUp={(e) => e.currentTarget.closest(".study-app")?.focus({ preventScroll: true })} type="submit">{ui("检查理解")}</Button>
-                <Button className="teaching-panel__skip" variant="ghost" size="sm" disabled={teachingBusy}
+                <Button className="teaching-panel__skip" variant="quiet" size="sm" disabled={teachingBusy}
                   onClick={() => skipStep(false)} type="button">{ui("跳过这一步")}</Button>
-                <Button className="teaching-panel__skip-all" variant="ghost" size="sm" disabled={teachingBusy}
+                <Button className="teaching-panel__skip-all" variant="quiet" size="sm" disabled={teachingBusy}
                   onClick={() => skipStep(true)} type="button">{ui("剩下的直接讲给我听")}</Button>
               </div>
             </form>

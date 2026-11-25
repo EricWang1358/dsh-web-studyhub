@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { errorMessage, ui, useUiLanguage } from '../i18n.js';
+import { errorMessage, ui, uiFormat, useUiLanguage } from '../i18n.js';
 import { Hint, InlineMessage } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { useLiveEffect } from '../use-async.js';
@@ -59,10 +59,31 @@ export function createDesktopConfigActions({ call, refresh, setConfig, setError,
       setConfig((prev) => (prev ? { ...prev, providers: result?.providers || [] } : prev));
       return result;
     }),
+    recoverConfig: () => runAction('recover-config', async () => {
+      const result = await call('desktop.config.recover', {});
+      if (result?.config) return applyConfig(result.config);
+      await refresh?.();
+      return result;
+    }),
   };
 }
 
 const hasReadyCli = (providers) => Array.isArray(providers) && providers.some((item) => item.supported && item.status === 'ready');
+
+function CorruptConfigBanner({ config, actions, working }) {
+  if (!config?.configProblem) return null;
+  const pathText = config.configProblem.path || config.configPath || 'desktop.json';
+  return (
+    <InlineMessage
+      tone="warning"
+      boxed
+      title={ui('配置文件已损坏')}
+      action={actions.recoverConfig ? { label: ui('备份并重置配置'), busy: working === 'recover-config', onClick: actions.recoverConfig } : undefined}
+    >
+      {uiFormat('配置文件无法读取（{0}）。请先备份并重置，再保存模型或更改学习库目录。', [pathText])}
+    </InlineMessage>
+  );
+}
 
 /** The setup panel's body. `quick` (the first-run step): only the detected local CLI with its 一键启用, or nothing when none is ready. */
 export function DesktopSetupBody({ config, actions, working, error, onDismissError, compact, quick = false }) {
@@ -87,6 +108,7 @@ export function DesktopSetupBody({ config, actions, working, error, onDismissErr
 
   return (
     <div className="desktop-setup" data-desktop-model={config.effective?.ready ? 'ready' : 'missing'}>
+      <CorruptConfigBanner config={config} actions={actions} working={working} />
       {readyCli ? <>{cliCard}{openAiCard}</> : <>{openAiCard}{cliCard}</>}
       {error && <InlineMessage tone="error" onDismiss={onDismissError}>{error}</InlineMessage>}
       {!compact && config.configPath && (

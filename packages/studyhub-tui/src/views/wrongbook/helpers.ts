@@ -1,6 +1,7 @@
 import type { UiLanguage } from '../../types/contracts.js';
 import type { Tone } from '../../theme/tokens.js';
 import { t } from '../../state/store.js';
+import { gradeLabel } from '../../grade-scale.js';
 import type {
   ErrorReasonId,
   RecommendReason,
@@ -241,7 +242,9 @@ export function buildDetailMarkdown(
     } else if (detail.selfGrade !== null && detail.selfGrade !== undefined) {
       parts.push(`- **${t(lang, '上次自评', 'Last Self-Grade')}**: ${detail.selfGrade} / 5`);
     } else {
-      parts.push(`- **${t(lang, '上次评分', 'Last Grade')}**: ${detail.lastGrade ?? item.lastGrade ?? '-'}`);
+      const grade = detail.lastGrade ?? item.lastGrade;
+      const meaning = gradeLabel(grade, lang);
+      parts.push(`- **${t(lang, '上次评分', 'Last Grade')}**: ${grade ?? '-'}${meaning ? ` · ${meaning}` : ''}`);
     }
 
     if (detail.clozeDetails?.length) {
