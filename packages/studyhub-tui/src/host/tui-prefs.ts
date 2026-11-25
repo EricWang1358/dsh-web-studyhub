@@ -2,11 +2,11 @@
  * Zero-dependency validated, atomic persistence for TUI-only preferences at `<DSH_HOME || ~/.dsh>/study/tui.json`.
  * Lives beside StudyHub Desktop's `desktop.json` (never inside the study library).
  */
-import { copyFile, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import type { AssistantCommandStat, LastPracticeContext, PinnedTarget, ThemeId, TuiPreferences, UiLanguage } from '../types/contracts.js';
-import { atomicWriteJsonFile } from './atomic-write.js';
+import { atomicCopyFile, atomicWriteJsonFile } from './atomic-write.js';
 
 export const THEME_IDS: readonly ThemeId[] = Object.freeze([
   'dsh-dark',
@@ -333,7 +333,7 @@ export async function saveTuiPreferences(
         return next;
       }
       const backupPath = `${target}.corrupt-${Date.now()}.bak`;
-      await copyFile(target, backupPath).catch(() => {});
+      await atomicCopyFile(target, backupPath, { mode: 0o600 }).catch(() => {});
     }
     await atomicWriteJsonFile(target, next, { mode: 0o600 });
     return next;

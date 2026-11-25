@@ -88,6 +88,31 @@ const cheapRules = {
   "no-misleading-character-class": "error",
 };
 
+// Raw fs writes bypass temp+fsync+rename and can leave half-written files or orphaned .tmp files.
+// All TUI persistence must go through host/atomic-write.ts (#1354 P3-b / #1454).
+const TUI_NO_RAW_FS_WRITES = [
+  {
+    name: "node:fs/promises",
+    importNames: ["writeFile", "appendFile", "copyFile", "rename"],
+    message: "Use atomicWriteTextFile / atomicWriteJsonFile / atomicCopyFile from host/atomic-write.js instead of raw fs/promises writes (#1354 P3-b / #1383).",
+  },
+  {
+    name: "fs/promises",
+    importNames: ["writeFile", "appendFile", "copyFile", "rename"],
+    message: "Use atomicWriteTextFile / atomicWriteJsonFile / atomicCopyFile from host/atomic-write.js instead of raw fs/promises writes (#1354 P3-b / #1383).",
+  },
+  {
+    name: "node:fs",
+    importNames: ["writeFile", "writeFileSync", "appendFile", "appendFileSync", "copyFile", "copyFileSync", "rename", "renameSync", "createWriteStream"],
+    message: "Use atomicWriteTextFile / atomicWriteJsonFile / atomicCopyFile from host/atomic-write.js instead of raw fs writes (#1354 P3-b / #1383).",
+  },
+  {
+    name: "fs",
+    importNames: ["writeFile", "writeFileSync", "appendFile", "appendFileSync", "copyFile", "copyFileSync", "rename", "renameSync", "createWriteStream"],
+    message: "Use atomicWriteTextFile / atomicWriteJsonFile / atomicCopyFile from host/atomic-write.js instead of raw fs writes (#1354 P3-b / #1383).",
+  },
+];
+
 /* Lint guards against real bugs (unused vars, stale hooks deps, undefined
    globals); style is deliberately not enforced — formatting stays manual. */
 export default [
@@ -221,7 +246,7 @@ export default [
           name: "ink",
           importNames: ["useWindowSize"],
           message: "Use useStableWindowSize from components/resize.js instead of raw ink useWindowSize (#1354 P4).",
-        }],
+        }, ...TUI_NO_RAW_FS_WRITES],
       }],
     },
   },
@@ -233,7 +258,7 @@ export default [
           name: "ink",
           importNames: ["useInput"],
           message: "Use useKeyScope from input/hooks.js (or useScopedInput) instead of raw ink useInput (#1354 D1).",
-        }],
+        }, ...TUI_NO_RAW_FS_WRITES],
       }],
     },
   },
@@ -245,6 +270,23 @@ export default [
     rules: {
       "no-restricted-imports": ["error", {
         paths: [{
+          name: "ink",
+          importNames: ["useWindowSize"],
+          message: "Use useStableWindowSize from components/resize.js instead of raw ink useWindowSize (#1354 P4).",
+        }, ...TUI_NO_RAW_FS_WRITES],
+      }],
+    },
+  },
+  {
+    // The atomic-write module is the single sanctioned home for raw fs writes.
+    files: ["packages/studyhub-tui/src/host/atomic-write.ts"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        paths: [{
+          name: "ink",
+          importNames: ["useInput"],
+          message: "Use useKeyScope from input/hooks.js (or useScopedInput) instead of raw ink useInput (#1354 D1).",
+        }, {
           name: "ink",
           importNames: ["useWindowSize"],
           message: "Use useStableWindowSize from components/resize.js instead of raw ink useWindowSize (#1354 P4).",
