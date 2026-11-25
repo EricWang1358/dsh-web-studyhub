@@ -447,17 +447,21 @@ export const AnswerCardModal = memo(function AnswerCardModal({
     setLoading(false);
   }, [host, effectiveDeckId, cardId, course, run]);
 
+  const hydrateInitRef = useRef({ clearPoll, hydrateCardAndBook, run, snapshot });
+  hydrateInitRef.current = { clearPoll, hydrateCardAndBook, run, snapshot };
+
   // Reset & load when card changes
   useEffect(() => {
-    clearPoll();
+    const ctx = hydrateInitRef.current;
+    ctx.clearPoll();
     setLoading(true);
     setErrorBanner(null);
     setDrillResult(null);
-    const solAc = (run as { solution?: { answerCard?: AnswerCardData } } | null)?.solution?.answerCard;
+    const solAc = (ctx.run as { solution?: { answerCard?: AnswerCardData } } | null)?.solution?.answerCard;
     setAnswerCard(solAc && typeof solAc === 'object' ? solAc : null);
 
     // Check if an answer-card job for this card is already running in snapshot
-    const activeJob = snapshot?.jobs?.find((j) => {
+    const activeJob = ctx.snapshot?.jobs?.find((j) => {
       if (!isActiveJobStatus(j.status)) return false;
       if (j.type !== 'case-answer-card' && j.kind !== 'case-answer-card') return false;
       const detailCardId =
@@ -475,7 +479,7 @@ export const AnswerCardModal = memo(function AnswerCardModal({
         : null,
     );
 
-    void hydrateCardAndBook();
+    void ctx.hydrateCardAndBook();
   }, [cardId]);
 
   const finishJobAndReload = useCallback(async () => {

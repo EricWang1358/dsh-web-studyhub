@@ -183,25 +183,34 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
     void loadSettings();
   }, [loadSettings]);
 
-  const practice: PracticeSettingsShape = {
-    autopilot: Boolean(settings?.practice?.autopilot),
-    roundSize: Number(settings?.practice?.roundSize ?? 20) || 20,
-    newCardOrder: (settings?.practice?.newCardOrder as PracticeSettingsShape['newCardOrder']) ?? 'reading',
-    debrief: settings?.practice?.debrief !== false,
-    rereadMarks: settings?.practice?.rereadMarks !== false,
-  };
-  const generation: GenerationSettingsShape = {
-    kind: String(settings?.generation?.kind ?? 'quiz'),
-    count: Number(settings?.generation?.count ?? 10) || 10,
-    difficulty: (settings?.generation?.difficulty as GenerationSettingsShape['difficulty']) ?? 'mixed',
-    coverageLevel: (settings?.generation?.coverageLevel as GenerationSettingsShape['coverageLevel']) ?? 'standard',
-    language: (settings?.generation?.language as GenerationSettingsShape['language']) ?? 'auto',
-  };
-  const dailyRecap: DailyRecapSettingsShape = {
-    automatic: Boolean(settings?.dailyRecap?.automatic),
-    tone: (settings?.dailyRecap?.tone as DailyRecapSettingsShape['tone']) ?? 'friendly',
-    timeZone: String(settings?.dailyRecap?.timeZone ?? 'Asia/Shanghai'),
-  };
+  const practice: PracticeSettingsShape = useMemo(
+    () => ({
+      autopilot: Boolean(settings?.practice?.autopilot),
+      roundSize: Number(settings?.practice?.roundSize ?? 20) || 20,
+      newCardOrder: (settings?.practice?.newCardOrder as PracticeSettingsShape['newCardOrder']) ?? 'reading',
+      debrief: settings?.practice?.debrief !== false,
+      rereadMarks: settings?.practice?.rereadMarks !== false,
+    }),
+    [settings?.practice],
+  );
+  const generation: GenerationSettingsShape = useMemo(
+    () => ({
+      kind: String(settings?.generation?.kind ?? 'quiz'),
+      count: Number(settings?.generation?.count ?? 10) || 10,
+      difficulty: (settings?.generation?.difficulty as GenerationSettingsShape['difficulty']) ?? 'mixed',
+      coverageLevel: (settings?.generation?.coverageLevel as GenerationSettingsShape['coverageLevel']) ?? 'standard',
+      language: (settings?.generation?.language as GenerationSettingsShape['language']) ?? 'auto',
+    }),
+    [settings?.generation],
+  );
+  const dailyRecap: DailyRecapSettingsShape = useMemo(
+    () => ({
+      automatic: Boolean(settings?.dailyRecap?.automatic),
+      tone: (settings?.dailyRecap?.tone as DailyRecapSettingsShape['tone']) ?? 'friendly',
+      timeZone: String(settings?.dailyRecap?.timeZone ?? 'Asia/Shanghai'),
+    }),
+    [settings?.dailyRecap],
+  );
   const bookSrc = settings?.book ?? (snapshot?.settings as FullSettingsShape | undefined)?.book;
   const bookQaToBook: 'manual' | 'auto' = bookSrc?.qaToBook === 'auto' ? 'auto' : 'manual';
   const bookCoverage: 'brief' | 'standard' | 'full' = BOOK_COVERAGES.includes(

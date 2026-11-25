@@ -1049,7 +1049,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       busyRef.current = false;
       if (mountedRef.current) setBusyAction(null);
     }
-  }, [busyAction, host, activeCourse, lang, topics]);
+  }, [asciiMode, busyAction, host, activeCourse, lang, topics]);
 
   const deleteSkeleton = useCallback(async () => {
     const target = detail;

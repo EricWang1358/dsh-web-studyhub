@@ -412,7 +412,7 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
         if (mountedRef.current) setBusy(false);
       }
     },
-    [host, identityPayload, lang, notify, refreshSavedList, target],
+    [host, identityPayload, lang, notify, refreshSavedList, target, cancelAiSuggest],
   );
 
   const handleToggleTarget = useCallback(async () => {

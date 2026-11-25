@@ -1892,30 +1892,28 @@ export const DeckManageModal = memo(function DeckManageModal({
             </>
           ) : null}
           {selectedIds.size === 0 && (isSlainDeck || hasSlainCard) ? (
-            <>
-              {selectedCard?.slain ? (
-                <>
-                  <Badge
-                    label={`${t(lang, '斩题来源', 'Origin')}: ${truncateDisplay(
-                      selectedCard.slain.deckTitle || selectedCard.slain.deckId || t(lang, '原题组', 'Original'),
-                      Math.max(10, Math.floor(innerW * 0.45)),
-                      ell,
-                    )}`}
-                    tone="warning"
-                    variant="soft"
-                  />
-                  <Text color={theme.dim}>
-                    {truncateDisplay(t(lang, '[u] 恢复原题组', '[u] Restore to deck'), Math.max(10, innerW - 24), ell)}
-                  </Text>
-                </>
-              ) : (
+            selectedCard?.slain ? (
+              <>
                 <Badge
-                  label={t(lang, '斩题组: 按 [u] 恢复到原题组', 'Slain Deck: Press [u] to restore')}
+                  label={`${t(lang, '斩题来源', 'Origin')}: ${truncateDisplay(
+                    selectedCard.slain.deckTitle || selectedCard.slain.deckId || t(lang, '原题组', 'Original'),
+                    Math.max(10, Math.floor(innerW * 0.45)),
+                    ell,
+                  )}`}
                   tone="warning"
                   variant="soft"
                 />
-              )}
-            </>
+                <Text color={theme.dim}>
+                  {truncateDisplay(t(lang, '[u] 恢复原题组', '[u] Restore to deck'), Math.max(10, innerW - 24), ell)}
+                </Text>
+              </>
+            ) : (
+              <Badge
+                label={t(lang, '斩题组: 按 [u] 恢复到原题组', 'Slain Deck: Press [u] to restore')}
+                tone="warning"
+                variant="soft"
+              />
+            )
           ) : null}
           {selectedIds.size === 0 && !isSlainDeck && !hasSlainCard && deck?.folder ? (
             <Badge
