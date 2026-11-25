@@ -108,3 +108,34 @@ test('#1436 Item 3: source dock + Socratic inline drawer collapses to single col
   assert.match(termDom, /\.socratic-inline-drawer/, 'EXCLUDED_SELECTOR must exclude .socratic-inline-drawer');
   assert.match(termDom, /\.socratic-nudge/, 'EXCLUDED_SELECTOR must exclude .socratic-nudge');
 });
+
+test('#1448 useSocraticInlineState: leaving a question closes its drawer for good, so A -> B -> A does not re-open it (and re-request) by itself', () => {
+  // The same stubbed-hooks harness as above: state lives in a table, no effect ever runs.
+  const states = [];
+  let cursor = 0;
+  const origUseState = React.useState;
+  const origUseCallback = React.useCallback;
+  const runHook = (props) => {
+    cursor = 0;
+    let result;
+    function Probe() { result = uiMod.useSocraticInlineState(props); return null; }
+    React.useState = (init) => {
+      const idx = cursor++;
+      if (!(idx in states)) states[idx] = typeof init === 'function' ? init() : init;
+      return [states[idx], (next) => { states[idx] = typeof next === 'function' ? next(states[idx]) : next; }];
+    };
+    React.useCallback = (fn) => fn;
+    try { Probe(); } finally { React.useState = origUseState; React.useCallback = origUseCallback; }
+    return result;
+  };
+  const questionA = { id: 'r1', index: 0, mode: 'path', complete: false, card: { id: 'c1' }, retry: false };
+  const questionB = { id: 'r1', index: 1, mode: 'path', complete: false, card: { id: 'c2' }, retry: false };
+
+  runHook({ run: questionA }).activate();
+  assert.equal(runHook({ run: questionA }).open, true, 'open on A');
+  assert.equal(runHook({ run: questionB }).open, false, 'closed on B');
+  assert.equal(runHook({ run: questionB }).open, false, 'still closed on a later render of B');
+  assert.equal(runHook({ run: questionA }).open, false, 'back on A it stays closed until the learner opens it again');
+  runHook({ run: questionA }).activate();
+  assert.equal(runHook({ run: questionA }).open, true, 'the learner can still open it on A');
+});

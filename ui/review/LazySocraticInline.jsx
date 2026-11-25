@@ -15,6 +15,9 @@ export function useSocraticInlineState({ run, closeAssist, reviewBodyRef }) {
   const [confirmedRunId, setConfirmedRunId] = React.useState('');
   const allowed = run?.mode !== 'exam' && !run?.complete && Boolean(run?.card?.id);
   const scopeKey = voiceScopeKey(run);
+  // A drawer is open for one question only: when the question changes the key is cleared (while rendering, so there is no frame in between),
+  // otherwise A -> B -> A would find the old key again and re-open the drawer and ask the tutor by itself.
+  if (openKey && openKey !== scopeKey) setOpenKey('');
   const open = Boolean(allowed && scopeKey && openKey === scopeKey);
   const modelConfirmed = Boolean(run?.id && confirmedRunId === run.id);
   const cardAnswered = Boolean(run?.feedback);
