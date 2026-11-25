@@ -24,6 +24,12 @@ function useElapsed(active, ms) {
  * place, as a model note (the settings for a key or a balance, 重试 for a busy service) or, for any other error, as its text with 重试.
  * busy: a request is in flight. failure: the error text of the last one ('' for none). onCancel / onRetry: the learner's two choices.
  */
+const NON_RETRYABLE_TEACHING = /没有引用资料|Calculation teaching needs cited source|已结束|Review has ended|已经完成|Teaching already complete|内容过长|too long|原题内容已修改|Original question changed|引导步骤已变化|Teaching step changed|本轮练习已变化|Review changed|请先作答原题|Answer the original question|不支持的引导练习模式|Unknown teaching mode|题目位置无效|Invalid teaching origin/i;
+
+export function isTeachingFailureRetryable(failure) {
+  return !NON_RETRYABLE_TEACHING.test(String(failure || ''));
+}
+
 export default function TeachingStatus({ busy, failure = '', onCancel, onRetry, slowAfterMs = 20000 }) {
   useInjectCss(css, 'study-teaching-status');
   const slow = useElapsed(busy, slowAfterMs);
@@ -37,7 +43,8 @@ export default function TeachingStatus({ busy, failure = '', onCancel, onRetry, 
   }
   if (!failure) return null;
   const known = describeModelError(failure).kind !== 'unknown';
+  const retryable = onRetry && isTeachingFailureRetryable(failure);
   return known
-    ? <ModelErrorNote error={failure} context="teaching" onRetry={onRetry} className="teaching-status-note" />
-    : <InlineMessage tone="error" className="teaching-status-note" action={onRetry ? { label: ui('重试'), onClick: onRetry } : undefined}>{failure}</InlineMessage>;
+    ? <ModelErrorNote error={failure} context="teaching" onRetry={retryable ? onRetry : undefined} className="teaching-status-note" />
+    : <InlineMessage tone="error" className="teaching-status-note" action={retryable ? { label: ui('重试'), onClick: onRetry } : undefined}>{failure}</InlineMessage>;
 }

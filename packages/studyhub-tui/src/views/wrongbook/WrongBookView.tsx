@@ -1,6 +1,8 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { resolve } from 'node:path';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { KEY_LAYER_MODAL } from '../../input/dispatcher.js';
+import { KeyScope, useKeyScope } from '../../input/hooks.js';
 import type { KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { currentCourse } from '../../shell/data.js';
@@ -9,6 +11,7 @@ import { atomicWriteExportText, defaultBackupFilePath, todayLocalYmd } from '../
 import { tryAction, type ReviewRun } from '../../host/sample-actions.js';
 import { toneColor, useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
+import { computeProseLayout } from '../../components/Layout.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
@@ -16,10 +19,13 @@ import { SelectList, type SelectOption } from '../../components/SelectList.js';
 import { SplitPane, type PaneSize } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
-import { useClaimKeys, useInputCapture } from '../../components/focus.js';
+import { useInputCapture } from '../../components/focus.js';
+import { LAYOUT_BP, computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { renderProgressBar } from '../../render/charts.js';
+import { buildFileHyperlinkUrl, formatOsc8Link } from '../../render/osc8.js';
+import { buildTopWrongCluster } from './quick-triage.js';
 import {
   ERROR_REASONS,
   REASON_FILTER_ORDER,
@@ -48,7 +54,7 @@ import type {
 const PAGE_LIMIT = 100;
 const MAX_FETCH_ITEMS = 300;
 const PRACTICE_BATCH_CAP = 50;
-const CLAIMED_KEYS: readonly string[] = Object.freeze(['t', 'e', 'p', 'o', 'f', 'm', ' ', 'B', 'V', 'x', 'X', '/']);
+const CLAIMED_KEYS: readonly string[] = Object.freeze(['t', 'e', 'p', 'o', 'f', 'm', ' ', 'B', 'V', 'x', 'X', '/', 'Q']);
 
 export interface WrongBookExportOption {
   id?: string;
@@ -542,7 +548,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
   );
 
   const handleVariantPractice = useCallback(async () => {
-    if (busyRef.current || busyAction) return;
+    if (busyRef.current) return;
     busyRef.current = true;
     setBusyAction(true);
     try {
@@ -586,7 +592,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       busyRef.current = false;
       if (mountedRef.current) setBusyAction(false);
     }
-  }, [busyAction, host, lang, navigate, notify, refreshSnapshot, selectedItem, selectedMap, setActiveRunId]);
+  }, [host, lang, navigate, notify, refreshSnapshot, selectedItem, selectedMap, setActiveRunId]);
 
   const setErrorReason = useCallback(
     async (reason: ErrorReasonId | null) => {
@@ -798,11 +804,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
     }
   }, [allItems, asciiMode, bindingRoot, course, host, lang, notify, selectedMap, snapshotRoot, visibleItems]);
 
-  const modalOpen = activeModal !== null;
-  const viewInputActive = isActive && !modalOpen;
-  const listNavActive = viewInputActive && !filterEditing;
-  useClaimKeys(CLAIMED_KEYS, listNavActive);
-  useInputCapture(viewInputActive && filterEditing);
+  useInputCapture(isActive && filterEditing && activeModal === null);
 
   const footerHints: KeyHint[] = useMemo(() => {
     if (selectedMap.size > 0) {
@@ -843,91 +845,91 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
     ];
   }, [lang, tab, selectedMap.size]);
 
-  useFooterHints(footerHints, viewInputActive);
+  const narrowLayout = width < LAYOUT_BP.COMPACT;
 
-  const narrowLayout = width < 90;
-
-  useInput(
-    (input, key) => {
-      if (!listNavActive) return;
+  const pageActive = useKeyScope({
+    id: 'WrongBookView:main',
+    active: isActive,
+    keys: CLAIMED_KEYS,
+    onKey: (input, key) => {
       if (key.tab) {
         cycleTab(key.shift ? -1 : 1);
-        return;
+        return true;
       }
       if (input === 'h') {
         cycleTab(-1);
-        return;
+        return true;
       }
       if (input === 'l') {
         cycleTab(1);
-        return;
+        return true;
       }
       if (key.rightArrow) {
         setActivePane('right');
-        return;
+        return true;
       }
       if (key.leftArrow || (key.escape && narrowLayout && activePane === 'right')) {
         setActivePane('left');
-        return;
+        return true;
       }
       if (key.escape && filterQuery) {
         setFilterQuery('');
         setSelectedIdx(0);
-        return;
+        return true;
       }
       if (input === '/' && !key.ctrl && !key.meta) {
         setActivePane('left');
         setFilterEditing(true);
-        return;
+        return true;
       }
       if (input === 'R') {
         void loadWrongBook(false);
-        return;
+        return true;
       }
       if (input === 'm') {
         setPreferences({ mathUnicode: !mathUnicode });
-        return;
+        return true;
       }
       if (input === 'f') {
         if (tab !== 'reason') setTab('reason');
         cycleReasonFilter();
-        return;
+        return true;
       }
       if (input === 'J') {
         setDetailScrollTop((top) => top + 4);
-        return;
+        return true;
       }
       if (input === 'K') {
         setDetailScrollTop((top) => Math.max(0, top - 4));
-        return;
+        return true;
       }
       if (input === 'B') {
         if (selectedMap.size === 0) {
           notify(t(lang, '请先按 [Space] 勾选要练习的错题', 'Press [Space] to select cards first'), 'warning');
-          return;
+          return true;
         }
         void launchPractice(Array.from(selectedMap.values()));
-        return;
+        return true;
       }
       if (input === 'x' && selectedMap.size > 0) {
         setSelectedMap(new Map());
-        return;
+        return true;
       }
       if (input === 'P') {
         const batch = visibleItems.map((x) => ({ deckId: x.deckId, cardId: x.cardId }));
         void launchPractice(batch);
-        return;
+        return true;
       }
       if (input === 'V') {
         void handleVariantPractice();
-        return;
+        return true;
       }
       if (input === 'X') {
         void handleExportMarkdown();
-        return;
+        return true;
       }
-      if (!selectedItem) return;
-      if (input === ' ') {
+      if (!selectedItem) return false;
+      if (input === ' ' && activePane === 'left') {
         const selKey = cardSelectionKey(selectedItem);
         setSelectedMap((prev) => {
           const next = new Map(prev);
@@ -945,26 +947,26 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
           }
           return next;
         });
-        return;
+        return true;
       }
       if (input === 'p' || (key.return && (!narrowLayout || activePane === 'right'))) {
         void launchPractice([{ deckId: selectedItem.deckId, cardId: selectedItem.cardId }]);
-        return;
+        return true;
       }
       if (input === 'e') {
         setActiveModal('reason');
-        return;
+        return true;
       }
       if (input === 't') {
         executeTriageAction();
-        return;
+        return true;
       }
       if (input === 'x') {
         const scope = relatedRecs.length
           ? relatedRecs.map((r) => ({ deckId: r.deckId, cardId: r.cardId }))
           : recs.slice(0, 10).map((r) => ({ deckId: r.deckId, cardId: r.cardId }));
         void launchPractice(scope, t(lang, '暂无推荐同类题', 'No recommended similar cards'));
-        return;
+        return true;
       }
       if (input === 'o') {
         const cit = selectedItem.citations?.find((c) => c?.sourceId);
@@ -976,10 +978,28 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
         } else {
           notify(t(lang, '该题暂无关联原文页码', 'No source citation for this question'), 'info');
         }
+        return true;
       }
+      if (input === 'Q') {
+        const cluster = buildTopWrongCluster(visibleItems, lang);
+        if (!cluster) {
+          notify(t(lang, '当前列表暂无 >=2 题的高频错题聚类', 'Need >=2 related wrong cards for quick cluster drill'), 'info');
+        } else {
+          void tryAction<ReviewRun>(host, 'review.start', { mode: 'path', scope: cluster.scope, fresh: true }).then((res) => {
+            if (res.ok && res.value?.id) {
+              navigate('review', { runId: res.value.id });
+            } else {
+              notify(res.error?.message || t(lang, '启动高频错题练习失败', 'Failed to start cluster drill'), 'error');
+            }
+          });
+        }
+        return true;
+      }
+      return false;
     },
-    { isActive: listNavActive },
-  );
+  });
+
+  useFooterHints(footerHints, pageActive);
 
   // Compute header & split layout heights
   const showFilterBar = filterEditing || filterQuery.length > 0;
@@ -1046,8 +1066,8 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
     [lang, asciiMode, theme, selectedMap],
   );
 
-  const listActive = listNavActive && activePane === 'left';
-  const detailScrollActive = listNavActive && activePane === 'right';
+  const leftListActive = pageActive && activePane === 'left';
+  const detailScrollActive = pageActive && activePane === 'right';
 
   const renderLeftPane = useCallback(
     (size: PaneSize) => {
@@ -1092,7 +1112,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
               }}
               keyExtractor={(item) => itemKey(item)}
               renderItem={renderListItem}
-              isActive={listActive}
+              isActive={leftListActive}
               emptyText={
                 normalizedFilter
                   ? t(lang, `没有匹配「${filterQuery.trim()}」的错题`, `No mistakes matching "${filterQuery.trim()}"`)
@@ -1123,7 +1143,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       narrowLayout,
       launchPractice,
       renderListItem,
-      listActive,
+      leftListActive,
       selectedMap,
       asciiMode,
       normalizedFilter,
@@ -1242,36 +1262,48 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
             </Box>
           ) : null}
 
-          {/* Scrollable Detail Markdown */}
-          <Box height={mdHeight} width={innerW} overflow="hidden">
-            {detailLoading && !detail ? (
-              <Box height={mdHeight} alignItems="center" justifyContent="center">
-                <Spinner label={asciiMode ? t(lang, '加载题目详情...', 'Loading detail...') : t(lang, '加载题目详情…', 'Loading detail…')} active={isActive} />
+          {/* Scrollable Detail Markdown (centered within 96-col measure on ultrawide screens — Round 92 A10) */}
+          {(() => {
+            const { proseWidth, marginLeft } = computeProseLayout(innerW);
+            return (
+              <Box height={mdHeight} width={innerW} paddingLeft={marginLeft} overflow="hidden">
+                {detailLoading && !detail ? (
+                  <Box height={mdHeight} alignItems="center" justifyContent="center">
+                    <Spinner label={asciiMode ? t(lang, '加载题目详情...', 'Loading detail...') : t(lang, '加载题目详情…', 'Loading detail…')} active={isActive} />
+                  </Box>
+                ) : (
+                  <MarkdownView
+                    markdown={detailMarkdown}
+                    width={proseWidth}
+                    height={mdHeight}
+                    isActive={detailScrollActive}
+                    scrollTop={detailScrollTop}
+                    onScroll={setDetailScrollTop}
+                  />
+                )}
               </Box>
-            ) : (
-              <MarkdownView
-                markdown={detailMarkdown}
-                width={innerW}
-                height={mdHeight}
-                isActive={detailScrollActive}
-                scrollTop={detailScrollTop}
-                onScroll={setDetailScrollTop}
-              />
-            )}
-          </Box>
+            );
+          })()}
 
-          {/* Source Citation Bar (optional) */}
+          {/* Source Citation Bar (optional, with safe OSC 8 hyperlink when terminal supports it) */}
           {citationRow > 0 ? (
             <Box height={1} overflow="hidden">
               <Text color={theme.accent}>
-                {truncateDisplay(
-                  (() => {
-                    const cit = selectedItem.citations?.find((c) => c?.sourceId);
-                    return `[o] ${t(lang, '跳转原文', 'Source')}: ${cit?.title || cit?.sourceId || ''}${cit?.page != null ? ` p.${cit.page}` : ''}`;
-                  })(),
-                  innerW,
-                  asciiMode ? '...' : '…',
-                )}
+                {(() => {
+                  const cit = selectedItem.citations?.find((c) => c?.sourceId);
+                  const rawLabel = truncateDisplay(
+                    `[o] ${t(lang, '跳转原文', 'Source')}: ${cit?.title || cit?.sourceId || ''}${cit?.page != null ? ` p.${cit.page}` : ''}`,
+                    innerW,
+                    asciiMode ? '...' : '…',
+                  );
+                  const src = cit?.sourceId ? snapshot?.sources?.find((s) => s.id === cit.sourceId) : undefined;
+                  const rawPath =
+                    (typeof src?.filePath === 'string' && src.filePath) ||
+                    (typeof src?.path === 'string' && src.path) ||
+                    '';
+                  const url = rawPath ? buildFileHyperlinkUrl(rawPath, cit?.page) : '';
+                  return formatOsc8Link(rawLabel, url, { asciiMode });
+                })()}
               </Text>
             </Box>
           ) : null}
@@ -1378,6 +1410,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       relatedRecs,
       selectedMap.size,
       asciiMode,
+      snapshot?.sources,
     ],
   );
 
@@ -1421,13 +1454,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
 
   const ell = asciiMode ? '...' : '…';
   const filterBadge = `[${t(lang, '筛选', filterEditing ? 'Filter' : 'Filtered')} ${visibleItems.length}/${tabItems.length}] `;
-  const filterRightHint =
-    width >= 66
-      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
-      : width >= 46
-        ? ' Esc'
-        : '';
-  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
+  const { rightHint: filterRightHint, inputWidth: filterInputW } = computeFilterBarLayout(width, filterBadge, lang, filterEditing);
 
   return (
     <Box flexDirection="column" width={width} height={height}>
@@ -1513,39 +1540,41 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
 
       {/* Inline `/` Live Wrong-Card Search & Filter Bar */}
       {showFilterBar ? (
-        <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
-          <Text color={filterEditing ? theme.primary : theme.accent} bold>
-            {filterBadge}
-          </Text>
-          <Box flexGrow={1} overflow="hidden">
-            <TextInput
-              value={filterQuery}
-              onChange={(next) => {
-                setFilterQuery(next);
-                setSelectedIdx(0);
-              }}
-              onSubmit={(val) => {
-                if (!val.trim()) setFilterQuery('');
-                setFilterEditing(false);
-              }}
-              onCancel={() => {
-                setFilterQuery('');
-                setFilterEditing(false);
-                setSelectedIdx(0);
-              }}
-              isActive={viewInputActive && filterEditing}
-              width={filterInputW}
-              prompt="/"
-              placeholder={t(lang, `题干/主题/题组/错因/课程${ell}`, `prompt/topic/deck/reason/course${ell}`)}
-              maxLength={120}
-            />
-          </Box>
-          {filterRightHint ? (
-            <Text color={theme.dim} wrap="truncate">
-              {filterRightHint}
+        <KeyScope id="wrongbook:filter" opaque active={isActive && filterEditing}>
+          <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+            <Text color={filterEditing ? theme.primary : theme.accent} bold>
+              {filterBadge}
             </Text>
-          ) : null}
-        </Box>
+            <Box flexGrow={1} overflow="hidden">
+              <TextInput
+                value={filterQuery}
+                onChange={(next) => {
+                  setFilterQuery(next);
+                  setSelectedIdx(0);
+                }}
+                onSubmit={(val) => {
+                  if (!val.trim()) setFilterQuery('');
+                  setFilterEditing(false);
+                }}
+                onCancel={() => {
+                  setFilterQuery('');
+                  setFilterEditing(false);
+                  setSelectedIdx(0);
+                }}
+                isActive={isActive && filterEditing}
+                width={filterInputW}
+                prompt="/"
+                placeholder={t(lang, `题干/主题/题组/错因/课程${ell}`, `prompt/topic/deck/reason/course${ell}`)}
+                maxLength={120}
+              />
+            </Box>
+            {filterRightHint ? (
+              <Text color={theme.dim} wrap="truncate">
+                {filterRightHint}
+              </Text>
+            ) : null}
+          </Box>
+        </KeyScope>
       ) : null}
 
       {/* Master-Detail SplitPane */}
@@ -1567,93 +1596,99 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
 
       {/* Modal: Error Reason Selector */}
       {activeModal === 'reason' && selectedItem ? (
-        <Modal
-          title={t(lang, '选择错因分类', 'Set Error Reason')}
-          subtitle={selectedItem.topic || selectedItem.deckTitle}
-          icon={asciiMode ? '#' : '✎'}
-          tone="accent"
-          width={Math.min(68, width - 4)}
-          onClose={() => setActiveModal(null)}
-          isActive={isActive}
-          hints={[
-            { key: '1-7', label: t(lang, '选择', 'Pick') },
-            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
-          ]}
-        >
-          <Box marginY={1} flexDirection="column">
-            <SelectList
-              options={reasonOptions}
-              currentValue={selectedItem.errorReason ?? '__clear__'}
-              isActive={isActive}
-              width={modalContentWidth(Math.min(68, width - 4))}
-              onSelect={(opt) => {
-                void setErrorReason(opt.value === '__clear__' ? null : (opt.value as ErrorReasonId));
-              }}
-            />
-          </Box>
-        </Modal>
+        <KeyScope id="wrongbook:reason" opaque>
+          <Modal
+            title={t(lang, '选择错因分类', 'Set Error Reason')}
+            subtitle={selectedItem.topic || selectedItem.deckTitle}
+            icon={asciiMode ? '#' : '✎'}
+            tone="accent"
+            width={Math.min(68, width - 4)}
+            onClose={() => setActiveModal(null)}
+            isActive={isActive}
+            hints={[
+              { key: '1-7', label: t(lang, '选择', 'Pick') },
+              { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+            ]}
+          >
+            <Box marginY={1} flexDirection="column">
+              <SelectList
+                options={reasonOptions}
+                currentValue={selectedItem.errorReason ?? '__clear__'}
+                isActive={isActive}
+                width={modalContentWidth(Math.min(68, width - 4))}
+                onSelect={(opt) => {
+                  void setErrorReason(opt.value === '__clear__' ? null : (opt.value as ErrorReasonId));
+                }}
+              />
+            </Box>
+          </Modal>
+        </KeyScope>
       ) : null}
 
       {/* Modal: 0-Token Confusable Pair Contrast */}
       {activeModal === 'confusable' && selectedItem ? (
-        <ConfusableContrastModal
-          item={selectedItem}
-          lang={lang}
-          width={Math.min(76, width - 4)}
-          isActive={isActive}
-          relatedRecs={relatedRecs}
-          onClose={() => setActiveModal(null)}
-          onPracticeContrast={() => {
-            setActiveModal(null);
-            const scope = [
-              { deckId: selectedItem.deckId, cardId: selectedItem.cardId },
-              ...relatedRecs.map((r) => ({ deckId: r.deckId, cardId: r.cardId })),
-            ];
-            void launchPractice(scope);
-          }}
-          onOpenBook={() => {
-            setActiveModal(null);
-            navigate('book', {
-              course: selectedItem.triage?.course || course || undefined,
-              deckId: selectedItem.deckId,
-              ...(selectedItem.triage?.hid || selectedItem.hid
-                ? { focusPointKey: selectedItem.triage?.hid || selectedItem.hid }
-                : {}),
-            });
-          }}
-        />
+        <KeyScope id="wrongbook:confusable" opaque>
+          <ConfusableContrastModal
+            item={selectedItem}
+            lang={lang}
+            width={Math.min(76, width - 4)}
+            isActive={isActive}
+            relatedRecs={relatedRecs}
+            onClose={() => setActiveModal(null)}
+            onPracticeContrast={() => {
+              setActiveModal(null);
+              const scope = [
+                { deckId: selectedItem.deckId, cardId: selectedItem.cardId },
+                ...relatedRecs.map((r) => ({ deckId: r.deckId, cardId: r.cardId })),
+              ];
+              void launchPractice(scope);
+            }}
+            onOpenBook={() => {
+              setActiveModal(null);
+              navigate('book', {
+                course: selectedItem.triage?.course || course || undefined,
+                deckId: selectedItem.deckId,
+                ...(selectedItem.triage?.hid || selectedItem.hid
+                  ? { focusPointKey: selectedItem.triage?.hid || selectedItem.hid }
+                  : {}),
+              });
+            }}
+          />
+        </KeyScope>
       ) : null}
 
       {/* Modal: Flag Question for Repair */}
       {activeModal === 'flag' && selectedItem ? (
-        <Modal
-          title={t(lang, '标记题目待修题', 'Flag Question for Repair')}
-          subtitle={selectedItem.deckTitle}
-          icon={asciiMode ? '!' : '⚑'}
-          tone="error"
-          width={Math.min(68, width - 4)}
-          onClose={() => setActiveModal(null)}
-          isActive={isActive}
-          hints={[
-            { key: 'Enter', label: t(lang, '提交标记', 'Submit') },
-            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
-          ]}
-        >
-          <Box flexDirection="column" marginY={1} gap={1}>
-            <Text color={theme.muted}>
-              {t(lang, '请输入问题描述（将写入 card.flag 供后台检查）：', 'Describe the issue (saved to card.flag):')}
-            </Text>
-            <TextInput
-              value={flagText}
-              onChange={setFlagText}
-              onSubmit={(val) => void submitFlagRepair(val)}
-              onCancel={() => setActiveModal(null)}
-              isActive={isActive}
-              width={modalContentWidth(Math.min(68, width - 4)) - 2}
-              placeholder={t(lang, '例如：选项存在歧义 / 参考答案有误', 'e.g. Ambiguous options / wrong key')}
-            />
-          </Box>
-        </Modal>
+        <KeyScope id="wrongbook:flag" opaque>
+          <Modal
+            title={t(lang, '标记题目待修题', 'Flag Question for Repair')}
+            subtitle={selectedItem.deckTitle}
+            icon={asciiMode ? '!' : '⚑'}
+            tone="error"
+            width={Math.min(68, width - 4)}
+            onClose={() => setActiveModal(null)}
+            isActive={isActive}
+            hints={[
+              { key: 'Enter', label: t(lang, '提交标记', 'Submit') },
+              { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+            ]}
+          >
+            <Box flexDirection="column" marginY={1} gap={1}>
+              <Text color={theme.muted}>
+                {t(lang, '请输入问题描述（将记录为待修标记供后续核查）：', 'Describe the issue (saved as a review flag):')}
+              </Text>
+              <TextInput
+                value={flagText}
+                onChange={setFlagText}
+                onSubmit={(val) => void submitFlagRepair(val)}
+                onCancel={() => setActiveModal(null)}
+                isActive={isActive}
+                width={modalContentWidth(Math.min(68, width - 4)) - 2}
+                placeholder={t(lang, '例如：选项存在歧义 / 参考答案有误', 'e.g. Ambiguous options / wrong key')}
+              />
+            </Box>
+          </Modal>
+        </KeyScope>
       ) : null}
     </Box>
   );
@@ -1687,13 +1722,22 @@ const ConfusableContrastModal = memo(function ConfusableContrastModal({
   const names = (pair?.names ?? []).filter(Boolean);
   const rows = pair?.rows ?? [];
 
-  useInput(
-    (input, key) => {
-      if (key.return || input === 'p') onPracticeContrast();
-      else if (input === 'b') onOpenBook();
+  useKeyScope({
+    id: 'WrongBookView:confusable',
+    active: isActive,
+    layer: KEY_LAYER_MODAL,
+    onKey: (input, key) => {
+      if (key.return || input === 'p') {
+        onPracticeContrast();
+        return true;
+      }
+      if (input === 'b') {
+        onOpenBook();
+        return true;
+      }
+      return false;
     },
-    { isActive },
-  );
+  });
 
   return (
     <Modal

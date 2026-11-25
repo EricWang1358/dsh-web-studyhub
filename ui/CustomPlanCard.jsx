@@ -75,7 +75,7 @@ function ExamScopeConfirm({ custom, preview, disabled, onConfirm }) {
    from course.custom.preview, again after every change), and one switch for each part of the book, for the questions, the variants and the plan. Every switch saves the
    whole record through course.save {custom} (the app's single-flight write) and shows a refusal on the card. Under them, the chapters' readiness and 补齐
    (ui/CustomReadiness.jsx). A course with no 定制方案 has no card: the main chat makes one. */
-export default function CustomPlanCard({ course, initialPreview = null }) {
+export default function CustomPlanCard({ course, data = null, onClose, initialPreview = null }) {
   useInjectCss(css, 'study-custom-card');
   const { call, act, busy } = useStudy();
   const handOff = useHandOff();
@@ -125,6 +125,6 @@ export default function CustomPlanCard({ course, initialPreview = null }) {
         onChange={make => save(setPlan(custom, make))} />
     </div>
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
-    {!examPending && <CustomReadiness course={course} />}
+    {!examPending && <CustomReadiness course={course} data={data} onClose={onClose} />}
   </section>;
 }

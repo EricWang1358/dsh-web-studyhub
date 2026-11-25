@@ -392,9 +392,11 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
   const visibleIds = useMemo(() => new Set(visible.flatMap(item => item.sourceIds)), [visible]);
   const filtering = !!query.trim();
   const shown = filtering ? filterItems(visible, query, searchMatch) : visible;
-  const chosen = new Set(selected);
+  const activeIds = useMemo(() => new Set(items.flatMap(item => item.sourceIds)), [items]);
+  const activeSelected = useMemo(() => selected.filter(id => activeIds.has(id)), [selected, activeIds]);
+  const chosen = new Set(activeSelected);
   const chosenDocuments = items.filter(item => item.sourceIds.some(id => chosen.has(id))).length;
-  const outside = selected.some(id => !visibleIds.has(id));
+  const outside = activeSelected.some(id => !visibleIds.has(id));
   const change = ids => onChange?.(ids);
   // Rows read the latest selection through one stable function, so a click re-renders the clicked row, not all of them (#205).
   const latest = useRef({ selected, onChange, onIndex });
@@ -458,9 +460,9 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
       <div className="source-picker__bar">
         <p className="source-picker__count" role="status">{uiFormat('已选择 {0} / {1} 份资料', [chosenDocuments, items.length])}</p>
         <div className="source-picker__actions">
-          <Button size="sm" variant="quiet" className={`sh-btn--flush-start${selected.length > 0 ? '' : ' sh-btn--flush-end'}`} disabled={disabled || !shown.length} onClick={() => change(selectDocuments(selected, shown))}>
-            {filtering ? ui('选择筛选结果') : ui('选择当前范围')}</Button>
-          {selected.length > 0 && <Button size="sm" variant="quiet" className="sh-btn--flush-end" disabled={disabled} onClick={() => change([])}>{ui('清空选择')}</Button>}
+          <Button size="sm" variant="quiet" className={`sh-btn--flush-start${activeSelected.length > 0 ? '' : ' sh-btn--flush-end'}`} disabled={disabled || !shown.length} onClick={() => change(selectDocuments(activeSelected, shown))}>
+            {(filtering || facetsOn) ? ui('选择筛选结果') : ui('选择当前范围')}</Button>
+          {activeSelected.length > 0 && <Button size="sm" variant="quiet" className="sh-btn--flush-end" disabled={disabled} onClick={() => change([])}>{ui('清空选择')}</Button>}
         </div>
       </div>
       {outside && <p className="source-picker__note">{ui('已选资料包含其他范围，生成时仍会保留。')}</p>}

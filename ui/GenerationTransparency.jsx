@@ -61,6 +61,9 @@ export default function GenerationTransparency({ gen, setGen, sourceIds = [], so
   const targetTotal = customCountOf(gen) || plannedGoal || 10;
   const overrides = gen.moduleOverrides && typeof gen.moduleOverrides === 'object' ? gen.moduleOverrides : {};
   const [previewOpen, setPreviewOpen] = React.useState(false);
+  const [quotaDrafts, setQuotaDrafts] = React.useState({});
+  const [moduleDrafts, setModuleDrafts] = React.useState({});
+  const [templateDraft, setTemplateDraft] = React.useState(null);
 
   const referenceDocs = React.useMemo(() => {
     const refIds = new Set(gen.referenceSourceIds || []);
@@ -79,12 +82,14 @@ export default function GenerationTransparency({ gen, setGen, sourceIds = [], so
   const enableCustomQuota = () => {
     const initial = Object.fromEntries(splitCount(kinds, Math.max(1, targetTotal)));
     const sum = Object.values(initial).reduce((a, b) => a + b, 0);
+    setQuotaDrafts({});
     setGen({ ...gen, kindCounts: initial, customCount: String(Math.max(1, sum)) });
   };
 
   const resetUniformQuota = () => {
     const next = { ...gen };
     delete next.kindCounts;
+    setQuotaDrafts({});
     setGen(next);
   };
 
@@ -156,8 +161,17 @@ export default function GenerationTransparency({ gen, setGen, sourceIds = [], so
                       disabled={disabled}
                       data-quota-kind={k}
                       className="generate-row__input gen-trans-quota__input"
-                      value={Number.isInteger(gen.kindCounts?.[k]) ? gen.kindCounts[k] : 0}
-                      onChange={(e) => updateKindQuota(k, e.target.value)}
+                      value={quotaDrafts[k] ?? String(Number.isInteger(gen.kindCounts?.[k]) ? gen.kindCounts[k] : 0)}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setQuotaDrafts((cur) => ({ ...cur, [k]: raw }));
+                        if (raw !== '') updateKindQuota(k, raw);
+                      }}
+                      onBlur={() => {
+                        if (!(k in quotaDrafts)) return;
+                        updateKindQuota(k, quotaDrafts[k]);
+                        setQuotaDrafts((cur) => { const next = { ...cur }; delete next[k]; return next; });
+                      }}
                     />
                   </label>
                 ))}
@@ -182,8 +196,20 @@ export default function GenerationTransparency({ gen, setGen, sourceIds = [], so
               disabled={disabled}
               data-module-input={key}
               className={enabled ? 'generate-row__input' : 'generate-row__input generate-input--off'}
-              value={entry.instruction || ''}
-              onChange={(e) => updateModule(key, { instruction: e.target.value })}
+              value={moduleDrafts[key] ?? (entry.instruction || '')}
+              onChange={(e) => {
+                const raw = e.target.value;
+                setModuleDrafts((cur) => ({ ...cur, [key]: raw }));
+                updateModule(key, { instruction: raw });
+              }}
+              onBlur={() => {
+                setModuleDrafts((cur) => {
+                  if (!(key in cur)) return cur;
+                  const next = { ...cur };
+                  delete next[key];
+                  return next;
+                });
+              }}
               placeholder={placeholder}
             />
             {offerSwitch && (
@@ -204,8 +230,13 @@ export default function GenerationTransparency({ gen, setGen, sourceIds = [], so
           className="generate-row__input"
           maxLength={TEMPLATE_NAME_MAX}
           disabled={disabled}
-          value={overrides.templateName || ''}
-          onChange={(e) => updateTemplateName(e.target.value)}
+          value={templateDraft ?? (overrides.templateName || '')}
+          onChange={(e) => {
+            const raw = e.target.value;
+            setTemplateDraft(raw);
+            updateTemplateName(raw);
+          }}
+          onBlur={() => setTemplateDraft(null)}
           placeholder={ui('例如：期末辨析强化')}
         />
       </FormRow>

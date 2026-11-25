@@ -41,7 +41,7 @@ function scopeLine(scope) {
 }
 
 /** What the 译 panel holds: the target language, one section per range (this page / this chapter) with what it would cost, the actions, the glossary. */
-function TranslationPanel({ scopes, target, modelAvailable, stale, running, hasTranslations, onStart, onExpandAll, onCollapseAll, onGlossary, onTarget }) {
+function TranslationPanel({ scopes, target, modelAvailable, stale, running, hasTranslations, reading = true, onStart, onExpandAll, onCollapseAll, onGlossary, onTarget }) {
   const names = TARGET_NAMES();
   return <>
     <div className="tr-panel__head">
@@ -49,14 +49,15 @@ function TranslationPanel({ scopes, target, modelAvailable, stale, running, hasT
       <SegmentedControl size="sm" label={ui('译成')} value={target} onChange={onTarget} options={[{ value: 'zh', label: names.zh }, { value: 'en', label: names.en }]} />
     </div>
     {!modelAvailable && <ReaderModelGate feature="translate" />}
-    {scopes.map(scope => <section key={scope.id} className="tr-scope" data-status={scope.status}>
+    {!reading && <p className="tr-panel__note">{ui('批量对照翻译与全部展开/收起需切回「阅读」视图；当前「原文」视图仍可划词翻译。')}</p>}
+    {reading && scopes.map(scope => <section key={scope.id} className="tr-scope" data-status={scope.status}>
       <div className="tr-scope__head"><strong>{scope.label}</strong><small>{scopeLine(scope)}</small></div>
       {scope.status === 'ready' && scope.estimate && (scope.counts?.toTranslate || 0) > 0 && <TokenEstimateView state={{ status: 'ready', estimate: scope.estimate }} totalOnly />}
       {(scope.counts?.toTranslate || 0) > 0 && <Button size="sm" variant="secondary" lock={running} disabled={!modelAvailable || scope.status !== 'ready'} onClick={() => onStart(scope.id)}>{ui('开始翻译')}</Button>}
     </section>)}
     <div className="tr-panel__actions">
-      <Button size="sm" variant="quiet" disabled={!hasTranslations} onClick={onExpandAll}>{ui('展开本页全部译文')}</Button>
-      <Button size="sm" variant="quiet" disabled={!hasTranslations} onClick={onCollapseAll}>{ui('收起本页全部译文')}</Button>
+      {reading && <Button size="sm" variant="quiet" disabled={!hasTranslations} onClick={onExpandAll}>{ui('展开本页全部译文')}</Button>}
+      {reading && <Button size="sm" variant="quiet" disabled={!hasTranslations} onClick={onCollapseAll}>{ui('收起本页全部译文')}</Button>}
       <Button size="sm" variant="quiet" icon={<Icon name="book" size={16} />} onClick={onGlossary}>{ui('术语表…')}</Button>
     </div>
     {stale?.length > 0 && <p className="tr-panel__note">{uiFormat('旧版本里还有 {0} 段译文，没有套用到这个版本；文字没变的段落会直接沿用。', [stale.reduce((total, entry) => total + entry.count, 0)])}</p>}

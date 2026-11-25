@@ -14,6 +14,17 @@
     .app-banner .app-banner__hint { color: var(--text-muted); font-size: var(--fs-sm); }
     .app-banner ul { margin: var(--space-1) 0 0; padding-left: 1.1em; }
     .context-return { margin: var(--space-3) var(--space-6) 0; }
+    .practice-return-anchor {
+      display: inline-flex;
+      align-items: center;
+      margin-left: var(--space-2);
+      flex-shrink: 0;
+    }
+    .practice-return-btn,
+    .practice-resume-btn {
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
     .collapse-toggle {
       display: inline-flex;
       align-items: center;

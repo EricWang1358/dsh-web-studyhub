@@ -1,0 +1,269 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* Inline Socratic drawer beside the question (#1316): grid container rules live in session.css (.review-body.has-socratic); drawer placement lives here. */
+    .has-socratic > .socratic-inline-drawer {
+      grid-column: 2;
+      position: sticky;
+      top: 64px;
+      max-height: calc(100dvh - 80px);
+    }
+
+    .socratic-inline-drawer {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 22rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-surface);
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+
+    .socratic-inline__head {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      padding: var(--space-2-5) var(--space-3);
+      border-bottom: 1px solid var(--line-soft);
+      background: var(--bg-surface);
+    }
+
+    .socratic-inline__title-row {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+
+    .socratic-inline__title {
+      margin: 0;
+      font-size: var(--fs-md);
+      font-weight: var(--fw-medium);
+      color: var(--text);
+    }
+
+    .socratic-inline__head-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      flex-shrink: 0;
+    }
+
+    .socratic-inline__stages {
+      flex: 0 0 auto;
+      list-style: none;
+      margin: 0;
+      padding: var(--space-2) var(--space-3);
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--space-1-5);
+      border-bottom: 1px solid var(--line-soft);
+      background: var(--bg-sunken);
+    }
+
+    .socratic-inline__stage {
+      padding: var(--space-half) var(--space-2);
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--line-soft);
+      background: var(--bg-surface);
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-tight);
+    }
+
+    .socratic-inline__stage[data-done="true"] {
+      border-color: var(--ok-line);
+      background: var(--ok-bg);
+      color: var(--ok-ink);
+    }
+
+    .socratic-inline__stage[data-active="true"] {
+      border-color: var(--line-strong);
+      background: var(--bg-selected);
+      color: var(--text);
+      font-weight: var(--fw-medium);
+    }
+
+    .socratic-inline__notice {
+      flex: 0 0 auto;
+      padding: var(--space-1-5) var(--space-3);
+      font-size: var(--fs-sm);
+      color: var(--text-dim);
+      background: var(--bg-sunken);
+      border-bottom: 1px solid var(--line-soft);
+      overflow-wrap: anywhere;
+    }
+
+    .socratic-inline__history {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-anchor: auto;
+      padding: var(--space-3);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2-5);
+    }
+
+    .socratic-inline__turn {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1-5);
+      padding: var(--space-2-5) var(--space-3);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-sm);
+      background: var(--bg-canvas);
+      min-width: 0;
+    }
+
+    .socratic-inline__turn--learner {
+      background: var(--bg-sunken);
+      border-color: var(--line);
+    }
+
+    .socratic-inline__turn-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: var(--space-1-5);
+    }
+
+    .socratic-inline__turn-meta {
+      display: inline-flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--space-1);
+    }
+
+    .socratic-inline__role {
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+      color: var(--text);
+    }
+
+    .socratic-inline__body {
+      font-size: var(--fs-sm);
+      line-height: var(--lh-body);
+      color: var(--text);
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .socratic-inline__summary {
+      padding: var(--space-3);
+      border: 1px solid var(--ok-line);
+      border-radius: var(--radius-sm);
+      background: var(--ok-bg);
+      color: var(--ok-ink);
+      display: grid;
+      gap: var(--space-2);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+    }
+
+    .socratic-inline__summary[data-needs-review="true"] {
+      border-color: var(--warn-line);
+      background: var(--warn-bg);
+      color: var(--warn-ink);
+    }
+
+    .socratic-inline__summary-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+
+    .socratic-inline__confirm {
+      flex: 0 0 auto;
+      padding: var(--space-2-5) var(--space-3);
+      border-top: 1px solid var(--line);
+      background: var(--bg-sunken);
+      display: grid;
+      gap: var(--space-2);
+      font-size: var(--fs-sm);
+      color: var(--text-dim);
+      line-height: var(--lh-snug);
+    }
+
+    .socratic-inline__confirm-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-1-5);
+    }
+
+    .socratic-inline__composer {
+      flex: 0 0 auto;
+      padding: var(--space-2-5) var(--space-3);
+      border-top: 1px solid var(--line);
+      background: var(--bg-surface);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .socratic-inline__input {
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 2.75rem;
+      max-height: 8rem;
+      resize: vertical;
+      padding: var(--space-2) var(--space-2-5);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--bg-canvas);
+      color: var(--text);
+      font: inherit;
+      font-size: var(--fs-sm);
+      line-height: var(--lh-body);
+    }
+
+    .socratic-inline__composer-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: var(--space-1-5);
+    }
+
+    .socratic-inline__error {
+      margin: 0;
+      font-size: var(--fs-sm);
+      color: var(--bad-ink);
+    }
+
+    .assist-drawer-mode {
+      margin-bottom: var(--space-2);
+    }
+  }
+
+  /* Narrow screen: degrade cleanly below the question & options, never covering them. */
+  @container study (max-width: 959px) {
+    :where(.study-app, .study-seat) {
+      .has-socratic > .socratic-inline-drawer {
+        grid-column: 1;
+        position: static;
+        max-height: none;
+        margin: var(--space-3) var(--space-4) var(--space-4);
+      }
+    }
+  }
+
+  @media (max-width: 959px) {
+    :where(.study-app, .study-seat) {
+      .has-socratic > .socratic-inline-drawer {
+        grid-column: 1;
+        position: static;
+        max-height: none;
+        margin: var(--space-3) var(--space-4) var(--space-4);
+      }
+    }
+  }
+}

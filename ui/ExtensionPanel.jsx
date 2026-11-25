@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useId, useRef, useState } from 'react';
+import React, { useContext, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, ConfirmDialog, Hint, Icon, InlineMessage, ProgressBar, Select, Tooltip } from './components/index.js';
@@ -51,23 +51,75 @@ function StartupWait({ desktop = false, desktopHost = false, refresh }) {
   );
 }
 
-/** Install (or update) the extension: the approval step, the busy state, the error. Shared by the panel and the update notice. */
+/* Module-level single-flight store for extension install/update: survives tab & page switches so approval dialogs,
+   in-flight progress, errors, and uninstall locking are never lost when the learner keeps studying. */
+const INITIAL_INSTALL_STATE = Object.freeze({ busy: false, error: '', approval: null, restart: false, done: false, boot: undefined });
+let installState = INITIAL_INSTALL_STATE;
+let installInFlight = null;
+const installListeners = new Set();
+const notifyInstall = () => { for (const listener of installListeners) listener(); };
+const setInstallState = patch => { installState = { ...installState, ...patch }; notifyInstall(); };
+const subscribeInstall = listener => { installListeners.add(listener); return () => installListeners.delete(listener); };
+const getInstallState = () => installState;
+
+export function resetExtensionInstallStore() {
+  installInFlight = null;
+  installState = INITIAL_INSTALL_STATE;
+  notifyInstall();
+}
+
+function startSharedExtensionInstall(call, approved, onStatus) {
+  if (installInFlight) return installInFlight;
+  setInstallState({ busy: true, error: '' });
+  installInFlight = (async () => {
+    try {
+      const result = await runInstall(call, approved);
+      if (result.phase === 'approval') {
+        setInstallState({ busy: false, approval: result.pending });
+        return result;
+      }
+      if (result.phase === 'error') {
+        setInstallState({ busy: false, approval: null, error: result.message });
+        return result;
+      }
+      setInstallState({ busy: false, approval: null, error: '', restart: result.restartRequired, done: true, boot: result.status?.boot });
+      if (result.status) {
+        setRetrievalStatus(result.status);
+        onStatus?.(result.status);
+      }
+      return result;
+    } catch (failure) {
+      setInstallState({ busy: false, approval: null, error: String(failure?.message || failure || '') });
+      return { phase: 'error', message: String(failure?.message || failure || '') };
+    } finally {
+      installInFlight = null;
+    }
+  })();
+  return installInFlight;
+}
+
+/** Install (or update) the extension: the approval step, the busy state, the error. Shared across mounts by panel and update notice. */
 function useExtensionInstall({ onStatus, initialApproval = null, initialDone = null }) {
   const { call } = useStudy();
-  const [busy, setBusy] = useState(false), [error, setError] = useState(''), [approval, setApproval] = useState(initialApproval), [restart, setRestart] = useState(!!initialDone?.restart), [done, setDone] = useState(!!initialDone);
-  // Which run of DSH the update was made in: when the host reports another one, the restart it asked for has happened.
-  const [boot, setBoot] = useState(initialDone?.boot);
-  async function install(approved) {
-    setBusy(true); setError('');
-    const result = await runInstall(call, approved);
-    setBusy(false);
-    if (result.phase === 'approval') { setApproval(result.pending); return; }
-    setApproval(null);
-    if (result.phase === 'error') { setError(result.message); return; }
-    setRestart(result.restartRequired); setDone(true); setBoot(result.status?.boot);
-    if (result.status) onStatus?.(result.status);
-  }
-  return { busy, error, approval, restart, done, boot, install, setApproval };
+  const shared = useSyncExternalStore(subscribeInstall, getInstallState, getInstallState);
+  const [localApproval, setLocalApproval] = useState(initialApproval);
+  const onStatusRef = useRef(onStatus);
+  onStatusRef.current = onStatus;
+  const install = approved => startSharedExtensionInstall(call, approved, next => onStatusRef.current?.(next));
+  const setApproval = next => {
+    setLocalApproval(next);
+    setInstallState({ approval: next });
+  };
+  return {
+    busy: shared.busy,
+    error: shared.error,
+    approval: shared.approval ?? localApproval,
+    restart: shared.done ? shared.restart : !!initialDone?.restart,
+    done: shared.done || !!initialDone,
+    boot: shared.done ? shared.boot : initialDone?.boot,
+    install,
+    setApproval,
+  };
 }
 
 function ApprovalDialog({ approval, busy, install, close, isDesktopApp = false }) {
@@ -180,7 +232,7 @@ function TaskLink({ run }) {
 const names = courses => (courses || []).map(course => (typeof course === 'string' ? course : course?.name)).filter(Boolean);
 const FINISHED = new Set(['complete', 'failed', 'cancelled']);
 
-function IndexBuilder({ status, courses, defaultCourse, onDone, initialPlan, initialRun, document }) {
+function IndexBuilder({ status, courses, defaultCourse, onDone, initialPlan, initialRun, document, demotePrimary = false }) {
   const { call, host } = useStudy();
   const canChat = hasChatHost(host);
   const list = names(courses);
@@ -243,7 +295,7 @@ function IndexBuilder({ status, courses, defaultCourse, onDone, initialPlan, ini
         <span className="extension-panel__progress-actions"><Button size="sm" variant="quiet" onClick={stop}>{ui('停止')}</Button><TaskLink run={run} /></span>
       </div>}
       {!running && <Tooltip layer anchorClassName="extension-panel__tip" content={`${ui('在本机把还没编目录的页编好，不调用 AI，不花 token。')}\n${ui('可以随时停止，已建好的部分会保留。')}`}>
-        <span className="extension-panel__action"><Button variant={action.variant} busy={starting} disabled={starting || !!upToDate || plan?.canIndex === false} onClick={start}>{action.label}</Button></span></Tooltip>}
+        <span className="extension-panel__action"><Button variant={demotePrimary && action.variant === 'primary' ? 'secondary' : action.variant} busy={starting} disabled={starting || !!upToDate || plan?.canIndex === false} onClick={start}>{action.label}</Button></span></Tooltip>}
       {problem && <>
         <InlineMessage>{problem}</InlineMessage>
         {diagRow(problem, () => extensionDiagnostic({ status, stage: 'index-start', course, error: problem }))}
@@ -300,6 +352,7 @@ export default function ExtensionPanel({ status, onStatus, courses = [], default
   // Installed, host has been up a while and the service is still not there (retrieval.status companion.notStarted); right after an install it is only starting.
   const stopped = !running && status.companion?.notStarted === true && !done;
   const reset = status.companion?.reset;
+  const updatePrimaryShown = Boolean(extension.installed && extension.canInstall !== false && (extension.outdated || extension.restartFailed) && !extension.pendingRestart && !done);
   return (
     <div className="extension-panel" data-state={!extension.installed ? (extension.canInstall ? 'available' : 'unsupported') : running ? 'running' : stopped ? 'not-started' : 'starting'}>
       {!extension.installed && !extension.canInstall && <InlineMessage tone="info" boxed>{isDesktopApp
@@ -328,7 +381,7 @@ export default function ExtensionPanel({ status, onStatus, courses = [], default
         <InlineMessage boxed title={ui('没能完成')}>{error}</InlineMessage>
         {diagRow(error, () => extensionDiagnostic({ status, stage: 'install', code: 'extension-install-failed', error }))}
       </>}
-      {running && <IndexBuilder status={status} courses={courses} defaultCourse={defaultCourse} document={document} onDone={() => refresh()} initialPlan={initialPlan} initialRun={initialRun} />}
+      {running && <IndexBuilder status={status} courses={courses} defaultCourse={defaultCourse} document={document} demotePrimary={updatePrimaryShown} onDone={() => refresh()} initialPlan={initialPlan} initialRun={initialRun} />}
       {showStandaloneInstall && <>
         <div><Button size="sm" variant="secondary" icon="download" busy={busy} onClick={() => install()}>{ui('独立安装到桌面版')}</Button></div>
         {busy && <Hint role="status">{ui('正在下载并安装检索扩展，通常需要几分钟。期间可以继续学习，不要关闭 StudyHub。')}</Hint>}

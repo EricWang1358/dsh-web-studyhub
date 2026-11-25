@@ -318,7 +318,7 @@ function Steps({ line, on, jobs, compact, plan }) {
  * line: firstRunLine's answer (nothing is drawn unless `show`); form: 'page' | 'compact'; sample: data.sample (the quiet link to the sample tour needs a host
  * that has one, not loaded yet); todayLabel: the compact card's date; plan: the third step's summary and estimate (useFirstDeck), drawn while it is ready.
  */
-export default function FirstRunLine({ line, form = 'page', sample, todayLabel, jobs = null, on = {}, plan = null }) {
+export default function FirstRunLine({ line, form = 'page', sample, sampleBusy = false, todayLabel, jobs = null, on = {}, plan = null }) {
   useInjectCss(css, 'study-first-run');
   const { busy } = useStudy();
   if (!line?.show) return null;
@@ -351,7 +351,7 @@ export default function FirstRunLine({ line, form = 'page', sample, todayLabel, 
         {offerSample && <span className="first-run__sample">
           <span>{ui('想先看看效果？')}</span>
           <Tooltip layer content={uiFormat('一门示例课程（设计模式）：一份讲义、九道带出处的题和三周练习记录，导览 {0} 步、一两分钟；示例数据随时一键移除。', [CORE_TOUR_LENGTH])}>
-            <Button variant="link" size="sm" className="first-run__link" busy={busy} data-first-run="sample" onClick={on.startSample}>{ui('载入示例并开始导览')}</Button>
+            <Button variant="link" size="sm" className="first-run__link" busy={sampleBusy} lock={busy} data-first-run="sample" onClick={on.startSample}>{ui('载入示例并开始导览')}</Button>
           </Tooltip>
         </span>}
         {on.later && <Button variant="link" size="sm" className="first-run__link first-run__later" data-first-run="later" onClick={on.later}>{ui('以后再说')}</Button>}

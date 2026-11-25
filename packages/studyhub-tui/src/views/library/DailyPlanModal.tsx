@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -591,9 +592,9 @@ export const DailyPlanModal = memo(function DailyPlanModal({
               }
               hint={
                 proposal.failure?.message
-                  ? truncateDisplay(proposal.failure.message, innerW - 4)
+                  ? proposal.failure.message
                   : warnings[0]
-                    ? truncateDisplay(warnings[0], innerW - 4)
+                    ? warnings[0]
                     : t(lang, '按 [g] 重新生成，或先导入/复习题组', 'Press [g] to retry or review decks in Library')
               }
               width={innerW}
@@ -616,11 +617,11 @@ export const DailyPlanModal = memo(function DailyPlanModal({
                 <Text color={theme.text} wrap="truncate-end">
                   {selectedProposalItem?.reason || proposal.summary || t(lang, '按 [a] 接受建议并加入今日待办', 'Press [a] to accept into today plan')}
                 </Text>
-                <Text color={proposal.failure?.message ? theme.warning : theme.muted} wrap="truncate-end">
+                <Text color={proposal.failure?.message ? theme.warning : theme.muted} wrap="wrap">
                   {proposal.failure?.message
-                    ? truncateDisplay(proposal.failure.message, innerW)
+                    ? proposal.failure.message
                     : warnings[0]
-                      ? truncateDisplay(warnings[0], innerW)
+                      ? warnings[0]
                       : t(lang, '[a] 接受建议   [g] 重新生成   [Esc] 关闭', '[a] Accept   [g] Regenerate   [Esc] Close')}
                 </Text>
               </Box>

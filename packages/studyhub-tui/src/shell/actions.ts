@@ -79,9 +79,19 @@ export function createDefaultShellActions(host: HostClient, quit: () => void): S
         return;
       }
       const key = res.value?.name || trimmed;
-      await host.call('focus.set', { course: key });
+      const focusRes = await host.call('focus.set', { course: key });
       await refresh();
-      store().notify(store().preferences.language === 'en' ? `Course created: ${key}` : `已创建课程「${key}」`, 'success');
+      const lang = store().preferences.language;
+      if (!focusRes.ok) {
+        store().notify(
+          lang === 'en'
+            ? `Course created (${key}), but failed to focus it: ${errText(focusRes, 'focus error')}`
+            : `已创建课程「${key}」，但切换课程焦点失败：${errText(focusRes, '切换失败')}`,
+          'warning',
+        );
+        return;
+      }
+      store().notify(lang === 'en' ? `Course created: ${key}` : `已创建课程「${key}」`, 'success');
     },
     quit: () => requestQuit(quit),
   };

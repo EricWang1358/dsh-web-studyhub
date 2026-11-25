@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isAbsolute, relative, resolve } from 'node:path';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { BindingSnapshot, HostClient } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import {
@@ -525,7 +526,7 @@ const RetrievalDiagModal = memo(function RetrievalDiagModal({
     (input, key) => {
       if (key.escape || input === 'q') {
         onClose();
-        return;
+        return true;
       }
       if (subBusy) return;
       if (input === 's') {
@@ -637,7 +638,7 @@ const RetrievalDiagModal = memo(function RetrievalDiagModal({
           </Box>
           {subError ? (
             <Box marginTop={1}>
-              <Text color={theme.error}>{truncateDisplay(subError, contentW, ell)}</Text>
+              <Text color={theme.error} wrap="wrap">{subError}</Text>
             </Box>
           ) : null}
           {subBusy ? (
@@ -672,7 +673,7 @@ const RetrievalDiagModal = memo(function RetrievalDiagModal({
           </Box>
           {subError ? (
             <Box marginTop={1}>
-              <Text color={theme.error}>{truncateDisplay(subError, contentW, ell)}</Text>
+              <Text color={theme.error} wrap="wrap">{subError}</Text>
             </Box>
           ) : null}
           {subBusy ? (
@@ -798,7 +799,7 @@ const RetrievalDiagModal = memo(function RetrievalDiagModal({
 
           {error || subError ? (
             <Box marginTop={1}>
-              <Text color={theme.error}>{truncateDisplay(error || subError || '', contentW, ell)}</Text>
+              <Text color={theme.error} wrap="wrap">{error || subError || ''}</Text>
             </Box>
           ) : null}
 
@@ -888,7 +889,7 @@ const ReleaseUpdateModal = memo(function ReleaseUpdateModal({
     (input, key) => {
       if (key.escape || input === 'q') {
         onClose();
-        return;
+        return true;
       }
       if (input === 'r') {
         onRefresh();
@@ -981,7 +982,7 @@ const ReleaseUpdateModal = memo(function ReleaseUpdateModal({
           ) : null}
 
           {error ? (
-            <Text color={theme.error}>{truncateDisplay(normalizeAsciiChrome(error, asciiMode), contentW, ell)}</Text>
+            <Text color={theme.error} wrap="wrap">{normalizeAsciiChrome(error, asciiMode)}</Text>
           ) : null}
 
           {noteLines.length > 0 ? (
@@ -1068,7 +1069,7 @@ const UsageReportModal = memo(function UsageReportModal({
     (input, key) => {
       if (key.escape || input === 'q') {
         onClose();
-        return;
+        return true;
       }
       if (input === '1') {
         onSelectPeriod(7);
@@ -1231,8 +1232,8 @@ const UsageReportModal = memo(function UsageReportModal({
           ) : null}
 
           {error ? (
-            <Text color={theme.error}>
-              {truncateDisplay(normalizeAsciiChrome(error, asciiMode), contentW, ell)}
+            <Text color={theme.error} wrap="wrap">
+              {normalizeAsciiChrome(error, asciiMode)}
             </Text>
           ) : null}
 
@@ -1289,7 +1290,7 @@ const LibraryContextModal = memo(function LibraryContextModal({
     (input, key) => {
       if (key.escape || input === 'q') {
         onClose();
-        return;
+        return true;
       }
       if (input === 'r') {
         onRefresh();
@@ -1422,8 +1423,8 @@ const LibraryContextModal = memo(function LibraryContextModal({
           ) : null}
 
           {error ? (
-            <Text color={theme.error}>
-              {truncateDisplay(normalizeAsciiChrome(error, asciiMode), contentW, ell)}
+            <Text color={theme.error} wrap="wrap">
+              {normalizeAsciiChrome(error, asciiMode)}
             </Text>
           ) : null}
 
@@ -2454,7 +2455,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
       <Panel
         title={t(lang, '学习库自动备份点 (Enter 恢复)', 'Library Restore Points (Enter to Restore)')}
         badge={restorePoints.length}
-        subtitle={loadingPoints ? t(lang, `加载中${ell}`, `Loading${ell}`) : t(lang, '[r] 刷新', '[r] Refresh')}
+        subtitle={loadingPoints ? t(lang, `加载中${ell}`, `Loading${ell}`) : t(lang, '[Ctrl+R] 刷新', '[Ctrl+R] Refresh')}
         width={width}
         height={listPanelH}
       >

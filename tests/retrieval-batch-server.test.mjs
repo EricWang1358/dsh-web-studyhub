@@ -241,6 +241,65 @@ test('query_documents optionally filters by sourcePrefix with oversampling and s
   assert.ok(seenArgs.every(a => !('sourcePrefix' in a)), 'sourcePrefix is stripped before upstream handler');
 });
 
+test('sourcePrefix matches the page URI in source, not the raw filePath returned by a real reply', async () => {
+  // Real query replies carry the indexed page URI in `source`; `filePath` is the local data path.
+  const pageUri = 'studyhub://lib/libA/source/page-3.pdf';
+  const rawPath = '/home/dev/.studyhub/data/libA/page-3.pdf';
+  const hits = [
+    { text: 'deadlock page', source: pageUri, filePath: rawPath, score: 0.9 },
+    { text: 'foreign page', source: 'studyhub://lib/libB/source/page-1.pdf', filePath: '/home/dev/.studyhub/data/libB/page-1.pdf', score: 0.8 },
+  ];
+  class RealisticFakeRAGServer extends FakeRAGServer {
+    setupHandlers() {
+      this.server.setRequestHandler(schema('tools/list'), async () => ({
+        tools: [
+          { name: 'ingest_data', inputSchema: { type: 'object', properties: {} } },
+          { name: 'query_documents', inputSchema: { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'integer' } }, required: ['query'] } },
+        ],
+      }));
+      this.server.setRequestHandler(schema('tools/call'), async (request) => {
+        const { name } = request.params;
+        if (name === 'query_documents') return { content: [{ type: 'text', text: JSON.stringify(hits) }] };
+        return { content: [{ type: 'text', text: 'ok' }] };
+      });
+    }
+  }
+  const RealisticServer = createBatchRAGServer(RealisticFakeRAGServer, {
+    invalidInput: message => new TypeError(message),
+    parseIngestDataInput: value => value,
+  });
+  const server = new RealisticServer();
+  const reply = await server.call('query_documents', { query: 'deadlock', limit: 10, sourcePrefix: 'studyhub://lib/libA/source/' });
+  const filtered = JSON.parse(reply.content[0].text);
+  assert.equal(filtered.length, 1, 'page whose source is the requested library URI is kept');
+  assert.equal(filtered[0].source, pageUri);
+  assert.equal(filtered[0].filePath, rawPath);
+
+  // Same shape through structuredContent.results.
+  class RealisticStructuredServer extends RealisticFakeRAGServer {
+    setupHandlers() {
+      this.server.setRequestHandler(schema('tools/list'), async () => ({
+        tools: [
+          { name: 'ingest_data', inputSchema: { type: 'object', properties: {} } },
+          { name: 'query_documents', inputSchema: { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'integer' } }, required: ['query'] } },
+        ],
+      }));
+      this.server.setRequestHandler(schema('tools/call'), async (request) => {
+        const { name } = request.params;
+        if (name === 'query_documents') return { structuredContent: { results: hits }, content: [{ type: 'text', text: JSON.stringify({ results: hits }) }] };
+        return { content: [{ type: 'text', text: 'ok' }] };
+      });
+    }
+  }
+  const StructuredServer = createBatchRAGServer(RealisticStructuredServer, {
+    invalidInput: message => new TypeError(message),
+    parseIngestDataInput: value => value,
+  });
+  const structuredServer = new StructuredServer();
+  const structuredReply = await structuredServer.call('query_documents', { query: 'deadlock', limit: 10, sourcePrefix: 'studyhub://lib/libA/source/' });
+  assert.deepEqual(structuredReply.structuredContent.results.map(hit => hit.source), [pageUri]);
+});
+
 test('a batch waits for an earlier query through embedding and database reads', async () => {
   const server = new Server(), entered = deferred(), release = deferred();
   server.onQuery = async () => { entered.resolve(); await release.promise; assert.deepEqual(server.writes, []); };

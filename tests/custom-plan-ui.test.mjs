@@ -125,7 +125,7 @@ test('no card without a 定制方案; the variants switch is off when the questi
 
 test('the course settings carry the card only for a course that has one, above the fold of the rest', () => {
   const source = readFileSync('ui/CourseSettings.jsx', 'utf8');
-  assert.match(source, /<CustomPlanCard course=\{course\} \/>/);
+  assert.match(source, /<CustomPlanCard course=\{course\}/);
   assert.ok(source.indexOf('<CustomPlanCard') < source.indexOf('<Disclosure className="course-settings__more"'), 'in the open, not in the fold');
   const withCustom = course(mine('review')), data = { root: '/lib', sources: [], focus: { course: 'Net', courses: [{ name: 'Net' }] } };
   const shown = draw(h(m.CourseSettings, { data: { ...data, courses: [withCustom] }, courseId: 'course-net', onClose() {} }));

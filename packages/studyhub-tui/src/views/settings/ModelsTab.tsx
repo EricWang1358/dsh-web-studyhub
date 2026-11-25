@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, ModelProviderInfo } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import {
@@ -262,11 +263,9 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
         model: openaiModel.trim(),
         ...(openaiApiKey.trim() ? { apiKey: openaiApiKey.trim() } : {}),
       },
+      reasoningEffort: openaiEffort,
     };
     const res = await tryAction<TuiConfigSnapshot>(host, 'desktop.config.save', patch);
-    if (res.ok && openaiEffort !== (config?.reasoningEffort || '')) {
-      await tryAction(host, 'binding.set', { reasoningEffort: openaiEffort });
-    }
     if (res.ok) {
       setPreferences({ lastOpenAiPreset: openaiPresetId });
       const dshHome = (host as { dshHome?: string }).dshHome;
@@ -282,7 +281,6 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
     setOpenaiApiKey('');
     notify(t(lang, `已切换到 ${openaiPresetId} · ${openaiModel}`, `Saved OpenAI (${openaiPresetId} · ${openaiModel})`), 'success');
   }, [
-    config?.reasoningEffort,
     host,
     lang,
     notify,
@@ -473,7 +471,7 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
       // Detail pane shortcuts
       if (key.escape || (key.leftArrow && activeRoute.kind !== 'preset')) {
         setPane('routes');
-        return;
+        return true;
       }
 
       if (activeRoute.kind === 'agy') {
@@ -669,7 +667,7 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
                   <Text color={theme.muted}>{t(lang, '路径:', 'Path:')}</Text>
                   <Text color={theme.dim}>{truncateDisplay(agyProvider?.executablePath || config?.agy?.executablePath || '-', innerW - 8, asciiMode ? '...' : '…')}</Text>
                 </Box>
-                <Box flexDirection="row" flexWrap="wrap" gap={1} marginY={0}>
+                <Box flexDirection="row" flexWrap="wrap" columnGap={1} marginY={0}>
                   <Box flexShrink={0}>
                     <Text color={theme.muted}>{t(lang, '思考强度 [e]:', 'Effort [e]:')}</Text>
                   </Box>
@@ -900,7 +898,7 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
                       `Preset models (${asciiMode ? '<-/->' : '←/→'} on Model row):`,
                     )}
                   </Text>
-                  <Box flexDirection="row" flexWrap="wrap" gap={1}>
+                  <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
                     {selectedPreset.models.map((m) => (
                       <Text
                         key={m}

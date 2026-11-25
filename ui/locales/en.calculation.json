@@ -12,5 +12,6 @@
   "本步假设": "Assumptions for this step",
   "本步单位": "Units for this step",
   "精度与舍入": "Precision and rounding",
-  "当前步骤的回答": "Answer to the current step"
+  "当前步骤的回答": "Answer to the current step",
+  "这道题没有关联原文资料，无法使用计算题引导练习": "Guided calculation requires cited source material, which this question does not have"
 }

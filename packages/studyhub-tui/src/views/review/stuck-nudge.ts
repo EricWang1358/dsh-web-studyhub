@@ -54,7 +54,7 @@ export function shouldScheduleStuckNudge(input: StuckNudgePolicyInput): boolean 
 export function buildStuckNudgeMessage(lang: UiLanguage, asciiMode = false): string {
   const sep = asciiMode ? ' | ' : ' · ';
   if (lang === 'en') {
-    return `Stuck? [T] Guided hint${sep}[h] AI Tutor${sep}[/proactive] Turn off`;
+    return `Stuck? [t] Guided hint${sep}[h] AI Tutor${sep}[/proactive] Turn off`;
   }
-  return `卡住了？[T] 带学提示${sep}[h] AI 讲解${sep}[/proactive] 关闭主动提示`;
+  return `卡住了？[t] 带学提示${sep}[h] AI 讲解${sep}[/proactive] 关闭主动提示`;
 }

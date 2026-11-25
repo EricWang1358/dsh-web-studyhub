@@ -1,5 +1,6 @@
 import type { PageId, StudySnapshot, ThemeId, UiLanguage } from './types/contracts.js';
 import { PAGE_REGISTRY } from './types/contracts.js';
+import { probeTerminalCompatMatrix, type TerminalCompatMatrix } from './render/terminal-compat.js';
 
 export interface ParsedCliArgs {
   help: boolean;
@@ -455,6 +456,15 @@ export interface DoctorReport {
     asciiMode: boolean;
     asciiReason: string;
     mouseEnabled: boolean;
+    compat: {
+      mux: TerminalCompatMatrix['mux'];
+      osc52Copy: boolean;
+      osc8Hyperlink: boolean;
+      osc2Title: boolean;
+      osc9Notify: boolean;
+      focusReporting: boolean;
+    };
+    availableThemes: readonly ThemeId[];
   };
   paths: {
     dshHome: string;
@@ -522,6 +532,7 @@ export function buildDoctorReport(opts: DoctorReportOptions = {}): DoctorReport 
   const colorCap = resolveColorCapability(env, { isTTY: isTty, platform });
   const { asciiMode, asciiReason } = resolveAsciiState(env, platform, opts.args?.asciiMode);
   const mouseEnabled = opts.args?.mouse ?? shouldEnableMouse(env);
+  const compatMatrix = probeTerminalCompatMatrix({ env, isTTY: isTty, asciiMode });
 
   const agyPath = opts.agyPath && opts.agyPath.trim() ? opts.agyPath.trim() : null;
   const envKeysPresent: string[] = [];
@@ -549,6 +560,15 @@ export function buildDoctorReport(opts: DoctorReportOptions = {}): DoctorReport 
       asciiMode,
       asciiReason,
       mouseEnabled,
+      compat: {
+        mux: compatMatrix.mux,
+        osc52Copy: compatMatrix.osc52Copy,
+        osc8Hyperlink: compatMatrix.osc8Hyperlink,
+        osc2Title: compatMatrix.osc2Title,
+        osc9Notify: compatMatrix.osc9Notify,
+        focusReporting: compatMatrix.focusReporting,
+      },
+      availableThemes: ['dsh-dark', 'warm-paper', 'nord', 'high-contrast', 'warm-amber', 'soft-sage'],
     },
     paths: {
       dshHome: opts.dshHome ?? '',
@@ -588,6 +608,8 @@ export function formatDoctorReport(report: DoctorReport, asciiMode = report.term
     `  ${bullet} Color: level ${t.colorLevel} (${t.colorLabel})`,
     `  ${bullet} Charset: ${t.asciiMode ? 'ASCII' : 'Unicode'} (${t.asciiReason})`,
     `  ${bullet} Mouse (SGR 1006): ${t.mouseEnabled ? 'enabled' : 'disabled'}`,
+    `  ${bullet} Capabilities: mux=${t.compat.mux} OSC52=${t.compat.osc52Copy ? 'on' : 'off'} OSC8=${t.compat.osc8Hyperlink ? 'on' : 'off'} OSC2=${t.compat.osc2Title ? 'on' : 'off'} OSC9=${t.compat.osc9Notify ? 'on' : 'off'} DEC1004=${t.compat.focusReporting ? 'on' : 'off'}`,
+    `  ${bullet} Themes: ${t.availableThemes.join(', ')}`,
     `  ${bullet} Env: TERM=${t.term ?? '(unset)'} COLORTERM=${t.colorTerm ?? '(unset)'} TERM_PROGRAM=${t.termProgram ?? '(unset)'} WT_SESSION=${t.wtSession ? 'yes' : 'no'}`,
     `Paths`,
     `  ${bullet} DSH_HOME: ${p.dshHome || '(unset)'}`,
@@ -688,7 +710,7 @@ export function buildStatsSummary(opts: BuildStatsSummaryOptions): StatsSummary 
     activeDecks += 1;
     const p = d.id ? progress[d.id] : undefined;
     const deckCards = toFiniteCount(d.cardCount ?? rec.count ?? p?.total);
-    const deckDue = toFiniteCount(rec.due ?? d.dueCount ?? p?.due);
+    const deckDue = toFiniteCount(p?.due ?? rec.due ?? d.dueCount);
     const deckWeak = toFiniteCount(rec.wrong ?? d.wrongCount ?? p?.counts?.weak);
     cards += deckCards;
     deckDueSum += deckDue;

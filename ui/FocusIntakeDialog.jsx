@@ -121,6 +121,14 @@ export async function saveFocusIntake({
   return outcome;
 }
 
+/** Preserve newly entered/extracted focus topics across course name edits or course switches without leaking the previous course's existing topics. */
+export function reconcileFocusTopicsOnCourseChange({ topicsText, previousExisting = [], nextExisting = [] }) {
+  const prevKeys = new Set(cleanFocusTopics(previousExisting).map((item) => item.toLowerCase()));
+  const added = cleanFocusTopics(splitTopics(topicsText)).filter((item) => !prevKeys.has(item.toLowerCase()));
+  const merged = mergeFocusTopics(cleanFocusTopics(nextExisting), added);
+  return { merged, addedCount: added.length };
+}
+
 export default function FocusIntakeDialog({
   data,
   initialCourse = '',
@@ -393,7 +401,19 @@ export default function FocusIntakeDialog({
           <CourseField
             courses={data?.focus?.courses || []}
             value={course}
-            onChange={(value) => { setCourse(value); setTopicsDirty(false); setSavedResult(null); }}
+            onChange={(value) => {
+              const nextRecord = (data?.courses || []).find((item) => item?.name === String(value || '').trim()) || null;
+              const nextExisting = cleanFocusTopics(nextRecord?.focusTopics || []);
+              const { merged, addedCount } = reconcileFocusTopicsOnCourseChange({
+                topicsText,
+                previousExisting: existingTopics,
+                nextExisting,
+              });
+              setCourse(value);
+              setTopicsText(merged.join('; '));
+              setTopicsDirty(addedCount > 0);
+              setSavedResult(null);
+            }}
             disabled={disabled}
             label={ui('目标课程')}
           />

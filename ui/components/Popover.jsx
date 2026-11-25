@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import css from './components.css';
 import overlayCss from './overlays.css';
 import { useComponentCss, cx } from './css.js';
@@ -24,18 +24,21 @@ const FOCUSABLE = 'a[href], button:not(:disabled), input:not(:disabled), select:
  * chooser use Dialog instead.
  */
 export default function Popover({ label, icon, trigger, children, open: controlled, defaultOpen = false, onOpenChange, placement = 'bottom-end',
-  flip = true, boundsRef, boundsSelector, className, panelClassName, triggerClassName, triggerProps, ...rest }) {
+  flip = true, boundsRef, boundsSelector, returnFocusRef, className, panelClassName, triggerClassName, triggerProps, ...rest }) {
   useComponentCss(css);
   useComponentCss(overlayCss, 'study-overlays');
   const [inner, setInner] = useState(defaultOpen);
   const isOpen = controlled ?? inner;
   const setOpen = value => { if (controlled === undefined) setInner(value); onOpenChange?.(value); };
   const anchor = useRef(null), triggerRef = useRef(null), panel = useRef(null), was = useRef(false), bounds = useRef(null);
+  const effectiveReturnFocusRef = useMemo(() => ({
+    get current() { return returnFocusRef?.current || triggerRef.current; },
+  }), [returnFocusRef]);
   const panelId = useId(), labelId = useId();
   // `boundsSelector` finds the bounds from the trigger's own ancestors (the reader keeps its panels inside the viewer).
   useIsoLayoutEffect(() => { bounds.current = boundsRef?.current ?? (boundsSelector ? anchor.current?.closest(boundsSelector) : null) ?? null; });
   useAnchoredPosition({ anchorRef: anchor, panelRef: panel, boundsRef: bounds, placement, flip, open: isOpen });
-  useDismiss({ open: isOpen, onClose: () => setOpen(false), refs: anchor, returnFocusRef: triggerRef });
+  useDismiss({ open: isOpen, onClose: () => setOpen(false), refs: anchor, returnFocusRef: effectiveReturnFocusRef });
   useEffect(() => {
     if (isOpen) {
       was.current = true;
@@ -44,9 +47,9 @@ export default function Popover({ label, icon, trigger, children, open: controll
     } else if (was.current) {
       was.current = false;
       const active = document.activeElement;
-      if (!active || active === document.body) triggerRef.current?.focus({ preventScroll: true });
+      if (!active || active === document.body) effectiveReturnFocusRef.current?.focus?.({ preventScroll: true });
     }
-  }, [isOpen]);
+  }, [isOpen, effectiveReturnFocusRef]);
   const props = { 'aria-haspopup': 'dialog', 'aria-expanded': isOpen, 'aria-controls': isOpen ? panelId : undefined,
     onClick: () => setOpen(!isOpen), ...triggerProps };
   return (

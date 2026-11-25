@@ -9,6 +9,30 @@ import { dueText, stamp, studyRefLabel } from './meta.js';
 const newItemId = () => `i${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 const sameList = (a, b) => JSON.stringify(a || []) === JSON.stringify(b || []);
 
+const splitLabels = (raw) => String(raw || '').split(/[,，]/).map((label) => label.trim()).filter(Boolean);
+
+export function isCardEditorDirty({ draft, card, itemInput = '', labelInput = '' }) {
+  const pendingItem = Boolean(String(itemInput || '').trim()) && (draft.checklist?.length || 0) < CHECKLIST_MAX_ITEMS;
+  const pendingLabels = splitLabels(labelInput).some((label) => !(draft.labels || []).includes(label));
+  return pendingItem || pendingLabels
+    || draft.title !== card.title || draft.note !== (card.note || '') || draft.due !== (card.due || '')
+    || draft.plannedDate !== (card.plannedDate || '') || !sameList(draft.labels, card.labels) || !sameList(draft.checklist, card.checklist);
+}
+
+export function finalizeCardFields({ draft, card, itemInput = '', labelInput = '' }) {
+  const extraLabels = splitLabels(labelInput);
+  const labels = extraLabels.length ? [...new Set([...draft.labels, ...extraLabels])].slice(0, 20) : draft.labels;
+  const fields = { title: draft.title.trim(), note: draft.note, due: draft.due, labels };
+  if (draft.plannedDate || card.plannedDate) fields.plannedDate = draft.plannedDate;
+  const checklist = draft.checklist.filter((item) => item.text.trim()).map((item) => ({ ...item, text: item.text.trim() }));
+  const pendingItem = String(itemInput || '').trim();
+  if (pendingItem && checklist.length < CHECKLIST_MAX_ITEMS) {
+    checklist.push({ id: newItemId(), text: pendingItem.slice(0, CHECKLIST_MAX_TEXT), done: false });
+  }
+  if (checklist.length || card.checklist) fields.checklist = checklist;
+  return fields;
+}
+
 const fromCard = (card) => ({ title: card.title, note: card.note || '', due: card.due || '', plannedDate: card.plannedDate || '', labels: [...(card.labels || [])],
   checklist: (card.checklist || []).map((item) => ({ ...item })) });
 
@@ -19,7 +43,7 @@ const fromCard = (card) => ({ title: card.title, note: card.note || '', due: car
  * at; a newer board turns saving off until the learner loads the latest card.
  */
 export default function CardEditor({ card, board, baseRevision, library, today, labelSuggestions = [], saving = false, error = '', conflict = false,
-  onSave, onArchive, onDelete, onClose, onOrigin, onStudyRef }) {
+  onSave, onArchive, onDelete, onClose, onReloadRevision, onOrigin, onStudyRef }) {
   const formId = useId();
   const [draft, setDraft] = useState(() => fromCard(card));
   const [base, setBase] = useState(baseRevision ?? board.revision);
@@ -53,14 +77,10 @@ export default function CardEditor({ card, board, baseRevision, library, today, 
     event.preventDefault();
     setTouched(true);
     if (problem || stale || readOnly || saving) return;
-    const fields = { title: draft.title.trim(), note: draft.note, due: draft.due, labels: draft.labels };
-    if (draft.plannedDate || card.plannedDate) fields.plannedDate = draft.plannedDate;
-    const checklist = draft.checklist.filter((item) => item.text.trim()).map((item) => ({ ...item, text: item.text.trim() }));
-    if (checklist.length || card.checklist) fields.checklist = checklist;
+    const fields = finalizeCardFields({ draft, card, itemInput, labelInput });
     if (await onSave(fields)) onClose();
   };
-  const dirty = draft.title !== card.title || draft.note !== (card.note || '') || draft.due !== (card.due || '')
-    || draft.plannedDate !== (card.plannedDate || '') || !sameList(draft.labels, card.labels) || !sameList(draft.checklist, card.checklist);
+  const dirty = isCardEditorDirty({ draft, card, itemInput, labelInput });
 
   const footer = (
     <>
@@ -79,7 +99,7 @@ export default function CardEditor({ card, board, baseRevision, library, today, 
     <Dialog title={ui('编辑待办')} size="md" busy={saving} onClose={onClose} footer={footer} initialFocus={titleField} className="board-editor" footerClassName="board-editor__footer">
       <form id={formId} className="board-editor__form" onSubmit={submit}>
         {error && <InlineMessage tone={conflict ? 'warning' : 'error'}>{error}</InlineMessage>}
-        {stale && <InlineMessage tone="warning" boxed action={latest ? { label: ui('载入最新卡片（替换当前输入）'), onClick: () => { setDraft(fromCard(latest)); setBase(board.revision); } } : undefined}>
+        {stale && <InlineMessage tone="warning" boxed action={latest ? { label: ui('载入最新卡片（替换当前输入）'), onClick: () => { setDraft(fromCard(latest)); setBase(board.revision); onReloadRevision?.(board.revision); } } : undefined}>
           {ui('看板已在其他位置更新。你的输入仍保留；请先查看最新卡片再编辑。')}{!latest && <> {ui('这张卡片已被移除或归档。')}</>}
         </InlineMessage>}
         <fieldset className="board-editor__fields" disabled={saving || readOnly}>

@@ -2,6 +2,7 @@ import React, { useId, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, Checkbox, Icon, IconButton, Select, Tooltip } from '../components/index.js';
 import { useApp } from '../app/app-context.js';
+import { useStudyBusy } from '../study-context.jsx';
 import { failureText } from '../failure.js';
 import { contractOf, isRunningTask } from './task-model.js';
 import { controlItems, stepValue, appliedText, defaultsPatch, controlLabel, reasonText, endedNote, modelInForce } from './task-control.js';
@@ -45,6 +46,8 @@ function Toggle({ item, disabled, onChange }) {
 
 export default function ControlRow({ job }) {
   const { core, data, host } = useApp();
+  const studyBusy = useStudyBusy();
+  const appBusy = studyBusy || Boolean(core.busy);
   const contract = contractOf(job), set = contract.actions.set;
   const [note, setNote] = useState({ text: '', tone: 'idle' }), [working, setWorking] = useState(false), [saved, setSaved] = useState(false);
   // A run's stages offer the levels of the model in force (its own choice or the generation model), as the host reports them (lib/job-model.js).
@@ -64,7 +67,15 @@ export default function ControlRow({ job }) {
     } catch (error) { setNote({ text: failureText(error), tone: 'error' }); } finally { setWorking(false); }
   };
   const save = async () => {
-    try { await core.act(defaults.action, defaults.args); setSaved(true); setNote({ text: ui('已存为默认'), tone: 'success' }); } catch (error) { setNote({ text: failureText(error), tone: 'error' }); }
+    try {
+      const reply = await core.act(defaults.action, defaults.args, undefined, { rethrow: true });
+      if (reply === undefined) {
+        setNote({ text: ui('上一个操作还没结束，请稍后再点。'), tone: 'idle' });
+        return;
+      }
+      setSaved(true);
+      setNote({ text: ui('已存为默认'), tone: 'success' });
+    } catch (error) { setNote({ text: failureText(error), tone: 'error' }); }
   };
   return (
     <div className="tc-controls" role="group" aria-label={ui('即时控制')} data-empty={items.length ? undefined : 'true'}>
@@ -76,7 +87,7 @@ export default function ControlRow({ job }) {
         {items.length === 0 && <span className="tc-controls__idle">{set.available ? ui('这个任务现在没有可以调整的设置。') : set.reason?.code === 'capability-unsupported' && isRunningTask(job) ? ui('这类任务没有可以调整的设置。')
           : contract.status === 'interrupted' && contract.actions.retry.available ? endedNote(job, true)
             : ['failed', 'cancelled'].includes(contract.status) && contract.actions.retry.available ? endedNote(job) : reasonText(set)}</span>}
-        {items.length > 0 && defaults && <Button size="sm" variant="quiet" className="tc-controls__save" disabled={saved} lock={core.busy} onClick={save}
+        {items.length > 0 && defaults && <Button size="sm" variant="quiet" className="tc-controls__save" disabled={saved} lock={appBusy} onClick={save}
           title={uiFormat('把这里的{0}存为以后新任务的默认', [items.filter((item) => saves.includes(item.key)).slice(0, 2).map((item) => controlLabel(item.key)).join('、')])}>{ui('存为默认')}</Button>}
         {isRunningTask(job) && ['capability-unsupported', 'no-safe-checkpoint', 'single-round', 'manual-run'].includes(contract.actions.pause.reason?.code) && <span className="tc-controls__note">{reasonText(contract.actions.pause, 'pause')}</span>}
         {staged && Array.isArray(efforts) && efforts.length === 0 && <span className="tc-controls__note">{ui('当前模型不支持推理程度设置，已使用模型默认。')}</span>}

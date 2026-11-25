@@ -8,7 +8,7 @@ import { modelReadiness } from './generation-status.js';
 import { useStudy } from './study-context.jsx';
 import { usePolling } from './use-polling.js';
 import { isActiveJob } from '../lib/job-status.js';
-import { useBookQa } from './book/BookQaButton.jsx';
+import { hasCourseBook, qaAddFailureText, useBookQa } from './book/BookQaButton.jsx';
 import css from './answer-card.css';
 
 /* 分析题答案卡 (复习全书 M5, lib/answer-card.js) in the feedback of a case question: the ONE full answer card in its parts, each quote and concept marked
@@ -90,7 +90,7 @@ export function AnswerCardView({ card, actions = null, flat = false, embedded = 
 }
 
 /** 加入复习全书 / 已加入 · 撤回 of an answer card; only where the course has a book. */
-function BookButton({ deckId, cardId, book }) {
+function BookButton({ deckId, cardId, course = '', book }) {
   const itemKey = `${deckId ?? ''}:${cardId ?? ''}`;
   const activeKeyRef = useRef(itemKey);
   activeKeyRef.current = itemKey;
@@ -100,7 +100,7 @@ function BookButton({ deckId, cardId, book }) {
   const [status, setStatus] = useState(() => ({ key: itemKey, working: false, error: '' }));
   const working = status.key === itemKey && status.working;
   const error = status.key === itemKey ? status.error : '';
-  if (!book.ready || !book.courses.size) return null;
+  if (!book.ready || !(book.courses.has(course ?? '') || hasCourseBook(book.courses, course ?? ''))) return null;
   const added = book.cards.has(cardId);
   const run = async () => {
     const originKey = itemKey;
@@ -114,7 +114,7 @@ function BookButton({ deckId, cardId, book }) {
       }
     } catch (failure) {
       if (mountedRef.current && activeKeyRef.current === originKey && reqSeqRef.current === seq) {
-        setStatus({ key: originKey, working: false, error: errorMessage(failure) });
+        setStatus({ key: originKey, working: false, error: qaAddFailureText(failure) });
       }
     }
   };
@@ -131,12 +131,14 @@ function BookButton({ deckId, cardId, book }) {
  * The answer of a graded case question: the answer card when it has one, else the reference answer with 「生成答题卡」. run: the review projection
  * (run.solution after the reveal); data: the snapshot (the model gate); onSetupModel() opens the model settings.
  */
-export default function AnswerCardSection({ run, data, onSetupModel, flat = true, embedded = false }) {
+export default function AnswerCardSection({ run, data, onSetupModel, onRefreshRun, flat = true, embedded = false }) {
   useInjectCss(css, 'study-answer-card');
   const { call, notify } = useStudy();
   const book = useBookQa();
   const model = modelReadiness(data);
   const card = run.solution?.answerCard, deckId = run.deckId, cardId = run.card?.id;
+  const deck = (data?.decks || []).find(item => item.id === deckId);
+  const course = deck?.course ?? deck?.folder ?? '';
   const cardKey = `${deckId ?? ''}:${cardId ?? ''}`;
   const activeKeyRef = useRef(cardKey);
   activeKeyRef.current = cardKey;
@@ -160,7 +162,7 @@ export default function AnswerCardSection({ run, data, onSetupModel, flat = true
       setTaskState({ key: originKey, status: 'failed', message: errorMessage(failure), seq });
     }
   }, [call, notify, deckId, cardId]);
-  // The task is looked at now and then until it ends; the practice page reads the question again by itself, the card then in place.
+  // The task is looked at now and then until it ends; once complete, refresh the practice run immediately before clearing the busy state so the button never falsely resets.
   usePolling(async () => {
     if (task?.status !== 'running') return;
     const originKey = task.key, jobId = task.jobId, seq = task.seq;
@@ -169,9 +171,17 @@ export default function AnswerCardSection({ run, data, onSetupModel, flat = true
     if (!mountedRef.current || activeKeyRef.current !== originKey || reqSeqRef.current !== seq) return;
     const status = job?.status ?? job?.contract?.status;
     if (!status || isActiveJob({ status })) return;
-    setTaskState(status === 'failed'
-      ? { key: originKey, status: 'failed', message: job?.error?.message || job?.contract?.error?.message || ui('答题卡没有写成，可以在任务页重试。'), seq }
-      : null);
+    if (status === 'complete') {
+      try { await onRefreshRun?.(); } catch { /* fall through to clear spinner */ }
+      if (!mountedRef.current || activeKeyRef.current !== originKey || reqSeqRef.current !== seq) return;
+      setTaskState(null);
+      return;
+    }
+    if (status === 'failed') {
+      setTaskState({ key: originKey, status: 'failed', message: job?.error?.message || job?.contract?.error?.message || ui('答题卡没有写成，可以在任务页重试。'), seq });
+      return;
+    }
+    setTaskState({ key: originKey, status: 'stopped', message: status === 'cancelled' ? ui('答题卡生成已取消。') : ui('答题卡生成已中断，可以重试。'), seq });
   }, { intervalMs: 1500, enabled: task?.status === 'running' });
   const running = task?.status === 'running' || task?.status === 'starting';
   const generate = again => (model.ready
@@ -181,11 +191,12 @@ export default function AnswerCardSection({ run, data, onSetupModel, flat = true
   const status = <>
     {running && <p className="answer-card__running" role="status"><Spinner size="sm" />{ui('正在生成答题卡：写、逐字核对、独立复核，需要两三次模型调用。可以先去做别的题。')}</p>}
     {task?.status === 'failed' && <InlineMessage tone="error">{task.message}</InlineMessage>}
+    {task?.status === 'stopped' && <InlineMessage tone="info">{task.message}</InlineMessage>}
   </>;
   if (card) return (
     <div className="answer-card-section">
       <AnswerCardView card={card} flat={flat} embedded={embedded} actions={<>
-        <BookButton deckId={deckId} cardId={cardId} book={book} />
+        <BookButton deckId={deckId} cardId={cardId} course={course} book={book} />
         {card.state === 'edited' && generate(true)}
       </>} />
       {status}

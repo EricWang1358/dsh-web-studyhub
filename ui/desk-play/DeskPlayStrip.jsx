@@ -1,6 +1,7 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { kinds, useInjectCss } from '../shared.js';
+import Markdown from '../Markdown.jsx';
 import { Badge, Button, IconButton } from '../components/index.js';
 import { useStudyServices } from '../study-context.jsx';
 import OrigamiMark from './OrigamiMark.jsx';
@@ -23,20 +24,51 @@ import css from './desk-play.css';
  *  1. 5-stage geometric Origami Progress Mark reflecting today's rhythm
  *  2. Desk Serendipity Slip («随手抽一签») lazily fetching a real card on click via `deck.get`
  */
-export default function DeskPlayStrip({ data, onPracticeDeck }) {
+export default function DeskPlayStrip({ data, onPracticeDeck, initialSlip = null, initialRevealed = false }) {
   useInjectCss(css, 'study-desk-play');
   const { call } = useStudyServices();
   const deckCacheRef = useRef(new Map());
+  const drawSeqRef = useRef(0);
 
   const [hidden, setHidden] = useState(() => readDeskPlayPrefs().hidden);
-  const [slip, setSlip] = useState(null);
-  const [revealed, setRevealed] = useState(false);
+  const [slip, setSlip] = useState(initialSlip);
+  const [revealed, setRevealed] = useState(initialRevealed);
   const [drawing, setDrawing] = useState(false);
   const [drawError, setDrawError] = useState('');
 
   const origami = useMemo(() => computeTodayOrigami(data), [data]);
   const eligibleDecks = useMemo(() => eligibleDecksForSlip(data?.decks), [data?.decks]);
   const rootKey = data?.root || '';
+  const revisionKey = data?.revision ?? '';
+  const rootRef = useRef(rootKey);
+  rootRef.current = rootKey;
+
+  // Invalidate deck cache when the library switches or its revision advances (background edits, merges, slain cards).
+  useEffect(() => {
+    deckCacheRef.current.clear();
+  }, [rootKey, revisionKey]);
+
+  // Drop the current slip immediately if its deck was archived, deleted, merged, or moved out of active decks.
+  useEffect(() => {
+    if (!slip) return;
+    if (!eligibleDecks.some((deck) => deck.id === slip.deckId)) {
+      setSlip(null);
+      setRevealed(false);
+      setDrawError('');
+    }
+  }, [slip, eligibleDecks]);
+
+  // Reset slip and pending error when library root changes (belt-and-suspenders alongside key={data.root}).
+  const prevRootRef = useRef(rootKey);
+  useEffect(() => {
+    if (prevRootRef.current === rootKey) return;
+    prevRootRef.current = rootKey;
+    drawSeqRef.current += 1;
+    setSlip(null);
+    setRevealed(false);
+    setDrawError('');
+    setDrawing(false);
+  }, [rootKey]);
 
   const toggleHidden = (nextHidden) => {
     setHidden(nextHidden);
@@ -45,6 +77,8 @@ export default function DeskPlayStrip({ data, onPracticeDeck }) {
 
   const drawSlip = async () => {
     if (!eligibleDecks.length || drawing) return;
+    const seq = ++drawSeqRef.current;
+    const originRoot = rootKey;
     setDrawing(true);
     setDrawError('');
     try {
@@ -56,10 +90,11 @@ export default function DeskPlayStrip({ data, onPracticeDeck }) {
         const deckId = pickDeckId(eligibleDecks, exclude);
         if (!deckId) break;
         tried.push(deckId);
-        const cacheKey = `${rootKey}:${deckId}`;
+        const cacheKey = `${rootKey}:${revisionKey}:${deckId}`;
         let fullDeck = deckCacheRef.current.get(cacheKey);
         if (!fullDeck) {
           fullDeck = await call('deck.get', { id: deckId });
+          if (seq !== drawSeqRef.current || rootRef.current !== originRoot) return;
           if (fullDeck && Array.isArray(fullDeck.cards)) {
             deckCacheRef.current.set(cacheKey, fullDeck);
           }
@@ -70,16 +105,18 @@ export default function DeskPlayStrip({ data, onPracticeDeck }) {
           if (chosenSlip) break;
         }
       }
+      if (seq !== drawSeqRef.current || rootRef.current !== originRoot) return;
       if (chosenSlip) {
         setSlip(chosenSlip);
         setRevealed(false);
       } else {
         setDrawError(ui('这组里暂时没有可抽的卡，换一组再试。'));
       }
-    } catch {
+    } catch (failure) {
+      if (seq !== drawSeqRef.current || rootRef.current !== originRoot || failure?.stale) return;
       setDrawError(ui('没能读取这张卡，稍后再试。'));
     } finally {
-      setDrawing(false);
+      if (seq === drawSeqRef.current && rootRef.current === originRoot) setDrawing(false);
     }
   };
 
@@ -167,14 +204,39 @@ export default function DeskPlayStrip({ data, onPracticeDeck }) {
             />
           </div>
 
-          <p className="desk-play-slip__prompt">{slip.prompt}</p>
+          <div className="desk-play-slip__prompt">
+            <Markdown text={slip.prompt} links={false} className="md-compact" />
+          </div>
+
+          {slip.options?.length > 0 && (
+            <ul className="desk-play-slip__options" aria-label={ui('题目选项')}>
+              {slip.options.map((opt) => (
+                <li
+                  key={opt.id}
+                  className="desk-play-slip__option"
+                  data-correct={revealed && opt.correct ? 'true' : undefined}
+                >
+                  <span className="desk-play-slip__option-key">{opt.label}</span>
+                  <div className="desk-play-slip__option-text">
+                    <Markdown text={opt.text} links={false} className="md-compact" />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
 
           {revealed && (
             <div className="desk-play-slip__answer">
               <span className="desk-play-slip__answer-label">{ui('参考答案')}</span>
-              <p className="desk-play-slip__answer-body">{slip.answer || ui('这道题暂无简短答案，直接练这一组看完整解析。')}</p>
+              <div className="desk-play-slip__answer-body">
+                {slip.answer
+                  ? <Markdown text={slip.answer} links={false} className="md-compact" />
+                  : <p>{ui('这道题暂无简短答案，直接练这一组看完整解析。')}</p>}
+              </div>
               {slip.explanation && (
-                <p className="desk-play-slip__explanation">{slip.explanation}</p>
+                <div className="desk-play-slip__explanation">
+                  <Markdown text={slip.explanation} links={false} className="md-compact" />
+                </div>
               )}
             </div>
           )}

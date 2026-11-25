@@ -55,24 +55,29 @@ export default function BookEditor({ book, file, onPick, onChanged, onDirty, onS
   const dirty = draft !== base.current.text;
   useEffect(() => { onDirty?.(dirty); }, [dirty]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => onDirty?.(false), []); // eslint-disable-line react-hooks/exhaustive-deps
-  const settle = (next, { kept = true } = {}) => {
+  const settle = (next, { kept = true, submitted = null } = {}) => {
     // Saved, and a rebuilt outline waits for the learner's answer: the page shows it next (ui/book/BookRebuildPreview.jsx).
-    if (next.status !== 'ok') { base.current = { ...base.current, text: typed.current }; onChanged(next); return; }
+    if (next.status !== 'ok') { base.current = { ...base.current, text: submitted ?? typed.current }; onChanged(next); return; }
     base.current = { file, version: next.files[file]?.version ?? 0, text: fileText(next, file) };
-    if (kept) setDraft(base.current.text);
+    if (kept && (submitted === null || typed.current === submitted)) setDraft(base.current.text);
     onChanged(next);
+  };
+  const discardChanges = () => {
+    base.current = { file, version: book.files[file]?.version ?? 0, text: fileText(book, file) };
+    setDraft(base.current.text);
   };
   const save = async () => {
     setSaving(true);
     onSaving?.(true);
     let saved = false;
+    const submitted = draft;
     try {
-      const next = await call('course.book.save', { course: book.course, file, text: draft, version: base.current.version });
+      const next = await call('course.book.save', { course: book.course, file, text: submitted, version: base.current.version });
       // A save answers what was left unsaved of this file.
       closeRescue();
       setMerged(next.write === 'merged');
       if (next.write === 'merged') notify({ text: ui('书已更新：你的改动已保存，另一边的内容放在了建议里。'), tone: 'info' });
-      settle(next);
+      settle(next, { submitted });
       saved = true;
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); } finally { setSaving(false); onSaving?.(false, saved); }
   };
@@ -97,7 +102,7 @@ export default function BookEditor({ book, file, onPick, onChanged, onDirty, onS
         <Combobox className="book-editor__file" label={ui('要改的文件')} aria-label={ui('要改的文件')} searchPlaceholder={ui('搜索文件')} value={file} options={options} disabled={dirty || working} onChange={value => onPick(value)} />
         {book.files[file]?.forked && <Badge size="sm" tone="warning" className="book-editor__forked">{ui('已改动')}</Badge>}
         <Button size="sm" variant="primary" disabled={!dirty} busy={saving} lock={reverting} onClick={save} className="book-editor__save">{ui('保存')}</Button>
-        <Button size="sm" variant="quiet" disabled={!dirty} lock={working} onClick={() => setDraft(base.current.text)}>{ui('放弃改动')}</Button>
+        <Button size="sm" variant="quiet" disabled={!dirty} lock={working} onClick={discardChanges}>{ui('放弃改动')}</Button>
         <Button size="sm" variant="quiet" icon="refresh" disabled={!book.history?.[file] || dirty} busy={reverting} lock={saving} onClick={revert} className="book-editor__revert">{ui('回退到上一版')}</Button>
         <Button size="sm" variant={historyOpen ? 'secondary' : 'quiet'} icon="clock" aria-expanded={historyOpen} lock={working}
           onClick={() => setHistoryOpen(value => !value)} className="book-editor__history-toggle">{ui('版本历史')}</Button>
@@ -107,7 +112,7 @@ export default function BookEditor({ book, file, onPick, onChanged, onDirty, onS
         {ui('上次离开时这份文件还有没保存的改动，当时没来得及问你。')}</InlineMessage>}
       {merged && <InlineMessage tone="info">{ui('书已更新：你的改动已保存，另一边的内容放在了建议里，可以在预览里采用或忽略。')}</InlineMessage>}
       {historyOpen && <BookHistory course={book.course} book={book} file={file} dirty={dirty} locked={working} onRestored={next => { settle(next); setMerged(false); }} />}
-      <CodeMirror className="book-editor__code" value={draft} height="60vh" theme={theme === 'light' ? 'light' : 'dark'} extensions={editorExtensions} onChange={setDraft}
+      <CodeMirror className="book-editor__code" value={draft} height="60vh" theme={theme === 'light' ? 'light' : 'dark'} extensions={editorExtensions} readOnly={reverting} onChange={setDraft}
         basicSetup={{ lineNumbers: false, foldGutter: false }} />
     </section>
   );

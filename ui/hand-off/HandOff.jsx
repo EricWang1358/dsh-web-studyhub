@@ -20,18 +20,21 @@ const VARIANT = { link: 'link', quiet: 'quiet', icon: 'quiet', secondary: 'secon
  * is added, so the line it stands in never moves), disabled; what: this place's first Tooltip
  * sentence; label: the place's own words where a write comes first (保存并发给主会话). Extra props (data-*) go on the button.
  */
-export function HandOffButton({ shape = 'link', size = 'sm', what = '', label = HAND_OFF_LABEL, busy = false, disabled = false, onClick, anchorClassName = 'sh-handoff__tip', ...rest }) {
+export function HandOffButton({ shape = 'link', size = 'sm', what = '', copyWhat = '', label = HAND_OFF_LABEL, copyLabel = '', busy = false, disabled = false, onClick, anchorClassName = 'sh-handoff__tip', ...rest }) {
   useInjectCss(css, 'study-hand-off');
   const { host } = useStudy();
   const canChat = hasChatHost(host);
-  const effectiveLabel = !canChat && label === HAND_OFF_LABEL ? COPY_PROMPT_LABEL : label;
+  const effectiveLabel = !canChat
+    ? (copyLabel || (label === HAND_OFF_LABEL || String(label).includes('主会话') ? COPY_PROMPT_LABEL : label))
+    : label;
+  const effectiveWhat = !canChat && copyWhat ? copyWhat : what;
   const variant = VARIANT[shape] || 'link', text = ui(effectiveLabel);
   const chatButton = shape === 'icon'
     ? <Button variant={variant} size={size} icon="chat" className="sh-btn--icon sh-handoff__btn" data-tour="hand-off" aria-label={text} aria-busy={busy || undefined} disabled={disabled || busy} onClick={onClick} {...rest} />
     : <Button variant={variant} size={size} icon="external" className="sh-handoff__btn" data-tour="hand-off" aria-busy={busy || undefined} disabled={disabled || busy} onClick={onClick} {...rest}>{text}</Button>;
   const waiting = { 'aria-busy': busy || undefined, disabled: disabled || busy };
   const button = canChat ? chatButton : <CopyPromptButton iconOnly={shape === 'icon'} variant={variant} size={size} text={text} onClick={onClick} rest={{ ...waiting, ...rest }} />;
-  return <Tooltip layer content={handOffTip(what, canChat)} anchorClassName={anchorClassName}>{button}</Tooltip>;
+  return <Tooltip layer content={handOffTip(effectiveWhat, canChat)} anchorClassName={anchorClassName}>{button}</Tooltip>;
 }
 
 /* A host with no main chat (the desktop edition) has no window to hand anything to: the same control copies the prompt and the learner stays,
@@ -47,8 +50,10 @@ function CopyPromptButton({ iconOnly, variant, size, text, onClick, rest }) {
  * <HandOff id input what lead shape said onSent />: the whole unit. id: a registry id (ui/agent-prompts/index.js); input: the entry's input, or an
  * async function that reads it; lead: a short sentence before the button (「想先和主会话聊聊怎么学：」); said: what a write before it did; onSent(outcome).
  */
-export function HandOff({ id, input, what = '', lead = '', shape = 'link', said = '', onSent, disabled = false, className, ...rest }) {
+export function HandOff({ id, input, what = '', copyWhat = '', lead = '', copyLead = '', label = HAND_OFF_LABEL, copyLabel = '', shape = 'link', said = '', onSent, disabled = false, className, ...rest }) {
   useInjectCss(css, 'study-hand-off');
+  const { host } = useStudy();
+  const canChat = hasChatHost(host);
   const { send } = useHandOff();
   const [sending, setSending] = useState(false), flight = useRef(false);
   const go = async () => {
@@ -58,11 +63,12 @@ export function HandOff({ id, input, what = '', lead = '', shape = 'link', said 
     // (`onSent?.(await send(...))` would not call send at all without an onSent: the optional call skips its arguments)
     try { const outcome = await send(id, input, { said }); onSent?.(outcome); } finally { flight.current = false; setSending(false); }
   };
-  const button = <HandOffButton shape={shape} what={what} busy={sending} disabled={disabled} onClick={go} data-hand-off={id} {...rest} />;
-  if (!lead) return className ? <span className={className}>{button}</span> : button;
+  const button = <HandOffButton shape={shape} label={label} copyLabel={copyLabel} what={what} copyWhat={copyWhat} busy={sending} disabled={disabled} onClick={go} data-hand-off={id} {...rest} />;
+  const effectiveLead = !canChat && copyLead ? copyLead : lead;
+  if (!effectiveLead) return className ? <span className={className}>{button}</span> : button;
   return (
     <span className={['sh-handoff', shape === 'quiet' && 'sh-handoff--quiet', className].filter(Boolean).join(' ')}>
-      <span className="sh-handoff__lead">{ui(lead)}</span>{button}
+      <span className="sh-handoff__lead">{ui(effectiveLead)}</span>{button}
     </span>
   );
 }

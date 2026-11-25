@@ -81,7 +81,7 @@ function LibraryView() {
   const linePage = lineShown && !tour.tourStep && !tour.lineLater;
   const firstDeck = useFirstDeck({ data, gen: lib?.gen, setGen: set.setGen, deck: lineShown ? line.steps[2] : null,
     reasoningEffort: connection?.binding?.effort?.current || '', services: core });
-  const firstRun = lineShown ? { form: linePage ? 'page' : 'compact', plan: firstDeck, on: {
+  const firstRun = lineShown ? { form: linePage ? 'page' : 'compact', sampleBusy: tour.sampleBusy || tour.sampleForTour, plan: firstDeck, on: {
     importFirst: tour.openFirstImport, importMore: tour.openFirstImport,
     generate: firstDeck.start, tune: (sourceIds) => intents.goGenerate({ sourceIds, remember: true }),
     recheck: core.refresh, openModelSettings: settingsEntry.openModelSettings,
@@ -530,7 +530,8 @@ function SettingsView() {
   async function exportData() {
     try {
       const backup = await call('export');
-      const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = backupFileName();
@@ -538,7 +539,13 @@ function SettingsView() {
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       // Originals attached by path stay where the learner keeps them; say how many are not in this file.
       const referenced = backup.portableMaterials?.referencedOriginals?.length;
-      if (referenced) notify({ text: uiFormat('备份已导出。其中 {0} 份原文件只记了路径，没有放进备份；换电脑后需要重新指定。', [referenced]), tone: 'success', persistent: true });
+      const missing = backup.portableMaterials?.missingAttachments;
+      const largeMb = blob.size > 60 * 1024 * 1024 ? Math.round(blob.size / (1024 * 1024)) : 0;
+      const parts = [];
+      if (referenced) parts.push(uiFormat('备份已导出。其中 {0} 份原文件只记了路径，没有放进备份；换电脑后需要重新指定。', [referenced]));
+      if (missing) parts.push(uiFormat('有 {0} 份已丢失的原件副本已跳过，对应资料仅以文字形态写入备份。', [missing]));
+      if (largeMb) parts.push(uiFormat('备份体积较大（约 {0} MB），恢复时将自动分片上传，请耐心等待。', [largeMb]));
+      if (parts.length) notify({ text: referenced ? parts.join(' ') : [ui('备份已导出。'), ...parts].join(' '), tone: missing ? 'warning' : 'success', persistent: true });
     } catch (failure) {
       setError(failure.message);
     }
@@ -621,7 +628,8 @@ function ReviewView({ feedback }) {
       onOpenBookSection: pageAvailable(data, 'book') ? async (place) => {
         if (!place?.leaf?.built || !place?.leaf?.key) return;
         await openReviewCoursePage({
-          place, data, core, session, learn, nav, targetPage: 'book',
+          place: place.leaf.course ? { ...place, course: place.leaf.course } : place,
+          data, core, session, learn, nav, targetPage: 'book',
           prepare: (targetCourse) => keepBook(data?.root, targetCourse, { target: place.leaf.key }),
         });
       } : undefined,
@@ -691,6 +699,7 @@ function GuidedStudyView() {
 
   // Read the session again at once: its reads may have slowed down, and a paused session is not read after that (#564).
   const handlePause = (id) => core.act('study.session.pause', { sessionId: id }, () => { void readGuidedSession(); });
+  const handleResume = (id) => core.act('study.session.resume', { sessionId: id }, () => { void readGuidedSession(); });
 
   const handleEnd = (id) => {
     if (!id) {
@@ -733,8 +742,10 @@ function GuidedStudyView() {
       estimate={guidedSession?.estimate}
       cost={guidedSession?.cost}
       modelReady={data?.modelReady !== false && data?.model?.ready !== false}
+      courses={data?.courses}
       host={host}
       onPause={handlePause}
+      onResume={handleResume}
       onEnd={handleEnd}
       onReveal={handleReveal}
       onAnswer={handleAnswer}

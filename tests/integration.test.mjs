@@ -468,7 +468,7 @@ test("guided teaching stays attached to the requested card after navigation", as
   assert.equal((await service.call("review.get", { runId: run.id })).teaching, null);
   const original = await service.call("review.move", { runId: run.id, index: 0 });
   assert.equal(original.teaching.id, teaching.id);
-  await assert.rejects(service.call("teach.start", { runId: run.id, cardId: otherId, index: 0 }), /changed|match/i);
+  await assert.rejects(service.call("teach.start", { runId: run.id, cardId: otherId, index: 0 }), /本轮练习已变化/);
   const started = Promise.withResolvers(), release = Promise.withResolvers();
   service.complete = async () => {
     started.resolve();

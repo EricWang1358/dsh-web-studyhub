@@ -127,7 +127,7 @@ describe('#1310 usage guide completeness & keybinding sync', () => {
     }
 
     // Every Review bottom utility strip key
-    for (const reviewKey of ['h', 'T', '*', 'G', 'A', 'W', 'S', 'D', 'Q', 'E', 's', 'u', ',', '.', 'J', 'K', 'N', 'o', 'X']) {
+    for (const reviewKey of ['h', 't', '*', 'G', 'A', 'W', 'S', 'D', 'Q', 'E', 's', 'u', ',', '.', 'J', 'K', 'N', 'o', 'X']) {
       assert.ok(
         guide.includes(`\`${reviewKey}\``),
         `docs/GUIDE.md missing Review bottom utility key \`${reviewKey}\``,
@@ -210,8 +210,19 @@ describe('#1310 usage guide completeness & keybinding sync', () => {
     assert.deepEqual(openedArgs, { open: true, tab: 'guide' });
 
     // In-app guide lines are non-empty in zh and en
-    assert.ok(buildInAppGuideLines('zh', 80, false).length > 10);
-    assert.ok(buildInAppGuideLines('en', 80, true).length > 10);
+    const zhGuide = buildInAppGuideLines('zh', 120, false).join('\n');
+    const enGuide = buildInAppGuideLines('en', 120, true).join('\n');
+    assert.ok(zhGuide.split('\n').length > 10);
+    assert.ok(enGuide.split('\n').length > 10);
+
+    // #1341: In-app guide must match actual ReviewView keys ([T] Guided Study, [W] Translate; [L]/[F] standalone modals)
+    assert.ok(!zhGuide.includes('[T]翻译'), 'zh in-app guide must not map [T] to Translate');
+    assert.ok(!enGuide.includes('[T] Translate'), 'en in-app guide must not map [T] to Translate');
+    assert.ok(zhGuide.includes('[t]带学'), 'zh in-app guide must document [t]带学 (#1408)');
+    assert.ok(zhGuide.includes('[W]翻译'), 'zh in-app guide must document [W]翻译');
+    assert.ok(enGuide.includes('[t] Guided'), 'en in-app guide must document [t] Guided (#1408)');
+    assert.ok(enGuide.includes('[W] Translate'), 'en in-app guide must document [W] Translate');
+    assert.ok(guide.includes('`L`') && guide.includes('`F`'), 'docs/GUIDE.md must document standalone [L]/[F] modals alongside [T]');
 
     // HelpOverlay renders 1-line description for current page and toggles to Usage Guide tab
     const h = createInkHarness(

@@ -1,5 +1,8 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import type { KeyHint } from '../types/contracts.js';
 import { useTuiStore } from '../state/store.js';
+import { getCachedContextualTipSelector, loadContextualTipSelector, modelInfo, type SelectContextualTipFn } from '../shell/data.js';
+import { buildCloseFooterHint, buildDefaultFooterHints, buildFooterTailHints } from '../shell/global-keymap.js';
 
 /**
  * Reserved global shortcuts that no primary view or sub-view may claim or shadow.
@@ -103,8 +106,122 @@ export function useClaimKeys(keys: readonly string[], active: boolean): void {
   useEffect(() => {
     if (!active || keys.length === 0) return undefined;
     return claimKeys(keys);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, sig]);
 }
 
 export const DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
+
+/**
+ * Stack of active modal footer key hints (#1352 / #1354 D4).
+ * When a modal is open, the shell's bottom KeyHintBar renders the top-most active
+ * modal's own keys instead of falling back to global page-jump shortcuts.
+ */
+interface ModalHintEntry {
+  id: number;
+  hints: readonly KeyHint[];
+}
+let nextModalHintId = 1;
+const modalHintStack: ModalHintEntry[] = [];
+let modalHintsSnapshot: readonly KeyHint[] | null = null;
+const modalHintListeners = new Set<() => void>();
+
+function notifyModalHintListeners(): void {
+  const top = modalHintStack.length > 0 ? modalHintStack[modalHintStack.length - 1].hints : null;
+  modalHintsSnapshot = top;
+  for (const listener of modalHintListeners) listener();
+}
+
+function subscribeModalHints(listener: () => void): () => void {
+  modalHintListeners.add(listener);
+  return () => {
+    modalHintListeners.delete(listener);
+  };
+}
+
+export function getModalHintsSnapshot(): readonly KeyHint[] | null {
+  return modalHintsSnapshot;
+}
+
+export function useModalHints(): readonly KeyHint[] | null {
+  return useSyncExternalStore(subscribeModalHints, getModalHintsSnapshot, getModalHintsSnapshot);
+}
+
+export function useModalFooterHints(hints: readonly KeyHint[] | undefined, active: boolean): void {
+  const sig = hints && hints.length > 0 ? hints.map((h) => `${h.key}\u0001${h.label}`).join('\u0000') : '';
+  useEffect(() => {
+    if (!active || !hints || hints.length === 0) return undefined;
+    const id = nextModalHintId++;
+    modalHintStack.push({ id, hints });
+    notifyModalHintListeners();
+    return () => {
+      const idx = modalHintStack.findIndex((e) => e.id === id);
+      if (idx >= 0) {
+        modalHintStack.splice(idx, 1);
+        notifyModalHintListeners();
+      }
+    };
+  }, [active, sig]);
+}
+
+export interface ShellFooterHintsInput {
+  modalHints: readonly KeyHint[] | null;
+  footerHints: readonly KeyHint[];
+  inputCaptured: boolean;
+  overlayOpen: boolean;
+  compactMode: boolean;
+  practiceReturnLabel: string | null;
+  lang: 'zh' | 'en';
+}
+
+/** Compute the active bottom KeyHintBar entries, prioritizing modal > page > default global hints (#1352 / #1354 P2-a). */
+export function resolveShellFooterHints(inp: ShellFooterHintsInput): KeyHint[] {
+  if (inp.modalHints && inp.modalHints.length > 0) return [...inp.modalHints];
+  const tail = buildFooterTailHints(inp.lang, inp.compactMode && inp.footerHints.length > 4);
+  const prefix: KeyHint[] = inp.practiceReturnLabel ? [{ key: 'r', label: inp.practiceReturnLabel }] : [];
+  if (inp.footerHints.length > 0) {
+    const base = inp.compactMode ? inp.footerHints.slice(0, 4) : [...inp.footerHints];
+    return inp.inputCaptured ? base : [...prefix, ...base, ...tail];
+  }
+  if (inp.inputCaptured || inp.overlayOpen) {
+    return [buildCloseFooterHint(inp.lang)];
+  }
+  return [...prefix, ...buildDefaultFooterHints(inp.lang), ...tail];
+}
+
+/** Lazy-loaded contextual footer usage tip selector hook (#1317). */
+export function useContextualFooterTip(suppressed: boolean, rotation: number): string | undefined {
+  const page = useTuiStore((s) => s.page);
+  const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const proactiveHints = useTuiStore((s) => s.preferences.proactiveHints !== false);
+  const desktopConfig = useTuiStore((s) => s.desktopConfig);
+  const binding = useTuiStore((s) => s.binding);
+  const snapshot = useTuiStore((s) => s.snapshot);
+  const card = useTuiStore((s) => s.assistantCardContext);
+  const [selector, setSelector] = useState<SelectContextualTipFn | null>(getCachedContextualTipSelector);
+
+  useEffect(() => {
+    if (selector) return undefined;
+    let alive = true;
+    void loadContextualTipSelector().then((fn) => {
+      if (alive && fn) setSelector(() => fn);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [selector]);
+
+  return useMemo(() => {
+    if (!selector || suppressed) return undefined;
+    const ready = modelInfo(desktopConfig, binding, snapshot, asciiMode).ready;
+    return selector({
+      page,
+      card: page === 'review' ? card : null,
+      modelReady: ready,
+      proactiveHints,
+      lang,
+      asciiMode,
+      rotation,
+    })?.text;
+  }, [selector, suppressed, desktopConfig, binding, snapshot, asciiMode, page, card, proactiveHints, lang, rotation]);
+}

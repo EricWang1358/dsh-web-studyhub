@@ -26,7 +26,7 @@ const DIALOGS = {
   add: ({ onClose }) => <AddSourceDialog onClose={onClose} />,
   sources: ({ modal, onClose, app }) => <SourceListDialog modal={modal} run={app.session.run} data={app.data} onClose={onClose}
     onOpenSource={(source) => app.set.setModal({ type: 'source', source, ...(modal.pickPages ? { pickPages: true } : {}), ...(modal.back ? { back: true } : {}) })} />,
-  flag: ({ onClose, app }) => <FlagDialog run={app.session.run} onClose={onClose} />,
+  flag: ({ onClose, app }) => <FlagDialog run={app.session.run} onClose={onClose} onUpdated={(nextFlag) => app.session.patchRun?.((prev) => (prev?.card?.id === app.session.run?.card?.id ? { ...prev, card: { ...prev.card, flag: nextFlag || undefined } } : prev))} />,
   source: ({ modal, onClose }) => <SourceReaderDialog modal={modal} onClose={onClose} />,
   companion: ({ modal, onClose }) => <CompanionModal modal={modal} onClose={onClose} />,
   companionBuild: ({ modal, onClose }) => <CompanionBuildDialog key={modal.course || 'companionBuild'} modal={modal} onClose={onClose} />,

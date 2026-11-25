@@ -1,5 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -157,7 +159,7 @@ export const OrganizeSourcesModal = memo(function OrganizeSourcesModal({
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const snapshot = useTuiStore((s) => s.snapshot);
   const notify = useTuiStore((s) => s.notify);
-  const { columns, rows: termRows } = useWindowSize();
+  const { columns, rows: termRows } = useStableWindowSize();
 
   // Hold input capture for the modal lifetime, including ConfirmDialog transitions.
   useInputCapture(isActive);
@@ -619,9 +621,9 @@ export const OrganizeSourcesModal = memo(function OrganizeSourcesModal({
                 <Spinner label={t(lang, `正在清除待审建议${ell}`, `Dismissing pending proposal${ell}`)} />
               </Box>
             ) : saveError ? (
-              <Box height={1}>
-                <Text color={theme.error} wrap="truncate-end">
-                  {`${errMark} ${truncateDisplay(saveError, Math.max(12, innerWidth - 3), ell)}`}
+              <Box>
+                <Text color={theme.error} wrap="wrap">
+                  {`${errMark} ${saveError}`}
                 </Text>
               </Box>
             ) : null}
@@ -645,8 +647,8 @@ export const OrganizeSourcesModal = memo(function OrganizeSourcesModal({
           </Box>
         ) : phase === 'error' || loadError ? (
           <Box height={innerHeight} width={innerWidth} flexDirection="column" justifyContent="center" alignItems="center">
-            <Text color={theme.error} bold>
-              {`${errMark} ${truncateDisplay(loadError || t(lang, '获取 AI 课程归类建议失败', 'Failed to suggest courses'), Math.max(20, innerWidth - 4), ell)}`}
+            <Text color={theme.error} bold wrap="wrap">
+              {`${errMark} ${loadError || t(lang, '获取 AI 课程归类建议失败', 'Failed to suggest courses')}`}
             </Text>
             <Box marginTop={1}>
               <Text color={theme.muted}>
@@ -716,9 +718,9 @@ export const OrganizeSourcesModal = memo(function OrganizeSourcesModal({
                 />
               </Box>
             ) : saveError ? (
-              <Box height={1}>
-                <Text color={theme.error} wrap="truncate-end">
-                  {`${errMark} ${truncateDisplay(saveError, Math.max(12, innerWidth - 3), ell)}`}
+              <Box>
+                <Text color={theme.error} wrap="wrap">
+                  {`${errMark} ${saveError}`}
                 </Text>
               </Box>
             ) : null}

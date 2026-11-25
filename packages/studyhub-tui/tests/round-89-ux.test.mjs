@@ -144,6 +144,11 @@ describe('Round 89 Track B6 — CommandPalette Natural Language (shared #1315 pa
     assert.ok(wfItem);
     assert.equal(wfItem.id, 'nl:workflow');
     assert.match(wfItem.label, /多步执行 \(2 步\)/);
+
+    // #1340: search queries like "step 2", "app 3", "过去统计的方法" must NOT produce bogus NL navigation items
+    assert.equal(buildNaturalLanguagePaletteItem('step 2', baseCtx), null);
+    assert.equal(buildNaturalLanguagePaletteItem('app 3', baseCtx), null);
+    assert.equal(buildNaturalLanguagePaletteItem('过去统计的方法', baseCtx), null);
   });
 });
 

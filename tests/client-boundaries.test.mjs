@@ -130,7 +130,7 @@ test('generated native modules resolve through classic chunk factories and share
   const notesEntry = Object.entries(result.metafile.outputs).find(([, record]) => record.entryPoint === 'ui/BlogNotes.jsx');
   assert.ok(notesEntry);
   const settingsPanes = (await readFile('ui/settings-groups.js', 'utf8')).match(/^  category\(\{ id:/gm).length;
-  assert.equal(lazyLoads.length, 24 + settingsPanes, 'the sixteen views (notes, skeleton, workflows, graph, audio usage, reader, live class, tasks, guided study, statistics, mock exam, exam prep, exam coach, outline, review book, board; the review-book editor loads inside the review book), 看原页 (pdf.js), the Select and Combobox popups (Base UI), the audio setup guide of the voice button, the depth and cost matrix in the more options of 创建题组 and the line of rough costs beside its presets (both ui/presets/PresetsFold.jsx), 知识点查缺 on the draft page (ui/coverage/PointGaps.jsx), the local PDF converter of 添加资料 and of the large-document card (ui/PdfConversion.jsx) and one pane per settings category');
+  assert.equal(lazyLoads.length, 27 + settingsPanes, 'the sixteen views (notes, skeleton, workflows, graph, audio usage, reader, live class, tasks, guided study, statistics, mock exam, exam prep, exam coach, outline, review book, board; the review-book editor loads inside the review book), 看原页 (pdf.js), the Select and Combobox popups (Base UI), the audio setup guide of the voice button, the depth and cost matrix in the more options of 创建题组 and the line of rough costs beside its presets (both ui/presets/PresetsFold.jsx), 知识点查缺 on the draft page (ui/coverage/PointGaps.jsx), the local PDF converter of 添加资料 and of the large-document card (ui/PdfConversion.jsx), the post-answer learning loop panels (SimilarTry and RetellPanel), 找功能 (the sheet and its index, ui/finder/FinderSheet.jsx) and one pane per settings category');
   // A lazily loaded view may declare its own (the review-book editor inside the review book): load until no new boundary appears.
   for (let loaded = 0; loaded < lazyLoads.length;) { const batch = lazyLoads.slice(loaded); loaded = lazyLoads.length; await Promise.all(batch.map(load => load())); }
   // 看原页 asks pdf.js's wasm decoders, CMaps and fonts from its own lazily loaded chunks (assets/*.js); load each the way the peek does.
@@ -169,6 +169,13 @@ test('generated native modules resolve through classic chunk factories and share
   const reaction = math.renderStudyFormula(String.raw`\ce{2H2(g) + O2(g) -> 2H2O(l)}`, true);
   assert.match(reaction, /<math[\s>]/);
   assert.match(reaction, /<msub>/, 'native chemistry must use the registered mhchem engine');
+  // StudyDiagram mirrors StudyMath: dynamic import inside its effect keeps the diagram renderer out of boot and workspace closures.
+  const diagramEntry = Object.entries(result.metafile.outputs).find(([, record]) => record.entryPoint === 'ui/study-diagram-render.js');
+  assert.ok(diagramEntry, 'inline diagrams must keep their own optional renderer boundary');
+  const diagramName = basename(diagramEntry[0]);
+  assert.ok(!loadedAtBoot.includes(`${packageId}/${diagramName}`), 'the diagram renderer must stay optional at host activation');
+  const diagramMod = await asyncModule(`./${diagramName}`);
+  assert.match(diagramMod.renderStudyDiagram('flowchart LR\n  A[Start] --> B[End]').svg, /<svg[\s>]/);
   for (const [input, verify] of [
     ['lib/chemistry-balance.js', module => assert.equal(module.balanceEquation('H2 + O2 -> H2O').equation, '2 H2 + O2 -> 2 H2O')],
     ['lib/symbolic-proof.js', module => assert.equal(module.proveIdentity('(x+1)^2', 'x^2+2*x+1').status, 'proved')],
@@ -223,6 +230,7 @@ test('generated native modules resolve through classic chunk factories and share
     ['ui/desk-play/DeskPlayStrip.jsx', module => assert.equal(typeof module.default, 'function')],
     ['ui/letterpress/letterpress-runtime.jsx', module => assert.equal(typeof module.default, 'function')],
     ['ui/review/ReviewFocusPill.jsx', module => assert.equal(typeof module.default, 'function')],
+    ['ui/review/SocraticInlineDrawer.jsx', module => assert.equal(typeof (module.default?.type ?? module.default), 'function')],
   ]) {
     const output = Object.entries(result.metafile.outputs).find(([, record]) => record.entryPoint === entryPoint);
     assert.ok(output, `missing optional UI boundary for ${entryPoint}`);

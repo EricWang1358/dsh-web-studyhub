@@ -27,12 +27,15 @@ export const emptyEntry = () => ({ selected: [], hint: false, explain: false, re
 export function entryForRun(run, restored, reader) {
   const back = restored?.key === reviewEntryKey(run) && !run.feedback ? restored : null;
   const saved = back || run.feedback ? null : restoredDraft(run);
+  const backCloze = back?.clozeValues && typeof back.clozeValues === 'object' && !Array.isArray(back.clozeValues)
+    ? back.clozeValues
+    : null;
   return {
     selected: back?.selected || run.feedback?.selected || saved?.selected || [],
     hint: back?.hint || false,
     explain: back?.explain || false,
     response: back?.response || saved?.text || '',
-    clozeValues: back?.clozeValues || saved?.stepInputs || {},
+    clozeValues: backCloze || saved?.stepInputs || {},
     teaching: run.teaching || null,
     teachAnswer: reader.draft(run.teaching) || back?.teachAnswer || '',
     assistance: run.feedback ? null : mergeAssistance(run.assistance, back?.assistance),
@@ -191,15 +194,16 @@ export function shortcutAction(event, ctx) {
   if (event.key === 'Escape' && ctx.shortcutHelp) return result({ type: 'help-close' });
   if (event.key === 'Escape' && ctx.endAsked && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) return result({ type: 'end-cancel' }, true);
   if (event.key === 'Escape' && ctx.markingTerms && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) return result({ type: 'mark-terms-exit' }, true);
-  // Shift+V: ask 帮我弄懂 by voice (#1031), on any question outside an exam.
+  // Shift+V: ask 帮我弄懂 by voice (#1031), Shift+T: toggle inline Socratic tutoring beside the question (#1316), outside an exam.
   if (event.shiftKey && event.code === 'KeyV') return result(ctx.page === 'review' && run?.card && !busy && run.mode !== 'exam' ? { type: 'voice-ask' } : null, true);
+  if (event.shiftKey && event.code === 'KeyT') return result(ctx.page === 'review' && run?.card && !busy && run.mode !== 'exam' ? { type: 'socratic-toggle' } : null, true);
   if (event.shiftKey || (event.onButton && (event.key === 'Enter' || event.code === 'Space'))) return result(null);
   const letter = event.key.length === 1 ? event.key.toLowerCase() : '';
-  if (letter === 'a') return result({ type: 'autopilot' }, true);
+  if (letter === 'a' && ctx.page !== 'exam') return result({ type: 'autopilot' }, true);
   // Z: undo the current round's most recent answer/grade (#885), including right after the final card advanced to the summary.
   if (letter === 'z' && ctx.page === 'review' && run?.undoable && !busy && run.mode !== 'exam') return result({ type: 'undo' }, true);
-  // S from anywhere: resume the last round or start today's path.
-  if (letter === 's' && !busy && (ctx.page !== 'review' || !run || run.complete)) return result({ type: 'resume' }, true);
+  // S from anywhere outside timed exams: resume the last round or start today's path.
+  if (letter === 's' && !busy && ctx.page !== 'exam' && (ctx.page !== 'review' || !run || run.complete)) return result({ type: 'resume' }, true);
   if (ctx.page !== 'review' || !run?.card || busy) return result(null);
   if (ctx.endAsked && event.key === 'Enter') return result(null, true);
   const taskCard = run.mode !== 'flashcard' && run.card.kind === 'task';
@@ -236,13 +240,15 @@ export function shortcutAction(event, ctx) {
 }
 
 /** What a key press inside a Cloze blank means: jump to next empty blank (or Shift+Enter to previous blank), submit when ready, or blur back to the card (Esc). Ignores IME composition. */
-export function clozeBlankKeyAction(event, { blankIds = [], currentId = '', values = {} } = {}) {
+export function clozeBlankKeyAction(event, { blankIds = [], currentId = '', values = {}, multiline = false } = {}) {
   if (!event || event.isComposing || event.keyCode === 229 || event.repeat) return null;
   if (event.key === 'Escape' && !event.ctrlKey && !event.metaKey && !event.altKey) return { type: 'blur' };
   if (event.key !== 'Enter') return null;
   const ids = Array.isArray(blankIds) ? blankIds : [];
   const filled = (id) => Boolean(BLANK(values?.[id] ?? ''));
   if (event.ctrlKey || event.metaKey) return { type: ids.some(filled) ? 'submit' : 'noop' };
+  // A multi-line blank (#1403): Enter and Shift+Enter are newlines the learner is typing, never a jump or a submit.
+  if (multiline) return null;
   if (event.shiftKey && !event.altKey) {
     if (ids.length <= 1) return { type: 'noop' };
     const cur = ids.indexOf(currentId);

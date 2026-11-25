@@ -1,11 +1,13 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Box, Text, useInput, usePaste } from 'ink';
+import { Box, Text, usePaste, type DOMElement } from 'ink';
 import stripAnsi from 'strip-ansi';
 import { useTheme } from '../theme/tokens.js';
 import { displayWidth, splitGraphemes } from '../render/cjk.js';
 import { useTuiStore } from '../state/store.js';
 import { normalizeAsciiChrome } from './Badge.js';
 import { useInputCapture } from './focus.js';
+import { ImeCursorAnchor } from './ime-cursor.js';
+import { KEY_LAYER_TEXT_INPUT, useScopedInput } from './key-dispatcher.js';
 import { isSgrMouseSequence, stripSgrMouseSequences } from './mouse.js';
 
 export interface TextInputProps {
@@ -163,6 +165,7 @@ export const TextInput = memo(function TextInput({
   const lastValue = useRef(value);
   const hStart = useRef(0);
   const vStart = useRef(0);
+  const rootRef = useRef<DOMElement>(null);
 
   // External value change → clamp / move cursor to end.
   useEffect(() => {
@@ -197,15 +200,18 @@ export const TextInput = memo(function TextInput({
 
   usePaste((text) => insert(sanitizePastedText(text, { multiline })), { isActive });
 
-  useInput(
+  useScopedInput(
     (input, key) => {
-      if (key.eventType === 'release') return;
-      if (input && isSgrMouseSequence(input)) return;
+      if (key.eventType === 'release') return false;
+      if (input && isSgrMouseSequence(input)) return false;
       const cs = chars(value);
       const at = Math.min(cursor, cs.length);
       if (key.escape) {
-        onCancel?.();
-        return;
+        if (onCancel) {
+          onCancel();
+          return true;
+        }
+        return false;
       }
       if (key.return) {
         if (key.ctrl) {
@@ -215,90 +221,99 @@ export const TextInput = memo(function TextInput({
         } else {
           onSubmit?.(value);
         }
-        return;
+        return true;
       }
       if (multiline && ORPHAN_SHIFT_ENTER_RE.test(input)) {
         insert('\n');
-        return;
+        return true;
       }
       if (multiline && ORPHAN_CTRL_ENTER_RE.test(input)) {
         onSubmit?.(value);
-        return;
+        return true;
       }
       if (key.ctrl && input === 'j' && multiline) {
         insert('\n');
-        return;
+        return true;
       }
       if (key.ctrl && input === 's' && multiline) {
-        onSubmit?.(value);
-        return;
+        // #1429: Ctrl+S is the save key on every page that shows the multi-line editor.
+        // Only claim it when this input actually owns the submit action; otherwise let it
+        // fall through to the owning view/modal (e.g. DraftEditor's edit-card save) instead
+        // of silently swallowing the key while the footer still advertises "Ctrl+S 保存".
+        if (!onSubmit) return false;
+        onSubmit(value);
+        return true;
       }
       if (key.tab) {
         if (onTab) {
           const completed = onTab(value, at);
           if (typeof completed === 'string') commit(completed, chars(completed).length);
+          return true;
         }
-        return;
+        return false;
       }
       if (key.backspace) {
-        if (at === 0) return;
+        if (at === 0) return true;
         const from = key.meta ? prevWordIndex(cs, at) : at - 1;
         commit([...cs.slice(0, from), ...cs.slice(at)].join(''), from);
-        return;
+        return true;
       }
       if (key.delete) {
-        if (at >= cs.length) return;
+        if (at >= cs.length) return true;
         commit([...cs.slice(0, at), ...cs.slice(at + 1)].join(''), at);
-        return;
+        return true;
       }
       if (key.leftArrow) {
         setCursor(key.meta || key.ctrl ? prevWordIndex(cs, at) : Math.max(0, at - 1));
-        return;
+        return true;
       }
       if (key.rightArrow) {
         setCursor(key.meta || key.ctrl ? nextWordIndex(cs, at) : Math.min(cs.length, at + 1));
-        return;
+        return true;
       }
       if (multiline && (key.upArrow || key.downArrow)) {
         const { row, col } = cursorRowCol(cs, at);
         const target = key.upArrow ? row - 1 : row + 1;
         if (target >= 0) setCursor(indexFromRowCol(cs, target, col));
-        return;
+        return true;
       }
       if (key.home || (key.ctrl && input === 'a')) {
         if (multiline) {
           const { row } = cursorRowCol(cs, at);
           setCursor(indexFromRowCol(cs, row, 0));
         } else setCursor(0);
-        return;
+        return true;
       }
       if (key.end || (key.ctrl && input === 'e')) {
         if (multiline) {
           const { row } = cursorRowCol(cs, at);
           setCursor(indexFromRowCol(cs, row, Number.MAX_SAFE_INTEGER));
         } else setCursor(cs.length);
-        return;
+        // Allow parent modals that bind Ctrl+E (e.g. AddFocusModal extract/match) to handle it too.
+        return Boolean(key.end);
       }
       if (key.ctrl && input === 'u') {
         commit(cs.slice(at).join(''), 0);
-        return;
+        return true;
       }
       if (key.ctrl && input === 'k') {
         commit(cs.slice(0, at).join(''), at);
-        return;
+        return true;
       }
       if (key.ctrl && input === 'w') {
         const from = prevWordIndex(cs, at);
         commit([...cs.slice(0, from), ...cs.slice(at)].join(''), from);
-        return;
+        return true;
       }
-      if (key.ctrl || key.meta || key.upArrow || key.downArrow || key.pageUp || key.pageDown) return;
+      if (key.ctrl || key.meta || key.upArrow || key.downArrow || key.pageUp || key.pageDown) return false;
       if (input) {
         const clean = sanitizePastedText(input, { multiline });
         if (clean) insert(clean);
+        return true;
       }
+      return false;
     },
-    { isActive },
+    { isActive, layer: KEY_LAYER_TEXT_INPUT, id: 'TextInput' },
   );
 
   const maskChar = mask === true ? (asciiMode ? '*' : '•') : typeof mask === 'string' && mask ? mask : null;
@@ -308,12 +323,14 @@ export const TextInput = memo(function TextInput({
     <Text color={isActive ? theme.primary : theme.muted}>{`${renderedPrompt} `}</Text>
   ) : null;
   const fieldWidth = Math.max(1, width);
+  const promptW = renderedPrompt ? displayWidth(renderedPrompt) + 1 : 0;
 
   if (value.length === 0) {
     hStart.current = 0;
     vStart.current = 0;
     return (
-      <Box width={fieldWidth + (renderedPrompt ? displayWidth(renderedPrompt) + 1 : 0)} height={multiline ? height : 1}>
+      <Box ref={rootRef} width={fieldWidth + promptW} height={multiline ? height : 1}>
+        {isActive ? <ImeCursorAnchor anchorRef={rootRef} dx={promptW} dy={0} /> : null}
         {promptEl}
         <Text>
           {isActive ? <Text inverse>{renderedPlaceholder ? chars(renderedPlaceholder)[0] : ' '}</Text> : null}
@@ -345,12 +362,15 @@ export const TextInput = memo(function TextInput({
       afterCells = afterCells.slice(0, keep);
     }
     const after = afterCells.join('');
+    const shownBefore = win.start > 0 ? chars(before).slice(1).join('') : before;
+    const caretDx = promptW + (win.start > 0 ? 1 : 0) + displayWidth(shownBefore);
     return (
-      <Box height={1}>
+      <Box ref={rootRef} height={1}>
+        {isActive ? <ImeCursorAnchor anchorRef={rootRef} dx={caretDx} dy={0} /> : null}
         {promptEl}
         <Text color={theme.text} wrap="truncate">
           {win.start > 0 ? <Text color={theme.dim}>{asciiMode ? '<' : '‹'}</Text> : null}
-          {win.start > 0 ? chars(before).slice(1).join('') : before}
+          {shownBefore}
           {isActive ? <Text inverse>{atChar}</Text> : at < display.length ? atChar : ''}
           {after}
         </Text>
@@ -371,9 +391,13 @@ export const TextInput = memo(function TextInput({
   if (curRow >= vs + rows) vs = curRow - rows + 1;
   vs = Math.max(0, Math.min(vs, Math.max(0, lines.length - rows)));
   vStart.current = vs;
+  const caretLine = lines[curRow] ?? [];
+  const caretWin = hWindow(caretLine, curCol, fieldWidth, 0);
+  const caretDx = promptW + displayWidth(caretLine.slice(caretWin.start, curCol).join(''));
 
   return (
-    <Box flexDirection="column" height={rows}>
+    <Box ref={rootRef} flexDirection="column" height={rows}>
+      {isActive ? <ImeCursorAnchor anchorRef={rootRef} dx={caretDx} dy={curRow - vs} /> : null}
       {lines.slice(vs, vs + rows).map((line, i) => {
         const r = vs + i;
         const isCurRow = r === curRow;

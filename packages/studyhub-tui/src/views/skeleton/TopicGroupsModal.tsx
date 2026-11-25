@@ -1,5 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -57,7 +59,7 @@ export const TopicGroupsModal = memo(function TopicGroupsModal({
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
-  const { columns, rows } = useWindowSize();
+  const { columns, rows } = useStableWindowSize();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -365,7 +367,7 @@ export const TopicGroupsModal = memo(function TopicGroupsModal({
           <Text color={theme.error} bold>
             {t(lang, '加载失败', 'Load failed')}
           </Text>
-          <Text color={theme.muted}>{truncateDisplay(error, innerW, ell)}</Text>
+          <Text color={theme.muted} wrap="wrap">{error}</Text>
         </Box>
       ) : (
         <Box flexDirection="column" width={innerW} height={innerH}>
@@ -479,11 +481,11 @@ export const TopicGroupsModal = memo(function TopicGroupsModal({
                 emptyText={t(lang, '当前范围暂无可用主题', 'No topics available in scope')}
                 ascii={asciiMode}
               />
-              <Box height={1} width={innerW} overflow="hidden">
+              <Box width={innerW}>
                 {saving ? (
                   <Spinner label={t(lang, '正在保存分组...', 'Saving topic group...')} active={isActive} />
                 ) : saveError ? (
-                  <Text color={theme.error}>{truncateDisplay(saveError, innerW, ell)}</Text>
+                  <Text color={theme.error} wrap="wrap">{saveError}</Text>
                 ) : (
                   <Text color={theme.dim}>
                     {truncateDisplay(
@@ -522,7 +524,7 @@ export const NodeEditModal = memo(function NodeEditModal({
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
-  const { columns, rows } = useWindowSize();
+  const { columns, rows } = useStableWindowSize();
 
   const [term, setTerm] = useState(node.term);
   const [meaning, setMeaning] = useState(node.meaning);
@@ -693,7 +695,7 @@ export const NodeEditModal = memo(function NodeEditModal({
           {saving ? (
             <Spinner label={t(lang, '正在保存节点...', 'Saving node...')} active={isActive} />
           ) : error ? (
-            <Text color={theme.error}>{truncateDisplay(error, innerW, ell)}</Text>
+            <Text color={theme.error} wrap="wrap">{error}</Text>
           ) : (
             <Text color={theme.dim}>
               {truncateDisplay(

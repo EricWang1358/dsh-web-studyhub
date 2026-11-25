@@ -147,10 +147,11 @@ export default function TodayMemos({
             value={draftText}
             onChange={(event) => setDraftText(event.target.value)}
             onKeyDown={(event) => {
+              if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
               if (event.key === 'Escape') {
                 event.stopPropagation();
                 closeComposer();
-              } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.nativeEvent?.isComposing) {
+              } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
                 event.preventDefault();
                 submitNew();
               }
@@ -218,9 +219,13 @@ export default function TodayMemos({
                       value={editText}
                       onChange={(event) => setEditText(event.target.value)}
                       onKeyDown={(event) => {
+                        if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
                         if (event.key === 'Escape') {
                           event.stopPropagation();
                           setEditingId('');
+                        } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                          event.preventDefault();
+                          submitEdit(event, memo);
                         }
                       }}
                     />

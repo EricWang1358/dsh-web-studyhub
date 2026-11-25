@@ -40,6 +40,21 @@ export function countsDeck(data, course, includeInactive = false) {
   return deck => includeInactive || parkedScope || !deck.inactive;
 }
 
+/** Attempts scoped to the given course and its visible decks (excluding other or inactive courses). */
+export function scopedAttemptsOf(data, course, decks) {
+  const attempts = data?.attempts;
+  if (!Array.isArray(attempts) || !attempts.length) return attempts;
+  const matchCourse = courseMatcher(data, course);
+  const deckIds = new Set((decks || []).map(deck => deck.id));
+  const knownDecks = new Map((data?.decks || []).map(deck => [deck.id, deck]));
+  const singleScope = deckIds.size === knownDecks.size && (data?.focus?.courses?.length ?? 0) <= 1;
+  return attempts.filter(attempt => {
+    if (attempt?.deckId && knownDecks.has(attempt.deckId)) return deckIds.has(attempt.deckId);
+    if (typeof attempt?.course === 'string') return matchCourse(attempt.course);
+    return course === '*' || (!attempt?.deckId && singleScope);
+  });
+}
+
 /** "显示未激活的课程" for one page view (kept for this tab with the page's scope). */
 export function useShowInactive(root, page) {
   const [value, choose] = usePageScope(root, `${page}:inactive`, '');

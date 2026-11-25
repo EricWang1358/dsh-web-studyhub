@@ -1,5 +1,7 @@
-import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Box, Text, type Key } from 'ink';
+import { KEY_LAYER_MODAL } from '../../input/dispatcher.js';
+import { KeyScope, useKeyScope } from '../../input/hooks.js';
 import type { KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -11,7 +13,6 @@ import { ScrollView } from '../../components/ScrollView.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
-import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { currentCourse, listCourses, modelInfo } from '../../shell/data.js';
@@ -41,6 +42,19 @@ const BASE_CLAIMED_KEYS = [
   '1', '2', '3', '4',
   'a', 'A', 'b', 'e', 'f', 'g', 'G', 'm', 'n', 'N', 'p', 'P', 'v', 'x', 'X', 'y', 'z',
 ] as const;
+
+const CoachModalHotkeys = memo(function CoachModalHotkeys({
+  id,
+  isActive,
+  onKey,
+}: {
+  id: string;
+  isActive: boolean;
+  onKey: (input: string, key: Key) => boolean;
+}) {
+  useKeyScope({ id, active: isActive, layer: KEY_LAYER_MODAL, onKey });
+  return null;
+});
 
 export function filterCoachFamilies<T extends CoachTaskFamily>(
   families: readonly T[],
@@ -320,7 +334,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
 
   const activeCourse = currentCourse(snapshot);
   const knownCourses = useMemo(() => listCourses(snapshot).map((c) => c.key), [snapshot]);
-  const [courseOverride, setCourseOverride] = useState<string | null>(null);
+  const [courseOverride] = useState<string | null>(null);
   const course = courseOverride !== null ? courseOverride : activeCourse || knownCourses[0] || '';
   const model = useMemo(() => modelInfo(desktopConfig, binding, snapshot, asciiMode), [desktopConfig, binding, snapshot, asciiMode]);
 
@@ -363,16 +377,6 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
   const [confirmFlushPrep, setConfirmFlushPrep] = useState(false);
   const [confirmGenerate, setConfirmGenerate] = useState<CompiledRequestResult | null>(null);
   const [prefsModalOpen, setPrefsModalOpen] = useState(false);
-
-  const modalOpen =
-    noteModalOpen ||
-    confirmDiscardNote ||
-    editModalOpen ||
-    prefsModalOpen ||
-    consentPromptCards !== null ||
-    confirmAiAnalyze ||
-    confirmFlushPrep ||
-    confirmGenerate !== null;
 
   const noteModalDirty = noteModalOpen && (noteTitle.trim().length > 0 || noteText.trim().length > 0);
   const requestCloseNoteModal = useCallback(() => {
@@ -452,7 +456,6 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
     () => (tab !== 'mock' ? [...BASE_CLAIMED_KEYS, '/'] : [...BASE_CLAIMED_KEYS]),
     [tab],
   );
-  useClaimKeys(claimedKeys, isActive && !modalOpen && !filterOpen);
 
   const hints = useMemo<KeyHint[]>(() => {
     const exportHint: KeyHint = { key: 'X', label: t(lang, '导出画像', 'Export MD') };
@@ -477,7 +480,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         { key: 'g/G', label: t(lang, '生成变式/批量', 'Variants') },
         { key: 'f', label: t(lang, '立即备题', 'Prep Queue') },
         { key: 'p/P', label: t(lang, '教练练习', 'Coach Practice') },
-        { key: 'r', label: t(lang, '刷新', 'Refresh') },
+        { key: 'Ctrl+R', label: t(lang, '刷新', 'Refresh') },
         filterHint,
         exportHint,
       ];
@@ -488,7 +491,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         { key: 'Tab', label: t(lang, '切换栏', 'Pane') },
         { key: 'p', label: t(lang, '练习当前考点', 'Practice') },
         { key: 'P', label: t(lang, '学习偏好', 'Preferences') },
-        { key: 'r', label: t(lang, '刷新', 'Refresh') },
+        { key: 'Ctrl+R', label: t(lang, '刷新', 'Refresh') },
         filterHint,
         exportHint,
       ];
@@ -891,72 +894,74 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
     resetActiveTabCursor();
   }, [resetActiveTabCursor]);
 
-  useInput(
-    (input, key) => {
-      if (modalOpen || filterOpen) return;
+  const pageActive = useKeyScope({
+    id: 'ExamCoachView:main',
+    active: isActive,
+    keys: claimedKeys,
+    onKey: (input, key) => {
       if (key.escape && filterQuery && tab !== 'mock') {
         handleFilterClear();
-        return;
+        return true;
       }
       if (input === '/' && !key.ctrl && !key.meta && canFilter) {
         setFocusPane('left');
         setFilterOpen(true);
-        return;
+        return true;
       }
-      if (input === '1') { switchTab('calibration'); return; }
-      if (input === '2') { switchTab('variants'); return; }
-      if (input === '3') { switchTab('evidence'); return; }
-      if (input === '4') { switchTab('mock'); return; }
+      if (input === '1') { switchTab('calibration'); return true; }
+      if (input === '2') { switchTab('variants'); return true; }
+      if (input === '3') { switchTab('evidence'); return true; }
+      if (input === '4') { switchTab('mock'); return true; }
       if (key.tab) {
         setFocusPane((p) => (p === 'left' ? 'right' : 'left'));
-        return;
+        return true;
       }
       if (key.ctrl && input === 'r') {
         void loadAll();
-        return;
+        return true;
       }
       if (input === 'f') {
-        if (busyRef.current || busyLabel !== null) return;
+        if (busyRef.current || busyLabel !== null) return true;
         setConfirmFlushPrep(true);
-        return;
+        return true;
       }
       if (input === 'X') {
         void handleExportMarkdown();
-        return;
+        return true;
       }
 
       if (tab === 'calibration') {
-        if (input === 'p') { setPrefsModalOpen(true); return; }
+        if (input === 'p') { setPrefsModalOpen(true); return true; }
         if (input === 'a') {
-          if (busyRef.current || busyLabel !== null) return;
+          if (busyRef.current || busyLabel !== null) return true;
           void runAnalyze(false);
-          return;
+          return true;
         }
         if (input === 'A') {
-          if (busyRef.current || busyLabel !== null) return;
+          if (busyRef.current || busyLabel !== null) return true;
           setConfirmAiAnalyze(true);
-          return;
+          return true;
         }
         if (input === 'N' || input === 'n') {
           setNoteField('text');
           setNoteModalOpen(true);
-          return;
+          return true;
         }
         if (input === 'v' && selectedFamily) {
           void toggleConfirm({ revealSampleSolution: true });
-          return;
+          return true;
         }
         if (input === 'x' && selectedFamily) {
           void toggleConfirm({ appearanceApproved: !selectedFamily.confirmations?.appearanceApproved });
-          return;
+          return true;
         }
         if (input === 'y' && selectedFamily) {
           void toggleConfirm({ intentApproved: !selectedFamily.confirmations?.intentApproved });
-          return;
+          return true;
         }
         if (input === 'z' && selectedFamily) {
           void toggleConfirm({ answerVerified: !selectedFamily.confirmations?.answerVerified });
-          return;
+          return true;
         }
         if (input === 'e' && selectedFamily) {
           setEditQuota(String(selectedFamily.quota ?? 4));
@@ -965,16 +970,16 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
           setEditTimeSec(String(selectedFamily.timeBudgetSec ?? 90));
           setEditField('quota');
           setEditModalOpen(true);
-          return;
+          return true;
         }
       } else if (tab === 'variants') {
         if (input === 'g' && selectedWrong) {
-          if (busyRef.current || busyLabel !== null) return;
+          if (busyRef.current || busyLabel !== null) return true;
           void queueVariants([{ deckId: selectedWrong.deckId, cardId: selectedWrong.cardId }]);
-          return;
+          return true;
         }
         if (input === 'G' && filteredWrongItems.length > 0) {
-          if (busyRef.current || busyLabel !== null) return;
+          if (busyRef.current || busyLabel !== null) return true;
           const readyIds = new Set((coachStatus?.readyCards ?? []).map((c) => c.originCardId));
           const prepIds = new Set(coachStatus?.preparingCards ?? []);
           const todo = filteredWrongItems
@@ -982,74 +987,42 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
             .slice(0, 5)
             .map((w) => ({ deckId: w.deckId, cardId: w.cardId }));
           void queueVariants(todo);
-          return;
+          return true;
         }
         if (input === 'p') {
           void startCoachPractice();
-          return;
+          return true;
         }
         if (input === 'P' && selectedWrong) {
           void startCoachPractice([selectedWrong.cardId]);
-          return;
+          return true;
         }
       } else if (tab === 'evidence') {
         if (input === 'P') {
           setPrefsModalOpen(true);
-          return;
+          return true;
         }
         if (input === 'p' && selectedPoint) {
           void startPointPractice(selectedPoint);
-          return;
+          return true;
         }
       } else if (tab === 'mock') {
-        if (input === 'p') { setPrefsModalOpen(true); return; }
-        if (input === 'b') { void buildRequestPreview(); return; }
+        if (input === 'p') { setPrefsModalOpen(true); return true; }
+        if (input === 'b') { void buildRequestPreview(); return true; }
         if (input === 'm') {
-          if (busyRef.current || busyLabel !== null) return;
+          if (busyRef.current || busyLabel !== null) return true;
           void checkStrictMock();
-          return;
+          return true;
         }
         if (input === 'g') {
-          if (busyRef.current || busyLabel !== null) return;
+          if (busyRef.current || busyLabel !== null) return true;
           void requestCalibratedGenerate();
-          return;
+          return true;
         }
       }
+      return false;
     },
-    { isActive: isActive && !modalOpen && !filterOpen },
-  );
-
-  // Modals input handling
-  useInput(
-    (input, key) => {
-      if (confirmDiscardNote) return;
-      if (noteModalOpen) {
-        if (key.tab) {
-          setNoteField((f) => (f === 'title' ? 'text' : 'title'));
-          return;
-        }
-        if (key.ctrl && input === 's') {
-          void saveCoachNote();
-        }
-      } else if (editModalOpen) {
-        if (key.tab) {
-          setEditField((f) => (f === 'quota' ? 'priority' : f === 'priority' ? 'time' : 'quota'));
-          return;
-        }
-        if (editField === 'priority' && (key.leftArrow || key.rightArrow || input === ' ')) {
-          const order: Array<'high' | 'medium' | 'deferred'> = ['high', 'medium', 'deferred'];
-          const idx = order.indexOf(editPriority);
-          const dir = key.leftArrow ? -1 : 1;
-          setEditPriority(order[(idx + dir + order.length) % order.length]);
-          return;
-        }
-        if (key.return || (key.ctrl && input === 's')) {
-          void saveFamilyEdits();
-        }
-      }
-    },
-    { isActive: isActive && (noteModalOpen || editModalOpen) },
-  );
+  });
 
   // Build inspector lines for Tab 1 (memoized by selectedFamily & width)
   const familyLines = useMemo(() => {
@@ -1120,29 +1093,31 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       : '';
     const inputW = Math.max(6, innerW - 2 - displayWidth(badgeText) - displayWidth(rightHint) - 2);
     return (
-      <Box height={1} width={innerW} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
-        <Text color={filterOpen ? theme.primary : theme.accent} bold>
-          {badgeText}
-        </Text>
-        <Box flexGrow={1} overflow="hidden">
-          <TextInput
-            value={filterQuery}
-            onChange={handleFilterChange}
-            onSubmit={handleFilterSubmit}
-            onCancel={handleFilterClear}
-            isActive={isActive && !modalOpen && filterOpen}
-            width={inputW}
-            prompt="/"
-            placeholder={placeholderText}
-            maxLength={120}
-          />
-        </Box>
-        {rightHint ? (
-          <Text color={theme.dim} wrap="truncate">
-            {rightHint}
+      <KeyScope id="examcoach:filter" opaque active={isActive && filterOpen}>
+        <Box height={1} width={innerW} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+          <Text color={filterOpen ? theme.primary : theme.accent} bold>
+            {badgeText}
           </Text>
-        ) : null}
-      </Box>
+          <Box flexGrow={1} overflow="hidden">
+            <TextInput
+              value={filterQuery}
+              onChange={handleFilterChange}
+              onSubmit={handleFilterSubmit}
+              onCancel={handleFilterClear}
+              isActive={isActive && filterOpen}
+              width={inputW}
+              prompt="/"
+              placeholder={placeholderText}
+              maxLength={120}
+            />
+          </Box>
+          {rightHint ? (
+            <Text color={theme.dim} wrap="truncate">
+              {rightHint}
+            </Text>
+          ) : null}
+        </Box>
+      </KeyScope>
     );
   };
   const calibratedCount = families.filter((f) => f.calibrated).length;
@@ -1198,7 +1173,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       <Divider width={width} />
       {errorMsg ? (
         <Box height={1} width={width} paddingX={1}>
-          <Text color={theme.error}>{`${asciiMode ? '!' : '✕'} ${truncateDisplay(errorMsg, Math.max(10, width - 4), asciiMode ? '...' : '…')}`}</Text>
+          <Text color={theme.error} wrap="wrap">{`${asciiMode ? '!' : '✕'} ${errorMsg}`}</Text>
         </Box>
       ) : null}
 
@@ -1253,7 +1228,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
                   height={Math.max(2, sz.height - 2 - (showFilterBar ? 1 : 0))}
                   selectedIndex={Math.min(familyIdx, Math.max(0, filteredFamilies.length - 1))}
                   onChange={setFamilyIdx}
-                  isActive={isActive && !modalOpen && !filterOpen && focusPane === 'left'}
+                  isActive={pageActive && focusPane === 'left'}
                   emptyText={
                     filterQuery.trim()
                       ? t(lang, `没有匹配「${filterQuery.trim()}」的任务族`, `No families matching "${filterQuery.trim()}"`)
@@ -1288,7 +1263,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
                     lines={familyLines}
                     width={Math.max(10, sz.width - 4)}
                     height={Math.max(3, sz.height - 2)}
-                    isActive={isActive && !modalOpen && !filterOpen && focusPane === 'right'}
+                    isActive={pageActive && focusPane === 'right'}
                   />
                 ) : (
                   <Text color={theme.muted}>{t(lang, '请选择左侧任务族', 'Select a task family')}</Text>
@@ -1327,7 +1302,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
                 height={Math.max(2, sz.height - 2 - (showFilterBar ? 1 : 0))}
                 selectedIndex={Math.min(wrongIdx, Math.max(0, filteredWrongItems.length - 1))}
                 onChange={setWrongIdx}
-                isActive={isActive && !modalOpen && !filterOpen && focusPane === 'left'}
+                isActive={pageActive && focusPane === 'left'}
                 emptyText={
                   filterQuery.trim()
                     ? t(lang, `没有匹配「${filterQuery.trim()}」的薄弱题`, `No weak cards matching "${filterQuery.trim()}"`)
@@ -1432,7 +1407,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
                 height={Math.max(2, sz.height - 2 - (showFilterBar ? 1 : 0))}
                 selectedIndex={Math.min(pointIdx, Math.max(0, filteredEvidencePoints.length - 1))}
                 onChange={setPointIdx}
-                isActive={isActive && !modalOpen && !filterOpen && focusPane === 'left'}
+                isActive={pageActive && focusPane === 'left'}
                 emptyText={
                   filterQuery.trim()
                     ? t(lang, `没有匹配「${filterQuery.trim()}」的考点`, `No points matching "${filterQuery.trim()}"`)
@@ -1572,223 +1547,276 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
 
       {/* Modal: Submit past-paper / exam-style notes */}
       {noteModalOpen ? (
-        <Modal
-          title={t(lang, '提交往年样卷 / 考法笔记', 'Submit Past-Paper / Exam-Style Notes')}
-          subtitle={
-            noteModalDirty
-              ? t(lang, '未保存', 'unsaved')
-              : t(lang, asciiMode ? 'Tab 切换 | Ctrl+S 保存' : 'Tab 切换字段 · Ctrl+S 保存', 'Tab: Switch - Ctrl+S: Save')
-          }
-          width={Math.min(76, width - 4)}
-          onClose={confirmDiscardNote ? undefined : requestCloseNoteModal}
-          isActive={isActive && !confirmDiscardNote}
-          hints={[
-            { key: 'Tab', label: t(lang, '切换输入框', 'Switch field') },
-            { key: 'Ctrl+S', label: t(lang, '保存笔记', 'Save Note') },
-            { key: 'Esc', label: noteModalDirty ? t(lang, '放弃/取消', 'Discard') : t(lang, '取消', 'Cancel') },
-          ]}
-        >
-          <Box flexDirection="column" gap={1}>
-            <Text color={noteField === 'title' ? theme.primary : theme.muted} bold>
-              {t(lang, '笔记标题（可选）：', 'Title (optional):')}
-            </Text>
-            <TextInput
-              value={noteTitle}
-              onChange={setNoteTitle}
-              placeholder={t(lang, '例如：2024 期末真题题型与考法说明', 'e.g. 2024 Final Exam Format Notes')}
-              isActive={isActive && noteModalOpen && !confirmDiscardNote && noteField === 'title'}
-              width={modalContentWidth(Math.min(76, width - 4))}
-              onCancel={requestCloseNoteModal}
-              onSubmit={() => setNoteField('text')}
-            />
-            <Text color={noteField === 'text' ? theme.primary : theme.muted} bold>
-              {t(lang, '样卷 / 考法说明内容：', 'Past-paper / exam-style notes:')}
-            </Text>
-            <TextInput
-              value={noteText}
-              onChange={setNoteText}
-              multiline
-              height={6}
-              placeholder={t(lang, `粘贴老师划的题型分布、样卷例题或评分要点${ell}`, 'Paste exam format, sample questions, or grading notes...')}
-              isActive={isActive && noteModalOpen && !confirmDiscardNote && noteField === 'text'}
-              width={modalContentWidth(Math.min(76, width - 4))}
-              onCancel={requestCloseNoteModal}
-              onSubmit={() => void saveCoachNote()}
-            />
-          </Box>
-        </Modal>
+        <KeyScope id="examcoach:note" opaque>
+          <CoachModalHotkeys
+            id="ExamCoachView:note"
+            isActive={isActive && !confirmDiscardNote}
+            onKey={(input, key) => {
+              if (key.tab) {
+                setNoteField((f) => (f === 'title' ? 'text' : 'title'));
+                return true;
+              }
+              if (key.ctrl && input === 's') {
+                void saveCoachNote();
+                return true;
+              }
+              return false;
+            }}
+          />
+          <Modal
+            title={t(lang, '提交往年样卷 / 考法笔记', 'Submit Past-Paper / Exam-Style Notes')}
+            subtitle={
+              noteModalDirty
+                ? t(lang, '未保存', 'unsaved')
+                : t(lang, asciiMode ? 'Tab 切换 | Ctrl+S 保存' : 'Tab 切换字段 · Ctrl+S 保存', 'Tab: Switch - Ctrl+S: Save')
+            }
+            width={Math.min(76, width - 4)}
+            onClose={confirmDiscardNote ? undefined : requestCloseNoteModal}
+            isActive={isActive && !confirmDiscardNote}
+            hints={[
+              { key: 'Tab', label: t(lang, '切换输入框', 'Switch field') },
+              { key: 'Ctrl+S', label: t(lang, '保存笔记', 'Save Note') },
+              { key: 'Esc', label: noteModalDirty ? t(lang, '放弃/取消', 'Discard') : t(lang, '取消', 'Cancel') },
+            ]}
+          >
+            <Box flexDirection="column" gap={1}>
+              <Text color={noteField === 'title' ? theme.primary : theme.muted} bold>
+                {t(lang, '笔记标题（可选）：', 'Title (optional):')}
+              </Text>
+              <TextInput
+                value={noteTitle}
+                onChange={setNoteTitle}
+                placeholder={t(lang, '例如：2024 期末真题题型与考法说明', 'e.g. 2024 Final Exam Format Notes')}
+                isActive={isActive && noteModalOpen && !confirmDiscardNote && noteField === 'title'}
+                width={modalContentWidth(Math.min(76, width - 4))}
+                onCancel={requestCloseNoteModal}
+                onSubmit={() => setNoteField('text')}
+              />
+              <Text color={noteField === 'text' ? theme.primary : theme.muted} bold>
+                {t(lang, '样卷 / 考法说明内容：', 'Past-paper / exam-style notes:')}
+              </Text>
+              <TextInput
+                value={noteText}
+                onChange={setNoteText}
+                multiline
+                height={6}
+                placeholder={t(lang, `粘贴老师划的题型分布、样卷例题或评分要点${ell}`, 'Paste exam format, sample questions, or grading notes...')}
+                isActive={isActive && noteModalOpen && !confirmDiscardNote && noteField === 'text'}
+                width={modalContentWidth(Math.min(76, width - 4))}
+                onCancel={requestCloseNoteModal}
+                onSubmit={() => void saveCoachNote()}
+              />
+            </Box>
+          </Modal>
+        </KeyScope>
       ) : null}
 
       {confirmDiscardNote ? (
-        <ConfirmDialog
-          title={t(lang, '放弃未保存的考法笔记？', 'Discard unsaved exam notes?')}
-          message={t(
-            lang,
-            '当前样卷 / 考法说明尚未保存。放弃后将丢失已输入内容。',
-            'You have unsaved past-paper / exam notes. Closing now will discard them.',
-          )}
-          confirmLabel={t(lang, '放弃修改', 'Discard')}
-          cancelLabel={t(lang, '继续编辑', 'Keep Editing')}
-          danger
-          isActive={isActive && confirmDiscardNote}
-          onConfirm={() => {
-            setConfirmDiscardNote(false);
-            setNoteModalOpen(false);
-          }}
-          onCancel={() => setConfirmDiscardNote(false)}
-        />
+        <KeyScope id="examcoach:discard-note" opaque>
+          <ConfirmDialog
+            title={t(lang, '放弃未保存的考法笔记？', 'Discard unsaved exam notes?')}
+            message={t(
+              lang,
+              '当前样卷 / 考法说明尚未保存。放弃后将丢失已输入内容。',
+              'You have unsaved past-paper / exam notes. Closing now will discard them.',
+            )}
+            confirmLabel={t(lang, '放弃修改', 'Discard')}
+            cancelLabel={t(lang, '继续编辑', 'Keep Editing')}
+            danger
+            isActive={isActive && confirmDiscardNote}
+            onConfirm={() => {
+              setConfirmDiscardNote(false);
+              setNoteModalOpen(false);
+            }}
+            onCancel={() => setConfirmDiscardNote(false)}
+          />
+        </KeyScope>
       ) : null}
 
       {/* Modal: Edit selected family quota / priority / timeBudget */}
       {editModalOpen && selectedFamily ? (
-        <Modal
-          title={t(lang, '调整任务族训练配置', 'Edit Task Family Config')}
-          subtitle={truncateDisplay(selectedFamily.title, 30, asciiMode ? '...' : '…')}
-          width={Math.min(62, width - 4)}
-          onClose={() => setEditModalOpen(false)}
-          isActive={isActive}
-          hints={[
-            { key: 'Tab', label: t(lang, '下一项', 'Next') },
-            { key: 'Enter', label: t(lang, '保存', 'Save') },
-            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
-          ]}
-        >
-          <Box flexDirection="column" gap={1}>
-            <Text color={editField === 'quota' ? theme.primary : theme.muted} bold>
-              {t(lang, '本轮配额（0-50）：', 'Quota (0-50):')}
-            </Text>
-            <TextInput
-              value={editQuota}
-              onChange={setEditQuota}
-              isActive={isActive && editModalOpen && editField === 'quota'}
-              width={modalContentWidth(Math.min(62, width - 4))}
-              onCancel={() => setEditModalOpen(false)}
-              onSubmit={() => void saveFamilyEdits()}
-            />
-            <Text color={editField === 'priority' ? theme.primary : theme.muted} bold>
-              {asciiMode
-                ? t(lang, '优先级（Left/Right/空格切换）：', 'Priority (Left/Right/Space):')
-                : t(lang, '优先级（←/→/空格切换）：', 'Priority (Left/Right/Space):')}
-            </Text>
-            <Box gap={1}>
-              {(['high', 'medium', 'deferred'] as const).map((p) => (
-                <Badge key={p} label={priorityLabel(p, lang)} tone={editPriority === p ? 'primary' : 'muted'} variant={editPriority === p ? 'solid' : 'outline'} />
-              ))}
+        <KeyScope id="examcoach:edit" opaque>
+          <CoachModalHotkeys
+            id="ExamCoachView:edit"
+            isActive={isActive}
+            onKey={(input, key) => {
+              if (key.tab) {
+                setEditField((f) => (f === 'quota' ? 'priority' : f === 'priority' ? 'time' : 'quota'));
+                return true;
+              }
+              if (editField === 'priority' && (key.leftArrow || key.rightArrow || input === ' ')) {
+                const order: Array<'high' | 'medium' | 'deferred'> = ['high', 'medium', 'deferred'];
+                const idx = order.indexOf(editPriority);
+                const dir = key.leftArrow ? -1 : 1;
+                setEditPriority(order[(idx + dir + order.length) % order.length]);
+                return true;
+              }
+              if (key.return || (key.ctrl && input === 's')) {
+                void saveFamilyEdits();
+                return true;
+              }
+              return false;
+            }}
+          />
+          <Modal
+            title={t(lang, '调整任务族训练配置', 'Edit Task Family Config')}
+            subtitle={truncateDisplay(selectedFamily.title, 30, asciiMode ? '...' : '…')}
+            width={Math.min(62, width - 4)}
+            onClose={() => setEditModalOpen(false)}
+            isActive={isActive}
+            hints={[
+              { key: 'Tab', label: t(lang, '下一项', 'Next') },
+              { key: 'Enter', label: t(lang, '保存', 'Save') },
+              { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+            ]}
+          >
+            <Box flexDirection="column" gap={1}>
+              <Text color={editField === 'quota' ? theme.primary : theme.muted} bold>
+                {t(lang, '本轮配额（0-50）：', 'Quota (0-50):')}
+              </Text>
+              <TextInput
+                value={editQuota}
+                onChange={setEditQuota}
+                isActive={isActive && editModalOpen && editField === 'quota'}
+                width={modalContentWidth(Math.min(62, width - 4))}
+                onCancel={() => setEditModalOpen(false)}
+                onSubmit={() => void saveFamilyEdits()}
+              />
+              <Text color={editField === 'priority' ? theme.primary : theme.muted} bold>
+                {asciiMode
+                  ? t(lang, '优先级（Left/Right/空格切换）：', 'Priority (Left/Right/Space):')
+                  : t(lang, '优先级（←/→/空格切换）：', 'Priority (Left/Right/Space):')}
+              </Text>
+              <Box gap={1}>
+                {(['high', 'medium', 'deferred'] as const).map((p) => (
+                  <Badge key={p} label={priorityLabel(p, lang)} tone={editPriority === p ? 'primary' : 'muted'} variant={editPriority === p ? 'solid' : 'outline'} />
+                ))}
+              </Box>
+              <Text color={editField === 'time' ? theme.primary : theme.muted} bold>
+                {t(lang, '单题目标限时（秒）：', 'Time budget per item (sec):')}
+              </Text>
+              <TextInput
+                value={editTimeSec}
+                onChange={setEditTimeSec}
+                isActive={isActive && editModalOpen && editField === 'time'}
+                width={modalContentWidth(Math.min(62, width - 4))}
+                onCancel={() => setEditModalOpen(false)}
+                onSubmit={() => void saveFamilyEdits()}
+              />
             </Box>
-            <Text color={editField === 'time' ? theme.primary : theme.muted} bold>
-              {t(lang, '单题目标限时（秒）：', 'Time budget per item (sec):')}
-            </Text>
-            <TextInput
-              value={editTimeSec}
-              onChange={setEditTimeSec}
-              isActive={isActive && editModalOpen && editField === 'time'}
-              width={modalContentWidth(Math.min(62, width - 4))}
-              onCancel={() => setEditModalOpen(false)}
-              onSubmit={() => void saveFamilyEdits()}
-            />
-          </Box>
-        </Modal>
+          </Modal>
+        </KeyScope>
       ) : null}
 
       {/* Confirm Dialog for AI Exam Analysis ([A]) */}
       {confirmAiAnalyze ? (
-        <ConfirmDialog
-          title={t(lang, '确认 AI 深化分析考法', 'Confirm AI Exam Analysis')}
-          message={t(
-            lang,
-            `即将为「${course || '全部课程'}」调用 AI 模型（${model.provider}${model.model ? `/${model.model}` : ''}）重新分析课程资料与样卷（预计发起 1 次 AI 模型分析）。确认继续吗？`,
-            `Will invoke AI model (${model.provider}${model.model ? `/${model.model}` : ''}) to re-analyze exam materials for "${course || 'All Courses'}" (~1 AI analysis call). Continue?`,
-          )}
-          confirmLabel={t(lang, '开始分析', 'Analyze')}
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          isActive={isActive}
-          onConfirm={() => {
-            setConfirmAiAnalyze(false);
-            void runAnalyze(true);
-          }}
-          onCancel={() => setConfirmAiAnalyze(false)}
-        />
+        <KeyScope id="examcoach:confirm-ai" opaque>
+          <ConfirmDialog
+            title={t(lang, '确认 AI 深化分析考法', 'Confirm AI Exam Analysis')}
+            message={t(
+              lang,
+              `即将为「${course || '全部课程'}」调用 AI 模型（${model.provider}${model.model ? `/${model.model}` : ''}）重新分析课程资料与样卷（预计发起 1 次 AI 模型分析）。确认继续吗？`,
+              `Will invoke AI model (${model.provider}${model.model ? `/${model.model}` : ''}) to re-analyze exam materials for "${course || 'All Courses'}" (~1 AI analysis call). Continue?`,
+            )}
+            confirmLabel={t(lang, '开始分析', 'Analyze')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            isActive={isActive}
+            onConfirm={() => {
+              setConfirmAiAnalyze(false);
+              void runAnalyze(true);
+            }}
+            onCancel={() => setConfirmAiAnalyze(false)}
+          />
+        </KeyScope>
       ) : null}
 
       {/* Confirm Dialog for Manual Coach Prep Queue Flush ([f]) */}
       {confirmFlushPrep ? (
-        <ConfirmDialog
-          title={t(lang, '触发教练后台备题队列', 'Flush Coach Prep Queue')}
-          message={t(
-            lang,
-            `当前备题状态：就绪 ${prepReadyCount} 题，待备队列 ${prepQueuedCount} 项（${prepActive ? '运行中' : '空闲'}）。立即触发队列（coach.prepare）可能会为待处理项调用已配置的模型（${model.provider}${model.model ? `/${model.model}` : ''}）。确认继续吗？`,
-            `Current prep queue: ${prepReadyCount} ready, ${prepQueuedCount} queued (${prepActive ? 'active' : 'idle'}). Flushing queued preparation items (coach.prepare) may invoke the configured model (${model.provider}${model.model ? `/${model.model}` : ''}). Continue?`,
-          )}
-          confirmLabel={t(lang, '立即备题', 'Flush Queue')}
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          isActive={isActive}
-          onConfirm={() => {
-            setConfirmFlushPrep(false);
-            void flushCoachPrep();
-          }}
-          onCancel={() => setConfirmFlushPrep(false)}
-        />
+        <KeyScope id="examcoach:confirm-flush" opaque>
+          <ConfirmDialog
+            title={t(lang, '触发教练后台备题队列', 'Flush Coach Prep Queue')}
+            message={t(
+              lang,
+              `当前备题状态：就绪 ${prepReadyCount} 题，待备队列 ${prepQueuedCount} 项（${prepActive ? '运行中' : '空闲'}）。立即触发队列（coach.prepare）可能会为待处理项调用已配置的模型（${model.provider}${model.model ? `/${model.model}` : ''}）。确认继续吗？`,
+              `Current prep queue: ${prepReadyCount} ready, ${prepQueuedCount} queued (${prepActive ? 'active' : 'idle'}). Flushing queued preparation items (coach.prepare) may invoke the configured model (${model.provider}${model.model ? `/${model.model}` : ''}). Continue?`,
+            )}
+            confirmLabel={t(lang, '立即备题', 'Flush Queue')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            isActive={isActive}
+            onConfirm={() => {
+              setConfirmFlushPrep(false);
+              void flushCoachPrep();
+            }}
+            onCancel={() => setConfirmFlushPrep(false)}
+          />
+        </KeyScope>
       ) : null}
 
       {/* Confirm Dialog for Calibrated Generation ([g] on Mock tab) */}
       {confirmGenerate ? (
-        <ConfirmDialog
-          title={t(lang, '确认按校准方案出题', 'Confirm Calibrated Generation')}
-          message={(() => {
-            const kindSummary = Object.entries(confirmGenerate.kindCounts || {})
-              .map(([k, n]) => `${formatKindLabel(k, lang)}:${n}`)
-              .join('  ');
-            return t(
-              lang,
-              `将为「${course || '全部课程'}」按校准配额生成共 ${confirmGenerate.totalCount} 题${kindSummary ? `（${kindSummary}）` : ''}，预计发起 1 次后台 AI 出题任务。确认继续吗？`,
-              `Generate ${confirmGenerate.totalCount} calibrated question(s) for "${course || 'All Courses'}"${kindSummary ? ` (${kindSummary})` : ''} (~1 AI generation job). Continue?`,
-            );
-          })()}
-          confirmLabel={t(lang, '开始出题', 'Generate')}
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          isActive={isActive}
-          onConfirm={() => {
-            const built = confirmGenerate;
-            setConfirmGenerate(null);
-            void executeCalibratedGenerate(built);
-          }}
-          onCancel={() => setConfirmGenerate(null)}
-        />
+        <KeyScope id="examcoach:confirm-gen" opaque>
+          <ConfirmDialog
+            title={t(lang, '确认按校准方案出题', 'Confirm Calibrated Generation')}
+            message={(() => {
+              const kindSummary = Object.entries(confirmGenerate.kindCounts || {})
+                .map(([k, n]) => `${formatKindLabel(k, lang)}:${n}`)
+                .join('  ');
+              return t(
+                lang,
+                `将为「${course || '全部课程'}」按校准配额生成共 ${confirmGenerate.totalCount} 题${kindSummary ? `（${kindSummary}）` : ''}，预计发起 1 次后台 AI 出题任务。确认继续吗？`,
+                `Generate ${confirmGenerate.totalCount} calibrated question(s) for "${course || 'All Courses'}"${kindSummary ? ` (${kindSummary})` : ''} (~1 AI generation job). Continue?`,
+              );
+            })()}
+            confirmLabel={t(lang, '开始出题', 'Generate')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            isActive={isActive}
+            onConfirm={() => {
+              const built = confirmGenerate;
+              setConfirmGenerate(null);
+              void executeCalibratedGenerate(built);
+            }}
+            onCancel={() => setConfirmGenerate(null)}
+          />
+        </KeyScope>
       ) : null}
 
       {/* Consent Dialog for Variant Generation */}
       {consentPromptCards ? (
-        <ConfirmDialog
-          title={t(lang, '授权后台生成变式题', 'Authorize Variant Generation')}
-          message={t(
-            lang,
-            '首次生成错题变式需要你的确认，后续可在设置中调整。是否同意为所选错题生成举一反三变式？',
-            'Consent is required once to generate background variants for weak questions. Proceed?',
-          )}
-          confirmLabel={t(lang, '同意并生成', 'Agree & Queue')}
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          isActive={isActive}
-          onConfirm={() => {
-            const cards = consentPromptCards;
-            setConsentPromptCards(null);
-            void queueVariants(cards, true);
-          }}
-          onCancel={() => setConsentPromptCards(null)}
-        />
+        <KeyScope id="examcoach:consent" opaque>
+          <ConfirmDialog
+            title={t(lang, '授权后台生成变式题', 'Authorize Variant Generation')}
+            message={t(
+              lang,
+              '首次生成错题变式需要你的确认，后续可在设置中调整。是否同意为所选错题生成举一反三变式？',
+              'Consent is required once to generate background variants for weak questions. Proceed?',
+            )}
+            confirmLabel={t(lang, '同意并生成', 'Agree & Queue')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            isActive={isActive}
+            onConfirm={() => {
+              const cards = consentPromptCards;
+              setConsentPromptCards(null);
+              void queueVariants(cards, true);
+            }}
+            onCancel={() => setConsentPromptCards(null)}
+          />
+        </KeyScope>
       ) : null}
 
       {/* Modal: Learner Profile & Study Preferences */}
-      <Suspense fallback={null}>
-        {prefsModalOpen ? (
-          <CoachPreferencesModal
-            host={host}
-            isActive={isActive && prefsModalOpen}
-            width={width}
-            height={height}
-            onClose={() => setPrefsModalOpen(false)}
-          />
-        ) : null}
-      </Suspense>
+      {prefsModalOpen ? (
+        <KeyScope id="examcoach:prefs" opaque>
+          <Suspense fallback={null}>
+            <CoachPreferencesModal
+              host={host}
+              isActive={isActive && prefsModalOpen}
+              width={width}
+              height={height}
+              onClose={() => setPrefsModalOpen(false)}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
     </Box>
   );
 };

@@ -40,11 +40,11 @@ export const idTail = (id) => {
 };
 export const kindOf = (node) => String(node?.id ?? "").split(":")[0];
 
-// Horizontal bezier: leaves the parent on its right edge, enters the child on
-// its left edge, with symmetric control points for the fork look.
-export const bez = (x1, y1, x2, y2) => {
+// Horizontal bezier: leaves the parent edge along `dir` (+1 right, -1 left) and enters the child edge along `dir`.
+export const bez = (x1, y1, x2, y2, dir = 1) => {
+  const sign = dir < 0 ? -1 : 1;
   const dx = Math.max(26, Math.abs(x2 - x1) * 0.45);
-  return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+  return `M ${x1} ${y1} C ${x1 + sign * dx} ${y1}, ${x2 - sign * dx} ${y2}, ${x2} ${y2}`;
 };
 // Vertical bezier for serpentine row wraps (bottom of one node to the top of
 // the next row's node).
@@ -52,6 +52,31 @@ export const bezV = (x1, y1, x2, y2) => {
   const dy = Math.max(20, Math.abs(y2 - y1) * 0.5);
   return `M ${x1} ${y1} C ${x1} ${y1 + dy}, ${x2} ${y2 - dy}, ${x2} ${y2}`;
 };
+
+// Path-mode prerequisite curve between two placed boxes: routes cleanly around intermediate same-row cards
+// and respects right-to-left geometry on serpentine rows without cutting across cards or leaving canvas bounds.
+export function pathPrereqPath(a, b) {
+  const sameRow = Math.abs(a.y - b.y) < 1;
+  const gap = PATH.gx;
+  if (sameRow && Math.abs(b.x - a.x) > a.w + gap + 4) {
+    const x1 = a.x + a.w / 2;
+    const y1 = a.y - a.h / 2;
+    const x2 = b.x + b.w / 2;
+    const y2 = b.y - b.h / 2;
+    const arch = Math.min(PATH.gy * 0.72, 24);
+    return `M ${x1} ${y1} C ${x1} ${y1 - arch}, ${x2} ${y2 - arch}, ${x2} ${y2}`;
+  }
+  if (b.x >= a.x + a.w - 1) return bez(a.x + a.w, a.y, b.x, b.y, 1);
+  if (a.x >= b.x + b.w - 1) return bez(a.x, a.y, b.x + b.w, b.y, -1);
+  // Same column across different rows: vertical bezier between bottom/top centers.
+  const down = b.y >= a.y;
+  const x1 = a.x + a.w / 2;
+  const y1 = down ? a.y + a.h / 2 : a.y - a.h / 2;
+  const x2 = b.x + b.w / 2;
+  const y2 = down ? b.y - b.h / 2 : b.y + b.h / 2;
+  const dy = Math.max(20, Math.abs(y2 - y1) * 0.5) * (down ? 1 : -1);
+  return `M ${x1} ${y1} C ${x1} ${y1 + dy}, ${x2} ${y2 - dy}, ${x2} ${y2}`;
+}
 
 export const clampScale = (value) => {
   const n = Number(value);
@@ -312,8 +337,8 @@ export function layoutPath(nodes, edges, perRow = 6) {
       a.x === b.x
         ? bezV(a.x + a.w / 2, a.y + a.h / 2, b.x + b.w / 2, b.y - b.h / 2)
         : b.x > a.x
-          ? bez(a.x + a.w, a.y, b.x, b.y)
-          : bez(a.x, a.y, b.x + b.w, b.y),
+          ? bez(a.x + a.w, a.y, b.x, b.y, 1)
+          : bez(a.x, a.y, b.x + b.w, b.y, -1),
     );
   }
   const prereqEdges = (edges || []).filter(

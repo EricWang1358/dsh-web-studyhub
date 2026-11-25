@@ -219,25 +219,40 @@ function sampleCubic(x0, y0, x1, y1, x2, y2, x3, y3, steps = 6) {
 }
 
 /** Generate sketchy hand-inked curve path(s) between two endpoints matching Graph's Bezier geometry. */
-export function sketchBezierEdge(x1, y1, x2, y2, kind, palette, roughGen = null, seed = 1) {
+export function sketchBezierEdge(x1, y1, x2, y2, kind, palette, roughGen = null, seed = 1, dir = 1) {
+  const sign = dir < 0 ? -1 : 1;
   const dx = Math.max(26, Math.abs(x2 - x1) * 0.45);
-  const cx1 = x1 + dx, cy1 = y1, cx2 = x2 - dx, cy2 = y2;
+  const cx1 = x1 + sign * dx, cy1 = y1, cx2 = x2 - sign * dx, cy2 = y2;
   const fallbackD = `M ${round1(x1)} ${round1(y1)} C ${round1(cx1)} ${round1(cy1)}, ${round1(cx2)} ${round1(cy2)}, ${round1(x2)} ${round1(y2)}`;
+  return sketchCubicPath(fallbackD, kind, palette, roughGen, seed);
+}
+
+const CUBIC_RE = /^M\s*([-\d.]+)\s+([-\d.]+)\s+C\s*([-\d.]+)\s+([-\d.]+),\s*([-\d.]+)\s+([-\d.]+),\s*([-\d.]+)\s+([-\d.]+)$/;
+
+/** Sketch any formatted cubic Bezier path string with edge styling for tree/order/prereq. */
+export function sketchCubicPath(pathD, kind, palette, roughGen = null, seed = 1) {
   const isPrereq = kind === 'prereq';
   const stroke = isPrereq ? palette.accent : kind === 'order' ? palette.decorFaint : palette.lineStrong;
   const strokeWidth = isPrereq ? 1.45 : 1.25;
   const dashArray = isPrereq ? '5 4' : undefined;
-
+  const opacity = isPrereq ? 0.92 : kind === 'order' ? 0.8 : 0.78;
   if (!roughGen) {
-    return [{ d: fallbackD, stroke, strokeWidth, dashArray, opacity: isPrereq ? 0.92 : 0.78 }];
+    return [{ d: pathD, stroke, strokeWidth, dashArray, opacity }];
   }
-
-  const pts = sampleCubic(x1, y1, cx1, cy1, cx2, cy2, x2, y2, 5);
+  const m = CUBIC_RE.exec(String(pathD || '').trim());
+  if (!m) {
+    return [{ d: pathD, stroke, strokeWidth, dashArray, opacity }];
+  }
+  const pts = sampleCubic(
+    Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4]),
+    Number(m[5]), Number(m[6]), Number(m[7]), Number(m[8]),
+    5,
+  );
   const curve = roughGen.curve(pts, {
     stroke,
     strokeWidth,
     roughness: isPrereq ? 1.1 : 0.9,
-    bowing: 0.9,
+    bowing: kind === 'order' ? 0.85 : 0.9,
     disableMultiStroke: true,
     fixedDecimalPlaceDigits: 1,
     seed,
@@ -247,38 +262,13 @@ export function sketchBezierEdge(x1, y1, x2, y2, kind, palette, roughGen = null,
     stroke: p.stroke || stroke,
     strokeWidth: p.strokeWidth ?? strokeWidth,
     dashArray,
-    opacity: isPrereq ? 0.92 : 0.78,
+    opacity,
   }));
 }
 
-const CUBIC_RE = /^M\s*([-\d.]+)\s+([-\d.]+)\s+C\s*([-\d.]+)\s+([-\d.]+),\s*([-\d.]+)\s+([-\d.]+),\s*([-\d.]+)\s+([-\d.]+)$/;
-
 /** Sketch an already-formatted cubic Bezier path string (used for path-mode `orderPaths`). */
 export function sketchOrderCurve(pathD, palette, roughGen = null, seed = 1) {
-  const stroke = palette.decorFaint;
-  if (!roughGen) return [{ d: pathD, stroke, strokeWidth: 1.25, opacity: 0.8 }];
-  const m = CUBIC_RE.exec(String(pathD || '').trim());
-  if (!m) return [{ d: pathD, stroke, strokeWidth: 1.25, opacity: 0.8 }];
-  const pts = sampleCubic(
-    Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4]),
-    Number(m[5]), Number(m[6]), Number(m[7]), Number(m[8]),
-    5,
-  );
-  const curve = roughGen.curve(pts, {
-    stroke,
-    strokeWidth: 1.25,
-    roughness: 0.9,
-    bowing: 0.85,
-    disableMultiStroke: true,
-    fixedDecimalPlaceDigits: 1,
-    seed,
-  });
-  return roughGen.toPaths(curve).map((p) => ({
-    d: p.d,
-    stroke: p.stroke || stroke,
-    strokeWidth: p.strokeWidth ?? 1.25,
-    opacity: 0.8,
-  }));
+  return sketchCubicPath(pathD, 'order', palette, roughGen, seed);
 }
 
 /** Build a clean standalone inline CSS block so exported Graph SVGs retain exact theme colors outside StudyHub. */

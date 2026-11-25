@@ -29,13 +29,13 @@ async function answeredRun(t, options = {}) {
 test('a model that never answers ends guided teaching with a plain timeout error, not a hang (#184)', async (t) => {
   const { service, run } = await answeredRun(t);
   const started = Date.now();
-  await assert.rejects(startTeaching(service.store, never, { runId: run.id, mode: 'understanding' }, { timeoutMs: 40 }), /timed out.*did not respond/);
+  await assert.rejects(startTeaching(service.store, never, { runId: run.id, mode: 'understanding' }, { timeoutMs: 40 }), /引导练习超时.*没有回应/);
   assert.ok(Date.now() - started < 2000);
   assert.equal((await service.call('review.get', { runId: run.id })).teaching, null, 'nothing half-saved');
   // The learner's answer to a step gets the same limit.
   const plan = { diagnosis: 'gap', transfer: 'rule', rungs: [0, 1].map((i) => ({ lesson: `L${i}`, check: 'Why?', answer: 'A' })) };
   const teaching = await startTeaching(service.store, async () => JSON.stringify(plan), { runId: run.id, mode: 'understanding' });
-  await assert.rejects(answerTeaching(service.store, never, { id: teaching.id, answer: 'x', stepIndex: 0 }, { timeoutMs: 40 }), /timed out/);
+  await assert.rejects(answerTeaching(service.store, never, { id: teaching.id, answer: 'x', stepIndex: 0 }, { timeoutMs: 40 }), /引导练习超时/);
 });
 
 test('in the browser: a slow model shows a quiet spinner, then 取消 after 20 s; a failing one fails in place with the right action (#184)', { timeout: 180000 }, async (t) => {

@@ -4,8 +4,7 @@ import { Chip } from "../components/index.js";
 import ModelSetupGate from "../ModelSetupGate.jsx";
 import { reviewEntryKey } from "../async.js";
 import TeachingStatus from "./TeachingStatus.jsx";
-import SimilarTry from "./SimilarTry.jsx";
-import RetellPanel from "./RetellPanel.jsx";
+import { LazyRetellPanel as RetellPanel, LazySimilarTry as SimilarTry } from "./LazyLearningLoop.jsx";
 import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget } from "../companions/companion-ref.js";
 
 /* The ways to learn from an answered question, in one row under its explanation and Q&A (ui/review/QuestionRun.jsx): 逐步理解 and 计算题引导练习 (guided
@@ -25,6 +24,8 @@ export default function LearningActions({ session, data, model, onModelSettings,
   const language = uiLocale().startsWith("en") ? "en" : "zh";
   const teach = (mode) => { if (!model.ready) setGate(true); else if (!teachingBusy) actions.teachingAct("teach.start", { mode, language }); };
   const citations = run.solution?.citations || [];
+  const hasCitedSource = citations.some((cite) => cite?.sourceId && (!Array.isArray(data?.sources) || data.sources.some((item) => item.id === cite.sourceId)));
+  const calculationAvailable = hasCitedSource || teaching?.mode === "calculation";
   // 去原文看这段: the citation the AI pointed at (else the first), through the explanation's own way to a source.
   const openCite = (index) => {
     const cite = citations[index ?? 0] || citations[0], source = data?.sources?.find((item) => item.id === cite?.sourceId);
@@ -50,9 +51,9 @@ export default function LearningActions({ session, data, model, onModelSettings,
           </Chip>
         )}
         <Chip selected={teaching?.mode === "understanding"} onClick={() => teach("understanding")}>{ui("逐步理解")}</Chip>
-        <Chip selected={teaching?.mode === "calculation"} onClick={() => teach("calculation")}>{ui("计算题引导练习")}</Chip>
+        <Chip selected={teaching?.mode === "calculation"} disabled={!calculationAvailable} title={!calculationAvailable ? ui("这道题没有关联原文资料，无法使用计算题引导练习") : undefined} onClick={() => { if (calculationAvailable) teach("calculation"); }}>{ui("计算题引导练习")}</Chip>
         <Chip selected={retell} data-usage="review.retell" onClick={() => setRetell((open) => !open)}>{ui("用自己的话讲一遍")}</Chip>
-        <TeachingStatus busy={teachingBusy} failure={teachingError} onCancel={actions.cancelTeaching} onRetry={actions.retryTeaching} />
+        {!teaching && <TeachingStatus busy={teachingBusy} failure={teachingError} onCancel={actions.cancelTeaching} onRetry={actions.retryTeaching} />}
         {!teaching?.complete && <SimilarTry session={session} data={data} model={model} onModelSettings={onModelSettings} />}
       </div>
       {gate && !model.ready && <ModelSetupGate variant="inline" feature="welcome" model={model} onOpenSettings={onModelSettings} />}

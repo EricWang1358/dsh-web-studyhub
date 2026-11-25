@@ -184,7 +184,10 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
     if (step.page) showPage(step.page);
   }
 
+  const sampleInFlightRef = useRef(false);
   async function loadSample() {
+    if (sampleInFlightRef.current) return null;
+    sampleInFlightRef.current = true;
     setSampleBusy(true);
     setError('');
     try {
@@ -195,15 +198,19 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
       setError(uiFormat('示例数据没能载入：{0}', [errorMessage(failure)]));
       return null;
     } finally {
+      sampleInFlightRef.current = false;
       setSampleBusy(false);
     }
   }
   // The line's own 载入示例并开始导览: the flag is set before the sample is written (a poll may bring it back first) and cleared together with the tour's first step.
   // The tour starts only once the snapshot on screen has the sample: started on the old one (a poll overtook the refresh), its home was drawn without the
   // sample banner, which then came in above it and pushed the whole page down (CLS 0.12 at 420 px under load).
+  const sampleTourInFlightRef = useRef(false);
   async function loadSampleAndTour() {
+    if (sampleTourInFlightRef.current || sampleInFlightRef.current) return;
+    sampleTourInFlightRef.current = true;
     setSampleForTour(true);
-    try { if (await loadSample()) await tourAfterSample({ refresh, seen: () => !!refs.dataRef.current?.sample?.loaded, start: () => startTour({ restart: true }), setError }); } finally { setSampleForTour(false); }
+    try { if (await loadSample()) await tourAfterSample({ refresh, seen: () => !!refs.dataRef.current?.sample?.loaded, start: () => startTour({ restart: true }), setError }); } finally { sampleTourInFlightRef.current = false; setSampleForTour(false); }
   }
   async function loadSampleInTour() { if (await loadSample()) moveTour(1); }
   async function loadSampleOnly() { if (await loadSample()) notify({ text: ui('示例课程已载入，在学习库里就能看到。'), tone: 'success' }); }

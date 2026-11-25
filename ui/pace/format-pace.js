@@ -4,6 +4,7 @@
 
 import { ui, uiFormat, uiIsEnglish } from '../i18n.js';
 import { isoDay } from '../format.js';
+import { roundPomodoros } from './slice-forecast.js';
 export { buildSliceForecast } from './slice-forecast.js';
 
 const MONTH_EN = Object.freeze(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']);
@@ -55,13 +56,13 @@ export function formatPlainDate(isoDate) {
  * Normalize a compact snapshot entry or full `forecastScope()` result, applying optional
  * `overrideDailyCards` (so UI can preview e.g. "按每天 100 题算") and `uncoveredPoints`.
  */
-export function resolveForecastView(entry, pace = null, { asOf = null, overrideDailyCards = null, uncoveredPoints = null } = {}) {
+export function resolveForecastView(entry, pace = null, { asOf = null, overrideDailyCards = null, uncoveredPoints = null, focusMinutes = null } = {}) {
   if (!entry || typeof entry !== 'object') return null;
   const status = entry.status || 'empty';
   const total = Number(entry.total ?? entry.totalCards ?? 0);
   const remaining = Number(entry.remaining ?? entry.remainingCards ?? 0);
   const passes = Number(entry.passes ?? entry.remainingRawPasses ?? 0);
-  const pomodoros = Number(entry.pomodoros ?? entry.remainingPomodoros ?? 0);
+  let pomodoros = Number(entry.pomodoros ?? entry.remainingPomodoros ?? 0);
   const hours = Number(entry.hours ?? entry.remainingHours ?? 0);
   const floor = Number(entry.floor ?? entry.spacingFloorDays ?? 0);
   const uncovered = uncoveredPoints != null
@@ -70,7 +71,15 @@ export function resolveForecastView(entry, pace = null, { asOf = null, overrideD
 
   const rework = Number(pace?.reworkFactor) || DEFAULT_REWORK;
   const cardSec = Number(pace?.medianCardSec) || DEFAULT_CARD_SEC;
-  const focusMin = Number(pace?.focusMinutes) || DEFAULT_FOCUS_MIN;
+  const baseFocusMin = Number(pace?.focusMinutes) || DEFAULT_FOCUS_MIN;
+  const customFocus = Number(focusMinutes);
+  const focusMin = (Number.isFinite(customFocus) && customFocus > 0 ? customFocus : baseFocusMin);
+
+  if (remaining > 0 && focusMin !== baseFocusMin) {
+    const effectiveAttempts = Number(entry.effectiveAttempts) || Math.ceil(Math.max(1, passes || remaining * 2) * rework);
+    const remainingMinutes = (effectiveAttempts * cardSec) / 60;
+    pomodoros = roundPomodoros(remainingMinutes / focusMin);
+  }
 
   const override = Number(overrideDailyCards);
   const hasOverride = Number.isFinite(override) && override > 0 && remaining > 0;
@@ -83,6 +92,12 @@ export function resolveForecastView(entry, pace = null, { asOf = null, overrideD
     ? 'target'
     : (entry.paceBasis || (status === 'cold-start' ? 'cold-start' : pace?.lowSample ? 'low-sample' : 'recent'));
   let exam = entry.exam || null;
+  if (exam && focusMin !== baseFocusMin && Number(exam.requiredDailyCards) > 0) {
+    exam = {
+      ...exam,
+      requiredDailyPomodoros: roundPomodoros(((Number(exam.requiredDailyCards) * cardSec) / 60) / focusMin),
+    };
+  }
 
   if (hasOverride) {
     const effectiveAttempts = Number(entry.effectiveAttempts) || Math.ceil(Math.max(1, passes || remaining * 2) * rework);

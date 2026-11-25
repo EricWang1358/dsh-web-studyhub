@@ -569,11 +569,13 @@ export default function ImportHub({
       <SegmentedControl className="import-hub__tabs" iconClassName="import-hub__tab-icon" label={ui('添加方式')} value={tab} options={tabs} disabled={running} onChange={setTab} />
       {stray && <p className="import-hub__stray" role="status"><Icon name="info" className="import-hub__stray-icon sh-icon--inline" />{strayText}</p>}
       {tab === 'files' && <div className="import-hub__files">
-        {!running && failed > 0 && <InlineMessage tone="warning" boxed className="import-hub__summary" actionsBelow
-          title={finished ? uiFormat('{0} 个文件已导入，{1} 个没有导入', [finished, failed]) : uiFormat('{0} 个文件没有导入', [failed])}
+        {!running && (failed > 0 || finished > 0) && <InlineMessage tone={failed > 0 ? 'warning' : 'success'} boxed className="import-hub__summary" actionsBelow
+          title={failed > 0
+            ? (finished ? uiFormat('{0} 个文件已导入，{1} 个没有导入', [finished, failed]) : uiFormat('{0} 个文件没有导入', [failed]))
+            : uiFormat('{0} 个文件已导入', [finished])}
           action={finished ? { label: ui('查看已导入的内容'), onClick: () => onComplete?.(importSummary(itemsRef.current)) } : undefined}
-          secondary={lasting ? handOff.action('import.file', () => failedImportInput(itemsRef.current, { courses }), { what: '让主会话按每个文件的原因换个办法导入；文件在输入框里用 @ 选' }) : undefined}>
-          {ui('原因写在每个文件旁边。修正后可以重新拖进来。')}
+          secondary={failed > 0 && lasting ? handOff.action('import.file', () => failedImportInput(itemsRef.current, { courses }), { what: '让主会话按每个文件的原因换个办法导入；文件在输入框里用 @ 选' }) : undefined}>
+          {failed > 0 ? ui('原因写在每个文件旁边。修正后可以重新拖进来。') : ui('已保存到资料，可以继续拖入更多文件，或查看已导入的内容。')}
         </InlineMessage>}
         {(!conversionOpen || items.length > 0 || largeItem) && <FileDrop className={stray ? 'is-attention' : undefined} dropClassName="import-hub__drop" accept={importAccept({ audio: audioOn })} multiple compact
           label={ui('把讲义、笔记或题组文件拖到这里，可以一次放多个')}

@@ -1,7 +1,8 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, Menu } from '../components/index.js';
-import { HAND_OFF_LABEL, HAND_OFF_MENU_HINT } from '../hand-off/use-hand-off.js';
+import { COPY_PROMPT_LABEL, HAND_OFF_LABEL, HAND_OFF_MENU_HINT, hasChatHost } from '../hand-off/use-hand-off.js';
+import { useStudy } from '../study-context.jsx';
 import { cardPassTip } from './use-card-pass.js';
 
 /* 「⋯ 更多」 of the book bar (复习全书, docs/review-book.md "More"): everything that is not reading, in one menu of four small groups, so the page has no standing
@@ -12,7 +13,7 @@ import { cardPassTip } from './use-card-pass.js';
 /** The menu's items (pure, for the tests): `state` says what the page has now. unplaced: the step shown is 未归位 (no code the book tools match, no
     questions of its own, no AI blocks, and no structure of its own: only 编辑这个知识点… in its group). kit: the book has an exam answer kit (答题模板…); cheat: the book has a 速查表; cardPass: { points, pairs, calls } of 补术语卡 (or, with every card made, 补易混概念对照; ui/book/use-card-pass.js). */
 export function moreItems({ unplaced = false, pointFold = null, scroll = false, bookFold = null, pages = null, pageLimit = null, history = false, today = false, mockScope = 0, dateHint = null,
-  settings = false, kit = false, cheat = false, cardPass = null, index = false }) {
+  settings = false, kit = false, cheat = false, cardPass = null, index = false, canChat = true }) {
   const pagesHint = pages === null ? undefined : pageLimit ? uiFormat('约 {0} 页 / 上限 {1} 页', [pages, pageLimit]) : uiFormat('约 {0} 页', [pages]);
   return [
     { heading: true, label: ui('这个知识点') },
@@ -41,7 +42,7 @@ export function moreItems({ unplaced = false, pointFold = null, scroll = false, 
     index && { id: 'index', label: ui('先建立检索索引…'), hint: ui('本机 · 不耗 token') },
     // 深度定制 (skills/study-custom): the main chat asks what the course's big book is for and makes only what is chosen; about the course, so always there
     { id: 'custom', label: ui('深度定制…') },
-    { id: 'chat', label: ui(HAND_OFF_LABEL), hint: ui(HAND_OFF_MENU_HINT) },
+    { id: 'chat', label: ui(canChat ? HAND_OFF_LABEL : COPY_PROMPT_LABEL), hint: ui(canChat ? HAND_OFF_MENU_HINT : '复制整本书的提示词到剪贴板') },
     { heading: true, label: ui('期末一周') },
     today && { id: 'today', label: ui('今天读哪几节') },
     { id: 'mock', label: ui('出一套模拟卷…'), hint: mockScope ? uiFormat('今天的 {0} 个知识点', [mockScope]) : ui('整本书') },
@@ -53,8 +54,10 @@ export function moreItems({ unplaced = false, pointFold = null, scroll = false, 
 /** state: as moreItems; onSelect(id). The 找功能 anchor sits on the menu's wrapper, not on its trigger: every [data-tour] gets a scroll margin (tour.css), so
     clicking the trigger in the sticky book bar scrolled the page and the menu, which closes on any scroll, shut at once (as in ReviewToolbar.jsx). */
 export default function BookMore({ onSelect, ...state }) {
+  const { host } = useStudy();
+  const canChat = state.canChat ?? hasChatHost(host);
   return (
-    <Menu label={ui('更多')} items={moreItems(state)} onSelect={onSelect} className="book-more" data-tour="book-more"
+    <Menu label={ui('更多')} items={moreItems({ ...state, canChat })} onSelect={onSelect} className="book-more" data-tour="book-more"
       trigger={({ props, ref }) => <Button ref={ref} size="sm" variant="quiet" icon="more" className="book-bar__btn book-bar__more" aria-label={ui('更多')} {...props}>
         <span className="book-bar__word" aria-hidden="true">{ui('更多')}</span></Button>} />
   );

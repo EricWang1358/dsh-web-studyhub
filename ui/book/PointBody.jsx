@@ -106,10 +106,10 @@ export default function PointBody({ node, course, handlers, level = 4 }) {
           list opens under the row. */}
       <PointToolbar node={node} course={course} handlers={handlers} cites={view.citeCount > 0 ? <Button variant="quiet" size="sm" icon={<Icon name="caret" size={14} className="book-point__caret" />}
         className="book-point__cites-toggle" aria-expanded={cites} onClick={() => setCites(value => !value)}>{uiFormat('出处 {0}', [view.citeCount])}</Button> : null}
-        retold={retold ?? node.retold ?? null} />
+        retold={retold ?? handlers.retoldOf?.(node.hid) ?? node.retold ?? null} />
       {/* 去原文看这段 opens the point's 出处 list, the book's own way to the source. */}
       {handlers.retellOpen?.(node.hid) && <RetellPanel op="book.retell" args={{ course, hid: node.hid }} draftKey={`point:${course}:${node.hid}`} model={handlers.model}
-        onSource={view.citeCount > 0 ? () => setCites(true) : undefined} onDone={answer => { setRetold(answer.record); handlers.onEvidenceChanged?.(); }} onClose={() => handlers.toggleRetell(node.hid)} />}
+        onSource={view.citeCount > 0 ? () => setCites(true) : undefined} onDone={answer => { setRetold(answer.record); handlers.onRetold?.(node.hid, answer.record); handlers.onEvidenceChanged?.(); }} onClose={() => handlers.toggleRetell(node.hid)} />}
       {cites && view.citeCount > 0 && <BookFile text={view.cites} citeText={node.gen} hid={node.hid} handlers={handlers} className="book-file book-point__cite-list" />}
       {(() => {
         const inlineRun = handlers.inlineRunFor?.(node.hid);

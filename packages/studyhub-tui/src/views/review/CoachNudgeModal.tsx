@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction, type ReviewRun } from '../../host/sample-actions.js';
@@ -447,8 +448,8 @@ export const CoachNudgeModal = memo(function CoachNudgeModal({
 
             {cleanError ? (
               <Box flexDirection="column" marginTop={1}>
-                <Text color={theme.error}>
-                  {truncateDisplay(cleanError, innerW, ell)}
+                <Text color={theme.error} wrap="wrap">
+                  {cleanError}
                 </Text>
                 {isModelUnavailableMsg(cleanError) ? (
                   <Text color={theme.muted}>
@@ -488,6 +489,7 @@ export const CoachNudgeModal = memo(function CoachNudgeModal({
               height={scrollH}
               width={innerW}
               isActive={modalActive && !isBusy}
+              vimNavKeys={false}
               follow={followBottom}
               ascii={asciiMode}
             />
@@ -499,8 +501,8 @@ export const CoachNudgeModal = memo(function CoachNudgeModal({
             ) : null}
 
             {cleanError ? (
-              <Box height={1}>
-                <Text color={theme.error}>{truncateDisplay(cleanError, innerW, ell)}</Text>
+              <Box>
+                <Text color={theme.error} wrap="wrap">{cleanError}</Text>
               </Box>
             ) : null}
           </Box>

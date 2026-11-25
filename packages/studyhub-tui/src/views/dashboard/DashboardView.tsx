@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { KeyScope, useKeyScope } from '../../input/hooks.js';
 import type { StudySnapshot, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { atomicWriteExportText, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
@@ -11,13 +12,14 @@ import { EmptyState, Spinner } from '../../components/Badge.js';
 import { Panel } from '../../components/Panel.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
-import { useClaimKeys, useInputCapture } from '../../components/focus.js';
+import { useInputCapture } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import {
   renderBarChart,
   renderHeatmap,
   renderProgressBar,
+  renderStatTable,
   type BarChartItem,
   type HeatmapDay,
 } from '../../render/charts.js';
@@ -414,6 +416,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
   const [filterOpen, setFilterOpen] = useState(false);
   const [busyPractice, setBusyPractice] = useState(false);
   const [showForecast, setShowForecast] = useState(false);
+  const [showMasteryTable, setShowMasteryTable] = useState(false);
   const [mapModalOpen, setMapModalOpen] = useState(false);
 
   const reqSeq = useRef(0);
@@ -703,10 +706,8 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
     }
   }, [asciiMode, bindingRoot, course, courseStats, dailyPlan, host, lang, notify, stats, usage, usageDays]);
 
-  const viewInputActive = isActive && !mapModalOpen;
-  const claimedKeys = useMemo(() => ['j', 'k', 'p', 'w', 'f', 'm', 'd', 'x', '/'], []);
-  useClaimKeys(claimedKeys, viewInputActive);
-  useInputCapture(viewInputActive && filterOpen);
+  const claimedKeys = useMemo(() => ['j', 'k', 'p', 'w', 'f', 'm', 'd', 'x', '/', 'T'], []);
+  useInputCapture(isActive && !mapModalOpen && filterOpen);
 
   const footerHints = useMemo(
     () => [
@@ -724,44 +725,50 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
       { key: 'm', label: t(lang, '知识地图', 'Map') },
       { key: 'd', label: t(lang, `用量:${usageDays}天`, `Usage:${usageDays}d`) },
       { key: 'x', label: t(lang, '导出报告', 'Export MD') },
-      { key: 'r', label: t(lang, '刷新', 'Refresh') },
+      { key: 'Ctrl+R', label: t(lang, '刷新', 'Refresh') },
       { key: '/', label: t(lang, '筛选', 'Filter') },
     ],
     [lang, extraWide, showForecast, usageDays],
   );
-  useFooterHints(footerHints, viewInputActive);
 
-  useInput(
-    (input, key) => {
+  const pageActive = useKeyScope({
+    id: 'DashboardView:main',
+    active: isActive,
+    keys: claimedKeys,
+    onKey: (input, key) => {
       if (key.escape && filterQuery) {
         setFilterQuery('');
         setSelectedIdx(0);
-        return;
+        return true;
       }
       if (input === '/' && !key.ctrl && !key.meta) {
         setFilterOpen(true);
         setSelectedIdx(0);
-        return;
+        return true;
       }
       if (input === 'm') {
         setMapModalOpen(true);
-        return;
+        return true;
       }
       if (input === 'd') {
         void handleCycleUsageDays();
-        return;
+        return true;
       }
       if (input === 'x') {
         void handleExportReport();
-        return;
+        return true;
       }
       if (key.ctrl && input === 'r') {
         void refreshSnapshot().then(() => loadData());
-        return;
+        return true;
       }
       if (input === 'f') {
         setShowForecast((prev) => !prev);
-        return;
+        return true;
+      }
+      if (input === 'T') {
+        setShowMasteryTable((prev) => !prev);
+        return true;
       }
       if (input === 'w') {
         const allWeak = stats?.weakScope ?? weakTopics.flatMap((wt) => wt.cards ?? []);
@@ -769,15 +776,17 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
           allWeak,
           t(lang, '暂无待强化薄弱题', 'No weak questions to practise'),
         );
-        return;
+        return true;
       }
       if (input === 'p') {
         const idx = Math.min(selectedIdx, Math.max(0, filteredDrillItems.length - 1));
         launchDrillItem(filteredDrillItems[idx]);
+        return true;
       }
+      return false;
     },
-    { isActive: viewInputActive && !filterOpen },
-  );
+  });
+  useFooterHints(footerHints, pageActive);
 
   const totals = stats?.totals;
   const totalCards = totals?.cards ?? activeDecks.reduce((n, d) => n + (Number(d.cardCount) || 0), 0);
@@ -1138,31 +1147,71 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
           </Panel>
         ) : (
           <Panel
-            title={wide ? t(lang, '课程掌握度与 FSRS 分布', 'Course Mastery & FSRS States') : t(lang, '掌握度 & FSRS', 'Mastery & FSRS')}
-            subtitle={!extraWide ? `[f] ${t(lang, '预测', 'Forecast')}` : undefined}
+            title={
+              showMasteryTable
+                ? wide
+                  ? t(lang, '课程掌握度统计表 [T]图表', 'Course Mastery Table [T]Bars')
+                  : t(lang, '掌握度表 [T]', 'Table [T]')
+                : wide
+                  ? t(lang, '课程掌握度与 FSRS 分布', 'Course Mastery & FSRS States')
+                  : t(lang, '掌握度 & FSRS', 'Mastery & FSRS')
+            }
+            subtitle={!extraWide ? `[f] ${t(lang, '预测', 'Forecast')}` : `[T] ${showMasteryTable ? t(lang, '柱图', 'Bars') : t(lang, '表格', 'Table')}`}
             width={rightW}
             height={midH}
           >
-            {barChartLines.length > 0 ? (
-              barChartLines.slice(0, wide ? 6 : 3).map((line, i) => (
-                <Text key={`bar-${i}`} wrap="truncate">
-                  {line}
+            {showMasteryTable ? (
+              courseStats.length > 0 ? (
+                renderStatTable(
+                  [
+                    { key: 'course', label: t(lang, '课程', 'Course'), align: 'left' },
+                    { key: 'total', label: t(lang, '题数', 'Cards'), align: 'right', minWidth: 4 },
+                    { key: 'due', label: t(lang, '到期', 'Due'), align: 'right', minWidth: 4 },
+                    { key: 'mastery', label: t(lang, '掌握', 'Mast'), align: 'right', minWidth: 5 },
+                  ],
+                  courseStats.slice(0, Math.max(2, midH - 4)).map((c) => ({
+                    course: c.label,
+                    total: c.totalCards,
+                    due: c.dueCount,
+                    mastery: `${c.masteryPct}%`,
+                  })),
+                  Math.max(18, rightW - 4),
+                  theme,
+                  { ascii: asciiMode },
+                ).map((line, i) => (
+                  <Text key={`tbl-${i}`} wrap="truncate">
+                    {line}
+                  </Text>
+                ))
+              ) : (
+                <Text color={theme.muted} wrap="truncate">
+                  {t(lang, '暂无课程掌握度数据', 'No course mastery data yet')}
                 </Text>
-              ))
+              )
             ) : (
-              <Text color={theme.muted} wrap="truncate">
-                {t(lang, '暂无课程掌握度数据', 'No course mastery data yet')}
-              </Text>
-            )}
-            <Box marginTop={wide ? 1 : 0} flexDirection="column">
-              {fsrsRows.map((row) => (
-                <Box key={row.label} flexDirection="row" height={1}>
-                  <Text color={theme.muted}>{padDisplay(row.label, row.labelW)}</Text>
-                  <Text>{row.bar}</Text>
-                  <Text color={theme.dim}>{` (${row.count})`}</Text>
+              <>
+                {barChartLines.length > 0 ? (
+                  barChartLines.slice(0, wide ? 6 : 3).map((line, i) => (
+                    <Text key={`bar-${i}`} wrap="truncate">
+                      {line}
+                    </Text>
+                  ))
+                ) : (
+                  <Text color={theme.muted} wrap="truncate">
+                    {t(lang, '暂无课程掌握度数据', 'No course mastery data yet')}
+                  </Text>
+                )}
+                <Box marginTop={wide ? 1 : 0} flexDirection="column">
+                  {fsrsRows.map((row) => (
+                    <Box key={row.label} flexDirection="row" height={1}>
+                      <Text color={theme.muted}>{padDisplay(row.label, row.labelW)}</Text>
+                      <Text>{row.bar}</Text>
+                      <Text color={theme.dim}>{` (${row.count})`}</Text>
+                    </Box>
+                  ))}
                 </Box>
-              ))}
-            </Box>
+              </>
+            )}
           </Panel>
         )}
 
@@ -1183,44 +1232,46 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
         badge={drillPanelBadge}
         badgeTone={drillPanelBadgeTone}
         subtitle={drillPanelSubtitle}
-        focused={viewInputActive}
+        focused={pageActive}
         width={width}
         height={drillListPanelH}
       >
         {filterOpen ? (
-          <Box height={1} width={innerPanelW} backgroundColor={theme.surface} overflow="hidden">
-            <Text color={theme.primary} bold>
-              {filterBarBadge}
-            </Text>
-            <Box flexGrow={1} overflow="hidden">
-              <TextInput
-                value={filterQuery}
-                onChange={(next) => {
-                  setFilterQuery(next);
-                  setSelectedIdx(0);
-                }}
-                onSubmit={(val) => {
-                  if (!val.trim()) setFilterQuery('');
-                  setFilterOpen(false);
-                }}
-                onCancel={() => {
-                  setFilterQuery('');
-                  setFilterOpen(false);
-                  setSelectedIdx(0);
-                }}
-                isActive={viewInputActive && filterOpen}
-                width={filterInputW}
-                prompt="/"
-                placeholder={t(lang, `知识点/课程${ell}`, `topic/course${ell}`)}
-                maxLength={120}
-              />
-            </Box>
-            {filterBarHint ? (
-              <Text color={theme.dim} wrap="truncate">
-                {filterBarHint}
+          <KeyScope id="dashboard:filter" opaque active={isActive && filterOpen}>
+            <Box height={1} width={innerPanelW} backgroundColor={theme.surface} overflow="hidden">
+              <Text color={theme.primary} bold>
+                {filterBarBadge}
               </Text>
-            ) : null}
-          </Box>
+              <Box flexGrow={1} overflow="hidden">
+                <TextInput
+                  value={filterQuery}
+                  onChange={(next) => {
+                    setFilterQuery(next);
+                    setSelectedIdx(0);
+                  }}
+                  onSubmit={(val) => {
+                    if (!val.trim()) setFilterQuery('');
+                    setFilterOpen(false);
+                  }}
+                  onCancel={() => {
+                    setFilterQuery('');
+                    setFilterOpen(false);
+                    setSelectedIdx(0);
+                  }}
+                  isActive={isActive && filterOpen}
+                  width={filterInputW}
+                  prompt="/"
+                  placeholder={t(lang, `知识点/课程${ell}`, `topic/course${ell}`)}
+                  maxLength={120}
+                />
+              </Box>
+              {filterBarHint ? (
+                <Text color={theme.dim} wrap="truncate">
+                  {filterBarHint}
+                </Text>
+              ) : null}
+            </Box>
+          </KeyScope>
         ) : null}
         {drillItems.length === 0 ? (
           <EmptyState
@@ -1262,22 +1313,24 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
             onSelect={(item) => launchDrillItem(item)}
             renderItem={renderDrillRow}
             keyExtractor={(item) => item.key}
-            isActive={viewInputActive && !filterOpen}
+            isActive={pageActive}
           />
         )}
       </Panel>
 
-      <Suspense fallback={null}>
-        {mapModalOpen ? (
-          <StudyMapModal
-            host={host}
-            width={width}
-            height={height}
-            isActive={isActive && mapModalOpen}
-            onClose={() => setMapModalOpen(false)}
-          />
-        ) : null}
-      </Suspense>
+      {mapModalOpen ? (
+        <KeyScope id="dashboard:study-map" opaque>
+          <Suspense fallback={null}>
+            <StudyMapModal
+              host={host}
+              width={width}
+              height={height}
+              isActive={isActive && mapModalOpen}
+              onClose={() => setMapModalOpen(false)}
+            />
+          </Suspense>
+        </KeyScope>
+      ) : null}
     </Box>
   );
 };

@@ -77,8 +77,8 @@ test('with no new question to start the deck is published all the same, and the 
 test('a page the learner has left gets no UI effect from the late answer (the publication itself still happens)', async () => {
   const h = harness({ current: false });
   await m.publishAndPractice({ ...h.parts, draft: cleanDraft() });
-  assert.deepEqual(h.calls.map(([action]) => action), ['draft.save', 'draft.publish.quick', 'review.start']);
-  assert.deepEqual(h.effects, []);
+  assert.deepEqual(h.calls.map(([action]) => action), ['draft.save', 'draft.publish.quick']);
+  assert.deepEqual(h.effects, [['clearRecovery']]);
 });
 
 /* ---------- which draft may be published from the card ---------- */

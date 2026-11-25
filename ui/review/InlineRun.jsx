@@ -23,18 +23,21 @@ export function roundTally(run) {
   return { answered: stops.length, passed: stops.filter((stop) => stop.passed).length };
 }
 
-function InlineRunDone({ session, onClose, onOpenRun, backLabel }) {
+function InlineRunDone({ session, onClose, onOpenRun, onBackOriginal, backLabel }) {
   const { busy } = useStudy();
   const run = session.run, { answered, passed } = roundTally(run);
-  const before = run.liveMastery?.before, after = run.liveMastery?.after;
+  const mastery = run.mastery || run.liveMastery;
+  const before = mastery?.before, after = mastery?.after;
   const weak = answered > passed && session.coach?.onReviewWeak;
+  const canReturn = Boolean(onBackOriginal);
   return (
     <div className="inline-run__done" role="status" data-testid="inline-run-done">
       <p className="inline-run__score"><strong>{ui("这一轮做完了")}</strong><span>{uiFormat("答对 {0} / {1}", [passed, answered])}</span></p>
       {before?.total > 0 && after?.total > 0 && <p className="inline-run__mastery"><MasteryMark summary={after} size={14} />
         <span>{after.percent !== before.percent ? uiFormat("本组 {0}% → {1}%", [before.percent, after.percent]) : uiFormat("本组 {0}%", [after.percent])}</span></p>}
       <div className="inline-run__done-actions">
-        <Button variant="primary" size="sm" icon="arrow-left" onClick={onClose}>{backLabel}</Button>
+        {canReturn && <Button variant="primary" size="sm" icon="arrow-left" lock={busy} onClick={onBackOriginal}>{ui("回到原题")}</Button>}
+        <Button variant={canReturn ? "secondary" : "primary"} size="sm" icon="arrow-left" onClick={onClose}>{backLabel}</Button>
         {weak && <Button iconEnd="arrow-right" size="sm" lock={busy} onClick={session.coach.onReviewWeak}>{ui("错的再练一遍")}</Button>}
         {onOpenRun && <Button iconEnd="arrow-right" size="sm" variant="quiet" lock={busy} onClick={onOpenRun}>{ui("在练习页看结果")}</Button>}
       </div>
@@ -46,19 +49,23 @@ export default function InlineRun({ session, data, label, rootRef, onClose, onOp
   useInjectCss(css, "study-inline-run");
   const { busy } = useStudy();
   const run = session.run;
+  const displayLabel = run?.returnTo && run?.questions ? uiFormat("支线练习 · {0} 题", [run.questions]) : label;
+  const onBackOriginal = run?.returnTo && (session.coach?.onContinue || session.continueTo)
+    ? () => (session.coach?.onContinue ? session.coach.onContinue() : session.continueTo?.(null))
+    : undefined;
   // The keys of the question work at once: the focus goes into the column when a round (or another round) opens, without moving any scroll.
   React.useEffect(() => { if (run?.id) rootRef?.current?.focus?.({ preventScroll: true }); }, [run?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <section ref={rootRef} className="inline-run" data-inline-run="" tabIndex={-1} aria-label={label || ui("本节题目")}>
+    <section ref={rootRef} className="inline-run" data-inline-run="" tabIndex={-1} aria-label={displayLabel || ui("本节题目")}>
       <header className="inline-run__head">
-        <span className="inline-run__label">{label}</span>
+        <span className="inline-run__label">{displayLabel}</span>
         <span className="inline-run__actions">
           {onOpenRun && run && !run.complete && <Button iconEnd="arrow-right" size="sm" variant="quiet" lock={busy} onClick={onOpenRun}>{ui("去练习页继续")}</Button>}
           <Button size="sm" variant="secondary" icon="arrow-left" onClick={onClose}>{backLabel}</Button>
         </span>
       </header>
       {!run ? <LoadingState label={ui("正在打开这一轮…")} />
-        : run.complete ? <InlineRunDone session={session} onClose={onClose} onOpenRun={onOpenRun} backLabel={backLabel} />
+        : run.complete ? <InlineRunDone session={session} onClose={onClose} onOpenRun={onOpenRun} onBackOriginal={onBackOriginal} backLabel={backLabel} />
           : <QuestionRun inline session={session} data={data} coachProps={data ? session.coach : undefined} links={links} feedback={feedback} />}
     </section>
   );

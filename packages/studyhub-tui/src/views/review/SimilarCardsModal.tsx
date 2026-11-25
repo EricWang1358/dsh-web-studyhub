@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { startReview, tryAction, type ReviewRun } from '../../host/sample-actions.js';
@@ -299,7 +300,7 @@ export const SimilarCardsModal = memo(function SimilarCardsModal({
         <EmptyState
           icon={asciiMode ? '<>' : '⇄'}
           title={t(lang, '题库里暂无这一轮之外的同类题', 'No similar cards outside this round')}
-          hint={t(lang, 'review.similar 会自动排除本轮已包含或最近刚做对的题目。', 'review.similar excludes cards already in this round or recently mastered.')}
+          hint={t(lang, '同类题推荐会自动排除本轮已包含或最近刚做对的题目。', 'Similar recommendations exclude cards already in this round or recently mastered.')}
           actions={[
             { key: 'r', label: t(lang, '重试', 'Retry') },
             { key: 'Esc', label: t(lang, '返回', 'Close') },

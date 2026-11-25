@@ -29,6 +29,7 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
     [error, setError] = useState(""),
     [left, setLeft] = useState(null),
     [hovered, setHovered] = useState(false),
+    [focused, setFocused] = useState(false),
     [consent, setConsent] = useState({ busy: false, answer: null, error: "" });
   // The coach status is the host's shared answer (ui/host-query.js): this debrief and the 错题 page see the same copy while variants are written.
   const statusQuery = useHostQuery("coach.status", {}, { call, enabled: false, initialData: initial?.status || undefined });
@@ -65,30 +66,34 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
   const promisesNext = noForwardCta && !showActionButton && /接着学下一批/.test(debrief?.headline || "");
   const label = next === "practice_prepared" ? uiFormat("刷 {0} 道为你定制的题", [ready]) : next === "review_weak" ? ui("先补薄弱点") : destination?.label || ui("继续学习");
 
-  // Autopilot: count down, then take the suggested step; any click cancels.
+  const askConsent = !!status?.enabled && status.consent === null && consent.answer === null;
+
+  // Autopilot: count down, then take the suggested step; any click or non-modifier key cancels, and focus or hover pauses.
   const cancelled = useRef(false);
   useEffect(() => {
-    if (!autopilot || !debrief || !action || cancelled.current || busy) {
+    if (!autopilot || !debrief || !action || cancelled.current || busy || askConsent) {
       setLeft(null);
       return;
     }
     setLeft(COUNTDOWN);
-  }, [autopilot, !!debrief, next, busy]); // eslint-disable-line react-hooks/exhaustive-deps
-  // The countdown keeps its seconds even if the tab is in the background: the suggested step is taken on time (paused while hovered).
-  usePolling(() => setLeft((n) => (n > 0 ? n - 1 : 0)), { intervalMs: 1000, enabled: left !== null && left > 0 && !hovered, pauseWhenHidden: false });
+  }, [autopilot, !!debrief, next, busy, askConsent]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The countdown keeps its seconds even if the tab is in the background: the suggested step is taken on time (paused while hovered or focused).
+  usePolling(() => setLeft((n) => (n > 0 ? n - 1 : 0)), { intervalMs: 1000, enabled: left !== null && left > 0 && !hovered && !focused, pauseWhenHidden: false });
   useEffect(() => {
-    if (left === 0 && action && !cancelled.current) {
+    if (left === 0 && action && !cancelled.current && !askConsent) {
       cancelled.current = true;
       action();
     }
-  }, [left, action]);
+  }, [left, action, askConsent]);
   useEffect(() => {
     const stop = () => {
       cancelled.current = true;
       setLeft(null);
     };
     const onKeyDown = (event) => {
-      if (event.key === "Escape") stop();
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (["Shift", "Control", "Alt", "Meta", "CapsLock"].includes(event.key)) return;
+      stop();
     };
     window.addEventListener("pointerdown", stop, { once: true });
     window.addEventListener("keydown", onKeyDown);
@@ -111,7 +116,6 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
       setConsent({ busy: false, answer: null, error: e.message });
     }
   }
-  const askConsent = !!status?.enabled && status.consent === null && consent.answer === null;
 
   /* One quiet line: the 点评 asks the lighter model for a sentence once a round has 3 or more answers (lib/contexts/coach/worker.js), and the
      setting that turns that off is one link away. A shorter round never asks, so it has nothing to say. */
@@ -137,7 +141,9 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
   const allAttained = (m.answered || 0) > 0 && gradedCount + selfCount > 0 && (!gradedCount || gradedAllMet) && (!selfCount || selfAllMet);
   return (
     <ReadingBlock className="coach-debrief" data-next={next} data-all-attained={allAttained ? "true" : undefined} role="region" aria-label={ui("本轮建议")}
-      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+      onFocusCapture={() => setFocused(true)}
+      onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }}>
       <div className="eyebrow coach-debrief__eyebrow">{ui("陪学 · 本轮建议")}</div>
       <h2>{promisesNext ? ui("这一轮的状态不错。") : debrief.headline}</h2>
       {debrief.why && <p>{debrief.why}</p>}
@@ -187,7 +193,7 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
         )}
         {left !== null && left > 0 && (
           <span className="coach-countdown" role="status">{back ? uiFormat("自动跳下一步：{0} 秒后{1} ·", [left, label]) : uiFormat("自动跳下一步：{0} 秒后执行 ·", [left])}
-            {hovered && <span className="coach-countdown__paused">{ui("（已暂停）")}</span>}{" "}
+            {(hovered || focused) && <span className="coach-countdown__paused">{ui("（已暂停）")}</span>}{" "}
             <Button variant="link" size="sm" onClick={() => { cancelled.current = true; setLeft(null); }}>{ui("取消")}</Button>
           </span>
         )}

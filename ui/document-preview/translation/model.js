@@ -134,6 +134,49 @@ export function failureKind(code) {
   return 'other';
 }
 
+/** Whether retrying the exact same passage can succeed (missing model or ambiguous/unlocated selection cannot). */
+export function canRetryError(error) {
+  const kind = failureKind(error?.code);
+  return kind !== 'model' && kind !== 'place';
+}
+
+/** Look up the request entry for retrying a failed paragraph or selection translation, or null if non-retryable. */
+export function resolveRetryEntry(layer, key, error) {
+  if (!canRetryError(error)) return null;
+  const paragraph = layer?.byKey?.get(key);
+  if (paragraph) return { key: paragraph.key, passage: passageOf(paragraph) };
+  return layer?.selectionEntries?.get(key) || null;
+}
+
+/**
+ * Reconcile temporary selection keys (`tmp:sel-...`) with backend-assigned `sel:...` keys for BOTH succeeded and rejected results,
+ * migrating `layer.pinned` and `layer.selectionEntries` and returning a Map of `tempKey -> realKey` so a floating card follows too.
+ */
+export function reconcileSelectionKeys(layer, entries, results) {
+  const remapped = new Map();
+  if (!layer || !Array.isArray(entries) || !Array.isArray(results)) return remapped;
+  for (const result of results) {
+    const wasTemp = entries[result.index]?.key;
+    if (!wasTemp) continue;
+    const nextKey = result.key;
+    if (nextKey && wasTemp !== nextKey) {
+      if (layer.pinned?.has(wasTemp)) {
+        layer.pinned.set(nextKey, layer.pinned.get(wasTemp));
+        layer.pinned.delete(wasTemp);
+      }
+      if (layer.selectionEntries?.has(wasTemp)) {
+        const prev = layer.selectionEntries.get(wasTemp);
+        layer.selectionEntries.delete(wasTemp);
+        if (!result.item) layer.selectionEntries.set(nextKey, { ...prev, key: nextKey });
+      }
+      remapped.set(wasTemp, nextKey);
+    } else if (result.item) {
+      layer.selectionEntries?.delete(wasTemp);
+    }
+  }
+  return remapped;
+}
+
 /* ---------- the job ---------- */
 
 export const jobActive = isActiveJob;

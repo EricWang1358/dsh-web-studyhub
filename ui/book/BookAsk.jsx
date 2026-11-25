@@ -5,6 +5,8 @@ import ModelSetupGate from '../ModelSetupGate.jsx';
 import useRangeAnchor from '../document-preview/translation/useRangeAnchor.js';
 import { askStaysOpen } from './ask-visibility.js';
 import { HandOffButton } from '../hand-off/HandOff.jsx';
+import { hasChatHost } from '../hand-off/use-hand-off.js';
+import { useStudy } from '../study-context.jsx';
 
 /* 「问 AI」 of the review book (docs/review-book.md "Ask AI"): ONE box, two destinations. Opened by 「✦ 问 AI」 at a point's title (about the whole point) or by
    「写一段…」 of the selection toolbar (about the selected words, shown on top). One tap on a preset fills the box. 「写进这个知识点」 writes with the app's model
@@ -17,8 +19,10 @@ export const PRESETS = ['讲细点', '加个例子', '润色成大白话', '加�
 
 /** 「✦ 问 AI」: a quiet button at the right of a point's title (on a narrow page only its ✦, beside the path); onAsk(element) opens the panel under it. */
 export function AskButton({ onAsk }) {
+  const { host } = useStudy();
+  const canChat = hasChatHost(host);
   return (
-    <Tooltip layer content={ui('写进这个知识点，或发给主会话')} anchorClassName="book-ask-tip">
+    <Tooltip layer content={canChat ? ui('写进这个知识点，或发给主会话') : ui('写进这个知识点，或复制提示词')} anchorClassName="book-ask-tip">
       <Button variant="quiet" size="sm" icon="sparkle" className="book-ask-open" data-book-ask-open="" aria-haspopup="dialog" aria-label={ui('问 AI')} onClick={event => onAsk(event.currentTarget)}>
         <span className="book-ask-open__word">{ui('问 AI')}</span></Button>
     </Tooltip>
@@ -47,7 +51,10 @@ export function AskForm({ scope, model, onWrite, onSend, autoFocus = false }) {
       </div>
       <TextArea className="book-ask__input" rows={3} maxLength={600} autoFocus={autoFocus} value={text} onChange={event => setText(event.target.value)}
         aria-label={ui('你想让 AI 做什么')} placeholder={scope === 'selection' ? ui('想让它怎么讲？留空就是弄懂这几句') : ui('想在这个知识点里加点什么？')}
-        onKeyDown={event => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); if (onWrite) write(); else send(); } }} />
+        onKeyDown={event => {
+          if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
+          if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); if (onWrite) write(); else send(); }
+        }} />
       <div className="book-ask__send">
         {onWrite && <Tooltip layer content={ui('用你设置的模型写，约 1 分钟；写好后收成一行，放在它针对的那段后面。')} anchorClassName="book-ask__tip">
           <Button size="sm" variant="secondary" type="submit" icon="sparkle" disabled={!canWrite} data-book-ask="write">{ui('写进这个知识点')}</Button>
@@ -72,7 +79,7 @@ export default function BookAsk({ target, host, scrollerRef, model, onWrite, onS
   latest.current = { onClose, typed: () => !!panel.current?.querySelector('textarea')?.value.trim() };
   useEffect(() => {
     // Escape closes; a press outside closes it unless words are typed in the box (nothing the learner wrote is taken from them).
-    const onKey = event => { if (event.key === 'Escape' && !event.defaultPrevented) latest.current.onClose(); };
+    const onKey = event => { if (event.key === 'Escape' && !event.defaultPrevented && !event.isComposing && event.keyCode !== 229) latest.current.onClose(); };
     const onDown = event => {
       // A press on its own 问 AI is the button's (a second press closes it there).
       if (panel.current?.contains(event.target) || (anchor.current?.contains && anchor.current.contains(event.target))) return;

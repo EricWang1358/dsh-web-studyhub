@@ -140,14 +140,26 @@ export function outlineRows(tree, expanded) {
   return rows;
 }
 
-/** Entries whose title holds the query (case and width folded), each with the titles above it; a blank query is no filter. */
-export function filterOutline(tree, query) {
-  const wanted = String(query || '').normalize('NFKC').toLowerCase().trim();
+const normalizeOutlineSearch = (text) => String(text || '').normalize('NFKC').toLowerCase().replace(/[–—−]/g, '-').trim();
+const compactOutlineSearch = (text) => normalizeOutlineSearch(text).replace(/\s+/g, '');
+
+/** Entries whose visible label or title holds the query (case, width, dash and space tolerant), each with the non-empty labels/titles above it; a blank query is no filter. */
+export function filterOutline(tree, query, labelOf = () => '') {
+  const wanted = normalizeOutlineSearch(query);
   if (!wanted) return tree;
+  const wantedCompact = wanted.replace(/\s+/g, '');
   const byId = new Map(tree.map(node => [node.id, node]));
-  return tree.filter(node => node.title.normalize('NFKC').toLowerCase().includes(wanted)).map(node => {
+  const matches = (node) => {
+    const label = typeof labelOf === 'function' ? (labelOf(node) || '') : '';
+    const combined = [label, node.title || ''].filter(Boolean).join(' ');
+    return normalizeOutlineSearch(combined).includes(wanted) || compactOutlineSearch(combined).includes(wantedCompact);
+  };
+  return tree.filter(matches).map(node => {
     const trail = [];
-    for (let up = byId.get(node.parent); up; up = byId.get(up.parent)) trail.unshift(up.title);
+    for (let up = byId.get(node.parent); up; up = byId.get(up.parent)) {
+      const part = up.title || (typeof labelOf === 'function' ? labelOf(up) : '');
+      if (part) trail.unshift(part);
+    }
     return { ...node, trail };
   });
 }

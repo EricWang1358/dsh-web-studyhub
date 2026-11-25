@@ -29,8 +29,9 @@ export function useAssistPanelState(entryKey, activeEntryKeyRef) {
     const key = activeEntryKeyRef.current;
     setAssistState((prev) => {
       const curMode = prev.key === key ? prev.mode : "";
-      const resolved = typeof next === "function" ? next(curMode) : next;
-      return { key, mode: resolved || "", text: "", choices: [], relation: "prerequisite", nonce: prev.nonce + 1 };
+      const resolved = (typeof next === "function" ? next(curMode) : next) || "";
+      if (prev.key === key && curMode === resolved) return prev;
+      return { key, mode: resolved, text: "", choices: [], relation: "prerequisite", nonce: prev.nonce + 1 };
     });
   }, [activeEntryKeyRef]);
   const setAssistTextForVoice = React.useCallback((updater) => {
@@ -57,7 +58,7 @@ export function useAssistPanelState(entryKey, activeEntryKeyRef) {
 export function AssistFormPanelView({
   mode, seed, run, model, modelSettings, feedback,
   fixPhrases, courseRules, voiceAskButton,
-  reviewBodyRef, textSetterRef, copy, submitAssistAct, renderThinkingField, onClose,
+  reviewBodyRef, textSetterRef, copy, submitAssistAct, renderThinkingField, onClose, onOpenSocratic,
 }) {
   const [assistText, setAssistText] = React.useState(seed.text || "");
   const [thinkingNote, setThinkingNote] = React.useState("");
@@ -117,6 +118,20 @@ export function AssistFormPanelView({
         await submitAssist();
       }}
     >
+      {mode === "ask" && onOpenSocratic && run.mode !== "exam" && (
+        <div className="assist-drawer-mode">
+          <SegmentedControl
+            size="sm"
+            label={ui("助学方式")}
+            value="ask"
+            onChange={(next) => { if (next === "socratic") onOpenSocratic(); }}
+            options={[
+              { value: "ask", label: ui("AI 帮我理解") },
+              { value: "socratic", label: ui("苏格拉底带学") },
+            ]}
+          />
+        </div>
+      )}
       {mode === "ask" && <>
         <strong>{ui("想从哪里弄懂？可多选")}</strong>
         <div className="assist-quick-choices" role="group" aria-label={ui("帮助方式")}>

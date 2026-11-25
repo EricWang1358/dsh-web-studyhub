@@ -238,9 +238,17 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
     </div>
   </div>;
   const stages = <InstallStages stages={stageStates(install)} label={ui('安装步骤')} className="mineru-install__stages" markClassName="mineru-install__mark" />;
-  // Another folder for an install that stopped: the chooser and its confirm, which is then the one primary.
+  // Another folder for an install that stopped: echo chosen folder, facts, and blocking errors alongside the confirm button.
   const chooseHere = <>
+    <div className="mineru-install__where">
+      <span className="mineru-install__label">{ui('安装位置')}</span>
+      <code translate="no">{folder || '…'}</code>
+    </div>
+    {(hint || !blocking) && <Hint className="mineru-install__hint">{hint || ' '}</Hint>}
+    {nonAscii && <TipBadge tip={uiMessage(nonAscii.message)} tone="warning">{ui('路径里有中文或特殊字符')}</TipBadge>}
     {chooser}
+    <p className="mineru-install__facts" aria-busy={planning || !plan || undefined}>{facts}</p>
+    {blocking && <InlineMessage tone="error">{uiMessage(blocking.message)}</InlineMessage>}
     {plan && <div className="mineru-install__row">
       <Tooltip layer content={blocking ? uiMessage(blocking.message) : stepsTip}>
         <Button variant="primary" icon="download" aria-disabled={!canStart || undefined} busy={working === 'start'}

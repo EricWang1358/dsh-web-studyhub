@@ -2,6 +2,8 @@ import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button } from '../components/index.js';
 import HandOff from '../hand-off/HandOff.jsx';
+import { hasChatHost } from '../hand-off/use-hand-off.js';
+import { useStudy } from '../study-context.jsx';
 import { questionSourceOpener } from './QuestionSourcePage.jsx';
 
 function cardCitation(run, source) {
@@ -53,13 +55,19 @@ export default function ChapterHint({
     deeper,
   }), [deckTitle, documentTitle, chapterTitle, run?.deckId, run?.card, terms, deeper]);
 
+  const { host } = useStudy();
+  const canChat = hasChatHost(host);
   return (
     <aside className="chapter-hint" data-chapter-hint="" role="region" aria-label={ui('这一章先别做题提示')}>
       <div className="chapter-hint__head">
         <p className="chapter-hint__body">
           {chapterTitle
-            ? uiFormat('这一块的基础还没搭起来，再往下补词效率不高。「{0}」先别急着做题，先读一遍，或者让主会话讲一讲。', [chapterTitle])
-            : ui('这一块的基础还没搭起来，再往下补词效率不高。这一部分先别急着做题，先读一遍，或者让主会话讲一讲。')}
+            ? (canChat
+              ? uiFormat('这一块的基础还没搭起来，再往下补词效率不高。「{0}」先别急着做题，先读一遍，或者让主会话讲一讲。', [chapterTitle])
+              : uiFormat('这一块的基础还没搭起来，再往下补词效率不高。「{0}」先别急着做题，先读一遍，或者复制提示词让 AI 讲一讲。', [chapterTitle]))
+            : (canChat
+              ? ui('这一块的基础还没搭起来，再往下补词效率不高。这一部分先别急着做题，先读一遍，或者让主会话讲一讲。')
+              : ui('这一块的基础还没搭起来，再往下补词效率不高。这一部分先别急着做题，先读一遍，或者复制提示词让 AI 讲一讲。'))}
         </p>
         <Button
           variant="quiet"
@@ -76,7 +84,7 @@ export default function ChapterHint({
             {ui('在旁边读原文')}
           </Button>
         )}
-        <HandOff id="question.basics" shape="quiet" label="发给主会话讲" input={handOffInput} />
+        <HandOff id="question.basics" shape="quiet" label="发给主会话讲" copyLabel="复制讲解提示词" input={handOffInput} />
       </div>
       <div className="chapter-hint__foot">
         <Button variant="quiet" size="sm" className="chapter-hint__mute" onClick={onDismissForever}>

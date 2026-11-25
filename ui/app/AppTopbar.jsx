@@ -11,6 +11,7 @@ import { useStudyBusy } from '../study-context.jsx';
 import { useNavAlert } from './use-nav-alert.js';
 import { hostPart } from '../host-parts.js';
 import { modelReadiness } from '../generation-status.js';
+import { PracticeReturnChip } from './PracticeReturnChip.jsx';
 import css from './app-shell.css';
 
 /** The folder a learner recognises: the default library is a hidden folder inside its workspace. */
@@ -127,6 +128,9 @@ const AppTopbar = React.memo(function AppTopbar({ title }) {
   const inbox = useAppSelector((s) => s.inbox);
   const settingsEntry = useAppSelector((s) => s.settingsEntry);
   const shell = useAppSelector((s) => s.shell);
+  const learn = useAppSelector((s) => s.learn);
+  const session = useAppSelector((s) => s.session);
+  const modal = useAppSelector((s) => s.lib?.modal);
   const { act, quick, quickApi } = core;
   const { binding, running, publishing, syncIssue, syncTransient } = connection;
   const model = modelReadiness(data);
@@ -139,6 +143,17 @@ const AppTopbar = React.memo(function AppTopbar({ title }) {
         <span className="breadcrumb" aria-hidden="true"><Icon className="sh-icon--inline" name="chevron" /></span>
         <span className="crumb" aria-current="page">{title}</span>
       </nav>
+      {learn && (
+        <PracticeReturnChip
+          stack={learn.practiceStack}
+          page={nav?.page}
+          run={session?.run}
+          modal={modal}
+          lastPractice={learn.lastPractice}
+          onRestore={learn.returnFromPracticeStack}
+          onPracticeResume={learn.resumeLastPractice}
+        />
+      )}
       <div className="top-right">
         <LibraryChip root={binding.root} onOpen={openLibrary} />
         <ModelChip label={model.ready ? model.label : ''} note={hostPart('modelCostNote')?.(binding)} onOpen={openLibrary} />

@@ -144,14 +144,6 @@
     .sh-confirm__body { margin: var(--space-1) 0 0; color: var(--text-dim); font-weight: var(--fw-regular); }
     .sh-confirm__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); }
     /* ── Dialog busy: the close button looks off but stays reachable ───── */
-    .sh-btn[aria-disabled="true"] {
-      cursor: default;
-      color: var(--text-faint);
-      background: color-mix(in srgb, var(--text) 3%, transparent);
-      border-color: var(--line);
-      pointer-events: auto;
-    }
-    .sh-btn[aria-disabled="true"]:hover { background: color-mix(in srgb, var(--text) 3%, transparent); border-color: var(--line); }
     .sh-dialog[aria-busy="true"] { cursor: progress; }
     .sh-dialog[aria-busy="true"] .sh-dialog__close { cursor: not-allowed; }
     .sh-confirm-dialog__title { margin: 0; font-weight: var(--fw-strong); overflow-wrap: anywhere; }

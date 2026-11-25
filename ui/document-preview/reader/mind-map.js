@@ -65,19 +65,35 @@ function pageHeadings(sections) {
   });
 }
 
-/** The branch of `outline` around `activeId`: its top-level ancestor and everything below that. */
+/** The branch of `outline` around `activeId`: its top-level ancestor, everything below that, and the next sibling/higher entry (for slicing paged sections). */
 function branchOf(outline, activeId) {
   const byId = new Map(outline.map(item => [item.id, item]));
   let top = byId.get(activeId) ?? outline[0];
   while (top && top.parent != null && byId.has(top.parent)) top = byId.get(top.parent);
-  if (!top) return { top: null, items: [] };
+  if (!top) return { top: null, items: [], nextTop: null };
   const at = outline.indexOf(top), items = [];
-  for (let index = at + 1; index < outline.length && (outline[index].level > top.level); index += 1) items.push(outline[index]);
-  return { top, items };
+  let index = at + 1;
+  for (; index < outline.length && (outline[index].level > top.level); index += 1) items.push(outline[index]);
+  return { top, items, nextTop: outline[index] ?? null };
+}
+
+/** Slice drawn page sections to the `[top.sourceId .. nextTop.sourceId)` range when an AI chapter has no sub-entries. */
+function chapterSectionsForBranch(sections, top, nextTop) {
+  if (!sections.length) return [];
+  const startId = top?.sourceId;
+  if (!startId) return sections;
+  const startIdx = sections.findIndex(section => section.sourceId === startId);
+  if (startIdx < 0) return [];
+  const endId = nextTop?.sourceId;
+  if (!endId || endId === startId) return endId === startId ? [sections[startIdx]] : sections.slice(startIdx);
+  const endIdx = sections.findIndex((section, idx) => idx > startIdx && section.sourceId === endId);
+  return endIdx > startIdx ? sections.slice(startIdx, endIdx) : sections.slice(startIdx);
 }
 
 /** Entries of an outline as map entries (a page entry without a title says its page). */
-const outlineEntries = items => items.filter(item => item.kind !== 'chapter' && item.title).map(item => ({ title: item.title, level: item.level || 1, target: { outlineId: item.id, ...(item.page ? { page: item.page } : {}) } }));
+const outlineEntries = (items, { includeChapters = false } = {}) => items
+  .filter(item => (includeChapters || item.kind !== 'chapter') && item.title)
+  .map(item => ({ title: item.title, level: item.level || 1, target: { outlineId: item.id, ...(item.page ? { page: item.page } : {}) } }));
 
 /**
  * The map of one chapter. input: { title (the chapter's), sections (the page sections drawn: text-sections.js), outline (entries of the chapter or the whole
@@ -87,9 +103,22 @@ const outlineEntries = items => items.filter(item => item.kind !== 'chapter' && 
 export function buildMindMap({ title = '', sections = [], outline = [], activeId = null, branch = false }, { max = MIND_MAP_MAX } = {}) {
   let rootTitle = title, rootTarget = null, entries;
   if (branch && outline.length) {
-    const { top, items } = branchOf(outline, activeId);
+    const { top, items, nextTop } = branchOf(outline, activeId);
     if (top) { rootTitle = top.title || title; rootTarget = { outlineId: top.id }; }
     entries = outlineEntries(items).map(entry => ({ ...entry, level: entry.level - (top?.level ?? 0) }));
+    if (!entries.length) {
+      if (sections.length) {
+        entries = pageHeadings(chapterSectionsForBranch(sections, top, nextTop));
+      } else {
+        const minLevel = Math.min(...outline.map(item => item.level || 1));
+        const isFlat = outline.every(item => (item.level || 1) === minLevel);
+        if (isFlat && outline.length >= 2) {
+          rootTitle = title || rootTitle;
+          rootTarget = null;
+          entries = outlineEntries(outline, { includeChapters: true }).map(entry => ({ ...entry, level: 1 }));
+        }
+      }
+    }
   } else {
     entries = pageHeadings(sections);
     if (!entries.length) entries = outlineEntries(outline);

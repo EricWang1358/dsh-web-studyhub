@@ -2,6 +2,7 @@ import React, { useContext } from 'react';
 import { ui } from '../i18n.js';
 import { Button } from '../components/index.js';
 import { AppContext } from './app-context.js';
+import { useStudyBusy } from '../study-context.jsx';
 
 /* The one control that moves the library folder: the host's own folder picker, then the app's binding (Settings › 学习库与模型 and the desktop's first-use card both
    draw it as 「更换目录…」). Where there is no picker, or it cannot open, `onUnavailable` is the way to type the path instead. */
@@ -21,10 +22,11 @@ export async function chooseLibraryFolder({ host, updateBinding, notify, onUnava
 /** Outside the app (a preview, a pane under test) it draws nothing, like the panel that holds it. */
 export default function ChangeFolderButton({ children, variant, disabled, onUnavailable }) {
   const app = useContext(AppContext);
+  const busy = useStudyBusy();
   if (!app) return null;
   const { host, core, connection } = app;
   return (
-    <Button variant={variant} lock={core.busy} disabled={disabled}
+    <Button variant={variant} lock={busy} disabled={disabled}
       onClick={() => chooseLibraryFolder({ host, updateBinding: connection.updateBinding, notify: core.notify, onUnavailable })}>
       {children}
     </Button>

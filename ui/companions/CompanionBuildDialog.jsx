@@ -1,7 +1,7 @@
 import React, { useCallback, useContext, useMemo, useState } from 'react';
 import { ui, uiFormat, useUiLanguage, errorMessage } from '../i18n.js';
 import { formatNumber } from '../format.js';
-import { useStudy } from '../study-context.jsx';
+import { useStudy, useStudyBusy } from '../study-context.jsx';
 import { useInjectCss } from '../shared.js';
 import { useLiveEffect } from '../use-async.js';
 import { AppContext } from '../app/app-context.js';
@@ -11,6 +11,7 @@ import ModelSetupGate from '../ModelSetupGate.jsx';
 import { ModelSettingsContext } from '../ModelErrorNote.jsx';
 import { HandOff } from '../hand-off/HandOff.jsx';
 import { countMaterials, groupSourcesByDocument } from '../../lib/source-groups.js';
+import { courseScope } from '../../lib/course-tree.js';
 import { Badge, Button, Checkbox, Chip, Dialog, Field, InlineMessage, SegmentedControl, Select, TextArea, TextInput } from '../components/index.js';
 import css from './companions.css';
 
@@ -50,6 +51,7 @@ function resolveEstimateTokens(est) {
 export default function CompanionBuildDialog({ modal, onClose }) {
   useInjectCss(css, 'study-companions');
   const { call, act, notify } = useStudy();
+  const studyBusy = useStudyBusy();
   const app = useContext(AppContext);
   const fromModelContext = useContext(ModelSettingsContext);
   const data = app?.data;
@@ -81,16 +83,26 @@ export default function CompanionBuildDialog({ modal, onClose }) {
     const docs = groupSourcesByDocument(raw, { documents: data?.documents }).filter(doc => !doc.archived && doc.sourceIds.length > 0);
     const trimmed = course.trim();
     if (!trimmed) return docs.slice(0, 60);
-    return docs.filter(doc => Array.isArray(doc.courses) && doc.courses.some(c => String(c).trim() === trimmed)).slice(0, 60);
-  }, [course, data?.documents, data?.sources]);
+    const within = courseScope(trimmed, knownCourses);
+    return docs.filter(doc => Array.isArray(doc.courses) && doc.courses.some(c => within(String(c).trim()))).slice(0, 60);
+  }, [course, data?.documents, data?.sources, knownCourses]);
+
+  const courseSourceIdSet = useMemo(
+    () => new Set(courseDocuments.flatMap(doc => doc.sourceIds)),
+    [courseDocuments],
+  );
+  const effectiveSourceIds = useMemo(
+    () => [...selectedSources].filter(id => courseSourceIdSet.has(id)),
+    [selectedSources, courseSourceIdSet],
+  );
 
   const selectedDocumentCount = useMemo(
-    () => countMaterials(data?.sources, [...selectedSources]),
-    [data?.sources, selectedSources],
+    () => countMaterials(data?.sources, effectiveSourceIds),
+    [data?.sources, effectiveSourceIds],
   );
 
   useLiveEffect(isLive => {
-    if (tab !== 'build' || !course.trim() || (!topic.trim() && !selectedSources.size)) {
+    if (tab !== 'build' || !course.trim() || (!topic.trim() && !effectiveSourceIds.length)) {
       setEstimate(null);
       return undefined;
     }
@@ -98,7 +110,7 @@ export default function CompanionBuildDialog({ modal, onClose }) {
       call('generation.companion.build', {
         course: course.trim(),
         topic: topic.trim(),
-        sourceIds: [...selectedSources],
+        sourceIds: effectiveSourceIds,
         archetype,
         mountMode,
         language,
@@ -106,7 +118,7 @@ export default function CompanionBuildDialog({ modal, onClose }) {
       }).then(res => { if (isLive()) setEstimate(res); }).catch(() => { if (isLive()) setEstimate(null); });
     }, 260);
     return () => { clearTimeout(timer); };
-  }, [archetype, call, course, language, mountMode, selectedSources, tab, topic]);
+  }, [archetype, call, course, effectiveSourceIds, language, mountMode, tab, topic]);
 
   const toggleSourceGroup = useCallback((ids, checked) => {
     setSelectedSources(prev => {
@@ -121,17 +133,21 @@ export default function CompanionBuildDialog({ modal, onClose }) {
   const handleBuild = useCallback(async () => {
     setError('');
     if (!course.trim()) { setError(ui('请填写或选择所属课程名称（可新建任意学科课程，如微积分、西方哲学、机械原理）。')); return; }
-    if (!topic.trim() && !selectedSources.size) { setError(ui('请输入想要讲透的主题/困惑，或勾选至少一份参考资料。')); return; }
+    if (!topic.trim() && !effectiveSourceIds.length) { setError(ui('请输入想要讲透的主题/困惑，或勾选至少一份参考资料。')); return; }
     setSubmitting(true);
     try {
       const res = await act('generation.companion.build', {
         course: course.trim(),
         topic: topic.trim(),
-        sourceIds: [...selectedSources],
+        sourceIds: effectiveSourceIds,
         archetype,
         mountMode,
         language,
       }, undefined, { rethrow: true });
+      if (res === undefined) {
+        setError(ui('上一个操作还没结束，请稍后再试。'));
+        return;
+      }
       notify({
         text: res?.alreadyRunning
           ? ui('相同的交互伴学课任务已在后台运行中。')
@@ -145,7 +161,7 @@ export default function CompanionBuildDialog({ modal, onClose }) {
     } finally {
       setSubmitting(false);
     }
-  }, [act, app?.nav, archetype, course, language, mountMode, notify, onClose, selectedSources, topic]);
+  }, [act, app?.nav, archetype, course, effectiveSourceIds, language, mountMode, notify, onClose, topic]);
 
   const handleAttach = useCallback(async () => {
     setError('');
@@ -159,6 +175,10 @@ export default function CompanionBuildDialog({ modal, onClose }) {
         mountMode,
         allowRememberTrusted: true,
       }, undefined, { rethrow: true });
+      if (res === undefined) {
+        setError(ui('上一个操作还没结束，请稍后再试。'));
+        return;
+      }
       if (res?.kind === 'directory') {
         notify({
           text: uiFormat('已挂载目录伴学包：新增 {0} 节、更新 {1} 节，关联 {2} 道现有题、补充 {3} 道新题。', [res.attached, res.updated, res.cardsLinked, res.cardsAdded]),
@@ -226,22 +246,23 @@ export default function CompanionBuildDialog({ modal, onClose }) {
       size="md"
       title={ui('交互伴学（生成跨学科伴学页 / 挂载伴学包）')}
       description={ui('同一套逐句舞台引擎支持数学、哲学、机械、计算机等任意学科：既可自由生成独立自包含 HTML 材料，也可一键挂载本地 Lab 目录。')}
+      busy={submitting}
       onClose={onClose}
       footer={(
         <div className="sh-comp-foot">
           <div>
             {tab === 'build' && (
-              <Badge tone={selectedSources.size > 0 ? 'success' : 'neutral'}>
-                {selectedSources.size > 0 ? ui('严格锚定已选讲义原文') : ui('自由命题生成 · 诚实标注 AI 推演')}
+              <Badge tone={effectiveSourceIds.length > 0 ? 'success' : 'neutral'}>
+                {effectiveSourceIds.length > 0 ? ui('严格锚定已选讲义原文') : ui('自由命题生成 · 诚实标注 AI 推演')}
               </Badge>
             )}
           </div>
           <div className="sh-comp-foot__actions">
-            <Button variant="quiet" onClick={onClose}>{ui('取消')}</Button>
+            <Button variant="quiet" lock={submitting} onClick={onClose}>{ui('取消')}</Button>
             {tab === 'build' ? (
-              <Button variant="primary" busy={submitting} disabled={!model.ready} onClick={handleBuild}>{ui('开始生成 HTML 伴学课')}</Button>
+              <Button variant="primary" busy={submitting} lock={studyBusy} disabled={!model.ready} onClick={handleBuild}>{ui('开始生成 HTML 伴学课')}</Button>
             ) : (
-              <Button variant="primary" busy={submitting} onClick={handleAttach}>{ui('立即挂载')}</Button>
+              <Button variant="primary" busy={submitting} lock={studyBusy} onClick={handleAttach}>{ui('立即挂载')}</Button>
             )}
           </div>
         </div>

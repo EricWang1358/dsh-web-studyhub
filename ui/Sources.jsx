@@ -40,6 +40,7 @@ import { chapterLabel, documentNotes, documentSearchText, inScope, relationNote,
 import { materialRelations } from '../lib/source-relations.js';
 import { compareMaterialReview, pickPracticeRefs, reviewUrgencyOf } from '../lib/contexts/materials/material-practice.js';
 import { dropRequest, pinnedKeys, splitPinned, stepRequest } from '../lib/material-pins.js';
+import { JOB_STATUS } from '../lib/job-status.js';
 import { MasteryLine } from './document-preview/practice/MasteryMark.jsx';
 import { CoverageChip } from './coverage/Coverage.jsx';
 import DocumentTopUp, { offersDocumentTopUp } from './coverage/DocumentTopUp.jsx';
@@ -610,13 +611,17 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     });
   };
   const isOpen = group => narrowing || !closed.has(group.key);
-  // A new import reopens its group even if the learner had closed it.
+  // A new import reopens its group even if the learner had closed it (waiting until filter relaxation exposes it).
+  const reopenedFor = useRef(0);
   useEffect(() => {
-    if (!highlight?.at) return;
+    if (!highlight?.at || reopenedFor.current === highlight.at) return;
     const reopen = new Set(groups.filter(group => group.rows.some(item => fresh.has(item.key))).map(group => group.key));
     if (pinned.some(item => fresh.has(item.key))) reopen.add(PINNED);
-    if (reopen.size) updateClosed(current => new Set([...current].filter(key => !reopen.has(key))));
-  }, [highlight?.at]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (reopen.size) {
+      reopenedFor.current = highlight.at;
+      updateClosed(current => new Set([...current].filter(key => !reopen.has(key))));
+    }
+  }, [highlight?.at, groups, pinned, fresh]); // eslint-disable-line react-hooks/exhaustive-deps
   // Dismiss any open row 更多 menu on outside pointerdown or Escape while keeping <details class="source-row-actions"> intact.
   useEffect(() => {
     const root = pageRef.current;
@@ -641,15 +646,20 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
       document.removeEventListener('keydown', onKeyDown);
     };
   }, []);
-  /* A material that was just imported must be on the page the import lands on. The page is filtered by course, and the new material may belong to another one
-     (or to none): then the page shows all courses, once per import, instead of hiding what the learner just added. */
+  /* A material that was just imported must be on the page the import lands on. The page may be filtered by course, archive view,
+     search query, review-only toggle, or facets: relax only the filters that hide what the learner just added, once per import. */
   const widened = useRef(0);
   useEffect(() => {
     if (!highlight?.at || widened.current === highlight.at || !highlight.ids?.length) return;
     const landed = allItems.filter(item => item.sourceIds.some(id => highlight.ids.includes(id)));
     if (!landed.length) return;
     widened.current = highlight.at;
+    if (showArchived && landed.some(item => !item.archived)) setShowArchived(false);
     if (landed.some(item => !inScope(item, scope, known))) setScope('*');
+    if (reviewOnly && landed.some(item => !reviewUrgencyOf(data.materialMastery?.[item.key]?.document).hasUrgent)) setReviewOnly(false);
+    if (query.trim() && landed.some(item => !filterItems([item], query, searchMatch).length)) setQuery('');
+    if (typeScope !== ALL_FACET && landed.some(item => !filterMaterialsByFacets([item], { typeScope, categoryScope: ALL_FACET, materialFolders, sourceFlags }).length)) setTypeScope(ALL_FACET);
+    if (categoryScope !== ALL_FACET && landed.some(item => !filterMaterialsByFacets([item], { typeScope: ALL_FACET, categoryScope, materialFolders, sourceFlags }).length)) setCategoryScope(ALL_FACET);
   }, [highlight?.at, allItems]); // eslint-disable-line react-hooks/exhaustive-deps
   const snapshotOrganizeJob = useMemo(
     () => (Array.isArray(data.jobs) ? data.jobs.find(job => job?.type === 'material-organize' && LIVE_MATERIAL_JOB_STATUSES.has(job?.contract?.status || job?.status)) || null : null),
@@ -673,6 +683,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const [selected, setSelected] = useState([]);
   const [courseText, setCourseText] = useState(''), [proposals, setProposals] = useState(null);
   const [organizeStartingCount, setOrganizeStartingCount] = useState(0);
+  const [organizeStopping, setOrganizeStopping] = useState(false);
   const [organizeError, setOrganizeError] = useState('');
   const [organizeEditRev, setOrganizeEditRev] = useState(0);
   const prevOrganizeSignal = useRef({ jobId: activeOrganizeJob?.id || '', pendingKey: pendingOrganizeKey });
@@ -765,15 +776,20 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
       setOrganizeStartingCount(0);
     }
   };
+  const organizeCancelling = Boolean(activeOrganizeJob && (activeOrganizeJob.contract?.status || activeOrganizeJob.status) === JOB_STATUS.CANCELLING);
   const stopOrganizeJob = async () => {
-    setOrganizeStartingCount(0);
-    setOptimisticOrganizeJob(null);
-    if (!activeOrganizeJob?.id) return;
+    if (organizeStopping || organizeCancelling || !activeOrganizeJob?.id) return;
+    setOrganizeStopping(true);
+    setOrganizeError('');
     try {
       await call('job.control', { jobId: activeOrganizeJob.id, action: 'cancel' });
+      setOrganizeStartingCount(0);
+      setOptimisticOrganizeJob(null);
       await Promise.resolve(refresh?.()).catch(() => {});
     } catch (err) {
       setOrganizeError(errorMessage(err));
+    } finally {
+      setOrganizeStopping(false);
     }
   };
   const toggleProposalInclude = (proposalId, include) => {
@@ -1136,7 +1152,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
                     <Button size="sm" variant="quiet" iconEnd="arrow-right" data-open-organize-task
                       onClick={() => showTask(activeOrganizeJob.id)}>{ui('查看任务')}</Button>
                   )}
-                  <Button size="sm" variant="quiet" lock={busy} data-stop-organize onClick={stopOrganizeJob}>{ui('停止')}</Button>
+                  <Button size="sm" variant="quiet" busy={organizeStopping || organizeCancelling} busyLabel={ui('正在停止…')} disabled={!activeOrganizeJob?.id || organizeStopping || organizeCancelling} lock={busy} data-stop-organize onClick={stopOrganizeJob}>{ui('停止')}</Button>
                 </div>
               </div>
               <ProgressBar size="sm" value={organizeDone} max={Math.max(organizeTotal, 1)} indeterminate={organizeDone === 0} label={ui('课程归属整理进度')} />
@@ -1145,7 +1161,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           {organizeError && (
             <InlineMessage tone="error" className="source-organize-error">
               <span>{organizeError}</span>{' '}
-              <Button size="sm" variant="link" onClick={dismissOrganizeProposals}>{ui('关闭')}</Button>
+              <Button size="sm" variant="link" onClick={() => setOrganizeError('')}>{ui('关闭')}</Button>
             </InlineMessage>
           )}
           {!showArchived && <div className="source-folder-actions">

@@ -173,10 +173,10 @@ function CopyAddress({ address }) {
   );
 }
 
-function GuidedUpgrade({ update, host, address = update.assetUrl || update.url }) {
+function GuidedUpgrade({ update, host, address = update.assetUrl || update.url, onBusyChange }) {
   // A host that is not DSH upgrades its own way (ui/host-parts.js).
   const Own = hostPart('UpgradeGuide');
-  if (Own) return <Own update={update} host={host} />;
+  if (Own) return <Own update={update} host={host} onBusyChange={onBusyChange} />;
   return (
     <section className="update-guided" aria-label={ui('手动升级')}>
       <p className="update-lead">{ui('DSH 插件不会自动更新。按下面 4 步换成新版本，学习库和设置都会保留：')}</p>
@@ -230,10 +230,12 @@ export function UpdateDialog({ update, onClose, initialPhase = null }) {
     phase = { phase: 'installed', version: update.pendingRestart, restartRequired: true, desktop: !!update.install?.desktop };
   }
   const [guided, setGuided] = useState(false), [checking, setChecking] = useState(false), [checkError, setCheckError] = useState('');
+  const [hostWorking, setHostWorking] = useState(false);
   // A restart that did not take effect: the install can be done again only when a release newer than this copy is known.
   const stuck = update.restartFailed || null;
   const inApp = update.install?.available === true && !guided && !!update.assetUrl && (!stuck || available);
   const working = phase.phase === 'working';
+  const busy = working || hostWorking;
   const notes = selectReleaseNotes(update.notes, language);
   async function upgrade(confirmJobs = false) {
     setPhase({ phase: 'working' });
@@ -266,15 +268,15 @@ export function UpdateDialog({ update, onClose, initialPhase = null }) {
     <div className="update-footer">
       <a className="update-release-link" href={update.url} target="_blank" rel="noreferrer">{ui('查看发布页')}<Icon className="sh-icon--inline" name="external" /></a>
       <span className="update-footer__actions">
-        {phase.phase !== 'installed' && !stuck && <Button variant="quiet" lock={working} onClick={later}>{ui('稍后提醒')}</Button>}
+        {phase.phase !== 'installed' && !stuck && <Button variant="quiet" lock={busy} onClick={later}>{ui('稍后提醒')}</Button>}
         {primary}
       </span>
     </div>
   );
   return (
-    <Dialog title={phase.phase === 'installed' ? uiFormat('StudyHub {0} 等待重启', [phase.version]) : stuck ? uiFormat('StudyHub {0} 没有生效', [stuck.pending]) : uiFormat('StudyHub {0} 可以升级了', [update.latest])} description={description} size="md" onClose={onClose} footer={footer}
+    <Dialog title={phase.phase === 'installed' ? uiFormat('StudyHub {0} 等待重启', [phase.version]) : stuck ? uiFormat('StudyHub {0} 没有生效', [stuck.pending]) : uiFormat('StudyHub {0} 可以升级了', [update.latest])} description={description} size="md" busy={busy} onClose={onClose} footer={footer}
       className="update-dialog" bodyLabel={ui('升级说明')}>
-      {phase.phase === 'installed' ? <><Installed phase={phase} host={host} onGuided={guided ? undefined : () => setGuided(true)} />{guided && <GuidedUpgrade update={update} host={host} />}</> : <>
+      {phase.phase === 'installed' ? <><Installed phase={phase} host={host} onGuided={guided ? undefined : () => setGuided(true)} />{guided && <GuidedUpgrade update={update} host={host} onBusyChange={setHostWorking} />}</> : <>
         {stuck && <InlineMessage tone="warning" boxed actionsBelow className="update-stuck" action={inApp ? { label: ui('改用手动升级'), onClick: () => { setGuided(true); setPhase({ phase: 'idle' }); } } : undefined}>
           <p>{uiFormat('现在运行的是 {0}。{1} 安装过 {2}，之后 DSH 重新启动过，运行的仍是 {0}。', [stuck.running, formatDateTime(stuck.installedAt), stuck.pending])}</p>
           <p>{ui('可能的原因：升级装进了这台电脑上的另一份 StudyHub（另一个配置），这一份还是旧的；或者新版本的文件没有真正换上。')}</p>
@@ -296,7 +298,7 @@ export function UpdateDialog({ update, onClose, initialPhase = null }) {
         </InlineMessage>}
         {phase.phase === 'error' && <InlineMessage tone="error" boxed title={ui('这次没有升级成功')}
           action={{ label: ui('改用手动升级'), onClick: () => { setGuided(true); setPhase({ phase: 'idle' }); } }}>{phase.message || failureMessage(phase.code, phase)}</InlineMessage>}
-        {!inApp && <GuidedUpgrade update={update} host={host} address={stuck && !available ? stuck.assetUrl || update.url : undefined} />}
+        {!inApp && <GuidedUpgrade update={update} host={host} address={stuck && !available ? stuck.assetUrl || update.url : undefined} onBusyChange={setHostWorking} />}
       </>}
     </Dialog>
   );
