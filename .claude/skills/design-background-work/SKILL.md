@@ -1,6 +1,6 @@
 ---
 name: design-background-work
-description: "Asks the questions this repo's history raises for work that runs in steps or in the background (model calls, generation, import, indexing): the shared task surface, failure kinds, timeouts, leftover state, duplicates after restart, parallel units and cost on the common path. Use before adding or changing a job, pipeline step, model call or retry."
+description: "Load before you add or change work that runs in steps or in the background: a job, pipeline step, model call, retry, timeout, import, indexing or generation run (后台任务、重试、超时、生成、导入、索引). Its questions come from this repo's own PRs and issues and are in the skill body, not in this description: read it before you answer."
 ---
 
 # Design work that runs in steps or in the background

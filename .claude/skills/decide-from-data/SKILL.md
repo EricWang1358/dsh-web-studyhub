@@ -1,6 +1,6 @@
 ---
 name: decide-from-data
-description: "Asks the questions this repo's history raises when code decides, classifies or rewrites: a status, grade, schedule or order; a rule, regex, filter or handler that picks which inputs it applies to; a migration, re-import or bulk edit. Which signals bear on it, which inputs it wrongly catches or misses, and what brings the old state back. Use before writing any of these."
+description: "Load before you write, change or fix code that decides, classifies or rewrites: a status, grade, mastery or schedule; a rule, regex, keyword match or filter, above all one that catches too much or too little; a migration or bulk edit (判定、掌握度、匹配、关键词、误判、迁移). Its questions come from this repo's own PRs and issues and are in the skill body, not in this description: read it before you answer."
 ---
 
 # Compute a decision, classify input or rewrite stored data

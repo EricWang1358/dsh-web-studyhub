@@ -19,14 +19,16 @@
 
 The description is in context in every session, so it is the most expensive line in the skill.
 
-- Sentence one names what this skill does that a sibling would not, with the word a prompt would use first.
-- Then one trigger per genuinely distinct situation, in "Use when …" form, written as an observable work state ("before opening a PR", "after a fix touches one of several paths").
+- Open with "Load before you …" and the moment, written as an observable work state ("before opening a PR", "before you change what a screen shows"), with the word a prompt would use first.
+- List the distinct situations that are that moment, as concrete nouns (a retry, a toast, a regex), not as the topics the questions cover.
 - Add Chinese trigger words only where the owner actually uses them.
-- Do not summarise the workflow in the description: an agent that reads a workflow there follows it instead of reading the skill.
+- End by saying the questions are in the body, not in the description, and must be read before answering.
+- Do not summarise the questions or the workflow in the description: an agent that reads the gist there applies it from memory and never loads the body. Measured 2026-11-25: topic-summary descriptions were cited but not loaded in 6 of 12 should-fire cases; trigger-only rewrites loaded in 7 of those 8 misses.
 - Add "Not for …" only when the same words would fire a sibling skill.
 
-Good: "Asks the declare-done questions drawn from this repo's history before a change is called finished. Use before opening a PR, before telling the owner a fix works, or when a UI change is about to be reported as done."
+Good: "Load before you call a change finished, even when the tests pass: before opening a PR, telling the owner a fix works, a release, or handing work to agents (开 PR、可以了吗、修好了吗、发布、交给代理). Its questions … are in the skill body, not in this description: read it before you answer."
 Bad: "Helps with code quality and best practices." (no mechanism, no observable trigger)
+Bad: "Asks whether you checked other paths, real environments and old data before a change is called finished." (the gist is enough to answer from, so the body is skipped)
 
 ## The body of a decision-moment skill
 

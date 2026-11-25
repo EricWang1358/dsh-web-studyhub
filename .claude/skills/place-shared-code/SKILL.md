@@ -1,6 +1,6 @@
 ---
 name: place-shared-code
-description: "Asks the questions this repo's history raises when code is added that another part could own or reuse: is there already one owner for this component, fact, list or rule; is a shared primitive shaped for one case; is a written rule enforced by a check. Use before adding a component, constant, list, rule, guard or helper, or copying code from a sibling feature."
+description: "Load before you add or copy code that something else may already own: a component, constant, limit, option list, rule, guard or helper, or code copied from a sibling page or feature (复用、复制一份、常量放哪、组件). Its questions come from this repo's own PRs and issues and are in the skill body, not in this description: read it before you answer."
 ---
 
 # Decide who owns new code

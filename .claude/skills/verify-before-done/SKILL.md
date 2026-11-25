@@ -1,6 +1,6 @@
 ---
 name: verify-before-done
-description: "Asks the declare-done questions this repo's history raises before a change is called finished: every path carries the fix, checks match its reach, behaviour seen in the real host on real inputs, no orphans, formats safe across releases, work on the branch users get. Use before opening a PR, telling the owner a fix works, a release, or handing work to agents."
+description: "Load before you call a change finished, even when the tests pass: before opening a PR, telling the owner a fix works, a release, or handing work to agents (开 PR、可以了吗、修好了吗、发布、交给代理). Its questions come from this repo's own PRs and issues and are in the skill body, not in this description: read it before you answer."
 ---
 
 # Declare done, ship or hand off

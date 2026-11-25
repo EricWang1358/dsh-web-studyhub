@@ -1,6 +1,6 @@
 ---
 name: design-user-flow
-description: "Asks the questions this repo's history raises when a user journey is designed or changed: where the feature is found, how long the main path gets, whether the job is covered from start to end, which unit it acts on, what stays in view, and the order things come in. Use before adding or changing an entry point, a multi-step flow, a default, or a feature proposal (方案、新功能、流程)."
+description: "Load before you design or change how a user reaches and moves through a feature: a new entry point or where a button goes, a multi-step flow, a default value, first-run steps, or any feature proposal (方案、入口、流程、几步、默认、新功能). Its questions come from this repo's own PRs and issues and are in the skill body, not in this description: read it before you answer."
 ---
 
 # Design the user's path

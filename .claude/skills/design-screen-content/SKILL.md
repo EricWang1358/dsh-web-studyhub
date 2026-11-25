@@ -1,6 +1,6 @@
 ---
 name: design-screen-content
-description: "Asks the questions this repo's history raises about what one screen shows: messages that are true and complete, information explained for every input, content that arrives late, empty states, controls shown only when valid, facts repeated per row, and parts that must line up. Use before changing UI layout, wording, a status, warning or toast, a list row, or a loading or empty state (界面、文案、提示)."
+description: "Load before you change what a screen shows: a message, toast, warning, status or label; a list row; a loading, empty or failed state; which controls appear; parts that must line up (界面、文案、提示、状态、空状态、加载中). Its questions come from this repo's own PRs and issues and are in the skill body, not in this description: read it before you answer."
 ---
 
 # Design what one screen shows
