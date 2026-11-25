@@ -27,8 +27,11 @@ async function verifyWritableDirectory(dirPath) {
   const target = resolve(dirPath);
   await mkdir(target, { recursive: true });
   const probe = join(target, `.studyhub-write-check-${randomUUID()}.tmp`);
-  await writeFile(probe, 'ok', 'utf8');
-  await rm(probe, { force: true });
+  try {
+    await writeFile(probe, 'ok', 'utf8');
+  } finally {
+    await rm(probe, { force: true }).catch(() => {});
+  }
   return target;
 }
 
@@ -54,8 +57,8 @@ async function atomicWriteJson(filePath, data) {
   const target = resolve(filePath);
   await mkdir(resolve(target, '..'), { recursive: true });
   const temp = `${target}.${randomUUID()}.tmp`;
-  await writeFile(temp, `${JSON.stringify(data, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
   try {
+    await writeFile(temp, `${JSON.stringify(data, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
     await renameWithRetry(temp, target);
   } catch (error) {
     await rm(temp, { force: true }).catch(() => {});

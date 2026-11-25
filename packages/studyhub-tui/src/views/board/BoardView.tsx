@@ -23,6 +23,7 @@ import {
   adjacentColumn,
   BOARD_COLUMNS,
   boardFilePath,
+  boardSaveFailureNotice,
   cardsInColumn,
   createBoardSaveCoordinator,
   dueStatus,
@@ -323,7 +324,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         },
         (err) => {
           if (mountedRef.current) {
-            notify(err instanceof Error ? err.message : t(lang, '保存看板失败', 'Failed to save board'), 'error');
+            notify(boardSaveFailureNotice(err, lang), 'error');
           }
         },
       );
