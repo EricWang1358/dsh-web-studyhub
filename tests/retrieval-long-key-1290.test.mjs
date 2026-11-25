@@ -103,7 +103,9 @@ test('#1290: mixed library with 159-char MinerU ids migrates from v1 in one pass
 
   // 1. All 9 pages succeed with 0 failures (would previously stop after 5 consecutive ENOENTs!)
   assert.equal(summary.failed.length, 0);
-  assert.equal(summary.added, 9);
+  // The text of these pages did not change, only the key format did: they are counted as upgraded, not as added (#1291).
+  assert.equal(summary.added, 0);
+  assert.equal(summary.upgraded, 9);
   assert.equal(manifest.keyVersion, INDEX_KEY_VERSION);
   assert.equal(manifestNeedsMigration(manifest), false);
   assert.ok(store.has(`studyhub://lib/${lib}/source/${shortSource.id}`), 'short id keeps plain key');
