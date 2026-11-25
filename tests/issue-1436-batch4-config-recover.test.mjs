@@ -4,9 +4,9 @@
 // 2) Keep default refuse-to-overwrite guard on `save` / `saveLibraryRoot` / `confirmLibraryPlace` with stable `code: 'config-corrupt'` + Chinese error localization
 // 3) Provide explicit `desktop.config.recover` that backs up `.corrupt-<ts>.bak` and resets cleanly so settings/folder switching unlock
 // 4) Hide misleading DesktopLibraryPlace welcome card when `configProblem` is set and offer one-click 「备份并重置配置」
-import test from 'node:test';
+import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createConfigStore } from '../packages/studyhub-desktop/adapters/storage/config-store.mjs';
@@ -108,4 +108,66 @@ test('#1436 Item 8b: desktop-host exposes configProblem & desktop.config.recover
   assert.match(placeSrc, /configProblem/, 'DesktopLibraryPlace must check binding.configProblem');
   assert.match(setupSrc, /desktop\.config\.recover/, 'DesktopModelSetup must expose desktop.config.recover action');
   assert.match(tuiHostSrc, /save\s*\(\s*next\s*,\s*opts\s*\)/, 'TUI overlay store must forward opts to base.save');
+});
+
+// Recovery must never lose a config that is merely locked or still fine: it re-reads first, only a parse failure is "corrupt",
+// and a backup that cannot be written stops the reset.
+async function hostOver(t, prepare) {
+  const dir = mkdtempSync(join(tmpdir(), 'studyhub-1436-item8-guard-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const store = createConfigStore({ env: { DSH_HOME: dir }, home: dir, documentsDir: join(dir, 'docs') });
+  mkdirSync(dirname(store.configPath), { recursive: true });
+  prepare(store.configPath);
+  const host = await createDesktopHost({
+    configStore: store,
+    providerDiscovery: { scan: async () => [], getCached: () => [], findReadyAgyPath: () => '' },
+    ensureDir: async (p) => { mkdirSync(p, { recursive: true }); },
+    jobExecutor: { asDshJobsService: () => ({}), dispose: () => {} },
+    openExternal: async () => {},
+    openCliTerminal: async () => {},
+  });
+  t.after(() => host.dispose());
+  return { dir, store, host, backups: () => readdirSync(dirname(store.configPath)).filter((name) => name.includes('.corrupt-')) };
+}
+
+test('#1448 recover: a config that reads fine is not reset and not backed up', async (t) => {
+  const good = JSON.stringify({ mode: 'openai', libraryRoot: '', openai: { baseUrl: 'https://example.invalid/v1', model: 'm' } });
+  const { store, host, backups } = await hostOver(t, (path) => writeFileSync(path, good, 'utf8'));
+  const res = await host.call('desktop.config.recover', { uiLanguage: 'zh' });
+  assert.equal(res.ok, true);
+  assert.equal(res.value.recovered, false, 'nothing to recover');
+  assert.equal(readFileSync(store.configPath, 'utf8'), good, 'the file is untouched');
+  assert.deepEqual(backups(), []);
+});
+
+test('#1448 recover: a file that cannot be read for a reason other than its contents (a read error) is not corruption and is not reset', async (t) => {
+  // A directory where desktop.json should be: reading it fails with an I/O error, not a parse error (the portable stand-in for a locked file).
+  const { store, host, backups } = await hostOver(t, (path) => mkdirSync(path));
+  const loaded = await store.load();
+  assert.equal(loaded.configProblem, null, 'a read error is not reported as a corrupt config');
+  const res = await host.call('desktop.config.recover', { uiLanguage: 'zh' });
+  assert.equal(res.ok, false);
+  assert.equal(res.code, 'config-unreadable');
+  assert.deepEqual(backups(), [], 'no backup, no reset');
+  assert.equal(statSync(store.configPath).isDirectory(), true, 'whatever is there stays');
+  await assert.rejects(store.save({ mode: 'openai' }, { force: true }), (err) => err?.code === 'config-unreadable', 'force does not turn a read error into a reset');
+});
+
+test('#1448 recover: when the backup cannot be written the reset is aborted and the corrupt file stays as it was', async (t) => {
+  const raw = '{"mode":"openai","libraryRoot":"/somewhere/precious"';
+  const { store, host, backups } = await hostOver(t, (path) => {
+    writeFileSync(path, raw, 'utf8');
+    // The backup name carries Date.now(): with the clock fixed, a directory of that name makes the copy fail.
+    mkdirSync(`${path}.corrupt-1700000000000.bak`);
+  });
+  const clock = mock.method(Date, 'now', () => 1700000000000);
+  t.after(() => clock.mock.restore());
+  const res = await host.call('desktop.config.recover', { uiLanguage: 'zh' });
+  assert.equal(res.ok, false);
+  assert.equal(res.code, 'config-backup-failed');
+  assert.match(res.error, /备份/);
+  assert.equal(readFileSync(store.configPath, 'utf8'), raw, 'the library path and model settings are still in the file');
+  assert.equal(backups().length, 1, 'only the blocking directory is there');
+  await assert.rejects(store.save({ mode: 'openai' }, { force: true }), (err) => err?.code === 'config-backup-failed', 'a forced save stops the same way');
+  assert.equal(readFileSync(store.configPath, 'utf8'), raw);
 });

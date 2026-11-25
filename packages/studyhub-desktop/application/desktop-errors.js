@@ -3,10 +3,14 @@ import { RETRIEVAL_ERROR_MESSAGES, formatRetrievalError } from '../domain/retrie
 
 const DESKTOP_ERROR_ZH = Object.freeze({
   'config-corrupt': '配置文件 desktop.json 已损坏，为防止覆盖丢失已暂停保存；请先点击「备份并重置配置」后再保存设置或更换目录。',
+  'config-unreadable': '暂时读不了配置文件 desktop.json（可能被别的程序占用），没有改动它；请稍后再试。',
+  'config-backup-failed': '配置文件 desktop.json 备份失败，没有重置它，原文件保持原样；请检查磁盘空间和权限后再试。',
 });
 
 const DESKTOP_ERROR_EN = Object.freeze({
   'config-corrupt': 'desktop.json is corrupted and cannot be read. Back up and reset the configuration before saving settings or changing the library folder.',
+  'config-unreadable': 'desktop.json cannot be read right now (another program may be using it). It was not changed; try again in a moment.',
+  'config-backup-failed': 'desktop.json could not be backed up, so it was not reset and the original file is unchanged. Check disk space and permissions, then try again.',
   'invalid-cli': 'This local CLI cannot be opened',
   'cli-not-ready': 'This local CLI is not ready yet; select Rescan first',
   'terminal-unsupported': 'Opening a command-line window is not supported on this system yet',

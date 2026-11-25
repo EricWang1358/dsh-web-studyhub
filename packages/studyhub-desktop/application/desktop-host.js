@@ -141,7 +141,7 @@ function createConfigHandlers({ configStore, providerDiscovery, completePort, ge
       const rec = typeof configStore.recover === 'function' ? await configStore.recover() : { backupPath: '' };
       if (typeof configStore.recover !== 'function') await configStore.save({}, { force: true });
       await reloadState();
-      return { recovered: true, backupPath: rec?.backupPath || '', config: await configReply(args) };
+      return { recovered: rec?.recovered !== false, backupPath: rec?.backupPath || '', config: await configReply(args) };
     },
     'desktop.config.test': async (args) => {
       await providerDiscovery.scan({ force: false });
