@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { leaveDelayMs } from '../appearance-prefs.js';
 import { createLeaveGate, createNavigator } from './navigator.js';
 import { markPageSwitch } from '../use-session-performance.js';
+import { deckCourseOf } from '../deck-course.js';
 
 /* Which page is showing, and the one way to change it (ui/app/navigator.js). The `show*` verbs are what a learning
    target does when it arrives: they set the page's own state and the page together, so nothing else does it by hand.
@@ -51,11 +52,13 @@ export function useNavigation({ core, lib, motion, rootRef, initialPage = 'libra
   const show = useMemo(() => {
     // The page's own state is set only once the learner has agreed to leave.
     const to = (id, before) => gate.leave(id, () => { before?.(); rawSetPage(id); });
+    // Both ways onto the deck page start its course box from the deck on screen: a box left over from another deck would save that course onto this one.
+    const manage = (deck) => to('manage', () => { setManagedDeck(deck); setFolderDraft(deckCourseOf(deck)); });
     return {
       note: (id) => to('notes', () => setNoteInitialId(id)),
       skeleton: (id) => to('skeleton', () => setSkeletonFocus(id)),
-      deck: (deck) => to('manage', () => { setManagedDeck(deck); setFolderDraft(deck.folder ?? deck.course ?? ''); }),
-      managedDeck: (deck) => to('manage', () => setManagedDeck(deck)),
+      deck: manage,
+      managedDeck: manage,
       task: (jobId) => to('tasks', () => setTaskFocus({ jobId, nonce: Date.now() })),
       workflow: (sessionId) => to('workflows', () => setWorkflowReturn({ sessionId, nonce: Date.now() })),
       exam: (kind, runId) => to('exam', () => { setExamKind(kind); setExamRunId(runId); }),

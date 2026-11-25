@@ -17,6 +17,7 @@ import { deckChoices, deckEntries } from './deck-picker-entries.js';
 import { offerDeckArchived } from './archive-entries.js';
 import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget } from './companions/companion-ref.js';
 import CourseField from './CourseField.jsx';
+import { deckCourseOf } from './deck-course.js';
 
 /** The question before a merge removes the source deck: an in-app confirmation (host webviews may block the browser's own). */
 export function MergeDeckDialog({ deck, target, onConfirm, onClose }) {
@@ -61,7 +62,6 @@ export default function Manage({
   const shownCards = showing ? managedDeck.cards.filter((card) => partOf(card) === showing) : managedDeck.cards;
   const topics = [...new Set(managedDeck.cards.map((c) => c.topic || ui("未分类")))];
   const peers = decks.filter((d) => d.id !== managedDeck.id && !d.systemKind && !d.archived);
-  const deckCourseOf = (d) => d?.course ?? d?.folder ?? "";
   const deckIndex = decks.findIndex((d) => d.id === managedDeck.id);
   const siblings = decks.filter((d) => !d.systemKind && !d.archived && deckCourseOf(d) === deckCourseOf(managedDeck));
   const siblingIndex = siblings.findIndex((d) => d.id === managedDeck.id);
