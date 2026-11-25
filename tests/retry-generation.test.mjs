@@ -52,6 +52,15 @@ test('按原资料重新设置 puts the whole request back: kinds, the typed num
   assert.ok(!('requestedTotal' in patch) && !('count' in patch), 'the old patch set a `count` key the form never read');
 });
 
+test('按原资料重新设置 puts the learner level back, and a job that was asked none leaves the form without one', () => {
+  const base = { kind: 'quiz', kinds: ['quiz'], sourceIds: ['a'], coveragePlan: { level: 'standard', goal: 10, rounds: 1 } };
+  const asked = { focus: '', difficulty: 'mixed', language: '中文', notation: 'auto', referenceSourceIds: [], referenceFormat: 'balanced', coverageLevel: 'standard' };
+  const withLevel = m.retryForm({ ...base, asked: { ...asked, learnerLevel: 'zero' } }).patch;
+  assert.equal(withLevel.learnerLevel, 'zero');
+  assert.equal(m.generationRequest({ ...formOf({}), ...withLevel }, { course: '', sourceIds: ['a'] }).learnerLevel, 'zero');
+  assert.equal('learnerLevel' in m.retryForm({ ...base, asked }).patch, false);
+});
+
 test('a request that only named a level comes back as that level, and explicit empty references clear stale form references', () => {
   const { patch, lost } = m.retryForm({ kinds: ['flashcard'], kind: 'flashcard', sourceIds: ['a'], count: 30, requestedTotal: 343, coveragePlan: { level: 'standard', goal: 343, rounds: 12 },
     asked: { focus: '', difficulty: 'mixed', language: '中文', notation: 'auto', referenceSourceIds: [], referenceFormat: 'balanced', coverageLevel: 'standard' } });
