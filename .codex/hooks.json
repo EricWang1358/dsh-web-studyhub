@@ -1,0 +1,18 @@
+{
+  "description": "Puts a skill's catch questions in front of Codex before `gh pr create`, `gh release create` or `npm run release:pack`. Same script and moments as the Claude Code hook in .claude/settings.json.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/skill-moment.mjs",
+            "timeout": 10,
+            "statusMessage": "Checking for a skill moment"
+          }
+        ]
+      }
+    ]
+  }
+}

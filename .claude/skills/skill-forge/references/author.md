@@ -60,6 +60,7 @@ Match the form to the failure. A rule the agent knows but skips under pressure n
 - Before removing a line, look for what it protects: a test that asserts it, a class that cites it, a commit that added it to fix a named bug. If you find one, keep the line or move the protection elsewhere first.
 - For every "must" you remove, name what now decides. If the answer is "the model, if it remembers", keep the "must".
 - Re-run `check-skills.mjs`, then the evaluation in `evaluate.md` for any change to triggers, questions or commands.
+- Run `node .claude/skills/skill-forge/scripts/mirror-skills.mjs --write` so Codex and Antigravity see the change in `.agents/skills/`; `tests/agents-skills-mirror.test.mjs` fails until you do.
 
 ## Sources
 
