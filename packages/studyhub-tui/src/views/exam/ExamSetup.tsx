@@ -1,14 +1,15 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { resolve } from 'node:path';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useKeyScope } from '../../input/hooks.js';
 import type { StudySnapshot, UiLanguage } from '../../types/contracts.js';
 import { atomicWriteExportText, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState } from '../../components/Badge.js';
 import { Panel } from '../../components/Panel.js';
 import { SplitPane } from '../../components/SplitPane.js';
+import { LAYOUT_BP } from '../../components/layout-tokens.js';
 import { VirtualList } from '../../components/VirtualList.js';
-import { useClaimKeys } from '../../components/focus.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { t, useTuiStore } from '../../state/store.js';
 import type {
@@ -403,50 +404,51 @@ export const ExamSetup = memo(function ExamSetup({
     }
   }, [asciiMode, bindingRoot, exportRecords, lang, mode, notify, safeHistoryIdx, snapshot?.focus?.course, snapshot?.root]);
 
-  useClaimKeys(CLAIMED, isActive);
-
   const count = mode === 'oral' ? ORAL_COUNTS[oralCountIdx] : WRITTEN_COUNTS[countIdx];
   const minutes = TIME_LIMITS[limitIdx];
   const kinds = WRITTEN_KINDS[kindIdx];
 
-  useInput(
-    (input, key) => {
-      if (busy) return;
+  useKeyScope({
+    id: 'ExamSetup:main',
+    active: isActive,
+    keys: CLAIMED,
+    onKey: (input, key) => {
+      if (busy) return false;
       if (input === 'x' && !key.ctrl && !key.meta) {
         void handleExportHistory();
-        return;
+        return true;
       }
       if (key.tab || input === 'h' || input === 'l' || key.leftArrow || key.rightArrow) {
         if (input === 'h' || key.leftArrow) setPane('setup');
         else if (input === 'l' || key.rightArrow) setPane('history');
         else setPane((p) => (p === 'setup' ? 'history' : 'setup'));
-        return;
+        return true;
       }
-      if (input === '1') { setMode('written'); setScopeIdx(0); return; }
-      if (input === '2') { setMode('case'); setScopeIdx(0); return; }
-      if (input === '3') { setMode('oral'); setScopeIdx(0); return; }
+      if (input === '1') { setMode('written'); setScopeIdx(0); return true; }
+      if (input === '2') { setMode('case'); setScopeIdx(0); return true; }
+      if (input === '3') { setMode('oral'); setScopeIdx(0); return true; }
       if (input === 'R' && resumableRun && onResume) {
         onResume();
-        return;
+        return true;
       }
       if (pane === 'setup') {
         if (input === 'c') {
           if (mode === 'oral') setOralCountIdx((i) => (i + 1) % ORAL_COUNTS.length);
           else if (mode === 'written') setCountIdx((i) => (i + 1) % WRITTEN_COUNTS.length);
-          return;
+          return true;
         }
         if (input === 't' && mode === 'written') {
           setLimitIdx((i) => (i + 1) % TIME_LIMITS.length);
-          return;
+          return true;
         }
         if (input === 'k' && mode === 'written') {
           setKindIdx((i) => (i + 1) % WRITTEN_KINDS.length);
-          return;
+          return true;
         }
       }
+      return false;
     },
-    { isActive },
-  );
+  });
 
   const modeLabel = (m: ExamMode) =>
     m === 'written'
@@ -650,7 +652,7 @@ export const ExamSetup = memo(function ExamSetup({
       leftWidth={0.56}
       minLeft={36}
       minRight={28}
-      breakpoint={88}
+      breakpoint={LAYOUT_BP.NARROW}
       activePane={pane === 'setup' ? 'left' : 'right'}
       leftLabel={t(lang, '组卷', 'Setup')}
       rightLabel={t(lang, '历史考卷', 'History')}

@@ -1,6 +1,8 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isAbsolute, resolve } from 'node:path';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme, type Tone } from '../../theme/tokens.js';
@@ -217,7 +219,7 @@ export const MinerUModal = memo(function MinerUModal({
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const ell = asciiMode ? '...' : '…';
   const notify = useTuiStore((s) => s.notify);
-  const { columns, rows: termRows } = useWindowSize();
+  const { columns, rows: termRows } = useStableWindowSize();
 
   const mountedRef = useRef(true);
   const busyRef = useRef(false);
@@ -379,7 +381,7 @@ export const MinerUModal = memo(function MinerUModal({
       busyRef.current = false;
       if (mountedRef.current) setBusy(false);
     }
-  }, [filePath, host, lang]);
+  }, [ell, filePath, host, lang]);
 
   const submitConvert = useCallback(async () => {
     if (busyRef.current || !planResult) return;
@@ -428,7 +430,7 @@ export const MinerUModal = memo(function MinerUModal({
       busyRef.current = false;
       if (mountedRef.current) setBusy(false);
     }
-  }, [courseInput, host, lang, loadHistory, notify, onQueued, planResult]);
+  }, [courseInput, ell, host, lang, loadHistory, notify, onQueued, planResult]);
 
   const selectedRecord = historyRecords[selectedHistoryIdx];
 
@@ -474,7 +476,7 @@ export const MinerUModal = memo(function MinerUModal({
       busyRef.current = false;
       if (mountedRef.current) setBusy(false);
     }
-  }, [host, lang, loadHistory, notify, onQueued, selectedRecord]);
+  }, [ell, host, lang, loadHistory, notify, onQueued, selectedRecord]);
 
   const isTypingField = tab === 'plan' && !queuedResult && (focusField === 'path' || focusField === 'course');
 

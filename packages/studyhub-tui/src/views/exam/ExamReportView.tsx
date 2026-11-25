@@ -1,13 +1,14 @@
 import React, { memo, useMemo, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useKeyScope } from '../../input/hooks.js';
 import type { UiLanguage } from '../../types/contracts.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState } from '../../components/Badge.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Panel } from '../../components/Panel.js';
 import { SplitPane } from '../../components/SplitPane.js';
+import { LAYOUT_BP } from '../../components/layout-tokens.js';
 import { VirtualList } from '../../components/VirtualList.js';
-import { useClaimKeys } from '../../components/focus.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { renderBarChart, renderStatTable } from '../../render/charts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -79,8 +80,6 @@ export const ExamReportView = memo(function ExamReportView({
   const [pane, setPane] = useState<'list' | 'detail'>('list');
   const [selectedIdx, setSelectedIdx] = useState(0);
 
-  useClaimKeys(CLAIMED, isActive);
-
   const isCaseReport = state.kind === 'written' && Boolean(state.report.case);
 
   const writtenItems: ReportItem[] = useMemo(() => {
@@ -90,9 +89,14 @@ export const ExamReportView = memo(function ExamReportView({
     return [...wrong, ...skipped];
   }, [state]);
 
-  const caseQuestions: CaseQuestionReport[] =
-    state.kind === 'written' && state.report.case ? state.report.case.questions : [];
-  const oralEntries = state.kind === 'oral' ? state.report.entries : [];
+  const caseQuestions: CaseQuestionReport[] = useMemo(
+    () => (state.kind === 'written' && state.report.case ? state.report.case.questions : []),
+    [state],
+  );
+  const oralEntries = useMemo(
+    () => (state.kind === 'oral' ? state.report.entries : []),
+    [state],
+  );
 
   const totalList = isCaseReport
     ? caseQuestions.length
@@ -107,25 +111,29 @@ export const ExamReportView = memo(function ExamReportView({
     [state, lang],
   );
 
-  useInput(
-    (input, key) => {
-      if (busy) return;
+  useKeyScope({
+    id: 'ExamReportView:main',
+    active: isActive,
+    keys: CLAIMED,
+    onKey: (input, key) => {
+      if (busy) return false;
       if (input === 'b' || key.escape) {
         onBack();
-        return;
+        return true;
       }
       if ((input === 'w' || input === 'p') && weakScope.length > 0) {
         onPracticeWeak(weakScope);
-        return;
+        return true;
       }
       if (key.tab || input === 'h' || input === 'l' || key.leftArrow || key.rightArrow) {
         if (input === 'h' || key.leftArrow) setPane('list');
         else if (input === 'l' || key.rightArrow) setPane('detail');
         else setPane((p) => (p === 'list' ? 'detail' : 'list'));
+        return true;
       }
+      return false;
     },
-    { isActive },
-  );
+  });
 
   const detailMarkdown = useMemo(() => {
     if (state.kind === 'written') {
@@ -501,7 +509,7 @@ export const ExamReportView = memo(function ExamReportView({
       leftWidth={0.48}
       minLeft={32}
       minRight={30}
-      breakpoint={86}
+      breakpoint={LAYOUT_BP.SPLIT_DEFAULT}
       activePane={pane === 'list' ? 'left' : 'right'}
       leftLabel={t(lang, '成绩概览', 'Summary')}
       rightLabel={t(lang, '题目解析', 'Detail')}

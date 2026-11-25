@@ -1,3 +1,4 @@
+import { buildUnifiedAiSystemPrompt } from '../../host/ai-dialogue.js';
 import type { ReviewRun } from '../../host/sample-actions.js';
 import type { UiLanguage } from '../../types/contracts.js';
 import { t } from '../../state/store.js';
@@ -506,36 +507,155 @@ export function buildDailyQuestionNoteTitle(
   return course ? `${day} · ${course} · 学习笔记` : `学习笔记 · ${day}`;
 }
 
-export function buildCardHelpSystemPrompt(lang: UiLanguage): string {
-  return lang === 'en'
-    ? 'You are a concise, insightful study tutor inside a terminal flashcard/quiz app. Explain concepts clearly using structured bullet points and standard Markdown/LaTeX math ($...$ or $$...$$). Focus on why the answer is right, why common traps are wrong, and intuitive mental models.'
-    : '你是终端学习助手里的专业助教。请用简洁清晰的中文（支持 Markdown 与 LaTeX 数学公式 $...$ / $$...$$）为学生讲解当前题目：点明核心概念、解题思路、易错点辨析与直觉记忆法。';
+export function buildCardHelpSystemPrompt(lang: UiLanguage, isFollowup = false): string {
+  if (isFollowup) {
+    return lang === 'en'
+      ? 'You are a follow-up study tutor inside a terminal flashcard/quiz app. Using the prior conversation turns and card context, directly and precisely answer the learner\'s current follow-up question (resolving references like "just now", "that term", or "the previous step") without re-explaining the entire card from scratch. Use concise Markdown and LaTeX math ($...$ or $$...$$).'
+      : '你是终端学习助手里的追问助教。请结合上方对话历史与题目上下文，直接、精准地回答学生当前这个追问（准确理解「刚才」「那个词」「上一步」等指代），不要从头复述整道题或重复已经讲过的内容。请用简洁清晰的中文（支持 Markdown 与 LaTeX 数学公式 $...$ / $$...$$）。';
+  }
+  // Non-follow-up explain prompts stay unified in host/ai-dialogue.ts (#1354 P3-a);
+  // the follow-up variant above stays the richer #1422/#1435 text from main.
+  return buildUnifiedAiSystemPrompt('explain', lang);
 }
 
-export function buildCardHelpUserPrompt(params: {
+export function buildCardHelpContext(params: {
   run: ReviewRun;
   kind: NormalizedKind;
   userAnswer: string;
-  history: readonly AiTurn[];
-  question: string;
+  sourceExcerpt?: string;
   lang: UiLanguage;
 }): string {
-  const { run, kind, userAnswer, history, question, lang } = params;
+  const { run, kind, userAnswer, sourceExcerpt, lang } = params;
   const card = (run.card || {}) as Record<string, unknown>;
   const sol = extractSolution(run);
+  const fb = extractFeedback(run);
   const lines: string[] = [];
+
   lines.push(`题目类型: ${kindLabel(kind, lang)}${card.topic ? ` | 知识点: ${String(card.topic)}` : ''}`);
   lines.push(`题干:\n${String(card.prompt || '')}`);
   const opts = resolveOptions(card, kind, lang);
   if (opts.length > 0) {
     lines.push('选项:\n' + opts.map((o, i) => `${i + 1}. ${o.text}`).join('\n'));
   }
-  if (userAnswer) lines.push(`学生作答: ${userAnswer}`);
+
+  // Learner attempt & feedback record (#1422)
+  const attemptParts: string[] = [];
+  if (userAnswer) attemptParts.push(`作答内容: ${userAnswer}`);
+  if (typeof fb?.correct === 'boolean') {
+    attemptParts.push(`本次判定: ${fb.correct ? '答对' : '答错'}`);
+  }
+  if (typeof fb?.grade === 'number') {
+    attemptParts.push(`自评/评分: ${fb.grade}/5`);
+  }
+  if (typeof fb?.assessment === 'string' && fb.assessment.trim()) {
+    attemptParts.push(`判分反馈: ${fb.assessment.trim()}`);
+  }
+  if (Array.isArray(fb?.details) && fb.details.length > 0) {
+    const wrongBlanks = fb.details.filter((d) => d && d.correct === false);
+    if (wrongBlanks.length > 0) {
+      attemptParts.push(
+        `错空: ${wrongBlanks.map((d) => `${d.id}(应为 ${d.expected ?? ''})`).join(', ')}`,
+      );
+    }
+  }
+  const lapses = typeof card.lapses === 'number' ? card.lapses : undefined;
+  const reps = typeof card.reps === 'number' ? card.reps : undefined;
+  if (lapses !== undefined && lapses > 0) {
+    attemptParts.push(
+      reps !== undefined && reps > 0
+        ? `历史记录: 复习 ${reps} 次，历史错题/遗忘 ${lapses} 次`
+        : `历史错题/遗忘 ${lapses} 次`,
+    );
+  }
+  if (attemptParts.length > 0) {
+    lines.push(`学习者作答记录:\n${attemptParts.join('\n')}`);
+  }
+
   if (run.revealed || run.feedback) {
     lines.push(`参考答案: ${extractReferenceAnswer(run, kind, lang)}`);
     if (sol?.explanation) lines.push(`原解析: ${sol.explanation}`);
     if (sol?.misconception) lines.push(`常见误区: ${sol.misconception}`);
   }
+
+  // Citations & source passage excerpt (#1422)
+  const rawCitations =
+    sol?.citations ??
+    (Array.isArray(card.citations) ? (card.citations as CardSolutionShape['citations']) : undefined);
+  const citationLines: string[] = [];
+  if (Array.isArray(rawCitations)) {
+    for (const cite of rawCitations.slice(0, 3)) {
+      if (!cite || typeof cite !== 'object') continue;
+      const headParts: string[] = [];
+      if (typeof cite.title === 'string' && cite.title.trim()) headParts.push(cite.title.trim());
+      const pg = cite.pageNumber ?? cite.page;
+      if (pg !== undefined && pg !== null && String(pg).trim() !== '') headParts.push(`P.${pg}`);
+      const quote = typeof cite.quote === 'string' ? cite.quote.trim() : '';
+      if (headParts.length > 0 || quote) {
+        citationLines.push(
+          headParts.length > 0 && quote
+            ? `- ${headParts.join(' ')}: ${quote}`
+            : headParts.length > 0
+              ? `- ${headParts.join(' ')}`
+              : `- ${quote}`,
+        );
+      }
+    }
+  }
+  if (citationLines.length > 0) {
+    lines.push(`引用出处:\n${citationLines.join('\n')}`);
+  }
+  const cleanExcerpt = typeof sourceExcerpt === 'string' ? sourceExcerpt.trim() : '';
+  if (cleanExcerpt) {
+    lines.push(`资料出处段落:\n${cleanExcerpt.slice(0, 800)}`);
+  }
+
+  return lines.join('\n\n');
+}
+
+export function buildCardHelpMessages(params: {
+  run: ReviewRun;
+  kind: NormalizedKind;
+  userAnswer: string;
+  sourceExcerpt?: string;
+  history: readonly AiTurn[];
+  question: string;
+  lang: UiLanguage;
+}): Array<{ role: 'user' | 'assistant'; content: string }> {
+  const { run, kind, userAnswer, sourceExcerpt, history, question, lang } = params;
+  const context = buildCardHelpContext({ run, kind, userAnswer, sourceExcerpt, lang });
+  const qLabel = lang === 'en' ? 'Current question' : '当前问题';
+  if (history.length === 0) {
+    return [{ role: 'user', content: `${context}\n\n${qLabel}: ${question}` }];
+  }
+  const recent = history.slice(-MAX_AI_TURNS);
+  const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+  const ctxHeader = lang === 'en' ? '[Card Context]' : '[题目与背景]';
+  if (recent[0].role === 'user') {
+    messages.push({ role: 'user', content: `${ctxHeader}\n${context}\n\n${recent[0].text}` });
+    for (let i = 1; i < recent.length; i += 1) {
+      messages.push({ role: recent[i].role, content: recent[i].text });
+    }
+  } else {
+    messages.push({ role: 'user', content: `${ctxHeader}\n${context}` });
+    for (const turn of recent) {
+      messages.push({ role: turn.role, content: turn.text });
+    }
+  }
+  messages.push({ role: 'user', content: question });
+  return messages;
+}
+
+export function buildCardHelpUserPrompt(params: {
+  run: ReviewRun;
+  kind: NormalizedKind;
+  userAnswer: string;
+  sourceExcerpt?: string;
+  history: readonly AiTurn[];
+  question: string;
+  lang: UiLanguage;
+}): string {
+  const { run, kind, userAnswer, sourceExcerpt, history, question, lang } = params;
+  const lines: string[] = [buildCardHelpContext({ run, kind, userAnswer, sourceExcerpt, lang })];
   if (history.length > 0) {
     const recent = history.slice(-MAX_AI_TURNS);
     lines.push('此前对话:');

@@ -1,6 +1,8 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { randomUUID } from 'node:crypto';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -327,7 +329,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
   onUpdated,
 }: GuidedStudyModalProps) {
   const theme = useTheme();
-  const { columns } = useWindowSize();
+  const { columns } = useStableWindowSize();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const ell = asciiMode ? '...' : '…';
@@ -402,7 +404,10 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
     return String(fallbackDeck?.course ?? '').trim();
   }, [course, selectedDeckId, snapshot?.courses, snapshot?.decks]);
 
-  const listCourseArg = scopeFilter === 'course' && resolvedCourseId ? { courseId: resolvedCourseId } : {};
+  const listCourseArg = useMemo(
+    () => (scopeFilter === 'course' && resolvedCourseId ? { courseId: resolvedCourseId } : {}),
+    [scopeFilter, resolvedCourseId],
+  );
 
   const loadSessions = useCallback(
     async (preferSessionId?: string): Promise<StudySessionRecord | null> => {
@@ -457,8 +462,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
         : null;
       return preferred;
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [host, scopeFilter, resolvedCourseId, lang],
+    [host, listCourseArg, lang],
   );
 
   useEffect(() => {
@@ -1144,7 +1148,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
       if (subMode === 'artifact-form') {
         if (key.escape) {
           handleCancelArtifactForm();
-          return;
+          return true;
         }
         if (key.tab) {
           setArtifactField((prev) => (prev === 'title' ? 'kind' : prev === 'kind' ? 'markdown' : 'title'));
@@ -1183,7 +1187,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
       if (subMode === 'qa-form') {
         if (key.escape) {
           handleCancelQaForm();
-          return;
+          return true;
         }
         if (key.tab) {
           setQaField((prev) => (prev === 'question' ? 'answer' : 'question'));
@@ -1202,14 +1206,16 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
       if (subMode === 'branch-pick') {
         if (key.escape || input === 'b') {
           setSubMode(branchReturnSubMode);
+          return true;
         }
+        // Do NOT claim other keys: the picker's SelectList sits at a lower layer and needs them.
         return;
       }
 
       if (subMode === 'artifact') {
         if (key.escape || input === 'b') {
           setSubMode('workbench');
-          return;
+          return true;
         }
         if (key.tab) {
           setSubMode('sessions');

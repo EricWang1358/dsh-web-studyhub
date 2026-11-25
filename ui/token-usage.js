@@ -177,6 +177,7 @@ export function stageLabel(id, feature) {
     // The scale of a review book's rest, from its sample (#710).
     bookPoints: ui('其余知识点（写、审阅、修复）'), exam: ui('考情（对照样卷）'), inventory: ui('清点资料'),
     kit: ui('写答题模板'), confusables: ui('写易混概念对照'),
+    classify: ui('内容分类'), taxonomy: ui('归纳主题目录'), classifyBatch: ui('分批内容分类'),
   })[id] || id;
 }
 

@@ -1,7 +1,7 @@
 import { ui, uiFormat, errorMessage } from "./i18n.js";
 import React, { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import { asksWhatTheSourceSays } from "../lib/question-voice.js";
-import { Button, Chip, Icon, InlineMessage, useToast } from "./components/index.js";
+import { Button, Chip, Icon, InlineMessage, useDismiss, useToast } from "./components/index.js";
 import { feedbackOutcome } from "./card-fix.js";
 import { useComponentCss } from "./components/css.js";
 import thumbCss from "./thumb-feedback.css";
@@ -155,6 +155,8 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
     flushPickedTags();
     setOpen(false);
   };
+  // #1275: clicking outside the tag tray closes it cleanly (Escape stays in the capture handler below so focus returns to the card).
+  useDismiss({ open, onClose: closeTray, refs: rootRef, escape: false });
   function thumb(next) {
     callbacks.current.onInteract?.();
     setVote(next);

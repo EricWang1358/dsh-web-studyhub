@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useRef } from 'react';
+import React, { memo, useMemo } from 'react';
 import { Box, Text } from 'ink';
 import { useTheme } from '../theme/tokens.js';
 import { useTuiStore } from '../state/store.js';
@@ -55,20 +55,17 @@ export const MarkdownView = memo(function MarkdownView({
   const scroll = height !== undefined;
   const renderWidth = Math.max(8, width - (scroll ? 1 : 0));
   const text = markdown || '';
-  const themeId = theme.id;
-  const themeRef = useRef(theme);
-  themeRef.current = theme;
   const lines = useMemo(
     () =>
       text
         ? renderMarkdownLines(text, {
             width: renderWidth,
-            theme: themeRef.current,
+            theme,
             mathUnicode: math,
             ascii: asciiMode,
           })
         : EMPTY_LINES,
-    [text, renderWidth, themeId, math, asciiMode],
+    [text, renderWidth, theme, math, asciiMode],
   );
 
   if (scroll) {

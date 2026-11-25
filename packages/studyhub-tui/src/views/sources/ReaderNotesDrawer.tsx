@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -8,6 +9,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { SplitPane } from '../../components/SplitPane.js';
+import { LAYOUT_BP } from '../../components/layout-tokens.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
@@ -507,9 +509,10 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
       setResolvedDocId(nextDocId);
       setResolvedRevision(nextRev);
 
-      const nextStaleAnnotCount = Array.isArray(annotRes.ok ? annotRes.value?.stale : null)
-        ? (annotRes.value?.stale as Array<{ count?: number }>).reduce((sum, s) => sum + Number(s.count ?? 0), 0)
-        : 0;
+      const staleList = annotRes.ok && Array.isArray(annotRes.value?.stale)
+        ? (annotRes.value.stale as Array<{ count?: number }>)
+        : [];
+      const nextStaleAnnotCount = staleList.reduce((sum, s) => sum + Number(s.count ?? 0), 0);
       setStaleAnnotCount(nextStaleAnnotCount);
       setAnnotations(annotItems);
       setAnnotIndex(0);
@@ -790,7 +793,7 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
             leftWidth={0.44}
             minLeft={22}
             minRight={26}
-            breakpoint={72}
+            breakpoint={LAYOUT_BP.SPLIT_MODAL}
             narrowMode="stack"
             divider
             left={({ width: lw, height: lh }) =>

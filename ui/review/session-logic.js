@@ -240,13 +240,15 @@ export function shortcutAction(event, ctx) {
 }
 
 /** What a key press inside a Cloze blank means: jump to next empty blank (or Shift+Enter to previous blank), submit when ready, or blur back to the card (Esc). Ignores IME composition. */
-export function clozeBlankKeyAction(event, { blankIds = [], currentId = '', values = {} } = {}) {
+export function clozeBlankKeyAction(event, { blankIds = [], currentId = '', values = {}, multiline = false } = {}) {
   if (!event || event.isComposing || event.keyCode === 229 || event.repeat) return null;
   if (event.key === 'Escape' && !event.ctrlKey && !event.metaKey && !event.altKey) return { type: 'blur' };
   if (event.key !== 'Enter') return null;
   const ids = Array.isArray(blankIds) ? blankIds : [];
   const filled = (id) => Boolean(BLANK(values?.[id] ?? ''));
   if (event.ctrlKey || event.metaKey) return { type: ids.some(filled) ? 'submit' : 'noop' };
+  // A multi-line blank (#1403): Enter and Shift+Enter are newlines the learner is typing, never a jump or a submit.
+  if (multiline) return null;
   if (event.shiftKey && !event.altKey) {
     if (ids.length <= 1) return { type: 'noop' };
     const cur = ids.indexOf(currentId);

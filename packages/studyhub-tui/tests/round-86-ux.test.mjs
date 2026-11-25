@@ -231,9 +231,9 @@ describe('Round 86 Track D3 — Proactive 3-wrong consecutive streak attribution
       false,
     );
 
-    // Banner wording includes count, topic, and [T]
+    // Banner wording includes count, topic, and [t] (#1408)
     const zhBanner = buildWrongStreakBanner(st.recentWrong, 'zh', true);
-    assert.match(zhBanner, /连续答错 3 题.*Matrices.*\[T\]/);
+    assert.match(zhBanner, /连续答错 3 题.*Matrices.*\[t\]/);
 
     // Correct answer resets streak
     st = recordReviewOutcome(st, { cardId: 'c4', prompt: 'Q4', correct: true, grade: 4 });
@@ -314,7 +314,7 @@ describe('Round 86 Track D3 — Proactive 3-wrong consecutive streak attribution
     await wait(30);
     tty.stdin.write('2'); // wrong #3 -> triggers attribution banner!
     const finalOut = await tty.waitFor((s) => answerCalls === 3 && s.includes('连续答错 3 题'));
-    assert.match(finalOut, /连续答错 3 题.*Limits.*\[T\]/);
+    assert.match(finalOut, /连续答错 3 题.*Limits.*\[t\]/);
     inst.unmount();
   });
 });

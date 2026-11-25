@@ -47,6 +47,7 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
   const { send } = useHandOff();
 
   const companionId = modal?.id || modal?.companionId;
+  const isPreview = Boolean(modal?.preview || companionId === 'sample-geography-sea-breeze');
   const course = modal?.course || '';
   const initialAnchor = modal?.anchor || '';
   const requestedSlide = Math.max(0, Math.floor(Number(modal?.initialSlide ?? modal?.slide) || 0));
@@ -78,15 +79,17 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
     const pending = pendingProgressRef.current;
     if (!pending) return;
     pendingProgressRef.current = null;
+    if (isPreview) return;
     const shouldRefresh = Boolean(pending.completed || Object.keys(pending.checkResults || {}).length > 0);
     Promise.resolve(callRef.current('companion.progress', pending))
       .then(res => {
         if (shouldRefresh || res?.firstPassCredited > 0) Promise.resolve(refreshRef.current?.()).catch(() => {});
       })
       .catch(() => {});
-  }, []);
+  }, [isPreview]);
 
-  const [state, setState] = useState(() => (modal?.initialState?.status === 'ready' ? modal.initialState : { status: 'loading' }));
+  const [state, setState] = useState(() => (modal?.initialState?.status === 'ready' ? modal.initialState
+    : (modal?.preview && modal?.initialState?.html ? { ...modal.initialState, status: 'ready', preview: true } : { status: 'loading' })));
   const [attempt, setAttempt] = useState(0);
   const frameDocKey = state.status === 'ready' ? `${companionId || ''}:${attempt}:${state.html?.length || 0}` : '';
   const lastFrameDocKeyRef = useRef(frameDocKey);
@@ -139,8 +142,25 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
   }, [appTheme, askLabel, channelToken, initialAnchor, requestedSlide, selectionLabel]);
 
   useLiveEffect(isLive => {
+    if (isPreview && (modal?.initialState?.status === 'ready' || modal?.initialState?.html)) {
+      const res = modal.initialState;
+      const init = bootInitRef.current;
+      const slideTotal = Math.max(1, Number(res.lesson?.slideCount || res.companion?.slideCount) || 1);
+      const targetSlide = init.requestedSlide >= 1 ? Math.min(slideTotal, init.requestedSlide) : 1;
+      const bootConfig = res.bootConfig || {
+        channelToken: init.channelToken,
+        theme: currentTheme(init.appTheme),
+        initialAnchor: init.initialAnchor || (targetSlide > 1 ? `#${targetSlide}` : ''),
+        initialSlide: targetSlide,
+        memory: {},
+        askLabel: init.askLabel,
+        selectionLabel: init.selectionLabel,
+      };
+      setState({ ...res, status: 'ready', preview: true, bootConfig });
+      return undefined;
+    }
     setState({ status: 'loading' });
-    call('companion.get', { id: companionId, ...(course ? { course } : {}) })
+    call('companion.get', { id: companionId, ...(course ? { course } : {}), ...(isPreview ? { language } : {}) })
       .then(res => {
         if (!isLive()) return;
         checkResultsRef.current = res.savedState?.checkResults || {};
@@ -174,7 +194,7 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
         if (isLive()) setState({ status: 'failed', text: errorMessage(err) || ui('暂时无法读取这份交互伴学页。') });
       });
     return () => { flushPendingProgress(); };
-  }, [call, companionId, course, attempt, flushPendingProgress]);
+  }, [call, companionId, course, attempt, flushPendingProgress, isPreview, language]);
 
   useEffect(() => {
     function onMessage(event) {
@@ -212,6 +232,7 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
         });
         setAskError('');
         if (msg.completed) setCompletedNow(true);
+        if (isPreview) return;
         const progressPayload = {
           id: companionId,
           course: state.companion?.course || course,
@@ -260,7 +281,7 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [call, companionId, course, notify, refresh, state.companion?.course, state.lesson?.slides]);
+  }, [call, companionId, course, isPreview, notify, refresh, state.companion?.course, state.lesson?.slides]);
 
   useEffect(() => {
     if (!drawerOpen || !inquiryFocusSeq) return undefined;
@@ -647,6 +668,11 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
             {modal?.returnLabel && completedNow && (
               <Badge tone="success">{ui('实验已完成')}</Badge>
             )}
+            {isPreview && (
+              <span data-companion-preview-badge="">
+                <Badge tone="info">{ui('示例预览 · 不写入学习库')}</Badge>
+              </span>
+            )}
             <div className="sh-comp-foot__nav" role="group" aria-label={ui('快速跳转伴学页')}>
               <IconButton
                 size="sm"
@@ -880,29 +906,37 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
                 </section>
               )}
 
-              <section className="sh-comp-drawer__section">
-                <h5 className="sh-comp-drawer__sub">{ui('就当前页秒问导师')}</h5>
-                <TextArea
-                  ref={questionRef}
-                  rows={3}
-                  aria-label={ui('就当前页秒问导师')}
-                  value={question}
-                  onChange={e => setQuestion(e.target.value)}
-                  placeholder={ui('写下你在这页卡壳或混淆的地方（例如：putIfAbsent 和 computeIfAbsent 到底差在哪？）')}
-                />
-                <div className="sh-comp-foot__actions">
-                  <Button size="sm" variant="primary" busy={asking} onClick={handleAskTutor}>{ui('当场讲透')}</Button>
-                  <Button size="sm" variant="secondary" onClick={handleSendMainChat}>{ui('发给主会话深挖')}</Button>
-                </div>
-                {askError && <InlineMessage tone="error">{askError}</InlineMessage>}
-                {tutorReply && (
-                  <div className="sh-comp-answer">
-                    <Markdown text={tutorReply} />
+              {isPreview ? (
+                <section className="sh-comp-drawer__section">
+                  <InlineMessage tone="info">
+                    {ui('当前为免配置只读示例预览，互动操作与自测均在内存中运行，不会写入或改动你的学习库。')}
+                  </InlineMessage>
+                </section>
+              ) : (
+                <section className="sh-comp-drawer__section">
+                  <h5 className="sh-comp-drawer__sub">{ui('就当前页秒问导师')}</h5>
+                  <TextArea
+                    ref={questionRef}
+                    rows={3}
+                    aria-label={ui('就当前页秒问导师')}
+                    value={question}
+                    onChange={e => setQuestion(e.target.value)}
+                    placeholder={ui('写下你在这页卡壳或混淆的地方（例如：putIfAbsent 和 computeIfAbsent 到底差在哪？）')}
+                  />
+                  <div className="sh-comp-foot__actions">
+                    <Button size="sm" variant="primary" busy={asking} onClick={handleAskTutor}>{ui('当场讲透')}</Button>
+                    <Button size="sm" variant="secondary" onClick={handleSendMainChat}>{ui('发给主会话深挖')}</Button>
                   </div>
-                )}
-              </section>
+                  {askError && <InlineMessage tone="error">{askError}</InlineMessage>}
+                  {tutorReply && (
+                    <div className="sh-comp-answer">
+                      <Markdown text={tutorReply} />
+                    </div>
+                  )}
+                </section>
+              )}
 
-              {Boolean(cardDraft.prompt || cardDraft.answer) && (
+              {!isPreview && Boolean(cardDraft.prompt || cardDraft.answer) && (
                 <section className="sh-comp-drawer__section">
                   <h5 className="sh-comp-drawer__sub">{ui('一键存为防混闪卡（次日复习，不打断看课）')}</h5>
                   <div className="sh-comp-catchup">

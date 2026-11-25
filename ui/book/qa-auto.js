@@ -12,6 +12,21 @@ export function seeFollowups(state, key, ids, ready) {
   return { state: fresh.length ? { key, ids: new Set([...state.ids, ...fresh]) } : state, fresh };
 }
 
+import { courseParent } from '../../lib/course-tree.js';
+
+/** Whether `course` (or any ancestor course via "Parent / Child" or "Parent/Child") has a review book in `bookCourses` (#1367-11). */
+export function hasCourseBook(bookCourses, course) {
+  if (!bookCourses || !bookCourses.size || typeof course !== 'string') return false;
+  if (bookCourses.has(course)) return true;
+  const known = [...bookCourses];
+  let parent = courseParent(course, known);
+  while (parent) {
+    if (bookCourses.has(parent)) return true;
+    parent = courseParent(parent, known);
+  }
+  return false;
+}
+
 export function autoAddPlan({ mode, withBook, fresh = [], tried = new Set(), added = new Set() }) {
   if (mode !== 'auto' || !withBook) return [];
   return [...new Set(fresh)].filter(id => !tried.has(id) && !added.has(id));

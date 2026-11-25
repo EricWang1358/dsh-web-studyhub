@@ -66,14 +66,8 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
     return () => { if (openInGroup.get(group) === self.current) openInGroup.delete(group); };
   }, [group, open]);
   useAnchoredPosition({ anchorRef: anchor, panelRef: panel, placement, flip, open: open && !layer });
-  useDismiss({ open, onClose: () => { if (held.current) setWaived(true); setOpen(false); }, refs: anchor });
-  // A held card answers Esc wherever the focus is: the control that holds it is outside the anchor, where the dismiss above does not listen.
-  useEffect(() => {
-    if (!open || !held.current) return undefined;
-    const onKey = event => { if (event.key === 'Escape') { setWaived(true); setOpen(false); } };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open, forced, waived]);
+  // WCAG 1.4.13 (#1174): an open tooltip closes on Escape wherever focus or the pointer sits, through the shared dismiss stack so stacked cards close top-down.
+  useDismiss({ open, onClose: () => { clearTimeout(timer.current); if (held.current) setWaived(true); setOpen(false); }, refs: anchor, escapeAnywhere: true });
   useIsoLayoutEffect(() => {
     const element = panel.current;
     if (!layer || !element?.showPopover) return undefined;

@@ -14,19 +14,27 @@
  * 10. `marked`-free (`ScrollView` + `wrapDisplay`).
  */
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput, useStdout, useWindowSize } from 'ink';
+import { Box, Text, useStdout } from 'ink';
+import { useStableWindowSize } from '../components/resize.js';
+import {
+  KEY_LAYER_DRAWER,
+  KEY_LAYER_MODAL_FRAME,
+  useScopedInput as useInput,
+} from '../components/key-dispatcher.js';
 import { PAGE_REGISTRY, type HostClient, type PageId, type UiLanguage } from '../types/contracts.js';
-import { t, useTuiStore, type AssistantCardContext, type AssistantTabId } from '../state/store.js';
-import { useTheme } from '../theme/tokens.js';
+import { t, useTuiStore, type AssistantCardContext, type AssistantTabId, type ReviewRunLike } from '../state/store.js';
+import { getColorLevel, makeChalk, useTheme } from '../theme/tokens.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
+import { Modal, modalContentWidth } from '../components/Modal.js';
+import { SelectList, type SelectOption } from '../components/SelectList.js';
 import { SectionHeader } from '../components/Layout.js';
 import { Panel } from '../components/Panel.js';
 import { ScrollView } from '../components/ScrollView.js';
 import { TextInput } from '../components/TextInput.js';
 import { ClickableBox } from '../components/mouse.js';
+import { useModalFooterHints } from '../components/focus.js';
 import { useStreamingBuffer } from '../components/useStreamingBuffer.js';
-import { tryAction } from '../host/sample-actions.js';
-import { atomicWriteExportText, defaultBackupFilePath } from '../host/atomic-write.js';
+import { formatRetellVerdictLines, submitRetellEvaluation } from '../host/ai-dialogue.js';
 import { saveTuiPreferences } from '../host/tui-prefs.js';
 import {
   copyTextWithFallback,
@@ -37,18 +45,36 @@ import {
 } from '../render/clipboard.js';
 import { displayWidth, truncateDisplay, wrapDisplay } from '../render/cjk.js';
 import { buildContextChips, recordCommandStat, type AssistantChip } from './assistant-chips.js';
-import { buildFallbackPrompt, parseAssistantIntent, type AssistantIntent } from './assistant-intent.js';
+import {
+  buildFallbackPrompt,
+  errorReasonWriteIntent,
+  parseAssistantIntent,
+  resolvePlainExplainQuestionTitle,
+  type AssistantIntent,
+} from './assistant-intent.js';
+import {
+  executeAssistantReadAction,
+  executeAssistantWriteAction,
+  readCurrentGradeStatus,
+} from './assistant-actions.js';
+import type { ErrorReasonTarget } from './error-reason-intent.js';
+import { ERROR_REASONS, reasonShort } from '../views/wrongbook/helpers.js';
+import type { ErrorReasonId } from '../views/wrongbook/types.js';
 import {
   formatWorkflowChecklist,
+  formatWorkflowOutcomeSummary,
   isWorkflowComplete,
   markWorkflowStepResult,
   planAssistantWorkflow,
   type AssistantWorkflowPlan,
 } from './assistant-workflow.js';
 import { pruneTurnsWithSummary } from './assistant-memory.js';
+import { buildConversationRequest, extractSharedHistoryMessages } from './assistant-conversation.js';
+import { buildTranscriptPalette, formatTurnLines, turnsInScope } from './assistant-transcript.js';
 import { currentCourse, dueToday, modelInfo, wrongCount } from './data.js';
 
-export const MAX_ASSISTANT_TURNS = 16;
+/** Each exchange is two turns now that the learner's instruction is recorded too (#1410). */
+export const MAX_ASSISTANT_TURNS = 32;
 export const SLOW_EXECUTION_NOTICE_MS = 2000;
 
 export const GUIDED_STAGES: readonly GuidedStageId[] = Object.freeze([
@@ -62,6 +88,8 @@ export const GUIDED_STAGES: readonly GuidedStageId[] = Object.freeze([
 export interface AssistantTurn extends CopyTurnRecord {
   id: string;
   at: number;
+  /** The card this turn was about; '' or absent when asked away from any card (#1426). */
+  scope?: string;
   skipped?: boolean;
   verdict?: {
     passed: boolean;
@@ -170,7 +198,7 @@ export const AssistantPanel = memo(function AssistantPanel({
   copyStdout,
 }: AssistantPanelProps) {
   const theme = useTheme();
-  const { columns, rows } = useWindowSize();
+  const { columns, rows } = useStableWindowSize();
   const { stdout } = useStdout();
   const page = useTuiStore((s) => s.page);
   const lang = useTuiStore((s) => s.preferences.language);
@@ -197,7 +225,22 @@ export const AssistantPanel = memo(function AssistantPanel({
   const model = useMemo(() => modelInfo(cfg, binding, snapshot), [cfg, binding, snapshot]);
   const modelReady = Boolean(model.ready || host.streamComplete);
 
-  const [turns, setTurns] = useState<AssistantTurn[]>(() => [...sessionMemory.turns]);
+  const [allTurns, setTurns] = useState<AssistantTurn[]>(() => [...sessionMemory.turns]);
+  // #1426: only the conversation about the card in view is shown; the rest folds into one line.
+  const turnScope = cardCtx?.cardId ?? '';
+  const turnScopeRef = useRef(turnScope);
+  turnScopeRef.current = turnScope;
+  // A request keeps the scope it started in: its reply is filed under the card it was asked on,
+  // even when the learner has moved to another card before it arrives.
+  const requestScopeRef = useRef<string | null>(null);
+  const [busyScope, setBusyScope] = useState('');
+  const [showEarlier, setShowEarlier] = useState(false);
+  useEffect(() => {
+    setShowEarlier(false);
+  }, [turnScope]);
+  const scopedTurns = useMemo(() => turnsInScope(allTurns, turnScope), [allTurns, turnScope]);
+  const earlierTurnCount = scopedTurns.earlier;
+  const turns = showEarlier ? allTurns : scopedTurns.current;
   const [selectedTurnIdx, setSelectedTurnIdx] = useState<number>(() => Math.max(0, sessionMemory.turns.length - 1));
   const [inputValue, setInputValue] = useState('');
   const [inputFocused, setInputFocused] = useState(false);
@@ -207,6 +250,8 @@ export const AssistantPanel = memo(function AssistantPanel({
   const [lastUndo, setLastUndo] = useState<AssistantUndoEntry | null>(() => sessionMemory.lastUndo);
   const [lastFallback, setLastFallback] = useState(sessionMemory.lastFallback);
   const [pendingConfirm, setPendingConfirm] = useState<Extract<AssistantIntent, { kind: 'write_confirm' }> | null>(null);
+  // #1439: the card whose mistake reason the learner is choosing; the reason list is open while set.
+  const [reasonPickFor, setReasonPickFor] = useState<ErrorReasonTarget | null>(null);
 
   const stream = useStreamingBuffer();
   const abortRef = useRef<AbortController | null>(null);
@@ -225,6 +270,8 @@ export const AssistantPanel = memo(function AssistantPanel({
   const beginExecution = useCallback(
     (label: string) => {
       clearSlowTimer();
+      requestScopeRef.current = turnScopeRef.current;
+      setBusyScope(turnScopeRef.current);
       setBusy(true);
       setExecStatus(t(lang, `正在执行：${label}`, `Running: ${label}`));
       slowTimerRef.current = setTimeout(() => {
@@ -237,6 +284,7 @@ export const AssistantPanel = memo(function AssistantPanel({
 
   const endExecution = useCallback(() => {
     clearSlowTimer();
+    requestScopeRef.current = null;
     if (mountedRef.current) {
       setBusy(false);
       setExecStatus(null);
@@ -282,7 +330,7 @@ export const AssistantPanel = memo(function AssistantPanel({
   );
 
   const appendTurn = useCallback((turn: Omit<AssistantTurn, 'id' | 'at'>) => {
-    const entry: AssistantTurn = { ...turn, id: `at-${++turnSeq}`, at: Date.now() };
+    const entry: AssistantTurn = { ...turn, id: `at-${++turnSeq}`, at: Date.now(), scope: requestScopeRef.current ?? turnScopeRef.current };
     const next = trimTurns([...sessionMemory.turns, entry]);
     sessionMemory.turns = next;
     if (mountedRef.current) {
@@ -295,6 +343,11 @@ export const AssistantPanel = memo(function AssistantPanel({
   const registerUndo = useCallback((entry: AssistantUndoEntry | null) => {
     sessionMemory.lastUndo = entry;
     if (mountedRef.current) setLastUndo(entry);
+  }, []);
+
+  /** Hand a run the backend returned to Review, so an assistant edit is visible there at once (#1447). */
+  const applyRunFromAssistant = useCallback((run: unknown) => {
+    useTuiStore.getState().setPendingReviewRun((run ?? null) as ReviewRunLike | null);
   }, []);
 
   const doCopy = useCallback(
@@ -351,11 +404,11 @@ export const AssistantPanel = memo(function AssistantPanel({
       prompt: cardCtx?.prompt,
       userAnswer: cardCtx?.userAnswer,
       currentStage: stage,
-      turns,
+      turns: allTurns,
       lang,
     });
     void doCopy(md, '完整会话', 'full session');
-  }, [turns, cardCtx, tab, stage, lang, doCopy, notify]);
+  }, [turns, allTurns, cardCtx, tab, stage, lang, doCopy, notify]);
 
   const handleCopyFallbackPrompt = useCallback(() => {
     const promptText = buildFallbackPrompt({
@@ -442,7 +495,7 @@ export const AssistantPanel = memo(function AssistantPanel({
       appendTurn({
         role: 'assistant',
         stage: tab === 'guided' ? stage : undefined,
-        actionSummary: t(lang, `多步任务已完成（${plan.steps.length} 步）`, `Completed ${plan.steps.length}-step plan`),
+        actionSummary: formatWorkflowOutcomeSummary(plan, lang),
         text: formatWorkflowChecklist(plan, lang, asciiMode),
       });
     },
@@ -453,113 +506,42 @@ export const AssistantPanel = memo(function AssistantPanel({
     async (intent: Extract<AssistantIntent, { kind: 'write_confirm' }>) => {
       setPendingConfirm(null);
       beginExecution(
-        intent.actionName === 'export.wrongbook'
-          ? t(lang, '导出错题本', 'Exporting wrong-book')
-          : intent.actionName === 'card.followup.add'
-            ? t(lang, '保存通俗讲解', 'Saving plain explanation')
-            : t(lang, '标记错题原因', 'Marking wrong reason'),
+        intent.humanLabel ||
+          (intent.actionName === 'export.wrongbook'
+            ? t(lang, '导出错题本', 'Exporting wrong-book')
+            : intent.actionName === 'card.followup.add'
+              ? t(lang, '保存通俗讲解', 'Saving plain explanation')
+              : t(lang, '标记错题原因', 'Marking wrong reason')),
       );
       let succeeded = false;
       try {
-        if (intent.actionName === 'card.followup.add') {
-          const saved = await tryAction(host, 'card.followup.add', intent.params);
-          if (!mountedRef.current) return;
-          if (saved.ok) {
-            succeeded = true;
-            appendTurn({
-              role: 'system',
-              stage: tab === 'guided' ? stage : undefined,
-              actionSummary: t(lang, '已保存到本题讲解', 'Saved to question'),
-              text: t(
-                lang,
-                '已将通俗讲解保存到当前题目，下次打开可直接复用。',
-                'Saved plain explanation to this question for reuse next time.',
-              ),
-            });
-            notify(t(lang, '通俗讲解已保存到本题', 'Plain explanation saved'), 'success');
-          } else {
-            appendTurn({
-              role: 'system',
-              stage: tab === 'guided' ? stage : undefined,
-              actionSummary: t(lang, '保存失败', 'Save failed'),
-              text: saved.error?.message || t(lang, '保存通俗讲解失败，请重试。', 'Failed to save plain explanation.'),
-            });
-          }
-        } else if (intent.actionName === 'wrongbook.reason.set') {
-          if (!intent.params.cardId) {
-            appendTurn({
-              role: 'system',
-              stage,
-              actionSummary: '未定位题目',
-              text: t(lang, '请先打开一道题再标记错因。', 'Open a question first.'),
-            });
-          } else {
-            const res = await tryAction(host, 'wrongbook.reason.set', intent.params);
-            if (!mountedRef.current) return;
-            if (res.ok) {
-              succeeded = true;
-              const appliedReason = String(intent.params.reason);
-              const undoParams = { ...intent.params, reason: '' };
-              registerUndo({
-                label: t(lang, `清除错因「${appliedReason}」`, `Clear reason "${appliedReason}"`),
-                run: async () => {
-                  await tryAction(host, 'wrongbook.reason.set', undoParams);
-                  return t(lang, '已撤销：错题原因已清空。', 'Undone: wrong reason cleared.');
-                },
-              });
-              appendTurn({
-                role: 'system',
-                stage,
-                actionSummary: t(lang, `已标记错因「${appliedReason}」`, `Marked reason: ${appliedReason}`),
-                text: t(lang, `已完成：错因已标为「${appliedReason}」。按 [z] 可撤销。`, `Done: marked "${appliedReason}". Press [z] to undo.`),
-              });
-              notify(t(lang, `错因已标为「${appliedReason}」`, `Marked "${appliedReason}"`), 'success');
-            } else {
-              appendTurn({
-                role: 'system',
-                stage,
-                actionSummary: '执行失败',
-                text: res.error?.message || t(lang, '写入错题原因失败，请重试。', 'Failed to mark wrong reason.'),
-              });
-            }
-          }
-        } else if (intent.actionName === 'export.wrongbook') {
-          const root = host.getLibraryRoot?.() || snapshot?.root || '';
-          const wb = await tryAction<{ items?: Array<{ prompt?: string; answer?: string; reason?: string }> }>(
-            host,
-            'wrongbook',
-            { course: intent.params.course ?? '*', view: 'weak', offset: 0, limit: 100 },
-          );
-          if (!mountedRef.current) return;
-          const items = Array.isArray(wb.value?.items) ? wb.value.items : [];
-          if (!root) {
-            appendTurn({
-              role: 'system',
-              stage,
-              actionSummary: '未绑定学习库',
-              text: t(lang, '未绑定学习库目录，无法导出。', 'No library root bound.'),
-            });
-          } else {
-            const md = [
-              `# ${t(lang, '错题本导出', 'Wrong-Book Export')}`,
-              '',
-              ...(items.length > 0
-                ? items.map((it, idx) => `${idx + 1}. ${String(it.prompt || '').trim()}${it.reason ? `（错因：${it.reason}）` : ''}`)
-                : [t(lang, '当前暂无错题记录。', 'No wrong cards found.')]),
-              '',
-            ].join('\n');
-            const outPath = defaultBackupFilePath(root, 'studyhub-wrongbook', 'md');
-            const saved = await atomicWriteExportText(outPath, md);
-            succeeded = true;
-            appendTurn({
-              role: 'system',
-              stage,
-              actionSummary: `已完成：导出 ${items.length} 道错题`,
-              text: t(lang, `已导出 ${items.length} 道错题至 ${saved.path}`, `Exported ${items.length} cards to ${saved.path}`),
-            });
-            notify(t(lang, `已导出至 ${saved.path}`, `Exported to ${saved.path}`), 'success');
-          }
-        }
+        const recentTurns = [...sessionMemory.turns];
+        const lastAi = [...recentTurns].reverse().find((x) => x.role === 'assistant')?.text;
+        // The learner's own question, so the note keeps both sides of the Q&A (#1447).
+        const lastAiIndex = recentTurns.map((x) => x.role).lastIndexOf('assistant');
+        const lastUserQuestion = lastAiIndex < 0
+          ? undefined
+          : [...recentTurns.slice(0, lastAiIndex)].reverse().find((x) => x.role === 'user' && x.text.trim())?.text;
+        const outcome = await executeAssistantWriteAction(intent, {
+          host,
+          snapshot,
+          cardCtx,
+          lastAssistantReply: lastAi,
+          lastLearnerQuestion: lastUserQuestion,
+          lang,
+          navigate,
+          applyRun: applyRunFromAssistant,
+        });
+        if (!mountedRef.current) return;
+        succeeded = outcome.succeeded;
+        if (outcome.undo) registerUndo(outcome.undo);
+        appendTurn({
+          role: 'system',
+          stage: tab === 'guided' ? stage : undefined,
+          actionSummary: outcome.actionSummary,
+          text: outcome.text,
+        });
+        if (outcome.toast) notify(outcome.toast.message, outcome.toast.tone);
         // Resume remaining steps in a multi-step workflow after confirmation (#1339)
         const wf = pendingWorkflowRef.current;
         if (wf && mountedRef.current) {
@@ -576,7 +558,7 @@ export const AssistantPanel = memo(function AssistantPanel({
               role: 'assistant',
               stage: tab === 'guided' ? stage : undefined,
               actionSummary: succeeded
-                ? t(lang, `多步任务已完成（${nextPlan.steps.length} 步）`, `Completed ${nextPlan.steps.length}-step plan`)
+                ? formatWorkflowOutcomeSummary(nextPlan, lang)
                 : t(lang, '多步任务已中止', 'Multi-step plan stopped'),
               text: formatWorkflowChecklist(nextPlan, lang, asciiMode),
             });
@@ -586,7 +568,7 @@ export const AssistantPanel = memo(function AssistantPanel({
         endExecution();
       }
     },
-    [host, snapshot?.root, tab, stage, lang, asciiMode, beginExecution, endExecution, appendTurn, registerUndo, notify, runWorkflowSteps],
+    [host, snapshot, cardCtx, tab, stage, lang, asciiMode, navigate, beginExecution, endExecution, appendTurn, registerUndo, notify, runWorkflowSteps, applyRunFromAssistant],
   );
 
   const handleSkipRetell = useCallback(() => {
@@ -612,7 +594,7 @@ export const AssistantPanel = memo(function AssistantPanel({
   }, [cardCtx?.cardId, appendTurn, setStage, notify, lang]);
 
   const handleSubmitInput = useCallback(
-    async (raw: string) => {
+    async (raw: string, opts?: { viaCommand?: boolean }) => {
       const text = raw.trim();
       if (!text || busy) return;
       setInputValue('');
@@ -620,10 +602,12 @@ export const AssistantPanel = memo(function AssistantPanel({
       setLastFallback(null);
       sessionMemory.lastFallback = null;
       recordUsage(text);
+      // Always show what was asked, so every answer below has its question above it (#1410).
+      const userTurn = appendTurn({ role: 'user', stage: tab === 'guided' ? stage : undefined, text });
 
-      // Guided Study Retell stage submits to backend `teach.retell` (#1348)
-      if (tab === 'guided' && stage === 'retell') {
-        appendTurn({ role: 'user', stage: 'retell', text });
+      // Guided Study Retell stage submits to backend `teach.retell` (#1348). Only text the learner
+      // typed counts as a retell: chips and the [A] alternative are commands, not answers (#1406).
+      if (tab === 'guided' && stage === 'retell' && !opts?.viaCommand) {
         if (!cardCtx?.cardId) {
           appendTurn({
             role: 'system',
@@ -647,29 +631,21 @@ export const AssistantPanel = memo(function AssistantPanel({
         }
         beginExecution(t(lang, '评估费曼复述', 'Evaluating retell'));
         try {
-          const res = await tryAction<{
-            passed?: boolean;
-            right?: string[];
-            missed?: string[];
-            wrong?: string[];
-            gap?: string;
-          }>(host, 'teach.retell', {
+          const sharedHistory = extractSharedHistoryMessages(
+            turnsInScope(sessionMemory.turns, turnScopeRef.current).current.filter((x) => x.id !== userTurn.id),
+          );
+          const res = await submitRetellEvaluation(host, {
             deckId: resolvedDeckId,
             cardId: cardCtx.cardId,
             text,
             language: lang,
+            ...(sharedHistory.length > 0 ? { conversationHistory: sharedHistory } : {}),
           });
           if (!mountedRef.current) return;
-          if (!res.ok || !res.value) {
-            const rawErr = res.error?.message || '';
-            const isModelErr =
-              !rawErr ||
-              /configure a model|model.*unavailable|no.*model|api.?key|unauthorized|forbidden|\b401\b|\b403\b|econnrefused|timed out|timeout|未配置|可用.*模型|模型不可用/i.test(
-                rawErr,
-              );
+          if (!res.ok) {
             const fb = {
-              reason: rawErr || t(lang, '模型暂不可用，无法在线评估复述。', 'Model unavailable for retell.'),
-              altLabel: isModelErr
+              reason: res.error || t(lang, '模型暂不可用，无法在线评估复述。', 'Model unavailable for retell.'),
+              altLabel: res.isModelError
                 ? t(lang, '改为：按 [S] 跳过复述，或按 [P] 复制提示词到外部模型', 'Alternative: [S] skip or [P] copy prompt')
                 : t(lang, '可按 [S] 跳过复述，或重试提交', 'Press [S] to skip retell or try again'),
               altCommand: '查看统计',
@@ -680,32 +656,27 @@ export const AssistantPanel = memo(function AssistantPanel({
             appendTurn({
               role: 'system',
               stage: 'retell',
-              actionSummary: isModelErr ? t(lang, '模型暂不可用', 'Model unavailable') : t(lang, '复述评估失败', 'Retell failed'),
+              actionSummary: res.isModelError ? t(lang, '模型暂不可用', 'Model unavailable') : t(lang, '复述评估失败', 'Retell failed'),
               text: `${fb.reason} ${fb.altLabel}`,
             });
             return;
           }
-          const v = res.value;
+          const v = res.verdict;
           sessionMemory.retellRecords.push({
             cardId: cardCtx.cardId,
             stage: 'retell',
-            passed: Boolean(v.passed),
+            passed: v.passed,
             skipped: false,
             gap: v.gap,
             at: Date.now(),
           });
-          const lines = [
-            v.passed ? t(lang, '复述通过。', 'Retell passed.') : t(lang, '复述待补强。', 'Needs review.'),
-            ...(Array.isArray(v.right) && v.right.length ? [`讲对了：${v.right.join('；')}`] : []),
-            ...(Array.isArray(v.missed) && v.missed.length ? [`漏掉了：${v.missed.join('；')}`] : []),
-            ...(Array.isArray(v.wrong) && v.wrong.length ? [`讲错了：${v.wrong.join('；')}`] : []),
-          ];
+          const lines = formatRetellVerdictLines(v, lang);
           appendTurn({
             role: 'assistant',
             stage: 'retell',
             actionSummary: v.passed ? t(lang, '复述评估：通过', 'Retell check: passed') : t(lang, '复述评估：待补强', 'Retell check: needs review'),
             text: lines.join('\n'),
-            verdict: { passed: Boolean(v.passed), right: v.right ?? [], missed: v.missed ?? [], wrong: v.wrong ?? [], gap: v.gap },
+            verdict: { passed: v.passed, right: v.right, missed: v.missed, wrong: v.wrong, gap: v.gap },
           });
           setStage('summary');
         } finally {
@@ -719,6 +690,7 @@ export const AssistantPanel = memo(function AssistantPanel({
         snapshot,
         currentCardId: cardCtx?.cardId,
         currentDeckId: cardCtx?.deckId,
+        card: cardCtx,
         lang,
       });
       if (workflowPlan) {
@@ -730,11 +702,12 @@ export const AssistantPanel = memo(function AssistantPanel({
         snapshot,
         currentCardId: cardCtx?.cardId,
         currentDeckId: cardCtx?.deckId,
+        card: cardCtx,
         lang,
       });
 
-      // 0) Unsupported -> nearest alternative + [P] Copy prompt fallback (never parroting raw input!)
-      if (intent.kind === 'unsupported') {
+      // 0) Capability boundary -> say what it can/cannot do, name a real entry, never "已完成" (#1458)
+      if (intent.kind === 'boundary') {
         const fb = {
           reason: intent.reason,
           altLabel: intent.alternativeLabel,
@@ -745,8 +718,32 @@ export const AssistantPanel = memo(function AssistantPanel({
         setLastFallback(fb);
         appendTurn({
           role: 'system',
-          actionSummary: '能力边界兜底',
-          text: `${intent.reason}\n${intent.alternativeLabel}\n也可按 [P] 复制带上下文的提示词。`,
+          actionSummary: t(lang, '能力边界：不能直接执行', 'Capability boundary: not executed'),
+          text: `${intent.canDo}\n${intent.cannotDo}\n${intent.entryLabel}\n${t(lang, '也可按 [P] 复制带上下文的提示词。', 'You can also press [P] to copy the prompt with context.')}`,
+        });
+        return;
+      }
+
+      // 0a) "这题判对了吗" -> read the real verdict, never change it (#1458)
+      if (intent.kind === 'read_grade_status') {
+        const outcome = await readCurrentGradeStatus({ host, snapshot, cardCtx, lang, navigate });
+        if (!mountedRef.current) return;
+        appendTurn({
+          role: 'assistant',
+          stage: tab === 'guided' ? stage : undefined,
+          actionSummary: outcome.actionSummary,
+          text: outcome.text,
+        });
+        return;
+      }
+
+      // 0b) One more fact is needed (which grade, which knowledge point) — ask, never guess (#1447).
+      if (intent.kind === 'clarify') {
+        appendTurn({
+          role: 'system',
+          stage: tab === 'guided' ? stage : undefined,
+          actionSummary: t(lang, '需要补充信息', 'Need one more detail'),
+          text: intent.question,
         });
         return;
       }
@@ -769,10 +766,54 @@ export const AssistantPanel = memo(function AssistantPanel({
         appendTurn({
           role: 'system',
           stage: tab === 'guided' ? stage : undefined,
-          actionSummary: `将执行：${intent.actionName}（${intent.paramsSummary}）`,
+          actionSummary: intent.humanLabel
+            ? `将执行：${intent.humanLabel}`
+            : `将执行：${intent.actionName}（${intent.paramsSummary}）`,
           text: intent.previewMessage,
         });
         setPendingConfirm(intent);
+        return;
+      }
+
+      // 2a) Read-only / lightweight card/review action (#1444)
+      if (intent.kind === 'run_action') {
+        beginExecution(intent.humanLabel);
+        try {
+          const outcome = await executeAssistantReadAction(intent, {
+            host,
+            snapshot,
+            cardCtx,
+            lang,
+            navigate,
+            applyRun: applyRunFromAssistant,
+          });
+          if (!mountedRef.current) return;
+          if (outcome.undo) registerUndo(outcome.undo);
+          appendTurn({
+            role: 'assistant',
+            stage: tab === 'guided' ? stage : undefined,
+            actionSummary: outcome.actionSummary,
+            text: outcome.text,
+          });
+          if (outcome.toast) notify(outcome.toast.message, outcome.toast.tone);
+        } finally {
+          endExecution();
+        }
+        return;
+      }
+
+      // 2b) Mark a mistake reason without naming one -> list the reasons (#1439)
+      if (intent.kind === 'pick_error_reason') {
+        if (!intent.target.cardId) {
+          appendTurn({
+            role: 'system',
+            stage: tab === 'guided' ? stage : undefined,
+            actionSummary: '未定位题目',
+            text: t(lang, '请先在刷题页打开一道题再标记错因。', 'Open a question in Review first.'),
+          });
+          return;
+        }
+        setReasonPickFor(intent.target);
         return;
       }
 
@@ -878,34 +919,38 @@ export const AssistantPanel = memo(function AssistantPanel({
       }
 
       const isPlainExplain = intent.kind === 'generate_plain_explain';
-      beginExecution(isPlainExplain ? '生成通俗讲解' : '生成回答');
+      const isExplainRequest = isPlainExplain || intent.kind === 'explain_card';
+      beginExecution(isPlainExplain ? '生成通俗讲解' : isExplainRequest ? '生成讲解' : '生成回答');
       stream.reset();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
-      const recentContext = sessionMemory.turns
-        .slice(-6)
-        .map((x) => `${x.role}: ${x.text.slice(0, 200)}`)
-        .join('\n');
+      const scopedPriorTurns = turnsInScope(sessionMemory.turns, turnScopeRef.current).current.filter(
+        (x) => x.id !== userTurn.id,
+      );
+      const conversation = buildConversationRequest({
+        turns: scopedPriorTurns,
+        currentUserText: text,
+        card: cardCtx,
+        tab,
+        stage,
+        isPlainExplain: isExplainRequest,
+        lang,
+      });
+
+      if (conversation.compressed && conversation.noticeText) {
+        appendTurn({
+          role: 'system',
+          stage: tab === 'guided' ? stage : undefined,
+          actionSummary: t(lang, `已压缩较早对话（${conversation.compressedCount} 条）`, `Condensed ${conversation.compressedCount} earlier turn(s)`),
+          text: conversation.noticeText,
+        });
+      }
 
       try {
-        const system =
-          lang === 'en'
-            ? 'You are the StudyHub TUI assistant. Reply concisely; never repeat the user prompt.'
-            : isPlainExplain
-              ? '你是 StudyHub 学习助手。用大白话+生活类比为当前题写通俗讲解，180字内，直接给干货，不要复述用户原话。'
-              : tab === 'guided'
-                ? `你是 StudyHub 带学导师，当前阶段「${stageLabel(stage, 'zh')}」。中文短句，一次聚焦一个点，不复述用户原话。`
-                : '你是 StudyHub 学习助手，中文短句直接给答案或步骤，不复述用户原话。';
-        const promptParts = [
-          cardCtx?.prompt ? `当前题目：${cardCtx.prompt}` : '',
-          cardCtx?.userAnswer ? `我的作答：${cardCtx.userAnswer}` : '',
-          recentContext ? `近期上下文：\n${recentContext}` : '',
-          `指令：${text}`,
-        ].filter(Boolean);
-
         const reply = await host.streamComplete({
-          system,
-          prompt: promptParts.join('\n\n'),
+          system: conversation.system,
+          prompt: conversation.fallbackPrompt,
+          messages: conversation.messages,
           signal: ctrl.signal,
           onChunk: (delta) => stream.push(delta),
         });
@@ -913,9 +958,10 @@ export const AssistantPanel = memo(function AssistantPanel({
         if (!mountedRef.current) return;
         const cleanReply = (reply || stream.text).trim();
 
-        const actionSummary = isPlainExplain
-          ? t(lang, '已完成：通俗讲解已生成', 'Done: plain explanation ready')
-          : t(lang, '已完成：回答已生成', 'Done: reply ready');
+        // #1444: Chat replies NEVER claim "已完成" (no action was executed, only text was generated).
+        const actionSummary = isExplainRequest
+          ? t(lang, '讲解已生成（未改动题目）', 'Explanation ready (card unchanged)')
+          : t(lang, 'AI 回答（仅对话，未改动数据）', 'AI reply (chat only)');
 
         appendTurn({
           role: 'assistant',
@@ -930,7 +976,7 @@ export const AssistantPanel = memo(function AssistantPanel({
             params: {
               ...(cardCtx.deckId ? { deckId: cardCtx.deckId } : {}),
               cardId: cardCtx.cardId,
-              question: text,
+              question: resolvePlainExplainQuestionTitle(text, lang),
               answer: cleanReply,
               source: 'assistant',
               silent: true,
@@ -984,6 +1030,7 @@ export const AssistantPanel = memo(function AssistantPanel({
       setStage,
       notify,
       runWorkflowSteps,
+      applyRunFromAssistant,
     ],
   );
 
@@ -997,11 +1044,46 @@ export const AssistantPanel = memo(function AssistantPanel({
         setTab('guided');
         return;
       }
-      void handleSubmitInput(chip.command);
+      void handleSubmitInput(chip.command, { viaCommand: true });
     },
     [setTab, handleSubmitInput],
   );
 
+  // #1439: the six reasons the wrong-book uses, for the learner to pick from.
+  const reasonOptions = useMemo<Array<SelectOption<ErrorReasonId>>>(
+    () =>
+      ERROR_REASONS.map((reason) => ({
+        value: reason.id,
+        label: t(lang, reason.zh, reason.en),
+        badge: reasonShort(reason.id, lang),
+        badgeTone: reason.tone,
+      })),
+    [lang],
+  );
+  const pickReason = useCallback(
+    (reason: ErrorReasonId) => {
+      if (!reasonPickFor) return;
+      setReasonPickFor(null);
+      // Picking is the decision, so it is written at once; [z] takes it back.
+      void executeConfirmedWrite(errorReasonWriteIntent(reasonPickFor, reason, lang));
+    },
+    [reasonPickFor, executeConfirmedWrite, lang],
+  );
+  const cancelReasonPick = useCallback(() => {
+    setReasonPickFor(null);
+    appendTurn({
+      role: 'system',
+      stage: tab === 'guided' ? stage : undefined,
+      actionSummary: '已取消',
+      text: t(lang, '已取消，数据未改动。', 'Cancelled; unchanged.'),
+    });
+  }, [appendTurn, tab, stage, lang]);
+
+  // #1412: on the practice page Esc hands the keyboard back and the dock stays; the page's own Esc
+  // ("back") folds it afterwards. Other pages have no such second step, so there Esc folds the dock.
+  // #1412 / #1428: unified 2-step Esc on every docked page — 1st Esc hands the keyboard back
+  // while keeping the dock visible; 2nd Esc (when no page modal/filter claims it) folds the dock.
+  const escKeepsDock = Boolean(docked);
   const handleEscape = useCallback(() => {
     if (busy) {
       abortRef.current?.abort();
@@ -1017,93 +1099,113 @@ export const AssistantPanel = memo(function AssistantPanel({
       setFullscreen(false);
       return;
     }
-    if (docked) {
-      // Return keyboard focus to main page first, or collapse cleanly
+    if (escKeepsDock) {
+      // Hand the keyboard back to the page and stay visible, so the page's own shortcuts work while
+      // the conversation is still readable (#1412 / #1428). A second Esc folds the passive dock.
       setFocused(false);
-      onClose();
       return;
     }
     onClose();
-  }, [busy, endExecution, notify, lang, inputFocused, fullscreen, setFullscreen, docked, setFocused, onClose]);
+  }, [busy, endExecution, notify, lang, inputFocused, fullscreen, setFullscreen, escKeepsDock, setFocused, onClose]);
 
   useInput(
     (input, key) => {
-      if (pendingConfirm) return;
+      if (pendingConfirm) return false;
       if (key.escape) {
         handleEscape();
-        return;
+        return true;
       }
-      if (inputFocused) return;
+      if (inputFocused) return false;
 
       if (key.tab) {
         const next: AssistantTabId = tab === 'assistant' ? 'guided' : 'assistant';
         setTab(next);
-        return;
+        return true;
       }
       // Number keys 1-4 trigger the top context chips directly!
       if (/^[1-4]$/.test(input)) {
         const idx = Number.parseInt(input, 10) - 1;
         if (chips[idx]) {
           runChip(chips[idx]);
-          return;
+          return true;
         }
       }
       if (input === 'F') {
         setFullscreen(!fullscreen);
-        return;
+        return true;
+      }
+      if (input === 'o' && earlierTurnCount > 0) {
+        setShowEarlier((shown) => !shown);
+        return true;
       }
       if (input === 'i' || input === 'a' || key.return) {
         setInputFocused(true);
-        return;
+        return true;
       }
       if (input === 'z') {
         void handleUndo();
-        return;
+        return true;
       }
       if (input === 'P') {
         handleCopyFallbackPrompt();
-        return;
+        return true;
       }
       if (input === 'A' && lastFallback) {
-        void handleSubmitInput(lastFallback.altCommand);
-        return;
+        void handleSubmitInput(lastFallback.altCommand, { viaCommand: true });
+        return true;
       }
       if (input === 'c') {
         handleCopyCurrent();
-        return;
+        return true;
       }
       if (input === 'C') {
         handleCopyFullSession();
-        return;
+        return true;
       }
       if (input === 'y') {
         handleCopyLastReply();
-        return;
+        return true;
       }
       if (tab === 'guided') {
         if (input === 'S' && stage === 'retell') {
           handleSkipRetell();
-          return;
+          return true;
         }
         if (input === 'n') {
           const idx = GUIDED_STAGES.indexOf(stage);
           if (idx >= 0 && idx < GUIDED_STAGES.length - 1) setStage(GUIDED_STAGES[idx + 1]);
-          return;
+          return true;
         }
         if (input === 'p') {
           const idx = GUIDED_STAGES.indexOf(stage);
           if (idx > 0) setStage(GUIDED_STAGES[idx - 1]);
-          return;
+          return true;
         }
       }
+      return false;
     },
-    { isActive: isActive && !pendingConfirm },
+    { isActive: isActive && !pendingConfirm && !reasonPickFor, layer: KEY_LAYER_DRAWER, id: 'AssistantPanel:main' },
+  );
+
+  // #1354 D1 / #1428: single-letter catch-all sink below ScrollView (KEY_LAYER_WIDGET) so while the
+  // assistant panel holds focus, no unbound single-letter key can ever leak to the left page or shell.
+  useInput(
+    (input, key) => {
+      if (!key.ctrl && !key.meta && input.length === 1) return true;
+      return false;
+    },
+    {
+      isActive: isActive && !pendingConfirm && !inputFocused,
+      layer: KEY_LAYER_MODAL_FRAME,
+      id: 'AssistantPanel:sink',
+    },
   );
 
   const fallbackSize = resolveAssistantPanelSize(columns, rows, fullscreen);
   const frameW = widthProp ?? fallbackSize.width;
   const frameH = heightProp ?? fallbackSize.height;
   const innerW = Math.max(24, frameW - 4);
+  const reasonPickW = Math.min(60, innerW);
   const bodyH = Math.max(6, frameH - 2);
   // Pack 2–4 context chips across 1 or 2 clean rows so chip labels are never chopped in half on docked panes
   const chipRows = useMemo(() => {
@@ -1138,17 +1240,45 @@ export const AssistantPanel = memo(function AssistantPanel({
       : '';
   const contextLine = `${t(lang, '当前', 'Context')}：${pageName}${cardPos}${courseName ? ` · ${courseName}` : ''}`;
 
+  // #1412: while the dock holds the keyboard the footer shows the dock's own keys, not a generic "Esc close".
+  const dockFooterHints = useMemo(
+    () => [
+      { key: 'Esc', label: fullscreen ? t(lang, '退出全屏', 'Exit full') : escKeepsDock ? t(lang, '回页面', 'Back to page') : t(lang, '收起', 'Hide') },
+      { key: 'i', label: t(lang, '输入', 'Type') },
+      { key: '1-4', label: t(lang, '推荐动作', 'Quick actions') },
+      { key: 'Tab', label: t(lang, '助手/带学', 'Tabs') },
+      { key: 'Ctrl+G', label: t(lang, '收起', 'Hide') },
+    ],
+    [lang, fullscreen, escKeepsDock],
+  );
+  useModalFooterHints(dockFooterHints, isActive && !inputFocused && !pendingConfirm && !reasonPickFor);
+
+  const colorLevel = getColorLevel();
   const transcriptLines = useMemo(() => {
     const out: string[] = [];
     const wrapW = Math.max(18, innerW - 2);
+    const chalk = makeChalk(colorLevel);
+    const palette = buildTranscriptPalette(theme, chalk);
+    const labels = {
+      user: t(lang, '我', 'You'),
+      assistant: t(lang, '助手', 'AI'),
+      system: t(lang, '状态', 'Status'),
+      stage: t(lang, '阶段', 'Stage'),
+    };
     if (!modelReady) {
       out.push(
         ...wrapDisplay(
           t(lang, '模型未就绪：本地导航与导出可用，生成类可按 [P] 复制提示词。', 'Model offline: navigation works; press [P] to copy prompt.'),
           wrapW,
-        ),
+        ).map((line) => chalk.hex(theme.warning)(line)),
         '',
       );
+    }
+    if (earlierTurnCount > 0) {
+      const fold = showEarlier
+        ? t(lang, `已展开之前的对话 ${earlierTurnCount} 条 · 按 [o] 收起`, `Showing ${earlierTurnCount} earlier turn(s) · [o] to fold`)
+        : t(lang, `之前的对话 ${earlierTurnCount} 条已收起 · 按 [o] 展开`, `${earlierTurnCount} earlier turn(s) folded · [o] to show`);
+      out.push(...wrapDisplay(fold, wrapW).map((line) => chalk.hex(theme.dim)(line)), '');
     }
     if (turns.length === 0 && !busy) {
       const intro =
@@ -1157,37 +1287,33 @@ export const AssistantPanel = memo(function AssistantPanel({
             ? t(lang, '复述阶段：按 [i] 用自己的话复述要点，或按 [S] 跳过并记录。', 'Retell: [i] explain in your own words, or [S] skip.')
             : t(lang, '带学模式：按 [i] 回答或追问，[p/n] 切阶段，Tab 切助手不丢进度。', 'Guided Study: [i] answer, [p/n] stages, Tab switches tab.')
           : t(lang, '按 [1-4] 直达推荐动作，或按 [i] 输入自然语言指令。', 'Press [1-4] for quick actions, or [i] for natural language.');
-      out.push(...wrapDisplay(intro, wrapW));
+      out.push(...wrapDisplay(intro, wrapW).map((line) => chalk.hex(theme.muted)(line)));
     }
 
     for (const entry of turns) {
-      const prefix =
-        entry.role === 'user'
-          ? t(lang, '我', 'You')
-          : entry.role === 'assistant'
-            ? t(lang, '助手', 'AI')
-            : t(lang, '状态', 'Status');
-      const stTag = entry.stage ? ` [${t(lang, '阶段', 'Stage')}: ${stageLabel(entry.stage, lang)}]` : '';
-      out.push(`${prefix}${stTag}:`);
-      if (entry.actionSummary) {
-        out.push(...wrapDisplay(`  > ${entry.actionSummary}`, wrapW));
-      }
-      for (const para of entry.text.split('\n')) {
-        out.push(...wrapDisplay(para ? `  ${para}` : ' ', wrapW));
-      }
-      out.push('');
+      out.push(
+        ...formatTurnLines(
+          {
+            role: entry.role,
+            text: entry.text,
+            actionSummary: entry.actionSummary,
+            stageLabel: entry.stage ? stageLabel(entry.stage, lang) : undefined,
+          },
+          { wrapW, labels, palette },
+        ),
+      );
     }
 
-    if (busy) {
+    if (busy && busyScope === turnScope) {
       const live = stream.text.trim();
       if (live) {
         for (const para of live.split('\n')) {
-          out.push(...wrapDisplay(`  ${para}`, wrapW));
+          out.push(...wrapDisplay(`  ${para}`, wrapW).map((line) => palette.body.assistant(line)));
         }
       }
     }
     return out;
-  }, [innerW, modelReady, lang, turns, busy, tab, stage, stream.text]);
+  }, [innerW, modelReady, lang, turns, earlierTurnCount, showEarlier, busy, busyScope, turnScope, tab, stage, stream.text, theme, colorLevel]);
 
   return (
     <Box flexDirection="column" width={frameW} height={frameH}>
@@ -1198,8 +1324,12 @@ export const AssistantPanel = memo(function AssistantPanel({
           fullscreen
             ? t(lang, '全屏 (Esc分栏)', 'Full (Esc split)')
             : isActive
-              ? t(lang, '已聚焦 (Esc收起)', 'Focused (Esc hide)')
-              : t(lang, '停靠不抢焦点 (Ctrl+Space聚焦)', 'Docked (Ctrl+Space focus)')
+              ? escKeepsDock
+                ? t(lang, '已聚焦 (Esc回页面)', 'Focused (Esc to page)')
+                : t(lang, '已聚焦 (Esc收起)', 'Focused (Esc hide)')
+              : escKeepsDock
+                ? t(lang, '停靠不抢焦点 (Ctrl+G聚焦 · Esc收起)', 'Docked (Ctrl+G focus · Esc hide)')
+                : t(lang, '停靠不抢焦点 (Ctrl+G聚焦)', 'Docked (Ctrl+G focus)')
         }
         focused={isActive}
         width={frameW}
@@ -1299,7 +1429,7 @@ export const AssistantPanel = memo(function AssistantPanel({
               clickActive
               onClick={() => {
                 setFocused(true);
-                void handleSubmitInput(lastFallback.altCommand);
+                void handleSubmitInput(lastFallback.altCommand, { viaCommand: true });
               }}
             >
               <Text color={theme.accent} bold>
@@ -1325,7 +1455,7 @@ export const AssistantPanel = memo(function AssistantPanel({
           lines={transcriptLines}
           height={scrollH}
           width={innerW}
-          isActive={isActive && !inputFocused && !pendingConfirm}
+          isActive={isActive && !inputFocused && !pendingConfirm && !reasonPickFor}
           follow
         />
 
@@ -1361,7 +1491,7 @@ export const AssistantPanel = memo(function AssistantPanel({
             onChange={setInputValue}
             onSubmit={(val) => void handleSubmitInput(val)}
             onCancel={() => setInputFocused(false)}
-            isActive={isActive && inputFocused && !pendingConfirm}
+            isActive={isActive && inputFocused && !pendingConfirm && !reasonPickFor}
             width={innerW}
             placeholder={
               tab === 'guided' && stage === 'retell'
@@ -1371,6 +1501,30 @@ export const AssistantPanel = memo(function AssistantPanel({
           />
         </ClickableBox>
       </Panel>
+
+      {reasonPickFor ? (
+        <Modal
+          title={t(lang, '选择错因', 'Pick a reason')}
+          icon={asciiMode ? '#' : '✎'}
+          tone="accent"
+          width={reasonPickW}
+          onClose={cancelReasonPick}
+          isActive={isActive}
+          hints={[
+            { key: '1-6', label: t(lang, '选择', 'Pick') },
+            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+          ]}
+        >
+          <Box marginY={1} flexDirection="column">
+            <SelectList
+              options={reasonOptions}
+              isActive={isActive}
+              width={modalContentWidth(reasonPickW)}
+              onSelect={(opt) => pickReason(opt.value)}
+            />
+          </Box>
+        </Modal>
+      ) : null}
 
       {pendingConfirm ? (
         <ConfirmDialog

@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction, type ReviewRun } from '../../host/sample-actions.js';
@@ -11,6 +12,7 @@ import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
 import { ScrollView } from '../../components/ScrollView.js';
 import { SplitPane } from '../../components/SplitPane.js';
+import { LAYOUT_BP } from '../../components/layout-tokens.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
@@ -124,7 +126,7 @@ export interface RoundSummaryProps {
 }
 
 const CLAIMED_SUMMARY_KEYS: readonly string[] = Object.freeze(['w', 'R', 'g', 'b', 'v', '1', 'j', 'k', 'd']);
-const SPLIT_BREAKPOINT = 84;
+const SPLIT_BREAKPOINT = LAYOUT_BP.SPLIT_COMPACT;
 
 function formatDebriefNextLabel(nextCode: string, lang: UiLanguage): string {
   switch (nextCode) {
@@ -463,11 +465,14 @@ export const RoundSummary = memo(function RoundSummary({
   const fallbackRowsRef = useRef(fallbackRows);
   fallbackRowsRef.current = fallbackRows;
 
+  const runDebriefRef = useRef((run as { debrief?: DebriefResult }).debrief ?? null);
+  runDebriefRef.current = (run as { debrief?: DebriefResult }).debrief ?? null;
+
   useEffect(() => {
     let cancelled = false;
     setPreviewExpanded(false);
     setDetailScrollTop(0);
-    setDebrief((run as { debrief?: DebriefResult }).debrief ?? null);
+    setDebrief(runDebriefRef.current);
     setDebriefOpen(false);
     setConfirmDebriefOpen(false);
     debriefBusyRef.current = false;
@@ -553,7 +558,10 @@ export const RoundSummary = memo(function RoundSummary({
   const correct = Number((run as { correct?: number }).correct ?? rows.filter((r) => r.status === 'right').length) || 0;
   const accuracy = answered > 0 ? Math.round((correct / answered) * 100) : 0;
   const rawWeakTopics = (run as Record<string, unknown>).weakTopics;
-  const weakTopics = Array.isArray(rawWeakTopics) ? (rawWeakTopics as string[]).filter(Boolean) : [];
+  const weakTopics = useMemo(
+    () => (Array.isArray(rawWeakTopics) ? (rawWeakTopics as string[]).filter(Boolean) : []),
+    [rawWeakTopics],
+  );
   const rawMissed = (run as Record<string, unknown>).missedCards;
   const hasMissed =
     rows.some((r) => r.status === 'wrong') ||
@@ -657,7 +665,7 @@ export const RoundSummary = memo(function RoundSummary({
     (input, key) => {
       if (isNarrow && previewExpanded && (key.escape || key.leftArrow)) {
         setPreviewExpanded(false);
-        return;
+        return true;
       }
       if ((key.return || input === ' ' || input === 'v') && selectedRow) {
         setDetailScrollTop(0);

@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -178,36 +179,39 @@ export const BookEditModal = memo(function BookEditModal({
     [selectedItem],
   );
 
+  const hydrateCtxRef = useRef({ openData, selectedItem, slot, syncFromBook });
+  hydrateCtxRef.current = { openData, selectedItem, slot, syncFromBook };
+
   // Hydrate initial open state & fresh file versions/suggestions/history from host.
   useEffect(() => {
     let cancelled = false;
     const args = course !== null && course !== undefined ? { course } : {};
     void tryAction<BookOpenFull>(host, 'course.book.open', { ...args, language: lang }).then((res) => {
       if (cancelled || !mountedRef.current) return;
+      const ctx = hydrateCtxRef.current;
       setLoading(false);
       if (!res.ok || !res.value) {
-        if (!openData) {
+        if (!ctx.openData) {
           setLoadError(res.error?.message || t(lang, '无法读取复习全书', 'Failed to open review book'));
         }
         return;
       }
       setLoadError(null);
       setOpenData(res.value);
-      const node = selectedItem ? findNode(res.value.nodes, selectedItem.key, selectedItem.hid) : null;
-      const rawId = selectedItem?.key?.startsWith('bk:') ? selectedItem.key.slice(3) : '';
+      const node = ctx.selectedItem ? findNode(res.value.nodes, ctx.selectedItem.key, ctx.selectedItem.hid) : null;
+      const rawId = ctx.selectedItem?.key?.startsWith('bk:') ? ctx.selectedItem.key.slice(3) : '';
       const resolvedFile =
-        slot === 'mine'
+        ctx.slot === 'mine'
           ? (node?.files?.mine || (rawId ? `${rawId}.mine.md` : ''))
           : (node?.files?.gen || (rawId ? `${rawId}.gen.md` : ''));
       if (resolvedFile && !dirtyRef.current) {
-        syncFromBook(res.value, resolvedFile);
+        ctx.syncFromBook(res.value, resolvedFile);
       }
     });
     return () => {
       cancelled = true;
     };
     // Run once on mount (or when course/lang changes) so we don't clobber edits mid-session.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [host, course, lang]);
 
   // Synchronize text buffer when activeFile changes cleanly (e.g. initial mount with bookData or slot switch).
