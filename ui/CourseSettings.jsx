@@ -15,6 +15,7 @@ import { useStudy } from './study-context.jsx';
 import { HandOff } from './hand-off/HandOff.jsx';
 import { useLiveEffect } from './use-async.js';
 import { joinMeta } from './format.js';
+import { callsText } from './token-usage.js';
 import { ActiveSwitch, isParked } from './CourseActive.jsx';
 import { ExamAlignmentPointer, examPointerShown } from './ExamAlignmentPointer.jsx';
 import { alignmentReceipt } from './exam-alignment-words.js';
@@ -33,18 +34,32 @@ import focusIntakeCss from './focus-intake.css';
 const FORMAT_LABELS = { 'open-book-case': '开卷案例', 'closed-book': '闭卷', mixed: '混合', other: '其他' };
 export const examFormatLabel = format => ui(FORMAT_LABELS[format] || FORMAT_LABELS.other);
 
-function CourseOrganizeSection({ courseName, disabled }) {
+/** 批量整理前置依赖与生词 (#1293). 开始整理 first asks the dry run of course.organize.start (counts only: no model call, nothing written); the run starts only
+ *  from the confirmation, which says how many questions and about how many model calls. Nothing to do is said instead of starting a job. */
+export function CourseOrganizeSection({ courseName, disabled }) {
   const { call, navigate } = useStudy();
   const toast = useToast();
-  const [starting, setStarting] = useState(false);
+  const trigger = useRef(null);
+  const [step, setStep] = useState(null); // null | 'checking' | 'starting'
+  const [offer, setOffer] = useState(null); // the dry run's answer, while it is shown
   const [receipt, setReceipt] = useState(null);
+  const preview = offer?.preview || {};
+  const calls = preview.modelCalls || { low: 0, high: 0 };
+  const nothing = !!offer && !(preview.candidateLinks > 0) && !(calls.high > 0);
 
-  const startOrganize = async () => {
-    if (!courseName || starting) return;
-    setStarting(true);
+  const check = async () => {
+    if (!courseName || step) return;
+    setStep('checking'); setOffer(null);
+    try { setOffer(await call('course.organize.start', { course: courseName, mode: 'all', dryRun: true })); }
+    catch (error) { toast.error(errorMessage(error)); }
+    finally { setStep(null); }
+  };
+  const start = async () => {
+    if (!courseName || step) return;
+    setStep('starting');
     try {
       const res = await call('course.organize.start', { course: courseName, mode: 'all' });
-      setReceipt(res);
+      setOffer(null); setReceipt(res);
       if (res?.alreadyRunning) {
         toast.info(ui('这门课的批量整理任务已在后台运行，可在任务台查看进度。'));
       } else if (res?.hasModel === false) {
@@ -55,7 +70,7 @@ function CourseOrganizeSection({ courseName, disabled }) {
     } catch (error) {
       toast.error(errorMessage(error));
     } finally {
-      setStarting(false);
+      setStep(null);
     }
   };
 
@@ -65,7 +80,7 @@ function CourseOrganizeSection({ courseName, disabled }) {
       <Hint>{ui('按课程词表与章节先后批量建立无环前置依赖（每题最多 12 条，不覆盖已有链接）；若已配置模型，同时为缺少生词缓存的题目预提取生词。任务在后台运行，可随时取消。')}</Hint>
       <div className="course-settings__organize-actions">
         <Tooltip content={ui('新增前置链接后，未掌握的前置题会在学习路径中提前出现；已有前置与生词缓存不会被覆盖。')} placement="top-start">
-          <Button size="sm" variant="secondary" icon="sparkle" busy={starting} disabled={disabled || !courseName} onClick={startOrganize}>
+          <Button ref={trigger} size="sm" variant="secondary" icon="sparkle" busy={step === 'checking'} disabled={disabled || !courseName || !!step || (!!offer && !nothing)} onClick={check}>
             {ui('开始整理前置依赖与生词')}
           </Button>
         </Tooltip>
@@ -75,13 +90,20 @@ function CourseOrganizeSection({ courseName, disabled }) {
           </Button>
         )}
       </div>
-      {receipt?.preview && (
-        <Hint>
-          {receipt.hasModel === false
-            ? uiFormat('范围：{0} 题，待尝试建立 {1} 条前置链接；未配置模型，生词预提取已跳过。', [receipt.preview.totalCards ?? 0, receipt.preview.candidateLinks ?? 0])
-            : uiFormat('范围：{0} 题，待尝试建立 {1} 条前置链接，待预提取生词 {2} 题。', [receipt.preview.totalCards ?? 0, receipt.preview.candidateLinks ?? 0, receipt.preview.uncachedTermCards ?? 0])}
-        </Hint>
-      )}
+      {nothing && <InlineMessage tone="info">{preview.uncachedTermCards > 0
+        ? ui('这门课没有可新增的前置链接；预提取生词需要先配置模型。')
+        : ui('这门课没有需要整理的：能建的前置链接都已建好，题目的生词也都已提取。')}</InlineMessage>}
+      {offer && !nothing && <InlineConfirm tone="warning" title={uiFormat('整理「{0}」的前置依赖与生词？', [courseName])} confirmLabel={ui('确认整理')}
+        busy={step === 'starting'} returnFocusRef={trigger} onConfirm={start} onCancel={() => setOffer(null)}>
+        <p>{offer.hasModel === false
+          ? uiFormat('范围：{0} 题，待尝试建立 {1} 条前置链接；未配置模型，不会预提取生词。', [preview.totalCards ?? 0, preview.candidateLinks ?? 0])
+          : uiFormat('范围：{0} 题，待尝试建立 {1} 条前置链接，待预提取生词 {2} 题。', [preview.totalCards ?? 0, preview.candidateLinks ?? 0, preview.uncachedTermCards ?? 0])}</p>
+        {calls.high > 0 && <p>
+          <Tooltip content={ui('每道题问一次模型；回复格式不对时再问一次，所以是一个范围。建立前置链接不调用模型。')} placement="top-start">
+            <span tabIndex={0}>{uiFormat('预提取生词约需 {0}。', [callsText(calls)])}</span>
+          </Tooltip>
+        </p>}
+      </InlineConfirm>}
     </Disclosure>
   );
 }

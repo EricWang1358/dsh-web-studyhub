@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import React from 'react';
 import { StudyService } from '../lib/service.js';
 import { planCourseOrganize, runCourseOrganize, MAX_PREREQS_PER_CARD } from '../lib/contexts/generation/course-organize/organize.js';
 import { translateSource } from '../lib/translation-source.js';
@@ -244,6 +245,32 @@ test('#1293-3: StudyService course.organize.start with mock light model links pr
   assert.equal(callsBeforeAbort, 1, 'stops immediately after abort signal');
 });
 
+test('#1293-5: the dry run answers what the confirmation shows (questions, links, questions to extract, model calls) and writes nothing', async t => {
+  const log = [];
+  const { service } = await createLibrary(t, createFakeModel({ log, usage: true }));
+  await seedCompilers(service);
+  const before = JSON.stringify((await service.call('export')).decks);
+
+  const dry = await service.call('course.organize.start', { course: 'Compilers', mode: 'all', dryRun: true });
+  assert.equal(dry.status, 'preview');
+  assert.equal(dry.hasModel, true);
+  assert.deepEqual(
+    { totalCards: dry.preview.totalCards, candidateLinks: dry.preview.candidateLinks, uncachedTermCards: dry.preview.uncachedTermCards, modelCalls: dry.preview.modelCalls },
+    { totalCards: 2, candidateLinks: 1, uncachedTermCards: 2, modelCalls: { low: 2, high: 4 } },
+    'each question without cached terms is asked once, and once more when the reply is unreadable',
+  );
+  assert.equal(log.length, 0, 'the dry run makes no model call');
+  assert.equal(JSON.stringify((await service.call('export')).decks), before, 'the dry run writes nothing');
+  assert.equal(organizeJobs(service).length, 0, 'the dry run starts no job');
+
+  const offline = (await createLibrary(t)).service;
+  await seedCompilers(offline);
+  const dryOffline = await offline.call('course.organize.start', { course: 'Compilers', mode: 'all', dryRun: true });
+  assert.equal(dryOffline.hasModel, false);
+  assert.deepEqual(dryOffline.preview.modelCalls, { low: 0, high: 0 }, 'without a model the run spends no model call');
+  assert.equal(dryOffline.preview.candidateLinks, 1);
+});
+
 test('#1293-6: every model call of the job goes through its own gateway: a Step and a Call per call on the job record, booked once in the usage ledger', async t => {
   const log = [];
   const { root, service } = await createLibrary(t, createFakeModel({ log, usage: true }));
@@ -291,5 +318,80 @@ test('#1293-4: CourseSettings exposes secondary batch organize UI with Tooltip a
     }
   } finally {
     ui.setUiLanguage('zh');
+  }
+});
+
+/* ---------- the confirmation before the run (mounted the way tests/marker-install-ui.test.mjs mounts its buttons) ---------- */
+
+function find(tree, predicate) {
+  if (Array.isArray(tree)) return tree.map(item => find(item, predicate)).find(Boolean);
+  if (!React.isValidElement(tree)) return undefined;
+  return predicate(tree) ? tree : find(tree.props.children, predicate);
+}
+const textOf = tree => {
+  if (Array.isArray(tree)) return tree.map(textOf).join('');
+  if (typeof tree === 'string' || typeof tree === 'number') return String(tree);
+  return React.isValidElement(tree) ? [tree.props.title, tree.props.content].filter(item => typeof item === 'string').join(' ') + textOf(tree.props.children) : '';
+};
+const named = label => item => item.props?.children === label;
+const flush = () => new Promise(resolve => setImmediate(resolve));
+// Keep state across renders so the section's handlers run as in the app (no DOM needed); every context reads the harness's services (call, toasts).
+async function mountOrganize(props, services) {
+  const states = [], refs = [];
+  let stateAt = 0, refAt = 0;
+  const hooks = { ...React, useId: () => 'mounted', useContext: () => services,
+    useState: initial => { const index = stateAt++; if (!(index in states)) states[index] = typeof initial === 'function' ? initial() : initial; return [states[index], value => { states[index] = typeof value === 'function' ? value(states[index]) : value; }]; },
+    useRef: initial => refs[refAt++] ||= { current: initial }, useMemo: read => read(), useCallback: fn => fn, useInsertionEffect: () => {}, useEffect: () => {}, useLayoutEffect: () => {} };
+  const { build } = await import('esbuild');
+  const { createRequire } = await import('node:module');
+  const require = createRequire(import.meta.url);
+  const compiled = await build({ stdin: { contents: `export { CourseOrganizeSection } from './ui/CourseSettings.jsx';`, resolveDir: process.cwd() }, bundle: true, write: false,
+    platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
+  const module = { exports: {} };
+  new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(name => name === 'react' ? hooks : require(name), module, module.exports);
+  return { render() { stateAt = 0; refAt = 0; return module.exports.CourseOrganizeSection(props); } };
+}
+
+test('#1293-8: 开始整理 asks the dry run first and starts nothing; the confirmation says the questions and the model calls; only 确认整理 starts the job', async () => {
+  const calls = [], toasts = [];
+  const dry = { status: 'preview', course: 'Compilers', hasModel: true, preview: { totalCards: 2, candidateLinks: 1, uncachedTermCards: 2, cachedTermCards: 0, modelCalls: { low: 2, high: 4 } } };
+  const call = async (action, args) => { calls.push({ action, args }); return args.dryRun ? dry : { jobId: 'job-1', status: 'running', hasModel: true }; };
+  const services = { call, busy: false, info: message => toasts.push(message), success: message => toasts.push(message), error: message => toasts.push(message) };
+  const mounted = await mountOrganize({ courseName: 'Compilers', disabled: false }, services);
+
+  await find(mounted.render(), named('开始整理前置依赖与生词')).props.onClick(); await flush();
+  assert.deepEqual(calls, [{ action: 'course.organize.start', args: { course: 'Compilers', mode: 'all', dryRun: true } }], 'the click only asks the dry run');
+  const tree = mounted.render();
+  const confirm = find(tree, item => typeof item.props?.onConfirm === 'function' && item.props?.confirmLabel);
+  assert.ok(confirm, 'a confirmation shows before anything is spent');
+  const said = textOf(confirm);
+  assert.match(said, /范围：2 题，待尝试建立 1 条前置链接，待预提取生词 2 题/);
+  assert.match(said, /2–4 次模型调用/);
+  assert.ok(find(confirm, item => typeof item.props?.content === 'string' && item.props.content.length > 0), 'why the calls are a range is a Tooltip');
+  assert.equal(calls.length, 1, 'nothing starts before the confirmation');
+
+  await confirm.props.onConfirm(); await flush();
+  assert.deepEqual(calls.at(-1), { action: 'course.organize.start', args: { course: 'Compilers', mode: 'all' } });
+  assert.equal(find(mounted.render(), item => typeof item.props?.onConfirm === 'function' && item.props?.confirmLabel), undefined, 'the confirmation closes once the job started');
+
+  // Cancelling the confirmation starts nothing.
+  calls.length = 0;
+  await find(mounted.render(), named('开始整理前置依赖与生词')).props.onClick(); await flush();
+  find(mounted.render(), item => typeof item.props?.onCancel === 'function' && item.props?.confirmLabel).props.onCancel();
+  assert.equal(find(mounted.render(), item => typeof item.props?.onConfirm === 'function' && item.props?.confirmLabel), undefined);
+  assert.deepEqual(calls.map(item => item.args.dryRun === true), [true]);
+});
+
+test('#1293-9: when the dry run finds nothing to do, the section says so and no job is started', async () => {
+  for (const [hasModel, uncached, words] of [[true, 0, /没有需要整理的/], [false, 3, /需要先配置模型/]]) {
+    const calls = [];
+    const dry = { status: 'preview', course: 'Compilers', hasModel, preview: { totalCards: 3, candidateLinks: 0, uncachedTermCards: uncached, cachedTermCards: 3 - uncached, modelCalls: { low: 0, high: 0 } } };
+    const services = { call: async (action, args) => { calls.push({ action, args }); return dry; }, busy: false, info() {}, success() {}, error() {} };
+    const mounted = await mountOrganize({ courseName: 'Compilers', disabled: false }, services);
+    await find(mounted.render(), named('开始整理前置依赖与生词')).props.onClick(); await flush();
+    const tree = mounted.render();
+    assert.equal(find(tree, item => typeof item.props?.onConfirm === 'function'), undefined, 'no confirmation for nothing');
+    assert.match(textOf(tree), words);
+    assert.deepEqual(calls.map(item => item.args.dryRun === true), [true], 'only the dry run was asked');
   }
 });
