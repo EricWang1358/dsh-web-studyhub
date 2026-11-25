@@ -1922,5 +1922,13 @@
   "查看源码": "View source",
   "查看图示": "View diagram",
   "源码": "Source",
-  "图示": "Diagram"
+  "图示": "Diagram",
+  "一键预览示例：地理 · 海陆风": "Preview sample: Geography · Sea & Land Breeze",
+  "免配置、零消耗，直接体验昼夜温差滑块、等压面框图与自测互动（不写入学习库）。": "Zero setup, zero tokens — try the day/night thermal slider, isobaric diagram, and quick checks without modifying your library.",
+  "立即预览": "Preview now",
+  "地理 · 海陆风热力环流": "Geography · Sea & Land Breeze Thermal Circulation",
+  "高级选项": "Advanced options",
+  "交互母版 · 题库联动 · 挂载本地目录": "Archetype · Card sync · Local mount",
+  "示例预览 · 不写入学习库": "Sample preview · read-only",
+  "当前为免配置只读示例预览，互动操作与自测均在内存中运行，不会写入或改动你的学习库。": "This is a built-in read-only sample preview. Interactive sliders and quick checks run in memory and never modify your study library."
 }
