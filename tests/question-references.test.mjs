@@ -165,7 +165,7 @@ test('public generation saves reference IDs while citations and planning retain 
   await service.call('source.archive', { id: sample.id, archived: true });
   await service.call('source.remove', { id: sample.id, confirm: true });
   assert.ok((await service.call('export')).drafts.some(d => d.id === draft.id), 'deleting a sample does not erase questions');
-  await assert.rejects(service.call('generate', { resumeDraftId: draft.id, draftVersion: more.draftVersion }), /missing or empty/);
+  await assert.rejects(service.call('generate', { resumeDraftId: draft.id, draftVersion: more.draftVersion }), { code: 'reference-material-missing' });
   const clear = await service.call('generate', { resumeDraftId: draft.id, draftVersion: more.draftVersion, referenceSourceIds: [], referenceLimits: {}, referenceFormat: 'flexible' });
   const cleared = await service.call('job.wait', { jobId: clear.jobId, timeoutSeconds: 30 });
   assert.equal(cleared.status, 'complete', cleared.stage);
