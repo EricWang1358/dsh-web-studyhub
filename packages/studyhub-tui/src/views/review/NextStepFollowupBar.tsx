@@ -193,10 +193,25 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
     };
   }, [onFocusChange]);
 
-  // Reset conversation when card or tool changes.
+  // Reset the conversation whenever the question/result it is grounded in changes (#1453).
+  //
+  // `cardId` + `toolLabel` alone are not enough: `SimilarCardsModal` renders one bar with the
+  // origin `cardId` while the user browses similar cards, so A -> B -> back to A only changes
+  // `resultContext` (`run.card` follows the selection). Without it, A's transcript stayed on
+  // screen while B's result was shown, and re-expanding after returning to A showed the stale
+  // dialogue again.
+  //
+  // These deps are compared by value (React uses Object.is; strings compare by content), so
+  // parents that rebuild an identical context string on every render (e.g. `CardToolsModal`
+  // joining its term list inline) do not wipe an active conversation.
+  const cardScopeId = cardId || (typeof run.card?.id === 'string' ? run.card.id : '');
+  const resultScope = resultContext ?? '';
   useEffect(() => {
     abortRef.current?.abort();
     abortRef.current = null;
+    // Clear the ref synchronously too: a send issued in the same tick as the prop change must
+    // not pick up the previous question's turns from the last committed render.
+    turnsRef.current = [];
     setExpanded(false);
     setInputFocused(false);
     setInputValue('');
@@ -204,7 +219,7 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
     setStreaming(false);
     setErrorText(null);
     resetStreaming();
-  }, [cardId, toolLabel, resetStreaming]);
+  }, [run.id, cardScopeId, toolLabel, resultScope, resetStreaming]);
 
   const sendInstruction = useCallback(
     async (raw: string) => {
