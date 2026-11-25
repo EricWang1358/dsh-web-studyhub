@@ -34,8 +34,8 @@ import RetrievalPanel from './RetrievalPanel.jsx';
 import { generateAdvice, retrievalReady } from './large-document-advice.js';
 import { useRetrievalStatus } from './retrieval-status.js';
 import {
-  DIFFICULTIES, LANGUAGES, appendFocus, applySuggestion, autoOf, customCountOf, courseHasCaseExam, coverageStructure,
-  NOTATION_CHOICES, caseEvidence, chosenOptions, difficultyNote, estimateMinutes, estimateRequestOf, importDialog, kindNote, kindsOfForm, kindsPatch, extraValuesOf, moreValuesOf, notationNote, courseLine, roleOpenByDefault, selectionStats, summaryLine,
+  DIFFICULTIES, LANGUAGES, LEARNER_LEVELS, appendFocus, applySuggestion, autoOf, customCountOf, courseHasCaseExam, coverageStructure,
+  NOTATION_CHOICES, caseEvidence, chosenOptions, difficultyNote, estimateMinutes, estimateRequestOf, importDialog, kindNote, kindsOfForm, kindsPatch, extraValuesOf, learnerLevelNote, moreValuesOf, notationNote, courseLine, roleOpenByDefault, selectionStats, summaryLine,
 } from './generate-form.js';
 import { DEFAULT_LEVEL, levelOf } from '../lib/coverage-strength.js';
 import { writesInOnePass } from '../lib/one-pass/route.js';
@@ -378,6 +378,13 @@ export default function Generate({
                     <SegmentedControl className="generate-seg" label={ui("难度")} value={gen.difficulty} options={DIFFICULTIES.map(({ value, label }) => ({ value, label }))}
                       onChange={(difficulty) => setGen({ ...gen, difficulty })} />
                     <p className="generate-note">{difficultyNote(gen.difficulty)}</p>
+                  </FormRow>
+                  <FormRow label={ui("学习者基础")} data-tour="generate-learner-level">
+                    <Tooltip content={ui("可选：按当前基础调整出题重点；选择「零基础」时会在出题后额外扫描 1 次并补最多 6 张前置概念卡（计入用量估算）。")} placement="top-start">
+                      <SegmentedControl className="generate-seg" label={ui("学习者基础")} value={gen.learnerLevel ?? ''} options={LEARNER_LEVELS.map(({ value, label }) => ({ value, label }))}
+                        onChange={(learnerLevel) => setGen({ ...gen, learnerLevel })} />
+                    </Tooltip>
+                    <p className="generate-note">{learnerLevelNote(gen.learnerLevel ?? '')}</p>
                   </FormRow>
                   <FormRow label={ui("语言")} data-tour="generate-language">
                     <SegmentedControl className="generate-seg" label={ui("语言")} value={gen.language} options={LANGUAGES.map(({ value, label }) => ({ value, label }))}
