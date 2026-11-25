@@ -9,6 +9,7 @@ import { padDisplay, truncateDisplay, wrapDisplay } from '../render/cjk.js';
 import { Modal, modalContentWidth } from '../components/Modal.js';
 import { VirtualList, pageStep } from '../components/VirtualList.js';
 import { copyTextWithFallback } from '../render/clipboard.js';
+import { hairline } from '../render/glyphs.js';
 
 export interface NotificationHistoryModalProps {
   isActive: boolean;
@@ -181,7 +182,7 @@ export const NotificationHistoryModal = memo(function NotificationHistoryModal({
   );
 
   const hints = [
-    { key: '↑↓', label: t(lang, '选择', 'Select') },
+    { key: asciiMode ? 'Up/Dn' : '↑↓', label: t(lang, '选择', 'Select') },
     { key: 'c', label: t(lang, '复制', 'Copy') },
     { key: 'C', label: t(lang, '清空', 'Clear') },
     { key: 'Ctrl+D/U', label: t(lang, '滚动', 'Scroll') },
@@ -250,7 +251,7 @@ export const NotificationHistoryModal = memo(function NotificationHistoryModal({
           </Box>
           {!sideBySide ? (
             <Box height={1} width={innerW} overflow="hidden">
-              <Text color={theme.border}>{'─'.repeat(innerW)}</Text>
+              <Text color={theme.border}>{hairline(innerW, asciiMode)}</Text>
             </Box>
           ) : null}
           <Box
