@@ -155,7 +155,7 @@ test('#1293-1: deterministic prerequisite planner links glossary and earlier-cha
   assert.ok(res.skippedReasons['no-model'] > 0);
 });
 
-test('#1293-2: StudyService course.organize.start runs offline without a model, appears in jobs list, and reports no-model cleanly', async t => {
+test('#1293-2: with a live executor and no model, course.organize.start links prerequisites (marked as its own), appears in the jobs list and reports no-model cleanly', async t => {
   const { service } = await createLibrary(t);
   await service.call('deck.import', {
     course: 'Systems',
@@ -206,6 +206,21 @@ test('#1293-2: StudyService course.organize.start runs offline without a model, 
   await service.call('card.link', { deckId: handDeck.id, cardId: handDeck.cards[0].id, requires: { deckId: ch1.id, cardId: ch1.cards[0].id } });
   const handLink = (await service.call('export')).decks.find(d => d.id === handDeck.id).cards[0].requires[0];
   assert.deepEqual(handLink, { deckId: ch1.id, cardId: ch1.cards[0].id }, 'a hand-made link carries no origin');
+});
+
+test('#1293-10: with no live executor even a links-only run is refused in the learner\'s words (zh and en), with its code, and nothing is written', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'study-course-organize-1293-'));
+  const service = new StudyService(root);
+  t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true }); });
+  await seedCompilers(service);
+  const before = JSON.stringify((await service.call('export')).decks);
+
+  await assert.rejects(service.call('course.organize.start', { course: 'Compilers', mode: 'prereqs' }),
+    error => error.code === 'executor-unavailable' && error.message === '后台执行器暂时不可用，请稍后再试');
+  await assert.rejects(service.call('course.organize.start', { course: 'Compilers', mode: 'prereqs', uiLanguage: 'en' }),
+    error => error.code === 'executor-unavailable' && error.message === 'The background task service is not available; try again later');
+  assert.equal(JSON.stringify((await service.call('export')).decks), before, 'a refused run writes nothing');
+  assert.equal(organizeJobs(service).length, 0);
 });
 
 test('#1293-3: StudyService course.organize.start with mock light model links prerequisites and pre-extracts card.terms without overwriting existing cache, and supports cancellation', async t => {
