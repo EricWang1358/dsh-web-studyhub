@@ -24,6 +24,13 @@
             "shell": "bash",
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/skill-moment.mjs\" release",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "if": "Bash(git *)",
+            "shell": "bash",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/skill-moment.mjs\" shared-checkout",
+            "timeout": 10
           }
         ]
       }

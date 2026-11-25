@@ -13,6 +13,13 @@
       "skill": "verify-before-done",
       "classes": ["C38", "C41"],
       "lead": "You are about to build or publish a release. Answer these first:"
+    },
+    {
+      "name": "shared-checkout",
+      "pattern": "(^|[;&|(]\\s*)git\\s+(switch|checkout|pull|rebase|stash)\\b|(^|[;&|(]\\s*)git\\s+reset\\s+--hard\\b",
+      "skill": "decide-from-data",
+      "classes": ["C22"],
+      "lead": "This changes the whole checkout. If `git status` shows changes you did not make, another session may be using this folder: work in a worktree instead (git worktree add .local/wt/<name>)."
     }
   ]
 }

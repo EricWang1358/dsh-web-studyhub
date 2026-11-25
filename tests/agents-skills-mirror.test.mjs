@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -73,6 +73,21 @@ test('Claude Code and Codex get additionalContext; Antigravity gets ask with the
   assert.equal(agy.decision, 'ask');
   assert.match(agy.reason, /\[C03\]/);
   assert.deepEqual(JSON.parse(respond({ toolCall: { name: 'run_command', args: { CommandLine: 'echo "gh pr create"' } } }, moments, readSkill)), { decision: 'allow' });
+});
+
+test('the shared-checkout moment asks C22 before a command that changes the whole checkout, and only then', async () => {
+  const { moments } = JSON.parse(await readFile(join(root, '.claude/hooks/skill-moments.json'), 'utf8'));
+  const read = name => readFileSync(join(root, '.claude/skills', name, 'SKILL.md'), 'utf8');
+  const asks = command => /\[C22\]/.test(respond({ tool_input: { command } }, moments, read, 'shared-checkout'));
+  for (const command of ['git switch -c x', 'git checkout main', 'cd repo && git pull --ff-only', 'git rebase origin/main', 'git stash push -u -m t', 'git reset --hard HEAD~1']) {
+    assert.ok(asks(command), command);
+  }
+  for (const command of ['git status', 'git log --oneline', 'git reset HEAD file', 'git worktree add .local/wt/x', 'echo "git switch main"', 'git commit -m "git checkout notes"']) {
+    assert.ok(!asks(command), command);
+  }
+  const settings = JSON.parse(await readFile(join(root, '.claude/settings.json'), 'utf8'));
+  const entries = settings.hooks.PreToolUse.flatMap(g => g.hooks);
+  assert.ok(entries.some(h => h.if === 'Bash(git *)' && h.command.endsWith(' shared-checkout')), 'Claude Code runs the moment before git commands');
 });
 
 test('the Codex and Antigravity hook files run the same script with no moment filter', async () => {
