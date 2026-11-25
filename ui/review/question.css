@@ -691,7 +691,7 @@
       .teaching-context > div { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
       .teaching-panel form > .teaching-panel__submit { width: 100%; }
       .teaching-panel__actions { justify-content: stretch; }
-      .teaching-panel__actions > .sh-btn { flex: 1 1 100%; justify-content: center; }
+      .teaching-panel__submit, .teaching-panel__skip, .teaching-panel__skip-all { flex: 1 1 100%; justify-content: center; }
     }
   }
   :where(.study-app, .study-seat) {

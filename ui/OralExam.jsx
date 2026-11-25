@@ -164,11 +164,14 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
     if (alive()) showRun(next);
   }));
   const submit = runAction('submit', () => exam.submit({ before: saveAnswers, clearRun: true, after: forgetDrafts }));
-  const reassess = runAction('assess', () => exam.perform(async alive => {
-    if (!report?.runId) return;
-    const next = await call("oral.assess", { runId: report.runId });
-    if (alive()) exam.showReport(next);
-  }));
+  // A handler with a body of its own, so the click gate reads it (it runs the host call oral.assess here); a bare `runAction(...)` result has no body to read.
+  const reassess = () => {
+    void runAction('assess', () => exam.perform(async alive => {
+      if (!report?.runId) return;
+      const next = await call("oral.assess", { runId: report.runId });
+      if (alive()) exam.showReport(next);
+    }))();
+  };
   const practiceWeak = () => exam.perform(async alive => {
     const next = await call("review.start", { mode: "path", scope: report.weakScope, fresh: true });
     if (!alive()) return;

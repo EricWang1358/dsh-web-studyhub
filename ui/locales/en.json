@@ -1912,7 +1912,6 @@
   "已跳过 {0} 步#one": "Skipped {0} step",
   "已跳过 {0} 步（不计为已掌握，可回头再看）：": "Skipped {0} steps (not counted as mastered; you can revisit them anytime):",
   "已跳过 {0} 步（不计为已掌握，可回头再看）：#one": "Skipped {0} step (not counted as mastered; you can revisit it anytime):",
-  "第 {0} 步：{1}": "Step {0}: {1}",
   "连续答错两次了，可以看要点并继续：点击「跳过这一步」或「剩下的直接讲给我听」。": "Missed twice in a row — view the key takeaway and keep moving: click \"Skip this step\" or \"Explain the rest to me\".",
   "跳过这一步": "Skip this step",
   "剩下的直接讲给我听": "Explain the rest to me",
