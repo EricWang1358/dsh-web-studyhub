@@ -1,6 +1,6 @@
 ---
 name: design-screen-content
-description: "Load before you change what a screen shows: a message, toast, warning, status or label; a list row; a loading, empty or failed state; which controls appear; parts that must line up (界面、文案、提示、状态、空状态、加载中). Its questions come from this repo's own PRs and issues and are in the skill body, not in this description: read it before you answer."
+description: "Load before you change what a screen shows: a message, toast, warning, status or label; a list row; a loading, empty or failed state; which controls appear; parts that must line up or match, such as buttons whose spacing or borders differ (界面、文案、提示、状态、空状态、不一致). Its questions come from this repo's own PRs and issues and are in the skill body, not in this description: read it before you answer."
 ---
 
 # Design what one screen shows

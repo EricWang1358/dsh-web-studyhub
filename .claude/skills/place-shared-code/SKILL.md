@@ -1,6 +1,6 @@
 ---
 name: place-shared-code
-description: "Load before you add or copy code that something else may already own: a component, constant, limit, option list, rule, guard or helper, or code copied from a sibling page or feature (复用、复制一份、常量放哪、组件). Its questions come from this repo's own PRs and issues and are in the skill body, not in this description: read it before you answer."
+description: "Load before you add or copy code that something else may already own: a component, constant, limit, option list, rule, guard or helper, or code copied from a sibling page; also when only asked where such a value should live (复用、复制一份、常量放哪、组件). Its questions come from this repo's own PRs and issues and are in the skill body, not in this description: read it before you answer."
 ---
 
 # Decide who owns new code
