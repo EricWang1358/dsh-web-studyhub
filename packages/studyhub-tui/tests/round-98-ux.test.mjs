@@ -127,13 +127,27 @@ describe('Round 98 Track B11 — All-6-Themes WCAG Accessibility & Zero Dead End
     }
 
     // Zero dead-end verification across all unsupported categories
-    for (const raw of ['帮我发邮件给同学', '执行 rm -rf /', '帮我查明天天气']) {
+    for (const raw of ['帮我发邮件给同学', '帮我格式化硬盘', '执行 rm -rf /', '帮我查明天天气']) {
       const intent = parseAssistantIntent(raw, { lang: 'zh' });
-      assert.equal(intent.kind, 'unsupported');
+      assert.equal(intent.kind, 'boundary', `Expected boundary for "${raw}"`);
       assert.ok(intent.alternativeLabel.length > 0);
       assert.ok(intent.alternativeCommand.length > 0);
       const prompt = buildFallbackPrompt({ instruction: raw, course: 'OS', lang: 'zh' });
       assert.match(prompt, /课程：OS/);
+    }
+
+    // #1340: normal study questions containing keywords like 格式化 / 发消息 / step 2 / 过去统计 must route to chat
+    for (const q of [
+      '什么是格式化字符串',
+      '进程间发消息是怎么实现的？',
+      'wechat 和 telegram 的加密协议有什么区别？',
+      'step 2',
+      'app 3',
+      '第3页提到的格式化字符串是什么？',
+      '过去统计的方法有哪些？',
+    ]) {
+      const intent = parseAssistantIntent(q, { lang: 'zh' });
+      assert.equal(intent.kind, 'chat', `Expected chat for normal study question "${q}", got ${intent.kind}`);
     }
   });
 });

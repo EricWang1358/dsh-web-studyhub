@@ -301,9 +301,13 @@ function IndexBuilder({ status, courses, defaultCourse, onDone, initialPlan, ini
         {diagRow(problem, () => extensionDiagnostic({ status, stage: 'index-start', course, error: problem }))}
       </>}
       {run?.status === 'complete' && <InlineMessage tone="success" boxed>
-        {canChat
-          ? uiFormat('已为「{0}」建立索引：新增 {1} 页，移除 {2} 页，{3} 页无需更新。出题和 AI 带学现在会用它挑选相关页面。', [run.course || ui('全部资料'), run.added ?? 0, run.removed ?? 0, run.unchanged ?? 0])
-          : uiFormat('已为「{0}」建立索引：新增 {1} 页，移除 {2} 页，{3} 页无需更新。出题时现在会用它挑选相关页面。', [run.course || ui('全部资料'), run.added ?? 0, run.removed ?? 0, run.unchanged ?? 0])}
+        {run.upgraded > 0
+          ? (canChat
+            ? uiFormat('已为「{0}」更新索引：新增 {1} 页，升级格式 {2} 页，移除 {3} 页，{4} 页无需更新。出题和 AI 带学现在会用它挑选相关页面。', [run.course || ui('全部资料'), run.added ?? 0, run.upgraded, run.removed ?? 0, run.unchanged ?? 0])
+            : uiFormat('已为「{0}」更新索引：新增 {1} 页，升级格式 {2} 页，移除 {3} 页，{4} 页无需更新。出题时现在会用它挑选相关页面。', [run.course || ui('全部资料'), run.added ?? 0, run.upgraded, run.removed ?? 0, run.unchanged ?? 0]))
+          : (canChat
+            ? uiFormat('已为「{0}」建立索引：新增 {1} 页，移除 {2} 页，{3} 页无需更新。出题和 AI 带学现在会用它挑选相关页面。', [run.course || ui('全部资料'), run.added ?? 0, run.removed ?? 0, run.unchanged ?? 0])
+            : uiFormat('已为「{0}」建立索引：新增 {1} 页，移除 {2} 页，{3} 页无需更新。出题时现在会用它挑选相关页面。', [run.course || ui('全部资料'), run.added ?? 0, run.removed ?? 0, run.unchanged ?? 0]))}
         {run.skipped > 0 && ` ${uiFormat('{0} 页无检索文字（跳过）。', [run.skipped])}`}
         {run.failedCount > 0 && ` ${uiFormat('{0} 页没能写入索引，下次建立时会重试。', [run.failedCount])}`}
       </InlineMessage>}

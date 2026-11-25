@@ -90,6 +90,6 @@ export function buildWrongStreakBanner(
   const topics = [...new Set(recentWrong.map((x) => x.topic).filter(Boolean))].slice(0, 2);
   const topicHint = topics.length > 0 ? (lang === 'en' ? ` (${topics.join(', ')})` : `（${topics.join('、')}）`) : '';
   return lang === 'en'
-    ? `${icon} ${count} wrong in a row${topicHint} — press [T] for AI root-cause diagnosis`
-    : `${icon} 连续答错 ${count} 题${topicHint}，建议做一次共性归因 [T] 带学诊断`;
+    ? `${icon} ${count} wrong in a row${topicHint} — press [t] for AI root-cause diagnosis`
+    : `${icon} 连续答错 ${count} 题${topicHint}，建议做一次共性归因 [t] 带学诊断`;
 }

@@ -130,7 +130,8 @@ export function buildContextChips(input: BuildContextChipsInput): AssistantChip[
     if (card?.isWrong) {
       defaults.push(
         { id: 'chip:plain-explain', label: lang === 'en' ? 'Plain explain' : '通俗讲解', command: '讲解新增通俗讲解', kind: 'command' },
-        { id: 'chip:mark-wrong', label: lang === 'en' ? 'Mark wrong reason' : '加入错题本', command: '把这题加入错题本并标记为概念不清', kind: 'command' },
+        // #1439: the chip names no reason; the panel lists the six reasons for the learner to pick.
+        { id: 'chip:mark-wrong', label: lang === 'en' ? 'Mark reason' : '标记错因', command: '标记错因', kind: 'command' },
         { id: 'chip:guided-retell', label: lang === 'en' ? 'Guided & Retell' : '带学复述', command: '进入带学', kind: 'guided' },
         { id: 'chip:stats', label: lang === 'en' ? 'Today stats' : '查看统计', command: '查看统计', kind: 'command' },
       );
@@ -138,7 +139,7 @@ export function buildContextChips(input: BuildContextChipsInput): AssistantChip[
       defaults.push(
         { id: 'chip:guided-help', label: lang === 'en' ? 'Guided hint' : '苏格拉底带学', command: '进入带学', kind: 'guided' },
         { id: 'chip:plain-explain', label: lang === 'en' ? 'Plain explain' : '通俗讲解', command: '讲解新增通俗讲解', kind: 'command' },
-        { id: 'chip:mark-wrong', label: lang === 'en' ? 'Mark wrong' : '加入错题本', command: '把这题加入错题本并标记为粗心', kind: 'command' },
+        { id: 'chip:stats', label: lang === 'en' ? 'Today stats' : '查看统计', command: '查看统计', kind: 'command' },
         { id: 'chip:goto-source', label: lang === 'en' ? 'Open source' : '看资料原文', command: '跳到资料库', kind: 'command' },
       );
     }

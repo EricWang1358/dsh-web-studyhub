@@ -706,7 +706,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     if (!teachingFlights.current.begin(key)) return;
     const token = {};
     teachingTokens.current.set(key, token);
-    setTeachingPending((all) => ({ ...all, [key]: true }));
+    setTeachingPending((all) => ({ ...all, [key]: action }));
     setTeachingFailure((all) => { const rest = { ...all }; delete rest[key]; return rest; });
     const isCurrent = () => teachingTokens.current.get(key) === token && isCurrentEntry(runRef.current, key, { page: pageRef.current, needPage: 'review' });
     try {
@@ -715,7 +715,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
         patch((current) => {
           let teachAnswer = current.teachAnswer;
           if (action === 'teach.start' && teachAnswer === draftAtStart) teachAnswer = readTeachingDraft(dataRoot(), next);
-          if (action === 'teach.answer' && next.index > args.stepIndex && teachAnswer === args.answer) teachAnswer = '';
+          if (action === 'teach.skip' || (action === 'teach.answer' && next.index > args.stepIndex && teachAnswer === args.answer)) teachAnswer = '';
           return { teaching: next, teachAnswer };
         });
       }
@@ -949,7 +949,8 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     endRound,
   }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, toggleAutoTerms, patch, setExplainHidden, toggleAutopilot, toggleSelfGradeAdvance, undoAnswer, setAutoAdvancePaused, toggleHint, noteAssistance, skipQuestion, toggleMarkTerms, exitMarkTerms, endRound]);
   const currentEntryKey = reviewEntryKey(run);
-  const teachingBusy = !!teachingPending[currentEntryKey];
+  const teachingAction = teachingPending[currentEntryKey] || '';
+  const teachingBusy = !!teachingAction;
   const teachingError = teachingFailure[currentEntryKey]?.message || '';
   return useMemo(() => ({
     run,
@@ -960,12 +961,12 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     get autoAdvancePaused() { return liveStore.get().autoAdvancePaused; },
     get explainHidden() { return liveStore.get().explainHidden; },
     get pendingAnswer() { return liveStore.get().pendingAnswer; },
-    showBack, showEn, autoTerms, selfGradeAdvance, enBusyKey, autoTermsBusyKey, teachingBusy, teachingError,
+    showBack, showEn, autoTerms, selfGradeAdvance, enBusyKey, autoTermsBusyKey, teachingBusy, teachingAction, teachingError,
     autopilot, autoAdvance, autoAdvanceActive: activeAutoAdvance, setAutoAdvancePaused, advanceKey,
     skippedIndices, shortcutHelp, markingTerms, endAsked, questionKeys, choice, isCloze, rubricCard,
     coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, pollNow, actions, flushDraft,
   }), [
-    run, liveStore, showBack, showEn, autoTerms, selfGradeAdvance, enBusyKey, autoTermsBusyKey, teachingBusy, teachingError,
+    run, liveStore, showBack, showEn, autoTerms, selfGradeAdvance, enBusyKey, autoTermsBusyKey, teachingBusy, teachingAction, teachingError,
     autopilot, autoAdvance, activeAutoAdvance, setAutoAdvancePaused, advanceKey,
     skippedIndices, shortcutHelp, markingTerms, endAsked, choice, isCloze, rubricCard,
     coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, pollNow, actions, flushDraft,

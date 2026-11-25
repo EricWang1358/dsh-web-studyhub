@@ -16,7 +16,12 @@ export function indexLabel(info, coverage = {}) {
       : uiFormat('索引已建好 · 这份资料 {0}/{1} 页', [pages(info.indexed ?? info.total), pages(info.total)]);
     case 'partial': return info.skipped > 0 ? uiFormat('索引建了一部分 · 这份资料 {0}/{1} 页，{2} 页无检索文字（跳过）', [pages(info.indexed), pages(info.total), pages(info.skipped)])
       : uiFormat('索引建了一部分 · 这份资料 {0}/{1} 页', [pages(info.indexed), pages(info.total)]);
-    case 'stale': return uiFormat('索引需要更新 · 这份资料有 {0} 页改过', [pages(info.stale)]);
+    case 'stale': {
+      const edited = info.stale || 0, migrate = info.migrate || 0;
+      if (edited > 0 && migrate > 0) return uiFormat('索引需要更新 · 这份资料有 {0} 页改过，{1} 页待升级格式', [pages(edited), pages(migrate)]);
+      if (migrate > 0) return uiFormat('索引格式需要升级 · 这份资料有 {0} 页，正文没有改', [pages(migrate)]);
+      return uiFormat('索引需要更新 · 这份资料有 {0} 页改过', [pages(edited)]);
+    }
     case 'building': return ui('正在建立索引…');
     case 'reset': return ui('需要重新建立索引');
     case 'missing': return coverage?.canIndex === false ? ui('还没建索引（需要先安装检索扩展）') : ui('还没建索引');
@@ -32,7 +37,12 @@ export function indexShortLabel(info, coverage = {}) {
       : uiFormat('索引已建好 · {0}/{1} 页', [pages(info.indexed ?? info.total), pages(info.total)]);
     case 'partial': return info.skipped > 0 ? uiFormat('索引建了一部分 · {0}/{1} 页，{2} 页无检索文字（跳过）', [pages(info.indexed), pages(info.total), pages(info.skipped)])
       : uiFormat('索引建了一部分 · {0}/{1} 页', [pages(info.indexed), pages(info.total)]);
-    case 'stale': return uiFormat('索引需要更新 · {0} 页改过', [pages(info.stale)]);
+    case 'stale': {
+      const edited = info.stale || 0, migrate = info.migrate || 0;
+      if (edited > 0 && migrate > 0) return uiFormat('索引需要更新 · {0} 页改过，{1} 页待升级', [pages(edited), pages(migrate)]);
+      if (migrate > 0) return uiFormat('索引格式需要升级 · {0} 页待升级', [pages(migrate)]);
+      return uiFormat('索引需要更新 · {0} 页改过', [pages(edited)]);
+    }
     default: return indexLabel(info, coverage);
   }
 }

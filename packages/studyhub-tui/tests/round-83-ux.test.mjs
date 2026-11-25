@@ -260,7 +260,7 @@ describe('Round 83 Track D1: Proactive 20s Stuck Nudge (Opt-out + Rate Limit + N
     assert.equal(shouldScheduleStuckNudge({ ...base, roundNudgeCount: 3 }), false, 'Rate limit max 3 per round');
     assert.equal(shouldScheduleStuckNudge({ ...base, lastNudgeAt: 70_000, now: 100_000 }), false, '60s cooldown enforced');
     assert.equal(shouldScheduleStuckNudge({ ...base, lastNudgeAt: 30_000, now: 100_000 }), true);
-    assert.ok(buildStuckNudgeMessage('zh', true).includes('[T]'));
+    assert.ok(buildStuckNudgeMessage('zh', true).includes('[t]'));
   });
 
   test('2. ReviewView shows calm inline stuck nudge after delay, stays silent when disabled, and persists proactiveHints=false in tui.json', async () => {
@@ -306,7 +306,7 @@ describe('Round 83 Track D1: Proactive 20s Stuck Nudge (Opt-out + Rate Limit + N
       { cols: 100, rows: 24 },
     );
     try {
-      const frame = await h.waitFor((s) => s.includes('卡住了？') && s.includes('[T] 带学提示'));
+      const frame = await h.waitFor((s) => s.includes('卡住了？') && s.includes('[t] 带学提示'));
       assert.ok(frame.includes('OptA'), 'Calm inline stuck nudge must never cover question/options');
     } finally {
       h.cleanup();

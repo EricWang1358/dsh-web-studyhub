@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isAbsolute, relative, resolve } from 'node:path';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { BindingSnapshot, HostClient } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import {
@@ -71,6 +72,8 @@ interface RetrievalCoverageShape {
   indexed: string[];
   stale: string[];
   missing: string[];
+  /** Pages whose text is unchanged but whose index key format is old (#1291): present only when there are some. */
+  migrate?: string[];
   skipped?: string[];
   reset?: string[];
   hasIndex: boolean;
@@ -245,7 +248,7 @@ function describeRetrievalBadge(
   return { label: t(lang, '未启用', 'Disabled'), tone: 'muted' };
 }
 
-function describeRetrievalCoverage(
+export function describeRetrievalCoverage(
   coverage: RetrievalCoverageShape | null,
   lang: 'zh' | 'en',
   asciiMode: boolean,
@@ -254,7 +257,10 @@ function describeRetrievalCoverage(
   const indexedCount = Array.isArray(coverage.indexed) ? coverage.indexed.length : 0;
   const staleCount = Array.isArray(coverage.stale) ? coverage.stale.length : 0;
   const missingCount = Array.isArray(coverage.missing) ? coverage.missing.length : 0;
-  const total = indexedCount + staleCount + missingCount;
+  // Pages awaiting the key-format upgrade left `stale` for `migrate` (#1291): they still belong to the library, so they
+  // stay in the total and get their own count instead of vanishing from the row.
+  const migrateCount = Array.isArray(coverage.migrate) ? coverage.migrate.length : 0;
+  const total = indexedCount + staleCount + missingCount + migrateCount;
   const sep = asciiMode ? ', ' : ' · ';
   if (total === 0) {
     return coverage.building
@@ -264,6 +270,9 @@ function describeRetrievalCoverage(
   const parts = [t(lang, `索引 ${indexedCount}/${total}`, `Idx ${indexedCount}/${total}`)];
   if (staleCount > 0) {
     parts.push(t(lang, `过期 ${staleCount}`, `${staleCount} stale`));
+  }
+  if (migrateCount > 0) {
+    parts.push(t(lang, `待升级 ${migrateCount}`, `${migrateCount} to upgrade`));
   }
   if (coverage.building) {
     parts.push(t(lang, '构建中', 'building'));
@@ -525,7 +534,7 @@ const RetrievalDiagModal = memo(function RetrievalDiagModal({
     (input, key) => {
       if (key.escape || input === 'q') {
         onClose();
-        return;
+        return true;
       }
       if (subBusy) return;
       if (input === 's') {
@@ -637,7 +646,7 @@ const RetrievalDiagModal = memo(function RetrievalDiagModal({
           </Box>
           {subError ? (
             <Box marginTop={1}>
-              <Text color={theme.error}>{truncateDisplay(subError, contentW, ell)}</Text>
+              <Text color={theme.error} wrap="wrap">{subError}</Text>
             </Box>
           ) : null}
           {subBusy ? (
@@ -672,7 +681,7 @@ const RetrievalDiagModal = memo(function RetrievalDiagModal({
           </Box>
           {subError ? (
             <Box marginTop={1}>
-              <Text color={theme.error}>{truncateDisplay(subError, contentW, ell)}</Text>
+              <Text color={theme.error} wrap="wrap">{subError}</Text>
             </Box>
           ) : null}
           {subBusy ? (
@@ -798,7 +807,7 @@ const RetrievalDiagModal = memo(function RetrievalDiagModal({
 
           {error || subError ? (
             <Box marginTop={1}>
-              <Text color={theme.error}>{truncateDisplay(error || subError || '', contentW, ell)}</Text>
+              <Text color={theme.error} wrap="wrap">{error || subError || ''}</Text>
             </Box>
           ) : null}
 
@@ -888,7 +897,7 @@ const ReleaseUpdateModal = memo(function ReleaseUpdateModal({
     (input, key) => {
       if (key.escape || input === 'q') {
         onClose();
-        return;
+        return true;
       }
       if (input === 'r') {
         onRefresh();
@@ -981,7 +990,7 @@ const ReleaseUpdateModal = memo(function ReleaseUpdateModal({
           ) : null}
 
           {error ? (
-            <Text color={theme.error}>{truncateDisplay(normalizeAsciiChrome(error, asciiMode), contentW, ell)}</Text>
+            <Text color={theme.error} wrap="wrap">{normalizeAsciiChrome(error, asciiMode)}</Text>
           ) : null}
 
           {noteLines.length > 0 ? (
@@ -1068,7 +1077,7 @@ const UsageReportModal = memo(function UsageReportModal({
     (input, key) => {
       if (key.escape || input === 'q') {
         onClose();
-        return;
+        return true;
       }
       if (input === '1') {
         onSelectPeriod(7);
@@ -1231,8 +1240,8 @@ const UsageReportModal = memo(function UsageReportModal({
           ) : null}
 
           {error ? (
-            <Text color={theme.error}>
-              {truncateDisplay(normalizeAsciiChrome(error, asciiMode), contentW, ell)}
+            <Text color={theme.error} wrap="wrap">
+              {normalizeAsciiChrome(error, asciiMode)}
             </Text>
           ) : null}
 
@@ -1289,7 +1298,7 @@ const LibraryContextModal = memo(function LibraryContextModal({
     (input, key) => {
       if (key.escape || input === 'q') {
         onClose();
-        return;
+        return true;
       }
       if (input === 'r') {
         onRefresh();
@@ -1422,8 +1431,8 @@ const LibraryContextModal = memo(function LibraryContextModal({
           ) : null}
 
           {error ? (
-            <Text color={theme.error}>
-              {truncateDisplay(normalizeAsciiChrome(error, asciiMode), contentW, ell)}
+            <Text color={theme.error} wrap="wrap">
+              {normalizeAsciiChrome(error, asciiMode)}
             </Text>
           ) : null}
 
@@ -1619,7 +1628,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
       await Promise.all([onRefreshBinding(), refreshSnapshot()]);
       notify(t(lang, `学习库已切换到 ${cleaned}`, `Library switched to ${cleaned}`), 'success');
     },
-    [host, lang, notify, onRefreshBinding, refreshSnapshot],
+    [ell, host, lang, notify, onRefreshBinding, refreshSnapshot],
   );
 
   const handleConfirmLocation = useCallback(async () => {
@@ -1633,7 +1642,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     }
     await onRefreshBinding();
     notify(t(lang, '已确认当前学习库位置', 'Library location confirmed'), 'success');
-  }, [host, lang, notify, onRefreshBinding]);
+  }, [ell, host, lang, notify, onRefreshBinding]);
 
   const handleToggleSample = useCallback(async () => {
     if (busyAction) return;
@@ -1651,7 +1660,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     } finally {
       if (mountedRef.current) setBusyAction(null);
     }
-  }, [busyAction, host, lang, notify, refreshSnapshot, sampleLoaded]);
+  }, [busyAction, ell, host, lang, notify, refreshSnapshot, sampleLoaded]);
 
   const handleRemoveSample = useCallback(async () => {
     setConfirmSampleRemove(false);
@@ -1665,7 +1674,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     } finally {
       if (mountedRef.current) setBusyAction(null);
     }
-  }, [host, lang, notify, refreshSnapshot]);
+  }, [ell, host, lang, notify, refreshSnapshot]);
 
   const handleRestorePoint = useCallback(
     async (point: RestorePointEntry) => {
@@ -1681,7 +1690,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
       await Promise.all([refreshSnapshot(), loadPoints()]);
       notify(t(lang, '已恢复到选定备份点', 'Restored selected backup'), 'success');
     },
-    [host, lang, loadPoints, notify, refreshSnapshot],
+    [ell, host, lang, loadPoints, notify, refreshSnapshot],
   );
 
   const handleExportBackup = useCallback(
@@ -2454,7 +2463,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
       <Panel
         title={t(lang, '学习库自动备份点 (Enter 恢复)', 'Library Restore Points (Enter to Restore)')}
         badge={restorePoints.length}
-        subtitle={loadingPoints ? t(lang, `加载中${ell}`, `Loading${ell}`) : t(lang, '[r] 刷新', '[r] Refresh')}
+        subtitle={loadingPoints ? t(lang, `加载中${ell}`, `Loading${ell}`) : t(lang, '[Ctrl+R] 刷新', '[Ctrl+R] Refresh')}
         width={width}
         height={listPanelH}
       >

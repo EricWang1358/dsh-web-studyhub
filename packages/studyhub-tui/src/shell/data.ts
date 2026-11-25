@@ -1,4 +1,23 @@
 import type { BindingSnapshot, DesktopConfigSnapshot, PageId, StudySnapshot } from '../types/contracts.js';
+import type { ContextualTip, ContextualTipInput } from './contextual-tips.js';
+
+export type SelectContextualTipFn = (input: ContextualTipInput) => ContextualTip | null;
+let cachedTipSelector: SelectContextualTipFn | null = null;
+
+export function getCachedContextualTipSelector(): SelectContextualTipFn | null {
+  return cachedTipSelector;
+}
+
+export async function loadContextualTipSelector(): Promise<SelectContextualTipFn | null> {
+  if (cachedTipSelector) return cachedTipSelector;
+  try {
+    const m = await import('./contextual-tips.js');
+    cachedTipSelector = m.selectContextualTip;
+    return cachedTipSelector;
+  } catch {
+    return null;
+  }
+}
 
 /** Pure selectors over the loose StudySnapshot shape (shared by shell widgets). */
 
@@ -157,10 +176,44 @@ export function currentCourse(snapshot: StudySnapshot | null | undefined): strin
   return typeof c === 'string' && c ? c : null;
 }
 
-export function dueToday(snapshot: StudySnapshot | null | undefined): number {
-  const direct = Number(snapshot?.today?.due);
-  if (Number.isFinite(direct) && direct >= 0) return direct;
-  return (snapshot?.decks ?? []).reduce((n, d) => n + (d.archived ? 0 : Number(d.due ?? d.dueCount ?? 0) || 0), 0);
+export function isActiveStudyDeck(
+  deck: { archived?: unknown; systemKind?: unknown; course?: unknown } | null | undefined,
+  course?: string | null,
+): boolean {
+  if (!deck || deck.archived) return false;
+  if (deck.systemKind) return false;
+  if (course && String(deck.course ?? '').trim() !== course) return false;
+  return true;
+}
+
+/**
+ * Single source of truth for a deck's due-for-review count (#1342).
+ * Prefers `progress[deck.id].due` (scheduled due cards only, excluding unstudied new cards)
+ * and falls back to `deck.due` / `deck.dueCount` when `progress` is unavailable.
+ */
+export function deckDueCount(
+  deck: { id?: string; due?: unknown; dueCount?: unknown } | null | undefined,
+  progressMap?: Record<string, { due?: unknown } | undefined> | null,
+): number {
+  if (!deck) return 0;
+  const p = deck.id && progressMap ? progressMap[deck.id] : undefined;
+  const fromProgress = Number(p?.due);
+  if (Number.isFinite(fromProgress) && fromProgress >= 0) return fromProgress;
+  const fromDeck = Number(deck.due ?? deck.dueCount);
+  return Number.isFinite(fromDeck) && fromDeck >= 0 ? fromDeck : 0;
+}
+
+export function dueToday(snapshot: StudySnapshot | null | undefined, course?: string | null): number {
+  const progressMap = (snapshot?.progress as Record<string, { due?: unknown } | undefined> | undefined) ?? undefined;
+  const decks = (snapshot?.decks ?? []).filter((d) => isActiveStudyDeck(d, course));
+  if (progressMap && decks.length > 0 && decks.some((d) => d.id && progressMap[d.id]?.due !== undefined)) {
+    return decks.reduce((n, d) => n + deckDueCount(d, progressMap), 0);
+  }
+  if (!course) {
+    const direct = Number(snapshot?.today?.due);
+    if (Number.isFinite(direct) && direct >= 0) return direct;
+  }
+  return decks.reduce((n, d) => n + deckDueCount(d, progressMap), 0);
 }
 
 export function wrongCount(snapshot: StudySnapshot | null | undefined): number {

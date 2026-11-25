@@ -1,7 +1,9 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { readFile, stat } from 'node:fs/promises';
 import { basename, extname, isAbsolute, resolve } from 'node:path';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text, type Key } from 'ink';
+import { KEY_LAYER_MODAL } from '../../input/dispatcher.js';
+import { KeyScope, useKeyScope } from '../../input/hooks.js';
 import type { HostCallResult, HostClient, KeyHint, StudySnapshot, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { Badge, EmptyState, Spinner, StatusPill, type PillStatus } from '../../components/Badge.js';
@@ -12,15 +14,29 @@ import { ScrollView } from '../../components/ScrollView.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
-import { useClaimKeys, useInputCapture } from '../../components/focus.js';
+import { useInputCapture } from '../../components/focus.js';
+import { LAYOUT_BP, computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { useTheme } from '../../theme/tokens.js';
 import { currentCourse } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
-import { displayWidth, truncateDisplay } from '../../render/cjk.js';
+import { truncateDisplay } from '../../render/cjk.js';
 import { atomicWriteExportText, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
 import { cleanPathInput, tryAction } from '../../host/sample-actions.js';
 import { completeFsPath, expandHomePath } from '../sources/path-complete.js';
+
+const AudioOverlayHotkeys = memo(function AudioOverlayHotkeys({
+  id,
+  isActive,
+  onKey,
+}: {
+  id: string;
+  isActive: boolean;
+  onKey: (input: string, key: Key) => boolean;
+}) {
+  useKeyScope({ id, active: isActive, layer: KEY_LAYER_MODAL, onKey });
+  return null;
+});
 
 interface AudioKeyState {
   set?: boolean;
@@ -1241,11 +1257,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
     return list;
   }, [audioSettings]);
 
-  const hasOverlay = overlay !== 'none' || confirmReview !== null;
-  const listActive = isActive && !hasOverlay;
-  const listNavActive = listActive && !filterEditing;
-  useClaimKeys(CLAIMED_KEYS, listNavActive);
-  useInputCapture(isActive && (hasOverlay || filterEditing));
+  useInputCapture(isActive && (overlay !== 'none' || confirmReview !== null || filterEditing));
 
   const hints: KeyHint[] = useMemo(
     () => [
@@ -1257,7 +1269,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
       { key: 's', label: t(lang, '转写设置', 'Providers') },
       { key: 't', label: t(lang, '测试连通', 'Test Keys') },
       { key: 'g', label: t(lang, '据此出题', 'Generate') },
-      { key: 'r', label: t(lang, '刷新', 'Refresh') },
+      { key: 'Ctrl+R', label: t(lang, '刷新', 'Refresh') },
       { key: '/', label: t(lang, '筛选', 'Filter') },
       { key: 'x', label: t(lang, '导出MD', 'Export') },
       ...(filterQuery ? [{ key: 'Esc', label: t(lang, '清筛选', 'Clear') }] : []),
@@ -1266,78 +1278,73 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
   );
   useFooterHints(hints, isActive);
 
-  useInput(
-    (input, key) => {
-      if (overlay === 'import') {
-        const order: ImportField[] = ['path', 'title', 'course'];
-        const idx = order.indexOf(importField);
-        if (key.downArrow || (key.ctrl && input === 'n')) setImportField(order[(idx + 1) % order.length]);
-        else if (key.upArrow || (key.ctrl && input === 'p')) setImportField(order[(idx - 1 + order.length) % order.length]);
-        else if (key.ctrl && input === 's') void handleImportSubmit();
-        return;
-      }
-      if (overlay === 'subtitle') {
-        const order: SubtitleField[] = ['path', 'course'];
-        const idx = order.indexOf(subtitleField);
-        if (key.downArrow || (key.ctrl && input === 'n')) setSubtitleField(order[(idx + 1) % order.length]);
-        else if (key.upArrow || (key.ctrl && input === 'p')) setSubtitleField(order[(idx - 1 + order.length) % order.length]);
-        else if (key.ctrl && input === 's') void handleSubtitleSubmit();
-        return;
-      }
-      if (overlay === 'settings') {
-        if (key.upArrow) setProviderIdx((i) => (i - 1 + PROVIDERS.length) % PROVIDERS.length);
-        else if (key.downArrow) setProviderIdx((i) => (i + 1) % PROVIDERS.length);
-        else if (key.ctrl && input === 't') void handleTestProviders();
-        return;
-      }
-      if (confirmReview) return;
-      if (!listActive || filterEditing) return;
-
+  const pageActive = useKeyScope({
+    id: 'AudioView:main',
+    active: isActive,
+    keys: CLAIMED_KEYS,
+    onKey: (input, key) => {
       if (key.escape && filterQuery) {
         setFilterQuery('');
         setSelectedIndex(0);
-        return;
+        return true;
       }
       if (input === '/' && !key.ctrl && !key.meta) {
         setFilterEditing(true);
-        return;
+        return true;
       }
       if (input === 'x' && !key.ctrl && !key.meta) {
         void handleExportMarkdown();
-        return;
+        return true;
       }
       if (input === 'i') {
         setImportField('path');
         setOverlay('import');
-      } else if (input === 'u') {
+        return true;
+      }
+      if (input === 'u') {
         setSubtitleField('path');
         setOverlay('subtitle');
-      } else if (input === 'p') {
+        return true;
+      }
+      if (input === 'p') {
         void handlePreflight();
-      } else if (input === 'c') {
+        return true;
+      }
+      if (input === 'c') {
         handleReviewTrigger();
-      } else if (input === 'R') {
+        return true;
+      }
+      if (input === 'R') {
         void handleRetryJob();
-      } else if (input === 's') {
+        return true;
+      }
+      if (input === 's') {
         setOverlay('settings');
-      } else if (input === 't') {
+        return true;
+      }
+      if (input === 't') {
         void handleTestProviders();
-      } else if (key.ctrl && input === 'r') {
+        return true;
+      }
+      if (key.ctrl && input === 'r') {
         setDetailError(null);
         setActiveTranscript({ id: '', text: '', detail: null });
         void Promise.all([loadAudioData(), refresh()]);
-      } else if (input === 'g' && selectedResult) {
+        return true;
+      }
+      if (input === 'g' && selectedResult) {
         const targetId = selectedResult.sourceId || selectedResult.id;
         navigate('generate', {
           sourceIds: [targetId],
           ...(selectedResult.courses?.[0] ? { course: selectedResult.courses[0] } : focusCourse ? { course: focusCourse } : {}),
         });
+        return true;
       }
+      return false;
     },
-    { isActive },
-  );
+  });
 
-  const narrowBar = width < 88;
+  const narrowBar = width < LAYOUT_BP.NARROW;
   const bannerH = 2;
   const diagH = 4;
   const showFilterBar = filterEditing || filterQuery.length > 0;
@@ -1348,13 +1355,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
   const preflightLine = truncateDisplay(formatPreflightLine(preflight, lang, asciiMode), diagInnerW, ell);
   const usageLine = truncateDisplay(formatUsageLine(usage, lang, asciiMode), diagInnerW, ell);
   const filterBadge = `[${filterEditing ? t(lang, '筛选', 'Filter') : t(lang, '已筛选', 'Filtered')} ${filteredResults.length}/${results.length}] `;
-  const filterRightHint =
-    width >= 66
-      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
-      : width >= 46
-        ? ' Esc'
-        : '';
-  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
+  const { rightHint: filterRightHint, inputWidth: filterInputW } = computeFilterBarLayout(width, filterBadge, lang, filterEditing);
 
   return (
     <Box flexDirection="column" width={width} height={height}>
@@ -1429,39 +1430,41 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
 
       {/* Inline Live Filter Bar ([/]) */}
       {showFilterBar ? (
-        <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
-          <Text color={filterEditing ? theme.primary : theme.accent} bold>
-            {filterBadge}
-          </Text>
-          <Box flexGrow={1} overflow="hidden">
-            <TextInput
-              value={filterQuery}
-              onChange={(val) => {
-                setFilterQuery(val);
-                setSelectedIndex(0);
-              }}
-              onSubmit={(val) => {
-                if (!val.trim()) setFilterQuery('');
-                setFilterEditing(false);
-              }}
-              onCancel={() => {
-                setFilterQuery('');
-                setFilterEditing(false);
-                setSelectedIndex(0);
-              }}
-              isActive={listActive && filterEditing}
-              width={filterInputW}
-              prompt="/"
-              placeholder={t(lang, `标题/课程/文件名/正文${ell}`, `title/course/file/text${ell}`)}
-              maxLength={120}
-            />
-          </Box>
-          {filterRightHint ? (
-            <Text color={theme.dim} wrap="truncate">
-              {filterRightHint}
+        <KeyScope id="audio:filter" opaque active={isActive && filterEditing}>
+          <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+            <Text color={filterEditing ? theme.primary : theme.accent} bold>
+              {filterBadge}
             </Text>
-          ) : null}
-        </Box>
+            <Box flexGrow={1} overflow="hidden">
+              <TextInput
+                value={filterQuery}
+                onChange={(val) => {
+                  setFilterQuery(val);
+                  setSelectedIndex(0);
+                }}
+                onSubmit={(val) => {
+                  if (!val.trim()) setFilterQuery('');
+                  setFilterEditing(false);
+                }}
+                onCancel={() => {
+                  setFilterQuery('');
+                  setFilterEditing(false);
+                  setSelectedIndex(0);
+                }}
+                isActive={isActive && filterEditing}
+                width={filterInputW}
+                prompt="/"
+                placeholder={t(lang, `标题/课程/文件名/正文${ell}`, `title/course/file/text${ell}`)}
+                maxLength={120}
+              />
+            </Box>
+            {filterRightHint ? (
+              <Text color={theme.dim} wrap="truncate">
+                {filterRightHint}
+              </Text>
+            ) : null}
+          </Box>
+        </KeyScope>
       ) : null}
 
       {/* Main SplitPane */}
@@ -1482,7 +1485,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
               badge={normalizedFilter ? `${filteredResults.length}/${results.length}` : leftItems.length}
               width={lw}
               height={lh}
-              focused={listNavActive}
+              focused={pageActive}
             >
               {loadingList ? (
                 <Spinner label={asciiMode ? t(lang, '加载转写记录...', 'Loading transcripts...') : t(lang, '加载转写记录…', 'Loading transcripts…')} />
@@ -1492,11 +1495,11 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                     icon={asciiMode ? '!' : '▲'}
                     title={t(lang, '加载音频转写记录失败', 'Failed to load transcripts')}
                     hint={truncateDisplay(
-                      `${resultsError} — ${t(lang, '按 [r] 重试', 'Press [r] to retry')}`,
+                      `${resultsError} — ${t(lang, '按 [Ctrl+R] 重试', 'Press [Ctrl+R] to retry')}`,
                       Math.max(20, (lw - 4) * 2),
                       ell,
                     )}
-                    actions={[{ key: 'r', label: t(lang, '重试', 'Retry') }]}
+                    actions={[{ key: 'Ctrl+R', label: t(lang, '重试', 'Retry') }]}
                     width={Math.max(12, lw - 4)}
                     height={Math.max(4, lh - 2)}
                   />
@@ -1547,7 +1550,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                   {resultsError ? (
                     <Text color={theme.error} wrap="truncate">
                       {truncateDisplay(
-                        `${t(lang, '列表加载失败', 'Load error')}: ${resultsError} ([r])`,
+                        `${t(lang, '列表加载失败', 'Load error')}: ${resultsError} (Ctrl+R)`,
                         Math.max(12, lw - 4),
                         ell,
                       )}
@@ -1559,7 +1562,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                     width={Math.max(12, lw - 4)}
                   selectedIndex={selectedIndex}
                   onChange={(idx) => setSelectedIndex(idx)}
-                  isActive={listNavActive}
+                  isActive={pageActive}
                   keyExtractor={(item) => item.id}
                   renderItem={(item, ctx) => {
                     if (item.kind === 'job') {
@@ -1595,71 +1598,71 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
               )}
             </Panel>
           )}
-          right={({ width: rw, height: rh }) => (
-            <Panel
-              title={
-                selectedJob
-                  ? selectedJob.title
-                  : selectedResult?.title || t(lang, '文稿内容', 'Transcript')
-              }
-              subtitle={
-                selectedJob
-                  ? selectedJob.retryable
-                    ? t(lang, '[R] 重试任务', '[R] Retry')
-                    : selectedJob.status
-                  : selectedResult
-                    ? correctionsSummary.pending > 0
-                      ? t(lang, '[c] 复核存疑  [g] 出题', '[c] Review  [g] Gen')
-                      : t(lang, '[g] 据此出题', '[g] Generate')
-                    : undefined
-              }
-              width={rw}
-              height={rh}
-            >
-              {selectedJob ? (
-                <Box flexDirection="column" width={Math.max(12, rw - 4)}>
-                  <Box flexDirection="row" alignItems="center">
-                    <StatusPill label={selectedJob.status} status={jobPillStatus(selectedJob.status)} />
-                    <Text color={theme.dim}>{`  ID: ${selectedJob.id}`}</Text>
-                  </Box>
-                  {selectedJob.phase ? (
+          right={({ width: rw, height: rh }) => {
+            const innerW = Math.max(12, rw - 4);
+            const innerH = Math.max(2, rh - 2);
+            const hasStatus = correctionsSummary.pending > 0 || correctionsSummary.applied > 0;
+            const maxSamples = innerH >= 7 ? 3 : innerH >= 5 ? 1 : 0;
+            const sampleItems = correctionsSummary.pending > 0 ? correctionsSummary.items.slice(0, maxSamples) : [];
+            const statusMargin = hasStatus && innerH >= 6 ? 1 : 0;
+            const headerRows = (hasStatus ? 1 : 0) + sampleItems.length + statusMargin;
+            const scrollH = Math.max(2, innerH - headerRows);
+            return (
+              <Panel
+                title={
+                  selectedJob
+                    ? selectedJob.title
+                    : selectedResult?.title || t(lang, '文稿内容', 'Transcript')
+                }
+                subtitle={
+                  selectedJob
+                    ? selectedJob.retryable
+                      ? t(lang, '[R] 重试任务', '[R] Retry')
+                      : selectedJob.status
+                    : selectedResult
+                      ? correctionsSummary.pending > 0
+                        ? t(lang, '[c] 复核存疑  [g] 出题', '[c] Review  [g] Gen')
+                        : t(lang, '[g] 据此出题', '[g] Generate')
+                      : undefined
+                }
+                width={rw}
+                height={rh}
+              >
+                {selectedJob ? (
+                  <Box flexDirection="column" width={innerW}>
+                    <Box flexDirection="row" alignItems="center">
+                      <StatusPill label={selectedJob.status} status={jobPillStatus(selectedJob.status)} />
+                      <Text color={theme.dim}>{`  ID: ${selectedJob.id}`}</Text>
+                    </Box>
+                    {selectedJob.phase ? (
+                      <Box marginTop={1}>
+                        <Text color={theme.muted}>
+                          {truncateDisplay(`${t(lang, '阶段: ', 'Stage: ')}${selectedJob.phase}`, innerW, ell)}
+                        </Text>
+                      </Box>
+                    ) : null}
+                    {selectedJob.error ? (
+                      <Box marginTop={1}>
+                        <Text color={theme.error} wrap="wrap">
+                          {`${t(lang, '原因: ', 'Error: ')}${selectedJob.error}`}
+                        </Text>
+                      </Box>
+                    ) : null}
                     <Box marginTop={1}>
-                      <Text color={theme.muted}>
-                        {truncateDisplay(`${t(lang, '阶段: ', 'Stage: ')}${selectedJob.phase}`, Math.max(12, rw - 4), ell)}
+                      <Text color={selectedJob.retryable ? theme.primary : theme.dim}>
+                        {selectedJob.retryable
+                          ? t(lang, '按 [R] 重试此失败或已取消的音频任务。', 'Press [R] to retry this failed or canceled audio job.')
+                          : t(lang, '任务进行中，请前往任务页查看进度。', 'Job is active; check Tasks view for progress.')}
                       </Text>
                     </Box>
-                  ) : null}
-                  {selectedJob.error ? (
-                    <Box marginTop={1}>
-                      <Text color={theme.error}>
-                        {truncateDisplay(`${t(lang, '原因: ', 'Error: ')}${selectedJob.error}`, Math.max(12, rw - 4), ell)}
-                      </Text>
-                    </Box>
-                  ) : null}
-                  <Box marginTop={1}>
-                    <Text color={selectedJob.retryable ? theme.primary : theme.dim}>
-                      {selectedJob.retryable
-                        ? t(lang, '按 [R] 重试此失败或已取消的音频任务。', 'Press [R] to retry this failed or canceled audio job.')
-                        : t(lang, '任务进行中，请前往任务页查看进度。', 'Job is active; check Tasks view for progress.')}
-                    </Text>
                   </Box>
-                </Box>
-              ) : !selectedResult ? (
-                <EmptyState
-                  title={t(lang, '选择一条转写记录查看全文', 'Select a transcript')}
-                  width={Math.max(12, rw - 4)}
-                  height={Math.max(4, rh - 2)}
-                />
-              ) : (() => {
-                const innerW = Math.max(12, rw - 4);
-                const innerH = Math.max(2, rh - 2);
-                const hasStatus = correctionsSummary.pending > 0 || correctionsSummary.applied > 0;
-                const maxSamples = innerH >= 7 ? 3 : innerH >= 5 ? 1 : 0;
-                const sampleItems = correctionsSummary.pending > 0 ? correctionsSummary.items.slice(0, maxSamples) : [];
-                const statusMargin = hasStatus && innerH >= 6 ? 1 : 0;
-                const headerRows = (hasStatus ? 1 : 0) + sampleItems.length + statusMargin;
-                const scrollH = Math.max(2, innerH - headerRows);
-                return (
+                ) : !selectedResult ? (
+                  <EmptyState
+                    title={t(lang, '选择一条转写记录查看全文', 'Select a transcript')}
+                    width={innerW}
+                    height={Math.max(4, rh - 2)}
+                  />
+                ) : (
                   <Box flexDirection="column" width={innerW} height={innerH}>
                     {hasStatus ? (
                       <Box flexDirection="column" marginBottom={statusMargin}>
@@ -1714,11 +1717,11 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                         icon={asciiMode ? '!' : '▲'}
                         title={t(lang, '加载转写正文失败', 'Failed to load transcript')}
                         hint={truncateDisplay(
-                          `${detailError.message} — ${t(lang, '按 [r] 重试', 'Press [r] to retry')}`,
+                          `${detailError.message} — ${t(lang, '按 [Ctrl+R] 重试', 'Press [Ctrl+R] to retry')}`,
                           Math.max(20, innerW * 2),
                           ell,
                         )}
-                        actions={[{ key: 'r', label: t(lang, '重试', 'Retry') }]}
+                        actions={[{ key: 'Ctrl+R', label: t(lang, '重试', 'Retry') }]}
                         width={innerW}
                         height={scrollH}
                       />
@@ -1741,218 +1744,287 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                       />
                     )}
                   </Box>
-                );
-              })()}
-            </Panel>
-          )}
+                )}
+              </Panel>
+            );
+          }}
         />
       </Box>
 
       {/* Import Audio Modal */}
       {overlay === 'import' ? (
-        <Modal
-          title={t(lang, '导入本地音频转写', 'Import Local Audio')}
-          subtitle={asciiMode ? '.mp3 / .wav / .m4a / .ogg / .flac' : '.mp3 · .wav · .m4a · .ogg · .flac'}
-          icon={asciiMode ? '>' : '♪'}
-          width={72}
-          isActive={isActive}
-          onClose={() => setOverlay('none')}
-          hints={[
-            { key: 'Tab', label: t(lang, '路径补全', 'Complete') },
-            { key: asciiMode ? 'Up/Down' : '↑/↓', label: t(lang, '切换字段', 'Field') },
-            { key: 'Ctrl+S', label: t(lang, '开始转写', 'Transcribe') },
-            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
-          ]}
-        >
-          <Text color={importField === 'path' ? theme.primary : theme.muted} bold={importField === 'path'}>
-            {t(lang, '音频文件路径 (支持 ~, /, \\, C:\\...):', 'Audio file path (supports ~, /, \\, C:\\...):')}
-          </Text>
-          <TextInput
-            value={audioPath}
-            onChange={setAudioPath}
-            onTab={handleTabComplete}
-            onSubmit={() => void handleImportSubmit()}
-            onCancel={() => setOverlay('none')}
-            placeholder={process.platform === 'win32' ? 'C:\\Users\\...\\lecture.mp3' : '~/Downloads/lecture.mp3'}
-            width={modalContentWidth(72) - 4}
-            isActive={isActive && !busy && importField === 'path'}
-            prompt={asciiMode ? '>' : '›'}
+        <KeyScope id="audio:import" opaque>
+          <AudioOverlayHotkeys
+            id="AudioView:import"
+            isActive={isActive}
+            onKey={(input, key) => {
+              const order: ImportField[] = ['path', 'title', 'course'];
+              const idx = order.indexOf(importField);
+              if (key.downArrow || (key.ctrl && input === 'n')) {
+                setImportField(order[(idx + 1) % order.length]);
+                return true;
+              }
+              if (key.upArrow || (key.ctrl && input === 'p')) {
+                setImportField(order[(idx - 1 + order.length) % order.length]);
+                return true;
+              }
+              if (key.ctrl && input === 's') {
+                void handleImportSubmit();
+                return true;
+              }
+              return false;
+            }}
           />
-          {pathMatches.length > 0 && importField === 'path' ? (
-            <Text color={theme.dim}>{`${t(lang, '候选:', 'Matches:')} ${pathMatches.join('  ')}`}</Text>
-          ) : null}
-
-          <Box marginTop={1}>
-            <Text color={importField === 'title' ? theme.primary : theme.muted} bold={importField === 'title'}>
-              {t(lang, '标题 (可选):', 'Title (optional):')}
+          <Modal
+            title={t(lang, '导入本地音频转写', 'Import Local Audio')}
+            subtitle={asciiMode ? '.mp3 / .wav / .m4a / .ogg / .flac' : '.mp3 · .wav · .m4a · .ogg · .flac'}
+            icon={asciiMode ? '>' : '♪'}
+            width={72}
+            isActive={isActive}
+            onClose={() => setOverlay('none')}
+            hints={[
+              { key: 'Tab', label: t(lang, '路径补全', 'Complete') },
+              { key: asciiMode ? 'Up/Down' : '↑/↓', label: t(lang, '切换字段', 'Field') },
+              { key: 'Ctrl+S', label: t(lang, '开始转写', 'Transcribe') },
+              { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+            ]}
+          >
+            <Text color={importField === 'path' ? theme.primary : theme.muted} bold={importField === 'path'}>
+              {t(lang, '音频文件路径 (支持 ~, /, \\, C:\\...):', 'Audio file path (supports ~, /, \\, C:\\...):')}
             </Text>
-          </Box>
-          <TextInput
-            value={audioTitle}
-            onChange={setAudioTitle}
-            onSubmit={() => void handleImportSubmit()}
-            onCancel={() => setOverlay('none')}
-            width={modalContentWidth(72) - 4}
-            isActive={isActive && !busy && importField === 'title'}
-            prompt={asciiMode ? '>' : '›'}
-          />
+            <TextInput
+              value={audioPath}
+              onChange={setAudioPath}
+              onTab={handleTabComplete}
+              onSubmit={() => void handleImportSubmit()}
+              onCancel={() => setOverlay('none')}
+              placeholder={process.platform === 'win32' ? 'C:\\Users\\...\\lecture.mp3' : '~/Downloads/lecture.mp3'}
+              width={modalContentWidth(72) - 4}
+              isActive={isActive && !busy && importField === 'path'}
+              prompt={asciiMode ? '>' : '›'}
+            />
+            {pathMatches.length > 0 && importField === 'path' ? (
+              <Text color={theme.dim}>{`${t(lang, '候选:', 'Matches:')} ${pathMatches.join('  ')}`}</Text>
+            ) : null}
 
-          <Box marginTop={1}>
-            <Text color={importField === 'course' ? theme.primary : theme.muted} bold={importField === 'course'}>
-              {t(lang, '课程归属 (可选):', 'Course (optional):')}
-            </Text>
-          </Box>
-          <TextInput
-            value={audioCourse}
-            onChange={setAudioCourse}
-            onSubmit={() => void handleImportSubmit()}
-            onCancel={() => setOverlay('none')}
-            width={modalContentWidth(72) - 4}
-            isActive={isActive && !busy && importField === 'course'}
-            prompt={asciiMode ? '>' : '›'}
-          />
-
-          {busy ? (
             <Box marginTop={1}>
-              <Spinner label={asciiMode ? t(lang, '正在提交转写任务...', 'Submitting transcription...') : t(lang, '正在提交转写任务…', 'Submitting transcription…')} />
+              <Text color={importField === 'title' ? theme.primary : theme.muted} bold={importField === 'title'}>
+                {t(lang, '标题 (可选):', 'Title (optional):')}
+              </Text>
             </Box>
-          ) : null}
-        </Modal>
+            <TextInput
+              value={audioTitle}
+              onChange={setAudioTitle}
+              onSubmit={() => void handleImportSubmit()}
+              onCancel={() => setOverlay('none')}
+              width={modalContentWidth(72) - 4}
+              isActive={isActive && !busy && importField === 'title'}
+              prompt={asciiMode ? '>' : '›'}
+            />
+
+            <Box marginTop={1}>
+              <Text color={importField === 'course' ? theme.primary : theme.muted} bold={importField === 'course'}>
+                {t(lang, '课程归属 (可选):', 'Course (optional):')}
+              </Text>
+            </Box>
+            <TextInput
+              value={audioCourse}
+              onChange={setAudioCourse}
+              onSubmit={() => void handleImportSubmit()}
+              onCancel={() => setOverlay('none')}
+              width={modalContentWidth(72) - 4}
+              isActive={isActive && !busy && importField === 'course'}
+              prompt={asciiMode ? '>' : '›'}
+            />
+
+            {busy ? (
+              <Box marginTop={1}>
+                <Spinner label={asciiMode ? t(lang, '正在提交转写任务...', 'Submitting transcription...') : t(lang, '正在提交转写任务…', 'Submitting transcription…')} />
+              </Box>
+            ) : null}
+          </Modal>
+        </KeyScope>
       ) : null}
 
       {/* Import Subtitle Modal */}
       {overlay === 'subtitle' ? (
-        <Modal
-          title={t(lang, '导入字幕文件校对', 'Import Subtitle File')}
-          subtitle={asciiMode ? '.srt / .vtt / .txt / .json' : '.srt · .vtt · .txt · .json'}
-          icon={asciiMode ? '>' : '♪'}
-          width={72}
-          isActive={isActive}
-          onClose={() => setOverlay('none')}
-          hints={[
-            { key: 'Tab', label: t(lang, '路径补全', 'Complete') },
-            { key: asciiMode ? 'Up/Down' : '↑/↓', label: t(lang, '切换字段', 'Field') },
-            { key: 'Ctrl+S', label: t(lang, '导入字幕', 'Import') },
-            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
-          ]}
-        >
-          <Text color={subtitleField === 'path' ? theme.primary : theme.muted} bold={subtitleField === 'path'}>
-            {t(lang, '字幕文件路径 (.srt / .vtt / .txt):', 'Subtitle file path (.srt / .vtt / .txt):')}
-          </Text>
-          <TextInput
-            value={subtitlePath}
-            onChange={setSubtitlePath}
-            onTab={handleSubtitleTabComplete}
-            onSubmit={() => void handleSubtitleSubmit()}
-            onCancel={() => setOverlay('none')}
-            placeholder={process.platform === 'win32' ? 'C:\\Users\\...\\lecture.srt' : '~/Downloads/lecture.srt'}
-            width={modalContentWidth(72) - 4}
-            isActive={isActive && !busy && subtitleField === 'path'}
-            prompt={asciiMode ? '>' : '›'}
+        <KeyScope id="audio:subtitle" opaque>
+          <AudioOverlayHotkeys
+            id="AudioView:subtitle"
+            isActive={isActive}
+            onKey={(input, key) => {
+              const order: SubtitleField[] = ['path', 'course'];
+              const idx = order.indexOf(subtitleField);
+              if (key.downArrow || (key.ctrl && input === 'n')) {
+                setSubtitleField(order[(idx + 1) % order.length]);
+                return true;
+              }
+              if (key.upArrow || (key.ctrl && input === 'p')) {
+                setSubtitleField(order[(idx - 1 + order.length) % order.length]);
+                return true;
+              }
+              if (key.ctrl && input === 's') {
+                void handleSubtitleSubmit();
+                return true;
+              }
+              return false;
+            }}
           />
-          {subtitleMatches.length > 0 && subtitleField === 'path' ? (
-            <Text color={theme.dim}>{`${t(lang, '候选:', 'Matches:')} ${subtitleMatches.join('  ')}`}</Text>
-          ) : null}
-
-          <Box marginTop={1}>
-            <Text color={subtitleField === 'course' ? theme.primary : theme.muted} bold={subtitleField === 'course'}>
-              {t(lang, '课程归属 (可选):', 'Course (optional):')}
+          <Modal
+            title={t(lang, '导入字幕文件校对', 'Import Subtitle File')}
+            subtitle={asciiMode ? '.srt / .vtt / .txt / .json' : '.srt · .vtt · .txt · .json'}
+            icon={asciiMode ? '>' : '♪'}
+            width={72}
+            isActive={isActive}
+            onClose={() => setOverlay('none')}
+            hints={[
+              { key: 'Tab', label: t(lang, '路径补全', 'Complete') },
+              { key: asciiMode ? 'Up/Down' : '↑/↓', label: t(lang, '切换字段', 'Field') },
+              { key: 'Ctrl+S', label: t(lang, '导入字幕', 'Import') },
+              { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+            ]}
+          >
+            <Text color={subtitleField === 'path' ? theme.primary : theme.muted} bold={subtitleField === 'path'}>
+              {t(lang, '字幕文件路径 (.srt / .vtt / .txt):', 'Subtitle file path (.srt / .vtt / .txt):')}
             </Text>
-          </Box>
-          <TextInput
-            value={subtitleCourse}
-            onChange={setSubtitleCourse}
-            onSubmit={() => void handleSubtitleSubmit()}
-            onCancel={() => setOverlay('none')}
-            width={modalContentWidth(72) - 4}
-            isActive={isActive && !busy && subtitleField === 'course'}
-            prompt={asciiMode ? '>' : '›'}
-          />
+            <TextInput
+              value={subtitlePath}
+              onChange={setSubtitlePath}
+              onTab={handleSubtitleTabComplete}
+              onSubmit={() => void handleSubtitleSubmit()}
+              onCancel={() => setOverlay('none')}
+              placeholder={process.platform === 'win32' ? 'C:\\Users\\...\\lecture.srt' : '~/Downloads/lecture.srt'}
+              width={modalContentWidth(72) - 4}
+              isActive={isActive && !busy && subtitleField === 'path'}
+              prompt={asciiMode ? '>' : '›'}
+            />
+            {subtitleMatches.length > 0 && subtitleField === 'path' ? (
+              <Text color={theme.dim}>{`${t(lang, '候选:', 'Matches:')} ${subtitleMatches.join('  ')}`}</Text>
+            ) : null}
 
-          {busy ? (
             <Box marginTop={1}>
-              <Spinner label={asciiMode ? t(lang, '正在导入字幕...', 'Importing subtitles...') : t(lang, '正在导入字幕…', 'Importing subtitles…')} />
+              <Text color={subtitleField === 'course' ? theme.primary : theme.muted} bold={subtitleField === 'course'}>
+                {t(lang, '课程归属 (可选):', 'Course (optional):')}
+              </Text>
             </Box>
-          ) : null}
-        </Modal>
+            <TextInput
+              value={subtitleCourse}
+              onChange={setSubtitleCourse}
+              onSubmit={() => void handleSubtitleSubmit()}
+              onCancel={() => setOverlay('none')}
+              width={modalContentWidth(72) - 4}
+              isActive={isActive && !busy && subtitleField === 'course'}
+              prompt={asciiMode ? '>' : '›'}
+            />
+
+            {busy ? (
+              <Box marginTop={1}>
+                <Spinner label={asciiMode ? t(lang, '正在导入字幕...', 'Importing subtitles...') : t(lang, '正在导入字幕…', 'Importing subtitles…')} />
+              </Box>
+            ) : null}
+          </Modal>
+        </KeyScope>
       ) : null}
 
       {/* Audio Provider Settings Modal */}
       {overlay === 'settings' ? (
-        <Modal
-          title={t(lang, '音频转写服务配置', 'Audio Transcription Providers')}
-          width={72}
-          isActive={isActive}
-          onClose={() => setOverlay('none')}
-          hints={[
-            { key: asciiMode ? 'Up/Down' : '↑/↓', label: t(lang, '选择服务商', 'Provider') },
-            { key: 'Enter', label: t(lang, '保存密钥', 'Save Key') },
-            { key: 'Ctrl+T', label: t(lang, '测试连通', 'Test') },
-            { key: 'Esc', label: t(lang, '关闭', 'Close') },
-          ]}
-        >
-          <Box flexDirection="column" marginBottom={1}>
-            {PROVIDERS.map((p, idx) => {
-              const active = idx === providerIdx;
-              const info = audioSettings?.[p.field] as AudioKeyState | undefined;
-              const testRes = testReport?.[p.tier];
-              return (
-                <Box key={p.field} flexDirection="row" alignItems="center">
-                  <Text color={active ? theme.primary : theme.muted}>{active ? (asciiMode ? '> ' : '▸ ') : '  '}</Text>
-                  <Text color={theme.text} bold={active}>{p.label}</Text>
-                  <Text> </Text>
-                  <Badge
-                    label={info?.set ? `${t(lang, '已配置', 'Set')}${info.hint ? ` ${info.hint}` : ''}` : t(lang, '未配置', 'Unset')}
-                    tone={info?.set ? 'success' : 'muted'}
-                    variant="soft"
-                  />
-                  {testRes ? (
-                    <Text color={testRes.ok ? theme.success : theme.error}>
-                      {`${asciiMode ? ' | ' : ' · '}${testRes.ok ? 'OK' : testRes.message || 'Failed'}`}
-                    </Text>
-                  ) : null}
-                </Box>
-              );
-            })}
-          </Box>
-
-          <Text color={theme.primary} bold>
-            {`${t(lang, '设置密钥', 'Set API Key')} (${PROVIDERS[providerIdx]?.label}):`}
-          </Text>
-          <TextInput
-            value={apiKeyInput}
-            onChange={setApiKeyInput}
-            onSubmit={() => void handleSaveKey()}
-            onCancel={() => setOverlay('none')}
-            mask
-            placeholder={t(lang, '输入 API Key (留空回车可清除)', 'Enter API key (blank + Enter to clear)')}
-            width={modalContentWidth(72) - 4}
-            isActive={isActive && !busy}
-            prompt={asciiMode ? '>' : '›'}
+        <KeyScope id="audio:settings" opaque>
+          <AudioOverlayHotkeys
+            id="AudioView:settings"
+            isActive={isActive}
+            onKey={(input, key) => {
+              if (key.upArrow) {
+                setProviderIdx((i) => (i - 1 + PROVIDERS.length) % PROVIDERS.length);
+                return true;
+              }
+              if (key.downArrow) {
+                setProviderIdx((i) => (i + 1) % PROVIDERS.length);
+                return true;
+              }
+              if (key.ctrl && input === 't') {
+                void handleTestProviders();
+                return true;
+              }
+              return false;
+            }}
           />
-        </Modal>
+          <Modal
+            title={t(lang, '音频转写服务配置', 'Audio Transcription Providers')}
+            width={72}
+            isActive={isActive}
+            onClose={() => setOverlay('none')}
+            hints={[
+              { key: asciiMode ? 'Up/Down' : '↑/↓', label: t(lang, '选择服务商', 'Provider') },
+              { key: 'Enter', label: t(lang, '保存密钥', 'Save Key') },
+              { key: 'Ctrl+T', label: t(lang, '测试连通', 'Test') },
+              { key: 'Esc', label: t(lang, '关闭', 'Close') },
+            ]}
+          >
+            <Box flexDirection="column" marginBottom={1}>
+              {PROVIDERS.map((p, idx) => {
+                const active = idx === providerIdx;
+                const info = audioSettings?.[p.field] as AudioKeyState | undefined;
+                const testRes = testReport?.[p.tier];
+                return (
+                  <Box key={p.field} flexDirection="row" alignItems="center">
+                    <Text color={active ? theme.primary : theme.muted}>{active ? (asciiMode ? '> ' : '▸ ') : '  '}</Text>
+                    <Text color={theme.text} bold={active}>{p.label}</Text>
+                    <Text> </Text>
+                    <Badge
+                      label={info?.set ? `${t(lang, '已配置', 'Set')}${info.hint ? ` ${info.hint}` : ''}` : t(lang, '未配置', 'Unset')}
+                      tone={info?.set ? 'success' : 'muted'}
+                      variant="soft"
+                    />
+                    {testRes ? (
+                      <Text color={testRes.ok ? theme.success : theme.error}>
+                        {`${asciiMode ? ' | ' : ' · '}${testRes.ok ? 'OK' : testRes.message || 'Failed'}`}
+                      </Text>
+                    ) : null}
+                  </Box>
+                );
+              })}
+            </Box>
+
+            <Text color={theme.primary} bold>
+              {`${t(lang, '设置密钥', 'Set API Key')} (${PROVIDERS[providerIdx]?.label}):`}
+            </Text>
+            <TextInput
+              value={apiKeyInput}
+              onChange={setApiKeyInput}
+              onSubmit={() => void handleSaveKey()}
+              onCancel={() => setOverlay('none')}
+              mask
+              placeholder={t(lang, '输入 API Key (留空回车可清除)', 'Enter API key (blank + Enter to clear)')}
+              width={modalContentWidth(72) - 4}
+              isActive={isActive && !busy}
+              prompt={asciiMode ? '>' : '›'}
+            />
+          </Modal>
+        </KeyScope>
       ) : null}
 
       {/* P2 Quota Guard ConfirmDialog for AI Transcript Corrections Review ([c]) */}
       {confirmReview ? (
-        <ConfirmDialog
-          title={t(lang, 'AI 复核转写存疑处', 'AI Review Uncertain Corrections')}
-          message={t(
-            lang,
-            `将为「${truncateDisplay(confirmReview.title, 36, ell)}」调用已配置的文本模型，在后台任务中复核 ${confirmReview.pending} 处存疑项。确认继续吗？`,
-            `Will invoke the configured text model in a background job to review ${confirmReview.pending} uncertain item(s) for "${truncateDisplay(confirmReview.title, 36, ell)}". Continue?`,
-          )}
-          confirmLabel={t(lang, '开始复核', 'Start Review')}
-          cancelLabel={t(lang, '取消', 'Cancel')}
-          width={60}
-          isActive={isActive && overlay === 'none'}
-          onConfirm={() => {
-            const target = confirmReview;
-            setConfirmReview(null);
-            void handleStartReview(target.sourceId);
-          }}
-          onCancel={() => setConfirmReview(null)}
-        />
+        <KeyScope id="audio:confirm-review" opaque>
+          <ConfirmDialog
+            title={t(lang, 'AI 复核转写存疑处', 'AI Review Uncertain Corrections')}
+            message={t(
+              lang,
+              `将为「${truncateDisplay(confirmReview.title, 36, ell)}」调用已配置的文本模型，在后台任务中复核 ${confirmReview.pending} 处存疑项。确认继续吗？`,
+              `Will invoke the configured text model in a background job to review ${confirmReview.pending} uncertain item(s) for "${truncateDisplay(confirmReview.title, 36, ell)}". Continue?`,
+            )}
+            confirmLabel={t(lang, '开始复核', 'Start Review')}
+            cancelLabel={t(lang, '取消', 'Cancel')}
+            width={60}
+            isActive={isActive && overlay === 'none'}
+            onConfirm={() => {
+              const target = confirmReview;
+              setConfirmReview(null);
+              void handleStartReview(target.sourceId);
+            }}
+            onCancel={() => setConfirmReview(null)}
+          />
+        </KeyScope>
       ) : null}
     </Box>
   );

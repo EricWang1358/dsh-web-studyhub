@@ -1,6 +1,8 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isAbsolute, resolve } from 'node:path';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import type { Tone } from '../../theme/tokens.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -295,7 +297,7 @@ export const OriginalFileModal = memo(function OriginalFileModal({
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const notify = useTuiStore((s) => s.notify);
-  const { columns } = useWindowSize();
+  const { columns } = useStableWindowSize();
 
   useInputCapture(isActive);
 
@@ -899,7 +901,7 @@ export const OriginalFileModal = memo(function OriginalFileModal({
 
         {actionError ? (
           <Box marginTop={1}>
-            <Text color={theme.error}>{`${errMark} ${truncateDisplay(actionError, Math.max(16, innerWidth - 2), ell)}`}</Text>
+            <Text color={theme.error} wrap="wrap">{`${errMark} ${actionError}`}</Text>
           </Box>
         ) : null}
       </Modal>

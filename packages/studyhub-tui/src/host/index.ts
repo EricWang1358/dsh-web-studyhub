@@ -38,6 +38,7 @@ export {
   TuiPreferencesSchema,
   UI_LANGUAGES,
   loadTuiPreferences,
+  loadTuiPreferencesSafe,
   parseTuiPreferences,
   resolveStudyHome,
   saveTuiPreferences,

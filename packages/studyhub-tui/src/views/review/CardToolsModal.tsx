@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { getReview, tryAction, type ReviewRun } from '../../host/sample-actions.js';
@@ -362,7 +363,7 @@ export const CardToolsModal = memo(function CardToolsModal({
   const handleToggleSuspend = useCallback(async () => {
     if (busy) return;
     if (!deckId) {
-      setErrorText(t(lang, '缺少题组 ID，无法暂停/恢复', 'Missing deckId for card.suspend'));
+      setErrorText(t(lang, '缺少题组信息，无法暂停/恢复题目', 'Missing deck context; cannot pause or resume card'));
       return;
     }
     const nextSuspended = !suspended;
@@ -393,7 +394,7 @@ export const CardToolsModal = memo(function CardToolsModal({
   const handleConfirmSlay = useCallback(async () => {
     if (busy) return;
     if (!deckId) {
-      setErrorText(t(lang, '缺少题组 ID，无法斩题', 'Missing deckId for card.slay'));
+      setErrorText(t(lang, '缺少题组信息，无法斩题', 'Missing deck context; cannot slay card'));
       return;
     }
     setBusy(true);
@@ -1073,7 +1074,7 @@ export const CardToolsModal = memo(function CardToolsModal({
       title: t(lang, '编辑题目', 'Edit Question'),
       desc: t(lang, '修改题干、参考答案或解析并刷新队列', 'Edit prompt, reference answer, or explanation'),
       enabled: true,
-      badge: 'card.update',
+      badge: t(lang, '可编辑', 'Edit'),
     },
     {
       key: '2',
@@ -1089,7 +1090,7 @@ export const CardToolsModal = memo(function CardToolsModal({
       title: t(lang, '斩题 / 永久掌握', 'Slay / Mastered'),
       desc: t(lang, '移入斩题组不再复习，并推进下一题', 'Move to Slain deck and advance'),
       enabled: true,
-      badge: 'card.slay',
+      badge: t(lang, '移出队列', 'Master'),
     },
     {
       key: '4',
@@ -1120,9 +1121,9 @@ export const CardToolsModal = memo(function CardToolsModal({
     {
       key: '6',
       title: t(lang, '提取核心术语 / 生词', 'Extract Technical Terms'),
-      desc: t(lang, 'AI 识别本题中的关键专业术语与生词', 'Extract unfamiliar technical terms via card.terms'),
+      desc: t(lang, 'AI 识别本题中的关键专业术语与生词', 'Extract unfamiliar technical terms with AI'),
       enabled: true,
-      badge: 'card.terms',
+      badge: t(lang, 'AI 提取', 'AI'),
     },
     {
       key: '7',
@@ -1139,19 +1140,19 @@ export const CardToolsModal = memo(function CardToolsModal({
       title: t(lang, '前置题目关联', 'Prerequisite Links'),
       desc: t(lang, '查看、搜索并管理本题依赖的前置题目', 'View, search, and link/unlink prerequisite cards'),
       enabled: true,
-      badge: prereqs.length > 0 ? t(lang, `${prereqs.length} 题`, `${prereqs.length} linked`) : 'card.link',
+      badge: prereqs.length > 0 ? t(lang, `${prereqs.length} 题`, `${prereqs.length} linked`) : t(lang, '未关联', 'None'),
     },
     {
       key: '9',
       title: t(lang, '题目质量反馈', 'Card Quality Feedback'),
-      desc: t(lang, '点赞或选择问题标签反馈，不触发静默后台改题', 'Upvote or report quality tags safely via assist'),
+      desc: t(lang, '点赞或选择问题标签反馈，不触发静默后台改题', 'Upvote or report quality tags safely'),
       enabled: true,
       badge:
         lastFeedbackVote === 'up'
           ? t(lang, '已赞', 'Upvoted')
           : lastFeedbackVote === 'down'
             ? t(lang, '已反馈', 'Flagged')
-            : 'coach.feedback',
+            : t(lang, '去反馈', 'Rate'),
     },
     {
       key: '0',
@@ -1168,7 +1169,7 @@ export const CardToolsModal = memo(function CardToolsModal({
       title: t(lang, '重试失败的 AI 改题', 'Retry Failed AI Rewrite'),
       desc: t(lang, '确认后重新排队此前失败的教练改题任务', 'Confirm and re-queue a failed AI rewrite task'),
       enabled: true,
-      badge: 'coach.rewrite.retry',
+      badge: t(lang, '重试任务', 'Retry'),
     },
   ];
 
@@ -1282,7 +1283,7 @@ export const CardToolsModal = memo(function CardToolsModal({
 
         {errorText ? (
           <Box marginBottom={0}>
-            <Text color={theme.error}>{`${asciiMode ? 'x' : '✕'} ${truncateDisplay(errorText, innerW - 2, ell)}`}</Text>
+            <Text color={theme.error} wrap="wrap">{`${asciiMode ? 'x' : '✕'} ${errorText}`}</Text>
           </Box>
         ) : null}
 
@@ -1363,8 +1364,8 @@ export const CardToolsModal = memo(function CardToolsModal({
             </Box>
           ) : termsError ? (
             <Box height={Math.max(3, subBodyH - 2)} flexDirection="column" justifyContent="center" gap={1}>
-              <Text color={theme.error} bold>
-                {`${asciiMode ? '!' : '▲'} ${truncateDisplay(termsError, innerW - 2, ell)}`}
+              <Text color={theme.error} bold wrap="wrap">
+                {`${asciiMode ? '!' : '▲'} ${termsError}`}
               </Text>
               <Text color={theme.muted}>
                 {t(
@@ -1797,8 +1798,8 @@ export const CardToolsModal = memo(function CardToolsModal({
         title={t(lang, '重试 AI 改题任务', 'Retry Failed AI Rewrite')}
         message={t(
           lang,
-          '确定调用 coach.rewrite.retry 为本题重新排队此前失败的 AI 改题任务？若取消或本题没有待重试的改题，不会产生模型调用。',
-          'Call coach.rewrite.retry to re-queue a failed AI rewrite for this card? Cancelling or having no failed rewrite makes 0 model calls.',
+          '确定为本题重新排队此前失败的 AI 改题任务？若取消或本题没有待重试的改题，不会产生模型调用。',
+          'Re-queue a failed AI rewrite for this card? Cancelling or having no failed rewrite makes 0 model calls.',
         )}
         confirmLabel={t(lang, '确认重试', 'Retry')}
         cancelLabel={t(lang, '取消', 'Cancel')}
