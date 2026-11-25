@@ -1942,5 +1942,8 @@
   "已符合推荐顺序": "Already in recommended order",
   "按推荐学习顺序重排当前课程的题组？": "Apply recommended learning order to this course's decks?",
   "确认应用推荐顺序": "Apply recommended order",
-  "仅调整当前课程题组的顺序，不改动任何题目或复习记录；取消后保持原顺序不变。": "Only reorders decks in this course without changing cards or review history; cancel to keep your current order."
+  "仅调整当前课程题组的顺序，不改动任何题目或复习记录；取消后保持原顺序不变。": "Only reorders decks in this course without changing cards or review history; cancel to keep your current order.",
+  "适用于编程与工程类课程：优先把大段口述代码执行改成 3–16 行最小可读代码块，并禁止在代码注释里泄题。": "For programming and engineering courses: convert multi-sentence verbalized code steps into minimal 3–16 line fenced code blocks and never leak answers in code comments.",
+  "加入代码阅读题推荐守则": "Add code-reading question rule",
+  "已加入代码阅读题推荐守则": "Code-reading rule added"
 }
