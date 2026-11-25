@@ -2,6 +2,7 @@ import React, { memo, type ReactNode } from 'react';
 import { Box, Text } from 'ink';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
+import { glyph, hairline } from '../render/glyphs.js';
 import { useTuiStore } from '../state/store.js';
 
 export interface PanelProps {
@@ -37,8 +38,8 @@ export interface PanelProps {
   children?: ReactNode;
 }
 
-const UNICODE_RULE = '─'.repeat(400);
-const ASCII_RULE = '-'.repeat(400);
+const UNICODE_RULE = hairline(400, false);
+const ASCII_RULE = hairline(400, true);
 
 /**
  * Rounded card (or classic ASCII `+---+` card when `asciiMode` is enabled). When `width` is
@@ -76,7 +77,7 @@ export const Panel = memo(function Panel({
   const borderColor = tone ? toneColor(theme, tone) : focused ? theme.borderActive : theme.border;
   const titleColor = focused ? theme.primary : theme.text;
   const hasHeader = Boolean(title || subtitle || badge !== undefined);
-  const ellipsis = ascii ? '...' : '…';
+  const ellipsis = glyph('ellipsis', ascii);
 
   const numericWidth = typeof width === 'number' ? width : undefined;
   const badgeText = badge !== undefined && badge !== '' ? ` ${badge} ` : '';

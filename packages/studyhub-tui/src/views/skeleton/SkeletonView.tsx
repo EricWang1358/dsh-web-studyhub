@@ -17,7 +17,7 @@ import { SelectList, type SelectOption } from '../../components/SelectList.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, parseSgrWheelDelta, useSgrMouseWheel, type VirtualListRenderContext } from '../../components/VirtualList.js';
-import { computeFilterBarLayout } from '../../components/layout-tokens.js';
+import { LAYOUT_BP, computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { renderTreeLines, type TreeLine, type TreeNode } from '../../render/charts.js';
@@ -832,7 +832,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   }, [detail, topics, lang, asciiMode]);
 
   const treePaneWidth = useMemo(() => {
-    const splitW = width >= 90 ? Math.max(28, Math.round(width * 0.44)) : width;
+    const splitW = width >= LAYOUT_BP.COMPACT ? Math.max(28, Math.round(width * 0.44)) : width;
     return Math.max(18, splitW - 4);
   }, [width]);
 

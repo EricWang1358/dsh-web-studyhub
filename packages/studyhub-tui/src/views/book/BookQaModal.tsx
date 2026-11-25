@@ -10,6 +10,7 @@ import { MarkdownView } from '../../components/MarkdownView.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
 import { SplitPane, computeSplit } from '../../components/SplitPane.js';
+import { LAYOUT_BP } from '../../components/layout-tokens.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/sample-actions.js';
@@ -436,7 +437,7 @@ export const BookQaModal = memo(function BookQaModal({
   const innerW = modalContentWidth(frameW);
   const bodyH = Math.max(8, frameH - 5);
   const contentH = Math.max(6, bodyH - 2);
-  const split = computeSplit(innerW, { leftWidth: 0.4, minLeft: 24, minRight: 30, breakpoint: 66 });
+  const split = computeSplit(innerW, { leftWidth: 0.4, minLeft: 24, minRight: 30, breakpoint: LAYOUT_BP.SPLIT_MODAL });
 
   useInput(
     (input, key) => {
@@ -595,7 +596,7 @@ export const BookQaModal = memo(function BookQaModal({
                 leftWidth={0.4}
                 minLeft={24}
                 minRight={30}
-                breakpoint={66}
+                breakpoint={LAYOUT_BP.SPLIT_MODAL}
                 activePane={activePane}
                 leftLabel={t(lang, '问答列表', 'Q&A Items')}
                 rightLabel={t(lang, '内容预览', 'Preview')}

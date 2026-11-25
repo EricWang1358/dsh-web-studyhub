@@ -12,6 +12,7 @@ import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
 import { ScrollView } from '../../components/ScrollView.js';
 import { SplitPane } from '../../components/SplitPane.js';
+import { LAYOUT_BP } from '../../components/layout-tokens.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
@@ -125,7 +126,7 @@ export interface RoundSummaryProps {
 }
 
 const CLAIMED_SUMMARY_KEYS: readonly string[] = Object.freeze(['w', 'R', 'g', 'b', 'v', '1', 'j', 'k', 'd']);
-const SPLIT_BREAKPOINT = 84;
+const SPLIT_BREAKPOINT = LAYOUT_BP.SPLIT_COMPACT;
 
 function formatDebriefNextLabel(nextCode: string, lang: UiLanguage): string {
   switch (nextCode) {

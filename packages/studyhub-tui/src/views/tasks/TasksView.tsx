@@ -16,7 +16,7 @@ import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { useInputCapture } from '../../components/focus.js';
-import { computeFilterBarLayout } from '../../components/layout-tokens.js';
+import { LAYOUT_BP, computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { useTheme } from '../../theme/tokens.js';
 import { useShellActions } from '../../shell/actions.js';
@@ -1788,7 +1788,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
     },
   });
 
-  const narrowBar = width < 84;
+  const narrowBar = width < LAYOUT_BP.SPLIT_COMPACT;
   const topBarH = 2;
   const showFilterBar = filterEditing || filterQuery.length > 0;
   const filterBarH = showFilterBar ? 1 : 0;
@@ -1905,7 +1905,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
             <Box flexShrink={0} marginLeft={1}>
               <Spinner label={narrowBar ? '' : asciiMode ? t(lang, '实时刷新中...', 'Live...') : t(lang, '实时刷新中…', 'Live…')} />
             </Box>
-          ) : width >= 104 ? (
+          ) : width >= LAYOUT_BP.AI_DRAWER_SIDE ? (
             <Box flexShrink={0} marginLeft={1}>
               <Text color={theme.dim} wrap={asciiMode ? undefined : 'truncate-end'}>
                 {truncateDisplay(
@@ -1919,7 +1919,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
         </Box>
         <Text color={theme.dim} wrap={asciiMode ? undefined : 'truncate-end'}>
           {truncateDisplay(
-            width < 90
+            width < LAYOUT_BP.COMPACT
               ? t(
                   lang,
                   '任务：[R]恢复 [p]暂停 [+/-]并发 [e]导出 [D]清轨迹 [o]输出 [m]补充 [w]流',

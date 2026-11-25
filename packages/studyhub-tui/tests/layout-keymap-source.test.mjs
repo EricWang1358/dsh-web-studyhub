@@ -45,8 +45,12 @@ function walkFiles(dir, out = []) {
 }
 
 test('P2-a guardrail: layout-tokens.ts centralizes breakpoints, chrome constants, and filter/modal helpers', () => {
-  assert.equal(Bundle.LAYOUT_BP.SIDENAV_AUTO_COLLAPSE, 100);
+  assert.equal(Bundle.LAYOUT_BP.SIDENAV_AUTO_COLLAPSE, 112);
   assert.equal(Bundle.LAYOUT_BP.SPLIT_DEFAULT, 86);
+  assert.equal(Bundle.LAYOUT_BP.SPLIT_MODAL, 72);
+  assert.equal(Bundle.LAYOUT_BP.SPLIT_COMPACT, 84);
+  assert.equal(Bundle.LAYOUT_BP.MIN_VIEWPORT_COLS, 60);
+  assert.equal(Bundle.LAYOUT_BP.MIN_VIEWPORT_ROWS, 18);
   assert.equal(Bundle.LAYOUT_BP.FILTER_FULL, 66);
   assert.equal(Bundle.LAYOUT_BP.FILTER_SHORT, 46);
   assert.equal(Bundle.LAYOUT_CHROME.SIDENAV_EXPANDED, 24);

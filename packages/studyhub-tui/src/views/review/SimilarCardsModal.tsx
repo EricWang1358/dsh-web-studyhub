@@ -9,6 +9,7 @@ import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { SplitPane } from '../../components/SplitPane.js';
+import { LAYOUT_BP } from '../../components/layout-tokens.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { ClickableBox } from '../../components/mouse.js';
 import { originReviewFrame } from '../../state/practice-stack.js';
@@ -335,7 +336,7 @@ export const SimilarCardsModal = memo(function SimilarCardsModal({
             leftWidth={0.4}
             minLeft={22}
             minRight={28}
-            breakpoint={74}
+            breakpoint={LAYOUT_BP.SPLIT_MODAL}
             activePane={activePane}
             divider
             leftLabel={t(lang, '同类题', 'Similar')}

@@ -14,6 +14,7 @@ import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { useInputCapture } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
+import { LAYOUT_BP } from '../../components/layout-tokens.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import {
   renderBarChart,
@@ -649,8 +650,8 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
     [lang, startReviewWith, startWeakPractice],
   );
 
-  const wide = width >= 96;
-  const extraWide = width >= 110;
+  const wide = width >= LAYOUT_BP.WIDE;
+  const extraWide = width >= LAYOUT_BP.EXTRA_WIDE;
 
   const handleCycleUsageDays = useCallback(async () => {
     const nextDays: UsageWindowDays =
