@@ -144,3 +144,45 @@ test('#1290: mixed library with 159-char MinerU ids migrates from v1 in one pass
   assert.equal(store.has(sourceKey(targetDrop.id, lib)), false);
   assert.deepEqual(calls.filter(c => c.name === INDEX_TOOLS.delete).map(c => c.args.source), [sourceKey(targetDrop.id, lib)]);
 });
+
+test('#1290 review: the plain-key threshold is the longest key the old code could write, so no key that was ever written changes', () => {
+  const lib = '0123456789abcdef';
+  const prefix = `studyhub://lib/${lib}/source/`;
+  const idOf = (keyBytes) => 'x'.repeat(keyBytes - Buffer.byteLength(prefix, 'utf8'));
+
+  // 183 bytes is the last length whose `<base64url>.meta.json` fits in 255 characters: every such key stays plain.
+  for (const bytes of [120, 180, 181, 182, 183]) {
+    const id = idOf(bytes);
+    assert.ok(base64UrlFilenameLength(`${prefix}${id}`) <= 255, `${bytes}-byte key fits`);
+    assert.equal(sourceKey(id, lib), `${prefix}${id}`, `${bytes}-byte key stays plain`);
+  }
+  assert.equal(MAX_PLAIN_SOURCE_KEY_BYTES, 183);
+
+  // 184 bytes never fitted, so nothing was ever stored under it: hashing it cannot orphan anything.
+  const over = idOf(184);
+  assert.ok(base64UrlFilenameLength(`${prefix}${over}`) > 255);
+  assert.ok(sourceKey(over, lib).startsWith(`${prefix}${SOURCE_KEY_HASH_PREFIX}`));
+});
+
+test('#1290 review: a page indexed under a 182-byte plain key is replaced in place when edited and leaves nothing behind when removed', async () => {
+  const lib = '0123456789abcdef';
+  const prefix = `studyhub://lib/${lib}/source/`;
+  const id = 'y'.repeat(182 - Buffer.byteLength(prefix, 'utf8'));
+  const plainKey = `${prefix}${id}`;
+  const before = { id, title: 'Page', text: 'The text as it stood before the edit.' };
+  const after = { ...before, text: 'The text after the learner edited the page.' };
+
+  // The state the old code left behind: the page stored under its plain key, the manifest already on the current key version.
+  const { store, port } = filenameCappedServer({ maxFilenameChars: 255, realRagShape: true });
+  store.set(plainKey, before.text);
+  const manifest = { keyVersion: INDEX_KEY_VERSION, libraryId: lib, sources: { [id]: { hash: contentHash(before.text), at: '2026-11-01T00:00:00.000Z' } } };
+
+  const edited = await buildIndex({ port, sources: [after], library: [id], manifest, libraryId: lib });
+  assert.equal(edited.failed.length, 0);
+  assert.deepEqual([...store.keys()], [plainKey], 'the edit is written over the same key, no second copy');
+  assert.ok(String(store.get(plainKey)).includes('after the learner edited'), 'the old text is gone');
+
+  const removed = await buildIndex({ port, sources: [], library: [], manifest, libraryId: lib });
+  assert.equal(removed.removed, 1);
+  assert.equal(store.size, 0, 'removing the page leaves no key behind');
+});
