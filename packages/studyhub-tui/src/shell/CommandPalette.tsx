@@ -1,10 +1,13 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../components/resize.js';
+import { useScopedInput as useInput } from '../components/key-dispatcher.js';
 import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type PageId, type StudySnapshot, type TuiPreferences, type UiLanguage } from '../types/contracts.js';
 import { t, useTuiStore, type TuiStoreState } from '../state/store.js';
 import { saveTuiPreferences } from '../host/tui-prefs.js';
 import { listThemes, nextThemeId, useTheme } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
+import { probeTerminalCompatMatrix } from '../render/terminal-compat.js';
 import { Modal } from '../components/Modal.js';
 import { TextInput } from '../components/TextInput.js';
 import { nextScrollOffset, parseSgrWheelDelta, useSgrMouseWheel } from '../components/VirtualList.js';
@@ -216,6 +219,7 @@ function persistPreferencePatch(host: HostClient | undefined, patch: Partial<Tui
 /** Build the full command list from store state + shell actions (pure, exported for tests). */
 export function buildPaletteItems(
   state: Pick<TuiStoreState, 'snapshot' | 'preferences' | 'activeRunId'> & {
+    page?: TuiStoreState['page'];
     navigate: TuiStoreState['navigate'];
     setTheme: TuiStoreState['setTheme'];
     setLanguage: TuiStoreState['setLanguage'];
@@ -314,7 +318,7 @@ export function buildPaletteItems(
         }
         const focusCourse =
           typeof (effectiveSnap?.focus as { course?: unknown } | undefined)?.course === 'string'
-            ? String((effectiveSnap?.focus as { course?: string }).course).trim()
+            ? String((effectiveSnap?.focus as { course?: string } | undefined)?.course ?? '').trim()
             : '';
         const progressMap = (effectiveSnap?.progress && typeof effectiveSnap.progress === 'object'
           ? effectiveSnap.progress
@@ -330,7 +334,7 @@ export function buildPaletteItems(
           })
           .map((d) => {
             const rec = d as Record<string, unknown>;
-            const due = Number(rec.due ?? d.dueCount ?? progressMap[d.id]?.due ?? 0) || 0;
+            const due = Number(progressMap[d.id]?.due ?? rec.due ?? d.dueCount ?? 0) || 0;
             return { id: d.id, due };
           })
           .filter((d) => d.id && d.due > 0)
@@ -414,6 +418,61 @@ export function buildPaletteItems(
     },
     ['density', 'compact', 'relaxed', 'spacing', '紧凑', '宽松', '间距'],
   );
+  act(
+    'cmd:terminal',
+    '/terminal',
+    t(lang, '诊断终端能力矩阵（OSC 52/8/2/9 · tmux/screen · 色彩）', 'Inspect terminal capabilities (OSC 52/8/2/9, mux, color)'),
+    () => {
+      const m = probeTerminalCompatMatrix({ asciiMode });
+      const on = (b: boolean) => (b ? 'ON' : 'off');
+      notify(
+        `mux:${m.mux} L${m.colorLevel} | OSC52:${on(m.osc52Copy)} OSC8:${on(m.osc8Hyperlink)} OSC2:${on(m.osc2Title)} OSC9:${on(m.osc9Notify)}`,
+        'info',
+      );
+    },
+    ['terminal', 'osc', 'tmux', 'screen', 'doctor', '终端', '诊断', '能力'],
+  );
+  act(
+    'cmd:pin',
+    '/pin',
+    t(lang, '收藏/取消收藏当前页面到快捷书签（最多 5 项）', 'Pin/unpin current page to quick bookmarks (max 5)'),
+    () => {
+      const activePage = state.page ?? useTuiStore.getState().page;
+      const curMeta = PAGE_REGISTRY.find((p) => p.id === activePage);
+      if (!curMeta) return;
+      const existing = state.preferences.pinnedTargets ?? [];
+      const exists = existing.some((p) => p.kind === 'page' && p.id === curMeta.id);
+      const nextPins = exists
+        ? existing.filter((p) => !(p.kind === 'page' && p.id === curMeta.id))
+        : [{ kind: 'page' as const, id: curMeta.id, label: lang === 'en' ? curMeta.labelEn : curMeta.labelZh }, ...existing].slice(0, 5);
+      setPrefs({ pinnedTargets: nextPins });
+      persistPreferencePatch(host, { pinnedTargets: nextPins });
+      notify(
+        t(
+          lang,
+          exists ? `已取消书签「${curMeta.labelZh}」` : `已添加快捷书签「${curMeta.labelZh}」`,
+          exists ? `Unpinned "${curMeta.labelEn}"` : `Pinned "${curMeta.labelEn}"`,
+        ),
+        'info',
+      );
+    },
+    ['pin', 'bookmark', 'favorite', '书签', '收藏', '置顶'],
+  );
+  const pinnedList = state.preferences.pinnedTargets ?? [];
+  for (const pin of pinnedList) {
+    items.push({
+      id: `pin:${pin.kind}:${pin.id}`,
+      label: `${asciiMode ? '*' : '★'} ${pin.label}`,
+      hint: t(lang, '快捷书签', 'Pinned bookmark'),
+      category: t(lang, '书签', 'Pinned'),
+      keywords: ['pin', 'bookmark', '书签', pin.label, pin.id],
+      action: () => {
+        if (pin.kind === 'page') state.navigate(pin.id as PageId);
+        else if (pin.kind === 'deck') state.navigate('review', { deckId: pin.id });
+        else state.navigate('sources', { sourceId: pin.id });
+      },
+    });
+  }
   act(
     'cmd:recover',
     '/recover',
@@ -658,7 +717,7 @@ export function buildNaturalLanguagePaletteItem(
     currentDeckId: ctx.deckId,
     lang: ctx.lang,
   });
-  if (wf && wf.steps.some((s) => s.intent.kind !== 'chat' && s.intent.kind !== 'unsupported')) {
+  if (wf && wf.steps.some((s) => s.intent.kind !== 'chat' && s.intent.kind !== 'boundary')) {
     return {
       id: 'nl:workflow',
       label: `${nlIcon} ${t(ctx.lang, `多步执行 (${wf.steps.length} 步): ${q}`, `Multi-step (${wf.steps.length}): ${q}`)}`,
@@ -676,7 +735,7 @@ export function buildNaturalLanguagePaletteItem(
     currentDeckId: ctx.deckId,
     lang: ctx.lang,
   });
-  if (intent.kind === 'chat' || intent.kind === 'unsupported') return null;
+  if (intent.kind === 'chat' || intent.kind === 'boundary') return null;
 
   return {
     id: `nl:${intent.actionName}`,
@@ -698,6 +757,12 @@ export function buildNaturalLanguagePaletteItem(
         s.openAssistant({ tab: 'guided', stage: intent.stage ?? 'question', focused: true });
         return;
       }
+      if (intent.kind === 'set_preference') {
+        s.setPreferences(intent.patch);
+        persistPreferencePatch(undefined, intent.patch);
+        s.notify(t(ctx.lang, `已切换：${intent.paramsSummary}`, `Updated: ${intent.paramsSummary}`), 'success');
+        return;
+      }
       if (intent.kind === 'readonly_stats') {
         s.navigate('dashboard');
         return;
@@ -715,7 +780,7 @@ export const CommandPalette = memo(function CommandPalette({
   initialQuery = '',
 }: CommandPaletteProps) {
   const theme = useTheme();
-  const { columns, rows } = useWindowSize();
+  const { columns, rows } = useStableWindowSize();
   const actions = useShellActions();
   const snapshot = useTuiStore((s) => s.snapshot);
   const preferences = useTuiStore((s) => s.preferences);
@@ -874,7 +939,8 @@ export const CommandPalette = memo(function CommandPalette({
 
   const results = useMemo(() => {
     const base = liveItems.length ? [...fuzzyResults, ...liveItems] : fuzzyResults;
-    return nlItem ? [nlItem, ...base] : base;
+    if (!nlItem) return base;
+    return base.length > 0 ? [...base, nlItem] : [nlItem];
   }, [fuzzyResults, liveItems, nlItem]);
 
   const width = Math.min(84, Math.max(40, columns - 8));

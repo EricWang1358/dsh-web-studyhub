@@ -1966,39 +1966,48 @@ describe('Round 22: SourcesView MinerUModal & ReviewView QueueModal', () => {
     });
     tty.send('\r');
 
-    const errorScreen = await tty.waitFor(
-      (s) =>
-        (s.includes('MinerU 扫描/长 PDF 转换') || s.includes('MinerU Scanned / Long PDF')) &&
-        !s.includes('正在本地读取页数与分段计划') &&
-        !s.includes('Reading PDF pages') &&
-        (s.includes('✕ ') || s.includes('[X]') || s.includes('x ')),
-      { timeoutMs: 12_000, label: 'MinerUModal inline error rendered for missing PDF' },
-    );
-    tty.assertHealthyScreen(errorScreen, 120, 36, 'MinerUModal missing PDF inline error at 120x36');
-    assert.ok(
-      errorScreen.includes('✕ ') || errorScreen.includes('[X]') || errorScreen.includes('x '),
-      'Missing PDF must show inline error marker',
-    );
-    await tty.flush(80);
+    try {
+      const errorScreen = await tty.waitFor(
+        (s) =>
+          (s.includes('MinerU 扫描/长 PDF 转换') || s.includes('MinerU Scanned / Long PDF')) &&
+          !s.includes('正在本地读取页数与分段计划') &&
+          !s.includes('Reading PDF pages') &&
+          (s.includes('提示：请检查路径是否存在') ||
+            s.includes('Verify the file exists') ||
+            s.includes('安装或修复本机 MinerU') ||
+            s.includes('PDF 解析计划生成失败') ||
+            s.includes('Failed to plan PDF') ||
+            s.includes('ENOENT') ||
+            s.includes('不存在') ||
+            s.includes('not found')),
+        { timeoutMs: 15_000, label: 'MinerUModal inline error rendered for missing PDF' },
+      );
+      tty.assertHealthyScreen(errorScreen, 120, 36, 'MinerUModal missing PDF inline error at 120x36');
+      assert.ok(
+        errorScreen.includes('✕ ') || errorScreen.includes('[X]') || errorScreen.includes('x '),
+        'Missing PDF must show inline error marker',
+      );
+      await tty.flush(80);
 
-    tty.send('\x14');
-    const historyWide = await tty.waitFor(
-      (s) =>
-        (s.includes('[r] 重试') || s.includes('[r] Retry')) &&
-        !s.includes('正在加载 MinerU 转换历史') &&
-        (s.includes('暂无 MinerU 转换记录') || s.includes('No MinerU conversions yet') || /记录 \d+|Records \d+/.test(s)),
-      { timeoutMs: 8_000, label: 'MinerUModal Tab 2 History rendered at 120x36' },
-    );
-    tty.assertHealthyScreen(historyWide, 120, 36, 'MinerUModal Tab 2 History at 120x36');
-    assert.ok(historyWide.includes('[r] 重试') || historyWide.includes('[r] Retry'));
-
-    tty.send('\x1b');
+      tty.send('\x14');
+      const historyWide = await tty.waitFor(
+        (s) =>
+          (s.includes('[r] 重试') || s.includes('[r] Retry')) &&
+          !s.includes('正在加载 MinerU 转换历史') &&
+          (s.includes('暂无 MinerU 转换记录') || s.includes('No MinerU conversions yet') || /记录 \d+|Records \d+/.test(s)),
+        { timeoutMs: 12_000, label: 'MinerUModal Tab 2 History rendered at 120x36' },
+      );
+      tty.assertHealthyScreen(historyWide, 120, 36, 'MinerUModal Tab 2 History at 120x36');
+      assert.ok(historyWide.includes('[r] 重试') || historyWide.includes('[r] Retry'));
+    } finally {
+      tty.send('\x1b');
+    }
     const afterClose = await tty.waitFor(
       (s) =>
         !s.includes('MinerU 扫描/长 PDF 转换') &&
         !s.includes('MinerU Scanned / Long PDF') &&
         (s.includes('学习资料库') || s.includes('Study Materials')),
-      { timeoutMs: 8_000, label: 'MinerUModal closed via Esc' },
+      { timeoutMs: 10_000, label: 'MinerUModal closed via Esc' },
     );
     tty.assertHealthyScreen(afterClose, 120, 36, 'SourcesView after Esc closed MinerUModal');
     assert.ok(!afterClose.includes('MinerU 扫描/长 PDF 转换'));

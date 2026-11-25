@@ -26,12 +26,14 @@ export function buildSliceForecast({
   paceForecast = null,
   deckId = null,
   course = null,
+  focusMinutes = null,
 } = {}) {
   const n = Math.max(0, Math.round(Number(count) || 0));
   if (n <= 0) return null;
   const pace = paceForecast?.pace || null;
   const cardSec = Number(pace?.medianCardSec) || DEFAULT_CARD_SEC;
-  const focusMin = Number(pace?.focusMinutes) || DEFAULT_FOCUS_MIN;
+  const customFocus = Number(focusMinutes);
+  const focusMin = (Number.isFinite(customFocus) && customFocus > 0 ? customFocus : Number(pace?.focusMinutes)) || DEFAULT_FOCUS_MIN;
   const rework = Number(pace?.reworkFactor) || DEFAULT_REWORK;
   const normalFloor = Number(paceForecast?.spacing?.normal) || DEFAULT_FLOOR;
   const focusFloor = Number(paceForecast?.spacing?.focus) || 10;
@@ -53,8 +55,7 @@ export function buildSliceForecast({
   } else {
     // Mixed round: scale by the scoped deck or course remaining-passes ratio when available.
     const scoped = (deckId && paceForecast?.decks?.[deckId])
-      || (course && paceForecast?.courses?.[course])
-      || paceForecast?.library;
+      || (course != null && course !== '*' ? paceForecast?.courses?.[course] : paceForecast?.library);
     if (scoped?.remaining > 0 && scoped?.passes > 0) {
       avgPassesLeft = Math.min(3, Math.max(1, scoped.passes / scoped.remaining));
       if (scoped.floor > 0) floor = scoped.floor;

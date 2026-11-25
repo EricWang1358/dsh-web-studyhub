@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction } from '../../host/sample-actions.js';
@@ -375,7 +376,7 @@ export const BookRetellModal = memo(function BookRetellModal({
           <Box flexDirection="row" gap={1}>
             <Badge label={asciiMode ? '! 评估暂不可用' : '▲ 评估暂不可用'} tone="warning" />
             <Text color={theme.error} bold>
-              {truncateDisplay(errorText, Math.max(12, innerW - 20), ell)}
+              {errorText}
             </Text>
           </Box>
           <Text color={theme.muted}>

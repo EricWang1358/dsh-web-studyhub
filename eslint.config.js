@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
+import tsParser from "./scripts/eslint-ts-parser.mjs";
 
 const repoRoot = fileURLToPath(new URL(".", import.meta.url));
 const contextOwnerOf = (filePath) =>
@@ -86,6 +87,54 @@ const cheapRules = {
   "no-sparse-arrays": "error",
   "no-misleading-character-class": "error",
 };
+
+/* Shared restricted-import entries for StudyHub TUI TypeScript/TSX sources (#1354 P1-b / D12).
+   ESLint flat config replaces `no-restricted-imports` options when multiple blocks match the same file,
+   so each narrow exemption block composes the exact sibling restrictions it still must obey. */
+const TUI_NO_INK_USE_INPUT = {
+  name: "ink",
+  importNames: ["useInput"],
+  message: "Use useKeyScope from input/hooks.js (or useScopedInput) instead of raw ink useInput (#1354 D1).",
+};
+const TUI_NO_INK_USE_WINDOW_SIZE = {
+  name: "ink",
+  importNames: ["useWindowSize"],
+  message: "Use useStableWindowSize from components/resize.js instead of raw ink useWindowSize (#1354 P4).",
+};
+const TUI_NO_RAW_FS_RENAME = [
+  {
+    name: "node:fs/promises",
+    importNames: ["rename"],
+    message: "Use atomicWriteFile / renameWithRetry from host/atomic-write.js instead of raw fs/promises rename (#1383).",
+  },
+  {
+    name: "fs/promises",
+    importNames: ["rename"],
+    message: "Use atomicWriteFile / renameWithRetry from host/atomic-write.js instead of raw fs/promises rename (#1383).",
+  },
+  {
+    name: "node:fs",
+    importNames: ["rename", "renameSync"],
+    message: "Use atomicWriteFile / renameWithRetry from host/atomic-write.js instead of raw fs rename (#1383).",
+  },
+  {
+    name: "fs",
+    importNames: ["rename", "renameSync"],
+    message: "Use atomicWriteFile / renameWithRetry from host/atomic-write.js instead of raw fs rename (#1383).",
+  },
+];
+const TUI_NO_SHELL_EXEC = [
+  {
+    name: "node:child_process",
+    importNames: ["exec", "execSync"],
+    message: "Never import exec or execSync in TUI sources; use spawn or execFile without a shell.",
+  },
+  {
+    name: "child_process",
+    importNames: ["exec", "execSync"],
+    message: "Never import exec or execSync in TUI sources; use spawn or execFile without a shell.",
+  },
+];
 
 /* Lint guards against real bugs (unused vars, stale hooks deps, undefined
    globals); style is deliberately not enforced — formatting stays manual. */
@@ -176,6 +225,92 @@ export default [
       // A render prop is a function the component calls, not a component: `trigger` is the one of Menu and Popover.
       "react/no-unstable-nested-components": ["error", { propNamePattern: "{render*,trigger}" }],
       "react/jsx-no-useless-fragment": "error",
+    },
+  },
+  // P1-b (#1354 D12): ESLint coverage for StudyHub TUI TypeScript/TSX sources.
+  {
+    files: ["packages/studyhub-tui/src/**/*.{ts,tsx}"],
+    languageOptions: {
+      parser: tsParser,
+      ecmaVersion: 2024,
+      sourceType: "module",
+      globals: { ...globals.node },
+      parserOptions: { ecmaFeatures: { jsx: true } },
+    },
+    plugins: { react, "react-hooks": reactHooks },
+    settings: { react: { version: "19.0" } },
+    rules: {
+      ...cheapRules,
+      // TypeScript's `tsc --noEmit` checks undefined identifiers & unused bindings accurately across type-only syntax.
+      "no-undef": "off",
+      "react/jsx-uses-react": "error",
+      "react/jsx-uses-vars": "error",
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "error",
+      "react/jsx-key": "error",
+      "react/react-in-jsx-scope": "off",
+      "react/prop-types": "off",
+      // Prevent remounting subtrees on every render; SplitPane `left`/`right` and `render*` are render-prop functions.
+      "react/no-unstable-nested-components": ["error", { propNamePattern: "{render*,left,right,trigger}" }],
+      "react/jsx-no-useless-fragment": "error",
+    },
+  },
+  {
+    files: ["packages/studyhub-tui/src/**/*.{ts,tsx}"],
+    ignores: [
+      "packages/studyhub-tui/src/input/hooks.ts",
+      "packages/studyhub-tui/src/components/mouse.tsx",
+      "packages/studyhub-tui/src/components/resize.ts",
+      "packages/studyhub-tui/src/host/atomic-write.ts",
+    ],
+    rules: {
+      "no-restricted-imports": ["error", {
+        paths: [
+          TUI_NO_INK_USE_INPUT,
+          TUI_NO_INK_USE_WINDOW_SIZE,
+          ...TUI_NO_RAW_FS_RENAME,
+          ...TUI_NO_SHELL_EXEC,
+        ],
+      }],
+    },
+  },
+  {
+    files: ["packages/studyhub-tui/src/components/resize.ts"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        paths: [
+          TUI_NO_INK_USE_INPUT,
+          ...TUI_NO_RAW_FS_RENAME,
+          ...TUI_NO_SHELL_EXEC,
+        ],
+      }],
+    },
+  },
+  {
+    files: [
+      "packages/studyhub-tui/src/input/hooks.ts",
+      "packages/studyhub-tui/src/components/mouse.tsx",
+    ],
+    rules: {
+      "no-restricted-imports": ["error", {
+        paths: [
+          TUI_NO_INK_USE_WINDOW_SIZE,
+          ...TUI_NO_RAW_FS_RENAME,
+          ...TUI_NO_SHELL_EXEC,
+        ],
+      }],
+    },
+  },
+  {
+    files: ["packages/studyhub-tui/src/host/atomic-write.ts"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        paths: [
+          TUI_NO_INK_USE_INPUT,
+          TUI_NO_INK_USE_WINDOW_SIZE,
+          ...TUI_NO_SHELL_EXEC,
+        ],
+      }],
     },
   },
   // M0 Anti-Bad-Smell & DDD Guardrails for StudyHub Desktop (built-in rules only; no custom ESLint plugin).

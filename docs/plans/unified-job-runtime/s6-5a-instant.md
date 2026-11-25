@@ -36,6 +36,7 @@ Exactly these, and every `oral.*` (the list is `INSTANT_ACTIONS` and `tests/inst
 - `teach.start`
 - `teach.answer`
 - `teach.retell`
+- `socratic.step`
 - `book.retell`
 - `coach.nudge`
 - `coach.reply`

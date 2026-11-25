@@ -19,6 +19,7 @@ import { ActiveSwitch, isParked } from './CourseActive.jsx';
 import { ExamAlignmentPointer, examPointerShown } from './ExamAlignmentPointer.jsx';
 import { alignmentReceipt } from './exam-alignment-words.js';
 import { daysUntilExam, examProfile, EXAM_SETTING_LIMITS } from '../lib/courses.js';
+import { courseRelative } from '../lib/course-tree.js';
 import { courseNameKey, findDuplicateCourses, groupCourseNames, rankCourses, similarCourses } from './course-names.js';
 import css from './course-settings.css';
 import focusIntakeCss from './focus-intake.css';
@@ -307,7 +308,7 @@ function SectionRow({ section, index, onChange, onRemove, disabled }) {
 /**
  * Props: data (snapshot: courses, sources, focus), courseId, onClose; act (called with rethrow so errors stay in the panel) and busy come from useStudy().
  */
-export default function CourseSettings({ data, courseId, onClose, mergeFrom = [], onGenerateTopic }) {
+export default function CourseSettings({ data, courseId, onClose: closePanel, mergeFrom = [], onGenerateTopic }) {
   const { act, busy, openModal } = useStudy();
   const toast = useToast();
   useInjectCss(css, 'study-course-settings');
@@ -336,8 +337,8 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
   const likely = new Set([...(findDuplicateCourses(courses).get(course.id) || []).map(item => item.id), ...mergeFrom]);
   const mergeCandidates = [...others.filter(item => likely.has(item.id)), ...others.filter(item => !likely.has(item.id))];
   const change = patch => setDraft(current => ({ ...current, ...patch }));
-  const isDirty = JSON.stringify(payloadFromDraft(course, draft)) !== JSON.stringify(payloadFromDraft(course, draftFromCourse(course)))
-    || Boolean(ruleDraftRef.current?.hasDraft) || Boolean(notationDraftRef.current?.hasDraft);
+  // Evaluated live at interaction time (not cached at render) so child ref drafts (rules / notation) are always observed (#1367-8).
+  const draftDirty = JSON.stringify(payloadFromDraft(course, draft)) !== JSON.stringify(payloadFromDraft(course, draftFromCourse(course)));
   const run = async (action, args, done) => {
     setWorking(true); setError('');
     try { await act(action, args, done, { rethrow: true }); return true; }
@@ -370,12 +371,18 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
       const moved = alignmentReceipt(result?.alignment);
       toast.success([uiFormat('已保存「{0}」的课程信息', [course.name]), moved].filter(Boolean).join(ui('；')));
       if (afterSave) afterSave(result);
-      else onClose?.('saved');
+      else closePanel?.('saved');
     });
   };
+  const courseNames = (courses || []).map(item => item?.name).filter(Boolean);
+  const subCourseCount = (courses || []).filter(item => item && item.id !== course.id && courseRelative(item.name, course.name, courseNames) !== null).length;
   const rename = () => run('course.rename', { id: course.id, name: name.trim() }, result => {
     setConfirm(null); setNestedWarn(false); setName(result?.course?.name || name.trim());
-    toast.success([uiFormat('已改名为「{0}」，题组、资料和练习都已同步', [result?.course?.name || name.trim()]), alignmentReceipt(result?.alignment)].filter(Boolean).join(ui('；')));
+    const childCount = result?.subCourses?.length || 0;
+    const msg = childCount > 0
+      ? uiFormat('已改名为「{0}」，含 {1} 门子课程的题组、资料、全书和练习都已同步', [result?.course?.name || name.trim(), childCount])
+      : uiFormat('已改名为「{0}」，题组、资料和练习都已同步', [result?.course?.name || name.trim()]);
+    toast.success([msg, alignmentReceipt(result?.alignment)].filter(Boolean).join(ui('；')));
   });
   const merge = () => run('course.merge', { from: mergeIds, into: course.id }, result => {
     if (result?.course) setDraft(current => draftAfterMerge(course, current, result.course));
@@ -406,12 +413,17 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
         ? ui('学法仍在编辑中，「保存课程信息」不会保存学法改动；请先在上方点「保存学法」或「取消」，或再点一次直接保存其余课程信息。')
         : ui('课程名称尚未点「改名」确认，「保存课程信息」不会改名；请先点「改名」，或再点一次直接保存其余课程信息。');
   const requestClose = (reason) => {
-    if (isDirty) { setLeavePrompt({ kind: 'close', reason }); return; }
-    onClose?.(reason);
+    if (draftDirty || ruleDraftRef.current?.hasDraft || notationDraftRef.current?.hasDraft) { setLeavePrompt({ kind: 'close', reason }); return; }
+    closePanel?.(reason);
   };
+  const guardLeave = (onConfirm) => {
+    if (draftDirty || ruleDraftRef.current?.hasDraft || notationDraftRef.current?.hasDraft) { setLeavePrompt({ kind: 'leave', onConfirm }); return; }
+    onConfirm?.();
+  };
+  const onClose = reason => guardLeave(() => closePanel?.(reason));
   const requestOpenFocusIntake = () => {
-    if (isDirty) { setLeavePrompt({ kind: 'focus-intake' }); return; }
-    onClose?.('focus-intake');
+    if (draftDirty || ruleDraftRef.current?.hasDraft || notationDraftRef.current?.hasDraft) { setLeavePrompt({ kind: 'focus-intake' }); return; }
+    closePanel?.('focus-intake');
     openModal({ type: 'focusIntake', course: course.name });
   };
   const mergeNames = others.filter(item => mergeIds.includes(item.id)).map(item => item.name);
@@ -431,7 +443,7 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
       <section className="course-settings__block course-settings__first" aria-label={ui('考试日期')}>
         <Field label={ui('考试日期')} width="full" hint={ui('填了就会在首页倒数；其余都可以不填。')}>
           <TextInput type="date" value={draft.date} disabled={disabled} onChange={event => change({ date: event.target.value })} /></Field>
-        {examPointerShown(course.exam) && <ExamAlignmentPointer course={course.name} examDate={course.exam.date} onLeave={() => requestClose('dismiss')} />}
+        {examPointerShown(course.exam) && <ExamAlignmentPointer course={course.name} examDate={course.exam.date} onLeave={(proceed) => guardLeave(() => { closePanel?.('dismiss'); proceed?.(); })} />}
       </section>
 
       {/* 学法 (#775): every course has one, the default package until it is changed. */}
@@ -454,7 +466,9 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
           <Hint>{ui('改名需点右侧「改名」并确认，立即生效；不会随底部「保存课程信息」提交。')}</Hint>
           {confirm === 'rename' && renamed && <InlineConfirm tone="warning" title={uiFormat('把「{0}」改名为「{1}」？', [course.name, name.trim()])}
             confirmLabel={ui('确认改名')} busy={working || busy} returnFocusRef={renameTrigger} onConfirm={rename} onCancel={() => setConfirm(null)}>
-            <p>{ui('所有题组、资料、练习和学习流会一起改名；旧名称保留为别名，旧资料仍能找到这门课。')}</p>
+            <p>{subCourseCount > 0
+              ? uiFormat('将连同 {0} 门子课程一并改名，所有题组、资料、全书、练习和学习流会一起同步；旧名称保留为别名。', [subCourseCount])
+              : ui('所有题组、资料、练习和学习流会一起改名；旧名称保留为别名，旧资料仍能找到这门课。')}</p>
           </InlineConfirm>}
           <p className="course-settings__aliases">
             <span>{ui('别名（旧名称，只读）')}</span>
@@ -503,7 +517,8 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
           <Hint>{ui('复习、出题和案例分析会优先照顾这些知识点：重点题间隔更短，出题时自动提高配额并加深难度。')}</Hint>
           <TopicChips value={draft.focusTopics} disabled={disabled} suggestions={weakTopics} onChange={focusTopics => change({ focusTopics })} />
           {/* Read only, and of the saved topics: a chip not yet saved has nothing to read against. */}
-          <FocusProgressList course={course.name} saved={course.focusTopics} lock={disabled} onGenerateTopic={onGenerateTopic} />
+          <FocusProgressList course={course.name} saved={course.focusTopics} lock={disabled}
+            onGenerateTopic={onGenerateTopic ? (...args) => guardLeave(() => onGenerateTopic(...args)) : undefined} />
         </section>
 
         <Disclosure className="course-settings__disclosure" bodyClassName="course-settings__disclosure-body" summary={ui('出题守则')}
@@ -570,7 +585,7 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
           confirmLabel={ui('保存并录入重点')}
           cancelLabel={ui('继续编辑')}
           onConfirm={async () => {
-            const ok = await save({ afterSave: () => { setLeavePrompt(null); onClose?.('focus-intake'); openModal({ type: 'focusIntake', course: course.name }); } });
+            const ok = await save({ afterSave: () => { setLeavePrompt(null); closePanel?.('focus-intake'); openModal({ type: 'focusIntake', course: course.name }); } });
             if (!ok) setLeavePrompt(null);
           }}
           onClose={() => setLeavePrompt(null)}
@@ -583,7 +598,18 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
           description={ui('离开后会丢失刚才在课程设置里尚未保存的修改。')}
           confirmLabel={ui('放弃改动')}
           cancelLabel={ui('继续编辑')}
-          onConfirm={() => { const reason = leavePrompt.reason; setLeavePrompt(null); onClose?.(reason); }}
+          onConfirm={() => { const reason = leavePrompt.reason; setLeavePrompt(null); closePanel?.(reason); }}
+          onClose={() => setLeavePrompt(null)}
+        />
+      )}
+      {leavePrompt?.kind === 'leave' && (
+        <ConfirmDialog
+          tone="warning"
+          title={ui('放弃未保存的改动？')}
+          description={ui('离开后会丢失刚才在课程设置里尚未保存的修改。')}
+          confirmLabel={ui('放弃改动')}
+          cancelLabel={ui('继续编辑')}
+          onConfirm={() => { const cb = leavePrompt.onConfirm; setLeavePrompt(null); cb?.(); }}
           onClose={() => setLeavePrompt(null)}
         />
       )}

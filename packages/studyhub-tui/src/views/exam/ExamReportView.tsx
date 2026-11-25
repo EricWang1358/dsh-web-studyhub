@@ -1,15 +1,16 @@
 import React, { memo, useMemo, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useKeyScope } from '../../input/hooks.js';
 import type { UiLanguage } from '../../types/contracts.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState } from '../../components/Badge.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Panel } from '../../components/Panel.js';
 import { SplitPane } from '../../components/SplitPane.js';
+import { LAYOUT_BP } from '../../components/layout-tokens.js';
 import { VirtualList } from '../../components/VirtualList.js';
-import { useClaimKeys } from '../../components/focus.js';
 import { truncateDisplay } from '../../render/cjk.js';
-import { renderBarChart } from '../../render/charts.js';
+import { renderBarChart, renderStatTable } from '../../render/charts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import type { CaseQuestionReport, ExamReport, ReportItem, ReportState } from './types.js';
 import {
@@ -79,8 +80,6 @@ export const ExamReportView = memo(function ExamReportView({
   const [pane, setPane] = useState<'list' | 'detail'>('list');
   const [selectedIdx, setSelectedIdx] = useState(0);
 
-  useClaimKeys(CLAIMED, isActive);
-
   const isCaseReport = state.kind === 'written' && Boolean(state.report.case);
 
   const writtenItems: ReportItem[] = useMemo(() => {
@@ -90,9 +89,14 @@ export const ExamReportView = memo(function ExamReportView({
     return [...wrong, ...skipped];
   }, [state]);
 
-  const caseQuestions: CaseQuestionReport[] =
-    state.kind === 'written' && state.report.case ? state.report.case.questions : [];
-  const oralEntries = state.kind === 'oral' ? state.report.entries : [];
+  const caseQuestions: CaseQuestionReport[] = useMemo(
+    () => (state.kind === 'written' && state.report.case ? state.report.case.questions : []),
+    [state],
+  );
+  const oralEntries = useMemo(
+    () => (state.kind === 'oral' ? state.report.entries : []),
+    [state],
+  );
 
   const totalList = isCaseReport
     ? caseQuestions.length
@@ -107,25 +111,29 @@ export const ExamReportView = memo(function ExamReportView({
     [state, lang],
   );
 
-  useInput(
-    (input, key) => {
-      if (busy) return;
+  useKeyScope({
+    id: 'ExamReportView:main',
+    active: isActive,
+    keys: CLAIMED,
+    onKey: (input, key) => {
+      if (busy) return false;
       if (input === 'b' || key.escape) {
         onBack();
-        return;
+        return true;
       }
       if ((input === 'w' || input === 'p') && weakScope.length > 0) {
         onPracticeWeak(weakScope);
-        return;
+        return true;
       }
       if (key.tab || input === 'h' || input === 'l' || key.leftArrow || key.rightArrow) {
         if (input === 'h' || key.leftArrow) setPane('list');
         else if (input === 'l' || key.rightArrow) setPane('detail');
         else setPane((p) => (p === 'list' ? 'detail' : 'list'));
+        return true;
       }
+      return false;
     },
-    { isActive },
-  );
+  });
 
   const detailMarkdown = useMemo(() => {
     if (state.kind === 'written') {
@@ -179,7 +187,7 @@ export const ExamReportView = memo(function ExamReportView({
           height={paneH}
           ascii={asciiMode}
         >
-          <Box gap={1} marginBottom={1} flexWrap="wrap">
+          <Box columnGap={1} marginBottom={1} flexWrap="wrap">
             <Badge label={`${c.total}/${c.max} ${t(lang, '分', 'pts')}`} tone={scoreTone} />
             <Badge label={band.label} tone={band.tone} variant="soft" />
             {c.pending > 0 ? (
@@ -262,17 +270,32 @@ export const ExamReportView = memo(function ExamReportView({
     if (state.kind === 'written') {
       const r = state.report;
       const bars = renderBarChart(topicBarItems, innerW, theme, { ascii: asciiMode });
-      const kindParts = (r.byKind ?? []).map((k) => {
-        const kLabel =
-          k.kind === 'multi'
-            ? t(lang, '多选', 'Multi')
-            : k.kind === 'truefalse'
-              ? t(lang, '判断', 'T/F')
-              : t(lang, '单选', 'Single');
-        return `${kLabel} ${k.correct}/${k.total}`;
-      });
-      const showKindLine = kindParts.length > 1;
-      const summaryLines = 5 + bars.length + (showKindLine ? 1 : 0);
+      // Round 96 Track A14: Borderless stat table for question-kind score breakdown
+      const kindTableLines =
+        (r.byKind ?? []).length > 0
+          ? renderStatTable(
+              [
+                { key: 'kind', label: t(lang, '题型', 'Kind'), align: 'left', minWidth: 6 },
+                { key: 'ratio', label: t(lang, '正确/总数', 'OK/Total'), align: 'right', minWidth: 8 },
+                { key: 'pct', label: t(lang, '正确率', 'Acc'), align: 'right', minWidth: 6 },
+              ],
+              (r.byKind ?? []).map((k) => {
+                const kLabel =
+                  k.kind === 'multi'
+                    ? t(lang, '多选', 'Multi')
+                    : k.kind === 'truefalse'
+                      ? t(lang, '判断', 'T/F')
+                      : t(lang, '单选', 'Single');
+                const pct = k.total > 0 ? Math.round((k.correct / k.total) * 100) : 0;
+                return { kind: kLabel, ratio: `${k.correct}/${k.total}`, pct: `${pct}%` };
+              }),
+              innerW,
+              theme,
+              { ascii: asciiMode, headerRule: paneH >= 20 },
+            )
+          : [];
+      const showKindTable = kindTableLines.length > 0 && paneH >= 16;
+      const summaryLines = 5 + bars.length + (showKindTable ? kindTableLines.length + 1 : 0);
       const listH = Math.max(4, paneH - summaryLines - 2);
       const scoreTone = r.scorePct >= 80 ? 'success' : r.scorePct >= 60 ? 'warning' : 'error';
       const band = scoreBandBadge(r.scorePct, lang);
@@ -288,7 +311,7 @@ export const ExamReportView = memo(function ExamReportView({
           height={paneH}
           ascii={asciiMode}
         >
-          <Box gap={1} marginBottom={1} flexWrap="wrap">
+          <Box columnGap={1} marginBottom={1} flexWrap="wrap">
             <Badge label={`${r.correct}/${r.total} ${t(lang, '正确', 'OK')}`} tone={scoreTone} />
             <Badge label={band.label} tone={band.tone} variant="soft" />
             {r.durationMs ? (
@@ -300,11 +323,11 @@ export const ExamReportView = memo(function ExamReportView({
             ) : null}
           </Box>
 
-          {showKindLine ? (
-            <Box marginBottom={0}>
-              <Text color={theme.muted}>
-                {truncateDisplay(kindParts.join(' · '), innerW, ellipsis)}
-              </Text>
+          {showKindTable ? (
+            <Box flexDirection="column" marginBottom={1}>
+              {kindTableLines.map((line, i) => (
+                <Text key={`kt-${i}`}>{line}</Text>
+              ))}
             </Box>
           ) : null}
 
@@ -395,7 +418,7 @@ export const ExamReportView = memo(function ExamReportView({
         height={paneH}
         ascii={asciiMode}
       >
-        <Box gap={1} marginBottom={1} flexWrap="wrap">
+        <Box columnGap={1} marginBottom={1} flexWrap="wrap">
           {r.role ? <Badge label={r.role} tone="ai" variant="soft" /> : null}
           <Badge label={`${t(lang, '优秀', 'Strong')} ${r.strong}`} tone="success" />
           <Badge label={`${t(lang, '尚可', 'Dev')} ${r.developing}`} tone="warning" variant="soft" />
@@ -486,7 +509,7 @@ export const ExamReportView = memo(function ExamReportView({
       leftWidth={0.48}
       minLeft={32}
       minRight={30}
-      breakpoint={86}
+      breakpoint={LAYOUT_BP.SPLIT_DEFAULT}
       activePane={pane === 'list' ? 'left' : 'right'}
       leftLabel={t(lang, '成绩概览', 'Summary')}
       rightLabel={t(lang, '题目解析', 'Detail')}

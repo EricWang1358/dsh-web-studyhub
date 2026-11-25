@@ -530,7 +530,7 @@ describe('Round 8: Board Pomodoro, Backup Export & Feynman Retell', () => {
     tty.send('r');
     const reviewScreen = await tty.waitFor(
       (s) =>
-        (s.includes('[T]带学') || s.includes('[T]Guided') || s.includes('[F]复述') || s.includes('[F]Retell')) &&
+        (s.includes('[t]带学') || s.includes('[t]Guided') || s.includes('[F]复述') || s.includes('[F]Retell')) &&
         !s.includes('正在加载页面') &&
         !s.includes('正在准备复习队列'),
       { timeoutMs: 10_000, label: 'Review active card' },
@@ -1045,7 +1045,7 @@ describe('Round 11: Review Mastery, Guided Study, Exam Alignment & BookCrunch', 
     const reviewInit = await tty.waitFor(
       (s) =>
         (s.includes('[D]工具') || s.includes('[D]Tools')) &&
-        (s.includes('[T]带学') || s.includes('[T]Guided') || s.includes('[L]带学') || s.includes('[L]Teach')) &&
+        (s.includes('[t]带学') || s.includes('[t]Guided') || s.includes('[L]带学') || s.includes('[L]Teach')) &&
         !s.includes('正在准备复习队列'),
       { timeoutMs: 10_000, label: 'Review active card rendered' },
     );
@@ -1147,7 +1147,7 @@ describe('Round 11: Review Mastery, Guided Study, Exam Alignment & BookCrunch', 
     );
     await tty.flush();
     assert.ok(
-      reviewAfterDrawer.includes('[T]带学') || reviewAfterDrawer.includes('[T]Guided') || reviewAfterDrawer.includes('[L]带学') || reviewAfterDrawer.includes('[L]Teach'),
+      reviewAfterDrawer.includes('[t]带学') || reviewAfterDrawer.includes('[t]Guided') || reviewAfterDrawer.includes('[L]带学') || reviewAfterDrawer.includes('[L]Teach'),
       `Expected to remain in ReviewView after closing AiHelpDrawer, got:\n${reviewAfterDrawer}`,
     );
 
@@ -1221,6 +1221,9 @@ describe('Round 11: Review Mastery, Guided Study, Exam Alignment & BookCrunch', 
 
   test('2) AI Guided Study Workbench (g in LibraryView: create -> pause -> resume -> end -> Esc)', async () => {
     const { tty } = ctx;
+    // Leave ReviewView first (digits 0-9 are claimed inside ReviewView per #1351)
+    tty.send(']');
+    await tty.waitFor((s) => !s.includes('按?看全部'), { timeoutMs: 4_000, label: 'Left ReviewView' });
     tty.send('1');
     const libScreen = await tty.waitFor(
       (s) => (s.includes('题组列表') || s.includes('Decks')) && !s.includes('正在加载页面'),

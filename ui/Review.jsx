@@ -233,12 +233,13 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
     run.complete && run.mode !== "exam"
       ? computeTodayPace({
           attempts: data?.attempts,
+          summary: data?.todayPace,
           goal: dailyGoal,
           focusMinutes: timerPrefs.workMinutes,
           breakMinutes: timerPrefs.breakMinutes,
         })
       : null
-  ), [run.complete, run.mode, data?.attempts, dailyGoal, timerPrefs.workMinutes, timerPrefs.breakMinutes]);
+  ), [run.complete, run.mode, data?.attempts, data?.todayPace, dailyGoal, timerPrefs.workMinutes, timerPrefs.breakMinutes]);
   const summaryPace = React.useMemo(() => {
     if (!run.complete || run.mode === "exam" || !data?.paceForecast || roundTotal <= 0) return null;
     const singleDeckId = run.deckId || (Array.isArray(run.scope) && run.scope.length === 1 ? run.scope[0]?.deckId : null);
@@ -250,8 +251,9 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
       paceForecast: data.paceForecast,
       deckId: singleDeckId,
       course: roundCourse || data?.focus?.course || null,
+      focusMinutes: timerPrefs.workMinutes,
     });
-  }, [run.complete, run.mode, run.deckId, run.scope, run.correct, roundTotal, roundCourse, data?.paceForecast, data?.focus?.course]);
+  }, [run.complete, run.mode, run.deckId, run.scope, run.correct, roundTotal, roundCourse, data?.paceForecast, data?.focus?.course, timerPrefs.workMinutes]);
   return (
     <StudyServicesContext.Provider value={dock.services}>
     <section
@@ -270,6 +272,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             <LazyReviewFocusPill
               boardState={boardState}
               attempts={data?.attempts}
+              todayPaceSummary={data?.todayPace}
               focusTitle={shellTitle}
               root={data?.root || ""}
               goal={dailyGoal}

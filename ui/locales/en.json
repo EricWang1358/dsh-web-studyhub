@@ -1907,5 +1907,20 @@
   "复制这一章的导图大纲提示词，可粘贴到外部 AI 进一步补全。": "Copy this chapter's mind-map outline prompt to refine with an external AI.",
   "确认整本生成复习全书？": "Generate the whole review book?",
   "确认整本生成总纲？": "Generate the whole course outline?",
-  "大教材整本生成耗时和用量较高；也可以先生成总纲，再在全书页用「只生成部分章节」按需分批生成。": "Whole-book generation on large textbooks takes more time and tokens. You can also generate the outline first, then build selected chapters in batches on the review book page."
+  "大教材整本生成耗时和用量较高；也可以先生成总纲，再在全书页用「只生成部分章节」按需分批生成。": "Whole-book generation on large textbooks takes more time and tokens. You can also generate the outline first, then build selected chapters in batches on the review book page.",
+  "已跳过 {0} 步": "Skipped {0} steps",
+  "已跳过 {0} 步#one": "Skipped {0} step",
+  "已跳过 {0} 步（不计为已掌握，可回头再看）：": "Skipped {0} steps (not counted as mastered; you can revisit them anytime):",
+  "已跳过 {0} 步（不计为已掌握，可回头再看）：#one": "Skipped {0} step (not counted as mastered; you can revisit it anytime):",
+  "第 {0} 步：{1}": "Step {0}: {1}",
+  "连续答错两次了，可以看要点并继续：点击「跳过这一步」或「剩下的直接讲给我听」。": "Missed twice in a row — view the key takeaway and keep moving: click \"Skip this step\" or \"Explain the rest to me\".",
+  "跳过这一步": "Skip this step",
+  "剩下的直接讲给我听": "Explain the rest to me",
+  "示意图": "Diagram",
+  "流程图": "Flowchart",
+  "状态图": "State diagram",
+  "查看源码": "View source",
+  "查看图示": "View diagram",
+  "源码": "Source",
+  "图示": "Diagram"
 }

@@ -90,6 +90,18 @@ describe('Round 88 Track D4 — Multi-step Assistant workflow skeleton (#1315 Ph
     // Cancellation terminates workflow cleanly
     const cancelled = cancelWorkflowPlan(afterStep1);
     assert.equal(currentWorkflowStep(cancelled), null);
+
+    // #1339: ordinary questions containing semicolons or "然后"/"再" must NOT become multi-step workflows
+    assert.equal(
+      planAssistantWorkflow('讲讲 Memento；再讲讲 Bridge', { currentCardId: 'card-secret-id', lang: 'zh' }),
+      null,
+      'Plain questions separated by semicolon must return null so the full prompt goes to the model',
+    );
+    assert.equal(
+      planAssistantWorkflow('先解释一下分页，然后说说分段的区别', { currentCardId: 'card-secret-id', lang: 'zh' }),
+      null,
+      'Plain questions using 先...然后 must return null when no executable action is present',
+    );
   });
 });
 
@@ -112,7 +124,7 @@ describe('Round 88 Track C5 — tmux / screen / terminal compatibility matrix', 
 
     // Full terminal compatibility matrix
     const wt = probeTerminalCompatMatrix({ env: { WT_SESSION: '1', TERM: 'xterm-256color' }, isTTY: true, platform: 'win32' });
-    assert.deepEqual(wt, { mux: 'none', colorLevel: 3, osc52Copy: true, osc8Hyperlink: true, osc2Title: true, osc9Notify: true, sgrAltClick: true });
+    assert.deepEqual(wt, { mux: 'none', colorLevel: 3, osc52Copy: true, osc8Hyperlink: true, osc2Title: true, osc9Notify: true, sgrAltClick: true, focusReporting: true });
 
     const tmux = probeTerminalCompatMatrix({ env: { TMUX: '/tmp/t,1,0', TERM: 'tmux-256color', COLORTERM: 'truecolor' }, isTTY: true });
     assert.equal(tmux.mux, 'tmux');
@@ -126,7 +138,7 @@ describe('Round 88 Track C5 — tmux / screen / terminal compatibility matrix', 
     assert.equal(screen.osc52Copy, true);
 
     const dumb = probeTerminalCompatMatrix({ env: { TERM: 'dumb' }, isTTY: true });
-    assert.deepEqual(dumb, { mux: 'none', colorLevel: 0, osc52Copy: false, osc8Hyperlink: false, osc2Title: false, osc9Notify: false, sgrAltClick: false });
+    assert.deepEqual(dumb, { mux: 'none', colorLevel: 0, osc52Copy: false, osc8Hyperlink: false, osc2Title: false, osc9Notify: false, sgrAltClick: false, focusReporting: false });
 
     const noColor = probeTerminalCompatMatrix({ env: { WT_SESSION: '1', NO_COLOR: '1' }, isTTY: true });
     assert.equal(noColor.colorLevel, 0);

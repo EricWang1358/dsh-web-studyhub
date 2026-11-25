@@ -15,7 +15,7 @@ const generated = (file) => /^lib\/client(\.|$)/.test(file) || /^packages\/[^/]+
 test('no lint rule is switched off in a comment outside ui/', () => {
   const hits = [];
   for (const dir of ['lib', 'scripts', 'tests', 'packages']) {
-    for (const abs of walk(join(ROOT, dir), ['.js', '.mjs', '.jsx'])) {
+    for (const abs of walk(join(ROOT, dir), ['.js', '.mjs', '.jsx', '.ts', '.tsx'])) {
       const file = rel(abs);
       if (generated(file)) continue;
       const count = countLintDisables(readFileSync(abs, 'utf8'));
@@ -29,6 +29,15 @@ const MUST_BE_ERRORS = ['no-unused-vars', 'no-undef', 'no-dupe-keys', 'no-empty'
   'no-unused-expressions', 'no-constant-condition', 'no-fallthrough', 'no-case-declarations', 'no-prototype-builtins', 'no-async-promise-executor', 'no-self-assign',
   'no-unsafe-optional-chaining', 'no-cond-assign', 'no-loss-of-precision', 'no-sparse-arrays', 'no-misleading-character-class'];
 const UI_ERRORS = ['react-hooks/rules-of-hooks', 'react/jsx-key', 'react/no-unstable-nested-components', 'react/jsx-no-useless-fragment'];
+const TUI_ERRORS = [
+  ...MUST_BE_ERRORS.filter((r) => r !== 'no-undef'),
+  'react-hooks/rules-of-hooks',
+  'react-hooks/exhaustive-deps',
+  'react/jsx-key',
+  'react/no-unstable-nested-components',
+  'react/jsx-no-useless-fragment',
+  'no-restricted-imports',
+];
 const ERROR = 2;
 const severityOf = (entry) => { const level = Array.isArray(entry) ? entry[0] : entry; return level === 'error' ? ERROR : level; };
 
@@ -41,6 +50,63 @@ test('the cheap correctness rules are errors for every kind of source file, and 
     assert.deepEqual(lowered, [], `${file}: these rules are no longer errors. They cost nothing to keep (the tree is clean), so fix the code, not the config`);
     assert.equal(severityOf(config.linterOptions?.reportUnusedDisableDirectives), ERROR, `${file}: a disable comment that silences nothing must be reported`);
   }
+
+  // P1-b (#1354 D12): TUI TypeScript/TSX sources must also be linted with error-level correctness + key-routing rules.
+  const tuiConfig = await eslint.calculateConfigForFile(join(ROOT, 'packages/studyhub-tui/src/shell/AppShell.tsx'));
+  const loweredTui = TUI_ERRORS.filter((rule) => severityOf(tuiConfig.rules?.[rule]) !== ERROR);
+  assert.deepEqual(loweredTui, [], 'packages/studyhub-tui/src/shell/AppShell.tsx: TUI ESLint rules lowered or missing');
+  assert.equal(severityOf(tuiConfig.linterOptions?.reportUnusedDisableDirectives), ERROR);
+
+  // Verify ESLint actively rejects raw ink useInput imports in TUI views.
+  const [violation] = await eslint.lintText("import { useInput } from 'ink';\nexport const x = useInput;\n", {
+    filePath: join(ROOT, 'packages/studyhub-tui/src/views/fake-view.tsx'),
+  });
+  assert.ok(
+    violation.messages.some((m) => m.ruleId === 'no-restricted-imports'),
+    'TUI ESLint config must reject raw ink useInput imports outside key-dispatcher.ts',
+  );
+
+  // P4 (#1354): Verify ESLint actively rejects raw ink useWindowSize imports outside components/resize.ts.
+  const [winSizeViolation] = await eslint.lintText("import { useWindowSize } from 'ink';\nexport const w = useWindowSize;\n", {
+    filePath: join(ROOT, 'packages/studyhub-tui/src/views/fake-view.tsx'),
+  });
+  assert.ok(
+    winSizeViolation.messages.some((m) => m.ruleId === 'no-restricted-imports'),
+    'TUI ESLint config must reject raw ink useWindowSize imports outside components/resize.ts',
+  );
+
+  // P1-b (#1354 D12): Verify ESLint actively rejects raw fs rename and child_process exec/execSync in TUI sources.
+  const [renameViolation] = await eslint.lintText("import { rename } from 'node:fs/promises';\nexport const r = rename;\n", {
+    filePath: join(ROOT, 'packages/studyhub-tui/src/views/fake-view.tsx'),
+  });
+  assert.ok(
+    renameViolation.messages.some((m) => m.ruleId === 'no-restricted-imports'),
+    'TUI ESLint config must reject raw node:fs/promises rename outside host/atomic-write.ts',
+  );
+  // Built by concatenation so this file does not itself spell out a child_process import: the slow-test
+  // guard in tests/slow-tests-list.test.mjs would otherwise flag this guard as launching a program.
+  const childProcessMod = 'node:' + 'child_process';
+  const [execViolation] = await eslint.lintText(`import { execSync } from '${childProcessMod}';\nexport const e = execSync;\n`, {
+    filePath: join(ROOT, 'packages/studyhub-tui/src/views/fake-view.tsx'),
+  });
+  assert.ok(
+    execViolation.messages.some((m) => m.ruleId === 'no-restricted-imports'),
+    'TUI ESLint config must reject raw child_process execSync in TUI sources',
+  );
+
+  // Verify CI lint and tui-test jobs run ESLint with --max-warnings=0 and typecheck on TUI sources.
+  const verifyYml = readFileSync(join(ROOT, '.github/workflows/verify.yml'), 'utf8');
+  assert.match(
+    verifyYml,
+    /tui-test:[\s\S]*?eslint\s+--max-warnings=0\s+packages\/studyhub-tui\/src/,
+    'tui-test CI job must run ESLint with --max-warnings=0 on TUI sources',
+  );
+  assert.match(verifyYml, /tui-test:[\s\S]*?typecheck/, 'tui-test CI job must run TypeScript typecheck on TUI sources');
+  assert.match(
+    verifyYml,
+    /lint:[\s\S]*?npm --prefix packages\/studyhub-tui run lint/,
+    'lint CI job must run StudyHub TUI lint script',
+  );
 });
 
 test('the scan counts the line, next-line and block forms, and nothing else', () => {

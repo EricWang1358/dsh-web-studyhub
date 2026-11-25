@@ -342,7 +342,9 @@ export default function MasteryMap({
 
   const { totals } = model;
   const coursePace = paceForecast
-    ? ((course && course !== '*' ? paceForecast.courses?.[course] : paceForecast.library) || null)
+    ? (course != null && course !== '*'
+      ? (paceForecast.courses?.[course] || null)
+      : (paceForecast.library || null))
     : null;
   const canPracticeWeak = (model.weakKeys.length > 0 || model.weakScopes.length > 0) && Boolean(onPracticeWeakAll);
   const canGapFillAll = model.uncoveredTitles.length > 0 && Boolean(onGoGenerate);

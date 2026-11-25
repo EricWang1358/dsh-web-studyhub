@@ -5,7 +5,7 @@ import CitationDisclosure from "../CitationDisclosure.jsx";
 import { ReadingBlock } from "../reading-settings/ReadingSettings.jsx";
 import { Button, ProgressBar } from "../components/index.js";
 import { useStudy } from "../study-context.jsx";
-import SimilarTry from "./SimilarTry.jsx";
+import { LazySimilarTry } from "./LazyLearningLoop.jsx";
 import TeachingStatus from "./TeachingStatus.jsx";
 
 const CALCULATION_STAGE_LABELS = {
@@ -19,7 +19,7 @@ const CALCULATION_STAGE_LABELS = {
 /** Step-by-step guided understanding / calculation panel extracted from QuestionRun. */
 export default function TeachingPanel({ session, data, model, onModelSettings }) {
   const { openModal } = useStudy();
-  const { entry, teachingBusy, teachingError, actions } = session;
+  const { entry, teachingBusy, teachingAction, teachingError, actions } = session;
   const { teaching, teachAnswer } = entry;
   const stepKey = teaching && !teaching.complete ? `${teaching.id}:${teaching.index}` : "";
   const prevStepRef = React.useRef(stepKey);
@@ -39,12 +39,22 @@ export default function TeachingPanel({ session, data, model, onModelSettings })
     if (teachingBusy || !teachAnswer.trim()) return;
     actions.teachingAct("teach.answer", { id: teaching.id, stepIndex: teaching.index, answer: teachAnswer });
   };
+  const skipStep = (all = false) => {
+    if (teachingBusy) return;
+    actions.teachingAct("teach.skip", { id: teaching.id, stepIndex: teaching.index, ...(all ? { all: true } : {}) });
+  };
+  const skippedSteps = Array.isArray(teaching.skippedSteps) ? teaching.skippedSteps : [];
+  const wrongTries = Number.isInteger(teaching.wrongTries) ? teaching.wrongTries : 0;
+  // Only the step check itself says 正在检查…: 跳过这一步 / 剩下的直接讲给我听 (teach.skip) and switching modes (teach.start)
+  // keep the button quiet, while a session that reports no action at all keeps the old behaviour.
+  const checkingStep = teachingBusy && teachingAction !== "teach.skip" && teachingAction !== "teach.start";
 
   return (
     <div className="teaching-panel">
       <ReadingBlock as="section" measure className="explanation">
         <div className="eyebrow">
           {uiFormat("{0} · {1} / {2}", [teaching.mode === "calculation" ? ui("计算题引导练习") : ui("逐步理解"), Math.min(teaching.index + 1, teaching.total), teaching.total])}
+          {skippedSteps.length > 0 ? ` · ${uiFormat("已跳过 {0} 步", [skippedSteps.length])}` : ""}
         </div>
         <ProgressBar className="teaching-progress" size="sm" value={teaching.index} max={teaching.total}
           label={teaching.mode === "calculation" ? ui("计算题引导练习") : ui("逐步理解")} />
@@ -54,7 +64,17 @@ export default function TeachingPanel({ session, data, model, onModelSettings })
           <>
             <h3>{ui("把理解迁移到下一题")}</h3>
             <Markdown text={teaching.transfer} />
-            <SimilarTry session={session} data={data} model={model} onModelSettings={onModelSettings} />
+            {skippedSteps.length > 0 && (
+              <div className="teaching-skipped-summary">
+                <p className="muted small">{uiFormat("已跳过 {0} 步（不计为已掌握，可回头再看）：", [skippedSteps.length])}</p>
+                <ul>
+                  {skippedSteps.map((item) => (
+                    <li key={item.index}>{uiFormat("第 {0} 步：{1}", [(item.index ?? 0) + 1, item.lesson || ""])}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <LazySimilarTry session={session} data={data} model={model} onModelSettings={onModelSettings} />
           </>
         ) : (
           <>
@@ -70,6 +90,9 @@ export default function TeachingPanel({ session, data, model, onModelSettings })
                 <CitationDisclosure card={teaching} sources={data.sources}
                   onOpenSource={(source, quote, peekPage) => openModal({ type: "source", source, quote, peekPage, back: true })} />
               </>
+            )}
+            {wrongTries >= 2 && (
+              <p className="muted small teaching-wrong-nudge">{ui("连续答错两次了，可以看要点并继续：点击「跳过这一步」或「剩下的直接讲给我听」。")}</p>
             )}
             <form onSubmit={(e) => { e.preventDefault(); submitStep(); }}>
               <label className="teaching-panel__field">
@@ -91,12 +114,20 @@ export default function TeachingPanel({ session, data, model, onModelSettings })
                   }}
                 />
               </label>
-              <Button className="teaching-panel__submit" variant="secondary" size="sm" busy={teachingBusy} busyLabel={ui("正在检查…")} disabled={!teachAnswer.trim()}
-                onPointerUp={(e) => e.currentTarget.closest(".study-app")?.focus({ preventScroll: true })} type="submit">{ui("检查理解")}</Button>
-              <TeachingStatus busy={teachingBusy} failure={teachingError} onCancel={actions.cancelTeaching} onRetry={actions.retryTeaching} />
+              <div className="teaching-panel__actions">
+                <Button className="teaching-panel__submit" variant="secondary" size="sm"
+                  busy={checkingStep} busyLabel={ui("正在检查…")}
+                  disabled={teachingBusy || !teachAnswer.trim()}
+                  onPointerUp={(e) => e.currentTarget.closest(".study-app")?.focus({ preventScroll: true })} type="submit">{ui("检查理解")}</Button>
+                <Button className="teaching-panel__skip" variant="ghost" size="sm" disabled={teachingBusy}
+                  onClick={() => skipStep(false)} type="button">{ui("跳过这一步")}</Button>
+                <Button className="teaching-panel__skip-all" variant="ghost" size="sm" disabled={teachingBusy}
+                  onClick={() => skipStep(true)} type="button">{ui("剩下的直接讲给我听")}</Button>
+              </div>
             </form>
           </>
         )}
+        <TeachingStatus busy={teachingBusy} failure={teachingError} onCancel={actions.cancelTeaching} onRetry={actions.retryTeaching} />
       </ReadingBlock>
     </div>
   );

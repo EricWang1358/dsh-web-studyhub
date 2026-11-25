@@ -11,41 +11,52 @@ const elementsOf = refs => (Array.isArray(refs) ? refs : [refs]).map(entry => en
 const open = [];
 
 /**
+ * Register one open dismissable on the shared Escape stack; returns its cleanup.
+ * Pure DOM helper behind `useDismiss`. When `escapeAnywhere` is true (e.g. Tooltip,
+ * WCAG 1.4.13), Escape closes the topmost open card regardless of where focus sits.
+ */
+export function registerDismiss({ getLatest, escape = true, capture = true, doc = document }) {
+  const token = {};
+  open.push(token);
+  const inside = target => elementsOf(getLatest().refs).some(element => element.contains(target));
+  // A Select or Combobox popup opened from inside this panel is drawn outside it (in the study surface): pressing it is not pressing away.
+  const away = event => { if (!inside(event.target) && !event.target?.closest?.('.sh-pop')) getLatest().onClose?.('outside'); };
+  const key = event => {
+    // An open Select / Combobox popup owns Escape (it closes itself first), even before focus has moved into it.
+    if (event.key !== 'Escape' || open.at(-1) !== token || doc.querySelector('.sh-pop__popup:not([data-closed])')) return;
+    const target = event.target;
+    if (!getLatest().escapeAnywhere && !inside(target) && target !== doc.body && target !== doc.documentElement) return;
+    event.preventDefault();
+    event.stopPropagation();
+    getLatest().onClose?.('escape');
+    getLatest().returnFocusRef?.current?.focus?.({ preventScroll: true });
+  };
+  doc.addEventListener('pointerdown', away, capture);
+  if (escape) doc.addEventListener('keydown', key, true);
+  return () => {
+    doc.removeEventListener('pointerdown', away, capture);
+    doc.removeEventListener('keydown', key, true);
+    const at = open.indexOf(token);
+    if (at >= 0) open.splice(at, 1);
+  };
+}
+
+/**
  * Close a floating panel from outside. `refs`: a ref, an element or an array
  * of them that count as "inside" (the panel and its trigger). onClose(reason)
  * gets 'outside' or 'escape'. Escape works while focus is inside or nowhere
- * (a closed menu item took it), stops there so an enclosing dialog stays open,
+ * (a closed menu item took it) — or anywhere when `escapeAnywhere` is true
+ * (Tooltip, WCAG 1.4.13) — stops there so an enclosing dialog stays open,
  * and returns focus to `returnFocusRef`. An outside press does not move focus.
  * `capture` (default on) hears the press before the page can stop it. A press inside a Select / Combobox popup (.sh-pop) counts as inside.
  */
-export function useDismiss({ open: isOpen, onClose, refs, escape = true, returnFocusRef, capture = true }) {
+export function useDismiss({ open: isOpen, onClose, refs, escape = true, escapeAnywhere = false, returnFocusRef, capture = true }) {
   const latest = useRef({});
-  latest.current = { onClose, refs, returnFocusRef };
+  latest.current = { onClose, refs, returnFocusRef, escapeAnywhere };
   useEffect(() => {
+    // No document (a render outside the browser): nothing to listen on, and registerDismiss reads `document` for its default.
     if (!isOpen || typeof document === 'undefined') return undefined;
-    const token = {};
-    open.push(token);
-    const inside = target => elementsOf(latest.current.refs).some(element => element.contains(target));
-    // A Select or Combobox popup opened from inside this panel is drawn outside it (in the study surface): pressing it is not pressing away.
-    const away = event => { if (!inside(event.target) && !event.target?.closest?.('.sh-pop')) latest.current.onClose?.('outside'); };
-    const key = event => {
-      // An open Select / Combobox popup owns Escape (it closes itself first), even before focus has moved into it.
-      if (event.key !== 'Escape' || open.at(-1) !== token || document.querySelector('.sh-pop__popup:not([data-closed])')) return;
-      const target = event.target;
-      if (!inside(target) && target !== document.body && target !== document.documentElement) return;
-      event.preventDefault();
-      event.stopPropagation();
-      latest.current.onClose?.('escape');
-      latest.current.returnFocusRef?.current?.focus?.({ preventScroll: true });
-    };
-    document.addEventListener('pointerdown', away, capture);
-    if (escape) document.addEventListener('keydown', key, true);
-    return () => {
-      document.removeEventListener('pointerdown', away, capture);
-      document.removeEventListener('keydown', key, true);
-      const at = open.indexOf(token);
-      if (at >= 0) open.splice(at, 1);
-    };
+    return registerDismiss({ getLatest: () => latest.current, escape, capture });
   }, [isOpen, escape, capture]);
 }
 

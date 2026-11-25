@@ -2,6 +2,8 @@ import React, { memo, type ReactNode } from 'react';
 import { Box, Text } from 'ink';
 import { useTheme } from '../theme/tokens.js';
 import { t, useTuiStore } from '../state/store.js';
+import { glyph, hairline } from '../render/glyphs.js';
+import { LAYOUT_BP } from './layout-tokens.js';
 
 export interface PaneSize {
   width: number;
@@ -45,7 +47,7 @@ export function computeSplit(
   width: number,
   opts: { leftWidth?: number; minLeft?: number; minRight?: number; breakpoint?: number; gap?: number } = {},
 ): { narrow: boolean; left: number; right: number; gap: number } {
-  const { leftWidth = 0.4, minLeft = 24, minRight = 32, breakpoint = 86, gap = 1 } = opts;
+  const { leftWidth = 0.4, minLeft = 24, minRight = 32, breakpoint = LAYOUT_BP.SPLIT_DEFAULT, gap = 1 } = opts;
   if (width < breakpoint) return { narrow: true, left: width, right: width, gap: 0 };
   let left = leftWidth <= 1 ? Math.round(width * leftWidth) : Math.round(leftWidth);
   left = Math.max(minLeft, Math.min(left, width - minRight - gap));
@@ -62,7 +64,7 @@ export const SplitPane = memo(function SplitPane({
   leftWidth = 0.4,
   minLeft = 24,
   minRight = 32,
-  breakpoint = 86,
+  breakpoint = LAYOUT_BP.SPLIT_DEFAULT,
   activePane = 'left',
   narrowMode = 'tabs',
   leftLabel,
@@ -86,7 +88,7 @@ export const SplitPane = memo(function SplitPane({
           <Box height={topH} width={width} overflow="hidden">
             {resolve(left, { width, height: topH, visible: true, narrow: true })}
           </Box>
-          <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(Math.max(0, width))}</Text>
+          <Text color={theme.border}>{hairline(width, asciiMode)}</Text>
           <Box height={botH} width={width} overflow="hidden">
             {resolve(right, { width, height: botH, visible: true, narrow: true })}
           </Box>
@@ -96,17 +98,13 @@ export const SplitPane = memo(function SplitPane({
     const bodyH = Math.max(1, height - 1);
     const tab = (label: string, active: boolean, key: string) => (
       <Text key={key} color={active ? theme.primary : theme.muted} bold={active} backgroundColor={active ? theme.surface : undefined}>
-        {` ${active ? (asciiMode ? '*' : '●') : (asciiMode ? 'o' : '○')} ${label} `}
+        {` ${active ? glyph('dot', asciiMode) : glyph('dotOpen', asciiMode)} ${label} `}
       </Text>
     );
     const navHint =
       activePane === 'left'
-        ? asciiMode
-          ? t(lang, 'Enter/> 详情 ', 'Enter/> Detail ')
-          : t(lang, 'Enter/→ 详情 ', 'Enter/→ Detail ')
-        : asciiMode
-          ? t(lang, 'Esc/< 返回 ', 'Esc/< Back ')
-          : t(lang, 'Esc/← 返回 ', 'Esc/← Back ');
+        ? t(lang, `Enter/${glyph('arrowRight', asciiMode)} 详情 `, `Enter/${glyph('arrowRight', asciiMode)} Detail `)
+        : t(lang, `Esc/${glyph('arrowLeft', asciiMode)} 返回 `, `Esc/${glyph('arrowLeft', asciiMode)} Back `);
     return (
       <Box flexDirection="column" width={width} height={height}>
         <Box height={1} width={width}>
@@ -136,7 +134,7 @@ export const SplitPane = memo(function SplitPane({
             ? Array.from({ length: height }, (_, i) => (
                 <Text key={i} color={theme.border}>
                   {' '.repeat(Math.max(0, layout.gap - 1))}
-                  {i === 0 ? ' ' : asciiMode ? '|' : '│'}
+                  {i === 0 ? ' ' : glyph('vrule', asciiMode)}
                 </Text>
               ))
             : null}
