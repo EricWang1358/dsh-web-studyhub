@@ -258,6 +258,8 @@ export const AssistantPanel = memo(function AssistantPanel({
   const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingWorkflowRef = useRef<AssistantWorkflowPlan | null>(null);
   const mountedRef = useRef(true);
+  /** The instruction that started the current run, so a failure can offer 「按 [A] 重试」 (#1354). */
+  const lastCommandRef = useRef('');
 
   const clearSlowTimer = useCallback(() => {
     if (slowTimerRef.current !== null) {
@@ -344,6 +346,43 @@ export const AssistantPanel = memo(function AssistantPanel({
     sessionMemory.lastUndo = entry;
     if (mountedRef.current) setLastUndo(entry);
   }, []);
+
+  /**
+   * A failed action says why in plain Chinese/English and offers the same instruction again (#1354):
+   * `[A]` re-submits it, `[P]` still copies the contextual prompt. It never labels itself 「已完成」.
+   */
+  /** Point `[A]` at the instruction that just failed, so the learner can retry it as-is (#1354). */
+  const offerRetry = useCallback(
+    (reason: string) => {
+      const command = lastCommandRef.current.trim();
+      if (!command) return false;
+      const fb = {
+        reason,
+        altLabel: t(lang, '按 [A] 重试这条指令', 'Press [A] to retry'),
+        altCommand: command,
+        instruction: command,
+      };
+      sessionMemory.lastFallback = fb;
+      if (mountedRef.current) setLastFallback(fb);
+      return true;
+    },
+    [lang],
+  );
+
+  const reportFailure = useCallback(
+    (reason: string, label: string) => {
+      const retryable = offerRetry(reason);
+      appendTurn({
+        role: 'system',
+        stage: tab === 'guided' ? stage : undefined,
+        actionSummary: t(lang, `执行失败：${label}`, `Failed: ${label}`),
+        text: retryable
+          ? `${reason}\n${t(lang, '按 [A] 重试这条指令，或按 [P] 复制带上下文的提示词。', 'Press [A] to retry, or [P] to copy the prompt.')}`
+          : reason,
+      });
+    },
+    [appendTurn, offerRetry, tab, stage, lang],
+  );
 
   /** Hand a run the backend returned to Review, so an assistant edit is visible there at once (#1447). */
   const applyRunFromAssistant = useCallback((run: unknown) => {
@@ -535,12 +574,18 @@ export const AssistantPanel = memo(function AssistantPanel({
         if (!mountedRef.current) return;
         succeeded = outcome.succeeded;
         if (outcome.undo) registerUndo(outcome.undo);
-        appendTurn({
-          role: 'system',
-          stage: tab === 'guided' ? stage : undefined,
-          actionSummary: outcome.actionSummary,
-          text: outcome.text,
-        });
+        // Only a real backend side effect may be labelled 「已完成」; a failure states why + how to retry (#1354).
+        const inWorkflow = Boolean(pendingWorkflowRef.current);
+        if (succeeded || inWorkflow) {
+          appendTurn({
+            role: 'system',
+            stage: tab === 'guided' ? stage : undefined,
+            actionSummary: outcome.actionSummary,
+            text: outcome.text,
+          });
+        } else {
+          reportFailure(outcome.text, outcome.actionSummary);
+        }
         if (outcome.toast) notify(outcome.toast.message, outcome.toast.tone);
         // Resume remaining steps in a multi-step workflow after confirmation (#1339)
         const wf = pendingWorkflowRef.current;
@@ -554,6 +599,8 @@ export const AssistantPanel = memo(function AssistantPanel({
           if (succeeded && !isWorkflowComplete(nextPlan)) {
             runWorkflowSteps(nextPlan);
           } else {
+            // The stopped plan keeps its failed step and still offers the same retry entry (#1354).
+            if (!succeeded) offerRetry(outcome.text);
             appendTurn({
               role: 'assistant',
               stage: tab === 'guided' ? stage : undefined,
@@ -568,7 +615,7 @@ export const AssistantPanel = memo(function AssistantPanel({
         endExecution();
       }
     },
-    [host, snapshot, cardCtx, tab, stage, lang, asciiMode, navigate, beginExecution, endExecution, appendTurn, registerUndo, notify, runWorkflowSteps, applyRunFromAssistant],
+    [host, snapshot, cardCtx, tab, stage, lang, asciiMode, navigate, beginExecution, endExecution, appendTurn, registerUndo, reportFailure, offerRetry, notify, runWorkflowSteps, applyRunFromAssistant],
   );
 
   const handleSkipRetell = useCallback(() => {
@@ -601,6 +648,8 @@ export const AssistantPanel = memo(function AssistantPanel({
       setInputFocused(false);
       setLastFallback(null);
       sessionMemory.lastFallback = null;
+      // Remembered so a failed action can offer 「按 [A] 重试这条指令」 (#1354).
+      lastCommandRef.current = text;
       // Always show what was asked, so every answer below has its question above it (#1410).
       const userTurn = appendTurn({ role: 'user', stage: tab === 'guided' ? stage : undefined, text });
 
@@ -792,12 +841,17 @@ export const AssistantPanel = memo(function AssistantPanel({
           });
           if (!mountedRef.current) return;
           if (outcome.undo) registerUndo(outcome.undo);
-          appendTurn({
-            role: 'assistant',
-            stage: tab === 'guided' ? stage : undefined,
-            actionSummary: outcome.actionSummary,
-            text: outcome.text,
-          });
+          if (outcome.succeeded) {
+            appendTurn({
+              role: 'assistant',
+              stage: tab === 'guided' ? stage : undefined,
+              actionSummary: outcome.actionSummary,
+              text: outcome.text,
+            });
+          } else {
+            // A read/queue action that the backend refused shows the reason and a retry entry (#1354).
+            reportFailure(outcome.text, outcome.actionSummary);
+          }
           if (outcome.toast) notify(outcome.toast.message, outcome.toast.tone);
         } finally {
           endExecution();
@@ -838,7 +892,9 @@ export const AssistantPanel = memo(function AssistantPanel({
         appendTurn({
           role: 'system',
           stage: tab === 'guided' ? stage : undefined,
-          actionSummary: `已完成：${intent.actionName}（${intent.paramsSummary}）`,
+          // Navigation really switched the page, but "已完成" belongs to study actions (#1354):
+          // say where the learner now is, never leak the internal action name.
+          actionSummary: t(lang, `已跳转：${intent.paramsSummary}`, `Navigated: ${intent.paramsSummary}`),
           text: t(
             lang,
             `已定位至 ${intent.page}${intent.pageNumber ? ` 第 ${intent.pageNumber} 页` : ''}。按 [z] 可撤销。`,
@@ -857,22 +913,42 @@ export const AssistantPanel = memo(function AssistantPanel({
         if (intent.patch.compactMode !== undefined) prevPatch.compactMode = curPrefs.compactMode;
         if (intent.patch.proactiveHints !== undefined) prevPatch.proactiveHints = curPrefs.proactiveHints;
         const dshHome = (host as { dshHome?: string } | undefined)?.dshHome;
-        const persist = (patch: Partial<typeof curPrefs>) => {
+        // Persisting can fail (unreadable/corrupt tui.json, read-only home): report it instead of
+        // claiming 「已完成 … 并持久化」 for a write that never reached disk (#1354).
+        const persist = async (patch: Partial<typeof curPrefs>): Promise<{ ok: boolean; error?: string }> => {
           useTuiStore.getState().setPreferences(patch);
-          void saveTuiPreferences(patch, dshHome ? { env: { DSH_HOME: dshHome } } : undefined).catch(() => {});
+          try {
+            await saveTuiPreferences(patch, dshHome ? { env: { DSH_HOME: dshHome } } : undefined);
+            return { ok: true };
+          } catch (err) {
+            return { ok: false, error: err instanceof Error ? err.message : String(err) };
+          }
         };
-        persist(intent.patch);
+        const applied = await persist(intent.patch);
+        if (!applied.ok) {
+          reportFailure(
+            t(
+              lang,
+              `偏好已在本次会话生效，但写入 tui.json 失败：${applied.error ?? '未知原因'}`,
+              `Applied for this session, but writing tui.json failed: ${applied.error ?? 'unknown reason'}`,
+            ),
+            t(lang, `保存偏好 ${intent.paramsSummary}`, `Saving preference ${intent.paramsSummary}`),
+          );
+          notify(t(lang, '偏好未保存', 'Preference not saved'), 'warning');
+          return;
+        }
         registerUndo({
           label: t(lang, '恢复原偏好', 'Restore previous preference'),
           run: async () => {
-            persist(prevPatch);
+            const back = await persist(prevPatch);
+            if (!back.ok) throw new Error(back.error ?? t(lang, '恢复偏好失败', 'Could not restore preferences'));
             return t(lang, '已撤销：偏好设置已恢复。', 'Undone: preferences restored.');
           },
         });
         appendTurn({
           role: 'system',
           stage: tab === 'guided' ? stage : undefined,
-          actionSummary: `已完成：${intent.actionName}（${intent.paramsSummary}）`,
+          actionSummary: t(lang, `已应用并保存：${intent.paramsSummary}`, `Applied and saved: ${intent.paramsSummary}`),
           text: t(
             lang,
             `已应用偏好（${intent.paramsSummary}）并持久化。按 [z] 可撤销。`,
@@ -892,7 +968,8 @@ export const AssistantPanel = memo(function AssistantPanel({
         appendTurn({
           role: 'assistant',
           stage: tab === 'guided' ? stage : undefined,
-          actionSummary: '已完成：只读统计（0 模型调用）',
+          // Read-only: no side effect, so it never pretends to have completed an action (#1354).
+          actionSummary: t(lang, '只读统计（0 模型调用，无改动）', 'Read-only stats (0 model calls, nothing changed)'),
           text: t(
             lang,
             `活跃题组 ${decks} 个 · 资料 ${sources} 份 · 今日到期 ${due} 题 · 待巩固错题 ${wrong} 题。`,
@@ -1029,6 +1106,7 @@ export const AssistantPanel = memo(function AssistantPanel({
       navigate,
       appendTurn,
       registerUndo,
+      reportFailure,
       setTab,
       setStage,
       notify,
