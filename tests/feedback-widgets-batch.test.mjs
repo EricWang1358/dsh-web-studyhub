@@ -329,6 +329,74 @@ test('ThumbFeedback does not auto-close/submit general-quality without tags, pau
   }
 });
 
+test('#1275: ThumbFeedback tag tray closes on outside pointerdown so learners without tags can dismiss it and see the 修题 tip', async () => {
+  const origWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const origDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const docListeners = new Map();
+  const fakeRoot = { contains: (node) => node === fakeRoot || node === insideNode };
+  const insideNode = { closest: () => null };
+  const outsideNode = { closest: () => null };
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: { addEventListener: noop, removeEventListener: noop },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      head: { querySelector: () => null, appendChild: noop },
+      body: {},
+      documentElement: {},
+      createElement: () => ({ setAttribute: noop, textContent: '' }),
+      querySelector: () => null,
+      addEventListener: (type, fn, cap = false) => {
+        const list = docListeners.get(type) || [];
+        list.push({ fn, cap: Boolean(cap) });
+        docListeners.set(type, list);
+      },
+      removeEventListener: (type, fn, cap = false) => {
+        const list = docListeners.get(type);
+        if (!list) return;
+        const idx = list.findIndex((e) => e.fn === fn && e.cap === Boolean(cap));
+        if (idx >= 0) list.splice(idx, 1);
+      },
+    },
+  });
+  const dispatchPointerDown = (target) => {
+    for (const { fn } of [...(docListeners.get('pointerdown') || [])]) fn({ target });
+  };
+
+  const services = { call: async () => ({ tags: [], scheduled: [] }), act: noop, busy: false, notify: noop, openModal: noop };
+  const props = { run: { id: 'r1', deckId: 'd1', card: { id: 'c1', prompt: 'Explain entropy.' } }, canShortcut: () => true };
+
+  try {
+    const app = mountSync(services);
+    let tree = app.render(mod.ThumbFeedback, props);
+    if (tree.props?.ref && typeof tree.props.ref === 'object') tree.props.ref.current = fakeRoot;
+    let downBtn = null;
+    walkTree(tree, (n) => { if (!downBtn && n.type === 'button' && n.props['aria-label'] === '这题有问题') downBtn = n; });
+    downBtn.props.onClick();
+    tree = app.render(mod.ThumbFeedback, props);
+    if (tree.props?.ref && typeof tree.props.ref === 'object') tree.props.ref.current = fakeRoot;
+
+    const hasTray = (node) => { let found = false; walkTree(node, (n) => { if (n.props?.className === 'thumb-tray') found = true; }); return found; };
+    assert.equal(hasTray(tree), true, 'tray opens after voting down');
+
+    dispatchPointerDown(insideNode);
+    tree = app.render(mod.ThumbFeedback, props);
+    assert.equal(hasTray(tree), true, 'clicking inside the tray keeps it open');
+
+    dispatchPointerDown(outsideNode);
+    tree = app.render(mod.ThumbFeedback, props);
+    assert.equal(hasTray(tree), false, 'clicking outside the tray closes it cleanly');
+    app.unmount();
+  } finally {
+    if (origWindow) Object.defineProperty(globalThis, 'window', origWindow);
+    else delete globalThis.window;
+    if (origDocument) Object.defineProperty(globalThis, 'document', origDocument);
+    else delete globalThis.document;
+  }
+});
+
 test('SimilarTry ignores stale response if active card changes before review.similar resolves', async () => {
   let resolveSimilar = null;
   const detours = [];

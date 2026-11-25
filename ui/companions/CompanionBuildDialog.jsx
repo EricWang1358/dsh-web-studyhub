@@ -12,7 +12,7 @@ import { ModelSettingsContext } from '../ModelErrorNote.jsx';
 import { HandOff } from '../hand-off/HandOff.jsx';
 import { countMaterials, groupSourcesByDocument } from '../../lib/source-groups.js';
 import { courseScope } from '../../lib/course-tree.js';
-import { Badge, Button, Checkbox, Chip, Dialog, Field, InlineMessage, SegmentedControl, Select, TextArea, TextInput } from '../components/index.js';
+import { Badge, Button, Checkbox, Chip, Dialog, Disclosure, Field, InlineMessage, SegmentedControl, Select, TextArea, TextInput } from '../components/index.js';
 import css from './companions.css';
 
 export function formatEstimateRange(value, formatter = formatNumber) {
@@ -50,7 +50,7 @@ function resolveEstimateTokens(est) {
 
 export default function CompanionBuildDialog({ modal, onClose }) {
   useInjectCss(css, 'study-companions');
-  const { call, act, notify } = useStudy();
+  const { call, act, notify, openModal } = useStudy();
   const studyBusy = useStudyBusy();
   const app = useContext(AppContext);
   const fromModelContext = useContext(ModelSettingsContext);
@@ -269,14 +269,23 @@ export default function CompanionBuildDialog({ modal, onClose }) {
       )}
     >
       <div className="sh-comp-build">
-        <SegmentedControl
-          value={tab}
-          onChange={setTab}
-          options={[
-            { value: 'build', label: ui('AI 生成跨学科伴学课') },
-            { value: 'attach', label: ui('挂载本地目录 / HTML') },
-          ]}
-        />
+        {typeof openModal === 'function' && (
+          <div className="sh-comp-sample" data-companion-sample-card="">
+            <div className="sh-comp-sample__text">
+              <strong className="sh-comp-sample__title">{ui('一键预览示例：地理 · 海陆风')}</strong>
+              <span className="sh-comp-sample__desc">{ui('免配置、零消耗，直接体验昼夜温差滑块、等压面框图与自测互动（不写入学习库）。')}</span>
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              iconEnd="arrow-right"
+              data-companion-sample-btn=""
+              onClick={() => openModal({ type: 'companion', id: 'sample-geography-sea-breeze', preview: true, title: ui('地理 · 海陆风热力环流') })}
+            >
+              {ui('立即预览')}
+            </Button>
+          </div>
+        )}
 
         <Field label={ui('所属课程（可直接输入新学科名称）')}>
           <TextInput
@@ -297,53 +306,6 @@ export default function CompanionBuildDialog({ modal, onClose }) {
                 placeholder={ui('例如：为什么一致收敛才能交换极限与积分？ / 康德定言令式与功利主义在边界案例上的冲突 / 单自由度阻尼振动的三种响应曲线 / 四杆机构急回特性与死点')}
               />
             </Field>
-
-            <div className="sh-comp-build__starters" role="group" aria-label={ui('跨学科一键示例')}>
-              <span className="sh-comp-build__starters-label">{ui('跨学科示例（点击自动填入主题与母版）：')}</span>
-              {starterExamples.map(example => (
-                <Chip
-                  key={example.id}
-                  size="sm"
-                  data-starter-id={example.id}
-                  data-archetype={example.archetype}
-                  selected={topic.trim() === example.topic}
-                  onClick={() => applyStarterExample(example)}
-                >
-                  {example.label}
-                </Chip>
-              ))}
-            </div>
-
-            <div className="sh-comp-build__row">
-              <Field label={ui('教学交互母版')}>
-                <Select
-                  value={archetype}
-                  onChange={val => {
-                    setArchetype(val);
-                    setArchetypeManual(val !== 'auto');
-                  }}
-                  options={[
-                    { value: 'auto', label: ui('自动匹配学科（推荐）') },
-                    { value: 'sandbox', label: ui('数理参数沙盒（数学 / 物理 / 机械 / 经济）') },
-                    { value: 'dialectic', label: ui('思辨反例矩阵（哲学 / 法学 / 人文 / 鉴别）') },
-                    { value: 'mechanism', label: ui('分步矢量框图（机构 / 硬件 / 生理 / 系统）') },
-                    { value: 'empirical', label: ui('代码实证泳道（算法 / 并发 / 数据库）') },
-                  ]}
-                />
-              </Field>
-              <Field label={ui('题库联动策略')}>
-                <Select
-                  value={mountMode}
-                  onChange={setMountMode}
-                  options={[
-                    { value: 'auto', label: ui('智能判断（已有题组则增强挂载，空白课全量导题）') },
-                    { value: 'enrich-existing', label: ui('增强挂载（高置信挂单卡 + 补口述题）') },
-                    { value: 'full-pack', label: ui('全量导题（生成带走闪卡 + 自测单选 + 口述题）') },
-                    { value: 'companion-only', label: ui('仅生成伴学页与投影讲义，不导题') },
-                  ]}
-                />
-              </Field>
-            </div>
 
             {courseDocuments.length > 0 && (
               <Field group label={uiFormat('可选：勾选参考讲义（已选 {0} 份；不选则按主题自由推演）', [selectedDocumentCount])}>
@@ -368,33 +330,101 @@ export default function CompanionBuildDialog({ modal, onClose }) {
                 ])}
               </InlineMessage>
             )}
-
-            <HandOff
-              id="companion.ask"
-              shape="quiet"
-              className="sh-comp-build__handoff"
-              lead="想让主会话直接编排这节伴学课："
-              what="把课程、主题与交互母版发给主会话，让主会话设计并生成交互伴学课"
-              input={{
-                mode: 'build',
-                course: course.trim(),
-                topic: topic.trim(),
-                archetype,
-                mountMode,
-                sourceIds: [...selectedSources],
-              }}
-              onSent={outcome => { if (outcome !== 'failed') onClose(); }}
-            />
           </>
         ) : (
-          <>
-            <Field label={ui('本地伴学目录或单个 HTML 文件路径')}>
-              <TextInput
-                value={attachPath}
-                onChange={e => setAttachPath(e.target.value)}
-                placeholder={ui('例如：D:\\labs\\concurrency-lab 或 companions/calculus/uniform-convergence.html')}
+          <Field label={ui('本地伴学目录或单个 HTML 文件路径')}>
+            <TextInput
+              value={attachPath}
+              onChange={e => setAttachPath(e.target.value)}
+              placeholder={ui('例如：D:\\labs\\concurrency-lab 或 companions/calculus/uniform-convergence.html')}
+            />
+          </Field>
+        )}
+
+        <Disclosure
+          className="sh-comp-build__advanced"
+          bodyClassName="sh-comp-build__advanced-body"
+          data-companion-advanced=""
+          summary={ui('高级选项')}
+          meta={tab === 'attach' ? ui('挂载本地目录 / HTML') : ui('交互母版 · 题库联动 · 挂载本地目录')}
+          defaultOpen={modal?.tab === 'attach' || archetypeManual}
+        >
+          <SegmentedControl
+            value={tab}
+            onChange={setTab}
+            options={[
+              { value: 'build', label: ui('AI 生成跨学科伴学课') },
+              { value: 'attach', label: ui('挂载本地目录 / HTML') },
+            ]}
+          />
+
+          {tab === 'build' ? (
+            <>
+              <div className="sh-comp-build__starters" role="group" aria-label={ui('跨学科一键示例')}>
+                <span className="sh-comp-build__starters-label">{ui('跨学科示例（点击自动填入主题与母版）：')}</span>
+                {starterExamples.map(example => (
+                  <Chip
+                    key={example.id}
+                    size="sm"
+                    data-starter-id={example.id}
+                    data-archetype={example.archetype}
+                    selected={topic.trim() === example.topic}
+                    onClick={() => applyStarterExample(example)}
+                  >
+                    {example.label}
+                  </Chip>
+                ))}
+              </div>
+
+              <div className="sh-comp-build__row">
+                <Field label={ui('教学交互母版')}>
+                  <Select
+                    value={archetype}
+                    onChange={val => {
+                      setArchetype(val);
+                      setArchetypeManual(val !== 'auto');
+                    }}
+                    options={[
+                      { value: 'auto', label: ui('自动匹配学科（推荐）') },
+                      { value: 'sandbox', label: ui('数理参数沙盒（数学 / 物理 / 机械 / 经济）') },
+                      { value: 'dialectic', label: ui('思辨反例矩阵（哲学 / 法学 / 人文 / 鉴别）') },
+                      { value: 'mechanism', label: ui('分步矢量框图（机构 / 硬件 / 生理 / 系统）') },
+                      { value: 'empirical', label: ui('代码实证泳道（算法 / 并发 / 数据库）') },
+                    ]}
+                  />
+                </Field>
+                <Field label={ui('题库联动策略')}>
+                  <Select
+                    value={mountMode}
+                    onChange={setMountMode}
+                    options={[
+                      { value: 'auto', label: ui('智能判断（已有题组则增强挂载，空白课全量导题）') },
+                      { value: 'enrich-existing', label: ui('增强挂载（高置信挂单卡 + 补口述题）') },
+                      { value: 'full-pack', label: ui('全量导题（生成带走闪卡 + 自测单选 + 口述题）') },
+                      { value: 'companion-only', label: ui('仅生成伴学页与投影讲义，不导题') },
+                    ]}
+                  />
+                </Field>
+              </div>
+
+              <HandOff
+                id="companion.ask"
+                shape="quiet"
+                className="sh-comp-build__handoff"
+                lead="想让主会话直接编排这节伴学课："
+                what="把课程、主题与交互母版发给主会话，让主会话设计并生成交互伴学课"
+                input={{
+                  mode: 'build',
+                  course: course.trim(),
+                  topic: topic.trim(),
+                  archetype,
+                  mountMode,
+                  sourceIds: [...selectedSources],
+                }}
+                onSent={outcome => { if (outcome !== 'failed') onClose(); }}
               />
-            </Field>
+            </>
+          ) : (
             <div className="sh-comp-build__row">
               <Field label={ui('存储方式')}>
                 <Select
@@ -419,8 +449,8 @@ export default function CompanionBuildDialog({ modal, onClose }) {
                 />
               </Field>
             </div>
-          </>
-        )}
+          )}
+        </Disclosure>
 
         {error && <InlineMessage tone="error">{error}</InlineMessage>}
       </div>

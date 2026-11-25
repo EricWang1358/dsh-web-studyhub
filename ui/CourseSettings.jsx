@@ -19,6 +19,7 @@ import { ActiveSwitch, isParked } from './CourseActive.jsx';
 import { ExamAlignmentPointer, examPointerShown } from './ExamAlignmentPointer.jsx';
 import { alignmentReceipt } from './exam-alignment-words.js';
 import { daysUntilExam, examProfile, EXAM_SETTING_LIMITS } from '../lib/courses.js';
+import { normalizeGenerationRules } from '../lib/course-rules.js';
 import { courseRelative } from '../lib/course-tree.js';
 import { courseNameKey, findDuplicateCourses, groupCourseNames, rankCourses, similarCourses } from './course-names.js';
 import css from './course-settings.css';
@@ -117,6 +118,8 @@ function draftAfterMerge(course, draft, mergedCourse) {
   next.focusTopics = [...new Set([...splitTopics(draft.focusTopics), ...splitTopics(after.focusTopics).filter(topic => !topicsBefore.has(topic))])].join('; ');
   const guidanceBefore = new Set(before.guidanceSourceIds);
   next.guidanceSourceIds = [...new Set([...draft.guidanceSourceIds, ...after.guidanceSourceIds.filter(id => !guidanceBefore.has(id))])];
+  const rulesBefore = new Set(before.generationRules || []);
+  next.generationRules = normalizeGenerationRules([...(draft.generationRules || []), ...(after.generationRules || []).filter(rule => !rulesBefore.has(rule))]);
   return next;
 }
 
