@@ -307,6 +307,23 @@ test('#1293-6: every model call of the job goes through its own gateway: a Step 
   assert.equal(after - before, asked, 'the usage ledger counted each call once, by the gateway');
 });
 
+test('#1293-7: a run in which term extraction failed for a question ends partial, not complete', async t => {
+  const fake = createFakeModel({ usage: true });
+  // The second chapter's question never gets a readable reply (asked twice: once, and once more after the invalid reply).
+  const model = async (system, prompt, options) => (prompt.includes('build an AST') ? 'not json' : fake(system, prompt, options));
+  const { service } = await createLibrary(t, model);
+  await seedCompilers(service);
+
+  const started = await service.call('course.organize.start', { course: 'Compilers', mode: 'all' });
+  const done = await waitForJobTerminal(service, started.jobId);
+  assert.equal(done.status, 'complete');
+  assert.equal(done.termsExtracted, 1);
+  assert.equal(done.skippedReasons['terms-failed'], 1);
+  const { contract } = organizeJobs(service)[0];
+  assert.equal(contract.result.completeness, 'partial');
+  assert.equal(contract.calls.length, 3, 'the failed question shows both of its calls');
+});
+
 test('#1293-4: CourseSettings exposes secondary batch organize UI with Tooltip and clean English i18n', async () => {
   const ui = await loadUi(`
     export { setUiLanguage, ui } from './ui/i18n.js';
