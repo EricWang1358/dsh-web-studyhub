@@ -9,7 +9,7 @@ import DocumentLearning from './DocumentLearning.jsx';
 import { ReaderModelContext } from './ReaderModelGate.jsx';
 import { OriginalNotice, OriginalDialog } from './OriginalFile.jsx';
 import { isPagedUrl, originalBytes, pagedFileUrl } from './peek/paged-original.js';
-import { issueOf } from './original-file.js';
+import { canSyncReferencedText, issueOf } from './original-file.js';
 import { peekStatus } from './peek/peek-logic.js';
 import { renderPageImages } from './peek/page-image.js';
 import { captureSelection, fuzzyPassageRange, groupPassageLinks, isPlaced, locateQuote, renderedPassageRange, resolveQuote } from './selection.js';
@@ -836,7 +836,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     onReconvert(file);
   };
   // What the original file is: nothing was kept ('none': said in 更多), or a file that went missing or changed (a fault: its notice stays).
-  const originalIssue = !localMode && document && !document.originalAvailable ? issueOf(document.original) : null;
+  const canSyncOriginalText = canSyncReferencedText(document);
+  const originalIssue = !localMode && document && !document.originalAvailable ? issueOf(document.original, { canSyncText: canSyncOriginalText }) : null;
   const originalNone = originalIssue?.kind === 'none', originalFault = !!originalIssue && !originalNone;
   if (document) attachTarget.current = { documentId: document.documentId || document.id, revision: document.revision, title: document.filename || document.title || source.title, format };
   const notices = [
@@ -942,7 +943,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       ...(marksSummary?.total ? { hint: String(marksSummary.total) } : {}),
       run: () => setSummaryOpen(true),
     }] : []),
-    ...(!localMode && document?.original?.mode === 'reference' ? [{
+    ...(!localMode && document?.original?.mode === 'reference' && canSyncOriginalText ? [{
       id: 'sync-original',
       icon: 'refresh',
       label: ui('同步最新文件内容'),

@@ -3,16 +3,22 @@
    until the learner actually opens inline Socratic tutoring (#1316). */
 import React from 'react';
 import { ui } from '../i18n.js';
+import { voiceScopeKey } from '../async.js';
 import { Button, LoadingState } from '../components/index.js';
 
 let cachedDrawer = null;
 
-/** Local drawer open/dismiss/P2-confirm state for inline Socratic tutoring inside QuestionRun (#1316). */
+/** Local drawer open/dismiss/P2-confirm state for inline Socratic tutoring inside QuestionRun (#1316, #1436). */
 export function useSocraticInlineState({ run, closeAssist, reviewBodyRef }) {
-  const [open, setOpen] = React.useState(false);
+  const [openKey, setOpenKey] = React.useState('');
   const [dismissedKey, setDismissedKey] = React.useState('');
   const [confirmedRunId, setConfirmedRunId] = React.useState('');
   const allowed = run?.mode !== 'exam' && !run?.complete && Boolean(run?.card?.id);
+  const scopeKey = voiceScopeKey(run);
+  // A drawer is open for one question only: when the question changes the key is cleared (while rendering, so there is no frame in between),
+  // otherwise A -> B -> A would find the old key again and re-open the drawer and ask the tutor by itself.
+  if (openKey && openKey !== scopeKey) setOpenKey('');
+  const open = Boolean(allowed && scopeKey && openKey === scopeKey);
   const modelConfirmed = Boolean(run?.id && confirmedRunId === run.id);
   const cardAnswered = Boolean(run?.feedback);
   const retryQueued = Boolean(
@@ -23,21 +29,21 @@ export function useSocraticInlineState({ run, closeAssist, reviewBodyRef }) {
     if (run?.id) setConfirmedRunId(run.id);
   }, [run?.id]);
   const toggle = React.useCallback(() => {
-    if (run?.mode === 'exam' || run?.complete) return;
-    setOpen((prev) => !prev);
-  }, [run?.mode, run?.complete]);
+    if (!allowed || !scopeKey) return;
+    setOpenKey((prev) => (prev === scopeKey ? '' : scopeKey));
+  }, [allowed, scopeKey]);
   const activate = React.useCallback(() => {
-    if (run?.mode === 'exam' || run?.complete) return;
+    if (!allowed || !scopeKey) return;
     closeAssist?.();
-    setOpen(true);
-  }, [closeAssist, run?.mode, run?.complete]);
-  const close = React.useCallback(() => setOpen(false), []);
+    setOpenKey(scopeKey);
+  }, [closeAssist, allowed, scopeKey]);
+  const close = React.useCallback(() => setOpenKey(''), []);
   const returnToQuestion = React.useCallback(() => {
-    setOpen(false);
+    setOpenKey('');
     requestAnimationFrame(() => reviewBodyRef?.current?.querySelector?.('.question-card')?.focus?.({ preventScroll: true }));
   }, [reviewBodyRef]);
   return {
-    open: open && allowed,
+    open,
     allowed,
     dismissedKey,
     setDismissedKey,

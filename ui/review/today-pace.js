@@ -125,7 +125,7 @@ export function computeTodayPace({
       if (!Number.isFinite(ts)) continue;
       const day = timeZone ? dayInTimeZone(ts, timeZone) : localDate(new Date(ts));
       if (!day) continue;
-      const elapsed = clampElapsedMs(attempt.elapsed_ms);
+      const elapsed = attempt.assessment === 'oral' ? null : clampElapsedMs(attempt.elapsed_ms);
       if (day === today) {
         todayCount += 1;
         if (elapsed !== null) todayElapsed.push(elapsed);

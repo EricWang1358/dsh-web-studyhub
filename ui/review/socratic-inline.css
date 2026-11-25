@@ -9,6 +9,13 @@
       top: 64px;
       max-height: calc(100dvh - 80px);
     }
+    /* Paired with session.css: when source dock is mounted, place drawer in column 1 below the question (#1436). */
+    .review-page.has-source > .review-body.has-socratic > .socratic-inline-drawer {
+      grid-column: 1;
+      position: static;
+      max-height: none;
+      margin: var(--space-3) var(--space-4) var(--space-4);
+    }
 
     .socratic-inline-drawer {
       display: flex;
