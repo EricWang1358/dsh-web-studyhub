@@ -15,6 +15,7 @@ Complete keyboard reference for `@ericwang1358/studyhub-tui`, synchronized with 
 | `?` | Context help overlay | Shows global, current-page, and feature shortcuts (`?` / `q` / `Esc` closes) |
 | `c` | Switch course | Opens `CoursePickerModal` |
 | `I` | Notification inbox & toast history | Opens `InboxModal` (`/` keyword filter, `e` atomic `inbox.raw` JSON export, `h` switches to「近期提示」/ recent multi-line toast history keeping the last 50 notices, `C` clears toast history) |
+| `Ctrl+O` | Notification history panel | Standalone recall of the last 50 notices with time / level / optional source; `j`/`k` or `↑`/`↓` selects, `c` / `y` / `Enter` copies the full entry (shared OSC 52 helper), `C` clears, `Ctrl+D` / `Ctrl+U` scrolls the untruncated multi-line detail, `Esc` closes only this panel. Opening it pauses toast auto-dismiss without touching history |
 | `1-9`, `0`, `n`, `b`, `t`, `a`, `,`, `r` | Jump directly to page | See 16-page registry below |
 | `[` / `]` | Previous / next page | Cycles across the 15 main nav pages (`group !== null`) |
 | `Backspace` (`Bksp`) | Go back | Pops navigation history |
