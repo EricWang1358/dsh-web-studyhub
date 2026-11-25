@@ -186,19 +186,28 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
     scheduleIdleSubmit();
   }
 
+  const confirmOpen = Boolean(ruleTexts && courseRules?.course);
   const latest = useRef({});
-  latest.current = { open, thumb, toggle, closeTray, canShortcut };
+  latest.current = { open, confirmOpen, thumb, toggle, closeTray, canShortcut };
   useImperativeHandle(ref, () => ({ up: () => latest.current.thumb("up"), down: () => (latest.current.open ? (callbacks.current.onInteract?.(), latest.current.closeTray()) : latest.current.thumb("down")) }), []);
   useEffect(() => { onVote?.(vote, tags); }, [vote, tags]); // eslint-disable-line react-hooks/exhaustive-deps -- the menu and tips read the vote and tags; the callback is not a trigger
   useEffect(() => {
     function key(e) {
-      const { open, thumb, toggle, closeTray, canShortcut } = latest.current;
+      const { open, confirmOpen, thumb, toggle, closeTray, canShortcut } = latest.current;
       if (e.key === "Escape" && open) {
+        if (confirmOpen || e.defaultPrevented || e.isComposing || e.keyCode === 229) return;
+        const root = rootRef.current;
+        const overlays = document.querySelectorAll('dialog[open], [role="dialog"], .sh-pop__popup:not([data-closed]), .sh-menu, .sh-popover, .shortcut-sheet, .sh-confirm');
+        for (const el of overlays) {
+          if (!root || !el.contains(root)) return;
+        }
+        const t = e.target;
+        if (t && typeof t.closest === "function" && (!root || !root.contains(t))
+          && t.closest('input, textarea, select, [contenteditable="true"], .cm-editor')) return;
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation?.();
         closeTray();
-        const root = rootRef.current;
         const target = root?.closest?.(".review-body")?.querySelector?.(".question-card") || root?.closest?.(".study-app");
         target?.focus?.({ preventScroll: true });
         return;

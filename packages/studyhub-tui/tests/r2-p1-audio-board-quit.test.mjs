@@ -339,7 +339,7 @@ describe('Round 2 P1: AudioView results, BoardView read-only lock, Unified /quit
         { timeoutMs: 6_000, label: 'BoardView corrupt read-only banner & footer hints' },
       );
       assert.ok(!screen.includes('a  添加') && !screen.includes('S  同步'), 'Write hints must be hidden in read-only mode');
-      assert.ok(screen.includes('r  重载') || screen.includes('[r]'), 'Reload hint must be shown');
+      assert.ok(screen.includes('Ctrl+R') && screen.includes('重载'), 'Reload hint must be shown');
 
       for (const key of ['a', 'e', '\r', 'd', 'H', 'L', 'm', 'S']) {
         app.tty.send(key);

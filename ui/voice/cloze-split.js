@@ -1,11 +1,11 @@
-import { clozeRuns } from '../../lib/cloze-text.js';
+import { clozeBlankIds as clozeTextBlankIds } from '../../lib/cloze-text.js';
 
 /* A spoken cloze answer (#1031) goes into the same blanks as typing, split here, locally, with no model: the learner names each blank
    (「第一空 …，第二空 …」, 「第 2 个空 …」, "first blank …", "blank 2 …"). A transcript that does not name every blank exactly once fills none
    (`{ mismatch: true }`): the page shows it above the blanks to copy from, and nothing is graded that the learner did not put there. */
 
-/** The blank ids of a cloze card, in the order they stand in the text. */
-export const clozeBlankIds = (card) => [...new Set(clozeRuns(card?.cloze?.text).filter((run) => run.t === 'blank').map((run) => run.id))];
+/** The blank ids of a cloze card, in the order they stand in the text, code-block blanks included (the shared walk, lib/cloze-text.js). */
+export const clozeBlankIds = (card) => clozeTextBlankIds(card?.cloze?.text);
 
 const HAN = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
 const ORDINAL = { first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7, eighth: 8, ninth: 9, tenth: 10 };

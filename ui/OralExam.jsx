@@ -140,24 +140,30 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
     return next;
   }
 
+  const [pendingAction, setPendingAction] = React.useState(null);
+  const runAction = (kind, fn) => async () => {
+    setPendingAction(kind);
+    try { return await fn(); }
+    finally { setPendingAction((currentKind) => (currentKind === kind ? null : currentKind)); }
+  };
   const start = () => exam.perform(async alive => {
     const next = await call("oral.start", { ...selection, count: Number(count) });
     if (alive()) showRun(next);
   });
-  const followup = () => exam.perform(async alive => {
+  const followup = runAction('followup', () => exam.perform(async alive => {
     const saved = await saveAnswers();
     if (!alive()) return;
     if (!saved.entry?.answer) throw new Error(ui("请先写下当前回答，再请求追问"));
     const next = await call('oral.followup', { runId: saved.id, cardId: saved.entry.cardId });
     if (alive()) showRun(next);
-  });
-  const nextQuestion = () => exam.perform(async alive => {
+  }));
+  const nextQuestion = runAction('next', () => exam.perform(async alive => {
     const saved = await saveAnswers();
     if (!alive()) return;
     const next = await call('oral.next', { runId: saved.id });
     if (alive()) showRun(next);
-  });
-  const submit = () => exam.submit({ before: saveAnswers, clearRun: true, after: forgetDrafts });
+  }));
+  const submit = runAction('submit', () => exam.submit({ before: saveAnswers, clearRun: true, after: forgetDrafts }));
   const practiceWeak = () => exam.perform(async alive => {
     const next = await call("review.start", { mode: "path", scope: report.weakScope, fresh: true });
     if (!alive()) return;
@@ -205,7 +211,7 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
       {recent}
     </>}
     {run?.entry && !report && <>
-      <div className="oral-progress"><span>{uiFormat("第 {0} / {1} 题", [run.index + 1, run.total])}</span><span>{uiFormat("本轮已回答 {0} 题", [run.answered])}</span></div>
+      <div className="oral-progress"><span>{uiFormat("第 {0} / {1} 题", [run.index + 1, run.total])}</span><span>{uiFormat("本轮已回答 {0} 题", [effectiveAnswered])}</span></div>
       <Panel className="oral-question" tone="paper" data-exam-paper="">
         <Badge tone="info">{run.entry.topic}</Badge>
         <div className="oral-prompt"><Markdown text={run.entry.prompt} links={false} /></div>
@@ -225,11 +231,11 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
         </div>}
       </Panel>
       <div className="oral-actions">
-        {!run.entry.followup && <Button disabled={!answer.trim()} lock={busy} onClick={followup}>{ui("追问一次")}</Button>}
+        {!run.entry.followup && <Button disabled={!answer.trim()} busy={busy && pendingAction === 'followup'} busyLabel={ui("正在生成追问…")} lock={busy && pendingAction !== 'followup'} onClick={followup}>{ui("追问一次")}</Button>}
         {last
-          ? <Button variant="primary" iconEnd="arrow-right" busy={busy} onClick={submit}>{busy ? ui("正在集中评估…") : ui("结束模拟，查看反馈")}</Button>
-          : <Button variant="primary" iconEnd="arrow-right" lock={busy} onClick={nextQuestion}>{ui("保存并继续")}</Button>}
-        {!last && <Button lock={busy} onClick={requestEarlySubmit}>{ui("提前结束")}</Button>}
+          ? <Button variant="primary" iconEnd="arrow-right" busy={busy && pendingAction === 'submit'} busyLabel={ui("正在集中评估…")} lock={busy && pendingAction !== 'submit'} onClick={submit}>{ui("结束模拟，查看反馈")}</Button>
+          : <Button variant="primary" iconEnd="arrow-right" busy={busy && pendingAction === 'next'} lock={busy && pendingAction !== 'next'} onClick={nextQuestion}>{ui("保存并继续")}</Button>}
+        {!last && <Button busy={busy && pendingAction === 'submit'} busyLabel={ui("正在集中评估…")} lock={busy && pendingAction !== 'submit'} onClick={requestEarlySubmit}>{ui("提前结束")}</Button>}
       </div>
       <p className="muted small">{ui("模拟过程中不会显示对错；回答在本地学习库保存。")}</p>
       {confirmSubmitOpen && (

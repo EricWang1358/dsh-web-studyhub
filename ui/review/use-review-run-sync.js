@@ -2,7 +2,7 @@ import React from "react";
 import { ui } from "../i18n.js";
 import { reviewEntryKey } from "../async.js";
 import { resolveBookSettings } from "../../lib/book-settings.js";
-import { qaAddFailureText, useBookQa } from "../book/BookQaButton.jsx";
+import { hasCourseBook, qaAddFailureText, useBookQa } from "../book/BookQaButton.jsx";
 import { autoAddPlan, seeFollowups } from "../book/qa-auto.js";
 import { AUTO_ADVANCE_MS, finishedTask } from "./session-logic.js";
 
@@ -20,7 +20,8 @@ export function useBookQaSync({ run, data, call }) {
   }, [call]);
 
   const book = useBookQa();
-  const bookCourse = data?.decks?.find((deck) => deck.id === run.deckId)?.course ?? "";
+  const bookDeck = data?.decks?.find((deck) => deck.id === run.deckId);
+  const bookCourse = bookDeck?.course ?? bookDeck?.folder ?? "";
   const [bookNote, setBookNote] = React.useState("");
   const activeCardKeyRef = React.useRef("");
   const currentCardKey = `${run.id}:${run.index}:${run.card?.id || ""}`;
@@ -34,7 +35,7 @@ export function useBookQaSync({ run, data, call }) {
     const seen = seeFollowups(qaSeen.current, reviewEntryKey(run), allFollowups.map((item) => item.id), !!(run.solution || run.followups));
     qaSeen.current = seen.state;
     const expectedKey = currentCardKey;
-    for (const id of autoAddPlan({ mode: qaToBook, withBook: book.ready && book.courses.has(bookCourse), fresh: seen.fresh, tried: qaTried.current, added: book.ids })) {
+    for (const id of autoAddPlan({ mode: qaToBook, withBook: book.ready && hasCourseBook(book.courses, bookCourse), fresh: seen.fresh, tried: qaTried.current, added: book.ids })) {
       qaTried.current.add(id);
       book.add({ deckId: run.deckId, cardId: run.card.id, followupId: id })
         .then(() => { if (activeCardKeyRef.current === expectedKey) setBookNote(""); })

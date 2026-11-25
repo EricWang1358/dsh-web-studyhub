@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, StudySnapshot } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { Badge, Divider, Spinner } from '../../components/Badge.js';
@@ -11,6 +12,7 @@ import { VirtualList, type VirtualListRenderContext } from '../../components/Vir
 import { useTheme } from '../../theme/tokens.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { startReview, tryAction } from '../../host/sample-actions.js';
+import { runAtomicSteps } from '../../host/tx-write.js';
 import { listCourses } from '../../shell/data.js';
 import { formatLabel, groupSourcesFromSnapshot, type DocumentGroup } from '../sources/source-helpers.js';
 
@@ -558,6 +560,7 @@ export const DeckManageModal = memo(function DeckManageModal({
   const [courseDraft, setCourseDraft] = useState('');
   const [topicValue, setTopicValue] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [previewScrollTop, setPreviewScrollTop] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [confirmBatchSlay, setConfirmBatchSlay] = useState(false);
   const busyRef = useRef(false);
@@ -843,30 +846,53 @@ export const DeckManageModal = memo(function DeckManageModal({
         notify(editDraftWarning, 'warning');
         return;
       }
-      const editRes = await tryAction<Record<string, unknown> & { draftVersion?: number }>(host, 'deck.edit', { id: deck.id });
-      if (!editRes.ok || !editRes.value) {
+      const tx = await runAtomicSteps([
+        {
+          name: 'deck.edit',
+          run: async () => {
+            const editRes = await tryAction<Record<string, unknown> & { draftVersion?: number }>(host, 'deck.edit', {
+              id: deck.id,
+            });
+            if (!editRes.ok || !editRes.value) {
+              return { ok: false, error: editRes.error?.message || t(lang, '无法创建编辑草稿', 'Could not create edit draft') };
+            }
+            if ((editRes.value.draftVersion ?? 1) !== 1) {
+              return { ok: false, error: editDraftWarning };
+            }
+            return { ok: true, value: editRes.value };
+          },
+          rollback: async (val) => {
+            const orphanDraftId = typeof (val as { id?: unknown } | undefined)?.id === 'string'
+              ? String((val as { id: string }).id)
+              : '';
+            if (orphanDraftId) {
+              await tryAction(host, 'draft.delete', { id: orphanDraftId }).catch(() => {});
+            }
+          },
+        },
+        {
+          name: 'draft.save',
+          run: async (prev) => {
+            const editVal = prev[0] as Record<string, unknown>;
+            const draft = { ...editVal, title: nextTitle };
+            const saveRes = await tryAction<{ id: string; draftVersion?: number }>(host, 'draft.save', { deck: draft });
+            if (!saveRes.ok || !saveRes.value) {
+              return { ok: false, error: saveRes.error?.message || t(lang, '保存标题失败', 'Failed to save title') };
+            }
+            return { ok: true, value: saveRes.value };
+          },
+        },
+      ]);
+      if (!tx.ok) {
         setBusy(false);
         setMode('browse');
-        notify(editRes.error?.message || t(lang, '无法创建编辑草稿', 'Could not create edit draft'), 'error');
+        notify(tx.error, tx.error === editDraftWarning ? 'warning' : 'error');
         return;
       }
-      if ((editRes.value.draftVersion ?? 1) !== 1) {
-        setBusy(false);
-        setMode('browse');
-        notify(editDraftWarning, 'warning');
-        return;
-      }
-      const draft = { ...editRes.value, title: nextTitle };
-      const saveRes = await tryAction<{ id: string; draftVersion?: number }>(host, 'draft.save', { deck: draft });
-      if (!saveRes.ok || !saveRes.value) {
-        setBusy(false);
-        setMode('browse');
-        notify(saveRes.error?.message || t(lang, '保存标题失败', 'Failed to save title'), 'error');
-        return;
-      }
+      const savedDraft = tx.results[1] as { id: string; draftVersion?: number };
       const pubRes = await tryAction(host, 'draft.publish.quick', {
-        id: saveRes.value.id,
-        draftVersion: saveRes.value.draftVersion,
+        id: savedDraft.id,
+        draftVersion: savedDraft.draftVersion,
       });
       setBusy(false);
       setMode('browse');
@@ -880,7 +906,7 @@ export const DeckManageModal = memo(function DeckManageModal({
           'warning',
         );
         onClose();
-        navigate('generate', { draftId: saveRes.value.id });
+        navigate('generate', { draftId: savedDraft.id });
       }
     },
     [deck, host, lang, notify, onUpdated, onClose, navigate],
@@ -1418,9 +1444,19 @@ export const DeckManageModal = memo(function DeckManageModal({
 
       const total = filteredCards.length;
       if (key.downArrow || (!key.ctrl && !key.meta && input === 'j')) {
-        if (total > 0) setSelectedIndex((i) => Math.min(total - 1, i + 1));
+        if (total > 0) {
+          setSelectedIndex((i) => Math.min(total - 1, i + 1));
+          setPreviewScrollTop(0);
+        }
       } else if (key.upArrow) {
-        if (total > 0) setSelectedIndex((i) => Math.max(0, i - 1));
+        if (total > 0) {
+          setSelectedIndex((i) => Math.max(0, i - 1));
+          setPreviewScrollTop(0);
+        }
+      } else if (!key.ctrl && !key.meta && input === 'J') {
+        setPreviewScrollTop((tTop) => tTop + 2);
+      } else if (!key.ctrl && !key.meta && input === 'K') {
+        setPreviewScrollTop((tTop) => Math.max(0, tTop - 2));
       } else if (key.ctrl && input === 'd') {
         if (total > 0) setSelectedIndex((i) => Math.min(total - 1, i + Math.max(1, Math.floor(listH / 2))));
       } else if (key.ctrl && input === 'u') {
@@ -1731,7 +1767,7 @@ export const DeckManageModal = memo(function DeckManageModal({
 
       {mode === 'rename' ? (
         <Box flexDirection="column" flexShrink={0}>
-          <Text color={theme.accent}>{t(lang, '输入新题组标题 (通过 deck.edit 保存):', 'New deck title (via deck.edit):')}</Text>
+          <Text color={theme.accent}>{t(lang, '输入新题组标题（Enter 保存）:', 'New deck title (Enter to save):')}</Text>
           <Box borderStyle={asciiMode ? 'classic' : 'round'} borderColor={theme.borderActive} paddingX={1}>
             <TextInput
               value={renameValue}
@@ -1959,8 +1995,8 @@ export const DeckManageModal = memo(function DeckManageModal({
                 </Text>
               </Box>
               {suppError ? (
-                <Box height={1}>
-                  <Text color={theme.error}>{truncateDisplay(suppError, innerW, ell)}</Text>
+                <Box>
+                  <Text color={theme.error} wrap="wrap">{suppError}</Text>
                 </Box>
               ) : null}
               <Divider width={innerW} />
@@ -2094,7 +2130,7 @@ export const DeckManageModal = memo(function DeckManageModal({
           )}
           {convertError ? (
             <Box marginTop={1}>
-              <Text color={theme.error}>{truncateDisplay(convertError, innerW * 2, ell)}</Text>
+              <Text color={theme.error} wrap="wrap">{convertError}</Text>
             </Box>
           ) : null}
           {busy ? (
@@ -2127,8 +2163,8 @@ export const DeckManageModal = memo(function DeckManageModal({
             </Text>
           </Box>
           {linkError ? (
-            <Box height={1}>
-              <Text color={theme.error}>{truncateDisplay(linkError, innerW, ell)}</Text>
+            <Box>
+              <Text color={theme.error} wrap="wrap">{linkError}</Text>
             </Box>
           ) : null}
           <Divider width={innerW} />
@@ -2188,7 +2224,13 @@ export const DeckManageModal = memo(function DeckManageModal({
           <Divider width={innerW} />
           <Box height={previewH} width={innerW} overflow="hidden">
             {selectedCard ? (
-              <MarkdownView markdown={previewMarkdown} width={innerW} height={previewH} />
+              <MarkdownView
+                markdown={previewMarkdown}
+                width={innerW}
+                height={previewH}
+                scrollTop={previewScrollTop}
+                onScroll={setPreviewScrollTop}
+              />
             ) : (
               <Text color={theme.muted}>{t(lang, '选择一道题查看详情', 'Select a card to preview')}</Text>
             )}

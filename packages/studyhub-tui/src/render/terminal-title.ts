@@ -77,6 +77,45 @@ export function buildReviewWindowTitle(params: {
   return cleanTitle ? `${prefix} · ${cleanTitle}` : prefix;
 }
 
+/** Build OSC 2 window title for an active mock exam session (Round 96 Track C9). */
+export function buildExamWindowTitle(params: {
+  kind: 'written' | 'case' | 'oral';
+  at: number;
+  total: number;
+  timerText?: string;
+  lang: UiLanguage;
+}): string {
+  const progress = `${Math.max(1, params.at)}/${Math.max(1, params.total)}`;
+  const kindLabel =
+    params.lang === 'en'
+      ? params.kind === 'oral'
+        ? 'Oral'
+        : params.kind === 'case'
+          ? 'Case'
+          : 'Exam'
+      : params.kind === 'oral'
+        ? '口试'
+        : params.kind === 'case'
+          ? '案例考'
+          : '模考';
+  const cleanTimer = sanitizeOscText(params.timerText ?? '', 16);
+  const base = `StudyHub · ${kindLabel} ${progress}`;
+  return cleanTimer ? `${base} · ${cleanTimer}` : base;
+}
+
+/** Build OSC 2 window title for active background jobs (Round 96 Track C9). */
+export function buildTaskProgressTitle(params: {
+  runningCount: number;
+  label?: string;
+  lang: UiLanguage;
+}): string {
+  const count = Math.max(0, Math.floor(params.runningCount));
+  if (count <= 0) return 'StudyHub';
+  const prefix = params.lang === 'en' ? `StudyHub · ${count} running` : `StudyHub · ${count} 项任务运行中`;
+  const cleanLabel = sanitizeOscText(params.label ?? '', 36);
+  return cleanLabel ? `${prefix} · ${cleanLabel}` : prefix;
+}
+
 export interface WriteOscOptions extends OscTerminalDetectOptions {
   stream?: { write: (s: string) => unknown; isTTY?: boolean };
   enabled?: boolean;

@@ -25,8 +25,71 @@ const CONTENT_LANGUAGE = { en: 'English', zh: '中文' };
 export const initialGeneration = (host, language) => ({ ...GENERATION_DEFAULTS, language: host.defaultContentLanguage || CONTENT_LANGUAGE[language] || CONTENT_LANGUAGE.zh });
 export const freshGeneration = (settings, language = getUiLanguage()) => ({ ...generationFormDefaults(settings?.generation, language), title: '', course: undefined });
 
-export function useLibraryConnection({ core, libApi, resetLibraryState, session, nav, host, language, warm = null }) {
+export async function performBindingUpdate({
+  patch,
+  bindingRef,
+  refs,
+  host,
+  language,
+  call,
+  refresh,
+  resetLibraryState,
+  setBinding,
+  setData,
+  setLoading,
+  setBusy,
+  setError,
+  notify,
+  flushUndoable: flush = flushUndoable,
+  writeWarmBinding: saveWarmBinding = writeWarmBinding,
+  clearWarmSession: dropWarmSession = clearWarmSession,
+  customBinding,
+}) {
+  const prevRoot = bindingRef.current?.root ?? '';
+  if (Object.hasOwn(patch, 'root') && patch.root !== prevRoot) {
+    // A 删除 still in its 撤销 time goes to the library it was made in, before the move.
+    await flush();
+  }
+  setBusy(true);
+  setError('');
+  try {
+    const value = await call('binding.set', customBinding(patch));
+    const moved = value.root !== prevRoot;
+    if (moved) {
+      resetLibraryState('binding', { gen: initialGeneration(host, language) });
+      refs.dataRef.current = null;
+      refs.snapshotKey.current = {};
+      setData(null);
+      setLoading(true);
+      setBusy(true);
+      bindingRef.current = value;
+      setBinding(value);
+      if (value.root) saveWarmBinding(host.warmKey, value);
+      else dropWarmSession(host.warmKey);
+      try {
+        await refresh();
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      bindingRef.current = value;
+      setBinding(value);
+      saveWarmBinding(host.warmKey, value);
+      await refresh();
+    }
+    notify(bindingNotice({ patch, moved, value, host }));
+    return true;
+  } catch (failure) {
+    setError(failure.message);
+    return false;
+  } finally {
+    setBusy(false);
+  }
+}
+
+export function useLibraryConnection({ core, libApi, resetLibraryState, session, host, language, warm = null }) {
   const { call, quick, quickStamp, setError, setBusy, notify, refs } = core;
+  const bindingUpdatingRef = useRef(false);
   const [serverData, setData] = useState(() => warm?.data ?? null);
   const [binding, setBinding] = useState(() => warm?.binding ?? { root: '', provider: '', model: '' });
   const bindingRef = useRef(binding);
@@ -217,34 +280,28 @@ export function useLibraryConnection({ core, libApi, resetLibraryState, session,
     ...patch,
   });
   async function updateBinding(patch) {
-    if (Object.hasOwn(patch, 'root')) await flushUndoable(); // a 删除 still in its 撤销 time goes to the library it was made in, before the move
-    ++refs.requestSequence.current;
-    if (Object.hasOwn(patch, 'root')) {
-      refs.epoch.current++;
-      refs.navigation.current++;
-      clearTimeout(refs.leaveTimer.current);
-      nav.setPageTarget(null);
-    }
-    setBusy(true);
-    setError('');
+    if (bindingUpdatingRef.current) return false;
+    bindingUpdatingRef.current = true;
     try {
-      const value = await call('binding.set', customBinding(patch));
-      const moved = value.root !== binding.root;
-      bindingRef.current = value;
-      setBinding(value);
-      writeWarmBinding(host.warmKey, value);
-      if (moved) {
-        resetLibraryState('binding', { gen: freshGeneration(refs.dataRef.current?.settings) });
-        setBusy(true);
-      }
-      await refresh();
-      notify(bindingNotice({ patch, moved, value, host }));
-      return true;
-    } catch (failure) {
-      setError(failure.message);
-      return false;
+      return await performBindingUpdate({
+        patch,
+        bindingRef,
+        refs,
+        host,
+        language,
+        call,
+        refresh,
+        resetLibraryState,
+        setBinding,
+        setData,
+        setLoading,
+        setBusy,
+        setError,
+        notify,
+        customBinding,
+      });
     } finally {
-      setBusy(false);
+      bindingUpdatingRef.current = false;
     }
   }
   return { data, loaded: !!data, binding, setBinding, loading, connecting, syncIssue, syncTransient, refresh, running, publishing, updateBinding };

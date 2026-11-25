@@ -72,7 +72,7 @@ export default function ReaderRun({ started, label, onClose, onSeek, shown = tru
   return (
     <StudyServicesContext.Provider value={services}>
       <InlineRun session={session} data={data} label={label} rootRef={rootRef} onClose={onClose} onOpenRun={continueThere} links={links} feedback={null} />
-      {flagging && session.run?.card && <FlagDialog run={session.run} onClose={() => setFlagging(false)} />}
+      {flagging && session.run?.card && <FlagDialog run={session.run} onClose={() => setFlagging(false)} onUpdated={(nextFlag) => session.patchRun?.((prev) => (prev?.card?.id === session.run?.card?.id ? { ...prev, card: { ...prev.card, flag: nextFlag || undefined } } : prev))} />}
       {helpOpen && <ShortcutHelp page="review" onClose={closeShortcutHelp} />}
     </StudyServicesContext.Provider>
   );

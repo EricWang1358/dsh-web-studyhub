@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -45,7 +46,7 @@ export const BookExplainModal = memo(function BookExplainModal({
   selectedItem,
   isActive,
   width,
-  height,
+  height: _height,
   onClose,
   onStarted,
 }: BookExplainModalProps) {
@@ -346,7 +347,7 @@ export const BookExplainModal = memo(function BookExplainModal({
       ) : errorText ? (
         <Box flexDirection="row" gap={1} width={innerW} height={1} overflow="hidden">
           <Badge label={asciiMode ? '! 错误' : '▲ 错误'} tone="error" />
-          <Text color={theme.error}>{truncateDisplay(errorText, Math.max(12, innerW - 12), ell)}</Text>
+          <Text color={theme.error} wrap="wrap">{errorText}</Text>
         </Box>
       ) : (
         <Box height={1} width={innerW} overflow="hidden">

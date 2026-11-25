@@ -1,6 +1,8 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isAbsolute, resolve } from 'node:path';
-import { Box, Text, useInput, useWindowSize } from 'ink';
+import { Box, Text } from 'ink';
+import { useStableWindowSize } from '../../components/resize.js';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme, type Tone } from '../../theme/tokens.js';
@@ -217,7 +219,7 @@ export const MinerUModal = memo(function MinerUModal({
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const ell = asciiMode ? '...' : '…';
   const notify = useTuiStore((s) => s.notify);
-  const { columns, rows: termRows } = useWindowSize();
+  const { columns, rows: termRows } = useStableWindowSize();
 
   const mountedRef = useRef(true);
   const busyRef = useRef(false);
@@ -762,7 +764,7 @@ export const MinerUModal = memo(function MinerUModal({
                   width={innerWidth}
                 >
                   <Text color={theme.error} bold wrap="wrap">
-                    {truncateDisplay(`${errMark} ${planError.message}`, Math.max(20, (innerWidth - 4) * 2), ell)}
+                    {`${errMark} ${planError.message}`}
                   </Text>
                   {isSettingsGuidanceError(planError.code, planError.message) ? (
                     <Text color={theme.warning} wrap="wrap">
@@ -920,8 +922,8 @@ export const MinerUModal = memo(function MinerUModal({
             </Box>
           ) : historyError && historyRecords.length === 0 ? (
             <Box height={Math.max(4, bodyHeight - 2)} width={innerWidth} flexDirection="column" alignItems="center" justifyContent="center">
-              <Text color={theme.error} bold>
-                {`${errMark} ${truncateDisplay(historyError, Math.max(16, innerWidth - 4), ell)}`}
+              <Text color={theme.error} bold wrap="wrap">
+                {`${errMark} ${historyError}`}
               </Text>
               <Box marginTop={1}>
                 <Text color={theme.muted}>{t(lang, '按 [R] 重新加载', 'Press [R] to reload')}</Text>

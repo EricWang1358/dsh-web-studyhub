@@ -499,7 +499,7 @@ test('CoachSection interactive clicks route card/hid/companion refs and send exp
   const openedRefs = [];
   const harness = createHookHarness({
     busy: false,
-    act: (action, args) => { actCalls.push([action, args]); },
+    act: (action, args, after) => { actCalls.push([action, args]); after?.(props.profile); },
     call: async () => null,
     host: { capabilities: { chat: true } },
   });

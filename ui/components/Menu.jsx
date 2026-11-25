@@ -108,7 +108,7 @@ export default function Menu({ label, items, onSelect, defaultOpen = false, icon
       : { left: 0, top: 0, visibility: 'hidden' };
   const menu = (
     <div ref={list} id={menuId} role="menu" aria-label={label} className="sh-menu" onKeyDown={onKey} style={style}>
-      {menuItems(items, item => { setOpen(false); button.current?.focus(); if (item.run) item.run(); else onSelect?.(item.id); })}
+      {menuItems(items, item => { setOpen(false); button.current?.focus({ preventScroll: true }); if (item.run) item.run(); else onSelect?.(item.id); })}
     </div>
   );
   const props = { 'aria-haspopup': 'menu', 'aria-expanded': open, 'aria-controls': open ? menuId : undefined,
@@ -156,8 +156,16 @@ export function ContextMenu({ label, items, point, within, onSelect, onClose }) 
   }, [onClose, within]);
   const style = place ? { left: place.left, top: place.top, maxHeight: place.maxHeight, overflowY: place.maxHeight ? 'auto' : undefined, position: place.fixed ? 'fixed' : 'absolute' }
     : { left: 0, top: 0, visibility: 'hidden' };
+  const restoreFocus = () => {
+    const fallback = within?.closest?.('[tabindex]');
+    const prev = back.current;
+    const target = prev && prev.isConnected && prev !== document.body && (!fallback || fallback.contains(prev))
+      ? prev
+      : fallback;
+    target?.focus?.({ preventScroll: true });
+  };
   return createPortal(<div ref={list} role="menu" aria-label={label} className="sh-menu sh-menu--context" onKeyDown={menuKeys(list, () => onClose?.())} style={style}
     onContextMenu={event => event.preventDefault()}>
-    {menuItems(items, item => { onClose?.(); if (item.run) item.run(); else onSelect?.(item.id); })}
+    {menuItems(items, item => { onClose?.(); restoreFocus(); if (item.run) item.run(); else onSelect?.(item.id); })}
   </div>, host);
 }

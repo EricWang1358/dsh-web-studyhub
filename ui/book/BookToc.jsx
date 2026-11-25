@@ -80,7 +80,7 @@ function FoundList({ results, query, onFound }) {
 }
 
 export function handleSearchKeyDown(event, { query, onQuery, narrow, onClose }) {
-  if (event?.key !== 'Escape') return false;
+  if (event?.key !== 'Escape' || event.defaultPrevented || event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return false;
   event.preventDefault?.();
   event.stopPropagation?.();
   if (query) onQuery?.('');
@@ -146,8 +146,14 @@ export default function BookToc({ entries, here, onGo, narrow, onClose, returnRe
     panel.current?.focus({ preventScroll: true });
     const row = panel.current?.querySelector('[aria-current="location"]');
     if (row) panel.current.scrollTop = row.offsetTop - panel.current.clientHeight / 2;
-    // A tooltip of a row also hears this Esc (it hides itself); a dialog over the page keeps its own.
-    const press = event => { if (event.key === 'Escape' && !event.target?.closest?.('dialog')) { event.preventDefault(); onClose(); } };
+    // A tooltip of a row also hears this Esc (it hides itself); a dialog or overlay over the page keeps its own.
+    const press = event => {
+      if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
+      if (event.target?.closest?.('dialog, [role="dialog"]')) return;
+      if (document.querySelector('dialog[open], [role="dialog"], .sh-pop__popup:not([data-closed]), .sh-menu, .sh-popover')) return;
+      event.preventDefault();
+      onClose();
+    };
     document.addEventListener('keydown', press);
     const back = returnRef?.current;
     return () => { document.removeEventListener('keydown', press); if (back?.isConnected) back.focus({ preventScroll: true }); };

@@ -21,6 +21,21 @@ import FocusAmbientCanvas, {
 const CUSTOM_CARD = '__custom__';
 let cachedChimeDialog = null;
 
+export function notificationPermissionState() {
+  if (typeof globalThis.Notification !== 'function') return 'unsupported';
+  return globalThis.Notification.permission || 'default';
+}
+
+export function timerMinutesError(raw, max) {
+  const trimmed = String(raw ?? '').trim();
+  if (!trimmed) return '';
+  const num = Number(trimmed);
+  if (!Number.isInteger(num) || num < 1 || num > max) {
+    return uiFormat('请输入 1–{0} 的整数', [max]);
+  }
+  return '';
+}
+
 function sendSystemNotification(title, body) {
   try {
     if (typeof globalThis.Notification !== 'function') return;
@@ -195,14 +210,36 @@ export default function TodayTimer({
     setPanelMode('manual');
   };
 
+  const [notifyPermission, setNotifyPermission] = useState(notificationPermissionState);
+  useEffect(() => {
+    if (panelMode === 'prefs') setNotifyPermission(notificationPermissionState());
+  }, [panelMode]);
+  const notifyBlocked = notifyPermission === 'unsupported' || notifyPermission === 'denied';
+  const notifyHint = notifyBlocked
+    ? (notifyPermission === 'unsupported'
+      ? ui('当前环境不支持系统通知，建议开启上方「到点声音提醒」。')
+      : notifyDraft
+        ? ui('浏览器已禁用系统通知权限，到点不会弹出；请在浏览器设置中允许，或改开上方「到点声音提醒」。')
+        : ui('浏览器已禁用系统通知权限；请在浏览器设置中允许，或改开上方「到点声音提醒」。'))
+    : undefined;
+
   const handleNotifyToggle = async (checked) => {
-    if (checked && typeof globalThis.Notification === 'function' && globalThis.Notification.permission === 'default') {
+    const currentPerm = notificationPermissionState();
+    setNotifyPermission(currentPerm);
+    if (checked && (currentPerm === 'unsupported' || currentPerm === 'denied')) {
+      setNotifyDraft(false);
+      return;
+    }
+    if (checked && currentPerm === 'default' && typeof globalThis.Notification === 'function') {
       try {
         const perm = await globalThis.Notification.requestPermission();
+        setNotifyPermission(perm);
         setNotifyDraft(perm === 'granted');
         return;
       } catch {
-        // Fall through to local toggle state.
+        setNotifyPermission('denied');
+        setNotifyDraft(false);
+        return;
       }
     }
     setNotifyDraft(checked);
@@ -210,6 +247,8 @@ export default function TodayTimer({
 
   const parsedWork = Number(workDraft);
   const parsedBreak = Number(breakDraft);
+  const workError = timerMinutesError(workDraft, TIMER_WORK_MAX);
+  const breakError = timerMinutesError(breakDraft, TIMER_BREAK_MAX);
   const prefsValid = Number.isInteger(parsedWork) && parsedWork >= 1 && parsedWork <= TIMER_WORK_MAX
     && Number.isInteger(parsedBreak) && parsedBreak >= 1 && parsedBreak <= TIMER_BREAK_MAX;
 
@@ -228,7 +267,11 @@ export default function TodayTimer({
   };
 
   const parsedManualMinutes = Number(manualMinutes);
+  const manualMinutesError = timerMinutesError(manualMinutes, ACTUAL_MINUTES_MAX);
   const manualHasCard = manualCardId !== CUSTOM_CARD && todayCards.some((card) => card.id === manualCardId);
+  const manualTitleError = !manualHasCard && manualTitle.trim() && !isMeaningfulTitle(manualTitle.trim())
+    ? ui('请输入有效的专注内容名称')
+    : '';
   const manualValid = Number.isInteger(parsedManualMinutes)
     && parsedManualMinutes >= 1
     && parsedManualMinutes <= ACTUAL_MINUTES_MAX
@@ -280,6 +323,7 @@ export default function TodayTimer({
   };
 
   const parsedEditMinutes = Number(editingMinutes);
+  const editMinutesError = timerMinutesError(editingMinutes, ACTUAL_MINUTES_MAX);
   const editValid = Number.isInteger(parsedEditMinutes) && parsedEditMinutes >= 1 && parsedEditMinutes <= ACTUAL_MINUTES_MAX;
 
   const submitEditLog = async (event, entry) => {
@@ -488,21 +532,23 @@ export default function TodayTimer({
         {panelMode === 'prefs' && !readOnly && (
           <form className="board-timer__form" onSubmit={submitPrefs} aria-label={ui('改时长')}>
             <div className="board-timer__form-grid">
-              <Field label={ui('专注时长')} width="full">
+              <Field label={ui('专注时长')} width="full" error={workError || undefined}>
                 <NumberInput
                   min={1}
                   max={TIMER_WORK_MAX}
                   step={1}
+                  inputMode="numeric"
                   suffix={ui('分钟')}
                   value={workDraft}
                   onChange={(event) => setWorkDraft(event.target.value)}
                 />
               </Field>
-              <Field label={ui('休息时长')} width="full">
+              <Field label={ui('休息时长')} width="full" error={breakError || undefined}>
                 <NumberInput
                   min={1}
                   max={TIMER_BREAK_MAX}
                   step={1}
+                  inputMode="numeric"
                   suffix={ui('分钟')}
                   value={breakDraft}
                   onChange={(event) => setBreakDraft(event.target.value)}
@@ -510,7 +556,13 @@ export default function TodayTimer({
               </Field>
             </div>
             <Switch label={ui('到点声音提醒')} checked={soundDraft} onChange={setSoundDraft} />
-            <Switch label={ui('到点系统通知')} checked={notifyDraft} onChange={handleNotifyToggle} />
+            <Switch
+              label={ui('到点系统通知')}
+              checked={notifyDraft}
+              disabled={notifyBlocked && !notifyDraft}
+              hint={notifyHint}
+              onChange={handleNotifyToggle}
+            />
             <div className="board-timer__form-actions">
               <Button type="submit" variant="primary" size="sm" busy={savingPrefs} disabled={savingPrefs || !prefsValid}>
                 {ui('保存设置')}
@@ -549,7 +601,7 @@ export default function TodayTimer({
               />
             </Field>
             {manualCardId === CUSTOM_CARD && (
-              <Field label={ui('专注内容')} width="full">
+              <Field label={ui('专注内容')} width="full" error={manualTitleError || undefined}>
                 <TextInput
                   value={manualTitle}
                   maxLength={500}
@@ -558,11 +610,12 @@ export default function TodayTimer({
                 />
               </Field>
             )}
-            <Field label={ui('专注时长')} width="full">
+            <Field label={ui('专注时长')} width="full" error={manualMinutesError || undefined}>
               <NumberInput
                 min={1}
                 max={ACTUAL_MINUTES_MAX}
                 step={1}
+                inputMode="numeric"
                 suffix={ui('分钟')}
                 value={manualMinutes}
                 onChange={(event) => setManualMinutes(event.target.value)}
@@ -597,6 +650,7 @@ export default function TodayTimer({
                         min={1}
                         max={ACTUAL_MINUTES_MAX}
                         step={1}
+                        inputMode="numeric"
                         suffix={ui('分钟')}
                         aria-label={ui('专注时长')}
                         value={editingMinutes}
@@ -615,6 +669,7 @@ export default function TodayTimer({
                         {ui('取消')}
                       </Button>
                     </div>
+                    {editMinutesError && <p className="field-error" role="alert">{editMinutesError}</p>}
                   </form>
                 ) : (
                   <>

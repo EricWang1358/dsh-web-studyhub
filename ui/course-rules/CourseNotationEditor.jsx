@@ -10,11 +10,36 @@ import { NOTATION_OVERRIDE_LIMITS } from '../../lib/courses.js';
 const splitAliases = raw => String(raw ?? '').split(/[,，;；、\n]/).map(s => s.trim()).filter(Boolean);
 const normKey = value => String(value ?? '').normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase();
 
-export default function CourseNotationEditor({ value = [], onChange, disabled = false }) {
+export function mergePendingNotationDraft(overrides = [], draft = {}) {
+  const canonical = String(draft.canonical ?? '').trim();
+  const symbol = String(draft.symbol ?? '').trim();
+  const aliases = splitAliases(draft.aliases).join('; ');
+  const meaning = String(draft.meaning ?? '').trim();
+  if (!canonical && !symbol && !aliases && !meaning) return { status: 'empty', next: overrides };
+  if (!canonical) return { status: 'invalid', reason: ui('「符号与术语口径」里还有未提交的草稿，请先补全「规范名称」或清空后再保存。'), next: overrides };
+  if (overrides.some(item => normKey(item.canonical) === normKey(canonical))) {
+    return { status: 'invalid', reason: ui('已经有这条规范名称'), next: overrides };
+  }
+  if (overrides.length >= NOTATION_OVERRIDE_LIMITS.max) {
+    return { status: 'invalid', reason: uiFormat('最多 {0} 条口径覆写', [NOTATION_OVERRIDE_LIMITS.max]), next: overrides };
+  }
+  return { status: 'merged', next: [...overrides, { canonical, symbol, aliases, meaning }] };
+}
+
+export default function CourseNotationEditor({ value = [], onChange, disabled = false, draftRef }) {
   const [canonical, setCanonical] = useState('');
   const [symbol, setSymbol] = useState('');
   const [aliases, setAliases] = useState('');
   const [meaning, setMeaning] = useState('');
+
+  if (draftRef) {
+    const draftObj = { canonical, symbol, aliases, meaning };
+    draftRef.current = {
+      hasDraft: Boolean(canonical.trim() || symbol.trim() || aliases.trim() || meaning.trim()),
+      resolve: (current = value) => mergePendingNotationDraft(current, draftObj),
+      clear: () => { setCanonical(''); setSymbol(''); setAliases(''); setMeaning(''); },
+    };
+  }
 
   const trimmed = canonical.trim();
   const duplicate = Boolean(trimmed) && value.some(item => normKey(item.canonical) === normKey(trimmed));

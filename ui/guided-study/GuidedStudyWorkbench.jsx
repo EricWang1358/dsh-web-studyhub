@@ -26,6 +26,7 @@ const STATUS_WORD = { active: '带学进行中', paused: '带学已暂停', ende
 export function handleGuidedWorkbenchKeyDown(event, {
   currentCard,
   isPreparing = false,
+  busy = false,
   choice = false,
   selected = [],
   setSelected,
@@ -36,7 +37,7 @@ export function handleGuidedWorkbenchKeyDown(event, {
   onReveal,
   onNext,
 } = {}) {
-  if (!currentCard || isPreparing || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return false;
+  if (!currentCard || isPreparing || busy || event.repeat || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return false;
   if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return false;
   const target = event.target;
   const tag = typeof target?.tagName === 'string' ? target.tagName.toUpperCase() : '';
@@ -110,12 +111,15 @@ export default function GuidedStudyWorkbench({
   run,
   busy = false,
   modelReady = true,
+  courses = null,
   prepState = null,
   progress = null,
   estimate = null,
   cost = null,
   host = null,
   onPause,
+  onResume,
+  onTogglePause = onResume,
   onEnd,
   onAnswer,
   onReveal,
@@ -235,6 +239,7 @@ export default function GuidedStudyWorkbench({
       onKeyDown={(event) => handleGuidedWorkbenchKeyDown(event, {
         currentCard,
         isPreparing,
+        busy: effectiveBusy,
         choice,
         selected,
         setSelected,
@@ -249,7 +254,7 @@ export default function GuidedStudyWorkbench({
       {/* 1. 顶部紧凑目标栏 */}
       <div className="guided-study-topbar">
         <div className="guided-study-topbar-info">
-          <Badge size="sm">{session?.courseId || ui('带学')}</Badge>
+          <Badge size="sm">{(Array.isArray(courses) && courses.find((c) => c?.id === session?.courseId || c?.name === session?.courseId)?.name) || session?.courseId || ui('带学')}</Badge>
           <span className="guided-study-title">{session?.goal?.title || ui('还没有定学习目标')}</span>
         </div>
         <div className="guided-study-actions">
@@ -264,6 +269,17 @@ export default function GuidedStudyWorkbench({
               {ui('暂停')}
             </Button>
           )}
+          {session?.status === 'paused' && (
+            <Button
+              variant="primary"
+              size="sm"
+              className="guided-study-btn"
+              lock={effectiveBusy}
+              onClick={() => onTogglePause?.(session.id)}
+            >
+              {ui('继续')}
+            </Button>
+          )}
           <Button
             variant="secondary"
             size="sm"
@@ -275,6 +291,12 @@ export default function GuidedStudyWorkbench({
           </Button>
         </div>
       </div>
+
+      {session?.status === 'paused' && (
+        <div className="guided-study-model-warning" role="status">
+          {ui('带学已暂停。点右上角「继续」恢复当前带学进度。')}
+        </div>
+      )}
 
       {/* UC-10 模型不可用降级提示 */}
       {!modelReady && (
@@ -367,25 +389,25 @@ export default function GuidedStudyWorkbench({
               <div className="guided-study-card-actions">
                 {hasFeedback ? (
                   onNext ? (
-                    <Button variant="primary" size="sm" iconEnd="arrow-right" className="guided-study-btn" onClick={() => onNext?.(run?.id)}>
+                    <Button variant="primary" size="sm" iconEnd="arrow-right" className="guided-study-btn" lock={effectiveBusy} onClick={() => onNext?.(run?.id)}>
                       {ui('下一题')}
                     </Button>
                   ) : null
                 ) : choice ? (
-                  <Button variant="primary" size="sm" className="guided-study-btn" disabled={!selected.length || !onAnswer}
+                  <Button variant="primary" size="sm" className="guided-study-btn" lock={effectiveBusy} disabled={!selected.length || !onAnswer}
                     onClick={() => onAnswer?.({ selected })}>
                     {ui('提交答案')}
                   </Button>
                 ) : !isRevealed ? (
-                  <Button variant="primary" size="sm" className="guided-study-btn" onClick={() => onReveal?.(run?.id)}>
+                  <Button variant="primary" size="sm" className="guided-study-btn" lock={effectiveBusy} onClick={() => onReveal?.(run?.id)}>
                     {ui('揭晓答案')}
                   </Button>
                 ) : onAnswer ? (
                   <>
-                    <Button variant="secondary" size="sm" className="guided-study-btn" onClick={() => onAnswer(1)}>
+                    <Button variant="secondary" size="sm" className="guided-study-btn" lock={effectiveBusy} onClick={() => onAnswer(1)}>
                       {ui('没掌握')}
                     </Button>
-                    <Button variant="primary" size="sm" className="guided-study-btn" onClick={() => onAnswer(3)}>
+                    <Button variant="primary" size="sm" className="guided-study-btn" lock={effectiveBusy} onClick={() => onAnswer(3)}>
                       {ui('我掌握了')}
                     </Button>
                   </>
@@ -405,7 +427,9 @@ export default function GuidedStudyWorkbench({
                     id="method.missed"
                     shape="quiet"
                     label={ui('带着错题回主会话')}
+                    copyLabel={ui('复制错题讲解提示词')}
                     what={ui('把这道没过关的题目带回主会话讲透，讲完再回 StudyHub 重测')}
+                    copyWhat={ui('复制这道错题的提示词，可粘贴到外部 AI 讲透后再回 StudyHub 重测')}
                     input={{
                       course: session?.courseId || '',
                       stage: session?.goal?.title || '',

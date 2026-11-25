@@ -3,7 +3,8 @@ import { ui } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
 import { useLiveEffect } from '../use-async.js';
 import { hashString } from './ink-palette.js';
-import { edgeKey, sketchBezierEdge, sketchNodePaths, sketchOrderCurve } from './graph-sketch.js';
+import { edgeKey, sketchBezierEdge, sketchCubicPath, sketchNodePaths, sketchOrderCurve } from './graph-sketch.js';
+import { pathPrereqPath } from '../graph-layout.js';
 import sketchCss from './graph-sketch.css';
 
 /* Declarative hand-drawn roughjs SVG primitives for Knowledge Graph «手绘墨线» mode.
@@ -104,7 +105,9 @@ export function SketchEdgeLayer({ layout, mode, palette, roughGen, lineage }) {
         spotKey: edgeKey('prereq', e.from, e.to),
         markerEnd: 'url(#gn-arrow-prereq)',
         paths: a && b
-          ? sketchBezierEdge(a.x + a.w, a.y, b.x, b.y, 'prereq', palette, roughGen, hashString(`prereq:${e.from}:${e.to}`))
+          ? (mode === 'path'
+            ? sketchCubicPath(pathPrereqPath(a, b), 'prereq', palette, roughGen, hashString(`prereq:${e.from}:${e.to}`))
+            : sketchBezierEdge(a.x + a.w, a.y, b.x, b.y, 'prereq', palette, roughGen, hashString(`prereq:${e.from}:${e.to}`)))
           : [],
       };
     });

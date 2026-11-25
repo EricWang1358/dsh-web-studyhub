@@ -41,7 +41,7 @@ function augmentQueryTool(tool) {
 
 function sourceOfHit(entry) {
   if (!entry || typeof entry !== 'object') return '';
-  for (const key of ['filePath', 'file_path', 'source', 'document', 'path']) {
+  for (const key of ['source', 'filePath', 'file_path', 'document', 'path']) {
     if (typeof entry[key] === 'string' && entry[key]) return entry[key];
   }
   return '';

@@ -233,12 +233,13 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
     run.complete && run.mode !== "exam"
       ? computeTodayPace({
           attempts: data?.attempts,
+          summary: data?.todayPace,
           goal: dailyGoal,
           focusMinutes: timerPrefs.workMinutes,
           breakMinutes: timerPrefs.breakMinutes,
         })
       : null
-  ), [run.complete, run.mode, data?.attempts, dailyGoal, timerPrefs.workMinutes, timerPrefs.breakMinutes]);
+  ), [run.complete, run.mode, data?.attempts, data?.todayPace, dailyGoal, timerPrefs.workMinutes, timerPrefs.breakMinutes]);
   const summaryPace = React.useMemo(() => {
     if (!run.complete || run.mode === "exam" || !data?.paceForecast || roundTotal <= 0) return null;
     const singleDeckId = run.deckId || (Array.isArray(run.scope) && run.scope.length === 1 ? run.scope[0]?.deckId : null);
@@ -250,8 +251,9 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
       paceForecast: data.paceForecast,
       deckId: singleDeckId,
       course: roundCourse || data?.focus?.course || null,
+      focusMinutes: timerPrefs.workMinutes,
     });
-  }, [run.complete, run.mode, run.deckId, run.scope, run.correct, roundTotal, roundCourse, data?.paceForecast, data?.focus?.course]);
+  }, [run.complete, run.mode, run.deckId, run.scope, run.correct, roundTotal, roundCourse, data?.paceForecast, data?.focus?.course, timerPrefs.workMinutes]);
   return (
     <StudyServicesContext.Provider value={dock.services}>
     <section
@@ -270,6 +272,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             <LazyReviewFocusPill
               boardState={boardState}
               attempts={data?.attempts}
+              todayPaceSummary={data?.todayPace}
               focusTitle={shellTitle}
               root={data?.root || ""}
               goal={dailyGoal}
@@ -432,8 +435,9 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                 () => setCaseNote(ui("已开始出一套同类案例，完成后草稿会出现在学习库。")))}>{ui("再来一个同类案例")}</Button>
             </>}
             {missedList.length > 0 && (
-              <HandOff id="method.missed" shape="quiet" label="带着错题回主会话"
+              <HandOff id="method.missed" shape="quiet" label="带着错题回主会话" copyLabel="复制错题讲解提示词"
                 what="把这一轮没过关的题目带回主会话讲透，讲完再回 StudyHub 重测"
+                copyWhat="复制这一轮错题的提示词，可粘贴到外部 AI 讲透后再回 StudyHub 重测"
                 input={{ course: roundCourse, stage: roundStage, missed: missedList }}
                 disabled={busy} />
             )}

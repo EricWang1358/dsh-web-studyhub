@@ -290,5 +290,6 @@
   "这类不再提示": "Don't show this tip again",
   "答错后列出生词": "List unfamiliar words after wrong answers",
   "打开后，每道答错的题第一次会多一次轻量调用": "When on, the first wrong answer on a question runs one light model call",
-  "可能的生词": "Suggested words"
+  "可能的生词": "Suggested words",
+  "把空格补全 · 代码块里的空可填多行：Enter 换行，Ctrl/⌘+Enter 提交 · Esc 退回题目": "Fill in the blanks · Blanks inside a code block take several lines: Enter adds a line, Ctrl/⌘+Enter submits · Esc to return to the question"
 }

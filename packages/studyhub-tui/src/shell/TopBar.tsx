@@ -46,7 +46,7 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
 
   const meta = PAGE_REGISTRY.find((p) => p.id === page);
   const course = currentCourse(snapshot);
-  const due = dueToday(snapshot);
+  const due = dueToday(snapshot, course);
   const jobs = runningJobs(snapshot);
   const unread = unreadInboxCount(snapshot);
   const model = modelInfo(cfg, binding, snapshot);

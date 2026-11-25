@@ -207,7 +207,7 @@ test('stage 0 refuses with a code and no call; one build per course; the console
   const opener = consoleCode.resultOpener(tasks.at(-1), app);
   assert.equal(opener.label, '打开复习全书');
   await opener.run();
-  assert.deepEqual(went, ['outline']);
+  assert.deepEqual(went, ['book']);
 });
 
 test('gate 2.3: 补漏 after the detail level was raised writes the point against its new checklist, it never stamps the old text complete', async t => {

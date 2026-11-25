@@ -3,7 +3,7 @@ import { ui, uiFormat } from '../../i18n.js';
 import { Badge, Button, Icon, InlineMessage, Menu, Spinner } from '../../components/index.js';
 import { useCopyFeedback } from '../../use-copy-feedback.js';
 import MathText from '../../MathText.jsx';
-import { failureKind, shortQuote, versionOf } from './model.js';
+import { canRetryError, failureKind, shortQuote, versionOf } from './model.js';
 import ReaderModelGate from '../ReaderModelGate.jsx';
 
 /* One paragraph's translation, drawn as a block right after the paragraph (逐段对照), in the right column beside it (左右分栏),
@@ -86,7 +86,7 @@ export default function TranslationBlock({ state, item, target, open, error, onT
   </div>;
   if (state === 'error') return <div className="tr-block" role="alert" data-state="error">
     <div className="tr-block__bar"><span className="tr-block__tag tr-block__tag--static" aria-hidden="true">{tag}</span><span className="tr-block__error">{failureText(error)}</span>
-      <span className="tr-block__bar-actions">{error?.code !== 'model' && onRetry && <Button size="sm" variant="quiet" onClick={onRetry}>{ui('重试')}</Button>}<Button size="sm" variant="quiet" onClick={onDismiss}>{ui('关闭')}</Button></span></div>
+      <span className="tr-block__bar-actions">{canRetryError(error) && onRetry && <Button size="sm" variant="quiet" onClick={onRetry}>{ui('重试')}</Button>}<Button size="sm" variant="quiet" onClick={onDismiss}>{ui('关闭')}</Button></span></div>
   </div>;
   if (state === 'pending' && !item) return <div className="tr-block" role="status" data-state="pending">
     <div className="tr-block__bar"><Spinner /><span className="tr-block__status">{ui('正在翻译…')}</span><span className="tr-block__bar-actions"><Button size="sm" variant="quiet" onClick={onCancel}>{ui('取消')}</Button></span></div>

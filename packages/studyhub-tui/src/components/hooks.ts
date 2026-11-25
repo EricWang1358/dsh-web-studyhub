@@ -16,6 +16,5 @@ export function useFooterHints(hints: readonly KeyHint[], active = true): void {
       const cur = useTuiStore.getState().footerHints;
       if (cur.map((h) => `${h.key}\u0001${h.label}`).join('\u0002') === sig) useTuiStore.getState().setFooterHints([]);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sig, active]);
 }

@@ -112,5 +112,6 @@
   "这部分已经在翻译了。": "This part is already being translated.",
   "已开始翻译，共 {0} 段，后台进行；译文会显示在对应段落旁，完成时信箱会提醒你。": "Translation started ({0} paragraphs, in the background). Translations will appear beside each paragraph, and your inbox notifies you when it finishes.",
   "术语表更新": "Glossary update",
-  "打开这份资料": "Open this material"
+  "打开这份资料": "Open this material",
+  "批量对照翻译与全部展开/收起需切回「阅读」视图；当前「原文」视图仍可划词翻译。": "Batch translation and expand/collapse all require Reading view; you can still select text to translate in Original view."
 }

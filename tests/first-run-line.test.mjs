@@ -376,8 +376,8 @@ test('the line\'s summary is 创建题组\'s summary sentence plus the types, an
   assert.deepEqual(request.sourceIds, ['s1']);
   assert.equal(request.coverageLevel, 'standard');
   const [form, hook, views] = await Promise.all(['ui/Generate.jsx', 'ui/first-run/use-first-deck.js', 'ui/app/page-views.jsx'].map((file) => readFile(file, 'utf8')));
-  assert.match(form, /estimateRequestOf\(gen, \{ course: generationCourse, sourceIds: selectedSources, reasoningEffort \}\)/);
-  assert.match(form, /startGeneration\(\{ act, notify, setGen, data, gen, course: generationCourse, sourceIds: selectedSources,/);
+  assert.match(form, /estimateRequestOf\(gen, \{ course: generationCourse, sourceIds: (?:validSelectedSources|selectedSources), reasoningEffort \}\)/);
+  assert.match(form, /startGeneration\(\{ act, notify, setGen, data, gen, course: generationCourse, sourceIds: (?:validSelectedSources|selectedSources),/);
   assert.match(hook, /useUsageEstimate\(call, request,/);
   assert.match(hook, /startGeneration\(\{ act, notify, setGen, data, gen, course, sourceIds \}\)/);
   // The app hands the line its request and the quiet way to the form; nothing starts a run but the button.

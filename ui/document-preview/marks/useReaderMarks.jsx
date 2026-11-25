@@ -143,12 +143,20 @@ export function useReaderMarks({ call, document, data, body, rendered, enabled, 
   const marksCall = (action, args) => call(`materials.marks.${action}`, { documentId, revision, ...args });
   const dismissStaleMark = async id => {
     if (!id) return;
-    await marksCall('delete', { ids: [id], stale: true });
-    setReload(count => count + 1);
+    try {
+      await marksCall('delete', { ids: [id], stale: true });
+      setReload(count => count + 1);
+    } catch (error) {
+      say(errorMessage(error), 'error');
+    }
   };
   const clearStaleMarks = async () => {
-    await marksCall('delete', { stale: true });
-    setReload(count => count + 1);
+    try {
+      await marksCall('delete', { stale: true });
+      setReload(count => count + 1);
+    } catch (error) {
+      say(errorMessage(error), 'error');
+    }
   };
   const save = async (capture, style) => {
     if (capture?.crossPage) { say(ui('选区跨了多页，请在一页内选择。'), 'warning'); return; }
@@ -165,7 +173,15 @@ export function useReaderMarks({ call, document, data, body, rendered, enabled, 
     if (style === 'queue' && result.status === 'saved') say(uiFormat('已加入待出题（共 {0} 段），继续读吧。', [queue.length + 1]), 'success');
     setReload(count => count + 1);
   };
-  const remove = async ids => { if (ids.length) await marksCall('delete', { ids }); setReload(count => count + 1); };
+  const remove = async ids => {
+    if (!ids.length) return;
+    try {
+      await marksCall('delete', { ids });
+      setReload(count => count + 1);
+    } catch (error) {
+      say(errorMessage(error), 'error');
+    }
+  };
 
   const explain = async capture => {
     if (capture?.crossPage) { say(ui('选区跨了多页，请在一页内选择。'), 'warning'); return; }
@@ -225,10 +241,15 @@ export function useReaderMarks({ call, document, data, body, rendered, enabled, 
     const used = queue;
     const request = batchRequest({ queue: used, perPassage, settings: data?.settings, title: document?.title || document?.filename || '' });
     const job = await call('generate', request);
-    await marksCall('delete', { ids: used.map(item => item.id) });
-    setReload(count => count + 1);
-    say(batchStartedText(used.length, request.count), 'success');
     await onBatchStarted?.(job);
+    try {
+      await marksCall('delete', { ids: used.map(item => item.id) });
+      setReload(count => count + 1);
+      say(batchStartedText(used.length, request.count), 'success');
+    } catch (error) {
+      setReload(count => count + 1);
+      say(uiFormat('{0}但待出题清单没能清空：{1}', [batchStartedText(used.length, request.count), errorMessage(error)]), 'warning');
+    }
   };
 
   return {

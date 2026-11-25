@@ -17,10 +17,17 @@ const closeBitmap = bitmap => { try { bitmap.close?.(); } catch { /* already clo
  */
 export default function PagePeek({ page, figure = false, totalPages = 0, offset = 0, windowed = false, status, loadBytes, openRenderer, onAttach, onShowOriginal, onClose }) {
   const [phase, setPhase] = useState(status?.kind === 'ok' ? 'loading' : 'none'), [current, setCurrent] = useState(page), [zoom, setZoom] = useState(1);
-  useEffect(() => { setCurrent(page); }, [page]);
-  const [message, setMessage] = useState(''), [mismatch, setMismatch] = useState(null), [busy, setBusy] = useState(false), [tries, setTries] = useState(0), [fitKey, setFitKey] = useState(0), [undecoded, setUndecoded] = useState(0);
+  const [message, setMessage] = useState(''), [mismatch, setMismatch] = useState(null), [busy, setBusy] = useState(false), [tries, setTries] = useState(0), [docLoadTries, setDocLoadTries] = useState(0), [fitKey, setFitKey] = useState(0), [undecoded, setUndecoded] = useState(0);
   const panel = useRef(null), canvas = useRef(null), scroller = useRef(null), renderer = useRef(null), drag = useRef(null);
   const gate = useRef(null), cache = useRef(null), opener = useRef(null), rect = useRef(null), stats = useRef({ renders: 0, hits: 0 });
+  const needsReload = useRef(false);
+  useEffect(() => {
+    setCurrent(page);
+    if (renderer.current && !needsReload.current) {
+      setMessage('');
+      setPhase(prev => (prev === 'error' ? 'ready' : prev));
+    }
+  }, [page]);
   // How many images of each page pdf.js could not decode (renderer.js reports it), and the PDF page now shown: a scan whose decoder is missing must not look like a blank page.
   const undecodedPages = useRef(new Map()), shownPage = useRef(0);
   // What the panel did, as data attributes (the browser QA reads them): pages drawn, pages served from the cache, bitmaps and bytes kept.
@@ -33,41 +40,52 @@ export default function PagePeek({ page, figure = false, totalPages = 0, offset 
   gate.current ||= createRenderGate();
   cache.current ||= new LruCache(MAX_CACHED_PAGES, closeBitmap);
 
-  // Open the document once; everything is released when the panel goes away.
+  // Focus on mount, and clean up canvas / drag listeners / restore focus once when the panel unmounts (never overwritten on retry).
   useEffect(() => {
     opener.current = document.activeElement;
     panel.current?.focus({ preventScroll: true });
-    let live = true;
-    const run = gate.current, bitmaps = cache.current;
-    (async () => {
-      if (status?.kind !== 'ok') return;
-      try {
-        const bytes = await loadBytes();
-        if (!live) return;
-        if (!bytes) { setPhase('none'); return; }
-        const opened = await (openRenderer || createPeekRenderer)(bytes);
-        if (!live) { opened.destroy(); return; }
-        renderer.current = opened;
-        if (!windowed && totalPages > 0 && opened.numPages !== totalPages) { setMismatch({ totalPages, pdfPages: opened.numPages }); setPhase('mismatch'); return; }
-        setPhase('ready');
-      } catch (failure) { if (live) { setMessage(errorMessage(failure)); setPhase('error'); } }
-    })();
     return () => {
-      live = false;
-      run.cancelAll(); bitmaps.clear();
-      renderer.current?.destroy(); renderer.current = null;
+      if (typeof drag.current === 'function') drag.current();
+      drag.current = null;
       const shown = canvas.current; // eslint-disable-line react-hooks/exhaustive-deps -- the canvas as it is when the panel closes
       if (shown) { shown.width = 0; shown.height = 0; }
       const back = opener.current;
       if (back?.isConnected && typeof back.focus === 'function') back.focus({ preventScroll: true });
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- one document per panel
+  }, []);
+
+  // Open the document (and reopen on retry when initial load or range transport failed); everything is released on reload or unmount.
+  useEffect(() => {
+    let live = true;
+    const run = gate.current, bitmaps = cache.current;
+    undecodedPages.current.clear();
+    (async () => {
+      if (status?.kind !== 'ok') return;
+      try {
+        const bytes = await loadBytes();
+        if (!live) return;
+        if (!bytes) { needsReload.current = false; setPhase('none'); return; }
+        const opened = await (openRenderer || createPeekRenderer)(bytes);
+        if (!live) { opened.destroy(); return; }
+        renderer.current = opened;
+        needsReload.current = false;
+        if (!windowed && totalPages > 0 && opened.numPages !== totalPages) { setMismatch({ totalPages, pdfPages: opened.numPages }); setPhase('mismatch'); return; }
+        setMessage('');
+        setPhase('ready');
+      } catch (failure) { if (live) { needsReload.current = true; setMessage(errorMessage(failure)); setPhase('error'); } }
+    })();
+    return () => {
+      live = false;
+      run.cancelAll(); bitmaps.clear();
+      renderer.current?.destroy(); renderer.current = null;
+    };
+  }, [docLoadTries]); // eslint-disable-line react-hooks/exhaustive-deps -- one document per panel unless explicitly reloaded on retry
 
   // Draw the page: from the cache when it is there, else small first and then sharp. A newer request (page, zoom, size) cancels this one.
   useEffect(() => {
     if (phase !== 'ready' || !renderer.current || !canvas.current || !scroller.current) return undefined;
     const mapped = pdfPageFor({ page: current, totalPages, pdfPages: renderer.current.numPages, offset, window: windowed });
-    if (!mapped.ok) { setMessage(uiFormat('原文件里没有第 {0} 页', [current])); setPhase('error'); return undefined; }
+    if (!mapped.ok) { needsReload.current = false; setMessage(uiFormat('原文件里没有第 {0} 页', [current])); setPhase('error'); return undefined; }
     const turn = gate.current.begin(), pdfPage = mapped.pdfPage, target = canvas.current, area = scroller.current;
     shownPage.current = pdfPage;
     setUndecoded(undecodedPages.current.get(pdfPage) || 0);
@@ -95,7 +113,11 @@ export default function PagePeek({ page, figure = false, totalPages = 0, offset 
           note();
         }
       } catch (failure) {
-        if (turn.current() && failure?.name !== 'RenderingCancelledException' && failure?.name !== 'AbortError' && failure?.name !== 'AbortException') { setMessage(errorMessage(failure)); setPhase('error'); }
+        if (turn.current() && failure?.name !== 'RenderingCancelledException' && failure?.name !== 'AbortError' && failure?.name !== 'AbortException') {
+          needsReload.current = true;
+          setMessage(errorMessage(failure));
+          setPhase('error');
+        }
       } finally { if (turn.current()) setBusy(false); }
     })();
     return () => gate.current?.cancelAll();
@@ -116,6 +138,7 @@ export default function PagePeek({ page, figure = false, totalPages = 0, offset 
   const fit = () => { setZoom(1); scroller.current?.scrollTo?.({ top: 0, left: 0 }); };
   const onKeyDown = event => {
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose(); return; }
+    if (phase !== 'ready') return;
     if (event.target?.matches?.('input, textarea, select')) return;
     if (event.key === 'PageUp') { event.preventDefault(); go(-1); }
     else if (event.key === 'PageDown') { event.preventDefault(); go(1); }
@@ -171,7 +194,8 @@ export default function PagePeek({ page, figure = false, totalPages = 0, offset 
   }, [apply, win]);
   const track = (event, onMove) => {
     const stop = () => { drag.current = null; window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', stop); window.removeEventListener('pointercancel', stop); };
-    drag.current = true;
+    if (typeof drag.current === 'function') drag.current();
+    drag.current = stop;
     window.addEventListener('pointermove', onMove); window.addEventListener('pointerup', stop); window.addEventListener('pointercancel', stop);
     event.preventDefault();
   };
@@ -193,9 +217,20 @@ export default function PagePeek({ page, figure = false, totalPages = 0, offset 
     event.preventDefault(); event.stopPropagation();
     rect.current = resizeBox(corner, move[0], move[1], rect.current, win()); apply();
   };
+  const handleRetry = () => {
+    setMessage('');
+    if (!renderer.current || needsReload.current) {
+      needsReload.current = false;
+      setPhase('loading');
+      setDocLoadTries(count => count + 1);
+      return;
+    }
+    setPhase('ready');
+    setTries(count => count + 1);
+  };
   return <PagePeekView phase={phase} page={current} total={total} zoom={zoom} figure={figure} busy={busy} message={message} mismatch={mismatch} issue={status} undecoded={undecoded}
     panelRef={panel} canvasRef={canvas} scrollRef={scroller} onClose={onClose} onPrev={() => go(-1)} onNext={() => go(1)} onZoom={zoomBy} onFit={fit} onWheel={onWheel}
-    onAttach={onAttach} onShowOriginal={onShowOriginal ? () => onShowOriginal(shownPage.current) : undefined} onRetry={() => { setPhase('ready'); setTries(count => count + 1); }} onDragStart={onDragStart} onResizeStart={onResizeStart} onGripKey={onGripKey} onKeyDown={onKeyDown} />;
+    onAttach={onAttach} onShowOriginal={onShowOriginal ? () => onShowOriginal(shownPage.current) : undefined} onRetry={handleRetry} onDragStart={onDragStart} onResizeStart={onResizeStart} onGripKey={onGripKey} onKeyDown={onKeyDown} />;
 }
 
 // One lazy chunk for pdf.js: the page of 原始 PDF (reader/PdfOriginal.jsx) comes through here.

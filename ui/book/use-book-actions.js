@@ -113,16 +113,24 @@ export function useBookHandlers({
 }) {
   const [qa, setQa] = useState(() => new Set());
   const [retell, setRetell] = useState(() => new Set());
+  const [retoldByHid, setRetoldByHid] = useState(() => ({ course, records: {} }));
   const [choosing, setChoosing] = useState(false);
   const [rescuePrompt, setRescuePrompt] = useState(null);
   const activeRescuePrompt = rescuePrompt && !modelReady ? rescuePrompt : null;
-  return useMemo(() => ({
+  return useMemo(() => {
+    const courseRetold = retoldByHid.course === course ? retoldByHid.records : {};
+    return ({
     gone: goneSet(book?.missing),
     qaOpen: heading => qa.has(heading),
     toggleQa: heading => setQa(current => { const next = new Set(current); if (next.has(heading)) next.delete(heading); else next.add(heading); return next; }),
     // 用自己的话讲一遍 of a point (#1016, ui/review/RetellPanel.jsx): which points have it open; `model` is the readiness its gate shows.
     retellOpen: heading => retell.has(heading),
     toggleRetell: heading => setRetell(current => { const next = new Set(current); if (next.has(heading)) next.delete(heading); else next.add(heading); return next; }),
+    retoldOf: heading => (heading && Object.hasOwn(courseRetold, heading) ? courseRetold[heading] : null),
+    onRetold: (heading, record) => {
+      if (!heading) return;
+      setRetoldByHid(current => ({ course, records: { ...(current.course === course ? current.records : {}), [heading]: record } }));
+    },
     gapHintOf: nodeOrHid => {
       const node = nodeOrHid && typeof nodeOrHid === 'object' ? nodeOrHid : null;
       const hid = node ? node.hid : nodeOrHid;
@@ -300,5 +308,5 @@ export function useBookHandlers({
     aiWords: id => showWords(id),
     // A 术语卡's link (#710): its point opened when the card is not drawn, then the card shown (ui/book/term-card-go.js).
     goCard: (hid, code) => { if (!cardShown(code)) goTo?.(hid, { hold: false }); showCard(code); },
-  }), [book, qa, retell, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, modelReady, model, onBack, ai, foldAi, reload, act, onPlace, goTo, inlinePractice, evidenceByHid, onEvidenceChanged, courses, decks, sources, openModal, openModel, canChat, rescueJobs, onStartRescue, activeRescuePrompt, onTopUpPoints, pointGapBusy]);
+  }); }, [book, qa, retell, retoldByHid, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, modelReady, model, onBack, ai, foldAi, reload, act, onPlace, goTo, inlinePractice, evidenceByHid, onEvidenceChanged, courses, decks, sources, openModal, openModel, canChat, rescueJobs, onStartRescue, activeRescuePrompt, onTopUpPoints, pointGapBusy]);
 }

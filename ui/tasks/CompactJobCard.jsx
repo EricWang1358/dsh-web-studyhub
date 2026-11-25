@@ -15,6 +15,7 @@ import { resultOpener } from './task-actions.js';
 import { keepsOf } from './task-control.js';
 import { FAILED_HAND_OFF_WHAT, failedHandOffInput } from './failed-hand-off.js';
 import { HandOff } from '../hand-off/HandOff.jsx';
+import { hasChatHost } from '../hand-off/use-hand-off.js';
 import { useToast } from '../components/Feedback.jsx';
 import { offerRestore } from '../undoable.js';
 import { batchRun } from './task-batch.js';
@@ -87,7 +88,7 @@ export function cardLine(job, clock = Date.now()) {
 
 export default function CompactJobCard({ job, onStop, onDismiss, primary, links, title, line, onOpenConsole, className, ...rest }) {
   useInjectCss(css, 'study-compact-card');
-  const app = useContext(AppContext) || {}, quick = useQuickActions(), toast = useToast();
+  const app = useContext(AppContext) || {}, quick = useQuickActions(), toast = useToast(), host = app.host;
   const contract = contractOf(job), summary = { ...taskSummary(job) }, percentHint = progressHint(job).percent, live = isRunningTask(job), unknown = summary.percent === null && live;
   // The clock ticks for running audio cards (elapsed run time) and active PDF cards (dynamic expected completion countdown); other cards do not subscribe.
   const now = useNow(1000, { enabled: live && ['audio', 'pdf'].includes(taskKindOf(job)) });
@@ -144,7 +145,7 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, links,
       {(links?.length > 0 || handOff) && <div className="cjc__links">{(links || []).map((link) => {
         const button = <Button key={link.label} variant="quiet" size="sm" icon={link.icon} iconEnd={link.here || link.icon ? undefined : 'arrow-right'} disabled={link.disabled} aria-label={link.aria} onClick={link.run ?? link.onClick}>{link.label}</Button>;
         return link.tip ? <Tooltip key={link.label} layer content={link.tip} anchorClassName="cjc__link-anchor">{button}</Tooltip> : button;
-      })}{handOff && <HandOff id="job.failed" shape="quiet" input={handOff} what={FAILED_HAND_OFF_WHAT} aria-label={uiFormat('发给主会话：{0}', [summary.title])} />}</div>}
+      })}{handOff && <HandOff id="job.failed" shape="quiet" input={handOff} what={FAILED_HAND_OFF_WHAT} copyWhat="复制这条失败任务的诊断提示词，可粘贴到外部 AI 协助排查" aria-label={hasChatHost(host) ? uiFormat('发给主会话：{0}', [summary.title]) : uiFormat('复制提示词：{0}', [summary.title])} />}</div>}
       {/* A dismissal that did not go through says so next to the card that came back. */}
       {dismissFailure && <InlineMessage className="cjc__problem" tone="error">{uiFormat('没能移除这条记录：{0}', [dismissFailure])}</InlineMessage>}
       {/* `primary.tip`: what the button does first, on hover and focus (never a title attribute). */}

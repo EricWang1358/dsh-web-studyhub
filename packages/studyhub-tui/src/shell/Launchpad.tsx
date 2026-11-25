@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../components/key-dispatcher.js';
 import { t, useTuiStore } from '../state/store.js';
 import { useTheme, type ThemeTokens } from '../theme/tokens.js';
 import { truncateDisplay } from '../render/cjk.js';

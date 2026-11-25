@@ -72,9 +72,9 @@ export function openReaderForPages({ sources = [], sourceIds, preferredSourceId,
 
 /**
  * Pure plan for in-round "还没学到第 N 页（本轮移出后续页）":
- * - collects unanswered queue entries at `index >= run.index` from the same document with `page >= currentPage`;
- * - returns `{ kind: 'remove', page, removeIndices, removedCount }` when at least one earlier/other entry remains;
- * - returns `{ kind: 'open-reader', page, removeIndices: [], removedCount: 0 }` when every entry in the round would be removed.
+ * - collects non-retry unanswered queue entries at `index >= run.index` from the same document with `page >= currentPage`;
+ * - returns `{ kind: 'remove', page, remove, removeIndices, removedCount }` when at least one earlier/other entry remains;
+ * - returns `{ kind: 'open-reader', page, remove: [], removeIndices: [], removedCount: 0 }` when every entry in the round would be removed.
  */
 export function deferUnstudiedPagesPlan(run) {
   const page = run?.cardSource?.page;
@@ -83,33 +83,49 @@ export function deferUnstudiedPagesPlan(run) {
   if (!nav.length) return null;
   const docKey = run.cardSource?.documentKey || null;
   const startAt = Number.isInteger(run.index) ? run.index : 0;
-  const removeIndices = nav
-    .filter((entry) =>
-      Number.isInteger(entry?.index) &&
-      entry.index >= startAt &&
-      !entry.answered &&
-      Number.isInteger(entry.page) &&
-      entry.page >= page &&
-      (!docKey || !entry.documentKey || entry.documentKey === docKey),
-    )
-    .map((entry) => entry.index);
-  if (!removeIndices.length) return null;
-  if (removeIndices.length >= nav.length) {
-    return { kind: 'open-reader', page, removeIndices: [], removedCount: 0 };
+  const seen = new Set();
+  const remove = [];
+  const removeIndices = [];
+  for (const entry of nav) {
+    if (
+      !Number.isInteger(entry?.index) ||
+      entry.index < startAt ||
+      entry.answered ||
+      entry.retry ||
+      !entry.cardId ||
+      !Number.isInteger(entry.page) ||
+      entry.page < page ||
+      (docKey && entry.documentKey && entry.documentKey !== docKey)
+    ) continue;
+    const deckId = entry.deckId ?? run.deckId ?? undefined;
+    const key = `${deckId ?? ''}\u0000${entry.cardId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    removeIndices.push(entry.index);
+    remove.push(deckId ? { deckId, cardId: entry.cardId } : { cardId: entry.cardId });
   }
-  return { kind: 'remove', page, removeIndices, removedCount: removeIndices.length };
+  if (!remove.length) return null;
+  if (removeIndices.length >= nav.length) {
+    return { kind: 'open-reader', page, remove: [], removeIndices: [], removedCount: 0 };
+  }
+  return { kind: 'remove', page, remove, removeIndices, removedCount: remove.length };
 }
 
 /** Execute `deferUnstudiedPagesPlan` inside an active practice run (either opens the reader or trims `>= page` unanswered entries). */
 export function runDeferUnstudiedPages({ run, sources, openModal, reviewAct, notify }) {
   const plan = deferUnstudiedPagesPlan(run);
-  if (!plan) return;
+  if (!plan) return Promise.resolve(null);
   if (plan.kind === 'open-reader') {
     openReaderForPages({ sources, sourceIds: run.sourceIds, openModal, back: true });
     notify?.(uiFormat('本轮题目都在第 {0} 页及之后，已打开资料阅读器；翻到已学页点「做这几页的题」即可。', [plan.page]));
-    return;
+    return Promise.resolve(null);
   }
-  Promise.resolve(reviewAct('review.queue.edit', { removeIndices: plan.removeIndices, allowCurrent: true })).then((nextRun) => {
-    if (nextRun) notify?.(uiFormat('已从本轮移出第 {0} 页及之后的 {1} 道未答题，题库中仍保留。', [plan.page, plan.removedCount]));
+  return Promise.resolve(reviewAct('review.queue.edit', { remove: plan.remove, allowCurrent: true })).then((nextRun) => {
+    if (!nextRun) return nextRun;
+    const removedCount = Array.isArray(nextRun.removed) ? nextRun.removed.length : plan.removedCount;
+    if (removedCount > 0) {
+      notify?.(uiFormat('已从本轮移出第 {0} 页及之后的 {1} 道未答题，题库中仍保留。', [plan.page, removedCount]));
+    }
+    return nextRun;
   });
 }

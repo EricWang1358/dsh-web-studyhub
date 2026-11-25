@@ -48,8 +48,9 @@ function Reasons({ job }) {
 }
 
 /** One supplement job. `canPractice`: the host can start a review run on exactly the new questions. */
-export function SelectionJobCard({ job, now = Date.now(), canPractice = false, onCancel, onRetry, onDismiss, onPractice, onOpenDeck, onOpenCard }) {
+export function SelectionJobCard({ job, now = Date.now(), canPractice = false, busyOps = null, onCancel, onRetry, onDismiss, onPractice, onOpenDeck, onOpenCard }) {
   const phase = jobPhase(job), active = isActive(job), name = deckName(job), clock = elapsedClock(job, now);
+  const opBusy = Boolean(busyOps?.has?.(job.operationId || job.id));
   const added = job.publication?.cardIds?.length || 0, finished = phase === 'done' || phase === 'partial';
   const headline = finished ? resultHeadline(job)
     : phase === 'queued' ? uiFormat('补题排队中 ·「{0}」', [name])
@@ -73,7 +74,7 @@ export function SelectionJobCard({ job, now = Date.now(), canPractice = false, o
       <JobUsage job={job} totalOnly />
       <Steps job={job} />
       {onCancel && isCancellable(job) && <div className="selection-job__actions">
-        <Button size="sm" variant="quiet" className="selection-job__btn" onClick={() => onCancel(job)}>{ui('停止')}</Button>
+        <Button size="sm" variant="quiet" className="selection-job__btn" busy={opBusy} disabled={opBusy} onClick={() => onCancel(job)}>{ui('停止')}</Button>
       </div>}
     </div>}
     {finished && <div className="selection-job__result" role="status">
@@ -81,7 +82,7 @@ export function SelectionJobCard({ job, now = Date.now(), canPractice = false, o
       <Reasons job={job} />
       <JobUsage job={job} totalOnly />
       <div className="selection-job__actions">
-        {canPractice && onPractice && added > 0 && <Button size="sm" variant="primary" iconEnd="arrow-right" className="selection-job__btn"
+        {canPractice && onPractice && added > 0 && <Button size="sm" variant="secondary" iconEnd="arrow-right" className="selection-job__btn"
           onClick={() => onPractice({ deckId: job.publication.deckId, cardIds: job.publication.cardIds })}>
           {added === 1 ? ui('马上练这 1 张') : uiFormat('马上练这 {0} 张', [added])}</Button>}
         {onOpenDeck && <Button iconEnd="arrow-right" size="sm" variant="secondary" className="selection-job__btn" onClick={() => onOpenDeck(job.publication?.deckId || job.deckId)}>{ui('打开题组')}</Button>}
@@ -98,7 +99,7 @@ export function SelectionJobCard({ job, now = Date.now(), canPractice = false, o
       <JobUsage job={job} totalOnly />
       {copy.kind !== 'cancelled' && job.stage && <details className="selection-job__raw"><summary>{ui('技术详情')}</summary><code>{job.stage}</code></details>}
       <div className="selection-job__actions">
-        {onRetry && <Button size="sm" variant="secondary" className="selection-job__btn" onClick={() => onRetry(job, copy.retry)}>{copy.retryLabel}</Button>}
+        {onRetry && <Button size="sm" variant="secondary" className="selection-job__btn" busy={opBusy} disabled={opBusy} onClick={() => onRetry(job, copy.retry)}>{copy.retryLabel}</Button>}
         {onDismiss && <Button size="sm" variant="quiet" className="selection-job__btn" onClick={() => onDismiss(job)}>{ui('知道了')}</Button>}
       </div>
     </div>}

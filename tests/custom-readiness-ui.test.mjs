@@ -59,7 +59,7 @@ test('what is said after 补齐 started: a refused step first, the consent the c
 
 test('the list lives in the 「你的定制」 card only, with Tooltips for the hover words and the finder anchor', () => {
   const card = readFileSync('ui/CustomPlanCard.jsx', 'utf8'), list = readFileSync('ui/CustomReadiness.jsx', 'utf8');
-  assert.match(card, /<CustomReadiness course=\{course\} \/>/);
+  assert.match(card, /<CustomReadiness course=\{course\}/);
   assert.doesNotMatch(readFileSync('ui/CourseSettings.jsx', 'utf8'), /CustomReadiness/);
   assert.doesNotMatch(list, /\stitle=["']/, 'hover words are Tooltips, never title attributes');
   assert.match(list, /data-tour="custom-readiness"/);

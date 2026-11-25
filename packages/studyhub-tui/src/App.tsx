@@ -1,5 +1,6 @@
 import React, { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from './components/key-dispatcher.js';
 import type { CommandPaletteItem, PageId, ThemeId, UiLanguage, ViewProps } from './types/contracts.js';
 import { t, useTuiStore } from './state/store.js';
 import { computeSnapshotFingerprint } from './state/snapshot-fingerprint.js';

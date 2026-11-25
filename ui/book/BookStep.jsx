@@ -31,7 +31,7 @@ export default function BookStep({ steps, at, onGo, course, handlers }) {
         {step.hid !== 'unplaced' && handlers.ask && <AskButton onAsk={element => handlers.ask(node, element)} />}
       </div>
       {step.hid !== 'unplaced' && <BookGapHint node={node} course={course} handlers={handlers} />}
-      {step.hid === 'unplaced' ? <UnplacedBody node={node} handlers={handlers} /> : <PointBody node={node} course={course} handlers={handlers} level={3} />}
+      {step.hid === 'unplaced' ? <UnplacedBody node={node} handlers={handlers} /> : <PointBody key={step.hid} node={node} course={course} handlers={handlers} level={3} />}
       {/* Named like the bar's ‹ › (知识点), one word for the unit the learner steps through. */}
       <nav className="book-step__nav" aria-label={ui('上一个与下一个知识点')}>
         {/* A pager: ← in front of the point before, → after the point after, on the direction's line (sh-btn--lines). */}

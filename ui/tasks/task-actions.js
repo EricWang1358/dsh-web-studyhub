@@ -4,6 +4,7 @@ import { isLiveStatus } from '../../lib/job-contract.js';
 import { taskMaterial } from './task-material.js';
 import { openCompanionTarget, resolveCompanionTarget } from '../companions/companion-ref.js';
 import { writePageScope } from '../PageScope.jsx';
+import { keepBook } from '../book/model.js';
 import { requestOpenSourcesOrganize } from '../use-material-classify.js';
 
 /* Where 打开结果 leads, for the console's header and for the compact card: read from the job's contract (the references to what it made) and carried out by
@@ -83,11 +84,25 @@ export function resultOpener(job, app) {
   if (note && app?.learn?.openLearningTarget) return { label: ui('打开笔记'), run: () => app.learn.openLearningTarget({ kind: 'note', id: note.id }) };
   // A 考点清单 lives on the 备考补习 page, which lists the lists of the course and takes no id: the page is the way in.
   if (refs.some((ref) => ref.kind === 'exam-point-list') && !isLiveStatus(contract.status) && app?.nav?.show?.page) return { label: ui('打开考点清单'), run: () => app.nav.show.page('examprep') };
-  // A 课程总纲 is shown by the 总纲 page of its course: the course becomes the current one first when it is not.
-  // Its 复习全书 is read on the same page (a knowledge point opened shows its notes).
-  const outline = refs.find((ref) => ref.kind === 'course-outline' || ref.kind === 'course-book');
-  if (outline && !isLiveStatus(contract.status) && app?.nav?.navigate) return { label: outline.kind === 'course-book' ? ui('打开复习全书') : ui('打开总纲'), run: async () => {
-    if (typeof outline.course === 'string' && outline.course !== (data?.focus?.course ?? null) && app.core?.act) await app.core.act('focus.set', { course: outline.course });
+  // A 复习全书 is read on the dedicated 'book' page (with heading location preserved via keepBook); a 课程总纲 is shown on 'outline'.
+  const bookRef = refs.find((ref) => ref.kind === 'course-book');
+  if (bookRef && !isLiveStatus(contract.status) && app?.nav?.navigate) return { label: ui('打开复习全书'), run: async () => {
+    const targetCourse = typeof bookRef.course === 'string' ? bookRef.course : (data?.focus?.course ?? '');
+    const switched = typeof bookRef.course === 'string' && bookRef.course !== (data?.focus?.course ?? null);
+    if (switched && app.core?.act) {
+      if (!await app.core.act('focus.set', { course: bookRef.course })) return;
+    }
+    if (data?.root !== undefined) {
+      keepBook(data.root, targetCourse, { target: bookRef.heading || null, ...(switched ? { switched: true } : {}) });
+    }
+    app.nav.navigate('book');
+  } };
+  const outline = refs.find((ref) => ref.kind === 'course-outline');
+  if (outline && !isLiveStatus(contract.status) && app?.nav?.navigate) return { label: ui('打开总纲'), run: async () => {
+    const switched = typeof outline.course === 'string' && outline.course !== (data?.focus?.course ?? null);
+    if (switched && app.core?.act) {
+      if (!await app.core.act('focus.set', { course: outline.course })) return;
+    }
     app.nav.navigate('outline');
   } };
   const draft = refs.find((ref) => ref.kind === 'draft'), found = draft && data?.drafts?.find((item) => item.id === draft.id);

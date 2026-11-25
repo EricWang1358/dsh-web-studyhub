@@ -13,7 +13,7 @@ import { usePolling } from "./use-polling.js";
 import EmptyStudyActions from "./EmptyStudyActions.jsx";
 import { RubricResult, RubricSkills } from "./CaseResult.jsx";
 import CorrectionCard from "./review/CorrectionCard.jsx";
-import PageScope, { decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
+import PageScope, { courseMatcher, courseParked, decksInCourse, scopedAttemptsOf, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
 import { Badge, Banner, Button, ChunkedRows, Combobox, DisclosureToggle, foldLabel, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl, Spinner, TextInput, Tooltip, Chip, highlightParts, useToast } from './components/index.js';
 import { scrollToAnchor } from './tour/anchor.js';
 import { HandOff } from './hand-off/HandOff.jsx';
@@ -514,6 +514,17 @@ function RowDetail({ id, item, course, detail, variants, recs, shortName, rescue
   return (
     <div className="wb-detail" id={id}>
       {item.similarWin && <p className="muted" data-similar-win="">{similarWinLine()}</p>}
+      {(detail?.socratic || item.socratic) && (() => {
+        const soc = detail?.socratic || item.socratic;
+        const levelTag = `L${soc.hintLevel ?? 0}`;
+        return (
+          <p className="muted" data-socratic-meta="">
+            {soc.retellPassed
+              ? uiFormat("苏格拉底带学：用过 {0} 级提示，已通过复述", [levelTag])
+              : uiFormat("苏格拉底带学：用过 {0} 级提示", [levelTag])}
+          </p>
+        );
+      })()}
       {detail === "loading" || detail === undefined ? <LoadingState label={ui("正在读取详情…")} />
         : detail?.error ? <InlineMessage tone="error">{ui("没能读取这道题的详情。收起这道题再点开，就会重新读取。")}</InlineMessage>
           : (
@@ -998,7 +1009,9 @@ export function WrongBookView({
   const rows = useMemo(() => items || [], [items]);
   const total = rows.length;
   const recItems = useMemo(() => recs?.items || [], [recs]);
-  const localDecks = decksInCourse(data, course, showInactive);
+  const localDecks = useMemo(() => decksInCourse(data, course, showInactive), [data, course, showInactive]);
+  const scopedAttempts = useMemo(() => scopedAttemptsOf(data, course, localDecks), [data, course, localDecks]);
+  const scopedCaseDecks = useMemo(() => localDecks.filter((deck) => deck.format === "case-study" && deck.available !== 0), [localDecks]);
   const shortName = useMemo(() => shortDeckNames(rows, data?.decks), [rows, data?.decks]);
   const shown = useMemo(() => filterRows(rows, applied), [rows, applied]);
   const wrongCounts = useMemo(() => {
@@ -1110,8 +1123,9 @@ export function WrongBookView({
       setTogglingClinic(false);
     }
   };
+  const focusedOnly = Array.isArray(applied.only) && applied.only.length > 0 && shown.length > 0;
   const clinicLanes = useMemo(() => {
-    if (!clinicOn || isHistory || rows.length < 2) return [];
+    if (!clinicOn || isHistory || focusedOnly || rows.length < 2) return [];
     const sourceTargetByCard = new Map();
     const companionTargetByCard = new Map();
     const hidTargetByCard = new Map();
@@ -1125,7 +1139,7 @@ export function WrongBookView({
       if (hid) hidTargetByCard.set(item.cardId, { hid, title: String(card?.pointTitle || item?.pointTitle || item?.topic || '').trim() });
     }
     return buildWrongbookClinic({ rows, sourceTargetByCard, companionTargetByCard, hidTargetByCard, wrongCounts });
-  }, [clinicOn, isHistory, rows, resolveSourceForRow, resolveCompanionForRow, cardByRef, wrongCounts]);
+  }, [clinicOn, isHistory, focusedOnly, rows, resolveSourceForRow, resolveCompanionForRow, cardByRef, wrongCounts]);
   const stateOf = (cardId) => variantState(coach, cardId, pending);
   const eligible = (list) => list.filter((row) => stateOf(row.cardId).kind === "none" || stateOf(row.cardId).kind === "failed");
   const toggle = (set, setter, key) => setter((previous) => {
@@ -1470,26 +1484,42 @@ export function WrongBookView({
             <Tooltip layer anchorClassName="wb-retrain-pick" content={unavailableTip}>
               <SegmentedControl className="wb-retrain__seg" itemClassName="wb-retrain__seg-item" label={ui("重练范围")} value={picked} options={options} onChange={setChoice} disabled={busy || loading} />
             </Tooltip>
-            {/* The one start of the page: the scope above decides what it takes (the mistakes, with the similar questions, with the prepared variants). */}
-            <Button className="wb-retrain__btn" variant="primary" iconEnd="arrow-right" disabled={!total} lock={busy || loading} onClick={startRetrain}>
-              {uiFormat("开始重练 · {0} 题", [current.count])}
-            </Button>
-            {/* The start takes the whole page, whatever the filter shows; with a filter on, what is shown has its own, quieter button. */}
-            {filteredSubset && (
-              <Tooltip layer content={shown.length > PRACTICE_SCOPE_CAP ? practiceCappedText(shown.length, { group: false }) : ui("只练下面筛选出来的错题")}>
-                <Button className="wb-retrain__btn" variant="secondary" iconEnd="arrow-right" lock={busy || loading} onClick={() => practiceScope(shown.map(refOf))}>
-                  {uiFormat("练筛选的 {0} 道", [shown.length])}
+            {/* When arriving on a focused subset (e.g., from a round's result page), promote that subset to the page's sole primary CTA. */}
+            {focusedOnly && filteredSubset ? (
+              <>
+                <Tooltip layer content={shown.length > PRACTICE_SCOPE_CAP ? practiceCappedText(shown.length, { group: false }) : ui("只练下面筛选出来的错题")}>
+                  <Button className="wb-retrain__btn" variant="primary" iconEnd="arrow-right" lock={busy || loading} onClick={() => practiceScope(shown.map(refOf))}>
+                    {uiFormat("练筛选的 {0} 道", [shown.length])}
+                  </Button>
+                </Tooltip>
+                <Button className="wb-retrain__btn" variant="secondary" iconEnd="arrow-right" disabled={!total} lock={busy || loading} onClick={startRetrain}>
+                  {uiFormat("开始重练 · {0} 题", [current.count])}
                 </Button>
-              </Tooltip>
+              </>
+            ) : (
+              <>
+                {/* The one start of the page: the scope above decides what it takes (the mistakes, with the similar questions, with the prepared variants). */}
+                <Button className="wb-retrain__btn" variant="primary" iconEnd="arrow-right" disabled={!total} lock={busy || loading} onClick={startRetrain}>
+                  {uiFormat("开始重练 · {0} 题", [current.count])}
+                </Button>
+                {/* The start takes the whole page, whatever the filter shows; with a filter on, what is shown has its own, quieter button. */}
+                {filteredSubset && (
+                  <Tooltip layer content={shown.length > PRACTICE_SCOPE_CAP ? practiceCappedText(shown.length, { group: false }) : ui("只练下面筛选出来的错题")}>
+                    <Button className="wb-retrain__btn" variant="secondary" iconEnd="arrow-right" lock={busy || loading} onClick={() => practiceScope(shown.map(refOf))}>
+                      {uiFormat("练筛选的 {0} 道", [shown.length])}
+                    </Button>
+                  </Tooltip>
+                )}
+              </>
             )}
           </div>
         );
       })()}
 
       {/* Weak rubric criteria as skills (WP12): case linkage, assumptions, justification… */}
-      {!isHistory && <RubricSkills attempts={data?.attempts} practiceLabel={ui("练案例题")}
-        onPractice={data?.decks?.some((deck) => deck.format === "case-study" && !deck.archived)
-          ? () => onPractice(data.decks.filter((deck) => deck.format === "case-study" && !deck.archived).map((deck) => ({ deckId: deck.id }))) : undefined} />}
+      {!isHistory && <RubricSkills attempts={scopedAttempts} practiceLabel={ui("练案例题")}
+        onPractice={scopedCaseDecks.length
+          ? () => onPractice(scopedCaseDecks.map((deck) => ({ deckId: deck.id }))) : undefined} />}
 
       {!isHistory && clinicLanes.length > 0 && (
         <WrongBookClinic lanes={clinicLanes} filterLeech={!!filter.leech} loading={loading}
@@ -1772,14 +1802,35 @@ export function WrongBookView({
   );
 }
 
+/** Compute the narrowest course + inactive scope that still includes all arrived question refs. */
+export function resolveArrivalScope(refs, data, pinnedCourse, pinnedInactive) {
+  if (!Array.isArray(refs) || !refs.length) return { course: pinnedCourse, showInactive: pinnedInactive };
+  const deckById = new Map((data?.decks || []).map((deck) => [deck.id, deck]));
+  const matched = [];
+  let allFound = true;
+  for (const ref of refs) {
+    const deck = ref?.deckId ? deckById.get(ref.deckId) : null;
+    if (!deck) { allFound = false; continue; }
+    matched.push(deck);
+  }
+  if (!matched.length || !allFound) return { course: '*', showInactive: true };
+  const anyInactive = matched.some((deck) => !!deck.inactive);
+  const courses = [...new Set(matched.map((deck) => deck.course ?? deck.folder ?? ''))];
+  const pinnedMatch = courseMatcher(data, pinnedCourse);
+  const fitsPinned = courses.every((name) => pinnedMatch(name))
+    && (!anyInactive || pinnedInactive || courseParked(data, pinnedCourse));
+  if (fitsPinned) return { course: pinnedCourse, showInactive: pinnedInactive };
+  if (courses.length === 1) return { course: courses[0], showInactive: anyInactive ? true : pinnedInactive };
+  return { course: '*', showInactive: anyInactive ? true : pinnedInactive };
+}
+
 export default function WrongBook({ data, onPractice, onPracticePrepared, onOpenSettings, onLibrary, onCreate, onSources, onOpenBook }) {
   const { call, act, openSettings, busy } = useStudy();
   const app = useContext(AppContext);
   const [pinnedCourse, setCourse] = usePageScope(data?.root, 'wrongbook', data?.focus?.course ?? '*');
   const [pinnedInactive, setShowInactive] = useShowInactive(data?.root, 'wrongbook');
-  // The result page's line about 顽固题 asked this page to open on exactly those questions (ui/Review.jsx). The request waits under the library's root, so it is read in
-  // an effect keyed on the root (a page that mounts before the library has loaded takes nothing), once, and forgotten. Those questions can be in any course, parked
-  // ones included, so on arrival the page shows every course and the parked ones, whatever scope the learner pinned, until the learner picks a scope of their own.
+  // The result page's line about 顽固题 / 本轮错题 asked this page to open on exactly those questions (ui/Review.jsx).
+  // Keep the narrowest scope that contains those questions (staying inside the active course when they belong to one).
   const [arrival, setArrival] = useState(null);
   const [released, setReleased] = useState(false);
   useEffect(() => {
@@ -1787,7 +1838,8 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
     if (taken.refs) { setArrival(taken); setReleased(false); }
   }, [data?.root]);
   const arrived = !!arrival && !released;
-  const course = arrived ? '*' : pinnedCourse, showInactive = arrived ? true : pinnedInactive;
+  const arrivalScope = arrived ? resolveArrivalScope(arrival.refs, data, pinnedCourse, pinnedInactive) : { course: pinnedCourse, showInactive: pinnedInactive };
+  const course = arrivalScope.course, showInactive = arrivalScope.showInactive;
   const chooseCourse = (value) => { setReleased(true); setCourse(value); };
   chooseCourse.scope = setCourse.scope;
   const chooseInactive = (value) => { setReleased(true); setShowInactive(value); };
@@ -1996,9 +2048,15 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
         // The row is gone from the page at once, so the way back is here, not only on the manage page.
         toast.show({ tone: 'success', message: rescueNote(kind, done).text, undo: true, timeout: UNDO_TIMEOUT,
           action: { label: ui('撤销'), onClick: async () => {
-            toast.dismiss();
             const back = undoPauseCall({ deckId: item.deckId, cardId: item.cardId });
-            try { await act(back.action, back.args, undefined, { rethrow: true }); pageCacheRef.current.clear(); await load(pageRef.current, { quiet: true, force: true }); toast.info(ui('已恢复这道题。')); } catch (failure) { toast.error(failure); }
+            try {
+              const restored = await act(back.action, back.args, undefined, { rethrow: true });
+              if (restored === undefined) { toast.info(ui('刚才还有操作在进行，请稍后再点一次。')); return; }
+              toast.dismiss();
+              pageCacheRef.current.clear();
+              await load(pageRef.current, { quiet: true, force: true });
+              toast.info(ui('已恢复这道题。'));
+            } catch (failure) { toast.error(failure); }
           } } });
         return;
       }

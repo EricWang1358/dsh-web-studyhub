@@ -1,7 +1,7 @@
 import React from "react";
 import { reviewEntryKey } from "../async.js";
 import { isPassed } from "./session-logic.js";
-import { ui, uiLocale } from "../i18n.js";
+import { errorMessage, ui, uiLocale } from "../i18n.js";
 import { studyHighlights } from "../highlight-gate.js";
 import { MAX_MARKED_TERMS, clearCompletedTermEntries, collectInFlightTerms, filterCandidateTerms, mergeAdjacent, normalizeTerm, toggleTerm, wordAt } from "./term-marks.js";
 import { collectAllHighlightEntries, collectBlockSegments, isAllowedTextNode, isExcludedElement } from "./term-marking-dom.js";
@@ -343,6 +343,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
     const flightKey = `${runKeyAtCall}\0${targetCourse}`;
     const touched = touchedDuringFetchRef.current.get(flightKey);
     const now = new Date().toISOString();
+    const addedKeys = [];
     updateCourseCache(targetCourse, (prev) => {
       const seen = new Set(prev.map((item) => item.term.toLowerCase()));
       const additions = [];
@@ -351,6 +352,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
         if (touched) touched.set(key, "add");
         if (seen.has(key)) continue;
         seen.add(key);
+        addedKeys.push(key);
         additions.push({
           term,
           at: now,
@@ -378,9 +380,21 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
             if (item?.card && item?.term) visit.delete(item.term.toLowerCase());
           }
         })
-        .catch(() => {});
+        .catch((failure) => {
+          if (cacheRunKeyRef.current !== runKeyAtCall) return;
+          const rollbackSet = new Set(addedKeys);
+          const visit = visitAddedRef.current.get(targetCourse);
+          if (visit) for (const key of rollbackSet) visit.delete(key);
+          if (rollbackSet.size) {
+            updateCourseCache(targetCourse, (prev) => {
+              const next = prev.filter((item) => !rollbackSet.has(item.term.toLowerCase()));
+              return next.length === prev.length ? prev : next;
+            });
+          }
+          notify?.({ text: errorMessage(failure) || ui("生词保存失败，请稍后重试。"), tone: "warning" });
+        });
     }
-  }, [updateCourseCache]);
+  }, [notify, updateCourseCache]);
 
   const persistUnmark = React.useCallback((rawTerms) => {
     const clean = (Array.isArray(rawTerms) ? rawTerms : []).map(normalizeTerm).filter(Boolean);
@@ -397,7 +411,9 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
     if (touched) {
       for (const key of removeKeys) touched.set(key, "remove");
     }
+    let removedSnapshots = [];
     updateCourseCache(targetCourse, (prev) => {
+      removedSnapshots = prev.filter((item) => removeKeys.has(item.term.toLowerCase()));
       const next = prev.filter((item) => !removeKeys.has(item.term.toLowerCase()));
       return next.length === prev.length ? prev : next;
     });
@@ -422,9 +438,22 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
             }
           }
         })
-        .catch(() => {});
+        .catch((failure) => {
+          if (cacheRunKeyRef.current !== runKeyAtCall) return;
+          let visit = visitAddedRef.current.get(targetCourse);
+          if (!visit) { visit = new Set(); visitAddedRef.current.set(targetCourse, visit); }
+          for (const key of removeKeys) visit.add(key);
+          if (removedSnapshots.length) {
+            updateCourseCache(targetCourse, (prev) => {
+              const seen = new Set(prev.map((item) => item.term.toLowerCase()));
+              const restore = removedSnapshots.filter((item) => !seen.has(item.term.toLowerCase()));
+              return restore.length ? [...prev, ...restore] : prev;
+            });
+          }
+          notify?.({ text: errorMessage(failure) || ui("取消标生词失败，请稍后重试。"), tone: "warning" });
+        });
     }
-  }, [loadCourseTerms, updateCourseCache]);
+  }, [loadCourseTerms, notify, updateCourseCache]);
 
   const notifyLimit = React.useCallback(() => {
     notify?.({ text: ui("一次最多补 6 个词，先补这几个"), tone: "warning" });

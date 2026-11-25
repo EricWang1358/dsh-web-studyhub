@@ -1,9 +1,10 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
 import stripAnsi from 'strip-ansi';
 import { useTheme } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay, wrapDisplay } from '../render/cjk.js';
 import { useTuiStore } from '../state/store.js';
+import { KEY_LAYER_WIDGET, useScopedInput } from './key-dispatcher.js';
 import { pageStep, parseSgrWheelDelta, scrollbarThumb, useSgrMouseWheel } from './VirtualList.js';
 
 export { pageStep } from './VirtualList.js';
@@ -26,6 +27,12 @@ export interface ScrollViewProps {
   follow?: boolean;
   /** Override store asciiMode preference (`#` / `|` scrollbar when true). */
   ascii?: boolean;
+  /** Opt in to Vim `g` (top) / `G` (bottom) jump keys. Default false so parent shortcuts never conflict (#1374). */
+  vimJumpKeys?: boolean;
+  /** Enable Vim `j` / `k` scroll keys in addition to arrow keys. Set false when parent binds `j` or `k` (#1386). */
+  vimNavKeys?: boolean;
+  /** Enable `Space` for full-page down scrolling. Set false when parent binds `Space` (#1386, #1390). */
+  spacePageDown?: boolean;
 }
 
 const INV_ON = '\u001b[7m';
@@ -63,6 +70,9 @@ export const ScrollView = memo(function ScrollView({
   showIndicator = true,
   follow = false,
   ascii: asciiProp,
+  vimJumpKeys = false,
+  vimNavKeys = true,
+  spacePageDown = true,
 }: ScrollViewProps) {
   const theme = useTheme();
   const storeAscii = useTuiStore((s) => Boolean(s.preferences.asciiMode));
@@ -115,25 +125,27 @@ export const ScrollView = memo(function ScrollView({
     scrollTo(topRef.current + wheelDelta);
   });
 
-  useInput(
+  useScopedInput(
     (input, key) => {
       const wheelDelta = parseSgrWheelDelta(input);
       if (wheelDelta !== 0) {
         scrollTo(topRef.current + wheelDelta);
-        return;
+        return true;
       }
-      if (key.ctrl && input === 'd') scrollTo(top + pageStep(rows, 'half'));
-      else if (key.ctrl && input === 'u') scrollTo(top - pageStep(rows, 'half'));
-      else if (key.pageDown || input === ' ' || (key.ctrl && input === 'f')) scrollTo(top + pageStep(rows, 'full'));
-      else if (key.pageUp || (key.ctrl && input === 'b')) scrollTo(top - pageStep(rows, 'full'));
-      else if (key.downArrow || (!key.ctrl && !key.meta && input === 'j')) scrollTo(top + 1);
-      else if (key.upArrow || (!key.ctrl && !key.meta && input === 'k')) scrollTo(top - 1);
-      else if (key.home || (!key.ctrl && !key.meta && input === 'g')) scrollTo(0);
-      else if (key.end || (!key.ctrl && !key.meta && input === 'G')) scrollTo(maxTop);
-      else if (input === 'n' && matchRows.length > 0) {
+      if (key.ctrl && input === 'd') { scrollTo(top + pageStep(rows, 'half')); return true; }
+      if (key.ctrl && input === 'u') { scrollTo(top - pageStep(rows, 'half')); return true; }
+      if (key.pageDown || (spacePageDown && input === ' ') || (key.ctrl && input === 'f')) { scrollTo(top + pageStep(rows, 'full')); return true; }
+      if (key.pageUp || (key.ctrl && input === 'b')) { scrollTo(top - pageStep(rows, 'full')); return true; }
+      if (key.downArrow || (vimNavKeys && !key.ctrl && !key.meta && input === 'j')) { scrollTo(top + 1); return true; }
+      if (key.upArrow || (vimNavKeys && !key.ctrl && !key.meta && input === 'k')) { scrollTo(top - 1); return true; }
+      if (key.home || (vimJumpKeys && !key.ctrl && !key.meta && input === 'g')) { scrollTo(0); return true; }
+      if (key.end || (vimJumpKeys && !key.ctrl && !key.meta && input === 'G')) { scrollTo(maxTop); return true; }
+      if (input === 'n' && matchRows.length > 0) {
         const next = matchRows.find((r) => r > top) ?? matchRows[0];
         scrollTo(next);
-      } else if (input === 'N' && matchRows.length > 0) {
+        return true;
+      }
+      if (input === 'N' && matchRows.length > 0) {
         let prev = matchRows[matchRows.length - 1];
         for (let idx = matchRows.length - 1; idx >= 0; idx -= 1) {
           if (matchRows[idx] < top) {
@@ -142,9 +154,11 @@ export const ScrollView = memo(function ScrollView({
           }
         }
         scrollTo(prev);
+        return true;
       }
+      return false;
     },
-    { isActive },
+    { isActive, layer: KEY_LAYER_WIDGET, id: 'ScrollView' },
   );
 
   const visible = all.slice(top, top + rows);

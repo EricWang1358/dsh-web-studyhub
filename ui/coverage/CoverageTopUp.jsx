@@ -74,7 +74,7 @@ function ActionBody({ draft, shortfall, job, variant, modelReady }) {
     {ended && <p className="cov-topup__plan" data-shortfall-ended>{ended}</p>}
     {action === 'continue' && <p className="cov-topup__plan" data-continue-line>{continueLine(shortfall)}</p>}
     <div className="cov-topup__act">
-      <Button className="cov-topup__button" variant={action === 'model-settings' || action === 'continue' ? 'primary' : undefined} iconEnd={actionHere(action) ? undefined : 'arrow-right'} disabled={hold} data-shortfall-act={action} title={action === 'continue' && !modelReady ? gateTitle('block') : undefined} onClick={run}>{actionLabel(action)}</Button>
+      <Button className="cov-topup__button" size={variant === 'compact' ? 'sm' : undefined} variant={variant !== 'compact' && (action === 'model-settings' || action === 'continue') ? 'primary' : undefined} iconEnd={actionHere(action) ? undefined : 'arrow-right'} disabled={hold} data-shortfall-act={action} title={action === 'continue' && !modelReady ? gateTitle('block') : undefined} onClick={run}>{actionLabel(action)}</Button>
       {count && modelReady && call && <div className="cov-topup__estimate"><TokenEstimate enabled align="end" request={{ feature: 'generate', resumeDraftId: draft.id, draftVersion: draft.draftVersion }} /></div>}
     </div>
   </div>;

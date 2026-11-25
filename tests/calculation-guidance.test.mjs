@@ -79,12 +79,12 @@ test('generic legacy sessions and separately cached calculation sessions reopen 
 
 test('bad stages, fabricated citations and unknown modes leave no sessions', async t => {
   const { service, run } = await setup(t);
-  await assert.rejects(service.call('teach.start', { runId: run.id, mode: 'other' }), /mode/i);
+  await assert.rejects(service.call('teach.start', { runId: run.id, mode: 'other' }), /不支持的引导练习模式/);
   service.complete = async () => JSON.stringify({ ...plan(), rungs: plan().rungs.slice(0, 4) });
-  await assert.rejects(service.call('teach.start', { runId: run.id, mode: 'calculation' }), /plan/i);
+  await assert.rejects(service.call('teach.start', { runId: run.id, mode: 'calculation' }), /引导步骤不完整/);
   const fabricated = plan(); fabricated.rungs[0].citations[0].quote = 'fabricated';
   service.complete = async () => JSON.stringify(fabricated);
-  await assert.rejects(service.call('teach.start', { runId: run.id, mode: 'calculation' }), /citation/i);
+  await assert.rejects(service.call('teach.start', { runId: run.id, mode: 'calculation' }), /资料原文与教材对不上/);
   assert.equal((await service.store.read()).teaching.length, 0);
 });
 
@@ -97,15 +97,15 @@ test('late plan or answer cannot persist against a changed origin or step', asyn
   await started.promise;
   await service.store.update(s => { s.runs[0].entries[0].card.prompt = 'Changed original'; });
   release();
-  await assert.rejects(creating, /changed|reload/i);
+  await assert.rejects(creating, /原题内容已修改/);
   assert.equal((await service.store.read()).teaching.length, 0);
   service.complete = async () => JSON.stringify(plan());
   const teaching = await service.call('teach.start', { runId: run.id, mode: 'calculation' });
   service.complete = async () => JSON.stringify({ passed: true, feedback: 'Good' });
   await service.call('teach.answer', { id: teaching.id, stepIndex: 0, answer: 'One' });
-  await assert.rejects(service.call('teach.answer', { id: teaching.id, stepIndex: 0, answer: 'Stale input' }), /step changed/i);
+  await assert.rejects(service.call('teach.answer', { id: teaching.id, stepIndex: 0, answer: 'Stale input' }), /引导步骤已变化/);
   await service.store.update(s => { s.runs[0].entries[0].card.answer = 'New answer'; });
-  await assert.rejects(service.call('teach.answer', { id: teaching.id, stepIndex: 1, answer: 'Two' }), /changed|reload/i);
+  await assert.rejects(service.call('teach.answer', { id: teaching.id, stepIndex: 1, answer: 'Two' }), /原题内容已修改/);
 });
 
 test('the public practice tool accepts an explicit calculation mode and current-step answer', async t => {
@@ -129,7 +129,7 @@ test('concurrent starts share a session and a delayed answer cannot advance twic
   service.complete = async () => { if (++calls === 2) gate.resolve(); await gate.promise; return JSON.stringify({ passed: true, feedback: 'Pass' }); };
   const checks = await Promise.allSettled([0, 1].map(() => service.call('teach.answer', { id: starts[0].id, stepIndex: 0, answer: 'Learner response' })));
   assert.equal(checks.filter(result => result.status === 'fulfilled').length, 1);
-  assert.match(checks.find(result => result.status === 'rejected').reason.message, /step changed/i);
+  assert.match(checks.find(result => result.status === 'rejected').reason.message, /引导步骤已变化/);
   assert.equal((await service.call('teach.get', { id: starts[0].id })).index, 1);
 });
 
@@ -162,18 +162,18 @@ test('unanswered origins and missing citations cannot start model work, and bad 
   let calls = 0;
   service.complete = async () => { calls++; return JSON.stringify(plan()); };
   await service.store.update(s => { delete s.runs[0].entries[0].feedback; });
-  await assert.rejects(service.call('teach.start', { runId: run.id, mode: 'calculation' }), /Answer the original/);
+  await assert.rejects(service.call('teach.start', { runId: run.id, mode: 'calculation' }), /请先作答原题/);
   assert.equal(calls, 0);
   await service.store.update(s => { s.runs[0].entries[0].feedback = feedback; });
-  await assert.rejects(service.call('teach.start', { runId: run.id, mode: 'calculation', queueVersion: 999 }), /changed/i);
+  await assert.rejects(service.call('teach.start', { runId: run.id, mode: 'calculation', queueVersion: 999 }), /本轮练习已变化/);
   const started = await service.call('teach.start', { runId: run.id, mode: 'calculation' });
   service.complete = async () => JSON.stringify({ passed: 'true', feedback: 'Invalid' });
-  await assert.rejects(service.call('teach.answer', { id: started.id, answer: 'Learner response' }), /judgment/i);
+  await assert.rejects(service.call('teach.answer', { id: started.id, answer: 'Learner response' }), /批改结果格式有误/);
   assert.equal((await service.call('teach.get', { id: started.id })).index, 0);
   await service.store.update(s => { s.sources = []; });
   const before = calls;
   await service.store.update(s => { s.teaching = []; });
-  await assert.rejects(service.call('teach.start', { runId: run.id, mode: 'calculation' }), /cited source/i);
+  await assert.rejects(service.call('teach.start', { runId: run.id, mode: 'calculation' }), /没有引用资料/);
   assert.equal(calls, before);
 });
 
@@ -295,7 +295,7 @@ test('#1240: card.update changing the answer after teach.start still throws orig
   service.complete = async () => JSON.stringify({ passed: true, feedback: 'ok' });
   await assert.rejects(
     service.call('teach.answer', { id: session.id, stepIndex: 0, answer: '我的回答' }),
-    /Original question changed; reload guided teaching/,
+    /原题内容已修改/,
   );
 });
 
@@ -325,7 +325,7 @@ test('#1240: pre-upgrade sessions with legacy origin_snapshot continue when ques
   });
   await assert.rejects(
     service.call('teach.answer', { id: session.id, stepIndex: 1, answer: '继续' }),
-    /Original question changed; reload guided teaching/,
+    /原题内容已修改/,
   );
 });
 

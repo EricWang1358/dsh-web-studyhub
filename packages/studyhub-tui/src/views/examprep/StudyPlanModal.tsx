@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
+import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -10,6 +11,14 @@ import { VirtualList, type VirtualListRenderContext } from '../../components/Vir
 import { useInputCapture } from '../../components/focus.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/sample-actions.js';
+import {
+  dayModeMeta,
+  formatPlanDayReason,
+  planScheduleDays,
+  type CoursePlanDay,
+  type CoursePlanPoint,
+  type CoursePlanResponse,
+} from './course-plan-display.js';
 
 export interface StudyPlanModalProps {
   host: HostClient;
@@ -72,100 +81,6 @@ interface CustomOptionRow {
   detail: string;
   enabled?: boolean;
   locked?: boolean;
-}
-
-interface CoursePlanPhase {
-  name: string;
-  from: string;
-  until: string;
-  goal?: string;
-}
-
-interface CoursePlanReason {
-  code: string;
-  count?: number;
-  tested?: number;
-  weak?: number;
-  minutes?: number;
-  capacity?: number;
-  week?: number;
-  chapters?: number[];
-  carried?: number;
-}
-
-interface CoursePlanDay {
-  date: string;
-  offset: number;
-  phase: string | null;
-  mode: 'learn' | 'review' | 'mock' | 'off' | string;
-  mock?: boolean;
-  week?: number | null;
-  points: string[];
-  done: string[];
-  minutes: number;
-  reason?: CoursePlanReason;
-}
-
-interface CoursePlanPoint {
-  id: string;
-  number?: string;
-  code?: string;
-  title: string;
-  done?: string | null;
-  seen?: string | null;
-  weak?: number;
-  questions?: number;
-  pitfalls?: number;
-}
-
-interface CoursePlanResponse {
-  status: 'ok' | 'no-plan' | 'no-book' | 'no-exam' | 'past' | 'no-course' | string;
-  course: string | null;
-  examDate?: string | null;
-  daysLeft?: number | null;
-  today?: string;
-  plan?: {
-    version?: number;
-    status?: 'active' | 'paused' | 'done' | string;
-    startDate?: string;
-    minutesPerDay?: number;
-    by?: 'exam' | 'weekly' | string;
-    chaptersPerWeek?: number;
-    reviewCycleDays?: number;
-    phases?: Array<{ name: string; until?: string; goal?: string }>;
-    notes?: string;
-  } | null;
-  schedule?: {
-    status: string;
-    examDate?: string | null;
-    today?: string;
-    daysLeft?: number | null;
-    start?: string | null;
-    capacity?: number;
-    reviewCycleDays?: number;
-    phases?: CoursePlanPhase[];
-    days?: CoursePlanDay[];
-    coverage?: {
-      total: number;
-      scheduled: number;
-      unplaced: string[];
-    };
-    progress?: {
-      learnt: number;
-      total: number;
-      elapsedDays: number;
-      totalDays: number;
-    };
-    merged?: Array<{ date: string; ids: string[]; minutes: number; capacity: number }>;
-    weekly?: {
-      chaptersPerWeek?: number;
-      thisWeek?: number | null;
-      position?: string;
-      behind?: number;
-    };
-    truncated?: boolean;
-  };
-  points?: CoursePlanPoint[];
 }
 
 interface CustomReadinessChapter {
@@ -340,77 +255,6 @@ function planStatusMeta(status: string, lang: 'zh' | 'en'): { label: string; ton
   }
 }
 
-function dayModeMeta(day: CoursePlanDay, lang: 'zh' | 'en'): { label: string; tone: 'primary' | 'accent' | 'warning' | 'muted' } {
-  switch (day.mode) {
-    case 'learn':
-      return { label: t(lang, '精学', 'Learn'), tone: 'primary' };
-    case 'review':
-      return { label: t(lang, '复习', 'Review'), tone: 'accent' };
-    case 'mock':
-      return { label: t(lang, '模考', 'Mock'), tone: 'warning' };
-    case 'off':
-    default:
-      return { label: t(lang, '休息', 'Off'), tone: 'muted' };
-  }
-}
-
-function formatPlanDayReason(day: CoursePlanDay, lang: 'zh' | 'en'): string {
-  const r = day.reason;
-  if (!r) return day.points.length > 0 ? `${day.points.length} ${t(lang, '节', 'pts')}` : '';
-  switch (r.code) {
-    case 'exam-today':
-      return t(lang, `今日考试 · 总览 ${r.count ?? day.points.length} 节`, `Exam today · review ${r.count ?? day.points.length}`);
-    case 'exam-day':
-      return t(lang, `考日总览 ${r.count ?? day.points.length} 节`, `Exam day review ${r.count ?? day.points.length}`);
-    case 'mock':
-      return t(lang, '全真模拟测试', 'Mock exam');
-    case 'rest':
-      return t(lang, '计划休息日', 'Planned rest day');
-    case 'weekday':
-      return t(lang, '非学习日', 'Non-study weekday');
-    case 'done':
-      return t(lang, `已完成 ${r.count ?? day.done.length} 节`, `Completed ${r.count ?? day.done.length}`);
-    case 'looked':
-      return t(lang, `已翻看 ${r.count ?? day.points.length} 节`, `Skimmed ${r.count ?? day.points.length}`);
-    case 'review':
-      return t(
-        lang,
-        `复习 ${r.count ?? day.points.length} 节 (薄弱 ${r.weak ?? 0})`,
-        `Review ${r.count ?? day.points.length} pts (${r.weak ?? 0} weak)`,
-      );
-    case 'review-learn':
-      return t(lang, `优先预学 ${r.count ?? day.points.length} 节`, `Priority ${r.count ?? day.points.length} pts`);
-    case 'learn-free':
-      return t(lang, '待学内容已排完', 'All pending scheduled');
-    case 'learn-over':
-      return t(
-        lang,
-        `超负荷 ${r.count ?? day.points.length} 节 (${r.minutes ?? day.minutes}/${r.capacity ?? 0}m)`,
-        `Over ${r.count ?? day.points.length} pts (${r.minutes ?? day.minutes}/${r.capacity ?? 0}m)`,
-      );
-    case 'week':
-      return t(
-        lang,
-        `第${r.week ?? '?'}周 第${(r.chapters ?? []).join('/')}章 · ${r.count ?? day.points.length} 节${r.carried ? ` (+欠${r.carried})` : ''}`,
-        `Wk${r.week ?? '?'} Ch${(r.chapters ?? []).join('/')} · ${r.count ?? day.points.length} pts${r.carried ? ` (+${r.carried})` : ''}`,
-      );
-    case 'learn':
-      return t(
-        lang,
-        `精学 ${r.count ?? day.points.length} 节 (考过 ${r.tested ?? 0} · 薄弱 ${r.weak ?? 0})`,
-        `Learn ${r.count ?? day.points.length} pts (T:${r.tested ?? 0} W:${r.weak ?? 0})`,
-      );
-    case 'learn-size':
-      return t(
-        lang,
-        `精学 ${r.count ?? day.points.length} 节 (薄弱 ${r.weak ?? 0})`,
-        `Learn ${r.count ?? day.points.length} pts (W:${r.weak ?? 0})`,
-      );
-    default:
-      return `${day.points.length} ${t(lang, '节', 'pts')}`;
-  }
-}
-
 function summarizeStartedFill(started: NonNullable<CustomFillResponse['started']>, lang: 'zh' | 'en'): { text: string; tone: 'success' | 'warning' } {
   const parts: string[] = [];
   let hasIssue = false;
@@ -455,7 +299,6 @@ function summarizeStartedFill(started: NonNullable<CustomFillResponse['started']
 }
 
 const CUSTOM_PURPOSES: readonly CustomPurpose[] = ['preview', 'follow', 'review', 'openbook'];
-const CUSTOM_SCOPES: readonly Exclude<CustomScopeKind, 'chapters'>[] = ['all', 'exam'];
 const BOOK_PARTS: readonly BookPart[] = ['explain', 'terms', 'formulas', 'index', 'confusables', 'answerKit', 'cheatSheet'];
 const STRENGTH_LEVELS: readonly QuestionStrength[] = ['lean', 'standard', 'full'];
 const DEFAULT_MINUTES_PER_DAY = 180;
@@ -892,11 +735,7 @@ export const StudyPlanModal = memo(function StudyPlanModal({
     };
   }, [tab, customDraft, customPreviewData?.status, effectiveCourse, host, lang]);
 
-  const upcomingDays = useMemo<CoursePlanDay[]>(() => {
-    const all = planData?.schedule?.days ?? [];
-    const future = all.filter((d) => d.offset >= 0);
-    return future.length > 0 ? future : all;
-  }, [planData?.schedule?.days]);
+  const upcomingDays = useMemo<CoursePlanDay[]>(() => planScheduleDays(planData), [planData]);
 
   const pointMap = useMemo(() => {
     const map = new Map<string, CoursePlanPoint>();
@@ -1424,7 +1263,7 @@ export const StudyPlanModal = memo(function StudyPlanModal({
         <EmptyState
           icon={asciiMode ? '!' : '✕'}
           title={t(lang, '加载备考计划失败', 'Failed to load study plan')}
-          hint={truncateDisplay(planError, Math.max(12, innerW - 4), ell)}
+          hint={planError}
           actions={[{ key: 'r', label: t(lang, '重试', 'Retry') }]}
           width={innerW}
           height={tabBodyH}
@@ -1519,7 +1358,7 @@ export const StudyPlanModal = memo(function StudyPlanModal({
     const progress = sched.progress ?? { learnt: 0, total: 0, elapsedDays: 0, totalDays: 0 };
     const coverage = sched.coverage ?? { total: 0, scheduled: 0, unplaced: [] };
     const phases = sched.phases ?? [];
-    const todayStr = planData.today ?? sched.today ?? '';
+    const todayStr = planData.today ?? '';
     const activePhase = phases.find((p) => p.from <= todayStr && todayStr <= p.until) ?? phases[0] ?? null;
 
     // Show full multi-row phase block only when viewport has comfortable vertical room.
@@ -1655,7 +1494,7 @@ export const StudyPlanModal = memo(function StudyPlanModal({
         <EmptyState
           icon={asciiMode ? '!' : '✕'}
           title={t(lang, '加载章节就绪度失败', 'Failed to load readiness')}
-          hint={truncateDisplay(readinessError, Math.max(12, innerW - 4), ell)}
+          hint={readinessError}
           actions={[{ key: 'r', label: t(lang, '重试', 'Retry') }]}
           width={innerW}
           height={tabBodyH}
@@ -1837,7 +1676,7 @@ export const StudyPlanModal = memo(function StudyPlanModal({
         <EmptyState
           icon={asciiMode ? '!' : '✕'}
           title={t(lang, '加载深度定制失败', 'Failed to load custom plan')}
-          hint={truncateDisplay(customError, Math.max(12, innerW - 4), ell)}
+          hint={customError}
           actions={[{ key: 'r', label: t(lang, '重试', 'Retry') }]}
           width={innerW}
           height={tabBodyH}

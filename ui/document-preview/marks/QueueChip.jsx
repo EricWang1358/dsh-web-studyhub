@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Button, InlineMessage, Popover, SegmentedControl } from '../../components/index.js';
 import { errorMessage, ui, uiFormat } from '../../i18n.js';
 import { renderedPassageRange } from '../selection.js';
@@ -23,8 +23,14 @@ export default function QueueChip({ queue, disabled = false, modelReady = true, 
     setStarting(true); setError('');
     try { await onStart(per); setOpen(false); } catch (e) { setError(errorMessage(e)); } finally { setStarting(false); }
   };
+  const compactReturnFocusRef = useMemo(() => (compact ? {
+    get current() {
+      const viewer = body?.current?.closest?.('.study-document-viewer');
+      return viewer?.querySelector?.('.reader-toolbar__more button, button.reader-toolbar__more') || body?.current?.closest?.('.reader-scroll') || null;
+    },
+  } : undefined), [compact, body]);
   return <Popover open={open} onOpenChange={setOpen} label={ui('待出题')} className="reader-popover reader-queue" panelClassName="reader-popover__panel reader-queue__panel"
-    boundsSelector=".study-document-viewer" flip={false}
+    boundsSelector=".study-document-viewer" returnFocusRef={compactReturnFocusRef} flip={false}
     trigger={({ props, ref }) => compact ? <span ref={ref} className="reader-queue__anchor" aria-hidden="true" />
       : <Button ref={ref} size="sm" variant="quiet" icon="checklist" iconClassName="reader-toolbar__word-icon" className="reader-toolbar__action reader-queue__chip" {...props}>
         {uiFormat('待出题 {0}', [queue.length])}</Button>}>

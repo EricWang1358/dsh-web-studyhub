@@ -14,22 +14,34 @@ import css from './custom-readiness.css';
    sent back on hover, 未生成 where the book has not written it, and 补齐: one button a chapter and one for all, which says what it would start and the rough calls
    (course.custom.fill {estimate: true}), then starts only on 开始 (the app's single-flight write; the work is an ordinary job of 任务). Nothing is shown before the course has
    an outline: the chapters have no points yet. */
-export default function CustomReadiness({ course }) {
+export default function CustomReadiness({ course, data: snapshotData = null, onClose }) {
   useInjectCss(css, 'study-custom-readiness');
   const { call, act, busy, notify, navigate } = useStudy();
   const app = useContext(AppContext);
   const [data, setData] = useState(null), [stamp, setStamp] = useState(0), [pending, setPending] = useState(null), [working, setWorking] = useState(false);
   const openGapTarget = async chapter => {
-    const appData = app?.core?.data;
+    if (busy || working) return;
+    const appData = snapshotData ?? app?.data;
     const targetCourse = course?.name;
-    if (targetCourse && appData?.focus?.course && appData.focus.course !== targetCourse) {
-      try { await act('focus.set', { course: targetCourse }); } catch { /* navigate anyway */ }
+    const switched = typeof targetCourse === 'string' && targetCourse !== (appData?.focus?.course ?? null);
+    if (switched) {
+      setWorking(true);
+      try {
+        const ok = await act('focus.set', { course: targetCourse });
+        if (!ok) return;
+      } finally {
+        setWorking(false);
+      }
     }
     if (chapter.built) {
       const target = chapter.gapHint?.targetHid || chapter.gapHint?.hid || null;
-      if (target && appData?.root) keepBook(appData.root, targetCourse || appData.focus?.course || null, { target });
+      if (target && appData?.root !== undefined) {
+        keepBook(appData.root, targetCourse ?? appData.focus?.course ?? '', { target, ...(switched ? { switched: true } : {}) });
+      }
+      onClose?.('custom-readiness');
       navigate('book');
     } else {
+      onClose?.('custom-readiness');
       navigate('outline');
     }
   };
@@ -73,7 +85,7 @@ export default function CustomReadiness({ course }) {
           </Tooltip>
           {isUnbuilt(chapter, counted) && <Badge size="sm" tone="neutral" className="custom-readiness__flag">{ui('未生成')}</Badge>}
           {hasTodo(chapter) && <Button variant="quiet" size="sm" className="custom-readiness__fill" lock={locked} disabled={!!pending} onClick={() => ask([chapter.id], uiFormat('「{0}」', [chapter.title]))}>{ui('补齐')}</Button>}
-          {gapLabel && <Button variant="link" size="sm" wrap iconEnd="arrow-right" className="custom-readiness__gap" data-gap-hint={chapter.gapHint.kind} onClick={() => openGapTarget(chapter)}>{gapLabel}</Button>}
+          {gapLabel && <Button variant="link" size="sm" wrap iconEnd="arrow-right" className="custom-readiness__gap" data-gap-hint={chapter.gapHint.kind} lock={locked} onClick={() => openGapTarget(chapter)}>{gapLabel}</Button>}
         </li>;
       })}
     </ul>

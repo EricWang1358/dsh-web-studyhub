@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, CheckboxInput, Hint, InlineMessage } from './components/index.js';
@@ -22,14 +22,40 @@ export default function RetrievalPanel({ advice, sourceIds = [], focus = '', cou
   const [checked, setChecked] = useState(() => new Set((initialPreview?.pages || []).map(page => page.sourceId)));
   const [loading, setLoading] = useState(false), [error, setError] = useState('');
   const topic = String(focus ?? '').trim();
+  const inputKey = `${course ?? ''}\0${topic}\0${(Array.isArray(sourceIds) ? sourceIds : []).join(',')}`;
+  const seqRef = useRef(0);
+  const prevKeyRef = useRef(inputKey);
+  useEffect(() => () => { seqRef.current += 1; }, []);
+  useEffect(() => {
+    if (prevKeyRef.current === inputKey) return;
+    prevKeyRef.current = inputKey;
+    seqRef.current += 1;
+    setPreview(null);
+    setChecked(new Set());
+    setError('');
+    setLoading(false);
+  }, [inputKey]);
   async function run() {
+    const seq = ++seqRef.current;
     setLoading(true); setError('');
     try {
       const result = await call('retrieval.preview', { sourceIds, query: topic, ...(course ? { course } : {}), limit: 20 });
+      if (seq !== seqRef.current) return;
       setPreview(result); setChecked(new Set((result?.pages || []).map(page => page.sourceId)));
-    } catch (failure) { setError(errorMessage(failure)); }
-    finally { setLoading(false); }
+    } catch (failure) {
+      if (seq !== seqRef.current) return;
+      setError(errorMessage(failure));
+    } finally {
+      if (seq === seqRef.current) setLoading(false);
+    }
   }
+  const closePreview = () => {
+    seqRef.current += 1;
+    setLoading(false);
+    setPreview(null);
+    setChecked(new Set());
+    setError('');
+  };
   const toggle = (id, on) => setChecked(current => { const next = new Set(current); if (on) next.add(id); else next.delete(id); return next; });
   return (
     <section className="retrieval-panel" aria-label={ui('用检索挑选页面')}>
@@ -39,12 +65,12 @@ export default function RetrievalPanel({ advice, sourceIds = [], focus = '', cou
           : uiFormat('检索已启用：出题时会先挑出和主题相关的页面，只把这些页面发给 AI（所选资料约 {0} 个字符）。', [formatNumber(Number(advice?.chars || 0))])}</p>
         <Button size="sm" variant="secondary" busy={loading} disabled={disabled || !topic} onClick={run}>{ui('预览会用到的页面')}</Button>
       </div>
-      {error && <InlineMessage tone="error">{error}</InlineMessage>}
+      {error && <InlineMessage tone="error" onDismiss={() => setError('')}>{error}</InlineMessage>}
       {preview && preview.pages?.length > 0 && <>
         <ul className="retrieval-panel__pages" aria-label={ui('检索挑出的页面')}>
           {preview.pages.map(page => <li key={page.sourceId}>
             <label className="retrieval-panel__row">
-              <CheckboxInput className="retrieval-panel__check" checked={checked.has(page.sourceId)} disabled={disabled} onChange={event => toggle(page.sourceId, event.target.checked)} />
+              <CheckboxInput className="retrieval-panel__check" checked={checked.has(page.sourceId)} disabled={disabled || loading} onChange={event => toggle(page.sourceId, event.target.checked)} />
               <span className="retrieval-panel__page">{page.page ? uiFormat('第 {0} 页', [page.page]) : page.title}</span>
               <span className="retrieval-panel__snippet">{page.snippet}</span>
             </label>
@@ -53,8 +79,8 @@ export default function RetrievalPanel({ advice, sourceIds = [], focus = '', cou
         {preview.unresolved > 0 && <Hint>{uiFormat('另有 {0} 段没能对应到你资料里的页面，已忽略。', [preview.unresolved])}</Hint>}
         {preview.truncated && <Hint>{ui('相关页面很多，只列出了最相关的一部分。')}</Hint>}
         <div className="retrieval-panel__actions">
-          <Button size="sm" variant="secondary" disabled={disabled || !checked.size} onClick={() => onApply?.(preview.pages.filter(page => checked.has(page.sourceId)).map(page => page.sourceId))}>{ui('只用勾选的页面')}</Button>
-          <Button size="sm" variant="quiet" onClick={() => setPreview(null)}>{ui('关闭预览')}</Button>
+          <Button size="sm" variant="secondary" lock={loading} disabled={disabled || !checked.size} onClick={() => onApply?.(preview.pages.filter(page => checked.has(page.sourceId)).map(page => page.sourceId))}>{ui('只用勾选的页面')}</Button>
+          <Button size="sm" variant="quiet" onClick={closePreview}>{ui('关闭预览')}</Button>
         </div>
       </>}
       {preview && !preview.pages?.length && <Hint>{ui('检索没有找到相关页面。换个说法再试，或按章节缩小选择。')}</Hint>}

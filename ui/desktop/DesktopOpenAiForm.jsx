@@ -104,7 +104,11 @@ export default function DesktopOpenAiForm({ openai, active, actions, working, co
   const saveEndpoint = async (event) => {
     event.preventDefault();
     if (state.incomplete || working) return;
-    await actions.saveOpenAi(state.payload);
+    if (typeof actions.saveOpenAiEndpoint === 'function') {
+      await actions.saveOpenAiEndpoint(state.payload);
+      return;
+    }
+    try { await actions.saveOpenAi(state.payload); } catch { /* handled by action */ }
   };
 
   return (
@@ -135,9 +139,10 @@ export default function DesktopOpenAiForm({ openai, active, actions, working, co
       )}
       <SecretKeyForm name="desktop-openai-key" label={ui('API Key')} placeholder={ui('粘贴服务商的 API Key')}
         saved={state.savedKey} verifyLabel={ui('测试')} saveLabel={ui('保存并测试')} resultText={RESULT_TEXT}
+        primary={!state.showSaveActions}
         busy={Boolean(working) || state.incomplete}
         onSave={(apiKey) => actions.saveOpenAi({ ...state.payload, apiKey })}
-        onClear={() => actions.saveOpenAi({ ...state.payload, apiKey: '' })}
+        onClear={() => actions.saveOpenAi({ apiKey: '' })}
         onVerify={() => actions.testOpenAi(state.payload)} />
       {!compact && (
         <Hint className="desktop-model__note">

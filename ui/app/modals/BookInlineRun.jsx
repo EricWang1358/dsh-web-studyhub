@@ -64,7 +64,7 @@ export default function BookInlineRun({ started, origin = null, label, onClose, 
     <div className="book-point__inline-run" data-book-inline-answering={answering ? '' : undefined}>
       <StudyServicesContext.Provider value={services}>
         <InlineRun session={session} data={data} label={label} rootRef={rootRef} backLabel={ui('收起自测')} onClose={onClose} onOpenRun={continueThere} links={links} feedback={null} />
-        {flagging && session.run?.card && <FlagDialog run={session.run} onClose={() => setFlagging(false)} />}
+        {flagging && session.run?.card && <FlagDialog run={session.run} onClose={() => setFlagging(false)} onUpdated={(nextFlag) => session.patchRun?.((prev) => (prev?.card?.id === session.run?.card?.id ? { ...prev, card: { ...prev.card, flag: nextFlag || undefined } } : prev))} />}
         {helpOpen && <ShortcutHelp page="review" onClose={closeShortcutHelp} />}
       </StudyServicesContext.Provider>
     </div>

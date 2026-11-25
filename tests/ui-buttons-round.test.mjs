@@ -27,7 +27,7 @@ const rule = (css, selector) => {
 test("#1077: a primary button rests on its inner sheen only; hover lifts it with a neutral contact shadow, never an accent glow", () => {
   const css = read("ui/components/components.css");
   const resting = rule(css, ".sh-btn--primary");
-  const hover = rule(css, ".sh-btn--primary:hover:not(:disabled)");
+  const hover = rule(css, '.sh-btn--primary:hover:not(:disabled):not([aria-disabled="true"])');
   assert.doesNotMatch(resting, /accent-glow/, "no resting glow");
   assert.doesNotMatch(hover, /accent-glow/, "no hover glow");
   assert.match(resting, /inset 0 1px 0 var\(--sheen\)/, "the sheen stays");
@@ -40,7 +40,7 @@ test("#1076: a quiet button is regular weight (the Han fallback fonts draw --fw-
   const css = read("ui/components/components.css");
   const quiet = rule(css, ".sh-btn--quiet");
   assert.match(quiet, /font-weight:\s*var\(--fw-regular\)/);
-  assert.match(rule(css, ".sh-btn--quiet:hover:not(:disabled)"), /background:\s*var\(--bg-hover\)/);
+  assert.match(rule(css, '.sh-btn--quiet:hover:not(:disabled):not([aria-disabled="true"])'), /background:\s*var\(--bg-hover\)/);
   assert.doesNotMatch(read("ui/review/question.css").match(/\.question-toolbar \.tool-action[^{]*\{[^}]*\}/g)?.join("") ?? "", /font-weight/, "the toolbar does not set its own weight");
 });
 
@@ -153,10 +153,13 @@ test("#1076: a quiet button is ink, not --text-dim: at regular weight a grey wor
 });
 
 test("#1075: every disabled button, secondary or primary, has the one neutral look (no border, faint ink, a flat fill)", () => {
-  const disabled = rule(read("ui/components/components.css"), ".sh-btn:disabled");
-  assert.match(disabled, /border-color:\s*transparent/);
-  assert.match(disabled, /color:\s*var\(--text-faint\)/);
-  assert.match(disabled, /background:\s*color-mix\(in srgb, var\(--text\) 7%/);
+  const css = read("ui/components/components.css");
+  for (const selector of [".sh-btn:disabled", '.sh-btn[aria-disabled="true"]']) {
+    const disabled = rule(css, selector);
+    assert.match(disabled, /border-color:\s*transparent/);
+    assert.match(disabled, /color:\s*var\(--text-faint\)/);
+    assert.match(disabled, /background:\s*color-mix\(in srgb, var\(--text\) 7%/);
+  }
 });
 
 test("#1075: at a narrow width the practice bar is two deliberate rows: the tools, then 更多 with 上一题 / 下一题 sharing the full row", () => {
@@ -169,7 +172,7 @@ test("#1075: at a narrow width the practice bar is two deliberate rows: the tool
 });
 
 test("#1077: the primary hover is the accent darkened, so its ink keeps 4.5:1 on all five presets in both themes (--accent-soft is light on dark)", () => {
-  const hover = rule(read("ui/components/components.css"), ".sh-btn--primary:hover:not(:disabled)");
+  const hover = rule(read("ui/components/components.css"), '.sh-btn--primary:hover:not(:disabled):not([aria-disabled="true"])');
   assert.doesNotMatch(hover, /--accent-soft/);
   assert.match(hover, /background:\s*color-mix\(in srgb, var\(--accent\), black (\d+)%\)/);
   const dark = Number(/black (\d+)%/.exec(hover)[1]) / 100;

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { errorMessage, getUiLanguage } from '../i18n.js';
-import { refreshQuery } from '../host-query-store.js';
+import { entryFor, refreshQuery } from '../host-query-store.js';
 import { createVoiceRecorder } from './mic.js';
 import { VOICE_MAX_SECONDS } from './wav.js';
 
@@ -11,12 +11,32 @@ import { VOICE_MAX_SECONDS } from './wav.js';
    where the text belongs (the question on screen): text that comes back after it changed is dropped and the learner is told (ui/voice/mic.js). */
 
 let readiness = null;
+let watchedSettingsEntry = null;
+let internalSettingsFetch = 0;
+
+function ensureSettingsWatch() {
+  const entry = entryFor('audio.settings.get', {});
+  if (watchedSettingsEntry === entry) return;
+  watchedSettingsEntry = entry;
+  entry.subscribe(() => {
+    if (internalSettingsFetch > 0) return;
+    readiness = null;
+  });
+}
+
 /** Is voice transcription set up? Asked once per page; `again` after the learner saved a key. The check uses the same 只用付费密钥 as the clip
     (audio.clip.transcribe falls back to the settings' paidOnlyByDefault), so "ready" never means a free key the clip will not use. */
 export function voiceReadiness(call, again = false) {
+  ensureSettingsWatch();
   if (again || !readiness) {
     readiness = (async () => {
-      const settings = await refreshQuery(call, 'audio.settings.get', {}).catch(() => null);
+      internalSettingsFetch += 1;
+      let settings = null;
+      try {
+        settings = await refreshQuery(call, 'audio.settings.get', {}).catch(() => null);
+      } finally {
+        internalSettingsFetch -= 1;
+      }
       return call('audio.preflight', settings?.paidOnlyByDefault === true ? { paidOnly: true } : {});
     })().then(
       (status) => ({ ready: !!(status?.transcription || status?.liveLocal?.ready), reason: status?.reason || 'no-provider' }),
@@ -83,7 +103,8 @@ export function useVoiceInput({ call, onText, scope = '' }) {
     startingRef.current = true;
     setStarting(true);
     try {
-      const status = await voiceReadiness(call);
+      let status = await voiceReadiness(call);
+      if (!status.ready && !status.unavailable) status = await voiceReadiness(call, true);
       if (!mounted.current || !startingRef.current || scopeRef.current !== startScope) return;
       if (status.unavailable) { setUnavailable(true); return; }
       if (!status.ready) { setSetup({ reason: status.reason }); return; }
