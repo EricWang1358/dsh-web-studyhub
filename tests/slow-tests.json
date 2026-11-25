@@ -267,6 +267,7 @@
     "tests/prompt-contract-evals.test.mjs",
     "tests/retrieval-self-heal.test.mjs",
     "tests/shared-home-state.test.mjs",
+    "tests/skill-forge-scripts.test.mjs",
     "tests/store-shard-integrity.test.mjs",
     "tests/store.test.mjs",
     "tests/test-runner-batch.test.mjs",
