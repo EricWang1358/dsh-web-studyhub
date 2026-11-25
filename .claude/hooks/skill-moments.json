@@ -1,0 +1,18 @@
+{
+  "about": "PreToolUse moments for .claude/hooks/skill-moment.mjs. When a Bash command matches `pattern`, the hook injects the named skill's [Cnn] questions (all, or only `classes`). The questions stay owned by the skill; this file only says when to ask them.",
+  "moments": [
+    {
+      "name": "declare-done",
+      "pattern": "(^|[;&|(]\\s*)gh\\s+pr\\s+create\\b",
+      "skill": "verify-before-done",
+      "lead": "You are about to open a PR. Answer each question in the PR text before you run this, or mark it not applicable with the reason:"
+    },
+    {
+      "name": "release",
+      "pattern": "(^|[;&|(]\\s*)(gh\\s+release\\s+create\\b|npm\\s+run\\s+release:pack\\b)",
+      "skill": "verify-before-done",
+      "classes": ["C38", "C41"],
+      "lead": "You are about to build or publish a release. Answer these first:"
+    }
+  ]
+}
