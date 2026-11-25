@@ -101,26 +101,28 @@ const TUI_NO_INK_USE_WINDOW_SIZE = {
   importNames: ["useWindowSize"],
   message: "Use useStableWindowSize from components/resize.js instead of raw ink useWindowSize (#1354 P4).",
 };
-const TUI_NO_RAW_FS_RENAME = [
+// Raw fs writes bypass temp+fsync+rename and can leave half-written files or orphaned .tmp files.
+// All TUI persistence must go through host/atomic-write.ts (#1354 P3-b / #1454).
+const TUI_NO_RAW_FS_WRITES = [
   {
     name: "node:fs/promises",
-    importNames: ["rename"],
-    message: "Use atomicWriteFile / renameWithRetry from host/atomic-write.js instead of raw fs/promises rename (#1383).",
+    importNames: ["writeFile", "appendFile", "copyFile", "rename"],
+    message: "Use atomicWriteTextFile / atomicWriteJsonFile / atomicCopyFile from host/atomic-write.js instead of raw fs/promises writes (#1354 P3-b / #1383).",
   },
   {
     name: "fs/promises",
-    importNames: ["rename"],
-    message: "Use atomicWriteFile / renameWithRetry from host/atomic-write.js instead of raw fs/promises rename (#1383).",
+    importNames: ["writeFile", "appendFile", "copyFile", "rename"],
+    message: "Use atomicWriteTextFile / atomicWriteJsonFile / atomicCopyFile from host/atomic-write.js instead of raw fs/promises writes (#1354 P3-b / #1383).",
   },
   {
     name: "node:fs",
-    importNames: ["rename", "renameSync"],
-    message: "Use atomicWriteFile / renameWithRetry from host/atomic-write.js instead of raw fs rename (#1383).",
+    importNames: ["writeFile", "writeFileSync", "appendFile", "appendFileSync", "copyFile", "copyFileSync", "rename", "renameSync", "createWriteStream"],
+    message: "Use atomicWriteTextFile / atomicWriteJsonFile / atomicCopyFile from host/atomic-write.js instead of raw fs writes (#1354 P3-b / #1383).",
   },
   {
     name: "fs",
-    importNames: ["rename", "renameSync"],
-    message: "Use atomicWriteFile / renameWithRetry from host/atomic-write.js instead of raw fs rename (#1383).",
+    importNames: ["writeFile", "writeFileSync", "appendFile", "appendFileSync", "copyFile", "copyFileSync", "rename", "renameSync", "createWriteStream"],
+    message: "Use atomicWriteTextFile / atomicWriteJsonFile / atomicCopyFile from host/atomic-write.js instead of raw fs writes (#1354 P3-b / #1383).",
   },
 ];
 const TUI_NO_SHELL_EXEC = [
@@ -268,7 +270,7 @@ export default [
         paths: [
           TUI_NO_INK_USE_INPUT,
           TUI_NO_INK_USE_WINDOW_SIZE,
-          ...TUI_NO_RAW_FS_RENAME,
+          ...TUI_NO_RAW_FS_WRITES,
           ...TUI_NO_SHELL_EXEC,
         ],
       }],
@@ -280,7 +282,7 @@ export default [
       "no-restricted-imports": ["error", {
         paths: [
           TUI_NO_INK_USE_INPUT,
-          ...TUI_NO_RAW_FS_RENAME,
+          ...TUI_NO_RAW_FS_WRITES,
           ...TUI_NO_SHELL_EXEC,
         ],
       }],
@@ -295,7 +297,7 @@ export default [
       "no-restricted-imports": ["error", {
         paths: [
           TUI_NO_INK_USE_WINDOW_SIZE,
-          ...TUI_NO_RAW_FS_RENAME,
+          ...TUI_NO_RAW_FS_WRITES,
           ...TUI_NO_SHELL_EXEC,
         ],
       }],
