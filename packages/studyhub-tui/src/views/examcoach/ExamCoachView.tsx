@@ -15,6 +15,7 @@ import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
+import { gradeShortLabel } from '../../grade-scale.js';
 import { currentCourse, listCourses, modelInfo } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
 import { tryAction } from '../../host/sample-actions.js';
@@ -1331,11 +1332,14 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
                           ? t(lang, '[o未生成]', '[oIdle]')
                           : t(lang, '[○未生成]', '[○Idle]');
                   const tagW = displayWidth(tag);
-                  const textW = Math.max(6, ctx.width - tagW - 2);
+                  const gradeMeaning =
+                    typeof item.lastGrade === 'number' ? gradeShortLabel(item.lastGrade, lang) : '';
+                  const gradeW = gradeMeaning ? displayWidth(gradeMeaning) + 1 : 0;
+                  const textW = Math.max(6, ctx.width - tagW - gradeW - 2);
                   const title = truncateDisplay(String(item.prompt || item.topic || item.cardId).replace(/\s+/g, ' '), textW, asciiMode ? '...' : '…');
                   return (
                     <Text color={ctx.selected ? theme.selectionFg : theme.text} bold={ctx.selected}>
-                      {`${padDisplay(title, textW)} ${tag}`}
+                      {`${padDisplay(title, textW)} ${gradeMeaning ? `${gradeMeaning} ` : ''}${tag}`}
                     </Text>
                   );
                 }}
@@ -1362,6 +1366,21 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
                 </Box>
                 <Text color={theme.text}>{`${t(lang, '已备好变式题', 'Ready variants')}: ${prepReadyCount}  ${asciiMode ? '|' : '·'}  ${t(lang, '待备队列', 'Queued')}: ${prepQueuedCount}`}</Text>
                 <Text color={theme.muted}>{`${t(lang, '授权状态', 'Consent')}: ${coachStatus?.consent ? t(lang, '已授权', 'Granted') : t(lang, '首次生成时确认', 'Prompt on first queue')}`}</Text>
+                {selectedWrong ? (
+                  <Text color={theme.muted}>
+                    {truncateDisplay(
+                      typeof selectedWrong.lastGrade === 'number'
+                        ? t(
+                            lang,
+                            `选中的薄弱题：${selectedWrong.lastGrade}/5${asciiMode ? ' - ' : ' · '}${gradeShortLabel(selectedWrong.lastGrade, lang)}`,
+                            `Selected weak card: ${selectedWrong.lastGrade}/5${asciiMode ? ' - ' : ' · '}${gradeShortLabel(selectedWrong.lastGrade, lang)}`,
+                          )
+                        : t(lang, '选中的薄弱题：未记录评分', 'Selected weak card: no grade recorded'),
+                      Math.max(12, sz.width - 4),
+                      asciiMode ? '...' : '…',
+                    )}
+                  </Text>
+                ) : null}
                 <Divider width={Math.max(8, sz.width - 4)} />
                 <Text color={theme.heading} bold>{t(lang, '最近任务', 'Recent Tasks')}</Text>
                 {(coachStatus?.tasks ?? []).length === 0 ? (
