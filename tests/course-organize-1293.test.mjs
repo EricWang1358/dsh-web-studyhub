@@ -434,3 +434,71 @@ test('#1293-9: when the dry run finds nothing to do, the section says so and no 
     assert.deepEqual(calls.map(item => item.args.dryRun === true), [true], 'only the dry run was asked');
   }
 });
+
+test('#1293-11: same-topic siblings in one deck are not linked to each other', () => {
+  const sibling = (id, prompt) => ({ id, kind: 'flashcard', topic: 'Deadlock', prompt, answer: 'A.', explanation: 'B.' });
+  const state = {
+    courses: [],
+    decks: [
+      { id: 'd1', title: 'Ch1 Deadlock', course: 'OS', cards: [
+        sibling('a', 'What is Deadlock?'),
+        sibling('b', 'How does Deadlock avoidance work?'),
+        sibling('c', 'How is Deadlock detected?'),
+        sibling('d', 'How is Deadlock recovered from?'),
+      ] },
+      { id: 'd2', title: 'Ch2 Scheduling', course: 'OS', cards: [
+        { id: 'e', kind: 'flashcard', topic: 'Scheduling', prompt: 'How does Deadlock change CPU scheduling?', answer: 'A.', explanation: 'B.' },
+      ] },
+    ],
+    attempts: [],
+  };
+
+  const plan = planCourseOrganize(state, 'OS');
+  assert.deepEqual(plan.linkCandidates.filter(item => item.requires.cardId === 'a' && ['b', 'c', 'd'].includes(item.dependent.cardId)), [],
+    'cards of the same topic in one deck are alternatives, not prerequisites of each other');
+  assert.ok(plan.preSkipped.some(item => item.reason === 'same-topic-sibling'), 'the skipped sibling links say why');
+  assert.equal(plan.linkCandidates.find(item => item.dependent.cardId === 'e')?.requires.cardId, 'a',
+    'a later chapter still links to the earlier topic card');
+});
+
+test('#1293-13: 撤销自动整理的前置链接 asks first, then calls course.organize.undo and reports what went', async () => {
+  const calls = [], toasts = [];
+  const services = { busy: false, info: message => toasts.push(message), success: message => toasts.push(message), error: message => toasts.push(message),
+    call: async (action, args) => { calls.push({ action, args }); return action === 'course.organize.undo' ? { course: 'Compilers', removed: 2 } : null; } };
+  const mounted = await mountOrganize({ courseName: 'Compilers', disabled: false }, services);
+
+  await find(mounted.render(), named('撤销自动整理的前置链接')).props.onClick();
+  const confirm = find(mounted.render(), item => item.props?.confirmLabel === '撤销自动链接');
+  assert.ok(confirm, 'a confirmation shows before anything is removed');
+  assert.equal(calls.length, 0, 'nothing is removed before the confirmation');
+
+  await confirm.props.onConfirm(); await flush();
+  assert.deepEqual(calls, [{ action: 'course.organize.undo', args: { course: 'Compilers' } }]);
+  assert.match(toasts.at(-1), /已移除 2 条自动建立的前置链接/);
+  assert.equal(find(mounted.render(), item => item.props?.confirmLabel === '撤销自动链接'), undefined, 'the confirmation closes');
+});
+
+test('#1293-12: the batch undo removes only the links the job made (its origin); hand-made links and terms stay', async t => {
+  const { service } = await createLibrary(t);
+  await seedCompilers(service);
+  const started = await service.call('course.organize.start', { course: 'Compilers', mode: 'prereqs' });
+  assert.equal((await waitForJobTerminal(service, started.jobId)).linksAdded, 1);
+
+  const organised = (await service.call('export')).decks.find(deck => deck.title === 'Ch2 Parsing').cards[0];
+  assert.deepEqual(organised.requires, [{ deckId: organised.requires[0].deckId, cardId: organised.requires[0].cardId, origin: 'course-organize' }]);
+
+  // A link the learner made between the same two questions is not the batch's to remove.
+  await service.call('deck.import', { course: 'Compilers', text: JSON.stringify({ title: 'Ch3 Types', course: 'Compilers', cards: [
+    { id: 'm3', kind: 'flashcard', topic: 'Types', prompt: 'What is a type?', answer: 'A set of values.', explanation: 'Checked by the compiler.' },
+  ] }) });
+  const handDeck = (await service.call('export')).decks.find(deck => deck.title === 'Ch3 Types');
+  await service.call('card.link', { deckId: handDeck.id, cardId: handDeck.cards[0].id, requires: { deckId: organised.requires[0].deckId, cardId: organised.requires[0].cardId } });
+
+  const undone = await service.call('course.organize.undo', { course: 'Compilers' });
+  assert.equal(undone.removed, 1);
+  const after = await service.call('export');
+  assert.equal(after.decks.find(deck => deck.title === 'Ch2 Parsing').cards[0].requires?.length ?? 0, 0, 'the automatic link is gone');
+  const handAfter = after.decks.find(deck => deck.title === 'Ch3 Types').cards[0];
+  assert.deepEqual(handAfter.requires, [{ deckId: organised.requires[0].deckId, cardId: organised.requires[0].cardId }], 'the hand-made link stays, without an origin');
+  assert.equal((await service.call('course.organize.undo', { course: 'Compilers' })).removed, 0, 'a second undo removes nothing');
+});
