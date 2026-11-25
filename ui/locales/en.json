@@ -1932,5 +1932,8 @@
   "查看源码": "View source",
   "查看图示": "View diagram",
   "源码": "Source",
-  "图示": "Diagram"
+  "图示": "Diagram",
+  "适用于编程与工程类课程：优先把大段口述代码执行改成 3–16 行最小可读代码块，并禁止在代码注释里泄题。": "For programming and engineering courses: convert multi-sentence verbalized code steps into minimal 3–16 line fenced code blocks and never leak answers in code comments.",
+  "加入代码阅读题推荐守则": "Add code-reading question rule",
+  "已加入代码阅读题推荐守则": "Code-reading rule added"
 }
