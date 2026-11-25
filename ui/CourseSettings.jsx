@@ -41,9 +41,12 @@ export function CourseOrganizeSection({ courseName, disabled }) {
   const { call, navigate } = useStudy();
   const toast = useToast();
   const trigger = useRef(null);
+  const undoTrigger = useRef(null);
   const [step, setStep] = useState(null); // null | 'checking' | 'starting'
   const [offer, setOffer] = useState(null); // the dry run's answer, while it is shown
   const [receipt, setReceipt] = useState(null);
+  const [undoAsk, setUndoAsk] = useState(false);
+  const [undoing, setUndoing] = useState(false);
   const preview = offer?.preview || {};
   const calls = preview.modelCalls || { low: 0, high: 0 };
   const nothing = !!offer && !(preview.candidateLinks > 0) && !(calls.high > 0);
@@ -74,17 +77,34 @@ export function CourseOrganizeSection({ courseName, disabled }) {
       setStep(null);
     }
   };
+  // Undo is a batch removal of what this job made: hand-made links carry no origin and stay.
+  const undo = async () => {
+    if (!courseName || undoing) return;
+    setUndoing(true);
+    try {
+      const res = await call('course.organize.undo', { course: courseName });
+      setUndoAsk(false);
+      toast.success(uiFormat('已移除 {0} 条自动建立的前置链接；手动添加的链接与生词缓存都保留。', [res?.removed ?? 0]));
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setUndoing(false);
+    }
+  };
 
   return (
     <Disclosure className="course-settings__disclosure" bodyClassName="course-settings__disclosure-body" summary={ui('批量整理前置依赖与生词')}
       meta={receipt?.jobId ? ui('已加入任务台') : ui('后台任务')}>
-      <Hint>{ui('按课程词表与章节先后批量建立无环前置依赖（每题最多 12 条，不覆盖已有链接）；若已配置模型，同时为缺少生词缓存的题目预提取生词。任务在后台运行，可随时取消。')}</Hint>
+      <Hint>{ui('按课程词表与章节先后批量建立无环前置依赖（每题最多 12 条，不覆盖已有链接）；若已配置模型，同时为缺少生词缓存的题目预提取生词。任务不支持暂停：可随时取消，已写入的链接与生词会保留，重跑会跳过已缓存的部分。')}</Hint>
       <div className="course-settings__organize-actions">
         <Tooltip content={ui('新增前置链接后，未掌握的前置题会在学习路径中提前出现；已有前置与生词缓存不会被覆盖。')} placement="top-start">
           <Button ref={trigger} size="sm" variant="secondary" icon="sparkle" busy={step === 'checking'} disabled={disabled || !courseName || !!step || (!!offer && !nothing)} onClick={check}>
             {ui('开始整理前置依赖与生词')}
           </Button>
         </Tooltip>
+        <Button ref={undoTrigger} size="sm" variant="quiet" lock={undoing} disabled={disabled || !courseName} onClick={() => setUndoAsk(true)}>
+          {ui('撤销自动整理的前置链接')}
+        </Button>
         {receipt?.jobId && typeof navigate === 'function' && (
           <Button size="sm" variant="link" iconEnd="arrow-right" onClick={() => navigate('jobs')}>
             {ui('去任务台查看进度')}
@@ -104,6 +124,10 @@ export function CourseOrganizeSection({ courseName, disabled }) {
             <span tabIndex={0}>{uiFormat('预提取生词约需 {0}。', [callsText(calls)])}</span>
           </Tooltip>
         </p>}
+      </InlineConfirm>}
+      {undoAsk && <InlineConfirm tone="warning" title={ui('撤销批量整理建立的前置链接？')} confirmLabel={ui('撤销自动链接')} busy={undoing} returnFocusRef={undoTrigger}
+        onConfirm={undo} onCancel={() => setUndoAsk(false)}>
+        <p>{ui('只会移除批量整理自己建立的链接；手动添加的前置和已缓存的生词都会保留。')}</p>
       </InlineConfirm>}
     </Disclosure>
   );
