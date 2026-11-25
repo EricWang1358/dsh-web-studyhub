@@ -266,9 +266,11 @@ describe('#1444 Intent Coverage Matrix (意图覆盖表)', () => {
     {
       name: '调整本轮题序 (review.queue.edit)',
       input: '把这题挪到最后',
-      expectKind: 'write_confirm',
+      // #1458: reordering a round is reversible, so it runs directly without a ConfirmDialog.
+      expectKind: 'run_action',
       expectAction: 'review.queue.edit',
       verify: (intent) => {
+        assert.equal(intent.requiresConfirm, false);
         assert.equal(intent.params.runId, 'run-1');
         assert.equal(intent.params.position, 'end');
         assert.equal(intent.params.allowCurrent, true);
@@ -378,7 +380,7 @@ describe('#1444 Unrecognized action boundary & truthful workflow status', () => 
     ];
     for (const c of cases) {
       const intent = parseAssistantIntent(c.input, BASE_CTX);
-      assert.equal(intent.kind, 'unsupported', `expected unsupported for "${c.input}", got ${intent.kind}`);
+      assert.equal(intent.kind, 'boundary', `expected boundary for "${c.input}", got ${intent.kind}`);
       assert.match(intent.reason, /不能直接/, `reason must clearly state assistant cannot execute directly: ${intent.reason}`);
       assert.ok(
         intent.reason.includes(c.mustMention) || intent.alternativeLabel.includes(c.mustMention),

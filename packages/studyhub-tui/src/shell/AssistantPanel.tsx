@@ -52,7 +52,11 @@ import {
   resolvePlainExplainQuestionTitle,
   type AssistantIntent,
 } from './assistant-intent.js';
-import { executeAssistantReadAction, executeAssistantWriteAction } from './assistant-actions.js';
+import {
+  executeAssistantReadAction,
+  executeAssistantWriteAction,
+  readCurrentGradeStatus,
+} from './assistant-actions.js';
 import type { ErrorReasonTarget } from './error-reason-intent.js';
 import { ERROR_REASONS, reasonShort } from '../views/wrongbook/helpers.js';
 import type { ErrorReasonId } from '../views/wrongbook/types.js';
@@ -702,8 +706,8 @@ export const AssistantPanel = memo(function AssistantPanel({
         lang,
       });
 
-      // 0) Unsupported -> nearest alternative + [P] Copy prompt fallback (never parroting raw input!)
-      if (intent.kind === 'unsupported') {
+      // 0) Capability boundary -> say what it can/cannot do, name a real entry, never "已完成" (#1458)
+      if (intent.kind === 'boundary') {
         const fb = {
           reason: intent.reason,
           altLabel: intent.alternativeLabel,
@@ -714,8 +718,21 @@ export const AssistantPanel = memo(function AssistantPanel({
         setLastFallback(fb);
         appendTurn({
           role: 'system',
-          actionSummary: '能力边界兜底',
-          text: `${intent.reason}\n${intent.alternativeLabel}\n也可按 [P] 复制带上下文的提示词。`,
+          actionSummary: t(lang, '能力边界：不能直接执行', 'Capability boundary: not executed'),
+          text: `${intent.canDo}\n${intent.cannotDo}\n${intent.entryLabel}\n${t(lang, '也可按 [P] 复制带上下文的提示词。', 'You can also press [P] to copy the prompt with context.')}`,
+        });
+        return;
+      }
+
+      // 0a) "这题判对了吗" -> read the real verdict, never change it (#1458)
+      if (intent.kind === 'read_grade_status') {
+        const outcome = await readCurrentGradeStatus({ host, snapshot, cardCtx, lang, navigate });
+        if (!mountedRef.current) return;
+        appendTurn({
+          role: 'assistant',
+          stage: tab === 'guided' ? stage : undefined,
+          actionSummary: outcome.actionSummary,
+          text: outcome.text,
         });
         return;
       }
@@ -902,7 +919,8 @@ export const AssistantPanel = memo(function AssistantPanel({
       }
 
       const isPlainExplain = intent.kind === 'generate_plain_explain';
-      beginExecution(isPlainExplain ? '生成通俗讲解' : '生成回答');
+      const isExplainRequest = isPlainExplain || intent.kind === 'explain_card';
+      beginExecution(isPlainExplain ? '生成通俗讲解' : isExplainRequest ? '生成讲解' : '生成回答');
       stream.reset();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
@@ -915,7 +933,7 @@ export const AssistantPanel = memo(function AssistantPanel({
         card: cardCtx,
         tab,
         stage,
-        isPlainExplain,
+        isPlainExplain: isExplainRequest,
         lang,
       });
 
@@ -941,8 +959,8 @@ export const AssistantPanel = memo(function AssistantPanel({
         const cleanReply = (reply || stream.text).trim();
 
         // #1444: Chat replies NEVER claim "已完成" (no action was executed, only text was generated).
-        const actionSummary = isPlainExplain
-          ? t(lang, '通俗讲解已生成', 'Plain explanation ready')
+        const actionSummary = isExplainRequest
+          ? t(lang, '讲解已生成（未改动题目）', 'Explanation ready (card unchanged)')
           : t(lang, 'AI 回答（仅对话，未改动数据）', 'AI reply (chat only)');
 
         appendTurn({
