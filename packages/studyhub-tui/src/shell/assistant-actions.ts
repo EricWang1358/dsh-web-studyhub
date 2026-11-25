@@ -218,10 +218,133 @@ export async function executeAssistantReadAction(
     };
   }
 
+  if (intent.actionName === 'review.queue.edit') {
+    if (!runId || !cardId) return needCardOutcome(lang, '调整本轮题序', 'reorder the queue');
+    // `remove` is refused for an answered (or grading) question while `add` still appends a copy,
+    // so an answered card would silently duplicate. Read the round first and refuse honestly (#1447).
+    const got = await tryAction<ReviewRun>(host, 'review.get', { runId });
+    if (!got.ok || !got.value) {
+      return {
+        succeeded: false,
+        actionSummary: t(lang, '读取本轮失败', 'Could not read the round'),
+        text: got.error?.message || t(lang, '无法读取本轮练习进度，请稍后重试。', 'Could not read this round.'),
+      };
+    }
+    const run = got.value;
+    const runDeckId = run.navigation?.find((item) => item.index === run.index)?.deckId || cardCtx?.deckId || '';
+    const ref = { ...(runDeckId ? { deckId: runDeckId } : {}), cardId };
+    if (run.feedback) {
+      return {
+        succeeded: false,
+        actionSummary: t(lang, '本题已作答，未调整题序', 'Question already answered'),
+        text: t(
+          lang,
+          '这道题已经作答，挪到末尾会在本轮多出一道重复题，所以没有改动。按 [n] 继续下一题即可。',
+          'This question is already answered; moving it would add a duplicate, so nothing changed. Press [n] for the next question.',
+        ),
+      };
+    }
+    const res = await tryAction<ReviewRun & { kept?: Array<{ cardId?: string; reason?: string }> }>(host, 'review.queue.edit', {
+      runId,
+      remove: [ref],
+      add: [ref],
+      position: 'end',
+      allowCurrent: true,
+    });
+    if (!res.ok) {
+      return {
+        succeeded: false,
+        actionSummary: t(lang, '调整题序失败', 'Queue edit failed'),
+        text: res.error?.message || t(lang, '当前题目已作答或无法移动，未调整题序。', 'Could not move this card in the queue.'),
+      };
+    }
+    const kept = Array.isArray(res.value?.kept) ? res.value.kept : [];
+    if (kept.some((item) => item?.cardId === cardId)) {
+      // The backend kept the question (still on screen / being graded) but appended the copy:
+      // take the copy back out so the round is unchanged, and say the move did not happen.
+      await tryAction(host, 'review.queue.edit', { runId, remove: [ref] });
+      return {
+        succeeded: false,
+        actionSummary: t(lang, '未调整题序', 'Not moved'),
+        text: t(
+          lang,
+          '这道题暂时不能挪动（已作答或正在批改），本轮题序未变。',
+          'This question cannot move right now (answered or being graded); the round is unchanged.',
+        ),
+      };
+    }
+    if (res.value) deps.applyRun?.(res.value);
+    return {
+      succeeded: true,
+      actionSummary: t(lang, '已将本题挪到本轮最后', 'Moved card to end'),
+      text: t(lang, '已完成：本题已移至本轮练习队列末尾。', 'Moved this question to the end of the round.'),
+      toast: { message: t(lang, '已挪到本轮最后', 'Moved to end of queue'), tone: 'success' },
+    };
+  }
+
   return {
     succeeded: false,
     actionSummary: t(lang, '执行失败', 'Action failed'),
     text: t(lang, '未识别的只读动作。', 'Unrecognized read action.'),
+  };
+}
+
+/**
+ * Answer what the current question's verdict is, without changing it (#1458).
+ * Reads the real round (`review.get`); a missing run or an ungraded card is stated plainly.
+ */
+export async function readCurrentGradeStatus(deps: AssistantActionDeps): Promise<AssistantActionOutcome> {
+  const { host, cardCtx, lang } = deps;
+  const runId = cardCtx?.runId ?? '';
+  if (!runId) {
+    return {
+      succeeded: true,
+      actionSummary: t(lang, '当前没有正在批改的题目', 'No graded question open'),
+      text: t(
+        lang,
+        '现在不在刷题轮次里，没有可查询的判定。打开刷题页开始一轮后，我再帮你读判定。',
+        'No review round is open, so there is no verdict to read. Open Review and start a round first.',
+      ),
+    };
+  }
+  const got = await tryAction<ReviewRun>(host, 'review.get', { runId });
+  if (!got.ok || !got.value) {
+    return {
+      succeeded: false,
+      actionSummary: t(lang, '读取判定失败', 'Could not read the verdict'),
+      text: got.error?.message || t(lang, '无法读取本轮练习进度，请稍后重试。', 'Could not read this round.'),
+    };
+  }
+  const run = got.value;
+  const feedback = run.feedback ?? null;
+  if (!feedback) {
+    return {
+      succeeded: true,
+      actionSummary: t(lang, '本题还没有判定', 'No verdict yet'),
+      text: t(
+        lang,
+        '这道题还没有作答或批改，目前没有判定结果；作答后我再帮你看。',
+        'This question has not been answered or graded yet, so there is no verdict. Answer it first.',
+      ),
+    };
+  }
+  const grade = typeof (feedback as { grade?: unknown }).grade === 'number' ? Number((feedback as { grade: number }).grade) : undefined;
+  const correct = typeof (feedback as { correct?: unknown }).correct === 'boolean' ? Boolean((feedback as { correct: boolean }).correct) : undefined;
+  const verdict =
+    correct === true
+      ? t(lang, '判为答对', 'marked correct')
+      : correct === false
+        ? t(lang, '判为答错', 'marked wrong')
+        : t(lang, '已批改', 'graded');
+  const gradeText = grade !== undefined ? (lang === 'en' ? ` (grade ${grade})` : `（${grade} 分）`) : '';
+  return {
+    succeeded: true,
+    actionSummary: t(lang, '查询判定状态', 'Verdict status'),
+    text: t(
+      lang,
+      `本题${verdict}${gradeText}。这里只读取判定，没有改分；需要改判请直接说分数（0–5）。`,
+      `This question is ${verdict}${gradeText}. This only reads the verdict; to change it, name a grade (0–5).`,
+    ),
   };
 }
 

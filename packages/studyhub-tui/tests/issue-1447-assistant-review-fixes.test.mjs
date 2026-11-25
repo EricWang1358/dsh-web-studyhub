@@ -314,7 +314,7 @@ describe('#1447 · 4) 后端返回的 run 应用回页面', () => {
   test('review.queue.edit hands back the reordered round', async (t) => {
     const { service, host, run } = await library(t);
     let applied = null;
-    const outcome = await executeAssistantWriteAction(
+    const outcome = await executeAssistantReadAction(
       parse('把这题挪到最后', run),
       deps(host, run, { applyRun: (r) => { applied = r; } }),
     );
@@ -386,7 +386,7 @@ describe('#1447 · 6) 挪到最后 does not copy an answered question', () => {
     await service.call('review.answer', { runId: run.id, cardId: card.id, selected: ['a'] });
     const before = await service.call('review.get', { runId: run.id });
 
-    const outcome = await executeAssistantWriteAction(parse('把这题挪到最后', before), deps(host, before));
+    const outcome = await executeAssistantReadAction(parse('把这题挪到最后', before), deps(host, before));
     assert.equal(outcome.succeeded, false);
     assert.match(outcome.text, /已经作答/);
 
@@ -450,7 +450,9 @@ describe('#1447 · 建议修', async () => {
   const ctx = { currentCardId: 'c', currentDeckId: 'd', card, lang: 'zh' };
 
   test('a study request phrased with 把 is chat, not a refusal', () => {
-    for (const text of ['把这道题讲清楚一点', '帮我把这个公式推导一下']) {
+    // #1458: "讲清楚" is now a real explanation intent (explain_card), not plain chat.
+    assert.equal(parseAssistantIntent('把这道题讲清楚一点', ctx).kind, 'explain_card');
+    for (const text of ['帮我把这个公式推导一下']) {
       const intent = parseAssistantIntent(text, ctx);
       assert.equal(intent.kind, 'chat', text);
     }

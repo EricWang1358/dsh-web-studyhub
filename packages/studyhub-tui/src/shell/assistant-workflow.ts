@@ -80,7 +80,7 @@ export function planAssistantWorkflow(
   // #1339: Only treat input as a multi-step workflow when at least one clause is an executable action.
   // Ordinary questions containing semicolons or "然后"/"再" stay a single prompt for the model.
   const hasExecutableAction = steps.some(
-    (s) => s.intent.kind !== 'chat' && s.intent.kind !== 'unsupported',
+    (s) => s.intent.kind !== 'chat' && s.intent.kind !== 'boundary',
   );
   if (!hasExecutableAction) return null;
 

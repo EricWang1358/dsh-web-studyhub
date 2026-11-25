@@ -41,7 +41,7 @@ export type AssistantWriteActionName =
   | 'card.terms'
   | 'card.translate';
 
-export type AssistantReadActionName = 'review.similar' | 'review.skip';
+export type AssistantReadActionName = 'review.similar' | 'review.skip' | 'review.queue.edit';
 
 export type AssistantIntent =
   | {
@@ -108,11 +108,36 @@ export type AssistantIntent =
       requiresConfirm: false;
     }
   | {
-      kind: 'unsupported';
-      actionName: 'unsupported';
+      /**
+       * A capability boundary, not a failure (#1458): say plainly what the assistant can and cannot
+       * do, and name a real page/shortcut where the learner can finish it. The panel must never
+       * render this as "已完成".
+       */
+      kind: 'boundary';
+      actionName: 'boundary';
+      canDo: string;
+      cannotDo: string;
+      entryLabel: string;
+      entryPage?: PageId;
+      entryKey?: string;
       reason: string;
       alternativeLabel: string;
       alternativeCommand: string;
+      paramsSummary: string;
+      requiresConfirm: false;
+    }
+  | {
+      /** Explain the current card in chat (streaming), without saving or changing anything (#1458). */
+      kind: 'explain_card';
+      actionName: 'assistant.explain';
+      instruction: string;
+      paramsSummary: string;
+      requiresConfirm: false;
+    }
+  | {
+      /** Answer what the current question's verdict is; read-only, never re-grades (#1458). */
+      kind: 'read_grade_status';
+      actionName: 'review.get';
       paramsSummary: string;
       requiresConfirm: false;
     }
@@ -258,9 +283,31 @@ const MANUAL_ACTION_GUIDANCE: ReadonlyArray<{
   },
 ];
 
-/** Ask, don't act: "这题判对了吗" / "前置题怎么用" / "刷错题有用吗" are questions, not action commands (#1447). */
+/**
+ * Question wording. On its own it no longer forces chat (#1458): the content decides first, and
+ * only a question with no executable verb ("这题判对了吗", "前置题怎么用") is answered.
+ */
 const ASKING_RE =
   /(?:吗|呢|嘛|么)[？?]?\s*$|(?:是否|有没有|对不对|是不是|行不行|好不好|可不可以|能不能|会不会|要不要|怎么用|有什么用|有啥用|干什么用|怎么弄|如何用|咋用)|[?？]\s*$/i;
+
+/** A verb that names something the assistant can really do in this TUI. */
+const EXECUTABLE_VERB_RE =
+  /(?:跳过|跳(?:到)?下一题|下一题|挪(?:到)?|移(?:到)?|排(?:到)?|放(?:到)?|讲(?:清楚|详细|一下|一讲|讲)|解释|讲解|翻译|提取术语|标记|加入错题|改判|改(?:成|为)|导出|打开|跳到|切换|设置|设为|创建|新建|添加|出(?:一?道)?(?:前置|基础|补强)?题|生成|删除|斩(?:掉|题)|撤销|保存|存到|总结|复习|帮我理解|没看懂|看不懂|同类题|相似题)/;
+
+/** Pure inquiry: question wording but nothing executable in it. */
+function isPureAsking(text: string): boolean {
+  return isAsking(text) && !EXECUTABLE_VERB_RE.test(text);
+}
+
+/** "这题判对了吗" asks for the verdict; it is never a re-grade (#1458). */
+const GRADE_STATUS_RE =
+  /(?:这|本|当前|那)(?:道)?题.*(?:判(?:得)?(?:对|错)|判对|判错|答(?:对|错)了|对没对|对不对|得了多少分|多少分|评分|分数|判分|批改|判定)|(?:我|这题).*(?:判对|判错)了?(?:吗|没|呢)?/;
+const GRADE_ADJUST_RE =
+  /(?:改判|判我(?:对|正确)|这(?:道)?题我答对了|(?:把|将)?(?:评分|成绩|分数)(?:改|调)(?:成|为)|\b(?:override|adjust)\s+grade\b|\bmark\s+(?:as\s+)?correct\b)/i;
+
+/** "前置题怎么用" is a how-to question about an existing entry, not a request to generate one. */
+const PREREQUISITE_HOWTO_RE =
+  /(?:前置题|前置知识|先学前置).*(?:怎么用|如何用|怎么打开|在哪(?:里)?|怎么自查|怎么练|怎么看)|(?:怎么|如何)(?:用|打开|查看|练)(?:前置题|前置知识)/i;
 
 function isAsking(text: string): boolean {
   return ASKING_RE.test(String(text ?? '').trim());
@@ -416,8 +463,9 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
   const text = String(rawInput ?? '').trim();
   const lang = ctx.lang ?? 'zh';
   const conceptualQuestion = isConceptualStudyQuestion(text);
-  // A question the learner asked ("这题判对了吗", "前置题怎么用") is answered in chat; it never becomes an action (#1447).
-  const asking = isAsking(text);
+  // A question with nothing executable in it ("这题判对了吗", "前置题怎么用") is answered (#1458);
+  // a question that names a real action ("可以跳过这道题吗") is executed.
+  const pureAsking = isPureAsking(text);
   const { card, cardId, deckId, runId, entryIndex, course } = resolveCardContext(ctx);
 
   // 0) Unsupported out-of-scope actions -> nearest alternative + copy-prompt fallback
@@ -425,8 +473,14 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
     for (const u of UNSUPPORTED_PATTERNS) {
       if (u.re.test(text)) {
         return {
-          kind: 'unsupported',
-          actionName: 'unsupported',
+          kind: 'boundary',
+          actionName: 'boundary',
+          canDo:
+            lang === 'en'
+              ? 'I can practise cards, open sources, keep notes and show study stats inside StudyHub.'
+              : '我能在 StudyHub 里帮你刷题、查资料、记笔记、看学习统计。',
+          cannotDo: lang === 'en' ? u.reasonEn : u.reasonZh,
+          entryLabel: lang === 'en' ? u.altLabelEn : u.altLabelZh,
           reason: lang === 'en' ? u.reasonEn : u.reasonZh,
           alternativeLabel: lang === 'en' ? u.altLabelEn : u.altLabelZh,
           alternativeCommand: u.altCmd,
@@ -454,8 +508,63 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
     };
   }
 
+  // 1b) A how-to question about the existing prerequisite strip is a boundary, never a generate action (#1458).
+  if (PREREQUISITE_HOWTO_RE.test(text)) {
+    return {
+      kind: 'boundary',
+      actionName: 'boundary',
+      canDo:
+        lang === 'en'
+          ? 'I can take you to Review, where this card’s prerequisite strip opens and you can self-check or learn the prerequisites first.'
+          : '我能把你带到刷题页：本题上方的「前置题」条可以展开，按「自查前置」只练这一道，或按「先学前置」先补没掌握的知识点。',
+      cannotDo:
+        lang === 'en'
+          ? 'I cannot turn a question into a generated prerequisite card from chat; generating one needs the assistant’s derive task on a concrete card.'
+          : '我不能只凭一句话凭空生成前置题，也不会把前置题当成新题塞进本轮。',
+      entryLabel:
+        lang === 'en'
+          ? 'Real entry: Review page → the “Prerequisite” strip above the question (“Self-check” / “Learn first”).'
+          : '真实入口：刷题页 → 题目上方「前置题」条（点「自查前置」或「先学前置」）。',
+      entryPage: 'review',
+      reason:
+        lang === 'en'
+          ? 'Prerequisite questions belong to a concrete card (nothing was changed).'
+          : '前置题要绑定到具体题目上使用（未改动任何数据）。',
+      alternativeLabel: lang === 'en' ? 'Alternative: open Review' : '改为：回到这道题',
+      alternativeCommand: lang === 'en' ? 'open review' : '回到这道题',
+      paramsSummary: 'prerequisite_howto',
+      requiresConfirm: false,
+    };
+  }
+
+  // 1c) "这题判对了吗" asks for the verdict — answer it, never re-grade (#1458).
+  if (GRADE_STATUS_RE.test(text) && !GRADE_ADJUST_RE.test(text) && !EXECUTABLE_VERB_RE.test(text.replace(/判(?:对|错)|答(?:对|错)|评分|分数|判分|批改|判定/g, ''))) {
+    return {
+      kind: 'read_grade_status',
+      actionName: 'review.get',
+      paramsSummary: lang === 'en' ? 'current verdict (read-only)' : '当前判定状态（只读）',
+      requiresConfirm: false,
+    };
+  }
+
+  // 1d) "把这道题讲清楚一点" is a request for an explanation, never a refusal or a silent save (#1458).
+  if (
+    /(?:(?:把|将)?(?:这(?:道)?题|本题|当前题).*(?:讲(?:清楚|详细|一讲|一下|讲)|解释(?:清楚|一下|明白)?|详细(?:讲|解释))|(?:讲清楚|详细讲讲|解释清楚)(?:这(?:道)?题|本题)?)/.test(
+      text,
+    ) &&
+    !/(?:通俗讲解|大白话|保存|存到|笔记)/.test(text)
+  ) {
+    return {
+      kind: 'explain_card',
+      actionName: 'assistant.explain',
+      instruction: text,
+      paramsSummary: lang === 'en' ? 'explain this question' : '讲解当前题目',
+      requiresConfirm: false,
+    };
+  }
+
   // 2) Card & Study Write/Confirm Actions (#1444 + #1439 + #1315)
-  if (!conceptualQuestion && !asking) {
+  if (!conceptualQuestion && !pureAsking) {
     // 2a) Prerequisite question derivation & link (#1444 #1, #1447: a knowledge point, never the command)
     if (/(?:出|生成|建|补|添加|要|来|做)(?:一?道|个)?\s*(?:前置|基础|补强)|前置(?:补强|基础)?题\s*(?:补强|下次|巩固|关联)|(?:derive|create|make)\s+(?:a\s+)?prerequisite/i.test(text)) {
       const topic = extractPrerequisiteTopic(text) ?? (typeof card?.topic === 'string' && card.topic.trim() ? card.topic.trim() : undefined);
@@ -523,8 +632,14 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
     for (const m of MANUAL_ACTION_GUIDANCE) {
       if (m.re.test(text)) {
         return {
-          kind: 'unsupported',
-          actionName: 'unsupported',
+          kind: 'boundary',
+          actionName: 'boundary',
+          canDo:
+            lang === 'en'
+              ? 'I can take you to the right StudyHub page and run the read-only study actions around it.'
+              : '我能带你到对应的 StudyHub 页面，并执行页面里可用的学习动作。',
+          cannotDo: lang === 'en' ? m.reasonEn : m.reasonZh,
+          entryLabel: lang === 'en' ? m.altLabelEn : m.altLabelZh,
           reason: lang === 'en' ? m.reasonEn : m.reasonZh,
           alternativeLabel: lang === 'en' ? m.altLabelEn : m.altLabelZh,
           alternativeCommand: m.altCmd,
@@ -577,7 +692,7 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
     }
 
     // 2f) Override / adjust AI grade (#1444 #8, #1447: only the grade the learner named)
-    if (/(?:改判|判(?:我)?(?:对|正确)|这(?:道)?题我答对了|(?:把|将)?(?:评分|成绩|分数)(?:改|调)(?:成|为)|\b(?:override|adjust)\s+grade\b|\bmark\s+(?:as\s+)?correct\b)/i.test(text)) {
+    if (GRADE_ADJUST_RE.test(text)) {
       const grade = extractExplicitGrade(text);
       if (grade === undefined) {
         return clarifyIntent(
@@ -772,7 +887,8 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
     if (/(?:(?:把|将)这(?:道)?题(?:挪|移|放)到最后|(?:把|将)这(?:道)?题(?:延后|放后面)|\bmove\s+(?:this\s+)?(?:card|question)\s+to\s+(?:the\s+)?end\b)/i.test(text)) {
       const ref = { ...(deckId ? { deckId } : {}), ...(cardId ? { cardId } : {}) };
       return {
-        kind: 'write_confirm',
+        // Reordering the round is reversible and changes no answer, so it runs directly (#1458).
+        kind: 'run_action',
         actionName: 'review.queue.edit',
         params: {
           ...(runId ? { runId } : {}),
@@ -782,13 +898,8 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
           allowCurrent: true,
         },
         humanLabel: lang === 'en' ? 'Move question to end of queue' : '把本题挪到本轮最后',
-        previewTitle: lang === 'en' ? 'Confirm Reorder Queue' : '确认调整本轮题序',
-        previewMessage:
-          lang === 'en'
-            ? 'Will move this unanswered question to the end of the current practice queue.'
-            : '将把当前未作答题目移至本轮练习队列末尾。',
         paramsSummary: lang === 'en' ? 'move to end' : '挪到本轮末尾',
-        requiresConfirm: true,
+        requiresConfirm: false,
       };
     }
 
@@ -895,7 +1006,9 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
 
     // Skip: an ungradable question leaves the round (`review.skip`); any other one moves by index.
     // `review.move {direction:1}` throws "Answer this question before continuing" on an unanswered card (#1447).
-    if (/^(?:请|帮我)?\s*(?:跳过这(?:道)?题|先跳过|跳过本题|跳到下一题|下一题|skip(?:\s+this)?(?:\s+(?:card|question))?)[。.!！]?$/i.test(text)) {
+    // A question phrased politely ("可以跳过这道题吗？") still asks for the real skip (#1458):
+    // the verb is executable, so the question mark no longer downgrades it to chat.
+    if (/(?:可以|能不能|能否|帮我|请)?\s*(?:跳过(?:这(?:道)?题|本题)?|先跳过|跳到下一题|下一题|skip(?:\s+this)?(?:\s+(?:card|question))?)/i.test(text)) {
       return {
         kind: 'run_action',
         actionName: 'review.skip',
@@ -1053,10 +1166,22 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
 
   // 6b) Unrecognized action-like commands MUST NOT fall back to chat claiming "done" (#1444).
   // A study request phrased with 把/将 ("把这道题讲清楚一点") is chat, not an unsupported action (#1447).
-  if (!conceptualQuestion && !asking && ACTION_LIKE_REQUEST_RE.test(text) && !STUDY_REQUEST_HINT_RE.test(text)) {
+  if (!conceptualQuestion && !pureAsking && ACTION_LIKE_REQUEST_RE.test(text) && !STUDY_REQUEST_HINT_RE.test(text)) {
     return {
-      kind: 'unsupported',
-      actionName: 'unsupported',
+      kind: 'boundary',
+      actionName: 'boundary',
+      canDo:
+        lang === 'en'
+          ? 'I can run the study actions this page really offers (review, sources, notes, stats).'
+          : '我能执行当前页面真实存在的学习动作（刷题、资料、笔记、统计）。',
+      cannotDo:
+        lang === 'en'
+          ? 'I cannot directly execute this action right now; no data was changed.'
+          : '我目前不能直接执行这个操作（未改动任何数据），需要你在对应页面手动完成。',
+      entryLabel:
+        lang === 'en'
+          ? 'Real entry: the current page’s own controls, or press [P] to copy the prompt with context.'
+          : '真实入口：当前页面自身的按钮；也可按 [P] 复制带上下文的提示词。',
       reason:
         lang === 'en'
           ? 'I cannot directly execute this action right now (no data was changed). You need to perform it manually in the corresponding page or use an external tool.'

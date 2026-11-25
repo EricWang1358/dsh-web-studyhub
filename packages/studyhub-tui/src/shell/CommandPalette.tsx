@@ -717,7 +717,7 @@ export function buildNaturalLanguagePaletteItem(
     currentDeckId: ctx.deckId,
     lang: ctx.lang,
   });
-  if (wf && wf.steps.some((s) => s.intent.kind !== 'chat' && s.intent.kind !== 'unsupported')) {
+  if (wf && wf.steps.some((s) => s.intent.kind !== 'chat' && s.intent.kind !== 'boundary')) {
     return {
       id: 'nl:workflow',
       label: `${nlIcon} ${t(ctx.lang, `多步执行 (${wf.steps.length} 步): ${q}`, `Multi-step (${wf.steps.length}): ${q}`)}`,
@@ -735,7 +735,7 @@ export function buildNaturalLanguagePaletteItem(
     currentDeckId: ctx.deckId,
     lang: ctx.lang,
   });
-  if (intent.kind === 'chat' || intent.kind === 'unsupported') return null;
+  if (intent.kind === 'chat' || intent.kind === 'boundary') return null;
 
   return {
     id: `nl:${intent.actionName}`,
