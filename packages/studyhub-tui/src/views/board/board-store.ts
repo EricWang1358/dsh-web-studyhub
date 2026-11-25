@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { atomicCopyFile, atomicWriteJsonFile, todayLocalYmd } from '../../host/atomic-write.js';
+import { atomicCopyFile, atomicUpdateJson, todayLocalYmd } from '../../host/atomic-write.js';
 import type { UiLanguage } from '../../types/contracts.js';
 import { t } from '../../state/store.js';
 
@@ -238,42 +238,44 @@ export async function loadBoard(libraryRoot: string): Promise<BoardDocument> {
   return res.doc;
 }
 
-const writeQueues = new Map<string, Promise<unknown>>();
-
+/**
+ * Persist the board as a single atomic read-modify-write (#1354 P3-b): the previous file is read
+ * under the same per-path queue as the rename, so overlapping saves never lose the last write, and a
+ * failed save leaves the previous bytes untouched. Corrupt/unreadable content is never replaced
+ * unless `force` is set, and then the old file is backed up first.
+ */
 export async function saveBoard(
   libraryRoot: string,
   doc: BoardDocument,
   opts?: { force?: boolean },
 ): Promise<BoardDocument> {
   const target = boardFilePath(libraryRoot);
-  const prev = writeQueues.get(target) ?? Promise.resolve();
-  const run = prev.then(async () => {
-    const existing = await loadBoardSafe(libraryRoot);
-    if (!existing.ok) {
-      if (!opts?.force) {
-        throw new Error(
-          `Existing tui-board.json could not be read (${existing.error}); refusing to overwrite with defaults`,
-        );
-      }
-      const backupPath = `${target}.corrupt-${Date.now()}.bak`;
-      await atomicCopyFile(target, backupPath).catch(() => {});
-    }
-    const normalized = parseBoardDocument({
-      ...doc,
-      version: 1,
-      updatedAt: new Date().toISOString(),
-    });
-    await atomicWriteJsonFile(target, normalized);
-    return normalized;
-  });
-  const tail = run.catch(() => {});
-  writeQueues.set(target, tail);
-  void tail.finally(() => {
-    if (writeQueues.get(target) === tail) {
-      writeQueues.delete(target);
-    }
-  });
-  return run;
+  const recoverExisting = async (): Promise<{ recover: BoardDocument }> => {
+    const backupPath = `${target}.corrupt-${Date.now()}.bak`;
+    await atomicCopyFile(target, backupPath).catch(() => {});
+    return { recover: emptyBoard() };
+  };
+  const res = await atomicUpdateJson<BoardDocument>(
+    target,
+    () =>
+      parseBoardDocument({
+        ...doc,
+        version: 1,
+        updatedAt: new Date().toISOString(),
+      }),
+    {
+      parse: (text) => {
+        const raw: unknown = JSON.parse(text);
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+          throw new Error('Invalid board JSON: root value must be an object');
+        }
+        return parseBoardDocument(raw);
+      },
+      onReadError: async () => (opts?.force ? recoverExisting() : { abort: true }),
+      onCorrupt: async () => (opts?.force ? recoverExisting() : { abort: true }),
+    },
+  );
+  return res.value as BoardDocument;
 }
 
 /**

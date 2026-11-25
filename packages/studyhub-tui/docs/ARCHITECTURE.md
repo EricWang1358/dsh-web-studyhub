@@ -56,6 +56,8 @@ packages/studyhub-tui/
 - **Shared cross-platform atomic persistence (`src/host/atomic-write.ts`)**:
   - `atomicWriteTextFile`, `atomicWriteJsonFile`, and `defaultBackupFilePath` centralize `<libraryRoot>/backups/studyhub-*-YYYY-MM-DD.{md,json}` writes across views and modals, powering universal `[x]`/`[X]` Markdown and JSON exports.
   - Writes to a UUID-suffixed `.tmp` sibling and promotes via `renameWithRetry` (retrying Windows transient lock errors `EBUSY`/`EPERM`/`EACCES`), with guaranteed `.tmp` cleanup on failure.
+  - `atomicUpdateJson(path, mutator)` is the single entry for overwrite-style persistence (`tui.json`, `tui-board.json`): it reads, mutates, and renames as one queued unit, aborts on unreadable/corrupt input instead of clobbering it, and leaves the original bytes untouched on failure. `AtomicSkip` reports a merged value without writing (passive preference patches).
+  - `withRollback(path, run)` restores the pre-write snapshot (or removes a file the failed run created) for a single logical write, rethrowing the original error so callers keep their existing failure notices; `AtomicRollbackError` separates the original failure from a failed restore. Multi-file commits use `atomicWriteFilesBatch` / `AtomicBatchWriteError` (#1465).
 
 ---
 

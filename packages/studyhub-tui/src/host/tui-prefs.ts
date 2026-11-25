@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import type { AssistantCommandStat, LastPracticeContext, PinnedTarget, ThemeId, TuiPreferences, UiLanguage } from '../types/contracts.js';
-import { atomicCopyFile, atomicWriteJsonFile } from './atomic-write.js';
+import { atomicCopyFile, atomicUpdateJson } from './atomic-write.js';
 
 export const THEME_IDS: readonly ThemeId[] = Object.freeze([
   'dsh-dark',
@@ -304,11 +304,10 @@ export async function loadTuiPreferences(location: TuiPrefsLocation = {}): Promi
   return (await loadTuiPreferencesSafe(location)).prefs;
 }
 
-let writeQueue: Promise<unknown> = Promise.resolve();
-
 /**
- * Atomically persist preferences (temp file + rename, serialized). Accepts a partial patch which is
- * merged over what is currently stored. Returns the validated preferences actually written.
+ * Atomically persist preferences (read -> merge patch -> temp+fsync+rename) through the shared
+ * `atomicUpdateJson` entry (#1354 P3-b), which serializes overlapping saves of the same file.
+ * Returns the validated preferences actually written (or the merged ones when the write is skipped).
  *
  * Read-failure protection (#1354 D11):
  * - If the existing file is unreadable (e.g. EACCES/EBUSY), never clobber it with defaults.
@@ -321,23 +320,33 @@ export async function saveTuiPreferences(
   prefs: Partial<TuiPreferences>,
   location: TuiPrefsLocation = {},
 ): Promise<TuiPreferences> {
-  const run = writeQueue.then(async () => {
-    const target = tuiPreferencesPath(location);
-    const loaded = await loadTuiPreferencesSafe(location);
-    if (loaded.status === 'unreadable') {
-      throw new Error(`Existing tui.json could not be read (${loaded.error ?? 'unreadable'}); refusing to overwrite with defaults`);
-    }
-    const next = parseTuiPreferences({ ...loaded.prefs, ...prefs });
-    if (loaded.status === 'corrupt') {
-      if (!hasExplicitUserSetting(prefs)) {
-        return next;
-      }
-      const backupPath = `${target}.corrupt-${Date.now()}.bak`;
-      await atomicCopyFile(target, backupPath, { mode: 0o600 }).catch(() => {});
-    }
-    await atomicWriteJsonFile(target, next, { mode: 0o600 });
-    return next;
-  });
-  writeQueue = run.catch(() => {});
-  return run;
+  const target = tuiPreferencesPath(location);
+  let merged: TuiPreferences | undefined;
+  const res = await atomicUpdateJson<TuiPreferences>(
+    target,
+    (prev) => {
+      merged = parseTuiPreferences({ ...(prev ?? DEFAULT_TUI_PREFERENCES), ...prefs });
+      return merged;
+    },
+    {
+      parse: (text) => {
+        const parsed: unknown = JSON.parse(text);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('Expected preferences JSON object');
+        }
+        return parseTuiPreferences(parsed);
+      },
+      onCorrupt: async () => {
+        const recovered = parseTuiPreferences({ ...DEFAULT_TUI_PREFERENCES, ...prefs });
+        if (!hasExplicitUserSetting(prefs)) {
+          // Passive/usage-only patch: report the merged defaults but never touch the corrupt file.
+          return { skip: recovered };
+        }
+        const backupPath = `${target}.corrupt-${Date.now()}.bak`;
+        await atomicCopyFile(target, backupPath, { mode: 0o600 }).catch(() => {});
+        return { recover: recovered };
+      },
+    },
+  );
+  return merged ?? (res.value as TuiPreferences);
 }

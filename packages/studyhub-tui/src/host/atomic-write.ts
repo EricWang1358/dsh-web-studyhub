@@ -271,6 +271,188 @@ export async function atomicCopyFile(
   return atomicWritePayload(destPath, bytes, opts);
 }
 
+/**
+ * Value returned by an {@link atomicUpdateJson} mutator to report a result WITHOUT touching the
+ * file (e.g. a passive preferences patch over a corrupt file must not clobber it).
+ */
+export class AtomicSkip<T = unknown> {
+  readonly value: T | undefined;
+  constructor(value?: T) {
+    this.value = value;
+  }
+}
+
+/** Outcome of one {@link atomicUpdateJson} read-modify-write (#1354 P3-b). */
+export interface AtomicUpdateJsonResult<T> {
+  path: string;
+  /** False when nothing was written (mutator returned `undefined` or an {@link AtomicSkip}). */
+  updated: boolean;
+  value: T | undefined;
+  bytes: number;
+}
+
+/**
+ * What to do when the existing target cannot be used as the mutation baseline.
+ * `recover` supplies the baseline to mutate (the caller usually backed the file up first),
+ * `skip` leaves the file untouched and reports `value`, `abort` refuses to write and throws.
+ */
+export type AtomicBaselinePolicy<T> = { recover: T } | { skip: T | undefined } | { abort: true };
+
+export interface AtomicUpdateJsonOptions<T> extends AtomicWriteOptions {
+  /** Parse existing file text. Default `JSON.parse`. Throwing routes to `onCorrupt`. */
+  parse?: (text: string, path: string) => T;
+  /** Corrupt / non-object existing content policy. Default: abort (file stays byte-identical). */
+  onCorrupt?: (
+    error: Error,
+    raw: string,
+    path: string,
+  ) => AtomicBaselinePolicy<T> | Promise<AtomicBaselinePolicy<T>>;
+  /** Read failure policy (EACCES/EBUSY/...). ENOENT always means "no previous value". Default: abort. */
+  onReadError?: (error: Error, path: string) => AtomicBaselinePolicy<T> | Promise<AtomicBaselinePolicy<T>>;
+  /** Serialize the mutated value. Default pretty JSON + trailing newline. */
+  stringify?: (value: T) => string;
+  /** Serialize overlapping updates of the same path in-process (default true). */
+  queue?: boolean;
+}
+
+const updateQueues = new Map<string, Promise<unknown>>();
+
+/**
+ * Read -> mutate -> write a JSON file as ONE atomic unit (#1354 P3-b).
+ *
+ * - The mutation is computed from the freshly read content, so overlapping updates never lose data.
+ * - The write goes through {@link atomicWriteTextFile} (temp + fsync + rename): a failure at any
+ *   point leaves the original file byte-identical and no `.tmp` behind.
+ * - A read/parse failure aborts by default instead of clobbering the file with defaults.
+ * - Returning `undefined` (or an {@link AtomicSkip}) skips the write but still reports a value.
+ *
+ * Errors propagate unchanged so callers can surface them; the previous on-disk content is intact.
+ */
+export async function atomicUpdateJson<T>(
+  targetPath: string,
+  mutator: (prev: T | undefined) => T | AtomicSkip<T> | undefined | Promise<T | AtomicSkip<T> | undefined>,
+  opts?: AtomicUpdateJsonOptions<T>,
+): Promise<AtomicUpdateJsonResult<T>> {
+  const run = async (): Promise<AtomicUpdateJsonResult<T>> => {
+    let raw: string | null = null;
+    let prev: T | undefined;
+    try {
+      raw = await readFile(targetPath, 'utf8');
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | null)?.code;
+      if (code !== 'ENOENT') {
+        const err = error instanceof Error ? error : new Error(errText(error));
+        const policy = await opts?.onReadError?.(err, targetPath);
+        if (!policy || 'abort' in policy) {
+          throw new Error(
+            `Existing ${basename(targetPath)} could not be read (${code ?? err.message}); refusing to overwrite it`,
+            { cause: err },
+          );
+        }
+        if ('skip' in policy) {
+          return { path: targetPath, updated: false, value: policy.skip, bytes: 0 };
+        }
+        prev = policy.recover;
+      }
+    }
+
+    if (raw !== null) {
+      try {
+        const parse = opts?.parse ?? ((text: string) => JSON.parse(text) as T);
+        prev = parse(raw, targetPath);
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error(errText(error));
+        const policy = await opts?.onCorrupt?.(err, raw, targetPath);
+        if (!policy || 'abort' in policy) {
+          throw new Error(
+            `Existing ${basename(targetPath)} is not valid JSON (${err.message}); refusing to overwrite it`,
+            { cause: err },
+          );
+        }
+        if ('skip' in policy) {
+          return { path: targetPath, updated: false, value: policy.skip, bytes: 0 };
+        }
+        prev = policy.recover;
+      }
+    }
+
+    const next = await mutator(prev);
+    if (next === undefined) {
+      return { path: targetPath, updated: false, value: prev, bytes: 0 };
+    }
+    if (next instanceof AtomicSkip) {
+      return { path: targetPath, updated: false, value: next.value, bytes: 0 };
+    }
+    const payload = (opts?.stringify ?? ((value: T) => `${JSON.stringify(value, null, 2)}\n`))(next);
+    const { bytes } = await atomicWriteTextFile(targetPath, payload, opts);
+    return { path: targetPath, updated: true, value: next, bytes };
+  };
+
+  if (opts?.queue === false) return run();
+
+  const previous = updateQueues.get(targetPath) ?? Promise.resolve();
+  const chained = previous.then(run, run);
+  const tail = chained.catch(() => {});
+  updateQueues.set(targetPath, tail);
+  void tail.finally(() => {
+    if (updateQueues.get(targetPath) === tail) updateQueues.delete(targetPath);
+  });
+  return chained;
+}
+
+/** Raised when `run()` failed AND restoring the pre-write snapshot also failed (#1354 P3-b). */
+export class AtomicRollbackError extends Error {
+  readonly originalError: unknown;
+  readonly rollbackError: unknown;
+  constructor(targetPath: string, originalError: unknown, rollbackError: unknown) {
+    super(
+      `${basename(targetPath)} was not restored after a failed write (${errText(rollbackError)}); ` +
+        `original error: ${errText(originalError)}`,
+    );
+    this.name = 'AtomicRollbackError';
+    this.originalError = originalError;
+    this.rollbackError = rollbackError;
+  }
+}
+
+/**
+ * Run a single logical write against `targetPath` and restore the exact pre-write state if it
+ * throws (#1354 P3-b).
+ *
+ * `run` may perform any write (including several steps on the same path); on failure the previous
+ * bytes are restored atomically, or the file is removed when it did not exist before. A successful
+ * run is returned untouched, and a successful rollback rethrows the original error so callers keep
+ * their existing catch/notice logic.
+ */
+export async function withRollback<R>(
+  targetPath: string,
+  run: () => Promise<R>,
+  opts?: AtomicWriteOptions,
+): Promise<R> {
+  let snapshot: Buffer | null = null;
+  try {
+    snapshot = await readFile(targetPath);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | null)?.code;
+    if (code !== 'ENOENT') throw error;
+  }
+
+  try {
+    return await run();
+  } catch (error) {
+    try {
+      if (snapshot === null) {
+        await rm(targetPath, { force: true });
+      } else {
+        await atomicWritePayload(targetPath, snapshot, opts);
+      }
+    } catch (rollbackError) {
+      throw new AtomicRollbackError(targetPath, error, rollbackError);
+    }
+    throw error;
+  }
+}
+
 export interface AtomicBatchEntry {
   path: string;
   content: string | Uint8Array;
