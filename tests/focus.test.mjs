@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StudyService } from "../lib/service.js";
 
-test("current course persists and its newest deck supplies only ten fresh cards", async () => {
+test("current course persists and its first chapter deck supplies only ten fresh cards in course order (#1296)", async () => {
   const root = await mkdtemp(join(tmpdir(), "study-focus-"));
   const service = new StudyService(root);
   await service.store.update((state) => {
@@ -24,16 +24,16 @@ test("current course persists and its newest deck supplies only ten fresh cards"
   const snapshot = await restored.call("snapshot");
   assert.equal(snapshot.focus.course, "Platform Engineering");
   assert.equal(snapshot.focus.fresh.length, 10);
-  assert.ok(snapshot.focus.fresh.every((entry) => entry.deckId === "new"));
+  assert.ok(snapshot.focus.fresh.every((entry) => entry.deckId === "old"));
   const run = await restored.call("review.start", { mode: "new", currentCourse: true, count: 10, fresh: true });
   assert.equal(run.total, 10);
   const state = await restored.call("export");
-  assert.ok(state.runs.at(-1).entries.every((entry) => entry.deckId === "new"));
+  assert.ok(state.runs.at(-1).entries.every((entry) => entry.deckId === "old"));
   await restored.call("focus.set", { course: "Architecture" });
   const next = await restored.call("review.start", { mode: "new", scope: state.runs.at(-1).scope,
     count: 10, fresh: true });
   assert.equal(next.total, 10);
-  assert.ok((await restored.call("export")).runs.at(-1).entries.every((entry) => entry.deckId === "new"));
+  assert.ok((await restored.call("export")).runs.at(-1).entries.every((entry) => entry.deckId === "old"));
 });
 
 test("job description proposes only existing topics and saves onto an interview course while global interview mode is retired", async () => {

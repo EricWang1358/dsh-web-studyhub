@@ -139,12 +139,12 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
   const canPickPages = !interview && !starter && (today.new > 0 || freshCount > 0) && pickPagesItems.length > 0 && typeof onPickPages === 'function';
   /* The ways to start that are not the round: the course's next batch (chapter order), new questions only, reader page-picking, and whatever waits in the other courses. */
   const otherStarts = [
-    ...(!interview && today.focusTotal > 0 ? [[uiFormat('只练重点 · {0} 题', [today.focusTotal]), startFocusOnly]] : []),
-    ...(route?.next ? [[uiFormat('课程下一批 · {0} 题', [route.next.fresh + route.next.reviews]), startCourse]] : []),
-    ...(!interview && freshCount ? [[uiFormat('只学当前课程新题 · {0} 题', [freshCount]), startFresh]] : []),
-    ...(canPickPages ? [[ui('打开资料按页做题'), () => onPickPages(pickPagesSourceIds)]] : []),
+    ...(!interview && today.focusTotal > 0 ? [[uiFormat('只练重点 · {0} 题', [today.focusTotal]), startFocusOnly, ui('只练当前课程标记为重点的题目。')]] : []),
+    ...(route?.next ? [[uiFormat('课程下一批 · {0} 题', [route.next.fresh + route.next.reviews]), startCourse, ui('按课程路线逐章顺推：从第一个未学完的章顺次推进，并夹带最多 5 道已学章节的巩固题。')]] : []),
+    ...(!interview && freshCount ? [[uiFormat('只学当前课程新题 · {0} 题', [freshCount]), startFresh, ui('只抽当前课程的新题：按题组章序与章内资料位置顺序推进，不含到期和薄弱旧题。')]] : []),
+    ...(canPickPages ? [[ui('打开资料按页做题'), () => onPickPages(pickPagesSourceIds), ui('按资料页码精准选页做题，避免抽到还没学到的后面章节。')]] : []),
     ...flowLink,
-    ...(today.elsewhere > 0 ? [[uiFormat('其他课程另有 {0} 题到期或薄弱 · 一起学', [today.elsewhere]), startEverywhere]] : []),
+    ...(today.elsewhere > 0 ? [[uiFormat('其他课程另有 {0} 题到期或薄弱 · 一起学', [today.elsewhere]), startEverywhere, ui('把其他活跃课程的到期与薄弱题并入同一轮复习。')]] : []),
   ];
   const openMethodOrImport = onCourseSettings && data.focus?.courseId ? () => onCourseSettings(data.focus.courseId) : addSource;
   const stageOneCard = () => {
@@ -244,7 +244,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
      line: the card is the one thing to continue, the recommendation the one next step. */
   const alternatives = [
     // (a hand-off entry is drawn by the shared unit on the empty card only, never as a link of the fold)
-    ...plan.also.filter(Array.isArray).map(([label, run]) => [label, run]),
+    ...plan.also.filter(Array.isArray).map(([label, run, hint]) => (hint ? [label, run, hint] : [label, run])),
     ...(data.coach?.ready > 0 && onCoachPractice ? [[uiFormat('刷 {0} 道为你定制的题', [data.coach.ready]), onCoachPractice,
       ui('从你答错、标记太简单/太难和只练了概念的地方出发，换成具体场景再练一遍。')]] : []),
     ...(today.weak > 0 && onWeakPoints ? [[uiFormat('{0} 题薄弱 · 看错题与待巩固', [today.weak]), onWeakPoints, ui(TERMS.weak.hint)]] : []),
