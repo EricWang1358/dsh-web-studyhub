@@ -5,7 +5,7 @@
         "matcher": "run_command",
         "hooks": [
           {
-            "command": "node .claude/hooks/skill-moment.mjs",
+            "command": "node ../.claude/hooks/skill-moment.mjs",
             "timeout": 10
           }
         ]

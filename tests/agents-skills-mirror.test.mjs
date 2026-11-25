@@ -97,5 +97,5 @@ test('the Codex and Antigravity hook files run the same script with no moment fi
 
   const agy = JSON.parse(await readFile(join(root, '.agents/hooks.json'), 'utf8'));
   const agyHooks = Object.values(agy).flatMap(h => (h.PreToolUse ?? []).flatMap(g => (g.matcher === 'run_command' ? g.hooks : [])));
-  assert.ok(agyHooks.some(h => /node \.claude\/hooks\/skill-moment\.mjs$/.test(h.command)), 'Antigravity matches run_command and runs skill-moment.mjs');
+  assert.ok(agyHooks.some(h => /node \.\.\/\.claude\/hooks\/skill-moment\.mjs$/.test(h.command)), 'Antigravity matches run_command and runs skill-moment.mjs');
 });
