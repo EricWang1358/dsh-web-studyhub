@@ -69,6 +69,16 @@ export const GLOBAL_KEYMAP_ENTRIES: readonly GlobalKeymapEntry[] = Object.freeze
     helpEn: 'Notification inbox',
   },
   {
+    id: 'notification-history',
+    helpKey: 'Ctrl+O',
+    footerKey: 'Ctrl+O',
+    footerZh: '提示',
+    footerEn: 'Notif',
+    helpZh: '通知历史（最近 50 条，可复制/清空）',
+    helpEn: 'Notification history (last 50, copy/clear)',
+    inDefaultFooter: true,
+  },
+  {
     id: 'page-jump',
     helpKey: '1-9 0',
     footerKey: '1-9',
@@ -166,7 +176,13 @@ export const GLOBAL_KEYMAP_ENTRIES: readonly GlobalKeymapEntry[] = Object.freeze
   },
 ]);
 
-const DEFAULT_FOOTER_ORDER: readonly string[] = ['page-jump', 'course-picker', 'page-cycle', 'quit'];
+const DEFAULT_FOOTER_ORDER: readonly string[] = [
+  'page-jump',
+  'course-picker',
+  'notification-history',
+  'page-cycle',
+  'quit',
+];
 
 /** Build default global footer hints from the single keymap table. */
 export function buildDefaultFooterHints(lang: UiLanguage): KeyHint[] {

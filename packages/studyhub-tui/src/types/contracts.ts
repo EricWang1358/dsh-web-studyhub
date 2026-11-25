@@ -196,6 +196,8 @@ export interface ToastItem {
   text: string;
   tone: 'info' | 'success' | 'warning' | 'error';
   createdAt: number;
+  /** Optional origin label (page / feature / command) surfaced in the notification history panel (#1354 P2-b). */
+  source?: string;
 }
 
 export interface KeyHint {

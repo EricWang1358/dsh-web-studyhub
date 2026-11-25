@@ -22,6 +22,9 @@ const CommandPalette = lazy(() => import('./CommandPalette.js').then((m) => ({ d
 const HelpOverlay = lazy(() => import('./HelpOverlay.js').then((m) => ({ default: m.HelpOverlay })));
 const CoursePickerModal = lazy(() => import('./CoursePickerModal.js').then((m) => ({ default: m.CoursePickerModal })));
 const InboxModal = lazy(() => import('./InboxModal.js').then((m) => ({ default: m.InboxModal })));
+const NotificationHistoryModal = lazy(() =>
+  import('./NotificationHistoryModal.js').then((m) => ({ default: m.NotificationHistoryModal })),
+);
 const AssistantPanel = lazy(() => import('./AssistantPanel.js').then((m) => ({ default: m.AssistantPanel })));
 
 export interface VoicePackRenderProps {
@@ -92,6 +95,7 @@ export const AppShell = memo(function AppShell({
   const helpOpen = useTuiStore((s) => s.helpOpen);
   const courseOpen = useTuiStore((s) => s.coursePickerOpen);
   const inboxOpen = useTuiStore((s) => s.inboxOpen);
+  const notificationHistoryOpen = useTuiStore((s) => s.notificationHistoryOpen);
   const voiceOpen = useTuiStore((s) => s.voicePackOpen);
   const quitConfirmOpen = useTuiStore((s) => s.quitConfirmOpen);
   const assistantOpen = useTuiStore((s) => s.assistantOpen);
@@ -131,7 +135,8 @@ export const AppShell = memo(function AppShell({
   const voiceOverlay = voiceOpen && Boolean(renderVoicePack);
   // Right-docked passive assistant (`assistantOpen && !assistantFocused && !assistantFullscreen`) NEVER steals focus!
   const assistantCapturesFocus = assistantOpen && (assistantFocused || assistantFullscreen);
-  const shellModalOpen = paletteOpen || helpOpen || courseOpen || inboxOpen || voiceOverlay || quitConfirmOpen;
+  const shellModalOpen =
+    paletteOpen || helpOpen || courseOpen || inboxOpen || notificationHistoryOpen || voiceOverlay || quitConfirmOpen;
   const assistantScopeActive = assistantCapturesFocus && !shellModalOpen;
   const overlayOpen = shellModalOpen || assistantCapturesFocus;
 
@@ -206,6 +211,13 @@ export const AppShell = memo(function AppShell({
         }
         if (!r.overlayOpen && !r.inputCaptured) {
           s.openAssistant({ focused: true });
+          return true;
+        }
+        return false;
+      }
+      if (key.ctrl && input === 'o') {
+        if (!r.overlayOpen && !r.inputCaptured) {
+          s.setNotificationHistoryOpen(true);
           return true;
         }
         return false;
@@ -376,7 +388,9 @@ export const AppShell = memo(function AppShell({
                 <Suspense fallback={null}>
                   <AssistantPanel
                     host={host}
-                    isActive={!paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !quitConfirmOpen}
+                    isActive={
+                      !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !notificationHistoryOpen && !quitConfirmOpen
+                    }
                     width={Math.max(40, columns - navW - 2)}
                     height={bodyH}
                     docked
@@ -394,7 +408,15 @@ export const AppShell = memo(function AppShell({
                 <Suspense fallback={null}>
                   <AssistantPanel
                     host={host}
-                    isActive={assistantFocused && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !quitConfirmOpen}
+                    isActive={
+                      assistantFocused &&
+                      !paletteOpen &&
+                      !helpOpen &&
+                      !courseOpen &&
+                      !inboxOpen &&
+                      !notificationHistoryOpen &&
+                      !quitConfirmOpen
+                    }
                     width={dockW}
                     height={bodyH}
                     docked
@@ -412,7 +434,15 @@ export const AppShell = memo(function AppShell({
                 <Suspense fallback={null}>
                   <AssistantPanel
                     host={host}
-                    isActive={assistantFocused && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !quitConfirmOpen}
+                    isActive={
+                      assistantFocused &&
+                      !paletteOpen &&
+                      !helpOpen &&
+                      !courseOpen &&
+                      !inboxOpen &&
+                      !notificationHistoryOpen &&
+                      !quitConfirmOpen
+                    }
                     width={dockW}
                     height={dockH}
                     docked
@@ -469,6 +499,16 @@ export const AppShell = memo(function AppShell({
             </Suspense>
           </KeyScopeProvider>
         ) : null}
+        {notificationHistoryOpen && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen ? (
+          <KeyScopeProvider>
+            <Suspense fallback={null}>
+              <NotificationHistoryModal
+                isActive={notificationHistoryOpen}
+                onClose={() => useTuiStore.getState().setNotificationHistoryOpen(false)}
+              />
+            </Suspense>
+          </KeyScopeProvider>
+        ) : null}
         {voiceOverlay && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && renderVoicePack ? (
           <KeyScopeProvider>
             {renderVoicePack({
@@ -500,7 +540,7 @@ export const AppShell = memo(function AppShell({
         {voiceOpen && !renderVoicePack ? <VoicePackFallback /> : null}
         {toasts.length > 0 ? (
           <Box position="absolute" top={toastTop} left={Math.max(0, columns - toastW - 1)} width={toastW}>
-            <ToastStack toasts={toasts} onDismiss={dismissToast} width={toastW} />
+            <ToastStack toasts={toasts} onDismiss={dismissToast} width={toastW} paused={notificationHistoryOpen} />
           </Box>
         ) : null}
       </Box>
