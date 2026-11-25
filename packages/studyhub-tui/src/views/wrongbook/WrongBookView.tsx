@@ -24,6 +24,7 @@ import { LAYOUT_BP, computeFilterBarLayout } from '../../components/layout-token
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { renderProgressBar } from '../../render/charts.js';
+import { gradeShortLabel } from '../../grade-scale.js';
 import { buildFileHyperlinkUrl, formatOsc8Link } from '../../render/osc8.js';
 import { buildTopWrongCluster } from './quick-triage.js';
 import {
@@ -1215,7 +1216,13 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
                 variant="outline"
               />
               <Text color={theme.muted}>
-                {t(lang, `最近评分 ${selectedItem.lastGrade ?? '-'}/5`, `Grade ${selectedItem.lastGrade ?? '-'}/5`)}
+                {typeof selectedItem.lastGrade === 'number' && gradeShortLabel(selectedItem.lastGrade, lang)
+                  ? t(
+                      lang,
+                      `最近评分 ${selectedItem.lastGrade}/5${asciiMode ? ' - ' : ' · '}${gradeShortLabel(selectedItem.lastGrade, lang)}`,
+                      `Grade ${selectedItem.lastGrade}/5${asciiMode ? ' - ' : ' · '}${gradeShortLabel(selectedItem.lastGrade, lang)}`,
+                    )
+                  : t(lang, `最近评分 ${selectedItem.lastGrade ?? '-'}/5`, `Grade ${selectedItem.lastGrade ?? '-'}/5`)}
               </Text>
             </Box>
             <Box height={1} overflow="hidden">

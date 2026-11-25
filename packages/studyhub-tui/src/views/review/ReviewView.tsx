@@ -40,6 +40,7 @@ import { displayWidth, truncateDisplay, wrapDisplay } from '../../render/cjk.js'
 import { buildFileHyperlinkUrl, formatOsc8Link } from '../../render/osc8.js';
 import { buildReviewWindowTitle, writeTerminalTitle } from '../../render/terminal-title.js';
 import { buildReviewQuickActions } from './quick-actions.js';
+import { gradeLabel } from '../../grade-scale.js';
 import {
   FSRS_GRADES,
   MAX_TRANSLATION_CACHE,
@@ -247,19 +248,25 @@ function GradeAdjustModal({
           ? t(lang, `当前: ${currentGrade ?? '-'}/5 (AI 原评 ${originalGrade})`, `Current: ${currentGrade ?? '-'}/5 (AI: ${originalGrade})`)
           : t(lang, `当前评分: ${currentGrade ?? '-'}/5，选择调整后的 FSRS 评分 (0-5):`, `Current grade: ${currentGrade ?? '-'}/5. Pick new FSRS grade (0-5):`)}
       </Text>
+      {typeof currentGrade === 'number' && gradeLabel(currentGrade, lang) ? (
+        <Text color={theme.dim}>
+          {t(lang, `当前这一档：${gradeLabel(currentGrade, lang)}`, `This grade: ${gradeLabel(currentGrade, lang)}`)}
+        </Text>
+      ) : null}
       <Box flexDirection="column" marginTop={1}>
         {FSRS_GRADES.map((g, idx) => {
           const isCursor = idx === cursor;
           const isCurrent = g.grade === currentGrade;
           const isOriginal = g.grade === originalGrade;
           const label = lang === 'en' ? g.labelEn : g.labelZh;
+          const meaning = gradeLabel(g.grade, lang);
           return (
             <Box key={g.key} flexDirection="row" gap={1}>
               <Text color={isCursor ? theme.primary : theme.dim} bold={isCursor}>
                 {isCursor ? (asciiMode ? '> ' : '▸ ') : '  '}
               </Text>
               <Text color={isCursor ? theme.primary : theme.text} bold={isCursor || isCurrent}>
-                {`[${g.key}] ${label}`}
+                {`[${g.key}] ${label}${meaning ? `${asciiMode ? ' - ' : ' · '}${meaning}` : ''}`}
               </Text>
               {isCurrent ? <Text color={theme.accent}>{t(lang, '(当前)', '(current)')}</Text> : null}
               {isOriginal ? <Text color={theme.muted}>{t(lang, '(AI原评)', '(AI)')}</Text> : null}
