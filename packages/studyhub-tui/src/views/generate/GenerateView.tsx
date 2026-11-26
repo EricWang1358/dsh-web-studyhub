@@ -229,7 +229,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
   const notify = useTuiStore((s) => s.notify);
   const inputCaptured = useTuiStore((s) => s.inputCaptured);
   const shellOverlay = useTuiStore(
-    (s) => s.commandPaletteOpen || s.helpOpen || s.coursePickerOpen || s.inboxOpen || s.voicePackOpen,
+    (s) => s.commandPaletteOpen || s.helpOpen || s.coursePickerOpen || s.inboxOpen || s.notificationHistoryOpen || s.voicePackOpen,
   );
   const { columns } = useStableWindowSize();
   const { refresh } = useShellActions();
