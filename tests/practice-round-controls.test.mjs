@@ -794,9 +794,106 @@ test('#6, #41, #42, #43, #44: ResultBreakdown legend filtering, RoundLookBack ex
   assert.equal(fireKey('O', 0, { ctrlKey: true }), false, 'modified O does not trigger source jump');
 
   app.unmount();
+});
 
-  // Verify Review.jsx passes skippedIndices to ReviewNavigator (regression check)
-  const { readFileSync } = await import('node:fs');
-  const reviewSrc = readFileSync(new URL('../ui/Review.jsx', import.meta.url), 'utf8');
-  assert.match(reviewSrc, /skippedIndices=\{session\.skippedIndices\}/);
+test('Review passes session.skippedIndices to ReviewNavigator so skipped unanswered items show skipped indicators', async () => {
+  const { Review, StudyServicesContext, setUiLanguage } = await loadUi(`
+    export { default as Review } from './ui/Review.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  setUiLanguage('zh');
+  const noop = () => {};
+  const run = {
+    id: 'run-skip-ui',
+    mode: 'path',
+    index: 1,
+    total: 3,
+    questions: 3,
+    complete: false,
+    deckId: 'd',
+    card: quiz('q2'),
+    navigation: [
+      { index: 0, answered: false, level: 0, topic: 'T-q1' },
+      { index: 1, answered: false, level: 0, topic: 'T-q2' },
+      { index: 2, answered: true, passed: true, level: 1, topic: 'T-q3' },
+    ],
+    position: { total: 3, at: 2, retries: 0, retryAt: 0, last: false },
+  };
+  const emptyEntry = { selected: [], response: '', clozeValues: {}, hint: false, explain: false, teaching: null, teachAnswer: '', assistance: {} };
+  const makeSession = (skippedIndices) => ({
+    run,
+    choice: true,
+    isCloze: false,
+    rubricCard: false,
+    entry: emptyEntry,
+    skippedIndices,
+    subscribeLive: () => () => {},
+    getLive: () => ({ entry: emptyEntry, keyGrade: null, autoAdvancePaused: false, explainHidden: false, pendingAnswer: null }),
+    enterRun: noop,
+    flushDraft: async () => true,
+    questionKeys: { current: {} },
+    actions: {
+      reviewAct: async () => undefined,
+      choose: noop,
+      clearChoice: noop,
+      flipCard: noop,
+      toggleHelp: noop,
+      toggleEn: noop,
+      toggleAutoTerms: noop,
+      toggleAutopilot: noop,
+      toggleSelfGradeAdvance: noop,
+      skipQuestion: noop,
+      askEnd: noop,
+      cancelEnd: noop,
+      endRound: noop,
+      setAutoAdvancePaused: noop,
+      setResponse: noop,
+      setClozeValue: noop,
+      setTeachAnswer: noop,
+      noteAssistance: noop,
+    },
+  });
+  const data = { root: 'r', decks: [{ id: 'd', title: 'D', course: 'C', cards: [] }], sources: [], settings: {} };
+  const services = {
+    call: async () => ({}),
+    act: async () => undefined,
+    busy: false,
+    host: { capabilities: {} },
+    navigate: noop,
+    openSettings: noop,
+    notify: noop,
+    openModal: noop,
+  };
+  const renderTicks = (skippedIndices) => {
+    const html = renderToStaticMarkup(React.createElement(
+      StudyServicesContext.Provider,
+      { value: services },
+      React.createElement(Review, { session: makeSession(skippedIndices), data, shellTitle: 'D' }),
+    ));
+    const navMatch = html.match(/<nav class="review-navigator"[\s\S]*?<\/nav>/);
+    assert.ok(navMatch, 'Review renders ReviewNavigator rail for an active round');
+    return [...navMatch[0].matchAll(/<button class="review-tick"[^>]*>/g)].map((m) => m[0]);
+  };
+
+  try {
+    const ticksWithSkip = renderTicks(new Set([0, 2]));
+    assert.equal(ticksWithSkip.length, 3, 'ReviewNavigator renders one tick per question');
+    assert.match(ticksWithSkip[0], /data-skipped="true"/, 'unanswered skipped index carries data-skipped="true"');
+    assert.match(ticksWithSkip[0], /aria-label="[^"]*先跳过待答"/, 'unanswered skipped tick announces 先跳过待答');
+    assert.doesNotMatch(ticksWithSkip[1], /data-skipped="true"/, 'current unskipped index is not marked skipped');
+    assert.doesNotMatch(ticksWithSkip[1], /先跳过待答/);
+    assert.match(ticksWithSkip[1], /aria-current="step"/);
+    assert.doesNotMatch(ticksWithSkip[2], /data-skipped="true"/, 'answered index is not marked skipped even if present in skippedIndices');
+    assert.doesNotMatch(ticksWithSkip[2], /先跳过待答/);
+
+    const ticksNoSkip = renderTicks(new Set());
+    assert.equal(ticksNoSkip.length, 3);
+    for (const tick of ticksNoSkip) {
+      assert.doesNotMatch(tick, /data-skipped="true"/, 'empty skippedIndices marks no tick as skipped');
+      assert.doesNotMatch(tick, /先跳过待答/);
+    }
+  } finally {
+    setUiLanguage('zh');
+  }
 });

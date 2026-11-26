@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const ui = await loadUi(`
   export { default as BookChapter } from './ui/book/BookChapter.jsx';
@@ -157,16 +158,126 @@ test('without a model: the gate for 写进这个知识点 only; 发给主会话 
   // (the whole book has no form: 更多 › 整本书 › 发给主会话 hands it over at once, tests/book-send-to-chat.test.mjs)
 });
 
-test('the selection toolbar\'s 弄懂 is secondary and its words never carry the 角标 digits (the source pins both)', async () => {
-  const fs = await import('node:fs');
-  const bar = fs.readFileSync(new URL('../ui/book/BookSelectBar.jsx', import.meta.url), 'utf8'), words = fs.readFileSync(new URL('../ui/book/ask-visibility.js', import.meta.url), 'utf8');
-  assert.match(bar, /variant="secondary" icon="sparkle" data-book-select="explain"/);
-  assert.doesNotMatch(bar, /variant="primary"/);
-  assert.match(bar, /addEventListener\('selectionchange'/, 'it listens to selectionchange (keyboard and touch selections count)');
-  assert.match(words, /querySelectorAll\('\.md-cite'\)\.forEach\(mark => mark\.remove\(\)\)/);
+test('the selection toolbar listens to selectionchange, strips .md-cite marks, renders 弄懂 as secondary with sparkle, and triggers explain', async (t) => {
+  const interactive = await loadInteractiveUi(`
+    export { default as BookSelectBar } from './ui/book/BookSelectBar.jsx';
+    export { Button } from './ui/components/index.js';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const { BookSelectBar, Button, StudyServicesContext, setUiLanguage } = interactive.exports;
+  const ih = interactive.React.createElement;
+  setUiLanguage('zh');
+
+  const docListeners = new Map();
+  const addDocListener = (type, fn) => {
+    if (!docListeners.has(type)) docListeners.set(type, new Set());
+    docListeners.get(type).add(fn);
+  };
+  const removeDocListener = (type, fn) => { docListeners.get(type)?.delete(fn); };
+
+  // Minimal DOM fragment supporting .md-cite removal inside selectedWords(range).
+  const makeFragmentContainer = () => {
+    const items = [];
+    return {
+      append(nodes) { items.push(...nodes); },
+      querySelectorAll(sel) {
+        if (sel === '.md-cite') return items.filter(n => n.className === 'md-cite').map(n => ({ remove: () => { const i = items.indexOf(n); if (i >= 0) items.splice(i, 1); } }));
+        return [];
+      },
+      get textContent() { return items.map(n => n.text).join(''); },
+    };
+  };
+
+  const bookColumn = { isConnected: true, getBoundingClientRect: () => ({ left: 40, top: 0, right: 740, bottom: 800, width: 700, height: 800 }) };
+  const pointEl = {
+    nodeType: 1,
+    dataset: { bookPoint: 'h2' },
+    closest: sel => (sel === '[data-book-point]' ? pointEl : sel.includes('.book-read') ? bookColumn : null),
+  };
+  const textNode = {
+    nodeType: 3,
+    parentElement: pointEl,
+    get ownerDocument() { return globalThis.document; },
+  };
+  const fakeRange = {
+    startContainer: textNode,
+    endContainer: textNode,
+    cloneRange: () => fakeRange,
+    cloneContents: () => [
+      { text: 'The architect ' },
+      { className: 'md-cite', text: '[1]' },
+      { text: 'records each decision' },
+      { className: 'md-cite', text: '[2]' },
+    ],
+    getClientRects: () => [{ left: 80, top: 120, right: 260, bottom: 140, width: 180, height: 20 }],
+  };
+
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    await withBrowserGlobals(async () => {
+      const explained = [];
+      const mounted = interactive.mount(ih(
+        StudyServicesContext.Provider,
+        { value: services },
+        ih(BookSelectBar, {
+          host: null,
+          scrollerRef: { current: null },
+          model: { ready: true },
+          onExplain: payload => explained.push(payload),
+          onWrite: noop,
+          onSend: noop,
+        }),
+      ));
+      try {
+        assert.equal(docListeners.get('selectionchange')?.size, 1, 'BookSelectBar registers a selectionchange listener on document');
+        assert.equal(mounted.find(n => n.props?.['data-book-select'] === 'explain'), null, 'hidden before a selectionchange settles');
+
+        await mounted.act(() => {
+          for (const fn of docListeners.get('selectionchange')) fn();
+          t.mock.timers.tick(160);
+        });
+
+        const toolbar = mounted.find(n => n.props?.role === 'toolbar');
+        assert.ok(toolbar, 'toolbar appears after selectionchange inside a book point');
+        const buttons = mounted.findAll(n => n.type === 'button', toolbar);
+        assert.equal(buttons.some(btn => String(btn.props?.className || '').includes('sh-btn--primary')), false, 'no primary button in selection toolbar');
+
+        const explainComp = mounted.find(n => n.type === Button.render && n.props?.['data-book-select'] === 'explain', toolbar);
+        assert.ok(explainComp, 'explain Button component renders');
+        assert.equal(explainComp.props.variant, 'secondary', '弄懂 uses secondary variant');
+        assert.equal(explainComp.props.icon, 'sparkle', '弄懂 uses sparkle icon');
+
+        const explainBtn = mounted.find(n => n.type === 'button' && n.props?.['data-book-select'] === 'explain', toolbar);
+        assert.ok(explainBtn, 'rendered explain button exists');
+        assert.match(explainBtn.props.className, /\bsh-btn--secondary\b/);
+        assert.doesNotMatch(explainBtn.props.className, /\bsh-btn--primary\b/);
+        assert.ok(mounted.find(n => n.type === 'svg' && String(n.props?.className || '').includes('sh-icon'), explainBtn), 'sparkle icon SVG renders inside explain button');
+        assert.equal(mounted.text(explainBtn), '弄懂');
+
+        await mounted.act(() => { click(explainBtn); });
+        assert.deepEqual(explained, [{ heading: 'h2', words: 'The architect records each decision' }], 'clicking 弄懂 forwards the selection with .md-cite digits stripped');
+        assert.equal(mounted.find(n => n.props?.role === 'toolbar'), null, 'toolbar closes after triggering explain');
+      } finally {
+        mounted.unmount();
+      }
+      assert.equal(docListeners.get('selectionchange')?.size ?? 0, 0, 'unmounting removes selectionchange listener');
+    }, {
+      document: {
+        addEventListener: addDocListener,
+        removeEventListener: removeDocListener,
+        createElement: makeFragmentContainer,
+      },
+      window: {
+        getSelection: () => ({ rangeCount: 1, isCollapsed: false, getRangeAt: () => fakeRange }),
+      },
+    });
+  } finally {
+    t.mock.timers.reset();
+  }
 });
 
-test('English: the page\'s own words', () => english(() => {
+test('CourseBook AI in English: the course-book AI surface\'s own words', () => english(() => {
   const html = chapter(), panel = render(h(ui.BookAsk, { target: { heading: 'h2', words: 'records', anchor: null }, model: { ready: true }, onWrite: noop, onSend: noop, onClose: noop }));
   const line = render(h(ui.BookAiLine, { line: { kind: 'writing', jobId: 'j' } })) + render(h(ui.BookAiLine, { line: { kind: 'undo' } })) + render(h(ui.BookAiLine, { line: { kind: 'failed', error: 'x' } }));
   const own = `${textOf(html)} ${textOf(panel)} ${textOf(line)}`.replace(/Entropy|First paragraph\.|The architect records each decision and its reasons\.|Third paragraph\.|My note\.|An explanation of it\.|Orphan\.|关于：「records each decision」|关于：「words that are nowhere」/g, '');

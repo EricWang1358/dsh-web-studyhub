@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { readFile } from "node:fs/promises";
 import { StudyService } from "../lib/service.js";
 import { taskProgress } from "../lib/daily-plan/tasks.js";
 import { deriveItemStatus, computeSessionProgress } from "../lib/study-progress.js";
@@ -18,6 +17,7 @@ import { exportCompanionFiles } from "../lib/companion/companions.js";
 import { exportAttachments, retainOriginal } from "../lib/contexts/materials/files.js";
 import { hasCourseBook } from "../ui/book/qa-auto.js";
 import { loadUi } from "./helpers/ui-module.mjs";
+import { loadInteractiveUi, withBrowserGlobals, click, textOf, syntheticEvent } from "./helpers/react-harness.mjs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MAX_BACKUP_UPLOAD_BYTES } from "../lib/audio-upload.js";
@@ -27,8 +27,16 @@ const uiMod = await loadUi(`
   export { putDraftStash, pickRecoveryFor, dropDraftStash } from "./ui/app/use-drafts.js";
   export { default as TeachingPanel } from "./ui/review/TeachingPanel.jsx";
 `);
+const interactiveMod = await loadInteractiveUi(`
+  export { default as Draft } from "./ui/Draft.jsx";
+  export { default as CourseSettings } from "./ui/CourseSettings.jsx";
+  export { StudyServicesContext } from "./ui/study-context.jsx";
+  export { ToastContext } from "./ui/components/index.js";
+  export { setUiLanguage } from "./ui/i18n.js";
+`);
 const { putDraftStash, pickRecoveryFor, dropDraftStash } = uiMod;
 const h = React.createElement;
+const hi = interactiveMod.React.createElement;
 
 function tempRoot(tag = "1367") {
   return fs.mkdtempSync(path.join(os.tmpdir(), `studyhub-${tag}-`));
@@ -318,28 +326,211 @@ test("#1367-6: companion.progress grants first-pass credit after returning from 
 });
 
 test("#1367-7, #1367-8, #1367-9: draft stash clearing, CourseSettings live dirty check, and TeachingPanel completed status", async () => {
-  // #1367-7: sessionStorage stash drop + source verification
+  // #1367-7: sessionStorage stash drop + mounted Draft save / stale-reload skipStash behavior
   const store = new Map();
   const mockStorage = {
     getItem: (k) => (store.has(k) ? store.get(k) : null),
     setItem: (k, v) => { store.set(k, String(v)); },
     removeItem: (k) => { store.delete(k); },
   };
-  const draft = { id: "dr1", title: "Edited", draftVersion: 1, cards: [] };
-  const loaded = JSON.stringify({ id: "dr1", title: "Original", draftVersion: 1, cards: [] });
-  putDraftStash("/tmp/root", { draft, draftText: JSON.stringify(draft), jsonMode: false, draftLoaded: loaded }, mockStorage);
+  const baseCard = { id: "c1", kind: "flashcard", topic: "T1", objective: "O1", prompt: "Q1", answer: "A1", hint: "", explanation: "", misconception: "", citations: [] };
+  const origDraft = { id: "dr1", title: "Original", draftVersion: 1, cards: [baseCard] };
+  const editedDraft = { id: "dr1", title: "Edited", draftVersion: 1, cards: [baseCard] };
+  const loaded = JSON.stringify(origDraft);
+  putDraftStash("/tmp/root", { draft: editedDraft, draftText: JSON.stringify(editedDraft), jsonMode: false, draftLoaded: loaded }, mockStorage);
   assert.ok(pickRecoveryFor("/tmp/root", { id: "dr1" }, mockStorage), "unsaved edit is recoverable on passive reopen");
   dropDraftStash("/tmp/root", "dr1", mockStorage);
   assert.equal(pickRecoveryFor("/tmp/root", { id: "dr1" }, mockStorage), null, "skipStash clears stash cleanly");
 
-  const draftSrc = await readFile(path.resolve("ui/Draft.jsx"), "utf8");
-  assert.ok(draftSrc.includes("openDraft(next, { skipStash: true })"));
-  assert.ok(draftSrc.includes("openDraft(latestDraft, { skipStash: true })"));
+  await withBrowserGlobals(async () => {
+    interactiveMod.exports.setUiLanguage("zh");
+    const noop = () => {};
+    const toastApi = { success: noop, info: noop, warning: noop, error: noop, show: noop, dismiss: noop };
 
-  // #1367-8: live child-ref dirty check + guardLeave in CourseSettings
-  const csSrc = await readFile(path.resolve("ui/CourseSettings.jsx"), "utf8");
-  assert.ok(csSrc.includes("if (draftDirty || ruleDraftRef.current?.hasDraft || notationDraftRef.current?.hasDraft)"));
-  assert.ok(csSrc.includes("leavePrompt?.kind === 'leave'"));
+    // 7a. Saving a dirty draft calls openDraft(saved, { skipStash: true }) and clears stashed edits so stale edits cannot re-apply.
+    putDraftStash("/tmp/root", { draft: editedDraft, draftText: JSON.stringify(editedDraft), jsonMode: false, draftLoaded: loaded }, mockStorage);
+    const openCalls = [];
+    const savedV2 = { ...editedDraft, draftVersion: 2 };
+    const handleOpenDraft = (next, opts = {}) => {
+      openCalls.push({ next, opts });
+      if (opts.skipStash) dropDraftStash("/tmp/root", next.id, mockStorage);
+    };
+    const saveServices = {
+      call: async () => ({ status: "ok" }),
+      act: async (action, args, after) => {
+        if (action === "draft.save") {
+          await after?.(savedV2);
+          return savedV2;
+        }
+        return undefined;
+      },
+      busy: false,
+      notify: noop,
+      askInChat: noop,
+      host: {},
+      openSettings: noop,
+      navigate: noop,
+      openModal: noop,
+    };
+    const mountDraft = (draftProp, draftLoadedProp, draftsList, servicesOverride = saveServices) => interactiveMod.mount(() => hi(
+      interactiveMod.exports.StudyServicesContext.Provider,
+      { value: servicesOverride },
+      hi(
+        interactiveMod.exports.ToastContext.Provider,
+        { value: toastApi },
+        hi(interactiveMod.exports.Draft, {
+          data: { root: "/tmp/root", revision: 1, sources: [], decks: [], drafts: draftsList, jobs: [], runs: [], settings: {} },
+          draft: draftProp,
+          draftLoaded: draftLoadedProp,
+          setDraft: noop,
+          draftText: JSON.stringify(draftProp, null, 2),
+          setDraftText: noop,
+          jsonMode: false,
+          setJsonMode: noop,
+          openDraft: handleOpenDraft,
+          topUpDraft: noop,
+          openSourceAt: noop,
+          onOpenPublished: noop,
+          onStartPublished: noop,
+          clearRecovery: noop,
+          setPage: noop,
+          setModal: noop,
+          blankCard: () => baseCard,
+          patchCard: noop,
+          parseDraft: (t) => JSON.parse(t),
+        }),
+      ),
+    ));
+
+    const saveMounted = mountDraft(editedDraft, loaded, [origDraft]);
+    try {
+      const pageEl = saveMounted.find((node) => node.type === "section" && String(node.props?.className || "").includes("draft-page"));
+      assert.ok(pageEl?.props?.onKeyDown, "Draft page attaches Ctrl+S shortcut");
+      await saveMounted.act(() => pageEl.props.onKeyDown(syntheticEvent({ ctrlKey: true, key: "s" })));
+      assert.equal(openCalls.length, 1);
+      assert.equal(openCalls[0].next.draftVersion, 2);
+      assert.equal(openCalls[0].opts?.skipStash, true, "saving a draft reloads with skipStash: true");
+      assert.equal(pickRecoveryFor("/tmp/root", { id: "dr1" }, mockStorage), null, "saving a draft drops its local stash");
+    } finally {
+      saveMounted.unmount();
+    }
+
+    // 7b. Stale draft banner "载入最新草稿" reloads latestDraft with skipStash: true and drops stale stash.
+    openCalls.length = 0;
+    const latestV2 = { ...origDraft, title: "Repaired Latest", draftVersion: 2 };
+    putDraftStash("/tmp/root", { draft: editedDraft, draftText: JSON.stringify(editedDraft), jsonMode: false, draftLoaded: loaded }, mockStorage);
+    const staleDirtyMounted = mountDraft(editedDraft, loaded, [latestV2]);
+    try {
+      const reloadBtn = staleDirtyMounted.find((node) => node.type === "button" && textOf(node).includes("载入最新草稿"));
+      assert.ok(reloadBtn, "stale dirty draft displays 载入最新草稿 action");
+      await staleDirtyMounted.act(() => click(reloadBtn));
+      assert.equal(openCalls.length, 1);
+      assert.equal(openCalls[0].next.title, "Repaired Latest");
+      assert.equal(openCalls[0].opts?.skipStash, true, "manual stale reload passes skipStash: true");
+      assert.equal(pickRecoveryFor("/tmp/root", { id: "dr1" }, mockStorage), null, "manual stale reload drops stale stash");
+    } finally {
+      staleDirtyMounted.unmount();
+    }
+
+    // 7c. Clean stale draft auto-reloads latestDraft via effect with skipStash: true.
+    openCalls.length = 0;
+    putDraftStash("/tmp/root", { draft: editedDraft, draftText: JSON.stringify(editedDraft), jsonMode: false, draftLoaded: loaded }, mockStorage);
+    const staleCleanMounted = mountDraft(origDraft, loaded, [latestV2]);
+    try {
+      await staleCleanMounted.flush();
+      assert.equal(openCalls.length, 1);
+      assert.equal(openCalls[0].next.title, "Repaired Latest");
+      assert.equal(openCalls[0].opts?.skipStash, true, "auto-reload of clean stale draft passes skipStash: true");
+      assert.equal(pickRecoveryFor("/tmp/root", { id: "dr1" }, mockStorage), null);
+    } finally {
+      staleCleanMounted.unmount();
+    }
+
+    // #1367-8: CourseSettings live child-ref dirty checks (ruleDraftRef / notationDraftRef) + leavePrompt (close & leave)
+    const course = { id: "co1", name: "OS", exam: { date: "2099-12-31" }, generationRules: [], notationOverrides: [] };
+    const closeCalls = [];
+    const settingsCalls = [];
+    const csServices = {
+      call: async (action) => {
+        if (action === "course.examAlignment.preview") return { enabled: true, courses: [{ name: "OS", pending: 3 }] };
+        if (action === "generate.weakTopics") return { topics: [] };
+        return {};
+      },
+      act: async () => undefined,
+      busy: false,
+      notify: noop,
+      askInChat: noop,
+      host: {},
+      openSettings: (section) => settingsCalls.push(section),
+      navigate: noop,
+      openModal: noop,
+    };
+    const mountCourseSettings = () => interactiveMod.mount(() => hi(
+      interactiveMod.exports.StudyServicesContext.Provider,
+      { value: csServices },
+      hi(
+        interactiveMod.exports.ToastContext.Provider,
+        { value: toastApi },
+        hi(interactiveMod.exports.CourseSettings, {
+          data: { root: "/tmp/cs", courses: [course], sources: [], focus: { course: "OS", courseId: "co1" } },
+          courseId: "co1",
+          onClose: (reason) => closeCalls.push(reason),
+        }),
+      ),
+    ));
+
+    // 8a. Unsaved ruleDraftRef input (while draftDirty is false) blocks closing until confirmed.
+    const csRule = mountCourseSettings();
+    try {
+      await csRule.flush();
+      const ruleInput = csRule.find((node) => node.type === "input" && node.props?.["aria-label"] === "新守则");
+      assert.ok(ruleInput, "CourseRulesEditor new-rule input is mounted");
+      await csRule.act(() => ruleInput.props.onChange({ target: { value: "题干必须给出边界条件" } }));
+      const closeBtn = csRule.find((node) => node.type === "button" && textOf(node).trim() === "关闭");
+      assert.ok(closeBtn);
+      await csRule.act(() => click(closeBtn));
+      assert.equal(closeCalls.length, 0, "unsaved ruleDraftRef blocks immediate close");
+      assert.match(csRule.text(), /放弃未保存的改动？/);
+      const stayBtn = csRule.find((node) => node.type === "button" && textOf(node).trim() === "继续编辑");
+      assert.ok(stayBtn);
+      await csRule.act(() => click(stayBtn));
+      assert.doesNotMatch(csRule.text(), /放弃未保存的改动？/);
+      assert.equal(closeCalls.length, 0, "cancelling leave prompt keeps panel open");
+      await csRule.act(() => click(csRule.find((node) => node.type === "button" && textOf(node).trim() === "关闭")));
+      const discardBtn = csRule.find((node) => node.type === "button" && textOf(node).trim() === "放弃改动");
+      assert.ok(discardBtn);
+      await csRule.act(() => click(discardBtn));
+      assert.deepEqual(closeCalls, ["cancel"], "confirming discard closes CourseSettings");
+    } finally {
+      csRule.unmount();
+    }
+
+    // 8b. Unsaved notationDraftRef input triggers guardLeave -> leavePrompt.kind === 'leave', blocking navigation until confirmed.
+    closeCalls.length = 0;
+    settingsCalls.length = 0;
+    const csNotation = mountCourseSettings();
+    try {
+      await csNotation.flush();
+      const notationInput = csNotation.find((node) => node.type === "input" && node.props?.["aria-label"] === "新规范名称");
+      assert.ok(notationInput, "CourseNotationEditor canonical input is mounted");
+      await csNotation.act(() => notationInput.props.onChange({ target: { value: "一致收敛" } }));
+      const alignBtn = csNotation.find((node) => node.type === "button" && textOf(node).includes("设置 · 考前对齐"));
+      assert.ok(alignBtn, "ExamAlignmentPointer leave button is rendered");
+      await csNotation.act(() => click(alignBtn));
+      assert.equal(settingsCalls.length, 0, "unsaved notationDraftRef blocks navigation");
+      assert.equal(closeCalls.length, 0, "unsaved notationDraftRef blocks panel close before leave");
+      assert.match(csNotation.text(), /放弃未保存的改动？/);
+      await csNotation.act(() => click(csNotation.find((node) => node.type === "button" && textOf(node).trim() === "继续编辑")));
+      assert.doesNotMatch(csNotation.text(), /放弃未保存的改动？/);
+      assert.equal(settingsCalls.length, 0);
+      await csNotation.act(() => click(csNotation.find((node) => node.type === "button" && textOf(node).includes("设置 · 考前对齐"))));
+      await csNotation.act(() => click(csNotation.find((node) => node.type === "button" && textOf(node).trim() === "放弃改动")));
+      assert.deepEqual(closeCalls, ["dismiss"], "confirming leave closes panel");
+      assert.deepEqual(settingsCalls, ["settings-exam-alignment"], "confirming leave proceeds with navigation");
+    } finally {
+      csNotation.unmount();
+    }
+  });
 
   // #1367-9: rendered behaviour — the busy label belongs to teach.answer alone, and the status outlives the complete ternary.
   const panel = (session) => renderToStaticMarkup(h(uiMod.TeachingPanel, {

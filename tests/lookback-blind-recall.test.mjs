@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { loadInteractiveUi } from './helpers/react-harness.mjs';
 
 import {
   PRACTICE_DEFAULTS,
@@ -182,8 +182,40 @@ test('PracticePane and Finder entries expose opt-in lookBackBlindRecall in Chine
     assert.equal(entry.page, 'settings');
     assert.deepEqual(entry.anchors, ['settings-practice']);
 
-    const paneSrc = await readFile(new URL('../ui/settings/PracticePane.jsx', import.meta.url), 'utf8');
-    assert.match(paneSrc, /lookBackBlindRecall:\s*on\s*\?\s*true\s*:\s*null/);
+    const interactive = await loadInteractiveUi(`
+      export { default as PracticePane } from './ui/settings/PracticePane.jsx';
+      export { StudyServicesContext } from './ui/study-context.jsx';
+      export { ToastContext } from './ui/components/index.js';
+    `);
+    const savedCalls = [];
+    const toastApi = { success: noop, error: noop, info: noop };
+    const paneServices = { openSettings: noop, host: { capabilities: { chat: true } } };
+    const recordAct = async (action, args) => { savedCalls.push({ action, args }); return { ok: true }; };
+    let paneData = { settings: {} };
+    const mounted = interactive.mount(() => interactive.React.createElement(
+      interactive.exports.ToastContext.Provider, { value: toastApi },
+      interactive.React.createElement(
+        interactive.exports.StudyServicesContext.Provider, { value: paneServices },
+        interactive.React.createElement(interactive.exports.PracticePane, { data: paneData, busy: false, act: recordAct }),
+      ),
+    ));
+    try {
+      const findSwitch = () => mounted.find((n) => n.type === 'input' && n.props?.name === 'lookBackBlindRecall');
+      const swOff = findSwitch();
+      assert.ok(swOff, 'lookBackBlindRecall switch is rendered');
+      assert.equal(swOff.props.checked, false);
+      await mounted.act(() => swOff.props.onChange({ target: { checked: true } }));
+      assert.deepEqual(savedCalls[0], { action: 'settings.practice.set', args: { patch: { lookBackBlindRecall: true } } });
+
+      paneData = { settings: { practice: { lookBackBlindRecall: true } } };
+      mounted.rerender();
+      const swOn = findSwitch();
+      assert.equal(swOn.props.checked, true);
+      await mounted.act(() => swOn.props.onChange({ target: { checked: false } }));
+      assert.deepEqual(savedCalls[1], { action: 'settings.practice.set', args: { patch: { lookBackBlindRecall: null } } });
+    } finally {
+      mounted.unmount();
+    }
 
     uiMod.setUiLanguage('en');
     const enHtml = renderToStaticMarkup(h(uiMod.PracticePane, { data: { settings: {} }, busy: false, act: noop }));

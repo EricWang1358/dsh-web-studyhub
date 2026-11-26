@@ -2,8 +2,8 @@
    English; the card carries the list and nothing else carries it. The picture is tests/custom-readiness-browser.test.mjs. No model, no network. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { loadUi } from './helpers/ui-module.mjs';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const m = await loadUi(`
   export * as model from './ui/custom-readiness-model.js';
@@ -57,11 +57,156 @@ test('what is said after 补齐 started: a refused step first, the consent the c
   assert.equal(said('en', model => model.startedNotice({ started: { questions: { jobId: 'q' } } }).text), 'Started; follow it in Jobs.');
 });
 
-test('the list lives in the 「你的定制」 card only, with Tooltips for the hover words and the finder anchor', () => {
-  const card = readFileSync('ui/CustomPlanCard.jsx', 'utf8'), list = readFileSync('ui/CustomReadiness.jsx', 'utf8');
-  assert.match(card, /<CustomReadiness course=\{course\}/);
-  assert.doesNotMatch(readFileSync('ui/CourseSettings.jsx', 'utf8'), /CustomReadiness/);
-  assert.doesNotMatch(list, /\stitle=["']/, 'hover words are Tooltips, never title attributes');
-  assert.match(list, /data-tour="custom-readiness"/);
-  assert.match(list, /course\.custom\.fill', \{ course: course\.name, \.\.\.\(ids \? \{ chapters: ids \} : \{\}\), estimate: true \}/, 'the question is asked with an estimate that starts nothing');
+test('the list lives in the 「你的定制」 card only, uses Tooltips instead of title attributes, exposes data-tour="custom-readiness", and estimates before starting 补齐', async () => {
+  await withBrowserGlobals(async () => {
+    const ui = await loadInteractiveUi(`
+      export { default as CourseSettings } from './ui/CourseSettings.jsx';
+      export { default as CustomPlanCard } from './ui/CustomPlanCard.jsx';
+      export { default as CustomReadiness } from './ui/CustomReadiness.jsx';
+      export { StudyServicesContext } from './ui/study-context.jsx';
+      export { ToastContext, Tooltip, createToastApi } from './ui/components/index.js';
+      export { setUiLanguage } from './ui/i18n.js';
+    `);
+    const { CourseSettings, CustomPlanCard, StudyServicesContext, ToastContext, Tooltip, createToastApi, setUiLanguage } = ui.exports;
+    setUiLanguage('zh');
+    const h = ui.React.createElement;
+
+    const plainCourse = { id: 'course-plain', name: 'Algorithms' };
+    const customCourse = {
+      id: 'course-custom',
+      name: 'Software Architecture',
+      custom: {
+        version: 1,
+        purpose: 'review',
+        scope: { kind: 'all' },
+        book: { make: true, coverage: 'standard', parts: ['explain'] },
+        questions: { make: true, kinds: ['quiz'], strength: 'standard', variants: false },
+        plan: { make: false, by: 'exam' },
+        sampleFirst: false,
+        updatedAt: '2026-10-09T00:00:00.000Z',
+      },
+    };
+    const readinessReply = {
+      status: 'ok',
+      basis: 'outline',
+      counted,
+      chapters: [
+        chapter({ id: 'c1', title: 'Introduction', todo: { explain: 0, questions: 1, weak: 0 } }),
+        chapter({ id: 'c2', title: 'Architecture', todo: { explain: 1, questions: 0, weak: 0 } }),
+      ],
+    };
+    const fillEstimateReply = { status: 'ok', questions: { points: 1 }, calls: { low: 2, high: 4 } };
+
+    const makeServices = () => {
+      const calls = [];
+      const acts = [];
+      const notices = [];
+      const services = {
+        call: async (action, args) => {
+          calls.push([action, args]);
+          if (action === 'course.custom.readiness') return readinessReply;
+          if (action === 'course.custom.fill') return fillEstimateReply;
+          if (action === 'course.custom.preview') return { estimate: null };
+          if (action === 'generate.weakTopics') return { topics: [] };
+          return {};
+        },
+        act: async (action, args, after) => {
+          acts.push([action, args]);
+          const result = { started: { questions: { jobId: 'job-1' } } };
+          after?.(result);
+          return result;
+        },
+        busy: false,
+        notify: (notice) => { notices.push(notice); },
+        askInChat: async () => 'filled',
+        host: { capabilities: { chat: true } },
+        openSettings: () => {},
+        navigate: () => {},
+        openModal: () => {},
+      };
+      return { services, calls, acts, notices };
+    };
+    const wrap = (services, child) => h(
+      StudyServicesContext.Provider,
+      { value: services },
+      h(ToastContext.Provider, { value: createToastApi(services.notify) }, child),
+    );
+
+    // 1. CourseSettings does NOT render CustomReadiness directly when the course has no custom plan.
+    const plainEnv = makeServices();
+    const plainMounted = ui.mount(() => wrap(plainEnv.services, h(CourseSettings, {
+      data: { courses: [plainCourse], sources: [], focus: {} },
+      courseId: plainCourse.id,
+      onClose: () => {},
+    })));
+    try {
+      await plainMounted.flush(5);
+      assert.equal(plainMounted.find(node => node.props?.['data-tour'] === 'custom-readiness'), null, 'CourseSettings without a custom plan renders no readiness list');
+      assert.equal(plainEnv.calls.some(([action]) => action === 'course.custom.readiness'), false, 'no readiness request is made without CustomPlanCard');
+    } finally {
+      plainMounted.unmount();
+    }
+
+    // 2. CourseSettings wires CustomPlanCard, which renders CustomReadiness with data-tour="custom-readiness", Tooltips (zero title attrs), and estimate-first 补齐.
+    const customEnv = makeServices();
+    const customMounted = ui.mount(() => wrap(customEnv.services, h(CourseSettings, {
+      data: { courses: [customCourse], sources: [], focus: {} },
+      courseId: customCourse.id,
+      onClose: () => {},
+    })));
+    try {
+      await customMounted.flush(6);
+      const cardNode = customMounted.find(node => node.type === CustomPlanCard);
+      assert.ok(cardNode, 'CourseSettings renders CustomPlanCard for a customized course');
+      const readinessNodes = customMounted.findAll(node => node.props?.['data-tour'] === 'custom-readiness');
+      assert.equal(readinessNodes.length, 1, 'exactly one data-tour="custom-readiness" container is rendered');
+      const readinessRoot = readinessNodes[0];
+      assert.ok(customMounted.find(node => node === readinessRoot, cardNode), 'the readiness list lives inside CustomPlanCard');
+
+      const hostWithTitle = customMounted.findAll(node => typeof node.type === 'string' && typeof node.props?.title === 'string' && node.props.title.length > 0, readinessRoot);
+      assert.deepEqual(hostWithTitle, [], 'hover words use Tooltips, never native title attributes');
+      const tooltips = customMounted.findAll(node => node.type === Tooltip, readinessRoot);
+      assert.equal(tooltips.length, 2, 'each chapter meter renders a Tooltip');
+
+      // Clicking a single chapter's 补齐 button requests an estimate without starting a job.
+      const chapterFillButtons = customMounted.findAll(
+        node => node.type === 'button' && ui.textOf(node).trim() === '补齐',
+        readinessRoot,
+      );
+      assert.equal(chapterFillButtons.length, 2);
+      await customMounted.act(() => click(chapterFillButtons[0]));
+      await customMounted.flush(4);
+      const singleFillCalls = customEnv.calls.filter(([action]) => action === 'course.custom.fill');
+      assert.deepEqual(singleFillCalls, [['course.custom.fill', { course: customCourse.name, chapters: ['c1'], estimate: true }]]);
+      assert.deepEqual(customEnv.acts, [], 'estimating starts nothing');
+      assert.match(ui.textOf(customMounted.tree), /粗估约 2–4 次模型调用/);
+
+      // Cancel single-chapter prompt, then click 全部补齐 and confirm 开始补齐.
+      const cancelBtn = customMounted.find(node => node.type === 'button' && ui.textOf(node).trim() === '取消', customMounted.find(node => node.props?.['data-tour'] === 'custom-readiness'));
+      assert.ok(cancelBtn, 'InlineConfirm renders a cancel button');
+      await customMounted.act(() => click(cancelBtn));
+
+      const fillAllBtn = customMounted.find(
+        node => node.type === 'button' && ui.textOf(node).trim() === '全部补齐',
+        customMounted.find(node => node.props?.['data-tour'] === 'custom-readiness'),
+      );
+      assert.ok(fillAllBtn, '全部补齐 button is shown when multiple chapters have todos');
+      await customMounted.act(() => click(fillAllBtn));
+      await customMounted.flush(4);
+      const allFillCalls = customEnv.calls.filter(([action]) => action === 'course.custom.fill');
+      assert.deepEqual(allFillCalls.at(-1), ['course.custom.fill', { course: customCourse.name, estimate: true }]);
+      assert.deepEqual(customEnv.acts, [], '全部补齐 estimate also starts nothing');
+
+      const confirmBtn = customMounted.find(
+        node => node.type === 'button' && ui.textOf(node).trim() === '开始补齐',
+        customMounted.find(node => node.props?.['data-tour'] === 'custom-readiness'),
+      );
+      assert.ok(confirmBtn, 'InlineConfirm renders 开始补齐');
+      await customMounted.act(() => click(confirmBtn));
+      await customMounted.flush(4);
+      assert.deepEqual(customEnv.acts, [['course.custom.fill', { course: customCourse.name }]]);
+    } finally {
+      customMounted.unmount();
+    }
+  });
 });

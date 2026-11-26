@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { createLeaveGate } from '../ui/app/navigator.js';
+import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 /* #489 item 1: the one gate every page change passes. While a page holds it (unsaved edits in the book's editor), leaving asks that page and nothing happens until it says go.
    The real clicks (the sidebar, 回到总纲, a task link) are in tests/course-book-frame-browser.test.mjs. */
@@ -34,16 +34,195 @@ test('the release of an older holder does not free a newer one', () => {
   assert.deepEqual(asked, ['second']);
 });
 
-test('no page change goes around the gate: the hook hands out only gated ways, the raw setter stays inside it', async () => {
-  const source = await readFile('ui/app/use-navigation.js', 'utf8');
-  assert.match(source, /\[page, setPageState\] = useState/);
-  assert.equal(source.split('\n').filter(line => /setPageState\(/.test(line)).length, 1, 'the state setter itself is used once, inside rawSetPage (which also starts the performance clock, #893 S4)');
-  // show.* and setPage go through `to`; navigate through the gate; only forcePage (a library that is already gone) and the navigator's own arrival use the raw one.
-  const raw = source.split('\n').filter(line => /rawSetPage\(/.test(line));
-  assert.equal(raw.length, 2, raw.join('\n'));
-  assert.ok(raw.some(line => /const to = /.test(line)) && raw.some(line => /forcePage/.test(line)));
-  assert.match(await readFile('ui/app/library-state.js', 'utf8'), /nav\.forcePage\(value\)/);
-  // These write before they navigate (a run opened, a letter marked read), so they ask before they start.
-  assert.match(await readFile('ui/app/use-intents.js', 'utf8'), /nav\.leaving\(\(\) => \{\s+if \(data\?\.lastRun\)/);
-  assert.match(await readFile('ui/app/use-inbox.js', 'utf8'), /openInboxItem = useCallback\(\(item\) => nav\.leaving\(/);
+function createNavDeps() {
+  const calls = [];
+  const record = (name) => (...args) => { calls.push([name, ...args]); };
+  const core = {
+    setError: record('setError'),
+    setBusy: record('setBusy'),
+    notify: record('notify'),
+    act: record('act'),
+    quick: { reset: record('quick.reset') },
+    refresh: async () => {},
+    refs: {
+      epoch: { current: 0 },
+      navigation: { current: 0 },
+      leaveTimer: { current: null },
+      examLocation: { current: null },
+      actRunner: { current: { reset: record('actRunner.reset') } },
+      dataRef: { current: null },
+    },
+  };
+  const lib = {
+    set: {
+      setContextTrail: record('setContextTrail'),
+      setExamRunId: record('setExamRunId'),
+      setExamKind: record('setExamKind'),
+      setBoardStudyRef: record('setBoardStudyRef'),
+      setBoardCompose: record('setBoardCompose'),
+      setNoteInitialId: record('setNoteInitialId'),
+      setGraphScope: record('setGraphScope'),
+      setGraphMode: record('setGraphMode'),
+      setSkeletonFocus: record('setSkeletonFocus'),
+      setManagedDeck: record('setManagedDeck'),
+      setFolderDraft: record('setFolderDraft'),
+      setWorkflowReturn: record('setWorkflowReturn'),
+      setTaskFocus: record('setTaskFocus'),
+      setSelectedSources: record('setSelectedSources'),
+      setGen: record('setGen'),
+      setCaseInitial: record('setCaseInitial'),
+      setModal: record('setModal'),
+      setFocusRequest: record('setFocusRequest'),
+      setDetour: record('setDetour'),
+    },
+  };
+  return { core, lib, calls, rootRef: { current: { scrollTo: record('scrollTo') } } };
+}
+
+test('useNavigation gates navigate, setPage, every show.* verb, and leaving; only forcePage bypasses the gate', async () => {
+  await withBrowserGlobals(async () => {
+    const ui = await loadInteractiveUi("export { useNavigation } from './ui/app/use-navigation.js';");
+    const { core, lib, calls, rootRef } = createNavDeps();
+    const hook = ui.mountHook((props) => ui.exports.useNavigation(props), {
+      core, lib, motion: 'reduced', rootRef, initialPage: 'book',
+    });
+    try {
+      const asked = [];
+      const holdOnBook = async () => {
+        if (hook.current.page !== 'book') {
+          await hook.act(() => { hook.current.forcePage('book'); });
+        }
+        asked.length = 0;
+        calls.length = 0;
+        hook.current.holdLeave((go) => asked.push(go));
+      };
+
+      // navigate() is gated
+      await holdOnBook();
+      await hook.act(() => { hook.current.navigate('notes'); });
+      assert.equal(hook.current.page, 'book', 'navigate stays on book while held');
+      assert.equal(asked.length, 1);
+      await hook.act(() => { asked[0](); });
+      assert.equal(hook.current.page, 'notes', 'navigate moves once released');
+
+      // setPage() is gated
+      await holdOnBook();
+      await hook.act(() => { hook.current.setPage('tasks'); });
+      assert.equal(hook.current.page, 'book', 'setPage stays on book while held');
+      assert.equal(asked.length, 1);
+      await hook.act(() => { asked[0](); });
+      assert.equal(hook.current.page, 'tasks');
+
+      // Every verb on show.* is gated and runs its page-state setter only after release
+      const showCases = [
+        ['note', () => hook.current.show.note('note-1'), 'notes', 'setNoteInitialId'],
+        ['skeleton', () => hook.current.show.skeleton('skel-1'), 'skeleton', 'setSkeletonFocus'],
+        ['deck', () => hook.current.show.deck({ id: 'd1', course: 'CS' }), 'manage', 'setManagedDeck'],
+        ['managedDeck', () => hook.current.show.managedDeck({ id: 'd2', course: 'Math' }), 'manage', 'setFolderDraft'],
+        ['task', () => hook.current.show.task('job-1'), 'tasks', 'setTaskFocus'],
+        ['workflow', () => hook.current.show.workflow('wf-1'), 'workflows', 'setWorkflowReturn'],
+        ['exam', () => hook.current.show.exam('mock', 'run-1'), 'exam', 'setExamRunId'],
+        ['library', () => hook.current.show.library(), 'library', null],
+        ['page', () => hook.current.show.page('graph'), 'graph', null],
+      ];
+      assert.deepEqual(
+        showCases.map(([name]) => name).sort(),
+        Object.keys(hook.current.show).sort(),
+        'every exported show.* verb is verified against the leave gate',
+      );
+      for (const [name, invoke, expectedPage, expectedSetter] of showCases) {
+        await holdOnBook();
+        await hook.act(invoke);
+        assert.equal(hook.current.page, 'book', `show.${name} stays on book while held`);
+        assert.equal(asked.length, 1, `show.${name} asks the leave gate`);
+        if (expectedSetter) {
+          assert.equal(calls.some(([fn]) => fn === expectedSetter), false, `show.${name} defers ${expectedSetter} until release`);
+        }
+        await hook.act(() => { asked[0](); });
+        assert.equal(hook.current.page, expectedPage, `show.${name} arrives at ${expectedPage} on release`);
+        if (expectedSetter) {
+          assert.equal(calls.some(([fn]) => fn === expectedSetter), true, `show.${name} runs ${expectedSetter} on release`);
+        }
+      }
+
+      // leaving() is gated
+      await holdOnBook();
+      const leftEvents = [];
+      await hook.act(() => { hook.current.leaving(() => leftEvents.push('switched-course')); });
+      assert.deepEqual(leftEvents, [], 'leaving callback waits for release');
+      assert.equal(asked.length, 1);
+      await hook.act(() => { asked[0](); });
+      assert.deepEqual(leftEvents, ['switched-course']);
+
+      // forcePage() bypasses the gate immediately (used only when the library is already gone)
+      await holdOnBook();
+      await hook.act(() => { hook.current.forcePage('library'); });
+      assert.equal(asked.length, 0, 'forcePage does not ask the leave gate');
+      assert.equal(hook.current.page, 'library');
+    } finally {
+      hook.unmount();
+    }
+  });
+});
+
+test('useLibraryReset bypasses the gate via forcePage, while useIntents.resumeOrStart and useInbox.openInboxItem ask before acting', async () => {
+  await withBrowserGlobals(async () => {
+    const ui = await loadInteractiveUi(`
+      export { useNavigation } from './ui/app/use-navigation.js';
+      export { useLibraryReset } from './ui/app/library-state.js';
+      export { useIntents } from './ui/app/use-intents.js';
+      export { useInbox } from './ui/app/use-inbox.js';
+    `);
+    const { core, lib, calls, rootRef } = createNavDeps();
+    core.refs.dataRef.current = { lastRun: { id: 'run-42' }, decks: [] };
+    const session = { run: null, entry: null, reset() {}, enterRun() {}, actions: { showExplanation() {} } };
+    const learn = { rememberContext() {}, captureContext: () => ({ runId: null }), openAudioSources() {} };
+    const libApi = { reset() {} };
+    const hook = ui.mountHook(() => {
+      const nav = ui.exports.useNavigation({ core, lib, motion: 'reduced', rootRef, initialPage: 'book' });
+      const resetLibrary = ui.exports.useLibraryReset({ core, libApi, nav, session });
+      const intents = ui.exports.useIntents({ core, lib, nav, session, learn });
+      const inbox = ui.exports.useInbox({ core, lib, nav, session, learn, data: { inbox: { items: [] } } });
+      return { nav, resetLibrary, intents, inbox };
+    });
+    try {
+      const asked = [];
+      const holdOnBook = async () => {
+        if (hook.current.nav.page !== 'book') {
+          await hook.act(() => { hook.current.nav.forcePage('book'); });
+        }
+        asked.length = 0;
+        calls.length = 0;
+        hook.current.nav.holdLeave((go) => asked.push(go));
+      };
+
+      // resumeOrStart asks before calling review.get for lastRun
+      await holdOnBook();
+      await hook.act(() => { hook.current.intents.resumeOrStart(); });
+      assert.equal(asked.length, 1);
+      assert.equal(calls.some(([fn]) => fn === 'act'), false, 'resumeOrStart waits before opening lastRun');
+      await hook.act(() => { asked[0](); });
+      const resumeCall = calls.find(([fn]) => fn === 'act');
+      assert.equal(resumeCall?.[1], 'review.get');
+      assert.deepEqual(resumeCall?.[2], { runId: 'run-42' });
+
+      // openInboxItem asks before calling inbox.open
+      await holdOnBook();
+      await hook.act(() => { hook.current.inbox.openInboxItem({ id: 'letter-7' }); });
+      assert.equal(asked.length, 1);
+      assert.equal(calls.some(([fn]) => fn === 'act'), false, 'openInboxItem waits before marking/opening letter');
+      await hook.act(() => { asked[0](); });
+      const inboxCall = calls.find(([fn]) => fn === 'act');
+      assert.equal(inboxCall?.[1], 'inbox.open');
+      assert.deepEqual(inboxCall?.[2], { id: 'letter-7' });
+
+      // library reset bypasses the gate via forcePage
+      await holdOnBook();
+      await hook.act(() => { hook.current.resetLibrary('switch'); });
+      assert.equal(asked.length, 0, 'library reset does not ask the leave gate');
+      assert.equal(hook.current.nav.page, 'library');
+    } finally {
+      hook.unmount();
+    }
+  });
 });
