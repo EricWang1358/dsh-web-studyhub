@@ -16,6 +16,7 @@ import { atomicWriteExportJson, defaultBackupFilePath } from '../host/atomic-wri
 import { tryAction } from '../host/sample-actions.js';
 import { extractInboxData, type InboxEntry } from './data.js';
 import { useShellActions } from './actions.js';
+import { toastHistoryCopy, toastToneInboxKind, toastToneLabel } from './toast-copy.js';
 
 export interface InboxModalProps {
   host: HostClient;
@@ -141,6 +142,7 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [cursor, setCursor] = useState(0);
+  const [toastStatus, setToastStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -197,21 +199,13 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
   const readCount = items.length - unreadCount;
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
+  const toastCopy = useMemo(() => toastHistoryCopy(lang), [lang]);
+
   const toastHistoryEntries = useMemo<InboxEntry[]>(() => {
-    const toneLabel = (tone: 'info' | 'success' | 'warning' | 'error') =>
-      tone === 'error'
-        ? t(lang, '错误提示', 'Error')
-        : tone === 'warning'
-          ? t(lang, '警告提示', 'Warn')
-          : tone === 'success'
-            ? t(lang, '完成提示', 'Done')
-            : t(lang, '状态提示', 'Info');
-    const toneKind = (tone: 'info' | 'success' | 'warning' | 'error') =>
-      tone === 'error' ? 'toast-failed' : tone === 'warning' ? 'toast-warning' : tone === 'success' ? 'toast-result' : 'coach';
     return [...toastHistory].reverse().map((item) => ({
       id: item.id,
-      kind: toneKind(item.tone),
-      label: toneLabel(item.tone),
+      kind: toastToneInboxKind(item.tone),
+      label: toastToneLabel(item.tone, lang),
       prompt: item.text,
       promptFull: item.text,
       detail: item.text,
@@ -223,6 +217,8 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
       canRevert: false,
     }));
   }, [toastHistory, lang]);
+
+  const activeSourceLength = filter === 'toasts' ? toastHistoryEntries.length : items.length;
 
   const filteredItems = useMemo(() => {
     const byRead =
@@ -435,14 +431,21 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
         setCursor(0);
         return true;
       }
+      if (key.ctrl && !key.meta && input === 'r') {
+        void loadInbox(true);
+        void actions.refresh();
+        return true;
+      }
       if (!isPlainKey(input, key)) return false;
       if (input === 'h') {
         setFilter((prev) => (prev === 'toasts' ? 'all' : 'toasts'));
+        setToastStatus('');
         setCursor(0);
         return true;
       }
       if (input === 'C' && filter === 'toasts') {
         clearToastHistory();
+        setToastStatus(toastCopy.clearedStatus);
         setCursor(0);
         return true;
       }
@@ -492,7 +495,7 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
     { id: 'all', label: t(lang, '全部', 'All'), count: items.length },
     { id: 'unread', label: t(lang, '未读', 'Unread'), count: unreadCount },
     { id: 'read', label: t(lang, '已读', 'Read'), count: readCount },
-    { id: 'toasts', label: t(lang, '近期提示', 'History'), count: toastHistoryEntries.length },
+    { id: 'toasts', label: toastCopy.tabLabel, count: toastHistoryEntries.length },
   ];
 
   const previewLines = useMemo(() => {
@@ -539,7 +542,7 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
                 { key: 'e', label: t(lang, '导出', 'Export') },
                 { key: 'm', label: t(lang, '已读', 'Read') },
                 { key: 'M', label: t(lang, '全读', 'All') },
-                { key: 'h', label: t(lang, '提示历史', 'History') },
+                { key: 'h', label: toastCopy.footerHintLabel },
                 ...(filter === 'toasts' && toastHistoryEntries.length > 0 ? [{ key: 'C', label: t(lang, '清空', 'Clear') }] : []),
                 { key: 'Tab', label: t(lang, '筛选', 'Filter') },
                 { key: 'r', label: t(lang, '刷新', 'Refresh') },
@@ -547,8 +550,9 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
               ]
             : [
                 { key: 'Enter', label: t(lang, '打开', 'Open') },
-                { key: '/', label: t(lang, '搜索', 'Find') },
-                ...(searchQuery ? [{ key: 'c', label: t(lang, '重置', 'Clr') }] : []),
+                { key: '/', label: t(lang, '搜索', 'Search') },
+                ...(searchQuery ? [{ key: 'c', label: t(lang, '重置', 'Clear') }] : []),
+                { key: 'h', label: toastCopy.footerHintLabel },
                 { key: 'e', label: t(lang, '导出', 'Export') },
                 { key: 'm', label: t(lang, '已读', 'Read') },
                 { key: 'Esc', label: t(lang, '关闭', 'Close') },
@@ -573,12 +577,16 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
             );
           })}
         </Box>
-        {loading || busy ? <Spinner tone="ai" label={t(lang, '同步', 'Sync')} /> : null}
+        {loading || busy ? (
+          <Spinner tone="ai" label={t(lang, '同步', 'Sync')} />
+        ) : filter === 'toasts' && toastStatus ? (
+          <Text color={theme.accent}>{toastStatus}</Text>
+        ) : null}
       </Box>
 
       <Box height={1} width={innerW} overflow="hidden" marginBottom={1}>
         <Text color={searchFocused ? theme.primary : theme.accent} bold={searchFocused}>
-          {t(lang, '搜索 ', 'Find ')}
+          {t(lang, '搜索 ', 'Search ')}
         </Text>
         <TextInput
           value={searchQuery}
@@ -599,7 +607,7 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
           width={Math.max(12, innerW - 14)}
           placeholder={t(lang, `按 / 搜索关键词${ell}`, `Press / to filter${ell}`)}
         />
-        {normalizedQuery ? <Text color={theme.dim}>{` ${filteredItems.length}/${items.length}`}</Text> : null}
+        {normalizedQuery ? <Text color={theme.dim}>{` ${filteredItems.length}/${activeSourceLength}`}</Text> : null}
       </Box>
 
       <Box flexDirection={sideBySide ? 'row' : 'column'} width={innerW} height={bodyH} overflow="hidden">
@@ -620,7 +628,7 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
               normalizedQuery
                 ? t(lang, '没有匹配的通知', 'No matching notifications')
                 : filter === 'toasts'
-                  ? t(lang, '暂无近期提示记录', 'No recent toast messages')
+                  ? toastCopy.emptyTitle
                   : filter === 'unread'
                     ? t(lang, '没有未读通知', 'No unread notifications')
                     : filter === 'read'
@@ -630,7 +638,9 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
             emptyHint={
               normalizedQuery
                 ? t(lang, '按 [c] 清除搜索或按 [/] 修改关键词', 'Press [c] to clear filter or [/] to edit query')
-                : t(lang, '后台任务或陪学回复完成后会投递到这里', 'Background jobs & coach replies appear here')
+                : filter === 'toasts'
+                  ? toastCopy.emptyHint
+                  : t(lang, '后台任务或陪学回复完成后会投递到这里', 'Background jobs & coach replies appear here')
             }
             renderItem={(item, ctx) => {
               const dot = item.read ? '  ' : asciiMode ? '* ' : '● ';

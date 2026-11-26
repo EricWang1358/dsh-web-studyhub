@@ -42,9 +42,6 @@ const [
 const { PROSE_MAX_COLS, computeProseLayout, ProseContainer } = layoutMod;
 const { filterPaletteItems, parsePaletteScope } = paletteMod;
 const {
-  STUCK_NUDGE_DELAY_MS,
-  MAX_STUCK_NUDGES_PER_ROUND,
-  STUCK_NUDGE_COOLDOWN_MS,
   shouldScheduleStuckNudge,
   buildStuckNudgeMessage,
 } = stuckMod;
@@ -234,10 +231,6 @@ describe('Round 83 Track B2: CommandPalette Recent Pinning Across Scopes', () =>
 
 describe('Round 83 Track D1: Proactive 20s Stuck Nudge (Opt-out + Rate Limit + Non-Interrupting)', () => {
   test('1. Pure guardrail enforces disable switch, max 3/round, 60s cooldown, once/card, and never during editing/modals', () => {
-    assert.equal(STUCK_NUDGE_DELAY_MS, 20_000);
-    assert.equal(MAX_STUCK_NUDGES_PER_ROUND, 3);
-    assert.equal(STUCK_NUDGE_COOLDOWN_MS, 60_000);
-
     const base = {
       enabled: true,
       isActive: true,
@@ -257,9 +250,10 @@ describe('Round 83 Track D1: Proactive 20s Stuck Nudge (Opt-out + Rate Limit + N
     assert.equal(shouldScheduleStuckNudge({ ...base, anyModalOpen: true }), false, 'Must NEVER fire while modal open');
     assert.equal(shouldScheduleStuckNudge({ ...base, revealed: true }), false);
     assert.equal(shouldScheduleStuckNudge({ ...base, nudgedCardIds: new Set(['c1']) }), false, 'At most once per card');
+    assert.equal(shouldScheduleStuckNudge({ ...base, roundNudgeCount: 2 }), true, '3rd nudge in round is still allowed');
     assert.equal(shouldScheduleStuckNudge({ ...base, roundNudgeCount: 3 }), false, 'Rate limit max 3 per round');
-    assert.equal(shouldScheduleStuckNudge({ ...base, lastNudgeAt: 70_000, now: 100_000 }), false, '60s cooldown enforced');
-    assert.equal(shouldScheduleStuckNudge({ ...base, lastNudgeAt: 30_000, now: 100_000 }), true);
+    assert.equal(shouldScheduleStuckNudge({ ...base, lastNudgeAt: 40_001, now: 100_000 }), false, '60s cooldown enforced at 59,999ms');
+    assert.equal(shouldScheduleStuckNudge({ ...base, lastNudgeAt: 40_000, now: 100_000 }), true, '60s cooldown expires at 60,000ms');
     assert.ok(buildStuckNudgeMessage('zh', true).includes('[t]'));
   });
 

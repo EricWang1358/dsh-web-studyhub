@@ -9,6 +9,7 @@ import { useClaimedKeys } from '../components/focus.js';
 import { ClickableBox } from '../components/mouse.js';
 import { formatReturnHintLabel } from '../state/practice-stack.js';
 import { currentCourse, dueToday, modelInfo, pageIcon, runningJobs, unreadInboxCount } from './data.js';
+import { formatGlobalKeyHint } from './global-keymap.js';
 
 export interface TopBarProps {
   width: number;
@@ -65,8 +66,10 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
   const inboxText = asciiMode ? ` [I] M:${unread} ` : ` [I] ✉ ${unread} `;
   const dueText = ` ${t(lang, '今日', 'Due')} ${due} `;
   const jobsText = `  ${jobs} ${t(lang, '任务', 'jobs')} `;
-  const cmdKeyLabel = paletteKeyOverridden ? '[Ctrl+K]' : '[/]';
-  const helpText = ` [?] ${t(lang, '帮助', 'Help')}  ${cmdKeyLabel} ${t(lang, '命令', 'Cmd')} `;
+  const helpHint = formatGlobalKeyHint('help', lang, asciiMode);
+  const cmdHint = formatGlobalKeyHint('command-palette', lang, asciiMode);
+  const cmdKeyLabel = paletteKeyOverridden ? `[${cmdHint.key}]` : '[/]';
+  const helpText = ` [${helpHint.key}] ${helpHint.label}  ${cmdKeyLabel} ${cmdHint.label} `;
   const returnChipLabel = formatReturnHintLabel(practiceStack, lang);
   const returnChipText = returnChipLabel ? ` ${asciiMode ? '<-' : '←'} ${returnChipLabel} [r] ` : '';
 

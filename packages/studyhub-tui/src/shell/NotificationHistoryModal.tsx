@@ -3,7 +3,6 @@ import { Box, Text } from 'ink';
 import { useStableWindowSize } from '../components/resize.js';
 import { KEY_LAYER_MODAL, useKeyScope } from '../components/key-dispatcher.js';
 import { isPlainKey } from '../input/global-router.js';
-import type { ToastItem } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
 import { toneColor, useTheme } from '../theme/tokens.js';
 import { padDisplay, truncateDisplay, wrapDisplay } from '../render/cjk.js';
@@ -11,44 +10,19 @@ import { Modal, modalContentWidth } from '../components/Modal.js';
 import { VirtualList, pageStep } from '../components/VirtualList.js';
 import { copyTextWithFallback } from '../render/clipboard.js';
 import { hairline } from '../render/glyphs.js';
+import {
+  formatToastClipboardPayload,
+  formatToastClock,
+  formatToastHistorySubtitle,
+  toastFirstLine,
+  toastHistoryCopy,
+  toastLogicalLineCount,
+  toastToneBadge,
+} from './toast-copy.js';
 
 export interface NotificationHistoryModalProps {
   isActive: boolean;
   onClose: () => void;
-}
-
-const LEVEL_LABEL: Record<ToastItem['tone'], string> = {
-  info: 'info',
-  success: 'success',
-  warning: 'warn',
-  error: 'error',
-};
-
-function formatClock(createdAt: number): string {
-  const date = new Date(createdAt);
-  if (!Number.isFinite(date.getTime())) return '';
-  const hh = String(date.getHours()).padStart(2, '0');
-  const mm = String(date.getMinutes()).padStart(2, '0');
-  const ss = String(date.getSeconds()).padStart(2, '0');
-  const today = new Date();
-  const sameDay =
-    date.getFullYear() === today.getFullYear() &&
-    date.getMonth() === today.getMonth() &&
-    date.getDate() === today.getDate();
-  if (sameDay) return `${hh}:${mm}:${ss}`;
-  const mo = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  return `${mo}-${dd} ${hh}:${mm}`;
-}
-
-function firstLineOf(text: string): string {
-  const line = (text ?? '').split('\n')[0] ?? '';
-  return line.replace(/\s+/g, ' ').trim();
-}
-
-/** Logical line count (explicit newlines), matching what users call a multi-line notice. */
-function logicalLineCount(text: string): number {
-  return Math.max(1, (text ?? '').split('\n').length);
 }
 
 /**
@@ -108,12 +82,14 @@ export const NotificationHistoryModal = memo(function NotificationHistoryModal({
   const detailH = sideBySide ? bodyH : Math.max(2, Math.floor((bodyH - 1) * 0.5));
   const ell = asciiMode ? '...' : '…';
 
+  const copy = useMemo(() => toastHistoryCopy(lang), [lang]);
+
   const detailLines = useMemo(() => {
     if (!selected) return [] as string[];
     const lines: string[] = [];
-    const meta = `${formatClock(selected.createdAt)}  [${LEVEL_LABEL[selected.tone]}]${
+    const meta = `${formatToastClock(selected.createdAt)}  [${toastToneBadge(selected.tone)}]${
       selected.source ? `  ${selected.source}` : ''
-    }  ${logicalLineCount(selected.text)} ${t(lang, '行', 'lines')}`;
+    }  ${toastLogicalLineCount(selected.text)} ${t(lang, '行', 'lines')}`;
     lines.push(...wrapDisplay(meta, detailW));
     lines.push('');
     lines.push(...wrapDisplay(selected.text, detailW));
@@ -126,18 +102,16 @@ export const NotificationHistoryModal = memo(function NotificationHistoryModal({
 
   const copySelected = useCallback(async () => {
     if (!selected) {
-      setStatus(t(lang, '暂无可复制的通知', 'No notification to copy'));
+      setStatus(copy.noCopySelection);
       return;
     }
-    const payload = `[${formatClock(selected.createdAt)}] [${LEVEL_LABEL[selected.tone]}]${
-      selected.source ? ` [${selected.source}]` : ''
-    }\n${selected.text}`;
+    const payload = formatToastClipboardPayload(selected, lang);
     const res = await copyTextWithFallback(payload, {
       libraryRoot: bindingRoot || snapshotRoot || null,
     });
     if (!mountedRef.current) return;
     if (!res.ok) {
-      setStatus(res.error || t(lang, '复制失败', 'Copy failed'));
+      setStatus(res.error || copy.copyFailed);
     } else if (res.method === 'osc52') {
       setStatus(t(lang, `已复制（${res.chars} 字）`, `Copied (${res.chars} chars)`));
     } else {
@@ -145,7 +119,7 @@ export const NotificationHistoryModal = memo(function NotificationHistoryModal({
         t(lang, `已保存至 ${res.filePath}`, `Saved to ${res.filePath}`),
       );
     }
-  }, [selected, lang, bindingRoot, snapshotRoot]);
+  }, [selected, lang, bindingRoot, snapshotRoot, copy]);
 
   useKeyScope({
     id: 'NotificationHistoryModal:keys',
@@ -176,7 +150,7 @@ export const NotificationHistoryModal = memo(function NotificationHistoryModal({
         clearToastHistory();
         setCursor(0);
         setDetailTop(0);
-        setStatus(t(lang, '已清空通知历史', 'History cleared'));
+        setStatus(copy.clearedStatus);
         return true;
       }
       // Esc falls through to <Modal>, which owns the single close action.
@@ -194,13 +168,9 @@ export const NotificationHistoryModal = memo(function NotificationHistoryModal({
 
   return (
     <Modal
-      title={t(lang, '通知历史', 'Notification History')}
+      title={copy.title}
       icon={asciiMode ? 'N' : '🔔'}
-      subtitle={t(
-        lang,
-        `最近 ${entries.length} 条`,
-        `${entries.length} recent`,
-      )}
+      subtitle={formatToastHistorySubtitle(entries.length, lang)}
       width={width}
       height={height}
       onClose={onClose}
@@ -221,21 +191,17 @@ export const NotificationHistoryModal = memo(function NotificationHistoryModal({
               }}
               isActive={isActive}
               keyExtractor={(item) => item.id}
-              emptyText={t(lang, '暂无通知记录', 'No notifications yet')}
-              emptyHint={t(
-                lang,
-                '提示消息会自动留存在这里，最多保留最近 50 条',
-                'Recent toasts are kept here (last 50)',
-              )}
+              emptyText={copy.emptyTitle}
+              emptyHint={copy.emptyHint}
               renderItem={(item, ctx) => {
-                const level = LEVEL_LABEL[item.tone];
+                const level = toastToneBadge(item.tone);
                 const color = toneColor(theme, item.tone);
-                const total = logicalLineCount(item.text);
+                const total = toastLogicalLineCount(item.text);
                 const countLabel = total > 1 ? `+${total - 1}` : '';
-                const right = `${countLabel ? `${countLabel} ` : ''}${formatClock(item.createdAt)}`;
+                const right = `${countLabel ? `${countLabel} ` : ''}${formatToastClock(item.createdAt)}`;
                 const fixedW = 2 + level.length + 2 + right.length;
                 const titleAvail = Math.max(6, ctx.width - fixedW);
-                const rawTitle = firstLineOf(item.text) || t(lang, '(空消息)', '(empty)');
+                const rawTitle = toastFirstLine(item.text) || copy.emptyMessageFallback;
                 const title = padDisplay(truncateDisplay(rawTitle, titleAvail, ell), titleAvail);
                 return (
                   <Box width={ctx.width} height={1} overflow="hidden">
@@ -271,7 +237,7 @@ export const NotificationHistoryModal = memo(function NotificationHistoryModal({
                 </Box>
               ))
             ) : (
-              <Text color={theme.dim}>{t(lang, '选一条通知查看全文', 'Select a notification to read it')}</Text>
+              <Text color={theme.dim}>{copy.selectToRead}</Text>
             )}
             {maxDetailTop > 0 ? (
               <Text color={theme.dim}>
@@ -286,7 +252,7 @@ export const NotificationHistoryModal = memo(function NotificationHistoryModal({
         </Box>
         <Box height={1} width={innerW} overflow="hidden">
           <Text color={status ? theme.accent : theme.dim}>
-            {status || t(lang, '提示消息按时间倒序排列，打开面板不会清空历史', 'Newest first; opening this panel never clears history')}
+            {status || copy.idleStatus}
           </Text>
         </Box>
       </Box>
