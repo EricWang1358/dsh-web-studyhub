@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, stat, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import vm from 'node:vm';
@@ -25,6 +25,8 @@ import {
 import {
   MAX_COMPANION_BYTES,
   extractResilientLesson,
+  readCheckedHtmlFile,
+  readCompanionDocument,
   resolveUnbuiltLessonSources,
   sanitizeWindowsFilename,
   scopeCompanionArgs,
@@ -36,8 +38,10 @@ import { estimateCalls, extractStructuredSourceExcerpt, planCompanionBuild } fro
 import { estimateOfCompanionPlan } from '../lib/contexts/generation/companion/start.js';
 import { preRepairLessonSpec, preRepairLessonWithReport } from '../lib/contexts/generation/companion/jobs/companion-lesson-build.js';
 import { StudyService } from '../lib/service.js';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { switchOptions } from './helpers/runtime-switch.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
+import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const uiMod = await loadUi(`
   export { framedDocument, DiagramFrame } from './ui/diagram-frame.js';
@@ -1781,12 +1785,34 @@ test('Wave 7 Polish: detokenized glossary & slide titles in companion.get, 15 MB
     const detok = detokenizeLesson(tokenized);
     assert.doesNotMatch(JSON.stringify(detok.terms), /@@SHM_\d+@@/);
 
-    // 15 MB limit constant & localized error message check
+    // 15 MB limit runtime enforcement across HTML, JSON attach, and managed companion document reads + localized message
     assert.equal(MAX_COMPANION_BYTES, 15 * 1024 * 1024);
     assert.equal(localizeAppMessage('伴学 HTML 文件超过 15 MB 上限', 'en'), 'The companion HTML file exceeds the 15 MB limit');
-    const compJsText = await readFile(new URL('../lib/companion/companions.js', import.meta.url), 'utf8');
-    assert.doesNotMatch(compJsText, /\b5 MB 上限/, 'companions.js must not contain stale 5 MB message');
-    assert.equal((compJsText.match(/伴学 HTML 文件超过 15 MB 上限/g) || []).length, 5);
+    const oversizedHtml = join(wsDir, 'oversized.html');
+    await writeFile(oversizedHtml, '<!doctype html>', 'utf8');
+    await truncate(oversizedHtml, MAX_COMPANION_BYTES + 1);
+    await assert.rejects(
+      () => readCheckedHtmlFile(oversizedHtml),
+      (err) => /伴学 HTML 文件超过 15 MB 上限/.test(err.message) && !/\b5 MB 上限/.test(err.message),
+      'oversized HTML must fail with the 15 MB message',
+    );
+    const oversizedJson = join(wsDir, 'oversized.json');
+    await writeFile(oversizedJson, '{}', 'utf8');
+    await truncate(oversizedJson, MAX_COMPANION_BYTES + 1);
+    await assert.rejects(
+      () => svc.call('companion.attach', { path: oversizedJson, course: 'Vibrations', workspace: wsDir, allowRememberTrusted: true }),
+      (err) => /伴学 HTML 文件超过 15 MB 上限/.test(err.message) && !/\b5 MB 上限/.test(err.message),
+      'oversized JSON companion must fail with the 15 MB message',
+    );
+    const managedOversized = join(storeDir, 'companions', 'files', 'comp-oversized.html');
+    await mkdir(join(storeDir, 'companions', 'files'), { recursive: true });
+    await writeFile(managedOversized, '<!doctype html>', 'utf8');
+    await truncate(managedOversized, MAX_COMPANION_BYTES + 1);
+    await assert.rejects(
+      () => readCompanionDocument({ root: storeDir, record: { id: 'comp-oversized', mode: 'managed' } }),
+      (err) => /伴学 HTML 文件超过 15 MB 上限/.test(err.message) && !/\b5 MB 上限/.test(err.message),
+      'oversized managed companion document must fail with the 15 MB message',
+    );
 
     svc.dispose();
   } finally {
@@ -1874,15 +1900,104 @@ test('Wave 7 Polish: detokenized glossary & slide titles in companion.get, 15 MB
     assert.ok(seededViewerHtml.includes('Slide 1/1'), 'Single-slide badge must also use unified Slide 1/1');
     assert.ok(!seededViewerHtml.includes('questions.json'));
     assert.ok(!CJK_RE.test(seededViewerHtml), `English seeded CompanionViewer leaked Han chars: ${seededViewerHtml}`);
+    // Case C: Partial cardDraft (either prompt alone OR answer alone) still opens the catch-up form
+    for (const partialDraft of [
+      { prompt: 'Only prompt filled', answer: '', misconception: '' },
+      { prompt: '', answer: 'Only answer filled', misconception: '' },
+    ]) {
+      const partialHtml = renderToStaticMarkup(
+        React.createElement(StudyServicesContext.Provider, { value: fakeStudy },
+          React.createElement(AppContext.Provider, { value: fakeApp },
+            React.createElement(CompanionViewer, {
+              modal: {
+                id: 'comp-ethics',
+                course: 'Moral Philosophy',
+                openDrawer: true,
+                initialState: readyState,
+                initialCardDraft: partialDraft,
+              },
+              onClose: () => {},
+            }),
+          ),
+        ),
+      );
+      assert.ok(partialHtml.includes('Save to Companion Catch-ups'), 'Partial cardDraft (prompt || answer) must render catch-up form');
+    }
   } finally {
     setUiLanguage('zh');
   }
 
-  // 3. Verify CompanionViewer flushes pending debounced `companion.progress` on unmount instead of dropping it
+  // 3. Runtime unmount flush: debounced `companion.progress` is flushed immediately when CompanionViewer unmounts
   {
-    const viewerSrc = await readFile(new URL('../ui/companions/CompanionViewer.jsx', import.meta.url), 'utf8');
-    assert.match(viewerSrc, /flushPendingProgress/, 'CompanionViewer must define and invoke flushPendingProgress on cleanup');
-    assert.match(viewerSrc, /Boolean\(cardDraft\.prompt \|\| cardDraft\.answer\)/, 'Catch-up section must gate on cardDraft.prompt || cardDraft.answer');
+    const messageListeners = [];
+    const progressCalls = [];
+    await withBrowserGlobals(async () => {
+      const viewerUi = await loadInteractiveUi(`
+        export { default as CompanionViewer } from './ui/companions/CompanionViewer.jsx';
+        export { StudyServicesContext } from './ui/study-context.jsx';
+        export { AppContext } from './ui/app/app-context.js';
+      `);
+      const frameWin = { postMessage() {} };
+      const studySvc = {
+        busy: false,
+        call: async (name, args) => {
+          if (name === 'companion.get') return readyState;
+          if (name === 'companion.feedback.list') return { total: 0, open: 0, items: [] };
+          if (name === 'companion.progress') {
+            progressCalls.push(args);
+            return { ok: true };
+          }
+          return {};
+        },
+        act: async () => ({}),
+        notify: () => {},
+        openModal: () => {},
+      };
+      const mounted = viewerUi.mount(() => viewerUi.React.createElement(
+        viewerUi.exports.StudyServicesContext.Provider,
+        { value: studySvc },
+        viewerUi.React.createElement(
+          viewerUi.exports.AppContext.Provider,
+          { value: { data: { courses: [], sources: [], decks: [] }, core: { refresh: () => {} } } },
+          viewerUi.React.createElement(viewerUi.exports.CompanionViewer, {
+            modal: { id: 'comp-ethics', course: 'Moral Philosophy' },
+            onClose: () => {},
+          }),
+        ),
+      ));
+      try {
+        await mounted.flush(6);
+        const frameEl = mounted.find((n) => typeof n.props?.companion?.channelToken === 'string');
+        assert.ok(frameEl?.props?.companion?.channelToken, 'DiagramFrame must receive bootConfig.channelToken');
+        const iframeHost = mounted.find((n) => n.type === 'iframe' && n.ref?.current);
+        assert.ok(iframeHost, 'DiagramFrame must mount an iframe host ref');
+        iframeHost.ref.current.contentWindow = frameWin;
+
+        const token = frameEl.props.companion.channelToken;
+        for (const listener of [...messageListeners]) {
+          listener({
+            source: frameWin,
+            data: { protocol: 'studyhub-companion/1', token, kind: 'progress', slide: 4, slideTotal: 16, completed: false },
+          });
+        }
+        assert.equal(progressCalls.length, 0, 'non-completed progress is debounced before unmount');
+      } finally {
+        mounted.unmount();
+      }
+      assert.equal(progressCalls.length, 1, 'unmounting CompanionViewer must flush pending debounced companion.progress');
+      assert.equal(progressCalls[0].id, 'comp-ethics');
+      assert.equal(progressCalls[0].course, 'Moral Philosophy');
+      assert.equal(progressCalls[0].slide, 4);
+      assert.equal(progressCalls[0].slideTotal, 16);
+    }, {
+      window: {
+        addEventListener: (type, fn) => { if (type === 'message') messageListeners.push(fn); },
+        removeEventListener: (type, fn) => {
+          const idx = messageListeners.indexOf(fn);
+          if (idx >= 0) messageListeners.splice(idx, 1);
+        },
+      },
+    });
   }
 
   // 4. Mobile 390px popover bounds, dark `--s4` >= 6:1 contrast, selection pill border & container-query split row
@@ -1908,7 +2023,32 @@ test('Wave 7 Polish: detokenized glossary & slide titles in companion.get, 15 MB
   assert.match(shimBooted, /border:1px solid var\(--rule-strong,rgba\(255,241,220,\.42\)\)/);
   assert.doesNotMatch(shimBooted, /border:1px solid #1e1a15/);
 
-  const companionsCss = await readFile(new URL('../ui/companions/companions.css', import.meta.url), 'utf8');
-  assert.match(companionsCss, /container-type:\s*inline-size/);
-  assert.match(companionsCss, /minmax\(0,\s*1fr\)\s+minmax\(0,\s*44%\)/);
+  // Static CSS layout contract: Node has no CSS container-query/grid layout engine, so verify companions.css via CSS AST declarations.
+  const { declarations: compDecls } = parseCss(await readFile(new URL('../ui/companions/companions.css', import.meta.url), 'utf8'));
+  assert.ok(
+    compDecls.some(d => d.ctx.at(-1) === '.sh-comp-drawer' && d.prop === 'container-type' && d.value === 'inline-size'),
+    '.sh-comp-drawer must declare container-type: inline-size',
+  );
+  assert.ok(
+    compDecls.some(d => d.ctx.at(-1) === '.sh-comp-bar' && d.prop === 'container-type' && d.value === 'inline-size'),
+    '.sh-comp-bar must declare container-type: inline-size',
+  );
+  assert.ok(
+    compDecls.some(
+      d => d.ctx.some(c => /@container\s*\(max-width:\s*860px\)/.test(c))
+        && d.ctx.at(-1) === '.sh-comp-viewer--split'
+        && d.prop === 'grid-template-rows'
+        && d.value === 'minmax(0, 1fr) minmax(0, 44%)',
+    ),
+    '@container (max-width: 860px) must stack .sh-comp-viewer--split rows as minmax(0, 1fr) minmax(0, 44%)',
+  );
+  assert.ok(
+    compDecls.some(
+      d => d.ctx.some(c => /@media\s*\(max-width:\s*860px\)/.test(c))
+        && d.ctx.at(-1) === '.sh-comp-viewer--split'
+        && d.prop === 'grid-template-rows'
+        && d.value === 'minmax(0, 1fr) minmax(0, 44%)',
+    ),
+    '@media (max-width: 860px) must stack .sh-comp-viewer--split rows as minmax(0, 1fr) minmax(0, 44%)',
+  );
 });

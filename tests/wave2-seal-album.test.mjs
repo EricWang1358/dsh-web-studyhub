@@ -1,9 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { nativeSelects } from './helpers/native-selects.mjs';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const mod = await loadUi(`
   export * from './ui/seal-press/seal-generator.js';
@@ -150,13 +153,42 @@ test('SealAlbumDialog renders the 5-Seal Specimen Shelf, filter chips, and zero-
   }
 });
 
-test('LazySealAlbumTrigger stays closure-light, mounts on Dashboard always and DailyRecap only when non-empty', () => {
-  const triggerSrc = readFileSync('ui/seal-press/LazySealAlbumTrigger.jsx', 'utf8');
-  assert.doesNotMatch(triggerSrc, /React\.lazy/);
-  assert.doesNotMatch(triggerSrc, /from '\.\/(?:seal-generator|postcard-svg|SealAlbumView|SealAlbumDialog|seal-storage)/);
-  assert.doesNotMatch(triggerSrc, /\.css['"]/);
-  assert.match(triggerSrc, /useLiveEffect/);
-  assert.match(triggerSrc, /import\('\.\/SealAlbumDialog\.jsx'\)/);
+async function inspectCodeSplit(entryPoint) {
+  const result = await build({
+    entryPoints: [resolve(process.cwd(), entryPoint)],
+    bundle: true,
+    splitting: true,
+    format: 'esm',
+    write: false,
+    metafile: true,
+    outdir: 'out',
+    external: [
+      'react', 'react-dom', 'react/*', 'react-dom/*',
+      '@base-ui/*', 'canvas-confetti', 'rough-notation', 'roughjs',
+    ],
+    plugins: [nativeSelects],
+    loader: { '.css': 'text' },
+    logLevel: 'silent',
+  });
+  const outputs = Object.entries(result.metafile.outputs);
+  const entry = outputs.find(([, meta]) => meta.entryPoint === entryPoint);
+  const dynamicChunks = outputs.filter(([, meta]) => meta.entryPoint && meta.entryPoint !== entryPoint);
+  return {
+    entryInputs: Object.keys(entry?.[1]?.inputs || {}),
+    dynamicEntryPoints: dynamicChunks.map(([, meta]) => meta.entryPoint),
+    dynamicImports: (entry?.[1]?.imports || []).filter((imp) => imp.kind === 'dynamic-import').map((imp) => imp.path),
+  };
+}
+
+test('LazySealAlbumTrigger stays closure-light, mounts on Dashboard always and DailyRecap only when non-empty', async () => {
+  // Real bundler code-split verification: entry chunk never pulls seal SVG, storage, dialog, or CSS; SealAlbumDialog splits into an async chunk.
+  const split = await inspectCodeSplit('ui/seal-press/LazySealAlbumTrigger.jsx');
+  for (const heavy of ['seal-generator.js', 'postcard-svg.js', 'SealAlbumView', 'SealAlbumDialog.jsx', 'seal-storage.js']) {
+    assert.equal(split.entryInputs.some((f) => f.includes(heavy)), false, `entry chunk must not statically import ${heavy}`);
+  }
+  assert.equal(split.entryInputs.some((f) => f.endsWith('.css')), false, 'entry chunk must not statically import CSS');
+  assert.equal(split.dynamicEntryPoints.includes('ui/seal-press/SealAlbumDialog.jsx'), true, 'SealAlbumDialog.jsx must be dynamically code-split');
+  assert.ok(split.dynamicImports.some((p) => p.includes('SealAlbumDialog')), 'entry chunk must load SealAlbumDialog via dynamic import()');
 
   const prevStorage = globalThis.localStorage;
   const mem = makeMemoryStorage();
@@ -195,22 +227,118 @@ test('LazySealAlbumTrigger stays closure-light, mounts on Dashboard always and D
     const triggerEn = renderToStaticMarkup(React.createElement(mod.LazySealAlbumTrigger, { onlyWhenNonEmpty: true }));
     assert.match(textOf(triggerEn), /Seal Album \(2\)/);
     assert.doesNotMatch(textOf(triggerEn), HAN);
+
+    // Interactive behavior: loads SealAlbumDialog dynamically on click without React.lazy suspension
+    await withBrowserGlobals(async () => {
+      const ui = await loadInteractiveUi(`
+        export { default as LazySealAlbumTrigger } from './ui/seal-press/LazySealAlbumTrigger.jsx';
+      `);
+      const mounted = ui.mount(() => ui.React.createElement(ui.exports.LazySealAlbumTrigger, { onlyWhenNonEmpty: true }));
+      try {
+        assert.equal(mounted.find((n) => n.props?.['data-testid'] === 'seal-album-dialog'), null, 'dialog stays unmounted before click');
+        const btn = mounted.find((n) => n.props?.['data-testid'] === 'seal-album-trigger' && typeof n.props?.onClick === 'function');
+        assert.ok(btn, 'trigger button renders synchronously');
+        await mounted.act(() => click(btn));
+        await mounted.flush(5);
+        assert.ok(mounted.find((n) => n.props?.['data-testid'] === 'seal-album-dialog'), 'clicking trigger dynamically imports and mounts SealAlbumDialog');
+      } finally {
+        mounted.unmount();
+      }
+    });
   } finally {
     mod.setUiLanguage('zh');
     globalThis.localStorage = prevStorage;
   }
 });
 
-test('WrongBookClearStamp & LazyWrongBookClearStamp enforce lazy boundary, full-motion confetti guard, and zh/en SSR', () => {
-  const lazySrc = readFileSync('ui/seal-press/LazyWrongBookClearStamp.jsx', 'utf8');
-  assert.doesNotMatch(lazySrc, /React\.lazy/);
-  assert.match(lazySrc, /useLiveEffect/);
-  assert.match(lazySrc, /import\('\.\/WrongBookClearStamp\.jsx'\)/);
+test('WrongBookClearStamp & LazyWrongBookClearStamp enforce lazy boundary, full-motion confetti guard, and zh/en SSR', async () => {
+  // Real bundler code-split verification for LazyWrongBookClearStamp -> WrongBookClearStamp
+  const split = await inspectCodeSplit('ui/seal-press/LazyWrongBookClearStamp.jsx');
+  assert.equal(split.entryInputs.some((f) => f.endsWith('/WrongBookClearStamp.jsx')), false, 'LazyWrongBookClearStamp must not statically import WrongBookClearStamp');
+  assert.equal(split.entryInputs.some((f) => f.endsWith('.css')), false, 'LazyWrongBookClearStamp must not statically import CSS');
+  assert.equal(split.dynamicEntryPoints.includes('ui/seal-press/WrongBookClearStamp.jsx'), true, 'WrongBookClearStamp.jsx must be dynamically code-split');
+  assert.ok(split.dynamicImports.some((p) => p.includes('WrongBookClearStamp')), 'entry chunk must load WrongBookClearStamp via dynamic import()');
 
-  const stampSrc = readFileSync('ui/seal-press/WrongBookClearStamp.jsx', 'utf8');
-  assert.doesNotMatch(stampSrc, /React\.lazy/);
-  assert.match(stampSrc, /data-motion.*full|=== 'full'/);
-  assert.match(stampSrc, /useLiveEffect/);
+  // Interactive runtime check: LazyWrongBookClearStamp loads on demand when clearedCount > 0, and WrongBookClearStamp fires confetti ONLY under data-motion="full"
+  const confettiCalls = [];
+  const confettiSpyPlugin = {
+    name: 'spy-seal-confetti',
+    setup(builder) {
+      builder.onResolve({ filter: /\.\/confetti-burst\.js$/ }, () => ({ path: 'confetti-burst', namespace: 'spy-confetti' }));
+      builder.onLoad({ filter: /.*/, namespace: 'spy-confetti' }, () => ({
+        contents: `export const fireSealConfetti = (opts) => { globalThis.__WB_CONFETTI_CALLS__.push(opts); return Promise.resolve(); };`,
+        loader: 'js',
+      }));
+    },
+  };
+  globalThis.__WB_CONFETTI_CALLS__ = confettiCalls;
+  try {
+    let motionAttr = 'reduced';
+    let reducedMedia = false;
+    await withBrowserGlobals(async () => {
+      const lazyUi = await loadInteractiveUi(`
+        export { default as LazyWrongBookClearStamp } from './ui/seal-press/LazyWrongBookClearStamp.jsx';
+      `, { plugins: [confettiSpyPlugin] });
+
+      const inactive = lazyUi.mount(() => lazyUi.React.createElement(lazyUi.exports.LazyWrongBookClearStamp, { clearedCount: 0, course: 'CS5223' }));
+      await inactive.flush(5);
+      assert.equal(inactive.find((n) => n.props?.['data-testid'] === 'wb-clear-stamp'), null, 'clearedCount=0 stays unmounted');
+      inactive.unmount();
+
+      const active = lazyUi.mount(() => lazyUi.React.createElement(lazyUi.exports.LazyWrongBookClearStamp, { clearedCount: 4, course: 'CS5223' }));
+      await active.flush(5);
+      assert.ok(active.find((n) => n.props?.['data-testid'] === 'wb-clear-stamp'), 'clearedCount>0 dynamically loads WrongBookClearStamp');
+      assert.equal(confettiCalls.length, 0, 'data-motion="reduced" must never fire confetti');
+      active.unmount();
+
+      // Switch to data-motion="full" with OS reduced-motion off -> arrival + click both fire confetti
+      motionAttr = 'full';
+      reducedMedia = false;
+      const fullUi = await loadInteractiveUi(`
+        export { default as WrongBookClearStamp } from './ui/seal-press/WrongBookClearStamp.jsx';
+      `, { plugins: [confettiSpyPlugin] });
+      const fullMount = fullUi.mount(() => fullUi.React.createElement(fullUi.exports.WrongBookClearStamp, { clearedCount: 6, course: 'CS5223' }));
+      try {
+        await fullMount.flush(3);
+        assert.equal(confettiCalls.length, 1, 'arrival under data-motion="full" fires one clean-sweep confetti burst');
+        assert.equal(confettiCalls[0].variant, 'clean-sweep');
+
+        const sealBtn = fullMount.find((n) => typeof n.props?.className === 'string' && n.props.className.includes('sh-wb-clear__trigger') && typeof n.props?.onClick === 'function');
+        assert.ok(sealBtn, 'seal trigger button exists');
+        await fullMount.act(() => click(sealBtn));
+        assert.equal(confettiCalls.length, 2, 'pressing the seal under data-motion="full" fires stamp confetti');
+        assert.equal(confettiCalls[1].variant, 'stamp');
+
+        // Switching to data-motion="off" or OS prefers-reduced-motion suppresses subsequent seal press confetti
+        motionAttr = 'off';
+        await fullMount.act(() => click(sealBtn));
+        assert.equal(confettiCalls.length, 2, 'data-motion="off" suppresses confetti on seal press');
+
+        motionAttr = null;
+        reducedMedia = true;
+        await fullMount.act(() => click(sealBtn));
+        assert.equal(confettiCalls.length, 2, 'OS prefers-reduced-motion without explicit data-motion="full" suppresses confetti');
+
+        // Clicking album button dynamically loads SealAlbumDialog via useLiveEffect
+        const albumBtn = fullMount.find((n) => n.props?.['data-testid'] === 'wb-clear-album-btn' && typeof n.props?.onClick === 'function');
+        assert.ok(albumBtn);
+        await fullMount.act(() => click(albumBtn));
+        await fullMount.flush(5);
+        assert.ok(fullMount.find((n) => n.props?.['data-testid'] === 'seal-album-dialog'), 'clicking album button loads SealAlbumDialog');
+      } finally {
+        fullMount.unmount();
+      }
+    }, {
+      document: {
+        querySelector: (sel) => (sel.includes('.study-app') ? { getAttribute: (name) => (name === 'data-motion' ? motionAttr : null) } : null),
+      },
+      window: {
+        matchMedia: () => ({ matches: reducedMedia, addEventListener() {}, removeEventListener() {} }),
+      },
+    });
+  } finally {
+    delete globalThis.__WB_CONFETTI_CALLS__;
+  }
 
   mod.setUiLanguage('zh');
   try {

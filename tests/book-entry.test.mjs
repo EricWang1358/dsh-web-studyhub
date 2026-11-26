@@ -5,9 +5,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { readFileSync } from 'node:fs';
 import { loadUi } from './helpers/ui-module.mjs';
 import { dom } from './helpers/usage-dom.mjs';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const ui = await loadUi(`
   export { CourseOutlineView } from './ui/outline/CourseOutline.jsx';
@@ -58,16 +58,82 @@ test('the sidebar row is one line with the book icon, in Chinese and in English'
   assert.doesNotMatch(en, han);
 });
 
-test('where the sidebar leads: the book page once its notes are written, else the 总纲 page (no outline, no course, or an outline without notes)', () => {
+test('where the sidebar leads: the book page once its notes are written, else the 总纲 page (no outline, no course, or an outline without notes)', async () => {
   assert.equal(ui.bookEntryPage({ status: 'ok', notes: true }), 'book');
   assert.equal(ui.bookEntryPage({ status: 'ok', notes: false }), 'outline');
   assert.equal(ui.bookEntryPage({ status: 'rebuild-pending', moves: {} }), 'book', 'the preview is on the book page');
   assert.equal(ui.bookEntryPage({ status: 'empty', reason: 'no-outline' }), 'outline');
   assert.equal(ui.bookEntryPage({ status: 'empty', reason: 'no-course' }), 'outline');
   assert.equal(ui.bookEntryPage(null), 'outline');
-  const sidebar = readFileSync('ui/app/SidebarNav.jsx', 'utf8'); // the sidebar's page rows (#654 split AppSidebar into SidebarNav and SidebarFooter)
-  assert.match(sidebar, /id === 'book' \? openBookEntry\(\)/, 'the book row asks first');
-  assert.match(sidebar, /course\.book\.open/);
+
+  await withBrowserGlobals(async () => {
+    const navUi = await loadInteractiveUi(`
+      export { default as SidebarNav } from './ui/app/SidebarNav.jsx';
+      export { AppContext } from './ui/app/app-context.js';
+      export { StudyServicesContext } from './ui/study-context.jsx';
+    `);
+    const calls = [];
+    const navigations = [];
+    let bookResponse = async () => ({ status: 'ok', notes: true });
+    const appValue = {
+      data: { root: 'r', decks: [], sources: [], focus: { course: 'SA' } },
+      core: {
+        notify: noop,
+        call: async (name, args) => {
+          calls.push({ name, args });
+          return bookResponse(name, args);
+        },
+      },
+      shell: { navDrawer: false },
+      nav: {
+        navPage: 'library',
+        pageTarget: null,
+        page: 'library',
+        navigate: (id, opts) => navigations.push({ id, opts }),
+      },
+      session: { run: null, onCoachPractice: noop },
+      intents: { resumeOrStart: noop },
+      board: { count: 0 },
+    };
+    const mounted = navUi.mount(() => navUi.React.createElement(
+      navUi.exports.StudyServicesContext.Provider,
+      { value: services },
+      navUi.React.createElement(
+        navUi.exports.AppContext.Provider,
+        { value: appValue },
+        navUi.React.createElement(navUi.exports.SidebarNav, { alert: null, reason: '', tasks: { total: 0, running: 0, unseen: 0, failed: 0 } }),
+      ),
+    ));
+    try {
+      const bookBtn = mounted.find((n) => n.props?.['data-tour'] === 'nav-book' && typeof n.props?.onClick === 'function');
+      assert.ok(bookBtn, 'sidebar renders the 复习全书 row');
+
+      // Written book -> navigates to book after querying course.book.open
+      await mounted.act(() => click(bookBtn));
+      assert.deepEqual(calls[0], { name: 'course.book.open', args: { course: 'SA' } });
+      assert.equal(navigations[0].id, 'book');
+
+      // Unwritten book -> navigates to outline
+      bookResponse = async () => ({ status: 'ok', notes: false });
+      await mounted.act(() => click(bookBtn));
+      assert.equal(navigations[1].id, 'outline');
+
+      // Backend failure -> still opens book page so the page renders its error + retry
+      bookResponse = async () => { throw new Error('disk unavailable'); };
+      await mounted.act(() => click(bookBtn));
+      assert.equal(navigations[2].id, 'book');
+
+      // Non-book row navigates directly without calling course.book.open
+      const sourcesBtn = mounted.find((n) => n.props?.['data-tour'] === 'nav-sources' && typeof n.props?.onClick === 'function');
+      assert.ok(sourcesBtn);
+      const callsBefore = calls.length;
+      await mounted.act(() => click(sourcesBtn));
+      assert.equal(calls.length, callsBefore, 'non-book sidebar rows do not query course.book.open');
+      assert.equal(navigations[3].id, 'sources');
+    } finally {
+      mounted.unmount();
+    }
+  });
 });
 
 test('the 总纲 page says in one line what the 复习全书 is while none is written, and only then', () => {
@@ -103,13 +169,184 @@ test('the 期末一周 date hint: a link without a date, the window beside a far
   assert.equal(ui.crunchDateHint({ date: '2026-10-01' }, 21, now), null, 'past: the plan says so itself');
 });
 
-test('更多 › 期末一周 wires the hint: 设置考试日期 to the course settings, or the line on 前往设置, and only for a written book', () => {
-  const source = readFileSync('ui/book/BookPage.jsx', 'utf8'), menu = readFileSync('ui/book/BookMore.jsx', 'utf8'), actions = readFileSync('ui/book/more-actions.js', 'utf8');
-  assert.match(source, /crunchDateHint\(courseRecord\?\.exam, crunchWindow\(data\?\.settings\?\.book\)\)/);
-  assert.match(source, /book\?\.status === 'ok' && book\.notes \? crunchDateHint/, 'only with a written book');
-  assert.match(menu, /期末一周在考前 \{0\} 天开始/);
-  assert.match(menu, /dateHint\?\.kind === 'none' && settings && \{ id: 'exam-date'/, '设置考试日期 only without a date');
-  assert.match(actions, /onCourseSettings\?\.\(courseRecord\?\.id\)/);
-  const views = readFileSync('ui/app/page-views.jsx', 'utf8');
-  assert.match(views, /onCourseSettings=\{settingsEntry\.setCourseSettings\}/, 'the book page opens the same course settings as the home');
+test('更多 › 期末一周 wires the hint: 设置考试日期 to the course settings, or the line on 前往设置, and only for a written book', async () => {
+  const bookUi = await loadInteractiveUi(`
+    export { default as BookMore, moreItems } from './ui/book/BookMore.jsx';
+    export { useMoreActions } from './ui/book/more-actions.js';
+    export { PAGE_VIEWS } from './ui/app/page-views.jsx';
+    export { AppContext } from './ui/app/app-context.js';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const { BookMore, moreItems, useMoreActions, PAGE_VIEWS, AppContext, StudyServicesContext } = bookUi.exports;
+
+  // 1. moreItems renders 设置考试日期 only without a date + with settings, and the countdown hint on 前往设置 for far dates
+  bookUi.exports.setUiLanguage('zh');
+  const noDateItems = moreItems({ dateHint: { kind: 'none' }, settings: true });
+  assert.ok(noDateItems.some(item => item.id === 'exam-date' && item.label === '设置考试日期'), '设置考试日期 shown when no exam date is set');
+  assert.equal(noDateItems.find(item => item.id === 'settings')?.hint, undefined);
+
+  const noSettingsItems = moreItems({ dateHint: { kind: 'none' }, settings: false });
+  assert.equal(noSettingsItems.some(item => item.id === 'exam-date'), false, '设置考试日期 hidden without course settings handler');
+  assert.equal(noSettingsItems.some(item => item.id === 'settings'), false);
+
+  const farDateItems = moreItems({ dateHint: { kind: 'later', window: 21 }, settings: true });
+  assert.equal(farDateItems.some(item => item.id === 'exam-date'), false, '设置考试日期 omitted when exam date exists');
+  assert.equal(farDateItems.find(item => item.id === 'settings')?.hint, '期末一周在考前 21 天开始');
+
+  const inWindowItems = moreItems({ dateHint: null, settings: true });
+  assert.equal(inWindowItems.some(item => item.id === 'exam-date'), false);
+  assert.equal(inWindowItems.find(item => item.id === 'settings')?.hint, undefined);
+
+  // 2. useMoreActions routes both exam-date and settings to onCourseSettings(courseRecord.id)
+  const openedCourseIds = [];
+  const moreHook = bookUi.mountHook(() => useMoreActions({
+    step: null,
+    course: 'SA',
+    book: null,
+    notify: noop,
+    aiFold: { folded: () => false, foldAll: noop },
+    reading: { mode: 'step' },
+    where: { switchReading: noop },
+    openView: noop,
+    setDialog: noop,
+    setTodayOpen: noop,
+    onCreate: noop,
+    onCourseSettings: (id) => openedCourseIds.push(id),
+    courseRecord: { id: 'course-sa', name: 'SA' },
+    onStructure: noop,
+    onOutline: noop,
+    onCards: noop,
+    onBuildIndex: noop,
+  }), undefined, (el) => bookUi.React.createElement(StudyServicesContext.Provider, { value: services }, el));
+  try {
+    await moreHook.current.select('exam-date');
+    await moreHook.current.select('settings');
+    assert.deepEqual(openedCourseIds, ['course-sa', 'course-sa']);
+  } finally {
+    moreHook.unmount();
+  }
+
+  // 3. End-to-end wiring through PAGE_VIEWS.book -> BookPage -> BookMore -> settingsEntry.setCourseSettings
+  const prevCss = globalThis.CSS;
+  globalThis.CSS = { escape: (value) => String(value) };
+  try {
+    await withBrowserGlobals(async () => {
+      const writtenBook = {
+        status: 'ok',
+        notes: true,
+        title: '复习全书 · SA',
+        language: 'zh',
+        revision: 1,
+        nodes: [{
+          hid: 'ch1',
+          id: 'ch1',
+          title: 'Introduction',
+          number: '1',
+          leaf: false,
+          children: [{
+            hid: 'p1',
+            id: 'p1',
+            title: 'Thermodynamics',
+            number: '1.1',
+            leaf: true,
+            mine: 'Core note.',
+            text: 'Core note.',
+            cards: [],
+          }],
+        }],
+        unplaced: { hid: 'unplaced', title: '未归位', text: '', sections: [] },
+        history: {},
+      };
+      const settingsTargets = [];
+      let currentBook = writtenBook;
+      const bookServices = {
+        ...services,
+        call: async (name) => {
+          if (name === 'course.book.open') return currentBook;
+          if (name === 'course.crunch.plan') return { status: 'none' };
+          if (name === 'course.period.plan') return { status: 'none' };
+          if (name === 'course.book.evidence') return { byHid: {} };
+          if (name === 'course.book.pages') return { pages: 4 };
+          return {};
+        },
+      };
+      const appState = {
+        data: {
+          root: 'r',
+          revision: 1,
+          focus: { course: 'SA' },
+          courses: [{ id: 'course-sa', name: 'SA' }],
+          sources: [],
+          decks: [],
+          jobs: [],
+          settings: { book: { crunchWindowDays: 30 } },
+        },
+        nav: { navigate: noop, show: { task: noop }, holdLeave: noop },
+        session: { enterRun: noop },
+        learn: { hasTrail: false, trailPage: null, trailLabel: '', captureContext: () => ({}), rememberContext: noop, returnFromContext: noop, openLearningTarget: noop },
+        intents: { practice: noop, goGenerate: noop },
+        shell: { resolvedTheme: 'light' },
+        settingsEntry: { setCourseSettings: (id) => settingsTargets.push(id), openSettings: noop },
+        core: { refresh: noop },
+      };
+
+      const mounted = bookUi.mount(() => bookUi.React.createElement(
+        StudyServicesContext.Provider,
+        { value: bookServices },
+        bookUi.React.createElement(
+          AppContext.Provider,
+          { value: appState },
+          bookUi.React.createElement(PAGE_VIEWS.book),
+        ),
+      ));
+      try {
+        await mounted.flush(6);
+        const moreNoDate = mounted.find((n) => n.type === BookMore);
+        assert.ok(moreNoDate, 'written book renders BookMore');
+        assert.deepEqual(moreNoDate.props.dateHint, { kind: 'none' });
+        assert.equal(moreNoDate.props.settings, true);
+
+        // Selecting exam-date invokes settingsEntry.setCourseSettings with the course id
+        await mounted.act(() => moreNoDate.props.onSelect('exam-date'));
+        assert.deepEqual(settingsTargets, ['course-sa'], 'BookPage opens the same course settings handler as home');
+
+        // Far exam date updates dateHint to { kind: 'later', window: 30 } using settings.book.crunchWindowDays
+        appState.data = {
+          ...appState.data,
+          courses: [{ id: 'course-sa', name: 'SA', exam: { date: '2099-12-31' } }],
+        };
+        mounted.rerender();
+        const moreFarDate = mounted.find((n) => n.type === BookMore);
+        assert.deepEqual(moreFarDate.props.dateHint, { kind: 'later', window: 30 });
+      } finally {
+        mounted.unmount();
+      }
+
+      // Unwritten book (notes: false) renders the empty state instead of BookMore (no 期末一周 hint)
+      currentBook = { ...writtenBook, notes: false };
+      const unwrittenMount = bookUi.mount(() => bookUi.React.createElement(
+        StudyServicesContext.Provider,
+        { value: bookServices },
+        bookUi.React.createElement(
+          AppContext.Provider,
+          { value: appState },
+          bookUi.React.createElement(PAGE_VIEWS.book),
+        ),
+      ));
+      try {
+        await unwrittenMount.flush(6);
+        assert.equal(unwrittenMount.find((n) => n.type === BookMore), null, 'unwritten book does not render BookMore or 期末一周 hint');
+      } finally {
+        unwrittenMount.unmount();
+      }
+    }, {
+      document: {
+        getElementById: () => null,
+      },
+    });
+  } finally {
+    if (prevCss === undefined) delete globalThis.CSS;
+    else globalThis.CSS = prevCss;
+  }
 });

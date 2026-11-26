@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import React from 'react';
@@ -15,6 +15,7 @@ import {
 } from '../lib/practice-settings.js';
 import { StudyService } from '../lib/service.js';
 import { loadUi } from './helpers/ui-module.mjs';
+import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const ssr = await loadUi(`
   export { default as PracticePane } from './ui/settings/PracticePane.jsx';
@@ -74,8 +75,35 @@ test('PracticePane and Finder expose companionSlideCheck opt-in switch (off by d
   assert.ok(finderEntry);
   assert.equal(finderEntry.area, 'practice');
 
-  const paneSrc = await readFile(new URL('../ui/settings/PracticePane.jsx', import.meta.url), 'utf8');
-  assert.match(paneSrc, /companionSlideCheck:\s*on\s*\?\s*true\s*:\s*null/);
+  const interactive = await loadInteractiveUi(`
+    export { default as PracticePane } from './ui/settings/PracticePane.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+  `);
+  const actions = [];
+  const recordAct = async (action, args) => {
+    actions.push({ action, args });
+    return { ok: true };
+  };
+  const paneProps = { data: { settings: {} }, busy: false, act: recordAct };
+  const mounted = interactive.mount(() => interactive.React.createElement(
+    interactive.exports.StudyServicesContext.Provider,
+    { value: { openSettings: noop, host: {} } },
+    interactive.React.createElement(interactive.exports.PracticePane, paneProps),
+  ));
+  try {
+    const toggleInput = () => mounted.find((n) => n.type === 'input' && n.props?.name === 'companionSlideCheck');
+    assert.equal(toggleInput()?.props?.checked, false);
+    await mounted.act(() => toggleInput().props.onChange({ target: { checked: true } }));
+    assert.deepEqual(actions[0], { action: 'settings.practice.set', args: { patch: { companionSlideCheck: true } } });
+
+    paneProps.data = { settings: { practice: { companionSlideCheck: true } } };
+    mounted.rerender();
+    assert.equal(toggleInput()?.props?.checked, true);
+    await mounted.act(() => toggleInput().props.onChange({ target: { checked: false } }));
+    assert.deepEqual(actions[1], { action: 'settings.practice.set', args: { patch: { companionSlideCheck: null } } });
+  } finally {
+    mounted.unmount();
+  }
 
   english(() => {
     const enHtml = renderToStaticMarkup(h(ssr.PracticePane, { data: { settings: {} }, busy: false, act: noop }));
@@ -322,10 +350,164 @@ test('CourseCompanionsBar, CompanionViewer, and CompanionInlineRun keep default-
     assert.match(textOf(enInline), /Slide 1 · 1 question/);
   });
 
-  const inlineSrc = await readFile(new URL('../ui/app/modals/CompanionInlineRun.jsx', import.meta.url), 'utf8');
-  assert.match(inlineSrc, /document\.activeElement\?\.tagName === 'IFRAME'/);
-  assert.match(inlineSrc, /event\.key !== 'Escape'/);
-  assert.match(inlineSrc, /if \(!study\?\.host\?\.openModelSettings\) set\.setModal\(null\)/);
-  assert.match(inlineSrc, /useCompanionInlinePractice/);
-  assert.match(inlineSrc, /backLabel=\{ui\('回到解惑栏'\)\}/);
+  const inlineMod = await loadInteractiveUi(`
+    export { default as CompanionInlineRun, useCompanionInlinePractice } from './ui/app/modals/CompanionInlineRun.jsx';
+    export { default as InlineRun } from './ui/review/InlineRun.jsx';
+    export { AppContext } from './ui/app/app-context.js';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const { CompanionInlineRun, useCompanionInlinePractice, InlineRun, AppContext, StudyServicesContext } = inlineMod.exports;
+
+  // 1. useCompanionInlinePractice builds { Run, load } and delegates load(scope, then) with fresh: true
+  const practiceCalls = [];
+  const hookWrap = (el) => inlineMod.React.createElement(
+    AppContext.Provider,
+    { value: { intents: { practice: (scope, opts) => { practiceCalls.push({ scope, opts }); } } } },
+    el,
+  );
+  const hook = inlineMod.mountHook(() => useCompanionInlinePractice(), undefined, hookWrap);
+  try {
+    assert.equal(hook.current.Run, CompanionInlineRun);
+    const cb = () => {};
+    hook.current.load([{ deckId: 'd-os', cardId: 'q-s1' }], cb);
+    assert.equal(practiceCalls.length, 1);
+    assert.deepEqual(practiceCalls[0].scope, [{ deckId: 'd-os', cardId: 'q-s1' }]);
+    assert.equal(practiceCalls[0].opts.fresh, true);
+    assert.equal(practiceCalls[0].opts.then, cb);
+  } finally {
+    hook.unmount();
+  }
+
+  // 2. CompanionInlineRun blurs focused iframe on mount, intercepts Escape, passes localized backLabel, and gates modal close on host.openModelSettings
+  const keyListeners = [];
+  let iframeBlurred = 0;
+  let closedCount = 0;
+  const modalChanges = [];
+  let openedModelSettings = 0;
+  class StubElement {
+    constructor(tag, selectorMatches = []) {
+      this.tagName = tag;
+      this._matches = new Set(selectorMatches);
+    }
+    closest(sel) {
+      return sel.split(',').some((part) => this._matches.has(part.trim())) ? this : null;
+    }
+  }
+  const prevElement = globalThis.Element;
+  globalThis.Element = StubElement;
+  try {
+    await withBrowserGlobals(async () => {
+      const startedRun = {
+        id: 'run-inline-1',
+        mode: 'path',
+        index: 0,
+        total: 1,
+        complete: false,
+        card: { id: 'q-s1', deckId: 'd-os', kind: 'open', prompt: 'Slide 1 card?' },
+      };
+      const studyValue = {
+        busy: false,
+        call: async () => ({}),
+        act: async () => ({}),
+        notify: noop,
+        openModal: noop,
+        host: {},
+      };
+      const inlineData = { root: 'r', settings: {}, decks: sharedDecks, courses: [], sources: [] };
+      const appValue = {
+        core: { call: async () => ({}), act: async () => ({}), refresh: noop, notify: noop, refs: { dataRef: { current: inlineData } } },
+        nav: { show: { page: noop, source: noop, task: noop, note: noop } },
+        intents: { openRun: async () => true, practice: noop },
+        set: { setModal: (m) => modalChanges.push(m) },
+        data: inlineData,
+        settingsEntry: { openModelSettings: () => { openedModelSettings += 1; } },
+        learn: { openLearningTarget: noop },
+      };
+      inlineMod.exports.setUiLanguage('zh');
+      const mounted = inlineMod.mount(() => inlineMod.React.createElement(
+        StudyServicesContext.Provider,
+        { value: studyValue },
+        inlineMod.React.createElement(
+          AppContext.Provider,
+          { value: appValue },
+          inlineMod.React.createElement(CompanionInlineRun, {
+            started: startedRun,
+            label: '第 1 页 · 1 道题',
+            companionId: 'comp-os',
+            onJumpSlide: noop,
+            onClose: () => { closedCount += 1; },
+            shown: true,
+          }),
+        ),
+      ));
+      try {
+        assert.equal(iframeBlurred, 1, 'mounting CompanionInlineRun must blur a focused stage IFRAME');
+
+        const inlineNode = mounted.find((n) => n.type === InlineRun);
+        assert.ok(inlineNode, 'CompanionInlineRun must render InlineRun');
+        assert.equal(inlineNode.props.backLabel, '回到解惑栏');
+
+        // Verify Escape handling: non-Escape ignored, Escape in an input inside rootRef keeps round open, Escape on body closes round
+        const bodyTarget = new StubElement('BODY');
+        globalThis.document.body = bodyTarget;
+        const inputTarget = new StubElement('INPUT', ['input']);
+        inlineNode.props.rootRef.current = { contains: (node) => node === inputTarget };
+
+        const dispatchKey = (key, target) => {
+          const ev = {
+            key,
+            target,
+            defaultPrevented: false,
+            stopped: false,
+            preventDefault() { this.defaultPrevented = true; },
+            stopPropagation() { this.stopped = true; },
+          };
+          for (const listener of [...keyListeners]) listener(ev);
+          return ev;
+        };
+
+        const enterEv = dispatchKey('Enter', bodyTarget);
+        assert.equal(enterEv.defaultPrevented, false);
+        assert.equal(closedCount, 0);
+
+        const inputEsc = dispatchKey('Escape', inputTarget);
+        assert.equal(inputEsc.defaultPrevented, true, 'Escape inside inline input calls preventDefault to keep outer dialog open');
+        assert.equal(closedCount, 0, 'Escape inside inline input must not close the inline round');
+
+        const bodyEsc = dispatchKey('Escape', bodyTarget);
+        assert.equal(bodyEsc.defaultPrevented, true);
+        assert.equal(bodyEsc.stopped, true);
+        assert.equal(closedCount, 1, 'Escape outside inputs closes the inline round instead of outer companion dialog');
+
+        // Verify onModelSettings closes companion modal only when host has no native openModelSettings
+        inlineNode.props.links.onModelSettings();
+        assert.deepEqual(modalChanges, [null]);
+        assert.equal(openedModelSettings, 1);
+
+        studyValue.host = { openModelSettings: noop };
+        mounted.rerender();
+        const inlineNodeWithHost = mounted.find((n) => n.type === InlineRun);
+        inlineNodeWithHost.props.links.onModelSettings();
+        assert.deepEqual(modalChanges, [null], 'must keep companion modal open when host provides native openModelSettings');
+        assert.equal(openedModelSettings, 2);
+      } finally {
+        mounted.unmount();
+      }
+    }, {
+      document: {
+        activeElement: { tagName: 'IFRAME', blur: () => { iframeBlurred += 1; } },
+      },
+      window: {
+        addEventListener: (type, fn) => { if (type === 'keydown') keyListeners.push(fn); },
+        removeEventListener: (type, fn) => {
+          const idx = keyListeners.indexOf(fn);
+          if (idx >= 0) keyListeners.splice(idx, 1);
+        },
+      },
+    });
+  } finally {
+    if (prevElement === undefined) delete globalThis.Element;
+    else globalThis.Element = prevElement;
+  }
 });
