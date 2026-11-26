@@ -1,6 +1,7 @@
 /* Every test run has a fresh machine-settings home and no inherited provider credentials.
    node scripts/test.mjs [--fast] [node --test options] [test files]
-   A plain full run starts the longest files first (scripts/qa/run-tests.mjs, which also limits how long one test or one file may take)
+   A plain full run measures the reader's scroll budget alone, then starts the longest remaining files first
+   (scripts/qa/run-tests.mjs also limits how long one test or one file may take)
    and takes turns with other full runs on the machine
    (scripts/qa/test-lock.mjs; STUDY_TEST_NO_LOCK=1 skips the queue). --fast leaves out the browser, ffmpeg and program-starting
    files of tests/slow-tests.json. With file arguments it is `node --test` on those files, as ever. */
