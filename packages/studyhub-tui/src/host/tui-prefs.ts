@@ -7,7 +7,7 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import type { AssistantCommandStat, LastPracticeContext, PinnedTarget, ThemeId, TuiPreferences, UiLanguage } from '../types/contracts.js';
-import { type AtomicFsOps, atomicUpdateJson, backupCorruptFile } from './atomic-write.js';
+import { type AtomicFsOps, atomicUpdateJson, backupCorruptFile, detectUnsupportedSchemaVersion, stripUtf8Bom } from './atomic-write.js';
 
 export const TUI_PREFS_SCHEMA_VERSION = 1;
 
@@ -266,16 +266,6 @@ class UnsupportedPrefsVersionError extends Error {
   }
 }
 
-function stripUtf8Bom(text: string): string {
-  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-}
-
-function detectUnsupportedSchemaVersion(raw: Record<string, unknown>): { version: unknown } | null {
-  if (!Object.hasOwn(raw, 'version') || raw.version === undefined) return null;
-  if (raw.version === TUI_PREFS_SCHEMA_VERSION) return null;
-  return { version: raw.version };
-}
-
 const PASSIVE_PREF_KEYS = new Set<string>([
   'recentCommands',
   'lastPracticeContext',
@@ -314,7 +304,7 @@ export async function loadTuiPreferencesSafe(location: TuiPrefsLocation = {}): P
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return { prefs: defaults(), status: 'corrupt', error: 'Expected preferences JSON object' };
     }
-    const unsupportedVersion = detectUnsupportedSchemaVersion(parsed as Record<string, unknown>);
+    const unsupportedVersion = detectUnsupportedSchemaVersion(parsed as Record<string, unknown>, TUI_PREFS_SCHEMA_VERSION);
     if (unsupportedVersion !== null) {
       return {
         prefs: defaults(),
@@ -369,7 +359,7 @@ export async function saveTuiPreferences(
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
           throw new Error('Expected preferences JSON object');
         }
-        const unsupportedVersion = detectUnsupportedSchemaVersion(parsed as Record<string, unknown>);
+        const unsupportedVersion = detectUnsupportedSchemaVersion(parsed as Record<string, unknown>, TUI_PREFS_SCHEMA_VERSION);
         if (unsupportedVersion !== null) {
           throw new UnsupportedPrefsVersionError(unsupportedVersion.version);
         }

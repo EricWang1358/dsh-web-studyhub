@@ -25,7 +25,7 @@ const [prefsMod, chipsMod, usageMod, stackMod, storeMod] = await Promise.all([
 ]);
 
 const { loadTuiPreferences, saveTuiPreferences, tuiPreferencesPath } = prefsMod;
-const { buildContextChips, PROMOTION_THRESHOLD } = chipsMod;
+const { buildContextChips, extractPersistableChipStats, PROMOTION_THRESHOLD, resolveAssistantChipId } = chipsMod;
 const { recordAssistantCommandUsage } = usageMod;
 const { toLastPracticeContext } = stackMod;
 const { useTuiStore, DEFAULT_PREFERENCES } = storeMod;
@@ -58,7 +58,7 @@ async function readIfExists(filePath) {
 describe('#1354 D11 — no user input or card prompt persisted into settings; usage separated', () => {
   test('free-text assistant input is NEVER written to tui.json or tui-usage.json', async (t) => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'studyhub-d11-freetext-'));
-    t.after(() => rm(dir, { recursive: true, force: true }));
+    t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
     useTuiStore.setState({
       preferences: { ...DEFAULT_PREFERENCES, assistantCommandStats: undefined },
@@ -83,7 +83,7 @@ describe('#1354 D11 — no user input or card prompt persisted into settings; us
 
   test('known recommended chip usage persists ONLY chip IDs to separate tui-usage.json (never tui.json) and promotes on restart', async (t) => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'studyhub-d11-chip-ids-'));
-    t.after(() => rm(dir, { recursive: true, force: true }));
+    t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
     const tuiUsageMod = await import('../src/host/tui-usage.ts');
     const { loadTuiUsageSafe, tuiUsagePath, TUI_USAGE_SCHEMA_VERSION } = tuiUsageMod;
@@ -170,7 +170,7 @@ describe('#1354 D11 — no user input or card prompt persisted into settings; us
 
   test('toLastPracticeContext and saveTuiPreferences strip promptPreview and free-text assistantCommandStats from tui.json', async (t) => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'studyhub-d11-strip-'));
-    t.after(() => rm(dir, { recursive: true, force: true }));
+    t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
     const frame = {
       kind: 'review',
@@ -233,7 +233,7 @@ describe('#1354 D11 — no user input or card prompt persisted into settings; us
 
   test('cross-session chip promotion aggregates ID+command counts, keeps English labels & guided kind, and respects card context', async (t) => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'studyhub-d11-cross-session-'));
-    t.after(() => rm(dir, { recursive: true, force: true }));
+    t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
     const tuiUsageMod = await import('../src/host/tui-usage.ts');
     const { loadTuiUsage, saveTuiUsage } = tuiUsageMod;
@@ -293,16 +293,17 @@ describe('#1354 D11 — no user input or card prompt persisted into settings; us
     assert.equal(wrongCardChips[0].label, 'Guided & Retell');
     assert.equal(wrongCardChips[0].promoted, true);
 
-    // Wait for background usage writes before tempdir cleanup
+    // Wait for the last fire-and-forget usage write (they are queued in order) before tempdir cleanup
     await waitForCondition(async () => {
       const u = await loadTuiUsage({ env: { DSH_HOME: dir } });
-      return (u.assistantChipStats?.review?.['chip:stats']?.count ?? 0) >= PROMOTION_THRESHOLD;
+      return (u.assistantChipStats?.review?.['chip:stats']?.count ?? 0) >= PROMOTION_THRESHOLD
+        && (u.assistantChipStats?.review?.[resolveAssistantChipId('进入带学', 'review')]?.count ?? 0) >= PROMOTION_THRESHOLD;
     });
   });
 
   test('tui-usage.json handles malformed incoming stats, merges raw aliases canonically, and aborts recovery if backup fails', async (t) => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'studyhub-d11-usage-robust-'));
-    t.after(() => rm(dir, { recursive: true, force: true }));
+    t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
     const tuiUsageMod = await import('../src/host/tui-usage.ts');
     const { loadTuiUsageSafe, saveTuiUsage } = tuiUsageMod;
@@ -336,7 +337,6 @@ describe('#1354 D11 — no user input or card prompt persisted into settings; us
         { assistantChipStats: { review: { 'chip:stats': { count: 1, lastUsedAt: 300 } } } },
         {
           filePath: usageFile,
-          recover: true,
           fsOps: {
             writeAndSync: async () => {
               throw Object.assign(new Error('Simulated disk full during backup'), { code: 'ENOSPC' });
@@ -353,13 +353,13 @@ describe('#1354 D11 — no user input or card prompt persisted into settings; us
     const dir = await mkdtemp(path.join(os.tmpdir(), 'studyhub-d11-usage-guards-'));
     t.after(async () => {
       await chmod(path.join(dir, 'unreadable.json'), 0o600).catch(() => {});
-      await rm(dir, { recursive: true, force: true });
+      await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     });
 
     const tuiUsageMod = await import('../src/host/tui-usage.ts');
     const { loadTuiUsageSafe, saveTuiUsage } = tuiUsageMod;
 
-    // 1) Corrupt JSON: passive save skips and leaves original bytes untouched
+    // 1) Corrupt JSON: the save backs the file up first, then starts afresh (usage counters only, like lib/jev-usage.js)
     const corruptPath = path.join(dir, 'corrupt.json');
     const corruptBytes = '{"version":1,"assistantChipStats": BROKEN';
     await writeFile(corruptPath, corruptBytes, 'utf8');
@@ -367,19 +367,14 @@ describe('#1354 D11 — no user input or card prompt persisted into settings; us
     const loadedCorrupt = await loadTuiUsageSafe({ filePath: corruptPath });
     assert.equal(loadedCorrupt.status, 'corrupt');
 
-    await saveTuiUsage({ assistantChipStats: { review: { 'chip:stats': { count: 1, lastUsedAt: 100 } } } }, { filePath: corruptPath });
-    assert.equal(await readFile(corruptPath, 'utf8'), corruptBytes, 'passive save must not overwrite corrupt tui-usage.json');
-
-    // Explicit recovery backs up corrupt file first
-    await saveTuiUsage(
-      { assistantChipStats: { review: { 'chip:stats': { count: 2, lastUsedAt: 200 } } } },
-      { filePath: corruptPath, recover: true },
-    );
+    await saveTuiUsage({ assistantChipStats: { review: { 'chip:stats': { count: 2, lastUsedAt: 200 } } } }, { filePath: corruptPath });
     const files = await readdir(dir);
-    const bak = files.find((f) => f.startsWith('corrupt.json.corrupt-') && f.endsWith('.bak'));
-    assert.ok(bak, `expected backup file before recovery, got: ${files.join(', ')}`);
-    assert.equal(await readFile(path.join(dir, bak), 'utf8'), corruptBytes);
-    assert.equal((await loadTuiUsageSafe({ filePath: corruptPath })).status, 'ok');
+    const baks = files.filter((f) => f.startsWith('corrupt.json.corrupt-') && f.endsWith('.bak'));
+    assert.equal(baks.length, 1, `expected one backup file before recovery, got: ${files.join(', ')}`);
+    assert.equal(await readFile(path.join(dir, baks[0]), 'utf8'), corruptBytes);
+    const recovered = await loadTuiUsageSafe({ filePath: corruptPath });
+    assert.equal(recovered.status, 'ok');
+    assert.equal(recovered.usage.assistantChipStats?.review?.['chip:stats']?.count, 2, 'a damaged usage file must not stop chip usage from being recorded');
 
     // 2) UTF-8 BOM reads cleanly (not flagged corrupt)
     const bomPath = path.join(dir, 'bom.json');
@@ -392,7 +387,7 @@ describe('#1354 D11 — no user input or card prompt persisted into settings; us
     assert.equal(bomRes.status, 'ok');
     assert.equal(bomRes.usage.assistantChipStats?.review?.['chip:stats']?.count, 3);
 
-    // 3) Future/invalid schema version [C38]: refuses overwrite even on recover: true and leaves bytes untouched
+    // 3) Future/invalid schema version [C38]: never overwritten, bytes untouched
     for (const badVer of [2, '2', 0, null]) {
       const futurePath = path.join(dir, `future-${String(badVer)}.json`);
       const futureBytes = JSON.stringify({ version: badVer, assistantChipStats: { review: { 'chip:stats': { count: 9, lastUsedAt: 9 } } }, extraFutureField: true });
@@ -402,16 +397,8 @@ describe('#1354 D11 — no user input or card prompt persisted into settings; us
       assert.equal(res.status, 'unsupported-version', `version=${JSON.stringify(badVer)} must be unsupported-version`);
 
       await saveTuiUsage({ assistantChipStats: { review: { 'chip:stats': { count: 1, lastUsedAt: 1 } } } }, { filePath: futurePath });
-      assert.equal(await readFile(futurePath, 'utf8'), futureBytes, 'passive save must not overwrite future version');
-
-      await assert.rejects(
-        saveTuiUsage(
-          { assistantChipStats: { review: { 'chip:stats': { count: 1, lastUsedAt: 1 } } } },
-          { filePath: futurePath, recover: true },
-        ),
-        /version|unsupported/i,
-      );
-      assert.equal(await readFile(futurePath, 'utf8'), futureBytes, 'recover save must not overwrite future version');
+      assert.equal(await readFile(futurePath, 'utf8'), futureBytes, 'a save must not overwrite a future version');
+      assert.deepEqual((await readdir(dir)).filter((f) => f.startsWith(`future-${String(badVer)}.json.corrupt-`)), [], 'a future version is not damaged: no backup');
     }
 
     // 4) Unreadable path (portable EISDIR directory stand-in) refuses overwrite
@@ -424,5 +411,19 @@ describe('#1354 D11 — no user input or card prompt persisted into settings; us
       /EISDIR|could not be read|unreadable/i,
     );
     assert.equal((await stat(dirTarget)).isDirectory(), true);
+  });
+
+  test('extractPersistableChipStats keeps only registered chip ids: free text never reaches disk', () => {
+    const typed = '帮我整理昨晚私人日记里的敏感思考内容 XYZ-987654';
+    const out = extractPersistableChipStats({
+      review: {
+        [typed]: { count: 7, lastUsedAt: 700 },
+        '查看统计': { count: 2, lastUsedAt: 200 },
+      },
+      library: { 'my private free-text question 42': { count: 5, lastUsedAt: 500 } },
+    });
+    assert.deepEqual(out, { review: { 'chip:stats': { count: 2, lastUsedAt: 200 } } }, 'only the registered command survives, under its chip id');
+    assert.ok(!JSON.stringify(out).includes(typed));
+    assert.equal(extractPersistableChipStats({ library: { 'my private free-text question 42': { count: 5, lastUsedAt: 500 } } }), undefined);
   });
 });

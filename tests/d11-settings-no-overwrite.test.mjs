@@ -7,7 +7,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/
 import os from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
-import { createCoachDaily, DAILY } from '../lib/coach-daily.js';
+import { createCoachDaily, DAILY, dayOf } from '../lib/coach-daily.js';
 import { createCalibration } from '../lib/estimate-calibration.js';
 import { adoptIndexProvider } from '../lib/contexts/generation/retrieval/adopt-index.js';
 import { INDEX_TOOLS } from '../lib/retrieval-index.js';
@@ -30,14 +30,14 @@ async function withTempDshHome(t, prefix) {
 }
 
 describe('#1354 D11 — local settings files never silently overwrite on read failure or newer version', () => {
-  test('retrieval.json: corrupt/unreadable/future-version refuse silent overwrite; passive adopt skips; explicit recover backs up', async (t) => {
+  test('retrieval.json: passive adoption never touches a damaged file; the learner\'s save backs it up and replaces it; unreadable/future-version refuse', async (t) => {
     await withTempDshHome(t, 'studyhub-d11-retrieval-');
     const filePath = retrievalSettings.retrievalSettingsPath();
     await mkdir(path.dirname(filePath), { recursive: true });
 
     assert.equal(typeof retrievalSettings.readRetrievalSettingsSafe, 'function', 'readRetrievalSettingsSafe must be exported');
 
-    // 1) Corrupt JSON: default save & passive adopt refuse overwrite; bytes stay intact
+    // 1) Corrupt JSON: passive adoption leaves the bytes alone
     const corruptRaw = '{"provider":"service","hfEndpoint": BROKEN';
     await writeFile(filePath, corruptRaw, 'utf8');
 
@@ -45,20 +45,13 @@ describe('#1354 D11 — local settings files never silently overwrite on read fa
     assert.equal(safeCorrupt.status, 'corrupt');
     assert.deepEqual(safeCorrupt.settings, { provider: 'builtin' });
 
-    await assert.rejects(
-      retrievalSettings.saveRetrievalSettings({ provider: 'builtin' }),
-      (err) => err?.code === 'retrieval-settings-corrupt',
-      'saveRetrievalSettings must refuse to silently overwrite corrupt retrieval.json',
-    );
-    assert.equal(await readFile(filePath, 'utf8'), corruptRaw);
-
     // Passive adoption after index build must NOT clobber corrupt retrieval.json
     const fakePort = { tools: () => [{ name: INDEX_TOOLS.query }] };
     await adoptIndexProvider(fakePort);
     assert.equal(await readFile(filePath, 'utf8'), corruptRaw, 'adoptIndexProvider must not overwrite corrupt retrieval.json');
 
-    // Explicit recover backs up corrupt file before writing
-    const recovered = await retrievalSettings.saveRetrievalSettings({ provider: 'service' }, { recover: true });
+    // The learner choosing a provider (every caller of saveRetrievalSettings) backs the damaged file up, then saves
+    const recovered = await retrievalSettings.saveRetrievalSettings({ provider: 'service' });
     assert.deepEqual(recovered, { provider: 'service' });
     const files = await readdir(path.dirname(filePath));
     const bak = files.find((f) => f.startsWith('retrieval.json.corrupt-') && f.endsWith('.bak'));
@@ -71,14 +64,14 @@ describe('#1354 D11 — local settings files never silently overwrite on read fa
     assert.equal(bomRes.status, 'ok');
     assert.equal(bomRes.settings.provider, 'service');
 
-    // 3) Future schema version [C38]: refuses overwrite even on recover: true
+    // 3) Future schema version [C38]: refuses overwrite, even the learner's save
     const futureRaw = JSON.stringify({ version: 2, provider: 'service', futureKey: 'keep-me' });
     await writeFile(filePath, futureRaw, 'utf8');
     const futureRes = await retrievalSettings.readRetrievalSettingsSafe();
     assert.equal(futureRes.status, 'unsupported-version');
     await assert.rejects(
-      retrievalSettings.saveRetrievalSettings({ provider: 'builtin' }, { recover: true }),
-      (err) => err?.code === 'retrieval-settings-unsupported-version',
+      retrievalSettings.saveRetrievalSettings({ provider: 'builtin' }),
+      (err) => err?.code === 'json-unsupported-version',
     );
     assert.equal(await readFile(filePath, 'utf8'), futureRaw);
 
@@ -88,28 +81,11 @@ describe('#1354 D11 — local settings files never silently overwrite on read fa
     const unreadableRes = await retrievalSettings.readRetrievalSettingsSafe();
     assert.equal(unreadableRes.status, 'unreadable');
     await assert.rejects(
-      retrievalSettings.saveRetrievalSettings({ provider: 'builtin' }, { recover: true }),
-      (err) => err?.code === 'retrieval-settings-unreadable',
+      retrievalSettings.saveRetrievalSettings({ provider: 'builtin' }),
+      (err) => err?.code === 'json-unreadable',
     );
     assert.equal((await stat(filePath)).isDirectory(), true);
-
-    // 5) Backup failure during recover: true aborts and leaves original corrupt bytes intact
-    await rm(filePath, { recursive: true, force: true });
-    const corruptKeep = '{"provider":"service","hfEndpoint": KEEP_ME';
-    await writeFile(filePath, corruptKeep, 'utf8');
-    await assert.rejects(
-      retrievalSettings.saveRetrievalSettings(
-        { provider: 'builtin' },
-        {
-          recover: true,
-          copyFile: async () => {
-            throw Object.assign(new Error('Simulated disk full on backup'), { code: 'ENOSPC' });
-          },
-        },
-      ),
-      (err) => err?.code === 'retrieval-settings-backup-failed',
-    );
-    assert.equal(await readFile(filePath, 'utf8'), corruptKeep, 'corrupt retrieval.json must stay untouched when backup fails');
+    // A failed backup aborting the save is the shared backupThenRecover policy (tests/p3-lib-atomic-json-convergence.test.mjs test 10).
   });
 
   test('notebooks.json: corrupt backs up before recovery; unreadable & future version refuse overwrite', async (t) => {
@@ -135,11 +111,11 @@ describe('#1354 D11 — local settings files never silently overwrite on read fa
     await writeFile(regPath, futureRaw, 'utf8');
     await assert.rejects(
       publishNotebook(dir, path.join(dir, 'lib-b')),
-      (err) => err?.code === 'notebooks-registry-unsupported-version',
+      (err) => err?.code === 'json-unsupported-version',
     );
     await assert.rejects(
       unpublishNotebook(path.join(dir, 'lib-a')),
-      (err) => err?.code === 'notebooks-registry-unsupported-version',
+      (err) => err?.code === 'json-unsupported-version',
     );
     assert.equal(await readFile(regPath, 'utf8'), futureRaw);
 
@@ -148,35 +124,49 @@ describe('#1354 D11 — local settings files never silently overwrite on read fa
     await mkdir(regPath);
     await assert.rejects(
       publishNotebook(dir, path.join(dir, 'lib-c')),
-      (err) => err?.code === 'notebooks-registry-unreadable',
+      (err) => err?.code === 'json-unreadable',
     );
     assert.equal((await stat(regPath)).isDirectory(), true);
   });
 
-  test('coach-daily.json: corrupt, unreadable, and future-version refuse overwrite while read-only gate degrades safely', async (t) => {
+  test('coach-daily.json: an unusable ledger starts no batch (the daily cap guards model cost); only the learner\'s own change replaces a damaged one, after a backup', async (t) => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'studyhub-d11-coach-'));
     t.after(() => rm(root, { recursive: true, force: true }));
     const dailyPath = path.join(root, DAILY.file);
+    const backupsOf = async () => (await readdir(root)).filter((f) => f.startsWith(`${DAILY.file}.corrupt-`) && f.endsWith('.bak'));
+    // The learner capped the day at 2 batches and 2 have run.
+    const ranToday = (i) => ({ id: `b${i}`, startedAt: new Date().toISOString(), endedAt: new Date().toISOString(), status: 'ok', targets: 1 });
+    const capped = { version: 1, settings: { maxBatchesPerDay: 2 }, days: { [dayOf(Date.now())]: { batches: [ranToday(1), ranToday(2)] } } };
+    /** What the coach worker does (lib/contexts/coach/worker.js writePrepared): ask the gate, run, finish; up to 30 times. */
+    const runBatches = async (ledger) => {
+      let started = 0, gate;
+      for (let i = 0; i < 30; i += 1) {
+        gate = await ledger.gate();
+        if (!gate.ok) break;
+        await ledger.finish(ledger.begin({ targets: 1 }), { status: 'ok', targets: 1, generated: 1, passed: 1 }).catch(() => {});
+        started += 1;
+      }
+      return { started, gate };
+    };
 
-    // 1) Corrupt JSON: gate() degrades without writing, setSettings/pause refuse overwrite and preserve bytes
-    const corruptRaw = '{"version":1,"settings":{"maxReady":4},"days": BROKEN';
+    // 1) Damaged: no batch starts and the gate says why; a batch that ends does not rewrite the file
+    const corruptRaw = JSON.stringify(capped).slice(0, -5);
     await writeFile(dailyPath, corruptRaw, 'utf8');
     const ledger = createCoachDaily(root);
-    const gateRes = await ledger.gate();
-    assert.equal(gateRes.ok, true);
-    assert.equal(await readFile(dailyPath, 'utf8'), corruptRaw);
-
-    await assert.rejects(
-      ledger.patch({ maxReady: 6 }),
-      (err) => err?.code === 'coach-daily-corrupt',
-      'patch must refuse to overwrite corrupt coach-daily.json',
-    );
-    await assert.rejects(
-      ledger.setPaused(true),
-      (err) => err?.code === 'coach-daily-corrupt',
-      'setPaused must refuse to overwrite corrupt coach-daily.json',
-    );
+    const damaged = await runBatches(ledger);
+    assert.equal(damaged.started, 0, 'a damaged ledger must not let batches past the learner\'s daily cap');
+    assert.equal(damaged.gate.reason, 'ledger');
+    assert.match(damaged.gate.message, /coach-daily\.json/);
+    await assert.rejects(ledger.finish(ledger.begin({ targets: 1 }), { status: 'ok', targets: 1 }), (err) => err?.code === 'json-corrupt');
     assert.equal(await readFile(dailyPath, 'utf8'), corruptRaw, 'corrupt coach-daily.json bytes must remain intact');
+    assert.deepEqual(await backupsOf(), []);
+
+    // The learner can still pause: their own change backs the damaged file up first, then starts a fresh ledger
+    assert.equal(await ledger.setPaused(true), true);
+    const backups = await backupsOf();
+    assert.equal(backups.length, 1, 'pausing over a damaged ledger must back it up first');
+    assert.equal(await readFile(path.join(root, backups[0]), 'utf8'), corruptRaw);
+    assert.equal((await ledger.gate()).reason, 'paused');
 
     // 2) UTF-8 BOM reads cleanly and preserves settings on update
     await writeFile(dailyPath, `\uFEFF${JSON.stringify({ version: 1, settings: { maxReady: 5 }, days: {} })}`, 'utf8');
@@ -187,23 +177,22 @@ describe('#1354 D11 — local settings files never silently overwrite on read fa
     assert.equal(afterBom.settings.maxReady, 5);
     assert.equal(afterBom.settings.maxBatchesPerDay, 10);
 
-    // 3) Future schema version [C38]: refuses overwrite EVEN WITHOUT reload() (warm cache cannot clobber newer disk file)
-    const futureRaw = JSON.stringify({ version: 2, settings: { maxReady: 8 }, days: {}, futureFlag: true });
+    // 3) Future schema version [C38]: never rewritten, even by the learner and even without reload(); no batch starts
+    const futureRaw = JSON.stringify({ ...capped, version: 2, futureFlag: true });
     await writeFile(dailyPath, futureRaw, 'utf8');
-    await assert.rejects(
-      ledger.patch({ maxReady: 3 }),
-      (err) => err?.code === 'coach-daily-unsupported-version',
-    );
+    await assert.rejects(ledger.patch({ maxReady: 3 }), (err) => err?.code === 'json-unsupported-version');
+    await assert.rejects(ledger.setPaused(true), (err) => err?.code === 'json-unsupported-version');
+    ledger.reload();
+    assert.equal((await runBatches(ledger)).started, 0, 'a ledger written by a newer release must not let batches start');
     assert.equal(await readFile(dailyPath, 'utf8'), futureRaw);
 
-    // 4) Unreadable (directory stand-in): refuses overwrite
+    // 4) Unreadable (directory stand-in): no batch starts, every write refuses
     await rm(dailyPath, { force: true });
     await mkdir(dailyPath);
     ledger.reload();
-    await assert.rejects(
-      ledger.patch({ maxReady: 3 }),
-      (err) => err?.code === 'coach-daily-unreadable',
-    );
+    assert.equal((await runBatches(ledger)).started, 0, 'an unreadable ledger must not let batches start');
+    await assert.rejects(ledger.patch({ maxReady: 3 }), (err) => err?.code === 'json-unreadable');
+    await assert.rejects(ledger.setPaused(true), (err) => err?.code === 'json-unreadable');
     assert.equal((await stat(dailyPath)).isDirectory(), true);
 
     // 5) Failed save() must NOT poison in-memory cache with uncommitted patch values
@@ -353,7 +342,7 @@ describe('#1354 D11 — local settings files never silently overwrite on read fa
     const futureCal = createCalibration(dir);
     await assert.rejects(
       futureCal.record({ stageTotals: { author: { low: 100, high: 200 } }, actual: { author: 150 } }),
-      (err) => err?.code === 'calibration-unsupported-version',
+      (err) => err?.code === 'json-unsupported-version',
     );
     assert.equal(await readFile(filePath, 'utf8'), futureRaw, 'future-version estimate-calibration.json must stay intact');
 
@@ -367,7 +356,7 @@ describe('#1354 D11 — local settings files never silently overwrite on read fa
     });
     await assert.rejects(
       failBackupCal.record({ stageTotals: { author: { low: 100, high: 200 } }, actual: { author: 150 } }),
-      (err) => err?.code === 'calibration-backup-failed',
+      (err) => err?.code === 'corrupt-backup-failed',
     );
     assert.equal(await readFile(filePath, 'utf8'), damagedRaw, 'damaged estimate-calibration.json must remain intact if backup fails');
   });

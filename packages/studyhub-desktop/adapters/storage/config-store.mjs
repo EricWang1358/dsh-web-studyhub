@@ -3,6 +3,7 @@ import { constants } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir as osHomedir } from 'node:os';
 import { isAbsolute, join, resolve, sep } from 'node:path';
+import { newerVersion, parseJsonObject } from '../../../../lib/atomic-json.js';
 import { workspaceLibrary } from '../../../../lib/host.js';
 import { defaultDesktopConfig, normalizeDesktopConfig } from '../../domain/config-policy.js';
 
@@ -54,10 +55,6 @@ async function renameWithRetry(fromPath, toPath) {
 }
 
 const SUPPORTED_DESKTOP_CONFIG_VERSION = 1;
-
-function stripUtf8Bom(text) {
-  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-}
 
 async function atomicWriteJson(filePath, data) {
   const target = resolve(filePath);
@@ -116,13 +113,10 @@ async function inspectStoredConfig(configPath) {
   try { raw = await readFile(configPath, 'utf8'); } catch (error) {
     return error?.code === 'ENOENT' ? { kind: 'missing' } : { kind: 'unreadable', error };
   }
+  const version = newerVersion(raw, SUPPORTED_DESKTOP_CONFIG_VERSION);
+  if (version !== undefined) return { kind: 'unsupported-version', version };
   try {
-    const parsed = JSON.parse(stripUtf8Bom(raw));
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('desktop.json root must be a JSON object');
-    if (Object.hasOwn(parsed, 'version') && parsed.version !== undefined && parsed.version !== SUPPORTED_DESKTOP_CONFIG_VERSION) {
-      return { kind: 'unsupported-version', version: parsed.version };
-    }
-    return { kind: 'ok', config: normalizeDesktopConfig(parsed) };
+    return { kind: 'ok', config: normalizeDesktopConfig(parseJsonObject(raw)) };
   } catch (error) {
     return { kind: 'corrupt', error };
   }

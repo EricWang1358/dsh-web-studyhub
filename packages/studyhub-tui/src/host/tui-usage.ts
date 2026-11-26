@@ -4,16 +4,14 @@
  * Separated from user preferences (`tui.json`) per #1354 D11:
  * - Stores ONLY structural IDs & counters (registered assistant chip IDs and last-practice IDs).
  * - NEVER persists raw user-typed text or card stem previews (`promptPreview`).
- * - Carries schema `version: 1`, tolerates UTF-8 BOM, refuses to overwrite unknown/future versions
- *   ([C38]), leaves corrupt/unreadable files untouched on passive writes, and requires a successful
- *   `.corrupt-*.bak` backup before explicit recovery.
+ * - Carries schema `version: 1`, tolerates UTF-8 BOM, never overwrites unknown/future versions ([C38])
+ *   or a file it could not read, and backs a damaged file up to `.corrupt-*.bak` before starting afresh.
  */
-import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { AssistantCommandStat, LastPracticeContext } from '../types/contracts.js';
 import { extractPersistableChipStats } from '../shell/assistant-chips.js';
-import { atomicCopyFile, atomicUpdateJson, type AtomicFsOps } from './atomic-write.js';
+import { atomicUpdateJson, backupCorruptFile, detectUnsupportedSchemaVersion, stripUtf8Bom, type AtomicFsOps } from './atomic-write.js';
 import { resolveStudyHome, type TuiPrefsLocation } from './tui-prefs.js';
 
 export const TUI_USAGE_SCHEMA_VERSION = 1;
@@ -26,8 +24,6 @@ export interface TuiUsageData {
 }
 
 export interface TuiUsageLocation extends TuiPrefsLocation {
-  /** When true, allow backing up and replacing a corrupt `tui-usage.json`. Never overrides unreadable or unsupported-version files. */
-  recover?: boolean;
   /** Internal / test fault-injection hooks forwarded to atomic persistence & corrupt backup. */
   fsOps?: AtomicFsOps;
 }
@@ -48,16 +44,6 @@ class UnsupportedUsageVersionError extends Error {
     this.name = 'UnsupportedUsageVersionError';
     this.version = version;
   }
-}
-
-function stripUtf8Bom(text: string): string {
-  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-}
-
-function detectUnsupportedVersion(raw: Record<string, unknown>): { version: unknown } | null {
-  if (!Object.hasOwn(raw, 'version') || raw.version === undefined) return null;
-  if (raw.version === TUI_USAGE_SCHEMA_VERSION) return null;
-  return { version: raw.version };
 }
 
 function sanitizeLastPracticeContext(rawVal: unknown): LastPracticeContext | undefined {
@@ -125,7 +111,7 @@ export async function loadTuiUsageSafe(location: TuiPrefsLocation = {}): Promise
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return { usage: {}, status: 'corrupt', error: 'Expected usage JSON object' };
     }
-    const unsupported = detectUnsupportedVersion(parsed as Record<string, unknown>);
+    const unsupported = detectUnsupportedSchemaVersion(parsed as Record<string, unknown>, TUI_USAGE_SCHEMA_VERSION);
     if (unsupported !== null) {
       return {
         usage: {},
@@ -145,12 +131,6 @@ export async function loadTuiUsageSafe(location: TuiPrefsLocation = {}): Promise
 
 export async function loadTuiUsage(location: TuiPrefsLocation = {}): Promise<TuiUsageData> {
   return (await loadTuiUsageSafe(location)).usage;
-}
-
-async function backupCorruptUsageFile(target: string, fsOps?: AtomicFsOps): Promise<string> {
-  const backupPath = `${target}.corrupt-${Date.now()}-${randomUUID().slice(0, 8)}.bak`;
-  await atomicCopyFile(target, backupPath, { mode: 0o600, fsOps });
-  return backupPath;
 }
 
 function mergeChipStatsMaps(
@@ -186,16 +166,17 @@ function mergeChipStatsMaps(
  *
  * Protection rules (#1354 D11):
  * - Unreadable file (e.g. EACCES / EISDIR): refuses overwrite and throws.
- * - Unsupported/future schema version ([C38]): passive save skips; `recover: true` throws; bytes stay intact.
- * - Corrupt JSON: passive save skips and leaves original bytes untouched; `recover: true` backs up
- *   the corrupt file first (aborting if backup fails) before writing.
+ * - Unsupported/future schema version ([C38]): skips; bytes stay intact.
+ * - Corrupt JSON: backs the file up first (aborting if the backup fails), then starts afresh. Every save here
+ *   is passive (no learner choice to wait for), and the file only holds counters StudyHub wrote itself: the
+ *   same rule as the library's usage records (lib/jev-usage.js, lib/model-usage.js). Skipping instead would
+ *   stop chip recommendations from learning for good.
  */
 export async function saveTuiUsage(
   patch: Partial<TuiUsageData>,
   location: TuiUsageLocation = {},
 ): Promise<TuiUsageData> {
   const target = tuiUsagePath(location);
-  const allowRecover = location.recover === true;
   let merged: TuiUsageData | undefined;
 
   const res = await atomicUpdateJson<TuiUsageData>(
@@ -217,7 +198,7 @@ export async function saveTuiUsage(
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
           throw new Error('Expected usage JSON object');
         }
-        const unsupported = detectUnsupportedVersion(parsed as Record<string, unknown>);
+        const unsupported = detectUnsupportedSchemaVersion(parsed as Record<string, unknown>, TUI_USAGE_SCHEMA_VERSION);
         if (unsupported !== null) {
           throw new UnsupportedUsageVersionError(unsupported.version);
         }
@@ -225,14 +206,8 @@ export async function saveTuiUsage(
       },
       onCorrupt: async (error) => {
         const recovered = parseTuiUsage(patch);
-        if (error instanceof UnsupportedUsageVersionError) {
-          if (!allowRecover) return { skip: recovered };
-          throw error;
-        }
-        if (!allowRecover) {
-          return { skip: recovered };
-        }
-        await backupCorruptUsageFile(target, location.fsOps);
+        if (error instanceof UnsupportedUsageVersionError) return { skip: recovered };
+        await backupCorruptFile(target, { mode: 0o600, fsOps: location.fsOps });
         return { recover: recovered };
       },
     },

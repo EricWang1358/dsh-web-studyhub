@@ -294,6 +294,17 @@ export async function atomicCopyFile(
   return atomicWritePayload(destPath, bytes, opts);
 }
 
+/** JSON text without a leading UTF-8 BOM (Notepad writes one), so a hand-edited file is not taken for a damaged one. */
+export function stripUtf8Bom(text: string): string {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
+/** The `version` a newer release wrote into a parsed JSON object ([C38]): such a file is neither read as empty nor rewritten. Null when usable. */
+export function detectUnsupportedSchemaVersion(raw: Record<string, unknown>, supported: number): { version: unknown } | null {
+  if (!Object.hasOwn(raw, 'version') || raw.version === undefined) return null;
+  return raw.version === supported ? null : { version: raw.version };
+}
+
 /** Raised when backing up a corrupt file before recovery fails (#1354 D11). */
 export class AtomicBackupError extends Error {
   readonly targetPath: string;
