@@ -207,7 +207,7 @@
       isolation: isolate;
     }
     /* The stack isolates the sheets behind the card. Raise it while its settings extend over the course list. */
-    .today-stack:has(.round-setup__panel) { z-index: var(--z-popover); }
+    .today-stack:has([data-usage="round.setup"][aria-expanded="true"]) { z-index: var(--z-popover); }
     .today-stack::before,
     .today-stack::after {
       content: "";
