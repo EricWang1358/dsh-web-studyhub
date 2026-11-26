@@ -197,10 +197,14 @@ export async function runStatsFastPath(parsed: ParsedCliArgs, version = '1.0.0')
  * Run `--export` 1-shot atomic JSON library backup without loading React, Ink, or any LLM provider.
  */
 export async function runExportFastPath(args: ParsedCliArgs, version = '1.0.0'): Promise<void> {
-  const [{ createTuiHost }, { atomicWriteExportJson, resolveSafeBackupExportPath }] = await Promise.all([
-    import('./host/tui-host.js'),
-    import('./host/atomic-write.js'),
-  ]);
+  const { atomicWriteExportJson, resolveSafeBackupExportPath } = await import('./host/atomic-write.js');
+
+  // Fail fast on unsafe user-supplied export paths before booting the full desktop host.
+  if (args.libraryRoot && args.exportPath) {
+    resolveSafeBackupExportPath(args.libraryRoot, args.exportPath, 'studyhub-backup', '.json');
+  }
+
+  const { createTuiHost } = await import('./host/tui-host.js');
 
   const host = await createTuiHost({
     libraryRoot: args.libraryRoot,
