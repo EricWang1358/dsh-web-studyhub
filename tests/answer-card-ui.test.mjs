@@ -9,6 +9,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { readFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 import { loadUi } from './helpers/ui-module.mjs';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { CASE_TYPES } from '../lib/case-types.js';
 import { answerCardBasis, answerCardState, checkAnswerCard, finishAnswerCard, normalizeAnswerCard } from '../lib/answer-card.js';
@@ -65,7 +66,7 @@ test('a question without one: the reference answer as before and 「生成答题
   assert.match(off, /生成答题卡需要先配置模型|参考答案照常能看/);
 });
 
-test('English: the page\'s own words', () => english(() => {
+test('AnswerCard in English: the answer-card surface\'s own words', () => english(() => {
   const html = runWith({ answer: 'The reference answer.', answerCard: made(goodCard()) }) + runWith({ answer: 'x' });
   const own = textOf(html).replace(/可用性/g, '');
   assert.equal(han.test(own), false, own);
@@ -74,11 +75,106 @@ test('English: the page\'s own words', () => english(() => {
   assert.match(textOf(html), /Generate answer card/);
 }));
 
-test('the gate\'s feature key is the answer card\'s own; the case feedback uses the section', async () => {
-  const gate = await readFile(new URL('../ui/ModelSetupGate.jsx', import.meta.url), 'utf8');
-  assert.equal((gate.match(/^\s+answerCard: \(\) => \(\{/gm) || []).length, 1);
-  const workspace = await readFile(new URL('../ui/CaseWorkspace.jsx', import.meta.url), 'utf8');
-  assert.match(workspace, /<AnswerCardSection run=\{run\} data=\{data\} onSetupModel=\{onSetupModel\}/);
+test('the gate\'s feature key is the answer card\'s own; the case feedback uses the section with onSetupModel wired', async () => {
+  const interactive = await loadInteractiveUi(`
+    export { default as ModelSetupGate } from './ui/ModelSetupGate.jsx';
+    export { RubricAnswer } from './ui/CaseWorkspace.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const { ModelSetupGate, RubricAnswer, StudyServicesContext, setUiLanguage } = interactive.exports;
+  const ih = interactive.React.createElement;
+  const noModel = { ready: false, reason: 'no-route' };
+
+  // 1. ModelSetupGate with feature="answerCard" renders dedicated answer-card copy in ZH & EN (not the default generate fallback).
+  setUiLanguage('zh');
+  const zhBlock = interactive.mount(ih(ModelSetupGate, { feature: 'answerCard', variant: 'block', model: noModel, onOpenSettings: noop }));
+  try {
+    assert.match(zhBlock.text(), /生成答题卡要调用 AI 模型；参考答案和已经生成的答题卡不需要模型也能看。/);
+    assert.match(zhBlock.text(), /回到这道题，点「生成答题卡」/);
+    assert.doesNotMatch(zhBlock.text(), /出题需要一个可用的 AI 模型|还没有选择用来出题的 AI 模型/);
+  } finally {
+    zhBlock.unmount();
+  }
+  const zhCompact = interactive.mount(ih(ModelSetupGate, { feature: 'answerCard', variant: 'compact', model: noModel, onOpenSettings: noop }));
+  try {
+    assert.match(zhCompact.text(), /生成答题卡需要先配置模型；参考答案照常能看。/);
+  } finally {
+    zhCompact.unmount();
+  }
+  setUiLanguage('en');
+  try {
+    const enBlock = interactive.mount(ih(ModelSetupGate, { feature: 'answerCard', variant: 'block', model: noModel, onOpenSettings: noop }));
+    try {
+      assert.equal(han.test(enBlock.text()), false, enBlock.text());
+      assert.match(enBlock.text(), /Generating an answer card calls an AI model/);
+    } finally {
+      enBlock.unmount();
+    }
+    const enCompact = interactive.mount(ih(ModelSetupGate, { feature: 'answerCard', variant: 'compact', model: noModel, onOpenSettings: noop }));
+    try {
+      assert.equal(han.test(enCompact.text()), false, enCompact.text());
+      assert.match(enCompact.text(), /Generating an answer card needs a model first; the reference answer is still shown\./);
+    } finally {
+      enCompact.unmount();
+    }
+  } finally {
+    setUiLanguage('zh');
+  }
+
+  // 2. RubricAnswer in CaseWorkspace renders AnswerCardSection in its feedback state and wires onSetupModel into the gate.
+  await withBrowserGlobals(async () => {
+    const feedback = {
+      answer: 'My draft answer.',
+      rubric: { total: 6, max: 10, band: 'pass', summary: 'Solid start.', criteria: [{ id: 'c1', label: 'Calculation', score: 6, max: 10, ratio: 0.6 }] },
+    };
+    const baseRun = {
+      id: 'r1',
+      index: 0,
+      deckId: 'case1',
+      card: { id: 'q1', marks: 10, prompt: caseCard().prompt, rubricCriteria: [{ id: 'c1', label: 'Calculation', marks: 10 }] },
+      feedback,
+    };
+
+    const withCard = interactive.mount(ih(
+      StudyServicesContext.Provider,
+      { value: services },
+      ih(RubricAnswer, {
+        run: { ...baseRun, solution: { answer: 'The reference answer.', answerCard: made(goodCard()) } },
+        data: ready,
+        onSetupModel: noop,
+      }),
+    ));
+    try {
+      assert.ok(withCard.find(n => n.props?.['data-answer-card'] === 'verified'), 'case feedback renders AnswerCardSection when solution has an answerCard');
+      assert.match(withCard.text(), /答题卡.*Availability.*已核对/);
+      assert.match(withCard.text(), /原来的参考答案.*The reference answer\./);
+    } finally {
+      withCard.unmount();
+    }
+
+    let setupCalls = 0;
+    const withoutModel = interactive.mount(ih(
+      StudyServicesContext.Provider,
+      { value: services },
+      ih(RubricAnswer, {
+        run: { ...baseRun, solution: { answer: 'The reference answer.' } },
+        data: { model: noModel },
+        onSetupModel: () => { setupCalls += 1; },
+      }),
+    ));
+    try {
+      const gateNode = withoutModel.find(n => n.props?.['data-model-gate'] === 'compact');
+      assert.ok(gateNode, 'case feedback renders AnswerCardSection compact gate when no model is ready');
+      assert.match(withoutModel.text(gateNode), /生成答题卡需要先配置模型；参考答案照常能看。/);
+      const gateBtn = withoutModel.find(n => n.type === 'button' && typeof n.props?.onClick === 'function', gateNode);
+      assert.ok(gateBtn, 'gate offers a settings button');
+      click(gateBtn);
+      assert.equal(setupCalls, 1, 'clicking the gate button invokes onSetupModel wired through CaseWorkspace RubricAnswer');
+    } finally {
+      withoutModel.unmount();
+    }
+  });
 });
 
 test('answer card table tracks horizontal scroll edges with token-based shadow cues', { timeout: 60000 }, async t => {

@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { readFileSync } from 'node:fs';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 /* The 解析历史 section: one row per conversion (cloud and local), grouped by day, newest first, with the result and the one next step. */
 
@@ -12,12 +12,12 @@ const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
   export { default as MineruRoute } from './ui/MineruRoute.jsx';
   export { PdfConvertHistory, historyDuration, historyAgo } from './ui/PdfConvertJob.jsx';
-  export { groupHistoryByDay, HISTORY_PAGE, historyRefreshKey } from './ui/mineru-flow.js';
+  export { groupHistoryByDay, historyRefreshKey } from './ui/mineru-flow.js';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { MineruRoute, PdfConvertHistory, historyDuration, historyAgo, groupHistoryByDay, HISTORY_PAGE, historyRefreshKey, setUiLanguage } = module.exports;
+const { MineruRoute, PdfConvertHistory, historyDuration, historyAgo, groupHistoryByDay, historyRefreshKey, setUiLanguage } = module.exports;
 const h = React.createElement;
 const han = /[㐀-鿿]/;
 const render = (element, language = 'zh') => { setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { setUiLanguage('zh'); } };
@@ -76,7 +76,6 @@ test('rows are grouped by day, newest first, and a record without a start time i
   assert.deepEqual(groups.map(group => group.when), ['today', 'yesterday', 'date']);
   assert.equal(groupHistoryByDay([record({ startedAt: undefined })], NOW).length, 1);
   assert.deepEqual(groupHistoryByDay([], NOW), []);
-  assert.equal(HISTORY_PAGE, 10);
 });
 
 test('the list refreshes when a conversion job changes state, not on every tick of progress', () => {
@@ -178,15 +177,137 @@ test('more than ten rows: ten are shown, the rest behind "显示更多"', () => 
   assert.doesNotMatch(all, /显示更多/);
 });
 
-test('清空历史 asks nothing (D1: a record is not a source or a question): one click, the rows leave and the notice offers 撤销; the bar still says the imported material stays', () => {
+test('删除记录 and 清空历史 ask nothing (D1): rows hide immediately with 撤销 toast, restore with 0 host calls on undo, and commit exact IDs on leave', async (t) => {
   const html = render(view([record(), failed()]));
   assert.match(html, />清空历史</);
   assert.match(html, /删除记录不会删除已导入的资料/);
   assert.doesNotMatch(html, /确认清空|清空这 2 条解析记录？/);
-  const source = readFileSync('ui/PdfConvertJob.jsx', 'utf8');
-  assert.doesNotMatch(source, /InlineConfirm/);
-  assert.match(source, /commitLater\(\{ keys: ids/);
-  assert.match(source, /commitLater\(\{ keys: \[row\.id\]/);
+
+  const interactive = await loadInteractiveUi(`
+    export { PdfConvertHistory } from './ui/PdfConvertJob.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { ToastContext } from './ui/components/Feedback.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const { PdfConvertHistory: LiveHistory, StudyServicesContext, ToastContext, setUiLanguage: setLiveLang } = interactive.exports;
+  const ih = interactive.React.createElement;
+  setLiveLang('zh');
+
+  const recA = record({ id: 'job-alpha', filename: 'Alpha.pdf' });
+  const recB = failed({ id: 'job-beta', filename: 'Beta.pdf' });
+
+  const prevCss = globalThis.CSS;
+  globalThis.CSS = globalThis.CSS || { escape: value => String(value) };
+  try {
+    await withBrowserGlobals(async () => {
+      t.mock.timers.enable({ apis: ['setTimeout'] });
+      try {
+        // 1. Single-row delete: hides immediately without confirm, undo restores with 0 host deletes, leave commits [row.id].
+        const hostCalls1 = [];
+        const toasts1 = [];
+        const toastApi1 = { show: payload => toasts1.push(payload), error: () => {}, dismiss: () => {} };
+        const services1 = {
+          call: async (action, args) => {
+            hostCalls1.push([action, args]);
+            if (action === 'mineru.history.list') return { records: [recB] };
+            return { ok: true };
+          },
+          act: async () => undefined,
+          busy: false,
+        };
+        const mounted1 = interactive.mount(ih(
+          StudyServicesContext.Provider,
+          { value: services1 },
+          ih(ToastContext.Provider, { value: toastApi1 }, ih(LiveHistory, { initialRecords: [recA, recB], now: NOW })),
+        ));
+        try {
+          assert.deepEqual(mounted1.findAll(n => n.props?.['data-record']).map(n => n.props['data-record']), ['job-alpha', 'job-beta']);
+          const delAlpha = mounted1.find(n => n.type === 'button' && n.props?.['aria-label'] === '删除「Alpha.pdf」的记录');
+          assert.ok(delAlpha, 'single-row delete button present');
+
+          await mounted1.act(() => { click(delAlpha); });
+          assert.doesNotMatch(mounted1.text(), /确认删除|确认清空/, 'no InlineConfirm prompt appears');
+          assert.deepEqual(mounted1.findAll(n => n.props?.['data-record']).map(n => n.props['data-record']), ['job-beta'], 'deleted row hides immediately');
+          const deleteToast = toasts1.at(-1);
+          assert.equal(deleteToast?.undo, true);
+          assert.match(deleteToast?.message || '', /已删除「Alpha\.pdf」的记录/);
+          assert.equal(deleteToast?.action?.label, '撤销');
+          assert.equal(hostCalls1.filter(([a]) => a === 'mineru.history.remove').length, 0, 'no host remove before toast leaves');
+
+          await mounted1.act(() => { deleteToast.action.onClick(); });
+          assert.deepEqual(mounted1.findAll(n => n.props?.['data-record']).map(n => n.props['data-record']), ['job-alpha', 'job-beta'], 'undo restores the hidden row immediately');
+          assert.equal(hostCalls1.filter(([a]) => a === 'mineru.history.remove').length, 0, '0 host remove calls after undo');
+
+          const delAlphaAgain = mounted1.find(n => n.type === 'button' && n.props?.['aria-label'] === '删除「Alpha.pdf」的记录');
+          await mounted1.act(() => { click(delAlphaAgain); });
+          const commitToast = toasts1.at(-1);
+          await mounted1.act(() => { commitToast.onLeave(); });
+          await mounted1.flush(5);
+          assert.deepEqual(
+            hostCalls1.filter(([a]) => a === 'mineru.history.remove'),
+            [['mineru.history.remove', { id: 'job-alpha' }]],
+            'toast leave commits exactly [row.id]',
+          );
+        } finally {
+          mounted1.unmount();
+        }
+
+        // 2. Clear-all (清空历史): hides all rows without confirm, undo restores all with 0 host deletes, leave commits every row ID.
+        const hostCalls2 = [];
+        const toasts2 = [];
+        const toastApi2 = { show: payload => toasts2.push(payload), error: () => {}, dismiss: () => {} };
+        const services2 = {
+          call: async (action, args) => {
+            hostCalls2.push([action, args]);
+            if (action === 'mineru.history.list') return { records: [] };
+            return { ok: true };
+          },
+          act: async () => undefined,
+          busy: false,
+        };
+        const mounted2 = interactive.mount(ih(
+          StudyServicesContext.Provider,
+          { value: services2 },
+          ih(ToastContext.Provider, { value: toastApi2 }, ih(LiveHistory, { initialRecords: [recA, recB], now: NOW })),
+        ));
+        try {
+          const clearBtn = mounted2.find(n => n.type === 'button' && mounted2.text(n) === '清空历史');
+          assert.ok(clearBtn, '清空历史 button present');
+
+          await mounted2.act(() => { click(clearBtn); });
+          assert.doesNotMatch(mounted2.text(), /确认清空|确认删除/, 'clear-all asks for no InlineConfirm');
+          assert.deepEqual(mounted2.findAll(n => n.props?.['data-record']), [], 'all history rows hide immediately');
+          const clearToast = toasts2.at(-1);
+          assert.equal(clearToast?.undo, true);
+          assert.match(clearToast?.message || '', /已清空 2 条解析记录/);
+          assert.equal(clearToast?.action?.label, '撤销');
+          assert.equal(hostCalls2.filter(([a]) => a === 'mineru.history.remove').length, 0);
+
+          await mounted2.act(() => { clearToast.action.onClick(); });
+          assert.deepEqual(mounted2.findAll(n => n.props?.['data-record']).map(n => n.props['data-record']), ['job-alpha', 'job-beta'], 'undo restores all cleared rows');
+          assert.equal(hostCalls2.filter(([a]) => a === 'mineru.history.remove').length, 0, '0 host calls after undo');
+
+          const clearBtnAgain = mounted2.find(n => n.type === 'button' && mounted2.text(n) === '清空历史');
+          await mounted2.act(() => { click(clearBtnAgain); });
+          const commitClearToast = toasts2.at(-1);
+          await mounted2.act(() => { commitClearToast.onLeave(); });
+          await mounted2.flush(5);
+          assert.deepEqual(
+            hostCalls2.filter(([a]) => a === 'mineru.history.remove'),
+            [['mineru.history.remove', { id: 'job-alpha' }], ['mineru.history.remove', { id: 'job-beta' }]],
+            'leave commits all cleared row IDs one by one',
+          );
+        } finally {
+          mounted2.unmount();
+        }
+      } finally {
+        t.mock.timers.reset();
+      }
+    });
+  } finally {
+    if (prevCss === undefined) delete globalThis.CSS;
+    else globalThis.CSS = prevCss;
+  }
 });
 
 test('every action is a real button with a name that says which file it is for (keyboard and screen readers)', () => {
