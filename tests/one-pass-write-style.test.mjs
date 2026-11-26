@@ -15,8 +15,9 @@ test('every style name has its wording, and nothing else: the settings validate 
 });
 
 test('the one-pass write call asks in the scenario style by default', () => {
-  assert.equal(DEFAULT_WRITE_STYLE, 'scenario');
+  assert.equal(writeStyleText(undefined), WRITE_STYLES.scenario);
   const { prompt } = writePrompts(request, sections);
+  assert.equal(prompt, writePrompts(request, sections, [], { style: 'scenario' }).prompt);
   assert.match(prompt, /WHAT TO TEST\./);
   assert.match(prompt, /HOW TO ASK\./);
   assert.match(prompt, /EXPLANATION\. Four moves/);
