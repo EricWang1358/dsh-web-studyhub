@@ -338,7 +338,6 @@ describe('StudyHub TUI xterm-headless E2E', () => {
     // Resize back to 120x36 for interactive tests
     tty.resize(120, 36);
     await tty.flush();
-    tty.term.clear();
     try {
       v8.setFlagsFromString('--expose_gc');
       const gcFn = vm.runInNewContext('gc');
