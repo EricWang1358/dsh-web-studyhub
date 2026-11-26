@@ -6,6 +6,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { click, loadInteractiveUi, syntheticEvent, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -343,9 +344,139 @@ test('usePanZoom preserves user pan/zoom and ResizeObserver when anchorX/anchorY
     runtime.reset();
     globalThis.ResizeObserver = PrevRO;
   }
+});
 
-  const canvasSrc = await readFile(new URL('../ui/SkeletonCanvas.jsx', import.meta.url), 'utf8');
-  assert.match(canvasSrc, /fitKey:\s*`\$\{skeleton\.id\}:\$\{componentId\}:\$\{focused \|\| ""\}`/, 'ClassCanvas keys refits on structural layout only');
+test('ClassCanvas preserves user pan/zoom across node selection and detail drawer toggles, and refits on focus/component/skeleton switches', async t => {
+  await withBrowserGlobals(async () => {
+    const ui = await loadInteractiveUi(`
+      export { setUiLanguage } from './ui/i18n.js';
+      export { ClassCanvas } from './ui/SkeletonCanvas.jsx';
+      export { StudyServicesContext } from './ui/study-context.jsx';
+    `);
+    const { setUiLanguage, ClassCanvas, StudyServicesContext } = ui.exports;
+    const h = ui.React.createElement;
+    setUiLanguage('zh');
+
+    const skeletonA = {
+      id: 'sk-alpha',
+      nodes: [
+        { id: 'n1', term: 'Process', meaning: 'Execution instance', attributes: ['pid'], cards: [] },
+        { id: 'n2', term: 'Thread', meaning: 'Lightweight unit', attributes: ['tid'], cards: [] },
+        { id: 'n3', term: 'Page Table', meaning: 'Virtual memory map', attributes: ['pte'], cards: [] },
+        { id: 'n4', term: 'TLB', meaning: 'Translation cache', attributes: ['hitRate'], cards: [] },
+      ],
+      relations: [
+        { from: 'n2', to: 'n1', type: 'part-of' },
+        { from: 'n4', to: 'n3', type: 'related' },
+      ],
+      sequences: [],
+    };
+    const skeletonB = {
+      id: 'sk-beta',
+      nodes: [
+        { id: 'b1', term: 'Socket', meaning: 'Network endpoint', attributes: ['fd'], cards: [] },
+        { id: 'b2', term: 'TCP', meaning: 'Reliable stream', attributes: ['cwnd'], cards: [] },
+        { id: 'b3', term: 'UDP', meaning: 'Datagram', attributes: ['port'], cards: [] },
+      ],
+      relations: [
+        { from: 'b2', to: 'b1', type: 'related' },
+        { from: 'b3', to: 'b1', type: 'related' },
+      ],
+      sequences: [],
+    };
+
+    const services = {
+      call: async () => ({}),
+      act: async () => undefined,
+      busy: false,
+      notify() {},
+      askInChat() {},
+      host: {},
+      openSettings() {},
+      navigate() {},
+      openModal() {},
+    };
+    let currentSkeleton = skeletonA;
+    let selected = null;
+    const renderCanvas = () => h(
+      StudyServicesContext.Provider,
+      { value: services },
+      h(ClassCanvas, {
+        skeleton: currentSkeleton,
+        selected,
+        onSelect: (next) => { selected = next; },
+      }),
+    );
+
+    const mounted = ui.mount(renderCanvas);
+    t.after(() => mounted.unmount());
+
+    const worldTransform = () => {
+      const world = mounted.find((n) => n.type === 'div' && String(n.props?.className || '').includes('skc-world'));
+      assert.ok(world, 'renders .skc-world container');
+      return world.props.style.transform;
+    };
+    const panAndZoom = async () => {
+      const viewEl = mounted.find((n) => n.type === 'div' && String(n.props?.className || '').includes('skc-view'));
+      assert.ok(viewEl, 'renders .skc-view container');
+      const target = {};
+      await mounted.act(() => {
+        viewEl.props.onKeyDown(syntheticEvent({ key: '+', target, currentTarget: target }));
+        viewEl.props.onKeyDown(syntheticEvent({ key: 'ArrowRight', target, currentTarget: target }));
+        viewEl.props.onKeyDown(syntheticEvent({ key: 'ArrowDown', target, currentTarget: target }));
+      });
+    };
+
+    const initialTransform = worldTransform();
+    await panAndZoom();
+    const userTransform = worldTransform();
+    assert.notEqual(userTransform, initialTransform, 'pan/zoom changes viewport transform');
+
+    // Non-structural change 1: selecting a concept opens detail drawer (insetRight 0 -> 310, anchor changes) without resetting pan/zoom.
+    selected = 'n1';
+    mounted.rerender();
+    assert.ok(mounted.find((n) => String(n.props?.className || '').includes('skc-detail')), 'detail drawer opens for selected node');
+    assert.equal(worldTransform(), userTransform, 'selecting a concept preserves user pan/zoom');
+
+    // Non-structural change 2: closing detail drawer (insetRight 310 -> 0) preserves user pan/zoom.
+    const closeBtn = mounted.find((n) => n.type === 'button' && String(n.props?.className || '').includes('skc-close'));
+    assert.ok(closeBtn, 'detail drawer renders close button');
+    await mounted.act(() => click(closeBtn));
+    assert.equal(mounted.find((n) => String(n.props?.className || '').includes('skc-detail')), null, 'detail drawer closes');
+    assert.equal(worldTransform(), userTransform, 'closing detail drawer preserves user pan/zoom');
+
+    // Non-structural change 3: selecting another concept preserves user pan/zoom.
+    selected = 'n2';
+    mounted.rerender();
+    assert.equal(worldTransform(), userTransform, 'switching selected concept preserves user pan/zoom');
+
+    // Structural change 1: entering focus mode (focused: "" -> "n2") refits viewport cleanly.
+    const focusBtn = mounted.find((n) => n.type === 'button' && ui.textOf(n).includes('只看邻居'));
+    assert.ok(focusBtn, 'renders focus toggle button when a concept is selected');
+    await mounted.act(() => click(focusBtn));
+    const focusedTransform = worldTransform();
+    assert.notEqual(focusedTransform, userTransform, 'entering focus mode refits viewport');
+
+    // Structural change 2: switching component group (componentId) refits viewport cleanly.
+    await panAndZoom();
+    const beforeComponentSwitch = worldTransform();
+    const groupSelect = mounted.find((n) => typeof n.type === 'function' && n.props?.className === 'skc-search-select');
+    assert.ok(groupSelect, 'renders component selector for multi-component skeleton');
+    const secondGroup = groupSelect.props.options.find((opt) => opt.value);
+    assert.ok(secondGroup, 'component selector offers non-empty component option');
+    await mounted.act(() => groupSelect.props.onChange(secondGroup.value));
+    const afterComponentSwitch = worldTransform();
+    assert.notEqual(afterComponentSwitch, beforeComponentSwitch, 'switching component refits viewport');
+
+    // Structural change 3: switching skeleton.id refits viewport cleanly.
+    await panAndZoom();
+    const beforeSkeletonSwitch = worldTransform();
+    currentSkeleton = skeletonB;
+    selected = null;
+    mounted.rerender();
+    const afterSkeletonSwitch = worldTransform();
+    assert.notEqual(afterSkeletonSwitch, beforeSkeletonSwitch, 'switching skeleton.id refits viewport');
+  });
 });
 
 /* ---------- 3. ui/WrongBook.jsx: bounded concurrency + cache ---------- */
