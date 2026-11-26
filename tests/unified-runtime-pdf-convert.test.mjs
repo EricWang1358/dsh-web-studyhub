@@ -138,7 +138,7 @@ test('without a session to run in the import is refused in words, and nothing is
   assert.deepEqual([(await service.call('snapshot')).jobs.filter(job => job.type === KIND), await filesUnder(join(convertHome(h.root), 'jobs')), (await h.parses()).length], [[], [], 0]);
 });
 
-test('cold DSH panel and genuine standalone StudyService support status, wait, cancel, retry, dismiss and archive on study-host', async t => {
+test('PDF conversion (mineru.import / pdfConvert): cancel+dismiss and fail->retry->archive lifecycle on cold DSH panel & standalone StudyService', async t => {
   const uploadPdf = async (service, bytes, name) => {
     const { uploadId, chunkBytes } = await service.call('mineru.upload.start', { name, size: bytes.length });
     for (let offset = 0; offset < bytes.length; offset += chunkBytes) await service.call('mineru.upload.chunk', { uploadId, offset, data: bytes.subarray(offset, offset + chunkBytes).toString('base64') });
@@ -151,7 +151,7 @@ test('cold DSH panel and genuine standalone StudyService support status, wait, c
     t.after(() => service.dispose());
     const bytes = await makePdf({ pages: 3 });
 
-    // 1. Cancel + wait + dismiss on standalone StudyService (no workOwner)
+    // 1. Cancel + wait + dismiss on cold DSH panel / standalone StudyService (no workOwner)
     await h.set({ total: 3, delayMs: 60_000 });
     const cancelledStart = await service.call('mineru.import', { uploadId: await uploadPdf(service, bytes, 'Cancel.pdf') });
     await until(async () => (await h.parses()).length >= 1, 'the first window to run');
@@ -160,7 +160,7 @@ test('cold DSH panel and genuine standalone StudyService support status, wait, c
     assert.equal((await service.call('job.wait', { jobId: cancelledStart.jobId })).status, 'cancelled');
     assert.deepEqual((await service.call('job.dismiss', { jobId: cancelledStart.jobId })).dismissed, [cancelledStart.jobId]);
 
-    // 2. Fail -> job.control retry -> wait -> archive on standalone StudyService
+    // 2. Fail -> job.control retry -> wait -> archive on cold DSH panel / standalone StudyService
     await h.set({ total: 3, delayMs: 0, failWindowsOnce: [1] });
     const started = await service.call('mineru.import', { uploadId: await uploadPdf(service, bytes, 'Book.pdf') });
     assert.equal((await service.call('job.wait', { jobId: started.jobId })).status, 'failed');

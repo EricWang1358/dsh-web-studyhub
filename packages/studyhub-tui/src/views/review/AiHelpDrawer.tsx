@@ -443,10 +443,6 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
     }
     setSavedLatest(true);
     onSavedFollowup?.(cardId, saved.savedItem);
-    if (!saved.noteSaved && saved.warning) {
-      notify(saved.warning, 'warning');
-      return;
-    }
     notify(t(lang, '已保存到本题讲解与学习笔记，下次打开将直接复用', 'Saved Q&A to notes (reused next time)'), 'success');
   }, [savingNote, run, turns, host, lang, cardId, notify, onSavedFollowup]);
 

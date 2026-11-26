@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -13,34 +13,258 @@ import { Store } from '../lib/store.js';
 import { createMaterialsOperations } from '../lib/contexts/materials/operations.js';
 import { makeTextPdf } from './helpers/text-pdf.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
+import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const origUi = await loadUi(`
   export { ORIGINAL_MAX_BYTES, issueOf, explainFailure, canSyncReferencedText } from './ui/document-preview/original-file.js';
 `);
 
-test('#1436 Item 2: enterRun stayOnGuided option, lastPracticeVersion reactivity, and nav.leaving guard', () => {
-  const sessionSrc = readFileSync(new URL('../ui/review/useReviewSession.js', import.meta.url), 'utf8');
-  const navSrc = readFileSync(new URL('../ui/app/use-learning-navigation.js', import.meta.url), 'utf8');
-  const viewsSrc = readFileSync(new URL('../ui/app/page-views.jsx', import.meta.url), 'utf8');
+test('#1436 Item 2: enterRun stayOnGuided option, lastPracticeVersion reactivity, and nav.leaving guard', async () => {
+  const interactive = await loadInteractiveUi(`
+    export { useReviewSession } from './ui/review/useReviewSession.js';
+    export { useLearningNavigation } from './ui/app/use-learning-navigation.js';
+    export { PAGE_VIEWS } from './ui/app/page-views.jsx';
+    export { GuidedStudy } from './ui/workspace-views.jsx';
+    export { AppContext } from './ui/app/app-context.js';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+  `);
+  const { useReviewSession, useLearningNavigation, PAGE_VIEWS, GuidedStudy, AppContext, StudyServicesContext } = interactive.exports;
+  const h = interactive.React.createElement;
+  const noop = () => {};
 
-  // 1) enterRun / enterMovedRun default to switching back to 'review' unless explicit stayOnGuided is true
-  assert.match(sessionSrc, /stayOnGuided\s*=\s*false/, 'enterRun must take an explicit stayOnGuided option defaulting to false');
-  assert.doesNotMatch(
-    sessionSrc,
-    /if\s*\(\s*!embeddedIn\s*&&\s*nav\.page\s*!==\s*['"]guided['"]\s*\)\s*setPage\(\s*['"]review['"]\s*\)/,
-    'enterRun must not unconditionally block returning to review from guided page',
-  );
-  assert.match(viewsSrc, /stayOnGuided:\s*true/, 'GuidedStudyView internal run updates must pass stayOnGuided: true');
+  const memoryStore = new Map();
+  const stubStorage = {
+    getItem: (key) => (memoryStore.has(key) ? memoryStore.get(key) : null),
+    setItem: (key, value) => { memoryStore.set(key, String(value)); },
+    removeItem: (key) => { memoryStore.delete(key); },
+  };
+  const prevStorage = globalThis.localStorage;
+  const prevRaf = globalThis.requestAnimationFrame;
+  const prevCancelRaf = globalThis.cancelAnimationFrame;
+  globalThis.localStorage = stubStorage;
+  globalThis.requestAnimationFrame = () => 1;
+  globalThis.cancelAnimationFrame = noop;
 
-  // 2) lastPractice memo reacts to a version counter bumped on save/clear
-  assert.match(navSrc, /lastPracticeVersion/, 'use-learning-navigation must track lastPracticeVersion');
-  assert.match(navSrc, /clearLastPracticePosition[\s\S]{0,120}bumpLastPractice/, 'clearing lastPracticePosition must bump lastPracticeVersion');
+  try {
+    await withBrowserGlobals(async () => {
+      // 1) useReviewSession: enterRun / enterMovedRun default to switching back from 'guided' to 'review' unless stayOnGuided: true
+      const pages = [];
+      const dataRef = { current: { root: '/lib-1436', settings: {}, focus: { course: null }, sources: [] } };
+      const sessionCore = {
+        call: async () => ({}),
+        act: async () => ({}),
+        notify: noop,
+        setError: noop,
+        refresh: async () => dataRef.current,
+        refs: { dataRef, bindingRoot: { current: null } },
+      };
+      const sessionNav = { page: 'guided', setPage: (p) => pages.push(p), show: { exam: noop } };
+      const sessionHook = interactive.mountHook(() => useReviewSession({
+        core: sessionCore,
+        nav: sessionNav,
+        modalOpen: false,
+        host: {},
+        rootRef: { current: null },
+        late: {},
+      }));
+      try {
+        const makeRun = (id) => ({ id, mode: 'path', deckId: 'd1', index: 0, total: 2, card: { id: `c-${id}`, kind: 'open', prompt: `Q ${id}` } });
+        await sessionHook.act(() => sessionHook.current.enterRun(makeRun('r1')));
+        assert.deepEqual(pages, ['review'], 'enterRun defaults stayOnGuided=false and switches back from guided to review');
+        assert.equal(sessionHook.current.run.id, 'r1');
 
-  // 3) All four return/resume entry points pass through nav.leaving(...)
-  for (const fn of ['returnFromPracticeStack', 'returnToOriginalPractice', 'resumeLastPractice', 'practiceEndedAgain']) {
-    const m = navSrc.match(new RegExp(`const ${fn}\\s*=\\s*useCallback\\([\\s\\S]{0,600}?\\]\\);`));
-    assert.ok(m, `could not locate ${fn} in use-learning-navigation.js`);
-    assert.match(m[0], /nav\.leaving\s*\(/, `${fn} must guard navigation with nav.leaving(...)`);
+        await sessionHook.act(() => sessionHook.current.enterMovedRun(makeRun('r2')));
+        assert.deepEqual(pages, ['review', 'review'], 'enterMovedRun defaults stayOnGuided=false and switches back to review');
+        assert.equal(sessionHook.current.run.id, 'r2');
+
+        await sessionHook.act(() => sessionHook.current.enterRun(makeRun('r3'), undefined, false, { stayOnGuided: true }));
+        assert.deepEqual(pages, ['review', 'review'], 'enterRun with stayOnGuided: true stays on guided');
+        assert.equal(sessionHook.current.run.id, 'r3');
+
+        await sessionHook.act(() => sessionHook.current.enterMovedRun(makeRun('r4'), undefined, { stayOnGuided: true }));
+        assert.deepEqual(pages, ['review', 'review'], 'enterMovedRun with stayOnGuided: true stays on guided');
+        assert.equal(sessionHook.current.run.id, 'r4');
+      } finally {
+        sessionHook.unmount();
+      }
+
+      // 2) PAGE_VIEWS.guided passes stayOnGuided: true for internal question readiness, reveal, answer, and next updates
+      const guidedEnters = [];
+      const guidedRun = { id: 'g-run-1', mode: 'path', deckId: 'd1', index: 0, total: 1, card: { id: 'gc-1', kind: 'open', prompt: 'Guided Q' } };
+      let sessionPollCount = 0;
+      const guidedApp = {
+        data: { root: '/lib-1436', modelReady: true, courses: [], activeStudySession: { id: 'gs-1', status: 'active', focus: { kind: 'preparing-card' } } },
+        core: {
+          call: async (action) => {
+            if (action === 'study.session.get') {
+              sessionPollCount += 1;
+              return sessionPollCount === 1
+                ? { id: 'gs-1', status: 'active', focus: { kind: 'preparing-card' } }
+                : { id: 'gs-1', status: 'active', focus: { kind: 'card' } };
+            }
+            if (action === 'study.question.result') return { status: 'ready', run: guidedRun };
+            return {};
+          },
+          act: async (action, args, then) => {
+            const nextRun = { ...guidedRun, id: `${guidedRun.id}:${action}` };
+            then?.(nextRun);
+            return nextRun;
+          },
+          refresh: async () => {},
+          notify: noop,
+        },
+        session: {
+          run: guidedRun,
+          actions: {},
+          enterRun: (next, input, moved, opts) => { guidedEnters.push({ id: next?.id, moved, opts }); },
+        },
+        lib: { guidedSession: { id: 'gs-1', status: 'active', focus: { kind: 'preparing-card' } } },
+        set: { setGuidedSession: noop },
+        nav: { navigate: noop },
+        host: {},
+      };
+      const guidedMount = interactive.mount(() => h(
+        StudyServicesContext.Provider,
+        { value: { busy: false, call: guidedApp.core.call, act: guidedApp.core.act, host: {} } },
+        h(AppContext.Provider, { value: guidedApp }, h(PAGE_VIEWS.guided)),
+      ));
+      try {
+        await guidedMount.flush(6);
+        assert.ok(guidedEnters.some((e) => e.id === 'g-run-1' && e.opts?.stayOnGuided === true), 'GuidedStudyView onReady passes stayOnGuided: true');
+        const guidedNode = guidedMount.find((n) => n.type === GuidedStudy);
+        assert.ok(guidedNode, 'PAGE_VIEWS.guided renders GuidedStudy');
+        await guidedMount.act(() => guidedNode.props.onReveal('g-run-1'));
+        await guidedMount.act(() => guidedNode.props.onAnswer({ grade: 4 }));
+        await guidedMount.act(() => guidedNode.props.onNext('g-run-1'));
+        for (const action of ['review.reveal', 'review.answer', 'review.move']) {
+          assert.ok(
+            guidedEnters.some((e) => e.id === `g-run-1:${action}` && e.opts?.stayOnGuided === true),
+            `GuidedStudyView ${action} passes stayOnGuided: true`,
+          );
+        }
+      } finally {
+        guidedMount.unmount();
+      }
+
+      // 3) useLearningNavigation: lastPractice reacts to save/clear (lastPracticeVersion) and all 4 return/resume entry points guard via nav.leaving
+      const navCalls = [];
+      let allowLeaving = false;
+      const leavingCalls = [];
+      const enteredRuns = [];
+      const enteredMoved = [];
+      const navDataRef = { current: { root: '/lib-nav', focus: { course: null }, sources: [] } };
+      const navCore = {
+        call: async (action, args) => {
+          navCalls.push({ action, args });
+          if (action === 'review.get') {
+            if (args.runId === 'run-ended') return { id: 'run-ended', complete: true };
+            return { id: args.runId, deckId: 'd1', index: 0, total: 2, card: { id: 'c1', prompt: 'Q1' } };
+          }
+          if (action === 'review.start') return { id: 'run-again', deckId: 'd1', index: 0, total: 1, card: { id: 'c1', prompt: 'Q1' } };
+          return {};
+        },
+        setError: noop,
+        notify: noop,
+        refresh: async () => navDataRef.current,
+        refs: { dataRef: navDataRef, epoch: { current: 1 }, navigation: { current: 0 }, examLocation: { current: null } },
+      };
+
+      const activeRun = { id: 'run-1', deckId: 'd1', index: 0, total: 2, card: { id: 'c1', prompt: 'Q1' } };
+      let currentRun = activeRun;
+      const navHook = interactive.mountHook(({ run }) => {
+        const [modal, setModal] = interactive.React.useState(null);
+        const [contextTrail, setContextTrail] = interactive.React.useState([]);
+        const [practiceStack, setPracticeStack] = interactive.React.useState([]);
+        const [practiceEnded, setPracticeEnded] = interactive.React.useState(null);
+        const [focusRequest, setFocusRequest] = interactive.React.useState(null);
+        const [detour, setDetour] = interactive.React.useState(null);
+        const nav = {
+          page: 'guided',
+          navigate: noop,
+          referenceRef: { current: null },
+          leaving: (proceed) => {
+            leavingCalls.push(allowLeaving);
+            if (allowLeaving) proceed();
+          },
+          show: { note: noop, skeleton: noop, deck: noop, managedDeck: noop, workflow: noop, exam: noop, library: noop, page: noop },
+        };
+        const lib = {
+          state: { modal, contextTrail, practiceStack, practiceEnded, focusRequest, detour },
+          set: { setModal, setContextTrail, setPracticeStack, setPracticeEnded, setFocusRequest, setDetour },
+        };
+        const session = {
+          run,
+          entry: {},
+          flushDraft: async () => true,
+          enterRun: (next) => { enteredRuns.push(next); },
+          enterMovedRun: (next) => { enteredMoved.push(next); },
+        };
+        return useLearningNavigation({ core: navCore, lib, nav, session, rootRef: { current: null } });
+      }, { run: currentRun });
+
+      try {
+        assert.equal(navHook.current.lastPractice?.runId, 'run-1', 'active run persists lastPractice reactively');
+
+        // Completing the run clears lastPracticePosition and bumps lastPracticeVersion so lastPractice updates to null reactively
+        currentRun = { ...activeRun, complete: true };
+        navHook.rerender({ run: currentRun });
+        assert.equal(navHook.current.lastPractice, null, 'completing run clears lastPractice reactively');
+
+        // Push a practice frame for an ended run, then clear stack so resumeLastPractice can be tested
+        currentRun = { id: 'run-ended', deckId: 'd1', index: 0, total: 2, card: { id: 'c1', prompt: 'Q1' } };
+        navHook.rerender({ run: currentRun });
+        assert.equal(navHook.current.lastPractice?.runId, 'run-ended');
+
+        allowLeaving = true;
+        await navHook.act(() => navHook.current.resumeLastPractice());
+        assert.equal(navHook.current.lastPractice, null, 'ended run restore clears lastPractice reactively');
+        assert.equal(navHook.current.practiceEnded?.status, 'ended');
+
+        // Now set up an active stack + stored lastPractice and verify all 4 return/resume callbacks obey nav.leaving(...)
+        navCalls.length = 0;
+        leavingCalls.length = 0;
+        enteredRuns.length = 0;
+        enteredMoved.length = 0;
+        currentRun = activeRun;
+        navHook.rerender({ run: currentRun });
+        await navHook.act(() => navHook.current.pushPracticeContext({ originKind: 'other' }));
+        assert.equal(navHook.current.practiceStack.length, 1);
+
+        // When nav.leaving blocks, none of the 4 callbacks may fire backend calls
+        allowLeaving = false;
+        await navHook.act(() => navHook.current.returnFromPracticeStack());
+        await navHook.act(() => navHook.current.returnToOriginalPractice());
+        await navHook.act(() => navHook.current.resumeLastPractice());
+        await navHook.act(() => navHook.current.practiceEndedAgain([{ deckId: 'd1', cardId: 'c1' }]));
+        assert.equal(leavingCalls.length, 4, 'all 4 return/resume entry points invoke nav.leaving');
+        assert.equal(navCalls.length, 0, 'blocking nav.leaving prevents all 4 entry points from navigating');
+
+        // When nav.leaving allows, each of the 4 callbacks executes its backend restore/start
+        allowLeaving = true;
+        await navHook.act(() => navHook.current.returnFromPracticeStack());
+        assert.equal(enteredMoved.length, 1, 'returnFromPracticeStack restores frame when nav.leaving allows');
+
+        await navHook.act(() => navHook.current.pushPracticeContext({ originKind: 'other' }));
+        await navHook.act(() => navHook.current.returnToOriginalPractice());
+        assert.equal(enteredMoved.length, 2, 'returnToOriginalPractice restores original frame when nav.leaving allows');
+
+        await navHook.act(() => navHook.current.resumeLastPractice());
+        assert.equal(enteredMoved.length, 3, 'resumeLastPractice restores saved position when nav.leaving allows');
+
+        await navHook.act(() => navHook.current.practiceEndedAgain([{ deckId: 'd1', cardId: 'c1' }]));
+        assert.equal(enteredRuns.length, 1, 'practiceEndedAgain starts a fresh practice run when nav.leaving allows');
+        assert.equal(enteredRuns[0].id, 'run-again');
+      } finally {
+        navHook.unmount();
+      }
+    });
+  } finally {
+    if (prevStorage === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = prevStorage;
+    if (prevRaf === undefined) delete globalThis.requestAnimationFrame;
+    else globalThis.requestAnimationFrame = prevRaf;
+    if (prevCancelRaf === undefined) delete globalThis.cancelAnimationFrame;
+    else globalThis.cancelAnimationFrame = prevCancelRaf;
   }
 });
 

@@ -14,6 +14,12 @@ import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
+import { useAiConversation } from '../../components/useAiConversation.js';
+import {
+  buildCompanionAskPrompt,
+  buildUnifiedAiSystemPrompt,
+  isAiStreamingAvailable,
+} from '../../host/ai-dialogue.js';
 import { currentCourse } from '../../shell/data.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { cleanPathInput, errorMessage, tryAction } from '../../host/sample-actions.js';
@@ -528,7 +534,7 @@ export const CompanionsModal = memo(function CompanionsModal({
   } = useStreamingBuffer(24);
   const [askSuggestedCard, setAskSuggestedCard] = useState<SuggestedCatchupCard | null>(null);
   const [askBusy, setAskBusy] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
+  const askSeqRef = useRef(0);
 
   // Attach state
   const [attachField, setAttachField] = useState<AttachField>('path');
@@ -560,12 +566,12 @@ export const CompanionsModal = memo(function CompanionsModal({
   const [catchupBusy, setCatchupBusy] = useState(false);
   const [catchupErr, setCatchupErr] = useState<string | null>(null);
 
+  const { send: sendAiTurn, abort: abortAiTurn } = useAiConversation(host, lang);
+
   const abortInFlight = useCallback(() => {
-    if (abortRef.current) {
-      abortRef.current.abort();
-      abortRef.current = null;
-    }
-  }, []);
+    askSeqRef.current += 1;
+    abortAiTurn();
+  }, [abortAiTurn]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -1035,8 +1041,7 @@ export const CompanionsModal = memo(function CompanionsModal({
       const q = question.trim();
       if (!q || !selectedCompanion) return;
       abortInFlight();
-      const ac = new AbortController();
-      abortRef.current = ac;
+      const seq = askSeqRef.current;
       setSubMode('ask-view');
       setAskBusy(true);
       resetAskAnswer();
@@ -1070,7 +1075,7 @@ export const CompanionsModal = memo(function CompanionsModal({
           },
         });
 
-        if (ac.signal.aborted || !mountedRef.current) return;
+        if (askSeqRef.current !== seq || !mountedRef.current) return;
 
         if (res.ok && res.value?.answerMarkdown) {
           let md = res.value.answerMarkdown;
@@ -1085,24 +1090,22 @@ export const CompanionsModal = memo(function CompanionsModal({
           }
           setAskAnswer(md);
           finishAskAnswer();
-        } else if (typeof host.streamComplete === 'function') {
-          const system = t(
-            lang,
-            '你是 StudyHub 交互伴学导师。请基于伴学课内容与结构简洁回答学习者的困惑，使用 Markdown 与 LaTeX 数学公式。',
-            'You are the StudyHub Interactive Companion tutor. Answer the learner question concisely in Markdown using the companion context.',
-          );
-          const prompt = `Companion: ${compTitle}\n\n${summaryContext}\n\nLearner Question: ${q}`;
-          const final = await host.streamComplete({
-            system,
-            prompt,
-            signal: ac.signal,
+        } else if (isAiStreamingAvailable(host)) {
+          const outcome = await sendAiTurn({
+            system: buildUnifiedAiSystemPrompt('companion_ask', lang),
+            prompt: buildCompanionAskPrompt({ title: compTitle, summaryContext, question: q }),
             onChunk: (delta) => {
-              if (ac.signal.aborted || !mountedRef.current) return;
+              if (askSeqRef.current !== seq || !mountedRef.current) return;
               pushAskAnswer(delta);
             },
           });
-          if (!ac.signal.aborted && mountedRef.current) {
-            if (final) setAskAnswer(final);
+          if (askSeqRef.current === seq && mountedRef.current && outcome.status !== 'aborted' && outcome.status !== 'superseded') {
+            if (outcome.status === 'done') {
+              if (outcome.text) setAskAnswer(outcome.text);
+            } else {
+              const mark = asciiMode ? 'x' : '✕';
+              setAskAnswer(`${mark} ${outcome.error}`);
+            }
             finishAskAnswer();
           }
         } else {
@@ -1111,22 +1114,19 @@ export const CompanionsModal = memo(function CompanionsModal({
           finishAskAnswer();
         }
       } catch (error) {
-        if (!ac.signal.aborted && mountedRef.current) {
+        if (askSeqRef.current === seq && mountedRef.current) {
           const mark = asciiMode ? 'x' : '✕';
           setAskAnswer(`${mark} ${errorMessage(error)}`);
           finishAskAnswer();
         }
       } finally {
-        if (abortRef.current === ac) {
-          abortRef.current = null;
-          if (!ac.signal.aborted && mountedRef.current) {
-            finishAskAnswer();
-            setAskBusy(false);
-          }
+        if (askSeqRef.current === seq && mountedRef.current) {
+          finishAskAnswer();
+          setAskBusy(false);
         }
       }
     },
-    [abortInFlight, asciiMode, detail, finishAskAnswer, host, lang, pushAskAnswer, resetAskAnswer, selectedCompanion, setAskAnswer],
+    [abortInFlight, asciiMode, detail, finishAskAnswer, host, lang, pushAskAnswer, resetAskAnswer, selectedCompanion, sendAiTurn, setAskAnswer],
   );
 
   const handleOpenExternal = useCallback(async () => {

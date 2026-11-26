@@ -1,10 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { auditManagedModule, inspectCalls, inspectStarts, hasDefinition } from './helpers/runtime-architecture.mjs';
 import { MIGRATION_SWITCHES } from '../lib/runtime-config.js';
+import { singleAudioDefinition } from '../lib/contexts/audio/jobs/single-import.js';
+import { prepareSingleAudioRecord } from '../lib/audio-batch.js';
+import { AUDIO_DEFAULTS } from '../lib/audio-settings.js';
+import { flushAudioUsage } from '../lib/audio-dashboard.js';
+import { Store } from '../lib/store.js';
+import { TEST_KEY, wav } from './fixtures/audio-single-characterization-process.mjs';
 import { managedRuntimeOptions } from './helpers/runtime-switch.mjs';
 
 test('managed definitions reject lifecycle/model bypasses while ordinary caches and non-model fetches remain legal', () => {
@@ -22,10 +28,122 @@ test('managed definitions reject lifecycle/model bypasses while ordinary caches 
   assert.ok(auditManagedModule('const step = other.step("k", p); step.complete(system, prompt);').length);
 });
 
-test('single audio definition keeps all execution behind approved runtime and pipeline adapters', async () => {
+test('single audio definition keeps all execution behind approved runtime and pipeline adapters', async t => {
   const source = await readFile(new URL('../lib/contexts/audio/jobs/single-import.js', import.meta.url), 'utf8');
   assert.deepEqual(auditManagedModule(source), []);
-  assert.ok(source.includes('gateway: context.gateway'), 'shared pipeline must receive the runtime gateway');
+
+  const dir = await mkdtemp(join(tmpdir(), 'single-audio-gateway-'));
+  const root = join(dir, 'library');
+  const previousHome = process.env.DSH_HOME;
+  process.env.DSH_HOME = join(dir, 'home');
+  const registeredControls = [];
+  let admission = null;
+  t.after(async () => {
+    for (const ctrl of registeredControls) ctrl.close?.();
+    await admission?.finish?.();
+    await flushAudioUsage();
+    if (previousHome === undefined) delete process.env.DSH_HOME;
+    else process.env.DSH_HOME = previousHome;
+    await rm(dir, { recursive: true, force: true, maxRetries: 5 });
+  });
+
+  const audioPath = join(dir, 'lecture.wav');
+  await writeFile(audioPath, wav());
+  const store = new Store(root);
+  const record = await prepareSingleAudioRecord(root, { path: audioPath, courses: ['Databases'] });
+
+  const httpUrls = [];
+  const gatewaySteps = [];
+  const observedExternal = [];
+  const worker = {
+    store,
+    audioStore: store,
+    language: 'zh',
+    audioSettings: async () => ({
+      ...AUDIO_DEFAULTS,
+      paidKey: TEST_KEY,
+      textProvider: 'host',
+      transcribeConcurrency: 1,
+    }),
+    httpFetch: async url => {
+      httpUrls.push(String(url));
+      return new Response(JSON.stringify({
+        candidates: [{ content: { parts: [{ text: 'Today we study transactions and B-tree indexes.' }] } }],
+        usageMetadata: { promptTokenCount: 100, candidatesTokenCount: 12 },
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    },
+    complete: async () => {
+      throw new Error('singleAudioDefinition must route text model calls through context.gateway instead of calling worker.complete directly');
+    },
+    notify() {},
+  };
+  const work = {
+    audioGate: { active: new Set(), waiting: [], limit: 1 },
+    jobOutputs: { open() {}, append() {}, reasoning() {}, close() {}, endJob() {} },
+  };
+
+  const persistence = await singleAudioDefinition.persistence.open({ singleId: record.id }, { worker, cleanup: () => {} });
+  const controller = new AbortController();
+  const pauseController = new AbortController();
+  const gateway = {
+    step(key, policy, display) {
+      return {
+        async run(fn) {
+          gatewaySteps.push({ method: 'run', key, policy, display });
+          return fn();
+        },
+        async reuse(reason) {
+          gatewaySteps.push({ method: 'reuse', key, policy, reason });
+        },
+        async complete(system, prompt) {
+          gatewaySteps.push({ method: 'complete', key, policy, display });
+          if (system.startsWith('You proofread')) return '{"corrections":[]}';
+          if (system.startsWith('You translate')) {
+            return JSON.stringify({
+              titleZh: '数据库',
+              titleEn: 'Databases',
+              paragraphs: JSON.parse(prompt).paragraphs.map(p => ({ n: p.n, zh: '今天我们学习事务与 B 树索引。' })),
+            });
+          }
+          return '{"titleEn":"Database Lecture"}';
+        },
+      };
+    },
+    async observe(meta, fn) {
+      observedExternal.push(meta);
+      const result = await fn(controller.signal);
+      if (result.ledgerEvent && typeof meta.recordUsage === 'function') await meta.recordUsage(result.ledgerEvent);
+      return result.value;
+    },
+  };
+  const context = {
+    attemptId: 'att-gateway-check',
+    signal: controller.signal,
+    pauseSignal: pauseController.signal,
+    pauseRequested: false,
+    persistence,
+    resources: undefined,
+    gateway,
+    present() {},
+    controls(ctrl) { registeredControls.push(ctrl); },
+    async saveCheckpoint() {},
+    async commitArtifact(_stepKey, build, { publish }) {
+      const prepared = await build();
+      return publish(prepared, { assertCurrent() {} });
+    },
+  };
+
+  admission = await singleAudioDefinition.admit(context, persistence.input, { worker, work });
+  context.admission = admission;
+  const outcome = await singleAudioDefinition.run(context, persistence.input, { worker, work });
+
+  assert.equal(outcome.completeness, 'complete');
+  assert.equal(outcome.refs.length, 1);
+  assert.ok(httpUrls.length >= 1, 'fake transcription HTTP fetch ran without touching external network');
+  assert.ok(observedExternal.some(entry => entry.boundary === 'external-request'), 'transcription HTTP call is observed through context.gateway');
+  assert.ok(gatewaySteps.some(step => step.method === 'run' && step.key.startsWith('transcribe:')), 'transcription step runs through context.gateway');
+  const completeKeys = gatewaySteps.filter(step => step.method === 'complete').map(step => step.key.split(':')[0]);
+  assert.deepEqual(completeKeys, ['proofread', 'translate', 'title'], 'proofread, translate, and title model calls route through context.gateway');
 });
 
 test('model-shaped legacy call sites require an exact registered inventory and phase owner', async () => {

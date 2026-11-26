@@ -5,7 +5,7 @@
  * into concise one-key + Alt+click launch tiles on the Library home view.
  */
 import type { LastPracticeContext, StudySnapshot, UiLanguage } from '../../types/contracts.js';
-import { deckDueCount, isActiveStudyDeck } from '../../shell/data.js';
+import { selectStudySummary } from '../../selectors/study-metrics.js';
 
 export interface TodayHubMetrics {
   hasResume: boolean;
@@ -22,11 +22,6 @@ export interface TodayHubItem {
   tone: 'primary' | 'warning' | 'error' | 'accent';
 }
 
-interface DeckProgressLike {
-  due?: number;
-  counts?: { weak?: number };
-}
-
 export function buildTodayHubMetrics(opts: {
   snapshot: StudySnapshot | null | undefined;
   course: string | null;
@@ -34,15 +29,9 @@ export function buildTodayHubMetrics(opts: {
   lastPracticeContext?: LastPracticeContext;
 }): TodayHubMetrics {
   const snap = opts.snapshot;
-  const progressMap = (snap?.progress as Record<string, DeckProgressLike> | undefined) ?? undefined;
-  const decks = (snap?.decks ?? []).filter((d) => isActiveStudyDeck(d, opts.course));
-  let due = 0;
-  let wrong = 0;
-  for (const d of decks) {
-    const p = progressMap?.[d.id];
-    due += deckDueCount(d, progressMap);
-    wrong += Number(d.wrong ?? p?.counts?.weak ?? d.wrongCount ?? 0) || 0;
-  }
+  const summary = selectStudySummary(snap, opts.course);
+  const due = summary.due;
+  const wrong = summary.weak;
   const rawBoard = Array.isArray((snap as Record<string, unknown> | null | undefined)?.boardTasks)
     ? ((snap as Record<string, unknown>).boardTasks as Array<{ status?: unknown; column?: unknown }>)
     : Array.isArray((snap as Record<string, unknown> | null | undefined)?.board)
