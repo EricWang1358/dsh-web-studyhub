@@ -40,7 +40,8 @@ test('a PDF conversion, the Marker install, the MinerU install and an index buil
 test('the shared locks still hold in a mixed run: one conversion at a time, one install per DSH home, one index build per library', async t => {
   // (the conversion's mineru takes a few seconds per window, so the second book is still waiting when it is submitted)
   const f = await family(t, { fakes: { convert: { delayMs: 4000 } } });
-  const first = await f.call('mineru.import', { uploadId: await f.upload(3) }), second = await f.call('mineru.import', { uploadId: await f.upload(5) });
+  const [firstUpload, secondUpload] = [await f.upload(3), await f.upload(5)];
+  const first = await f.call('mineru.import', { uploadId: firstUpload }), second = await f.call('mineru.import', { uploadId: secondUpload });
   assert.equal(second.queuedBehind, 1);
   await f.ended(first.jobId); await f.ended(second.jobId);
   const install = await f.call('marker.install.start', { confirm: true });
