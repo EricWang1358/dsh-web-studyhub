@@ -58,6 +58,8 @@ const {
   requiresActionConfirm,
   listAssistantActions,
   validateIntentAgainstRegistry,
+  ASSISTANT_WRITE_ACTIONS,
+  ASSISTANT_READONLY_ACTIONS,
 } = actionRegistry;
 
 const { parseAssistantIntent } = intentMod;
@@ -662,6 +664,19 @@ describe('#1354 P3 AI Wave 2 — Retell & Book AI convergence + D8 Action Regist
     for (const entry of [...writeEntries, ...destructiveEntries]) {
       assert.equal(entry.requiresConfirm, true, `Registry invariant violated: ${entry.actionName} must requireConfirm`);
     }
+
+    // One write list: the names the write executor accepts are exactly the registry's write/destructive entries.
+    assert.ok(Array.isArray(ASSISTANT_WRITE_ACTIONS), 'the registry exports its write action list');
+    assert.deepEqual(
+      [...ASSISTANT_WRITE_ACTIONS].sort(),
+      [...writeEntries, ...destructiveEntries].map((entry) => entry.actionName).sort(),
+      'ASSISTANT_WRITE_ACTIONS must list exactly the write/destructive registry entries',
+    );
+    assert.deepEqual(
+      [...ASSISTANT_READONLY_ACTIONS].sort(),
+      listAssistantActions({ effect: 'readonly' }).map((entry) => entry.actionName).sort(),
+      'ASSISTANT_READONLY_ACTIONS must list exactly the readonly registry entries',
+    );
 
     // Guardrail check: validateIntentAgainstRegistry MUST catch an unconfirmed write intent
     const forgedBypass = {

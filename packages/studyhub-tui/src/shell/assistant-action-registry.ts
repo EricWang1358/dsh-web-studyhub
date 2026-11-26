@@ -14,37 +14,50 @@ import { SET_ERROR_REASON_ACTION } from './error-reason-intent.js';
 
 export type ActionEffectLevel = 'readonly' | 'write' | 'destructive';
 
-export type RegisteredActionName =
-  // Write / quota / export actions (MUST require confirmation)
-  | typeof SET_ERROR_REASON_ACTION
-  | 'export.wrongbook'
-  | 'card.followup.add'
-  | 'assist.start'
-  | 'note.qa.add'
-  | 'card.flag'
-  | 'review.grade.adjust'
-  | 'review.correction.ack'
-  | 'coach.practice'
-  | 'review.start'
-  | 'card.slay'
-  | 'card.suspend'
-  | 'card.focus'
-  | 'review.undo'
-  | 'card.terms'
-  | 'card.translate'
-  // Read-only / navigation / reversible in-round actions
-  | 'review.similar'
-  | 'review.skip'
-  | 'review.queue.edit'
-  | 'navigate'
-  | 'preferences.set'
-  | 'assistant.guided'
-  | 'snapshot'
-  | 'assistant.explain'
-  | 'review.get'
-  | 'assistant.clarify'
-  | 'assistant.chat'
-  | 'boundary';
+/**
+ * Write / quota / export actions: the only names `executeAssistantWriteAction` accepts, each a
+ * `write` or `destructive` registry entry that requires confirmation. `AssistantWriteActionName`
+ * is derived from this list, so the list exists once.
+ */
+export const ASSISTANT_WRITE_ACTIONS = Object.freeze([
+  SET_ERROR_REASON_ACTION,
+  'export.wrongbook',
+  'card.followup.add',
+  'assist.start',
+  'note.qa.add',
+  'card.flag',
+  'review.grade.adjust',
+  'review.correction.ack',
+  'coach.practice',
+  'review.start',
+  'card.slay',
+  'card.suspend',
+  'card.focus',
+  'review.undo',
+  /** Spends model quota and writes a cache, so the learner confirms it (#1447). */
+  'card.terms',
+  'card.translate',
+] as const);
+
+export type AssistantWriteActionName = (typeof ASSISTANT_WRITE_ACTIONS)[number];
+
+/** Read-only / navigation / reversible in-round actions. */
+export const ASSISTANT_READONLY_ACTIONS = Object.freeze([
+  'review.similar',
+  'review.skip',
+  'review.queue.edit',
+  'navigate',
+  'preferences.set',
+  'assistant.guided',
+  'snapshot',
+  'assistant.explain',
+  'review.get',
+  'assistant.clarify',
+  'assistant.chat',
+  'boundary',
+] as const);
+
+export type RegisteredActionName = AssistantWriteActionName | (typeof ASSISTANT_READONLY_ACTIONS)[number];
 
 export interface AssistantActionDescriptor {
   readonly actionName: RegisteredActionName;
