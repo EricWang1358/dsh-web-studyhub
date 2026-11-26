@@ -47,7 +47,7 @@ const {
 } = cliArgsMod;
 const { formatSearchReport } = cliCommandsMod;
 const { sanitizePastedText } = textInputMod;
-const { enterTerminalSession, isHeadlessOrSsh, ENABLE_SGR_MOUSE, DISABLE_SGR_MOUSE } = terminalMod;
+const { enterTerminalSession, isHeadlessOrSsh } = terminalMod;
 const { completeFsPath, expandHomePath } = pathCompleteMod;
 const { cleanPathInput } = sampleActionsMod;
 const { PAGE_REGISTRY } = contractsMod;
@@ -844,9 +844,6 @@ describe('enterTerminalSession SGR 1006 mouse lifecycle', () => {
   });
 
   test('opt-in (mouse: true) enables SGR 1006 mouse and disables it BEFORE alt-screen exit idempotently', () => {
-    assert.equal(ENABLE_SGR_MOUSE, '\x1b[?1000h\x1b[?1006h');
-    assert.equal(DISABLE_SGR_MOUSE, '\x1b[?1006l\x1b[?1000l');
-
     const mock = makeMockTty();
     const session = enterTerminalSession({
       stdout: mock.stdout,

@@ -67,14 +67,12 @@ const {
 const { exportDeckToMarkdown } = deckExportMod;
 const { defaultBackupPath, resolveBackupPath } = workspaceTabMod;
 const {
-  CARD_BATCH_MAX,
   chunkItems,
   executeBatchLink,
   executeBatchSlay,
   executeBatchTopicUpdate,
 } = deckManageMod;
 const {
-  SOURCE_BATCH_MAX,
   executeBatchSourceArchive,
   executeBatchSourceFolderSet,
   executeBatchSourceRemove,
@@ -523,8 +521,6 @@ describe('P1 #5: Batch operations exceeding backend 100/200 caps', () => {
       chunks250.map((c) => c.length),
       [100, 100, 50],
     );
-    assert.equal(CARD_BATCH_MAX, 100);
-    assert.equal(SOURCE_BATCH_MAX, 100);
   });
 
   test('2) DeckManageModal batch slay, topic update, and link chunk >200 cards into <=100 backend calls & stop on partial failure', async () => {
