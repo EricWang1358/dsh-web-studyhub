@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
@@ -60,6 +59,57 @@ const hooklessSsr = load((name) => (name === 'react'
 const h = React.createElement;
 const noop = () => {};
 const han = /\p{Script=Han}/u;
+let activeHookOwner;
+const hookSlot = (initial) => {
+  const index = activeHookOwner.cursor++;
+  if (!(index in activeHookOwner.slots)) activeHookOwner.slots[index] = initial();
+  return [index, activeHookOwner.slots[index]];
+};
+const statefulReact = {
+  ...React,
+  useState: (initial) => {
+    const owner = activeHookOwner;
+    const [index, value] = hookSlot(() => (typeof initial === 'function' ? initial() : initial));
+    return [value, (next) => { owner.slots[index] = typeof next === 'function' ? next(owner.slots[index]) : next; }];
+  },
+  useContext: (ctx) => ctx?._currentValue ?? null,
+  useRef: (value) => hookSlot(() => ({ current: value }))[1],
+  useId: () => hookSlot(() => `field-${activeHookOwner.cursor}`)[1],
+  useInsertionEffect: () => {},
+  useEffect: () => {},
+};
+const livePaneMod = load((name) => (name === 'react' ? statefulReact : require(name)));
+const findNode = (tree, predicate) => {
+  if (!tree || typeof tree !== 'object') return null;
+  if (predicate(tree)) return tree;
+  for (const child of React.Children.toArray(tree.props?.children)) {
+    const match = findNode(child, predicate);
+    if (match) return match;
+  }
+  return null;
+};
+const mountPracticePane = ({ fail = false, practice = {} } = {}) => {
+  const calls = [];
+  const owner = { cursor: 0, slots: [] };
+  const data = { settings: Object.keys(practice).length ? { practice } : {} };
+  const act = async (action, args, after, options) => {
+    calls.push([action, args, options]);
+    if (fail) throw new Error('save failed');
+    const result = { ...PRACTICE_DEFAULTS, ...args.patch };
+    await after?.(result, { isCurrent: () => true });
+    return result;
+  };
+  const renderPane = () => {
+    owner.cursor = 0;
+    activeHookOwner = owner;
+    try { return livePaneMod.PracticePane({ data, busy: false, act }); } finally { activeHookOwner = null; }
+  };
+  return {
+    calls,
+    toggle: () => findNode(renderPane(), (node) => node.props?.name === 'studyChainRecipes'),
+    alert: () => findNode(renderPane(), (node) => node.props?.role === 'alert'),
+  };
+};
 const HOST = {
   features: { examBlueprint: true },
   contexts: ['bank', 'study', 'materials', 'generation', 'authoring', 'audio', 'recording', 'notes', 'workflows', 'skeleton', 'system'],
@@ -70,7 +120,7 @@ const english = (fn) => {
   try { return fn(); } finally { ssr.setUiLanguage('zh'); }
 };
 
-test('lib/practice-settings keeps PRACTICE_DEFAULTS intact and manages optional studyChainRecipes', () => {
+test('Finder scenario guides setting (studyChainRecipes) stays out of PRACTICE_DEFAULTS until enabled', () => {
   const baselineKeys = ['autopilot', 'roundSize', 'newCardOrder', 'debrief', 'rereadMarks', 'leechFailures', 'leechWindow', 'leechRate'];
   assert.deepEqual(Object.keys(PRACTICE_DEFAULTS), baselineKeys);
   assert.deepEqual(Object.keys(resolvePracticeSettings(undefined)), baselineKeys);
@@ -105,8 +155,32 @@ test('PracticePane and Finder entries expose opt-in studyChainRecipes cleanly in
   assert.ok(entry);
   assert.equal(entry.area, 'settings');
 
-  const paneSrc = await readFile(new URL('../ui/settings/PracticePane.jsx', import.meta.url), 'utf8');
-  assert.match(paneSrc, /studyChainRecipes:\s*on\s*\?\s*true\s*:\s*null/);
+  // Mount PracticePane interactively and toggle studyChainRecipes on -> off, plus verify rollback and error surfacing on failure.
+  const okPane = mountPracticePane();
+  assert.equal(okPane.toggle().props.checked, false);
+  await okPane.toggle().props.onChange(true);
+  assert.deepEqual(okPane.calls[0].slice(0, 2), ['settings.practice.set', { patch: { studyChainRecipes: true } }]);
+  assert.equal(okPane.calls[0][2]?.rethrow, true);
+  assert.equal(okPane.toggle().props.checked, true);
+
+  await okPane.toggle().props.onChange(false);
+  assert.deepEqual(okPane.calls[1].slice(0, 2), ['settings.practice.set', { patch: { studyChainRecipes: null } }]);
+  assert.equal(okPane.toggle().props.checked, false);
+
+  const failOn = mountPracticePane({ fail: true });
+  await failOn.toggle().props.onChange(true);
+  assert.equal(failOn.calls.length, 1);
+  assert.deepEqual(failOn.calls[0].slice(0, 2), ['settings.practice.set', { patch: { studyChainRecipes: true } }]);
+  assert.equal(failOn.toggle().props.checked, false, 'a failed enable rolls studyChainRecipes back to saved false');
+  assert.match(String(failOn.alert()?.props?.children ?? ''), /save failed/, 'a failed enable surfaces the error alert');
+
+  const failOff = mountPracticePane({ fail: true, practice: { studyChainRecipes: true } });
+  assert.equal(failOff.toggle().props.checked, true);
+  await failOff.toggle().props.onChange(false);
+  assert.equal(failOff.calls.length, 1);
+  assert.deepEqual(failOff.calls[0].slice(0, 2), ['settings.practice.set', { patch: { studyChainRecipes: null } }]);
+  assert.equal(failOff.toggle().props.checked, true, 'a failed disable rolls studyChainRecipes back to saved true');
+  assert.match(String(failOff.alert()?.props?.children ?? ''), /save failed/, 'a failed disable surfaces the error alert');
 
   english(() => {
     const enHtml = renderToStaticMarkup(h(ssr.PracticePane, { data: { settings: {} }, busy: false, act: noop }));

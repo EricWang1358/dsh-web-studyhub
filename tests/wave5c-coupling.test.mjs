@@ -26,7 +26,7 @@ test('only the audio components write audio-* class names (#141)', () => {
   assert.deepEqual(offenders, [], 'a PDF, Jev or settings component that needs a provider card, a hint or a chip uses the primitive from ui/components, not the audio-* class');
 });
 
-test('audio-settings.css is injected by the audio components only (#141)', () => {
+test('recursive ui/**/*.{js,jsx} walk forbids study-audio-settings and audio-settings.css outside ui/audio/ and ui/Audio*.jsx (#141)', () => {
   const offenders = files(['.jsx', '.js']).filter((file) => !isAudio(file) && /study-audio-settings|audio-settings\.css/.test(read(file)));
   assert.deepEqual(offenders, [], 'the sheet belongs to AudioSettings and AudioImport');
 });
