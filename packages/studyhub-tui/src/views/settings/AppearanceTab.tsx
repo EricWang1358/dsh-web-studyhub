@@ -1,13 +1,13 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
 import { Box, Text } from 'ink';
-import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
+import { useKeyScope } from '../../components/key-dispatcher.js';
+import { isPlainKey } from '../../input/global-router.js';
 import type { HostClient, ThemeId, TuiPreferences, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { THEME_IDS, saveTuiPreferences } from '../../host/tui-prefs.js';
 import { shouldEnableMouse } from '../../cli-args.js';
 import { getColorLevel, getTheme, useTheme } from '../../theme/tokens.js';
 import { Panel } from '../../components/Panel.js';
-import { useClaimKeys } from '../../components/focus.js';
 import { padDisplay, truncateDisplay } from '../../render/cjk.js';
 
 export interface AppearanceTabProps {
@@ -148,28 +148,32 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = memo(function Appeara
   );
 
   const claimed = useMemo(() => ['j', 'k', 'h', 'l', ' '], []);
-  useClaimKeys(claimed, isActive);
 
-  useInput(
-    (input, key) => {
-      if (key.upArrow || input === 'k') {
+  useKeyScope({
+    id: 'settings:appearance',
+    active: isActive,
+    keys: claimed,
+    onKey: (input, key) => {
+      const plain = isPlainKey(input, key);
+      if (key.upArrow || (plain && input === 'k')) {
         setCursor((c) => (c - 1 + ROWS.length) % ROWS.length);
-        return;
+        return true;
       }
-      if (key.downArrow || input === 'j') {
+      if (key.downArrow || (plain && input === 'j')) {
         setCursor((c) => (c + 1) % ROWS.length);
-        return;
+        return true;
       }
-      if (key.leftArrow || input === 'h') {
+      if (key.leftArrow || (plain && input === 'h')) {
         cycleRow(ROWS[cursor], -1);
-        return;
+        return true;
       }
-      if (key.rightArrow || input === 'l' || key.return || input === ' ') {
+      if (key.rightArrow || (!key.ctrl && !key.meta && key.return) || (plain && (input === 'l' || input === ' '))) {
         cycleRow(ROWS[cursor], 1);
+        return true;
       }
+      return false;
     },
-    { isActive },
-  );
+  });
 
   const themeSwatches = useMemo(
     () =>
