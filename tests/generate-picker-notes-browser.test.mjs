@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { frames, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
-import { generateMarginFixture, leadProblems, allCourses, everyRow } from './helpers/generate-margin.mjs';
+import { generateMarginFixture, factsGeometry, leadProblems, allCourses, everyRow } from './helpers/generate-margin.mjs';
 
 const { state, openGenerate, answers } = generateMarginFixture('long');
 
@@ -58,7 +58,8 @@ test('#1134: 全部课程 at 420 keeps every row\'s format, a PDF\'s pages and t
       if (!(row.names[0]?.shown && row.names[0].seen.replace(/^·\s*/, '').length >= 2)) bad.push(`no course: ${row.title}: ${row.text}`);
       else if (!paged && row.names[0].cut) bad.push(`a note cuts its course: ${row.title}: ${row.text}`);
     }
-    assert.deepEqual(bad, [], tag);
+    if (bad.length) t.diagnostic(JSON.stringify(await factsGeometry(page)));
+    assert.deepEqual(bad, [], `${tag}: ${rows.map(row => row.title + ': ' + row.text).join(' | ')}`);
     // a little wider, the notes say their characters too, beside their whole course (by 448 px: a looser bound would let a lost size pass)
     let said = 0;
     for (let width = 424; width <= 448 && !said; width += 8) {

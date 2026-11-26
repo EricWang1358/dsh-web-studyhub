@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { frames } from '../scripts/qa/layout-late.mjs';
-import { generateMarginFixture, cutsOf, factsLines, leadProblems, allCourses, boxNames } from './helpers/generate-margin.mjs';
+import { generateMarginFixture, cutsOf, factsGeometry, factsLines, leadProblems, allCourses, boxNames } from './helpers/generate-margin.mjs';
 
 const { state, openGenerate, answers } = generateMarginFixture('long');
 
@@ -37,7 +37,8 @@ test('#1084 round 10: at 320–420, in the scope and in 全部课程, a row has 
       const decided = await page.evaluate(() => document.querySelector('[data-tour="generate-sources"] .source-picker').dataset.names);
       if (!(all && decided === 'alone')) bad.push(...leadProblems(rows));
       else if (width > 320) bad.push(`全部课程 says the course alone at ${width}`);
-      assert.deepEqual(bad, [], `${tag}: ${rows.slice(0, 3).map(row => row.text).join(' | ')}`);
+      if (bad.length) t.diagnostic(JSON.stringify(await factsGeometry(page)));
+      assert.deepEqual(bad, [], `${tag}: ${rows.map(row => row.title + ': ' + row.text).join(' | ')}`);
       // what a row leaves out is still in its checkbox's name: the format, size and notes whole, and every course
       rows.slice(0, 3).forEach((row, at) => assert.ok(names[at]?.includes(row.pieces.map(piece => piece.text).join(' ')), `${tag}: the checkbox's name has every fact ("${names[at]}")`));
       t.diagnostic(`${tag}: data-names=${await page.evaluate(() => document.querySelector('[data-tour="generate-sources"] .source-picker').dataset.names)}: ${rows.slice(0, 2).concat(rows.slice(-1)).map(row => row.text).join(' | ')}`);

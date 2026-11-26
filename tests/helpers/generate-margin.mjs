@@ -281,3 +281,25 @@ export async function everyRow(page) {
 }
 
 export const cutsOf = row => row.pieces.filter(piece => piece.shown && piece.cut);
+
+/** On a failing renderer, compare the room assigned to each piece with its text metrics on a PDF and a note. */
+export const factsGeometry = page => page.evaluate(() => {
+  const picker = document.querySelector('[data-tour="generate-sources"] .source-picker');
+  const canvas = document.createElement('canvas').getContext('2d');
+  const seen = new Set(), examples = [];
+  for (const row of picker.querySelectorAll('.source-picker__row')) {
+    const group = row.dataset.sizeGroup;
+    if (seen.has(group)) continue;
+    seen.add(group);
+    const line = row.querySelector('.source-picker__facts'), style = getComputedStyle(line);
+    canvas.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const measure = node => {
+      const rect = node.getBoundingClientRect(), css = getComputedStyle(node);
+      return { text: node.textContent, left: rect.left, width: rect.width, scrollWidth: node.scrollWidth,
+        canvasText: canvas.measureText(node.textContent).width, flex: css.flex, opacity: css.opacity, position: css.position };
+    };
+    examples.push({ group, line: line.getBoundingClientRect().width, font: canvas.font, gap: style.columnGap,
+      pieces: [...line.querySelectorAll('.source-picker__fact, .source-picker__part')].map(measure) });
+  }
+  return { settings: { ...picker.dataset }, examples };
+});
