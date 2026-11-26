@@ -13,6 +13,12 @@ import { TextInput } from '../../components/TextInput.js';
 import { useClaimKeys, useInputCapture } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
+import { useAiConversation } from '../../components/useAiConversation.js';
+import {
+  buildReaderAskPrompt,
+  buildUnifiedAiSystemPrompt,
+  isAiStreamingAvailable,
+} from '../../host/ai-dialogue.js';
 import { errorMessage, startReview, tryAction } from '../../host/sample-actions.js';
 import { MAX_LAST_READ_PAGES, saveTuiPreferences } from '../../host/tui-prefs.js';
 import { wrapDisplay } from '../../render/cjk.js';
@@ -573,12 +579,15 @@ export const DocumentReader = memo(function DocumentReader({
     ).catch(() => {});
   }, [clearPersistTimer, host, setPreferences]);
 
+  const { send: sendAiTurn, abort: abortAiTurn } = useAiConversation(host, lang);
+
   const abortInFlight = useCallback(() => {
+    abortAiTurn();
     if (abortRef.current) {
       abortRef.current.abort();
       abortRef.current = null;
     }
-  }, []);
+  }, [abortAiTurn]);
 
   const cancelActiveTranslation = useCallback(() => {
     translateSeqRef.current += 1;
@@ -1075,24 +1084,27 @@ export const DocumentReader = memo(function DocumentReader({
       resetAiAnswer();
 
       try {
-        if (typeof host.streamComplete === 'function') {
-          const system = t(
-            lang,
-            '你是 StudyHub 终端助教。请严格基于提供的当前页面内容回答用户问题；如需补充通用背景，请明确标注。使用简洁 Markdown 输出。',
-            'You are the StudyHub terminal tutor. Answer based strictly on the provided page text; clearly mark any general background knowledge. Output concise Markdown.',
-          );
-          const prompt = `Document: ${pageData.title} (Page ${pageData.page}/${pageData.lastPage})\n\n--- PAGE TEXT ---\n${pageData.text.slice(0, 14000)}\n--- END ---\n\nQuestion: ${q}`;
-          const final = await host.streamComplete({
-            system,
-            prompt,
-            signal: ac.signal,
+        if (isAiStreamingAvailable(host)) {
+          const outcome = await sendAiTurn({
+            system: buildUnifiedAiSystemPrompt('reader_ask', lang),
+            prompt: buildReaderAskPrompt({
+              title: pageData.title,
+              page: pageData.page,
+              lastPage: pageData.lastPage,
+              text: pageData.text,
+              question: q,
+            }),
             onChunk: (delta) => {
               if (ac.signal.aborted) return;
               pushAiAnswer(delta);
             },
           });
-          if (!ac.signal.aborted) {
-            if (final) setAiAnswer(final);
+          if (!ac.signal.aborted && outcome.status !== 'superseded' && outcome.status !== 'aborted') {
+            if (outcome.status === 'done') {
+              if (outcome.text) setAiAnswer(outcome.text);
+            } else {
+              setAiAnswer(`${asciiMode ? 'x' : '✕'} ${outcome.error}`);
+            }
             finishAiAnswer();
           }
         } else {
@@ -1130,7 +1142,7 @@ export const DocumentReader = memo(function DocumentReader({
         }
       }
     },
-    [abortInFlight, asciiMode, finishAiAnswer, host, lang, pageData, pushAiAnswer, resetAiAnswer, setAiAnswer],
+    [abortInFlight, asciiMode, finishAiAnswer, host, lang, pageData, pushAiAnswer, resetAiAnswer, sendAiTurn, setAiAnswer],
   );
 
   const applyTranslationResults = useCallback(

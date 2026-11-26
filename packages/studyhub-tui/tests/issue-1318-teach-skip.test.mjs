@@ -8,7 +8,6 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { PassThrough } from 'node:stream';
 import { after, test } from 'node:test';
 import { Box, render } from 'ink';
-import { setupCalculation } from '../../../tests/helpers/calculation-session.mjs';
 import React from 'react';
 import stripAnsi from 'strip-ansi';
 import { register } from 'tsx/esm/api';
@@ -18,10 +17,10 @@ after(() => {
   unregisterTsx?.();
 });
 
-const [{ StudyService }, { useTuiStore, DEFAULT_PREFERENCES }, { TeachModal }] = await Promise.all([
+const [{ StudyService }, { useTuiStore, DEFAULT_PREFERENCES }, { AssistantPanel, _resetAssistantSessionMemory }] = await Promise.all([
   import('../../../lib/service.js'),
   import('../src/state/store.ts'),
-  import('../src/views/review/TeachModal.tsx'),
+  import('../src/shell/AssistantPanel.tsx'),
 ]);
 
 const PLAN = {
@@ -225,48 +224,39 @@ test('#1318 backend: typing "跳过，下一问" into teach.answer skips with 0 
   assert.ok(finished.transfer.includes('谱定理'));
 });
 
-test('returning to saved calculation teaching opens the existing session without starting another lesson', async t => {
+test('#1318 / #1354 P3-c unified AssistantPanel Guided Study: skip shortcut, "跳过，下一问", 2-wrong nudge, and completion skipped summary', async (t) => {
   resetStore('zh');
-  const { service, run } = await setupCalculation(t);
-  const saved = await service.call('teach.start', { runId: run.id, cardId: run.card.id, mode: 'calculation', language: 'zh' });
-  const resumed = await service.call('review.get', { runId: run.id });
-  assert.equal(resumed.teaching.id, saved.id);
-  const modelCalls = t.mock.fn(() => { throw new Error('resuming a saved lesson must not call a model'); });
-  service.complete = modelCalls;
-  const host = makeHostFromService(service);
-  const call = host.call, teachingCalls = [];
-  host.call = (name, args) => {
-    if (name === 'teach.start' || name === 'teach.get') teachingCalls.push([name, args]);
-    return call(name, args);
-  };
-  const view = createInkHarness(React.createElement(Box, { width: 104, height: 34 }, React.createElement(TeachModal, {
-    host, run: resumed, cardId: run.card.id, kind: 'flashcard', width: 100, height: 34,
-    isActive: true, mathUnicode: true, onClose: () => {},
-  })));
-  t.after(() => view.cleanup());
-  await view.waitFor(frame => frame.includes('第 1/5 步'), 6000, 'stored calculation lesson');
-  assert.deepEqual(teachingCalls, [['teach.get', { id: saved.id }]]);
-  assert.equal(modelCalls.mock.callCount(), 0);
-});
-
-test('#1318 TUI TeachModal: skip shortcut, "跳过，下一问", 2-wrong nudge, and completion skipped summary', async (t) => {
-  resetStore('zh');
+  _resetAssistantSessionMemory();
   const { service, run, getModelCalls, setVerdict } = await setupTeachingService(t);
   const host = makeHostFromService(service);
+
+  useTuiStore.setState({
+    page: 'review',
+    assistantOpen: true,
+    assistantFocused: true,
+    assistantTab: 'guided',
+    assistantStage: 'question',
+    assistantFullscreen: false,
+    assistantCardContext: {
+      runId: run.id,
+      deckId: 'd-1318',
+      cardId: 'c-1318',
+      cardIndex: 0,
+      queueVersion: run.queueVersion ?? 0,
+      prompt: '实对称矩阵为什么一定能正交对角化？',
+      kind: 'flashcard',
+    },
+  });
 
   const h = createInkHarness(
     React.createElement(
       Box,
       { width: 104, height: 34 },
-      React.createElement(TeachModal, {
+      React.createElement(AssistantPanel, {
         host,
-        run,
-        cardId: 'c-1318',
-        kind: 'flashcard',
         width: 100,
         height: 34,
         isActive: true,
-        mathUnicode: true,
         onClose: () => {},
       }),
     ),
@@ -278,22 +268,20 @@ test('#1318 TUI TeachModal: skip shortcut, "跳过，下一问", 2-wrong nudge, 
   await new Promise((r) => setTimeout(r, 40));
   assert.equal(getModelCalls(), 1);
 
-  // 1) Press Tab then 's' to skip Step 1 -> 0 extra model calls, shows Step 1 key point & advances to Step 2/3
-  h.write('\t');
-  await h.waitFor((s) => s.includes('[s] 跳过'), 2000, 'input unfocused after Tab');
+  // 1) Press Esc (blur input) then 'S' to skip Step 1 -> 0 extra model calls, shows Step 1 key point & advances to Step 2/3
+  h.write('\x1b');
   await new Promise((r) => setTimeout(r, 40));
-  h.write('s');
+  h.write('S');
   const afterSkipKey = await h.waitFor(
-    (s) => s.includes('第 2/3 步') && s.includes('已跳过 1'),
+    (s) => s.includes('第 2/3 步') && s.includes('第1步要点'),
     4000,
     'step 2 after skip key',
   );
-  assert.equal(getModelCalls(), 1, 'pressing skip key in TeachModal must make 0 extra model calls');
+  assert.equal(getModelCalls(), 1, 'pressing skip key in unified Guided Study must make 0 extra model calls');
   assert.ok(afterSkipKey.includes('第1步要点'), 'screen should reveal step 1 lesson');
 
-  // 2) Focus input and submit 2 wrong answers on Step 2 -> shows "看要点并继续" nudge
+  // 2) Focus input and submit 2 wrong answers on Step 2 -> shows 2-wrong nudge
   h.write('i');
-  await h.waitFor((s) => s.includes('Ctrl+N 跳过此步'), 2000, 'input focused after i');
   await new Promise((r) => setTimeout(r, 40));
   setVerdict({ passed: false, feedback: '再核对单位化步骤。' });
   h.write('随便答1');
@@ -306,24 +294,23 @@ test('#1318 TUI TeachModal: skip shortcut, "跳过，下一问", 2-wrong nudge, 
   h.write('随便答2');
   await new Promise((r) => setTimeout(r, 30));
   h.write('\r');
-  const afterTwoWrong = await h.waitFor((s) => s.includes('看要点并继续'), 4000, 'nudge after 2 wrong tries');
+  const afterTwoWrong = await h.waitFor((s) => s.includes('已经试过两次'), 4000, 'nudge after 2 wrong tries');
   await new Promise((r) => setTimeout(r, 40));
   assert.equal(getModelCalls(), 3);
-  assert.ok(afterTwoWrong.includes('看要点并继续'));
+  assert.ok(afterTwoWrong.includes('跳过单步'));
 
   // 3) Type "跳过，下一问" into input -> skips Step 2 with 0 extra model calls -> reaches Step 3/3
   h.write('跳过，下一问');
   await new Promise((r) => setTimeout(r, 30));
   h.write('\r');
-  await h.waitFor((s) => s.includes('第 3/3 步') && s.includes('已跳过 2'), 4000, 'step 3 after phrase skip');
+  await h.waitFor((s) => s.includes('第 3/3 步'), 4000, 'step 3 after phrase skip');
   await new Promise((r) => setTimeout(r, 40));
   assert.equal(getModelCalls(), 3, 'typing 跳过，下一问 must make 0 extra model calls');
 
-  // 4) Press Tab then 'e' (early finish remaining) -> completes with 0 extra model calls, lists skipped steps
-  h.write('\t');
-  await h.waitFor((s) => s.includes('[e] 剩余直接讲'), 2000, 'input unfocused before e');
+  // 4) Press Esc then 'X' (early finish remaining) -> completes with 0 extra model calls, lists skipped steps
+  h.write('\x1b');
   await new Promise((r) => setTimeout(r, 40));
-  h.write('e');
+  h.write('X');
   const completeFrame = await h.waitFor(
     (s) => s.includes('已跳过步骤') && s.includes('第 1 步') && s.includes('第 3 步'),
     4000,
@@ -583,4 +570,60 @@ test('#1318 x #1322/#1355 rebase merge conflict guard: skip-before-model + nonRe
   } finally {
     setUiLanguage('zh');
   }
+});
+
+test('#1354 P3-c: reopening a card whose saved guided study is in calculation mode resumes it without starting a new understanding plan', async (t) => {
+  resetStore('zh');
+  _resetAssistantSessionMemory();
+  const { service, run, getModelCalls } = await setupTeachingService(t);
+  // A calculation session needs a cited source; reuse a real session view and mark it as a saved calculation one.
+  const real = await service.call('teach.start', { runId: run.id, cardId: 'c-1318', language: 'zh' });
+  const saved = { ...real, id: 'saved-calculation', mode: 'calculation' };
+  const callsBefore = getModelCalls();
+
+  const base = makeHostFromService(service);
+  const calls = [];
+  const host = {
+    ...base,
+    call: async (name, args) => {
+      calls.push({ name, mode: args?.mode });
+      if (name === 'teach.get' && args?.id === saved.id) return { ok: true, value: saved };
+      return base.call(name, args);
+    },
+  };
+
+  useTuiStore.setState({
+    page: 'review',
+    assistantOpen: true,
+    assistantFocused: true,
+    assistantTab: 'guided',
+    assistantStage: 'question',
+    assistantFullscreen: false,
+    assistantCardContext: {
+      runId: run.id,
+      deckId: 'd-1318',
+      cardId: 'c-1318',
+      cardIndex: 0,
+      queueVersion: run.queueVersion ?? 0,
+      prompt: '实对称矩阵为什么一定能正交对角化？',
+      kind: 'flashcard',
+      teachingId: saved.id,
+      teachingMode: 'calculation',
+    },
+  });
+
+  const h = createInkHarness(
+    React.createElement(
+      Box,
+      { width: 104, height: 34 },
+      React.createElement(AssistantPanel, { host, width: 100, height: 34, isActive: true, onClose: () => {} }),
+    ),
+  );
+  t.after(() => h.cleanup());
+
+  await h.waitFor((s) => s.includes('第 1/3 步') && s.includes('计算推导'), 4000, 'saved calculation session shown');
+  await new Promise((r) => setTimeout(r, 80));
+  const starts = calls.filter((c) => c.name === 'teach.start');
+  assert.deepEqual(starts, [], `resuming must not call teach.start; calls: ${JSON.stringify(calls)}`);
+  assert.equal(getModelCalls(), callsBefore, 'resuming a saved session must make no model call');
 });

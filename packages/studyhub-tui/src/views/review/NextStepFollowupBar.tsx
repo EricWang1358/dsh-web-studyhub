@@ -5,7 +5,7 @@
  * - Zero `marked` dependency (uses ScrollView + wrapDisplay) so non-markdown chunks like
  *   CardToolsModal stay `marked`-free and pass strict perf-budget checks.
  * - Consistent across all AI result pages: same key (`a`), same prompt copy, same quick presets,
- *   same streaming reply & `[N]` save-to-followup/notes action (reuses `card.followup.add` + `note.qa.add`).
+ *   same streaming reply & `[N]` atomic save-to-followup/notes action (via `note.qa.save`).
  */
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
@@ -343,10 +343,6 @@ export const NextStepFollowupBar = memo(function NextStepFollowupBar({
     setSavingNote(false);
     if (!saved.ok) {
       notify(saved.error || t(lang, '保存追问失败', 'Failed to save follow-up'), 'error');
-      return;
-    }
-    if (!saved.noteSaved && saved.warning) {
-      notify(saved.warning, 'warning');
       return;
     }
     notify(t(lang, '已保存为本题追问与学习笔记', 'Saved as card follow-up & study note'), 'success');
