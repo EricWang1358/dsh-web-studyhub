@@ -1,10 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
+import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { reviewElement } from './helpers/review-render.mjs';
+import { withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const mod = await loadUi(`
   export * from './ui/seal-press/palette.js';
@@ -155,7 +158,7 @@ test('buildSealSvg produces deterministic yang (朱文) and yin (白文) carved 
   assert.notEqual(yangA, yin);
 });
 
-test('confetti options enforce useWorker: false, disableForReducedMotion: true, hex palette and reduced-motion gate', () => {
+test('confetti runtime enforces worker-free cannon, disableForReducedMotion, theme hex palette, and reduced-motion / hidden-tab gates', async () => {
   assert.equal(mod.cssColorToHex('rgb(201, 61, 34)'), '#c93d22');
   assert.equal(mod.cssColorToHex('#abc'), '#aabbcc');
   assert.equal(mod.cssColorToHex('#5fb58a80'), '#5fb58a');
@@ -168,13 +171,122 @@ test('confetti options enforce useWorker: false, disableForReducedMotion: true, 
   assert.equal(opts.useWorker, false);
   assert.equal(opts.disableForReducedMotion, true);
   assert.deepEqual(opts.colors, ['#c93d22', '#5fb58a', '#d9a441', '#ece4d6']);
-
   assert.equal(mod.buildConfettiOptions({ reducedMotion: true }), null);
 
-  const src = readFileSync('ui/seal-press/confetti-burst.js', 'utf8');
-  assert.match(src, /useWorker:\s*false/);
-  assert.match(src, /disableForReducedMotion:\s*true/);
-  assert.match(src, /create\(null,\s*\{\s*useWorker:\s*false/);
+  // Bundle confetti-burst.js with a virtual canvas-confetti stub so fireSealConfetti() runs end-to-end.
+  const createCalls = [];
+  const fireCalls = [];
+  let resetCalls = 0;
+  let defaultExportCalled = 0;
+  const cannonFn = (options) => { fireCalls.push(options); };
+  cannonFn.reset = () => { resetCalls += 1; };
+  const confettiStub = Object.assign(() => { defaultExportCalled += 1; }, {
+    create(canvas, config) {
+      createCalls.push({ canvas, config });
+      return cannonFn;
+    },
+  });
+
+  const compiled = await build({
+    stdin: { contents: `export * from './ui/seal-press/confetti-burst.js';`, resolveDir: resolve(process.cwd()) },
+    bundle: true,
+    write: false,
+    platform: 'node',
+    format: 'cjs',
+    logLevel: 'silent',
+    plugins: [{
+      name: 'stub-canvas-confetti',
+      setup(builder) {
+        builder.onResolve({ filter: /^canvas-confetti$/ }, () => ({ path: 'canvas-confetti', namespace: 'stub-confetti' }));
+        builder.onLoad({ filter: /.*/, namespace: 'stub-confetti' }, () => ({
+          contents: 'export default __confettiStub; export const create = __confettiStub.create;',
+          loader: 'js',
+        }));
+      },
+    }],
+  });
+  const runtimeMod = { exports: {} };
+  new Function('require', 'module', 'exports', '__confettiStub', compiled.outputFiles[0].text)(
+    createRequire(import.meta.url),
+    runtimeMod,
+    runtimeMod.exports,
+    confettiStub,
+  );
+  const { fireSealConfetti, resetConfettiForTests } = runtimeMod.exports;
+
+  const cssVars = {
+    '--accent': 'rgb(201, 61, 34)',
+    '--ok': 'rgb(95, 181, 138)',
+    '--warn': '#d9a441',
+    '--paper': '#ece4d6',
+  };
+  let motionAttr = null;
+  let osReducedMotion = false;
+
+  await withBrowserGlobals(async () => {
+    try {
+      // 1) Hidden tab suppresses confetti before touching canvas-confetti
+      globalThis.document.hidden = true;
+      assert.equal(await fireSealConfetti({ variant: 'clean-sweep' }), false);
+      assert.equal(createCalls.length, 0);
+      assert.equal(fireCalls.length, 0);
+      globalThis.document.hidden = false;
+
+      // 2) OS prefers-reduced-motion suppresses confetti
+      osReducedMotion = true;
+      assert.equal(await fireSealConfetti({ variant: 'stamp' }), false);
+      assert.equal(createCalls.length, 0);
+      osReducedMotion = false;
+
+      // 3) StudyHub [data-motion="reduced"|"off"] suppresses confetti
+      motionAttr = 'reduced';
+      assert.equal(await fireSealConfetti({ variant: 'stamp' }), false);
+      motionAttr = 'off';
+      assert.equal(await fireSealConfetti({ variant: 'stamp' }), false);
+      assert.equal(createCalls.length, 0);
+      motionAttr = null;
+
+      // 4) Normal visible tab fires through a dedicated worker-free cannon (never default export)
+      const fired = await fireSealConfetti({ variant: 'clean-sweep', origin: { x: 0.3, y: 0.4 } });
+      assert.equal(fired, true);
+      assert.equal(defaultExportCalled, 0, 'must never invoke canvas-confetti default worker-enabled export');
+      assert.deepEqual(createCalls, [{
+        canvas: null,
+        config: { useWorker: false, resize: true, disableForReducedMotion: true },
+      }]);
+      assert.equal(fireCalls.length, 1);
+      assert.equal(fireCalls[0].useWorker, false);
+      assert.equal(fireCalls[0].disableForReducedMotion, true);
+      assert.equal(fireCalls[0].particleCount, 34);
+      assert.deepEqual(fireCalls[0].colors, ['#c93d22', '#5fb58a', '#d9a441', '#ece4d6']);
+      assert.deepEqual(fireCalls[0].origin, { x: 0.3, y: 0.4 });
+
+      // 5) Second burst reuses the cached worker-free cannon; reset clears and resets it
+      assert.equal(await fireSealConfetti({ variant: 'stamp' }), true);
+      assert.equal(createCalls.length, 1, 'reuses cached worker-free cannon');
+      assert.equal(fireCalls.length, 2);
+      assert.equal(fireCalls[1].particleCount, 24);
+
+      resetConfettiForTests();
+      assert.equal(resetCalls, 1);
+    } finally {
+      resetConfettiForTests();
+    }
+  }, {
+    document: {
+      hidden: false,
+      documentElement: {
+        style: {},
+        dataset: {},
+        getAttribute: (name) => (name === 'data-motion' ? motionAttr : null),
+      },
+      querySelector: () => null,
+    },
+    window: {
+      matchMedia: () => ({ matches: osReducedMotion, addEventListener() {}, removeEventListener() {} }),
+      getComputedStyle: () => ({ getPropertyValue: (name) => cssVars[name] || '' }),
+    },
+  });
 });
 
 test('buildPostcardSvg generates all 3 fine-print editions with escaped session content', () => {
