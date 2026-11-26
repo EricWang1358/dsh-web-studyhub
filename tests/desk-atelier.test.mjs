@@ -1,13 +1,27 @@
+/* Desk Atelier behavioral & accessibility tests.
+   Note on static CSS guardrails below: Node has no CSS cascade, @layer, :has(),
+   prefers-reduced-motion, forced-colors, or layout-overflow evaluator, so the
+   stylesheet guardrail test intentionally inspects desk-atelier-trigger.css and
+   desk-atelier.css statically for those CSS-only invariants. All JS/JSX behavior
+   (audio synthesis, store persistence, capture guard, language reactivity,
+   Alt+Shift+A shortcut, lazy panel/chime loading, no-setInterval, code-splitting)
+   is tested dynamically at runtime. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { boardAction } from '../lib/board.js';
 import { SOUNDSCAPE_DATA_URIS, SOUNDSCAPE_CHANNEL_GAINS } from '../ui/desk-atelier/soundscape-assets.js';
 import { loadUi } from './helpers/ui-module.mjs';
+
+const require = createRequire(import.meta.url);
+const REPO_ROOT = fileURLToPath(new URL('../', import.meta.url));
 
 const mod = await loadUi(`
   export { setUiLanguage } from './ui/i18n.js';
@@ -543,14 +557,252 @@ test('desk-atelier stylesheets respect StudyHub layer, contrast, opacity ceiling
   assert.match(panelCss, /\.desk-atelier__master-label\s*\{[^}]*margin:\s*0;/);
   assert.match(panelCss, /\.desk-atelier__channel-name\s*\{[^}]*margin:\s*0;/);
   assert.match(panelCss, /\.desk-atelier__slider\s*\{[^}]*border:\s*0;/);
+});
 
-  // Wave 3 DeskAtelierButton subscribes to useUiLanguage, handles Alt+Shift+A, and hoists DeskChimeDialog.
-  const btnSrc = await readFile(new URL('../ui/desk-atelier/DeskAtelierButton.jsx', import.meta.url), 'utf8');
-  assert.match(btnSrc, /\buseUiLanguage\s*\(\s*\)/);
-  assert.match(btnSrc, /!event\.altKey\s*\|\|\s*!event\.shiftKey/);
-  assert.match(btnSrc, /event\.code !== ['"]KeyA['"]/);
-  assert.match(btnSrc, /import\(['"]\.\/DeskChimeDialog\.jsx['"]\)/);
-  assert.match(btnSrc, /onToggleChime/);
+/** Minimal stateful shallow React hook runner for testing a single component's hooks, effects, and subscriptions in Node. */
+async function loadStatefulComponent(entryCode) {
+  const hookState = { slots: [], cursor: 0, effects: [], pendingEffects: [], listeners: new Set(), onRender: null };
+  const depsSame = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
+  const scheduleRender = () => { hookState.onRender?.(); };
+
+  const contexts = new Map();
+  let idSeq = 0;
+  const miniReact = {
+    Fragment: Symbol.for('react.fragment'),
+    Suspense: Symbol.for('react.suspense'),
+    Component: class Component { constructor(props) { this.props = props; this.state = {}; } },
+    createContext(defaultValue) {
+      const ctx = { _default: defaultValue };
+      ctx.Provider = ({ value, children }) => ({ $$provider: ctx, value, children });
+      return ctx;
+    },
+    useContext(ctx) {
+      const stack = contexts.get(ctx);
+      return stack && stack.length ? stack[stack.length - 1] : ctx._default;
+    },
+    useId() {
+      const idx = hookState.cursor++;
+      if (!(idx in hookState.slots)) hookState.slots[idx] = `:r${++idSeq}:`;
+      return hookState.slots[idx];
+    },
+    useInsertionEffect() {},
+    lazy(load) { return { $$lazy: true, load }; },
+    createElement(type, props, ...children) {
+      const p = props ? { ...props } : {};
+      if (children.length === 1) p.children = children[0];
+      else if (children.length > 1) p.children = children;
+      return { type, props: p };
+    },
+    memo(fn) { return { $$memo: true, type: fn }; },
+    forwardRef(fn) { return { $$forwardRef: true, render: fn }; },
+    useState(init) {
+      const idx = hookState.cursor++;
+      if (!(idx in hookState.slots)) {
+        hookState.slots[idx] = typeof init === 'function' ? init() : init;
+      }
+      const setState = (next) => {
+        const prev = hookState.slots[idx];
+        const value = typeof next === 'function' ? next(prev) : next;
+        if (!Object.is(prev, value)) {
+          hookState.slots[idx] = value;
+          scheduleRender();
+        }
+      };
+      return [hookState.slots[idx], setState];
+    },
+    useRef(init) {
+      const idx = hookState.cursor++;
+      if (!(idx in hookState.slots)) hookState.slots[idx] = { current: init };
+      return hookState.slots[idx];
+    },
+    useCallback(fn, deps) {
+      const idx = hookState.cursor++;
+      const prev = hookState.slots[idx];
+      if (!prev || !depsSame(prev.deps, deps)) hookState.slots[idx] = { fn, deps };
+      return hookState.slots[idx].fn;
+    },
+    useMemo(fn, deps) {
+      const idx = hookState.cursor++;
+      const prev = hookState.slots[idx];
+      if (!prev || !depsSame(prev.deps, deps)) hookState.slots[idx] = { value: fn(), deps };
+      return hookState.slots[idx].value;
+    },
+    useEffect(fn, deps) {
+      const idx = hookState.cursor++;
+      const prev = hookState.effects[idx];
+      if (!prev || !deps || !depsSame(prev.deps, deps)) {
+        hookState.pendingEffects.push({ idx, fn, deps });
+      }
+    },
+    useLayoutEffect(fn, deps) { miniReact.useEffect(fn, deps); },
+    useSyncExternalStore(subscribe, getSnapshot) {
+      const idx = hookState.cursor++;
+      if (!(idx in hookState.slots)) {
+        const entry = {
+          value: getSnapshot(),
+          unsub: subscribe(() => {
+            const next = getSnapshot();
+            if (!Object.is(entry.value, next)) {
+              entry.value = next;
+              scheduleRender();
+            }
+          }),
+        };
+        hookState.slots[idx] = entry;
+      } else {
+        hookState.slots[idx].value = getSnapshot();
+      }
+      return hookState.slots[idx].value;
+    },
+  };
+  miniReact.default = miniReact;
+
+  const built = await build({
+    stdin: { contents: entryCode, resolveDir: REPO_ROOT },
+    bundle: true,
+    write: false,
+    platform: 'node',
+    format: 'cjs',
+    external: ['react', 'react-dom', '@codemirror/*', '@lezer/*', '@base-ui/*', 'markdown-it', 'markdown-it-texmath', 'dompurify', 'katex', 'katex/*'],
+    loader: { '.css': 'text' },
+    logLevel: 'silent',
+  });
+  const modObj = { exports: {} };
+  const customRequire = (id) => (id === 'react' ? miniReact : require(id));
+  new Function('require', 'module', 'exports', built.outputFiles[0].text)(customRequire, modObj, modObj.exports);
+
+  const flushEffects = () => {
+    const queue = hookState.pendingEffects.splice(0);
+    for (const item of queue) {
+      hookState.effects[item.idx]?.cleanup?.();
+      const cleanup = item.fn();
+      hookState.effects[item.idx] = { deps: item.deps, cleanup: typeof cleanup === 'function' ? cleanup : null };
+    }
+  };
+
+  function mount(Component, props = {}) {
+    const fn = Component?.$$memo ? Component.type : Component;
+    let tree = null;
+    const render = () => {
+      hookState.cursor = 0;
+      tree = fn(props);
+      flushEffects();
+      return tree;
+    };
+    hookState.onRender = render;
+    render();
+    return {
+      get tree() { return tree; },
+      rerender: render,
+      unmount() {
+        hookState.onRender = null;
+        for (const eff of hookState.effects) eff?.cleanup?.();
+        for (const slot of hookState.slots) slot?.unsub?.();
+      },
+    };
+  }
+
+  return { exports: modObj.exports, mount };
+}
+
+function findElement(node, predicate) {
+  if (!node || typeof node !== 'object') return null;
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const hit = findElement(item, predicate);
+      if (hit) return hit;
+    }
+    return null;
+  }
+  if (predicate(node)) return node;
+  return node.props?.children ? findElement(node.props.children, predicate) : null;
+}
+
+test('Wave 3: DeskAtelierButton subscribes to language changes, toggles via guarded Alt+Shift+A, and hoists lazy DeskChimeDialog', async () => {
+  const keyListeners = new Set();
+  let dialogOpen = false;
+  const origWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const origDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      addEventListener: (type, fn) => { if (type === 'keydown') keyListeners.add(fn); },
+      removeEventListener: (type, fn) => { if (type === 'keydown') keyListeners.delete(fn); },
+    },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      querySelector: (sel) => (sel === 'dialog[open]' && dialogOpen ? { open: true } : null),
+    },
+  });
+
+  const { exports: loaded, mount } = await loadStatefulComponent(`
+    export { setUiLanguage } from './ui/i18n.js';
+    export { default as DeskAtelierButton } from './ui/desk-atelier/DeskAtelierButton.jsx';
+    export { Popover } from './ui/components/index.js';
+    export { default as DeskAtelierPanel } from './ui/desk-atelier/DeskAtelierPanel.jsx';
+    export { default as DeskChimeDialog } from './ui/desk-atelier/DeskChimeDialog.jsx';
+  `);
+  loaded.setUiLanguage('zh');
+  const mounted = mount(loaded.DeskAtelierButton);
+  try {
+    const getPopover = () => findElement(mounted.tree, (el) => el.type === loaded.Popover);
+    const getTriggerLabel = () => {
+      const pop = getPopover();
+      const triggerEl = pop.props.trigger({ props: {}, ref: null, open: pop.props.open });
+      return triggerEl.props.label;
+    };
+
+    // 1. Live language reactivity via useUiLanguage(): switching zh -> en updates label without remounting.
+    assert.equal(getTriggerLabel(), '书房声景与光影');
+    loaded.setUiLanguage('en');
+    assert.doesNotMatch(getTriggerLabel(), HAN, 'DeskAtelierButton re-rendered in English via useUiLanguage()');
+    assert.match(getTriggerLabel(), /Soundscape|Atelier/i);
+
+    // 2. Guarded Alt+Shift+A toggles the popover open, ignoring editable inputs & open dialogs.
+    assert.equal(keyListeners.size, 1, 'registers global keydown listener');
+    const dispatchKey = (evt) => {
+      let prevented = false;
+      const event = { repeat: false, altKey: false, shiftKey: false, ctrlKey: false, metaKey: false, target: { tagName: 'DIV' }, preventDefault: () => { prevented = true; }, ...evt };
+      for (const fn of [...keyListeners]) fn(event);
+      return prevented;
+    };
+
+    assert.equal(getPopover().props.open, false);
+    assert.equal(dispatchKey({ altKey: true, shiftKey: true, code: 'KeyA', target: { tagName: 'INPUT' } }), false, 'ignores Alt+Shift+A inside input');
+    assert.equal(getPopover().props.open, false);
+
+    dialogOpen = true;
+    assert.equal(dispatchKey({ altKey: true, shiftKey: true, code: 'KeyA' }), false, 'ignores Alt+Shift+A while a dialog is open');
+    assert.equal(getPopover().props.open, false);
+    dialogOpen = false;
+
+    assert.equal(dispatchKey({ altKey: true, shiftKey: true, code: 'KeyA' }), true, 'handles Alt+Shift+A');
+    assert.equal(getPopover().props.open, true, 'Alt+Shift+A opens Desk Atelier popover');
+
+    // 3. Lazy DeskAtelierPanel loads and its onToggleChime closes the popover & hoists lazy DeskChimeDialog.
+    await new Promise((r) => setTimeout(r, 20));
+    const panelEl = findElement(getPopover().props.children, (el) => el.type === loaded.DeskAtelierPanel);
+    assert.ok(panelEl, 'lazily imported DeskAtelierPanel renders inside open Popover');
+    assert.equal(typeof panelEl.props.onToggleChime, 'function', 'passes onToggleChime callback to DeskAtelierPanel');
+
+    panelEl.props.onToggleChime();
+    assert.equal(getPopover().props.open, false, 'onToggleChime closes popover before hoisting DeskChimeDialog');
+    await new Promise((r) => setTimeout(r, 20));
+    const chimeEl = findElement(mounted.tree, (el) => el.type === loaded.DeskChimeDialog);
+    assert.ok(chimeEl, 'lazily imported DeskChimeDialog mounts hoisted outside Popover');
+    assert.equal(typeof chimeEl.props.onClose, 'function');
+    chimeEl.props.onClose();
+    assert.equal(findElement(mounted.tree, (el) => el.type === loaded.DeskChimeDialog), null, 'onClose unmounts DeskChimeDialog');
+  } finally {
+    mounted.unmount();
+    loaded.setUiLanguage('zh');
+    if (origWindow) Object.defineProperty(globalThis, 'window', origWindow);
+    else delete globalThis.window;
+    if (origDocument) Object.defineProperty(globalThis, 'document', origDocument);
+    else delete globalThis.document;
+  }
 });
 
 test('Wave 3: board.timer.start supports cardless Free Focus and TodayTimer idle renders zh/en Free Focus entry', async () => {
@@ -653,10 +905,26 @@ test('CC0 baked soundscape assets, LAME 50ms trim + 1.6s seamless fold, and deco
     assert.ok(SOUNDSCAPE_CHANNEL_GAINS[id] > 0.5 && SOUNDSCAPE_CHANNEL_GAINS[id] <= 1.2, `${id} gain bounded`);
   }
 
-  const engineSrc = await readFile(new URL('../ui/desk-atelier/soundscape-engine.js', import.meta.url), 'utf8');
-  assert.doesNotMatch(engineSrc, /import\s+[^;]*from\s+['"]\.\/soundscape-assets\.js['"]/, 'soundscape-assets.js must never be statically imported');
-  assert.match(engineSrc, /import\(['"]\.\/soundscape-assets\.js['"]\)/, 'soundscape-assets.js is loaded lazily via dynamic import()');
-  assert.doesNotMatch(engineSrc, /\bsetInterval\s*\(/, 'soundscape-engine.js must not use setInterval');
+  // Verify via esbuild's module graph that soundscape-assets.js is strictly a dynamic import (never statically bundled).
+  const assetImports = [];
+  await build({
+    entryPoints: [join(REPO_ROOT, 'ui/desk-atelier/soundscape-engine.js')],
+    bundle: true,
+    write: false,
+    format: 'esm',
+    splitting: false,
+    logLevel: 'silent',
+    plugins: [{
+      name: 'track-soundscape-assets',
+      setup(b) {
+        b.onResolve({ filter: /soundscape-assets\.js$/ }, (args) => {
+          assetImports.push(args.kind);
+          return { path: args.path, external: true };
+        });
+      },
+    }],
+  });
+  assert.deepEqual(assetImports, ['dynamic-import'], 'soundscape-assets.js must only be loaded lazily via dynamic import()');
 
   // 2. buildSeamlessSampleBuffer strips 50ms LAME head/tail padding & folds 1.6s tail cleanly onto head.
   const rate = 22050;
@@ -709,8 +977,14 @@ test('CC0 baked soundscape assets, LAME 50ms trim + 1.6s seamless fold, and deco
   assert.ok(Math.abs(outL[0] - outL[outL.length - 1]) < 0.08, 'L loop seam is smooth');
   assert.ok(Math.abs(outR[0] - outR[outR.length - 1]) < 0.08, 'R loop seam is smooth');
 
-  // 3. Successful decodeAudioData loads & loops decoded CC0 buffers; failure falls back cleanly to DSP.
+  // 3. Successful decodeAudioData loads & loops decoded CC0 buffers without using setInterval; failure falls back cleanly to DSP.
   const env = createFakeAudioEnv();
+  const origSetInterval = globalThis.setInterval;
+  let setIntervalCalls = 0;
+  globalThis.setInterval = (...args) => {
+    setIntervalCalls += 1;
+    return origSetInterval(...args);
+  };
   try {
     resetSoundscapeEngineForTests();
     const OrigAudio = globalThis.AudioContext;
@@ -726,11 +1000,13 @@ test('CC0 baked soundscape assets, LAME 50ms trim + 1.6s seamless fold, and deco
       },
     });
     startSoundscape();
+    selectSoundscapePreset('morning-bamboo');
     await new Promise((resolve) => setTimeout(resolve, 60));
     assert.ok(decodeSuccesses >= 3, 'decoded active CC0 channels in parallel');
     assert.ok(env.contexts[0].sources.length >= 3, 'mounted looping CC0 sample sources');
     assert.ok(env.contexts[0].sources.every((s) => s.loop === true && s.buffer.length === expectedLen));
     stopSoundscape({ immediate: true });
+    assert.equal(setIntervalCalls, 0, 'soundscape-engine must never schedule setInterval timers');
 
     resetSoundscapeEngineForTests();
     let decodeAttempts = 0;
@@ -748,7 +1024,9 @@ test('CC0 baked soundscape assets, LAME 50ms trim + 1.6s seamless fold, and deco
     assert.ok(decodeAttempts >= 1, 'attempted lazy CC0 decodeAudioData');
     assert.ok(env.contexts[1].sources.length >= 3, 'fell back cleanly to looping procedural DSP buffers');
     stopSoundscape({ immediate: true });
+    assert.equal(setIntervalCalls, 0, 'fallback DSP lifecycle must never schedule setInterval timers');
   } finally {
+    globalThis.setInterval = origSetInterval;
     resetSoundscapeEngineForTests();
     env.restore();
   }
