@@ -41,11 +41,18 @@ test("light actions never block each other or anything else (no single flight, n
 
 test("a repeated click on the same card is ignored while its call is in flight", async () => {
   const pending = deferred();
-  const { quick, calls } = setup(() => pending.promise);
+  const { quick, raw, calls } = setup(() => pending.promise);
   const first = dismissJobs(quick, "a"), again = dismissJobs(quick, "a");
-  assert.equal(calls.length, 1);
-  pending.resolve({});
-  await Promise.all([first, again]);
+  assert.equal(again, first, "the repeated click reuses the in-flight promise");
+  assert.deepEqual(calls, [["job.archive", { jobId: "a" }]]);
+  assert.deepEqual(flagged(quick.view(raw)), ["a"]);
+  pending.resolve({ dismissed: ["a"] });
+  const [firstResult, againResult] = await Promise.all([first, again]);
+  assert.deepEqual(firstResult, { ok: true, result: { dismissed: ["a"] } });
+  assert.equal(againResult, firstResult);
+  assert.deepEqual(quick.failures(), {});
+  quick.reconcile({ ...raw, jobs: raw.jobs.filter((j) => j.id !== "a") });
+  assert.deepEqual(flagged(quick.view(raw)), [], "confirmed gone: the card settles cleanly");
 });
 
 test("on failure the card comes back and a short error is kept next to it", async () => {

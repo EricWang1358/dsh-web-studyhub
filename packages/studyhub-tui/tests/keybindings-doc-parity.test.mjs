@@ -331,21 +331,30 @@ describe('KEYBINDINGS.md vs Key Scope Stack Parity Guard', () => {
       const sf = parseAst(modalFile);
       let trueReturns = 0;
       let sawHandler = false;
+      function inspect(n) {
+        if (ts.isReturnStatement(n) && n.expression?.kind === ts.SyntaxKind.TrueKeyword) {
+          trueReturns += 1;
+        }
+        ts.forEachChild(n, inspect);
+      }
       function visitModal(node) {
-        if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'useInput' && node.arguments[0]) {
-          sawHandler = true;
-          function inspect(n) {
-            if (ts.isReturnStatement(n) && n.expression?.kind === ts.SyntaxKind.TrueKeyword) {
-              trueReturns += 1;
+        if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.arguments[0]) {
+          if (node.expression.text === 'useInput') {
+            sawHandler = true;
+            inspect(node.arguments[0]);
+          } else if (node.expression.text === 'useKeyScope' && ts.isObjectLiteralExpression(node.arguments[0])) {
+            for (const prop of node.arguments[0].properties) {
+              if (ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name) && prop.name.text === 'onKey') {
+                sawHandler = true;
+                inspect(prop.initializer);
+              }
             }
-            ts.forEachChild(n, inspect);
           }
-          inspect(node.arguments[0]);
         }
         ts.forEachChild(node, visitModal);
       }
       visitModal(sf);
-      assert.ok(sawHandler, `${modalFile}: expected useInput handler`);
+      assert.ok(sawHandler, `${modalFile}: expected useInput or useKeyScope handler`);
       assert.ok(trueReturns >= 3, `${modalFile}: consumed key branches must return true`);
     }
   });
