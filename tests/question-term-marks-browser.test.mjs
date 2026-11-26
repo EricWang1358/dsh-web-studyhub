@@ -146,6 +146,11 @@ async function substringSpan(page, rootSelector, substring, occurrence = 0) {
   return span;
 }
 
+async function waitForRevealedBack(page, timeout = 15000) {
+  await page.locator('.flip-back[aria-hidden="false"]').waitFor({ state: "visible", timeout });
+  await page.locator('.flip-back[aria-hidden="false"] .flip-loading').waitFor({ state: "detached", timeout });
+}
+
 async function clickWord(page, rootSelector, substring, occurrence = 0) {
   const pt = await substringSpan(page, rootSelector, substring, occurrence);
   await page.mouse.click(pt.x, pt.y);
@@ -213,7 +218,7 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
         // 1. Not in marking mode: clicking flashcard text flips the card.
         const frontProbe = lang === "en" ? "contrapositive" : "分布式";
         await clickWord(page, '.flip-front[aria-hidden="false"]', frontProbe);
-        await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 10000 });
+        await waitForRevealedBack(page);
         await settleAnimations(page);
         assert.equal(await page.locator(".term-strip").count(), 0, `${tag}: no chips before marking`);
 
@@ -283,6 +288,10 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
         await takeShot(page, `term-marks-${lang}-${width}`);
 
         // 5. Space still flips flashcard while marking; Escape exits marking while keeping chips.
+        // The pointer stayed over the old card as the strip scrolled into view. A hover
+        // tooltip owns Escape while open, so leave it before exercising the card shortcuts.
+        await page.mouse.move(-1, -1);
+        await page.locator('[role="tooltip"]:visible').first().waitFor({ state: "hidden", timeout: 10000 });
         await page.keyboard.press("Space");
         await page.locator('.flip-front[aria-hidden="false"]').waitFor({ timeout: 10000 });
         assert.equal(await termsBtn.getAttribute("aria-pressed"), "true", `${tag}: Space keeps marking mode active`);
@@ -290,7 +299,7 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
         await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 10000 });
 
         await page.keyboard.press("Escape");
-        assert.equal(await termsBtn.getAttribute("aria-pressed"), "false", `${tag}: Escape exits marking mode`);
+        await termsBtn.and(page.locator('[aria-pressed="false"]')).waitFor({ timeout: 10000 });
         assert.equal(await page.locator(".review-body.is-marking").count(), 0);
         assert.equal((await chipTexts(page)).length, 3, `${tag}: chips remain visible after Escape`);
 
@@ -576,7 +585,7 @@ test("course term persistence, pale study-term-seen highlight, click-to-stage, a
         // 1. Mark unfamiliar term on Card 1 -> persists non-blockingly to course.terms.
         const frontProbe = lang === "en" ? "replication" : "副本";
         await clickWord(page, '.flip-front[aria-hidden="false"]', frontProbe);
-        await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 10000 });
+        await waitForRevealedBack(page);
         await settleAnimations(page);
 
         const termsBtn = page.locator('[data-usage="review.terms"]');
@@ -1102,7 +1111,7 @@ test("term-strip remove only unmarks unattached visit-added terms and protects f
 
       // Flip Card 1 and enter marking mode.
       await clickWord(page, '.flip-front[aria-hidden="false"]', lang === "en" ? "replication" : "副本");
-      await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 10000 });
+      await waitForRevealedBack(page);
       await settleAnimations(page);
       const termsBtn = page.locator('[data-usage="review.terms"]');
       await termsBtn.click();
@@ -1450,7 +1459,7 @@ test("term strip clears only filled terms on done, preserves mid-task marks, and
 
       // Flip Card 1 and enter marking mode.
       await clickWord(page, '.flip-front[aria-hidden="false"]', lang === "en" ? "protocols" : "分布式");
-      await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 10000 });
+      await waitForRevealedBack(page);
       await settleAnimations(page);
       const termsBtn = page.locator('[data-usage="review.terms"]');
       await termsBtn.click();

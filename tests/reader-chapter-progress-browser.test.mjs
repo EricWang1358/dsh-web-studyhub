@@ -130,6 +130,7 @@ test('a chapter read to its end is ✓ in the 目录, kept in the library (not t
   await page.waitForTimeout(300);
   await closeReader();
   await openRow();
+  await waitChapter(0, 'the first chapter after reopening');
   await openOutline();
   await until(async () => (await readCount()) === `已读 0/${CHAPTERS} 章`, 'still unread after a reopen', { timeoutMs: 15000 });
   assert.equal(await outline.locator('[data-chapter-read]').count(), 0);

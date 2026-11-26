@@ -140,9 +140,12 @@ test('复习全书 问 AI: the keyboard selection toolbar, the writing line and 
       await bar.waitFor({ timeout: 5000 });
 
       // 弄懂: the toolbar goes at once, ONE line right after the paragraph.
-      await bar.locator('[data-book-select="explain"]').click();
       const line = page.locator('[data-book-point] [data-ai-line="writing"]');
-      await line.waitFor({ timeout: 5000 });
+      const startExplanation = button => commitPreviewAction(page, 'generation.courseBook.explain', async () => {
+        await button.click();
+        await line.waitFor({ timeout: 5000 });
+      });
+      await startExplanation(bar.locator('[data-book-select="explain"]'));
       assert.equal(await page.locator('.book-select').count(), 0, `${width}px: the toolbar is gone`);
       assert.equal(await page.locator('[data-ai-line]').count(), 1);
       assert.match((await line.innerText()).replace(/\s+/g, ' '), /AI 正在写 · 约 1 分钟 · 取消/);
@@ -208,18 +211,19 @@ test('复习全书 问 AI: the keyboard selection toolbar, the writing line and 
       // A failure says why in the line's place; 重试 starts it again.
       await selectByKeys(page, '只有架构师', '。');
       await bar.waitFor({ timeout: 5000 });
-      await bar.locator('[data-book-select="explain"]').click();
-      await line.waitFor({ timeout: 5000 });
-      control.fake.set(`fake-${control.n}`, { status: 'failed', error: { message: '资料里找不到这几句话' } });
+      const original = await startExplanation(bar.locator('[data-book-select="explain"]'));
+      control.fake.set(original.jobId, { status: 'failed', error: { message: '资料里找不到这几句话' } });
       const failed = page.locator('[data-book-point] [data-ai-line="failed"]');
       await failed.waitFor({ timeout: 10000 });
       assert.match(await failed.innerText(), /没写成：资料里找不到这几句话/);
       const startedBefore = control.started.length;
-      await failed.getByRole('button', { name: '重试' }).click();
-      await line.waitFor({ timeout: 5000 });
+      const retry = await startExplanation(failed.getByRole('button', { name: '重试' }));
       assert.equal(control.started.length, startedBefore + 1, `${width}px: 重试 starts it again`);
-      await line.getByRole('button', { name: '取消' }).click();
+      assert.notEqual(retry.jobId, original.jobId);
+      assert.deepEqual(control.started.at(-1), control.started.at(-2), `${width}px: retry keeps the selected passage and writing request`);
+      await commitPreviewAction(page, 'job.cancel', () => line.getByRole('button', { name: '取消' }).click());
       await line.waitFor({ state: 'detached', timeout: 5000 });
+      assert.equal(control.cancels.at(-1), retry.jobId);
 
       // 问 AI at the title: a preset fills the box, Escape closes it (the focus back on the button), Ctrl+Enter writes into 我的.
       control.mode = 'real';

@@ -8,6 +8,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { PassThrough } from 'node:stream';
 import { after, test } from 'node:test';
 import { Box, render } from 'ink';
+import { setupCalculation } from '../../../tests/helpers/calculation-session.mjs';
 import React from 'react';
 import stripAnsi from 'strip-ansi';
 import { register } from 'tsx/esm/api';
@@ -222,6 +223,49 @@ test('#1318 backend: typing "跳过，下一问" into teach.answer skips with 0 
   assert.ok(finished.feedback.includes('第2步要点'));
   assert.ok(finished.feedback.includes('第3步要点'));
   assert.ok(finished.transfer.includes('谱定理'));
+});
+
+test('returning to saved calculation teaching opens the existing session without starting another lesson', async t => {
+  resetStore('zh');
+  _resetAssistantSessionMemory();
+  const { service, run } = await setupCalculation(t);
+  const saved = await service.call('teach.start', { runId: run.id, cardId: run.card.id, mode: 'calculation', language: 'zh' });
+  const resumed = await service.call('review.get', { runId: run.id });
+  assert.equal(resumed.teaching.id, saved.id);
+  const modelCalls = t.mock.fn(() => { throw new Error('resuming a saved lesson must not call a model'); });
+  service.complete = modelCalls;
+  const host = makeHostFromService(service);
+  const call = host.call, teachingCalls = [];
+  host.call = (name, args) => {
+    if (name === 'teach.start' || name === 'teach.get') teachingCalls.push([name, args]);
+    return call(name, args);
+  };
+  useTuiStore.setState({
+    page: 'review',
+    assistantOpen: true,
+    assistantFocused: true,
+    assistantTab: 'guided',
+    assistantStage: 'question',
+    assistantFullscreen: false,
+    assistantCardContext: {
+      runId: resumed.id,
+      deckId: resumed.card.deckId,
+      cardId: resumed.card.id,
+      cardIndex: resumed.index ?? 0,
+      queueVersion: resumed.queueVersion ?? 0,
+      prompt: resumed.card.prompt || '',
+      kind: resumed.card.kind || 'flashcard',
+      teachingId: resumed.teaching.id,
+      teachingMode: resumed.teaching.mode,
+    },
+  });
+  const view = createInkHarness(React.createElement(Box, { width: 104, height: 34 }, React.createElement(AssistantPanel, {
+    host, width: 100, height: 34, isActive: true, onClose: () => {},
+  })));
+  t.after(() => view.cleanup());
+  await view.waitFor(frame => frame.includes('第 1/5 步'), 6000, 'stored calculation lesson');
+  assert.deepEqual(teachingCalls, [['teach.get', { id: saved.id }]]);
+  assert.equal(modelCalls.mock.callCount(), 0);
 });
 
 test('#1318 / #1354 P3-c unified AssistantPanel Guided Study: skip shortcut, "跳过，下一问", 2-wrong nudge, and completion skipped summary', async (t) => {

@@ -113,16 +113,17 @@ async function open(t, { sidebar = 'works', withReading = true, premount = false
   await page.addScriptTag({ content: `window.dshSidebar = ${JSON.stringify(sidebar)};` });
   await page.addScriptTag({ content: bundle.outputFiles[0].text });
   await page.evaluate((where) => { window.installDsh(); where === 'page' ? window.mountPage() : window.mountMain(); }, placement);
-  await page.waitForTimeout(100); // the first-run landing has run
+  const mainSeat = page.locator('#main');
+  await mainSeat.locator('.sidebar:visible, .nav-menu-toggle:visible').first().waitFor();
   await page.evaluate((delay) => { window.dshReady = true; window.dshMountDelay = delay; }, mountDelay);
   if (premount) {
     await page.evaluate(() => window.mountSidebar());
     await page.locator('#side .study-app').waitFor();
   }
   // A narrow seat has the sidebar in a drawer behind the top bar's menu button (#657).
-  const menu = page.locator('#main .nav-menu-toggle');
-  if (await menu.count()) await menu.first().click();
-  await page.locator(await menu.count() ? '.nav-drawer' : '#main').getByRole('button', { name: /^回到题目/ }).first().click();
+  const menu = mainSeat.locator('.nav-menu-toggle');
+  if (await menu.isVisible()) await menu.click();
+  await mainSeat.getByRole('button', { name: /^回到题目/ }).first().click();
   await page.locator('#main .review-page').waitFor();
   return { page, errors };
 }

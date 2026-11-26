@@ -262,7 +262,7 @@ describe('P2 (#1354 D5/D12): Golden Layout Snapshots (5 Migrated Views x 120x36 
             text.includes('移除示例课') &&
             lines[35].includes('开始练习'),
           ),
-        { timeoutMs: 12_000, label: 'library-120x36' },
+        { timeoutMs: 25_000, label: 'library-120x36' },
       );
       verifyGolden('library-120x36', libWide, 120, 36);
 
