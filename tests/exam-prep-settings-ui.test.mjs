@@ -2,7 +2,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { readFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -115,11 +114,32 @@ test('saved choices are shown, and 恢复默认 is available', () => {
   assert.doesNotMatch(input(activeHtml, 'paperWord'), /disabled/);
 });
 
-test('the pane is one section of the shared settings primitives, with no raw colours', async () => {
-  const source = await readFile(new URL('../ui/settings/ExamPrepPane.jsx', import.meta.url), 'utf8');
-  assert.match(source, /SettingsSection/);
-  assert.doesNotMatch(source, /#[0-9a-fA-F]{3,8}\b|rgb\(|hsl\(|style=\{\{/);
-  assert.doesNotMatch(source, /蓝图/);
+test('ExamPrepPane renders inside one shared SettingsSection with no inline styles, raw colours, or 蓝图 copy', () => {
+  const states = [
+    { lang: 'zh', data: { settings: {}, features: { examBlueprint: true } } },
+    { lang: 'zh', data: { settings: { examPrep: { autoRoles: false, paperWords: ['练习卷', '#101'], language: 'en', showOtherCourses: true } }, features: { examBlueprint: true } } },
+    { lang: 'zh', data: { settings: { examPrep: { enabled: false } }, features: { examBlueprint: false } } },
+    { lang: 'zh', data: { settings: {}, features: { examBlueprint: true, examBlueprintByHost: true } } },
+    { lang: 'en', data: { settings: {}, features: { examBlueprint: true } } },
+  ];
+  try {
+    for (const { lang, data } of states) {
+      ssr.setUiLanguage(lang);
+      const html = pane({ data });
+      assert.equal((html.match(/<fieldset\b[^>]*class="settings-section"/g) || []).length, 1, 'exactly one shared SettingsSection fieldset');
+      assert.match(html, /<fieldset\b[^>]*class="settings-section"[^>]*data-tour="settings-exam-prep"/);
+      assert.match(html, lang === 'zh' ? /<legend class="settings-section__title">备考补习<\/legend>/ : /<legend class="settings-section__title">[^<]+<\/legend>/);
+      assert.match(html, /<p class="settings-section__lead">/);
+      assert.doesNotMatch(html, /<style\b/i, 'no embedded raw <style> blocks in rendered ExamPrepPane markup');
+      for (const tag of html.match(/<[^>]+>/g) || []) {
+        assert.doesNotMatch(tag, /\sstyle\s*=/i, `no inline styles in rendered ExamPrepPane tag: ${tag}`);
+        assert.doesNotMatch(tag, /\s(?:style|color|bgcolor|fill|stroke)\s*=\s*"[^"]*(?:#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\()/i, `no raw colour attributes in rendered ExamPrepPane tag: ${tag}`);
+      }
+      if (lang === 'zh') assert.doesNotMatch(words(html), /蓝图/, 'learner copy never says 蓝图');
+    }
+  } finally {
+    ssr.setUiLanguage('zh');
+  }
 });
 
 test('English: every word of the pane is translated, off and on, and no learner text says blueprint apart from the switch name', () => {
@@ -176,7 +196,7 @@ const paneView = (extra = {}) => {
   return { view, calls };
 };
 
-test('a switch saves just its own field at once and shows the choice without waiting for the library', async () => {
+test('ExamPrepPane switches save just their own examPrep field at once without waiting for the library', async () => {
   const { view, calls } = paneView();
   await named(view, 'autoRoles').props.onChange(false);
   assert.deepEqual(calls.map(call => call.slice(0, 2)), [['settings.examPrep.set', { patch: { autoRoles: false } }]]);

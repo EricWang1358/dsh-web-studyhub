@@ -45,7 +45,7 @@ test('a round without leeches, a mock exam and an old run without the list show 
   assert.doesNotMatch(text(result({ run: { leechCards: leeches(2) }, mode: 'exam' })), /反复答错/);
 });
 
-test('English', () => {
+test('English locale translates the leech-count summary and wrong-book link without Han characters', () => {
   setUiLanguage('en');
   try {
     const html = text(result({ run: { leechCards: leeches(3) } }));
