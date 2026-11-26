@@ -141,6 +141,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -161,6 +163,14 @@ jobs:
           tests/test-runner-schedule.test.mjs
           tests/test-runner-shards.test.mjs
           tests/test-runner-timeout.test.mjs
+
+      - name: Run changed fast tests alongside related Windows suites
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git cat-file -e "${BASE_SHA}^{commit}" || git fetch --depth=1 origin "$BASE_SHA"
+          node scripts/test.mjs --fast --smart --since="$BASE_SHA" --test-concurrency=4
 
   tui-test:
     name: tui-test (ubuntu-latest ${{ matrix.tui_shard }}/3)
