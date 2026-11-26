@@ -16,7 +16,10 @@ import {
   normalizeTitle,
   objectKeys,
   parseArgs,
+  parseBaseline,
+  parseBaselineJson,
   parseBaselineMarkdown,
+  renderBaselineJson,
   renderDiffReport,
   renderMarkdown,
   run,
@@ -140,9 +143,10 @@ test('normalizeTitle folds case and punctuation; objectKeys reads one level of a
   assert.deepEqual(objectKeys("{ id: 'c1', 'sourcePages': [], nested: { ignored: true }, method() {} }"), ['id', 'sourcePages', 'nested', 'method']);
 });
 
-test('parseArgs defaults, --only, --top, --json, --write, --compare-baseline and --annotations', () => {
+test('parseArgs defaults, --only, --top, --json, --write, --write-baseline, --compare-baseline and --annotations', () => {
   assert.deepEqual(parseArgs([]), {
     write: false,
+    writeBaseline: null,
     json: false,
     only: [1, 2, 3, 4, 5, 6, 7],
     top: 25,
@@ -154,7 +158,9 @@ test('parseArgs defaults, --only, --top, --json, --write, --compare-baseline and
   assert.equal(parseArgs(['--top=9']).top, 9);
   assert.equal(parseArgs(['--json']).json, true);
   assert.equal(parseArgs(['--write']).write, true);
-  assert.equal(parseArgs(['--compare-baseline']).compareBaseline, 'docs/test-audit.md');
+  assert.equal(parseArgs(['--write-baseline']).writeBaseline, 'docs/test-audit-baseline.json');
+  assert.equal(parseArgs(['--write-baseline=custom/base.json']).writeBaseline, 'custom/base.json');
+  assert.equal(parseArgs(['--compare-baseline']).compareBaseline, 'docs/test-audit-baseline.json');
   assert.equal(parseArgs(['--compare-baseline=custom/audit.md']).compareBaseline, 'custom/audit.md');
   assert.equal(parseArgs(['--annotations']).annotations, true);
   assert.throws(() => parseArgs(['--only=9']), /category/i);
@@ -458,6 +464,250 @@ test('diffAgainstBaseline handles >20 overflow baseline accurately and caps anno
   }, baseline);
   assert.equal(manyDiff.newHits, 25);
   assert.equal(formatAnnotations(manyDiff).length, 20);
+});
+
+test('renderBaselineJson produces deterministic sorted JSON and round-trips through parseBaselineJson', () => {
+  const inputA = {
+    files: [
+      { file: 'tests/z-last.test.mjs', score: 15, counts: { 7: 1, 1: 2, 3: 0 } },
+      { file: 'tests/zero-only.test.mjs', score: 0, counts: { 1: 0, 6: 0 } },
+      { file: 'packages/tui/tests/a-first.test.mjs', score: 12, counts: { 6: 3 } },
+    ],
+  };
+  const inputB = {
+    files: [...inputA.files].reverse(),
+  };
+
+  const jsonA = renderBaselineJson(inputA);
+  const jsonB = renderBaselineJson(inputB);
+  assert.equal(jsonA, jsonB, 'file order in input must not affect rendered baseline JSON');
+  assert.ok(jsonA.endsWith('\n'), 'baseline JSON must end with a trailing newline');
+
+  const raw = JSON.parse(jsonA);
+  assert.equal(raw.version, 1);
+  assert.equal(raw.generatedBy, 'node scripts/test-audit.mjs --write-baseline');
+  assert.deepEqual(raw.totals, {
+    hits: 6,
+    files: 2,
+    byCategory: { 1: 2, 2: 0, 3: 0, 4: 0, 5: 0, 6: 3, 7: 1 },
+  });
+  assert.deepEqual(Object.keys(raw.files), ['packages/tui/tests/a-first.test.mjs', 'tests/z-last.test.mjs']);
+  assert.deepEqual(Object.keys(raw.files['tests/z-last.test.mjs']), ['1', '7']);
+  assert.equal('tests/zero-only.test.mjs' in raw.files, false, 'files with 0 hits are omitted');
+
+  const parsed = parseBaselineJson(jsonA);
+  assert.equal(parsed.version, 1);
+  assert.equal(parsed.totals.hits, 6);
+  assert.equal(parsed.totals.files, 2);
+  assert.deepEqual(parsed.totals.byCategory, { 1: 2, 2: 0, 3: 0, 4: 0, 5: 0, 6: 3, 7: 1 });
+  assert.deepEqual(parsed.counts, {
+    'packages/tui/tests/a-first.test.mjs': { 6: 3 },
+    'tests/z-last.test.mjs': { 1: 2, 7: 1 },
+  });
+  assert.deepEqual(parseBaseline(jsonA, 'docs/test-audit-baseline.json'), parsed);
+});
+
+test('parseBaselineJson rejects malformed JSON, unsupported version, and invalid entries cleanly', () => {
+  assert.throws(() => parseBaselineJson('{not valid json'), /Invalid baseline JSON/i);
+  assert.throws(() => parseBaselineJson('[]'), /root must be a JSON object/i);
+  assert.throws(() => parseBaselineJson(JSON.stringify({ version: 2, files: {} })), /Unsupported baseline JSON version/i);
+  assert.throws(() => parseBaselineJson(JSON.stringify({ version: '1', files: {} })), /Unsupported baseline JSON version/i);
+  assert.throws(() => parseBaselineJson(JSON.stringify({ files: {} })), /Unsupported baseline JSON version/i);
+  assert.throws(() => parseBaselineJson(JSON.stringify({ version: 1, files: [] })), /"files" must be an object/i);
+  assert.throws(
+    () => parseBaselineJson(JSON.stringify({ version: 1, files: { 'tests/a.test.mjs': { 9: 1 } } })),
+    /unknown category/i,
+  );
+  assert.throws(
+    () => parseBaselineJson(JSON.stringify({ version: 1, files: { 'tests/a.test.mjs': { 1: -2 } } })),
+    /invalid count/i,
+  );
+  assert.throws(
+    () => parseBaselineJson(JSON.stringify({ version: 1, totals: { hits: -1 }, files: {} })),
+    /"totals\.hits"/i,
+  );
+});
+
+test('diffAgainstBaseline with JSON baseline reports ONLY positive deltas and ignores unchanged or decreased files', () => {
+  const baseline = parseBaselineJson(renderBaselineJson({
+    files: [
+      { file: 'tests/unchanged.test.mjs', counts: { 1: 2 } },
+      { file: 'tests/decreased.test.mjs', counts: { 1: 3 } },
+      { file: 'tests/removed-all.test.mjs', counts: { 6: 2 } },
+      { file: 'tests/increased.test.mjs', counts: { 6: 1 } },
+    ],
+  }));
+
+  const current = {
+    totals: { hits: 9, byCategory: { 1: 4, 2: 0, 3: 0, 4: 0, 5: 0, 6: 5, 7: 0 } },
+    files: [
+      {
+        file: 'tests/unchanged.test.mjs',
+        score: 20,
+        counts: { 1: 2 },
+        hits: [
+          { category: 1, file: 'tests/unchanged.test.mjs', line: 5, message: 'old a' },
+          { category: 1, file: 'tests/unchanged.test.mjs', line: 12, message: 'old b' },
+        ],
+      },
+      {
+        file: 'tests/decreased.test.mjs',
+        score: 10,
+        counts: { 1: 1 },
+        hits: [{ category: 1, file: 'tests/decreased.test.mjs', line: 4, message: 'remaining' }],
+      },
+      {
+        file: 'tests/increased.test.mjs',
+        score: 12,
+        counts: { 6: 3 },
+        hits: [
+          { category: 6, file: 'tests/increased.test.mjs', line: 10, message: 'const 1' },
+          { category: 6, file: 'tests/increased.test.mjs', line: 20, message: 'const 2' },
+          { category: 6, file: 'tests/increased.test.mjs', line: 30, message: 'const 3' },
+        ],
+      },
+      {
+        file: 'tests/brand-new.test.mjs',
+        score: 18,
+        counts: { 1: 1, 6: 2 },
+        hits: [
+          { category: 1, file: 'tests/brand-new.test.mjs', line: 7, message: 'new grep' },
+          { category: 6, file: 'tests/brand-new.test.mjs', line: 14, message: 'new const A' },
+          { category: 6, file: 'tests/brand-new.test.mjs', line: 19, message: 'new const B' },
+        ],
+      },
+    ],
+  };
+
+  const diff = diffAgainstBaseline(current, baseline);
+  assert.equal(diff.newHits, 5);
+  assert.equal(diff.removedHits, 4);
+  assert.equal(diff.netDelta, 1);
+  assert.equal(diff.improvedFiles, 2);
+  assert.deepEqual(diff.files.map(entry => entry.file), ['tests/brand-new.test.mjs', 'tests/increased.test.mjs']);
+  assert.equal(diff.files[0].added, 3);
+  assert.equal(diff.files[1].added, 2);
+  assert.deepEqual(diff.files[1].hits.map(hit => hit.line), [20, 30]);
+
+  const report = renderDiffReport(diff, { baselinePath: 'docs/test-audit-baseline.json' });
+  assert.match(report, /\+5 new hit\(s\)/);
+  assert.doesNotMatch(report, /tests\/unchanged\.test\.mjs/);
+  assert.doesNotMatch(report, /tests\/decreased\.test\.mjs/);
+  assert.doesNotMatch(report, /tests\/removed-all\.test\.mjs/);
+});
+
+test('run --write-baseline and --compare-baseline JSON workflow handles clean tree, regressions, missing and corrupt baselines with exit 0', async t => {
+  const root = await fixture(t, {
+    'lib/cards.js': "export const MAX_ITEMS = 7;\nexport const cardOf = ({ topic }) => ({ publicCard: topic });\n",
+    'tests/clean.test.mjs': `import test from 'node:test';
+import assert from 'node:assert/strict';
+test('a card keeps its topic', () => { assert.equal(cardOf({ topic: 'x' }).publicCard, 'x'); });
+`,
+    'tests/existing.test.mjs': `import { readFileSync } from 'node:fs';
+test('existing source check', () => {
+  const card = readFileSync('lib/cards.js', 'utf8');
+  assert.ok(card.includes('publicCard'));
+});
+`,
+  });
+
+  const prevExitCode = process.exitCode;
+
+  // 1. Missing default JSON baseline -> advisory notice, exit 0.
+  const missingLogs = [];
+  const missingSummary = join(root, 'summary-missing.md');
+  const missingRes = run(['--root=' + root, '--compare-baseline', '--annotations'], {
+    log: line => missingLogs.push(line),
+    env: { GITHUB_STEP_SUMMARY: missingSummary },
+  });
+  assert.equal(missingRes.baselineMissing, true);
+  assert.equal(process.exitCode, prevExitCode);
+  assert.match(missingLogs.join('\n'), /docs\/test-audit-baseline\.json/);
+  assert.match(await readFile(missingSummary, 'utf8'), /baseline file not found/i);
+
+  // 2. Write default JSON baseline -> creates docs/test-audit-baseline.json automatically.
+  const writeLogs = [];
+  run(['--root=' + root, '--write-baseline'], { log: line => writeLogs.push(line) });
+  const baselinePath = join(root, 'docs', 'test-audit-baseline.json');
+  assert.ok(existsSync(baselinePath));
+  assert.match(writeLogs.join('\n'), /Baseline written to docs\/test-audit-baseline\.json/);
+  const parsedWritten = parseBaselineJson(await readFile(baselinePath, 'utf8'));
+  assert.equal(parsedWritten.totals.hits, 1);
+  assert.equal(parsedWritten.counts['tests/existing.test.mjs'][1], 1);
+
+  // 3. Clean tree compare against default JSON baseline -> 0 new hits, no ::warning, exit 0.
+  const cleanLogs = [];
+  const cleanSummary = join(root, 'summary-clean.md');
+  const cleanRes = run(['--root=' + root, '--compare-baseline', '--annotations'], {
+    log: line => cleanLogs.push(line),
+    env: { GITHUB_STEP_SUMMARY: cleanSummary },
+  });
+  assert.equal(cleanRes.diff.newHits, 0);
+  assert.equal(process.exitCode, prevExitCode);
+  assert.match(cleanLogs.join('\n'), /0 new low-value test hits vs docs\/test-audit-baseline\.json/);
+  assert.doesNotMatch(cleanLogs.join('\n'), /::warning/);
+  assert.match(await readFile(cleanSummary, 'utf8'), /0 new low-value test hits/);
+
+  // 4. Add a new low-value test -> reports ONLY the new hit + ::warning + summary, exit 0.
+  await writeFile(join(root, 'tests/new-regression.test.mjs'), `import { readFileSync } from 'node:fs';
+test('newly added grep regression', () => {
+  const card = readFileSync('lib/cards.js', 'utf8');
+  assert.ok(card.includes('MAX_ITEMS'));
+});
+`);
+  const regLogs = [];
+  const regSummary = join(root, 'summary-reg.md');
+  const regRes = run(['--root=' + root, '--compare-baseline', '--annotations'], {
+    log: line => regLogs.push(line),
+    env: { GITHUB_STEP_SUMMARY: regSummary },
+  });
+  assert.equal(regRes.diff.newHits, 1);
+  assert.deepEqual(regRes.diff.files.map(entry => entry.file), ['tests/new-regression.test.mjs']);
+  assert.equal(process.exitCode, prevExitCode);
+  assert.match(regLogs.join('\n'), /::warning file=tests\/new-regression\.test\.mjs,line=4,title=test-audit \(cat 1\)::/);
+  assert.doesNotMatch(regLogs.join('\n'), /tests\/existing\.test\.mjs/);
+  assert.match(await readFile(regSummary, 'utf8'), /tests\/new-regression\.test\.mjs/);
+
+  // 5. Corrupt JSON baseline & unsupported schema version -> advisory notice, file left intact, exit 0.
+  const corruptContent = '{"version": 99, "files": {}}\n';
+  await writeFile(baselinePath, corruptContent);
+  const invalidLogs = [];
+  const invalidSummary = join(root, 'summary-invalid.md');
+  const invalidRes = run(['--root=' + root, '--compare-baseline', '--annotations'], {
+    log: line => invalidLogs.push(line),
+    env: { GITHUB_STEP_SUMMARY: invalidSummary },
+  });
+  assert.equal(invalidRes.baselineInvalid, true);
+  assert.equal(process.exitCode, prevExitCode);
+  assert.match(invalidLogs.join('\n'), /Unsupported baseline JSON version/i);
+  assert.match(await readFile(invalidSummary, 'utf8'), /failed to load baseline/i);
+  assert.equal(await readFile(baselinePath, 'utf8'), corruptContent, 'invalid baseline file bytes must be left untouched');
+});
+
+test('repo docs/test-audit-baseline.json parses cleanly and totals match byCategory and per-file sums', async () => {
+  const rawText = await readFile(new URL('../docs/test-audit-baseline.json', import.meta.url), 'utf8');
+  assert.ok(rawText.endsWith('\n'));
+  const raw = JSON.parse(rawText);
+  const parsed = parseBaselineJson(rawText);
+
+  assert.equal(raw.version, 1);
+  assert.equal(raw.totals.hits, parsed.totals.hits);
+  assert.equal(raw.totals.files, Object.keys(raw.files).length);
+  assert.equal(raw.totals.files, parsed.totals.files);
+
+  const byCategorySum = Object.values(raw.totals.byCategory).reduce((sum, n) => sum + n, 0);
+  assert.equal(byCategorySum, raw.totals.hits, 'sum of totals.byCategory equals totals.hits');
+
+  let fileSum = 0;
+  for (const id of [1, 2, 3, 4, 5, 6, 7]) {
+    let catSum = 0;
+    for (const fileCounts of Object.values(raw.files)) {
+      catSum += fileCounts[String(id)] ?? 0;
+    }
+    assert.equal(catSum, raw.totals.byCategory[String(id)], `category ${id} per-file sum matches totals.byCategory`);
+    fileSum += catSum;
+  }
+  assert.equal(fileSum, raw.totals.hits, 'sum of per-file counts equals totals.hits');
 });
 
 /** A throwaway checkout with the given files. */

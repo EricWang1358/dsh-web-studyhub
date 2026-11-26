@@ -4,8 +4,9 @@
 
    node scripts/test-audit.mjs                       console summary, the hit files ranked by suspicion
    node scripts/test-audit.mjs --write               also writes docs/test-audit.md
-   node scripts/test-audit.mjs --compare-baseline    advisory diff against docs/test-audit.md (reports only new/increased hits, always exits 0)
-   node scripts/test-audit.mjs --compare-baseline=docs/test-audit.md --annotations
+   node scripts/test-audit.mjs --write-baseline      writes machine-readable baseline to docs/test-audit-baseline.json
+   node scripts/test-audit.mjs --compare-baseline    advisory diff against docs/test-audit-baseline.json (reports only new/increased hits, always exits 0)
+   node scripts/test-audit.mjs --compare-baseline=docs/test-audit-baseline.json --annotations
    node scripts/test-audit.mjs --top=5               how many files the ranking lists (default 25)
    node scripts/test-audit.mjs --only=1,2            only these categories (1-7)
    node scripts/test-audit.mjs --json                the whole result as JSON on stdout
@@ -24,7 +25,7 @@
 
    A hit is a candidate for review, not a verdict: the report says where to look, a person decides.  */
 
-import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -656,8 +657,114 @@ export function renderConsole(result, { top = 25 } = {}) {
 
 // --------------------------------------------------------------------------------------------- baseline comparison
 
-const DEFAULT_BASELINE_PATH = 'docs/test-audit.md';
+const DEFAULT_BASELINE_PATH = 'docs/test-audit-baseline.json';
+const BASELINE_JSON_VERSION = 1;
 const MAX_ANNOTATIONS = 20;
+
+const isPlainObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+/** Render a deterministic machine-readable JSON baseline (trailing newline). */
+export function renderBaselineJson(result) {
+  const byCategory = Object.fromEntries(CATEGORY_IDS.map(id => [String(id), 0]));
+  const fileMap = new Map();
+  for (const entry of result?.files ?? []) {
+    const file = String(entry.file).replace(/\\/g, '/');
+    const counts = {};
+    let fileTotal = 0;
+    for (const id of CATEGORY_IDS) {
+      const count = Number(entry?.counts?.[id] ?? 0);
+      if (count > 0) {
+        counts[String(id)] = count;
+        byCategory[String(id)] += count;
+        fileTotal += count;
+      }
+    }
+    if (fileTotal > 0) fileMap.set(file, counts);
+  }
+  const sortedFileNames = [...fileMap.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const files = {};
+  for (const file of sortedFileNames) files[file] = fileMap.get(file);
+  const totalHits = CATEGORY_IDS.reduce((sum, id) => sum + byCategory[String(id)], 0);
+  const payload = {
+    version: BASELINE_JSON_VERSION,
+    generatedBy: 'node scripts/test-audit.mjs --write-baseline',
+    totals: {
+      hits: totalHits,
+      files: sortedFileNames.length,
+      byCategory,
+    },
+    files,
+  };
+  return `${JSON.stringify(payload, null, 2)}\n`;
+}
+
+/** Parse and validate a JSON baseline written by `renderBaselineJson`. */
+export function parseBaselineJson(text) {
+  if (typeof text !== 'string') {
+    throw new Error('Invalid baseline JSON: expected a JSON string');
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    throw new Error(`Invalid baseline JSON: ${error.message}`);
+  }
+  if (!isPlainObject(parsed)) {
+    throw new Error('Invalid baseline JSON: root must be a JSON object');
+  }
+  if (parsed.version !== BASELINE_JSON_VERSION) {
+    throw new Error(`Unsupported baseline JSON version: ${JSON.stringify(parsed.version)} (expected ${BASELINE_JSON_VERSION})`);
+  }
+  if (!isPlainObject(parsed.files)) {
+    throw new Error('Invalid baseline JSON: "files" must be an object');
+  }
+  if (parsed.totals !== undefined && !isPlainObject(parsed.totals)) {
+    throw new Error('Invalid baseline JSON: "totals" must be an object');
+  }
+  if (parsed.totals?.hits !== undefined && (!Number.isInteger(parsed.totals.hits) || parsed.totals.hits < 0)) {
+    throw new Error('Invalid baseline JSON: "totals.hits" must be a non-negative integer');
+  }
+  if (parsed.totals?.byCategory !== undefined && !isPlainObject(parsed.totals.byCategory)) {
+    throw new Error('Invalid baseline JSON: "totals.byCategory" must be an object');
+  }
+
+  const byCategory = Object.fromEntries(CATEGORY_IDS.map(id => [id, 0]));
+  const counts = {};
+  for (const [file, fileCounts] of Object.entries(parsed.files)) {
+    if (!file || !isPlainObject(fileCounts)) {
+      throw new Error(`Invalid baseline JSON: entry for "${file}" must be an object`);
+    }
+    for (const [rawId, count] of Object.entries(fileCounts)) {
+      if (!/^[1-7]$/.test(rawId)) {
+        throw new Error(`Invalid baseline JSON: unknown category "${rawId}" in "${file}"`);
+      }
+      if (!Number.isInteger(count) || count < 0) {
+        throw new Error(`Invalid baseline JSON: invalid count for "${file}" category ${rawId}`);
+      }
+      if (count === 0) continue;
+      const id = Number(rawId);
+      if (!counts[file]) counts[file] = {};
+      counts[file][id] = count;
+      byCategory[id] += count;
+    }
+  }
+
+  const totalHits = CATEGORY_IDS.reduce((sum, id) => sum + byCategory[id], 0);
+  return {
+    version: parsed.version,
+    totals: { hits: totalHits, files: Object.keys(counts).length, byCategory },
+    counts,
+    hits: {},
+  };
+}
+
+/** Auto-dispatch baseline parsing by file extension (.json vs .md). */
+export function parseBaseline(text, filePath = DEFAULT_BASELINE_PATH) {
+  const lower = String(filePath ?? '').toLowerCase();
+  if (lower.endsWith('.json')) return parseBaselineJson(text);
+  if (lower.endsWith('.md') || lower.endsWith('.markdown')) return parseBaselineMarkdown(text);
+  return String(text ?? '').trimStart().startsWith('{') ? parseBaselineJson(text) : parseBaselineMarkdown(text);
+}
 
 /** Parse a Markdown report written by `renderMarkdown` as the single baseline source of truth. */
 export function parseBaselineMarkdown(markdown) {
@@ -800,8 +907,8 @@ function pickRepresentativeHits(currentHits, baselineHits, baselineCount, delta)
   const withinWindow = [];
   const tail = [];
   for (const hit of unmatched) {
-    if (!baseMessages.has(hit.message)) unseenMessage.push(hit);
-    else if (truncated && hit.line <= maxListedLine) withinWindow.push(hit);
+    if (baseMessages.size > 0 && !baseMessages.has(hit.message)) unseenMessage.push(hit);
+    else if (truncated && maxListedLine > 0 && hit.line <= maxListedLine) withinWindow.push(hit);
     else tail.push(hit);
   }
 
@@ -970,6 +1077,7 @@ export function formatAnnotations(diff, { max = MAX_ANNOTATIONS } = {}) {
 export function parseArgs(argv) {
   const options = {
     write: false,
+    writeBaseline: null,
     json: false,
     only: CATEGORY_IDS,
     top: 25,
@@ -979,7 +1087,10 @@ export function parseArgs(argv) {
   };
   for (const arg of argv) {
     if (arg === '--write') options.write = true;
-    else if (arg === '--json') options.json = true;
+    else if (arg === '--write-baseline') options.writeBaseline = DEFAULT_BASELINE_PATH;
+    else if (arg.startsWith('--write-baseline=')) {
+      options.writeBaseline = arg.slice('--write-baseline='.length) || DEFAULT_BASELINE_PATH;
+    } else if (arg === '--json') options.json = true;
     else if (arg === '--annotations') options.annotations = true;
     else if (arg === '--compare-baseline') options.compareBaseline = DEFAULT_BASELINE_PATH;
     else if (arg.startsWith('--compare-baseline=')) {
@@ -1012,7 +1123,20 @@ export function run(argv = process.argv.slice(2), { log = console.log, env = pro
       return { ...result, baselineMissing: true, diff: null };
     }
 
-    const baseline = parseBaselineMarkdown(readFileSync(baselineFile, 'utf8'));
+    let baseline;
+    try {
+      baseline = parseBaseline(readFileSync(baselineFile, 'utf8'), options.compareBaseline);
+    } catch (error) {
+      const notice = `Test audit (advisory): failed to load baseline at ${options.compareBaseline} (${error.message}); skipping comparison (non-blocking).`;
+      if (options.json) {
+        log(JSON.stringify({ baselinePath: options.compareBaseline, baselineInvalid: true, error: error.message, diff: null }, null, 2));
+      } else {
+        log(notice);
+        if (env?.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${notice}\n`, 'utf8');
+      }
+      return { ...result, baselineInvalid: true, error: error.message, diff: null };
+    }
+
     const diff = diffAgainstBaseline(result, baseline, { only: options.only });
     if (options.json) {
       log(JSON.stringify({ baselinePath: options.compareBaseline, diff }, null, 2));
@@ -1032,12 +1156,27 @@ export function run(argv = process.argv.slice(2), { log = console.log, env = pro
     return { ...result, diff };
   }
 
-  if (options.json) { log(JSON.stringify(result, null, 2)); return result; }
+  if (options.json) {
+    if (options.writeBaseline) {
+      const file = resolve(root, options.writeBaseline);
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, renderBaselineJson(result), 'utf8');
+    }
+    log(JSON.stringify(result, null, 2));
+    return result;
+  }
   log(renderConsole(result, { top: options.top }));
   if (options.write) {
     const file = join(root, 'docs', 'test-audit.md');
-    writeFileSync(file, `${renderMarkdown(result, { top: options.top })}\n`);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, `${renderMarkdown(result, { top: options.top })}\n`, 'utf8');
     log(`\nReport written to ${relative(root, file)}`);
+  }
+  if (options.writeBaseline) {
+    const file = resolve(root, options.writeBaseline);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, renderBaselineJson(result), 'utf8');
+    log(`\nBaseline written to ${relative(root, file)}`);
   }
   return result;
 }

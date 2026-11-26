@@ -6,7 +6,7 @@ on:
       - 'tests/**'
       - 'packages/*/tests/**'
       - 'scripts/test-audit.mjs'
-      - 'docs/test-audit.md'
+      - 'docs/test-audit-baseline.json'
       - '.github/workflows/test-audit.yml'
   workflow_dispatch:
 
@@ -26,6 +26,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Compare test audit against docs/test-audit.md baseline (advisory)
+      - name: Compare test audit against docs/test-audit-baseline.json (advisory)
         continue-on-error: true
-        run: node scripts/test-audit.mjs --compare-baseline=docs/test-audit.md --annotations
+        run: node scripts/test-audit.mjs --compare-baseline=docs/test-audit-baseline.json --annotations
