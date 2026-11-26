@@ -55,7 +55,7 @@
        a long library in the frame the page opened in was most of the pause on entering 资料. The containment this brings clips what a row draws outside
        itself, so it is lifted while the pointer or the focus is in the row (a tooltip) and while its 更多 menu is open (ui/Sources.jsx). */
     .source-doc { content-visibility: auto; contain-intrinsic-size: auto 80px; }
-    .source-doc:is(:hover, :focus-within, .source-doc--menu, .is-new) { content-visibility: visible; }
+    .source-doc:is(:hover, :focus-within, .source-doc--menu) { content-visibility: visible; }
     .source-doc { --source-doc-lead: calc(20px + var(--space-3)); display: block; margin: 0; padding: var(--space-2); border: 0; border-radius: var(--radius-sm); background: transparent; }
     /* A row is a small grid: the text (title and facts, after the checkbox while organizing) beside the actions, then the status line under both, as wide as the
        row. The actions (the row's one action and 更多, ui/Sources.jsx) are always there, in a column as wide as they are (at most half the row), so they never
