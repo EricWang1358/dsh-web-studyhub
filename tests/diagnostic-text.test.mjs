@@ -1,8 +1,12 @@
 import test from 'node:test';
-import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
+import { build } from 'esbuild';
 import { diagnosticText } from '../ui/diagnostics.js';
 import { plainReason } from '../lib/plain-reason.js';
+import { nativeSelects } from './helpers/native-selects.mjs';
+import { click, textOf, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 /* The copyable diagnostic text (#893 S2, S5): built from a short whitelist of fields, and everything free-form that goes in
    (the error) is redacted. The privacy scan follows tests/usage-privacy.test.mjs: put every kind of private content where it
@@ -161,11 +165,387 @@ test('plainReason also removes an API key, so every caller of it gains the same 
   assert.equal(plainReason('model gpt-4 is not sk-ill, nor a task-list'), 'model gpt-4 is not sk-ill, nor a task-list');
 });
 
-test('the page boundary sits inside <main> beside the sidebar, so a crashed page cannot take the sidebar with it', () => {
-  const app = readFileSync(new URL('../ui/App.jsx', import.meta.url), 'utf8');
-  const views = readFileSync(new URL('../ui/app/page-views.jsx', import.meta.url), 'utf8');
-  assert.ok(app.indexOf('<AppSidebar />') < app.indexOf('<main') && app.indexOf('<main') < app.indexOf('<PageView'), 'AppSidebar and <main> are siblings, PageView is inside <main>');
-  assert.match(views, /<PageBoundary key=\{page\}[^>]*><View /, 'every page goes through the one boundary, keyed by the page so another page opens clean');
+async function loadBoundaryApp() {
+  const require = createRequire(import.meta.url);
+  const ELEMENT = Symbol.for('react.transitional.element');
+  const FRAGMENT = Symbol.for('react.fragment');
+  const SUSPENSE = Symbol.for('react.suspense');
+  const MEMO = Symbol.for('react.memo');
+  const FWD = Symbol.for('react.forward_ref');
+  const CTX = Symbol.for('react.context');
+  const PROVIDER = Symbol.for('react.provider');
+  const LAZY = Symbol.for('react.lazy');
+  const instances = new Map();
+  const ctxStack = new Map();
+  let curInst = null, hookIdx = 0, idSeq = 0, dirty = false, active = new Set(), pendingEffects = [];
+  const depsEq = (a, b) => a && b && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
+  const slot = () => ({ inst: curInst, i: hookIdx++ });
+  const pushCtx = (c, v) => { const s = ctxStack.get(c) || []; s.push(v); ctxStack.set(c, s); };
+  const popCtx = (c) => { ctxStack.get(c)?.pop(); };
+  const readCtx = (c) => { const s = ctxStack.get(c); return s && s.length ? s[s.length - 1] : c._currentValue; };
+
+  class Component {
+    constructor(props) { this.props = props; this.state = {}; }
+    setState(next) {
+      const patch = typeof next === 'function' ? next(this.state, this.props) : next;
+      this.state = { ...this.state, ...patch };
+      dirty = true;
+    }
+  }
+  const R = {
+    Fragment: FRAGMENT, Suspense: SUSPENSE, StrictMode: FRAGMENT, Component, PureComponent: Component,
+    createElement(type, rawProps, ...rawChildren) {
+      const props = rawProps ? { ...rawProps } : {};
+      const key = props.key !== undefined && props.key !== null ? String(props.key) : null;
+      const ref = props.ref !== undefined ? props.ref : null;
+      delete props.key;
+      if (rawChildren.length === 1) props.children = rawChildren[0];
+      else if (rawChildren.length > 1) props.children = rawChildren;
+      return { $$typeof: ELEMENT, type, key, ref, props };
+    },
+    cloneElement(el, rawProps, ...rawChildren) {
+      const props = { ...el.props, ...(rawProps || {}) };
+      const key = rawProps?.key !== undefined && rawProps?.key !== null ? String(rawProps.key) : el.key;
+      delete props.key;
+      if (rawChildren.length === 1) props.children = rawChildren[0];
+      else if (rawChildren.length > 1) props.children = rawChildren;
+      return { $$typeof: ELEMENT, type: el.type, key, ref: el.ref, props };
+    },
+    isValidElement: (x) => Boolean(x && typeof x === 'object' && x.$$typeof === ELEMENT),
+    Children: {
+      toArray: (c) => (c == null || typeof c === 'boolean' ? [] : (Array.isArray(c) ? c.flat(Infinity).filter((x) => x != null && typeof x !== 'boolean') : [c])),
+      map: (c, fn) => R.Children.toArray(c).map(fn),
+      forEach: (c, fn) => R.Children.toArray(c).forEach(fn),
+      count: (c) => R.Children.toArray(c).length,
+      only: (c) => {
+        const list = R.Children.toArray(c);
+        if (list.length !== 1) throw new Error('React.Children.only expected a single React element child.');
+        return list[0];
+      },
+    },
+    createContext(v) { const c = { $$typeof: CTX, _currentValue: v, Provider: null }; c.Provider = { $$typeof: PROVIDER, _context: c }; return c; },
+    createRef: () => ({ current: null }),
+    memo: (type) => ({ $$typeof: MEMO, type }),
+    forwardRef: (render) => ({ $$typeof: FWD, render }),
+    lazy: (loader) => ({ $$typeof: LAZY, _loader: loader }),
+    startTransition: (fn) => fn(),
+    useState(init) {
+      const { inst, i } = slot();
+      if (!(i in inst.hooks)) inst.hooks[i] = typeof init === 'function' ? init() : init;
+      return [inst.hooks[i], (next) => {
+        const val = typeof next === 'function' ? next(inst.hooks[i]) : next;
+        if (!Object.is(inst.hooks[i], val)) { inst.hooks[i] = val; dirty = true; }
+      }];
+    },
+    useReducer(red, init, initFn) {
+      const { inst, i } = slot();
+      if (!(i in inst.hooks)) inst.hooks[i] = typeof initFn === 'function' ? initFn(init) : init;
+      return [inst.hooks[i], (act) => {
+        const val = red(inst.hooks[i], act);
+        if (!Object.is(inst.hooks[i], val)) { inst.hooks[i] = val; dirty = true; }
+      }];
+    },
+    useRef(init) { const { inst, i } = slot(); if (!(i in inst.hooks)) inst.hooks[i] = { current: init }; return inst.hooks[i]; },
+    useMemo(fn, deps) {
+      const { inst, i } = slot(), prev = inst.hooks[i];
+      if (!prev || !deps || !depsEq(prev.deps, deps)) { const value = fn(); inst.hooks[i] = { value, deps }; return value; }
+      return prev.value;
+    },
+    useCallback(fn, deps) { return R.useMemo(() => fn, deps); },
+    useContext: readCtx,
+    useId() { const { inst, i } = slot(); if (!(i in inst.hooks)) inst.hooks[i] = `:b${++idSeq}:`; return inst.hooks[i]; },
+    useSyncExternalStore(sub, getSnap) {
+      const { inst, i } = slot(), val = getSnap(), prev = inst.hooks[i];
+      if (!prev || prev.sub !== sub) {
+        prev?.unsub?.();
+        inst.hooks[i] = { sub, unsub: sub(() => { dirty = true; }), val };
+      } else prev.val = val;
+      return val;
+    },
+    useImperativeHandle() {},
+    useDeferredValue: (v) => v,
+    useTransition: () => [false, (fn) => fn()],
+    useEffect(create, deps) {
+      const { inst, i } = slot(), prev = inst.hooks[i];
+      if (!prev || !deps || !depsEq(prev.deps, deps)) {
+        const entry = prev || { cleanup: null, deps: null };
+        entry.deps = deps;
+        inst.hooks[i] = entry;
+        pendingEffects.push({ entry, create });
+      }
+    },
+    useLayoutEffect(create, deps) { R.useEffect(create, deps); },
+    useInsertionEffect() {},
+    useDebugValue() {},
+  };
+
+  const cleanup = (inst) => {
+    for (const s of inst.hooks) {
+      if (s && typeof s === 'object') {
+        if (typeof s.cleanup === 'function') { try { s.cleanup(); } catch { /* ignore */ } s.cleanup = null; }
+        if (typeof s.unsub === 'function') { try { s.unsub(); } catch { /* ignore */ } s.unsub = null; }
+      }
+    }
+  };
+
+  function renderNode(node, path) {
+    if (node == null || typeof node === 'boolean') return null;
+    if (typeof node === 'string' || typeof node === 'number') return node;
+    if (Array.isArray(node)) return node.map((c, idx) => renderNode(c, `${path}/${c && typeof c === 'object' && c.key != null ? `k:${c.key}` : `i:${idx}`}`));
+    if (typeof node !== 'object' || node.$$typeof !== ELEMENT) return node;
+    const { type, props, key, ref } = node;
+    const kpath = key !== null ? `${path}[${key}]` : path;
+    if (type === FRAGMENT || type === SUSPENSE) return renderNode(props.children, kpath);
+    if (type && typeof type === 'object' && (type.$$typeof === PROVIDER || type.$$typeof === CTX)) {
+      const ctx = type.$$typeof === PROVIDER ? type._context : type;
+      pushCtx(ctx, props.value);
+      try { return renderNode(props.children, kpath); } finally { popCtx(ctx); }
+    }
+    if (type && typeof type === 'object' && type.$$typeof === LAZY) return null;
+    const fn = typeof type === 'function' ? type : type?.$$typeof === MEMO ? type.type : type?.$$typeof === FWD ? type.render : null;
+    if (fn) {
+      let inst = instances.get(kpath);
+      if (!inst || inst.fn !== fn) { if (inst) cleanup(inst); inst = { fn, hooks: [] }; instances.set(kpath, inst); }
+      active.add(kpath);
+      const isClass = Boolean(fn.prototype && (fn.prototype instanceof Component || typeof fn.prototype.render === 'function'));
+      const isBoundary = isClass && typeof fn.getDerivedStateFromError === 'function';
+      const runRender = () => {
+        const prevInst = curInst, prevIdx = hookIdx;
+        curInst = inst; hookIdx = 0;
+        try {
+          if (isClass) {
+            if (!inst.classInst) inst.classInst = new fn(props);
+            else inst.classInst.props = props;
+            return inst.classInst.render();
+          }
+          return type?.$$typeof === FWD ? fn(props, ref) : fn(props);
+        } finally {
+          curInst = prevInst; hookIdx = prevIdx;
+        }
+      };
+      if (isBoundary) {
+        try {
+          const out = runRender();
+          return { $$typeof: ELEMENT, type: fn, key, props, rendered: renderNode(out, `${kpath}>`) };
+        } catch (error) {
+          const derived = fn.getDerivedStateFromError(error);
+          if (derived) inst.classInst.state = { ...inst.classInst.state, ...derived };
+          inst.classInst.componentDidCatch?.(error, {});
+          const fallbackOut = runRender();
+          return { $$typeof: ELEMENT, type: fn, key, props, rendered: renderNode(fallbackOut, `${kpath}>`) };
+        }
+      }
+      const out = runRender();
+      return { $$typeof: ELEMENT, type: fn, key, props, rendered: renderNode(out, `${kpath}>`) };
+    }
+    const children = props.children !== undefined ? renderNode(props.children, `${kpath}.${String(type)}`) : undefined;
+    return { $$typeof: ELEMENT, type, key, ref, props: children !== undefined ? { ...props, children } : props };
+  }
+
+  const slotKey = `__STUDY_BOUNDARY_REACT_${Date.now()}_${Math.random()}__`;
+  globalThis[slotKey] = R;
+  const compiled = await build({
+    stdin: {
+      contents: `
+        export { default as App } from './ui/App.jsx';
+        export { PAGE_VIEWS } from './ui/app/page-views.jsx';
+        export { setUiLanguage } from './ui/i18n.js';
+      `,
+      resolveDir: resolve(process.cwd()),
+    },
+    bundle: true,
+    write: false,
+    platform: 'node',
+    format: 'cjs',
+    external: ['@codemirror/*', '@lezer/*', '@base-ui/*', 'markdown-it', 'markdown-it-texmath', 'dompurify', 'katex', 'katex/*', 'parse5', 'pdf-lib', 'yaml', 'schemastery', 'proper-lockfile'],
+    plugins: [{
+      name: 'boundary-react-shim',
+      setup(b) {
+        b.onResolve({ filter: /^react$|^react\/jsx-runtime$|^react\/jsx-dev-runtime$/ }, () => ({ path: 'react', namespace: 'b-react' }));
+        b.onLoad({ filter: /.*/, namespace: 'b-react' }, () => ({
+          contents: `
+            const R = globalThis[${JSON.stringify(slotKey)}];
+            export default R;
+            export const { Fragment, Suspense, StrictMode, Component, PureComponent, createElement, cloneElement, isValidElement, Children,
+              createContext, createRef, memo, forwardRef, lazy, startTransition,
+              useState, useReducer, useRef, useMemo, useCallback, useContext,
+              useId, useSyncExternalStore, useImperativeHandle, useDeferredValue, useTransition,
+              useEffect, useLayoutEffect, useInsertionEffect, useDebugValue } = R;
+            export const jsx = (t, p, k) => R.createElement(t, k !== undefined ? { ...p, key: k } : p);
+            export const jsxs = jsx; export const jsxDEV = jsx;
+          `,
+          loader: 'js',
+        }));
+        b.onResolve({ filter: /^react-dom$/ }, () => ({ path: 'react-dom', namespace: 'b-rdom' }));
+        b.onLoad({ filter: /.*/, namespace: 'b-rdom' }, () => ({
+          contents: 'export const flushSync = (fn) => fn(); export const createPortal = (c) => c; export default { flushSync, createPortal };',
+          loader: 'js',
+        }));
+      },
+    }, nativeSelects],
+    loader: { '.css': 'text' },
+    logLevel: 'silent',
+  });
+  const mod = { exports: {} };
+  try {
+    new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, mod, mod.exports);
+  } finally {
+    delete globalThis[slotKey];
+  }
+
+  const collect = (node, pred, out = []) => {
+    if (node == null || typeof node !== 'object') return out;
+    if (Array.isArray(node)) { for (const x of node) collect(x, pred, out); return out; }
+    if (pred(node)) out.push(node);
+    if ('rendered' in node) collect(node.rendered, pred, out);
+    else if (node.props?.children !== undefined) collect(node.props.children, pred, out);
+    return out;
+  };
+
+  const mount = (renderFn) => {
+    let tree = null;
+    const reconcile = () => {
+      for (let pass = 0; pass < 12; pass += 1) {
+        dirty = false;
+        active = new Set();
+        tree = renderNode(renderFn(), 'root');
+        for (const [p, inst] of [...instances.entries()]) {
+          if (!active.has(p)) { cleanup(inst); instances.delete(p); }
+        }
+        const effs = pendingEffects; pendingEffects = [];
+        for (const item of effs) {
+          if (typeof item.entry.cleanup === 'function') { item.entry.cleanup(); item.entry.cleanup = null; }
+          const clean = item.create();
+          if (typeof clean === 'function') item.entry.cleanup = clean;
+        }
+        if (!dirty) break;
+      }
+      return tree;
+    };
+    reconcile();
+    return {
+      get tree() { return tree; },
+      flush: async (ticks = 5) => {
+        for (let i = 0; i < ticks; i += 1) {
+          await Promise.resolve();
+          if (dirty) reconcile();
+        }
+        return tree;
+      },
+      act: async (fn) => { await fn(); await Promise.resolve(); reconcile(); },
+      find: (pred, root = tree) => collect(root, pred)[0] || null,
+      findAll: (pred, root = tree) => collect(root, pred),
+      unmount: () => { for (const inst of instances.values()) cleanup(inst); instances.clear(); },
+    };
+  };
+  return { exports: mod.exports, React: R, mount };
+}
+
+test('the page boundary sits inside <main> beside the sidebar, so a crashed page cannot take the sidebar with it', async () => {
+  const prevMatchMedia = globalThis.matchMedia;
+  const reducedMatchMedia = (query) => ({
+    matches: String(query).includes('prefers-reduced-motion'),
+    addEventListener() {},
+    removeEventListener() {},
+  });
+  globalThis.matchMedia = reducedMatchMedia;
+  try {
+    await withBrowserGlobals(async () => {
+      const bundle = await loadBoundaryApp();
+      const { App, PAGE_VIEWS, setUiLanguage } = bundle.exports;
+      setUiLanguage('zh');
+      const origLibrary = PAGE_VIEWS.library;
+      const origSources = PAGE_VIEWS.sources;
+      const origConsoleError = console.error;
+      const caughtLogs = [];
+      let shouldCrash = true;
+
+      console.error = (...args) => { caughtLogs.push(args); };
+      PAGE_VIEWS.library = function CrashingLibrary() {
+        if (shouldCrash) throw new TypeError("Cannot read properties of undefined (reading 'map')");
+        return bundle.React.createElement('section', { 'data-page-ok': 'library' }, 'library-recovered-ok');
+      };
+      PAGE_VIEWS.sources = function CleanSources() {
+        return bundle.React.createElement('section', { 'data-page-ok': 'sources' }, 'sources-clean-ok');
+      };
+
+      const snap = {
+        root: '/lib',
+        fingerprint: 'fp-1',
+        sources: [],
+        decks: [],
+        drafts: [],
+        runs: [],
+        jobs: [],
+        courses: [],
+        focus: { course: '*', courses: [] },
+        settings: {},
+      };
+      const call = async (action) => {
+        if (action === 'binding.get') return { root: '/lib', provider: '', model: '' };
+        if (action === 'snapshot') return snap;
+        if (action === 'board.get') return { columns: [], cards: {} };
+        return { status: 'ok' };
+      };
+
+      const mounted = bundle.mount(() => bundle.React.createElement(App, { call }));
+      try {
+        await mounted.flush(8);
+
+        // 1. Sidebar <aside> and <main> are siblings in .study-app, with <aside> before <main>.
+        const appShell = mounted.find((n) => n.type === 'div' && typeof n.props?.className === 'string' && n.props.className.includes('study-app'));
+        assert.ok(appShell, 'rendered .study-app root');
+        const directChildren = (Array.isArray(appShell.props.children) ? appShell.props.children : [appShell.props.children]).filter(Boolean);
+        const sidebarIdx = directChildren.findIndex((n) => Boolean(mounted.find((el) => el.type === 'aside' && el.props?.className === 'sidebar', n)));
+        const mainIdx = directChildren.findIndex((n) => n.type === 'main');
+        assert.ok(sidebarIdx >= 0, 'sidebar <aside> renders even when the active page throws');
+        assert.ok(mainIdx > sidebarIdx, 'sidebar <aside> sits before <main> as a sibling');
+
+        const asideEl = mounted.find((n) => n.type === 'aside' && n.props?.className === 'sidebar');
+        const mainEl = mounted.find((n) => n.type === 'main');
+        assert.equal(mounted.find((n) => n.type === 'aside', mainEl), null, 'sidebar is outside <main>');
+
+        // 2. The active page crash is caught inside <main> by PageBoundary, rendering CrashFallback with diagnostic copy & retry.
+        const mainText = textOf(mainEl);
+        assert.match(mainText, /这个页面没能显示/, 'PageBoundary renders crash fallback inside <main>');
+        assert.match(mainText, /复制诊断信息/, 'CrashFallback offers diagnostic copy action');
+        assert.ok(caughtLogs.some((args) => String(args[0]).includes('[study-workspace] page render failed:')), 'PageBoundary.componentDidCatch logged the crash');
+
+        // 3. Sidebar stays interactive: clicking 资料 switches page and resets PageBoundary via key={page}.
+        const sourcesNavBtn = mounted.find((n) => n.type === 'button' && n.props?.['data-tour'] === 'nav-sources', asideEl);
+        assert.ok(sourcesNavBtn, 'sidebar keeps 资料 nav button interactive after page crash');
+        await mounted.act(() => click(sourcesNavBtn));
+        await mounted.flush(4);
+
+        const mainAfterSwitch = mounted.find((n) => n.type === 'main');
+        const switchText = textOf(mainAfterSwitch);
+        assert.match(switchText, /sources-clean-ok/, 'switching to another page resets PageBoundary cleanly');
+        assert.doesNotMatch(switchText, /这个页面没能显示/, 'crash fallback clears on page switch');
+
+        // 4. Returning to the crashed page and clicking 重试 recovers once the error condition clears.
+        const libraryNavBtn = mounted.find((n) => n.type === 'button' && n.props?.['data-tour'] === 'nav-library', mounted.find((n) => n.type === 'aside'));
+        assert.ok(libraryNavBtn, 'sidebar keeps 学习库 nav button');
+        await mounted.act(() => click(libraryNavBtn));
+        await mounted.flush(4);
+        assert.match(textOf(mounted.find((n) => n.type === 'main')), /这个页面没能显示/);
+
+        shouldCrash = false;
+        const retryBtn = mounted.find((n) => n.type === 'button' && textOf(n).trim() === '重试', mounted.find((n) => n.type === 'main'));
+        assert.ok(retryBtn, 'CrashFallback exposes 重试 button');
+        await mounted.act(() => click(retryBtn));
+        assert.match(textOf(mounted.find((n) => n.type === 'main')), /library-recovered-ok/, '重试 clears PageBoundary error and renders recovered page');
+      } finally {
+        mounted.unmount();
+        PAGE_VIEWS.library = origLibrary;
+        PAGE_VIEWS.sources = origSources;
+        console.error = origConsoleError;
+        setUiLanguage('zh');
+      }
+    }, { window: { matchMedia: reducedMatchMedia } });
+  } finally {
+    if (prevMatchMedia === undefined) delete globalThis.matchMedia;
+    else globalThis.matchMedia = prevMatchMedia;
+  }
 });
 
 /* #893 S4: the in-memory performance summary of this session. It is built from numbers and the ids of the app's own pages, whatever it is given. */
