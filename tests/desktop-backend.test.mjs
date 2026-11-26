@@ -489,9 +489,9 @@ test('adapters/cli/process-runner handles >40KB stdin, output cap, timeout, Abor
   assert.equal(treeRes.aborted, true);
   const grandchildPid = Number((await readFile(pidFile, 'utf8')).trim());
   assert.ok(grandchildPid > 0);
-  // Give OS a brief moment to reap the killed grandchild
+  // Windows taskkill reports when the tree is stopped. Unix may still be reaping a signalled process.
   let stillAlive = pidExists(grandchildPid);
-  for (let i = 0; i < 20 && stillAlive; i += 1) {
+  for (let i = 0; process.platform !== 'win32' && i < 20 && stillAlive; i += 1) {
     await new Promise((r) => setTimeout(r, 100));
     stillAlive = pidExists(grandchildPid);
   }

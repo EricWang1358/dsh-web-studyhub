@@ -1,8 +1,9 @@
 import { spawn } from 'node:child_process';
 import { access, readFile } from 'node:fs/promises';
-import { dirname, extname, win32 } from 'node:path';
+import { dirname, extname } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { parseCmdShimTarget } from '../../domain/shim-parser.js';
+import { terminateWindowsTree } from './windows-process-tree.mjs';
 
 const DEFAULT_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 const KILL_GRACE_MS = 1500;
@@ -50,29 +51,12 @@ export async function unwrapExecutable(commandPath, { exists = fileExists, readT
   return { ok: true, command: parsed.targetPath, prefixArgs: [] };
 }
 
-function resolveTaskkillPath(env = process.env) {
-  const root = env.SystemRoot || env.windir || '';
-  return root ? win32.join(root, 'System32', 'taskkill.exe') : 'taskkill';
-}
-
 /**
  * Terminate a child process and its entire descendant tree without using a shell.
  */
 export function killProcessTree(pid, platform = process.platform, fallbackKill = null) {
-  if (!Number.isInteger(pid) || pid <= 0) return;
-  if (platform === 'win32') {
-    const killer = spawn(resolveTaskkillPath(), ['/PID', String(pid), '/T', '/F'], {
-      shell: false,
-      windowsHide: true,
-      stdio: 'ignore',
-    });
-    killer.on('error', () => {
-      try { fallbackKill?.(); } catch { /* ignore */ }
-      try { process.kill(pid); } catch { /* already exited */ }
-    });
-    killer.unref?.();
-    return;
-  }
+  if (!Number.isInteger(pid) || pid <= 0) return null;
+  if (platform === 'win32') return terminateWindowsTree(spawn, pid, fallbackKill);
   try {
     process.kill(-pid, 'SIGTERM');
   } catch {
@@ -83,6 +67,7 @@ export function killProcessTree(pid, platform = process.platform, fallbackKill =
     try { process.kill(pid, 'SIGKILL'); } catch { /* already exited */ }
   }, KILL_GRACE_MS);
   timer.unref?.();
+  return null;
 }
 
 /**
@@ -183,8 +168,17 @@ function createBrokenShimResult(reason, durationMs) {
 
 function attachTerminationControls({ child, request, state, finalize }) {
   const triggerKill = () => {
-    if (child.pid) killProcessTree(child.pid, process.platform, () => child.kill());
+    if (state.termination || state.forceCloseTimer) return;
+    if (state.timeoutTimer) clearTimeout(state.timeoutTimer);
+    if (child.pid) state.termination = killProcessTree(child.pid, process.platform, () => child.kill());
     else try { child.kill(); } catch { /* already exited */ }
+    // Windows taskkill walks the tree asynchronously. Report completion after its outcome and the child's actual close.
+    if (state.termination) {
+      state.termination.then(error => {
+        if (error) finalize(null, null);
+      });
+      return;
+    }
     state.forceCloseTimer = setTimeout(() => finalize(null, 'SIGKILL'), KILL_GRACE_MS + 500);
     state.forceCloseTimer.unref?.();
   };
@@ -222,12 +216,13 @@ function executeSpawnedProcess({ command, finalArgs, maxBytes, request, started 
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
-    const finalize = (code, sig) => {
+    const finalize = async (code, sig) => {
       if (state.settled) return;
       state.settled = true;
       if (state.timeoutTimer) clearTimeout(state.timeoutTimer);
       if (state.forceCloseTimer) clearTimeout(state.forceCloseTimer);
       if (onAbort) request.signal?.removeEventListener('abort', onAbort);
+      state.spawnError = await state.termination || state.spawnError;
       const out = stdoutCol.finish();
       const err = stderrCol.finish();
       resolve({
@@ -304,8 +299,9 @@ export function spawnPipeProcess({ command, args = [], cwd, env }) {
     stdout: child.stdout,
     stderr: child.stderr,
     kill: () => {
-      if (child.pid) killProcessTree(child.pid);
-      else child.kill();
+      if (child.pid) return killProcessTree(child.pid, process.platform, () => child.kill());
+      child.kill();
+      return null;
     },
     exited,
   });
@@ -323,7 +319,11 @@ export function spawnPersistent({ command, args = [], cwd, env }) {
   async function terminate(graceMs = KILL_GRACE_MS) {
     if (exited) return proc.exited;
     try { proc.stdin?.end(); } catch { /* stdin may already be closed */ }
-    proc.kill();
+    const windowsTermination = proc.kill();
+    if (windowsTermination) return windowsTermination.then(error => {
+      if (error) throw error;
+      return proc.exited;
+    });
     const waitMs = Math.max(200, Number(graceMs) || KILL_GRACE_MS) + 1500;
     let timer = null;
     try {
