@@ -15,7 +15,7 @@ import { readAppSource } from './helpers/app-source.mjs';
 import * as legacy from '../ui/interface-prefs.js';
 import { registerHostParts } from '../ui/host-parts.js';
 
-const { APPEARANCE_DEFAULTS, APPEARANCE_OPTIONS, APPEARANCE_LABELS, THEME_KEY, normalizeAppearance, loadAppearance, saveAppearance, appearanceAttrs,
+const { APPEARANCE_DEFAULTS, APPEARANCE_OPTIONS, APPEARANCE_LABELS, normalizeAppearance, loadAppearance, saveAppearance, appearanceAttrs,
   exportAppearance, importAppearance, createAppearanceStore } = appearance;
 const han = /[㐀-鿿]/;
 const memory = (initial = {}) => { const map = new Map(Object.entries(initial)); return { getItem: key => map.has(key) ? map.get(key) : null, setItem: (key, value) => map.set(key, String(value)), map }; };
@@ -57,8 +57,7 @@ test('one list of settings with defaults and the values each one allows; interfa
   assert.equal(APPEARANCE_OPTIONS.font, legacy.FONTS);
   // (a typed setting such as the font name has a gate instead of a list)
   for (const key of Object.keys(APPEARANCE_OPTIONS)) assert.ok(APPEARANCE_OPTIONS[key].includes(APPEARANCE_DEFAULTS[key]), `${key}: the default is one of the choices`);
-  assert.equal(THEME_KEY, 'study-theme');
-  assert.equal(legacy.INTERFACE_KEY, 'study-interface');
+  assert.equal(legacy.INTERFACE_KEY, appearance.INTERFACE_KEY);
   for (const name of ['normalizeInterface', 'loadInterface', 'saveInterface', 'effectiveMotion', 'leaveDelayMs', 'INTERFACE_DEFAULTS'])
     assert.ok(name in legacy, `${name} is still exported`);
 });
@@ -101,6 +100,9 @@ test('saving writes the old keys in the old shapes: an older version reads what 
   delete rest.theme;
   assert.deepEqual(JSON.parse(storage.map.get('study-interface')), rest, 'no theme in the interface object');
   assert.deepEqual(legacy.loadInterface(storage), rest, 'the previous reader still works');
+  legacy.saveInterface({ scale: 150 }, storage);
+  assert.equal(storage.map.get('study-theme'), 'light', 'legacy.saveInterface preserves study-theme');
+  assert.equal(JSON.parse(storage.map.get('study-interface')).scale, 150, 'legacy.saveInterface writes to study-interface');
   // and what an older version wrote, a newer one reads, with a setting this version does not know ignored
   const future = memory({ 'study-interface': JSON.stringify({ motion: 'full', scale: 110, font: 'serif', accent: 'jade', sparkle: 'on' }) });
   assert.deepEqual(loadAppearance(future), { ...APPEARANCE_DEFAULTS, motion: 'full', scale: 110, font: 'serif', accent: 'jade' });
