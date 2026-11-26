@@ -2,7 +2,8 @@
 // across backend settings & usage JSON writers.
 // Real filesystem only (mkdtemp), zero source-grep assertions, zero node:fs mocks.
 import assert from 'node:assert/strict';
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
+import { chmod, mkdir, mkdtemp, open, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
@@ -33,6 +34,40 @@ async function withTempDshHome(t, prefix = 'studyhub-p3-lib-') {
 }
 
 const findTmpFiles = async (dir) => (await readdir(dir)).filter((name) => name.endsWith('.tmp'));
+
+// libuv's UV_FS_O_EXLOCK (not in fs.constants): open with no sharing, as a virus scanner or indexer does, so this process's own reads fail EBUSY.
+const UV_FS_O_EXLOCK = 0x10000000;
+/** Make `file` unreadable with an error other than ENOENT until the returned release() runs. */
+async function holdUnreadable(file) {
+  if (process.platform === 'win32') {
+    const handle = await open(file, fsConstants.O_RDONLY | UV_FS_O_EXLOCK);
+    return () => handle.close();
+  }
+  await chmod(file, 0o000);
+  return () => chmod(file, 0o600);
+}
+
+/** jev-usage.json, model-usage.json and book-history/reading.json, each seeded with 4 entries, with one more write and an entry count. */
+async function seededRecords(t) {
+  await withTempDshHome(t, 'studyhub-p3-keep-');
+  const libRoot = await mkdtemp(path.join(os.tmpdir(), 'studyhub-p3-keep-lib-'));
+  t.after(() => rm(libRoot, { recursive: true, force: true, maxRetries: 6, retryDelay: 50 }));
+  const jev = createJevUsage();
+  const ledger = createUsageLedger(libRoot);
+  for (let i = 0; i < 4; i++) {
+    await jev.record({ feature: 'assist', usage: { inputTokens: 10, outputTokens: 5 } });
+    await ledger.record({ feature: 'generate', usage: { uncachedInputTokens: 10, outputTokens: 5 } });
+    await recordReads(libRoot, [{ sourceId: `s${i}`, from: 0, to: 100 }]);
+  }
+  return [
+    { name: 'jev-usage.json', file: jevUsagePath(), write: () => jev.record({ feature: 'assist', usage: { inputTokens: 1, outputTokens: 1 } }),
+      count: async () => (await jev.summary()).total.calls },
+    { name: 'model-usage.json', file: path.join(libRoot, 'model-usage.json'), write: () => ledger.record({ feature: 'generate', usage: { uncachedInputTokens: 1, outputTokens: 1 } }),
+      count: async () => (await ledger.summary()).total.calls },
+    { name: 'reading.json', file: path.join(libRoot, 'book-history', 'reading.json'), write: () => recordReads(libRoot, [{ sourceId: 's9', from: 0, to: 1 }]),
+      count: async () => Object.keys((await readReading(libRoot)).sources).length },
+  ];
+}
 const findBackupFiles = async (dir, prefix) =>
   (await readdir(dir)).filter((name) => name.startsWith(`${prefix}.corrupt-`) && name.endsWith('.bak'));
 
@@ -415,5 +450,70 @@ describe('P3 (#1354): shared lib/atomic-json.js & backend settings/state atomic 
     ]);
     const reading = await readReading(libRoot);
     assert.deepEqual(Object.keys(reading.sources).sort(), ['s-a', 's-b', 's-c', 's-d'], 'book-reading across path aliases must not drop concurrent sources');
+  });
+
+  test('9) atomicUpdateJson refuses to write when the file exists but cannot be read (any error but ENOENT), on every platform', async (t) => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'studyhub-p3-unreadable-'));
+    t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 6, retryDelay: 50 }));
+    const file = path.join(dir, 'settings.json');
+    await mkdir(file); // reading a directory fails with EISDIR everywhere
+    let mutatorRan = false;
+    await assert.rejects(
+      atomicJsonMod.atomicUpdateJson(file, () => { mutatorRan = true; return { replaced: true }; }),
+      (err) => err?.code === 'json-unreadable' && err.cause?.code === 'EISDIR',
+    );
+    assert.equal(mutatorRan, false, 'an unreadable file must abort before the mutator builds a replacement');
+    assert.deepEqual(await findTmpFiles(dir), []);
+  });
+
+  test('10) a failed corrupt-file backup aborts the overwrite, on every platform', async (t) => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'studyhub-p3-backup-fail-'));
+    t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 6, retryDelay: 50 }));
+    const file = path.join(dir, 'settings.json');
+    const corrupt = '{"version":1, BROKEN';
+    await writeFile(file, corrupt, 'utf8');
+    const diskFull = async () => { throw Object.assign(new Error('ENOSPC: disk full'), { code: 'ENOSPC' }); };
+    await assert.rejects(
+      atomicJsonMod.atomicUpdateJson(file, () => ({ replaced: true }), {
+        onCorrupt: atomicJsonMod.backupThenRecover(file, {}, { rename: diskFull }),
+      }),
+      (err) => err?.code === 'corrupt-backup-failed',
+    );
+    assert.equal(await readFile(file, 'utf8'), corrupt, 'the only copy of the damaged file must survive a failed backup');
+    assert.deepEqual(await findTmpFiles(dir), []);
+  });
+
+  test('11) usage and reading records keep their history when the file is briefly unreadable (scanner lock / no permission)', async (t) => {
+    if (process.platform !== 'win32' && typeof process.getuid === 'function' && process.getuid() === 0) return; // root reads through chmod 000
+    for (const record of await seededRecords(t)) {
+      const release = await holdUnreadable(record.file);
+      // Released while the write would still be retrying its rename: a writer that took the failed read for "empty" now replaces the file.
+      const released = new Promise((done) => setTimeout(() => done(release()), 150));
+      const outcome = await record.write().then(() => 'written', (err) => err?.code);
+      await released;
+      assert.equal(outcome, 'json-unreadable', `${record.name}: a write over an unreadable file must be refused`);
+      assert.equal(await record.count(), 4, `${record.name}: history must survive an unreadable read`);
+    }
+  });
+
+  test('12) usage and reading records read a UTF-8 BOM file instead of replacing it', async (t) => {
+    for (const record of await seededRecords(t)) {
+      await writeFile(record.file, `\uFEFF${await readFile(record.file, 'utf8')}`, 'utf8');
+      await record.write();
+      assert.equal(await record.count(), 5, `${record.name}: a BOM must not wipe the history`);
+      assert.deepEqual(await findBackupFiles(path.dirname(record.file), record.name), [], `${record.name}: a BOM file is not corrupt`);
+    }
+  });
+
+  test('13) usage and reading records back up a damaged file before starting afresh', async (t) => {
+    for (const record of await seededRecords(t)) {
+      const damaged = '{"version":1, BROKEN';
+      await writeFile(record.file, damaged, 'utf8');
+      await record.write();
+      assert.equal(await record.count(), 1, `${record.name}: starts afresh after the backup`);
+      const backups = await findBackupFiles(path.dirname(record.file), record.name);
+      assert.equal(backups.length, 1, `${record.name}: exactly one backup of the damaged file`);
+      assert.equal(await readFile(path.join(path.dirname(record.file), backups[0]), 'utf8'), damaged);
+    }
   });
 });
