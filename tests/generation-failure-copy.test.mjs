@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
 import { build } from "esbuild";
 
 /* #217: a failure whose cause is the quality review says so, lists the real reason categories and the next steps; "the sources may be too short"
@@ -51,10 +50,45 @@ test("too little in the sources is its own failure, and only that suggests other
     assert.match(zh.hint, /资料/);
     assert.match(zh.hint, /换|减少题数/);
   }
-  const source = readFileSync("ui/generation-status.js", "utf8");
-  const mentions = source.split("\n").filter((line) => line.includes("资料可能太短"));
-  assert.equal(mentions.length, 1, "one place says it");
-  assert.match(source, /case 'evidence'[\s\S]{0,400}资料可能太短/, "and it is the evidence case");
+  const categories = [
+    ["quota", "quota", "402 insufficient balance"],
+    ["rate-limit", "rate-limit", "429 Too Many Requests"],
+    ["model-retired", "model-retired", "model_not_found: deprecated model"],
+    ["rejected", "rejected", "401 unauthorized"],
+    ["credential", "credential", "Configure a model provider"],
+    ["token-budget", "token-budget", "Generation reached its 50000-token budget"],
+    ["budget", "timeout", "Generation reached its 20-minute total budget"],
+    ["timeout", "timeout", "Model timed out after 120s"],
+    ["network", "network", "fetch failed"],
+    ["sources", "sources", "source is unavailable"],
+    ["executor", "executor", "background executor unavailable"],
+    ["unavailable", "unavailable", "503 Service Unavailable"],
+    ["grounding", "grounding", "citation text is not in source"],
+    ["plan", "plan", "Assessment plan is not usable: malformed"],
+    ["blueprint", "blueprint", "Answer blueprint failed checks"],
+    ["evidence", "evidence", "insufficient evidence: fewer supported knowledge points than requested"],
+    ["quality", "quality", REVIEW_FAILURE],
+    ["parent-gone", "parent-gone", "The DSH conversation that started this StudyHub work was closed or reloaded (PARENT_GONE)"],
+    ["engine", "engine", "DSH sub-agent engine could not start a StudyHub worker (SUBAGENT_START)"],
+    ["plan-short", "plan-short", "plan came back short"],
+    ["review-protocol", "review-protocol", "Review protocol failed after 3 attempts: missing complete per-card checks"],
+    ["no-reply", "no-reply", "Model returned no text"],
+    ["cancelled", "cancelled", "This operation was aborted"],
+    ["unknown", "unknown", "something unexpected happened"],
+  ];
+  for (const hasDraft of [false, true]) {
+    const zhMatches = [];
+    const enMatches = [];
+    for (const [label, expectedKind, sample] of categories) {
+      const zh = inLanguage("zh", () => m.describeFailure(sample, { hasDraft }));
+      const en = inLanguage("en", () => m.describeFailure(sample, { hasDraft }));
+      assert.equal(zh.kind, expectedKind, `${label} classified as ${expectedKind}`);
+      if ((zh.title + zh.hint).includes("资料可能太短")) zhMatches.push(label);
+      if (/too short/i.test(en.title + en.hint)) enMatches.push(label);
+    }
+    assert.deepEqual(zhMatches, ["evidence"], `only evidence mentions 资料可能太短 (hasDraft=${hasDraft})`);
+    assert.deepEqual(enMatches, ["evidence"], `only evidence mentions too short in English (hasDraft=${hasDraft})`);
+  }
 });
 
 test("the technical detail is one entry per question with its reasons and severity", () => {

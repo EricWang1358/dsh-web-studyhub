@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { loadInteractiveUi, withBrowserGlobals, click } from './helpers/react-harness.mjs';
 
 const m = await loadUi(`
   export { ui, uiFormat, setUiLanguage } from './ui/i18n.js';
@@ -19,11 +20,33 @@ const m = await loadUi(`
   export { CaseReport } from './ui/CaseResult.jsx';
   export { AudioHeader } from './ui/app/page-views.jsx';
   export { default as Inbox } from './ui/Inbox.jsx';
+  export { default as Skeleton } from './ui/Skeleton.jsx';
+  export { StudyServicesContext } from './ui/study-context.jsx';
+`);
+
+const interactive = await loadInteractiveUi(`
+  export { default as LiveClass } from './ui/LiveClass.jsx';
+  export { useLearningNavigation } from './ui/app/use-learning-navigation.js';
+  export { StudyServicesContext } from './ui/study-context.jsx';
+  export { ToastContext } from './ui/components/index.js';
+  export { setUiLanguage } from './ui/i18n.js';
 `);
 
 const h = React.createElement;
+const hi = interactive.React.createElement;
 const noop = () => {};
 const han = /[\u3400-\u9fff]/;
+const studyServices = {
+  call: async () => ({}),
+  act: async () => undefined,
+  busy: false,
+  notify: noop,
+  askInChat: noop,
+  host: {},
+  openSettings: noop,
+  navigate: noop,
+  openModal: noop,
+};
 
 function withLang(language, fn) {
   m.setUiLanguage(language);
@@ -34,11 +57,80 @@ function withLang(language, fn) {
   }
 }
 
-test('live-class question generation points to Library drafts and Jobs, never Inbox or 收件箱', () => {
-  const liveClassSrc = readFileSync('ui/LiveClass.jsx', 'utf8');
-  assert.doesNotMatch(liveClassSrc, /收件箱|在信箱打开草稿/);
-  assert.match(liveClassSrc, /学习库 › 待发布草稿/);
-  assert.match(liveClassSrc, /任务/);
+test('live-class question generation points to Library drafts and Jobs, never Inbox or 收件箱', async () => {
+  await withBrowserGlobals(async () => {
+    const initialSession = {
+      id: 'ls-1',
+      status: 'live',
+      title: 'Lecture 1',
+      course: 'DB',
+      elapsedMs: 1000,
+      revision: 1,
+      segments: [{
+        id: 1,
+        t: 0,
+        en: 'Distributed consensus algorithms like Raft guarantee safety and liveness across replicated state machines even when network partitions happen.',
+      }],
+    };
+    for (const lang of ['zh', 'en']) {
+      interactive.exports.setUiLanguage(lang);
+      const toasts = [];
+      const genCalls = [];
+      const services = {
+        ...studyServices,
+        call: async (action, args) => {
+          if (action === 'live.list') return { sessions: [] };
+          if (action === 'live.generate') { genCalls.push(args); return { jobId: 'j-live-1' }; }
+          if (action === 'live.poll') return { id: 'ls-1', status: 'live', revision: 1 };
+          return {};
+        },
+      };
+      const toastApi = { success: (msg) => toasts.push(msg), info: noop, warning: noop, error: noop, show: noop, dismiss: noop };
+      const mounted = interactive.mount(() => hi(
+        interactive.exports.StudyServicesContext.Provider,
+        { value: services },
+        hi(
+          interactive.exports.ToastContext.Provider,
+          { value: toastApi },
+          hi(interactive.exports.LiveClass, {
+            data: { root: '/tmp/live-wording', focus: { course: 'DB', courses: [] } },
+            visible: true,
+            onQueued: noop,
+            onSettings: noop,
+            onSources: noop,
+            initialReadiness: { live: true, providers: { free: true } },
+            initialSession,
+          }),
+        ),
+      ));
+      try {
+        await mounted.flush();
+        const selectionButtons = mounted.findAll((node) => node.type === 'button' && String(node.props?.className || '').includes('live-selection-btn'));
+        const recentBtn = selectionButtons.find((btn) => !btn.props.disabled && !String(btn.props.className).includes('sh-btn--primary'));
+        assert.ok(recentBtn, `${lang}: recent-window selection button is enabled`);
+        await mounted.act(() => click(recentBtn));
+        const genBtn = mounted.find((node) => node.type === 'button' && String(node.props?.className || '').includes('live-selection-btn') && String(node.props?.className || '').includes('sh-btn--primary'));
+        assert.ok(genBtn && !genBtn.props.disabled, `${lang}: generate button enables once >=120 chars selected`);
+        await mounted.act(() => click(genBtn));
+        await mounted.flush();
+        assert.deepEqual(genCalls, [{ id: 'ls-1', segmentIds: [1], count: 5 }]);
+        assert.equal(toasts.length, 1);
+        if (lang === 'zh') {
+          assert.doesNotMatch(toasts[0], /收件箱|在信箱打开草稿/);
+          assert.match(toasts[0], /学习库 › 待发布草稿/);
+          assert.match(toasts[0], /任务/);
+        } else {
+          assert.doesNotMatch(toasts[0], han);
+          assert.doesNotMatch(toasts[0], /inbox/i);
+          assert.match(toasts[0], /Library › Drafts to publish/i);
+          assert.match(toasts[0], /Jobs/i);
+        }
+      } finally {
+        mounted.unmount();
+        interactive.exports.setUiLanguage('zh');
+      }
+    }
+  });
 
   const zhDoc = readFileSync('docs/live-class.zh-CN.md', 'utf8');
   const enDoc = readFileSync('docs/live-class.md', 'utf8');
@@ -123,14 +215,58 @@ test('reader translation menu states translations appear beside paragraphs first
   assert.equal(m.isShown(afterJob, 'p1', 'hidden'), true, 'cached paragraph within the translated scope is also shown');
 });
 
-test('deleted-material fallback in use-learning-navigation no longer blames transcript sources', () => {
-  const navSrc = readFileSync('ui/app/use-learning-navigation.js', 'utf8');
-  assert.doesNotMatch(navSrc, /逐字稿资料已被删除/);
-  assert.match(navSrc, /这份资料已被删除。/);
-  withLang('en', () => {
-    const translated = m.ui('这份资料已被删除。');
-    assert.doesNotMatch(translated, han);
-    assert.doesNotMatch(translated, /transcript/i);
+test('deleted-material fallback in use-learning-navigation no longer blames transcript sources', async () => {
+  await withBrowserGlobals(async () => {
+    const notices = [];
+    const modals = [];
+    const refs = {
+      dataRef: { current: { root: '/tmp/nav-deleted', sources: [], focus: { course: null } } },
+      epoch: { current: 1 },
+      navigation: { current: 0 },
+      examLocation: { current: null },
+    };
+    const hook = interactive.mountHook(interactive.exports.useLearningNavigation, {
+      core: { call: async () => ({}), setError: noop, notify: (msg) => notices.push(msg), refresh: async () => {}, refs },
+      lib: {
+        state: { modal: null, contextTrail: [], practiceStack: [], practiceEnded: null, focusRequest: null, detour: null },
+        set: {
+          setModal: (v) => modals.push(v),
+          setContextTrail: noop,
+          setPracticeStack: noop,
+          setPracticeEnded: noop,
+          setFocusRequest: noop,
+          setDetour: noop,
+          setBoardStudyRef: noop,
+          setBoardCompose: noop,
+        },
+      },
+      nav: { page: 'library', show: {}, navigate: noop, leaving: (fn) => fn(), referenceRef: { current: null }, leaveReviewRef: { current: null } },
+      session: { run: null, entry: null, enterRun: noop, enterMovedRun: noop },
+      rootRef: { current: null },
+    });
+    try {
+      interactive.exports.setUiLanguage('zh');
+      hook.current.openAudioSources(['missing-source-1']);
+      hook.current.openSourceAt('missing-source-2', 42);
+      assert.deepEqual(notices, ['这份资料已被删除。', '这份资料已被删除。']);
+      for (const msg of notices) assert.doesNotMatch(msg, /逐字稿资料已被删除/);
+      assert.equal(modals.length, 0);
+
+      notices.length = 0;
+      interactive.exports.setUiLanguage('en');
+      hook.current.openAudioSources(['missing-source-1']);
+      hook.current.openSourceAt('missing-source-2', 42);
+      assert.equal(notices.length, 2);
+      for (const msg of notices) {
+        assert.ok(msg.length > 0);
+        assert.doesNotMatch(msg, han);
+        assert.doesNotMatch(msg, /transcript/i);
+      }
+      assert.equal(modals.length, 0);
+    } finally {
+      hook.unmount();
+      interactive.exports.setUiLanguage('zh');
+    }
   });
 });
 
@@ -156,9 +292,22 @@ test('notes drafting, case grading, audio header, skeleton tip, and empty/unread
   })));
   assert.match(zhReport, /批改结果会自动出现在这里，完成时信箱也会提醒你。/);
 
-  const skeletonSrc = readFileSync('ui/Skeleton.jsx', 'utf8');
-  assert.doesNotMatch(skeletonSrc, /修过的题会进信箱/);
-  assert.match(skeletonSrc, /直接改有问题的题卡.*信箱会提醒你/);
+  const skeletonProps = { data: { root: '/tmp/sk', focus: { course: 'DB', courses: [] }, skeletons: [] }, onPractice: noop, focusId: null, onFocus: noop };
+  const zhSkeleton = withLang('zh', () => renderToStaticMarkup(h(
+    m.StudyServicesContext.Provider,
+    { value: studyServices },
+    h(m.Skeleton, skeletonProps),
+  )));
+  assert.doesNotMatch(zhSkeleton, /修过的题会进信箱/);
+  assert.match(zhSkeleton, /直接改有问题的题卡.*信箱会提醒你/);
+
+  const enSkeleton = withLang('en', () => renderToStaticMarkup(h(
+    m.StudyServicesContext.Provider,
+    { value: studyServices },
+    h(m.Skeleton, skeletonProps),
+  )));
+  assert.doesNotMatch(enSkeleton, han);
+  assert.match(enSkeleton, /inbox/i);
 
   const zhAudio = withLang('zh', () => renderToStaticMarkup(h(m.AudioHeader, { onSettings: noop, onSources: noop })));
   assert.match(zhAudio, /实时进度.*资料.*完成时信箱会提醒你/);

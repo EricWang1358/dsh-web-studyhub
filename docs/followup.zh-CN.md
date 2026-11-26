@@ -65,6 +65,10 @@
 
 - `card.followup.suggest {deckId?, cardId}`：返回 `{questions: string[3]}`。
 - `card.followup {deckId?, cardId, question}`：返回 `{deckId, cardId, item}`，`item` 包含润色后的问题、原问题和答案。同一版本、同一问题的重试复用已保存的回答，并发的相同请求合并，不同问题各自追加。
+- **不做后端流式 `card.followup`（#1354 D7 架构决策，Won't-Do）**：`card.followup` 保持非流式请求-响应 JSON 契约，不为其新增后端分块流式传输。原因有三：
+  1. `card.followup` 要求模型输出严格 JSON（`{question, answer}`）并经校验/纠错重试、题目版本摘要冲突检查后自动写入 `card.followups` 且可触发陪学备题，不适合拆成未校验的半截 token 流；
+  2. `StudyService` 动作总线全仓为请求-响应模式，没有面向客户端的流式动作通道；
+  3. `card.followup` 始终向模型传入完整 `answer` 与 `explanation` 且每次调用自动入库，而 TUI 实时追问需要翻答案前防泄密（#1335）、可随时 `Esc` 中断的逐字流式以及显式确认后再保存——这些由 TUI 统一发送层 `useAiConversation` + `host/ai-dialogue.ts` + `host.streamComplete` 承担，显式保存时再通过 `persistCardQaToFollowupAndNote` 落库。
 - `card.followup.add {deckId?, cardId, question, answer}`：保存在别处写好的回答，例如主对话或「帮我弄懂」的解答。它不会加入备题队列。
 - `ui/ExplanationFollowup.jsx` 里也有推荐追问和自定义提问的控件，但做题页以只读方式渲染它，所以这些控件不显示。
 - `tests/followup.test.mjs` 覆盖持久化、答案显示前隐藏、上下文、重复与并发请求、模型错误、改题冲突和陪学备题。浏览器测试使用 `scripts/fake-model.mjs` 的模拟模型；模拟结果不能证明真实讲解的质量。

@@ -7,11 +7,16 @@
 import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { build } from 'esbuild';
 import { createConfigStore } from '../packages/studyhub-desktop/adapters/storage/config-store.mjs';
 import { formatCallError } from '../packages/studyhub-desktop/application/desktop-errors.js';
 import { createDesktopHost } from '../packages/studyhub-desktop/application/desktop-host.js';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
+
+const require = createRequire(import.meta.url);
 
 test('#1436 Item 8a: configStore.load exposes configProblem, refusal carries code config-corrupt, and recover() backs up & unlocks', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'studyhub-1436-item8-'));
@@ -100,14 +105,234 @@ test('#1436 Item 8b: desktop-host exposes configProblem & desktop.config.recover
   const confirmOk = await host.call('desktop.library.confirm', { uiLanguage: 'zh' });
   assert.equal(confirmOk.ok, true);
   assert.equal(confirmOk.value.configProblem, null);
+});
 
-  // UI checks: DesktopLibraryPlace hides welcome card on configProblem; DesktopModelSetup exposes recover action
-  const placeSrc = readFileSync(new URL('../ui/desktop/DesktopLibraryPlace.jsx', import.meta.url), 'utf8');
-  const setupSrc = readFileSync(new URL('../ui/desktop/DesktopModelSetup.jsx', import.meta.url), 'utf8');
-  const tuiHostSrc = readFileSync(new URL('../packages/studyhub-tui/src/host/tui-host.ts', import.meta.url), 'utf8');
-  assert.match(placeSrc, /configProblem/, 'DesktopLibraryPlace must check binding.configProblem');
-  assert.match(setupSrc, /desktop\.config\.recover/, 'DesktopModelSetup must expose desktop.config.recover action');
-  assert.match(tuiHostSrc, /save\s*\(\s*next\s*,\s*opts\s*\)/, 'TUI overlay store must forward opts to base.save');
+test('#1436 Item 8c: DesktopLibraryPlace hides welcome card on configProblem and DesktopModelSetup renders & invokes desktop.config.recover', async () => {
+  const ui = await loadInteractiveUi(`
+    export { default as DesktopLibraryPlace } from './ui/desktop/DesktopLibraryPlace.jsx';
+    export { DesktopSetupBody, createDesktopConfigActions } from './ui/desktop/DesktopModelSetup.jsx';
+    export { AppContext } from './ui/app/app-context.js';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const h = ui.React.createElement;
+  await withBrowserGlobals(async () => {
+    ui.exports.setUiLanguage('zh');
+    const makeApp = (configProblem) => ({
+      host: { warmKey: 'test-warm' },
+      core: { call: async () => ({}), busy: false, setBusy: () => {}, setError: () => {} },
+      connection: {
+        binding: {
+          root: '/tmp/studyhub-lib',
+          libraryPlace: { confirmed: false, onSystemDrive: false },
+          libraryProblem: null,
+          configProblem,
+        },
+        setBinding: () => {},
+      },
+      settingsEntry: {},
+      nav: {},
+    });
+
+    const placeMounted = ui.mount((app = makeApp({ code: 'config-corrupt', path: '/tmp/desktop.json' })) => h(
+      ui.exports.AppContext.Provider,
+      { value: app },
+      h(ui.exports.DesktopLibraryPlace, { data: { decks: [], sources: [] } }),
+    ));
+    try {
+      assert.equal(
+        placeMounted.find((n) => n.props && 'data-desktop-library-place' in n.props),
+        null,
+        'DesktopLibraryPlace hides welcome card when binding.configProblem is set',
+      );
+
+      placeMounted.rerender(() => h(
+        ui.exports.AppContext.Provider,
+        { value: makeApp(null) },
+        h(ui.exports.DesktopLibraryPlace, { data: { decks: [], sources: [] } }),
+      ));
+      const card = placeMounted.find((n) => n.props && 'data-desktop-library-place' in n.props);
+      assert.ok(card, 'DesktopLibraryPlace renders welcome card when binding.configProblem is null');
+      assert.match(placeMounted.text(card), /先确认学习库放在哪/);
+    } finally {
+      placeMounted.unmount();
+    }
+
+    // DesktopModelSetup: createDesktopConfigActions().recoverConfig() + DesktopSetupBody corrupt banner
+    const calls = [];
+    let appliedConfig = null;
+    let refreshed = 0;
+    let lastError = '';
+    const workingStates = [];
+    const recoveredConfig = { mode: 'openai', providers: [], openai: {}, configPath: '/tmp/desktop.json', configProblem: null, effective: { ready: false } };
+    const actions = ui.exports.createDesktopConfigActions({
+      call: async (action, args) => {
+        calls.push([action, args]);
+        return { recovered: true, backupPath: '/tmp/desktop.json.corrupt-1.bak', config: recoveredConfig };
+      },
+      refresh: async () => { refreshed += 1; },
+      setConfig: (next) => { appliedConfig = next; },
+      setError: (msg) => { lastError = msg; },
+      setWorking: (tag) => { workingStates.push(tag); },
+    });
+
+    await actions.recoverConfig();
+    assert.deepEqual(calls, [['desktop.config.recover', {}]], 'recoverConfig invokes desktop.config.recover');
+    assert.equal(appliedConfig, recoveredConfig);
+    assert.equal(refreshed, 1);
+    assert.equal(lastError, '');
+    assert.deepEqual(workingStates, ['recover-config', '']);
+
+    const corruptConfig = {
+      mode: 'openai',
+      providers: [],
+      openai: { providerId: 'custom', baseUrl: '', model: '', hasKey: false, keyLast4: '' },
+      configPath: '/tmp/desktop.json',
+      configProblem: { code: 'config-corrupt', path: '/tmp/desktop.json' },
+      effective: { ready: false },
+    };
+    const setupMounted = ui.mount(() => h(ui.exports.DesktopSetupBody, {
+      config: corruptConfig,
+      actions,
+      working: '',
+      error: '',
+      onDismissError: () => {},
+      compact: false,
+    }));
+    try {
+      assert.match(setupMounted.text(), /配置文件已损坏/);
+      const recoverBtn = setupMounted.find((n) => n.type === 'button' && setupMounted.text(n).includes('备份并重置配置'));
+      assert.ok(recoverBtn, 'DesktopSetupBody renders 「备份并重置配置」 action when configProblem is set');
+      await setupMounted.act(() => click(recoverBtn));
+      assert.equal(calls.length, 2);
+      assert.deepEqual(calls[1], ['desktop.config.recover', {}]);
+
+      setupMounted.rerender(() => h(ui.exports.DesktopSetupBody, {
+        config: recoveredConfig,
+        actions,
+        working: '',
+        error: '',
+        onDismissError: () => {},
+        compact: false,
+      }));
+      assert.doesNotMatch(setupMounted.text(), /配置文件已损坏/, 'corrupt banner hides when configProblem is null');
+    } finally {
+      setupMounted.unmount();
+    }
+  });
+});
+
+test('#1436 Item 8d: TUI overlay config store forwards save(next, opts) without leaking env key and supports recover()', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'studyhub-1436-item8-tui-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+  const baseSaveCalls = [];
+  let capturedOverlayStore = null;
+  const stubKey = '__STUDY_TUI_OVERLAY_DEPS__';
+  globalThis[stubKey] = {
+    async loadDesktopDeps() {
+      return {
+        desktopRoot: resolve('packages/studyhub-desktop'),
+        createConfigStore(opts) {
+          const real = createConfigStore(opts);
+          return {
+            get dshHome() { return real.dshHome; },
+            get configPath() { return real.configPath; },
+            get defaultRoot() { return real.defaultRoot; },
+            load: () => real.load(),
+            save: (next, saveOpts) => {
+              baseSaveCalls.push({ next, opts: saveOpts });
+              return real.save(next, saveOpts);
+            },
+            recover: () => real.recover(),
+            saveLibraryRoot: (root) => real.saveLibraryRoot(root),
+            confirmLibraryPlace: () => real.confirmLibraryPlace(),
+          };
+        },
+        createDesktopHost(args) {
+          capturedOverlayStore = args.configStore;
+          return createDesktopHost(args);
+        },
+        createProcessRunner: () => ({ run: async () => ({ code: 0, stdout: '', stderr: '' }) }),
+        createDesktopLibraryEvents: () => null,
+        createInProcessJobExecutor: () => ({ asDshJobsService: () => ({}), dispose: () => {} }),
+        createOpenAiCompleteAdapter: () => undefined,
+        createAgyCompleteAdapter: () => undefined,
+        createCodexCompleteAdapter: () => undefined,
+        openableExternalUrl: () => null,
+        localizeProviders: (providers) => providers,
+        resolveEffectiveModel: () => ({ ready: false, label: '', reason: '', provider: '', model: '', maxConcurrency: null, defaultConcurrency: null }),
+        redactDesktopConfig: (config) => config,
+        spawnDetached: () => {},
+      };
+    },
+  };
+  t.after(() => { delete globalThis[stubKey]; });
+
+  const compiled = await build({
+    entryPoints: [resolve('packages/studyhub-tui/src/host/tui-host.ts')],
+    bundle: true,
+    write: false,
+    platform: 'node',
+    format: 'cjs',
+    plugins: [{
+      name: 'tui-host-test-deps',
+      setup(builder) {
+        builder.onResolve({ filter: /^signal-exit$/ }, () => ({ path: 'signal-exit', namespace: 'tui-stub' }));
+        builder.onLoad({ filter: /^signal-exit$/, namespace: 'tui-stub' }, () => ({
+          contents: 'export const onExit = () => () => {};',
+          loader: 'js',
+        }));
+        builder.onResolve({ filter: /^\.\/desktop-deps\.js$/ }, () => ({ path: 'desktop-deps', namespace: 'tui-stub' }));
+        builder.onLoad({ filter: /^desktop-deps$/, namespace: 'tui-stub' }, () => ({
+          contents: `export const loadDesktopDeps = () => globalThis[${JSON.stringify(stubKey)}].loadDesktopDeps();`,
+          loader: 'js',
+        }));
+      },
+    }],
+    logLevel: 'silent',
+  });
+  const tuiMod = { exports: {} };
+  new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, tuiMod, tuiMod.exports);
+
+  const envSecret = 'sk-env-secret-1234';
+  const preStore = createConfigStore({ env: { DSH_HOME: dir }, home: dir, documentsDir: join(dir, 'docs') });
+  mkdirSync(dirname(preStore.configPath), { recursive: true });
+  writeFileSync(preStore.configPath, '{CORRUPT_TUI_JSON', 'utf8');
+
+  const tuiHost = await tuiMod.exports.createTuiHost({
+    env: { DSH_HOME: dir, OPENAI_API_KEY: envSecret },
+    home: dir,
+    documentsDir: join(dir, 'docs'),
+    skipAutoProbe: true,
+    providerDiscovery: { scan: async () => [], getCached: () => [], findReadyPath: () => '', findReadyAgyPath: () => '', findReadyCodexPath: () => '' },
+  });
+  t.after(() => tuiHost.dispose());
+
+  assert.ok(capturedOverlayStore, 'TUI host passes overlay store to createDesktopHost');
+
+  // Default save refuses corrupt desktop.json
+  const saveBlocked = await tuiHost.call('desktop.config.save', { mode: 'openai' });
+  assert.equal(saveBlocked.ok, false);
+  assert.equal(saveBlocked.error?.code, 'config-corrupt');
+
+  // Overlay store forwards opts ({ force: true }) to base.save AND scrubs the env API key
+  await capturedOverlayStore.save({
+    mode: 'openai',
+    openai: { providerId: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini', apiKey: envSecret },
+  }, { force: true });
+
+  const forcedCall = baseSaveCalls.at(-1);
+  assert.deepEqual(forcedCall?.opts, { force: true }, 'TUI overlay store must forward opts to base.save');
+  assert.equal(forcedCall?.next?.openai?.apiKey, '', 'TUI overlay store must scrub env API key before saving');
+  const persisted = readFileSync(preStore.configPath, 'utf8');
+  assert.doesNotMatch(persisted, /sk-env-secret-1234/, 'env API key must never be written to desktop.json');
+
+  // Re-corrupt and verify TUI host recover() delegates to base.recover()
+  writeFileSync(preStore.configPath, '{CORRUPT_AGAIN', 'utf8');
+  const rec = await tuiHost.call('desktop.config.recover', {});
+  assert.equal(rec.ok, true);
+  assert.equal(rec.value.recovered, true);
+  assert.equal(rec.value.config.configProblem, null);
 });
 
 // Recovery must never lose a config that is merely locked or still fine: it re-reads first, only a parse failure is "corrupt",
