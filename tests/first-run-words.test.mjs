@@ -7,6 +7,9 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { nativeSelects } from './helpers/native-selects.mjs';
+import { inApp } from './helpers/fake-app.mjs';
+import { withStudy } from './helpers/study-services.mjs';
 
 const han = /[㐀-鿿]/;
 const require = createRequire(import.meta.url);
@@ -18,8 +21,17 @@ const compiled = await build({
     export { OnboardingPanel } from './ui/tour/SampleControls.jsx';
     export { readTourProgress, writeTourProgress } from './ui/tour/progress.js';
     export { TOUR_STEPS, CORE_TOUR_LENGTH } from './ui/tour/steps.js';
-    export { default as SetupChecklist, stepAction } from './ui/SetupChecklist.jsx';`, resolveDir: process.cwd() },
-  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent',
+    export { default as SetupChecklist, stepAction } from './ui/SetupChecklist.jsx';
+    export { createSetupHandlers } from './ui/app/setup-handlers.js';
+    export { default as AppSidebar } from './ui/app/AppSidebar.jsx';
+    export { default as DailyPlan } from './ui/DailyPlan.jsx';
+    export { default as ExamPrepCreate } from './ui/exam-prep/ExamPrepCreate.jsx';
+    export { default as Generate } from './ui/Generate.jsx';
+    export { GENERATION_DEFAULTS } from './ui/generation-status.js';
+    export { emptyPicks } from './ui/exam-prep/form.js';
+    export { AppContext } from './ui/app/app-context.js';
+    export { StudyServicesContext } from './ui/study-context.jsx';`, resolveDir: process.cwd() },
+  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent',
 });
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, loaded, loaded.exports);
@@ -90,16 +102,64 @@ test('a paused full tour is remembered as the full tour; the short tour leaves t
   } finally { delete globalThis.localStorage; }
 });
 
-test('the checklist button for the skeleton goes to the page, and says so (it generates nothing)', async () => {
+test('the checklist button for the skeleton goes to the page, and says so (it generates nothing)', () => {
   m.setUiLanguage('zh');
   assert.equal(m.stepAction({ id: 'skeleton', action: 'skeleton' }, { course: '' }, { skeleton: noop }).label, '去知识骨架页');
-  const source = await readFile('ui/app/setup-handlers.js', 'utf8');
-  assert.match(source, /skeleton: \(\) => nav\.navigate\('skeleton'\)/, 'the handler only navigates');
-  const checklist = await readFile('ui/SetupChecklist.jsx', 'utf8');
-  assert.doesNotMatch(checklist, /ui\("生成知识骨架"\)/);
-  assert.doesNotMatch(checklist, /ui\("(导入资料|加入资料)"\)|先加入资料/);
-  // No button anywhere is called 导入资料 any more: the page where it was a second name (创建题组, 今天先做什么, 备考补习) says 添加资料.
-  for (const file of ['ui/Generate.jsx', 'ui/DailyPlan.jsx', 'ui/exam-prep/ExamPrepCreate.jsx']) assert.doesNotMatch(await readFile(file, 'utf8'), /ui\((['"])导入资料\)/, file);
+
+  const calls = { navigate: [], setModal: [], goGenerate: [], openDraft: [], openSettings: [], setCourseSettings: [] };
+  const handlers = m.createSetupHandlers({
+    data: { sources: [], drafts: [], focus: {} },
+    nav: { navigate: (...args) => calls.navigate.push(args) },
+    set: { setModal: (...args) => calls.setModal.push(args) },
+    intents: { goGenerate: (...args) => calls.goGenerate.push(args) },
+    drafts: { openDraft: (...args) => calls.openDraft.push(args) },
+    settingsEntry: { openSettings: (...args) => calls.openSettings.push(args), setCourseSettings: (...args) => calls.setCourseSettings.push(args) },
+  });
+  handlers.skeleton();
+  assert.deepEqual(calls.navigate, [['skeleton']], 'the handler only navigates to skeleton');
+  assert.deepEqual(calls.goGenerate, [], 'it does not trigger generation');
+  assert.deepEqual(calls.setModal, []);
+  assert.deepEqual(calls.openDraft, []);
+  assert.deepEqual(calls.openSettings, []);
+  assert.deepEqual(calls.setCourseSettings, []);
+
+  // Render the checklist for a course with no materials (while another course exists) and for a course with a deck:
+  // it says 添加资料 / 先添加资料 / 去知识骨架页, never 生成知识骨架 / 导入资料 / 加入资料.
+  const emptyCourse = { root: '/l', focus: { course: 'OS', courses: ['OS', 'Math'] }, courses: [{ id: 'c1', name: 'OS' }], sources: [], decks: [{ id: 'd-math', course: 'Math', cards: [{ id: 'm1' }] }], drafts: [], skeletons: [], model: { ready: true } };
+  const emptyChecklistText = text(renderToStaticMarkup(withStudy(m.StudyServicesContext, h(m.SetupChecklist, { data: emptyCourse, on: handlers, initialOpen: true }))));
+  assert.match(emptyChecklistText, /添加资料/);
+  assert.match(emptyChecklistText, /先添加资料，再出题/);
+  assert.doesNotMatch(emptyChecklistText, /导入资料|加入资料|先加入资料/);
+
+  const courseWithDeck = { ...emptyCourse, decks: [{ id: 'd-os', course: 'OS', cards: [{ id: 'q1' }] }] };
+  const deckChecklistText = text(renderToStaticMarkup(withStudy(m.StudyServicesContext, h(m.SetupChecklist, { data: courseWithDeck, on: handlers, initialOpen: true }))));
+  assert.match(deckChecklistText, /去知识骨架页/);
+  assert.doesNotMatch(deckChecklistText, /生成知识骨架|导入资料|加入资料|先加入资料/);
+
+  // The pages where 导入资料 used to be a second name (创建题组, 今天先做什么, 备考补习) all render 添加资料 buttons.
+  const generateMarkup = renderToStaticMarkup(withStudy(m.StudyServicesContext, h(m.Generate, {
+    data: emptyCourse, running: false, openDraft: noop, setPage: noop, genSource: 'files', setGenSource: noop,
+    gen: m.GENERATION_DEFAULTS, setGen: noop, selectedSources: [], setSelectedSources: noop, setModal: noop, openModelSettings: noop, onStarted: noop,
+  })));
+  assert.match(generateMarkup, />添加资料</);
+  assert.doesNotMatch(generateMarkup, />导入资料</);
+
+  const plan = {
+    state: { date: '2026-10-05', budgetMinutes: 30, spentMinutes: 0, tasks: [], proposal: { id: 'p1', items: [], emptyReason: 'nothing-due' } },
+    busy: false, error: '', suggest: noop, accept: noop, start: noop, complete: noop, refresh: noop,
+  };
+  const dailyPlanMarkup = renderToStaticMarkup(withStudy(m.StudyServicesContext, h(m.DailyPlan, { plan, modelReady: true, openModelSettings: noop })));
+  assert.match(dailyPlanMarkup, />添加资料</);
+  assert.doesNotMatch(dailyPlanMarkup, />导入资料</);
+
+  const examPrepMarkup = renderToStaticMarkup(withStudy(m.StudyServicesContext, h(m.ExamPrepCreate, {
+    data: emptyCourse,
+    initial: { course: 'OS', askCourse: false, others: false, picks: m.emptyPicks(), title: '', language: '', notes: '', reading: { title: '', author: '', url: '', note: '' } },
+    onBack: noop, onStarted: noop, openSettings: noop, openImport: noop,
+  })));
+  assert.match(examPrepMarkup, />添加资料</);
+  assert.doesNotMatch(examPrepMarkup, />导入资料</);
+
   m.setUiLanguage('en');
   try { assert.match(m.stepAction({ id: 'skeleton', action: 'skeleton' }, { course: '' }, { skeleton: noop }).label, /^Open the knowledge outline page$/); } finally { m.setUiLanguage('zh'); }
 });
@@ -126,7 +186,28 @@ test('StudyHub says what it is once: the welcome page, the sidebar, the READMEs 
   const guides = (await readdir('docs')).filter((name) => name.endsWith('.md'));
   for (const name of guides) assert.doesNotMatch(await read(`docs/${name}`), /removed in 3\.6|在 3\.6 版移除|before 3\.6|3\.6 之前|replaced `mineruSetup` in 3\.6/, `docs/${name}: the MinerU cloud route went in 3.5.5, not 3.6`);
   assert.doesNotMatch(await read('lib/runtime-config.js'), /\(3\.6; replaces mineruSetup\)/, 'the host-config description names the release that shipped the install');
-  assert.match(await read('ui/app/AppSidebar.jsx'), /<small>\{ui\('每道题都点得回原页'\)\}<\/small>/, 'the sidebar has room for the first clause only');
+  const sidebarApp = {
+    shell: { navDrawer: false, navOpen: false, narrowWindow: false, rootRef: { current: null }, setSidebarCollapsed: noop, setNavOpen: noop },
+    nav: { page: 'library', navPage: 'library', pageTarget: null, navigate: noop },
+    session: { run: null, onCoachPractice: noop, actions: { openShortcutHelp: noop } },
+    intents: { resumeOrStart: noop },
+    board: { count: 0, due: { overdue: 0, today: 0 } },
+    finder: { openFinder: noop },
+  };
+  const renderSidebar = () => renderToStaticMarkup(inApp(m, h(m.AppSidebar), {
+    data: { root: '/l', decks: [], sources: [], drafts: [], jobs: [] },
+    app: sidebarApp,
+  }));
+  m.setUiLanguage('zh');
+  const sidebarZh = renderSidebar();
+  assert.match(sidebarZh, /<small>每道题都点得回原页<\/small>/, 'the sidebar has room for the first clause only');
+  assert.doesNotMatch(sidebarZh, /做完一轮/);
+  m.setUiLanguage('en');
+  try {
+    const sidebarEn = renderSidebar();
+    const taglineEn = (sidebarEn.match(/<small>([^<]*)<\/small>/) || [])[1] || '';
+    assert.ok(taglineEn.length > 0 && !han.test(taglineEn), `English sidebar tagline is translated: ${taglineEn}`);
+  } finally { m.setUiLanguage('zh'); }
   assert.match(JSON.parse(await read('package.json')).description, /^StudyHub: turn your lecture slides into questions that each link back to their page/);
   assert.match(JSON.parse(await read('locale/zh.json')).meta.description, /^把老师的课件变成题，每道题都点得回原页/);
 });

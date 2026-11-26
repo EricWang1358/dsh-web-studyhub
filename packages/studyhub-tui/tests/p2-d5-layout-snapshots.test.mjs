@@ -204,15 +204,215 @@ describe('P2 (#1354 D5): Breakpoints, Typography/Scroll Primitives & 80x24 / 120
       'LibraryView must use centralized LAYOUT_BP instead of hardcoded width >= 64 / 96',
     );
 
-    const readerSrc = fs.readFileSync(path.join(srcDir, 'views/sources/DocumentReader.tsx'), 'utf8');
-    assert.match(readerSrc, /\bScrollArea\b/, 'DocumentReader must render longform prose via <ScrollArea>');
-
     const sourcesSrc = fs.readFileSync(path.join(srcDir, 'views/sources/SourcesView.tsx'), 'utf8');
     assert.doesNotMatch(sourcesSrc, /\bwidth\s*<\s*82\b/, 'SourcesView must use LAYOUT_BP instead of hardcoded width < 82');
-    assert.match(sourcesSrc, /\bScrollArea\b/, 'SourcesView must render excerpt via <ScrollArea>');
+  });
 
-    const tasksSrc = fs.readFileSync(path.join(srcDir, 'views/tasks/TasksView.tsx'), 'utf8');
-    assert.match(tasksSrc, /\bScrollArea\b/, 'TasksView must render job output/logs via <ScrollArea>');
+  test('3b. DocumentReader, SourcesView, and TasksView behaviorally clamp and scroll overflow content within viewport bounds', async () => {
+    const { KeyScopeProvider, useKeyDispatcherBridge } = await import('../src/components/key-dispatcher.ts');
+    const { useTuiStore, DEFAULT_PREFERENCES } = await import('../src/state/store.ts');
+    const { DocumentReader } = await import('../src/views/sources/DocumentReader.tsx');
+    const { SourcesView } = await import('../src/views/sources/SourcesView.tsx');
+    const { TasksView } = await import('../src/views/tasks/TasksView.tsx');
+
+    const prevStore = {
+      preferences: useTuiStore.getState().preferences,
+      snapshot: useTuiStore.getState().snapshot,
+      navContext: useTuiStore.getState().navContext,
+    };
+
+    const waitFrame = async (harness, predicate, label, timeoutMs = 4000) => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const frame = harness.lastFrame();
+        if (predicate(frame)) return frame;
+        await sleep(20);
+      }
+      assert.fail(`Timed out waiting for ${label}.\nLast frame:\n${harness.lastFrame()}`);
+    };
+
+    function ViewBridge({ children }) {
+      useKeyDispatcherBridge();
+      return React.createElement(KeyScopeProvider, null, children);
+    }
+
+    try {
+      useTuiStore.setState({
+        preferences: { ...DEFAULT_PREFERENCES, language: 'zh', asciiMode: true, compactMode: true },
+        navContext: {},
+      });
+
+      // 1) DocumentReader: long page text clamps to viewport height and scrolls on 'j' / PgDn
+      const readerText = Array.from({ length: 30 }, (_, i) => `READER_ROW_${String(i + 1).padStart(2, '0')} longform prose`).join('\n\n');
+      const readerHost = {
+        call: async (action) => {
+          if (action === 'materials.document.get') {
+            return { ok: true, value: { documentId: 'doc-scroll', title: '长文阅读测试', format: 'md', sources: [{ id: 'src-scroll-1' }] } };
+          }
+          if (action === 'source.pages') {
+            return {
+              ok: true,
+              value: {
+                documentId: 'doc-scroll',
+                title: '长文阅读测试',
+                pages: '1-1',
+                shown: [{ page: 1, sourceId: 'src-scroll-1', text: readerText, chars: readerText.length }],
+              },
+            };
+          }
+          return { ok: true, value: {} };
+        },
+        subscribe: () => () => {},
+        dispose: async () => {},
+      };
+
+      const readerH = createScrollHarness(
+        React.createElement(
+          ViewBridge,
+          null,
+          React.createElement(DocumentReader, {
+            host: readerHost,
+            sourceId: 'src-scroll-1',
+            documentId: 'doc-scroll',
+            initialPage: 1,
+            initialTitle: '长文阅读测试',
+            width: 78,
+            height: 14,
+            isActive: true,
+            onClose: () => {},
+          }),
+        ),
+        { cols: 80, rows: 16 },
+      );
+      try {
+        const initialReader = await waitFrame(readerH, (f) => f.includes('READER_ROW_01'), 'DocumentReader initial clamped frame');
+        assert.ok(!initialReader.includes('READER_ROW_30'), `DocumentReader must clamp overflow tail initially:\n${initialReader}`);
+        assert.ok(initialReader.includes('0%'), `DocumentReader must show 0% scroll indicator:\n${initialReader}`);
+        assert.ok(initialReader.split('\n').length <= 16, `DocumentReader exceeded viewport height: ${initialReader.split('\n').length}`);
+
+        for (let step = 0; step < 8; step += 1) {
+          readerH.stdin.write('j');
+          await sleep(15);
+        }
+        const scrolledReader = await waitFrame(
+          readerH,
+          (f) => !f.includes('READER_ROW_01') && /READER_ROW_(?:0[7-9]|1\d|2\d|30)/.test(f),
+          'DocumentReader scrolled down via j',
+        );
+        assert.match(scrolledReader, /\b(?:[1-9]\d?|100)%/, `DocumentReader scroll percentage must advance:\n${scrolledReader}`);
+      } finally {
+        readerH.inst.unmount();
+      }
+
+      // 2) SourcesView: overflow excerpt clamps cleanly inside the detail ScrollArea
+      const excerptText = Array.from({ length: 30 }, (_, i) => `EXCERPT_ROW_${String(i + 1).padStart(2, '0')} source detail`).join('\n');
+      useTuiStore.setState({
+        snapshot: {
+          sources: [
+            {
+              id: 'src-excerpt-1',
+              title: '溢出摘录资料',
+              format: 'md',
+              chars: excerptText.length,
+              courses: [],
+            },
+          ],
+          decks: [],
+          jobs: [],
+          archivedJobs: [],
+          focus: { courses: [] },
+        },
+        navContext: {},
+      });
+      const sourcesHost = {
+        call: async (action) => {
+          if (action === 'source.get') {
+            return { ok: true, value: { id: 'src-excerpt-1', text: excerptText } };
+          }
+          return { ok: true, value: {} };
+        },
+        subscribe: () => () => {},
+        dispose: async () => {},
+      };
+
+      const sourcesH = createScrollHarness(
+        React.createElement(
+          ViewBridge,
+          null,
+          React.createElement(SourcesView, {
+            host: sourcesHost,
+            width: 108,
+            height: 18,
+            isActive: true,
+          }),
+        ),
+        { cols: 110, rows: 20 },
+      );
+      try {
+        const sourcesFrame = await waitFrame(sourcesH, (f) => f.includes('EXCERPT_ROW_01'), 'SourcesView clamped excerpt');
+        assert.ok(!sourcesFrame.includes('EXCERPT_ROW_30'), `SourcesView excerpt must clamp overflow rows:\n${sourcesFrame}`);
+        assert.ok(sourcesFrame.includes('0%'), `SourcesView excerpt must show scroll indicator:\n${sourcesFrame}`);
+        assert.ok(sourcesFrame.split('\n').length <= 20, `SourcesView exceeded viewport height: ${sourcesFrame.split('\n').length}`);
+      } finally {
+        sourcesH.inst.unmount();
+      }
+
+      // 3) TasksView: overflow job output clamps to detail ScrollArea and follows tail for running jobs
+      const taskLogText = Array.from({ length: 30 }, (_, i) => `TASK_LOG_${String(i + 1).padStart(2, '0')} streaming step`).join('\n');
+      const runningJob = {
+        id: 'job-scroll-1',
+        title: '长日志任务',
+        type: 'generate',
+        status: 'running',
+        progress: 0.5,
+        phase: 'generate',
+        calls: [{ id: 'call-1', status: 'running', stage: 'generate' }],
+      };
+      useTuiStore.setState({
+        snapshot: {
+          sources: [],
+          decks: [],
+          jobs: [runningJob],
+          archivedJobs: [],
+          focus: { courses: [] },
+        },
+        navContext: {},
+      });
+      const tasksHost = {
+        call: async (action) => {
+          if (action === 'job.list') return { ok: true, value: { jobs: [runningJob] } };
+          if (action === 'job.output') return { ok: true, value: { text: taskLogText, supported: true } };
+          if (action === 'job.trace') return { ok: true, value: { calls: [] } };
+          return { ok: true, value: {} };
+        },
+        subscribe: () => () => {},
+        dispose: async () => {},
+      };
+
+      const tasksH = createScrollHarness(
+        React.createElement(
+          ViewBridge,
+          null,
+          React.createElement(TasksView, {
+            host: tasksHost,
+            width: 108,
+            height: 18,
+            isActive: true,
+          }),
+        ),
+        { cols: 110, rows: 20 },
+      );
+      try {
+        const tasksFrame = await waitFrame(tasksH, (f) => f.includes('TASK_LOG_30'), 'TasksView tail-following output ScrollArea');
+        assert.ok(!tasksFrame.includes('TASK_LOG_01'), `TasksView running job log must clamp head rows when following tail:\n${tasksFrame}`);
+        assert.ok(tasksFrame.includes('100%'), `TasksView running job log must show 100% tail indicator:\n${tasksFrame}`);
+        assert.ok(tasksFrame.split('\n').length <= 20, `TasksView exceeded viewport height: ${tasksFrame.split('\n').length}`);
+      } finally {
+        tasksH.inst.unmount();
+      }
+    } finally {
+      useTuiStore.setState(prevStore);
+    }
   });
 
   test('4. Golden 80x24 & 120x36 rendered snapshots inside AppShell across all 5 migrated views + <60x18 too-small guard (0 model calls)', async () => {

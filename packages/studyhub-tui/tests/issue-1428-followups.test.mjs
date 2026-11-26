@@ -4,11 +4,8 @@
 //   ③ ImeCursorAnchor immediate terminal cursor recomputation on ancestor/sibling layout shift (no keystroke wait)
 // Run: node --test tests/issue-1428-followups.test.mjs
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { after, describe, test } from 'node:test';
-import { fileURLToPath } from 'node:url';
 import React, { useRef, useState } from 'react';
 import { Box, Text, render } from 'ink';
 import { register } from 'tsx/esm/api';
@@ -18,11 +15,9 @@ after(() => {
   unregisterTsx?.();
 });
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SRC_ROOT = path.resolve(__dirname, '../src');
-
 const { AppShell } = await import('../src/shell/AppShell.tsx');
 const { useTuiStore } = await import('../src/state/store.ts');
+const { getHub } = await import('../src/input/dispatcher.ts');
 const { useScopedInput, KEY_LAYER_VIEW, KEY_LAYER_WIDGET } = await import('../src/components/key-dispatcher.ts');
 const imeMod = await import('../src/components/ime-cursor.tsx');
 const { ImeCursorAnchor, absoluteOrigin } = imeMod;
@@ -37,16 +32,7 @@ function createMockStreams(columns = 120, rows = 36) {
   stdout.isTTY = true;
   stdout.columns = columns;
   stdout.rows = rows;
-  const chunks = [];
-  stdout.on('data', (d) => chunks.push(d.toString('utf8')));
-  return {
-    stdin,
-    stdout,
-    output: () => chunks.join(''),
-    clearOutput: () => {
-      chunks.length = 0;
-    },
-  };
+  return { stdin, stdout };
 }
 
 const wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
@@ -105,16 +91,7 @@ function resetStore(page = 'library') {
 }
 
 describe('#1428 follow-ups (①②③) — Guardrails & Regression', () => {
-  test('① Static guardrail: AssistantPanel routes through KEY_LAYER_DRAWER + sink, and AppShell isolates focused dock with KeyScopeProvider', () => {
-    const panelSrc = fs.readFileSync(path.join(SRC_ROOT, 'shell/AssistantPanel.tsx'), 'utf8');
-    const shellSrc = fs.readFileSync(path.join(SRC_ROOT, 'shell/AppShell.tsx'), 'utf8');
-
-    assert.match(panelSrc, /KEY_LAYER_DRAWER/, 'AssistantPanel must register its main handler at KEY_LAYER_DRAWER');
-    assert.match(panelSrc, /KEY_LAYER_MODAL_FRAME/, 'AssistantPanel must register a single-letter catch-all sink at KEY_LAYER_MODAL_FRAME');
-    assert.match(shellSrc, /<KeyScopeProvider\s+opaque=\{assistantScopeActive\}>/, 'AppShell must wrap docked/fullscreen AssistantPanel in <KeyScopeProvider opaque={assistantScopeActive}>');
-  });
-
-  test('① Runtime isolation: focused AssistantPanel blocks ALL left-page single-letter & global keys via KeyDispatcher', async () => {
+  test('① Runtime isolation: focused AssistantPanel pushes an opaque KeyScope and blocks ALL left-page single-letter & global keys via KeyDispatcher', async () => {
     resetStore('library');
     const leaked = [];
 
@@ -151,9 +128,13 @@ describe('#1428 follow-ups (①②③) — Guardrails & Regression', () => {
 
     try {
       await wait(80);
+      const hub = getHub(stdin);
+      assert.equal(hub.opaqueStack.size, 0, 'closed assistant must not hold an opaque KeyScope');
+
       // Open & focus the docked assistant panel
       useTuiStore.getState().openAssistant({ focused: true });
       await wait(120);
+      assert.ok(hub.opaqueStack.size >= 1, 'focused docked AssistantPanel must push an opaque KeyScope barrier');
 
       // Send single-letter keys that would normally trigger global nav ('b'->board, 'd'->dashboard, 's'->sources)
       // or left-page shortcuts ('x', 'm', 'g', 'q').
@@ -165,27 +146,28 @@ describe('#1428 follow-ups (①②③) — Guardrails & Regression', () => {
       assert.deepEqual(leaked, [], `Focused AssistantPanel must not leak single-letter keys to left page, got: ${leaked.join(', ')}`);
       assert.equal(useTuiStore.getState().page, 'library', 'Focused AssistantPanel must not let global page shortcuts navigate away');
 
-      // When passive (unfocused dock), left page receives single-letter keys normally
+      // Fullscreen focused assistant must also hold an opaque scope and isolate single-letter/global keys
+      useTuiStore.getState().setAssistantFullscreen(true);
+      await wait(80);
+      assert.ok(hub.opaqueStack.size >= 1, 'fullscreen AssistantPanel must keep an opaque KeyScope barrier');
+      for (const ch of ['b', 'd', 'x']) {
+        stdin.write(ch);
+        await wait(25);
+      }
+      assert.deepEqual(leaked, [], `Fullscreen AssistantPanel must not leak keys to left page, got: ${leaked.join(', ')}`);
+      assert.equal(useTuiStore.getState().page, 'library', 'Fullscreen AssistantPanel must not trigger global navigation');
+
+      // When passive (unfocused dock), opaque scope pops and left page receives single-letter keys normally
+      useTuiStore.getState().setAssistantFullscreen(false);
       useTuiStore.getState().setAssistantFocused(false);
       await wait(80);
+      assert.equal(hub.opaqueStack.size, 0, 'passive (unfocused) dock must release the opaque KeyScope barrier');
       stdin.write('x');
       await wait(40);
       assert.ok(leaked.includes('view:x'), 'Passive (unfocused) dock must let left page receive single-letter keys');
     } finally {
       inst.unmount();
     }
-  });
-
-  test('② Static guardrail: escKeepsDock applies to all docked pages and AppShell folds passive dock on Esc', () => {
-    const panelSrc = fs.readFileSync(path.join(SRC_ROOT, 'shell/AssistantPanel.tsx'), 'utf8');
-    const shellSrc = fs.readFileSync(path.join(SRC_ROOT, 'shell/AppShell.tsx'), 'utf8');
-
-    assert.ok(
-      !/escKeepsDock\s*=\s*Boolean\(docked\)\s*&&\s*page\s*===\s*'review'/.test(panelSrc),
-      'escKeepsDock must no longer be restricted to page === "review"',
-    );
-    assert.match(panelSrc, /escKeepsDock\s*=\s*Boolean\(docked\)/, 'escKeepsDock should apply to every docked page');
-    assert.match(shellSrc, /if\s*\(key\.escape\)/, 'AppShell:global must handle passive dock folding on Esc');
   });
 
   test('② Runtime 2-step Esc: works uniformly on non-review pages (library & board), respects page-level Esc first, and handles fullscreen 3-step', async () => {

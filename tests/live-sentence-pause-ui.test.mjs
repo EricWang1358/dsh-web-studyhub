@@ -3,16 +3,17 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 /* 断句停顿 in the UI: the field in 音频设置 next to the live engine choice (a SegmentedControl, one Hint line, a Tooltip that never uses title=), the
    one quiet line on the live page when a fast speaker never pauses (a pure function decides), and the way from that line to the field. */
 
 const mod = await loadUi(`export { LiveEngineChoice } from './ui/AudioSettings.jsx';
-  export { LIVE_PAUSE_ANCHOR, PAUSE_HINT_CHARS, PAUSE_HINT_MS, initialPauseWatch, pauseHint } from './ui/live-pause-hint.js';
+  export { LIVE_PAUSE_ANCHOR, initialPauseWatch, pauseHint } from './ui/live-pause-hint.js';
   export { audioFocusPending, audioFocusTarget, openAudioSettings, requestAudioSettingsFocus, takeAudioSettingsFocus } from './ui/audio-focus.js';
   export { categoryForAnchor } from './ui/settings-groups.js';
   export { setUiLanguage } from './ui/i18n.js';`);
-const { LiveEngineChoice, LIVE_PAUSE_ANCHOR, PAUSE_HINT_CHARS, PAUSE_HINT_MS, initialPauseWatch, pauseHint } = mod;
+const { LiveEngineChoice, LIVE_PAUSE_ANCHOR, initialPauseWatch, pauseHint } = mod;
 const h = React.createElement;
 const han = /[㐀-鿿]/;
 const textOf = html => html.replace(/<[^>]*>/g, ' ').replace(/&[a-z#0-9]+;/g, ' ').replace(/\s+/g, ' ');
@@ -25,7 +26,6 @@ const render = (view, language = 'zh') => {
 test('the field sits with the live engine choice: label, three segments (the current one pressed), one hint, a tooltip, and the tour anchor', () => {
   const html = render({ liveProvider: 'auto', liveSentencePause: 'short' });
   const text = textOf(html);
-  assert.equal(LIVE_PAUSE_ANCHOR, 'settings-live-pause');
   assert.match(html, /data-tour="settings-live-pause"/);
   assert.match(text, /断句停顿/);
   assert.match(text, /短 · 讲得快[\s\S]*标准[\s\S]*长 · 讲得慢/);
@@ -82,13 +82,11 @@ test('the audio settings request can name the field: it is pending until the sec
 
 /* ---- the live page's line ---- */
 
-const long = 'x'.repeat(PAUSE_HINT_CHARS);
+const long = 'x'.repeat(150);
 const snap = (over = {}) => ({ id: 'a', active: true, count: 0, interim: long, ...over });
 const step = (watch, over, now) => pauseHint(watch, snap(over), now);
 
 test('the hint: more than 60 s of one growing line with at least 150 characters and no new sentence, and only then', () => {
-  assert.equal(PAUSE_HINT_MS, 60_000);
-  assert.equal(PAUSE_HINT_CHARS, 150);
   let r = step(initialPauseWatch(), {}, 1_000);
   assert.equal(r.show, false, 'just started');
   r = step(r.watch, {}, 1_000 + 60_000);
@@ -100,11 +98,11 @@ test('the hint: more than 60 s of one growing line with at least 150 characters 
 });
 
 test('the hint waits for 150 characters, and for text at all', () => {
-  let r = step(initialPauseWatch(), { interim: 'short line' }, 0);
-  r = step(r.watch, { interim: 'short line' }, 120_000);
-  assert.equal(r.show, false, 'two minutes of a short line is not a fast speaker');
-  r = step(r.watch, { interim: long }, 121_000);
-  assert.equal(r.show, true, 'it shows as soon as the line is long enough');
+  let r = step(initialPauseWatch(), { interim: 'x'.repeat(149) }, 0);
+  r = step(r.watch, { interim: 'x'.repeat(149) }, 120_000);
+  assert.equal(r.show, false, '149 characters is still below the 150-character threshold');
+  r = step(r.watch, { interim: 'x'.repeat(150) }, 121_000);
+  assert.equal(r.show, true, 'it shows as soon as the line reaches 150 characters');
   r = step(initialPauseWatch(), { interim: '' }, 0);
   r = step(r.watch, { interim: '' }, 300_000);
   assert.equal(r.show, false, 'silence is not a missing pause');
@@ -134,10 +132,79 @@ test('the same input twice gives the same answer (a render may run twice)', () =
   assert.deepEqual(again, first);
 });
 
-test('the live page carries the line, the link to the field, and no title= on it', async () => {
-  const { readFile } = await import('node:fs/promises');
-  const source = await readFile(new URL('../ui/LiveClass.jsx', import.meta.url), 'utf8');
-  assert.match(source, /usePauseHint\(session\)/);
-  assert.match(source, /openAudioSettings\(onSettings, LIVE_PAUSE_ANCHOR\)/);
-  assert.match(source, /讲得很快、一直没有断句？到 音频设置 › 断句停顿 选『短』，下次开始或接着录时生效。/);
+test('the live page carries the line, the link to the field, and no title= on it', async (t) => {
+  let nowMs = 1_700_000_000_000;
+  t.mock.method(Date, 'now', () => nowMs);
+  const interactive = await loadInteractiveUi(`
+    export { default as LiveClass } from './ui/LiveClass.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { LIVE_PAUSE_ANCHOR } from './ui/live-pause-hint.js';
+    export { audioFocusPending, audioFocusTarget, takeAudioSettingsFocus } from './ui/audio-focus.js';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const ih = interactive.React.createElement;
+  await withBrowserGlobals(async () => {
+    interactive.exports.setUiLanguage('zh');
+    interactive.exports.takeAudioSettingsFocus();
+    let settingsOpened = 0;
+    const services = {
+      call: async (action) => (action === 'live.list' ? { sessions: [] } : {}),
+      act: async () => undefined,
+      busy: false,
+      notify() {},
+      askInChat() {},
+      host: {},
+      openSettings() {},
+      navigate() {},
+      openModal() {},
+    };
+    const activeSession = {
+      id: 'live-fast-1',
+      status: 'live',
+      title: 'Fast lecture',
+      course: 'Algorithms',
+      elapsedMs: 65_000,
+      segments: [],
+      total: 0,
+      interim: 'x'.repeat(150),
+    };
+    const mounted = interactive.mount(() => ih(
+      interactive.exports.StudyServicesContext.Provider,
+      { value: services },
+      ih(interactive.exports.LiveClass, {
+        data: { root: 'r', focus: { courses: [] } },
+        visible: true,
+        initialReadiness: { live: true, liveProvider: 'auto', providers: { free: true } },
+        initialSession: activeSession,
+        onSettings: () => { settingsOpened += 1; },
+      }),
+    ));
+    try {
+      assert.equal(
+        mounted.find((n) => n.props && 'data-live-pause-hint' in n.props),
+        null,
+        'pause hint stays hidden before 60 s have elapsed',
+      );
+
+      nowMs += 60_001;
+      mounted.rerender();
+
+      const hint = mounted.find((n) => n.props && 'data-live-pause-hint' in n.props);
+      assert.ok(hint, 'pause hint renders after >60 s of >=150 interim chars without a new sentence');
+      assert.equal(hint.props.role, 'status');
+      assert.match(mounted.text(hint), /讲得很快、一直没有断句？到 音频设置 › 断句停顿 选『短』，下次开始或接着录时生效。/);
+      const titled = mounted.findAll((n) => typeof n.type === 'string' && n.props?.title !== undefined, hint);
+      assert.deepEqual(titled, [], 'no title= attribute on the pause hint or its link');
+
+      const btn = mounted.find((n) => n.type === 'button' && mounted.text(n).includes('打开断句停顿设置'), hint);
+      assert.ok(btn, 'settings deep-link button renders inside pause hint');
+      click(btn);
+      assert.equal(settingsOpened, 1, 'clicking the pause hint opens audio settings');
+      assert.equal(interactive.exports.audioFocusPending(), true);
+      assert.equal(interactive.exports.audioFocusTarget(), interactive.exports.LIVE_PAUSE_ANCHOR);
+    } finally {
+      interactive.exports.takeAudioSettingsFocus();
+      mounted.unmount();
+    }
+  });
 });

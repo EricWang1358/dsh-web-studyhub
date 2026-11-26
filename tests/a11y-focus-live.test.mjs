@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { reviewParts } from './helpers/review-render.mjs';
 import { nativeSelects } from './helpers/native-selects.mjs';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({
@@ -274,17 +274,107 @@ test('ExplanationFollowup and RoundLookBack avoid illegal headings inside <summa
   assert.doesNotMatch(lookBackHtml, /<summary[^>]*>[\s\S]*?<h[1-6]\b/, 'no heading inside RoundLookBack <summary>');
 });
 
-test('Exam pre-mounts polite/assertive live slots, makes prompt heading focusable, and announces time milestones in ZH/EN', () => {
+test('Exam pre-mounts polite/assertive live slots, makes prompt heading focusable, and announces time milestones in ZH/EN', async (t) => {
   const setupHtml = renderWithServices(h(uiMod.Exam, {
     data: { root: 'r', decks: [], runs: [], exams: [], focus: { courses: [] } },
     onExit: noop,
   }));
   assert.match(setupHtml, /<div class="sh-visually-hidden" role="status" aria-live="polite" aria-atomic="true" data-live-announcer="exam-status"><\/div>/);
 
-  const examSrc = readFileSync(new URL('../ui/Exam.jsx', import.meta.url), 'utf8');
-  assert.match(examSrc, /data-live-announcer="exam-timer"/);
-  assert.match(examSrc, /role="alert" aria-live="assertive" aria-atomic="true"/);
-  assert.match(examSrc, /ref=\{examPromptRef\} className="exam-prompt" role="heading" aria-level=\{2\} tabIndex=\{-1\}/);
+  const nowMs = 1_700_000_000_000;
+  t.mock.method(Date, 'now', () => nowMs);
+  const startedAt = new Date(nowMs - 6 * 60_000).toISOString();
+  const q1 = {
+    id: 'exam-run-1',
+    mode: 'exam',
+    title: 'Distributed Systems Exam',
+    startedAt,
+    limitMs: 10 * 60_000,
+    index: 0,
+    total: 2,
+    deckId: 'd1',
+    card: {
+      id: 'q1',
+      kind: 'quiz',
+      topic: 'Consensus',
+      prompt: 'First exam prompt?',
+      options: [{ id: 'a', text: 'Option A' }, { id: 'b', text: 'Option B' }],
+    },
+    picks: [{ deckId: 'd1', cardId: 'q1', selected: [] }, { deckId: 'd1', cardId: 'q2', selected: [] }],
+  };
+  const q2 = {
+    ...q1,
+    index: 1,
+    card: {
+      id: 'q2',
+      kind: 'quiz',
+      topic: 'Replication',
+      prompt: 'Second exam prompt?',
+      options: [{ id: 'a', text: 'Option C' }, { id: 'b', text: 'Option D' }],
+    },
+  };
+  const interactive = await loadInteractiveUi(`
+    export { default as Exam } from './ui/Exam.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  await withBrowserGlobals(async () => {
+    interactive.exports.setUiLanguage('zh');
+    const services = {
+      ...baseServices,
+      call: async (action, args) => {
+        if (action === 'review.get' && args?.runId === 'exam-run-1') return q1;
+        if (action === 'review.move' && args?.runId === 'exam-run-1') return q2;
+        return {};
+      },
+    };
+    const ih = interactive.React.createElement;
+    const mounted = interactive.mount(() => ih(
+      interactive.exports.StudyServicesContext.Provider,
+      { value: services },
+      ih(interactive.exports.Exam, {
+        data: { root: 'r', decks: [], runs: [], exams: [], focus: { courses: [] } },
+        initialRunId: 'exam-run-1',
+        onExit: noop,
+      }),
+    ));
+    try {
+      await mounted.flush(6);
+      const statusLive = mounted.find((n) => n.props?.['data-live-announcer'] === 'exam-status');
+      assert.ok(statusLive, 'exam-status live slot renders while running');
+      assert.equal(statusLive.props.role, 'status');
+      assert.equal(statusLive.props['aria-live'], 'polite');
+      assert.equal(statusLive.props['aria-atomic'], 'true');
+      assert.match(mounted.text(statusLive), /模拟考试已开始，共 2 题/);
+
+      const timerLive = mounted.find((n) => n.props?.['data-live-announcer'] === 'exam-timer');
+      assert.ok(timerLive, 'exam-timer assertive live slot renders in timed written run');
+      assert.equal(timerLive.props.role, 'alert');
+      assert.equal(timerLive.props['aria-live'], 'assertive');
+      assert.equal(timerLive.props['aria-atomic'], 'true');
+      assert.match(mounted.text(timerLive), /考试剩余不足 5 分钟/);
+
+      const promptHeading = mounted.find((n) => typeof n.props?.className === 'string' && n.props.className.split(/\s+/).includes('exam-prompt'));
+      assert.ok(promptHeading, 'exam prompt heading renders in running phase');
+      assert.equal(promptHeading.props.role, 'heading');
+      assert.equal(promptHeading.props['aria-level'], 2);
+      assert.equal(promptHeading.props.tabIndex, -1);
+      assert.match(mounted.text(promptHeading), /First exam prompt\?/);
+
+      const focusCalls = [];
+      promptHeading.ref.current.focus = (opts) => focusCalls.push(opts);
+      const nextBtn = mounted.find((n) => n.type === 'button' && mounted.text(n).includes('下一题'));
+      assert.ok(nextBtn, 'next question button renders');
+      await mounted.act(() => click(nextBtn));
+      await mounted.flush(6);
+
+      const nextPrompt = mounted.find((n) => typeof n.props?.className === 'string' && n.props.className.split(/\s+/).includes('exam-prompt'));
+      assert.match(mounted.text(nextPrompt), /Second exam prompt\?/);
+      assert.deepEqual(focusCalls, [{ preventScroll: true }], 'moving to next exam question quietly focuses .exam-prompt');
+    } finally {
+      mounted.unmount();
+    }
+  });
 
   uiMod.setUiLanguage('zh');
   try {
