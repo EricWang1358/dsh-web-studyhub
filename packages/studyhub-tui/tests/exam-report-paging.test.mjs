@@ -47,7 +47,7 @@ test('an oversized imported topic leaves room for the question list and can be r
   const tty = openReport(t, 200, ['First topic', topic]);
   await tty.waitFor(/Full topics in question details/);
   tty.send('\x1b[B');
-  await tty.waitFor(s => tty.readLines().some(line => line.slice(97).includes('Imported topic')));
+  await tty.waitFor(() => tty.readLines().some(line => line.slice(97).includes('Imported topic')));
   assert.doesNotMatch(tty.readScreen(), /IMPORTED_TAIL/, 'the end starts below the fold');
   tty.send('l');
   await tty.flush();
