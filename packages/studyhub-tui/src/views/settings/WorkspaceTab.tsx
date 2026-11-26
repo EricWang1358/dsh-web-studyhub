@@ -1,7 +1,8 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { Box, Text } from 'ink';
-import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
+import { useKeyScope } from '../../components/key-dispatcher.js';
+import { isPlainKey } from '../../input/global-router.js';
 import type { BindingSnapshot, HostClient } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import {
@@ -21,7 +22,6 @@ import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
-import { useClaimKeys } from '../../components/focus.js';
 import { displayWidth, graphemeWidth, padDisplay, splitGraphemes, truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 
 export interface RestorePointEntry {
@@ -530,30 +530,33 @@ const RetrievalDiagModal = memo(function RetrievalDiagModal({
     [onSaveEndpoint, subBusy],
   );
 
-  useInput(
-    (input, key) => {
-      if (key.escape || input === 'q') {
+  useKeyScope({
+    id: 'settings:workspace:retrieval-diag',
+    active: isActive && subMode === 'summary',
+    onKey: (input, key) => {
+      if (key.escape || (isPlainKey(input, key) && input === 'q')) {
         onClose();
         return true;
       }
-      if (subBusy) return;
+      if (subBusy || !isPlainKey(input, key)) return false;
       if (input === 's') {
         setSubError(null);
         setSubMode('preview-input');
-        return;
+        return true;
       }
       if (input === 'm') {
         setSubError(null);
         setEndpointDraft(hfEndpoint);
         setSubMode('endpoint-input');
-        return;
+        return true;
       }
       if (input === 'r') {
         onRefresh();
+        return true;
       }
+      return false;
     },
-    { isActive: isActive && subMode === 'summary' },
-  );
+  });
 
   let verdictBadge: { label: string; tone: 'info' | 'success' | 'warning' | 'muted' } | null = null;
   let verdictDetail = '';
@@ -893,22 +896,26 @@ const ReleaseUpdateModal = memo(function ReleaseUpdateModal({
   const contentW = modalContentWidth(width);
   const sep = asciiMode ? ' | ' : ' · ';
 
-  useInput(
-    (input, key) => {
-      if (key.escape || input === 'q') {
+  useKeyScope({
+    id: 'settings:workspace:update-modal',
+    active: isActive,
+    onKey: (input, key) => {
+      if (key.escape || (isPlainKey(input, key) && input === 'q')) {
         onClose();
         return true;
       }
+      if (!isPlainKey(input, key)) return false;
       if (input === 'r') {
         onRefresh();
-        return;
+        return true;
       }
       if (input === 'z' && info?.latest && info?.newer && !snoozeBusy) {
         onToggleSnooze();
+        return true;
       }
+      return false;
     },
-    { isActive },
-  );
+  });
 
   const statusBadge = describeUpdateStatusBadge(info, loading, error, lang, asciiMode);
   const currentText = info?.current ? `v${info.current}` : '-';
@@ -1073,38 +1080,42 @@ const UsageReportModal = memo(function UsageReportModal({
   const contentW = modalContentWidth(width);
   const sep = asciiMode ? ' | ' : ' · ';
 
-  useInput(
-    (input, key) => {
-      if (key.escape || input === 'q') {
+  useKeyScope({
+    id: 'settings:workspace:usage-report',
+    active: isActive,
+    onKey: (input, key) => {
+      if (key.escape || (isPlainKey(input, key) && input === 'q')) {
         onClose();
         return true;
       }
+      if (!isPlainKey(input, key)) return false;
       if (input === '1') {
         onSelectPeriod(7);
-        return;
+        return true;
       }
       if (input === '2') {
         onSelectPeriod(30);
-        return;
+        return true;
       }
       if (input === '3') {
         onSelectPeriod('all');
-        return;
+        return true;
       }
       if (input === 'r') {
         onRefresh();
-        return;
+        return true;
       }
       if (input === 'p' && usageStatus?.enabled && !actionBusy) {
         onTogglePause();
-        return;
+        return true;
       }
       if (input === 'e' && !actionBusy) {
         onExport();
+        return true;
       }
+      return false;
     },
-    { isActive },
-  );
+  });
 
   const stateBadge = describeUsageReportState(usageStatus, lang);
   const periodLabel =
@@ -1294,22 +1305,26 @@ const LibraryContextModal = memo(function LibraryContextModal({
   const sep = asciiMode ? ' | ' : ' · ';
   const bullet = asciiMode ? '- ' : '• ';
 
-  useInput(
-    (input, key) => {
-      if (key.escape || input === 'q') {
+  useKeyScope({
+    id: 'settings:workspace:library-context',
+    active: isActive,
+    onKey: (input, key) => {
+      if (key.escape || (isPlainKey(input, key) && input === 'q')) {
         onClose();
         return true;
       }
+      if (!isPlainKey(input, key)) return false;
       if (input === 'r') {
         onRefresh();
-        return;
+        return true;
       }
       if (input === 'e' && !actionBusy) {
         onExport();
+        return true;
       }
+      return false;
     },
-    { isActive },
-  );
+  });
 
   const rootText = contextData?.library || fallbackRoot || '-';
   const todayText = contextData?.today || '-';
@@ -2223,91 +2238,95 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     usageReportOpen ||
     libraryCtxOpen;
   const claimed = useMemo(() => ['e', 's', 'x', 'c', 'f', 'u', 'U', 'a', 'A', 'v', 't', 'i', 'L'], []);
-  useClaimKeys(claimed, isActive && !modalOpen);
 
-  useInput(
-    (input, key) => {
-      if (input === 'e') {
-        setRootDraft(binding?.root || host.getLibraryRoot() || '');
-        setEditingRoot(true);
-        return;
-      }
-      if (input === 's') {
-        void handleToggleSample();
-        return;
-      }
-      if (input === 'x') {
-        if (busyAction) return;
-        const baseDir = binding?.root || host.getLibraryRoot() || process.cwd();
-        setExportPathDraft(defaultBackupPath(baseDir));
-        setExportingBackup(true);
-        return;
-      }
-      if (input === 'L') {
-        if (busyAction) return;
-        setLibraryCtxExportPath(null);
-        setLibraryCtxError(null);
-        setLibraryCtxOpen(true);
-        void loadLibraryContext();
-        return;
-      }
-      if (input === 'c' && desktopConfig && !desktopConfig.libraryPlaceConfirmed) {
-        void handleConfirmLocation();
-        return;
-      }
-      if (input === 'f') {
-        void handleToggleExperimental();
-        return;
-      }
-      if (input === 'u') {
-        void handleToggleUsage();
-        return;
-      }
-      if (input === 'U') {
-        if (!busyAction) setConfirmClearUsage(true);
-        return;
-      }
-      if (input === 'i') {
-        if (busyAction) return;
-        setUsageReportExportPath(null);
-        setUsageReportError(null);
-        setUsageReportOpen(true);
-        void loadUsageReport(usageReportPeriod);
-        return;
-      }
-      if (input === 'a') {
-        void handleToggleAutoCheck();
-        return;
-      }
-      if (input === 'A') {
-        if (busyAction) return;
-        setUpdateModalOpen(true);
-        void runUpdateCheck();
-        return;
-      }
-      if (input === 'v') {
-        void handleCycleRetrievalProvider();
-        return;
-      }
-      if (input === 't') {
-        if (busyAction) return;
-        setRetrievalDiagOpen(true);
-        void runRetrievalDiag();
-        return;
-      }
-      if (key.ctrl && input === 'r') {
+  useKeyScope({
+    id: 'settings:workspace',
+    active: isActive && !modalOpen,
+    keys: claimed,
+    onKey: (input, key) => {
+      if (key.ctrl && !key.meta && input === 'r') {
         void loadPoints();
         void loadRetrieval();
         void loadUsage();
         void loadUpdatePrefs();
-        return;
+        return false;
       }
-      if (key.return && restorePoints[selectedPointIdx]) {
+      if (key.return && !key.ctrl && !key.meta && restorePoints[selectedPointIdx]) {
         setConfirmRestore(restorePoints[selectedPointIdx]);
+        return true;
       }
+      if (!isPlainKey(input, key)) return false;
+      if (input === 'e') {
+        setRootDraft(binding?.root || host.getLibraryRoot() || '');
+        setEditingRoot(true);
+        return true;
+      }
+      if (input === 's') {
+        void handleToggleSample();
+        return true;
+      }
+      if (input === 'x') {
+        if (busyAction) return true;
+        const baseDir = binding?.root || host.getLibraryRoot() || process.cwd();
+        setExportPathDraft(defaultBackupPath(baseDir));
+        setExportingBackup(true);
+        return true;
+      }
+      if (input === 'L') {
+        if (busyAction) return true;
+        setLibraryCtxExportPath(null);
+        setLibraryCtxError(null);
+        setLibraryCtxOpen(true);
+        void loadLibraryContext();
+        return true;
+      }
+      if (input === 'c' && desktopConfig && !desktopConfig.libraryPlaceConfirmed) {
+        void handleConfirmLocation();
+        return true;
+      }
+      if (input === 'f') {
+        void handleToggleExperimental();
+        return true;
+      }
+      if (input === 'u') {
+        void handleToggleUsage();
+        return true;
+      }
+      if (input === 'U') {
+        if (!busyAction) setConfirmClearUsage(true);
+        return true;
+      }
+      if (input === 'i') {
+        if (busyAction) return true;
+        setUsageReportExportPath(null);
+        setUsageReportError(null);
+        setUsageReportOpen(true);
+        void loadUsageReport(usageReportPeriod);
+        return true;
+      }
+      if (input === 'a') {
+        void handleToggleAutoCheck();
+        return true;
+      }
+      if (input === 'A') {
+        if (busyAction) return true;
+        setUpdateModalOpen(true);
+        void runUpdateCheck();
+        return true;
+      }
+      if (input === 'v') {
+        void handleCycleRetrievalProvider();
+        return true;
+      }
+      if (input === 't') {
+        if (busyAction) return true;
+        setRetrievalDiagOpen(true);
+        void runRetrievalDiag();
+        return true;
+      }
+      return false;
     },
-    { isActive: isActive && !modalOpen },
-  );
+  });
 
   const rootPath = binding?.root || host.getLibraryRoot() || '';
   const defaultRoot = binding?.defaultRoot || '';
