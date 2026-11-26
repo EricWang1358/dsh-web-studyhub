@@ -54,6 +54,7 @@ async function watchCalls(page, mode = {}) {
     let body = {};
     try { body = route.request().postDataJSON() || {}; } catch { body = {}; }
     sent.push({ action: body.action, args: body.args || {} });
+    if (body.action === 'course.book.open' && mode.holdOpen) await mode.holdOpen;
     if (mode.noModel && body.action === 'snapshot') {
       const response = await route.fetch();
       const json = await response.json();
@@ -89,7 +90,8 @@ test('复习全书 structure: 更多 › 改名 / 移动到 / 删除 change the 
         await running.api('focus.set', { course: COURSE });
         const { page, errors, context } = await openPage(browser, running, { width, height: 900 });
         try {
-          const sent = await watchCalls(page);
+          const mode = {};
+          const sent = await watchCalls(page, mode);
           const openBook = async () => {
             await page.goto(running.server.url);
             await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
@@ -136,14 +138,19 @@ test('复习全书 structure: 更多 › 改名 / 移动到 / 删除 change the 
           const before = await running.api('course.book.open', {});
           await running.api('course.book.rename', { hid: second.hid, title: `别处改名 ${width}`, version: before.structureVersion });
           const opens = () => sent.filter(call => call.action === 'course.book.open').length, opensBefore = opens();
-          await stale.getByLabel('名称').press('Enter');
+          let release;
+          mode.holdOpen = new Promise(resolve => { release = resolve; });
+          try {
+            await stale.getByLabel('名称').press('Enter');
+            await until(() => opens() > opensBefore, 'the conflict starts a fresh book read');
+            assert.equal(await stale.getByRole('button', { name: '保存' }).isDisabled(), true, 'retry waits for the current version');
+          } finally { release(); }
           const refusal = stale.locator('.sh-inline--error');
           await refusal.waitFor({ timeout: 30000 });
           assert.match(await refusal.innerText(), /这本书的结构刚被改过/, `${width}px: the stale version is said`);
           assert.equal(await stale.getByLabel('名称').inputValue(), `再来 ${width}`, `${width}px: what was typed is still there`);
           const staleCall = lastCall(sent, 'course.book.rename', args => args.title === `再来 ${width}`);
           assert.equal(staleCall.args.version, before.structureVersion, 'the stale version was the one sent');
-          await until(() => opens() > opensBefore, 'the book read again after the conflict');
           if (width === 1280) await page.locator('.book-toc__go', { hasText: `别处改名 ${width}` }).waitFor({ timeout: 30000 });
           await stale.getByLabel('名称').press('Enter');
           await page.locator('.book-step__heading', { hasText: `再来 ${width}` }).waitFor({ timeout: 30000 });
