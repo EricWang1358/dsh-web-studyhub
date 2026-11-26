@@ -165,7 +165,8 @@ export default function RetellPanel({ op, args, draftKey, model, onModelSettings
           {answer.missed?.length > 0 && !text.trim() && lastSubmittedText && (
             <Button size="sm" variant="secondary" className="retell-result__restore" onClick={() => {
               edit(lastSubmittedText);
-              requestAnimationFrame(() => inputRef.current?.focus());
+              // Move focus now: this button unmounts once the draft is back, and focus must not fall to the page in between.
+              inputRef.current?.focus();
             }}>{ui("对照漏点再补一句")}</Button>
           )}
           {onSource && <Button variant="link" size="sm" iconEnd="arrow-right" className="retell-result__source" onClick={() => onSource(answer.cite ?? null)}>{ui("去原文看这段")}</Button>}
