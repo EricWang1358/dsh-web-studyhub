@@ -8,7 +8,7 @@ import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
-import { ScrollView } from '../../components/ScrollView.js';
+import { LAYOUT_BP, ScrollArea } from '../../layout/index.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
@@ -1349,7 +1349,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
     );
   }
 
-  const narrowBar = width < 82;
+  const narrowBar = width < LAYOUT_BP.SPLIT_COMPACT;
   const topBarH = overlay === 'search' || searchQuery ? 2 : 1;
   const splitH = Math.max(4, height - topBarH);
 
@@ -1568,7 +1568,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
                       {t(lang, '内容摘录 (按 Enter 打开全文分页阅读):', 'Excerpt (Press Enter to open Reader):')}
                     </Text>
                   </Box>
-                  <ScrollView
+                  <ScrollArea
                     content={
                       previewSnippet.id === selectedItem.sourceIds[0] && previewSnippet.text
                         ? previewSnippet.text

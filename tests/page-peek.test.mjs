@@ -5,10 +5,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 
 const han = /[\u3400-\u9fff]/;
 const compiled = await build({ stdin: { contents: `
@@ -248,10 +249,219 @@ test('each page header gets a 看原页 button and each figure placeholder one b
 });
 
 test('the viewer mounts the peek once, and the 原文 view has the same buttons', async () => {
-  const viewer = await readFile(new URL('../ui/document-preview/DocumentViewer.jsx', import.meta.url), 'utf8');
-  assert.equal((viewer.match(/<PagePeek\b/g) || []).length, 1, 'ONE mount');
-  assert.match(viewer, /onPeek=/);
-  assert.match(viewer, /data-peek-page/, 'the 原文 view page labels carry the button too');
+  const prevWin = globalThis.window, prevDoc = globalThis.document, prevLS = globalThis.localStorage;
+  const hooksByPath = new Map();
+  let curHooks = [], cursor = 0, pendingEffects = [];
+  const hLocal = (type, p, ...children) => ({ $$type: type, props: { ...(p || {}), ...(children.length === 1 ? { children: children[0] } : children.length > 1 ? { children } : {}) } });
+  const domNode = () => ({
+    scrollTop: 0, clientHeight: 500, focus: () => {}, querySelector: () => null, querySelectorAll: () => [],
+    addEventListener: () => {}, removeEventListener: () => {},
+    getBoundingClientRect: () => ({ top: 0, bottom: 500, height: 500 }), scrollTo() {},
+    ownerDocument: { createTreeWalker: () => ({ nextNode: () => null }) },
+  });
+  const eff = (fn, deps) => {
+    const bucket = curHooks, i = cursor++, prev = bucket[i];
+    if (!prev || !deps || deps.some((d, k) => d !== prev.deps?.[k])) {
+      bucket[i] = { deps, cleanup: prev?.cleanup };
+      pendingEffects.push(() => { bucket[i].cleanup?.(); bucket[i].cleanup = fn(); });
+    }
+  };
+  const reactShim = {
+    default: null, Fragment: Symbol('Fragment'), createElement: hLocal,
+    cloneElement: (el, p, ...ch) => ({ ...el, props: { ...(el?.props || {}), ...(p || {}), ...(ch.length ? { children: ch.length === 1 ? ch[0] : ch } : {}) } }),
+    isValidElement: x => !!x && typeof x === 'object' && '$$type' in x,
+    Children: { toArray: c => (Array.isArray(c) ? c.flat(Infinity) : c == null ? [] : [c]), map: (c, fn) => (Array.isArray(c) ? c : [c]).map(fn) },
+    memo: c => c, forwardRef: fn => (props => fn(props, props?.ref)),
+    Suspense: p => p.children,
+    lazy: () => (p => hLocal('div', { 'data-comp': 'PagePeek', ...p })),
+    createContext: def => { const ctx = { _def: def, _val: def }; ctx.Provider = Object.assign(({ value, children }) => { ctx._val = value; return children; }, { $$providerCtx: ctx }); return ctx; },
+    useContext: ctx => ctx?._val ?? ctx?._def,
+    useState(init) { const bucket = curHooks, i = cursor++; if (!(i in bucket)) bucket[i] = typeof init === 'function' ? init() : init; return [bucket[i], v => { bucket[i] = typeof v === 'function' ? v(bucket[i]) : v; }]; },
+    useReducer(reducer, init, initFn) { const bucket = curHooks, i = cursor++; if (!(i in bucket)) bucket[i] = initFn ? initFn(init) : init; return [bucket[i], a => { bucket[i] = reducer(bucket[i], a); }]; },
+    useRef(init) { const i = cursor++; if (!(i in curHooks)) curHooks[i] = { current: init }; return curHooks[i]; },
+    useId() { const i = cursor++; if (!(i in curHooks)) curHooks[i] = `:id${i}:`; return curHooks[i]; },
+    useDeferredValue: v => v,
+    useCallback: fn => fn,
+    useImperativeHandle() {},
+    useMemo(fn, deps) { const i = cursor++, prev = curHooks[i]; if (!prev || !deps || deps.some((d, k) => d !== prev.deps?.[k])) curHooks[i] = { val: fn(), deps }; return curHooks[i].val; },
+    useEffect: eff, useLayoutEffect: eff, useInsertionEffect() {},
+    useSyncExternalStore: (_s, snap) => snap(),
+  };
+  reactShim.default = reactShim;
+  globalThis.__DV_PEEK_REACT__ = reactShim;
+  const ls = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+  globalThis.localStorage = ls;
+  globalThis.window = {
+    getSelection: () => null, addEventListener: () => {}, removeEventListener: () => {},
+    matchMedia: () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }), localStorage: ls,
+  };
+  globalThis.document = { visibilityState: 'visible', addEventListener: () => {}, removeEventListener: () => {}, querySelector: () => null, querySelectorAll: () => [], createElement: () => ({ style: {}, setAttribute: () => {} }), head: { appendChild: () => {} } };
+
+  const withBucket = (slot, fn) => {
+    let bucket = hooksByPath.get(slot);
+    if (!bucket) { bucket = []; hooksByPath.set(slot, bucket); }
+    const prevH = curHooks, prevC = cursor;
+    curHooks = bucket; cursor = 0;
+    try { return fn(); } finally { curHooks = prevH; cursor = prevC; }
+  };
+  const expand = (node, path = '0') => {
+    if (Array.isArray(node)) return node.map((item, idx) => expand(item, `${path}[${idx}]`));
+    if (!node || typeof node !== 'object') return node;
+    if (typeof node.$$type === 'symbol') return expand(node.props?.children, `${path}:F`);
+    if (node.$$type?.$$providerCtx) { node.$$type.$$providerCtx._val = node.props?.value; return expand(node.props?.children, `${path}:P`); }
+    if (typeof node.$$type === 'function') {
+      const slot = `${path}/${node.$$type.name || 'fn'}${node.props?.key != null ? `#${node.props.key}` : ''}`;
+      return expand(withBucket(slot, () => node.$$type(node.props || {})), slot);
+    }
+    if (node.props?.ref && typeof node.props.ref === 'object' && !node.props.ref.current) node.props.ref.current = domNode();
+    return { ...node, props: { ...(node.props || {}), children: expand(node.props?.children, `${path}:c`) } };
+  };
+  const findAll = (node, pred, out = [], seen = new Set()) => {
+    if (!node || typeof node !== 'object' || seen.has(node)) return out;
+    seen.add(node);
+    if (Array.isArray(node)) { node.forEach(item => findAll(item, pred, out, seen)); return out; }
+    if (node.$$type && pred(node)) out.push(node);
+    if (node.props?.children !== undefined) findAll(node.props.children, pred, out, seen);
+    return out;
+  };
+  try {
+    const built = await build({
+      stdin: { contents: `export { default as DocumentViewer } from './ui/document-preview/DocumentViewer.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
+      bundle: true, write: false, platform: 'node', format: 'cjs', loader: { '.css': 'text' }, logLevel: 'silent',
+      plugins: [{
+        name: 'shim-dv-peek',
+        setup(builder) {
+          builder.onResolve({ filter: /^react$|^react\/jsx-runtime$/ }, () => ({ path: 'react', namespace: 'dvpr' }));
+          builder.onLoad({ filter: /.*/, namespace: 'dvpr' }, () => ({
+            contents: `const R = globalThis.__DV_PEEK_REACT__; export default R; export const { Fragment, createElement, cloneElement, isValidElement, Children, memo, forwardRef, Suspense, lazy, createContext, useContext, useState, useReducer, useRef, useId, useDeferredValue, useCallback, useImperativeHandle, useMemo, useEffect, useLayoutEffect, useInsertionEffect, useSyncExternalStore } = R; export const jsx = (t, p) => R.createElement(t, p); export const jsxs = jsx; export const jsxDEV = jsx;`,
+            loader: 'js',
+          }));
+          builder.onResolve({ filter: /^dompurify$/ }, () => ({ path: 'dp', namespace: 'dvpdp' }));
+          builder.onLoad({ filter: /.*/, namespace: 'dvpdp' }, () => ({ contents: `export default { sanitize: s => s };`, loader: 'js' }));
+          builder.onResolve({ filter: /^katex$|^katex\// }, () => ({ path: 'kt', namespace: 'dvpkt' }));
+          builder.onLoad({ filter: /.*/, namespace: 'dvpkt' }, () => ({ contents: `const k = { renderToString: s => s, __defineMacro: () => {} }; export default k;`, loader: 'js' }));
+          builder.onResolve({ filter: /components\/index\.js$/ }, () => ({ path: 'comp', namespace: 'dvpc' }));
+          builder.onLoad({ filter: /.*/, namespace: 'dvpc' }, () => ({
+            contents: `const R = globalThis.__DV_PEEK_REACT__;
+              const tag = el => p => R.createElement(el, p, p.children);
+              export const Button = tag('button'); export const IconButton = p => R.createElement('button', { ...p, 'aria-label': p.label });
+              export const Icon = p => R.createElement('span', { 'data-icon': p.name }); export const ICON_NAMES = new Set();
+              export const IconBox = tag('span'); export const InlineMessage = tag('div'); export const LoadingState = p => R.createElement('div', p, p.label);
+              export const SegmentedControl = tag('div'); export const Tooltip = p => R.createElement('span', {}, p.children);
+              export const focusQuietly = () => {}; export const Disclosure = tag('div'); export const PANEL_TONES = {};
+              export const Banner = tag('div'); export const Hint = tag('div'); export const SetupRequired = tag('div'); export const HelpTip = tag('div');
+              export const Panel = tag('div'); export const Dialog = tag('div'); export const useTopDialog = () => false;
+              export const ConfirmDialog = tag('div'); export const InlineConfirm = tag('div'); export const Popover = tag('div');
+              export const Menu = tag('div'); export const ContextMenu = tag('div'); export const CloseButton = tag('button');
+              export const Badge = tag('span'); export const Chip = tag('button'); export const ProgressBar = tag('div');
+              export const StackedBar = tag('div'); export const Spinner = tag('span'); export const ErrorState = tag('div');
+              export const CrashFallback = tag('div'); export const CopyDiagnosticsButton = tag('button'); export const errorText = e => String(e || '');
+              export const EmptyState = tag('div'); export const AddSourceButton = tag('button'); export const addSourceAction = onClick => ({ label: '', icon: '', onClick });
+              export const ADD_SOURCE_ICON = 'upload'; export const PageHeader = tag('div'); export const FileDrop = tag('div');
+              export const partitionFiles = f => ({ accepted: f, rejected: [] }); export const formatBytes = n => String(n);
+              export const describeAccept = () => ''; export const createDropHandlers = () => ({}); export const guardFileDrag = () => {};
+              export const ScrollWindow = tag('div'); export const ChunkedRows = tag('div'); export const filterItems = a => a;
+              export const scrollWindowCount = () => 0; export const scrollEdges = () => ({}); export const edgeTracker = () => ({});
+              export const Field = tag('div'); export const TextInput = tag('input'); export const TextArea = tag('textarea');
+              export const Select = tag('select'); export const NumberInput = tag('input'); export const Combobox = tag('div');
+              export const flattenOptions = o => o; export const filterEntries = e => e; export const matchRanges = () => [];
+              export const highlightParts = t => [{ text: t, hit: false }]; export const resolveActions = a => a;
+              export const Checkbox = tag('input'); export const CheckboxInput = tag('input'); export const Switch = tag('button');
+              export const RadioCard = tag('div'); export const RadioCardGroup = tag('div'); export const SettingsSection = tag('div');
+              export const ProviderCard = tag('div'); export const ProviderGrid = tag('div'); export const StepList = tag('div');
+              export const Tabs = tag('div'); export const TabPanel = tag('div'); export const nextTabIndex = () => 0; export const tabIds = () => ({});
+              export const DisclosureToggle = tag('button'); export const foldLabel = () => ''; export const JobRow = tag('div');
+              export const jobAnnouncement = () => ''; export const useNow = () => Date.now(); export const createClock = () => ({ now: () => Date.now() });
+              export const TONES = {}; export const toneOf = () => 'neutral'; export const TONE_ICONS = {}; export const useDismiss = () => {};
+              export const useAnchoredPosition = () => ({}); export const computePlacement = () => ({}); export const placeInHost = () => ({});
+              export const SecretKeyForm = tag('div'); export const Toast = tag('div'); export const ToastRegion = tag('div');
+              export const ToastContext = R.createContext(null); export const shouldAutoDismiss = () => true; export const TOAST_TIMEOUT = 3000;
+              export const createToastApi = () => ({ show: () => {}, success: () => {}, info: () => {}, warning: () => {}, error: () => {} });
+              export const useToast = () => ({ show: () => {}, success: () => {}, info: () => {}, warning: () => {}, error: () => {} });
+              export const useInjectCss = () => {};`,
+            loader: 'js',
+          }));
+          builder.onResolve({ filter: /components\/css\.js$/ }, () => ({ path: 'compcss', namespace: 'dvpcss' }));
+          builder.onLoad({ filter: /.*/, namespace: 'dvpcss' }, () => ({ contents: `export const useInjectCss = () => {}; export const useComponentCss = () => {};`, loader: 'js' }));
+          builder.onResolve({ filter: /app-context\.js$/ }, () => ({ path: 'appctx', namespace: 'dvpa' }));
+          builder.onLoad({ filter: /.*/, namespace: 'dvpa' }, () => ({ contents: `const R = globalThis.__DV_PEEK_REACT__; export const AppContext = R.createContext({}); export const useApp = () => ({ data: { contexts: [], capabilities: [], settings: {} }, core: {}, host: {}, nav: {}, learn: {}, intents: {}, drafts: {}, dailyPlan: null, selectionNotices: { subscribe: () => () => {} }, settingsEntry: {}, set: {}, session: {} });`, loader: 'js' }));
+          builder.onResolve({ filter: /useReadingPosition\.js$/ }, () => ({ path: 'pos', namespace: 'dvpp' }));
+          builder.onLoad({ filter: /.*/, namespace: 'dvpp' }, () => ({ contents: `export const scrollToNode = () => {}; export const anchorScroll = () => () => {}; export const cancelAnchorScroll = () => {}; export const scrollerScale = () => 1; export const targetRect = () => null; export const useReadingPosition = () => [{ activeId: 'p1', progress: 0 }, () => {}];`, loader: 'js' }));
+          builder.onResolve({ filter: /OutlinePanel\.jsx$|PdfOriginal\.jsx$|PagePeek\.jsx$|DocumentLearning\.jsx$/ }, args => ({ path: args.path, namespace: 'dvpcomp' }));
+          builder.onLoad({ filter: /.*/, namespace: 'dvpcomp' }, () => ({ contents: `export default () => null;`, loader: 'js' }));
+          builder.onResolve({ filter: /useReadingLoop\.jsx$|useReaderMarks\.jsx$|useBilingual\.jsx$|usePassageLinkLayer\.js$|RereadBar\.jsx$/ }, args => ({ path: args.path, namespace: 'dvphook' }));
+          builder.onLoad({ filter: /.*/, namespace: 'dvphook' }, args => {
+            if (args.path.endsWith('RereadBar.jsx')) return { contents: `export default () => null;`, loader: 'js' };
+            if (args.path.endsWith('useReadingLoop.jsx')) return { contents: `export const useReadingLoop = () => ({ status: 'idle', open: false, setOpen: () => {}, cards: [], meters: new Map(), here: () => null, start: () => {}, generateIds: () => [], upgradedIds: new Set(), coverage: null, outlineCoverage: null, resumeNote: null });`, loader: 'js' };
+            if (args.path.endsWith('useReaderMarks.jsx')) return { contents: `export const useReaderMarks = () => ({ chip: null, moreItems: [], menu: null, onContextMenu: () => {} });`, loader: 'js' };
+            if (args.path.endsWith('useBilingual.jsx')) return { contents: `const useBilingual = () => ({ supported: false, notice: null, displayRow: null, layer: null, dialog: null, openDialog: () => {} }); export default useBilingual; export { useBilingual };`, loader: 'js' };
+            return { contents: `export const usePassageLinkLayer = () => {};`, loader: 'js' };
+          });
+        },
+      }],
+    });
+    const mod = { exports: {} };
+    new Function('module', 'exports', built.outputFiles[0].text)(mod, mod.exports);
+    const { DocumentViewer, setUiLanguage } = mod.exports;
+    setUiLanguage('zh');
+
+    const pages = [
+      { id: 'p1', title: 'Page 1', text: 'First page body.', document: { materialId: 'doc-1', page: 1, totalPages: 2, format: 'pdf', title: 'Book' } },
+      { id: 'p2', title: 'Page 2', text: 'Second page body.', document: { materialId: 'doc-1', page: 2, totalPages: 2, format: 'pdf', title: 'Book' } },
+    ];
+    const doc = { id: 'doc-1', documentId: 'doc-1', revision: 'r1', format: 'pdf', originalAvailable: false, original: { mode: null, status: 'none' }, sources: pages };
+    const call = async name => {
+      if (name === 'materials.document.get') return doc;
+      if (name === 'materials.links.list') return { links: [] };
+      if (name === 'materials.annotation.list') return { items: [], stale: [] };
+      return {};
+    };
+
+    const mountViewer = async initialMode => {
+      hooksByPath.clear();
+      const props = { source: pages[0], call, data: { sources: pages, root: 'r', contexts: [], capabilities: [] }, initialMode };
+      const renderTree = () => {
+        pendingEffects = [];
+        const tree = expand(hLocal(DocumentViewer, props), 'root');
+        pendingEffects.splice(0).forEach(fn => fn());
+        return tree;
+      };
+      renderTree();
+      await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+      return { renderTree, tree: renderTree() };
+    };
+
+    // 阅读 view: ReadingSections gets onPeek, clicking opens ONE PagePeek and re-clicking updates it without duplicating.
+    const clickEvent = () => ({ currentTarget: {}, stopPropagation() {}, preventDefault() {} });
+    const readView = await mountViewer('read');
+    const readPeekBtns = findAll(readView.tree, n => n.props?.['data-peek-page'] != null);
+    assert.deepEqual(readPeekBtns.map(b => b.props['data-peek-page']), [1, 2], '阅读 view renders 看原页 buttons via onPeek');
+    assert.equal(findAll(readView.tree, n => n.props?.['data-comp'] === 'PagePeek').length, 0, 'closed before clicking');
+    readPeekBtns[1].props.onClick(clickEvent());
+    let peeks = findAll(readView.renderTree(), n => n.props?.['data-comp'] === 'PagePeek');
+    assert.equal(peeks.length, 1, 'ONE PagePeek mount');
+    assert.equal(peeks[0].props.page, 2);
+    readPeekBtns[0].props.onClick(clickEvent());
+    peeks = findAll(readView.renderTree(), n => n.props?.['data-comp'] === 'PagePeek');
+    assert.equal(peeks.length, 1, 'switching peek page still mounts ONE PagePeek');
+    assert.equal(peeks[0].props.page, 1);
+    peeks[0].props.onClose();
+    assert.equal(findAll(readView.renderTree(), n => n.props?.['data-comp'] === 'PagePeek').length, 0, 'closing unmounts it');
+
+    // 原文 view: page sections carry the same data-peek-page buttons and open the same single PagePeek.
+    const textView = await mountViewer('text');
+    const textPeekBtns = findAll(textView.tree, n => n.props?.['data-peek-page'] != null);
+    assert.deepEqual(textPeekBtns.map(b => b.props['data-peek-page']), [1, 2], '原文 view page labels carry data-peek-page buttons too');
+    textPeekBtns[1].props.onClick(clickEvent());
+    const textPeeks = findAll(textView.renderTree(), n => n.props?.['data-comp'] === 'PagePeek');
+    assert.equal(textPeeks.length, 1, 'ONE PagePeek mount from 原文 view');
+    assert.equal(textPeeks[0].props.page, 2);
+  } finally {
+    delete globalThis.__DV_PEEK_REACT__;
+    if (prevWin === undefined) delete globalThis.window; else globalThis.window = prevWin;
+    if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+    if (prevLS === undefined) delete globalThis.localStorage; else globalThis.localStorage = prevLS;
+  }
 });
 
 /* ---------- moving and resizing the panel ---------- */
@@ -282,15 +492,23 @@ test('the panel stays inside the window while it is moved, and a corner grip mov
   assert.equal(smallNw.left + smallNw.width, 980);
 });
 
-test('the panel no longer uses the browser\'s own resize corner, which sat on the scrollbars and moved the wrong way when docked bottom-right', async () => {
-  const { readFileSync } = await import('node:fs');
-  const css = readFileSync(new URL('../ui/document-preview/peek/peek.css', import.meta.url), 'utf8');
-  assert.doesNotMatch(css, /resize:\s*both/);
-  assert.match(css, /\.page-peek__grip--nw/);
-  assert.match(css, /\.page-peek__scroll\[data-fit='true'\]\s*\{[^}]*overflow-x:\s*hidden/, 'fitted to the width there is no sideways bar');
-  const view = readFileSync(new URL('../ui/document-preview/peek/PagePeekView.jsx', import.meta.url), 'utf8');
-  assert.match(view, /page-peek__grip--se/);
-  assert.match(view, /page-peek__grip--nw/);
+test('the panel no longer uses the browser\'s own resize corner, which sat on the scrollbars and moved the wrong way when docked bottom-right', () => {
+  const { declarations } = parseCss(readFileSync(new URL('../ui/document-preview/peek/peek.css', import.meta.url), 'utf8'));
+  assert.equal(declarations.some(d => d.prop === 'resize' && /\bboth\b/.test(d.value)), false, 'no native resize: both corner');
+  assert.equal(declarations.some(d => /\.page-peek__grip--nw\b/.test(d.ctx.at(-1)) && d.prop === 'cursor'), true, 'top-left grip styled');
+  assert.equal(declarations.some(d => /\.page-peek__grip--se\b/.test(d.ctx.at(-1)) && d.prop === 'cursor'), true, 'bottom-right grip styled');
+  assert.equal(
+    declarations.some(d => /\.page-peek__scroll\[data-fit=['"]true['"]\]/.test(d.ctx.at(-1)) && d.prop === 'overflow-x' && d.value === 'hidden'),
+    true,
+    'fitted to the width there is no sideways bar',
+  );
+  // Real rendered PagePeekView markup: both grips appear when ready, absent while loading, and data-fit tracks zoom === 1.
+  const readyFit = view({ phase: 'ready', zoom: 1 });
+  assert.match(readyFit, /class="page-peek__grip page-peek__grip--nw"/);
+  assert.match(readyFit, /class="page-peek__grip page-peek__grip--se"/);
+  assert.match(readyFit, /class="page-peek__scroll"[^>]*data-fit="true"/);
+  assert.match(view({ phase: 'ready', zoom: 1.5 }), /class="page-peek__scroll"[^>]*data-fit="false"/);
+  assert.doesNotMatch(view({ phase: 'loading' }), /page-peek__grip/);
 });
 
 test('the single-page PDF budget counts CPU render work only (not asset downloads, hidden tabs or manual opt-in), and its fallback notice is translated', () => {

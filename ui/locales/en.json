@@ -1933,7 +1933,6 @@
   "批量整理前置依赖与生词": "Batch organize prerequisites & terms",
   "已加入任务台": "Queued in Tasks",
   "后台任务": "Background job",
-  "按课程词表与章节先后批量建立无环前置依赖（每题最多 12 条，不覆盖已有链接）；若已配置模型，同时为缺少生词缓存的题目预提取生词。任务在后台运行，可随时取消。": "Batch-link acyclic prerequisites from course glossary and chapter order (max 12 per card; keeps existing links). When a model is configured, also pre-extract missing card terms. Runs in background and can be cancelled anytime.",
   "新增前置链接后，未掌握的前置题会在学习路径中提前出现；已有前置与生词缓存不会被覆盖。": "Unmastered prerequisites will appear earlier in your learning path; existing links and cached card terms are never overwritten.",
   "开始整理前置依赖与生词": "Organize prerequisites & terms",
   "去任务台查看进度": "View progress in Tasks",
@@ -1977,5 +1976,11 @@
   "仅调整当前课程题组的顺序，不改动任何题目或复习记录；取消后保持原顺序不变。": "Only reorders decks in this course without changing cards or review history; cancel to keep your current order.",
   "适用于编程与工程类课程：优先把大段口述代码执行改成 3–16 行最小可读代码块，并禁止在代码注释里泄题。": "For programming and engineering courses: convert multi-sentence verbalized code steps into minimal 3–16 line fenced code blocks and never leak answers in code comments.",
   "加入代码阅读题推荐守则": "Add code-reading question rule",
-  "已加入代码阅读题推荐守则": "Code-reading rule added"
+  "已加入代码阅读题推荐守则": "Code-reading rule added",
+  "按课程词表与章节先后批量建立无环前置依赖（每题最多 12 条，不覆盖已有链接）；若已配置模型，同时为缺少生词缓存的题目预提取生词。任务不支持暂停：可随时取消，已写入的链接与生词会保留，重跑会跳过已缓存的部分。": "Batch-link acyclic prerequisites from course glossary and chapter order (max 12 per card; keeps existing links). When a model is configured, also pre-extract missing card terms. There is no pause: cancel anytime; links and terms already written are kept, and a rerun skips them.",
+  "撤销自动整理的前置链接": "Undo auto-organized links",
+  "撤销批量整理建立的前置链接？": "Undo the links made by batch organize?",
+  "撤销自动链接": "Undo automatic links",
+  "只会移除批量整理自己建立的链接；手动添加的前置和已缓存的生词都会保留。": "Only links this batch job created are removed; hand-made prerequisites and cached terms are kept.",
+  "已移除 {0} 条自动建立的前置链接；手动添加的链接与生词缓存都保留。": "Removed {0} automatically created prerequisite links; hand-made links and cached terms are kept."
 }

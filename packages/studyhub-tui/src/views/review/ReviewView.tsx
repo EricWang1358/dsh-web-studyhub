@@ -21,8 +21,7 @@ import {
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Divider, EmptyState, ProgressBar, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
-import { SectionHeader, computeProseLayout } from '../../components/Layout.js';
-import { LAYOUT_BP } from '../../components/layout-tokens.js';
+import { ChromeLabel, LAYOUT_BP, Prose, SectionHeader, computeProseLayout } from '../../layout/index.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Modal } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
@@ -2014,7 +2013,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
   const innerW = Math.max(20, cardPaneW - 4);
   // The explanation takes only the rows it needs (up to the old fixed budget), so a short answer
   // stays centred with the question instead of being pinned to the top of a tall pane (#1415).
-  const postAnswerMaxH = Math.max(3, height - (innerW < 90 ? 22 : 18));
+  const postAnswerMaxH = Math.max(3, height - (innerW < LAYOUT_BP.COMPACT ? 22 : 18));
   const postAnswerViewH = postAnswerMarkdown
     ? Math.min(
         postAnswerMaxH,
@@ -2497,25 +2496,9 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                         : diff.matched === false
                           ? theme.error
                           : theme.muted;
-                    const ell = asciiMode ? '...' : '…';
-                    const prefix = `#${diff.index} ${icon} `;
-                    const remW = Math.max(8, innerW - displayWidth(prefix));
                     const rawUser = diff.userValue || t(lang, '(未填)', '(empty)');
                     const arrowText = asciiMode ? ' -> ' : ' → ';
                     const showMismatch = diff.matched === false && diff.expected.length > 0;
-                    let shownUser = rawUser;
-                    let shownExpected = diff.expected;
-                    if (showMismatch) {
-                      const avail = Math.max(6, remW - displayWidth(arrowText));
-                      if (displayWidth(rawUser) + displayWidth(diff.expected) > avail) {
-                        const userBudget = Math.max(3, Math.floor(avail * 0.45));
-                        shownUser = truncateDisplay(rawUser, userBudget, ell);
-                        const expBudget = Math.max(3, avail - displayWidth(shownUser));
-                        shownExpected = truncateDisplay(diff.expected, expBudget, ell);
-                      }
-                    } else {
-                      shownUser = truncateDisplay(rawUser, remW, ell);
-                    }
                     const userColor = !diff.userValue
                       ? theme.muted
                       : diff.matched === true
@@ -2524,16 +2507,22 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                           ? theme.error
                           : theme.text;
                     return (
-                      <Box key={diff.id} flexDirection="row" width={innerW} overflow="hidden">
-                        <Text color={theme.muted}>{`#${diff.index} `}</Text>
-                        <Text color={statusColor} bold>{`${icon} `}</Text>
-                        <Text color={userColor}>{shownUser}</Text>
-                        {showMismatch ? (
-                          <>
-                            <Text color={theme.muted}>{arrowText}</Text>
-                            <Text color={theme.success} bold>{shownExpected}</Text>
-                          </>
-                        ) : null}
+                      <Box key={diff.id} flexDirection="row" width={innerW}>
+                        <Box flexShrink={0}>
+                          <Text color={theme.muted}>{`#${diff.index} `}</Text>
+                          <Text color={statusColor} bold>{`${icon} `}</Text>
+                        </Box>
+                        <Box flexGrow={1} flexShrink={1}>
+                          <Prose color={userColor} ascii={asciiMode}>
+                            {rawUser}
+                            {showMismatch ? (
+                              <>
+                                <Text color={theme.muted}>{arrowText}</Text>
+                                <Text color={theme.success} bold>{diff.expected}</Text>
+                              </>
+                            ) : null}
+                          </Prose>
+                        </Box>
                       </Box>
                     );
                   })}
@@ -2652,18 +2641,18 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                     });
                   }}
                 >
-                  <Text color={theme.warning} wrap="truncate">
-                    {truncateDisplay(wrongStreakBanner, innerW, asciiMode ? '...' : '…')}
-                  </Text>
+                  <Prose tone="warning" ascii={asciiMode}>
+                    {wrongStreakBanner}
+                  </Prose>
                 </ClickableBox>
               ) : null}
 
               {/* Calm Proactive Pacing Rest Suggestion (Round 95 Track D9 — max 1/round, opt-out, never steals focus) */}
               {fatigueBanner && proactiveHints && !wrongStreakBanner ? (
                 <ClickableBox marginTop={0} clickActive={cardScopeActive} onClick={() => setFatigueBanner(null)}>
-                  <Text color={theme.info} wrap="truncate">
-                    {truncateDisplay(fatigueBanner, innerW, asciiMode ? '...' : '…')}
-                  </Text>
+                  <Prose tone="info" ascii={asciiMode}>
+                    {fatigueBanner}
+                  </Prose>
                 </ClickableBox>
               ) : null}
 
@@ -2699,7 +2688,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                 <Box flexDirection="column" marginTop={1} width={innerW}>
                   <Box flexDirection="row" justifyContent="space-between" width={innerW} overflow="hidden">
                     <Text color={theme.muted} bold wrap="truncate">
-                      {innerW < 64
+                      {innerW < LAYOUT_BP.CONTENT_NARROW
                         ? t(lang, 'FSRS评分 [0-5]:', 'Rate [0-5]:')
                         : t(lang, 'FSRS-6 记忆评分（按数字键 0-5）:', 'FSRS-6 Rating (Press 0-5):')}
                     </Text>
@@ -2713,10 +2702,10 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                   </Box>
                   <Box flexDirection="row" gap={1} marginTop={0} width={innerW} overflow="hidden">
                     {FSRS_GRADES.map((g) => {
-                      const gap = innerW >= 96 && intervals ? formatGapDays(intervals[g.intervalIndex], lang) : '';
+                      const gap = innerW >= LAYOUT_BP.WIDE && intervals ? formatGapDays(intervals[g.intervalIndex], lang) : '';
                       const textLabel = lang === 'en' ? g.labelEn : g.labelZh;
                       const label =
-                        innerW < 82
+                        innerW < LAYOUT_BP.SPLIT_COMPACT
                           ? `${g.key}${lang === 'en' ? `:${textLabel}` : textLabel}`
                           : `${g.key} ${textLabel}${gap ? `${asciiMode ? ' - ' : ' · '}${gap}` : ''}`;
                       return (
@@ -2840,7 +2829,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                       onClick={() => useTuiStore.getState().setHelpOpen(true)}
                       flexShrink={0}
                     >
-                      <Text color={theme.dim}>{truncateDisplay(moreHint, Math.max(1, innerW), ell)}</Text>
+                      <ChromeLabel text={moreHint} maxWidth={Math.max(1, innerW)} color={theme.dim} ascii={asciiMode} />
                     </ClickableBox>
                   ) : null}
                 </>

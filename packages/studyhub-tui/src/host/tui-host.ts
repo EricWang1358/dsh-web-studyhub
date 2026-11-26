@@ -75,6 +75,12 @@ export interface CreateTuiHostOptions {
   eventDebounceMs?: number;
   /** Told about every external link (so a headless TUI can show the URL instead). */
   onOpenExternal?: (url: string, opened: boolean) => void;
+  /**
+   * Test seam: launches an allowed URL in place of spawning the platform opener (rundll32 / open /
+   * xdg-open). Called only when the platform has a desktop opener; a throw counts as "not opened".
+   * Default: spawn the opener detached. Tests pass a recording stub so no real browser ever opens.
+   */
+  launchExternal?: (url: string, opener: ExternalOpener) => void;
   /** Background log sink (default: silent, so nothing corrupts the Ink frame). */
   onLog?: (...args: unknown[]) => void;
 }
@@ -226,8 +232,13 @@ function findOnPath(name: string, env: EnvLike): string {
   return '';
 }
 
+export interface ExternalOpener {
+  command: string;
+  prefixArgs: string[];
+}
+
 /** Command used to open a URL, or null when in an SSH/headless session with no desktop browser. */
-export function externalOpener(platform: NodeJS.Platform, env: EnvLike): { command: string; prefixArgs: string[] } | null {
+export function externalOpener(platform: NodeJS.Platform, env: EnvLike): ExternalOpener | null {
   if (isHeadlessOrSsh(env, platform)) return null;
   if (platform === 'win32') {
     const root = env.SystemRoot || env.windir || 'C:\\Windows';
@@ -307,6 +318,8 @@ export async function createTuiHost(options: CreateTuiHostOptions = {}): Promise
   const log = options.onLog ?? (() => {});
   const debounceMs = Math.max(0, options.eventDebounceMs ?? DEFAULT_DEBOUNCE_MS);
   const injectedComplete = options.injectedComplete ?? null;
+  const launchExternal = options.launchExternal
+    ?? ((url: string, opener: ExternalOpener) => deps.spawnDetached(opener.command, [...opener.prefixArgs, url]));
   let language: UiLanguage = options.language === 'en' ? 'en' : 'zh';
 
   const envDetection = detectPrimaryEnvProvider(env);
@@ -374,7 +387,7 @@ export async function createTuiHost(options: CreateTuiHostOptions = {}): Promise
     const opener = externalOpener(platform, env);
     if (opener) {
       try {
-        deps.spawnDetached(opener.command, [...opener.prefixArgs, url]);
+        launchExternal(url, opener);
         opened = true;
       } catch (error) {
         log('[studyhub-tui] openExternal failed:', error);

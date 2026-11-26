@@ -36,7 +36,9 @@ export const ConfirmDialog = memo(function ConfirmDialog({
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
-  const shellOverlay = useTuiStore((s) => s.commandPaletteOpen || s.helpOpen || s.coursePickerOpen || s.inboxOpen);
+  const shellOverlay = useTuiStore(
+    (s) => s.commandPaletteOpen || s.helpOpen || s.coursePickerOpen || s.inboxOpen || s.notificationHistoryOpen,
+  );
   const effectiveActive = isActive && !shellOverlay;
   const resolvedConfirm = confirmLabel ?? t(lang, '确认', 'Confirm');
   const resolvedCancel = cancelLabel ?? t(lang, '取消', 'Cancel');

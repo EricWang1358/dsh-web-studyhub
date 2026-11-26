@@ -7,8 +7,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { PassThrough } from 'node:stream';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import React from 'react';
+import { Text, render } from 'ink';
 import ts from 'typescript';
 import { register } from 'tsx/esm/api';
 
@@ -85,24 +88,288 @@ describe('P1-a: Unified Key Dispatcher & Conflict Matrix (#1354 D1)', () => {
     );
   });
 
-  test('2. Static guardrail: AppShell mounts useKeyDispatcherBridge and Modal wraps children in KeyScopeProvider', () => {
-    const appShell = fs.readFileSync(path.join(SRC_ROOT, 'shell/AppShell.tsx'), 'utf8');
-    assert.ok(appShell.includes('useKeyDispatcherBridge('), 'AppShell must mount useKeyDispatcherBridge()');
-    assert.ok(appShell.includes('KEY_LAYER_SYSTEM'), 'AppShell must register system shortcuts at KEY_LAYER_SYSTEM');
-    assert.ok(appShell.includes('KEY_LAYER_GLOBAL'), 'AppShell must register global fallback at KEY_LAYER_GLOBAL');
+  test('2. Runtime key-layer routing: AppShell bridge/system/global, Modal scope, ConfirmDialog, TextInput, and list/scroll widgets', async () => {
+    const { AppShell } = await import('../src/shell/AppShell.tsx');
+    const { Modal } = await import('../src/components/Modal.tsx');
+    const { ConfirmDialog } = await import('../src/components/ConfirmDialog.tsx');
+    const { TextInput } = await import('../src/components/TextInput.tsx');
+    const { VirtualList } = await import('../src/components/VirtualList.tsx');
+    const { ScrollView } = await import('../src/components/ScrollView.tsx');
+    const { SelectList } = await import('../src/components/SelectList.tsx');
+    const { useTuiStore } = await import('../src/state/store.ts');
+    const { getHub } = await import('../src/input/dispatcher.ts');
+    const {
+      KEY_LAYER_GLOBAL,
+      KEY_LAYER_MODAL,
+      KEY_LAYER_VIEW,
+      KeyScopeProvider,
+      useKeyDispatcherBridge,
+      useKeyScopeDepth,
+      useScopedInput,
+    } = await import('../src/components/key-dispatcher.ts');
 
-    const modal = fs.readFileSync(path.join(SRC_ROOT, 'components/Modal.tsx'), 'utf8');
-    assert.ok(modal.includes('KeyScopeProvider'), 'Modal must isolate scope depth with KeyScopeProvider');
+    const createTtyStreams = (columns = 100, rows = 30) => {
+      const stdin = new PassThrough();
+      stdin.isTTY = true;
+      stdin.setRawMode = () => stdin;
+      stdin.ref = () => stdin;
+      stdin.unref = () => stdin;
+      const stdout = new PassThrough();
+      stdout.isTTY = true;
+      stdout.columns = columns;
+      stdout.rows = rows;
+      return { stdin, stdout };
+    };
+    const wait = (ms = 50) => new Promise((r) => setTimeout(r, ms));
 
-    const confirm = fs.readFileSync(path.join(SRC_ROOT, 'components/ConfirmDialog.tsx'), 'utf8');
-    assert.ok(confirm.includes('KEY_LAYER_MODAL'), 'ConfirmDialog must use KEY_LAYER_MODAL');
+    // (a) AppShell mounts useKeyDispatcherBridge and routes KEY_LAYER_SYSTEM > KEY_LAYER_VIEW > KEY_LAYER_GLOBAL.
+    const snapshot = {
+      revision: 1,
+      courses: [{ id: 'c1', name: 'OS' }],
+      decks: [],
+      focus: { course: 'OS' },
+      stats: { totalCards: 0, dueToday: 0, reviewedToday: 0 },
+      sources: [],
+      tasks: [],
+      wrongBook: [],
+      notes: [],
+      modelReady: false,
+    };
+    const shellHost = {
+      getSnapshot: async () => snapshot,
+      runAction: async () => ({ ok: true }),
+      subscribe: () => () => {},
+    };
+    const prevState = useTuiStore.getState();
+    useTuiStore.setState({
+      page: 'library',
+      navContext: {},
+      history: [],
+      loading: false,
+      refreshing: false,
+      showLaunchpad: false,
+      inputCaptured: false,
+      commandPaletteOpen: false,
+      helpOpen: false,
+      coursePickerOpen: false,
+      inboxOpen: false,
+      voicePackOpen: false,
+      quitConfirmOpen: false,
+      assistantOpen: false,
+      assistantFocused: false,
+      assistantFullscreen: false,
+      practiceStack: [],
+      toasts: [],
+      snapshot,
+    });
+    const viewHits = [];
+    function ShellProbe() {
+      useScopedInput(
+        (inp) => {
+          viewHits.push(inp);
+          return inp === 'v';
+        },
+        { isActive: true, layer: KEY_LAYER_VIEW, id: 'ShellProbe:view' },
+      );
+      return React.createElement(Text, null, 'Probe');
+    }
+    const sShell = createTtyStreams();
+    const instShell = render(
+      React.createElement(AppShell, { host: shellHost, autoLaunchpad: false, renderPage: () => React.createElement(ShellProbe) }),
+      { stdin: sShell.stdin, stdout: sShell.stdout, interactive: true, exitOnCtrlC: false },
+    );
+    try {
+      await wait(70);
+      assert.equal(getHub(sShell.stdin).bridgeCount, 1, 'AppShell must mount useKeyDispatcherBridge()');
+      sShell.stdin.write('v');
+      await wait(40);
+      assert.deepEqual(viewHits, ['v'], 'view consumes v');
+      assert.equal(useTuiStore.getState().page, 'library', 'consumed v does not fall through to global');
+      sShell.stdin.write('b');
+      await wait(40);
+      assert.equal(useTuiStore.getState().page, 'board', 'unconsumed b falls through to AppShell KEY_LAYER_GLOBAL');
+      sShell.stdin.write('\u000b'); // Ctrl+K
+      await wait(40);
+      assert.equal(useTuiStore.getState().commandPaletteOpen, true, 'Ctrl+K runs at AppShell KEY_LAYER_SYSTEM before view');
+    } finally {
+      instShell.unmount();
+      useTuiStore.setState(prevState);
+    }
 
-    const textInput = fs.readFileSync(path.join(SRC_ROOT, 'components/TextInput.tsx'), 'utf8');
-    assert.ok(textInput.includes('KEY_LAYER_TEXT_INPUT'), 'TextInput must use KEY_LAYER_TEXT_INPUT');
+    // (b) Modal wraps children in KeyScopeProvider & closes on Esc; ConfirmDialog runs at KEY_LAYER_MODAL (> KEY_LAYER_VIEW).
+    let modalChildDepth = -1;
+    let modalClosed = 0;
+    let confirmConfirmed = 0;
+    let confirmCancelled = 0;
+    const lowerViewHits = [];
+    function ModalDepthProbe() {
+      modalChildDepth = useKeyScopeDepth();
+      return React.createElement(Text, null, `depth:${modalChildDepth}`);
+    }
+    function ModalHarness() {
+      useKeyDispatcherBridge(true);
+      useScopedInput(
+        (inp) => {
+          lowerViewHits.push(inp);
+          return true;
+        },
+        { isActive: true, layer: KEY_LAYER_VIEW, id: 'LowerView' },
+      );
+      return React.createElement(
+        KeyScopeProvider,
+        { depth: 1, opaque: true },
+        React.createElement(
+          Modal,
+          { title: 'Scope Check', overlay: false, onClose: () => { modalClosed += 1; } },
+          React.createElement(ModalDepthProbe),
+        ),
+      );
+    }
+    const sModal = createTtyStreams();
+    const instModal = render(React.createElement(ModalHarness), { stdin: sModal.stdin, stdout: sModal.stdout, interactive: true, exitOnCtrlC: false });
+    try {
+      await wait(60);
+      assert.equal(modalChildDepth, 1, 'Modal preserves isolated scope depth for children via KeyScopeProvider');
+      sModal.stdin.write('\u001b');
+      await wait(40);
+      assert.equal(modalClosed, 1, 'Modal closes on Esc at KEY_LAYER_MODAL_FRAME');
+      assert.deepEqual(lowerViewHits, [], 'opaque modal scope blocks lower view handler');
+    } finally {
+      instModal.unmount();
+    }
 
-    for (const widget of ['components/VirtualList.tsx', 'components/ScrollView.tsx', 'components/SelectList.tsx']) {
-      const code = fs.readFileSync(path.join(SRC_ROOT, widget), 'utf8');
-      assert.ok(code.includes('KEY_LAYER_WIDGET'), `${widget} must use KEY_LAYER_WIDGET`);
+    function ConfirmHarness() {
+      useKeyDispatcherBridge(true);
+      useScopedInput(
+        (inp) => {
+          if (inp === 'y') {
+            lowerViewHits.push(`view:${inp}`);
+            return true;
+          }
+          return false;
+        },
+        { isActive: true, layer: KEY_LAYER_VIEW, id: 'ConfirmPeerView' },
+      );
+      return React.createElement(ConfirmDialog, {
+        title: 'Confirm',
+        message: 'Proceed?',
+        overlay: false,
+        onConfirm: () => { confirmConfirmed += 1; },
+        onCancel: () => { confirmCancelled += 1; },
+      });
+    }
+    const sConfirm = createTtyStreams();
+    const instConfirm = render(React.createElement(ConfirmHarness), { stdin: sConfirm.stdin, stdout: sConfirm.stdout, interactive: true, exitOnCtrlC: false });
+    try {
+      await wait(60);
+      sConfirm.stdin.write('y');
+      await wait(40);
+      assert.equal(confirmConfirmed, 1, 'ConfirmDialog handles y at KEY_LAYER_MODAL ahead of KEY_LAYER_VIEW');
+      assert.deepEqual(lowerViewHits, [], 'ConfirmDialog consumes y before KEY_LAYER_VIEW');
+      sConfirm.stdin.write('\u001b');
+      await wait(40);
+      assert.equal(confirmCancelled, 1, 'ConfirmDialog Esc delegates through Modal onClose');
+    } finally {
+      instConfirm.unmount();
+    }
+
+    // (c) TextInput runs at KEY_LAYER_TEXT_INPUT (> KEY_LAYER_MODAL).
+    let typed = '';
+    const modalHits = [];
+    function InputHarness() {
+      useKeyDispatcherBridge(true);
+      useScopedInput(
+        (inp) => {
+          modalHits.push(inp);
+          return true;
+        },
+        { isActive: true, layer: KEY_LAYER_MODAL, id: 'PeerModal' },
+      );
+      return React.createElement(TextInput, { value: typed, onChange: (v) => { typed = v; }, isActive: true });
+    }
+    const sInput = createTtyStreams();
+    const instInput = render(React.createElement(InputHarness), { stdin: sInput.stdin, stdout: sInput.stdout, interactive: true, exitOnCtrlC: false });
+    try {
+      await wait(60);
+      sInput.stdin.write('a');
+      await wait(40);
+      assert.equal(typed, 'a', 'TextInput receives typed character at KEY_LAYER_TEXT_INPUT');
+      assert.deepEqual(modalHits, [], 'TextInput consumes typed character ahead of KEY_LAYER_MODAL');
+    } finally {
+      instInput.unmount();
+    }
+
+    // (d) VirtualList, ScrollView, and SelectList run at KEY_LAYER_WIDGET (below KEY_LAYER_VIEW, above KEY_LAYER_GLOBAL).
+    for (const kind of ['VirtualList', 'ScrollView', 'SelectList']) {
+      let moved = 0;
+      const viewLog = [];
+      const globalLog = [];
+      function WidgetHarness() {
+        useKeyDispatcherBridge(true);
+        useScopedInput(
+          (inp) => {
+            if (inp === 'k') {
+              viewLog.push(inp);
+              return true;
+            }
+            return false;
+          },
+          { isActive: true, layer: KEY_LAYER_VIEW, id: `WidgetPeerView:${kind}` },
+        );
+        useScopedInput(
+          (inp) => {
+            globalLog.push(inp);
+            return true;
+          },
+          { isActive: true, layer: KEY_LAYER_GLOBAL, id: `WidgetPeerGlobal:${kind}` },
+        );
+        if (kind === 'VirtualList') {
+          return React.createElement(VirtualList, {
+            items: ['row-0', 'row-1', 'row-2'],
+            height: 3,
+            width: 30,
+            isActive: true,
+            onChange: () => { moved += 1; },
+            renderItem: (item) => React.createElement(Text, null, item),
+          });
+        }
+        if (kind === 'ScrollView') {
+          return React.createElement(ScrollView, {
+            lines: ['l0', 'l1', 'l2', 'l3', 'l4'],
+            height: 2,
+            width: 30,
+            isActive: true,
+            onScroll: () => { moved += 1; },
+          });
+        }
+        return React.createElement(SelectList, {
+          options: [
+            { value: 'a', label: 'Alpha' },
+            { value: 'b', label: 'Beta' },
+            { value: 'c', label: 'Gamma' },
+          ],
+          isActive: true,
+          onSelect: () => {},
+          onChange: () => { moved += 1; },
+        });
+      }
+      const sWidget = createTtyStreams();
+      const instWidget = render(React.createElement(WidgetHarness), { stdin: sWidget.stdin, stdout: sWidget.stdout, interactive: true, exitOnCtrlC: false });
+      try {
+        await wait(60);
+        // 'j' passes KEY_LAYER_VIEW -> handled by widget at KEY_LAYER_WIDGET -> stops before KEY_LAYER_GLOBAL
+        sWidget.stdin.write('j');
+        await wait(40);
+        assert.equal(moved, 1, `${kind} handles j at KEY_LAYER_WIDGET`);
+        assert.deepEqual(globalLog, [], `${kind} consumes j before KEY_LAYER_GLOBAL`);
+        // 'k' is consumed by KEY_LAYER_VIEW -> widget does NOT move
+        sWidget.stdin.write('k');
+        await wait(40);
+        assert.deepEqual(viewLog, ['k'], `KEY_LAYER_VIEW intercepts k before ${kind}`);
+        assert.equal(moved, 1, `${kind} stays below KEY_LAYER_VIEW`);
+      } finally {
+        instWidget.unmount();
+      }
     }
   });
 

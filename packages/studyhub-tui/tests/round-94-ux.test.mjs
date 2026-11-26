@@ -8,9 +8,12 @@
 import assert from 'node:assert/strict';
 import { PassThrough } from 'node:stream';
 import { after, describe, test } from 'node:test';
+import xtermPkg from '@xterm/headless';
 import { render } from 'ink';
 import React from 'react';
 import { register } from 'tsx/esm/api';
+
+const { Terminal } = xtermPkg;
 
 const unregisterTsx = register();
 after(() => {
@@ -168,9 +171,19 @@ describe('Round 94 Track D8 & A12 — Gap-Fill Workflow & Saved-Plan Schedule Ta
 });
 
 describe('Round 94 Track C8 — DEC 1004 Focus Reporting & Low-Power Blur Throttle', () => {
-  test('parses focus/blur CSI sequences, detects capability safely, and throttles background ticks 4x when blurred', () => {
-    assert.equal(DEC_FOCUS_ENABLE, '\x1b[?1004h');
-    assert.equal(DEC_FOCUS_DISABLE, '\x1b[?1004l');
+  test('parses focus/blur CSI sequences, detects capability safely, and throttles background ticks 4x when blurred', async () => {
+    // Verify DEC_FOCUS_ENABLE / DEC_FOCUS_DISABLE toggle DEC 1004 mode in a real terminal emulator
+    const term = new Terminal({ allowProposedApi: true });
+    const writeToTerm = (seq) => new Promise((resolve) => term.write(seq, resolve));
+    try {
+      assert.equal(term.modes.sendFocusMode, false);
+      await writeToTerm(DEC_FOCUS_ENABLE);
+      assert.equal(term.modes.sendFocusMode, true, 'DEC_FOCUS_ENABLE toggles terminal sendFocusMode on');
+      await writeToTerm(DEC_FOCUS_DISABLE);
+      assert.equal(term.modes.sendFocusMode, false, 'DEC_FOCUS_DISABLE toggles terminal sendFocusMode off');
+    } finally {
+      term.dispose();
+    }
     assert.equal(parseTerminalFocusEvent('\x1b[I'), 'focus');
     assert.equal(parseTerminalFocusEvent('\x1b[O'), 'blur');
     assert.equal(parseTerminalFocusEvent('hello'), null);

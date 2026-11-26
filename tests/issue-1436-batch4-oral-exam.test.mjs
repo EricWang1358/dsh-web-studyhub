@@ -6,17 +6,52 @@
 // 4) UI OralExam tightens `allAssessedTopicsClear` (`assessed === answered`), includes unassessed answered items in `needWorkEntries`, and shows non-primary reassess button
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { build } from 'esbuild';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { StudyService } from '../lib/service.js';
 import { assistantRefusal } from '../lib/assistant-boundary.js';
 import { extractLearnerPace } from '../lib/pace/forecast.js';
 import { loadUi } from './helpers/ui-module.mjs';
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 const uiMod = await loadUi(`
   export { computeTodayPace } from './ui/review/today-pace.js';
 `);
+
+/* The report is rendered from a fake exam state (`useExamRun` is replaced), so the reassess button and the all-clear banner are read from the real
+   component in each state instead of from its source text. */
+const require = createRequire(import.meta.url);
+const oralStub = {
+  name: 'oral-exam-state-stub',
+  setup(b) {
+    b.onResolve({ filter: /(^|\/)exam\/useExamRun\.js$/ }, () => ({ path: 'useExamRun-stub', namespace: 'oral-stub' }));
+    b.onLoad({ filter: /.*/, namespace: 'oral-stub' }, () => ({ contents: 'export const useExamRun = () => globalThis.__oralExamState;', loader: 'js' }));
+  },
+};
+const oralBuild = await build({
+  stdin: { contents: `export { default as OralExam } from './ui/OralExam.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
+  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], plugins: [nativeSelects, oralStub],
+  loader: { '.css': 'text' }, logLevel: 'silent',
+});
+const oralModule = { exports: {} };
+new Function('require', 'module', 'exports', oralBuild.outputFiles[0].text)(require, oralModule, oralModule.exports);
+const { OralExam, StudyServicesContext, setUiLanguage } = oralModule.exports;
+const oralServices = { call: async () => ({}), act: async () => undefined, busy: false, notify() {}, askInChat() {}, host: {}, openSettings() {}, navigate() {}, openModal() {} };
+const renderOralReport = (report) => {
+  globalThis.__oralExamState = { phase: 'report', run: { id: report.runId }, report, busy: false, error: '', loading: false, enter() {}, leave() {}, perform() {}, submit() {} };
+  setUiLanguage('zh');
+  try {
+    return renderToStaticMarkup(React.createElement(StudyServicesContext.Provider, { value: oralServices },
+      React.createElement(OralExam, { data: { root: '/lib', decks: [] }, onExit() {}, header: null, recent: null })));
+  } finally { setUiLanguage('zh'); }
+};
 
 async function seedOralService(t, completeFn) {
   const dir = mkdtempSync(join(tmpdir(), 'studyhub-1436-item10-'));
@@ -110,8 +145,14 @@ test('#1436 Item 10b: oral attempts do not pollute written pacing or 60s slow-co
   assert.equal(today.todaySampleCount, 1, 'today-pace elapsed samples must exclude oral attempts');
   assert.ok(today.medianElapsedMs < 60_000, `oral attempts must not skew today medianElapsedMs (got ${today.medianElapsedMs})`);
 
-  // OralExam.jsx UI contracts
-  const oralUiSrc = readFileSync(new URL('../ui/OralExam.jsx', import.meta.url), 'utf8');
-  assert.match(oralUiSrc, /report\.assessed\s*===\s*report\.answered/, 'allAssessedTopicsClear must require assessed === answered');
-  assert.match(oralUiSrc, /oral\.assess/, 'OralExam UI must wire incremental oral.assess button');
+  // The real report component: an answered question the assessment never reached keeps the all-clear away and offers 补评估; once every answer
+  // is assessed, the banner comes back and the reassess button is gone.
+  const reportOf = (assessed) => ({ runId: 'r1', feedbackStatus: 'assessed', total: 2, answered: 2, assessed,
+    strong: assessed, developing: 0, weak: 0, weakTopics: [], weakScope: [], entries: [] });
+  const partial = renderOralReport(reportOf(1));
+  assert.match(partial, /补评估未评题目/, 'an answered but unassessed question offers 补评估未评题目');
+  assert.doesNotMatch(partial, /oral-report__clear/, 'the all-clear banner stays away while an answer is unassessed');
+  const complete = renderOralReport(reportOf(2));
+  assert.match(complete, /oral-report__clear/, 'every answer assessed brings the all-clear banner back');
+  assert.doesNotMatch(complete, /补评估未评题目|重新评估/, 'nothing is left to reassess');
 });

@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useState } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
 import type { KeyHint, ToastItem } from '../types/contracts.js';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
@@ -376,6 +376,8 @@ export interface ToastStackProps {
   width?: number;
   /** Auto-dismiss timeout (errors stay 2× longer). 0 disables. */
   autoDismissMs?: number;
+  /** Pause auto-dismiss timers while the notification history panel is open (#1354 P2-b); history is unaffected. */
+  paused?: boolean;
 }
 
 const TOAST_ICON: Record<ToastItem['tone'], string> = { info: 'ℹ', success: '✔', warning: '▲', error: '✖' };
@@ -418,23 +420,37 @@ const ToastRow = memo(function ToastRow({
   onDismiss,
   width,
   autoDismissMs,
+  paused,
 }: {
   toast: ToastItem;
   onDismiss: (id: string) => void;
   width: number;
   autoDismissMs: number;
+  paused: boolean;
 }) {
   const theme = useTheme();
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const lines = wrapToastLines(toast.text, Math.max(8, width - 6), asciiMode);
   const lineCount = lines.length;
+  const pausedAccumRef = useRef(0);
+  const pauseStartRef = useRef<number | null>(null);
   useEffect(() => {
     const ttl = toastAutoDismissMs(toast, autoDismissMs, lineCount);
     if (ttl <= 0) return undefined;
-    const remaining = Math.max(250, ttl - (Date.now() - toast.createdAt));
+    const now = Date.now();
+    if (paused) {
+      // Freeze the remaining TTL; the toast stays visible while history is being read.
+      pauseStartRef.current = now;
+      return undefined;
+    }
+    if (pauseStartRef.current !== null) {
+      pausedAccumRef.current += now - pauseStartRef.current;
+      pauseStartRef.current = null;
+    }
+    const remaining = Math.max(250, ttl - (now - toast.createdAt - pausedAccumRef.current));
     const timer = setTimeout(() => onDismiss(toast.id), remaining);
     return () => clearTimeout(timer);
-  }, [toast, lineCount, autoDismissMs, onDismiss]);
+  }, [toast, lineCount, autoDismissMs, onDismiss, paused]);
   const color = toneColor(theme, toast.tone);
   const bar = glyph('bar', asciiMode);
   const icon = (asciiMode ? ASCII_TOAST_ICON : TOAST_ICON)[toast.tone];
@@ -452,13 +468,26 @@ const ToastRow = memo(function ToastRow({
   );
 });
 
-export const ToastStack = memo(function ToastStack({ toasts, onDismiss, width = 44, autoDismissMs = 5000 }: ToastStackProps) {
+export const ToastStack = memo(function ToastStack({
+  toasts,
+  onDismiss,
+  width = 44,
+  autoDismissMs = 5000,
+  paused = false,
+}: ToastStackProps) {
   if (toasts.length === 0) return null;
   const visible = toasts.slice(-2);
   return (
     <Box flexDirection="column" alignItems="flex-end">
       {visible.map((t) => (
-        <ToastRow key={t.id} toast={t} onDismiss={onDismiss} width={width} autoDismissMs={autoDismissMs} />
+        <ToastRow
+          key={t.id}
+          toast={t}
+          onDismiss={onDismiss}
+          width={width}
+          autoDismissMs={autoDismissMs}
+          paused={paused}
+        />
       ))}
     </Box>
   );

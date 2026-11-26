@@ -23,6 +23,10 @@ after(async () => {
   await Promise.all(roots.map((dir) => rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })));
 });
 
+/** Every host gets this stub, so no test here can launch the real browser (see no-real-browser-guard). */
+const launched = [];
+const recordLaunch = (url, opener) => launched.push({ url, command: opener.command });
+
 /** A sandbox: temp DSH_HOME, temp home and temp library root; env has no PATH and no API keys. */
 async function sandbox(label, extraEnv = {}) {
   const base = await tempDir(label);
@@ -252,6 +256,7 @@ describe('createTuiHost with injectedComplete', () => {
     box = await sandbox('host');
     baseline = resourceCounts();
     host = await H.createTuiHost({
+      launchExternal: recordLaunch,
       env: box.env,
       home: box.home,
       libraryRoot: box.libraryRoot,
@@ -414,9 +419,11 @@ describe('createTuiHost with injectedComplete', () => {
   });
 
   test('app.open never spawns in a headless terminal', async () => {
+    const before = launched.length;
     const result = await host.call('app.open', { url: 'https://example.com/docs' });
     assert.equal(result.ok, true);
     assert.deepEqual(opened.at(-1), { url: 'https://example.com/docs', ok: false });
+    assert.equal(launched.length, before, 'a headless host never reaches the launcher');
     const refused = await host.call('app.open', { url: 'file:///etc/passwd' });
     assert.equal(refused.ok, false);
     assert.equal(H.externalOpener('linux', {}), null);
@@ -424,6 +431,37 @@ describe('createTuiHost with injectedComplete', () => {
     const win = H.externalOpener('win32', { SystemRoot: 'C:\\Windows' });
     assert.equal(win.command, 'C:\\Windows\\System32\\rundll32.exe');
     assert.deepEqual(win.prefixArgs, ['url.dll,FileProtocolHandler']);
+  });
+
+  test('app.open on a desktop hands the URL to launchExternal instead of spawning', async () => {
+    const desk = await sandbox('host-desktop');
+    const seen = [];
+    const told = [];
+    let fail = false;
+    const deskHost = await H.createTuiHost({
+      launchExternal: (url, opener) => {
+        if (fail) throw new Error('launcher broke');
+        seen.push({ url, command: opener.command });
+      },
+      env: desk.env,
+      home: desk.home,
+      libraryRoot: desk.libraryRoot,
+      providerDiscovery: fakeDiscovery({ agyReady: false }),
+      skipAutoProbe: true,
+      platform: 'darwin',
+      onOpenExternal: (url, ok) => told.push({ url, ok }),
+    });
+    try {
+      const result = await deskHost.call('app.open', { url: 'https://example.com/a' });
+      assert.equal(result.ok, true);
+      assert.deepEqual(seen, [{ url: 'https://example.com/a', command: '/usr/bin/open' }]);
+      assert.deepEqual(told, [{ url: 'https://example.com/a', ok: true }], 'the listener still hears about the open');
+      fail = true;
+      await deskHost.call('app.open', { url: 'https://example.com/b' });
+      assert.deepEqual(told.at(-1), { url: 'https://example.com/b', ok: false }, 'a launcher error reports opened: false');
+    } finally {
+      await deskHost.dispose();
+    }
   });
 
   test('dispose() is idempotent and leaves no watchers, timers or children behind', async () => {
@@ -450,7 +488,7 @@ describe('agy-first auto-selection', () => {
   test('fresh config + ready agy → saves mode agy with a smart model pick', async () => {
     const box = await sandbox('agy-fresh', { DEEPSEEK_API_KEY: 'sk-ds-should-not-win-7777' });
     const discovery = fakeDiscovery({ models: [{ id: 'gemini-pro-orchestrator' }, { id: 'gemini-4-neon-high' }, { id: 'claude-opus-5-5-high' }], delayMs: 20 });
-    const host = await H.createTuiHost({ env: box.env, home: box.home, libraryRoot: box.libraryRoot, providerDiscovery: discovery });
+    const host = await H.createTuiHost({ launchExternal: recordLaunch, env: box.env, home: box.home, libraryRoot: box.libraryRoot, providerDiscovery: discovery });
     try {
       const events = [];
       host.subscribeEvents((e) => events.push(e));
@@ -477,7 +515,7 @@ describe('agy-first auto-selection', () => {
     await mkdir(join(box.env.DSH_HOME, 'study'), { recursive: true });
     const userConfig = { mode: 'openai', openai: { providerId: 'zhipu', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash', apiKey: 'zk-user-5555' } };
     await writeFile(box.configPath, JSON.stringify(userConfig), 'utf8');
-    const host = await H.createTuiHost({ env: box.env, home: box.home, libraryRoot: box.libraryRoot, providerDiscovery: fakeDiscovery(), awaitAutoProbe: true });
+    const host = await H.createTuiHost({ launchExternal: recordLaunch, env: box.env, home: box.home, libraryRoot: box.libraryRoot, providerDiscovery: fakeDiscovery(), awaitAutoProbe: true });
     try {
       assert.equal((await host.autoProbe).outcome, 'configured');
       const persisted = JSON.parse(await readFile(box.configPath, 'utf8'));
@@ -491,7 +529,7 @@ describe('agy-first auto-selection', () => {
 
   test('agy unavailable + DEEPSEEK_API_KEY → OpenAI fallback from env, key kept in memory only', async () => {
     const box = await sandbox('env-fallback', { DEEPSEEK_API_KEY: 'sk-ds-env-key-4242' });
-    const host = await H.createTuiHost({ env: box.env, home: box.home, libraryRoot: box.libraryRoot, providerDiscovery: fakeDiscovery({ agyReady: false }), awaitAutoProbe: true });
+    const host = await H.createTuiHost({ launchExternal: recordLaunch, env: box.env, home: box.home, libraryRoot: box.libraryRoot, providerDiscovery: fakeDiscovery({ agyReady: false }), awaitAutoProbe: true });
     try {
       const result = await host.autoProbe;
       assert.equal(result.outcome, 'openai-env');
@@ -522,7 +560,7 @@ describe('agy-first auto-selection', () => {
 
   test('nothing available → outcome none, streamComplete explains how to configure', async () => {
     const box = await sandbox('none');
-    const host = await H.createTuiHost({ env: box.env, home: box.home, libraryRoot: box.libraryRoot, providerDiscovery: fakeDiscovery({ agyReady: false }), awaitAutoProbe: true, language: 'en' });
+    const host = await H.createTuiHost({ launchExternal: recordLaunch, env: box.env, home: box.home, libraryRoot: box.libraryRoot, providerDiscovery: fakeDiscovery({ agyReady: false }), awaitAutoProbe: true, language: 'en' });
     try {
       assert.equal((await host.autoProbe).outcome, 'none');
       assert.equal(host.getConfig().effective.ready, false);
@@ -547,7 +585,7 @@ describe('agy-first auto-selection', () => {
       });
       return new Response(stream, { status: 200, headers: { 'content-type': 'text/event-stream' } });
     };
-    const host = await H.createTuiHost({ env: box.env, home: box.home, libraryRoot: box.libraryRoot, providerDiscovery: fakeDiscovery({ agyReady: false }), awaitAutoProbe: true, fetch: fakeFetch });
+    const host = await H.createTuiHost({ launchExternal: recordLaunch, env: box.env, home: box.home, libraryRoot: box.libraryRoot, providerDiscovery: fakeDiscovery({ agyReady: false }), awaitAutoProbe: true, fetch: fakeFetch });
     try {
       const chunks = [];
       const text = await host.streamComplete({ system: 'sys', prompt: 'hi', onChunk: (d) => chunks.push(d) });
@@ -564,7 +602,7 @@ describe('agy-first auto-selection', () => {
 
   test('dispose during a slow probe returns promptly', async () => {
     const box = await sandbox('dispose-probe');
-    const host = await H.createTuiHost({ env: box.env, home: box.home, libraryRoot: box.libraryRoot, providerDiscovery: fakeDiscovery({ delayMs: 150 }) });
+    const host = await H.createTuiHost({ launchExternal: recordLaunch, env: box.env, home: box.home, libraryRoot: box.libraryRoot, providerDiscovery: fakeDiscovery({ delayMs: 150 }) });
     const started = Date.now();
     await host.dispose();
     assert.equal((await host.autoProbe).outcome, 'disposed');
@@ -589,6 +627,7 @@ describe('agy-first auto-selection', () => {
     ].join('\n'), 'utf8');
     await chmod(script, 0o755);
     const host = await H.createTuiHost({
+      launchExternal: recordLaunch,
       env: { ...box.env, PATH: `${bin}:/usr/bin:/bin`, HOME: box.home },
       home: box.home,
       libraryRoot: box.libraryRoot,
@@ -628,7 +667,7 @@ describe('real local agy probe', () => {
       OPENAI_BASE_URL: undefined,
       STUDYHUB_LIBRARY: undefined,
     });
-    const host = await H.createTuiHost({ env, libraryRoot: box.libraryRoot, awaitAutoProbe: true });
+    const host = await H.createTuiHost({ launchExternal: recordLaunch, env, libraryRoot: box.libraryRoot, awaitAutoProbe: true });
     try {
       const result = await host.autoProbe;
       const agy = result.providers.find((p) => p.id === 'agy');
@@ -650,7 +689,7 @@ describe('real local agy probe', () => {
 
   test('live agy streamComplete (STUDYHUB_TUI_LIVE=1 only)', { skip: (!agyPath || process.env.STUDYHUB_TUI_LIVE !== '1') && 'set STUDYHUB_TUI_LIVE=1 to call the real model', timeout: 180_000 }, async () => {
     const box = await sandbox('live-agy');
-    const host = await H.createTuiHost({ env: { ...process.env, DSH_HOME: box.env.DSH_HOME }, libraryRoot: box.libraryRoot, awaitAutoProbe: true });
+    const host = await H.createTuiHost({ launchExternal: recordLaunch, env: { ...process.env, DSH_HOME: box.env.DSH_HOME }, libraryRoot: box.libraryRoot, awaitAutoProbe: true });
     try {
       const chunks = [];
       const text = await host.streamComplete({ system: 'Answer in one word.', prompt: 'Reply with the single word OK.', onChunk: (d) => chunks.push(d) });

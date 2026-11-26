@@ -1,6 +1,9 @@
 /* The three first-use tips under a practice question (#948): 帮我弄懂 after a first wrong answer, 修题 after a first 「这题有问题」, 出成前置题 once an answer
    is shown under the question. The rule that decides which one (if any) shows is one pure function (ui/guidance/practice-tips.js), tested here without a
-   browser; the browser test (question-tools-first-use-browser.test.mjs) draws them. Nothing here touches a real library. */
+   browser; the browser test (question-tools-first-use-browser.test.mjs) draws them. Nothing here touches a real library.
+   Note on static CSS guardrails below: Node has no CSS cascade or `[popover]` / `:focus-visible` pseudo-class evaluator, so the #1276 stylesheet check
+   intentionally inspects ui/review/review.css statically for padding, line-height, button min-height, and tip-ring vs `:focus-visible` outlines. All
+   hook/view/placement JS behavior (`usePracticeTip`, `PAGE_VIEWS.review` tourRunning propagation, `PracticeTip` toolbar clearance) is tested dynamically. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -177,22 +180,277 @@ test('the three tips do not go through the daily budget: showing them never spen
   forgetPracticeTipsVisit(); forgetVisitClaim();
 });
 
-test('the hook hands the rule the exam flag of the run and the tour flag of the page, so neither can be forgotten', async () => {
-  const { readFile } = await import('node:fs/promises');
-  const hook = await readFile(new URL('../ui/review/use-practice-tip.js', import.meta.url), 'utf8');
-  assert.match(hook, /exam = run\?\.mode === 'exam'/);
-  assert.match(hook, /practiceTipFor\(\{[^}]*exam[^}]*tourRunning[^}]*\}\)/);
-  const view = await readFile(new URL('../ui/app/page-views.jsx', import.meta.url), 'utf8');
-  assert.match(view, /tourRunning: !!tour\.tourStep/, 'the practice page says whether the tour is running');
-  const run = await readFile(new URL('../ui/review/QuestionRun.jsx', import.meta.url), 'utf8');
-  assert.match(run, /usePracticeTip\(\{[^}]*tourRunning: !!tourRunning/);
-  assert.ok(run.split(String.fromCharCode(10)).length <= 745, 'QuestionRun stays about the size it was (739 lines before, 744 now: the tip logic and its component live in their own files)');
+async function loadStatefulPracticeUi(entryCode) {
+  const contexts = new Map();
+  let currentInst = null;
+  let cursor = 0;
+  let idSeq = 0;
+  const depsSame = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
+  const miniReact = {
+    Fragment: Symbol.for('react.fragment'),
+    Suspense: Symbol.for('react.suspense'),
+    Component: class Component { constructor(props) { this.props = props; this.state = {}; } },
+    useInsertionEffect() {},
+    lazy(load) { return { $$lazy: true, load }; },
+    createContext(defaultValue) {
+      const ctx = { _default: defaultValue };
+      ctx.Provider = ({ value, children }) => ({ $$provider: ctx, value, children });
+      return ctx;
+    },
+    createElement(type, props, ...children) {
+      const p = props ? { ...props } : {};
+      if (children.length === 1) p.children = children[0];
+      else if (children.length > 1) p.children = children;
+      return { type, props: p };
+    },
+    memo(fn) { return { $$memo: true, type: fn }; },
+    forwardRef(fn) { return { $$forwardRef: true, render: fn }; },
+    useContext(ctx) {
+      const stack = contexts.get(ctx);
+      return stack && stack.length ? stack[stack.length - 1] : ctx._default;
+    },
+    useId() {
+      const inst = currentInst;
+      const idx = cursor++;
+      if (!(idx in inst.slots)) inst.slots[idx] = `:r${++idSeq}:`;
+      return inst.slots[idx];
+    },
+    useState(init) {
+      const inst = currentInst;
+      const idx = cursor++;
+      if (!(idx in inst.slots)) inst.slots[idx] = typeof init === 'function' ? init() : init;
+      const setState = (next) => {
+        const prev = inst.slots[idx];
+        const value = typeof next === 'function' ? next(prev) : next;
+        if (!Object.is(prev, value)) {
+          inst.slots[idx] = value;
+          inst.render(inst.lastProps);
+        }
+      };
+      return [inst.slots[idx], setState];
+    },
+    useRef(init) {
+      const inst = currentInst;
+      const idx = cursor++;
+      if (!(idx in inst.slots)) inst.slots[idx] = { current: init };
+      return inst.slots[idx];
+    },
+    useCallback(fn, deps) {
+      const inst = currentInst;
+      const idx = cursor++;
+      const prev = inst.slots[idx];
+      if (!prev || !depsSame(prev.deps, deps)) inst.slots[idx] = { fn, deps };
+      return inst.slots[idx].fn;
+    },
+    useMemo(fn, deps) {
+      const inst = currentInst;
+      const idx = cursor++;
+      const prev = inst.slots[idx];
+      if (!prev || !depsSame(prev.deps, deps)) inst.slots[idx] = { value: fn(), deps };
+      return inst.slots[idx].value;
+    },
+    useEffect(fn, deps) {
+      const inst = currentInst;
+      const idx = cursor++;
+      const prev = inst.effects[idx];
+      if (!prev || !deps || !depsSame(prev.deps, deps)) {
+        inst.pendingEffects.push({ idx, fn, deps });
+      }
+    },
+    useLayoutEffect(fn, deps) { miniReact.useEffect(fn, deps); },
+    useSyncExternalStore(subscribe, getSnapshot) {
+      const inst = currentInst;
+      const idx = cursor++;
+      if (!(idx in inst.slots)) {
+        const entry = {
+          value: getSnapshot(),
+          unsub: subscribe(() => {
+            const next = getSnapshot();
+            if (!Object.is(entry.value, next)) {
+              entry.value = next;
+              inst.render(inst.lastProps);
+            }
+          }),
+        };
+        inst.slots[idx] = entry;
+      } else {
+        inst.slots[idx].value = getSnapshot();
+      }
+      return inst.slots[idx].value;
+    },
+  };
+  miniReact.default = miniReact;
+
+  const compiled = await build({
+    stdin: { contents: entryCode, resolveDir: process.cwd() },
+    bundle: true,
+    write: false,
+    platform: 'node',
+    format: 'cjs',
+    external: ['react', 'react-dom', '@codemirror/*', '@lezer/*', '@base-ui/*', 'markdown-it', 'markdown-it-texmath', 'dompurify', 'katex', 'katex/*'],
+    plugins: [nativeSelects],
+    loader: { '.css': 'text' },
+    logLevel: 'silent',
+  });
+  const modObj = { exports: {} };
+  const customRequire = (id) => (id === 'react' ? miniReact : require(id));
+  new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(customRequire, modObj, modObj.exports);
+
+  function mount(Component, initialProps = {}, { contextValues = [], onBeforeEffects } = {}) {
+    const fn = Component?.$$memo ? Component.type : Component;
+    const inst = {
+      slots: [],
+      effects: [],
+      pendingEffects: [],
+      lastProps: initialProps,
+      tree: null,
+      render(nextProps = inst.lastProps) {
+        inst.lastProps = nextProps;
+        for (const [ctx, val] of contextValues) {
+          if (!contexts.has(ctx)) contexts.set(ctx, []);
+          contexts.get(ctx).push(val);
+        }
+        const prevInst = currentInst;
+        const prevCursor = cursor;
+        currentInst = inst;
+        cursor = 0;
+        try {
+          inst.tree = fn(nextProps);
+        } finally {
+          currentInst = prevInst;
+          cursor = prevCursor;
+          for (const [ctx] of contextValues) contexts.get(ctx).pop();
+        }
+        onBeforeEffects?.(inst.tree);
+        const queue = inst.pendingEffects.splice(0);
+        for (const item of queue) {
+          inst.effects[item.idx]?.cleanup?.();
+          const cleanup = item.fn();
+          inst.effects[item.idx] = { deps: item.deps, cleanup: typeof cleanup === 'function' ? cleanup : null };
+        }
+        return inst.tree;
+      },
+      unmount() {
+        for (const eff of inst.effects) eff?.cleanup?.();
+        for (const slot of inst.slots) slot?.unsub?.();
+      },
+    };
+    inst.render(initialProps);
+    return inst;
+  }
+
+  return { exports: modObj.exports, mount };
+}
+
+test('usePracticeTip suppresses tips during exam runs and active tours, and ReviewView forwards tourRunning to Review', async () => {
+  const origDoc = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const origStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const origSetTimeout = globalThis.setTimeout;
+  const origClearTimeout = globalThis.clearTimeout;
+  const timers = new Map();
+  let nextTimerId = 1;
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: { addEventListener: () => {}, removeEventListener: () => {} },
+  });
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: memoryStorage(),
+  });
+  globalThis.setTimeout = (fn) => {
+    const id = nextTimerId++;
+    timers.set(id, fn);
+    return id;
+  };
+  globalThis.clearTimeout = (id) => { timers.delete(id); };
+  const flushTimers = () => {
+    for (const [id, fn] of [...timers.entries()]) {
+      timers.delete(id);
+      fn();
+    }
+  };
+
+  try {
+    const ui = await loadStatefulPracticeUi(`
+      export { usePracticeTip } from './ui/review/use-practice-tip.js';
+      export { PRACTICE_TIP, practiceTipSeen, forgetPracticeTipsVisit } from './ui/guidance/practice-tips.js';
+      export { PAGE_VIEWS } from './ui/app/page-views.jsx';
+      export { AppContext } from './ui/app/app-context.js';
+      export { default as Review } from './ui/Review.jsx';
+    `);
+    ui.exports.forgetPracticeTipsVisit();
+
+    let latest = null;
+    function HookProbe(props) {
+      latest = ui.exports.usePracticeTip(props);
+      return null;
+    }
+
+    // 1. Practice run with wrong feedback shows help-first after settle delay; turning on tourRunning hides it without marking seen.
+    const wrongCard = { id: 'c1', kind: 'quiz', options: [{ id: 'a', text: 'A', correct: true }, { id: 'b', text: 'B', correct: false }] };
+    const wrongRun = { id: 'r1', index: 0, mode: 'quiz', card: wrongCard, feedback: { correct: false } };
+    const probe = ui.mount(HookProbe, { run: wrongRun, tourRunning: false });
+    assert.equal(latest.tip, null, 'waits for settle timer before showing');
+    flushTimers();
+    assert.equal(latest.tip, ui.exports.PRACTICE_TIP.help, 'shows help-first after wrong answer in practice mode');
+
+    probe.render({ run: wrongRun, tourRunning: true });
+    assert.equal(latest.tip, null, 'starting the tour immediately clears the active tip');
+    assert.equal(ui.exports.practiceTipSeen(ui.exports.PRACTICE_TIP.help), false, 'tour suppression does not spend the tip');
+
+    // 2. While tourRunning stays true, firing timers does not re-open a tip.
+    flushTimers();
+    assert.equal(latest.tip, null, 'no tip opens while tourRunning is true');
+    probe.unmount();
+
+    // 3. Exam runs never open practice tips even on wrong feedback.
+    const examRun = { id: 'r2', index: 0, mode: 'exam', card: { ...wrongCard, id: 'c2' }, feedback: { correct: false } };
+    const examProbe = ui.mount(HookProbe, { run: examRun, tourRunning: false });
+    flushTimers();
+    assert.equal(latest.tip, null, 'exam run suppresses practice tips');
+    examProbe.unmount();
+
+    // 4. ReviewView (PAGE_VIEWS.review) forwards !!tour.tourStep into Review context.tourRunning.
+    const makeApp = (tourStep) => ({
+      data: { root: '/tmp/lib', decks: [] },
+      core: { act: async () => {} },
+      nav: { navigate: () => {}, show: { note: () => {}, page: () => {} } },
+      lib: { detour: null },
+      set: { setBoardView: () => {}, setWorkflowReturn: () => {} },
+      session: { run: wrongRun, coach: {}, continueTo: () => null },
+      learn: { trailLabel: '', trailPage: '', trailPlace: null, returnFromContext: () => {}, returnFromDetour: () => {}, returnToReading: () => {}, captureContext: () => ({}), rememberContext: () => {}, openLearningTarget: () => {}, openBoardWithContext: () => {} },
+      dailyPlan: { refresh: () => {} },
+      settingsEntry: { openModelSettings: () => {}, setSettingsFocus: () => {} },
+      tour: { tourStep },
+    });
+    const findReview = (node) => {
+      if (!node || typeof node !== 'object') return null;
+      if (Array.isArray(node)) return node.map(findReview).find(Boolean) || null;
+      if (node.type === ui.exports.Review) return node;
+      return node.props?.children ? findReview(node.props.children) : null;
+    };
+
+    const viewWithTour = ui.mount(ui.exports.PAGE_VIEWS.review, { feedback: null }, { contextValues: [[ui.exports.AppContext, makeApp({ id: 'tour-1' })]] });
+    assert.equal(findReview(viewWithTour.tree)?.props?.context?.tourRunning, true, 'ReviewView passes tourRunning=true when tour.tourStep is active');
+    viewWithTour.unmount();
+
+    const viewNoTour = ui.mount(ui.exports.PAGE_VIEWS.review, { feedback: null }, { contextValues: [[ui.exports.AppContext, makeApp(null)]] });
+    assert.equal(findReview(viewNoTour.tree)?.props?.context?.tourRunning, false, 'ReviewView passes tourRunning=false when no tour step is active');
+    viewNoTour.unmount();
+  } finally {
+    globalThis.setTimeout = origSetTimeout;
+    globalThis.clearTimeout = origClearTimeout;
+    if (origDoc) Object.defineProperty(globalThis, 'document', origDoc);
+    else delete globalThis.document;
+    if (origStorage) Object.defineProperty(globalThis, 'localStorage', origStorage);
+    else delete globalThis.localStorage;
+  }
 });
 
-test('#1276: practice tip card uses roomy padding, normal sm button height, toolbar clearance, and a tip ring distinct from focus-visible', async () => {
+test('#1276: practice tip card uses roomy padding, normal sm button height, toolbar clearance >= 8*scale, and a tip ring distinct from focus-visible', async () => {
   const { readFile } = await import('node:fs/promises');
   const css = await readFile(new URL('../ui/review/review.css', import.meta.url), 'utf8');
-  const jsx = await readFile(new URL('../ui/review/PracticeTip.jsx', import.meta.url), 'utf8');
 
   // Roomier vertical padding & snug line-height on .practice-tip[popover], normal sm button (no squashed min-height: 0 / padding: 0).
   assert.match(css, /\.practice-tip\[popover\][^{]*\{[^}]*padding:\s*var\(--space-2\)\s+var\(--space-3-5\);/s);
@@ -204,6 +462,104 @@ test('#1276: practice tip card uses roomy padding, normal sm button height, tool
   assert.doesNotMatch(css, /\[data-practice-tip-ring\]\s*\{[^}]*outline:\s*2px\s+solid\s+var\(--accent-soft\)/s);
   assert.match(css, /\[data-practice-tip-ring\]:focus-visible\s*\{[^}]*outline:\s*2px\s+solid\s+var\(--accent-soft\);/s);
 
-  // Clearance from the toolbar divider: gap >= 8 * scale.
-  assert.match(jsx, /gap:\s*8\s*\*\s*scale/);
+  // Behavioral clearance check: mount PracticeTip at 1.25x zoom scale and verify placed top sits >= 8 * scale below the toolbar block.
+  const origWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const origDoc = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const origNodeFilter = Object.getOwnPropertyDescriptor(globalThis, 'NodeFilter');
+  const origRaf = globalThis.requestAnimationFrame;
+  const origCancelRaf = globalThis.cancelAnimationFrame;
+
+  const scale = 1.25;
+  const toolbarRect = { left: 100, top: 200, right: 380, bottom: 232, width: 280, height: 32 };
+  const btnRect = { left: 100, top: 200, right: 180, bottom: 232, width: 80, height: 32 };
+  const attrs = new Map();
+  let popoverOpen = false;
+  const fakeBtn = {
+    getClientRects: () => [btnRect],
+    getBoundingClientRect: () => btnRect,
+    checkVisibility: () => true,
+    setAttribute: (k, v) => attrs.set(k, v),
+    removeAttribute: (k) => attrs.delete(k),
+    closest: (sel) => {
+      if (sel.includes('.question-toolbar')) return fakeToolbar;
+      if (sel.includes('.question-tools')) return fakeToolbar;
+      if (sel.includes('.question-area')) return fakeArea;
+      return null;
+    },
+  };
+  const fakeToolbar = {
+    getBoundingClientRect: () => toolbarRect,
+    querySelector: () => fakeToolbar,
+    querySelectorAll: (sel) => (sel === 'button' ? [fakeBtn] : []),
+    closest: (sel) => (sel === '.question-area' ? fakeArea : null),
+    contains: (el) => el === fakeBtn,
+  };
+  const fakeArea = {
+    querySelectorAll: () => [],
+    querySelector: () => null,
+  };
+  const fakeScope = {
+    querySelectorAll: (sel) => (sel === '[data-usage="review.help"]' ? [fakeBtn] : []),
+    querySelector: (sel) => (sel === '.question-area' ? fakeArea : sel === '.question-toolbar' ? fakeToolbar : null),
+  };
+  const fakeCard = {
+    style: {},
+    offsetWidth: 200,
+    getBoundingClientRect: () => ({ width: 200 * scale, height: 48 * scale }),
+    matches: (sel) => sel === ':popover-open' && popoverOpen,
+    showPopover: () => { popoverOpen = true; },
+    hidePopover: () => { popoverOpen = false; },
+    closest: (sel) => (sel === '.review-body' ? fakeScope : null),
+    contains: () => false,
+  };
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: { innerWidth: 1280, innerHeight: 800, addEventListener: () => {}, removeEventListener: () => {} },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      body: fakeArea,
+      querySelector: () => null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      createRange: () => ({ selectNodeContents: () => {}, getClientRects: () => [] }),
+      createTreeWalker: () => ({ nextNode: () => null }),
+    },
+  });
+  Object.defineProperty(globalThis, 'NodeFilter', { configurable: true, value: { SHOW_TEXT: 4 } });
+  globalThis.requestAnimationFrame = () => 1;
+  globalThis.cancelAnimationFrame = () => {};
+
+  try {
+    const ui = await loadStatefulPracticeUi(`export { default as PracticeTip } from './ui/review/PracticeTip.jsx';`);
+    const inst = ui.mount(
+      ui.exports.PracticeTip,
+      { id: PRACTICE_TIP.help, onClose: () => {}, onShown: () => {} },
+      {
+        onBeforeEffects: (tree) => {
+          if (tree?.props?.ref) tree.props.ref.current = fakeCard;
+        },
+      },
+    );
+    try {
+      assert.equal(popoverOpen, true, 'PracticeTip opens its manual popover');
+      assert.ok(attrs.has('data-practice-tip-ring'), 'PracticeTip rings the target control while visible');
+      const placedTopViewport = parseFloat(fakeCard.style.top) * scale;
+      const clearance = placedTopViewport - toolbarRect.bottom;
+      assert.ok(clearance >= 8 * scale - 0.01, `expected toolbar clearance >= ${8 * scale}px (8 * scale), got ${clearance}px`);
+    } finally {
+      inst.unmount();
+    }
+  } finally {
+    globalThis.requestAnimationFrame = origRaf;
+    globalThis.cancelAnimationFrame = origCancelRaf;
+    if (origWindow) Object.defineProperty(globalThis, 'window', origWindow);
+    else delete globalThis.window;
+    if (origDoc) Object.defineProperty(globalThis, 'document', origDoc);
+    else delete globalThis.document;
+    if (origNodeFilter) Object.defineProperty(globalThis, 'NodeFilter', origNodeFilter);
+    else delete globalThis.NodeFilter;
+  }
 });

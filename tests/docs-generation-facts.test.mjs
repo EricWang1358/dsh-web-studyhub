@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { GENERATION_PERFORMANCE_DEFAULTS, GENERATION_SETTINGS_LIMITS } from '../lib/generation-settings.js';
+import { GENERATION_PERFORMANCE_DEFAULTS, GENERATION_SETTINGS_LIMITS, validateGenerationPatch } from '../lib/generation-settings.js';
 import { GOAL_QUESTIONS_MAX } from '../lib/limits.js';
-import { ROUND_LIMIT } from '../lib/coverage-round.js';
+import { ROUND_LIMIT, planRound } from '../lib/coverage-round.js';
 import { createOperations } from '../lib/contexts/workflows/operations.js';
 
 /* #849: the numbers the generation pages state are the ones the code holds (lib/generation-settings.js, lib/limits.js, lib/coverage-round.js), in both languages,
@@ -53,8 +53,19 @@ test('the time budget is described by the code: its default and range, per round
 });
 
 test('the question counts: a total up to the goal limit, made in rounds of the round limit', async () => {
-  assert.equal(GOAL_QUESTIONS_MAX, 500);
-  assert.equal(ROUND_LIMIT, 30);
+  assert.equal(validateGenerationPatch({ count: 500 }).count, 500);
+  assert.throws(() => validateGenerationPatch({ count: 501 }), /Invalid generation setting: count/);
+  const uncovered = Array.from({ length: 35 }, (_, i) => ({
+    id: `s${i + 1}`,
+    key: `src#s${i + 1}`,
+    sourceId: 'src',
+    title: `Section ${i + 1}`,
+    state: 'never-planned',
+  }));
+  const round = planRound({ sections: uncovered });
+  assert.equal(round.questions, 30);
+  assert.equal(round.left, 5);
+  assert.equal(round.rounds, 2);
   for (const [path, pattern] of [
     ['docs/pdf-workflow.md', `1–${ROUND_LIMIT} in one round | A total up to ${GOAL_QUESTIONS_MAX}`],
     ['docs/pdf-workflow.zh-CN.md', `一轮 1–${ROUND_LIMIT} 题 | 总数最多 ${GOAL_QUESTIONS_MAX} 题`],

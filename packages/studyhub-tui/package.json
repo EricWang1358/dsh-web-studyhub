@@ -30,6 +30,7 @@
     "test:e2e": "node scripts/run-tests.mjs --e2e",
     "test:timing": "node scripts/run-tests.mjs --timing",
     "test:smoke": "node scripts/build.mjs && node --test tests/cli-args.test.mjs tests/cli-commands.test.mjs tests/host.test.mjs",
+    "test:snapshots": "node scripts/build.mjs && node --test tests/golden-layout-snapshots.test.mjs",
     "test:e2e:core": "node scripts/build.mjs && node --test tests/xterm-e2e.test.mjs",
     "bench": "node scripts/bench.mjs"
   },

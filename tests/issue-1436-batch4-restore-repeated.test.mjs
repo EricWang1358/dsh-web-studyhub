@@ -19,7 +19,8 @@ test('#1436 Item 6: materials.document.restoreRepeated preserves external origin
   const fakePdfBytes = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n', 'utf8');
   writeFileSync(pdfPath, fakePdfBytes);
   const pdfStat = statSync(pdfPath);
-  const pdfRealPath = realpathSync(pdfPath);
+  // The native form, as the service records it (fs/promises realpath): on Windows the plain form keeps an 8.3 short name in the temp folder and the two would differ.
+  const pdfRealPath = realpathSync.native(pdfPath);
   const pdfHash = createHash('sha256').update(fakePdfBytes).digest('hex');
 
   const service = new StudyService(dir);
