@@ -4,10 +4,12 @@ import { KeyScope, useKeyScope } from '../../input/hooks.js';
 import type { UiLanguage } from '../../types/contracts.js';
 import { Badge, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { ChromeLabel } from '../../components/Layout.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Panel } from '../../components/Panel.js';
-import { ScrollView } from '../../components/ScrollView.js';
+import { ScrollArea } from '../../components/ScrollArea.js';
 import { TextInput } from '../../components/TextInput.js';
+import { LAYOUT_BP } from '../../layout/breakpoints.js';
 import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import { buildExamWindowTitle, writeTerminalTitle } from '../../render/terminal-title.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -40,7 +42,7 @@ export interface ExamRunnerProps {
 
 const BASE_CLAIMED = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'n', 'a', 'b'];
 const CASE_CLAIMED = [...BASE_CLAIMED, 's', 'H', 'j', 'k', '[', ']'];
-const WIDE_CASE_BREAKPOINT = 104;
+const WIDE_CASE_BREAKPOINT = LAYOUT_BP.AI_DRAWER_SIDE;
 
 export const ExamRunner = memo(function ExamRunner({
   kind,
@@ -584,17 +586,18 @@ export const ExamRunner = memo(function ExamRunner({
         ascii={asciiMode}
       >
         <Box justifyContent="space-between" width={paneInnerW} marginBottom={0}>
-          <Text color={theme.muted}>
-            {truncateDisplay(
+          <ChromeLabel
+            text={
               showScenarioOverlay
                 ? t(lang, 'j/k/Ctrl+D 滚动 · [/] 段落 · H 标亮 · s 返回作答', 'j/k/Ctrl+D scroll · [/] para · H highlight · s back')
-                : t(lang, 'j/k/Ctrl+D 滚动 · [/] 选段 · H 标亮 · s 隐显', 'j/k/Ctrl+D scroll · [/] para · H highlight · s hide'),
-              paneInnerW,
-              ellipsis,
-            )}
-          </Text>
+                : t(lang, 'j/k/Ctrl+D 滚动 · [/] 选段 · H 标亮 · s 隐显', 'j/k/Ctrl+D scroll · [/] para · H highlight · s hide')
+            }
+            maxWidth={paneInnerW}
+            color={theme.muted}
+            ascii={asciiMode}
+          />
         </Box>
-        <ScrollView
+        <ScrollArea
           lines={scenarioLines}
           width={paneInnerW}
           height={scrollH}
