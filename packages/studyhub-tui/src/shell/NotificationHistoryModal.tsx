@@ -147,10 +147,12 @@ export const NotificationHistoryModal = memo(function NotificationHistoryModal({
         return true;
       }
       if (isPlainKey(input, key) && input === 'C') {
-        clearToastHistory();
-        setCursor(0);
-        setDetailTop(0);
-        setStatus(copy.clearedStatus);
+        if (entries.length > 0) {
+          clearToastHistory();
+          setCursor(0);
+          setDetailTop(0);
+          setStatus(copy.clearedStatus);
+        }
         return true;
       }
       // Esc falls through to <Modal>, which owns the single close action.

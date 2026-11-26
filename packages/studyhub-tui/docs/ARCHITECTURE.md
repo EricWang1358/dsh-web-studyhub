@@ -72,16 +72,20 @@ Keystrokes traverse a single Ink `useInput` bridge (`src/input/hooks.ts`) backed
 
 ```text
 Keypress (single Ink useInput in src/input/hooks.ts)
-  ├── Depth-ordered scopes (KEY_SCOPE_DEPTH_QUIT_CONFIRM 300 > TOO_SMALL 200 > SHELL_OVERLAY 100 > view/modal)
-  ├── Within same depth, priority layers descend:
-  │     KEY_LAYER_SYSTEM (1000) ──► AppShell:system (SHELL_KEY_ROUTER.resolveSystem: Ctrl+C/K/Space/G/O/R)
-  │     KEY_LAYER_CONFIRM (900) ──► ConfirmDialog (opaque <KeyScope>, stops fallthrough)
-  │     KEY_LAYER_MODAL   (800) ──► Active Modal / Overlay (opaque <KeyScopeProvider>)
-  │     KEY_LAYER_INPUT   (700) ──► Focused TextInput (captures typing & Alt-editing chords)
-  │     KEY_LAYER_LIST    (500) ──► VirtualList / SelectList / ScrollView
-  │     KEY_LAYER_VIEW    (300) ──► Active View useKeyScope handlers
-  │     KEY_LAYER_GLOBAL  (100) ──► AppShell:global (SHELL_KEY_ROUTER.resolveGlobal: 1-9,0,n,b,t,a,r,c,I,?,/,\\,[,],q)
-  └── Unhandled Alt+<key> chords consumed by AppShell:alt-guard (SHELL_KEY_ROUTER.resolveAltChord)
+  ├── System & mouse layers run above scope masking (sorted by (layer >= KEY_LAYER_SYSTEM) DESC):
+  │     KEY_LAYER_MOUSE  (610) ──► Mouse:sgrFallback (SGR 1006 mouse frames inside the dispatcher)
+  │     KEY_LAYER_SYSTEM (600) ──► AppShell:system (SHELL_KEY_ROUTER.resolveSystem: Ctrl+C/K/Space/G/O/R)
+  │                                & AppShell:alt-guard (SHELL_KEY_ROUTER.resolveAltChord)
+  └── Scoped LIFO stack ordered by depth DESC:
+        KEY_SCOPE_DEPTH_QUIT_CONFIRM (300) > KEY_SCOPE_DEPTH_TOO_SMALL (200) > KEY_SCOPE_DEPTH_SHELL_OVERLAY (100) > modal/view
+        Within the top active scope, priority layers descend:
+          KEY_LAYER_TEXT_INPUT  (500) ──► Focused TextInput (typing & Alt-editing chords)
+          KEY_LAYER_MODAL       (400) ──► Active Modal / ConfirmDialog (inside opaque <KeyScope>)
+          KEY_LAYER_DRAWER      (300) ──► Docked AssistantPanel / drawers
+          KEY_LAYER_VIEW        (200) ──► Active View useKeyScope handlers
+          KEY_LAYER_WIDGET      (150) ──► VirtualList / SelectList / ScrollView
+          KEY_LAYER_MODAL_FRAME (120) ──► Modal:esc close fallback & drawer catch-all sinks
+          KEY_LAYER_GLOBAL      (100) ──► AppShell:global (SHELL_KEY_ROUTER.resolveGlobal: 1-9,0,n,b,t,a,r,c,I,?,/,\\,[,],q)
 ```
 
 1. **Single Ink `useInput` & opaque scope barriers (`src/input/dispatcher.ts`, `src/input/hooks.ts`)**: Components register via `useKeyScope` / `useScopedInput` and wrap modals/overlays in opaque `<KeyScopeProvider>` or explicit `KEY_SCOPE_DEPTH_*` (`KEY_SCOPE_DEPTH_SHELL_OVERLAY`, `KEY_SCOPE_DEPTH_TOO_SMALL`, `KEY_SCOPE_DEPTH_QUIT_CONFIRM`), stopping lower scopes from receiving consumed or masked keys.
@@ -127,7 +131,7 @@ Keypress (single Ink useInput in src/input/hooks.ts)
 
 - **Linux bash & Windows PowerShell / ConPTY**:
   - `enterTerminalSession` (`src/terminal.ts`) enforces UTF-8 stdio, manages the alternate screen buffer, and restores cursor/raw-mode via `signal-exit`.
-  - **Opt-in SGR 1006 mouse wheel scrolling**: Disabled by default; enabled via `--mouse` or `STUDYHUB_TUI_MOUSE=1` (and suppressed via `--no-mouse` / `shouldEnableMouse` in `src/cli-args.ts`). `src/terminal.ts` exports `ENABLE_SGR_MOUSE` (`\x1b[?1000h\x1b[?1006h`) and `DISABLE_SGR_MOUSE` (`\x1b[?1006l\x1b[?1000l`), writing `DISABLE_SGR_MOUSE` ahead of `RESET_STYLE`/`SHOW_CURSOR`/`EXIT_ALT_SCREEN` on teardown. `VirtualList`, `ScrollView`, `SelectList`, and `CommandPalette` support SGR 1006 wheel scrolling (`VirtualList` and `ScrollView` expose `parseSgrWheelDelta` and `useSgrMouseWheel`, tapping `stdin.read` for intact `\x1b[<64;c;rM` sequences before Ink's CSI filter drops them while also handling ESC-stripped `[<64;c;rM` / `<64;c;rM` frames via `useInput`; `SelectList` also binds `PageUp`/`PageDown`/`Ctrl+D`/`Ctrl+U`).
+  - **Opt-in SGR 1006 mouse wheel scrolling**: Disabled by default; enabled via `--mouse` or `STUDYHUB_TUI_MOUSE=1` (and suppressed via `--no-mouse` / `shouldEnableMouse` in `src/cli-args.ts`). `src/terminal.ts` exports `ENABLE_SGR_MOUSE` (`\x1b[?1000h\x1b[?1006h`) and `DISABLE_SGR_MOUSE` (`\x1b[?1006l\x1b[?1000l`), writing `DISABLE_SGR_MOUSE` ahead of `RESET_STYLE`/`SHOW_CURSOR`/`EXIT_ALT_SCREEN` on teardown. `VirtualList`, `ScrollView`, `SelectList`, and `CommandPalette` support SGR 1006 wheel scrolling (`VirtualList` and `ScrollView` expose `parseSgrWheelDelta` and `useSgrMouseWheel`, tapping `stdin.read` for intact `\x1b[<64;c;rM` sequences before Ink's CSI filter drops them while also handling ESC-stripped `[<64;c;rM` / `<64;c;rM` frames via `useScopedInput`; `SelectList` also binds `PageUp`/`PageDown`/`Ctrl+D`/`Ctrl+U`).
   - `shouldAutoAscii` (`src/cli-args.ts`) auto-enables pure ASCII borders/charts on legacy Windows `conhost` (absent `WT_SESSION`, `TERM_PROGRAM`, `ConEmuANSI`, `ANSICON`, `MSYSTEM`), `TERM=dumb`, `--ascii`, or `STUDYHUB_TUI_ASCII=1`.
 - **Multiline & paste ergonomics (`src/components/TextInput.tsx`)**:
   - Cursor indexing uses grapheme clusters (`splitGraphemes` from `src/render/cjk.ts`) so ZWJ emoji, regional flags, and combining diacritics are never split across cursor moves or deletions.
@@ -138,4 +142,4 @@ Keypress (single Ink useInput in src/input/hooks.ts)
 - **Permanent P2 Quota-Guard Static Audit (`tests/p2-quota-audit.test.mjs`)**:
   - Parses every `.ts`/`.tsx` file under `src/views/` and `src/shell/` via the TypeScript AST to enforce: (1) zero silent paid/LLM action calls inside `useEffect(...)`, (2) every file invoking guarded LLM actions (`deck.merge.suggest`, `source.organize.suggest`, `draft.import.propose`, `generate.suggest`, `generate.path.suggest`, `focus.suggest`, `book.retell`, `generation.courseBook.explain`, `coach.debrief`, `coach.prepare`, `coach.rewrite.retry`, `coach.nudge`, `coach.reply`, `materials.translation.translate`, `note.generate`, `audio.corrections.review`, `source.folder.suggest`) directly imports `components/ConfirmDialog.js` (zero barrel imports) and renders `<ConfirmDialog`, and (3) zero `target: '中文'` / `'English'` regressions in `DocumentReader.tsx` `materials.translation.*` calls (`'zh'` / `'en'` only).
 - **Contributor verification checklist**:
-  - Keep React hooks above every early return; provide `useTheme()`, `t(lang, zh, en)`, and `asciiMode` fallbacks; route keys through `useKeyScope` / `KeyScopeProvider` (zero raw Ink `useInput` outside `src/input/hooks.ts`); never spawn `sh -c` or `cmd /c`; verify changes with `npm run typecheck`, `npm run lint`, `npm run build`, `npm test`, and root `node scripts/test-audit.mjs --compare-baseline=docs/test-audit-baseline.json --annotations`.
+  - Keep React hooks above every early return; provide `useTheme()`, `t(lang, zh, en)`, and `asciiMode` fallbacks; route keys through `useKeyScope` / `KeyScopeProvider` (zero raw Ink `useInput` outside `src/input/hooks.ts` and the pre-app boot screen in `src/cli.tsx`); never spawn `sh -c` or `cmd /c`; verify changes with `npm run typecheck`, `npm run lint`, `npm run build`, `npm test`, and root `node scripts/test-audit.mjs --compare-baseline=docs/test-audit-baseline.json --annotations`.

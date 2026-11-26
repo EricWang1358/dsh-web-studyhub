@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { Box, render } from 'ink';
 import React from 'react';
 import stripAnsi from 'strip-ansi';
+import ts from 'typescript';
 import { register } from 'tsx/esm/api';
 
 const unregisterTsx = register();
@@ -97,14 +98,23 @@ function createRenderStreams(cols = 120, rows = 36) {
   };
 }
 
-async function waitForOutput(streams, predicate, timeoutMs = 1200) {
+async function waitForOutput(streams, predicate, timeoutMs = 1500) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const cur = streams.latest();
     if (predicate(cur)) return cur;
-    await new Promise((r) => setTimeout(r, 25));
+    await new Promise((r) => setTimeout(r, 20));
   }
   return streams.latest();
+}
+
+async function waitForCondition(predicate, timeoutMs = 1500) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return true;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  return Boolean(predicate());
 }
 
 describe('#1354 D12 Docs-to-Code Parity (ARCHITECTURE.md)', () => {
@@ -172,12 +182,58 @@ describe('#1354 D12 Docs-to-Code Parity (ARCHITECTURE.md)', () => {
     );
   });
 
-  test('ARCHITECTURE.md input layer exports match live src/input/dispatcher.ts exports', () => {
-    const liveLayerNames = Object.keys(dispatcherMod).filter((k) => k.startsWith('KEY_LAYER_'));
-    assert.ok(liveLayerNames.length >= 8);
-    assert.ok(ARCHITECTURE_DOC.includes('KEY_LAYER_SYSTEM'));
-    assert.ok(ARCHITECTURE_DOC.includes('KEY_LAYER_GLOBAL'));
-    assert.ok(ARCHITECTURE_DOC.includes('KEY_LAYER_MODAL'));
+  test('ARCHITECTURE.md input layer and scope depth exports & numeric values match live src/input/dispatcher.ts', () => {
+    const liveConstants = new Map(
+      Object.entries(dispatcherMod).filter(
+        ([k, v]) => (k.startsWith('KEY_LAYER_') || k.startsWith('KEY_SCOPE_DEPTH_')) && typeof v === 'number',
+      ),
+    );
+    assert.ok(liveConstants.size >= 11, `Expected >= 11 KEY_LAYER_*/KEY_SCOPE_DEPTH_* constants, got ${liveConstants.size}`);
+
+    // 1. Every KEY_LAYER_* or KEY_SCOPE_DEPTH_* constant mentioned in ARCHITECTURE.md must exist in dispatcher.ts.
+    const mentioned = new Set();
+    const identRe = /\b(KEY_(?:LAYER|SCOPE_DEPTH)_[A-Z0-9_]+)\b/g;
+    let m;
+    while ((m = identRe.exec(ARCHITECTURE_DOC))) {
+      mentioned.add(m[1]);
+    }
+    const unknownInDoc = [...mentioned].filter((name) => !liveConstants.has(name));
+    assert.deepEqual(
+      unknownInDoc,
+      [],
+      `ARCHITECTURE.md mentions non-existent dispatcher constants: ${unknownInDoc.join(', ')}`,
+    );
+
+    // 2. Every live KEY_LAYER_* and KEY_SCOPE_DEPTH_* constant in dispatcher.ts must be documented.
+    const undocumented = [...liveConstants.keys()].filter((name) => !mentioned.has(name));
+    assert.deepEqual(
+      undocumented,
+      [],
+      `ARCHITECTURE.md is missing live dispatcher constants: ${undocumented.join(', ')}`,
+    );
+
+    // 3. Every numeric priority/depth annotation next to a constant in ARCHITECTURE.md must match its live value.
+    const numberedRe = /\b(KEY_(?:LAYER|SCOPE_DEPTH)_[A-Z0-9_]+)\s*\(?(\d+)\)?/g;
+    const mismatches = [];
+    let numberedCount = 0;
+    while ((m = numberedRe.exec(ARCHITECTURE_DOC))) {
+      numberedCount += 1;
+      const name = m[1];
+      const docVal = Number(m[2]);
+      const liveVal = liveConstants.get(name);
+      if (liveVal !== docVal) {
+        mismatches.push(`${name}: doc=${docVal}, live=${liveVal}`);
+      }
+    }
+    assert.ok(numberedCount >= liveConstants.size, `Expected numeric annotations for all ${liveConstants.size} constants, found ${numberedCount}`);
+    assert.deepEqual(mismatches, [], `ARCHITECTURE.md priority/depth numbers drift from dispatcher.ts:\n${mismatches.join('\n')}`);
+
+    // 4. ARCHITECTURE.md must not claim VirtualList/ScrollView still handle frames "via `useInput`".
+    assert.equal(
+      ARCHITECTURE_DOC.includes('frames via `useInput`'),
+      false,
+      'ARCHITECTURE.md must not claim widgets still handle frames via raw Ink `useInput`',
+    );
   });
 });
 
@@ -221,12 +277,20 @@ describe('#1354 D2 & D3 Global Keybinding Vocabulary & Shell Hint Single Source'
       );
     }
 
-    // Every single-key global route in global-router.ts must be represented in GLOBAL_KEYMAP_ENTRIES.
-    const allKeyTokens = globalKeymapMod.GLOBAL_KEYMAP_ENTRIES.map((e) => `${e.helpKey} ${e.footerKey ?? ''}`).join(' ');
+    // Every single-key global route in global-router.ts must appear as an exact key token (never substring of 'Esc' or 'j/k').
+    const keyTokenSet = new Set();
+    for (const entry of globalKeymapMod.GLOBAL_KEYMAP_ENTRIES) {
+      for (const field of [entry.helpKey, entry.helpKeyAscii, entry.footerKey]) {
+        if (!field) continue;
+        for (const tok of field.split(/\s+/)) {
+          if (tok) keyTokenSet.add(tok);
+        }
+      }
+    }
     for (const routeKey of Object.keys(routerMod.GLOBAL_SINGLE_KEY_ROUTES)) {
       assert.ok(
-        allKeyTokens.includes(routeKey),
-        `Global route key "${routeKey}" from GLOBAL_SINGLE_KEY_ROUTES is missing from GLOBAL_KEYMAP_ENTRIES`,
+        keyTokenSet.has(routeKey),
+        `Global route key "${routeKey}" from GLOBAL_SINGLE_KEY_ROUTES is missing as an exact token in GLOBAL_KEYMAP_ENTRIES`,
       );
     }
 
@@ -237,7 +301,42 @@ describe('#1354 D2 & D3 Global Keybinding Vocabulary & Shell Hint Single Source'
     assert.ok(notifEntry.helpEn.includes(String(MAX_TOAST_HISTORY)));
   });
 
-  test('TopBar and Launchpad render global shortcut copy derived from global-keymap.ts in zh and en', async () => {
+  test('TopBar and Launchpad render global shortcut copy derived from global-keymap.ts in zh and en without hardcoded duplicates', async () => {
+    // AST verification: TopBar.tsx must not hardcode [?]/Help/Cmd/[I]/[c] in JSX outside formatGlobalKeyHint.
+    const topBarPath = path.join(PKG_ROOT, 'src/shell/TopBar.tsx');
+    const topBarSf = ts.createSourceFile(
+      topBarPath,
+      fs.readFileSync(topBarPath, 'utf8'),
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+    const hardcodedViolations = [];
+    const visitTopBar = (node) => {
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 't') {
+        const args = node.arguments.map((a) => (ts.isStringLiteral(a) ? a.text : null));
+        if (
+          (args[1] === '帮助' && args[2] === 'Help') ||
+          (args[1] === '命令' && args[2] === 'Cmd')
+        ) {
+          hardcodedViolations.push(`hardcoded t(lang, '${args[1]}', '${args[2]}') in TopBar.tsx`);
+        }
+      }
+      if (ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node) || ts.isStringLiteral(node)) {
+        const text = node.text;
+        if (text.includes('[?]') || text.includes('[I]') || text.includes('[c]')) {
+          hardcodedViolations.push(`hardcoded shortcut literal "${text}" in TopBar.tsx`);
+        }
+      }
+      ts.forEachChild(node, visitTopBar);
+    };
+    visitTopBar(topBarSf);
+    assert.deepEqual(
+      hardcodedViolations,
+      [],
+      `TopBar.tsx must render global shortcut keys/labels from formatGlobalKeyHint:\n${hardcodedViolations.join('\n')}`,
+    );
+
     const prev = useTuiStore.getState();
     const shellActions = actionsMod.createDefaultShellActions(
       {
@@ -252,7 +351,7 @@ describe('#1354 D2 & D3 Global Keybinding Vocabulary & Shell Hint Single Source'
       for (const lang of ['zh', 'en']) {
         useTuiStore.setState({
           page: 'library',
-          snapshot: { root: '/tmp/lib', decks: [], sources: [], courses: [], inbox: [] },
+          snapshot: { root: '/tmp/lib', decks: [], sources: [], courses: [], inbox: [{ id: 'm1', read: false }] },
           desktopConfig: null,
           binding: null,
           practiceStack: [],
@@ -262,9 +361,12 @@ describe('#1354 D2 & D3 Global Keybinding Vocabulary & Shell Hint Single Source'
         const expectedHelp = globalKeymapMod.formatGlobalKeyHint('help', lang, true);
         const expectedCmd = globalKeymapMod.formatGlobalKeyHint('command-palette', lang, true);
         const expectedQuit = globalKeymapMod.formatGlobalKeyHint('quit', lang, true);
+        const expectedInbox = globalKeymapMod.formatGlobalKeyHint('inbox', lang, true);
+        const expectedCourse = globalKeymapMod.formatGlobalKeyHint('course-picker', lang, true);
 
-        const topStreams = createRenderStreams(140, 4);
-        const topInst = render(React.createElement(topBarMod.TopBar, { width: 140 }), {
+        const releaseClaim = focusMod.claimKeys(['/']);
+        const topStreams = createRenderStreams(160, 4);
+        const topInst = render(React.createElement(topBarMod.TopBar, { width: 160 }), {
           stdin: topStreams.stdin,
           stdout: topStreams.stdout,
           interactive: true,
@@ -272,12 +374,18 @@ describe('#1354 D2 & D3 Global Keybinding Vocabulary & Shell Hint Single Source'
           debug: true,
         });
         try {
-          const out = await waitForOutput(topStreams, (s) => s.includes(expectedHelp.label));
+          const out = await waitForOutput(
+            topStreams,
+            (s) => s.includes(`[${expectedHelp.key}] ${expectedHelp.label}`) && s.includes(`[${expectedCmd.key}] ${expectedCmd.label}`),
+          );
           assert.ok(out.includes(`[${expectedHelp.key}] ${expectedHelp.label}`), `TopBar (${lang}) must show help hint: ${out}`);
-          assert.ok(out.includes(expectedCmd.label), `TopBar (${lang}) must show command label: ${out}`);
+          assert.ok(out.includes(`[${expectedCmd.key}] ${expectedCmd.label}`), `TopBar (${lang}) must show overridden palette hint: ${out}`);
+          assert.ok(out.includes(`[${expectedInbox.key}]`), `TopBar (${lang}) must show inbox key: ${out}`);
+          assert.ok(out.includes(`[${expectedCourse.key}]`), `TopBar (${lang}) must show course key: ${out}`);
         } finally {
           topInst.unmount();
           topStreams.destroy();
+          releaseClaim();
         }
 
         const lpStreams = createRenderStreams(100, 26);
@@ -296,10 +404,13 @@ describe('#1354 D2 & D3 Global Keybinding Vocabulary & Shell Hint Single Source'
           },
         );
         try {
-          const out = await waitForOutput(lpStreams, (s) => s.includes(expectedQuit.label));
-          assert.ok(out.includes(expectedCmd.key), `Launchpad (${lang}) must show palette key "${expectedCmd.key}": ${out}`);
-          assert.ok(out.includes(expectedHelp.key) && out.includes(expectedHelp.label), `Launchpad (${lang}) must show help hint: ${out}`);
-          assert.ok(out.includes(expectedQuit.key) && out.includes(expectedQuit.label), `Launchpad (${lang}) must show quit hint: ${out}`);
+          const out = await waitForOutput(lpStreams, (s) => s.includes(`${expectedQuit.key} ${expectedQuit.label}`));
+          assert.ok(
+            out.includes(`${expectedCmd.key} ${expectedCmd.label}`),
+            `Launchpad (${lang}) must show derived palette hint "${expectedCmd.key} ${expectedCmd.label}": ${out}`,
+          );
+          assert.ok(out.includes(`${expectedHelp.key} ${expectedHelp.label}`), `Launchpad (${lang}) must show help hint: ${out}`);
+          assert.ok(out.includes(`${expectedQuit.key} ${expectedQuit.label}`), `Launchpad (${lang}) must show quit hint: ${out}`);
         } finally {
           lpInst.unmount();
           lpStreams.destroy();
@@ -447,9 +558,8 @@ describe('#1354 D6 Single-Source Toast & Notification History Copy Consistency',
 
       // Ctrl+R reloads inbox just like r (D2 canonical refresh key)
       streams.stdin.write('\u0012');
-      await new Promise((r) => setTimeout(r, 120));
-      assert.ok(inboxListCalls > beforeCtrlR, 'Ctrl+R inside InboxModal must reload inbox.list');
-      assert.ok(refreshCalls >= 1, 'Ctrl+R inside InboxModal must invoke actions.refresh()');
+      const ctrlRSettled = await waitForCondition(() => inboxListCalls > beforeCtrlR && refreshCalls >= 1);
+      assert.equal(ctrlRSettled, true, 'Ctrl+R inside InboxModal must reload inbox and invoke actions.refresh()');
 
       // Press `h` to switch to the toast history tab
       streams.stdin.write('h');
@@ -458,7 +568,7 @@ describe('#1354 D6 Single-Source Toast & Notification History Copy Consistency',
 
       // Filter with `/` -> type "网络" -> search denominator must be 1/2 (NOT 1/0 when inbox items=[]!)
       streams.stdin.write('/');
-      await new Promise((r) => setTimeout(r, 80));
+      await waitForOutput(streams, (s) => s.includes('应用') || s.includes('Apply'));
       streams.stdin.write('网络');
       const filteredFrame = await waitForOutput(streams, (s) => s.includes('1/2'));
       assert.ok(filteredFrame.includes('1/2'), `Expected filtered toast counter "1/2", got:\n${filteredFrame}`);
@@ -466,7 +576,7 @@ describe('#1354 D6 Single-Source Toast & Notification History Copy Consistency',
 
       // Esc clears search query and exits search focus; then `C` clears toast history and shows canonical empty hint
       streams.stdin.write('\u001b');
-      await new Promise((r) => setTimeout(r, 100));
+      await waitForOutput(streams, (s) => !s.includes('1/2') && s.includes('导出成功：讲义 A'));
       streams.stdin.write('C');
       const clearedFrame = await waitForOutput(
         streams,
@@ -475,6 +585,147 @@ describe('#1354 D6 Single-Source Toast & Notification History Copy Consistency',
       assert.equal(useTuiStore.getState().toastHistory.length, 0, 'C must clear toastHistory without adding a new toast');
       assert.ok(clearedFrame.includes(zhCopy.emptyTitle), `Cleared toasts tab must show canonical emptyTitle: ${clearedFrame}`);
       assert.ok(clearedFrame.includes(zhCopy.clearedStatus), `Cleared toasts tab must show canonical clearedStatus: ${clearedFrame}`);
+
+      // When a new toast arrives after clearing, stale clearedStatus must disappear immediately.
+      useTuiStore.getState().notify('新到达的状态提示', 'info', 'shell');
+      const arrivedFrame = await waitForOutput(
+        streams,
+        (s) => s.includes('新到达的状态提示') && !s.includes(zhCopy.clearedStatus),
+      );
+      assert.ok(arrivedFrame.includes('新到达的状态提示'), 'Newly arrived toast must appear on toasts tab');
+      assert.equal(
+        arrivedFrame.includes(zhCopy.clearedStatus),
+        false,
+        `Stale clearedStatus must clear once a new toast arrives:\n${arrivedFrame}`,
+      );
+      // Toast preview pane must not duplicate the single-line text twice or show bogus inbox "已读" state.
+      const occurrences = arrivedFrame.split('新到达的状态提示').length - 1;
+      assert.equal(
+        occurrences,
+        2,
+        `Expected "新到达的状态提示" once in list and once in preview (total 2, not duplicated 3x):\n${arrivedFrame}`,
+      );
+      assert.equal(
+        arrivedFrame.includes('[状态提示] 已读'),
+        false,
+        `Toasts preview header must not show bogus inbox read badge:\n${arrivedFrame}`,
+      );
+    } finally {
+      inst.unmount();
+      streams.destroy();
+      useTuiStore.setState({
+        toasts: prev.toasts,
+        toastHistory: prev.toastHistory,
+        preferences: prev.preferences,
+      });
+    }
+  });
+
+  test('InboxModal guards unread/read search denominator, blocks bogus m RPC on toasts tab, shows truthful narrow toasts hints, and survives invalid createdAt', async () => {
+    const toastCopyMod = await import('../src/shell/toast-copy.ts');
+    const prev = useTuiStore.getState();
+    const hostCalls = [];
+    const sampleItems = [
+      { id: 'in-1', kind: 'note', label: '笔记', prompt: 'Alpha unread item', detail: 'd1', read: false, count: 1, at: '2026-11-26T10:00:00Z' },
+      { id: 'in-2', kind: 'grade', label: '批改', prompt: 'Beta read item', detail: 'd2', read: true, count: 1, at: '2026-11-26T09:00:00Z' },
+      { id: 'in-3', kind: 'grade', label: '批改', prompt: 'Gamma read item', detail: 'd3', read: true, count: 1, at: '2026-11-26T08:00:00Z' },
+    ];
+    const fakeHost = {
+      call: async (action, payload) => {
+        hostCalls.push({ action, payload });
+        if (action === 'inbox') return { ok: true, value: { items: sampleItems } };
+        return { ok: true, value: {} };
+      },
+      onEvent: () => () => {},
+      dispose: async () => {},
+    };
+    const shellActions = actionsMod.createDefaultShellActions(fakeHost, () => {});
+
+    useTuiStore.setState({
+      toasts: [],
+      toastHistory: [
+        { id: 'toast-nan', text: 'Invalid timestamp toast', tone: 'warning', createdAt: Number.NaN },
+        { id: 'toast-ok', text: 'Valid toast message', tone: 'info', createdAt: Date.now() },
+      ],
+      preferences: { ...DEFAULT_PREFERENCES, language: 'en', asciiMode: true },
+    });
+
+    // Narrow viewport (68x24 -> !sideBySide) to also verify narrow-mode toasts hints
+    const streams = createRenderStreams(68, 24);
+    const inst = render(
+      React.createElement(
+        keyDispatcherMod.KeyScopeProvider,
+        null,
+        React.createElement(
+          actionsMod.ShellActionsContext.Provider,
+          { value: shellActions },
+          React.createElement(
+            Box,
+            { width: 68, height: 24 },
+            React.createElement(inboxModalMod.InboxModal, {
+              host: fakeHost,
+              isActive: true,
+              onClose: () => {},
+            }),
+          ),
+        ),
+      ),
+      {
+        stdin: streams.stdin,
+        stdout: streams.stdout,
+        interactive: true,
+        exitOnCtrlC: false,
+        debug: true,
+      },
+    );
+
+    try {
+      const enCopy = toastCopyMod.toastHistoryCopy('en');
+      await waitForOutput(streams, (s) => s.includes('All (3)') && s.includes('Unread (1)'));
+
+      // Tab -> unread tab (1 item), search "Alpha" -> denominator MUST be 1/1 (NOT 1/3!)
+      streams.stdin.write('\t');
+      await waitForOutput(streams, (s) => s.includes('Alpha unread item') && !s.includes('Beta read item'));
+      streams.stdin.write('/');
+      await waitForOutput(streams, (s) => s.includes('Apply'));
+      streams.stdin.write('Alpha');
+      const unreadSearchFrame = await waitForOutput(streams, (s) => s.includes('1/1'));
+      assert.ok(unreadSearchFrame.includes('1/1'), `Expected unread search counter "1/1", got:\n${unreadSearchFrame}`);
+      assert.equal(unreadSearchFrame.includes('1/3'), false, 'Unread tab search must divide by unreadCount (1), not items.length (3)');
+
+      // Exit search -> switch to toasts tab via `h` (also verifies NaN createdAt does not crash render)
+      streams.stdin.write('\u001b');
+      await waitForOutput(streams, (s) => !s.includes('1/1'));
+      streams.stdin.write('h');
+      const narrowToastsFrame = await waitForOutput(
+        streams,
+        (s) => s.includes('Valid toast message') && s.includes('Invalid timestamp toast'),
+      );
+      assert.ok(narrowToastsFrame.includes('Invalid timestamp toast'), 'Toast with NaN createdAt must render safely');
+      assert.ok(narrowToastsFrame.includes('C Clear'), `Narrow toasts tab must advertise "C Clear":\n${narrowToastsFrame}`);
+      assert.equal(narrowToastsFrame.includes('m Read'), false, `Toasts tab must not advertise bogus "m Read":\n${narrowToastsFrame}`);
+
+      // Pressing `m` on toasts tab must NEVER invoke inbox.read or inbox.unread RPCs!
+      const callsBeforeM = hostCalls.length;
+      streams.stdin.write('m');
+      await new Promise((r) => setTimeout(r, 80));
+      const readToggleCalls = hostCalls.slice(callsBeforeM).filter((c) => c.action === 'inbox.read' || c.action === 'inbox.unread');
+      assert.deepEqual(readToggleCalls, [], 'Pressing m on toasts tab must not fire inbox.read/inbox.unread RPC');
+
+      // Clear with `C`, switch away via `Tab` and back via `h`, then press `C` on already-empty history -> must NOT falsely claim clearedStatus
+      streams.stdin.write('C');
+      await waitForOutput(streams, (s) => s.includes(enCopy.clearedStatus));
+      streams.stdin.write('\t');
+      await waitForOutput(streams, (s) => s.includes('Alpha unread item'));
+      streams.stdin.write('h');
+      await waitForOutput(streams, (s) => s.includes(enCopy.emptyTitle) && !s.includes(enCopy.clearedStatus));
+      streams.stdin.write('C');
+      await new Promise((r) => setTimeout(r, 80));
+      assert.equal(
+        streams.latest().includes(enCopy.clearedStatus),
+        false,
+        `Pressing C on already-empty toasts tab must not falsely show "${enCopy.clearedStatus}"`,
+      );
     } finally {
       inst.unmount();
       streams.destroy();
