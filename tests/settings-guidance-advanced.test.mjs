@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
@@ -18,7 +17,7 @@ const m = await loadUi(`
   export { BackupSection } from './ui/settings/BackupSection.jsx';
   export { ScheduleSection } from './ui/settings/ScheduleSection.jsx';
   export { default as LegacyImportSection } from './ui/settings/LegacyImportSection.jsx';
-  export { UpdateSettings, UpdateDialog } from './ui/UpdateCenter.jsx';
+  export { UpdateSettings, UpdateDialog, UpdateChip, updateErrorText, failureMessage } from './ui/UpdateCenter.jsx';
   export { default as DesktopUpgradeGuide } from './ui/desktop/DesktopUpgradeGuide.jsx';
   export { UsageSettingsView, usagePrivacyPoints } from './ui/UsageSettings.jsx';
   export { ExperimentalSection } from './ui/ExperimentalSettings.jsx';
@@ -143,14 +142,12 @@ test('DataPane, LegacyImportSection, ScheduleSection, and BackupSection polish h
   }
 });
 
-test('UpdateCenter & DesktopUpgradeGuide align 6h TTL, remove 必须, hide duplicate installed row on Desktop, and shorten diagnostic hint', async () => {
-  assert.equal(CHECK_INTERVAL_MS, 6 * 60 * 60 * 1000, 'backend auto-check interval is 6 hours');
-  const updateSrc = await readFile(new URL('../ui/UpdateCenter.jsx', import.meta.url), 'utf8');
-  assert.match(updateSrc, /cached on the host for 6 h/);
-  assert.doesNotMatch(updateSrc, /必须/);
+test('UpdateCenter & DesktopUpgradeGuide align 6h TTL, remove 必须, hide duplicate installed row on Desktop, and shorten diagnostic hint', () => {
+  assert.equal(CHECK_INTERVAL_MS, 6 * 60 * 60 * 1000, 'backend auto-check interval is 6 hours (host cache behavior covered in tests/wp15-update-check.test.mjs)');
 
   const sampleUpdate = { current: '4.15.1', installed: '4.15.1', latest: '4.16.0', newer: true, url: 'https://github.com/EricWang1358/dsh-web-studyhub/releases', assetUrl: 'https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.16.0/pkg.tgz', checkedAt: '2026-11-20T00:00:00Z', autoCheck: true };
   const desktopSettings = render(withHost(DESKTOP_HOST, h(m.UpdateSettings, { update: sampleUpdate, diagnostic: () => 'diag' })));
+  assert.match(desktopSettings, /自动检查通常间隔 6 小时/);
   assert.match(desktopSettings, /<dt>当前版本<\/dt>/);
   assert.doesNotMatch(desktopSettings, /<dt>已安装版本<\/dt>/, 'Desktop hides duplicate installed version row');
   assert.match(desktopSettings, /只含版本、页面、报错摘要与基础计数，不含资料与题目内容。/);
@@ -162,10 +159,73 @@ test('UpdateCenter & DesktopUpgradeGuide align 6h TTL, remove 必须, hide dupli
 
   const guided = render(withHost(DSH_HOST, h(m.UpdateDialog, { update: sampleUpdate, onClose: noop })));
   assert.match(guided, /请先完全退出桌面版/);
-  assert.doesNotMatch(guided, /必须/);
 
   const desktopGuide = render(h(m.DesktopUpgradeGuide, { update: sampleUpdate }));
   assert.match(desktopGuide, /请先点左下角「查看发布页」对照 SHA256SUMS 核对校验值/);
+
+  // Behavioral copy check across UpdateSettings, UpdateDialog, UpdateChip, updateErrorText, and failureMessage: never use 必须.
+  const inAppUpdate = { ...sampleUpdate, install: { available: true, desktop: true }, source: 'fallback' };
+  const pendingUpdate = { ...sampleUpdate, newer: false, pendingRestart: '4.16.0', install: { available: true, desktop: false } };
+  const stuckUpdate = {
+    ...sampleUpdate,
+    newer: false,
+    restartFailed: { pending: '4.16.0', running: '4.15.1', installedAt: '2026-11-20T00:00:00Z', assetUrl: sampleUpdate.assetUrl },
+  };
+  const renderedZhSurfaces = [
+    desktopSettings,
+    dshSettings,
+    guided,
+    desktopGuide,
+    render(withHost(DSH_HOST, h(m.UpdateSettings, { update: pendingUpdate, diagnostic: () => 'diag' }))),
+    render(withHost(DSH_HOST, h(m.UpdateSettings, { update: stuckUpdate, diagnostic: () => 'diag' }))),
+    render(withHost(DSH_HOST, h(m.UpdateSettings, { update: { ...sampleUpdate, newer: false, checkedAt: null }, initialCheckError: 'network', initialSaveError: 'failed' }))),
+    render(withHost(DSH_HOST, h(m.UpdateSettings, { update: { ...sampleUpdate, error: 'rate-limited' } }))),
+    render(withHost(DSH_HOST, h(m.UpdateDialog, { update: inAppUpdate, onClose: noop, initialPhase: { phase: 'idle' } }))),
+    render(withHost(DSH_HOST, h(m.UpdateDialog, { update: inAppUpdate, onClose: noop, initialPhase: { phase: 'confirm' } }))),
+    render(withHost(DSH_HOST, h(m.UpdateDialog, { update: inAppUpdate, onClose: noop, initialPhase: { phase: 'working' } }))),
+    render(withHost(DSH_HOST, h(m.UpdateDialog, { update: inAppUpdate, onClose: noop, initialPhase: { phase: 'jobs', jobs: 2 } }))),
+    render(withHost(DSH_HOST, h(m.UpdateDialog, { update: inAppUpdate, onClose: noop, initialPhase: { phase: 'error', code: 'UPDATE_DOWNLOAD' } }))),
+    render(withHost(DSH_HOST, h(m.UpdateDialog, { update: inAppUpdate, onClose: noop, initialPhase: { phase: 'installed', version: '4.16.0', restartRequired: true, desktop: true } }))),
+    render(withHost(DSH_HOST, h(m.UpdateDialog, { update: pendingUpdate, onClose: noop, initialPhase: { phase: 'installed', version: '4.16.0', restartRequired: true, desktop: false } }))),
+    render(withHost(DSH_HOST, h(m.UpdateDialog, { update: stuckUpdate, onClose: noop }))),
+    render(h(m.UpdateChip, { update: sampleUpdate, onOpen: noop })),
+    render(h(m.UpdateChip, { update: pendingUpdate, onOpen: noop })),
+    render(h(m.UpdateChip, { update: { ...pendingUpdate, install: { desktop: true } }, onOpen: noop, compact: true })),
+    render(h(m.UpdateChip, { update: stuckUpdate, onOpen: noop })),
+  ];
+  for (const html of renderedZhSurfaces) {
+    assert.doesNotMatch(stripTags(html), /必须/);
+  }
+  for (const manual of [false, true]) {
+    for (const errUpdate of [
+      { error: 'network' },
+      { error: 'rate-limited' },
+      { error: 'rate-limited', retryAt: '2026-11-20T01:00:00Z' },
+      { error: 'http-503' },
+      { error: 'invalid' },
+    ]) {
+      const msg = m.updateErrorText(errUpdate, { manual });
+      assert.ok(msg.length > 0);
+      assert.doesNotMatch(msg, /必须/);
+    }
+  }
+  for (const [code, extra] of [
+    ['UPDATE_STALE', {}],
+    ['UPDATE_NO_INSTALLER', {}],
+    ['UPDATE_UNAVAILABLE', {}],
+    ['UPDATE_DOWNLOAD', {}],
+    ['UPDATE_DOWNLOAD', { detail: 'timeout' }],
+    ['UPDATE_DOWNLOAD', { savedBytes: 512 }],
+    ['UPDATE_DOWNLOAD', { detail: 'timeout', savedBytes: 512 }],
+    ['UPDATE_DOWNLOAD', { detail: 'http', httpStatus: 502 }],
+    ['UPDATE_CHECKSUM', {}],
+    ['UPDATE_INSTALL', {}],
+    ['UNKNOWN', {}],
+  ]) {
+    const msg = m.failureMessage(code, extra);
+    assert.ok(msg.length > 0);
+    assert.doesNotMatch(msg, /必须/);
+  }
 
   for (const node of [
     withHost(DESKTOP_HOST, h(m.UpdateSettings, { update: sampleUpdate, diagnostic: () => 'diag' })),

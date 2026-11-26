@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { asksWhatTheSourceSays } from '../lib/question-voice.js';
 import { learnerContextIssues } from '../lib/assessment-quality.js';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 /* "资料说…" questions test memory of a document's wording, not the concept or a situation the learner must handle. The deterministic check
    catches the common shapes (the review that passed "资料用什么基本区别帮助开发者定位问题？" was a model's judgment, which is not enough). */
@@ -86,9 +87,127 @@ test('修题 on such a stem is told what is wrong whatever the learner typed, an
 });
 
 test('the 👎 tray names it as a reason (key 7), and a 👎 on such a stem picks that reason by itself', async () => {
-  const { readFileSync } = await import('node:fs');
-  const src = readFileSync(new URL('../ui/ThumbFeedback.jsx', import.meta.url), 'utf8');
-  assert.match(src, /\["source-recall", "只问资料怎么说"\]/);
-  assert.match(src, /\/\^\[1-7\]\$\/\.test\(e\.key\)/, 'the digit shortcut reaches the seventh tag');
-  assert.match(src, /asksWhatTheSourceSays\(run\.card\?\.prompt\)[^\n]*toggle\("source-recall"\)/, 'a 👎 on such a stem selects the reason');
+  const interactive = await loadInteractiveUi(`
+    export { default as ThumbFeedback } from './ui/ThumbFeedback.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { ToastContext } from './ui/components/Feedback.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const ih = interactive.React.createElement;
+  const keyListeners = new Set();
+  const dispatchKeyDown = (key) => {
+    const evt = {
+      key,
+      defaultPrevented: false,
+      preventDefault() { this.defaultPrevented = true; },
+      stopPropagation() {},
+      stopImmediatePropagation() {},
+      target: {},
+    };
+    for (const fn of [...keyListeners]) fn(evt);
+    return evt;
+  };
+  await withBrowserGlobals(async () => {
+    interactive.exports.setUiLanguage('zh');
+    const toastApi = { info() {}, success() {}, warning() {}, error() {} };
+    const mountThumb = (run) => {
+      const calls = [];
+      let lastVote = null;
+      const services = {
+        call: async (action, args) => {
+          calls.push({ action, args });
+          return { ok: true };
+        },
+        act: async () => undefined,
+        busy: false,
+        notify() {},
+        askInChat() {},
+        host: {},
+        openSettings() {},
+        navigate() {},
+        openModal() {},
+      };
+      const mounted = interactive.mount(() => ih(
+        interactive.exports.StudyServicesContext.Provider,
+        { value: services },
+        ih(
+          interactive.exports.ToastContext.Provider,
+          { value: toastApi },
+          ih(interactive.exports.ThumbFeedback, {
+            run,
+            canShortcut: () => true,
+            onVote: (vote, tags) => { lastVote = { vote, tags }; },
+          }),
+        ),
+      ));
+      return { mounted, calls, getLastVote: () => lastVote };
+    };
+
+    // (a) On a source-recall stem, clicking 👎 renders "只问资料怎么说" and auto-selects & submits `source-recall`.
+    const bad = mountThumb({
+      id: 'run-bad',
+      deckId: 'd1',
+      card: { id: 'c1', prompt: '资料给出的两个主要成功维度是什么？' },
+    });
+    try {
+      const downBtn = bad.mounted.find((n) => n.type === 'button' && n.props?.['aria-label'] === '这题有问题');
+      assert.ok(downBtn, '👎 button renders');
+      await bad.mounted.act(() => click(downBtn));
+
+      const tray = bad.mounted.find((n) => n.props?.className === 'thumb-tray');
+      assert.ok(tray, '👎 opens tag tray');
+      const sourceRecallBtn = bad.mounted.find((n) => n.type === 'button' && bad.mounted.text(n).includes('只问资料怎么说'), tray);
+      assert.ok(sourceRecallBtn, '"只问资料怎么说" tag renders in tray');
+      assert.match(bad.mounted.text(sourceRecallBtn), /7只问资料怎么说/);
+      assert.equal(sourceRecallBtn.props['aria-pressed'], true, 'source-recall stem auto-selects "只问资料怎么说"');
+      assert.deepEqual(bad.getLastVote(), { vote: 'down', tags: ['source-recall'] });
+
+      const submitBtn = bad.mounted.find((n) => n.type === 'button' && bad.mounted.text(n).includes('提交标签'), tray);
+      assert.ok(submitBtn, 'submit tags button renders for auto-selected tag');
+      await bad.mounted.act(() => click(submitBtn));
+      await bad.mounted.flush(4);
+
+      const submitted = bad.calls.find((c) => c.action === 'coach.feedback' && Array.isArray(c.args?.tags) && c.args.tags.includes('source-recall'));
+      assert.ok(submitted, 'submitting the tray sends source-recall tag via coach.feedback');
+      assert.equal(submitted.args.vote, 'down');
+    } finally {
+      bad.mounted.unmount();
+    }
+
+    // (b) On a normal stem, key '7' toggles `source-recall` while out-of-range key '8' does not fire.
+    const normal = mountThumb({
+      id: 'run-normal',
+      deckId: 'd1',
+      card: { id: 'c2', prompt: '什么是聚合根？' },
+    });
+    try {
+      const downBtn = normal.mounted.find((n) => n.type === 'button' && n.props?.['aria-label'] === '这题有问题');
+      await normal.mounted.act(() => click(downBtn));
+
+      const findSourceRecall = () => normal.mounted.find((n) => n.type === 'button' && normal.mounted.text(n).includes('只问资料怎么说'));
+      assert.equal(findSourceRecall()?.props['aria-pressed'], false, 'normal stem does not auto-select source-recall');
+
+      let outOfRangeEvt;
+      await normal.mounted.act(() => { outOfRangeEvt = dispatchKeyDown('8'); });
+      assert.equal(outOfRangeEvt.defaultPrevented, false, 'out-of-range key 8 is ignored');
+      assert.equal(findSourceRecall()?.props['aria-pressed'], false);
+
+      let sevenOnEvt;
+      await normal.mounted.act(() => { sevenOnEvt = dispatchKeyDown('7'); });
+      assert.equal(sevenOnEvt.defaultPrevented, true, 'key 7 is handled by the open tray');
+      assert.equal(findSourceRecall()?.props['aria-pressed'], true, 'key 7 selects source-recall');
+      assert.deepEqual(normal.getLastVote(), { vote: 'down', tags: ['source-recall'] });
+
+      await normal.mounted.act(() => { dispatchKeyDown('7'); });
+      assert.equal(findSourceRecall()?.props['aria-pressed'], false, 'pressing key 7 again unselects source-recall');
+      assert.deepEqual(normal.getLastVote(), { vote: 'down', tags: [] });
+    } finally {
+      normal.mounted.unmount();
+    }
+  }, {
+    window: {
+      addEventListener(type, fn) { if (type === 'keydown') keyListeners.add(fn); },
+      removeEventListener(type, fn) { if (type === 'keydown') keyListeners.delete(fn); },
+    },
+  });
 });

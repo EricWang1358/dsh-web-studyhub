@@ -4,6 +4,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { inApp } from './helpers/fake-app.mjs';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 /* #668 (the UI scoring of 2026-11-04): 「删除草稿」 stood beside 「保存并校验」 and 「发布并开始练」, and 「删除」 beside 「归档」 in the task console, both as red outlined buttons with the same weight as the
    primary action. Now the row has the primary action and one secondary; the dangerous one is the item of a ⋯ menu (danger colour), one step away, and what it does afterwards is unchanged (the
@@ -60,10 +61,121 @@ test('draft page: a draft that was deleted or published elsewhere cannot be dele
 });
 
 test('draft page: choosing 删除草稿 asks in the same dialog as before (the confirmation does not change)', async () => {
-  const { readFileSync } = await import('node:fs');
-  const source = readFileSync('ui/Draft.jsx', 'utf8');
-  assert.match(source, /<DeleteDraftDialog draft=\{draft\}/);
-  assert.match(source, /onDelete=\{\(\) => setDeletingId\(draft\.id\)\}/, 'the menu item opens the dialog, it deletes nothing itself');
+  await withBrowserGlobals(async () => {
+    const ui = await loadInteractiveUi(`
+      export { AppContext } from './ui/app/app-context.js';
+      export { StudyServicesContext } from './ui/study-context.jsx';
+      export { default as Draft } from './ui/Draft.jsx';
+      export { setUiLanguage } from './ui/i18n.js';
+    `);
+    const { AppContext, StudyServicesContext, Draft, setUiLanguage } = ui.exports;
+    const h = ui.React.createElement;
+    setUiLanguage('zh');
+    const actCalls = [];
+    let recoveryCleared = 0;
+    const pages = [];
+    const data = { root: '/lib', revision: 1, sources: [{ id: 's', title: 'S' }], decks: [], drafts: [draft], jobs: [], modelReady: true, runs: [] };
+    const study = {
+      call: async () => ({ status: 'ok' }),
+      act: async (action, args) => {
+        actCalls.push({ action, args });
+        return { ok: true };
+      },
+      busy: false,
+      notify: noop,
+      askInChat: noop,
+      host: {},
+      openSettings: noop,
+      navigate: noop,
+      openModal: noop,
+    };
+    const app = {
+      language: 'zh',
+      host: {},
+      data,
+      canChat: false,
+      core: { call: study.call, act: study.act, busy: false, notify: noop, setError: noop },
+      settingsEntry: { setCourseSettings: noop, openSettings: noop, openModelSettings: noop },
+      tour: { tourResume: null, sampleBusy: false, startTour: noop, loadSampleOnly: noop, setRemovingSample: noop },
+    };
+    const mounted = ui.mount(() => h(
+      StudyServicesContext.Provider,
+      { value: study },
+      h(
+        AppContext.Provider,
+        { value: app },
+        h(Draft, {
+          data,
+          draft,
+          draftLoaded: JSON.stringify(draft),
+          setDraft: noop,
+          draftText: '',
+          setDraftText: noop,
+          jsonMode: false,
+          setJsonMode: noop,
+          openDraft: noop,
+          onOpenPublished: noop,
+          onStartPublished: noop,
+          clearRecovery: () => { recoveryCleared += 1; },
+          setPage: (p) => pages.push(p),
+          setModal: noop,
+          blankCard: noop,
+          patchCard: noop,
+          parseDraft: JSON.parse,
+          topUpDraft: noop,
+        }),
+      ),
+    ));
+    try {
+      assert.equal(mounted.find((n) => n.type === 'dialog'), null, 'no confirmation dialog before clicking menu');
+      assert.equal(actCalls.length, 0);
+
+      const openDeleteDialog = async () => {
+        const moreBtn = mounted.find((n) => n.type === 'button' && n.props?.['aria-haspopup'] === 'menu');
+        assert.ok(moreBtn, 'draft action bar has ⋯ menu trigger');
+        await mounted.act(() => click(moreBtn));
+        const deleteItem = mounted.find((n) => n.type === 'button' && n.props?.role === 'menuitem' && ui.textOf(n).includes('删除草稿'));
+        assert.ok(deleteItem, 'menu shows 删除草稿 item');
+        await mounted.act(() => click(deleteItem));
+      };
+
+      // Step 1: choosing 删除草稿 opens DeleteDraftDialog without deleting immediately.
+      await openDeleteDialog();
+      const dialog = mounted.find((n) => n.type === 'dialog');
+      assert.ok(dialog, 'DeleteDraftDialog opens after selecting 删除草稿');
+      const dialogText = ui.textOf(dialog);
+      assert.match(dialogText, /永久删除草稿「T」？/);
+      assert.match(dialogText, /会删除：这份草稿里还没发布的 2 道题/);
+      assert.match(dialogText, /会保留：出题用的资料/);
+      assert.deepEqual(actCalls.filter((c) => c.action === 'draft.delete'), [], 'opening dialog does not call draft.delete');
+
+      // Step 2: cancelling closes the dialog cleanly without calling draft.delete.
+      const cancelBtn = mounted.find((n) => n.type === 'button' && ui.textOf(n) === '保留', dialog);
+      assert.ok(cancelBtn, 'dialog offers 保留 cancel button');
+      await mounted.act(() => click(cancelBtn));
+      assert.equal(mounted.find((n) => n.type === 'dialog'), null, 'cancelling closes DeleteDraftDialog');
+      assert.deepEqual(actCalls.filter((c) => c.action === 'draft.delete'), [], 'cancelling does not call draft.delete');
+
+      // Step 3: re-opening and confirming sends draft.delete with draftVersion and navigates back to library.
+      await openDeleteDialog();
+      const reopened = mounted.find((n) => n.type === 'dialog');
+      assert.ok(reopened, 'DeleteDraftDialog reopens on second attempt');
+      const confirmBtn = mounted.find((n) => n.type === 'button' && ui.textOf(n).includes('永久删除草稿'), reopened);
+      assert.ok(confirmBtn, 'dialog offers 永久删除草稿 confirm button');
+      await mounted.act(() => click(confirmBtn));
+      assert.deepEqual(
+        actCalls.filter((c) => c.action === 'draft.delete'),
+        [{ action: 'draft.delete', args: { id: 'd1', draftVersion: 3 } }],
+        'confirming calls draft.delete with id and draftVersion',
+      );
+      assert.equal(mounted.find((n) => n.type === 'dialog'), null, 'dialog closes after delete succeeds');
+      assert.equal(recoveryCleared, 1, 'clears recovery state after delete');
+      assert.deepEqual(pages, ['library'], 'navigates back to library after delete');
+    } finally {
+      mounted.unmount();
+      setUiLanguage('zh');
+    }
+  });
 });
 
 const iso = (minutes) => new Date(Date.UTC(2026, 9, 5, 10, minutes)).toISOString();
