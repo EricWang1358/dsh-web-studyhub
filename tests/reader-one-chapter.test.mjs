@@ -1,5 +1,5 @@
 /* The reader shows one chapter at a time (owner decision 2026-11-06, a 513-page book blocked the page for 9 s): the chapters are the document's own
-   (groupSourcesByDocument, the 「查看 N 章」 list of the 资料 row), else fixed blocks of CHAPTER_BLOCK_PAGES pages; a jump to a page, a section or a
+   (groupSourcesByDocument, the 「查看 N 章」 list of the 资料 row), else fixed blocks of 20 pages; a jump to a page, a section or a
    source finds the chapter that holds it; the 目录 lists chapters with their pages inside; an AI outline lists the entries of other chapters too;
    find counts the matches of every chapter from the stored text. Pure, no DOM. */
 import test from 'node:test';
@@ -8,7 +8,7 @@ import { loadUi } from './helpers/ui-module.mjs';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 
 const ui = await loadUi(`
-  export { CHAPTER_BLOCK_PAGES, readerChapters, chapterAt, chapterOutline, adjacentChapters, withElsewhere, chapterFindGroups, findStop } from './ui/document-preview/reader/chapters.js';
+  export { readerChapters, chapterAt, chapterOutline, adjacentChapters, withElsewhere, chapterFindGroups, findStop } from './ui/document-preview/reader/chapters.js';
   export { textHits, drawnSectionText } from './ui/document-preview/reader/find.js';
   export { sourcePlacer } from './ui/document-preview/practice/practice-range.js';
   export { readingSections } from './ui/document-preview/reader/text-sections.js';
@@ -36,12 +36,16 @@ test('chapters come from the document item, front matter included, in page order
   assert.equal(new Set(chapters.map(chapter => chapter.id)).size, chapters.length, 'ids are unique');
 });
 
-test('without chapters a long document reads in blocks of CHAPTER_BLOCK_PAGES pages; a short one, or a text, is shown whole', () => {
-  assert.equal(ui.CHAPTER_BLOCK_PAGES, 20);
+test('without chapters a long document reads in 20-page blocks; a short one, or a text, is shown whole', () => {
   const sections = sectionsOf(book(45));
   const blocks = ui.readerChapters({ paged: true, sections, chapters: [] });
   assert.deepEqual(blocks.map(block => [block.startPage, block.endPage, block.block]), [[1, 20, true], [21, 40, true], [41, 45, true]]);
   assert.deepEqual(ui.readerChapters({ paged: true, sections: sectionsOf(book(20)), chapters: [] }), [], 'one block: no chapters');
+  assert.deepEqual(
+    ui.readerChapters({ paged: true, sections: sectionsOf(book(21)), chapters: [] }).map(block => [block.startPage, block.endPage, block.block]),
+    [[1, 20, true], [21, 21, true]],
+    '21 pages splits into a 20-page block and a 1-page remainder',
+  );
   assert.deepEqual(ui.readerChapters({ paged: false, sections: [{ id: 'part-0', kind: 'part', paragraphs: [] }], chapters: [] }), []);
   // A document item of one chapter is no chaptering either.
   const one = book(30, () => ({ index: 0, title: 'Only', level: 1 }));
