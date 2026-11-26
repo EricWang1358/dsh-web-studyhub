@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  CHECKLIST_MAX_ITEMS, CHECKLIST_MAX_TEXT, isMeaningfulTitle, checklistProgress, dueState, labelHue, LABEL_HUES,
+  normalizeChecklist, isMeaningfulTitle, checklistProgress, dueState, labelHue, LABEL_HUES,
   labelCounts, filterCards, isFiltering, locateCard, doneToggleTarget, applyBoardAction, weekEnd, dueSummary,
 } from '../lib/board-model.js';
 
@@ -33,9 +33,35 @@ test('titles that are empty or only punctuation are not meaningful', () => {
   assert.equal(isMeaningfulTitle(3), false);
 });
 
-test('checklist limits are 50 items of 200 characters', () => {
-  assert.equal(CHECKLIST_MAX_ITEMS, 50);
-  assert.equal(CHECKLIST_MAX_TEXT, 200);
+test('normalizeChecklist enforces 50-item and 200-character limits', () => {
+  let seq = 0;
+  const makeId = () => `i${++seq}`;
+  const isValidId = (id) => typeof id === 'string' && /^[\w-]+$/.test(id);
+
+  const fifty = normalizeChecklist(
+    Array.from({ length: 50 }, (_, i) => ({ text: `item ${i + 1}`, done: i % 2 === 0 })),
+    makeId,
+    isValidId,
+  );
+  assert.equal(fifty.length, 50);
+  assert.equal(fifty[0].text, 'item 1');
+  assert.equal(fifty[0].done, true);
+  assert.equal(fifty[49].done, false);
+
+  assert.throws(
+    () => normalizeChecklist(Array.from({ length: 51 }, (_, i) => ({ text: `item ${i + 1}` })), makeId, isValidId),
+    /at most 50 items/,
+  );
+
+  const maxText = 'a'.repeat(200);
+  const [okItem] = normalizeChecklist([{ text: `  ${maxText}  ` }], makeId, isValidId);
+  assert.equal(okItem.text, maxText);
+  assert.equal(okItem.done, false);
+
+  assert.throws(
+    () => normalizeChecklist([{ text: 'a'.repeat(201) }], makeId, isValidId),
+    /1-200 characters/,
+  );
 });
 
 test('checklist progress counts done items and tolerates cards without a checklist', () => {
