@@ -5,10 +5,17 @@ import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction, type ReviewRun } from '../../host/sample-actions.js';
 import {
+  describeAiDialogueError,
   isModelUnavailableError,
   submitRetellEvaluation,
   type UnifiedRetellVerdict,
 } from '../../host/ai-dialogue.js';
+import {
+  RETELL_TEXT_MAX,
+  classifyRetellVerdict,
+  formatRetellVerdictMarkdown,
+  retellVerdictBadge,
+} from '../../host/retell-dialogue.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Divider, Spinner } from '../../components/Badge.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
@@ -25,7 +32,7 @@ import {
 } from './review-helpers.js';
 import { NextStepFollowupBar } from './NextStepFollowupBar.js';
 
-export const RETELL_TEXT_MAX = 4000;
+export { RETELL_TEXT_MAX };
 
 export type RetellVerdict = UnifiedRetellVerdict;
 
@@ -84,6 +91,8 @@ export const RetellModal = memo(function RetellModal({
   const [hydratedHint, setHydratedHint] = useState<string>('');
 
   const mountedRef = useRef(true);
+  const busyRef = useRef(false);
+  const reqSeqRef = useRef(0);
   const cardIdRef = useRef(cardId);
   cardIdRef.current = cardId;
 
@@ -96,6 +105,8 @@ export const RetellModal = memo(function RetellModal({
 
   // Reset modal state if card changes while open
   useEffect(() => {
+    reqSeqRef.current += 1;
+    busyRef.current = false;
     setDraft('');
     setEditing(true);
     setSubmitting(false);
@@ -179,7 +190,7 @@ export const RetellModal = memo(function RetellModal({
 
   const handleSubmit = useCallback(
     async (rawText?: string) => {
-      if (submitting) return;
+      if (busyRef.current || submitting) return;
       const text = (rawText ?? draft).trim();
       if (!text) {
         notify(t(lang, '请先用自己的话写出理解，再提交评估', 'Type your explanation first before submitting'), 'warning');
@@ -198,22 +209,33 @@ export const RetellModal = memo(function RetellModal({
         return;
       }
       const targetCardId = cardId;
+      const seq = ++reqSeqRef.current;
+      busyRef.current = true;
       setSubmitting(true);
       setEditing(false);
       setErrorText(null);
-      const res = await submitRetellEvaluation(host, {
-        deckId,
-        cardId: targetCardId,
-        text,
-        language: lang,
-      });
-      if (!mountedRef.current || cardIdRef.current !== targetCardId) return;
-      setSubmitting(false);
-      if (!res.ok) {
-        setErrorText(res.error);
-        return;
+      try {
+        const res = await submitRetellEvaluation(host, {
+          deckId,
+          cardId: targetCardId,
+          text,
+          language: lang,
+        });
+        if (!mountedRef.current || cardIdRef.current !== targetCardId || reqSeqRef.current !== seq) return;
+        if (!res.ok) {
+          setErrorText(describeAiDialogueError(res.error, lang));
+          return;
+        }
+        setVerdict(res.verdict);
+      } catch (err) {
+        if (!mountedRef.current || cardIdRef.current !== targetCardId || reqSeqRef.current !== seq) return;
+        setErrorText(describeAiDialogueError(err, lang));
+      } finally {
+        if (reqSeqRef.current === seq) {
+          busyRef.current = false;
+          if (mountedRef.current) setSubmitting(false);
+        }
       }
-      setVerdict(res.verdict);
     },
     [submitting, draft, deckId, cardId, host, lang, notify],
   );
@@ -245,76 +267,18 @@ export const RetellModal = memo(function RetellModal({
     { isActive: isActive && !editing && !submitting && !followupEngaged },
   );
 
-  const verdictTier = useMemo<'pass' | 'partial' | 'gap' | null>(() => {
-    if (!verdict) return null;
-    if (verdict.passed && verdict.gap === 'none' && verdict.wrong.length === 0) return 'pass';
-    if (verdict.gap === 'wrong' || verdict.wrong.length > 0) return 'gap';
-    return 'partial';
-  }, [verdict]);
+  const verdictTier = useMemo(() => classifyRetellVerdict(verdict), [verdict]);
 
   const verdictMarkdown = useMemo(() => {
     if (!verdict) return '';
-    const lines: string[] = [];
-    const tierHeadline =
-      verdictTier === 'pass'
-        ? t(lang, '已抓准核心机制，用自己的话讲清楚了！', 'Solid explanation — you captured the core mechanism accurately.')
-        : verdictTier === 'gap'
-          ? t(lang, '存在与材料相矛盾的表述，建议对照下方纠偏后再复述一次。', 'Contains a contradiction with the source material. Review the corrections below.')
-          : t(lang, '方向正确，但遗漏了部分关键要点，建议补充后巩固。', 'Right direction, with a few key points left out.');
-
-    lines.push(`> ${tierHeadline}`);
-    lines.push('');
-
-    lines.push(`### ${t(lang, '讲对了', 'What You Got Right')}`);
-    if (verdict.right.length > 0) {
-      for (const item of verdict.right) lines.push(`- ${item}`);
-    } else {
-      lines.push(`- ${t(lang, '暂未匹配到明确得分要点，请参考下方提示补充。', 'No key points matched yet; check the hints below.')}`);
-    }
-
-    if (verdict.missed.length > 0) {
-      lines.push('');
-      lines.push(`### ${t(lang, '遗漏要点', 'Missing Points')}`);
-      for (const item of verdict.missed) lines.push(`- ${item}`);
-    }
-
-    if (verdict.wrong.length > 0) {
-      lines.push('');
-      lines.push(`### ${t(lang, '理解偏差 / 需纠正', 'Confused / Needs Correction')}`);
-      for (const item of verdict.wrong) lines.push(`- ${item}`);
-    }
-
-    const hintItems: string[] = [];
-    if (cardHint) hintItems.push(cardHint);
-    if (verdictTier === 'pass') {
-      hintItems.push(t(lang, '试着用一句话总结它的适用边界或反例，记忆会更牢固。', 'Try summarizing its boundary condition or counterexample to lock it in.'));
-    } else if (verdictTier === 'gap') {
-      hintItems.push(t(lang, '先聚焦纠正偏差点，按 [r] 或 [i] 重新组织语言再讲一遍。', 'Focus on fixing the misconception above, then press [r] or [i] to re-explain.'));
-    } else {
-      hintItems.push(t(lang, '围绕上方遗漏要点补全因果链条，按 [r] 或 [i] 再讲一遍。', 'Fill in the missing causal links above, then press [r] or [i] to refine.'));
-    }
-    lines.push('');
-    lines.push(`### ${t(lang, '模型提示', 'Model Hint')}`);
-    for (const h of hintItems) lines.push(`- ${h}`);
-
-    if (targetCitation) {
-      const pageLabel =
-        targetCitation.pageNumber != null
-          ? t(lang, `第 ${targetCitation.pageNumber} 页`, `p.${targetCitation.pageNumber}`)
-          : '';
-      const srcLabel = `${targetCitation.title ? `${targetCitation.title} ` : ''}${pageLabel}`.trim();
-      lines.push('');
-      lines.push(`### ${t(lang, '原文定位', 'Source Citation')}`);
-      lines.push(
-        `- ${srcLabel || targetCitation.sourceId} (${t(lang, '按 [o] 跳转原文阅读', 'press [o] to open source')})`,
-      );
-      if (citedQuote) {
-        lines.push(`> "${citedQuote}"`);
-      }
-    }
-
-    return lines.join('\n');
-  }, [verdict, verdictTier, lang, cardHint, targetCitation, citedQuote]);
+    return formatRetellVerdictMarkdown(verdict, {
+      surface: 'card',
+      lang,
+      cardHint,
+      targetCitation,
+      citedQuote,
+    });
+  }, [verdict, lang, cardHint, targetCitation, citedQuote]);
 
   const frameW = Math.max(48, Math.min(96, width - 4));
   const frameH = Math.max(16, Math.min(34, height - 2));
@@ -346,19 +310,9 @@ export const RetellModal = memo(function RetellModal({
 
   const modelUnavailable = errorText ? isModelUnavailableError(errorText) : false;
 
-  const pillLabel =
-    verdictTier === 'pass'
-      ? asciiMode
-        ? '+ Pass'
-        : '✓ 通过 · Pass'
-      : verdictTier === 'gap'
-        ? asciiMode
-          ? 'x Gap'
-          : '✕ 存在偏差 · Gap'
-        : asciiMode
-          ? '! Partial'
-          : '▲ 部分掌握 · Partial';
-  const pillTone = verdictTier === 'pass' ? 'success' : verdictTier === 'gap' ? 'error' : 'warning';
+  const badge = verdictTier ? retellVerdictBadge(verdictTier, { surface: 'card', lang, asciiMode }) : null;
+  const pillLabel = badge?.label ?? '';
+  const pillTone = badge?.tone ?? 'warning';
 
   return (
     <Modal

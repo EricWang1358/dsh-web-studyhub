@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 
 const mod = await loadUi(`
@@ -11,7 +12,6 @@ const mod = await loadUi(`
   export { holdAudioCapture, isAudioCaptureActive } from './ui/audio-capture-state.js';
   export {
     CHIME_ARPEGGIO_IDS,
-    CHIME_ARPEGGIO_STEP_MS,
     CHIME_BARS,
     CHIME_KEY_MAP,
     BREEZE_MIN_MS,
@@ -28,7 +28,6 @@ const mod = await loadUi(`
   export {
     default as FocusAmbientCanvas,
     FocusAmbientControls,
-    FOCUS_AMBIENT_KEY,
     FOCUS_AMBIENT_MODES,
     normalizeAmbientMode,
     loadAmbientMode,
@@ -44,7 +43,6 @@ const {
   holdAudioCapture,
   isAudioCaptureActive,
   CHIME_ARPEGGIO_IDS,
-  CHIME_ARPEGGIO_STEP_MS,
   CHIME_BARS,
   CHIME_KEY_MAP,
   BREEZE_MIN_MS,
@@ -59,7 +57,6 @@ const {
   DeskAtelierPanel,
   FocusAmbientCanvas,
   FocusAmbientControls,
-  FOCUS_AMBIENT_KEY,
   FOCUS_AMBIENT_MODES,
   normalizeAmbientMode,
   loadAmbientMode,
@@ -167,13 +164,13 @@ function createFakeAudioEnv() {
     }
   }
 
-  const fakeDoc = { hidden: false };
-  Object.defineProperty(globalThis, 'AudioContext', { configurable: true, value: FakeAudioContext });
-  Object.defineProperty(globalThis, 'document', { configurable: true, value: fakeDoc });
+  const document = { hidden: false };
+  Object.defineProperty(globalThis, 'AudioContext', { configurable: true, writable: true, value: FakeAudioContext });
+  Object.defineProperty(globalThis, 'document', { configurable: true, writable: true, value: document });
 
   return {
     contexts,
-    fakeDoc,
+    document,
     restore() {
       resetChimeSynthForTests();
       if (origAudioContext) Object.defineProperty(globalThis, 'AudioContext', origAudioContext);
@@ -261,10 +258,10 @@ test('DeskChime audio stays silent by default, auto-mutes on capture/hidden tab,
     release();
 
     // Hidden tab -> muted, zero AudioContext constructed.
-    env.fakeDoc.hidden = true;
+    env.document.hidden = true;
     assert.equal(strikeChimeBar('A4'), false);
     assert.equal(env.contexts.length, 0);
-    env.fakeDoc.hidden = false;
+    env.document.hidden = false;
 
     // Explicit strike -> creates AudioContext, routes through airBus, disconnects cleanly on ended.
     assert.equal(strikeChimeBar('D4', { velocity: 0.9 }), true);
@@ -299,15 +296,16 @@ test('DeskChime audio stays silent by default, auto-mutes on capture/hidden tab,
 
 test('FocusAmbientCanvas defaults to off, persists via study-focus-ambient, and evolves particles smoothly', () => {
   assert.deepEqual(FOCUS_AMBIENT_MODES.map((m) => m.id), ['off', 'rain-ripples', 'ink-ripples', 'lamp-dust']);
-  assert.equal(FOCUS_AMBIENT_KEY, 'study-focus-ambient');
   assert.equal(normalizeAmbientMode('bogus'), 'off');
   assert.equal(normalizeAmbientMode('ink-ripples'), 'ink-ripples');
 
   const storage = memoryStorage();
   assert.equal(loadAmbientMode(storage), 'off');
   saveAmbientMode('rain-ripples', storage);
+  assert.equal(storage.getItem('study-focus-ambient'), 'rain-ripples', 'persists ambient mode under study-focus-ambient');
   assert.equal(loadAmbientMode(storage), 'rain-ripples');
   saveAmbientMode('invalid', storage);
+  assert.equal(storage.getItem('study-focus-ambient'), 'off', 'normalizes invalid mode to off under study-focus-ambient');
   assert.equal(loadAmbientMode(storage), 'off');
 
   // Default 'off' renders zero canvas markup.
@@ -359,7 +357,6 @@ test('DeskChimeDialog, FocusAmbientControls, DeskAtelierPanel and TodayTimer ren
     assert.match(zhChime, /A5/);
     assert.match(zhChime, /desk-chime__bar/);
     assert.deepEqual(CHIME_ARPEGGIO_IDS, ['D4', 'Fs4', 'A4', 'B4', 'D5']);
-    assert.equal(CHIME_ARPEGGIO_STEP_MS, 160);
 
     const zhPanel = renderToStaticMarkup(React.createElement(DeskAtelierPanel));
     assert.match(zhPanel, /五声风铃/);
@@ -402,6 +399,74 @@ test('DeskChimeDialog, FocusAmbientControls, DeskAtelierPanel and TodayTimer ren
     assert.match(enSurfaces[2], /Lamp Dust/);
   } finally {
     setUiLanguage('zh');
+  }
+});
+
+test('DeskChimeDialog arpeggio button schedules the 5 pentatonic bars at 0, 160, 320, 480, 640 ms and clears timers on unmount', async () => {
+  const ui = await loadInteractiveUi(`
+    export { setUiLanguage } from './ui/i18n.js';
+    export { resetChimeSynthForTests } from './ui/desk-atelier/chime-synth.js';
+    export { default as DeskChimeDialog } from './ui/desk-atelier/DeskChimeDialog.jsx';
+  `);
+  const env = createFakeAudioEnv();
+  const origSetTimeout = globalThis.setTimeout;
+  const origClearTimeout = globalThis.clearTimeout;
+  const scheduled = [];
+  let nextTimerId = 1;
+  globalThis.setTimeout = (fn, delay = 0) => {
+    const handle = { id: nextTimerId++, fn, delay, cleared: false, unref() {} };
+    scheduled.push(handle);
+    return handle;
+  };
+  globalThis.clearTimeout = (handle) => {
+    if (handle && typeof handle === 'object') handle.cleared = true;
+  };
+
+  try {
+    await withBrowserGlobals(async () => {
+      ui.exports.setUiLanguage('zh');
+      ui.exports.resetChimeSynthForTests();
+      const mounted = ui.mount(() => ui.React.createElement(ui.exports.DeskChimeDialog, { onClose: () => {} }));
+      try {
+        const arpeggioButton = mounted.find(
+          (node) => node.type === 'button' && mounted.text(node).includes('清风一曲'),
+        );
+        assert.ok(arpeggioButton, 'found arpeggio button in mounted DeskChimeDialog');
+
+        const clickEvent = { currentTarget: null, preventDefault() {} };
+        await mounted.act(() => { arpeggioButton.props.onClick(clickEvent); });
+        const arpeggioTimers = scheduled.slice();
+        assert.deepEqual(
+          arpeggioTimers.map((t) => t.delay),
+          [0, 160, 320, 480, 640],
+          'arpeggio schedules 5 stepped notes at 160ms intervals',
+        );
+
+        await mounted.act(() => {
+          for (const timer of arpeggioTimers) timer.fn();
+        });
+        assert.equal(env.contexts.length, 1, 'arpeggio creates one AudioContext when notes fire');
+        assert.equal(env.contexts[0].sources.length, 5, 'all 5 arpeggio bars strike cleanly');
+        assert.match(mounted.text(), /D4 · F#4 · A4 · B4 · D5/, 'note trail records the D-major arpeggio sequence');
+
+        // Clicking arpeggio again and unmounting clears all pending arpeggio timers.
+        const beforeSecond = scheduled.length;
+        await mounted.act(() => { arpeggioButton.props.onClick(clickEvent); });
+        const secondBatch = scheduled.slice(beforeSecond);
+        assert.deepEqual(secondBatch.map((t) => t.delay), [0, 160, 320, 480, 640]);
+
+        mounted.unmount();
+        assert.ok(secondBatch.every((t) => t.cleared), 'unmounting DeskChimeDialog clears pending arpeggio timers');
+      } finally {
+        mounted.unmount();
+      }
+    });
+  } finally {
+    ui.exports.resetChimeSynthForTests();
+    ui.exports.setUiLanguage('zh');
+    globalThis.setTimeout = origSetTimeout;
+    globalThis.clearTimeout = origClearTimeout;
+    env.restore();
   }
 });
 

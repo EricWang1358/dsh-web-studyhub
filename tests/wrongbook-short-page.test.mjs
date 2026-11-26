@@ -8,6 +8,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { withStudy } from './helpers/study-services.mjs';
+import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const m = await loadUi(`export { WrongBookView } from './ui/WrongBook.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage, uiCatalogue } from './ui/i18n.js';
   export { FILTER_MIN, readSignature } from './ui/wrongbook-model.js';`);
@@ -146,11 +147,131 @@ test('English: the new words are translated', () => {
   } finally { setUiLanguage('zh'); }
 });
 
-test('the page watches its list with usePolling (never setInterval) and has no refresh button of its own (#675)', () => {
-  const source = readFileSync(new URL('../ui/WrongBook.jsx', import.meta.url), 'utf8');
-  assert.match(source, /usePolling\(\s*watch/);
-  assert.doesNotMatch(source, /setInterval/);
-  assert.doesNotMatch(source, /ui\("刷新"\)|icon="refresh"/);
+test('the page watches its list with usePolling via setTimeout (never setInterval), clears pending timers on unmount, and renders no refresh button (#675)', async () => {
+  const ui = await loadInteractiveUi(`
+    export { default as WrongBook } from './ui/WrongBook.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const origSetTimeout = globalThis.setTimeout;
+  const origClearTimeout = globalThis.clearTimeout;
+  const origSetInterval = globalThis.setInterval;
+  const timers = [];
+  let nextTimerId = 1;
+  let intervalCalls = 0;
+
+  globalThis.setTimeout = (fn, delay = 0) => {
+    const entry = { id: nextTimerId++, fn, delay, fired: false, cleared: false, unref() {} };
+    timers.push(entry);
+    return entry;
+  };
+  globalThis.clearTimeout = (entry) => {
+    if (entry && typeof entry === 'object') entry.cleared = true;
+  };
+  const fireTimer = async (entry) => {
+    entry.fired = true;
+    await entry.fn();
+  };
+  globalThis.setInterval = (...args) => {
+    intervalCalls += 1;
+    return origSetInterval(...args);
+  };
+
+  let currentItems = [row('c0', 'd4', '主题0', '第 0 题？')];
+  const wrongbookCalls = [];
+  const call = async (action, args = {}) => {
+    if (action === 'wrongbook') {
+      wrongbookCalls.push(args);
+      const sliced = currentItems.slice(args.offset || 0, (args.offset || 0) + (args.limit || 100));
+      return {
+        view: args.view || 'weak',
+        total: currentItems.length,
+        counts: { weak: currentItems.length, history: 0 },
+        gradedTotal: currentItems.length,
+        selfTotal: 0,
+        oralTotal: 0,
+        rubricTotal: 0,
+        items: sliced,
+      };
+    }
+    if (action === 'wrongbook.recommend') return { items: [] };
+    if (action === 'coach.status') return { enabled: false, preparing: false };
+    return {};
+  };
+
+  try {
+    await withBrowserGlobals(async () => {
+      ui.exports.setUiLanguage('zh');
+      const study = { call, act: async () => undefined, busy: false, notify: noop, askInChat: noop, host: {}, openSettings: noop, navigate: noop, openModal: noop };
+      const data = { root: 'r', decks, focus: { course: 'PE', courses: [{ name: 'PE' }] }, model: { ready: true } };
+      const mounted = ui.mount(() =>
+        ui.React.createElement(
+          ui.exports.StudyServicesContext.Provider,
+          { value: study },
+          ui.React.createElement(ui.exports.WrongBook, {
+            data,
+            onPractice: noop,
+            onPracticePrepared: noop,
+            onOpenSettings: noop,
+            onLibrary: noop,
+            onCreate: noop,
+            onSources: noop,
+            onOpenBook: noop,
+          }),
+        ),
+      );
+      try {
+        await mounted.flush(6);
+        assert.match(mounted.text(), /第 0 题？/, 'initial mistake list rendered');
+
+        // Rendered page has no refresh button or refresh icon.
+        const refreshButtons = mounted.findAll(
+          (node) => node.type === 'button' && (/刷新/.test(mounted.text(node)) || /刷新/.test(String(node.props?.['aria-label'] || ''))),
+        );
+        assert.equal(refreshButtons.length, 0, 'WrongBook renders no refresh button');
+        const refreshIcons = mounted.findAll((node) => node.props?.icon === 'refresh' || node.props?.['data-icon'] === 'refresh');
+        assert.equal(refreshIcons.length, 0, 'WrongBook renders no refresh icon');
+
+        // usePolling schedules a setTimeout watch loop with zero setInterval calls.
+        assert.equal(intervalCalls, 0, 'WrongBook never registers setInterval');
+        const initialWatch = timers.find((t) => !t.cleared && t.delay === 8000);
+        assert.ok(initialWatch, 'usePolling scheduled the 8000ms watch timer via setTimeout');
+
+        // Unchanged backend: probe asks for 1 row and does not reload the whole page.
+        const callsBeforeUnchanged = wrongbookCalls.length;
+        await mounted.act(async () => { await fireTimer(initialWatch); });
+        await mounted.flush(4);
+        assert.equal(wrongbookCalls.length, callsBeforeUnchanged + 1, 'unchanged poll performs only the single-row probe');
+        assert.equal(wrongbookCalls.at(-1).limit, 1, 'watch probe requests only 1 row');
+        assert.equal(intervalCalls, 0, 'still zero setInterval calls after unchanged poll');
+
+        // Changed backend: next poll probe sees the new signature and quietly reloads the list.
+        const nextWatch = timers.find((t) => !t.fired && !t.cleared && t.delay >= 8000);
+        assert.ok(nextWatch, 'usePolling rescheduled the next watch timer via setTimeout');
+        currentItems = [
+          row('c1', 'd4', '主题1', '新增错题？'),
+          row('c0', 'd4', '主题0', '第 0 题？'),
+        ];
+        await mounted.act(async () => { await fireTimer(nextWatch); });
+        await mounted.flush(6);
+        assert.match(mounted.text(), /新增错题？/, 'changed signature triggered a quiet reload of the list');
+        assert.equal(intervalCalls, 0, 'still zero setInterval calls after quiet reload');
+
+        // Unmounting clears the active pending watch timer.
+        const activePending = timers.filter((t) => !t.fired && !t.cleared && t.delay >= 8000);
+        assert.equal(activePending.length, 1, 'one pending watch timer is armed before unmount');
+        mounted.unmount();
+        assert.ok(activePending.every((t) => t.cleared), 'unmounting WrongBook clears pending watch timers');
+      } finally {
+        mounted.unmount();
+      }
+    });
+  } finally {
+    ui.exports.setUiLanguage('zh');
+    globalThis.setTimeout = origSetTimeout;
+    globalThis.clearTimeout = origClearTimeout;
+    globalThis.setInterval = origSetInterval;
+  }
 });
 
 test('readSignature: the same list reads the same; a new mistake, a corrected one or a changed count reads differently', () => {

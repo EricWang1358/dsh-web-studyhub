@@ -1039,7 +1039,7 @@ describe('Round 11: Review Mastery, Guided Study, Exam Alignment & BookCrunch', 
     await ctx?.dispose();
   });
 
-  test('1) Review Mastery (* Focus toggle, D CardTools terms, h->s Follow-up chips, L Socratic TeachModal)', async () => {
+  test('1) Review Mastery (* Focus toggle, D CardTools terms, h->s Follow-up chips, t Unified Guided Study)', async () => {
     const { tty } = ctx;
     tty.send('\r');
     const reviewInit = await tty.waitFor(
@@ -1184,39 +1184,40 @@ describe('Round 11: Review Mastery, Guided Study, Exam Alignment & BookCrunch', 
       { timeoutMs: 8_000, label: 'Card answered before TeachModal' },
     );
 
-    tty.send('L');
+    tty.send('t');
     const teachOpen = await tty.waitFor(
       (s) =>
-        (s.includes('苏格拉底带学模式') || s.includes('Socratic Teach Mode')) &&
+        (s.includes('苏格拉底带学') || s.includes('Socratic Teach')) &&
         (s.includes('第 1/2 步') || s.includes('Step 1/2')) &&
-        s.includes('Originator 拥有内部状态') &&
-        !s.includes('正在生成苏格拉底带学阶梯'),
-      { timeoutMs: 8_000, label: 'TeachModal opened with Step 1/2' },
+        s.includes('Originator 拥有内部状态'),
+      { timeoutMs: 8_000, label: 'Unified Guided Study opened with Step 1/2' },
     );
-    tty.assertHealthyScreen(teachOpen, 120, 36, 'TeachModal Step 1');
+    tty.assertHealthyScreen(teachOpen, 120, 36, 'Unified Guided Study Step 1');
 
     tty.send('Caretaker');
     await tty.waitFor((s) => s.includes('Caretaker'), {
       timeoutMs: 4_000,
-      label: 'Answer typed in TeachModal',
+      label: 'Answer typed in Guided Study',
     });
     tty.send('\r');
     const teachUpdated = await tty.waitFor(
       (s) =>
-        (s.includes('导师点评') || s.includes('Tutor Feedback')) &&
         s.includes('回答正确') &&
         (s.includes('第 2/2 步') || s.includes('Step 2/2')),
-      { timeoutMs: 8_000, label: 'TeachModal updated after teach.answer' },
+      { timeoutMs: 8_000, label: 'Guided Study updated after teach.answer' },
     );
-    tty.assertHealthyScreen(teachUpdated, 120, 36, 'TeachModal Step 2');
-    assert.ok(teachUpdated.includes('第 2/2 步') || teachUpdated.includes('Step 2/2'), 'TeachModal must advance to Step 2/2');
+    tty.assertHealthyScreen(teachUpdated, 120, 36, 'Unified Guided Study Step 2');
+    assert.ok(teachUpdated.includes('第 2/2 步') || teachUpdated.includes('Step 2/2'), 'Guided Study must advance to Step 2/2');
 
+    // Esc 1: blur input; Ctrl+G toggles docked assistant closed cleanly back to ReviewView
     tty.send('\x1b');
+    await new Promise((r) => setTimeout(r, 80));
+    tty.send('\x07');
     const reviewAfterTeach = await tty.waitFor(
-      (s) => !s.includes('苏格拉底带学模式') && !s.includes('Socratic Teach Mode'),
-      { timeoutMs: 8_000, label: 'TeachModal closed via Esc' },
+      (s) => !s.includes('苏格拉底带学') && !s.includes('Socratic Teach'),
+      { timeoutMs: 8_000, label: 'Guided Study closed back to Review' },
     );
-    tty.assertHealthyScreen(reviewAfterTeach, 120, 36, 'Review after TeachModal closed');
+    tty.assertHealthyScreen(reviewAfterTeach, 120, 36, 'Review after Guided Study closed');
   });
 
   test('2) AI Guided Study Workbench (g in LibraryView: create -> pause -> resume -> end -> Esc)', async () => {

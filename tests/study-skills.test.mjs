@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { BUNDLED_SKILL_RANK, parseSkill, registerStudySkills, SHIPPED_SKILLS, STUDY_SKILL_PROVIDER, studySkills } from '../lib/study-skills.js';
+import { apply } from '../lib/index.js';
 import { StudyService } from '../lib/service.js';
 
 const text = await readFile(new URL('../skills/study-book/SKILL.md', import.meta.url), 'utf8');
@@ -150,11 +151,39 @@ test('provider tolerates missing, half-written or renamed SKILL.md files, isolat
   await assert.rejects(() => provider.get(candidates[0], {}), /provider disposed/);
 });
 
-test('the skill ships in the package and the plugin registers it when the host has a skill registry', async () => {
+test('the skill ships in the package and the plugin registers it when the host has a skill registry', async t => {
   const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
   assert.ok(pkg.files.includes('skills'), 'package.json files lists skills');
-  const index = await readFile(new URL('../lib/index.js', import.meta.url), 'utf8');
-  assert.match(index, /ctx\.inject\(\['skills'\], skillCtx => \{ registerStudySkills\(skillCtx\); \}\)/);
+
+  const cleanups = [];
+  let provider = null;
+  const skillCtx = {
+    skills: {
+      registerProvider: create => {
+        provider = create({ signal: new AbortController().signal, invalidate() {} });
+        return () => {};
+      },
+    },
+  };
+  const fakeCtx = {
+    effect(setup) {
+      const dispose = setup?.();
+      if (typeof dispose === 'function') cleanups.push(dispose);
+    },
+    inject(deps, cb) {
+      if (Array.isArray(deps) && deps.includes('skills')) cb(skillCtx);
+    },
+  };
+  t.after(async () => {
+    for (const dispose of cleanups.reverse()) await dispose();
+  });
+
+  await apply(fakeCtx, {});
+  assert.ok(provider, 'apply() registers the bundled study skill provider on skillCtx.skills');
+  assert.equal(provider.name, STUDY_SKILL_PROVIDER);
+  const candidates = await provider.list({});
+  assert.deepEqual(candidates.map(c => c.name), SHIPPED_SKILLS);
+  assert.ok(candidates.some(c => c.name === 'study-self'), 'study-self skill is registered via apply()');
 });
 
 test('the study-self skill parses, keeps the interview short, and names only actions the workspace has', async t => {

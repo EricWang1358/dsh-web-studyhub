@@ -43,11 +43,24 @@ test('a visible poller calls on every interval and one call at a time', async ()
   assert.equal(env.listening(), false);
 });
 
-test('immediate: true asks once on start', async () => {
+test('immediate: true asks once on start, schedules the next interval, and cleans up on stop', async () => {
   const env = fakeEnv(), calls = [];
-  m.createPoller({ run: () => calls.push(1), intervalMs: 1000, immediate: true, env }).start();
+  const poller = m.createPoller({
+    run: (...args) => { calls.push(args); return Promise.resolve({ unchanged: false }); },
+    intervalMs: 1000,
+    immediate: true,
+    env,
+  });
+  poller.start();
+  assert.equal(env.listening(), true, 'visibility listener is attached on start');
+  assert.equal(env.pending().length, 0, 'immediate call runs before scheduling the interval timer');
   await settle();
-  assert.equal(calls.length, 1);
+  assert.deepEqual(calls, [[]], 'immediate call runs once with no arguments');
+  assert.equal(env.pending().length, 1, 'next interval timer is scheduled after the immediate call settles');
+  assert.equal(env.pending()[0].ms, 1000);
+  poller.stop();
+  assert.equal(env.pending().length, 0, 'stop clears pending timers');
+  assert.equal(env.listening(), false, 'stop detaches the visibility listener');
 });
 
 test('no call is made while the page is hidden', async () => {

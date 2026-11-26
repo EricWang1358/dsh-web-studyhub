@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { loadInteractiveUi, withBrowserGlobals, click } from './helpers/react-harness.mjs';
 
 /* Archify (open-source, MIT, github.com/tt-a1i/archify) draws a skeleton as a self-contained interactive HTML file. StudyHub
    recommends it, hands the skeleton to the learner's agent with one button, keeps the file it makes, and shows it in an
@@ -49,7 +50,6 @@ test('a hostile skeleton name stays one name span on one line and cannot become 
 });
 
 test('the frame is isolated: scripts may run, and nothing else is granted', () => {
-  assert.equal(m.FRAME_SANDBOX, 'allow-scripts');
   const markup = renderToStaticMarkup(React.createElement(m.DiagramFrame, { html: '<!doctype html><html><head><title>t</title></head><body>x</body></html>', title: '图' }));
   const iframe = /<iframe\b([^>]*)>/.exec(markup)[1];
   assert.match(iframe, /sandbox="allow-scripts"/);
@@ -105,11 +105,143 @@ test('the page never puts the file into its own DOM and only the isolated frame 
   assert.deepEqual(shows, ['ui/SkeletonDiagrams.jsx'], 'one component reads the document');
   const viewer = await readFile('ui/SkeletonDiagrams.jsx', 'utf8');
   assert.doesNotMatch(viewer, /dangerouslySetInnerHTML|innerHTML|insertAdjacentHTML|createObjectURL|window\.open|location\.|document\.write|eval\(/);
-  assert.match(viewer, /<DiagramFrame html=\{state\.html\}/);
-  const page = await readFile('ui/Skeleton.jsx', 'utf8');
-  assert.match(page, /<HandOff id="skeleton\.archify"[^>]*input=\{\{ skeleton: viewing \}\}/, 'the button hands the open skeleton to the main chat (发给主会话, S2b)');
-  assert.match(page, /<SkeletonDiagrams skeletonId=\{viewing\.id\}/);
-  assert.match(page, /archifyPutOff\(data\?\.root\)/, 'the put-off choice is per library');
+
+  // Runtime wiring: SkeletonDiagrams hands loaded HTML into DiagramFrame; Skeleton wires HandOff(skeleton.archify), SkeletonDiagrams(skeletonId), and per-library archifyPutOff.
+  const interactive = await loadInteractiveUi(`
+    export { default as SkeletonDiagrams } from './ui/SkeletonDiagrams.jsx';
+    export { default as Skeleton } from './ui/Skeleton.jsx';
+    export { DiagramFrame } from './ui/diagram-frame.js';
+    export { HandOff } from './ui/hand-off/HandOff.jsx';
+    export { default as ArchifyCard } from './ui/ArchifyCard.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const { SkeletonDiagrams, Skeleton, DiagramFrame, HandOff, ArchifyCard, StudyServicesContext } = interactive.exports;
+  const hi = interactive.React.createElement;
+  interactive.exports.setUiLanguage('zh');
+
+  const sampleHtml = '<!doctype html><html><head><title>CAP</title></head><body><main>CAP Diagram</main></body></html>';
+  const diagramRecord = { id: 'diag-1', title: '架构图', createdAt: '2026-10-06T08:00:00.000Z', bytes: 2048, skeletonRevision: '2026-10-06T08:00:00.000Z' };
+  const fullSkeleton = {
+    id: 'sk-9',
+    title: 'CAP 骨架',
+    updatedAt: '2026-10-06T08:00:00.000Z',
+    nodes: [{ id: 'n1', term: 'CAP', meaning: 'Consistency, Availability, Partition tolerance', cards: [] }],
+    relations: [],
+    scope: [{ deckId: 'd1', topic: 'CAP' }],
+    diagrams: [diagramRecord],
+  };
+
+  const storageMap = new Map();
+  const stubStorage = {
+    getItem: (key) => (storageMap.has(key) ? storageMap.get(key) : null),
+    setItem: (key, value) => { storageMap.set(key, String(value)); },
+    removeItem: (key) => { storageMap.delete(key); },
+  };
+  const prevStorage = globalThis.localStorage;
+  globalThis.localStorage = stubStorage;
+  try {
+    await withBrowserGlobals(async () => {
+      // 1) Opening a diagram in SkeletonDiagrams loads via skeleton.diagram.get and renders DiagramFrame with state.html
+      const diagramStudy = {
+        busy: false,
+        host: {},
+        call: async (action, args) => {
+          if (action === 'skeleton.diagram.get') {
+            assert.deepEqual(args, { id: 'sk-9', diagramId: 'diag-1' });
+            return { html: sampleHtml, file: '/tmp/cap.html' };
+          }
+          return {};
+        },
+      };
+      const diagramMount = interactive.mount(() => hi(
+        StudyServicesContext.Provider,
+        { value: diagramStudy },
+        hi(SkeletonDiagrams, { skeletonId: 'sk-9', diagrams: [diagramRecord], revision: fullSkeleton.updatedAt }),
+      ));
+      try {
+        const openBtn = diagramMount.find((n) => n.type === 'button' && diagramMount.text(n).trim() === '打开');
+        assert.ok(openBtn, 'SkeletonDiagrams renders an 打开 button');
+        await diagramMount.act(() => click(openBtn));
+        await diagramMount.flush(4);
+        const frameType = DiagramFrame.type || DiagramFrame;
+        const frame = diagramMount.find((n) => n.type === frameType);
+        assert.ok(frame, 'opening a diagram mounts DiagramFrame');
+        assert.equal(frame.props.html, sampleHtml, 'DiagramFrame receives the exact HTML loaded by skeleton.diagram.get');
+        const iframe = diagramMount.find((n) => n.type === 'iframe');
+        assert.equal(iframe?.props?.sandbox, 'allow-scripts', 'the mounted iframe carries allow-scripts only');
+        assert.match(iframe?.props?.srcDoc || '', /CAP Diagram/, 'the isolated iframe srcDoc carries the diagram HTML');
+      } finally {
+        diagramMount.unmount();
+      }
+
+      // 2) Skeleton renders HandOff("skeleton.archify") with viewing, SkeletonDiagrams with viewing.id, and persists ArchifyCard put-off per library root
+      const skeletonCall = async (action, args) => {
+        if (action === 'skeleton.topics') return { topics: [], groups: { groups: [], ungrouped: [] } };
+        if (action === 'skeleton.list') return { skeletons: [{ id: 'sk-9', title: 'CAP 骨架', nodes: 1, relations: 0, cardIds: [], decks: 1, updatedAt: fullSkeleton.updatedAt }] };
+        if (action === 'skeleton.get' && args?.id === 'sk-9') return fullSkeleton;
+        return {};
+      };
+      const skeletonStudy = { busy: false, host: {}, call: skeletonCall };
+      const mountSkeleton = (root) => {
+        const skeletonData = {
+          root,
+          skeletons: [{ id: 'sk-9', title: 'CAP 骨架', nodes: 1, relations: 0, cardIds: [], decks: 1, updatedAt: fullSkeleton.updatedAt }],
+          focus: { course: '*', courses: [] },
+        };
+        return interactive.mount(() => hi(
+          StudyServicesContext.Provider,
+          { value: skeletonStudy },
+          hi(Skeleton, {
+            data: skeletonData,
+            focusId: 'sk-9',
+            onFocus: () => {},
+            onPractice: () => {},
+          }),
+        ));
+      };
+
+      const libA = mountSkeleton('/lib-a');
+      try {
+        await libA.flush(6);
+        const archifyHandOff = libA.find((n) => n.type === HandOff && n.props?.id === 'skeleton.archify');
+        assert.ok(archifyHandOff, 'Skeleton renders HandOff id="skeleton.archify" for the open skeleton');
+        assert.deepEqual(archifyHandOff.props.input, { skeleton: fullSkeleton }, 'HandOff receives { skeleton: viewing }');
+
+        const diagramsNode = libA.find((n) => n.type === SkeletonDiagrams);
+        assert.ok(diagramsNode, 'Skeleton renders SkeletonDiagrams for the open skeleton');
+        assert.equal(diagramsNode.props.skeletonId, 'sk-9');
+        assert.deepEqual(diagramsNode.props.diagrams, fullSkeleton.diagrams);
+
+        const cardA = libA.find((n) => n.type === ArchifyCard);
+        assert.ok(cardA, 'ArchifyCard is shown initially for /lib-a');
+        await libA.act(() => cardA.props.onLater());
+        assert.equal(libA.find((n) => n.type === ArchifyCard), null, 'dismissing ArchifyCard hides it immediately');
+      } finally {
+        libA.unmount();
+      }
+
+      // Re-mounting /lib-a remembers put-off, while a separate library /lib-b still shows ArchifyCard
+      const libAReload = mountSkeleton('/lib-a');
+      try {
+        await libAReload.flush(4);
+        assert.equal(libAReload.find((n) => n.type === ArchifyCard), null, 'put-off persists for /lib-a');
+      } finally {
+        libAReload.unmount();
+      }
+
+      const libB = mountSkeleton('/lib-b');
+      try {
+        await libB.flush(4);
+        assert.ok(libB.find((n) => n.type === ArchifyCard), 'put-off is scoped per library root (/lib-b still shows ArchifyCard)');
+      } finally {
+        libB.unmount();
+      }
+    });
+  } finally {
+    if (prevStorage === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = prevStorage;
+  }
 });
 
 test('the recommendation card: neutral credit, both links, one install command with a copy button, the profile note and a way to put it off', () => {

@@ -19,6 +19,8 @@ import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, parseSgrWheelDelta, useSgrMouseWheel, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { LAYOUT_BP, computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
+import { useAiConversation } from '../../components/useAiConversation.js';
+import { buildUnifiedAiSystemPrompt, isAiStreamingAvailable } from '../../host/ai-dialogue.js';
 import { padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { renderTreeLines, type TreeLine, type TreeNode } from '../../render/charts.js';
 import type {
@@ -542,15 +544,14 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const busyRef = useRef(false);
   const exportBusyRef = useRef(false);
   const lintReqRef = useRef(0);
-  const genAbortRef = useRef<AbortController | null>(null);
+  const { send: sendAiTurn, abort: abortAiTurn } = useAiConversation(host, lang);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      genAbortRef.current?.abort();
-      genAbortRef.current = null;
+      abortAiTurn();
     };
-  }, []);
+  }, [abortAiTurn]);
 
   // Load skeleton.list + skeleton.topics + course.focusProgress
   useEffect(() => {
@@ -994,7 +995,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
         return;
       }
 
-      if (!host.streamComplete) {
+      if (!isAiStreamingAvailable(host)) {
         useTuiStore.getState().notify(
           t(lang, '当前模型未就绪，无法生成知识骨架（请先检查模型配置）', 'Model is unavailable to generate skeleton; check model configuration'),
           'error',
@@ -1003,22 +1004,22 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       }
 
       useTuiStore.getState().notify(t(lang, `正在用 AI 构建知识骨架${asciiMode ? '...' : '…'}`, 'Generating knowledge skeleton with AI...'), 'info');
-      const sys = [
-        'Design a hierarchical knowledge skeleton from the supplied topics and cards.',
-        'Return ONLY valid JSON: {title:string, overview:string, nodes:[{id:string, term:string, meaning:string, parent?:string, cards:string[]}], relations:[{from:string, to:string, type:"part-of"|"causes"|"contrasts"|"prerequisite"|"example-of"|"related", note?:string}]}.',
-        'Keep 5-20 nodes, depth <= 3, and meaning <= 50 chars.',
-      ].join('\n');
+      const sys = buildUnifiedAiSystemPrompt('skeleton_generate', lang);
       const prompt = JSON.stringify({
         course: activeCourse || 'all',
         topics: availableTopics.slice(0, 20).map((x) => ({ topic: x.topic, count: x.count })),
         cards: cards.slice(0, 60).map((c) => ({ cardId: c.cardId, topic: c.topic, prompt: c.prompt.slice(0, 100) })),
       });
-      genAbortRef.current?.abort();
-      const ac = new AbortController();
-      genAbortRef.current = ac;
-      const raw = await host.streamComplete({ system: sys, prompt, signal: ac.signal });
-      if (!mountedRef.current || ac.signal.aborted) return;
-      const parsed = extractJsonObject(raw);
+      const outcome = await sendAiTurn({ system: sys, prompt });
+      if (!mountedRef.current || outcome.status === 'aborted' || outcome.status === 'superseded') return;
+      if (outcome.status === 'error' || outcome.status === 'unavailable') {
+        useTuiStore.getState().notify(
+          t(lang, `AI 骨架生成失败，未写入：${outcome.error}`, `AI skeleton generation failed; nothing saved: ${outcome.error}`),
+          'error',
+        );
+        return;
+      }
+      const parsed = extractJsonObject(outcome.text);
       if (!parsed || !Array.isArray(parsed.nodes) || parsed.nodes.length === 0) {
         useTuiStore.getState().notify(
           t(lang, 'AI 返回的骨架格式无效，未写入（可重试或先检查模型配置）', 'Model output could not be parsed as a valid skeleton; nothing saved'),
@@ -1028,7 +1029,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       }
 
       const saved = await host.call<SkeletonDetail>('skeleton.save', { ...parsed, scope });
-      if (!mountedRef.current || ac.signal.aborted) return;
+      if (!mountedRef.current) return;
       if (saved.ok && saved.value?.id) {
         setSelectedSkeletonId(saved.value.id);
         setReloadSeq((n) => n + 1);
@@ -1037,7 +1038,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
         useTuiStore.getState().notify(saved.error?.message || t(lang, '骨架保存失败', 'Failed to save skeleton'), 'error');
       }
     } catch (err) {
-      if (mountedRef.current && !genAbortRef.current?.signal.aborted) {
+      if (mountedRef.current) {
         const msg = err instanceof Error ? err.message : String(err);
         useTuiStore.getState().notify(
           t(lang, `AI 骨架生成失败，未写入：${msg}`, `AI skeleton generation failed; nothing saved: ${msg}`),
@@ -1045,11 +1046,10 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
         );
       }
     } finally {
-      genAbortRef.current = null;
       busyRef.current = false;
       if (mountedRef.current) setBusyAction(null);
     }
-  }, [asciiMode, busyAction, host, activeCourse, lang, topics]);
+  }, [asciiMode, busyAction, host, activeCourse, lang, sendAiTurn, topics]);
 
   const deleteSkeleton = useCallback(async () => {
     const target = detail;
