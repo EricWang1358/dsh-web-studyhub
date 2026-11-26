@@ -13,7 +13,7 @@ const m = await loadUi(`
   export { default as LiveClass, Sentence } from './ui/LiveClass.jsx';
   export { default as LiveAudioMonitor } from './ui/LiveAudioMonitor.jsx';
   export { LiveAudioHealth } from './ui/live-audio-health.js';
-  export { RECENT_CHARS, recentWindow, tidyCjk } from './ui/live-display.js';
+  export { recentWindow, tidyCjk } from './ui/live-display.js';
   export { setUiLanguage } from './ui/i18n.js';`);
 const h = React.createElement;
 const noop = () => {};
@@ -179,8 +179,9 @@ test('the selection bar: 最近一段 is capped by characters, and a disabled bu
 
 test('recentWindow takes the newest sentences up to a character budget, and always at least the newest', () => {
   const s = (id, length) => ({ id, en: 'a'.repeat(length) });
-  assert.equal(m.RECENT_CHARS, 1200);
   assert.deepEqual(m.recentWindow([s(1, 100), s(2, 100), s(3, 100)]).map(x => x.id), [1, 2, 3]);
+  assert.deepEqual(m.recentWindow([s(1, 600), s(2, 600)]).map(x => x.id), [1, 2], 'exact 1,200-character budget fits');
+  assert.deepEqual(m.recentWindow([s(1, 601), s(2, 600)]).map(x => x.id), [2], '1,201 characters overflows the 1,200 budget');
   assert.deepEqual(m.recentWindow([s(1, 500), s(2, 500), s(3, 500)]).map(x => x.id), [2, 3], 'two fit in 1,200; the third would not');
   assert.deepEqual(m.recentWindow([s(1, 100), s(2, 2000)]).map(x => x.id), [2], 'one 2,000-character sentence is the window by itself');
   assert.deepEqual(m.recentWindow(Array.from({ length: 30 }, (_, i) => s(i + 1, 10))).length, 30, 'thirty short sentences are all recent: not capped at eight');
