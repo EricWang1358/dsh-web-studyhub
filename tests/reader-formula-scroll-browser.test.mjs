@@ -136,7 +136,7 @@ test('a formula-heavy chapter scrolls without long tasks; copy, find and a citat
   for (const width of [1280, 420]) {
     const running = await startLateServer({ distDir: dist, seed });
     try {
-      const { page, errors, context } = await openPage(browser, running, { width, height: 900 });
+      const { page, errors, context } = await openPage(browser, running, { width, height: 900, selfGradeAdvance: false });
       await context.addInitScript(() => {
         window.__long = [];
         try { new PerformanceObserver(list => { for (const entry of list.getEntries()) window.__long.push(Math.round(entry.duration)); }).observe({ type: 'longtask', buffered: true }); } catch { /* no longtask timing */ }
