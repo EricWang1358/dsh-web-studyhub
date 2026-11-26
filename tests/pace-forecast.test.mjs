@@ -245,20 +245,21 @@ test("libraryPaceForecast benchmarks < 15ms and < 5 KB payload on 2,000 cards", 
     settings: { request_retention: 0.9, maximum_interval: 36500 },
   };
 
-  // Warmup cache (1 call) then measure 25 runs
+  // Warmup cache (1 call) then measure 25 runs via CPU time so parallel CI scheduling cannot inflate wall-clock readings
   const first = libraryPaceForecast(state, { now: NOW });
   const times = [];
   for (let i = 0; i < 25; i++) {
-    const start = performance.now();
+    const cpuBefore = process.cpuUsage();
     libraryPaceForecast(state, { now: NOW });
-    times.push(performance.now() - start);
+    const cpuUsed = process.cpuUsage(cpuBefore);
+    times.push((cpuUsed.user + cpuUsed.system) / 1000);
   }
   times.sort((a, b) => a - b);
   const medianMs = times[12];
   const payloadBytes = JSON.stringify(first).length;
-  t.diagnostic(`2,000-card libraryPaceForecast: median ${medianMs.toFixed(3)} ms, payload ${payloadBytes} bytes`);
+  t.diagnostic(`2,000-card libraryPaceForecast: median ${medianMs.toFixed(3)} ms CPU, payload ${payloadBytes} bytes`);
 
-  assert.ok(medianMs < 15, `expected median < 15ms on 2,000 cards, got ${medianMs.toFixed(3)}ms`);
+  assert.ok(medianMs < 15, `expected median < 15ms CPU on 2,000 cards, got ${medianMs.toFixed(3)}ms`);
   assert.ok(payloadBytes < 5120, `expected compact payload < 5 KB, got ${payloadBytes} bytes`);
   assert.equal(first.library.total, 2000);
   assert.equal(Object.keys(first.decks).length, 20);
@@ -283,17 +284,26 @@ test("buildRevisionBase caches compact paceForecast (< 5 KB) and skips it on tim
   assert.equal(Object.keys(snap1.paceForecast.decks).length, 8);
   assert.ok(snap1.paceForecast.library.total > 0);
 
-  // Unchanged poll short-circuits
-  const unchanged = await service.call("snapshot", { since: snap1.fingerprint });
+  // Unchanged poll short-circuits (re-read once if the real clock crossed a minute boundary between snap1 and the poll)
+  let baseSnap = snap1;
+  let unchanged = await service.call("snapshot", { since: baseSnap.fingerprint });
+  if (!unchanged.unchanged && unchanged.fingerprint && unchanged.fingerprint !== baseSnap.fingerprint) {
+    baseSnap = unchanged;
+    unchanged = await service.call("snapshot", { since: baseSnap.fingerprint });
+  }
   assert.equal(unchanged.unchanged, true);
 
   // Simulated timeOnly partial poll (advance minute in fingerprint within same local day) does NOT emit paceForecast
-  const fpParts = JSON.parse(snap1.fingerprint);
-  fpParts[6] = fpParts[6] - 1;
-  const earlierFp = JSON.stringify(fpParts);
-  const partial = await service.call("snapshot", { since: earlierFp, partial: true });
-  assert.equal(partial.partial, true);
-  assert.equal(Object.hasOwn(partial, "paceForecast"), false, "timeOnly partial poll must not resend or recompute paceForecast");
+  const fpParts = JSON.parse(baseSnap.fingerprint);
+  const currentMinute = fpParts[6];
+  const sameLocalDay = new Date((currentMinute - 1) * 60_000).toDateString() === new Date(currentMinute * 60_000).toDateString();
+  if (sameLocalDay) {
+    fpParts[6] = currentMinute - 1;
+    const earlierFp = JSON.stringify(fpParts);
+    const partial = await service.call("snapshot", { since: earlierFp, partial: true });
+    assert.equal(partial.partial, true);
+    assert.equal(Object.hasOwn(partial, "paceForecast"), false, "timeOnly partial poll must not resend or recompute paceForecast");
+  }
 
   // Compact agent snapshot omits paceForecast
   const compact = await service.call("snapshot", { compact: true });
