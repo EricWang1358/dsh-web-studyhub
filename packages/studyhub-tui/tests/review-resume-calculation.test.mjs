@@ -4,7 +4,7 @@ import test from 'node:test';
 import { render } from 'ink';
 import React from 'react';
 import { register } from 'tsx/esm/api';
-import { calculationPlan, setupCalculation } from '../../../tests/helpers/calculation-session.mjs';
+import { setupCalculation } from '../../../tests/helpers/calculation-session.mjs';
 import { createVirtualTty } from './helpers/virtual-tty.mjs';
 
 test('the documented review shortcut resumes a saved calculation at its current step without starting a concept lesson', async t => {
@@ -19,14 +19,24 @@ test('the documented review shortcut resumes a saved calculation at its current 
   const shortcut = guide.match(/^\|\s*`([a-z])`[^|]*\|\s*(?:\*\*)?苏格拉底带学/im)?.[1];
   assert.ok(shortcut, 'the review guide must publish a keyboard entry for a saved Socratic lesson');
   const snapshot = await service.call('snapshot');
-  const model = t.mock.fn(async () => JSON.stringify(calculationPlan()));
+  const model = t.mock.fn(async () => JSON.stringify({
+    diagnosis: 'Reason about the units', transfer: 'Use consistent units', rungs: [
+      { lesson: 'Speed measures distance per time', check: 'What does speed measure?', answer: 'Distance per time' },
+      { lesson: 'Multiply by elapsed time', check: 'How do you recover distance?', answer: 'Multiply by time' },
+    ],
+  }));
   service.complete = model;
   const teachingCalls = [];
+  const teachingRequests = [];
   const host = {
     getLibraryRoot: () => root,
     call: async (name, args) => {
-      if (name === 'teach.get' || name === 'teach.start') teachingCalls.push({ name, args });
-      try { return { ok: true, value: await service.call(name, args) }; }
+      const request = service.call(name, args);
+      if (name === 'teach.get' || name === 'teach.start') {
+        teachingCalls.push({ name, args });
+        teachingRequests.push(request);
+      }
+      try { return { ok: true, value: await request }; }
       catch (error) { return { ok: false, error: { message: error.message } }; }
     },
   };
@@ -45,6 +55,7 @@ test('the documented review shortcut resumes a saved calculation at its current 
     await tty.waitFor(screen => /第\s*2\/5\s*步/.test(screen) || teachingCalls.some(call => call.name === 'teach.start'), {
       label: 'resume saved lesson or observe an unwanted new lesson',
     });
+    await Promise.allSettled(teachingRequests);
     await tty.flush();
     assert.deepEqual(teachingCalls.filter(call => call.name === 'teach.start'), [], 'the review shortcut must never start a second lesson while resuming');
     assert.ok(teachingCalls.some(call => call.name === 'teach.get' && call.args.id === saved.id), 'loaded the saved calculation by ID');
@@ -52,6 +63,8 @@ test('the documented review shortcut resumes a saved calculation at its current 
     const screen = await tty.waitFor(/第\s*2\/5\s*步/, { label: 'second step of the original calculation' });
     assert.match(screen, /Current check 1\?|Stage 1 relationship/);
     assert.equal((await service.call('review.get', { runId: run.id })).teaching.id, saved.id);
+    const persisted = (await service.store.read()).teaching.filter(lesson => lesson.runId === run.id);
+    assert.deepEqual(persisted.map(lesson => [lesson.id, lesson.mode]), [[saved.id, 'calculation']]);
   } finally {
     view.unmount();
     tty.dispose();
