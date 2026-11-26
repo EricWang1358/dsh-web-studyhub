@@ -162,7 +162,7 @@
        The bar's own controls are left out: they are the bar. `:enabled` is every button, field and select that can be used, whatever its class. */
     .question-area[data-bar-stuck="true"] > :not(.review-sticky-bar) :is(a[href], :enabled, summary, [tabindex], [contenteditable]),
     .question-area[data-bar-stuck="true"] > :is(a[href], :enabled, summary, [tabindex], [contenteditable]):not(.review-sticky-bar) {
-      scroll-margin-bottom: calc(var(--space-9) + var(--space-7));
+      scroll-margin-bottom: calc(var(--review-bar-room) + var(--space-1));
     }
     .review-undo {
       color: var(--accent-text);

@@ -30,6 +30,7 @@ import { ReadingBlock, useReadingProps } from "../reading-settings/ReadingSettin
 import AnswerState from "./AnswerState.jsx";
 import { Banner, Button, DisclosureToggle, Icon, InlineMessage, Popover, ProgressBar, Spinner, TextInput, Tooltip, foldLabel } from "../components/index.js";
 import { useStudyBusy, useStudyServices } from "../study-context.jsx";
+import { useStickyRoom } from "../use-sticky-room.js";
 import { useLiveSession } from "./useReviewSession.js";
 import { LazySimilarTry } from "./LazyLearningLoop.jsx";
 import { useFixPhrases } from "./use-fix-phrases.js";
@@ -221,6 +222,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   // The bar is pinned to the bottom while an answer is shown or one is being graded: what takes the focus under it then stops above it (review.css).
   const barGrading = !!(rubricCard && (run.grading || gradeTask?.status === "running"));
   const barStuck = !!run.feedback || barGrading;
+  const barRoom = useStickyRoom("--review-bar-room", ".question-area");
   const liveAnnouncement = useQuestionRunA11y({ entryKey, run, hasFeedback, choice, isCloze, gradeTask, autoAdvanceActive, reviewBodyRef, choiceFeedbackRef, verdictFocusRef });
   const voice = useVoiceAnswer({ session: liveSession, data, model, rubricCard, setAssistMode, setAssistText: setAssistTextForVoice });
   const roundSteps = useRoundSteps({ session: liveSession, run, sources: data?.sources, openModal, onNote: onMakeNote, toggleFocus: toggleCardFocus, toggleSocratic: socratic.toggle, voiceKeys: voice.keys,
@@ -576,7 +578,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             </div>
           )}
         </div>
-        <div className="review-sticky-bar" data-answered={run.feedback ? "true" : undefined} data-grading={barGrading ? "true" : undefined}>
+        <div className="review-sticky-bar" ref={barStuck ? barRoom : undefined} data-answered={run.feedback ? "true" : undefined} data-grading={barGrading ? "true" : undefined}>
           {contextReturnLabel && <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour" lock={busy} onClick={onReturnContext}>{contextReturnLabel}</Button>}
           {detour && !contextReturnLabel && <Tooltip layer content={ui("回到从信箱跳过来之前正在做的题")} anchorClassName="review-detour">
             <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour__button" lock={busy} onClick={onReturnFromDetour}>{uiFormat("回到之前的第 {0} 题", [detour.index + 1])}</Button></Tooltip>}
