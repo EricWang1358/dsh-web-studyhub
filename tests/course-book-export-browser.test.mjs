@@ -1,7 +1,8 @@
 /* global window document */
+import { buffer, text as streamText } from 'node:stream/consumers';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildPreview } from '../scripts/build.mjs';
@@ -139,7 +140,7 @@ test('复习全书: 查找 from the book, a code opens its heading; 导出 with 
       await dialog.getByRole('button', { name: '下载 Markdown' }).click();
       const file = await downloaded;
       assert.equal(file.suggestedFilename(), '复习全书-SA-含答案册.md');
-      const saved = await readFile(await file.path(), 'utf8');
+      const saved = await streamText(await file.createReadStream());
       assert.match(saved, /^# 复习全书 · SA \{#book\}\n\n## 查找 \{#lookup\}/);
       assert.match(saved, /## 答案册 \{#answers\}/);
       assert.doesNotMatch(saved, /<!--|studyhub:\/\/|只给自己看/);
@@ -151,7 +152,7 @@ test('复习全书: 查找 from the book, a code opens its heading; 导出 with 
       await dialog.locator('.book-export__zip').click();
       const archive = await zipped;
       assert.equal(archive.suggestedFilename(), '复习全书-SA-含答案册.zip');
-      const bytes = await readFile(await archive.path());
+      const bytes = await buffer(await archive.createReadStream());
       assert.equal(bytes.readUInt32LE(0), 0x04034b50, `${width}px: a zip`);
       assert.equal(bytes.toString('utf8', 30, 39), 'book.yaml', `${width}px: its first file names the order`);
       assert.ok(bytes.readUInt16LE(bytes.length - 12) >= 4, `${width}px: the folder's files are all in it`);
@@ -160,7 +161,7 @@ test('复习全书: 查找 from the book, a code opens its heading; 导出 with 
       await dialog.locator('.book-export__page').click();
       const pageFile = await asPage;
       assert.equal(pageFile.suggestedFilename(), '复习全书-SA-含答案册.html');
-      const html = await readFile(await pageFile.path(), 'utf8');
+      const html = await streamText(await pageFile.createReadStream());
       assert.match(html, /^<!doctype html>\n<html lang="zh-CN">/);
       assert.doesNotMatch(html, /https?:\/\/|<script|<link|<img|\[\^|\{#|studyhub:\/\//, `${width}px: the page names no address and shows no raw marker`);
       assert.match(html, /<h2 id="answers" class="chapter">/, `${width}px: the answer key chosen above is in it`);
@@ -169,7 +170,7 @@ test('复习全书: 查找 from the book, a code opens its heading; 导出 with 
       await dialog.getByText('整本书页面不含原文引文').click();
       const withoutQuotes = page.waitForEvent('download');
       await dialog.locator('.book-export__page').click();
-      const bare = await readFile(await (await withoutQuotes).path(), 'utf8');
+      const bare = await streamText(await (await withoutQuotes).createReadStream());
       assert.ok(!bare.includes(quote), `${width}px: with the option on the quote is not in the file`);
       assert.match(bare, /<li id="fn-[^"]+">（原文引文已省略）/, `${width}px: but its footnote is`);
       await dialog.getByText('整本书页面不含原文引文').click();
