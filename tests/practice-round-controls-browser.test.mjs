@@ -1,5 +1,6 @@
 /* global localStorage, document, innerWidth, window, KeyboardEvent */
 import test from 'node:test';
+import { dismissAfterOverlay } from './helpers/overlay-escape.mjs';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -294,8 +295,7 @@ test('Slice 1 practice controls: multi-choice clear, cloze Shift+Enter, open dra
   await page.keyboard.press('b');
   await page.locator('.thumb-tray').waitFor();
   assert.match(await page.locator('.thumb-tray__keys').innerText(), /按 1–7 选标签，Esc 收起/);
-  await page.keyboard.press('Escape');
-  await page.locator('.thumb-tray').waitFor({ state: 'detached' });
+  await dismissAfterOverlay(page, page.locator('.thumb-tray'), { externalInput: true });
   assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('question-card')), true, 'Esc restores focus to .question-card');
 
   // Answer multi-choice & check #39 long explanation footer collapse/expand.

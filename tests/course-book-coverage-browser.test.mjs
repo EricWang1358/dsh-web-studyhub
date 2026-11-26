@@ -1,5 +1,6 @@
 /* global window document */
 import test from 'node:test';
+import { dismissAfterOverlay } from './helpers/overlay-escape.mjs';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -94,7 +95,7 @@ test('the paper used by default, the three-level coverage, a short point\'s 概�
       const levels = page.locator('.book-toc [data-book-levels]');
       await levels.waitFor({ timeout: 30000 });
       assert.match(flat(await levels.innerText()), /覆盖：资料用了 2\/2 份/);
-      if (width === 420) { await page.keyboard.press('Escape'); await page.locator('.book-toc').waitFor({ state: 'detached' }); }
+      if (width === 420) await dismissAfterOverlay(page, page.locator('.book-toc'));
       // A press like the learner's (Playwright's own click first scrolls this short page under the sticky bar, and a scroll closes a menu).
       await page.locator('.book-bar__more').evaluate(element => element.click());
       await page.getByRole('menuitem', { name: '速查页…' }).click();
