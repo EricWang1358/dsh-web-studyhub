@@ -259,3 +259,20 @@ test("a load interrupted half-way is cleaned up by the next load", async (t) => 
   // The lecture and the case scenario (WP12).
   assert.equal(state.sources.filter((source) => source.sample === true).length, 2);
 });
+
+test("sample.load keeps today's slips and yesterday's history on their intended local calendar days near midnight", async (t) => {
+  const localDay = (value) => {
+    const d = new Date(value);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  for (const [label, hour, minute] of [["after midnight", 0, 5], ["before midnight", 23, 55]]) {
+    const { call, libraryRoot } = await start(t);
+    const fixed = new Date(2026, 10, 27, hour, minute, 0, 0).getTime();
+    await call("sample.load", { language: "zh", now: fixed });
+    const state = await new Store(libraryRoot).read();
+    const todayKey = localDay(fixed);
+    const todayAttempts = state.attempts.filter((a) => a.sample && localDay(a.timestamp) === todayKey);
+    assert.equal(todayAttempts.length, zh.weak.length, `${label}: only today's ${zh.weak.length} slips fall on ${todayKey}`);
+    assert.ok(todayAttempts.every((a) => a.runId === "sample-round-today"), `${label}: yesterday's attempts never spill into today`);
+  }
+});
