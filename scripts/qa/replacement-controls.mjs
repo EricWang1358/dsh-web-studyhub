@@ -1,6 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { copyFileSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -121,23 +120,23 @@ const selected = select(values.all, values.base && commit(values.base), head);
 if (!selected.length) {
   console.log('No registered replacement or production behavior changed.');
 } else {
-  const scratch = mkdtempSync(join(tmpdir(), 'studyhub-replacement-'));
+  // The checkout sits in the repository's ignored tmp/ folder so that Node and esbuild find the installed packages by walking up to
+  // <repo>/node_modules. No link to node_modules is made: removing a linked folder recursively could delete the real one.
+  mkdirSync(join(root, 'tmp'), { recursive: true });
+  const scratch = mkdtempSync(join(root, 'tmp', 'replacement-'));
   const checkout = join(scratch, 'source');
-  const dependencies = join(checkout, 'node_modules');
   try {
     mkdirSync(checkout);
     const archive = join(scratch, 'source.tar');
     const testInputs = selected.map(({ control }) => control.test);
     git('archive', '--format=tar', '--output=' + archive, head, 'package.json', 'ui', 'lib', 'scripts', 'tests/helpers', 'locale', 'presets', 'references', ...testInputs);
     execFileSync('tar', ['-xf', archive, '-C', checkout]);
-    symlinkSync(join(root, 'node_modules'), dependencies, process.platform === 'win32' ? 'junction' : 'dir');
     copyFileSync(join(root, witnessFile), join(checkout, witnessFile));
     const archivedHarness = readFileSync(join(checkout, harness));
     for (const { control, names } of selected) {
       if (!runControl(checkout, control, names, archivedHarness)) process.exitCode = 1;
     }
   } finally {
-    if (existsSync(dependencies)) unlinkSync(dependencies);
     rmSync(scratch, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
   }
 }
