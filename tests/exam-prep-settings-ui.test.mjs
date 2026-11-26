@@ -115,22 +115,30 @@ test('saved choices are shown, and 恢复默认 is available', () => {
 });
 
 test('ExamPrepPane renders inside one shared SettingsSection with no inline styles, raw colours, or 蓝图 copy', () => {
-  ssr.setUiLanguage('zh');
   const states = [
-    { data: { settings: {}, features: { examBlueprint: true } } },
-    { data: { settings: { examPrep: { autoRoles: false, paperWords: ['练习卷'], language: 'en', showOtherCourses: true } }, features: { examBlueprint: true } } },
-    { data: { settings: { examPrep: { enabled: false } }, features: { examBlueprint: false } } },
-    { data: { settings: {}, features: { examBlueprint: true, examBlueprintByHost: true } } },
+    { lang: 'zh', data: { settings: {}, features: { examBlueprint: true } } },
+    { lang: 'zh', data: { settings: { examPrep: { autoRoles: false, paperWords: ['练习卷', '#101'], language: 'en', showOtherCourses: true } }, features: { examBlueprint: true } } },
+    { lang: 'zh', data: { settings: { examPrep: { enabled: false } }, features: { examBlueprint: false } } },
+    { lang: 'zh', data: { settings: {}, features: { examBlueprint: true, examBlueprintByHost: true } } },
+    { lang: 'en', data: { settings: {}, features: { examBlueprint: true } } },
   ];
-  for (const state of states) {
-    const html = pane(state);
-    assert.equal((html.match(/<fieldset\b[^>]*class="settings-section"/g) || []).length, 1, 'exactly one shared SettingsSection fieldset');
-    assert.match(html, /<fieldset\b[^>]*class="settings-section"[^>]*data-tour="settings-exam-prep"/);
-    assert.match(html, /<legend class="settings-section__title">备考补习<\/legend>/);
-    assert.match(html, /<p class="settings-section__lead">/);
-    assert.doesNotMatch(html, /\bstyle=/, 'no inline styles in rendered ExamPrepPane markup');
-    assert.doesNotMatch(html, /#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/, 'no raw colour literals in rendered ExamPrepPane markup');
-    assert.doesNotMatch(words(html), /蓝图/, 'learner copy never says 蓝图');
+  try {
+    for (const { lang, data } of states) {
+      ssr.setUiLanguage(lang);
+      const html = pane({ data });
+      assert.equal((html.match(/<fieldset\b[^>]*class="settings-section"/g) || []).length, 1, 'exactly one shared SettingsSection fieldset');
+      assert.match(html, /<fieldset\b[^>]*class="settings-section"[^>]*data-tour="settings-exam-prep"/);
+      assert.match(html, lang === 'zh' ? /<legend class="settings-section__title">备考补习<\/legend>/ : /<legend class="settings-section__title">[^<]+<\/legend>/);
+      assert.match(html, /<p class="settings-section__lead">/);
+      assert.doesNotMatch(html, /<style\b/i, 'no embedded raw <style> blocks in rendered ExamPrepPane markup');
+      for (const tag of html.match(/<[^>]+>/g) || []) {
+        assert.doesNotMatch(tag, /\sstyle\s*=/i, `no inline styles in rendered ExamPrepPane tag: ${tag}`);
+        assert.doesNotMatch(tag, /\s(?:style|color|bgcolor|fill|stroke)\s*=\s*"[^"]*(?:#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\()/i, `no raw colour attributes in rendered ExamPrepPane tag: ${tag}`);
+      }
+      if (lang === 'zh') assert.doesNotMatch(words(html), /蓝图/, 'learner copy never says 蓝图');
+    }
+  } finally {
+    ssr.setUiLanguage('zh');
   }
 });
 

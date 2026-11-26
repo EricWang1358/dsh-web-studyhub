@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
 import { EventEmitter } from 'node:events';
-import { PassThrough } from 'node:stream';
+import { createVirtualTty, disposeTerminalPool } from './helpers/virtual-tty.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const pkgRoot = path.resolve(__dirname, '..');
@@ -125,32 +125,12 @@ test('P2-b: ToastStack wraps long messages across multiple lines without single-
   assert.ok(rendered.includes('不要丢弃'), `ToastStack should render wrapped tail without single-line clipping: ${rendered}`);
 });
 
-function stripAnsi(text) {
-  return String(text || '').replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
-}
+after(() => {
+  disposeTerminalPool();
+});
 
-function createInteractiveTty(cols = 100, rows = 26) {
-  const stdout = new PassThrough();
-  const stdin = new PassThrough();
-  Object.assign(stdout, { isTTY: true, columns: cols, rows });
-  Object.assign(stdin, { isTTY: true, setRawMode() {}, ref() {}, unref() {} });
-  let output = '';
-  stdout.on('data', (chunk) => {
-    output += chunk.toString('utf8');
-  });
-  return {
-    stdout,
-    stdin,
-    async waitFor(predicate, timeoutMs = 8000) {
-      const deadline = Date.now() + timeoutMs;
-      while (Date.now() < deadline) {
-        const plain = stripAnsi(output);
-        if (predicate(plain)) return plain;
-        await new Promise((resolve) => setTimeout(resolve, 15));
-      }
-      throw new Error(`Timed out waiting for Ink output. Tail:\n${stripAnsi(output).slice(-800)}`);
-    },
-  };
+function stripAnsi(text) {
+  return String(text || '').replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '');
 }
 
 test('P2-b: AppShell raises toastTop for wrapped multi-line toasts above footer and InboxModal recalls/clears toastHistory', async () => {
@@ -167,7 +147,7 @@ test('P2-b: AppShell raises toastTop for wrapped multi-line toasts above footer 
   try {
     // 1. AppShell vertical positioning: a multi-line wrapped toast starts higher than a single-line toast
     //    so its tail is never clipped and the footer hint bar remains visible on the bottom row.
-    const setShellState = (toasts) => {
+    const setShellState = (toasts, { showKeyHints = true } = {}) => {
       Bundle.useTuiStore.setState({
         page: 'library',
         loading: false,
@@ -187,13 +167,13 @@ test('P2-b: AppShell raises toastTop for wrapped multi-line toasts above footer 
           language: 'zh',
           asciiMode: true,
           compactMode: true,
-          showKeyHints: true,
+          showKeyHints,
         },
       });
     };
 
     const singleToast = { id: 'single-1', text: 'SINGLE_TOAST_OK', tone: 'info', createdAt: Date.now() };
-    setShellState([singleToast]);
+    setShellState([singleToast], { showKeyHints: true });
     const singleFrame = stripAnsi(
       renderToString(React.createElement(Bundle.AppShell, { host, renderPage, autoLaunchpad: false }), 80, 24),
     );
@@ -204,7 +184,7 @@ test('P2-b: AppShell raises toastTop for wrapped multi-line toasts above footer 
     const multiText =
       'MULTI_HEAD_503 保存讲解失败：服务端暂时不可用，请检查模型配置后重试，并且完整保留已生成内容 MULTI_TAIL_END';
     const multiToast = { id: 'multi-1', text: multiText, tone: 'error', createdAt: Date.now() };
-    setShellState([multiToast]);
+    setShellState([multiToast], { showKeyHints: true });
     const multiFrame = stripAnsi(
       renderToString(React.createElement(Bundle.AppShell, { host, renderPage, autoLaunchpad: false }), 80, 24),
     );
@@ -216,6 +196,23 @@ test('P2-b: AppShell raises toastTop for wrapped multi-line toasts above footer 
     assert.ok(multiTailRow > multiHeadRow, `AppShell must render wrapped multi-line toast tail below head (${multiHeadRow} -> ${multiTailRow})`);
     assert.ok(multiHeadRow < singleRow, `Multi-line toast top row (${multiHeadRow}) must shift above single-line toast row (${singleRow})`);
     assert.ok(footerRow > multiTailRow, `Footer hints row (${footerRow}) must stay below toast tail row (${multiTailRow})`);
+
+    // With showKeyHints: false, toast drops down 1 row (no footer row reserved) and multi-line tail still renders unclipped.
+    setShellState([singleToast], { showKeyHints: false });
+    const noHintsSingleFrame = stripAnsi(
+      renderToString(React.createElement(Bundle.AppShell, { host, renderPage, autoLaunchpad: false }), 80, 24),
+    );
+    const noHintsSingleRow = noHintsSingleFrame.split('\n').findIndex((line) => line.includes('SINGLE_TOAST_OK'));
+    assert.equal(noHintsSingleRow, singleRow + 1, `Hiding key hints must shift toast down 1 row (${singleRow} -> ${noHintsSingleRow})`);
+
+    setShellState([multiToast], { showKeyHints: false });
+    const noHintsMultiLines = stripAnsi(
+      renderToString(React.createElement(Bundle.AppShell, { host, renderPage, autoLaunchpad: false }), 80, 24),
+    ).split('\n');
+    const noHintsMultiHeadRow = noHintsMultiLines.findIndex((line) => line.includes('MULTI_HEAD_503'));
+    const noHintsMultiTailRow = noHintsMultiLines.findIndex((line) => line.includes('MULTI_TAIL_END'));
+    assert.ok(noHintsMultiHeadRow >= 0 && noHintsMultiTailRow > noHintsMultiHeadRow, 'Multi-line toast head and tail must remain unclipped when key hints are hidden');
+    assert.ok(noHintsMultiHeadRow < noHintsSingleRow, 'Multi-line toast must still start above single-line toast when key hints are hidden');
 
     // 2. InboxModal recalls dismissed toast messages under the 近期提示 tab (h) and clears them (C).
     const store = Bundle.useTuiStore.getState();
@@ -253,7 +250,7 @@ test('P2-b: AppShell raises toastTop for wrapped multi-line toasts above footer 
       );
     }
 
-    const tty = createInteractiveTty(100, 26);
+    const tty = createVirtualTty(100, 26);
     const inst = render(React.createElement(InboxHarness), {
       stdout: tty.stdout,
       stdin: tty.stdin,
@@ -261,20 +258,28 @@ test('P2-b: AppShell raises toastTop for wrapped multi-line toasts above footer 
       interactive: true,
     });
     try {
-      const initial = await tty.waitFor((plain) => plain.includes('近期提示') && plain.includes('(1)'));
-      assert.ok(initial.includes('近期提示'), 'InboxModal must display 近期提示 tab backed by store.toastHistory');
+      const initial = await tty.waitFor((screen) => screen.includes('近期提示 (1)'), {
+        label: 'InboxModal 近期提示 (1) tab badge',
+      });
+      tty.assertHealthyScreen(initial, 100, 26, 'InboxModal initial');
+      assert.ok(!initial.includes('RECALLED_TOAST_99'), 'Dismissed toast must stay on 近期提示 tab until switched via h');
 
-      tty.stdin.write('h');
-      const recalled = await tty.waitFor((plain) => plain.includes('RECALLED_TOAST_99'));
-      assert.ok(recalled.includes('RECALLED_TOAST_99'), 'Pressing h in InboxModal must recall dismissed toastHistory entry');
+      tty.send('h');
+      const recalled = await tty.waitFor((screen) => screen.includes('RECALLED_TOAST_99'), {
+        label: 'InboxModal recalled toastHistory entry after pressing h',
+      });
+      tty.assertHealthyScreen(recalled, 100, 26, 'InboxModal recalled history');
 
-      tty.stdin.write('C');
-      await tty.waitFor(() => Bundle.useTuiStore.getState().toastHistory.length === 0);
-      assert.equal(Bundle.useTuiStore.getState().toastHistory.length, 0, 'Pressing C on 近期提示 tab must clear toastHistory');
+      tty.send('C');
+      const cleared = await tty.waitFor(
+        (screen) => screen.includes('近期提示 (0)') && screen.includes('暂无近期提示记录') && !screen.includes('RECALLED_TOAST_99'),
+        { label: 'InboxModal cleared toastHistory state after pressing C' },
+      );
+      tty.assertHealthyScreen(cleared, 100, 26, 'InboxModal cleared history');
+      assert.equal(Bundle.useTuiStore.getState().toastHistory.length, 0, 'Pressing C on 近期提示 tab must clear store.toastHistory');
     } finally {
       inst.unmount();
-      tty.stdin.end();
-      tty.stdout.end();
+      tty.dispose();
     }
   } finally {
     const store = Bundle.useTuiStore.getState();
@@ -287,6 +292,12 @@ test('P2-b: AppShell raises toastTop for wrapped multi-line toasts above footer 
       snapshot: prevState.snapshot,
       footerHints: prevState.footerHints,
       practiceStack: prevState.practiceStack,
+      commandPaletteOpen: prevState.commandPaletteOpen,
+      helpOpen: prevState.helpOpen,
+      coursePickerOpen: prevState.coursePickerOpen,
+      inboxOpen: prevState.inboxOpen,
+      notificationHistoryOpen: prevState.notificationHistoryOpen,
+      quitConfirmOpen: prevState.quitConfirmOpen,
       preferences: prevPrefs,
     });
   }

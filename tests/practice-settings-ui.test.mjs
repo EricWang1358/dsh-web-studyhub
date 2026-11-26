@@ -84,8 +84,11 @@ test('PracticePane renders inside one shared SettingsSection with no inline styl
       assert.match(html, /<fieldset\b[^>]*class="settings-section"[^>]*data-tour="settings-practice"/);
       assert.match(html, /<legend class="settings-section__title">/);
       assert.match(html, /<p class="settings-section__lead">/);
-      assert.doesNotMatch(html, /\bstyle=/, 'no inline styles in rendered PracticePane markup');
-      assert.doesNotMatch(html, /#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/, 'no raw colour literals in rendered PracticePane markup');
+      assert.doesNotMatch(html, /<style\b/i, 'no embedded raw <style> blocks in rendered PracticePane markup');
+      for (const tag of html.match(/<[^>]+>/g) || []) {
+        assert.doesNotMatch(tag, /\sstyle\s*=/i, `no inline styles in rendered PracticePane tag: ${tag}`);
+        assert.doesNotMatch(tag, /\s(?:style|color|bgcolor|fill|stroke)\s*=\s*"[^"]*(?:#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\()/i, `no raw colour attributes in rendered PracticePane tag: ${tag}`);
+      }
     }
   } finally {
     ssr.setUiLanguage('zh');
