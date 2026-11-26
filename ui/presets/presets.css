@@ -13,6 +13,7 @@
   /* In a narrow form the three estimates wrap below the lead. Keep their lines free while the estimates are being fetched. */
   @container preset-cost (max-width: 36rem) {
     :is(.study-app, .study-seat) .presets__cost { min-height: calc(var(--help-tip-size) + var(--space-half) + 2lh); }
+    :is(.study-app, .study-seat) .presets__cost-items { flex: 1 0 100%; }
   }
   @container preset-cost (max-width: 19rem) {
     :is(.study-app, .study-seat) .presets__cost { min-height: calc(var(--help-tip-size) + var(--space-half) + 3lh); }

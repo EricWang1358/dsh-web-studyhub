@@ -281,7 +281,7 @@ test('#1082: 更多选项 open: picking a visible choice keeps the scroll, summa
       // A language/difficulty change reprices the nine cells above these controls. Exercise
       // both their pending and completed layouts even when the real server answers quickly.
       const matrix = fold.locator('[data-preset-matrix]');
-      const holdPrices = lang === 'en' && width === 420 && height === 1400;
+      const holdPrices = height === 1400;
       if (holdPrices) {
         await matrix.and(page.locator('[data-status="ready"]')).waitFor();
         const held = new Promise(resolve => { resumePrices = resolve; });
