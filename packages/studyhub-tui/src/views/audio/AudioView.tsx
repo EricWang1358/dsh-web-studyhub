@@ -10,7 +10,7 @@ import { Badge, EmptyState, Spinner, StatusPill, type PillStatus } from '../../c
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
-import { ScrollView } from '../../components/ScrollView.js';
+import { ScrollArea } from '../../components/ScrollArea.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
@@ -1748,8 +1748,9 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                         />
                       </Box>
                     ) : (
-                      <ScrollView
+                      <ScrollArea
                         key={selectedResult.id}
+                        prose
                         content={
                           activeTranscript.id === selectedResult.id && activeTranscript.text
                             ? activeTranscript.text
@@ -1758,6 +1759,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                         width={innerW}
                         height={scrollH}
                         isActive={pageActive && activePane === 'right'}
+                        ascii={asciiMode}
                       />
                     )}
                   </Box>
