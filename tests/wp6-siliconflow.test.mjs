@@ -55,8 +55,7 @@ test("a chunk goes to SiliconFlow as a multipart upload (file + model) and its {
   assert.equal(call.init.method, "POST");
   assert.equal(call.init.headers.authorization, `Bearer ${SF}`);
   assert.match(call.init.headers["content-type"], /^multipart\/form-data; boundary=/);
-  assert.ok(form.includes(`name="model"\r\n\r\n${SILICONFLOW_TRANSCRIBE_MODEL}\r\n`), "the model field");
-  assert.equal(SILICONFLOW_TRANSCRIBE_MODEL, "FunAudioLLM/SenseVoiceSmall");
+  assert.ok(form.includes('name="model"\r\n\r\nFunAudioLLM/SenseVoiceSmall\r\n'), "the model field");
   assert.ok(form.includes('name="file"; filename="audio.wav"') && form.includes("content-type: audio/wav"), "the file field");
   assert.ok(call.init.body.includes(bytes.subarray(44, 1044)), "the audio itself is in the upload");
   assert.deepEqual([tiers.usage.siliconflow.requests, tiers.usage.siliconflow.audioSeconds], [1, 5]);
@@ -109,7 +108,7 @@ test("paid only skips Gemini free, SiliconFlow and Groq", async () => {
   assert.deepEqual(net.order(), ["paid"]);
 });
 
-test("audio over SiliconFlow's file limit goes in pieces, and a wait in the middle resumes at the next piece", async () => {
+test("SiliconFlow chunks audio past fileLimit, honors a 429 retry-after pause on piece 2, and counts only the two successful uploads", async () => {
   let limited = false;
   const net = network({ siliconflow: (call, n) => {
     if (n === 2 && !limited) { limited = true; return json({ message: "rate limited, retry later" }, 429, { "retry-after": "2" }); }
