@@ -9,7 +9,7 @@ import { privateRoot } from './helpers/model-family-baseline.mjs';
 import { switchOptions } from './helpers/runtime-switch.mjs';
 import { COURSE, outlineLibrary, outlineModel } from './helpers/course-outline-library.mjs';
 import { isCourseOutlineSource } from '../lib/exam-point-list.js';
-import { DEFAULT_MIN_BODY_CHARS, OUTLINE_BUILD_OPTIONS, planOutline } from '../lib/contexts/generation/outline/plan.js';
+import { OUTLINE_BUILD_OPTIONS, planOutline } from '../lib/contexts/generation/outline/plan.js';
 import { courseOutlineJobSchemas } from '../lib/contexts/generation/outline/contracts.js';
 import { BODY_WARNINGS_KEPT, bodyWarningsOf } from '../lib/contexts/generation/outline/body.js';
 import { OUTLINE_LIMITS } from '../lib/course-outline-book.js';
@@ -128,7 +128,6 @@ test('a knowledge point whose text came out shorter than minBodyChars is reporte
   const first = await w.finish();
   const result = w.contract().result;
   const leaves = leavesOf(first.courseOutline.nodes);
-  assert.equal(DEFAULT_MIN_BODY_CHARS, 200);
   assert.deepEqual(Object.keys(result).sort(), ['bodyWarnings', 'completeness', 'refs'], 'the warning rides with the result beside its refs');
   assert.equal(result.bodyWarnings.minBodyChars, 200, 'the default threshold');
   assert.equal(result.bodyWarnings.leaves, leaves.length);
@@ -180,7 +179,7 @@ test('minBodyChars is checked at stage 0 naming the field and costs nothing; the
   for (const value of [-1, 2.5, '200', null, OUTLINE_LIMITS.introChars + 1])
     assert.throws(() => planOutline(state, { course: COURSE, minBodyChars: value }),
       error => error.code === 'course-outline-shape-invalid' && /minBodyChars/.test(error.message), `minBodyChars ${JSON.stringify(value)}`);
-  assert.equal(planOutline(state, { course: COURSE }).minBodyChars, DEFAULT_MIN_BODY_CHARS);
+  assert.equal(planOutline(state, { course: COURSE }).minBodyChars, 200);
   assert.equal(planOutline(state, { course: COURSE, minBodyChars: 0 }).minBodyChars, 0);
   assert.equal(planOutline(state, { course: COURSE, minBodyChars: OUTLINE_LIMITS.introChars }).minBodyChars, OUTLINE_LIMITS.introChars);
   const w = await world(t, {});

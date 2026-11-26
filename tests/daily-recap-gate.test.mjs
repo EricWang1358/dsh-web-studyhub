@@ -122,7 +122,7 @@ test('the pointers to Settings are links', async () => {
   assert.deepEqual(opened, ['recap']);
 });
 
-test('English: the new lines are translated', async () => {
+test('English UI: daily-recap gate renders translated copy with no CJK characters and Go to settings link', async () => {
   setUiLanguage('en');
   try {
     const { html } = await open(status({ modelReady: false }), { onModelSettings: () => {}, onSettings: () => {} });

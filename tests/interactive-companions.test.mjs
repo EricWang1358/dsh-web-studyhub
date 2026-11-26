@@ -462,8 +462,9 @@ test('Layer 3: 4-stage generation.companion.build Job (estimate, Stage 3 auto-re
 
     const modelCalls = [];
     const mockComplete = async (system, prompt) => {
-      modelCalls.push({ system: system.slice(0, 80), promptLen: prompt.length });
       if (system.includes('curriculum architect')) {
+        assert.ok(prompt.length > 0, 'Blueprint stage must receive a non-empty prompt');
+        modelCalls.push('blueprint');
         return JSON.stringify({
           id: 'four-bar-dead-point',
           archetype: 'mechanism',
@@ -477,9 +478,21 @@ test('Layer 3: 4-stage generation.companion.build Job (estimate, Stage 3 auto-re
           act2Slides: act2Slides.map((s, i) => ({ slide: i + 9, beat: s.beat, title: s.title })),
         });
       }
-      if (prompt.includes('You are authoring Act I ')) return JSON.stringify({ slides: act1Slides });
-      if (prompt.includes('You are authoring Act II ')) return JSON.stringify({ slides: act2Slides });
-      if (prompt.includes('repairing specific validation errors')) return JSON.stringify(fixedFull);
+      if (prompt.includes('You are authoring Act I ')) {
+        assert.ok(prompt.length > 0, 'Act I stage must receive a non-empty prompt');
+        modelCalls.push('act1');
+        return JSON.stringify({ slides: act1Slides });
+      }
+      if (prompt.includes('You are authoring Act II ')) {
+        assert.ok(prompt.length > 0, 'Act II stage must receive a non-empty prompt');
+        modelCalls.push('act2');
+        return JSON.stringify({ slides: act2Slides });
+      }
+      if (prompt.includes('repairing specific validation errors')) {
+        assert.ok(prompt.length > 0, 'Repair stage must receive a non-empty prompt');
+        modelCalls.push('repair');
+        return JSON.stringify(fixedFull);
+      }
       throw new Error(`Unexpected prompt: ${system.slice(0, 60)}`);
     };
 
@@ -526,7 +539,7 @@ test('Layer 3: 4-stage generation.companion.build Job (estimate, Stage 3 auto-re
     }
     assert.ok(finalJob, 'Companion build job did not settle');
     assert.equal(finalJob.status, 'complete', `Job failed: ${finalJob.error?.message || JSON.stringify(finalJob)}`);
-    assert.equal(modelCalls.length, 4, 'Should execute Blueprint + Act I + Act II + Stage 3 Repair');
+    assert.deepEqual(modelCalls, ['blueprint', 'act1', 'act2', 'repair'], 'Should execute Blueprint + Act I + Act II + Stage 3 Repair in order');
     assert.equal(finalJob.contract.detail.repaired, true);
 
     // Verify resultOpener wires Task Console directly to CompanionViewer modal
