@@ -1,14 +1,14 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
 import { useStableWindowSize } from '../../components/resize.js';
-import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
+import { useKeyScope } from '../../components/key-dispatcher.js';
+import { isPlainKey } from '../../input/global-router.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { VirtualList } from '../../components/VirtualList.js';
-import { useClaimKeys } from '../../components/focus.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { errorMessage, tryAction } from '../../host/sample-actions.js';
 
@@ -211,23 +211,26 @@ export const MarkPassageModal = memo(function MarkPassageModal({
   );
 
   const claimKeys = useMemo(() => ['1', '2', '3', '4', 'j', 'k'], []);
-  useClaimKeys(claimKeys, isActive && !busy);
 
-  useInput(
-    (input, key) => {
-      if (!isActive || busyRef.current || busy) return;
+  useKeyScope({
+    id: 'sources:mark-passage',
+    active: isActive && !busy,
+    keys: claimKeys,
+    onKey: (input, key) => {
+      if (busyRef.current || busy) return false;
       if (key.tab) {
         setStyleIndex((prev) => (prev + 1) % STYLE_OPTIONS.length);
-        return;
+        return true;
       }
-      if (key.ctrl || key.meta) return;
+      if (!isPlainKey(input, key)) return false;
       const matchedStyleIdx = STYLE_OPTIONS.findIndex((opt) => opt.key === input);
       if (matchedStyleIdx >= 0) {
         setStyleIndex(matchedStyleIdx);
+        return true;
       }
+      return false;
     },
-    { isActive },
-  );
+  });
 
   const hints: KeyHint[] = useMemo(() => {
     if (passages.length === 0) {

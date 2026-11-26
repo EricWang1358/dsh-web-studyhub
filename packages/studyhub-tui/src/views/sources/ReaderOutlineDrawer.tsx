@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
-import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
+import { useKeyScope } from '../../components/key-dispatcher.js';
+import { isPlainKey } from '../../input/global-router.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -8,7 +9,6 @@ import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { VirtualList } from '../../components/VirtualList.js';
-import { useClaimKeys } from '../../components/focus.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { errorMessage, tryAction } from '../../host/sample-actions.js';
 
@@ -626,21 +626,29 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
     }
   }, [busy, host, lang, notify, onOutlineSaved, resolvedDocId, resolvedRevision, sourceId]);
 
-  useClaimKeys(['g', 's', 'j', 'k', ' ', 'm', 'X'], isActive && !confirmClear);
+  const outlineClaimedKeys = useMemo(() => ['g', 's', 'j', 'k', ' ', 'm', 'X'], []);
 
-  useInput(
-    (input, key) => {
-      if (!key.ctrl && !key.meta && input === 'r') {
+  useKeyScope({
+    id: 'sources:reader-outline-drawer',
+    active: isActive && !confirmClear,
+    keys: outlineClaimedKeys,
+    onKey: (input, key) => {
+      if (!isPlainKey(input, key)) return false;
+      if (input === 'r') {
         const st = useTuiStore.getState();
         onClose();
         st.navigate('review', st.activeRunId ? { runId: st.activeRunId } : {});
-        return;
+        return true;
       }
       if (input === 'g') {
         void handleSuggest();
-      } else if (input === 's' && proposal) {
+        return true;
+      }
+      if (input === 's' && proposal) {
         void handleSaveProposal();
-      } else if (input === 'X' && !busyRef.current && !busy && !loading && !proposal) {
+        return true;
+      }
+      if (input === 'X' && !busyRef.current && !busy && !loading && !proposal) {
         if (outlineOrigin === 'ai') {
           setConfirmClear(true);
         } else {
@@ -649,7 +657,9 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
             tone: 'info',
           });
         }
-      } else if ((input === ' ' || input === 'm') && !busy && !loading && !proposal && onToggleRead) {
+        return true;
+      }
+      if ((input === ' ' || input === 'm') && !busy && !loading && !proposal && onToggleRead) {
         const selected = displayedRows[selectedIndex];
         if (selected) {
           const allRefs: OutlineChapterRef[] = entries.map((e) => ({
@@ -667,11 +677,12 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
             },
             allRefs,
           );
+          return true;
         }
       }
+      return false;
     },
-    { isActive: isActive && !confirmClear },
-  );
+  });
 
   const frameW = Math.min(84, Math.max(46, width - 4));
   const frameH = Math.min(28, Math.max(14, height - 2));

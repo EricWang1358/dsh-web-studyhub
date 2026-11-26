@@ -43,6 +43,9 @@ packages/studyhub-tui/
 - **Host composition (`src/host/tui-host.ts`)**:
   - `createTuiHost` composes `createDesktopHost` with Node adapters (`createConfigStore`, `createProviderDiscovery`, `createInProcessJobExecutor`, `createDesktopLibraryEvents`) without an HTTP sidecar server.
   - Adds `streamComplete` for live token streaming, debounced snapshot/library events, headless-safe `openExternal`, and leak-free `dispose()`.
+- **AI dialogue & `card.followup` boundary (#1354 D7 — Won't-Do for streaming `card.followup`)**:
+  - All TUI live streaming Q&A surfaces share the single `useAiConversation` + `src/host/ai-dialogue.ts` (`buildUnifiedAiSystemPrompt`, `buildCardDialogueUserPrompt`) + `host.streamComplete` pipeline, enforcing pre-reveal reference-answer hiding (#1335), `AbortSignal`/`Esc` cancellation, and zero automatic writes to `card.followups` until the learner explicitly saves via `persistCardQaToFollowupAndNote`.
+  - Backend `card.followup` intentionally remains a **non-streaming** request-response JSON action (optional backend streaming for `card.followup` in #1354 D7 is explicitly **not implemented** / Won't-Do): `card.followup` sends full `answer`/`explanation` (`followupSource(card)`), validates strict `{question, answer}` JSON with retry, checks card-digest conflicts, auto-persists into `card.followups`, and optionally queues coach prep — a fundamentally different contract from pre-reveal, opt-in-save live TUI streaming. Verified by `tests/d7-card-followup-boundary.test.mjs`.
 - **Primary engine (`agy` CLI)**:
   - On first launch without an existing config, background `autoProbe` probes local `agy`, selects `mode: 'agy'` automatically, picks a default model, and supports `agy models` discovery, effort levels, and streaming output.
 - **Secondary engine (8 OpenAI-compatible presets)**:

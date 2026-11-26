@@ -1,6 +1,7 @@
 import React, { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Box, Text } from 'ink';
-import { useScopedInput as useInput } from './components/key-dispatcher.js';
+import { useKeyScope } from './components/key-dispatcher.js';
+import { isPlainKey } from './input/global-router.js';
 import type { CommandPaletteItem, PageId, ThemeId, UiLanguage, ViewProps } from './types/contracts.js';
 import { t, useTuiStore } from './state/store.js';
 import { computeSnapshotFingerprint } from './state/snapshot-fingerprint.js';
@@ -100,13 +101,22 @@ function ViewCrashFallback({
 }) {
   const theme = useTheme();
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
-  useInput(
-    (input) => {
-      if (input === 'r' || input === 'R') onRetry();
-      else if (input === '1') onGoLibrary();
+  useKeyScope({
+    id: 'App:crash-fallback',
+    active: isActive,
+    onKey: (input, key) => {
+      if (!isPlainKey(input, key)) return false;
+      if (input === 'r' || input === 'R') {
+        onRetry();
+        return true;
+      }
+      if (input === '1') {
+        onGoLibrary();
+        return true;
+      }
+      return false;
     },
-    { isActive },
-  );
+  });
   const clean = message.replace(/\s+/g, ' ').trim();
   const ellipsis = asciiMode ? '...' : '…';
   const summary = clean

@@ -65,6 +65,10 @@ This needs **Prepare variations and application questions in the background whil
 
 - `card.followup.suggest {deckId?, cardId}` returns `{questions: string[3]}`.
 - `card.followup {deckId?, cardId, question}` returns `{deckId, cardId, item}`. `item` holds the polished question, the original question and the answer. An identical retry on the same version reuses the saved answer, concurrent identical requests are coalesced, and different questions append separately.
+- **No streaming backend `card.followup` (#1354 D7 decision — Won't-Do):** `card.followup` intentionally remains a non-streaming request-response JSON action; backend token streaming for `card.followup` is **not implemented** for three reasons:
+  1. `card.followup` enforces a strict JSON response (`{question, answer}`) with corrective retry, card-digest conflict checking, automatic persistence into `card.followups`, and optional coach-prep queuing — none of which maps cleanly onto unvalidated partial token streams.
+  2. `StudyService` action calls are request-response across the codebase, with no chunk-streaming action transport.
+  3. `card.followup` always sends the full reference `answer` and `explanation` to the model and auto-persists every reply, whereas live TUI Q&A requires pre-reveal answer protection (#1335), `AbortSignal`/`Esc`-cancellable token streaming, and explicit opt-in saving — handled by the unified TUI layer (`useAiConversation` + `host/ai-dialogue.ts` + `host.streamComplete`) with opt-in persistence via `persistCardQaToFollowupAndNote`.
 - `card.followup.add {deckId?, cardId, question, answer}` saves an answer written elsewhere, such as in the main chat or by **Help me understand**. It does not queue a practice question.
 - `ui/ExplanationFollowup.jsx` also contains suggestion and question controls, but the practice page renders it read-only, so they are not shown.
 - `tests/followup.test.mjs` covers persistence, hiding answers before they are shown, context, duplicates, concurrency, model errors, edit conflicts and preparation. Browser checks use `scripts/fake-model.mjs`; simulated output does not prove real teaching quality.

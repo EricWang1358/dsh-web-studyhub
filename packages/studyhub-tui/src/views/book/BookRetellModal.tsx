@@ -3,7 +3,14 @@ import { Box, Text } from 'ink';
 import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import { tryAction } from '../../host/sample-actions.js';
+import { isModelUnavailableError, type UnifiedRetellVerdict } from '../../host/ai-dialogue.js';
+import {
+  RETELL_TEXT_MAX,
+  classifyRetellVerdict,
+  formatRetellVerdictMarkdown,
+  retellVerdictBadge,
+  submitBookRetellEvaluation,
+} from '../../host/retell-dialogue.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Divider, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
@@ -14,22 +21,9 @@ import { useInputCapture } from '../../components/focus.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import type { FlatTocItem } from './types.js';
 
-export const BOOK_RETELL_TEXT_MAX = 4000;
+export const BOOK_RETELL_TEXT_MAX = RETELL_TEXT_MAX;
 
-export interface BookRetellVerdict {
-  passed: boolean;
-  right: string[];
-  missed: string[];
-  wrong: string[];
-  cite: number | null;
-  gap: 'none' | 'missed' | 'wrong';
-  record?: {
-    tries?: number;
-    passes?: number;
-    gap?: string;
-    at?: string;
-  };
-}
+export type BookRetellVerdict = UnifiedRetellVerdict;
 
 export interface BookRetellModalProps {
   host: HostClient;
@@ -41,12 +35,6 @@ export interface BookRetellModalProps {
   mathUnicode: boolean;
   onClose: () => void;
   onRetold?: (record?: BookRetellVerdict['record']) => void;
-}
-
-function isModelUnavailableError(message: string): boolean {
-  return /configure a model|model.*unavailable|no.*model|api.?key|unauthorized|forbidden|\b401\b|\b403\b|econnrefused|timed out|timeout|未配置|可用.*模型|模型不可用/i.test(
-    message,
-  );
 }
 
 function hasPassedRetell(item: FlatTocItem | null): boolean {
@@ -89,9 +77,11 @@ export const BookRetellModal = memo(function BookRetellModal({
   const [submitting, setSubmitting] = useState(false);
   const [verdict, setVerdict] = useState<BookRetellVerdict | null>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [errorIsModel, setErrorIsModel] = useState(false);
 
   const mountedRef = useRef(true);
   const busyRef = useRef(false);
+  const reqSeqRef = useRef(0);
   const pendingTextRef = useRef('');
   const hidRef = useRef(selectedItem?.hid ?? null);
   hidRef.current = selectedItem?.hid ?? null;
@@ -105,12 +95,15 @@ export const BookRetellModal = memo(function BookRetellModal({
 
   // Reset only when switching to a different knowledge point (not when book refreshes same hid).
   useEffect(() => {
+    reqSeqRef.current += 1;
+    busyRef.current = false;
     setDraft('');
     setEditing(true);
     setConfirmOpen(false);
     setSubmitting(false);
     setVerdict(null);
     setErrorText(null);
+    setErrorIsModel(false);
     pendingTextRef.current = '';
   }, [selectedItem?.hid]);
 
@@ -149,31 +142,32 @@ export const BookRetellModal = memo(function BookRetellModal({
       if (!text) return;
 
       const targetHid = selectedItem.hid;
+      const seq = ++reqSeqRef.current;
       busyRef.current = true;
       setSubmitting(true);
       setEditing(false);
       setErrorText(null);
+      setErrorIsModel(false);
       try {
-        const res = await tryAction<BookRetellVerdict>(host, 'book.retell', {
-          ...(course ? { course } : {}),
+        const res = await submitBookRetellEvaluation(host, {
+          course,
           hid: targetHid,
           text,
           language: lang,
         });
-        if (!mountedRef.current || hidRef.current !== targetHid) return;
-        if (!res.ok || !res.value) {
-          const msg = res.error?.message || t(lang, '费曼复述评估失败', 'Feynman retell check failed');
-          setErrorText(msg);
+        if (!mountedRef.current || hidRef.current !== targetHid || reqSeqRef.current !== seq) return;
+        if (!res.ok) {
+          setErrorText(res.error);
+          setErrorIsModel(res.isModelError);
           return;
         }
-        setVerdict(res.value);
-        onRetold?.(res.value.record);
-      } catch (err) {
-        if (!mountedRef.current || hidRef.current !== targetHid) return;
-        setErrorText(err instanceof Error ? err.message : String(err));
+        setVerdict(res.verdict);
+        onRetold?.(res.verdict.record);
       } finally {
-        busyRef.current = false;
-        if (mountedRef.current) setSubmitting(false);
+        if (reqSeqRef.current === seq) {
+          busyRef.current = false;
+          if (mountedRef.current) setSubmitting(false);
+        }
       }
     },
     [course, host, lang, onRetold, selectedItem?.hid],
@@ -184,6 +178,7 @@ export const BookRetellModal = memo(function BookRetellModal({
       if (submitting || editing || confirmOpen) return;
       if (input === 'i' || input === 'e') {
         setErrorText(null);
+        setErrorIsModel(false);
         setEditing(true);
         return;
       }
@@ -192,6 +187,7 @@ export const BookRetellModal = memo(function BookRetellModal({
           requestConfirmSubmit(draft);
         } else {
           setErrorText(null);
+          setErrorIsModel(false);
           setEditing(true);
         }
       }
@@ -199,62 +195,12 @@ export const BookRetellModal = memo(function BookRetellModal({
     { isActive: isActive && !editing && !confirmOpen && !submitting },
   );
 
-  const verdictTier = useMemo<'pass' | 'partial' | 'gap' | null>(() => {
-    if (!verdict) return null;
-    if (verdict.passed && verdict.gap === 'none' && verdict.wrong.length === 0) return 'pass';
-    if (verdict.gap === 'wrong' || verdict.wrong.length > 0) return 'gap';
-    return 'partial';
-  }, [verdict]);
+  const verdictTier = useMemo(() => classifyRetellVerdict(verdict), [verdict]);
 
   const verdictMarkdown = useMemo(() => {
     if (!verdict) return '';
-    const lines: string[] = [];
-    const tierHeadline =
-      verdictTier === 'pass'
-        ? t(lang, '已抓住核心机制，用自己的话讲清楚了！', 'Solid explanation — you captured the core mechanism clearly.')
-        : verdictTier === 'gap'
-          ? t(lang, '存在与讲义相矛盾的表述，请对照下方纠偏后再试一次。', 'Contains a claim that contradicts the book note. Review the corrections below.')
-          : t(lang, '方向正确，但遗漏了部分关键要点，建议补充后再讲一遍。', 'Right direction, with a few key points left out.');
-
-    lines.push(`> ${tierHeadline}`);
-    lines.push('');
-
-    // Part 1: What you got right
-    lines.push(`### ${t(lang, '1. 讲对了', '1. What You Got Right')}`);
-    if (verdict.right.length > 0) {
-      for (const item of verdict.right) lines.push(`- ${item}`);
-    } else {
-      lines.push(`- ${t(lang, '暂未匹配到明确得分要点，请参考下方遗漏与提示补充。', 'No key points matched yet; check the missing items and tip below.')}`);
-    }
-
-    // Part 2: Missing / Needs Correction
-    lines.push('');
-    lines.push(`### ${t(lang, '2. 遗漏与需纠正', '2. Missing & Needs Correction')}`);
-    if (verdict.missed.length === 0 && verdict.wrong.length === 0) {
-      lines.push(`- ${t(lang, '无明显遗漏或理解偏差。', 'No missing points or misconceptions.')}`);
-    } else {
-      for (const item of verdict.missed) {
-        lines.push(`- **${t(lang, '遗漏', 'Missing')}**: ${item}`);
-      }
-      for (const item of verdict.wrong) {
-        lines.push(`- **${t(lang, '纠偏', 'Correction')}**: ${item}`);
-      }
-    }
-
-    // Part 3: Tip & Next Step
-    lines.push('');
-    lines.push(`### ${t(lang, '3. 下一步提示', '3. Tip & Next Step')}`);
-    if (verdictTier === 'pass') {
-      lines.push(`- ${t(lang, '本节已记为「讲清楚过」。试着用一句话总结它的适用边界或反例，记忆会更牢固。', 'Marked as Retold. Try summarizing its boundary condition or a counterexample to lock it in.')}`);
-    } else if (verdictTier === 'gap') {
-      lines.push(`- ${t(lang, '先聚焦纠正偏差点，按 [r] 或 [i] 修改后再讲一遍。', 'Focus on fixing the misconception above, then press [r] or [i] to re-explain.')}`);
-    } else {
-      lines.push(`- ${t(lang, '围绕上方遗漏要点补全因果链条，按 [r] 或 [i] 再讲一遍。', 'Fill in the missing causal links above, then press [r] or [i] to refine.')}`);
-    }
-    lines.push(`- ${t(lang, '你的复述原话不会被保存，仅更新本节的「讲清楚过」汇总状态。', 'Your raw wording is never saved — only the Retold pass/gap summary is stored.')}`);
-
-    return lines.join('\n');
-  }, [verdict, verdictTier, lang]);
+    return formatRetellVerdictMarkdown(verdict, { surface: 'book', lang });
+  }, [verdict, lang]);
 
   const frameW = Math.max(48, Math.min(92, width - 4));
   const frameH = Math.max(16, Math.min(32, height - 2));
@@ -279,17 +225,13 @@ export const BookRetellModal = memo(function BookRetellModal({
     return items;
   }, [submitting, confirmOpen, editing, verdict, lang, asciiMode]);
 
-  const modelUnavailable = errorText ? isModelUnavailableError(errorText) : false;
+  const modelUnavailable = errorIsModel || (errorText ? isModelUnavailableError(errorText) : false);
   const pointTitle = selectedItem ? `${selectedItem.number} ${selectedItem.title}` : t(lang, '未选择知识点', 'No point selected');
   const alreadyRetold = hasPassedRetell(selectedItem) || Boolean((verdict?.record?.passes ?? 0) > 0 || verdictTier === 'pass');
 
-  const pillLabel =
-    verdictTier === 'pass'
-      ? t(lang, asciiMode ? '+ 讲清楚过 (通过)' : '✓ 讲清楚过 · 通过', asciiMode ? '+ Retold (Pass)' : '✓ Retold · Pass')
-      : verdictTier === 'gap'
-        ? t(lang, asciiMode ? 'x 存在偏差 (Gap)' : '✕ 存在偏差 · Gap', asciiMode ? 'x Gap' : '✕ Gap')
-        : t(lang, asciiMode ? '! 遗漏要点 (Partial)' : '▲ 遗漏要点 · Partial', asciiMode ? '! Partial' : '▲ Partial');
-  const pillTone = verdictTier === 'pass' ? 'success' : verdictTier === 'gap' ? 'error' : 'warning';
+  const badge = verdictTier ? retellVerdictBadge(verdictTier, { surface: 'book', lang, asciiMode }) : null;
+  const pillLabel = badge?.label ?? '';
+  const pillTone = badge?.tone ?? 'warning';
 
   return (
     <Modal
