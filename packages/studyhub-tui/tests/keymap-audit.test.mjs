@@ -20,6 +20,7 @@ await build({
   stdin: {
     contents: [
       `export { PAGE_REGISTRY } from './src/types/contracts.ts';`,
+      `export { GLOBAL_SINGLE_KEY_ROUTES, GLOBAL_PAGE_SHORTCUTS, resolveGlobalKeyRoute, resolveSystemKeyRoute } from './src/input/global-router.ts';`,
       `export { globalShortcuts, featureShortcuts } from './src/shell/HelpOverlay.tsx';`,
       `export { DIGIT_KEYS } from './src/components/focus.ts';`,
       `export { pageStep, nextScrollOffset, scrollbarThumb } from './src/components/VirtualList.tsx';`,
@@ -318,6 +319,26 @@ function auditViewGlobalClaims(filePath) {
       if (fnName === 'useClaimKeys' && node.arguments[0]) {
         for (const k of resolveArrayExpr(node.arguments[0])) claimed.add(k);
       }
+      if (fnName === 'useKeyScope' && node.arguments[0] && ts.isObjectLiteralExpression(node.arguments[0])) {
+        let onKeyExpr = null;
+        let isModalOnlyScope = false;
+        for (const prop of node.arguments[0].properties) {
+          if (!ts.isPropertyAssignment(prop) || !ts.isIdentifier(prop.name)) continue;
+          if (prop.name.text === 'keys') {
+            for (const k of resolveArrayExpr(prop.initializer)) claimed.add(k);
+          } else if (prop.name.text === 'onKey') {
+            onKeyExpr = prop.initializer;
+          } else if (prop.name.text === 'id' || prop.name.text === 'active') {
+            const text = prop.initializer.getText(sf);
+            if (/\b(overlays|lintOpen|noteModalOpen|editModalOpen)\b/.test(text) && !/!\s*(lintOpen|noteModalOpen|editModalOpen)/.test(text)) {
+              isModalOnlyScope = true;
+            }
+          }
+        }
+        if (onKeyExpr && !isModalOnlyScope) {
+          walkInputCallback(onKeyExpr);
+        }
+      }
       if (fnName === 'useInput' && node.arguments[0]) {
         const optsText = node.arguments[1]?.getText(sf) ?? '';
         const isModalOnlyHook =
@@ -350,10 +371,29 @@ function auditViewGlobalClaims(filePath) {
 test('AppShell global shortcuts match PAGE_REGISTRY & HelpOverlay.globalShortcuts with zero undocumented or duplicate keys', () => {
   const appShellPath = path.join(srcRoot, 'shell/AppShell.tsx');
   const appShellSf = parseTsx(appShellPath);
-  const { switchCases, ctrlKeys, hasBackspace, usesPageRegistryMap } = extractAppShellGlobalKeys(appShellSf);
+  const { ctrlKeys } = extractAppShellGlobalKeys(appShellSf);
 
-  assert.equal(usesPageRegistryMap, true, 'AppShell must build SHORTCUTS from PAGE_REGISTRY');
-  assert.equal(hasBackspace, true, 'AppShell must handle Backspace goBack');
+  const switchCases = Object.keys(Bundle.GLOBAL_SINGLE_KEY_ROUTES);
+  const baseCtx = {
+    overlayOpen: false,
+    inputCaptured: false,
+    showLaunchpad: false,
+    page: 'library',
+    passiveAssistantOpen: false,
+    isKeyClaimed: () => false,
+  };
+  const emptyKey = {
+    upArrow: false, downArrow: false, leftArrow: false, rightArrow: false,
+    pageDown: false, pageUp: false, home: false, end: false,
+    return: false, escape: false, ctrl: false, shift: false, tab: false,
+    backspace: false, delete: false, meta: false,
+  };
+  assert.equal(Bundle.GLOBAL_PAGE_SHORTCUTS.size, Bundle.PAGE_REGISTRY.length, 'GLOBAL_PAGE_SHORTCUTS must mirror PAGE_REGISTRY');
+  assert.deepEqual(
+    Bundle.resolveGlobalKeyRoute('', { ...emptyKey, backspace: true }, baseCtx),
+    { action: 'go-back' },
+    'global-router must handle Backspace goBack',
+  );
   assert.ok(ctrlKeys.includes('k') && ctrlKeys.includes('r'), 'AppShell must handle Ctrl+K and Ctrl+R');
 
   const pageShortcuts = Bundle.PAGE_REGISTRY.map((p) => p.shortcut);

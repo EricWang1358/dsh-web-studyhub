@@ -1,12 +1,12 @@
 import React, { Suspense, lazy, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Box, Text, useApp } from 'ink';
-import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type PageId, type ViewProps } from '../types/contracts.js';
+import type { CommandPaletteItem, HostClient, PageId, ViewProps } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
 import { useTheme } from '../theme/tokens.js';
 import { glyph } from '../render/glyphs.js';
 import { KeyHintBar, Spinner, ToastStack, estimateToastStackHeight } from '../components/Badge.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
-import { RESERVED_GLOBAL_KEY_SET, isKeyClaimed, resolveShellFooterHints, useContextualFooterTip, useModalHints } from '../components/focus.js';
+import { isKeyClaimed, resolveShellFooterHints, useContextualFooterTip, useModalHints } from '../components/focus.js';
 import { KEY_LAYER_GLOBAL, KEY_LAYER_SYSTEM, KeyScopeProvider, useKeyDispatcherBridge, useScopedInput } from '../components/key-dispatcher.js';
 import { LAYOUT_BP, isViewportTooSmall } from '../components/layout-tokens.js';
 import { useMouseClickInputFallback } from '../components/mouse.js';
@@ -16,6 +16,11 @@ import { SideNav, sideNavWidth } from './SideNav.js';
 import { ShellActionsContext, createDefaultShellActions, requestQuit, type ShellActions } from './actions.js';
 import { isLibraryEmpty } from './data.js';
 import { formatReturnHintLabel } from '../state/practice-stack.js';
+import {
+  resolveAltChordRoute,
+  resolveCycledPage,
+  resolveGlobalKeyRoute,
+} from '../input/global-router.js';
 
 const Launchpad = lazy(() => import('./Launchpad.js').then((m) => ({ default: m.Launchpad })));
 const CommandPalette = lazy(() => import('./CommandPalette.js').then((m) => ({ default: m.CommandPalette })));
@@ -49,10 +54,6 @@ export interface AppShellProps {
   /** Auto-open the Launchpad when the first snapshot shows an empty library (default true). */
   autoLaunchpad?: boolean;
 }
-
-/** Page cycle order for `[` / `]`. */
-const NAV_ORDER: readonly PageId[] = PAGE_REGISTRY.filter((p) => p.group !== null).map((p) => p.id);
-const SHORTCUTS = new Map<string, PageId>(PAGE_REGISTRY.map((p) => [p.shortcut, p.id]));
 
 /** Pure layout math for the shell, exported for tests and the App. */
 /**
@@ -232,63 +233,58 @@ export const AppShell = memo(function AppShell({
     { isActive: true, layer: KEY_LAYER_SYSTEM, id: 'AppShell:system' },
   );
 
+  // Centralized Alt+* (`key.meta`) containment: passes TextInput editing chords through while
+  // consuming unhandled Alt+s / Alt+x / Alt+q etc. so they never leak into view/modal handlers.
+  useScopedInput(
+    (input, key) => resolveAltChordRoute(input, key).kind === 'consume-unhandled-alt',
+    { isActive: true, layer: KEY_LAYER_SYSTEM, id: 'AppShell:alt-guard' },
+  );
+
   useScopedInput(
     (input, key) => {
       const s = useTuiStore.getState();
       const r = routing.current;
-      if (r.overlayOpen || r.inputCaptured) return false;
-      if (key.ctrl || key.meta) return false;
-      // #1428: unified 2-step Esc across every docked page — when no modal/filter/view handler
-      // consumed Esc, fold the passive assistant dock cleanly without leaving the current page.
-      if (key.escape) {
-        if (s.assistantOpen && !s.assistantFocused && !s.assistantFullscreen) {
+      const resolved = resolveGlobalKeyRoute(input, key, {
+        overlayOpen: r.overlayOpen,
+        inputCaptured: r.inputCaptured,
+        showLaunchpad: r.showLaunchpad,
+        page: s.page,
+        passiveAssistantOpen: s.assistantOpen && !s.assistantFocused && !s.assistantFullscreen,
+        isKeyClaimed,
+      });
+      if (!resolved) return false;
+      switch (resolved.action) {
+        case 'fold-passive-assistant':
           s.closeAssistant();
           return true;
-        }
-        return false;
-      }
-      if (input && !RESERVED_GLOBAL_KEY_SET.has(input) && isKeyClaimed(input)) return false;
-      if (key.backspace) {
-        if (!isKeyClaimed('backspace')) {
+        case 'go-back':
           s.goBack();
           return true;
-        }
-        return false;
-      }
-      switch (input) {
-        case '/':
+        case 'palette-open':
           s.setCommandPaletteOpen(true);
           return true;
-        case '?':
+        case 'help-open':
           s.setHelpOpen(true);
           return true;
-        case 'c':
+        case 'course-picker-open':
           s.setCoursePickerOpen(true);
           return true;
-        case 'I':
+        case 'inbox-open':
           s.setInboxOpen(true);
           return true;
-        case 'q':
+        case 'quit-request':
           actions.quit();
           return true;
-        case '\\':
+        case 'toggle-sidebar':
           s.toggleSidebar();
           return true;
-        case '[':
-        case ']': {
-          const idx = NAV_ORDER.indexOf(s.page);
-          const dir = input === ']' ? 1 : -1;
-          const next = NAV_ORDER[(Math.max(0, idx) + dir + NAV_ORDER.length) % NAV_ORDER.length];
-          s.navigate(next);
+        case 'page-prev':
+          s.navigate(resolveCycledPage(s.page, -1));
           return true;
-        }
-        default:
-          break;
-      }
-      if (r.showLaunchpad && (input === 's' || input === 'i' || input === 'm')) return false;
-      const target = SHORTCUTS.get(input);
-      if (target) {
-        if (target === 'review') {
+        case 'page-next':
+          s.navigate(resolveCycledPage(s.page, 1));
+          return true;
+        case 'navigate-review':
           if (s.practiceStack.length > 0) {
             s.returnViaPracticeStack();
             return true;
@@ -296,29 +292,31 @@ export const AppShell = memo(function AppShell({
           if (s.page === 'review' && (!s.activeRunId || s.navContext.runId === s.activeRunId)) return true;
           if (s.activeRunId) s.navigate('review', { runId: s.activeRunId });
           else {
-            const focusCourse = typeof s.snapshot?.focus?.course === 'string' && s.snapshot.focus.course ? s.snapshot.focus.course : undefined;
+            const focusCourse =
+              typeof s.snapshot?.focus?.course === 'string' && s.snapshot.focus.course
+                ? s.snapshot.focus.course
+                : undefined;
             s.navigate('review', focusCourse ? { course: focusCourse } : {});
           }
           return true;
-        }
-        // Preserve intermediate reader location in stack if leaving sources while a practice stack is active (#1319)
-        if (s.practiceStack.length > 0 && s.page === 'sources' && target !== 'sources' && s.navContext.sourceId) {
-          s.pushPracticeContext({
-            kind: 'page',
-            returnPage: 'sources',
-            navContext: { ...s.navContext },
-            readingPos: {
-              sourceId: s.navContext.sourceId,
-              pageNumber: s.navContext.pageNumber,
-            },
-            originKind: 'source',
-            pushedAt: Date.now(),
-          });
-        }
-        s.navigate(target);
-        return true;
+        case 'navigate-page':
+          // Preserve intermediate reader location in stack if leaving sources while a practice stack is active (#1319)
+          if (s.practiceStack.length > 0 && s.page === 'sources' && resolved.page !== 'sources' && s.navContext.sourceId) {
+            s.pushPracticeContext({
+              kind: 'page',
+              returnPage: 'sources',
+              navContext: { ...s.navContext },
+              readingPos: {
+                sourceId: s.navContext.sourceId,
+                pageNumber: s.navContext.pageNumber,
+              },
+              originKind: 'source',
+              pushedAt: Date.now(),
+            });
+          }
+          s.navigate(resolved.page);
+          return true;
       }
-      return false;
     },
     { isActive: true, layer: KEY_LAYER_GLOBAL, id: 'AppShell:global' },
   );
