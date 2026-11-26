@@ -1,0 +1,39 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(gh pr create*)",
+            "shell": "bash",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/skill-moment.mjs\" declare-done",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "if": "Bash(gh release create*)",
+            "shell": "bash",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/skill-moment.mjs\" release",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "if": "Bash(npm run release:pack*)",
+            "shell": "bash",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/skill-moment.mjs\" release",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "if": "Bash(git *)",
+            "shell": "bash",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/skill-moment.mjs\" shared-checkout",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

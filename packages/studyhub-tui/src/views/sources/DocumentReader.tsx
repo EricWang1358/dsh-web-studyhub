@@ -6,11 +6,9 @@ import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
-import { computeProseLayout } from '../../components/Layout.js';
-import { LAYOUT_BP } from '../../components/layout-tokens.js';
+import { LAYOUT_BP, Prose, ScrollArea, computeProseLayout } from '../../layout/index.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Panel } from '../../components/Panel.js';
-import { ScrollView } from '../../components/ScrollView.js';
 import { TextInput } from '../../components/TextInput.js';
 import { useClaimKeys, useInputCapture } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
@@ -1954,7 +1952,9 @@ export const DocumentReader = memo(function DocumentReader({
             </Box>
           ) : loadError ? (
             <Box padding={1}>
-              <Text color={theme.error}>{loadError}</Text>
+              <Prose tone="error" ascii={asciiMode}>
+                {loadError}
+              </Prose>
             </Box>
           ) : (pageData?.format === 'md' || pageData?.format === 'tex') ? (
             (() => {
@@ -1978,23 +1978,22 @@ export const DocumentReader = memo(function DocumentReader({
           ) : (
             (() => {
               const availW = Math.max(12, mainW - 4);
-              const { proseWidth, marginLeft } = computeProseLayout(availW);
+              const { proseWidth } = computeProseLayout(availW);
               const rawText = pageData?.text || t(lang, '（本页暂无可提取文字）', '(No extracted text on this page)');
               const proseLines = formatLongformProse(rawText, Math.max(12, proseWidth - 1), {
                 relaxed: !useTuiStore.getState().preferences.compactMode,
               });
               return (
-                <Box width={availW} height={Math.max(2, readerH - 2)} paddingLeft={marginLeft} overflow="hidden">
-                  <ScrollView
-                    lines={proseLines}
-                    width={proseWidth}
-                    height={Math.max(2, readerH - 2)}
-                    isActive={readerInputActive && subMode === 'read'}
-                    highlight={activeSearch || undefined}
-                    scrollTop={pageScrollTop}
-                    onScroll={setPageScrollTop}
-                  />
-                </Box>
+                <ScrollArea
+                  prose
+                  lines={proseLines}
+                  width={availW}
+                  height={Math.max(2, readerH - 2)}
+                  isActive={readerInputActive && subMode === 'read'}
+                  highlight={activeSearch || undefined}
+                  scrollTop={pageScrollTop}
+                  onScroll={setPageScrollTop}
+                />
               );
             })()
           )}

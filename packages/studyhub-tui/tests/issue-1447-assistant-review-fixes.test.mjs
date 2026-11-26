@@ -6,6 +6,8 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { realpathSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { after, describe, test } from 'node:test';
 import { register } from 'tsx/esm/api';
 import { StudyService } from '../../../lib/service.js';
@@ -490,12 +492,15 @@ describe('#1447 · 建议修', async () => {
     await mkdir(companionRoot, { recursive: true });
     const file = join(companionRoot, 'lesson.html');
     await writeFile(file, '<html><body>lesson</body></html>');
-    const href = `file://${file}`;
+    // A real file URL (three slashes before the drive letter on Windows, never `file://` + a raw path);
+    // the resolver answers with the canonical one.
+    const href = pathToFileURL(file).href;
+    const canonical = pathToFileURL(realpathSync(file)).href;
 
     assert.equal(resolveAllowedLocalHtmlUrl(href, allowedOpenRoots([libraryRoot])), null, 'the library root alone refuses it');
     assert.equal(
       resolveAllowedLocalHtmlUrl(href, allowedOpenRoots([libraryRoot], [companionRoot])),
-      href,
+      canonical,
       'an authorized companion folder makes it openable',
     );
     assert.deepEqual(allowedOpenRoots([libraryRoot], [libraryRoot]), [libraryRoot], 'duplicates collapse');

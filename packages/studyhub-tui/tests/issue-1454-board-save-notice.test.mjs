@@ -173,7 +173,8 @@ describe('#1454: board save failure notice', () => {
       });
       const screen = tty.readScreen();
       assert.match(screen, /已恢复到上次保存的内容/, 'toast must say the board reverted to the last saved content');
-      assert.match(screen, /ENOTDIR|not a directory/i, 'toast must keep the original error detail');
+      // Windows reports EEXIST (mkdir over a file) where POSIX reports ENOTDIR.
+      assert.match(screen, /ENOTDIR|EEXIST|not a directory/i, 'toast must keep the original error detail');
       assert.match(screen, /待办 Todo\s*\(?1\)?/, 'failed save must roll the card back to the todo column');
       assert.match(screen, /进行中 Doing\s*\(?0\)?/, 'failed save must not leave the optimistic move on screen');
 

@@ -176,7 +176,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/mineru-job.js`: contexts audio, jobs; 1 other lib file
 - `lib/model-retry.js`: contexts coach, generation; 7 other lib files
 - `lib/oral-exam.js`: contexts library, study; 1 other lib file
-- `lib/prereq.js`: contexts bank, coach, generation, library, notes, recording, study; 11 other lib files
+- `lib/prereq.js`: contexts bank, coach, generation, library, notes, recording, study; 12 other lib files
 - `lib/prompt-order.js`: contexts authoring, generation; 5 other lib files
 - `lib/publication-fingerprint.js`: contexts authoring, generation
 - `lib/query-input.js`: contexts bank, library

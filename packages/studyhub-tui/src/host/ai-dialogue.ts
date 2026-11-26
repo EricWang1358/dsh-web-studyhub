@@ -10,7 +10,7 @@
  * Zero React / `marked` dependencies so every lazy chunk can import it cleanly.
  */
 import type { ChatMessage, HostClient, UiLanguage } from '../types/contracts.js';
-import { tryAction } from './sample-actions.js';
+import { errorMessage, tryAction } from './sample-actions.js';
 
 export type UnifiedAiMode = 'explain' | 'plain_explain' | 'followup' | 'guided' | 'assistant';
 
@@ -36,6 +36,33 @@ export interface UnifiedRetellVerdict {
 
 const MODEL_UNAVAILABLE_RE =
   /configure a model|model.*unavailable|no.*model|api.?key|unauthorized|forbidden|\b401\b|\b403\b|econnrefused|timed out|timeout|未配置|可用.*模型|模型不可用/i;
+
+/** True when this host can stream a live AI reply (the four dialogue entrypoints share this gate). */
+export function isAiStreamingAvailable(host: Pick<HostClient, 'streamComplete'> | null | undefined): boolean {
+  return typeof host?.streamComplete === 'function';
+}
+
+/** One learner-facing copy for "this build/host has no streaming model bridge". */
+export function aiStreamUnavailableMessage(lang: UiLanguage): string {
+  return lang === 'en'
+    ? 'Streaming AI completion is unavailable on this host'
+    : '当前 Host 未提供流式 AI 接口';
+}
+
+/**
+ * One learner-facing error text for every streaming dialogue failure (#1354 P3-a).
+ * Backend messages keep their existing localized mapping; only the empty/unknown case is
+ * given a readable fallback instead of leaking `Unknown error`.
+ */
+export function describeAiDialogueError(error: unknown, lang: UiLanguage): string {
+  const raw = errorMessage(error, lang).trim();
+  if (!raw || raw === 'Unknown error' || raw === 'null' || raw === 'undefined') {
+    return lang === 'en'
+      ? 'AI request failed. Check your model settings and try again.'
+      : 'AI 请求失败，请检查模型设置后重试。';
+  }
+  return raw;
+}
 
 /** Canonical model-availability error classifier shared across TeachModal, RetellModal, and AssistantPanel. */
 export function isModelUnavailableError(message: string): boolean {

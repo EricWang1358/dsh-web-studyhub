@@ -100,8 +100,13 @@ export async function executeAssistantReadAction(
     if (items.length === 0) {
       return {
         succeeded: true,
-        actionSummary: t(lang, '已完成：查找同类题', 'Done: similar lookup'),
-        text: t(lang, '当前题库中暂未找到与本题匹配的同类题。', 'No matching similar questions found in the library.'),
+        // A read-only lookup that matched nothing changed no data, so it must not read as 「已完成」 (#1354).
+        actionSummary: t(lang, '未找到同类题（只读查询）', 'No similar questions found (read-only)'),
+        text: t(
+          lang,
+          '当前题库中暂未找到与本题匹配的同类题，未改动任何数据；可以换个说法再试。',
+          'No matching similar questions in the library; nothing changed. Try rephrasing.',
+        ),
       };
     }
     const lines = items.slice(0, 3).map((it, idx) => `${idx + 1}. ${String(it.prompt || '').trim()}${it.topic ? `（${it.topic}）` : ''}`);
@@ -512,10 +517,11 @@ export async function executeAssistantWriteAction(
         const promptText = String(intent.params.prompt || cardCtx?.prompt || '').trim();
         const answerText = String(intent.params.answer || cardCtx?.answer || '').trim();
         const expText = String(intent.params.explanation || cardCtx?.explanation || '').trim();
+        if (!promptText) return needCardOutcome(lang, '导出当前错题', 'export the current wrong card');
         const md = [
           `# ${t(lang, '单题错题导出', 'Wrong Card Export')}`,
           '',
-          `1. ${promptText || t(lang, '当前题目', 'Current question')}`,
+          `1. ${promptText}`,
           ...(answerText ? [`   - ${t(lang, '标准答案', 'Answer')}：${answerText}`] : []),
           ...(expText ? [`   - ${t(lang, '解析', 'Explanation')}：${expText}`] : []),
           '',
@@ -535,9 +541,28 @@ export async function executeAssistantWriteAction(
         'wrongbook',
         { course: intent.params.course ?? '*', view: 'weak', offset: 0, limit },
       );
+      // A failed read must not be written out as an "empty export" and called 「已完成」 (#1354).
+      if (!wb.ok) {
+        return {
+          succeeded: false,
+          actionSummary: t(lang, '读取错题本失败', 'Could not read the wrong-book'),
+          text: wb.error?.message || t(lang, '读取错题本失败，未写出导出文件，请稍后重试。', 'Could not read the wrong-book; no file was written.'),
+        };
+      }
       const items = Array.isArray(wb.value?.items) ? wb.value.items : [];
       const total = typeof wb.value?.total === 'number' ? wb.value.total : items.length;
       const truncated = total > items.length;
+      if (items.length === 0) {
+        return {
+          succeeded: false,
+          actionSummary: t(lang, '没有可导出的错题', 'No wrong cards to export'),
+          text: t(
+            lang,
+            '当前范围内没有错题，未写出导出文件；先做几道题再来导出。',
+            'No wrong cards in this scope; no file was written. Try a few questions first.',
+          ),
+        };
+      }
       const md = [
         `# ${t(lang, '错题本导出', 'Wrong-Book Export')}`,
         ...(truncated
@@ -547,12 +572,10 @@ export async function executeAssistantWriteAction(
             ]
           : []),
         '',
-        ...(items.length > 0
-          ? items.map(
-              (it, idx) =>
-                `${idx + 1}. ${String(it.prompt || '').trim()}${it.errorReason ? t(lang, `（错因：${reasonLabel(it.errorReason, lang)}）`, ` (reason: ${reasonLabel(it.errorReason, lang)})`) : ''}`,
-            )
-          : [t(lang, '当前暂无错题记录。', 'No wrong cards found.')]),
+        ...items.map(
+          (it, idx) =>
+            `${idx + 1}. ${String(it.prompt || '').trim()}${it.errorReason ? t(lang, `（错因：${reasonLabel(it.errorReason, lang)}）`, ` (reason: ${reasonLabel(it.errorReason, lang)})`) : ''}`,
+        ),
         '',
       ].join('\n');
       const outPath = defaultBackupFilePath(root, 'studyhub-wrongbook', 'md');
@@ -562,7 +585,11 @@ export async function executeAssistantWriteAction(
         : '';
       return {
         succeeded: true,
-        actionSummary: `已完成：导出 ${items.length} 道错题${truncated ? `/${total}` : ''}`,
+        actionSummary: t(
+          lang,
+          `已完成：导出 ${items.length} 道错题${truncated ? `/${total}` : ''}`,
+          `Done: exported ${items.length} wrong card(s)${truncated ? `/${total}` : ''}`,
+        ),
         text: t(lang, `已导出 ${items.length} 道错题至 ${saved.path}${truncNote}`, `Exported ${items.length} cards to ${saved.path}${truncNote}`),
         toast: { message: t(lang, `已导出至 ${saved.path}`, `Exported to ${saved.path}`), tone: truncated ? 'warning' : 'success' },
       };

@@ -361,14 +361,21 @@ export const HelpOverlay = memo(function HelpOverlay({ isActive, onClose, pageHi
     (input, key) => {
       if (input === '?' || input === 'q') {
         onClose();
-        return;
+        return true;
       }
       if (key.tab) {
         setHelpTab(helpTab === 'shortcuts' ? 'guide' : 'shortcuts');
-        return;
+        return true;
       }
-      if (input === '1') setHelpTab('shortcuts');
-      else if (input === '2') setHelpTab('guide');
+      if (input === '1') {
+        setHelpTab('shortcuts');
+        return true;
+      }
+      if (input === '2') {
+        setHelpTab('guide');
+        return true;
+      }
+      return false;
     },
     { isActive },
   );

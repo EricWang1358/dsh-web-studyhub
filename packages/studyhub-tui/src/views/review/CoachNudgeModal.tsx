@@ -90,7 +90,7 @@ export const CoachNudgeModal = memo(function CoachNudgeModal({
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const shellOverlay = useTuiStore(
-    (s) => s.commandPaletteOpen || s.helpOpen || s.coursePickerOpen || s.inboxOpen,
+    (s) => s.commandPaletteOpen || s.helpOpen || s.coursePickerOpen || s.inboxOpen || s.notificationHistoryOpen,
   );
   const notify = useTuiStore((s) => s.notify);
   const ell = asciiMode ? '...' : '…';

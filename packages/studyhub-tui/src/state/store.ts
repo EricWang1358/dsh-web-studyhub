@@ -106,6 +106,8 @@ export interface TuiStoreState {
   coursePickerOpen: boolean;
   voicePackOpen: boolean;
   inboxOpen: boolean;
+  /** Standalone notification history panel (#1354 P2-b). */
+  notificationHistoryOpen: boolean;
   showLaunchpad: boolean;
 
   /** Practice Context Stack (#1319) — LIFO stack preserving question/draft/reading state across jumps. */
@@ -160,6 +162,7 @@ export interface TuiStoreState {
   setCoursePickerOpen: (open: boolean) => void;
   setVoicePackOpen: (open: boolean) => void;
   setInboxOpen: (open: boolean) => void;
+  setNotificationHistoryOpen: (open: boolean) => void;
   setShowLaunchpad: (show: boolean) => void;
 
   pushPracticeContext: (frame: PracticeContextFrame) => void;
@@ -192,7 +195,7 @@ export interface TuiStoreState {
   setQuitConfirmOpen: (open: boolean) => void;
   registerQuitGuard: (guard: () => boolean) => () => void;
 
-  notify: (text: string, tone?: ToastItem['tone']) => void;
+  notify: (text: string, tone?: ToastItem['tone'], source?: string) => void;
   dismissToast: (id: string) => void;
   clearToastHistory: () => void;
   setFooterHints: (hints: KeyHint[]) => void;
@@ -221,6 +224,7 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
   coursePickerOpen: false,
   voicePackOpen: false,
   inboxOpen: false,
+  notificationHistoryOpen: false,
   showLaunchpad: false,
   practiceStack: [],
   pendingPracticeRestore: null,
@@ -263,6 +267,7 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
       helpOpen: false,
       coursePickerOpen: false,
       inboxOpen: false,
+      notificationHistoryOpen: false,
       showLaunchpad: false,
       ...(page === 'review' && context.runId ? { activeRunId: context.runId } : {}),
     });
@@ -299,6 +304,7 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
   setCoursePickerOpen: (coursePickerOpen) => set({ coursePickerOpen }),
   setVoicePackOpen: (voicePackOpen) => set({ voicePackOpen }),
   setInboxOpen: (inboxOpen) => set({ inboxOpen }),
+  setNotificationHistoryOpen: (notificationHistoryOpen) => set({ notificationHistoryOpen }),
   setShowLaunchpad: (showLaunchpad) => set({ showLaunchpad }),
 
   pushPracticeContext: (frame) =>
@@ -418,9 +424,9 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
     };
   },
 
-  notify: (text, tone = 'info') => {
+  notify: (text, tone = 'info', source) => {
     const id = `toast-${++toastSeq}`;
-    const item: ToastItem = { id, text, tone, createdAt: Date.now() };
+    const item: ToastItem = { id, text, tone, createdAt: Date.now(), ...(source ? { source } : {}) };
     set((state) => ({
       toasts: [...state.toasts.slice(-(MAX_TOASTS - 1)), item],
       toastHistory: [...state.toastHistory.slice(-(MAX_TOAST_HISTORY - 1)), item],

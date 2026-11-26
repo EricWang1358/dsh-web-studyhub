@@ -9,7 +9,7 @@ import { Panel } from '../../components/Panel.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
-import { LAYOUT_BP, computeFilterBarLayout } from '../../components/layout-tokens.js';
+import { ChromeLabel, LAYOUT_BP, Prose, computeFilterBarLayout } from '../../layout/index.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { ClickableBox } from '../../components/mouse.js';
 import { saveTuiPreferences } from '../../host/tui-prefs.js';
@@ -938,7 +938,6 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       }
 
       const st = deckStats(selectedDeck, progressMap);
-      const ell = asciiMode ? '...' : '…';
       const topicsLine = (selectedDeck as { topics?: string[] }).topics?.slice(0, 5).join(asciiMode ? ' - ' : ' · ') || '';
       const innerH = Math.max(1, size.height - 2);
       const compactDetail = size.height <= 12;
@@ -1006,9 +1005,9 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
 
             {!compactDetail && topicsLine ? (
               <Box marginTop={0} flexShrink={0}>
-                <Text color={theme.muted}>
-                  {t(lang, '涵盖主题', 'Topics')}: <Text color={theme.text}>{truncateDisplay(topicsLine, Math.max(12, innerW - 12), ell)}</Text>
-                </Text>
+                <Prose width={innerW} tone="muted" ascii={asciiMode}>
+                  {t(lang, '涵盖主题', 'Topics')}: <Text color={theme.text}>{topicsLine}</Text>
+                </Prose>
               </Box>
             ) : null}
 
@@ -1201,19 +1200,17 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
         >
           {(() => {
             const actionTxt = ` ${dailyBriefing.actionLabel}`;
-            const dismissTxt = width >= 64 ? ` ${t(lang, '[Z]今日隐藏', '[Z]Hide')}` : ' [Z]';
+            const dismissTxt = width >= LAYOUT_BP.CONTENT_NARROW ? ` ${t(lang, '[Z]今日隐藏', '[Z]Hide')}` : ' [Z]';
             const rightW = displayWidth(actionTxt) + displayWidth(dismissTxt);
             const leftBudget = Math.max(12, width - 2 - rightW - 2);
             const sep = asciiMode ? ' - ' : ' · ';
             const fullLeft =
-              width >= 96
+              width >= LAYOUT_BP.WIDE
                 ? `${asciiMode ? '*' : '✦'} ${dailyBriefing.headline}${sep}${dailyBriefing.reason}`
                 : `${asciiMode ? '*' : '✦'} ${dailyBriefing.headline}`;
             return (
               <>
-                <Text color={theme.ai} wrap="truncate">
-                  {truncateDisplay(fullLeft, leftBudget, ell)}
-                </Text>
+                <ChromeLabel text={fullLeft} maxWidth={leftBudget} tone="ai" ascii={asciiMode} />
                 <Box flexDirection="row" flexShrink={0}>
                   <ClickableBox clickActive={pageActive} onClick={handleAcceptBriefing}>
                     <Text color={theme.accent} bold>

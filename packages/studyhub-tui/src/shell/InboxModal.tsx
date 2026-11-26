@@ -426,47 +426,49 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
 
   useInput(
     (input, key) => {
-      if (busyRef.current || busy) return;
+      if (busyRef.current || busy) return false;
       if (key.tab) {
         setFilter((prev) => (prev === 'all' ? 'unread' : prev === 'unread' ? 'read' : 'all'));
         setCursor(0);
-        return;
+        return true;
       }
       if (input === 'h' && !key.ctrl && !key.meta) {
         setFilter((prev) => (prev === 'toasts' ? 'all' : 'toasts'));
         setCursor(0);
-        return;
+        return true;
       }
       if (input === 'C' && !key.ctrl && !key.meta && filter === 'toasts') {
         clearToastHistory();
         setCursor(0);
-        return;
+        return true;
       }
       if (input === '/' && !key.ctrl && !key.meta) {
         setSearchFocused(true);
-        return;
+        return true;
       }
       if (input === 'c' && !key.ctrl && !key.meta && searchQuery) {
         setSearchQuery('');
         setCursor(0);
-        return;
+        return true;
       }
       if (input === 'e' && !key.ctrl && !key.meta) {
         void handleExportRaw();
-        return;
+        return true;
       }
       if (input === 'r' && !key.ctrl && !key.meta) {
         void loadInbox(true);
         void actions.refresh();
-        return;
+        return true;
       }
       if (input === 'm' && !key.ctrl && !key.meta && selected) {
         void handleToggleRead(selected);
-        return;
+        return true;
       }
       if (input === 'M' && !key.ctrl && !key.meta) {
         void handleMarkAllRead();
+        return true;
       }
+      return false;
     },
     { isActive: isActive && !searchFocused },
   );

@@ -29,14 +29,13 @@ const [
   import('../src/state/store.ts'),
 ]);
 
-const { FATIGUE_NUDGE_THRESHOLD, shouldShowFatigueNudge, buildFatigueNudgeBanner } = fatigueMod;
-const { saveTuiPreferences, loadTuiPreferences, MAX_PINNED_TARGETS } = prefsMod;
+const { shouldShowFatigueNudge, buildFatigueNudgeBanner } = fatigueMod;
+const { saveTuiPreferences, loadTuiPreferences } = prefsMod;
 const { buildPaletteItems } = paletteMod;
 const { useTuiStore } = storeMod;
 
 describe('Round 95 Track D9 — Proactive Pacing Fatigue Rest Nudge (3 Guardrails)', () => {
   test('triggers at >= 25 answered cards, fires at most once per round, and honors disable/typing/modal guards', () => {
-    assert.equal(FATIGUE_NUDGE_THRESHOLD, 25);
     const base = {
       enabled: true,
       isActive: true,
@@ -59,7 +58,6 @@ describe('Round 95 Track D9 — Proactive Pacing Fatigue Rest Nudge (3 Guardrail
 
 describe('Round 95 Track B9 — Persistent Quick-Jump Bookmarks (/pin + tui.json)', () => {
   test('persists up to 5 deduplicated pinnedTargets in tui.json and exposes /pin + pinned items in CommandPalette', async () => {
-    assert.equal(MAX_PINNED_TARGETS, 5);
     const dir = await mkdtemp(join(tmpdir(), 'studyhub-r95-pins-'));
     tempDirs.push(dir);
 

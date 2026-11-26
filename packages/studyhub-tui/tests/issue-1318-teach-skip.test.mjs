@@ -309,10 +309,15 @@ test('#1318 TUI TeachModal: skip shortcut, "跳过，下一问", 2-wrong nudge, 
 });
 
 test('#1318 x #1322/#1355 rebase merge conflict guard: skip-before-model + nonRetryableError + TeachingPanel + domain-contracts coexist', async (t) => {
-  const { readFileSync } = await import('node:fs');
   const { fileURLToPath } = await import('node:url');
   const { dirname, resolve } = await import('node:path');
+  const { createRequire } = await import('node:module');
+  const { build } = await import('esbuild');
+  const { Writable } = await import('node:stream');
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+  const rootReq = createRequire(resolve(repoRoot, 'package.json'));
+  const RootReact = rootReq('react');
+  const { renderToPipeableStream, renderToStaticMarkup } = rootReq('react-dom/server');
 
   // 1) lib/teaching.js runtime: skip phrase succeeds with complete=null (0 calls),
   //    while non-skip answer with complete=null throws main's nonRetryableError('teaching-no-model').
@@ -342,19 +347,215 @@ test('#1318 x #1322/#1355 rebase merge conflict guard: skip-before-model + nonRe
   assert.equal(skippedWithoutModel.index, 1, 'skip phrase must advance to step 1');
   assert.equal(getModelCalls(), 1, 'skip phrase without model must make 0 extra model calls');
 
-  // 2) lib/runtime/domain-contracts.js & lib/contexts/study/operations.js: teach.skip & socratic.* coexist.
-  const contractsSrc = readFileSync(resolve(repoRoot, 'lib/runtime/domain-contracts.js'), 'utf8');
-  assert.ok(contractsSrc.includes("'teach.skip': ['teaching']"), 'domain-contracts must keep teach.skip');
-  assert.ok(contractsSrc.includes("'socratic.get': ['runs']") && contractsSrc.includes("'socratic.step': ['decks', 'runs']"), 'domain-contracts must keep socratic.get/step');
+  // 2) lib/runtime/domain-contracts.js & lib/contexts/study/operations.js: teach.skip & socratic.* coexist at runtime.
+  const { writesFor } = await import('../../../lib/runtime/domain-contracts.js');
+  assert.deepEqual(writesFor('study', 'teach.skip'), ['teaching'], 'domain-contracts must keep teach.skip write scope');
+  assert.deepEqual(writesFor('study', 'socratic.get'), ['runs'], 'domain-contracts must keep socratic.get write scope');
+  assert.deepEqual(writesFor('study', 'socratic.step'), ['decks', 'runs'], 'domain-contracts must keep socratic.step write scope');
 
-  const opsSrc = readFileSync(resolve(repoRoot, 'lib/contexts/study/operations.js'), 'utf8');
-  assert.ok(opsSrc.includes('skipTeaching') && opsSrc.includes('./socratic-inline.js'), 'study operations must import both skipTeaching and socratic-inline');
+  const socraticState = await service.call('socratic.get', { runId: run.id, cardId: 'c-1318' });
+  assert.equal(typeof socraticState, 'object', 'socratic.get must be wired and callable on StudyService');
+  const skippedViaService = await service.call('teach.skip', { id: started.id, stepIndex: 1 });
+  assert.equal(skippedViaService.index, 2, 'teach.skip must be wired and advance step on StudyService');
+  const socraticStepOutcome = await service
+    .call('socratic.step', { runId: run.id, cardId: 'c-1318', answer: '它可正交对角化' })
+    .then(
+      (value) => ({ ok: true, value }),
+      (err) => ({ ok: false, message: err instanceof Error ? err.message : String(err) }),
+    );
+  assert.ok(
+    socraticStepOutcome.ok || !/unknown action|未注册|不支持的操作/i.test(socraticStepOutcome.message),
+    `socratic.step must be registered in study operations (got: ${JSON.stringify(socraticStepOutcome)})`,
+  );
 
-  // 3) ui/review/TeachingPanel.jsx: preserves main's LazySimilarTry + TeachingStatus + busyLabel AND #1318 skip UI.
-  const panelSrc = readFileSync(resolve(repoRoot, 'ui/review/TeachingPanel.jsx'), 'utf8');
-  assert.ok(panelSrc.includes('<LazySimilarTry'), 'TeachingPanel must keep main LazySimilarTry');
-  assert.ok(panelSrc.includes('<TeachingStatus'), 'TeachingPanel must keep main TeachingStatus');
-  assert.ok(panelSrc.includes('busyLabel='), 'TeachingPanel must keep main busyLabel on submit button');
-  assert.ok(panelSrc.includes('teaching-skipped-summary'), 'TeachingPanel must keep #1318 skipped summary');
-  assert.ok(panelSrc.includes('teaching-panel__skip') && panelSrc.includes('teaching-panel__skip-all'), 'TeachingPanel must keep #1318 skip buttons');
+  // 3) ui/review/TeachingPanel.jsx runtime render: preserves LazySimilarTry + TeachingStatus + busyLabel AND #1318 skip UI.
+  const built = await build({
+    stdin: {
+      contents: `
+        export { setUiLanguage } from './ui/i18n.js';
+        export { StudyServicesContext } from './ui/study-context.jsx';
+        export { default as TeachingPanel } from './ui/review/TeachingPanel.jsx';
+      `,
+      resolveDir: repoRoot,
+    },
+    bundle: true,
+    write: false,
+    platform: 'node',
+    format: 'cjs',
+    external: ['react', 'react-dom', '@codemirror/*', '@lezer/*', '@base-ui/*', 'markdown-it', 'markdown-it-texmath', 'dompurify', 'katex', 'katex/*'],
+    loader: { '.css': 'text' },
+    logLevel: 'silent',
+  });
+  const panelMod = { exports: {} };
+  new Function('require', 'module', 'exports', built.outputFiles[0].text)(rootReq, panelMod, panelMod.exports);
+  const { setUiLanguage, StudyServicesContext, TeachingPanel } = panelMod.exports;
+
+  const renderPanel = (session) => {
+    const el = RootReact.createElement(
+      StudyServicesContext.Provider,
+      {
+        value: {
+          call: async () => ({}),
+          act: async () => undefined,
+          busy: false,
+          notify: () => {},
+          askInChat: () => {},
+          host: {},
+          openSettings: () => {},
+          navigate: () => {},
+          openModal: () => {},
+        },
+      },
+      RootReact.createElement(TeachingPanel, {
+        session,
+        data: { sources: [], decks: [] },
+        model: { ready: true },
+        onModelSettings: () => {},
+      }),
+    );
+    return { el, html: renderToStaticMarkup(el) };
+  };
+
+  const renderPipeable = (el) =>
+    new Promise((resolveHtml, rejectHtml) => {
+      let out = '';
+      const writable = new Writable({
+        write(chunk, _enc, cb) {
+          out += chunk.toString('utf8');
+          cb();
+        },
+      });
+      const { pipe } = renderToPipeableStream(el, {
+        onAllReady() {
+          pipe(writable);
+        },
+        onError(err) {
+          rejectHtml(err);
+        },
+      });
+      writable.on('finish', () => resolveHtml(out));
+      writable.on('error', rejectHtml);
+    });
+
+  const noopActions = {
+    teachingAct: () => {},
+    setTeachAnswer: () => {},
+    cancelTeaching: () => {},
+    retryTeaching: () => {},
+  };
+
+  setUiLanguage('zh');
+  try {
+    // Active step with wrongTries=2: renders skip & skip-all buttons + wrong nudge.
+    const activeHtml = renderPanel({
+      run: { id: run.id, mode: 'flashcard', feedback: { passed: false, grade: 1 } },
+      entry: {
+        teaching: {
+          id: started.id,
+          mode: 'understanding',
+          index: 1,
+          total: 3,
+          complete: false,
+          lesson: '第2步要点',
+          check: '如何构造正交矩阵 Q？',
+          skippedSteps: [],
+          wrongTries: 2,
+        },
+        teachAnswer: '单位化正交基',
+      },
+      teachingBusy: false,
+      teachingAction: '',
+      teachingError: '',
+      actions: noopActions,
+    }).html;
+    assert.match(activeHtml, /teaching-panel__skip"/, 'TeachingPanel must render #1318 skip button');
+    assert.match(activeHtml, /teaching-panel__skip-all/, 'TeachingPanel must render #1318 skip-all button');
+    assert.match(activeHtml, /跳过这一步/);
+    assert.match(activeHtml, /剩下的直接讲给我听/);
+    assert.match(activeHtml, /teaching-wrong-nudge/);
+
+    // Busy checking step: renders main's busyLabel ("正在检查…") AND TeachingStatus spinner.
+    const busyHtml = renderPanel({
+      run: { id: run.id, mode: 'flashcard', feedback: { passed: false, grade: 1 } },
+      entry: {
+        teaching: {
+          id: started.id,
+          mode: 'understanding',
+          index: 1,
+          total: 3,
+          complete: false,
+          lesson: '第2步要点',
+          check: '如何构造正交矩阵 Q？',
+          skippedSteps: [],
+          wrongTries: 0,
+        },
+        teachAnswer: '单位化正交基',
+      },
+      teachingBusy: true,
+      teachingAction: 'teach.answer',
+      teachingError: '',
+      actions: noopActions,
+    }).html;
+    assert.match(busyHtml, /正在检查…/, 'TeachingPanel must render busyLabel on submit button while checking');
+    assert.match(busyHtml, /class="teaching-status"/, 'TeachingPanel must render TeachingStatus while busy');
+
+    // Error state: TeachingStatus renders error note with retry action.
+    const errHtml = renderPanel({
+      run: { id: run.id, mode: 'flashcard', feedback: { passed: false, grade: 1 } },
+      entry: {
+        teaching: {
+          id: started.id,
+          mode: 'understanding',
+          index: 1,
+          total: 3,
+          complete: false,
+          lesson: '第2步要点',
+          check: '如何构造正交矩阵 Q？',
+          skippedSteps: [],
+          wrongTries: 0,
+        },
+        teachAnswer: '单位化正交基',
+      },
+      teachingBusy: false,
+      teachingAction: '',
+      teachingError: '请求超时',
+      actions: noopActions,
+    }).html;
+    assert.match(errHtml, /teaching-status-note/, 'TeachingPanel must render TeachingStatus error note');
+    assert.match(errHtml, /请求超时/);
+
+    // Completed teaching with skippedSteps & wrong feedback: renders #1318 skipped summary AND resolves LazySimilarTry.
+    const { el: completeEl } = renderPanel({
+      run: {
+        id: run.id,
+        mode: 'flashcard',
+        card: { id: 'c-1318', prompt: '为什么实对称矩阵可以正交对角化？' },
+        feedback: { passed: false, grade: 1 },
+      },
+      entry: {
+        teaching: {
+          id: started.id,
+          mode: 'understanding',
+          index: 3,
+          total: 3,
+          complete: true,
+          transfer: '遇到实对称矩阵先想谱定理。',
+          skippedSteps: [{ index: 0, lesson: '第1步要点', answer: '彼此正交' }],
+        },
+        teachAnswer: '',
+      },
+      teachingBusy: false,
+      teachingAction: '',
+      teachingError: '',
+      actions: noopActions,
+    });
+    const completeHtml = await renderPipeable(completeEl);
+    assert.match(completeHtml, /teaching-skipped-summary/, 'TeachingPanel must render #1318 skipped summary on completion');
+    assert.match(completeHtml, /第 1 步/);
+    assert.match(completeHtml, /第1步要点/);
+    assert.match(completeHtml, /彼此正交/);
+    assert.match(completeHtml, /similar-try|同类题|再练一道相似题/, 'TeachingPanel must mount LazySimilarTry on completion after a wrong answer');
+  } finally {
+    setUiLanguage('zh');
+  }
 });
