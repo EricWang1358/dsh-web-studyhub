@@ -32,6 +32,9 @@ export interface AssistantCardContext {
   deckId?: string;
   cardId: string;
   cardIndex?: number;
+  queueVersion?: number;
+  teachingId?: string;
+  teachingMode?: string;
   total?: number;
   topic?: string;
   prompt?: string;
@@ -44,6 +47,8 @@ export interface AssistantCardContext {
   kind?: string;
   isWrong?: boolean;
   revealed?: boolean;
+  /** The card has feedback (answered and graded), which backend `teach.start` requires (#1504). */
+  answered?: boolean;
   isExam?: boolean;
   hasCitation?: boolean;
   /** Optional active page filter or selected item label for full context awareness (#1315). */
@@ -384,12 +389,16 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
         prev.deckId === next.deckId &&
         prev.cardId === next.cardId &&
         prev.cardIndex === next.cardIndex &&
+        prev.queueVersion === next.queueVersion &&
+        prev.teachingId === next.teachingId &&
+        prev.teachingMode === next.teachingMode &&
         prev.total === next.total &&
         prev.prompt === next.prompt &&
         prev.userAnswer === next.userAnswer &&
         prev.kind === next.kind &&
         prev.isWrong === next.isWrong &&
         prev.revealed === next.revealed &&
+        prev.answered === next.answered &&
         prev.isExam === next.isExam &&
         prev.hasCitation === next.hasCitation
       ) {

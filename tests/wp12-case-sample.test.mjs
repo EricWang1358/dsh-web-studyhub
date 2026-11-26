@@ -7,11 +7,14 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { createPreviewServer } from "../scripts/preview-server.mjs";
 import { Store } from "../lib/store.js";
 import { validateDeck } from "../lib/domain.js";
 import { rubricSkills } from "../lib/case-study.js";
 import { TOUR_STEPS } from "../ui/tour/steps.js";
+import { loadUi } from "./helpers/ui-module.mjs";
 import en from "../lib/sample/en.js";
 import zh from "../lib/sample/zh.js";
 
@@ -94,8 +97,29 @@ test("the tour shows the exam format switch, which is how 案例分析卷 is rea
   assert.equal(step.page, "exam");
   assert.equal(step.anchor, "exam-case");
   assert.match(step.body, /案例分析卷/);
-  const source = await readFile(join(repo, "ui/ExamShell.jsx"), "utf8");
-  assert.match(source, /data-tour="exam-case"/);
+  const { ExamHeader, setUiLanguage } = await loadUi(`
+    export { ExamHeader } from './ui/ExamShell.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  let headerHtml = "";
+  setUiLanguage("zh");
+  try {
+    headerHtml = renderToStaticMarkup(React.createElement(ExamHeader, {
+      courses: [],
+      course: "*",
+      onCourse: () => {},
+      format: "written",
+      onFormat: () => {},
+      showInactive: false,
+      onShowInactive: () => {},
+    }));
+  } finally {
+    setUiLanguage("zh");
+  }
+  const formatSwitch = headerHtml.match(/<div[^>]*data-tour="exam-case"[^>]*>[\s\S]*?<\/div>/)?.[0] || "";
+  assert.ok(formatSwitch, 'rendered ExamHeader emits data-tour="exam-case" on the exam format switch');
+  assert.match(formatSwitch, /role="group"/);
+  assert.match(formatSwitch, /案例分析卷/);
   const catalogue = Object.assign({}, ...await Promise.all((await readdir(join(repo, "ui/locales"))).filter((name) => /^en(\..+)?\.json$/.test(name))
     .map(async (name) => JSON.parse(await readFile(join(repo, "ui/locales", name), "utf8")))));
   for (const text of [step.title, step.body, step.modelNote].filter(Boolean)) assert.ok(Object.hasOwn(catalogue, text), text);

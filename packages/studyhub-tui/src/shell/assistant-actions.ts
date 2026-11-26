@@ -11,6 +11,7 @@ import type { HostClient, PageId, StudySnapshot, UiLanguage } from '../types/con
 import type { AssistantCardContext } from '../state/store.js';
 import { t, useTuiStore } from '../state/store.js';
 import { tryAction, type ReviewRun } from '../host/sample-actions.js';
+import { persistCardQaToFollowupAndNote } from '../host/ai-dialogue.js';
 import { atomicWriteExportText, defaultBackupFilePath } from '../host/atomic-write.js';
 import { SET_ERROR_REASON_ACTION, errorReasonArgs, errorReasonName, type ErrorReasonTarget } from './error-reason-intent.js';
 import { reasonLabel } from '../views/wrongbook/helpers.js';
@@ -629,8 +630,6 @@ export async function executeAssistantWriteAction(
 
     case 'note.qa.add': {
       if (!cardId || !deckId) return needCardOutcome(lang, '存到笔记', 'save to notes');
-      // `note.qa.add` looks the Q&A up by `followupId` and throws when it is missing, so the
-      // follow-up is saved first and a failure stops here (#1447, mirrors `AiHelpDrawer`).
       const answerText = String(lastAssistantReply ?? '').trim().slice(0, 8000);
       if (!answerText) {
         return {
@@ -640,44 +639,29 @@ export async function executeAssistantWriteAction(
         };
       }
       const questionText = (String(lastLearnerQuestion ?? '').trim() || t(lang, '帮我理解这道题', 'Help me understand this question')).slice(0, 1000);
-      const fuRes = await tryAction<{ item?: { id?: string } }>(host, 'card.followup.add', {
-        deckId,
-        cardId,
-        question: questionText,
-        answer: answerText,
-        source: 'assistant',
-        silent: true,
-        replace: true,
-      });
-      const followupId = fuRes.ok ? fuRes.value?.item?.id : undefined;
-      if (!followupId) {
-        return {
-          succeeded: false,
-          actionSummary: t(lang, '保存问答失败', 'Failed to save the Q&A'),
-          text: fuRes.error?.message || t(lang, '保存问答到本题失败，未写入笔记。', 'Could not save the Q&A to this card; nothing was written to notes.'),
-        };
-      }
       const decks = Array.isArray(snapshot?.decks) ? snapshot.decks : [];
       const noteTitle = buildDailyQuestionNoteTitle(
         { deckId, index: 0, card: null } as unknown as ReviewRun,
         decks,
         lang,
       );
-      const res = await tryAction<{ status?: string; note?: { title?: string } }>(host, 'note.qa.add', {
-        title: noteTitle,
+      const saved = await persistCardQaToFollowupAndNote({
+        host,
         deckId,
         cardId,
-        followupId,
-        language: lang,
+        question: questionText,
+        answer: answerText,
+        noteTitle,
+        lang,
       });
-      if (!res.ok) {
+      if (!saved.ok || !saved.noteSaved) {
         return {
           succeeded: false,
           actionSummary: t(lang, '写入笔记失败', 'Save to notes failed'),
-          text: res.error?.message || t(lang, '保存到学习笔记失败，请重试。', 'Failed to save to study notes.'),
+          text: saved.error || t(lang, '保存到学习笔记失败，未写入数据，请重试。', 'Failed to save to study notes; nothing written.'),
         };
       }
-      const title = res.value?.note?.title || noteTitle;
+      const title = saved.noteTitle || noteTitle;
       return {
         succeeded: true,
         actionSummary: t(lang, '已存入学习笔记', 'Saved to study notes'),
@@ -948,70 +932,6 @@ export async function executeAssistantWriteAction(
         actionSummary: t(lang, '已撤销上一题评分', 'Undid last rating'),
         text: t(lang, '已完成：已撤销本轮最近一次作答评分并恢复进度。', 'Undid the last rating in this round.'),
         toast: { message: t(lang, '已撤销上一题评分', 'Undid last rating'), tone: 'success' },
-      };
-    }
-
-    case 'review.queue.edit': {
-      if (!runId || !cardId) return needCardOutcome(lang, '调整本轮题序', 'reorder the queue');
-      // `remove` is refused for an answered (or grading) question while `add` still appends a copy,
-      // so an answered card would silently duplicate. Read the round first and refuse honestly (#1447).
-      const got = await tryAction<ReviewRun>(host, 'review.get', { runId });
-      if (!got.ok || !got.value) {
-        return {
-          succeeded: false,
-          actionSummary: t(lang, '读取本轮失败', 'Could not read the round'),
-          text: got.error?.message || t(lang, '无法读取本轮练习进度，请稍后重试。', 'Could not read this round.'),
-        };
-      }
-      const run = got.value;
-      const runDeckId = run.navigation?.find((item) => item.index === run.index)?.deckId || deckId;
-      const ref = { ...(runDeckId ? { deckId: runDeckId } : {}), cardId };
-      if (run.feedback) {
-        return {
-          succeeded: false,
-          actionSummary: t(lang, '本题已作答，未调整题序', 'Question already answered'),
-          text: t(
-            lang,
-            '这道题已经作答，挪到末尾会在本轮多出一道重复题，所以没有改动。按 [n] 继续下一题即可。',
-            'This question is already answered; moving it would add a duplicate, so nothing changed. Press [n] for the next question.',
-          ),
-        };
-      }
-      const res = await tryAction<ReviewRun & { kept?: Array<{ cardId?: string; reason?: string }> }>(host, 'review.queue.edit', {
-        runId,
-        remove: [ref],
-        add: [ref],
-        position: 'end',
-        allowCurrent: true,
-      });
-      if (!res.ok) {
-        return {
-          succeeded: false,
-          actionSummary: t(lang, '调整题序失败', 'Queue edit failed'),
-          text: res.error?.message || t(lang, '当前题目已作答或无法移动，未调整题序。', 'Could not move this card in the queue.'),
-        };
-      }
-      const kept = Array.isArray(res.value?.kept) ? res.value.kept : [];
-      if (kept.some((item) => item?.cardId === cardId)) {
-        // The backend kept the question (still on screen / being graded) but appended the copy:
-        // take the copy back out so the round is unchanged, and say the move did not happen.
-        await tryAction(host, 'review.queue.edit', { runId, remove: [ref] });
-        return {
-          succeeded: false,
-          actionSummary: t(lang, '未调整题序', 'Not moved'),
-          text: t(
-            lang,
-            '这道题暂时不能挪动（已作答或正在批改），本轮题序未变。',
-            'This question cannot move right now (answered or being graded); the round is unchanged.',
-          ),
-        };
-      }
-      if (res.value) deps.applyRun?.(res.value);
-      return {
-        succeeded: true,
-        actionSummary: t(lang, '已将本题挪到本轮最后', 'Moved card to end'),
-        text: t(lang, '已完成：本题已移至本轮练习队列末尾。', 'Moved this question to the end of the round.'),
-        toast: { message: t(lang, '已挪到本轮最后', 'Moved to end of queue'), tone: 'success' },
       };
     }
   }
