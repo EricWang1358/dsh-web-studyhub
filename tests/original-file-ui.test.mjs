@@ -2,13 +2,12 @@
    menu entry, in Chinese and English. Pure logic and static markup; the layout is checked in the browser preview. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { readAppSource } from './helpers/app-source.mjs';
 import { withStudy } from './helpers/study-services.mjs';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const han = /[\u3400-\u9fff]/;
 const compiled = await build({ stdin: { contents: `
@@ -311,18 +310,213 @@ test('the row menu entry: one button, a one-line status, nothing for an audio tr
   assert.doesNotMatch(inLanguage('en', () => entry({ initial: ref })).replaceAll(BOOK, '').replace('D:\\…\\Database System Concepts.pdf', ''), han);
 });
 
-test('the three entry points are mounted where the brief says, and nowhere else', async () => {
-  const viewer = await readFile('ui/document-preview/DocumentViewer.jsx', 'utf8'), sources = await readFile('ui/Sources.jsx', 'utf8');
-  assert.match(viewer, /OriginalNotice/); assert.match(viewer, /OriginalDialog/);
-  assert.doesNotMatch(viewer, /这份旧资料保存了提取文字/, 'the old one-line message is gone');
-  assert.match(sources, /<OriginalMenuEntry /);
+const interactive = await loadInteractiveUi(`
+  export { default as DocumentViewer } from './ui/document-preview/DocumentViewer.jsx';
+  export { RowMenuItems } from './ui/Sources.jsx';
+  export { BackupSection } from './ui/settings/BackupSection.jsx';
+  export { PageView } from './ui/app/page-views.jsx';
+  export { AppContext } from './ui/app/app-context.js';
+  export { StudyServicesContext } from './ui/study-context.jsx';
+  export { ToastContext } from './ui/components/Feedback.jsx';
+  export { setUiLanguage } from './ui/i18n.js';
+`);
+
+test('DocumentViewer and Sources mount OriginalNotice, OriginalDialog and OriginalMenuEntry with live wiring', async () => {
+  const { React, mount, exports: { DocumentViewer, RowMenuItems, StudyServicesContext, ToastContext, setUiLanguage } } = interactive;
+  setUiLanguage('zh');
+  await withBrowserGlobals(async () => {
+    const missingDoc = {
+      documentId: 'doc-1',
+      id: 'doc-1',
+      revision: 'r1',
+      format: 'pdf',
+      title: 'Database System Concepts',
+      filename: 'Database System Concepts.pdf',
+      originalAvailable: false,
+      original: { ...ref, status: 'missing', reason: 'missing' },
+      sources: [{ id: 's1', text: 'Extracted text from chapter 1.', document: { page: 1, totalPages: 120 } }],
+    };
+    const call = async (action) => {
+      if (action === 'materials.document.get') return missingDoc;
+      if (action === 'materials.links.list') return { links: [] };
+      if (action === 'materials.annotation.list') return { items: [], stale: [] };
+      if (action === 'materials.original.status') return { info: { ...ref, status: 'missing', reason: 'missing' } };
+      if (action === 'runtime.capabilities') return [];
+      if (action === 'snapshot') return { decks: [], settings: {} };
+      return {};
+    };
+    const toast = { show() {}, error() {}, dismiss() {} };
+    const studyServices = { call, act: async () => undefined, busy: false, notify: noop, askInChat: noop, host: {}, openSettings: noop, navigate: noop, openModal: noop };
+    const wrap = (element) => React.createElement(
+      ToastContext.Provider,
+      { value: toast },
+      React.createElement(StudyServicesContext.Provider, { value: studyServices }, element),
+    );
+
+    // 1. DocumentViewer shows OriginalNotice for a missing referenced original, omits the old one-line copy, and opens OriginalDialog on action.
+    const viewer = mount(() => wrap(React.createElement(DocumentViewer, {
+      source: { id: 's1', title: 'Database System Concepts', text: 'Extracted text from chapter 1.', document: { format: 'pdf', page: 1, totalPages: 120 } },
+      call,
+      data: { sources: [], decks: [], settings: {} },
+      host: {},
+    })));
+    try {
+      await viewer.flush(10);
+      const viewerText = viewer.text();
+      assert.ok(viewerText.includes(`找不到原文件：${BOOK}`), `DocumentViewer renders OriginalNotice, got: ${viewerText}`);
+      assert.ok(!viewerText.includes('这份旧资料保存了提取文字'), 'the old one-line message is gone');
+      const relinkBtn = viewer.find((node) => node.type === 'button' && viewer.text(node).includes('重新指定…'));
+      assert.ok(relinkBtn, 'DocumentViewer OriginalNotice provides 重新指定…');
+      await viewer.act(() => click(relinkBtn));
+      await viewer.flush(6);
+      assert.ok(viewer.find((node) => node.type === 'input' && node.props?.['aria-label'] === '原文件的完整路径'), 'clicking 重新指定… opens OriginalDialog');
+      assert.ok(viewer.find((node) => node.type === 'input' && node.props?.type === 'file'), 'OriginalDialog exposes file picker');
+    } finally {
+      viewer.unmount();
+    }
+
+    // 2. Sources RowMenuItems renders OriginalMenuEntry when call is present, opens OriginalDialog on click, and hides it when call is absent.
+    const rowMenu = mount(() => wrap(React.createElement(RowMenuItems, {
+      item: { sourceIds: ['s1'], format: 'pdf', title: 'Database System Concepts' },
+    })));
+    try {
+      const entryBtn = rowMenu.find((node) => node.type === 'button' && rowMenu.text(node).includes('补全原文件…'));
+      assert.ok(entryBtn, 'Sources RowMenuItems mounts OriginalMenuEntry');
+      await rowMenu.act(() => click(entryBtn, { currentTarget: { closest: () => null } }));
+      await rowMenu.flush(6);
+      assert.ok(rowMenu.find((node) => node.type === 'input' && node.props?.['aria-label'] === '原文件的完整路径'), 'OriginalMenuEntry opens OriginalDialog');
+    } finally {
+      rowMenu.unmount();
+    }
+
+    const rowMenuNoCall = mount(() => React.createElement(
+      StudyServicesContext.Provider,
+      { value: { ...studyServices, call: undefined } },
+      React.createElement(RowMenuItems, { item: { sourceIds: ['s1'], format: 'pdf', title: 'Database System Concepts' } }),
+    ));
+    try {
+      assert.equal(rowMenuNoCall.find((node) => node.type === 'button' && rowMenuNoCall.text(node).includes('补全原文件…')), null);
+    } finally {
+      rowMenuNoCall.unmount();
+    }
+  });
 });
 
-test('the backup screen says referenced originals are not included, and the export tells how many were left out', async () => {
-  const settings = await readFile('ui/settings/BackupSection.jsx', 'utf8'), app = await readAppSource(), catalogue = JSON.parse(await readFile('ui/locales/en.original.json', 'utf8'));
-  const note = '已复制到资料库的原文件会放进备份；只记了路径的原文件留在你的电脑上，不在备份里，换电脑后需要重新指定。';
-  assert.ok(settings.includes(note)); assert.match(catalogue[note], /not in the backup/);
-  assert.match(app, /portableMaterials\?\.referencedOriginals\?\.length/);
-  const count = '备份已导出。其中 {0} 份原文件只记了路径，没有放进备份；换电脑后需要重新指定。';
-  assert.ok(app.includes(count)); assert.match(catalogue[count], /not in the backup/);
+test('the backup screen says referenced originals are not included, and exporting tells how many were left out in zh and en', async () => {
+  const { React, mount, exports: { BackupSection, PageView, AppContext, StudyServicesContext, ToastContext, setUiLanguage } } = interactive;
+  await withBrowserGlobals(async () => {
+    const prevCreate = URL.createObjectURL;
+    const prevRevoke = URL.revokeObjectURL;
+    const prevSetTimeout = globalThis.setTimeout;
+    const prevRaf = globalThis.requestAnimationFrame;
+    const prevCancelRaf = globalThis.cancelAnimationFrame;
+    const downloaded = [];
+    URL.createObjectURL = () => 'blob:backup-export';
+    URL.revokeObjectURL = () => {};
+    globalThis.setTimeout = (fn) => { fn(); return 0; };
+    globalThis.requestAnimationFrame = (fn) => { fn(); return 0; };
+    globalThis.cancelAnimationFrame = () => {};
+    const origCreateElement = globalThis.document.createElement;
+    globalThis.document.createElement = (tag) => {
+      if (tag === 'a') return { href: '', download: '', click() { downloaded.push({ href: this.href, download: this.download }); } };
+      return origCreateElement(tag);
+    };
+
+    try {
+      for (const language of ['zh', 'en']) {
+        setUiLanguage(language);
+        const notices = [];
+        const call = async (action) => {
+          if (action === 'export') {
+            return {
+              version: 1,
+              portableMaterials: {
+                referencedOriginals: [{ sourceId: 's1', path: BOOK }, { sourceId: 's2', path: 'D:\\other.pdf' }],
+              },
+            };
+          }
+          if (action === 'library.restorePoints.list') return { retention: { daily: 7, weekly: 4 }, totalExtraBytes: 0, points: [] };
+          return {};
+        };
+        const studyServices = { call, act: async () => undefined, busy: false, notify: (item) => notices.push(item), askInChat: noop, host: {}, openSettings: noop, navigate: noop, openModal: noop };
+        const toast = { show() {}, error() {}, dismiss() {} };
+
+        // BackupSection itself renders the referenced-originals note in both languages.
+        const backupMounted = mount(() => React.createElement(
+          StudyServicesContext.Provider,
+          { value: studyServices },
+          React.createElement(BackupSection, { root: '/lib', exportData: noop, onRestored: noop, initialRestorePoints: { retention: { daily: 7, weekly: 4 }, totalExtraBytes: 0, points: [] } }),
+        ));
+        try {
+          const backupText = backupMounted.text();
+          if (language === 'zh') {
+            assert.ok(backupText.includes('已复制到资料库的原文件会放进备份；只记了路径的原文件留在你的电脑上，不在备份里，换电脑后需要重新指定。'), backupText);
+          } else {
+            assert.match(backupText, /not in the backup/);
+            assert.doesNotMatch(backupText, han);
+          }
+        } finally {
+          backupMounted.unmount();
+        }
+
+        // PageView(page="settings") wires exportData -> BackupSection and notifies how many referenced originals were left out.
+        const appValue = {
+          language,
+          data: { root: '/lib', sources: [], decks: [], jobs: [], settings: {}, courses: [], capabilities: [] },
+          core: { call, setError: noop, notify: (item) => notices.push(item) },
+          shell: { appearance: {}, updateAppearance: noop, setTheme: noop, setSciencePrefs: noop, resetAppearance: noop },
+          lib: { settings: {} },
+          nav: { show: {} },
+          set: { setSettings: noop, setModal: noop },
+          tour: { tourStep: null },
+          settingsEntry: { legacy: null, setLegacy: noop, settingsFocus: 'settings-backup', setSettingsFocus: noop },
+          resetLibraryState: noop,
+          learn: { openLearningTarget: noop },
+          session: {},
+        };
+        const settingsView = mount(() => React.createElement(
+          ToastContext.Provider,
+          { value: toast },
+          React.createElement(
+            StudyServicesContext.Provider,
+            { value: studyServices },
+            React.createElement(
+              AppContext.Provider,
+              { value: appValue },
+              React.createElement(PageView, { page: 'settings', feedback: null }),
+            ),
+          ),
+        ));
+        try {
+          await settingsView.flush(12);
+          const exportBtn = settingsView.find((node) => node.type === 'button' && node.props?.['data-usage'] === 'settings.export');
+          assert.ok(exportBtn, `BackupSection export button rendered in ${language}`);
+          await settingsView.act(() => click(exportBtn));
+          await settingsView.flush(6);
+          assert.equal(notices.length, 1);
+          assert.equal(notices[0].tone, 'success');
+          assert.equal(notices[0].persistent, true);
+          if (language === 'zh') {
+            assert.equal(notices[0].text, '备份已导出。其中 2 份原文件只记了路径，没有放进备份；换电脑后需要重新指定。');
+          } else {
+            assert.match(notices[0].text, /2/);
+            assert.match(notices[0].text, /not in the backup/);
+            assert.doesNotMatch(notices[0].text, han);
+          }
+        } finally {
+          settingsView.unmount();
+        }
+      }
+      assert.equal(downloaded.length, 2);
+    } finally {
+      setUiLanguage('zh');
+      URL.createObjectURL = prevCreate;
+      URL.revokeObjectURL = prevRevoke;
+      globalThis.setTimeout = prevSetTimeout;
+      if (prevRaf === undefined) delete globalThis.requestAnimationFrame;
+      else globalThis.requestAnimationFrame = prevRaf;
+      if (prevCancelRaf === undefined) delete globalThis.cancelAnimationFrame;
+      else globalThis.cancelAnimationFrame = prevCancelRaf;
+    }
+  });
 });
