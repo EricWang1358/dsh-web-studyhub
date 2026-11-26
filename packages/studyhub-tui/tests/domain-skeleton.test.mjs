@@ -253,6 +253,11 @@ describe('Round 38: SkeletonView safe deletion ([D] + ConfirmDialog) E2E', () =>
       title: 'OS 知识骨架',
       ...seedZh,
     });
+    const readSavedSkeleton = async () => {
+      const manifest = JSON.parse(await readFile(join(libraryRoot, 'study-workspace.json'), 'utf8'));
+      const rows = JSON.parse(await readFile(join(libraryRoot, 'shards', manifest.shards.skeletons), 'utf8'));
+      return rows.find(row => row.id === skelZh.id);
+    };
 
     const tty = createVirtualTty(120, 36);
     let inkInstance = null;
@@ -308,6 +313,7 @@ describe('Round 38: SkeletonView safe deletion ([D] + ConfirmDialog) E2E', () =>
       );
       const afterCancelEsc = await host.call('skeleton.get', { id: skelZh.id });
       assert.equal(afterCancelEsc.ok, true, 'Skeleton must remain intact after cancelling with Esc');
+      assert.equal((await readSavedSkeleton())?.title, skelZh.title, 'both cancellations preserve the saved file');
 
       // Resize to 80x24 and confirm ConfirmDialog + deletion via D -> y
       tty.resize(80, 24);
@@ -324,18 +330,20 @@ describe('Round 38: SkeletonView safe deletion ([D] + ConfirmDialog) E2E', () =>
       );
       tty.assertHealthyScreen(dialogNarrowZh, 80, 24, 'ConfirmDialog 80x24 zh');
 
-      useDistTuiStore.setState({ toasts: [] });
+      const previousNotices = new Set(useDistTuiStore.getState().toastHistory.map(item => item.id));
       tty.send('y');
       await tty.waitFor(
         (s) =>
           !s.includes('确认删除知识骨架') &&
-          !s.includes('OS 知识骨架') &&
+          !s.includes('Root Concept') &&
           s.includes('课程主题预览') &&
-          useDistTuiStore.getState().toasts.some((toast) => toast.tone === 'success' && toast.text.includes('已删除知识骨架')),
+          useDistTuiStore.getState().toastHistory.some(item => !previousNotices.has(item.id) &&
+            item.tone === 'success' && item.text.includes(`已删除知识骨架「${skelZh.title}」`)),
         { label: 'Skeleton deleted via D -> y (zh)' },
       );
       const afterDeleteZh = await host.call('skeleton.get', { id: skelZh.id });
       assert.equal(afterDeleteZh.ok, false, 'Skeleton must be deleted after D -> y');
+      assert.equal(await readSavedSkeleton(), undefined, 'confirmation removed this skeleton from the committed file');
       const snapAfterDel = await host.call('snapshot', {});
       assert.equal(snapAfterDel.ok, true);
       assert.equal((snapAfterDel.value?.skeletons ?? []).some((s) => s.id === skelZh.id), false);
