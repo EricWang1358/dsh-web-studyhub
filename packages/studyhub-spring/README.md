@@ -1,5 +1,9 @@
 # StudyHub Spring
 
+> **实验性 beta，不供日常学习使用。** StudyHub Spring 是开发中的实验分支，不是 StudyHub 的推荐安装方式，也不在发布说明或下载页中提供给学习者。日常学习请使用 DSH 插件或 StudyHub 桌面版（Tauri）。这里的安装包和同步服务只用于开发与验证，数据格式和功能可能随时变化。
+>
+> **Experimental beta, not for regular use.** StudyHub Spring is an in-development experiment, not a recommended way to install StudyHub, and it is not offered to learners in release notes or download pages. For everyday study use the DSH plugin or the StudyHub desktop app (Tauri). The installers and sync relay described here are for development and verification only; data formats and features may change at any time.
+
 Track S 提供 Windows 和 Linux 桌面程序，以及可以单独部署的 Java 加密同步服务。桌面程序把主仓的 React 界面、Java 21 运行时和兼容引擎一起打包。同步服务只需 Java 或 Docker。
 
 ## 启动桌面版
