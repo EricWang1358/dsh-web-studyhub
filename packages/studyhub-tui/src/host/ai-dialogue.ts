@@ -1,18 +1,32 @@
 /**
- * Unified AI dialogue, prompt-building, retell evaluation, and Q&A persistence core (#1354 P3-a).
+ * Unified AI dialogue, prompt-building, guided teaching (`teach.*`), retell evaluation (`teach.retell`),
+ * and atomic Q&A persistence (`note.qa.save`) core (#1354 P3 / D7).
  *
- * Shared across all four AI study entrypoints:
- * - Explain (`AiHelpDrawer`, `review-helpers`)
- * - Follow-up (`NextStepFollowupBar`)
- * - Guided Study (`TeachModal`, `AssistantPanel`)
- * - Feynman Retell (`RetellModal`, `AssistantPanel`)
+ * Single owner across every AI study surface in the TUI:
+ * - Explain & Follow-up (`AiHelpDrawer`, `review-helpers`, `NextStepFollowupBar`)
+ * - Guided Study & Retell (`AssistantPanel`, `RetellModal`)
+ * - Material Reader & Companions (`DocumentReader`, `ReaderNotesDrawer`, `CompanionsModal`, `TranslationGlossaryModal`)
+ * - Knowledge Skeleton (`SkeletonView`)
  *
  * Zero React / `marked` dependencies so every lazy chunk can import it cleanly.
  */
 import type { ChatMessage, HostClient, UiLanguage } from '../types/contracts.js';
 import { errorMessage, tryAction } from './sample-actions.js';
 
-export type UnifiedAiMode = 'explain' | 'plain_explain' | 'followup' | 'guided' | 'assistant';
+export const UNIFIED_AI_MODES = Object.freeze([
+  'explain',
+  'explain_followup',
+  'plain_explain',
+  'followup',
+  'guided',
+  'assistant',
+  'reader_ask',
+  'companion_ask',
+  'glossary_suggest',
+  'skeleton_generate',
+] as const);
+
+export type UnifiedAiMode = (typeof UNIFIED_AI_MODES)[number];
 
 export interface DialogueTurn {
   role: 'user' | 'assistant';
@@ -34,10 +48,47 @@ export interface UnifiedRetellVerdict {
   };
 }
 
-const MODEL_UNAVAILABLE_RE =
-  /configure a model|model.*unavailable|no.*model|api.?key|unauthorized|forbidden|\b401\b|\b403\b|econnrefused|timed out|timeout|未配置|可用.*模型|模型不可用/i;
+export interface SkippedTeachingStep {
+  index: number;
+  lesson?: string;
+  answer?: string;
+}
 
-/** True when this host can stream a live AI reply (the four dialogue entrypoints share this gate). */
+export interface TeachingSessionView {
+  id: string;
+  mode: 'understanding' | 'calculation' | string;
+  index: number;
+  total: number;
+  lesson?: string;
+  check?: string;
+  feedback?: string;
+  skippedSteps?: SkippedTeachingStep[];
+  masteredCount?: number;
+  wrongTries?: number;
+  skipped?: boolean;
+  skippedAll?: boolean;
+  stage?: string;
+  assumptions?: string;
+  units?: string;
+  rounding?: string;
+  citations?: Array<{ sourceId?: string; quote?: string }>;
+  complete: boolean;
+  transfer?: string;
+}
+
+const MODEL_UNAVAILABLE_RE =
+  /configure a model|model.*unavailable|no.*model|api.?key|unauthorized|forbidden|\b401\b|\b403\b|econnrefused|timed out|timeout|未配置|可用.*模型|模型不可用|没有可用模型|连接模型/i;
+
+/**
+ * Backend `teach.*` refusal codes (lib/teaching.js `nonRetryableError`). The TUI classifies by code first,
+ * because the message text is localized on the way here; the text patterns remain for callers without a code.
+ */
+const MODEL_UNAVAILABLE_CODES = new Set(['teaching-no-model', 'retell-no-model']);
+const ANSWER_FIRST_CODE = 'teaching-answer-first';
+/** The backend session moved past the step the TUI shows (an Esc-dropped reply, or the main chat advanced it). */
+const STALE_TEACH_STEP_CODES = new Set(['teaching-step-changed', 'teaching-already-complete']);
+
+/** True when this host can stream a live AI reply (all dialogue entrypoints share this gate). */
 export function isAiStreamingAvailable(host: Pick<HostClient, 'streamComplete'> | null | undefined): boolean {
   return typeof host?.streamComplete === 'function';
 }
@@ -50,7 +101,7 @@ export function aiStreamUnavailableMessage(lang: UiLanguage): string {
 }
 
 /**
- * One learner-facing error text for every streaming dialogue failure (#1354 P3-a).
+ * One learner-facing error text for every streaming dialogue failure (#1354 P3).
  * Backend messages keep their existing localized mapping; only the empty/unknown case is
  * given a readable fallback instead of leaking `Unknown error`.
  */
@@ -64,9 +115,19 @@ export function describeAiDialogueError(error: unknown, lang: UiLanguage): strin
   return raw;
 }
 
-/** Canonical model-availability error classifier shared across TeachModal, RetellModal, and AssistantPanel. */
-export function isModelUnavailableError(message: string): boolean {
-  return MODEL_UNAVAILABLE_RE.test(message);
+/** Canonical model-availability error classifier shared across Guided Study, RetellModal, and AssistantPanel. */
+export function isModelUnavailableError(message: string, code?: string): boolean {
+  return (code !== undefined && MODEL_UNAVAILABLE_CODES.has(code)) || MODEL_UNAVAILABLE_RE.test(message);
+}
+
+/** True when backend `teach.start` refused because the learner has not answered the card yet. */
+export function needsAnswerFirstError(message: string, code?: string): boolean {
+  return code === ANSWER_FIRST_CODE || /answer the original question before guided teaching|请先作答原题/i.test(message);
+}
+
+/** True when a `teach.answer` / `teach.skip` refusal means the TUI's step is stale and must be re-read. */
+export function isStaleTeachStepError(code: string | undefined): boolean {
+  return code !== undefined && STALE_TEACH_STEP_CODES.has(code);
 }
 
 /** Single reveal-gate check: never expose reference answers or official solutions before reveal/feedback. */
@@ -74,39 +135,76 @@ export function canExposeReferenceAnswer(run: { revealed?: unknown; feedback?: u
   return Boolean(run?.revealed || run?.feedback);
 }
 
-/** Single canonical system prompt generator for explain / plain_explain / followup / guided / assistant. */
+/**
+ * Single canonical system prompt generator for every AI dialogue and generation mode in the TUI (#1354 D7).
+ */
 export function buildUnifiedAiSystemPrompt(
   mode: UnifiedAiMode,
   lang: UiLanguage,
-  opts?: { stageLabel?: string },
+  opts?: { stageLabel?: string; target?: 'zh' | 'en' },
 ): string {
+  if (mode === 'glossary_suggest') {
+    const target = opts?.target ?? lang;
+    if (target === 'en') {
+      return (
+        'You are a domain-accurate terminology translator for study materials. ' +
+        'Given a source term and document context, reply with ONLY the single most standard English translation of that term ' +
+        '(or keep the original term if conventionally untranslated). No quotes, no numbering, no explanation.'
+      );
+    }
+    return (
+      '你是学习资料的专业术语翻译助手。根据文档标题、上下文与已有术语表，为给定术语给出最准确、常用的中文译法' +
+      '（若学科惯例保留原文则直接返回原文）。只输出这一个译法本身，不要加引号、编号或任何解释。'
+    );
+  }
+
+  if (mode === 'skeleton_generate') {
+    return [
+      'Design a hierarchical knowledge skeleton from the supplied topics and cards.',
+      'Return ONLY valid JSON: {title:string, overview:string, nodes:[{id:string, term:string, meaning:string, parent?:string, cards:string[]}], relations:[{from:string, to:string, type:"part-of"|"causes"|"contrasts"|"prerequisite"|"example-of"|"related", note?:string}]}.',
+      'Keep 5-20 nodes, depth <= 3, and meaning <= 50 chars.',
+    ].join('\n');
+  }
+
   if (lang === 'en') {
     switch (mode) {
       case 'explain':
         return 'You are a concise, insightful study tutor inside a terminal flashcard/quiz app. Explain concepts clearly using structured bullet points and standard Markdown/LaTeX math ($...$ or $$...$$). Focus on why the answer is right, why common traps are wrong, and intuitive mental models.';
+      case 'explain_followup':
+        return 'You are a follow-up study tutor inside a terminal flashcard/quiz app. Using the prior conversation turns and card context, directly and precisely answer the learner\'s current follow-up question (resolving references like "just now", "that term", or "the previous step") without re-explaining the entire card from scratch. Use concise Markdown and LaTeX math ($...$ or $$...$$).';
       case 'plain_explain':
-        return 'You are the StudyHub study tutor. Give a plain, everyday-analogy explanation of this question in under 150 words; go straight to the point without repeating the user prompt.';
+        return 'You are the StudyHub study assistant. Explain the current question in plain everyday language with a concrete analogy in under 150 words; go straight to the point without repeating the user prompt.';
       case 'followup':
         return 'You are StudyHub AI Tutor. The user just viewed an AI study tool output for a flashcard/question and is giving a follow-up instruction. Use the provided question, user answer, and tool output directly as context without asking them to paste anything again. Be concise, accurate, and directly fulfill the instruction.';
       case 'guided':
-        return `You are StudyHub Guided Study Tutor (current stage: ${opts?.stageLabel || 'Guided'}). Reply in concise sentences focusing on one point at a time; never repeat the user prompt.`;
+        return `You are the StudyHub guided study tutor at stage "${opts?.stageLabel || 'Guided'}". Stay grounded in this multi-turn conversation and the card context; focus on one clear point per turn and never repeat the user prompt.`;
+      case 'reader_ask':
+        return 'You are the StudyHub terminal tutor. Answer based strictly on the provided page text; clearly mark any general background knowledge. Output concise Markdown.';
+      case 'companion_ask':
+        return 'You are the StudyHub Interactive Companion tutor. Answer the learner question concisely in Markdown using the companion context.';
       case 'assistant':
       default:
-        return 'You are the StudyHub TUI assistant. Reply concisely; never repeat the user prompt.';
+        return 'You are the StudyHub study assistant. Stay grounded in this multi-turn conversation and the card context. Answer directly and accurately; if asked to quote an earlier reply verbatim, quote it accurately.';
     }
   }
   switch (mode) {
     case 'explain':
       return '你是终端学习助手里的专业助教。请用简洁清晰的中文（支持 Markdown 与 LaTeX 数学公式 $...$ / $$...$$）为学生讲解当前题目：点明核心概念、解题思路、易错点辨析与直觉记忆法。';
+    case 'explain_followup':
+      return '你是终端学习助手里的追问助教。请结合上方对话历史与题目上下文，直接、精准地回答学生当前这个追问（准确理解「刚才」「那个词」「上一步」等指代），不要从头复述整道题或重复已经讲过的内容。请用简洁清晰的中文（支持 Markdown 与 LaTeX 数学公式 $...$ / $$...$$）。';
     case 'plain_explain':
-      return '你是 StudyHub 学习助手。用大白话+生活类比为当前题写通俗讲解，180字内，直接给干货，不要复述用户原话。';
+      return '你是 StudyHub 学习助手。用大白话+生活类比为当前题写通俗讲解，180字内，直接给干货，紧扣本题答案与解析，不要复述用户原话。';
     case 'followup':
       return '你是 StudyHub 学习助教。用户刚刚查看了某道题的 AI 工具结果，现在直接下达后续指令。请直接基于提供的题目、用户作答和本次工具输出作答，不要让用户重复粘贴内容；回答清晰、准确、直奔主题。';
     case 'guided':
-      return `你是 StudyHub 带学导师，当前阶段「${opts?.stageLabel || '带学'}」。中文短句，一次聚焦一个点，不复述用户原话。`;
+      return `你是 StudyHub 带学导师，当前阶段「${opts?.stageLabel || '带学'}」。保持多轮会话连贯，紧扣当前题目与解析，每次聚焦一个关键点，不复述用户原话。`;
+    case 'reader_ask':
+      return '你是 StudyHub 终端助教。请严格基于提供的当前页面内容回答用户问题；如需补充通用背景，请明确标注。使用简洁 Markdown 输出。';
+    case 'companion_ask':
+      return '你是 StudyHub 交互伴学导师。请基于伴学课内容与结构简洁回答学习者的困惑，使用 Markdown 与 LaTeX 数学公式。';
     case 'assistant':
     default:
-      return '你是 StudyHub 学习助手，中文短句直接给答案或步骤，不复述用户原话。';
+      return '你是 StudyHub 学习助手。请严格基于本会话的完整多轮对话历史与当前题目上下文回答；如果用户询问你之前的回复原文，请准确引用。回答简洁清晰。';
   }
 }
 
@@ -120,6 +218,26 @@ export function buildInitialExplainPrompt(revealed: boolean, lang: UiLanguage): 
   return revealed
     ? '请帮我深入讲解这道题的考点、解题思路和容易混淆的误区。'
     : '请先给我一点解题启发和思路提示，先不要直接剧透最终选项或答案。';
+}
+
+/** Canonical user prompt builder for Reader page Ask-AI (`DocumentReader`). */
+export function buildReaderAskPrompt(params: {
+  title: string;
+  page: number;
+  lastPage: number;
+  text: string;
+  question: string;
+}): string {
+  return `Document: ${params.title} (Page ${params.page}/${params.lastPage})\n\n--- PAGE TEXT ---\n${params.text.slice(0, 14000)}\n--- END ---\n\nQuestion: ${params.question}`;
+}
+
+/** Canonical user prompt builder for Companion Ask-AI fallback (`CompanionsModal`). */
+export function buildCompanionAskPrompt(params: {
+  title: string;
+  summaryContext: string;
+  question: string;
+}): string {
+  return `Companion: ${params.title}\n\n${params.summaryContext}\n\nLearner Question: ${params.question}`;
 }
 
 export interface CardDialoguePromptParams {
@@ -219,63 +337,223 @@ export interface PersistCardQaResult {
   ok: boolean;
   followupId?: string;
   noteSaved: boolean;
+  noteId?: string;
+  noteTitle?: string;
+  status?: 'created' | 'added' | 'unchanged' | string;
   savedItem?: { id: string; question: string; answer: string; at: string };
-  warning?: string;
   error?: string;
 }
 
 /**
- * Unified two-step Q&A persistence (`card.followup.add` with `replace: true` -> `note.qa.add` with `title`).
- * Guarantees identical deduplication, note-title contract, and truthful partial-failure reporting
- * across both `AiHelpDrawer` and `NextStepFollowupBar`.
+ * Unified atomic Q&A-to-note persistence via backend composite action `note.qa.save` (#1354 D7 / P3).
+ *
+ * Single backend transaction upserts `card.followups` (`replace: true`) and appends into the study note
+ * (with `title` and idempotent deduplication). Zero half-written follow-ups on failure.
  */
 export async function persistCardQaToFollowupAndNote(params: PersistCardQaParams): Promise<PersistCardQaResult> {
   const { host, deckId, cardId, noteTitle, lang } = params;
-  const question = params.question.slice(0, 1000);
-  const answer = params.answer.slice(0, 8000);
+  const question = params.question.replace(/\s+/g, ' ').trim().slice(0, 1000);
+  const answer = params.answer.trim().slice(0, 8000);
 
-  const followupRes = await tryAction<{ item?: { id?: string } }>(host, 'card.followup.add', {
+  const res = await tryAction<{
+    item?: { id?: string; question?: string; answer?: string; at?: string };
+    status?: string;
+    note?: { id?: string; title?: string };
+  }>(host, 'note.qa.save', {
     deckId,
     cardId,
     question,
     answer,
+    title: noteTitle.slice(0, 180),
+    language: lang,
     source: 'assistant',
     silent: true,
     replace: true,
   });
-  if (!followupRes.ok || !followupRes.value?.item?.id) {
+
+  if (!res.ok || !res.value?.item?.id) {
     return {
       ok: false,
       noteSaved: false,
-      error: followupRes.error?.message || (lang === 'en' ? 'Failed to save follow-up' : '保存追问失败'),
+      error:
+        res.error?.message ||
+        (lang === 'en' ? 'Failed to save Q&A to study notes' : '保存问答到学习笔记失败'),
     };
   }
 
-  const followupId = followupRes.value.item.id;
-  const savedItem = { id: followupId, question, answer, at: new Date().toISOString() };
+  const followupId = res.value.item.id;
+  const savedItem = {
+    id: followupId,
+    question: res.value.item.question || question,
+    answer: res.value.item.answer || answer,
+    at: res.value.item.at || new Date().toISOString(),
+  };
 
-  const noteRes = await tryAction<{ status?: string }>(host, 'note.qa.add', {
-    deckId,
-    cardId,
+  return {
+    ok: true,
     followupId,
-    title: noteTitle,
-    language: lang,
+    noteSaved: true,
+    noteId: res.value.note?.id,
+    noteTitle: res.value.note?.title || noteTitle,
+    status: res.value.status,
+    savedItem,
+  };
+}
+
+/** Format the active backend `teach.*` step into concise Markdown for Guided Study. */
+export function formatTeachStepMarkdown(session: TeachingSessionView, lang: UiLanguage): string {
+  const en = lang === 'en';
+  const stepNum = Math.min(session.total || 1, (session.index ?? 0) + 1);
+  const total = Math.max(1, session.total || 1);
+  const stageTag = session.stage ? ` · ${session.stage}` : '';
+  const parts: string[] = [
+    en ? `### Step ${stepNum}/${total}${stageTag}` : `### 第 ${stepNum}/${total} 步${stageTag}`,
+  ];
+  if (session.lesson) parts.push(session.lesson);
+  const metaLines: string[] = [];
+  if (session.assumptions) metaLines.push(`- **${en ? 'Assumptions' : '假设'}**: ${session.assumptions}`);
+  if (session.units) metaLines.push(`- **${en ? 'Units' : '单位'}**: ${session.units}`);
+  if (session.rounding) metaLines.push(`- **${en ? 'Rounding' : '精度'}**: ${session.rounding}`);
+  if (Array.isArray(session.citations) && session.citations.length > 0) {
+    const firstQuote = session.citations[0]?.quote?.trim();
+    if (firstQuote) metaLines.push(`- **${en ? 'Citation' : '依据'}**: "${firstQuote}"`);
+  }
+  if (metaLines.length > 0) parts.push(metaLines.join('\n'));
+  if (session.check) {
+    parts.push(`> **${en ? 'Check' : '检验提问'}**: ${session.check}`);
+  }
+  return parts.join('\n\n');
+}
+
+/** Format backend `teach.*` completion summary & skipped-steps recap. */
+export function formatTeachCompletionMarkdown(session: TeachingSessionView, lang: UiLanguage): string {
+  const en = lang === 'en';
+  const skipped = Array.isArray(session.skippedSteps) ? session.skippedSteps : [];
+  const mastered =
+    typeof session.masteredCount === 'number'
+      ? session.masteredCount
+      : Math.max(0, (session.total || 0) - skipped.length);
+  const total = Math.max(1, session.total || 1);
+  const parts: string[] = [
+    en ? '### Teaching Complete · Transfer Rule' : '### 带学完成 · 核心迁移法则',
+  ];
+  if (session.transfer) parts.push(session.transfer);
+  else {
+    parts.push(
+      en
+        ? 'Guided teaching finished. Press [p] to enter Retell, or [F] in Review for Feynman Retell.'
+        : '已完成本轮带学，可按 [p] 返回复述阶段，或在刷题页按 [F] 做费曼复述。',
+    );
+  }
+  if (skipped.length > 0) {
+    const summaryTitle = en
+      ? `#### Skipped Steps (${skipped.length} not counted as mastered; mastered ${mastered}/${total})`
+      : `#### 已跳过步骤（${skipped.length} 步未计为已掌握，已掌握 ${mastered}/${total} 步）`;
+    const items = skipped.map((item) => {
+      const num = (item.index ?? 0) + 1;
+      const body = item.lesson ? item.lesson : en ? '(see key point above)' : '（见上方要点）';
+      return en ? `- Step ${num}: ${body}` : `- 第 ${num} 步：${body}`;
+    });
+    parts.push(`${summaryTitle}\n${items.join('\n')}`);
+  }
+  return parts.join('\n\n');
+}
+
+/** Load an existing backend `teach.get` session or start a new one via `teach.start` (#1354 P3-c). */
+export async function loadTeachSession(
+  host: HostClient,
+  params: {
+    runId: string;
+    cardId: string;
+    index: number;
+    queueVersion?: number;
+    mode?: 'understanding' | 'calculation';
+    language: UiLanguage;
+    existingId?: string;
+    existingMode?: string;
+  },
+): Promise<{ ok: true; session: TeachingSessionView } | { ok: false; error: string; isModelError: boolean; needsAnswerFirst: boolean }> {
+  const targetMode = params.mode ?? 'understanding';
+  if (params.existingId && (params.existingMode || 'understanding') === targetMode) {
+    const existingRes = await getTeachSession(host, { id: params.existingId, language: params.language });
+    if (existingRes.ok) return existingRes;
+  }
+  const startRes = await tryAction<TeachingSessionView>(host, 'teach.start', {
+    runId: params.runId,
+    cardId: params.cardId,
+    index: params.index,
+    queueVersion: params.queueVersion ?? 0,
+    mode: targetMode,
+    language: params.language,
   });
-  if (!noteRes.ok) {
-    const reason = noteRes.error?.message || (lang === 'en' ? 'Failed to add Q&A to study notes' : '写入学习笔记失败');
+  if (!startRes.ok || !startRes.value?.id) {
+    const err =
+      startRes.error?.message ||
+      (params.language === 'en' ? 'Failed to start guided teaching' : '无法开启苏格拉底带学');
+    const code = startRes.error?.code;
     return {
-      ok: true,
-      followupId,
-      noteSaved: false,
-      savedItem,
-      warning:
-        lang === 'en'
-          ? `Saved to question explanations (reused next time), but adding to notes failed: ${reason}`
-          : `已保存到本题讲解（下次可直接复用），但写入学习笔记失败：${reason}`,
+      ok: false,
+      error: err,
+      isModelError: isModelUnavailableError(err, code),
+      needsAnswerFirst: needsAnswerFirstError(err, code),
     };
   }
+  return { ok: true, session: startRes.value };
+}
 
-  return { ok: true, followupId, noteSaved: true, savedItem };
+/** Read the backend's current `teach.get` view of a session (resume, or resync a stale step). */
+export async function getTeachSession(
+  host: HostClient,
+  params: { id: string; language: UiLanguage },
+): Promise<{ ok: true; session: TeachingSessionView } | { ok: false; error: string }> {
+  const res = await tryAction<TeachingSessionView>(host, 'teach.get', { id: params.id });
+  if (res.ok && res.value?.id) return { ok: true, session: res.value };
+  return {
+    ok: false,
+    error: (!res.ok && res.error?.message) || (params.language === 'en' ? 'Failed to read guided teaching' : '读取带学进度失败'),
+  };
+}
+
+/** Submit a learner response to the active backend `teach.answer` step (#1354 P3-c). */
+export async function submitTeachAnswer(
+  host: HostClient,
+  params: { id: string; answer: string; stepIndex: number; language: UiLanguage },
+): Promise<{ ok: true; session: TeachingSessionView } | { ok: false; error: string; isModelError: boolean; stale: boolean }> {
+  const res = await tryAction<TeachingSessionView>(host, 'teach.answer', {
+    id: params.id,
+    answer: params.answer,
+    stepIndex: params.stepIndex,
+  });
+  if (!res.ok || !res.value) {
+    const err =
+      res.error?.message ||
+      (params.language === 'en' ? 'Failed to submit teaching answer' : '提交带学回答失败');
+    const code = res.error?.code;
+    return { ok: false, error: err, isModelError: isModelUnavailableError(err, code), stale: isStaleTeachStepError(code) };
+  }
+  return { ok: true, session: res.value };
+}
+
+/** Skip current step (or all remaining steps) via backend `teach.skip` (0 model calls, #1318 / #1354 P3-c). */
+export async function skipTeachStep(
+  host: HostClient,
+  params: { id: string; stepIndex: number; all?: boolean; language: UiLanguage },
+): Promise<{ ok: true; session: TeachingSessionView } | { ok: false; error: string; stale: boolean }> {
+  const res = await tryAction<TeachingSessionView>(host, 'teach.skip', {
+    id: params.id,
+    stepIndex: params.stepIndex,
+    ...(params.all ? { all: true } : {}),
+  });
+  if (!res.ok || !res.value) {
+    return {
+      ok: false,
+      error:
+        res.error?.message ||
+        (params.language === 'en' ? 'Failed to skip teaching step' : '跳过当前步骤失败'),
+      stale: isStaleTeachStepError(res.error?.code),
+    };
+  }
+  return { ok: true, session: res.value };
 }
 
 /** Unified Feynman retell submission via backend `teach.retell`, shared by RetellModal and AssistantPanel. */
@@ -304,7 +582,7 @@ export async function submitRetellEvaluation(
     return {
       ok: false,
       error: err || (params.language === 'en' ? 'Feynman retell check failed' : '费曼复述评估失败'),
-      isModelError: !err || isModelUnavailableError(err),
+      isModelError: !err || isModelUnavailableError(err, res.error?.code),
     };
   }
   const v = res.value;

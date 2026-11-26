@@ -5,11 +5,12 @@ import { createRequire } from "node:module";
 import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { reviewElement } from "./helpers/review-render.mjs";
+import { reviewElement, reviewParts } from "./helpers/review-render.mjs";
 
 // #180: a background-assistant failure is shown through the one model-error note, with the fix that can work.
 const compiled = await build({ stdin: { contents: `
   export { default as Review } from './ui/Review.jsx';
+  export { default as QuestionRun } from './ui/review/QuestionRun.jsx';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { ModelSettingsContext } from './ui/ModelErrorNote.jsx';
   export { FAILURE_COPY, describeFailure, describeModelError, plainAssistFailure } from './ui/generation-status.js';
@@ -104,10 +105,68 @@ test("model failures keep 改一改再提交 when the task has editable input an
   assert.doesNotMatch(failed({ mode: "derive", followupId: "f1", question: "", message: RAW_403 }), /改一改再提交/);
 });
 
-test("the dist of the English catalogue and the source: the doubled prefix is gone from the practice page (#180)", () => {
+test("QuestionRun renders ModelErrorNote and strips doubled assist prefixes for both model and generic failures (#180)", () => {
   const files = readdirSync("ui/locales").filter((file) => file === "en.wave4.json");
   assert.equal(files.length, 1);
-  const source = readFileSync("ui/review/QuestionRun.jsx", "utf8");
-  assert.match(source, /ModelErrorNote/);
-  assert.match(source, /plainAssistFailure/);
+
+  const renderQuestionRun = (task, language = "zh") => {
+    m.setUiLanguage(language);
+    try {
+      const { services, props } = reviewParts({
+        run: { id: "r", index: 0, total: 2, card, revealed: false, feedback: null, solution: null },
+        data: { sources: [] },
+        host: {},
+        choice: true,
+        isCloze: false,
+        selected: [],
+        clozeValues: {},
+        shellTitle: "Review",
+        busy: false,
+        assistTasks: [{ id: "t", cardId: "q", mode: "ask", status: "failed", question: "为什么？", choices: ["prerequisite"], ...task }],
+      });
+      return renderToStaticMarkup(
+        h(
+          m.ModelSettingsContext.Provider,
+          { value: () => {} },
+          h(
+            m.StudyServicesContext.Provider,
+            { value: services },
+            h(m.QuestionRun, {
+              session: props.session,
+              data: props.data,
+              coachProps: props.coachProps,
+              links: props.links,
+              context: props.context,
+              feedback: props.feedback,
+            }),
+          ),
+        ),
+      );
+    } finally {
+      m.setUiLanguage("zh");
+    }
+  };
+
+  // Model error renders through ModelErrorNote without doubled backend prefix (both zh and en).
+  const modelZh = renderQuestionRun({ message: `后台助教未完成：${RAW_403}` }, "zh");
+  assert.match(modelZh, /data-kind="rejected"/);
+  assert.match(modelZh, /role="alert"/);
+  assert.match(modelZh, /模型服务拒绝了请求/);
+  assert.doesNotMatch(modelZh, /后台助教未完成/);
+
+  const modelEn = renderQuestionRun({ message: `后台助教未完成：${RAW_403}` }, "en");
+  assert.match(modelEn, /data-kind="rejected"/);
+  assert.match(modelEn, /role="alert"/);
+  assert.doesNotMatch(modelEn, /后台助教未完成/);
+  assert.match(modelEn, /Authentication failed/);
+
+  // Generic content failure uses single humanized prefix from plainAssistFailure without doubling.
+  const genericZh = renderQuestionRun({ message: "后台助教未完成：新前置题格式无效" }, "zh");
+  assert.match(genericZh, /role="status"/);
+  assert.match(genericZh, /后台助教没能完成：新前置题格式无效/);
+  assert.doesNotMatch(genericZh, /没能完成：后台助教未完成/);
+
+  // Empty error falls back to explicit copy instead of rendering a blank alert.
+  const emptyZh = renderQuestionRun({ message: "" }, "zh");
+  assert.match(emptyZh, /后台助教没能完成：没有拿到具体原因/);
 });

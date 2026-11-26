@@ -9,7 +9,8 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { inApp } from './helpers/fake-app.mjs';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
@@ -20,12 +21,16 @@ const compiled = await build({ stdin: { contents: `
   export { default as SourcePicker } from './ui/SourcePicker.jsx';
   export { default as DocumentViewer, sourceTextClass, originalHandling, viewerFormat } from './ui/document-preview/DocumentViewer.jsx';
   export { sourceFormatLabel, SOURCE_PICKER_FIRST_ROWS } from './ui/SourcePicker.jsx';
+  export { default as AppearanceSection } from './ui/settings/AppearanceSection.jsx';
+  export { default as AppSidebar } from './ui/app/AppSidebar.jsx';
+  export { AppContext } from './ui/app/app-context.js';
+  export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
-bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
+bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom', '@base-ui/*'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
 const { ScrollWindow, filterItems, scrollEdges, edgeTracker, CourseField, courseQuery, pickCourse, rankCourses, CourseList, CourseSettings, groupCourseNames, findDuplicateCourses, courseNameKey,
-  splitCourseName, SourcePicker, DocumentViewer, sourceTextClass, originalHandling, viewerFormat, sourceFormatLabel, SOURCE_PICKER_FIRST_ROWS, setUiLanguage } = module.exports;
+  splitCourseName, SourcePicker, DocumentViewer, sourceTextClass, originalHandling, viewerFormat, sourceFormatLabel, SOURCE_PICKER_FIRST_ROWS, AppearanceSection, AppSidebar, setUiLanguage } = module.exports;
 const han = /[㐀-鿿]/;
 const render = (element, language = 'zh') => { setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { setUiLanguage('zh'); } };
 const h = React.createElement;
@@ -412,9 +417,51 @@ test('SourcePicker lists documents inside a filterable scroll window', () => {
 // the language follows the browser on first run and is rarely changed after, so it does not need a control on every page.
 test('the interface language has one place: 设置 › 界面, and no switch in the sidebar', () => {
   assert.equal(existsSync('ui/LanguageSwitch.jsx'), false, 'the sidebar switch is deleted');
-  const settings = readFileSync('ui/settings/AppearanceSection.jsx', 'utf8');
-  assert.match(settings, /label=\{ui\('界面语言'\)\}[^>]*data-tour="settings-appearance-language"/);
-  for (const file of ['ui/app/SidebarNav.jsx', 'ui/app/SidebarFooter.jsx', 'ui/app/AppSidebar.jsx']) assert.doesNotMatch(readFileSync(file, 'utf8'), /LanguageSwitch|study-language-switch|setUiLanguage/, file);
+
+  const appearanceHtml = render(h(AppearanceSection, {
+    appearance: {
+      language: 'zh',
+      theme: 'light',
+      onLanguage() {},
+      onTheme() {},
+    },
+  }));
+  const langField = appearanceHtml.match(/<[^>]*data-tour="settings-appearance-language"[^>]*>[\s\S]*?<\/div>\s*<\/div>|<[^>]*data-tour="settings-appearance-language"[^>]*>[\s\S]*?English[\s\S]*?<\/div>/)?.[0] || '';
+  assert.ok(langField, 'AppearanceSection renders the data-tour="settings-appearance-language" control');
+  assert.match(langField, /界面语言/);
+  assert.match(langField, /中文/);
+  assert.match(langField, /English/);
+
+  const noop = () => {};
+  const renderSidebar = (shellOverrides) => render(inApp(module.exports, h(AppSidebar), {
+    data: { root: '/library', decks: [], sources: [], today: { due: 0 } },
+    app: {
+      shell: {
+        rootRef: { current: null },
+        navDrawer: false,
+        navOpen: false,
+        narrowWindow: false,
+        setSidebarCollapsed: noop,
+        setNavOpen: noop,
+        ...shellOverrides,
+      },
+      nav: { navPage: 'library', page: 'library', pageTarget: null, navigate: noop },
+      session: { run: null, onCoachPractice: noop, actions: { openShortcutHelp: noop } },
+      intents: { resumeOrStart: noop },
+      board: { count: 0, due: { overdue: 0, today: 0 } },
+      finder: { openFinder: noop },
+    },
+  }));
+
+  for (const [label, html] of [
+    ['docked sidebar', renderSidebar({ navDrawer: false })],
+    ['drawer sidebar', renderSidebar({ navDrawer: true, navOpen: true })],
+  ]) {
+    assert.match(html, /class="side-nav/, `${label} renders SidebarNav`);
+    assert.match(html, /class="sidebar-bottom"/, `${label} renders SidebarFooter`);
+    assert.match(html, /data-tour="nav-settings"/, `${label} includes 设置`);
+    assert.doesNotMatch(html, /study-language-switch|settings-appearance-language|界面语言/, `${label} renders no language switcher`);
+  }
 });
 
 /* ---------- Word and PowerPoint (WP22) in the viewer and the picker ---------- */

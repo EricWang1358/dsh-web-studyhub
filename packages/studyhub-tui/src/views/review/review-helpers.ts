@@ -488,7 +488,7 @@ export function currentDeckIdOf(run: ReviewRun | null | undefined): string | nul
   return firstScope || null;
 }
 
-/** Build the daily course study-note title expected by `note.qa.add` (mirrors `ui/review/question-note.js`). */
+/** Build the daily course study-note title expected by `note.qa.save` / `note.qa.add` (mirrors `ui/review/question-note.js`). */
 export function buildDailyQuestionNoteTitle(
   run: ReviewRun | null | undefined,
   decks: ReadonlyArray<{ id?: string; course?: string; folder?: string }> | undefined,
@@ -508,14 +508,7 @@ export function buildDailyQuestionNoteTitle(
 }
 
 export function buildCardHelpSystemPrompt(lang: UiLanguage, isFollowup = false): string {
-  if (isFollowup) {
-    return lang === 'en'
-      ? 'You are a follow-up study tutor inside a terminal flashcard/quiz app. Using the prior conversation turns and card context, directly and precisely answer the learner\'s current follow-up question (resolving references like "just now", "that term", or "the previous step") without re-explaining the entire card from scratch. Use concise Markdown and LaTeX math ($...$ or $$...$$).'
-      : '你是终端学习助手里的追问助教。请结合上方对话历史与题目上下文，直接、精准地回答学生当前这个追问（准确理解「刚才」「那个词」「上一步」等指代），不要从头复述整道题或重复已经讲过的内容。请用简洁清晰的中文（支持 Markdown 与 LaTeX 数学公式 $...$ / $$...$$）。';
-  }
-  // Non-follow-up explain prompts stay unified in host/ai-dialogue.ts (#1354 P3-a);
-  // the follow-up variant above stays the richer #1422/#1435 text from main.
-  return buildUnifiedAiSystemPrompt('explain', lang);
+  return buildUnifiedAiSystemPrompt(isFollowup ? 'explain_followup' : 'explain', lang);
 }
 
 export function buildCardHelpContext(params: {

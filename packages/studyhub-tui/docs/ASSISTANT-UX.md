@@ -49,7 +49,7 @@
 ## 4. 统一带学与复述阶段 + 复制规则
 
 - 双 Tab（`Tab` 切换）：**助手** 与 **带学** 共用同一会话上下文与输入框，切 Tab 不丢进度。
-- 复述合并为带学阶段之一：`提问 → 作答 → 判定 → 复述 → 小结`；刷题页 `[t]` 直达复述阶段，允许 `[S]` 跳过复述并记录 `stage=retell, skipped=true`。
+- 刷题页统一收敛为单一入口：`[t]`（兼容 `T`）打开常驻助手「带学」Tab 并直接驱动后端 `teach.get`/`teach.start`/`teach.answer`/`teach.skip`（`[S]`/`Ctrl+N` 跳过单步、`[X]` 展示剩余要点、`[M]` 切换模式）；`[F]` 打开费曼复述（`teach.retell`）；助手内显式进入 `stage=retell` 时复用同一 `submitRetellEvaluation` 并支持 `[S]` 跳过复述记录 `stage=retell, skipped=true`。
 - 复制快捷键：`c` 复制当前条目、`C` 复制完整会话（含题目 / 我的作答 / AI 讲解 / `[阶段: ...]` 标记）、`y` 复制最后一条回答、`P` 复制兜底提示词。优先走 OSC 52（含 tmux DCS 透传），失败原子落盘至 `<library>/backups/copy-<time>.md` 并提示字数/路径。
 
 ---

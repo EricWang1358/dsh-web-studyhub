@@ -994,7 +994,7 @@ describe('P3-a unified AI dialogue integration', () => {
     await mPanel.tty.waitFor((s) => s.includes('重试后成功输出'), { timeoutMs: 8_000, label: 'panel recovered' });
   });
 
-  test('8) Save-to-followup+note contract: replace:true + title persisted via real host, and truthful partial-failure reporting across AiHelpDrawer & NextStepFollowupBar', async (t) => {
+  test('8) Atomic composite note.qa.save contract: single-call replace:true + title persisted via real host across AiHelpDrawer & NextStepFollowupBar with zero half-writes on failure', async (t) => {
     resetStore();
     const { host: baseHost } = await createRealHost(t, {
       onComplete: async (_entry, execution) => {
@@ -1004,23 +1004,19 @@ describe('P3-a unified AI dialogue integration', () => {
     });
 
     const recordedCalls = [];
-    let failNoteAdd = false;
-    let failFollowupAdd = false;
+    let failAtomicSave = false;
     const instrumentedHost = {
       ...baseHost,
       async call(action, payload) {
         recordedCalls.push({ action, payload });
-        if (action === 'card.followup.add' && failFollowupAdd) {
-          return { ok: false, error: { code: 'followup-write-failed', message: '追问存储空间不足' } };
-        }
-        if (action === 'note.qa.add' && failNoteAdd) {
+        if (action === 'note.qa.save' && failAtomicSave) {
           return { ok: false, error: { code: 'note-write-failed', message: '笔记文件被占用' } };
         }
         return baseHost.call(action, payload);
       },
     };
 
-    // 8a) AiHelpDrawer [N] save -> real card.followup.add(replace:true) + note.qa.add(title)
+    // 8a) AiHelpDrawer [N] save -> single atomic note.qa.save(replace:true, title)
     const savedCallbacks = [];
     const mDrawer = mountInteractive(
       React.createElement(AiHelpDrawer, {
@@ -1051,26 +1047,21 @@ describe('P3-a unified AI dialogue integration', () => {
       { timeoutMs: 8_000, label: 'drawer save success toast' },
     );
 
-    const followupCall = recordedCalls.find((c) => c.action === 'card.followup.add');
-    const noteCall = recordedCalls.find((c) => c.action === 'note.qa.add');
-    assert.ok(followupCall, 'must call card.followup.add');
-    assert.equal(followupCall.payload.replace, true, 'card.followup.add must pass replace: true');
-    assert.equal(followupCall.payload.deckId, 'd-p3a');
-    assert.equal(followupCall.payload.cardId, CARD_A.id);
-    assert.equal(followupCall.payload.answer, '可复用的完整解析内容');
-
-    assert.ok(noteCall, 'must call note.qa.add after card.followup.add');
-    assert.equal(noteCall.payload.deckId, 'd-p3a');
-    assert.equal(noteCall.payload.cardId, CARD_A.id);
-    assert.ok(typeof noteCall.payload.followupId === 'string' && noteCall.payload.followupId.length > 0);
+    const saveCall = recordedCalls.find((c) => c.action === 'note.qa.save');
+    assert.ok(saveCall, 'must call atomic backend composite action note.qa.save');
+    assert.equal(recordedCalls.some((c) => c.action === 'card.followup.add'), false, 'must not split into card.followup.add');
+    assert.equal(recordedCalls.some((c) => c.action === 'note.qa.add'), false, 'must not split into note.qa.add');
+    assert.equal(saveCall.payload.replace, true, 'note.qa.save must pass replace: true');
+    assert.equal(saveCall.payload.deckId, 'd-p3a');
+    assert.equal(saveCall.payload.cardId, CARD_A.id);
+    assert.equal(saveCall.payload.answer, '可复用的完整解析内容');
     assert.ok(
-      typeof noteCall.payload.title === 'string' && noteCall.payload.title.includes('计算机网络'),
-      `note.qa.add must include daily course note title, got: ${String(noteCall.payload.title)}`,
+      typeof saveCall.payload.title === 'string' && saveCall.payload.title.includes('计算机网络'),
+      `note.qa.save must include daily course note title, got: ${String(saveCall.payload.title)}`,
     );
     assert.equal(savedCallbacks.length, 1);
-    assert.equal(savedCallbacks[0].item.id, noteCall.payload.followupId);
 
-    // Verify real persistence on backend card
+    // Verify real persistence on backend card AND notes in one atomic transaction
     const cardGet = await baseHost.call('card.get', { deckId: 'd-p3a', cardId: CARD_A.id });
     assert.equal(cardGet.ok, true);
     assert.ok(
@@ -1078,12 +1069,18 @@ describe('P3-a unified AI dialogue integration', () => {
         cardGet.value.card.followups.some((f) => f.answer === '可复用的完整解析内容'),
       'real StudyService must persist the saved followup',
     );
+    const notesList = await baseHost.call('note.list', {});
+    assert.equal(notesList.ok, true);
+    assert.ok(
+      Array.isArray(notesList.value?.notes) && notesList.value.notes.length >= 1,
+      'real StudyService must persist the study note atomically',
+    );
     mDrawer.cleanup();
 
-    // 8b) NextStepFollowupBar [N] save with note.qa.add failure -> truthful partial-failure warning toast
+    // 8b) NextStepFollowupBar [N] save with note.qa.save failure -> truthful error toast, zero partial write
     useTuiStore.setState({ toasts: [] });
     recordedCalls.length = 0;
-    failNoteAdd = true;
+    failAtomicSave = true;
 
     const mBar = mountInteractive(
       React.createElement(
@@ -1115,23 +1112,17 @@ describe('P3-a unified AI dialogue integration', () => {
 
     mBar.tty.send('N');
     await mBar.tty.waitFor(
-      () => useTuiStore.getState().toasts.some((toast) => toast.tone === 'warning' && toast.text.includes('笔记文件被占用')),
-      { timeoutMs: 8_000, label: 'partial failure warning toast' },
+      () => useTuiStore.getState().toasts.some((toast) => toast.text.includes('笔记文件被占用')),
+      { timeoutMs: 8_000, label: 'atomic failure error toast' },
     );
-    const barWarning = useTuiStore.getState().toasts.find((toast) => toast.tone === 'warning');
-    assert.ok(barWarning?.text.includes('已保存到本题讲解'), 'warning must truthfully report step-1 succeeded');
-    assert.ok(barWarning?.text.includes('写入学习笔记失败'), 'warning must truthfully report step-2 failed');
-    const barFollowup = recordedCalls.find((c) => c.action === 'card.followup.add');
-    const barNote = recordedCalls.find((c) => c.action === 'note.qa.add');
-    assert.equal(barFollowup?.payload.replace, true, 'NextStepFollowupBar must also use replace: true');
-    assert.ok(typeof barNote?.payload.title === 'string' && barNote.payload.title.length > 0);
+    const barSave = recordedCalls.find((c) => c.action === 'note.qa.save');
+    assert.equal(barSave?.payload.replace, true, 'NextStepFollowupBar must also use atomic note.qa.save with replace: true');
+    assert.ok(typeof barSave?.payload.title === 'string' && barSave.payload.title.length > 0);
     mBar.cleanup();
 
-    // 8c) Direct step-1 failure: note.qa.add must never be called
+    // 8c) Direct atomic failure: single call fails cleanly with zero follow-up or note split calls
     recordedCalls.length = 0;
-    failNoteAdd = false;
-    failFollowupAdd = true;
-    const step1Fail = await persistCardQaToFollowupAndNote({
+    const directFail = await persistCardQaToFollowupAndNote({
       host: instrumentedHost,
       deckId: 'd-p3a',
       cardId: CARD_A.id,
@@ -1140,13 +1131,10 @@ describe('P3-a unified AI dialogue integration', () => {
       noteTitle: '2026-11-26 · 计算机网络 · 学习笔记',
       lang: 'zh',
     });
-    assert.equal(step1Fail.ok, false);
-    assert.equal(step1Fail.noteSaved, false);
-    assert.match(step1Fail.error ?? '', /追问存储空间不足/);
-    assert.equal(
-      recordedCalls.some((c) => c.action === 'note.qa.add'),
-      false,
-      'note.qa.add must not run when card.followup.add fails',
-    );
+    assert.equal(directFail.ok, false);
+    assert.equal(directFail.noteSaved, false);
+    assert.match(directFail.error ?? '', /笔记文件被占用/);
+    assert.equal(recordedCalls.length, 1);
+    assert.equal(recordedCalls[0].action, 'note.qa.save');
   });
 });

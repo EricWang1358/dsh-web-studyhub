@@ -7,7 +7,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { validateDeck, draftShapeErrors, rubricCriteriaIssues } from "../lib/domain.js";
 import {
-  CASE_FORMAT, DEFAULT_MINUTES_PER_MARK, renderRubric, isCaseDeck, scenarioParagraphs, containsVerbatim, countWords,
+  renderRubric, isCaseDeck, scenarioParagraphs, containsVerbatim, countWords,
   questionMinutes, lengthHint, suggestedWords, defaultReadingMinutes, paperPlan, blankQuestions, pacingReport, paceStatus,
 } from "../lib/case-study.js";
 
@@ -82,8 +82,8 @@ test("rubric text is rendered from the criteria for older readers, in both langu
 });
 
 test("case decks are recognised by their format and case metadata", () => {
-  assert.equal(CASE_FORMAT, "case-study");
   assert.equal(isCaseDeck({ format: "case-study", case: { sourceId: "case" }, cards: [] }), true);
+  assert.equal(isCaseDeck({ format: "quiz", case: { sourceId: "case" }, cards: [] }), false);
   assert.equal(isCaseDeck({ format: "case-study", cards: [] }), false);
   assert.equal(isCaseDeck({ cards: [] }), false);
 });
@@ -99,7 +99,6 @@ test("scenario text splits into numbered paragraphs; verbatim checks normalise w
 });
 
 test("time model: about three minutes per mark, a length hint from the marks, and a reading phase", () => {
-  assert.equal(DEFAULT_MINUTES_PER_MARK, 3);
   assert.equal(questionMinutes(2), 6);
   assert.equal(questionMinutes(10), 30);
   assert.equal(questionMinutes(10, 2.5), 25);

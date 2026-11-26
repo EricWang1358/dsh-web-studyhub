@@ -98,19 +98,27 @@ test('P3-a: unified AI prompt builders respect pre-reveal answer guard across ex
   assert.ok(followupPost.includes('SECRET_ANSWER_4'), 'Follow-up prompt should include reference answer after reveal');
 });
 
-test('P3-a: unified persistCardQaToFollowupAndNote enforces replace:true, note title, and truthful partial-failure reporting', async () => {
+test('P3: unified persistCardQaToFollowupAndNote calls single atomic note.qa.save with replace:true + title and reports failures truthfully', async () => {
   const calls = [];
-  const partialHost = {
+  const atomicHost = {
     async call(action, params) {
       calls.push({ action, params });
-      if (action === 'card.followup.add') return { ok: true, value: { item: { id: 'fu-99' } } };
-      if (action === 'note.qa.add') return { ok: false, error: { message: 'disk full' } };
-      return { ok: true, value: {} };
+      if (action === 'note.qa.save') {
+        return {
+          ok: true,
+          value: {
+            item: { id: 'fu-99', question: params.question, answer: params.answer },
+            status: 'created',
+            note: { id: 'note-1', title: params.title },
+          },
+        };
+      }
+      return { ok: false, error: { message: 'unexpected action' } };
     },
   };
 
   const res = await Bundle.persistCardQaToFollowupAndNote({
-    host: partialHost,
+    host: atomicHost,
     deckId: 'd1',
     cardId: 'c1',
     question: 'Why?',
@@ -121,12 +129,29 @@ test('P3-a: unified persistCardQaToFollowupAndNote enforces replace:true, note t
 
   assert.equal(res.ok, true);
   assert.equal(res.followupId, 'fu-99');
-  assert.equal(res.noteSaved, false);
-  assert.match(res.warning, /disk full/);
-  assert.equal(calls[0].action, 'card.followup.add');
+  assert.equal(res.noteSaved, true);
+  assert.equal(calls.length, 1, 'must use single atomic note.qa.save call');
+  assert.equal(calls[0].action, 'note.qa.save');
   assert.equal(calls[0].params.replace, true);
-  assert.equal(calls[1].action, 'note.qa.add');
-  assert.equal(calls[1].params.title, '2026-11-24 · Math · 学习笔记');
+  assert.equal(calls[0].params.title, '2026-11-24 · Math · 学习笔记');
+
+  const failingHost = {
+    async call() {
+      return { ok: false, error: { message: 'disk full' } };
+    },
+  };
+  const failed = await Bundle.persistCardQaToFollowupAndNote({
+    host: failingHost,
+    deckId: 'd1',
+    cardId: 'c1',
+    question: 'Why?',
+    answer: 'Because.',
+    noteTitle: '2026-11-24 · Math · 学习笔记',
+    lang: 'zh',
+  });
+  assert.equal(failed.ok, false);
+  assert.equal(failed.noteSaved, false);
+  assert.match(failed.error, /disk full/);
 });
 
 test('P3-a: unified submitRetellEvaluation & isModelUnavailableError handle teach.retell and model errors consistently', async () => {
@@ -157,14 +182,18 @@ test('P3-a: unified submitRetellEvaluation & isModelUnavailableError handle teac
   assert.ok(lines.some((l) => l.includes('核心定义准确')));
 });
 
-test('P3-a guardrail: all 4 AI entrypoints (explain/retell/guided/followup) share host/ai-dialogue.ts with zero duplicate model-error regexes', () => {
+test('P3 guardrail: all AI entrypoints (explain/retell/guided/followup/reader/companion/glossary/skeleton) share host/ai-dialogue.ts with zero duplicate model-error regexes', () => {
   const consumers = [
     'views/review/review-helpers.ts',
     'views/review/AiHelpDrawer.tsx',
     'views/review/NextStepFollowupBar.tsx',
-    'views/review/TeachModal.tsx',
     'views/review/RetellModal.tsx',
     'shell/AssistantPanel.tsx',
+    'shell/assistant-conversation.ts',
+    'views/sources/DocumentReader.tsx',
+    'views/sources/CompanionsModal.tsx',
+    'views/sources/TranslationGlossaryModal.tsx',
+    'views/skeleton/SkeletonView.tsx',
   ];
   for (const rel of consumers) {
     const src = fs.readFileSync(path.join(srcDir, rel), 'utf8');

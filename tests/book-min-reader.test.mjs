@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { courseOutlineMaterial, currentCourseOutline, materialsFingerprint, OUTLINE_MIN_READER } from '../lib/course-outline-book.js';
+import { courseOutlineMaterial, currentCourseOutline, materialsFingerprint } from '../lib/course-outline-book.js';
 import { extendedOutline } from '../lib/contexts/generation/book/jobs/stages.js';
 import { planBook, readerTooOld } from '../lib/contexts/generation/book/plan.js';
 import { planPapersOnly } from '../lib/contexts/generation/outline/plan.js';
@@ -35,11 +35,13 @@ function library(minReader) {
 }
 
 test('every outline written says its floor; a floor from the record it continues is never lowered', () => {
-  assert.equal(material().courseOutline.minReader, OUTLINE_MIN_READER);
-  assert.equal(OUTLINE_MIN_READER, '3.5.0', 'page spans and 清点 records: what 3.4 cannot update');
+  const defaultOutline = material().courseOutline;
+  assert.equal(defaultOutline.minReader, '3.5.0', 'page spans and 清点 records: what 3.4 cannot update');
+  assert.equal(readerTooOld(defaultOutline, '3.4.9'), true);
+  assert.equal(readerTooOld(defaultOutline, '3.5.0'), false);
   assert.equal(material({ minReader: '9.1.0' }).courseOutline.minReader, '9.1.0');
-  assert.equal(material({ minReader: '1.0.0' }).courseOutline.minReader, OUTLINE_MIN_READER);
-  assert.equal(material({ minReader: 'soon' }).courseOutline.minReader, OUTLINE_MIN_READER);
+  assert.equal(material({ minReader: '1.0.0' }).courseOutline.minReader, '3.5.0');
+  assert.equal(material({ minReader: 'soon' }).courseOutline.minReader, '3.5.0');
   const later = { id: 'o1', ...material({ minReader: '9.1.0' }) };
   assert.equal(extendedOutline(later, nodes, 'o1').courseOutline.minReader, '9.1.0');
   const state = library('9.1.0');
@@ -53,7 +55,7 @@ test('readerTooOld: only a real version above the reader counts', () => {
   assert.equal(readerTooOld({}, '4.0.0'), false, 'a record of a release before the field');
   assert.equal(readerTooOld({ minReader: 'soon' }, '4.0.0'), false);
   assert.equal(readerTooOld(null, '4.0.0'), false);
-  assert.equal(isNewerVersion(OUTLINE_MIN_READER, currentVersion()), false, 'this release can update what it writes');
+  assert.equal(isNewerVersion(material().courseOutline.minReader, currentVersion()), false, 'this release can update what it writes');
 });
 
 test('更新全书 of a release too old refuses before anything: says what it needs and what it runs; the same with 读更多 of one point', () => {
