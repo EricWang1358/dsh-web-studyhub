@@ -731,4 +731,31 @@ describe('#1354 P1 Centralized Global & Alt-Chord Key Router', () => {
     assert.ok(calls.alt > 0, 'Alt+s must be offered to the router');
     assert.ok(viewKeys.includes('Alt+s'), `Alt+s must reach the view when the router passes it (saw ${viewKeys.join(' ')})`);
   });
+
+  test('6. Alt guard lets chords without a character through: two Esc presses read together still go back, Alt+arrows still move', async (t) => {
+    const router = await import('../src/input/global-router.ts');
+    const { useInput } = await import('ink');
+    const seen = [];
+    function Probe() {
+      useInput((input, key) => {
+        const flag = ['escape', 'upArrow', 'pageDown', 'home'].find((f) => key[f]) || 'char';
+        seen.push({ flag, meta: key.meta, route: router.resolveAltChordRoute(input, key).kind });
+      });
+      return React.createElement(Text, null, 'probe');
+    }
+    const h = mountInk(React.createElement(Probe));
+    t.after(() => h.cleanup?.());
+    await h.waitFor((s) => s.includes('probe'), 3000, 'probe mounted');
+    // Esc Esc arriving in one chunk (busy event loop, or the double-Esc back gesture), Alt+↑, Alt+PgDn, Alt+Home, Alt+s.
+    for (const seq of ['\x1b\x1b', '\x1b\x1b[A', '\x1b\x1b[6~', '\x1b\x1b[H', '\x1bs']) {
+      h.send(seq);
+      await new Promise((r) => setTimeout(r, 60));
+    }
+    const byFlag = Object.fromEntries(seen.map((e) => [e.flag, e]));
+    for (const flag of ['escape', 'upArrow', 'pageDown', 'home']) {
+      assert.equal(byFlag[flag]?.meta, true, `${flag} arrives as a meta chord (seen ${JSON.stringify(seen)})`);
+      assert.equal(byFlag[flag]?.route, 'pass', `meta+${flag} carries no character and must reach the page (seen ${JSON.stringify(seen)})`);
+    }
+    assert.equal(byFlag.char?.route, 'consume-unhandled-alt', 'Alt+s is still contained');
+  });
 });

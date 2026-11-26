@@ -112,12 +112,16 @@ export function isTextInputAltEditingKey(key: Key): boolean {
 /**
  * Centralized `Alt+*` (`key.meta`) router/containment guard:
  * - Passes through non-Meta keys and `<TextInput>` editing chords (`Alt+Enter`, `Alt+←/→`, `Alt+Backspace/Delete`).
+ * - Passes through meta chords that carry no printable character: two Esc presses read together
+ *   (Ink reports meta+escape), Alt+↑/↓, Alt+PgUp/PgDn, Alt+Home/End. They cannot reach a
+ *   single-letter handler, and swallowing them would lose the user's Esc.
  * - Consumes unhandled `Alt+<key>` chords (`Alt+s`, `Alt+x`, `Alt+q`, `Alt+1`, etc.) so they never
  *   leak into single-letter view/modal/global handlers anywhere in the app.
  */
 export function resolveAltChordRoute(input: string, key: Key): AltChordResolution {
   if (!key.meta) return { kind: 'pass' };
   if (isTextInputAltEditingKey(key)) return { kind: 'pass' };
+  if (!/[^\x00-\x1f\x7f]/.test(input)) return { kind: 'pass' };
   const label = input ? `Alt+${input}` : 'Alt';
   return { kind: 'consume-unhandled-alt', chord: label };
 }
