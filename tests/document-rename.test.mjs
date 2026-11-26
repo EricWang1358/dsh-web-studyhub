@@ -11,7 +11,7 @@ import { StudyService } from '../lib/service.js';
 import { createMaterialsOperations } from '../lib/contexts/materials/operations.js';
 import { materialsSchemas } from '../lib/contexts/materials/contracts.js';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
-import { checkTitle, retitleSources, MAX_TITLE_CHARS } from '../lib/document-title.js';
+import { checkTitle, retitleSources } from '../lib/document-title.js';
 import { prepareJsonImport } from '../lib/json-import.js';
 import { validateDeck } from '../lib/domain.js';
 import { makeTextPdf, LECTURE_PAGES } from './helpers/text-pdf.mjs';
@@ -37,8 +37,7 @@ const frozen = sources => sources.map(({ id, text, document, createdAt, imported
 test('a title is trimmed, whitespace is collapsed, and 1-200 characters without control characters or only dots are accepted', () => {
   assert.deepEqual(checkTitle('  Operating   systems \n notes\t'), { ok: true, title: 'Operating systems notes' });
   assert.deepEqual(checkTitle('操作系统　讲义'), { ok: true, title: '操作系统 讲义' });
-  assert.equal(checkTitle('a'.repeat(MAX_TITLE_CHARS)).ok, true);
-  assert.equal(MAX_TITLE_CHARS, 200);
+  assert.equal(checkTitle('a'.repeat(200)).ok, true);
   for (const [value, code] of [['', 'empty'], ['   \n ', 'empty'], [undefined, 'empty'], [null, 'empty'], [42, 'empty'],
     ['a'.repeat(201), 'too-long'], ['bad\u0000name', 'control'], ['esc\u001b[0m', 'control'], ['...', 'dots'], [' . . ', 'dots'], ['…', 'dots']])
     assert.deepEqual(checkTitle(value), { ok: false, code }, JSON.stringify(value));

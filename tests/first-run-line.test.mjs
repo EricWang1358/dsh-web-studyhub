@@ -7,6 +7,7 @@ import { readFile } from 'node:fs/promises';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const m = await loadUi(`export * from './ui/first-run/line.js';
   export { default as FirstRunLine, stepSentence, compactAction, generateBlockReason } from './ui/first-run/FirstRunLine.jsx';
@@ -265,9 +266,78 @@ test('English: the whole line has no Chinese left', () => {
   } finally { m.setUiLanguage('zh'); }
 });
 
+const tourMod = await loadInteractiveUi(`
+  export { useTour } from './ui/app/use-tour.js';
+  export { welcomeDismissed } from './ui/tour/progress.js';
+`);
+
+function createMemoryStorage() {
+  const map = new Map();
+  return {
+    getItem: (key) => (map.has(key) ? map.get(key) : null),
+    setItem: (key, value) => { map.set(key, String(value)); },
+    removeItem: (key) => { map.delete(key); },
+    clear: () => { map.clear(); },
+  };
+}
+
+async function withTourHook(overrides, fn) {
+  const storage = createMemoryStorage();
+  const prevStorage = globalThis.localStorage;
+  globalThis.localStorage = storage;
+  try {
+    return await withBrowserGlobals(async () => {
+      const dataRef = { current: overrides.data ?? library({ sample: { loaded: false } }) };
+      const errors = [];
+      const modals = [];
+      const shownPages = [];
+      const goGenerateCalls = [];
+      const core = {
+        call: overrides.call || (async () => ({})),
+        act: overrides.act || (async () => ({})),
+        setError: (msg) => { errors.push(msg); },
+        notify: noop,
+        refresh: overrides.refresh || (async () => dataRef.current),
+        refs: { dataRef },
+      };
+      const nav = {
+        page: overrides.page ?? 'library',
+        navigate: noop,
+        show: { page: (id) => { shownPages.push(id); } },
+      };
+      const lib = {
+        set: {
+          setModal: (next) => { modals.push(next); },
+          setDraft: noop,
+          setSelectedSources: noop,
+          setSkeletonFocus: noop,
+        },
+      };
+      const session = { run: null, enterRun: noop, clearRun: noop };
+      const drafts = { openDraft: noop };
+      const intents = {
+        setGenSource: noop,
+        goGenerate: (args) => { goGenerateCalls.push(args); },
+      };
+      const rootRef = { current: null };
+      const hook = tourMod.mountHook((props) => tourMod.exports.useTour(props), {
+        core, lib, nav, session, drafts, intents, data: dataRef.current, rootRef, canChat: true,
+      });
+      try {
+        return await fn({ hook, dataRef, errors, modals, shownPages, goGenerateCalls });
+      } finally {
+        hook.unmount();
+      }
+    });
+  } finally {
+    if (prevStorage === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = prevStorage;
+  }
+}
+
 test('the library home draws the line: the whole first screen, or the compact card after 以后再说; the welcome page and the starter are gone', async () => {
   const read = (file) => readFile(file, 'utf8');
-  const [views, map, today, welcome, tour] = await Promise.all(['ui/app/page-views.jsx', 'ui/StudyMap.jsx', 'ui/study-map/TodayCard.jsx', 'ui/Welcome.jsx', 'ui/app/use-tour.js'].map(read));
+  const [views, map, today, welcome] = await Promise.all(['ui/app/page-views.jsx', 'ui/StudyMap.jsx', 'ui/study-map/TodayCard.jsx', 'ui/Welcome.jsx'].map(read));
   assert.match(views, /const linePage = lineShown && !tour\.tourStep && !tour\.lineLater;/);
   assert.match(views, /firstRun=\{firstRun\}/);
   assert.doesNotMatch(views, /<Welcome /);
@@ -275,13 +345,33 @@ test('the library home draws the line: the whole first screen, or the compact ca
   assert.match(map, /<FirstRunLine line=\{line\} form="compact"/);
   assert.doesNotMatch(today, /starter-steps|plan\.kind === 'empty'/);
   assert.doesNotMatch(welcome, /export default/, 'only the sample banner is left of the welcome page');
-  assert.doesNotMatch(tour, /showWelcome/);
-  assert.doesNotMatch(tour.slice(tour.indexOf('function startTour'), tour.indexOf('const startFullTour')), /hideWelcome\(\)/, 'a tour does not put the line away');
   // 载入示例并开始导览: the sample banner does not slide in above the line while the sample loads for the tour (the tour's home replaces the page as a whole).
   assert.match(views, /data\.sample\?\.loaded && !\(linePage && tour\.sampleForTour\) && <SampleBanner/);
-  assert.match(tour, /setSampleForTour\(true\)/);
   // The draft's shortfall reaches the line: a run that came out short stands over its draft.
   assert.match(await read('ui/first-run/use-first-run-line.js'), /shortfallAction: shortfall\?\.action/);
+
+  // Real useTour hook behavior: no showWelcome API, startTour never dismisses the line, and loadSampleAndTour raises sampleForTour while loading.
+  let resolveSampleLoad;
+  const sampleLoaded = new Promise((resolve) => { resolveSampleLoad = resolve; });
+  await withTourHook({
+    data: library({ root: '/lib-tour-1', sample: { loaded: false } }),
+    call: (action) => (action === 'sample.load' ? sampleLoaded : Promise.resolve({})),
+  }, async ({ hook, dataRef }) => {
+    assert.equal('showWelcome' in hook.current, false, 'showWelcome is gone from useTour');
+    await hook.act(() => hook.current.startTour());
+    assert.ok(hook.current.tourStep, 'startTour enters a tour step');
+    assert.equal(hook.current.lineLater, false, 'starting a tour does not put the first-run line away');
+    assert.equal(tourMod.exports.welcomeDismissed('/lib-tour-1'), false, 'startTour does not persist welcome dismissal');
+
+    const pending = hook.current.loadSampleAndTour();
+    await hook.flush();
+    assert.equal(hook.current.sampleForTour, true, 'sampleForTour stays true while sample loads for the tour');
+
+    dataRef.current = library({ root: '/lib-tour-1', sample: SAMPLE });
+    resolveSampleLoad({ ok: true });
+    await hook.act(() => pending);
+    assert.equal(hook.current.sampleForTour, false, 'sampleForTour clears once sample load + tour start completes');
+  });
 });
 
 /* ---------- 3.6 D4: the first deck from the line itself (option A) ---------- */
@@ -412,8 +502,23 @@ test('the first import comes back to the line: no hop to 创建题组, the plain
   assert.deepEqual(back, [['a']]);
   assert.equal(handoff.notice.text, '已导入「L.md」', 'nothing about a ticked form the learner is not on');
   assert.equal(m.importHandoff(open, { done: 1, sourceIds: [], decks: [{ title: 'D', cards: [{}] }] }), null, 'a JSON deck still opens as a draft');
-  const [tour, views] = await Promise.all(['ui/app/use-tour.js', 'ui/app/page-views.jsx'].map((file) => readFile(file, 'utf8')));
-  assert.match(tour, /const openFirstImport = \(\) => setModal\(importForFirstRun\(firstRunLine\(data\)\.show,/);
+  // Real useTour.openFirstImport behavior: while the first-run line is up, opens the line import modal (returning to library home); once an own deck exists, opens the generate-handoff modal.
+  await withTourHook({ data: library({ root: '/lib-import-line' }), page: 'sources' }, async ({ hook, modals, shownPages, goGenerateCalls }) => {
+    await hook.act(() => hook.current.openFirstImport());
+    assert.equal(modals.length, 1);
+    assert.equal(modals[0].type, 'add');
+    assert.equal(modals[0].line, true, 'while first-run line is up, openFirstImport uses the line import modal');
+    modals[0].onImported(['s1']);
+    assert.deepEqual(shownPages, ['library'], 'importing from another page brings the learner back to the library home');
+    assert.deepEqual(goGenerateCalls, [], 'does not hop to 创建题组 while first-run line is up');
+  });
+  await withTourHook({ data: library({ root: '/lib-import-done', decks: [{ id: 'deck-1' }] }) }, async ({ hook, modals, goGenerateCalls }) => {
+    await hook.act(() => hook.current.openFirstImport());
+    assert.equal(modals.length, 1);
+    assert.equal(modals[0].line, undefined, 'once learner owns a deck, openFirstImport uses the standard import handoff');
+    modals[0].onImported(['x']);
+    assert.deepEqual(goGenerateCalls, [{ sourceIds: ['x'], remember: true }]);
+  });
   // The tour's 添加资料 for a learner whose line is gone (a deck of their own, or the tour from Settings): the old import, on to 创建题组 with the file ticked.
   const toForm = [];
   const old = m.importForFirstRun(false, { back: noop, goGenerate: (args) => toForm.push(args) });
@@ -423,8 +528,55 @@ test('the first import comes back to the line: no hop to 创建题组, the plain
   assert.match(m.importHandoff(old, { done: 1, sourceIds: ['x'], documents: [{ title: 'L.md', format: 'md' }], decks: [] }).notice.text, /已勾选，可以直接生成题组/);
   const lined = m.importForFirstRun(true, { back: (ids) => back.push(ids), goGenerate: noop });
   assert.equal(lined.line, true, 'while the line is up: back to the line');
-  assert.match(views, /importFirst: tour\.openFirstImport, importMore: tour\.openFirstImport,/, '再加一份 comes back to the line too');
-  assert.match(views, /addSource: \(\) => \(lineShown \? tour\.openFirstImport\(\)/, 'any 添加资料 on the home while the line is up');
+
+  // LibraryView wires importFirst, importMore, and addSource to tour.openFirstImport while the first-run line is up.
+  const libMod = await loadInteractiveUi(`
+    export { PAGE_VIEWS } from './ui/app/page-views.jsx';
+    export { default as StudyMap } from './ui/StudyMap.jsx';
+    export { AppContext } from './ui/app/app-context.js';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+  `);
+  const { PAGE_VIEWS, StudyMap, AppContext, StudyServicesContext } = libMod.exports;
+  let openFirstImportCalls = 0;
+  const openFirstImport = () => { openFirstImportCalls += 1; };
+  const libData = library({ root: '/lib-view-1', runs: [], today: { due: 0, weak: 0, new: 0, size: 0 }, focus: { mode: 'all', course: '*', courses: [], fresh: [] } });
+  const libApp = {
+    data: libData,
+    core: { call: async () => ({}), act: async () => ({}), notify: noop, refresh: async () => libData, setError: noop, refs: { dataRef: { current: libData } } },
+    nav: { page: 'library', navigate: noop, show: { page: noop } },
+    lib: { gen: {} },
+    set: { setGen: noop, setModal: noop, setRemovingDeck: noop, setGraphScope: noop, setGraphCanvas: noop, setGraphMode: noop, setBoardView: noop },
+    session: { enterRun: noop, onCoachPractice: noop },
+    intents: { startReview: noop, openRun: noop, openDeck: noop, goGenerate: noop, revealHome: 0, setRevealHome: noop },
+    drafts: { openDraft: noop, topUpDraft: noop, createManual: noop },
+    notebooks: { notebooks: [] },
+    tour: { tourStep: null, lineLater: false, sampleBusy: false, sampleForTour: false, openFirstImport, loadSampleAndTour: noop, hideWelcome: noop, startTour: noop, setRemovingSample: noop },
+    dailyPlan: { date: '2026-11-26', items: [] },
+    settingsEntry: { openModelSettings: noop, setCourseSettings: noop },
+    learn: { captureContext: () => ({}), rememberContext: noop },
+    connection: { binding: { effort: { current: '' } } },
+  };
+  await withBrowserGlobals(async () => {
+    const mounted = libMod.mount(() => libMod.React.createElement(
+      StudyServicesContext.Provider,
+      { value: { busy: false, call: libApp.core.call, act: libApp.core.act, host: {} } },
+      libMod.React.createElement(
+        AppContext.Provider,
+        { value: libApp },
+        libMod.React.createElement(PAGE_VIEWS.library),
+      ),
+    ));
+    try {
+      const mapNode = mounted.find((n) => n.type === StudyMap);
+      assert.ok(mapNode, 'LibraryView renders StudyMap');
+      assert.equal(mapNode.props.firstRun.on.importFirst, openFirstImport, 'importFirst uses tour.openFirstImport');
+      assert.equal(mapNode.props.firstRun.on.importMore, openFirstImport, '再加一份 comes back to the line too');
+      mapNode.props.actions.addSource();
+      assert.equal(openFirstImportCalls, 1, 'any 添加资料 on the home while the line is up goes through tour.openFirstImport');
+    } finally {
+      mounted.unmount();
+    }
+  });
 });
 
 test('the compact card holds two ruled lines for the summary and the estimate while the first deck is ready', () => {
@@ -476,8 +628,42 @@ test('载入示例并开始导览 starts the tour only once the snapshot on scre
   let never = 0;
   assert.equal(await m.refreshUntil(async () => { never++; }, () => false, 3), false);
   assert.equal(never, 3, 'bounded');
-  const tour = await readFile('ui/app/use-tour.js', 'utf8');
-  assert.match(tour, /if \(await loadSample\(\)\) await tourAfterSample\(\{ refresh, seen: \(\) => !!refs\.dataRef\.current\?\.sample\?\.loaded, start: \(\) => startTour\(\{ restart: true \}\), setError \}\);/);
+
+  // Real useTour.loadSampleAndTour: failed sample.load reports error and never refreshes/starts tour; succeeded sample.load waits until dataRef sees sample.loaded before starting the tour.
+  let failedRefreshCount = 0;
+  await withTourHook({
+    data: library({ root: '/lib-sample-fail', sample: { loaded: false } }),
+    call: async (action) => {
+      if (action === 'sample.load') throw new Error('disk full');
+      return {};
+    },
+    refresh: async () => { failedRefreshCount += 1; },
+  }, async ({ hook, errors }) => {
+    await hook.act(() => hook.current.loadSampleAndTour());
+    assert.equal(failedRefreshCount, 0, 'failed loadSample does not enter tourAfterSample refresh loop');
+    assert.equal(hook.current.tourStep, null, 'failed loadSample does not start the tour');
+    assert.equal(hook.current.sampleForTour, false, 'sampleForTour resets after failure');
+    assert.ok(errors.some((msg) => /disk full/.test(msg)), 'failure is surfaced through setError');
+  });
+
+  let refreshCount = 0;
+  let activeDataRef = null;
+  await withTourHook({
+    data: library({ root: '/lib-sample-ok', sample: { loaded: false } }),
+    call: async () => ({ loaded: true }),
+    refresh: async () => {
+      refreshCount += 1;
+      // Simulate an overtaken first refresh (inside loadSample) leaving sample.loaded false; tourAfterSample refreshes until dataRef sees sample.loaded.
+      if (refreshCount >= 3 && activeDataRef) activeDataRef.current = library({ root: '/lib-sample-ok', sample: SAMPLE });
+      return activeDataRef?.current;
+    },
+  }, async ({ hook, dataRef }) => {
+    activeDataRef = dataRef;
+    await hook.act(() => hook.current.loadSampleAndTour());
+    assert.equal(refreshCount, 3, 'loadSampleAndTour refreshes through tourAfterSample until dataRef.current.sample.loaded is true');
+    assert.ok(hook.current.tourStep, 'tour starts once the snapshot carries the loaded sample');
+    assert.equal(hook.current.sampleForTour, false, 'sampleForTour resets once tour starts');
+  });
 });
 
 test('载入示例并开始导览: a snapshot that cannot be read while waiting for the sample is said, never an unhandled rejection with no tour and no word', async () => {

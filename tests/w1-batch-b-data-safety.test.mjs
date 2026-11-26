@@ -1,38 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import React from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
-const h = React.createElement;
 const noop = () => {};
 
 const m = await loadUi(`
-  export { setUiLanguage } from './ui/i18n.js';
-  export { default as CardEditor, finalizeCardFields, isCardEditorDirty } from './ui/board/CardEditor.jsx';
+  export { finalizeCardFields, isCardEditorDirty } from './ui/board/CardEditor.jsx';
   export { reconcileFocusTopicsOnCourseChange } from './ui/FocusIntakeDialog.jsx';
   export { mergePendingRuleDraft } from './ui/course-rules/CourseRulesEditor.jsx';
   export { mergePendingNotationDraft } from './ui/course-rules/CourseNotationEditor.jsx';
-  export { default as CourseSettingsDialog } from './ui/CourseSettings.jsx';
   export { publishAndPractice, readRecoveryMap, putDraftStash, dropDraftStash, pickRecoveryFor } from './ui/app/use-drafts.js';
-  export { StudyServicesContext } from './ui/study-context.jsx';
 `);
-
-const withServices = (node, services = {}) => h(m.StudyServicesContext.Provider, {
-  value: {
-    call: async () => ({}),
-    act: async () => undefined,
-    busy: false,
-    notify: noop,
-    askInChat: noop,
-    host: {},
-    openSettings: noop,
-    navigate: noop,
-    openModal: noop,
-    ...services,
-  },
-}, node);
 
 /* ---------- W1-03: CardEditor saves pending checklist item & label inputs ---------- */
 
@@ -92,37 +71,190 @@ test('W1-08: mergePendingRuleDraft & mergePendingNotationDraft merge valid pendi
   assert.equal(nMissingName.status, 'invalid', 'non-empty notation fields missing canonical name must be flagged, not silently dropped');
 });
 
-test('W1-29: CourseSettingsDialog opened with mergeFrom has single primary CTA and guards pending mergeIds', async () => {
-  m.setUiLanguage('zh');
-  const courses = [
-    { id: 'c1', name: '操作系统', exam: {}, focusTopics: [] },
-    { id: 'c2', name: '操作系统（旧）', exam: {}, focusTopics: [] },
-  ];
-  const html = renderToStaticMarkup(withServices(h(m.CourseSettingsDialog, {
-    courseId: 'c1',
-    mergeFrom: ['c2'],
-    data: { courses, sources: [], decks: [], focus: { courseId: 'c1', courses } },
-    onClose: noop,
-  })));
-  const primaryBtns = [...html.matchAll(/<button[^>]*sh-btn--primary[^>]*>([\s\S]*?)<\/button>/g)].map((hit) => hit[1].replace(/<[^>]+>/g, ''));
-  assert.equal(primaryBtns.length, 1, `merge confirmation must not render two primary buttons, got: ${JSON.stringify(primaryBtns)}`);
-  assert.match(primaryBtns[0], /确认合并/);
+test('W1-29: CourseSettingsDialog opened with mergeFrom has single primary CTA and guards pending mergeIds on save', async t => {
+  await withBrowserGlobals(async () => {
+    const ui = await loadInteractiveUi(`
+      export { setUiLanguage } from './ui/i18n.js';
+      export { default as CourseSettingsDialog } from './ui/CourseSettings.jsx';
+      export { StudyServicesContext } from './ui/study-context.jsx';
+    `);
+    const { setUiLanguage, CourseSettingsDialog, StudyServicesContext } = ui.exports;
+    const h = ui.React.createElement;
+    setUiLanguage('zh');
 
-  const src = await readFile(new URL('../ui/CourseSettings.jsx', import.meta.url), 'utf8');
-  assert.match(src, /mergeIds\.length > 0/, 'hasPendingNested includes mergeIds.length > 0');
+    const courses = [
+      { id: 'c1', name: '操作系统', exam: {}, focusTopics: [] },
+      { id: 'c2', name: '操作系统（旧）', exam: {}, focusTopics: [] },
+    ];
+    const actCalls = [];
+    const mounted = ui.mount(
+      h(StudyServicesContext.Provider, {
+        value: {
+          call: async () => ({}),
+          act: async (action, args, done) => {
+            actCalls.push([action, args]);
+            const res = { course: courses[0] };
+            done?.(res);
+            return res;
+          },
+          busy: false,
+          notify: noop,
+          askInChat: noop,
+          host: {},
+          openSettings: noop,
+          navigate: noop,
+          openModal: noop,
+        },
+      }, h(CourseSettingsDialog, {
+        courseId: 'c1',
+        mergeFrom: ['c2'],
+        data: { courses, sources: [], decks: [], focus: { courseId: 'c1', courses } },
+        onClose: noop,
+      })),
+    );
+    t.after(() => mounted.unmount());
+
+    const primaryBtns = mounted.findAll(
+      (node) => node.type === 'button' && String(node.props?.className || '').includes('sh-btn--primary'),
+    );
+    assert.equal(primaryBtns.length, 1, `merge confirmation must not render two primary buttons, got: ${JSON.stringify(primaryBtns.map((b) => ui.textOf(b)))}`);
+    assert.match(ui.textOf(primaryBtns[0]), /确认合并/);
+
+    const saveBtn = mounted.find(
+      (node) => node.type === 'button' && ui.textOf(node).includes('保存课程信息'),
+    );
+    assert.ok(saveBtn, 'footer renders 保存课程信息 button');
+
+    // First click with pending mergeIds warns instead of saving silently.
+    await mounted.act(() => click(saveBtn));
+    assert.equal(actCalls.length, 0, 'first save click does not submit course.save while mergeIds are pending');
+    assert.match(mounted.text(), /已勾选待合并课程但尚未点「确认合并」/);
+
+    const forceSaveBtn = mounted.find(
+      (node) => node.type === 'button' && ui.textOf(node).includes('仍保存课程信息'),
+    );
+    assert.ok(forceSaveBtn, 'button switches to 仍保存课程信息 after pending-merge warning');
+
+    // Second click explicitly proceeds with course.save.
+    await mounted.act(() => click(forceSaveBtn));
+    assert.equal(actCalls.length, 1);
+    assert.equal(actCalls[0][0], 'course.save');
+  });
 });
 
 /* ---------- W1-14: use-term-marking error handling (no silent .catch(() => {})) ---------- */
 
-test('W1-14: use-term-marking rolls back cache and notifies on mark/unmark failure instead of swallowing errors', async () => {
-  const src = await readFile(new URL('../ui/review/use-term-marking.js', import.meta.url), 'utf8');
-  const markSlice = src.slice(src.indexOf('callRef.current("course.terms.mark"'), src.indexOf('const persistUnmark'));
-  assert.doesNotMatch(markSlice, /\.catch\(\s*\(\)\s*=>\s*\{\s*\}\s*\)/, 'persistMark must not silently swallow errors');
-  assert.match(markSlice, /notify/, 'persistMark notifies learner on persistence failure');
+test('W1-14: useTermMarking rolls back optimistic cache and notifies on mark/unmark failure instead of swallowing errors', async t => {
+  await withBrowserGlobals(async () => {
+    const ui = await loadInteractiveUi(`
+      export { setUiLanguage } from './ui/i18n.js';
+      export { useTermMarking } from './ui/review/use-term-marking.js';
+    `);
+    const { setUiLanguage, useTermMarking } = ui.exports;
+    setUiLanguage('zh');
 
-  const unmarkSlice = src.slice(src.indexOf('callRef.current("course.terms.unmark"'), src.indexOf('const notifyLimit'));
-  assert.doesNotMatch(unmarkSlice, /\.catch\(\s*\(\)\s*=>\s*\{\s*\}\s*\)/, 'persistUnmark must not silently swallow errors');
-  assert.match(unmarkSlice, /notify/, 'persistUnmark notifies learner on persistence failure');
+    const notifications = [];
+    const rpcCalls = [];
+    let pendingMark = null;
+    let pendingUnmark = null;
+    let markBehavior = 'reject';
+
+    const call = (action, args) => {
+      rpcCalls.push([action, args]);
+      if (action === 'course.terms.get') return Promise.resolve({ items: [] });
+      if (action === 'course.terms.mark') {
+        if (markBehavior === 'resolve') {
+          return Promise.resolve({
+            items: (args.terms || []).map((term) => ({ term, state: 'unknown' })),
+          });
+        }
+        return new Promise((resolve, reject) => { pendingMark = { resolve, reject }; });
+      }
+      if (action === 'course.terms.unmark') {
+        return new Promise((resolve, reject) => { pendingUnmark = { resolve, reject }; });
+      }
+      return Promise.resolve({});
+    };
+
+    const run = {
+      id: 'run-w1-14',
+      deckId: 'deck-1',
+      mode: 'review',
+      complete: false,
+      course: '操作系统',
+      card: { id: 'card-1', prompt: 'Explain Linearizability and Consensus.' },
+    };
+    const reviewBodyRef = { current: null };
+    const hook = ui.mountHook(
+      (props) => useTermMarking(props),
+      {
+        session: { run },
+        reviewBodyRef,
+        notify: (entry) => notifications.push(entry),
+        call,
+        courseName: '操作系统',
+      },
+    );
+    t.after(() => hook.unmount());
+    await hook.flush();
+
+    // 1. Failing course.terms.mark: adds optimistically, then rolls back cache and notifies warning on rejection.
+    await hook.act(() => hook.current.markCandidate('Linearizability'));
+    assert.ok(
+      hook.current.courseTerms.some((item) => item.term === 'Linearizability'),
+      'markCandidate optimistically adds term to courseTerms cache',
+    );
+    assert.ok(pendingMark, 'course.terms.mark RPC was issued');
+    pendingMark.reject(new Error('mark persistence failed'));
+    await hook.flush(5);
+    assert.equal(
+      hook.current.courseTerms.some((item) => item.term === 'Linearizability'),
+      false,
+      'rejected course.terms.mark rolls back optimistic courseTerms cache entry',
+    );
+    assert.equal(notifications.length, 1, 'rejected mark notifies learner');
+    assert.equal(notifications[0].tone, 'warning');
+    assert.match(notifications[0].text, /mark persistence failed/);
+
+    // 2. Failing course.terms.unmark: first persist a term successfully, then fail unmark and assert rollback + notify.
+    markBehavior = 'resolve';
+    await hook.act(() => hook.current.markCandidate('Consensus'));
+    await hook.flush(5);
+    assert.ok(hook.current.courseTerms.some((item) => item.term === 'Consensus'), 'Consensus persisted in cache');
+    assert.ok(hook.current.terms.includes('Consensus'), 'Consensus present in current entry terms');
+
+    await hook.act(() => hook.current.removeTerm('Consensus'));
+    assert.equal(
+      hook.current.courseTerms.some((item) => item.term === 'Consensus'),
+      false,
+      'removeTerm optimistically removes term from courseTerms cache',
+    );
+    assert.ok(pendingUnmark, 'course.terms.unmark RPC was issued');
+    pendingUnmark.reject(new Error('unmark persistence failed'));
+    await hook.flush(5);
+    assert.ok(
+      hook.current.courseTerms.some((item) => item.term === 'Consensus'),
+      'rejected course.terms.unmark restores rolled-back term into courseTerms cache',
+    );
+    assert.equal(notifications.length, 2, 'rejected unmark notifies learner');
+    assert.equal(notifications[1].tone, 'warning');
+    assert.match(notifications[1].text, /unmark persistence failed/);
+    assert.deepEqual(
+      rpcCalls.map(([action]) => action),
+      ['course.terms.get', 'course.terms.mark', 'course.terms.mark', 'course.terms.unmark'],
+      'issues exact sequence of term load, failing mark, succeeding mark, and failing unmark RPCs',
+    );
+    assert.deepEqual(rpcCalls[1][1], {
+      course: '操作系统',
+      terms: ['Linearizability'],
+      from: { deckId: 'deck-1', cardId: 'card-1' },
+    });
+    assert.deepEqual(rpcCalls[3][1], {
+      course: '操作系统',
+      terms: ['Consensus'],
+      onlyUnattached: true,
+    });
+  });
 });
 
 /* ---------- W1-23: Draft per-id stash preservation & publishAndPractice after-navigation guard ---------- */

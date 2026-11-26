@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { completeJson } from '../lib/generation.js';
-import { planAssigned, enforceAssignment, assignmentGroups, pieceOfAssignment, PLAN_SHORT } from '../lib/assigned-plan.js';
+import { planAssigned, enforceAssignment, assignmentGroups, pieceOfAssignment } from '../lib/assigned-plan.js';
 import { planAssessment } from '../lib/assessment-quality.js';
 import { startWorker } from '../lib/subagent-api.js';
 import { strengthPlan, assignmentsOf, roundsOf } from '../lib/coverage-strength.js';
@@ -91,8 +91,7 @@ test('what is still missing after the one re-ask is recorded as short with a rea
   assert.deepEqual({ key: result.short[0].key, quota: result.short[0].quota, planned: result.short[0].planned, missing: result.short[0].missing }, { key: target.key, quota: 2, planned: 0, missing: 2 });
   assert.equal(result.short[0].start, target.start);
   assert.equal(result.short[0].end, target.end);
-  assert.ok(result.lost.some(line => /plan-short|short/i.test(line)), 'it is told to the run in words');
-  assert.equal(PLAN_SHORT, 'plan-short');
+  assert.ok(result.lost.some(line => line.includes('plan-short')), 'it is told to the run in words with the plan-short code');
 });
 
 test('a failure that repeating cannot fix (a refused key, a stop) is thrown, not turned into dozens of short sections', async () => {

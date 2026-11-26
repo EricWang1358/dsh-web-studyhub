@@ -11,6 +11,7 @@
  */
 import type { ChatMessage, UiLanguage } from '../types/contracts.js';
 import type { AssistantCardContext, AssistantTabId } from '../state/store.js';
+import { buildUnifiedAiSystemPrompt } from '../host/ai-dialogue.js';
 import { stageLabel, type GuidedStageId } from '../render/clipboard.js';
 
 export const DEFAULT_CONVERSATION_MAX_CHARS = 14_000;
@@ -147,18 +148,11 @@ export function buildConversationRequest(params: BuildConversationParams): Built
   const { turns, currentUserText, card, tab, stage, isPlainExplain, lang } = params;
   const maxChars = Math.max(400, params.maxChars ?? DEFAULT_CONVERSATION_MAX_CHARS);
 
-  const baseSystem =
-    lang === 'en'
-      ? isPlainExplain
-        ? 'You are the StudyHub study assistant. Explain the current question in plain everyday language with a concrete analogy (concise, focused).'
-        : tab === 'guided'
-          ? `You are the StudyHub guided study tutor at stage "${stageLabel(stage, 'en')}". Stay grounded in this multi-turn conversation and the card context; focus on one clear point per turn.`
-          : 'You are the StudyHub study assistant. Stay grounded in this multi-turn conversation and the card context. Answer directly and accurately; if asked to quote an earlier reply verbatim, quote it accurately.'
-      : isPlainExplain
-        ? '你是 StudyHub 学习助手。用大白话+生活类比为当前题写通俗讲解，180字内，直接给干货，紧扣本题答案与解析。'
-        : tab === 'guided'
-          ? `你是 StudyHub 带学导师，当前阶段「${stageLabel(stage, 'zh')}」。保持多轮会话连贯，紧扣当前题目与解析，每次聚焦一个关键点。`
-          : '你是 StudyHub 学习助手。请严格基于本会话的完整多轮对话历史与当前题目上下文回答；如果用户询问你之前的回复原文，请准确引用。回答简洁清晰。';
+  const baseSystem = isPlainExplain
+    ? buildUnifiedAiSystemPrompt('plain_explain', lang)
+    : tab === 'guided'
+      ? buildUnifiedAiSystemPrompt('guided', lang, { stageLabel: stageLabel(stage, lang) })
+      : buildUnifiedAiSystemPrompt('assistant', lang);
 
   const grounding = buildCardGroundingBlock(card, lang);
   const system = grounding

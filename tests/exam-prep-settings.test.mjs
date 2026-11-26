@@ -38,7 +38,7 @@ test('resolve gives the full object whether or not anything was saved, as a fres
   assert.deepEqual(two.paperWords, [], 'one caller never changes what another reads');
 });
 
-test('normalize is lenient: a wrong value falls back to its default and valid siblings survive', () => {
+test('normalizeExamPrepSettings falls back invalid autoRoles/language/showOtherCourses/paperWords values while keeping valid fields', () => {
   for (const raw of [undefined, null, [], 'x', 7]) assert.deepEqual(normalizeExamPrepSettings(raw), expected);
   assert.deepEqual(normalizeExamPrepSettings({ autoRoles: 'yes', language: 'fr', showOtherCourses: 1, paperWords: 'mock', unknown: 1 }), expected);
   assert.deepEqual(normalizeExamPrepSettings({ autoRoles: false, language: 'zh', showOtherCourses: true, paperWords: ['mock'] }),
@@ -53,7 +53,7 @@ test('paper words: trimmed, unique (letter case aside), no empty or too long ent
   assert.deepEqual(normalizeExamPrepSettings({ paperWords: many }).paperWords, many.slice(0, 20));
 });
 
-test('a patch is strict: it names known keys with valid values, and a refused patch throws', () => {
+test('validateExamPrepPatch trims/deduplicates paperWords and throws on unknown keys, unsupported language, or oversized word lists', () => {
   assert.deepEqual(validateExamPrepPatch({ language: 'en', autoRoles: false }), { language: 'en', autoRoles: false });
   assert.deepEqual(validateExamPrepPatch({ paperWords: [' a ', 'b', 'A'] }), { paperWords: ['a', 'b'] }, 'trimmed and de-duplicated');
   assert.deepEqual(validateExamPrepPatch({}), {});
@@ -63,7 +63,7 @@ test('a patch is strict: it names known keys with valid values, and a refused pa
   assert.deepEqual(validateExamPrepPatch({ paperWords: Array.from({ length: 20 }, (_, at) => `w${at}`) }).paperWords.length, 20, 'twenty is allowed');
 });
 
-test('merge keeps the saved siblings and applies the patch on top', () => {
+test('mergeExamPrepSettings keeps saved language and paperWords when patching autoRoles', () => {
   assert.deepEqual(mergeExamPrepSettings(undefined, { language: 'zh' }), { ...expected, language: 'zh' });
   assert.deepEqual(mergeExamPrepSettings({ language: 'en', paperWords: ['mock'] }, { autoRoles: false }),
     { autoRoles: false, paperWords: ['mock'], language: 'en', showOtherCourses: false, enabled: true });
@@ -91,7 +91,7 @@ test('nothing is saved until the learner saves: the snapshot has no examPrep and
   assert.equal('examPrep' in JSON.parse(await readFile(join(root, 'study-workspace.json'), 'utf8')).settings, false);
 });
 
-test('settings.examPrep.set merges per field into the saved settings and returns the full object', async t => {
+test('settings.examPrep.set applies language, paperWords, showOtherCourses, and autoRoles updates and returns the full examPrep config', async t => {
   const { service } = await library(t);
   assert.deepEqual(await service.call('settings.examPrep.set', { patch: { language: 'en' } }), { ...expected, language: 'en' });
   assert.deepEqual(await service.call('settings.examPrep.set', { patch: { paperWords: [' mock ', 'Mock'] } }), { ...expected, language: 'en', paperWords: ['mock'] });
@@ -115,7 +115,7 @@ test('settings.examPrep.set leaves the other settings alone, and the other setti
   assert.deepEqual(await saved(service), { ...expected, language: 'zh' });
 });
 
-test('a refused patch changes nothing', async t => {
+test('settings.examPrep.set leaves exported library untouched when an examPrep patch fails validation', async t => {
   const { service } = await library(t);
   await service.call('settings.examPrep.set', { patch: { language: 'en' } });
   const before = await service.call('export');
@@ -125,7 +125,7 @@ test('a refused patch changes nothing', async t => {
   assert.deepEqual(await service.call('export'), before);
 });
 
-test('settings.examPrep.reset forgets the saved choices: the defaults come back and the key leaves the library', async t => {
+test('settings.examPrep.reset restores EXAM_PREP_DEFAULTS and deletes settings.examPrep from disk', async t => {
   const { root, service } = await library(t);
   await service.call('settings.examPrep.set', { patch: { language: 'en', paperWords: ['mock'], autoRoles: false } });
   assert.deepEqual(await service.call('settings.examPrep.reset'), expected);
@@ -158,7 +158,7 @@ test('the generic settings action also merges an examPrep patch through the same
   assert.equal((await saved(service)).language, 'en');
 });
 
-test('stored format: one optional key inside the library settings; no version moves and no other field appears', async t => {
+test('study-workspace.json persists settings.examPrep under settings without changing schema version or adding sibling keys', async t => {
   const { root, service } = await library(t);
   await service.call('settings', { maximum_interval: 1 });
   await service.call('settings', { maximum_interval: 1 }); // the first write adds the library's own bookkeeping fields
@@ -173,7 +173,7 @@ test('stored format: one optional key inside the library settings; no version mo
   assert.deepEqual(Object.keys(after).filter(key => !(key in before)), [], 'no top-level field was added');
 });
 
-test('an older release opens a library with the key and a library without it opens here', async t => {
+test('normalizeState carries settings.examPrep across releases and resolves EXAM_PREP_DEFAULTS when absent', async t => {
   const { service } = await library(t);
   await service.call('settings.examPrep.set', { patch: { language: 'zh' } });
   const exported = await service.call('export');
@@ -185,7 +185,7 @@ test('an older release opens a library with the key and a library without it ope
   assert.deepEqual(resolveExamPrepSettings(legacy.settings.examPrep), expected);
 });
 
-test('backup and restore carry it like the other settings; a corrupt value falls back without losing valid siblings', async t => {
+test('export/restore preserves settings.examPrep and sanitizes malformed paperWords or language entries without dropping valid fields', async t => {
   const { service } = await library(t);
   await service.call('settings.examPrep.set', { patch: { language: 'en', paperWords: ['mock'], showOtherCourses: true } });
   const backup = await service.call('export');
@@ -203,7 +203,7 @@ test('backup and restore carry it like the other settings; a corrupt value falls
   assert.deepEqual(await saved(service), expected);
 });
 
-test('both actions write the library settings and nothing else', () => {
+test('domain contract: settings.examPrep.set and settings.examPrep.reset only mutate the settings slice', () => {
   assert.deepEqual(writesFor('system', 'settings.examPrep.set'), ['settings']);
   assert.deepEqual(writesFor('system', 'settings.examPrep.reset'), ['settings']);
 });
