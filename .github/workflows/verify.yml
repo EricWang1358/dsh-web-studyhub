@@ -41,6 +41,16 @@ jobs:
       - run: npm ci --legacy-peer-deps
         env:
           STUDYHUB_SKIP_PREPARE: '1'
+      - name: Prove changed regression tests catch their registered defects
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
+            node scripts/qa/replacement-controls.mjs --all
+          else
+            git cat-file -e "$BASE_SHA^{commit}" || git fetch --depth=1 origin "$BASE_SHA"
+            node scripts/qa/replacement-controls.mjs --base="$BASE_SHA"
+          fi
       - run: npm --prefix packages/studyhub-tui ci --no-audit --no-fund
       - name: Restore StudyHub TUI dist cache
         uses: actions/cache@v4
