@@ -5,11 +5,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { after, describe, test } from 'node:test';
 import { register } from 'tsx/esm/api';
 
 const unregisterTsx = register();
+const testsDir = path.dirname(fileURLToPath(import.meta.url));
 after(() => {
   unregisterTsx?.();
 });
@@ -40,9 +41,17 @@ describe('#1441: openExternal & app.open local HTML path allowlist inside study 
       fs.writeFileSync(outsideHtml, '<html><body>outside</body></html>', 'utf8');
       fs.writeFileSync(siblingHtml, '<html><body>prefix trick</body></html>', 'utf8');
 
-      // Symlink inside library pointing outside library
-      const symlinkEscape = path.join(compDir, 'symlink-escape.html');
-      fs.symlinkSync(outsideHtml, symlinkEscape);
+      // Symlink inside library pointing outside library. A file symlink on Windows needs Developer Mode or
+      // admin; without it, a directory junction (no privilege needed) makes the same escape.
+      let symlinkEscape = path.join(compDir, 'symlink-escape.html');
+      try {
+        fs.symlinkSync(outsideHtml, symlinkEscape);
+      } catch (error) {
+        if (process.platform !== 'win32' || error?.code !== 'EPERM') throw error;
+        const junction = path.join(compDir, 'junction-escape');
+        fs.symlinkSync(outsideDir, junction, 'junction');
+        symlinkEscape = path.join(junction, 'evil.html');
+      }
 
       // Valid local HTML/HTM inside library root -> allowed!
       const resolved1 = mod.resolveAllowedLocalHtmlUrl(pathToFileURL(goodHtml).href, [rootDir]);
@@ -82,6 +91,7 @@ describe('#1441: openExternal & app.open local HTML path allowlist inside study 
     const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'studyhub-1441-host-out-'));
     const dshHome = fs.mkdtempSync(path.join(os.tmpdir(), 'studyhub-1441-home-'));
     const openedUrls = [];
+    const launchedUrls = [];
 
     const htmlInside = path.join(rootDir, 'companions', 'demo.html');
     fs.mkdirSync(path.dirname(htmlInside), { recursive: true });
@@ -89,21 +99,27 @@ describe('#1441: openExternal & app.open local HTML path allowlist inside study 
     const htmlOutside = path.join(outsideDir, 'outside.html');
     fs.writeFileSync(htmlOutside, '<!doctype html><html><body>outside</body></html>', 'utf8');
 
+    // A recording launcher on a desktop platform: the open decision runs, but no browser is ever spawned.
     const host = await createTuiHost({
+      launchExternal: (url) => launchedUrls.push(url),
+      platform: 'darwin',
       libraryRoot: rootDir,
-      env: { ...process.env, DSH_HOME: dshHome, DISPLAY: '', WAYLAND_DISPLAY: '' },
+      env: { DSH_HOME: dshHome },
+      home: dshHome,
       skipAutoProbe: true,
       onOpenExternal: (url) => openedUrls.push(url),
     });
     try {
       const okRes = await host.call('app.open', { url: pathToFileURL(htmlInside).href });
       assert.equal(okRes.ok, true, `app.open should allow local HTML inside library root, got: ${JSON.stringify(okRes)}`);
-      assert.equal(openedUrls.length, 1);
-      assert.ok(openedUrls[0].startsWith('file://'));
+      const allowedHref = pathToFileURL(fs.realpathSync(htmlInside)).href;
+      assert.deepEqual(launchedUrls, [allowedHref], 'the launcher gets exactly the allowed file:// URL');
+      assert.deepEqual(openedUrls, [allowedHref]);
 
       const deniedRes = await host.call('app.open', { url: pathToFileURL(htmlOutside).href });
       assert.equal(deniedRes.ok, false, 'app.open must refuse local HTML outside library root');
       assert.equal(deniedRes.error?.code, 'link-refused');
+      assert.deepEqual(launchedUrls, [allowedHref], 'a refused link never reaches the launcher');
     } finally {
       await host.dispose();
       fs.rmSync(rootDir, { recursive: true, force: true });
@@ -114,7 +130,7 @@ describe('#1441: openExternal & app.open local HTML path allowlist inside study 
 
   test('3. CompanionsModal app.open call does not pass unused path parameter', () => {
     const src = fs.readFileSync(
-      path.resolve(path.dirname(new URL(import.meta.url).pathname), '../src/views/sources/CompanionsModal.tsx'),
+      path.resolve(testsDir, '../src/views/sources/CompanionsModal.tsx'),
       'utf8',
     );
     assert.ok(!src.includes("tryAction(host, 'app.open', { url: openTarget, path: rawPath })"), 'CompanionsModal must not pass unused path param to app.open');
@@ -151,7 +167,7 @@ describe('#1442: Plain explanation saved followup uses learner-friendly title in
 
   test('2. AssistantPanel uses resolvePlainExplainQuestionTitle for card.followup.add question field', () => {
     const src = fs.readFileSync(
-      path.resolve(path.dirname(new URL(import.meta.url).pathname), '../src/shell/AssistantPanel.tsx'),
+      path.resolve(testsDir, '../src/shell/AssistantPanel.tsx'),
       'utf8',
     );
     assert.match(src, /question:\s*resolvePlainExplainQuestionTitle\(/, 'AssistantPanel must pass resolvePlainExplainQuestionTitle() to card.followup.add');
