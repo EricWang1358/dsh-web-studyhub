@@ -17,6 +17,17 @@ export {
 export { TextInput, type TextInputProps } from './TextInput.js';
 export { SelectList, type SelectListProps, type SelectOption } from './SelectList.js';
 export { ScrollView, highlightLine, type ScrollViewProps } from './ScrollView.js';
+export { ScrollArea, type ScrollAreaProps } from './ScrollArea.js';
+export {
+  ChromeLabel,
+  Prose,
+  ProseContainer,
+  computeProseLayout,
+  type ChromeLabelProps,
+  type ProseProps,
+  type ProseContainerProps,
+  type ProseLayout,
+} from './Layout.js';
 export { MarkdownView, type MarkdownViewProps } from './MarkdownView.js';
 export { SplitPane, computeSplit, type SplitPaneProps, type PaneSize, type PaneContent } from './SplitPane.js';
 export { Modal, modalContentWidth, type ModalProps } from './Modal.js';
