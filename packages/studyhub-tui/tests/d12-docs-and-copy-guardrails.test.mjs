@@ -1,9 +1,8 @@
 // Automated D12 / D2 / D3 / D6 engineering guardrails (#1354):
 // 1. D12 Docs-to-Code Parity: `docs/ARCHITECTURE.md` stays aligned with live `THEME_IDS`,
 //    `MAX_TOAST_HISTORY`, P1 input scope stack (`src/input/`), shipped docs, and disk paths.
-// 2. D2 Keybinding Vocabulary: `GLOBAL_KEYMAP_ENTRIES` carries canonical `verb` tags,
-//    `CANONICAL_ACTION_VOCABULARY` agrees with global routes, and `notification-history`
-//    tracks `MAX_TOAST_HISTORY` dynamically.
+// 2. D2 Keybinding Vocabulary: `GLOBAL_KEYMAP_ENTRIES` covers every global route key and
+//    `notification-history` tracks `MAX_TOAST_HISTORY` dynamically.
 // 3. D3 Shell Hint Consistency: `TopBar`, `Launchpad`, `resolveShellFooterHints`, and
 //    `HelpOverlay.globalShortcuts` derive global shortcut copy from `global-keymap.ts`.
 // 4. D6 Notification & Toast Copy Consistency: `NotificationHistoryModal` and `InboxModal`
@@ -38,7 +37,6 @@ const [
   routerMod,
   globalKeymapMod,
   focusMod,
-  helpMod,
   topBarMod,
   launchpadMod,
   notifModalMod,
@@ -52,7 +50,6 @@ const [
   import('../src/input/global-router.ts'),
   import('../src/shell/global-keymap.ts'),
   import('../src/components/focus.ts'),
-  import('../src/shell/HelpOverlay.tsx'),
   import('../src/shell/TopBar.tsx'),
   import('../src/shell/Launchpad.tsx'),
   import('../src/shell/NotificationHistoryModal.tsx'),
@@ -237,44 +234,35 @@ describe('#1354 D12 Docs-to-Code Parity (ARCHITECTURE.md)', () => {
   });
 });
 
-describe('#1354 D2 & D3 Global Keybinding Vocabulary & Shell Hint Single Source', () => {
-  test('GLOBAL_KEYMAP_ENTRIES defines canonical verbs and covers every GLOBAL_SINGLE_KEY_ROUTES action', () => {
-    assert.equal(typeof globalKeymapMod.formatGlobalKeyHint, 'function', 'global-keymap must export formatGlobalKeyHint');
-    assert.ok(
-      Array.isArray(globalKeymapMod.CANONICAL_ACTION_VOCABULARY) && globalKeymapMod.CANONICAL_ACTION_VOCABULARY.length >= 8,
-      'global-keymap must export CANONICAL_ACTION_VOCABULARY with at least 8 canonical verbs',
-    );
+describe('#1354 D12 KEYBINDINGS.md inbox rows', () => {
+  const keybindingsDoc = fs.readFileSync(path.join(PKG_ROOT, 'docs/KEYBINDINGS.md'), 'utf8');
+  const rowFor = (needle) => keybindingsDoc.split(/\r?\n/).find((line) => line.startsWith(needle)) ?? '';
 
-    const verbs = new Set();
-    for (const entry of globalKeymapMod.GLOBAL_KEYMAP_ENTRIES) {
-      assert.ok(
-        typeof entry.verb === 'string' && entry.verb.trim().length > 0,
-        `GLOBAL_KEYMAP_ENTRIES "${entry.id}" must declare a non-empty canonical verb`,
-      );
-      assert.equal(verbs.has(entry.verb), false, `Duplicate verb "${entry.verb}" in GLOBAL_KEYMAP_ENTRIES`);
-      verbs.add(entry.verb);
-      assert.ok(entry.helpZh.trim().length > 0 && entry.helpEn.trim().length > 0);
-    }
-
-    // Every canonical vocabulary verb must have unique id, key, zh & en labels.
-    const vocabVerbs = new Set();
-    for (const item of globalKeymapMod.CANONICAL_ACTION_VOCABULARY) {
-      assert.equal(vocabVerbs.has(item.verb), false, `Duplicate canonical action verb "${item.verb}"`);
-      vocabVerbs.add(item.verb);
-      assert.ok(item.key.trim().length > 0 && item.labelZh.trim().length > 0 && item.labelEn.trim().length > 0);
-    }
-
-    // Overlapping global routes in CANONICAL_ACTION_VOCABULARY must match GLOBAL_KEYMAP_ENTRIES keys.
-    const byVerb = new Map(globalKeymapMod.GLOBAL_KEYMAP_ENTRIES.map((e) => [e.verb, e]));
-    for (const item of globalKeymapMod.CANONICAL_ACTION_VOCABULARY) {
-      const globalEntry = byVerb.get(item.verb);
-      if (!globalEntry) continue;
-      const entryKey = globalEntry.footerKey ?? globalEntry.helpKey;
+  test('inbox and Ctrl+O rows do not hard-code the history cap and the inbox row documents Ctrl+R and toasts-tab no-ops', () => {
+    const inboxRow = rowFor('| `I` |');
+    const historyRow = rowFor('| `Ctrl+O` |');
+    assert.ok(inboxRow.length > 0 && historyRow.length > 0, 'KEYBINDINGS.md must keep the inbox and Ctrl+O rows');
+    for (const row of [inboxRow, historyRow]) {
       assert.equal(
-        entryKey,
-        item.key,
-        `Canonical verb "${item.verb}" key "${item.key}" must match GLOBAL_KEYMAP_ENTRIES "${entryKey}"`,
+        new RegExp(`\b${MAX_TOAST_HISTORY}\b`).test(row),
+        false,
+        `KEYBINDINGS.md must reference MAX_TOAST_HISTORY instead of hard-coding ${MAX_TOAST_HISTORY}: ${row}`,
       );
+      assert.ok(row.includes('MAX_TOAST_HISTORY'), `row must name the MAX_TOAST_HISTORY cap: ${row}`);
+    }
+    assert.ok(inboxRow.includes('Ctrl+R'), 'inbox row must document Ctrl+R (reload inbox)');
+    assert.match(inboxRow, /toasts tab[^|]*do nothing/, 'inbox row must say e / m / M / Enter do nothing on the toasts tab');
+  });
+});
+
+describe('#1354 D2 & D3 Global Keybinding Vocabulary & Shell Hint Single Source', () => {
+  test('GLOBAL_KEYMAP_ENTRIES has unique ids and covers every GLOBAL_SINGLE_KEY_ROUTES action', () => {
+    assert.equal(typeof globalKeymapMod.formatGlobalKeyHint, 'function', 'global-keymap must export formatGlobalKeyHint');
+    const ids = new Set();
+    for (const entry of globalKeymapMod.GLOBAL_KEYMAP_ENTRIES) {
+      assert.equal(ids.has(entry.id), false, `Duplicate id "${entry.id}" in GLOBAL_KEYMAP_ENTRIES`);
+      ids.add(entry.id);
+      assert.ok(entry.helpZh.trim().length > 0 && entry.helpEn.trim().length > 0);
     }
 
     // Every single-key global route in global-router.ts must appear as an exact key token (never substring of 'Esc' or 'j/k').
@@ -405,40 +393,22 @@ describe('#1354 D2 & D3 Global Keybinding Vocabulary & Shell Hint Single Source'
         );
         try {
           const out = await waitForOutput(lpStreams, (s) => s.includes(`${expectedQuit.key} ${expectedQuit.label}`));
+          // Launchpad has room, so it uses the un-abbreviated palette label from the same keymap entry.
+          const launchpadCmd = globalKeymapMod.formatGlobalKeyHint('command-palette', lang, true, true);
           assert.ok(
-            out.includes(`${expectedCmd.key} ${expectedCmd.label}`),
-            `Launchpad (${lang}) must show derived palette hint "${expectedCmd.key} ${expectedCmd.label}": ${out}`,
+            out.includes(`${launchpadCmd.key} ${launchpadCmd.label}`),
+            `Launchpad (${lang}) must show derived palette hint "${launchpadCmd.key} ${launchpadCmd.label}": ${out}`,
           );
+          assert.equal(out.includes('Cmd'), false, `Launchpad (${lang}) must not abbreviate the palette as "Cmd": ${out}`);
+          if (lang === 'en') {
+            assert.ok(out.includes('Ctrl+K Commands'), `Launchpad (en) must spell out "Commands": ${out}`);
+          }
           assert.ok(out.includes(`${expectedHelp.key} ${expectedHelp.label}`), `Launchpad (${lang}) must show help hint: ${out}`);
           assert.ok(out.includes(`${expectedQuit.key} ${expectedQuit.label}`), `Launchpad (${lang}) must show quit hint: ${out}`);
         } finally {
           lpInst.unmount();
           lpStreams.destroy();
         }
-
-        // Cross-check resolveShellFooterHints and HelpOverlay globalShortcuts match global-keymap builders directly.
-        const defaultHints = focusMod.resolveShellFooterHints({
-          modalHints: null,
-          footerHints: [],
-          inputCaptured: false,
-          overlayOpen: false,
-          compactMode: false,
-          practiceReturnLabel: null,
-          lang,
-        });
-        assert.deepEqual(
-          defaultHints,
-          [
-            ...globalKeymapMod.buildDefaultFooterHints(lang),
-            ...globalKeymapMod.buildFooterTailHints(lang, false),
-          ],
-          `resolveShellFooterHints (${lang}) must derive directly from global-keymap builders`,
-        );
-        assert.deepEqual(
-          helpMod.globalShortcuts(lang, true),
-          globalKeymapMod.buildGlobalHelpShortcuts(lang, true),
-          `HelpOverlay.globalShortcuts (${lang}) must derive directly from buildGlobalHelpShortcuts`,
-        );
       }
     } finally {
       useTuiStore.setState({
@@ -451,6 +421,58 @@ describe('#1354 D2 & D3 Global Keybinding Vocabulary & Shell Hint Single Source'
       });
     }
   });
+});
+
+describe('#1354 D3 TopBar help chip width budget', () => {
+  // Narrowest widths at which the [?] Help / [/] Cmd chips fit on the TopBar before the keymap wiring (empty library).
+  const MIN_WIDTH_WITH_HELP_CHIPS = [
+    { lang: 'zh', asciiMode: true, width: 82 },
+    { lang: 'zh', asciiMode: false, width: 80 },
+    { lang: 'en', asciiMode: true, width: 84 },
+    { lang: 'en', asciiMode: false, width: 82 },
+  ];
+
+  for (const { lang, asciiMode, width } of MIN_WIDTH_WITH_HELP_CHIPS) {
+    test(`TopBar keeps the help and palette chips at ${width} cols (${lang}, ascii=${asciiMode})`, async () => {
+      const prev = useTuiStore.getState();
+      useTuiStore.setState({
+        page: 'library',
+        snapshot: { root: '/tmp/lib', decks: [], sources: [], courses: [], inbox: [] },
+        desktopConfig: null,
+        binding: null,
+        practiceStack: [],
+        preferences: { ...DEFAULT_PREFERENCES, language: lang, asciiMode },
+      });
+      const help = globalKeymapMod.formatGlobalKeyHint('help', lang, asciiMode);
+      const cmd = globalKeymapMod.formatGlobalKeyHint('command-palette', lang, asciiMode);
+      const streams = createRenderStreams(width, 4);
+      const inst = render(React.createElement(topBarMod.TopBar, { width }), {
+        stdin: streams.stdin,
+        stdout: streams.stdout,
+        interactive: true,
+        exitOnCtrlC: false,
+        debug: true,
+      });
+      try {
+        const out = await waitForOutput(streams, (s) => s.includes(`[${help.key}] ${help.label}`));
+        assert.ok(out.includes(`[${help.key}] ${help.label}`), `help chip must fit at ${width} cols:
+${out}`);
+        assert.ok(out.includes(`${cmd.label}`), `palette chip must fit at ${width} cols:
+${out}`);
+      } finally {
+        inst.unmount();
+        streams.destroy();
+        useTuiStore.setState({
+          page: prev.page,
+          snapshot: prev.snapshot,
+          desktopConfig: prev.desktopConfig,
+          binding: prev.binding,
+          practiceStack: prev.practiceStack,
+          preferences: prev.preferences,
+        });
+      }
+    });
+  }
 });
 
 describe('#1354 D6 Single-Source Toast & Notification History Copy Consistency', () => {
@@ -472,8 +494,8 @@ describe('#1354 D6 Single-Source Toast & Notification History Copy Consistency',
     const enCopy = toastCopyMod.toastHistoryCopy('en');
     assert.ok(zhCopy.emptyHint.includes(String(MAX_TOAST_HISTORY)));
     assert.ok(enCopy.emptyHint.includes(String(MAX_TOAST_HISTORY)));
-    assert.equal(zhCopy.tabLabel, zhCopy.footerHintLabel, 'Inbox tab label and footer hint label must match in zh');
-    assert.equal(enCopy.tabLabel, enCopy.footerHintLabel, 'Inbox tab label and footer hint label must match in en');
+    assert.equal('footerHintLabel' in zhCopy, false, 'tabLabel is the single label for the inbox tab and its footer hint');
+    assert.equal(toastCopyMod.formatToastClipboardPayload.length, 2, 'formatToastClipboardPayload takes (item, now?) only');
 
     const payload = toastCopyMod.formatToastClipboardPayload(
       {
@@ -483,7 +505,6 @@ describe('#1354 D6 Single-Source Toast & Notification History Copy Consistency',
         source: 'export',
         createdAt: Date.now(),
       },
-      'en',
     );
     assert.ok(payload.includes('[error]'));
     assert.ok(payload.includes('[export]'));
@@ -558,8 +579,14 @@ describe('#1354 D6 Single-Source Toast & Notification History Copy Consistency',
 
       // Ctrl+R reloads inbox just like r (D2 canonical refresh key)
       streams.stdin.write('\u0012');
-      const ctrlRSettled = await waitForCondition(() => inboxListCalls > beforeCtrlR && refreshCalls >= 1);
-      assert.equal(ctrlRSettled, true, 'Ctrl+R inside InboxModal must reload inbox and invoke actions.refresh()');
+      const ctrlRSettled = await waitForCondition(() => inboxListCalls > beforeCtrlR);
+      assert.equal(ctrlRSettled, true, 'Ctrl+R inside InboxModal must reload the inbox');
+      await new Promise((r) => setTimeout(r, 80));
+      assert.equal(
+        refreshCalls,
+        0,
+        'InboxModal must not call actions.refresh() itself: the system layer already refreshes the snapshot on Ctrl+R',
+      );
 
       // Press `h` to switch to the toast history tab
       streams.stdin.write('h');
@@ -585,6 +612,15 @@ describe('#1354 D6 Single-Source Toast & Notification History Copy Consistency',
       assert.equal(useTuiStore.getState().toastHistory.length, 0, 'C must clear toastHistory without adding a new toast');
       assert.ok(clearedFrame.includes(zhCopy.emptyTitle), `Cleared toasts tab must show canonical emptyTitle: ${clearedFrame}`);
       assert.ok(clearedFrame.includes(zhCopy.clearedStatus), `Cleared toasts tab must show canonical clearedStatus: ${clearedFrame}`);
+      assert.ok(
+        clearedFrame.includes(zhCopy.emptyHint),
+        `Empty toasts tab must show the shared toastHistoryCopy emptyHint "${zhCopy.emptyHint}": ${clearedFrame}`,
+      );
+      assert.equal(
+        clearedFrame.includes('后台任务或陪学回复完成后会投递到这里'),
+        false,
+        `Empty toasts tab must not show the inbox's own empty hint: ${clearedFrame}`,
+      );
 
       // When a new toast arrives after clearing, stale clearedStatus must disappear immediately.
       useTuiStore.getState().notify('新到达的状态提示', 'info', 'shell');
@@ -617,6 +653,95 @@ describe('#1354 D6 Single-Source Toast & Notification History Copy Consistency',
         toasts: prev.toasts,
         toastHistory: prev.toastHistory,
         preferences: prev.preferences,
+      });
+    }
+  });
+
+  test('AppShell: one Ctrl+R inside the open inbox reloads the inbox once and fetches the snapshot once', async () => {
+    const { AppShell } = await import('../src/shell/AppShell.tsx');
+    const prev = useTuiStore.getState();
+    const calls = { snapshot: 0, inbox: 0 };
+    const snapshot = {
+      revision: 1,
+      courses: [],
+      decks: [],
+      focus: {},
+      stats: { totalCards: 0, dueToday: 0, reviewedToday: 0 },
+      sources: [],
+      tasks: [],
+      wrongBook: [],
+      notes: [],
+      modelReady: false,
+    };
+    const host = {
+      getSnapshot: async () => snapshot,
+      runAction: async () => ({ ok: true, value: {} }),
+      call: async (action) => {
+        if (action === 'snapshot') {
+          calls.snapshot += 1;
+          return { ok: true, value: snapshot };
+        }
+        if (action === 'inbox') {
+          calls.inbox += 1;
+          return { ok: true, value: { items: [] } };
+        }
+        return { ok: true, value: {} };
+      },
+      onEvent: () => () => {},
+      subscribe: () => () => {},
+      dispose: async () => {},
+    };
+    useTuiStore.setState({
+      page: 'library',
+      navContext: {},
+      history: [],
+      loading: false,
+      refreshing: false,
+      showLaunchpad: false,
+      inputCaptured: false,
+      commandPaletteOpen: false,
+      helpOpen: false,
+      coursePickerOpen: false,
+      inboxOpen: true,
+      notificationHistoryOpen: false,
+      quitConfirmOpen: false,
+      assistantOpen: false,
+      assistantFocused: false,
+      assistantFullscreen: false,
+      practiceStack: [],
+      toasts: [],
+      toastHistory: [],
+      snapshot,
+      preferences: { ...DEFAULT_PREFERENCES, language: 'en', asciiMode: true },
+    });
+    const streams = createRenderStreams(120, 36);
+    const inst = render(
+      React.createElement(AppShell, {
+        host,
+        autoLaunchpad: false,
+        renderPage: () => React.createElement(Box, null),
+      }),
+      { stdin: streams.stdin, stdout: streams.stdout, interactive: true, exitOnCtrlC: false, debug: true },
+    );
+    try {
+      await waitForCondition(() => calls.inbox >= 1);
+      await new Promise((r) => setTimeout(r, 300));
+      const before = { ...calls };
+      streams.stdin.write('\u0012');
+      await waitForCondition(() => calls.inbox > before.inbox && calls.snapshot > before.snapshot);
+      await new Promise((r) => setTimeout(r, 300));
+      assert.equal(calls.inbox - before.inbox, 1, 'one Ctrl+R must reload the inbox exactly once');
+      assert.equal(calls.snapshot - before.snapshot, 1, 'one Ctrl+R must fetch the snapshot exactly once');
+    } finally {
+      inst.unmount();
+      streams.destroy();
+      useTuiStore.setState({
+        inboxOpen: prev.inboxOpen,
+        snapshot: prev.snapshot,
+        preferences: prev.preferences,
+        page: prev.page,
+        toasts: prev.toasts,
+        toastHistory: prev.toastHistory,
       });
     }
   });

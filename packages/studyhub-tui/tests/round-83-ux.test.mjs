@@ -257,6 +257,75 @@ describe('Round 83 Track D1: Proactive 20s Stuck Nudge (Opt-out + Rate Limit + N
     assert.ok(buildStuckNudgeMessage('zh', true).includes('[t]'));
   });
 
+  test('1b. ReviewView default stuck-nudge delay is 20s: silent at 19,999 ms, nudge at 20,000 ms', async () => {
+    const mockRun = {
+      id: 'run-r83-delay',
+      title: 'Stuck Nudge Delay',
+      index: 0,
+      total: 3,
+      answered: 0,
+      revealed: false,
+      card: {
+        id: 'card-delay-1',
+        deckId: 'd1',
+        kind: 'single',
+        prompt: '请选出正确答案',
+        options: [
+          { id: 'A', text: 'OptA' },
+          { id: 'B', text: 'OptB' },
+        ],
+      },
+    };
+    const mockHost = {
+      call: async (name) => (name === 'review.start' || name === 'review.get' ? { ok: true, value: mockRun } : { ok: true, value: {} }),
+      getSnapshot: async () => ({ decks: [], courses: [], jobs: [] }),
+    };
+
+    // Fake clock for long timers only (>= 5 s): the harness' own short timers keep running on real time.
+    const realSetTimeout = globalThis.setTimeout;
+    const realClearTimeout = globalThis.clearTimeout;
+    const fake = new Map();
+    let fakeNow = 0;
+    let fakeSeq = 0;
+    globalThis.setTimeout = (fn, ms, ...args) => {
+      if (typeof ms === 'number' && ms >= 5_000 && ms < 1e9) {
+        const handle = { fakeId: (fakeSeq += 1), unref() {}, ref() {} };
+        fake.set(handle, { fn: () => fn(...args), due: fakeNow + ms });
+        return handle;
+      }
+      return realSetTimeout(fn, ms, ...args);
+    };
+    globalThis.clearTimeout = (handle) => {
+      if (fake.delete(handle)) return;
+      realClearTimeout(handle);
+    };
+    const advance = async (ms) => {
+      fakeNow += ms;
+      for (const [handle, t] of [...fake.entries()].sort((a, b) => a[1].due - b[1].due)) {
+        if (t.due <= fakeNow && fake.delete(handle)) t.fn();
+      }
+      await new Promise((r) => realSetTimeout(r, 150));
+    };
+
+    resetStore({ preferences: { ...DEFAULT_PREFERENCES, language: 'zh', asciiMode: false, proactiveHints: true } });
+    const h = createInkHarness(
+      React.createElement(ReviewView, { host: mockHost, width: 100, height: 24, isActive: true }),
+      { cols: 100, rows: 24 },
+    );
+    try {
+      await h.waitFor((s) => s.includes('OptA'));
+      assert.ok(fake.size >= 1, 'ReviewView must schedule a long stuck-nudge timer by default');
+      await advance(19_999);
+      assert.equal(h.latest().includes('卡住了？'), false, 'No stuck nudge before 20,000 ms');
+      await advance(1);
+      assert.ok(h.latest().includes('卡住了？'), 'Stuck nudge must appear at 20,000 ms');
+    } finally {
+      globalThis.setTimeout = realSetTimeout;
+      globalThis.clearTimeout = realClearTimeout;
+      h.cleanup();
+    }
+  });
+
   test('2. ReviewView shows calm inline stuck nudge after delay, stays silent when disabled, and persists proactiveHints=false in tui.json', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'studyhub-r83-prefs-'));
     tempDirs.push(dir);

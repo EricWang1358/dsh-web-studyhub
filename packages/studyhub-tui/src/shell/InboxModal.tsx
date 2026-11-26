@@ -437,8 +437,8 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
         return true;
       }
       if (key.ctrl && !key.meta && input === 'r') {
+        // The system layer already refreshes the snapshot on Ctrl+R (consume:false); reload only the inbox here.
         void loadInbox(true);
-        void actions.refresh();
         return true;
       }
       if (!isPlainKey(input, key)) return false;
@@ -563,7 +563,7 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
                   { key: 'e', label: t(lang, '导出', 'Export') },
                   { key: 'm', label: t(lang, '已读', 'Read') },
                   { key: 'M', label: t(lang, '全读', 'All') },
-                  { key: 'h', label: toastCopy.footerHintLabel },
+                  { key: 'h', label: toastCopy.tabLabel },
                   { key: 'Tab', label: t(lang, '筛选', 'Filter') },
                   { key: 'r', label: t(lang, '刷新', 'Refresh') },
                   { key: 'Esc', label: t(lang, '关闭', 'Close') },
@@ -572,7 +572,7 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
                   { key: 'Enter', label: t(lang, '打开', 'Open') },
                   { key: '/', label: t(lang, '搜索', 'Search') },
                   ...(searchQuery ? [{ key: 'c', label: t(lang, '重置', 'Clear') }] : []),
-                  { key: 'h', label: toastCopy.footerHintLabel },
+                  { key: 'h', label: toastCopy.tabLabel },
                   { key: 'e', label: t(lang, '导出', 'Export') },
                   { key: 'm', label: t(lang, '已读', 'Read') },
                   { key: 'Esc', label: t(lang, '关闭', 'Close') },

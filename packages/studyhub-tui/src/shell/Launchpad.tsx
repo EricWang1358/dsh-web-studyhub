@@ -145,7 +145,7 @@ export const Launchpad = memo(function Launchpad({ width, height, isActive }: La
     </Box>
   );
 
-  const cmdHint = formatGlobalKeyHint('command-palette', lang, asciiMode);
+  const cmdHint = formatGlobalKeyHint('command-palette', lang, asciiMode, true);
   const helpHint = formatGlobalKeyHint('help', lang, asciiMode);
   const quitHint = formatGlobalKeyHint('quit', lang, asciiMode);
   const launchpadFooterLine = `${cmdHint.key} ${cmdHint.label}${dotSep}${helpHint.key} ${helpHint.label}${dotSep}${quitHint.key} ${quitHint.label}`;

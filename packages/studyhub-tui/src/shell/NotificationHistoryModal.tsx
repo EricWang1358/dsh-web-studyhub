@@ -105,7 +105,7 @@ export const NotificationHistoryModal = memo(function NotificationHistoryModal({
       setStatus(copy.noCopySelection);
       return;
     }
-    const payload = formatToastClipboardPayload(selected, lang);
+    const payload = formatToastClipboardPayload(selected);
     const res = await copyTextWithFallback(payload, {
       libraryRoot: bindingRoot || snapshotRoot || null,
     });

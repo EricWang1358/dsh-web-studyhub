@@ -82,7 +82,6 @@ export function toastLogicalLineCount(text: string): number {
 /** Full multi-line clipboard export format shared by notification history copy actions. */
 export function formatToastClipboardPayload(
   item: Pick<ToastItem, 'createdAt' | 'tone' | 'source' | 'text'>,
-  _lang?: UiLanguage,
   now?: Date,
 ): string {
   const clock = formatToastClock(item.createdAt, now);
@@ -94,7 +93,6 @@ export function formatToastClipboardPayload(
 export interface ToastHistoryCopy {
   title: string;
   tabLabel: string;
-  footerHintLabel: string;
   emptyTitle: string;
   emptyHint: string;
   clearedStatus: string;
@@ -112,7 +110,6 @@ export function toastHistoryCopy(lang: UiLanguage, maxHistory: number = MAX_TOAS
   return {
     title: en ? 'Notification History' : '通知历史',
     tabLabel: en ? 'History' : '近期提示',
-    footerHintLabel: en ? 'History' : '近期提示',
     emptyTitle: en ? 'No notifications yet' : '暂无通知记录',
     emptyHint: en
       ? `Recent toasts are kept here (last ${maxHistory})`

@@ -73,7 +73,7 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
   const cmdKeyLabel = paletteKeyOverridden ? `[${cmdHint.key}]` : '[/]';
   const helpChipText = `  [${helpHint.key}] ${helpHint.label} `;
   const cmdChipText = ` ${cmdKeyLabel} ${cmdHint.label} `;
-  const helpText = `${helpChipText}${cmdChipText}`;
+  const helpSegmentWidth = displayWidth(helpChipText) + displayWidth(cmdChipText);
   const returnChipLabel = formatReturnHintLabel(practiceStack, lang);
   const returnChipText = returnChipLabel ? ` ${asciiMode ? '<-' : '←'} ${returnChipLabel} [r] ` : '';
 
@@ -91,7 +91,7 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
     ...(unread > 0 ? [{ id: 'inbox', priority: 55, width: displayWidth(inboxText) + 1 }] : []),
     ...(jobs > 0 || refreshing ? [{ id: 'jobs', priority: 70, width: displayWidth(jobsText) + 1 }] : []),
     { id: 'due', priority: 75, width: displayWidth(dueText) + 1 },
-    { id: 'help', priority: 50, width: displayWidth(helpText) + 1 },
+    { id: 'help', priority: 50, width: helpSegmentWidth },
   ];
 
   const kept = new Set<string>([...staticWidths.map((s) => s.id), 'course', 'model']);
@@ -276,7 +276,7 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
     {
       id: 'help',
       priority: 50,
-      width: displayWidth(helpText) + 1,
+      width: helpSegmentWidth,
       node: (
         <Box key="help" flexDirection="row">
           <ClickableBox onClick={() => useTuiStore.getState().setHelpOpen(true)}>
