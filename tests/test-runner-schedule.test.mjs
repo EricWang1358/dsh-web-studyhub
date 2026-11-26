@@ -49,7 +49,7 @@ test('a timing file finishes alone and every success, failure and skip has one n
 });
 
 test('relative ESM requests share native resolutions only for the same canonical library module', async () => {
-  const { cacheLocalImports } = await import('../scripts/qa/test-preload.mjs');
+  const { cacheLocalImports } = await import('../scripts/qa/test-module-loader.mjs');
   const sibling = new URL('../lib/host.js', import.meta.url).href;
   const resolveImport = cacheLocalImports(url => url === sibling ? Buffer.alloc(0) : undefined);
   const from = name => ({ parentURL: new URL(name, import.meta.url).href, conditions: ['node', 'import'] });
@@ -73,6 +73,18 @@ test('relative ESM requests share native resolutions only for the same canonical
   resolveImport('../lib/other.js', from('./probe.mjs'), redirected);
   resolveImport('../lib/other.js', from('./second.mjs'), redirected);
   assert.equal(calls, 7);
+});
+
+test('a real fixture can use archived sources without inheriting the network policy of its test worker', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'study-fixture-preload-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const report = join(dir, 'network.jsonl');
+  const env = { ...process.env, STUDY_TEST_NETWORK_REPORT: '1', STUDY_TEST_NETWORK_REPORT_FILE: report };
+  const child = script => promisify(execFile)(process.execPath, ['--import', new URL(script, import.meta.url).href, '-e', ''], { env, windowsHide: true });
+  await child('../scripts/qa/test-module-loader.mjs');
+  await assert.rejects(readFile(report), { code: 'ENOENT' });
+  await child('../scripts/qa/test-preload.mjs');
+  assert.deepEqual(JSON.parse(await readFile(report, 'utf8')), { attempts: 0 });
 });
 
 test('a Windows test worker reads the original source and falls back for edits, deletions and generated chunks', async t => {

@@ -1,4 +1,5 @@
 import test from "node:test";
+import { fixtureSourcePreload } from '../scripts/qa/test-source-cache.mjs';
 import assert from "node:assert/strict";
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -64,7 +65,7 @@ test('a fresh process lists a failed single recording and retries from its saved
   const dir = await mkdtemp(join(tmpdir(), 'audio-single-restart-')), root = join(dir, 'library');
   t.after(() => rm(dir, { recursive: true, force: true }));
   const child = mode => new Promise((resolve, reject) => {
-    const proc = spawn(process.execPath, [fileURLToPath(new URL('./fixtures/audio-single-process.mjs', import.meta.url)), root, mode],
+    const proc = spawn(process.execPath, [...fixtureSourcePreload(), fileURLToPath(new URL('./fixtures/audio-single-process.mjs', import.meta.url)), root, mode],
       { env: { ...process.env, DSH_HOME: join(dir, 'home') }, windowsHide: true });
     let out = '', err = '';
     proc.stdout.on('data', data => { out += data; }); proc.stderr.on('data', data => { err += data; });
