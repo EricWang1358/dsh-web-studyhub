@@ -14,6 +14,7 @@ const m = await loadUi(`
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { default as JobCard } from './ui/study-map/JobCard.jsx';
   export { LIMIT_ANCHOR } from './ui/tasks/time-limit.js';
+  export { categoryForAnchor } from './ui/settings-groups.js';
   export { setUiLanguage } from './ui/i18n.js';`);
 const noop = () => {};
 const text = html => html.replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
@@ -34,7 +35,7 @@ test('a run that hit its time limit links to the setting of the limit on its car
   assert.match(linksOf(html), /调整时限/);
   assert.doesNotMatch(linksOf(draw(failed({ stage: 'fetch failed: ECONNRESET' }))), /调整时限/, 'another failure has no such link');
   assert.doesNotMatch(linksOf(draw(failed({ status: 'complete', stage: 'Draft ready for review' }))), /调整时限/);
-  assert.equal(m.LIMIT_ANCHOR, 'settings-generation-time', 'the field of 设置 › 出题偏好 that holds the limit');
+  assert.equal(m.categoryForAnchor(m.LIMIT_ANCHOR), 'generation', 'the anchor routes to 设置 › 出题偏好 where the limit lives');
   inLanguage('en', () => assert.match(linksOf(draw(failed(), { language: 'en' })), /Adjust time budget/));
 });
 
