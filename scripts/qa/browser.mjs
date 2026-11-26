@@ -36,6 +36,14 @@ export async function findChromium(env = process.env) {
   return null;
 }
 
+/** One loopback Playwright server for a full local suite. Each connection owns its browser contexts. */
+export async function startTestChromium() {
+  const executablePath = await findChromium();
+  const { chromium } = await import('playwright');
+  return chromium.launchServer({ ...(executablePath ? { executablePath } : {}), headless: true, host: '127.0.0.1', port: 0,
+    handleSIGINT: false, handleSIGTERM: false, handleSIGHUP: false });
+}
+
 /** Put keyboard focus on `locator`, the way a person who is on the keyboard does. A tooltip opens on :focus-visible, which a script's focus() gets only when
  *  the last input was a key (after a mouse press it does not: that is the point of the shared Tooltip). A Shift press first makes it one. */
 export async function focusByKeyboard(locator) {
@@ -54,9 +62,18 @@ export function skipMissingChromium(t, error) {
  *  made from this browser: a whole test suite shares the machine, and a wait is a deadline for something to happen, not a measure of speed. */
 export async function launchChromium(options = {}) {
   const { chromium } = await import("playwright");
-  const executablePath = await findChromium();
   const patience = Number(process.env.STUDY_QA_ACTION_TIMEOUT_MS) || 0;
-  const browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}), ...(patience ? { timeout: patience } : {}), ...options });
+  const shared = process.env.STUDY_TEST_BROWSER_ENDPOINT;
+  const timeout = patience ? { timeout: patience } : {};
+  let browser;
+  if (/^ws:\/\/127\.0\.0\.1:\d+\/[\w-]+$/.test(shared || '') && !Object.keys(options).length) {
+    // A previous fixture may have crashed Chromium. Later fixtures still run with a fresh, real browser.
+    browser = await chromium.connect(shared, timeout).catch(() => null);
+  }
+  if (!browser) {
+    const executablePath = await findChromium();
+    browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}), ...timeout, ...options });
+  }
   if (patience) {
     const newContext = browser.newContext.bind(browser), newPage = browser.newPage.bind(browser);
     browser.newContext = async (...args) => { const context = await newContext(...args); context.setDefaultTimeout(patience); return context; };

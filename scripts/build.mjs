@@ -1,6 +1,6 @@
 import { build, transform } from 'esbuild';
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { hostReact, shimJsxRuntime } from './host-react.mjs';
@@ -168,9 +168,20 @@ export async function buildHostClient({ outdir = resolve(root, 'lib'), write = t
 }
 
 /** `production`: minified with React's production build, the way the shipped client modules are built. The default stays the readable development build the journeys debug against; `readable` keeps the names of a production build (React's production code, not minified), for a CPU profile a person can read; speed is measured with `production` (scripts/qa/ui-motion.mjs --production). */
-export async function buildPreview({ outdir = resolve(root, 'dist'), write = true, production = false, readable = false } = {}) {
+export async function buildPreview({ outdir = resolve(root, 'dist'), write = true, production = false, readable = false, sourceDigest } = {}) {
   const targetDir = resolve(outdir);
-  const cacheFile = cacheEnabled() ? resolve(buildCacheDir, `preview-${production ? (readable ? 'prod-readable' : 'prod') : 'dev'}-${await sourceTreeDigest()}.json`) : null;
+  // The full test runner prepares one development preview for this source revision. Copy the actual files so each
+  // browser fixture owns its outputs and avoids decoding and re-encoding the same multi-megabyte JSON bundle.
+  const prepared = process.env.STUDY_TEST_PREVIEW_DIR;
+  if (cacheEnabled() && write && !production && prepared && basename(prepared) === process.env.STUDY_SOURCE_TREE_DIGEST) {
+    const names = await readdir(prepared).catch(() => []);
+    if (names.length) {
+      await mkdir(targetDir, { recursive: true });
+      await Promise.all(names.map(name => copyFile(resolve(prepared, name), resolve(targetDir, name))));
+      return { errors: [], warnings: [] };
+    }
+  }
+  const cacheFile = cacheEnabled() ? resolve(buildCacheDir, `preview-${production ? (readable ? 'prod-readable' : 'prod') : 'dev'}-${sourceDigest || await sourceTreeDigest()}.json`) : null;
   let files = cacheFile ? await readFile(cacheFile, 'utf8').then(JSON.parse, () => null) : null;
   if (!Array.isArray(files)) {
     // The local preview server exposes app.js/app.css only. Its single IIFE

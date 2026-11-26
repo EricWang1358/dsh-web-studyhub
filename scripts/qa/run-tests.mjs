@@ -45,7 +45,7 @@ const includeSlow = args.includes('--include-slow');
 const explain = args.includes('--explain');
 const values = name => args.flatMap((arg, i) => arg.startsWith(`${name}=`) ? [arg.slice(name.length + 1)] : arg === name && i + 1 < args.length ? [args[i + 1]] : []);
 const concurrency = Number(values('--test-concurrency').at(-1)) || undefined;
-const guard = new URL('./test-network.mjs', import.meta.url).href;
+const guard = new URL('./test-preload.mjs', import.meta.url).href;
 const keyOf = file => relative(repoRoot, file).split(sep).join('/');
 
 /** A limit in ms from the first of these that is set: a whole number, 0 for none. */
