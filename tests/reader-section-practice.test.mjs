@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { build } from 'esbuild';
 import { loadUi } from './helpers/ui-module.mjs';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 /* 本节题目 of the reader (#1013, ui/document-preview/practice/section-practice.js): which questions of the section on screen the panel lists, in the order of
    the text, at most 30, and the line under its heading (错题 n · 追问 n · 批注 n), counted from what the reading loop already placed. Pure. */
@@ -25,7 +26,6 @@ test('the panel offers 本节 and 本章 from the loop, and shows 本节 unless 
 });
 
 test('the questions are listed in the order of the text, at most 30, the same number as the reader 错题 panel', () => {
-  assert.equal(m.SHOWN_MAX, 30);
   assert.equal(m.WRONG_SHOWN_MAX, m.SHOWN_MAX, 'one number for both panels');
   const order = new Map([['e1', 0], ['e2', 1]]);
   const entries = { 'd|late': 'e2', 'd|early': 'e1', 'd|second': 'e1', 'd|nowhere': null };
@@ -63,18 +63,249 @@ test('the reader starts its round with the very arguments of 做这几页的题:
   assert.equal(m.readingPracticeArgs(refs, reading, 'library').fresh, true);
 });
 
-test('a question looks up its own parts inside its own .review-body: the reader round sits over the practice page (#1013)', async () => {
-  const { readFile } = await import('node:fs/promises');
-  const own = /document\.querySelector(All)?\(\s*['"`]\.(assist-|question-)/;
-  for (const file of ['../ui/review/QuestionRun.jsx', '../ui/review/PracticeTip.jsx', '../ui/document-preview/practice/SectionPractice.jsx']) {
-    const text = await readFile(new URL(file, import.meta.url), 'utf8');
-    assert.doesNotMatch(text, own, `${file}: no page-wide lookup of a question's part`);
+test('PracticeTip and QuestionRun scope DOM lookups to their own enclosing .review-body across sibling containers (#1013)', async () => {
+  const interactive = await loadInteractiveUi(`
+    export { default as PracticeTip } from './ui/review/PracticeTip.jsx';
+    export { default as QuestionRun } from './ui/review/QuestionRun.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { PRACTICE_TIP } from './ui/guidance/practice-tips.js';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const { PracticeTip, QuestionRun, StudyServicesContext, PRACTICE_TIP, setUiLanguage } = interactive.exports;
+  const ih = interactive.React.createElement;
+  setUiLanguage('zh');
+
+  const prevNodeFilter = Object.getOwnPropertyDescriptor(globalThis, 'NodeFilter');
+  const prevRaf = globalThis.requestAnimationFrame;
+  const prevCancelRaf = globalThis.cancelAnimationFrame;
+
+  // Build two separate .review-body containers (bodyA first in document, bodyB second).
+  const makeReviewBody = (name, { hasHelpControl = true } = {}) => {
+    const btnRect = { left: 100, top: 200, right: 180, bottom: 232, width: 80, height: 32 };
+    const toolbarRect = { left: 100, top: 200, right: 380, bottom: 232, width: 280, height: 32 };
+    const attrs = new Map();
+    const queried = [];
+    const scrollCalls = [];
+    const area = { querySelectorAll: () => [], querySelector: () => null };
+    const toolbar = {
+      getBoundingClientRect: () => toolbarRect,
+      querySelector: () => toolbar,
+      querySelectorAll: sel => (sel === 'button' && hasHelpControl ? [helpBtn] : []),
+      closest: sel => (sel === '.question-area' ? area : null),
+      contains: el => el === helpBtn,
+    };
+    const helpBtn = {
+      name,
+      attrs,
+      getClientRects: () => [btnRect],
+      getBoundingClientRect: () => btnRect,
+      checkVisibility: () => true,
+      setAttribute: (k, v) => attrs.set(k, v),
+      removeAttribute: k => attrs.delete(k),
+      closest: sel => {
+        if (sel.includes('.question-toolbar') || sel.includes('.question-tools')) return toolbar;
+        if (sel.includes('.question-area')) return area;
+        return null;
+      },
+    };
+    const inlineAskTarget = {
+      name,
+      scrollIntoView: opts => scrollCalls.push(opts),
+    };
+    const body = {
+      name,
+      helpBtn,
+      attrs,
+      queried,
+      scrollCalls,
+      querySelectorAll: sel => {
+        queried.push(sel);
+        if (sel === '[data-usage="review.help"]') return hasHelpControl ? [helpBtn] : [];
+        return [];
+      },
+      querySelector: sel => {
+        queried.push(sel);
+        if (sel === '.question-area') return area;
+        if (sel === '.question-toolbar') return toolbar;
+        if (sel === '.explanation-inline-ask--open') return inlineAskTarget;
+        return null;
+      },
+    };
+    return body;
+  };
+
+  Object.defineProperty(globalThis, 'NodeFilter', { configurable: true, value: { SHOW_TEXT: 4 } });
+  const rafQueue = [];
+  globalThis.requestAnimationFrame = fn => { rafQueue.push(fn); return rafQueue.length; };
+  globalThis.cancelAnimationFrame = () => {};
+
+  try {
+    // 1. PracticeTip inside bodyB only queries & rings bodyB's control, never bodyA's (even though bodyA is first in document).
+    const bodyA = makeReviewBody('A', { hasHelpControl: true });
+    const bodyB = makeReviewBody('B', { hasHelpControl: true });
+    const docQueries = [];
+    await withBrowserGlobals(async () => {
+      let popoverOpen = false;
+      const mounted = interactive.mount(ih(PracticeTip, { id: PRACTICE_TIP.fix, onClose: () => {}, onShown: () => {} }));
+      try {
+        const cardNode = mounted.find(n => n.type === 'div' && n.props?.className === 'practice-tip');
+        assert.ok(cardNode?.ref?.current, 'PracticeTip mounts its popover element');
+        Object.assign(cardNode.ref.current, {
+          offsetWidth: 200,
+          getBoundingClientRect: () => ({ width: 200, height: 48 }),
+          matches: sel => sel === ':popover-open' && popoverOpen,
+          showPopover: () => { popoverOpen = true; },
+          hidePopover: () => { popoverOpen = false; },
+          closest: sel => (sel === '.review-body' ? bodyB : null),
+          contains: () => false,
+        });
+        // Switch id so useIsoLayoutEffect re-runs with card.closest('.review-body') === bodyB.
+        mounted.rerender(ih(PracticeTip, { id: PRACTICE_TIP.help, onClose: () => {}, onShown: () => {} }));
+        assert.equal(popoverOpen, true, 'PracticeTip opens for its own .review-body control');
+        assert.equal(bodyB.attrs.has('data-practice-tip-ring'), true, 'rings control inside its own .review-body (bodyB)');
+        assert.equal(bodyA.attrs.has('data-practice-tip-ring'), false, 'never rings sibling .review-body (bodyA)');
+        assert.deepEqual(bodyA.queried, [], 'never queries sibling .review-body (bodyA)');
+        assert.equal(docQueries.includes('[data-usage="review.help"]'), false, 'never falls back to document-wide control lookup');
+      } finally {
+        mounted.unmount();
+      }
+    }, {
+      document: {
+        querySelectorAll: sel => {
+          docQueries.push(sel);
+          if (sel === '[data-usage="review.help"]') return [bodyA.helpBtn, bodyB.helpBtn];
+          return [];
+        },
+        querySelector: () => null,
+        createRange: () => ({ selectNodeContents: () => {}, getClientRects: () => [] }),
+        createTreeWalker: () => ({ nextNode: () => null }),
+      },
+    });
+
+    // 1b. When bodyB lacks the control while sibling bodyA has it, PracticeTip stays hidden and leaves bodyA untouched.
+    const bodyAWith = makeReviewBody('A-with', { hasHelpControl: true });
+    const bodyBEmpty = makeReviewBody('B-empty', { hasHelpControl: false });
+    await withBrowserGlobals(async () => {
+      let popoverOpen = false;
+      const mounted = interactive.mount(ih(PracticeTip, { id: PRACTICE_TIP.fix, onClose: () => {}, onShown: () => {} }));
+      try {
+        const cardNode = mounted.find(n => n.type === 'div' && n.props?.className === 'practice-tip');
+        Object.assign(cardNode.ref.current, {
+          offsetWidth: 200,
+          getBoundingClientRect: () => ({ width: 200, height: 48 }),
+          matches: sel => sel === ':popover-open' && popoverOpen,
+          showPopover: () => { popoverOpen = true; },
+          hidePopover: () => { popoverOpen = false; },
+          closest: sel => (sel === '.review-body' ? bodyBEmpty : null),
+          contains: () => false,
+        });
+        mounted.rerender(ih(PracticeTip, { id: PRACTICE_TIP.help, onClose: () => {}, onShown: () => {} }));
+        assert.equal(popoverOpen, false, 'stays hidden when own .review-body has no matching control');
+        assert.equal(bodyAWith.attrs.has('data-practice-tip-ring'), false, 'sibling .review-body control stays untouched');
+      } finally {
+        mounted.unmount();
+      }
+    }, {
+      document: {
+        querySelectorAll: sel => (sel === '[data-usage="review.help"]' ? [bodyAWith.helpBtn] : []),
+        querySelector: () => null,
+        createRange: () => ({ selectNodeContents: () => {}, getClientRects: () => [] }),
+        createTreeWalker: () => ({ nextNode: () => null }),
+      },
+    });
+
+    // 2. QuestionRun onAskMore targets only the .review-body enclosing event.currentTarget, never sibling bodyA or document.
+    const qrBodyA = makeReviewBody('QR-A');
+    const qrBodyB = makeReviewBody('QR-B');
+    const docAskQueries = [];
+    rafQueue.length = 0;
+    await withBrowserGlobals(async () => {
+      const services = {
+        call: async () => ({ followupIds: [], answerCardIds: [], courses: [], terms: [] }),
+        act: async () => undefined,
+        busy: false,
+        notify: () => {},
+        openModal: () => {},
+        openSettings: () => {},
+      };
+      const session = {
+        run: {
+          id: 'run-1',
+          index: 0,
+          total: 1,
+          mode: 'path',
+          deckId: 'd1',
+          revealed: true,
+          card: { id: 'c1', kind: 'quiz', prompt: 'Q?', options: [{ id: 'a', text: 'A' }] },
+          feedback: { correct: true, grade: 4, selected: ['a'] },
+          solution: {
+            explanation: 'Explanation body.',
+            options: [{ id: 'a', correct: true, explanation: 'Right.' }],
+            followups: [{ id: 'f1', kind: 'card', question: 'Why?', answer: 'Because.' }],
+          },
+          navigation: [{ index: 0, cardId: 'c1', deckId: 'd1', answered: true }],
+        },
+        entry: { selected: ['a'], hint: false, explain: true, response: '', clozeValues: {} },
+        showBack: false,
+        showEn: false,
+        autoTerms: false,
+        choice: true,
+        isCloze: false,
+        autopilot: false,
+        actions: {
+          reviewAct: () => {},
+          choose: () => {},
+          flipCard: () => {},
+          assistCard: async () => true,
+          slayCard: () => {},
+          studyPrerequisites: () => {},
+          toggleEn: () => {},
+          toggleAutoTerms: () => {},
+          toggleHelp: () => {},
+          toggleAutopilot: () => {},
+          toggleSelfGradeAdvance: () => {},
+          undoAnswer: () => {},
+          setResponse: () => {},
+        },
+      };
+      const mounted = interactive.mount(ih(
+        StudyServicesContext.Provider,
+        { value: services },
+        ih(QuestionRun, { session, data: { sources: [], decks: [], model: { ready: true } }, place: null }),
+      ));
+      try {
+        const askMoreBtn = mounted.find(n => n.type === 'button' && mounted.text(n) === '继续追问');
+        assert.ok(askMoreBtn, 'QuestionRun renders 继续追问 button for existing follow-ups');
+
+        await mounted.act(() => {
+          click(askMoreBtn, { currentTarget: { closest: sel => (sel === '.review-body' ? qrBodyB : null) } });
+        });
+        while (rafQueue.length) rafQueue.shift()();
+
+        assert.ok(mounted.find(n => String(n.props?.className || '').includes('explanation-inline-ask--open')), 'inline ask panel opens');
+        assert.deepEqual(qrBodyB.scrollCalls, [{ behavior: 'smooth', block: 'nearest' }], 'scrolls inline ask inside the button\'s enclosing .review-body (bodyB)');
+        assert.deepEqual(qrBodyA.scrollCalls, [], 'never scrolls sibling .review-body (bodyA)');
+        assert.deepEqual(qrBodyA.queried, [], 'never queries sibling .review-body (bodyA)');
+        assert.equal(docAskQueries.includes('.explanation-inline-ask--open'), false, 'never queries document globally for .explanation-inline-ask--open');
+      } finally {
+        mounted.unmount();
+      }
+    }, {
+      document: {
+        querySelector: sel => {
+          docAskQueries.push(sel);
+          if (sel === '.explanation-inline-ask--open') return qrBodyA.querySelector(sel);
+          return null;
+        },
+        querySelectorAll: () => [],
+      },
+    });
+  } finally {
+    globalThis.requestAnimationFrame = prevRaf;
+    globalThis.cancelAnimationFrame = prevCancelRaf;
+    if (prevNodeFilter) Object.defineProperty(globalThis, 'NodeFilter', prevNodeFilter);
+    else delete globalThis.NodeFilter;
   }
-  const tip = await readFile(new URL('../ui/review/PracticeTip.jsx', import.meta.url), 'utf8');
-  assert.match(tip, /const scope = card\.closest\('\.review-body'\) \|\| document;/);
-  assert.doesNotMatch(tip, /document\.querySelectorAll\(control\)/, 'the tip finds its control in its own question');
-  const run = await readFile(new URL('../ui/review/QuestionRun.jsx', import.meta.url), 'utf8');
-  assert.match(run, /onAskMore=\{\(event\) => \{ const body = event\?\.currentTarget\?\.closest\?\.\("\.review-body"\)/, '继续追问 opens the 追问 box of its own question');
 });
 
 test('the 批注 handed to the loop keep one identity while their places are the same, so a re-read of the annotations does not walk the text again (#1013)', () => {

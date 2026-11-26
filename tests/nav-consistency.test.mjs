@@ -6,6 +6,7 @@ import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readAppSource } from "./helpers/app-source.mjs";
+import { loadInteractiveUi, withBrowserGlobals, click } from "./helpers/react-harness.mjs";
 
 /* The sidebar's rows share one anatomy: icon, label, optional trailing hint. The resume row ("回到题目")
    used to grow a second line while a run was open, which pushed every row below it down by 24px; these tests pin the
@@ -204,17 +205,110 @@ test("stylesheet contract: one row height, labels clamped to the row, no second-
 
 // #656: 快捷键 and 名词解释 sit in the footer's 「帮助」 fold (with 功能导览), so the footer has three controls: 找功能, 帮助, 设置.
 test("the footer's 帮助 holds 快捷键 and 名词解释, and 快捷键 opens the one ? sheet", async () => {
-  const source = (await readAppSource()).replace(/\r/g, "");
-  assert.match(source, /data-usage="nav\.shortcut"/, "a visible entry, and a marked control");
-  assert.match(source, /session\.actions\.openShortcutHelp\(\)/, "it opens the sheet the ? key opens");
-  assert.match(source, /名词解释/, "the glossary has a visible entry too");
-  // canChat: an edition with no main chat (the desktop one) leaves 主会话 out of the words.
-  assert.match(source, /purpose=\{glossaryText\(canChat\)\}/, "the glossary is the row's Tooltip words, not a second panel");
-  const footer = (await readFile(new URL("../ui/app/SidebarFooter.jsx", import.meta.url), "utf8")).replace(/\r/g, "");
-  const help = footer.slice(footer.indexOf('<NavFold id="help"'), footer.indexOf("</NavFold>"));
-  for (const tour of ["tour-reopen", "nav-shortcuts", "nav-glossary"]) assert.match(help, new RegExp(`data-tour="${tour}"`), `${tour} is inside 帮助`);
-  const session = await readFile(new URL("../ui/review/useReviewSession.js", import.meta.url), "utf8");
-  assert.match(session, /openShortcutHelp: \(\) => setShortcutHelp\(true\)/, "one sheet, two ways in");
+  const interactive = await loadInteractiveUi(`
+    export { default as SidebarFooter } from './ui/app/SidebarFooter.jsx';
+    export { AppContext } from './ui/app/app-context.js';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { useReviewSession } from './ui/review/useReviewSession.js';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  interactive.exports.setUiLanguage("zh");
+  const noop = () => {};
+  await withBrowserGlobals(async () => {
+    const core = {
+      call: async () => ({}),
+      act: async () => undefined,
+      notify: noop,
+      setError: noop,
+      refresh: async () => {},
+      refs: { dataRef: { current: {} }, bindingRoot: { current: "" } },
+    };
+    const hook = interactive.mountHook(interactive.exports.useReviewSession, {
+      core,
+      nav: { page: "home", setPage: noop, show: { exam: noop } },
+      modalOpen: false,
+      host: { capabilities: { chat: true }, onReviewState: noop },
+      rootRef: { current: null },
+      late: { current: {} },
+    });
+    try {
+      assert.equal(hook.current.shortcutHelp, false, "shortcut help sheet starts closed");
+      await hook.act(() => hook.current.actions.openShortcutHelp());
+      assert.equal(hook.current.shortcutHelp, true, "openShortcutHelp opens the same ? sheet");
+      await hook.act(() => hook.current.actions.closeShortcutHelp());
+      assert.equal(hook.current.shortcutHelp, false, "closeShortcutHelp closes the sheet");
+    } finally {
+      hook.unmount();
+    }
+
+    let openedShortcuts = 0;
+    let canChat = true;
+    const renderFooter = () => interactive.React.createElement(
+      interactive.exports.StudyServicesContext.Provider,
+      { value: { call: async () => null, act: async () => null, busy: false, host: { capabilities: { chat: canChat } } } },
+      interactive.React.createElement(
+        interactive.exports.AppContext.Provider,
+        {
+          value: {
+            nav: { navPage: "home", navigate: noop },
+            session: { actions: { openShortcutHelp: () => { openedShortcuts += 1; } } },
+            tour: { tourStep: null, tourResume: null, sampleBusy: false, startTour: noop },
+            finder: { openFinder: noop },
+            host: { capabilities: { chat: canChat } },
+          },
+        },
+        interactive.React.createElement(interactive.exports.SidebarFooter),
+      ),
+    );
+
+    const mounted = interactive.mount(renderFooter);
+    try {
+      const helpFold = mounted.find((n) => n.type === "div" && n.props?.["data-nav-fold"] === "help");
+      assert.ok(helpFold, "帮助 fold exists in SidebarFooter");
+      assert.equal(helpFold.props["data-open"], "false");
+
+      const helpToggle = mounted.find((n) => n.type === "button" && n.props?.["data-tour"] === "nav-help", helpFold);
+      assert.ok(helpToggle, "帮助 fold toggle button is rendered");
+      await mounted.act(() => click(helpToggle));
+
+      const openFold = mounted.find((n) => n.type === "div" && n.props?.["data-nav-fold"] === "help");
+      assert.equal(openFold.props["data-open"], "true", "clicking 帮助 expands the fold");
+      const foldItems = mounted.find((n) => n.type === "details" && n.props?.id === "nav-fold-help", openFold);
+      assert.ok(foldItems && foldItems.props.open === true, "帮助 details opens");
+
+      for (const tour of ["tour-reopen", "nav-shortcuts", "nav-glossary"]) {
+        assert.ok(
+          mounted.find((n) => n.type === "button" && n.props?.["data-tour"] === tour, foldItems),
+          `${tour} is rendered inside 帮助`,
+        );
+      }
+
+      const shortcutBtn = mounted.find((n) => n.type === "button" && n.props?.["data-usage"] === "nav.shortcut", foldItems);
+      assert.ok(shortcutBtn, "a visible 快捷键 entry marked with data-usage=nav.shortcut");
+      await mounted.act(() => click(shortcutBtn));
+      assert.equal(openedShortcuts, 1, "clicking 快捷键 invokes session.actions.openShortcutHelp");
+
+      const glossaryTipWithChat = mounted.find(
+        (n) => n.props?.role === "tooltip" && interactive.textOf(n).includes("界面里这些词的意思："),
+        foldItems,
+      );
+      assert.ok(glossaryTipWithChat, "名词解释 renders its glossary words in a Tooltip");
+      assert.match(interactive.textOf(glossaryTipWithChat), /主会话/, "chat-capable edition includes 主会话 in the glossary tooltip");
+
+      // canChat === false: an edition with no main chat (the desktop one) leaves 主会话 out of the words.
+      canChat = false;
+      mounted.rerender(renderFooter);
+      const foldItemsNoChat = mounted.find((n) => n.type === "details" && n.props?.id === "nav-fold-help");
+      const glossaryTipNoChat = mounted.find(
+        (n) => n.props?.role === "tooltip" && interactive.textOf(n).includes("界面里这些词的意思："),
+        foldItemsNoChat,
+      );
+      assert.ok(glossaryTipNoChat, "名词解释 tooltip remains rendered when canChat is false");
+      assert.doesNotMatch(interactive.textOf(glossaryTipNoChat), /主会话/, "edition without main chat omits 主会话");
+    } finally {
+      mounted.unmount();
+    }
+  });
 });
 
 test("App uses the shared row for every sidebar entry", async () => {

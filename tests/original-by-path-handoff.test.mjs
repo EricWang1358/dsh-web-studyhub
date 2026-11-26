@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadUi } from './helpers/ui-module.mjs';
-import { readFile } from 'node:fs/promises';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const ui = await loadUi(`
   export { handOffText } from './ui/agent-prompts/index.js';
@@ -74,9 +74,144 @@ test('which original the library can name: a reference to the learner\'s file, o
   }
 });
 
-test('PageAsk hands the original over with the page, and only registry ids are sent', async () => {
-  const source = await readFile(new URL('../ui/document-preview/DocumentLearning.jsx', import.meta.url), 'utf8');
-  assert.match(source, /handOffOriginal\(document\)\?\.path/, 'the learning panel builds the page hand-off from the loaded document');
-  const asks = await readFile(new URL('../ui/document-preview/PageAsk.jsx', import.meta.url), 'utf8');
-  assert.equal((asks.match(/<HandOff id="reader\.page"/g) || []).length, 2);
+const interactive = await loadInteractiveUi(`
+  export { default as DocumentLearning } from './ui/document-preview/DocumentLearning.jsx';
+  export { default as PageAsk } from './ui/document-preview/PageAsk.jsx';
+  export { StudyServicesContext } from './ui/study-context.jsx';
+  export { ToastContext } from './ui/components/Feedback.jsx';
+  export { setUiLanguage } from './ui/i18n.js';
+`);
+
+test('DocumentLearning propagates handOffOriginal(document)?.path into PageAsk and both PageAsk slots send reader.page with the original', async () => {
+  const { React, mount, exports: { DocumentLearning, PageAsk, StudyServicesContext, ToastContext, setUiLanguage } } = interactive;
+  setUiLanguage('zh');
+  await withBrowserGlobals(async () => {
+    const sent = [];
+    const services = {
+      call: async () => ({}),
+      act: async () => undefined,
+      busy: false,
+      notify() {},
+      askInChat: async (prompt, options) => {
+        sent.push({ prompt, options });
+        return 'filled';
+      },
+      host: { capabilities: { chat: true } },
+      openSettings() {},
+      navigate() {},
+      openModal() {},
+    };
+    const toast = { show() {}, error() {}, dismiss() {} };
+    const wrap = (element) => React.createElement(
+      ToastContext.Provider,
+      { value: toast },
+      React.createElement(StudyServicesContext.Provider, { value: services }, element),
+    );
+    const call = async (action) => {
+      if (action === 'runtime.capabilities') return [];
+      if (action === 'snapshot') return { decks: [], settings: {} };
+      return {};
+    };
+    const makeDoc = (original) => ({
+      documentId: 'doc-1',
+      id: 'doc-1',
+      revision: 'r1',
+      title: 'Software Engineering',
+      format: 'pdf',
+      original,
+      sources: [{ id: 'p218', text: 'Figure 7.2 is referred to here.', document: { page: 218, totalPages: 300 } }],
+    });
+
+    // 1. DocumentLearning builds pageHandOff from handOffOriginal(document)?.path and passes it into PageAsk's reader.page HandOff.
+    const learningWithOriginal = mount(() => wrap(React.createElement(DocumentLearning, {
+      call,
+      document: makeDoc({ mode: 'reference', status: 'ok', path: BOOK }),
+      scope: { kind: 'page', page: 218, empty: false, chars: 31 },
+      pageTotal: 300,
+    })));
+    try {
+      await learningWithOriginal.flush(6);
+      const handOffBtn = learningWithOriginal.find((node) => node.props?.['data-hand-off'] === 'reader.page');
+      assert.ok(handOffBtn, 'DocumentLearning renders PageAsk reader.page HandOff button');
+      await learningWithOriginal.act(() => click(handOffBtn));
+      assert.equal(sent.length, 1);
+      assert.ok(sent[0].prompt.includes(`原文件：\`${BOOK}\`（PDF 的第 218 页`), sent[0].prompt);
+      assert.ok(sent[0].prompt.includes('Figure 7.2 is referred to here.'), sent[0].prompt);
+    } finally {
+      learningWithOriginal.unmount();
+    }
+
+    // Without a valid original, DocumentLearning omits original from the reader.page prompt.
+    sent.length = 0;
+    const learningMissingOriginal = mount(() => wrap(React.createElement(DocumentLearning, {
+      call,
+      document: makeDoc({ mode: 'reference', status: 'missing', path: BOOK }),
+      scope: { kind: 'page', page: 218, empty: false, chars: 31 },
+      pageTotal: 300,
+    })));
+    try {
+      await learningMissingOriginal.flush(6);
+      const handOffBtn = learningMissingOriginal.find((node) => node.props?.['data-hand-off'] === 'reader.page');
+      assert.ok(handOffBtn);
+      await learningMissingOriginal.act(() => click(handOffBtn));
+      assert.equal(sent.length, 1);
+      assert.doesNotMatch(sent[0].prompt, /原文件：/);
+    } finally {
+      learningMissingOriginal.unmount();
+    }
+
+    // 2. PageAsk empty-page slot renders the secondary reader.page HandOff carrying original.path and no typed question.
+    sent.length = 0;
+    const emptyThread = { nodes: [] };
+    const emptyPage = mount(() => wrap(React.createElement(PageAsk, {
+      scope: { kind: 'page', page: 4, empty: true },
+      handOff: { title: 'Software Engineering', page: 4, text: '', original: { path: BOOK } },
+      question: 'should not leak on empty page',
+      thread: emptyThread,
+      total: 300,
+    })));
+    try {
+      const btn = emptyPage.find((node) => node.props?.['data-hand-off'] === 'reader.page');
+      assert.ok(btn, 'empty-page PageAsk renders reader.page HandOff');
+      await emptyPage.act(() => click(btn));
+      assert.equal(sent.length, 1);
+      assert.match(sent[0].prompt, /没有保存的文字/);
+      assert.ok(sent[0].prompt.includes(`原文件：\`${BOOK}\``), sent[0].prompt);
+      assert.ok(!sent[0].prompt.includes('should not leak on empty page'), 'empty page drops typed question');
+    } finally {
+      emptyPage.unmount();
+    }
+
+    // 3. PageAsk populated-page slot renders the quiet reader.page HandOff carrying original.path and the typed question.
+    sent.length = 0;
+    const populatedPage = mount(() => wrap(React.createElement(PageAsk, {
+      scope: { kind: 'page', page: 218, empty: false, chars: 31 },
+      handOff: { ...input, original: { path: BOOK } },
+      question: 'What does figure 7.2 show?',
+      thread: emptyThread,
+      total: 300,
+    })));
+    try {
+      const btn = populatedPage.find((node) => node.props?.['data-hand-off'] === 'reader.page');
+      assert.ok(btn, 'populated-page PageAsk renders reader.page HandOff');
+      await populatedPage.act(() => click(btn));
+      assert.equal(sent.length, 1);
+      assert.ok(sent[0].prompt.includes(`原文件：\`${BOOK}\``), sent[0].prompt);
+      assert.ok(sent[0].prompt.includes('What does figure 7.2 show?'), sent[0].prompt);
+    } finally {
+      populatedPage.unmount();
+    }
+
+    // Bare preview without StudyServicesContext renders no hand-off button.
+    const barePage = mount(() => React.createElement(PageAsk, {
+      scope: { kind: 'page', page: 4, empty: true },
+      handOff: { title: 'Software Engineering', page: 4, text: '', original: { path: BOOK } },
+      thread: emptyThread,
+    }));
+    try {
+      assert.equal(barePage.find((node) => node.props?.['data-hand-off'] === 'reader.page'), null);
+    } finally {
+      barePage.unmount();
+    }
+  });
 });
