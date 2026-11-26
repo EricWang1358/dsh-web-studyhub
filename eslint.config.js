@@ -219,7 +219,7 @@ export default [
       "react/jsx-uses-react": "error",
       "react/jsx-uses-vars": "error",
       "react-hooks/rules-of-hooks": "error",
-      "react-hooks/exhaustive-deps": "warn",
+      "react-hooks/exhaustive-deps": "error",
       "react/jsx-key": "error",
       "react/react-in-jsx-scope": "off",
       "react/prop-types": "off",

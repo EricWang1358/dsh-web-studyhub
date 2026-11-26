@@ -104,8 +104,18 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
     showWorkflow: nav.show.workflow, showExam: nav.show.exam, showLibrary: nav.show.library, showPage: nav.show.page,
   }), [session.enterRun, session.enterMovedRun, nav.show, setModal]);
 
-  const [lastPracticeVersion, setLastPracticeVersion] = useState(0);
-  const bumpLastPractice = useCallback(() => setLastPracticeVersion((v) => v + 1), []);
+  const [lastPracticeRecord, setLastPracticeRecord] = useState(() => ({
+    lastPracticeVersion: 0,
+    root: '',
+    value: null,
+  }));
+  const bumpLastPractice = useCallback((root = refs.dataRef.current?.root || '') => {
+    setLastPracticeRecord((previous) => ({
+      lastPracticeVersion: previous.lastPracticeVersion + 1,
+      root,
+      value: root ? readLastPracticePosition(browserStorage(), root) : null,
+    }));
+  }, [refs]);
 
   const pushPracticeContext = useCallback((overrides = {}) => {
     const { run, state, getLive } = latest.current;
@@ -448,10 +458,13 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
 
   const trail = lib.state.contextTrail;
   const practiceStack = lib.state.practiceStack || [];
-  const lastPractice = useMemo(
-    () => (practiceStack.length === 0 && currentRoot ? readLastPracticePosition(safeStorage(), currentRoot) : null),
-    [currentRoot, practiceStack.length, lastPracticeVersion],
-  );
+  const lastPractice = useMemo(() => {
+    if (practiceStack.length > 0 || !currentRoot) return null;
+    if (lastPracticeRecord.root === currentRoot && lastPracticeRecord.lastPracticeVersion > 0) {
+      return lastPracticeRecord.value;
+    }
+    return readLastPracticePosition(browserStorage(), currentRoot);
+  }, [currentRoot, lastPracticeRecord, practiceStack.length]);
   return { captureContext, rememberContext, contextLabel, openLearningTarget, currentStudyReference, openBoardReference, openBoardWithContext,
     returnFromContext, returnFromDetour, returnToReading, openAudioSources, openSourceAt, verbs,
     practiceStack, practiceTop: peekPracticeFrame(practiceStack), practiceOrigin: rootPracticeFrame(practiceStack),
