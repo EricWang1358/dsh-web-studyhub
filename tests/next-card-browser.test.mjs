@@ -6,11 +6,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildPreview } from '../scripts/build.mjs';
 import { StudyService } from '../lib/service.js';
-import { createPreviewServer } from '../scripts/preview-server.mjs';
+import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { launchChromium, skipMissingChromium } from '../scripts/qa/browser.mjs';
 import { scrubProcessEnv } from '../scripts/qa/env.mjs';
-import { SEEDS } from '../scripts/qa/tiers.mjs';
+import { seedDailyBoard, seedDailyLibrary } from '../scripts/qa/tiers.mjs';
 import { seedBookFixture } from './helpers/book-fixtures.mjs';
 import { drainLayoutStability } from '../scripts/qa/layout-stability.mjs';
 import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
@@ -43,7 +43,7 @@ async function seed(api, state) {
     await api('draft.publish', { id: 'd1' });
     return;
   }
-  await SEEDS.daily(api);
+  await seedDailyLibrary(api);
   if (state === 'resume' || state === 'model') return;
   const { runs } = await api('snapshot');
   for (const run of runs) await api('review.end', { runId: run.id });
@@ -104,6 +104,7 @@ function homeScenario(state, check) {
         model: state === 'model' ? null : createFakeModel({ latencyMs: 20 }), distDir: dist });
       let context;
       try {
+        if (state !== 'exam' && state !== 'learn') await seedDailyBoard((action, args) => previewCall(server, action, args));
         const opened = await openPage(browser, { server }, { lang, theme, width, height: width < 700 ? 844 : 800 });
         context = opened.context;
         const { page, errors } = opened;

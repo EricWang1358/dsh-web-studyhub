@@ -384,8 +384,8 @@ const readResult = (page) => page.evaluate(() => {
 /** Start the deck's round from the library, answer it as a learner does, and look at the result page: whether the mastery line was in the page when it was put
  *  in the document (a MutationObserver runs before the browser paints), then whether the 点评 and the recap arriving late (held at the network edge) move it or the score. */
 export async function resultScenario({ browser, running, lang = "zh", theme = "dark", width = 1280, height = 900, shots = null }) {
-  const { page, errors, context } = await openPage(browser, running, { lang, theme, width, height });
-  await context.addInitScript(() => { try { localStorage.setItem("study-autopilot", "off"); } catch { /* blocked */ } });
+  await running.api("settings.practice.set", { patch: { autopilot: false } });
+  const { page, errors, context } = await openPage(browser, running, { lang, theme, width, height, selfGradeAdvance: false });
   const hold = await holdActions(page, ["coach.debrief", "note.daily.status"]);
   await page.goto(running.server.url);
   const start = page.getByRole("button", { name: lang === "en" ? `Start studying ${RESULT_DECK}` : `开始学习 ${RESULT_DECK}` }).first();
