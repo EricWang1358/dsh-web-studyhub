@@ -106,7 +106,7 @@ test('with the switch on but no live executor the task fails in plain words and 
   assert.equal(asked, 0);
 });
 
-test('with the switch off there is no Job at all', async t => {
+test('runtime.pilot.assist off (legacy mode) creates no assist Job for a direct assistant request', async t => {
   const f = await library(t, { complete: async () => reply }, 'legacy'), assist = createAssistService({ children: createAssistChildren() });
   t.after(() => assist.dispose());
   await assist.startAssist({}, request(f.service, f.root, { helpChoices: [] }));
