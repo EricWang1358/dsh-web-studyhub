@@ -9,26 +9,9 @@ import { domainTool } from '../lib/runtime/tools.js';
 import { NON_CONTENT_CARD_FIELDS } from '../lib/card-content.js';
 import { readTeachingDraft, saveTeachingDraft } from '../ui/teaching-draft.js';
 
-const quote = 'Distance equals speed multiplied by elapsed time.';
-const stages = ['conditions', 'formula', 'substitution', 'computation', 'verification'];
-const plan = () => ({ diagnosis: 'Units need attention', transfer: 'Use consistent units before multiplying.',
-  rungs: stages.map((stage, i) => ({ stage, lesson: `Stage ${i} relationship`, check: `Current check ${i}?`, answer: `Hidden reference ${i}`,
-    assumptions: 'Constant speed', units: 'metres and seconds', rounding: 'Keep exact values until the final result',
-    citations: [{ sourceId: 'source', quote }] })) });
+import { calculationPlan as plan, calculationQuote as quote, setupCalculation as setup } from './helpers/calculation-session.mjs';
+
 const genericPlan = { diagnosis: 'gap', transfer: 'Generic transfer', rungs: [0, 1].map(i => ({ lesson: `Generic ${i}`, check: 'Why?', answer: 'Hidden generic' })) };
-async function setup(t) {
-  const root = await mkdtemp(join(tmpdir(), 'study-calculation-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
-  const service = new StudyService(root, { complete: async () => JSON.stringify(plan()) });
-  await service.store.update(s => {
-    s.sources.push({ id: 'source', title: 'Motion', text: quote });
-    s.decks.push({ id: 'deck', title: 'Motion', cards: [{ id: 'card', kind: 'flashcard', prompt: 'At 3 m/s for 4 s, how far?', answer: '12 m', citations: [{ sourceId: 'source', quote }] }] });
-  });
-  const run = await service.call('review.start', { deckId: 'deck', mode: 'flashcard' });
-  await service.call('review.reveal', { runId: run.id, cardId: run.card.id });
-  await service.call('review.answer', { runId: run.id, cardId: run.card.id, grade: 2 });
-  return { service, root, run };
-}
 
 test('calculation stages expose only the current check and persist correction without advancement', async t => {
   const { service, root, run } = await setup(t);
