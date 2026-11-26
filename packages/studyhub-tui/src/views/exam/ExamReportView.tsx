@@ -4,12 +4,13 @@ import { useKeyScope } from '../../input/hooks.js';
 import type { UiLanguage } from '../../types/contracts.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState } from '../../components/Badge.js';
+import { Prose } from '../../components/Layout.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Panel } from '../../components/Panel.js';
 import { SplitPane } from '../../components/SplitPane.js';
-import { LAYOUT_BP } from '../../components/layout-tokens.js';
+import { LAYOUT_BP } from '../../layout/breakpoints.js';
 import { VirtualList } from '../../components/VirtualList.js';
-import { truncateDisplay } from '../../render/cjk.js';
+import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import { renderBarChart, renderStatTable } from '../../render/charts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import type { CaseQuestionReport, ExamReport, ReportItem, ReportState } from './types.js';
@@ -405,7 +406,8 @@ export const ExamReportView = memo(function ExamReportView({
       (r.weakTopics ?? []).length > 0
         ? `${t(lang, '薄弱主题', 'Weak Topics')}: ${r.weakTopics!.map((w) => w.topic).join(', ')}`
         : '';
-    const extraOverhead = (bandBars.length > 0 ? bandBars.length + 1 : 0) + (weakTopicsLine ? 1 : 0);
+    const weakTopicsRows = weakTopicsLine ? wrapDisplay(weakTopicsLine, Math.max(12, innerW)).length : 0;
+    const extraOverhead = (bandBars.length > 0 ? bandBars.length + 1 : 0) + (weakTopicsRows > 0 ? weakTopicsRows + 1 : 0);
     const listH = Math.max(4, paneH - 8 - extraOverhead);
 
     return (
@@ -438,7 +440,9 @@ export const ExamReportView = memo(function ExamReportView({
 
         {weakTopicsLine ? (
           <Box marginBottom={1}>
-            <Text color={theme.warning}>{truncateDisplay(weakTopicsLine, innerW, ellipsis)}</Text>
+            <Prose width={innerW} color={theme.warning} ascii={asciiMode}>
+              {weakTopicsLine}
+            </Prose>
           </Box>
         ) : null}
 
