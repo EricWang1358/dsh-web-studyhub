@@ -1,0 +1,31 @@
+name: test-audit
+
+on:
+  pull_request:
+    paths:
+      - 'tests/**'
+      - 'packages/*/tests/**'
+      - 'scripts/test-audit.mjs'
+      - 'docs/test-audit-baseline.json'
+      - '.github/workflows/test-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-audit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Compare test audit against docs/test-audit-baseline.json (advisory)
+        continue-on-error: true
+        run: node scripts/test-audit.mjs --compare-baseline=docs/test-audit-baseline.json --annotations

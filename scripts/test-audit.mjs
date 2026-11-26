@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 /* Test quality audit (#1468): finds the tests that pass without protecting a behaviour, so that they can be cleaned up in batches instead of
-   being counted as coverage. It only reads files and writes a report; it never edits tests and is not part of `npm test` or CI.
+   being counted as coverage. It only reads files and writes a report; it never edits tests and is not part of `npm test` or blocking CI.
 
    node scripts/test-audit.mjs                       console summary, the hit files ranked by suspicion
    node scripts/test-audit.mjs --write               also writes docs/test-audit.md
+   node scripts/test-audit.mjs --write-baseline      writes machine-readable baseline to docs/test-audit-baseline.json
+   node scripts/test-audit.mjs --compare-baseline    advisory diff against docs/test-audit-baseline.json (reports only new/increased hits, always exits 0)
+   node scripts/test-audit.mjs --compare-baseline=docs/test-audit-baseline.json --annotations
    node scripts/test-audit.mjs --top=5               how many files the ranking lists (default 25)
    node scripts/test-audit.mjs --only=1,2            only these categories (1-7)
    node scripts/test-audit.mjs --json                the whole result as JSON on stdout
@@ -22,7 +25,7 @@
 
    A hit is a candidate for review, not a verdict: the report says where to look, a person decides.  */
 
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -652,12 +655,447 @@ export function renderConsole(result, { top = 25 } = {}) {
   return lines.join('\n');
 }
 
+// --------------------------------------------------------------------------------------------- baseline comparison
+
+const DEFAULT_BASELINE_PATH = 'docs/test-audit-baseline.json';
+const BASELINE_JSON_VERSION = 1;
+const MAX_ANNOTATIONS = 20;
+
+const isPlainObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+/** Render a deterministic machine-readable JSON baseline (trailing newline). */
+export function renderBaselineJson(result) {
+  const byCategory = Object.fromEntries(CATEGORY_IDS.map(id => [String(id), 0]));
+  const fileMap = new Map();
+  for (const entry of result?.files ?? []) {
+    const file = String(entry.file).replace(/\\/g, '/');
+    const counts = {};
+    let fileTotal = 0;
+    for (const id of CATEGORY_IDS) {
+      const count = Number(entry?.counts?.[id] ?? 0);
+      if (count > 0) {
+        counts[String(id)] = count;
+        byCategory[String(id)] += count;
+        fileTotal += count;
+      }
+    }
+    if (fileTotal > 0) fileMap.set(file, counts);
+  }
+  const sortedFileNames = [...fileMap.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const files = {};
+  for (const file of sortedFileNames) files[file] = fileMap.get(file);
+  const totalHits = CATEGORY_IDS.reduce((sum, id) => sum + byCategory[String(id)], 0);
+  const payload = {
+    version: BASELINE_JSON_VERSION,
+    generatedBy: 'node scripts/test-audit.mjs --write-baseline',
+    totals: {
+      hits: totalHits,
+      files: sortedFileNames.length,
+      byCategory,
+    },
+    files,
+  };
+  return `${JSON.stringify(payload, null, 2)}\n`;
+}
+
+/** Parse and validate a JSON baseline written by `renderBaselineJson`. */
+export function parseBaselineJson(text) {
+  if (typeof text !== 'string') {
+    throw new Error('Invalid baseline JSON: expected a JSON string');
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    throw new Error(`Invalid baseline JSON: ${error.message}`);
+  }
+  if (!isPlainObject(parsed)) {
+    throw new Error('Invalid baseline JSON: root must be a JSON object');
+  }
+  if (parsed.version !== BASELINE_JSON_VERSION) {
+    throw new Error(`Unsupported baseline JSON version: ${JSON.stringify(parsed.version)} (expected ${BASELINE_JSON_VERSION})`);
+  }
+  if (!isPlainObject(parsed.files)) {
+    throw new Error('Invalid baseline JSON: "files" must be an object');
+  }
+  if (parsed.totals !== undefined && !isPlainObject(parsed.totals)) {
+    throw new Error('Invalid baseline JSON: "totals" must be an object');
+  }
+  if (parsed.totals?.hits !== undefined && (!Number.isInteger(parsed.totals.hits) || parsed.totals.hits < 0)) {
+    throw new Error('Invalid baseline JSON: "totals.hits" must be a non-negative integer');
+  }
+  if (parsed.totals?.byCategory !== undefined && !isPlainObject(parsed.totals.byCategory)) {
+    throw new Error('Invalid baseline JSON: "totals.byCategory" must be an object');
+  }
+
+  const byCategory = Object.fromEntries(CATEGORY_IDS.map(id => [id, 0]));
+  const counts = {};
+  for (const [file, fileCounts] of Object.entries(parsed.files)) {
+    if (!file || !isPlainObject(fileCounts)) {
+      throw new Error(`Invalid baseline JSON: entry for "${file}" must be an object`);
+    }
+    for (const [rawId, count] of Object.entries(fileCounts)) {
+      if (!/^[1-7]$/.test(rawId)) {
+        throw new Error(`Invalid baseline JSON: unknown category "${rawId}" in "${file}"`);
+      }
+      if (!Number.isInteger(count) || count < 0) {
+        throw new Error(`Invalid baseline JSON: invalid count for "${file}" category ${rawId}`);
+      }
+      if (count === 0) continue;
+      const id = Number(rawId);
+      if (!counts[file]) counts[file] = {};
+      counts[file][id] = count;
+      byCategory[id] += count;
+    }
+  }
+
+  const totalHits = CATEGORY_IDS.reduce((sum, id) => sum + byCategory[id], 0);
+  return {
+    version: parsed.version,
+    totals: { hits: totalHits, files: Object.keys(counts).length, byCategory },
+    counts,
+    hits: {},
+  };
+}
+
+/** Auto-dispatch baseline parsing by file extension (.json vs .md). */
+export function parseBaseline(text, filePath = DEFAULT_BASELINE_PATH) {
+  const lower = String(filePath ?? '').toLowerCase();
+  if (lower.endsWith('.json')) return parseBaselineJson(text);
+  if (lower.endsWith('.md') || lower.endsWith('.markdown')) return parseBaselineMarkdown(text);
+  return String(text ?? '').trimStart().startsWith('{') ? parseBaselineJson(text) : parseBaselineMarkdown(text);
+}
+
+/** Parse a Markdown report written by `renderMarkdown` as the single baseline source of truth. */
+export function parseBaselineMarkdown(markdown) {
+  const byCategory = Object.fromEntries(CATEGORY_IDS.map(id => [id, 0]));
+  const counts = {};
+  const hits = {};
+  const lines = String(markdown ?? '').replace(/\r\n/g, '\n').split('\n');
+
+  let currentCategory = null;
+  let currentFile = null;
+  let sawCategoryHeading = false;
+
+  const ensureFileCategory = (file, category) => {
+    if (!counts[file]) counts[file] = {};
+    if (counts[file][category] == null) counts[file][category] = 0;
+    if (!hits[file]) hits[file] = {};
+    if (!hits[file][category]) hits[file][category] = [];
+  };
+
+  for (const line of lines) {
+    // Summary table row: | 1 | read-a-source-and-match-strings | 417 | 10 | ... |
+    if (currentCategory == null) {
+      const tableMatch = /^\|\s*(\d+)\s*\|\s*[^|]+\|\s*(\d+)\s*\|/.exec(line);
+      if (tableMatch) {
+        const id = Number(tableMatch[1]);
+        if (CATEGORY_IDS.includes(id)) byCategory[id] = Number(tableMatch[2]);
+        continue;
+      }
+    }
+
+    // Category section heading: ## 1. read-a-source-and-match-strings — 417
+    const headingMatch = /^##\s+(\d+)\.\s+.+?\s+[—–-]\s+(\d+)\s*$/.exec(line);
+    if (headingMatch) {
+      const id = Number(headingMatch[1]);
+      if (CATEGORY_IDS.includes(id)) {
+        currentCategory = id;
+        currentFile = null;
+        sawCategoryHeading = true;
+        byCategory[id] = Number(headingMatch[2]);
+      } else {
+        currentCategory = null;
+        currentFile = null;
+      }
+      continue;
+    }
+
+    // Any other level-2 heading ends the active category section.
+    if (/^##\s+/.test(line)) {
+      currentCategory = null;
+      currentFile = null;
+      continue;
+    }
+
+    if (currentCategory == null) continue;
+    if (line.trim() === 'No hits.') { currentFile = null; continue; }
+
+    // File bullet: - `tests/foo.test.mjs`
+    const fileMatch = /^- `([^`]+)`\s*$/.exec(line);
+    if (fileMatch) {
+      currentFile = fileMatch[1];
+      ensureFileCategory(currentFile, currentCategory);
+      continue;
+    }
+
+    // Hit bullet:   - `tests/foo.test.mjs:12` — message
+    const hitMatch = /^  - `(.+):(\d+)`\s+[—–-]\s+(.+)$/.exec(line);
+    if (hitMatch) {
+      const file = hitMatch[1] || currentFile;
+      if (!file) continue;
+      currentFile = file;
+      ensureFileCategory(file, currentCategory);
+      counts[file][currentCategory] += 1;
+      hits[file][currentCategory].push({
+        category: currentCategory,
+        file,
+        line: Number(hitMatch[2]),
+        message: hitMatch[3],
+      });
+      continue;
+    }
+
+    // Overflow bullet:   - …and 10 more in this file (see `--json`)
+    const overflowMatch = /^  - (?:…|\.\.\.)and\s+(\d+)\s+more in this file\b/.exec(line);
+    if (overflowMatch && currentFile) {
+      ensureFileCategory(currentFile, currentCategory);
+      counts[currentFile][currentCategory] += Number(overflowMatch[1]);
+    }
+  }
+
+  // If a minimal fixture omitted category headings and table rows, derive byCategory from per-file counts.
+  if (!sawCategoryHeading) {
+    for (const id of CATEGORY_IDS) {
+      if (byCategory[id] === 0) {
+        let sum = 0;
+        for (const fileCounts of Object.values(counts)) sum += fileCounts[id] ?? 0;
+        if (sum > 0) byCategory[id] = sum;
+      }
+    }
+  }
+
+  const totalHits = CATEGORY_IDS.reduce((sum, id) => sum + (byCategory[id] ?? 0), 0);
+  return { totals: { hits: totalHits, byCategory }, counts, hits };
+}
+
+/** Pick up to `delta` representative newly introduced hits for one (file, category). */
+function pickRepresentativeHits(currentHits, baselineHits, baselineCount, delta) {
+  if (delta <= 0 || !currentHits.length) return [];
+  const available = baselineHits.map((hit, idx) => ({ hit, idx, used: false }));
+  const matched = new Set();
+
+  // Pass 1: exact (line, message) match.
+  for (let i = 0; i < currentHits.length; i += 1) {
+    const cur = currentHits[i];
+    const found = available.find(item => !item.used && item.hit.line === cur.line && item.hit.message === cur.message);
+    if (found) { found.used = true; matched.add(i); }
+  }
+
+  // Pass 2: message-only match (handles line shifts when lines are inserted/removed above).
+  for (let i = 0; i < currentHits.length; i += 1) {
+    if (matched.has(i)) continue;
+    const cur = currentHits[i];
+    const found = available.find(item => !item.used && item.hit.message === cur.message);
+    if (found) { found.used = true; matched.add(i); }
+  }
+
+  const unmatched = currentHits.filter((_, idx) => !matched.has(idx));
+  if (unmatched.length <= delta) {
+    if (unmatched.length === delta) return unmatched;
+    const extra = currentHits.filter((_, idx) => matched.has(idx)).slice(-(delta - unmatched.length));
+    return [...unmatched, ...extra].sort((a, b) => a.line - b.line);
+  }
+
+  // When baseline was truncated (>20 hits in one file/category) or messages changed, prioritize unseen messages,
+  // then items within the listed baseline line window (if truncated), then newest lines from the tail.
+  const baseMessages = new Set(baselineHits.map(item => item.message));
+  const truncated = baselineCount > baselineHits.length;
+  const maxListedLine = baselineHits.reduce((max, item) => Math.max(max, item.line), 0);
+
+  const unseenMessage = [];
+  const withinWindow = [];
+  const tail = [];
+  for (const hit of unmatched) {
+    if (baseMessages.size > 0 && !baseMessages.has(hit.message)) unseenMessage.push(hit);
+    else if (truncated && maxListedLine > 0 && hit.line <= maxListedLine) withinWindow.push(hit);
+    else tail.push(hit);
+  }
+
+  const picked = [];
+  const takeFrom = (list, fromEnd = false) => {
+    const need = delta - picked.length;
+    if (need <= 0 || !list.length) return;
+    const slice = fromEnd ? list.slice(-need) : list.slice(0, need);
+    picked.push(...slice);
+  };
+  takeFrom(unseenMessage, false);
+  takeFrom(withinWindow, false);
+  takeFrom(tail, true);
+  return picked.sort((a, b) => a.line - b.line);
+}
+
+/** Compare current `auditTree` result against a parsed baseline. Reports ONLY increases (delta > 0). */
+export function diffAgainstBaseline(currentResult, baseline, { only = CATEGORY_IDS } = {}) {
+  const activeCategories = CATEGORY_IDS.filter(id => only.includes(id));
+  const currentByFile = new Map((currentResult?.files ?? []).map(entry => [entry.file, entry]));
+  const baselineCounts = baseline?.counts ?? {};
+  const baselineHits = baseline?.hits ?? {};
+  const allFiles = [...new Set([...currentByFile.keys(), ...Object.keys(baselineCounts)])].sort();
+
+  const byCategory = Object.fromEntries(activeCategories.map(id => [id, {
+    baseline: 0,
+    current: 0,
+    added: 0,
+    removed: 0,
+    delta: 0,
+  }]));
+
+  let newHits = 0;
+  let removedHits = 0;
+  let improvedFiles = 0;
+  const regressedFiles = [];
+
+  for (const file of allFiles) {
+    const currentEntry = currentByFile.get(file);
+    const fileRegressions = [];
+    let fileAdded = 0;
+    let fileAddedScore = 0;
+    let fileRemoved = 0;
+
+    for (const id of activeCategories) {
+      const currentCount = currentEntry?.counts?.[id] ?? 0;
+      const baseCount = baselineCounts[file]?.[id] ?? 0;
+      const delta = currentCount - baseCount;
+      byCategory[id].baseline += baseCount;
+      byCategory[id].current += currentCount;
+      if (delta > 0) {
+        byCategory[id].added += delta;
+        newHits += delta;
+        fileAdded += delta;
+        fileAddedScore += delta * CATEGORIES[id].weight;
+        const currentCategoryHits = (currentEntry?.hits ?? []).filter(hit => hit.category === id);
+        const baseCategoryHits = baselineHits[file]?.[id] ?? [];
+        const representative = pickRepresentativeHits(currentCategoryHits, baseCategoryHits, baseCount, delta);
+        fileRegressions.push({ category: id, baseline: baseCount, current: currentCount, delta, hits: representative });
+      } else if (delta < 0) {
+        const diff = -delta;
+        byCategory[id].removed += diff;
+        removedHits += diff;
+        fileRemoved += diff;
+      }
+    }
+
+    if (fileRemoved > 0 && fileAdded === 0) improvedFiles += 1;
+    if (fileAdded > 0) {
+      const hits = fileRegressions
+        .flatMap(entry => entry.hits)
+        .sort((a, b) => a.line - b.line || a.category - b.category);
+      regressedFiles.push({
+        file,
+        added: fileAdded,
+        addedScore: fileAddedScore,
+        categories: fileRegressions,
+        hits,
+      });
+    }
+  }
+
+  for (const id of activeCategories) {
+    byCategory[id].delta = byCategory[id].current - byCategory[id].baseline;
+  }
+
+  regressedFiles.sort((a, b) => b.addedScore - a.addedScore || b.added - a.added || a.file.localeCompare(b.file));
+  const baselineTotal = activeCategories.reduce((sum, id) => sum + byCategory[id].baseline, 0);
+  const currentTotal = activeCategories.reduce((sum, id) => sum + byCategory[id].current, 0);
+  const hits = regressedFiles.flatMap(entry => entry.hits);
+
+  return {
+    newHits,
+    removedHits,
+    netDelta: newHits - removedHits,
+    improvedFiles,
+    baselineTotal,
+    currentTotal,
+    byCategory,
+    files: regressedFiles,
+    hits,
+  };
+}
+
+/** Render a concise console + Markdown advisory diff report. */
+export function renderDiffReport(diff, { baselinePath = DEFAULT_BASELINE_PATH, maxHitsPerFile = 10 } = {}) {
+  if (diff.newHits === 0) {
+    const cleaned = diff.removedHits > 0 ? `${diff.removedHits} removed; ` : '';
+    return `Test audit (advisory): 0 new low-value test hits vs ${baselinePath} (${cleaned}total ${diff.currentTotal}, baseline ${diff.baselineTotal}).`;
+  }
+
+  const cleanedSuffix = diff.removedHits > 0 ? `, cleaned up: -${diff.removedHits}` : '';
+  const lines = [
+    '## Test audit (advisory, non-blocking)',
+    '',
+    `Found **+${diff.newHits} new hit(s)** in **${diff.files.length} file(s)** compared to \`${baselinePath}\` (current total: ${diff.currentTotal}, baseline: ${diff.baselineTotal}${cleanedSuffix}).`,
+    'This check is **advisory only** and never blocks merge. A hit is a candidate for review, not a verdict.',
+    '',
+    '| File | New hits | Categories |',
+    '| ---- | -------- | ---------- |',
+    ...diff.files.map(entry => {
+      const breakdown = entry.categories
+        .map(cat => `${cat.category}×${cat.delta} (${cat.baseline}→${cat.current})`)
+        .join(', ');
+      return `| \`${entry.file}\` | +${entry.added} | ${breakdown} |`;
+    }),
+    '',
+    '### Category breakdown (new hits)',
+    '',
+    '| # | Category | Added | Baseline → Current | Fix hint |',
+    '| - | -------- | ----- | ------------------ | -------- |',
+    ...Object.entries(diff.byCategory)
+      .filter(([, stats]) => stats.added > 0)
+      .map(([id, stats]) => `| ${id} | ${CATEGORIES[id].name} | +${stats.added} | ${stats.baseline} → ${stats.current} | ${CATEGORIES[id].fix} |`),
+    '',
+    '### Newly added hits',
+    '',
+  ];
+
+  for (const entry of diff.files) {
+    lines.push(`- \`${entry.file}\``);
+    for (const hit of entry.hits.slice(0, maxHitsPerFile)) {
+      lines.push(`  - \`${hit.file}:${hit.line}\` [cat ${hit.category}] — ${hit.message}`);
+    }
+    if (entry.hits.length > maxHitsPerFile) {
+      lines.push(`  - …and ${entry.hits.length - maxHitsPerFile} more in this file`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+const escapeWorkflowData = value => String(value).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+const escapeWorkflowProperty = value => escapeWorkflowData(value).replace(/:/g, '%3A').replace(/,/g, '%2C');
+
+/** Format GitHub Actions `::warning` annotations for newly introduced hits (capped). */
+export function formatAnnotations(diff, { max = MAX_ANNOTATIONS } = {}) {
+  return (diff?.hits ?? []).slice(0, max).map(hit => {
+    const file = escapeWorkflowProperty(hit.file);
+    const title = escapeWorkflowProperty(`test-audit (cat ${hit.category})`);
+    const message = escapeWorkflowData(`${CATEGORIES[hit.category].name}: ${hit.message}`);
+    return `::warning file=${file},line=${hit.line},title=${title}::${message}`;
+  });
+}
+
 export function parseArgs(argv) {
-  const options = { write: false, json: false, only: CATEGORY_IDS, top: 25, root: null };
+  const options = {
+    write: false,
+    writeBaseline: null,
+    json: false,
+    only: CATEGORY_IDS,
+    top: 25,
+    root: null,
+    compareBaseline: null,
+    annotations: false,
+  };
   for (const arg of argv) {
     if (arg === '--write') options.write = true;
-    else if (arg === '--json') options.json = true;
-    else if (arg.startsWith('--top=')) options.top = Math.max(1, Number(arg.slice(6)) || 25);
+    else if (arg === '--write-baseline') options.writeBaseline = DEFAULT_BASELINE_PATH;
+    else if (arg.startsWith('--write-baseline=')) {
+      options.writeBaseline = arg.slice('--write-baseline='.length) || DEFAULT_BASELINE_PATH;
+    } else if (arg === '--json') options.json = true;
+    else if (arg === '--annotations') options.annotations = true;
+    else if (arg === '--compare-baseline') options.compareBaseline = DEFAULT_BASELINE_PATH;
+    else if (arg.startsWith('--compare-baseline=')) {
+      options.compareBaseline = arg.slice('--compare-baseline='.length) || DEFAULT_BASELINE_PATH;
+    } else if (arg.startsWith('--top=')) options.top = Math.max(1, Number(arg.slice(6)) || 25);
     else if (arg.startsWith('--only=')) {
       const ids = arg.slice(7).split(',').map(Number).filter(id => CATEGORY_IDS.includes(id));
       if (ids.length) options.only = [...new Set(ids)].sort();
@@ -667,16 +1105,78 @@ export function parseArgs(argv) {
   return options;
 }
 
-export function run(argv = process.argv.slice(2), { log = console.log } = {}) {
+export function run(argv = process.argv.slice(2), { log = console.log, env = process.env } = {}) {
   const options = parseArgs(argv);
   const root = options.root ?? fileURLToPath(new URL('../', import.meta.url));
   const result = auditTree(root, { only: options.only });
-  if (options.json) { log(JSON.stringify(result, null, 2)); return result; }
+
+  if (options.compareBaseline) {
+    const baselineFile = resolve(root, options.compareBaseline);
+    if (!existsSync(baselineFile)) {
+      const notice = `Test audit (advisory): baseline file not found at ${options.compareBaseline}; skipping comparison (non-blocking).`;
+      if (options.json) {
+        log(JSON.stringify({ baselinePath: options.compareBaseline, baselineMissing: true, diff: null }, null, 2));
+      } else {
+        log(notice);
+        if (env?.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${notice}\n`, 'utf8');
+      }
+      return { ...result, baselineMissing: true, diff: null };
+    }
+
+    let baseline;
+    try {
+      baseline = parseBaseline(readFileSync(baselineFile, 'utf8'), options.compareBaseline);
+    } catch (error) {
+      const notice = `Test audit (advisory): failed to load baseline at ${options.compareBaseline} (${error.message}); skipping comparison (non-blocking).`;
+      if (options.json) {
+        log(JSON.stringify({ baselinePath: options.compareBaseline, baselineInvalid: true, error: error.message, diff: null }, null, 2));
+      } else {
+        log(notice);
+        if (env?.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${notice}\n`, 'utf8');
+      }
+      return { ...result, baselineInvalid: true, error: error.message, diff: null };
+    }
+
+    const diff = diffAgainstBaseline(result, baseline, { only: options.only });
+    if (options.json) {
+      log(JSON.stringify({ baselinePath: options.compareBaseline, diff }, null, 2));
+      return { ...result, diff };
+    }
+
+    const report = renderDiffReport(diff, { baselinePath: options.compareBaseline });
+    log(report);
+    if (options.annotations && diff.hits.length > 0) {
+      const annotations = formatAnnotations(diff, { max: MAX_ANNOTATIONS });
+      for (const line of annotations) log(line);
+      if (diff.hits.length > annotations.length) {
+        log(`Test audit (advisory): omitted ${diff.hits.length - annotations.length} additional annotation(s) (cap ${MAX_ANNOTATIONS}).`);
+      }
+    }
+    if (env?.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${report}\n`, 'utf8');
+    return { ...result, diff };
+  }
+
+  if (options.json) {
+    if (options.writeBaseline) {
+      const file = resolve(root, options.writeBaseline);
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, renderBaselineJson(result), 'utf8');
+    }
+    log(JSON.stringify(result, null, 2));
+    return result;
+  }
   log(renderConsole(result, { top: options.top }));
   if (options.write) {
     const file = join(root, 'docs', 'test-audit.md');
-    writeFileSync(file, `${renderMarkdown(result, { top: options.top })}\n`);
-    log(`\nReport written to ${relative(root, file)}`);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, `${renderMarkdown(result, { top: options.top })}\n`, 'utf8');
+    log(`\nReport written to ${relative(root, file).split(sep).join('/')}`);
+  }
+  if (options.writeBaseline) {
+    const file = resolve(root, options.writeBaseline);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, renderBaselineJson(result), 'utf8');
+    log(`\nBaseline written to ${relative(root, file).split(sep).join('/')}`);
   }
   return result;
 }

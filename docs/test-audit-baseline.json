@@ -1,0 +1,900 @@
+{
+  "version": 1,
+  "generatedBy": "node scripts/test-audit.mjs --write-baseline",
+  "totals": {
+    "hits": 727,
+    "files": 283,
+    "byCategory": {
+      "1": 433,
+      "2": 30,
+      "3": 4,
+      "4": 70,
+      "5": 1,
+      "6": 110,
+      "7": 79
+    }
+  },
+  "files": {
+    "packages/studyhub-tui/tests/ascii-full-sweep.test.mjs": {
+      "4": 1
+    },
+    "packages/studyhub-tui/tests/audit-guardrails.test.mjs": {
+      "1": 10
+    },
+    "packages/studyhub-tui/tests/cli-args.test.mjs": {
+      "1": 1,
+      "2": 1,
+      "6": 2
+    },
+    "packages/studyhub-tui/tests/domain-library-decks.test.mjs": {
+      "4": 1
+    },
+    "packages/studyhub-tui/tests/domain-reader.test.mjs": {
+      "6": 1
+    },
+    "packages/studyhub-tui/tests/domain-review.test.mjs": {
+      "1": 1
+    },
+    "packages/studyhub-tui/tests/domain-tasks-audio.test.mjs": {
+      "2": 3
+    },
+    "packages/studyhub-tui/tests/esc-consumption-guard.test.mjs": {
+      "1": 1
+    },
+    "packages/studyhub-tui/tests/host.test.mjs": {
+      "2": 1,
+      "7": 2
+    },
+    "packages/studyhub-tui/tests/issue-1313-next-step-followup.test.mjs": {
+      "6": 1
+    },
+    "packages/studyhub-tui/tests/issue-1318-teach-skip.test.mjs": {
+      "1": 8
+    },
+    "packages/studyhub-tui/tests/issue-1428-followups.test.mjs": {
+      "1": 5,
+      "2": 1
+    },
+    "packages/studyhub-tui/tests/issue-1429-esc-consumption.test.mjs": {
+      "2": 1
+    },
+    "packages/studyhub-tui/tests/issue-1439-assistant-error-reason.test.mjs": {
+      "3": 1
+    },
+    "packages/studyhub-tui/tests/issue-1441-1442.test.mjs": {
+      "1": 2
+    },
+    "packages/studyhub-tui/tests/issue-1459-grade-scale-semantics.test.mjs": {
+      "6": 1
+    },
+    "packages/studyhub-tui/tests/key-routing-matrix.test.mjs": {
+      "1": 6
+    },
+    "packages/studyhub-tui/tests/layout-keymap-source.test.mjs": {
+      "1": 2
+    },
+    "packages/studyhub-tui/tests/notification-history-panel.test.mjs": {
+      "6": 1
+    },
+    "packages/studyhub-tui/tests/perf-budget.test.mjs": {
+      "1": 1
+    },
+    "packages/studyhub-tui/tests/r2-p0-export-batch.test.mjs": {
+      "6": 2
+    },
+    "packages/studyhub-tui/tests/responsive-audit.test.mjs": {
+      "4": 3
+    },
+    "packages/studyhub-tui/tests/round-83-ux.test.mjs": {
+      "6": 1
+    },
+    "packages/studyhub-tui/tests/round-94-ux.test.mjs": {
+      "6": 2
+    },
+    "packages/studyhub-tui/tests/round-95-ux.test.mjs": {
+      "6": 2
+    },
+    "packages/studyhub-tui/tests/toast-history.test.mjs": {
+      "1": 2
+    },
+    "packages/studyhub-tui/tests/tx-write-atomic.test.mjs": {
+      "1": 1
+    },
+    "scripts/fake-extension.mjs": {
+      "2": 1
+    },
+    "scripts/fake-model.mjs": {
+      "2": 2
+    },
+    "scripts/qa/fake-openai.mjs": {
+      "2": 2
+    },
+    "tests/a11y-focus-live.test.mjs": {
+      "1": 3
+    },
+    "tests/answer-card-ui.test.mjs": {
+      "1": 2,
+      "4": 1
+    },
+    "tests/appearance-prefs.test.mjs": {
+      "6": 2
+    },
+    "tests/archify-companion.test.mjs": {
+      "1": 4,
+      "6": 1
+    },
+    "tests/assigned-plan.test.mjs": {
+      "6": 1
+    },
+    "tests/audio-ogg-ffmpeg.test.mjs": {
+      "7": 1
+    },
+    "tests/audio-retry.test.mjs": {
+      "7": 1
+    },
+    "tests/book-active-checkpoint.test.mjs": {
+      "1": 2
+    },
+    "tests/book-entry.test.mjs": {
+      "1": 5
+    },
+    "tests/book-leave-gate.test.mjs": {
+      "1": 1
+    },
+    "tests/book-min-reader.test.mjs": {
+      "6": 1
+    },
+    "tests/book-point-gaps-ui.test.mjs": {
+      "1": 2
+    },
+    "tests/client-boundaries.test.mjs": {
+      "1": 1
+    },
+    "tests/coach.test.mjs": {
+      "6": 1
+    },
+    "tests/code-in-questions.test.mjs": {
+      "1": 1
+    },
+    "tests/companion-slide-check.test.mjs": {
+      "1": 6
+    },
+    "tests/course-book-ai-ui.test.mjs": {
+      "1": 2,
+      "4": 1
+    },
+    "tests/course-book-export-pandoc.test.mjs": {
+      "7": 1
+    },
+    "tests/course-book-files.test.mjs": {
+      "1": 1
+    },
+    "tests/course-book-place.test.mjs": {
+      "4": 1
+    },
+    "tests/course-book-reading.test.mjs": {
+      "6": 1
+    },
+    "tests/course-outline-estimate.test.mjs": {
+      "6": 1
+    },
+    "tests/course-outline-job.test.mjs": {
+      "3": 1
+    },
+    "tests/course-outline-ui.test.mjs": {
+      "1": 3,
+      "6": 1
+    },
+    "tests/course-outline.test.mjs": {
+      "6": 1
+    },
+    "tests/coverage-strength.test.mjs": {
+      "6": 1
+    },
+    "tests/custom-entry-gate.test.mjs": {
+      "6": 1
+    },
+    "tests/custom-interview-ui.test.mjs": {
+      "6": 1
+    },
+    "tests/custom-plan-ui.test.mjs": {
+      "1": 2
+    },
+    "tests/custom-readiness-ui.test.mjs": {
+      "1": 1
+    },
+    "tests/custom-readiness.test.mjs": {
+      "6": 1
+    },
+    "tests/daily-plan-local-due.test.mjs": {
+      "4": 1
+    },
+    "tests/daily-plan-local.test.mjs": {
+      "4": 1
+    },
+    "tests/daily-recap-gate.test.mjs": {
+      "4": 1
+    },
+    "tests/danger-menu.test.mjs": {
+      "1": 2
+    },
+    "tests/dashboard-action-bridge.test.mjs": {
+      "1": 2
+    },
+    "tests/dead-css.test.mjs": {
+      "1": 2
+    },
+    "tests/desk-atelier.test.mjs": {
+      "1": 12,
+      "6": 1
+    },
+    "tests/desk-play.test.mjs": {
+      "1": 1
+    },
+    "tests/desktop-retrieval.test.mjs": {
+      "2": 1
+    },
+    "tests/diagnostic-text.test.mjs": {
+      "1": 2
+    },
+    "tests/direct-cache-session.test.mjs": {
+      "6": 1
+    },
+    "tests/docs-generation-facts.test.mjs": {
+      "6": 2
+    },
+    "tests/document-preview.test.mjs": {
+      "1": 16
+    },
+    "tests/document-rename.test.mjs": {
+      "6": 1
+    },
+    "tests/effort-single-mapping.test.mjs": {
+      "1": 1
+    },
+    "tests/error-reason-and-tutor-w3c.test.mjs": {
+      "6": 1
+    },
+    "tests/exam-prep-disabled.test.mjs": {
+      "1": 1
+    },
+    "tests/exam-prep-roles.test.mjs": {
+      "6": 2
+    },
+    "tests/exam-prep-settings-ui.test.mjs": {
+      "1": 1,
+      "4": 2
+    },
+    "tests/exam-prep-settings.test.mjs": {
+      "4": 9
+    },
+    "tests/exam-report-bridge.test.mjs": {
+      "1": 4,
+      "4": 1
+    },
+    "tests/failure-links.test.mjs": {
+      "6": 1
+    },
+    "tests/feedback-lite.test.mjs": {
+      "6": 1
+    },
+    "tests/feedback-widgets-batch.test.mjs": {
+      "1": 3
+    },
+    "tests/finder-chain-recipes.test.mjs": {
+      "1": 1,
+      "4": 2
+    },
+    "tests/first-run-line.test.mjs": {
+      "1": 4
+    },
+    "tests/first-run-words.test.mjs": {
+      "1": 1
+    },
+    "tests/focus-progress-ui.test.mjs": {
+      "1": 3
+    },
+    "tests/formula-queue.test.mjs": {
+      "2": 1
+    },
+    "tests/fsrs-local-days.test.mjs": {
+      "4": 1
+    },
+    "tests/generate-reach.test.mjs": {
+      "1": 1
+    },
+    "tests/generation-failure-copy.test.mjs": {
+      "1": 1
+    },
+    "tests/generation-failure-describe.test.mjs": {
+      "1": 1
+    },
+    "tests/generation-generate-golden.test.mjs": {
+      "4": 1
+    },
+    "tests/generation-path-brief.test.mjs": {
+      "6": 1
+    },
+    "tests/generation-path-matter.test.mjs": {
+      "6": 2
+    },
+    "tests/generation-presets-ui.test.mjs": {
+      "6": 1
+    },
+    "tests/generation-presets.test.mjs": {
+      "6": 1
+    },
+    "tests/generation-run-end.test.mjs": {
+      "4": 1
+    },
+    "tests/generation-suggest-golden.test.mjs": {
+      "4": 1
+    },
+    "tests/guidance-settings-ui.test.mjs": {
+      "1": 3,
+      "4": 1
+    },
+    "tests/guidance-surfaces.test.mjs": {
+      "1": 2
+    },
+    "tests/hand-off-deadends.test.mjs": {
+      "6": 1
+    },
+    "tests/helpers/fake-index-server.mjs": {
+      "2": 1
+    },
+    "tests/helpers/index-port.mjs": {
+      "2": 1
+    },
+    "tests/helpers/live-local-fakes.mjs": {
+      "2": 1
+    },
+    "tests/honest-practice-feedback.test.mjs": {
+      "1": 1
+    },
+    "tests/inter-font.test.mjs": {
+      "6": 1
+    },
+    "tests/interactive-companions.test.mjs": {
+      "1": 5,
+      "2": 1
+    },
+    "tests/issue-1436-batch4-config-recover.test.mjs": {
+      "1": 3
+    },
+    "tests/issue-1436-batch4-references.test.mjs": {
+      "1": 1,
+      "6": 1
+    },
+    "tests/issue-1436-batch4-return-sync.test.mjs": {
+      "1": 4
+    },
+    "tests/issue-1436-batch4-socratic.test.mjs": {
+      "1": 3
+    },
+    "tests/issue-1436-batch4-teach-skip.test.mjs": {
+      "1": 5
+    },
+    "tests/jev-providers.test.mjs": {
+      "6": 1
+    },
+    "tests/job-contract.test.mjs": {
+      "6": 1
+    },
+    "tests/job-output.test.mjs": {
+      "6": 2
+    },
+    "tests/learner-bullets.test.mjs": {
+      "6": 1
+    },
+    "tests/leech-result-line.test.mjs": {
+      "4": 1
+    },
+    "tests/library-switch-undo.test.mjs": {
+      "1": 2
+    },
+    "tests/live-loopback.test.mjs": {
+      "7": 1
+    },
+    "tests/live-page-guidance.test.mjs": {
+      "6": 1
+    },
+    "tests/live-sentence-pause-ui.test.mjs": {
+      "1": 3,
+      "6": 2
+    },
+    "tests/live.test.mjs": {
+      "5": 1
+    },
+    "tests/lookback-blind-recall.test.mjs": {
+      "1": 1
+    },
+    "tests/marker-external.test.mjs": {
+      "6": 1,
+      "7": 4
+    },
+    "tests/marker-install-service.test.mjs": {
+      "7": 1
+    },
+    "tests/marker-service.test.mjs": {
+      "7": 1
+    },
+    "tests/mastery-map-ui.test.mjs": {
+      "1": 4
+    },
+    "tests/material-classify-jobs-backend.test.mjs": {
+      "2": 1
+    },
+    "tests/mineru-environment.test.mjs": {
+      "2": 2
+    },
+    "tests/mineru-history-ui.test.mjs": {
+      "1": 2,
+      "6": 1
+    },
+    "tests/mineru-install-ui.test.mjs": {
+      "1": 1
+    },
+    "tests/mineru-install.test.mjs": {
+      "7": 1
+    },
+    "tests/mineru-local-liveness.test.mjs": {
+      "2": 1
+    },
+    "tests/mineru-local.test.mjs": {
+      "7": 8
+    },
+    "tests/mineru-parse-server-recovery.test.mjs": {
+      "2": 1
+    },
+    "tests/mistake-triage.test.mjs": {
+      "6": 1
+    },
+    "tests/nav-consistency.test.mjs": {
+      "1": 1
+    },
+    "tests/nav-groups.test.mjs": {
+      "6": 1
+    },
+    "tests/next-dismiss.test.mjs": {
+      "6": 1
+    },
+    "tests/notes-active-check.test.mjs": {
+      "1": 1,
+      "4": 2
+    },
+    "tests/one-pass-write-style.test.mjs": {
+      "6": 1
+    },
+    "tests/original-by-path-handoff.test.mjs": {
+      "1": 2
+    },
+    "tests/original-file-ui.test.mjs": {
+      "1": 2
+    },
+    "tests/other-flows-wording.test.mjs": {
+      "1": 4
+    },
+    "tests/output-panel-wait.test.mjs": {
+      "6": 1
+    },
+    "tests/page-frame-headers.test.mjs": {
+      "1": 1
+    },
+    "tests/page-peek-decode.test.mjs": {
+      "7": 5
+    },
+    "tests/page-peek.test.mjs": {
+      "1": 8,
+      "6": 4
+    },
+    "tests/page-switch-jank.test.mjs": {
+      "1": 4
+    },
+    "tests/passage-links.test.mjs": {
+      "2": 1
+    },
+    "tests/plain-failure-reasons.test.mjs": {
+      "6": 1
+    },
+    "tests/point-evidence.test.mjs": {
+      "6": 1
+    },
+    "tests/point-gaps-ui.test.mjs": {
+      "1": 1
+    },
+    "tests/practice-assist-and-tips.test.mjs": {
+      "6": 1
+    },
+    "tests/practice-offers.test.mjs": {
+      "6": 1
+    },
+    "tests/practice-result.test.mjs": {
+      "4": 1
+    },
+    "tests/practice-round-controls.test.mjs": {
+      "1": 1
+    },
+    "tests/practice-settings-ui.test.mjs": {
+      "1": 1,
+      "4": 3
+    },
+    "tests/practice-settings.test.mjs": {
+      "4": 11
+    },
+    "tests/practice-tips.test.mjs": {
+      "1": 9
+    },
+    "tests/prompt-cache-prefix.test.mjs": {
+      "1": 4
+    },
+    "tests/qa-journey-names.test.mjs": {
+      "1": 1
+    },
+    "tests/question-voice.test.mjs": {
+      "1": 3
+    },
+    "tests/reader-chapter-progress.test.mjs": {
+      "6": 1
+    },
+    "tests/reader-doubt-ledger.test.mjs": {
+      "1": 1
+    },
+    "tests/reader-footnote.test.mjs": {
+      "1": 1
+    },
+    "tests/reader-math.test.mjs": {
+      "1": 2
+    },
+    "tests/reader-one-chapter.test.mjs": {
+      "6": 1
+    },
+    "tests/reader-panel-flow.test.mjs": {
+      "1": 1
+    },
+    "tests/reader-section-practice.test.mjs": {
+      "1": 2,
+      "6": 1
+    },
+    "tests/reading-loop-ui.test.mjs": {
+      "1": 2
+    },
+    "tests/reading-settings.test.mjs": {
+      "1": 2,
+      "6": 1
+    },
+    "tests/reading-surfaces-polish.test.mjs": {
+      "1": 1,
+      "6": 1
+    },
+    "tests/rescue-companion.test.mjs": {
+      "2": 1
+    },
+    "tests/restore-points.test.mjs": {
+      "6": 2,
+      "7": 1
+    },
+    "tests/retire-workflows-s5.test.mjs": {
+      "6": 1
+    },
+    "tests/retrieval-long-key-1290.test.mjs": {
+      "6": 1
+    },
+    "tests/review-core-enhancements.test.mjs": {
+      "1": 30
+    },
+    "tests/review-reask.test.mjs": {
+      "6": 1
+    },
+    "tests/scroll-fade.test.mjs": {
+      "1": 7
+    },
+    "tests/seal-press.test.mjs": {
+      "1": 3
+    },
+    "tests/section-weights.test.mjs": {
+      "6": 1
+    },
+    "tests/select-combobox-browser.test.mjs": {
+      "7": 18
+    },
+    "tests/settings-guidance-advanced.test.mjs": {
+      "1": 1
+    },
+    "tests/settings-guidance-core.test.mjs": {
+      "1": 1
+    },
+    "tests/site-explorer.test.mjs": {
+      "6": 1
+    },
+    "tests/skeleton-diagrams-store.test.mjs": {
+      "6": 1
+    },
+    "tests/skill-forge-scripts.test.mjs": {
+      "2": 2,
+      "7": 1
+    },
+    "tests/small-target-weights.test.mjs": {
+      "6": 1
+    },
+    "tests/socratic-inline.test.mjs": {
+      "1": 4
+    },
+    "tests/sound-effects.test.mjs": {
+      "1": 1,
+      "2": 1
+    },
+    "tests/sources-chapter-list.test.mjs": {
+      "1": 1
+    },
+    "tests/stem-similarity-890.test.mjs": {
+      "6": 1
+    },
+    "tests/store.test.mjs": {
+      "7": 2
+    },
+    "tests/study-image-cards.test.mjs": {
+      "1": 2
+    },
+    "tests/study-self-s2.test.mjs": {
+      "6": 2
+    },
+    "tests/study-skills.test.mjs": {
+      "1": 1
+    },
+    "tests/task-archive-ui.test.mjs": {
+      "1": 3
+    },
+    "tests/task-card-s4.test.mjs": {
+      "1": 4,
+      "6": 1
+    },
+    "tests/task-console-css.test.mjs": {
+      "1": 2
+    },
+    "tests/task-log-detail.test.mjs": {
+      "4": 1
+    },
+    "tests/term-marks.test.mjs": {
+      "6": 2
+    },
+    "tests/test-runner-lock.test.mjs": {
+      "7": 2
+    },
+    "tests/test-runner-timeout.test.mjs": {
+      "7": 1
+    },
+    "tests/time-limit.test.mjs": {
+      "6": 1
+    },
+    "tests/tone-review-round1.test.mjs": {
+      "1": 1
+    },
+    "tests/tool-prompt.test.mjs": {
+      "1": 2
+    },
+    "tests/transform-motion.test.mjs": {
+      "1": 7
+    },
+    "tests/translation-ui-model.test.mjs": {
+      "6": 2
+    },
+    "tests/type-weight-ratchet.test.mjs": {
+      "1": 3
+    },
+    "tests/ui-format.test.mjs": {
+      "6": 1
+    },
+    "tests/ui-guardrails.test.mjs": {
+      "1": 2
+    },
+    "tests/ui-use-polling.test.mjs": {
+      "3": 1
+    },
+    "tests/unified-runtime-architecture.test.mjs": {
+      "1": 1
+    },
+    "tests/unified-runtime-assist.test.mjs": {
+      "4": 1
+    },
+    "tests/unified-runtime-audio-console-mixed.test.mjs": {
+      "4": 2
+    },
+    "tests/unified-runtime-audio-console-off.test.mjs": {
+      "4": 3
+    },
+    "tests/unified-runtime-audio-console-on.test.mjs": {
+      "4": 3
+    },
+    "tests/unified-runtime-audio-evidence.test.mjs": {
+      "4": 1
+    },
+    "tests/unified-runtime-contract.test.mjs": {
+      "6": 1
+    },
+    "tests/unified-runtime-daily-recap.test.mjs": {
+      "4": 1
+    },
+    "tests/unified-runtime-generation-evidence.test.mjs": {
+      "4": 1
+    },
+    "tests/unified-runtime-marker-install.test.mjs": {
+      "4": 1
+    },
+    "tests/unified-runtime-mineru-install.test.mjs": {
+      "4": 1
+    },
+    "tests/unified-runtime-model-evidence.test.mjs": {
+      "4": 1
+    },
+    "tests/unified-runtime-nonmodel-evidence.test.mjs": {
+      "4": 2
+    },
+    "tests/unified-runtime-pdf-convert.test.mjs": {
+      "4": 2
+    },
+    "tests/usage-docs.test.mjs": {
+      "1": 2
+    },
+    "tests/usage-registry.test.mjs": {
+      "1": 5
+    },
+    "tests/ux-batch-1367.test.mjs": {
+      "1": 4
+    },
+    "tests/w0-contract-i18n.test.mjs": {
+      "1": 2
+    },
+    "tests/w1-batch-a-scope.test.mjs": {
+      "1": 2
+    },
+    "tests/w1-batch-b-data-safety.test.mjs": {
+      "1": 1
+    },
+    "tests/w1-batch-c-generation-reader.test.mjs": {
+      "1": 13
+    },
+    "tests/w1-batch-d-surfaces.test.mjs": {
+      "1": 15
+    },
+    "tests/w1-batch-e-flows.test.mjs": {
+      "1": 20
+    },
+    "tests/w1-batch-f-settings-graph-css.test.mjs": {
+      "1": 9
+    },
+    "tests/w2-oss-library-replacements.test.mjs": {
+      "1": 1,
+      "6": 1
+    },
+    "tests/w2-ui-perf-regression.test.mjs": {
+      "1": 1
+    },
+    "tests/wave2-atelier-chime.test.mjs": {
+      "1": 8,
+      "2": 1,
+      "6": 2
+    },
+    "tests/wave2-g-fields-browser.test.mjs": {
+      "7": 7
+    },
+    "tests/wave2-g-fields.test.mjs": {
+      "1": 2
+    },
+    "tests/wave2-garden-graph.test.mjs": {
+      "1": 2
+    },
+    "tests/wave2-letterpress-reader.test.mjs": {
+      "1": 2
+    },
+    "tests/wave2-seal-album.test.mjs": {
+      "1": 6
+    },
+    "tests/wave3-p-components.test.mjs": {
+      "1": 1
+    },
+    "tests/wave3-p-continue.test.mjs": {
+      "1": 2
+    },
+    "tests/wave3-p-dailyplan.test.mjs": {
+      "1": 1
+    },
+    "tests/wave3-s2-buttons.test.mjs": {
+      "1": 5
+    },
+    "tests/wave3-s2-inbox-preview.test.mjs": {
+      "1": 5
+    },
+    "tests/wave4-assist-failure.test.mjs": {
+      "1": 2
+    },
+    "tests/wave4-host-query.test.mjs": {
+      "7": 1
+    },
+    "tests/wave4-inbox-preview.test.mjs": {
+      "7": 4
+    },
+    "tests/wave4-raw-buttons.test.mjs": {
+      "1": 1
+    },
+    "tests/wave5a-tooltips.test.mjs": {
+      "2": 1
+    },
+    "tests/wave5c-coupling.test.mjs": {
+      "4": 1
+    },
+    "tests/wave5c-estimate.test.mjs": {
+      "7": 1
+    },
+    "tests/wp-b-overlays-browser.test.mjs": {
+      "7": 12
+    },
+    "tests/wp-e-inbox-browser.test.mjs": {
+      "7": 2
+    },
+    "tests/wp-h-components.test.mjs": {
+      "1": 2
+    },
+    "tests/wp12-case-sample.test.mjs": {
+      "1": 1
+    },
+    "tests/wp12-criteria.test.mjs": {
+      "6": 2
+    },
+    "tests/wp13-courses.test.mjs": {
+      "6": 1
+    },
+    "tests/wp14-polish.test.mjs": {
+      "1": 1
+    },
+    "tests/wp14-settings.test.mjs": {
+      "1": 3
+    },
+    "tests/wp19-quick-actions.test.mjs": {
+      "3": 1
+    },
+    "tests/wp19-snappy-ui.test.mjs": {
+      "1": 3
+    },
+    "tests/wp20-board-model.test.mjs": {
+      "6": 2
+    },
+    "tests/wp23-generate-form.test.mjs": {
+      "6": 1
+    },
+    "tests/wp26-wrongbook-ui.test.mjs": {
+      "1": 2
+    },
+    "tests/wp28-retrieval.test.mjs": {
+      "6": 1
+    },
+    "tests/wp28b-companion.test.mjs": {
+      "6": 1
+    },
+    "tests/wp28b-index.test.mjs": {
+      "6": 2
+    },
+    "tests/wp2f-locale.test.mjs": {
+      "1": 2
+    },
+    "tests/wp2f-review-session.test.mjs": {
+      "6": 1
+    },
+    "tests/wp6-m4a.test.mjs": {
+      "7": 1
+    },
+    "tests/wp6-siliconflow.test.mjs": {
+      "4": 1,
+      "6": 1
+    },
+    "tests/wrongbook-filters.test.mjs": {
+      "6": 1
+    },
+    "tests/wrongbook-practice.test.mjs": {
+      "6": 1
+    },
+    "tests/wrongbook-short-page.test.mjs": {
+      "1": 1
+    }
+  }
+}
