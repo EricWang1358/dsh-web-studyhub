@@ -11,12 +11,11 @@ import { Badge, EmptyState, ProgressBar, Spinner, StatusPill, type PillStatus } 
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
-import { ScrollView } from '../../components/ScrollView.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { useInputCapture } from '../../components/focus.js';
-import { LAYOUT_BP, computeFilterBarLayout } from '../../components/layout-tokens.js';
+import { ChromeLabel, LAYOUT_BP, ScrollArea, computeFilterBarLayout } from '../../layout/index.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { useTheme } from '../../theme/tokens.js';
 import { useShellActions } from '../../shell/actions.js';
@@ -796,7 +795,7 @@ const JobOutputModal = memo(function JobOutputModal({
             height={bodyH}
           />
         ) : showJson ? (
-          <ScrollView
+          <ScrollArea
             content={parsed.jsonText}
             width={innerW}
             height={bodyH}
@@ -1907,18 +1906,17 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
             </Box>
           ) : width >= LAYOUT_BP.AI_DRAWER_SIDE ? (
             <Box flexShrink={0} marginLeft={1}>
-              <Text color={theme.dim} wrap={asciiMode ? undefined : 'truncate-end'}>
-                {truncateDisplay(
-                  t(lang, 'Tab 筛选 · w 历史流 · v 轨迹', 'Tab filter · w Flows · v Trace'),
-                  Math.max(8, width - 72),
-                  asciiMode ? '...' : '…',
-                )}
-              </Text>
+              <ChromeLabel
+                text={t(lang, 'Tab 筛选 · w 历史流 · v 轨迹', 'Tab filter · w Flows · v Trace')}
+                maxWidth={Math.max(8, width - 72)}
+                color={theme.dim}
+                ascii={asciiMode}
+              />
             </Box>
           ) : null}
         </Box>
-        <Text color={theme.dim} wrap={asciiMode ? undefined : 'truncate-end'}>
-          {truncateDisplay(
+        <ChromeLabel
+          text={
             width < LAYOUT_BP.COMPACT
               ? t(
                   lang,
@@ -1929,11 +1927,12 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
                   lang,
                   '监控后台任务；[R] 恢复 · [p] 暂停 · [+/-] 并发 · [e] 导出 · [D] 清轨迹 · [o] 输出 · [m] 补充 · [w] 流',
                   'Monitor jobs; [R] Recover · [p] Pause · [+/-] Concur · [e] Export · [D] Purge · [o] Out · [m] Msg · [w] Flows',
-                ),
-            Math.max(10, width - 2),
-            asciiMode ? '...' : '…',
-          )}
-        </Text>
+                )
+          }
+          maxWidth={Math.max(10, width - 2)}
+          color={theme.dim}
+          ascii={asciiMode}
+        />
       </Box>
 
       {/* Inline Live Filter Bar ([/]) */}
@@ -2124,16 +2123,15 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
                       tone={detailMode === 'trace' ? 'primary' : 'muted'}
                       variant={detailMode === 'trace' ? 'solid' : 'outline'}
                     />
-                    <Text color={theme.dim} wrap={asciiMode ? undefined : 'truncate-end'}>
-                      {truncateDisplay(
-                        t(lang, '  [v] 切换 · [e] 导出 · [D] 清空', '  [v] Switch · [e] Export · [D] Purge'),
-                        Math.max(8, rw - 28),
-                        asciiMode ? '...' : '…',
-                      )}
-                    </Text>
+                    <ChromeLabel
+                      text={t(lang, '  [v] 切换 · [e] 导出 · [D] 清空', '  [v] Switch · [e] Export · [D] Purge')}
+                      maxWidth={Math.max(8, rw - 28)}
+                      color={theme.dim}
+                      ascii={asciiMode}
+                    />
                   </Box>
 
-                  <ScrollView
+                  <ScrollArea
                     lines={activeLogLines}
                     width={Math.max(12, rw - 4)}
                     height={Math.max(2, rh - 10)}
