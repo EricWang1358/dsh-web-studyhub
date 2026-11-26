@@ -90,12 +90,18 @@ test('the shared-checkout moment asks C22 before a command that changes the whol
   assert.ok(entries.some(h => h.if === 'Bash(git *)' && h.command.endsWith(' shared-checkout')), 'Claude Code runs the moment before git commands');
 });
 
-test('the Codex and Antigravity hook files run the same script with no moment filter', async () => {
+test('the Codex and Antigravity hook files run the same command, which finds the script from any working directory', async () => {
   const codex = JSON.parse(await readFile(join(root, '.codex/hooks.json'), 'utf8'));
   const codexHooks = codex.hooks.PreToolUse.flatMap(g => (g.matcher === 'Bash' ? g.hooks : []));
-  assert.ok(codexHooks.some(h => h.type === 'command' && /node \.claude\/hooks\/skill-moment\.mjs$/.test(h.command)), 'Codex matches Bash and runs skill-moment.mjs');
-
   const agy = JSON.parse(await readFile(join(root, '.agents/hooks.json'), 'utf8'));
   const agyHooks = Object.values(agy).flatMap(h => (h.PreToolUse ?? []).flatMap(g => (g.matcher === 'run_command' ? g.hooks : [])));
-  assert.ok(agyHooks.some(h => /node \.claude\/hooks\/skill-moment\.mjs$/.test(h.command)), 'Antigravity matches run_command and runs skill-moment.mjs');
+  assert.equal(codexHooks.length, 1, 'Codex matches Bash');
+  assert.equal(codexHooks[0].type, 'command');
+  assert.equal(agyHooks.length, 1, 'Antigravity matches run_command');
+  const { command } = codexHooks[0];
+  assert.equal(agyHooks[0].command, command, 'one command for both agents');
+  // Neither agent documents the hook's working directory (Antigravity's is .agents/), so a relative script path breaks.
+  assert.doesNotMatch(command, /node \.{0,2}\/?\.claude\/hooks/);
+  assert.match(command, /^node -e "[^"]*'skill-moment\.mjs'[^"]*"$/);
+  assert.doesNotMatch(command.slice(9, -1), /[$`%!]/, 'nothing that sh, cmd or PowerShell would expand inside double quotes');
 });
