@@ -196,7 +196,7 @@ test('a run that ends otherwise: a refused key, a failing round, a cancel', asyn
   pinned('end.cancelledInQueue', { card: await line.cardOf(behind.jobId) });
 });
 
-test('a supplement at its time limit publishes what passed', async t => {
+test('golden: supplement generation hitting the 20-minute budget publishes already-passed cards', async t => {
   // The 20-minute limit of the run strikes when the model says so: once the first batch is saved, whatever the machine's load.
   const real = globalThis.setTimeout, TOTAL_MS = 20 * 60 * 1000;
   let strike = null;

@@ -94,7 +94,7 @@ test('an AI proposal does not offer AI 重排 (the adjust menu already does), an
   assert.match(gated, /前往设置/);
 });
 
-test('English: the new lines are translated', () => {
+test('English UI: local daily-plan proposal renders translated Re-plan with AI and no-model notice', () => {
   const html = render({ plan: controls(), modelReady: true }, 'en');
   assert.doesNotMatch(text(html).replace('练习概率', '').replace('上次混淆了两个概念', ''), /[㐀-鿿]/);
   assert.match(text(html), /Re-plan with AI/);
