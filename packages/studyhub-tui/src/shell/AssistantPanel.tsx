@@ -153,6 +153,11 @@ export function resolveAssistantPanelSize(
   return { width, height };
 }
 
+type TeachRetryTarget =
+  | { kind: 'start'; mode: 'understanding' | 'calculation' }
+  | { kind: 'answer'; text: string }
+  | { kind: 'skip'; all: boolean };
+
 interface PersistentSessionMemory {
   turns: AssistantTurn[];
   retellRecords: Array<{
@@ -164,7 +169,13 @@ interface PersistentSessionMemory {
     at: number;
   }>;
   lastUndo: AssistantUndoEntry | null;
-  lastFallback: { reason: string; altLabel: string; altCommand: string; instruction: string } | null;
+  lastFallback: {
+    reason: string;
+    altLabel: string;
+    altCommand: string;
+    instruction: string;
+    retryTeach?: TeachRetryTarget;
+  } | null;
 }
 
 const sessionMemory: PersistentSessionMemory = {
@@ -678,6 +689,7 @@ export const AssistantPanel = memo(function AssistantPanel({
         });
         if (!mountedRef.current || teachReqSeqRef.current !== seq) return;
         if (!res.ok) {
+          teachLoadedKeyRef.current = null;
           setTeachSession(null);
           if (res.needsAnswerFirst) {
             appendTurn({
@@ -694,13 +706,15 @@ export const AssistantPanel = memo(function AssistantPanel({
             const fb = {
               reason: res.error,
               altLabel: res.isModelError
-                ? t(lang, '可前往设置配置模型，或按 [P] 复制提示词到外部模型', 'Configure a model in Settings or press [P] to copy prompt')
-                : t(lang, '可重试带学或按 [P] 复制提示词', 'Retry guided study or press [P] to copy prompt'),
-              altCommand: '跳到设置',
+                ? t(lang, '前往设置配置模型，或按 [P] 复制提示词到外部模型', 'Configure a model in Settings or press [P] to copy prompt')
+                : t(lang, '按 [A] 重试开启带学，或按 [P] 复制提示词', 'Press [A] to retry guided study, or [P] to copy prompt'),
+              altCommand: res.isModelError ? '跳到设置' : '',
               instruction: t(lang, '苏格拉底带学', 'Socratic guided study'),
+              ...(!res.isModelError ? { retryTeach: { kind: 'start' as const, mode: targetMode } } : {}),
             };
             sessionMemory.lastFallback = fb;
             setLastFallback(fb);
+            setInputFocused(false);
             appendTurn({
               role: 'system',
               stage: 'question',
@@ -774,11 +788,22 @@ export const AssistantPanel = memo(function AssistantPanel({
         });
         if (!mountedRef.current || teachReqSeqRef.current !== seq) return;
         if (!res.ok) {
+          const fb = {
+            reason: res.error,
+            altLabel: t(lang, '重试跳过当前带学步骤', 'Retry skipping teaching step'),
+            altCommand: '',
+            instruction: all ? t(lang, '跳过剩余带学步骤', 'Skip remaining teaching steps') : t(lang, '跳过当前带学步骤', 'Skip teaching step'),
+            retryTeach: { kind: 'skip' as const, all },
+          };
+          sessionMemory.lastFallback = fb;
+          setLastFallback(fb);
+          setInputFocused(false);
+          notify(res.error, 'error');
           appendTurn({
             role: 'system',
             stage: 'answer',
             actionSummary: t(lang, '跳过步骤失败', 'Skip step failed'),
-            text: res.error,
+            text: `${res.error}（${t(lang, '按 [A] 可重试', 'Press [A] to retry')}）`,
           });
           return;
         }
@@ -810,7 +835,7 @@ export const AssistantPanel = memo(function AssistantPanel({
         endExecution();
       }
     },
-    [busy, teachSession, host, lang, appendTurn, beginExecution, endExecution, setStage],
+    [busy, teachSession, host, lang, appendTurn, beginExecution, endExecution, notify, setStage],
   );
 
   const handleSubmitInput = useCallback(
@@ -921,11 +946,23 @@ export const AssistantPanel = memo(function AssistantPanel({
           });
           if (!mountedRef.current || teachReqSeqRef.current !== seq) return;
           if (!res.ok) {
+            const fb = {
+              reason: res.error,
+              altLabel: res.isModelError
+                ? t(lang, '前往设置配置模型，或按 [P] 复制提示词', 'Configure a model in Settings or press [P] to copy prompt')
+                : t(lang, '按 [A] 重试提交这条回答，或按 [S] 跳过此步', 'Press [A] to retry submitting this answer, or [S] to skip'),
+              altCommand: res.isModelError ? '跳到设置' : '',
+              instruction: text,
+              ...(!res.isModelError ? { retryTeach: { kind: 'answer' as const, text } } : {}),
+            };
+            sessionMemory.lastFallback = fb;
+            setLastFallback(fb);
+            setInputFocused(false);
             appendTurn({
               role: 'system',
               stage: 'answer',
               actionSummary: res.isModelError ? t(lang, '模型暂不可用', 'Model unavailable') : t(lang, '带学回答提交失败', 'Guided answer failed'),
-              text: res.error,
+              text: `${res.error}（${fb.altLabel}）`,
             });
             return;
           }
@@ -1439,6 +1476,27 @@ export const AssistantPanel = memo(function AssistantPanel({
     onClose();
   }, [busy, abortAiTurn, endExecution, notify, lang, inputFocused, fullscreen, setFullscreen, escKeepsDock, setFocused, onClose]);
 
+  const runFallbackAction = useCallback(() => {
+    if (!lastFallback) return;
+    const retryTeach = lastFallback.retryTeach;
+    if (retryTeach) {
+      sessionMemory.lastFallback = null;
+      setLastFallback(null);
+      if (retryTeach.kind === 'start') {
+        if (cardCtx?.runId && cardCtx?.cardId) {
+          teachLoadedKeyRef.current = `${cardCtx.runId}:${cardCtx.cardId}:${retryTeach.mode}`;
+        }
+        void startBackendTeach(retryTeach.mode, true);
+      } else if (retryTeach.kind === 'answer') {
+        void handleSubmitInput(retryTeach.text);
+      } else {
+        void handleSkipTeachStep(retryTeach.all);
+      }
+      return;
+    }
+    void handleSubmitInput(lastFallback.altCommand, { viaCommand: true });
+  }, [lastFallback, cardCtx?.runId, cardCtx?.cardId, startBackendTeach, handleSubmitInput, handleSkipTeachStep]);
+
   useInput(
     (input, key) => {
       if (pendingConfirm) return false;
@@ -1486,7 +1544,7 @@ export const AssistantPanel = memo(function AssistantPanel({
         return true;
       }
       if (input === 'A' && lastFallback) {
-        void handleSubmitInput(lastFallback.altCommand, { viaCommand: true });
+        runFallbackAction();
         return true;
       }
       if (input === 'c') {
@@ -1801,7 +1859,7 @@ export const AssistantPanel = memo(function AssistantPanel({
               clickActive
               onClick={() => {
                 setFocused(true);
-                void handleSubmitInput(lastFallback.altCommand, { viaCommand: true });
+                runFallbackAction();
               }}
             >
               <Text color={theme.accent} bold>

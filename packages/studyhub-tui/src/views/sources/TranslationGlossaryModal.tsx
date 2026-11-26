@@ -226,15 +226,16 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
 
   const mountedRef = useRef(true);
   const busyRef = useRef(false);
-  const suggestAbortRef = useRef<AbortController | null>(null);
+  const suggestInFlightRef = useRef(false);
+  const suggestSeqRef = useRef(0);
   const userEditedToRef = useRef(false);
 
   const { send: sendAiTurn, abort: abortAiTurn } = useAiConversation(host, lang);
 
   const cancelAiSuggest = useCallback(() => {
+    suggestSeqRef.current += 1;
+    suggestInFlightRef.current = false;
     abortAiTurn();
-    suggestAbortRef.current?.abort();
-    suggestAbortRef.current = null;
     if (mountedRef.current) setSuggesting(false);
   }, [abortAiTurn]);
 
@@ -243,8 +244,8 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
     return () => {
       mountedRef.current = false;
       busyRef.current = false;
-      suggestAbortRef.current?.abort();
-      suggestAbortRef.current = null;
+      suggestSeqRef.current += 1;
+      suggestInFlightRef.current = false;
     };
   }, []);
 
@@ -489,8 +490,8 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
     async (term: string) => {
       if (!isAiStreamingAvailable(host)) return;
       cancelAiSuggest();
-      const ctrl = new AbortController();
-      suggestAbortRef.current = ctrl;
+      const seq = ++suggestSeqRef.current;
+      suggestInFlightRef.current = true;
       setSuggesting(true);
       setSuggestNote(null);
       try {
@@ -498,7 +499,7 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
           system: buildGlossarySuggestSystemPrompt(target),
           prompt: buildGlossarySuggestPrompt({ term, target, title, pageText, glossary }),
         });
-        if (!mountedRef.current || ctrl.signal.aborted || outcome.status === 'aborted' || outcome.status === 'superseded') return;
+        if (!mountedRef.current || suggestSeqRef.current !== seq || outcome.status === 'aborted' || outcome.status === 'superseded') return;
         if (outcome.status === 'error' || outcome.status === 'unavailable') {
           if (!userEditedToRef.current) {
             setSuggestNote({
@@ -535,7 +536,7 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
           });
         }
       } catch (err) {
-        if (!mountedRef.current || ctrl.signal.aborted) return;
+        if (!mountedRef.current || suggestSeqRef.current !== seq) return;
         if (!userEditedToRef.current) {
           setSuggestNote({
             tone: 'warning',
@@ -547,8 +548,8 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
           });
         }
       } finally {
-        if (suggestAbortRef.current === ctrl) {
-          suggestAbortRef.current = null;
+        if (suggestSeqRef.current === seq) {
+          suggestInFlightRef.current = false;
           if (mountedRef.current) setSuggesting(false);
         }
       }
@@ -588,7 +589,7 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
   const handleChangeToStep = useCallback(
     (nextVal: string) => {
       userEditedToRef.current = true;
-      if (suggestAbortRef.current) cancelAiSuggest();
+      if (suggestInFlightRef.current) cancelAiSuggest();
       setDraftTo(nextVal);
     },
     [cancelAiSuggest],

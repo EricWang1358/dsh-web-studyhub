@@ -658,7 +658,7 @@ export async function executeAssistantWriteAction(
         return {
           succeeded: false,
           actionSummary: t(lang, '写入笔记失败', 'Save to notes failed'),
-          text: saved.error || saved.warning || t(lang, '保存到学习笔记失败，未写入数据，请重试。', 'Failed to save to study notes; nothing written.'),
+          text: saved.error || t(lang, '保存到学习笔记失败，未写入数据，请重试。', 'Failed to save to study notes; nothing written.'),
         };
       }
       const title = saved.noteTitle || noteTitle;

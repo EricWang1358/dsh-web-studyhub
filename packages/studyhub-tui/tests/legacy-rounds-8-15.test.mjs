@@ -1039,7 +1039,7 @@ describe('Round 11: Review Mastery, Guided Study, Exam Alignment & BookCrunch', 
     await ctx?.dispose();
   });
 
-  test('1) Review Mastery (* Focus toggle, D CardTools terms, h->s Follow-up chips, L Socratic TeachModal)', async () => {
+  test('1) Review Mastery (* Focus toggle, D CardTools terms, h->s Follow-up chips, t Unified Guided Study)', async () => {
     const { tty } = ctx;
     tty.send('\r');
     const reviewInit = await tty.waitFor(

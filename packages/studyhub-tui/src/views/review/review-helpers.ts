@@ -488,7 +488,7 @@ export function currentDeckIdOf(run: ReviewRun | null | undefined): string | nul
   return firstScope || null;
 }
 
-/** Build the daily course study-note title expected by `note.qa.add` (mirrors `ui/review/question-note.js`). */
+/** Build the daily course study-note title expected by `note.qa.save` / `note.qa.add` (mirrors `ui/review/question-note.js`). */
 export function buildDailyQuestionNoteTitle(
   run: ReviewRun | null | undefined,
   decks: ReadonlyArray<{ id?: string; course?: string; folder?: string }> | undefined,

@@ -19,6 +19,7 @@ import {
   type ReviewRun,
 } from '../../host/sample-actions.js';
 import { useTheme } from '../../theme/tokens.js';
+import { isModelUnavailableError } from '../../host/ai-dialogue.js';
 import { Badge, Divider, EmptyState, ProgressBar, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { ChromeLabel, LAYOUT_BP, Prose, SectionHeader, computeProseLayout } from '../../layout/index.js';
@@ -130,12 +131,6 @@ interface RunDraftShape {
 }
 
 const DRAFT_SAVE_DEBOUNCE_MS = 600;
-
-function isModelUnavailableMsg(msg: string): boolean {
-  return /configure a model|model.*unavailable|no.*model|api.?key|unauthorized|forbidden|\b401\b|\b403\b|econnrefused|timed out|timeout|未配置|可用.*模型|模型不可用/i.test(
-    msg,
-  );
-}
 
 const CARD_UTIL_KEYS: readonly string[] = Object.freeze([
   'X',
@@ -2389,7 +2384,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                     </Text>
                   </Box>
                   <Text color={theme.muted}>
-                    {isModelUnavailableMsg(gradeError)
+                    {isModelUnavailableError(gradeError)
                       ? t(
                           lang,
                           '未检测到可用 AI 模型：请按 [,] 配置模型，或按 [Space] 对照参考答案后用 [0-5] 自评。',

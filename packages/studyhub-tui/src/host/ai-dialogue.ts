@@ -77,7 +77,7 @@ export interface TeachingSessionView {
 }
 
 const MODEL_UNAVAILABLE_RE =
-  /configure a model|model.*unavailable|no.*model|api.?key|unauthorized|forbidden|\b401\b|\b403\b|econnrefused|timed out|timeout|未配置|可用.*模型|模型不可用/i;
+  /configure a model|model.*unavailable|no.*model|api.?key|unauthorized|forbidden|\b401\b|\b403\b|econnrefused|timed out|timeout|未配置|可用.*模型|模型不可用|没有可用模型/i;
 
 /** True when this host can stream a live AI reply (all dialogue entrypoints share this gate). */
 export function isAiStreamingAvailable(host: Pick<HostClient, 'streamComplete'> | null | undefined): boolean {
@@ -327,7 +327,6 @@ export interface PersistCardQaResult {
   noteTitle?: string;
   status?: 'created' | 'added' | 'unchanged' | string;
   savedItem?: { id: string; question: string; answer: string; at: string };
-  warning?: string;
   error?: string;
 }
 
