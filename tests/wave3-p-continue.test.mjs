@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 // #175 / #177: where 继续学习 on the results page goes is one decision with four answers, never "the same scope again, forever".
 const m = await loadUi(`export * from './ui/review/session-logic.js'; export * from './ui/review/continue-labels.js';
@@ -99,11 +99,114 @@ test('the coach card’s button is the decided destination; a way back to the or
   assert.match(strip({ onContinue: noop }), /继续学习/, 'without a decision the card keeps its old button (no library, tests)');
 });
 
-test('the session hands the decision to the page and keeps the typed answer for the way back', () => {
-  const hook = readFileSync('ui/review/useReviewSession.js', 'utf8');
-  assert.match(hook, /continueDestination\(/);
-  assert.doesNotMatch(hook, /practiceArgs\(run\?\.returnTo \? \[\] : run\?\.scope \|\| \[\]\)/, 'no more blind restart of the same scope');
-  assert.match(hook, /returnInput/, 'the unanswered entry of the original question is remembered before the prerequisites start');
-  const review = readFileSync('ui/Review.jsx', 'utf8');
-  assert.doesNotMatch(review, /act\("review\.get", \{ runId: run\.returnTo \}, enterRun\)/, 'the way back is the destination of the session');
+test('the session hands the decision to the page and keeps the typed answer for the way back', async () => {
+  const { exports: ui, mountHook } = await loadInteractiveUi(`
+    export { useReviewSession, useLiveSession } from './ui/review/useReviewSession.js';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+
+  await withBrowserGlobals(async () => {
+    ui.setUiLanguage('zh');
+    const origRun = {
+      id: 'orig',
+      mode: 'path',
+      index: 0,
+      queueVersion: 0,
+      scope: [{ deckId: 'd1', cardId: 'c-orig' }],
+      card: { id: 'c-orig', kind: 'open', prompt: 'Explain CAP theorem', answer: 'Consistency, availability, partition tolerance' },
+      revealed: false,
+      feedback: null,
+    };
+    const prereqDone = { ...oneCard, id: 'pre', returnTo: 'orig', complete: true };
+    const dataObj = {
+      root: 'lib-continue',
+      settings: {},
+      runs: [{ id: 'orig', mode: 'path' }],
+      progress,
+    };
+    const actCalls = [];
+    const core = {
+      busy: false,
+      call: async () => ({ ok: true }),
+      act: async (action, args, after) => {
+        actCalls.push({ action, args });
+        if (action === 'review.start' && args.returnTo === 'orig') {
+          after?.(prereqDone);
+          return prereqDone;
+        }
+        if (action === 'review.get' && args.runId === 'orig') {
+          after?.(origRun);
+          return origRun;
+        }
+        return null;
+      },
+      notify: () => {},
+      setError: () => {},
+      refresh: async () => {},
+      refs: { dataRef: { current: dataObj }, bindingRoot: { current: 'lib-continue' } },
+    };
+    const nav = { page: 'review', setPage: () => {}, show: { exam: () => {} } };
+    const hook = mountHook(() => {
+      const session = ui.useReviewSession({ core, nav, modalOpen: false, host: {}, rootRef: { current: null }, late: { current: {} } });
+      const live = ui.useLiveSession(session);
+      return { session, live };
+    }, {});
+
+    try {
+      // 1. Open original question and type a draft response before jumping to prerequisites.
+      await hook.act(() => {
+        hook.current.session.enterRun(origRun);
+      });
+      await hook.act(() => {
+        hook.current.session.actions.setResponse('partition tolerance draft');
+      });
+      assert.equal(hook.current.live.entry.response, 'partition tolerance draft');
+
+      // 2. Start prerequisites: records returnInput and enters the prerequisite round with returnTo: 'orig'.
+      await hook.act(async () => {
+        await hook.current.session.actions.studyPrerequisites([{ deckId: 'd1', cardId: 'c1' }]);
+      });
+      assert.equal(hook.current.session.run.id, 'pre');
+      assert.equal(actCalls.at(-1).action, 'review.start');
+      assert.equal(actCalls.at(-1).args.returnTo, 'orig');
+
+      // 3. continueTo decides to return to the original run and restores the typed answer on go().
+      const backDest = hook.current.session.continueTo(null);
+      assert.equal(backDest.kind, 'original');
+      assert.equal(backDest.runId, 'orig');
+      assert.equal(backDest.label, '回到原题');
+
+      await hook.act(async () => {
+        await backDest.go();
+      });
+      assert.equal(actCalls.at(-1).action, 'review.get');
+      assert.deepEqual(actCalls.at(-1).args, { runId: 'orig' });
+      assert.equal(hook.current.session.run.id, 'orig');
+      assert.equal(hook.current.live.entry.response, 'partition tolerance draft', 'typed answer is restored when returning from prerequisites');
+
+      // 4. Finished single-card scope: delegates to next daily plan task when present, or empty-scope path otherwise (never blind-restarts same scope).
+      await hook.act(() => {
+        hook.current.session.enterRun(oneCard);
+      });
+      const startedPlans = [];
+      const planDest = hook.current.session.continueTo({ state: { tasks }, start: (taskId) => startedPlans.push(taskId) });
+      assert.equal(planDest.kind, 'plan');
+      assert.equal(planDest.taskId, 't2');
+      planDest.go();
+      assert.deepEqual(startedPlans, ['t2']);
+
+      actCalls.length = 0;
+      const pathDest = hook.current.session.continueTo(null);
+      assert.equal(pathDest.kind, 'path');
+      assert.equal(pathDest.reason, 'scope-done');
+      await hook.act(async () => {
+        await pathDest.go();
+      });
+      assert.equal(actCalls.length, 1);
+      assert.equal(actCalls[0].action, 'review.start');
+      assert.deepEqual(actCalls[0].args.scope, [], 'finished scope starts the general path instead of blindly restarting the finished scope');
+    } finally {
+      hook.unmount();
+    }
+  });
 });
