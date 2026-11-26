@@ -40,7 +40,7 @@ test('dashboard and library weight mastery by active cards in a real library sna
         useTuiStore.setState({ snapshot, page, preferences: { ...DEFAULT_PREFERENCES, language: 'en', asciiMode: true } });
         const tty = createVirtualTty(84, 32);
         const view = render(React.createElement(View, { host, width: 84, height: 32, isActive: false }), {
-          stdin: tty.stdin, stdout: tty.stdout, stderr: tty.stderr, exitOnCtrlC: false, patchConsole: false,
+          stdin: tty.stdin, stdout: tty.stdout, stderr: tty.stderr, interactive: true, exitOnCtrlC: false, patchConsole: false,
         });
         try {
           const mastery = /Mastery:?\s+(\d+)%/;

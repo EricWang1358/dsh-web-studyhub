@@ -48,7 +48,7 @@ test('the documented review shortcut resumes a saved calculation at its current 
   const tty = createVirtualTty(130, 40);
   const view = render(React.createElement(AppShell, {
     host, autoLaunchpad: false, renderPage: (_page, props) => React.createElement(ReviewView, props),
-  }), { stdin: tty.stdin, stdout: tty.stdout, stderr: tty.stderr, exitOnCtrlC: false, patchConsole: false });
+  }), { stdin: tty.stdin, stdout: tty.stdout, stderr: tty.stderr, interactive: true, exitOnCtrlC: false, patchConsole: false });
   try {
     await tty.waitFor(screen => screen.includes(run.card.prompt), { label: 'resumed review card' });
     tty.send(shortcut);
