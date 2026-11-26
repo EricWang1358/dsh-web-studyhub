@@ -4,4 +4,4 @@ export { RetellModal, type RetellModalProps, type RetellVerdict } from './Retell
 export { SimilarCardsModal, type SimilarCardsModalProps } from './SimilarCardsModal.js';
 export { CardToolsModal, type CardToolsModalProps } from './CardToolsModal.js';
 export { QueueModal, type QueueModalProps } from './QueueModal.js';
-export { TeachModal, type TeachModalProps, type TeachingSessionView } from './TeachModal.js';
+export type { TeachingSessionView } from '../../host/ai-dialogue.js';

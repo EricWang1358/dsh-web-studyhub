@@ -138,7 +138,6 @@ const MARKDOWN_CHUNK_STEMS = new Set([
   'ReviewView',
   'RoundSummary',
   'SimilarCardsModal',
-  'TeachModal',
   'VoicePackModal',
   'WrongBookView',
   'markdown',

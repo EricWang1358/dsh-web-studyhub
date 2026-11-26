@@ -11,6 +11,7 @@ import type { HostClient, PageId, StudySnapshot, UiLanguage } from '../types/con
 import type { AssistantCardContext } from '../state/store.js';
 import { t, useTuiStore } from '../state/store.js';
 import { tryAction, type ReviewRun } from '../host/sample-actions.js';
+import { persistCardQaToFollowupAndNote } from '../host/ai-dialogue.js';
 import { atomicWriteExportText, defaultBackupFilePath } from '../host/atomic-write.js';
 import { SET_ERROR_REASON_ACTION, errorReasonArgs, errorReasonName, type ErrorReasonTarget } from './error-reason-intent.js';
 import { reasonLabel } from '../views/wrongbook/helpers.js';
@@ -629,8 +630,6 @@ export async function executeAssistantWriteAction(
 
     case 'note.qa.add': {
       if (!cardId || !deckId) return needCardOutcome(lang, '存到笔记', 'save to notes');
-      // `note.qa.add` looks the Q&A up by `followupId` and throws when it is missing, so the
-      // follow-up is saved first and a failure stops here (#1447, mirrors `AiHelpDrawer`).
       const answerText = String(lastAssistantReply ?? '').trim().slice(0, 8000);
       if (!answerText) {
         return {
@@ -640,44 +639,29 @@ export async function executeAssistantWriteAction(
         };
       }
       const questionText = (String(lastLearnerQuestion ?? '').trim() || t(lang, '帮我理解这道题', 'Help me understand this question')).slice(0, 1000);
-      const fuRes = await tryAction<{ item?: { id?: string } }>(host, 'card.followup.add', {
-        deckId,
-        cardId,
-        question: questionText,
-        answer: answerText,
-        source: 'assistant',
-        silent: true,
-        replace: true,
-      });
-      const followupId = fuRes.ok ? fuRes.value?.item?.id : undefined;
-      if (!followupId) {
-        return {
-          succeeded: false,
-          actionSummary: t(lang, '保存问答失败', 'Failed to save the Q&A'),
-          text: fuRes.error?.message || t(lang, '保存问答到本题失败，未写入笔记。', 'Could not save the Q&A to this card; nothing was written to notes.'),
-        };
-      }
       const decks = Array.isArray(snapshot?.decks) ? snapshot.decks : [];
       const noteTitle = buildDailyQuestionNoteTitle(
         { deckId, index: 0, card: null } as unknown as ReviewRun,
         decks,
         lang,
       );
-      const res = await tryAction<{ status?: string; note?: { title?: string } }>(host, 'note.qa.add', {
-        title: noteTitle,
+      const saved = await persistCardQaToFollowupAndNote({
+        host,
         deckId,
         cardId,
-        followupId,
-        language: lang,
+        question: questionText,
+        answer: answerText,
+        noteTitle,
+        lang,
       });
-      if (!res.ok) {
+      if (!saved.ok || !saved.noteSaved) {
         return {
           succeeded: false,
           actionSummary: t(lang, '写入笔记失败', 'Save to notes failed'),
-          text: res.error?.message || t(lang, '保存到学习笔记失败，请重试。', 'Failed to save to study notes.'),
+          text: saved.error || t(lang, '保存到学习笔记失败，未写入数据，请重试。', 'Failed to save to study notes; nothing written.'),
         };
       }
-      const title = res.value?.note?.title || noteTitle;
+      const title = saved.noteTitle || noteTitle;
       return {
         succeeded: true,
         actionSummary: t(lang, '已存入学习笔记', 'Saved to study notes'),

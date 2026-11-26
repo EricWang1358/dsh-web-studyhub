@@ -4,6 +4,7 @@ import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction, type ReviewRun } from '../../host/sample-actions.js';
+import { isModelUnavailableError } from '../../host/ai-dialogue.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Divider, normalizeAsciiChrome, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
@@ -67,12 +68,6 @@ function pickActiveNudge(thread: unknown, runId: string, entryIndex: number): Co
     }
   }
   return notes.length > 0 ? notes[notes.length - 1] : null;
-}
-
-function isModelUnavailableMsg(message: string): boolean {
-  return /configure a model|model.*unavailable|no.*model|api.?key|unauthorized|forbidden|\b401\b|\b403\b|econnrefused|timed out|timeout|未配置|可用.*模型|模型不可用|没有可用模型/i.test(
-    message,
-  );
 }
 
 export const CoachNudgeModal = memo(function CoachNudgeModal({
@@ -451,7 +446,7 @@ export const CoachNudgeModal = memo(function CoachNudgeModal({
                 <Text color={theme.error} wrap="wrap">
                   {cleanError}
                 </Text>
-                {isModelUnavailableMsg(cleanError) ? (
+                {isModelUnavailableError(cleanError) ? (
                   <Text color={theme.muted}>
                     {t(lang, '请先按 [,] 在设置中配置可用模型。', 'Configure a model in Settings ([,]) first.')}
                   </Text>
