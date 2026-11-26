@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { KEEP_ENDED, OUTPUT_LIMIT, createOutputStore, tapChildStream } from '../lib/job-output.js';
+import { createOutputStore, tapChildStream } from '../lib/job-output.js';
 import { StudyService } from '../lib/service.js';
 import { withQualityStages } from './helpers/assessment.mjs';
 import { settleJob, until } from './helpers/wait.mjs';
@@ -12,19 +12,31 @@ import { requestData } from './helpers/request-data.mjs';
 // WP-TC step 4: the live output of a running call. An in-memory ring buffer, never persisted, dropped when the call ends; the reader asks for what is new.
 
 test('the buffer keeps the last OUTPUT_LIMIT characters of a call and counts everything it was given', () => {
-  assert.equal(OUTPUT_LIMIT, 65536);
   const store = createOutputStore();
+  store.open('job', 'exact');
+  store.append('job', 'exact', 'x'.repeat(65536));
+  const atLimit = store.read('job', 'exact', 0);
+  assert.equal(atLimit.total, 65536);
+  assert.equal(atLimit.text.length, 65536);
+  assert.equal(atLimit.reset, false, 'at the 65536-character cap nothing is dropped yet');
+  store.append('job', 'exact', 'y');
+  const overLimit = store.read('job', 'exact', 0);
+  assert.equal(overLimit.total, 65537);
+  assert.equal(overLimit.text.length, 65536);
+  assert.equal(overLimit.reset, true, 'one character past 65536 drops the oldest character');
+  assert.equal(overLimit.text.endsWith('y'), true);
+
   store.open('job', 'call');
   store.append('job', 'call', 'a'.repeat(40000));
   store.append('job', 'call', 'b'.repeat(40000));
   const read = store.read('job', 'call', 0);
   assert.equal(read.total, 80000);
-  assert.equal(read.text.length, OUTPUT_LIMIT, 'bounded');
-  assert.equal(read.text, ('a'.repeat(40000) + 'b'.repeat(40000)).slice(-OUTPUT_LIMIT));
+  assert.equal(read.text.length, 65536, 'bounded');
+  assert.equal(read.text, ('a'.repeat(40000) + 'b'.repeat(40000)).slice(-65536));
   assert.equal(read.reset, true, 'the reader asked from the start but the start is gone: it gets the tail and is told');
   assert.equal(read.next, 80000);
   for (let index = 0; index < 80; index++) store.append('job', 'call', 'c'.repeat(1000));
-  assert.ok(store.size('job', 'call') <= OUTPUT_LIMIT, 'never more than the limit however much is written');
+  assert.ok(store.size('job', 'call') <= 65536, 'never more than the limit however much is written');
 });
 
 test('since: only the new text comes back, once', () => {
@@ -78,7 +90,17 @@ test('endJob: the calls of a job that are still open end with it and keep their 
 });
 
 test('finished calls are kept in memory, at most KEEP_ENDED of them (the oldest finished goes first); running buffers have their own bound', () => {
-  assert.equal(KEEP_ENDED, 60);
+  const defaultStore = createOutputStore();
+  for (let index = 0; index < 61; index++) {
+    defaultStore.open('d', `e${index}`);
+    defaultStore.append('d', `e${index}`, `out ${index}`);
+    defaultStore.close('d', `e${index}`);
+  }
+  assert.equal(defaultStore.endedCount(), 60, 'default store retains at most 60 finished calls');
+  assert.equal(defaultStore.read('d', 'e0', 0), null, 'the 61st finished call evicts the oldest');
+  assert.equal(defaultStore.read('d', 'e1', 0).text, 'out 1');
+  assert.equal(defaultStore.read('d', 'e60', 0).text, 'out 60');
+
   const store = createOutputStore({ keepEnded: 3, maxCalls: 3 });
   for (let index = 0; index < 6; index++) { store.open('j', `c${index}`); store.append('j', `c${index}`, `text ${index}`); store.close('j', `c${index}`); }
   assert.equal(store.endedCount(), 3);
@@ -100,7 +122,7 @@ test('a finished call is capped like a running one: at most OUTPUT_LIMIT charact
   for (let index = 0; index < 16; index++) store.append('j', 'c', 'z'.repeat(5000));
   store.close('j', 'c');
   const read = store.read('j', 'c', 0);
-  assert.equal(read.text.length, OUTPUT_LIMIT);
+  assert.equal(read.text.length, 65536);
   assert.equal(read.total, 80000);
   assert.deepEqual([read.reset, read.ended], [true, true], 'from the start, but the start is gone: the tail, and the reader is told to replace');
 });
@@ -193,7 +215,7 @@ test('job.output: a running generation call streams what the model writes, incre
   assert.equal(first.live, true);
   assert.equal(first.text, '{"targets": [');
   assert.equal(first.nextCursor, 13);
-  assert.deepEqual(first.retention, { unit: 'chars', limit: OUTPUT_LIMIT, persisted: false, endedCalls: 60 }, 'the response says how long text is kept: in memory only, never persisted');
+  assert.deepEqual(first.retention, { unit: 'chars', limit: 65536, persisted: false, endedCalls: 60 }, 'the response says how long text is kept: in memory only, never persisted');
   assert.equal(first.truncated, false);
   const same = await service.call('job.output', { jobId: job.jobId, callId: call.callId, cursor: first.nextCursor });
   assert.equal(same.text, '', 'nothing new yet');

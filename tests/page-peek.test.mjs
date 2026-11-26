@@ -27,7 +27,7 @@ const compiled = await build({ stdin: { contents: `
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const lib = module.exports;
-const { LruCache, MAX_EDGE, MAX_CACHED_PAGES, SLOW_PAGE_MS, TURN_COALESCE_MS, ZOOMS, createRenderGate, exceedsPageBudget, isFigurePlaceholder, pdfPageFor, peekCanvasSize, peekPlan, peekStatus, stepZoom } = lib;
+const { LruCache, MAX_CACHED_PAGES, ZOOMS, createRenderGate, exceedsPageBudget, isFigurePlaceholder, pdfPageFor, peekCanvasSize, peekPlan, peekStatus, stepZoom } = lib;
 const h = React.createElement, noop = () => {};
 const text = html => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 const inLanguage = (language, run) => { try { lib.setUiLanguage(language); return run(); } finally { lib.setUiLanguage('zh'); } };
@@ -59,11 +59,14 @@ test('page counts that differ are said, never guessed; a page that is not a numb
 /* ---------- size, zoom and progressive drawing ---------- */
 
 test('no page is ever drawn larger than 2000 px on its long edge', () => {
-  assert.equal(MAX_EDGE, 2000);
   const portrait = peekCanvasSize({ width: 612, height: 792, scale: 4 });
-  assert.ok(Math.max(portrait.width, portrait.height) <= MAX_EDGE);
+  assert.ok(Math.max(portrait.width, portrait.height) <= 2000);
   assert.equal(portrait.capped, true);
   assert.equal(portrait.height, 2000);
+  const exact = peekCanvasSize({ width: 1000, height: 2000, scale: 1 });
+  assert.deepEqual({ w: exact.width, h: exact.height, capped: exact.capped }, { w: 1000, h: 2000, capped: false });
+  const over = peekCanvasSize({ width: 1000, height: 2001, scale: 1 });
+  assert.deepEqual({ h: over.height, capped: over.capped }, { h: 2000, capped: true });
   const small = peekCanvasSize({ width: 612, height: 792, scale: 1 });
   assert.deepEqual({ w: small.width, h: small.height, capped: small.capped }, { w: 612, h: 792, capped: false });
   const wide = peekCanvasSize({ width: 2000, height: 100, scale: 3 });
@@ -96,11 +99,11 @@ test('the page is drawn small first, then sharp: one cheap pass, then the pass f
 /* ---------- the cache and the gate ---------- */
 
 test('the cache keeps at most six page bitmaps, the least recently used goes first and is released', () => {
-  assert.equal(MAX_CACHED_PAGES, 6);
   const released = [];
   const cache = new LruCache(MAX_CACHED_PAGES, (value, key) => released.push(key));
   for (let page = 1; page <= 6; page += 1) cache.set(`p${page}`, { page });
   assert.equal(cache.size, 6);
+  assert.deepEqual(released, [], 'six pages fit without eviction');
   assert.deepEqual(cache.get('p1'), { page: 1 }, 'a hit');
   cache.set('p7', { page: 7 });
   assert.deepEqual(released, ['p2'], 'p1 was used last, so p2 is the one that leaves');
@@ -512,9 +515,8 @@ test('the panel no longer uses the browser\'s own resize corner, which sat on th
 });
 
 test('the single-page PDF budget counts CPU render work only (not asset downloads, hidden tabs or manual opt-in), and its fallback notice is translated', () => {
-  assert.equal(TURN_COALESCE_MS, 160);
-  assert.equal(SLOW_PAGE_MS, 1200);
   assert.equal(exceedsPageBudget({ elapsedMs: 600 }), false);
+  assert.equal(exceedsPageBudget({ elapsedMs: 1199 }), false, 'just under the 1200 ms default budget');
   assert.equal(exceedsPageBudget({ elapsedMs: 1200 }), true);
   assert.equal(exceedsPageBudget({ elapsedMs: 1800, assetMs: 1000 }), false, 'chunk download time is excluded');
   assert.equal(exceedsPageBudget({ elapsedMs: 2300, assetMs: 1000 }), true, 'remaining CPU time still exceeds budget');
@@ -539,6 +541,138 @@ test('the single-page PDF budget counts CPU render work only (not asset download
     assert.doesNotMatch(text(slowEn), han);
     for (const attribute of slowEn.match(/aria-label="[^"]*"|title="[^"]*"/g) || []) assert.doesNotMatch(attribute, han, attribute);
   });
+});
+
+test('PdfPageView coalesces rapid uncached page turns over its 160 ms default window so intermediate pages are skipped', async () => {
+  const prevWin = globalThis.window, prevDoc = globalThis.document, prevLS = globalThis.localStorage;
+  const prevSetTimeout = globalThis.setTimeout, prevClearTimeout = globalThis.clearTimeout;
+  const hooks = [];
+  let cursor = 0, pendingEffects = [], nextTimerId = 1;
+  const scheduled = new Map();
+  const hLocal = (type, p, ...children) => ({ $$type: type, props: { ...(p || {}), ...(children.length === 1 ? { children: children[0] } : children.length > 1 ? { children } : {}) } });
+  const reactShim = {
+    default: null, Fragment: Symbol('Fragment'), createElement: hLocal,
+    useState(init) { const i = cursor++; if (!(i in hooks)) hooks[i] = typeof init === 'function' ? init() : init; return [hooks[i], v => { hooks[i] = typeof v === 'function' ? v(hooks[i]) : v; }]; },
+    useRef(init) { const i = cursor++; if (!(i in hooks)) hooks[i] = { current: init }; return hooks[i]; },
+    useCallback(fn) { return fn; },
+    useSyncExternalStore(_sub, snap) { return snap(); },
+    useEffect(fn, deps) {
+      const i = cursor++, prev = hooks[i];
+      if (!prev || !deps || deps.some((d, k) => d !== prev.deps?.[k])) {
+        hooks[i] = { deps, cleanup: prev?.cleanup };
+        pendingEffects.push(() => { hooks[i].cleanup?.(); hooks[i].cleanup = fn(); });
+      }
+    },
+  };
+  reactShim.default = reactShim;
+  globalThis.__PDF_PAGE_VIEW_REACT__ = reactShim;
+  const ls = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+  globalThis.localStorage = ls;
+  globalThis.window = { devicePixelRatio: 1, addEventListener: () => {}, removeEventListener: () => {}, localStorage: ls };
+  globalThis.document = { visibilityState: 'visible', addEventListener: () => {}, removeEventListener: () => {} };
+  const recordedDelays = [];
+  globalThis.setTimeout = (fn, delay) => {
+    const id = nextTimerId++;
+    recordedDelays.push(delay);
+    scheduled.set(id, { fn, delay });
+    return id;
+  };
+  globalThis.clearTimeout = id => { scheduled.delete(id); };
+  const flush = async () => { for (let i = 0; i < 6; i += 1) await Promise.resolve(); };
+  try {
+    const built = await build({
+      stdin: { contents: `export { default as PdfPageView } from './ui/document-preview/peek/PdfPageView.jsx';`, resolveDir: process.cwd() },
+      bundle: true, write: false, platform: 'node', format: 'cjs', loader: { '.css': 'text' }, logLevel: 'silent',
+      plugins: [{
+        name: 'shim-pdf-page-view',
+        setup(builder) {
+          builder.onResolve({ filter: /^react$|^react\/jsx-runtime$/ }, () => ({ path: 'react', namespace: 'ppvr' }));
+          builder.onLoad({ filter: /.*/, namespace: 'ppvr' }, () => ({
+            contents: `const R = globalThis.__PDF_PAGE_VIEW_REACT__; export default R; export const { Fragment, createElement, useState, useRef, useCallback, useSyncExternalStore, useEffect } = R; export const jsx = (t, p) => R.createElement(t, p); export const jsxs = jsx; export const jsxDEV = jsx;`,
+            loader: 'js',
+          }));
+          builder.onResolve({ filter: /components\/index\.js$/ }, () => ({ path: 'comp', namespace: 'ppvc' }));
+          builder.onLoad({ filter: /.*/, namespace: 'ppvc' }, () => ({
+            contents: `const R = globalThis.__PDF_PAGE_VIEW_REACT__; export const LoadingState = p => R.createElement('div', p, p.label);`,
+            loader: 'js',
+          }));
+          builder.onResolve({ filter: /renderer\.js$/ }, () => ({ path: 'renderer', namespace: 'ppvrd' }));
+          builder.onLoad({ filter: /.*/, namespace: 'ppvrd' }, () => ({
+            contents: `export const createPeekRenderer = async () => ({ numPages: 0, destroy() {} }); export const isCancelled = () => false;`,
+            loader: 'js',
+          }));
+        },
+      }],
+    });
+    const mod = { exports: {} };
+    new Function('module', 'exports', built.outputFiles[0].text)(mod, mod.exports);
+    const { PdfPageView } = mod.exports;
+
+    const areaNode = { clientWidth: 800, scrollTop: 0, dataset: {} };
+    const canvasNode = { style: {}, width: 0, height: 0, parentElement: { style: {} }, getContext: () => ({ drawImage() {} }) };
+    const textLayerNode = { replaceChildren() {} };
+    const attachRefs = node => {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) { node.forEach(attachRefs); return; }
+      if (node.props?.ref) {
+        if (node.props.className === 'reader-pdf-view') node.props.ref.current = areaNode;
+        else if (node.$$type === 'canvas') node.props.ref.current = canvasNode;
+        else if (node.props.className === 'reader-pdf-text') node.props.ref.current = textLayerNode;
+      }
+      if (node.props?.children) attachRefs(node.props.children);
+    };
+
+    const rendered = [];
+    const openRenderer = async () => ({
+      numPages: 10,
+      cachedPageSize: () => null,
+      pageSize: async () => ({ width: 600, height: 800 }),
+      render: async p => { rendered.push(p); return { width: 600, height: 800, close() {} }; },
+      textLayer: async () => null,
+      destroy() {},
+    });
+    const renderAt = page => {
+      cursor = 0;
+      pendingEffects = [];
+      const tree = PdfPageView({ loadBytes: async () => new Uint8Array([1]), openRenderer, page, totalPages: 10 });
+      attachRefs(tree);
+      pendingEffects.splice(0).forEach(fn => fn());
+    };
+
+    renderAt(1);
+    await flush();
+    renderAt(1);
+    await flush();
+    assert.deepEqual(rendered, [1], 'first page draws immediately without coalescing');
+    assert.equal(scheduled.size, 0);
+
+    // Rapid turn 1 -> 2 -> 3 before the 160 ms coalesce timer fires.
+    renderAt(2);
+    assert.deepEqual(rendered, [1], 'page 2 waits for the coalesce window');
+    assert.equal(scheduled.size, 1);
+    assert.equal([...scheduled.values()][0].delay, 160, 'default coalesce window is 160 ms');
+
+    renderAt(3);
+    assert.equal(scheduled.size, 1, 'turning to page 3 cancels the pending page-2 timer');
+    assert.equal([...scheduled.values()][0].delay, 160);
+    assert.deepEqual(rendered, [1], 'page 2 was never rendered');
+
+    const [timerId, entry] = [...scheduled.entries()][0];
+    scheduled.delete(timerId);
+    entry.fn();
+    await flush();
+    assert.deepEqual(rendered, [1, 3], 'only the latest page renders once the 160 ms window elapses');
+    assert.ok(recordedDelays.includes(160));
+  } finally {
+    for (const slot of hooks) slot?.cleanup?.();
+    scheduled.clear();
+    delete globalThis.__PDF_PAGE_VIEW_REACT__;
+    globalThis.setTimeout = prevSetTimeout;
+    globalThis.clearTimeout = prevClearTimeout;
+    if (prevWin === undefined) delete globalThis.window; else globalThis.window = prevWin;
+    if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+    if (prevLS === undefined) delete globalThis.localStorage; else globalThis.localStorage = prevLS;
+  }
 });
 
 test('#55 PagePeek and PagePeekView support ArrowLeft/ArrowRight paging at fit zoom, Ctrl/Meta wheel zoom, and canvas double-click toggle', async () => {

@@ -8,11 +8,11 @@ import { loadUi } from './helpers/ui-module.mjs';
    one quiet line on the live page when a fast speaker never pauses (a pure function decides), and the way from that line to the field. */
 
 const mod = await loadUi(`export { LiveEngineChoice } from './ui/AudioSettings.jsx';
-  export { LIVE_PAUSE_ANCHOR, PAUSE_HINT_CHARS, PAUSE_HINT_MS, initialPauseWatch, pauseHint } from './ui/live-pause-hint.js';
+  export { LIVE_PAUSE_ANCHOR, initialPauseWatch, pauseHint } from './ui/live-pause-hint.js';
   export { audioFocusPending, audioFocusTarget, openAudioSettings, requestAudioSettingsFocus, takeAudioSettingsFocus } from './ui/audio-focus.js';
   export { categoryForAnchor } from './ui/settings-groups.js';
   export { setUiLanguage } from './ui/i18n.js';`);
-const { LiveEngineChoice, LIVE_PAUSE_ANCHOR, PAUSE_HINT_CHARS, PAUSE_HINT_MS, initialPauseWatch, pauseHint } = mod;
+const { LiveEngineChoice, LIVE_PAUSE_ANCHOR, initialPauseWatch, pauseHint } = mod;
 const h = React.createElement;
 const han = /[㐀-鿿]/;
 const textOf = html => html.replace(/<[^>]*>/g, ' ').replace(/&[a-z#0-9]+;/g, ' ').replace(/\s+/g, ' ');
@@ -25,7 +25,6 @@ const render = (view, language = 'zh') => {
 test('the field sits with the live engine choice: label, three segments (the current one pressed), one hint, a tooltip, and the tour anchor', () => {
   const html = render({ liveProvider: 'auto', liveSentencePause: 'short' });
   const text = textOf(html);
-  assert.equal(LIVE_PAUSE_ANCHOR, 'settings-live-pause');
   assert.match(html, /data-tour="settings-live-pause"/);
   assert.match(text, /断句停顿/);
   assert.match(text, /短 · 讲得快[\s\S]*标准[\s\S]*长 · 讲得慢/);
@@ -82,13 +81,11 @@ test('the audio settings request can name the field: it is pending until the sec
 
 /* ---- the live page's line ---- */
 
-const long = 'x'.repeat(PAUSE_HINT_CHARS);
+const long = 'x'.repeat(150);
 const snap = (over = {}) => ({ id: 'a', active: true, count: 0, interim: long, ...over });
 const step = (watch, over, now) => pauseHint(watch, snap(over), now);
 
 test('the hint: more than 60 s of one growing line with at least 150 characters and no new sentence, and only then', () => {
-  assert.equal(PAUSE_HINT_MS, 60_000);
-  assert.equal(PAUSE_HINT_CHARS, 150);
   let r = step(initialPauseWatch(), {}, 1_000);
   assert.equal(r.show, false, 'just started');
   r = step(r.watch, {}, 1_000 + 60_000);
@@ -100,11 +97,11 @@ test('the hint: more than 60 s of one growing line with at least 150 characters 
 });
 
 test('the hint waits for 150 characters, and for text at all', () => {
-  let r = step(initialPauseWatch(), { interim: 'short line' }, 0);
-  r = step(r.watch, { interim: 'short line' }, 120_000);
-  assert.equal(r.show, false, 'two minutes of a short line is not a fast speaker');
-  r = step(r.watch, { interim: long }, 121_000);
-  assert.equal(r.show, true, 'it shows as soon as the line is long enough');
+  let r = step(initialPauseWatch(), { interim: 'x'.repeat(149) }, 0);
+  r = step(r.watch, { interim: 'x'.repeat(149) }, 120_000);
+  assert.equal(r.show, false, '149 characters is still below the 150-character threshold');
+  r = step(r.watch, { interim: 'x'.repeat(150) }, 121_000);
+  assert.equal(r.show, true, 'it shows as soon as the line reaches 150 characters');
   r = step(initialPauseWatch(), { interim: '' }, 0);
   r = step(r.watch, { interim: '' }, 300_000);
   assert.equal(r.show, false, 'silence is not a missing pause');

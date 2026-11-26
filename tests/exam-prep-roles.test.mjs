@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { LARGE_DOCUMENT_LIMITS } from '../lib/large-documents.js';
-import { PAPER_MAX_CHARS, PAPER_MAX_PAGES, PAPER_WORDS, REASON_CODES, SYLLABUS_MAX_PAGES, SYLLABUS_WORDS, WEAK_PAPER_WORDS, suggestRoles } from '../lib/exam-prep-roles.js';
+import { PAPER_MAX_PAGES, PAPER_WORDS, REASON_CODES, SYLLABUS_MAX_PAGES, SYLLABUS_WORDS, WEAK_PAPER_WORDS, suggestRoles } from '../lib/exam-prep-roles.js';
 
 /* 备考补习, role suggestion (lib/exam-prep-roles.js): conservative on purpose. A lecture taken for a sample paper makes false 样卷考过 badges,
    a missed paper leaves every point as 补充. Items are the documents of lib/source-groups.js; here they are written by hand. */
@@ -13,8 +13,6 @@ const pages = count => Array.from({ length: count }, (_, index) => ({ sourceId: 
 const one = (it, options) => suggestRoles([it], options)[0];
 
 test('constants: the limits and word lists the Settings pane shows', () => {
-  assert.equal(PAPER_MAX_PAGES, 20);
-  assert.equal(PAPER_MAX_CHARS, 60000);
   assert.ok(SYLLABUS_MAX_PAGES >= PAPER_MAX_PAGES);
   for (const word of ['样卷', '真题', '试卷', '历年', '往年', '模拟卷', '期中', '期末', 'past paper', 'sample paper', 'exam paper', 'midterm', 'mid-term', 'final exam', 'mock exam'])
     assert.ok(PAPER_WORDS.includes(word), word);
@@ -66,12 +64,12 @@ test('past-paper: a strong word in the title and a short document', () => {
 });
 
 test('past-paper: the size gate, by pages and, when the page count is unknown, by characters', () => {
-  assert.equal(one(item('真题', { totalPages: PAPER_MAX_PAGES })).role, 'past-paper');
-  assert.equal(one(item('真题', { totalPages: PAPER_MAX_PAGES + 1 })).role, 'none');
-  assert.equal(one(item('真题', { pages: pages(PAPER_MAX_PAGES) })).role, 'past-paper');
-  assert.equal(one(item('真题', { pages: pages(PAPER_MAX_PAGES + 1) })).role, 'none');
-  assert.equal(one(item('真题', { format: 'docx', chars: PAPER_MAX_CHARS })).role, 'past-paper');
-  assert.equal(one(item('真题', { format: 'docx', chars: PAPER_MAX_CHARS + 1 })).role, 'none');
+  assert.equal(one(item('真题', { totalPages: 20 })).role, 'past-paper');
+  assert.equal(one(item('真题', { totalPages: 21 })).role, 'none');
+  assert.equal(one(item('真题', { pages: pages(20) })).role, 'past-paper');
+  assert.equal(one(item('真题', { pages: pages(21) })).role, 'none');
+  assert.equal(one(item('真题', { format: 'docx', chars: 60000 })).role, 'past-paper');
+  assert.equal(one(item('真题', { format: 'docx', chars: 60001 })).role, 'none');
   assert.deepEqual(one(item('真题', { totalPages: 90 })).reason, { code: 'no-signal' });
 });
 

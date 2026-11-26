@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { planGenerationPath, STEP_CHARS, STEP_PAGES, CALL_PAGES, CALL_QUESTIONS, MAX_STEPS, usableTitle, matterKind } from '../lib/generation-path.js';
+import { planGenerationPath, STEP_CHARS, STEP_PAGES, MAX_STEPS, usableTitle, matterKind } from '../lib/generation-path.js';
 
 /* 2.5.8: the starting point of the step path for a big book. Step names never come from a cut-off word, the back matter (index, colophon, about the author, …) is
    its own optional step that is skipped by default, every step carries the pages it covers, and a step is small in pages as well as in characters. */
@@ -10,12 +10,33 @@ const chapter = (index, title, from, to, pages) => ({ index, title, level: 1, fr
 const doc = (key, pages, chapters, title = key) => ({ key, title, format: 'pdf', sourceIds: pages.map(item => item.sourceId), pages, chars: pages.reduce((s, p) => s + p.chars, 0), ...(chapters ? { chapters, chapterUnit: 'page' } : {}) });
 const covered = plan => plan.steps.flatMap(step => step.sourceIds);
 
-test('the limits of one generate call are constants next to the step size, and a step respects the page limit as well as the character limit', () => {
-  assert.equal(STEP_CHARS, 150_000);
-  assert.equal(CALL_PAGES, 20);
-  assert.equal(CALL_QUESTIONS, 15);
-  assert.equal(STEP_PAGES, CALL_PAGES, 'a step is about one generate call in pages');
-  assert.equal(MAX_STEPS, 40);
+test('the default plan caps each step at 150,000 chars, 20 pages, and 15 questions, and widens past 40 steps', () => {
+  // Character limit (150,000 chars) and question cap (15 questions per step)
+  const atCharLimit = planGenerationPath([doc('chars-ok', Array.from({ length: 10 }, (_, i) => page(i + 1, 15_000)))]);
+  assert.equal(atCharLimit.steps.length, 1, '150,000 chars in 10 pages fits in one step');
+  assert.equal(atCharLimit.steps[0].count, 15, 'suggested count (25) is capped at 15 questions per call');
+  const smaller = planGenerationPath([doc('chars-small', Array.from({ length: 10 }, (_, i) => page(i + 1, 6_000)))]);
+  assert.equal(smaller.steps[0].count, 10, 'below the 15-question cap, count follows step size');
+  const overCharLimit = planGenerationPath([doc('chars-over', Array.from({ length: 10 }, (_, i) => page(i + 1, 15_001)))]);
+  assert.equal(overCharLimit.steps.length, 2, '150,010 chars splits into two steps');
+  assert.ok(overCharLimit.steps.every(step => step.chars <= 150_000));
+
+  // Page limit (20 pages per step / generate call)
+  const atPageLimit = planGenerationPath([doc('pages-ok', Array.from({ length: 20 }, (_, i) => page(i + 1, 1000)))]);
+  assert.equal(atPageLimit.steps.length, 1);
+  assert.equal(atPageLimit.steps[0].pages, 20);
+  const overPageLimit = planGenerationPath([doc('pages-over', Array.from({ length: 21 }, (_, i) => page(i + 1, 1000)))]);
+  assert.equal(overPageLimit.steps.length, 2);
+  assert.deepEqual(overPageLimit.steps.map(step => step.pages), [11, 10]);
+
+  // Step count limit (40 steps max before widening)
+  const atMaxSteps = planGenerationPath([doc('steps-ok', Array.from({ length: 800 }, (_, i) => page(i + 1, 1000)))]);
+  assert.equal(atMaxSteps.steps.length, 40);
+  assert.equal(atMaxSteps.maxPages, 20);
+  const overMaxSteps = planGenerationPath([doc('steps-over', Array.from({ length: 820 }, (_, i) => page(i + 1, 1000)))]);
+  assert.ok(overMaxSteps.steps.length <= 40);
+  assert.ok(overMaxSteps.maxPages > 20, 'past 40 steps the page limit widens instead of exceeding 40 steps');
+  assert.equal(covered(overMaxSteps).length, 820);
 });
 
 test('81 pages of 147,000 characters is too big a unit: it is cut into balanced steps of at most 20 pages, in order, none of them a stub', () => {
