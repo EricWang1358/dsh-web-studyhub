@@ -571,3 +571,59 @@ test('#1318 x #1322/#1355 rebase merge conflict guard: skip-before-model + nonRe
     setUiLanguage('zh');
   }
 });
+
+test('#1354 P3-c: reopening a card whose saved guided study is in calculation mode resumes it without starting a new understanding plan', async (t) => {
+  resetStore('zh');
+  _resetAssistantSessionMemory();
+  const { service, run, getModelCalls } = await setupTeachingService(t);
+  // A calculation session needs a cited source; reuse a real session view and mark it as a saved calculation one.
+  const real = await service.call('teach.start', { runId: run.id, cardId: 'c-1318', language: 'zh' });
+  const saved = { ...real, id: 'saved-calculation', mode: 'calculation' };
+  const callsBefore = getModelCalls();
+
+  const base = makeHostFromService(service);
+  const calls = [];
+  const host = {
+    ...base,
+    call: async (name, args) => {
+      calls.push({ name, mode: args?.mode });
+      if (name === 'teach.get' && args?.id === saved.id) return { ok: true, value: saved };
+      return base.call(name, args);
+    },
+  };
+
+  useTuiStore.setState({
+    page: 'review',
+    assistantOpen: true,
+    assistantFocused: true,
+    assistantTab: 'guided',
+    assistantStage: 'question',
+    assistantFullscreen: false,
+    assistantCardContext: {
+      runId: run.id,
+      deckId: 'd-1318',
+      cardId: 'c-1318',
+      cardIndex: 0,
+      queueVersion: run.queueVersion ?? 0,
+      prompt: '实对称矩阵为什么一定能正交对角化？',
+      kind: 'flashcard',
+      teachingId: saved.id,
+      teachingMode: 'calculation',
+    },
+  });
+
+  const h = createInkHarness(
+    React.createElement(
+      Box,
+      { width: 104, height: 34 },
+      React.createElement(AssistantPanel, { host, width: 100, height: 34, isActive: true, onClose: () => {} }),
+    ),
+  );
+  t.after(() => h.cleanup());
+
+  await h.waitFor((s) => s.includes('第 1/3 步') && s.includes('计算推导'), 4000, 'saved calculation session shown');
+  await new Promise((r) => setTimeout(r, 80));
+  const starts = calls.filter((c) => c.name === 'teach.start');
+  assert.deepEqual(starts, [], `resuming must not call teach.start; calls: ${JSON.stringify(calls)}`);
+  assert.equal(getModelCalls(), callsBefore, 'resuming a saved session must make no model call');
+});

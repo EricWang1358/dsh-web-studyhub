@@ -277,7 +277,17 @@ export const AssistantPanel = memo(function AssistantPanel({
   const [reasonPickFor, setReasonPickFor] = useState<ErrorReasonTarget | null>(null);
   // #1354 P3-c: backend `teach.*` guided-study session owned directly by AssistantPanel Guided tab.
   const [teachSession, setTeachSession] = useState<TeachingSessionView | null>(null);
-  const [teachMode, setTeachMode] = useState<'understanding' | 'calculation'>('understanding');
+  // The mode comes from the card's saved session; a learner's [M] switch holds only for the card it was made on.
+  // Derived during render so the auto-start effect never sees the previous card's mode (it used to start a stray
+  // understanding plan before resuming a saved calculation session).
+  const teachCardKey = `${cardCtx?.runId ?? ''}:${cardCtx?.cardId ?? ''}:${cardCtx?.teachingMode ?? ''}`;
+  const [teachModeChoice, setTeachModeChoice] = useState<{ cardKey: string; mode: 'understanding' | 'calculation' } | null>(null);
+  const teachMode: 'understanding' | 'calculation' =
+    teachModeChoice?.cardKey === teachCardKey
+      ? teachModeChoice.mode
+      : cardCtx?.teachingMode === 'calculation'
+        ? 'calculation'
+        : 'understanding';
   const teachReqSeqRef = useRef(0);
   const teachLoadedKeyRef = useRef<string | null>(null);
 
@@ -668,7 +678,6 @@ export const AssistantPanel = memo(function AssistantPanel({
     teachReqSeqRef.current += 1;
     teachLoadedKeyRef.current = null;
     setTeachSession(null);
-    setTeachMode(cardCtx?.teachingMode === 'calculation' ? 'calculation' : 'understanding');
   }, [cardCtx?.runId, cardCtx?.cardId, cardCtx?.teachingMode]);
 
   const startBackendTeach = useCallback(
@@ -1581,7 +1590,7 @@ export const AssistantPanel = memo(function AssistantPanel({
         }
         if (input === 'M' && !busy && stage !== 'retell' && cardCtx?.runId && cardCtx?.cardId) {
           const nextMode = teachMode === 'understanding' ? 'calculation' : 'understanding';
-          setTeachMode(nextMode);
+          setTeachModeChoice({ cardKey: teachCardKey, mode: nextMode });
           teachLoadedKeyRef.current = `${cardCtx.runId}:${cardCtx.cardId}:${nextMode}`;
           void startBackendTeach(nextMode, false);
           return true;
