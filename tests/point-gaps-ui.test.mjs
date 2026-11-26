@@ -5,6 +5,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { withStudy } from './helpers/study-services.mjs';
+import { loadInteractiveUi, click } from './helpers/react-harness.mjs';
 import { draftPointReport, POINT_REASONS } from '../lib/evidence/point-report.js';
 
 /** The reasons that keep a quiet line: an outline exists but cannot be used. */
@@ -131,8 +132,52 @@ test('a round of knowledge points skipped because the points changed says so on 
 });
 
 test('the draft page passes the action only for a draft that can be topped up (view.canTopUp)', async () => {
-  const page = await readFile(new URL('../ui/coverage/DraftCoverage.jsx', import.meta.url), 'utf8');
-  assert.match(page, /<PointGaps[^>]*onTopUp=\{view\.canTopUp \? onTopUp : null\}/);
+  const interactive = await loadInteractiveUi(`
+    export { default as DraftCoverage } from './ui/coverage/DraftCoverage.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  interactive.exports.setUiLanguage('zh');
+  const calls = [];
+  const onTopUp = (...args) => calls.push(args);
+  const services = { call: async () => ({}), busy: false };
+  const baseView = {
+    status: 'ok',
+    coverage: { leaves: 4, covered: 2, plannedFailed: 0, neverPlanned: 2, units: 'sections', sections: [] },
+    focus: null,
+    materials: null,
+    round: null,
+    points: report,
+  };
+  let canTopUp = true;
+  const renderCoverage = () => interactive.React.createElement(
+    interactive.exports.StudyServicesContext.Provider,
+    { value: services },
+    interactive.React.createElement(interactive.exports.DraftCoverage, {
+      draft,
+      view: { ...baseView, canTopUp },
+      modelReady: true,
+      onTopUp,
+    }),
+  );
+  const mounted = interactive.mount(renderCoverage);
+  try {
+    await mounted.flush();
+    const topUpBtn = mounted.find((n) => n.type === 'button' && n.props?.['data-points-topup']);
+    assert.ok(topUpBtn, 'PointGaps renders top-up control when view.canTopUp is true');
+    await mounted.act(() => click(topUpBtn));
+    assert.equal(calls.length, 1);
+    assert.deepEqual([calls[0][0].id, calls[0][1], calls[0][2].pointIds], ['dr', null, ['pc']]);
+
+    canTopUp = false;
+    mounted.rerender(renderCoverage);
+    await mounted.flush();
+    assert.equal(mounted.find((n) => n.type === 'button' && n.props?.['data-points-topup']), null, 'PointGaps hides top-up control when view.canTopUp is false');
+    assert.ok(mounted.find((n) => n.props?.['data-point'] === 'pc'), 'uncovered point list remains visible when canTopUp is false');
+    assert.equal(calls.length, 1, 'no extra onTopUp invocation occurred');
+  } finally {
+    mounted.unmount();
+  }
 });
 
 test('知识点查缺 reaches nothing in lib/ of its own: loading it apart must not split the chunks of the first load', async () => {

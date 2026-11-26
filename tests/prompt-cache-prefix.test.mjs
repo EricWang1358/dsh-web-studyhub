@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { blueprintPrompt, act1Prompt, act2Prompt, repairLessonPrompt } from '../lib/contexts/generation/companion/prompts.js';
+import { createDraftRepair } from '../lib/contexts/generation/draft-repair.js';
 import { LEAD_SOURCE_CHARS, REQUEST_DATA, GENERATION_SYSTEM, QUALITY_CRITERIA, REVIEW_SEVERITY_CRITERIA, leadsWithSources, promptSources, stageRequest, stageSystem } from '../lib/prompt-order.js';
 import { CODE_STYLE } from '../lib/notation.js';
 import { planPrompts, blueprintPrompts } from '../lib/assessment-quality.js';
@@ -302,20 +302,6 @@ test('patchPrompts omits questionReferences when citedSources shrinks sources be
 /* ---------- 5a. Draft Repair ---------- */
 
 test('draft-repair shares GENERATION_SYSTEM + sources + before + references with reviewDeck, scopes otherQuestions to top 25, strips source metadata, and merges { patch }', async () => {
-  const src = await readFile(new URL('../lib/contexts/generation/draft-repair.js', import.meta.url), 'utf8');
-  assert.ok(src.includes('dataPayload('), 'draft-repair routes repair payload through dataPayload');
-  assert.ok(src.includes('sharedBefore('), 'draft-repair uses canonical sharedBefore');
-  assert.ok(src.includes('promptSources('), 'draft-repair strips source metadata via promptSources');
-  assert.ok(src.includes('scopeExisting('), 'draft-repair scopes otherQuestions via scopeExisting');
-
-  let createDraftRepair;
-  try {
-    ({ createDraftRepair } = await import('../lib/contexts/generation/draft-repair.js'));
-  } catch (error) {
-    if (error?.code === 'ERR_MODULE_NOT_FOUND') return;
-    throw error;
-  }
-
   const source = {
     id: 's',
     title: 'Notes',
@@ -336,8 +322,10 @@ test('draft-repair shares GENERATION_SYSTEM + sources + before + references with
     misconception: `Confusing principle ${n} with layout.`,
     citations: [{ sourceId: 's', quote: source.text.slice(0, 60) }],
   });
-  // Create 40 sibling cards in the draft to verify otherQuestions is capped at 25 `{ objective }` entries (no `prompt`).
-  const siblings = Array.from({ length: 40 }, (_, i) => makeCard(`sib-${i}`, i + 10, `Sibling objective ${i} mechanism arch condition`));
+  // Mix 15 unrelated siblings ahead of 25 relevant siblings to prove scopeExisting ranks relevant objectives into the 25-entry cap (not blind slicing).
+  const unrelatedSiblings = Array.from({ length: 15 }, (_, i) => makeCard(`unrel-${i}`, i + 100, `Unrelated botany chlorophyll specimen ${i}`));
+  const relevantSiblings = Array.from({ length: 25 }, (_, i) => makeCard(`sib-${i}`, i + 10, `Sibling objective ${i} mechanism arch condition`));
+  const siblings = [...unrelatedSiblings, ...relevantSiblings];
   let state = {
     sources: [source, ref],
     decks: [],
@@ -404,17 +392,22 @@ test('draft-repair shares GENERATION_SYSTEM + sources + before + references with
 
   assert.equal(repairCalls.length, 2);
   assert.equal(reviewCalls.length, 2);
+  assert.ok(repairCalls[0].prompt.startsWith(`${REQUEST_DATA}{"sources":`), 'repair payload leads with REQUEST_DATA sources block (dataPayload)');
   const keys = Object.keys(repairCalls[0].data);
+  const expectedShared = ['sources', 'kind', 'difficulty', 'language', 'focus', 'constraints', 'role', 'referenceQuestions'];
+  assert.deepEqual(keys.slice(0, expectedShared.length), expectedShared, `repair payload follows canonical sharedBefore key order (got ${keys.join(',')})`);
   assert.ok(keys.indexOf('sources') < keys.indexOf('card'), `sources before card: ${keys.join(',')}`);
   assert.ok(keys.indexOf('referenceQuestions') < keys.indexOf('card'), `referenceQuestions before card: ${keys.join(',')}`);
   assert.ok(keys.indexOf('otherQuestions') < keys.indexOf('card'), `otherQuestions before card: ${keys.join(',')}`);
   assert.ok(keys.indexOf('card') < keys.indexOf('issues'), `card before issues: ${keys.join(',')}`);
 
-  // Metadata stripped and otherQuestions capped at 25 `{ objective }` objects (no `prompt`).
+  // Metadata stripped and otherQuestions capped at 25 relevant `{ objective }` objects (no `prompt`, unrelated excluded).
   assert.deepEqual(repairCalls[0].data.sources, [{ id: 's', title: 'Notes', text: source.text }]);
-  assert.equal(repairCalls[0].prompt.includes('audio-import'), false, 'source metadata stripped from repair prompt');
+  assert.equal(repairCalls[0].prompt.includes('audio-import'), false, 'provenance metadata stripped from repair prompt');
+  assert.equal(repairCalls[0].prompt.includes('corrections'), false, 'audio.corrections metadata stripped from repair prompt');
   assert.equal(repairCalls[0].data.otherQuestions.length, 25, 'otherQuestions capped at 25 relevant objectives');
   assert.ok(repairCalls[0].data.otherQuestions.every((item) => typeof item.objective === 'string' && !Object.hasOwn(item, 'prompt')), 'otherQuestions carries objective only');
+  assert.ok(repairCalls[0].data.otherQuestions.every((item) => !item.objective.startsWith('Unrelated botany')), 'scopeExisting excludes unrelated siblings when 25 relevant objectives match sources');
 
   // Repair and reviewDeck share byte-identical GENERATION_SYSTEM AND sources + before + questionReferences prefix!
   assert.equal(repairCalls[0].system, GENERATION_SYSTEM, 'repair uses hoisted GENERATION_SYSTEM');

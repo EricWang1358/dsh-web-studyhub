@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Box, Text, useApp } from 'ink';
+import { Box, Text, useApp, useStdin } from 'ink';
 import type { CommandPaletteItem, HostClient, PageId, ViewProps } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
 import { useTheme } from '../theme/tokens.js';
@@ -7,7 +7,19 @@ import { glyph } from '../render/glyphs.js';
 import { KeyHintBar, Spinner, ToastStack, estimateToastStackHeight } from '../components/Badge.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import { isKeyClaimed, resolveShellFooterHints, useContextualFooterTip, useModalHints } from '../components/focus.js';
-import { KEY_LAYER_GLOBAL, KEY_LAYER_SYSTEM, KeyScopeProvider, useKeyDispatcherBridge, useScopedInput } from '../components/key-dispatcher.js';
+import {
+  KEY_LAYER_GLOBAL,
+  KEY_LAYER_SYSTEM,
+  KEY_SCOPE_DEPTH_QUIT_CONFIRM,
+  KEY_SCOPE_DEPTH_SHELL_OVERLAY,
+  KEY_SCOPE_DEPTH_TOO_SMALL,
+  KeyScopeProvider,
+  getHub,
+  getTopOpaqueScope,
+  useKeyDispatcherBridge,
+  useKeyScope,
+  useScopedInput,
+} from '../components/key-dispatcher.js';
 import { LAYOUT_BP, isViewportTooSmall } from '../components/layout-tokens.js';
 import { useMouseClickInputFallback } from '../components/mouse.js';
 import { useStableWindowSize } from '../components/resize.js';
@@ -141,10 +153,17 @@ export const AppShell = memo(function AppShell({
   const assistantScopeActive = assistantCapturesFocus && !shellModalOpen;
   const overlayOpen = shellModalOpen || assistantCapturesFocus;
 
-  // Render-time snapshot of routing state: every useInput handler for ONE keystroke sees
+  // Below 60x18 the shell stays mounted and a notice is drawn over it instead: unmounting would
+  // throw away in-progress input, cursor and scroll positions, and would drop the quit guards that
+  // pages register, so `q` would exit without the unsaved-work confirmation (#1452).
+  const tooSmall = isViewportTooSmall(columns, rows);
+  const { stdin } = useStdin();
+  const hub = getHub(stdin);
+
+  // Render-time snapshot of routing state: every key handler for ONE keystroke sees
   // the state from BEFORE that keystroke (so closing an overlay with `?` never reopens it).
-  const routing = useRef({ overlayOpen, inputCaptured, showLaunchpad });
-  routing.current = { overlayOpen, inputCaptured, showLaunchpad };
+  const routing = useRef({ overlayOpen, inputCaptured, showLaunchpad, tooSmall });
+  routing.current = { overlayOpen, inputCaptured, showLaunchpad, tooSmall };
 
   const { navW, bodyH, contentW: fullContentW } = shellLayout(columns, rows, {
     sidebarCollapsed,
@@ -168,6 +187,7 @@ export const AppShell = memo(function AppShell({
       }
       const s = useTuiStore.getState();
       const r = routing.current;
+      const blockedByScope = r.overlayOpen || r.inputCaptured || r.tooSmall || getTopOpaqueScope(hub) !== null;
       if (key.ctrl && input === 'c') {
         if (s.quitConfirmOpen) {
           s.setQuitConfirmOpen(false);
@@ -182,7 +202,7 @@ export const AppShell = memo(function AppShell({
           s.setCommandPaletteOpen(false);
           return true;
         }
-        if (!r.overlayOpen && !r.inputCaptured) {
+        if (!blockedByScope) {
           s.setCommandPaletteOpen(true);
           return true;
         }
@@ -192,12 +212,13 @@ export const AppShell = memo(function AppShell({
       const isCtrlSpace = input === '\u0000' || (key.ctrl && (input === ' ' || input === '@'));
       if (isCtrlSpace) {
         if (!s.assistantOpen) {
-          if (!r.overlayOpen && !r.inputCaptured) {
+          if (!blockedByScope) {
             s.openAssistant({ focused: false });
             return true;
           }
           return false;
         }
+        if (r.tooSmall) return false;
         if (!s.assistantFocused && !s.assistantFullscreen) {
           s.setAssistantFocused(true);
         } else {
@@ -210,14 +231,14 @@ export const AppShell = memo(function AppShell({
           s.closeAssistant();
           return true;
         }
-        if (!r.overlayOpen && !r.inputCaptured) {
+        if (!blockedByScope) {
           s.openAssistant({ focused: true });
           return true;
         }
         return false;
       }
       if (key.ctrl && input === 'o') {
-        if (!r.overlayOpen && !r.inputCaptured) {
+        if (!blockedByScope) {
           s.setNotificationHistoryOpen(true);
           return true;
         }
@@ -352,10 +373,6 @@ export const AppShell = memo(function AppShell({
   const toastW = Math.min(52, Math.max(28, Math.floor(columns * 0.45)));
   const toastRows = Math.min(Math.max(1, rows - 3), estimateToastStackHeight(toasts, toastW, asciiMode));
   const toastTop = Math.max(1, rows - (showKeyHints ? 1 : 0) - toastRows);
-  // Below 60x18 the shell stays mounted and a notice is drawn over it instead: unmounting would
-  // throw away in-progress input, cursor and scroll positions, and would drop the quit guards that
-  // pages register, so `q` would exit without the unsaved-work confirmation (#1452).
-  const tooSmall = isViewportTooSmall(columns, rows);
   let main: ReactNode;
   if (showLaunchpad) {
     main = (
@@ -465,7 +482,7 @@ export const AppShell = memo(function AppShell({
         ) : null}
 
         {paletteOpen ? (
-          <KeyScopeProvider>
+          <KeyScopeProvider id="shell:palette" depth={KEY_SCOPE_DEPTH_SHELL_OVERLAY}>
             <Suspense fallback={null}>
               <CommandPalette
                 host={host}
@@ -477,28 +494,28 @@ export const AppShell = memo(function AppShell({
           </KeyScopeProvider>
         ) : null}
         {helpOpen && !paletteOpen ? (
-          <KeyScopeProvider>
+          <KeyScopeProvider id="shell:help" depth={KEY_SCOPE_DEPTH_SHELL_OVERLAY}>
             <Suspense fallback={null}>
               <HelpOverlay isActive={helpOpen} onClose={() => useTuiStore.getState().setHelpOpen(false)} />
             </Suspense>
           </KeyScopeProvider>
         ) : null}
         {courseOpen && !paletteOpen && !helpOpen ? (
-          <KeyScopeProvider>
+          <KeyScopeProvider id="shell:course" depth={KEY_SCOPE_DEPTH_SHELL_OVERLAY}>
             <Suspense fallback={null}>
               <CoursePickerModal isActive={courseOpen} onClose={() => useTuiStore.getState().setCoursePickerOpen(false)} />
             </Suspense>
           </KeyScopeProvider>
         ) : null}
         {inboxOpen && !paletteOpen && !helpOpen && !courseOpen ? (
-          <KeyScopeProvider>
+          <KeyScopeProvider id="shell:inbox" depth={KEY_SCOPE_DEPTH_SHELL_OVERLAY}>
             <Suspense fallback={null}>
               <InboxModal host={host} isActive={inboxOpen} onClose={() => useTuiStore.getState().setInboxOpen(false)} />
             </Suspense>
           </KeyScopeProvider>
         ) : null}
         {notificationHistoryOpen && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen ? (
-          <KeyScopeProvider>
+          <KeyScopeProvider id="shell:notifications" depth={KEY_SCOPE_DEPTH_SHELL_OVERLAY}>
             <Suspense fallback={null}>
               <NotificationHistoryModal
                 isActive={notificationHistoryOpen}
@@ -508,7 +525,7 @@ export const AppShell = memo(function AppShell({
           </KeyScopeProvider>
         ) : null}
         {voiceOverlay && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !notificationHistoryOpen && renderVoicePack ? (
-          <KeyScopeProvider>
+          <KeyScopeProvider id="shell:voice" depth={KEY_SCOPE_DEPTH_SHELL_OVERLAY}>
             {renderVoicePack({
               isActive: true,
               onClose: () => useTuiStore.getState().setVoicePackOpen(false),
@@ -518,9 +535,20 @@ export const AppShell = memo(function AppShell({
           </KeyScopeProvider>
         ) : null}
         {overlays}
-        {tooSmall ? <TooSmallViewportNotice columns={columns} rows={rows} asciiMode={asciiMode} lang={lang} /> : null}
+        {tooSmall ? (
+          <KeyScopeProvider id="shell:tooSmall" depth={KEY_SCOPE_DEPTH_TOO_SMALL} opaque active={!quitConfirmOpen}>
+            <TooSmallViewportNotice
+              columns={columns}
+              rows={rows}
+              asciiMode={asciiMode}
+              lang={lang}
+              isActive={!quitConfirmOpen}
+              onQuit={() => actions.quit()}
+            />
+          </KeyScopeProvider>
+        ) : null}
         {quitConfirmOpen ? (
-          <KeyScopeProvider>
+          <KeyScopeProvider id="shell:quitConfirm" depth={KEY_SCOPE_DEPTH_QUIT_CONFIRM}>
             <ConfirmDialog
             title={t(lang, '确认退出', 'Quit StudyHub')}
             message={t(lang, '当前有进行中的考试/练习，确认退出吗？', 'Session in progress. Quit StudyHub?')}
@@ -552,17 +580,33 @@ const TooSmallViewportNotice = memo(function TooSmallViewportNotice({
   rows,
   asciiMode,
   lang,
+  isActive,
+  onQuit,
 }: {
   columns: number;
   rows: number;
   asciiMode: boolean;
   lang: 'zh' | 'en';
+  isActive: boolean;
+  onQuit: () => void;
 }) {
   const theme = useTheme();
   const times = glyph('times', asciiMode);
   const warnGlyph = glyph('warn', asciiMode);
   const minCols = LAYOUT_BP.MIN_VIEWPORT_COLS;
   const minRows = LAYOUT_BP.MIN_VIEWPORT_ROWS;
+  useKeyScope({
+    id: 'shell:tooSmall',
+    active: isActive,
+    onKey: (input, key) => {
+      if (!key.ctrl && !key.meta && input === 'q') {
+        onQuit();
+        return true;
+      }
+      // Consume all non-system keys so hidden views/modals never receive blind keystrokes while < 60x18.
+      return true;
+    },
+  });
   return (
     <Box
       position="absolute"

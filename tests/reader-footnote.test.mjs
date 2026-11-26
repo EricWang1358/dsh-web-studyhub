@@ -4,7 +4,6 @@
    page as hidden counted text so selection / find / quote anchors keep mapping onto the stored text. The model never sees the tags. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { parseFragment } from 'parse5';
@@ -146,9 +145,38 @@ test('other HTML in text sources stays escaped text, and code that mentions a fo
   }
 });
 
-test('the footnote renderer adds no raw-HTML path', () => {
-  const source = readFileSync(new URL('../ui/document-preview/reader/ReadingSections.jsx', import.meta.url), 'utf8');
-  assert.equal((source.match(/dangerouslySetInnerHTML/g) || []).length, 1, 'only the formula drawing, as before');
+test('the footnote renderer escapes raw HTML and XSS payloads as text while keeping body rendering intact', () => {
+  const xssNote = '<small><span class="docvortex-page-footnote" data-block-type="page_footnote" style="color:#6b7280">① <img src=x onerror=alert(1)> <script>alert(1)</script> <b style="color:red">hi</b></span></small>';
+  const assertNoInjectedHtml = (markup, label) => {
+    const clean = withoutFormulaViews(markup);
+    assert.doesNotMatch(clean, /<img\b|<script\b|<b\b|<[^>]*\s(?:onerror|style)=/i, label);
+    const walk = node => {
+      assert.equal(['img', 'script', 'b'].includes(node.nodeName), false, `${label}: no <${node.nodeName}> element`);
+      for (const attr of node.attrs || []) {
+        assert.equal(['onerror', 'style'].includes(attr.name.toLowerCase()), false, `${label}: no ${attr.name} attribute`);
+      }
+      node.childNodes?.forEach(walk);
+    };
+    walk(parseFragment(clean));
+  };
+
+  const textDoc = `正文含公式 $a+b$。\n\n${xssNote}\n\n下一段。`;
+  const html = render(textDoc);
+  assert.match(html, /<p class="reader-p reader-p--footnote reader-footnote" role="note">/);
+  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
+  assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.match(html, /&lt;b style=&quot;color:red&quot;&gt;hi&lt;\/b&gt;/);
+  assertNoInjectedHtml(html, 'ReadingSections text path');
+  assert.match(html, /class="reader-math"/, 'normal formula rendering in body still works');
+
+  const mdDoc = `**正常加粗** 正文。\n\n${xssNote}\n\n下一段。`;
+  const mdHtml = ui.renderReaderMarkdown(mdDoc);
+  assert.match(mdHtml, /<strong>正常加粗<\/strong>/, 'normal Markdown body still renders');
+  assert.match(mdHtml, /<p class="reader-footnote" role="note">/);
+  assert.match(mdHtml, /&lt;img src=x onerror=alert\(1\)&gt;/);
+  assert.match(mdHtml, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.match(mdHtml, /&lt;b style=&quot;color:red&quot;&gt;hi&lt;\/b&gt;/);
+  assertNoInjectedHtml(mdHtml, 'Markdown path');
 });
 
 test('Markdown sources draw the footnote the same way and leave the rest of Markdown alone', () => {
