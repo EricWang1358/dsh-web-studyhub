@@ -4,12 +4,13 @@ import { useKeyScope } from '../../input/hooks.js';
 import type { UiLanguage } from '../../types/contracts.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState } from '../../components/Badge.js';
+import { Prose, computeProseLayout } from '../../components/Layout.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Panel } from '../../components/Panel.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { LAYOUT_BP } from '../../components/layout-tokens.js';
 import { VirtualList } from '../../components/VirtualList.js';
-import { truncateDisplay } from '../../render/cjk.js';
+import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import { renderBarChart, renderStatTable } from '../../render/charts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import type { CaseQuestionReport, ExamReport, ReportItem, ReportState } from './types.js';
@@ -405,8 +406,16 @@ export const ExamReportView = memo(function ExamReportView({
       (r.weakTopics ?? []).length > 0
         ? `${t(lang, '薄弱主题', 'Weak Topics')}: ${r.weakTopics!.map((w) => w.topic).join(', ')}`
         : '';
-    const extraOverhead = (bandBars.length > 0 ? bandBars.length + 1 : 0) + (weakTopicsLine ? 1 : 0);
-    const listH = Math.max(4, paneH - 8 - extraOverhead);
+    const listRoom = Math.max(1, paneH - 8 - (bandBars.length ? bandBars.length + 1 : 0));
+    const proseWidth = computeProseLayout(innerW).proseWidth;
+    const topics = weakTopicsLine ? wrapDisplay(weakTopicsLine, proseWidth) : [];
+    // Keep the list's four reading rows and a margin. The detail reader has each full topic, including long imported titles.
+    const topicRoom = Math.max(1, listRoom - 5);
+    const detailHint = wrapDisplay(t(lang, '完整主题见题目详情。', 'Full topics in question details.'), proseWidth);
+    const shownTopics = topics.length <= topicRoom ? topics : [
+      ...topics.slice(0, Math.max(0, topicRoom - detailHint.length)), ...detailHint,
+    ];
+    const listH = Math.max(1, listRoom - (shownTopics.length ? shownTopics.length + 1 : 0));
 
     return (
       <Panel
@@ -436,9 +445,9 @@ export const ExamReportView = memo(function ExamReportView({
           </Box>
         ) : null}
 
-        {weakTopicsLine ? (
+        {shownTopics.length > 0 ? (
           <Box marginBottom={1}>
-            <Text color={theme.warning}>{truncateDisplay(weakTopicsLine, innerW, ellipsis)}</Text>
+            <Prose width={innerW} color={theme.warning} ascii={false}>{shownTopics.join('\n')}</Prose>
           </Box>
         ) : null}
 
