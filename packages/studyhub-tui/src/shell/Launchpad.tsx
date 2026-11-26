@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { Box, Text } from 'ink';
-import { useScopedInput as useInput } from '../components/key-dispatcher.js';
+import { useKeyScope } from '../components/key-dispatcher.js';
+import { isPlainKey } from '../input/global-router.js';
 import { t, useTuiStore } from '../state/store.js';
 import { useTheme, type ThemeTokens } from '../theme/tokens.js';
 import { truncateDisplay } from '../render/cjk.js';
@@ -52,19 +53,33 @@ export const Launchpad = memo(function Launchpad({ width, height, isActive }: La
   const model = modelInfo(cfg, binding, snapshot, asciiMode);
   const envKey = process.env.DEEPSEEK_API_KEY ? 'DEEPSEEK_API_KEY' : process.env.OPENAI_API_KEY ? 'OPENAI_API_KEY' : null;
 
-  useInput(
-    (input, key) => {
-      if (input === 's') void actions.loadSample();
-      else if (input === 'i') {
+  useKeyScope({
+    id: 'Launchpad',
+    active: isActive,
+    keys: ['s', 'i', 'm'],
+    onKey: (input, key) => {
+      if (key.return && !key.meta && !key.ctrl) {
+        useTuiStore.getState().setShowLaunchpad(false);
+        return true;
+      }
+      if (!isPlainKey(input, key)) return false;
+      if (input === 's') {
+        void actions.loadSample();
+        return true;
+      }
+      if (input === 'i') {
         useTuiStore.getState().setShowLaunchpad(false);
         actions.importSource();
-      } else if (input === 'm') {
+        return true;
+      }
+      if (input === 'm') {
         useTuiStore.getState().setShowLaunchpad(false);
         actions.openModelSettings();
-      } else if (key.return) useTuiStore.getState().setShowLaunchpad(false);
+        return true;
+      }
+      return false;
     },
-    { isActive },
-  );
+  });
 
   const banner = pixelBanner('STUDY HUB');
   const compact = height < 22 || width < LAYOUT_BP.MIN_VIEWPORT_COLS;
