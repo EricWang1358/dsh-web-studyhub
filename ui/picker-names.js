@@ -120,7 +120,7 @@ export function useFactsFit(ref, rows, everyCourse) {
     const look = () => {
       const facts = root.querySelector('.source-picker__facts');
       if (!facts) return;
-      const style = getComputedStyle(facts), face = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily} ${style.letterSpacing}`;
+      const style = getComputedStyle(facts), face = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily} ${style.letterSpacing} ${style.fontFeatureSettings}`;
       const width = root.getBoundingClientRect().width;
       // more rows drawn (the list grows taller) is no reason to look again: only another width or font is
       if (decided === width && face === font) return;
