@@ -2,6 +2,7 @@
  * Zero-dependency validated, atomic persistence for TUI-only preferences at `<DSH_HOME || ~/.dsh>/study/tui.json`.
  * Lives beside StudyHub Desktop's `desktop.json` (never inside the study library).
  */
+import { isKnownAssistantChipId } from '../shell/assistant-chips.js';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
@@ -139,8 +140,8 @@ function parseTuiPreferencesObject(source: Record<string, unknown>): TuiPreferen
       for (const [cmd, rawStat] of Object.entries(rawMap as Record<string, unknown>)) {
         if (cmdCount >= 20) break;
         const cleanCmd = cmd.trim().slice(0, 60);
-        // #1354 D11: never persist free-text user input in `tui.json`; only canonical `chip:<id>` tokens may pass.
-        if (!/^chip:[a-z0-9-]+$/.test(cleanCmd) || !rawStat || typeof rawStat !== 'object') continue;
+        // #1354 D11: never persist free-text user input in `tui.json`; only registered canonical chip IDs ([C24]) may pass.
+        if (!isKnownAssistantChipId(cleanCmd) || !rawStat || typeof rawStat !== 'object') continue;
         const rec = rawStat as Record<string, unknown>;
         const count = typeof rec.count === 'number' && Number.isFinite(rec.count) && rec.count > 0 ? Math.floor(rec.count) : 0;
         const lastUsedAt =

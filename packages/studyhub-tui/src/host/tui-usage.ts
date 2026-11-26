@@ -13,7 +13,7 @@ import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { AssistantCommandStat, LastPracticeContext } from '../types/contracts.js';
 import { extractPersistableChipStats } from '../shell/assistant-chips.js';
-import { atomicCopyFile, atomicUpdateJson } from './atomic-write.js';
+import { atomicCopyFile, atomicUpdateJson, type AtomicFsOps } from './atomic-write.js';
 import { resolveStudyHome, type TuiPrefsLocation } from './tui-prefs.js';
 
 export const TUI_USAGE_SCHEMA_VERSION = 1;
@@ -28,6 +28,8 @@ export interface TuiUsageData {
 export interface TuiUsageLocation extends TuiPrefsLocation {
   /** When true, allow backing up and replacing a corrupt `tui-usage.json`. Never overrides unreadable or unsupported-version files. */
   recover?: boolean;
+  /** Internal / test fault-injection hooks forwarded to atomic persistence & corrupt backup. */
+  fsOps?: AtomicFsOps;
 }
 
 export interface LoadTuiUsageResult {
@@ -145,9 +147,9 @@ export async function loadTuiUsage(location: TuiPrefsLocation = {}): Promise<Tui
   return (await loadTuiUsageSafe(location)).usage;
 }
 
-async function backupCorruptUsageFile(target: string): Promise<string> {
+async function backupCorruptUsageFile(target: string, fsOps?: AtomicFsOps): Promise<string> {
   const backupPath = `${target}.corrupt-${Date.now()}-${randomUUID().slice(0, 8)}.bak`;
-  await atomicCopyFile(target, backupPath, { mode: 0o600 });
+  await atomicCopyFile(target, backupPath, { mode: 0o600, fsOps });
   return backupPath;
 }
 
@@ -155,15 +157,17 @@ function mergeChipStatsMaps(
   prev: Record<string, Record<string, AssistantCommandStat>> | undefined,
   incoming: Record<string, Record<string, AssistantCommandStat>> | undefined,
 ): Record<string, Record<string, AssistantCommandStat>> | undefined {
-  if (!prev && !incoming) return undefined;
+  const cleanPrev = extractPersistableChipStats(prev);
+  const cleanIncoming = extractPersistableChipStats(incoming);
+  if (!cleanPrev && !cleanIncoming) return undefined;
   const combined: Record<string, Record<string, AssistantCommandStat>> = {};
-  if (prev) {
-    for (const [page, map] of Object.entries(prev)) {
+  if (cleanPrev) {
+    for (const [page, map] of Object.entries(cleanPrev)) {
       combined[page] = { ...map };
     }
   }
-  if (incoming) {
-    for (const [page, map] of Object.entries(incoming)) {
+  if (cleanIncoming) {
+    for (const [page, map] of Object.entries(cleanIncoming)) {
       const target = { ...(combined[page] ?? {}) };
       for (const [chipId, stat] of Object.entries(map)) {
         const cur = target[chipId];
@@ -206,6 +210,7 @@ export async function saveTuiUsage(
       return merged;
     },
     {
+      fsOps: location.fsOps,
       stringify: (value) => `${JSON.stringify({ version: TUI_USAGE_SCHEMA_VERSION, ...value }, null, 2)}\n`,
       parse: (text) => {
         const parsed: unknown = JSON.parse(stripUtf8Bom(text));
@@ -227,7 +232,7 @@ export async function saveTuiUsage(
         if (!allowRecover) {
           return { skip: recovered };
         }
-        await backupCorruptUsageFile(target);
+        await backupCorruptUsageFile(target, location.fsOps);
         return { recover: recovered };
       },
     },

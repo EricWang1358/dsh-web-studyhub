@@ -209,16 +209,53 @@ function defaultChipsForContext(page: PageId, card: AssistantCardContext | null 
   );
 }
 
-function statForChip(pageStats: Record<string, AssistantCommandStat>, chip: AssistantChip): AssistantCommandStat | undefined {
-  const byId = pageStats[chip.id];
-  const byCmd = pageStats[normalizeCommandKey(chip.command)];
-  if (byId && byCmd) {
-    return {
-      count: Math.max(byId.count, byCmd.count),
-      lastUsedAt: Math.max(byId.lastUsedAt, byCmd.lastUsedAt),
-    };
+function resolveCatalogChipForContext(
+  rawKey: string,
+  page: PageId,
+  card: AssistantCardContext | null | undefined,
+): { matchedCatalog: false } | { matchedCatalog: true; entry: AssistantChipCatalogEntry | null } {
+  const resolvedId = resolveAssistantChipId(rawKey, page);
+  if (!resolvedId) return { matchedCatalog: false };
+  const entry = CHIP_BY_ID.get(resolvedId);
+  if (!entry) return { matchedCatalog: false };
+
+  if (page === 'review') {
+    const isWrong = Boolean(card?.isWrong);
+    if ((entry.wrongCardOnly && !isWrong) || (entry.normalCardOnly && isWrong)) {
+      const cmdKey = normalizeCommandKey(entry.command);
+      const sibling = ASSISTANT_CHIP_CATALOG.find(
+        (candidate) =>
+          Array.isArray(candidate.pages) &&
+          candidate.pages.includes('review') &&
+          normalizeCommandKey(candidate.command) === cmdKey &&
+          (isWrong ? !candidate.normalCardOnly : !candidate.wrongCardOnly),
+      );
+      if (sibling) return { matchedCatalog: true, entry: sibling };
+      if (entry.wrongCardOnly && !isWrong) return { matchedCatalog: true, entry: null };
+    }
   }
-  return byId ?? byCmd;
+  return { matchedCatalog: true, entry };
+}
+
+function statForChip(
+  pageStats: Record<string, AssistantCommandStat>,
+  chip: AssistantChip,
+  page: PageId,
+): AssistantCommandStat | undefined {
+  const chipCmdKey = normalizeCommandKey(chip.command);
+  let totalCount = 0;
+  let latest = 0;
+  for (const [rawKey, st] of Object.entries(pageStats)) {
+    if (!st || typeof st !== 'object' || !(st.count > 0)) continue;
+    const isDirect = rawKey === chip.id || normalizeCommandKey(rawKey) === chipCmdKey;
+    const resolvedId = !isDirect ? resolveAssistantChipId(rawKey, page) : null;
+    const resolvedEntry = resolvedId ? CHIP_BY_ID.get(resolvedId) : undefined;
+    const isSibling = Boolean(resolvedEntry && normalizeCommandKey(resolvedEntry.command) === chipCmdKey);
+    if (!isDirect && !isSibling) continue;
+    totalCount += st.count;
+    if (st.lastUsedAt > latest) latest = st.lastUsedAt;
+  }
+  return totalCount > 0 ? { count: totalCount, lastUsedAt: latest } : undefined;
 }
 
 /**
@@ -286,16 +323,46 @@ export function buildContextChips(input: BuildContextChipsInput): AssistantChip[
     });
   }
 
-  // 2) Promoted frequent commands (`count >= 3` on this page), most recently used first
+  // 2) Promoted frequent commands (`count >= 3` on this page), aggregating chip IDs with their
+  //    in-session command aliases so cross-restart counts combine cleanly and catalog chips retain
+  //    localized zh/en labels, `kind`, and card-state matching (#1354 D11).
   const pageStats = statsByPage?.[page] ?? {};
-  const promotedEntries = Object.entries(pageStats)
-    .filter(([, st]) => st && st.count >= PROMOTION_THRESHOLD)
-    .sort((a, b) => b[1].lastUsedAt - a[1].lastUsedAt);
+  const aggregated = new Map<
+    string,
+    { catalogEntry: AssistantChipCatalogEntry | null; rawKey: string; count: number; lastUsedAt: number }
+  >();
+  for (const [statKey, st] of Object.entries(pageStats)) {
+    if (!st || typeof st !== 'object' || !(st.count > 0)) continue;
+    const resolved = resolveCatalogChipForContext(statKey, page, card);
+    if (resolved.matchedCatalog) {
+      if (!resolved.entry) continue;
+      const bucketKey = `id:${resolved.entry.id}`;
+      const prev = aggregated.get(bucketKey);
+      aggregated.set(bucketKey, {
+        catalogEntry: resolved.entry,
+        rawKey: resolved.entry.id,
+        count: (prev?.count ?? 0) + st.count,
+        lastUsedAt: Math.max(prev?.lastUsedAt ?? 0, st.lastUsedAt || 0),
+      });
+    } else {
+      const bucketKey = `raw:${statKey}`;
+      const prev = aggregated.get(bucketKey);
+      aggregated.set(bucketKey, {
+        catalogEntry: null,
+        rawKey: statKey,
+        count: (prev?.count ?? 0) + st.count,
+        lastUsedAt: Math.max(prev?.lastUsedAt ?? 0, st.lastUsedAt || 0),
+      });
+    }
+  }
 
-  for (const [statKey] of promotedEntries) {
-    const catalogEntry = CHIP_BY_ID.get(statKey);
-    if (catalogEntry) {
-      const chip = chipFromCatalog(catalogEntry, lang, page);
+  const promotedEntries = [...aggregated.values()]
+    .filter((item) => item.count >= PROMOTION_THRESHOLD)
+    .sort((a, b) => b.lastUsedAt - a.lastUsedAt);
+
+  for (const item of promotedEntries) {
+    if (item.catalogEntry) {
+      const chip = chipFromCatalog(item.catalogEntry, lang, page);
       pushUnique({
         ...chip,
         promoted: true,
@@ -303,9 +370,9 @@ export function buildContextChips(input: BuildContextChipsInput): AssistantChip[
       });
     } else {
       pushUnique({
-        id: `chip:promoted:${statKey}`,
-        label: statKey.length > 16 ? `${statKey.slice(0, 15)}…` : statKey,
-        command: statKey,
+        id: `chip:promoted:${item.rawKey}`,
+        label: item.rawKey.length > 16 ? `${item.rawKey.slice(0, 15)}…` : item.rawKey,
+        command: item.rawKey,
         kind: 'command',
         promoted: true,
         recent: true,
@@ -318,13 +385,13 @@ export function buildContextChips(input: BuildContextChipsInput): AssistantChip[
 
   // Float recently used defaults to the top
   defaults.sort((a, b) => {
-    const aTime = statForChip(pageStats, a)?.lastUsedAt ?? 0;
-    const bTime = statForChip(pageStats, b)?.lastUsedAt ?? 0;
+    const aTime = statForChip(pageStats, a, page)?.lastUsedAt ?? 0;
+    const bTime = statForChip(pageStats, b, page)?.lastUsedAt ?? 0;
     return bTime - aTime;
   });
 
   for (const d of defaults) {
-    const stat = statForChip(pageStats, d);
+    const stat = statForChip(pageStats, d, page);
     pushUnique({ ...d, recent: Boolean(stat && stat.lastUsedAt > 0) });
   }
 

@@ -30,7 +30,19 @@ const { recordAssistantCommandUsage } = usageMod;
 const { toLastPracticeContext } = stackMod;
 const { useTuiStore, DEFAULT_PREFERENCES } = storeMod;
 
-async function waitForFileFlush(ms = 120) {
+async function waitForCondition(predicate, timeoutMs = 5000, intervalMs = 20) {
+  const deadline = Date.now() + timeoutMs;
+  while (true) {
+    const value = await predicate();
+    if (value) return value;
+    if (Date.now() >= deadline) {
+      throw new Error(`Timed out after ${timeoutMs}ms waiting for condition`);
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+}
+
+async function waitForSettledIdle(ms = 120) {
   await new Promise((r) => setTimeout(r, ms));
 }
 
@@ -56,7 +68,7 @@ describe('#1354 D11 — no user input or card prompt persisted into settings; us
     const secretPrompt = '帮我整理昨晚私人日记里的敏感思考内容 XYZ-987654';
     recordAssistantCommandUsage({ host, page: 'review', text: secretPrompt, kind: 'command' });
     recordAssistantCommandUsage({ host, page: 'library', text: 'my private free-text question 42', kind: 'command' });
-    await waitForFileFlush();
+    await waitForSettledIdle();
 
     const prefsRaw = await readIfExists(tuiPreferencesPath({ env: { DSH_HOME: dir } }));
     assert.equal(prefsRaw, null, 'free-text assistant input must not create or touch tui.json');
@@ -84,15 +96,25 @@ describe('#1354 D11 — no user input or card prompt persisted into settings; us
     for (let i = 0; i < PROMOTION_THRESHOLD; i += 1) {
       recordAssistantCommandUsage({ host, page: 'review', text: '查看统计', kind: 'command' });
     }
-    await waitForFileFlush(200);
+
+    // Wait deterministically ([C36]) until the last queued write reaches disk with count >= PROMOTION_THRESHOLD
+    const uPath = tuiUsagePath({ env: { DSH_HOME: dir } });
+    const usageRaw = await waitForCondition(async () => {
+      const raw = await readIfExists(uPath);
+      if (!raw) return null;
+      try {
+        const parsed = JSON.parse(raw);
+        return parsed?.assistantChipStats?.review?.['chip:stats']?.count >= PROMOTION_THRESHOLD ? raw : null;
+      } catch {
+        return null;
+      }
+    });
 
     // tui.json must remain untouched
     const prefsRaw = await readIfExists(tuiPreferencesPath({ env: { DSH_HOME: dir } }));
     assert.equal(prefsRaw, null, 'assistant chip usage must live in tui-usage.json, never tui.json');
 
     // tui-usage.json must exist and contain ONLY canonical chip ID ('chip:stats'), never raw Chinese command text
-    const uPath = tuiUsagePath({ env: { DSH_HOME: dir } });
-    const usageRaw = await readFile(uPath, 'utf8');
     assert.ok(!usageRaw.includes('查看统计'), 'tui-usage.json must store chip IDs, not raw command text');
     const parsedDisk = JSON.parse(usageRaw);
     assert.equal(parsedDisk.version, TUI_USAGE_SCHEMA_VERSION);
@@ -188,6 +210,7 @@ describe('#1354 D11 — no user input or card prompt persisted into settings; us
         assistantCommandStats: {
           review: {
             '用户手打的自由文本秘密': { count: 4, lastUsedAt: 1700000001000 },
+            'chip:unregistered-secret-slug': { count: 5, lastUsedAt: 1700000001500 },
             'chip:stats': { count: 3, lastUsedAt: 1700000002000 },
           },
         },
@@ -198,12 +221,132 @@ describe('#1354 D11 — no user input or card prompt persisted into settings; us
     const diskRaw = await readFile(tuiPreferencesPath({ env: { DSH_HOME: dir } }), 'utf8');
     assert.ok(!diskRaw.includes('不应落盘的题干文本'), 'tui.json must never store promptPreview');
     assert.ok(!diskRaw.includes('用户手打的自由文本秘密'), 'tui.json must never store free-text user input');
+    assert.ok(!diskRaw.includes('chip:unregistered-secret-slug'), 'tui.json must reject unregistered chip:* tokens');
 
     const loaded = await loadTuiPreferences({ env: { DSH_HOME: dir } });
     assert.equal(loaded.theme, 'nord');
     assert.equal(loaded.lastPracticeContext?.runId, 'run-42');
     assert.equal(loaded.lastPracticeContext?.promptPreview, undefined);
     assert.equal(loaded.assistantCommandStats?.review?.['用户手打的自由文本秘密'], undefined);
+    assert.equal(loaded.assistantCommandStats?.review?.['chip:unregistered-secret-slug'], undefined);
+  });
+
+  test('cross-session chip promotion aggregates ID+command counts, keeps English labels & guided kind, and respects card context', async (t) => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'studyhub-d11-cross-session-'));
+    t.after(() => rm(dir, { recursive: true, force: true }));
+
+    const tuiUsageMod = await import('../src/host/tui-usage.ts');
+    const { loadTuiUsage, saveTuiUsage } = tuiUsageMod;
+    const host = { dshHome: dir };
+
+    // Session 1: 2 uses persisted as canonical chip ID (below threshold 3)
+    await saveTuiUsage(
+      { assistantChipStats: { review: { 'chip:stats': { count: PROMOTION_THRESHOLD - 1, lastUsedAt: 1000 } } } },
+      { env: { DSH_HOME: dir } },
+    );
+
+    // Session 2 boot: hydrate store from tui-usage.json, then run the command 1 more time (total = 3)
+    const bootedUsage = await loadTuiUsage({ env: { DSH_HOME: dir } });
+    useTuiStore.setState({
+      preferences: { ...DEFAULT_PREFERENCES, assistantCommandStats: bootedUsage.assistantChipStats },
+    });
+    const afterThird = recordAssistantCommandUsage({ host, page: 'review', text: '查看统计', kind: 'command' });
+
+    const chipsEnThird = buildContextChips({
+      page: 'review',
+      card: { cardId: 'c1', isWrong: false },
+      practiceStack: [],
+      statsByPage: afterThird,
+      lang: 'en',
+    });
+    assert.equal(chipsEnThird[0].id, 'chip:stats', '2 persisted + 1 in-session use must reach promotion threshold');
+    assert.equal(chipsEnThird[0].promoted, true);
+    assert.equal(chipsEnThird[0].label, 'Today stats', 'promoted chip must keep localized English label');
+
+    // Repeating 3+ more times in Session 2 must NOT shadow the catalog chip with raw Chinese text or downgrade kind
+    let stats = afterThird;
+    for (let i = 0; i < PROMOTION_THRESHOLD; i += 1) {
+      stats = recordAssistantCommandUsage({ host, page: 'review', text: '进入带学', kind: 'command' });
+    }
+
+    const normalCardChips = buildContextChips({
+      page: 'review',
+      card: { cardId: 'c2', isWrong: false },
+      practiceStack: [],
+      statsByPage: stats,
+      lang: 'en',
+    });
+    assert.equal(normalCardChips[0].id, 'chip:guided-help', 'normal card must promote chip:guided-help, never wrongCardOnly chip:guided-retell');
+    assert.equal(normalCardChips[0].kind, 'guided', 'promoted guided chip must preserve kind=guided');
+    assert.equal(normalCardChips[0].label, 'Guided hint', 'promoted guided chip must stay localized in English');
+    assert.equal(normalCardChips[0].promoted, true);
+
+    const wrongCardChips = buildContextChips({
+      page: 'review',
+      card: { cardId: 'c3', isWrong: true },
+      practiceStack: [],
+      statsByPage: stats,
+      lang: 'en',
+    });
+    assert.equal(wrongCardChips[0].id, 'chip:guided-retell', 'wrong card must promote chip:guided-retell');
+    assert.equal(wrongCardChips[0].kind, 'guided');
+    assert.equal(wrongCardChips[0].label, 'Guided & Retell');
+    assert.equal(wrongCardChips[0].promoted, true);
+
+    // Wait for background usage writes before tempdir cleanup
+    await waitForCondition(async () => {
+      const u = await loadTuiUsage({ env: { DSH_HOME: dir } });
+      return (u.assistantChipStats?.review?.['chip:stats']?.count ?? 0) >= PROMOTION_THRESHOLD;
+    });
+  });
+
+  test('tui-usage.json handles malformed incoming stats, merges raw aliases canonically, and aborts recovery if backup fails', async (t) => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'studyhub-d11-usage-robust-'));
+    t.after(() => rm(dir, { recursive: true, force: true }));
+
+    const tuiUsageMod = await import('../src/host/tui-usage.ts');
+    const { loadTuiUsageSafe, saveTuiUsage } = tuiUsageMod;
+    const usageFile = path.join(dir, 'tui-usage.json');
+
+    // 1) Seed valid usage, then pass malformed nested stats + raw command alias
+    await saveTuiUsage(
+      { assistantChipStats: { review: { 'chip:stats': { count: 3, lastUsedAt: 100 } } } },
+      { filePath: usageFile },
+    );
+    await saveTuiUsage(
+      {
+        assistantChipStats: {
+          review: { '查看统计': { count: 1, lastUsedAt: 200 } },
+          // Malformed runtime entry must not throw TypeError
+          broken: null,
+        },
+      },
+      { filePath: usageFile },
+    );
+    const merged = await loadTuiUsageSafe({ filePath: usageFile });
+    assert.equal(merged.status, 'ok');
+    assert.equal(merged.usage.assistantChipStats?.review?.['chip:stats']?.count, 3, 'raw alias merge must use max(3, 1) = 3, not sum to 4');
+    assert.equal(merged.usage.assistantChipStats?.review?.['chip:stats']?.lastUsedAt, 200);
+
+    // 2) Backup failure during corrupt recovery must abort and leave original corrupt bytes untouched
+    const corruptBytes = '{"version":1,"assistantChipStats": CORRUPT_DO_NOT_LOSE';
+    await writeFile(usageFile, corruptBytes, 'utf8');
+    await assert.rejects(
+      saveTuiUsage(
+        { assistantChipStats: { review: { 'chip:stats': { count: 1, lastUsedAt: 300 } } } },
+        {
+          filePath: usageFile,
+          recover: true,
+          fsOps: {
+            writeAndSync: async () => {
+              throw Object.assign(new Error('Simulated disk full during backup'), { code: 'ENOSPC' });
+            },
+          },
+        },
+      ),
+      /ENOSPC|disk full/i,
+    );
+    assert.equal(await readFile(usageFile, 'utf8'), corruptBytes, 'original corrupt tui-usage.json must stay intact when backup fails');
   });
 
   test('tui-usage.json protects against corrupt JSON, unreadable path, UTF-8 BOM, and future schema versions [C38]', async (t) => {

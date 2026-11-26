@@ -8,12 +8,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 import { createCoachDaily, DAILY } from '../lib/coach-daily.js';
+import { createCalibration } from '../lib/estimate-calibration.js';
 import { adoptIndexProvider } from '../lib/contexts/generation/retrieval/adopt-index.js';
 import { INDEX_TOOLS } from '../lib/retrieval-index.js';
 import { listNotebooks, publishNotebook, unpublishNotebook } from '../lib/notebooks.js';
 import * as retrievalSettings from '../lib/retrieval-settings.js';
 import { createConfigStore } from '../packages/studyhub-desktop/adapters/storage/config-store.mjs';
 import { formatCallError } from '../packages/studyhub-desktop/application/desktop-errors.js';
+import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 async function withTempDshHome(t, prefix) {
   const dir = await mkdtemp(path.join(os.tmpdir(), prefix));
@@ -90,6 +92,24 @@ describe('#1354 D11 — local settings files never silently overwrite on read fa
       (err) => err?.code === 'retrieval-settings-unreadable',
     );
     assert.equal((await stat(filePath)).isDirectory(), true);
+
+    // 5) Backup failure during recover: true aborts and leaves original corrupt bytes intact
+    await rm(filePath, { recursive: true, force: true });
+    const corruptKeep = '{"provider":"service","hfEndpoint": KEEP_ME';
+    await writeFile(filePath, corruptKeep, 'utf8');
+    await assert.rejects(
+      retrievalSettings.saveRetrievalSettings(
+        { provider: 'builtin' },
+        {
+          recover: true,
+          copyFile: async () => {
+            throw Object.assign(new Error('Simulated disk full on backup'), { code: 'ENOSPC' });
+          },
+        },
+      ),
+      (err) => err?.code === 'retrieval-settings-backup-failed',
+    );
+    assert.equal(await readFile(filePath, 'utf8'), corruptKeep, 'corrupt retrieval.json must stay untouched when backup fails');
   });
 
   test('notebooks.json: corrupt backs up before recovery; unreadable & future version refuse overwrite', async (t) => {
@@ -185,6 +205,23 @@ describe('#1354 D11 — local settings files never silently overwrite on read fa
       (err) => err?.code === 'coach-daily-unreadable',
     );
     assert.equal((await stat(dailyPath)).isDirectory(), true);
+
+    // 5) Failed save() must NOT poison in-memory cache with uncommitted patch values
+    await rm(dailyPath, { recursive: true, force: true });
+    await writeFile(dailyPath, JSON.stringify({ version: 1, settings: { maxReady: 11 }, days: {} }), 'utf8');
+    const failingLedger = createCoachDaily(root, {
+      rename: async () => {
+        throw Object.assign(new Error('Simulated rename ENOSPC'), { code: 'ENOSPC' });
+      },
+    });
+    assert.equal((await failingLedger.read()).settings.maxReady, 11);
+    await assert.rejects(failingLedger.patch({ maxReady: 3 }), /ENOSPC/);
+    assert.equal(
+      (await failingLedger.read()).settings.maxReady,
+      11,
+      'failed save must not leave uncommitted maxReady=3 in in-memory cache',
+    );
+    assert.equal(JSON.parse(await readFile(dailyPath, 'utf8')).settings.maxReady, 11);
   });
 
   test('desktop.json: UTF-8 BOM loads cleanly and future version refuses overwrite (even force/recover)', async (t) => {
@@ -229,5 +266,109 @@ describe('#1354 D11 — local settings files never silently overwrite on read fa
       await assert.rejects(store.save({ mode: 'openai' }, { force: true }), (err) => err?.code === 'config-unsupported-version');
       assert.equal(await readFile(store.configPath, 'utf8'), badRaw);
     }
+  });
+
+  test('DesktopSetupBody renders upgrade-required banner (no reset button) for config-unsupported-version in zh & en', async () => {
+    const ui = await loadInteractiveUi(
+      `export { DesktopSetupBody } from './ui/desktop/DesktopModelSetup.jsx';
+       export { setUiLanguage } from './ui/i18n.js';`,
+    );
+    const { createElement: h } = ui.React;
+    await withBrowserGlobals(async () => {
+      const futureConfig = {
+        mode: 'openai',
+        providers: [],
+        openai: { providerId: 'custom', baseUrl: '', model: '', hasKey: false, keyLast4: '' },
+        configPath: '/tmp/desktop.json',
+        configProblem: { code: 'config-unsupported-version', path: '/tmp/desktop.json', reason: 'version 2' },
+        effective: { ready: false },
+      };
+      const actions = {
+        recoverConfig: async () => {
+          throw new Error('recoverConfig must not be offered for unsupported-version');
+        },
+      };
+
+      ui.exports.setUiLanguage('zh');
+      const mountedZh = ui.mount(() => h(ui.exports.DesktopSetupBody, {
+        config: futureConfig,
+        actions,
+        working: '',
+        error: '',
+        onDismissError: () => {},
+        compact: false,
+      }));
+      try {
+        const textZh = mountedZh.text();
+        assert.doesNotMatch(textZh, /配置文件已损坏/, 'newer-version config must not falsely claim file is corrupted');
+        assert.match(textZh, /更新版本|升级/, 'newer-version banner must ask user to upgrade');
+        const recoverBtnZh = mountedZh.find((n) => n.type === 'button' && mountedZh.text(n).includes('备份并重置配置'));
+        assert.equal(recoverBtnZh, null, 'newer-version banner must NOT offer broken reset button');
+      } finally {
+        mountedZh.unmount();
+      }
+
+      ui.exports.setUiLanguage('en');
+      const mountedEn = ui.mount(() => h(ui.exports.DesktopSetupBody, {
+        config: futureConfig,
+        actions,
+        working: '',
+        error: '',
+        onDismissError: () => {},
+        compact: false,
+      }));
+      try {
+        const textEn = mountedEn.text();
+        assert.doesNotMatch(textEn, /corrupted/i, 'English banner must not falsely claim file is corrupted');
+        assert.match(textEn, /newer version|upgrade/i, 'English banner must ask user to upgrade');
+        const recoverBtnEn = mountedEn.find((n) => n.type === 'button' && /reset/i.test(mountedEn.text(n)));
+        assert.equal(recoverBtnEn, null, 'English newer-version banner must NOT offer reset button');
+      } finally {
+        ui.exports.setUiLanguage('zh');
+        mountedEn.unmount();
+      }
+    });
+  });
+
+  test('estimate-calibration.json: tolerates UTF-8 BOM, refuses future version [C38], and aborts if damaged backup fails', async (t) => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'studyhub-d11-calib-'));
+    t.after(() => rm(dir, { recursive: true, force: true }));
+    const filePath = path.join(dir, 'estimate-calibration.json');
+
+    // 1) UTF-8 BOM reads cleanly without flagging file as damaged
+    const bomRuns = [
+      { at: '2026-11-26T00:00:00.000Z', stages: { author: [100, 200] } },
+      { at: '2026-11-26T00:01:00.000Z', stages: { author: [100, 200] } },
+      { at: '2026-11-26T00:02:00.000Z', stages: { author: [100, 200] } },
+    ];
+    await writeFile(filePath, `\uFEFF${JSON.stringify({ version: 1, runs: bomRuns, imported: [] })}`, 'utf8');
+    const bomCal = createCalibration(dir);
+    const bomFactors = await bomCal.factors();
+    assert.equal(bomFactors.samples, 3, 'UTF-8 BOM calibration file must load cleanly');
+    assert.equal(bomFactors.stages.author, 2);
+
+    // 2) Future schema version [C38]: refuses overwrite and leaves bytes untouched
+    const futureRaw = JSON.stringify({ version: 2, runs: bomRuns, imported: [], futureMeta: 'keep' });
+    await writeFile(filePath, futureRaw, 'utf8');
+    const futureCal = createCalibration(dir);
+    await assert.rejects(
+      futureCal.record({ stageTotals: { author: { low: 100, high: 200 } }, actual: { author: 150 } }),
+      (err) => err?.code === 'calibration-unsupported-version',
+    );
+    assert.equal(await readFile(filePath, 'utf8'), futureRaw, 'future-version estimate-calibration.json must stay intact');
+
+    // 3) Backup rename failure on damaged file must abort instead of swallowing error and clobbering original bytes
+    const damagedRaw = '{damaged-calibration-bytes';
+    await writeFile(filePath, damagedRaw, 'utf8');
+    const failBackupCal = createCalibration(dir, {
+      rename: async () => {
+        throw Object.assign(new Error('Simulated backup rename failure'), { code: 'EACCES' });
+      },
+    });
+    await assert.rejects(
+      failBackupCal.record({ stageTotals: { author: { low: 100, high: 200 } }, actual: { author: 150 } }),
+      (err) => err?.code === 'calibration-backup-failed',
+    );
+    assert.equal(await readFile(filePath, 'utf8'), damagedRaw, 'damaged estimate-calibration.json must remain intact if backup fails');
   });
 });
