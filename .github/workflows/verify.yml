@@ -255,14 +255,14 @@ jobs:
           else
             test "$TEST_WIN" = success
           fi
-      - name: Measure end-to-end runner time
+      - name: Measure workflow wall time, including queueing
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          jobs="/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100"
-          first=$(gh api "$jobs" --jq '[.jobs[] | select(.conclusion != "skipped") | .started_at | select(. != null)] | min')
-          start=$(date -d "$first" +%s)
+          attempt="/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT"
+          started=$(gh api "$attempt" --jq 'if .run_attempt == 1 then .created_at else .run_started_at end')
+          start=$(date -d "$started" +%s)
           elapsed=$(( $(date +%s) - start ))
-          echo "First runner start to verification: ${elapsed}s (budget <600s)." >> "$GITHUB_STEP_SUMMARY"
+          echo "Workflow attempt to verification, including queueing: ${elapsed}s (budget <600s)." >> "$GITHUB_STEP_SUMMARY"
           test "$elapsed" -lt 600
