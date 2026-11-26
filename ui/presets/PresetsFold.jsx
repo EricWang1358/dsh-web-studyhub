@@ -57,7 +57,8 @@ export function CostMatrix({ matrix }) {
     <tbody>{matrix.rows.map(row => <tr key={row.key}><th scope="row">{row.label}</th>{row.cells.map(cell =>
       <td key={cell.key} data-cell={cell.key} data-current={cell.current ? 'true' : undefined}>
         {/* While asked: a mark the width of a figure, 正在估算 said to a screen reader only (in each of nine narrow cells it would push the table past 320 px). */}
-        {!cell.ready ? <><span className="presets-matrix__ratio" aria-hidden="true">…</span><span className="sh-visually-hidden">{matrix.loading}</span></> : <>
+        {/* It keeps the line of questions a priced cell has, so a choice that asks again (难度 and the rest) does not shorten every row while it is asked (#1082). */}
+        {!cell.ready ? <><span className="presets-matrix__ratio" aria-hidden="true">…</span><small aria-hidden="true">{' '}</small><span className="sh-visually-hidden">{matrix.loading}</span></> : <>
           <span className="presets-matrix__ratio">{cell.ratio}</span>{cell.questions && <small>{cell.questions}</small>}</>}
         {cell.current && <span className="sh-visually-hidden">{ui('（当前）')}</span>}
       </td>)}</tr>)}</tbody>
