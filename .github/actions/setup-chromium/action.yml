@@ -26,13 +26,18 @@ runs:
         printf '%s\n' 'Acquire::Retries "2";' 'Acquire::http::Timeout "20";' 'Acquire::https::Timeout "20";' | sudo tee /etc/apt/apt.conf.d/80-fail-fast
         timeout 180s npx playwright install-deps chromium
         probe
-    - name: Check Simplified Chinese font coverage
+    - name: Ensure regular and bold Simplified Chinese glyphs are available
       if: runner.os == 'Linux'
       shell: bash
       run: |
-        has_chinese() { [[ -n "$(fc-list ':lang=zh-cn' family)" ]]; }
-        if has_chinese; then exit 0; fi
+        # StudyHub disables synthesized bold. A regular-only CJK fallback renders answer labels at the wrong weight.
+        has_chinese_weights() {
+          local family
+          family=$(fc-match -f '%{family[0]}' 'sans-serif:lang=zh-cn:charset=5b66')
+          [[ -n "$(fc-list "$family:lang=zh-cn:weight=regular" file)" && -n "$(fc-list "$family:lang=zh-cn:weight=bold" file)" ]]
+        }
+        if has_chinese_weights; then exit 0; fi
         apt_options=(-o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20)
         timeout 90s sudo apt-get "${apt_options[@]}" update -qq
-        timeout 90s sudo apt-get "${apt_options[@]}" install -y --no-install-recommends fonts-wqy-zenhei
-        has_chinese
+        timeout 90s sudo apt-get "${apt_options[@]}" install -y --no-install-recommends fonts-noto-cjk
+        has_chinese_weights
