@@ -97,9 +97,21 @@ jobs:
         env:
           STUDYHUB_SKIP_PREPARE: '1'
       - uses: ./.github/actions/setup-chromium
+      - name: Install the search extension for its index recovery tests
+        env:
+          SHARD: ${{ matrix.shard }}/${{ matrix.shards }}
+        run: |
+          files=$(node scripts/qa/run-tests.mjs --shard="$SHARD" --list)
+          if grep -Fxq 'tests/retrieval-self-heal.test.mjs' <<< "$files"; then
+            extension="$RUNNER_TEMP/studyhub-retrieval"
+            cp -R packages/studyhub-retrieval "$extension"
+            npm --prefix "$extension" install --prefer-offline --no-package-lock --no-audit --no-fund
+            echo "STUDY_TEST_RETRIEVAL_PACKAGE=$extension" >> "$GITHUB_ENV"
+          fi
       - run: node scripts/test.mjs --shard=${{ matrix.shard }}/${{ matrix.shards }} --test-concurrency=4
         env:
           STUDY_QA_REQUIRE_BROWSER: '1'
+          STUDY_TEST_REQUIRE_LANCEDB: '1'
       # What this shard measured, to refresh tests/test-weights.json: node scripts/qa/test-weights.mjs --sum --write durations-*/durations.json
       - uses: actions/upload-artifact@v4
         if: always()
