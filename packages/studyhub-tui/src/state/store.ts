@@ -32,6 +32,9 @@ export interface AssistantCardContext {
   deckId?: string;
   cardId: string;
   cardIndex?: number;
+  queueVersion?: number;
+  teachingId?: string;
+  teachingMode?: string;
   total?: number;
   topic?: string;
   prompt?: string;

@@ -38,8 +38,14 @@ import { useAiConversation } from '../components/useAiConversation.js';
 import {
   describeAiDialogueError,
   formatRetellVerdictLines,
+  formatTeachCompletionMarkdown,
+  formatTeachStepMarkdown,
   isAiStreamingAvailable,
+  loadTeachSession,
+  skipTeachStep,
   submitRetellEvaluation,
+  submitTeachAnswer,
+  type TeachingSessionView,
 } from '../host/ai-dialogue.js';
 import { saveTuiPreferences } from '../host/tui-prefs.js';
 import {
@@ -258,6 +264,11 @@ export const AssistantPanel = memo(function AssistantPanel({
   const [pendingConfirm, setPendingConfirm] = useState<Extract<AssistantIntent, { kind: 'write_confirm' }> | null>(null);
   // #1439: the card whose mistake reason the learner is choosing; the reason list is open while set.
   const [reasonPickFor, setReasonPickFor] = useState<ErrorReasonTarget | null>(null);
+  // #1354 P3-c: backend `teach.*` guided-study session owned directly by AssistantPanel Guided tab.
+  const [teachSession, setTeachSession] = useState<TeachingSessionView | null>(null);
+  const [teachMode, setTeachMode] = useState<'understanding' | 'calculation'>('understanding');
+  const teachReqSeqRef = useRef(0);
+  const teachLoadedKeyRef = useRef<string | null>(null);
 
   const stream = useStreamingBuffer();
   const { send: sendAiTurn, abort: abortAiTurn } = useAiConversation(host, lang);
@@ -641,6 +652,167 @@ export const AssistantPanel = memo(function AssistantPanel({
     notify(t(lang, '已跳过复述并记录', 'Retell skipped'), 'info');
   }, [cardCtx?.cardId, appendTurn, setStage, notify, lang]);
 
+  // Reset backend teach session whenever the active card or run changes (#1354 P3-c).
+  useEffect(() => {
+    teachReqSeqRef.current += 1;
+    teachLoadedKeyRef.current = null;
+    setTeachSession(null);
+    setTeachMode(cardCtx?.teachingMode === 'calculation' ? 'calculation' : 'understanding');
+  }, [cardCtx?.runId, cardCtx?.cardId, cardCtx?.teachingMode]);
+
+  const startBackendTeach = useCallback(
+    async (targetMode: 'understanding' | 'calculation', allowGetExisting: boolean) => {
+      if (!cardCtx?.runId || !cardCtx?.cardId) return;
+      const seq = ++teachReqSeqRef.current;
+      beginExecution(t(lang, '加载苏格拉底带学', 'Loading Socratic teaching'));
+      try {
+        const res = await loadTeachSession(host, {
+          runId: cardCtx.runId,
+          cardId: cardCtx.cardId,
+          index: cardCtx.cardIndex ?? 0,
+          queueVersion: cardCtx.queueVersion ?? 0,
+          mode: targetMode,
+          language: lang,
+          existingId: allowGetExisting ? cardCtx.teachingId : undefined,
+          existingMode: allowGetExisting ? cardCtx.teachingMode : undefined,
+        });
+        if (!mountedRef.current || teachReqSeqRef.current !== seq) return;
+        if (!res.ok) {
+          setTeachSession(null);
+          if (res.needsAnswerFirst) {
+            appendTurn({
+              role: 'system',
+              stage: 'question',
+              actionSummary: t(lang, '需先完成本题作答', 'Answer card first'),
+              text: t(
+                lang,
+                '请先在刷题页完成本题作答（或翻看并评分），然后再按 [t] 开启苏格拉底带学。',
+                'Answer (or reveal and rate) this card in Review first, then press [t] for Socratic guided study.',
+              ),
+            });
+          } else {
+            const fb = {
+              reason: res.error,
+              altLabel: res.isModelError
+                ? t(lang, '可前往设置配置模型，或按 [P] 复制提示词到外部模型', 'Configure a model in Settings or press [P] to copy prompt')
+                : t(lang, '可重试带学或按 [P] 复制提示词', 'Retry guided study or press [P] to copy prompt'),
+              altCommand: '跳到设置',
+              instruction: t(lang, '苏格拉底带学', 'Socratic guided study'),
+            };
+            sessionMemory.lastFallback = fb;
+            setLastFallback(fb);
+            appendTurn({
+              role: 'system',
+              stage: 'question',
+              actionSummary: res.isModelError ? t(lang, '模型暂不可用', 'Model unavailable') : t(lang, '带学启动失败', 'Guided study failed'),
+              text: `${res.error}（${fb.altLabel}）`,
+            });
+          }
+          return;
+        }
+        const loaded = res.session;
+        setTeachSession(loaded);
+        const stepSummary = loaded.complete
+          ? t(lang, '带学已完成', 'Teaching complete')
+          : t(
+              lang,
+              `苏格拉底带学 · 第 ${Math.min(loaded.total || 1, (loaded.index ?? 0) + 1)}/${Math.max(1, loaded.total || 1)} 步`,
+              `Socratic Teach · Step ${Math.min(loaded.total || 1, (loaded.index ?? 0) + 1)}/${Math.max(1, loaded.total || 1)}`,
+            );
+        const body = loaded.complete
+          ? formatTeachCompletionMarkdown(loaded, lang)
+          : formatTeachStepMarkdown(loaded, lang);
+        const combined = loaded.feedback ? `${loaded.feedback}\n\n${body}` : body;
+        appendTurn({
+          role: 'assistant',
+          stage: loaded.complete ? 'summary' : 'question',
+          actionSummary: stepSummary,
+          text: combined,
+        });
+        if (loaded.complete) {
+          setStage('summary');
+          setInputFocused(false);
+        } else if (isActive) {
+          setInputFocused(true);
+        }
+      } finally {
+        endExecution();
+      }
+    },
+    [cardCtx, host, lang, isActive, beginExecution, endExecution, appendTurn, setStage],
+  );
+
+  // Auto-load backend `teach.*` when entering Guided Study on a Review card (non-retell/non-summary stages).
+  useEffect(() => {
+    if (tab !== 'guided' || stage === 'retell' || stage === 'summary') return;
+    if (!cardCtx?.runId || !cardCtx?.cardId) return;
+    const key = `${cardCtx.runId}:${cardCtx.cardId}:${teachMode}`;
+    if (teachLoadedKeyRef.current === key) return;
+    teachLoadedKeyRef.current = key;
+    void startBackendTeach(teachMode, true);
+  }, [tab, stage, cardCtx?.runId, cardCtx?.cardId, teachMode, startBackendTeach]);
+
+  const handleSkipTeachStep = useCallback(
+    async (all = false) => {
+      if (busy || !teachSession || teachSession.complete) return;
+      const seq = teachReqSeqRef.current;
+      const prevIndex = teachSession.index;
+      appendTurn({
+        role: 'user',
+        stage: 'answer',
+        text: all
+          ? t(lang, '剩下的直接讲给我听', 'Show all remaining key points')
+          : t(lang, '跳过这一步', 'Skip this step'),
+      });
+      beginExecution(all ? t(lang, '展示剩余带学要点', 'Skipping remaining steps') : t(lang, '跳过当前带学步骤', 'Skipping teaching step'));
+      try {
+        const res = await skipTeachStep(host, {
+          id: teachSession.id,
+          stepIndex: prevIndex,
+          all,
+          language: lang,
+        });
+        if (!mountedRef.current || teachReqSeqRef.current !== seq) return;
+        if (!res.ok) {
+          appendTurn({
+            role: 'system',
+            stage: 'answer',
+            actionSummary: t(lang, '跳过步骤失败', 'Skip step failed'),
+            text: res.error,
+          });
+          return;
+        }
+        const next = res.session;
+        setTeachSession(next);
+        const body = next.complete
+          ? formatTeachCompletionMarkdown(next, lang)
+          : next.index > prevIndex
+            ? formatTeachStepMarkdown(next, lang)
+            : '';
+        const textOut = [next.feedback, body].filter(Boolean).join('\n\n') || t(lang, '已跳过当前步骤。', 'Skipped step.');
+        appendTurn({
+          role: 'assistant',
+          stage: next.complete ? 'summary' : 'question',
+          actionSummary: next.complete
+            ? t(lang, '带学已完成', 'Teaching complete')
+            : t(
+                lang,
+                `已跳过 · 第 ${Math.min(next.total || 1, (next.index ?? 0) + 1)}/${Math.max(1, next.total || 1)} 步`,
+                `Skipped · Step ${Math.min(next.total || 1, (next.index ?? 0) + 1)}/${Math.max(1, next.total || 1)}`,
+              ),
+          text: textOut,
+        });
+        if (next.complete) {
+          setStage('summary');
+          setInputFocused(false);
+        }
+      } finally {
+        endExecution();
+      }
+    },
+    [busy, teachSession, host, lang, appendTurn, beginExecution, endExecution, setStage],
+  );
+
   const handleSubmitInput = useCallback(
     async (raw: string, opts?: { viaCommand?: boolean }) => {
       const text = raw.trim();
@@ -728,6 +900,73 @@ export const AssistantPanel = memo(function AssistantPanel({
             verdict: { passed: v.passed, right: v.right, missed: v.missed, wrong: v.wrong, gap: v.gap },
           });
           setStage('summary');
+        } finally {
+          endExecution();
+        }
+        return;
+      }
+
+      // Unified Guided Study step submission via backend `teach.answer` (#1354 P3-c).
+      // Learner responses are study answers, never counted into command chip usage (#1406/#1469).
+      if (tab === 'guided' && stage !== 'retell' && !opts?.viaCommand && teachSession && !teachSession.complete) {
+        const seq = teachReqSeqRef.current;
+        const prevIndex = teachSession.index;
+        beginExecution(t(lang, '提交带学回答', 'Checking guided answer'));
+        try {
+          const res = await submitTeachAnswer(host, {
+            id: teachSession.id,
+            answer: text,
+            stepIndex: prevIndex,
+            language: lang,
+          });
+          if (!mountedRef.current || teachReqSeqRef.current !== seq) return;
+          if (!res.ok) {
+            appendTurn({
+              role: 'system',
+              stage: 'answer',
+              actionSummary: res.isModelError ? t(lang, '模型暂不可用', 'Model unavailable') : t(lang, '带学回答提交失败', 'Guided answer failed'),
+              text: res.error,
+            });
+            return;
+          }
+          const next = res.session;
+          setTeachSession(next);
+          const body = next.complete
+            ? formatTeachCompletionMarkdown(next, lang)
+            : next.index > prevIndex
+              ? formatTeachStepMarkdown(next, lang)
+              : '';
+          const wrongNudge =
+            !next.complete && (next.wrongTries ?? 0) >= 2
+              ? t(
+                  lang,
+                  '提示：这一步已经试过两次了，按 [S] 或 Ctrl+N 跳过单步，或按 [X] 直接展示剩余要点。',
+                  'Tip: 2 tries on this step — press [S] / Ctrl+N to skip step, or [X] to reveal remaining points.',
+                )
+              : '';
+          const textOut =
+            [next.feedback, body, wrongNudge].filter(Boolean).join('\n\n') ||
+            t(lang, '已更新带学进度。', 'Updated guided teaching progress.');
+          const stepNum = Math.min(next.total || 1, (next.index ?? 0) + 1);
+          const totalSteps = Math.max(1, next.total || 1);
+          appendTurn({
+            role: 'assistant',
+            stage: next.complete ? 'summary' : 'judge',
+            actionSummary: next.complete
+              ? t(lang, '带学已完成', 'Teaching complete')
+              : next.skipped
+                ? t(lang, `已跳过 · 第 ${stepNum}/${totalSteps} 步`, `Skipped · Step ${stepNum}/${totalSteps}`)
+                : next.index > prevIndex
+                  ? t(lang, `已过关 · 第 ${stepNum}/${totalSteps} 步`, `Passed · Step ${stepNum}/${totalSteps}`)
+                  : t(lang, `继续第 ${stepNum}/${totalSteps} 步`, `Step ${stepNum}/${totalSteps}`),
+            text: textOut,
+          });
+          if (next.complete) {
+            setStage('summary');
+            setInputFocused(false);
+          } else {
+            setInputFocused(true);
+          }
         } finally {
           endExecution();
         }
@@ -1122,6 +1361,7 @@ export const AssistantPanel = memo(function AssistantPanel({
       runWorkflowSteps,
       applyRunFromAssistant,
       sendAiTurn,
+      teachSession,
     ],
   );
 
@@ -1206,6 +1446,10 @@ export const AssistantPanel = memo(function AssistantPanel({
         handleEscape();
         return true;
       }
+      if (key.ctrl && input === 'n' && tab === 'guided' && stage !== 'retell' && teachSession && !teachSession.complete) {
+        void handleSkipTeachStep(false);
+        return true;
+      }
       if (inputFocused) return false;
 
       if (key.tab) {
@@ -1258,8 +1502,25 @@ export const AssistantPanel = memo(function AssistantPanel({
         return true;
       }
       if (tab === 'guided') {
-        if (input === 'S' && stage === 'retell') {
-          handleSkipRetell();
+        if (input === 'S') {
+          if (stage === 'retell') {
+            handleSkipRetell();
+            return true;
+          }
+          if (teachSession && !teachSession.complete) {
+            void handleSkipTeachStep(false);
+            return true;
+          }
+        }
+        if (input === 'X' && stage !== 'retell' && teachSession && !teachSession.complete) {
+          void handleSkipTeachStep(true);
+          return true;
+        }
+        if (input === 'M' && stage !== 'retell' && cardCtx?.runId && cardCtx?.cardId) {
+          const nextMode = teachMode === 'understanding' ? 'calculation' : 'understanding';
+          setTeachMode(nextMode);
+          teachLoadedKeyRef.current = `${cardCtx.runId}:${cardCtx.cardId}:${nextMode}`;
+          void startBackendTeach(nextMode, false);
           return true;
         }
         if (input === 'n') {
@@ -1491,11 +1752,31 @@ export const AssistantPanel = memo(function AssistantPanel({
           </Box>
         ))}
 
-        {/* Guided Study 5-stage progress strip */}
+        {/* Guided Study progress strip (backend teach.* step or retell stage) */}
         {tab === 'guided' ? (
           <SectionHeader
-            title={formatStageStrip(stage, lang, asciiMode)}
-            meta={stage === 'retell' ? t(lang, '[S]跳过', '[S]Skip') : t(lang, '[p/n]阶段', '[p/n]Stage')}
+            title={
+              stage !== 'retell' && teachSession
+                ? teachSession.complete
+                  ? t(
+                      lang,
+                      `苏格拉底带学 · 已完成 (${teachSession.total}/${teachSession.total} 步)`,
+                      `Socratic Teach · Complete (${teachSession.total}/${teachSession.total})`,
+                    )
+                  : t(
+                      lang,
+                      `苏格拉底带学 · 第 ${Math.min(teachSession.total || 1, (teachSession.index ?? 0) + 1)}/${Math.max(1, teachSession.total || 1)} 步 (${teachMode === 'calculation' ? '计算推导' : '概念理解'})`,
+                      `Socratic Teach · Step ${Math.min(teachSession.total || 1, (teachSession.index ?? 0) + 1)}/${Math.max(1, teachSession.total || 1)} (${teachMode})`,
+                    )
+                : formatStageStrip(stage, lang, asciiMode)
+            }
+            meta={
+              stage === 'retell'
+                ? t(lang, '[S]跳过', '[S]Skip')
+                : teachSession && !teachSession.complete
+                  ? t(lang, '[S/Ctrl+N]跳过 [X]全跳 [M]模式', '[S/Ctrl+N]Skip [X]All [M]Mode')
+                  : t(lang, '[p/n]阶段', '[p/n]Stage')
+            }
             width={innerW}
             ascii={asciiMode}
             focused={isActive}

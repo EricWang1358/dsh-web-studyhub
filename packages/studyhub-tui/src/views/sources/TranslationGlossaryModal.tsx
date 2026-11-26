@@ -11,6 +11,8 @@ import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
+import { useAiConversation } from '../../components/useAiConversation.js';
+import { buildUnifiedAiSystemPrompt, isAiStreamingAvailable } from '../../host/ai-dialogue.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { errorMessage, tryAction } from '../../host/sample-actions.js';
 
@@ -114,17 +116,7 @@ function compactOneLine(text: string): string {
 }
 
 export function buildGlossarySuggestSystemPrompt(target: 'zh' | 'en'): string {
-  if (target === 'en') {
-    return (
-      'You are a domain-accurate terminology translator for study materials. ' +
-      'Given a source term and document context, reply with ONLY the single most standard English translation of that term ' +
-      '(or keep the original term if conventionally untranslated). No quotes, no numbering, no explanation.'
-    );
-  }
-  return (
-    '你是学习资料的专业术语翻译助手。根据文档标题、上下文与已有术语表，为给定术语给出最准确、常用的中文译法' +
-    '（若学科惯例保留原文则直接返回原文）。只输出这一个译法本身，不要加引号、编号或任何解释。'
-  );
+  return buildUnifiedAiSystemPrompt('glossary_suggest', target, { target });
 }
 
 export function buildGlossarySuggestPrompt(params: {
@@ -237,11 +229,14 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
   const suggestAbortRef = useRef<AbortController | null>(null);
   const userEditedToRef = useRef(false);
 
+  const { send: sendAiTurn, abort: abortAiTurn } = useAiConversation(host, lang);
+
   const cancelAiSuggest = useCallback(() => {
+    abortAiTurn();
     suggestAbortRef.current?.abort();
     suggestAbortRef.current = null;
     if (mountedRef.current) setSuggesting(false);
-  }, []);
+  }, [abortAiTurn]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -488,24 +483,36 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
     [host, identityPayload, lang, notify, refreshSavedList, target],
   );
 
-  const canSuggestWithAi = Boolean(modelAvailable && typeof host.streamComplete === 'function');
+  const canSuggestWithAi = Boolean(modelAvailable && isAiStreamingAvailable(host));
 
   const requestAiSuggestion = useCallback(
     async (term: string) => {
-      if (typeof host.streamComplete !== 'function') return;
+      if (!isAiStreamingAvailable(host)) return;
       cancelAiSuggest();
       const ctrl = new AbortController();
       suggestAbortRef.current = ctrl;
       setSuggesting(true);
       setSuggestNote(null);
       try {
-        const raw = await host.streamComplete({
+        const outcome = await sendAiTurn({
           system: buildGlossarySuggestSystemPrompt(target),
           prompt: buildGlossarySuggestPrompt({ term, target, title, pageText, glossary }),
-          signal: ctrl.signal,
         });
-        if (!mountedRef.current || ctrl.signal.aborted) return;
-        const suggestion = parseGlossarySuggestion(raw);
+        if (!mountedRef.current || ctrl.signal.aborted || outcome.status === 'aborted' || outcome.status === 'superseded') return;
+        if (outcome.status === 'error' || outcome.status === 'unavailable') {
+          if (!userEditedToRef.current) {
+            setSuggestNote({
+              tone: 'warning',
+              text: t(
+                lang,
+                `AI 建议失败（${outcome.error}），请手动输入译法`,
+                `AI suggestion failed (${outcome.error}); enter manually`,
+              ),
+            });
+          }
+          return;
+        }
+        const suggestion = parseGlossarySuggestion(outcome.text);
         if (userEditedToRef.current) return;
         if (suggestion) {
           setDraftTo(suggestion);
@@ -546,7 +553,7 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
         }
       }
     },
-    [cancelAiSuggest, glossary, host, lang, pageText, target, title],
+    [cancelAiSuggest, glossary, host, lang, pageText, sendAiTurn, target, title],
   );
 
   const handleSubmitTermStep = useCallback(

@@ -17,10 +17,10 @@ after(() => {
   unregisterTsx?.();
 });
 
-const [{ StudyService }, { useTuiStore, DEFAULT_PREFERENCES }, { TeachModal }] = await Promise.all([
+const [{ StudyService }, { useTuiStore, DEFAULT_PREFERENCES }, { AssistantPanel, _resetAssistantSessionMemory }] = await Promise.all([
   import('../../../lib/service.js'),
   import('../src/state/store.ts'),
-  import('../src/views/review/TeachModal.tsx'),
+  import('../src/shell/AssistantPanel.tsx'),
 ]);
 
 const PLAN = {
@@ -224,24 +224,39 @@ test('#1318 backend: typing "跳过，下一问" into teach.answer skips with 0 
   assert.ok(finished.transfer.includes('谱定理'));
 });
 
-test('#1318 TUI TeachModal: skip shortcut, "跳过，下一问", 2-wrong nudge, and completion skipped summary', async (t) => {
+test('#1318 / #1354 P3-c unified AssistantPanel Guided Study: skip shortcut, "跳过，下一问", 2-wrong nudge, and completion skipped summary', async (t) => {
   resetStore('zh');
+  _resetAssistantSessionMemory();
   const { service, run, getModelCalls, setVerdict } = await setupTeachingService(t);
   const host = makeHostFromService(service);
+
+  useTuiStore.setState({
+    page: 'review',
+    assistantOpen: true,
+    assistantFocused: true,
+    assistantTab: 'guided',
+    assistantStage: 'question',
+    assistantFullscreen: false,
+    assistantCardContext: {
+      runId: run.id,
+      deckId: 'd-1318',
+      cardId: 'c-1318',
+      cardIndex: 0,
+      queueVersion: run.queueVersion ?? 0,
+      prompt: '实对称矩阵为什么一定能正交对角化？',
+      kind: 'flashcard',
+    },
+  });
 
   const h = createInkHarness(
     React.createElement(
       Box,
       { width: 104, height: 34 },
-      React.createElement(TeachModal, {
+      React.createElement(AssistantPanel, {
         host,
-        run,
-        cardId: 'c-1318',
-        kind: 'flashcard',
         width: 100,
         height: 34,
         isActive: true,
-        mathUnicode: true,
         onClose: () => {},
       }),
     ),
@@ -253,22 +268,20 @@ test('#1318 TUI TeachModal: skip shortcut, "跳过，下一问", 2-wrong nudge, 
   await new Promise((r) => setTimeout(r, 40));
   assert.equal(getModelCalls(), 1);
 
-  // 1) Press Tab then 's' to skip Step 1 -> 0 extra model calls, shows Step 1 key point & advances to Step 2/3
-  h.write('\t');
-  await h.waitFor((s) => s.includes('[s] 跳过'), 2000, 'input unfocused after Tab');
+  // 1) Press Esc (blur input) then 'S' to skip Step 1 -> 0 extra model calls, shows Step 1 key point & advances to Step 2/3
+  h.write('\x1b');
   await new Promise((r) => setTimeout(r, 40));
-  h.write('s');
+  h.write('S');
   const afterSkipKey = await h.waitFor(
-    (s) => s.includes('第 2/3 步') && s.includes('已跳过 1'),
+    (s) => s.includes('第 2/3 步') && s.includes('第1步要点'),
     4000,
     'step 2 after skip key',
   );
-  assert.equal(getModelCalls(), 1, 'pressing skip key in TeachModal must make 0 extra model calls');
+  assert.equal(getModelCalls(), 1, 'pressing skip key in unified Guided Study must make 0 extra model calls');
   assert.ok(afterSkipKey.includes('第1步要点'), 'screen should reveal step 1 lesson');
 
-  // 2) Focus input and submit 2 wrong answers on Step 2 -> shows "看要点并继续" nudge
+  // 2) Focus input and submit 2 wrong answers on Step 2 -> shows 2-wrong nudge
   h.write('i');
-  await h.waitFor((s) => s.includes('Ctrl+N 跳过此步'), 2000, 'input focused after i');
   await new Promise((r) => setTimeout(r, 40));
   setVerdict({ passed: false, feedback: '再核对单位化步骤。' });
   h.write('随便答1');
@@ -281,24 +294,23 @@ test('#1318 TUI TeachModal: skip shortcut, "跳过，下一问", 2-wrong nudge, 
   h.write('随便答2');
   await new Promise((r) => setTimeout(r, 30));
   h.write('\r');
-  const afterTwoWrong = await h.waitFor((s) => s.includes('看要点并继续'), 4000, 'nudge after 2 wrong tries');
+  const afterTwoWrong = await h.waitFor((s) => s.includes('已经试过两次'), 4000, 'nudge after 2 wrong tries');
   await new Promise((r) => setTimeout(r, 40));
   assert.equal(getModelCalls(), 3);
-  assert.ok(afterTwoWrong.includes('看要点并继续'));
+  assert.ok(afterTwoWrong.includes('跳过单步'));
 
   // 3) Type "跳过，下一问" into input -> skips Step 2 with 0 extra model calls -> reaches Step 3/3
   h.write('跳过，下一问');
   await new Promise((r) => setTimeout(r, 30));
   h.write('\r');
-  await h.waitFor((s) => s.includes('第 3/3 步') && s.includes('已跳过 2'), 4000, 'step 3 after phrase skip');
+  await h.waitFor((s) => s.includes('第 3/3 步'), 4000, 'step 3 after phrase skip');
   await new Promise((r) => setTimeout(r, 40));
   assert.equal(getModelCalls(), 3, 'typing 跳过，下一问 must make 0 extra model calls');
 
-  // 4) Press Tab then 'e' (early finish remaining) -> completes with 0 extra model calls, lists skipped steps
-  h.write('\t');
-  await h.waitFor((s) => s.includes('[e] 剩余直接讲'), 2000, 'input unfocused before e');
+  // 4) Press Esc then 'X' (early finish remaining) -> completes with 0 extra model calls, lists skipped steps
+  h.write('\x1b');
   await new Promise((r) => setTimeout(r, 40));
-  h.write('e');
+  h.write('X');
   const completeFrame = await h.waitFor(
     (s) => s.includes('已跳过步骤') && s.includes('第 1 步') && s.includes('第 3 步'),
     4000,

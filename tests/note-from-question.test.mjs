@@ -235,3 +235,98 @@ test('a draft interrupted by a restart (stored as running, no live job) does not
   await addFollowup(service, 'f2', 'What does the originator need?', 'Access to its own state.');
   assert.equal((await service.call('note.qa.add', { ...ref, followupId: 'f2' })).status, 'added');
 });
+
+/* ---------- P3 composite atomic action: note.qa.save (#1354 D7) ---------- */
+
+test('note.qa.save writes card follow-up and study note in one atomic call, stays idempotent on repeat, and updates on replace:true', async t => {
+  const { service } = await library(t);
+  const base = {
+    deckId: 'deck',
+    cardId: 'c1',
+    question: 'How does Memento protect encapsulation?',
+    answer: 'Caretaker only holds an opaque token and cannot inspect Originator internals.',
+    title: '2026-11-26 · Patterns · Study Notes',
+    language: 'en',
+  };
+
+  // 1) First composite call creates both the follow-up on the card and the study note in one transaction.
+  const first = await service.call('note.qa.save', base);
+  assert.equal(first.deckId, 'deck');
+  assert.equal(first.cardId, 'c1');
+  assert.ok(first.item?.id, 'returns saved followup item with id');
+  assert.equal(first.status, 'created');
+  assert.ok(first.note?.id, 'returns created note');
+  assert.match(first.note.markdown, /How does Memento protect encapsulation\?/);
+  assert.match(first.note.markdown, /opaque token/);
+
+  // 2) Repeating identical (question, answer) reuses the same followup id and writes nothing duplicate.
+  const repeat = await service.call('note.qa.save', base);
+  assert.equal(repeat.item.id, first.item.id, 'idempotent repeat reuses existing followup id');
+  assert.equal(repeat.status, 'unchanged', 'repeat call does not duplicate Q&A block in note');
+  assert.equal(repeat.note.revision, first.note.revision, 'note revision stays unchanged on repeat');
+  const cardAfterRepeat = (await service.store.read()).decks[0].cards[0];
+  const matchingAfterRepeat = cardAfterRepeat.followups.filter(f => f.originalQuestion === base.question);
+  assert.equal(matchingAfterRepeat.length, 1, 'card.followups has no duplicate entry');
+
+  // 3) Updating the answer with replace:true atomically replaces follow-up and appends updated Q&A to the note.
+  const updated = await service.call('note.qa.save', {
+    ...base,
+    answer: 'Originator creates a private snapshot; Caretaker stores it without reading fields.',
+    replace: true,
+  });
+  assert.equal(updated.replaced, true);
+  assert.notEqual(updated.item.id, first.item.id);
+  assert.equal(updated.status, 'added');
+  assert.match(updated.note.markdown, /Originator creates a private snapshot/);
+  const cardAfterUpdate = (await service.store.read()).decks[0].cards[0];
+  const matchingAfterUpdate = cardAfterUpdate.followups.filter(f => f.originalQuestion === base.question);
+  assert.equal(matchingAfterUpdate.length, 1, 'replace:true keeps a single followup entry for that question');
+});
+
+test('note.qa.save rolls back atomically when note drafting is running: zero half-written follow-ups on card', async t => {
+  let release;
+  const draft = '# Study note\n\n' + 'A generated study note explaining Memento encapsulation in full detail. '.repeat(4);
+  const { service } = await library(t, 'en', { complete: () => new Promise(resolve => { release = () => resolve(draft); }) });
+
+  const initial = await service.call('note.qa.add', { deckId: 'deck', cardId: 'c1', followupId: 'f1', title: 'Study note', language: 'en' });
+  await service.call('note.generate', { id: initial.note.id });
+  while (!release) await new Promise(resolve => setTimeout(resolve, 5));
+
+  const beforeFollowups = (await service.store.read()).decks[0].cards[0].followups.map(f => f.id);
+  await assert.rejects(
+    service.call('note.qa.save', {
+      deckId: 'deck',
+      cardId: 'c1',
+      question: 'Should rollback completely?',
+      answer: 'Yes, neither card followups nor notes may be partially written.',
+      title: 'Study note',
+      language: 'en',
+    }),
+    /AI/,
+    'refused while note AI draft is running',
+  );
+  const afterFollowups = (await service.store.read()).decks[0].cards[0].followups.map(f => f.id);
+  assert.deepEqual(afterFollowups, beforeFollowups, 'atomic rollback: card.followups must remain untouched when note write fails');
+
+  release();
+  for (let i = 0; i < 60; i++) {
+    const cur = await service.call('note.get', { id: initial.note.id });
+    if (cur.generation?.status !== 'running') break;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+});
+
+test('note.qa.save rejects empty answer or missing card with zero state changes', async t => {
+  const { service } = await library(t);
+  const before = await service.store.read();
+  await assert.rejects(
+    service.call('note.qa.save', { deckId: 'deck', cardId: 'c1', question: 'Q?', answer: '   ', language: 'en' }),
+    /回答不能为空/,
+  );
+  await assert.rejects(
+    service.call('note.qa.save', { deckId: 'deck', cardId: 'missing-card', question: 'Q?', answer: 'A.', language: 'en' }),
+  );
+  const after = await service.store.read();
+  assert.equal(after.decks[0].cards[0].followups.length, before.decks[0].cards[0].followups.length);
+  assert.equal(after.notes.length, before.notes.length);
+});

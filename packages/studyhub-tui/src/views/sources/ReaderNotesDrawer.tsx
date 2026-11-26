@@ -13,6 +13,7 @@ import { LAYOUT_BP } from '../../components/layout-tokens.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
+import { persistCardQaToFollowupAndNote } from '../../host/ai-dialogue.js';
 import { errorMessage, tryAction } from '../../host/sample-actions.js';
 
 export interface ReaderNotesDrawerProps {
@@ -219,7 +220,7 @@ export async function savePageAskToNote(params: SavePageAskParams): Promise<Save
   let savedNoteId: string | undefined;
   let noteError: string | undefined;
 
-  // 1. Check linked cards and save Q&A via card.followup.add + note.qa.add.
+  // 1. Check linked cards and atomically save Q&A via backend composite action `note.qa.save` (#1354 D7).
   if (sourceId || documentId) {
     const cardsRes = await tryAction<{ cards?: Array<{ deckId?: string; cardId?: string }> }>(
       host,
@@ -235,32 +236,21 @@ export async function savePageAskToNote(params: SavePageAskParams): Promise<Save
     if (linked.length > 0) {
       const target = linked[0];
       const noteTitle = course ? `${course} · ${docLabel}` : docLabel;
-      const followupRes = await tryAction<{ item?: { id?: string } }>(host, 'card.followup.add', {
+      const persisted = await persistCardQaToFollowupAndNote({
+        host,
         deckId: target.deckId,
         cardId: target.cardId,
-        question: cleanQuestion.replace(/\s+/g, ' ').trim().slice(0, 1000),
-        answer: cleanAnswer.slice(0, 8000),
-        source: 'assistant',
-        silent: true,
-        replace: true,
+        question: cleanQuestion,
+        answer: cleanAnswer,
+        noteTitle,
+        lang,
       });
-      if (followupRes.ok && followupRes.value?.item?.id) {
+      if (persisted.ok && persisted.noteSaved) {
         savedFollowup = true;
-        const noteRes = await tryAction<{ status?: string; note?: { id?: string } }>(host, 'note.qa.add', {
-          deckId: target.deckId,
-          cardId: target.cardId,
-          followupId: followupRes.value.item.id,
-          title: noteTitle.slice(0, 180),
-          language: lang,
-        });
-        if (noteRes.ok) {
-          savedNote = true;
-          savedNoteId = noteRes.value?.note?.id;
-        } else {
-          noteError = noteRes.error?.message;
-        }
-      } else if (!followupRes.ok) {
-        noteError = followupRes.error?.message;
+        savedNote = true;
+        savedNoteId = persisted.noteId;
+      } else {
+        noteError = persisted.error || persisted.warning;
       }
     }
   }
