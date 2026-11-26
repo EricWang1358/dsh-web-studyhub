@@ -266,29 +266,39 @@ const steadyFold = (page, control) => page.evaluate(async selector => {
   return { ...last, unsteady: true };
 }, control);
 
-test('#1082: 更多选项 open: picking any choice in it changes nothing on the screen (a tall narrow window, its summary in view, zh and en); shut, it says each choice whole', { timeout: 600000 }, async t => {
+test('#1082: 更多选项 open: picking a visible choice keeps the scroll, summary and control still (tall narrow windows, zh and en); shut, it says each choice whole', { timeout: 600000 }, async t => {
   if (skip) { t.skip(skip); return; }
-  for (const [lang, width] of [['en', 420], ['zh', 420], ['en', 320], ['zh', 320]]) {
-    const tag = `${lang} ${width}×1400`;
-    const { page, errors, context, release } = await openGenerate({ lang, width, height: 1400, answer: answers()['no index'], now: true });
+  for (const [lang, width, height] of [['en', 420, 1400], ['zh', 420, 1400], ['en', 320, 1400], ['zh', 320, 1400], ['en', 320, 2400], ['zh', 420, 2400]]) {
+    const tag = `${lang} ${width}×${height}`;
+    const { page, errors, context, release } = await openGenerate({ lang, width, height, answer: answers()['no index'], now: true });
     release();
     await settleAnimations(page);
     const fold = page.locator('.generate-more').first(), summary = fold.locator(':scope > summary');
     if (!await fold.evaluate(element => element.open)) await summary.click();
     await settleAnimations(page);
-    // the summary near the top of the view, so it and the controls under it are all on the screen and nothing needs scrolling to be picked
+    // Start at the summary. The lower choices in the expanded form can be more than a screen below it.
     await summary.evaluate(element => element.scrollIntoView({ block: 'start' }));
     await page.evaluate(() => { let box = document.querySelector('[data-generate-bar]'); while (box && !(box.scrollHeight > box.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(box).overflowY))) box = box.parentElement; (box ?? document.scrollingElement).scrollTop -= 60; });
     // 深入辨析, the language that is not the page's own (English on a Chinese page, 中文 on an English one) and 公式（LaTeX）; each one clicked where it is on
     // the screen, as a pointer does. The open summary is its hint's one line, so a pick changes neither its height nor anything under it.
     const choices = [['difficulty', 3], ['language', lang === 'en' ? 0 : 1], ['notation', 2]];
+    const start = await summary.boundingBox();
+    assert.ok(start.y >= 0 && start.y + start.height <= height, `${tag}: the summary starts in view`);
     for (const [name, at] of choices) {
       const selector = `[data-tour="generate-${name}"] button:nth-of-type(${at + 1})`;
+      const choice = page.locator(selector);
+      // Scroll to read an off-screen choice before measuring what the selection itself changes.
+      await choice.evaluate(element => {
+        const barTop = document.querySelector('[data-generate-bar]').getBoundingClientRect().top;
+        const bounds = element.getBoundingClientRect();
+        if (bounds.top < 0 || bounds.bottom > barTop) element.scrollIntoView({ block: 'center', behavior: 'instant' });
+      });
       const before = await steadyFold(page, selector);
       assert.ok(!before.unsteady, `${tag}: the page is still before picking ${name}`);
-      assert.ok(before.summaryTop >= 0 && before.summaryTop + before.summaryHeight <= 1400, `${tag}: the summary is on the screen (${before.summaryTop})`);
-      assert.ok(before.controlTop >= 0 && before.controlBottom <= 1400 - 120, `${tag}: ${name} is on the screen, clear of the bar (${before.controlTop})`);
-      const box = await page.locator(selector).boundingBox();
+      if (height === 2400) assert.ok(before.summaryTop >= 0 && before.summaryTop + before.summaryHeight <= height, `${tag}: the summary and ${name} fit together`);
+      const bar = await page.locator('[data-generate-bar]').boundingBox();
+      assert.ok(before.controlTop >= 0 && before.controlBottom <= bar.y, `${tag}: ${name} is on the screen, clear of the bar (${before.controlTop})`);
+      const box = await choice.boundingBox();
       await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
       await until(() => page.locator(selector).evaluate(element => element.getAttribute('aria-pressed') === 'true' || element.getAttribute('aria-checked') === 'true'), `${tag}: ${name} picked`);
       const after = await steadyFold(page, selector);

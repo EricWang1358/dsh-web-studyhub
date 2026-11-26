@@ -58,7 +58,16 @@ test('browser calculation flow preserves corrections, mode drafts, reload and ed
   await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'en'); localStorage.setItem('study-autopilot', 'off'); });
   await page.goto(server.url);
   // A narrow window has the sidebar in a drawer behind the top bar's menu button (#657).
-  const resume = async () => { const menu = page.locator('.nav-menu-toggle'); if (await menu.count()) await menu.first().click(); await page.locator('[data-usage="nav.resume"]').click(); };
+  const resume = async () => {
+    const menu = page.locator('.nav-menu-toggle:visible');
+    const resumeButton = page.locator('[data-usage="nav.resume"]:visible');
+    await menu.or(resumeButton).first().waitFor();
+    if (await menu.isVisible()) await menu.click();
+    await resumeButton.click();
+    const more = page.locator('.post-answer-more');
+    await more.waitFor();
+    if (!await more.evaluate(element => element.open)) await more.locator('summary').click();
+  };
   await resume();
   await page.getByRole('button', { name: 'Guided calculation', exact: true }).click();
   const answer = page.getByRole('textbox', { name: 'Answer to the current step' });
@@ -68,7 +77,8 @@ test('browser calculation flow preserves corrections, mode drafts, reload and ed
   assert.equal(await page.locator('.teaching-context dt').count(), 3);
   assert.equal(await page.locator('.teaching-progress').getAttribute('aria-valuenow'), '0');
   await answer.fill('wrong');
-  await page.locator('.teaching-panel button.sh-btn--primary').click();
+  const check = page.getByRole('button', { name: 'Check understanding', exact: true });
+  await check.click();
   await page.getByText('Try checking the time unit', { exact: true }).waitFor();
   assert.equal(await answer.inputValue(), 'wrong');
   await page.reload();
@@ -77,7 +87,7 @@ test('browser calculation flow preserves corrections, mode drafts, reload and ed
   assert.equal(await answer.inputValue(), 'wrong');
   const release = Promise.withResolvers(); gate = release.promise;
   await answer.fill('right');
-  await page.locator('.teaching-panel button.sh-btn--primary').click();
+  await check.click();
   await gradingStarted.promise;
   await answer.fill('typed while checking');
   release.resolve();

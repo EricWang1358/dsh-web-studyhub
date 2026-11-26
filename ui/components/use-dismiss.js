@@ -10,6 +10,12 @@ const elementsOf = refs => (Array.isArray(refs) ? refs : [refs]).map(entry => en
 // Open dismissables, oldest first: Escape belongs to the newest one only.
 const open = [];
 
+/** A mounted, closed tooltip has no layout. It must leave Escape to the visible surface beneath it. */
+export function hasVisibleOverlayOutside(root) {
+  const selectors = 'dialog[open], [role="dialog"], .sh-pop__popup:not([data-closed]), .sh-menu, .sh-popover, .shortcut-sheet, .sh-confirm';
+  return [...document.querySelectorAll(selectors)].some(layer => layer.getClientRects().length && !(root && layer.contains(root)));
+}
+
 /**
  * Register one open dismissable on the shared Escape stack; returns its cleanup.
  * Pure DOM helper behind `useDismiss`. When `escapeAnywhere` is true (e.g. Tooltip,

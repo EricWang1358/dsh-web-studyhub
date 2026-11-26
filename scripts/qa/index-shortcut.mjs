@@ -147,11 +147,11 @@ export async function indexShortcutScenario({ browser, dist, width, lang = "zh",
     await picker.locator(".source-picker__item").first().waitFor({ timeout: 30000 });
     await allCourses(picker);
     await picker.locator(".index-badge").first().waitFor({ timeout: 20000 });
-    const pickerAction = picker.locator("[data-index-action]");
+    const pickerAction = picker.locator("[data-index-gap]").getByRole("button");
     await pickerAction.first().waitFor({ timeout: 5000 });
     facts.pickerActions = await pickerAction.count();
     facts.pickerGap = (await picker.locator(".index-gap").innerText()).replace(/\s+/g, " ").trim();
-    if (facts.pickerActions !== 1 || !/有 1 份资料的索引还没建完|The index of 1 material\(s\) is not finished/.test(facts.pickerGap)) throw new Error(`picker: ${facts.pickerActions} actions, line "${facts.pickerGap}"`);
+    if (facts.pickerActions !== 1 || !/1 份资料未建完索引|有 1 份资料的索引还没建完|1 material/i.test(facts.pickerGap)) throw new Error(`picker: ${facts.pickerActions} actions, line "${facts.pickerGap}"`);
     await noOverflow("the picker");
     await picker.scrollIntoViewIfNeeded();
     await shot("5-picker");

@@ -40,6 +40,27 @@ const card = (id, topic, prompt, extra = {}) => ({
 
 /* ---------- seeds: one function per kind of learner ---------- */
 
+export async function seedDailyLibrary(api) {
+  await api("source.add", { id: "s1", title: "Week 1 · Services and boundaries", text: quote, course: COURSE });
+  await api("draft.save", { deck: { id: "d1", title: "Services and boundaries", course: COURSE, cards: [
+    card("c1", "Boundaries", "Why does a service own its data?"), card("c2", "Boundaries", "What is a bounded context?"), card("c3", "Contracts", "When is a contract breaking?"),
+    card("c4", "Contracts", "What does consumer-driven testing check?"), card("c5", "Resilience", "Why add a timeout to every call?")] } });
+  await api("draft.publish", { id: "d1" });
+  // Three answers (two known, one missed) and the run left open at the fourth card: practised cards, a weak one, a run to continue.
+  const run = await api("review.start", { deckId: "d1", mode: "flashcard" });
+  let current = run;
+  for (const grade of [4, 4, 2]) {
+    await api("review.reveal", { runId: run.id, cardId: current.card.id });
+    current = await api("review.answer", { runId: run.id, cardId: current.card.id, grade });
+    current = await api("review.move", { runId: run.id, direction: 1 });
+  }
+}
+
+export async function seedDailyBoard(api) {
+  const board = await api("board.get");
+  await api("board.card.add", { revision: board.revision, title: "Hand in the report", due: "2020-01-01" });
+}
+
 export const SEEDS = {
   empty: async () => {},
   materials: async (api) => {
@@ -64,21 +85,8 @@ export const SEEDS = {
     await api("focus.set", { course: "Distributed Systems" });
   },
   daily: async (api) => {
-    await api("source.add", { id: "s1", title: "Week 1 · Services and boundaries", text: quote, course: COURSE });
-    await api("draft.save", { deck: { id: "d1", title: "Services and boundaries", course: COURSE, cards: [
-      card("c1", "Boundaries", "Why does a service own its data?"), card("c2", "Boundaries", "What is a bounded context?"), card("c3", "Contracts", "When is a contract breaking?"),
-      card("c4", "Contracts", "What does consumer-driven testing check?"), card("c5", "Resilience", "Why add a timeout to every call?")] } });
-    await api("draft.publish", { id: "d1" });
-    // Three answers (two known, one missed) and the run left open at the fourth card: practised cards, a weak one, a run to continue.
-    const run = await api("review.start", { deckId: "d1", mode: "flashcard" });
-    let current = run;
-    for (const grade of [4, 4, 2]) {
-      await api("review.reveal", { runId: run.id, cardId: current.card.id });
-      current = await api("review.answer", { runId: run.id, cardId: current.card.id, grade });
-      current = await api("review.move", { runId: run.id, direction: 1 });
-    }
-    const board = await api("board.get");
-    await api("board.card.add", { revision: board.revision, title: "Hand in the report", due: "2020-01-01" });
+    await seedDailyLibrary(api);
+    await seedDailyBoard(api);
   },
 };
 

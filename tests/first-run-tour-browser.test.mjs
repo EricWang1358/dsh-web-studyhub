@@ -203,7 +203,9 @@ test('the default tour is short and lit, the full tour is one button away, and S
         const ids = full.map(item => item.step?.id);
         for (const id of ['tasks', 'notes', 'examprep', 'reader-practice', 'translation', 'settings-model']) assert.ok(ids.includes(id), `${id} is in the full tour`);
         assert.ok(ids.indexOf('settings-model') > ids.indexOf('practice'));
-        assert.equal(full.at(-1).total, TOUR_STEPS.filter(step => step.only !== 'core').length);
+        const standaloneSteps = TOUR_STEPS.filter(step => step.only !== 'core' && step.id !== 'guided-study');
+        assert.equal(full.at(-1).total, standaloneSteps.length);
+        assert.deepEqual(ids, standaloneSteps.slice(1).map(step => step.id), 'the standalone preview visits every full-tour step with an available action');
         assert.deepEqual(full.filter(item => item.step?.anchor && !item.lit).map(item => `${item.at}. ${item.title}`), [], `${width}px: every anchored step of the full tour finds its element`);
         assert.equal(await page.locator('.tour-pop').getByRole('button', { name: '看完整导览' }).count(), 0, 'the full tour does not offer itself again');
         await page.locator('.tour-pop').getByRole('button', { name: '完成导览', exact: true }).click();

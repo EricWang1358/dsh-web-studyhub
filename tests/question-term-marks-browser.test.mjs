@@ -320,7 +320,9 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
           assert.match(followupText, /补词：/, `${tag}: Chinese terms title shown`);
           assert.match(followupText, /预览正式说法/, `${tag}: ladder sections appeared`);
         }
-        await page.locator(".prereq-strip summary > span").click();
+        const prerequisites = page.locator(".prereq-strip__toggle");
+        await prerequisites.click();
+        assert.equal(await prerequisites.getAttribute("aria-expanded"), "true");
         assert.equal(
           await page.locator(".prereq-strip .prereq-item").count(),
           3,
@@ -336,7 +338,8 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
         await firstFollowup.scrollIntoViewIfNeeded();
         await settleAnimations(page);
         await takeShot(page, `terms-followup-${lang}-${width}`);
-        await page.locator(".prereq-strip summary > span").click();
+        await prerequisites.click();
+        assert.equal(await prerequisites.getAttribute("aria-expanded"), "false");
         await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
 
         // Mark 1 unfilled word on Card 1 so returning from Card 2 verifies per-question term memory (#1192, #1214).
@@ -380,7 +383,7 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
           () => !!document.querySelector(".explanation-followup .followup-item[open]") && !!document.querySelector(".prereq-strip"),
           { timeout: 25000 },
         );
-        await page.locator(".prereq-strip summary > span").click();
+        await prerequisites.click();
         assert.equal(
           await page.locator(".prereq-strip .prereq-item").count(),
           2,
@@ -2194,7 +2197,7 @@ test("candidate terms behavioral guards: flashcard 1/4, right quiz, cache revisi
     await rm(dist, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
-  // 0. Guard #1246 non-regression: with autoTerms OFF (default), rating flashcard 1 still auto-advances with 0 card.terms calls.
+  // With autoTerms off, a low grade keeps its feedback on screen without requesting candidate terms.
   {
     const running = await startLateServer({ distDir: dist, lang: "zh", seed: (root) => seedCandidateCoverageDeck(root, "zh") });
     const { context, page, errors } = await openPage(browser, running, { lang: "zh", theme: "light", width: 1280, height: 900 });
@@ -2211,11 +2214,15 @@ test("candidate terms behavioral guards: flashcard 1/4, right quiz, cache revisi
       await page.locator('[data-usage="review.flip"]').click();
       await page.locator('.flip-back[aria-hidden="false"]').waitFor({ state: "visible", timeout: 10000 });
       await page.locator(".grade-scale .grade").nth(1).click();
+      await page.locator(".next-due").first().waitFor({ state: "visible", timeout: 10000 });
+      assert.match(await page.locator('.flip-back[aria-hidden="false"] .flash-prompt').innerText(), /线性一致性/);
+      assert.equal(await page.locator(".term-strip .term-strip__candidate").count(), 0);
+      await page.locator('[data-usage="review.next"]').click();
       await page.waitForFunction(
         () => (document.querySelector(".question-card .flash-prompt")?.textContent || "").includes("幂等性"),
-        { timeout: 10000 },
+        null, { timeout: 10000 },
       );
-      assert.equal(cardTermsCalls, 0, "autoTerms OFF + flashcard grade 1 keeps auto-advance and calls card.terms 0 times");
+      assert.equal(cardTermsCalls, 0, "autoTerms OFF makes no card.terms call during feedback or on moving to the next card");
       assert.equal(await page.locator(".term-strip .term-strip__candidate").count(), 0);
       assert.deepEqual(errors, [], `autoTerms-off guard errors: ${errors.join(" | ")}`);
     } finally {

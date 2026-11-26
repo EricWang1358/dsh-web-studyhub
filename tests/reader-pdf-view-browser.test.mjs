@@ -146,7 +146,12 @@ test('原始 PDF: turning the page keeps the view, the zoom and the sideways pla
           window.__pdfBurst = state;
           window.createImageBitmap = (...args) => { state.bitmaps += 1; return real(...args); };
           const target = document.querySelector('.reader-pdf-view');
-          new window.MutationObserver(() => state.painted.push(target.dataset.pdfPage)).observe(target, { attributes: true, attributeFilter: ['data-pdf-page'] });
+          new window.MutationObserver(records => {
+            for (const [index, record] of records.entries()) {
+              const next = index + 1 < records.length ? records[index + 1].oldValue : target.dataset.pdfPage;
+              if (record.oldValue !== next) state.painted.push(next);
+            }
+          }).observe(target, { attributes: true, attributeOldValue: true, attributeFilter: ['data-pdf-page'] });
         });
         await rapidView.focus();
         for (let i = 0; i < 8; i += 1) {

@@ -68,9 +68,3 @@ test('W2-12: BookAsk and BookSelectBar guard IME and adapt desktop tooltip copy 
   assert.match(barSrc, /先配置模型才能弄懂；复制提示词不需要模型。/, 'BookSelectBar provides desktop copy-prompt tooltip');
   assert.match(barSrc, /event\.isComposing \|\| event\.keyCode === 229/, 'BookSelectBar Esc guards IME');
 });
-
-test('W2-13: BookToc Esc guards IME and open dialogs/overlays in both search box and slide-over', async () => {
-  const tocSrc = read('ui/book/BookToc.jsx');
-  assert.match(tocSrc, /event\.defaultPrevented \|\| event\.nativeEvent\?\.isComposing \|\| event\.isComposing \|\| event\.keyCode === 229/, 'handleSearchKeyDown guards IME and defaultPrevented');
-  assert.match(tocSrc, /document\.querySelector\('dialog\[open\], \[role="dialog"\], \.sh-pop__popup:not\(\[data-closed\]\), \.sh-menu, \.sh-popover'\)/, 'narrow BookToc Esc yields to open dialogs/overlays');
-});

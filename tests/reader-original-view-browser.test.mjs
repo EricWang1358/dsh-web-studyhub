@@ -45,7 +45,7 @@ test('文字 | 原始 PDF: the original opens at the page being read and is reme
   t.after(() => running.close?.());
   const shots = process.env.READER_ORIGINAL_SHOTS || '';
   if (shots) await mkdir(shots, { recursive: true });
-  const { page, errors } = await openPage(browser, running, { width: 1280, height: 900 });
+  const { page, errors } = await openPage(browser, running, { width: 1280, height: 900, selfGradeAdvance: false });
   const viewer = page.locator('.study-document-viewer'), toolbar = viewer.locator('.reader-toolbar');
   const sw = viewer.locator('.reader-view-switch');
   const shot = async name => { if (shots) await page.screenshot({ path: join(shots, `original-${name}.png`) }); };
@@ -166,8 +166,8 @@ test('文字 | 原始 PDF: the original opens at the page being read and is reme
   await page.locator('.review-page').waitFor({ timeout: 30000 });
   const citedPage = /part 9/.test(await page.locator('.review-page').innerText()) ? 9 : 3;
   await page.locator('.review-heading h1').first().click().catch(() => {});
-  await page.keyboard.press('Space'); await page.waitForTimeout(400);
-  await page.keyboard.press('5'); await page.waitForTimeout(400);
+  await page.keyboard.press('Space'); await page.locator('.grade.high').first().waitFor();
+  await page.keyboard.press('5');
   const cited = page.getByRole('button', { name: '看这题的原文' });
   await cited.waitFor({ timeout: 15000 });
   await cited.click();

@@ -6,6 +6,7 @@ import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
+import { fixtureSourcePreload } from '../scripts/qa/test-source-cache.mjs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { StudyService } from '../lib/service.js';
@@ -225,7 +226,7 @@ test('a fresh process recovers an interrupted uploaded batch without automatic m
   const dir = await mkdtemp(join(tmpdir(), 'audio-batch-process-')), root = join(dir, 'library');
   t.after(() => rm(dir, { recursive: true, force: true }));
   const child = mode => new Promise((resolve, reject) => {
-    const proc = spawn(process.execPath, [fileURLToPath(new URL('./fixtures/audio-batch-process.mjs', import.meta.url)), root, mode],
+    const proc = spawn(process.execPath, [...fixtureSourcePreload(), fileURLToPath(new URL('./fixtures/audio-batch-process.mjs', import.meta.url)), root, mode],
       { env: { ...process.env, DSH_HOME: join(dir, 'home') }, windowsHide: true });
     let out = '', err = '';
     proc.stdout.on('data', data => { out += data; }); proc.stderr.on('data', data => { err += data; });
@@ -264,6 +265,7 @@ test('transient Windows manifest replacement failures preserve the finished memb
     }; syncBuiltinESMExports();`;
   const child = mode => new Promise((resolve, reject) => {
     const proc = spawn(process.execPath, [
+      ...fixtureSourcePreload(),
       ...(mode === 'interrupt' ? ['--import', `data:text/javascript,${encodeURIComponent(preload)}`] : []),
       fileURLToPath(new URL('./fixtures/audio-batch-process.mjs', import.meta.url)), root, mode,
     ], { env: { ...process.env, DSH_HOME: join(dir, 'home'), STUDY_FS_RETRY_MS: '1' }, windowsHide: true });
@@ -300,6 +302,7 @@ async function orphanedBatch(t) {
     }; syncBuiltinESMExports();`;
   const child = mode => new Promise((resolve, reject) => {
     const proc = spawn(process.execPath, [
+      ...fixtureSourcePreload(),
       ...(mode === 'interrupt' ? ['--import', `data:text/javascript,${encodeURIComponent(preload)}`] : []),
       fileURLToPath(new URL('./fixtures/audio-batch-process.mjs', import.meta.url)), root, mode,
     ], { env: { ...process.env, DSH_HOME: join(dir, 'home'), STUDY_FS_RETRY_MS: '1' }, windowsHide: true });

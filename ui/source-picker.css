@@ -34,6 +34,10 @@
     .material-category-bar__ai-btn { flex: none; white-space: nowrap; }
     .material-category-bar__ai-gate { display: inline-flex; flex: none; }
     .material-category-bar__estimate { min-width: 0; max-width: 100%; }
+    /* On the materials page the local range and the server's shorter estimate
+       share the space left by the filters, keeping the classification button in place. */
+    .sources-facets .material-category-bar__ai { flex: 1 1 20rem; flex-wrap: nowrap; }
+    .sources-facets .material-category-bar__estimate { flex: 1 1 0; }
     .material-classify-progress { display: grid; gap: var(--space-1-5); padding: var(--space-2-5) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); min-width: 0; }
     .material-classify-progress__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); min-width: 0; }
     .material-classify-progress__text { font-size: var(--fs-sm); color: var(--text-dim); font-variant-numeric: tabular-nums; }
@@ -93,6 +97,9 @@
        cut with 「…」, and a row has one cut piece at most (round 10). The course the scope names is not said again (above the list). The line ends at the
        badges' column on every row, badge or none (round 8, below), and clips what is left out (in place, see-through), so nothing draws past it. */
     .source-picker__text .source-picker__facts { grid-column: 2 / -1; position: relative; display: flex; column-gap: 0.3em; height: calc(var(--fs-sm) * var(--lh-snug)); overflow: clip; white-space: nowrap; }
+    /* CJK fonts can give the middle dot a full ideograph's width. Use their proportional punctuation
+       for compact Chinese metadata so separators leave room for the count and course on one line. */
+    .source-picker__facts:lang(zh) { font-feature-settings: "palt"; }
     /* The facts stop before the last column: the badges' (or, in a picker without badges, 选择页面's on a wide row, whose box hangs a little into the facts' line). */
     .source-picker__row:is(.has-index, .has-expand) .source-picker__text .source-picker__facts { grid-column: 2 / -2; }
     /* The slot: a box at the end of the facts' first line, the height of that line. While the index answer is coming it is the widest badge's width on every

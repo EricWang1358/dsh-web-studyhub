@@ -65,7 +65,8 @@ test('the slim reader: a quiet toolbar, 更多, 错题 and 思维导图 at 1280 
   for (const width of [1280, 420]) {
     const running = await startLateServer({ distDir: dist, seed });
     try {
-      const { page, errors } = await openPage(browser, running, { width, height: 900 });
+      const { page, errors, context } = await openPage(browser, running, { width, height: 900 });
+      await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: running.server.url });
       const shot = async name => { if (shots) await page.screenshot({ path: join(shots, `reader-slim-${name}-${width}.png`) }); };
       const viewer = page.locator('.study-document-viewer');
       const openMore = async () => { await viewer.getByRole('button', { name: '更多', exact: true }).click(); await page.locator('.sh-menu').waitFor(); };
@@ -166,8 +167,10 @@ test('the slim reader: a quiet toolbar, 更多, 错题 and 思维导图 at 1280 
       assert.equal(await page.locator('.reader-map__panel').count(), 0, 'the panel closes after a jump');
       await until(() => pageInView(page, 55), 'page 55 in view', { timeoutMs: 15000 });
       await viewer.getByRole('button', { name: '思维导图', exact: true }).click();
-      await page.locator('.reader-map__panel').getByRole('button', { name: '交给主会话细化' }).click();
-      await until(async () => { const said = await page.locator('body').innerText(); return /已复制到剪贴板|需要手动复制|已填进|细化资料/.test(said); }, 'the hand-off to say what became of it', { timeoutMs: 15000 });
+      await page.locator('.reader-map__panel').getByRole('button', { name: '复制导图细化提示词' }).click();
+      const draft = await page.evaluate(() => navigator.clipboard.readText());
+      assert.match(draft, /3 Topic/);
+      assert.match(draft, /Heading of page 55/);
       await page.keyboard.press('Escape');
 
       // ---- 去练 on the mistake of the chapter that is drawn ----

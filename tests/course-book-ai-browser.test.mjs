@@ -13,11 +13,12 @@ import { BOOK_COURSE, seedBookFixture } from './helpers/book-fixtures.mjs';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { switchOptions } from './helpers/runtime-switch.mjs';
 import { settleJob } from './helpers/wait.mjs';
+import { commitPreviewAction } from './helpers/preview-write.mjs';
 import { replaceAiBlock } from '../lib/course-book-ai-text.js';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* 复习全书 问 AI in the real page at 1280 and 420 px (docs/review-book.md "Ask AI", "AI blocks"), on the ArchSS-like book: words selected with the keyboard
-   (selection.modify, what Shift+arrows do: only `selectionchange` tells the page) show the toolbar 弄懂 / 写一段… / 发给主会话 (弄懂 secondary, the page keeps at
+   (selection.modify, what Shift+arrows do: only `selectionchange` tells the page) show the preview toolbar 弄懂 / 写一段… / 复制提示词 (弄懂 secondary, the page keeps at
    most one primary); 弄懂 closes it and leaves ONE line right after the paragraph at once; the block lands in that line's place, folded, and the point's text does
    not move (CLS ≤ 0.05, the next paragraph's top the same); its ⋯ menu deletes it, 「已删除这段 · 撤销」 brings it back, and a write since the deletion refuses the
    撤销; 取消 stops a running task; a failure says why and 重试 starts it again; 问 AI at the title writes into 我的 with Ctrl+Enter; 删除 of a block another writer
@@ -105,11 +106,11 @@ test('复习全书 问 AI: the keyboard selection toolbar, the writing line and 
       // A keyboard selection (no mouseup): the toolbar shows, above the selection's first line (every selected word in sight) and within the reading column;
       // 弄懂 is secondary and no second primary appears. (The column check allows 2 px: placeInHost's zoom scale is read from a rounded width.)
       const words = await selectByKeys(page, '只有架构师', '。');
-      assert.match(words, /成立\s*1?。/, `${width}px: the selection runs over the 角标: ${words}`);
+      assert.match(words, /成立\s*(?:1\s*)?。/, `${width}px: the selection runs over the 角标: ${words}`);
       const bar = page.locator('.book-select[data-placed]');
       await bar.waitFor({ timeout: 5000 });
       assert.match(await bar.locator('[data-book-select="explain"]').getAttribute('class'), /sh-btn--secondary/);
-      assert.deepEqual(await bar.locator('button').allInnerTexts(), ['弄懂', '写一段…', '发给主会话']);
+      assert.deepEqual(await bar.locator('button').allInnerTexts(), ['弄懂', '写一段…', '复制提示词']);
       assert.ok(await visiblePrimaries(page) <= 1, `${width}px: 弄懂 is not a second primary`);
       const place = await page.evaluate(() => {
         const selection = window.getSelection(), rects = [...selection.getRangeAt(0).getClientRects()].filter(rect => rect.width > 0), box = document.querySelector('.book-select').getBoundingClientRect();
@@ -200,10 +201,10 @@ test('复习全书 问 AI: the keyboard selection toolbar, the writing line and 
       await bar.waitFor({ timeout: 5000 });
       await bar.locator('[data-book-select="explain"]').click();
       await line.waitFor({ timeout: 5000 });
-      await page.waitForTimeout(300);
-      await line.getByRole('button', { name: '取消' }).click();
+      const cancellation = await commitPreviewAction(page, 'job.cancel', () => line.getByRole('button', { name: '取消' }).click());
+      assert.equal(cancellation.status, 'cancelled');
       await line.waitFor({ state: 'detached', timeout: 5000 });
-      assert.equal(control.cancels.length, 1, `${width}px: the task was stopped`);
+      assert.deepEqual(control.cancels, [`fake-${control.n}`], `${width}px: the task the learner cancelled was stopped once`);
       // A failure says why in the line's place; 重试 starts it again.
       await selectByKeys(page, '只有架构师', '。');
       await bar.waitFor({ timeout: 5000 });

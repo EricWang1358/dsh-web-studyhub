@@ -4,6 +4,7 @@ import { asksWhatTheSourceSays } from "../lib/question-voice.js";
 import { Button, Chip, Icon, InlineMessage, useDismiss, useToast } from "./components/index.js";
 import { feedbackOutcome } from "./card-fix.js";
 import { useComponentCss } from "./components/css.js";
+import { hasVisibleOverlayOutside } from "./components/use-dismiss.js";
 import thumbCss from "./thumb-feedback.css";
 import { useStudy } from "./study-context.jsx";
 import { CourseRuleConfirm } from "./course-rules/CourseRuleAdd.jsx";
@@ -199,10 +200,7 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
       if (e.key === "Escape" && open) {
         if (confirmOpen || e.defaultPrevented || e.isComposing || e.keyCode === 229) return;
         const root = rootRef.current;
-        const overlays = document.querySelectorAll('dialog[open], [role="dialog"], .sh-pop__popup:not([data-closed]), .sh-menu, .sh-popover, .shortcut-sheet, .sh-confirm');
-        for (const el of overlays) {
-          if (!root || !el.contains(root)) return;
-        }
+        if (hasVisibleOverlayOutside(root)) return;
         const t = e.target;
         if (t && typeof t.closest === "function" && (!root || !root.contains(t))
           && t.closest('input, textarea, select, [contenteditable="true"], .cm-editor')) return;

@@ -4,6 +4,12 @@ import { lstatSync, readFileSync, readdirSync, realpathSync, writeFileSync } fro
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+/** Arguments for the study process of a real crash/restart fixture. Never install the test worker's network guard in it. */
+export function fixtureSourcePreload() {
+  return process.platform === 'win32' && process.env.STUDY_TEST_SOURCE_CACHE && process.env.STUDY_BUILD_CACHE !== '0'
+    ? ['--import', new URL('./test-module-loader.mjs', import.meta.url).href] : [];
+}
+
 function fingerprint(path) {
   const info = lstatSync(path, { bigint: true, throwIfNoEntry: false });
   return info?.isFile() ? [info.dev, info.ino, info.size, info.mtimeNs, info.ctimeNs].join('/') : null;

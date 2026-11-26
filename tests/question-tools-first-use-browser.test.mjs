@@ -14,7 +14,7 @@ import { openPage } from '../scripts/qa/layout-late.mjs';
 
 /* The three first-use tips under a practice question (#948), in the real app on a made-up library (no model is called, no real library is read):
      帮我弄懂  after the first wrong answer;  修题  after the first 「这题有问题」;  出成前置题  once an answer stands under the question.
-   Each shows once, only after the learner acted, never before; it pushes nothing, never covers 下一题 (1280 and 420 px), takes no focus (Enter still means 下一题),
+   Each shows once, only after the learner acted. It floats in free space on desktop and sits beside the tools in a narrow column, takes no focus (Enter still means 下一题),
    closes with 知道了 or Esc, and stays away when the master switch or its own switch of 设置 › 引导 is off. QUESTION_TIPS_SHOTS=<folder> keeps screenshots. */
 
 const SHOTS = process.env.QUESTION_TIPS_SHOTS || '';
@@ -52,7 +52,6 @@ async function openRun(browser, running, { width = 1280, lang = 'zh', storage = 
   await opened.page.goto(running.server.url);
   await opened.page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
   await opened.page.locator('.question-toolbar').waitFor({ timeout: 30000 });
-  await opened.page.waitForTimeout(1000);
   return opened;
 }
 const answer = async (page, which) => {
@@ -63,6 +62,14 @@ const answer = async (page, which) => {
 const toTools = (page) => page.evaluate(() => document.querySelector('.question-toolbar').scrollIntoView({ block: 'center' }));
 const tipOf = (page, id) => page.locator(`[data-practice-tip="${id}"]`);
 const anyTip = (page) => page.locator('[data-practice-tip]');
+async function readTip(page, id) {
+  const tip = tipOf(page, id);
+  await tip.waitFor({ state: 'visible', timeout: 10000 });
+  if (await tip.evaluate(element => !element.hasAttribute('popover'))) {
+    await tip.evaluate(element => element.scrollIntoView({ block: 'center', behavior: 'instant' }));
+  }
+  await page.locator('[data-practice-tip-ring]').waitFor({ state: 'visible', timeout: 10000 });
+}
 const stored = (page) => page.evaluate((key) => JSON.parse(localStorage.getItem(key) || '[]'), TIPS_KEY);
 const boxes = (page) => page.evaluate(() => {
   const rect = (element) => { if (!element) return null; const r = element.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom }; };
@@ -125,7 +132,7 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       assert.equal(await anyTip(page).count(), 0, `${where}: no tip while the question is unanswered`);
       await answer(page, 'wrong');
       await toTools(page);
-      await tipOf(page, 'practice.help-first').waitFor({ state: 'visible', timeout: 10000 });
+      await readTip(page, 'practice.help-first');
       // #960: a quick advance before the 1500 ms dwell does NOT spend the first-use tip
       await page.keyboard.press('Enter');
       await page.locator('.options .option:not([disabled])').first().waitFor({ timeout: 15000 });
@@ -133,12 +140,12 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       assert.deepEqual(await stored(page), [], `${where}: a glance shorter than 1500 ms does not spend the tip`);
       await answer(page, 'wrong');
       await toTools(page);
-      await tipOf(page, 'practice.help-first').waitFor({ state: 'visible', timeout: 10000 });
+      await readTip(page, 'practice.help-first');
       assert.deepEqual(await offenders(page), [], `${where}: the 帮我弄懂 tip lies over empty space only`);
       assert.deepEqual(await ringed(page), ['review.help'], `${where}: its control carries the ring while the tip is open`);
       const before = await boxes(page);
-      assert.equal(before.position, 'fixed', `${where}: the tip is an overlay, not in the flow`);
-      assert.ok(before.open, `${where}: in the top layer`);
+      assert.equal(before.position, width === 420 ? 'static' : 'fixed', `${where}: the narrow tip follows the tools in the page`);
+      assert.equal(before.open, width !== 420, `${where}: the floating desktop tip uses the top layer`);
       assert.ok(insideWindow(before.tip, before.viewport), `${where}: inside the window ${JSON.stringify(before.tip)}`);
       for (const [name, control] of [['下一题', before.next], ['上一题', before.prev], ['更多', before.more]]) assert.ok(!covers(before.tip, control), `${where}: the tip does not cover ${name}`);
       assert.ok(!covers(before.tip, before.help) && !covers(before.tip, before.fix), `${where}: nor the controls it is about`);
@@ -173,7 +180,7 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       await page.locator('.options .option:not([disabled])').first().waitFor({ timeout: 15000 });
       await answer(page, 'wrong');
       await toTools(page);
-      await tipOf(page, 'practice.help-first').waitFor({ state: 'visible', timeout: 10000 });
+      await readTip(page, 'practice.help-first');
       const shown = await boxes(page);
       await page.locator('[data-practice-tip]').getByRole('button', { name: words.ok, exact: true }).click();
       assert.equal(await anyTip(page).count(), 0, `${where}: 知道了 closes it`);
@@ -182,7 +189,10 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       for (const name of ['toolbar', 'next', 'help', 'fix']) assert.deepEqual(after[name], shown[name], `${where}: ${name} did not move when the tip came or went`);
       assert.deepEqual(await stored(page), ['help-first']);
       await page.reload();
-      await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 }).catch(() => {});
+      await page.locator('.study-app').waitFor();
+      const resume = page.locator('[data-usage="home.start"]').first();
+      if (await resume.isVisible()) await resume.click();
+      await page.locator('.question-toolbar').waitFor();
       await page.waitForTimeout(1500);
       assert.equal(await anyTip(page).count(), 0, `${where}: it does not come back after a reload`);
       await context.close();
@@ -192,7 +202,7 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       const { page, context } = await openRun(browser, running, { width, lang });
       await answer(page, 'wrong');
       await toTools(page);
-      await tipOf(page, 'practice.help-first').waitFor({ state: 'visible', timeout: 10000 });
+      await readTip(page, 'practice.help-first');
       await page.keyboard.press('Escape');
       await anyTip(page).first().waitFor({ state: 'detached', timeout: 5000 });
       assert.deepEqual(await stored(page), ['help-first'], `${where}: Esc closes it for good`);
@@ -205,7 +215,7 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       const { page, context } = await openRun(browser, running, { width, lang });
       await answer(page, 'wrong');
       await toTools(page);
-      await tipOf(page, 'practice.help-first').waitFor({ state: 'visible', timeout: 10000 });
+      await readTip(page, 'practice.help-first');
       await page.locator('[data-usage="review.help"]').click();
       await anyTip(page).first().waitFor({ state: 'detached', timeout: 5000 });
       assert.deepEqual(await stored(page), ['help-first'], `${where}: 帮我弄懂 was used`);
@@ -227,7 +237,7 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       assert.equal(await tipOf(page, 'practice.fix-first').isVisible(), false, `${where}: the 修题 tip yields while the tag tray is open`);
       await page.keyboard.press('Escape');
       await page.locator('.thumb-tray').waitFor({ state: 'detached', timeout: 5000 });
-      await tipOf(page, 'practice.fix-first').waitFor({ state: 'visible', timeout: 15000 });
+      await readTip(page, 'practice.fix-first');
       assert.deepEqual(await offenders(page), [], `${where}: the 修题 tip lies over empty space only`);
       assert.deepEqual(await ringed(page), ['review.improve'], `${where}: its control carries the ring`);
       const fix = await boxes(page);
@@ -250,9 +260,14 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       await answer(page, 'right');
       await page.waitForTimeout(1500);
       assert.equal(await anyTip(page).count(), 1, `${where}: the tip is drawn, but waits for its link to come on screen`);
-      assert.equal(await page.locator('[data-practice-tip]').isVisible(), (await boxes(page)).derive?.bottom <= 900, `${where}: shown only when the link is on screen`);
+      const beforeScroll = await boxes(page);
+      if (width === 420 && !insideWindow(beforeScroll.tip, beforeScroll.viewport)) {
+        assert.deepEqual(await ringed(page), [], `${where}: the inline tip stays unread below the fold`);
+      } else if (width !== 420) {
+        assert.equal(await anyTip(page).isVisible(), beforeScroll.derive?.bottom <= 900, `${where}: shown only when the link is on screen`);
+      }
       await page.locator('[data-usage="review.derive-prereq"]').first().scrollIntoViewIfNeeded();
-      await tipOf(page, 'practice.prereq-first').waitFor({ state: 'visible', timeout: 10000 });
+      await readTip(page, 'practice.prereq-first');
       assert.deepEqual(await offenders(page), [], `${where}: the 出成前置题 tip lies over empty space only`);
       assert.deepEqual(await ringed(page), ['review.derive-prereq'], `${where}: its link carries the ring`);
       const prereq = await boxes(page);
@@ -271,7 +286,7 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       const { page, context } = await openRun(browser, running, { width, lang });
       await answer(page, 'wrong');
       await toTools(page);
-      await tipOf(page, 'practice.help-first').waitFor({ state: 'visible', timeout: 10000 });
+      await readTip(page, 'practice.help-first');
       assert.equal(await anyTip(page).count(), 1, `${where}: a wrong answer with an answer under it: one tip, the earlier row`);
       await page.locator('[data-practice-tip]').getByRole('button', { name: words.ok, exact: true }).click();
       await page.waitForTimeout(1500);
@@ -279,6 +294,25 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       assert.deepEqual(await stored(page), ['help-first']);
       await context.close();
     }
+  }
+
+  // A phone may scroll past the inline guidance without ever seeing it. That question must leave the reminder available for a later visit.
+  {
+    const running = await fresh({ qa: true });
+    const { page, context } = await openRun(browser, running, { width: 420 });
+    await answer(page, 'right');
+    const tip = tipOf(page, 'practice.prereq-first');
+    await tip.waitFor({ state: 'attached' });
+    await page.locator('.question-card').evaluate(card => card.scrollIntoView({ block: 'start', behavior: 'instant' }));
+    await page.waitForFunction(() => {
+      const card = document.querySelector('[data-practice-tip]');
+      return card?.getBoundingClientRect().top >= window.innerHeight && !document.querySelector('[data-practice-tip-ring]');
+    });
+    await page.waitForTimeout(1600);
+    await page.keyboard.press('Enter');
+    await page.locator('.options .option:not([disabled])').first().waitFor({ timeout: 15000 });
+    assert.deepEqual(await stored(page), [], 'an offscreen inline tip is still unread after the dwell period');
+    await context.close();
   }
 
   // ---- the switches of 设置 › 引导, and a seen tip that is brought back ----
