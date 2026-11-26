@@ -4,8 +4,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { readFileSync } from 'node:fs';
 import { loadUi } from './helpers/ui-module.mjs';
+import { loadInteractiveUi, withBrowserGlobals, click } from './helpers/react-harness.mjs';
 import { dom } from './helpers/usage-dom.mjs';
 
 const ui = await loadUi(`
@@ -148,15 +148,108 @@ test('in English the page has no Chinese of its own', () => {
   });
 });
 
-test('the page is in the registry, reached from the home, not in the sidebar, and the way back from a round names it', () => {
+test('the page is in the registry, reached from the home, not in the sidebar, and the way back from a round names it', async () => {
   assert.deepEqual({ ...ui.PAGES.outline }, { label: '总纲', title: '总纲', glyph: null, group: null, needs: ['bank', 'study', 'materials'], back: '回到总纲' });
   assert.equal(ui.navLabelOf('outline'), undefined);
   assert.equal(ui.backLabelOf('outline'), '回到总纲');
   assert.equal(ui.backLabelOf('graph'), undefined, 'the other pages keep their way back');
-  const views = readFileSync('ui/app/page-views.jsx', 'utf8');
-  assert.match(views, /outline: OutlineView/);
-  assert.match(views, /onShowOutline: pageAvailable\(data, 'outline'\) \? \(\) => nav\.navigate\('outline'\)/);
-  assert.match(readFileSync('ui/app/use-learning-navigation.js', 'utf8'), /backLabelOf\(origin\.page\)/);
+
+  const interactive = await loadInteractiveUi(`
+    export { PAGE_VIEWS } from './ui/app/page-views.jsx';
+    export { AppContext } from './ui/app/app-context.js';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { useLearningNavigation } from './ui/app/use-learning-navigation.js';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const hi = interactive.React.createElement;
+  await withBrowserGlobals(async () => {
+    interactive.exports.setUiLanguage('zh');
+    const route = {
+      course: 'Databases', cards: 10, learned: 4, mastered: 1, weak: 0, current: 0, next: null,
+      chapters: [{ deckId: 'd1', title: 'Indexes deck', total: 6, learned: 4, weak: 0, mastered: 1, status: 'current' }],
+    };
+    const makeApp = (data, navigated) => ({
+      data,
+      core: { ...services, call: async () => ({}), act: async () => undefined, notify: noop, refresh: async () => {}, setError: noop, refs: { dataRef: { current: data }, epoch: { current: 1 }, navigation: { current: 0 }, examLocation: { current: null } } },
+      nav: { page: 'library', navigate: (page) => navigated.push(page), show: { task: noop, page: noop }, leaving: (fn) => fn(), referenceRef: { current: null }, leaveReviewRef: { current: null } },
+      lib: { gen: {} },
+      set: { setGen: noop, setModal: noop, setRemovingDeck: noop, setGraphScope: noop, setGraphCanvas: noop, setGraphMode: noop, setBoardView: noop },
+      session: { run: null, entry: null, enterRun: noop, enterMovedRun: noop, onCoachPractice: noop },
+      intents: { startReview: noop, openRun: noop, openDeck: noop, goGenerate: noop, practice: noop, revealHome: 0, setRevealHome: noop },
+      drafts: { openDraft: noop, topUpDraft: noop, createManual: noop },
+      notebooks: { items: [] },
+      tour: { tourStep: null, lineLater: false, sampleBusy: false, sampleForTour: false, openFirstImport: noop, startTour: noop, setRemovingSample: noop, loadSampleAndTour: noop, hideWelcome: noop },
+      dailyPlan: { date: '2026-11-26', tasks: [], refresh: noop },
+      settingsEntry: { openModelSettings: noop, setCourseSettings: noop },
+      learn: { hasTrail: false, trailPage: null, trailLabel: '', returnFromContext: noop, captureContext: () => ({}), rememberContext: noop, openLearningTarget: noop },
+      connection: { binding: { effort: { current: '' } } },
+    });
+
+    // 1. PAGE_VIEWS.outline mounts CourseOutline directly and renders the loaded outline.
+    const outlineNav = [];
+    const outlineData = { root: '/pv', revision: 1, decks: [{ id: 'd1', title: 'Indexes deck', course: 'Databases', cards: [] }], sources: [], drafts: [], runs: [], jobs: [], focus: { mode: 'class', course: 'Databases', courses: [{ name: 'Databases' }], route } };
+    const outlineServices = { ...services, call: async (action) => (action === 'course.outline' ? outline : {}) };
+    const outlineMount = interactive.mount(() => hi(
+      interactive.exports.StudyServicesContext.Provider,
+      { value: outlineServices },
+      hi(interactive.exports.AppContext.Provider, { value: makeApp(outlineData, outlineNav) }, hi(interactive.exports.PAGE_VIEWS.outline)),
+    ));
+    try {
+      await outlineMount.flush();
+      assert.match(outlineMount.text(), /总纲 · Databases/, 'PAGE_VIEWS.outline renders CourseOutline');
+    } finally {
+      outlineMount.unmount();
+    }
+
+    // 2. PAGE_VIEWS.library wires onShowOutline to nav.navigate('outline') when outline is available, and omits it when unavailable.
+    const navCalls = [];
+    const libAvailable = interactive.mount(() => hi(
+      interactive.exports.StudyServicesContext.Provider,
+      { value: services },
+      hi(interactive.exports.AppContext.Provider, { value: makeApp(outlineData, navCalls) }, hi(interactive.exports.PAGE_VIEWS.library)),
+    ));
+    try {
+      const outlineBtn = libAvailable.find((node) => node.type === 'button' && String(node.props?.className || '').includes('outline-entry'));
+      assert.ok(outlineBtn, 'home shows 总纲 button when outline capability is available');
+      await libAvailable.act(() => click(outlineBtn));
+      assert.deepEqual(navCalls, ['outline'], 'clicking 总纲 navigates to outline');
+    } finally {
+      libAvailable.unmount();
+    }
+
+    const disabledData = { ...outlineData, contexts: ['bank', 'study'] };
+    assert.equal(ui.pageAvailable(disabledData, 'outline'), false);
+    const libUnavailable = interactive.mount(() => hi(
+      interactive.exports.StudyServicesContext.Provider,
+      { value: services },
+      hi(interactive.exports.AppContext.Provider, { value: makeApp(disabledData, []) }, hi(interactive.exports.PAGE_VIEWS.library)),
+    ));
+    try {
+      const outlineBtn = libUnavailable.find((node) => node.type === 'button' && String(node.props?.className || '').includes('outline-entry'));
+      assert.equal(outlineBtn, null, 'home hides 总纲 button when outline capability is unavailable');
+    } finally {
+      libUnavailable.unmount();
+    }
+
+    // 3. useLearningNavigation contextLabel uses backLabelOf(origin.page) -> 回到总纲.
+    const navHook = interactive.mountHook(interactive.exports.useLearningNavigation, {
+      core: { call: async () => ({}), setError: noop, notify: noop, refresh: async () => {}, refs: { dataRef: { current: outlineData }, epoch: { current: 1 }, navigation: { current: 0 }, examLocation: { current: null } } },
+      lib: {
+        state: { modal: null, contextTrail: [], practiceStack: [], practiceEnded: null, focusRequest: null, detour: null },
+        set: { setModal: noop, setContextTrail: noop, setPracticeStack: noop, setPracticeEnded: noop, setFocusRequest: noop, setDetour: noop, setBoardStudyRef: noop, setBoardCompose: noop },
+      },
+      nav: { page: 'review', show: {}, navigate: noop, leaving: (fn) => fn(), referenceRef: { current: null }, leaveReviewRef: { current: null } },
+      session: { run: null, entry: null, enterRun: noop, enterMovedRun: noop },
+      rootRef: { current: null },
+    });
+    try {
+      assert.equal(navHook.current.contextLabel({ page: 'outline' }), '回到总纲');
+      assert.equal(navHook.current.contextLabel({ page: 'library' }), '返回学习库');
+      assert.equal(navHook.current.contextLabel({ page: 'graph' }), '返回原位置');
+    } finally {
+      navHook.unmount();
+    }
+  });
 });
 
 test('the home: the folded 课程路线 list is gone, the course area links to the 总纲 instead', () => {
@@ -167,9 +260,20 @@ test('the home: the folded 课程路线 list is gone, the course area links to t
   assert.doesNotMatch(text, /课程路线 ·|从这一章学|接着学/);
   assert.match(text, /课程进度/);
   assert.doesNotMatch(text, /总纲|按资料的章节找题/, 'no tiny link line under the progress bar any more');
-  const desk = readFileSync('ui/study-map/DeskIntro.jsx', 'utf8');
-  assert.match(desk, /<CourseRoute route=\{route\} \/>/);
-  assert.doesNotMatch(desk, /onStartChapter/);
+  const deskHtml = render(h(ui.DeskIntro, {
+    data: { decks: [{ id: 'd1' }], focus: { mode: 'class', course: 'Databases', courses: [{ name: 'Databases' }], route } },
+    home: { interview: false, route, starter: null, headline: 'Databases', plan: { kind: 'path', also: [] }, alternatives: [], otherRuns: [], otherCourse: noop },
+    mastery: { primary: null },
+    start: noop,
+    resume: noop,
+    endRun: noop,
+    onShowOutline: noop,
+  }));
+  const routeBlock = deskHtml.match(/<div class="course-route">[\s\S]*?<\/div>\s*<\/div>/)?.[0] || '';
+  assert.ok(routeBlock.length > 0, 'DeskIntro renders CourseRoute');
+  assert.match(textOf(routeBlock), /课程进度/);
+  assert.doesNotMatch(routeBlock, /<button\b|<details\b/, 'CourseRoute inside DeskIntro exposes no chapter-start buttons or folded list');
+  assert.doesNotMatch(textOf(deskHtml), /课程路线 ·|从这一章学|接着学/);
 });
 
 const buttons = html => [...html.matchAll(/<button\b[^>]*>/g)].map(match => match[0]);
@@ -342,7 +446,6 @@ function withFakeRaf(fn) {
 }
 
 test('outline one-shot targets expire after 15s, delete on clear/expiry, and resolveOutlineDeckFilter clears filter only when targeted (#1224, #1226)', () => {
-  assert.equal(ui.OUTLINE_TARGET_TTL_MS, 15000);
   ui.clearOutlineTarget('/ttl', 'Databases');
 
   ui.keepOutline('/ttl', 'Databases', { target: 'pdf:book#1', leafKey: 'bk:p1' }, 1000);

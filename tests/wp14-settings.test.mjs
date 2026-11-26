@@ -5,13 +5,13 @@
 import test from 'node:test';
 import { warmSettingsPanes } from './helpers/settings-panes.mjs';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { schedule, initialReview, defaults } from '../lib/domain.js';
 import { inApp } from './helpers/fake-app.mjs';
+import { click, loadInteractiveUi, textOf, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
@@ -252,13 +252,135 @@ test('Settings hands the job list and the navigation to the restore block (#746)
   assert.doesNotMatch(settingsPage('zh', { tourActive: true }), /学习库还有任务在运行/);
 });
 
-test('the confirmation is blocked and offers the task when the host refuses anyway (#746)', async () => {
-  // A running job cannot be seeded in a server-rendered page, so the dialog's own props are checked where they are written: `blocked` disables its
-  // confirm, and the error line (the race: a job starts after the preview) offers the same 查看任务.
-  const source = await readFile('ui/settings/BackupSection.jsx', 'utf8');
-  assert.match(source, /busy=\{busy\} blocked=\{blockers\.length > 0\}/);
-  assert.match(source, /errorAction=\{openTask \? \{ label: ui\('查看任务'\), iconEnd: 'arrow-right', onClick: openTask \} : undefined\}/);
-  assert.match(source, /\{blockers\.length > 0 && <Hint>\{ui\(RUNNING_JOB\)\}<\/Hint>\}/, 'the old fixed hint is shown only while a job runs, in the same words as the block');
+test('the confirmation is blocked by running jobs or busy state, shows the running-job hint, and offers 查看任务 when the host refuses anyway (#746)', async () => {
+  const ui = await loadInteractiveUi(`
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { BackupSection } from './ui/settings/BackupSection.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const { StudyServicesContext, BackupSection, setUiLanguage } = ui.exports;
+  const h = ui.React.createElement;
+
+  const backupState = { version: 3, courses: [], sources: [], decks: [], drafts: [], runs: [], attempts: [] };
+  const backupFile = {
+    name: 'study-library-2026-09-01.json',
+    size: 2048,
+    text: async () => JSON.stringify(backupState),
+  };
+
+  await withBrowserGlobals(async () => {
+    setUiLanguage('zh');
+    const openedTasks = [];
+    const restoreCalls = [];
+    let currentJobs = [job('j1', 'running')];
+    let currentBusy = false;
+    let restoreError = null;
+
+    const nav = { show: { task: (id) => openedTasks.push(id) } };
+    const services = () => ({
+      busy: currentBusy,
+      host: {},
+      call: async () => ({ retention: { daily: 7, weekly: 4 }, totalExtraBytes: 0, points: [] }),
+      act: async (action, args, after, opts) => {
+        restoreCalls.push({ action, args });
+        if (restoreError) {
+          if (opts?.rethrow) throw restoreError;
+          return undefined;
+        }
+        await after?.({ ok: true });
+        return { ok: true };
+      },
+      notify: noop,
+    });
+
+    const mounted = ui.mount(() => h(
+      StudyServicesContext.Provider,
+      { value: services() },
+      h(BackupSection, {
+        root: 'D:\\Study\\library',
+        jobs: currentJobs,
+        nav,
+        exportData: noop,
+        onRestored: noop,
+        initialRestorePoints: { retention: { daily: 7, weekly: 4 }, totalExtraBytes: 0, points: [] },
+      }),
+    ));
+
+    const findButtonsByText = (label, root = mounted.tree) => mounted.findAll(
+      (node) => node.type === 'button' && textOf(node).includes(label),
+      root,
+    );
+    const findDialog = () => mounted.find((node) => node.type === 'dialog');
+
+    try {
+      // 1) With a running job, the restore block explains why and its 查看任务 button opens that job
+      assert.match(mounted.text(), /学习库还有任务在运行，现在还不能恢复/);
+      const blockTaskBtn = findButtonsByText('查看任务')[0];
+      assert.ok(blockTaskBtn, 'running-job banner offers 查看任务');
+      await mounted.act(() => click(blockTaskBtn));
+      assert.deepEqual(openedTasks, ['j1']);
+
+      // 2) Choosing a backup file while a job runs disables the preview's destructive button
+      const fileInput = mounted.find((node) => node.type === 'input' && node.props?.type === 'file');
+      assert.ok(fileInput, 'hidden file input is present');
+      await mounted.act(() => fileInput.props.onChange({ target: { files: [backupFile] } }));
+      await mounted.flush(4);
+      const previewConfirm = findButtonsByText('用此备份替换当前学习库')[0];
+      assert.ok(previewConfirm, 'RestorePreview renders after choosing a valid backup');
+      assert.equal(previewConfirm.props.disabled, true, 'preview confirm is disabled while a job runs');
+
+      // 3) Once jobs clear, the learner can open ConfirmDialog; if a job starts while the dialog is open,
+      //    the dialog shows the RUNNING_JOB hint and disables its confirm button
+      currentJobs = [];
+      mounted.rerender();
+      const enabledPreviewConfirm = findButtonsByText('用此备份替换当前学习库')[0];
+      assert.equal(Boolean(enabledPreviewConfirm.props.disabled), false);
+      await mounted.act(() => click(enabledPreviewConfirm));
+      let dialog = findDialog();
+      assert.ok(dialog, 'ConfirmDialog opens when preview confirm is clicked');
+      assert.doesNotMatch(textOf(dialog), /学习库还有任务在运行，现在还不能恢复/, 'quiet state shows no running-job hint inside dialog');
+
+      currentJobs = [job('j9', 'running')];
+      mounted.rerender();
+      dialog = findDialog();
+      assert.match(textOf(dialog), /学习库还有任务在运行，现在还不能恢复/, 'running job shows hint inside open ConfirmDialog');
+      const blockedDialogConfirm = findButtonsByText('用此备份替换当前学习库', dialog)[0];
+      assert.equal(blockedDialogConfirm.props.disabled, true, 'ConfirmDialog confirm button is disabled when blocked');
+      await mounted.act(() => click(blockedDialogConfirm));
+      assert.equal(restoreCalls.length, 0, 'blocked confirm never invokes restore');
+
+      // Also disabled when busy is true
+      currentJobs = [];
+      currentBusy = true;
+      mounted.rerender();
+      dialog = findDialog();
+      assert.equal(findButtonsByText('用此备份替换当前学习库', dialog)[0].props.disabled, true, 'ConfirmDialog confirm button is disabled when busy');
+      currentBusy = false;
+      mounted.rerender();
+
+      // 4) Race: host refuses restore because a job started after the preview; dialog surfaces the error
+      //    and its errorAction 查看任务 opens the blocking task
+      restoreError = new Error('有任务正在运行，无法恢复');
+      dialog = findDialog();
+      await mounted.act(() => click(findButtonsByText('用此备份替换当前学习库', dialog)[0]));
+      await mounted.flush(4);
+      assert.equal(restoreCalls.length, 1);
+
+      currentJobs = [job('j-race', 'running')];
+      mounted.rerender();
+      dialog = findDialog();
+      const errorAlert = mounted.find((node) => node.props?.role === 'alert', dialog);
+      assert.ok(errorAlert, 'ConfirmDialog renders inline error alert after host refusal');
+      assert.match(textOf(errorAlert), /恢复没有完成，当前学习库保持不变：有任务正在运行，无法恢复/);
+      const errorTaskBtn = findButtonsByText('查看任务', errorAlert)[0];
+      assert.ok(errorTaskBtn, 'error line inside ConfirmDialog offers 查看任务');
+      await mounted.act(() => click(errorTaskBtn));
+      assert.deepEqual(openedTasks, ['j1', 'j-race']);
+    } finally {
+      mounted.unmount();
+      setUiLanguage('zh');
+    }
+  });
 });
 test('changing the coach consent or goal reloads the profile outside the single-flight act', async () => {
   const calls = [];

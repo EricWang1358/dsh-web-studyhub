@@ -261,7 +261,6 @@ export default [
     files: ["packages/studyhub-tui/src/**/*.{ts,tsx}"],
     ignores: [
       "packages/studyhub-tui/src/input/hooks.ts",
-      "packages/studyhub-tui/src/components/mouse.tsx",
       "packages/studyhub-tui/src/components/resize.ts",
       "packages/studyhub-tui/src/host/atomic-write.ts",
     ],
@@ -289,10 +288,7 @@ export default [
     },
   },
   {
-    files: [
-      "packages/studyhub-tui/src/input/hooks.ts",
-      "packages/studyhub-tui/src/components/mouse.tsx",
-    ],
+    files: ["packages/studyhub-tui/src/input/hooks.ts"],
     rules: {
       "no-restricted-imports": ["error", {
         paths: [

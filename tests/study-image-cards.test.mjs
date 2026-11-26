@@ -5,12 +5,12 @@
    surface (review, flashcard, mock exam), so these cases cover all of them. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { launchChromium } from '../scripts/qa/browser.mjs';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const require = createRequire(import.meta.url);
 const compile = (contents, options) => build({ stdin: { contents, resolveDir: process.cwd(), loader: 'jsx' }, bundle: true, write: false,
@@ -122,11 +122,67 @@ test('an image that cannot be loaded is replaced by the fallback and the card ke
   assert.ok(requested.length >= 2 && requested.every(url => url.startsWith('https://example.org/')), requested.join());
 });
 
-test('StudyImage lightbox provides zoom toolbar, keyboard +/=/-/0 & Ctrl+Wheel zoom, and restores focus to trigger', { timeout: 60000 }, async t => {
-  const source = readFileSync(new URL('../ui/StudyImage.jsx', import.meta.url), 'utf8');
-  assert.equal((source.match(/<button\b/g) || []).length, 1, 'StudyImage keeps exactly one raw <button>');
-  assert.match(source, /triggerRef/);
+const interactiveImage = await loadInteractiveUi(`
+  export { default as StudyImage } from './ui/StudyImage.jsx';
+  export { default as Dialog } from './ui/components/Dialog.jsx';
+  export { setUiLanguage } from './ui/i18n.js';
+`);
 
+test('StudyImage mounts a single trigger button when closed, opens media lightbox with zoom controls, and restores trigger focus on close', async () => {
+  const { React, mount, exports: { StudyImage, Dialog, setUiLanguage } } = interactiveImage;
+  setUiLanguage('zh');
+  await withBrowserGlobals(async () => {
+    const prevRaf = globalThis.requestAnimationFrame;
+    globalThis.requestAnimationFrame = (cb) => { cb(); return 0; };
+    const mounted = mount(() => React.createElement(StudyImage, {
+      src: 'https://example.org/diagram.png',
+      alt: '图解',
+      interactive: true,
+    }));
+    try {
+      const closedButtons = mounted.findAll((node) => node.type === 'button');
+      assert.equal(closedButtons.length, 1, 'StudyImage renders exactly one trigger <button> when closed');
+      const openBtn = closedButtons[0];
+      assert.equal(openBtn.props.className, 'md-image-open');
+      assert.equal(mounted.find((node) => node.type === Dialog), null, 'no dialog while closed');
+
+      const focusCalls = [];
+      openBtn.ref.current = { isConnected: true, focus: (opts) => focusCalls.push(opts) };
+
+      await mounted.act(() => click(openBtn));
+      const dialogNode = mounted.find((node) => node.type === Dialog);
+      assert.ok(dialogNode, 'clicking the image trigger opens Dialog');
+      assert.equal(dialogNode.props.size, 'media');
+      assert.equal(dialogNode.props.title, '图解');
+
+      const toolbarButton = (label) => mounted.find((node) => node.type === 'button' && mounted.text(node).trim() === label);
+      const resetBtn = () => mounted.find((node) => node.type === 'button' && node.props?.['aria-label'] === '重设缩放');
+      assert.equal(toolbarButton('缩小').props.disabled, true);
+      assert.equal(mounted.text(resetBtn()).trim(), '100%');
+      assert.ok(!toolbarButton('放大').props.disabled);
+
+      await mounted.act(() => click(toolbarButton('放大')));
+      assert.equal(mounted.text(resetBtn()).trim(), '125%');
+      assert.ok(!toolbarButton('缩小').props.disabled);
+      const canvasImg = mounted.find((node) => node.type === 'img' && node.props?.style?.transform);
+      assert.equal(canvasImg.props.style.transform, 'scale(1.25)');
+
+      await mounted.act(() => click(resetBtn()));
+      assert.equal(mounted.text(resetBtn()).trim(), '100%');
+      assert.equal(toolbarButton('缩小').props.disabled, true);
+
+      await mounted.act(() => dialogNode.props.onClose());
+      assert.equal(mounted.find((node) => node.type === Dialog), null, 'onClose closes the lightbox');
+      assert.deepEqual(focusCalls, [{ preventScroll: true }], 'closing restores focus to the trigger button');
+    } finally {
+      if (prevRaf === undefined) delete globalThis.requestAnimationFrame;
+      else globalThis.requestAnimationFrame = prevRaf;
+      mounted.unmount();
+    }
+  });
+});
+
+test('StudyImage lightbox provides zoom toolbar, keyboard +/=/-/0 & Ctrl+Wheel zoom, and restores focus to trigger', { timeout: 60000 }, async t => {
   const bundle = await compile(`
     import React from 'react';
     import { createRoot } from 'react-dom/client';
