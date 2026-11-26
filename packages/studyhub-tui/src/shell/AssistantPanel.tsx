@@ -34,7 +34,13 @@ import { TextInput } from '../components/TextInput.js';
 import { ClickableBox } from '../components/mouse.js';
 import { useModalFooterHints } from '../components/focus.js';
 import { useStreamingBuffer } from '../components/useStreamingBuffer.js';
-import { formatRetellVerdictLines, submitRetellEvaluation } from '../host/ai-dialogue.js';
+import { useAiConversation } from '../components/useAiConversation.js';
+import {
+  describeAiDialogueError,
+  formatRetellVerdictLines,
+  isAiStreamingAvailable,
+  submitRetellEvaluation,
+} from '../host/ai-dialogue.js';
 import { saveTuiPreferences } from '../host/tui-prefs.js';
 import {
   copyTextWithFallback,
@@ -44,7 +50,8 @@ import {
   type GuidedStageId,
 } from '../render/clipboard.js';
 import { displayWidth, truncateDisplay, wrapDisplay } from '../render/cjk.js';
-import { buildContextChips, recordCommandStat, type AssistantChip } from './assistant-chips.js';
+import { buildContextChips, type AssistantChip } from './assistant-chips.js';
+import { recordAssistantCommandUsage } from './assistant-usage.js';
 import {
   buildFallbackPrompt,
   errorReasonWriteIntent,
@@ -216,7 +223,6 @@ export const AssistantPanel = memo(function AssistantPanel({
   const setStage = useTuiStore((s) => s.setAssistantStage);
   const setFullscreen = useTuiStore((s) => s.setAssistantFullscreen);
   const setFocused = useTuiStore((s) => s.setAssistantFocused);
-  const setPreferences = useTuiStore((s) => s.setPreferences);
   const notify = useTuiStore((s) => s.notify);
   const navigate = useTuiStore((s) => s.navigate);
 
@@ -254,7 +260,7 @@ export const AssistantPanel = memo(function AssistantPanel({
   const [reasonPickFor, setReasonPickFor] = useState<ErrorReasonTarget | null>(null);
 
   const stream = useStreamingBuffer();
-  const abortRef = useRef<AbortController | null>(null);
+  const { send: sendAiTurn, abort: abortAiTurn } = useAiConversation(host, lang);
   const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingWorkflowRef = useRef<AssistantWorkflowPlan | null>(null);
   const mountedRef = useRef(true);
@@ -295,13 +301,13 @@ export const AssistantPanel = memo(function AssistantPanel({
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      abortRef.current?.abort();
+      abortAiTurn();
       if (slowTimerRef.current !== null) {
         clearTimeout(slowTimerRef.current);
         slowTimerRef.current = null;
       }
     };
-  }, []);
+  }, [abortAiTurn]);
 
   // Context-aware chips (2–4 items) placed ABOVE input box (#1315 UX Gate #3 & #9)
   const chips = useMemo(
@@ -318,15 +324,10 @@ export const AssistantPanel = memo(function AssistantPanel({
 
   const recordUsage = useCallback(
     (cmdText: string) => {
-      const nextStats = recordCommandStat(useTuiStore.getState().preferences.assistantCommandStats, page, cmdText);
-      setPreferences({ assistantCommandStats: nextStats });
-      const dshHome = (host as { dshHome?: string }).dshHome;
-      void saveTuiPreferences(
-        { assistantCommandStats: nextStats },
-        dshHome ? { env: { DSH_HOME: dshHome } } : undefined,
-      ).catch(() => {});
+      // Guided retell returns before this call: learner prose is an answer, not a command (#1406/#1469).
+      recordAssistantCommandUsage({ host, page, text: cmdText, kind: 'command' });
     },
-    [page, setPreferences, host],
+    [page, host],
   );
 
   const appendTurn = useCallback((turn: Omit<AssistantTurn, 'id' | 'at'>) => {
@@ -903,7 +904,7 @@ export const AssistantPanel = memo(function AssistantPanel({
       }
 
       // 5) Streaming AI generation (offline fallback with [P] Copy Prompt if model unavailable)
-      if (!host.streamComplete || !modelReady) {
+      if (!isAiStreamingAvailable(host) || !modelReady) {
         const fb = {
           reason: t(lang, '当前未配置可用模型。', 'No AI model configured.'),
           altLabel: t(lang, '改为：按 , → 1 配模型，或按 [P] 复制提示词', 'Alternative: Settings (, -> 1) or [P] copy prompt'),
@@ -925,8 +926,6 @@ export const AssistantPanel = memo(function AssistantPanel({
       const isExplainRequest = isPlainExplain || intent.kind === 'explain_card';
       beginExecution(isPlainExplain ? '生成通俗讲解' : isExplainRequest ? '生成讲解' : '生成回答');
       stream.reset();
-      const ctrl = new AbortController();
-      abortRef.current = ctrl;
       const scopedPriorTurns = turnsInScope(sessionMemory.turns, turnScopeRef.current).current.filter(
         (x) => x.id !== userTurn.id,
       );
@@ -950,16 +949,25 @@ export const AssistantPanel = memo(function AssistantPanel({
       }
 
       try {
-        const reply = await host.streamComplete({
+        const outcome = await sendAiTurn({
           system: conversation.system,
           prompt: conversation.fallbackPrompt,
           messages: conversation.messages,
-          signal: ctrl.signal,
           onChunk: (delta) => stream.push(delta),
         });
+        if (!mountedRef.current || outcome.status === 'superseded') return;
+        if (outcome.status === 'aborted') return;
+        if (outcome.status === 'error' || outcome.status === 'unavailable') {
+          appendTurn({
+            role: 'system',
+            stage: tab === 'guided' ? stage : undefined,
+            actionSummary: '执行失败',
+            text: `${outcome.error}（按 [P] 可复制提示词兜底）`,
+          });
+          return;
+        }
         stream.finish();
-        if (!mountedRef.current) return;
-        const cleanReply = (reply || stream.text).trim();
+        const cleanReply = (outcome.text || stream.text).trim();
 
         // #1444: Chat replies NEVER claim "已完成" (no action was executed, only text was generated).
         const actionSummary = isExplainRequest
@@ -1001,12 +1009,13 @@ export const AssistantPanel = memo(function AssistantPanel({
           else if (stage === 'judge') setStage('retell');
         }
       } catch (err) {
-        if (!mountedRef.current || ctrl.signal.aborted) return;
+        // Defensive: the shared transport never throws.
+        if (!mountedRef.current) return;
         appendTurn({
           role: 'system',
           stage: tab === 'guided' ? stage : undefined,
           actionSummary: '执行失败',
-          text: `${err instanceof Error ? err.message : String(err)}（按 [P] 可复制提示词兜底）`,
+          text: `${describeAiDialogueError(err, lang)}（按 [P] 可复制提示词兜底）`,
         });
       } finally {
         stream.reset();
@@ -1034,6 +1043,7 @@ export const AssistantPanel = memo(function AssistantPanel({
       notify,
       runWorkflowSteps,
       applyRunFromAssistant,
+      sendAiTurn,
     ],
   );
 
@@ -1089,7 +1099,7 @@ export const AssistantPanel = memo(function AssistantPanel({
   const escKeepsDock = Boolean(docked);
   const handleEscape = useCallback(() => {
     if (busy) {
-      abortRef.current?.abort();
+      abortAiTurn();
       endExecution();
       notify(t(lang, '已中止当前操作', 'Cancelled'), 'info');
       return;
@@ -1109,7 +1119,7 @@ export const AssistantPanel = memo(function AssistantPanel({
       return;
     }
     onClose();
-  }, [busy, endExecution, notify, lang, inputFocused, fullscreen, setFullscreen, escKeepsDock, setFocused, onClose]);
+  }, [busy, abortAiTurn, endExecution, notify, lang, inputFocused, fullscreen, setFullscreen, escKeepsDock, setFocused, onClose]);
 
   useInput(
     (input, key) => {
