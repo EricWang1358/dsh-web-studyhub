@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { inApp } from './helpers/fake-app.mjs';
+import { click, loadInteractiveUi } from './helpers/react-harness.mjs';
 
 const h = React.createElement;
 const noop = () => {};
@@ -118,14 +118,53 @@ test('AppearanceSection & AppearanceTransfer add plain-language hints, heading-f
   assert.doesNotMatch(words(enSystem).replace(/中文/g, ''), han);
   assert.doesNotMatch(words(enNonSystem).replace(/中文/g, ''), han);
 
-  const transferSource = await readFile(new URL('../ui/settings/AppearanceTransfer.jsx', import.meta.url), 'utf8');
-  assert.doesNotMatch(transferSource, /浏览器不让写剪贴板/);
-  assert.match(transferSource, /没能写入剪贴板，可以改用「下载为文件」。/);
-  m.setUiLanguage('en');
+  const transferUi = await loadInteractiveUi(`
+    export { default as AppearanceTransfer } from './ui/settings/AppearanceTransfer.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const attemptedWrites = [];
+  const prevNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    writable: true,
+    value: {
+      clipboard: {
+        writeText: async (text) => {
+          attemptedWrites.push(text);
+          throw new Error('clipboard denied');
+        },
+      },
+    },
+  });
   try {
-    assert.doesNotMatch(m.ui('没能写入剪贴板，可以改用「下载为文件」。'), han);
+    for (const [language, buttonLabel] of [['zh', '复制外观设置'], ['en', 'Copy appearance settings']]) {
+      transferUi.exports.setUiLanguage(language);
+      const mounted = transferUi.mount(() => transferUi.React.createElement(
+        transferUi.exports.AppearanceTransfer,
+        { appearance: { ...baseAppearance, language } },
+      ));
+      try {
+        const copyBtn = mounted.find((node) => node.type === 'button' && mounted.text(node).includes(buttonLabel));
+        assert.ok(copyBtn, `copy button renders in ${language}`);
+        await mounted.act(() => click(copyBtn));
+        await mounted.flush(5);
+        const rendered = mounted.text();
+        if (language === 'zh') {
+          assert.match(rendered, /没能写入剪贴板，可以改用「下载为文件」。/);
+          assert.doesNotMatch(rendered, /浏览器不让写剪贴板/);
+        } else {
+          assert.match(rendered, /Could not write to the clipboard\. Try Save as file instead\./);
+          assert.doesNotMatch(rendered, han);
+        }
+      } finally {
+        mounted.unmount();
+      }
+    }
+    assert.deepEqual(attemptedWrites, ['{"studyhubAppearance":1}', '{"studyhubAppearance":1}']);
   } finally {
-    m.setUiLanguage('zh');
+    transferUi.exports.setUiLanguage('zh');
+    if (prevNavigator) Object.defineProperty(globalThis, 'navigator', prevNavigator);
+    else delete globalThis.navigator;
   }
 });
 

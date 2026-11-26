@@ -10,15 +10,10 @@ import { loadUi } from './helpers/ui-module.mjs';
 
 const uiMod = await loadUi(`
   export { useSocraticInlineState } from './ui/review/LazySocraticInline.jsx';
+  export { isExcludedElement } from './ui/review/term-marking-dom.js';
 `);
 
 test('#1436 Item 1: useSocraticInlineState derives open synchronously from voiceScopeKey so switching cards collapses immediately without effect delay', () => {
-  // Minimal deterministic React hook harness using React.useState/useCallback via SSR + state replay
-  // Actually test the exported hook source contract + live state transition via a tiny mock dispatcher!
-  const src = readFileSync(new URL('../ui/review/LazySocraticInline.jsx', import.meta.url), 'utf8');
-  assert.match(src, /voiceScopeKey/, 'useSocraticInlineState must key open state by voiceScopeKey(run)');
-  assert.doesNotMatch(src, /const \[open,\s*setOpen\]\s*=\s*React\.useState\(false\)/, 'must not store unkeyed boolean open state');
-
   // Behavioral simulation: mount hook across renders with run1 -> open -> run2 (same component instance, NO effect run!)
   const states = [];
   let cursor = 0;
@@ -90,7 +85,6 @@ test('#1436 Item 1: useSocraticInlineState derives open synchronously from voice
 test('#1436 Item 3: source dock + Socratic inline drawer collapses to single column and excludes Socratic elements from term-marking', () => {
   const sessionCss = readFileSync(new URL('../ui/review/session.css', import.meta.url), 'utf8');
   const socraticCss = readFileSync(new URL('../ui/review/socratic-inline.css', import.meta.url), 'utf8');
-  const termDom = readFileSync(new URL('../ui/review/term-marking-dom.js', import.meta.url), 'utf8');
 
   // 1) Paired override in session.css + socratic-inline.css prevents empty 2nd column under .review-page.has-source
   assert.match(
@@ -104,9 +98,41 @@ test('#1436 Item 3: source dock + Socratic inline drawer collapses to single col
     'socratic-inline.css must place .socratic-inline-drawer in column 1 when .review-page.has-source is active',
   );
 
-  // 2) Term-marking excludes .socratic-inline-drawer and .socratic-nudge
-  assert.match(termDom, /\.socratic-inline-drawer/, 'EXCLUDED_SELECTOR must exclude .socratic-inline-drawer');
-  assert.match(termDom, /\.socratic-nudge/, 'EXCLUDED_SELECTOR must exclude .socratic-nudge');
+  // 2) Term-marking excludes elements inside .socratic-inline-drawer and .socratic-nudge, while allowing normal content
+  const makeEl = (tagName, classNames = [], parent = null) => {
+    const classes = new Set(classNames);
+    const el = {
+      tagName: tagName.toUpperCase(),
+      parentElement: parent,
+      contains(target) {
+        for (let cur = target; cur; cur = cur.parentElement) {
+          if (cur === el) return true;
+        }
+        return false;
+      },
+      matches(selector) {
+        return selector.split(',').some((raw) => {
+          const part = raw.trim();
+          if (part.startsWith('.')) return classes.has(part.slice(1));
+          return part.toUpperCase() === el.tagName;
+        });
+      },
+    };
+    return el;
+  };
+  const body = makeEl('div', ['review-body']);
+  const drawer = makeEl('aside', ['socratic-inline-drawer'], body);
+  const drawerPrompt = makeEl('p', ['socratic-message'], drawer);
+  const nudge = makeEl('div', ['socratic-nudge'], body);
+  const nudgeText = makeEl('span', ['socratic-nudge__text'], nudge);
+  const questionCard = makeEl('div', ['question-card'], body);
+  const questionStem = makeEl('p', ['question'], questionCard);
+
+  assert.equal(uiMod.isExcludedElement(drawer, body), true, '.socratic-inline-drawer itself is excluded from term-marking');
+  assert.equal(uiMod.isExcludedElement(drawerPrompt, body), true, 'descendants of .socratic-inline-drawer are excluded from term-marking');
+  assert.equal(uiMod.isExcludedElement(nudge, body), true, '.socratic-nudge itself is excluded from term-marking');
+  assert.equal(uiMod.isExcludedElement(nudgeText, body), true, 'descendants of .socratic-nudge are excluded from term-marking');
+  assert.equal(uiMod.isExcludedElement(questionStem, body), false, 'normal question content remains eligible for term-marking');
 });
 
 test('#1448 useSocraticInlineState: leaving a question closes its drawer for good, so A -> B -> A does not re-open it (and re-request) by itself', () => {

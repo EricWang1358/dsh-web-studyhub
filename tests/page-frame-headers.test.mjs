@@ -6,6 +6,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { readAppSource } from './helpers/app-source.mjs';
+import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 /* D2 (2.5.9) + #779: 历史学习流记录, 课堂实录 and 音频转录 sit in the same page frame as 资料: the shared PageHeader carries each
    page's only <h1>, its actions are shared Buttons, and the content starts at the page's own left edge. */
@@ -78,10 +79,58 @@ test('the archive list uses shared Buttons and keeps zero hand-rolled .primary b
 });
 
 test('the portal header is the shared PageHeader and keeps its heading ref for scrolling', async () => {
-  const source = await readFile('ui/WorkflowPortal.jsx', 'utf8');
-  assert.match(source, /<PageHeader[^>]*ref=\{headingRef\}/, 'headingRef stays on the header');
-  assert.doesNotMatch(source, /<header className="wf-heading"/, 'no hand-rolled heading is left');
-  assert.doesNotMatch(source, /<h1>/, 'no bare h1 is left');
+  const interactive = await loadInteractiveUi(`
+    export { default as WorkflowPortal } from './ui/WorkflowPortal.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  interactive.exports.setUiLanguage('zh');
+  const sampleSession = {
+    id: 'ws1',
+    topic: 'Operating Systems',
+    currentStepId: 'st1',
+    template: {
+      title: 'Study Flow',
+      steps: [{ id: 'st1', kind: 'lesson', title: 'Step 1', instructions: '', content: 'Intro' }],
+    },
+    records: { st1: { outcome: 'done', content: 'Intro', output: '' } },
+    history: [],
+  };
+  const sampleResources = { readings: [], sources: [], cardCount: 0 };
+  const services = { call: async () => ({ session: sampleSession, resources: sampleResources }) };
+
+  await withBrowserGlobals(async () => {
+    const mounted = interactive.mount(() => interactive.React.createElement(
+      interactive.exports.StudyServicesContext.Provider,
+      { value: services },
+      interactive.React.createElement(interactive.exports.WorkflowPortal, {
+        id: 'ws1',
+        onBack: noop,
+        onOpenRun: noop,
+        initialResult: { session: sampleSession, resources: sampleResources },
+      }),
+    ));
+    try {
+      const headers = mounted.findAll((n) => n.type === 'header');
+      const pageHeaders = headers.filter((n) => /\bsh-page-header\b/.test(String(n.props?.className || '')));
+      assert.equal(pageHeaders.length, 1, 'portal renders a single .sh-page-header');
+      const bareWfHeaders = headers.filter((n) => /\bwf-heading\b/.test(String(n.props?.className || '')) && !/\bsh-page-header\b/.test(String(n.props?.className || '')));
+      assert.equal(bareWfHeaders.length, 0, 'no bare hand-rolled .wf-heading header without .sh-page-header is left');
+      const header = pageHeaders[0];
+
+      const h1s = mounted.findAll((n) => n.type === 'h1');
+      assert.equal(h1s.length, 1, 'portal renders exactly one h1');
+      assert.match(String(h1s[0].props?.className || ''), /\bsh-page-header__title\b/, 'the h1 uses PageHeader title styling');
+      assert.equal(mounted.find((n) => n.type === 'h1', header), h1s[0], 'the only h1 lives inside .sh-page-header');
+
+      assert.ok(header.ref && typeof header.ref === 'object', 'headingRef is bound to the rendered PageHeader <header>');
+      assert.equal(header.ref.current?.tagName, 'HEADER', 'headingRef attaches to the rendered <header> DOM node');
+      assert.equal(typeof header.ref.current?.scrollIntoView, 'function', 'headingRef target supports scrolling');
+      assert.equal(typeof header.ref.current?.focus, 'function', 'headingRef target is focusable');
+    } finally {
+      mounted.unmount();
+    }
+  });
 });
 
 test('no page below the frame hand-rolls its heading any more', async () => {
