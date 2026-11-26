@@ -45,5 +45,16 @@ export {
   tuiPreferencesPath,
   type TuiPrefsLocation,
 } from './tui-prefs.js';
+export {
+  TUI_USAGE_SCHEMA_VERSION,
+  loadTuiUsage,
+  loadTuiUsageSafe,
+  parseTuiUsage,
+  saveTuiUsage,
+  tuiUsagePath,
+  type LoadTuiUsageResult,
+  type TuiUsageData,
+  type TuiUsageLocation,
+} from './tui-usage.js';
 export * from './sample-actions.js';
 export { loadDesktopDeps, resolveDesktopRoot, type CompleteFn, type CompleteExecution, type ProviderDiscovery, type ProbeResult } from './desktop-deps.js';

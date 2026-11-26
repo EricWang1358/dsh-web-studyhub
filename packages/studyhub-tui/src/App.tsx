@@ -12,6 +12,7 @@ import { useTheme } from './theme/tokens.js';
 import { nextThemeId } from './theme/index.js';
 import { AppShell } from './shell/AppShell.js';
 import { createDefaultShellActions, type ShellActions } from './shell/actions.js';
+import { loadTuiUsage, type TuiUsageData } from './host/tui-usage.js';
 
 // Lazy-load all views & voice pack modal for fast cold start, tiny App.mjs (~51 KB), and lower idle RSS.
 const LibraryView = lazy(() => import('./views/library/LibraryView.js').then((m) => ({ default: m.LibraryView })));
@@ -242,10 +243,16 @@ export function StudyHubTuiApp({
 
     const boot = async () => {
       try {
-        const savedPrefs = await loadTuiPreferences({ env: { DSH_HOME: host.dshHome } });
+        const location = { env: { DSH_HOME: host.dshHome } };
+        const [savedPrefs, savedUsage] = await Promise.all([
+          loadTuiPreferences(location),
+          loadTuiUsage(location).catch((): TuiUsageData => ({})),
+        ]);
         if (!alive) return;
         const merged = {
           ...savedPrefs,
+          ...(savedUsage.assistantChipStats ? { assistantCommandStats: savedUsage.assistantChipStats } : {}),
+          ...(savedUsage.lastPracticeContext ? { lastPracticeContext: savedUsage.lastPracticeContext } : {}),
           ...(initialTheme ? { theme: initialTheme } : {}),
           ...(initialLanguage ? { language: initialLanguage } : {}),
           ...(initialAsciiMode !== undefined ? { asciiMode: initialAsciiMode } : {}),

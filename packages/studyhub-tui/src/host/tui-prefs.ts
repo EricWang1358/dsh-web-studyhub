@@ -110,16 +110,14 @@ function parseTuiPreferencesObject(source: Record<string, unknown>): TuiPreferen
     if (runId && cardId) {
       const deckId = typeof raw.deckId === 'string' && raw.deckId.trim() ? raw.deckId.trim().slice(0, 128) : undefined;
       const total = typeof raw.total === 'number' && Number.isSafeInteger(raw.total) && raw.total > 0 ? raw.total : undefined;
-      const promptPreview =
-        typeof raw.promptPreview === 'string' && raw.promptPreview.trim() ? raw.promptPreview.trim().slice(0, 120) : undefined;
       const savedAt = typeof raw.savedAt === 'number' && Number.isFinite(raw.savedAt) && raw.savedAt > 0 ? raw.savedAt : Date.now();
+      // #1354 D11: never retain or persist `promptPreview` (question stem text) inside `tui.json`.
       lastPracticeContext = {
         runId,
         cardId,
         ...(deckId ? { deckId } : {}),
         cardIndex,
         ...(total ? { total } : {}),
-        ...(promptPreview ? { promptPreview } : {}),
         savedAt,
       };
     }
@@ -141,7 +139,8 @@ function parseTuiPreferencesObject(source: Record<string, unknown>): TuiPreferen
       for (const [cmd, rawStat] of Object.entries(rawMap as Record<string, unknown>)) {
         if (cmdCount >= 20) break;
         const cleanCmd = cmd.trim().slice(0, 60);
-        if (!cleanCmd || !rawStat || typeof rawStat !== 'object') continue;
+        // #1354 D11: never persist free-text user input in `tui.json`; only canonical `chip:<id>` tokens may pass.
+        if (!/^chip:[a-z0-9-]+$/.test(cleanCmd) || !rawStat || typeof rawStat !== 'object') continue;
         const rec = rawStat as Record<string, unknown>;
         const count = typeof rec.count === 'number' && Number.isFinite(rec.count) && rec.count > 0 ? Math.floor(rec.count) : 0;
         const lastUsedAt =

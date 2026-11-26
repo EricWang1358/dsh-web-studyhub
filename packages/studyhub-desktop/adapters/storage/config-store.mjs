@@ -53,6 +53,12 @@ async function renameWithRetry(fromPath, toPath) {
   throw lastError;
 }
 
+const SUPPORTED_DESKTOP_CONFIG_VERSION = 1;
+
+function stripUtf8Bom(text) {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
 async function atomicWriteJson(filePath, data) {
   const target = resolve(filePath);
   await mkdir(resolve(target, '..'), { recursive: true });
@@ -84,6 +90,14 @@ function unreadableConfigError(configPath, cause) {
   );
 }
 
+function unsupportedVersionConfigError(configPath, version) {
+  const detail = `Unsupported desktop.json schema version ${String(version)} (supported: ${SUPPORTED_DESKTOP_CONFIG_VERSION})`;
+  return Object.assign(
+    new Error(`${detail}; refusing to overwrite`),
+    { code: 'config-unsupported-version', details: { configPath, reason: detail, version } },
+  );
+}
+
 function backupFailedError(configPath, cause) {
   const detail = reasonOf(cause);
   return Object.assign(
@@ -95,6 +109,7 @@ function backupFailedError(configPath, cause) {
 /**
  * What desktop.json is right now, from one fresh read. Only a parse failure (or a root that is not an object) is `corrupt`:
  * any other read error (a locked file, a permission error) says nothing about its contents and is `unreadable`.
+ * An unknown/newer schema `version` is `unsupported-version` ([C38]) and must never be overwritten.
  */
 async function inspectStoredConfig(configPath) {
   let raw;
@@ -102,8 +117,11 @@ async function inspectStoredConfig(configPath) {
     return error?.code === 'ENOENT' ? { kind: 'missing' } : { kind: 'unreadable', error };
   }
   try {
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(stripUtf8Bom(raw));
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('desktop.json root must be a JSON object');
+    if (Object.hasOwn(parsed, 'version') && parsed.version !== undefined && parsed.version !== SUPPORTED_DESKTOP_CONFIG_VERSION) {
+      return { kind: 'unsupported-version', version: parsed.version };
+    }
     return { kind: 'ok', config: normalizeDesktopConfig(parsed) };
   } catch (error) {
     return { kind: 'corrupt', error };
@@ -113,7 +131,16 @@ async function inspectStoredConfig(configPath) {
 async function readStoredConfigWithStatus(configPath) {
   const found = await inspectStoredConfig(configPath);
   if (found.kind === 'ok') return { config: found.config, configProblem: null };
-  const configProblem = found.kind === 'corrupt' ? { code: 'config-corrupt', path: configPath, reason: reasonOf(found.error) } : null;
+  let configProblem = null;
+  if (found.kind === 'corrupt') {
+    configProblem = { code: 'config-corrupt', path: configPath, reason: reasonOf(found.error) };
+  } else if (found.kind === 'unsupported-version') {
+    configProblem = {
+      code: 'config-unsupported-version',
+      path: configPath,
+      reason: `Unsupported desktop.json schema version ${String(found.version)} (supported: ${SUPPORTED_DESKTOP_CONFIG_VERSION})`,
+    };
+  }
   return { config: defaultDesktopConfig(), configProblem };
 }
 
@@ -122,6 +149,7 @@ async function readStoredConfig(configPath, { strictIo = false } = {}) {
   if (found.kind === 'ok') return found.config;
   if (strictIo && found.kind === 'corrupt') throw corruptConfigError(configPath, found.error);
   if (strictIo && found.kind === 'unreadable') throw unreadableConfigError(configPath, found.error);
+  if (strictIo && found.kind === 'unsupported-version') throw unsupportedVersionConfigError(configPath, found.version);
   return defaultDesktopConfig();
 }
 
@@ -185,11 +213,12 @@ async function backupCorruptConfig(configPath) {
 
 /**
  * Back up a corrupted desktop.json and reset it to clean defaults. The file is read again first: one that reads fine (or is absent) is left
- * alone, a read error is no proof of corruption and stops here, and a backup that fails stops the reset.
+ * alone, a read error or newer schema version stops here, and a backup that fails stops the reset.
  */
 async function recoverStoredConfig(configPath) {
   const found = await inspectStoredConfig(configPath);
   if (found.kind === 'unreadable') throw unreadableConfigError(configPath, found.error);
+  if (found.kind === 'unsupported-version') throw unsupportedVersionConfigError(configPath, found.version);
   if (found.kind !== 'corrupt') return { recovered: false, reason: found.kind === 'ok' ? 'readable' : 'missing', backupPath: '' };
   const backupPath = await backupCorruptConfig(configPath);
   const clean = defaultDesktopConfig();

@@ -34,12 +34,191 @@ export interface BuildContextChipsInput {
   lang?: UiLanguage;
 }
 
+export interface AssistantChipCatalogEntry {
+  id: string;
+  labelZh: string;
+  labelEn: string;
+  command: string;
+  kind: AssistantChip['kind'];
+  pages: readonly PageId[] | 'default';
+  wrongCardOnly?: boolean;
+  normalCardOnly?: boolean;
+}
+
+/**
+ * Single canonical registry of recommended assistant chips (#1354 D11 / [C24]).
+ * Usage persistence stores ONLY these stable `id` values — never raw user-typed text.
+ */
+export const ASSISTANT_CHIP_CATALOG: readonly AssistantChipCatalogEntry[] = Object.freeze([
+  // Review (wrong card)
+  { id: 'chip:plain-explain', labelZh: '通俗讲解', labelEn: 'Plain explain', command: '讲解新增通俗讲解', kind: 'command', pages: ['review'] },
+  // #1439: the chip names no reason; the panel lists the six reasons for the learner to pick.
+  { id: 'chip:mark-wrong', labelZh: '标记错因', labelEn: 'Mark reason', command: '标记错因', kind: 'command', pages: ['review'], wrongCardOnly: true },
+  { id: 'chip:guided-retell', labelZh: '带学复述', labelEn: 'Guided & Retell', command: '进入带学', kind: 'guided', pages: ['review'], wrongCardOnly: true },
+  { id: 'chip:guided-help', labelZh: '苏格拉底带学', labelEn: 'Guided hint', command: '进入带学', kind: 'guided', pages: ['review'], normalCardOnly: true },
+  { id: 'chip:stats', labelZh: '查看统计', labelEn: 'Today stats', command: '查看统计', kind: 'command', pages: ['review'] },
+  { id: 'chip:goto-source', labelZh: '看资料原文', labelEn: 'Open source', command: '跳到资料库', kind: 'command', pages: ['review'], normalCardOnly: true },
+  // Wrongbook
+  { id: 'chip:export-wb', labelZh: '导出本课错题', labelEn: 'Export mistakes', command: '导出本课错题 Markdown', kind: 'command', pages: ['wrongbook'] },
+  { id: 'chip:wb-stats', labelZh: '查看统计', labelEn: 'View stats', command: '查看统计', kind: 'command', pages: ['wrongbook'] },
+  { id: 'chip:wb-review', labelZh: '开始刷题', labelEn: 'Go review', command: '跳到刷题', kind: 'command', pages: ['wrongbook'] },
+  { id: 'chip:wb-guided', labelZh: '进入带学', labelEn: 'Guided study', command: '进入带学', kind: 'guided', pages: ['wrongbook'] },
+  // Sources
+  { id: 'chip:src-gen', labelZh: '去创建题组', labelEn: 'Go generate', command: '跳到创建题组', kind: 'command', pages: ['sources'] },
+  { id: 'chip:src-stats', labelZh: '查看统计', labelEn: 'View stats', command: '查看统计', kind: 'command', pages: ['sources'] },
+  { id: 'chip:src-wb', labelZh: '打开错题本', labelEn: 'Mistakes', command: '打开错题本', kind: 'command', pages: ['sources'] },
+  { id: 'chip:src-guided', labelZh: '进入带学', labelEn: 'Guided study', command: '进入带学', kind: 'guided', pages: ['sources'] },
+  // Default / other pages
+  { id: 'chip:wrongbook', labelZh: '打开错题本', labelEn: 'Mistakes', command: '打开错题本', kind: 'command', pages: 'default' },
+  { id: 'chip:sources', labelZh: '打开资料库', labelEn: 'Sources', command: '跳到资料库', kind: 'command', pages: 'default' },
+  { id: 'chip:guided', labelZh: '进入带学', labelEn: 'Guided study', command: '进入带学', kind: 'guided', pages: 'default' },
+]);
+
+const CHIP_BY_ID = new Map<string, AssistantChipCatalogEntry>(
+  ASSISTANT_CHIP_CATALOG.map((entry) => [entry.id, entry]),
+);
+
+export const KNOWN_ASSISTANT_CHIP_IDS: ReadonlySet<string> = new Set<string>(CHIP_BY_ID.keys());
+
+export function isKnownAssistantChipId(value: string): boolean {
+  return KNOWN_ASSISTANT_CHIP_IDS.has(value);
+}
+
 /** Normalize a user instruction key for frequency counting (trimmed, collapsed spaces, capped). */
 export function normalizeCommandKey(raw: string): string {
   return String(raw ?? '')
     .trim()
     .replace(/\s+/g, ' ')
     .slice(0, 60);
+}
+
+/**
+ * Resolve a recommended chip ID from either a chip ID or a matching chip command (#1354 D11).
+ * Returns `null` for arbitrary free-text user input so raw user prose is never persisted to disk.
+ */
+export function resolveAssistantChipId(rawInput: string, page?: PageId): string | null {
+  const trimmed = String(rawInput ?? '').trim();
+  if (!trimmed) return null;
+  if (KNOWN_ASSISTANT_CHIP_IDS.has(trimmed)) return trimmed;
+
+  const normCmd = normalizeCommandKey(trimmed);
+  if (!normCmd) return null;
+
+  // Prefer entries scoped to the current page first.
+  if (page) {
+    for (const entry of ASSISTANT_CHIP_CATALOG) {
+      if (Array.isArray(entry.pages) && entry.pages.includes(page) && normalizeCommandKey(entry.command) === normCmd) {
+        return entry.id;
+      }
+    }
+    for (const entry of ASSISTANT_CHIP_CATALOG) {
+      if (entry.pages === 'default' && normalizeCommandKey(entry.command) === normCmd) {
+        return entry.id;
+      }
+    }
+  }
+
+  for (const entry of ASSISTANT_CHIP_CATALOG) {
+    if (normalizeCommandKey(entry.command) === normCmd) {
+      return entry.id;
+    }
+  }
+  return null;
+}
+
+/**
+ * Filter a stats map down to ONLY registered chip IDs suitable for disk persistence (#1354 D11).
+ * Any arbitrary user-typed free text is dropped completely.
+ */
+export function extractPersistableChipStats(
+  statsByPage: Record<string, Record<string, AssistantCommandStat>> | undefined,
+): Record<string, Record<string, AssistantCommandStat>> | undefined {
+  if (!statsByPage || typeof statsByPage !== 'object' || Array.isArray(statsByPage)) {
+    return undefined;
+  }
+  const out: Record<string, Record<string, AssistantCommandStat>> = {};
+  let pageCount = 0;
+  for (const [rawPage, rawMap] of Object.entries(statsByPage)) {
+    if (pageCount >= 16) break;
+    const pageKey = rawPage.trim().slice(0, 32);
+    if (!pageKey || !rawMap || typeof rawMap !== 'object' || Array.isArray(rawMap)) continue;
+    const cleanMap: Record<string, AssistantCommandStat> = {};
+    for (const [rawKey, rawStat] of Object.entries(rawMap)) {
+      if (!rawStat || typeof rawStat !== 'object') continue;
+      const chipId = resolveAssistantChipId(rawKey, pageKey as PageId);
+      if (!chipId) continue;
+      const count =
+        typeof rawStat.count === 'number' && Number.isFinite(rawStat.count) && rawStat.count > 0
+          ? Math.floor(rawStat.count)
+          : 0;
+      const lastUsedAt =
+        typeof rawStat.lastUsedAt === 'number' && Number.isFinite(rawStat.lastUsedAt) && rawStat.lastUsedAt > 0
+          ? Math.floor(rawStat.lastUsedAt)
+          : 0;
+      if (count <= 0) continue;
+      const prev = cleanMap[chipId];
+      cleanMap[chipId] = prev
+        ? { count: prev.count + count, lastUsedAt: Math.max(prev.lastUsedAt, lastUsedAt) }
+        : { count, lastUsedAt };
+    }
+    const entries = Object.entries(cleanMap)
+      .sort(
+        (a, b) =>
+          Number(b[1].count >= PROMOTION_THRESHOLD) - Number(a[1].count >= PROMOTION_THRESHOLD) ||
+          b[1].lastUsedAt - a[1].lastUsedAt,
+      )
+      .slice(0, 20);
+    if (entries.length > 0) {
+      out[pageKey] = Object.fromEntries(entries);
+      pageCount += 1;
+    }
+  }
+  return pageCount > 0 ? out : undefined;
+}
+
+function chipFromCatalog(entry: AssistantChipCatalogEntry, lang: UiLanguage, page?: PageId): AssistantChip {
+  const labelEn = entry.id === 'chip:stats' && page && page !== 'review' ? 'View stats' : entry.labelEn;
+  return {
+    id: entry.id,
+    label: lang === 'en' ? labelEn : entry.labelZh,
+    command: entry.command,
+    kind: entry.kind,
+  };
+}
+
+function defaultChipsForContext(page: PageId, card: AssistantCardContext | null | undefined, lang: UiLanguage): AssistantChip[] {
+  if (page === 'review') {
+    const isWrong = Boolean(card?.isWrong);
+    const ids = isWrong
+      ? ['chip:plain-explain', 'chip:mark-wrong', 'chip:guided-retell', 'chip:stats']
+      : ['chip:guided-help', 'chip:plain-explain', 'chip:stats', 'chip:goto-source'];
+    return ids.map((id) => chipFromCatalog(CHIP_BY_ID.get(id)!, lang, page));
+  }
+  if (page === 'wrongbook') {
+    return ['chip:export-wb', 'chip:wb-stats', 'chip:wb-review', 'chip:wb-guided'].map((id) =>
+      chipFromCatalog(CHIP_BY_ID.get(id)!, lang, page),
+    );
+  }
+  if (page === 'sources') {
+    return ['chip:src-gen', 'chip:src-stats', 'chip:src-wb', 'chip:src-guided'].map((id) =>
+      chipFromCatalog(CHIP_BY_ID.get(id)!, lang, page),
+    );
+  }
+  return ['chip:stats', 'chip:wrongbook', 'chip:sources', 'chip:guided'].map((id) =>
+    chipFromCatalog(CHIP_BY_ID.get(id)!, lang, page),
+  );
+}
+
+function statForChip(pageStats: Record<string, AssistantCommandStat>, chip: AssistantChip): AssistantCommandStat | undefined {
+  const byId = pageStats[chip.id];
+  const byCmd = pageStats[normalizeCommandKey(chip.command)];
+  if (byId && byCmd) {
+    return {
+      count: Math.max(byId.count, byCmd.count),
+      lastUsedAt: Math.max(byId.lastUsedAt, byCmd.lastUsedAt),
+    };
+  }
+  return byId ?? byCmd;
 }
 
 /**
@@ -113,68 +292,39 @@ export function buildContextChips(input: BuildContextChipsInput): AssistantChip[
     .filter(([, st]) => st && st.count >= PROMOTION_THRESHOLD)
     .sort((a, b) => b[1].lastUsedAt - a[1].lastUsedAt);
 
-  for (const [cmd] of promotedEntries) {
-    pushUnique({
-      id: `chip:promoted:${cmd}`,
-      label: cmd.length > 16 ? `${cmd.slice(0, 15)}…` : cmd,
-      command: cmd,
-      kind: 'command',
-      promoted: true,
-      recent: true,
-    });
+  for (const [statKey] of promotedEntries) {
+    const catalogEntry = CHIP_BY_ID.get(statKey);
+    if (catalogEntry) {
+      const chip = chipFromCatalog(catalogEntry, lang, page);
+      pushUnique({
+        ...chip,
+        promoted: true,
+        recent: true,
+      });
+    } else {
+      pushUnique({
+        id: `chip:promoted:${statKey}`,
+        label: statKey.length > 16 ? `${statKey.slice(0, 15)}…` : statKey,
+        command: statKey,
+        kind: 'command',
+        promoted: true,
+        recent: true,
+      });
+    }
   }
 
   // 3) Context-matched base chips
-  const defaults: AssistantChip[] = [];
-  if (page === 'review') {
-    if (card?.isWrong) {
-      defaults.push(
-        { id: 'chip:plain-explain', label: lang === 'en' ? 'Plain explain' : '通俗讲解', command: '讲解新增通俗讲解', kind: 'command' },
-        // #1439: the chip names no reason; the panel lists the six reasons for the learner to pick.
-        { id: 'chip:mark-wrong', label: lang === 'en' ? 'Mark reason' : '标记错因', command: '标记错因', kind: 'command' },
-        { id: 'chip:guided-retell', label: lang === 'en' ? 'Guided & Retell' : '带学复述', command: '进入带学', kind: 'guided' },
-        { id: 'chip:stats', label: lang === 'en' ? 'Today stats' : '查看统计', command: '查看统计', kind: 'command' },
-      );
-    } else {
-      defaults.push(
-        { id: 'chip:guided-help', label: lang === 'en' ? 'Guided hint' : '苏格拉底带学', command: '进入带学', kind: 'guided' },
-        { id: 'chip:plain-explain', label: lang === 'en' ? 'Plain explain' : '通俗讲解', command: '讲解新增通俗讲解', kind: 'command' },
-        { id: 'chip:stats', label: lang === 'en' ? 'Today stats' : '查看统计', command: '查看统计', kind: 'command' },
-        { id: 'chip:goto-source', label: lang === 'en' ? 'Open source' : '看资料原文', command: '跳到资料库', kind: 'command' },
-      );
-    }
-  } else if (page === 'wrongbook') {
-    defaults.push(
-      { id: 'chip:export-wb', label: lang === 'en' ? 'Export mistakes' : '导出本课错题', command: '导出本课错题 Markdown', kind: 'command' },
-      { id: 'chip:wb-stats', label: lang === 'en' ? 'View stats' : '查看统计', command: '查看统计', kind: 'command' },
-      { id: 'chip:wb-review', label: lang === 'en' ? 'Go review' : '开始刷题', command: '跳到刷题', kind: 'command' },
-      { id: 'chip:wb-guided', label: lang === 'en' ? 'Guided study' : '进入带学', command: '进入带学', kind: 'guided' },
-    );
-  } else if (page === 'sources') {
-    defaults.push(
-      { id: 'chip:src-gen', label: lang === 'en' ? 'Go generate' : '去创建题组', command: '跳到创建题组', kind: 'command' },
-      { id: 'chip:src-stats', label: lang === 'en' ? 'View stats' : '查看统计', command: '查看统计', kind: 'command' },
-      { id: 'chip:src-wb', label: lang === 'en' ? 'Mistakes' : '打开错题本', command: '打开错题本', kind: 'command' },
-      { id: 'chip:src-guided', label: lang === 'en' ? 'Guided study' : '进入带学', command: '进入带学', kind: 'guided' },
-    );
-  } else {
-    defaults.push(
-      { id: 'chip:stats', label: lang === 'en' ? 'View stats' : '查看统计', command: '查看统计', kind: 'command' },
-      { id: 'chip:wrongbook', label: lang === 'en' ? 'Mistakes' : '打开错题本', command: '打开错题本', kind: 'command' },
-      { id: 'chip:sources', label: lang === 'en' ? 'Sources' : '打开资料库', command: '跳到资料库', kind: 'command' },
-      { id: 'chip:guided', label: lang === 'en' ? 'Guided study' : '进入带学', command: '进入带学', kind: 'guided' },
-    );
-  }
+  const defaults = defaultChipsForContext(page, card, lang);
 
   // Float recently used defaults to the top
   defaults.sort((a, b) => {
-    const aTime = pageStats[normalizeCommandKey(a.command)]?.lastUsedAt ?? 0;
-    const bTime = pageStats[normalizeCommandKey(b.command)]?.lastUsedAt ?? 0;
+    const aTime = statForChip(pageStats, a)?.lastUsedAt ?? 0;
+    const bTime = statForChip(pageStats, b)?.lastUsedAt ?? 0;
     return bTime - aTime;
   });
 
   for (const d of defaults) {
-    const stat = pageStats[normalizeCommandKey(d.command)];
+    const stat = statForChip(pageStats, d);
     pushUnique({ ...d, recent: Boolean(stat && stat.lastUsedAt > 0) });
   }
 
