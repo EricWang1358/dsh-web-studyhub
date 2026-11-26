@@ -3,9 +3,6 @@
    three question links (I5); never a material, in no list, search or retrieval (I6); the fixtures of I9. No model, no network. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { openCourseBook, remapManifest, genText } from '../lib/course-book-files.js';
 import { assignHeadingIds, bookIndex, bookLinks, parseBookLink, plainBook, stitchBook } from '../lib/course-book-links.js';
@@ -16,6 +13,7 @@ import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { assertMaterials, isLibraryListSource, notExamPointList } from '../lib/exam-point-list.js';
 import { libraryContracts, studyToolDescription } from '../lib/study-contracts.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
+import { isolatedHome } from './helpers/nonmodel-baseline.mjs';
 
 const lectureKey = sources => groupSourcesByDocument(sources).find(item => item.sourceIds.includes('document-l1-p1')).key;
 function outlineOf(state, nodes, extra = {}) {
@@ -173,8 +171,7 @@ test('the fixtures: no notes, a point without questions, a single point, sample 
 });
 
 test('the book is never material: no 资料 list, no search, no context count, no retrieval, refused as material (I6)', async t => {
-  const root = await mkdtemp(join(tmpdir(), 'study-book-files-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  const { library: root } = await isolatedHome(t, 'study-book-files');
   const service = new StudyService(root);
   await service.call('snapshot');
   const { state } = library();
