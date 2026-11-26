@@ -32,7 +32,7 @@ function depsEqual(prev, next) {
   return true;
 }
 
-function createRuntime() {
+function createRuntime(onUnmountedStateWrite) {
   const instances = new Map();
   const contextStack = new Map();
   let currentInst = null;
@@ -149,6 +149,7 @@ function createRuntime() {
         inst.hooks[idx] = typeof init === 'function' ? init() : init;
       }
       const setState = (next) => {
+        if (inst.unmounted) onUnmountedStateWrite?.(inst.fn.name);
         const prev = inst.hooks[idx];
         const value = typeof next === 'function' ? next(prev) : next;
         if (!Object.is(prev, value)) {
@@ -260,6 +261,7 @@ function createRuntime() {
   };
 
   function cleanupInstance(inst) {
+    inst.unmounted = true;
     for (const slot of inst.hooks) {
       if (slot && typeof slot === 'object') {
         if (typeof slot.cleanup === 'function') {
@@ -545,8 +547,8 @@ export async function withBrowserGlobals(fn, overrides = {}) {
   }
 }
 
-export async function loadInteractiveUi(contents, { plugins = [] } = {}) {
-  const runtime = createRuntime();
+export async function loadInteractiveUi(contents, { plugins = [], onUnmountedStateWrite } = {}) {
+  const runtime = createRuntime(onUnmountedStateWrite);
 
   const shimPlugin = {
     name: 'study-react-harness-shim',
