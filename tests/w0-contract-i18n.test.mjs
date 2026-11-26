@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StudyService } from '../lib/service.js';
 import { localizeAppMessage } from '../lib/application-messages.js';
 import { loadUi } from './helpers/ui-module.mjs';
+import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const h = React.createElement;
 const han = /[\u3400-\u9fff]/;
@@ -373,10 +374,7 @@ test('W0-2: TranslationBlock omits Retry button for place errors (ambiguous/unlo
 
 /* ---------- W0-4: Desktop bootstrap language wait, crash banner layout, startup error retry ---------- */
 
-test('W0-4: ui/desktop.jsx awaits uiLanguageReady, renders Retry on boot error, and keeps crash banner out of nested .study-app', async () => {
-  const source = await readFile(new URL('../ui/desktop.jsx', import.meta.url), 'utf8');
-  assert.match(source, /uiLanguageReady/, 'desktop entry must wait for uiLanguageReady before mounting');
-  assert.match(source, /useUiLanguage/, 'DesktopRoot must subscribe to useUiLanguage');
+test('W0-4: ui/desktop.jsx awaits uiLanguageReady, subscribes to useUiLanguage, renders Retry on boot error, and keeps crash banner out of nested .study-app', async () => {
   const dm = await loadUi(`
     export { setUiLanguage } from './ui/i18n.js';
     export { DesktopRoot } from './ui/desktop.jsx';
@@ -400,4 +398,105 @@ test('W0-4: ui/desktop.jsx awaits uiLanguageReady, renders Retry on boot error, 
   assert.match(crashHtml, /study-desktop-crash/, 'renders compact crash banner');
   assert.equal((crashHtml.match(/class="study-app/g) || []).length, 1, 'must not wrap crash banner in a second 100%-height .study-app');
   assert.match(crashHtml, /MAIN/);
+
+  // Behavioral check 1 & 2: DesktopRoot subscribes to useUiLanguage (live zh <-> en switch)
+  // AND mountDesktopApp awaits uiLanguageReady() before rendering into #root.
+  const renderCalls = [];
+  let resolveLangReady;
+  let langReadyCalls = 0;
+  const langReadyPromise = new Promise((res) => { resolveLangReady = res; });
+  const fakeRootEl = { id: 'root' };
+  let exposeRootEl = false;
+
+  globalThis.__W04_DESKTOP_HOOKS__ = {
+    createRoot(rootEl) {
+      return {
+        render(element) {
+          renderCalls.push({ rootEl, element });
+        },
+      };
+    },
+    uiLanguageReady() {
+      langReadyCalls += 1;
+      return langReadyPromise;
+    },
+  };
+
+  const desktopSpyPlugin = {
+    name: 'w04-desktop-spy',
+    setup(builder) {
+      builder.onResolve({ filter: /^react-dom\/client$/ }, () => ({
+        path: 'react-dom/client',
+        namespace: 'w04-react-dom-client',
+      }));
+      builder.onLoad({ filter: /.*/, namespace: 'w04-react-dom-client' }, () => ({
+        contents: `export const createRoot = (el) => globalThis.__W04_DESKTOP_HOOKS__.createRoot(el);`,
+        loader: 'js',
+      }));
+      builder.onResolve({ filter: /^\.\/i18n\.js$/ }, (args) => {
+        if (!args.importer.endsWith('desktop.jsx')) return null;
+        return { path: resolve(args.resolveDir, args.path), namespace: 'w04-desktop-i18n' };
+      });
+      builder.onLoad({ filter: /.*/, namespace: 'w04-desktop-i18n' }, (args) => ({
+        contents: `
+          export * from ${JSON.stringify(args.path)};
+          export function uiLanguageReady() { return globalThis.__W04_DESKTOP_HOOKS__.uiLanguageReady(); }
+        `,
+        resolveDir: dirname(args.path),
+        loader: 'js',
+      }));
+    },
+  };
+
+  try {
+    await withBrowserGlobals(async () => {
+      const ui = await loadInteractiveUi(`
+        export { setUiLanguage } from './ui/i18n.js';
+        export { DesktopRoot, mountDesktopApp } from './ui/desktop.jsx';
+      `, { plugins: [desktopSpyPlugin] });
+
+      // 1. Live language subscription via useUiLanguage
+      ui.exports.setUiLanguage('zh');
+      const mounted = ui.mount(() => ui.React.createElement(ui.exports.DesktopRoot, {
+        initialBoot: { status: 'error', rpc: null, subscribeLibraryEvents: null, installFlavor: undefined, error: 'sidecar exited during startup' },
+      }));
+      try {
+        assert.match(mounted.text(), /桌面版启动失败/);
+        assert.match(mounted.text(), /重试/);
+
+        await mounted.act(() => ui.exports.setUiLanguage('en'));
+        const enText = mounted.text();
+        assert.doesNotMatch(enText, /桌面版启动失败/, 'DesktopRoot updates rendered copy live when switched to English');
+        assert.doesNotMatch(enText, han, 'English DesktopRoot error copy has no untranslated Chinese');
+        assert.match(enText, /Retry/);
+
+        await mounted.act(() => ui.exports.setUiLanguage('zh'));
+        assert.match(mounted.text(), /桌面版启动失败/, 'DesktopRoot updates rendered copy live when switched back to Chinese');
+      } finally {
+        mounted.unmount();
+        ui.exports.setUiLanguage('zh');
+      }
+
+      // 2. Desktop bootstrap awaits uiLanguageReady() before calling createRoot(#root).render(<DesktopRoot />)
+      exposeRootEl = true;
+      const mountPromise = ui.exports.mountDesktopApp();
+      for (let i = 0; i < 5; i += 1) await Promise.resolve();
+      assert.equal(langReadyCalls, 1, 'mountDesktopApp invokes uiLanguageReady()');
+      assert.equal(renderCalls.length, 0, 'mountDesktopApp must wait for uiLanguageReady() before mounting DesktopRoot');
+
+      resolveLangReady();
+      await mountPromise;
+      assert.equal(renderCalls.length, 1, 'mountDesktopApp mounts DesktopRoot once uiLanguageReady() resolves');
+      assert.equal(renderCalls[0].rootEl, fakeRootEl);
+      assert.equal(renderCalls[0].element.type, ui.exports.DesktopRoot);
+    }, {
+      document: {
+        title: '',
+        getElementById: (id) => (exposeRootEl && id === 'root' ? fakeRootEl : null),
+      },
+    });
+  } finally {
+    resolveLangReady();
+    delete globalThis.__W04_DESKTOP_HOOKS__;
+  }
 });
