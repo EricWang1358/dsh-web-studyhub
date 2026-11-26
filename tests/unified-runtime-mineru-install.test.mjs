@@ -81,7 +81,7 @@ test('cancel goes through the Job; what was made stays for 继续安装 and unin
   assert.equal((await h.call('mineru.install.uninstall', { confirm: true })).removed, 1);
 });
 
-test('without a session to run in, the start is refused in words before any job, folder or process', async t => {
+test('mineru.install.start is refused with needs-session before creating state, folder, or uv process', async t => {
   const gone = { assertAvailable() { throw Object.assign(new Error('no agent'), { code: 'executor-unavailable' }); } };
   const h = await harness(t, {}, { runtime: { jobExecutor: gone } });
   await assert.rejects(h.start(), { code: 'needs-session' });
@@ -91,7 +91,7 @@ test('without a session to run in, the start is refused in words before any job,
   assert.deepEqual(await h.uvLog(), [], 'no process was started');
 });
 
-test('cold DSH panel and genuine standalone StudyService support status, wait, cancel, dismiss and archive for MinerU install on study-host', async t => {
+test('mineru.install.start cancel+dismiss and complete+archive lifecycle on cold DSH panel & standalone StudyService', async t => {
   for (const config of [{ standalone: true }, { standalone: true, runtime: { jobExecutor: dshJobExecutor({}, undefined) } }]) {
     const slow = await harness(t, { uv: { delayPipMs: 5000 } }, config);
     await slow.start();
