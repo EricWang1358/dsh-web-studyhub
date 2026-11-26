@@ -2,7 +2,7 @@
    midnight, "N days ago plus a few minutes" crossed into the neighbouring calendar day, so a day lost its answers and
    the streak the sample shows broke (7 → 5 in the TUI golden layout, which failed on CI from about 22:40 UTC). Each
    past day's answers must stay on that local calendar day, today's on today, and the relearned cards must still be
-   due when the sample opens, whatever the time of day. */
+   due when the sample opens (apart from the first hour after a spring-forward night, see lib/sample-library.js). */
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -42,6 +42,13 @@ for (const [label, now] of [["midday", at(12, 0)], ["late evening", at(23, 50)],
       assert.equal(localDay(attempt.timestamp), localDay(now), `${attempt.id} at ${attempt.timestamp}`);
       assert.ok(Date.parse(attempt.timestamp) <= now, `${attempt.id} is not in the future`);
     }
+
+    // A letter a day old is from yesterday, not today's first minute.
+    const link = state.inbox.find((letter) => letter.id === "sample-mail-link");
+    assert.equal(localDay(link.at), daysBefore(now, 1), `link letter at ${link.at}`);
+    // The sample case paper keeps its 32 minutes however late the sample is loaded.
+    const paper = state.runs.find((run) => run.id === "sample-run-case");
+    assert.equal(Date.parse(paper.closedAt) - Date.parse(paper.startedAt), 32 * 60000, `case paper ${paper.startedAt} → ${paper.closedAt}`);
 
     // Today plus the six practice days before the first rest day.
     assert.equal(studyStats(state, {}, new Date(now)).totals.streak, 7);
