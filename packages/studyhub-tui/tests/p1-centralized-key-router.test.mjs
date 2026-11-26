@@ -575,4 +575,160 @@ describe('#1354 P1 Centralized Global & Alt-Chord Key Router', () => {
     assert.ok(!hWs.frame().includes('导出备份'), `WorkspaceTab must ignore Alt+x:\n${hWs.frame()}`);
     hWs.cleanup();
   });
+  test('5. Real AppShell: with a stub router no global, system or Alt shortcut fires — the router is the only path', async (t) => {
+    const prevState = useTuiStore.getState();
+    const baseState = {
+      page: 'library',
+      history: [],
+      showLaunchpad: false,
+      commandPaletteOpen: false,
+      helpOpen: false,
+      coursePickerOpen: false,
+      inboxOpen: false,
+      notificationHistoryOpen: false,
+      quitConfirmOpen: false,
+      assistantOpen: false,
+      assistantFocused: false,
+      assistantFullscreen: false,
+      inputCaptured: false,
+      loading: false,
+      snapshot: { revision: 1, decks: [{ id: 'd1', title: 'Demo', cardCount: 1 }], courses: [], sources: [], notes: [], drafts: [], jobs: [] },
+      preferences: { ...DEFAULT_PREFERENCES, language: 'zh', asciiMode: true, sidebarCollapsed: false },
+      toasts: [],
+    };
+    t.after(() => useTuiStore.setState(prevState));
+
+    // Every shortcut AppShell documents: system Ctrl chords, single-key globals, page jumps, Backspace.
+    const SHORTCUTS = [
+      ['Ctrl+K', '\x0b'],
+      ['Ctrl+O', '\x0f'],
+      ['Ctrl+G', '\x07'],
+      ['Ctrl+Space', '\x00'],
+      ['Ctrl+R', '\x12'],
+      ['Ctrl+C', '\x03'],
+      ['/', '/'],
+      ['?', '?'],
+      ['c', 'c'],
+      ['I', 'I'],
+      ['q', 'q'],
+      ['\\', '\\'],
+      [']', ']'],
+      ['[', '['],
+      ['2', '2'],
+      ['r', 'r'],
+      ['Backspace', '\x7f'],
+    ];
+
+    function snapshotShell() {
+      const s = useTuiStore.getState();
+      return {
+        page: s.page,
+        commandPaletteOpen: s.commandPaletteOpen,
+        helpOpen: s.helpOpen,
+        coursePickerOpen: s.coursePickerOpen,
+        inboxOpen: s.inboxOpen,
+        notificationHistoryOpen: s.notificationHistoryOpen,
+        quitConfirmOpen: s.quitConfirmOpen,
+        assistantOpen: s.assistantOpen,
+        assistantFocused: s.assistantFocused,
+        sidebarCollapsed: Boolean(s.preferences.sidebarCollapsed),
+      };
+    }
+
+    function mountShell(keyRouter, counters, viewKeys) {
+      function ProbeView({ isActive }) {
+        useScopedInput(
+          (input, key) => {
+            viewKeys.push(`${key.meta ? 'Alt+' : ''}${input}`);
+            return false;
+          },
+          { isActive, id: 'probe:view' },
+        );
+        return React.createElement(Text, null, 'PROBE_VIEW');
+      }
+      return mountInk(
+        React.createElement(AppShell, {
+          host: makeOfflineHost(),
+          autoLaunchpad: false,
+          ...(keyRouter ? { keyRouter } : {}),
+          actions: {
+            quit: () => {
+              counters.quit += 1;
+            },
+            refresh: async () => {
+              counters.refresh += 1;
+            },
+          },
+          renderPage: (page, view) => React.createElement(ProbeView, { isActive: view.isActive !== false }),
+        }),
+        { cols: 120, rows: 32 },
+      );
+    }
+
+    // Control: with the real router the same bytes DO reach AppShell and fire (so the stub run below
+    // is not passing merely because the keys never arrive).
+    useTuiStore.setState(baseState);
+    const realCounters = { quit: 0, refresh: 0 };
+    const real = mountShell(null, realCounters, []);
+    t.after(() => real.cleanup());
+    await real.waitFor((s) => s.includes('PROBE_VIEW'), 4000, 'real-router AppShell mount');
+    real.send('\x0b');
+    await real.settle(60);
+    assert.equal(useTuiStore.getState().commandPaletteOpen, true, 'control: Ctrl+K opens the palette with the real router');
+    real.send('\x0b');
+    await real.settle(60);
+    real.send('\x12');
+    await real.settle(40);
+    assert.equal(realCounters.refresh, 1, 'control: Ctrl+R refreshes with the real router');
+    real.cleanup();
+
+    // Stub router: decides nothing. If any shortcut still fires, AppShell has a second path.
+    useTuiStore.setState(baseState);
+    const calls = { system: 0, alt: 0, global: 0 };
+    const inertRouter = {
+      resolveSystem: () => {
+        calls.system += 1;
+        return null;
+      },
+      resolveAltChord: () => {
+        calls.alt += 1;
+        return { kind: 'pass' };
+      },
+      resolveGlobal: () => {
+        calls.global += 1;
+        return null;
+      },
+    };
+    const counters = { quit: 0, refresh: 0 };
+    const viewKeys = [];
+    const h = mountShell(inertRouter, counters, viewKeys);
+    t.after(() => h.cleanup());
+    await h.waitFor((s) => s.includes('PROBE_VIEW'), 4000, 'stub-router AppShell mount');
+
+    const before = snapshotShell();
+    const fired = [];
+    const notOffered = [];
+    for (const [label, bytes] of SHORTCUTS) {
+      const systemCallsBefore = calls.system;
+      h.send(bytes);
+      await h.settle(40);
+      const after = snapshotShell();
+      if (JSON.stringify(after) !== JSON.stringify(before) || counters.quit > 0 || counters.refresh > 0) {
+        fired.push(label);
+        useTuiStore.setState(baseState);
+        counters.quit = 0;
+        counters.refresh = 0;
+        await h.settle(40);
+      }
+      if (calls.system === systemCallsBefore) notOffered.push(label);
+    }
+    assert.deepEqual(fired, [], `shortcuts handled outside the router: ${fired.join(', ')}`);
+    assert.deepEqual(notOffered, [], `shortcuts never offered to the router: ${notOffered.join(', ')}`);
+
+    // Alt containment is the router's decision too: with a pass-through stub Alt+s reaches the view.
+    h.send('\x1bs');
+    await h.settle(60);
+    assert.ok(calls.alt > 0, 'Alt+s must be offered to the router');
+    assert.ok(viewKeys.includes('Alt+s'), `Alt+s must reach the view when the router passes it (saw ${viewKeys.join(' ')})`);
+  });
 });

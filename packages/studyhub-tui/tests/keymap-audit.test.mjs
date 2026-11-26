@@ -83,56 +83,6 @@ function listPrimaryViews() {
   return files;
 }
 
-function extractAppShellGlobalKeys(sf) {
-  const switchCases = [];
-  const ctrlKeys = [];
-  let hasBackspace = false;
-  let usesPageRegistryMap = false;
-
-  function visit(node) {
-    if (
-      ts.isNewExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      node.expression.text === 'Map' &&
-      node.getText(sf).includes('PAGE_REGISTRY')
-    ) {
-      usesPageRegistryMap = true;
-    }
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      (node.expression.text === 'useInput' || node.expression.text === 'useScopedInput')
-    ) {
-      function scanInputFn(n) {
-        if (ts.isSwitchStatement(n) && ts.isIdentifier(n.expression) && n.expression.text === 'input') {
-          for (const clause of n.caseBlock.clauses) {
-            if (ts.isCaseClause(clause) && (ts.isStringLiteral(clause.expression) || ts.isNoSubstitutionTemplateLiteral(clause.expression))) {
-              switchCases.push(clause.expression.text);
-            }
-          }
-        }
-        if (ts.isPropertyAccessExpression(n) && n.expression.getText(sf) === 'key' && n.name.text === 'backspace') {
-          hasBackspace = true;
-        }
-        if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) {
-          const left = n.left.getText(sf);
-          const right = n.right.getText(sf);
-          if (left === 'key.ctrl') {
-            const m = /^input\s*===\s*['"]([a-zA-Z])['"]$/.exec(right);
-            if (m) ctrlKeys.push(m[1]);
-          }
-        }
-        ts.forEachChild(n, scanInputFn);
-      }
-      if (node.arguments[0]) scanInputFn(node.arguments[0]);
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(sf);
-
-  return { switchCases, ctrlKeys, hasBackspace, usesPageRegistryMap };
-}
-
 function collectStringArrayBindings(sf) {
   const bindings = new Map([['DIGIT_KEYS', [...Bundle.DIGIT_KEYS]]]);
 
@@ -369,10 +319,6 @@ function auditViewGlobalClaims(filePath) {
 }
 
 test('AppShell global shortcuts match PAGE_REGISTRY & HelpOverlay.globalShortcuts with zero undocumented or duplicate keys', () => {
-  const appShellPath = path.join(srcRoot, 'shell/AppShell.tsx');
-  const appShellSf = parseTsx(appShellPath);
-  const { ctrlKeys } = extractAppShellGlobalKeys(appShellSf);
-
   const switchCases = Object.keys(Bundle.GLOBAL_SINGLE_KEY_ROUTES);
   const baseCtx = {
     overlayOpen: false,
@@ -394,7 +340,12 @@ test('AppShell global shortcuts match PAGE_REGISTRY & HelpOverlay.globalShortcut
     { action: 'go-back' },
     'global-router must handle Backspace goBack',
   );
-  assert.ok(ctrlKeys.includes('k') && ctrlKeys.includes('r'), 'AppShell must handle Ctrl+K and Ctrl+R');
+  const sysCtx = {
+    blockedByScope: false, tooSmall: false, quitConfirmOpen: false, commandPaletteOpen: false,
+    assistantOpen: false, assistantFocused: false, assistantFullscreen: false,
+  };
+  assert.equal(Bundle.resolveSystemKeyRoute('k', { ...emptyKey, ctrl: true }, sysCtx)?.action, 'palette-open', 'global-router must handle Ctrl+K');
+  assert.equal(Bundle.resolveSystemKeyRoute('r', { ...emptyKey, ctrl: true }, sysCtx)?.action, 'refresh', 'global-router must handle Ctrl+R');
 
   const pageShortcuts = Bundle.PAGE_REGISTRY.map((p) => p.shortcut);
   assert.equal(new Set(pageShortcuts).size, pageShortcuts.length, 'Duplicate shortcut in PAGE_REGISTRY');

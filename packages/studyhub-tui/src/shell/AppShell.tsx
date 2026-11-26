@@ -28,11 +28,7 @@ import { SideNav, sideNavWidth } from './SideNav.js';
 import { ShellActionsContext, createDefaultShellActions, requestQuit, type ShellActions } from './actions.js';
 import { isLibraryEmpty } from './data.js';
 import { formatReturnHintLabel } from '../state/practice-stack.js';
-import {
-  resolveAltChordRoute,
-  resolveCycledPage,
-  resolveGlobalKeyRoute,
-} from '../input/global-router.js';
+import { SHELL_KEY_ROUTER, resolveCycledPage, type ShellKeyRouter } from '../input/global-router.js';
 
 const Launchpad = lazy(() => import('./Launchpad.js').then((m) => ({ default: m.Launchpad })));
 const CommandPalette = lazy(() => import('./CommandPalette.js').then((m) => ({ default: m.CommandPalette })));
@@ -65,6 +61,8 @@ export interface AppShellProps {
   overlays?: ReactNode;
   /** Auto-open the Launchpad when the first snapshot shows an empty library (default true). */
   autoLaunchpad?: boolean;
+  /** Decides every global, system and Alt-chord key (default `SHELL_KEY_ROUTER`); tests pass a stub. */
+  keyRouter?: ShellKeyRouter;
 }
 
 /** Pure layout math for the shell, exported for tests and the App. */
@@ -94,6 +92,7 @@ export const AppShell = memo(function AppShell({
   renderVoicePack,
   overlays,
   autoLaunchpad = true,
+  keyRouter = SHELL_KEY_ROUTER,
 }: AppShellProps) {
   const { exit } = useApp();
   const { columns, rows } = useStableWindowSize();
@@ -187,69 +186,51 @@ export const AppShell = memo(function AppShell({
       }
       const s = useTuiStore.getState();
       const r = routing.current;
-      const blockedByScope = r.overlayOpen || r.inputCaptured || r.tooSmall || getTopOpaqueScope(hub) !== null;
-      if (key.ctrl && input === 'c') {
-        if (s.quitConfirmOpen) {
+      const resolved = keyRouter.resolveSystem(input, key, {
+        blockedByScope: r.overlayOpen || r.inputCaptured || r.tooSmall || getTopOpaqueScope(hub) !== null,
+        tooSmall: r.tooSmall,
+        quitConfirmOpen: s.quitConfirmOpen,
+        commandPaletteOpen: s.commandPaletteOpen,
+        assistantOpen: s.assistantOpen,
+        assistantFocused: s.assistantFocused,
+        assistantFullscreen: s.assistantFullscreen,
+      });
+      if (!resolved) return false;
+      switch (resolved.action) {
+        case 'quit-force':
           s.setQuitConfirmOpen(false);
           rawQuitRef.current();
-        } else {
+          break;
+        case 'quit-request':
           actions.quit();
-        }
-        return true;
-      }
-      if (key.ctrl && input === 'k') {
-        if (s.commandPaletteOpen) {
+          break;
+        case 'palette-close':
           s.setCommandPaletteOpen(false);
-          return true;
-        }
-        if (!blockedByScope) {
+          break;
+        case 'palette-open':
           s.setCommandPaletteOpen(true);
-          return true;
-        }
-        return false;
-      }
-      // Ctrl+Space (NUL `\x00` or Ctrl+@ / Ctrl+Space) opens docked WITHOUT stealing focus; 2nd press focuses; 3rd collapses!
-      const isCtrlSpace = input === '\u0000' || (key.ctrl && (input === ' ' || input === '@'));
-      if (isCtrlSpace) {
-        if (!s.assistantOpen) {
-          if (!blockedByScope) {
-            s.openAssistant({ focused: false });
-            return true;
-          }
-          return false;
-        }
-        if (r.tooSmall) return false;
-        if (!s.assistantFocused && !s.assistantFullscreen) {
+          break;
+        case 'assistant-open-passive':
+          s.openAssistant({ focused: false });
+          break;
+        case 'assistant-focus':
           s.setAssistantFocused(true);
-        } else {
+          break;
+        case 'assistant-close':
           s.closeAssistant();
-        }
-        return true;
-      }
-      if (key.ctrl && input === 'g') {
-        if (s.assistantOpen && (s.assistantFocused || s.assistantFullscreen)) {
-          s.closeAssistant();
-          return true;
-        }
-        if (!blockedByScope) {
+          break;
+        case 'assistant-open-focus':
           s.openAssistant({ focused: true });
-          return true;
-        }
-        return false;
-      }
-      if (key.ctrl && input === 'o') {
-        if (!blockedByScope) {
+          break;
+        case 'notification-history-open':
           s.setNotificationHistoryOpen(true);
-          return true;
-        }
-        return false;
+          break;
+        case 'refresh':
+          // The active view (e.g. BoardView, BookView) also reloads its own state: consume is false.
+          void actions.refresh();
+          break;
       }
-      if (key.ctrl && input === 'r') {
-        void actions.refresh();
-        // Allow the active view (e.g. BoardView, BookView) to also reload its domain state.
-        return false;
-      }
-      return false;
+      return resolved.consume;
     },
     { isActive: true, layer: KEY_LAYER_SYSTEM, id: 'AppShell:system' },
   );
@@ -257,7 +238,7 @@ export const AppShell = memo(function AppShell({
   // Centralized Alt+* (`key.meta`) containment: passes TextInput editing chords through while
   // consuming unhandled Alt+s / Alt+x / Alt+q etc. so they never leak into view/modal handlers.
   useScopedInput(
-    (input, key) => resolveAltChordRoute(input, key).kind === 'consume-unhandled-alt',
+    (input, key) => keyRouter.resolveAltChord(input, key).kind === 'consume-unhandled-alt',
     { isActive: true, layer: KEY_LAYER_SYSTEM, id: 'AppShell:alt-guard' },
   );
 
@@ -265,7 +246,7 @@ export const AppShell = memo(function AppShell({
     (input, key) => {
       const s = useTuiStore.getState();
       const r = routing.current;
-      const resolved = resolveGlobalKeyRoute(input, key, {
+      const resolved = keyRouter.resolveGlobal(input, key, {
         overlayOpen: r.overlayOpen,
         inputCaptured: r.inputCaptured,
         showLaunchpad: r.showLaunchpad,

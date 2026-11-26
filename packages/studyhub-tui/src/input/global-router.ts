@@ -209,3 +209,20 @@ export function resolveCycledPage(current: PageId, dir: 1 | -1): PageId {
   const idx = GLOBAL_NAV_ORDER.indexOf(current);
   return GLOBAL_NAV_ORDER[(Math.max(0, idx) + dir + GLOBAL_NAV_ORDER.length) % GLOBAL_NAV_ORDER.length];
 }
+
+/**
+ * The only shortcut decisions `AppShell` makes: it builds the routing context, asks this router,
+ * and executes the returned action. It holds no shortcut table or chord check of its own, so a
+ * stub router passed to `AppShell` (`keyRouter` prop) silences every global, system and Alt chord.
+ */
+export interface ShellKeyRouter {
+  resolveSystem: typeof resolveSystemKeyRoute;
+  resolveAltChord: typeof resolveAltChordRoute;
+  resolveGlobal: typeof resolveGlobalKeyRoute;
+}
+
+export const SHELL_KEY_ROUTER: ShellKeyRouter = Object.freeze({
+  resolveSystem: resolveSystemKeyRoute,
+  resolveAltChord: resolveAltChordRoute,
+  resolveGlobal: resolveGlobalKeyRoute,
+});
