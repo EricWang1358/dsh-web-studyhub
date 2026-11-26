@@ -251,7 +251,7 @@ npm run release:pack   # 全部发布包和 SHA256SUMS-<版本号>.txt，输出�
 - `npm test`（以及 `npm run verify` 和 CI）始终运行全部测试文件，并按上一次运行的耗时（缓存在 `node_modules/.cache/studyhub-tests/`；像 CI 这样没有自己耗时记录的机器，则按 `tests/test-weights.json` 排序）让最慢的文件先开始。同一台机器上的完整运行通过 `~/.cache/studyhub-tests/` 里的锁文件轮流进行：后来的运行会打印一行提示并等待（最多 20 分钟，之后以更少的并行数继续）；设置 `STUDY_TEST_NO_LOCK=1` 可以跳过排队。`npm test -- tests/<文件>.test.mjs` 只运行指定文件，不排队。
 - `npm run test:fast` 跳过 `tests/slow-tests.json` 里列出的文件，即会启动浏览器、运行 ffmpeg 或启动其他程序的测试。新增的测试文件如果做了这些事却没有列入，`tests/slow-tests-list.test.mjs` 会失败，快速档因此不会悄悄变慢；提交 PR 前请运行 `npm run verify`。
 - DSH SDK `@deepseek-ai/dsh-tools` 与 `@deepseek-ai/dsh-llm`（可选 peer 依赖，`>=0.2.0-rc.2 <0.3`）由 DSH 提供；缺少时，依赖它们的测试会明确跳过。
-- 每个 PR 在 Linux 上运行带 Chromium 的根目录全量测试，在 Windows 上运行冒烟和受影响的 fast 用例，同时验证终端、浏览器冒烟、lint、构建及相应的 Spring 改动。推送到 main 后另跑 Windows 全量。汇总检查从触发起计算排队及执行时间，要求整轮低于十分钟。分片数量见 [verify 工作流](.github/workflows/verify.yml)。可把任务名里的分片编号传给 `node scripts/test.mjs --shard=2/12` 在本机复现；每次运行的 durations 附件记录各文件耗时。
+- 每个 PR 在 Linux 上运行带 Chromium 的根目录全量测试，在 Windows 上运行冒烟和受影响的 fast 用例，同时验证终端、浏览器冒烟、lint、构建及相应的 Spring 改动。推送到 main 后另跑 Windows 全量。汇总检查从触发起计算排队及执行时间，要求整轮低于十分钟。分片数量见 [verify 工作流](https://github.com/EricWang1358/dsh-web-studyhub/blob/main/.github/workflows/verify.yml)。可把任务名里的分片编号传给 `node scripts/test.mjs --shard=2/12` 在本机复现；每次运行的 durations 附件记录各文件耗时。
 - [静态体验版](docs/static-demo.zh-CN.md)加载真实界面，使用公开示例和预置回复，不调用真实模型。
 
 ## 文档
