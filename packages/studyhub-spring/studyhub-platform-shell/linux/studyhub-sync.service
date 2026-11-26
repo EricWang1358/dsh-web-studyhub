@@ -1,0 +1,18 @@
+[Unit]
+Description=StudyHub encrypted sync relay
+After=network.target
+
+[Service]
+DynamicUser=yes
+StateDirectory=studyhub-sync
+EnvironmentFile=/etc/studyhub/sync.env
+Environment=STUDYHUB_SYNC_DATA_DIR=/var/lib/studyhub-sync
+ExecStart=/usr/bin/java --enable-preview -jar /opt/studyhub/relay.jar
+Restart=on-failure
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target
