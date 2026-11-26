@@ -239,16 +239,17 @@ describe('#1354 D9 Single-Source Study Metrics Consistency', () => {
     assert.ok(paletteDeck2?.hint?.includes('1 待复习'), `CommandPalette deck 2 hint must show progress.due=1, got: ${paletteDeck2?.hint}`);
 
     // Global (all active non-system courses): due = 2 + 1 + 4 = 7, weak = 1 + 2 + 3 = 6
-    assert.equal(dueToday(snap), 7, 'global dueToday must be 7');
-    assert.equal(wrongCount(snap), 6, 'global wrongCount must be 6 (excluding slain & archived)');
+    // Library-wide numbers count the system decks too (backend stats.totals / studyMap / wrongBook do): 7 + slain 50.
+    assert.equal(dueToday(snap), 57, 'global dueToday must be 57 (system decks counted library-wide, archived excluded)');
+    assert.equal(wrongCount(snap), 46, 'global wrongCount must be 46 (6 + slain 40; archived excluded)');
 
     const cliStats = buildStatsSummary({ libraryRoot: '/tmp/lib', snapshot: snap });
-    assert.equal(cliStats.counts.due, 7, 'CLI --stats due must equal global dueToday (7)');
-    assert.equal(cliStats.counts.weak, 6, 'CLI --stats weak must equal global wrongCount (6)');
+    assert.equal(cliStats.counts.due, 57, 'CLI --stats due must equal global dueToday (57)');
+    assert.equal(cliStats.counts.weak, 46, 'CLI --stats weak must equal global wrongCount (46)');
 
     const cliDue = buildDueReport({ libraryRoot: '/tmp/lib', snapshot: snap });
-    assert.equal(cliDue.totals.due, 7, 'CLI --due total due must equal global dueToday (7)');
-    assert.equal(cliDue.totals.weak, 6, 'CLI --due total weak must equal global wrongCount (6)');
+    assert.equal(cliDue.totals.due, 57, 'CLI --due total due must equal global dueToday (57)');
+    assert.equal(cliDue.totals.weak, 46, 'CLI --due total weak must equal global wrongCount (46)');
   });
 
   test('2. Zero-due & zero-weak active decks never leak stale snapshot.today.due / today.weak in TUI or CLI', () => {
@@ -460,10 +461,11 @@ describe('#1354 D9 Single-Source Study Metrics Consistency', () => {
     assert.equal(wrongCount(snap, 'OS'), 1);
     assert.equal(buildTodayHubMetrics({ snapshot: snap, course: 'OS', activeRunId: null }).due, 2);
     assert.equal(buildTodayHubMetrics({ snapshot: snap, course: 'OS', activeRunId: null }).wrong, 1);
-    assert.equal(buildStatsSummary({ libraryRoot, snapshot: snap }).counts.due, 2);
-    assert.equal(buildStatsSummary({ libraryRoot, snapshot: snap }).counts.weak, 1);
-    assert.equal(buildDueReport({ libraryRoot, snapshot: snap }).totals.due, 2);
-    assert.equal(buildDueReport({ libraryRoot, snapshot: snap }).totals.weak, 1);
+    // The CLI is library-wide, so like the backend's stats.totals (due 3, weak 2) it counts the slain deck.
+    assert.equal(buildStatsSummary({ libraryRoot, snapshot: snap }).counts.due, 3);
+    assert.equal(buildStatsSummary({ libraryRoot, snapshot: snap }).counts.weak, 2);
+    assert.equal(buildDueReport({ libraryRoot, snapshot: snap }).totals.due, 3);
+    assert.equal(buildDueReport({ libraryRoot, snapshot: snap }).totals.weak, 2);
   });
   test('7. Suspended cards: every screen weights mastery by the learnable cards the backend counts (11 cards, 2 learnable => 50%, not 91%)', async (t) => {
     const base = await mkdtemp(path.join(os.tmpdir(), 'studyhub-d9-suspended-'));
@@ -557,5 +559,63 @@ describe('#1354 D9 Single-Source Study Metrics Consistency', () => {
     dash.cleanup();
     assert.ok(dashFrame.includes('50%'), `DashboardView must show 50%, frame:\n${dashFrame}`);
     assert.ok(!dashFrame.includes('91%'), `DashboardView must not show the inventory-weighted 91%, frame:\n${dashFrame}`);
+  });
+
+  test('8. Library-wide numbers count the system decks (为你定制) like the backend; a course view leaves them out', async (t) => {
+    const base = await mkdtemp(path.join(os.tmpdir(), 'studyhub-d9-coach-'));
+    t.after(() => rm(base, { recursive: true, force: true, maxRetries: 6, retryDelay: 50 }));
+    const libraryRoot = path.join(base, 'library');
+    await mkdir(libraryRoot, { recursive: true });
+
+    const pastIso = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+    const futureIso = new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString();
+    const card = (id, extra = {}) => ({ id, kind: 'short_answer', topic: 'T', prompt: `Q-${id}`, answer: `A-${id}`, ...extra });
+
+    const seed = new StudyService(libraryRoot, { complete: async () => '{}' });
+    await seed.store.update((s) => {
+      s.courses.push({ id: 'c-os', name: 'OS' });
+      s.decks.push(
+        // One mastered card in a course deck.
+        { id: 'd-os', title: 'OS basics', course: 'OS', cards: [card('o0', { review: { due_at: futureIso, interval_days: 30, repetitions: 3 } })] },
+        // The coach deck (为你定制): two variant cards, both answered wrong.
+        { id: 'd-coach', title: '为你定制', systemKind: 'coach', cards: [card('v0'), card('v1')] },
+      );
+      s.attempts.push(
+        { id: 'a-o0', deckId: 'd-os', quiz_id: 'o0', grade: 5, correct: true, timestamp: pastIso },
+        { id: 'a-v0', deckId: 'd-coach', quiz_id: 'v0', grade: 1, correct: false, timestamp: pastIso },
+        { id: 'a-v1', deckId: 'd-coach', quiz_id: 'v1', grade: 1, correct: false, timestamp: pastIso },
+      );
+    });
+    const state = await seed.store.read();
+    await seed.dispose?.();
+    const backend = studyMap(state).mastery.library;
+    assert.equal(backend.cards, 3, 'backend library mastery counts the coach deck cards');
+
+    const host = await createTuiHost({
+      libraryRoot,
+      env: { DSH_HOME: path.join(base, 'dsh-home') },
+      home: base,
+      documentsDir: base,
+      skipAutoProbe: true,
+      language: 'zh',
+    });
+    t.after(() => host.dispose());
+    const snapRes = await host.call('snapshot');
+    assert.equal(snapRes.ok, true, `real snapshot should succeed: ${snapRes.error?.message}`);
+    const snap = snapRes.value;
+    const backendWeak = Object.values(snap.progress).reduce((n, p) => n + (p?.counts?.weak ?? 0), 0);
+    assert.equal(backendWeak, 2, 'the host reports the two wrong coach cards as weak');
+
+    const selectors = await import('../src/selectors/study-metrics.ts');
+    const all = selectors.selectStudySummary(snap, null);
+    assert.equal(all.masteryPct, backend.value, 'library-wide mastery % must equal the backend library value');
+    assert.equal(all.totalCards, backend.cards);
+    assert.equal(all.weak, backendWeak, 'library-wide 错题 count includes the coach deck, as the wrong book does');
+    assert.equal(wrongCount(snap), backendWeak, 'SideNav / assistant wrongCount (no course) includes the coach deck');
+    assert.equal(all.deckCount, 1, 'the deck list itself still shows learner decks only');
+
+    const osView = selectors.selectStudySummary(snap, "OS");
+    assert.equal(osView.weak, 0, 'a course view leaves the system decks out');
+    assert.equal(osView.totalCards, 1);
   });
 });

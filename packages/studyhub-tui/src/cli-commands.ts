@@ -7,7 +7,7 @@ import {
   toPureAscii,
   type ParsedCliArgs,
 } from './cli-args.js';
-import { getProgressMap, isActiveStudyDeck, selectDeckMetrics } from './selectors/study-metrics.js';
+import { getProgressMap, isCountedStudyDeck, selectDeckMetrics } from './selectors/study-metrics.js';
 
 export interface ExportReceipt {
   ok: true;
@@ -499,7 +499,7 @@ export function buildDueReport(opts: {
   let decksWithDue = 0;
 
   for (const deck of rawDecks) {
-    if (!isActiveStudyDeck(deck, courseFilterRaw || null, { fuzzy: true })) continue;
+    if (!isCountedStudyDeck(deck, courseFilterRaw || null, { fuzzy: true })) continue;
     const id = strVal(deck.id);
     if (!id) continue;
     const course = singleLine(deck.course);

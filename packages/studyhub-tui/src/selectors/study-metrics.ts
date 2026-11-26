@@ -227,6 +227,21 @@ export function isActiveStudyDeck(
 }
 
 /**
+ * True iff the cards of `deck` count towards the numbers (due, weak, cards, mastery) of this scope.
+ * Like the backend (`lib/insights.js` masterySummary with `courseActivityRules().deckActive`, `studyMap().today`,
+ * `wrongBook`, stats totals), a library-wide scope also counts the system decks (为你定制, 斩题组); a course scope
+ * does not. Lists of decks keep using `isActiveStudyDeck`.
+ */
+export function isCountedStudyDeck(
+  deck: DeckLike | null | undefined,
+  course?: string | null,
+  opts?: ActiveDeckFilterOptions,
+): boolean {
+  if (isActiveStudyDeck(deck, course, opts)) return true;
+  return !!deck && typeof deck === 'object' && !deck.archived && !!deck.systemKind && !normalizeCourseKey(course);
+}
+
+/**
  * Weighted mastery percentage matching `lib/mastery.js` (`summarize()`).
  * Uses `{ new: 0, weak: 0.15, learning: 0.45, familiar: 0.75, mastered: 1 }`.
  */
@@ -358,6 +373,8 @@ export function selectStudySummary(
   const rawDecks = Array.isArray(snapshot?.decks) ? snapshot.decks : [];
   const progressMap = getProgressMap(snapshot);
   const activeDecks: DeckLike[] = [];
+  // `countedDecks` are the decks whose cards the numbers count (see `isCountedStudyDeck`); `activeDecks` is the deck list.
+  const countedDecks: DeckLike[] = [];
   let archivedDecks = 0;
 
   for (const d of rawDecks) {
@@ -366,9 +383,8 @@ export function selectStudySummary(
       archivedDecks += 1;
       continue;
     }
-    if (isActiveStudyDeck(d, course, opts)) {
-      activeDecks.push(d);
-    }
+    if (isActiveStudyDeck(d, course, opts)) activeDecks.push(d);
+    if (isCountedStudyDeck(d, course, opts)) countedDecks.push(d);
   }
 
   let totalCards = 0;
@@ -383,7 +399,7 @@ export function selectStudySummary(
   let hasProgressDue = false;
   let hasProgressWeak = false;
 
-  for (const d of activeDecks) {
+  for (const d of countedDecks) {
     const p = d.id ? progressMap[d.id] : undefined;
     if (finiteNonNegInt(p?.due) !== null) hasProgressDue = true;
     if (finiteNonNegInt(p?.counts?.weak) !== null) hasProgressWeak = true;
@@ -412,7 +428,7 @@ export function selectStudySummary(
 
   // Prefer deck-level sums whenever active decks exist (including when every deck has weak=0).
   const weak =
-    hasProgressWeak || activeDecks.length > 0 ? deckWeakSum : (directTodayWeak ?? deckWeakSum);
+    hasProgressWeak || countedDecks.length > 0 ? deckWeakSum : (directTodayWeak ?? deckWeakSum);
 
   const masteryPct = masteryWeightDenom > 0 ? clampPct(weightedMasterySum / masteryWeightDenom) : 0;
   const reviewCount = familiar + mastered;
