@@ -21,20 +21,34 @@ test('#1084: the badge\'s card counts one page in the singular (en)', { timeout:
 
 test('#1084: a row\'s facts never end in a bare 「· …」 at 420: a name is said whole or left out whole, while the index answer is coming and after it', { timeout: 300000 }, async t => {
   if (state.skip) { t.skip(state.skip); return; }
-  const check = (rows, tag) => {
-    assert.ok(rows.length >= 10, `${tag}: rows (${rows.length})`);
-    // a name is cut only where it is the shortened course, which then says its whole name on hover
+  const check = async (page, lang, stage) => {
+    const tag = `${lang} 420, ${stage}`;
+    // Each cut course acquires its hover anchor when the shared ResizeObserver measures its text.
+    const rows = await until(async () => {
+      const current = await factsLines(page);
+      const shortened = current.flatMap(row => row.names.filter(name => name.shown && name.cut));
+      if (current.length < 10 || (lang === 'zh' && !shortened.length)) return null;
+      return shortened.every(name => name.tip !== null) ? current : null;
+    }, `${tag}: each cut course to have its tooltip`, { timeoutMs: 10000 });
+    // A linked tooltip must contain the complete course, including words beyond the ellipsis.
     assert.deepEqual(rows.filter(row => row.names.some(name => name.shown && name.cut && name.tip !== name.text.replace(/^·\s*/, ''))).map(row => row.text), [], `${tag}: no name is cut bare`);
     assert.deepEqual(rows.filter(row => /·\s*…?$/.test(row.text)).map(row => row.text), [], `${tag}: no line ends in 「·」 or 「· …」`);
   };
   for (const lang of ['zh', 'en']) {
     const { page, errors, context, release } = await openGenerate({ lang, width: 420, now: false });
-    await frames(page, 4);
-    check(await factsLines(page), `${lang} 420, while the answer is coming`);
+    await check(page, lang, 'while the answer is coming');
+    if (lang === 'zh') {
+      // This scope shows the shortened second course. A pointer can read it before the index request returns.
+      const name = page.locator('.source-picker__fact-anchor > [data-name="first"]').first();
+      await name.hover();
+      const opened = page.locator('.source-picker__fact-anchor [role="tooltip"]:popover-open');
+      await opened.waitFor({ state: 'visible', timeout: 10000 });
+      assert.equal(await opened.innerText(), LONG);
+      await page.mouse.move(0, 0);
+    }
     release();
-    await settleAnimations(page);
-    await frames(page, 4);
-    check(await factsLines(page), `${lang} 420, answered`);
+    await until(async () => await page.locator('[data-tour="generate-sources"] [data-index-slot="held"]').count() === 0, `${lang}: index answer applied`);
+    await check(page, lang, 'answered');
     assert.deepEqual(errors, []);
     await context.close();
   }
