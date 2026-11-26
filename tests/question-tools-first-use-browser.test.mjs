@@ -189,7 +189,8 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       for (const name of ['toolbar', 'next', 'help', 'fix']) assert.deepEqual(after[name], shown[name], `${where}: ${name} did not move when the tip came or went`);
       assert.deepEqual(await stored(page), ['help-first']);
       await page.reload();
-      await page.locator('.study-app').waitFor();
+      // The app shell mounts before the saved practice or its home entry is ready.
+      await page.locator('.question-toolbar:visible, [data-usage="home.start"]:visible').first().waitFor();
       const resume = page.locator('[data-usage="home.start"]').first();
       if (await resume.isVisible()) await resume.click();
       await page.locator('.question-toolbar').waitFor();
