@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { build } from 'esbuild';
 import { sourceFiles } from './helpers/locale-usage.mjs';
-import { EFFORT_PREFERENCES, chooseEffort } from '../lib/model-effort.js';
+import { EFFORT_PREFERENCES, chooseEffort, reasoningFor } from '../lib/model-effort.js';
 import * as stageEffort from '../lib/stage-effort.js';
+import { GENERATION_STAGE_TEXT } from '../lib/contexts/jobs/contracts.js';
 import { GENERATION_SETTINGS_DEFAULTS, validateGenerationPatch } from '../lib/generation-settings.js';
 
 /* #226: one place maps a relative reasoning preference onto the levels a model really offers (lib/model-effort.js). Generation's per-stage
@@ -56,8 +58,45 @@ test('the model default clears the session level instead of keeping it; follow k
 
 test('only lib/model-effort.js maps a preference onto model levels', async () => {
   assert.equal(stageEffort.resolveEffort, undefined, 'the second mapping is gone');
-  const own = await readFile(new URL('../lib/stage-effort.js', import.meta.url), 'utf8');
-  assert.match(own, /from '\.\/model-effort\.js'/, 'the stage module reaches the shared mapping');
+  // Verify via bundler module graph that lib/stage-effort.js imports lib/model-effort.js directly.
+  const bundle = await build({
+    entryPoints: ['lib/stage-effort.js'],
+    bundle: true,
+    write: false,
+    metafile: true,
+    platform: 'node',
+    format: 'esm',
+    logLevel: 'silent',
+  });
+  const stageInputs = bundle.metafile.inputs['lib/stage-effort.js']?.imports || [];
+  assert.ok(
+    stageInputs.some((edge) => edge.path === 'lib/model-effort.js'),
+    'the stage module reaches the shared mapping in lib/model-effort.js',
+  );
+  // Behavioral parity across every generation stage and model effort list (including unknown labels & tie-breaks).
+  const stageTexts = {
+    planning: GENERATION_STAGE_TEXT.planning,
+    review: GENERATION_STAGE_TEXT.reviewing,
+    writing: GENERATION_STAGE_TEXT.authoring,
+    repair: GENERATION_STAGE_TEXT.repairing,
+  };
+  const customLevels = [{ id: 'tier-a', name: 'Tier A' }, { id: 'tier-b', name: 'Tier B' }];
+  for (const [modelIdx, efforts] of [DEEPSEEK, CLASSIC, TWO, customLevels, []].entries()) {
+    const modelRoute = { provider: 'p', model: `parity-${modelIdx}`, reasoningEffort: 'high' };
+    const ctx = ctxWith(efforts);
+    for (const stageKey of stageEffort.EFFORT_STAGES) {
+      for (const preference of EFFORT_PREFERENCES) {
+        const expected = await reasoningFor(ctx, modelRoute, preference);
+        const routed = await stageEffort.stageEffortRoute(ctx, modelRoute, stageTexts[stageKey], { [stageKey]: preference });
+        assert.deepEqual(routed.choice, expected, `${stageKey}/model-${modelIdx}/${preference} choice matches reasoningFor`);
+        assert.equal(
+          routed.route.reasoningEffort,
+          expected.reason === 'unsupported' ? modelRoute.reasoningEffort : expected.id,
+          `${stageKey}/model-${modelIdx}/${preference} route matches reasoningFor`,
+        );
+      }
+    }
+  }
   const files = await sourceFiles();
   // The signs of a mapping: the names of the strongest level (xhigh / ultra), a strength rank table, a distance to a target level.
   const signs = [/xhigh|x\[\\s_-\]\?high/i, /\bRANK\b/, /Math\.abs\([^)]*(rank|target|position)/i, /positionOf|NEAREST_LEVEL/];

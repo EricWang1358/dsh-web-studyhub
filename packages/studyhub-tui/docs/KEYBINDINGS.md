@@ -10,13 +10,14 @@ Complete keyboard reference for `@ericwang1358/studyhub-tui`, synchronized with 
 
 All keyboard events for a given `stdin` pass through a single unified dispatcher hub (`src/input/dispatcher.ts`), bridged once in `AppShell` (`useKeyDispatcherBridge`).
 
-- **LIFO Opaque Scope Stack**: `<KeyScope opaque>` (aliased as `<KeyScopeProvider>`) pushes an opaque frame `{ scopeId, depth, pushSeq }`. The top-most frame by `(depth DESC, pushSeq DESC)` exclusively owns keyboard routing — automatically masking underlying views and earlier sibling modals without manual boolean chains. Only `KEY_LAYER_SYSTEM` (`600`) bypasses opaque masking.
+- **LIFO Opaque Scope Stack**: `<KeyScope opaque>` (aliased as `<KeyScopeProvider>`) pushes an opaque frame `{ scopeId, depth, pushSeq }`. The top-most frame by `(depth DESC, pushSeq DESC)` exclusively owns keyboard routing — automatically masking underlying views and earlier sibling modals without manual boolean chains. Shell overlays use explicit depth tiers (`KEY_SCOPE_DEPTH_SHELL_OVERLAY = 100` < `KEY_SCOPE_DEPTH_TOO_SMALL = 200` < `KEY_SCOPE_DEPTH_QUIT_CONFIRM = 300`) above page/modal nesting (`1, 2, ...`). Only `>= KEY_LAYER_SYSTEM` (`600`) bypasses opaque masking.
 - **Deterministic Priority Order**: Among eligible active handlers, dispatch sorts by `(system ? 1 : 0) DESC, depth DESC, layer DESC, seq DESC`.
 - **Single-Consumption Contract**: Returning `true` (or calling `ctx.consume()`) stops dispatch immediately so one keystroke never triggers two handlers.
 - **`<KeyScope>` / `useKeyScope` Migration Status**: Primary views and modals use `<KeyScope>` + `useKeyScope({ id, active, layer, keys, onKey })` (unifying scoped dispatch, reactive `useScopeActive` masking, and `SideNav` key claiming). Legacy unmigrated modals and reusable widgets remain compatible on the same dispatcher hub via `useScopedInput` + `useClaimKeys`.
 
 | Layer Constant | Priority | Scope & Role |
 | --- | --- | --- |
+| `KEY_LAYER_MOUSE` | `610` | SGR mouse fallback in `components/mouse.tsx` inside the single dispatcher; consumes non-wheel click/release/motion frames before keyboard handlers while letting wheel frames pass through |
 | `KEY_LAYER_SYSTEM` | `600` | Always-reachable shell controls in `AppShell:system` (`Ctrl+C`, `Ctrl+K`, `Ctrl+Space`, `Ctrl+G`, `Ctrl+O`, `Ctrl+R`); never masked by opaque scopes |
 | `KEY_LAYER_TEXT_INPUT` | `500` | Focused `<TextInput>` fields (character entry, cursor/word edits, paste, `Ctrl+U`/`Ctrl+K`/`Ctrl+W`) |
 | `KEY_LAYER_MODAL` | `400` | Active modal & dialog body handlers (`ConfirmDialog`, `NotificationHistoryModal`, modal forms) |

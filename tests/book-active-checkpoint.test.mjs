@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 import {
   BOOK_DEFAULTS,
   bookConfusableDrill,
@@ -230,10 +230,94 @@ test('isWeakCrunchPoint and filterWeakTocEntries exclude un-questioned or fresh 
   });
 });
 
-test('PointBody renders 合书自测 only when inlineCheck handler is supplied, mounts InlineRun cleanly, and OWN_KEYS protects [data-inline-run] and [role="dialog"]', async () => {
-  const readingSource = await readFile(new URL('../ui/book/reading.js', import.meta.url), 'utf8');
-  assert.match(readingSource, /\[data-inline-run\]/);
-  assert.match(readingSource, /\[role="dialog"\]/);
+test('PointBody renders 合书自测 only when inlineCheck handler is supplied, mounts InlineRun cleanly, and useStepKeys ignores arrows inside [data-inline-run] and [role="dialog"]', async () => {
+  // Behavioral verification of useStepKeys keyboard guarding with real DOM ancestry.
+  const readingUi = await loadInteractiveUi(`export { useStepKeys } from './ui/book/reading.js';`);
+  const matchesSimple = (el, sel) => {
+    const trimmed = sel.trim();
+    if (!trimmed) return false;
+    if (trimmed.startsWith('.')) return (el.classes || []).includes(trimmed.slice(1));
+    const attrEq = /^\[([^=\]]+)="([^"]*)"\]$/.exec(trimmed);
+    if (attrEq) return el.attrs?.[attrEq[1]] === attrEq[2];
+    const attrOnly = /^\[([^=\]]+)\]$/.exec(trimmed);
+    if (attrOnly) return Object.hasOwn(el.attrs || {}, attrOnly[1]);
+    return el.tag === trimmed.toLowerCase();
+  };
+  const makeEl = (tag, { attrs = {}, classes = [], parent = null } = {}) => {
+    const el = {
+      tag: tag.toLowerCase(),
+      attrs,
+      classes,
+      parentElement: parent,
+      closest(selectorList) {
+        const selectors = selectorList.split(',');
+        for (let cur = el; cur; cur = cur.parentElement) {
+          if (selectors.some((s) => matchesSimple(cur, s))) return cur;
+        }
+        return null;
+      },
+    };
+    return el;
+  };
+
+  const bodyEl = makeEl('main');
+  const readingParagraph = makeEl('p', { parent: bodyEl });
+  const inlineRunEl = makeEl('div', { attrs: { 'data-inline-run': '' }, parent: bodyEl });
+  const inlineOptionBtn = makeEl('button', { parent: inlineRunEl });
+  const dialogEl = makeEl('div', { attrs: { role: 'dialog' }, parent: bodyEl });
+  const dialogActionBtn = makeEl('button', { parent: dialogEl });
+
+  const keyListeners = new Set();
+  const dispatchArrow = (key, target) => {
+    const event = {
+      key,
+      target,
+      defaultPrevented: false,
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+      preventDefault() { this.defaultPrevented = true; },
+    };
+    for (const listener of [...keyListeners]) listener(event);
+    return event;
+  };
+
+  await withBrowserGlobals(async () => {
+    const moves = [];
+    const hook = readingUi.mountHook(
+      ({ on }) => readingUi.exports.useStepKeys(on, (delta) => moves.push(delta)),
+      { on: true },
+    );
+    try {
+      assert.equal(keyListeners.size, 1, 'useStepKeys attaches keydown listener when active');
+
+      // Inside [data-inline-run]: arrows must NOT step the book.
+      assert.equal(dispatchArrow('ArrowLeft', inlineOptionBtn).defaultPrevented, false);
+      assert.equal(dispatchArrow('ArrowRight', inlineOptionBtn).defaultPrevented, false);
+      assert.deepEqual(moves, [], 'arrows inside [data-inline-run] do not call go()');
+
+      // Inside [role="dialog"]: arrows must NOT step the book.
+      assert.equal(dispatchArrow('ArrowLeft', dialogActionBtn).defaultPrevented, false);
+      assert.equal(dispatchArrow('ArrowRight', dialogActionBtn).defaultPrevented, false);
+      assert.deepEqual(moves, [], 'arrows inside [role="dialog"] do not call go()');
+
+      // Ordinary reading body: ArrowLeft calls go(-1) and ArrowRight calls go(+1).
+      assert.equal(dispatchArrow('ArrowLeft', readingParagraph).defaultPrevented, true);
+      assert.equal(dispatchArrow('ArrowRight', readingParagraph).defaultPrevented, true);
+      assert.deepEqual(moves, [-1, 1], 'arrows on ordinary reading content step -1 / +1');
+    } finally {
+      hook.unmount();
+    }
+    assert.equal(keyListeners.size, 0, 'unmounting removes keydown listener');
+    dispatchArrow('ArrowRight', readingParagraph);
+    assert.deepEqual(moves, [-1, 1], 'no further navigation after unmount');
+  }, {
+    window: {
+      addEventListener: (type, fn) => { if (type === 'keydown') keyListeners.add(fn); },
+      removeEventListener: (type, fn) => { if (type === 'keydown') keyListeners.delete(fn); },
+    },
+  });
 
   const node = {
     hid: 'h2',

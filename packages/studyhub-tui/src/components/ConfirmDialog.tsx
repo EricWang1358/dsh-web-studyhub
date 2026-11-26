@@ -2,7 +2,14 @@ import React, { memo, useState, type ReactNode } from 'react';
 import { Box, Text } from 'ink';
 import { useTheme } from '../theme/tokens.js';
 import { t, useTuiStore } from '../state/store.js';
-import { KEY_LAYER_MODAL, useKeyScopeDepth, useScopedInput } from './key-dispatcher.js';
+import {
+  KEY_LAYER_MODAL,
+  KEY_SCOPE_DEPTH_SHELL_OVERLAY,
+  KeyScope,
+  useKeyScopeDepth,
+  useScopeActive,
+  useScopedInput,
+} from './key-dispatcher.js';
 import { Modal } from './Modal.js';
 import { ClickableBox } from './mouse.js';
 
@@ -20,8 +27,7 @@ export interface ConfirmDialogProps {
   overlay?: boolean;
 }
 
-/** y / Enter = confirm (when focused), n / Esc = cancel, ←/→/Tab switch buttons. */
-export const ConfirmDialog = memo(function ConfirmDialog({
+const ConfirmDialogContent = memo(function ConfirmDialogContent({
   title,
   message,
   confirmLabel,
@@ -29,17 +35,14 @@ export const ConfirmDialog = memo(function ConfirmDialog({
   danger = false,
   onConfirm,
   onCancel,
-  isActive = true,
+  baseActive,
   width = 56,
   overlay = true,
-}: ConfirmDialogProps) {
+}: Omit<ConfirmDialogProps, 'isActive'> & { baseActive: boolean }) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
-  const shellOverlay = useTuiStore(
-    (s) => s.commandPaletteOpen || s.helpOpen || s.coursePickerOpen || s.inboxOpen || s.notificationHistoryOpen,
-  );
-  const effectiveActive = isActive && !shellOverlay;
+  const effectiveActive = useScopeActive(baseActive);
   const resolvedConfirm = confirmLabel ?? t(lang, '确认', 'Confirm');
   const resolvedCancel = cancelLabel ?? t(lang, '取消', 'Cancel');
   const [focus, setFocus] = useState<'confirm' | 'cancel'>(danger ? 'cancel' : 'confirm');
@@ -90,5 +93,25 @@ export const ConfirmDialog = memo(function ConfirmDialog({
         {btn(resolvedConfirm, focus === 'confirm', confirmColor, 'y', onConfirm)}
       </Box>
     </Modal>
+  );
+});
+
+/** y / Enter = confirm (when focused), n / Esc = cancel, ←/→/Tab switch buttons. */
+export const ConfirmDialog = memo(function ConfirmDialog({
+  isActive = true,
+  ...rest
+}: ConfirmDialogProps) {
+  const parentDepth = useKeyScopeDepth();
+  const isShellLevel = parentDepth >= KEY_SCOPE_DEPTH_SHELL_OVERLAY;
+  const shellOverlay = useTuiStore(
+    (s) => s.commandPaletteOpen || s.helpOpen || s.coursePickerOpen || s.inboxOpen || s.notificationHistoryOpen,
+  );
+  // Page-level ConfirmDialogs defer to shell overlays (both via LIFO depth stack and store flag for standalone tests);
+  // Shell-level dialogs (e.g. AppShell Quit ConfirmDialog at KEY_SCOPE_DEPTH_QUIT_CONFIRM) stay active above Help/Palette.
+  const baseActive = isActive && (isShellLevel || !shellOverlay);
+  return (
+    <KeyScope id="ConfirmDialog" opaque active={baseActive}>
+      <ConfirmDialogContent {...rest} baseActive={baseActive} />
+    </KeyScope>
   );
 });

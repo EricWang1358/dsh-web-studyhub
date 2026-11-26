@@ -7,11 +7,14 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StudyService } from '../lib/service.js';
 import { loadUi } from './helpers/ui-module.mjs';
+import { reviewElement } from './helpers/review-render.mjs';
 
 /* D-6: the line under a practice answer says what the SAME level function of the mastery views says. One correct answer is 学习中 (the interval is not yet 6 days), never 已掌握. */
 
 const m = await loadUi(`
   export { NextDue, nextDueIcon, nextDueWord } from './ui/NextDue.jsx';
+  export { default as Review } from './ui/Review.jsx';
+  export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';
   export { cardLevel } from './lib/mastery.js';
 `);
@@ -73,11 +76,85 @@ test('the word comes from the mastery level function, so the practice line and t
   assert.equal(m.nextDueIcon({ correct: true, level: 'learning' }), null);
 });
 
-test('no practice screen calls a merely correct answer 已掌握: the result headline counts 答对, the feedback line is the level\'s', async () => {
-  const { readFile } = await import('node:fs/promises');
-  // The page and the question it shows (ui/review/QuestionRun.jsx) are one practice screen.
-  const review = await readFile('ui/Review.jsx', 'utf8') + await readFile('ui/review/QuestionRun.jsx', 'utf8');
-  assert.doesNotMatch(review, /道题已掌握/, 'the end-of-run headline counts the correct answers, it does not call them mastered');
-  assert.doesNotMatch(review, /ui\(['"]已掌握['"]\)/, 'the one place that may say 已掌握 is ui/NextDue.jsx, by the level');
-  assert.match(review, /<NextDue feedback=\{run\.feedback\}/);
+test('no practice screen calls a merely correct answer 已掌握: the result headline counts 答对, the feedback line is the level\'s', () => {
+  const due = '2026-10-07T00:00:00.000Z';
+  const quizCard = {
+    id: 'q1',
+    kind: 'quiz',
+    topic: 'Bridge',
+    prompt: 'Why use Bridge for reports and renderers?',
+    options: [
+      { id: 'a', text: 'Separate independent dimensions' },
+      { id: 'b', text: 'Merge every subclass' },
+    ],
+  };
+  const solution = {
+    options: [
+      { id: 'a', correct: true, explanation: 'Abstractions and implementations vary independently.' },
+      { id: 'b', correct: false, explanation: 'Subclassing every pair causes a cross product.' },
+    ],
+    explanation: 'Bridge decouples two independent axes of change.',
+    citations: [],
+  };
+  const renderReview = (run) => text(renderToStaticMarkup(reviewElement(m.Review, m.StudyServicesContext, {
+    run,
+    data: { root: '/r', decks: [], sources: [] },
+    shellTitle: 'Patterns',
+  })));
+  const activeRun = (feedback) => ({
+    id: 'run-active',
+    deckId: 'd',
+    mode: 'quiz',
+    index: 0,
+    total: 3,
+    questions: 3,
+    answered: 1,
+    correct: feedback.correct ? 1 : 0,
+    complete: false,
+    revealed: true,
+    card: quizCard,
+    solution,
+    feedback,
+  });
+
+  // Active question screen (Review -> QuestionRun -> NextDue): a merely correct answer says 答对了, never 已掌握.
+  const learningText = renderReview(activeRun({ correct: true, level: 'learning', selected: ['a'], nextDue: due }));
+  assert.match(learningText, /答对了 · 下次/);
+  assert.doesNotMatch(learningText, /已掌握/, 'merely correct answer on QuestionRun never claims 已掌握');
+
+  // A mastered answer renders 已掌握 through NextDue on the same QuestionRun screen.
+  const masteredText = renderReview(activeRun({ correct: true, level: 'mastered', selected: ['a'], nextDue: due }));
+  assert.match(masteredText, /已掌握 · 下次/);
+
+  // A missed answer renders 将继续巩固 and never 已掌握.
+  const weakText = renderReview(activeRun({ correct: false, level: 'weak', selected: ['b'], nextDue: due }));
+  assert.match(weakText, /将继续巩固 · 下次/);
+  assert.doesNotMatch(weakText, /已掌握/);
+
+  // Completed round summary screen: headline counts 答对, never 道题已掌握.
+  const partialSummary = renderReview({
+    id: 'run-done-partial', deckId: 'd', mode: 'quiz', complete: true,
+    questions: 5, total: 5, answered: 5, correct: 4, selfAnswered: 0,
+  });
+  assert.match(partialSummary, /道题答对 \/ 5 道/);
+  assert.doesNotMatch(partialSummary, /道题已掌握|已掌握/);
+
+  const perfectSummary = renderReview({
+    id: 'run-done-all', deckId: 'd', mode: 'quiz', complete: true,
+    questions: 5, total: 5, answered: 5, correct: 5, selfAnswered: 0,
+  });
+  assert.match(perfectSummary, /道题答对 \/ 5 道/);
+  assert.match(perfectSummary, /本轮全部答对/);
+  assert.doesNotMatch(perfectSummary, /道题已掌握|已掌握/);
+
+  m.setUiLanguage('en');
+  try {
+    const enLearning = renderReview(activeRun({ correct: true, level: 'learning', selected: ['a'], nextDue: due }));
+    assert.match(enLearning, /Correct · see it again/);
+    assert.doesNotMatch(enLearning, /Mastered · see it again/);
+    assert.doesNotMatch(enLearning, han);
+    const enMastered = renderReview(activeRun({ correct: true, level: 'mastered', selected: ['a'], nextDue: due }));
+    assert.match(enMastered, /Mastered · see it again/);
+    assert.doesNotMatch(enMastered, han);
+  } finally { m.setUiLanguage('zh'); }
 });

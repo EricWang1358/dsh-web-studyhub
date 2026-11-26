@@ -7,6 +7,8 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readAppSource } from "./helpers/app-source.mjs";
 import { mapProps } from './helpers/study-map-props.mjs';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
+import { createActRunner } from '../ui/act-runner.js';
 
 /* WP19: "知道了" must not freeze the page. Cards leave at once through the light path
    (ui/quick-actions.js), nothing is disabled, failures come back next to the card. */
@@ -100,21 +102,117 @@ test("the English strings exist for the new error labels", async () => {
   } finally { setUiLanguage("zh"); }
 });
 
-test("App wires every 知道了 and 全部知道了 through the light path, not through act", async () => {
+test("App wires every 知道了 and 全部知道了 through the light path, and CompactJobCard uses quick when provided or falls back to act", async () => {
   const app = await readAppSource();
   assert.match(await readFile("ui/StudyMap.jsx", "utf8"), /dismissJob = \(jobId, alsoIds\) => dismissJobs\(quick, jobId, alsoIds\)/, "StudyMap dismissJob uses dismissJobs()");
   assert.doesNotMatch(app, /act\("job\.dismiss"/);
-  const cardUi = await readFile("ui/tasks/CompactJobCard.jsx", "utf8");
-  assert.match(cardUi, /quick \? dismissJobs\(quick, job\.id\)/, "the compact cards (audio, generation, PDF) use the light path; act is only the fallback outside App");
   assert.match(app, /QuickActionsContext\.Provider/);
   assert.match(app, /markInboxRead\(quick/, "全部已读 is light as well");
+
+  const ui = await loadInteractiveUi(`
+    export { AppContext } from './ui/app/app-context.js';
+    export { QuickActionsContext, createQuickActions } from './ui/quick-actions.js';
+    export { default as CompactJobCard } from './ui/tasks/CompactJobCard.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const { AppContext, QuickActionsContext, createQuickActions, CompactJobCard, setUiLanguage } = ui.exports;
+  const h = ui.React.createElement;
+
+  const prevCss = globalThis.CSS;
+  globalThis.CSS = { escape: (value) => String(value) };
+
+  await withBrowserGlobals(async () => {
+    setUiLanguage("zh");
+    try {
+      // 1) WITH QuickActionsContext.Provider -> clicking 归档 uses the light path (dismissJobs -> job.archive), never act
+      const quickCalls = [];
+      const actCallsWithQuick = [];
+      const quickController = createQuickActions({
+        call: async (action, args) => {
+          quickCalls.push({ action, args });
+          return { ok: true };
+        },
+        timers: false,
+      });
+      const lightJob = generation("j-light", "failed");
+      quickController.view({ jobs: [lightJob] });
+
+      const withQuick = ui.mount(() => h(
+        AppContext.Provider,
+        { value: { host: {}, core: { act: async (action, args) => { actCallsWithQuick.push({ action, args }); return { ok: true }; }, refresh: async () => {} }, nav: { show: { task: noop } } } },
+        h(
+          QuickActionsContext.Provider,
+          { value: quickController.snapshot() },
+          h(CompactJobCard, { job: lightJob }),
+        ),
+      ));
+      try {
+        const dismissBtn = withQuick.find((node) => node.type === "button" && /^归档：/.test(node.props?.["aria-label"] || ""));
+        assert.ok(dismissBtn, "finished CompactJobCard renders 归档 button");
+        await withQuick.act(() => click(dismissBtn));
+        await withQuick.flush(3);
+        assert.deepEqual(quickCalls, [{ action: "job.archive", args: { jobId: "j-light" } }]);
+        assert.deepEqual(actCallsWithQuick, [], "light path never touches single-flight act");
+      } finally {
+        withQuick.unmount();
+      }
+
+      // 2) WITHOUT QuickActionsContext.Provider -> clicking 归档 falls back to app.core.act('job.archive', ...)
+      const actCallsFallback = [];
+      const fallbackJob = generation("j-fallback", "complete");
+      const withoutQuick = ui.mount(() => h(
+        AppContext.Provider,
+        { value: { host: {}, core: { act: async (action, args) => { actCallsFallback.push({ action, args }); return { ok: true }; }, refresh: async () => {} }, nav: { show: { task: noop } } } },
+        h(CompactJobCard, { job: fallbackJob }),
+      ));
+      try {
+        const dismissBtn = withoutQuick.find((node) => node.type === "button" && /^归档：/.test(node.props?.["aria-label"] || ""));
+        assert.ok(dismissBtn, "standalone CompactJobCard renders 归档 button");
+        await withoutQuick.act(() => click(dismissBtn));
+        await withoutQuick.flush(3);
+        assert.deepEqual(actCallsFallback, [{ action: "job.archive", args: { jobId: "j-fallback" } }]);
+      } finally {
+        withoutQuick.unmount();
+      }
+    } finally {
+      setUiLanguage("zh");
+      if (prevCss === undefined) delete globalThis.CSS;
+      else globalThis.CSS = prevCss;
+    }
+  });
 });
 
 test("act itself still serialises heavy actions and keeps its busy flag", async () => {
   const app = await readAppSource();
   assert.match(app, /const act = useCallback\(/);
   assert.match(app, /createActRunner/, "App's act() is the single-flight runner (see tests/act-runner.test.mjs)");
-  const runner = await readFile("ui/act-runner.js", "utf8");
-  assert.match(runner, /if \(current\) return;/);
-  assert.match(runner, /setBusy\(true\)/);
+
+  // Behavioral single-flight check on createActRunner (also covered in depth by tests/act-runner.test.mjs)
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const calls = [];
+  const busyStates = [];
+  const runner = createActRunner(() => ({
+    call: (action) => {
+      calls.push(action);
+      return gate;
+    },
+    refresh: async () => {},
+    epoch: () => 0,
+    navigation: () => 0,
+    setBusy: (value) => busyStates.push(value),
+    setError: () => {},
+    holdMs: 20,
+  }));
+
+  const first = runner.act("review.answer", { grade: 4 }, undefined, { refreshAfter: false });
+  assert.equal(runner.busy(), true);
+  assert.deepEqual(busyStates, [true]);
+  assert.equal(await runner.act("review.move", { direction: 1 }, undefined, { refreshAfter: false }), undefined, "re-entrant act is dropped while busy");
+  assert.deepEqual(calls, ["review.answer"]);
+
+  release({ ok: true });
+  assert.deepEqual(await first, { ok: true });
+  assert.equal(runner.busy(), false);
+  assert.deepEqual(busyStates, [true, false]);
 });
