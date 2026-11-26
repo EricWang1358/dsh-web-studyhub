@@ -22,6 +22,12 @@ test("similarStemPairs defaults to the 0.72 near-duplicate threshold at the exac
   assert.equal(shared.stemSimilarity(base, atBoundary), 0.72);
   assert.equal(shared.stemSimilarity(base, justBelow), 36 / 51);
   assert.deepEqual(shared.similarStemPairs([base, atBoundary, justBelow], { probes: [0] }), [[0, 1, 0.72]]);
+  // A pair just under the line (33-char stems, 23 of 32 bigrams shared: 2*23/64 = 0.71875) keeps the default from drifting down by a hundredth.
+  const wide = "abcdefghijklmnopqrstuvwxyzABCDEFG";
+  const nearMiss = "abcdefghijklmnopqrstuvwx012345678";
+  assert.equal(shared.stemSimilarity(wide, nearMiss), 23 / 32);
+  assert.deepEqual(shared.similarStemPairs([wide, nearMiss], { probes: [0] }), []);
+  assert.deepEqual(shared.similarStemPairs([wide, nearMiss], { probes: [0], threshold: 0.71 }), [[0, 1, 23 / 32]]);
 });
 
 test("stemSimilarity keeps its meaning: punctuation, spacing and case do not count, repeated bigrams count as often as they occur", () => {
