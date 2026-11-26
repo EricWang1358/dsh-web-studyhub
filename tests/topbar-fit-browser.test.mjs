@@ -160,7 +160,8 @@ for (const folder of FOLDERS) for (const lang of ['zh', 'en']) for (const [name,
       assert.deepEqual(errors.filter((message) => !/Failed to load resource|Failed to fetch/.test(message)), [], `${folder} ${lang} ${name}: no page errors`);
     } finally {
       release();
-      await context.close().catch(() => {});
+      await page.unrouteAll({ behavior: 'wait' });
+      await context.close();
     }
   });
 }

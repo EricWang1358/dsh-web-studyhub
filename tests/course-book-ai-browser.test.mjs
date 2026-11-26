@@ -13,6 +13,7 @@ import { BOOK_COURSE, seedBookFixture } from './helpers/book-fixtures.mjs';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { switchOptions } from './helpers/runtime-switch.mjs';
 import { settleJob } from './helpers/wait.mjs';
+import { commitPreviewAction } from './helpers/preview-write.mjs';
 import { replaceAiBlock } from '../lib/course-book-ai-text.js';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
@@ -200,10 +201,10 @@ test('复习全书 问 AI: the keyboard selection toolbar, the writing line and 
       await bar.waitFor({ timeout: 5000 });
       await bar.locator('[data-book-select="explain"]').click();
       await line.waitFor({ timeout: 5000 });
-      await page.waitForTimeout(300);
-      await line.getByRole('button', { name: '取消' }).click();
+      const cancellation = await commitPreviewAction(page, 'job.cancel', () => line.getByRole('button', { name: '取消' }).click());
+      assert.equal(cancellation.status, 'cancelled');
       await line.waitFor({ state: 'detached', timeout: 5000 });
-      assert.equal(control.cancels.length, 1, `${width}px: the task was stopped`);
+      assert.deepEqual(control.cancels, [`fake-${control.n}`], `${width}px: the task the learner cancelled was stopped once`);
       // A failure says why in the line's place; 重试 starts it again.
       await selectByKeys(page, '只有架构师', '。');
       await bar.waitFor({ timeout: 5000 });
