@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
-import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
+import { useKeyScope } from '../../components/key-dispatcher.js';
+import { isPlainKey } from '../../input/global-router.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction, type ReviewRun } from '../../host/sample-actions.js';
@@ -14,7 +15,6 @@ import { ScrollView } from '../../components/ScrollView.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { LAYOUT_BP } from '../../components/layout-tokens.js';
 import { VirtualList } from '../../components/VirtualList.js';
-import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { buildRoundNextStepSuggestion } from './round-next-step.js';
@@ -174,14 +174,17 @@ const DebriefModal = memo(function DebriefModal({
   );
   const effectiveActive = isActive && !shellOverlay;
 
-  useInput(
-    (input, key) => {
-      if (!key.ctrl && !key.meta && input === 'd') {
+  useKeyScope({
+    id: 'review:round-summary:debrief-modal',
+    active: effectiveActive,
+    onKey: (input, key) => {
+      if (isPlainKey(input, key) && input === 'd') {
         onClose();
+        return true;
       }
+      return false;
     },
-    { isActive: effectiveActive },
-  );
+  });
 
   const modalW = Math.min(72, Math.max(40, width - 4));
   const modalH = Math.min(20, Math.max(12, height - 4));
@@ -638,8 +641,6 @@ export const RoundSummary = memo(function RoundSummary({
   const selectedRow = rows[selectedIdx] ?? null;
   const modalOpen = confirmDebriefOpen || debriefOpen;
 
-  useClaimKeys(CLAIMED_SUMMARY_KEYS, isActive);
-
   const hints: KeyHint[] = useMemo(
     () => [
       { key: 'j/k', label: t(lang, '选题目', 'Select') },
@@ -663,57 +664,67 @@ export const RoundSummary = memo(function RoundSummary({
   );
   useFooterHints(hints, isActive);
 
-  useInput(
-    (input, key) => {
+  useKeyScope({
+    id: 'review:round-summary',
+    active: isActive && !modalOpen,
+    keys: CLAIMED_SUMMARY_KEYS,
+    onKey: (input, key) => {
+      const plain = isPlainKey(input, key);
       if (isNarrow && previewExpanded && (key.escape || key.leftArrow)) {
         setPreviewExpanded(false);
         return true;
       }
-      if ((key.return || input === ' ' || input === 'v') && selectedRow) {
+      if (((!key.ctrl && !key.meta && key.return) || (plain && (input === ' ' || input === 'v'))) && selectedRow) {
         setDetailScrollTop(0);
         setPreviewExpanded((prev) => !prev);
-        return;
+        return true;
       }
       if (previewExpanded) {
-        if (key.pageDown || (key.ctrl && input === 'd')) {
+        if (key.pageDown || (key.ctrl && !key.meta && input === 'd')) {
           setDetailScrollTop((top) => top + 6);
-          return;
+          return true;
         }
-        if (key.pageUp || (key.ctrl && input === 'u')) {
+        if (key.pageUp || (key.ctrl && !key.meta && input === 'u')) {
           setDetailScrollTop((top) => Math.max(0, top - 6));
-          return;
+          return true;
         }
-        if (isNarrow && (key.downArrow || input === 'j')) {
+        if (isNarrow && (key.downArrow || (plain && input === 'j'))) {
           setDetailScrollTop((top) => top + 1);
-          return;
+          return true;
         }
-        if (isNarrow && (key.upArrow || input === 'k')) {
+        if (isNarrow && (key.upArrow || (plain && input === 'k'))) {
           setDetailScrollTop((top) => Math.max(0, top - 1));
-          return;
+          return true;
         }
       }
-      if (input === 'd' && !key.ctrl && !key.meta) {
+      if (key.escape) {
+        handleGoBack();
+        return true;
+      }
+      if (!plain) return false;
+      if (input === 'd') {
         handleDebriefKey();
-        return;
+        return true;
       }
       if (input === 'w') {
         void handleRetryWeak();
-        return;
+        return true;
       }
       if (input === 'g') {
         void triggerDailyRecap();
-        return;
+        return true;
       }
       if (input === 'R') {
         handleNewRound();
-        return;
+        return true;
       }
-      if (input === 'b' || input === '1' || key.escape) {
+      if (input === 'b' || input === '1') {
         handleGoBack();
+        return true;
       }
+      return false;
     },
-    { isActive: isActive && !modalOpen },
-  );
+  });
 
   const detailMarkdown = useMemo(() => {
     if (!selectedRow) return '';
