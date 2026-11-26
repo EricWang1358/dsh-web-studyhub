@@ -23,6 +23,7 @@ after(() => {
 const [
   { StudyService },
   { summarize },
+  { studyMap },
   { createTuiHost },
   shellData,
   { TopBar },
@@ -38,6 +39,7 @@ const [
 ] = await Promise.all([
   import('../../../lib/service.js'),
   import('../../../lib/mastery.js'),
+  import('../../../lib/insights.js'),
   import('../src/host/tui-host.ts'),
   import('../src/shell/data.ts'),
   import('../src/shell/TopBar.tsx'),
@@ -462,5 +464,98 @@ describe('#1354 D9 Single-Source Study Metrics Consistency', () => {
     assert.equal(buildStatsSummary({ libraryRoot, snapshot: snap }).counts.weak, 1);
     assert.equal(buildDueReport({ libraryRoot, snapshot: snap }).totals.due, 2);
     assert.equal(buildDueReport({ libraryRoot, snapshot: snap }).totals.weak, 1);
+  });
+  test('7. Suspended cards: every screen weights mastery by the learnable cards the backend counts (11 cards, 2 learnable => 50%, not 91%)', async (t) => {
+    const base = await mkdtemp(path.join(os.tmpdir(), 'studyhub-d9-suspended-'));
+    t.after(() => rm(base, { recursive: true, force: true, maxRetries: 6, retryDelay: 50 }));
+    const libraryRoot = path.join(base, 'library');
+    await mkdir(libraryRoot, { recursive: true });
+
+    const pastIso = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+    const futureIso = new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString();
+    const card = (id, extra = {}) => ({ id, kind: 'short_answer', topic: 'T', prompt: `Q-${id}`, answer: `A-${id}`, ...extra });
+
+    const seed = new StudyService(libraryRoot, { complete: async () => '{}' });
+    await seed.store.update((s) => {
+      s.courses.push({ id: 'c-os', name: 'OS' });
+      s.decks.push(
+        {
+          // 10 cards in the inventory, 9 of them suspended: 1 learnable card, mastered (self-graded 5).
+          id: 'd-big',
+          title: 'Mostly Suspended',
+          course: 'OS',
+          cards: [
+            card('b0', { review: { due_at: futureIso, interval_days: 30, repetitions: 3 } }),
+            ...Array.from({ length: 9 }, (_, i) => card(`b${i + 1}`, { suspended: true })),
+          ],
+        },
+        // 1 card, never studied: learnable and new (0%).
+        { id: 'd-small', title: 'Fresh', course: 'OS', cards: [card('s0')] },
+      );
+      s.attempts.push({ id: 'a-b0', deckId: 'd-big', quiz_id: 'b0', grade: 5, correct: true, timestamp: pastIso });
+    });
+    const state = await seed.store.read();
+    await seed.dispose?.();
+
+    // Backend truth: lib/insights.js studyMap() card-weighted mastery over unsuspended cards.
+    const backend = studyMap(state).mastery.library;
+    assert.deepEqual(backend, { value: 50, cards: 2 }, 'backend counts 2 learnable cards at 50%');
+
+    const host = await createTuiHost({
+      libraryRoot,
+      env: { DSH_HOME: path.join(base, 'dsh-home') },
+      home: base,
+      documentsDir: base,
+      skipAutoProbe: true,
+      language: 'zh',
+    });
+    t.after(() => host.dispose());
+
+    const snapRes = await host.call('snapshot');
+    assert.equal(snapRes.ok, true, `real snapshot should succeed: ${snapRes.error?.message}`);
+    const snap = snapRes.value;
+    // The real host keeps the inventory (`count`, incl. suspended) apart from the learnable `progress.total`.
+    assert.equal(snap.decks.find((d) => d.id === 'd-big')?.count, 10);
+    assert.equal(snap.progress['d-big']?.total, 1);
+
+    const selectors = await import('../src/selectors/study-metrics.ts');
+    const summary = selectors.selectStudySummary(snap, 'OS');
+    assert.equal(summary.masteryPct, backend.value, 'selectStudySummary mastery % must equal the backend (50%, not 91%)');
+    assert.equal(summary.totalCards, backend.cards, 'cards shown next to the % must be the learnable population');
+    const course = selectors.selectCourseMetrics(snap).find((c) => c.key === 'OS');
+    assert.equal(course?.masteryPct, backend.value, 'selectCourseMetrics mastery % must equal the backend');
+    assert.equal(course?.totalCards, backend.cards);
+    assert.equal(buildStatsSummary({ libraryRoot, snapshot: snap }).counts.cards, backend.cards, 'CLI --stats cards');
+    const due = buildDueReport({ libraryRoot, snapshot: snap });
+    assert.equal(due.totals.totalCards, backend.cards, 'CLI --due total cards');
+    assert.equal(due.decks.find((d) => d.id === 'd-big')?.total, 1, 'CLI --due per-deck cards = learnable');
+
+    // Fallback path (no backend progress): the deck row's learnable fields are used, never the raw inventory.
+    const noProgress = { ...snap, progress: {} };
+    const fallbackBig = selectors.selectDeckMetrics(noProgress.decks.find((d) => d.id === 'd-big'), {});
+    assert.equal(fallbackBig.total, 1, 'without progress, total = the deck row unsuspended cards, not the inventory count');
+
+    // Live screens: LibraryView KPI and DashboardView show the same % for the same library.
+    const prevState = useTuiStore.getState();
+    useTuiStore.setState({
+      page: 'library',
+      snapshot: { ...snap, focus: { ...(snap.focus ?? {}), course: 'OS' } },
+      activeRunId: null,
+      practiceStack: [],
+      preferences: { ...DEFAULT_PREFERENCES, language: 'zh', asciiMode: true },
+      toasts: [],
+    });
+    t.after(() => useTuiStore.setState(prevState));
+
+    const lib = mountInk(React.createElement(LibraryView, { host, width: 120, height: 34, isActive: false }), { cols: 120, rows: 34 });
+    const libFrame = await lib.waitFor((s) => s.includes('掌握度:'), 5000, 'LibraryView KPI');
+    lib.cleanup();
+    assert.match(libFrame, /掌握度:\s*50%/, `LibraryView KPI must show 50%, frame:\n${libFrame}`);
+
+    const dash = mountInk(React.createElement(DashboardView, { host, width: 120, height: 34, isActive: false }), { cols: 120, rows: 34 });
+    const dashFrame = await dash.waitFor((s) => s.includes('平均掌握度') || s.includes('掌握 '), 8000, 'DashboardView KPI');
+    dash.cleanup();
+    assert.ok(dashFrame.includes('50%'), `DashboardView must show 50%, frame:\n${dashFrame}`);
+    assert.ok(!dashFrame.includes('91%'), `DashboardView must not show the inventory-weighted 91%, frame:\n${dashFrame}`);
   });
 });

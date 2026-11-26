@@ -16,7 +16,7 @@ import { saveTuiPreferences } from '../../host/tui-prefs.js';
 import { useTheme } from '../../theme/tokens.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { currentCourse, deckDueCount, dueToday, isActiveStudyDeck } from '../../shell/data.js';
-import { selectDeckMetrics, type DeckProgressLike } from '../../selectors/study-metrics.js';
+import { selectDeckMetrics, selectStudySummary, type DeckProgressLike } from '../../selectors/study-metrics.js';
 import { useShellActions } from '../../shell/actions.js';
 import { getSampleStatus, removeSampleCourse, tryAction } from '../../host/sample-actions.js';
 import type { DeckExportInput } from './deck-export.js';
@@ -278,21 +278,13 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
           return typeof ts === 'string' && localDayKey(ts) === todayKey;
         }).length;
 
-    let totalCards = 0;
-    let weightedMastery = 0;
-    for (const d of scopedDecks) {
-      if (d.archived) continue;
-      const st = deckStats(d, progressMap);
-      totalCards += st.total;
-      weightedMastery += st.mastery * st.total;
-    }
-    const masteryPct = totalCards > 0 ? Math.round(weightedMastery / totalCards) : 0;
+    const masteryPct = selectStudySummary(snapshot, course).masteryPct;
 
     const fpRaw = (snapshot?.focus as Record<string, unknown> | undefined)?.progress as FocusProgressInfo | undefined;
     const focusProgress = fpRaw && fpRaw.total > 0 ? fpRaw : null;
 
     return { due, reviewed, streak, masteryPct, focusProgress };
-  }, [snapshot, course, scopedDecks, progressMap, streak]);
+  }, [snapshot, course, streak]);
 
   const resumeRunForDeck = useMemo(() => {
     const runs = snapshot?.runs ?? [];

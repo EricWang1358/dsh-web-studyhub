@@ -54,6 +54,8 @@ export interface DeckLike {
   systemKind?: unknown;
   count?: unknown;
   cardCount?: unknown;
+  /** Unsuspended cards (host deck row); the population `progress[id]` is computed over. */
+  available?: unknown;
   due?: unknown;
   dueCount?: unknown;
   wrong?: unknown;
@@ -89,6 +91,7 @@ export interface StudySnapshotLike {
 }
 
 export interface DeckMetrics {
+  /** Learnable (unsuspended) cards: the population due/new/weak/mastery are counted over (`lib/mastery.js` `deckProgress`). */
   total: number;
   due: number;
   newCount: number;
@@ -279,11 +282,14 @@ export function selectDeckMetrics(
   const mastered = finiteNonNegInt(counts?.mastered) ?? finiteNonNegInt(deck.masteredCount) ?? 0;
   const bucketSum = newCount + weak + learning + familiar + mastered;
 
-  const total =
-    finiteNonNegInt(deck.count) ??
-    finiteNonNegInt(p?.total) ??
-    finiteNonNegInt(deck.cardCount) ??
-    bucketSum;
+  // One population for every number: the learnable (unsuspended) cards the backend counts
+  // (`progress.total`); the inventory `count` includes suspended cards and would over-weight
+  // such decks in any card-weighted mastery %.
+  const inventory = finiteNonNegInt(deck.count) ?? finiteNonNegInt(deck.cardCount);
+  const learnableFromRow =
+    finiteNonNegInt(deck.available) ??
+    (inventory === null ? null : Math.max(0, inventory - (finiteNonNegInt(deck.suspended) ?? 0)));
+  const total = finiteNonNegInt(p?.total) ?? learnableFromRow ?? bucketSum;
 
   const due =
     finiteNonNegInt(p?.due) ??
@@ -297,8 +303,7 @@ export function selectDeckMetrics(
   } else if (typeof deck.mastery === 'number' && Number.isFinite(deck.mastery)) {
     mastery = clampPct(deck.mastery);
   } else {
-    const denom = finiteNonNegInt(p?.total) ?? (total > 0 ? total : bucketSum);
-    mastery = computeWeightedMasteryPct({ weak, learning, familiar, mastered }, denom);
+    mastery = computeWeightedMasteryPct({ weak, learning, familiar, mastered }, total > 0 ? total : bucketSum);
   }
 
   const flagged = finiteNonNegInt(deck.flagged) ?? 0;
