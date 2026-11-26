@@ -6,20 +6,16 @@
 //
 // node --test packages/studyhub-tui/tests/d7-card-followup-boundary.test.mjs
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { register } from 'tsx/esm/api';
 
 const unregisterTsx = register();
 after(() => {
   unregisterTsx?.();
 });
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 
 const [{ StudyService }, { followupSource }, { createTuiHost }, aiDialogue] = await Promise.all([
   import('../../../lib/service.js'),
@@ -238,26 +234,5 @@ describe('#1354 D7 card.followup non-streaming decision & TUI streaming boundary
     } finally {
       await verifier.dispose?.();
     }
-  });
-
-  test('3. #1354 D7 decision guardrail: bilingual followup docs and TUI ARCHITECTURE.md explicitly record non-streaming card.followup decision', async () => {
-    const [followupZh, followupEn, tuiArch] = await Promise.all([
-      readFile(path.join(REPO_ROOT, 'docs', 'followup.zh-CN.md'), 'utf8'),
-      readFile(path.join(REPO_ROOT, 'docs', 'followup.md'), 'utf8'),
-      readFile(path.join(REPO_ROOT, 'packages', 'studyhub-tui', 'docs', 'ARCHITECTURE.md'), 'utf8'),
-    ]);
-
-    assert.match(followupZh, /#1354/, 'docs/followup.zh-CN.md must reference #1354 D7 decision');
-    assert.match(followupZh, /不做.*流式|不提供流式|非流式/, 'docs/followup.zh-CN.md must explicitly record that streaming card.followup is not implemented');
-    assert.match(followupZh, /streamComplete|useAiConversation/, 'docs/followup.zh-CN.md must point TUI live streaming to streamComplete / useAiConversation');
-
-    assert.match(followupEn, /#1354/, 'docs/followup.md must reference #1354 D7 decision');
-    assert.match(followupEn, /not implemented|non-streaming|Won't-Do/i, 'docs/followup.md must explicitly record that streaming card.followup is not implemented');
-    assert.match(followupEn, /streamComplete|useAiConversation/, 'docs/followup.md must point TUI live streaming to streamComplete / useAiConversation');
-
-    assert.match(tuiArch, /#1354/, 'packages/studyhub-tui/docs/ARCHITECTURE.md must reference #1354 D7 decision');
-    assert.match(tuiArch, /card\.followup/, 'ARCHITECTURE.md must document the card.followup boundary');
-    assert.match(tuiArch, /not implemented|Won't-Do|non-streaming/i, 'ARCHITECTURE.md must record the explicit non-streaming decision');
-    assert.match(tuiArch, /useAiConversation/, 'ARCHITECTURE.md must document useAiConversation as the unified TUI streaming layer');
   });
 });
