@@ -6,18 +6,25 @@
        'study-presets-fold'). Tokens only; the matrix keeps to the pane at 320 px (four short columns, no 「约」 in its cells). */
     .presets-depth { display: grid; gap: var(--space-2); min-width: 0; justify-items: start; }
     .presets-depth__choice { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); min-width: 0; }
-    .presets-matrix { width: 100%; max-width: 32em; border-collapse: collapse; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+    /* Keep columns and count lines in place while the nine estimates arrive one by one. */
+    .presets-matrix { width: 100%; max-width: 32em; table-layout: fixed; border-collapse: collapse; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     /* The caption stays a table caption (a flex caption drops into the first cell in Chromium); its words and the ⓘ sit in one inline row inside it. */
     .presets-matrix caption { padding-bottom: var(--space-1-5); color: var(--text-dim); font-size: var(--fs-sm); text-align: start; }
     .presets-matrix__caption { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
-    .presets-matrix th, .presets-matrix td { padding: var(--space-1) var(--space-1-5); border-bottom: 1px solid var(--line); text-align: start; vertical-align: top; }
+    .presets-matrix th, .presets-matrix td { padding: var(--space-1) var(--space-1-5); border-bottom: 1px solid var(--line); text-align: start; vertical-align: top; overflow-wrap: anywhere; }
     .presets-matrix thead th { color: var(--text-muted); font-weight: var(--fw-medium); }
     .presets-matrix tbody th { color: var(--text-dim); font-weight: var(--fw-medium); }
     .presets-matrix td { color: var(--text-muted); }
-    .presets-matrix td small { display: block; color: var(--text-faint); font-size: var(--fs-xs); }
-    .presets-matrix__ratio { color: var(--text-dim); white-space: nowrap; }
+    .presets-matrix td small { display: block; min-block-size: 1lh; color: var(--text-faint); font-size: var(--fs-xs); }
+    .presets-matrix__ratio { display: block; block-size: 1lh; line-height: var(--lh-snug); color: var(--text-dim); white-space: nowrap; }
     /* The form's own cell: an outline and the ink of the page, never a colour alone (its name is also said to a screen reader). */
     .presets-matrix td[data-current='true'] { box-shadow: inset 0 0 0 1px var(--line-strong); background: var(--bg-sunken); }
     .presets-matrix td[data-current='true'] .presets-matrix__ratio { color: var(--text); font-weight: var(--fw-medium); }
+  }
+  @container study (max-width: 640px) {
+    :is(.study-app, .study-seat) .presets-matrix td small { min-block-size: 2lh; }
+  }
+  @container study (max-width: 360px) {
+    :is(.study-app, .study-seat) .presets-matrix td small { min-block-size: 3lh; }
   }
 }
