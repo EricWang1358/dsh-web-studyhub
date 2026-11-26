@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 /* 断句停顿 in the UI: the field in 音频设置 next to the live engine choice (a SegmentedControl, one Hint line, a Tooltip that never uses title=), the
    one quiet line on the live page when a fast speaker never pauses (a pure function decides), and the way from that line to the field. */
@@ -131,10 +132,79 @@ test('the same input twice gives the same answer (a render may run twice)', () =
   assert.deepEqual(again, first);
 });
 
-test('the live page carries the line, the link to the field, and no title= on it', async () => {
-  const { readFile } = await import('node:fs/promises');
-  const source = await readFile(new URL('../ui/LiveClass.jsx', import.meta.url), 'utf8');
-  assert.match(source, /usePauseHint\(session\)/);
-  assert.match(source, /openAudioSettings\(onSettings, LIVE_PAUSE_ANCHOR\)/);
-  assert.match(source, /讲得很快、一直没有断句？到 音频设置 › 断句停顿 选『短』，下次开始或接着录时生效。/);
+test('the live page carries the line, the link to the field, and no title= on it', async (t) => {
+  let nowMs = 1_700_000_000_000;
+  t.mock.method(Date, 'now', () => nowMs);
+  const interactive = await loadInteractiveUi(`
+    export { default as LiveClass } from './ui/LiveClass.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { LIVE_PAUSE_ANCHOR } from './ui/live-pause-hint.js';
+    export { audioFocusPending, audioFocusTarget, takeAudioSettingsFocus } from './ui/audio-focus.js';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const ih = interactive.React.createElement;
+  await withBrowserGlobals(async () => {
+    interactive.exports.setUiLanguage('zh');
+    interactive.exports.takeAudioSettingsFocus();
+    let settingsOpened = 0;
+    const services = {
+      call: async (action) => (action === 'live.list' ? { sessions: [] } : {}),
+      act: async () => undefined,
+      busy: false,
+      notify() {},
+      askInChat() {},
+      host: {},
+      openSettings() {},
+      navigate() {},
+      openModal() {},
+    };
+    const activeSession = {
+      id: 'live-fast-1',
+      status: 'live',
+      title: 'Fast lecture',
+      course: 'Algorithms',
+      elapsedMs: 65_000,
+      segments: [],
+      total: 0,
+      interim: 'x'.repeat(150),
+    };
+    const mounted = interactive.mount(() => ih(
+      interactive.exports.StudyServicesContext.Provider,
+      { value: services },
+      ih(interactive.exports.LiveClass, {
+        data: { root: 'r', focus: { courses: [] } },
+        visible: true,
+        initialReadiness: { live: true, liveProvider: 'auto', providers: { free: true } },
+        initialSession: activeSession,
+        onSettings: () => { settingsOpened += 1; },
+      }),
+    ));
+    try {
+      assert.equal(
+        mounted.find((n) => n.props && 'data-live-pause-hint' in n.props),
+        null,
+        'pause hint stays hidden before 60 s have elapsed',
+      );
+
+      nowMs += 60_001;
+      mounted.rerender();
+
+      const hint = mounted.find((n) => n.props && 'data-live-pause-hint' in n.props);
+      assert.ok(hint, 'pause hint renders after >60 s of >=150 interim chars without a new sentence');
+      assert.equal(hint.props.role, 'status');
+      assert.match(mounted.text(hint), /讲得很快、一直没有断句？到 音频设置 › 断句停顿 选『短』，下次开始或接着录时生效。/);
+      const titled = mounted.findAll((n) => typeof n.type === 'string' && n.props?.title !== undefined, hint);
+      assert.deepEqual(titled, [], 'no title= attribute on the pause hint or its link');
+
+      const btn = mounted.find((n) => n.type === 'button' && mounted.text(n).includes('打开断句停顿设置'), hint);
+      assert.ok(btn, 'settings deep-link button renders inside pause hint');
+      click(btn);
+      assert.equal(settingsOpened, 1, 'clicking the pause hint opens audio settings');
+      assert.equal(interactive.exports.audioFocusPending(), true);
+      assert.equal(interactive.exports.audioFocusTarget(), interactive.exports.LIVE_PAUSE_ANCHOR);
+    } finally {
+      interactive.exports.takeAudioSettingsFocus();
+      mounted.unmount();
+    }
+  });
 });
