@@ -217,6 +217,18 @@ function releaseTerminal(term) {
 const sampleTemplateDirs = new Map();
 
 /**
+ * Pick a local-day anchor timestamp for `sample.load` so positive/negative minute offsets
+ * (`+80m` on historical days, `-60m` on relearned due cards, `-45m` on today's attempts)
+ * never cross local midnight and skew the seeded 7-day streak / due counts near 00:00 or 23:00.
+ */
+function safeSampleAnchorNow(realNow = Date.now()) {
+  const d = new Date(realNow);
+  const floorMs = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 1, 0, 0, 0).getTime();
+  const ceilMs = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 21, 0, 0, 0).getTime();
+  return Math.min(ceilMs, Math.max(floorMs, realNow));
+}
+
+/**
  * Seed a fresh StudyHub sample library into `destDir` by cloning a per-worker cached template.
  * Cuts repeated `sample.load` time from ~800ms per test to ~3ms while keeping 100% isolation.
  */
@@ -237,10 +249,14 @@ export async function cloneSampleLibrary(language, destDir) {
       skipAutoProbe: true,
       language: lang,
     });
+    const origDateNow = Date.now;
+    const anchorNow = safeSampleAnchorNow(origDateNow());
+    Date.now = () => anchorNow;
     try {
       const res = await host.call('sample.load', { language: lang });
       assert.equal(res.ok, true, `cloneSampleLibrary(${lang}) failed: ${res.error?.message ?? ''}`);
     } finally {
+      Date.now = origDateNow;
       await host.dispose();
     }
     templateDir = { base, tplLib };
