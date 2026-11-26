@@ -40,8 +40,17 @@ test('原始 PDF: a preset of one\'s own is added, asks with its exact words, su
       await page.locator('.source-doc').first().locator('.source-main').click();
       await page.locator('.study-document-viewer').waitFor({ timeout: 30000 });
       try {
-        if (bytesPending) await bytesPending.started;
-        await chooseMore(page, '原始 PDF');
+        if (bytesPending) {
+          await bytesPending.started;
+          await page.locator('.study-document-viewer').getByRole('button', { name: '更多', exact: true }).click();
+          const item = page.locator('.sh-menu [role^="menuitem"]', { hasText: '原始 PDF' }).first();
+          const label = await item.innerText();
+          assert.doesNotMatch(label, /没有原文件/, 'a loading retained PDF must not say 没有原文件');
+          assert.match(label, /正在载入…/, 'a loading retained PDF says it is loading');
+          await item.click();
+        } else {
+          await chooseMore(page, '原始 PDF');
+        }
       } finally { bytesPending?.release(); }
       await page.locator('.original-dialog[open], .reader-scroll[data-mode="original"]').first().waitFor();
       assert.equal(await page.locator('.original-dialog[open]').count(), 0, 'a retained PDF loading its bytes needs no relink');
@@ -51,9 +60,9 @@ test('原始 PDF: a preset of one\'s own is added, asks with its exact words, su
       await page.locator('.study-page-ask').waitFor({ timeout: 30000 });
     };
     const chip = label => page.locator('.study-page-ask .ask-quick button', { hasText: label });
+    let releaseBytes;
     try {
       await page.goto(running.server.url);
-      let releaseBytes;
       const held = new Promise(resolve => { releaseBytes = resolve; });
       const isOriginal = request => request.url().endsWith('/api/call') && request.postDataJSON()?.action === 'materials.document.bytes';
       await page.route('**/api/call', async route => {
@@ -126,6 +135,61 @@ test('原始 PDF: a preset of one\'s own is added, asks with its exact words, su
       assert.doesNotMatch(String(stored), new RegExp(NAME), 'deleted from this browser as well');
       assert.deepEqual(pageErrors, [], 'no page errors');
       assert.deepEqual(errors.filter(error => !/PDF|pdf|blob:/i.test(error)), [], 'no console errors beyond the headless PDF frame');
-    } finally { await context.close(); }
+    } finally { releaseBytes?.(); await context.close(); }
+
+    // Clicking 原始 PDF while materials.document.get is still in flight still opens original once metadata + bytes arrive.
+    {
+      const { context: getCtx, page: getPage } = await openPage(browser, running, { width: 1440, height: 900 });
+      let releaseGet;
+      const heldGet = new Promise(resolve => { releaseGet = resolve; });
+      const isGet = request => request.url().endsWith('/api/call') && request.postDataJSON()?.action === 'materials.document.get';
+      try {
+        await getPage.route('**/api/call', async route => {
+          if (isGet(route.request())) await heldGet;
+          await route.fallback();
+        });
+        await getPage.goto(running.server.url);
+        await (await revealNavRow(getPage, 'sources')).click();
+        const startedGet = getPage.waitForRequest(isGet);
+        await getPage.locator('.source-doc').first().locator('.source-main').click();
+        await getPage.locator('.study-document-viewer').waitFor({ timeout: 30000 });
+        try {
+          await startedGet;
+          await chooseMore(getPage, '原始 PDF');
+        } finally { releaseGet(); }
+        await getPage.locator('.original-dialog[open], .reader-scroll[data-mode="original"]').first().waitFor({ timeout: 30000 });
+        assert.equal(await getPage.locator('.original-dialog[open]').count(), 0, 'clicking 原始 PDF before metadata arrives must not pop relink');
+        await getPage.locator('.reader-scroll[data-mode="original"]').waitFor({ timeout: 30000 });
+      } finally { releaseGet?.(); await getCtx.close(); }
+    }
+
+    // Clicking 原始 PDF while bytes are loading falls back cleanly to OriginalDialog when bytes report missing.
+    {
+      const { context: missCtx, page: missPage } = await openPage(browser, running, { width: 1440, height: 900 });
+      let releaseMiss;
+      const heldMiss = new Promise(resolve => { releaseMiss = resolve; });
+      const isBytes = request => request.url().endsWith('/api/call') && request.postDataJSON()?.action === 'materials.document.bytes';
+      try {
+        await missPage.route('**/api/call', async route => {
+          if (isBytes(route.request())) {
+            await heldMiss;
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, value: { dataBase64: '', reason: 'missing', path: '/tmp/moved.pdf' } }) });
+            return;
+          }
+          await route.fallback();
+        });
+        await missPage.goto(running.server.url);
+        await (await revealNavRow(missPage, 'sources')).click();
+        const startedMiss = missPage.waitForRequest(isBytes);
+        await missPage.locator('.source-doc').first().locator('.source-main').click();
+        await missPage.locator('.study-document-viewer').waitFor({ timeout: 30000 });
+        try {
+          await startedMiss;
+          await chooseMore(missPage, '原始 PDF');
+        } finally { releaseMiss(); }
+        await missPage.locator('.original-dialog[open]').waitFor({ timeout: 15000 });
+        assert.equal(await missPage.locator('.reader-scroll').getAttribute('data-mode'), 'read', 'missing bytes keep reader in text view while opening relink dialog');
+      } finally { releaseMiss?.(); await missCtx.close(); }
+    }
   } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true }); }
 });
