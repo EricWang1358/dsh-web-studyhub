@@ -17,6 +17,11 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 
 const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
 const IGNORABLE_SYNC_CODES = new Set(['EINVAL', 'ENOSYS', 'ENOTSUP', 'EROFS']);
 
+function canonicalPathKey(filePath: string): string {
+  const resolved = resolve(filePath);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
 export interface AtomicFsOps {
   writeAndSync?: (tempPath: string, data: string | Uint8Array, mode?: number) => Promise<void>;
   rename?: (from: string, to: string) => Promise<void>;
@@ -271,6 +276,39 @@ export async function atomicCopyFile(
   return atomicWritePayload(destPath, bytes, opts);
 }
 
+/** Raised when backing up a corrupt file before recovery fails (#1354 D11). */
+export class AtomicBackupError extends Error {
+  readonly targetPath: string;
+  readonly backupPath: string;
+  constructor(targetPath: string, backupPath: string, cause: unknown) {
+    super(
+      `Existing ${basename(targetPath)} could not be backed up to ${basename(backupPath)} (${errText(cause)}); refusing to overwrite it`,
+      { cause },
+    );
+    this.name = 'AtomicBackupError';
+    this.targetPath = targetPath;
+    this.backupPath = backupPath;
+  }
+}
+
+/**
+ * Atomically copy a corrupt file aside to `<target>.corrupt-<ts>-<rand>.bak` before overwriting it.
+ * Never swallows backup failures: throws {@link AtomicBackupError} so callers abort recovery
+ * instead of destroying the only remaining copy of the user's file (#1354 D11).
+ */
+export async function backupCorruptFile(
+  targetPath: string,
+  opts?: AtomicWriteOptions,
+): Promise<{ backupPath: string; bytes: number }> {
+  const backupPath = `${targetPath}.corrupt-${Date.now()}-${randomUUID().slice(0, 8)}.bak`;
+  try {
+    const { bytes } = await atomicCopyFile(targetPath, backupPath, opts);
+    return { backupPath, bytes };
+  } catch (error) {
+    throw new AtomicBackupError(targetPath, backupPath, error);
+  }
+}
+
 /**
  * Value returned by an {@link atomicUpdateJson} mutator to report a result WITHOUT touching the
  * file (e.g. a passive preferences patch over a corrupt file must not clobber it).
@@ -390,12 +428,13 @@ export async function atomicUpdateJson<T>(
 
   if (opts?.queue === false) return run();
 
-  const previous = updateQueues.get(targetPath) ?? Promise.resolve();
+  const queueKey = canonicalPathKey(targetPath);
+  const previous = updateQueues.get(queueKey) ?? Promise.resolve();
   const chained = previous.then(run, run);
   const tail = chained.catch(() => {});
-  updateQueues.set(targetPath, tail);
+  updateQueues.set(queueKey, tail);
   void tail.finally(() => {
-    if (updateQueues.get(targetPath) === tail) updateQueues.delete(targetPath);
+    if (updateQueues.get(queueKey) === tail) updateQueues.delete(queueKey);
   });
   return chained;
 }
@@ -511,6 +550,17 @@ export async function atomicWriteFilesBatch(
   opts?: Pick<AtomicWriteOptions, 'sync' | 'fsOps'>,
 ): Promise<{ count: number; totalBytes: number }> {
   if (entries.length === 0) return { count: 0, totalBytes: 0 };
+
+  const seenTargets = new Set<string>();
+  for (const entry of entries) {
+    const key = canonicalPathKey(entry.path);
+    if (seenTargets.has(key)) {
+      throw new Error(
+        `Duplicate target path in atomicWriteFilesBatch (${entry.path}); each target may appear at most once per batch`,
+      );
+    }
+    seenTargets.add(key);
+  }
 
   const renameImpl = opts?.fsOps?.rename ?? rename;
   const staged: Array<{

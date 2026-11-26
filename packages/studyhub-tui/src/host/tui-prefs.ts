@@ -6,7 +6,9 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import type { AssistantCommandStat, LastPracticeContext, PinnedTarget, ThemeId, TuiPreferences, UiLanguage } from '../types/contracts.js';
-import { atomicCopyFile, atomicUpdateJson } from './atomic-write.js';
+import { type AtomicFsOps, atomicUpdateJson, backupCorruptFile } from './atomic-write.js';
+
+export const TUI_PREFS_SCHEMA_VERSION = 1;
 
 export const THEME_IDS: readonly ThemeId[] = Object.freeze([
   'dsh-dark',
@@ -222,6 +224,8 @@ export interface TuiPrefsLocation {
   home?: string;
   /** Explicit file path (overrides env/home resolution). */
   filePath?: string;
+  /** Internal / test fault-injection hooks forwarded to atomic persistence. */
+  fsOps?: AtomicFsOps;
 }
 
 export function resolveStudyHome({ env = process.env, home = homedir() }: TuiPrefsLocation = {}): string {
@@ -247,8 +251,25 @@ export function parseTuiPreferences(raw: unknown): TuiPreferences {
 
 export interface LoadTuiPreferencesResult {
   prefs: TuiPreferences;
-  status: 'ok' | 'missing' | 'corrupt' | 'unreadable';
+  status: 'ok' | 'missing' | 'corrupt' | 'unreadable' | 'unsupported-version';
   error?: string;
+}
+
+class UnsupportedPrefsVersionError extends Error {
+  readonly version: number;
+  constructor(version: number) {
+    super(
+      `Unsupported tui.json schema version ${version} (max supported: ${TUI_PREFS_SCHEMA_VERSION}); refusing to overwrite newer-release settings`,
+    );
+    this.name = 'UnsupportedPrefsVersionError';
+    this.version = version;
+  }
+}
+
+function detectUnsupportedSchemaVersion(raw: Record<string, unknown>): number | null {
+  return typeof raw.version === 'number' && Number.isFinite(raw.version) && raw.version > TUI_PREFS_SCHEMA_VERSION
+    ? raw.version
+    : null;
 }
 
 const PASSIVE_PREF_KEYS = new Set<string>([
@@ -288,6 +309,14 @@ export async function loadTuiPreferencesSafe(location: TuiPrefsLocation = {}): P
     const parsed: unknown = JSON.parse(text);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return { prefs: defaults(), status: 'corrupt', error: 'Expected preferences JSON object' };
+    }
+    const unsupportedVersion = detectUnsupportedSchemaVersion(parsed as Record<string, unknown>);
+    if (unsupportedVersion !== null) {
+      return {
+        prefs: defaults(),
+        status: 'unsupported-version',
+        error: new UnsupportedPrefsVersionError(unsupportedVersion).message,
+      };
     }
     return { prefs: parseTuiPreferences(parsed), status: 'ok' };
   } catch (err) {
@@ -329,21 +358,32 @@ export async function saveTuiPreferences(
       return merged;
     },
     {
+      fsOps: location.fsOps,
+      stringify: (value) => `${JSON.stringify({ version: TUI_PREFS_SCHEMA_VERSION, ...value }, null, 2)}\n`,
       parse: (text) => {
         const parsed: unknown = JSON.parse(text);
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
           throw new Error('Expected preferences JSON object');
         }
+        const unsupportedVersion = detectUnsupportedSchemaVersion(parsed as Record<string, unknown>);
+        if (unsupportedVersion !== null) {
+          throw new UnsupportedPrefsVersionError(unsupportedVersion);
+        }
         return parseTuiPreferences(parsed);
       },
-      onCorrupt: async () => {
+      onCorrupt: async (error) => {
         const recovered = parseTuiPreferences({ ...DEFAULT_TUI_PREFERENCES, ...prefs });
+        if (error instanceof UnsupportedPrefsVersionError) {
+          if (!hasExplicitUserSetting(prefs)) {
+            return { skip: recovered };
+          }
+          throw error;
+        }
         if (!hasExplicitUserSetting(prefs)) {
           // Passive/usage-only patch: report the merged defaults but never touch the corrupt file.
           return { skip: recovered };
         }
-        const backupPath = `${target}.corrupt-${Date.now()}.bak`;
-        await atomicCopyFile(target, backupPath, { mode: 0o600 }).catch(() => {});
+        await backupCorruptFile(target, { mode: 0o600, fsOps: location.fsOps });
         return { recover: recovered };
       },
     },

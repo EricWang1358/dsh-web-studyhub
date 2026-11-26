@@ -125,7 +125,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 ## Used by several contexts (72)
 
 - `lib/assessment-quality.js`: contexts authoring, generation; 9 other lib files
-- `lib/atomic-json.js`: contexts generation, library; 19 other lib files
+- `lib/atomic-json.js`: contexts generation, library; 29 other lib files
 - `lib/audio-messages.js`: contexts audio, jobs; 4 other lib files
 - `lib/audio-pool.js`: contexts audio, generation; 6 other lib files
 - `lib/audio-settings.js`: contexts audio, generation; 4 other lib files
