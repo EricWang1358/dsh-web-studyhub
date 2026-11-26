@@ -7,6 +7,7 @@
     .presets-depth { display: grid; gap: var(--space-2); min-width: 0; justify-items: start; }
     .presets-depth__choice { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); min-width: 0; }
     /* Keep columns and count lines in place while the nine estimates arrive one by one. */
+    .presets-matrix-wrap { width: 100%; min-width: 0; container: preset-matrix / inline-size; }
     .presets-matrix { width: 100%; max-width: 32em; table-layout: fixed; border-collapse: collapse; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     /* The caption stays a table caption (a flex caption drops into the first cell in Chromium); its words and the ⓘ sit in one inline row inside it. */
     .presets-matrix caption { padding-bottom: var(--space-1-5); color: var(--text-dim); font-size: var(--fs-sm); text-align: start; }
@@ -15,16 +16,14 @@
     .presets-matrix thead th { color: var(--text-muted); font-weight: var(--fw-medium); }
     .presets-matrix tbody th { color: var(--text-dim); font-weight: var(--fw-medium); }
     .presets-matrix td { color: var(--text-muted); }
-    .presets-matrix td small { display: block; min-block-size: 1lh; color: var(--text-faint); font-size: var(--fs-xs); }
+    /* The fixed 4-column table caps at 32em, so English counts wrap to 2 lines at desktop widths and 3 lines in very narrow panes. */
+    .presets-matrix td small { display: block; min-block-size: 2lh; color: var(--text-faint); font-size: var(--fs-xs); }
     .presets-matrix__ratio { display: block; block-size: 1lh; line-height: var(--lh-snug); color: var(--text-dim); white-space: nowrap; }
     /* The form's own cell: an outline and the ink of the page, never a colour alone (its name is also said to a screen reader). */
     .presets-matrix td[data-current='true'] { box-shadow: inset 0 0 0 1px var(--line-strong); background: var(--bg-sunken); }
     .presets-matrix td[data-current='true'] .presets-matrix__ratio { color: var(--text); font-weight: var(--fw-medium); }
   }
-  @container study (max-width: 640px) {
-    :is(.study-app, .study-seat) .presets-matrix td small { min-block-size: 2lh; }
-  }
-  @container study (max-width: 360px) {
+  @container preset-matrix (max-width: 19rem) {
     :is(.study-app, .study-seat) .presets-matrix td small { min-block-size: 3lh; }
   }
 }

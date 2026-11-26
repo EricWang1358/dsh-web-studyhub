@@ -268,7 +268,7 @@ const steadyFold = (page, control) => page.evaluate(async selector => {
 
 test('#1082: 更多选项 open: picking a visible choice keeps the scroll, summary and control still (tall narrow windows, zh and en); shut, it says each choice whole', { timeout: 600000 }, async t => {
   if (skip) { t.skip(skip); return; }
-  for (const [lang, width, height] of [['en', 420, 1400], ['zh', 420, 1400], ['en', 320, 1400], ['zh', 320, 1400], ['en', 320, 2400], ['zh', 420, 2400]]) {
+  for (const [lang, width, height] of [['en', 420, 1400], ['zh', 420, 1400], ['en', 320, 1400], ['zh', 320, 1400], ['en', 1000, 1400], ['en', 320, 2400], ['zh', 420, 2400]]) {
     const tag = `${lang} ${width}×${height}`;
     const { page, errors, context, release } = await openGenerate({ lang, width, height, answer: answers()['no index'], now: true });
     let resumePrices;

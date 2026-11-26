@@ -10,8 +10,8 @@
     .presets__cost-lead { color: var(--text-dim); }
     .presets__cost-items { min-width: 0; overflow-wrap: anywhere; }
   }
-  /* In a narrow form the three estimates wrap below the lead. Keep their lines free while the estimates are being fetched. */
-  @container preset-cost (max-width: 36rem) {
+  /* In a narrow form the three estimates wrap below the lead (English needs up to ~44rem). Keep their lines free while the estimates are being fetched. */
+  @container preset-cost (max-width: 44rem) {
     :is(.study-app, .study-seat) .presets__cost { min-height: calc(var(--help-tip-size) + var(--space-half) + 2lh); }
     :is(.study-app, .study-seat) .presets__cost-items { flex: 1 0 100%; }
   }

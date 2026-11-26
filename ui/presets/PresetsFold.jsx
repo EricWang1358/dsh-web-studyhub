@@ -51,7 +51,7 @@ export function CostLine({ items, lead }) {
     controls above choose. */
 export function CostMatrix({ matrix }) {
   useInjectCss(css, 'study-presets-fold');
-  return <table className="presets-matrix" data-preset-matrix data-status={matrix.ready ? 'ready' : 'loading'}>
+  return <div className="presets-matrix-wrap"><table className="presets-matrix" data-preset-matrix data-status={matrix.ready ? 'ready' : 'loading'}>
     <caption><span className="presets-matrix__caption"><span>{matrix.caption}</span><HelpTip label={ui('大致花费是怎么算的')}>{matrix.tip}</HelpTip></span></caption>
     <thead><tr><th scope="col"><span className="sh-visually-hidden">{ui('出题深度')}</span></th>{matrix.columns.map(column => <th scope="col" key={column.key}>{column.label}</th>)}</tr></thead>
     <tbody>{matrix.rows.map(row => <tr key={row.key}><th scope="row">{row.label}</th>{row.cells.map(cell =>
@@ -62,5 +62,5 @@ export function CostMatrix({ matrix }) {
         <small>{cell.questions}</small>
         {cell.current && <span className="sh-visually-hidden">{ui('（当前）')}</span>}
       </td>)}</tr>)}</tbody>
-  </table>;
+  </table></div>;
 }
