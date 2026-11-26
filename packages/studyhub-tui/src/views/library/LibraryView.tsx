@@ -16,7 +16,13 @@ import { saveTuiPreferences } from '../../host/tui-prefs.js';
 import { useTheme } from '../../theme/tokens.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { currentCourse, deckDueCount, dueToday, isActiveStudyDeck } from '../../shell/data.js';
-import { selectDeckMetrics, selectStudySummary, type DeckProgressLike } from '../../selectors/study-metrics.js';
+import {
+  matchesCourse,
+  selectCourseNames,
+  selectDeckMetrics,
+  selectStudySummary,
+  type DeckProgressLike,
+} from '../../selectors/study-metrics.js';
 import { useShellActions } from '../../shell/actions.js';
 import { getSampleStatus, removeSampleCourse, tryAction } from '../../host/sample-actions.js';
 import type { DeckExportInput } from './deck-export.js';
@@ -184,13 +190,14 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
 
   const scopedDecks = useMemo<DeckItem[]>(() => {
     const all = snapshot?.decks ?? [];
+    const knownCourses = selectCourseNames(snapshot);
     return all.filter((d) => {
       if (!showArchived && d.archived) return false;
       if ((d as Record<string, unknown>).systemKind) return false;
-      if (course && d.course !== course) return false;
+      if (!matchesCourse(d.course, course, { knownCourses })) return false;
       return true;
     });
-  }, [snapshot?.decks, course, showArchived]);
+  }, [snapshot, course, showArchived]);
 
   const normalizedFilter = filterQuery.trim().toLowerCase();
   const filteredDecks = useMemo<DeckItem[]>(() => {

@@ -7,7 +7,13 @@ import {
   toPureAscii,
   type ParsedCliArgs,
 } from './cli-args.js';
-import { getProgressMap, isCountedStudyDeck, selectDeckMetrics } from './selectors/study-metrics.js';
+import {
+  countsInScope,
+  getProgressMap,
+  selectCourseScope,
+  selectDeckMetrics,
+  type StudySnapshotLike,
+} from './selectors/study-metrics.js';
 
 export interface ExportReceipt {
   ok: true;
@@ -479,7 +485,7 @@ interface SnapshotDeckLike {
  */
 export function buildDueReport(opts: {
   libraryRoot: string;
-  snapshot: { decks?: SnapshotDeckLike[]; progress?: Record<string, unknown> } | null | undefined;
+  snapshot: { decks?: SnapshotDeckLike[]; progress?: Record<string, unknown>; courses?: StudySnapshotLike['courses'] } | null | undefined;
   courseFilter?: string;
   limit?: number;
   version?: string;
@@ -490,6 +496,7 @@ export function buildDueReport(opts: {
   const progress = getProgressMap(snap);
   const courseFilterRaw = (opts.courseFilter ?? '').trim();
   const limit = Math.max(1, Math.min(100, Math.trunc(opts.limit ?? 20)));
+  const scope = selectCourseScope(snap, courseFilterRaw || null, { fuzzy: true });
 
   const matched: DueDeckEntry[] = [];
   let totalDue = 0;
@@ -499,7 +506,7 @@ export function buildDueReport(opts: {
   let decksWithDue = 0;
 
   for (const deck of rawDecks) {
-    if (!isCountedStudyDeck(deck, courseFilterRaw || null, { fuzzy: true })) continue;
+    if (!countsInScope(deck, scope)) continue;
     const id = strVal(deck.id);
     if (!id) continue;
     const course = singleLine(deck.course);

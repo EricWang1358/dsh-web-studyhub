@@ -11,7 +11,6 @@ import { tryAction } from '../../host/sample-actions.js';
 import {
   getProgressMap,
   selectDeckMetrics,
-  selectInactiveCourseKeys,
   selectStudySummary,
 } from '../../selectors/study-metrics.js';
 
@@ -111,12 +110,7 @@ export const RoundConfigModal = memo(function RoundConfigModal({
       const m = selectDeckMetrics(usableDeck, getProgressMap(snapshot));
       return { total: m.total, due: m.due, newCount: m.newCount, wrong: m.weak };
     }
-    const excludeInactiveCourses = effectiveScope === 'all' ? selectInactiveCourseKeys(snapshot) : undefined;
-    const summary = selectStudySummary(
-      snapshot,
-      effectiveScope === 'course' ? resolvedCourse : null,
-      excludeInactiveCourses ? { excludeInactiveCourses } : undefined,
-    );
+    const summary = selectStudySummary(snapshot, effectiveScope === 'course' ? resolvedCourse : null);
     return {
       total: summary.totalCards,
       due: summary.due,

@@ -23,7 +23,7 @@ after(() => {
 const [
   { StudyService },
   { summarize },
-  { studyMap },
+  { studyMap, studyStats },
   { createTuiHost },
   shellData,
   { TopBar },
@@ -183,6 +183,7 @@ function mountInk(element, { cols = 120, rows = 36 } = {}) {
   const inst = render(element, { stdout, stdin, interactive: true, exitOnCtrlC: false, patchConsole: false });
   return {
     frame: () => latest,
+    write: (text) => stdin.write(text),
     async waitFor(pred, timeoutMs = 4000, label = 'frame') {
       const start = Date.now();
       while (Date.now() - start < timeoutMs) {
@@ -399,47 +400,50 @@ describe('#1354 D9 Single-Source Study Metrics Consistency', () => {
     assert.ok(!frame.includes('Slain Deck'), 'Dashboard must not show slain system deck');
   });
 
-  test('6. End-to-end real StudyService snapshot: all TUI & CLI selectors match real backend progress', async (t) => {
+  test('6. Real StudyService library: TUI and CLI numbers equal backend studyStats / studyMap, library-wide and per course (parked courses, sub-courses, system decks)', async (t) => {
     const base = await mkdtemp(path.join(os.tmpdir(), 'studyhub-d9-real-'));
     t.after(() => rm(base, { recursive: true, force: true, maxRetries: 6, retryDelay: 50 }));
     const libraryRoot = path.join(base, 'library');
     await mkdir(libraryRoot, { recursive: true });
 
-    const pastIso = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
-    const futureIso = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
+    const past = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+    const future = new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString();
+    const card = (id, extra = {}) => ({ id, kind: 'short_answer', topic: 'T', prompt: `Q-${id}`, answer: `A-${id}`, ...extra });
+    const due = { review: { due_at: past, interval_days: 1, repetitions: 1 } };
+    const later = { review: { due_at: future, interval_days: 30, repetitions: 3 } };
 
     const seed = new StudyService(libraryRoot, { complete: async () => '{}' });
     await seed.store.update((s) => {
-      s.courses.push({ id: 'c-os', name: 'OS' });
-      s.decks.push(
-        {
-          id: 'd-real',
-          title: 'Real OS Deck',
-          course: 'OS',
-          cards: [
-            { id: 'c1', kind: 'short_answer', topic: 'CPU', prompt: 'Q1', answer: 'A1', review: { due_at: pastIso, interval_days: 1, repetitions: 1 } },
-            { id: 'c2', kind: 'short_answer', topic: 'CPU', prompt: 'Q2', answer: 'A2', review: { due_at: pastIso, interval_days: 1, repetitions: 1 } },
-            { id: 'c3', kind: 'short_answer', topic: 'Mem', prompt: 'Q3', answer: 'A3', review: { due_at: futureIso, interval_days: 30, repetitions: 3 } },
-            { id: 'c4', kind: 'short_answer', topic: 'Mem', prompt: 'Q4', answer: 'A4' },
-          ],
-        },
-        {
-          id: 'd-real-slain',
-          title: 'Slain',
-          course: 'OS',
-          systemKind: 'slain',
-          cards: [
-            { id: 'cs1', kind: 'short_answer', topic: 'CPU', prompt: 'QS1', answer: 'AS1', review: { due_at: pastIso, interval_days: 1, repetitions: 1 } },
-          ],
-        },
+      s.courses.push(
+        { id: 'c-os', name: 'OS', active: true },
+        { id: 'c-net', name: 'NET', active: true },
+        // Parked course with an alias; its sub-course and the alias inherit the parking (lib/course-active.js).
+        { id: 'c-old', name: 'OLD', active: false, aliases: ['Legacy'] },
+        // A parked sub-course inside an active course.
+        { id: 'c-net-arc', name: 'NET / Archive', active: false },
       );
+      s.decks.push(
+        { id: 'd-os', title: 'OS', course: 'OS', cards: [card('o1', due), card('o2', due), card('o3', later), card('o4', { suspended: true, ...due })] },
+        { id: 'd-os-lab', title: 'OS Lab', course: 'OS / Lab', cards: [card('l1', due)] },
+        { id: 'd-net', title: 'NET', course: 'NET', cards: [card('n1', due), card('n2')] },
+        { id: 'd-net-arc', title: 'NET old', course: 'NET / Archive', cards: [card('na1', due)] },
+        { id: 'd-old', title: 'OLD', course: 'OLD', cards: [card('x1', due), card('x2', due)] },
+        { id: 'd-old-ch', title: 'OLD ch1', course: 'OLD / Ch1', cards: [card('y1', due)] },
+        { id: 'd-legacy', title: 'Legacy', course: 'Legacy', cards: [card('g1', due)] },
+        { id: 'd-arch', title: 'Arch', course: 'OS', archived: true, cards: [card('r1', due)] },
+        { id: 'd-allsusp', title: 'All suspended', course: 'NET', cards: [card('e1', { suspended: true }), card('e2', { suspended: true })] },
+        { id: 'd-coach', title: '为你定制', systemKind: 'coach', cards: [card('v0'), card('v1')] },
+        { id: 'd-slain', title: 'Slain', course: 'OS', systemKind: 'slain', cards: [card('s1', due)] },
+      );
+      const attempt = (deckId, quizId, grade) => ({ id: `a-${quizId}`, deckId, quiz_id: quizId, grade, correct: grade >= 3, timestamp: past });
       s.attempts.push(
-        { id: 'a1', deckId: 'd-real', quiz_id: 'c1', grade: 1, correct: false, timestamp: pastIso },
-        { id: 'a2', deckId: 'd-real', quiz_id: 'c2', grade: 4, correct: true, timestamp: pastIso },
-        { id: 'a3', deckId: 'd-real', quiz_id: 'c3', grade: 5, correct: true, timestamp: pastIso },
-        { id: 'a4', deckId: 'd-real-slain', quiz_id: 'cs1', grade: 1, correct: false, timestamp: pastIso },
+        attempt('d-os', 'o1', 1), attempt('d-os', 'o2', 4), attempt('d-os', 'o3', 5), attempt('d-os-lab', 'l1', 1),
+        attempt('d-net', 'n1', 1), attempt('d-net-arc', 'na1', 1), attempt('d-old', 'x1', 1), attempt('d-old', 'x2', 4),
+        attempt('d-old-ch', 'y1', 1), attempt('d-legacy', 'g1', 1), attempt('d-arch', 'r1', 1),
+        attempt('d-coach', 'v0', 1), attempt('d-coach', 'v1', 1), attempt('d-slain', 's1', 1),
       );
     });
+    const state = await seed.store.read();
     await seed.dispose?.();
 
     const host = await createTuiHost({
@@ -451,21 +455,58 @@ describe('#1354 D9 Single-Source Study Metrics Consistency', () => {
       language: 'zh',
     });
     t.after(() => host.dispose());
-
     const snapRes = await host.call('snapshot');
     assert.equal(snapRes.ok, true, `real snapshot should succeed: ${snapRes.error?.message}`);
     const snap = snapRes.value;
-    // Real backend progress for d-real: c1=weak&due, c2=learning&due, c3=mastered&not-due, c4=new&not-due
-    // => due = 2, weak = 1 (slain deck excluded!)
-    assert.equal(dueToday(snap, 'OS'), 2);
-    assert.equal(wrongCount(snap, 'OS'), 1);
-    assert.equal(buildTodayHubMetrics({ snapshot: snap, course: 'OS', activeRunId: null }).due, 2);
-    assert.equal(buildTodayHubMetrics({ snapshot: snap, course: 'OS', activeRunId: null }).wrong, 1);
-    // The CLI is library-wide, so like the backend's stats.totals (due 3, weak 2) it counts the slain deck.
-    assert.equal(buildStatsSummary({ libraryRoot, snapshot: snap }).counts.due, 3);
-    assert.equal(buildStatsSummary({ libraryRoot, snapshot: snap }).counts.weak, 2);
-    assert.equal(buildDueReport({ libraryRoot, snapshot: snap }).totals.due, 3);
-    assert.equal(buildDueReport({ libraryRoot, snapshot: snap }).totals.weak, 2);
+    const selectors = await import('../src/selectors/study-metrics.ts');
+
+    const backend = (course) => {
+      const { totals } = studyStats(state, course === null ? {} : { course });
+      return { cards: totals.cards, due: totals.due, weak: totals.weak, mastered: totals.mastered };
+    };
+    const tui = (course) => {
+      const s = selectors.selectStudySummary(snap, course);
+      return { cards: s.totalCards, due: s.due, weak: s.weak, mastered: s.mastered };
+    };
+    const cliDue = (course) => {
+      const r = buildDueReport({ libraryRoot, snapshot: snap, ...(course === null ? {} : { courseFilter: course }) }).totals;
+      return { cards: r.totalCards, due: r.due, weak: r.weak };
+    };
+    const withoutMastered = ({ mastered, ...rest }) => rest;
+
+    // Library-wide: parked courses (with their sub-courses and aliases) leave the numbers; system decks stay in.
+    const all = backend(null);
+    assert.ok(all.cards > 0 && all.due > 0 && all.weak > 0, `the fixture must give non-zero backend totals: ${JSON.stringify(all)}`);
+    assert.deepEqual(tui(null), all, 'selectStudySummary(library) = studyStats(state).totals');
+    assert.equal(dueToday(snap), all.due, 'dueToday (TopBar / SideNav / assistant, no course) = studyStats due');
+    assert.equal(wrongCount(snap), all.weak, 'wrongCount (no course) = studyStats weak');
+    const stats = buildStatsSummary({ libraryRoot, snapshot: snap }).counts;
+    assert.deepEqual({ cards: stats.cards, due: stats.due, weak: stats.weak }, withoutMastered(all), 'CLI --stats = studyStats totals');
+    assert.deepEqual(cliDue(null), withoutMastered(all), 'CLI --due = studyStats totals');
+    const hub = buildTodayHubMetrics({ snapshot: snap, course: null, activeRunId: null });
+    assert.deepEqual({ due: hub.due, weak: hub.wrong }, { due: all.due, weak: all.weak }, 'TodayHub (no course) = studyStats');
+    const libraryMastery = studyMap(state).mastery.library;
+    assert.equal(selectors.selectStudySummary(snap, null).masteryPct, libraryMastery.value, 'library mastery % = studyMap mastery.library');
+    assert.equal(selectors.selectStudySummary(snap, null).totalCards, libraryMastery.cards);
+
+    // Per course: a course holds its sub-courses (`OS / Lab`); an active course leaves out a parked sub-course;
+    // a parked course chosen by name reads what it holds. System decks never count in a course.
+    for (const course of ['OS', 'NET', 'OLD', 'OS / Lab']) {
+      const want = backend(course);
+      assert.deepEqual(tui(course), want, `selectStudySummary(${course}) = studyStats(state, { course: ${course} }).totals`);
+      assert.equal(dueToday(snap, course), want.due, `dueToday(${course})`);
+      assert.equal(wrongCount(snap, course), want.weak, `wrongCount(${course})`);
+      const row = selectors.selectCourseMetrics(snap).find((c) => c.key === course);
+      assert.deepEqual(
+        { cards: row?.totalCards, due: row?.dueCount, weak: row?.weakCount, mastered: row?.masteredCount },
+        want,
+        `course picker row ${course} = studyStats(course)`,
+      );
+    }
+    assert.deepEqual(cliDue('OS'), withoutMastered(backend('OS')), 'CLI --due --course OS holds OS / Lab, not the slain deck');
+    assert.deepEqual(cliDue('OLD'), withoutMastered(backend('OLD')), 'CLI --due --course OLD reads the parked course it names');
+    const focusMastery = studyMap({ ...state, focus: { ...(state.focus ?? {}), course: 'OS' } }).mastery.course;
+    assert.equal(selectors.selectStudySummary(snap, 'OS').masteryPct, focusMastery.value, 'course mastery % = studyMap mastery.course');
   });
   test('7. Suspended cards: every screen weights mastery by the learnable cards the backend counts (11 cards, 2 learnable => 50%, not 91%)', async (t) => {
     const base = await mkdtemp(path.join(os.tmpdir(), 'studyhub-d9-suspended-'));
@@ -561,7 +602,7 @@ describe('#1354 D9 Single-Source Study Metrics Consistency', () => {
     assert.ok(!dashFrame.includes('91%'), `DashboardView must not show the inventory-weighted 91%, frame:\n${dashFrame}`);
   });
 
-  test('8. Library-wide numbers count the system decks (为你定制) like the backend; a course view leaves them out', async (t) => {
+  test('8. Library-wide numbers count the system decks (为你定制, 斩题组) like the backend; a course view leaves them out', async (t) => {
     const base = await mkdtemp(path.join(os.tmpdir(), 'studyhub-d9-coach-'));
     t.after(() => rm(base, { recursive: true, force: true, maxRetries: 6, retryDelay: 50 }));
     const libraryRoot = path.join(base, 'library');
@@ -579,17 +620,23 @@ describe('#1354 D9 Single-Source Study Metrics Consistency', () => {
         { id: 'd-os', title: 'OS basics', course: 'OS', cards: [card('o0', { review: { due_at: futureIso, interval_days: 30, repetitions: 3 } })] },
         // The coach deck (为你定制): two variant cards, both answered wrong.
         { id: 'd-coach', title: '为你定制', systemKind: 'coach', cards: [card('v0'), card('v1')] },
+        // A slain deck filed under the course: the course view must still leave it out.
+        { id: 'd-slain', title: '斩题组', course: 'OS', systemKind: 'slain', cards: [card('s0', { review: { due_at: pastIso, interval_days: 1, repetitions: 1 } })] },
       );
       s.attempts.push(
         { id: 'a-o0', deckId: 'd-os', quiz_id: 'o0', grade: 5, correct: true, timestamp: pastIso },
         { id: 'a-v0', deckId: 'd-coach', quiz_id: 'v0', grade: 1, correct: false, timestamp: pastIso },
         { id: 'a-v1', deckId: 'd-coach', quiz_id: 'v1', grade: 1, correct: false, timestamp: pastIso },
+        { id: 'a-s0', deckId: 'd-slain', quiz_id: 's0', grade: 1, correct: false, timestamp: pastIso },
       );
     });
     const state = await seed.store.read();
     await seed.dispose?.();
-    const backend = studyMap(state).mastery.library;
-    assert.equal(backend.cards, 3, 'backend library mastery counts the coach deck cards');
+    const library = studyStats(state).totals;
+    const osOnly = studyStats(state, { course: 'OS' }).totals;
+    const libraryMastery = studyMap(state).mastery.library;
+    // The fixture is only useful while the backend itself tells the two scopes apart.
+    assert.ok(library.weak > osOnly.weak && library.cards > osOnly.cards, `backend must count system decks library-wide only: ${JSON.stringify({ library, osOnly })}`);
 
     const host = await createTuiHost({
       libraryRoot,
@@ -603,19 +650,133 @@ describe('#1354 D9 Single-Source Study Metrics Consistency', () => {
     const snapRes = await host.call('snapshot');
     assert.equal(snapRes.ok, true, `real snapshot should succeed: ${snapRes.error?.message}`);
     const snap = snapRes.value;
-    const backendWeak = Object.values(snap.progress).reduce((n, p) => n + (p?.counts?.weak ?? 0), 0);
-    assert.equal(backendWeak, 2, 'the host reports the two wrong coach cards as weak');
 
     const selectors = await import('../src/selectors/study-metrics.ts');
     const all = selectors.selectStudySummary(snap, null);
-    assert.equal(all.masteryPct, backend.value, 'library-wide mastery % must equal the backend library value');
-    assert.equal(all.totalCards, backend.cards);
-    assert.equal(all.weak, backendWeak, 'library-wide 错题 count includes the coach deck, as the wrong book does');
-    assert.equal(wrongCount(snap), backendWeak, 'SideNav / assistant wrongCount (no course) includes the coach deck');
+    assert.deepEqual(
+      { cards: all.totalCards, due: all.due, weak: all.weak },
+      { cards: library.cards, due: library.due, weak: library.weak },
+      'library-wide numbers = studyStats(state).totals, system decks included',
+    );
+    assert.equal(all.masteryPct, libraryMastery.value, 'library-wide mastery % = studyMap mastery.library');
+    assert.equal(wrongCount(snap), library.weak, 'SideNav / assistant wrongCount (no course) = studyStats weak');
     assert.equal(all.deckCount, 1, 'the deck list itself still shows learner decks only');
 
-    const osView = selectors.selectStudySummary(snap, "OS");
-    assert.equal(osView.weak, 0, 'a course view leaves the system decks out');
-    assert.equal(osView.totalCards, 1);
+    const osView = selectors.selectStudySummary(snap, 'OS');
+    assert.deepEqual(
+      { cards: osView.totalCards, due: osView.due, weak: osView.weak },
+      { cards: osOnly.cards, due: osOnly.due, weak: osOnly.weak },
+      'a course view = studyStats(state, { course }).totals: the slain deck filed under OS is left out',
+    );
+  });
+
+  test('9. With a focus course, the assistant read-only stats and the library deck list follow the course scope SideNav uses (sub-courses included)', async (t) => {
+    const { AssistantPanel, _resetAssistantSessionMemory } = await import('../src/shell/AssistantPanel.tsx');
+    const snap = {
+      revision: 3,
+      focus: { course: 'OS' },
+      today: { due: 99, weak: 99 },
+      courses: [
+        { id: 'c-os', name: 'OS', active: true },
+        { id: 'c-lab', name: 'OS / Lab', active: true },
+        { id: 'c-net', name: 'NET', active: true },
+      ],
+      decks: [
+        { id: 'd-os', title: 'OS Scheduling', course: 'OS', count: 3, available: 3 },
+        { id: 'd-lab', title: 'OS Lab Shell', course: 'OS / Lab', count: 2, available: 2 },
+        { id: 'd-net', title: 'TCP Congestion', course: 'NET', count: 6, available: 6 },
+      ],
+      progress: {
+        'd-os': { total: 3, due: 2, mastery: 20, counts: { new: 1, weak: 1, learning: 1, familiar: 0, mastered: 0 } },
+        'd-lab': { total: 2, due: 1, mastery: 10, counts: { new: 1, weak: 1, learning: 0, familiar: 0, mastered: 0 } },
+        'd-net': { total: 6, due: 4, mastery: 30, counts: { new: 2, weak: 3, learning: 0, familiar: 0, mastered: 1 } },
+      },
+      sources: [],
+      drafts: [],
+      jobs: [],
+      notes: [],
+    };
+    // OS holds OS / Lab (due 2 + 1, weak 1 + 1); the whole library also holds NET (due 7, weak 5).
+    assert.equal(dueToday(snap, 'OS'), 3);
+    assert.equal(wrongCount(snap, 'OS'), 2);
+    assert.equal(dueToday(snap), 7);
+
+    const prevState = useTuiStore.getState();
+    t.after(() => useTuiStore.setState(prevState));
+    const stubHost = {
+      mode: 'embedded',
+      call: async () => ({ ok: true, value: {} }),
+      snapshot: async () => snap,
+      getConfig: () => ({ effective: { ready: false } }),
+      close: async () => {},
+    };
+
+    _resetAssistantSessionMemory();
+    useTuiStore.setState({
+      page: 'library',
+      snapshot: snap,
+      activeRunId: null,
+      practiceStack: [],
+      assistantOpen: true,
+      assistantFocused: true,
+      assistantTab: 'assistant',
+      assistantStage: 'question',
+      assistantFullscreen: false,
+      assistantCardContext: null,
+      inputCaptured: false,
+      preferences: { ...DEFAULT_PREFERENCES, language: 'zh', asciiMode: true },
+      toasts: [],
+    });
+    const panel = mountInk(
+      React.createElement(Box, { width: 110, height: 34 }, React.createElement(AssistantPanel, { host: stubHost, isActive: true, width: 110, height: 34, docked: true, onClose: () => {} })),
+      { cols: 110, rows: 34 },
+    );
+    try {
+      await panel.waitFor((s) => s.includes('AI 助手'), 5000, 'assistant panel');
+      panel.write('i');
+      await new Promise((r) => setTimeout(r, 40));
+      panel.write('今天有多少题到期');
+      await new Promise((r) => setTimeout(r, 50));
+      panel.write('\r');
+      const frame = await panel.waitFor((s) => s.includes('今日到期'), 5000, 'assistant read-only stats');
+      assert.match(frame, /今日到期\s*3\s*题/, `assistant due must be the focus course's 3, frame:\n${frame}`);
+      assert.match(frame, /待巩固错题\s*2\s*题/, `assistant weak must be the focus course's 2, frame:\n${frame}`);
+    } finally {
+      panel.cleanup();
+    }
+
+    const lib = mountInk(React.createElement(LibraryView, { host: stubHost, width: 120, height: 34, isActive: false }), { cols: 120, rows: 34 });
+    t.after(() => lib.cleanup());
+    const libFrame = await lib.waitFor((s) => s.includes('OS Scheduling'), 5000, 'library deck list');
+    assert.ok(libFrame.includes('OS Lab Shell'), `the OS deck list must hold the OS / Lab deck, frame:\n${libFrame}`);
+    assert.ok(!libFrame.includes('TCP Congestion'), `the OS deck list must not hold NET decks, frame:\n${libFrame}`);
+  });
+
+  test('10. The daily briefing never pushes a parked course: it ranks and totals the decks the scope counts', () => {
+    const snap = {
+      courses: [
+        { id: 'c-os', name: 'OS', active: true },
+        { id: 'c-old', name: 'OLD', active: false },
+        { id: 'c-os-old', name: 'OS / Old', active: false },
+      ],
+      decks: [
+        { id: 'd-os', title: 'OS Scheduling', course: 'OS', count: 3, available: 3 },
+        // The backend marks these decks `inactive` (lib/course-active.js): a parked course, and a parked sub-course of OS.
+        { id: 'd-old', title: 'Old Course', course: 'OLD', inactive: true, count: 9, available: 9 },
+        { id: 'd-os-old', title: 'OS Old Chapter', course: 'OS / Old', inactive: true, count: 9, available: 9 },
+      ],
+      progress: {
+        'd-os': { total: 3, due: 2, mastery: 20, counts: { new: 1, weak: 1, learning: 1, familiar: 0, mastered: 0 } },
+        'd-old': { total: 9, due: 9, mastery: 0, counts: { new: 0, weak: 9, learning: 0, familiar: 0, mastered: 0 } },
+        'd-os-old': { total: 9, due: 8, mastery: 0, counts: { new: 0, weak: 9, learning: 0, familiar: 0, mastered: 0 } },
+      },
+    };
+    const now = new Date('2026-06-01T10:00:00Z');
+    for (const course of [null, 'OS']) {
+      assert.equal(dueToday(snap, course), 2, `dueToday(${course}) leaves the parked decks out`);
+      const brief = buildDailyBriefing({ snapshot: snap, course, lang: 'zh', now });
+      assert.deepEqual(brief?.target, { kind: 'deck', deckId: 'd-os', deckTitle: 'OS Scheduling' }, `briefing (${course}) must not push a parked deck`);
+      assert.ok(!brief?.reason.includes('共'), `briefing (${course}) totals only the counted decks (2 due, one deck), got: ${brief?.reason}`);
+    }
   });
 });

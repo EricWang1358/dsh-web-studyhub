@@ -525,7 +525,7 @@ export const AssistantPanel = memo(function AssistantPanel({
           plan = markWorkflowStepResult(
             plan,
             'done',
-            t(lang, `到期 ${dueToday(snapshot)} / 错题 ${wrongCount(snapshot)}`, `Due ${dueToday(snapshot)} / Wrong ${wrongCount(snapshot)}`),
+            t(lang, `到期 ${dueToday(snapshot, courseName)} / 错题 ${wrongCount(snapshot, courseName)}`, `Due ${dueToday(snapshot, courseName)} / Wrong ${wrongCount(snapshot, courseName)}`),
           );
         } else {
           plan = markWorkflowStepResult(plan, 'skipped', t(lang, '请单步继续', 'Continue individually'));
@@ -539,7 +539,7 @@ export const AssistantPanel = memo(function AssistantPanel({
         text: formatWorkflowChecklist(plan, lang, asciiMode),
       });
     },
-    [tab, stage, lang, asciiMode, snapshot, navigate, setTab, setStage, appendTurn],
+    [tab, stage, lang, asciiMode, snapshot, courseName, navigate, setTab, setStage, appendTurn],
   );
 
   const executeConfirmedWrite = useCallback(
@@ -962,8 +962,8 @@ export const AssistantPanel = memo(function AssistantPanel({
 
       // 4) Read-only stats summary
       if (intent.kind === 'readonly_stats') {
-        const due = dueToday(snapshot);
-        const wrong = wrongCount(snapshot);
+        const due = dueToday(snapshot, courseName);
+        const wrong = wrongCount(snapshot, courseName);
         const decks = Array.isArray(snapshot?.decks) ? snapshot.decks.filter((d) => !d.archived).length : 0;
         const sources = Array.isArray(snapshot?.sources) ? snapshot.sources.length : 0;
         appendTurn({
@@ -1106,6 +1106,7 @@ export const AssistantPanel = memo(function AssistantPanel({
       cardCtx,
       host,
       snapshot,
+      courseName,
       lang,
       modelReady,
       stream,

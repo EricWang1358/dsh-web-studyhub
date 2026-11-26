@@ -9,7 +9,13 @@
  *   3. Non-interrupting inline banner (never opens a modal or steals focus; zero idle polling)
  */
 import type { StudySnapshot, UiLanguage } from '../../types/contracts.js';
-import { getProgressMap, isActiveStudyDeck, selectDeckMetrics } from '../../selectors/study-metrics.js';
+import {
+  countsInScope,
+  getProgressMap,
+  isActiveStudyDeck,
+  selectCourseScope,
+  selectDeckMetrics,
+} from '../../selectors/study-metrics.js';
 
 export type DailyBriefingTarget =
   | { kind: 'deck'; deckId: string; deckTitle: string }
@@ -46,7 +52,9 @@ export function buildDailyBriefing(opts: BuildDailyBriefingOptions): DailyBriefi
   if (!snap) return null;
 
   const progressMap = getProgressMap(snap);
-  const activeDecks = (snap.decks ?? []).filter((d) => isActiveStudyDeck(d, opts.course));
+  // The learner decks the scope counts (`countsInScope`): a parked course is never pushed, as the backend's suggestions do.
+  const scope = selectCourseScope(snap, opts.course);
+  const activeDecks = (snap.decks ?? []).filter((d) => isActiveStudyDeck(d) && countsInScope(d, scope));
   if (activeDecks.length === 0) return null;
 
   const zh = opts.lang !== 'en';
