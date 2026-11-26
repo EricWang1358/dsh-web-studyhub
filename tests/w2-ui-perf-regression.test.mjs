@@ -476,6 +476,41 @@ test('ClassCanvas preserves user pan/zoom across node selection and detail drawe
     mounted.rerender();
     const afterSkeletonSwitch = worldTransform();
     assert.notEqual(afterSkeletonSwitch, beforeSkeletonSwitch, 'switching skeleton.id refits viewport');
+
+    // Same content in a new object keeps the pan; the same content under a different skeleton.id refits (identical content, so only the id can tell).
+    await panAndZoom();
+    const pannedSecond = worldTransform();
+    assert.notEqual(pannedSecond, afterSkeletonSwitch, 'pan/zoom moved the viewport again');
+    currentSkeleton = { ...skeletonB };
+    mounted.rerender();
+    assert.equal(worldTransform(), pannedSecond, 'equivalent data for the same skeleton preserves the pan');
+    currentSkeleton = { ...skeletonB, id: 'sk-beta-renamed' };
+    mounted.rerender();
+    assert.equal(worldTransform(), afterSkeletonSwitch, 'switching only the skeleton ID resets the viewport to the fitted one');
+
+    // Two components with identical layout bounds: the component choice alone must refit (the drawing size cannot tell).
+    currentSkeleton = {
+      id: 'sk-twins',
+      nodes: [
+        { id: 'a1', term: 'Alpha', meaning: 'one', attributes: ['x'], cards: [] },
+        { id: 'a2', term: 'Bravo', meaning: 'two', attributes: ['y'], cards: [] },
+        { id: 'b1', term: 'Charl', meaning: 'one', attributes: ['x'], cards: [] },
+        { id: 'b2', term: 'Delta', meaning: 'two', attributes: ['y'], cards: [] },
+      ],
+      relations: [{ from: 'a2', to: 'a1', type: 'related' }, { from: 'b2', to: 'b1', type: 'related' }],
+      sequences: [],
+    };
+    selected = null;
+    mounted.rerender();
+    const twinSelect = () => mounted.find((n) => typeof n.type === 'function' && n.props?.className === 'skc-search-select');
+    const [firstTwin, secondTwin] = twinSelect().props.options.filter((opt) => opt.value);
+    assert.ok(firstTwin && secondTwin, 'the twin skeleton offers two components');
+    await mounted.act(() => twinSelect().props.onChange(firstTwin.value));
+    const fittedFirstTwin = worldTransform();
+    await panAndZoom();
+    assert.notEqual(worldTransform(), fittedFirstTwin, 'pan/zoom moved the first twin');
+    await mounted.act(() => twinSelect().props.onChange(secondTwin.value));
+    assert.equal(worldTransform(), fittedFirstTwin, 'switching to an identically sized component refits the viewport');
   });
 });
 
