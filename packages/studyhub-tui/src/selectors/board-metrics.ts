@@ -2,10 +2,12 @@
  * Single Source of Truth for Kanban Board derived metrics (#1354 D10).
  *
  * Pure TypeScript (zero React, Ink, or Node I/O imports) unifying board column grouping,
- * active queue depth (`todo + doing`), due-date status classification (`overdue`/`today`/`upcoming`/
- * `done`/`none` on local calendar date), priority ordering, and Pomodoro focus totals across
- * `BoardView.tsx`, `board-store.ts`, `PomodoroBar.tsx`, and CLI `--board`.
+ * due-date status classification (`overdue`/`today`/`upcoming`/`done`/`none` on local calendar date),
+ * priority ordering, and Pomodoro focus totals across `BoardView.tsx`, `board-store.ts`,
+ * `PomodoroBar.tsx`, and CLI `--board`.
  */
+
+import { singleLine, todayLocalYmd } from './primitives.js';
 
 export type BoardColumnKey = 'todo' | 'doing' | 'done';
 export type BoardDueStatus = 'none' | 'done' | 'overdue' | 'today' | 'upcoming';
@@ -40,8 +42,6 @@ export interface BoardQueueMetrics<T extends BoardCardLike> {
   todo: number;
   doing: number;
   done: number;
-  /** Active unfinished queue depth (`todo + doing`). */
-  activeQueueDepth: number;
   overdue: number;
   dueToday: number;
   classified: ClassifiedBoardCard<T>[];
@@ -59,19 +59,11 @@ function statusUrgencyRank(status: BoardDueStatus): number {
   return 2;
 }
 
-/** Local YYYY-MM-DD calendar date key (shared baseline for BoardView, PomodoroBar, and CLI `--board`). */
-export function selectLocalYmd(now: Date = new Date()): string {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-/** Classify a board card's due date against local `todayYmd` (defaults to `selectLocalYmd()`). */
+/** Classify a board card's due date against local `todayYmd` (defaults to `todayLocalYmd()`). */
 export function selectBoardDueStatus(
   dueDate: string | undefined,
   column: BoardColumnKey,
-  todayYmd: string = selectLocalYmd(),
+  todayYmd: string = todayLocalYmd(),
 ): BoardDueStatus {
   const norm = typeof dueDate === 'string' ? dueDate.trim() : '';
   if (!norm) return 'none';
@@ -85,7 +77,7 @@ export function selectBoardDueStatus(
 /** Daily focus stats for `todayYmd`: retains counts when `stats.date === todayYmd`, resets to 0 otherwise. */
 export function selectTodayFocusStats(
   stats?: BoardFocusStatsLike | null,
-  todayYmd: string = selectLocalYmd(),
+  todayYmd: string = todayLocalYmd(),
 ): BoardFocusStatsLike {
   if (stats && stats.date === todayYmd) {
     return {
@@ -123,14 +115,14 @@ export function selectBoardColumnBuckets<T extends BoardCardLike>(
 }
 
 /**
- * Compute board column counts, active queue depth (`todo + doing`), overdue/today tallies,
- * and deterministic priority-sorted card rows (shared by BoardView and CLI `--board`).
+ * Compute board column counts, overdue/today tallies, and deterministic priority-sorted card rows for CLI `--board`.
+ * (BoardView groups its columns with `selectBoardColumnBuckets`, which keeps the user's own card order.)
  */
 export function selectBoardQueueMetrics<T extends BoardCardLike>(
   cards: readonly T[],
   opts?: { todayYmd?: string; courseFilter?: string },
 ): BoardQueueMetrics<T> {
-  const today = opts?.todayYmd ?? selectLocalYmd();
+  const today = opts?.todayYmd ?? todayLocalYmd();
   const courseNeedle = (opts?.courseFilter ?? '').trim().toLowerCase();
 
   let todo = 0;
@@ -141,7 +133,7 @@ export function selectBoardQueueMetrics<T extends BoardCardLike>(
   const classified: ClassifiedBoardCard<T>[] = [];
 
   for (const card of cards) {
-    const courseText = typeof card.course === 'string' ? card.course.replace(/\r?\n+/g, ' ').trim() : '';
+    const courseText = singleLine(card.course);
     if (courseNeedle && !courseText.toLowerCase().includes(courseNeedle)) continue;
 
     const status = selectBoardDueStatus(card.dueDate, card.column, today);
@@ -159,7 +151,7 @@ export function selectBoardQueueMetrics<T extends BoardCardLike>(
     (a, b) =>
       COLUMN_RANK[a.card.column] - COLUMN_RANK[b.card.column] ||
       statusUrgencyRank(a.status) - statusUrgencyRank(b.status) ||
-      (a.card.title || a.card.id).localeCompare(b.card.title || b.card.id),
+      (singleLine(a.card.title) || a.card.id).localeCompare(singleLine(b.card.title) || b.card.id),
   );
 
   return {
@@ -167,7 +159,6 @@ export function selectBoardQueueMetrics<T extends BoardCardLike>(
     todo,
     doing,
     done,
-    activeQueueDepth: todo + doing,
     overdue,
     dueToday,
     classified,

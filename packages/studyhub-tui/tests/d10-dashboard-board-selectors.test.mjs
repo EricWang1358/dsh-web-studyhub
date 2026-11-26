@@ -1,6 +1,6 @@
 // #1354 D10 Single-Source Dashboard & Board Selectors Guardrail & Golden Parity Suite:
 // Verifies streak, daily counts, 7-day forecast queue depth, token usage, daily habits,
-// board column buckets, due status, active queue depth, and pomodoro focus stats all derive
+// board column buckets, due status, and pomodoro focus stats all derive
 // from `src/selectors/dashboard-metrics.ts` and `src/selectors/board-metrics.ts` with 1:1
 // parity against golden Markdown/render snapshots, legacy formulas, backend `lib/insights.js`,
 // and CLI `--board`.
@@ -181,7 +181,7 @@ const GOLDEN_BOARD_DOC = {
 };
 
 describe('#1354 D10 Dashboard & Board Single-Source Selectors', () => {
-  test('1. Golden Markdown snapshot parity: Dashboard & Board reports stay bit-exact across zh & en', () => {
+  test('1. Golden Markdown parity: Dashboard & Board reports carry the golden KPI, forecast, token and board lines in zh & en', () => {
     const dashZh = formatDashboardMarkdownReport({ ...GOLDEN_DASHBOARD_INPUT, lang: 'zh' });
     const dashEn = formatDashboardMarkdownReport({ ...GOLDEN_DASHBOARD_INPUT, lang: 'en' });
 
@@ -253,14 +253,13 @@ describe('#1354 D10 Dashboard & Board Single-Source Selectors', () => {
     );
 
     // (b) KPIs: explicit totals + heatmap fallback when totals.streak/activeDays omitted
-    const kpisFull = dm.selectDashboardKpis(GOLDEN_DASHBOARD_INPUT.stats, GOLDEN_DASHBOARD_INPUT.courseRows);
+    const kpisFull = dm.selectDashboardKpis(GOLDEN_DASHBOARD_INPUT.stats, { totalCards: 1, due: 1, weak: 1, mastered: 1 });
     assert.deepEqual(kpisFull, {
       totalCards: 60,
       mastered: 28,
       due: 7,
       weak: 4,
       attempts: 48,
-      accuracyPct: 86,
       accuracyLabel: '86%',
       activeDays: 12,
       streak: 5,
@@ -268,12 +267,12 @@ describe('#1354 D10 Dashboard & Board Single-Source Selectors', () => {
 
     const kpisFallback = dm.selectDashboardKpis(
       { today: '2026-11-26', heatmap: GOLDEN_DASHBOARD_INPUT.stats.heatmap },
-      GOLDEN_DASHBOARD_INPUT.courseRows,
+      { totalCards: 60, due: 7, weak: 4, mastered: 28 },
     );
     assert.equal(kpisFallback.totalCards, 60);
     assert.equal(kpisFallback.due, 7);
     assert.equal(kpisFallback.weak, 4);
-    assert.equal(kpisFallback.accuracyPct, null);
+    assert.equal(kpisFallback.mastered, 28);
     assert.equal(kpisFallback.accuracyLabel, '--');
     assert.equal(kpisFallback.activeDays, 5, 'activeDays falls back to non-zero heatmap day count');
     assert.equal(kpisFallback.streak, 5, 'streak falls back to heatmap consecutive days');
@@ -282,7 +281,6 @@ describe('#1354 D10 Dashboard & Board Single-Source Selectors', () => {
     const forecast = dm.selectForecastQueueDepth(GOLDEN_DASHBOARD_INPUT.stats.forecast.days);
     assert.equal(forecast.days.length, 7, 'forecast capped at 7 days');
     assert.equal(forecast.total7d, 16, 'sum of first 7 days (5+3+4+1+0+2+1=16), excluding 8th day 99');
-    assert.equal(forecast.todayDue, 5);
     assert.equal(forecast.overdue, 2);
     assert.equal(forecast.hasOverdue, true);
 
@@ -343,7 +341,6 @@ describe('#1354 D10 Dashboard & Board Single-Source Selectors', () => {
     assert.equal(qAll.todo, 2);
     assert.equal(qAll.doing, 1);
     assert.equal(qAll.done, 1);
-    assert.equal(qAll.activeQueueDepth, 3, 'activeQueueDepth = todo (2) + doing (1)');
     assert.equal(qAll.overdue, 1);
     assert.equal(qAll.dueToday, 1);
     assert.deepEqual(cliAll.counts, {
@@ -371,7 +368,6 @@ describe('#1354 D10 Dashboard & Board Single-Source Selectors', () => {
       courseFilter: 'os',
     });
     assert.equal(qOs.total, 3);
-    assert.equal(qOs.activeQueueDepth, 2);
     assert.equal(cliOs.counts.total, qOs.total);
     assert.equal(cliOs.counts.overdue, qOs.overdue);
 
@@ -513,9 +509,170 @@ describe('#1354 D10 Dashboard & Board Single-Source Selectors', () => {
       5000,
       'BoardView loaded cards',
     );
-    assert.ok(boardFrame.includes('待办 Todo') && boardFrame.includes('2'), `BoardView Todo column must show count 2:\n${boardFrame}`);
-    assert.ok(boardFrame.includes('进行中 Doing') && boardFrame.includes('1'), `BoardView Doing column must show count 1:\n${boardFrame}`);
-    assert.ok(boardFrame.includes('已完成 Done') && boardFrame.includes('1'), `BoardView Done column must show count 1:\n${boardFrame}`);
-    assert.ok(boardFrame.includes('2') && boardFrame.includes('50'), `BoardView PomodoroBar must show today's focus stats (2 / 50m):\n${boardFrame}`);
+    assert.match(boardFrame, /待办 Todo +2 /, `BoardView Todo column header must show count 2:\n${boardFrame}`);
+    assert.match(boardFrame, /进行中 Doing +1 /, `BoardView Doing column header must show count 1:\n${boardFrame}`);
+    assert.match(boardFrame, /已完成 Done +1 /, `BoardView Done column header must show count 1:\n${boardFrame}`);
+    assert.match(boardFrame, /\[P:2 50m\]/, `BoardView PomodoroBar must show today's focus stats (2 pomodoros, 50 minutes):\n${boardFrame}`);
+  });
+});
+
+// Review fixes for PR #1528: behaviour that the first suite did not pin down.
+describe('#1354 D10 review fixes (board filter/order, dashboard KPI single source)', () => {
+  const baseCard = { column: 'todo', createdAt: '2026-11-01T00:00:00.000Z', updatedAt: '2026-11-01T00:00:00.000Z' };
+
+  test('5. --board --course collapses ALL whitespace runs like main did (CS  101, CS<tab>101, CS 101, cs 101 lab)', async () => {
+    const bm = await import('../src/selectors/board-metrics.ts');
+    const cards = [
+      { ...baseCard, id: 'c1', title: 'one', course: 'CS  101' },
+      { ...baseCard, id: 'c2', title: 'two', course: 'CS\t101' },
+      { ...baseCard, id: 'c3', title: 'three', course: 'CS 101' },
+      { ...baseCard, id: 'c4', title: 'four', course: 'cs 101 lab' },
+      { ...baseCard, id: 'c5', title: 'five', course: 'CS 102' },
+    ];
+    const queue = bm.selectBoardQueueMetrics(cards, { todayYmd: '2026-11-26', courseFilter: 'CS 101' });
+    assert.deepEqual(queue.classified.map((c) => c.card.id).sort(), ['c1', 'c2', 'c3', 'c4']);
+    const cli = buildBoardCliReport({
+      libraryRoot: '/tmp/lib',
+      boardPath: '/tmp/lib/tui-board.json',
+      existed: true,
+      doc: { cards },
+      todayYmd: '2026-11-26',
+      courseFilter: 'CS 101',
+    });
+    assert.equal(cli.counts.total, 4, '--course "CS 101" must keep matching every whitespace spelling of the course');
+    assert.deepEqual(cli.cards.map((c) => c.course).sort(), ['CS 101', 'CS 101', 'CS 101', 'cs 101 lab']);
+  });
+
+  test('6. alphabetical tie-break compares the single-line title, so "Alpha  Zed" sorts after "Alpha Beta"', async () => {
+    const bm = await import('../src/selectors/board-metrics.ts');
+    const cards = [
+      { ...baseCard, id: 'zed', title: 'Alpha  Zed' },
+      { ...baseCard, id: 'beta', title: 'Alpha Beta' },
+    ];
+    const queue = bm.selectBoardQueueMetrics(cards, { todayYmd: '2026-11-26' });
+    assert.deepEqual(queue.classified.map((c) => c.card.id), ['beta', 'zed']);
+    const cli = buildBoardCliReport({
+      libraryRoot: '/tmp/lib',
+      boardPath: '/tmp/lib/tui-board.json',
+      existed: true,
+      doc: { cards },
+      todayYmd: '2026-11-26',
+    });
+    assert.deepEqual(cli.cards.map((c) => c.id), ['beta', 'zed']);
+  });
+
+  test('7. board order is column first, then urgency (overdue, today, rest), then title; stated explicitly', async () => {
+    const bm = await import('../src/selectors/board-metrics.ts');
+    const cards = [
+      { ...baseCard, id: 'later', title: 'Aaa later', dueDate: '2026-12-01' },
+      { ...baseCard, id: 'today', title: 'Zzz today', dueDate: '2026-11-26' },
+      { ...baseCard, id: 'overdue', title: 'Mmm overdue', dueDate: '2026-11-20' },
+      { ...baseCard, id: 'plain', title: 'Bbb no date' },
+      { ...baseCard, id: 'doing', title: 'Yyy doing', column: 'doing' },
+      { ...baseCard, id: 'done', title: 'Aaa done', column: 'done', dueDate: '2026-11-01' },
+    ];
+    // Alphabetical order would be done, later, plain, overdue, doing, today: urgency must beat the title.
+    const expected = ['doing', 'overdue', 'today', 'later', 'plain', 'done'];
+    const queue = bm.selectBoardQueueMetrics(cards, { todayYmd: '2026-11-26' });
+    assert.deepEqual(queue.classified.map((c) => c.card.id), expected);
+    const cli = buildBoardCliReport({
+      libraryRoot: '/tmp/lib',
+      boardPath: '/tmp/lib/tui-board.json',
+      existed: true,
+      doc: { cards },
+      todayYmd: '2026-11-26',
+    });
+    assert.deepEqual(cli.cards.map((c) => c.id), expected);
+  });
+
+  test('8. report KPIs equal live KPIs when stats is missing: parked sub-course, system deck and suspended cards are not double counted', async (t) => {
+    // OS scope = OS Core only: the parked "OS / Lab" sub-course and the system deck leave the numbers, and OS Core
+    // counts its 8 learnable cards (2 of its 10 are suspended). A sum over the per-course rows would give 19 / 7 / 0.
+    const snapshot = {
+      revision: 3,
+      focus: { course: 'OS' },
+      courses: [
+        { name: 'OS', active: true },
+        { name: 'OS / Lab', active: false },
+        { name: 'NET', active: true },
+      ],
+      decks: [
+        { id: 'k-os', title: 'OS Core', course: 'OS', count: 10, cardCount: 10, suspended: 2 },
+        { id: 'k-lab', title: 'OS Lab', course: 'OS / Lab', inactive: true, count: 5, cardCount: 5 },
+        { id: 'k-coach', title: 'Coach', systemKind: 'coach', count: 4, cardCount: 4 },
+        { id: 'k-net', title: 'Net', course: 'NET', count: 6, cardCount: 6 },
+      ],
+      progress: {
+        'k-os': { total: 8, due: 3, mastery: 25, counts: { new: 2, weak: 1, learning: 2, familiar: 1, mastered: 2 } },
+        'k-lab': { total: 5, due: 2, mastery: 20, counts: { new: 1, weak: 1, learning: 1, familiar: 1, mastered: 1 } },
+        'k-coach': { total: 4, due: 1, mastery: 0, counts: { new: 4, weak: 0, learning: 0, familiar: 0, mastered: 0 } },
+        'k-net': { total: 6, due: 2, mastery: 50, counts: { new: 0, weak: 0, learning: 1, familiar: 2, mastered: 3 } },
+      },
+      sources: [],
+      notes: [],
+      drafts: [],
+      jobs: [],
+    };
+    const sm = await import('../src/selectors/study-metrics.ts');
+    const dm = await import('../src/selectors/dashboard-metrics.ts');
+    const courseRows = sm
+      .selectCourseMetrics(snapshot, { includeUncategorized: true })
+      .filter((c) => c.totalCards > 0)
+      .map((c) => ({ rawCourse: c.key, label: c.label, masteryPct: c.masteryPct, totalCards: c.totalCards, dueCount: c.dueCount, weakCount: c.weakCount }));
+    assert.equal(
+      courseRows.reduce((n, r) => n + r.totalCards, 0),
+      19,
+      'fixture sanity: the per-course rows overlap, so summing them over-counts',
+    );
+
+    const summary = sm.selectStudySummary(snapshot, 'OS');
+    assert.deepEqual(
+      [summary.totalCards, summary.due, summary.weak, summary.mastered],
+      [8, 3, 1, 2],
+      'fixture sanity: OS scope counts OS Core only',
+    );
+    const kpis = dm.selectDashboardKpis(null, summary);
+    assert.deepEqual([kpis.totalCards, kpis.due, kpis.weak, kpis.mastered], [8, 3, 1, 2]);
+
+    // Report (stats null)
+    const report = formatDashboardMarkdownReport({
+      stats: null,
+      usage: null,
+      usageDays: 30,
+      courseRows,
+      snapshot,
+      focusCourse: 'OS',
+      lang: 'en',
+      generatedAt: '2026-11-26',
+    });
+    assert.match(report, /\| Total Cards \| 8 \|/);
+    assert.match(report, /\| Mastered \| 2 \|/);
+    assert.match(report, /\| Due Today \| 3 \|/);
+    assert.match(report, /\| Weak \| 1 \|/);
+
+    // Live view (stats without totals)
+    const prevState = useTuiStore.getState();
+    useTuiStore.setState({
+      page: 'dashboard',
+      snapshot,
+      preferences: { ...DEFAULT_PREFERENCES, language: 'en', asciiMode: true },
+      toasts: [],
+    });
+    t.after(() => useTuiStore.setState(prevState));
+    const host = {
+      mode: 'embedded',
+      call: async (action) => {
+        if (action === 'stats') return { ok: true, value: { heatmap: [], weakTopics: [], forecast: { days: [] } } };
+        return { ok: true, value: {} };
+      },
+      getConfig: () => ({ effective: { ready: false } }),
+      close: async () => {},
+    };
+    const h = mountInk(React.createElement(DashboardView, { host, width: 140, height: 34, isActive: false }), { cols: 140, rows: 34 });
+    t.after(() => h.cleanup());
+    const frame = await h.waitFor((s) => s.includes('Due Today') && s.includes('Total Cards'), 5000, 'DashboardView KPI cards');
+    assert.match(frame, /2 mastered/, `live mastered must equal the report's (2):\n${frame}`);
+    assert.match(frame, /1 weak/, `live weak must equal the report's (1):\n${frame}`);
+    assert.match(frame, /\| 8 +\| +\| 25% +\| +\| 3 +\|/, `live total cards 8 and due 3 must equal the report's (Total Cards | Mastery | Due Today row):\n${frame}`);
   });
 });

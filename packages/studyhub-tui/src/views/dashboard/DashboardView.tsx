@@ -200,6 +200,8 @@ export interface DashboardReportInput {
   usage: UsageSummaryResponse | null;
   usageDays: UsageWindowDays;
   courseRows: readonly DashboardCourseReportRow[];
+  /** Library snapshot: when `stats.totals` is missing the KPIs fall back to `selectStudySummary(snapshot, focusCourse)`. */
+  snapshot?: StudySnapshot | null;
   focusCourse?: string | null;
   lang: 'zh' | 'en';
   generatedAt?: string;
@@ -218,12 +220,13 @@ export function formatDashboardMarkdownReport({
   usage,
   usageDays,
   courseRows,
+  snapshot,
   focusCourse,
   lang,
   generatedAt,
 }: DashboardReportInput): string {
   const reportDate = generatedAt || stats?.today || todayLocalYmd();
-  const kpis = selectDashboardKpis(stats, courseRows);
+  const kpis = selectDashboardKpis(stats, selectStudySummary(snapshot, focusCourse));
   const { totalCards, mastered, due: dueTodayCount, weak: weakCount, attempts, accuracyLabel: accStr, activeDays, streak } = kpis;
   const habits = selectDailyHabitMetrics(dailyPlan);
 
@@ -621,6 +624,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
         usage,
         usageDays,
         courseRows: courseStats,
+        snapshot,
         focusCourse: course,
         lang,
         generatedAt: todayLocalYmd(),
@@ -639,7 +643,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
     } finally {
       exportBusyRef.current = false;
     }
-  }, [asciiMode, bindingRoot, course, courseStats, dailyPlan, host, lang, notify, stats, usage, usageDays]);
+  }, [asciiMode, bindingRoot, course, courseStats, dailyPlan, host, lang, notify, snapshot, stats, usage, usageDays]);
 
   const claimedKeys = useMemo(() => ['j', 'k', 'p', 'w', 'f', 'm', 'd', 'x', '/', 'T'], []);
   useInputCapture(isActive && !mapModalOpen && filterOpen);
@@ -723,13 +727,15 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
   });
   useFooterHints(footerHints, pageActive);
 
-  const totals = stats?.totals;
-  const totalCards = totals?.cards ?? studySummary.totalCards;
-  const dueCount = totals?.due ?? studySummary.due;
-  const weakCount = totals?.weak ?? studySummary.weak;
-  const masteredCount = totals?.mastered ?? studySummary.mastered;
-  const accuracy = totals?.recentRate ?? totals?.correctRate;
-  const accuracyStr = accuracy !== null && accuracy !== undefined ? `${accuracy}%` : '--';
+  // The same call the Markdown report makes: backend totals first, the focus course's study summary otherwise.
+  const dashboardKpis = useMemo(() => selectDashboardKpis(stats, studySummary), [stats, studySummary]);
+  const {
+    totalCards,
+    due: dueCount,
+    weak: weakCount,
+    mastered: masteredCount,
+    accuracyLabel: accuracyStr,
+  } = dashboardKpis;
   const totalTokens = totalTokensOf(usage?.total);
   const totalCalls = Number(usage?.total?.calls ?? 0);
 
@@ -762,7 +768,6 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
     return renderBarChart(courseBars, innerW, theme, { ascii: asciiMode });
   }, [courseBars, rightW, theme, asciiMode]);
 
-  const dashboardKpis = useMemo(() => selectDashboardKpis(stats), [stats]);
   const forecastQueue = useMemo(() => selectForecastQueueDepth(stats?.forecast?.days), [stats?.forecast?.days]);
   const forecastDays = forecastQueue.days;
   const forecastSummary = useMemo(

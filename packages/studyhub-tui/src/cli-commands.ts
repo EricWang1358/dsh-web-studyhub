@@ -1,4 +1,5 @@
-import { selectBoardQueueMetrics, selectLocalYmd } from './selectors/board-metrics.js';
+import { selectBoardQueueMetrics } from './selectors/board-metrics.js';
+import { singleLine, todayLocalYmd } from './selectors/primitives.js';
 import {
   buildDoctorReport,
   buildStatsSummary,
@@ -276,10 +277,6 @@ export async function runExportFastPath(args: ParsedCliArgs, version = '1.0.0'):
 
 function strVal(value: unknown): string {
   return typeof value === 'string' ? value : typeof value === 'number' ? String(value) : '';
-}
-
-function singleLine(value: unknown): string {
-  return strVal(value).replace(/\s+/g, ' ').trim();
 }
 
 function clipText(value: unknown, max: number, ascii: boolean): string {
@@ -669,7 +666,7 @@ export function buildBoardCliReport(opts: {
   version?: string;
   generatedAt?: string;
 }): BoardCliReport {
-  const today = opts.todayYmd ?? selectLocalYmd();
+  const today = opts.todayYmd ?? todayLocalYmd();
   const courseFilterRaw = (opts.courseFilter ?? '').trim();
   const queue = selectBoardQueueMetrics(opts.doc.cards ?? [], {
     todayYmd: today,
@@ -762,7 +759,7 @@ export function formatBoardCliReport(report: BoardCliReport, ascii = false): str
  * Run `--board` offline Kanban summary directly from `<libraryRoot>/tui-board.json` without mounting React/Ink/StudyRuntime.
  */
 export async function runBoardFastPath(parsed: ParsedCliArgs, version = '1.0.0'): Promise<void> {
-  const [{ resolve: resolvePath }, { boardFilePath, loadBoardSafe, todayLocalYmd }] = await Promise.all([
+  const [{ resolve: resolvePath }, { boardFilePath, loadBoardSafe }] = await Promise.all([
     import('node:path'),
     import('./views/board/board-store.js'),
   ]);

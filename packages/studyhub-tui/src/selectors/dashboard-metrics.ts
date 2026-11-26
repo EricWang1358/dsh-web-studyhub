@@ -6,6 +6,8 @@
  * `DashboardView.tsx` so live KPIs, panels, and Markdown exports always read the exact same values.
  */
 
+import { todayLocalYmd } from './primitives.js';
+
 export interface DashboardHeatmapEntry {
   date: string;
   count: number;
@@ -38,10 +40,15 @@ export interface DashboardStatsLike {
   };
 }
 
-export interface DashboardCourseFallbackRow {
-  totalCards?: number;
-  dueCount?: number;
-  weakCount?: number;
+/**
+ * Study counts that stand in for backend `stats.totals` when it is missing: the focus course's (or the whole
+ * library's) `selectStudySummary` result, which already leaves out parked sub-courses, system decks and suspended cards.
+ */
+export interface DashboardKpiFallback {
+  totalCards: number;
+  due: number;
+  weak: number;
+  mastered: number;
 }
 
 export interface DashboardKpis {
@@ -50,7 +57,6 @@ export interface DashboardKpis {
   due: number;
   weak: number;
   attempts: number;
-  accuracyPct: number | null;
   accuracyLabel: string;
   activeDays: number;
   streak: number;
@@ -59,7 +65,6 @@ export interface DashboardKpis {
 export interface ForecastQueueDepth {
   days: DashboardForecastDay[];
   total7d: number;
-  todayDue: number;
   overdue: number;
   hasOverdue: boolean;
 }
@@ -120,13 +125,6 @@ function shiftYmd(ymd: string, deltaDays: number): string {
   return `${y}-${mo}-${d}`;
 }
 
-function localTodayYmd(now: Date = new Date()): string {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
 /**
  * Derive consecutive-day study streak from heatmap entries, matching `lib/insights.js` 1:1:
  * today may not have started yet (`i === 0` with count 0 continues to yesterday).
@@ -143,7 +141,7 @@ export function selectStreakFromHeatmap(
   }
   if (activeDates.size === 0) return 0;
 
-  const anchor = todayYmd && /^\d{4}-\d{2}-\d{2}$/.test(todayYmd.trim()) ? todayYmd.trim() : localTodayYmd();
+  const anchor = todayYmd && /^\d{4}-\d{2}-\d{2}$/.test(todayYmd.trim()) ? todayYmd.trim() : todayLocalYmd();
   let streak = 0;
   for (let i = 0; i <= 3650; i += 1) {
     const key = i === 0 ? anchor : shiftYmd(anchor, -i);
@@ -173,21 +171,18 @@ export function selectActiveDaysFromHeatmap(
 /** Single-source KPI extraction shared by DashboardView live KPIs and Markdown report export. */
 export function selectDashboardKpis(
   stats: DashboardStatsLike | null | undefined,
-  courseRows: ReadonlyArray<DashboardCourseFallbackRow> = [],
+  fallback?: DashboardKpiFallback | null,
 ): DashboardKpis {
   const totals = stats?.totals;
-  const sumCourse = (pick: (row: DashboardCourseFallbackRow) => number | undefined): number =>
-    courseRows.reduce((sum, row) => sum + (Number(pick(row)) || 0), 0);
 
-  const totalCards = finiteNonNeg(totals?.cards) ?? sumCourse((r) => r.totalCards);
-  const mastered = finiteNonNeg(totals?.mastered) ?? 0;
-  const due = finiteNonNeg(totals?.due) ?? sumCourse((r) => r.dueCount);
-  const weak = finiteNonNeg(totals?.weak) ?? sumCourse((r) => r.weakCount);
+  const totalCards = finiteNonNeg(totals?.cards) ?? fallback?.totalCards ?? 0;
+  const mastered = finiteNonNeg(totals?.mastered) ?? fallback?.mastered ?? 0;
+  const due = finiteNonNeg(totals?.due) ?? fallback?.due ?? 0;
+  const weak = finiteNonNeg(totals?.weak) ?? fallback?.weak ?? 0;
   const attempts = finiteNonNeg(totals?.attempts) ?? 0;
 
   const rawAcc = totals?.recentRate ?? totals?.correctRate;
-  const accuracyPct = typeof rawAcc === 'number' && Number.isFinite(rawAcc) ? rawAcc : null;
-  const accuracyLabel = accuracyPct !== null ? `${accuracyPct}%` : '--';
+  const accuracyLabel = typeof rawAcc === 'number' && Number.isFinite(rawAcc) ? `${rawAcc}%` : '--';
 
   const activeDays = finiteNonNeg(totals?.activeDays) ?? selectActiveDaysFromHeatmap(stats?.heatmap);
   const streak = finiteNonNeg(totals?.streak) ?? selectStreakFromHeatmap(stats?.heatmap, stats?.today);
@@ -198,14 +193,13 @@ export function selectDashboardKpis(
     due,
     weak,
     attempts,
-    accuracyPct,
     accuracyLabel,
     activeDays,
     streak,
   };
 }
 
-/** Single-source 7-day forecast queue depth (`total7d`, `todayDue`, `overdue`, `hasOverdue`). */
+/** Single-source 7-day forecast queue depth (`total7d`, `overdue`, `hasOverdue`). */
 export function selectForecastQueueDepth(
   forecastDays: ReadonlyArray<DashboardForecastDay> | null | undefined,
 ): ForecastQueueDepth {
@@ -214,12 +208,10 @@ export function selectForecastQueueDepth(
   for (const d of days) {
     total7d += Number(d?.count) || 0;
   }
-  const todayDue = Number(days[0]?.count) || 0;
   const overdue = Number(days[0]?.overdue) || 0;
   return {
     days,
     total7d,
-    todayDue,
     overdue,
     hasOverdue: overdue > 0,
   };
