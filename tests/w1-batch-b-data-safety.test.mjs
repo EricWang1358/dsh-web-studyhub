@@ -239,6 +239,21 @@ test('W1-14: useTermMarking rolls back optimistic cache and notifies on mark/unm
     assert.equal(notifications.length, 2, 'rejected unmark notifies learner');
     assert.equal(notifications[1].tone, 'warning');
     assert.match(notifications[1].text, /unmark persistence failed/);
+    assert.deepEqual(
+      rpcCalls.map(([action]) => action),
+      ['course.terms.get', 'course.terms.mark', 'course.terms.mark', 'course.terms.unmark'],
+      'issues exact sequence of term load, failing mark, succeeding mark, and failing unmark RPCs',
+    );
+    assert.deepEqual(rpcCalls[1][1], {
+      course: '操作系统',
+      terms: ['Linearizability'],
+      from: { deckId: 'deck-1', cardId: 'card-1' },
+    });
+    assert.deepEqual(rpcCalls[3][1], {
+      course: '操作系统',
+      terms: ['Consensus'],
+      onlyUnattached: true,
+    });
   });
 });
 
