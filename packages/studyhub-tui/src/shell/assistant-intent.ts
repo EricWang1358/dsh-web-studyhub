@@ -21,6 +21,10 @@ import {
   errorReasonName,
   type ErrorReasonTarget,
 } from './error-reason-intent.js';
+import {
+  formatAssistantActionLabel,
+  requiresActionConfirm,
+} from './assistant-action-registry.js';
 
 export type AssistantWriteActionName =
   | typeof SET_ERROR_REASON_ACTION
@@ -177,13 +181,14 @@ export function errorReasonWriteIntent(
     kind: 'write_confirm',
     actionName: SET_ERROR_REASON_ACTION,
     params: errorReasonArgs(target, reason),
+    humanLabel: formatAssistantActionLabel(SET_ERROR_REASON_ACTION, lang),
     previewTitle: lang === 'en' ? 'Confirm Mark Wrong Reason' : '确认标记错题原因',
     previewMessage:
       lang === 'en'
         ? `Will run: ${SET_ERROR_REASON_ACTION} (cardId=${card}, reason="${name}")`
         : `将执行：${SET_ERROR_REASON_ACTION}（题目=${card}，错因=${name}）`,
     paramsSummary: `cardId=${card}, errorReason=${reason}`,
-    requiresConfirm: true,
+    requiresConfirm: requiresActionConfirm(SET_ERROR_REASON_ACTION) as true,
   };
 }
 
@@ -660,14 +665,14 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
           ...(cardId ? { cardId } : {}),
           language: lang,
         },
-        humanLabel: lang === 'en' ? 'Save Q&A to study notes' : '保存到学习笔记',
+        humanLabel: formatAssistantActionLabel('note.qa.add', lang),
         previewTitle: lang === 'en' ? 'Confirm Save to Notes' : '确认存到学习笔记',
         previewMessage:
           lang === 'en'
             ? 'Will save this card’s latest Q&A (your question and the assistant’s answer) into today’s study note.'
             : '将把本题最近一次问答（你提的问题 + 助手解答）写入今天的学习笔记。',
         paramsSummary: lang === 'en' ? 'save Q&A to note' : '写入学习笔记',
-        requiresConfirm: true,
+        requiresConfirm: requiresActionConfirm('note.qa.add') as true,
       };
     }
 
@@ -681,14 +686,14 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
           ...(cardId ? { cardId } : {}),
           reason: text.slice(0, 500),
         },
-        humanLabel: lang === 'en' ? 'Flag question issue' : '标记题目有问题',
+        humanLabel: formatAssistantActionLabel('card.flag', lang),
         previewTitle: lang === 'en' ? 'Confirm Flag Question' : '确认标记题目问题',
         previewMessage:
           lang === 'en'
             ? 'Will flag this question for follow-up review (can be undone with [z]).'
             : '将为当前题目添加问题标记，方便后续核对修订（按 [z] 可撤销）。',
         paramsSummary: lang === 'en' ? 'flag current question' : '标记本题待复核',
-        requiresConfirm: true,
+        requiresConfirm: requiresActionConfirm('card.flag') as true,
       };
     }
 
@@ -739,14 +744,14 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
           ...(cardId ? { cardId } : {}),
           ...(typeof entryIndex === 'number' ? { entryIndex } : {}),
         },
-        humanLabel: lang === 'en' ? 'Acknowledge correction' : '确认订正并加入重练',
+        humanLabel: formatAssistantActionLabel('review.correction.ack', lang),
         previewTitle: lang === 'en' ? 'Confirm Correction Acknowledged' : '确认订正完成',
         previewMessage:
           lang === 'en'
             ? 'Will acknowledge this correction and queue a retry in the current round.'
             : '将确认本题订正完成，并安排在本轮末尾重练巩固。',
         paramsSummary: lang === 'en' ? 'acknowledge correction' : '确认订正',
-        requiresConfirm: true,
+        requiresConfirm: requiresActionConfirm('review.correction.ack') as true,
       };
     }
 
@@ -756,14 +761,14 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
         kind: 'write_confirm',
         actionName: 'coach.practice',
         params: {},
-        humanLabel: lang === 'en' ? 'Start wrong-card variants practice' : '开始错题变式练习',
+        humanLabel: formatAssistantActionLabel('coach.practice', lang),
         previewTitle: lang === 'en' ? 'Confirm Variant Practice' : '确认开始错题变式练习',
         previewMessage:
           lang === 'en'
             ? 'Will start a practice round using prepared wrong-card variant questions.'
             : '将使用已备好的错题变式题开启一轮新练习，并自动进入刷题页。',
         paramsSummary: lang === 'en' ? 'start variant practice' : '错题变式练习',
-        requiresConfirm: true,
+        requiresConfirm: requiresActionConfirm('coach.practice') as true,
       };
     }
 
@@ -778,14 +783,14 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
           ...(course ? { course } : {}),
           fresh: true,
         },
-        humanLabel: lang === 'en' ? 'Start wrong-cards practice round' : '开启错题重练轮次',
+        humanLabel: formatAssistantActionLabel('review.start', lang),
         previewTitle: lang === 'en' ? 'Confirm Wrong-Cards Practice' : '确认开始错题重练',
         previewMessage:
           lang === 'en'
             ? `Will start a fresh wrong-cards practice round${course ? ` (${course})` : ''} and switch to Review.`
             : `将为${course ? `「${course}」` : '当前学习库'}开启一轮错题重练，并进入刷题页。`,
         paramsSummary: course ? `only=wrong, course=${course}` : 'only=wrong',
-        requiresConfirm: true,
+        requiresConfirm: requiresActionConfirm('review.start') as true,
       };
     }
 
@@ -799,14 +804,14 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
           ...(cardId ? { cardId } : {}),
           ...(runId ? { runId } : {}),
         },
-        humanLabel: lang === 'en' ? 'Slay mastered question' : '斩掉本题（移入斩题组）',
+        humanLabel: formatAssistantActionLabel('card.slay', lang),
         previewTitle: lang === 'en' ? 'Confirm Slay Question' : '确认斩题',
         previewMessage:
           lang === 'en'
             ? 'Will move this mastered question to the Slain deck (press [z] to restore).'
             : '将把本题移入斩题组，后续复习不再出现（按 [z] 可恢复）。',
         paramsSummary: lang === 'en' ? 'slay current question' : '斩题',
-        requiresConfirm: true,
+        requiresConfirm: requiresActionConfirm('card.slay') as true,
       };
     }
 
@@ -874,14 +879,14 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
         kind: 'write_confirm',
         actionName: 'review.undo',
         params: { ...(runId ? { runId } : {}) },
-        humanLabel: lang === 'en' ? 'Undo last review rating' : '撤销上一题评分',
+        humanLabel: formatAssistantActionLabel('review.undo', lang),
         previewTitle: lang === 'en' ? 'Confirm Undo Rating' : '确认撤销上一题评分',
         previewMessage:
           lang === 'en'
             ? 'Will undo the most recent rating in this review round and restore its previous schedule.'
             : '将撤销本轮最近一次作答评分，并恢复该题之前的复习进度。',
         paramsSummary: lang === 'en' ? 'undo last rating' : '撤销上次评分',
-        requiresConfirm: true,
+        requiresConfirm: requiresActionConfirm('review.undo') as true,
       };
     }
 
@@ -899,9 +904,9 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
           position: 'end',
           allowCurrent: true,
         },
-        humanLabel: lang === 'en' ? 'Move question to end of queue' : '把本题挪到本轮最后',
+        humanLabel: formatAssistantActionLabel('review.queue.edit', lang),
         paramsSummary: lang === 'en' ? 'move to end' : '挪到本轮末尾',
-        requiresConfirm: false,
+        requiresConfirm: requiresActionConfirm('review.queue.edit') as false,
       };
     }
 
@@ -922,6 +927,7 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
               explanation: card?.explanation ?? '',
             }
           : { course: exportCourse },
+        humanLabel: formatAssistantActionLabel('export.wrongbook', lang),
         previewTitle: isSingleCard
           ? lang === 'en' ? 'Confirm Export This Wrong Card' : '确认导出当前错题'
           : lang === 'en' ? 'Confirm Export Wrong-Book' : '确认导出错题本',
@@ -933,7 +939,7 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
             ? `Will run: export.wrongbook (course=${exportCourse}) -> backups/studyhub-wrongbook-*.md`
             : `将执行：export.wrongbook（课程=${exportCourse === '*' ? '全部' : exportCourse}）写入 backups/ 下的 Markdown 文件`,
         paramsSummary: isSingleCard ? `singleCard=true, cardId=${cardId}` : `course=${exportCourse}`,
-        requiresConfirm: true,
+        requiresConfirm: requiresActionConfirm('export.wrongbook') as true,
       };
     }
 
@@ -961,9 +967,9 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
           ...(cardId ? { cardId } : {}),
           limit: 6,
         },
-        humanLabel: lang === 'en' ? 'Find similar questions' : '查找同类题',
+        humanLabel: formatAssistantActionLabel('review.similar', lang),
         paramsSummary: lang === 'en' ? 'find similar questions' : '查找同类题',
-        requiresConfirm: false,
+        requiresConfirm: requiresActionConfirm('review.similar') as false,
       };
     }
 
@@ -976,14 +982,14 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
           ...(deckId ? { deckId } : {}),
           ...(cardId ? { cardId } : {}),
         },
-        humanLabel: lang === 'en' ? 'Extract key terms' : '提取核心术语',
+        humanLabel: formatAssistantActionLabel('card.terms', lang),
         previewTitle: lang === 'en' ? 'Confirm Term Extraction' : '确认提取核心术语',
         previewMessage:
           lang === 'en'
             ? 'Will call the model once to extract this card’s key terms and cache them on the card.'
             : '将调用一次模型提取本题核心术语，并把结果缓存到本题（消耗模型额度）。',
         paramsSummary: lang === 'en' ? 'extract card terms' : '提取本题术语',
-        requiresConfirm: true,
+        requiresConfirm: requiresActionConfirm('card.terms') as true,
       };
     }
 
@@ -995,14 +1001,14 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
           ...(deckId ? { deckId } : {}),
           ...(cardId ? { cardId } : {}),
         },
-        humanLabel: lang === 'en' ? 'Translate current question' : '翻译本题',
+        humanLabel: formatAssistantActionLabel('card.translate', lang),
         previewTitle: lang === 'en' ? 'Confirm Translation' : '确认翻译本题',
         previewMessage:
           lang === 'en'
             ? 'Will call the model once to translate this card and cache the translation (uses model quota).'
             : '将调用一次模型把本题翻译成英文并缓存结果（消耗模型额度）。',
         paramsSummary: lang === 'en' ? 'translate current question' : '翻译当前题目',
-        requiresConfirm: true,
+        requiresConfirm: requiresActionConfirm('card.translate') as true,
       };
     }
 
@@ -1018,9 +1024,9 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
           ...(runId ? { runId } : {}),
           ...(cardId ? { cardId } : {}),
         },
-        humanLabel: lang === 'en' ? 'Skip to next question' : '跳过本题',
+        humanLabel: formatAssistantActionLabel('review.skip', lang),
         paramsSummary: lang === 'en' ? 'next question' : '跳到下一题',
-        requiresConfirm: false,
+        requiresConfirm: requiresActionConfirm('review.skip') as false,
       };
     }
 
@@ -1045,7 +1051,7 @@ export function parseAssistantIntent(rawInput: string, ctx: ParseIntentContext =
       actionName: 'card.followup.add',
       instruction: text,
       paramsSummary: lang === 'en' ? 'plain explanation (confirm before saving)' : '生成通俗讲解（保存前确认）',
-      requiresConfirm: true,
+      requiresConfirm: requiresActionConfirm('card.followup.add') as true,
     };
   }
 
