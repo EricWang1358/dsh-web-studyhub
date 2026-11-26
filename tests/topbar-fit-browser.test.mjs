@@ -145,8 +145,8 @@ for (const folder of FOLDERS) for (const lang of ['zh', 'en']) for (const [name,
         if (width <= 390) assert.equal(m.chip, null, `${tag}: no chip at phone width`);
         if (width >= 420 && width <= 450) assert.ok(m.chip && !m.chip.name, `${tag}: the chip is its icon (${JSON.stringify(m.chip)})`);
         if (width >= 480 && width <= 640) assert.ok(m.chip?.name && m.chip.minWidth >= 60 && m.chip.width >= 60, `${tag}: the chip keeps a readable minimum width (${JSON.stringify(m.chip)})`);
-        // With the model's name drawn beside it (above 800 px) the folder's chip is the one that gives way, down to the readable minimum it has in a narrow pane.
-        if (width >= 700) assert.ok(m.chip?.name && m.chip.width >= (m.model?.shown ? 60 : 100), `${tag}: the whole chip (${JSON.stringify(m.chip)})`);
+        // The model also takes room in its icon-only state. The folder keeps its declared readable minimum beside either form.
+        if (width >= 700) assert.ok(m.chip?.name && m.chip.width + 1 >= (m.model ? Math.max(60, m.chip.minWidth) : 100), `${tag}: the folder remains readable beside the model (${JSON.stringify(m.chip)})`);
         if (name === 'long model' && width >= READABLE_FROM) {
           assert.ok(m.model?.shown && !m.model.clipped, `${tag}: the model chip reads "${LONG_MODEL}" whole (${JSON.stringify(m.model)})`);
           assert.ok(m.model.text.includes(lang === 'en' ? 'Model: ' + LONG_MODEL : '模型：' + LONG_MODEL), `${tag}: ${m.model.text}`);

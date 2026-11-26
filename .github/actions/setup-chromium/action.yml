@@ -12,7 +12,7 @@ runs:
       with:
         path: .playwright-browsers
         key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
-    # Playwright reuses complete downloads and fills in missing files after a partial cache restore.
+    # Playwright reuses installed revisions and downloads any missing browser components.
     - name: Ensure the pinned Chromium is installed
       shell: bash
       run: npx playwright install chromium
@@ -26,3 +26,13 @@ runs:
         printf '%s\n' 'Acquire::Retries "2";' 'Acquire::http::Timeout "20";' 'Acquire::https::Timeout "20";' | sudo tee /etc/apt/apt.conf.d/80-fail-fast
         timeout 180s npx playwright install-deps chromium
         probe
+    - name: Check Simplified Chinese font coverage
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        has_chinese() { [[ -n "$(fc-list ':lang=zh-cn' family)" ]]; }
+        if has_chinese; then exit 0; fi
+        apt_options=(-o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20)
+        timeout 90s sudo apt-get "${apt_options[@]}" update -qq
+        timeout 90s sudo apt-get "${apt_options[@]}" install -y --no-install-recommends fonts-wqy-zenhei
+        has_chinese
