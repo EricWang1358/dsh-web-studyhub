@@ -75,6 +75,29 @@ test('relative ESM requests share native resolutions only for the same canonical
   assert.equal(calls, 7);
 });
 
+test('a browser test that skips a failed launch still fails the required Chromium run', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'study-missing-browser-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'browser.test.mjs');
+  const helper = new URL('../scripts/qa/browser.mjs', import.meta.url).href;
+  await writeFile(file, [
+    "import test from 'node:test';",
+    `import { launchChromium } from ${JSON.stringify(helper)};`,
+    "test('browser launch', async t => {",
+    `  try { await launchChromium({ executablePath: ${JSON.stringify(join(dir, 'missing-chromium'))} }); }`,
+    "  catch (error) { t.skip(error.message); }",
+    "});",
+  ].join('\n'));
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
+  const run = required => promisify(execFile)(process.execPath, ['--test', '--test-reporter=tap', file], {
+    env: { ...env, STUDY_QA_REQUIRE_BROWSER: required }, windowsHide: true,
+  });
+  const optional = await run('0');
+  assert.match(optional.stdout, /# skipped 1/);
+  await assert.rejects(run('1'), error => error.code === 1 && error.stdout.includes('missing-chromium'));
+});
+
 test('a Windows test worker reads the original source and falls back for edits, deletions and generated chunks', async t => {
   const { readTestSources, writeTestSources } = await import('../scripts/qa/test-source-cache.mjs');
   const dir = await mkdtemp(join(tmpdir(), 'study-source-cache-'));
