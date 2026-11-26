@@ -427,8 +427,8 @@ export function formatTeachCompletionMarkdown(session: TeachingSessionView, lang
   else {
     parts.push(
       en
-        ? 'Guided teaching finished. Press [n] for Retell or continue your review.'
-        : '已完成本轮带学，可按 [n] 进入复述检验或继续下一题。',
+        ? 'Guided teaching finished. Press [p] to enter Retell, or [F] in Review for Feynman Retell.'
+        : '已完成本轮带学，可按 [p] 返回复述阶段，或在刷题页按 [F] 做费曼复述。',
     );
   }
   if (skipped.length > 0) {

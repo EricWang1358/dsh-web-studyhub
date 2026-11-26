@@ -534,7 +534,7 @@ export const CompanionsModal = memo(function CompanionsModal({
   } = useStreamingBuffer(24);
   const [askSuggestedCard, setAskSuggestedCard] = useState<SuggestedCatchupCard | null>(null);
   const [askBusy, setAskBusy] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
+  const askSeqRef = useRef(0);
 
   // Attach state
   const [attachField, setAttachField] = useState<AttachField>('path');
@@ -569,11 +569,8 @@ export const CompanionsModal = memo(function CompanionsModal({
   const { send: sendAiTurn, abort: abortAiTurn } = useAiConversation(host, lang);
 
   const abortInFlight = useCallback(() => {
+    askSeqRef.current += 1;
     abortAiTurn();
-    if (abortRef.current) {
-      abortRef.current.abort();
-      abortRef.current = null;
-    }
   }, [abortAiTurn]);
 
   useEffect(() => {
@@ -1044,8 +1041,7 @@ export const CompanionsModal = memo(function CompanionsModal({
       const q = question.trim();
       if (!q || !selectedCompanion) return;
       abortInFlight();
-      const ac = new AbortController();
-      abortRef.current = ac;
+      const seq = askSeqRef.current;
       setSubMode('ask-view');
       setAskBusy(true);
       resetAskAnswer();
@@ -1079,7 +1075,7 @@ export const CompanionsModal = memo(function CompanionsModal({
           },
         });
 
-        if (ac.signal.aborted || !mountedRef.current) return;
+        if (askSeqRef.current !== seq || !mountedRef.current) return;
 
         if (res.ok && res.value?.answerMarkdown) {
           let md = res.value.answerMarkdown;
@@ -1099,11 +1095,11 @@ export const CompanionsModal = memo(function CompanionsModal({
             system: buildUnifiedAiSystemPrompt('companion_ask', lang),
             prompt: buildCompanionAskPrompt({ title: compTitle, summaryContext, question: q }),
             onChunk: (delta) => {
-              if (ac.signal.aborted || !mountedRef.current) return;
+              if (askSeqRef.current !== seq || !mountedRef.current) return;
               pushAskAnswer(delta);
             },
           });
-          if (!ac.signal.aborted && mountedRef.current && outcome.status !== 'aborted' && outcome.status !== 'superseded') {
+          if (askSeqRef.current === seq && mountedRef.current && outcome.status !== 'aborted' && outcome.status !== 'superseded') {
             if (outcome.status === 'done') {
               if (outcome.text) setAskAnswer(outcome.text);
             } else {
@@ -1118,18 +1114,15 @@ export const CompanionsModal = memo(function CompanionsModal({
           finishAskAnswer();
         }
       } catch (error) {
-        if (!ac.signal.aborted && mountedRef.current) {
+        if (askSeqRef.current === seq && mountedRef.current) {
           const mark = asciiMode ? 'x' : '✕';
           setAskAnswer(`${mark} ${errorMessage(error)}`);
           finishAskAnswer();
         }
       } finally {
-        if (abortRef.current === ac) {
-          abortRef.current = null;
-          if (!ac.signal.aborted && mountedRef.current) {
-            finishAskAnswer();
-            setAskBusy(false);
-          }
+        if (askSeqRef.current === seq && mountedRef.current) {
+          finishAskAnswer();
+          setAskBusy(false);
         }
       }
     },

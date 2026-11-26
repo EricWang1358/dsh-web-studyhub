@@ -1334,13 +1334,17 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
         return true;
       }
       // #1408 / #1354 P3-c: `t` (alias `T`) is the single Guided Study entrypoint backed by backend `teach.*` inside AssistantPanel.
+      // Preserve full synced cardContext fields (answer/explanation/citations/revealed/options) instead of overwriting them.
       if (input === 't' || input === 'T') {
+        const store = useTuiStore.getState();
+        const prevCtx = store.assistantCardContext;
         const teaching = (run as { teaching?: { id?: string; mode?: string } | null }).teaching;
-        useTuiStore.getState().openAssistant({
+        store.openAssistant({
           tab: 'guided',
           stage: 'question',
           focused: true,
           cardContext: {
+            ...(prevCtx && prevCtx.cardId === cardId ? prevCtx : {}),
             runId: run.id,
             deckId: currentDeckIdOf(run) ?? undefined,
             cardId: cardId ?? '',
@@ -2621,10 +2625,13 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                   clickActive={cardScopeActive}
                   onClick={() => {
                     setWrongStreakBanner(null);
-                    useTuiStore.getState().openAssistant({
+                    const store = useTuiStore.getState();
+                    const prevCtx = store.assistantCardContext;
+                    store.openAssistant({
                       tab: 'guided',
                       stage: 'question',
                       cardContext: {
+                        ...(prevCtx && prevCtx.cardId === (cardId ?? '') ? prevCtx : {}),
                         runId: run.id,
                         deckId: currentDeckIdOf(run) ?? undefined,
                         cardId: cardId ?? '',
@@ -2742,12 +2749,15 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
               const actionHandlers: Record<string, () => void> = {
                 h: () => setAiDrawerOpen((v) => !v),
                 T: () => {
+                  const store = useTuiStore.getState();
+                  const prevCtx = store.assistantCardContext;
                   const teaching = (run as { teaching?: { id?: string; mode?: string } | null }).teaching;
-                  useTuiStore.getState().openAssistant({
+                  store.openAssistant({
                     tab: 'guided',
                     stage: 'question',
                     focused: true,
                     cardContext: {
+                      ...(prevCtx && prevCtx.cardId === cardId ? prevCtx : {}),
                       runId: run.id,
                       deckId: currentDeckIdOf(run) ?? undefined,
                       cardId: cardId ?? '',

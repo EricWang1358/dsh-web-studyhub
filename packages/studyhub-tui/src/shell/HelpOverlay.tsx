@@ -276,8 +276,8 @@ export function buildInAppGuideLines(lang: UiLanguage, width: number, asciiMode 
           {
             heading: '3. Review Page, AI Drawer & Next-Step Instructions',
             bullets: [
-              'Bottom keys: [h] AI Tutor (reuses saved Q&As; [R] regenerates with AI call; [N] saves for reuse), [t] Guided Study/Retell (AI Assistant; standalone modals: [L] Socratic Teach, [F] Feynman Retell), [S] Similar, [*] Focus, [G] Rubric Grade, [A] Answer Card, [W] Translate, [D] Card Tools, [Q] Queue, [E] Flag, [s] Skip, [u] Undo, [,/.] Prev/Next, [o] Source, [X] End Round.',
-              'After any AI tool result (Vocab, Teach, Retell, Answer Card, Similar), press [a] at the bottom bar to give custom follow-up instructions or pick quick presets [1-4], then [N] to save.',
+              'Bottom keys: [h] AI Tutor (reuses saved Q&As; [R] regenerates with AI call; [N] atomically saves to notes), [t] Guided Study (assistant Socratic steps; [S/Ctrl+N] skip), [F] Feynman Retell, [S] Similar, [*] Focus, [G] Rubric Grade, [A] Answer Card, [W] Translate, [D] Card Tools, [Q] Queue, [E] Flag, [s] Skip, [u] Undo, [,/.] Prev/Next, [o] Source, [X] End Round.',
+              'After any AI tool result (Vocab, Retell, Answer Card, Similar), press [a] at the bottom bar to give custom follow-up instructions or pick quick presets [1-4], then [N] to atomically save to notes.',
               'FSRS-6 Rating [0-5]: 0 Blackout, 1 Forgot, 2 Barely, 3 Hard, 4 Good (standard), 5 Easy. Misrated? Press [u] to undo.',
             ],
           },

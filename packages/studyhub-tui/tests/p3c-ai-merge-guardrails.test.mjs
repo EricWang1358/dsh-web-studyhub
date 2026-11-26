@@ -662,4 +662,168 @@ describe('#1354 P3 AI merge guardrails (D7 + P3-c + note.qa.save)', () => {
     h.write('F');
     await h.waitFor((s) => s.includes('费曼复述'), 5000, 'F opens RetellModal');
   });
+
+  test('Regression 6: store.setAssistantCardContext propagates queueVersion/teachingId, ReviewView t preserves full grounding, and AssistantPanel handles needsAnswerFirst -> reveal retry + Esc in-flight abort', async (t) => {
+    // 6a) setAssistantCardContext must NOT silently drop queueVersion / teachingId / teachingMode updates on same card
+    useTuiStore.setState({ assistantCardContext: null });
+    const baseCtx = {
+      runId: 'run-sync',
+      deckId: 'd-sync',
+      cardId: 'c-sync',
+      cardIndex: 0,
+      queueVersion: 1,
+      prompt: '什么是信号量？',
+      answer: '用于进程同步的计数器',
+      explanation: 'P/V 操作原子增减计数',
+      revealed: true,
+    };
+    useTuiStore.getState().setAssistantCardContext(baseCtx);
+    useTuiStore.getState().setAssistantCardContext({
+      ...baseCtx,
+      queueVersion: 2,
+      teachingId: 'teach-42',
+      teachingMode: 'calculation',
+    });
+    const updatedCtx = useTuiStore.getState().assistantCardContext;
+    assert.equal(updatedCtx?.queueVersion, 2, 'queueVersion update must not be dropped');
+    assert.equal(updatedCtx?.teachingId, 'teach-42', 'teachingId update must not be dropped');
+    assert.equal(updatedCtx?.teachingMode, 'calculation', 'teachingMode update must not be dropped');
+
+    // 6b) ReviewView pressing t preserves full synced cardContext (answer/explanation/citations/revealed)
+    const groundedRun = {
+      id: 'run-ground',
+      deckId: 'd-ground',
+      title: 'OS',
+      index: 0,
+      total: 1,
+      answered: 1,
+      revealed: true,
+      queueVersion: 5,
+      card: { id: 'c-ground', deckId: 'd-ground', kind: 'flashcard', prompt: '什么是死锁？', answer: '循环等待' },
+      feedback: { correct: true, grade: 4 },
+      solution: { answer: '循环等待', explanation: '四个必要条件同时成立', citations: [{ sourceId: 's1', page: 9, quote: 'Deadlock quote' }] },
+    };
+    const rvHost = {
+      mode: 'embedded',
+      async call(action) {
+        if (action === 'review.start' || action === 'review.get') return { ok: true, value: groundedRun };
+        return { ok: true, value: {} };
+      },
+      async snapshot() {
+        return { courses: [], decks: [{ id: 'd-ground', title: 'OS', course: 'OS' }], sources: [{ id: 's1', title: 'OS Book' }], jobs: [] };
+      },
+      getConfig() {
+        return { effective: { ready: true, provider: 'stub', model: 'stub' } };
+      },
+      async close() {},
+    };
+    useTuiStore.setState({
+      page: 'review',
+      activeRunId: groundedRun.id,
+      preferences: { ...DEFAULT_PREFERENCES, language: 'zh', asciiMode: true },
+      assistantOpen: false,
+      assistantFocused: false,
+      assistantCardContext: null,
+      snapshot: { courses: [], decks: [{ id: 'd-ground', title: 'OS', course: 'OS' }], sources: [{ id: 's1', title: 'OS Book' }], jobs: [] },
+    });
+    const hRv = mountInk(React.createElement(ReviewView, { host: rvHost, width: 110, height: 30, isActive: true }), { cols: 110, rows: 30 });
+    t.after(() => hRv.cleanup());
+    await hRv.waitFor((s) => s.includes('什么是死锁？'), 5000, 'grounded ReviewView ready');
+    await new Promise((r) => setTimeout(r, 40));
+    hRv.write('t');
+    await new Promise((r) => setTimeout(r, 60));
+    const afterT = useTuiStore.getState().assistantCardContext;
+    assert.equal(afterT?.answer, '循环等待', 't must preserve synced answer');
+    assert.equal(afterT?.explanation, '四个必要条件同时成立', 't must preserve synced explanation');
+    assert.equal(afterT?.revealed, true, 't must preserve synced revealed flag');
+    assert.equal(afterT?.citations?.[0]?.quote, 'Deadlock quote', 't must preserve synced citations');
+    hRv.cleanup();
+
+    // 6c) AssistantPanel: needsAnswerFirst -> card answered (revealed flips true) -> auto retries teach.start;
+    //     and Esc aborts an in-flight teach.start so late resolution cannot overwrite state
+    let resolveInflight;
+    let startAttempts = 0;
+    const gateHost = {
+      mode: 'embedded',
+      async call(action) {
+        if (action === 'teach.start') {
+          startAttempts += 1;
+          if (startAttempts === 1) {
+            return { ok: false, error: { message: '请先作答原题，再开始引导练习。' } };
+          }
+          if (startAttempts === 2) {
+            return new Promise((resolve) => {
+              resolveInflight = () =>
+                resolve({
+                  ok: true,
+                  value: { id: 'ts-stale', mode: 'understanding', index: 0, total: 2, lesson: 'STALE_SHOULD_NOT_APPEAR', check: 'Q?', complete: false },
+                });
+            });
+          }
+          return {
+            ok: true,
+            value: { id: 'ts-fresh', mode: 'understanding', index: 0, total: 2, lesson: 'FRESH_STEP_1', check: 'Check?', complete: false },
+          };
+        }
+        return { ok: true, value: {} };
+      },
+      async snapshot() {
+        return null;
+      },
+      getConfig() {
+        return { effective: { ready: true, provider: 'stub', model: 'stub' } };
+      },
+      async close() {},
+    };
+
+    _resetAssistantSessionMemory();
+    useTuiStore.setState({
+      page: 'review',
+      preferences: { ...DEFAULT_PREFERENCES, language: 'zh', asciiMode: true },
+      assistantOpen: true,
+      assistantFocused: true,
+      assistantTab: 'guided',
+      assistantStage: 'question',
+      assistantFullscreen: false,
+      assistantCardContext: { runId: 'run-gate', deckId: 'd-gate', cardId: 'c-gate', cardIndex: 0, queueVersion: 0, revealed: false, prompt: 'Q' },
+      toasts: [],
+    });
+
+    const hGate = mountInk(
+      React.createElement(
+        Box,
+        { width: 104, height: 32 },
+        React.createElement(AssistantPanel, { host: gateHost, width: 100, height: 32, isActive: true, onClose: () => {} }),
+      ),
+    );
+    t.after(() => hGate.cleanup());
+
+    // Attempt 1: needsAnswerFirst
+    await hGate.waitFor((s) => s.includes('请先在刷题页完成本题作答'), 5000, 'needsAnswerFirst shown');
+    assert.equal(startAttempts, 1);
+
+    // Learner answers card in Review -> revealed flips true -> Attempt 2 starts in-flight
+    useTuiStore.getState().setAssistantCardContext({
+      runId: 'run-gate',
+      deckId: 'd-gate',
+      cardId: 'c-gate',
+      cardIndex: 0,
+      queueVersion: 0,
+      revealed: true,
+      userAnswer: 'A',
+      prompt: 'Q',
+    });
+    await hGate.waitFor(() => startAttempts === 2 && typeof resolveInflight === 'function', 5000, 'attempt 2 in-flight');
+
+    // Press Esc while busy -> invalidates in-flight request; resolving stale promise must NOT render STALE_SHOULD_NOT_APPEAR
+    hGate.write('\x1b');
+    await new Promise((r) => setTimeout(r, 40));
+    resolveInflight();
+    await new Promise((r) => setTimeout(r, 60));
+    assert.ok(!hGate.frame().includes('STALE_SHOULD_NOT_APPEAR'), 'Esc-aborted teach.start must not overwrite state on late resolution');
+
+    // Verify completion markdown directs learner to [p] / [F] (not no-op [n] at summary)
+    const doneMd = aiDialogue.formatTeachCompletionMarkdown({ id: 'x', mode: 'understanding', index: 2, total: 2, complete: true }, 'zh');
+    assert.ok(doneMd.includes('[p]') && !doneMd.includes('[n]'), `completion copy must point to [p], got: ${doneMd}`);
+  });
 });

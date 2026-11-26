@@ -387,6 +387,9 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
         prev.deckId === next.deckId &&
         prev.cardId === next.cardId &&
         prev.cardIndex === next.cardIndex &&
+        prev.queueVersion === next.queueVersion &&
+        prev.teachingId === next.teachingId &&
+        prev.teachingMode === next.teachingMode &&
         prev.total === next.total &&
         prev.prompt === next.prompt &&
         prev.userAnswer === next.userAnswer &&

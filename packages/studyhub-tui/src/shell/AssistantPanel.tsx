@@ -757,6 +757,7 @@ export const AssistantPanel = memo(function AssistantPanel({
   );
 
   // Auto-load backend `teach.*` when entering Guided Study on a Review card (non-retell/non-summary stages).
+  // Re-runs when the learner answers/reveals the card after a `needsAnswerFirst` refusal (same cardId, revealed flips true).
   useEffect(() => {
     if (tab !== 'guided' || stage === 'retell' || stage === 'summary') return;
     if (!cardCtx?.runId || !cardCtx?.cardId) return;
@@ -764,7 +765,7 @@ export const AssistantPanel = memo(function AssistantPanel({
     if (teachLoadedKeyRef.current === key) return;
     teachLoadedKeyRef.current = key;
     void startBackendTeach(teachMode, true);
-  }, [tab, stage, cardCtx?.runId, cardCtx?.cardId, teachMode, startBackendTeach]);
+  }, [tab, stage, cardCtx?.runId, cardCtx?.cardId, cardCtx?.revealed, cardCtx?.userAnswer, teachMode, startBackendTeach]);
 
   const handleSkipTeachStep = useCallback(
     async (all = false) => {
@@ -1455,6 +1456,10 @@ export const AssistantPanel = memo(function AssistantPanel({
   const handleEscape = useCallback(() => {
     if (busy) {
       abortAiTurn();
+      // Invalidate any in-flight backend `teach.*` request and release the load lock so a late
+      // response cannot overwrite state after Esc and retrying works cleanly (#1354 P3-c).
+      teachReqSeqRef.current += 1;
+      if (!teachSession) teachLoadedKeyRef.current = null;
       endExecution();
       notify(t(lang, '已中止当前操作', 'Cancelled'), 'info');
       return;
@@ -1474,7 +1479,7 @@ export const AssistantPanel = memo(function AssistantPanel({
       return;
     }
     onClose();
-  }, [busy, abortAiTurn, endExecution, notify, lang, inputFocused, fullscreen, setFullscreen, escKeepsDock, setFocused, onClose]);
+  }, [busy, abortAiTurn, teachSession, endExecution, notify, lang, inputFocused, fullscreen, setFullscreen, escKeepsDock, setFocused, onClose]);
 
   const runFallbackAction = useCallback(() => {
     if (!lastFallback) return;
@@ -1574,7 +1579,7 @@ export const AssistantPanel = memo(function AssistantPanel({
           void handleSkipTeachStep(true);
           return true;
         }
-        if (input === 'M' && stage !== 'retell' && cardCtx?.runId && cardCtx?.cardId) {
+        if (input === 'M' && !busy && stage !== 'retell' && cardCtx?.runId && cardCtx?.cardId) {
           const nextMode = teachMode === 'understanding' ? 'calculation' : 'understanding';
           setTeachMode(nextMode);
           teachLoadedKeyRef.current = `${cardCtx.runId}:${cardCtx.cardId}:${nextMode}`;
