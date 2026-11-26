@@ -159,27 +159,44 @@ test('先跳过, 「N 题待答」, 到此为止 and the look-back, at 1280 and 
   await previewCall(server, 'review.start', { mode: 'path', fresh: true, scope: [{ deckId: control.id }] });
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
-  await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'zh'); });
-  await page.goto(server.url);
-  await page.getByRole('button', { name: '接着做' }).first().click(); // the home card for the open round
-  const on = (k) => page.waitForFunction((n) => new RegExp(`Question number ${n}\\?`).test(document.querySelector('.question-card .question')?.textContent || ''), k);
-  await on(1);
-  await page.keyboard.press('k');
-  for (const n of [2, 3]) {
-    await on(n);
+  let releaseSnapshot, holdSnapshot = false;
+  const heldSnapshot = new Promise((resolve) => { releaseSnapshot = resolve; });
+  try {
+    await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'zh'); });
+    await page.route('**/api/call', async (route) => {
+      if (holdSnapshot && route.request().postDataJSON()?.action === 'snapshot') await heldSnapshot;
+      return route.fallback();
+    });
+    await page.goto(server.url);
+    const resumeButton = page.getByRole('button', { name: '接着做' }).first();
+    await resumeButton.waitFor();
+    // Hold any post-resume snapshot so openRun cannot mask a busy-lock regression behind a fast local server.
+    holdSnapshot = true;
+    await resumeButton.click(); // the home card for the open round
+    const on = (k) => page.waitForFunction((n) => new RegExp(`Question number ${n}\\?`).test(document.querySelector('.question-card .question')?.textContent || ''), k);
+    await on(1);
+    await page.keyboard.press('k');
+    await on(2);
+    holdSnapshot = false;
+    releaseSnapshot();
+    for (const n of [2, 3]) {
+      await on(n);
+      await answerRight(page);
+      await nextButton(page).click();
+    }
+    await on(1);
     await answerRight(page);
+    assert.equal((await nextButton(page).innerText()).replace('→', '').trim(), '完成', 'the set-aside question was the last one waiting');
+    // The switch goes on only for the last step, so the questions themselves do not move on by the countdown (the step reloads the library).
+    await previewCall(server, 'settings.practice.set', { patch: { autopilot: true } });
     await nextButton(page).click();
+    await page.locator('.result-page').waitFor({ timeout: 30000 });
+    assert.equal(await page.locator('.result-title').innerText(), '这一轮，完成了。');
+    await page.locator('.coach-countdown[role="status"]').waitFor({ timeout: 15000 });
+  } finally {
+    releaseSnapshot?.();
+    await context.close();
   }
-  await on(1);
-  await answerRight(page);
-  assert.equal((await nextButton(page).innerText()).replace('→', '').trim(), '完成', 'the set-aside question was the last one waiting');
-  // The switch goes on only for the last step, so the questions themselves do not move on by the countdown (the step reloads the library).
-  await previewCall(server, 'settings.practice.set', { patch: { autopilot: true } });
-  await nextButton(page).click();
-  await page.locator('.result-page').waitFor({ timeout: 30000 });
-  assert.equal(await page.locator('.result-title').innerText(), '这一轮，完成了。');
-  await page.locator('.coach-countdown[role="status"]').waitFor({ timeout: 15000 });
-  await context.close();
 });
 
 test('Cloze Enter/Esc keyboard flow and RoundLookBack source-page jump in a real browser', { timeout: 600000 }, async (t) => {
