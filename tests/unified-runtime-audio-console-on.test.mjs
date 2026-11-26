@@ -15,7 +15,7 @@ import { settleJob, until } from './helpers/wait.mjs';
 /** This file's mode, the one every test here is named after: the switch of every audio path on, so the matrix starts each kind on the runtime only. */
 const mode = 'on';
 
-test(`${mode}: every kind of audio job, while it runs, is a card the console can draw, offers what it declares and refuses the rest in words`, async t => {
+test('audio console (switches on / unified runtime): all six runtime audio kinds including class correction expose contract ids, token usage, archive, and delete lifecycle', async t => {
   const lib = await consoleLibrary(t), cards = await startAll(lib, mode);
   assert.deepEqual(cards.filter(card => !card.started).map(card => `${card.name}/${card.side}`), mode === 'on' ? [] : ['correction/off'], 'the class correction has a card only on the runtime (D-12)');
   const rows = [];
@@ -100,7 +100,7 @@ test(`${mode}: every kind of audio job, while it runs, is a card the console can
   }
 });
 
-test(`${mode}: stopping a job of every kind: the card ends cancelled in words, what was kept is not lost, dismissing it removes the card`, async t => {
+test('audio console (switches on / unified runtime): cancelling all six runtime audio kinds settles as cancelled/failed, rejects duplicate cancel, and clears on dismiss', async t => {
   const lib = await consoleLibrary(t), cards = (await startAll(lib, mode)).filter(card => card.started), ids = [];
   for (const card of [...cards].reverse()) {
     const row = await live(lib, card.started.jobId, `${card.name}/${card.side}`), c = ui.model.contractOf(row);
@@ -138,7 +138,7 @@ test(`${mode}: the id of a card and the id of its contract: which operations tak
   assert.equal((await settleJob(lib.service, row.id)).status, 'cancelled', 'and it stopped the job');
 });
 
-test(`${mode}: a message to a running audio job is refused in the learner's words, not with an internal error`, async t => {
+test('audio console (switches on / unified runtime): job.message to a running runtime subtitles job explains the message door in plain words', async t => {
   const lib = await consoleLibrary(t);
   lib.set(mode === 'on', 'audioSubtitles');
   const started = await KINDS.subtitles.start(lib, 1), row = await live(lib, started.jobId);

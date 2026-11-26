@@ -3,11 +3,11 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { after, describe, test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { tsImport } from 'tsx/esm/api';
 
@@ -67,13 +67,13 @@ after(async () => {
 
 function makeMockTty({ stdoutTty = true, stdinTty = true, isRaw = true } = {}) {
   const written = [];
-  const rawCalls = [];
-  let defaultEncoding = null;
+  const calls = [];
 
   const stdout = new EventEmitter();
   stdout.isTTY = stdoutTty;
+  stdout.defaultEncoding = null;
   stdout.setDefaultEncoding = (enc) => {
-    defaultEncoding = enc;
+    stdout.defaultEncoding = enc;
   };
   stdout.write = (chunk) => {
     written.push(String(chunk));
@@ -84,12 +84,12 @@ function makeMockTty({ stdoutTty = true, stdinTty = true, isRaw = true } = {}) {
   stdin.isTTY = stdinTty;
   stdin.isRaw = isRaw;
   stdin.setRawMode = (mode) => {
-    rawCalls.push(mode);
+    calls.push(mode);
     stdin.isRaw = mode;
     return stdin;
   };
 
-  return { stdout, stdin, written, rawCalls, getEncoding: () => defaultEncoding };
+  return { stdout, stdin, written, calls };
 }
 
 // ---------------------------------------------------------------------------
@@ -772,20 +772,20 @@ describe('enterTerminalSession', () => {
 
     assert.equal(session.isTty, true);
     assert.equal(session.altScreenActive, true);
-    assert.equal(mock.getEncoding(), 'utf8');
+    assert.equal(mock.stdout.defaultEncoding, 'utf8');
     assert.equal(mock.written.length, 1);
     assert.ok(mock.written[0].includes('\x1b[?1049h'), 'emits alt-screen enter sequence');
 
     session.restore();
     assert.equal(mock.written.length, 2);
     assert.equal(mock.written[1], '\x1b[0m\x1b[?25h\x1b[?1049l');
-    assert.deepEqual(mock.rawCalls, [false]);
+    assert.deepEqual(mock.calls, [false]);
     assert.equal(mock.stdin.isRaw, false);
 
     // Idempotent second restore
     session.restore();
     assert.equal(mock.written.length, 2);
-    assert.deepEqual(mock.rawCalls, [false]);
+    assert.deepEqual(mock.calls, [false]);
   });
 
   test('respects altScreen: false on TTY', () => {
@@ -798,7 +798,7 @@ describe('enterTerminalSession', () => {
 
     session.restore();
     assert.deepEqual(mock.written, ['\x1b[0m\x1b[?25h']);
-    assert.deepEqual(mock.rawCalls, []);
+    assert.deepEqual(mock.calls, []);
   });
 
   test('is a safe no-op on non-TTY streams', () => {
@@ -812,7 +812,7 @@ describe('enterTerminalSession', () => {
     session.restore();
     session.restore();
     assert.deepEqual(mock.written, []);
-    assert.deepEqual(mock.rawCalls, []);
+    assert.deepEqual(mock.calls, []);
   });
 });
 
@@ -869,12 +869,12 @@ describe('enterTerminalSession SGR 1006 mouse lifecycle', () => {
     assert.ok(disableIdx >= 0, 'restore writes DISABLE_SGR_MOUSE');
     assert.ok(resetIdx > disableIdx, 'DISABLE_SGR_MOUSE precedes style reset & show cursor');
     assert.ok(exitAltIdx > disableIdx, 'DISABLE_SGR_MOUSE precedes EXIT_ALT_SCREEN');
-    assert.deepEqual(mock.rawCalls, [false]);
+    assert.deepEqual(mock.calls, [false]);
 
     // Idempotent second restore()
     session.restore();
     assert.equal(mock.written.length, countBeforeRestore + 1);
-    assert.deepEqual(mock.rawCalls, [false]);
+    assert.deepEqual(mock.calls, [false]);
   });
 
   test('opt-in (mouse: true, altScreen: false) enables and restores SGR mouse without alt screen', () => {
@@ -916,7 +916,7 @@ describe('enterTerminalSession SGR 1006 mouse lifecycle', () => {
       session.restore();
       session.restore();
       assert.deepEqual(mock.written, []);
-      assert.deepEqual(mock.rawCalls, []);
+      assert.deepEqual(mock.calls, []);
     }
   });
 });
@@ -1142,11 +1142,91 @@ describe('static cross-platform audit (src/**/*.ts(x) & bin/*.mjs)', () => {
     assert.deepEqual(violations, [], `Cross-platform audit violations:\n${violations.join('\n')}`);
   });
 
-  test('runtime dynamic imports of file paths use pathToFileURL', async () => {
-    const depsText = await readFile(join(pkgRoot, 'src', 'host', 'desktop-deps.ts'), 'utf8');
-    assert.match(depsText, /pathToFileURL\(/, 'desktop-deps.ts uses pathToFileURL for dynamic imports');
+  test('runtime dynamic imports resolve file paths containing # and spaces via file URLs', async () => {
+    const sandbox = await makeTempDir('file-url-import');
 
-    const binText = await readFile(binPath, 'utf8');
-    assert.match(binText, /pathToFileURL\(/, 'bin/studyhub-tui.mjs uses pathToFileURL for dynamic imports');
+    // 1. bin/studyhub-tui.mjs dynamically imports dist/cli.mjs from a path containing '#' and spaces.
+    //    Without pathToFileURL(), Node ESM truncates at '#' as a URL fragment on every OS and fails on Windows drive letters.
+    const fakePkg = join(sandbox, 'tui #1 space');
+    await mkdir(join(fakePkg, 'bin'), { recursive: true });
+    await mkdir(join(fakePkg, 'dist'), { recursive: true });
+    const tempBin = join(fakePkg, 'bin', 'studyhub-tui.mjs');
+    await copyFile(binPath, tempBin);
+    await writeFile(join(fakePkg, 'dist', 'cli.mjs'), "process.stdout.write('STUB_DIST_CLI_OK\\n');\n", 'utf8');
+
+    const binRun = await execFileAsync(process.execPath, [tempBin], { timeout: 15_000 });
+    assert.equal(binRun.stderr, '');
+    assert.equal(binRun.stdout.trim(), 'STUB_DIST_CLI_OK');
+
+    // 1b. bin/studyhub-tui.mjs dev fallback (no dist/cli.mjs) passes node_modules/tsx/dist/loader.mjs as a file URL to `--import`.
+    const fakeDevPkg = join(sandbox, 'tui dev #3 space');
+    await mkdir(join(fakeDevPkg, 'bin'), { recursive: true });
+    await mkdir(join(fakeDevPkg, 'node_modules', 'tsx', 'dist'), { recursive: true });
+    await mkdir(join(fakeDevPkg, 'src'), { recursive: true });
+    const tempDevBin = join(fakeDevPkg, 'bin', 'studyhub-tui.mjs');
+    await copyFile(binPath, tempDevBin);
+    await writeFile(
+      join(fakeDevPkg, 'node_modules', 'tsx', 'dist', 'loader.mjs'),
+      "process.stdout.write('STUB_DEV_LOADER_OK\\n'); process.exit(0);\n",
+      'utf8',
+    );
+    await writeFile(join(fakeDevPkg, 'src', 'cli.tsx'), '\n', 'utf8');
+
+    const devBinRun = await execFileAsync(process.execPath, [tempDevBin], { timeout: 15_000 });
+    assert.equal(devBinRun.stderr, '');
+    assert.equal(devBinRun.stdout.trim(), 'STUB_DEV_LOADER_OK');
+
+    // 2. desktop-deps.ts loadDesktopDeps() dynamically imports all 12 desktop modules from a STUDYHUB_DESKTOP_ROOT containing '#' and spaces.
+    const fakeDesktop = join(sandbox, 'desktop #2 space');
+    const stubModules = {
+      'package.json': '{"type":"module"}\n',
+      'application/desktop-host.js': "export const createDesktopHost = () => 'STUB_HOST_OK';\n",
+      'application/provider-discovery.js': 'export const createProviderDiscovery = () => ({});\nexport const localizeProviders = () => [];\n',
+      'adapters/cli/agy-adapter.mjs': 'export const createAgyCompleteAdapter = () => undefined;\nexport const probeAgyModels = async () => [];\nexport const probeCliVersion = async () => null;\n',
+      'adapters/cli/codex-adapter.mjs': 'export const createCodexCompleteAdapter = () => undefined;\nexport const probeCodexAuth = async () => ({});\nexport const probeCodexModels = async () => [];\n',
+      'adapters/cli/candidate-paths.mjs': 'export const listCandidatePaths = async () => [];\n',
+      'adapters/cli/process-runner.mjs': 'export const createProcessRunner = () => ({});\nexport const spawnDetached = () => {};\n',
+      'adapters/http/openai-adapter.mjs': 'export const createOpenAiCompleteAdapter = () => undefined;\n',
+      'adapters/runtime/job-executor.mjs': 'export const createInProcessJobExecutor = () => ({});\n',
+      'adapters/storage/config-store.mjs': 'export const createConfigStore = () => ({});\n',
+      'adapters/storage/library-watcher.mjs': 'export const createDesktopLibraryEvents = () => ({});\n',
+      'domain/config-policy.js': 'export const OPENAI_PRESETS = [];\nexport const redactDesktopConfig = () => ({});\nexport const resolveEffectiveModel = () => ({});\nexport const normalizeDesktopConfig = () => ({});\n',
+      'domain/shim-parser.js': 'export const openableExternalUrl = () => null;\n',
+    };
+    for (const [rel, content] of Object.entries(stubModules)) {
+      const target = join(fakeDesktop, rel);
+      await mkdir(dirname(target), { recursive: true });
+      await writeFile(target, content, 'utf8');
+    }
+
+    const tsxLoaderUrl = pathToFileURL(join(pkgRoot, 'node_modules', 'tsx', 'dist', 'loader.mjs')).href;
+    const desktopDepsUrl = pathToFileURL(join(pkgRoot, 'src', 'host', 'desktop-deps.ts')).href;
+    const depsRun = await execFileAsync(
+      process.execPath,
+      [
+        '--import',
+        tsxLoaderUrl,
+        '--input-type=module',
+        '-e',
+        'const mod = await import(process.env.TEST_DESKTOP_DEPS_URL); const deps = await mod.loadDesktopDeps(); console.log(JSON.stringify({ desktopRoot: deps.desktopRoot, frozen: Object.isFrozen(deps), host: deps.createDesktopHost(), presets: deps.OPENAI_PRESETS.length }));',
+      ],
+      {
+        cwd: pkgRoot,
+        env: {
+          ...process.env,
+          STUDYHUB_DESKTOP_ROOT: fakeDesktop,
+          TEST_DESKTOP_DEPS_URL: desktopDepsUrl,
+        },
+        timeout: 15_000,
+      },
+    );
+    assert.equal(depsRun.stderr, '');
+    const parsed = JSON.parse(depsRun.stdout.trim());
+    assert.deepEqual(parsed, {
+      desktopRoot: resolve(fakeDesktop),
+      frozen: true,
+      host: 'STUB_HOST_OK',
+      presets: 0,
+    });
   });
 });
