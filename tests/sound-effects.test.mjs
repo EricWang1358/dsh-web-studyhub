@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { loadUi } from './helpers/ui-module.mjs';
 import { buildHostClient } from '../scripts/build.mjs';
 
@@ -131,15 +130,15 @@ function createFakeAudioEnv({ defaultResumeImpl = null } = {}) {
   }
 
   const storage = memoryStorage();
-  const fakeDoc = { hidden: false };
+  const document = { hidden: false };
   Object.defineProperty(globalThis, 'AudioContext', { configurable: true, value: FakeAudioContext });
   Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage });
-  Object.defineProperty(globalThis, 'document', { configurable: true, value: fakeDoc });
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: document });
 
   return {
     contexts,
     storage,
-    fakeDoc,
+    document,
     restore() {
       resetSoundEngineForTests();
       if (originalAudioContext) Object.defineProperty(globalThis, 'AudioContext', originalAudioContext);
@@ -214,13 +213,13 @@ test('subtle vs standard gating and preview/hidden-tab timer chime rules hold', 
     assert.equal(env.contexts[0].plays.length, 6);
 
     // Hidden tab suppresses review sounds, but still allows explicit TodayTimer completion chimes.
-    env.fakeDoc.hidden = true;
+    env.document.hidden = true;
     assert.equal(playSound('correct', { skipThrottle: true }), false);
     assert.equal(playTimerChime(), true);
     assert.equal(env.contexts[0].plays.length, 7);
 
     // Setting sound back to off still permits Settings › 试听 preview.
-    env.fakeDoc.hidden = false;
+    env.document.hidden = false;
     saveAppearance({ sound: 'off' }, env.storage);
     assert.equal(playSoundPreview('off'), true, 'Preview auditions even before user switches away from Off');
     assert.equal(env.contexts[0].plays.length, 8);
@@ -523,14 +522,20 @@ test('synthesizeCueSamples scales micro-room envelope cleanly across 44.1kHz, 48
       assert.ok(samples.length >= Math.floor(0.03 * rate), `${cue}@${rate} length scales with sampleRate`);
     }
   }
+
+  // The closing fade is set in milliseconds, not samples: the level 2 ms before the end (relative to the peak) is the same at every sample rate.
+  for (const cue of ['tap', 'correct', 'miss', 'complete']) {
+    const levels = [44100, 48000, 96000].map((rate) => {
+      const samples = synthesizeCueSamples(cue, rate);
+      let peak = 0;
+      for (const value of samples) peak = Math.max(peak, Math.abs(value));
+      return Math.abs(samples[samples.length - 1 - Math.round(0.002 * rate)]) / peak;
+    });
+    assert.ok(Math.max(...levels) / Math.min(...levels) < 1.25, `${cue}: the closing fade has the same length in ms at every sample rate (${levels.join(', ')})`);
+  }
 });
 
 test('sound-effects lazy-loads sound-effects-assets via dynamic import and keeps 40KB MP3 payload out of static initial UI chunks', async () => {
-  const source = await readFile(new URL('../ui/sound-effects.js', import.meta.url), 'utf8');
-  assert.doesNotMatch(source, /import\s+[^;]*from\s+['"]\.\/sound-effects-assets\.js['"]/, 'must not statically import sound-effects-assets.js');
-  assert.match(source, /import\(['"]\.\/sound-effects-assets\.js['"]\)/, 'lazy-loads sound-effects-assets.js via dynamic import()');
-  assert.doesNotMatch(source, /shapeEnvelope\((?:left|right),\s*44100\b/, 'normalizeStereo must pass dynamic sampleRate to shapeEnvelope');
-
   const built = await buildHostClient({ write: false });
   const outputs = Object.entries(built.metafile.outputs);
   const assetsChunks = outputs.filter(([, meta]) => Object.keys(meta.inputs || {}).some((p) => p.endsWith('ui/sound-effects-assets.js')));
@@ -538,6 +543,14 @@ test('sound-effects lazy-loads sound-effects-assets via dynamic import and keeps
   const [assetsOutPath, assetsMeta] = assetsChunks[0];
   assert.deepEqual(Object.keys(assetsMeta.inputs), ['ui/sound-effects-assets.js'], 'assets chunk contains only sound-effects-assets.js');
   const assetsFile = assetsOutPath.split(/[\\/]/).pop();
-  const staticImporters = outputs.filter(([, meta]) => (meta.imports || []).some((edge) => edge.kind === 'import-statement' && edge.path.endsWith(assetsFile)));
-  assert.equal(staticImporters.length, 0, 'no chunk statically imports the baked MP3 assets chunk');
+  const edgesToAssets = outputs.flatMap(([outPath, meta]) =>
+    (meta.imports || [])
+      .filter((edge) => edge.path.endsWith(assetsFile))
+      .map((edge) => ({ outPath, kind: edge.kind })),
+  );
+  assert.ok(edgesToAssets.length >= 1, 'sound-effects chunk imports the dedicated baked MP3 assets chunk');
+  assert.ok(
+    edgesToAssets.every((edge) => edge.kind === 'dynamic-import'),
+    `every import edge to ${assetsFile} must be dynamic-import (never static import), got ${JSON.stringify(edgesToAssets)}`,
+  );
 });

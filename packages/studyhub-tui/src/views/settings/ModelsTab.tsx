@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
-import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
+import { useKeyScope } from '../../components/key-dispatcher.js';
+import { isPlainKey } from '../../input/global-router.js';
 import type { HostClient, ModelProviderInfo } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import {
@@ -18,7 +19,6 @@ import { Panel } from '../../components/Panel.js';
 import { SelectList, type SelectOption } from '../../components/SelectList.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
-import { useClaimKeys } from '../../components/focus.js';
 import { padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { AGY_EFFORTS, CODEX_EFFORTS, OPENAI_EFFORTS, effortLabel } from './types.js';
 
@@ -430,42 +430,47 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
     [codexModelsList],
   );
 
-  const claimedGeneral = useMemo(() => ['s', 't', 'j', 'k', 'h', 'l'], []);
-  const claimedCliDetail = useMemo(() => ['a', 'e', 'm'], []);
-  useClaimKeys(claimedGeneral, isActive && editingField === null);
-  useClaimKeys(
-    claimedCliDetail,
-    isActive && editingField === null && pane === 'detail' && (activeRoute.kind === 'agy' || activeRoute.kind === 'codex'),
+  const cliDetailActive = pane === 'detail' && (activeRoute.kind === 'agy' || activeRoute.kind === 'codex');
+  const claimedKeys = useMemo(
+    () => (cliDetailActive ? ['s', 't', 'j', 'k', 'h', 'l', 'a', 'e', 'm'] : ['s', 't', 'j', 'k', 'h', 'l']),
+    [cliDetailActive],
   );
 
-  useInput(
-    (input, key) => {
+  useKeyScope({
+    id: 'settings:models',
+    active: isActive && editingField === null,
+    keys: claimedKeys,
+    onKey: (input, key) => {
       if (key.tab) {
         setPane((p) => (p === 'routes' ? 'detail' : 'routes'));
-        return;
+        return true;
       }
-      if (key.ctrl && input === 's') {
+      if (key.ctrl && !key.meta && input === 's') {
         if (activeRoute.kind === 'agy') void handleActivateAgy();
         else if (activeRoute.kind === 'codex') void handleActivateCodex();
         else void handleSaveOpenAi();
-        return;
+        return true;
       }
-      if (input === 't') {
+      const plain = isPlainKey(input, key);
+      if (plain && input === 't') {
         void handleTestConnection();
-        return;
+        return true;
       }
-      if (input === 's' && activeRoute.kind !== 'preset') {
+      if (plain && input === 's' && activeRoute.kind !== 'preset') {
         void handleRescan();
-        return;
+        return true;
       }
-      if (input === 's' && activeRoute.kind === 'preset') {
+      if (plain && input === 's' && activeRoute.kind === 'preset') {
         void handleSaveOpenAi();
-        return;
+        return true;
       }
 
       if (pane === 'routes') {
-        if (key.rightArrow || input === 'l') setPane('detail');
-        return;
+        if (key.rightArrow || (plain && input === 'l')) {
+          setPane('detail');
+          return true;
+        }
+        return false;
       }
 
       // Detail pane shortcuts
@@ -475,61 +480,63 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
       }
 
       if (activeRoute.kind === 'agy') {
-        if (input === 'a') {
+        if (plain && input === 'a') {
           void handleActivateAgy();
-          return;
+          return true;
         }
-        if (input === 'e') {
+        if (plain && input === 'e') {
           setAgyEffort((cur) => AGY_EFFORTS[(AGY_EFFORTS.indexOf(cur) + 1) % AGY_EFFORTS.length]);
+          return true;
         }
-        return;
+        return false;
       }
 
       if (activeRoute.kind === 'codex') {
-        if (input === 'a') {
+        if (plain && input === 'a') {
           void handleActivateCodex();
-          return;
+          return true;
         }
-        if (input === 'e') {
+        if (plain && input === 'e') {
           setCodexEffort((cur) => CODEX_EFFORTS[(CODEX_EFFORTS.indexOf(cur) + 1) % CODEX_EFFORTS.length]);
-          return;
+          return true;
         }
-        if (input === 'm') {
+        if (plain && input === 'm') {
           setFieldDraft(codexModel);
           setEditingField('codexModel');
+          return true;
         }
-        return;
+        return false;
       }
 
       // OpenAI preset form
       const preset = findPreset(openaiPresetId);
-      if (key.upArrow || input === 'k') {
+      if (key.upArrow || (plain && input === 'k')) {
         setOpenaiFieldIdx((i) => (i + 4) % 5);
-        return;
+        return true;
       }
-      if (key.downArrow || input === 'j') {
+      if (key.downArrow || (plain && input === 'j')) {
         setOpenaiFieldIdx((i) => (i + 1) % 5);
-        return;
+        return true;
       }
-      if ((key.leftArrow || input === 'h') && openaiFieldIdx === 0) {
+      if ((key.leftArrow || (plain && input === 'h')) && openaiFieldIdx === 0) {
         setPane('routes');
-        return;
+        return true;
       }
-      if (openaiFieldIdx === 2 && preset && preset.models.length > 0 && (key.leftArrow || key.rightArrow || input === 'h' || input === 'l')) {
-        const dir = key.leftArrow || input === 'h' ? -1 : 1;
+      if (openaiFieldIdx === 2 && preset && preset.models.length > 0 && (key.leftArrow || key.rightArrow || (plain && (input === 'h' || input === 'l')))) {
+        const dir = key.leftArrow || (plain && input === 'h') ? -1 : 1;
         const idx = preset.models.indexOf(openaiModel);
         const nextIdx = idx < 0 ? 0 : (idx + dir + preset.models.length) % preset.models.length;
         setOpenaiModel(preset.models[nextIdx]);
-        return;
+        return true;
       }
-      if (openaiFieldIdx === 3 && (key.leftArrow || key.rightArrow || input === 'h' || input === 'l')) {
-        const dir = key.leftArrow || input === 'h' ? -1 : 1;
+      if (openaiFieldIdx === 3 && (key.leftArrow || key.rightArrow || (plain && (input === 'h' || input === 'l')))) {
+        const dir = key.leftArrow || (plain && input === 'h') ? -1 : 1;
         const idx = OPENAI_EFFORTS.indexOf(openaiEffort);
         const nextIdx = idx < 0 ? 0 : (idx + dir + OPENAI_EFFORTS.length) % OPENAI_EFFORTS.length;
         setOpenaiEffort(OPENAI_EFFORTS[nextIdx]);
-        return;
+        return true;
       }
-      if (key.return) {
+      if (key.return && !key.ctrl && !key.meta) {
         if (openaiFieldIdx === 0) {
           setFieldDraft(openaiBaseUrl);
           setEditingField('baseUrl');
@@ -545,10 +552,11 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
         } else {
           void handleSaveOpenAi();
         }
+        return true;
       }
+      return false;
     },
-    { isActive: isActive && editingField === null },
-  );
+  });
 
   const effectiveReady = Boolean(config?.effective?.ready);
   const effectiveLabel = config?.effective?.label || t(lang, '未配置模型', 'No model configured');

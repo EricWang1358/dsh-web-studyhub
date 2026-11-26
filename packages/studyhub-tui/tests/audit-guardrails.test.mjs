@@ -257,10 +257,14 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
           violations.push(`${r}:${line}: card.followup.add missing replace: true`);
         }
       }
-      for (const m of code.matchAll(/tryAction(?:<[^>]+>)?\s*\(\s*host\s*,\s*['"]note\.qa\.add['"]\s*,\s*\{([\s\S]*?)\}\s*\)/g)) {
+      for (const m of code.matchAll(/tryAction(?:<[^>]+>)?\s*\(\s*host\s*,\s*['"]note\.qa\.(?:add|save)['"]\s*,\s*\{([\s\S]*?)\}\s*\)/g)) {
         if (!/\btitle\s*:/.test(m[1])) {
           const line = code.slice(0, m.index).split('\n').length;
-          violations.push(`${r}:${line}: note.qa.add missing title`);
+          violations.push(`${r}:${line}: note.qa.add/save missing title`);
+        }
+        if (m[0].includes('note.qa.save') && !/\breplace\s*:\s*true\b/.test(m[1])) {
+          const line = code.slice(0, m.index).split('\n').length;
+          violations.push(`${r}:${line}: note.qa.save missing replace: true`);
         }
       }
     }
@@ -286,7 +290,7 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
     );
   });
 
-  test('[Cat 3 & 4 Runtime] ReaderNotesDrawer.savePageAskToNote passes replace:true and reports partial failure truthfully (#1380)', async () => {
+  test('[Cat 3 & 4 Runtime] ReaderNotesDrawer.savePageAskToNote uses atomic note.qa.save with replace:true and reports failure truthfully (#1380 / #1354 D7)', async () => {
     const { savePageAskToNote } = await import('../src/views/sources/ReaderNotesDrawer.tsx');
     const calls = [];
     const host = {
@@ -295,8 +299,7 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
       call: async (name, args) => {
         calls.push({ name, args });
         if (name === 'materials.pages.cards') return { ok: true, value: { cards: [{ deckId: 'd1', cardId: 'c1' }] } };
-        if (name === 'card.followup.add') return { ok: true, value: { item: { id: 'fu-1' } } };
-        if (name === 'note.qa.add') return { ok: false, error: { message: 'Disk quota exceeded' } };
+        if (name === 'note.qa.save') return { ok: false, error: { message: 'Disk quota exceeded' } };
         return { ok: false, error: { message: 'unhandled' } };
       },
       stream: async () => {
@@ -316,13 +319,14 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
       answer: '页表映射虚拟页到物理页框。',
       course: '操作系统',
     });
-    const fuCall = calls.find((c) => c.name === 'card.followup.add');
-    assert.ok(fuCall, 'must call card.followup.add');
-    assert.equal(fuCall.args.replace, true, 'must pass replace: true');
-    assert.equal(res.ok, true, 'partial save (followup persisted) must report ok:true with warning');
+    const saveCall = calls.find((c) => c.name === 'note.qa.save');
+    assert.ok(saveCall, 'must call atomic note.qa.save');
+    assert.equal(saveCall.args.replace, true, 'must pass replace: true');
+    assert.ok(typeof saveCall.args.title === 'string' && saveCall.args.title.includes('操作系统'), 'must pass non-empty title');
+    assert.equal(res.ok, false, 'atomic failure with no annotation fallback must report ok:false');
     assert.ok(
-      res.message.includes('关联题卡讲解') && res.message.includes('写入学习笔记失败'),
-      `expected explicit partial-failure message, got: ${res.message}`,
+      res.message.includes('Disk quota exceeded'),
+      `expected explicit atomic failure message, got: ${res.message}`,
     );
   });
 
