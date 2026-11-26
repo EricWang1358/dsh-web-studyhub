@@ -6,6 +6,7 @@ import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Divider, EmptyState, ProgressBar, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { Prose } from '../../components/Layout.js';
 import { Panel } from '../../components/Panel.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
@@ -1063,7 +1064,9 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
                     <Box flexDirection="column">
                       <Text color={theme.warning} bold>{t(lang, '易错点提醒', 'Pitfalls')}:</Text>
                       {selectedCrunch.pitfalls.slice(0, 5).map((pf, i) => (
-                        <Text key={i} color={theme.muted}>{truncateDisplay(`${asciiMode ? '*' : '•'} ${pf}`, Math.max(10, sz.width - 4), asciiMode ? '...' : '…')}</Text>
+                        <Prose key={i} width={Math.max(10, sz.width - 4)} color={theme.muted} ascii={asciiMode}>
+                          {`${asciiMode ? '*' : '•'} ${pf}`}
+                        </Prose>
                       ))}
                     </Box>
                   ) : null}
