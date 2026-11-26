@@ -722,6 +722,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
   const [filterQuery, setFilterQuery] = useState('');
   const [filterEditing, setFilterEditing] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [activePane, setActivePane] = useState<'left' | 'right'>('left');
   const [activeTranscript, setActiveTranscript] = useState<{ id: string; text: string; detail?: AudioResultItem | null }>({
     id: '',
     text: '',
@@ -1261,6 +1262,9 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
 
   const hints: KeyHint[] = useMemo(
     () => [
+      ...(selectedItem ? [activePane === 'right'
+        ? { key: 'Esc', label: t(lang, '返回列表', 'Back to list') }
+        : { key: 'Enter', label: t(lang, '查看详情', 'Detail') }] : []),
       { key: 'i', label: t(lang, '导入音频', 'Import Audio') },
       { key: 'u', label: t(lang, '导入字幕', 'Subtitles') },
       { key: 'p', label: t(lang, '预检', 'Preflight') },
@@ -1272,9 +1276,9 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
       { key: 'Ctrl+R', label: t(lang, '刷新', 'Refresh') },
       { key: '/', label: t(lang, '筛选', 'Filter') },
       { key: 'x', label: t(lang, '导出MD', 'Export') },
-      ...(filterQuery ? [{ key: 'Esc', label: t(lang, '清筛选', 'Clear') }] : []),
+      ...(activePane === 'left' && filterQuery ? [{ key: 'Esc', label: t(lang, '清筛选', 'Clear') }] : []),
     ],
-    [lang, filterQuery],
+    [lang, filterQuery, activePane, selectedItem],
   );
   useFooterHints(hints, isActive);
 
@@ -1283,12 +1287,21 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
     active: isActive,
     keys: CLAIMED_KEYS,
     onKey: (input, key) => {
+      if (activePane === 'right' && (key.escape || key.leftArrow || key.tab)) {
+        setActivePane('left');
+        return true;
+      }
+      if (activePane === 'left' && selectedItem && (key.rightArrow || key.tab)) {
+        setActivePane('right');
+        return true;
+      }
       if (key.escape && filterQuery) {
         setFilterQuery('');
         setSelectedIndex(0);
         return true;
       }
       if (input === '/' && !key.ctrl && !key.meta) {
+        setActivePane('left');
         setFilterEditing(true);
         return true;
       }
@@ -1473,6 +1486,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
           width={width}
           height={splitH}
           leftWidth={0.42}
+          activePane={activePane}
           leftLabel={t(lang, '转写文稿', 'Transcripts')}
           rightLabel={t(lang, '正文预览', 'Transcript Text')}
           left={({ width: lw, height: lh }) => (
@@ -1485,7 +1499,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
               badge={normalizedFilter ? `${filteredResults.length}/${results.length}` : leftItems.length}
               width={lw}
               height={lh}
-              focused={pageActive}
+              focused={pageActive && activePane === 'left'}
             >
               {loadingList ? (
                 <Spinner label={asciiMode ? t(lang, '加载转写记录...', 'Loading transcripts...') : t(lang, '加载转写记录…', 'Loading transcripts…')} />
@@ -1562,7 +1576,8 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                     width={Math.max(12, lw - 4)}
                   selectedIndex={selectedIndex}
                   onChange={(idx) => setSelectedIndex(idx)}
-                  isActive={pageActive}
+                  onSelect={() => setActivePane('right')}
+                  isActive={pageActive && activePane === 'left'}
                   keyExtractor={(item) => item.id}
                   renderItem={(item, ctx) => {
                     if (item.kind === 'job') {
@@ -1627,6 +1642,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                 }
                 width={rw}
                 height={rh}
+                focused={pageActive && activePane === 'right'}
               >
                 {selectedJob ? (
                   <Box flexDirection="column" width={innerW}>
@@ -1733,6 +1749,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                       </Box>
                     ) : (
                       <ScrollView
+                        key={selectedResult.id}
                         content={
                           activeTranscript.id === selectedResult.id && activeTranscript.text
                             ? activeTranscript.text
@@ -1740,7 +1757,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                         }
                         width={innerW}
                         height={scrollH}
-                        isActive={false}
+                        isActive={pageActive && activePane === 'right'}
                       />
                     )}
                   </Box>
