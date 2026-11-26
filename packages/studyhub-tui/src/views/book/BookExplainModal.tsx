@@ -349,21 +349,17 @@ export const BookExplainModal = memo(function BookExplainModal({
         </Box>
       ) : errorText ? (
         <Box flexDirection="column" width={innerW}>
-          <Box flexDirection="row" gap={1} width={innerW} height={1} overflow="hidden">
+          <Box flexDirection="row" gap={1} width={innerW}>
             <Badge label={asciiMode ? '! 错误' : '▲ 错误'} tone="error" />
-            <Text color={theme.error}>{truncateDisplay(errorText, Math.max(10, innerW - 10), ell)}</Text>
+            <Text color={theme.error} wrap="wrap">{errorText}</Text>
           </Box>
           {errorIsModel ? (
-            <Box height={1} width={innerW} overflow="hidden">
-              <Text color={theme.muted}>
-                {truncateDisplay(
-                  t(
-                    lang,
-                    '模型暂不可用：可按 [,] 检查模型设置，或修改后按 Enter 重试。',
-                    'Model unavailable: press [,] for Settings, or press Enter to retry.',
-                  ),
-                  innerW,
-                  ell,
+            <Box width={innerW}>
+              <Text color={theme.muted} wrap="wrap">
+                {t(
+                  lang,
+                  '模型暂不可用：可按 [,] 检查模型设置，或修改后按 Enter 重试。',
+                  'Model unavailable: press [,] for Settings, or press Enter to retry.',
                 )}
               </Text>
             </Box>
