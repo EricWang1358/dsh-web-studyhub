@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { frames, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
-import { generateMarginFixture, cutsOf, COURSE, LONG, factsLines, leadProblems, allCourses, boxNames, scrollList } from './helpers/generate-margin.mjs';
+import { generateMarginFixture, factsGeometry, cutsOf, COURSE, LONG, factsLines, leadProblems, allCourses, boxNames, scrollList } from './helpers/generate-margin.mjs';
 
 const { state, openGenerate, answers } = generateMarginFixture('long');
 
@@ -63,7 +63,9 @@ test('#1084 round 8 review: at 320–420 a row\'s facts read the same before and
     // round 8 review asked for the size at 320–420 even cut in its own words; #1135 (round 10 review): 「Markdown · 560 …」, 「Text · 267 charac…」 and
     // 「PDF · 4 pages…」 on three rows read three ways. The size is now said whole or not at all, by one rule for the rows of a kind (a document with pages
     // says its size in pages), and the format is always said whole.
-    assert.deepEqual(leadProblems(landed), [], `${tag}: ${landed.slice(0, 3).map(row => row.text).join(' | ')}`);
+    const issues = leadProblems(landed);
+    if (issues.length) t.diagnostic(JSON.stringify(await factsGeometry(page)));
+    assert.deepEqual(issues, [], `${tag}: ${landed.slice(0, 3).map(row => row.text).join(' | ')}`);
     t.diagnostic(`${tag}: ${landed.slice(0, 2).map(row => row.text).join(' | ')}`);
     assert.deepEqual(errors.filter(error => !/status of 500/.test(error)), []);
     await context.close();

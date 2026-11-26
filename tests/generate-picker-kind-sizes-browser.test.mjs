@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { frames } from '../scripts/qa/layout-late.mjs';
-import { generateMarginFixture, factsLines, allCourses } from './helpers/generate-margin.mjs';
+import { generateMarginFixture, factsGeometry, factsLines, allCourses } from './helpers/generate-margin.mjs';
 
 const { state, openGenerate, answers } = generateMarginFixture('kinds');
 
@@ -26,10 +26,12 @@ test('round 14: in 全部课程 a kind says its characters only where every row 
         if (row.lead.seen.trim().length > said.length) kinds.get(kind).chars = true;
         if (course && course.shown && course.cut) kinds.get(kind).cut.push(row.text);
       }
+      const firstFailure = bad.length === 0;
       for (const [kind, { chars, cut }] of kinds) {
         if (chars) sized++;
         if (chars && cut.length) bad.push(`${width}: ${kind} rows say their characters while one cuts its course: ${cut[0]}`);
       }
+      if (firstFailure && bad.length) t.diagnostic(JSON.stringify({ width, geometry: await factsGeometry(page), rows: rows.map(row => row.text) }));
     }
     assert.ok(sized > 0, `${lang}: some kind says its characters`);
     assert.deepEqual(bad.slice(0, 8), [], `${lang} 全部课程 (${bad.length} widths)`);

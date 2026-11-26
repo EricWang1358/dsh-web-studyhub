@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { frames } from '../scripts/qa/layout-late.mjs';
-import { generateMarginFixture, factsLines, leadProblems, allCourses, everyRow } from './helpers/generate-margin.mjs';
+import { generateMarginFixture, factsGeometry, factsLines, leadProblems, allCourses, everyRow } from './helpers/generate-margin.mjs';
 
 const { state, openGenerate, answers } = generateMarginFixture('kinds');
 
@@ -23,7 +23,9 @@ test('round 11: a kind of note that has room for its characters says them, whate
     assert.ok(notes.length >= 10, `${tag}: the Text notes (${notes.length})`);
     const bare = notes.filter(row => !/ · \d[\d,]* ?(characters?|字符|chars?|字)$/.test(row.lead.seen.trim()));
     assert.deepEqual(bare.map(row => `${row.title}: ${row.text}`), [], `${tag}: every Text note says its characters`);
-    assert.deepEqual(leadProblems(rows), [], `${tag}: ${rows.slice(0, 3).map(row => row.text).join(' | ')}`);
+    const issues = leadProblems(rows);
+    if (issues.length) t.diagnostic(JSON.stringify(await factsGeometry(page)));
+    assert.deepEqual(issues, [], `${tag}: ${rows.slice(0, 3).map(row => row.text).join(' | ')}`);
     if (everyCourse) assert.deepEqual(rows.filter(row => !row.names[0]?.shown).map(row => row.text), [], `${tag}: every row says its course`);
     t.diagnostic(`${tag}: ${rows.slice(0, 3).map(row => row.text).join(' | ')}`);
     assert.deepEqual(errors, []);

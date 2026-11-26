@@ -294,9 +294,11 @@ export const factsGeometry = page => page.evaluate(() => {
     const line = row.querySelector('.source-picker__facts'), style = getComputedStyle(line);
     canvas.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
     const measure = node => {
-      const rect = node.getBoundingClientRect(), css = getComputedStyle(node);
+      const rect = node.getBoundingClientRect(), css = getComputedStyle(node), text = document.createRange();
+      text.selectNodeContents(node);
       return { text: node.textContent, left: rect.left, width: rect.width, scrollWidth: node.scrollWidth,
-        canvasText: canvas.measureText(node.textContent).width, flex: css.flex, opacity: css.opacity, position: css.position };
+        textRange: text.getBoundingClientRect().width, canvasText: canvas.measureText(node.textContent).width,
+        flex: css.flex, opacity: css.opacity, position: css.position };
     };
     examples.push({ group, line: line.getBoundingClientRect().width, font: canvas.font, gap: style.columnGap,
       pieces: [...line.querySelectorAll('.source-picker__fact, .source-picker__part')].map(measure) });
