@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
@@ -124,7 +123,7 @@ function nodeText(node) {
   return node.props ? nodeText(node.props.children) : '';
 }
 
-test('lib/practice-settings keeps PRACTICE_DEFAULTS intact and manages opt-in notesPracticeBridge', () => {
+test('Study notes practice bridge flag (notesPracticeBridge) merges, normalizes, and validates strictly', () => {
   const baselineKeys = ['autopilot', 'roundSize', 'newCardOrder', 'debrief', 'rereadMarks', 'leechFailures', 'leechWindow', 'leechRate'];
   assert.deepEqual(Object.keys(PRACTICE_DEFAULTS), baselineKeys);
   assert.deepEqual(Object.keys(resolvePracticeSettings(undefined)), baselineKeys);
@@ -143,7 +142,7 @@ test('lib/practice-settings keeps PRACTICE_DEFAULTS intact and manages opt-in no
   assert.throws(() => mergePracticeSettings(undefined, { notesPracticeBridge: 1 }), /notesPracticeBridge/);
 });
 
-test('PracticePane and Finder entries expose opt-in notesPracticeBridge in Chinese and English', async () => {
+test('notesPracticeBridge switch in PracticePane saves true/null patches and registers its Finder entry in zh and en', async () => {
   uiMod.setUiLanguage('zh');
   try {
     const input = (html, name) => html.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))?.[0] ?? '';
@@ -163,8 +162,37 @@ test('PracticePane and Finder entries expose opt-in notesPracticeBridge in Chine
     assert.equal(entry.page, 'settings');
     assert.deepEqual(entry.anchors, ['settings-practice']);
 
-    const paneSrc = await readFile(new URL('../ui/settings/PracticePane.jsx', import.meta.url), 'utf8');
-    assert.match(paneSrc, /notesPracticeBridge:\s*on\s*\?\s*true\s*:\s*null/);
+    const mountPracticePane = ({ fail = false } = {}) => {
+      const calls = [];
+      const host = mountSync({ host: { capabilities: { chat: true } } });
+      const act = async (action, args, _after, options) => {
+        calls.push([action, args, options]);
+        if (fail) throw new Error('save failed');
+        return { ...PRACTICE_DEFAULTS, ...args.patch };
+      };
+      const getToggle = () => {
+        const tree = host.render(uiMod.PracticePane, { data: { settings: {} }, busy: false, act });
+        let found = null;
+        walkTree(tree, (node) => { if (!found && node.props?.name === 'notesPracticeBridge') found = node; });
+        return found;
+      };
+      return { calls, getToggle };
+    };
+
+    const okPane = mountPracticePane();
+    assert.equal(okPane.getToggle().props.checked, false);
+    await okPane.getToggle().props.onChange(true);
+    assert.deepEqual(okPane.calls[0].slice(0, 2), ['settings.practice.set', { patch: { notesPracticeBridge: true } }]);
+    assert.equal(okPane.calls[0][2]?.rethrow, true);
+    assert.equal(okPane.getToggle().props.checked, true);
+
+    await okPane.getToggle().props.onChange(false);
+    assert.deepEqual(okPane.calls[1].slice(0, 2), ['settings.practice.set', { patch: { notesPracticeBridge: null } }]);
+    assert.equal(okPane.getToggle().props.checked, false);
+
+    const failingPane = mountPracticePane({ fail: true });
+    await failingPane.getToggle().props.onChange(true);
+    assert.equal(failingPane.getToggle().props.checked, false, 'a failed save rolls notesPracticeBridge back to saved value');
 
     uiMod.setUiLanguage('en');
     const enHtml = renderToStaticMarkup(h(uiMod.PracticePane, { data: { settings: {} }, busy: false, act: noop }));

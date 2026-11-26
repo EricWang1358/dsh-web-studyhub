@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
@@ -70,7 +69,7 @@ const english = (fn) => {
   try { return fn(); } finally { ssr.setUiLanguage('zh'); }
 };
 
-test('lib/practice-settings keeps PRACTICE_DEFAULTS intact and manages optional studyChainRecipes', () => {
+test('Finder scenario guides setting (studyChainRecipes) stays out of PRACTICE_DEFAULTS until enabled', () => {
   const baselineKeys = ['autopilot', 'roundSize', 'newCardOrder', 'debrief', 'rereadMarks', 'leechFailures', 'leechWindow', 'leechRate'];
   assert.deepEqual(Object.keys(PRACTICE_DEFAULTS), baselineKeys);
   assert.deepEqual(Object.keys(resolvePracticeSettings(undefined)), baselineKeys);
@@ -105,8 +104,69 @@ test('PracticePane and Finder entries expose opt-in studyChainRecipes cleanly in
   assert.ok(entry);
   assert.equal(entry.area, 'settings');
 
-  const paneSrc = await readFile(new URL('../ui/settings/PracticePane.jsx', import.meta.url), 'utf8');
-  assert.match(paneSrc, /studyChainRecipes:\s*on\s*\?\s*true\s*:\s*null/);
+  // Mount PracticePane interactively and toggle studyChainRecipes on -> off, plus verify rollback on failure.
+  let active;
+  const hookSlot = (initial) => {
+    const index = active.cursor++;
+    if (!(index in active.slots)) active.slots[index] = initial();
+    return [index, active.slots[index]];
+  };
+  const statefulReact = {
+    ...React,
+    useState: (initial) => {
+      const owner = active;
+      const [index, value] = hookSlot(() => (typeof initial === 'function' ? initial() : initial));
+      return [value, (next) => { owner.slots[index] = typeof next === 'function' ? next(owner.slots[index]) : next; }];
+    },
+    useContext: (ctx) => ctx?._currentValue ?? null,
+    useRef: (value) => hookSlot(() => ({ current: value }))[1],
+    useId: () => hookSlot(() => `field-${active.cursor}`)[1],
+    useInsertionEffect: () => {},
+    useEffect: () => {},
+  };
+  const live = load((name) => (name === 'react' ? statefulReact : require(name)));
+  const findNode = (tree, predicate) => {
+    if (!tree || typeof tree !== 'object') return null;
+    if (predicate(tree)) return tree;
+    for (const child of React.Children.toArray(tree.props?.children)) {
+      const match = findNode(child, predicate);
+      if (match) return match;
+    }
+    return null;
+  };
+  const mountPane = ({ fail = false } = {}) => {
+    const calls = [];
+    const owner = { cursor: 0, slots: [] };
+    const act = async (action, args, _after, options) => {
+      calls.push([action, args, options]);
+      if (fail) throw new Error('save failed');
+      return { ...PRACTICE_DEFAULTS, ...args.patch };
+    };
+    const renderPane = () => {
+      owner.cursor = 0;
+      active = owner;
+      try { return live.PracticePane({ data: { settings: {} }, busy: false, act }); } finally { active = null; }
+    };
+    return {
+      calls,
+      toggle: () => findNode(renderPane(), (node) => node.props?.name === 'studyChainRecipes'),
+    };
+  };
+
+  const okPane = mountPane();
+  assert.equal(okPane.toggle().props.checked, false);
+  await okPane.toggle().props.onChange(true);
+  assert.deepEqual(okPane.calls[0].slice(0, 2), ['settings.practice.set', { patch: { studyChainRecipes: true } }]);
+  assert.equal(okPane.calls[0][2]?.rethrow, true);
+  assert.equal(okPane.toggle().props.checked, true);
+
+  await okPane.toggle().props.onChange(false);
+  assert.deepEqual(okPane.calls[1].slice(0, 2), ['settings.practice.set', { patch: { studyChainRecipes: null } }]);
+  assert.equal(okPane.toggle().props.checked, false);
+
+  const failingPane = mountPane({ fail: true });
+  await failingPane.toggle().props.onChange(true);
+  assert.equal(failingPane.toggle().props.checked, false, 'a failed save rolls studyChainRecipes back to saved value');
 
   english(() => {
     const enHtml = renderToStaticMarkup(h(ssr.PracticePane, { data: { settings: {} }, busy: false, act: noop }));
