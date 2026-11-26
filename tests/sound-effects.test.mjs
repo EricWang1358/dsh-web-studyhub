@@ -522,6 +522,17 @@ test('synthesizeCueSamples scales micro-room envelope cleanly across 44.1kHz, 48
       assert.ok(samples.length >= Math.floor(0.03 * rate), `${cue}@${rate} length scales with sampleRate`);
     }
   }
+
+  // The closing fade is set in milliseconds, not samples: the level 2 ms before the end (relative to the peak) is the same at every sample rate.
+  for (const cue of ['tap', 'correct', 'miss', 'complete']) {
+    const levels = [44100, 48000, 96000].map((rate) => {
+      const samples = synthesizeCueSamples(cue, rate);
+      let peak = 0;
+      for (const value of samples) peak = Math.max(peak, Math.abs(value));
+      return Math.abs(samples[samples.length - 1 - Math.round(0.002 * rate)]) / peak;
+    });
+    assert.ok(Math.max(...levels) / Math.min(...levels) < 1.25, `${cue}: the closing fade has the same length in ms at every sample rate (${levels.join(', ')})`);
+  }
 });
 
 test('sound-effects lazy-loads sound-effects-assets via dynamic import and keeps 40KB MP3 payload out of static initial UI chunks', async () => {
