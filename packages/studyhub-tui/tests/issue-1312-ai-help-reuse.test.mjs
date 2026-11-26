@@ -155,6 +155,10 @@ describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () =>
     const mockHost = {
       call: async (name, payload) => {
         if (name === 'review.start' || name === 'study.start') return { ok: true, value: mockRun };
+        if (name === 'note.qa.save') {
+          savedCalls.push(payload);
+          return { ok: true, value: { item: { id: `fu-${savedCalls.length}` }, status: 'created', note: { id: 'n1', title: payload?.title } } };
+        }
         if (name === 'card.followup.add') {
           savedCalls.push(payload);
           return { ok: true, value: { item: { id: `fu-${savedCalls.length}` } } };
@@ -372,7 +376,7 @@ describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () =>
     }
   });
 
-  test('4. (#1336) Pressing N passes non-empty title to note.qa.add and reports partial success if note write fails', async () => {
+  test('4. (#1336 / #1354 D7) Pressing N passes non-empty title to atomic note.qa.save and reports atomic failure if note drafting blocks save', async () => {
     resetStore();
     useTuiStore.setState({
       snapshot: { courses: [{ id: 'c1', name: '操作系统' }], decks: [{ id: 'deck-u1', title: '内存管理', course: '操作系统' }], sources: [], jobs: [] },
@@ -396,8 +400,7 @@ describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () =>
     const mockHost = {
       call: async (name, payload) => {
         if (name === 'review.start' || name === 'study.start') return { ok: true, value: mockRun };
-        if (name === 'card.followup.add') return { ok: true, value: { item: { id: 'fu-n1' } } };
-        if (name === 'note.qa.add') {
+        if (name === 'note.qa.save') {
           noteCalls.push(payload);
           if (!payload?.title || !String(payload.title).trim()) {
             return { ok: false, error: { message: '文章标题 is required' } };
@@ -405,7 +408,7 @@ describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () =>
           if (failNote) {
             return { ok: false, error: { message: 'AI 正在起草这篇笔记' } };
           }
-          return { ok: true, value: { status: 'created' } };
+          return { ok: true, value: { item: { id: 'fu-n1' }, status: 'created', note: { id: 'note-1', title: payload.title } } };
         }
         return { ok: true, value: {} };
       },
@@ -424,16 +427,17 @@ describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () =>
       await h.waitFor((s) => s.includes('EXPLANATION_FOR_NOTE') && s.includes('已就绪'));
       await new Promise((r) => setTimeout(r, 30));
       h.write('N');
-      await pollUntil(() => noteCalls.length >= 1, 4000, 'first note.qa.add call');
+      await pollUntil(() => noteCalls.length >= 1, 4000, 'first note.qa.save call');
       await pollUntil(
         () => useTuiStore.getState().toasts.some((toast) => String(toast.text ?? '').includes('已保存')),
         4000,
         'first save toast',
       );
       assert.equal(noteCalls.length, 1);
-      assert.ok(typeof noteCalls[0].title === 'string' && noteCalls[0].title.includes('操作系统'), 'note.qa.add must receive a non-empty daily course note title');
+      assert.ok(typeof noteCalls[0].title === 'string' && noteCalls[0].title.includes('操作系统'), 'note.qa.save must receive a non-empty daily course note title');
+      assert.equal(noteCalls[0].replace, true, 'note.qa.save must pass replace: true');
 
-      // Now simulate note.qa.add failing while card.followup.add succeeds -> still updates card hint & clearly reports partial success
+      // Now simulate atomic note.qa.save failing -> surfaces error cleanly without claiming partial write
       failNote = true;
       useTuiStore.setState({ toasts: [] });
       await new Promise((r) => setTimeout(r, 30));
@@ -442,9 +446,9 @@ describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () =>
         () =>
           useTuiStore
             .getState()
-            .toasts.some((toast) => String(toast.text ?? '').includes('已保存到本题讲解') && String(toast.text ?? '').includes('写入学习笔记失败')),
+            .toasts.some((toast) => String(toast.text ?? '').includes('AI 正在起草这篇笔记')),
         4000,
-        'partial-success toast',
+        'atomic failure toast',
       );
     } finally {
       h.cleanup();
@@ -492,7 +496,7 @@ describe('#1312 AI Help Drawer explanation reuse & explicit regeneration', () =>
           if (action === 'review.start' || action === 'study.start') return { ok: true, value: revealedRun };
           try {
             const value = await service.call(action, payload);
-            if (action === 'card.followup.add') followupSaveCount += 1;
+            if (action === 'note.qa.save') followupSaveCount += 1;
             return { ok: true, value };
           } catch (err) {
             return { ok: false, error: { message: err instanceof Error ? err.message : String(err) } };
