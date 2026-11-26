@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chooseConcurrency, listTestFiles, mergeDurations, orderLongestFirst, parseTestArgs, readDurations, readSlowList } from '../scripts/qa/test-schedule.mjs';
 
 /* How a full run is scheduled: the longest files start first (node's own runner sorts files by name, so scripts/qa/run-tests.mjs
@@ -12,6 +12,78 @@ import { chooseConcurrency, listTestFiles, mergeDurations, orderLongestFirst, pa
 
 const runner = fileURLToPath(new URL('../scripts/qa/run-tests.mjs', import.meta.url));
 const suite = fileURLToPath(new URL('./fixtures/runner-suite/', import.meta.url));
+
+test('relative ESM requests share native resolutions only for the same canonical library module', async () => {
+  const { cacheLocalImports } = await import('../scripts/qa/test-preload.mjs');
+  const sibling = new URL('../lib/host.js', import.meta.url).href;
+  const resolveImport = cacheLocalImports(url => url === sibling ? Buffer.alloc(0) : undefined);
+  const from = name => ({ parentURL: new URL(name, import.meta.url).href, conditions: ['node', 'import'] });
+  let calls = 0;
+  const delegate = (name, context) => {
+    calls++;
+    return { url: new URL(name, context.parentURL).href, format: 'module' };
+  };
+  const direct = resolveImport('../lib/service.js', from('./probe.mjs'), delegate);
+  const indirect = resolveImport('./service.js', from('../lib/host.js'), delegate);
+  assert.equal(indirect.url, direct.url);
+  assert.equal(calls, 1);
+  assert.equal(resolveImport('../lib/host.js', from('./probe.mjs'), delegate).url, sibling);
+  assert.equal(calls, 1, 'a verified regular sibling uses the same directory format');
+  for (let i = 0; i < 2; i++) {
+    resolveImport('./fixture.js', from('./probe.mjs'), delegate);
+    resolveImport('../lib/service.js', { ...from('./probe.mjs'), importAttributes: { type: 'json' } }, delegate);
+  }
+  assert.equal(calls, 5);
+  const redirected = () => { calls++; return { ...direct, url: direct.url + '?loader-alias' }; };
+  resolveImport('../lib/other.js', from('./probe.mjs'), redirected);
+  resolveImport('../lib/other.js', from('./second.mjs'), redirected);
+  assert.equal(calls, 7);
+});
+
+test('a Windows test worker reads the original source and falls back for edits, deletions and generated chunks', async t => {
+  const { readTestSources, writeTestSources } = await import('../scripts/qa/test-source-cache.mjs');
+  const dir = await mkdtemp(join(tmpdir(), 'study-source-cache-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const path = join(dir, 'example.js');
+  const url = pathToFileURL(path).href;
+  const chunk = join(dir, 'client.chunk.js');
+  const file = join(dir, 'sources.bin');
+  await writeFile(path, 'export default "甲";');
+  await writeFile(chunk, 'export default 12;');
+  writeTestSources(dir, file);
+  const sourceFor = readTestSources(file);
+  assert.deepEqual(sourceFor(url), Buffer.from('export default "甲";'));
+  assert.equal(sourceFor(pathToFileURL(chunk).href), undefined);
+  assert.equal(sourceFor(url + '?revision=two'), undefined);
+  await writeFile(path, 'export default "乙";');
+  assert.equal(sourceFor(url), undefined);
+  await rm(path);
+  assert.equal(sourceFor(url), undefined);
+});
+
+test('two browser fixtures get independent copies of the test runner preview', async t => {
+  const { buildPreview } = await import('../scripts/build.mjs');
+  const dir = await mkdtemp(join(tmpdir(), 'study-preview-fixtures-'));
+  const digest = 'fixture-source-revision';
+  const prepared = join(dir, digest);
+  const previous = Object.fromEntries(['STUDY_SOURCE_TREE_DIGEST', 'STUDY_TEST_PREVIEW_DIR', 'STUDY_BUILD_CACHE'].map(key => [key, process.env[key]]));
+  t.after(async () => {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    await rm(dir, { recursive: true, force: true });
+  });
+  await mkdir(prepared);
+  await writeFile(join(prepared, 'app.js'), 'original application');
+  await writeFile(join(prepared, 'app.css'), '.test { color: green }');
+  Object.assign(process.env, { STUDY_SOURCE_TREE_DIGEST: digest, STUDY_TEST_PREVIEW_DIR: prepared, STUDY_BUILD_CACHE: '1' });
+  await buildPreview({ outdir: join(dir, 'one') });
+  await writeFile(join(dir, 'one', 'app.js'), 'fixture edit');
+  await buildPreview({ outdir: join(dir, 'two') });
+  assert.equal(await readFile(join(dir, 'two', 'app.js'), 'utf8'), 'original application');
+  assert.equal(await readFile(join(dir, 'two', 'app.css'), 'utf8'), '.test { color: green }');
+});
 
 test('files nobody has timed start first, then the longest known file down to the shortest', () => {
   const keys = ['tests/a.test.mjs', 'tests/b.test.mjs', 'tests/c.test.mjs', 'tests/d.test.mjs', 'tests/e.test.mjs'];

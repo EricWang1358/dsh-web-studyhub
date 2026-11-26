@@ -4,10 +4,41 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { scrubSecrets, secretEnvNames } from "../scripts/qa/env.mjs";
-import { findChromium } from "../scripts/qa/browser.mjs";
+import { findChromium, launchChromium, skipMissingChromium, startTestChromium } from "../scripts/qa/browser.mjs";
 import { parseJourneyArgs, JOURNEY_STEPS } from "../scripts/qa/journey.mjs";
 import { dshPatch, parseDshArgs, resolveDshVersion, DSH_VERSION } from "../scripts/qa/dsh-e2e.mjs";
 import { createFakeOpenAI, FAKE_OPENAI_MODEL } from "../scripts/qa/fake-openai.mjs";
+
+test("shared test browser isolates cookies and closing one client leaves the other running", async t => {
+  let server;
+  try { server = await startTestChromium(); } catch (error) { return skipMissingChromium(t, error); }
+  const previous = process.env.STUDY_TEST_BROWSER_ENDPOINT;
+  process.env.STUDY_TEST_BROWSER_ENDPOINT = server.wsEndpoint();
+  let first, second, recovered;
+  try {
+    first = await launchChromium();
+    const a = await first.newContext();
+    await a.addCookies([{ name: "isolated", value: "first", url: "http://127.0.0.1/" }]);
+    second = await launchChromium();
+    assert.equal(second.contexts().length, 0);
+    const b = await second.newContext();
+    assert.deepEqual(await b.cookies(), []);
+    await first.close();
+    const page = await b.newPage();
+    await page.setContent("<title>second client</title>");
+    assert.equal(await page.title(), "second client");
+    await server.close();
+    recovered = await launchChromium();
+    const next = await recovered.newPage();
+    await next.setContent("<title>new browser</title>");
+    assert.equal(await next.title(), "new browser");
+  } finally {
+    if (previous === undefined) delete process.env.STUDY_TEST_BROWSER_ENDPOINT;
+    else process.env.STUDY_TEST_BROWSER_ENDPOINT = previous;
+    await Promise.allSettled([first?.close(), second?.close(), recovered?.close()]);
+    await server.close();
+  }
+});
 
 const repo = fileURLToPath(new URL("../", import.meta.url));
 
