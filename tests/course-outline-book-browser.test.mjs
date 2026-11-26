@@ -148,8 +148,10 @@ test('总纲 as a book: chapters open, sections closed, a point opens to its mat
       assert.equal(await other.page.locator('.outline-page .sh-btn--primary').count(), 1, `${width}px: one primary`);
       assert.match(await offer.locator('.sh-btn--primary').innerText(), /生成总纲/);
       await offer.locator('.outline-papers summary').click();
-      const choices = await offer.locator('.outline-papers__list .sh-check').allInnerTexts();
-      assert.match(choices[0], /DB 2024 样卷[\s\S]*像样卷/, 'the likely paper first');
+      const firstPaper = offer.locator('.outline-papers[open] .outline-papers__list li').first();
+      await firstPaper.locator('.sh-check__label').waitFor({ state: 'visible' });
+      assert.equal(await firstPaper.locator('.sh-check__label').innerText(), 'DB 2024 样卷', 'the likely paper first');
+      assert.equal(await firstPaper.locator('.sh-check__hint').innerText(), '像样卷');
       assert.equal(await offer.locator('.outline-papers__list input:checked').count(), 1, 'the paper recognised by its name is ticked: it is used by default');
       assert.match(await offer.locator('[data-papers-used]').innerText(), /依据样卷：DB 2024 样卷（按名称自动识别，可更改）/);
       await settleAnimations(other.page);
