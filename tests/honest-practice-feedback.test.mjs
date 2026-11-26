@@ -14,7 +14,6 @@ import { reviewElement } from './helpers/review-render.mjs';
 const m = await loadUi(`
   export { NextDue, nextDueIcon, nextDueWord } from './ui/NextDue.jsx';
   export { default as Review } from './ui/Review.jsx';
-  export { default as QuestionRun } from './ui/review/QuestionRun.jsx';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';
   export { cardLevel } from './lib/mastery.js';

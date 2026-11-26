@@ -20,7 +20,7 @@ const load = async (contents) => {
   new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
   return module.exports;
 };
-const m = await load(`export * from './ui/draft-shortfall.js'; export * from './ui/generation-status.js'; export { logLines, callLabel } from './ui/tasks/call-model.js'; export { reasonWord } from './ui/coverage/copy.js'; export { setUiLanguage } from './ui/i18n.js';`);
+const m = await load(`export * from './ui/draft-shortfall.js'; export * from './ui/generation-status.js'; export { logLines, callLabel } from './ui/tasks/call-model.js'; export { setUiLanguage } from './ui/i18n.js';`);
 const view = await load(`export { ShortfallReasons } from './ui/DraftShortfall.jsx'; export { default as GenerationParts } from './ui/tasks/GenerationParts.jsx'; export { reasonWord } from './ui/coverage/copy.js'; export { AppContext } from './ui/app/app-context.js'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage } from './ui/i18n.js';`);
 const han = /[㐀-鿿]/;
 const inLanguage = (language, fn) => { m.setUiLanguage(language); view.setUiLanguage(language); try { return fn(); } finally { m.setUiLanguage("zh"); view.setUiLanguage("zh"); } };
