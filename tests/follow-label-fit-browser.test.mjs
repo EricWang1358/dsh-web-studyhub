@@ -5,6 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildPreview } from '../scripts/build.mjs';
+import { buildChatPreview } from './helpers/chat-preview.mjs';
 import { focusByKeyboard, launchChromium } from '../scripts/qa/browser.mjs';
 import { frames, until } from '../scripts/qa/layout-late.mjs';
 import { startConsole, startJobs, openConsole } from '../scripts/qa/task-console.mjs';
@@ -154,7 +155,7 @@ test('出题偏好 in Settings: the same select, the closed one short, the popup
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-follow-fit-dist-'));
-  await buildPreview({ outdir: dist });
+  await buildChatPreview({ outdir: dist });
   const running = await startConsole({ distDir: dist, hold: false, route: ROUTE });
   try {
     for (const [lang, width] of [['zh', 1280], ['en', 420]]) {
@@ -162,16 +163,19 @@ test('出题偏好 in Settings: the same select, the closed one short, the popup
       const { page, context, errors } = await openConsole(browser, running, { lang, theme: 'dark', width, height: 900 });
       await (await revealNavRow(page, 'settings')).dispatchEvent('click');
       await page.getByText(lang === 'zh' ? '出题偏好' : 'Question defaults').first().dispatchEvent('click');
-      const follow = page.locator('[role="combobox"]', { hasText: words.short });
-      await follow.first().waitFor({ state: 'attached' });
+      const settings = page.locator('.generation-settings');
+      await settings.locator('.settings-disclosure > summary').click();
+      const follow = settings.getByRole('combobox').filter({ hasText: words.short });
+      await follow.first().waitFor();
       assert.equal(await follow.count(), 2, `${where}: the two stages that follow the session say it short`);
       assert.equal(await page.locator('[role="combobox"]', { hasText: 'cn:deepseek' }).count(), 0, `${where}: the model is not on any closed select`);
       const cut = await page.evaluate(() => [...document.querySelectorAll('[role="combobox"] .sh-select__value')].filter((v) => v.scrollWidth > v.clientWidth + 1).map((v) => v.textContent));
       assert.deepEqual(cut, [], `${where}: no closed select is cut`);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${where}: no sideways scroll`);
       await focusByKeyboard(follow.first());
-      await until(async () => (await page.locator('.sh-tooltip:popover-open').count()) === 1, 'the tooltip on focus');
-      assert.equal(squash(await page.locator('.sh-tooltip:popover-open').innerText()), words.tip, `${where}: the same sentence as the row's`);
+      const tip = settings.locator('.effort-select:focus-within .sh-tooltip:popover-open');
+      await tip.waitFor();
+      assert.equal(squash(await tip.innerText()), words.tip, `${where}: the same sentence as the row's`);
       await follow.first().click();
       await page.locator('.sh-pop__popup:not([data-closed]):not([data-starting-style])').waitFor();
       await page.waitForTimeout(250);
