@@ -4,7 +4,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { readFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -149,7 +148,7 @@ test('a browser without storage: the page renders, warns that nothing is kept, a
   assert.match(html.match(/<input[^>]*name="guidanceOn"[^>]*>/)[0], /checked/, 'the default stays');
 });
 
-test('English: every word of the pane is translated', () => {
+test('GuidancePane in English: every word of the guidance settings pane is translated', () => {
   ssr.setUiLanguage('en');
   try {
     for (const initial of [{}, SEEN, OFF]) assert.doesNotMatch(words(pane(storagesOf(initial))), han);
@@ -160,14 +159,30 @@ test('English: every word of the pane is translated', () => {
   } finally { ssr.setUiLanguage('zh'); }
 });
 
-test('the pane uses the shared settings primitives, the Tooltip for its one explanation, and no title= or raw colours', async () => {
-  const source = await readFile(new URL('../ui/settings/GuidancePane.jsx', import.meta.url), 'utf8');
-  assert.match(source, /SettingsSection/);
-  assert.match(source, /<Switch /);
-  assert.match(source, /<Tooltip layer content=/);
-  assert.doesNotMatch(source, /<(?!SettingsSection\b)[A-Za-z][^>]*\stitle=/, 'no native title tooltip (a section title is a heading, not a tooltip)');
-  assert.doesNotMatch(source, /#[0-9a-fA-F]{3,8}\b|rgb\(|hsl\(|style=\{\{/);
-  assert.doesNotMatch(source, /主对话/);
+test('the pane renders shared SettingsSection, Switch, and Tooltip primitives with no native title= or inline styles', () => {
+  ssr.setUiLanguage('zh');
+  const html = pane(storagesOf(SEEN));
+  // SettingsSection renders <fieldset class="settings-section"> with <legend class="settings-section__title">.
+  const sections = [...html.matchAll(/<fieldset[^>]*class="[^"]*settings-section[^"]*"[^>]*>[\s\S]*?<legend[^>]*class="[^"]*settings-section__title[^"]*"[^>]*>([^<]+)<\/legend>/g)];
+  assert.deepEqual(sections.map(match => match[1]), ['引导', 'AI 带学', '每一项提示']);
+  // Switch renders role="switch" checkbox inputs for the master switch and every proactive item.
+  const switches = [...html.matchAll(/<input\b[^>]*role="switch"[^>]*>/g)].map(match => match[0]);
+  const proactiveCount = ssr.guidanceItemsFor().filter(item => item.proactive).length;
+  assert.equal(switches.length, 1 + proactiveCount, 'master switch + one switch per proactive item');
+  for (const tag of switches) assert.match(tag, /type="checkbox"/);
+  // Tooltip renders role="tooltip" with the proactive explanation and links its keyboard-focusable anchor via aria-describedby.
+  const tooltips = [...html.matchAll(/<[^>]*role="tooltip"[^>]*>([^<]*)<\/[^>]+>/g)].map(match => ({
+    tag: match[0],
+    id: match[0].match(/id="([^"]+)"/)?.[1] || '',
+    text: match[1],
+  }));
+  const proactiveTip = tooltips.find(tip => /没有点它也会出现/.test(tip.text));
+  assert.ok(proactiveTip && proactiveTip.id, 'proactive badge carries a rendered Tooltip with an id');
+  assert.match(html, new RegExp(`aria-describedby="[^"]*${esc(proactiveTip.id)}[^"]*"`));
+  // No native title tooltips, no inline style attributes, and no legacy 主对话 wording.
+  assert.doesNotMatch(html, /\stitle="/, 'no native title tooltip on rendered controls');
+  assert.doesNotMatch(html, /\sstyle="/, 'no inline style attributes on rendered pane');
+  assert.doesNotMatch(words(html), /主对话/);
 });
 
 /* ---------- the clicks ---------- */

@@ -7,14 +7,16 @@ import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Divider, EmptyState, ProgressBar, Spinner, StatusPill } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { Prose } from '../../components/Layout.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
-import { ScrollView } from '../../components/ScrollView.js';
+import { ScrollArea } from '../../components/ScrollArea.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
+import { LAYOUT_BP } from '../../layout/breakpoints.js';
 import { useFooterHints } from '../../components/hooks.js';
-import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
+import { displayWidth, padDisplay, truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import { gradeShortLabel } from '../../grade-scale.js';
 import { currentCourse, listCourses, modelInfo } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
@@ -1082,12 +1084,15 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
 
   // Layout dimensions
   const headerH = 3;
-  const bodyH = Math.max(8, height - headerH - (errorMsg ? 1 : 0));
+  const errorLineText = errorMsg ? `${asciiMode ? '!' : '✕'} ${errorMsg}` : '';
+  const errorWidth = Math.max(12, width - 2);
+  const errorRows = errorLineText ? wrapDisplay(errorLineText, errorWidth).length : 0;
+  const bodyH = Math.max(8, height - headerH - errorRows);
   const showFilterBar = canFilter && (filterOpen || filterQuery.length > 0);
   const renderInlineFilterBar = (innerW: number, filteredCount: number, totalCount: number, placeholderText: string) => {
     if (!showFilterBar) return null;
     const badgeText = `[${filteredCount}/${totalCount}] `;
-    const rightHint = innerW >= 46
+    const rightHint = innerW >= LAYOUT_BP.FILTER_SHORT
       ? filterOpen
         ? t(lang, ' Enter|Esc', ' Enter|Esc')
         : t(lang, ' /|Esc', ' /|Esc')
@@ -1140,7 +1145,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
           <Text color={theme.primary} bold>
             {`${asciiMode ? 'o' : '◎'} ${t(lang, '考试教练', 'Exam Coach')}`}
           </Text>
-          <Badge label={truncateDisplay(course || t(lang, '全部课程', 'All Courses'), width < 96 ? 16 : 28, ell)} tone="accent" variant="soft" />
+          <Badge label={truncateDisplay(course || t(lang, '全部课程', 'All Courses'), width < LAYOUT_BP.WIDE ? 16 : 28, ell)} tone="accent" variant="soft" />
           {spec ? (
             <Badge
               label={`v${spec.specVersion ?? 1} ${asciiMode ? '-' : '·'} ${calibratedCount}/${families.length}`}
@@ -1153,7 +1158,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         <Box gap={1}>
           {busyLabel ? <Spinner label={busyLabel} active={isActive} /> : null}
           {coachStatus ? <StatusPill label={prepPillLabel} status={prepPillStatus} /> : null}
-          <StatusPill label={`${model.provider}${model.model ? `/${truncateDisplay(model.model, width < 96 ? 12 : 16, asciiMode ? '...' : '…')}` : ''}`} status={model.ready ? 'ok' : 'warn'} />
+          <StatusPill label={`${model.provider}${model.model ? `/${truncateDisplay(model.model, width < LAYOUT_BP.WIDE ? 12 : 16, asciiMode ? '...' : '…')}` : ''}`} status={model.ready ? 'ok' : 'warn'} />
         </Box>
       </Box>
 
@@ -1172,9 +1177,11 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         ) : null}
       </Box>
       <Divider width={width} />
-      {errorMsg ? (
-        <Box height={1} width={width} paddingX={1}>
-          <Text color={theme.error} wrap="wrap">{`${asciiMode ? '!' : '✕'} ${errorMsg}`}</Text>
+      {errorLineText ? (
+        <Box width={width} paddingX={1}>
+          <Prose width={errorWidth} color={theme.error} ascii={asciiMode}>
+            {errorLineText}
+          </Prose>
         </Box>
       ) : null}
 
@@ -1260,11 +1267,12 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
                 paddingX={1}
               >
                 {selectedFamily ? (
-                  <ScrollView
+                  <ScrollArea
                     lines={familyLines}
                     width={Math.max(10, sz.width - 4)}
                     height={Math.max(3, sz.height - 2)}
                     isActive={pageActive && focusPane === 'right'}
+                    ascii={asciiMode}
                   />
                 ) : (
                   <Text color={theme.muted}>{t(lang, '请选择左侧任务族', 'Select a task family')}</Text>

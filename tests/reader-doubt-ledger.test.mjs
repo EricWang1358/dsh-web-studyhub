@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { loadInteractiveUi } from './helpers/react-harness.mjs';
 
 import {
   PRACTICE_DEFAULTS,
@@ -146,8 +146,42 @@ test('PracticePane and Finder expose opt-in readerDoubtLedger switch with Englis
   assert.ok(entry);
   assert.equal(entry.area, 'material');
 
-  const paneSrc = await readFile(new URL('../ui/settings/PracticePane.jsx', import.meta.url), 'utf8');
-  assert.match(paneSrc, /readerDoubtLedger:\s*on\s*\?\s*true\s*:\s*null/);
+  const interactive = await loadInteractiveUi(`
+    export { default as PracticePane } from './ui/settings/PracticePane.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  interactive.exports.setUiLanguage('zh');
+  const calls = [];
+  const act = async (action, args) => {
+    calls.push([action, args]);
+    return { ok: true };
+  };
+  const mounted = interactive.mount(() => interactive.React.createElement(
+    interactive.exports.StudyServicesContext.Provider,
+    { value: { openSettings: noop, host: { capabilities: { chat: true } } } },
+    interactive.React.createElement(interactive.exports.PracticePane, {
+      data: { settings: {} },
+      busy: false,
+      act,
+    }),
+  ));
+  try {
+    const findSwitch = () => mounted.find((node) => node.type === 'input' && node.props?.name === 'readerDoubtLedger');
+    const initialToggle = findSwitch();
+    assert.ok(initialToggle, 'readerDoubtLedger switch mounts in PracticePane');
+    assert.equal(initialToggle.props.checked, false);
+
+    await mounted.act(() => initialToggle.props.onChange({ target: { checked: true } }));
+    assert.deepEqual(calls[0], ['settings.practice.set', { patch: { readerDoubtLedger: true } }]);
+    assert.equal(findSwitch()?.props.checked, true);
+
+    await mounted.act(() => findSwitch().props.onChange({ target: { checked: false } }));
+    assert.deepEqual(calls[1], ['settings.practice.set', { patch: { readerDoubtLedger: null } }]);
+    assert.equal(findSwitch()?.props.checked, false);
+  } finally {
+    mounted.unmount();
+  }
 
   english(() => {
     const enHtml = renderToStaticMarkup(h(ssr.PracticePane, { data: { settings: {} }, busy: false, act: noop }));

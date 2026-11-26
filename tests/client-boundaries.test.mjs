@@ -18,11 +18,9 @@ const packageId = '@ericwang1358/dsh-daily-flashcard';
 // caches and stylesheet ownership with the parent plugin, not another plugin.
 
 test('generated native modules resolve through classic chunk factories and share host React', async () => {
-  // Assert before importing: the old script ran shared builds on import and had
-  // no isolated build face. This witnesses the missing distribution boundary.
-  const source = await readFile(new URL('../scripts/build.mjs', import.meta.url), 'utf8');
-  assert.match(source, /export async function buildHostClient/);
   const { buildHostClient, buildPreview } = await import('../scripts/build.mjs');
+  assert.equal(typeof buildHostClient, 'function');
+  assert.equal(typeof buildPreview, 'function');
   const result = await buildHostClient({ write: false });
   const files = new Map(result.outputFiles.map(file => [basename(file.path), file.text]));
   assert.ok(files.size > 5, 'features and shared dependencies must be separate emitted modules');

@@ -121,13 +121,17 @@ export function useKeyScopeBarrier(active: boolean, depthOverride?: number): voi
  * Reactively reports whether the current scope frame is active AND not masked by any
  * higher-depth or newer sibling opaque `<KeyScope>` on the stack.
  */
-export function useScopeActive(baseActive = true): boolean {
+export function useScopeActive(baseActive = true, depthOverride?: number): boolean {
   const { stdin } = useStdin();
   const hub = getHub(stdin);
   const ctx = useContext(KeyScopeContext);
+  const effectiveDepth = depthOverride ?? ctx.depth;
 
   const subscribe = useCallback((listener: () => void) => subscribeScopeStack(hub, listener), [hub]);
-  const getSnapshot = useCallback(() => !isScopeMasked(hub, ctx.depth, ctx.scopeId), [hub, ctx.depth, ctx.scopeId]);
+  const getSnapshot = useCallback(
+    () => !isScopeMasked(hub, effectiveDepth, ctx.scopeId),
+    [hub, effectiveDepth, ctx.scopeId],
+  );
 
   const unmasked = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   return baseActive && unmasked;
@@ -219,7 +223,9 @@ export function useScopedInput(handler: ScopedKeyHandler, options?: ScopedInputO
   const ownsFallbackRef = useRef(ownsFallback);
   ownsFallbackRef.current = ownsFallback;
 
-  useEffect(() => {
+  // Register in useLayoutEffect (same commit phase as KeyScope's opaque barrier push) so there is
+  // never a post-paint race window where the barrier masks lower scopes before this handler exists.
+  useLayoutEffect(() => {
     hub.entries.set(entry.seq, entry);
     const onOwnerChange = () => setOwnerTick((n) => n + 1);
     hub.ownerListeners.add(onOwnerChange);
@@ -269,7 +275,7 @@ export interface UseKeyScopeOptions {
  */
 export function useKeyScope(options: UseKeyScopeOptions): boolean {
   const { id, onKey, active = true, layer = KEY_LAYER_VIEW, depth, keys } = options;
-  const effectiveActive = useScopeActive(active);
+  const effectiveActive = useScopeActive(active, depth);
 
   useScopedInput(onKey, {
     isActive: active,

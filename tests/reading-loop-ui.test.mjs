@@ -4,12 +4,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { readFileSync } from 'node:fs';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { summarizeLinked } from '../lib/material-summary.js';
 import { structureOutline } from '../ui/document-preview/reader/outline.js';
+import { shortcutAction } from '../ui/review/session-logic.js';
 
 const require = createRequire(import.meta.url);
 const han = /[㐀-鿿]/;
@@ -244,8 +244,40 @@ test('the keyboard shortcut is documented in the shortcut sheet and does not col
   setUiLanguage('en');
   assert.doesNotMatch(render(e(ShortcutHelp, { page: 'library', onClose() {} })), han);
   setUiLanguage('zh');
-  // The app-wide handler (ui/review/session-logic.js) uses these letters; P stays free so the reader's own handler can have it.
-  const app = readFileSync(new URL('../ui/review/session-logic.js', import.meta.url), 'utf8');
-  for (const letter of ['a', 's', 'h', 't']) assert.ok(app.includes(`letter === '${letter}'`), letter);
-  assert.ok(!app.includes("letter === 'p'"));
+  // The app-wide handler (ui/review/session-logic.js) uses a/s/h/t; P stays free so the reader's own handler can have it.
+  const key = (letter) => ({
+    key: letter,
+    code: `Key${letter.toUpperCase()}`,
+    shiftKey: false,
+    repeat: false,
+    defaultPrevented: false,
+    ctrlKey: false,
+    metaKey: false,
+    altKey: false,
+    inEditable: false,
+    onButton: false,
+  });
+  const reviewCtx = {
+    inside: true,
+    modalOpen: false,
+    page: 'review',
+    run: { id: 'r1', mode: 'review', card: { id: 'c1', kind: 'open' }, revealed: false, feedback: null, complete: false },
+    busy: false,
+    shortcutHelp: false,
+    endAsked: false,
+    markingTerms: false,
+    choice: false,
+    isCloze: false,
+    rubricCard: false,
+    selected: [],
+    clozeValues: {},
+  };
+  const libraryCtx = { ...reviewCtx, page: 'library', run: null };
+  assert.deepEqual(shortcutAction(key('a'), reviewCtx)?.action, { type: 'autopilot' });
+  assert.deepEqual(shortcutAction(key('s'), libraryCtx)?.action, { type: 'resume' });
+  assert.deepEqual(shortcutAction(key('h'), reviewCtx)?.action, { type: 'hint' });
+  assert.deepEqual(shortcutAction(key('h'), { ...reviewCtx, run: { ...reviewCtx.run, revealed: true } })?.action, { type: 'explain' });
+  assert.deepEqual(shortcutAction(key('t'), reviewCtx)?.action, { type: 'assist-plain' });
+  assert.equal(shortcutAction(key('p'), reviewCtx)?.action, null, 'P is not claimed on the review page');
+  assert.equal(shortcutAction(key('p'), libraryCtx)?.action, null, 'P is not claimed on the library page');
 });

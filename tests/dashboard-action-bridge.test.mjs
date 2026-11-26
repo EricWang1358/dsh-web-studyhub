@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 import { studyStats } from '../lib/insights.js';
 
 const m = await loadUi(`
@@ -346,7 +346,192 @@ test('Skeleton 只练这些题 honors issueFilter, 练整个骨架 deduplicates 
 });
 
 test('page-views remembers navigation context via practiseRound / deferred then and guards SkeletonView active run trail', async () => {
-  const src = await readFile(new URL('../ui/app/page-views.jsx', import.meta.url), 'utf8');
-  assert.match(src, /function SkeletonView[\s\S]*const fromActiveRun = Boolean\(run && !run\.complete && learn\.trailPage === 'review'\);[\s\S]*const origin = fromActiveRun \? null : learn\.captureContext\(\);[\s\S]*then: \(nextRun\) => \{ if \(origin\) learn\.rememberContext\(origin\); session\.enterRun\(nextRun\); \}/);
-  assert.match(src, /function DashboardView[\s\S]*onStartScope=\{\(scope\) => practiseRound\(\{ intents, learn, session \}, scope\)\}/);
+  await withBrowserGlobals(async () => {
+    const ui = await loadInteractiveUi(`
+      export { PAGE_VIEWS } from './ui/app/page-views.jsx';
+      export { AppContext } from './ui/app/app-context.js';
+      export { StudyServicesContext } from './ui/study-context.jsx';
+      export { setUiLanguage } from './ui/i18n.js';
+    `);
+    const { PAGE_VIEWS, AppContext, StudyServicesContext, setUiLanguage } = ui.exports;
+    const h = ui.React.createElement;
+    setUiLanguage('zh');
+
+    const makeHarness = ({ run = null, trailPage = null, statsPayload = null } = {}) => {
+      const captured = [];
+      const remembered = [];
+      const entered = [];
+      const practiceCalls = [];
+      const noop = () => {};
+      const data = {
+        root: '/lib',
+        decks: [{ id: 'd1', title: 'Deck 1', course: 'CS', cards: [] }],
+        attempts: [],
+        runs: [],
+        sources: [],
+        focus: { course: '*', courses: [{ name: 'CS', count: 1 }] },
+      };
+      const study = {
+        call: async (action) => (action === 'stats' && statsPayload ? statsPayload : { status: 'ok', skeletons: [] }),
+        act: async () => undefined,
+        busy: false,
+        notify: noop,
+        askInChat: noop,
+        host: {},
+        openSettings: noop,
+        navigate: noop,
+        openModal: noop,
+      };
+      const app = {
+        language: 'zh',
+        host: {},
+        data,
+        canChat: false,
+        core: { call: study.call, act: study.act, busy: false, notify: noop, setError: noop, toast: { show: noop, dismiss: noop } },
+        nav: { page: 'skeleton', navigate: noop, show: { page: noop, workflow: noop } },
+        lib: { skeletonFocus: 'sk1' },
+        set: { setSkeletonFocus: noop, setBoardView: noop },
+        session: { run, enterRun: (nextRun) => entered.push(nextRun) },
+        learn: {
+          trailPage,
+          captureContext: () => {
+            const origin = { page: 'origin', seq: captured.length + 1 };
+            captured.push(origin);
+            return origin;
+          },
+          rememberContext: (origin) => remembered.push(origin),
+        },
+        intents: {
+          practice: (scope, opts) => practiceCalls.push({ scope, opts }),
+          goGenerate: noop,
+        },
+        board: { state: { board: null, refresh: noop, mutate: async () => true } },
+        dailyPlan: { refresh: noop },
+      };
+      return { study, app, captured, remembered, entered, practiceCalls };
+    };
+
+    // 1. SkeletonView outside an active review trail: captures context, deduplicates cards, defers rememberContext + enterRun to then.
+    {
+      const env = makeHarness({ run: null, trailPage: null });
+      const mounted = ui.mount(() => h(
+        StudyServicesContext.Provider,
+        { value: env.study },
+        h(AppContext.Provider, { value: env.app }, h(PAGE_VIEWS.skeleton)),
+      ));
+      try {
+        const skeletonEl = mounted.find((n) => typeof n.props?.onPractice === 'function');
+        assert.ok(skeletonEl, 'SkeletonView passes onPractice to Skeleton');
+        skeletonEl.props.onPractice([
+          { deckId: 'd1', cardId: 'c1' },
+          { deckId: 'd1', cardId: 'c1' },
+          { deckId: 'd1', cardId: 'c2' },
+        ]);
+        assert.equal(env.captured.length, 1, 'captures context outside active review run');
+        assert.equal(env.practiceCalls.length, 1);
+        assert.deepEqual(env.practiceCalls[0].scope, [{ deckId: 'd1', cardId: 'c1' }, { deckId: 'd1', cardId: 'c2' }]);
+        assert.equal(env.practiceCalls[0].opts.returnTo, undefined);
+        assert.equal(env.remembered.length, 0, 'rememberContext waits for deferred then');
+        assert.equal(env.entered.length, 0, 'enterRun waits for deferred then');
+
+        const nextRun = { id: 'run-from-skeleton' };
+        env.practiceCalls[0].opts.then(nextRun);
+        assert.deepEqual(env.remembered, [env.captured[0]], 'then remembers captured context');
+        assert.deepEqual(env.entered, [nextRun], 'then enters the started run');
+      } finally {
+        mounted.unmount();
+      }
+    }
+
+    // 2. SkeletonView during an active review run trail: skips captureContext/rememberContext and passes returnTo: run.id.
+    {
+      const env = makeHarness({ run: { id: 'run-active', complete: false }, trailPage: 'review' });
+      const mounted = ui.mount(() => h(
+        StudyServicesContext.Provider,
+        { value: env.study },
+        h(AppContext.Provider, { value: env.app }, h(PAGE_VIEWS.skeleton)),
+      ));
+      try {
+        const skeletonEl = mounted.find((n) => typeof n.props?.onPractice === 'function');
+        assert.ok(skeletonEl, 'SkeletonView passes onPractice during active review trail');
+        skeletonEl.props.onPractice([{ deckId: 'd2', cardId: 'c9' }]);
+        assert.equal(env.captured.length, 0, 'does not overwrite active review trail context');
+        assert.equal(env.practiceCalls.length, 1);
+        assert.deepEqual(env.practiceCalls[0].scope, [{ deckId: 'd2', cardId: 'c9' }]);
+        assert.equal(env.practiceCalls[0].opts.returnTo, 'run-active');
+
+        const detourRun = { id: 'run-detour' };
+        env.practiceCalls[0].opts.then(detourRun);
+        assert.equal(env.remembered.length, 0, 'does not remember context when launched from active review trail');
+        assert.deepEqual(env.entered, [detourRun], 'still enters the started run');
+      } finally {
+        mounted.unmount();
+      }
+    }
+
+    // 3. SkeletonView when the prior review run is already complete: behaves like a fresh launch (captures & remembers context).
+    {
+      const env = makeHarness({ run: { id: 'run-done', complete: true }, trailPage: 'review' });
+      const mounted = ui.mount(() => h(
+        StudyServicesContext.Provider,
+        { value: env.study },
+        h(AppContext.Provider, { value: env.app }, h(PAGE_VIEWS.skeleton)),
+      ));
+      try {
+        const skeletonEl = mounted.find((n) => typeof n.props?.onPractice === 'function');
+        skeletonEl.props.onPractice([{ deckId: 'd3', cardId: 'c7' }]);
+        assert.equal(env.captured.length, 1, 'completed review run does not block capturing origin context');
+        assert.equal(env.practiceCalls[0].opts.returnTo, undefined);
+        env.practiceCalls[0].opts.then({ id: 'run-after-done' });
+        assert.deepEqual(env.remembered, [env.captured[0]]);
+        assert.deepEqual(env.entered, [{ id: 'run-after-done' }]);
+      } finally {
+        mounted.unmount();
+      }
+    }
+
+    // 4. DashboardView routes onStartScope through practiseRound (captureContext -> intents.practice(scope, { fresh: false, then }) -> rememberContext + enterRun).
+    {
+      const statsPayload = {
+        generatedAt: '2026-10-02T04:00:00Z',
+        today: '2026-10-02',
+        totals: { attempts: 4, activeDays: 1, streak: 1, due: 2, gradedRate: 50, gradedAttempts: 4, selfRate: null, selfAttempts: 0, oralAttempts: 0, oralStrong: 0 },
+        heatmap: [],
+        trend: [],
+        forecast: { days: [{ date: '2026-10-02', count: 2, overdue: 0, cards: [{ deckId: 'd1', cardId: 'w1' }] }], later: 0 },
+        weakScope: [{ deckId: 'd1', cardId: 'w1' }, { deckId: 'd1', cardId: 'w2' }],
+        weakTopics: [
+          { deckId: 'd1', deckTitle: 'Deck 1', course: 'CS', topic: 'Locks', wrong: 2, cards: [{ deckId: 'd1', cardId: 'w1' }] },
+          { deckId: 'd1', deckTitle: 'Deck 1', course: 'CS', topic: 'Caches', wrong: 1, cards: [{ deckId: 'd1', cardId: 'w2' }] },
+        ],
+        mastery: { windowDays: 30, minAnswers: 3, levels: [], kinds: [] },
+      };
+      const env = makeHarness({ statsPayload });
+      const mounted = ui.mount(() => h(
+        StudyServicesContext.Provider,
+        { value: env.study },
+        h(AppContext.Provider, { value: env.app }, h(PAGE_VIEWS.dashboard)),
+      ));
+      try {
+        await mounted.flush(5);
+        const mergeWeakBtn = mounted.find((n) => n.type === 'button' && ui.textOf(n).includes('合并练薄弱题'));
+        assert.ok(mergeWeakBtn, 'DashboardView renders StatsView with 合并练薄弱题 button');
+        await mounted.act(() => click(mergeWeakBtn));
+        assert.equal(env.captured.length, 1, 'practiseRound captures navigation context');
+        assert.equal(env.practiceCalls.length, 1);
+        assert.deepEqual(env.practiceCalls[0].scope, [{ deckId: 'd1', cardId: 'w1' }, { deckId: 'd1', cardId: 'w2' }]);
+        assert.equal(env.practiceCalls[0].opts.fresh, false, 'practiseRound starts with fresh: false');
+        assert.equal(env.remembered.length, 0, 'rememberContext is deferred until practice starts');
+        assert.equal(env.entered.length, 0, 'enterRun is deferred until practice starts');
+
+        const dashRun = { id: 'run-from-dashboard' };
+        env.practiceCalls[0].opts.then(dashRun);
+        assert.deepEqual(env.remembered, [env.captured[0]], 'deferred then remembers Dashboard origin');
+        assert.deepEqual(env.entered, [dashRun], 'deferred then enters started run');
+      } finally {
+        mounted.unmount();
+        setUiLanguage('zh');
+      }
+    }
+  });
 });
