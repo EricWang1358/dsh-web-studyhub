@@ -14,6 +14,7 @@ import { launchChromium } from "../scripts/qa/browser.mjs";
 import { scrubProcessEnv } from "../scripts/qa/env.mjs";
 import { openPage, settleAnimations, startLateServer } from "../scripts/qa/layout-late.mjs";
 import { highlightDrawn } from "./helpers/highlight-drawn.mjs";
+import { until } from "./helpers/wait.mjs";
 
 const SHOTS = process.env.QUESTION_TERM_MARKS_SHOTS || "";
 
@@ -1812,9 +1813,21 @@ test("More menu › 生词表… opens TermListDialog with 0 marked terms on fla
 
         // 4. Start self-paced flashcard mode on the course deck and verify 更多 › 生词表… opens TermListDialog too.
         await page.locator(".review-return").click();
-        await page.locator('[data-deck-id="d-course"] > .deck-row .map-menu-wrap button').waitFor({ state: "visible", timeout: 15000 });
-        await page.locator('[data-deck-id="d-course"] > .deck-row .map-menu-wrap button').click();
-        await page.getByRole("menuitem", { name: lang === "en" ? "Browse flashcards" : "闪卡翻看" }).click();
+        // Back in the library the list is still being placed (the run's snapshot lands, the page settles its scroll). A menu opened meanwhile
+        // shuts when its trigger moves (ui/components/Menu.jsx), so open it once the row stops moving, and open it again if it shut anyway.
+        const deckMenu = page.locator('[data-deck-id="d-course"] > .deck-row .map-menu-wrap button');
+        await deckMenu.waitFor({ state: "visible", timeout: 15000 });
+        await settleAnimations(page);
+        let lastBox = "";
+        await until(async () => { const box = JSON.stringify(await deckMenu.boundingBox()); const still = box === lastBox; lastBox = box; return still; },
+          `${tag}: the deck row to stop moving`, { timeoutMs: 15000, intervalMs: 150 });
+        const browse = page.getByRole("menuitem", { name: lang === "en" ? "Browse flashcards" : "闪卡翻看" });
+        await until(async () => {
+          if (await page.locator(".flashcard").count()) return true;
+          if (!(await browse.isVisible())) await deckMenu.click();
+          else await browse.click({ timeout: 2000 }).catch(() => {});
+          return false;
+        }, `${tag}: 闪卡翻看 from the deck menu`, { timeoutMs: 30000, intervalMs: 200 });
         await page.locator(".flashcard").waitFor({ state: "visible", timeout: 15000 });
         await settleAnimations(page);
         await assertMoreMenuOpensTermList(`${tag}-self-paced-flashcard`);
