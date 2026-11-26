@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { parse } from 'yaml';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -121,18 +122,24 @@ test('a thin wrapper that imports another test file shares that file\'s recorded
   assert.ok(wrappers.size >= 20, `${wrappers.size} wrappers`);
 });
 
-test('the CI workflow runs every shard of each system exactly once and its gate waits for lint and the shards', async () => {
-  const text = await readFile(workflow, 'utf8');
-  const entries = [...text.matchAll(/\{\s*os:\s*([\w-]+),\s*shard:\s*(\d+),\s*shards:\s*(\d+)\s*\}/g)].map(([, os, shard, shards]) => ({ os, shard: Number(shard), shards: Number(shards) }));
-  const systems = new Set(entries.map(entry => entry.os));
-  assert.deepEqual([...systems].sort(), ['ubuntu-latest', 'windows-latest'], 'both systems are tested');
-  for (const os of systems) {
-    const mine = entries.filter(entry => entry.os === os);
-    const shards = mine[0].shards;
-    assert.ok(mine.every(entry => entry.shards === shards), `${os}: one shard count`);
-    assert.deepEqual(mine.map(entry => entry.shard).sort((a, b) => a - b), Array.from({ length: shards }, (_, at) => at + 1), `${os}: shards 1..${shards}, each once`);
+test('the configured runner shards cover the suite exactly once per system and feed the merge gate', async () => {
+  const { jobs } = parse(await readFile(workflow, 'utf8'));
+  const keys = (await listTestFiles()).map(keyOf).sort();
+  const weights = await readWeights();
+  for (const [jobName, os] of [['test', 'ubuntu-latest'], ['test-windows', 'windows-latest']]) {
+    const job = jobs[jobName];
+    const testStep = job.steps.find(step => step.run?.startsWith('node scripts/test.mjs --shard='));
+    assert.ok(testStep, jobName);
+    const actual = [];
+    for (const row of job.strategy.matrix.include) {
+      assert.equal(row.os, os);
+      const command = testStep.run.replace('${{ matrix.shard }}', row.shard).replace('${{ matrix.shards }}', row.shards);
+      const shard = parseShard(command.split('--shard=')[1].split(' ')[0]);
+      assert.ok(shard, command);
+      actual.push(...shardKeys(keys, weights, shard));
+    }
+    assert.deepEqual(actual.sort(), keys, os);
+    assert.equal(job.strategy['fail-fast'], false);
   }
-  assert.match(text, /node scripts\/test\.mjs --shard=\$\{\{ matrix\.shard \}\}\/\$\{\{ matrix\.shards \}\}/, 'each job runs its own shard');
-  assert.match(text, /needs:\s*\[lint,\s*test,\s*test-windows,\s*windows-smoke,\s*tui-test,\s*tui-windows-smoke\]/, 'the gate waits for lint, test shards, windows-smoke, and TUI jobs');
-  assert.match(text, /fail-fast:\s*false/, 'one failing shard does not hide the others');
+  assert.deepEqual([...jobs.verify.needs].sort(), Object.keys(jobs).filter(name => name !== 'verify').sort());
 });

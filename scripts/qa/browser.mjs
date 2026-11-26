@@ -43,6 +43,12 @@ export async function focusByKeyboard(locator) {
   await locator.focus();
 }
 
+/** A developer without the optional browser can run the rest of the suite. CI requires every smoke test to execute. */
+export function skipMissingChromium(t, error) {
+  if (process.env.STUDY_QA_REQUIRE_BROWSER === '1' || !/Executable doesn't exist/.test(error.message)) throw error;
+  t.skip('Chromium unavailable');
+}
+
 /** Launch headless Chromium through the repository's Playwright.
  *  STUDY_QA_ACTION_TIMEOUT_MS (set by scripts/test.mjs) stretches Playwright's 30 s waits for the launch and for every action and navigation of the pages
  *  made from this browser: a whole test suite shares the machine, and a wait is a deadline for something to happen, not a measure of speed. */

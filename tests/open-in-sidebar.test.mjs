@@ -8,7 +8,7 @@ import { build } from 'esbuild';
 import { Store } from '../lib/store.js';
 import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 import { createFakeModel } from '../scripts/fake-model.mjs';
-import { focusByKeyboard, launchChromium } from '../scripts/qa/browser.mjs';
+import { focusByKeyboard, launchChromium, skipMissingChromium } from '../scripts/qa/browser.mjs';
 
 /* 「在右栏打开」 on the practice page moves THAT run into DSH's right sidebar and returns the main area to the conversation.
    The REAL host adapter (ui/host/workspace.jsx) and the REAL App run in Chromium against a real library; only DSH is faked:
@@ -78,8 +78,7 @@ async function getSharedBrowser(t) {
   try {
     return await sharedBrowserPromise;
   } catch (error) {
-    if (!/browserType\.launch: Executable doesn't exist/.test(error.message)) throw error;
-    t.skip('Chromium unavailable');
+    skipMissingChromium(t, error);
     return null;
   }
 }

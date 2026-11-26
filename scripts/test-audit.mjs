@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /* Test quality audit (#1468): finds the tests that pass without protecting a behaviour, so that they can be cleaned up in batches instead of
-   being counted as coverage. It only reads files and writes a report; it never edits tests and is not part of `npm test` or blocking CI.
+   being counted as coverage. The full report is advisory. The PR gate compares individual assertions with the base commit.
 
    node scripts/test-audit.mjs                       console summary, the hit files ranked by suspicion
    node scripts/test-audit.mjs --write               also writes docs/test-audit.md
    node scripts/test-audit.mjs --write-baseline      writes machine-readable baseline to docs/test-audit-baseline.json
    node scripts/test-audit.mjs --compare-baseline    advisory diff against docs/test-audit-baseline.json (reports only new/increased hits, always exits 0)
    node scripts/test-audit.mjs --compare-baseline=docs/test-audit-baseline.json --annotations
+   node scripts/test-audit.mjs --gate-from=origin/main --annotations   exit 1 on new source-string checks or literal/self tautologies
    node scripts/test-audit.mjs --top=5               how many files the ranking lists (default 25)
    node scripts/test-audit.mjs --only=1,2            only these categories (1-7)
    node scripts/test-audit.mjs --json                the whole result as JSON on stdout
@@ -25,7 +26,8 @@
 
    A hit is a candidate for review, not a verdict: the report says where to look, a person decides.  */
 
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { appendFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -254,22 +256,72 @@ const SOURCE_READ = /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?(
 // A file whose bytes are checked for a snippet must be program source, not a fixture, a changelog or a generated document: reading those
 // and matching text is a legitimate content test.
 const PROGRAM_SOURCE = /\.(?:js|jsx|ts|tsx|mjs|cjs|css|scss)\b/;
+const isProgramRead = argument => PROGRAM_SOURCE.test(argument) && !/['"/\\](?:fixtures|__fixtures__)[/\\]/.test(argument);
 
-/** Variables assigned from a source read, with the argument text, so category 1 can tell program source from other files. */
-function sourceReads(source, masked) {
-  const reads = new Map();
+// Literal contents stay significant; changing whitespace between the tokens of an assertion preserves its identity.
+const assertionTokens = text => text.match(/'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|\x60(?:\\.|[^\x60\\])*\x60|\/(?:\\.|[^/\\\n])+\/[a-z]*|[\w$]+|[^\s]/g) || [];
+
+function closingParen(masked, open) {
+  let depth = 1;
+  for (let i = open + 1; i < masked.length; i += 1) {
+    if (masked[i] === '(') depth += 1;
+    else if (masked[i] === ')') {
+      depth -= 1;
+      if (!depth) return i;
+    }
+  }
+  return masked.length;
+}
+
+/** Match actual assertion calls, including multiline calls. Keep each test's local source bindings separate. */
+function directAssertionFindings(source, masked, calls) {
+  const ownerAt = offset => calls.findLast(call => call.bodyStart <= offset && offset < call.bodyEnd);
+  const reads = [];
   for (const match of masked.matchAll(SOURCE_READ)) {
     const open = match.index + match[0].length - 1;
-    let depth = 0;
-    let close = open;
-    for (; close < masked.length; close += 1) {
-      if (masked[close] === '(') depth += 1;
-      else if (masked[close] === ')') { depth -= 1; if (depth === 0) break; }
-    }
-    const argument = source.slice(open + 1, close);
-    if (PROGRAM_SOURCE.test(argument)) reads.set(match[1], argument.trim());
+    const argument = source.slice(open + 1, closingParen(masked, open)).trim();
+    reads.push({ name: match[1], argument, owner: ownerAt(open) });
   }
-  return reads;
+  const hits = [];
+  const lineAt = lineIndex(source);
+  for (const match of masked.matchAll(/(?<![\w$.])assert(?:\s*\.\s*(\w+))?\s*\(/g)) {
+    const method = match[1] || '';
+    const open = match.index + match[0].length - 1;
+    const end = closingParen(masked, open);
+    const args = masked.slice(open + 1, end);
+    const owner = ownerAt(open);
+    let category, message, origin = '';
+    const isTrue = (!method || method === 'ok') && /^\s*true\s*(?:,|$)/.test(args);
+    const same = /^(?:equal|strictEqual|deepEqual|deepStrictEqual)$/.test(method)
+      && /^\s*([A-Za-z_$][\w$]*)\s*,\s*\1\s*(?:,|$)/.exec(args);
+    if (isTrue || same) {
+      category = 3;
+      message = isTrue ? '断言恒真（assert.ok(true)）：删掉也不影响任何行为' : '断言自己等于自己（' + same[1] + '）：同义反复';
+    } else {
+      const inline = /\breadFile(?:Sync)?\s*\(/.exec(args);
+      if (inline && /\.\s*(?:includes|match|indexOf|startsWith|endsWith)\s*\(/.test(args)) {
+        const readOpen = open + inline.index + inline[0].length;
+        const argument = source.slice(readOpen + 1, closingParen(masked, readOpen));
+        if (isProgramRead(argument)) origin = argument;
+      }
+      for (const read of reads) {
+        if (read.owner !== owner && read.owner) continue;
+        if (!read.owner && owner && new RegExp('\\b(?:const|let|var)\\s+' + read.name.replaceAll('$', '\\$') + '\\b').test(masked.slice(owner.bodyStart, open))) continue;
+        if (!isProgramRead(read.argument)) continue;
+        const name = read.name.replaceAll('$', '\\$');
+        if (new RegExp('(?:^|[^\\w$.])' + name + '\\s*\\.\\s*(?:includes|match|indexOf|startsWith|endsWith)\\s*\\(').test(args)
+          || new RegExp('/\\s*/[a-z]*\\s*\\.\\s*test\\s*\\(\\s*' + name + '\\s*\\)').test(args)
+          || ((method === 'match' || method === 'doesNotMatch') && new RegExp('^\\s*' + name + '\\s*,').test(args))) origin = read.argument;
+      }
+      if (!origin) continue;
+      category = 1;
+      message = '读取源码 ' + origin + ' 后对文本片段断言：重构会红，行为坏了却仍绿';
+    }
+    const title = owner ? firstArgument(source, masked, owner.open, owner.close).text.trim() : '';
+    const key = JSON.stringify([category, assertionTokens(title), assertionTokens(origin), assertionTokens(source.slice(match.index, end + 1))]);
+    hits.push({ category, line: lineAt(match.index), message, key });
+  }
+  return hits;
 }
 
 /** Top-level keys of an object literal, from its raw text. */
@@ -369,23 +421,9 @@ export function auditSource(file, source, index = EMPTY_INDEX, externalHelpers =
   const hits = [];
   const add = (category, offset, message) => hits.push({ category, file, line: lineAt(offset), message });
 
-  // 1. source text read and matched
-  const sourceVars = sourceReads(source, masked);
-  let offset = 0;
-  for (const line of lines) {
-    const lineStart = offset;
-    offset += line.length + 1;
-    if (!/\bassert\b/.test(line)) continue;
-    const inline = /\breadFile(?:Sync)?\s*\([^;]*?\.\s*(includes|match|indexOf|startsWith|endsWith)\s*\(/.test(line) && PROGRAM_SOURCE.test(line);
-    let variable = null;
-    for (const name of sourceVars.keys()) {
-      if (!new RegExp(`\\b${name}\\b`).test(line)) continue;
-      if (new RegExp(`\\b${name}\\b[^;]*?\\.\\s*(includes|match|indexOf|startsWith|endsWith)\\s*\\(`).test(line) ||
-        new RegExp(`assert\\s*\\.\\s*match\\s*\\(\\s*${name}\\b`).test(line)) variable = name;
-    }
-    if (inline) add(1, lineStart, '读取源码文件后对文本片段断言：重构会红，行为坏了却仍绿');
-    else if (variable) add(1, lineStart, `读取源码变量 ${variable}（${sourceVars.get(variable)}）后对文本片段断言：重构会红，行为坏了却仍绿`);
-  }
+  const calls = testCalls(masked);
+  const direct = directAssertionFindings(source, masked, calls);
+  hits.push(...direct.map(({ category, line, message }) => ({ category, file, line, message })));
 
   // 2. fake backend shape
   for (const shape of fakeShapes(source, masked)) {
@@ -394,7 +432,6 @@ export function auditSource(file, source, index = EMPTY_INDEX, externalHelpers =
   }
 
   // test blocks, for 3, 5 and 7
-  const calls = testCalls(masked);
   // A test may assert through a local helper (`pinned(...)`, `assertRejected(...)`); calling one is an assertion even without the word.
   const assertionHelpers = new Set([...declaredAssertionHelpers(masked), ...externalHelpers]);
   const helperCall = /\b(?:assert|expect|verify|check)\w*\s*[.(]/;
@@ -420,9 +457,6 @@ export function auditSource(file, source, index = EMPTY_INDEX, externalHelpers =
     if (container.has(call.open)) continue;
     const assertions = [...body.matchAll(/\bassert\b[^;\n]*/g)].map(match => match[0]);
     // 3. tautology
-    if (/\bassert\s*(?:\.\s*\w+\s*)?\(\s*(?:true|false\s*,\s*true)\s*\)/.test(body)) add(3, call.open, '断言恒真（assert.ok(true)）：删掉也不影响任何行为');
-    const same = /\bassert\s*(?:\.\s*\w+\s*)?\(\s*([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\s*,\s*\1\s*[,)]/.exec(body);
-    if (same) add(3, call.open, `断言自己等于自己（${same[1]}）：同义反复`);
     if (assertions.length && assertions.every(text => /(calledTimes|callCount|callcount|calls\s*\.\s*length|calledOnce|calledTwice|called)\b/.test(text)) &&
       !assertions.some(text => /(calledWith|firstCall|lastCall|args|arguments)\b/.test(text))) {
       add(3, call.open, '只断言「被调用过」，不看参数与副作用');
@@ -436,7 +470,7 @@ export function auditSource(file, source, index = EMPTY_INDEX, externalHelpers =
 
   // 4. duplicate titles are clustered across files later; here we keep each title with its line.
   // 6. constant equals the literal it is declared with
-  offset = 0;
+  let offset = 0;
   for (const line of lines) {
     const lineStart = offset;
     offset += line.length + 1;
@@ -656,6 +690,48 @@ export function renderConsole(result, { top = 25 } = {}) {
 }
 
 // --------------------------------------------------------------------------------------------- baseline comparison
+
+const inGateScope = file => file.endsWith('.test.mjs') && /^(?:tests\/|packages\/.+\/tests\/)/.test(file)
+  && !file.split('/').some(part => part === 'fixtures' || part === 'node_modules' || part.startsWith('.'));
+
+/** The committed JSON baseline tracks aggregate debt. Match individual assertions against the PR base so reductions
+ * elsewhere in the same file cannot pay for regressions. Only changed test files are read; moved lines keep their keys. */
+function gateAgainstCommit(root, ref) {
+  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+  const commit = git('rev-parse', '--verify', '--end-of-options', ref + '^{commit}').trim();
+  const changes = git('diff', '--name-status', '-z', '--find-renames', '--diff-filter=ACMRT', commit, '--', 'tests', 'packages').split('\0');
+  const files = [];
+  for (let i = 0; i < changes.length && changes[i];) {
+    const status = changes[i++][0];
+    const first = changes[i++];
+    const file = status === 'R' || status === 'C' ? changes[i++] : first;
+    const old = status === 'A' || status === 'C' || !inGateScope(first) ? null : first;
+    if (inGateScope(file)) files.push({ file, old });
+  }
+  const untracked = git('ls-files', '--others', '--exclude-standard', '-z', '--', 'tests', 'packages').split('\0');
+  for (const file of untracked.filter(inGateScope)) files.push({ file, old: null });
+  const findings = source => {
+    const masked = maskSource(source);
+    return directAssertionFindings(source, masked, testCalls(masked));
+  };
+  const hits = [];
+  for (const { file, old } of files) {
+    const path = join(root, file);
+    if (!lstatSync(path).isFile()) continue;
+    const previous = new Map();
+    if (old) {
+      for (const hit of findings(git('show', commit + ':' + old))) {
+        previous.set(hit.key, (previous.get(hit.key) || 0) + 1);
+      }
+    }
+    for (const { key, ...hit } of findings(readFileSync(path, 'utf8'))) {
+      const remaining = previous.get(key) || 0;
+      if (remaining) previous.set(key, remaining - 1);
+      else hits.push({ ...hit, file });
+    }
+  }
+  return { filesChecked: files.length, hits };
+}
 
 const DEFAULT_BASELINE_PATH = 'docs/test-audit-baseline.json';
 const BASELINE_JSON_VERSION = 1;
@@ -1065,12 +1141,12 @@ const escapeWorkflowData = value => String(value).replace(/%/g, '%25').replace(/
 const escapeWorkflowProperty = value => escapeWorkflowData(value).replace(/:/g, '%3A').replace(/,/g, '%2C');
 
 /** Format GitHub Actions `::warning` annotations for newly introduced hits (capped). */
-export function formatAnnotations(diff, { max = MAX_ANNOTATIONS } = {}) {
+export function formatAnnotations(diff, { max = MAX_ANNOTATIONS, severity = 'warning' } = {}) {
   return (diff?.hits ?? []).slice(0, max).map(hit => {
     const file = escapeWorkflowProperty(hit.file);
     const title = escapeWorkflowProperty(`test-audit (cat ${hit.category})`);
     const message = escapeWorkflowData(`${CATEGORIES[hit.category].name}: ${hit.message}`);
-    return `::warning file=${file},line=${hit.line},title=${title}::${message}`;
+    return `::${severity} file=${file},line=${hit.line},title=${title}::${message}`;
   });
 }
 
@@ -1087,6 +1163,11 @@ export function parseArgs(argv) {
   };
   for (const arg of argv) {
     if (arg === '--write') options.write = true;
+    else if (arg === '--gate-from') throw new Error('--gate-from needs =<base commit>');
+    else if (arg.startsWith('--gate-from=')) {
+      options.gateFrom = arg.slice('--gate-from='.length);
+      if (!options.gateFrom) throw new Error('--gate-from needs a base commit');
+    }
     else if (arg === '--write-baseline') options.writeBaseline = DEFAULT_BASELINE_PATH;
     else if (arg.startsWith('--write-baseline=')) {
       options.writeBaseline = arg.slice('--write-baseline='.length) || DEFAULT_BASELINE_PATH;
@@ -1108,6 +1189,18 @@ export function parseArgs(argv) {
 export function run(argv = process.argv.slice(2), { log = console.log, env = process.env } = {}) {
   const options = parseArgs(argv);
   const root = options.root ?? fileURLToPath(new URL('../', import.meta.url));
+  if (options.gateFrom) {
+    const gate = gateAgainstCommit(root, options.gateFrom);
+    if (options.json) log(JSON.stringify(gate));
+    else {
+      const report = 'Test audit gate: ' + gate.hits.length + ' new blocking assertion(s) in ' + gate.filesChecked + ' changed test file(s) checked.';
+      log(report);
+      for (const hit of gate.hits) log(hit.file + ':' + hit.line + ': ' + hit.message);
+      if (options.annotations) for (const line of formatAnnotations(gate, { severity: 'error' })) log(line);
+      if (env?.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, report + '\n', 'utf8');
+    }
+    return { gate, exitCode: gate.hits.length ? 1 : 0 };
+  }
   const result = auditTree(root, { only: options.only });
 
   if (options.compareBaseline) {
@@ -1183,5 +1276,5 @@ export function run(argv = process.argv.slice(2), { log = console.log, env = pro
 
 const invokedDirectly = process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
 if (invokedDirectly) {
-  try { run(); } catch (error) { console.error(error.message); process.exitCode = 1; }
+  try { process.exitCode = run().exitCode ?? 0; } catch (error) { console.error(error.message); process.exitCode = 1; }
 }
