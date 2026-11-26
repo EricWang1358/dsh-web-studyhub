@@ -169,7 +169,9 @@ const DebriefModal = memo(function DebriefModal({
 }) {
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
-  const shellOverlay = useTuiStore((s) => s.commandPaletteOpen || s.helpOpen || s.coursePickerOpen || s.inboxOpen);
+  const shellOverlay = useTuiStore(
+    (s) => s.commandPaletteOpen || s.helpOpen || s.coursePickerOpen || s.inboxOpen || s.notificationHistoryOpen,
+  );
   const effectiveActive = isActive && !shellOverlay;
 
   useInput(

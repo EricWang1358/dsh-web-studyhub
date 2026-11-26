@@ -509,7 +509,7 @@ export const AppShell = memo(function AppShell({
             </Suspense>
           </KeyScopeProvider>
         ) : null}
-        {voiceOverlay && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && renderVoicePack ? (
+        {voiceOverlay && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !notificationHistoryOpen && renderVoicePack ? (
           <KeyScopeProvider>
             {renderVoicePack({
               isActive: true,

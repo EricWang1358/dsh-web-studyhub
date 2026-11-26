@@ -276,7 +276,6 @@ export function buildPaletteItems(
     t(lang, `打开统一带学与复述工作台（提问${themeArrow}作答${themeArrow}判定${themeArrow}复述${themeArrow}小结）`, 'Open Guided Study & Retell tab'),
     () => useTuiStore.getState().openAssistant({ tab: 'guided' }),
     ['guided', 'socratic', 'retell', '带学', '复述', '苏格拉底'],
-    'T',
   );
   act(
     'cmd:theme',
@@ -983,12 +982,25 @@ export const CommandPalette = memo(function CommandPalette({
       const wheelDelta = parseSgrWheelDelta(input);
       if (wheelDelta !== 0) {
         moveCursor(wheelDelta);
-        return;
+        return true;
       }
-      if (key.downArrow || (key.ctrl && (input === 'n' || input === 'j'))) moveCursor(1);
-      else if (key.upArrow || (key.ctrl && (input === 'p' || input === 'k'))) moveCursor(-1);
-      else if (key.pageDown) moveCursor(listRows);
-      else if (key.pageUp) moveCursor(-listRows);
+      if (key.downArrow || (key.ctrl && (input === 'n' || input === 'j'))) {
+        moveCursor(1);
+        return true;
+      }
+      if (key.upArrow || (key.ctrl && input === 'p')) {
+        moveCursor(-1);
+        return true;
+      }
+      if (key.pageDown) {
+        moveCursor(listRows);
+        return true;
+      }
+      if (key.pageUp) {
+        moveCursor(-listRows);
+        return true;
+      }
+      return false;
     },
     { isActive },
   );
