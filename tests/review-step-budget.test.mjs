@@ -1,4 +1,5 @@
 /* global document, window, localStorage, getComputedStyle */
+import { commitPreviewAction } from './helpers/preview-write.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -321,7 +322,9 @@ test('Browser step budget & zero-wait flip guardrail: flashcard <= 2 steps (even
 
     // Turn on autopilot ('a') -> picking right option auto-advances in 1 learner step!
     const firstIsTrue = /对|True|Right/i.test(await page.locator('.option').first().innerText());
-    await page.keyboard.press('a');
+    await page.mouse.move(0, 0); // hovering over the explanation intentionally pauses automatic advance
+    await commitPreviewAction(page, 'settings.practice.set', () => page.keyboard.press('a'));
+    assert.equal((await previewCall(server, 'snapshot')).settings.practice.autopilot, true);
     await page.keyboard.press(firstIsTrue ? '1' : '2');
     await page.locator('.result-page').waitFor({ timeout: 15000 });
     assert.deepEqual(errors, []);
