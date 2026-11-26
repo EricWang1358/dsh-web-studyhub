@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { dom, loadUsageModules } from './helpers/usage-dom.mjs';
+import { dom, fakeRoot, loadUsageModules } from './helpers/usage-dom.mjs';
 import { USAGE_REGISTRY, USAGE_TIERS, USAGE_GROUPS, USAGE_NAV_GROUPS, USAGE_AREAS, USAGE_CLASS_HOOKS, usageEntry, TEXT_FIELD_KEY } from '../lib/usage-registry.js';
 import * as uiRegistry from '../ui/usage/registry.js';
 import { StudyService } from '../lib/service.js';
@@ -99,10 +99,40 @@ test('CI-style: every data-usage a page marks is registered, and every registere
     if (key.includes('${')) { assert.ok(USAGE_REGISTRY.some(item => new RegExp(`^${expand(key).replace('.', '\\.')}$`).test(item.key)), `${key} (${file}) matches no registered control`); continue; }
     assert.ok(usageEntry(key), `${key} is marked in ${file} but not registered`);
   }
-  const capture = await readFile(join('ui', 'usage', 'capture.js'), 'utf8');
+  const producedShortcuts = new Set();
+  const dispatchShortcuts = (area, events, target = { tagName: 'DIV', parentElement: null, getAttribute: () => null, hasAttribute: () => false }) => {
+    const root = fakeRoot(area);
+    const uninstall = m.installUsageCapture(root, { record: (key) => producedShortcuts.add(key) });
+    try {
+      for (const event of events) root.fire('keydown', { target, ...event });
+    } finally {
+      uninstall();
+    }
+  };
+  dispatchShortcuts('library', [
+    { key: 's' },
+    { key: 'a' },
+    { key: '?' },
+    { key: 'k', ctrlKey: true },
+    { key: '/' },
+  ]);
+  const readerTarget = dom('<dialog data-usage-area="reader"><div class="body"></div></dialog>').find((node) => node.tagName === 'DIV');
+  dispatchShortcuts('reader', [{ key: 'p' }], readerTarget);
+  dispatchShortcuts('review', [
+    { key: '3' },
+    { key: 'Enter' },
+    { key: 'ArrowRight' },
+    { key: 'ArrowLeft' },
+    { key: ' ', code: 'Space' },
+    { key: 'h' },
+    { key: 't' },
+  ]);
+  for (const key of producedShortcuts) {
+    assert.equal(usageEntry(key)?.group, 'shortcut', `${key} produced by ui/usage/capture.js is registered as a shortcut`);
+  }
   for (const item of USAGE_REGISTRY) {
     if (item.key === TEXT_FIELD_KEY) continue;
-    if (item.group === 'shortcut') { assert.ok(capture.includes(`'${item.key}'`) || capture.includes(`"${item.key}"`), `${item.key} is produced by ui/usage/capture.js`); continue; }
+    if (item.group === 'shortcut') { assert.ok(producedShortcuts.has(item.key), `${item.key} is produced at runtime by ui/usage/capture.js`); continue; }
     if (item.hook) { assert.ok(combined.includes(item.hook), `${item.key}: the class ${item.hook} exists in the UI`); continue; }
     const direct = marked.has(item.key), viaTemplate = templates.some(key => new RegExp(`^${expand(key).replace('.', '\\.')}$`).test(item.key));
     assert.ok(direct || viaTemplate, `${item.key} is registered but no control carries data-usage="${item.key}"`);
@@ -127,8 +157,12 @@ const pages = await bundle('pages', `
   export { default as Settings } from './ui/Settings.jsx';
   export { default as Sources } from './ui/Sources.jsx';
   export { default as ShortcutHelp } from './ui/ShortcutHelp.jsx';
+  export { default as SidebarNav } from './ui/app/SidebarNav.jsx';
+  export { default as SidebarFooter } from './ui/app/SidebarFooter.jsx';
+  export { AppContext } from './ui/app/app-context.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { NavItem, NavGroup } from './ui/SideNav.jsx';
+  export { NAV_DEFAULTS } from './ui/nav-order.js';
   export { setUiLanguage, ui } from './ui/i18n.js';`);
 const h = React.createElement;
 const noop = () => {};
@@ -162,18 +196,51 @@ for (const [name, area, render, minimum = 3] of [['home', 'library', home], ['pr
   });
 }
 
-test('the sidebar rows carry data-usage in the app and key identically in both languages', async () => {
+test('the sidebar rows carry data-usage in the app and key identically in both languages', () => {
   // #654 split the sidebar: the page rows are drawn by SidebarNav.jsx, the footer (设置, 帮助) by SidebarFooter.jsx.
-  const rows = await readFile(join('ui', 'app', 'SidebarNav.jsx'), 'utf8');
-  const footer = await readFile(join('ui', 'app', 'SidebarFooter.jsx'), 'utf8');
-  assert.match(rows, /data-usage=\{`nav\.\$\{id\}`\}/, 'the page rows are keyed by page id');
-  assert.match(rows, /data-usage="nav\.more"/);
-  assert.match(footer, /data-usage="nav\.settings"/);
-  assert.match(footer, /data-usage="nav\.help"/);
-  const zh = withLanguage('zh', () => renderToStaticMarkup(h(pages.NavItem, { glyph: 'library', label: pages.ui('学习库'), 'data-usage': 'nav.library' })));
-  const en = withLanguage('en', () => renderToStaticMarkup(h(pages.NavItem, { glyph: 'library', label: pages.ui('学习库'), 'data-usage': 'nav.library' })));
-  assert.deepEqual(keysOf(en, 'library'), keysOf(zh, 'library'));
-  assert.deepEqual(keysOf(zh, 'library'), ['nav.library']);
+  const studyValue = { busy: false, call: async () => ({}), act: async () => ({}), host: {} };
+  const appValue = {
+    data: {
+      root: '/tmp/lib',
+      decks: [deck],
+      sources,
+      lastRun: null,
+      features: new Proxy({}, { get: () => true }),
+      coach: { ready: 0 },
+    },
+    core: { notify: noop, call: async () => ({}) },
+    shell: { navDrawer: false },
+    nav: { navPage: 'library', pageTarget: null, page: 'library', navigate: noop },
+    session: { run: null, onCoachPractice: noop, actions: { openShortcutHelp: noop } },
+    intents: { resumeOrStart: noop },
+    board: { count: 0 },
+    tour: { tourResume: null, tourStep: null, sampleBusy: false, startTour: noop },
+    finder: { openFinder: noop },
+    host: {},
+  };
+  const renderSidebar = (Component, props = {}) => renderToStaticMarkup(
+    h(pages.StudyServicesContext.Provider, { value: studyValue },
+      h(pages.AppContext.Provider, { value: appValue }, h(Component, props))),
+  );
+  const navZhHtml = withLanguage('zh', () => renderSidebar(pages.SidebarNav, { alert: null, reason: '', tasks: { running: 0, unseen: 0, failed: 0, total: 0 } }));
+  const navEnHtml = withLanguage('en', () => renderSidebar(pages.SidebarNav, { alert: null, reason: '', tasks: { running: 0, unseen: 0, failed: 0, total: 0 } }));
+  const navZhKeys = keysOf(navZhHtml, 'library');
+  const navEnKeys = keysOf(navEnHtml, 'library');
+  assert.deepEqual(navEnKeys, navZhKeys, 'SidebarNav control keys are language-independent');
+  for (const id of Object.values(pages.NAV_DEFAULTS).flat()) {
+    assert.ok(navZhKeys.includes(`nav.${id}`), `rendered SidebarNav includes data-usage="nav.${id}"`);
+  }
+  assert.ok(navZhKeys.includes('nav.more'), 'rendered SidebarNav includes data-usage="nav.more"');
+  assert.ok(navZhKeys.includes('nav.resume'), 'rendered SidebarNav includes data-usage="nav.resume"');
+
+  const footerZhHtml = withLanguage('zh', () => renderSidebar(pages.SidebarFooter));
+  const footerEnHtml = withLanguage('en', () => renderSidebar(pages.SidebarFooter));
+  const footerZhKeys = keysOf(footerZhHtml, 'library');
+  const footerEnKeys = keysOf(footerEnHtml, 'library');
+  assert.deepEqual(footerEnKeys, footerZhKeys, 'SidebarFooter control keys are language-independent');
+  for (const key of ['nav.settings', 'nav.help', 'nav.tour', 'nav.shortcut', 'nav.finder']) {
+    assert.ok(footerZhKeys.includes(key), `rendered SidebarFooter includes data-usage="${key}"`);
+  }
 });
 
 /* ---------- operations: contracts, and not an agent tool ---------- */
