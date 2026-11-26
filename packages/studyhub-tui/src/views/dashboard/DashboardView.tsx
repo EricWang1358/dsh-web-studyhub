@@ -5,7 +5,8 @@ import type { StudySnapshot, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { atomicWriteExportText, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
 import { tryAction } from '../../host/sample-actions.js';
-import { currentCourse, dueToday } from '../../shell/data.js';
+import { currentCourse } from '../../shell/data.js';
+import { selectCourseMetrics, selectStudySummary } from '../../selectors/study-metrics.js';
 import { useShellActions } from '../../shell/actions.js';
 import { useTheme } from '../../theme/tokens.js';
 import { EmptyState, Spinner } from '../../components/Badge.js';
@@ -111,19 +112,6 @@ interface UsageSummaryResponse {
   days?: number;
   byFeature?: Record<string, UsageTotals>;
   total?: UsageTotals;
-}
-
-interface DeckProgressEntry {
-  total?: number;
-  mastery?: number;
-  due?: number;
-  counts?: {
-    new?: number;
-    weak?: number;
-    learning?: number;
-    familiar?: number;
-    mastered?: number;
-  };
 }
 
 export type DrillItem =
@@ -465,90 +453,39 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
     void loadData();
   }, [loadData, revision]);
 
-  const activeDecks = useMemo(() => {
-    const decks = snapshot?.decks ?? [];
-    return decks.filter((d) => !d.archived && (!course || d.course === course));
-  }, [snapshot?.decks, course]);
+  const studySummary = useMemo(
+    () => selectStudySummary(snapshot, course),
+    [snapshot, course],
+  );
+  const activeDecks = studySummary.activeDecks;
 
   const fsrsBuckets = useMemo(() => {
-    const progress = (snapshot?.progress ?? {}) as Record<string, DeckProgressEntry>;
-    let newCount = 0;
-    let learningCount = 0;
-    let reviewCount = 0;
-    let relearningCount = 0;
-    let weightedSum = 0;
-    let totalCards = 0;
+    const base = studySummary.fsrsBuckets;
+    if (studySummary.totalCards > 0) return base;
+    const fallbackPct = stats?.totals?.cards
+      ? Math.round(((stats.totals.mastered ?? 0) / stats.totals.cards) * 100)
+      : 0;
+    return { ...base, masteryPct: fallbackPct };
+  }, [studySummary, stats?.totals]);
 
-    for (const deck of activeDecks) {
-      const p = progress[deck.id];
-      if (!p) continue;
-      const c = p.counts ?? {};
-      const nNew = Number(c.new) || 0;
-      const nLearning = Number(c.learning) || 0;
-      const nFamiliar = Number(c.familiar) || 0;
-      const nMastered = Number(c.mastered) || 0;
-      const nWeak = Number(c.weak) || 0;
-      newCount += nNew;
-      learningCount += nLearning;
-      reviewCount += nFamiliar + nMastered;
-      relearningCount += nWeak;
-      const deckTotal = Number(p.total) || nNew + nLearning + nFamiliar + nMastered + nWeak;
-      totalCards += deckTotal;
-      weightedSum += (Number(p.mastery) || 0) * deckTotal;
-    }
-
-    const totalFromCounts = newCount + learningCount + reviewCount + relearningCount;
-    const masteryPct =
-      totalCards > 0
-        ? Math.round(weightedSum / totalCards)
-        : stats?.totals?.cards
-          ? Math.round(((stats.totals.mastered ?? 0) / stats.totals.cards) * 100)
-          : 0;
-
-    return {
-      newCount,
-      learningCount,
-      reviewCount,
-      relearningCount,
-      total: totalFromCounts,
-      masteryPct,
-    };
-  }, [activeDecks, snapshot?.progress, stats?.totals]);
-
-  const courseStats = useMemo(() => {
-    const decks = (snapshot?.decks ?? []).filter((d) => !d.archived);
-    const progress = (snapshot?.progress ?? {}) as Record<string, DeckProgressEntry>;
-    const byCourse = new Map<
-      string,
-      { rawCourse: string; label: string; weighted: number; total: number; due: number; weak: number }
-    >();
-
-    for (const d of decks) {
-      const p = progress[d.id];
-      if (!p) continue;
-      const rawCourse = d.course ?? '';
-      const label = rawCourse || t(lang, '未分组', 'Uncategorized');
-      const count = Number(p.total) || Number(d.cardCount) || 0;
-      if (count <= 0) continue;
-      const cur = byCourse.get(rawCourse) ?? { rawCourse, label, weighted: 0, total: 0, due: 0, weak: 0 };
-      cur.weighted += (Number(p.mastery) || 0) * count;
-      cur.total += count;
-      cur.due += Number(p.due) || 0;
-      cur.weak += Number(p.counts?.weak) || 0;
-      byCourse.set(rawCourse, cur);
-    }
-
-    return [...byCourse.values()]
-      .map((v) => ({
-        rawCourse: v.rawCourse,
-        label: v.label,
-        masteryPct: v.total > 0 ? Math.round(v.weighted / v.total) : 0,
-        totalCards: v.total,
-        dueCount: v.due,
-        weakCount: v.weak,
-      }))
-      .sort((a, b) => b.masteryPct - a.masteryPct);
-  }, [snapshot?.decks, snapshot?.progress, lang]);
+  const courseStats = useMemo(
+    () =>
+      selectCourseMetrics(snapshot, {
+        includeUncategorized: true,
+        uncategorizedLabel: t(lang, '未分组', 'Uncategorized'),
+      })
+        .filter((c) => c.totalCards > 0)
+        .map((c) => ({
+          rawCourse: c.key,
+          label: c.label,
+          masteryPct: c.masteryPct,
+          totalCards: c.totalCards,
+          dueCount: c.dueCount,
+          weakCount: c.weakCount,
+        }))
+        .sort((a, b) => b.masteryPct - a.masteryPct),
+    [snapshot, lang],
+  );
 
   const courseBars: BarChartItem[] = useMemo(
     () =>
@@ -787,8 +724,10 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
   useFooterHints(footerHints, pageActive);
 
   const totals = stats?.totals;
-  const totalCards = totals?.cards ?? activeDecks.reduce((n, d) => n + (Number(d.cardCount) || 0), 0);
-  const dueCount = totals?.due ?? dueToday(snapshot as StudySnapshot | null);
+  const totalCards = totals?.cards ?? studySummary.totalCards;
+  const dueCount = totals?.due ?? studySummary.due;
+  const weakCount = totals?.weak ?? studySummary.weak;
+  const masteredCount = totals?.mastered ?? studySummary.mastered;
   const accuracy = totals?.recentRate ?? totals?.correctRate;
   const accuracyStr = accuracy !== null && accuracy !== undefined ? `${accuracy}%` : '--';
   const totalTokens = totalTokensOf(usage?.total);
@@ -871,14 +810,14 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
       <KpiCard
         label={t(lang, '平均掌握度', 'Mastery')}
         value={`${fsrsBuckets.masteryPct}%`}
-        sub={t(lang, `已掌握 ${totals?.mastered ?? 0}`, `${totals?.mastered ?? 0} mastered`)}
+        sub={t(lang, `已掌握 ${masteredCount}`, `${masteredCount} mastered`)}
         tone="success"
         width={kpiW}
       />
       <KpiCard
         label={t(lang, '今日到期', 'Due Today')}
         value={String(dueCount)}
-        sub={t(lang, `薄弱 ${totals?.weak ?? 0} 题`, `${totals?.weak ?? 0} weak`)}
+        sub={t(lang, `薄弱 ${weakCount} 题`, `${weakCount} weak`)}
         tone={dueCount > 0 ? 'warning' : 'success'}
         width={kpiW}
       />

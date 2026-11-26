@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import React from 'react';
 import { loadUi } from './helpers/ui-module.mjs';
 import { inApp } from './helpers/fake-app.mjs';
+import { click, loadInteractiveUi, textOf, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 // 任务 归档 and 批量删除 in the console, drawn from the snapshot: a checkbox on finished rows, the bar of the selection, the 已归档 filter, a read-only detail for
 // an archived task, and the confirmation that says what is and is not removed. Static markup in both languages; the clicks are in tests/task-console-browser.test.mjs.
@@ -126,13 +127,142 @@ test('an archived task renders like a finished one: its title, kind, state and p
   assert.match(html, /data-status="complete"/);
 });
 
-test('删除 of task records asks nothing: the shared 撤销 notice (ui/undoable.js) stands in for the old dialog, and a running task is never deleted', () => {
-  const source = readFileSync('ui/tasks/TaskConsole.jsx', 'utf8');
-  assert.match(source, /useUndoable\(\)/);
-  assert.match(source, /commitLater\(\{ keys: gone/);
-  assert.match(source, /isRunningTask\(item\)/, 'running tasks are left out and counted');
-  assert.doesNotMatch(source, /ConfirmDialog|DeleteTasksDialog|确认删除/);
-  assert.equal(existsSync('ui/tasks/DeleteTasksDialog.jsx'), false, 'the dialog is gone');
+test('删除 of task records asks nothing: hides finished rows with a 撤销 notice, restores on undo, commits only finished keys, and never deletes a running task', async () => {
+  assert.equal(existsSync('ui/tasks/DeleteTasksDialog.jsx'), false, 'the old confirm dialog file is gone');
+
+  const ui = await loadInteractiveUi(`
+    export { AppContext } from './ui/app/app-context.js';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { ToastContext, createToastApi } from './ui/components/Feedback.jsx';
+    export { QuickActionsContext, createQuickActions } from './ui/quick-actions.js';
+    export { default as TaskConsole } from './ui/tasks/TaskConsole.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const { AppContext, StudyServicesContext, ToastContext, createToastApi, QuickActionsContext, createQuickActions, TaskConsole, setUiLanguage } = ui.exports;
+  const h = ui.React.createElement;
+
+  const prevCss = globalThis.CSS;
+  globalThis.CSS = { escape: (value) => String(value) };
+  const focusedSelectors = [];
+
+  await withBrowserGlobals(async () => {
+    setUiLanguage('zh');
+    const hostCalls = [];
+    const notices = [];
+    const errors = [];
+
+    const call = async (action, args) => {
+      hostCalls.push({ action, args });
+      if (action === 'job.delete') return { deleted: args.jobIds, skipped: [] };
+      return { ok: true };
+    };
+    const quickController = createQuickActions({ call, timers: false });
+    const toast = createToastApi({
+      setNotice: (entry) => { if (entry) notices.push(entry); },
+      setError: (entry) => { if (entry) errors.push(entry); },
+    });
+
+    const snapshot = { root: '/tmp/study-tasks', jobs: live(), archivedJobs: [], drafts: [], decks: [] };
+    const appValue = {
+      language: 'zh',
+      host: {},
+      data: snapshot,
+      connection: { binding: { root: snapshot.root } },
+      core: { call, act: async () => undefined, busy: false, notify: (text) => notices.push({ text }), setError: (text) => errors.push({ text }), refresh: async () => {} },
+      lib: { taskFocus: null },
+      settingsEntry: {},
+      learn: {},
+    };
+    const studyValue = { call, act: async () => undefined, busy: false, notify: () => {}, host: {} };
+
+    const mounted = ui.mount(() => h(
+      StudyServicesContext.Provider,
+      { value: studyValue },
+      h(
+        AppContext.Provider,
+        { value: appValue },
+        h(
+          ToastContext.Provider,
+          { value: toast },
+          h(
+            QuickActionsContext.Provider,
+            { value: quickController.snapshot() },
+            h(TaskConsole, { data: snapshot, openers: { resultOf: () => null } }),
+          ),
+        ),
+      ),
+    ));
+
+    const visibleTaskIds = () => mounted.findAll((node) => node.type === 'button' && typeof node.props?.['data-task-id'] === 'string').map((node) => node.props['data-task-id']);
+    const findSelectAllCheckbox = () => {
+      const pickbar = mounted.find((node) => typeof node.props?.className === 'string' && node.props.className.includes('tc-pickbar'));
+      assert.ok(pickbar, 'SelectBar (.tc-pickbar) is rendered');
+      const box = mounted.find((node) => node.type === 'input' && node.props?.type === 'checkbox', pickbar);
+      assert.ok(box, 'SelectBar select-all checkbox is rendered');
+      return box;
+    };
+    const findDeleteButton = () => mounted.find((node) => node.type === 'button' && textOf(node).trim() === '删除');
+
+    try {
+      assert.deepEqual(visibleTaskIds().sort(), ['audio-1', 'gen-1', 'pdf-1']);
+
+      // Select all selectable rows (only finished gen-1 and pdf-1; running audio-1 stays unselected)
+      await mounted.act(() => findSelectAllCheckbox().props.onChange({ target: { checked: true } }));
+      const deleteBtn = findDeleteButton();
+      assert.ok(deleteBtn, 'SelectBar exposes 删除 once finished tasks are selected');
+
+      // Click 删除 -> no modal dialog, finished tasks hide immediately, running task stays, undo toast appears, host not called yet
+      await mounted.act(() => click(deleteBtn));
+      assert.equal(mounted.find((node) => node.type === 'dialog' || node.props?.role === 'dialog'), null, 'no confirmation modal dialog is opened');
+      assert.deepEqual(visibleTaskIds(), ['audio-1'], 'finished tasks hide immediately while running task stays visible');
+      assert.equal(hostCalls.length, 0, 'job.delete is deferred until the undo notice leaves');
+
+      const undoNotice = notices.at(-1);
+      assert.equal(undoNotice?.undo, true);
+      assert.equal(undoNotice?.action?.label, '撤销');
+      assert.equal(typeof undoNotice?.action?.run, 'function');
+
+      // Click 撤销 before commit -> finished tasks return immediately, focus returns to restored row, and host is never called
+      await mounted.act(() => undoNotice.action.run());
+      assert.deepEqual(visibleTaskIds().sort(), ['audio-1', 'gen-1', 'pdf-1'], '撤销 restores hidden finished tasks');
+      assert.equal(hostCalls.length, 0, '撤销 prevents job.delete from being sent');
+      // Let ui/undoable.js's 30ms post-undo refocus settle before tearing down browser globals.
+      const focusDeadline = Date.now() + 500;
+      while (focusedSelectors.length === 0 && Date.now() < focusDeadline) {
+        await new Promise((done) => setTimeout(done, 15));
+      }
+      assert.equal(focusedSelectors.length, 1, 'focus returns to the restored task row after 撤销');
+
+      // Delete again and let the undo notice leave -> commits job.delete for finished keys only (never audio-1)
+      await mounted.act(() => findSelectAllCheckbox().props.onChange({ target: { checked: true } }));
+      await mounted.act(() => click(findDeleteButton()));
+      assert.deepEqual(visibleTaskIds(), ['audio-1']);
+
+      const secondNotice = notices.at(-1);
+      assert.equal(typeof secondNotice?.onLeave, 'function');
+      await mounted.act(async () => {
+        secondNotice.onLeave();
+        await Promise.resolve();
+      });
+      await mounted.flush(5);
+
+      const deleteCalls = hostCalls.filter((entry) => entry.action === 'job.delete');
+      assert.equal(deleteCalls.length, 1, 'commits job.delete once when the undo notice leaves');
+      assert.deepEqual([...deleteCalls[0].args.jobIds].sort(), ['gen-1', 'pdf-1'], 'only finished task ids are sent to job.delete');
+      assert.ok(!deleteCalls[0].args.jobIds.includes('audio-1'), 'running task is never sent to job.delete');
+      assert.deepEqual(visibleTaskIds(), ['audio-1'], 'running task stays visible after commit');
+      assert.deepEqual(errors, []);
+    } finally {
+      mounted.unmount();
+      setUiLanguage('zh');
+      if (prevCss === undefined) delete globalThis.CSS;
+      else globalThis.CSS = prevCss;
+    }
+  }, {
+    document: {
+      querySelector: (selector) => ({ focus: () => { focusedSelectors.push(selector); } }),
+    },
+  });
 });
 
 test('a past day of 为你定制 has no box and no 删除 button: the item of its ⋯ menu says it deletes the day (its file keeps fourteen days), it is not archived', () => {

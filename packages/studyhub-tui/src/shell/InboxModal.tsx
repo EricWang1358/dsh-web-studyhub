@@ -2,7 +2,8 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { resolve } from 'node:path';
 import { Box, Text } from 'ink';
 import { useStableWindowSize } from '../components/resize.js';
-import { useScopedInput as useInput } from '../components/key-dispatcher.js';
+import { useKeyScope } from '../components/key-dispatcher.js';
+import { isPlainKey } from '../input/global-router.js';
 import type { HostClient, NavigationContext, PageId, UiLanguage } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
@@ -424,54 +425,56 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
     [busy, host, actions, lang, onClose],
   );
 
-  useInput(
-    (input, key) => {
+  useKeyScope({
+    id: 'InboxModal',
+    active: isActive && !searchFocused,
+    onKey: (input, key) => {
       if (busyRef.current || busy) return false;
       if (key.tab) {
         setFilter((prev) => (prev === 'all' ? 'unread' : prev === 'unread' ? 'read' : 'all'));
         setCursor(0);
         return true;
       }
-      if (input === 'h' && !key.ctrl && !key.meta) {
+      if (!isPlainKey(input, key)) return false;
+      if (input === 'h') {
         setFilter((prev) => (prev === 'toasts' ? 'all' : 'toasts'));
         setCursor(0);
         return true;
       }
-      if (input === 'C' && !key.ctrl && !key.meta && filter === 'toasts') {
+      if (input === 'C' && filter === 'toasts') {
         clearToastHistory();
         setCursor(0);
         return true;
       }
-      if (input === '/' && !key.ctrl && !key.meta) {
+      if (input === '/') {
         setSearchFocused(true);
         return true;
       }
-      if (input === 'c' && !key.ctrl && !key.meta && searchQuery) {
+      if (input === 'c' && searchQuery) {
         setSearchQuery('');
         setCursor(0);
         return true;
       }
-      if (input === 'e' && !key.ctrl && !key.meta) {
+      if (input === 'e') {
         void handleExportRaw();
         return true;
       }
-      if (input === 'r' && !key.ctrl && !key.meta) {
+      if (input === 'r') {
         void loadInbox(true);
         void actions.refresh();
         return true;
       }
-      if (input === 'm' && !key.ctrl && !key.meta && selected) {
+      if (input === 'm' && selected) {
         void handleToggleRead(selected);
         return true;
       }
-      if (input === 'M' && !key.ctrl && !key.meta) {
+      if (input === 'M') {
         void handleMarkAllRead();
         return true;
       }
       return false;
     },
-    { isActive: isActive && !searchFocused },
-  );
+  });
 
   const width = Math.min(96, Math.max(46, columns - 4));
   const height = Math.min(30, Math.max(15, rows - 4));

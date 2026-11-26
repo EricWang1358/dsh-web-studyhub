@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
-import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
+import { useKeyScope } from '../../components/key-dispatcher.js';
+import { isPlainKey } from '../../input/global-router.js';
 import type { HostClient } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction } from '../../host/sample-actions.js';
@@ -9,7 +10,6 @@ import { useTheme } from '../../theme/tokens.js';
 import { Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { Panel } from '../../components/Panel.js';
-import { useClaimKeys } from '../../components/focus.js';
 import {
   nextScrollOffset,
   pageStep,
@@ -426,65 +426,69 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
   const maxVisible = Math.max(4, height - 4);
   const dialogOpen = confirmResetPractice || confirmResetExamPrep;
   const claimed = useMemo(() => ['j', 'k', 'h', 'l', ' ', 'g', 'G'], []);
-  useClaimKeys(claimed, isActive && !dialogOpen);
 
   useSgrMouseWheel(isActive && !dialogOpen, (wheelDelta) => {
     setCursor((c) => Math.max(0, Math.min(ROW_IDS.length - 1, c + wheelDelta)));
   });
 
-  useInput(
-    (input, key) => {
+  useKeyScope({
+    id: 'settings:study-gen',
+    active: isActive && !dialogOpen,
+    keys: claimed,
+    onKey: (input, key) => {
       const wheelDelta = parseSgrWheelDelta(input);
       if (wheelDelta !== 0) {
         setCursor((c) => Math.max(0, Math.min(ROW_IDS.length - 1, c + wheelDelta)));
-        return;
+        return true;
       }
-      if (key.ctrl && input === 'r') {
+      if (key.ctrl && !key.meta && input === 'r') {
         void loadSettings();
-        return;
+        return false;
       }
-      if (key.upArrow || (!key.ctrl && !key.meta && input === 'k')) {
+      const plain = isPlainKey(input, key);
+      if (key.upArrow || (plain && input === 'k')) {
         setCursor((c) => (c - 1 + ROW_IDS.length) % ROW_IDS.length);
-        return;
+        return true;
       }
-      if (key.downArrow || (!key.ctrl && !key.meta && input === 'j')) {
+      if (key.downArrow || (plain && input === 'j')) {
         setCursor((c) => (c + 1) % ROW_IDS.length);
-        return;
+        return true;
       }
-      if (key.pageDown || (key.ctrl && input === 'f')) {
+      if (key.pageDown || (key.ctrl && !key.meta && input === 'f')) {
         setCursor((c) => Math.min(ROW_IDS.length - 1, c + pageStep(maxVisible, 'full')));
-        return;
+        return true;
       }
-      if (key.pageUp || (key.ctrl && input === 'b')) {
+      if (key.pageUp || (key.ctrl && !key.meta && input === 'b')) {
         setCursor((c) => Math.max(0, c - pageStep(maxVisible, 'full')));
-        return;
+        return true;
       }
-      if (key.ctrl && input === 'd') {
+      if (key.ctrl && !key.meta && input === 'd') {
         setCursor((c) => Math.min(ROW_IDS.length - 1, c + pageStep(maxVisible, 'half')));
-        return;
+        return true;
       }
-      if (key.ctrl && input === 'u') {
+      if (key.ctrl && !key.meta && input === 'u') {
         setCursor((c) => Math.max(0, c - pageStep(maxVisible, 'half')));
-        return;
+        return true;
       }
-      if (key.home || (!key.ctrl && !key.meta && input === 'g')) {
+      if (key.home || (plain && input === 'g')) {
         setCursor(0);
-        return;
+        return true;
       }
-      if (key.end || (!key.ctrl && !key.meta && input === 'G')) {
+      if (key.end || (plain && input === 'G')) {
         setCursor(ROW_IDS.length - 1);
-        return;
+        return true;
       }
-      if (key.leftArrow || input === 'h') {
+      if (key.leftArrow || (plain && input === 'h')) {
         adjustRow(ROW_IDS[cursor], -1);
-        return;
+        return true;
       }
-      if (key.rightArrow || input === 'l' || key.return || input === ' ') {
+      if (key.rightArrow || (!key.ctrl && !key.meta && key.return) || (plain && (input === 'l' || input === ' '))) {
         adjustRow(ROW_IDS[cursor], 1);
+        return true;
       }
+      return false;
     },
-    { isActive: isActive && !dialogOpen },
-  );
+  });
 
   const onOff = (v: boolean) => (v ? (asciiMode ? t(lang, '开启 +', 'On +') : t(lang, '开启 ✓', 'On ✓')) : t(lang, '关闭', 'Off'));
   const orderLabel = (v: PracticeSettingsShape['newCardOrder']) =>

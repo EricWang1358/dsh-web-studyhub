@@ -1,13 +1,25 @@
 import React, { Suspense, lazy, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Box, Text, useApp } from 'ink';
-import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type PageId, type ViewProps } from '../types/contracts.js';
+import { Box, Text, useApp, useStdin } from 'ink';
+import type { CommandPaletteItem, HostClient, PageId, ViewProps } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
 import { useTheme } from '../theme/tokens.js';
 import { glyph } from '../render/glyphs.js';
 import { KeyHintBar, Spinner, ToastStack, estimateToastStackHeight } from '../components/Badge.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
-import { RESERVED_GLOBAL_KEY_SET, isKeyClaimed, resolveShellFooterHints, useContextualFooterTip, useModalHints } from '../components/focus.js';
-import { KEY_LAYER_GLOBAL, KEY_LAYER_SYSTEM, KeyScopeProvider, useKeyDispatcherBridge, useScopedInput } from '../components/key-dispatcher.js';
+import { isKeyClaimed, resolveShellFooterHints, useContextualFooterTip, useModalHints } from '../components/focus.js';
+import {
+  KEY_LAYER_GLOBAL,
+  KEY_LAYER_SYSTEM,
+  KEY_SCOPE_DEPTH_QUIT_CONFIRM,
+  KEY_SCOPE_DEPTH_SHELL_OVERLAY,
+  KEY_SCOPE_DEPTH_TOO_SMALL,
+  KeyScopeProvider,
+  getHub,
+  getTopOpaqueScope,
+  useKeyDispatcherBridge,
+  useKeyScope,
+  useScopedInput,
+} from '../components/key-dispatcher.js';
 import { LAYOUT_BP, isViewportTooSmall } from '../components/layout-tokens.js';
 import { useMouseClickInputFallback } from '../components/mouse.js';
 import { useStableWindowSize } from '../components/resize.js';
@@ -16,6 +28,7 @@ import { SideNav, sideNavWidth } from './SideNav.js';
 import { ShellActionsContext, createDefaultShellActions, requestQuit, type ShellActions } from './actions.js';
 import { isLibraryEmpty } from './data.js';
 import { formatReturnHintLabel } from '../state/practice-stack.js';
+import { SHELL_KEY_ROUTER, resolveCycledPage, type ShellKeyRouter } from '../input/global-router.js';
 
 const Launchpad = lazy(() => import('./Launchpad.js').then((m) => ({ default: m.Launchpad })));
 const CommandPalette = lazy(() => import('./CommandPalette.js').then((m) => ({ default: m.CommandPalette })));
@@ -48,11 +61,9 @@ export interface AppShellProps {
   overlays?: ReactNode;
   /** Auto-open the Launchpad when the first snapshot shows an empty library (default true). */
   autoLaunchpad?: boolean;
+  /** Decides every global, system and Alt-chord key (default `SHELL_KEY_ROUTER`); tests pass a stub. */
+  keyRouter?: ShellKeyRouter;
 }
-
-/** Page cycle order for `[` / `]`. */
-const NAV_ORDER: readonly PageId[] = PAGE_REGISTRY.filter((p) => p.group !== null).map((p) => p.id);
-const SHORTCUTS = new Map<string, PageId>(PAGE_REGISTRY.map((p) => [p.shortcut, p.id]));
 
 /** Pure layout math for the shell, exported for tests and the App. */
 /**
@@ -81,6 +92,7 @@ export const AppShell = memo(function AppShell({
   renderVoicePack,
   overlays,
   autoLaunchpad = true,
+  keyRouter = SHELL_KEY_ROUTER,
 }: AppShellProps) {
   const { exit } = useApp();
   const { columns, rows } = useStableWindowSize();
@@ -140,10 +152,17 @@ export const AppShell = memo(function AppShell({
   const assistantScopeActive = assistantCapturesFocus && !shellModalOpen;
   const overlayOpen = shellModalOpen || assistantCapturesFocus;
 
-  // Render-time snapshot of routing state: every useInput handler for ONE keystroke sees
+  // Below 60x18 the shell stays mounted and a notice is drawn over it instead: unmounting would
+  // throw away in-progress input, cursor and scroll positions, and would drop the quit guards that
+  // pages register, so `q` would exit without the unsaved-work confirmation (#1452).
+  const tooSmall = isViewportTooSmall(columns, rows);
+  const { stdin } = useStdin();
+  const hub = getHub(stdin);
+
+  // Render-time snapshot of routing state: every key handler for ONE keystroke sees
   // the state from BEFORE that keystroke (so closing an overlay with `?` never reopens it).
-  const routing = useRef({ overlayOpen, inputCaptured, showLaunchpad });
-  routing.current = { overlayOpen, inputCaptured, showLaunchpad };
+  const routing = useRef({ overlayOpen, inputCaptured, showLaunchpad, tooSmall });
+  routing.current = { overlayOpen, inputCaptured, showLaunchpad, tooSmall };
 
   const { navW, bodyH, contentW: fullContentW } = shellLayout(columns, rows, {
     sidebarCollapsed,
@@ -167,128 +186,107 @@ export const AppShell = memo(function AppShell({
       }
       const s = useTuiStore.getState();
       const r = routing.current;
-      if (key.ctrl && input === 'c') {
-        if (s.quitConfirmOpen) {
+      const resolved = keyRouter.resolveSystem(input, key, {
+        blockedByScope: r.overlayOpen || r.inputCaptured || r.tooSmall || getTopOpaqueScope(hub) !== null,
+        tooSmall: r.tooSmall,
+        quitConfirmOpen: s.quitConfirmOpen,
+        commandPaletteOpen: s.commandPaletteOpen,
+        assistantOpen: s.assistantOpen,
+        assistantFocused: s.assistantFocused,
+        assistantFullscreen: s.assistantFullscreen,
+      });
+      if (!resolved) return false;
+      switch (resolved.action) {
+        case 'quit-force':
           s.setQuitConfirmOpen(false);
           rawQuitRef.current();
-        } else {
+          break;
+        case 'quit-request':
           actions.quit();
-        }
-        return true;
-      }
-      if (key.ctrl && input === 'k') {
-        if (s.commandPaletteOpen) {
+          break;
+        case 'palette-close':
           s.setCommandPaletteOpen(false);
-          return true;
-        }
-        if (!r.overlayOpen && !r.inputCaptured) {
+          break;
+        case 'palette-open':
           s.setCommandPaletteOpen(true);
-          return true;
-        }
-        return false;
-      }
-      // Ctrl+Space (NUL `\x00` or Ctrl+@ / Ctrl+Space) opens docked WITHOUT stealing focus; 2nd press focuses; 3rd collapses!
-      const isCtrlSpace = input === '\u0000' || (key.ctrl && (input === ' ' || input === '@'));
-      if (isCtrlSpace) {
-        if (!s.assistantOpen) {
-          if (!r.overlayOpen && !r.inputCaptured) {
-            s.openAssistant({ focused: false });
-            return true;
-          }
-          return false;
-        }
-        if (!s.assistantFocused && !s.assistantFullscreen) {
+          break;
+        case 'assistant-open-passive':
+          s.openAssistant({ focused: false });
+          break;
+        case 'assistant-focus':
           s.setAssistantFocused(true);
-        } else {
+          break;
+        case 'assistant-close':
           s.closeAssistant();
-        }
-        return true;
-      }
-      if (key.ctrl && input === 'g') {
-        if (s.assistantOpen && (s.assistantFocused || s.assistantFullscreen)) {
-          s.closeAssistant();
-          return true;
-        }
-        if (!r.overlayOpen && !r.inputCaptured) {
+          break;
+        case 'assistant-open-focus':
           s.openAssistant({ focused: true });
-          return true;
-        }
-        return false;
-      }
-      if (key.ctrl && input === 'o') {
-        if (!r.overlayOpen && !r.inputCaptured) {
+          break;
+        case 'notification-history-open':
           s.setNotificationHistoryOpen(true);
-          return true;
-        }
-        return false;
+          break;
+        case 'refresh':
+          // The active view (e.g. BoardView, BookView) also reloads its own state: consume is false.
+          void actions.refresh();
+          break;
       }
-      if (key.ctrl && input === 'r') {
-        void actions.refresh();
-        // Allow the active view (e.g. BoardView, BookView) to also reload its domain state.
-        return false;
-      }
-      return false;
+      return resolved.consume;
     },
     { isActive: true, layer: KEY_LAYER_SYSTEM, id: 'AppShell:system' },
+  );
+
+  // Centralized Alt+* (`key.meta`) containment: passes TextInput editing chords through while
+  // consuming unhandled Alt+s / Alt+x / Alt+q etc. so they never leak into view/modal handlers.
+  useScopedInput(
+    (input, key) => keyRouter.resolveAltChord(input, key).kind === 'consume-unhandled-alt',
+    { isActive: true, layer: KEY_LAYER_SYSTEM, id: 'AppShell:alt-guard' },
   );
 
   useScopedInput(
     (input, key) => {
       const s = useTuiStore.getState();
       const r = routing.current;
-      if (r.overlayOpen || r.inputCaptured) return false;
-      if (key.ctrl || key.meta) return false;
-      // #1428: unified 2-step Esc across every docked page — when no modal/filter/view handler
-      // consumed Esc, fold the passive assistant dock cleanly without leaving the current page.
-      if (key.escape) {
-        if (s.assistantOpen && !s.assistantFocused && !s.assistantFullscreen) {
+      const resolved = keyRouter.resolveGlobal(input, key, {
+        overlayOpen: r.overlayOpen,
+        inputCaptured: r.inputCaptured,
+        showLaunchpad: r.showLaunchpad,
+        page: s.page,
+        passiveAssistantOpen: s.assistantOpen && !s.assistantFocused && !s.assistantFullscreen,
+        isKeyClaimed,
+      });
+      if (!resolved) return false;
+      switch (resolved.action) {
+        case 'fold-passive-assistant':
           s.closeAssistant();
           return true;
-        }
-        return false;
-      }
-      if (input && !RESERVED_GLOBAL_KEY_SET.has(input) && isKeyClaimed(input)) return false;
-      if (key.backspace) {
-        if (!isKeyClaimed('backspace')) {
+        case 'go-back':
           s.goBack();
           return true;
-        }
-        return false;
-      }
-      switch (input) {
-        case '/':
+        case 'palette-open':
           s.setCommandPaletteOpen(true);
           return true;
-        case '?':
+        case 'help-open':
           s.setHelpOpen(true);
           return true;
-        case 'c':
+        case 'course-picker-open':
           s.setCoursePickerOpen(true);
           return true;
-        case 'I':
+        case 'inbox-open':
           s.setInboxOpen(true);
           return true;
-        case 'q':
+        case 'quit-request':
           actions.quit();
           return true;
-        case '\\':
+        case 'toggle-sidebar':
           s.toggleSidebar();
           return true;
-        case '[':
-        case ']': {
-          const idx = NAV_ORDER.indexOf(s.page);
-          const dir = input === ']' ? 1 : -1;
-          const next = NAV_ORDER[(Math.max(0, idx) + dir + NAV_ORDER.length) % NAV_ORDER.length];
-          s.navigate(next);
+        case 'page-prev':
+          s.navigate(resolveCycledPage(s.page, -1));
           return true;
-        }
-        default:
-          break;
-      }
-      if (r.showLaunchpad && (input === 's' || input === 'i' || input === 'm')) return false;
-      const target = SHORTCUTS.get(input);
-      if (target) {
-        if (target === 'review') {
+        case 'page-next':
+          s.navigate(resolveCycledPage(s.page, 1));
+          return true;
+        case 'navigate-review':
           if (s.practiceStack.length > 0) {
             s.returnViaPracticeStack();
             return true;
@@ -296,29 +294,31 @@ export const AppShell = memo(function AppShell({
           if (s.page === 'review' && (!s.activeRunId || s.navContext.runId === s.activeRunId)) return true;
           if (s.activeRunId) s.navigate('review', { runId: s.activeRunId });
           else {
-            const focusCourse = typeof s.snapshot?.focus?.course === 'string' && s.snapshot.focus.course ? s.snapshot.focus.course : undefined;
+            const focusCourse =
+              typeof s.snapshot?.focus?.course === 'string' && s.snapshot.focus.course
+                ? s.snapshot.focus.course
+                : undefined;
             s.navigate('review', focusCourse ? { course: focusCourse } : {});
           }
           return true;
-        }
-        // Preserve intermediate reader location in stack if leaving sources while a practice stack is active (#1319)
-        if (s.practiceStack.length > 0 && s.page === 'sources' && target !== 'sources' && s.navContext.sourceId) {
-          s.pushPracticeContext({
-            kind: 'page',
-            returnPage: 'sources',
-            navContext: { ...s.navContext },
-            readingPos: {
-              sourceId: s.navContext.sourceId,
-              pageNumber: s.navContext.pageNumber,
-            },
-            originKind: 'source',
-            pushedAt: Date.now(),
-          });
-        }
-        s.navigate(target);
-        return true;
+        case 'navigate-page':
+          // Preserve intermediate reader location in stack if leaving sources while a practice stack is active (#1319)
+          if (s.practiceStack.length > 0 && s.page === 'sources' && resolved.page !== 'sources' && s.navContext.sourceId) {
+            s.pushPracticeContext({
+              kind: 'page',
+              returnPage: 'sources',
+              navContext: { ...s.navContext },
+              readingPos: {
+                sourceId: s.navContext.sourceId,
+                pageNumber: s.navContext.pageNumber,
+              },
+              originKind: 'source',
+              pushedAt: Date.now(),
+            });
+          }
+          s.navigate(resolved.page);
+          return true;
       }
-      return false;
     },
     { isActive: true, layer: KEY_LAYER_GLOBAL, id: 'AppShell:global' },
   );
@@ -354,10 +354,6 @@ export const AppShell = memo(function AppShell({
   const toastW = Math.min(52, Math.max(28, Math.floor(columns * 0.45)));
   const toastRows = Math.min(Math.max(1, rows - 3), estimateToastStackHeight(toasts, toastW, asciiMode));
   const toastTop = Math.max(1, rows - (showKeyHints ? 1 : 0) - toastRows);
-  // Below 60x18 the shell stays mounted and a notice is drawn over it instead: unmounting would
-  // throw away in-progress input, cursor and scroll positions, and would drop the quit guards that
-  // pages register, so `q` would exit without the unsaved-work confirmation (#1452).
-  const tooSmall = isViewportTooSmall(columns, rows);
   let main: ReactNode;
   if (showLaunchpad) {
     main = (
@@ -467,7 +463,7 @@ export const AppShell = memo(function AppShell({
         ) : null}
 
         {paletteOpen ? (
-          <KeyScopeProvider>
+          <KeyScopeProvider id="shell:palette" depth={KEY_SCOPE_DEPTH_SHELL_OVERLAY}>
             <Suspense fallback={null}>
               <CommandPalette
                 host={host}
@@ -479,28 +475,28 @@ export const AppShell = memo(function AppShell({
           </KeyScopeProvider>
         ) : null}
         {helpOpen && !paletteOpen ? (
-          <KeyScopeProvider>
+          <KeyScopeProvider id="shell:help" depth={KEY_SCOPE_DEPTH_SHELL_OVERLAY}>
             <Suspense fallback={null}>
               <HelpOverlay isActive={helpOpen} onClose={() => useTuiStore.getState().setHelpOpen(false)} />
             </Suspense>
           </KeyScopeProvider>
         ) : null}
         {courseOpen && !paletteOpen && !helpOpen ? (
-          <KeyScopeProvider>
+          <KeyScopeProvider id="shell:course" depth={KEY_SCOPE_DEPTH_SHELL_OVERLAY}>
             <Suspense fallback={null}>
               <CoursePickerModal isActive={courseOpen} onClose={() => useTuiStore.getState().setCoursePickerOpen(false)} />
             </Suspense>
           </KeyScopeProvider>
         ) : null}
         {inboxOpen && !paletteOpen && !helpOpen && !courseOpen ? (
-          <KeyScopeProvider>
+          <KeyScopeProvider id="shell:inbox" depth={KEY_SCOPE_DEPTH_SHELL_OVERLAY}>
             <Suspense fallback={null}>
               <InboxModal host={host} isActive={inboxOpen} onClose={() => useTuiStore.getState().setInboxOpen(false)} />
             </Suspense>
           </KeyScopeProvider>
         ) : null}
         {notificationHistoryOpen && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen ? (
-          <KeyScopeProvider>
+          <KeyScopeProvider id="shell:notifications" depth={KEY_SCOPE_DEPTH_SHELL_OVERLAY}>
             <Suspense fallback={null}>
               <NotificationHistoryModal
                 isActive={notificationHistoryOpen}
@@ -510,7 +506,7 @@ export const AppShell = memo(function AppShell({
           </KeyScopeProvider>
         ) : null}
         {voiceOverlay && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !notificationHistoryOpen && renderVoicePack ? (
-          <KeyScopeProvider>
+          <KeyScopeProvider id="shell:voice" depth={KEY_SCOPE_DEPTH_SHELL_OVERLAY}>
             {renderVoicePack({
               isActive: true,
               onClose: () => useTuiStore.getState().setVoicePackOpen(false),
@@ -520,9 +516,20 @@ export const AppShell = memo(function AppShell({
           </KeyScopeProvider>
         ) : null}
         {overlays}
-        {tooSmall ? <TooSmallViewportNotice columns={columns} rows={rows} asciiMode={asciiMode} lang={lang} /> : null}
+        {tooSmall ? (
+          <KeyScopeProvider id="shell:tooSmall" depth={KEY_SCOPE_DEPTH_TOO_SMALL} opaque active={!quitConfirmOpen}>
+            <TooSmallViewportNotice
+              columns={columns}
+              rows={rows}
+              asciiMode={asciiMode}
+              lang={lang}
+              isActive={!quitConfirmOpen}
+              onQuit={() => actions.quit()}
+            />
+          </KeyScopeProvider>
+        ) : null}
         {quitConfirmOpen ? (
-          <KeyScopeProvider>
+          <KeyScopeProvider id="shell:quitConfirm" depth={KEY_SCOPE_DEPTH_QUIT_CONFIRM}>
             <ConfirmDialog
             title={t(lang, '确认退出', 'Quit StudyHub')}
             message={t(lang, '当前有进行中的考试/练习，确认退出吗？', 'Session in progress. Quit StudyHub?')}
@@ -554,17 +561,33 @@ const TooSmallViewportNotice = memo(function TooSmallViewportNotice({
   rows,
   asciiMode,
   lang,
+  isActive,
+  onQuit,
 }: {
   columns: number;
   rows: number;
   asciiMode: boolean;
   lang: 'zh' | 'en';
+  isActive: boolean;
+  onQuit: () => void;
 }) {
   const theme = useTheme();
   const times = glyph('times', asciiMode);
   const warnGlyph = glyph('warn', asciiMode);
   const minCols = LAYOUT_BP.MIN_VIEWPORT_COLS;
   const minRows = LAYOUT_BP.MIN_VIEWPORT_ROWS;
+  useKeyScope({
+    id: 'shell:tooSmall',
+    active: isActive,
+    onKey: (input, key) => {
+      if (!key.ctrl && !key.meta && input === 'q') {
+        onQuit();
+        return true;
+      }
+      // Consume all non-system keys so hidden views/modals never receive blind keystrokes while < 60x18.
+      return true;
+    },
+  });
   return (
     <Box
       position="absolute"

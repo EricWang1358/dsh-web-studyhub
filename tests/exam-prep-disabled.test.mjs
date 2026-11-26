@@ -5,7 +5,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { nativeSelects } from './helpers/native-selects.mjs';
-import { readFile } from 'node:fs/promises';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 /* 备考补习 while the host's switch is off (a task card or a stale link can still land on it): its own off state, not the generic "enable the component". */
 
@@ -113,7 +113,69 @@ test('the generic stopped page says to enable the components in DSH, so it offer
   } finally { setUiLanguage('zh'); }
 });
 
-test('the app hands the page to DisabledPage', async () => {
-  const source = await readFile(new URL('../ui/App.jsx', import.meta.url), 'utf8');
-  assert.match(source, /<DisabledPage page=\{page\} \/>/);
+test('the app hands a disabled examprep page to DisabledPage and routes 前往设置 to Settings', async () => {
+  await withBrowserGlobals(async () => {
+    const appUi = await loadInteractiveUi(`
+      export { default as App } from './ui/App.jsx';
+      export { writeWarmSnapshot, writeWarmView, resetWarmSessions } from './ui/app/warm-session.js';
+      export { setUiLanguage } from './ui/i18n.js';
+    `);
+    const warmKey = 'exam-prep-disabled-app-test';
+    const root = '/exam-prep-disabled';
+    const baseSnapshot = {
+      root,
+      decks: [],
+      sources: [],
+      drafts: [],
+      jobs: [],
+      runs: [],
+      exams: [],
+      progress: {},
+      settings: {},
+    };
+    appUi.exports.setUiLanguage('zh');
+    appUi.exports.resetWarmSessions();
+    // Simulate landing back on examprep from a warm session right as the host turns examBlueprint off.
+    appUi.exports.writeWarmSnapshot(warmKey, {
+      binding: { root, provider: '', model: '' },
+      data: { ...baseSnapshot, fingerprint: 'fp-on', features: { examBlueprint: true } },
+    });
+    appUi.exports.writeWarmView(warmKey, root, 'main', { page: 'examprep' });
+
+    const call = async (action) => {
+      if (action === 'binding.get') return { root, provider: '', model: '' };
+      if (action === 'snapshot') return { ...baseSnapshot, fingerprint: 'fp-off', features: { examBlueprint: false } };
+      if (action === 'board.get') return { columns: [], cards: {} };
+      if (action === 'notebooks.list') return { notebooks: [] };
+      if (action === 'usage.settings.get') return { enabled: false };
+      return {};
+    };
+    const prevRaf = globalThis.requestAnimationFrame;
+    const prevCancelRaf = globalThis.cancelAnimationFrame;
+    globalThis.requestAnimationFrame = () => 0;
+    globalThis.cancelAnimationFrame = () => {};
+    const mounted = appUi.mount(() => appUi.React.createElement(appUi.exports.App, { call, host: { warmKey } }));
+    try {
+      await mounted.flush(8);
+      const area = mounted.find(node => node.props?.['data-usage-area'] === 'examprep');
+      assert.ok(area, 'App stays on the examprep page');
+      const words = mounted.text();
+      assert.match(words, /备考补习还没有开启/, 'App passes page="examprep" to DisabledPage');
+      assert.match(words, /在设置里被关掉了/);
+      assert.doesNotMatch(words, /这个页面需要的组件没有启用|插件管理器里启用它们/);
+
+      const settingsBtn = mounted.find(node => node.type === 'button' && typeof node.props?.onClick === 'function' && appUi.textOf(node).includes('前往设置'));
+      assert.ok(settingsBtn, 'DisabledPage renders the 前往设置 button inside App');
+      await mounted.act(() => click(settingsBtn));
+      await mounted.flush(4);
+      assert.ok(mounted.find(node => node.props?.['data-usage-area'] === 'settings'), 'clicking 前往设置 navigates App to settings');
+    } finally {
+      mounted.unmount();
+      appUi.exports.resetWarmSessions();
+      if (prevRaf === undefined) delete globalThis.requestAnimationFrame;
+      else globalThis.requestAnimationFrame = prevRaf;
+      if (prevCancelRaf === undefined) delete globalThis.cancelAnimationFrame;
+      else globalThis.cancelAnimationFrame = prevCancelRaf;
+    }
+  });
 });

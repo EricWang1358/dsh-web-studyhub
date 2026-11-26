@@ -23,6 +23,17 @@ export const KEY_LAYER_DRAWER = 300;
 export const KEY_LAYER_MODAL = 400;
 export const KEY_LAYER_TEXT_INPUT = 500;
 export const KEY_LAYER_SYSTEM = 600;
+/** SGR mouse fallback runs above system shortcuts inside the single dispatcher so non-wheel mouse frames never leak. */
+export const KEY_LAYER_MOUSE = 610;
+
+/**
+ * Explicit shell-level scope depth tiers (#1354 D1 / P1):
+ * Page modals & nested dialogs use natural nesting depth `1, 2, ...` (< 100), so shell
+ * overlays, the too-small viewport guard, and the Quit confirm dialog always stack above them.
+ */
+export const KEY_SCOPE_DEPTH_SHELL_OVERLAY = 100;
+export const KEY_SCOPE_DEPTH_TOO_SMALL = 200;
+export const KEY_SCOPE_DEPTH_QUIT_CONFIRM = 300;
 
 export interface KeyDispatchContext {
   /** Stop dispatching this keystroke to any lower-priority handlers. */

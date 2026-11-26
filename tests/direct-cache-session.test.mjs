@@ -6,7 +6,7 @@ import { createModelGateway } from '../lib/jobs/gateway.js';
 import { gatewayModels } from '../lib/contexts/generation/jobs/gateway-model.js';
 import { legacyModels } from '../lib/contexts/generation/jobs/legacy-model.js';
 import { usageFromTokenUsage } from '../lib/token-usage.js';
-import { OUTPUT_LIMIT } from '../lib/job-output.js';
+import { createOutputStore } from '../lib/job-output.js';
 import { GENERATION_TIMEOUT_MS } from '../lib/generation-limits.js';
 import { isTransientModelError, withModelRetry } from '../lib/model-retry.js';
 import { goldenRuntimeContracts } from './fixtures/unified-runtime-contract.mjs';
@@ -56,8 +56,25 @@ test('usageFromTokenUsage coerces null cache fields to 0 without dropping valid 
   assert.equal(usageFromTokenUsage({ inputTokens: 100, outputTokens: 50, cacheReadTokens: Number.NaN, cacheWriteTokens: 0 }), null);
 });
 
-test('OUTPUT_LIMIT is raised to 65536 chars for direct-mode output inspection', () => {
-  assert.equal(OUTPUT_LIMIT, 65536);
+test('createOutputStore defaults to a 65536-char ring buffer for direct-mode output inspection', () => {
+  const store = createOutputStore();
+  store.open('job-1', 'call-exact');
+  const exact = 'x'.repeat(65536);
+  store.append('job-1', 'call-exact', exact);
+  const full = store.read('job-1', 'call-exact', 0);
+  assert.equal(full.total, 65536);
+  assert.equal(full.text, exact);
+  assert.equal(full.reset, false);
+  assert.equal(store.size('job-1', 'call-exact'), 65536);
+
+  store.open('job-1', 'call-overflow');
+  const tail = 'b'.repeat(65536);
+  store.append('job-1', 'call-overflow', 'a'.repeat(1000) + tail);
+  const kept = store.read('job-1', 'call-overflow', 0);
+  assert.equal(kept.total, 66536);
+  assert.equal(kept.text, tail);
+  assert.equal(kept.reset, true);
+  assert.equal(store.size('job-1', 'call-overflow'), 65536);
 });
 
 test('modelServices keeps system prompt invariant when omitting local image payloads (appends note to prompt tail)', async () => {

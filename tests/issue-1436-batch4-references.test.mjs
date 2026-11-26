@@ -5,18 +5,16 @@
 // 3) Never silently ignore missing references when `allowMissingReferences` is not explicitly set (#851 guardrail preserved)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { createFakeModel } from '../scripts/fake-model.mjs';
-import { REFERENCE_MISSING_CODE, missingReferencesError, resolveQuestionReferences } from '../lib/question-references.js';
+import { missingReferencesError, resolveQuestionReferences } from '../lib/question-references.js';
 import { localizeAppMessage } from '../lib/application-messages.js';
 import { applyReferences } from '../lib/contexts/generation/generate/materials.js';
 
 test('#1436 Item 4a: resolveQuestionReferences fails closed on a missing sample with a structured code and Chinese message; an archived sample is still usable', () => {
-  assert.equal(REFERENCE_MISSING_CODE, 'reference-material-missing');
   const state = {
     sources: [
       { id: 'ref-active', title: '有效样题', text: '1. 什么是死锁？' },
@@ -27,7 +25,7 @@ test('#1436 Item 4a: resolveQuestionReferences fails closed on a missing sample 
   // Missing reference -> fails closed with structured Chinese error (no bare English)
   assert.throws(
     () => resolveQuestionReferences(state, { referenceSourceIds: ['ref-deleted'] }),
-    (err) => err?.code === REFERENCE_MISSING_CODE && /参考样题/.test(err.message) && !/A selected reference-question material is missing/.test(err.message),
+    (err) => err?.code === 'reference-material-missing' && /参考样题/.test(err.message) && !/A selected reference-question material is missing/.test(err.message),
     'missing reference must throw localized Chinese error with code reference-material-missing',
   );
 
@@ -42,7 +40,7 @@ test('#1436 Item 4a: resolveQuestionReferences fails closed on a missing sample 
   assert.deepEqual(allowed.map((s) => s.id), ['ref-active', 'ref-archived']);
 });
 
-test('#1436 Item 4b: applyReferences & draft-publish.js propagate allowMissingReferences cleanly', () => {
+test('#1436 Item 4b: applyReferences fails closed by default and allows missing references only when explicitly requested', () => {
   const state = {
     sources: [{ id: 'src-1', title: '讲义1', text: '正文内容' }],
   };
@@ -50,7 +48,7 @@ test('#1436 Item 4b: applyReferences & draft-publish.js propagate allowMissingRe
 
   assert.throws(
     () => applyReferences({ a: {}, s: state, previous: null, request: { ...request } }),
-    (err) => err?.code === REFERENCE_MISSING_CODE,
+    (err) => err?.code === 'reference-material-missing',
     'without allowMissingReferences, applyReferences must fail closed',
   );
 
@@ -58,9 +56,6 @@ test('#1436 Item 4b: applyReferences & draft-publish.js propagate allowMissingRe
   applyReferences({ a: { allowMissingReferences: true }, s: state, previous: null, request: reqAllowed });
   assert.deepEqual(reqAllowed.referenceSourceIds, []);
   assert.deepEqual(reqAllowed.questionReferences, []);
-
-  const draftPublishSrc = readFileSync(new URL('../lib/contexts/generation/draft-publish.js', import.meta.url), 'utf8');
-  assert.match(draftPublishSrc, /allowMissingReferences/, 'draft-publish.js must forward allowMissingReferences to draft.publish');
 });
 
 test('#1436 Item 4c: through the real service, continuing a draft works with an archived sample, fails with a code once the sample is deleted, and proceeds with allowMissingReferences', async (t) => {
@@ -91,7 +86,7 @@ test('#1436 Item 4c: through the real service, continuing a draft works with an 
   const saved = await wantMore();
   await assert.rejects(
     service.call('generate', { resumeDraftId: first.draftId, draftVersion: saved.draftVersion }),
-    (err) => err?.code === REFERENCE_MISSING_CODE && /参考样题/.test(err.message) && /allowMissingReferences/.test(err.message),
+    (err) => err?.code === 'reference-material-missing' && /参考样题/.test(err.message) && /allowMissingReferences/.test(err.message),
     'a deleted sample is refused with the code, and the message names the switch that exists today',
   );
   const allowed = await service.call('generate', { resumeDraftId: first.draftId, draftVersion: saved.draftVersion, allowMissingReferences: true });
@@ -102,7 +97,7 @@ test('#1436 Item 4c: through the real service, continuing a draft works with an 
 test('#1436 Item 4d: the missing-sample message is Chinese in the Chinese UI and English in the English UI, for generation and repair', () => {
   const generation = missingReferencesError({ missingCount: 2 });
   const repair = missingReferencesError({ missingCount: 1, archivedTitles: ['旧版样题'], task: '修题' });
-  for (const err of [generation, repair]) assert.equal(err.code, REFERENCE_MISSING_CODE);
+  for (const err of [generation, repair]) assert.equal(err.code, 'reference-material-missing');
   assert.match(generation.message, /^所选参考样题资料有 2 份已被删除或内容为空，无法按原样题出题。/);
   assert.match(repair.message, /含已归档：旧版样题/);
   for (const err of [generation, repair]) {
@@ -110,4 +105,52 @@ test('#1436 Item 4d: the missing-sample message is Chinese in the Chinese UI and
     assert.ok(!/[\u4e00-\u9fff]/.test(english.replace('旧版样题', '')), `no Chinese left in: ${english}`);
     assert.match(english, /allowMissingReferences: true/);
   }
+});
+
+test('#1436 Item 4e: draft.publish and draft.publish.start fail closed on a deleted sample by default and publish when allowMissingReferences: true is passed', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'study-1436-publish-refs-'));
+  const fake = createFakeModel({ latencyMs: 1 });
+  const service = new StudyService(root, { coach: false, complete: (system, prompt, context) => fake(system, prompt, context) });
+  t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true }); });
+
+  const lesson = await service.call('source.add', { title: 'Lesson', text: 'Architecture includes principles guiding design and evolution.' });
+  const sample = await service.call('source.add', { title: 'Sample paper', text: 'Sample question: which architecture is always best?' });
+  const started = await service.call('generate', { sourceIds: [lesson.id], referenceSourceIds: [sample.id], count: 1, kind: 'flashcard' });
+  const first = await service.call('job.wait', { jobId: started.jobId, timeoutSeconds: 30 });
+  assert.equal(first.status, 'complete', first.stage);
+
+  // Modify a card so publication must re-review it against the stored reference spec, then delete the sample.
+  const draft = (await service.call('export')).drafts.find((d) => d.id === first.draftId);
+  const edited = await service.call('draft.save', {
+    deck: {
+      ...draft,
+      cards: draft.cards.map((card, i) => (i === 0 ? { ...card, prompt: `${card.prompt} (revised)` } : card)),
+    },
+  });
+  await service.call('source.archive', { id: sample.id, archived: true });
+  await service.call('source.remove', { id: sample.id, confirm: true });
+
+  // Direct draft.publish fails closed with structured code reference-material-missing.
+  await assert.rejects(
+    service.call('draft.publish', { id: first.draftId, draftVersion: edited.draftVersion }),
+    (err) => err?.code === 'reference-material-missing' && /allowMissingReferences: true/.test(err.message),
+  );
+
+  // Background draft.publish.start fails by default without allowMissingReferences and leaves the draft unpublished.
+  const blockedStart = await service.call('draft.publish.start', { id: first.draftId, draftVersion: edited.draftVersion });
+  const blockedJob = await service.call('job.wait', { jobId: blockedStart.jobId, timeoutSeconds: 30 });
+  assert.equal(blockedJob.status, 'failed');
+  assert.match(blockedJob.stage, /参考样题资料已不存在或已归档/);
+  assert.match(blockedJob.stage, /allowMissingReferences: true/);
+
+  // Explicit allowMissingReferences: true is forwarded by draft.publish.start and publishes cleanly.
+  const allowedStart = await service.call('draft.publish.start', {
+    id: first.draftId,
+    draftVersion: edited.draftVersion,
+    allowMissingReferences: true,
+  });
+  const allowedJob = await service.call('job.wait', { jobId: allowedStart.jobId, timeoutSeconds: 30 });
+  assert.equal(allowedJob.status, 'complete', allowedJob.stage);
+  assert.ok(allowedJob.deckId, 'published deckId should be returned');
+  assert.ok(allowedJob.accepted >= 1, 'at least one card should be published');
 });

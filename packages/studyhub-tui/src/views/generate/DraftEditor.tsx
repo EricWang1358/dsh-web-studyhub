@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
-import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
+import { useKeyScope } from '../../components/key-dispatcher.js';
+import { isPlainKey } from '../../input/global-router.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -12,7 +13,7 @@ import { Panel } from '../../components/Panel.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
-import { useClaimKeys, useInputCapture } from '../../components/focus.js';
+import { useInputCapture } from '../../components/focus.js';
 import { computeFilterBarLayout } from '../../components/layout-tokens.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { useShellActions } from '../../shell/actions.js';
@@ -673,11 +674,12 @@ export const DraftEditor = memo(function DraftEditor({
 
   const mainListActive = isActive && overlay === 'none';
   const canUndoRemove = Boolean(draft && lastRemoved && lastRemoved.draftId === draft.id);
-  useClaimKeys(
-    canUndoRemove
-      ? ['e', 'x', 'X', '/', 'u', 's', 'S', 'R', 'V', 'P', 'D', 'd', 'n']
-      : ['e', 'x', 'X', '/', 's', 'S', 'R', 'V', 'P', 'D', 'd', 'n'],
-    mainListActive && !filterEditing,
+  const draftClaimedKeys = useMemo(
+    () =>
+      canUndoRemove
+        ? ['e', 'x', 'X', '/', 'u', 's', 'S', 'R', 'V', 'P', 'D', 'd', 'n']
+        : ['e', 'x', 'X', '/', 's', 'S', 'R', 'V', 'P', 'D', 'd', 'n'],
+    [canUndoRemove],
   );
   useInputCapture(isActive && overlay === 'edit-card');
 
@@ -713,95 +715,122 @@ export const DraftEditor = memo(function DraftEditor({
     setOverlay('none');
   }, [editCardDirty]);
 
-  useInput(
-    (input, key) => {
-      if (confirmDiscardEdit) return;
+  useKeyScope({
+    id: 'generate:draft-editor:overlays',
+    active: isActive && (overlay === 'edit-card' || overlay === 'publish-plan') && !confirmDiscardEdit,
+    onKey: (input, key) => {
       if (overlay === 'edit-card') {
-        if (key.ctrl && input === 'n') {
+        if (key.ctrl && !key.meta && input === 'n') {
           setEditField((f) => (f === 'prompt' ? 'explanation' : 'prompt'));
-        } else if (key.ctrl && input === 's') {
-          saveEditCard();
+          return true;
         }
-        return;
+        if (key.ctrl && !key.meta && input === 's') {
+          saveEditCard();
+          return true;
+        }
+        return false;
       }
-
       if (overlay === 'publish-plan') {
-        if (input === 'q' || input === 'Q') {
+        const plain = isPlainKey(input, key);
+        if (plain && (input === 'q' || input === 'Q')) {
           closePublishPlan();
-        } else if (input === 'r' || input === 'R') {
+          return true;
+        }
+        if (plain && (input === 'r' || input === 'R')) {
           void runPublishPlan();
-        } else if (
-          (input === 'p' || input === 'P' || key.return) &&
+          return true;
+        }
+        if (
+          ((!key.ctrl && !key.meta && key.return) || (plain && (input === 'p' || input === 'P'))) &&
           !planLoading &&
           !planError &&
           (planData?.expect?.receipt?.accepted ?? 0) > 0
         ) {
           setOverlay('publish-confirm');
+          return true;
         }
-        return;
+        return false;
       }
+      return false;
+    },
+  });
 
-      if (!mainListActive || filterEditing) return;
-
+  useKeyScope({
+    id: 'generate:draft-editor',
+    active: mainListActive && !filterEditing && !confirmDiscardEdit,
+    keys: draftClaimedKeys,
+    onKey: (input, key) => {
       if (key.escape && filterQuery) {
         setFilterQuery('');
         return true;
       }
+      if (!isPlainKey(input, key)) return false;
 
       if (input === 'd' && draftsList.length > 0) {
         const idx = Math.max(0, draftsList.findIndex((item) => item.id === selectedDraftId));
         setDraftPickerIdx(idx);
         setOverlay('pick-draft');
-        return;
+        return true;
       }
 
-      if (!draft) return;
+      if (!draft) return false;
 
-      if (input === '/' && !key.ctrl && !key.meta) {
+      if (input === '/') {
         setFilterEditing(true);
-        return;
+        return true;
       }
 
-      if (input === 'X' && !key.ctrl && !key.meta) {
+      if (input === 'X') {
         void exportDraftMarkdown();
-        return;
+        return true;
       }
 
       if (input === 'u' && lastRemoved && lastRemoved.draftId === draft.id) {
         void undoRemoveCard();
-        return;
+        return true;
       }
 
       if (input === 'V') {
         void runPublishPlan();
-        return;
+        return true;
       }
 
-      if (!selectedCard) return;
+      if (!selectedCard) return false;
 
       if (input === 'e') {
         setEditPrompt(String(selectedCard.prompt || ''));
         setEditExplanation(String(selectedCard.explanation || ''));
         setEditField('prompt');
         setOverlay('edit-card');
-      } else if (input === 'x') {
+        return true;
+      }
+      if (input === 'x') {
         if (draft.cards.length <= 1) {
           notify(t(lang, '最后一道题请使用 [D] 删除整份草稿', 'Use [D] to delete the whole draft'), 'warning');
-          return;
+          return true;
         }
         setOverlay('delete-card');
-      } else if (input === 'R') {
-        void repairDraft();
-      } else if (input === 'S' || input === 's') {
-        void checkSimilar();
-      } else if (input === 'P') {
-        setOverlay('publish-confirm');
-      } else if (input === 'D') {
-        setOverlay('delete-draft');
+        return true;
       }
+      if (input === 'R') {
+        void repairDraft();
+        return true;
+      }
+      if (input === 'S' || input === 's') {
+        void checkSimilar();
+        return true;
+      }
+      if (input === 'P') {
+        setOverlay('publish-confirm');
+        return true;
+      }
+      if (input === 'D') {
+        setOverlay('delete-draft');
+        return true;
+      }
+      return false;
     },
-    { isActive },
-  );
+  });
 
   const cardMarkdown = useMemo(() => {
     if (!selectedCard) return '';

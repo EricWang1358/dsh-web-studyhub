@@ -8,6 +8,13 @@ import {
   toPureAscii,
   type ParsedCliArgs,
 } from './cli-args.js';
+import {
+  countsInScope,
+  getProgressMap,
+  selectCourseScope,
+  selectDeckMetrics,
+  type StudySnapshotLike,
+} from './selectors/study-metrics.js';
 
 export interface ExportReceipt {
   ok: true;
@@ -474,27 +481,12 @@ interface SnapshotDeckLike {
   mastery?: number;
 }
 
-interface SnapshotProgressLike {
-  total?: number;
-  due?: number;
-  mastery?: number;
-  counts?: {
-    new?: number;
-    weak?: number;
-  };
-}
-
-function finiteNonNeg(val: unknown): number {
-  const n = Number(val);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
-}
-
 /**
  * Build a deterministic offline due-queue report from a StudySnapshot.
  */
 export function buildDueReport(opts: {
   libraryRoot: string;
-  snapshot: { decks?: SnapshotDeckLike[]; progress?: Record<string, unknown> } | null | undefined;
+  snapshot: { decks?: SnapshotDeckLike[]; progress?: Record<string, unknown>; courses?: StudySnapshotLike['courses'] } | null | undefined;
   courseFilter?: string;
   limit?: number;
   version?: string;
@@ -502,13 +494,10 @@ export function buildDueReport(opts: {
 }): DueCliReport {
   const snap = opts.snapshot ?? {};
   const rawDecks = Array.isArray(snap.decks) ? snap.decks : [];
-  const progress = (snap.progress && typeof snap.progress === 'object' ? snap.progress : {}) as Record<
-    string,
-    SnapshotProgressLike | undefined
-  >;
+  const progress = getProgressMap(snap);
   const courseFilterRaw = (opts.courseFilter ?? '').trim();
-  const courseNeedle = courseFilterRaw.toLowerCase();
   const limit = Math.max(1, Math.min(100, Math.trunc(opts.limit ?? 20)));
+  const scope = selectCourseScope(snap, courseFilterRaw || null, { fuzzy: true });
 
   const matched: DueDeckEntry[] = [];
   let totalDue = 0;
@@ -518,19 +507,17 @@ export function buildDueReport(opts: {
   let decksWithDue = 0;
 
   for (const deck of rawDecks) {
-    if (!deck || typeof deck !== 'object' || deck.archived || deck.systemKind) continue;
+    if (!countsInScope(deck, scope)) continue;
     const id = strVal(deck.id);
     if (!id) continue;
     const course = singleLine(deck.course);
-    if (courseNeedle && !course.toLowerCase().includes(courseNeedle)) continue;
 
-    const p = progress[id];
-    const total = finiteNonNeg(deck.count ?? deck.cardCount ?? p?.total);
-    const due = finiteNonNeg(p?.due ?? deck.due ?? deck.dueCount);
-    const weak = finiteNonNeg(deck.wrong ?? deck.wrongCount ?? p?.counts?.weak);
-    const newCount = finiteNonNeg(p?.counts?.new ?? deck.newCount);
-    const rawMastery = typeof p?.mastery === 'number' ? p.mastery : typeof deck.mastery === 'number' ? deck.mastery : 0;
-    const mastery = Number.isFinite(rawMastery) ? Math.max(0, Math.min(100, Math.round(rawMastery))) : 0;
+    const m = selectDeckMetrics(deck, progress);
+    const total = m.total;
+    const due = m.due;
+    const weak = m.weak;
+    const newCount = m.newCount;
+    const mastery = m.mastery;
 
     totalDue += due;
     totalWeak += weak;
