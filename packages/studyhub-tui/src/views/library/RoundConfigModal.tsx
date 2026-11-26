@@ -8,6 +8,12 @@ import { Badge, Spinner } from '../../components/Badge.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/sample-actions.js';
+import {
+  getProgressMap,
+  selectDeckMetrics,
+  selectInactiveCourseKeys,
+  selectStudySummary,
+} from '../../selectors/study-metrics.js';
 
 export type RoundScope = 'deck' | 'course' | 'all';
 export type RoundFilter = 'all' | 'due' | 'new' | 'wrong';
@@ -25,15 +31,6 @@ export interface RoundConfigModalProps {
 
 type DeckItem = NonNullable<StudySnapshot['decks']>[number];
 
-interface DeckProgressEntry {
-  total?: number;
-  due?: number;
-  counts?: {
-    new?: number;
-    weak?: number;
-  };
-}
-
 const ROUND_FILTERS: readonly RoundFilter[] = ['all', 'due', 'new', 'wrong'];
 const ROUND_SIZES: readonly number[] = [5, 10, 15, 20, 30, 50];
 const ROW_COUNT = 4;
@@ -49,15 +46,6 @@ function defaultRoundSize(snapshot: StudySnapshot | null): number {
   const raw = Number((snapshot?.settings as { practice?: { roundSize?: unknown } } | undefined)?.practice?.roundSize);
   if (ROUND_SIZES.includes(raw)) return raw;
   return 20;
-}
-
-function readDeckCounts(deck: DeckItem, progressMap: Record<string, DeckProgressEntry> | undefined) {
-  const p = progressMap?.[deck.id];
-  const total = Number(deck.count ?? p?.total ?? deck.cardCount ?? 0) || 0;
-  const due = Number(p?.due ?? deck.due ?? deck.dueCount ?? 0) || 0;
-  const newCount = Number(p?.counts?.new ?? deck.newCount ?? 0) || 0;
-  const wrong = Number(deck.wrong ?? p?.counts?.weak ?? deck.wrongCount ?? 0) || 0;
-  return { total, due, newCount, wrong };
 }
 
 export const RoundConfigModal = memo(function RoundConfigModal({
@@ -119,35 +107,23 @@ export const RoundConfigModal = memo(function RoundConfigModal({
   const effectiveScope: RoundScope = availableScopes.includes(scope) ? scope : availableScopes[0];
 
   const poolStats = useMemo(() => {
-    const progressMap = snapshot?.progress as Record<string, DeckProgressEntry> | undefined;
     if (effectiveScope === 'deck' && usableDeck) {
-      return readDeckCounts(usableDeck, progressMap);
+      const m = selectDeckMetrics(usableDeck, getProgressMap(snapshot));
+      return { total: m.total, due: m.due, newCount: m.newCount, wrong: m.weak };
     }
-    const inactiveCourses = new Set(
-      (snapshot?.courses ?? [])
-        .filter((c) => c.active === false)
-        .map((c) => String(c.name || c.id || ''))
-        .filter(Boolean),
+    const excludeInactiveCourses = effectiveScope === 'all' ? selectInactiveCourseKeys(snapshot) : undefined;
+    const summary = selectStudySummary(
+      snapshot,
+      effectiveScope === 'course' ? resolvedCourse : null,
+      excludeInactiveCourses ? { excludeInactiveCourses } : undefined,
     );
-    let total = 0;
-    let due = 0;
-    let newCount = 0;
-    let wrong = 0;
-    for (const d of decks) {
-      if (d.archived || (d as Record<string, unknown>).systemKind) continue;
-      if (effectiveScope === 'course' && resolvedCourse) {
-        if (d.course !== resolvedCourse) continue;
-      } else if (effectiveScope === 'all' && d.course && inactiveCourses.has(d.course)) {
-        continue;
-      }
-      const c = readDeckCounts(d, progressMap);
-      total += c.total;
-      due += c.due;
-      newCount += c.newCount;
-      wrong += c.wrong;
-    }
-    return { total, due, newCount, wrong };
-  }, [snapshot?.progress, snapshot?.courses, effectiveScope, usableDeck, decks, resolvedCourse]);
+    return {
+      total: summary.totalCards,
+      due: summary.due,
+      newCount: summary.newCount,
+      wrong: summary.weak,
+    };
+  }, [snapshot, effectiveScope, usableDeck, resolvedCourse]);
 
   const deckDisplayTitle = useMemo(() => {
     if (usableDeck) return String(usableDeck.title ?? usableDeck.name ?? usableDeck.id);
