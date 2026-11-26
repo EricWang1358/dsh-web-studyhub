@@ -206,6 +206,7 @@ test('stage 0 refuses with a code, no model call and no task: no course, all cou
   await refused(w.build({ course: 'Empty course' }), 'course-outline-no-materials');
   await refused(w.build({ supersedes: 'handout-1' }), 'course-outline-supersedes-invalid');
   assert.deepEqual([w.fake.calls.length, w.jobs().length], [0, 0]);
+  assert.deepEqual(await w.outlines(), [], 'nothing saved');
   await refused((await world(t, { runtime: false })).build(), 'executor-unavailable');
 });
 

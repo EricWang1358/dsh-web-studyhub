@@ -4,7 +4,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { inApp } from './helpers/fake-app.mjs';
-import { shortCauseOf, THIN_CHARS } from '../lib/generation-failure.js';
+import { shortCauseOf } from '../lib/generation-failure.js';
 import { recordAttempts, runFacts, roundList, REPEAT_LIMIT } from '../lib/coverage-run.js';
 import { stageArgsOf } from '../lib/contexts/jobs/contracts.js';
 import { observeJob } from '../lib/job-calls.js';
@@ -36,7 +36,6 @@ const p18 = { key: 'pdf#p18', page: 18, sourceId: 'pdf', start: 1000, end: 2600,
 const p19 = { key: 'pdf#p19', page: 19, sourceId: 'pdf', start: 2600, end: 4000, reason: 'plan-short', attempts: 2, rounds: [{ round: 1 }, { round: 2, fill: true }], short: { needed: 3, got: 2, chars: 1400, returned: 3, outside: 1 } };
 
 test('a section that came back short has ONE cause, told apart from what the run recorded (never a cause the data cannot tell)', () => {
-  assert.equal(THIN_CHARS, 300);
   assert.equal(shortCauseOf({ needed: 3, got: 1, returned: 1, outside: 0 }), 'fewer', 'the model gave fewer than asked');
   assert.equal(shortCauseOf({ needed: 3, got: 0, returned: 0, outside: 0 }), 'empty', 'the model gave none');
   assert.equal(shortCauseOf({ needed: 3, got: 0, returned: 2, outside: 2 }), 'quote', 'every point it gave quoted text that is not on the page');
@@ -101,7 +100,8 @@ test('each cause has its own sentence, and a thin page is said with its real len
   assert.equal(why({ needed: 3, got: 0, why: 'reply', chars: 1600 }), '模型的回复读不出来（格式错误或被截断）');
   assert.equal(why({ needed: 3, got: 1 }), '记录里只有数量：计划要 3 个，模型给出 1 个', 'only the counts are known: that is what is said');
   assert.equal(why({ needed: 3, got: 0, returned: 0, outside: 0, chars: 120 }), '补问一次后，模型一个考点也没给出；这一页只有约 120 个字，文字很少，可能是空白页、纯图片页或附录');
-  assert.equal(why({ needed: 3, got: 1, returned: 1, outside: 0, chars: THIN_CHARS }), '补问一次后，模型仍只给出 1 个', 'a page of the threshold length is not called thin');
+  assert.equal(why({ needed: 3, got: 1, returned: 1, outside: 0, chars: 299 }), '补问一次后，模型仍只给出 1 个；这一页只有约 300 个字，文字很少，可能是空白页、纯图片页或附录', 'below 300 chars a page is called thin (rounded to 10 chars)');
+  assert.equal(why({ needed: 3, got: 1, returned: 1, outside: 0, chars: 300 }), '补问一次后，模型仍只给出 1 个', 'a page of 300 chars is not called thin');
   assert.equal(why(undefined), '');
   assert.equal(why({ needed: NaN }), '');
   inLanguage('en', () => { for (const short of [{ needed: 3, got: 0, returned: 0, outside: 0, chars: 120 }, { needed: 3, got: 0, why: 'refused' }, { needed: 3, got: 1 }]) assert.doesNotMatch(why(short), han); });
