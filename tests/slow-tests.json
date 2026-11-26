@@ -215,6 +215,7 @@
     "tests/audio-retry.test.mjs",
     "tests/audio-single-characterization.test.mjs",
     "tests/changelog-fragments.test.mjs",
+    "tests/ci-workflow-gates.test.mjs",
     "tests/convert-edit-browser.test.mjs",
     "tests/convert-edit.test.mjs",
     "tests/course-book-export-pandoc.test.mjs",

@@ -76,7 +76,17 @@ node packages/studyhub-spring/studyhub-platform-shell/pack.mjs app-image
 
 `pack.mjs` 会输出本次 app-image 的目录。在同一操作系统再次调用该脚本，指定 `msi`、`exe`、`deb` 或 `rpm`，再传入 `"--app-image=<完整应用镜像目录>"`。Windows 使用 WiX 3、.NET Framework 编译器和 WebView2 Runtime，`WIX_BIN` 可以指向已有的 WiX 工具目录。Linux 的安装包构建需要 `fakeroot` 或 RPM 构建工具。
 
-跨语言套件会运行真实 Node 和 Spring 服务、用两个浏览器配置导航材料库，并核对错误响应、状态写入及 SSE。ArchUnit 检查领域、平台适配器和应用用例的依赖方向。在 Track S 目录运行 `node studyhub-platform-shell/verification/desktop-lifecycle.mjs "<启动器或可执行 JAR>" --editor` 可验证打包后的 PDF → 出题 → 刷卡 → 重启流程，并在 Chromium 中打开编辑器检查拒审提示。模型响应由回环 HTTP 测试服务提供。路径触发的 CI 在 PR 上使用 Ubuntu，手动或发布时增加 Windows 安装包构建。
+跨语言套件会运行真实 Node 和 Spring 服务、用两个浏览器配置导航材料库，并核对错误响应、状态写入及 SSE。ArchUnit 检查领域、平台适配器和应用用例的依赖方向。在 Track S 目录运行 `node studyhub-platform-shell/verification/desktop-lifecycle.mjs "<启动器或可执行 JAR>" --editor` 可验证打包后的 PDF → 出题 → 刷卡 → 重启流程，并在 Chromium 中打开编辑器检查拒审提示。模型响应由回环 HTTP 测试服务提供。路径触发的 CI 在 PR 上使用 Ubuntu，手动运行或发布 Spring 预发布版本时增加 Windows 安装包构建。Spring 检查只在改动 `packages/studyhub-spring/` 或 `.github/workflows/spring-platform.yml` 时阻止合并；其他改动也会运行它，失败只作提示。
+
+## 发布 beta
+
+Spring 只以 beta 预发布形式出现在 GitHub 上，从不作为最新版本，也不在主产品的发布说明或下载页中出现。
+
+- 标签格式：`spring-v<semver>-beta.<n>`，例如 `spring-v0.1.1-beta.1`。
+- 在 GitHub 上发布时必须勾选 **Set as a pre-release**，并且不要勾选 **Set as the latest release**。`spring-platform.yml` 只在「预发布 + 标签以 `spring-` 开头」时构建 deb、rpm、msi 和 exe；主产品的发布和未标为预发布的 Spring 标签都不会触发构建。
+- Spring 标签绝不能以 `v` 加数字开头（如 `v0.1.1`）。`release.yml` 和 `release-desktop.yml` 会对 `v[0-9]*` 标签发布主产品并把它标为最新版本。
+
+Spring ships only as a GitHub **prerelease** tagged `spring-v<semver>-beta.<n>`, never as the latest release. Its installers are built only for a published prerelease whose tag starts with `spring-`. A Spring tag must never start with `v` followed by a digit, because the main-product release workflows publish every `v[0-9]*` tag and mark it latest.
 
 ### 0.1.1 本地验收
 

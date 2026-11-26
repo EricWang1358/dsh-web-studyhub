@@ -2,7 +2,13 @@ name: StudyHub Spring platform
 
 on:
   workflow_call:
+    outputs:
+      required:
+        description: "'true' when the change touches Spring itself, so verify lets this workflow's result block it"
+        value: ${{ jobs.inputs.outputs.required }}
   workflow_dispatch:
+  # Spring is a beta experiment: only a GitHub prerelease tagged spring-v<semver>-beta.<n> builds its installers (see the inputs job and
+  # packages/studyhub-spring/README.md). A main-product release (v<digit>...) also publishes here and must do nothing.
   release:
     types: [published]
 
@@ -14,11 +20,14 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
 
 jobs:
+  # Every other job needs this one, so its release guard stops the whole workflow for any release that is not a Spring prerelease.
   inputs:
+    if: github.event_name != 'release' || (github.event.release.prerelease && startsWith(github.event.release.tag_name, 'spring-'))
     runs-on: ubuntu-latest
     timeout-minutes: 2
     outputs:
       build: ${{ steps.changes.outputs.build }}
+      required: ${{ steps.changes.outputs.required }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,7 +36,9 @@ jobs:
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
+          # build: Spring ships with this code, so run its checks. required: the change is Spring itself, so a red result blocks it.
           build=true
+          required=false
           if [[ -n "$BASE" && "$BASE" != 0000000000000000000000000000000000000000 ]]; then
             if git cat-file -e "$BASE^{commit}" || git fetch --depth=1 origin "$BASE"; then
               if git diff --quiet "$BASE" HEAD -- packages/studyhub-spring packages/studyhub-desktop lib ui locale \
@@ -35,9 +46,13 @@ jobs:
                   .npmrc .github/actions/setup-chromium .github/workflows/spring-platform.yml .github/workflows/verify.yml; then
                 build=false
               fi
+              if ! git diff --quiet "$BASE" HEAD -- packages/studyhub-spring .github/workflows/spring-platform.yml; then
+                required=true
+              fi
             fi
           fi
           echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "required=$required" >> "$GITHUB_OUTPUT"
   linux:
     needs: inputs
     if: needs.inputs.outputs.build == 'true'
@@ -118,6 +133,7 @@ jobs:
             packages/studyhub-spring/studyhub-platform-shell/target/packaging/*/*.rpm
             packages/studyhub-spring/studyhub-sync-api/target/*-relay.jar
   windows:
+    needs: inputs
     if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     timeout-minutes: 40
