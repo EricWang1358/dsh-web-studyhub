@@ -7,7 +7,6 @@ import { readFile, mkdir, access } from "node:fs/promises";
 import { join, resolve, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
-import { createHostHandler, servicesForHost, unverifiedModelStatus } from "../lib/host.js";
 import { localizeAppMessage } from "../lib/application-messages.js";
 import { MAX_REQUEST_BYTES } from "../lib/documents.js";
 import { createFakeModel, FAKE_MODEL_ROUTE } from "./fake-model.mjs";
@@ -70,7 +69,8 @@ function previewModel(model, fakeLatencyMs) {
  * state: the library is the --library folder itself, and choosing another one
  * in Settings lasts for this preview without writing a binding file.
  */
-function previewHost(workspaceRoot, model, efforts = [], retrieval = null, coverage = null, runtimePilot = null) {
+async function previewHost(workspaceRoot, model, efforts = [], retrieval = null, coverage = null, runtimePilot = null) {
+  const { createHostHandler, servicesForHost, unverifiedModelStatus } = await import("../lib/host.js");
   const disposers = [];
   const [kind, installed] = String(retrieval ?? "").split("@");
   const extension = kind === "extension" ? createFakeExtension({ installed }) : null;
@@ -158,7 +158,7 @@ export async function createPreviewServer({ libraryRoot, port = 4178, model = nu
   if (await access(join(workspaceRoot, ".dsh-study-binding.json")).then(() => true, () => false))
     console.warn(`[study-preview] ${join(workspaceRoot, ".dsh-study-binding.json")} (saved by DSH) chooses the library; pass another --library to preview this folder itself.`);
   const token = randomBytes(24).toString("hex");
-  const host = previewHost(workspaceRoot, previewModel(model, fakeLatencyMs), efforts, retrieval, coverage, runtimePilot);
+  const host = await previewHost(workspaceRoot, previewModel(model, fakeLatencyMs), efforts, retrieval, coverage, runtimePilot);
   let actualPort = port;
   const json = (res, status, value) => res.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store" })
     .end(JSON.stringify(value));

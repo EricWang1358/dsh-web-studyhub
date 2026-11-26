@@ -11,14 +11,12 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createPreviewServer, previewCall } from "../preview-server.mjs";
-import { createFakeModel } from "../fake-model.mjs";
-import { StudyService } from "../../lib/service.js";
 import { Store } from "../../lib/store.js";
 import { seedLibrary } from "./perf-seed.mjs";
 import { launchChromium } from "./browser.mjs";
 import { scrubProcessEnv } from "./env.mjs";
 import { drainLayoutStability, installLayoutObserver, judgeLayoutStability } from "./layout-stability.mjs";
+import { SELF_GRADE_ADVANCE_KEY } from "../../ui/review/session-logic.js";
 import { revealNavRow } from "./nav-reveal.mjs";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
@@ -47,6 +45,7 @@ const hash = (n) => n.toString(16).padStart(8, "0").repeat(8);
 
 /** `documents` materials the way a real library has them: every fourth is a PDF of several pages, the rest are single notes. */
 export async function seedPickerLibrary(root, { documents = 132, lang = "zh" } = {}) {
+  const { StudyService } = await import("../../lib/service.js");
   await mkdir(root, { recursive: true });
   const service = new StudyService(root);
   await service.call("snapshot");
@@ -89,6 +88,7 @@ export async function seedWrongBookLibrary(root, { wrong = 72 } = {}) {
 /** The evidence of #207: one lecture PDF, its text version stored under the host's attachment path, and its diagram-normalized text; stored as old libraries have them. */
 export const HOST_PATH_TITLE = "C:\\Users\\Eric1\\.dsh\\attachments\\v1\\files\\15\\15dd8b13a5318c2f6e1d\\01. Introduction to Solution Architecture v2.1.pdf";
 export async function seedTitlesLibrary(root) {
+  const { StudyService } = await import("../../lib/service.js");
   const service = new StudyService(root);
   await service.call("snapshot");
   const name = "01. Introduction to Solution Architecture v2.1.pdf", at = new Date().toISOString();
@@ -105,6 +105,7 @@ export async function seedTitlesLibrary(root) {
 
 /** The preview on a fresh library under the OS temp dir. `seed(root)` writes the library before the server starts. */
 export async function startLateServer({ distDir, seed, lang = "zh" } = {}) {
+  const [{ createPreviewServer, previewCall }, { createFakeModel }] = await Promise.all([import("../preview-server.mjs"), import("../fake-model.mjs")]);
   scrubProcessEnv();
   const base = await mkdtemp(join(tmpdir(), "study-late-"));
   const root = join(base, "library");
@@ -114,9 +115,12 @@ export async function startLateServer({ distDir, seed, lang = "zh" } = {}) {
     close: async () => { await server.close(); await rm(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); } };
 }
 
-export async function openPage(browser, running, { lang = "zh", theme = "dark", width = 1280, height = 900, timezoneId } = {}) {
+export async function openPage(browser, running, { lang = "zh", theme = "dark", width = 1280, height = 900, timezoneId, selfGradeAdvance } = {}) {
   const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1, locale: lang === "en" ? "en-US" : "zh-CN", colorScheme: theme, ...(timezoneId ? { timezoneId } : {}) });
   await context.addInitScript(([l, t]) => { try { localStorage.setItem("study-ui-language", l); localStorage.setItem("study-theme", t); } catch { /* blocked */ } }, [lang, theme]);
+  if (typeof selfGradeAdvance === "boolean") {
+    await context.addInitScript(([key, value]) => localStorage.setItem(key, value), [SELF_GRADE_ADVANCE_KEY, selfGradeAdvance ? "1" : "0"]);
+  }
   await context.addInitScript(installLayoutObserver);
   const page = await context.newPage();
   const errors = [];
@@ -359,6 +363,7 @@ export async function shellScenario({ browser, running, lang = "zh", theme = "da
 export const RESULT_DECK = "Consistency models";
 /** One deck of three new flashcards: a round of it goes from 0% to more. */
 export async function seedResultLibrary(root) {
+  const { StudyService } = await import("../../lib/service.js");
   await mkdir(root, { recursive: true });
   const service = new StudyService(root);
   await service.call("snapshot");
