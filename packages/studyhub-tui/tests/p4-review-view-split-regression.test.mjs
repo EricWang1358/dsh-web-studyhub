@@ -21,15 +21,20 @@ const [
   reviewModel,
   { useTuiStore, DEFAULT_PREFERENCES },
   { useKeyDispatcherBridge },
+  { getHub, dispatchToHub },
+  { useMouseClickInputFallback },
 ] = await Promise.all([
   import('../src/views/review/ReviewView.tsx'),
   import('../src/views/review/review-view-model.ts'),
   import('../src/state/store.ts'),
   import('../src/input/hooks.ts'),
+  import('../src/input/dispatcher.ts'),
+  import('../src/components/mouse.tsx'),
 ]);
 
 function KeyBridgeRoot({ width, height, children }) {
   useKeyDispatcherBridge();
+  useMouseClickInputFallback(true);
   return React.createElement(Box, { width, height }, children);
 }
 
@@ -59,6 +64,7 @@ function createHarness(element, { cols = 116, rows = 34 } = {}) {
 
   return {
     write: (data) => stdin.write(data),
+    dispatchKey: (input, key = {}) => dispatchToHub(getHub(stdin), input, key),
     frame: () => latest,
     async waitFor(pred, timeoutMs = 4000, label = 'condition') {
       const start = Date.now();
@@ -715,5 +721,271 @@ describe('P4 (#1354 D12): ReviewView Split Behavioral & Interaction Regressions'
       ],
     );
     assert.equal(count, 3);
+  });
+
+  test('7. Clicking 3-wrong attribution banner focuses AssistantPanel in guided mode (no focus regression)', async () => {
+    const cards = [
+      { id: 'ws-1', kind: 'single', topic: '虚拟内存', prompt: '连错题 1', options: [{ id: 'A', text: '正' }, { id: 'B', text: '误' }] },
+      { id: 'ws-2', kind: 'single', topic: '虚拟内存', prompt: '连错题 2', options: [{ id: 'A', text: '正' }, { id: 'B', text: '误' }] },
+      { id: 'ws-3', kind: 'single', topic: '虚拟内存', prompt: '连错题 3', options: [{ id: 'A', text: '正' }, { id: 'B', text: '误' }] },
+    ];
+    let idx = 0;
+    const makeRun = (i, wrong) => ({
+      id: 'run-ws',
+      mode: 'path',
+      title: '连错横幅测试',
+      deckId: 'd-ws',
+      index: i,
+      total: 3,
+      answered: wrong ? i + 1 : i,
+      queueVersion: 1,
+      card: cards[i],
+      revealed: Boolean(wrong),
+      feedback: wrong ? { correct: false, grade: 1, selected: ['B'] } : null,
+      solution: { answer: 'A', explanation: '解析内容' },
+      navigation: cards.map((c, ci) => ({ index: ci, cardId: c.id, deckId: 'd-ws', status: ci < i ? 'done' : 'pending' })),
+    });
+
+    const { host } = makeBaseHost(async (name) => {
+      if (name === 'review.start' || name === 'review.get') return { ok: true, value: makeRun(idx, false) };
+      if (name === 'review.answer') return { ok: true, value: makeRun(idx, true) };
+      if (name === 'review.move') {
+        idx = Math.min(2, idx + 1);
+        return { ok: true, value: makeRun(idx, false) };
+      }
+      return { ok: true, value: makeRun(idx, false) };
+    });
+
+    resetStore({
+      preferences: { ...DEFAULT_PREFERENCES, language: 'zh', asciiMode: true, proactiveHints: true },
+    });
+    const h = createHarness(React.createElement(ReviewView, { host, width: 116, height: 34, isActive: true }));
+    try {
+      await h.waitFor((s) => s.includes('连错题 1'), 4000, 'ws card 1');
+      h.write('2');
+      await h.waitFor((s) => s.includes('回答有误'), 4000, 'ws wrong 1');
+      h.write('.');
+      await h.waitFor((s) => s.includes('连错题 2'), 4000, 'ws card 2');
+      h.write('2');
+      await h.waitFor((s) => s.includes('连错题 2') && s.includes('回答有误'), 4000, 'ws wrong 2');
+      h.write('.');
+      await h.waitFor((s) => s.includes('连错题 3'), 4000, 'ws card 3');
+      h.write('2');
+      const frame = await h.waitFor((s) => s.includes('连续答错 3 题'), 4000, 'wrong streak banner visible');
+
+      // Find the 1-based terminal row containing the banner and send Alt+Left-Click SGR mouse event
+      const lines = frame.split('\n');
+      const rowIdx = lines.findIndex((line) => line.includes('连续答错 3 题'));
+      assert.ok(rowIdx >= 0, 'banner row should exist in rendered frame');
+      const sgrCol = 8;
+      const sgrRow = rowIdx + 1;
+      h.write(`\u001b[<8;${sgrCol};${sgrRow}M`);
+
+      await h.waitFor(() => useTuiStore.getState().assistantOpen === true, 2000, 'assistant opened by banner click');
+      const st = useTuiStore.getState();
+      assert.equal(st.assistantTab, 'guided');
+      assert.equal(st.assistantFocused, true, 'clicking the wrong-streak banner must focus AssistantPanel');
+      assert.equal(st.assistantCardContext?.isWrong, true);
+      assert.equal(st.assistantCardContext?.revealed, true);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test('8. Rapid synchronous double keypresses do not fire duplicate review.answer calls (busyRef mutex)', async () => {
+    const deferred = {};
+    const answerPromise = new Promise((resolve) => {
+      deferred.resolve = resolve;
+    });
+    const runInitial = {
+      id: 'run-mutex',
+      mode: 'path',
+      title: '防连点测试',
+      deckId: 'd-m',
+      index: 0,
+      total: 1,
+      answered: 0,
+      queueVersion: 1,
+      revealed: false,
+      card: {
+        id: 'c-mutex',
+        kind: 'single',
+        prompt: '互斥锁防重复提交测试',
+        options: [
+          { id: 'o1', text: '选项一' },
+          { id: 'o2', text: '选项二' },
+        ],
+      },
+      navigation: [{ index: 0, cardId: 'c-mutex', deckId: 'd-m', status: 'pending' }],
+    };
+    const runAnswered = {
+      ...runInitial,
+      answered: 1,
+      revealed: true,
+      feedback: { correct: true, selected: ['o1'], grade: 5 },
+      solution: { answer: '选项一' },
+    };
+
+    let answerCalls = 0;
+    const { host } = makeBaseHost(async (name) => {
+      if (name === 'review.start') return { ok: true, value: runInitial };
+      if (name === 'review.answer') {
+        answerCalls += 1;
+        return answerPromise;
+      }
+      return { ok: true, value: runInitial };
+    });
+
+    resetStore();
+    const h = createHarness(React.createElement(ReviewView, { host, width: 116, height: 34, isActive: true }));
+    try {
+      await h.waitFor((s) => s.includes('互斥锁防重复提交测试'), 4000, 'mutex card loaded');
+      // Fire two choice keypresses synchronously in the same tick before React flushes setBusy(true)
+      h.dispatchKey('1');
+      h.dispatchKey('2');
+      await new Promise((r) => setTimeout(r, 40));
+      assert.equal(answerCalls, 1, 'synchronous double keypress must not invoke review.answer twice');
+      deferred.resolve({ ok: true, value: runAnswered });
+      await h.waitFor((s) => s.includes('回答正确'), 4000, 'single answer resolved');
+      assert.equal(answerCalls, 1);
+    } finally {
+      deferred.resolve({ ok: true, value: runAnswered });
+      h.cleanup();
+    }
+  });
+
+  test('9. Stale in-flight translate, rubric grade, and focus refresh never clobber switched cards or new runs', async () => {
+    const defTranslateA = {};
+    const translateAPromise = new Promise((resolve) => { defTranslateA.resolve = resolve; });
+    const defGradeRun1 = {};
+    const gradeRun1Promise = new Promise((resolve) => { defGradeRun1.resolve = resolve; });
+    const defFocusGetRun2 = {};
+    const focusGetRun2Promise = new Promise((resolve) => { defFocusGetRun2.resolve = resolve; });
+
+    const cardA = { id: 'c-race-a', kind: 'short_answer', prompt: '竞态题 A：简述进程调度', focus: false };
+    const cardB = { id: 'c-race-b', kind: 'flashcard', prompt: '竞态题 B：什么是死锁？', focus: false };
+
+    const run1CardA = {
+      id: 'run-race-1',
+      mode: 'path',
+      title: '竞态测试轮 1',
+      deckId: 'd-race',
+      index: 0,
+      total: 2,
+      answered: 0,
+      queueVersion: 1,
+      revealed: true,
+      card: cardA,
+      draft: { text: '时间片轮转与优先级调度' },
+      solution: { answer: '参考答案 A' },
+      navigation: [
+        { index: 0, cardId: 'c-race-a', deckId: 'd-race', status: 'pending' },
+        { index: 1, cardId: 'c-race-b', deckId: 'd-race', status: 'pending' },
+      ],
+    };
+    const run1CardB = {
+      ...run1CardA,
+      index: 1,
+      revealed: false,
+      card: cardB,
+      draft: undefined,
+      solution: null,
+    };
+    const run2RedoCardA = {
+      ...run1CardA,
+      id: 'run-race-2',
+      title: '竞态重做轮 2',
+      total: 1,
+      revealed: false,
+      feedback: null,
+      draft: undefined,
+      navigation: [{ index: 0, cardId: 'c-race-a', deckId: 'd-race', status: 'pending' }],
+    };
+    const run2Ended = {
+      ...run2RedoCardA,
+      closed: true,
+      summary: { answered: 0, correct: 0, total: 1 },
+    };
+
+    const { host } = makeBaseHost(async (name, args) => {
+      if (name === 'review.start' && args.fresh) return { ok: true, value: run2RedoCardA };
+      if (name === 'review.start') return { ok: true, value: run1CardA };
+      if (name === 'review.move') return { ok: true, value: args.direction === -1 ? run1CardA : run1CardB };
+      if (name === 'card.translate' && args.cardId === 'c-race-a') return translateAPromise;
+      if (name === 'card.translate' && args.cardId === 'c-race-b') {
+        return { ok: true, value: { translation: { prompt: 'What is deadlock?' } } };
+      }
+      if (name === 'card.grade' && args.runId === 'run-race-1') return gradeRun1Promise;
+      if (name === 'card.focus') return { ok: true, value: { ok: true, focus: true } };
+      if (name === 'review.get' && args.runId === 'run-race-2') return focusGetRun2Promise;
+      if (name === 'review.end' && args.runId === 'run-race-2') return { ok: true, value: run2Ended };
+      return { ok: true, value: run1CardA };
+    });
+
+    resetStore();
+    const h = createHarness(React.createElement(ReviewView, { host, width: 116, height: 34, isActive: true }));
+    try {
+      // Scenario A: translate failure on Card A arrives after moving to Card B -> must not toast on Card B
+      await h.waitFor((s) => s.includes('竞态题 A：简述进程调度'), 4000, 'race card A loaded');
+      h.write('W'); // starts slow translate for Card A
+      await new Promise((r) => setTimeout(r, 20));
+      h.write('s'); // skip to Card B while Card A translate is in flight
+      await h.waitFor((s) => s.includes('竞态题 B：什么是死锁？'), 4000, 'moved to race card B');
+      useTuiStore.setState({ toasts: [] });
+      defTranslateA.resolve({ ok: false, error: { message: 'STALE_CARD_A_TRANSLATE_ERROR' } });
+      await new Promise((r) => setTimeout(r, 40));
+      assert.equal(
+        useTuiStore.getState().toasts.some((toast) => toast.text.includes('STALE_CARD_A_TRANSLATE_ERROR')),
+        false,
+        'stale translate error from Card A must not emit toast after switching to Card B',
+      );
+      // Card B translation still works cleanly
+      h.write('W');
+      await h.waitFor((s) => s.includes('What is deadlock?'), 4000, 'card B translate works');
+
+      // Scenario B: card.grade in flight on run-race-1 (card A), user redoes card A -> run-race-2 (SAME cardId!)
+      // Reload run-race-1 card A via move(-1)
+      h.write(',');
+      await h.waitFor((s) => s.includes('竞态题 A：简述进程调度'), 4000, 'back on run1 card A');
+      h.write('G'); // starts slow card.grade for run-race-1 / c-race-a
+      await new Promise((r) => setTimeout(r, 20));
+      h.write('R'); // redoes c-race-a into run-race-2 (same cardId!)
+      await h.waitFor((s) => s.includes('竞态重做轮 2'), 4000, 'switched to run2 redo');
+      defGradeRun1.resolve({
+        ok: true,
+        value: {
+          grade: 2,
+          total: 2,
+          max: 5,
+          rubric: { total: 2, max: 5, summary: 'STALE_RUN1_RUBRIC' },
+        },
+      });
+      await new Promise((r) => setTimeout(r, 50));
+      assert.equal(
+        h.frame().includes('STALE_RUN1_RUBRIC'),
+        false,
+        'stale card.grade from run-race-1 must not render on run-race-2 even with same cardId',
+      );
+
+      // Scenario C: card.focus in flight on run-race-2 (slow review.get), user ends run-race-2 -> stale review.get must not overwrite ended round
+      h.write('*');
+      await new Promise((r) => setTimeout(r, 20));
+      h.write('X');
+      await h.waitFor((s) => s.includes('结束本轮练习'), 4000, 'confirm end run2');
+      h.write('y');
+      await h.waitFor(() => useTuiStore.getState().activeRunId === null, 4000, 'run2 ended');
+      defFocusGetRun2.resolve({ ok: true, value: run2RedoCardA });
+      await new Promise((r) => setTimeout(r, 50));
+      assert.equal(
+        useTuiStore.getState().activeRunId,
+        null,
+        'stale review.get from handleToggleFocus must not resurrect ended run-race-2',
+      );
+    } finally {
+      defTranslateA.resolve({ ok: false, error: { message: 'cleanup' } });
+      defGradeRun1.resolve({ ok: false, error: { message: 'cleanup' } });
+      defFocusGetRun2.resolve({ ok: true, value: run2Ended });
+      h.cleanup();
+    }
   });
 });

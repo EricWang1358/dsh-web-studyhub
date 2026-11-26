@@ -1,4 +1,4 @@
-import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
+import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import type { HostClient, NavigationContext, StudySnapshot, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { currentCourse } from '../../shell/data.js';
@@ -6,7 +6,6 @@ import {
   answerReview,
   currentCardId,
   endReview,
-  getReview,
   moveReview,
   revealReview,
   startReview,
@@ -20,24 +19,16 @@ import {
   type PracticeContextFrame,
   type PracticeOriginKind,
 } from '../../state/practice-stack.js';
-import type { LruCache } from '../../render/lru.js';
 import {
   currentDeckIdOf,
   extractFeedback,
   resolveClozeBlanks,
   skipTargetIndex,
   type CardFeedbackShape,
-  type NormalizedKind,
-  type CardTranslation,
 } from './review-helpers.js';
-import {
-  DRAFT_SAVE_DEBOUNCE_MS,
-  buildGuidedStudyCardContext,
-  type CardGradeResponse,
-  type PendingDraftRestore,
-} from './review-view-model.js';
+import { DRAFT_SAVE_DEBOUNCE_MS, type PendingDraftRestore } from './review-view-model.js';
 
-export interface UseReviewActionsParams {
+export interface UseReviewRoundActionsParams {
   host: HostClient;
   lang: UiLanguage;
   navContext: NavigationContext;
@@ -48,24 +39,13 @@ export interface UseReviewActionsParams {
   refresh: () => Promise<void>;
   run: ReviewRun | null;
   cardId: string | null;
-  kind: NormalizedKind;
   isRubricEligibleKind: boolean;
   isSelfGraded: boolean;
   revealed: boolean;
   feedback: CardFeedbackShape | null;
   busy: boolean;
-  gradingBusy: boolean;
-  focusBusy: boolean;
-  translating: boolean;
-  showTranslation: boolean;
   openDraft: string;
-  userAnswerText: string;
-  gradeAnswerText: string;
-  flagReason: string;
   endedRestoreFrame: PracticeContextFrame | null;
-  focusOverrideByCard: Record<string, boolean>;
-  canAdjustGrade: boolean;
-  canAckCorrection: boolean;
   mountedRef: MutableRefObject<boolean>;
   busyRef: MutableRefObject<boolean>;
   runRef: MutableRefObject<ReviewRun | null>;
@@ -76,27 +56,14 @@ export interface UseReviewActionsParams {
   pendingDraftRestoreRef: MutableRefObject<PendingDraftRestore | null>;
   skipUnmountPushRef: MutableRefObject<boolean>;
   draftTimerRef: MutableRefObject<ReturnType<typeof setTimeout> | null>;
-  translationCacheRef: MutableRefObject<LruCache<string, CardTranslation>>;
   setRun: Dispatch<SetStateAction<ReviewRun | null>>;
   setLoading: Dispatch<SetStateAction<boolean>>;
   setBusy: Dispatch<SetStateAction<boolean>>;
   setLoadError: Dispatch<SetStateAction<string | null>>;
   setEndedRestoreFrame: Dispatch<SetStateAction<PracticeContextFrame | null>>;
-  setFlagModalOpen: Dispatch<SetStateAction<boolean>>;
-  setFlagReason: Dispatch<SetStateAction<string>>;
-  setGradeAdjustModalOpen: Dispatch<SetStateAction<boolean>>;
-  setOpenEditing: Dispatch<SetStateAction<boolean>>;
-  setFocusOverrideByCard: Dispatch<SetStateAction<Record<string, boolean>>>;
-  setFocusBusy: Dispatch<SetStateAction<boolean>>;
-  setGradingBusy: Dispatch<SetStateAction<boolean>>;
-  setGradeResult: Dispatch<SetStateAction<CardGradeResponse | null>>;
-  setGradeError: Dispatch<SetStateAction<string | null>>;
-  setShowTranslation: Dispatch<SetStateAction<boolean>>;
-  setTranslating: Dispatch<SetStateAction<boolean>>;
-  setTranslationTick: Dispatch<SetStateAction<number>>;
 }
 
-export function useReviewActions(p: UseReviewActionsParams) {
+export function useReviewRoundActions(p: UseReviewRoundActionsParams) {
   const {
     host,
     lang,
@@ -108,24 +75,13 @@ export function useReviewActions(p: UseReviewActionsParams) {
     refresh,
     run,
     cardId,
-    kind,
     isRubricEligibleKind,
     isSelfGraded,
     revealed,
     feedback,
     busy,
-    gradingBusy,
-    focusBusy,
-    translating,
-    showTranslation,
     openDraft,
-    userAnswerText,
-    gradeAnswerText,
-    flagReason,
     endedRestoreFrame,
-    focusOverrideByCard,
-    canAdjustGrade,
-    canAckCorrection,
     mountedRef,
     busyRef,
     runRef,
@@ -136,25 +92,14 @@ export function useReviewActions(p: UseReviewActionsParams) {
     pendingDraftRestoreRef,
     skipUnmountPushRef,
     draftTimerRef,
-    translationCacheRef,
     setRun,
     setLoading,
     setBusy,
     setLoadError,
     setEndedRestoreFrame,
-    setFlagModalOpen,
-    setFlagReason,
-    setGradeAdjustModalOpen,
-    setOpenEditing,
-    setFocusOverrideByCard,
-    setFocusBusy,
-    setGradingBusy,
-    setGradeResult,
-    setGradeError,
-    setShowTranslation,
-    setTranslating,
-    setTranslationTick,
   } = p;
+
+  const loadSeqRef = useRef(0);
 
   const pushCurrentToPracticeStack = useCallback(
     (originKind: PracticeOriginKind) => {
@@ -275,6 +220,7 @@ export function useReviewActions(p: UseReviewActionsParams) {
 
   const loadInitialRun = useCallback(
     async (forceFresh = false) => {
+      const seq = ++loadSeqRef.current;
       clearDraftTimer();
       setLoading(true);
       setLoadError(null);
@@ -283,7 +229,7 @@ export function useReviewActions(p: UseReviewActionsParams) {
       const targetRunId = !forceFresh ? pendingRestore?.runId || navContext.runId || activeRunId : null;
       if (targetRunId) {
         const res = await tryAction<ReviewRun>(host, 'review.get', { runId: targetRunId });
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || loadSeqRef.current !== seq) return;
         if (res.ok && res.value) {
           if (pendingRestore && (res.value.complete || res.value.closed)) {
             setLoading(false);
@@ -303,7 +249,7 @@ export function useReviewActions(p: UseReviewActionsParams) {
               runId: restoredRun.id,
               index: pendingRestore.cardIndex,
             });
-            if (!mountedRef.current) return;
+            if (!mountedRef.current || loadSeqRef.current !== seq) return;
             if (moved.ok && moved.value) restoredRun = moved.value;
           }
           if (pendingRestore) {
@@ -335,7 +281,7 @@ export function useReviewActions(p: UseReviewActionsParams) {
         ...(forceFresh ? { fresh: true } : {}),
       };
       const startRes = await tryAction<ReviewRun>(host, 'review.start', args);
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || loadSeqRef.current !== seq) return;
       setLoading(false);
       if (startRes.ok && startRes.value) {
         applyRun(startRes.value);
@@ -366,7 +312,8 @@ export function useReviewActions(p: UseReviewActionsParams) {
 
   const runAction = useCallback(
     async (fn: () => Promise<ReviewRun>, refreshAfter = false) => {
-      if (busy) return;
+      if (busyRef.current || busy) return;
+      busyRef.current = true;
       setBusy(true);
       try {
         const next = await fn();
@@ -374,14 +321,15 @@ export function useReviewActions(p: UseReviewActionsParams) {
       } catch (err) {
         if (mountedRef.current) notify(err instanceof Error ? err.message : String(err), 'error');
       } finally {
+        busyRef.current = false;
         if (mountedRef.current) setBusy(false);
       }
     },
-    [busy, applyRun, notify, mountedRef, setBusy],
+    [busy, busyRef, applyRun, notify, mountedRef, setBusy],
   );
 
   const handleReveal = useCallback(() => {
-    if (!run?.id || !cardId || busy || revealed) return;
+    if (!run?.id || !cardId || busyRef.current || busy || revealed) return;
     clearDraftTimer();
     const serverDraftText =
       typeof (run as { draft?: { text?: unknown } } | null)?.draft?.text === 'string'
@@ -404,11 +352,11 @@ export function useReviewActions(p: UseReviewActionsParams) {
         queueVersion: run.queueVersion ?? 0,
       });
     });
-  }, [run, cardId, busy, revealed, clearDraftTimer, isRubricEligibleKind, openDraft, runAction, host]);
+  }, [run, cardId, busyRef, busy, revealed, clearDraftTimer, isRubricEligibleKind, openDraft, runAction, host]);
 
   const handleSubmitChoice = useCallback(
     (ids: string[]) => {
-      if (!run?.id || !cardId || busy || feedback || ids.length === 0) return;
+      if (!run?.id || !cardId || busyRef.current || busy || feedback || ids.length === 0) return;
       clearDraftTimer();
       void runAction(() =>
         answerReview(host, {
@@ -419,12 +367,12 @@ export function useReviewActions(p: UseReviewActionsParams) {
         }),
       );
     },
-    [run, cardId, busy, feedback, clearDraftTimer, runAction, host],
+    [run, cardId, busyRef, busy, feedback, clearDraftTimer, runAction, host],
   );
 
   const handleSubmitCloze = useCallback(
     (vals: Record<string, string>) => {
-      if (!run?.id || !cardId || busy || feedback) return;
+      if (!run?.id || !cardId || busyRef.current || busy || feedback) return;
       const anyFilled = Object.values(vals).some((v) => String(v || '').trim().length > 0);
       if (!anyFilled) {
         notify(t(lang, '请先填写至少一个空格', 'Fill in at least one blank first'), 'warning');
@@ -441,12 +389,12 @@ export function useReviewActions(p: UseReviewActionsParams) {
         }),
       );
     },
-    [run, cardId, busy, feedback, clearDraftTimer, runAction, host, notify, lang],
+    [run, cardId, busyRef, busy, feedback, clearDraftTimer, runAction, host, notify, lang],
   );
 
   const handleFsrsGrade = useCallback(
     (grade: number) => {
-      if (!run?.id || !cardId || busy || feedback || !revealed) return;
+      if (!run?.id || !cardId || busyRef.current || busy || feedback || !revealed) return;
       clearDraftTimer();
       const practice = (snapshot?.settings as { practice?: Record<string, unknown> } | undefined)?.practice;
       const selfGradeAdvanceEnabled =
@@ -466,12 +414,25 @@ export function useReviewActions(p: UseReviewActionsParams) {
         }),
       );
     },
-    [run, cardId, busy, feedback, revealed, clearDraftTimer, snapshot, isRubricEligibleKind, openDraft, runAction, host],
+    [
+      run,
+      cardId,
+      busyRef,
+      busy,
+      feedback,
+      revealed,
+      clearDraftTimer,
+      snapshot,
+      isRubricEligibleKind,
+      openDraft,
+      runAction,
+      host,
+    ],
   );
 
   const handleMove = useCallback(
     (direction: -1 | 1) => {
-      if (!run?.id || busy) return;
+      if (!run?.id || busyRef.current || busy) return;
       if (direction === 1 && !feedback && !revealed) {
         notify(t(lang, '请先作答，或按 [s] 跳过本题', 'Answer first or press [s] to skip'), 'info');
         return;
@@ -483,11 +444,11 @@ export function useReviewActions(p: UseReviewActionsParams) {
       clearDraftTimer();
       void runAction(() => moveReview(host, run.id, { direction }));
     },
-    [run, busy, feedback, revealed, isSelfGraded, clearDraftTimer, runAction, host, notify, lang],
+    [run, busyRef, busy, feedback, revealed, isSelfGraded, clearDraftTimer, runAction, host, notify, lang],
   );
 
   const handleSkip = useCallback(() => {
-    if (!run?.id || !cardId || busy || feedback) return;
+    if (!run?.id || !cardId || busyRef.current || busy || feedback) return;
     if (run.card?.publicationUngrable) {
       clearDraftTimer();
       void runAction(async () => {
@@ -508,10 +469,10 @@ export function useReviewActions(p: UseReviewActionsParams) {
     }
     clearDraftTimer();
     void runAction(() => moveReview(host, run.id, { index: target }));
-  }, [run, cardId, busy, feedback, clearDraftTimer, runAction, host, notify, lang]);
+  }, [run, cardId, busyRef, busy, feedback, clearDraftTimer, runAction, host, notify, lang]);
 
   const handleUndo = useCallback(() => {
-    if (!run?.id || busy) return;
+    if (!run?.id || busyRef.current || busy) return;
     const undoable = (run as { undoable?: unknown }).undoable;
     if (!undoable || run.mode === 'exam') {
       notify(t(lang, '当前没有可撤销的评分', 'Nothing to undo in this round'), 'info');
@@ -531,10 +492,10 @@ export function useReviewActions(p: UseReviewActionsParams) {
       notify(t(lang, '已撤销上一题评分', 'Undid last rating'), 'success');
       return res.value;
     }, true);
-  }, [run, busy, clearDraftTimer, runAction, host, notify, lang]);
+  }, [run, busyRef, busy, clearDraftTimer, runAction, host, notify, lang]);
 
   const handleEndRound = useCallback(() => {
-    if (!run?.id || busy) return;
+    if (!run?.id || busyRef.current || busy) return;
     clearDraftTimer();
     skipUnmountPushRef.current = true;
     const endedId = run.id;
@@ -542,28 +503,10 @@ export function useReviewActions(p: UseReviewActionsParams) {
       practiceStack: st.practiceStack.filter((f) => f.runId !== endedId),
     }));
     void runAction(() => endReview(host, endedId), true);
-  }, [run, busy, clearDraftTimer, runAction, host, skipUnmountPushRef]);
-
-  const handleSubmitFlag = useCallback(async () => {
-    const deckId = run?.deckId || run?.navigation?.find((n) => n.index === run.index)?.deckId || '';
-    if (!deckId || !cardId) {
-      setFlagModalOpen(false);
-      return;
-    }
-    const res = await tryAction(host, 'card.flag', {
-      deckId,
-      cardId,
-      reason: flagReason.trim() || t(lang, '需复核/待改进', 'Flagged in review'),
-    });
-    if (!mountedRef.current) return;
-    setFlagModalOpen(false);
-    setFlagReason('');
-    if (res.ok) notify(t(lang, '已标记题目', 'Card flagged'), 'success');
-    else notify(res.error?.message || t(lang, '标记失败', 'Flag failed'), 'error');
-  }, [run, cardId, flagReason, host, lang, notify, mountedRef, setFlagModalOpen, setFlagReason]);
+  }, [run, busyRef, busy, clearDraftTimer, runAction, host, skipUnmountPushRef]);
 
   const handlePracticeWeak = useCallback(() => {
-    if (!run?.id || busy) return;
+    if (!run?.id || busyRef.current || busy) return;
     clearDraftTimer();
     void runAction(async () => {
       const res = await tryAction<ReviewRun>(host, 'review.weak.start', { runId: run.id });
@@ -572,264 +515,11 @@ export function useReviewActions(p: UseReviewActionsParams) {
       }
       return res.value;
     });
-  }, [run, busy, clearDraftTimer, runAction, host, lang]);
-
-  const handleToggleTranslate = useCallback(async () => {
-    if (!run?.card || !cardId || translating) return;
-    if (showTranslation) {
-      setShowTranslation(false);
-      return;
-    }
-    const cached = translationCacheRef.current.get(cardId);
-    if (cached) {
-      setShowTranslation(true);
-      return;
-    }
-    const deckId = currentDeckIdOf(run);
-    setTranslating(true);
-    const res = await tryAction<{ translation?: CardTranslation | null }>(host, 'card.translate', {
-      ...(deckId ? { deckId } : {}),
-      cardId,
-    });
-    if (!mountedRef.current) return;
-    setTranslating(false);
-    if (res.ok && res.value?.translation) {
-      translationCacheRef.current.set(cardId, res.value.translation);
-      setTranslationTick((v) => v + 1);
-      if (currentCardIdRef.current === cardId) {
-        setShowTranslation(true);
-      }
-      return;
-    }
-    notify(
-      res.error?.message ||
-        t(lang, '翻译失败：请先在设置中配置可用模型', 'Translation unavailable: configure a model in Settings'),
-      'warning',
-    );
-  }, [
-    run,
-    cardId,
-    translating,
-    showTranslation,
-    host,
-    notify,
-    lang,
-    mountedRef,
-    translationCacheRef,
-    currentCardIdRef,
-    setShowTranslation,
-    setTranslating,
-    setTranslationTick,
-  ]);
-
-  const handleRubricGrade = useCallback(async () => {
-    if (!run?.id || !cardId || busy || gradingBusy || !isRubricEligibleKind) return;
-    clearDraftTimer();
-    const answer = gradeAnswerText;
-    if (!answer) {
-      notify(
-        t(lang, '请先按 [i] 输入作答后再按 [G] AI 评分', 'Press [i] to type your answer before [G] AI rubric grading'),
-        'warning',
-      );
-      return;
-    }
-    const deckId = currentDeckIdOf(run);
-    const cardAtStart = cardId;
-    setGradingBusy(true);
-    setGradeError(null);
-    const res = await tryAction<CardGradeResponse>(host, 'card.grade', {
-      cardId,
-      ...(deckId ? { deckId } : {}),
-      answer,
-      runId: run.id,
-      language: lang,
-    });
-    if (!mountedRef.current || currentCardIdRef.current !== cardAtStart) return;
-    setGradingBusy(false);
-    if (!res.ok || !res.value) {
-      const msg = res.error?.message || t(lang, 'AI 按标准批改失败', 'AI rubric grading failed');
-      setGradeError(msg);
-      notify(msg, 'warning');
-      return;
-    }
-    setGradeResult(res.value);
-    setOpenEditing(false);
-    const scoreTotal = res.value.total ?? res.value.rubric?.total ?? 0;
-    const scoreMax = res.value.max ?? res.value.rubric?.max ?? 0;
-    notify(
-      res.value.message ||
-        t(lang, `AI 批改完成：${scoreTotal}/${scoreMax} 分`, `AI grading complete: ${scoreTotal}/${scoreMax} marks`),
-      'success',
-    );
-    try {
-      const refreshed = await getReview(host, run.id);
-      if (!mountedRef.current || currentCardIdRef.current !== cardAtStart) return;
-      applyRun(refreshed, true);
-    } catch {
-      // Keep local gradeResult displayed even if run refresh fails
-    }
-  }, [
-    run,
-    cardId,
-    busy,
-    gradingBusy,
-    isRubricEligibleKind,
-    clearDraftTimer,
-    gradeAnswerText,
-    host,
-    lang,
-    notify,
-    applyRun,
-    mountedRef,
-    currentCardIdRef,
-    setGradingBusy,
-    setGradeError,
-    setGradeResult,
-    setOpenEditing,
-  ]);
-
-  const handleToggleFocus = useCallback(async () => {
-    if (!run?.id || !cardId || focusBusy) return;
-    const deckId = currentDeckIdOf(run);
-    const targetCardId = cardId;
-    setFocusBusy(true);
-    const res = await tryAction<{ ok?: boolean; focus?: boolean }>(host, 'card.focus', {
-      ...(deckId ? { deckId } : {}),
-      cardId: targetCardId,
-    });
-    if (!mountedRef.current) return;
-    setFocusBusy(false);
-    if (!res.ok) {
-      notify(res.error?.message || t(lang, '切换重点标记失败', 'Failed to toggle focus'), 'error');
-      return;
-    }
-    const nextFocus =
-      typeof res.value?.focus === 'boolean'
-        ? res.value.focus
-        : !(focusOverrideByCard[targetCardId] ?? Boolean(run.card?.focus));
-    setFocusOverrideByCard((prev) => ({ ...prev, [targetCardId]: nextFocus }));
-    notify(
-      nextFocus
-        ? t(lang, '已标为考纲重点（优先安排复习）', 'Marked as Focus (priority review)')
-        : t(lang, '已取消考纲重点标记', 'Removed Focus mark'),
-      'success',
-    );
-    void refresh();
-    try {
-      const refreshed = await getReview(host, run.id);
-      if (mountedRef.current) applyRun(refreshed);
-    } catch {
-      // Local focusOverrideByCard keeps badge accurate even if getReview fails
-    }
-  }, [
-    run,
-    cardId,
-    focusBusy,
-    host,
-    notify,
-    lang,
-    focusOverrideByCard,
-    refresh,
-    applyRun,
-    mountedRef,
-    setFocusBusy,
-    setFocusOverrideByCard,
-  ]);
-
-  const handleAdjustGrade = useCallback(
-    async (grade: number) => {
-      if (!run?.id || !cardId || busyRef.current || busy || !canAdjustGrade) return;
-      busyRef.current = true;
-      setBusy(true);
-      try {
-        const res = await tryAction<ReviewRun>(host, 'review.grade.adjust', {
-          runId: run.id,
-          entryIndex: run.index,
-          cardId,
-          grade,
-        });
-        if (!mountedRef.current) return;
-        if (!res.ok || !res.value) {
-          notify(res.error?.message || t(lang, '调整评分失败', 'Failed to adjust grade'), 'error');
-          return;
-        }
-        setGradeAdjustModalOpen(false);
-        setGradeResult(null);
-        applyRun(res.value, true);
-        notify(t(lang, `已将 AI 评分调整为 ${grade}`, `Adjusted AI grade to ${grade}`), 'success');
-      } finally {
-        busyRef.current = false;
-        if (mountedRef.current) setBusy(false);
-      }
-    },
-    [
-      run,
-      cardId,
-      busy,
-      canAdjustGrade,
-      host,
-      applyRun,
-      notify,
-      lang,
-      busyRef,
-      mountedRef,
-      setBusy,
-      setGradeAdjustModalOpen,
-      setGradeResult,
-    ],
-  );
-
-  const handleAckCorrection = useCallback(async () => {
-    if (!run?.id || !cardId || busyRef.current || busy || !canAckCorrection) return;
-    busyRef.current = true;
-    setBusy(true);
-    try {
-      const res = await tryAction<ReviewRun>(host, 'review.correction.ack', {
-        runId: run.id,
-        entryIndex: run.index,
-        cardId,
-      });
-      if (!mountedRef.current) return;
-      if (!res.ok || !res.value) {
-        notify(res.error?.message || t(lang, '确认订正失败', 'Failed to acknowledge correction'), 'error');
-        return;
-      }
-      applyRun(res.value, true);
-      notify(t(lang, '已确认订正并加入本轮重练', 'Correction acknowledged and queued for retry'), 'success');
-    } finally {
-      busyRef.current = false;
-      if (mountedRef.current) setBusy(false);
-    }
-  }, [run, cardId, busy, canAckCorrection, host, applyRun, notify, lang, busyRef, mountedRef, setBusy]);
-
-  const handleRedoCard = useCallback(async () => {
-    if (!run || !cardId || busyRef.current || busy) return;
-    if (!revealed && !feedback) {
-      notify(t(lang, '请先作答或翻看答案后再重做本题', 'Answer or reveal first to redo this card'), 'info');
-      return;
-    }
-    busyRef.current = true;
-    setBusy(true);
-    try {
-      const nextRun = await startReview(host, {
-        mode: 'path',
-        scope: [{ deckId: currentDeckIdOf(run) ?? '', cardId }],
-        fresh: true,
-      });
-      if (!mountedRef.current) return;
-      applyRun(nextRun, true);
-      notify(t(lang, '已重做当前题目', 'Restarted current card'), 'info');
-    } catch (err) {
-      if (!mountedRef.current) return;
-      notify(err instanceof Error ? err.message : t(lang, '重做题目失败', 'Failed to redo card'), 'error');
-    } finally {
-      busyRef.current = false;
-      if (mountedRef.current) setBusy(false);
-    }
-  }, [run, cardId, busy, revealed, feedback, host, applyRun, notify, lang, busyRef, mountedRef, setBusy]);
+  }, [run, busyRef, busy, clearDraftTimer, runAction, host, lang]);
 
   const handleRetryEndedCard = useCallback(async () => {
     if (!endedRestoreFrame?.cardId) return;
+    const seq = ++loadSeqRef.current;
     setLoading(true);
     setEndedRestoreFrame(null);
     try {
@@ -838,36 +528,15 @@ export function useReviewActions(p: UseReviewActionsParams) {
         scope: [{ deckId: endedRestoreFrame.deckId || '', cardId: endedRestoreFrame.cardId }],
         fresh: true,
       });
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || loadSeqRef.current !== seq) return;
       setLoading(false);
       applyRun(nextRun, true);
     } catch (err) {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || loadSeqRef.current !== seq) return;
       setLoading(false);
       setLoadError(err instanceof Error ? err.message : String(err));
     }
   }, [endedRestoreFrame, host, applyRun, mountedRef, setLoading, setEndedRestoreFrame, setLoadError]);
-
-  const openGuidedStudy = useCallback(
-    (opts?: { focused?: boolean; extra?: { isWrong?: boolean; revealed?: boolean } }) => {
-      if (!run) return;
-      const store = useTuiStore.getState();
-      store.openAssistant({
-        tab: 'guided',
-        stage: 'question',
-        ...(opts?.focused !== undefined ? { focused: opts.focused } : { focused: true }),
-        cardContext: buildGuidedStudyCardContext({
-          prevCtx: store.assistantCardContext,
-          run,
-          cardId,
-          userAnswer: userAnswerText,
-          kind,
-          extra: opts?.extra,
-        }),
-      });
-    },
-    [run, cardId, userAnswerText, kind],
-  );
 
   return {
     pushCurrentToPracticeStack,
@@ -883,15 +552,7 @@ export function useReviewActions(p: UseReviewActionsParams) {
     handleSkip,
     handleUndo,
     handleEndRound,
-    handleSubmitFlag,
     handlePracticeWeak,
-    handleToggleTranslate,
-    handleRubricGrade,
-    handleToggleFocus,
-    handleAdjustGrade,
-    handleAckCorrection,
-    handleRedoCard,
     handleRetryEndedCard,
-    openGuidedStudy,
   };
 }

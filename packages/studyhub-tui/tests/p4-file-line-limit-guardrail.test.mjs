@@ -13,13 +13,33 @@ import {
 } from '../scripts/line-limit-guard.mjs';
 
 describe('P4 (#1354 D12): TUI Source File Line-Limit Guardrail & Ratchet', () => {
-  test('countSourceLines handles empty text, LF, CRLF, and missing trailing newline consistently', () => {
+  test('countSourceLines handles empty text, LF, CRLF, CR, and missing trailing newline consistently', () => {
     assert.equal(countSourceLines(''), 0);
     assert.equal(countSourceLines('one line'), 1);
     assert.equal(countSourceLines('one line\n'), 1);
     assert.equal(countSourceLines('a\nb\nc\n'), 3);
     assert.equal(countSourceLines('a\r\nb\r\nc\r\n'), 3);
     assert.equal(countSourceLines('a\r\nb\r\nc'), 3);
+    assert.equal(countSourceLines('a\rb\rc\r'), 3);
+  });
+
+  test('evaluateLineLimitRatchet rejects baseline maxLines tampering and ignores Object.prototype keys', () => {
+    const tampered = evaluateLineLimitRatchet({
+      lineCounts: { 'views/ok/CleanView.tsx': 500 },
+      baseline: { maxLines: 5000, files: {} },
+      maxLines: 1000,
+    });
+    assert.equal(tampered.ok, false);
+    assert.deepEqual(tampered.invalidBaselineMaxLines, { expected: 1000, actual: 5000 });
+    assert.ok(formatLineLimitReport(tampered).includes('5000'));
+
+    const protoCheck = evaluateLineLimitRatchet({
+      lineCounts: { toString: 1001 },
+      baseline: { maxLines: 1000, files: {} },
+      maxLines: 1000,
+    });
+    assert.equal(protoCheck.ok, false);
+    assert.deepEqual(protoCheck.newOverLimit, [{ file: 'toString', lines: 1001, maxLines: 1000 }]);
   });
 
   test('evaluateLineLimitRatchet rejects new >1000-line files, baseline growth, stale entries, and invalid limits', () => {
@@ -65,6 +85,8 @@ describe('P4 (#1354 D12): TUI Source File Line-Limit Guardrail & Ratchet', () =>
         'views/a/SplitNow.tsx': 1300,
         'views/a/GrewAttempt.tsx': 1200,
         'views/a/Deleted.tsx': 1100,
+        'views/a/CorruptString.tsx': '1300',
+        'views/a/UnderLimitInvalid.tsx': 900,
       },
       notes: {
         'views/a/GrewAttempt.tsx': 'keep note when limit unchanged',
@@ -76,6 +98,8 @@ describe('P4 (#1354 D12): TUI Source File Line-Limit Guardrail & Ratchet', () =>
       'views/a/SplitNow.tsx': 920,
       'views/a/GrewAttempt.tsx': 1220,
       'views/a/BrandNewHuge.tsx': 1400,
+      'views/a/CorruptString.tsx': 1300,
+      'views/a/UnderLimitInvalid.tsx': 1200,
     };
 
     const next = ratchetDownBaseline({ lineCounts, baseline, maxLines: 1000 });

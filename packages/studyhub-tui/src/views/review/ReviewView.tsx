@@ -53,7 +53,8 @@ import {
   type PendingDraftRestore,
   type RubricSummaryShape,
 } from './review-view-model.js';
-import { useReviewActions } from './useReviewActions.js';
+import { useReviewRoundActions } from './useReviewRoundActions.js';
+import { useReviewCardActions } from './useReviewCardActions.js';
 import { useReviewEffects } from './useReviewEffects.js';
 import { handleReviewCardKey, handleReviewEmptyKey } from './review-key-handler.js';
 import { ReviewEmptyStates } from './ReviewEmptyStates.js';
@@ -212,19 +213,26 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
     [run, kind, selectedIds, clozeInputs, openDraft, lang],
   );
 
-  const actions = useReviewActions({
+  const roundActions = useReviewRoundActions({
     host, lang, navContext, activeRunId, snapshot, setActiveRunId, notify, refresh,
-    run, cardId, kind, isRubricEligibleKind, isSelfGraded, revealed, feedback,
-    busy, gradingBusy, focusBusy, translating, showTranslation, openDraft, userAnswerText,
-    gradeAnswerText, flagReason, endedRestoreFrame, focusOverrideByCard, canAdjustGrade, canAckCorrection,
+    run, cardId, isRubricEligibleKind, isSelfGraded, revealed, feedback, busy, openDraft, endedRestoreFrame,
     mountedRef, busyRef, runRef, currentCardIdRef, selectedIdsRef, clozeInputsRef, openDraftRef,
-    pendingDraftRestoreRef, skipUnmountPushRef, draftTimerRef, translationCacheRef,
-    setRun, setLoading, setBusy, setLoadError, setEndedRestoreFrame, setFlagModalOpen, setFlagReason,
-    setGradeAdjustModalOpen, setOpenEditing, setFocusOverrideByCard, setFocusBusy, setGradingBusy,
-    setGradeResult, setGradeError, setShowTranslation, setTranslating, setTranslationTick,
+    pendingDraftRestoreRef, skipUnmountPushRef, draftTimerRef,
+    setRun, setLoading, setBusy, setLoadError, setEndedRestoreFrame,
   });
 
-  const { clearDraftTimer, pushCurrentToPracticeStack, applyRun, loadInitialRun } = actions;
+  const { clearDraftTimer, pushCurrentToPracticeStack, applyRun, loadInitialRun } = roundActions;
+
+  const cardActions = useReviewCardActions({
+    host, lang, notify, refresh, applyRun, clearDraftTimer,
+    run, cardId, cardKey, kind, isRubricEligibleKind, revealed, feedback,
+    busy, gradingBusy, focusBusy, translating, showTranslation,
+    userAnswerText, gradeAnswerText, flagReason, focusOverrideByCard, canAdjustGrade, canAckCorrection,
+    mountedRef, busyRef, runRef, currentCardIdRef, translationCacheRef,
+    setBusy, setFlagModalOpen, setFlagReason, setGradeAdjustModalOpen, setOpenEditing,
+    setFocusOverrideByCard, setFocusBusy, setGradingBusy, setGradeResult, setGradeError,
+    setShowTranslation, setTranslating, setTranslationTick,
+  });
 
   useEffect(() => {
     mountedRef.current = true;
@@ -323,19 +331,19 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
         setGradeAdjustModalOpen, setNudgeModalOpen, setSimilarModalOpen, setCardToolsModalOpen,
         setQueueModalOpen, setAnswerCardModalOpen, setFlagReason, setFlagModalOpen, setConfirmEndOpen,
         setOpenEditing, setClozeEditing, setCursorOpt, setSelectedIds,
-        openGuidedStudy: () => actions.openGuidedStudy({ focused: true }),
+        openGuidedStudy: () => cardActions.openGuidedStudy({ focused: true }),
         pushCurrentToPracticeStack,
-        handleToggleFocus: actions.handleToggleFocus,
-        handleRubricGrade: actions.handleRubricGrade,
-        handleAckCorrection: actions.handleAckCorrection,
-        handleToggleTranslate: actions.handleToggleTranslate,
-        handleRedoCard: actions.handleRedoCard,
-        handleUndo: actions.handleUndo,
-        handleSkip: actions.handleSkip,
-        handleMove: actions.handleMove,
-        handleFsrsGrade: actions.handleFsrsGrade,
-        handleReveal: actions.handleReveal,
-        handleSubmitChoice: actions.handleSubmitChoice,
+        handleToggleFocus: cardActions.handleToggleFocus,
+        handleRubricGrade: cardActions.handleRubricGrade,
+        handleAckCorrection: cardActions.handleAckCorrection,
+        handleToggleTranslate: cardActions.handleToggleTranslate,
+        handleRedoCard: cardActions.handleRedoCard,
+        handleUndo: roundActions.handleUndo,
+        handleSkip: roundActions.handleSkip,
+        handleMove: roundActions.handleMove,
+        handleFsrsGrade: roundActions.handleFsrsGrade,
+        handleReveal: roundActions.handleReveal,
+        handleSubmitChoice: roundActions.handleSubmitChoice,
       }),
   });
   useFooterHints(hints, cardScopeActive);
@@ -348,7 +356,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
       handleReviewEmptyKey(input, key, {
         endedRestoreFrame,
         setEndedRestoreFrame,
-        handleRetryEndedCard: actions.handleRetryEndedCard,
+        handleRetryEndedCard: roundActions.handleRetryEndedCard,
         navigate,
         goBack,
         loadInitialRun,
@@ -439,7 +447,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
         lang={lang}
         asciiMode={asciiMode}
         mathUnicode={mathUnicode}
-        onPracticeWeak={actions.handlePracticeWeak}
+        onPracticeWeak={roundActions.handlePracticeWeak}
         onNewRound={() => void loadInitialRun(true)}
         onGoLibrary={() => navigate('library')}
       />
@@ -487,24 +495,24 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
 
   const quickActionHandlers: Record<string, () => void> = {
     h: () => setAiDrawerOpen((v) => !v),
-    T: () => actions.openGuidedStudy({ focused: true }),
+    T: () => cardActions.openGuidedStudy({ focused: true }),
     S: () => setSimilarModalOpen(true),
-    '*': () => void actions.handleToggleFocus(),
-    R: () => void actions.handleRedoCard(),
-    G: () => void actions.handleRubricGrade(),
+    '*': () => void cardActions.handleToggleFocus(),
+    R: () => void cardActions.handleRedoCard(),
+    G: () => void cardActions.handleRubricGrade(),
     A: () => setAnswerCardModalOpen(true),
-    W: () => void actions.handleToggleTranslate(),
+    W: () => void cardActions.handleToggleTranslate(),
     D: () => setCardToolsModalOpen(true),
     Q: () => {
       if (run.mode !== 'exam') setQueueModalOpen(true);
       else notify(t(lang, '模拟考试队列已锁定，不能修改', 'Exam queue is locked'), 'info');
     },
     E: () => { setFlagReason(''); setFlagModalOpen(true); },
-    s: () => { if (!feedback) actions.handleSkip(); },
-    u: () => actions.handleUndo(),
-    nav: () => actions.handleMove(1),
+    s: () => { if (!feedback) roundActions.handleSkip(); },
+    u: () => roundActions.handleUndo(),
+    nav: () => roundActions.handleMove(1),
     J: () => setGradeAdjustModalOpen(true),
-    K: () => void actions.handleAckCorrection(),
+    K: () => void cardActions.handleAckCorrection(),
     N: () => setNudgeModalOpen(true),
   };
 
@@ -571,9 +579,9 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
             innerW={innerW} isActive={isActive} cardScopeActive={cardScopeActive} lang={lang} asciiMode={asciiMode}
             setCursorOpt={setCursorOpt} setSelectedIds={setSelectedIds} setClozeInputs={setClozeInputs}
             setActiveBlankIdx={setActiveBlankIdx} setClozeEditing={setClozeEditing} setOpenDraft={setOpenDraft}
-            setOpenEditing={setOpenEditing} onSubmitChoice={actions.handleSubmitChoice}
-            onSubmitCloze={actions.handleSubmitCloze} onReveal={actions.handleReveal}
-            onScheduleDraftSave={actions.scheduleDraftSave}
+            setOpenEditing={setOpenEditing} onSubmitChoice={roundActions.handleSubmitChoice}
+            onSubmitCloze={roundActions.handleSubmitCloze} onReveal={roundActions.handleReveal}
+            onScheduleDraftSave={roundActions.scheduleDraftSave}
           />
 
           {revealed || activeRubric || gradingBusy || gradeError ? (
@@ -612,7 +620,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                 canRubricGrade={canRubricGrade} activeRubric={activeRubric} intervals={intervals}
                 onClickWrongStreak={() => {
                   setWrongStreakBanner(null);
-                  actions.openGuidedStudy({ focused: false, extra: { isWrong: true, revealed: true } });
+                  cardActions.openGuidedStudy({ focused: true, extra: { isWrong: true, revealed: true } });
                 }}
                 onDismissFatigue={() => setFatigueBanner(null)}
                 onOpenCitation={() => {
@@ -621,8 +629,8 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                   skipUnmountPushRef.current = true;
                   navigate('sources', { sourceId: citation.sourceId, pageNumber: citation.pageNumber });
                 }}
-                onRubricGrade={() => void actions.handleRubricGrade()}
-                onFsrsGrade={actions.handleFsrsGrade}
+                onRubricGrade={() => void cardActions.handleRubricGrade()}
+                onFsrsGrade={roundActions.handleFsrsGrade}
               />
             </Box>
           ) : null}
@@ -685,10 +693,10 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
         onCloseQueue={() => setQueueModalOpen(false)} onCloseAnswerCard={() => setAnswerCardModalOpen(false)}
         onNudgeNoteUpdate={(note) => { nudgeCacheRef.current.set(nudgeCacheKey, note); }}
         onCloseNudge={() => setNudgeModalOpen(false)} onFlagReasonChange={setFlagReason}
-        onSubmitFlag={() => void actions.handleSubmitFlag()} onCloseFlag={() => setFlagModalOpen(false)}
-        onSelectGradeAdjust={(grade) => void actions.handleAdjustGrade(grade)}
+        onSubmitFlag={() => void cardActions.handleSubmitFlag()} onCloseFlag={() => setFlagModalOpen(false)}
+        onSelectGradeAdjust={(grade) => void cardActions.handleAdjustGrade(grade)}
         onCloseGradeAdjust={() => setGradeAdjustModalOpen(false)}
-        onConfirmEndRound={() => { setConfirmEndOpen(false); actions.handleEndRound(); }}
+        onConfirmEndRound={() => { setConfirmEndOpen(false); roundActions.handleEndRound(); }}
         onCancelEndRound={() => setConfirmEndOpen(false)}
       />
     </Box>

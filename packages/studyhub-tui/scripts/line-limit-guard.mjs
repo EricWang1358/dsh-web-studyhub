@@ -29,10 +29,10 @@ export const LINE_LIMIT_BASELINE_PATH = path.join(
   'file-line-limit-baseline.json',
 );
 
-/** Count physical lines consistently across LF and CRLF line endings. */
+/** Count physical lines consistently across LF, CRLF, and legacy CR line endings. */
 export function countSourceLines(content) {
   if (!content) return 0;
-  const normalized = content.replace(/\r\n/g, '\n');
+  const normalized = content.replace(/\r\n|\r/g, '\n');
   const parts = normalized.split('\n');
   return normalized.endsWith('\n') ? parts.length - 1 : parts.length;
 }
@@ -62,7 +62,7 @@ export function scanSourceLineCounts(srcRoot = TUI_SRC_ROOT) {
 
 export function loadLineLimitBaseline(baselinePath = LINE_LIMIT_BASELINE_PATH) {
   const raw = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
-  const maxLines = typeof raw?.maxLines === 'number' ? raw.maxLines : MAX_SOURCE_FILE_LINES;
+  const maxLines = raw?.maxLines;
   const files = raw?.files && typeof raw.files === 'object' && !Array.isArray(raw.files) ? raw.files : {};
   const notes = raw?.notes && typeof raw.notes === 'object' && !Array.isArray(raw.notes) ? raw.notes : {};
   return { maxLines, files, notes };
@@ -70,6 +70,7 @@ export function loadLineLimitBaseline(baselinePath = LINE_LIMIT_BASELINE_PATH) {
 
 /**
  * Pure ratchet evaluator:
+ * - `invalidBaselineMaxLines`: `baseline.maxLines` differs from `maxLines` (prevents ceiling tampering)
  * - `newOverLimit`: file > maxLines and not present in `baseline.files`
  * - `grewAboveBaseline`: file in `baseline.files` with `lines > limit`
  * - `staleBaselineEntries`: entry in `baseline.files` that is deleted or now <= maxLines
@@ -77,6 +78,12 @@ export function loadLineLimitBaseline(baselinePath = LINE_LIMIT_BASELINE_PATH) {
  */
 export function evaluateLineLimitRatchet({ lineCounts, baseline, maxLines = MAX_SOURCE_FILE_LINES }) {
   const baselineFiles = baseline?.files ?? {};
+  const hasExplicitBaselineMax =
+    baseline !== null && typeof baseline === 'object' && Object.hasOwn(baseline, 'maxLines');
+  const invalidBaselineMaxLines =
+    hasExplicitBaselineMax && baseline.maxLines !== maxLines
+      ? { expected: maxLines, actual: baseline.maxLines }
+      : null;
   const newOverLimit = [];
   const grewAboveBaseline = [];
   const staleBaselineEntries = [];
@@ -88,7 +95,7 @@ export function evaluateLineLimitRatchet({ lineCounts, baseline, maxLines = MAX_
       invalidBaselineEntries.push({ file: relPath, limit });
       continue;
     }
-    if (!(relPath in lineCounts)) {
+    if (!Object.hasOwn(lineCounts, relPath)) {
       staleBaselineEntries.push({ file: relPath, limit, current: null, reason: 'missing' });
     } else if (lineCounts[relPath] <= maxLines) {
       staleBaselineEntries.push({
@@ -103,7 +110,7 @@ export function evaluateLineLimitRatchet({ lineCounts, baseline, maxLines = MAX_
   for (const [relPath, lines] of Object.entries(lineCounts).sort(([a], [b]) => a.localeCompare(b))) {
     if (lines > maxLines) {
       overLimitCount += 1;
-      if (!(relPath in baselineFiles)) {
+      if (!Object.hasOwn(baselineFiles, relPath)) {
         newOverLimit.push({ file: relPath, lines, maxLines });
       } else if (Number.isInteger(baselineFiles[relPath]) && lines > baselineFiles[relPath]) {
         grewAboveBaseline.push({ file: relPath, lines, limit: baselineFiles[relPath] });
@@ -112,6 +119,7 @@ export function evaluateLineLimitRatchet({ lineCounts, baseline, maxLines = MAX_
   }
 
   const ok =
+    invalidBaselineMaxLines === null &&
     newOverLimit.length === 0 &&
     grewAboveBaseline.length === 0 &&
     staleBaselineEntries.length === 0 &&
@@ -120,6 +128,7 @@ export function evaluateLineLimitRatchet({ lineCounts, baseline, maxLines = MAX_
   return {
     ok,
     maxLines,
+    invalidBaselineMaxLines,
     totalFiles: Object.keys(lineCounts).length,
     overLimitCount,
     newOverLimit,
@@ -129,7 +138,7 @@ export function evaluateLineLimitRatchet({ lineCounts, baseline, maxLines = MAX_
   };
 }
 
-/** Produce a ratcheted-down baseline map (never adds files or raises existing limits). */
+/** Produce a ratcheted-down baseline map (never adds files, raises existing limits, or keeps corrupt limits). */
 export function ratchetDownBaseline({ lineCounts, baseline, maxLines = MAX_SOURCE_FILE_LINES }) {
   const nextFiles = {};
   const nextNotes = {};
@@ -137,10 +146,11 @@ export function ratchetDownBaseline({ lineCounts, baseline, maxLines = MAX_SOURC
   const prevNotes = baseline?.notes ?? {};
 
   for (const [relPath, prevLimit] of Object.entries(prevFiles).sort(([a], [b]) => a.localeCompare(b))) {
-    const current = lineCounts[relPath];
+    if (!Number.isInteger(prevLimit) || prevLimit <= maxLines) continue;
+    const current = Object.hasOwn(lineCounts, relPath) ? lineCounts[relPath] : undefined;
     if (typeof current !== 'number' || current <= maxLines) continue;
     nextFiles[relPath] = Math.min(prevLimit, current);
-    if (prevNotes[relPath] && nextFiles[relPath] === prevLimit) {
+    if (Object.hasOwn(prevNotes, relPath) && prevNotes[relPath] && nextFiles[relPath] === prevLimit) {
       nextNotes[relPath] = prevNotes[relPath];
     }
   }
@@ -154,6 +164,11 @@ export function ratchetDownBaseline({ lineCounts, baseline, maxLines = MAX_SOURC
 
 export function formatLineLimitReport(result) {
   const lines = [];
+  if (result.invalidBaselineMaxLines) {
+    lines.push(
+      `Invalid baseline maxLines: expected ${result.invalidBaselineMaxLines.expected}, found ${String(result.invalidBaselineMaxLines.actual)}`,
+    );
+  }
   if (result.newOverLimit.length > 0) {
     lines.push(`New or rebound files exceeding ${result.maxLines} lines (must be split to <= ${result.maxLines}):`);
     for (const item of result.newOverLimit) {
@@ -195,6 +210,11 @@ if (isMain) {
     console.log(
       `Ratcheted ${path.relative(TUI_PKG_ROOT, LINE_LIMIT_BASELINE_PATH)} (${Object.keys(next.files).length} oversized files remaining).`,
     );
+    const postCheck = evaluateLineLimitRatchet({ lineCounts, baseline: next, maxLines: MAX_SOURCE_FILE_LINES });
+    if (!postCheck.ok) {
+      console.error(formatLineLimitReport(postCheck));
+      process.exit(1);
+    }
     process.exit(0);
   }
 
