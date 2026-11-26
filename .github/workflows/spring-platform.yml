@@ -168,8 +168,11 @@ jobs:
           }
       - uses: actions/upload-artifact@v4
         with:
-          name: studyhub-spring-windows
+          name: studyhub-spring-windows-msi
           if-no-files-found: error
-          path: |
-            packages/studyhub-spring/studyhub-platform-shell/target/packaging/msi-*/*.msi
-            packages/studyhub-spring/studyhub-platform-shell/target/packaging/exe-*/*.exe
+          path: packages/studyhub-spring/studyhub-platform-shell/target/packaging/msi-*/*.msi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: studyhub-spring-windows-exe
+          if-no-files-found: error
+          path: packages/studyhub-spring/studyhub-platform-shell/target/packaging/exe-*/*.exe
