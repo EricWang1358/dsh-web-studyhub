@@ -10,17 +10,18 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { schedule, initialReview, previewSchedule, checkSettings } from '../lib/sm2.js';
 import { renderTexToMathMl, compileMathInLesson } from '../lib/companion-template/mathml.js';
 import { parseJson } from '../lib/generation.js';
 import { createLexicalIndex, tokenizeLexical, extractHighlightSnippet } from '../lib/contexts/materials/retrieval-lexical.js';
-import { createLocator, locateQuote, locateQuoteDetailed, MAX_APPROX_EDIT_RATE } from '../lib/quote-locate.js';
+import { createLocator, locateQuote, locateQuoteDetailed } from '../lib/quote-locate.js';
 import { resolveQuote } from '../ui/document-preview/selection.js';
 import { schemaProblems, validate } from '../lib/runtime/schema.js';
 import { loadUi } from './helpers/ui-module.mjs';
+import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const uiMod = await loadUi(`
   export { AppContext, AppStoreContext, AppStoreProvider, createAppStore, syncAppStore, useApp, useAppSelector, useAppSlice } from './ui/app/app-context.js';
@@ -220,7 +221,18 @@ test('4. minisearch lexical retrieval: CJK word segmentation, course/sourceIds p
 /* ---------- 5. approx-string-match (lib/quote-locate.js) ---------- */
 
 test('5. approx-string-match quote-locate: <=10% edit rate, context disambiguation, ambiguity guard & UTF-16 alignment', () => {
-  assert.equal(MAX_APPROX_EDIT_RATE, 0.1);
+  // Exact 10% edit-rate boundary on a 20-letter key: 2 edits (10%) matches, 3 edits (15%) is rejected even if caller asks for a higher rate.
+  const boundaryText = 'Intro: distributedconsensus ensures replicated safety.';
+  const atBoundary = locateQuoteDetailed(boundaryText, 'distributxxconsensus');
+  assert.equal(atBoundary.status, 'approx');
+  assert.equal(atBoundary.errors, 2);
+  assert.equal(atBoundary.editRate, 0.1);
+  assert.equal(boundaryText.slice(atBoundary.start, atBoundary.end), 'distributedconsensus');
+
+  const overBoundary = locateQuoteDetailed(boundaryText, 'distribuxxxconsensus');
+  assert.equal(overBoundary.status, 'missing');
+  assert.equal(locateQuote(boundaryText, 'distribuxxxconsensus'), null);
+  assert.equal(locateQuoteDetailed(boundaryText, 'distribuxxxconsensus', { maxEditRate: 0.25 }).status, 'missing', 'edit rate is hard-capped at 10%');
 
   // Single OCR/typo drift (1 edit out of 36 key chars = 2.8% <= 10%) with astral emoji prefix (UTF-16 alignment check!).
   const textWithEmoji = '📘🌟 The distributed consensus protocol guarantees linearizability under network partitions.';
@@ -311,12 +323,47 @@ test('6. zustand App store: fine-grained slice isolation and backward-compatible
 /* ---------- 7. @atlaskit/pragmatic-drag-and-drop (ui/Board.jsx) ---------- */
 
 test('7. pragmatic-drag-and-drop Board: removes dragover reflow loop, renders explicit drag handles & keeps keyboard/menu fallbacks', async () => {
-  const src = await readFile(new URL('../ui/Board.jsx', import.meta.url), 'utf8');
-  assert.match(src, /@atlaskit\/pragmatic-drag-and-drop\/adapter\/element-adapter/);
-  assert.doesNotMatch(src, /onDragOver=/, 'must remove native 60-120Hz onDragOver handlers');
-  assert.doesNotMatch(src, /querySelectorAll\(":scope > \.board-card"\)/, 'must eliminate O(N) getBoundingClientRect reflow loop');
+  // Verify real module graph imports @atlaskit/pragmatic-drag-and-drop/adapter/element-adapter via esbuild metafile.
+  const graph = await build({
+    entryPoints: ['ui/Board.jsx'],
+    bundle: true,
+    write: false,
+    metafile: true,
+    platform: 'browser',
+    format: 'esm',
+    external: ['react', 'react-dom', 'react/*', 'react-dom/*', '@atlaskit/pragmatic-drag-and-drop/*', '@base-ui/*'],
+    loader: { '.css': 'text' },
+    logLevel: 'silent',
+  });
+  const boardImports = graph.metafile.inputs['ui/Board.jsx']?.imports?.map((entry) => entry.path) || [];
+  assert.ok(
+    boardImports.includes('@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter'),
+    `expected ui/Board.jsx module graph to import pragmatic-drag-and-drop element-adapter, got: ${boardImports.join(', ')}`,
+  );
 
-  const { Board, setUiLanguage } = uiMod;
+  // Mount Board interactively with an element-adapter probe to verify zero native onDragOver handlers,
+  // explicit drag handles, and drop-to-move wiring without DOM querySelectorAll reflow loops.
+  const dndState = { draggables: [], dropTargets: [], monitors: [] };
+  globalThis.__TEST_BOARD_DND__ = dndState;
+  const dndSpyPlugin = {
+    name: 'board-dnd-probe',
+    setup(builder) {
+      builder.onResolve({ filter: /^@atlaskit\/pragmatic-drag-and-drop\/adapter\/element-adapter$/ }, () => ({
+        path: 'element-adapter',
+        namespace: 'board-dnd-probe',
+      }));
+      builder.onLoad({ filter: /.*/, namespace: 'board-dnd-probe' }, () => ({
+        contents: `
+          const s = globalThis.__TEST_BOARD_DND__;
+          export function draggable(cfg) { s.draggables.push(cfg); return () => {}; }
+          export function dropTargetForElements(cfg) { s.dropTargets.push(cfg); return () => {}; }
+          export function monitorForElements(cfg) { s.monitors.push(cfg); return () => {}; }
+        `,
+        loader: 'js',
+      }));
+    },
+  };
+
   const sampleBoard = {
     version: 1,
     revision: 1,
@@ -329,9 +376,60 @@ test('7. pragmatic-drag-and-drop Board: removes dragover reflow loop, renders ex
     },
     archived: [],
   };
+  const mutations = [];
   const noop = () => {};
-  const state = { board: sampleBoard, error: '', conflict: false, busy: false, mutate: async () => true, refresh: noop, clearError: noop };
+  const state = {
+    board: sampleBoard,
+    error: '',
+    conflict: false,
+    busy: false,
+    mutate: async (action, args) => { mutations.push({ action, args }); return true; },
+    refresh: noop,
+    clearError: noop,
+  };
 
+  try {
+    const interactive = await loadInteractiveUi(`
+      export { default as Board } from './ui/Board.jsx';
+      export { setUiLanguage } from './ui/i18n.js';
+    `, { plugins: [dndSpyPlugin] });
+
+    await withBrowserGlobals(async () => {
+      interactive.exports.setUiLanguage('zh');
+      const mounted = interactive.mount(() => interactive.React.createElement(interactive.exports.Board, {
+        state,
+        library: { root: '/lib' },
+        today: '2026-10-02',
+      }));
+      try {
+        // Zero native onDragOver handlers anywhere in the rendered Board tree.
+        const dragOverNodes = mounted.findAll((node) => typeof node.props?.onDragOver === 'function');
+        assert.equal(dragOverNodes.length, 0, 'must not attach native 60-120Hz onDragOver handlers');
+
+        // Pragmatic drag-and-drop registers the card draggable with a dragHandle, column drop targets, and the board monitor.
+        assert.equal(dndState.draggables.length, 1);
+        assert.ok(dndState.draggables[0].dragHandle, 'draggable must wire an explicit dragHandle');
+        assert.equal(dndState.monitors.length, 1);
+        const doneColTarget = dndState.dropTargets.find((t) => t.getData().type === 'board-column' && t.getData().columnId === 'done');
+        assert.ok(doneColTarget, 'done column registers as a pragmatic drop target');
+
+        // Dropping card c1 onto the done column triggers board.card.move without any DOM reflow query.
+        await mounted.act(() => {
+          dndState.monitors[0].onDrop({
+            source: { data: dndState.draggables[0].getInitialData() },
+            location: { current: { dropTargets: [{ data: doneColTarget.getData() }] } },
+          });
+        });
+        assert.deepEqual(mutations, [{ action: 'board.card.move', args: { id: 'c1', column: 'done', index: 0 } }]);
+      } finally {
+        mounted.unmount();
+      }
+    });
+  } finally {
+    delete globalThis.__TEST_BOARD_DND__;
+  }
+
+  const { Board, setUiLanguage } = uiMod;
   setUiLanguage('zh');
   const zhHtml = renderToStaticMarkup(React.createElement(Board, { state, library: { root: '/lib' }, today: '2026-10-02' }));
   assert.match(zhHtml, /data-drag-handle="true"/, 'explicit drag handle must be rendered');
