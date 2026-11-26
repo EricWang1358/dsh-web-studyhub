@@ -14,8 +14,8 @@ test('Sources filter bar, collapsed-day auto-open, and archived batch restore + 
   const service = new StudyService(join(root, 'library'));
   await service.store.update(s => {
     s.sources.push(
-      { id: 's-today', title: 'Today Kernel Notes', text: 'Kernel evidence', createdAt: new Date(Date.UTC(2026, 9, 25, 10, 0)).toISOString(), courses: ['OS'] },
-      { id: 's-old', title: 'Older Virtual Memory', text: 'Paging evidence', createdAt: new Date(Date.UTC(2026, 8, 10, 10, 0)).toISOString(), courses: ['OS'] },
+      { id: 's-today', title: 'Today Kernel Notes', text: 'Kernel evidence', createdAt: new Date().toISOString(), courses: ['OS'] },
+      { id: 's-old', title: 'Older Virtual Memory', text: 'Paging evidence', createdAt: new Date(Date.now() - 7 * 86400_000).toISOString(), courses: ['OS'] },
       { id: 's-arch-1', title: 'Archived Draft Alpha', text: 'Old Alpha', archived: true, createdAt: new Date(Date.UTC(2026, 7, 1, 10, 0)).toISOString(), courses: ['OS'] },
       { id: 's-arch-2', title: 'Archived Draft Beta', text: 'Old Beta', archived: true, createdAt: new Date(Date.UTC(2026, 7, 2, 10, 0)).toISOString(), courses: ['OS'] },
       { id: 's-arch-cited', title: 'Archived Cited C', text: 'Cited C evidence', archived: true, createdAt: new Date(Date.UTC(2026, 7, 3, 10, 0)).toISOString(), courses: ['OS'] },
@@ -47,8 +47,11 @@ test('Sources filter bar, collapsed-day auto-open, and archived batch restore + 
   await page.goto(server.url);
   await page.locator('[data-tour="nav-sources"]').click();
 
-  // Older day starts collapsed; typing a filter auto-expands matching older groups and hides non-matches.
-  assert.equal(await page.locator('.source-doc', { hasText: 'Older Virtual Memory' }).count(), 0);
+  // Collapse the older day, then filter to a row inside it.
+  await page.locator('.sources-view-bar').getByText('By import date', { exact: true }).click();
+  const older = page.locator('.source-doc', { hasText: 'Older Virtual Memory' });
+  await page.locator('.source-group').filter({ has: older }).locator('.source-group-head[aria-expanded="true"]').click();
+  await older.waitFor({ state: 'detached' });
   const filter = page.getByRole('searchbox', { name: 'Filter materials…' });
   await filter.fill('virtual');
   await page.locator('.source-doc', { hasText: 'Older Virtual Memory' }).waitFor();
@@ -59,6 +62,7 @@ test('Sources filter bar, collapsed-day auto-open, and archived batch restore + 
   await page.getByText('No materials match “nonexistent-xyz”').waitFor();
   await page.getByRole('button', { name: 'Clear filters' }).click();
   await page.locator('.source-doc', { hasText: 'Today Kernel Notes' }).waitFor();
+  assert.equal(await older.count(), 0, 'clearing the filter restores the saved fold');
 
   // Switch to Archived view (3 archived materials).
   await page.locator('[data-archive-toggle]').click();
@@ -94,7 +98,8 @@ test('Sources filter bar, collapsed-day auto-open, and archived batch restore + 
   await page.reload();
   await page.locator('[data-tour="nav-sources"]').click();
   await page.locator('[data-archive-toggle]').click();
-  await page.getByRole('button', { name: 'Expand all' }).click();
+  const expandAll = page.getByRole('button', { name: 'Expand all', exact: true });
+  if (await expandAll.isVisible()) await expandAll.click();
   await page.locator('.source-organize > summary').click();
   await page.getByRole('checkbox', { name: 'Select source: Archived Draft Alpha' }).check();
   await page.getByRole('checkbox', { name: 'Select source: Archived Draft Beta' }).check();

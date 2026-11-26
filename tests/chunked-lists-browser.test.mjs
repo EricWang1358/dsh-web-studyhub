@@ -60,6 +60,14 @@ async function openApp(browser, running, zone, { width = 1280, height = 900 } = 
 }
 async function openNav(page, id) {
   await (await revealNavRow(page, id)).dispatchEvent("click");
+  if (id !== "sources") return;
+  await page.locator(".sources-view-bar").getByText("按导入日期", { exact: true }).click();
+  // Start each date scenario with the newest day and any pinned group open. Moving the viewport during setup would load extra chunks.
+  const days = page.locator(".source-group-head").filter({ hasNotText: "已置顶" });
+  await days.first().waitFor();
+  for (const older of (await days.all()).slice(1)) {
+    if (await older.getAttribute("aria-expanded") === "true") await older.dispatchEvent("click");
+  }
 }
 const scrollerTop = (page, to) => page.evaluate((value) => {
   let element = document.querySelector(".page");
@@ -211,8 +219,8 @@ test("the sources page, the wrong book and a long draft draw their rows in chunk
       // The days, newest first: the notes (450), the four small sources, the book alone. The book is more than half a window below the end of the first day, so the end of
       // that day is not in sight when the book is: only the way down passes it, and a smooth scroll would let the day draw a chunk on that way and move the book.
       await withLibrary({ documents: 450, bookOlderDays: 400 }, async (page) => {
-        await page.locator(".source-group-head").nth(2).dispatchEvent("click");
-        await page.locator(".source-group-head").nth(1).dispatchEvent("click");
+        const olderDays = page.locator('.source-group-head[aria-expanded="false"]');
+        for (const head of (await olderDays.all()).reverse()) await head.dispatchEvent("click");
         await page.locator('[data-tour="custom-book-row"]').first().waitFor({ timeout: 15000 });
         await scrollerTop(page, 0);
         await frames(page, 6);
