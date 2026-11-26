@@ -421,6 +421,19 @@ test('7. pragmatic-drag-and-drop Board: removes dragover reflow loop, renders ex
           });
         });
         assert.deepEqual(mutations, [{ action: 'board.card.move', args: { id: 'c1', column: 'done', index: 0 } }]);
+
+        // A card drag reads its midpoint once on enter; pointer moves reuse it and never scan sibling cards.
+        const cardTarget = dndState.dropTargets.find((t) => t.getData().type === 'board-card');
+        assert.ok(cardTarget, 'the card registers as a pragmatic drop target');
+        let reads = 0;
+        let scans = 0;
+        cardTarget.element.parentElement = { querySelectorAll() { scans += 1; return [cardTarget.element]; } };
+        cardTarget.element.getBoundingClientRect = () => { reads += 1; return { top: 20, height: 60 }; };
+        const pointerAt = (y) => ({ location: { current: { input: { clientY: y } } } });
+        cardTarget.onDragEnter(pointerAt(21));
+        assert.equal(reads, 1, 'enter measures the target card');
+        for (const y of [24, 64, 22, 66]) cardTarget.onDrag(pointerAt(y));
+        assert.deepEqual({ reads, scans }, { reads: 1, scans: 0 }, 'pointer moves must reuse the measured midpoint without scanning sibling cards');
       } finally {
         mounted.unmount();
       }
