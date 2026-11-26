@@ -283,6 +283,19 @@ test('note.qa.save writes card follow-up and study note in one atomic call, stay
   assert.equal(matchingAfterUpdate.length, 1, 'replace:true keeps a single followup entry for that question');
 });
 
+test('note.qa.save keeps the learner\'s saved follow-up unless replace:true is passed (same default as card.followup.add)', async t => {
+  const { service } = await library(t);
+  const base = { deckId: 'deck', cardId: 'c1', question: 'Why keep a caretaker?', answer: 'The learner wrote this answer.', title: 'Study note', language: 'en' };
+  const first = await service.call('note.qa.save', base);
+  const second = await service.call('note.qa.save', { ...base, answer: 'A main-chat agent answer that must not overwrite it.' });
+  assert.equal(second.item.id, first.item.id, 'without replace the existing follow-up is kept');
+  assert.equal(second.replaced, undefined);
+  const card = (await service.store.read()).decks[0].cards[0];
+  const kept = card.followups.filter(f => f.originalQuestion === base.question);
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0].answer, base.answer, 'the learner\'s saved answer is unchanged');
+});
+
 test('note.qa.save rolls back atomically when note drafting is running: zero half-written follow-ups on card', async t => {
   let release;
   const draft = '# Study note\n\n' + 'A generated study note explaining Memento encapsulation in full detail. '.repeat(4);

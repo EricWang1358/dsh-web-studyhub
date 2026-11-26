@@ -47,6 +47,8 @@ export interface AssistantCardContext {
   kind?: string;
   isWrong?: boolean;
   revealed?: boolean;
+  /** The card has feedback (answered and graded), which backend `teach.start` requires (#1504). */
+  answered?: boolean;
   isExam?: boolean;
   hasCitation?: boolean;
   /** Optional active page filter or selected item label for full context awareness (#1315). */
@@ -396,6 +398,7 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
         prev.kind === next.kind &&
         prev.isWrong === next.isWrong &&
         prev.revealed === next.revealed &&
+        prev.answered === next.answered &&
         prev.isExam === next.isExam &&
         prev.hasCitation === next.hasCitation
       ) {

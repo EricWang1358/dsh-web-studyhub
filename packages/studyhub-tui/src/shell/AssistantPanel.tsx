@@ -40,6 +40,7 @@ import {
   formatRetellVerdictLines,
   formatTeachCompletionMarkdown,
   formatTeachStepMarkdown,
+  getTeachSession,
   isAiStreamingAvailable,
   loadTeachSession,
   skipTeachStep,
@@ -290,6 +291,12 @@ export const AssistantPanel = memo(function AssistantPanel({
         : 'understanding';
   const teachReqSeqRef = useRef(0);
   const teachLoadedKeyRef = useRef<string | null>(null);
+  // Whether the card is answered as far as `teach.start` cares (revealed / graded). ReviewView re-syncs the card on
+  // every keystroke of the learner's answer, so the auto-start keys on this, never on the answer text (#1504).
+  const teachAnswerState = `${cardCtx?.revealed ? 1 : 0}${cardCtx?.answered ? 1 : 0}`;
+  // The load a `teach.start` 「请先作答原题」 refusal answered, and the answer state it was sent with: the
+  // auto-start tries again only once that state changes.
+  const [teachRefused, setTeachRefused] = useState<{ key: string; answerState: string } | null>(null);
 
   const stream = useStreamingBuffer();
   const { send: sendAiTurn, abort: abortAiTurn } = useAiConversation(host, lang);
@@ -678,12 +685,15 @@ export const AssistantPanel = memo(function AssistantPanel({
     teachReqSeqRef.current += 1;
     teachLoadedKeyRef.current = null;
     setTeachSession(null);
+    setTeachRefused(null);
   }, [cardCtx?.runId, cardCtx?.cardId, cardCtx?.teachingMode]);
 
   const startBackendTeach = useCallback(
     async (targetMode: 'understanding' | 'calculation', allowGetExisting: boolean) => {
       if (!cardCtx?.runId || !cardCtx?.cardId) return;
       const seq = ++teachReqSeqRef.current;
+      const requestKey = `${cardCtx.runId}:${cardCtx.cardId}:${targetMode}`;
+      const requestAnswerState = teachAnswerState;
       beginExecution(t(lang, '加载苏格拉底带学', 'Loading Socratic teaching'));
       try {
         const res = await loadTeachSession(host, {
@@ -698,9 +708,11 @@ export const AssistantPanel = memo(function AssistantPanel({
         });
         if (!mountedRef.current || teachReqSeqRef.current !== seq) return;
         if (!res.ok) {
-          teachLoadedKeyRef.current = null;
+          // The load key stays set: a failed start is retried by [A], [M], a new card or (after the refusal
+          // below) a change of the card's answer state, never by a re-render such as a keystroke (#1504).
           setTeachSession(null);
           if (res.needsAnswerFirst) {
+            setTeachRefused({ key: requestKey, answerState: requestAnswerState });
             appendTurn({
               role: 'system',
               stage: 'question',
@@ -734,6 +746,7 @@ export const AssistantPanel = memo(function AssistantPanel({
           return;
         }
         const loaded = res.session;
+        setTeachRefused(null);
         setTeachSession(loaded);
         const stepSummary = loaded.complete
           ? t(lang, '带学已完成', 'Teaching complete')
@@ -762,19 +775,73 @@ export const AssistantPanel = memo(function AssistantPanel({
         endExecution();
       }
     },
-    [cardCtx, host, lang, isActive, beginExecution, endExecution, appendTurn, setStage],
+    [cardCtx, teachAnswerState, host, lang, isActive, beginExecution, endExecution, appendTurn, setStage],
   );
 
   // Auto-load backend `teach.*` when entering Guided Study on a Review card (non-retell/non-summary stages).
-  // Re-runs when the learner answers/reveals the card after a `needsAnswerFirst` refusal (same cardId, revealed flips true).
+  // After a `needsAnswerFirst` refusal it re-runs once per change of the card's answer state (revealed / graded),
+  // so typing the answer in Review sends nothing (#1504).
   useEffect(() => {
     if (tab !== 'guided' || stage === 'retell' || stage === 'summary') return;
     if (!cardCtx?.runId || !cardCtx?.cardId) return;
     const key = `${cardCtx.runId}:${cardCtx.cardId}:${teachMode}`;
-    if (teachLoadedKeyRef.current === key) return;
+    const answerStateChanged = teachRefused?.key === key && teachRefused.answerState !== teachAnswerState;
+    if (teachLoadedKeyRef.current === key && !answerStateChanged) return;
     teachLoadedKeyRef.current = key;
+    setTeachRefused(null);
     void startBackendTeach(teachMode, true);
-  }, [tab, stage, cardCtx?.runId, cardCtx?.cardId, cardCtx?.revealed, cardCtx?.userAnswer, teachMode, startBackendTeach]);
+  }, [tab, stage, cardCtx?.runId, cardCtx?.cardId, teachAnswerState, teachRefused, teachMode, startBackendTeach]);
+
+  // A `teach.answer` / `teach.skip` refused as stale (the backend already moved on: a reply dropped by Esc, or the
+  // main chat advanced the session) re-reads the session; retrying would only resend the same old step (#1504).
+  const resyncTeachSession = useCallback(
+    async (id: string, seq: number) => {
+      const res = await getTeachSession(host, { id, language: lang });
+      if (!mountedRef.current || teachReqSeqRef.current !== seq) return;
+      if (!res.ok) {
+        const fb = {
+          reason: res.error,
+          altLabel: t(lang, '按 [A] 重新读取带学进度', 'Press [A] to reload guided study'),
+          altCommand: '',
+          instruction: t(lang, '苏格拉底带学', 'Socratic guided study'),
+          retryTeach: { kind: 'start' as const, mode: teachMode },
+        };
+        sessionMemory.lastFallback = fb;
+        setLastFallback(fb);
+        setInputFocused(false);
+        appendTurn({
+          role: 'system',
+          stage: 'question',
+          actionSummary: t(lang, '带学进度同步失败', 'Guided study sync failed'),
+          text: `${res.error}（${fb.altLabel}）`,
+        });
+        return;
+      }
+      const fresh = res.session;
+      setTeachSession(fresh);
+      const note = fresh.complete
+        ? t(lang, '带学进度已在别处更新：本题带学已经完成。', 'Guided study moved on elsewhere: this card is already complete.')
+        : t(
+            lang,
+            '带学进度已在别处更新（中止后上一条回答仍被判完，或主会话推进了带学），已同步到最新一步，请回答这一步的检验提问。',
+            'Guided study moved on elsewhere (a stopped answer was still checked, or the main chat advanced it); showing the current step — answer its check.',
+          );
+      const body = fresh.complete ? formatTeachCompletionMarkdown(fresh, lang) : formatTeachStepMarkdown(fresh, lang);
+      appendTurn({
+        role: 'system',
+        stage: fresh.complete ? 'summary' : 'question',
+        actionSummary: t(lang, '已同步带学进度', 'Guided study resynced'),
+        text: `${note}\n\n${body}`,
+      });
+      if (fresh.complete) {
+        setStage('summary');
+        setInputFocused(false);
+      } else {
+        setInputFocused(true);
+      }
+    },
+    [host, lang, teachMode, appendTurn, setStage],
+  );
 
   const handleSkipTeachStep = useCallback(
     async (all = false) => {
@@ -797,6 +864,10 @@ export const AssistantPanel = memo(function AssistantPanel({
           language: lang,
         });
         if (!mountedRef.current || teachReqSeqRef.current !== seq) return;
+        if (!res.ok && res.stale) {
+          await resyncTeachSession(teachSession.id, seq);
+          return;
+        }
         if (!res.ok) {
           const fb = {
             reason: res.error,
@@ -845,7 +916,7 @@ export const AssistantPanel = memo(function AssistantPanel({
         endExecution();
       }
     },
-    [busy, teachSession, host, lang, appendTurn, beginExecution, endExecution, notify, setStage],
+    [busy, teachSession, host, lang, appendTurn, beginExecution, endExecution, notify, setStage, resyncTeachSession],
   );
 
   const handleSubmitInput = useCallback(
@@ -955,6 +1026,10 @@ export const AssistantPanel = memo(function AssistantPanel({
             language: lang,
           });
           if (!mountedRef.current || teachReqSeqRef.current !== seq) return;
+          if (!res.ok && res.stale) {
+            await resyncTeachSession(teachSession.id, seq);
+            return;
+          }
           if (!res.ok) {
             const fb = {
               reason: res.error,
@@ -987,8 +1062,8 @@ export const AssistantPanel = memo(function AssistantPanel({
             !next.complete && (next.wrongTries ?? 0) >= 2
               ? t(
                   lang,
-                  '提示：这一步已经试过两次了，按 [S] 或 Ctrl+N 跳过单步，或按 [X] 直接展示剩余要点。',
-                  'Tip: 2 tries on this step — press [S] / Ctrl+N to skip step, or [X] to reveal remaining points.',
+                  '提示：这一步已经试过两次了，按 Ctrl+N 跳过单步；或先按 Esc 离开输入框，再按 [X] 直接展示剩余要点。',
+                  'Tip: 2 tries on this step — press Ctrl+N to skip this step, or Esc then [X] to reveal remaining points.',
                 )
               : '';
           const textOut =
@@ -1409,6 +1484,7 @@ export const AssistantPanel = memo(function AssistantPanel({
       applyRunFromAssistant,
       sendAiTurn,
       teachSession,
+      resyncTeachSession,
     ],
   );
 
@@ -1843,10 +1919,15 @@ export const AssistantPanel = memo(function AssistantPanel({
                 : formatStageStrip(stage, lang, asciiMode)
             }
             meta={
+              // While the answer box has the keyboard, letters are text: name the keys that still work there.
               stage === 'retell'
-                ? t(lang, '[S]跳过', '[S]Skip')
+                ? inputFocused
+                  ? t(lang, 'Esc后[S]跳过', 'Esc then [S]Skip')
+                  : t(lang, '[S]跳过', '[S]Skip')
                 : teachSession && !teachSession.complete
-                  ? t(lang, '[S/Ctrl+N]跳过 [X]全跳 [M]模式', '[S/Ctrl+N]Skip [X]All [M]Mode')
+                  ? inputFocused
+                    ? t(lang, 'Ctrl+N跳过 · Esc后[X]全跳 [M]模式', 'Ctrl+N Skip · Esc then [X]All [M]Mode')
+                    : t(lang, '[S/Ctrl+N]跳过 [X]全跳 [M]模式', '[S/Ctrl+N]Skip [X]All [M]Mode')
                   : t(lang, '[p/n]阶段', '[p/n]Stage')
             }
             width={innerW}

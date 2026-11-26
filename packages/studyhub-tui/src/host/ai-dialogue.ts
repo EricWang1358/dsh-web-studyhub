@@ -77,7 +77,16 @@ export interface TeachingSessionView {
 }
 
 const MODEL_UNAVAILABLE_RE =
-  /configure a model|model.*unavailable|no.*model|api.?key|unauthorized|forbidden|\b401\b|\b403\b|econnrefused|timed out|timeout|未配置|可用.*模型|模型不可用|没有可用模型/i;
+  /configure a model|model.*unavailable|no.*model|api.?key|unauthorized|forbidden|\b401\b|\b403\b|econnrefused|timed out|timeout|未配置|可用.*模型|模型不可用|没有可用模型|连接模型/i;
+
+/**
+ * Backend `teach.*` refusal codes (lib/teaching.js `nonRetryableError`). The TUI classifies by code first,
+ * because the message text is localized on the way here; the text patterns remain for callers without a code.
+ */
+const MODEL_UNAVAILABLE_CODES = new Set(['teaching-no-model', 'retell-no-model']);
+const ANSWER_FIRST_CODE = 'teaching-answer-first';
+/** The backend session moved past the step the TUI shows (an Esc-dropped reply, or the main chat advanced it). */
+const STALE_TEACH_STEP_CODES = new Set(['teaching-step-changed', 'teaching-already-complete']);
 
 /** True when this host can stream a live AI reply (all dialogue entrypoints share this gate). */
 export function isAiStreamingAvailable(host: Pick<HostClient, 'streamComplete'> | null | undefined): boolean {
@@ -107,13 +116,18 @@ export function describeAiDialogueError(error: unknown, lang: UiLanguage): strin
 }
 
 /** Canonical model-availability error classifier shared across Guided Study, RetellModal, and AssistantPanel. */
-export function isModelUnavailableError(message: string): boolean {
-  return MODEL_UNAVAILABLE_RE.test(message);
+export function isModelUnavailableError(message: string, code?: string): boolean {
+  return (code !== undefined && MODEL_UNAVAILABLE_CODES.has(code)) || MODEL_UNAVAILABLE_RE.test(message);
 }
 
 /** True when backend `teach.start` refused because the learner has not answered the card yet. */
-export function needsAnswerFirstError(message: string): boolean {
-  return /answer the original question before guided teaching|请先作答原题/i.test(message);
+export function needsAnswerFirstError(message: string, code?: string): boolean {
+  return code === ANSWER_FIRST_CODE || /answer the original question before guided teaching|请先作答原题/i.test(message);
+}
+
+/** True when a `teach.answer` / `teach.skip` refusal means the TUI's step is stale and must be re-read. */
+export function isStaleTeachStepError(code: string | undefined): boolean {
+  return code !== undefined && STALE_TEACH_STEP_CODES.has(code);
 }
 
 /** Single reveal-gate check: never expose reference answers or official solutions before reveal/feedback. */
@@ -461,10 +475,8 @@ export async function loadTeachSession(
 ): Promise<{ ok: true; session: TeachingSessionView } | { ok: false; error: string; isModelError: boolean; needsAnswerFirst: boolean }> {
   const targetMode = params.mode ?? 'understanding';
   if (params.existingId && (params.existingMode || 'understanding') === targetMode) {
-    const existingRes = await tryAction<TeachingSessionView>(host, 'teach.get', { id: params.existingId });
-    if (existingRes.ok && existingRes.value?.id) {
-      return { ok: true, session: existingRes.value };
-    }
+    const existingRes = await getTeachSession(host, { id: params.existingId, language: params.language });
+    if (existingRes.ok) return existingRes;
   }
   const startRes = await tryAction<TeachingSessionView>(host, 'teach.start', {
     runId: params.runId,
@@ -478,21 +490,35 @@ export async function loadTeachSession(
     const err =
       startRes.error?.message ||
       (params.language === 'en' ? 'Failed to start guided teaching' : '无法开启苏格拉底带学');
+    const code = startRes.error?.code;
     return {
       ok: false,
       error: err,
-      isModelError: isModelUnavailableError(err),
-      needsAnswerFirst: needsAnswerFirstError(err),
+      isModelError: isModelUnavailableError(err, code),
+      needsAnswerFirst: needsAnswerFirstError(err, code),
     };
   }
   return { ok: true, session: startRes.value };
+}
+
+/** Read the backend's current `teach.get` view of a session (resume, or resync a stale step). */
+export async function getTeachSession(
+  host: HostClient,
+  params: { id: string; language: UiLanguage },
+): Promise<{ ok: true; session: TeachingSessionView } | { ok: false; error: string }> {
+  const res = await tryAction<TeachingSessionView>(host, 'teach.get', { id: params.id });
+  if (res.ok && res.value?.id) return { ok: true, session: res.value };
+  return {
+    ok: false,
+    error: (!res.ok && res.error?.message) || (params.language === 'en' ? 'Failed to read guided teaching' : '读取带学进度失败'),
+  };
 }
 
 /** Submit a learner response to the active backend `teach.answer` step (#1354 P3-c). */
 export async function submitTeachAnswer(
   host: HostClient,
   params: { id: string; answer: string; stepIndex: number; language: UiLanguage },
-): Promise<{ ok: true; session: TeachingSessionView } | { ok: false; error: string; isModelError: boolean }> {
+): Promise<{ ok: true; session: TeachingSessionView } | { ok: false; error: string; isModelError: boolean; stale: boolean }> {
   const res = await tryAction<TeachingSessionView>(host, 'teach.answer', {
     id: params.id,
     answer: params.answer,
@@ -502,7 +528,8 @@ export async function submitTeachAnswer(
     const err =
       res.error?.message ||
       (params.language === 'en' ? 'Failed to submit teaching answer' : '提交带学回答失败');
-    return { ok: false, error: err, isModelError: isModelUnavailableError(err) };
+    const code = res.error?.code;
+    return { ok: false, error: err, isModelError: isModelUnavailableError(err, code), stale: isStaleTeachStepError(code) };
   }
   return { ok: true, session: res.value };
 }
@@ -511,7 +538,7 @@ export async function submitTeachAnswer(
 export async function skipTeachStep(
   host: HostClient,
   params: { id: string; stepIndex: number; all?: boolean; language: UiLanguage },
-): Promise<{ ok: true; session: TeachingSessionView } | { ok: false; error: string }> {
+): Promise<{ ok: true; session: TeachingSessionView } | { ok: false; error: string; stale: boolean }> {
   const res = await tryAction<TeachingSessionView>(host, 'teach.skip', {
     id: params.id,
     stepIndex: params.stepIndex,
@@ -523,6 +550,7 @@ export async function skipTeachStep(
       error:
         res.error?.message ||
         (params.language === 'en' ? 'Failed to skip teaching step' : '跳过当前步骤失败'),
+      stale: isStaleTeachStepError(res.error?.code),
     };
   }
   return { ok: true, session: res.value };
@@ -554,7 +582,7 @@ export async function submitRetellEvaluation(
     return {
       ok: false,
       error: err || (params.language === 'en' ? 'Feynman retell check failed' : '费曼复述评估失败'),
-      isModelError: !err || isModelUnavailableError(err),
+      isModelError: !err || isModelUnavailableError(err, res.error?.code),
     };
   }
   const v = res.value;

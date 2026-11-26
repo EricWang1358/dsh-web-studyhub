@@ -1779,6 +1779,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
       kind,
       isWrong: Boolean(feedback && feedback.correct === false),
       revealed,
+      answered: Boolean(feedback),
       isExam: run.mode === 'exam',
       hasCitation,
     });
