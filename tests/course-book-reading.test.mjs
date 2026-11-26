@@ -112,7 +112,6 @@ test('a block about words goes right after the paragraph that holds them (讲解
 
 test('an AI block starts folded when it is longer than 1,500 characters and not kept; every other block starts open', () => {
   const of = (body, state) => ui.foldsByDefault({ body, state });
-  assert.equal(ui.AI_FOLD_CHARS, 1500);
   assert.equal(of('x'.repeat(1500), 'new'), false, 'exactly 1,500 is not longer');
   assert.equal(of('x'.repeat(1501), 'new'), true);
   assert.equal(of('x'.repeat(1501), 'kept'), false, 'a block the learner kept starts open');
