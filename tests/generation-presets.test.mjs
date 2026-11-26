@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DENSITIES, DEPTHS, PRESETS, DEFAULT_PRESET, DEFAULT_CELL, performanceOfDepth, depthOf, settingsOfCell, presetOf, presetCell, depthApplies, costRatio }
+import { DENSITIES, DEPTHS, PRESETS, DEFAULT_CELL, performanceOfDepth, depthOf, settingsOfCell, presetOf, presetCell, depthApplies, costRatio }
   from '../lib/contexts/generation/presets.js';
 import { levelOf } from '../lib/coverage-strength.js';
 import { GENERATION_COVERAGE_LEVELS, GENERATION_SETTINGS_DEFAULTS, normalizeGenerationSettings } from '../lib/generation-settings.js';
@@ -19,7 +19,7 @@ test('the axes: density is the coverage levels unchanged, depth is quick, scenar
 
 test('three presets: 快问 (lean × quick), 情境题 (standard × scenario, the default), 逐题精出 (standard × staged)', () => {
   assert.deepEqual(PRESETS.map(({ id, density, depth }) => [id, density, depth]), [['quick', 'lean', 'quick'], ['scenario', 'standard', 'scenario'], ['blueprint', 'standard', 'blueprint']]);
-  assert.equal(DEFAULT_PRESET, 'scenario');
+  assert.equal(presetOf(DEFAULT_CELL), 'scenario');
   assert.deepEqual(DEFAULT_CELL, { density: 'standard', depth: 'scenario' });
   assert.deepEqual(presetCell('quick'), { density: 'lean', depth: 'quick' });
   assert.equal(presetCell('nope'), null);

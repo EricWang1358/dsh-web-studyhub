@@ -9,7 +9,7 @@ import { RESERVED_GLOBAL_KEY_SET, useClaimedKeys } from '../components/focus.js'
 import { LAYOUT_BP, LAYOUT_CHROME } from '../components/layout-tokens.js';
 import { ClickableBox } from '../components/mouse.js';
 import { formatReturnHintLabel } from '../state/practice-stack.js';
-import { draftCount, dueToday, pageIcon, runningJobs, wrongCount } from './data.js';
+import { currentCourse, draftCount, dueToday, pageIcon, runningJobs, wrongCount } from './data.js';
 
 export const SIDENAV_WIDTH = LAYOUT_CHROME.SIDENAV_EXPANDED;
 export const SIDENAV_COLLAPSED_WIDTH = LAYOUT_CHROME.SIDENAV_COLLAPSED;
@@ -45,9 +45,10 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
   const inner = Math.max(1, width - 1);
   const ell = glyph('ellipsis', asciiMode);
 
+  const course = currentCourse(snapshot);
   const counts: Partial<Record<PageId, { n: number; color: string }>> = {
-    library: { n: dueToday(snapshot), color: theme.warning },
-    wrongbook: { n: wrongCount(snapshot), color: theme.error },
+    library: { n: dueToday(snapshot, course), color: theme.warning },
+    wrongbook: { n: wrongCount(snapshot, course), color: theme.error },
     tasks: { n: runningJobs(snapshot), color: theme.ai },
     generate: { n: draftCount(snapshot), color: theme.accent },
   };

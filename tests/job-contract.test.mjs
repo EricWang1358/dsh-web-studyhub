@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CONTRACT_VERSION, STATUSES, jobContract, checkAction, kindOf } from '../lib/job-contract.js';
+import { STATUSES, jobContract, checkAction, kindOf } from '../lib/job-contract.js';
 
 // The public contract of a job (docs/job-contract.md): ONE adapter over the jobs the plugin already has. These tests are its shape.
 const at = (seconds) => new Date(Date.UTC(2026, 9, 5, 10, 0, seconds)).toISOString();
@@ -16,10 +16,11 @@ const generation = (extra = {}) => ({ id: 'gen-1', status: 'running', stage: 'Wr
 const pdf = (extra = {}) => ({ id: 'pdf-1', type: 'pdf-convert', filename: 'Book.pdf', status: 'running', phase: 'parse', done: 0, total: 0, startedAt: at(0), retryable: true, ...extra });
 
 test('the contract is versioned and every status of the lifecycle is a word of one vocabulary', () => {
-  assert.equal(CONTRACT_VERSION, 1);
   assert.deepEqual(STATUSES, ['queued', 'running', 'pausing', 'paused', 'cancelling', 'cancelled', 'complete', 'failed', 'interrupted']);
   const view = jobContract(generation());
   assert.equal(view.contractVersion, 1);
+  assert.equal(jobContract(audio()).contractVersion, 1);
+  assert.equal(jobContract(pdf()).contractVersion, 1);
   assert.ok(STATUSES.includes(view.status));
 });
 

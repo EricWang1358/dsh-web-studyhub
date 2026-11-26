@@ -47,7 +47,12 @@ test('dashboard and library weight mastery by active cards in a real library sna
           const screen = await tty.waitFor(mastery, { label: page + ' mastery' });
           const displayed = Number(screen.match(mastery)[1]);
           assert.equal(displayed, map.mastery.library.value, 'suspended cards must not give their deck extra weight');
-          if (page === 'library') assert.match(screen, /Total:\s*10\b/, 'the deck inventory still includes its suspended cards');
+          if (page === 'library') {
+            // Total is the learnable population, the same one the breakdown and mastery use (#1525);
+            // the suspended cards stay visible beside it, so the deck's inventory of 10 is not hidden.
+            assert.match(screen, /Total:\s*1\b/, 'total counts the learnable cards');
+            assert.match(screen, /Suspended:\s*9\b/, 'the suspended cards are still shown');
+          }
         } finally { view.unmount(); tty.dispose(); }
       });
     }

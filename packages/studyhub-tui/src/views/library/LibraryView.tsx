@@ -15,7 +15,15 @@ import { ClickableBox } from '../../components/mouse.js';
 import { saveTuiPreferences } from '../../host/tui-prefs.js';
 import { useTheme } from '../../theme/tokens.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
-import { currentCourse, deckDueCount, dueToday, isActiveStudyDeck } from '../../shell/data.js';
+import { currentCourse, deckDueCount, dueToday } from '../../shell/data.js';
+import {
+  matchesCourse,
+  selectCourseNames,
+  selectDeckMetrics,
+  selectPractisableDecks,
+  selectStudySummary,
+  type DeckProgressLike,
+} from '../../selectors/study-metrics.js';
 import { useShellActions } from '../../shell/actions.js';
 import { getSampleStatus, removeSampleCourse, tryAction } from '../../host/sample-actions.js';
 import type { DeckExportInput } from './deck-export.js';
@@ -81,28 +89,21 @@ function formatDateShort(raw: string | number | undefined | null, lang: 'zh' | '
 }
 
 function deckStats(deck: DeckItem, progressMap: Record<string, DeckProgressEntry> | undefined) {
-  const p = progressMap?.[deck.id];
-  const total = Number(deck.count ?? p?.total ?? deck.cardCount ?? 0) || 0;
-  const suspended = Number(deck.suspended ?? 0) || 0;
-  const activeCards = Math.max(0, Number(p?.total ?? deck.available ?? (total - suspended)) || 0);
-  const due = deckDueCount(deck, progressMap);
-  const newCount = Number(p?.counts?.new ?? deck.newCount ?? 0) || 0;
-  const wrong = Number(deck.wrong ?? p?.counts?.weak ?? deck.wrongCount ?? 0) || 0;
-  const mastered = Number(p?.counts?.mastered ?? deck.masteredCount ?? 0) || 0;
-  const familiar = Number(p?.counts?.familiar ?? 0) || 0;
-  const learning = Number(p?.counts?.learning ?? 0) || 0;
-  const mastery =
-    typeof p?.mastery === 'number'
-      ? Math.max(0, Math.min(100, Math.round(p.mastery)))
-      : activeCards > 0
-        ? Math.round((mastered / activeCards) * 100)
-        : 0;
-  const flagged = Number((deck as Record<string, unknown>).flagged ?? 0) || 0;
-  const lastStudied = (deck.lastStudiedAt ?? deck.updatedAt ?? deck.publishedAt ?? deck.createdAt) as
-    | string
-    | number
-    | undefined;
-  return { total, activeCards, due, newCount, wrong, mastered, familiar, learning, mastery, flagged, suspended, lastStudied, topics: p?.topics };
+  const m = selectDeckMetrics(deck, progressMap as Record<string, DeckProgressLike | undefined> | undefined);
+  return {
+    total: m.total,
+    due: m.due,
+    newCount: m.newCount,
+    wrong: m.weak,
+    mastered: m.mastered,
+    familiar: m.familiar,
+    learning: m.learning,
+    mastery: m.mastery,
+    flagged: m.flagged,
+    suspended: m.suspended,
+    lastStudied: m.lastStudied,
+    topics: m.topics,
+  };
 }
 
 function isFailedJob(job: JobItem): boolean {
@@ -190,13 +191,14 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
 
   const scopedDecks = useMemo<DeckItem[]>(() => {
     const all = snapshot?.decks ?? [];
+    const knownCourses = selectCourseNames(snapshot);
     return all.filter((d) => {
       if (!showArchived && d.archived) return false;
       if ((d as Record<string, unknown>).systemKind) return false;
-      if (course && d.course !== course) return false;
+      if (!matchesCourse(d.course, course, { knownCourses })) return false;
       return true;
     });
-  }, [snapshot?.decks, course, showArchived]);
+  }, [snapshot, course, showArchived]);
 
   const normalizedFilter = filterQuery.trim().toLowerCase();
   const filteredDecks = useMemo<DeckItem[]>(() => {
@@ -284,21 +286,13 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
           return typeof ts === 'string' && localDayKey(ts) === todayKey;
         }).length;
 
-    let activeCards = 0;
-    let weightedMastery = 0;
-    for (const d of scopedDecks) {
-      if (d.archived) continue;
-      const st = deckStats(d, progressMap);
-      activeCards += st.activeCards;
-      weightedMastery += st.mastery * st.activeCards;
-    }
-    const masteryPct = activeCards > 0 ? Math.round(weightedMastery / activeCards) : 0;
+    const masteryPct = selectStudySummary(snapshot, course).masteryPct;
 
     const fpRaw = (snapshot?.focus as Record<string, unknown> | undefined)?.progress as FocusProgressInfo | undefined;
     const focusProgress = fpRaw && fpRaw.total > 0 ? fpRaw : null;
 
     return { due, reviewed, streak, masteryPct, focusProgress };
-  }, [snapshot, course, scopedDecks, progressMap, streak]);
+  }, [snapshot, course, streak]);
 
   const resumeRunForDeck = useMemo(() => {
     const runs = snapshot?.runs ?? [];
@@ -569,8 +563,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       }
       if (id === 'due') {
         const dueDeck =
-          (snapshot?.decks ?? [])
-            .filter((d) => isActiveStudyDeck(d, course))
+          selectPractisableDecks(snapshot, course)
             .sort((a, b) => deckDueCount(b, progressMap) - deckDueCount(a, progressMap))[0] ??
           selectedDeck;
         if (dueDeck) handleStartReview(dueDeck);
@@ -583,7 +576,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       }
       navigate('board');
     },
-    [activeRunId, lastPracticeContext, selectedDeck, snapshot?.decks, progressMap, course, handleStartReview, navigate],
+    [activeRunId, lastPracticeContext, selectedDeck, snapshot, progressMap, course, handleStartReview, navigate],
   );
 
   const dailyBriefing = useMemo(
@@ -991,6 +984,9 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
                   <Text color={theme.error}>{t(lang, compactDetail ? '错题' : '薄弱/错题', 'Weak')}: <Text bold>{st.wrong}</Text></Text>
                   {st.flagged > 0 ? (
                     <Text color={theme.warning}>{t(lang, '待修标记', 'Flagged')}: <Text bold>{st.flagged}</Text></Text>
+                  ) : null}
+                  {st.suspended > 0 ? (
+                    <Text color={theme.muted}>{t(lang, '已暂停', 'Suspended')}: <Text bold>{st.suspended}</Text></Text>
                   ) : null}
                 </Box>
               </>

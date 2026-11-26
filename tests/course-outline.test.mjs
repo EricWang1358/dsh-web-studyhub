@@ -3,7 +3,7 @@
    questions nothing places in 未归位, drafts counted apart, and a practice scope of at most 200 questions. Pure: a synthetic library state. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { courseOutline, courseOutlineIndex, UNPLACED_KEY, PRACTICE_LIMIT } from '../lib/course-outline.js';
+import { courseOutline, courseOutlineIndex, UNPLACED_KEY } from '../lib/course-outline.js';
 import { checkScope } from '../lib/prereq.js';
 import { scopeKey } from '../lib/mastery.js';
 
@@ -169,8 +169,7 @@ test('more than 200 questions: the first 200 in the practice order (due, weak, n
   const outline = courseOutline(state, { course: 'DB' }, { now: NOW });
   const big = outline.documents.find(document => document.title === 'Big material');
   assert.equal(big.total, 250);
-  assert.equal(outline.limit, PRACTICE_LIMIT);
-  assert.equal(PRACTICE_LIMIT, 200);
+  assert.equal(outline.limit, 200);
   const { practice } = courseOutline(state, { course: 'DB', pick: { keys: [big.key] } }, { now: NOW });
   assert.equal(practice.total, 250);
   assert.equal(practice.capped, true);

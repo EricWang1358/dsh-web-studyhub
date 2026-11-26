@@ -12,7 +12,7 @@ const { settled, pdf, install, setup, index } = evidence.scenarios;
 const STABLE = ['pages', 'pageHash', 'history', 'indexed', 'missing', 'install', 'installed'];
 const pick = (view, keys = STABLE) => Object.fromEntries(keys.map(key => [key, view[key]]));
 
-test('the evidence names the fixed version it rolled back to, and the document says the same', () => {
+test('S5-7 non-model rollback evidence: settled/pdf/install/setup/index matches s5-7-acceptance.md', () => {
   assert.equal(evidence.schema, 1);
   assert.match(evidence.rollbackSha, /^[0-9a-f]{40}$/);
   assert.ok(doc.includes(evidence.rollbackSha) && doc.includes(evidence.rollbackTag), 'the document quotes the tag and its SHA');
@@ -30,7 +30,7 @@ test('finished work: the older version reads every artifact the current code wro
   assert.equal(settled.rolledBack.seen.setup, 'idle', 'a finished setup is not kept by StudyHub in either version: the tool itself says whether it is ready');
 });
 
-test('no new persistent format: the files the current code leaves are of kinds the older version already writes', () => {
+test('S5-7 non-model rollback: no new persistent format beyond conversion-history, marker-install & retrieval manifests', () => {
   assert.deepEqual(evidence.fileKinds.filter(kind => /job|runtime|kernel|attempt|step/i.test(kind) && !/conversion-history/.test(kind)), []);
   for (const kind of ['library/conversion-history/<id>.json', 'home/study/marker-install.json', 'home/study/retrieval/manifests/<id>.json']) assert.ok(evidence.fileKinds.includes(kind), kind);
 });

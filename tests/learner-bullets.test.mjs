@@ -13,7 +13,7 @@ import { build as esbuild } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StudyService } from '../lib/service.js';
-import { LATEST_VERSION } from '../lib/store.js';
+import { Store } from '../lib/store.js';
 import {
   LEARNER_BULLETS_MAX,
   LEARNER_BULLET_MAX_CHARS,
@@ -87,7 +87,6 @@ async function setupCoachService(t, { completeLight } = {}) {
 /* ---------- 1. Schema, Cap, Typed Refs & Legacy Fallback ---------- */
 
 test('learner.bullets enforces store v5 compatibility, max 10 items, <=140 chars, typed refs, and strict validation', async (t) => {
-  assert.equal(LATEST_VERSION, 5);
   assert.deepEqual(emptyLearner().bullets, []);
 
   // Legacy learner object without `bullets` normalizes cleanly while preserving read-only `summary`
@@ -133,8 +132,11 @@ test('learner.bullets enforces store v5 compatibility, max 10 items, <=140 chars
     { strict: true },
   ));
 
-  // Service CRUD + CAS revision enforcement
-  const { service } = await setupCoachService(t);
+  // Service CRUD + CAS revision enforcement + store v5 compatibility
+  const { root, service } = await setupCoachService(t);
+  const persisted = await new Store(root).read();
+  assert.equal(persisted.version, 5);
+  assert.deepEqual(persisted.learner.bullets, []);
   const initial = await service.call('coach.profile', {});
   assert.equal(initial.memoryRevision, 0);
   assert.deepEqual(initial.bullets, []);
@@ -150,6 +152,9 @@ test('learner.bullets enforces store v5 compatibility, max 10 items, <=140 chars
   });
   assert.equal(afterAdd.memoryRevision, 1);
   assert.equal(afterAdd.bullets.length, 1);
+  const persistedAfterAdd = await new Store(root).read();
+  assert.equal(persistedAfterAdd.version, 5);
+  assert.equal(persistedAfterAdd.learner.bullets.length, 1);
   const bulletId = afterAdd.bullets[0].id;
 
   // Stale expectedRevision is rejected on profile, preferences, and goal writes

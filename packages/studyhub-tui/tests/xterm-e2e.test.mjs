@@ -338,6 +338,14 @@ describe('StudyHub TUI xterm-headless E2E', () => {
     // Resize back to 120x36 for interactive tests
     tty.resize(120, 36);
     await tty.flush();
+    tty.term.clear();
+    // clear() wipes the virtual screen (xterm keeps only the cursor row) without telling the app, and Ink
+    // skips writing a frame identical to its last one. Ask for a repaint the way a real terminal does,
+    // with a width change, so the next test reads a whole frame instead of relying on an incidental render.
+    tty.resize(119, 36);
+    await tty.flush();
+    tty.resize(120, 36);
+    await tty.flush();
     try {
       v8.setFlagsFromString('--expose_gc');
       const gcFn = vm.runInNewContext('gc');

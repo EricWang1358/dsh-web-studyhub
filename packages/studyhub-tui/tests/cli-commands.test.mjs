@@ -453,7 +453,7 @@ describe('CLI fast-path subprocess suite (--doctor / --stats / --search / --expo
     }
   });
 
-  test('12. Unit: buildDueReport & formatDueReport filter archived/systemKind, sort deterministically, and stay pure ASCII', async () => {
+  test('12. Unit: buildDueReport & formatDueReport drop archived decks, count system decks only library-wide, sort deterministically, and stay pure ASCII', async () => {
     const cliCmdsMod = await import(pathToFileURL(resolve(pkgRoot, 'dist', 'cli-commands-chunk-check.mjs')).href).catch(
       async () => {
         const files = await readdir(resolve(pkgRoot, 'dist'));
@@ -485,23 +485,37 @@ describe('CLI fast-path subprocess suite (--doctor / --stats / --search / --expo
       },
     });
 
-    assert.equal(report.totals.decks, 3, 'archived and systemKind decks must be excluded');
-    assert.equal(report.totals.decksWithDue, 2);
-    assert.equal(report.totals.due, 10);
+    // Library-wide, system decks (coach / slain) count, as the backend's studyMap and stats.totals do.
+    assert.equal(report.totals.decks, 4, 'archived decks are dropped; the system deck counts library-wide');
+    assert.equal(report.totals.decksWithDue, 3);
+    assert.equal(report.totals.due, 60);
     assert.equal(report.totals.weak, 4);
     assert.equal(report.totals.newCards, 4);
-    assert.equal(report.totals.totalCards, 35);
+    assert.equal(report.totals.totalCards, 85);
     assert.deepEqual(
       report.decks.map((d) => d.id),
-      ['d-high', 'd-low', 'd-zero'],
+      ['d-sys', 'd-high', 'd-low', 'd-zero'],
       'decks must sort by due desc',
     );
-    assert.equal(report.decks[0].mastery, 100, 'mastery must clamp at 100');
-    assert.equal(report.decks[2].mastery, 0, 'mastery must clamp at 0');
+    assert.equal(report.decks[1].mastery, 100, 'mastery must clamp at 100');
+    assert.equal(report.decks[3].mastery, 0, 'mastery must clamp at 0');
+
+    // Scoped to a course, system decks are left out, as in the backend's course scope.
+    const mathReport = buildDueReport({
+      libraryRoot: '/tmp/lib',
+      courseFilter: 'Math',
+      snapshot: {
+        decks: [
+          { id: 'd-sys', title: 'System Deck', course: 'Math', systemKind: 'wrong', due: 50, count: 50 },
+          { id: 'd-math', title: 'Calculus', course: 'Math', due: 2, count: 10 },
+        ],
+      },
+    });
+    assert.deepEqual(mathReport.decks.map((d) => d.id), ['d-math'], 'course scope must exclude system decks');
 
     const asciiText = formatDueReport(report, true);
     assert.ok(!/[^\x00-\x7f]/.test(asciiText), `formatDueReport(report, true) must be pure ASCII:\n${asciiText}`);
-    assert.match(asciiText, /Queue: 10 due \| 4 weak \| 4 new \(2\/3 decks with due, 35 cards\)/);
+    assert.match(asciiText, /Queue: 60 due \| 4 weak \| 4 new \(3\/4 decks with due, 85 cards\)/);
     assert.match(asciiText, /Operating Systems \[CS101\]: 8 due \| 3 weak \| 20 cards \| 100% mastery/);
 
     const emptyReport = buildDueReport({ libraryRoot: '/tmp/empty', snapshot: { decks: [] }, courseFilter: 'Physics' });

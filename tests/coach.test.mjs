@@ -6,7 +6,6 @@ import { tmpdir } from "node:os";
 import { StudyService } from "../lib/service.js";
 import { cognitiveLevel, debriefRules, evidenceWindows, runMetrics, learnerAnswer, writeNudge, writeDebrief } from "../lib/coach.js";
 import { emptyLearner, normalizeLearner, LEARNER_PREFERENCES_MAX, LEARNER_PREFERENCE_MAX_CHARS } from "../lib/learner.js";
-import { LATEST_VERSION } from "../lib/store.js";
 import { writesFor } from "../lib/runtime/domain-contracts.js";
 import { assistantRefusal } from "../lib/assistant-boundary.js";
 import { libraryContracts } from "../lib/study-contracts.js";
@@ -757,7 +756,6 @@ test("feedback rewrites for different cards run in parallel, capped at three", a
 
 
 test("learner.preferences stores deduplicated free-form preferences, clears on coach.forget, and documents the explicit consent rule", async (t) => {
-  assert.equal(LATEST_VERSION, 5);
   assert.deepEqual(emptyLearner().preferences, []);
   const normalized = normalizeLearner({
     preferences: ["  先给直觉例子再推导  ", "", "先给直觉例子再推导", 42, "a".repeat(200), ...Array.from({ length: 20 }, (_, i) => `pref-${i}`)],
@@ -773,6 +771,7 @@ test("learner.preferences stores deduplicated free-form preferences, clears on c
   assert.ok(libraryContracts.learning.length < 6000, `libraryContracts.learning is ${libraryContracts.learning.length} chars`);
 
   const { service } = await setup(t, { coach: false });
+  assert.equal((await service.store.read()).version, 5);
   assert.deepEqual((await service.call("coach.profile")).preferences, []);
 
   const saved = await service.call("coach.preferences", {
