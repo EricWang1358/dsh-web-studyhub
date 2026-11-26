@@ -59,7 +59,12 @@ test('a chapter read to its end is ✓ in the 目录, kept in the library (not t
   const waitChapter = (index, what) => until(async () => JSON.stringify(await drawnPages(page)) === JSON.stringify(chapterPages(index)), what, { timeoutMs: 30000 });
   const closeReader = async () => { await page.keyboard.press('Escape'); await until(async () => !(await viewer.count()), 'the reader to close', { timeoutMs: 15000 }); };
   const readCount = () => outline.locator('[data-read-count]').innerText().catch(() => '');
-  const openOutline = async () => { if (!(await outline.count())) await viewer.getByRole('button', { name: '目录', exact: true }).click(); await outline.waitFor(); };
+  const openOutline = async () => {
+    const toggle = viewer.getByRole('button', { name: '目录', exact: true });
+    await toggle.waitFor({ timeout: 30000 });
+    if ((await toggle.getAttribute('aria-pressed')) !== 'true') await toggle.click();
+    await outline.waitFor({ timeout: 30000 });
+  };
   /** Wheel over the text (the learner's own scroll) to the end of the chapter. */
   const wheelToEnd = async () => {
     const area = viewer.locator('.reader-scroll'), box = await area.boundingBox();
@@ -123,6 +128,7 @@ test('a chapter read to its end is ✓ in the 目录, kept in the library (not t
   await page.waitForTimeout(300);
   await closeReader();
   await openRow();
+  await waitChapter(0, 'the first chapter after reopening');
   await openOutline();
   await until(async () => (await readCount()) === `已读 0/${CHAPTERS} 章`, 'still unread after a reopen', { timeoutMs: 15000 });
   assert.equal(await outline.locator('[data-chapter-read]').count(), 0);
