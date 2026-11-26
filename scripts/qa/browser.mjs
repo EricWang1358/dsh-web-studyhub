@@ -72,7 +72,17 @@ export async function launchChromium(options = {}) {
   }
   if (!browser) {
     const executablePath = await findChromium();
-    browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}), ...timeout, ...options });
+    try {
+      browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}), ...timeout, ...options });
+    } catch (error) {
+      // Some suites skip when Chromium is optional. In required mode even
+      // those workers must return a failed exit status with the launch error.
+      if (process.env.STUDY_QA_REQUIRE_BROWSER === '1') {
+        process.exitCode = 1;
+        console.error(error.message);
+      }
+      throw error;
+    }
   }
   if (patience) {
     const newContext = browser.newContext.bind(browser), newPage = browser.newPage.bind(browser);
