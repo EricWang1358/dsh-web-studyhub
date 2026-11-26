@@ -130,6 +130,9 @@ test('the configured runner shards cover the suite exactly once per system and f
     const job = jobs[jobName];
     const testStep = job.steps.find(step => step.run?.startsWith('node scripts/test.mjs --shard='));
     assert.ok(testStep, jobName);
+    const setup = job.steps.findIndex(step => step.uses === './.github/actions/setup-chromium');
+    assert.ok(setup >= 0 && setup < job.steps.indexOf(testStep), `${os} provisions Chromium before running browser tests`);
+    assert.equal(testStep.env?.STUDY_QA_REQUIRE_BROWSER, '1', `${os} fails when the browser is unavailable`);
     const actual = [];
     for (const row of job.strategy.matrix.include) {
       assert.equal(row.os, os);
