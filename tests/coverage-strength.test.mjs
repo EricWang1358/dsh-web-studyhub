@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { STRENGTH, LEVELS, DEFAULT_LEVEL, LIMITS, strengthPlan, quotasFor, assignmentsOf, roundsOf, weightOf } from '../lib/coverage-strength.js';
+import { STRENGTH, LEVELS, LIMITS, strengthPlan, quotasFor, assignmentsOf, roundsOf, weightOf } from '../lib/coverage-strength.js';
 import { sectionKey } from '../lib/coverage.js';
 import { evidenceOf } from '../lib/sections.js';
 import { transcriptFixture } from './helpers/coverage-fixture.mjs';
@@ -17,7 +17,14 @@ const sum = quotas => quotas.reduce((total, item) => total + item.quota, 0);
 
 test('the table: three levels, standard is the default, and the numbers are the stated ones', () => {
   assert.deepEqual([...LEVELS], ['lean', 'standard', 'full']);
-  assert.equal(DEFAULT_LEVEL, 'standard');
+  for (const [label, plan] of [
+    ['omitted level', strengthPlan(material([5000, 5000]), [])],
+    ['unknown level fallback', strengthPlan(material([5000, 5000]), [], 'unknown')],
+  ]) {
+    assert.equal(plan.level, 'standard', label);
+    assert.equal(plan.perTenK, 6, label);
+    assert.equal(plan.goal, 6, label);
+  }
   assert.deepEqual([STRENGTH.lean.perTenK, STRENGTH.standard.perTenK, STRENGTH.full.perTenK], [3, 6, 10]);
   assert.equal(STRENGTH.standard.minChars, 600);
   assert.equal(STRENGTH.lean.share, 0.6);
