@@ -255,7 +255,9 @@ test('Browser step budget & zero-wait flip guardrail: flashcard <= 2 steps (even
 
     // Undo ('z'): returns right back to Card 1's revealed back with grade buttons ready!
     await page.keyboard.press('z');
-    await page.waitForFunction(() => /Flash Question 1\?/.test(document.querySelector('.flashcard')?.innerText || '') && document.querySelectorAll('.grade').length === 6, null, { timeout: 15000 });
+    // Undo reloads the library and holds the single-flight lock for up to REFRESH_HOLD_MS (ui/act-runner.js); the grades are drawn but
+    // disabled until then, and a key pressed meanwhile is dropped by design. Ready means drawn and enabled.
+    await page.waitForFunction(() => /Flash Question 1\?/.test(document.querySelector('.flashcard')?.innerText || '') && [...document.querySelectorAll('.grade')].filter((b) => !b.disabled).length === 6, null, { timeout: 15000 });
     assert.equal(await page.locator('.flashcard').evaluate((el) => el.classList.contains('flipped')), true, 'undo returns to revealed back face');
 
     // Re-grade Card 1 (2 steps total) and Card 2 (2 steps total) -> result page with compact RoundLookBack & hidden weakTopics!

@@ -70,6 +70,7 @@
     "tests/generate-picker-rows-browser.test.mjs",
     "tests/generate-picker-scroll-browser.test.mjs",
     "tests/generate-picker-sweep-browser.test.mjs",
+    "tests/generate-picker-sweep-en-browser.test.mjs",
     "tests/generate-picker-word-boundaries-browser.test.mjs",
     "tests/generate-polish-browser.test.mjs",
     "tests/generate-reach-browser.test.mjs",

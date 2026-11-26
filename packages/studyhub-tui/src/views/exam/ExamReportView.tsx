@@ -8,7 +8,7 @@ import { Prose, computeProseLayout } from '../../components/Layout.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Panel } from '../../components/Panel.js';
 import { SplitPane } from '../../components/SplitPane.js';
-import { LAYOUT_BP } from '../../components/layout-tokens.js';
+import { LAYOUT_BP } from '../../layout/breakpoints.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import { renderBarChart, renderStatTable } from '../../render/charts.js';
@@ -447,7 +447,7 @@ export const ExamReportView = memo(function ExamReportView({
 
         {shownTopics.length > 0 ? (
           <Box marginBottom={1}>
-            <Prose width={innerW} color={theme.warning} ascii={false}>{shownTopics.join('\n')}</Prose>
+            <Prose width={innerW} color={theme.warning} ascii={asciiMode}>{shownTopics.join('\n')}</Prose>
           </Box>
         ) : null}
 

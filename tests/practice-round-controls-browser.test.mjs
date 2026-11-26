@@ -563,7 +563,13 @@ test('RetellPanel (#3, #4), ExplanationFollowup (#3, #25), and QuestionRun assis
   await page.keyboard.press('Control+Enter');
   await page.locator('.retell-result__restore').waitFor();
   assert.equal(await retellInput.inputValue(), '');
-  await page.locator('.retell-result__restore').click();
+  // Focus the button as a press does, then click: the draft must hold focus when the click returns, not a frame later (the button unmounts).
+  assert.equal(await page.evaluate(() => {
+    const restore = document.querySelector('.retell-result__restore');
+    restore.focus();
+    restore.click();
+    return document.activeElement?.classList.contains('retell-panel__input');
+  }), true, '对照漏点再补一句 moves focus to the draft within the click');
   assert.equal(await retellInput.inputValue(), 'First retell draft');
   await page.locator('.retell-panel__input:focus').waitFor();
   await page.keyboard.press('End');
