@@ -1170,13 +1170,13 @@ export function run(argv = process.argv.slice(2), { log = console.log, env = pro
     const file = join(root, 'docs', 'test-audit.md');
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, `${renderMarkdown(result, { top: options.top })}\n`, 'utf8');
-    log(`\nReport written to ${relative(root, file)}`);
+    log(`\nReport written to ${relative(root, file).split(sep).join('/')}`);
   }
   if (options.writeBaseline) {
     const file = resolve(root, options.writeBaseline);
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, renderBaselineJson(result), 'utf8');
-    log(`\nBaseline written to ${relative(root, file)}`);
+    log(`\nBaseline written to ${relative(root, file).split(sep).join('/')}`);
   }
   return result;
 }
