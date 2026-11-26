@@ -548,7 +548,10 @@ test('RetellPanel (#3, #4), ExplanationFollowup (#3, #25), and QuestionRun assis
   assert.equal(await retellInput.inputValue(), '');
   await page.locator('.retell-result__restore').click();
   assert.equal(await retellInput.inputValue(), 'First retell draft');
-  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('retell-panel__input')), true);
+  await page.locator('.retell-panel__input:focus').waitFor();
+  await page.keyboard.press('End');
+  await page.keyboard.insertText(' continued');
+  assert.equal(await retellInput.inputValue(), 'First retell draft continued', 'typing continues in the restored draft');
   await retellInput.fill('');
   await page.keyboard.press('Escape');
   assert.equal(await page.evaluate(() => window.__retellClosed), 1);
