@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -45,15 +45,18 @@ test('a Windows test worker reads the original source and falls back for edits, 
   const dir = await mkdtemp(join(tmpdir(), 'study-source-cache-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const path = join(dir, 'example.js');
-  const url = pathToFileURL(path).href;
   const chunk = join(dir, 'client.chunk.js');
   const file = join(dir, 'sources.bin');
   await writeFile(path, 'export default "甲";');
   await writeFile(chunk, 'export default 12;');
+  // Windows TEMP may use an 8.3 name or a junction. Node's default ESM resolution hands load() the canonical URL.
+  const url = pathToFileURL(await realpath(path)).href;
   writeTestSources(dir, file);
   const sourceFor = readTestSources(file);
   assert.deepEqual(sourceFor(url), Buffer.from('export default "甲";'));
-  assert.equal(sourceFor(pathToFileURL(chunk).href), undefined);
+  const requested = pathToFileURL(path).href;
+  if (requested !== url) assert.equal(sourceFor(requested), undefined);
+  assert.equal(sourceFor(pathToFileURL(await realpath(chunk)).href), undefined);
   assert.equal(sourceFor(url + '?revision=two'), undefined);
   await writeFile(path, 'export default "乙";');
   assert.equal(sourceFor(url), undefined);
