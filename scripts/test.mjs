@@ -61,10 +61,13 @@ try {
     }
   }
   if (!receivedSignal) {
-    if (process.platform === 'win32' && ordered && !subset && !args.includes('--list') && !process.env.STUDY_TEST_SUITE_DIR) {
-      // Without an available server, the existing per-test launch still reports missing browser or system dependencies.
-      browserServer = await startTestChromium().catch(() => null);
-      if (browserServer) env.STUDY_TEST_BROWSER_ENDPOINT = browserServer.wsEndpoint();
+    if (process.platform === 'win32' && ordered && (!subset || fast) && !args.includes('--list') && !process.env.STUDY_TEST_SUITE_DIR) {
+      if (!subset) {
+        // Without an available server, the existing per-test launch still reports missing browser or system dependencies.
+        browserServer = await startTestChromium().catch(() => null);
+        if (browserServer) env.STUDY_TEST_BROWSER_ENDPOINT = browserServer.wsEndpoint();
+      }
+      // Fast and full launch the same isolated Node workers. Both can read their verified library sources from one file.
       if (env.STUDY_BUILD_CACHE !== '0') {
         const sourceCache = join(runDir, 'sources.bin');
         try {
