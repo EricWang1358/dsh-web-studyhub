@@ -18,6 +18,7 @@ import { markerSettingsPath, readMarkerSettings, saveMarkerSettings } from '../l
 import { createUsageLedger } from '../lib/model-usage.js';
 import { readWebGeminiSettings, saveWebGeminiSettings, webGeminiSettingsPath } from '../lib/runtime/web-gemini-settings.js';
 import { setUpdatePreferences, updateStatePath } from '../lib/update-check.js';
+import { bookService } from './helpers/book-agent-library.mjs';
 import { createUsageFrequency, localDay, usageFrequencyPath } from '../lib/usage-frequency.js';
 
 async function withTempDshHome(t, prefix = 'studyhub-p3-lib-') {
@@ -483,16 +484,30 @@ describe('P3 (#1354): shared lib/atomic-json.js & backend settings/state atomic 
     assert.deepEqual(await findTmpFiles(dir), []);
   });
 
-  test('11) usage and reading records keep their history when the file is briefly unreadable (scanner lock / no permission)', async (t) => {
+  test('11) a brief lock (scanner / no permission) is waited out; one that outlasts the retries refuses the write and keeps the history', async (t) => {
     if (process.platform !== 'win32' && typeof process.getuid === 'function' && process.getuid() === 0) return; // root reads through chmod 000
-    for (const record of await seededRecords(t)) {
+    const records = await seededRecords(t);
+    await saveAudioSettings({ textConcurrency: 2 });
+    const settings = { name: 'audio.json', file: audioSettingsPath(), write: () => saveAudioSettings({ textConcurrency: 5 }),
+      count: async () => (await readAudioSettings()).textConcurrency };
+    for (const record of [...records, settings]) {
+      const before = await record.count();
       const release = await holdUnreadable(record.file);
-      // Released while the write would still be retrying its rename: a writer that took the failed read for "empty" now replaces the file.
       const released = new Promise((done) => setTimeout(() => done(release()), 150));
       const outcome = await record.write().then(() => 'written', (err) => err?.code);
       await released;
-      assert.equal(outcome, 'json-unreadable', `${record.name}: a write over an unreadable file must be refused`);
-      assert.equal(await record.count(), 4, `${record.name}: history must survive an unreadable read`);
+      assert.equal(outcome, 'written', `${record.name}: a write waits out a 150 ms lock instead of failing`);
+      assert.equal(await record.count(), record === settings ? 5 : before + 1, `${record.name}: the write lands on the whole history`);
+    }
+    const previousRetry = process.env.STUDY_FS_RETRY_MS;
+    process.env.STUDY_FS_RETRY_MS = '2';
+    t.after(() => { if (previousRetry === undefined) delete process.env.STUDY_FS_RETRY_MS; else process.env.STUDY_FS_RETRY_MS = previousRetry; });
+    for (const record of records) {
+      const before = await record.count();
+      const release = await holdUnreadable(record.file);
+      const outcome = await record.write().then(() => 'written', (err) => err?.code).finally(release);
+      assert.equal(outcome, 'json-unreadable', `${record.name}: a write over a file that stays unreadable must be refused`);
+      assert.equal(await record.count(), before, `${record.name}: history must survive an unreadable read`);
     }
   });
 
@@ -515,5 +530,25 @@ describe('P3 (#1354): shared lib/atomic-json.js & backend settings/state atomic 
       assert.equal(backups.length, 1, `${record.name}: exactly one backup of the damaged file`);
       assert.equal(await readFile(path.join(path.dirname(record.file), backups[0]), 'utf8'), damaged);
     }
+  });
+  test('14) source.pages and book.write from the main chat answer even when the reading record stays unreadable (it is best-effort)', async (t) => {
+    if (process.platform !== 'win32' && typeof process.getuid === 'function' && process.getuid() === 0) return; // root reads through chmod 000
+    const previousRetry = process.env.STUDY_FS_RETRY_MS;
+    process.env.STUDY_FS_RETRY_MS = '2';
+    t.after(() => { if (previousRetry === undefined) delete process.env.STUDY_FS_RETRY_MS; else process.env.STUDY_FS_RETRY_MS = previousRetry; });
+    const { study, root } = await bookService(t, { long: true });
+    const what = (await study.call('book.toc')).toc[1];
+    const documentId = (await study.call('book.read', { hid: what.hid })).materials[0].documentId;
+    await study.call('source.pages', { documentId, from: 1, to: 1 });
+    const reading = path.join(root, 'book-history', 'reading.json');
+    const release = await holdUnreadable(reading);
+    let pages, written;
+    try {
+      pages = await study.call('source.pages', { documentId, from: 1, to: 2, hid: what.hid });
+      written = await study.call('book.write', { hid: what.hid, markdown: '## Why\n\nThe architect writes it down[^1].\n\n[^1]: 「the architect always flies to the moon before lunch」 (document-l1-p1)' });
+    } finally { await release(); }
+    assert.ok(pages.shown.length > 0, 'source.pages shows the pages although their reading could not be recorded');
+    assert.equal(written.status, 'saved', 'book.write reports the write that landed although the dropped quote could not be remembered');
+    assert.match((await study.call('book.read', { hid: what.hid, file: 'gen' })).files.gen.text, /The architect writes it down\./, 'the write landed');
   });
 });
