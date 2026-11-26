@@ -8,6 +8,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { nativeSelects } from './helpers/native-selects.mjs';
+import { loadInteractiveUi } from './helpers/react-harness.mjs';
 
 const require = createRequire(import.meta.url);
 const built = await build({ stdin: { contents: `
@@ -161,10 +162,79 @@ test('以后再说: stored, it follows the storage; held for the visit, cleared 
   });
 });
 
-test('the app shell decides 以后再说 only through those two helpers (ui/app/use-tour.js)', async () => {
-  const { readFile } = await import('node:fs/promises');
-  const source = await readFile(new URL('../ui/app/use-tour.js', import.meta.url), 'utf8');
-  assert.match(source, /const lineLater = welcomeLater\(data\?\.root, hiddenWelcome\);/);
-  assert.match(source, /setHiddenWelcome\(hideWelcomeFor\(data\.root\)\)/);
-  assert.doesNotMatch(source, /welcomeDismissed|dismissWelcome/, 'no second way around the visit memory');
+test('useTour tracks 以后再说 via visit memory + localStorage, survives storage loss/clear, and resets across libraries', async () => {
+  const ui = await loadInteractiveUi(`
+    export { useTour } from './ui/app/use-tour.js';
+    export { clearItem, guidanceItem } from './ui/guidance/registry.js';
+  `);
+  const { useTour, clearItem, guidanceItem } = ui.exports;
+  const noop = () => {};
+  const makeArgs = (root) => {
+    const data = root === null ? null : { root, sources: [], decks: [], drafts: [], runs: [], jobs: [] };
+    return {
+      core: { call: async () => ({}), act: async () => undefined, setError: noop, notify: noop, refresh: async () => {}, refs: { dataRef: { current: data } } },
+      lib: { set: { setModal: noop, setDraft: noop, setSelectedSources: noop, setSkeletonFocus: noop } },
+      nav: { page: 'library', navigate: noop, show: { page: noop } },
+      session: { run: null, enterRun: noop, clearRun: noop },
+      drafts: { openDraft: noop },
+      intents: { goGenerate: noop, setGenSource: noop },
+      data,
+      rootRef: { current: null },
+    };
+  };
+
+  const withStorageAsync = async (initial, body) => {
+    const before = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+    const storage = initial && typeof initial.getItem === 'function' ? initial : memoryStorage(initial || {});
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage });
+    try { return await body(storage); } finally { if (before) Object.defineProperty(globalThis, 'localStorage', before); else delete globalThis.localStorage; }
+  };
+
+  await withStorageAsync({}, async (storage) => {
+    const hook = ui.mountHook((props) => useTour(props), makeArgs('/lib-a'));
+    try {
+      assert.equal(hook.current.lineLater, false, 'starts not dismissed');
+
+      // Dismiss updates lineLater immediately and persists to localStorage.
+      await hook.act(() => hook.current.hideWelcome());
+      assert.equal(hook.current.lineLater, true, 'hideWelcome sets lineLater immediately');
+      assert.equal(storage.getItem('study-welcome:/lib-a'), 'dismissed', 'persists study-welcome:<root> in localStorage');
+
+      // External storage clear mid-visit does not bring the line back (in-memory visit dismissal holds).
+      storage.removeItem('study-welcome:/lib-a');
+      hook.rerender(makeArgs('/lib-a'));
+      assert.equal(hook.current.lineLater, true, 'visit memory survives cleared localStorage');
+
+      // Switching to another library resets lineLater cleanly, while the first library remains dismissed in visit memory.
+      hook.rerender(makeArgs('/lib-b'));
+      assert.equal(hook.current.lineLater, false, 'switching data.root to another library resets lineLater');
+      hook.rerender(makeArgs('/lib-a'));
+      assert.equal(hook.current.lineLater, true, 'returning to dismissed library still honours visit memory');
+
+      // Explicit in-tab clearItem undoes both storage and visit memory without reload.
+      assert.equal(clearItem(guidanceItem('first-run.later')), true);
+      hook.rerender(makeArgs('/lib-a'));
+      assert.equal(hook.current.lineLater, false, 'in-tab clearItem restores the welcome line immediately');
+    } finally {
+      hook.unmount();
+    }
+  });
+
+  // Refusing localStorage (setItem throws) still retains dismissal in memory for the current visit.
+  const refusing = memoryStorage();
+  refusing.setItem = () => { throw new Error('blocked'); };
+  await withStorageAsync(refusing, async (storage) => {
+    const hook = ui.mountHook((props) => useTour(props), makeArgs('/lib-c'));
+    try {
+      assert.equal(hook.current.lineLater, false);
+      await hook.act(() => hook.current.hideWelcome());
+      assert.equal(storage.getItem('study-welcome:/lib-c'), null, 'storage write failed as simulated');
+      assert.equal(hook.current.lineLater, true, 'in-memory dismissal holds even when localStorage throws');
+
+      hook.rerender(makeArgs('/lib-d'));
+      assert.equal(hook.current.lineLater, false, 'switching root resets even when storage is unavailable');
+    } finally {
+      hook.unmount();
+    }
+  });
 });

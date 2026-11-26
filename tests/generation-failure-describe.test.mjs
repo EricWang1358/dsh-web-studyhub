@@ -1,13 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
 import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { classifyFailure, reasonCode, isPermanentFailure, FAILURE_CODES, reviewProtocolError } from "../lib/generation-failure.js";
 import { describePartReport as describeForAgent, failureReason } from "../lib/generation-report.js";
 import { modelFailureMessage } from "../lib/model-retry.js";
+import { inApp } from "./helpers/fake-app.mjs";
 
 /* ONE description of a failure. The same failure used to read three ways: the part report said "other reason", the 查看记录 list "生成没有完成（Review JSON protocol
    failed: ...）", the banner only the title. Now lib/generation-failure.js names the cause (a code) and ui/generation-status.js `describeFailure` says it in plain words
@@ -21,7 +21,7 @@ const load = async (contents) => {
   return module.exports;
 };
 const m = await load(`export * from './ui/draft-shortfall.js'; export * from './ui/generation-status.js'; export { logLines, callLabel } from './ui/tasks/call-model.js'; export { setUiLanguage } from './ui/i18n.js';`);
-const view = await load(`export { ShortfallReasons } from './ui/DraftShortfall.jsx'; export { setUiLanguage } from './ui/i18n.js';`);
+const view = await load(`export { ShortfallReasons } from './ui/DraftShortfall.jsx'; export { default as GenerationParts } from './ui/tasks/GenerationParts.jsx'; export { reasonWord } from './ui/coverage/copy.js'; export { AppContext } from './ui/app/app-context.js'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage } from './ui/i18n.js';`);
 const han = /[㐀-鿿]/;
 const inLanguage = (language, fn) => { m.setUiLanguage(language); view.setUiLanguage(language); try { return fn(); } finally { m.setUiLanguage("zh"); view.setUiLanguage("zh"); } };
 const text = (html) => html.replace(/<[^>]+>/g, "\n").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#x27;/g, "'").split("\n").map((line) => line.trim()).filter(Boolean);
@@ -143,8 +143,22 @@ test("the banner's per-part lines and the 查看记录 list print the same sente
 });
 
 test("the part report says what happened for every code, to the learner and to the agent, and the shared reason words (the 资料部分 strip, the coverage lists) know them too", () => {
-  const strip = readFileSync("ui/coverage/copy.js", "utf8");
-  assert.match(readFileSync("ui/tasks/GenerationParts.jsx", "utf8"), /reasonWord/, "the strip reads the shared words");
+  const fallbackZh = inLanguage("zh", () => view.reasonWord("other"));
+  const fallbackEn = inLanguage("en", () => view.reasonWord("other"));
+  const renderPartStrip = (code, language) => inLanguage(language, () => text(renderToStaticMarkup(inApp(
+    view,
+    React.createElement(view.GenerationParts, {
+      contract: {
+        detail: {
+          partList: [{ part: 1, status: "failed", stages: { author: "ok", review: "fail" }, asked: 5, kept: 0, reasons: [code] }],
+        },
+        calls: [],
+      },
+      task: null,
+    }),
+    { data: { root: "/r", revision: 1, drafts: [] } },
+  ))).join(" "));
+
   for (const code of FAILURE_CODES.filter((code) => code !== "unknown")) {
     const report = { total: 3, passed: 1, partial: 0, failed: 2, reasons: { [code]: 2 } };
     const zh = inLanguage("zh", () => m.describePartReport(report)), en = inLanguage("en", () => m.describePartReport(report));
@@ -153,7 +167,18 @@ test("the part report says what happened for every code, to the learner and to t
     assert.doesNotMatch(en.reasons[0], han, `${code} in English`);
     assert.doesNotMatch(describeForAgent(report, "en"), /another reason/, `${code} for the agent`);
     assert.doesNotMatch(describeForAgent(report, "zh"), /其他原因/, `${code} for the agent in Chinese`);
-    assert.match(strip, new RegExp(`['"]?${code.replace("-", "[-]")}['"]?:\\s*'`), `the shared reason words name ${code}`);
+
+    const zhWord = inLanguage("zh", () => view.reasonWord(code));
+    const enWord = inLanguage("en", () => view.reasonWord(code));
+    assert.ok(zhWord && zhWord !== fallbackZh, `reasonWord(${code}) has its own Chinese wording instead of "${fallbackZh}"`);
+    assert.ok(enWord && enWord !== fallbackEn, `reasonWord(${code}) has its own English wording instead of "${fallbackEn}"`);
+    assert.doesNotMatch(enWord, han, `reasonWord(${code}) in English`);
+
+    const stripZh = renderPartStrip(code, "zh");
+    assert.ok(stripZh.includes(zhWord), `GenerationParts strip renders reasonWord(${code}) in Chinese: ${stripZh}`);
+    const stripEn = renderPartStrip(code, "en");
+    assert.ok(stripEn.includes(enWord), `GenerationParts strip renders reasonWord(${code}) in English: ${stripEn}`);
+    assert.doesNotMatch(stripEn, han, `GenerationParts strip for ${code} in English`);
   }
 });
 

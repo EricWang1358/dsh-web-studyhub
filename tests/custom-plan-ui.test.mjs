@@ -3,7 +3,6 @@
    course has none. The sentence and the toggles' effects are pure (ui/custom-plan-model.js); the card draws them. No model, no network. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
@@ -124,14 +123,16 @@ test('no card without a 定制方案; the variants switch is off when the questi
 });
 
 test('the course settings carry the card only for a course that has one, above the fold of the rest', () => {
-  const source = readFileSync('ui/CourseSettings.jsx', 'utf8');
-  assert.match(source, /<CustomPlanCard course=\{course\}/);
-  assert.ok(source.indexOf('<CustomPlanCard') < source.indexOf('<Disclosure className="course-settings__more"'), 'in the open, not in the fold');
   const withCustom = course(mine('review')), data = { root: '/lib', sources: [], focus: { course: 'Net', courses: [{ name: 'Net' }] } };
   const shown = draw(h(m.CourseSettings, { data: { ...data, courses: [withCustom] }, courseId: 'course-net', onClose() {} }));
   assert.match(text(shown), /你的定制/);
+  const cardAt = shown.indexOf('id="custom-card-title"');
+  const foldAt = shown.search(/<details\b[^>]*class="[^"]*\bcourse-settings__more\b/);
+  assert.ok(cardAt >= 0, 'custom plan card renders inside CourseSettings');
+  assert.ok(foldAt > cardAt, 'custom plan card renders before the 更多设置 disclosure fold (outside the fold)');
   const plain = draw(h(m.CourseSettings, { data: { ...data, courses: [course(null)] }, courseId: 'course-net', onClose() {} }));
   assert.doesNotMatch(text(plain), /你的定制/);
+  assert.match(plain, /<details\b[^>]*class="[^"]*\bcourse-settings__more\b/, 'disclosure fold still renders without a custom plan');
 });
 
 test('a toggle is saved as the whole record through course.save, by id, the way the course settings save', () => {

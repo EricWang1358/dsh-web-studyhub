@@ -11,7 +11,7 @@ import { atomicWriteExportText, defaultBackupFilePath, todayLocalYmd } from '../
 import { tryAction, type ReviewRun } from '../../host/sample-actions.js';
 import { toneColor, useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
-import { computeProseLayout } from '../../components/Layout.js';
+import { ChromeLabel, computeProseLayout } from '../../components/Layout.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
@@ -20,7 +20,7 @@ import { SplitPane, type PaneSize } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { useInputCapture } from '../../components/focus.js';
-import { LAYOUT_BP, computeFilterBarLayout } from '../../components/layout-tokens.js';
+import { LAYOUT_BP, computeFilterBarLayout } from '../../layout/breakpoints.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { renderProgressBar } from '../../render/charts.js';
@@ -1467,7 +1467,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
     <Box flexDirection="column" width={width} height={height}>
       {/* Top Filter & KPI Strip */}
       <Box height={1} width={width} paddingX={1} flexDirection="row" flexWrap="nowrap" overflow="hidden">
-        <Box flexShrink={0} marginRight={width < 72 ? 1 : 2}>
+        <Box flexShrink={0} marginRight={width < LAYOUT_BP.SPLIT_MODAL ? 1 : 2}>
           <Text color={theme.primary} bold>
             {asciiMode ? t(lang, '! 错题本', '! Mistakes') : t(lang, '✕ 错题本', '✕ Mistakes')}
           </Text>
@@ -1484,11 +1484,11 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
                   : weakItems.length;
           const compactZh = tb.id === 'confusable' ? '易混' : tb.id === 'reason' ? '错因' : tb.zh;
           const tabText =
-            width < 72
+            width < LAYOUT_BP.SPLIT_MODAL
               ? ` ${t(lang, compactZh, tb.en)} `
               : ` ${t(lang, tb.zh, tb.en)} (${cnt}) `;
           return (
-            <Box key={tb.id} marginRight={width < 72 ? 0 : 1} flexShrink={0}>
+            <Box key={tb.id} marginRight={width < LAYOUT_BP.SPLIT_MODAL ? 0 : 1} flexShrink={0}>
               <Text
                 backgroundColor={active ? theme.primary : theme.surface}
                 color={active ? (theme.dark ? theme.bg : '#ffffff') : theme.muted}
@@ -1499,13 +1499,16 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
             </Box>
           );
         })}
-        {width >= 88 ? (
+        {width >= LAYOUT_BP.NARROW ? (
           <>
             <Box flexGrow={1} />
             <Box flexShrink={0}>
-              <Text color={theme.muted}>
-                {t(lang, `已订正 ${counts.history}  ·  推荐同类 ${recs.length}`, `Fixed ${counts.history}  ·  Similar ${recs.length}`)}
-              </Text>
+              <ChromeLabel
+                text={t(lang, `已订正 ${counts.history}  ·  推荐同类 ${recs.length}`, `Fixed ${counts.history}  ·  Similar ${recs.length}`)}
+                maxWidth={Math.max(16, width - 56)}
+                color={theme.muted}
+                ascii={asciiMode}
+              />
             </Box>
           </>
         ) : null}
@@ -1515,12 +1518,12 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       {tab === 'reason' ? (
         <Box height={1} width={width} paddingX={1} gap={1} overflow="hidden">
           <Box flexShrink={0}>
-            <Text color={theme.dim}>{width < 76 ? '[f]:' : width < 116 ? t(lang, '筛选[f]:', 'Filter[f]:') : t(lang, '错因筛选 [f]:', 'Reason [f]:')}</Text>
+            <Text color={theme.dim}>{width < LAYOUT_BP.DOCK_SIDE_BY_SIDE ? '[f]:' : width < LAYOUT_BP.CONTENT_WIDE ? t(lang, '筛选[f]:', 'Filter[f]:') : t(lang, '错因筛选 [f]:', 'Reason [f]:')}</Text>
           </Box>
           {REASON_FILTER_ORDER.map((r) => {
             const active = reasonFilter === r;
             const c = reasonCountsSummary.get(r) ?? 0;
-            const useShort = width < 116;
+            const useShort = width < LAYOUT_BP.CONTENT_WIDE;
             const lbl = useShort
               ? r === 'all'
                 ? t(lang, '全部', 'All')

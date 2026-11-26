@@ -6,6 +6,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 /* The chapter list of a big converted book (资料 page, "查看 N 章"): one line per chapter (title, size, 从这一章出题), inside a list that
    scrolls on its own. A rule written for the plain page buttons (`.source-doc__page-list button { display:flex; width:100% }`) also caught
@@ -59,9 +60,61 @@ test('the chapter rows are quiet, block, start-aligned Buttons with the row clas
   for (const row of rows) assert.match(row, /sh-btn--quiet[^"]*sh-btn--block[^"]*sh-btn--start/);
 });
 
-test('the page list rows carry the same row class, and the class gives the old look without a :not() guard', () => {
-  const jsx = readFileSync(new URL('../ui/Sources.jsx', import.meta.url), 'utf8');
-  assert.equal((jsx.match(/<Button variant="quiet" block align="start" className="source-doc__row"/g) || []).length, 2, 'chapter row and page row');
+test('the page list rows carry the same row class, and the class gives the old look without a :not() guard', async () => {
+  const HASH = 'd'.repeat(64);
+  const pages = [1, 2].map(n => ({
+    id: `p${n}`,
+    title: `Notes · p.${n}`,
+    text: 'x'.repeat(30),
+    createdAt: '2026-10-01T08:00:00.000Z',
+    courses: ['OS'],
+    document: { id: HASH, page: n, totalPages: 2, format: 'pdf', extractionVersion: 2, materialId: `document-${HASH}-pdf`, origin: 'converted', converter: 'mineru' },
+  }));
+  const [item] = groupSourcesByDocument(pages);
+  const opened = [];
+  const noop = () => {};
+  const actions = { open: (id) => opened.push(id), generate: noop, changeCourse: noop, archive: noop, pin: noop, pinMove: noop };
+
+  await withBrowserGlobals(async () => {
+    const interactive = await loadInteractiveUi(`
+      export { DocumentRow } from './ui/Sources.jsx';
+      export { StudyServicesContext } from './ui/study-context.jsx';
+      export { setUiLanguage } from './ui/i18n.js';
+    `);
+    interactive.exports.setUiLanguage('zh');
+    const mounted = interactive.mount(() => interactive.React.createElement(
+      interactive.exports.StudyServicesContext.Provider,
+      { value: { busy: false, openModal: noop, call: async () => ({}) } },
+      interactive.React.createElement(interactive.exports.DocumentRow, {
+        item,
+        source: pages[0],
+        actions,
+        courses: ['OS'],
+      }),
+    ));
+    try {
+      const expandBtn = mounted.find((node) => node.type === 'button' && mounted.text(node).includes('查看 2 页'));
+      assert.ok(expandBtn, 'multi-page non-chaptered DocumentRow exposes 查看 2 页 toggle');
+      await mounted.act(() => click(expandBtn));
+
+      const pageList = mounted.find((node) => node.type === 'ul' && String(node.props?.className || '').includes('source-doc__page-list'));
+      assert.ok(pageList, 'clicking toggle expands the page list');
+      const pageRows = mounted.findAll((node) => node.type === 'button' && String(node.props?.className || '').includes('source-doc__row'), pageList);
+      assert.equal(pageRows.length, 2);
+      for (const pageRow of pageRows) {
+        const cls = String(pageRow.props?.className || '');
+        assert.match(cls, /\bsh-btn--quiet\b/);
+        assert.match(cls, /\bsh-btn--block\b/);
+        assert.match(cls, /\bsh-btn--start\b/);
+        assert.match(cls, /\bsource-doc__row\b/);
+      }
+      await mounted.act(() => click(pageRows[1]));
+      assert.deepEqual(opened, ['p2']);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
   const row = rule('.source-doc__row');
   assert.match(row, /align-items:\s*baseline/);
   assert.match(row, /min-height:\s*0/);

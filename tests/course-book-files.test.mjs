@@ -3,9 +3,6 @@
    three question links (I5); never a material, in no list, search or retrieval (I6); the fixtures of I9. No model, no network. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { openCourseBook, remapManifest, genText } from '../lib/course-book-files.js';
 import { assignHeadingIds, bookIndex, bookLinks, parseBookLink, plainBook, stitchBook } from '../lib/course-book-links.js';
@@ -16,6 +13,7 @@ import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { assertMaterials, isLibraryListSource, notExamPointList } from '../lib/exam-point-list.js';
 import { libraryContracts, studyToolDescription } from '../lib/study-contracts.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
+import { isolatedHome } from './helpers/nonmodel-baseline.mjs';
 
 const lectureKey = sources => groupSourcesByDocument(sources).find(item => item.sourceIds.includes('document-l1-p1')).key;
 function outlineOf(state, nodes, extra = {}) {
@@ -173,8 +171,7 @@ test('the fixtures: no notes, a point without questions, a single point, sample 
 });
 
 test('the book is never material: no 资料 list, no search, no context count, no retrieval, refused as material (I6)', async t => {
-  const root = await mkdtemp(join(tmpdir(), 'study-book-files-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  const { library: root } = await isolatedHome(t, 'study-book-files');
   const service = new StudyService(root);
   await service.call('snapshot');
   const { state } = library();
@@ -195,9 +192,35 @@ test('the book is never material: no 资料 list, no search, no context count, n
   assert.ok(!JSON.stringify(found).includes(record.id), 'not found by the library search');
   assert.equal(JSON.stringify(await service.call('library.context', {})).includes(record.id), false, 'not in the main session\'s context');
   assert.deepEqual((await service.call('library.context', {})).counts?.sources, before.counts?.sources, 'not counted as a source');
-  // The retrieval index takes its sources through notExamPointList (lib/contexts/generation/retrieval-operations.js), so the book is never indexed.
-  const retrieval = await readFile(new URL('../lib/contexts/generation/retrieval-operations.js', import.meta.url), 'utf8');
-  assert.match(retrieval, /sources\.filter\(source => notExamPointList\(source\)/);
+  // Exercise real retrieval indexing/coverage/preview with normal sources, the course book, outline, notes, and an exam-point list.
+  const examPointList = {
+    id: 'exam-point-list-sa',
+    title: '考点清单 · SA',
+    text: 'Architects decide and record decisions in the exam point list.',
+    provenance: 'exam-blueprint',
+    courses: [COURSE],
+    blueprint: { points: [{ title: 'What architects do' }] },
+  };
+  await service.store.update(own => { own.sources.push(examPointList); });
+  const hiddenIds = new Set([
+    record.id,
+    examPointList.id,
+    ...(await service.store.read()).sources.filter(source => isLibraryListSource(source)).map(source => source.id),
+  ]);
+  const coverage = await service.call('retrieval.index.coverage', {});
+  assert.ok(coverage.missing.includes('document-l1-p1'), 'normal material source is eligible for indexing');
+  for (const id of hiddenIds) {
+    assert.equal(coverage.missing.includes(id), false, `${id} is excluded from retrieval index coverage (missing)`);
+    assert.equal(coverage.indexed.includes(id), false, `${id} is excluded from retrieval index coverage (indexed)`);
+    assert.equal(coverage.stale.includes(id), false, `${id} is excluded from retrieval index coverage (stale)`);
+  }
+  const plan = await service.call('retrieval.index.plan', { course: COURSE });
+  assert.equal(plan.pages, before.counts.sources, 'retrieval index plan counts only real materials, excluding book and exam-point lists');
+  const preview = await service.call('retrieval.preview', { query: 'Architects decide', localHybrid: true });
+  assert.ok(preview.pages.some(page => page.sourceId === 'document-l1-p1'), 'normal material source is returned by local retrieval preview');
+  for (const id of hiddenIds) {
+    assert.equal(preview.pages.some(page => page.sourceId === id), false, `${id} is excluded from retrieval preview`);
+  }
   assert.equal(JSON.stringify(await service.call('snapshot')).includes('还有 5 道题'), false, 'the book is read on demand, not carried by the snapshot');
   assert.match(libraryContracts.learning, /course\.book\.open \{course\?\}/);
   assert.match(studyToolDescription, /library\.context \{area:"index"\}/);
