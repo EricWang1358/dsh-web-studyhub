@@ -9,7 +9,11 @@
  *   3. Non-interrupting inline banner (never opens a modal or steals focus; zero idle polling)
  */
 import type { StudySnapshot, UiLanguage } from '../../types/contracts.js';
-import { deckDueCount, isActiveStudyDeck } from '../../shell/data.js';
+import {
+  getProgressMap,
+  selectDeckMetrics,
+  selectPractisableDecks,
+} from '../../selectors/study-metrics.js';
 
 export type DailyBriefingTarget =
   | { kind: 'deck'; deckId: string; deckTitle: string }
@@ -37,11 +41,6 @@ export function formatLocalDateKey(now: Date = new Date()): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
-interface DeckProgressLike {
-  due?: number;
-  counts?: { new?: number; weak?: number };
-}
-
 export function buildDailyBriefing(opts: BuildDailyBriefingOptions): DailyBriefing | null {
   if (opts.proactiveHints === false) return null;
   const dateKey = formatLocalDateKey(opts.now);
@@ -50,19 +49,17 @@ export function buildDailyBriefing(opts: BuildDailyBriefingOptions): DailyBriefi
   const snap = opts.snapshot;
   if (!snap) return null;
 
-  const progressMap = (snap.progress as Record<string, DeckProgressLike> | undefined) ?? undefined;
-  const activeDecks = (snap.decks ?? []).filter((d) => isActiveStudyDeck(d, opts.course));
+  const progressMap = getProgressMap(snap);
+  // The learner decks the scope counts: a parked course is never pushed, as the backend's suggestions do.
+  const activeDecks = selectPractisableDecks(snap, opts.course);
   if (activeDecks.length === 0) return null;
 
   const zh = opts.lang !== 'en';
 
   const ranked = activeDecks.map((d) => {
-    const p = progressMap?.[d.id];
     const title = String(d.title ?? d.name ?? d.id);
-    const due = deckDueCount(d, progressMap);
-    const wrong = Number(d.wrong ?? p?.counts?.weak ?? d.wrongCount ?? 0) || 0;
-    const newCount = Number(p?.counts?.new ?? d.newCount ?? 0) || 0;
-    return { id: d.id, title, due, wrong, newCount };
+    const m = selectDeckMetrics(d, progressMap);
+    return { id: d.id, title, due: m.due, wrong: m.weak, newCount: m.newCount };
   });
 
   const totalDue = ranked.reduce((n, d) => n + d.due, 0);

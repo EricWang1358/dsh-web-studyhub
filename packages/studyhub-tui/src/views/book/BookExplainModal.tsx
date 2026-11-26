@@ -10,18 +10,14 @@ import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { TextInput } from '../../components/TextInput.js';
 import { useInputCapture } from '../../components/focus.js';
 import { truncateDisplay } from '../../render/cjk.js';
-import { tryAction } from '../../host/sample-actions.js';
+import { submitBookExplainJob, type BookExplainJobResult } from '../../host/retell-dialogue.js';
 import type { FlatTocItem } from './types.js';
 
 export const BOOK_EXPLAIN_MAX_CHARS = 600;
 
 export type BookExplainMode = 'here' | 'explain';
 
-export interface BookExplainResult {
-  jobId?: string;
-  status?: string;
-  blockId?: string;
-}
+export type BookExplainResult = BookExplainJobResult;
 
 export interface BookExplainModalProps {
   host: HostClient;
@@ -69,9 +65,11 @@ export const BookExplainModal = memo(function BookExplainModal({
   const [pendingConfirm, setPendingConfirm] = useState<PendingExplainConfirm | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [errorIsModel, setErrorIsModel] = useState(false);
 
   const mountedRef = useRef(true);
   const busyRef = useRef(false);
+  const reqSeqRef = useRef(0);
   const hidRef = useRef(hid);
   hidRef.current = hid;
 
@@ -83,6 +81,8 @@ export const BookExplainModal = memo(function BookExplainModal({
   }, []);
 
   useEffect(() => {
+    reqSeqRef.current += 1;
+    busyRef.current = false;
     setMode('here');
     setFocus('input');
     setInstruction('');
@@ -90,6 +90,7 @@ export const BookExplainModal = memo(function BookExplainModal({
     setPendingConfirm(null);
     setSubmitting(false);
     setErrorText(null);
+    setErrorIsModel(false);
   }, [hid, pointTitle]);
 
   const confirmOpen = Boolean(pendingConfirm);
@@ -98,6 +99,7 @@ export const BookExplainModal = memo(function BookExplainModal({
   const handleActiveChange = useCallback(
     (next: string) => {
       setErrorText(null);
+      setErrorIsModel(false);
       if (mode === 'here') setInstruction(next);
       else setWords(next);
     },
@@ -145,15 +147,17 @@ export const BookExplainModal = memo(function BookExplainModal({
     async (payload: Record<string, unknown>) => {
       if (busyRef.current) return;
       const targetHid = hidRef.current;
+      const seq = ++reqSeqRef.current;
       busyRef.current = true;
       setSubmitting(true);
       setErrorText(null);
+      setErrorIsModel(false);
       try {
-        const res = await tryAction<BookExplainResult>(host, 'generation.courseBook.explain', payload);
-        if (!mountedRef.current || hidRef.current !== targetHid) return;
-        if (!res.ok || !res.value) {
-          const msg = res.error?.message || t(lang, '启动 AI 讲解任务失败', 'Failed to start AI explain job');
-          setErrorText(msg);
+        const res = await submitBookExplainJob(host, payload);
+        if (!mountedRef.current || hidRef.current !== targetHid || reqSeqRef.current !== seq) return;
+        if (!res.ok) {
+          setErrorText(res.error);
+          setErrorIsModel(res.isModelError);
           return;
         }
         notify(
@@ -162,12 +166,11 @@ export const BookExplainModal = memo(function BookExplainModal({
         );
         onStarted?.(res.value);
         onClose();
-      } catch (err) {
-        if (!mountedRef.current || hidRef.current !== targetHid) return;
-        setErrorText(err instanceof Error ? err.message : String(err));
       } finally {
-        busyRef.current = false;
-        if (mountedRef.current) setSubmitting(false);
+        if (reqSeqRef.current === seq) {
+          busyRef.current = false;
+          if (mountedRef.current) setSubmitting(false);
+        }
       }
     },
     [host, lang, notify, onClose, onStarted],
@@ -345,9 +348,22 @@ export const BookExplainModal = memo(function BookExplainModal({
           <Spinner label={t(lang, `正在启动 AI 讲解任务${ell}`, `Starting AI explain job${ell}`)} tone="ai" active={isActive} />
         </Box>
       ) : errorText ? (
-        <Box flexDirection="row" gap={1} width={innerW} height={1} overflow="hidden">
-          <Badge label={asciiMode ? '! 错误' : '▲ 错误'} tone="error" />
-          <Text color={theme.error} wrap="wrap">{errorText}</Text>
+        <Box flexDirection="column" width={innerW}>
+          <Box flexDirection="row" gap={1} width={innerW}>
+            <Badge label={asciiMode ? '! 错误' : '▲ 错误'} tone="error" />
+            <Text color={theme.error} wrap="wrap">{errorText}</Text>
+          </Box>
+          {errorIsModel ? (
+            <Box width={innerW}>
+              <Text color={theme.muted} wrap="wrap">
+                {t(
+                  lang,
+                  '模型暂不可用：可按 [,] 检查模型设置，或修改后按 Enter 重试。',
+                  'Model unavailable: press [,] for Settings, or press Enter to retry.',
+                )}
+              </Text>
+            </Box>
+          ) : null}
         </Box>
       ) : (
         <Box height={1} width={innerW} overflow="hidden">

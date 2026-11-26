@@ -1,6 +1,7 @@
 import type { PageId, StudySnapshot, ThemeId, UiLanguage } from './types/contracts.js';
 import { PAGE_REGISTRY } from './types/contracts.js';
 import { probeTerminalCompatMatrix, type TerminalCompatMatrix } from './render/terminal-compat.js';
+import { selectCourseMetrics, selectStudySummary } from './selectors/study-metrics.js';
 
 export interface ParsedCliArgs {
   help: boolean;
@@ -653,11 +654,6 @@ export interface BuildStatsSummaryOptions {
   generatedAt?: string;
 }
 
-function toFiniteCount(value: unknown): number {
-  const n = Number(value);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
-}
-
 export function toPureAscii(text: string): string {
   return text
     .replace(/[·•]/g, '-')
@@ -673,94 +669,32 @@ export function toPureAscii(text: string): string {
  */
 export function buildStatsSummary(opts: BuildStatsSummaryOptions): StatsSummary {
   const snap = opts.snapshot ?? {};
-  const decks = Array.isArray(snap.decks) ? snap.decks : [];
-  const progress = (snap.progress && typeof snap.progress === 'object' ? snap.progress : {}) as Record<
-    string,
-    { total?: number; due?: number; counts?: { weak?: number } } | undefined
-  >;
-
-  let activeDecks = 0;
-  let archivedDecks = 0;
-  let cards = 0;
-  let deckDueSum = 0;
-  let deckWeakSum = 0;
-
-  const courseMap = new Map<string, StatsSummaryCourse>();
-  const ensureCourse = (name: string): StatsSummaryCourse => {
-    const existing = courseMap.get(name);
-    if (existing) return existing;
-    const created: StatsSummaryCourse = { name, decks: 0, cards: 0, due: 0 };
-    courseMap.set(name, created);
-    return created;
-  };
-
-  for (const rawCourse of Array.isArray(snap.courses) ? snap.courses : []) {
-    const name = String(rawCourse?.name ?? rawCourse?.title ?? rawCourse?.id ?? '').trim();
-    if (name) ensureCourse(name);
-  }
-
-  for (const d of decks) {
-    if (!d || typeof d !== 'object') continue;
-    if (d.archived) {
-      archivedDecks += 1;
-      continue;
-    }
-    const rec = d as Record<string, unknown>;
-    if (rec.systemKind) continue;
-    activeDecks += 1;
-    const p = d.id ? progress[d.id] : undefined;
-    const deckCards = toFiniteCount(d.cardCount ?? rec.count ?? p?.total);
-    const deckDue = toFiniteCount(p?.due ?? rec.due ?? d.dueCount);
-    const deckWeak = toFiniteCount(rec.wrong ?? d.wrongCount ?? p?.counts?.weak);
-    cards += deckCards;
-    deckDueSum += deckDue;
-    deckWeakSum += deckWeak;
-
-    const courseName = String(d.course ?? '').trim();
-    if (courseName) {
-      const entry = ensureCourse(courseName);
-      entry.decks += 1;
-      entry.cards += deckCards;
-      entry.due += deckDue;
-    }
-  }
-
-  for (const rawCourse of Array.isArray(snap.courses) ? snap.courses : []) {
-    const name = String(rawCourse?.name ?? rawCourse?.title ?? rawCourse?.id ?? '').trim();
-    if (!name) continue;
-    const entry = courseMap.get(name);
-    if (entry && entry.decks === 0 && entry.cards === 0) {
-      const rec = rawCourse as Record<string, unknown>;
-      entry.decks = toFiniteCount(rawCourse.deckCount ?? rec.decks);
-      entry.cards = toFiniteCount(rawCourse.cardCount);
-      entry.due = toFiniteCount(rawCourse.dueCount);
-    }
-  }
-
-  const today = snap.today && typeof snap.today === 'object' ? (snap.today as Record<string, unknown>) : null;
-  const due = deckDueSum > 0 ? deckDueSum : toFiniteCount(today?.due);
-  const weak = deckWeakSum > 0 ? deckWeakSum : toFiniteCount(today?.weak);
-
-  const courses = [...courseMap.values()]
-    .sort((a, b) => b.due - a.due || b.cards - a.cards || b.decks - a.decks || a.name.localeCompare(b.name))
-    .slice(0, 8);
+  const summary = selectStudySummary(snap);
+  const courses: StatsSummaryCourse[] = selectCourseMetrics(snap)
+    .map((c) => ({
+      name: c.key,
+      decks: c.deckCount,
+      cards: c.totalCards,
+      due: c.dueCount,
+    }))
+    .sort((a, b) => b.due - a.due || b.cards - a.cards || b.decks - a.decks || a.name.localeCompare(b.name));
 
   return {
     version: opts.version ?? '1.0.0',
     libraryRoot: opts.libraryRoot,
     generatedAt: opts.generatedAt ?? new Date().toISOString(),
     counts: {
-      courses: courseMap.size,
-      activeDecks,
-      archivedDecks,
-      cards,
-      due,
-      weak,
+      courses: courses.length,
+      activeDecks: summary.deckCount,
+      archivedDecks: summary.archivedDecks,
+      cards: summary.totalCards,
+      due: summary.due,
+      weak: summary.weak,
       sources: Array.isArray(snap.sources) ? snap.sources.length : 0,
       notes: Array.isArray(snap.notes) ? snap.notes.length : 0,
       drafts: Array.isArray(snap.drafts) ? snap.drafts.length : 0,
     },
-    courses,
+    courses: courses.slice(0, 8),
   };
 }
 

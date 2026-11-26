@@ -12,7 +12,7 @@ const { settled, single, batch, batchAnswered, text } = evidence.scenarios;
 const STABLE = ['sources', 'sourceHash', 'ids', 'closingLetters'];
 const pick = (view, keys = STABLE) => Object.fromEntries(keys.map(key => [key, view[key]]));
 
-test('the evidence names the fixed version it rolled back to, and the document says the same', () => {
+test('S2-7 audio rollback evidence names fixed rollback version and matches s2-7-acceptance.md across all 5 audio scenarios', () => {
   assert.equal(evidence.schema, 1);
   assert.match(evidence.rollbackSha, /^[0-9a-f]{40}$/);
   assert.ok(doc.includes(evidence.rollbackSha) && doc.includes(evidence.rollbackTag), 'the document quotes the tag and its SHA');

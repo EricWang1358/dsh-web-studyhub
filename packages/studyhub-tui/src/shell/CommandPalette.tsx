@@ -13,6 +13,7 @@ import { TextInput } from '../components/TextInput.js';
 import { nextScrollOffset, parseSgrWheelDelta, useSgrMouseWheel } from '../components/VirtualList.js';
 import { fuzzyFilter } from './fuzzy.js';
 import { listCourses, pageIcon } from './data.js';
+import { getProgressMap, isActiveStudyDeck, normalizeCourseKey, selectDeckDueCount, selectPractisableDecks } from '../selectors/study-metrics.js';
 import { parseAssistantIntent } from './assistant-intent.js';
 import { planAssistantWorkflow } from './assistant-workflow.js';
 import type { ShellActions } from './actions.js';
@@ -315,27 +316,10 @@ export function buildPaletteItems(
           const snapRes = await host.call<StudySnapshot>('snapshot', {});
           if (snapRes.ok && snapRes.value) effectiveSnap = snapRes.value;
         }
-        const focusCourse =
-          typeof (effectiveSnap?.focus as { course?: unknown } | undefined)?.course === 'string'
-            ? String((effectiveSnap?.focus as { course?: string } | undefined)?.course ?? '').trim()
-            : '';
-        const progressMap = (effectiveSnap?.progress && typeof effectiveSnap.progress === 'object'
-          ? effectiveSnap.progress
-          : {}) as Record<string, { due?: number } | undefined>;
-        const decks = Array.isArray(effectiveSnap?.decks) ? effectiveSnap.decks : [];
-        const dueCandidates = decks
-          .filter((d) => {
-            if (!d || typeof d !== 'object' || d.archived) return false;
-            const rec = d as Record<string, unknown>;
-            if (rec.systemKind) return false;
-            if (focusCourse && String(d.course ?? '').trim() !== focusCourse) return false;
-            return true;
-          })
-          .map((d) => {
-            const rec = d as Record<string, unknown>;
-            const due = Number(progressMap[d.id]?.due ?? rec.due ?? d.dueCount ?? 0) || 0;
-            return { id: d.id, due };
-          })
+        const focusCourse = normalizeCourseKey((effectiveSnap?.focus as { course?: unknown } | undefined)?.course);
+        const progressMap = getProgressMap(effectiveSnap);
+        const dueCandidates = selectPractisableDecks(effectiveSnap, focusCourse || null)
+          .map((d) => ({ id: d.id, due: selectDeckDueCount(d, progressMap) }))
           .filter((d) => d.id && d.due > 0)
           .sort((a, b) => b.due - a.due);
 
@@ -635,14 +619,17 @@ export function buildPaletteItems(
 
   const catDeck = t(lang, '题组', 'Deck');
   const deckGlyph = asciiMode ? '#' : '▦';
-  for (const d of (snap?.decks ?? []).filter((x) => !x.archived).slice(0, MAX_ENTITY)) {
+  const paletteProgress = getProgressMap(snap);
+  for (const d of (snap?.decks ?? []).filter((x) => isActiveStudyDeck(x)).slice(0, MAX_ENTITY)) {
+    const deckDue = selectDeckDueCount(d, paletteProgress);
+    const courseLabel = normalizeCourseKey(d.course);
     items.push({
       id: `deck:${d.id}`,
       label: `${deckGlyph} ${str(d.title) || str(d.name) || d.id}`,
-      hint: [str(d.course), d.dueCount ? t(lang, `${d.dueCount} 待复习`, `${d.dueCount} due`) : ''].filter(Boolean).join(' · ') || undefined,
+      hint: [courseLabel, deckDue ? t(lang, `${deckDue} 待复习`, `${deckDue} due`) : ''].filter(Boolean).join(' · ') || undefined,
       category: catDeck,
-      keywords: [str(d.course)],
-      action: () => state.navigate('library', { deckId: d.id, course: d.course ?? null }),
+      keywords: [courseLabel],
+      action: () => state.navigate('library', { deckId: d.id, course: courseLabel || null }),
     });
   }
 

@@ -81,7 +81,15 @@ test("Chinese speech still goes through Simplified Chinese translation", async (
 
 test("persisted sessions without a translator settle without waiting forever", async () => {
   const live = session(socketClass(healthy), { translate: null, saved: { segments: [{ id: 1, en: 'Pending', zh: '', zhState: 'pending' }] } });
-  await Promise.race([live.settled(), new Promise((_, reject) => setTimeout(() => reject(new Error('settled timed out')), 100))]);
+  let timer;
+  const outcome = await Promise.race([
+    live.settled().then(() => 'settled'),
+    new Promise((resolve) => { timer = setTimeout(() => resolve('timeout'), 1000); }),
+  ]).finally(() => clearTimeout(timer));
+  assert.equal(outcome, 'settled');
+  assert.equal(live.segments[0].zhState, 'error');
+  assert.equal(live.segments[0].zh, '');
+  assert.equal(live.snapshot().translating, 0);
 });
 
 test("disk snapshots serialize writes and expose a storage failure", async () => {

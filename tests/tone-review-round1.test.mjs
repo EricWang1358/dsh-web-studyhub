@@ -75,9 +75,38 @@ test('one verb for "no reason": 拿到 everywhere, never 返回, in the sentence
 });
 
 test('the transport says what is true: a button action is not retried by itself, only the start-up loop and the poll are', async () => {
-  const source = await readFile(new URL('../ui/transport.js', import.meta.url), 'utf8');
-  assert.match(source, /StudyHub 还没有启动好（DSH 可能刚重启）。等几秒再点一次。/);
-  assert.doesNotMatch(source, /正在重试/);
+  const routesTried = [];
+  const call = m.createStudyCall({
+    rpc: {
+      call: async (base, endpoint) => {
+        routesTried.push([base, endpoint]);
+        throw new Error('transport failure: HTTP 404');
+      },
+    },
+  }, 'session-1');
+  await assert.rejects(() => call('course.save', { id: 'c1' }), (error) => {
+    assert.equal(error.code, 'STUDY_UNAVAILABLE');
+    assert.match(error.message, /StudyHub 还没有启动好（DSH 可能刚重启）。等几秒再点一次。/);
+    assert.doesNotMatch(error.message, /正在重试/);
+    return true;
+  });
+  // Native route falls back to legacy route once; neither route is auto-retried.
+  assert.deepEqual(routesTried, [
+    ['/api', 'study-workspace/call'],
+    ['/study-workspace', 'call'],
+  ]);
+
+  const serverErrorCalls = [];
+  const failFast = m.createStudyCall({
+    rpc: {
+      call: async (base, endpoint) => {
+        serverErrorCalls.push([base, endpoint]);
+        throw new Error('HTTP 500');
+      },
+    },
+  }, 'session-1');
+  await assert.rejects(() => failFast('course.save', { id: 'c1' }), /HTTP 500/);
+  assert.equal(serverErrorCalls.length, 1, 'non-404 action failures are called once without retry');
 });
 
 test('the poll tells the bar by the error code that a restarting DSH is transient (the 404/404 of createStudyCall), and a real failure is not', async () => {

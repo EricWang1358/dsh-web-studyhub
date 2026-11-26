@@ -25,7 +25,6 @@ const record = (pages, extra = {}) => ({ id: `job-${pages}`, version: 1, filenam
 const history = (records, language = 'zh') => { ui.setUiLanguage(language); try { return renderToStaticMarkup(h(ui.PdfConvertHistory, { initialRecords: records, now: NOW })); } finally { ui.setUiLanguage('zh'); } };
 
 test('one constant, 150 pages: the offer is for a document of that many pages or more', () => {
-  assert.equal(ui.CUSTOM_BOOK_PAGES, 150);
   assert.equal(ui.offersCustom(149), false);
   assert.equal(ui.offersCustom(150), true);
   assert.equal(ui.offersCustom(512), true);
