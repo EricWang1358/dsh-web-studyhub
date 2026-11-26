@@ -35,7 +35,7 @@ test('resolve gives the full object whether or not anything was saved', () => {
   assert.deepEqual(resolvePracticeSettings({ debrief: false }), { ...expected, debrief: false });
 });
 
-test('normalize is lenient: a wrong value falls back to its default and valid siblings survive', () => {
+test('normalizePracticeSettings falls back invalid autopilot/roundSize/newCardOrder/debrief values to defaults while keeping valid siblings', () => {
   for (const raw of [undefined, null, [], 'x', 7]) assert.deepEqual(normalizePracticeSettings(raw), expected);
   assert.deepEqual(normalizePracticeSettings({ autopilot: 'yes', roundSize: '20', debrief: 0, unknown: 1 }), expected);
   assert.deepEqual(normalizePracticeSettings({ autopilot: true, roundSize: 30, debrief: false }), { ...expected, autopilot: true, roundSize: 30, debrief: false });
@@ -48,14 +48,14 @@ test('normalize is lenient: a wrong value falls back to its default and valid si
   assert.equal(normalizePracticeSettings({ newCardOrder: 'invalid' }).newCardOrder, 'reading');
 });
 
-test('a patch is strict: it names known keys with valid values, and a refused patch throws', () => {
+test('validatePracticePatch rejects unknown keys, out-of-range roundSize, and invalid newCardOrder or boolean types', () => {
   assert.deepEqual(validatePracticePatch({ autopilot: true, roundSize: 10, newCardOrder: 'focus' }), { autopilot: true, roundSize: 10, newCardOrder: 'focus' });
   assert.deepEqual(validatePracticePatch({}), {});
   for (const patch of [null, [], 'fast', 3, { unknown: true }, { autopilot: 'yes' }, { debrief: 1 }, { debrief: null }, { roundSize: '20' }, { roundSize: 4 },
     { roundSize: 51 }, { roundSize: 10.5 }, { roundSize: null }, { newCardOrder: 'random' }, { newCardOrder: null }]) assert.throws(() => validatePracticePatch(patch), /practice/i, JSON.stringify(patch));
 });
 
-test('merge keeps the saved siblings and applies the patch on top', () => {
+test('mergePracticeSettings preserves saved roundSize/autopilot siblings when applying a debrief patch', () => {
   assert.deepEqual(mergePracticeSettings(undefined, { debrief: false }), { ...expected, debrief: false });
   assert.deepEqual(mergePracticeSettings({ roundSize: 30, autopilot: true }, { debrief: false }), { ...expected, autopilot: true, roundSize: 30, debrief: false });
   assert.throws(() => mergePracticeSettings({ roundSize: 30 }, { roundSize: 1 }));
@@ -79,7 +79,7 @@ test('nothing is saved until the learner saves: the snapshot has no practice key
   assert.equal('practice' in JSON.parse(await readFile(join(root, 'study-workspace.json'), 'utf8')).settings, false);
 });
 
-test('settings.practice.set merges per field into the saved settings and returns the full object', async t => {
+test('settings.practice.set merges debrief, roundSize, and autopilot patches incrementally and returns the resolved practice config', async t => {
   const { service } = await library(t);
   assert.deepEqual(await service.call('settings.practice.set', { patch: { debrief: false } }), { ...expected, debrief: false });
   assert.deepEqual(await service.call('settings.practice.set', { patch: { roundSize: 30 } }), { ...expected, debrief: false, roundSize: 30 });
@@ -101,7 +101,7 @@ test('settings.practice.set leaves the other settings alone, and the other setti
   assert.deepEqual(await saved(service), { ...expected, autopilot: true });
 });
 
-test('a refused patch changes nothing', async t => {
+test('settings.practice.set leaves exported workspace unchanged when a practice patch is refused', async t => {
   const { service } = await library(t);
   await service.call('settings.practice.set', { patch: { roundSize: 15 } });
   const before = await service.call('export');
@@ -111,7 +111,7 @@ test('a refused patch changes nothing', async t => {
   assert.deepEqual(await service.call('export'), before);
 });
 
-test('settings.practice.reset forgets the saved choices: the defaults come back and the key leaves the library', async t => {
+test('settings.practice.reset restores PRACTICE_DEFAULTS and removes settings.practice from study-workspace.json', async t => {
   const { root, service } = await library(t);
   await service.call('settings.practice.set', { patch: { roundSize: 40, autopilot: true, debrief: false } });
   assert.deepEqual(await service.call('settings.practice.reset'), expected);
@@ -128,7 +128,7 @@ test('the generic settings action also merges a practice patch through the same 
   assert.equal((await saved(service)).autopilot, true);
 });
 
-test('stored format: one optional key inside the library settings; no version moves and no other field appears', async t => {
+test('study-workspace.json stores settings.practice as one optional key without bumping LATEST_VERSION or adding top-level fields', async t => {
   const { root, service } = await library(t);
   await service.call('settings', { maximum_interval: 1 });
   await service.call('settings', { maximum_interval: 1 });
@@ -143,7 +143,7 @@ test('stored format: one optional key inside the library settings; no version mo
   assert.deepEqual(Object.keys(after).filter(key => !(key in before)), [], 'no top-level field was added');
 });
 
-test('an older release opens a library with the key and a library without it opens here', async t => {
+test('normalizeState preserves settings.practice for newer libraries and resolves defaults when older libraries omit practice', async t => {
   const { service } = await library(t);
   await service.call('settings.practice.set', { patch: { roundSize: 30 } });
   const exported = await service.call('export');
@@ -154,7 +154,7 @@ test('an older release opens a library with the key and a library without it ope
   assert.deepEqual(resolvePracticeSettings(legacy.settings.practice), expected);
 });
 
-test('backup and restore carry it like the other settings; a corrupt value falls back without losing valid siblings', async t => {
+test('export/restore round-trips settings.practice and heals corrupt practice fields without losing valid roundSize', async t => {
   const { service } = await library(t);
   await service.call('settings.practice.set', { patch: { autopilot: true, roundSize: 25, debrief: false } });
   const backup = await service.call('export');
@@ -172,7 +172,7 @@ test('backup and restore carry it like the other settings; a corrupt value falls
   assert.deepEqual(await saved(service), expected);
 });
 
-test('both actions write the library settings and nothing else', () => {
+test('domain contract: settings.practice.set and settings.practice.reset only declare writes to settings', () => {
   assert.deepEqual(writesFor('system', 'settings.practice.set'), ['settings']);
   assert.deepEqual(writesFor('system', 'settings.practice.reset'), ['settings']);
 });

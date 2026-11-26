@@ -13,10 +13,10 @@ import { settleJob, until } from './helpers/wait.mjs';
    This is the 'off' third of unified-runtime-audio-console.test.mjs, moved here as it was (same names, same assertions, the setup of helpers/audio-console.mjs), so that
    the runner can put the three modes on three workers: the other two modes are the files beside it. */
 
-/** This file's mode, the one every test here is named after: the switch of every audio path off, so the matrix starts each kind on the original path only. */
+/** This file's mode: the switch of every audio path off, so the matrix starts each kind on the original path only. */
 const mode = 'off';
 
-test(`${mode}: every kind of audio job, while it runs, is a card the console can draw, offers what it declares and refuses the rest in words`, async t => {
+test('audio console (switches off / legacy paths): single/batch/subtitles/review/save run as console cards (class correction skipped per D-12), archive, restore, and delete cleanly', async t => {
   const lib = await consoleLibrary(t), cards = await startAll(lib, mode);
   assert.deepEqual(cards.filter(card => !card.started).map(card => `${card.name}/${card.side}`), mode === 'on' ? [] : ['correction/off'], 'the class correction has a card only on the runtime (D-12)');
   const rows = [];
@@ -101,7 +101,7 @@ test(`${mode}: every kind of audio job, while it runs, is a card the console can
   }
 });
 
-test(`${mode}: stopping a job of every kind: the card ends cancelled in words, what was kept is not lost, dismissing it removes the card`, async t => {
+test('audio console (switches off / legacy paths): cancelling running legacy audio jobs ends them cleanly, refuses repeat cancel, and removes dismissed cards', async t => {
   const lib = await consoleLibrary(t), cards = (await startAll(lib, mode)).filter(card => card.started), ids = [];
   for (const card of [...cards].reverse()) {
     const row = await live(lib, card.started.jobId, `${card.name}/${card.side}`), c = ui.model.contractOf(row);
@@ -123,11 +123,11 @@ test(`${mode}: stopping a job of every kind: the card ends cancelled in words, w
 
 /* ---- The findings of the first run of this matrix, each with its own test ---------------------------------------------------------------------------------- */
 
-test(`${mode}: every kind of audio job the runtime has is in the audio family of the console, so the console draws it as an audio job (the class correction was missing)`, () => {
+test('audio console (switches off / legacy paths): every kind of audio job the runtime has is in the audio family of the console, so the console draws it as an audio job (the class correction was missing)', () => {
   for (const [name, kind] of Object.entries(KINDS)) assert.equal(isAudioJob({ type: kind.kind }), true, `${name} (${kind.kind}) is an audio job`);
 });
 
-test(`${mode}: a message to a running audio job is refused in the learner's words, not with an internal error`, async t => {
+test('audio console (switches off / legacy paths): job.message to a running legacy subtitles job returns a plain learner-facing refusal', async t => {
   const lib = await consoleLibrary(t);
   lib.set(mode === 'on', 'audioSubtitles');
   const started = await KINDS.subtitles.start(lib, 1), row = await live(lib, started.jobId);

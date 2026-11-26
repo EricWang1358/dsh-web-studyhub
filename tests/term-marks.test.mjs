@@ -8,8 +8,6 @@ const {
   getUiLanguage,
   loadEnglishCatalogue,
   setUiLanguage,
-  MAX_MARKED_TERMS,
-  MAX_TERM_LENGTH,
   clearCompletedTermEntries,
   collectInFlightTerms,
   fillQuestion,
@@ -34,11 +32,6 @@ const {
   export { default as ExplanationFollowup } from "./ui/ExplanationFollowup.jsx";
   export { formatAssistTaskSummary } from "./ui/review/assist-summary.js";
 `);
-
-test("term mark constants match spec", () => {
-  assert.equal(MAX_MARKED_TERMS, 6);
-  assert.equal(MAX_TERM_LENGTH, 60);
-});
 
 test("normalizeTerm trims, collapses spaces, rejects newlines and >60 chars", () => {
   assert.equal(normalizeTerm("  逆否命题  "), "逆否命题");
@@ -146,7 +139,7 @@ test("toggleTerm adds, removes, and enforces MAX_MARKED_TERMS = 6", () => {
   assert.equal(atLimit.added, false);
   assert.equal(atLimit.removed, false);
   assert.equal(atLimit.limitReached, true);
-  assert.equal(atLimit.terms.length, 6);
+  assert.deepEqual(atLimit.terms, ["词1", "词2", "词3", "词4", "词5", "词6"]);
 
   // Existing term can still be toggled off when full.
   const toggledOff = toggleTerm(list, "词3");

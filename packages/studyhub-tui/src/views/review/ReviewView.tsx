@@ -19,6 +19,7 @@ import {
   type ReviewRun,
 } from '../../host/sample-actions.js';
 import { useTheme } from '../../theme/tokens.js';
+import { isModelUnavailableError } from '../../host/ai-dialogue.js';
 import { Badge, Divider, EmptyState, ProgressBar, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { ChromeLabel, LAYOUT_BP, Prose, SectionHeader, computeProseLayout } from '../../layout/index.js';
@@ -88,7 +89,6 @@ const QueueModal = lazy(() => import('./QueueModal.js').then((m) => ({ default: 
 const RetellModal = lazy(() => import('./RetellModal.js').then((m) => ({ default: m.RetellModal })));
 const RoundSummary = lazy(() => import('./RoundSummary.js').then((m) => ({ default: m.RoundSummary })));
 const SimilarCardsModal = lazy(() => import('./SimilarCardsModal.js').then((m) => ({ default: m.SimilarCardsModal })));
-const TeachModal = lazy(() => import('./TeachModal.js').then((m) => ({ default: m.TeachModal })));
 
 interface RubricCriterionResult {
   id: string;
@@ -132,12 +132,6 @@ interface RunDraftShape {
 
 const DRAFT_SAVE_DEBOUNCE_MS = 600;
 
-function isModelUnavailableMsg(msg: string): boolean {
-  return /configure a model|model.*unavailable|no.*model|api.?key|unauthorized|forbidden|\b401\b|\b403\b|econnrefused|timed out|timeout|未配置|可用.*模型|模型不可用/i.test(
-    msg,
-  );
-}
-
 const CARD_UTIL_KEYS: readonly string[] = Object.freeze([
   'X',
   'Q',
@@ -150,7 +144,6 @@ const CARD_UTIL_KEYS: readonly string[] = Object.freeze([
   'f',
   'n',
   'F',
-  'L',
   '*',
   'T',
   'W',
@@ -327,7 +320,6 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
   const [cardToolsModalOpen, setCardToolsModalOpen] = useState(false);
   const [queueModalOpen, setQueueModalOpen] = useState(false);
   const [retellModalOpen, setRetellModalOpen] = useState(false);
-  const [teachModalOpen, setTeachModalOpen] = useState(false);
   const [answerCardModalOpen, setAnswerCardModalOpen] = useState(false);
   const [gradeAdjustModalOpen, setGradeAdjustModalOpen] = useState(false);
   const [nudgeModalOpen, setNudgeModalOpen] = useState(false);
@@ -1307,10 +1299,6 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
         setRetellModalOpen(true);
         return true;
       }
-      if (input === 'L') {
-        setTeachModalOpen(true);
-        return true;
-      }
       if (input === '*') {
         void handleToggleFocus();
         return true;
@@ -1345,15 +1333,24 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
         }
         return true;
       }
-      // #1408: `t` is the documented key; `T` stays as a silent alias for old muscle memory.
+      // #1408 / #1354 P3-c: `t` (alias `T`) is the single Guided Study entrypoint backed by backend `teach.*` inside AssistantPanel.
+      // Preserve full synced cardContext fields (answer/explanation/citations/revealed/options) instead of overwriting them.
       if (input === 't' || input === 'T') {
-        useTuiStore.getState().openAssistant({
+        const store = useTuiStore.getState();
+        const prevCtx = store.assistantCardContext;
+        const teaching = (run as { teaching?: { id?: string; mode?: string } | null }).teaching;
+        store.openAssistant({
           tab: 'guided',
-          stage: 'retell',
+          stage: 'question',
+          focused: true,
           cardContext: {
+            ...(prevCtx && prevCtx.cardId === cardId ? prevCtx : {}),
             runId: run.id,
             deckId: currentDeckIdOf(run) ?? undefined,
             cardId: cardId ?? '',
+            cardIndex: typeof run.index === 'number' ? run.index : 0,
+            queueVersion: run.queueVersion ?? 0,
+            ...(teaching?.id ? { teachingId: teaching.id, teachingMode: teaching.mode } : {}),
             prompt: String(run.card?.prompt || ''),
             userAnswer: extractUserAnswerText(run, kind, selectedIds, clozeInputs, openDraft, lang),
             kind,
@@ -1761,11 +1758,14 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
           ...(typeof c.quote === 'string' && c.quote.trim() ? { quote: c.quote.trim() } : {}),
         };
       });
+    const teaching = (run as { teaching?: { id?: string; mode?: string } | null }).teaching;
     useTuiStore.getState().setAssistantCardContext({
       runId: run.id,
       deckId: currentDeckIdOf(run) ?? undefined,
       cardId,
       cardIndex: typeof run.index === 'number' ? run.index : 0,
+      queueVersion: run.queueVersion ?? 0,
+      ...(teaching?.id ? { teachingId: teaching.id, teachingMode: teaching.mode } : {}),
       total: typeof run.total === 'number' ? run.total : undefined,
       ...(typeof run.card?.topic === 'string' && run.card.topic ? { topic: run.card.topic } : {}),
       prompt: String(run.card?.prompt || ''),
@@ -1779,6 +1779,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
       kind,
       isWrong: Boolean(feedback && feedback.correct === false),
       revealed,
+      answered: Boolean(feedback),
       isExam: run.mode === 'exam',
       hasCitation,
     });
@@ -2388,7 +2389,7 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                     </Text>
                   </Box>
                   <Text color={theme.muted}>
-                    {isModelUnavailableMsg(gradeError)
+                    {isModelUnavailableError(gradeError)
                       ? t(
                           lang,
                           '未检测到可用 AI 模型：请按 [,] 配置模型，或按 [Space] 对照参考答案后用 [0-5] 自评。',
@@ -2625,10 +2626,13 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                   clickActive={cardScopeActive}
                   onClick={() => {
                     setWrongStreakBanner(null);
-                    useTuiStore.getState().openAssistant({
+                    const store = useTuiStore.getState();
+                    const prevCtx = store.assistantCardContext;
+                    store.openAssistant({
                       tab: 'guided',
                       stage: 'question',
                       cardContext: {
+                        ...(prevCtx && prevCtx.cardId === (cardId ?? '') ? prevCtx : {}),
                         runId: run.id,
                         deckId: currentDeckIdOf(run) ?? undefined,
                         cardId: cardId ?? '',
@@ -2745,19 +2749,28 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
               const ell = asciiMode ? '...' : '…';
               const actionHandlers: Record<string, () => void> = {
                 h: () => setAiDrawerOpen((v) => !v),
-                T: () =>
-                  useTuiStore.getState().openAssistant({
+                T: () => {
+                  const store = useTuiStore.getState();
+                  const prevCtx = store.assistantCardContext;
+                  const teaching = (run as { teaching?: { id?: string; mode?: string } | null }).teaching;
+                  store.openAssistant({
                     tab: 'guided',
-                    stage: 'retell',
+                    stage: 'question',
+                    focused: true,
                     cardContext: {
+                      ...(prevCtx && prevCtx.cardId === cardId ? prevCtx : {}),
                       runId: run.id,
                       deckId: currentDeckIdOf(run) ?? undefined,
                       cardId: cardId ?? '',
+                      cardIndex: typeof run.index === 'number' ? run.index : 0,
+                      queueVersion: run.queueVersion ?? 0,
+                      ...(teaching?.id ? { teachingId: teaching.id, teachingMode: teaching.mode } : {}),
                       prompt: String(run.card?.prompt || ''),
                       userAnswer: userAnswerText,
                       kind,
                     },
-                  }),
+                  });
+                },
                 S: () => setSimilarModalOpen(true),
                 '*': () => void handleToggleFocus(),
                 R: () => void handleRedoCard(),
@@ -2860,24 +2873,6 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
               extraSavedFollowups={savedFollowupsByCard[cardId]}
               onSavedFollowup={handleSavedFollowup}
               onClose={() => setAiDrawerOpen(false)}
-            />
-          </Suspense>
-        </KeyScope>
-      ) : null}
-
-      {teachModalOpen && cardId ? (
-        <KeyScope id="review:teach" opaque>
-          <Suspense fallback={null}>
-            <TeachModal
-              host={host}
-              run={run}
-              cardId={cardId}
-              kind={kind}
-              width={width}
-              height={height}
-              isActive={isActive}
-              mathUnicode={mathUnicode}
-              onClose={() => setTeachModalOpen(false)}
             />
           </Suspense>
         </KeyScope>
