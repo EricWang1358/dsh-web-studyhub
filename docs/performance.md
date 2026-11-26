@@ -174,6 +174,15 @@ The near-duplicate check of a draft (`draft.similar`, #890) has a budget of its 
 
 `tests/store-sharing.test.mjs`, `tests/runtime-view.test.mjs`, `tests/snapshot-share.test.mjs`, `tests/poll-schedule.test.mjs` and `tests/scroll-window-chunks.test.mjs` pin the mechanisms.
 
+### CI stability rules for performance tests
+
+CI runs the test suite in parallel (`--test-concurrency=4`) on shared 2-vCPU runners. A single-shot wall-clock `performance.now()` assertion is vulnerable to 3–15 ms OS scheduling preemptions and minor GC ticks that have nothing to do with production regressions. Every performance test in this repository follows four rules:
+
+1. **Prefer deterministic work counters over timing.** Count exact work — `Probe` parse/stringify bytes, `structuredClone` calls, shard reads/writes, `Math.pow` calls, pair comparisons (`stats.compared`), cache-hit counts, or payload sizes (`tests/perf-budget.test.mjs`, `tests/perf-nfr-fast.test.mjs`). Deterministic bounds never flake under CI load.
+2. **When timing is necessary, use `process.cpuUsage()` + warmup + multi-sample aggregation.** Never assert a single-shot `performance.now()` duration in parallel tests. Warm up the JIT first, measure process CPU time (`(used.user + used.system) / 1000`, as in `tests/coverage.test.mjs`, `tests/marks-reread.test.mjs`, `tests/pace-forecast.test.mjs`, `tests/study-materials-perf-regression.test.mjs`, `tests/perf-nfr-fast.test.mjs`, `packages/studyhub-tui/tests/round-98-ux.test.mjs`), and assert the median or minimum across multiple samples. Sibling-worker preemption does not inflate `process.cpuUsage()`, and multi-sample aggregation filters out isolated GC ticks while still failing decisively on real algorithmic or cache regressions.
+3. **Avoid real-clock boundary races.** Snapshot/fingerprint tests that depend on minute buckets (`tests/pace-forecast.test.mjs`) must tolerate a real-clock minute rollover between consecutive calls instead of assuming both calls land in the same minute.
+4. **Isolate heavy TUI benchmarks in `[tier:bench]`.** Throughput and scale suites for `packages/studyhub-tui` (`packages/studyhub-tui/tests/perf-budget.test.mjs`, `packages/studyhub-tui/tests/scale-nfr.test.mjs`) run in the dedicated `[tier:bench]` tier at `concurrency=1`; lightweight timing guards that remain in `[tier:unit]` must follow rule 2.
+
 ## Long lists draw their rows in chunks (#900)
 
 The sources page (each day group and the pinned group), the wrong book (each group) and a draft of more than 80 questions no longer draw every row when they open. A list draws its first chunk (120 rows; 80 questions for a draft, because a question is a fold with its whole editor inside) and one more chunk each time the end of what is drawn comes within a screen of the window (320 px: scrolling there, or focus moving into the last rows). It is the picker's helper (`windowRows`, `nearEnd` in `ui/components/ScrollWindow.jsx`) applied to a page that scrolls as a whole (`ChunkedRows`): no timer, rows are never removed, so the rows already drawn do not move when a chunk is appended. Folding a group away or changing the filter starts it from the first chunk again.

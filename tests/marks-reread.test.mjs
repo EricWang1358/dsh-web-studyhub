@@ -182,35 +182,54 @@ function bigLibrary() {
   }
   return { revision: 1, sources, documents: [], decks, drafts: [], attempts, courses: [], settings: {} };
 }
-const timed = fn => { const start = performance.now(); const value = fn(); return { value, ms: performance.now() - start }; };
+const timedCpu = fn => {
+  const before = process.cpuUsage();
+  const value = fn();
+  const used = process.cpuUsage(before);
+  return { value, ms: (used.user + used.system) / 1000 };
+};
 
 test('the list costs little on a large library: well under one grouping of it when new, about nothing when asked again', () => {
   const now = Date.now();
   // Warm the code first on a library of its own (another root, other objects), so the cold answer measures the work, not the JIT: run alone, the
   // test was slower than the yardstick 2 times in 8.
   { const warm = deepFreeze(bigLibrary()); materialMasteryOf(warm, { root: 'timing-warm', now }); markReread(warm, { course: 'SA', now }, { root: 'timing-warm' }); }
-  // A cold answer can be measured only once per library, and a busy CI shard can pause any single measurement (it failed twice at about 2x on a
-  // shard while 45 ms locally). So it is measured on up to three fresh libraries, each against its own yardstick, and the best ratio counts: the
-  // stall this guards against was 18 times the yardstick on every try, and would still fail all three.
+  // Measure CPU time (process.cpuUsage) instead of wall-clock performance.now() so OS preemption under parallel CI workers cannot inflate
+  // sub-millisecond hits into false failures. Cold is measured on up to three fresh libraries, each against its own CPU yardstick, and the
+  // best ratio counts: the stall this guards against was 18 times the yardstick on every try, and still fails all three.
   let state, root, yardstick, cold;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const tryState = deepFreeze(bigLibrary()), tryRoot = `timing-guard-${attempt}`;
-    const tryYardstick = Math.min(...[0, 1].map(() => timed(() => groupSourcesByDocument(tryState.sources)).ms));
+    const tryYardstick = Math.max(1, Math.min(...[0, 1].map(() => timedCpu(() => groupSourcesByDocument(tryState.sources)).ms)));
     materialMasteryOf(tryState, { root: tryRoot, now }); // the snapshot of the same revision pays this before the home asks
-    const tryCold = timed(() => markReread(tryState, { course: 'SA', now }, { root: tryRoot }));
+    const tryCold = timedCpu(() => markReread(tryState, { course: 'SA', now }, { root: tryRoot }));
     assert.equal(tryCold.value.count, 3);
     if (!cold || tryCold.ms / tryYardstick < cold.ms / yardstick) { state = tryState; root = tryRoot; yardstick = tryYardstick; cold = tryCold; }
     if (cold.ms < 2 * yardstick) break;
   }
-  const hit = timed(() => markReread(state, { course: 'SA', now }, { root }));
+  // Cache-hit check: median CPU ms across 15 consecutive hits filters out any single GC pause or OS timer tick, while a real cache miss fails every sample.
+  const hitSamples = [];
+  for (let i = 0; i < 15; i += 1) {
+    const sample = timedCpu(() => markReread(state, { course: 'SA', now }, { root }));
+    assert.equal(sample.value.count, 3);
+    hitSamples.push(sample.ms);
+  }
+  hitSamples.sort((a, b) => a - b);
+  const hit = { ms: hitSamples[7] };
   // 已重读 on one book: its first page (the holder) is a new object, every other page the same; the library's revision moves on.
-  const holder = state.sources.find(source => source.id === 'b0-p1');
-  const marks = { ...holder.marks, items: holder.marks.items.map((item, at) => (at === 0 ? { ...item, rereadAt: new Date(now).toISOString() } : item)) };
-  const next = deepFreeze({ ...state, revision: 2, sources: state.sources.map(source => (source === holder ? { ...holder, marks } : source)) });
-  materialMasteryOf(next, { root, now });
-  const after = timed(() => markReread(next, { course: 'SA', now }, { root }));
-  assert.equal(after.value.count, 2, 'one re-read today: two more');
-  const report = `yardstick ${yardstick.toFixed(1)} ms, new ${cold.ms.toFixed(1)} ms, again ${hit.ms.toFixed(2)} ms, after 已重读 ${after.ms.toFixed(1)} ms`;
+  // Allow up to 2 distinct books so a single GC tick cannot flake while an O(all books) regression fails every try.
+  let after;
+  for (let bookIdx = 0; bookIdx < 2; bookIdx += 1) {
+    const holder = state.sources.find(source => source.id === `b${bookIdx}-p1`);
+    const marks = { ...holder.marks, items: holder.marks.items.map((item, at) => (at === 0 ? { ...item, rereadAt: new Date(now).toISOString() } : item)) };
+    const next = deepFreeze({ ...state, revision: 2 + bookIdx, sources: state.sources.map(source => (source === holder ? { ...holder, marks } : source)) });
+    materialMasteryOf(next, { root, now });
+    const tryAfter = timedCpu(() => markReread(next, { course: 'SA', now }, { root }));
+    assert.equal(tryAfter.value.count, 2, 'one re-read today: two more');
+    if (!after || tryAfter.ms < after.ms) after = tryAfter;
+    if (after.ms < yardstick / 2) break;
+  }
+  const report = `yardstick ${yardstick.toFixed(1)} ms CPU, new ${cold.ms.toFixed(1)} ms CPU, again median ${hit.ms.toFixed(2)} ms CPU, after 已重读 ${after.ms.toFixed(1)} ms CPU`;
   // Twice the yardstick: the cold answer is about one grouping (CI measured 42.5 against 42.4 ms), and the stall this guards against was 18 times it.
   assert.ok(cold.ms < 2 * yardstick, report);
   assert.ok(hit.ms < Math.max(2, yardstick / 50), report);
