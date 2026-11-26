@@ -170,10 +170,9 @@ test('#853 browser: Exam Coach 4-stage calibration, sample exposure guard, rule 
 
     // Stage 3: Configure non-uniform quota (set second family quota = 0) & crunch mode
     await page.getByRole('button', { name: '3. 调整训练配置' }).click();
-    const quotaInputs = page.locator('[data-page="examcoach"] input[type="number"]');
-    await until(async () => (await quotaInputs.count()) >= 4, 'quota and timing number inputs rendered');
-    // Family 1's first number input is its quota (index 2: family0 quota=0, family0 time=1, family1 quota=2)
-    await quotaInputs.nth(2).fill('0');
+    const secondFamilyTitle = await page.getByRole('textbox', { name: '考察任务名称', exact: true }).nth(1).inputValue();
+    const secondQuota = page.getByRole('spinbutton', { name: '本轮配额（可填 0）', exact: true }).nth(1);
+    await secondQuota.fill('0');
     await page.locator('label.sh-check', { hasText: '开启考前压缩模式' }).click();
     await page.getByRole('button', { name: '保存配置并查看生成与能力证据' }).click();
 
@@ -189,8 +188,8 @@ test('#853 browser: Exam Coach 4-stage calibration, sample exposure guard, rule 
     await page.getByRole('button', { name: '预览生效要求与配额' }).click();
     const compiledBox = page.locator('[data-testid="coach-compiled-preview"]');
     await compiledBox.waitFor({ state: 'visible', timeout: 15000 });
-    const compiledText = await compiledBox.innerText();
-    assert.match(compiledText, /本轮配额为 0（不出题）：/, 'zero-quota family explicitly listed');
+    const excluded = await compiledBox.getByText(/^本轮配额为 0（不出题）：/).innerText();
+    assert.ok(excluded.includes(secondFamilyTitle), 'the family whose quota was set to zero is explicitly listed');
 
     await page.getByRole('button', { name: '核对同型组卷缺口' }).click();
     const mockBox = page.locator('[data-testid="coach-strict-mock-report"]');
