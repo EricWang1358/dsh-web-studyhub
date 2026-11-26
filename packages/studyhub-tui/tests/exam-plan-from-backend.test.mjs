@@ -272,11 +272,11 @@ describe('ExamPrepView reads course.plan with its other loads', () => {
     };
   }
 
-  function mount(host) {
+  function mount(host, course = 'Operating Systems') {
     useTuiStore.setState({
       page: 'examprep',
       preferences: { ...useTuiStore.getState().preferences, language: 'zh', asciiMode: true, proactiveHints: true },
-      snapshot: { focus: { course: 'Operating Systems' }, courses: [{ name: 'Operating Systems' }] },
+      snapshot: { focus: { course }, courses: [{ name: course }] },
     });
     const tty = createTtyHarness(120, 36);
     const inst = render(React.createElement(ExamPrepView, { host, width: 116, height: 34, isActive: true }), {
@@ -287,6 +287,36 @@ describe('ExamPrepView reads course.plan with its other loads', () => {
     });
     return { tty, inst };
   }
+
+  test('the crunch tab displays the real backend counts of sample papers and pitfalls', async (t) => {
+    const { service, COURSE } = await import('../../../tests/helpers/crunch-library.mjs');
+    const { study, what } = await service(t);
+    try {
+      await study.store.update((state) => {
+        const outline = state.sources.find((source) => source.courseOutline).courseOutline;
+        const papers = ['past-paper-a', 'past-paper-b'];
+        outline.papers = papers.map((key) => ({ key, sourceIds: [key] }));
+        outline.nodes[0].children[0].exam = { evidence: papers.map((key) => ({ paper: key, sourceId: key })) };
+      });
+      await study.call('book.crunch.mark', { course: COURSE, hid: what.hid, kind: 'stuck' });
+      const crunch = await study.call('book.crunch', { course: COURSE });
+      assert.deepEqual(crunch.points.map(({ tested, pitfalls }) => [tested, pitfalls]), [[2, 1], [0, 0]]);
+      const host = {
+        subscribeEvents: () => () => {},
+        async call(action, args) { return { ok: true, value: await study.call(action, args) }; },
+      };
+      const { tty, inst } = mount(host, COURSE);
+      try {
+        await tty.waitFor((s) => s.includes(COURSE));
+        tty.stdin.write('2');
+        await tty.waitFor((s) => s.includes('样卷考过：2 套') && s.includes('易错点：1 个'));
+      } finally {
+        inst.unmount();
+      }
+    } finally {
+      await study.dispose();
+    }
+  });
 
   test('bar and [T] table show the saved plan; the date is the backend one, not courseRecord.exam.date', async () => {
     const calls = [];
