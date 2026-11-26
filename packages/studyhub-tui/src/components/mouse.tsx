@@ -20,7 +20,9 @@ import React, {
   type ReactNode,
   type RefObject,
 } from 'react';
-import { Box, measureElement, useInput, useStdin, type DOMElement } from 'ink';
+import { Box, measureElement, useStdin, type DOMElement } from 'ink';
+import { KEY_LAYER_MOUSE } from '../input/dispatcher.js';
+import { useScopedInput } from '../input/hooks.js';
 
 export const MOUSE_LAYER_BASE = 0;
 export const MOUSE_LAYER_MODAL = 100;
@@ -322,19 +324,21 @@ function useEnsureClickTap(active: boolean): void {
 }
 
 /**
- * Fallback listener for ESC-stripped SGR mouse clicks (`[<0;c;rM`) flowing through Ink `useInput`.
- * Mount once at the root (`AppShell`). Deduplicates against the `stdin.read` tap.
+ * Fallback listener for ESC-stripped SGR mouse clicks (`[<0;c;rM`) flowing through the single
+ * input dispatcher (#1354 D1). Mount once at the root (`AppShell`). Deduplicates against the
+ * `stdin.read` tap and consumes non-wheel mouse frames so they never leak into views or inputs.
  */
 export function useMouseClickInputFallback(active = true): void {
   const { stdin } = useStdin();
   useEnsureClickTap(active);
 
-  useInput(
+  useScopedInput(
     (input) => {
-      if (!input || !input.includes('<') || !isSgrMouseSequence(input)) return;
+      if (!input || !input.includes('<') || !isSgrMouseSequence(input)) return false;
       const stream = stdin as (NodeJS.ReadStream & { read?: ReadFn }) | undefined;
       const tapState = stream ? stdinMouseTaps.get(stream) : undefined;
       const events = parseSgrMouseEvents(input);
+      const hasWheel = events.some((ev) => ev.wheelDelta !== 0);
       const now = Date.now();
       for (const ev of events) {
         if (!shouldHandleMouseClick(ev)) continue;
@@ -344,8 +348,11 @@ export function useMouseClickInputFallback(active = true): void {
         }
         dispatchMouseClick(ev.col, ev.row);
       }
+      // Consume pure click/release/motion frames so they never leak into keyboard handlers;
+      // let wheel frames flow through to VirtualList / ScrollView / SelectList.
+      return !hasWheel;
     },
-    { isActive: active },
+    { isActive: active, layer: KEY_LAYER_MOUSE, id: 'Mouse:sgrFallback' },
   );
 }
 
