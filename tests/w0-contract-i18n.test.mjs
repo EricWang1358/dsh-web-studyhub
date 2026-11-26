@@ -464,13 +464,16 @@ test('W0-4: ui/desktop.jsx awaits uiLanguageReady, subscribes to useUiLanguage, 
         assert.match(mounted.text(), /桌面版启动失败/);
         assert.match(mounted.text(), /重试/);
 
-        await mounted.act(() => ui.exports.setUiLanguage('en'));
+        // flush() re-renders only when a subscription marked the tree dirty, so a DesktopRoot without useUiLanguage stays on the old language.
+        ui.exports.setUiLanguage('en');
+        await mounted.flush(8);
         const enText = mounted.text();
         assert.doesNotMatch(enText, /桌面版启动失败/, 'DesktopRoot updates rendered copy live when switched to English');
         assert.doesNotMatch(enText, han, 'English DesktopRoot error copy has no untranslated Chinese');
         assert.match(enText, /Retry/);
 
-        await mounted.act(() => ui.exports.setUiLanguage('zh'));
+        ui.exports.setUiLanguage('zh');
+        await mounted.flush(8);
         assert.match(mounted.text(), /桌面版启动失败/, 'DesktopRoot updates rendered copy live when switched back to Chinese');
       } finally {
         mounted.unmount();

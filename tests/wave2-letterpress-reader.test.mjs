@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
+import { setImmediate as nextTurn } from 'node:timers/promises';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -107,7 +108,7 @@ test('LetterpressNumber keeps @number-flow/react out of its static closure, spli
   assert.doesNotMatch(entryFile.text, /\bReact\.lazy\b|\blazy\s*\(/, 'bundled entry chunk never uses React.lazy (client-boundaries count)');
 
   // Interactive runtime verification: dynamic upgrade in data-motion="full" + safe unmount cancellation (useLiveEffect)
-  const runtimeEvents = { renders: 0, disconnects: 0, mediaRemoved: 0 };
+  const runtimeEvents = { renders: 0, disconnects: 0, mediaRemoved: 0, loaded: 0 };
   const runtimeSpyPlugin = {
     name: 'spy-letterpress-runtime',
     setup(builder) {
@@ -118,6 +119,7 @@ test('LetterpressNumber keeps @number-flow/react out of its static closure, spli
       builder.onLoad({ filter: /.*/, namespace: 'letterpress-spy' }, () => ({
         contents: `
           import React from 'react';
+          globalThis.__LP_EVENTS__.loaded += 1;
           export default function FakeLetterpressRuntime({ value, prefix = '', suffix = '', className = '' }) {
             globalThis.__LP_EVENTS__.renders += 1;
             return React.createElement('span', {
@@ -143,19 +145,23 @@ test('LetterpressNumber keeps @number-flow/react out of its static closure, spli
     await withBrowserGlobals(async () => {
       // 1. Safe unmount before dynamic import resolves: observer/media listeners cleaned up and no post-unmount state update
       motionAttr = 'full';
+      const unmountedWrites = [];
       const cancelUi = await loadInteractiveUi(`
         export { default as LetterpressNumber } from './ui/letterpress/LetterpressNumber.jsx';
-      `, { plugins: [runtimeSpyPlugin] });
+      `, { plugins: [runtimeSpyPlugin], onUnmountedStateWrite: (owner) => unmountedWrites.push(owner) });
       const earlyUnmount = cancelUi.mount(() => cancelUi.React.createElement(cancelUi.exports.LetterpressNumber, { value: 99, suffix: '%' }));
       assert.equal(earlyUnmount.text(), '99%', 'renders plain text synchronously on first paint without React.lazy suspension');
       assert.equal(earlyUnmount.find((n) => n.type === '__lazy_pending__'), null, 'never suspends with React.lazy');
       assert.equal(earlyUnmount.find((n) => n.props?.['data-testid'] === 'letterpress-runtime'), null, 'runtime not mounted synchronously before dynamic import settles');
 
+      assert.equal(runtimeEvents.loaded, 0, 'the dynamic import is still pending at unmount');
       earlyUnmount.unmount();
       assert.equal(runtimeEvents.disconnects, 1, 'unmount disconnects MutationObserver');
       assert.equal(runtimeEvents.mediaRemoved, 1, 'unmount removes matchMedia change listener');
-      for (let i = 0; i < 5; i += 1) await Promise.resolve();
+      await nextTurn();
+      assert.equal(runtimeEvents.loaded, 1, 'the real dynamic import settled after cleanup');
       assert.equal(runtimeEvents.renders, 0, 'cancelled async load never renders into unmounted component');
+      assert.deepEqual(unmountedWrites, [], 'resolving the number animation after unmount attempts no state write');
 
       // 2. Reduced motion stays on plain text and never upgrades to runtime
       motionAttr = 'reduced';
