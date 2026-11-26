@@ -15,7 +15,7 @@ import { ClickableBox } from '../../components/mouse.js';
 import { saveTuiPreferences } from '../../host/tui-prefs.js';
 import { useTheme } from '../../theme/tokens.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
-import { currentCourse, deckDueCount, dueToday, isActiveStudyDeck } from '../../shell/data.js';
+import { currentCourse, deckDueCount, dueToday } from '../../shell/data.js';
 import {
   matchesCourse,
   selectCourseNames,
@@ -576,7 +576,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       }
       navigate('board');
     },
-    [activeRunId, lastPracticeContext, selectedDeck, snapshot?.decks, progressMap, course, handleStartReview, navigate],
+    [activeRunId, lastPracticeContext, selectedDeck, snapshot, progressMap, course, handleStartReview, navigate],
   );
 
   const dailyBriefing = useMemo(
