@@ -2,7 +2,7 @@
 // across backend settings & usage JSON writers.
 // Real filesystem only (mkdtemp), zero source-grep assertions, zero node:fs mocks.
 import assert from 'node:assert/strict';
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
@@ -17,7 +17,7 @@ import { markerSettingsPath, readMarkerSettings, saveMarkerSettings } from '../l
 import { createUsageLedger } from '../lib/model-usage.js';
 import { readWebGeminiSettings, saveWebGeminiSettings, webGeminiSettingsPath } from '../lib/runtime/web-gemini-settings.js';
 import { setUpdatePreferences, updateStatePath } from '../lib/update-check.js';
-import { createUsageFrequency, usageFrequencyPath } from '../lib/usage-frequency.js';
+import { createUsageFrequency, localDay, usageFrequencyPath } from '../lib/usage-frequency.js';
 
 async function withTempDshHome(t, prefix = 'studyhub-p3-lib-') {
   const home = await mkdtemp(path.join(os.tmpdir(), prefix));
@@ -278,5 +278,142 @@ describe('P3 (#1354): shared lib/atomic-json.js & backend settings/state atomic 
     assert.equal(modelSummary.total.uncachedInputTokens, 120);
     assert.equal(modelSummary.total.outputTokens, 60);
     assert.deepEqual(await findTmpFiles(libRoot), []);
+  });
+
+  test('6) lib/atomic-json.js serializes symlinked parent dirs, respects { abort: false }, and skips .bak when settings validation fails over corrupt JSON', async (t) => {
+    const home = await withTempDshHome(t);
+    const studyDir = path.join(home, 'study');
+    await mkdir(studyDir, { recursive: true });
+
+    // A) Symlinked parent directory aliases must serialize in atomicUpdateJson
+    const realDir = path.join(home, 'real-dir');
+    const linkDir = path.join(home, 'link-dir');
+    await mkdir(realDir, { recursive: true });
+    let symlinkReady = true;
+    try {
+      await symlink(realDir, linkDir, process.platform === 'win32' ? 'junction' : 'dir');
+    } catch (err) {
+      if (err?.code === 'EPERM' || err?.code === 'EACCES') symlinkReady = false;
+      else throw err;
+    }
+    if (symlinkReady) {
+      const realCounter = path.join(realDir, 'counter.json');
+      const linkCounter = path.join(linkDir, 'counter.json');
+      await writeFile(realCounter, '{"n":0}\n', 'utf8');
+      await Promise.all(
+        Array.from({ length: 12 }, (_, i) =>
+          atomicJsonMod.atomicUpdateJson(i % 2 === 0 ? realCounter : linkCounter, async (prev) => {
+            await new Promise((done) => setTimeout(done, (i % 3) * 2));
+            return { n: (prev?.n ?? 0) + 1 };
+          }),
+        ),
+      );
+      assert.equal(JSON.parse(await readFile(realCounter, 'utf8')).n, 12, 'symlinked parent dir updates must serialize cleanly');
+    }
+
+    // B) onCorrupt returning { abort: false, recover } must recover instead of aborting
+    const policyFile = path.join(realDir, 'policy.json');
+    await writeFile(policyFile, '{ broken', 'utf8');
+    const rec = await atomicJsonMod.atomicUpdateJson(
+      policyFile,
+      (prev) => ({ count: (prev?.count ?? 0) + 1 }),
+      { onCorrupt: () => ({ abort: false, recover: { count: 4 } }) },
+    );
+    assert.equal(rec.updated, true);
+    assert.deepEqual(rec.value, { count: 5 });
+
+    // C) Validation failure on corrupt audio.json must throw validation error and create 0 .bak files
+    const corruptAudio = '{"version":1,"mode":"SMART", BROKEN_AUDIO_VALIDATION';
+    await writeFile(audioSettingsPath(), corruptAudio, 'utf8');
+    await assert.rejects(
+      saveAudioSettings({ textConcurrency: 999 }),
+      /并发数/,
+      'invalid patch over corrupt audio.json must fail with validation error',
+    );
+    assert.equal(await readFile(audioSettingsPath(), 'utf8'), corruptAudio, 'corrupt audio.json must remain byte-identical on validation failure');
+    assert.deepEqual(await findBackupFiles(studyDir, 'audio.json'), [], 'validation failure must not leave spurious .bak files');
+  });
+
+  test('7) usage-frequency passive record() and no-op set({ enabled: false }) over corrupt file create 0 .bak files and never throw on read-only dir', async (t) => {
+    const home = await withTempDshHome(t);
+    const studyDir = path.join(home, 'study');
+    await mkdir(studyDir, { recursive: true });
+    const corruptRaw = '{ not valid json';
+    await writeFile(usageFrequencyPath(), corruptRaw, 'utf8');
+
+    const usage = createUsageFrequency();
+    const today = localDay(Date.now());
+    const r1 = await usage.record([{ key: 'nav.library', area: 'library', day: today, n: 1 }]);
+    const r2 = await usage.record([{ key: 'nav.library', area: 'library', day: today, n: 2 }]);
+    assert.deepEqual({ accepted: r1.accepted, enabled: r1.enabled }, { accepted: 0, enabled: false });
+    assert.deepEqual({ accepted: r2.accepted, enabled: r2.enabled }, { accepted: 0, enabled: false });
+
+    const sOff = await usage.set({ enabled: false });
+    assert.equal(sOff.enabled, false);
+    assert.equal(await readFile(usageFrequencyPath(), 'utf8'), corruptRaw, 'passive/no-op calls must leave corrupt usage-frequency.json untouched');
+    assert.deepEqual(await findBackupFiles(studyDir, 'usage-frequency.json'), [], 'passive record() and no-op set({ enabled: false }) must create zero .bak files');
+
+    if (process.platform !== 'win32' && !(typeof process.getuid === 'function' && process.getuid() === 0)) {
+      await chmod(studyDir, 0o500);
+      t.after(() => chmod(studyDir, 0o700).catch(() => {}));
+      const rRo = await usage.record([{ key: 'nav.library', area: 'library', day: today, n: 1 }]);
+      assert.deepEqual({ accepted: rRo.accepted, enabled: rRo.enabled }, { accepted: 0, enabled: false }, 'passive record() on read-only dir must not attempt backup or throw');
+      await chmod(studyDir, 0o700);
+    }
+
+    // Explicit enabling over corrupt file creates exactly one backup and recovers
+    const sOn = await usage.set({ enabled: true });
+    assert.equal(sOn.enabled, true);
+    const baks = await findBackupFiles(studyDir, 'usage-frequency.json');
+    assert.equal(baks.length, 1, 'explicit enable over corrupt usage-frequency.json must create exactly one .bak');
+    assert.equal(await readFile(path.join(studyDir, baks[0]), 'utf8'), corruptRaw);
+  });
+
+  test('8) Separate instances and non-canonical paths for jev-usage, model-usage, usage-frequency, and book-reading serialize with zero lost writes', async (t) => {
+    await withTempDshHome(t);
+    const libRoot = await mkdtemp(path.join(os.tmpdir(), 'studyhub-p3-multi-'));
+    t.after(() => rm(libRoot, { recursive: true, force: true, maxRetries: 6, retryDelay: 50 }));
+    const subDir = path.join(libRoot, 'nested');
+    await mkdir(subDir, { recursive: true });
+    const libAlias = `${subDir}${path.sep}..`;
+
+    // Two independent createJevUsage instances recording concurrently
+    const ju1 = createJevUsage();
+    const ju2 = createJevUsage();
+    await Promise.all([
+      ...Array.from({ length: 5 }, () => ju1.record({ feature: 'assist', usage: { inputTokens: 10, outputTokens: 5 } })),
+      ...Array.from({ length: 5 }, () => ju2.record({ feature: 'assist', usage: { inputTokens: 10, outputTokens: 5 } })),
+    ]);
+    assert.equal((await ju1.summary()).total.calls, 10, 'two createJevUsage instances must serialize without losing calls');
+
+    // Two independent createUsageLedger instances on canonical + non-canonical root
+    const ml1 = createUsageLedger(libRoot);
+    const ml2 = createUsageLedger(libAlias);
+    await Promise.all([
+      ...Array.from({ length: 5 }, (_, i) => ml1.record({ feature: 'generate', usage: { uncachedInputTokens: 10, outputTokens: 4 }, callId: `a-${i}` })),
+      ...Array.from({ length: 5 }, (_, i) => ml2.record({ feature: 'generate', usage: { uncachedInputTokens: 10, outputTokens: 4 }, callId: `b-${i}` })),
+    ]);
+    assert.equal((await ml1.summary()).total.calls, 10, 'separate createUsageLedger instances across path aliases must not lose calls');
+
+    // Two independent createUsageFrequency instances recording concurrently
+    const uf1 = createUsageFrequency();
+    const uf2 = createUsageFrequency();
+    const today = localDay(Date.now());
+    await uf1.set({ enabled: true });
+    await Promise.all([
+      ...Array.from({ length: 5 }, () => uf1.record([{ key: 'nav.library', area: 'library', day: today, n: 1 }])),
+      ...Array.from({ length: 5 }, () => uf2.record([{ key: 'nav.library', area: 'library', day: today, n: 1 }])),
+    ]);
+    assert.equal((await uf1.read()).controls['nav.library'].total, 10, 'two createUsageFrequency instances must serialize without losing counts');
+
+    // book-reading concurrent writes across canonical + non-canonical root
+    await Promise.all([
+      recordReads(libRoot, [{ sourceId: 's-a', from: 0, to: 50 }], 'p1'),
+      recordReads(libAlias, [{ sourceId: 's-b', from: 0, to: 80 }], 'p2'),
+      recordReads(libRoot, [{ sourceId: 's-c', from: 10, to: 40 }], 'p3'),
+      recordReads(libAlias, [{ sourceId: 's-d', from: 20, to: 60 }], 'p4'),
+    ]);
+    const reading = await readReading(libRoot);
+    assert.deepEqual(Object.keys(reading.sources).sort(), ['s-a', 's-b', 's-c', 's-d'], 'book-reading across path aliases must not drop concurrent sources');
   });
 });

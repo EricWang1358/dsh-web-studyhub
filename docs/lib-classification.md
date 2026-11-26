@@ -195,7 +195,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/translation-source.js`: contexts authoring, study; 4 other lib files
 - `lib/update-check.js`: contexts generation, system; 4 other lib files
 - `lib/usage-scope.js`: contexts authoring, coach, generation, materials, study, workflows; 9 other lib files
-- `lib/util.js`: contexts audio, authoring, bank, coach, generation, jobs, library, materials, notes, recording, skeleton, study; 49 other lib files
+- `lib/util.js`: contexts audio, authoring, bank, coach, generation, jobs, library, materials, notes, recording, skeleton, study; 47 other lib files
 
 ## Used by exactly one context (134)
 

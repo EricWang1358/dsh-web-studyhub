@@ -10,16 +10,34 @@
  *    backup filenames (rejecting absolute paths, drive letters, UNC paths, and `..` escapes).
  */
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { mkdir, open, readFile, rename, rm } from 'node:fs/promises';
+import { existsSync, realpathSync } from 'node:fs';
+import { mkdir, open, readFile, rename, rm, stat } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
 
 const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
 const IGNORABLE_SYNC_CODES = new Set(['EINVAL', 'ENOSYS', 'ENOTSUP', 'EROFS']);
 
+function resolveExistingAncestorRealpath(dirPath: string): string {
+  let current = resolve(dirPath);
+  const tail: string[] = [];
+  for (;;) {
+    try {
+      const real = realpathSync(current);
+      return tail.length ? join(real, ...tail.reverse()) : real;
+    } catch {
+      const parent = dirname(current);
+      if (parent === current) return resolve(dirPath);
+      tail.push(basename(current));
+      current = parent;
+    }
+  }
+}
+
 function canonicalPathKey(filePath: string): string {
   const resolved = resolve(filePath);
-  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+  const parent = dirname(resolved);
+  const canonical = parent === resolved ? resolved : join(resolveExistingAncestorRealpath(parent), basename(resolved));
+  return process.platform === 'win32' ? canonical.toLowerCase() : canonical;
 }
 
 export interface AtomicFsOps {
@@ -202,7 +220,7 @@ async function defaultWriteAndSync(
   data: string | Uint8Array,
   opts?: AtomicWriteOptions,
 ): Promise<void> {
-  const fh = await open(tempPath, 'w', opts?.mode);
+  const fh = await open(tempPath, 'wx', opts?.mode);
   try {
     if (typeof data === 'string') {
       await fh.writeFile(data, 'utf8');
@@ -381,7 +399,7 @@ export async function atomicUpdateJson<T>(
       if (code !== 'ENOENT') {
         const err = error instanceof Error ? error : new Error(errText(error));
         const policy = await opts?.onReadError?.(err, targetPath);
-        if (!policy || 'abort' in policy) {
+        if (!policy || ('abort' in policy && policy.abort) || (!('skip' in policy) && !('recover' in policy))) {
           throw new Error(
             `Existing ${basename(targetPath)} could not be read (${code ?? err.message}); refusing to overwrite it`,
             { cause: err },
@@ -401,7 +419,7 @@ export async function atomicUpdateJson<T>(
       } catch (error) {
         const err = error instanceof Error ? error : new Error(errText(error));
         const policy = await opts?.onCorrupt?.(err, raw, targetPath);
-        if (!policy || 'abort' in policy) {
+        if (!policy || ('abort' in policy && policy.abort) || (!('skip' in policy) && !('recover' in policy))) {
           throw new Error(
             `Existing ${basename(targetPath)} is not valid JSON (${err.message}); refusing to overwrite it`,
             { cause: err },
@@ -469,8 +487,12 @@ export async function withRollback<R>(
   opts?: AtomicWriteOptions,
 ): Promise<R> {
   let snapshot: Buffer | null = null;
+  let originalMode: number | undefined;
   try {
     snapshot = await readFile(targetPath);
+    if (process.platform !== 'win32') {
+      originalMode = (await stat(targetPath)).mode & 0o777;
+    }
   } catch (error) {
     const code = (error as NodeJS.ErrnoException | null)?.code;
     if (code !== 'ENOENT') throw error;
@@ -483,7 +505,10 @@ export async function withRollback<R>(
       if (snapshot === null) {
         await rm(targetPath, { force: true });
       } else {
-        await atomicWritePayload(targetPath, snapshot, opts);
+        await atomicWritePayload(targetPath, snapshot, {
+          ...opts,
+          ...(opts?.mode === undefined && originalMode !== undefined ? { mode: originalMode } : {}),
+        });
       }
     } catch (rollbackError) {
       throw new AtomicRollbackError(targetPath, error, rollbackError);
@@ -569,6 +594,7 @@ export async function atomicWriteFilesBatch(
     bytes: number;
     hadOriginal: boolean;
     originalBytes: Buffer | null;
+    originalMode: number | undefined;
   }> = [];
 
   try {
@@ -582,6 +608,7 @@ export async function atomicWriteFilesBatch(
         bytes: typeof entry.content === 'string' ? Buffer.byteLength(entry.content, 'utf8') : entry.content.byteLength,
         hadOriginal: false,
         originalBytes: null as Buffer | null,
+        originalMode: undefined as number | undefined,
       };
       staged.push(record);
       if (opts?.fsOps?.writeAndSync) {
@@ -596,11 +623,15 @@ export async function atomicWriteFilesBatch(
       try {
         item.originalBytes = await readFile(item.target);
         item.hadOriginal = true;
+        if (process.platform !== 'win32') {
+          item.originalMode = (await stat(item.target)).mode & 0o777;
+        }
       } catch (err) {
         const code = (err as NodeJS.ErrnoException)?.code;
         if (code !== 'ENOENT') throw err;
         item.hadOriginal = false;
         item.originalBytes = null;
+        item.originalMode = undefined;
       }
     }
 
@@ -617,6 +648,7 @@ export async function atomicWriteFilesBatch(
           try {
             if (prev.hadOriginal && prev.originalBytes !== null) {
               await atomicWritePayload(prev.target, prev.originalBytes, {
+                ...(prev.originalMode !== undefined ? { mode: prev.originalMode } : {}),
                 sync: opts?.sync,
                 fsOps: opts?.fsOps,
               });

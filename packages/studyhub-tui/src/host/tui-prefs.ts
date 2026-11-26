@@ -256,20 +256,24 @@ export interface LoadTuiPreferencesResult {
 }
 
 class UnsupportedPrefsVersionError extends Error {
-  readonly version: number;
-  constructor(version: number) {
+  readonly version: unknown;
+  constructor(version: unknown) {
     super(
-      `Unsupported tui.json schema version ${version} (max supported: ${TUI_PREFS_SCHEMA_VERSION}); refusing to overwrite newer-release settings`,
+      `Unsupported tui.json schema version ${String(version)} (supported: ${TUI_PREFS_SCHEMA_VERSION}); refusing to overwrite settings`,
     );
     this.name = 'UnsupportedPrefsVersionError';
     this.version = version;
   }
 }
 
-function detectUnsupportedSchemaVersion(raw: Record<string, unknown>): number | null {
-  return typeof raw.version === 'number' && Number.isFinite(raw.version) && raw.version > TUI_PREFS_SCHEMA_VERSION
-    ? raw.version
-    : null;
+function stripUtf8Bom(text: string): string {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
+function detectUnsupportedSchemaVersion(raw: Record<string, unknown>): { version: unknown } | null {
+  if (!Object.hasOwn(raw, 'version') || raw.version === undefined) return null;
+  if (raw.version === TUI_PREFS_SCHEMA_VERSION) return null;
+  return { version: raw.version };
 }
 
 const PASSIVE_PREF_KEYS = new Set<string>([
@@ -306,7 +310,7 @@ export async function loadTuiPreferencesSafe(location: TuiPrefsLocation = {}): P
     };
   }
   try {
-    const parsed: unknown = JSON.parse(text);
+    const parsed: unknown = JSON.parse(stripUtf8Bom(text));
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return { prefs: defaults(), status: 'corrupt', error: 'Expected preferences JSON object' };
     }
@@ -315,7 +319,7 @@ export async function loadTuiPreferencesSafe(location: TuiPrefsLocation = {}): P
       return {
         prefs: defaults(),
         status: 'unsupported-version',
-        error: new UnsupportedPrefsVersionError(unsupportedVersion).message,
+        error: new UnsupportedPrefsVersionError(unsupportedVersion.version).message,
       };
     }
     return { prefs: parseTuiPreferences(parsed), status: 'ok' };
@@ -342,7 +346,7 @@ export async function loadTuiPreferences(location: TuiPrefsLocation = {}): Promi
  * - If the existing file is unreadable (e.g. EACCES/EBUSY), never clobber it with defaults.
  * - If the existing file is corrupt JSON:
  *   - Passive/usage-only patches skip writing and leave the original file untouched on disk.
- *   - Explicit user setting changes first back up the corrupt file to `tui.json.corrupt-<ts>.bak`
+ *   - Explicit user setting changes first back up the corrupt file to `tui.json.corrupt-<ts>-<rand>.bak`
  *     before writing the new preferences.
  */
 export async function saveTuiPreferences(
@@ -361,13 +365,13 @@ export async function saveTuiPreferences(
       fsOps: location.fsOps,
       stringify: (value) => `${JSON.stringify({ version: TUI_PREFS_SCHEMA_VERSION, ...value }, null, 2)}\n`,
       parse: (text) => {
-        const parsed: unknown = JSON.parse(text);
+        const parsed: unknown = JSON.parse(stripUtf8Bom(text));
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
           throw new Error('Expected preferences JSON object');
         }
         const unsupportedVersion = detectUnsupportedSchemaVersion(parsed as Record<string, unknown>);
         if (unsupportedVersion !== null) {
-          throw new UnsupportedPrefsVersionError(unsupportedVersion);
+          throw new UnsupportedPrefsVersionError(unsupportedVersion.version);
         }
         return parseTuiPreferences(parsed);
       },
