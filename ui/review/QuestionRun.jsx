@@ -19,7 +19,7 @@ import TermListDialog from "./TermListDialog.jsx";
 import { useTermSubmitQueue } from "./use-term-submit-queue.js";
 import { useTermMarking } from "./use-term-marking.js";
 import { usePracticeTip } from "./use-practice-tip.js";
-import { voteTipMoments } from "../guidance/practice-tips.js";
+import { PRACTICE_TIP, voteTipMoments } from "../guidance/practice-tips.js";
 import { reviewEntryKey } from "../async.js";
 import ModelErrorNote from "../ModelErrorNote.jsx";
 import TeachingPanel from "./TeachingPanel.jsx";
@@ -31,6 +31,7 @@ import AnswerState from "./AnswerState.jsx";
 import { Banner, Button, DisclosureToggle, Icon, InlineMessage, Popover, ProgressBar, Spinner, TextInput, Tooltip, foldLabel } from "../components/index.js";
 import { useStudyBusy, useStudyServices } from "../study-context.jsx";
 import { useStickyRoom } from "../use-sticky-room.js";
+import { useNarrow } from "../use-narrow.js";
 import { useLiveSession } from "./useReviewSession.js";
 import { LazySimilarTry } from "./LazyLearningLoop.jsx";
 import { useFixPhrases } from "./use-fix-phrases.js";
@@ -192,6 +193,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const [clozeFocusTick, setClozeFocusTick] = React.useState(0);
   const [termListOpen, setTermListOpen] = React.useState(false);
   const reviewBodyRef = React.useRef(null);
+  const inlineTips = useNarrow(reviewBodyRef, 520);
+  const besideFollowup = inlineTips && practiceTip.tip === PRACTICE_TIP.prereq;
+  const tip = practiceTip.tip && <PracticeTip id={practiceTip.tip} inline={inlineTips} onClose={practiceTip.close} onShown={practiceTip.onShown} />;
   const socratic = useSocraticInlineState({ run, closeAssist, reviewBodyRef });
   const choiceFeedbackRef = React.useRef(null);
   const verdictFocusRef = React.useRef(null);
@@ -621,7 +625,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           <RoundEndConfirm session={liveSession} />
           {!assistMode && <div className="action-feedback-slot">{feedback}</div>}
         </div>
-        {practiceTip.tip && <PracticeTip id={practiceTip.tip} onClose={practiceTip.close} onShown={practiceTip.onShown} />}
+        {!besideFollowup && tip}
         {/* A stem that asks what the source says tests memory of a document's wording, not the concept: say so and offer the fix, so the learner never has to find the words. */}
         {!assistMode && !runningTask && run.mode !== "exam" && asksWhatTheSourceSays(run.card?.prompt) && (
           <p className="assist-status voice-hint" role="status">
@@ -709,7 +713,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 </div>
               )}
             </>}
-            {run.mode !== "exam" && <ExplanationFollowup key={entryKey} run={run} readOnly cardNotes={cardNotes}
+            {run.mode !== "exam" && <ExplanationFollowup key={entryKey} run={run} readOnly cardNotes={cardNotes} deriveTip={besideFollowup ? tip : null}
               onDerive={(followupId, relation) => assistAct("derive", "", [], { relation, followupId })} deriving={!!runningTask}
               onAskMore={(event) => { const body = event?.currentTarget?.closest?.(".review-body"); setInlineAskState({ key: entryKey, open: true }); requestAnimationFrame(() => { body?.querySelector?.(".explanation-inline-ask--open")?.scrollIntoView?.({ behavior: "smooth", block: "nearest" }); }); }}
               bookQa={{ course: bookCourse, mode: qaToBook, onMode: setQaToBook, book, note: bookNote }}
