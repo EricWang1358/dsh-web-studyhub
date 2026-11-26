@@ -15,7 +15,7 @@ import {
 import { examReport } from '../lib/study-state.js';
 import { buildExamPostmortem } from '../ui/exam/exam-postmortem.js';
 import { nativeSelects } from './helpers/native-selects.mjs';
-import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({
@@ -360,6 +360,7 @@ test('examReport + snapshot-shaped decks (without cards) still resolve usable ci
   const fakeCall = async (action, args) => {
     if (action === 'review.get') return { ...run, complete: true };
     if (action === 'exam.report') return report;
+    if (action === 'exam.submit') return { ...report, runId: args.runId };
     if (action === 'review.start') {
       startCalls.push(args);
       if (args.mode === 'exam') {
@@ -432,6 +433,16 @@ test('examReport + snapshot-shaped decks (without cards) still resolve usable ci
       assert.equal(startCalls.length, 2);
       assert.equal(startCalls[1].mode, 'exam');
       assert.match(mounted.text(), /Why use CFS\?/, 'startExam enters running phase with the exam card');
+
+      // A second completed exam must not inherit the first report's practice notice.
+      const submit = mounted.find((n) => n.type === 'button' && examMod.textOf(n).trim() === '交卷');
+      assert.ok(submit, 'the second exam is running and can be submitted');
+      await mounted.act(() => click(submit));
+      const confirm = mounted.find((n) => typeof n.props?.onConfirm === 'function' && n.props.onJumpFirstBlank);
+      if (confirm) await mounted.act(() => confirm.props.onConfirm());
+      await mounted.flush(12);
+      assert.equal(reportNode().props.report.runId, 'exam-next', 'the second exam shows its own report');
+      assert.equal(reportNode().props.pathNote, '', 'the second report must clear the first practice notice');
     } finally {
       mounted.unmount();
     }
