@@ -11,7 +11,7 @@ const m = await loadUi(`
   export { AppContext } from './ui/app/app-context.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { default as OutputPanel } from './ui/tasks/OutputPanel.jsx';
-  export { waitState, waitNote, QUIET_AFTER_MS } from './ui/tasks/output-wait.js';
+  export { waitState, waitNote } from './ui/tasks/output-wait.js';
   export { setUiLanguage } from './ui/i18n.js';
 `);
 const NOW = Date.UTC(2026, 9, 5, 10, 0, 0);
@@ -19,11 +19,11 @@ const sub = { callId: 'c1', kind: 'translate', status: 'running', runner: 'subag
 const direct = { ...sub, runner: 'direct', childId: null };
 
 test('waitState: text beats everything; reasoning means thinking; a quiet sub-agent is working; the rest waits', () => {
-  assert.equal(m.QUIET_AFTER_MS, 20000);
   assert.equal(m.waitState({ call: sub, text: 'x', reasoning: 500, elapsedMs: 999999 }), 'text');
   assert.equal(m.waitState({ call: sub, text: '', reasoning: 120, elapsedMs: 1000 }), 'thinking');
   assert.equal(m.waitState({ call: sub, text: '', reasoning: 0, elapsedMs: 5000 }), 'waiting', 'a sub-agent just started is simply starting');
-  assert.equal(m.waitState({ call: sub, text: '', reasoning: 0, elapsedMs: m.QUIET_AFTER_MS }), 'working');
+  assert.equal(m.waitState({ call: sub, text: '', reasoning: 0, elapsedMs: 19999 }), 'waiting', 'below 20 s a quiet sub-agent is still waiting');
+  assert.equal(m.waitState({ call: sub, text: '', reasoning: 0, elapsedMs: 20000 }), 'working', 'at 20 s a quiet sub-agent switches to working');
   assert.equal(m.waitState({ call: sub, text: '', reasoning: 0, elapsedMs: 300000 }), 'working');
   assert.equal(m.waitState({ call: direct, text: '', reasoning: 0, elapsedMs: 300000 }), 'waiting', 'only a sub-agent is known to finish without streaming text');
   assert.equal(m.waitState({ call: sub, text: '', reasoning: 0, elapsedMs: NaN }), 'waiting');

@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { apply as applyWorkbench } from "../lib/index.js";
 import { contractOf, libraryContracts, studyToolDescription, studyUsagePrompt } from "../lib/study-contracts.js";
 import { discoveryTool, domainTool } from "../lib/runtime/tools.js";
 import { StudyService } from "../lib/service.js";
@@ -37,10 +37,46 @@ const serializedSpecLength = (tool) => JSON.stringify({
   output: { schema: tool.output.schema },
 }).length;
 
-test("actual registered Study prompts are short, discoverable and retain authorization boundaries", () => {
-  const source = readFileSync(new URL("../lib/index.js", import.meta.url), "utf8");
-  assert.match(source, /name: "study_workspace",\s*description: studyToolDescription,/);
-  assert.match(source, /name: "daily-flashcard:usage",\s*order: 70,\s*text: studyUsagePrompt,/);
+test("actual registered Study prompts are short, discoverable and retain authorization boundaries", async (t) => {
+  const registeredTools = [];
+  const promptSections = [];
+  const disposers = [];
+  const ctx = {
+    tools: {
+      register(definition) {
+        registeredTools.push(definition);
+        return () => {};
+      },
+    },
+    sessions: {},
+    systemPrompt: {
+      section(section) {
+        promptSections.push(section);
+        return () => {};
+      },
+    },
+    effect(fn) {
+      const dispose = fn();
+      if (typeof dispose === "function") disposers.push(dispose);
+    },
+    inject(deps, cb) {
+      if (deps.every((dep) => dep in ctx)) cb(ctx);
+      return { dispose() {} };
+    },
+  };
+  t.after(async () => {
+    for (const dispose of disposers.reverse()) await dispose();
+  });
+  await applyWorkbench(ctx);
+
+  const workspaceTool = registeredTools.find((tool) => tool.name === "study_workspace");
+  assert.ok(workspaceTool, "apply(ctx) registers study_workspace tool");
+  assert.equal(workspaceTool.description, studyToolDescription);
+
+  const usageSection = promptSections.find((sec) => sec.name === "daily-flashcard:usage");
+  assert.ok(usageSection, "apply(ctx) registers daily-flashcard:usage systemPrompt section");
+  assert.equal(usageSection.order, 70);
+  assert.equal(usageSection.text, studyUsagePrompt);
   // #891: resident studyToolDescription cut from 4,707 to ~1,998 chars; lock tight growth ceilings.
   assert.ok(studyToolDescription.length <= 2_200, `studyToolDescription (${studyToolDescription.length}) must stay <= 2,200 chars`);
   assert.ok(studyToolDescription.length + studyUsagePrompt.length <= 2_900, `resident prompt + usage (${studyToolDescription.length + studyUsagePrompt.length}) must stay <= 2,900 chars`);
