@@ -188,7 +188,7 @@ test('a parked section goes back into a point: in its notes, at the right depth,
   assert.equal(undone.nodes[0].children.find(node => node.hid === two.hid).mine, '二自己的笔记[^1]。\n\n[^1]: 二的注。', 'and the point as it was');
 });
 
-test('the refusals name what is wrong and change nothing', async t => {
+test('course.book.place refusals return specific error codes (conflict, missing section/node, non-leaf, text-too-long) and leave 未归位 unchanged', async t => {
   const { study, two, version } = await parked(t);
   const book = await study.call('course.book.open'), [section] = book.unplaced.sections, chapter = book.nodes[0].hid;
   const before = JSON.stringify(book.unplaced);

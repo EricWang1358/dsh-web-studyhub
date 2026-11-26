@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
-import { PRACTICE_OFFER, PRACTICE_OFFER_ORDER, CHAPTER_HINT_KEY, practiceOfferFor, chapterHintFor, freshTermsDeeper, forgetChapterHintVisit } from '../ui/guidance/practice-offers.js';
+import { PRACTICE_OFFER, PRACTICE_OFFER_ORDER, practiceOfferFor, chapterHintFor, freshTermsDeeper, chapterHintSeen, markChapterHintSeen, forgetChapterHintVisit } from '../ui/guidance/practice-offers.js';
 import { useChapterHint } from '../ui/review/use-chapter-hint.js';
 
 const ALL = [PRACTICE_OFFER.chapterBasics];
@@ -66,7 +66,27 @@ test('chapterHintFor: suppressed by exam, tourRunning, !allowed, or chapter alre
   assert.equal(chapterHintFor({ ...base, seenChapters: new Set(['doc-1:ch-2']) }), false);
   assert.equal(chapterHintFor({ ...base, seenChapters: ['doc-1:ch-2'] }), false);
   assert.equal(chapterHintFor({ ...base, seenChapters: new Set(['doc-1:ch-1']) }), true);
-  assert.equal(CHAPTER_HINT_KEY, 'study-chapter-basics-seen');
+});
+
+test('chapterHintSeen / markChapterHintSeen: persists under study-chapter-basics-seen and survives memory reset', () => {
+  const entries = new Map();
+  const storage = {
+    getItem: (key) => (entries.has(key) ? entries.get(key) : null),
+    setItem: (key, value) => { entries.set(key, String(value)); },
+  };
+  try {
+    forgetChapterHintVisit();
+    assert.equal(chapterHintSeen(storage), false);
+    assert.equal(markChapterHintSeen(storage), true);
+    assert.equal(entries.get('study-chapter-basics-seen'), '1');
+    assert.equal(chapterHintSeen(storage), true);
+    forgetChapterHintVisit();
+    assert.equal(chapterHintSeen(storage), true, 'reads persisted key back after clearing in-memory cache');
+    entries.delete('study-chapter-basics-seen');
+    assert.equal(chapterHintSeen(storage), false);
+  } finally {
+    forgetChapterHintVisit();
+  }
 });
 
 test('freshTermsDeeper: rejects missing, invalid, or pre-entry timestamps (#1216)', () => {

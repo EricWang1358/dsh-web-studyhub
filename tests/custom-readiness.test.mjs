@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { writesFor } from '../lib/runtime/domain-contracts.js';
 import { assistantRefusal } from '../lib/assistant-boundary.js';
 import { libraryContracts } from '../lib/study-contracts.js';
-import { SOLID_DAYS, cardSolid, pointSolid, readinessOf } from '../lib/custom-readiness.js';
+import { cardSolid, pointSolid, readinessOf } from '../lib/custom-readiness.js';
 import { COURSE, planOf, service } from './helpers/readiness-library.mjs';
 
 const readiness = (study, args = {}) => study.call('course.custom.readiness', { course: COURSE, ...args });
@@ -97,7 +97,6 @@ test('a plan before the outline exists: its chapters are the materials\' chapter
 });
 
 test('solid is defined once: a card is solid when it is 已掌握 or was answered right on two different days (a wrong answer after that undoes it); a point is solid when at least half of its questions are and none is weak', () => {
-  assert.equal(SOLID_DAYS, 2);
   assert.equal(cardSolid('mastered', 1), true, 'the schedule says so');
   assert.equal(cardSolid('learning', 2), true, 'right again on a later day');
   assert.equal(cardSolid('learning', 1), false);

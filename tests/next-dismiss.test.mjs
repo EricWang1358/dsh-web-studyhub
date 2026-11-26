@@ -18,7 +18,6 @@ const refusing = () => ({ get length() { throw new Error('blocked'); }, key() { 
 const at = (day, hour = 10) => new Date(2026, 9, day, hour, 0, 0);
 
 test('the key is one per library and holds the local day', () => {
-  assert.equal(m.NEXT_CARD_PREFIX, 'study-next-card:');
   assert.equal(m.nextCardKey('D:/lib'), 'study-next-card:D:/lib');
   assert.equal(m.nextCardKey(''), 'study-next-card:local');
 });

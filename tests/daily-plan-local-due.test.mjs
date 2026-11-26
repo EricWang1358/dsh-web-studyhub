@@ -14,7 +14,7 @@ const local = (text) => new Date(`${text}+08:00`).toISOString();
 const card = (id, due_at, extra = {}) => ({ id, kind: 'flashcard', topic: 'Conditional probability', prompt: `Question ${id}`, answer: 'Answer', options: [], citations: [], requires: [],
   review: { repetitions: 1, interval_days: 3, ease_factor: 2.5, due_at }, ...extra });
 
-test('the time zone is the one this file fixes', () => {
+test('daily-plan-local-due pins TZ=Asia/Shanghai (UTC+8, offset -480) for local midnight due checks', () => {
   assert.equal(new Date(local('2026-10-05T12:00:00')).getTimezoneOffset(), -480);
 });
 
