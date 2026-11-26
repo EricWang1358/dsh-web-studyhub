@@ -172,13 +172,11 @@ function attachTerminationControls({ child, request, state, finalize }) {
     if (state.timeoutTimer) clearTimeout(state.timeoutTimer);
     if (child.pid) state.termination = killProcessTree(child.pid, process.platform, () => child.kill());
     else try { child.kill(); } catch { /* already exited */ }
-    // Windows taskkill walks the tree asynchronously. Report completion after its outcome and the child's actual close.
-    if (state.termination) {
-      state.termination.then(error => {
-        if (error) finalize(null, null);
-      });
-      return;
-    }
+    // Windows taskkill walks the tree asynchronously: a failed walk settles at once, and finalize waits for its outcome.
+    state.termination?.then(error => {
+      if (error) finalize(null, null);
+    });
+    // On every system: a process outside the killed tree can keep stdout open, so 'close' may never come.
     state.forceCloseTimer = setTimeout(() => finalize(null, 'SIGKILL'), KILL_GRACE_MS + 500);
     state.forceCloseTimer.unref?.();
   };
@@ -320,20 +318,17 @@ export function spawnPersistent({ command, args = [], cwd, env }) {
     if (exited) return proc.exited;
     try { proc.stdin?.end(); } catch { /* stdin may already be closed */ }
     const windowsTermination = proc.kill();
-    if (windowsTermination) return windowsTermination.then(error => {
-      if (error) throw error;
-      return proc.exited;
-    });
     const waitMs = Math.max(200, Number(graceMs) || KILL_GRACE_MS) + 1500;
     let timer = null;
+    // A process outside the killed tree can keep stdout open, so 'close' may never come: the deadline holds on every system.
+    const deadline = new Promise((resolve) => {
+      timer = setTimeout(() => resolve({ code: null, signal: 'SIGKILL', error: null }), waitMs);
+      timer.unref?.();
+    });
     try {
-      return await Promise.race([
-        proc.exited,
-        new Promise((resolve) => {
-          timer = setTimeout(() => resolve({ code: null, signal: 'SIGKILL', error: null }), waitMs);
-          timer.unref?.();
-        }),
-      ]);
+      const error = await windowsTermination;
+      if (error) throw error;
+      return await Promise.race([proc.exited, deadline]);
     } finally {
       if (timer) clearTimeout(timer);
     }
