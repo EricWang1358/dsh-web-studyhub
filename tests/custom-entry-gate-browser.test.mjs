@@ -53,10 +53,18 @@ const watchBuilds = page => {
   const sent = [];
   page.on('request', request => {
     if (!request.url().includes('/api/call')) return;
-    try { const { action, args } = JSON.parse(request.postData() || '{}'); if (/^generation\.course(Outline|Book)\.build$/.test(action) && args?.estimate !== true) sent.push({ action, args }); } catch { /* not JSON */ }
+    try { const { action, args } = JSON.parse(request.postData() || '{}'); if (/^generation\.course(Outline|Book)\.build$/.test(action) && args?.estimate !== true) sent.push({ action, args, request }); } catch { /* not JSON */ }
   });
   return sent;
 };
+
+async function assertBuildRefused(build, errors) {
+  const response = await build.request.response();
+  assert.equal(response?.status(), 400, 'the preview refused the requested build');
+  assert.equal((await response.json()).ok, false);
+  assert.deepEqual(errors.filter(message => message !== REFUSED), []);
+  assert.ok(errors.length <= 1, 'only the expected refusal may appear in the browser console');
+}
 
 test('深度定制 on the 资料 row and the gate before 生成总纲 / 生成复习全书 (zh, 1280 and 420 px)', { timeout: 480000 }, async t => {
   let browser;
@@ -154,7 +162,7 @@ test('深度定制 on the 资料 row and the gate before 生成总纲 / 生成�
       await page.locator('dialog[data-custom-gate]').waitFor({ state: 'detached', timeout: 10000 });
       await until(async () => builds.length === 1, '整本生成 asks for the 总纲 build');
       assert.deepEqual([builds[0].action, builds[0].args.course, builds[0].args.confirm], ['generation.courseOutline.build', '宏经', true], `${width}px: the original request, unchanged`);
-      assert.deepEqual(errors, [REFUSED], `${width}px: no page error but the one build the preview cannot run`);
+      await assertBuildRefused(builds[0], errors);
       await context.close();
     } finally { await running.close(); }
   }
@@ -190,7 +198,7 @@ test('a course with a custom plan: the row reads 查看/修改定制 and 生成�
     await until(async () => builds.length === 1, 'the build is asked for at once');
     assert.equal(builds[0].action, 'generation.courseOutline.build');
     assert.equal(await page.locator('dialog[data-custom-gate]').count(), 0, 'no question');
-    assert.deepEqual(errors, [REFUSED], 'no page error but the one build the preview cannot run');
+    await assertBuildRefused(builds[0], errors);
     await context.close();
   } finally { await running.close(); }
 });
