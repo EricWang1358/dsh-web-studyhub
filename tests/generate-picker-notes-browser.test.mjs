@@ -16,12 +16,12 @@ test('#1132: a row\'s note is said whole or left out of sight at 375–900, in t
     const { page, errors, context, release } = await openGenerate({ lang, width, height: 900, answer: answers().badges, now: false, on: state.longServer });
     if (all) await allCourses(page, lang);
     await frames(page, 4);
-    const coming = await everyRow(page);
+    const coming = await everyRow(page, 34);
     release();
     await until(() => page.evaluate(() => !document.querySelector('[data-tour="generate-sources"] [data-index-slot="held"]')), `${tag}: the answer is in`);
     await settleAnimations(page);
     await frames(page, 4);
-    const landed = await everyRow(page);
+    const landed = await everyRow(page, 34);
     assert.ok(landed.size >= 34, `${tag}: every row was drawn (${landed.size})`);
     const bad = [];
     for (const [title, row] of landed) {
@@ -49,7 +49,7 @@ test('#1134: 全部课程 at 420 keeps every row\'s format, a PDF\'s pages and t
     const { page, errors, context } = await openGenerate({ lang, width: 420, height: 900, answer: answers().badges, on: state.longServer });
     await allCourses(page, lang);
     await frames(page, 4);
-    const rows = [...(await everyRow(page)).values()];
+    const rows = [...(await everyRow(page, 34)).values()];
     assert.ok(rows.length >= 34, `${tag}: every row was drawn (${rows.length})`);
     const bad = leadProblems(rows);
     for (const row of rows) {
@@ -65,7 +65,7 @@ test('#1134: 全部课程 at 420 keeps every row\'s format, a PDF\'s pages and t
     for (let width = 424; width <= 448 && !said; width += 8) {
       await page.setViewportSize({ width, height: 900 });
       await frames(page, 3);
-      const notes = [...(await everyRow(page)).values()].filter(row => !/PDF/.test(row.lead.text));
+      const notes = [...(await everyRow(page, 34)).values()].filter(row => !/PDF/.test(row.lead.text));
       if (notes.every(row => /^(Text|文本) · 180 ?(字符|characters|字|chars)$/.test(row.lead.seen.trim()))) {
         said = width;
         assert.deepEqual(notes.filter(row => row.names[0]?.cut).map(row => row.text), [], `${lang} ${width} 全部课程: the course whole beside the characters`);

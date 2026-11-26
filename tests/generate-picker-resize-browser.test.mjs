@@ -17,7 +17,7 @@ test('round 11: a kind of note that has room for its characters says them, whate
     const { page, errors, context } = await openGenerate({ lang, width, height: 900, answer: answers().badges });
     if (everyCourse) await allCourses(page, lang);
     await frames(page, 4);
-    const rows = [...(await everyRow(page)).values()];
+    const rows = [...(await everyRow(page, 14)).values()];
     assert.ok(rows.length >= 14, `${tag}: every row was drawn (${rows.length})`);
     const notes = rows.filter(row => /^(Text|文本) · /.test(row.lead.text));
     assert.ok(notes.length >= 10, `${tag}: the Text notes (${notes.length})`);

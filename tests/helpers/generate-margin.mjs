@@ -262,22 +262,14 @@ export async function boxNames(page, count) {
 /** Scroll the list's window to its end (the window then draws more rows) or back to its top. The number of rows drawn. */
 export const scrollList = (page, { top = false } = {}) => page.evaluate(top => {
   const box = document.querySelector('[data-tour="generate-sources"] .sh-scroll__viewport');
-  box.scrollTop = top ? 0 : box.scrollHeight;
+  box.scrollTo({ top: top ? 0 : box.scrollHeight, behavior: 'instant' });
   return document.querySelectorAll('[data-tour="generate-sources"] .source-picker__item').length;
 }, top);
 
-/** Every row of the list: scrolled to its end step by step (the window draws more rows as it goes), the rows' facts lines by title. */
-export async function everyRow(page) {
-  const rows = new Map();
-  for (let step = 0, drawn = 0, still = 0; step <= 30 && still < 2; step++) {
-    for (const row of await factsLines(page)) rows.set(row.title, row);
-    const now = await scrollList(page);
-    still = now === drawn ? still + 1 : 0;
-    drawn = now;
-    await frames(page, 3);
-  }
-  for (const row of await factsLines(page)) rows.set(row.title, row);
-  return rows;
+/** Draw the complete seeded list by scrolling its window; React may commit the next chunk in a later frame. */
+export async function everyRow(page, expected) {
+  await until(async () => await scrollList(page) >= expected, `all ${expected} source rows to be drawn`, { timeoutMs: 10000 });
+  return new Map((await factsLines(page)).map(row => [row.title, row]));
 }
 
 export const cutsOf = row => row.pieces.filter(piece => piece.shown && piece.cut);
