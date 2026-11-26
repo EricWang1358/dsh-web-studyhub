@@ -1,7 +1,8 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
 import { useStableWindowSize } from '../components/resize.js';
-import { KEY_LAYER_MODAL, useScopedInput } from '../components/key-dispatcher.js';
+import { KEY_LAYER_MODAL, useKeyScope } from '../components/key-dispatcher.js';
+import { isPlainKey } from '../input/global-router.js';
 import type { ToastItem } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
 import { toneColor, useTheme } from '../theme/tokens.js';
@@ -146,13 +147,16 @@ export const NotificationHistoryModal = memo(function NotificationHistoryModal({
     }
   }, [selected, lang, bindingRoot, snapshotRoot]);
 
-  useScopedInput(
-    (input, key) => {
-      if (key.ctrl && input === 'd') {
+  useKeyScope({
+    id: 'NotificationHistoryModal:keys',
+    active: isActive,
+    layer: KEY_LAYER_MODAL,
+    onKey: (input, key) => {
+      if (key.ctrl && !key.meta && input === 'd') {
         setDetailTop((top) => Math.min(maxDetailTop, Math.max(0, top) + pageStep(detailH, 'half')));
         return true;
       }
-      if (key.ctrl && input === 'u') {
+      if (key.ctrl && !key.meta && input === 'u') {
         setDetailTop((top) => Math.max(0, Math.max(0, top) - pageStep(detailH, 'half')));
         return true;
       }
@@ -164,11 +168,11 @@ export const NotificationHistoryModal = memo(function NotificationHistoryModal({
         setDetailTop((top) => Math.max(0, Math.max(0, top) - pageStep(detailH, 'full')));
         return true;
       }
-      if (!key.ctrl && !key.meta && (input === 'c' || input === 'y' || key.return)) {
+      if ((!key.ctrl && !key.meta && key.return) || (isPlainKey(input, key) && (input === 'c' || input === 'y'))) {
         void copySelected();
         return true;
       }
-      if (!key.ctrl && !key.meta && input === 'C') {
+      if (isPlainKey(input, key) && input === 'C') {
         clearToastHistory();
         setCursor(0);
         setDetailTop(0);
@@ -178,8 +182,7 @@ export const NotificationHistoryModal = memo(function NotificationHistoryModal({
       // Esc falls through to <Modal>, which owns the single close action.
       return false;
     },
-    { isActive, layer: KEY_LAYER_MODAL, id: 'NotificationHistoryModal:keys' },
-  );
+  });
 
   const hints = [
     { key: asciiMode ? 'Up/Dn' : '↑↓', label: t(lang, '选择', 'Select') },

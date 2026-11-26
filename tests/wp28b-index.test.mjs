@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StudyService } from '../lib/service.js';
 import { createFakeModel } from '../scripts/fake-model.mjs';
-import { INDEX_TOOLS, MODEL_DOWNLOAD_MB, NO_CHUNKS_ANSWER, SOURCE_PREFIX, buildIndex, contentHash, pageDocument, planIndex, sourceIdFromKey } from '../lib/retrieval-index.js';
+import { INDEX_TOOLS, NO_CHUNKS_ANSWER, buildIndex, contentHash, pageDocument, planIndex, sourceIdFromKey } from '../lib/retrieval-index.js';
 import { resolveHits, normalizeHits } from '../lib/retrieval.js';
 import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 
@@ -39,10 +39,8 @@ function fakeServer({ failFirst, failOn = [], failIngest = false, noChunks = [],
 test('a page is exported under its own source id, with its title and text', () => {
   const [first] = sources;
   assert.equal(pageDocument(first), '# 操作系统 · p.1\n\n进程是资源分配的单位。');
-  assert.equal(SOURCE_PREFIX, 'studyhub://source/');
   assert.equal(sourceIdFromKey('studyhub://source/p7'), 'p7');
   assert.equal(sourceIdFromKey('/some/file.md'), undefined);
-  assert.equal(MODEL_DOWNLOAD_MB, 90);
 });
 
 test('search hits that carry the source id of an exported page map back exactly', () => {
@@ -94,7 +92,7 @@ test('building ingests each page once, reports progress, and records what it ind
 test('a first-run download failure is explained in plain words, not as a stack trace', async () => {
   const { port } = fakeServer({ failFirst: 'fetch failed: getaddrinfo ENOTFOUND huggingface.co' });
   await assert.rejects(buildIndex({ port, sources, library: ['p1'], manifest: { sources: {} }, firstRun: true }),
-    error => error.code === 'retrieval-model-download' && /检索模型/.test(error.message) && /下载地址/.test(error.message));
+    error => error.code === 'retrieval-model-download' && /检索模型/.test(error.message) && /90 MB/.test(error.message) && /下载地址/.test(error.message));
 });
 
 test('one page that cannot be read does not stop the rest; many in a row do', async () => {

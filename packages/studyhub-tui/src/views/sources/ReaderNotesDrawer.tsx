@@ -13,6 +13,7 @@ import { LAYOUT_BP } from '../../components/layout-tokens.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
+import { persistCardQaToFollowupAndNote } from '../../host/ai-dialogue.js';
 import { errorMessage, tryAction } from '../../host/sample-actions.js';
 
 export interface ReaderNotesDrawerProps {
@@ -181,8 +182,8 @@ function formatMarkMarkdown(lang: UiLanguage, item: MarkItem, page?: number, asc
 
 /**
  * Save a finished AI Page Ask Q&A persistently:
- * 1) If the page has linked cards (`materials.pages.cards`), record a follow-up via `card.followup.add`
- *    and append into Study Notes via `note.qa.add`.
+ * 1) If the page has linked cards (`materials.pages.cards`), atomically persist the Q&A to both
+ *    card follow-ups and Study Notes via backend composite action `note.qa.save`.
  * 2) When passage text is available, also save a page-anchored annotation via `materials.annotation.save`
  *    using the reader's active viewport offset/excerpt (falling back to first non-whitespace text)
  *    so the Q&A appears immediately in `ReaderNotesDrawer` even when no cards are linked yet.
@@ -214,12 +215,11 @@ export async function savePageAskToNote(params: SavePageAskParams): Promise<Save
   const cleanQuestion = question.trim() || t(lang, `第 ${page} 页提问`, `Page ${page} question`);
   const docLabel = title || t(lang, '资料阅读', 'Material');
 
-  let savedFollowup = false;
   let savedNote = false;
   let savedNoteId: string | undefined;
   let noteError: string | undefined;
 
-  // 1. Check linked cards and save Q&A via card.followup.add + note.qa.add.
+  // 1. Check linked cards and atomically save Q&A via backend composite action `note.qa.save` (#1354 D7).
   if (sourceId || documentId) {
     const cardsRes = await tryAction<{ cards?: Array<{ deckId?: string; cardId?: string }> }>(
       host,
@@ -235,32 +235,20 @@ export async function savePageAskToNote(params: SavePageAskParams): Promise<Save
     if (linked.length > 0) {
       const target = linked[0];
       const noteTitle = course ? `${course} · ${docLabel}` : docLabel;
-      const followupRes = await tryAction<{ item?: { id?: string } }>(host, 'card.followup.add', {
+      const persisted = await persistCardQaToFollowupAndNote({
+        host,
         deckId: target.deckId,
         cardId: target.cardId,
-        question: cleanQuestion.replace(/\s+/g, ' ').trim().slice(0, 1000),
-        answer: cleanAnswer.slice(0, 8000),
-        source: 'assistant',
-        silent: true,
-        replace: true,
+        question: cleanQuestion,
+        answer: cleanAnswer,
+        noteTitle,
+        lang,
       });
-      if (followupRes.ok && followupRes.value?.item?.id) {
-        savedFollowup = true;
-        const noteRes = await tryAction<{ status?: string; note?: { id?: string } }>(host, 'note.qa.add', {
-          deckId: target.deckId,
-          cardId: target.cardId,
-          followupId: followupRes.value.item.id,
-          title: noteTitle.slice(0, 180),
-          language: lang,
-        });
-        if (noteRes.ok) {
-          savedNote = true;
-          savedNoteId = noteRes.value?.note?.id;
-        } else {
-          noteError = noteRes.error?.message;
-        }
-      } else if (!followupRes.ok) {
-        noteError = followupRes.error?.message;
+      if (persisted.ok && persisted.noteSaved) {
+        savedNote = true;
+        savedNoteId = persisted.noteId;
+      } else {
+        noteError = persisted.error;
       }
     }
   }
@@ -350,14 +338,14 @@ export async function savePageAskToNote(params: SavePageAskParams): Promise<Save
     };
   }
   if (savedAnnotation) {
-    if (savedFollowup && !savedNote) {
+    if (noteError) {
       return {
         ok: true,
         savedTo: 'annotation',
         message: t(
           lang,
-          `已保存批注问答与关联题卡讲解，但写入学习笔记失败：${noteError || '请稍后重试'}`,
-          `Saved annotation & card explanation, but writing to Study Notes failed: ${noteError || 'please retry'}`,
+          `已保存为本页批注问答 (按 B 查看)，但写入关联学习笔记失败：${noteError}`,
+          `Saved as page annotation (press B to view), but writing to linked Study Notes failed: ${noteError}`,
         ),
       };
     }
@@ -365,17 +353,6 @@ export async function savePageAskToNote(params: SavePageAskParams): Promise<Save
       ok: true,
       savedTo: 'annotation',
       message: t(lang, '已保存为本页批注问答 (按 B 查看)', 'Saved as page annotation (press B to view)'),
-    };
-  }
-  if (savedFollowup) {
-    return {
-      ok: true,
-      savedTo: 'note',
-      message: t(
-        lang,
-        `已保存到关联题卡讲解，但写入学习笔记失败：${noteError || '请稍后重试'}`,
-        `Saved to linked card explanation, but writing to Study Notes failed: ${noteError || 'please retry'}`,
-      ),
     };
   }
   return {

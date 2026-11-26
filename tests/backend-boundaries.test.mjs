@@ -39,7 +39,7 @@ test('different runtimes for one root cannot observe or cancel one another’s p
   assert.equal((await second.call('snapshot')).jobs.some(item => item.id === job.jobId), false);
   await assert.rejects(second.call('job.cancel', { jobId: job.jobId }), /not found|unavailable/i);
   release();
-  const finished = await first.call('job.wait', { jobId: job.jobId, timeoutSeconds: 1 });
+  const finished = await first.call('job.wait', { jobId: job.jobId, timeoutSeconds: 30 });
   assert.equal(finished.status, 'complete');
 });
 

@@ -412,7 +412,10 @@ describe('createTuiHost with injectedComplete', () => {
     await settle(150);
     const library = events.filter((e) => e.type === 'study:library-changed');
     assert.equal(library.length, 1, `coalesced into one event, got ${library.length}`);
-    assert.equal(library[0].reason, 'tui-test-2');
+    // The two calls run concurrently, so either may reach the host last; the coalesced event keeps
+    // the later one's reason and the union of both areas.
+    assert.ok(['tui-test-1', 'tui-test-2'].includes(library[0].reason), `reason of one of the two calls, got ${library[0].reason}`);
+    assert.equal(library[0].payload.coalesced, true);
     assert.deepEqual([...library[0].payload.changedAreas].sort(), ['decks', 'runs']);
     off();
     off();
