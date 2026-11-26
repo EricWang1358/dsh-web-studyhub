@@ -7,7 +7,7 @@
  *    reply, or the main chat advanced the session) resyncs the step via `teach.get` instead of offering a
  *    retry that can only fail again with the stale step index.
  * 3. Error classification by backend code: `teaching-no-model` (and the zh 「请先在设置里连接模型」 text) is a
- *    model error that points to Settings, not an [A] retry.
+ *    model error that points to Settings; [A] still retries the start, since nothing else would (Fix 1c).
  * 4. While the answer box has the keyboard, S/X/M type text, so the hints name the keys that work there.
  *
  * Run: node --test tests/p3c-guided-study-gate-fixes.test.mjs
@@ -162,6 +162,30 @@ describe('PR #1504 Guided Study gate fixes', () => {
       await sleep(60);
     }
     assert.equal(starts, 1, `a failed start is not resent on re-render (sent ${starts})`);
+  });
+
+  test('Fix 1c: after a model-class start failure [A] retries the start once the model is ready', async (t) => {
+    let starts = 0;
+    let modelOk = false;
+    const host = baseHost(async (action, args) => {
+      if (action === 'teach.start') {
+        starts += 1;
+        if (!modelOk) return { ok: false, error: { message: '请先在设置里连接模型，再使用引导练习。', code: 'teaching-no-model' } };
+        return { ok: true, value: { id: 'ts-1c', mode: args.mode, index: 0, total: 2, lesson: 'LESSON_AFTER_RETRY', check: 'C?', complete: false } };
+      }
+      return { ok: true, value: {} };
+    });
+    const ctx = (extra) => ({ runId: 'r1c', deckId: 'd1c', cardId: 'c1c', cardIndex: 0, queueVersion: 0, revealed: true, answered: true, prompt: 'Q', ...extra });
+    resetStore(ctx({}), { focused: true });
+    const h = mountPanel(host, { isActive: true });
+    t.after(() => h.cleanup());
+    const errFrame = await h.waitFor((s) => s.includes('模型暂不可用'), 'model error');
+    assert.match(errFrame, /设置/, `the failure still points to Settings:\n${errFrame}`);
+    assert.equal(starts, 1);
+    modelOk = true; // the learner connected a model; the docked panel stayed mounted
+    h.write('A');
+    await h.waitFor((s) => s.includes('LESSON_AFTER_RETRY'), 'retried guided study step');
+    assert.equal(starts, 2, `[A] must send teach.start again (sent ${starts})`);
   });
 
   test('Fix 2: an answer refused with teaching-step-changed resyncs the step from teach.get; the next answer uses the backend step', async (t) => {

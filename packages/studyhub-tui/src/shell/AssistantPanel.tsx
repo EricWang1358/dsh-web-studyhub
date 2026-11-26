@@ -719,19 +719,21 @@ export const AssistantPanel = memo(function AssistantPanel({
               actionSummary: t(lang, '需先完成本题作答', 'Answer card first'),
               text: t(
                 lang,
-                '请先在刷题页完成本题作答（或翻看并评分），然后再按 [t] 开启苏格拉底带学。',
-                'Answer (or reveal and rate) this card in Review first, then press [t] for Socratic guided study.',
+                '请先在刷题页完成本题作答（或翻看并评分），作答后这里会自动开始苏格拉底带学。',
+                'Answer (or reveal and rate) this card in Review first; Socratic guided study starts here once you have.',
               ),
             });
           } else {
+            // [A] always retries the start: the load key stays set, so nothing else would (a timeout is a
+            // model-class error too, and a learner who connects a model in Settings comes back to this panel).
             const fb = {
               reason: res.error,
               altLabel: res.isModelError
-                ? t(lang, '前往设置配置模型，或按 [P] 复制提示词到外部模型', 'Configure a model in Settings or press [P] to copy prompt')
+                ? t(lang, '先在设置里配置模型，再按 [A] 重试；或按 [P] 复制提示词到外部模型', 'Configure a model in Settings, then press [A] to retry; or [P] to copy prompt')
                 : t(lang, '按 [A] 重试开启带学，或按 [P] 复制提示词', 'Press [A] to retry guided study, or [P] to copy prompt'),
-              altCommand: res.isModelError ? '跳到设置' : '',
+              altCommand: '',
               instruction: t(lang, '苏格拉底带学', 'Socratic guided study'),
-              ...(!res.isModelError ? { retryTeach: { kind: 'start' as const, mode: targetMode } } : {}),
+              retryTeach: { kind: 'start' as const, mode: targetMode },
             };
             sessionMemory.lastFallback = fb;
             setLastFallback(fb);
