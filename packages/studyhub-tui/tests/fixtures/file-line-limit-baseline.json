@@ -1,5 +1,4 @@
 {
-  "maxLines": 1000,
   "files": {
     "shell/assistant-intent.ts": 1198,
     "shell/AssistantPanel.tsx": 2079,

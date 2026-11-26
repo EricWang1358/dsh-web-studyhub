@@ -988,4 +988,136 @@ describe('P4 (#1354 D12): ReviewView Split Behavioral & Interaction Regressions'
       h.cleanup();
     }
   });
+
+  test('10. Esc from a Similar run restores the unsubmitted multi-choice selection on the original card', async () => {
+    const runOrig = {
+      id: 'run-orig',
+      mode: 'path',
+      title: 'Orig',
+      deckId: 'd-sim',
+      index: 0,
+      total: 2,
+      answered: 0,
+      queueVersion: 1,
+      card: {
+        id: 'c-orig',
+        kind: 'multiple',
+        prompt: 'ORIGINAL-Q pick two',
+        options: [
+          { id: 'o1', text: 'alpha' },
+          { id: 'o2', text: 'beta' },
+          { id: 'o3', text: 'gamma' },
+        ],
+      },
+      navigation: [
+        { index: 0, cardId: 'c-orig', deckId: 'd-sim', status: 'pending' },
+        { index: 1, cardId: 'c-orig-2', deckId: 'd-sim', status: 'pending' },
+      ],
+    };
+    const runSimilar = {
+      id: 'run-similar',
+      mode: 'path',
+      title: 'Similar',
+      deckId: 'd-sim',
+      index: 0,
+      total: 1,
+      answered: 0,
+      queueVersion: 1,
+      card: { id: 's1', kind: 'flashcard', prompt: 'SIMILAR-Q' },
+      navigation: [{ index: 0, cardId: 's1', deckId: 'd-sim', status: 'pending' }],
+    };
+    const { host } = makeBaseHost(async (name, args) => {
+      if (name === 'review.start') return { ok: true, value: runSimilar };
+      if (name === 'review.get' && args.runId === 'run-orig') {
+        // Slow enough that the Esc handler's load and the navContext.runId effect's load overlap.
+        await new Promise((r) => setTimeout(r, 120));
+        return { ok: true, value: runOrig };
+      }
+      return { ok: true, value: {} };
+    });
+
+    resetStore({
+      navContext: { deckId: 'd-sim' },
+      practiceStack: [
+        {
+          kind: 'review',
+          returnPage: 'review',
+          runId: 'run-orig',
+          cardId: 'c-orig',
+          deckId: 'd-sim',
+          cardIndex: 0,
+          draft: { selected: ['o2'] },
+          submitted: false,
+          originKind: 'similar',
+          pushedAt: Date.now(),
+        },
+      ],
+    });
+    const h = createHarness(React.createElement(ReviewView, { host, width: 116, height: 34, isActive: true }));
+    try {
+      await h.waitFor((s) => s.includes('SIMILAR-Q'), 4000, 'similar run loaded');
+      h.write('\u001b');
+      await h.waitFor((s) => s.includes('ORIGINAL-Q'), 4000, 'original run back');
+      await new Promise((r) => setTimeout(r, 400));
+      const betaLine = h.frame().split('\n').find((l) => l.includes('beta')) || '';
+      assert.ok(betaLine.includes('[x]'), `unsubmitted selection beta must survive Esc, got: ${betaLine.trim()}`);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test('11. Leaving a cloze card mid-answer saves the typed blanks into the practice-stack frame', async () => {
+    const clozeRun = {
+      id: 'run-cloze-push',
+      mode: 'path',
+      title: '计网填空',
+      deckId: 'd-net',
+      index: 0,
+      total: 1,
+      answered: 0,
+      queueVersion: 1,
+      revealed: false,
+      card: {
+        id: 'c-cloze-push',
+        kind: 'fill_blank',
+        prompt: 'TCP 建立连接采用 {{b1}} 次握手，释放连接采用 {{b2}} 次挥手。',
+        cloze: {
+          text: 'TCP 建立连接采用 {{b1}} 次握手，释放连接采用 {{b2}} 次挥手。',
+          blanks: [
+            { id: 'b1', answer: '3' },
+            { id: 'b2', answer: '4' },
+          ],
+        },
+      },
+      navigation: [{ index: 0, cardId: 'c-cloze-push', deckId: 'd-net', status: 'pending' }],
+    };
+    const { host } = makeBaseHost(async (name) => {
+      if (name === 'review.start') return { ok: true, value: clozeRun };
+      return { ok: true, value: {} };
+    });
+
+    resetStore();
+    const h = createHarness(React.createElement(ReviewView, { host, width: 116, height: 34, isActive: true }));
+    let cleaned = false;
+    try {
+      await h.waitFor((s) => s.includes('TCP 建立连接采用') && s.includes('#1'), 4000, 'cloze card loaded');
+      h.write('i');
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('3');
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('\t');
+      await new Promise((r) => setTimeout(r, 30));
+      h.write('2');
+      await new Promise((r) => setTimeout(r, 60));
+      // Navigating to another page unmounts ReviewView, which pushes the current card onto the practice stack.
+      useTuiStore.setState({ page: 'sources' });
+      h.cleanup();
+      cleaned = true;
+      const top = useTuiStore.getState().practiceStack.at(-1);
+      assert.equal(top?.cardId, 'c-cloze-push');
+      assert.deepEqual(top?.draft?.clozeDrafts, ['3', '2']);
+    } finally {
+      if (!cleaned) h.cleanup();
+    }
+  });
 });

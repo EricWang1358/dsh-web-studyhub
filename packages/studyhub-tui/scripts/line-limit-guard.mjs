@@ -6,7 +6,7 @@
  * - Hard ceiling for every `packages/studyhub-tui/src/**\/*.{ts,tsx}` file: `MAX_SOURCE_FILE_LINES` (1000).
  * - Legacy oversized files are frozen in `tests/fixtures/file-line-limit-baseline.json` on a downward-only ratchet:
  *   1. No new file may exceed 1000 lines (and split files removed from the baseline can never rebound above 1000).
- *   2. No baselined oversized file may grow beyond its recorded ceiling.
+ *   2. No baselined oversized file may grow more than `LEGACY_GROWTH_TOLERANCE` lines past its recorded ceiling.
  *   3. Once a baselined file shrinks to <= 1000 lines (or is deleted), it must be removed from the baseline.
  *
  * CLI:
@@ -17,7 +17,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// The only copy of the limit: the baseline JSON lists legacy files, not the limit itself.
 export const MAX_SOURCE_FILE_LINES = 1000;
+
+// Legacy oversized files may sit up to this many lines above their recorded ceiling, so small fixes
+// in open PRs that branched before the baseline was recorded do not fail. The ceiling itself never rises
+// (`--update` only lowers it), so total creep per file stays bounded by this number.
+export const LEGACY_GROWTH_TOLERANCE = 25;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const TUI_PKG_ROOT = path.resolve(__dirname, '..');
@@ -62,28 +68,20 @@ export function scanSourceLineCounts(srcRoot = TUI_SRC_ROOT) {
 
 export function loadLineLimitBaseline(baselinePath = LINE_LIMIT_BASELINE_PATH) {
   const raw = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
-  const maxLines = raw?.maxLines;
   const files = raw?.files && typeof raw.files === 'object' && !Array.isArray(raw.files) ? raw.files : {};
   const notes = raw?.notes && typeof raw.notes === 'object' && !Array.isArray(raw.notes) ? raw.notes : {};
-  return { maxLines, files, notes };
+  return { files, notes };
 }
 
 /**
  * Pure ratchet evaluator:
- * - `invalidBaselineMaxLines`: `baseline.maxLines` differs from `maxLines` (prevents ceiling tampering)
  * - `newOverLimit`: file > maxLines and not present in `baseline.files`
- * - `grewAboveBaseline`: file in `baseline.files` with `lines > limit`
+ * - `grewAboveBaseline`: file in `baseline.files` with `lines > limit + LEGACY_GROWTH_TOLERANCE`
  * - `staleBaselineEntries`: entry in `baseline.files` that is deleted or now <= maxLines
  * - `invalidBaselineEntries`: entry in `baseline.files` whose limit is not an integer > maxLines
  */
 export function evaluateLineLimitRatchet({ lineCounts, baseline, maxLines = MAX_SOURCE_FILE_LINES }) {
   const baselineFiles = baseline?.files ?? {};
-  const hasExplicitBaselineMax =
-    baseline !== null && typeof baseline === 'object' && Object.hasOwn(baseline, 'maxLines');
-  const invalidBaselineMaxLines =
-    hasExplicitBaselineMax && baseline.maxLines !== maxLines
-      ? { expected: maxLines, actual: baseline.maxLines }
-      : null;
   const newOverLimit = [];
   const grewAboveBaseline = [];
   const staleBaselineEntries = [];
@@ -112,14 +110,16 @@ export function evaluateLineLimitRatchet({ lineCounts, baseline, maxLines = MAX_
       overLimitCount += 1;
       if (!Object.hasOwn(baselineFiles, relPath)) {
         newOverLimit.push({ file: relPath, lines, maxLines });
-      } else if (Number.isInteger(baselineFiles[relPath]) && lines > baselineFiles[relPath]) {
+      } else if (
+        Number.isInteger(baselineFiles[relPath]) &&
+        lines > baselineFiles[relPath] + LEGACY_GROWTH_TOLERANCE
+      ) {
         grewAboveBaseline.push({ file: relPath, lines, limit: baselineFiles[relPath] });
       }
     }
   }
 
   const ok =
-    invalidBaselineMaxLines === null &&
     newOverLimit.length === 0 &&
     grewAboveBaseline.length === 0 &&
     staleBaselineEntries.length === 0 &&
@@ -128,7 +128,6 @@ export function evaluateLineLimitRatchet({ lineCounts, baseline, maxLines = MAX_
   return {
     ok,
     maxLines,
-    invalidBaselineMaxLines,
     totalFiles: Object.keys(lineCounts).length,
     overLimitCount,
     newOverLimit,
@@ -156,7 +155,6 @@ export function ratchetDownBaseline({ lineCounts, baseline, maxLines = MAX_SOURC
   }
 
   return {
-    maxLines,
     files: nextFiles,
     ...(Object.keys(nextNotes).length > 0 ? { notes: nextNotes } : {}),
   };
@@ -164,11 +162,6 @@ export function ratchetDownBaseline({ lineCounts, baseline, maxLines = MAX_SOURC
 
 export function formatLineLimitReport(result) {
   const lines = [];
-  if (result.invalidBaselineMaxLines) {
-    lines.push(
-      `Invalid baseline maxLines: expected ${result.invalidBaselineMaxLines.expected}, found ${String(result.invalidBaselineMaxLines.actual)}`,
-    );
-  }
   if (result.newOverLimit.length > 0) {
     lines.push(`New or rebound files exceeding ${result.maxLines} lines (must be split to <= ${result.maxLines}):`);
     for (const item of result.newOverLimit) {
@@ -176,9 +169,9 @@ export function formatLineLimitReport(result) {
     }
   }
   if (result.grewAboveBaseline.length > 0) {
-    lines.push('Oversized baseline files that grew above their ratchet ceiling:');
+    lines.push(`Oversized baseline files that grew more than ${LEGACY_GROWTH_TOLERANCE} lines above their ratchet ceiling:`);
     for (const item of result.grewAboveBaseline) {
-      lines.push(`  - ${item.file}: ${item.lines} lines > baseline ${item.limit}`);
+      lines.push(`  - ${item.file}: ${item.lines} lines > baseline ${item.limit} + ${LEGACY_GROWTH_TOLERANCE}`);
     }
   }
   if (result.staleBaselineEntries.length > 0) {

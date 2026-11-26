@@ -225,32 +225,38 @@ export function useReviewRoundActions(p: UseReviewRoundActionsParams) {
       setLoading(true);
       setLoadError(null);
       setEndedRestoreFrame(null);
-      const pendingRestore = !forceFresh ? useTuiStore.getState().consumePendingPracticeRestore() : null;
+      // Peek, don't consume: a newer load that supersedes this one (seq guard) must still find the
+      // frame. Only the load that actually applies its result consumes it.
+      const store = useTuiStore.getState();
+      if (forceFresh) store.consumePendingPracticeRestore();
+      const pendingRestore = forceFresh ? null : store.pendingPracticeRestore;
       const targetRunId = !forceFresh ? pendingRestore?.runId || navContext.runId || activeRunId : null;
       if (targetRunId) {
         const res = await tryAction<ReviewRun>(host, 'review.get', { runId: targetRunId });
         if (!mountedRef.current || loadSeqRef.current !== seq) return;
-        if (res.ok && res.value) {
-          if (pendingRestore && (res.value.complete || res.value.closed)) {
+        let restoredRun = res.ok && res.value ? res.value : null;
+        if (
+          restoredRun &&
+          pendingRestore &&
+          typeof pendingRestore.cardIndex === 'number' &&
+          restoredRun.index !== pendingRestore.cardIndex &&
+          !restoredRun.complete &&
+          !restoredRun.closed
+        ) {
+          const moved = await tryAction<ReviewRun>(host, 'review.move', {
+            runId: restoredRun.id,
+            index: pendingRestore.cardIndex,
+          });
+          if (!mountedRef.current || loadSeqRef.current !== seq) return;
+          if (moved.ok && moved.value) restoredRun = moved.value;
+        }
+        if (pendingRestore) useTuiStore.getState().consumePendingPracticeRestore();
+        if (restoredRun) {
+          if (pendingRestore && (restoredRun.complete || restoredRun.closed)) {
             setLoading(false);
             setRun(null);
             setEndedRestoreFrame(pendingRestore);
             return;
-          }
-          let restoredRun = res.value;
-          if (
-            pendingRestore &&
-            typeof pendingRestore.cardIndex === 'number' &&
-            restoredRun.index !== pendingRestore.cardIndex &&
-            !restoredRun.complete &&
-            !restoredRun.closed
-          ) {
-            const moved = await tryAction<ReviewRun>(host, 'review.move', {
-              runId: restoredRun.id,
-              index: pendingRestore.cardIndex,
-            });
-            if (!mountedRef.current || loadSeqRef.current !== seq) return;
-            if (moved.ok && moved.value) restoredRun = moved.value;
           }
           if (pendingRestore) {
             pendingDraftRestoreRef.current = {
