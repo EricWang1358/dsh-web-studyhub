@@ -20,6 +20,7 @@ import {
   matchesCourse,
   selectCourseNames,
   selectDeckMetrics,
+  selectPractisableDecks,
   selectStudySummary,
   type DeckProgressLike,
 } from '../../selectors/study-metrics.js';
@@ -562,8 +563,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       }
       if (id === 'due') {
         const dueDeck =
-          (snapshot?.decks ?? [])
-            .filter((d) => isActiveStudyDeck(d, course))
+          selectPractisableDecks(snapshot, course)
             .sort((a, b) => deckDueCount(b, progressMap) - deckDueCount(a, progressMap))[0] ??
           selectedDeck;
         if (dueDeck) handleStartReview(dueDeck);

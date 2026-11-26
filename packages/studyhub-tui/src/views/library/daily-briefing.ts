@@ -10,11 +10,9 @@
  */
 import type { StudySnapshot, UiLanguage } from '../../types/contracts.js';
 import {
-  countsInScope,
   getProgressMap,
-  isActiveStudyDeck,
-  selectCourseScope,
   selectDeckMetrics,
+  selectPractisableDecks,
 } from '../../selectors/study-metrics.js';
 
 export type DailyBriefingTarget =
@@ -52,9 +50,8 @@ export function buildDailyBriefing(opts: BuildDailyBriefingOptions): DailyBriefi
   if (!snap) return null;
 
   const progressMap = getProgressMap(snap);
-  // The learner decks the scope counts (`countsInScope`): a parked course is never pushed, as the backend's suggestions do.
-  const scope = selectCourseScope(snap, opts.course);
-  const activeDecks = (snap.decks ?? []).filter((d) => isActiveStudyDeck(d) && countsInScope(d, scope));
+  // The learner decks the scope counts: a parked course is never pushed, as the backend's suggestions do.
+  const activeDecks = selectPractisableDecks(snap, opts.course);
   if (activeDecks.length === 0) return null;
 
   const zh = opts.lang !== 'en';

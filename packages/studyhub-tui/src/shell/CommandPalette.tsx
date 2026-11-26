@@ -13,7 +13,7 @@ import { TextInput } from '../components/TextInput.js';
 import { nextScrollOffset, parseSgrWheelDelta, useSgrMouseWheel } from '../components/VirtualList.js';
 import { fuzzyFilter } from './fuzzy.js';
 import { listCourses, pageIcon } from './data.js';
-import { getProgressMap, isActiveStudyDeck, normalizeCourseKey, selectDeckDueCount } from '../selectors/study-metrics.js';
+import { getProgressMap, isActiveStudyDeck, normalizeCourseKey, selectDeckDueCount, selectPractisableDecks } from '../selectors/study-metrics.js';
 import { parseAssistantIntent } from './assistant-intent.js';
 import { planAssistantWorkflow } from './assistant-workflow.js';
 import type { ShellActions } from './actions.js';
@@ -318,9 +318,7 @@ export function buildPaletteItems(
         }
         const focusCourse = normalizeCourseKey((effectiveSnap?.focus as { course?: unknown } | undefined)?.course);
         const progressMap = getProgressMap(effectiveSnap);
-        const decks = Array.isArray(effectiveSnap?.decks) ? effectiveSnap.decks : [];
-        const dueCandidates = decks
-          .filter((d) => isActiveStudyDeck(d, focusCourse || null))
+        const dueCandidates = selectPractisableDecks(effectiveSnap, focusCourse || null)
           .map((d) => ({ id: d.id, due: selectDeckDueCount(d, progressMap) }))
           .filter((d) => d.id && d.due > 0)
           .sort((a, b) => b.due - a.due);

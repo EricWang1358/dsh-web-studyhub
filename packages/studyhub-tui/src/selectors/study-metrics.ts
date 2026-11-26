@@ -345,6 +345,20 @@ export function countsInScope(deck: DeckLike | null | undefined, scope: CourseSc
   return !deck.inactive || scope.parked;
 }
 
+/**
+ * The learner decks a view may send the learner to practise in a course (or the whole library): listed decks
+ * (`isActiveStudyDeck`) that the scope counts (`countsInScope`), so a parked course is never pushed. Shared by the
+ * daily briefing, `/due` and the library's due tile.
+ */
+export function selectPractisableDecks<D extends DeckLike>(
+  snapshot: (Omit<StudySnapshotLike, 'decks'> & { decks?: ReadonlyArray<D> | null }) | null | undefined,
+  course?: string | null,
+): D[] {
+  const scope = selectCourseScope(snapshot, course);
+  const decks: ReadonlyArray<D> = Array.isArray(snapshot?.decks) ? snapshot.decks : [];
+  return decks.filter((d) => isActiveStudyDeck(d) && countsInScope(d, scope));
+}
+
 /** Extract the typed `progress` map from a snapshot safely. */
 export function getProgressMap(
   snapshot: StudySnapshotLike | null | undefined,

@@ -779,4 +779,48 @@ describe('#1354 D9 Single-Source Study Metrics Consistency', () => {
       assert.ok(!brief?.reason.includes('共'), `briefing (${course}) totals only the counted decks (2 due, one deck), got: ${brief?.reason}`);
     }
   });
+
+  test('11. /due with a focus course starts a deck the scope counts: never a parked sub-course, chapters named Course/Chapter included', async () => {
+    const snapshot = {
+      focus: { course: 'OS' },
+      courses: [
+        { name: 'OS', active: true },
+        { name: 'OS / Old', active: false },
+        { name: 'OS/Kern', active: true },
+      ],
+      decks: [
+        { id: 'a', title: 'Basics', course: 'OS', due: 1, count: 5 },
+        { id: 'b', title: 'Old notes', course: 'OS / Old', inactive: true, due: 9, count: 9 },
+        { id: 'k', title: 'Kernel', course: 'OS/Kern', due: 4, count: 6 },
+      ],
+      progress: {},
+    };
+    const calls = [];
+    const navigated = [];
+    const host = {
+      call: async (action, payload) => {
+        calls.push({ action, payload });
+        if (action === 'review.start') return { ok: true, value: { id: 'run-11' } };
+        return { ok: true, value: {} };
+      },
+    };
+    const noop = () => {};
+    const state = {
+      snapshot,
+      preferences: { ...DEFAULT_PREFERENCES, language: 'zh' },
+      activeRunId: null,
+      navigate: (page, ctx) => navigated.push({ page, ctx }),
+      setTheme: noop,
+      setLanguage: noop,
+      toggleSidebar: noop,
+      setHelpOpen: noop,
+      setVoicePackOpen: noop,
+      setCoursePickerOpen: noop,
+      notify: noop,
+    };
+    const items = buildPaletteItems(state, {}, [], host);
+    await items.find((i) => i.id === 'cmd:due').action();
+    const started = calls.find((c) => c.action === 'review.start');
+    assert.equal(started?.payload?.deckId, 'k', `/due must start the most-due deck the OS scope counts (k), got ${started?.payload?.deckId}`);
+  });
 });
