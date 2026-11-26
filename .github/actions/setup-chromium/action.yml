@@ -1,0 +1,28 @@
+name: Set up StudyHub Chromium
+description: Restore the installed Playwright version's browser and verify the Chromium used by StudyHub tests.
+runs:
+  using: composite
+  steps:
+    - id: playwright
+      shell: bash
+      run: |
+        echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+        echo "PLAYWRIGHT_BROWSERS_PATH=$(node -p "require('node:path').resolve('.playwright-browsers')")" >> "$GITHUB_ENV"
+    - uses: actions/cache@v4
+      with:
+        path: .playwright-browsers
+        key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+    # Playwright reuses complete downloads and fills in missing files after a partial cache restore.
+    - name: Ensure the pinned Chromium is installed
+      shell: bash
+      run: npx playwright install chromium
+    - name: Launch the test browser
+      shell: bash
+      run: |
+        probe() { node --input-type=module -e "import { launchChromium } from './scripts/qa/browser.mjs'; await (await launchChromium()).close()"; }
+        if diagnostic=$(probe 2>&1); then exit 0; fi
+        printf '%s\n' "$diagnostic" >&2
+        if [[ "$RUNNER_OS" != Linux ]] || ! grep -Eiq 'missing dependencies|error while loading shared libraries|cannot open shared object file' <<< "$diagnostic"; then exit 1; fi
+        printf '%s\n' 'Acquire::Retries "2";' 'Acquire::http::Timeout "20";' 'Acquire::https::Timeout "20";' | sudo tee /etc/apt/apt.conf.d/80-fail-fast
+        timeout 180s npx playwright install-deps chromium
+        probe

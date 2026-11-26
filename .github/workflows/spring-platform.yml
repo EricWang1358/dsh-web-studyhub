@@ -32,7 +32,7 @@ jobs:
             if git cat-file -e "$BASE^{commit}" || git fetch --depth=1 origin "$BASE"; then
               if git diff --quiet "$BASE" HEAD -- packages/studyhub-spring packages/studyhub-desktop lib ui locale \
                   scripts/build.mjs scripts/host-react.mjs scripts/qa tests/helpers package.json package-lock.json \
-                  .npmrc .github/workflows/spring-platform.yml .github/workflows/verify.yml; then
+                  .npmrc .github/actions/setup-chromium .github/workflows/spring-platform.yml .github/workflows/verify.yml; then
                 build=false
               fi
             fi
@@ -57,7 +57,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
         env:
           STUDYHUB_SKIP_PREPARE: '1'
-      - run: npx playwright install --with-deps chromium
+      - uses: ./.github/actions/setup-chromium
       - uses: actions/cache@v4
         with:
           path: packages/studyhub-spring/studyhub-retrieval/target/model
@@ -135,7 +135,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
         env:
           STUDYHUB_SKIP_PREPARE: '1'
-      - run: npx playwright install chromium
+      - uses: ./.github/actions/setup-chromium
       - name: Install WiX 3.14.1 for JDK 21 jpackage
         shell: pwsh
         run: |

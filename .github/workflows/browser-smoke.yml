@@ -15,7 +15,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright-browsers
       STUDY_QA_REQUIRE_BROWSER: '1'
     steps:
       - uses: actions/checkout@v4
@@ -26,26 +25,7 @@ jobs:
       - run: npm ci --legacy-peer-deps
         env:
           STUDYHUB_SKIP_PREPARE: '1'
-      - name: Playwright version (the cache key for the browser download)
-        id: playwright
-        run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
-        id: browsers
-        with:
-          path: .playwright-browsers
-          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
-      - name: Chromium
-        if: steps.browsers.outputs.cache-hit != 'true'
-        run: npx playwright install chromium
-      - name: Check the browser and install missing system libraries
-        timeout-minutes: 3
-        run: |
-          probe() { node --input-type=module -e "import { launchChromium } from './scripts/qa/browser.mjs'; await (await launchChromium()).close()"; }
-          if ! probe; then
-            printf '%s\n' 'Acquire::Retries "2";' 'Acquire::http::Timeout "20";' 'Acquire::https::Timeout "20";' | sudo tee /etc/apt/apt.conf.d/80-fail-fast
-            npx playwright install-deps chromium
-            probe
-          fi
+      - uses: ./.github/actions/setup-chromium
       # Each test builds its own UI bundle into a temp folder (buildPreview), so no build step is needed here. scripts/test.mjs is how the shards run tests too
       # (isolated home, no real network). The files cover: the shell and navigation, the review reveal, the mistakes page, and the right-sidebar hand-off.
       - run: >-
