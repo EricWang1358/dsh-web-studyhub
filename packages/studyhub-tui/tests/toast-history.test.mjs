@@ -272,7 +272,7 @@ test('P2-b: AppShell raises toastTop for wrapped multi-line toasts above footer 
 
       tty.send('C');
       const cleared = await tty.waitFor(
-        (screen) => screen.includes('近期提示 (0)') && screen.includes('暂无近期提示记录') && !screen.includes('RECALLED_TOAST_99'),
+        (screen) => screen.includes('近期提示 (0)') && screen.includes('暂无通知记录') && !screen.includes('RECALLED_TOAST_99'),
         { label: 'InboxModal cleared toastHistory state after pressing C' },
       );
       tty.assertHealthyScreen(cleared, 100, 26, 'InboxModal cleared history');
