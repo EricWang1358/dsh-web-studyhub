@@ -146,9 +146,12 @@ test("summary-course renders newly finished chapter highlight and 3-state segmen
 
     // Answer the batch: make the first ch1 card wrong when finishWithWeak=true, rest right
     let madeWrong = false;
+    // After 下一题 the answered card stays on screen (its options disabled) until the next card or the result page replaces it.
+    // Wait for one of those two before deciding, instead of guessing how long the transition takes.
+    const nextStep = page.locator(".result-page .summary-course, .options .option:not([disabled])").first();
     while (true) {
-      const finished = await page.locator(".result-page .summary-course").isVisible().catch(() => false);
-      if (finished) break;
+      await nextStep.waitFor({ timeout: 30000 });
+      if (await page.locator(".result-page .summary-course").isVisible()) break;
       const option = finishWithWeak && !madeWrong
         ? page.locator(".options .option", { hasText: "Option B fails" })
         : page.locator(".options .option", { hasText: "Option A holds" });
@@ -156,7 +159,6 @@ test("summary-course renders newly finished chapter highlight and 3-state segmen
       await option.click();
       await page.locator('[data-usage="review.next"]').waitFor({ timeout: 15000 });
       await page.locator('[data-usage="review.next"]').click();
-      await page.waitForTimeout(40);
     }
 
     await page.locator(".result-page .summary-course__bar").waitFor({ state: "visible", timeout: 15000 });
