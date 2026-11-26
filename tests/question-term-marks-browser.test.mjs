@@ -282,6 +282,10 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
         await takeShot(page, `term-marks-${lang}-${width}`);
 
         // 5. Space still flips flashcard while marking; Escape exits marking while keeping chips.
+        // The pointer stayed over the old card as the strip scrolled into view. A hover
+        // tooltip owns Escape while open, so leave it before exercising the card shortcuts.
+        await page.mouse.move(-1, -1);
+        await page.locator('[role="tooltip"]:visible').first().waitFor({ state: "hidden", timeout: 10000 });
         await page.keyboard.press("Space");
         await page.locator('.flip-front[aria-hidden="false"]').waitFor({ timeout: 10000 });
         assert.equal(await termsBtn.getAttribute("aria-pressed"), "true", `${tag}: Space keeps marking mode active`);
@@ -289,7 +293,7 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
         await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 10000 });
 
         await page.keyboard.press("Escape");
-        assert.equal(await termsBtn.getAttribute("aria-pressed"), "false", `${tag}: Escape exits marking mode`);
+        await termsBtn.and(page.locator('[aria-pressed="false"]')).waitFor({ timeout: 10000 });
         assert.equal(await page.locator(".review-body.is-marking").count(), 0);
         assert.equal((await chipTexts(page)).length, 3, `${tag}: chips remain visible after Escape`);
 
