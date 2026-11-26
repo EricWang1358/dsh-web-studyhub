@@ -18,13 +18,13 @@ import { currentCourse } from '../../shell/data.js';
 import { t, useTuiStore } from '../../state/store.js';
 import type { KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { PomodoroBar, pomodoroBarHeight } from './PomodoroBar.js';
+import { selectBoardColumnBuckets, selectRawFocusTotals } from '../../selectors/board-metrics.js';
 import {
   addCompletedPomodoro,
   adjacentColumn,
   BOARD_COLUMNS,
   boardFilePath,
   boardSaveFailureNotice,
-  cardsInColumn,
   createBoardSaveCoordinator,
   dueStatus,
   emptyBoard,
@@ -95,14 +95,9 @@ function cardMatchesFilter(card: BoardCard, normalizedQuery: string): boolean {
 /** Pure helper generating GFM Markdown for a Kanban board snapshot (0 LLM tokens). */
 export function formatBoardMarkdown(doc: BoardDocument, lang: UiLanguage = 'en'): string {
   const cards = Array.isArray(doc?.cards) ? doc.cards : [];
-  const grouped: Record<BoardColumnId, BoardCard[]> = {
-    todo: cardsInColumn(cards, 'todo'),
-    doing: cardsInColumn(cards, 'doing'),
-    done: cardsInColumn(cards, 'done'),
-  };
+  const grouped = selectBoardColumnBuckets(cards);
 
-  const pomodoros = Math.max(0, Math.floor(doc?.focusStats?.completedPomodoros ?? 0));
-  const minutes = Math.max(0, Math.floor(doc?.focusStats?.focusedMinutes ?? 0));
+  const { completedPomodoros: pomodoros, focusedMinutes: minutes } = selectRawFocusTotals(doc?.focusStats);
   const exportDate = todayLocalYmd();
 
   const lines: string[] = ['# StudyHub Kanban Board', ''];
@@ -810,14 +805,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
     [doc.cards, normalizedFilter],
   );
 
-  const grouped = useMemo(
-    () => ({
-      todo: cardsInColumn(filteredCards, 'todo'),
-      doing: cardsInColumn(filteredCards, 'doing'),
-      done: cardsInColumn(filteredCards, 'done'),
-    }),
-    [filteredCards],
-  );
+  const grouped = useMemo(() => selectBoardColumnBuckets(filteredCards), [filteredCards]);
 
   useEffect(() => {
     setCursorByCol((prev) => {
