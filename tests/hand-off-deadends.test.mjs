@@ -20,7 +20,7 @@ const m = await loadUi(`
   export { handOffText } from './ui/agent-prompts/index.js';
   export { messageParts, notesHead } from './ui/agent-prompts/message.js';
   export { languageTail } from './ui/agent-prompts/say.js';
-  export { failedImportInput, lastingFailures, pastedJsonInput, rejectedFilesInput, PASTED_JSON_CHARS, DECK_HEAD_CHARS } from './ui/import-hand-off.js';
+  export { failedImportInput, lastingFailures, pastedJsonInput, rejectedFilesInput, DECK_HEAD_CHARS } from './ui/import-hand-off.js';
   export { failedHandOffInput, FAILED_HAND_OFF_STATES } from './ui/tasks/failed-hand-off.js';
   export { default as CompactJobCard } from './ui/tasks/CompactJobCard.jsx';
   export { default as RunLine } from './ui/tasks/RunLine.jsx';
@@ -115,8 +115,13 @@ test('import.file: file names, errors, facts and the start of a text stay in the
   }
 });
 
-test('a pasted JSON longer than 20,000 characters: the start goes, and the message says it was cut; a short one goes whole, unsaid', () => {
-  assert.equal(m.PASTED_JSON_CHARS, 20000);
+test('a pasted JSON longer than 20,000 characters: the start goes, and the message says it was cut; up to 20,000 goes whole, unsaid', () => {
+  const atLimit = m.pastedJsonInput('x'.repeat(20_000), 'Unexpected end');
+  assert.deepEqual([atLimit.excerpt.text.length, atLimit.excerpt.total], [20_000, 20_000]);
+  assert.doesNotMatch(m.handOffText('import.file', atLimit, 'zh'), /截断/);
+  const overLimit = m.pastedJsonInput('x'.repeat(20_001), 'Unexpected end');
+  assert.deepEqual([overLimit.excerpt.text.length, overLimit.excerpt.total], [20_000, 20_001]);
+  assert.match(m.handOffText('import.file', overLimit, 'zh'), /- 截断：「内容开头」只附了前 20000 个字符（全文 20001 个）。/);
   const long = `{"title":"x","cards":[${'1,'.repeat(12500)}]}`;
   const text = m.handOffText('import.file', m.pastedJsonInput(long, 'cards[0] is not an object'), 'zh');
   assert.match(text, new RegExp(`- 截断：「内容开头」只附了前 20000 个字符（全文 ${long.length} 个）。`));
