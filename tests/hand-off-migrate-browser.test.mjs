@@ -63,7 +63,7 @@ const card = (n) => ({ id: `c${n}`, kind: 'flashcard', topic: `主题${n}`, obje
 const bookPage = (n) => ({ id: `bp${n}`, title: `操作系统教材 · p.${n}`, text: '进程调度与内存管理。'.repeat(3600), createdAt: '2026-10-01T08:00:00.000Z', courses: ['操作系统'],
   document: { id: 'book', page: n, totalPages: 12, bookTitle: '操作系统教材', origin: 'converted', converter: 'mineru' } });
 
-/** A library with one deck of fourteen topics (no topic groups yet), a saved skeleton, a finished round with weak topics and a big book for 分步出题. */
+/** A library with fourteen ungrouped topics, a saved skeleton and a big book for 分步出题. */
 async function seed(root) {
   const service = new StudyService(root);
   await service.store.update((state) => {
@@ -75,16 +75,6 @@ async function seed(root) {
     nodes: [{ id: 'n1', term: '进程', meaning: '资源分配的单位', attributes: ['独立的地址空间'], cards: [{ deckId: 'd1', cardId: 'c1' }] },
       { id: 'n2', term: '线程', meaning: '调度的单位', attributes: ['共享进程的地址空间'], parent: 'n1', cards: [{ deckId: 'd1', cardId: 'c2' }] }],
     relations: [{ from: 'n2', to: 'n1', type: 'part-of' }], sequences: [] } });
-  let run = await service.call('review.start', { mode: 'path', scope: [{ deckId: 'd1', topic: '主题1' }, { deckId: 'd1', topic: '主题2' }, { deckId: 'd1', topic: '主题3' }], fresh: true });
-  const seen = new Set();
-  for (let step = 0; !run.complete && step < 6; step++) {
-    const retry = seen.has(run.card.id);
-    seen.add(run.card.id);
-    await service.call('review.reveal', { runId: run.id, cardId: run.card.id });
-    await service.call('review.answer', { runId: run.id, cardId: run.card.id, index: run.index, grade: retry ? 4 : 1 });
-    run = await service.call('review.move', { runId: run.id, direction: 1 });
-  }
-  assert.equal(run.complete, true, 'three initial answers and their three optional retries finish the fixture round');
   await service.dispose?.();
 }
 
@@ -103,6 +93,10 @@ test('发给主会话 on the places that handed over before: the shared control,
   t.after(() => server.close());
   if (shots) await mkdir(shots, { recursive: true });
   for (const [width, height, theme] of views) {
+    // 回到题目 resumes this round. A completed seed would start a new daily round across the whole deck.
+    const topics = ['主题1', '主题2', '主题3'];
+    const round = await previewCall(server, 'review.start', { mode: 'path', scope: topics.map(topic => ({ deckId: 'd1', topic })), fresh: true });
+    assert.equal(round.total, topics.length);
     const context = await browser.newContext({ viewport: { width, height }, locale: 'zh-CN', colorScheme: theme, reducedMotion: 'reduce' });
     const page = await context.newPage();
     const errors = [];
@@ -231,19 +225,16 @@ test('发给主会话 on the places that handed over before: the shared control,
     await group.waitFor({ timeout: 30000 });
     text = await handOver(group, { shotName: 'skeleton-groups' });
     assert.match(text, /skeleton\.topics/);
-    await page.locator('.sk-picker input[type="checkbox"]').first().check().catch(() => {});
+    await page.getByRole('checkbox', { name: '选择主题 主题1', exact: true }).check();
     const design = page.getByRole('button', { name: '在主会话里生成骨架' });
     assert.match(await design.evaluate((element) => element.className), /sh-btn--primary/);
     assert.equal(await design.getAttribute('title'), null);
-    await page.locator('.sk-picker .sk-topic, .sk-picker label').filter({ hasText: '主题1' }).first().click().catch(() => {});
-    if (await design.isEnabled()) {
-      await reset();
-      await design.click();
-      await receipt('filled', FILLED).waitFor({ timeout: 15000 });
-      assert.match((await state()).text, /skeleton\.context/);
-      assert.equal(await page.locator('.sk-note').count(), 0, `${tag}: no line of the page's own about it`);
-      await shot('skeleton-primary');
-    }
+    await reset();
+    await design.click();
+    await receipt('filled', FILLED).waitFor({ timeout: 15000 });
+    assert.match((await state()).text, /skeleton\.context/);
+    assert.equal(await page.locator('.sk-note').count(), 0, `${tag}: no line of the page's own about it`);
+    await shot('skeleton-primary');
     await page.locator('.sk-saved-item').first().click();
     const update = page.locator('.sk-view-head [data-hand-off="skeleton.design"]');
     await update.waitFor({ timeout: 30000 });
@@ -263,7 +254,9 @@ test('发给主会话 on the places that handed over before: the shared control,
     text = (await state()).text;
     assert.match(text, /```request 我的要求\n加上 CAP 定理，并和 BASE 对比\n```/);
     assert.equal(await extend.locator('textarea').inputValue(), '', `${tag}: the box is empty once handed over`);
-    await page.getByRole('radio', { name: '结构图' }).click().catch(async () => { await page.getByRole('button', { name: '结构图' }).click(); });
+    const diagram = page.getByRole('group', { name: '骨架视图' }).getByRole('button', { name: '结构图', exact: true });
+    await diagram.click();
+    assert.equal(await diagram.getAttribute('aria-pressed'), 'true');
     await page.locator('.skc-class').first().click();
     const concept = page.locator('.skc-extend [data-hand-off-form="skeleton.extend"]');
     await concept.waitFor({ timeout: 15000 });
@@ -280,7 +273,7 @@ test('发给主会话 on the places that handed over before: the shared control,
     // Low grades stay on feedback. Advance explicitly, including one re-ask per original card.
     // The original weak topics remain available on the result page after a successful re-ask.
     const answeredPrompts = new Set();
-    for (let step = 0; step < 28; step++) {
+    for (let step = 0; step < topics.length * 2; step++) {
       const visible = page.locator('[data-usage="review.flip"], .result-page').first();
       await visible.waitFor();
       if (await page.locator('.result-page').isVisible()) break;
@@ -294,6 +287,9 @@ test('发给主会话 on the places that handed over before: the shared control,
       await page.waitForFunction(() => document.querySelector('.result-page') || !document.querySelector('.next-due'));
     }
     await page.locator('.result-page').waitFor({ timeout: 30000 });
+    const finished = await previewCall(server, 'review.get', { runId: round.id });
+    assert.equal(finished.complete, true, 'the sidebar resumed the seeded round and the learner finished it');
+    assert.deepEqual(new Set(finished.weakTopics), new Set(topics));
     const details = page.locator('details.result-details');
     await details.waitFor({ timeout: 60000 }).catch(async (error) => { if (process.env.MIGRATE_DEBUG) await page.screenshot({ path: 'output/hand-off-migrate-fail.png' }); throw error; });
     await details.locator('summary').click();
