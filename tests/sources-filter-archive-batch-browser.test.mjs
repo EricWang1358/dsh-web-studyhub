@@ -40,6 +40,17 @@ test('Sources filter bar, collapsed-day auto-open, and archived batch restore + 
   catch (error) { if (!/Executable doesn't exist/.test(error.message)) throw error; t.skip('Chromium unavailable'); return; }
 
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
+  page.setDefaultTimeout(15000);
+  const openArchived = async () => {
+    const entry = page.locator('.sources-page__header [data-tour="sources-archived"]');
+    await entry.waitFor();
+    if (await entry.getAttribute('data-archive-toggle') === null) {
+      await entry.getByRole('button', { name: 'More', exact: true }).click();
+      await page.getByRole('menu').locator('[data-archive-toggle]').click();
+    } else {
+      await entry.click();
+    }
+  };
   const errors = [];
   page.on('pageerror', err => errors.push(err.message));
   await page.route('**/*', route => new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : route.abort());
@@ -65,7 +76,7 @@ test('Sources filter bar, collapsed-day auto-open, and archived batch restore + 
   assert.equal(await older.count(), 0, 'clearing the filter restores the saved fold');
 
   // Switch to Archived view (3 archived materials).
-  await page.locator('[data-archive-toggle]').click();
+  await openArchived();
   await page.locator('.source-organize > summary').click();
 
   // Select all 3 -> Permanent delete dialog is blocked because Archived Cited C is referenced by OS Deck.
@@ -97,7 +108,7 @@ test('Sources filter bar, collapsed-day auto-open, and archived batch restore + 
   await service.call('source.archive', { sourceIds: ['s-arch-1'], archived: true });
   await page.reload();
   await page.locator('[data-tour="nav-sources"]').click();
-  await page.locator('[data-archive-toggle]').click();
+  await openArchived();
   const expandAll = page.getByRole('button', { name: 'Expand all', exact: true });
   if (await expandAll.isVisible()) await expandAll.click();
   await page.locator('.source-organize > summary').click();
