@@ -13,7 +13,7 @@ import { settleJob, until } from './helpers/wait.mjs';
    This is the 'off' third of unified-runtime-audio-console.test.mjs, moved here as it was (same names, same assertions, the setup of helpers/audio-console.mjs), so that
    the runner can put the three modes on three workers: the other two modes are the files beside it. */
 
-/** This file's mode, the one every test here is named after: the switch of every audio path off, so the matrix starts each kind on the original path only. */
+/** This file's mode: the switch of every audio path off, so the matrix starts each kind on the original path only. */
 const mode = 'off';
 
 test('audio console (switches off / legacy paths): single/batch/subtitles/review/save run as console cards (class correction skipped per D-12), archive, restore, and delete cleanly', async t => {
@@ -123,7 +123,7 @@ test('audio console (switches off / legacy paths): cancelling running legacy aud
 
 /* ---- The findings of the first run of this matrix, each with its own test ---------------------------------------------------------------------------------- */
 
-test(`${mode}: every kind of audio job the runtime has is in the audio family of the console, so the console draws it as an audio job (the class correction was missing)`, () => {
+test('audio console (switches off / legacy paths): every kind of audio job the runtime has is in the audio family of the console, so the console draws it as an audio job (the class correction was missing)', () => {
   for (const [name, kind] of Object.entries(KINDS)) assert.equal(isAudioJob({ type: kind.kind }), true, `${name} (${kind.kind}) is an audio job`);
 });
 

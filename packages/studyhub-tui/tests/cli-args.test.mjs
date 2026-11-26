@@ -2,11 +2,11 @@
 // `node --test tests/cli-args.test.mjs`
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { EventEmitter } from 'node:events';
 import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { after, describe, test } from 'node:test';
+import { PassThrough, Readable } from 'node:stream';
+import { after, describe, mock, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { tsImport } from 'tsx/esm/api';
@@ -67,29 +67,24 @@ after(async () => {
 
 function makeMockTty({ stdoutTty = true, stdinTty = true, isRaw = true } = {}) {
   const written = [];
-  const calls = [];
 
-  const stdout = new EventEmitter();
+  const stdout = new PassThrough();
   stdout.isTTY = stdoutTty;
-  stdout.defaultEncoding = null;
-  stdout.setDefaultEncoding = (enc) => {
-    stdout.defaultEncoding = enc;
-  };
-  stdout.write = (chunk) => {
-    written.push(String(chunk));
-    return true;
-  };
+  // Seed a non-UTF-8 default so enterTerminalSession's setDefaultEncoding('utf8') has a real observable effect.
+  stdout.setDefaultEncoding('latin1');
+  stdout.on('data', (chunk) => {
+    written.push(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
+  });
 
-  const stdin = new EventEmitter();
+  const stdin = new Readable({ read() {} });
   stdin.isTTY = stdinTty;
   stdin.isRaw = isRaw;
-  stdin.setRawMode = (mode) => {
-    calls.push(mode);
+  stdin.setRawMode = mock.fn((mode) => {
     stdin.isRaw = mode;
     return stdin;
-  };
+  });
 
-  return { stdout, stdin, written, calls };
+  return { stdout, stdin, written };
 }
 
 // ---------------------------------------------------------------------------
@@ -767,62 +762,65 @@ describe('CLI fast-path arg parsing & report formatting (--doctor / --stats / --
 
 describe('enterTerminalSession', () => {
   test('enters alt-screen on TTY and restores idempotently', () => {
-    const mock = makeMockTty({ stdoutTty: true, stdinTty: true, isRaw: true });
-    const session = enterTerminalSession({ stdout: mock.stdout, stdin: mock.stdin, altScreen: true });
+    const tty = makeMockTty({ stdoutTty: true, stdinTty: true, isRaw: true });
+    const session = enterTerminalSession({ stdout: tty.stdout, stdin: tty.stdin, altScreen: true });
 
     assert.equal(session.isTty, true);
     assert.equal(session.altScreenActive, true);
-    assert.equal(mock.stdout.defaultEncoding, 'utf8');
-    assert.equal(mock.written.length, 1);
-    assert.ok(mock.written[0].includes('\x1b[?1049h'), 'emits alt-screen enter sequence');
+    assert.equal(tty.written.length, 1);
+    assert.ok(tty.written[0].includes('\x1b[?1049h'), 'emits alt-screen enter sequence');
+
+    // Verify stdout was switched from latin1 to UTF-8 by writing non-ASCII text
+    tty.stdout.write('测试');
+    assert.equal(tty.written[1], '测试', 'stdout encodes multibyte strings as UTF-8');
 
     session.restore();
-    assert.equal(mock.written.length, 2);
-    assert.equal(mock.written[1], '\x1b[0m\x1b[?25h\x1b[?1049l');
-    assert.deepEqual(mock.calls, [false]);
-    assert.equal(mock.stdin.isRaw, false);
+    assert.equal(tty.written.length, 3);
+    assert.equal(tty.written[2], '\x1b[0m\x1b[?25h\x1b[?1049l');
+    assert.deepEqual(tty.stdin.setRawMode.mock.calls.map((c) => c.arguments), [[false]]);
+    assert.equal(tty.stdin.isRaw, false);
 
     // Idempotent second restore
     session.restore();
-    assert.equal(mock.written.length, 2);
-    assert.deepEqual(mock.calls, [false]);
+    assert.equal(tty.written.length, 3);
+    assert.deepEqual(tty.stdin.setRawMode.mock.calls.map((c) => c.arguments), [[false]]);
   });
 
   test('respects altScreen: false on TTY', () => {
-    const mock = makeMockTty({ stdoutTty: true, stdinTty: true, isRaw: false });
-    const session = enterTerminalSession({ stdout: mock.stdout, stdin: mock.stdin, altScreen: false });
+    const tty = makeMockTty({ stdoutTty: true, stdinTty: true, isRaw: false });
+    const session = enterTerminalSession({ stdout: tty.stdout, stdin: tty.stdin, altScreen: false });
 
     assert.equal(session.isTty, true);
     assert.equal(session.altScreenActive, false);
-    assert.deepEqual(mock.written, []);
+    assert.deepEqual(tty.written, []);
 
     session.restore();
-    assert.deepEqual(mock.written, ['\x1b[0m\x1b[?25h']);
-    assert.deepEqual(mock.calls, []);
+    assert.deepEqual(tty.written, ['\x1b[0m\x1b[?25h']);
+    assert.deepEqual(tty.stdin.setRawMode.mock.calls.map((c) => c.arguments), []);
   });
 
   test('is a safe no-op on non-TTY streams', () => {
-    const mock = makeMockTty({ stdoutTty: false, stdinTty: false, isRaw: false });
-    const session = enterTerminalSession({ stdout: mock.stdout, stdin: mock.stdin, altScreen: true });
+    const tty = makeMockTty({ stdoutTty: false, stdinTty: false, isRaw: false });
+    const session = enterTerminalSession({ stdout: tty.stdout, stdin: tty.stdin, altScreen: true });
 
     assert.equal(session.isTty, false);
     assert.equal(session.altScreenActive, false);
-    assert.deepEqual(mock.written, []);
+    assert.deepEqual(tty.written, []);
 
     session.restore();
     session.restore();
-    assert.deepEqual(mock.written, []);
-    assert.deepEqual(mock.calls, []);
+    assert.deepEqual(tty.written, []);
+    assert.deepEqual(tty.stdin.setRawMode.mock.calls.map((c) => c.arguments), []);
   });
 });
 
 describe('enterTerminalSession SGR 1006 mouse lifecycle', () => {
   test('default (mouse omitted or false) writes alt screen ONLY and keeps mouseActive false', () => {
     for (const mouseOpt of [undefined, false]) {
-      const mock = makeMockTty();
+      const tty = makeMockTty();
       const session = enterTerminalSession({
-        stdout: mock.stdout,
-        stdin: mock.stdin,
+        stdout: tty.stdout,
+        stdin: tty.stdin,
         altScreen: true,
         ...(mouseOpt === undefined ? {} : { mouse: mouseOpt }),
       });
@@ -830,24 +828,24 @@ describe('enterTerminalSession SGR 1006 mouse lifecycle', () => {
       assert.equal(session.isTty, true);
       assert.equal(session.altScreenActive, true);
       assert.equal(session.mouseActive, false);
-      assert.equal(mock.written.length, 1);
-      assert.ok(mock.written[0].includes('\x1b[?1049h'), 'enters alt screen');
-      assert.ok(!mock.written[0].includes('\x1b[?1000h'), 'does not write 1000h');
-      assert.ok(!mock.written[0].includes('\x1b[?1006h'), 'does not write 1006h');
+      assert.equal(tty.written.length, 1);
+      assert.ok(tty.written[0].includes('\x1b[?1049h'), 'enters alt screen');
+      assert.ok(!tty.written[0].includes('\x1b[?1000h'), 'does not write 1000h');
+      assert.ok(!tty.written[0].includes('\x1b[?1006h'), 'does not write 1006h');
 
       session.restore();
-      assert.equal(mock.written.length, 2);
-      assert.equal(mock.written[1], '\x1b[0m\x1b[?25h\x1b[?1049l');
-      assert.ok(!mock.written[1].includes('\x1b[?1006l'));
-      assert.ok(!mock.written[1].includes('\x1b[?1000l'));
+      assert.equal(tty.written.length, 2);
+      assert.equal(tty.written[1], '\x1b[0m\x1b[?25h\x1b[?1049l');
+      assert.ok(!tty.written[1].includes('\x1b[?1006l'));
+      assert.ok(!tty.written[1].includes('\x1b[?1000l'));
     }
   });
 
   test('opt-in (mouse: true) enables SGR 1006 mouse and disables it BEFORE alt-screen exit idempotently', () => {
-    const mock = makeMockTty();
+    const tty = makeMockTty();
     const session = enterTerminalSession({
-      stdout: mock.stdout,
-      stdin: mock.stdin,
+      stdout: tty.stdout,
+      stdin: tty.stdin,
       altScreen: true,
       mouse: true,
     });
@@ -855,43 +853,43 @@ describe('enterTerminalSession SGR 1006 mouse lifecycle', () => {
     assert.equal(session.isTty, true);
     assert.equal(session.altScreenActive, true);
     assert.equal(session.mouseActive, true);
-    const entryOutput = mock.written.join('');
+    const entryOutput = tty.written.join('');
     assert.ok(entryOutput.includes('\x1b[?1049h'), 'enters alt screen');
     assert.ok(entryOutput.includes('\x1b[?1000h\x1b[?1006h'), 'enables SGR 1006 mouse');
 
-    const countBeforeRestore = mock.written.length;
+    const countBeforeRestore = tty.written.length;
     session.restore();
-    assert.equal(mock.written.length, countBeforeRestore + 1);
-    const restoreSeq = mock.written[mock.written.length - 1];
+    assert.equal(tty.written.length, countBeforeRestore + 1);
+    const restoreSeq = tty.written[tty.written.length - 1];
     const disableIdx = restoreSeq.indexOf('\x1b[?1006l\x1b[?1000l');
     const exitAltIdx = restoreSeq.indexOf('\x1b[?1049l');
     const resetIdx = restoreSeq.indexOf('\x1b[0m\x1b[?25h');
     assert.ok(disableIdx >= 0, 'restore writes DISABLE_SGR_MOUSE');
     assert.ok(resetIdx > disableIdx, 'DISABLE_SGR_MOUSE precedes style reset & show cursor');
     assert.ok(exitAltIdx > disableIdx, 'DISABLE_SGR_MOUSE precedes EXIT_ALT_SCREEN');
-    assert.deepEqual(mock.calls, [false]);
+    assert.deepEqual(tty.stdin.setRawMode.mock.calls.map((c) => c.arguments), [[false]]);
 
     // Idempotent second restore()
     session.restore();
-    assert.equal(mock.written.length, countBeforeRestore + 1);
-    assert.deepEqual(mock.calls, [false]);
+    assert.equal(tty.written.length, countBeforeRestore + 1);
+    assert.deepEqual(tty.stdin.setRawMode.mock.calls.map((c) => c.arguments), [[false]]);
   });
 
   test('opt-in (mouse: true, altScreen: false) enables and restores SGR mouse without alt screen', () => {
-    const mock = makeMockTty({ isRaw: false });
+    const tty = makeMockTty({ isRaw: false });
     const session = enterTerminalSession({
-      stdout: mock.stdout,
-      stdin: mock.stdin,
+      stdout: tty.stdout,
+      stdin: tty.stdin,
       altScreen: false,
       mouse: true,
     });
 
     assert.equal(session.altScreenActive, false);
     assert.equal(session.mouseActive, true);
-    assert.equal(mock.written.join(''), '\x1b[?1000h\x1b[?1006h');
+    assert.equal(tty.written.join(''), '\x1b[?1000h\x1b[?1006h');
 
     session.restore();
-    assert.equal(mock.written[mock.written.length - 1], '\x1b[?1006l\x1b[?1000l\x1b[0m\x1b[?25h');
+    assert.equal(tty.written[tty.written.length - 1], '\x1b[?1006l\x1b[?1000l\x1b[0m\x1b[?25h');
   });
 
   test('non-TTY streams keep mouseActive false and write nothing even with mouse: true', () => {
@@ -900,10 +898,10 @@ describe('enterTerminalSession SGR 1006 mouse lifecycle', () => {
       [false, true],
       [true, false],
     ]) {
-      const mock = makeMockTty({ stdoutTty, stdinTty, isRaw: false });
+      const tty = makeMockTty({ stdoutTty, stdinTty, isRaw: false });
       const session = enterTerminalSession({
-        stdout: mock.stdout,
-        stdin: mock.stdin,
+        stdout: tty.stdout,
+        stdin: tty.stdin,
         altScreen: true,
         mouse: true,
       });
@@ -911,12 +909,12 @@ describe('enterTerminalSession SGR 1006 mouse lifecycle', () => {
       assert.equal(session.isTty, false);
       assert.equal(session.altScreenActive, false);
       assert.equal(session.mouseActive, false);
-      assert.deepEqual(mock.written, []);
+      assert.deepEqual(tty.written, []);
 
       session.restore();
       session.restore();
-      assert.deepEqual(mock.written, []);
-      assert.deepEqual(mock.calls, []);
+      assert.deepEqual(tty.written, []);
+      assert.deepEqual(tty.stdin.setRawMode.mock.calls.map((c) => c.arguments), []);
     }
   });
 });
@@ -1094,7 +1092,7 @@ describe('cleanPathInput', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 7. Static cross-platform audit across src/**/*.ts(x) and bin/*.mjs
+// 7. Cross-platform audit across src/**/*.ts(x) and bin/*.mjs
 // ---------------------------------------------------------------------------
 
 async function collectFiles(dir, exts) {
@@ -1111,7 +1109,7 @@ async function collectFiles(dir, exts) {
   return out;
 }
 
-describe('static cross-platform audit (src/**/*.ts(x) & bin/*.mjs)', () => {
+describe('cross-platform audit (src/**/*.ts(x) & bin/*.mjs)', () => {
   test('contains zero /bin/sh or bash -c spawns, static lib/ imports, or mandatory Alt+ shortcuts', async () => {
     const srcFiles = await collectFiles(join(pkgRoot, 'src'), ['.ts', '.tsx']);
     const binFiles = await collectFiles(join(pkgRoot, 'bin'), ['.mjs']);
@@ -1158,7 +1156,8 @@ describe('static cross-platform audit (src/**/*.ts(x) & bin/*.mjs)', () => {
     assert.equal(binRun.stderr, '');
     assert.equal(binRun.stdout.trim(), 'STUB_DIST_CLI_OK');
 
-    // 1b. bin/studyhub-tui.mjs dev fallback (no dist/cli.mjs) passes node_modules/tsx/dist/loader.mjs as a file URL to `--import`.
+    // 1b. bin/studyhub-tui.mjs dev fallback (no dist/cli.mjs) passes node_modules/tsx/dist/loader.mjs as a file URL to `--import`,
+    //     spawns src/cli.tsx from the same `#` + space directory, and forwards CLI arguments.
     const fakeDevPkg = join(sandbox, 'tui dev #3 space');
     await mkdir(join(fakeDevPkg, 'bin'), { recursive: true });
     await mkdir(join(fakeDevPkg, 'node_modules', 'tsx', 'dist'), { recursive: true });
@@ -1167,14 +1166,17 @@ describe('static cross-platform audit (src/**/*.ts(x) & bin/*.mjs)', () => {
     await copyFile(binPath, tempDevBin);
     await writeFile(
       join(fakeDevPkg, 'node_modules', 'tsx', 'dist', 'loader.mjs'),
-      "process.stdout.write('STUB_DEV_LOADER_OK\\n'); process.exit(0);\n",
+      "process.stdout.write(JSON.stringify({ script: process.argv[1], args: process.argv.slice(2) }) + '\\n'); process.exit(0);\n",
       'utf8',
     );
     await writeFile(join(fakeDevPkg, 'src', 'cli.tsx'), '\n', 'utf8');
 
-    const devBinRun = await execFileAsync(process.execPath, [tempDevBin], { timeout: 15_000 });
+    const devBinRun = await execFileAsync(process.execPath, [tempDevBin, '--version'], { timeout: 15_000 });
     assert.equal(devBinRun.stderr, '');
-    assert.equal(devBinRun.stdout.trim(), 'STUB_DEV_LOADER_OK');
+    assert.deepEqual(JSON.parse(devBinRun.stdout.trim()), {
+      script: resolve(fakeDevPkg, 'src', 'cli.tsx'),
+      args: ['--version'],
+    });
 
     // 2. desktop-deps.ts loadDesktopDeps() dynamically imports all 12 desktop modules from a STUDYHUB_DESKTOP_ROOT containing '#' and spaces.
     const fakeDesktop = join(sandbox, 'desktop #2 space');

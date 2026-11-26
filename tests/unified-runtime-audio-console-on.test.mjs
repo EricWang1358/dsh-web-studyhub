@@ -12,10 +12,10 @@ import { settleJob, until } from './helpers/wait.mjs';
    This is the 'on' third of unified-runtime-audio-console.test.mjs, moved here as it was (same names, same assertions, the setup of helpers/audio-console.mjs), so that
    the runner can put the three modes on three workers: the other two modes are the files beside it. */
 
-/** This file's mode, the one every test here is named after: the switch of every audio path on, so the matrix starts each kind on the runtime only. */
+/** This file's mode: the switch of every audio path on, so the matrix starts each kind on the runtime only. */
 const mode = 'on';
 
-test('audio console (switches on / unified runtime): all six runtime audio kinds including class correction expose contract ids, token usage, archive, and delete lifecycle', async t => {
+test('audio console (switches on / unified runtime): all six runtime audio kinds including class correction expose contract ids, subtitles/review/save token usage, archive, unarchive, and delete lifecycle', async t => {
   const lib = await consoleLibrary(t), cards = await startAll(lib, mode);
   assert.deepEqual(cards.filter(card => !card.started).map(card => `${card.name}/${card.side}`), mode === 'on' ? [] : ['correction/off'], 'the class correction has a card only on the runtime (D-12)');
   const rows = [];
@@ -122,7 +122,7 @@ test('audio console (switches on / unified runtime): cancelling all six runtime 
 
 /* ---- The findings of the first run of this matrix, each with its own test ---------------------------------------------------------------------------------- */
 
-test(`${mode}: the id of a card and the id of its contract: which operations take which (findings)`, async t => {
+test('audio console (switches on / unified runtime): the id of a card and the id of its contract: which operations take which (findings)', async t => {
   const lib = await consoleLibrary(t);
   lib.set(true, ...ALL_SWITCHES);
   const started = await KINDS.subtitles.start(lib, 1), row = await live(lib, started.jobId), contractId = ui.model.contractOf(row).jobId;
@@ -149,7 +149,7 @@ test('audio console (switches on / unified runtime): job.message to a running ru
   await lib.service.call('job.control', { jobId: row.id, action: 'cancel' }); await settleJob(lib.service, row.id);
 });
 
-test(`${mode}: retrying a running job on the runtime says it is still running, with the code the card carries`, async t => {
+test('audio console (switches on / unified runtime): retrying a running job on the runtime says it is still running, with the code the card carries', async t => {
   const lib = await consoleLibrary(t);
   lib.set(true, 'audioSubtitles');
   const started = await KINDS.subtitles.start(lib, 1), row = await live(lib, started.jobId), c = ui.model.contractOf(row);
@@ -161,7 +161,7 @@ test(`${mode}: retrying a running job on the runtime says it is still running, w
   await lib.service.call('job.control', { jobId: row.id, action: 'cancel' }); await settleJob(lib.service, row.id);
 });
 
-test(`${mode}: stopping a job that has ended is refused as its card says (cancel is not available), not answered as done`, async t => {
+test('audio console (switches on / unified runtime): stopping a job that has ended is refused as its card says (cancel is not available), not answered as done', async t => {
   const lib = await consoleLibrary(t);
   lib.set(true, 'audioSubtitles');
   const started = await KINDS.subtitles.start(lib, 1), row = await live(lib, started.jobId);
@@ -175,7 +175,7 @@ test(`${mode}: stopping a job that has ended is refused as its card says (cancel
   assert.equal((await cardOf(lib, row.id)).status, 'complete', 'and the finished job is left as it was');
 });
 
-test(`${mode}: the settings of a batch: what the card offers and what job.control accepts agree at every moment from the start`, async t => {
+test('audio console (switches on / unified runtime): the settings of a batch: what the card offers and what job.control accepts agree at every moment from the start', async t => {
   const lib = await consoleLibrary(t);
   lib.set(true, 'audioBatch');
   const started = await KINDS.batch.start(lib, 3), disagreements = [];
