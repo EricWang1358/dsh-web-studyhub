@@ -803,7 +803,11 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
 
   // The 原始 PDF tab without a file is not dead: it explains and offers 补全原文件.
   const chooseView = value => {
-    if (value === 'original' && !fileUrl) { if (document) setAttaching(issueOf(document.original)?.kind === 'none' ? 'attach' : 'relink'); return; }
+    const loadingRetainedPdf = fetching && originalHandling(document) === 'pdf';
+    if (value === 'original' && !fileUrl && !loadingRetainedPdf) {
+      if (document) setAttaching(issueOf(document.original)?.kind === 'none' ? 'attach' : 'relink');
+      return;
+    }
     // To 原始 PDF, it opens at the page being read (#1001); the text place of this moment is kept with the view (上次读到), before the text goes.
     if (value === 'original' && view !== 'original') {
       const place = loop.here();

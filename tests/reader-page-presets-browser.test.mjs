@@ -35,11 +35,16 @@ test('原始 PDF: a preset of one\'s own is added, asks with its exact words, su
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(String(error)));
     /** Open the imported PDF in 原始 PDF with its learning panel (the panel the presets sit in). */
-    const openOriginal = async () => {
-      await (await revealNavRow(page, 'sources')).click().catch(() => {});
+    const openOriginal = async (bytesPending) => {
+      await (await revealNavRow(page, 'sources')).click();
       await page.locator('.source-doc').first().locator('.source-main').click();
       await page.locator('.study-document-viewer').waitFor({ timeout: 30000 });
-      await chooseMore(page, '原始 PDF');
+      try {
+        if (bytesPending) await bytesPending.started;
+        await chooseMore(page, '原始 PDF');
+      } finally { bytesPending?.release(); }
+      await page.locator('.original-dialog[open], .reader-scroll[data-mode="original"]').first().waitFor();
+      assert.equal(await page.locator('.original-dialog[open]').count(), 0, 'a retained PDF loading its bytes needs no relink');
       await page.locator('.reader-scroll[data-mode="original"]').waitFor({ timeout: 30000 });
       if (!(await page.locator('[data-tour="source-tools"]').isVisible().catch(() => false)))
         await chooseMore(page, '学习工具');
@@ -48,7 +53,14 @@ test('原始 PDF: a preset of one\'s own is added, asks with its exact words, su
     const chip = label => page.locator('.study-page-ask .ask-quick button', { hasText: label });
     try {
       await page.goto(running.server.url);
-      await openOriginal();
+      let releaseBytes;
+      const held = new Promise(resolve => { releaseBytes = resolve; });
+      const isOriginal = request => request.url().endsWith('/api/call') && request.postDataJSON()?.action === 'materials.document.bytes';
+      await page.route('**/api/call', async route => {
+        if (isOriginal(route.request())) await held;
+        await route.fallback();
+      });
+      await openOriginal({ started: page.waitForRequest(isOriginal), release: releaseBytes });
       assert.equal(await page.locator('.study-page-ask .ask-quick button').count(), 5, 'four built-ins and the way to manage them');
 
       // Add a preset of one's own through the entry at the end of the row.
