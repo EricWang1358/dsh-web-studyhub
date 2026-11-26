@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
@@ -16,6 +15,7 @@ import {
 import { examReport } from '../lib/study-state.js';
 import { buildExamPostmortem } from '../ui/exam/exam-postmortem.js';
 import { nativeSelects } from './helpers/native-selects.mjs';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({
@@ -77,7 +77,7 @@ function collectNodes(node, pred, out = []) {
   return out;
 }
 
-test('lib/practice-settings keeps PRACTICE_DEFAULTS intact and manages optional examPostmortemBridge', () => {
+test('examPostmortemBridge setting defaults off, round-trips through mergePracticeSettings/validatePracticePatch, and leaves PRACTICE_DEFAULTS keys unchanged', () => {
   const baselineKeys = ['autopilot', 'roundSize', 'newCardOrder', 'debrief', 'rereadMarks', 'leechFailures', 'leechWindow', 'leechRate'];
   assert.deepEqual(Object.keys(PRACTICE_DEFAULTS), baselineKeys);
   assert.deepEqual(Object.keys(resolvePracticeSettings(undefined)), baselineKeys);
@@ -112,8 +112,35 @@ test('PracticePane and Finder expose opt-in examPostmortemBridge toggle cleanly 
   assert.ok(entry);
   assert.equal(entry.area, 'practice');
 
-  const paneSrc = await readFile(new URL('../ui/settings/PracticePane.jsx', import.meta.url), 'utf8');
-  assert.match(paneSrc, /examPostmortemBridge:\s*on\s*\?\s*true\s*:\s*null/);
+  const interactive = await loadInteractiveUi(`
+    export { default as PracticePane } from './ui/settings/PracticePane.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+  `);
+  const actions = [];
+  const recordAct = async (action, args) => {
+    actions.push({ action, args });
+    return { ok: true };
+  };
+  const paneProps = { data: { settings: {} }, busy: false, act: recordAct };
+  const mounted = interactive.mount(() => interactive.React.createElement(
+    interactive.exports.StudyServicesContext.Provider,
+    { value: { openSettings: noop, host: {} } },
+    interactive.React.createElement(interactive.exports.PracticePane, paneProps),
+  ));
+  try {
+    const toggleInput = () => mounted.find((n) => n.type === 'input' && n.props?.name === 'examPostmortemBridge');
+    assert.equal(toggleInput()?.props?.checked, false);
+    await mounted.act(() => toggleInput().props.onChange({ target: { checked: true } }));
+    assert.deepEqual(actions[0], { action: 'settings.practice.set', args: { patch: { examPostmortemBridge: true } } });
+
+    paneProps.data = { settings: { practice: { examPostmortemBridge: true } } };
+    mounted.rerender();
+    assert.equal(toggleInput()?.props?.checked, true);
+    await mounted.act(() => toggleInput().props.onChange({ target: { checked: false } }));
+    assert.deepEqual(actions[1], { action: 'settings.practice.set', args: { patch: { examPostmortemBridge: null } } });
+  } finally {
+    mounted.unmount();
+  }
 
   english(() => {
     const enHtml = renderToStaticMarkup(h(ssr.PracticePane, { data: { settings: {} }, busy: false, act: noop }));
@@ -321,8 +348,103 @@ test('examReport + snapshot-shaped decks (without cards) still resolve usable ci
   }));
   assert.equal((html.match(/打开出处/g) || []).length, 2);
 
-  const examSrc = await readFile(new URL('../ui/Exam.jsx', import.meta.url), 'utf8');
-  assert.match(examSrc, /if \(pathNote \|\| !row\?\.deckId\) return;/);
-  assert.match(examSrc, /setPathNote\(""\);\s*exam\.enter\(r\)/);
-  assert.match(examSrc, /setPathNote\(""\);\s*exam\.leave\(\{ clear: false \}\)/);
+  // Interactive Exam mount: verify pathNote & missing-deckId guard, onAgain returning to setup (exam.leave), and onStart entering a fresh exam (exam.enter).
+  const examMod = await loadInteractiveUi(`
+    export { default as Exam } from './ui/Exam.jsx';
+    export { default as WrittenReport } from './ui/exam/WrittenReport.jsx';
+    export { default as WrittenSetup } from './ui/exam/WrittenSetup.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+  `);
+  const { Exam, WrittenReport, WrittenSetup, StudyServicesContext } = examMod.exports;
+  const startCalls = [];
+  const fakeCall = async (action, args) => {
+    if (action === 'review.get') return { ...run, complete: true };
+    if (action === 'exam.report') return report;
+    if (action === 'exam.submit') return { ...report, runId: args.runId };
+    if (action === 'review.start') {
+      startCalls.push(args);
+      if (args.mode === 'exam') {
+        return {
+          id: 'exam-next',
+          mode: 'exam',
+          deckId: 'd1',
+          index: 0,
+          total: 1,
+          startedAt: new Date().toISOString(),
+          card: wrongCard,
+          picks: [],
+        };
+      }
+      return { id: 'path-1', mode: 'path', deckId: 'd1', index: 0, total: 1, card: wrongCard };
+    }
+    return {};
+  };
+  const examData = {
+    root: '/tmp/exam-report-bridge',
+    decks: [{ id: 'd1', title: 'OS', count: 2, available: 2, examCount: 2, examQuizCount: 2 }],
+    sources,
+    runs: [],
+    settings: { practice: { examPostmortemBridge: true } },
+    focus: { course: '*', courses: [] },
+  };
+  await withBrowserGlobals(async () => {
+    const mounted = examMod.mount(() => examMod.React.createElement(
+      StudyServicesContext.Provider,
+      { value: { call: fakeCall, act: async () => ({}), busy: false, host: {} } },
+      examMod.React.createElement(Exam, {
+        data: examData,
+        initialRunId: 'exam-snap',
+        onExit: noop,
+        onCreate: noop,
+        onOpenSource: noop,
+      }),
+    ));
+    try {
+      await mounted.flush(6);
+      const reportNode = () => mounted.find((n) => n.type === WrittenReport);
+      assert.ok(reportNode(), 'Exam restores saved report when mounted with initialRunId');
+      assert.equal(reportNode().props.pathNote, '');
+
+      // Missing deckId must be ignored by practiceTopic
+      await mounted.act(() => reportNode().props.onPracticeTopic({ topic: 'MissingDeck' }));
+      assert.equal(startCalls.length, 0, 'practiceTopic ignores rows without deckId');
+      assert.equal(reportNode().props.pathNote, '');
+
+      // Valid topic queues path practice and sets pathNote (because onStartRun is omitted)
+      await mounted.act(() => reportNode().props.onPracticeTopic({ deckId: 'd1', topic: 'Scheduling' }));
+      assert.equal(startCalls.length, 1);
+      assert.equal(startCalls[0].mode, 'path');
+      assert.match(reportNode().props.pathNote, /Scheduling/, 'pathNote records queued topic');
+
+      // While pathNote is active, further topic/weak/scope clicks must not queue duplicate runs
+      await mounted.act(() => reportNode().props.onPracticeTopic({ deckId: 'd1', topic: 'Memory' }));
+      await mounted.act(() => reportNode().props.onQueueWeak());
+      await mounted.act(() => reportNode().props.onPracticeScope([{ deckId: 'd1', cardId: 'c-wrong' }]));
+      assert.equal(startCalls.length, 1, 'active pathNote prevents duplicate review.start calls');
+
+      // Clicking onAgain clears pathNote and leaves report phase back to setup (exam.leave({ clear: false }))
+      await mounted.act(() => reportNode().props.onAgain());
+      assert.equal(reportNode(), null, 'onAgain leaves report phase');
+      const setupNode = mounted.find((n) => n.type === WrittenSetup);
+      assert.ok(setupNode, 'onAgain returns Exam to WrittenSetup');
+
+      // Starting a new exam enters running phase (exam.enter(r)) and renders the live question
+      await mounted.act(() => setupNode.props.onStart());
+      assert.equal(startCalls.length, 2);
+      assert.equal(startCalls[1].mode, 'exam');
+      assert.match(mounted.text(), /Why use CFS\?/, 'startExam enters running phase with the exam card');
+
+      // A second completed exam must not inherit the first report's practice notice.
+      const submit = mounted.find((n) => n.type === 'button' && examMod.textOf(n).trim() === '交卷');
+      assert.ok(submit, 'the second exam is running and can be submitted');
+      await mounted.act(() => click(submit));
+      const confirm = mounted.find((n) => typeof n.props?.onConfirm === 'function' && n.props.onJumpFirstBlank);
+      if (confirm) await mounted.act(() => confirm.props.onConfirm());
+      await mounted.flush(12);
+      assert.equal(reportNode().props.report.runId, 'exam-next', 'the second exam shows its own report');
+      assert.equal(reportNode().props.pathNote, '', 'the second report must clear the first practice notice');
+    } finally {
+      mounted.unmount();
+    }
+  });
 });
