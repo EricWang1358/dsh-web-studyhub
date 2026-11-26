@@ -64,11 +64,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, shard: 1, shards: 5 }
-          - { os: ubuntu-latest, shard: 2, shards: 5 }
-          - { os: ubuntu-latest, shard: 3, shards: 5 }
-          - { os: ubuntu-latest, shard: 4, shards: 5 }
-          - { os: ubuntu-latest, shard: 5, shards: 5 }
+          - { os: ubuntu-latest, shard: 1, shards: 12 }
+          - { os: ubuntu-latest, shard: 2, shards: 12 }
+          - { os: ubuntu-latest, shard: 3, shards: 12 }
+          - { os: ubuntu-latest, shard: 4, shards: 12 }
+          - { os: ubuntu-latest, shard: 5, shards: 12 }
+          - { os: ubuntu-latest, shard: 6, shards: 12 }
+          - { os: ubuntu-latest, shard: 7, shards: 12 }
+          - { os: ubuntu-latest, shard: 8, shards: 12 }
+          - { os: ubuntu-latest, shard: 9, shards: 12 }
+          - { os: ubuntu-latest, shard: 10, shards: 12 }
+          - { os: ubuntu-latest, shard: 11, shards: 12 }
+          - { os: ubuntu-latest, shard: 12, shards: 12 }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -79,7 +86,10 @@ jobs:
       - run: npm ci --legacy-peer-deps
         env:
           STUDYHUB_SKIP_PREPARE: '1'
+      - uses: ./.github/actions/setup-chromium
       - run: node scripts/test.mjs --shard=${{ matrix.shard }}/${{ matrix.shards }} --test-concurrency=4
+        env:
+          STUDY_QA_REQUIRE_BROWSER: '1'
       # What this shard measured, to refresh tests/test-weights.json: node scripts/qa/test-weights.mjs --sum --write durations-*/durations.json
       - uses: actions/upload-artifact@v4
         if: always()

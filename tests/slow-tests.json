@@ -270,6 +270,7 @@
     "tests/skill-forge-scripts.test.mjs",
     "tests/store-shard-integrity.test.mjs",
     "tests/store.test.mjs",
+    "tests/test-audit-tool.test.mjs",
     "tests/test-runner-batch.test.mjs",
     "tests/test-runner-lock.test.mjs",
     "tests/test-runner-schedule.test.mjs",
