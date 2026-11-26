@@ -823,7 +823,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       setPendingOriginal(true);
     }
     // To 原始 PDF, it opens at the page being read (#1001); the text place of this moment is kept with the view (上次读到), before the text goes.
-    if (value === 'original' && view !== 'original') {
+    if (value === 'original' && view !== 'original' && mode !== 'original') {
       const place = loop.here();
       if (Number.isInteger(place?.page)) goToPage(place.page);
       switchPlace.current = place;

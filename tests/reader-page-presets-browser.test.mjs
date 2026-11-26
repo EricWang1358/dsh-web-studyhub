@@ -137,30 +137,49 @@ test('原始 PDF: a preset of one\'s own is added, asks with its exact words, su
       assert.deepEqual(errors.filter(error => !/PDF|pdf|blob:/i.test(error)), [], 'no console errors beyond the headless PDF frame');
     } finally { releaseBytes?.(); await context.close(); }
 
-    // Clicking 原始 PDF while materials.document.get is still in flight still opens original once metadata + bytes arrive.
+    // Clicking 原始 PDF while materials.document.get is still in flight still opens original once metadata + bytes arrive,
+    // and preserves a resumed lastReadOpening page when reopening a material left in 原始 PDF.
     {
       const { context: getCtx, page: getPage } = await openPage(browser, running, { width: 1440, height: 900 });
-      let releaseGet;
-      const heldGet = new Promise(resolve => { releaseGet = resolve; });
+      let releaseGet = null;
+      let heldGet = null;
       const isGet = request => request.url().endsWith('/api/call') && request.postDataJSON()?.action === 'materials.document.get';
       try {
         await getPage.route('**/api/call', async route => {
-          if (isGet(route.request())) await heldGet;
+          if (heldGet && isGet(route.request())) await heldGet;
           await route.fallback();
         });
         await getPage.goto(running.server.url);
         await (await revealNavRow(getPage, 'sources')).click();
+        heldGet = new Promise(resolve => { releaseGet = resolve; });
         const startedGet = getPage.waitForRequest(isGet);
         await getPage.locator('.source-doc').first().locator('.source-main').click();
         await getPage.locator('.study-document-viewer').waitFor({ timeout: 30000 });
         try {
           await startedGet;
           await chooseMore(getPage, '原始 PDF');
-        } finally { releaseGet(); }
+        } finally { releaseGet?.(); heldGet = null; }
         await getPage.locator('.original-dialog[open], .reader-scroll[data-mode="original"]').first().waitFor({ timeout: 30000 });
         assert.equal(await getPage.locator('.original-dialog[open]').count(), 0, 'clicking 原始 PDF before metadata arrives must not pop relink');
         await getPage.locator('.reader-scroll[data-mode="original"]').waitFor({ timeout: 30000 });
-      } finally { releaseGet?.(); await getCtx.close(); }
+
+        // Turn to page 2 in 原始 PDF so last-read records { view: 'original', originalPage: 2 }, then close and reopen while metadata is delayed.
+        await getPage.locator('.reader-pdf-bar').getByRole('button', { name: '下一页', exact: true }).click();
+        await until(async () => (await getPage.locator('.reader-pdf-bar__input').inputValue()) === '2', 'page 2 in 原始 PDF');
+        await getPage.keyboard.press('Escape');
+        await getPage.locator('.study-document-viewer').waitFor({ state: 'detached', timeout: 15000 });
+
+        heldGet = new Promise(resolve => { releaseGet = resolve; });
+        const startedResumeGet = getPage.waitForRequest(isGet);
+        await getPage.locator('.source-doc').first().locator('.source-main').click();
+        await getPage.locator('.study-document-viewer').waitFor({ timeout: 30000 });
+        try {
+          await startedResumeGet;
+          await chooseMore(getPage, '原始 PDF');
+        } finally { releaseGet?.(); heldGet = null; }
+        await getPage.locator('.reader-scroll[data-mode="original"]').waitFor({ timeout: 30000 });
+        assert.equal(await getPage.locator('.reader-pdf-bar__input').inputValue(), '2', 'clicking 原始 PDF while loading must keep the resumed original page');
+      } finally { releaseGet?.(); heldGet = null; await getCtx.close(); }
     }
 
     // Clicking 原始 PDF while bytes are loading falls back cleanly to OriginalDialog when bytes report missing.
