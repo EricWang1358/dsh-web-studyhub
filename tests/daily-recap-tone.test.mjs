@@ -182,11 +182,13 @@ async function pipeline(t, complete, count) {
     for (let i = 0; i < count; i++) state.attempts.push({ id: `a${i}`, runId: 'seed', deckId: 'd', quiz_id: `d-${i}`, timestamp: new Date().toISOString(), grade: 4, assessment: 'graded' });
   });
   const { id } = await service.call('note.daily.generate', { course: '数学' });
-  for (let i = 0; i < 300; i++) {
+  // Poll by a deadline, not a count: a count of short polls is a wall-clock budget of about a second, which a busy CI machine overran.
+  const deadline = Date.now() + 10_000;
+  do {
     const note = await service.call('note.get', { id });
     if (note.generation?.status !== 'running') return note;
     await new Promise(resolve => setTimeout(resolve, 10));
-  }
+  } while (Date.now() < deadline);
   throw new Error('daily recap did not finish');
 }
 

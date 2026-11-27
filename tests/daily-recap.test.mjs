@@ -34,11 +34,13 @@ async function answers(service, count, { deckId = 'd', offset = 0, timestamp = n
   });
 }
 async function settled(service, id) {
-  for (let i = 0; i < 150; i++) {
+  // Poll by a deadline, not a count: a count of short polls is a wall-clock budget of about a second, which a busy CI machine overran.
+  const deadline = Date.now() + 10_000;
+  do {
     const note = await service.call('note.get', { id });
     if (note.generation?.status !== 'running') return note;
     await new Promise(resolve => setTimeout(resolve, 10));
-  }
+  } while (Date.now() < deadline);
   throw new Error('daily recap did not finish');
 }
 async function ready(service, id) {
@@ -151,11 +153,12 @@ test('a running checkpoint coalesces new evidence and finalization instead of cr
   await service.call('note.daily.advance', { course: '数学', final: true });
   release();
   let final;
-  for (let i = 0; i < 150; i++) {
+  const finalDeadline = Date.now() + 10_000;
+  do {
     final = await service.call('note.get', { id: first.id });
     if (final.daily?.final && final.generation.status === 'done') break;
     await new Promise(resolve => setTimeout(resolve, 10));
-  }
+  } while (Date.now() < finalDeadline);
   assert.equal(final.daily.answeredCount, 16);
   assert.equal(final.daily.final, true);
   assert.equal(count, 2);
@@ -284,11 +287,12 @@ test('a final request from a second runtime catches up the original pending job 
   assert.equal(queue.generated[0].id, started.id);
   release();
   let note;
-  for (let i = 0; i < 150; i++) {
+  const noteDeadline = Date.now() + 10_000;
+  do {
     note = await second.call('note.get', { id: started.id });
     if (note.daily.final && note.generation.status === 'done') break;
     await new Promise(resolve => setTimeout(resolve, 10));
-  }
+  } while (Date.now() < noteDeadline);
   assert.equal(note.daily.answeredCount, 16);
   assert.equal(note.daily.final, true);
   assert.equal(calls, 2);
@@ -536,11 +540,11 @@ test('generation progress follows completed explanation batches and cancellation
   const progress = async () => (await service.call('note.daily.status', { course: '数学' })).groups[0].generation.progress;
   assert.deepEqual(await progress(), { phase: 'explaining', completed: 0, total: 2 });
   releaseFirst();
-  for (let i = 0; i < 150 && stages.length < 2; i++) await new Promise(resolve => setTimeout(resolve, 10));
+  for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil && stages.length < 2;) await new Promise(resolve => setTimeout(resolve, 10));
   assert.deepEqual(stages, ['prepare', 'prepare']);
   assert.deepEqual(await progress(), { phase: 'explaining', completed: 1, total: 2 });
   releaseSecond();
-  for (let i = 0; i < 150 && stages.length < 3; i++) await new Promise(resolve => setTimeout(resolve, 10));
+  for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil && stages.length < 3;) await new Promise(resolve => setTimeout(resolve, 10));
   assert.deepEqual(stages, ['prepare', 'prepare', 'consolidate']);
   assert.deepEqual(await progress(), { phase: 'organizing', completed: 2, total: 2 });
   await service.call('note.daily.cancel', { id: started.id });

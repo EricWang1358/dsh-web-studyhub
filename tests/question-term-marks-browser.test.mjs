@@ -1129,7 +1129,7 @@ test("term-strip remove only unmarks unattached visit-added terms and protects f
         () => !!document.querySelector(".explanation-followup .followup-item[open]") && !!document.querySelector(".prereq-strip"),
         { timeout: 25000 },
       );
-      for (let i = 0; i < 40 && termsGetCalls <= getsBeforeFill; i += 1) {
+      for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil && termsGetCalls <= getsBeforeFill;) {
         await page.waitForTimeout(50);
       }
       await lastGetPromise;
@@ -1476,7 +1476,7 @@ test("term strip clears only filled terms on done, preserves mid-task marks, and
         { timeout: 25000 },
       );
       await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
-      for (let i = 0; i < 40 && termsGetCalls <= getsBeforeFill1; i += 1) {
+      for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil && termsGetCalls <= getsBeforeFill1;) {
         await page.waitForTimeout(50);
       }
       await lastGetPromise;
@@ -1553,7 +1553,7 @@ test("term strip clears only filled terms on done, preserves mid-task marks, and
         k2TermB,
         { timeout: 10000 },
       );
-      for (let i = 0; i < 40 && termsGetCalls <= getsBeforeFill2; i += 1) {
+      for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil && termsGetCalls <= getsBeforeFill2;) {
         await page.waitForTimeout(50);
       }
       await lastGetPromise;
@@ -1920,7 +1920,7 @@ test("filled candidate term stays excluded from dashed candidates and keeps only
         () => document.querySelectorAll(".term-strip .sh-chip__label").length === 0,
         { timeout: 10000 },
       );
-      for (let i = 0; i < 40 && termsGetCalls <= getsBeforeFill; i += 1) {
+      for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil && termsGetCalls <= getsBeforeFill;) {
         await page.waitForTimeout(50);
       }
       await lastGetPromise;

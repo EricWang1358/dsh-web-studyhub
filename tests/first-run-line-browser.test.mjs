@@ -326,7 +326,7 @@ test('the compact card keeps its rows inside the card and on its ruling, with a 
         assert.ok(await overflow(page) <= 0, `${width}px: no sideways scroll`);
         await shot(page, `10-later-compact-too-big-${width}`);
         assert.deepEqual(errors.filter((error) => !/favicon|Failed to load resource/.test(error)), [], `${width}px: no console or page errors`);
-        await context.close();
+        await page.unrouteAll({ behavior: 'ignoreErrors' }).catch(() => {}); await context.close();
       } finally {
         await running?.server.close().catch(() => {});
         await rm(base, { recursive: true, force: true, maxRetries: 20, retryDelay: 150 });

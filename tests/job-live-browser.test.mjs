@@ -84,6 +84,6 @@ test('the console draws the live read between unchanged snapshots, the loop neve
     assert.equal(log.slice(ended).filter((entry) => entry.action === LIVE_JOBS).length, 0, 'no job runs: the live read is not asked');
     assert.ok(most <= 1, `never two in flight (${most})`);
     assert.deepEqual(errors, []);
-    await context.close();
+    await page.unrouteAll({ behavior: 'ignoreErrors' }).catch(() => {}); await context.close();
   } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true }); }
 });

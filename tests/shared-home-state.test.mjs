@@ -73,7 +73,7 @@ test('pidAlive detects a live child process and returns false once it exits or f
   child.kill('SIGKILL');
   await exited;
   // Give the OS process table a brief moment on Windows to reap the handle if needed.
-  for (let i = 0; i < 40 && pidAlive(child.pid); i++) await wait(25);
+  for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil && pidAlive(child.pid);) await wait(25);
   assert.equal(pidAlive(child.pid), false);
 });
 
@@ -96,7 +96,7 @@ test('tool-install cross-process liveness: Instance B sees running + otherProces
   });
 
   await instanceA.start({ confirm: true, location: h.location });
-  for (let i = 0; i < 200 && !(await exists(join(h.location, 'two', 'part'))); i++) await wait(10);
+  for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil && !(await exists(join(h.location, 'two', 'part')));) await wait(10);
 
   const onDisk = JSON.parse(await readFile(h.stateFile, 'utf8'));
   assert.equal(onDisk.version, 1, 'stored-version remains v1');

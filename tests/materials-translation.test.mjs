@@ -425,7 +425,7 @@ test('a call that names a requestId can be cancelled from outside: the model is 
   const model = fakeModel(); model.delay = 150;
   const f = await fixture(t, { model }), { source, documentId } = await f.imported();
   const running = f.call('translate', { documentId, requestId: 'r1', passages: [passage(source, A)] });
-  for (let i = 0; i < 100 && !model.calls.length; i += 1) await new Promise(resolve => setTimeout(resolve, 5));
+  for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil && !model.calls.length;) await new Promise(resolve => setTimeout(resolve, 5));
   assert.equal(model.calls.length, 1, 'the model was asked');
   assert.equal((await f.call('cancel', { requestId: 'r1' })).cancelled, true);
   assert.equal(model.calls[0].options.signal.aborted, true, 'the model call is aborted, not just ignored');

@@ -70,7 +70,7 @@ test('a slow window never idles the other slots: a finished window is replaced a
   assert.ok(!f.timeline.some(item => item.event === 'start' && item.key.startsWith('translate')), 'translation waits for all corrected text');
   assert.equal(f.maximum, 3);
   // Release the rest: translation then runs on the same pool.
-  const finish = (async () => { for (let i = 0; i < 200 && f.timeline.filter(x => x.event === 'end').length < 18; i++) { settle(f); await new Promise(r => setTimeout(r, 2)); } })();
+  const finish = (async () => { for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil && f.timeline.filter(x => x.event === 'end').length < 18;) { settle(f); await new Promise(r => setTimeout(r, 2)); } })();
   const result = await work; await finish;
   assert.equal(f.maximum, 3);
   assert.equal(f.active, 0);
