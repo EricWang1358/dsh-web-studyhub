@@ -133,6 +133,9 @@
     .first-run-card .frl-step[data-step="model"] .frl-step__row { height: auto; min-height: var(--frl-rule); align-items: flex-start; }
     .first-run-card .frl-step[data-step="model"] .frl-mark { margin-top: calc((var(--frl-rule) - var(--frl-card-mark)) / 2); }
     .first-run-card .frl-step[data-step="model"] .frl-step__text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; max-height: calc(2 * var(--frl-rule)); white-space: normal; overflow-wrap: break-word; line-height: var(--frl-rule); }
+    /* 练一轮示例题 (#1681): the card's second way, under its primary (or alone at the card's foot when the open step has none here). */
+    .first-run-card .frl-sample-round { justify-content: center; width: 100%; margin-top: auto; }
+    .first-run-card .today-go + .frl-sample-round { margin-top: var(--space-2); }
     .first-run-card .frl-mark { width: var(--frl-card-mark); height: var(--frl-card-mark); border-color: currentColor; color: var(--paper-dim); }
     .first-run-card .frl-step[aria-current="step"] .frl-mark { border-color: var(--paper-ink); background: var(--paper-ink); color: var(--paper); }
     .first-run-card .frl-step[data-status="done"] .frl-mark { border-color: transparent; background: color-mix(in srgb, var(--paper-ink) 10%, transparent); color: var(--paper-dim); }

@@ -170,7 +170,8 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const shownDraftIds = new Set(visibleJobs.map((job) => job.draftId).filter(Boolean));
   const autoOpenDrafts = !activeJobs.length && nextFacts.drafts.draftIds.some((id) => !shownDraftIds.has(id)) && (next.id === "draft" || !ownDeck || !today.size || !!today.ahead);
   // 出第一组题 runs the request itself (firstRun.on.generate, the app's); without it the step offers only 改题型和题数, which opens 创建题组 with the materials ticked.
-  const lineOn = { importFirst: addSource, tune: generateFromSources, openDraft, publish: publishDraft, ...firstRun?.on };
+  const practiseSample = start && ((deckId) => start({ mode: "path", scope: [{ deckId }] }));
+  const lineOn = { importFirst: addSource, tune: generateFromSources, openDraft, publish: publishDraft, practiseSample, ...firstRun?.on };
   // What the host puts first on the home, on the first-run page and on the normal one alike (ui/host-parts.js HomeLead); the DSH plugin registers none.
   const lead = hostPart("HomeLead") && React.createElement(hostPart("HomeLead"), { data });
   if (line.show && firstRun?.form === "page") {

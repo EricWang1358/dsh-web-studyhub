@@ -19,7 +19,7 @@ import css from './first-run.css';
    Each step is one row: its number or ✓ and one sentence. Only the open step has a body, and the body has at most ONE primary (cinnabar) button; the third
    step's body keeps one height through its states (ready, generating, a draft), so a run finishing does not move the page.
    `on` holds what the buttons do: { recheck, openModelSettings, importFirst, importMore(ownIds), generate(sourceIds), tune(sourceIds), publish(draft),
-   openDraft(draft), startSample, later }. A missing handler draws no button. `jobs` is the run card(s) of the third step (the home's compact job cards, moved
+   openDraft(draft), startSample, practiseSample(deckId), later }. A missing handler draws no button. `jobs` is the run card(s) of the third step (the home's compact job cards, moved
    here: they are not drawn anywhere else on the first screen).
    Step 3 makes the first deck from the line (3.6 D4, option A): `plan` ({ summary, estimate, block }, ui/first-run/use-first-deck.js) says what will be made
    and its usage estimate before anything is spent, both 创建题组's own; 「出第一组题」 (on.generate) runs that request and is only ever pressed by the learner
@@ -282,6 +282,13 @@ function CompactBlocked({ reason, sourceIds, on }) {
   );
 }
 
+/** A look at what practice is like while the sample course is loaded (#1681): a round of its deck, beside (never instead of) the line's own primary. */
+function SampleRound({ line, on, ...rest }) {
+  const { busy } = useStudy();
+  if (!line.sampleDeckId || !on.practiseSample) return null;
+  return <Button variant="secondary" iconEnd="arrow-right" lock={busy} data-first-run="practise-sample" onClick={() => on.practiseSample(line.sampleDeckId)} {...rest}>{ui('练一轮示例题')}</Button>;
+}
+
 /** A quiet link on a closed row: the second step is never locked (a material can come before the model), and an added one can have a second. */
 function RowLink({ step, on }) {
   const { busy } = useStudy();
@@ -335,6 +342,7 @@ export default function FirstRunLine({ line, form = 'page', sample, sampleBusy =
         <Steps line={line} on={on} compact />
         {planned && (action?.blocked ? <CompactBlocked reason={action.blocked} sourceIds={deck.sourceIds} on={on} /> : <CompactPlan plan={plan} />)}
         {action && <Button variant="primary" className={action.icon ? 'today-go today-go--lead' : 'today-go'} icon={action.icon} iconEnd={action.icon ? undefined : 'arrow-right'} disabled={!!action.blocked} lock={busy} data-usage="home.start" onClick={action.run}>{action.label}</Button>}
+        <SampleRound line={line} on={on} className="frl-sample-round" />
       </div>
     );
   }
@@ -355,6 +363,7 @@ export default function FirstRunLine({ line, form = 'page', sample, sampleBusy =
             <Button variant="link" size="sm" className="first-run__link" busy={sampleBusy} lock={busy} data-first-run="sample" onClick={on.startSample}>{ui('载入示例并开始导览')}</Button>
           </Tooltip>
         </span>}
+        <SampleRound line={line} on={on} />
         {on.later && <Button variant="link" size="sm" className="first-run__link first-run__later" data-first-run="later" onClick={on.later}>{ui('以后再说')}</Button>}
       </footer>
     </div>
