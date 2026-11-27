@@ -1,4 +1,5 @@
 /* global document, window, localStorage, getComputedStyle */
+import { commitPreviewAction } from './helpers/preview-write.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -254,7 +255,9 @@ test('Browser step budget & zero-wait flip guardrail: flashcard <= 2 steps (even
 
     // Undo ('z'): returns right back to Card 1's revealed back with grade buttons ready!
     await page.keyboard.press('z');
-    await page.waitForFunction(() => /Flash Question 1\?/.test(document.querySelector('.flashcard')?.innerText || '') && document.querySelectorAll('.grade').length === 6, null, { timeout: 15000 });
+    // Undo reloads the library and holds the single-flight lock for up to REFRESH_HOLD_MS (ui/act-runner.js); the grades are drawn but
+    // disabled until then, and a key pressed meanwhile is dropped by design. Ready means drawn and enabled.
+    await page.waitForFunction(() => /Flash Question 1\?/.test(document.querySelector('.flashcard')?.innerText || '') && [...document.querySelectorAll('.grade')].filter((b) => !b.disabled).length === 6, null, { timeout: 15000 });
     assert.equal(await page.locator('.flashcard').evaluate((el) => el.classList.contains('flipped')), true, 'undo returns to revealed back face');
 
     // Re-grade Card 1 (2 steps total) and Card 2 (2 steps total) -> result page with compact RoundLookBack & hidden weakTopics!
@@ -321,7 +324,9 @@ test('Browser step budget & zero-wait flip guardrail: flashcard <= 2 steps (even
 
     // Turn on autopilot ('a') -> picking right option auto-advances in 1 learner step!
     const firstIsTrue = /对|True|Right/i.test(await page.locator('.option').first().innerText());
-    await page.keyboard.press('a');
+    await page.mouse.move(0, 0); // hovering over the explanation intentionally pauses automatic advance
+    await commitPreviewAction(page, 'settings.practice.set', () => page.keyboard.press('a'));
+    assert.equal((await previewCall(server, 'snapshot')).settings.practice.autopilot, true);
     await page.keyboard.press(firstIsTrue ? '1' : '2');
     await page.locator('.result-page').waitFor({ timeout: 15000 });
     assert.deepEqual(errors, []);

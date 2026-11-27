@@ -60,10 +60,7 @@
   :is(.study-app, .study-seat) {
     /* A first-use tip under a practice question (ui/review/PracticeTip.jsx): a manual popover in the top layer, placed from the control it points at, so nothing
        moves for it. The raised surface and its words match the tooltips; it has no motion. Tokens only. */
-    .practice-tip[popover] {
-      position: fixed;
-      inset: auto;
-      margin: 0;
+    .practice-tip[popover], .practice-tip--inline {
       box-sizing: border-box;
       width: max-content;
       max-width: min(640px, calc(100vw / var(--study-ui-scale, 1) - var(--space-4) * 2));
@@ -78,6 +75,8 @@
       text-align: left;
       overflow: visible;
     }
+    .practice-tip[popover] { position: fixed; inset: auto; margin: 0; }
+    .practice-tip--inline { width: 100%; max-width: 100%; margin: var(--space-2) 0; box-shadow: none; }
     /* Closed (a menu or the tag tray is open, or its control is not on screen): not drawn at all; display above would otherwise beat the popover's own rule. */
     .practice-tip[popover]:not(:popover-open) { display: none; }
     /* The words and 知道了 sit in a comfortable flex row with normal small-button height (#1276). */
@@ -162,7 +161,7 @@
        The bar's own controls are left out: they are the bar. `:enabled` is every button, field and select that can be used, whatever its class. */
     .question-area[data-bar-stuck="true"] > :not(.review-sticky-bar) :is(a[href], :enabled, summary, [tabindex], [contenteditable]),
     .question-area[data-bar-stuck="true"] > :is(a[href], :enabled, summary, [tabindex], [contenteditable]):not(.review-sticky-bar) {
-      scroll-margin-bottom: calc(var(--space-9) + var(--space-7));
+      scroll-margin-bottom: calc(var(--review-bar-room) + var(--space-1));
     }
     .review-undo {
       color: var(--accent-text);

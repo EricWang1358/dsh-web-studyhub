@@ -52,11 +52,21 @@ export function useFinder({ nav, settingsEntry, core, tour, rootRef, learn }) {
   latest.current = { page: nav.page, touring: !!tour.tourStep, open, openTarget: learn?.openLearningTarget, openSourceAt: learn?.openSourceAt, core };
   const { notify } = core, { navigate } = nav, { openSettings } = settingsEntry, { startTour } = tour;
 
-  const openFinder = useCallback(() => {
+  const drawerOpener = useRef(null);
+  const openFinder = useCallback((event) => {
     if (latest.current.touring) return;
+    // Choosing a row dismisses the narrow navigation drawer together with its focused button.
+    drawerOpener.current = event?.currentTarget?.closest('.nav-drawer')
+      ? rootRef.current?.querySelector('[data-tour="nav-menu"]') : null;
     setOpen(true);
+  }, [rootRef]);
+  const closeFinder = useCallback(() => {
+    setOpen(false);
+    const opener = drawerOpener.current;
+    if (opener) requestAnimationFrame(() => {
+      if (opener.isConnected && document.activeElement === document.body) opener.focus({ preventScroll: true });
+    });
   }, []);
-  const closeFinder = useCallback(() => setOpen(false), []);
 
   /** The root's key handler. */
   const onKeyDown = useCallback((event) => {

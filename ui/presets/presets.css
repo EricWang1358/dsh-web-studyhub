@@ -4,9 +4,18 @@
   :is(.study-app, .study-seat) {
     /* 出题方式 (ui/presets/Presets.jsx): the three presets of the 创建题组 main path and their rough costs. Injected by the component (useInjectCss 'study-presets').
        Tokens only. The depth and the matrix of 更多选项 are presets-fold.css. */
-    .presets { display: grid; gap: var(--space-2); min-width: 0; justify-items: start; }
-    .presets__cost { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-half) var(--space-1); font-variant-numeric: tabular-nums; }
+    .presets { display: grid; gap: var(--space-2); width: 100%; min-width: 0; justify-items: start; container: preset-cost / inline-size; }
+    /* The deferred estimate adds a help button beside this line. Reserve its height from the first frame. */
+    .presets__cost { display: flex; flex-wrap: wrap; align-items: center; align-content: start; min-height: var(--help-tip-size); gap: var(--space-half) var(--space-1); font-variant-numeric: tabular-nums; }
     .presets__cost-lead { color: var(--text-dim); }
     .presets__cost-items { min-width: 0; overflow-wrap: anywhere; }
+  }
+  /* In a narrow form the three estimates wrap below the lead (English needs up to ~44rem). Keep their lines free while the estimates are being fetched. */
+  @container preset-cost (max-width: 44rem) {
+    :is(.study-app, .study-seat) .presets__cost { min-height: calc(var(--help-tip-size) + var(--space-half) + 2lh); }
+    :is(.study-app, .study-seat) .presets__cost-items { flex: 1 0 100%; }
+  }
+  @container preset-cost (max-width: 19rem) {
+    :is(.study-app, .study-seat) .presets__cost { min-height: calc(var(--help-tip-size) + var(--space-half) + 3lh); }
   }
 }

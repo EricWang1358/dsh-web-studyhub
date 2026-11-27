@@ -161,14 +161,12 @@ test('sidebar footer stays clickable within the host at 100%, 150% and 200% inte
           await page.waitForFunction(value => document.querySelector('.study-app')?.getAttribute('data-ui-scale') === String(value), scale);
           await page.setViewportSize({ width, height });
           // A workspace too narrow for the sidebar (#657) has it in a drawer behind the top bar's menu button; choosing a row closes the drawer.
-          const drawer = async () => {
-            await page.locator('.sidebar, .nav-menu-toggle').first().waitFor();
-            if (await page.locator('.sidebar').count()) return false;
-            await page.locator('.nav-menu-toggle').click();
-            await page.locator('.nav-drawer .sidebar').waitFor();
-            return true;
+          const inDrawer = width === 420;
+          const showSidebar = async () => {
+            if (inDrawer) await page.locator('.nav-menu-toggle').click();
+            await page.locator(inDrawer ? '.nav-drawer .sidebar' : '.study-app > .sidebar').waitFor();
           };
-          const inDrawer = await drawer();
+          await showSidebar();
           const bounds = await page.locator('.sidebar').first().evaluate(sidebar => {
             const side = (sidebar.closest('dialog') || sidebar).getBoundingClientRect(), host = sidebar.closest('.study-app').getBoundingClientRect();
             return { sidebarHeight: side.height, hostHeight: host.height };
@@ -178,7 +176,7 @@ test('sidebar footer stays clickable within the host at 100%, 150% and 200% inte
           // Use real pointer clicks in both directions: scrolling a row into view is not enough if a sticky column extends below its host.
           await page.locator('[data-tour="nav-library"]').first().click();
           await page.locator('.study-app[data-usage-area="library"]').waitFor();
-          await drawer();
+          await showSidebar();
           await settings.scrollIntoViewIfNeeded();
           const footer = await settings.boundingBox();
           assert.ok(footer && footer.y >= -1 && footer.y + footer.height <= height + 1,

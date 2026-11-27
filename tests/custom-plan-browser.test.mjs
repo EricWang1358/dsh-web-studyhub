@@ -1,14 +1,15 @@
-/* global document window */
+/* global document */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { buildPreview } from '../scripts/build.mjs';
-import { launchChromium } from '../scripts/qa/browser.mjs';
+import { buildChatPreview } from './helpers/chat-preview.mjs';
+import { launchChromium, skipMissingChromium } from '../scripts/qa/browser.mjs';
 import { StudyService } from '../lib/service.js';
 import { openPage, settleAnimations, startLateServer, until } from '../scripts/qa/layout-late.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
+import { viewportOverflow } from './helpers/viewport-overflow.mjs';
 import { customDefaults } from '../lib/custom-plan.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 
@@ -38,12 +39,6 @@ async function seed(root) {
   await service.dispose();
 }
 
-const sideways = page => page.evaluate(() => {
-  const width = window.innerWidth;
-  const wide = [...document.querySelectorAll('.course-settings *')].filter(element => element.getBoundingClientRect().right > width + 1).map(element => `${element.tagName.toLowerCase()}.${element.className}`).slice(0, 5);
-  return { doc: document.documentElement.scrollWidth - width, wide };
-});
-
 async function openSettings(page, name) {
   await (await revealNavRow(page, 'settings')).dispatchEvent('click');
   await page.locator('[data-category="courses"]').first().click();
@@ -53,10 +48,10 @@ async function openSettings(page, name) {
 
 test('「你的定制」: the card, a saved toggle, no card without a plan, no sideways scroll (zh dark 1280, en light 420)', { timeout: 480000 }, async t => {
   let browser;
-  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
+  try { browser = await launchChromium(); } catch (error) { skipMissingChromium(t, error); return; }
   t.after(() => browser.close());
   const dist = await mkdtemp(join(tmpdir(), 'study-custom-plan-dist-'));
-  await buildPreview({ outdir: dist });
+  await buildChatPreview({ outdir: dist });
   const shots = process.env.CUSTOM_PLAN_SHOTS;
   if (shots) await mkdir(shots, { recursive: true });
   for (const { width, lang, theme } of [{ width: 1280, lang: 'zh', theme: 'dark' }, { width: 420, lang: 'en', theme: 'light' }]) {
@@ -81,7 +76,7 @@ test('「你的定制」: the card, a saved toggle, no card without a plan, no s
       assert.equal(await chips.nth(1).isDisabled(), true, 'terms is locked while confusables is on');
       assert.equal(await chips.nth(4).isDisabled(), false);
       assert.equal(await card.locator('[role="alert"], [role="status"]', { hasText: say('找不到了', 'no longer in the material') }).count(), 0, `${width}px: a plan whose chapters are all there says nothing of moved chapters`);
-      const flat = await sideways(page);
+      const flat = await viewportOverflow(page, '.course-settings *');
       assert.ok(flat.doc <= 0 && flat.wide.length === 0, `${width}px: nothing scrolls sideways: ${JSON.stringify(flat)}`);
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `card-${lang}-${theme}-${width}.png`) });
@@ -115,7 +110,7 @@ test('「你的定制」: the card, a saved toggle, no card without a plan, no s
       const notice = moved.getByText(say('有 1 章在资料里找不到了，需要重新选', '1 chapter is no longer in the material and must be picked again'));
       await notice.waitFor({ timeout: 30000 });
       await moved.getByRole('button', { name: say('发给主会话', 'Send to the main chat') }).waitFor({ timeout: 30000 });
-      const movedFlat = await sideways(page);
+      const movedFlat = await viewportOverflow(page, '.course-settings *');
       assert.ok(movedFlat.doc <= 0 && movedFlat.wide.length === 0, `${width}px: the notice does not scroll sideways: ${JSON.stringify(movedFlat)}`);
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `card-moved-${lang}-${theme}-${width}.png`) });

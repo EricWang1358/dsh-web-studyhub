@@ -14,8 +14,8 @@ test('Sources filter bar, collapsed-day auto-open, and archived batch restore + 
   const service = new StudyService(join(root, 'library'));
   await service.store.update(s => {
     s.sources.push(
-      { id: 's-today', title: 'Today Kernel Notes', text: 'Kernel evidence', createdAt: new Date(Date.UTC(2026, 9, 25, 10, 0)).toISOString(), courses: ['OS'] },
-      { id: 's-old', title: 'Older Virtual Memory', text: 'Paging evidence', createdAt: new Date(Date.UTC(2026, 8, 10, 10, 0)).toISOString(), courses: ['OS'] },
+      { id: 's-today', title: 'Today Kernel Notes', text: 'Kernel evidence', createdAt: new Date().toISOString(), courses: ['OS'] },
+      { id: 's-old', title: 'Older Virtual Memory', text: 'Paging evidence', createdAt: new Date(Date.now() - 7 * 86400_000).toISOString(), courses: ['OS'] },
       { id: 's-arch-1', title: 'Archived Draft Alpha', text: 'Old Alpha', archived: true, createdAt: new Date(Date.UTC(2026, 7, 1, 10, 0)).toISOString(), courses: ['OS'] },
       { id: 's-arch-2', title: 'Archived Draft Beta', text: 'Old Beta', archived: true, createdAt: new Date(Date.UTC(2026, 7, 2, 10, 0)).toISOString(), courses: ['OS'] },
       { id: 's-arch-cited', title: 'Archived Cited C', text: 'Cited C evidence', archived: true, createdAt: new Date(Date.UTC(2026, 7, 3, 10, 0)).toISOString(), courses: ['OS'] },
@@ -40,6 +40,17 @@ test('Sources filter bar, collapsed-day auto-open, and archived batch restore + 
   catch (error) { if (!/Executable doesn't exist/.test(error.message)) throw error; t.skip('Chromium unavailable'); return; }
 
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
+  page.setDefaultTimeout(15000);
+  const openArchived = async () => {
+    const entry = page.locator('.sources-page__header [data-tour="sources-archived"]');
+    await entry.waitFor();
+    if (await entry.getAttribute('data-archive-toggle') === null) {
+      await entry.getByRole('button', { name: 'More', exact: true }).click();
+      await page.getByRole('menu').locator('[data-archive-toggle]').click();
+    } else {
+      await entry.click();
+    }
+  };
   const errors = [];
   page.on('pageerror', err => errors.push(err.message));
   await page.route('**/*', route => new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : route.abort());
@@ -47,8 +58,11 @@ test('Sources filter bar, collapsed-day auto-open, and archived batch restore + 
   await page.goto(server.url);
   await page.locator('[data-tour="nav-sources"]').click();
 
-  // Older day starts collapsed; typing a filter auto-expands matching older groups and hides non-matches.
-  assert.equal(await page.locator('.source-doc', { hasText: 'Older Virtual Memory' }).count(), 0);
+  // Collapse the older day, then filter to a row inside it.
+  await page.locator('.sources-view-bar').getByText('By import date', { exact: true }).click();
+  const older = page.locator('.source-doc', { hasText: 'Older Virtual Memory' });
+  await page.locator('.source-group').filter({ has: older }).locator('.source-group-head[aria-expanded="true"]').click();
+  await older.waitFor({ state: 'detached' });
   const filter = page.getByRole('searchbox', { name: 'Filter materials…' });
   await filter.fill('virtual');
   await page.locator('.source-doc', { hasText: 'Older Virtual Memory' }).waitFor();
@@ -59,9 +73,10 @@ test('Sources filter bar, collapsed-day auto-open, and archived batch restore + 
   await page.getByText('No materials match “nonexistent-xyz”').waitFor();
   await page.getByRole('button', { name: 'Clear filters' }).click();
   await page.locator('.source-doc', { hasText: 'Today Kernel Notes' }).waitFor();
+  assert.equal(await older.count(), 0, 'clearing the filter restores the saved fold');
 
   // Switch to Archived view (3 archived materials).
-  await page.locator('[data-archive-toggle]').click();
+  await openArchived();
   await page.locator('.source-organize > summary').click();
 
   // Select all 3 -> Permanent delete dialog is blocked because Archived Cited C is referenced by OS Deck.
@@ -93,8 +108,9 @@ test('Sources filter bar, collapsed-day auto-open, and archived batch restore + 
   await service.call('source.archive', { sourceIds: ['s-arch-1'], archived: true });
   await page.reload();
   await page.locator('[data-tour="nav-sources"]').click();
-  await page.locator('[data-archive-toggle]').click();
-  await page.getByRole('button', { name: 'Expand all' }).click();
+  await openArchived();
+  const expandAll = page.getByRole('button', { name: 'Expand all', exact: true });
+  if (await expandAll.isVisible()) await expandAll.click();
   await page.locator('.source-organize > summary').click();
   await page.getByRole('checkbox', { name: 'Select source: Archived Draft Alpha' }).check();
   await page.getByRole('checkbox', { name: 'Select source: Archived Draft Beta' }).check();

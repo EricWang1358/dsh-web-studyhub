@@ -87,9 +87,23 @@ test.after(async () => { if (built) await rm(await built.catch(() => null) ?? ''
 const findCount = page => page.locator('.reader-find__count').innerText();
 /** Answers the card on screen (show the answer, grade it). */
 const answer = async page => {
-  await page.locator('.review-heading h1').first().click().catch(() => {});
-  await page.keyboard.press('Space'); await page.waitForTimeout(400);
-  await page.keyboard.press('5'); await page.waitForTimeout(400);
+  await page.locator('[data-usage="review.flip"]').click();
+  await page.locator('.grade.high').first().click();
+  await page.locator('.next-due').first().waitFor();
+};
+const nextQuestion = async page => {
+  await page.locator('[data-usage="review.next"]').click();
+  await page.waitForFunction(() => document.querySelector('.result-page') || !document.querySelector('.next-due'));
+};
+const answerCited = async page => {
+  const prompt = page.locator('.flashcard');
+  await prompt.waitFor();
+  if (!(await prompt.innerText()).includes(`page ${CITED_PAGE}`)) {
+    await answer(page);
+    await nextQuestion(page);
+  }
+  assert.match(await prompt.innerText(), new RegExp(`page ${CITED_PAGE}\\b`));
+  await answer(page);
 };
 const chapterPages = index =>Array.from({ length: PER_CHAPTER }, (_, n) => index * PER_CHAPTER + n + 1);
 const waitOneChapter = (page, what) => until(async () => { const pages = (await drawn(page)).pages; return pages.length === PER_CHAPTER && pages[0] % PER_CHAPTER === 1; }, what, { timeoutMs: 30000 });
@@ -105,7 +119,7 @@ test('the reader draws one chapter of a 500-page book and every way to a page re
   for (const width of [1280, 420]) {
     const running = await startLateServer({ distDir: dist, seed });
     try {
-      const { page, errors, context } = await openPage(browser, running, { width, height: 900 });
+      const { page, errors, context } = await openPage(browser, running, { width, height: 900, selfGradeAdvance: false });
       await context.addInitScript(() => {
         window.__long = [];
         try { new PerformanceObserver(list => { for (const entry of list.getEntries()) window.__long.push(Math.round(entry.duration)); }).observe({ type: 'longtask', buffered: true }); } catch { /* no longtask timing */ }
@@ -200,12 +214,7 @@ test('the reader draws one chapter of a 500-page book and every way to a page re
       await page.goto(running.server.url);
       await page.getByRole('button', { name: '开始今日学习' }).first().click();
       await page.locator('.review-page').waitFor({ timeout: 30000 });
-      for (let guard = 0; guard < 3; guard += 1) {
-        if ((await page.locator('.review-page').innerText()).includes(`page ${CITED_PAGE}`)) break;
-        await answer(page);
-        await page.keyboard.press('Enter'); await page.waitForTimeout(600);
-      }
-      await answer(page);
+      await answerCited(page);
       const sourceButton = page.getByRole('button', { name: '看这题的原文' });
       await sourceButton.waitFor({ timeout: 15000 }).catch(async error => { await shot('citation-missing'); throw new Error(`${error.message}\n${(await page.locator('main').innerText()).slice(0, 600)}`); });
       await sourceButton.click();
@@ -224,8 +233,7 @@ test('the reader draws one chapter of a 500-page book and every way to a page re
       await page.locator('.review-page').waitFor();
       // The rest of the day's run is answered, so the practice below starts a run of its own.
       for (let guard = 0; guard < 4 && !(await page.locator('.result-page').count()); guard += 1) {
-        await page.locator('.review-heading h1').first().click().catch(() => {});
-        await page.keyboard.press('Enter'); await page.waitForTimeout(600);
+        await nextQuestion(page);
         if (!(await page.locator('.result-page').count())) await answer(page);
       }
       await page.locator('.result-page').waitFor({ timeout: 20000 });
@@ -275,7 +283,7 @@ test('with a kept AI outline: meters of every chapter, find across chapters, a c
   const dist = await previewDist();
   const running = await startLateServer({ distDir: dist, seed: seedWith({ outline: true }) });
   t.after(() => running.close());
-  const { page, errors, context } = await openPage(browser, running, { width: 1280, height: 900 });
+  const { page, errors, context } = await openPage(browser, running, { width: 1280, height: 900, selfGradeAdvance: false });
   t.after(() => context.close());
   const viewer = page.locator('.study-document-viewer'), outline = viewer.locator('.reader-outline');
   const openOutline = async () => { if (!(await outline.count())) await viewer.getByRole('button', { name: '目录', exact: true }).click(); await outline.waitFor(); };
@@ -319,12 +327,7 @@ test('with a kept AI outline: meters of every chapter, find across chapters, a c
   await page.goto(running.server.url);
   await page.getByRole('button', { name: '开始今日学习' }).first().click();
   await page.locator('.review-page').waitFor({ timeout: 30000 });
-  for (let guard = 0; guard < 3; guard += 1) {
-    if ((await page.locator('.review-page').innerText()).includes(`page ${CITED_PAGE}`)) break;
-    await answer(page);
-    await page.keyboard.press('Enter'); await page.waitForTimeout(600);
-  }
-  await answer(page);
+  await answerCited(page);
   await page.getByRole('button', { name: '看这题的原文' }).click();
   await waitChapter(page, chapterOf(CITED_PAGE), 'the chapter of the cited page');
   await until(() => page.evaluate(() => !!window.CSS?.highlights?.get('study-source-quote')), 'the quote placed', { timeoutMs: 20000 });
@@ -339,8 +342,7 @@ test('with a kept AI outline: meters of every chapter, find across chapters, a c
   await backToQuestion(page);
   await page.locator('.review-page').waitFor();
   for (let guard = 0; guard < 4 && !(await page.locator('.result-page').count()); guard += 1) {
-    await page.locator('.review-heading h1').first().click().catch(() => {});
-    await page.keyboard.press('Enter'); await page.waitForTimeout(600);
+    await nextQuestion(page);
     if (!(await page.locator('.result-page').count())) await answer(page);
   }
   await page.locator('.result-page').waitFor({ timeout: 20000 });

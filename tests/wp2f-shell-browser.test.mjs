@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { createPreviewServer } from '../scripts/preview-server.mjs';
 import { buildPreview } from '../scripts/build.mjs';
-import { launchChromium } from '../scripts/qa/browser.mjs';
+import { launchChromium, skipMissingChromium } from '../scripts/qa/browser.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 // UI wave 2 · WP-F in a real browser: the dialogs own focus and Escape (#73), the flag save is a footer action (#74), the board's
@@ -22,7 +22,7 @@ test('the composed shell: shortcut sheet over a dialog, the flag save, the 更�
   let browser;
   t.after(async () => { await browser?.close(); await server.close(); await service.dispose(); await rm(root, { recursive: true, force: true }); });
   try { browser = await launchChromium(); }
-  catch (error) { if (!/Executable doesn't exist/.test(error.message)) throw error; t.skip('Chromium unavailable'); return; }
+  catch (error) { skipMissingChromium(t, error); return; }
   const page = await browser.newPage({ viewport: { width: 1200, height: 900 } }), errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/*', route => new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : route.abort());

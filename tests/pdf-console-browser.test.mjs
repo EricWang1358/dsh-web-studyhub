@@ -89,6 +89,7 @@ test('the console of a running and of a failed Marker conversion at 1280 and 420
         }
         if (shots) await page.screenshot({ path: join(shots, `pdf-console-${name}-${lang}-${width}.png`), fullPage: width < 768 });
       }
+      await page.unrouteAll({ behavior: 'wait' });
       assert.deepEqual(errors, []);
       await context.close();
     }

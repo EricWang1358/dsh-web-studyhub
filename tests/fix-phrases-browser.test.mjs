@@ -1,5 +1,6 @@
 /* global localStorage, document, innerWidth */
 import test from 'node:test';
+import { commitPreviewAction } from './helpers/preview-write.mjs';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -81,7 +82,7 @@ test('修题 is a button on the card, the box keeps my own phrases as chips, and
     await field.fill(OWN);
     await box.locator('.assist-actions').scrollIntoViewIfNeeded();
     if (shots && lang === 'zh') await page.screenshot({ path: join(shots, `panel-typed-${lang}-${width}.png`) });
-    await box.getByRole('button', { name: words.save }).click();
+    await commitPreviewAction(page, 'settings.practice.set', () => box.getByRole('button', { name: words.save }).click());
     const group = box.locator('[data-fix-phrases]');
     await group.waitFor({ timeout: 15000 });
     assert.match(await group.innerText(), new RegExp(words.own), `${where}: the group is named`);
@@ -105,10 +106,10 @@ test('修题 is a button on the card, the box keeps my own phrases as chips, and
     assert.ok(wide, `${where}: the box fits the window`);
 
     // remove it, then take it back
-    await box.getByRole('button', { name: words.removeOwn }).click();
+    await commitPreviewAction(page, 'settings.practice.set', () => box.getByRole('button', { name: words.removeOwn }).click());
     await box.locator('[data-fix-phrases]').waitFor({ state: 'detached', timeout: 15000 });
     assert.equal(await savedPhrases(), undefined, `${where}: removed from the library settings`);
-    await page.getByRole('button', { name: words.undo, exact: true }).click();
+    await commitPreviewAction(page, 'settings.practice.set', () => page.getByRole('button', { name: words.undo, exact: true }).click());
     await box.locator('[data-fix-phrases]').waitFor({ timeout: 15000 });
     assert.deepEqual(await savedPhrases(), [OWN], `${where}: 撤销 puts it back`);
 

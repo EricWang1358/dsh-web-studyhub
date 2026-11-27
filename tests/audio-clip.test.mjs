@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StudyService } from '../lib/service.js';
-import { transcribeClip, transcribeLocally, wavPcm } from '../lib/contexts/audio/clip.js';
+import { drainLocalClipPool, transcribeClip, transcribeLocally, wavPcm } from '../lib/contexts/audio/clip.js';
 import { createUploadRegistry } from '../lib/audio-upload.js';
 import { wavBytes, VOICE_MAX_SECONDS } from '../ui/voice/wav.js';
 
@@ -30,6 +30,8 @@ async function fixture(t, { fetch, key = KEY, engine = false } = {}) {
   const service = new StudyService(root, { fetch: fetch || (async () => { throw new Error('no provider in this test'); }),
     liveLocal: { engine: engine ? { enginePath: FAKE_ENGINE, modelDir } : null } });
   t.after(async () => {
+    // The warm recognizer owns this fixture's model files until the process-wide pool releases it.
+    if (engine) await drainLocalClipPool();
     await service.dispose?.();
     if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous;
     await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });

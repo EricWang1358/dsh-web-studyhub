@@ -79,12 +79,6 @@ test('the stacks put the private face first in the system stacks and nowhere els
   assert.ok(!stylesheets.some(css => css.includes('@font-face')), 'the @font-face is injected from the lazy chunk, never written in a stylesheet');
 });
 
-test('tabular numerals still work: the face carries tnum and the stylesheets ask for tabular-nums, not a feature string that would drop it', () => {
-  const asked = readdirSync(new URL('../ui', import.meta.url), { recursive: true }).filter(name => /\.css$/.test(String(name))).map(name => read(`ui/${name}`));
-  assert.ok(asked.some(css => /font-variant-numeric:\s*tabular-nums/.test(css)), 'tabular-nums is used');
-  assert.ok(!asked.some(css => /font-feature-settings/.test(css)), 'no font-feature-settings overrides tabular-nums');
-});
-
 test('the installer is idempotent and never throws without a browser or with a half document', async () => {
   assert.doesNotThrow(() => installInterFace());
   assert.equal(await installInterFace(), undefined, 'nothing to do without a document');

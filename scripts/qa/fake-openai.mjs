@@ -6,7 +6,6 @@
 import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createFakeModel } from "../fake-model.mjs";
 
 export const FAKE_OPENAI_MODEL = "fake-tutor";
 /** A second route of the same fake that declares image input (scripts/qa/dsh-hand-off.mjs pagePictureStep). */
@@ -19,7 +18,7 @@ const text = (content) => typeof content === "string" ? content
 export async function createFakeOpenAI({ port = 0, host = "127.0.0.1", model, beforeReply, toolCall } = {}) {
   const log = [];
   const studyLog = [];
-  const study = model || createFakeModel({ log: studyLog });
+  const study = model || (await import("../fake-model.mjs")).createFakeModel({ log: studyLog });
   const server = createServer((req, res) => {
     let body = "";
     req.on("data", (chunk) => { body += chunk; });

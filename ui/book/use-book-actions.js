@@ -260,7 +260,14 @@ export function useBookHandlers({
         notify({ text: ui(STRUCTURE_DONE[action]), tone: 'success', ...(action === 'course.book.place' ? { undo: true, timeout: UNDO_TIMEOUT, action: { label: ui('撤销'), onClick: takeBack } } : {}) });
         return { ok: true, book: next };
       } catch (failure) {
-        if (failure?.code === 'course-book-conflict') { notify({ text: structureFailureText(failure), tone: 'error' }); reload(); }
+        if (failure?.code === 'course-book-conflict') {
+          notify({ text: structureFailureText(failure), tone: 'error' });
+          // A retry uses the version returned by this read, including when the narrow view hides the TOC.
+          try {
+            const fresh = await call('course.book.open', { course });
+            if (fresh?.status === 'ok') setBook(fresh);
+          } catch { reload(); }
+        }
         return { ok: false, failure };
       }
     },
