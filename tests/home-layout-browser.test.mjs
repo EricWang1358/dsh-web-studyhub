@@ -14,6 +14,7 @@ import { scrubProcessEnv } from '../scripts/qa/env.mjs';
      1690  at 420px every part of the home's left column sits under the course heading, the pace line right after 掌握度, and a part nobody gave a place
            still cannot rise above the heading;
      1703  at 1280 and 1440, no line of a 需要补强 row on 统计 holds a single character, and the count with its unit is never split;
+     1704  the first-run card's index-card ruling ends above its buttons, in both themes, and every step row still sits on it;
    HOME_LAYOUT_SHOTS=<dir> keeps a screenshot of each place. */
 
 const SHOTS = process.env.HOME_LAYOUT_SHOTS || '';
@@ -63,6 +64,35 @@ test('the sample course\'s home and 统计 in a real browser', { timeout: 900000
       assert.ok(added['unplaced-part'] > added['course-header'], `a part with no place of its own stays under the heading: ${JSON.stringify(added)}`);
       assert.deepEqual(errors, []);
       await context.close();
+    });
+
+    await t.test('#1704: no ruled line of the first-run card runs under or beside its buttons, and the step rows sit on the ruling', async () => {
+      for (const [width, theme] of [[1440, 'light'], [420, 'dark']]) {
+        const { context, page } = await open(browser, server, { width, height: width < 500 ? 860 : 900, theme });
+        // The card is dealt in and tilts under the pointer: measured at rest.
+        await page.mouse.move(0, 0);
+        await page.waitForFunction(() => getComputedStyle(document.querySelector('.first-run-card')).transform === 'none');
+        const seen = await page.evaluate(() => {
+          const card = document.querySelector('.first-run-card'), box = (element) => element.getBoundingClientRect();
+          // Where each ruled background is painted: from its background-position down to the foot of the element that carries it.
+          const ruled = [card, ...card.querySelectorAll('*')].filter((element) => getComputedStyle(element).backgroundImage.startsWith('repeating-linear-gradient'))
+            .map((element) => ({ top: box(element).top + (parseFloat(getComputedStyle(element).backgroundPositionY) || 0), bottom: box(element).bottom, left: box(element).left, right: box(element).right }));
+          return { ruled, buttons: [...card.querySelectorAll('.today-go, .frl-sample-round')].map((button) => ({ words: button.innerText.trim(), top: box(button).top })),
+            rows: [...card.querySelectorAll('.frl-step__row')].map((row) => ({ top: box(row).top, bottom: box(row).bottom })), card: { left: box(card).left, right: box(card).right } };
+        });
+        assert.equal(seen.buttons.length, 2, `${width}px: 添加资料 and 练一轮示例题 (${JSON.stringify(seen.buttons)})`);
+        assert.equal(seen.ruled.length, 1, `${width}px ${theme}: one ruled area (${JSON.stringify(seen.ruled)})`);
+        const [area] = seen.ruled;
+        for (const button of seen.buttons) assert.ok(area.bottom <= button.top, `${width}px ${theme}: the ruling stops above 「${button.words}」 (ruled to ${area.bottom}, button at ${button.top})`);
+        assert.ok(area.left - seen.card.left <= 1.5 && seen.card.right - area.right <= 1.5, `${width}px: the ruling still runs the card's width ${JSON.stringify([area, seen.card])}`);
+        // Every row ends on a rule: a whole number of 32px lines below where the ruling starts.
+        for (const row of seen.rows) {
+          const lines = (row.bottom - area.top) / 32;
+          assert.ok(Math.abs(lines - Math.round(lines)) < 0.05 && row.bottom <= area.bottom + 0.5, `${width}px ${theme}: a step row sits on the ruling (${lines} lines)`);
+        }
+        await shot(page, `first-run-card-${width}-${theme}`);
+        await context.close();
+      }
     });
 
     await t.test('#1703: no 需要补强 row of 统计 leaves a single character on a line or splits the count from its unit, at 1280 and 1440', async () => {

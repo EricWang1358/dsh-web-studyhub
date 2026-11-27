@@ -339,8 +339,11 @@ export default function FirstRunLine({ line, form = 'page', sample, sampleBusy =
           <span>{ui('第一组题')}</span>
           {todayLabel && <time>{todayLabel}</time>}
         </div>
-        <Steps line={line} on={on} compact />
-        {planned && (action?.blocked ? <CompactBlocked reason={action.blocked} sourceIds={deck.sourceIds} on={on} /> : <CompactPlan plan={plan} />)}
+        {/* The index-card ruling is drawn under what is written on it, and ends where the buttons begin. */}
+        <div className="frl-ruled">
+          <Steps line={line} on={on} compact />
+          {planned && (action?.blocked ? <CompactBlocked reason={action.blocked} sourceIds={deck.sourceIds} on={on} /> : <CompactPlan plan={plan} />)}
+        </div>
         {action && <Button variant="primary" className={action.icon ? 'today-go today-go--lead' : 'today-go'} icon={action.icon} iconEnd={action.icon ? undefined : 'arrow-right'} disabled={!!action.blocked} lock={busy} data-usage="home.start" onClick={action.run}>{action.label}</Button>}
         <SampleRound line={line} on={on} className="frl-sample-round" />
       </div>
