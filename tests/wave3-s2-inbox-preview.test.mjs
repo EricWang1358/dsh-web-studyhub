@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
@@ -15,7 +14,6 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
 const m = module.exports;
 const h = React.createElement;
-const css = readFileSync(new URL('../ui/inbox-preview.css', import.meta.url), 'utf8');
 
 const longPrompt = '第 3 题：请说明在 Memento 模式中，哪个组件负责管理历史状态，以及它为什么不能直接读取快照的内部字段，同时给出一个撤销与重做的往返例子。';
 const longDetail = '示例讲解：快照与历史管理者的区别——快照只保存状态，历史管理者只保存快照的顺序，二者都不应该知道对方的内部结构，这样才能在不破坏封装的前提下撤销。';
@@ -74,11 +72,7 @@ test('an interactive tooltip stays open while the pointer is on its card', () =>
   assert.doesNotMatch(renderToStaticMarkup(h(m.TooltipDirect, { content: 'x', layer: true }, h('button', null, 'a'))), /sh-tooltip--interactive/);
 });
 
-test('inbox-preview.css is token-only, scoped, and keeps the card narrow and scrollable', () => {
-  assert.match(css, /study-app, \.study-seat/);
-  assert.match(css, /\.mailbox-preview/);
-  assert.match(css, /max-width:\s*min\(360px/);
-  assert.match(css, /overflow-y:\s*auto/);
-  assert.match(css, /\.mailbox__tip\s*\{\s*display:\s*block/);
-  assert.doesNotMatch(css, /!important|#[0-9a-f]{3,8}\b|rgba?\(/i);
-});
+// ui/inbox-preview.css invariants are enforced by repo-wide guardrails and Chromium computed styles:
+// - :is(.study-app, .study-seat) scope & @layer: tests/css-layers.test.mjs
+// - no !important or raw colors: tests/ui-guardrails.test.mjs + tests/css-token-guard.test.mjs
+// - .mailbox-preview layout, overflow-y: auto, max-width <= 360px, and .mailbox__tip display: block: tests/wave4-inbox-preview.test.mjs

@@ -112,6 +112,120 @@ const voteDown = async (page, words) => {
   await page.getByRole('menuitemcheckbox', { name: words.thumbDown }).click();
 };
 
+/** #1276: verify real computed styles of .practice-tip[popover], .practice-tip__ok, [data-practice-tip-ring], and keyboard :focus-visible against resolved theme tokens. */
+async function assertPracticeTipStyles(page, where) {
+  await page.waitForFunction(() => {
+    const ring = document.querySelector('[data-practice-tip-ring]');
+    return !!ring && ring.getAnimations().every((anim) => anim.playState !== 'running');
+  }, { timeout: 5000 });
+
+  const styles = await page.evaluate(() => {
+    const tip = document.querySelector('.practice-tip[popover]');
+    const ok = tip?.querySelector('.practice-tip__ok');
+    const ring = document.querySelector('[data-practice-tip-ring]');
+    const host = document.querySelector('.study-app') || document.body;
+    const probe = document.createElement('div');
+    probe.style.position = 'fixed';
+    probe.style.visibility = 'hidden';
+    probe.style.pointerEvents = 'none';
+    host.append(probe);
+    try {
+      const tipCs = tip ? getComputedStyle(tip) : null;
+      const okCs = ok ? getComputedStyle(ok) : null;
+      const ringCs = ring ? getComputedStyle(ring) : null;
+
+      probe.style.padding = 'var(--space-2) var(--space-3-5)';
+      probe.style.fontSize = tipCs?.fontSize || 'var(--fs-sm)';
+      probe.style.lineHeight = 'var(--lh-snug)';
+      probe.style.minHeight = 'var(--control-h-sm, 32px)';
+      probe.style.outline = '2px dashed var(--info-ink)';
+      probe.style.backgroundColor = 'var(--info-bg)';
+      const expectedCs = getComputedStyle(probe);
+      const expected = {
+        paddingTop: expectedCs.paddingTop,
+        paddingBottom: expectedCs.paddingBottom,
+        paddingLeft: expectedCs.paddingLeft,
+        paddingRight: expectedCs.paddingRight,
+        lineHeight: expectedCs.lineHeight,
+        smMinHeight: expectedCs.minHeight,
+        ringOutlineWidth: expectedCs.outlineWidth,
+        ringOutlineStyle: expectedCs.outlineStyle,
+        ringOutlineColor: expectedCs.outlineColor,
+        ringBackgroundColor: expectedCs.backgroundColor,
+      };
+
+      probe.style.outline = '2px solid var(--accent-soft)';
+      const expectedFocusCs = getComputedStyle(probe);
+      expected.focusOutlineWidth = expectedFocusCs.outlineWidth;
+      expected.focusOutlineStyle = expectedFocusCs.outlineStyle;
+      expected.focusOutlineColor = expectedFocusCs.outlineColor;
+
+      return {
+        tip: tipCs && {
+          paddingTop: tipCs.paddingTop,
+          paddingBottom: tipCs.paddingBottom,
+          paddingLeft: tipCs.paddingLeft,
+          paddingRight: tipCs.paddingRight,
+          lineHeight: tipCs.lineHeight,
+        },
+        ok: okCs && {
+          minHeight: okCs.minHeight,
+          height: ok.getBoundingClientRect().height,
+        },
+        ring: ringCs && {
+          outlineWidth: ringCs.outlineWidth,
+          outlineStyle: ringCs.outlineStyle,
+          outlineColor: ringCs.outlineColor,
+          backgroundColor: ringCs.backgroundColor,
+          focusVisible: ring.matches(':focus-visible'),
+        },
+        expected,
+      };
+    } finally {
+      probe.remove();
+    }
+  });
+
+  assert.ok(styles.tip, `${where}: .practice-tip[popover] is mounted`);
+  assert.ok(parseFloat(styles.expected.paddingTop) > 0 && parseFloat(styles.expected.paddingLeft) > parseFloat(styles.expected.paddingTop), `${where}: padding tokens resolved`);
+  assert.equal(styles.tip.paddingTop, styles.expected.paddingTop, `${where}: .practice-tip[popover] top padding matches --space-2`);
+  assert.equal(styles.tip.paddingBottom, styles.expected.paddingBottom, `${where}: .practice-tip[popover] bottom padding matches --space-2`);
+  assert.equal(styles.tip.paddingLeft, styles.expected.paddingLeft, `${where}: .practice-tip[popover] left padding matches --space-3-5`);
+  assert.equal(styles.tip.paddingRight, styles.expected.paddingRight, `${where}: .practice-tip[popover] right padding matches --space-3-5`);
+  assert.equal(styles.tip.lineHeight, styles.expected.lineHeight, `${where}: .practice-tip[popover] line-height matches --lh-snug`);
+
+  assert.ok(styles.ok, `${where}: .practice-tip__ok is mounted`);
+  assert.equal(styles.ok.minHeight, styles.expected.smMinHeight, `${where}: 知道了 keeps normal small-button min-height (not min-height: 0)`);
+  assert.ok(parseFloat(styles.ok.minHeight) > 0 && styles.ok.height >= parseFloat(styles.expected.smMinHeight) - 0.5, `${where}: 知道了 keeps comfortable touch target height (${styles.ok.height}px)`);
+
+  assert.ok(styles.ring, `${where}: [data-practice-tip-ring] is mounted`);
+  assert.equal(styles.ring.focusVisible, false, `${where}: tip ring is measured before keyboard focus`);
+  assert.equal(styles.ring.outlineWidth, styles.expected.ringOutlineWidth, `${where}: tip ring uses 2px outline`);
+  assert.equal(styles.ring.outlineStyle, 'dashed', `${where}: tip ring uses dashed outline (distinct from solid :focus-visible)`);
+  assert.equal(styles.ring.outlineColor, styles.expected.ringOutlineColor, `${where}: tip ring outline color matches --info-ink`);
+  assert.notEqual(styles.ring.outlineColor, styles.expected.focusOutlineColor, `${where}: tip ring color differs from --accent-soft`);
+  assert.equal(styles.ring.backgroundColor, styles.expected.ringBackgroundColor, `${where}: tip ring background matches --info-bg`);
+
+  // Real keyboard Tab focus onto the ringed control must switch the outline to 2px solid --accent-soft.
+  await page.locator('[data-practice-tip-ring]').focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await page.waitForFunction(() => {
+    const ring = document.querySelector('[data-practice-tip-ring]');
+    return !!ring && document.activeElement === ring && ring.matches(':focus-visible')
+      && ring.getAnimations().every((anim) => anim.playState !== 'running');
+  }, { timeout: 5000 });
+  const focused = await page.evaluate(() => {
+    const ring = document.querySelector('[data-practice-tip-ring]');
+    const cs = getComputedStyle(ring);
+    return { outlineWidth: cs.outlineWidth, outlineStyle: cs.outlineStyle, outlineColor: cs.outlineColor, boxShadow: cs.boxShadow };
+  });
+  assert.equal(focused.outlineWidth, styles.expected.focusOutlineWidth, `${where}: [data-practice-tip-ring]:focus-visible uses 2px outline`);
+  assert.equal(focused.outlineStyle, 'solid', `${where}: [data-practice-tip-ring]:focus-visible switches to solid outline`);
+  assert.equal(focused.outlineColor, styles.expected.focusOutlineColor, `${where}: [data-practice-tip-ring]:focus-visible uses --accent-soft`);
+  assert.notEqual(focused.boxShadow, 'none', `${where}: [data-practice-tip-ring]:focus-visible applies --ring box-shadow`);
+}
+
 test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 px)', { timeout: 1200000 }, async (t) => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
@@ -204,6 +318,7 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       await answer(page, 'wrong');
       await toTools(page);
       await readTip(page, 'practice.help-first');
+      if (width === 1280) await assertPracticeTipStyles(page, where);
       await page.keyboard.press('Escape');
       await anyTip(page).first().waitFor({ state: 'detached', timeout: 5000 });
       assert.deepEqual(await stored(page), ['help-first'], `${where}: Esc closes it for good`);

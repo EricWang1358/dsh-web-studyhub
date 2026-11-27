@@ -127,7 +127,32 @@ test('the card scrolls inside itself when the text is very long (#181)', { skip:
   const page = await open(t);
   await page.locator('.mailbox__item').nth(0).hover();
   await page.waitForFunction(() => document.querySelectorAll('.mailbox-preview:popover-open').length === 1);
-  const box = await page.evaluate(() => { const card = document.querySelector('.mailbox-preview:popover-open'); return { scroll: card.scrollHeight, client: card.clientHeight, overflow: getComputedStyle(card).overflowY }; });
+  const box = await page.evaluate(() => {
+    const card = document.querySelector('.mailbox-preview:popover-open');
+    const tips = [...document.querySelectorAll('.mailbox__tip')].map(el => getComputedStyle(el).display);
+    return {
+      scroll: card.scrollHeight,
+      client: card.clientHeight,
+      overflow: getComputedStyle(card).overflowY,
+      width: card.getBoundingClientRect().width,
+      maxWidth: getComputedStyle(card).maxWidth,
+      tips,
+    };
+  });
   assert.equal(box.overflow, 'auto');
   assert.ok(box.scroll >= box.client);
+  assert.ok(box.width > 0 && box.width <= 360, `card width stays narrow (<= 360px), got ${box.width}px`);
+  assert.equal(box.maxWidth, '360px', 'computed max-width caps the card at 360px on a wide viewport');
+  assert.equal(box.tips.length, 3);
+  assert.ok(box.tips.every(display => display === 'block'), `every .mailbox__tip uses display: block, got ${JSON.stringify(box.tips)}`);
+
+  // Narrow viewport: min(360px, calc(100vw / scale - var(--space-4))) keeps the card inside the viewport.
+  const narrow = await open(t, 320);
+  await narrow.locator('.mailbox__item').nth(0).hover();
+  await narrow.waitForFunction(() => document.querySelectorAll('.mailbox-preview:popover-open').length === 1);
+  const narrowBox = await narrow.evaluate(() => {
+    const card = document.querySelector('.mailbox-preview:popover-open');
+    return { width: card.getBoundingClientRect().width, viewport: window.innerWidth };
+  });
+  assert.ok(narrowBox.width > 0 && narrowBox.width < narrowBox.viewport, `narrow viewport clamps card below ${narrowBox.viewport}px, got ${narrowBox.width}px`);
 });

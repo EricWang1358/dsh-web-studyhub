@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 
 // WP-G (tracker #161, #138 #139 #140): the field primitives every settings page uses.
 const require = createRequire(import.meta.url);
@@ -181,14 +182,35 @@ test('ProviderCard puts the head, the saved state, the steps and the form in one
 });
 
 test('the field stylesheet uses tokens only and defines every class once', () => {
-  const css = readFileSync(new URL('../ui/components/fields.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-  assert.doesNotMatch(css, /#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/, 'no raw colours');
-  assert.doesNotMatch(css, /font-size:\s*\d+(\.\d+)?px/, 'no raw font sizes');
-  assert.doesNotMatch(css, /!important/);
-  assert.doesNotMatch(css, /container-type/, 'a container of its own inside a lazily mounted pane made Chromium skip laying out the provider cards now and then; the page container (@container study) decides');
-  assert.doesNotMatch(css, /z-index:\s*\d/);
-  assert.match(css, /\.sh-input\b/);
-  assert.match(css, /prefers-reduced-motion/);
-  const weights = new Set([...css.matchAll(/\.sh-(?:field__label|check__label)[^{]*\{[^}]*font-weight:\s*([^;]+);/g)].map(match => match[1].trim()));
-  assert.deepEqual([...weights], ['var(--fw-medium)'], 'one label weight');
+  // Repo-wide raw hex/rgb/hsl colors, px font-size, and !important are enforced across all ui/**/*.css
+  // by tests/ui-guardrails.test.mjs and tests/css-token-guard.test.mjs; .sh-input styling is verified
+  // behaviorally in tests/wave2-g-fields-browser.test.mjs. Here we inspect parsed AST declarations for
+  // fields.css-specific layout, stacking, reduced-motion, and label-weight invariants.
+  const { declarations } = parseCss(readFileSync(new URL('../ui/components/fields.css', import.meta.url), 'utf8'));
+  assert.deepEqual(
+    declarations.filter((d) => d.prop === 'container-type' || d.prop === 'container'),
+    [],
+    'a container of its own inside a lazily mounted pane made Chromium skip laying out the provider cards now and then; the page container (@container study) decides',
+  );
+  assert.deepEqual(
+    declarations.filter((d) => d.prop === 'z-index' && /-?\d/.test(d.value)),
+    [],
+    'fields.css must not declare numeric z-index values',
+  );
+  const reducedMotionDecls = declarations.filter(
+    (d) => d.ctx.some((c) => /@media \(prefers-reduced-motion:\s*reduce\)/.test(c))
+      && d.prop === 'transition'
+      && d.value === 'none',
+  );
+  for (const selector of ['.sh-switch__thumb', '.sh-input']) {
+    assert.ok(
+      reducedMotionDecls.some((d) => d.ctx.at(-1).split(',').some((part) => part.trim() === selector)),
+      `fields.css disables transition for ${selector} under prefers-reduced-motion: reduce`,
+    );
+  }
+  const labelWeightDecls = declarations.filter(
+    (d) => d.prop === 'font-weight' && /\.sh-(?:field__label|check__label)\b/.test(d.ctx.at(-1)),
+  );
+  assert.deepEqual([...new Set(labelWeightDecls.map((d) => d.value))], ['var(--fw-medium)'], 'one label weight');
+  assert.equal(labelWeightDecls.length >= 2, true, 'both .sh-field__label and .sh-check__label declare font-weight');
 });
