@@ -172,6 +172,17 @@ test("#1367-1b: open-and-close never disqualifies a later independent pass; a hi
     assert.equal(sameRound.capabilityEvidence.assistedOrExposedCount, 1);
     assert.equal(sameRound.capabilityEvidence.unseenIndependentPassCount, 0);
 
+    // 「重新开始」 clears the talk, not the help: the round it was given in, when, and how far it went all stay (#1662 review).
+    await service.call("socratic.step", { ...ref, runId: run.id, action: "reset" });
+    const restarted = (await service.store.read()).decks[0].cards[0];
+    assert.equal(restarted.socratic.turns.length, 1, "the conversation starts over");
+    assert.equal(restarted.socratic.hintLevel, 0);
+    assert.equal(restarted.socratic.maxHintLevelUsed, 1, "the highest hint used is kept");
+    assert.equal(restarted.socratic.helpRunId, run.id, "the round of the help is kept");
+    assert.equal(restarted.socratic.helpAt, hinted.socratic.helpAt, "the time of the help is kept");
+    const afterRestart = computeCoachEvidence(coachState([restarted], [{ ...formal, runId: run.id, timestamp: answeredAt }]), { course: "OS", spec });
+    assert.equal(afterRestart.capabilityEvidence.assistedOrExposedCount, 1, "the same round's answer is still assisted");
+
     // A later round with the same record still counts as independent: the old hint does not follow the question forever.
     const laterRound = computeCoachEvidence(coachState([hinted], [{ ...formal, runId: "run-later" }]), { course: "OS", spec });
     assert.equal(laterRound.capabilityEvidence.unseenIndependentPassCount, 1);
