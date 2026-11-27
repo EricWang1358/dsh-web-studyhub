@@ -28,8 +28,9 @@
       width: 1em;
       height: 1em;
       border-radius: 50%;
-      border: 2px solid currentColor;
-      border-right-color: transparent;
+      /* A whole faint ring with one bright arc going round it (a ring with a side cut out read as a broken circle). */
+      border: 2px solid color-mix(in srgb, currentColor 22%, transparent);
+      border-top-color: currentColor;
       animation: sh-spin 0.8s linear infinite;
     }
     .sh-job__mark .sh-spinner { width: 18px; height: 18px; }
