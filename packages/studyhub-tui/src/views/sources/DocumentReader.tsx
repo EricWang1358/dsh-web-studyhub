@@ -344,7 +344,7 @@ export const DocumentReader = memo(function DocumentReader({
           modelAvailable: estRes.value.modelAvailable !== false,
         });
       } catch (err) {
-        if (mountedRef.current && seq === translateSeqRef.current) {
+        if (mountedRef.current && seq === translateSeqRef.current && pageKeyRef.current === expectedPageKey) {
           notify(errorMessage(err), 'error');
         }
       } finally {
@@ -443,7 +443,7 @@ export const DocumentReader = memo(function DocumentReader({
           finishTranslation();
         }
       } catch (err) {
-        if (!ac.signal.aborted && mountedRef.current && seq === translateSeqRef.current) {
+        if (!ac.signal.aborted && mountedRef.current && seq === translateSeqRef.current && pageKeyRef.current === expectedPageKey) {
           setTranslationText(`${asciiMode ? 'x' : '✕'} ${errorMessage(err)}`);
           setTranslateMeta({
             target: confirm.target,

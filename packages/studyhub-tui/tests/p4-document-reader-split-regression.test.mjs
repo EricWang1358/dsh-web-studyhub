@@ -135,7 +135,7 @@ function mountDocumentReader(props, { cols = 112, rows = 30 } = {}) {
     }
   });
 
-  const instance = render(
+  const buildTree = (currentProps) =>
     React.createElement(
       KeyBridgeWrapper,
       { cols, rows },
@@ -144,11 +144,17 @@ function mountDocumentReader(props, { cols = 112, rows = 30 } = {}) {
         height: rows,
         isActive: true,
         onClose: () => {},
-        ...props,
+        ...currentProps,
       }),
-    ),
-    { stdout, stdin, exitOnCtrlC: false, patchConsole: false, debug: true },
-  );
+    );
+
+  const instance = render(buildTree(props), {
+    stdout,
+    stdin,
+    exitOnCtrlC: false,
+    patchConsole: false,
+    debug: true,
+  });
 
   function waitFor(pred, { timeoutMs = 4_000, label = 'condition' } = {}) {
     if (pred(latest)) return Promise.resolve(latest);
@@ -188,6 +194,7 @@ function mountDocumentReader(props, { cols = 112, rows = 30 } = {}) {
 
   return {
     send: (data) => stdin.write(data),
+    rerender: (nextProps) => instance.rerender(buildTree(nextProps)),
     frame: () => latest,
     waitFor,
     unmount: () => instance.unmount(),
@@ -437,6 +444,15 @@ describe('P4 (#1354 D12): DocumentReader.tsx Line-Limit Guardrail & Split Regres
     const narrowLayout = model.computeReaderLayout({ width: 76, height: 24, subMode: 'translate-view', isTyping: false });
     assert.equal(narrowLayout.showSide, false);
     assert.equal(narrowLayout.showBottom, true);
+
+    // computeScrollAnchorExcerpt at top vs scrolled
+    assert.deepEqual(model.computeScrollAnchorExcerpt('Hello world', 0, 'read', 100), {});
+    const longText = Array.from({ length: 12 }, (_, i) => `Paragraph ${i + 1}: energy conservation in system ${i + 1}.`).join('\n');
+    const scrolled = model.computeScrollAnchorExcerpt(longText, 5, 'ask-view', 112);
+    assert.equal(typeof scrolled.anchorOffset, 'number');
+    assert.ok(scrolled.anchorOffset > 0);
+    assert.ok(typeof scrolled.selectedExcerpt === 'string' && scrolled.selectedExcerpt.length > 0);
+    assert.equal(longText.slice(scrolled.anchorOffset, scrolled.anchorOffset + scrolled.selectedExcerpt.length), scrolled.selectedExcerpt);
   });
 
   test('3. Pagination [/], jump clamping [g], math toggle [m], search jump [/], and source.get fallback', async (t) => {
@@ -1008,7 +1024,9 @@ describe('P4 (#1354 D12): DocumentReader.tsx Line-Limit Guardrail & Split Regres
     m.send(']');
     await m.waitFor((s) => s.includes('Beta corollary') && s.includes('P. 2 / 3'), { label: 'switched to page 2' });
     staleEstimateHold.resolve();
-    await new Promise((r) => setImmediate(r));
+    // Trigger an unrelated synchronous state change (math toggle) so React + Ink commit after the resolved promise
+    m.send('m');
+    await m.waitFor((s) => s.includes('TeX'), { label: 'post-resolve render flushed' });
     assert.equal(
       m.frame().includes('Confirm Page Translation'),
       false,
@@ -1108,5 +1126,315 @@ describe('P4 (#1354 D12): DocumentReader.tsx Line-Limit Guardrail & Split Regres
     await m.waitFor((s) => s.includes('Beta corollary') && s.includes('P. 2 / 3') && !s.includes('Document Outline'), {
       label: 'outline drawer jumped to page 2 and closed',
     });
+  });
+
+  test('11. Cross-document switch isolation: concurrent document.get, reading.save, search, and translation from Doc A never leak into Doc B', async (t) => {
+    resetTuiStore({ language: 'en', asciiMode: true });
+    const saveAHold = deferred();
+    const searchAHold = deferred();
+    const translateAHold = deferred();
+
+    const { host, calls } = makeMockHost({
+      'materials.document.get': async (args) => {
+        if (args?.documentId === 'doc-a') {
+          return {
+            documentId: 'doc-a',
+            title: 'Doc A',
+            format: 'md',
+            sources: [
+              { id: 'src-a1', text: '# Ch A1\n\nBody A1 content', document: { page: 1 } },
+              { id: 'src-a2', text: '# Ch A2\n\nBody A2 content', document: { page: 2 } },
+            ],
+          };
+        }
+        return {
+          documentId: 'doc-b',
+          title: 'Doc B',
+          format: 'md',
+          sources: [
+            { id: 'src-b1', text: '# Ch B1\n\nBody B1 content', document: { page: 1 } },
+            { id: 'src-b2', text: '# Ch B2\n\nBody B2 content', document: { page: 2 } },
+          ],
+        };
+      },
+      'source.pages': async (args) => {
+        const pg = Number(args?.from ?? 1);
+        if (args?.documentId === 'doc-a') {
+          return {
+            documentId: 'doc-a',
+            title: 'Doc A',
+            pages: '1-2',
+            shown: [{ page: pg, sourceId: `src-a${pg}`, text: `# Ch A${pg}\n\nBody A${pg} content`, chars: 24 }],
+          };
+        }
+        return {
+          documentId: 'doc-b',
+          title: 'Doc B',
+          pages: '1-2',
+          shown: [{ page: pg, sourceId: `src-b${pg}`, text: `# Ch B${pg}\n\nBody B${pg} content`, chars: 24 }],
+        };
+      },
+      'materials.reading.get': async (args) => ({
+        read: args?.documentId === 'doc-b' ? ['md-2-1'] : [],
+      }),
+      'materials.reading.save': async (args) => {
+        if (args?.documentId === 'doc-a') {
+          await saveAHold.promise;
+          return { saved: true, read: ['md-1-1'] };
+        }
+        return { saved: true, read: ['md-1-1', 'md-2-1'] };
+      },
+      'source.search': async () => {
+        await searchAHold.promise;
+        return { matches: [{ id: 'src-a2', page: 2, snippet: 'hit' }] };
+      },
+      'materials.translation.list': async () => ({ target: 'en', items: [] }),
+      'materials.translation.translate': async (args) => {
+        if (args?.estimate) {
+          return {
+            status: 'estimate',
+            target: 'en',
+            counts: { passages: 1, toTranslate: 1 },
+            estimate: { calls: 1, totalTokens: 60 },
+            modelAvailable: true,
+          };
+        }
+        await translateAHold.promise;
+        return {
+          status: 'done',
+          target: 'en',
+          counts: { passages: 1, translated: 1 },
+          results: [{ sourceId: 'src-a1', status: 'done', item: { quote: 'Body A1', text: 'STALE DOC A TRANSLATION' } }],
+        };
+      },
+      'materials.translation.cancel': async () => ({ cancelled: true }),
+    });
+
+    const m = mountDocumentReader({
+      host,
+      documentId: 'doc-a',
+      sourceId: 'src-a1',
+      initialPage: 1,
+      initialTitle: 'Doc A',
+      totalPagesHint: 2,
+    });
+    t.after(() => m.cleanup());
+
+    await m.waitFor((s) => s.includes('Body A1 content') && s.includes('OK 0/2 (Unread)'), {
+      label: 'Doc A loaded',
+    });
+
+    // Trigger reading.save, search, and confirmed translation simultaneously on Doc A
+    m.send('M');
+    await m.waitFor((s) => s.includes('OK 1/2 (Read)'), { label: 'Doc A optimistic chapter read' });
+    m.send('/');
+    await m.waitFor((s) => s.includes('Search document:'), { label: 'Doc A search bar opened' });
+    m.send('hit');
+    await m.waitFor((s) => s.includes('Search document: hit'), { label: 'Doc A search query typed' });
+    m.send('\r');
+    await m.waitFor(() => calls.some((c) => c.name === 'source.search'), { label: 'Doc A search in-flight' });
+    m.send('t');
+    await m.waitFor((s) => s.includes('Confirm Page Translation'), { label: 'Doc A translate confirm' });
+    m.send('\r');
+    await m.waitFor(
+      () => calls.some((c) => c.name === 'materials.translation.translate' && !c.args?.estimate),
+      { label: 'Doc A paid translation in-flight' },
+    );
+
+    // Switch props from Doc A to Doc B while all 3 Doc A RPCs are still in-flight
+    m.rerender({
+      host,
+      documentId: 'doc-b',
+      sourceId: 'src-b1',
+      initialPage: 1,
+      initialTitle: 'Doc B',
+      totalPagesHint: 2,
+    });
+    await m.waitFor((s) => s.includes('Body B1 content') && s.includes('OK 1/2 (Unread)'), {
+      label: 'Doc B loaded cleanly',
+    });
+    assert.equal(m.frame().includes('? hit'), false, 'Doc A activeSearch must be cleared on document switch');
+    assert.ok(
+      calls.some((c) => c.name === 'materials.translation.cancel'),
+      'Switching documents must cancel Doc A in-flight translation',
+    );
+
+    // Doc B must NOT be blocked by Doc A's in-flight reading.save
+    m.send('M');
+    await m.waitFor((s) => s.includes('OK 2/2 (Read)'), { label: 'Doc B chapter read succeeded immediately' });
+    assert.ok(calls.some((c) => c.name === 'materials.reading.save' && c.args?.documentId === 'doc-b'));
+
+    // Now resolve all 3 stale Doc A RPCs and flush render via math toggle
+    saveAHold.resolve();
+    searchAHold.resolve();
+    translateAHold.resolve();
+    m.send('m');
+    await m.waitFor((s) => s.includes('TeX'), { label: 'post-stale-resolution render flushed' });
+
+    const finalFrame = m.frame();
+    assert.ok(finalFrame.includes('Body B1 content') && finalFrame.includes('P. 1 / 2'), 'Doc A stale search must not jump Doc B');
+    assert.ok(finalFrame.includes('OK 2/2 (Read)'), 'Doc A stale reading.save must not overwrite Doc B progress');
+    assert.equal(finalFrame.includes('STALE DOC A TRANSLATION'), false, 'Doc A stale translation must not render on Doc B');
+    m.cleanup();
+
+    // Cancelled materials.document.get from Doc A must not call source.pages or poison Doc B's lastReadPages key
+    resetTuiStore({ language: 'en', asciiMode: true });
+    const docAGetHold = deferred();
+    const loadCalls = [];
+    const { host: host2 } = makeMockHost({
+      'materials.document.get': async (args) => {
+        loadCalls.push({ name: 'materials.document.get', sourceId: args?.sourceId });
+        if (args?.sourceId === 'src-a1') {
+          await docAGetHold.promise;
+          return { title: 'Doc A', format: 'md', sources: [{ id: 'src-a1', document: { page: 1 } }] };
+        }
+        return {
+          title: 'Doc B',
+          format: 'md',
+          sources: [
+            { id: 'src-b1', document: { page: 1 } },
+            { id: 'src-b2', document: { page: 2 } },
+          ],
+        };
+      },
+      'source.pages': async (args) => {
+        loadCalls.push({ name: 'source.pages', sourceId: args?.sourceId, from: args?.from });
+        const pg = Number(args?.from ?? 1);
+        return {
+          title: args?.sourceId === 'src-a1' ? 'Doc A' : 'Doc B',
+          pages: '1-2',
+          shown: [{ page: pg, sourceId: args?.sourceId === 'src-a1' ? 'src-a1' : `src-b${pg}`, text: `Page ${pg} body`, chars: 12 }],
+        };
+      },
+    });
+    const m2 = mountDocumentReader({
+      host: host2,
+      sourceId: 'src-a1',
+      initialPage: 1,
+      initialTitle: 'Doc A',
+      totalPagesHint: 2,
+    });
+    t.after(() => m2.cleanup());
+    await m2.waitFor(() => loadCalls.some((c) => c.name === 'materials.document.get' && c.sourceId === 'src-a1'), {
+      label: 'Doc A document.get started',
+    });
+    m2.rerender({ host: host2, sourceId: 'src-b1', initialPage: 1, initialTitle: 'Doc B', totalPagesHint: 2 });
+    await m2.waitFor((s) => s.includes('Page 1 body') && s.includes('Doc B'), { label: 'Doc B loaded' });
+    docAGetHold.resolve();
+    m2.send(']');
+    await m2.waitFor((s) => s.includes('Page 2 body') && s.includes('P. 2 / 2'), { label: 'Doc B moved to page 2' });
+    m2.send('\x1b');
+    await m2.waitFor(() => useTuiStore.getState().preferences.lastReadPages?.['src-b1'] === 2, {
+      label: 'Doc B persisted lastReadPages under src-b1',
+    });
+    assert.equal(
+      loadCalls.some((c) => c.name === 'source.pages' && c.sourceId === 'src-a1'),
+      false,
+      'Cancelled Doc A document.get must not issue wasted source.pages call',
+    );
+    assert.equal(
+      Object.hasOwn(useTuiStore.getState().preferences.lastReadPages ?? {}, 'src-a1'),
+      false,
+      'Stale Doc A document.get must not poison Doc B lastReadPages key',
+    );
+  });
+
+  test('12. Unmount/Esc guard for linked-card practice [p] and multi-slice readWholePage stitching + incomplete notice', async (t) => {
+    resetTuiStore({ language: 'en', asciiMode: true });
+    const cardsHold = deferred();
+    let reviewStartCalled = false;
+    let closed = false;
+    const { host, calls } = makeMockHost(
+      makeThreePageDocHandlers({
+        'materials.pages.cards': async () => {
+          await cardsHold.promise;
+          return { cards: [{ deckId: 'd1', cardId: 'c1' }] };
+        },
+        'review.start': async () => {
+          reviewStartCalled = true;
+          return { id: 'run-ghost', total: 1, index: 0, card: { id: 'c1' } };
+        },
+      }),
+    );
+
+    const m = mountDocumentReader({
+      host,
+      documentId: 'doc-phys-1',
+      sourceId: 'src-p1',
+      initialPage: 1,
+      totalPagesHint: 3,
+      onClose: () => {
+        closed = true;
+      },
+    });
+    t.after(() => m.cleanup());
+
+    await m.waitFor((s) => s.includes('Alpha theorem'), { label: 'page 1 ready for practice race' });
+    m.send('p');
+    await m.waitFor(() => calls.some((c) => c.name === 'materials.pages.cards'), {
+      label: 'materials.pages.cards in-flight',
+    });
+    m.send('\x1b');
+    await m.waitFor(() => closed, { label: 'reader closed before linked cards resolved' });
+    m.cleanup();
+
+    cardsHold.resolve();
+    // Flush microtasks + one macrotask to confirm late callback does not navigate
+    await new Promise((r) => setTimeout(r, 40));
+    assert.equal(reviewStartCalled, false, 'Closed reader must not start review after Esc/unmount');
+    assert.equal(useTuiStore.getState().page, 'sources', 'Closed reader must not navigate away to review');
+
+    // Multi-slice source.pages stitching + incomplete slice notice
+    resetTuiStore({ language: 'en', asciiMode: true });
+    const { host: sliceHost } = makeMockHost({
+      'materials.document.get': async () => ({
+        documentId: 'doc-long',
+        title: 'Long Page Doc',
+        format: 'text',
+        sources: [{ id: 'src-long-1', document: { page: 1 } }],
+      }),
+      'source.pages': async (args) => {
+        const offset = Number(args?.offset ?? 0);
+        if (offset === 0) {
+          return {
+            documentId: 'doc-long',
+            title: 'Long Page Doc',
+            pages: '1-1',
+            shown: [{ page: 1, sourceId: 'src-long-1', text: 'FIRST_SLICE_MARKER ', chars: 50 }],
+            next: { from: 1, offset: 19 },
+          };
+        }
+        if (offset === 19) {
+          return {
+            documentId: 'doc-long',
+            title: 'Long Page Doc',
+            pages: '1-1',
+            shown: [{ page: 1, sourceId: 'src-long-1', text: 'SECOND_SLICE_MARKER', chars: 50 }],
+            next: { from: 1, offset: 38 },
+          };
+        }
+        return { ok: false, error: { code: 'SLICE_ERR', message: 'disk timeout' } };
+      },
+      'materials.reading.get': async () => ({ read: [] }),
+    });
+
+    const m2 = mountDocumentReader({
+      host: sliceHost,
+      documentId: 'doc-long',
+      sourceId: 'src-long-1',
+      initialPage: 1,
+      initialTitle: 'Long Page Doc',
+      initialFormat: 'text',
+      totalPagesHint: 1,
+    });
+    t.after(() => m2.cleanup());
+
+    await m2.waitFor(
+      (s) =>
+        s.includes('FIRST_SLICE_MARKER') &&
+        s.includes('SECOND_SLICE_MARKER') &&
+        s.includes('The rest could not be read'),
+      { label: 'multi-slice page stitched with incomplete notice' },
+    );
   });
 });

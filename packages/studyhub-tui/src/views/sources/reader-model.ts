@@ -562,8 +562,7 @@ export function computeScrollAnchorExcerpt(
   width: number,
 ): { anchorOffset?: number; selectedExcerpt?: string } {
   if (pageScrollTop <= 0 || !pageText) return {};
-  const isSide = (subMode === 'ask-view' || subMode === 'translate-view') && width >= LAYOUT_BP.NARROW;
-  const readerW = isSide ? Math.max(24, Math.floor(width * 0.56)) : width;
+  const { mainW: readerW } = computeReaderLayout({ width, height: 24, subMode, isTyping: false });
   const textCols = Math.max(11, readerW - 5);
   const wrapped = wrapDisplay(pageText, textCols);
   if (wrapped.length === 0) return {};

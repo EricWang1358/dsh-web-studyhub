@@ -217,6 +217,7 @@ export function ReaderPagePanel({
   pageScrollTop,
   onScroll,
 }: ReaderPagePanelProps): React.ReactElement {
+  const compactMode = useTuiStore((s) => Boolean(s.preferences.compactMode));
   const availW = Math.max(12, width - 4);
   const innerH = Math.max(2, height - 2);
   const { proseWidth, marginLeft } = computeProseLayout(availW);
@@ -269,7 +270,7 @@ export function ReaderPagePanel({
         <ScrollArea
           prose
           lines={formatLongformProse(rawText, Math.max(12, proseWidth - 1), {
-            relaxed: !useTuiStore.getState().preferences.compactMode,
+            relaxed: !compactMode,
           })}
           width={availW}
           height={innerH}

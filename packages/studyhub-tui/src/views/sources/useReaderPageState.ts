@@ -53,8 +53,11 @@ export function useReaderPageState({
   const [outlineRefreshTick, setOutlineRefreshTick] = useState(0);
 
   const mountedRef = useRef(true);
+  const docGenRef = useRef(0);
+  const readingSeqRef = useRef(0);
   const readingBusyRef = useRef(false);
   const readingTargetRef = useRef<{ documentId?: string; sourceId?: string; revision?: string }>({});
+  const prevDocTargetRef = useRef(`${documentId ?? ''}|${sourceId ?? ''}`);
   const firstSourceIdRef = useRef<string | undefined>(sourceId);
   const resumeCheckedRef = useRef(false);
   const userNavigatedRef = useRef(false);
@@ -113,6 +116,17 @@ export function useReaderPageState({
     userNavigatedRef.current = false;
     lastPersistedRef.current = null;
     setCurrentPage(Math.max(1, initialPage));
+    const nextTarget = `${documentId ?? ''}|${sourceId ?? ''}`;
+    if (prevDocTargetRef.current !== nextTarget) {
+      prevDocTargetRef.current = nextTarget;
+      docGenRef.current += 1;
+      readingSeqRef.current += 1;
+      readingBusyRef.current = false;
+      readingTargetRef.current = {};
+      setPageData(null);
+      setChapters([]);
+      setReadChapterIds(new Set());
+    }
   }, [sourceId, documentId, initialPage, flushPendingPersist]);
 
   // Load current page window on demand.
@@ -137,6 +151,7 @@ export function useReaderPageState({
           ...(documentId ? { documentId } : {}),
           ...(sourceId ? { sourceId } : {}),
         });
+        if (cancelled) return;
         if (metaRes.ok && metaRes.value) {
           const metaSources = Array.isArray(metaRes.value.sources)
             ? (metaRes.value.sources as Array<{ id?: unknown }>)
@@ -436,6 +451,8 @@ export function useReaderPageState({
         return;
       }
 
+      const gen = docGenRef.current;
+      const reqSeq = ++readingSeqRef.current;
       const wasRead = readChapterIds.has(chapter.id);
       const nextRead = !wasRead;
       const prevSet = readChapterIds;
@@ -467,7 +484,7 @@ export function useReaderPageState({
           read: nextRead ? [refPayload] : [],
           unread: nextRead ? [] : [refPayload],
         });
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || gen !== docGenRef.current || reqSeq !== readingSeqRef.current) return;
         if (!res.ok || res.value?.saved === false) {
           setReadChapterIds(prevSet);
           notify(
@@ -487,12 +504,14 @@ export function useReaderPageState({
           'success',
         );
       } catch (err) {
-        if (mountedRef.current) {
+        if (mountedRef.current && gen === docGenRef.current && reqSeq === readingSeqRef.current) {
           setReadChapterIds(prevSet);
           notify(errorMessage(err), 'error');
         }
       } finally {
-        readingBusyRef.current = false;
+        if (gen === docGenRef.current && reqSeq === readingSeqRef.current) {
+          readingBusyRef.current = false;
+        }
       }
     },
     [chapters, documentId, host, lang, notify, pageData, readChapterIds, sourceId],

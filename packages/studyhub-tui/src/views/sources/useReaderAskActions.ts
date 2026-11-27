@@ -70,6 +70,10 @@ export function useReaderAskActions({
   const saveCardBusyRef = useRef(false);
   const askAbortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
+  const searchSeqRef = useRef(0);
+  const practiceSeqRef = useRef(0);
+  const askActionSeqRef = useRef(0);
+  const prevDocTargetRef = useRef(`${documentId ?? ''}|${sourceId ?? ''}`);
 
   const { send: sendAiTurn, abort: abortAiTurn } = useAiConversation(host, lang);
 
@@ -85,6 +89,10 @@ export function useReaderAskActions({
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      searchSeqRef.current += 1;
+      practiceSeqRef.current += 1;
+      askActionSeqRef.current += 1;
+      saveCardBusyRef.current = false;
       abortAskInFlight();
       setSearchHits([]);
       setSavingNote(false);
@@ -93,12 +101,27 @@ export function useReaderAskActions({
     };
   }, [abortAskInFlight]);
 
+  useEffect(() => {
+    const nextTarget = `${documentId ?? ''}|${sourceId ?? ''}`;
+    if (prevDocTargetRef.current !== nextTarget) {
+      prevDocTargetRef.current = nextTarget;
+      searchSeqRef.current += 1;
+      practiceSeqRef.current += 1;
+      setActiveSearch('');
+      setSearchHits([]);
+    }
+  }, [documentId, sourceId]);
+
   const resetAskState = useCallback(
     (flushFirst = false) => {
+      askActionSeqRef.current += 1;
+      practiceSeqRef.current += 1;
+      saveCardBusyRef.current = false;
       abortAskInFlight();
       if (flushFirst) finishAiAnswer();
       resetAiAnswer();
       setAiBusy(false);
+      setSavingNote(false);
       setSavingCard(false);
       setSavedCard(false);
     },
@@ -107,6 +130,7 @@ export function useReaderAskActions({
 
   const runSearch = useCallback(
     async (query: string) => {
+      const seq = ++searchSeqRef.current;
       const q = query.trim();
       setActiveSearch(q);
       setSubMode('read');
@@ -120,7 +144,7 @@ export function useReaderAskActions({
         ...(targetIds && !pageData?.documentId ? { sourceIds: targetIds } : {}),
         limit: 8,
       });
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || seq !== searchSeqRef.current) return;
       if (res.ok && res.value && Array.isArray(res.value.matches)) {
         const hits = res.value.matches.map((m) => ({
           sourceId: String(m.id ?? m.sourceId ?? ''),
@@ -224,6 +248,7 @@ export function useReaderAskActions({
 
   const handlePracticeLinkedCards = useCallback(async () => {
     if (!pageData) return;
+    const seq = ++practiceSeqRef.current;
     const res = await tryAction<{ cards?: Array<{ deckId: string; cardId: string }> }>(
       host,
       'materials.pages.cards',
@@ -232,6 +257,7 @@ export function useReaderAskActions({
         sourceId: pageData.sourceId,
       },
     );
+    if (!mountedRef.current || seq !== practiceSeqRef.current) return;
     if (!res.ok) {
       notify(res.error?.message || t(lang, '获取关联题目失败', 'Failed to fetch linked cards'), 'error');
       return;
@@ -246,14 +272,18 @@ export function useReaderAskActions({
         mode: 'path',
         scope: cards.map((c) => ({ deckId: c.deckId, cardId: c.cardId })),
       });
+      if (!mountedRef.current || seq !== practiceSeqRef.current) return;
       navigate('review', { runId: run.id });
     } catch (err) {
-      notify(errorMessage(err), 'error');
+      if (mountedRef.current && seq === practiceSeqRef.current) {
+        notify(errorMessage(err), 'error');
+      }
     }
   }, [host, lang, navigate, notify, pageData]);
 
   const handleSaveAskToNote = useCallback(async () => {
     if (!pageData || aiBusy || savingNote) return;
+    const seq = askActionSeqRef.current;
     setSavingNote(true);
     try {
       const { anchorOffset, selectedExcerpt } = computeScrollAnchorExcerpt(
@@ -263,6 +293,7 @@ export function useReaderAskActions({
         width,
       );
       const { savePageAskToNote } = await import('./ReaderNotesDrawer.js');
+      if (!mountedRef.current || seq !== askActionSeqRef.current) return;
       const result = await savePageAskToNote({
         host,
         lang,
@@ -278,12 +309,12 @@ export function useReaderAskActions({
         ...(anchorOffset !== undefined ? { anchorOffset } : {}),
         ...(selectedExcerpt !== undefined ? { selectedExcerpt } : {}),
       });
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || seq !== askActionSeqRef.current) return;
       notify(result.message, result.ok ? 'success' : 'warning');
     } catch (err) {
-      if (mountedRef.current) notify(errorMessage(err), 'error');
+      if (mountedRef.current && seq === askActionSeqRef.current) notify(errorMessage(err), 'error');
     } finally {
-      if (mountedRef.current) setSavingNote(false);
+      if (mountedRef.current && seq === askActionSeqRef.current) setSavingNote(false);
     }
   }, [
     pageData,
@@ -314,6 +345,7 @@ export function useReaderAskActions({
       notify(t(lang, '当前页没有可用于定位的原文段落', 'No source passage available on this page to link'), 'error');
       return;
     }
+    const seq = askActionSeqRef.current;
     saveCardBusyRef.current = true;
     setSavingCard(true);
     try {
@@ -334,7 +366,7 @@ export function useReaderAskActions({
             'materials.document.get',
             { sourceId: pageData.sourceId },
           );
-          if (!mountedRef.current) return;
+          if (!mountedRef.current || seq !== askActionSeqRef.current) return;
           if (docRes.ok && docRes.value) {
             resolvedDocId = docRes.value.documentId || docRes.value.id;
             resolvedRev = resolvedRev || docRes.value.currentRevision || docRes.value.revision;
@@ -349,7 +381,7 @@ export function useReaderAskActions({
           ...(resolvedDocId ? { documentId: resolvedDocId } : {}),
           ...(resolvedRev ? { revision: resolvedRev } : {}),
         });
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || seq !== askActionSeqRef.current) return;
         if (resolveRes.ok && resolveRes.value?.status === 'resolved' && resolveRes.value.selection) {
           selection = Object.fromEntries(
             Object.entries(resolveRes.value.selection).filter(([, v]) => v !== undefined),
@@ -377,7 +409,7 @@ export function useReaderAskActions({
         operationId,
         uiLanguage: lang,
       });
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || seq !== askActionSeqRef.current) return;
       if (!res.ok || !res.value) {
         notify(
           res.error?.message || t(lang, '保存闪卡失败', 'Failed to save flashcard'),
@@ -388,10 +420,10 @@ export function useReaderAskActions({
       if (res.value.status === 'complete') {
         setSavedCard(true);
         const snapRes = await tryAction(host, 'snapshot');
-        if (mountedRef.current && snapRes.ok && snapRes.value && typeof snapRes.value === 'object') {
+        if (mountedRef.current && seq === askActionSeqRef.current && snapRes.ok && snapRes.value && typeof snapRes.value === 'object') {
           setSnapshot(snapRes.value as never);
         }
-        if (mountedRef.current) {
+        if (mountedRef.current && seq === askActionSeqRef.current) {
           notify(t(lang, '已保存为原文关联闪卡', 'Saved as passage-linked flashcard'), 'success');
         }
       } else if (res.value.status === 'duplicate') {
@@ -404,10 +436,12 @@ export function useReaderAskActions({
         );
       }
     } catch (err) {
-      if (mountedRef.current) notify(errorMessage(err, lang), 'error');
+      if (mountedRef.current && seq === askActionSeqRef.current) notify(errorMessage(err, lang), 'error');
     } finally {
-      saveCardBusyRef.current = false;
-      if (mountedRef.current) setSavingCard(false);
+      if (seq === askActionSeqRef.current) {
+        saveCardBusyRef.current = false;
+        if (mountedRef.current) setSavingCard(false);
+      }
     }
   }, [pageData, aiBusy, askQuestion, aiAnswer, host, lang, notify, setSnapshot]);
 
