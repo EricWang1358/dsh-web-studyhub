@@ -20,6 +20,11 @@ function fakeServer(start = initial()) {
     if (gates.length) await gates.shift();
     if (action === 'board.get') return args.since === board.revision ? { unchanged: true, revision: board.revision } : structuredClone(board);
     if (args.revision !== board.revision) throw new Error(`Board revision conflict: expected ${args.revision}, current ${board.revision}. Call board.get, review the latest board, and retry with its revision.`);
+    if (action === 'board.column.add') {
+      board = { ...structuredClone(board), revision: board.revision + 1 };
+      board.columns.push({ id: `col-${log.length}`, title: args.title, done: false, cardIds: [] });
+      return structuredClone(board);
+    }
     if (action === 'board.card.add') { // the pure model has no add: the server makes the id
       const id = `new-${log.length}`;
       board = { ...structuredClone(board), revision: board.revision + 1 };
@@ -288,4 +293,15 @@ test('when the read for a resend fails, the page says the board changed, as befo
   assert.equal(await store.mutate('board.card.add', { column: 'todo', title: 'c' }, { optimistic: false }), false);
   assert.equal(store.getState().conflict, true);
   assert.match(store.getState().error, /revision conflict/i);
+});
+
+test('a new column the board moved under is sent once more too, and added once', async () => {
+  const server = fakeServer();
+  const store = createBoardStore(server.call);
+  await store.refresh();
+  server.board = { ...server.board, revision: 5 };
+  assert.equal(await store.mutate('board.column.add', { title: '本周' }, { optimistic: false }), true);
+  assert.deepEqual(server.log.filter((entry) => entry.action === 'board.column.add').map((entry) => entry.args.revision), [1, 5]);
+  assert.equal(store.getState().board.columns.filter((column) => column.title === '本周').length, 1);
+  assert.equal(store.getState().conflict, false);
 });
