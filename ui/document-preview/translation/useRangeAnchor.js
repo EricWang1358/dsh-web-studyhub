@@ -9,6 +9,7 @@ const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayout
  * host's content origin through the interface zoom, kept inside the visible reading area (`scrollerRef`) and moved again on every scroll and resize,
  * with style writes and no state. The element is hidden until it has a place (`data-placed`) and, when `hideAway`, while the selection is out of
  * sight (`data-away`), so it never shows over other text. `rangeRef.current` is a live Range; its last rectangle is where the selection ends.
+ * While a press is on the element it is not moved (a move between pressing one of its buttons and letting go would lose that click); it moves once the press ends.
  * Returns `place()` for callers that learn of a new range.
  */
 export default function useRangeAnchor({ elementRef, host, rangeRef, scrollerRef, active, trigger, placement = 'top-end', gap = 2, margin = 4, flip = true, hideAway = false }) {
@@ -32,13 +33,35 @@ export default function useRangeAnchor({ elementRef, host, rangeRef, scrollerRef
   useEffect(() => {
     if (!active) return undefined;
     const scroller = scrollerRef?.current;
-    let frame = 0;
-    const schedule = () => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; place(); }); };
+    // `pressed`: the pointer whose main-button press is on the element (null: none). Whatever moved meanwhile is placed once it lets go.
+    let frame = 0, pressed = null, held = false;
+    const schedule = () => {
+      if (pressed !== null) { held = true; return; }
+      if (!frame) frame = requestAnimationFrame(() => { frame = 0; place(); });
+    };
+    const press = (event) => {
+      if (event.button !== 0 || !elementRef.current?.contains(event.target)) return;
+      pressed = event.pointerId;
+      if (frame) { cancelAnimationFrame(frame); frame = 0; held = true; }
+    };
+    // The click follows the release in the same task; the move waits for the next frame, after it. A press that never sees its pointerup (the window
+    // loses focus, a context menu takes the release) ends too, so the element is never left frozen.
+    const end = () => { if (pressed === null) return; pressed = null; if (held) { held = false; schedule(); } };
+    const release = (event) => { if (event.pointerId === pressed) end(); };
+    // Only the window's own blur: the focus leaving the box for the pressed button is part of the press.
+    const away = (event) => { if (event.target === window) end(); };
+    const listeners = [[document, 'pointerdown', press], [window, 'pointerup', release], [window, 'pointercancel', release],
+      [window, 'lostpointercapture', release], [window, 'contextmenu', end], [window, 'blur', away]];
     scroller?.addEventListener('scroll', schedule, { passive: true });
     window.addEventListener('resize', schedule);
+    for (const [target, type, listener] of listeners) target.addEventListener(type, listener, true);
     const observer = typeof ResizeObserver === 'undefined' || !host ? null : new ResizeObserver(schedule);
     observer?.observe(host);
-    return () => { scroller?.removeEventListener('scroll', schedule); window.removeEventListener('resize', schedule); observer?.disconnect(); if (frame) cancelAnimationFrame(frame); };
-  }, [active, host, scrollerRef, place]);
+    return () => {
+      scroller?.removeEventListener('scroll', schedule); window.removeEventListener('resize', schedule);
+      for (const [target, type, listener] of listeners) target.removeEventListener(type, listener, true);
+      observer?.disconnect(); if (frame) cancelAnimationFrame(frame);
+    };
+  }, [active, host, scrollerRef, place, elementRef]);
   return place;
 }

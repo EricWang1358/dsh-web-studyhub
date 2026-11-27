@@ -374,6 +374,29 @@ describe('CLI fast-path subprocess suite (--doctor / --stats / --search / --expo
     }
   });
 
+  test('9b. an unsafe --export without --library is refused before the host boots (no default library is opened or created)', async () => {
+    // With no --library the host would open (and create) the default library under the home folder; a path that can never be written must not get that far.
+    const home = join(baseDir, 'no-library-home');
+    await mkdir(home, { recursive: true });
+    for (const unsafePath of [join(exportOutDir, 'escape.json'), '../escape.json']) {
+      let failedCode = 0;
+      let errText = '';
+      try {
+        await execFileAsync(process.execPath, [binPath, '--export', unsafePath, '--json'], {
+          cwd: home,
+          timeout: 15_000,
+          env: sanitizedTestEnv({ DSH_HOME: join(home, 'dsh'), HOME: home, USERPROFILE: home }),
+        });
+      } catch (err) {
+        failedCode = err.code ?? 1;
+        errText = String(err.stderr ?? err.message ?? '');
+      }
+      assert.notEqual(failedCode, 0, `unsafe --export "${unsafePath}" must exit non-zero`);
+      assert.match(errText, /Unsafe export path/);
+      assert.deepEqual(await readdir(home), [], `nothing may be created for "${unsafePath}": the host must not have booted`);
+    }
+  });
+
   test('10. --due --json, --due --ascii, and --course / --limit filtering work offline with zero model calls', async () => {
     const { stdout: jsonOut, stderr: jsonErr } = await execFileAsync(
       process.execPath,
