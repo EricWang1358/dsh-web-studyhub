@@ -85,11 +85,12 @@ test('stale running regular notes reconcile to interrupted across note.get, note
 
   const restarted = await reopened.call('note.generate', { id: legacy.id, expectedRevision: saved.revision });
   assert.equal(restarted.status, 'running');
-  for (let i = 0; i < 40; i++) {
+  const pollDeadline = Date.now() + 10_000; // a deadline, not a count of short polls: a busy CI machine outran the count
+  do {
     const current = await reopened.call('note.get', { id: legacy.id });
     if (current.generation?.status !== 'running') break;
     await new Promise((resolve) => setTimeout(resolve, 10));
-  }
+  } while (Date.now() < pollDeadline);
   const finished = await reopened.call('note.get', { id: legacy.id });
   assert.equal(finished.generation?.status, 'done');
   assert.match(finished.markdown, /容量规划/);

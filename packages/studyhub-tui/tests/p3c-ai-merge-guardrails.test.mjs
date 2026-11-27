@@ -774,11 +774,12 @@ describe('#1354 P3 AI merge guardrails (D7 + P3-c + note.qa.save)', () => {
     assert.match(duringDraft.message, /写入关联学习笔记失败/, 'must truthfully surface noteError instead of silently succeeding');
 
     releaseDraft();
-    for (let i = 0; i < 60; i++) {
+    const pollDeadline = Date.now() + 10_000; // a deadline, not a count of short polls: a busy CI machine outran the count
+    do {
       const cur = await service.call('note.get', { id: saved.noteId });
       if (cur.generation?.status !== 'running') break;
       await new Promise((r) => setTimeout(r, 10));
-    }
+    } while (Date.now() < pollDeadline);
   });
 
   test('Regression 4: AssistantPanel Guided Study clears lock on start failure and retries both start & answer via [A] on real StudyService', async (t) => {

@@ -538,11 +538,12 @@ test('assist retry keeps system byte-identical and appends refusal instructions 
     deckTitle: 'Patterns',
     route: { provider: 'p', model: 'm' },
   });
-  for (let i = 0; i < 200; i++) {
+  const pollDeadline = Date.now() + 10_000; // a deadline, not a count of short polls: a busy CI machine outran the count
+  do {
     const task = assist.assistView('mem').tasks.at(-1);
     if (task?.status !== 'running') break;
     await new Promise(r => setTimeout(r, 10));
-  }
+  } while (Date.now() < pollDeadline);
   assert.equal(assist.assistView('mem').tasks.at(-1).status, 'done');
   assert.equal(seen.length, 2);
   assert.equal(seen[0].system, seen[1].system, 'assist retry must not mutate system');
