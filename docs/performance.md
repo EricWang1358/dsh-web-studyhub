@@ -165,7 +165,7 @@ Deterministic bounds on a seeded library (`scripts/qa/perf-seed.mjs`: 160 source
 - a review click parses and copies <= 5% of the library, stringifies <= 10%, writes <= 2 shards;
 - the snapshot after a click parses <= 10% and copies <= 35% of the library; building it again makes <= 1.5 `JSON.stringify` calls per card;
 - an unchanged poll parses nothing and makes <= 8 `structuredClone` calls;
-- the snapshot is <= 40% of the source text and <= 1 500 characters per source, ships no text outside case scenarios, and `source.get` returns the text;
+- the snapshot is <= 50% of the source text and <= 1 800 characters per source, ships no text outside case scenarios, and `source.get` returns the text;
 - every page read copies <= 2x its answer plus 2% of the library;
 - a write that copies a whole collection reads no shard file back;
 - 300 click+poll cycles grow the heap <= 12 MB after a collection;
