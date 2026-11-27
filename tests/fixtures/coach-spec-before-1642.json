@@ -1,0 +1,425 @@
+{
+ "withPaper": {
+  "schema": "coach-spec-v1",
+  "course": "操作系统",
+  "stage": "confirm",
+  "templateName": "操作系统 校准训练方案",
+  "scopeBoundary": {
+   "samplePaperIds": [
+    "ref-1"
+   ],
+   "materialSourceIds": [
+    "mat-1"
+   ],
+   "sampleFrequencyNote": "已分析 1 份参考样卷与 1 份课程资料：样卷题型频次仅代表样本观察，未覆盖章节仍需在规划中显式取舍。",
+   "uncoveredMaterialSections": [
+    "虚拟内存置换"
+   ]
+  },
+  "crunchMode": {
+   "enabled": false,
+   "remainingMinutes": 120,
+   "deferredFamilyIds": []
+  },
+  "exposedSampleStems": [],
+  "specHistory": [],
+  "taskFamilies": [
+   {
+    "id": "concept-discrimination",
+    "title": "进程调度：边界条件与概念辨析",
+    "origin": "reference-observed",
+    "knowledgePoints": [
+     "进程调度"
+    ],
+    "keyConditions": [
+     "给定具体前提约束条件",
+     "区分易混概念适用边界"
+    ],
+    "reasoningSteps": [
+     "识别题干限定条件",
+     "排除表面相似但前提不符的干扰项"
+    ],
+    "expectedArtifact": "唯一成立的判断及排除依据",
+    "primaryFormat": "quiz",
+    "allowedFormats": [
+     "quiz",
+     "multi",
+     "truefalse"
+    ],
+    "formatTradeoff": "允许在等价客观题形式间切换，但须保留相同的条件约束与干扰项错因映射。",
+    "allowFormSubstitute": true,
+    "quota": 4,
+    "quotaUnit": "question",
+    "questionsPerUnit": 1,
+    "priority": "high",
+    "marksPerItem": 2,
+    "timeBudgetSec": 90,
+    "distractorRules": [
+     {
+      "id": "mis-boundary",
+      "code": "M1",
+      "label": "忽略适用前提",
+      "reason": "把仅在特定约束下成立的结论当成无条件成立"
+     },
+     {
+      "id": "mis-swap",
+      "code": "M2",
+      "label": "混淆相邻概念职责",
+      "reason": "记住了术语名称但把上下游或对偶概念的职责张冠李戴"
+     }
+    ],
+    "rubricPoints": [],
+    "sample": {
+     "id": "sample-concept-discrimination",
+     "format": "quiz",
+     "stem": "围绕「进程调度」，当约束条件发生变化时，下列哪一项判断严格成立？",
+     "options": [
+      {
+       "id": "opt-correct",
+       "text": "满足「进程调度」核心前提与边界约束的判断",
+       "correct": true,
+       "explanation": "同时核对了前提条件与作用边界。"
+      },
+      {
+       "id": "opt-ignore-cond",
+       "text": "忽略前置约束、直接套用默认结论的判断",
+       "correct": false,
+       "misconceptionId": "mis-boundary",
+       "misconceptionReason": "忽略了结论成立所依赖的边界前提"
+      },
+      {
+       "id": "opt-swap-role",
+       "text": "将「虚拟内存置换」的机制误归入「进程调度」的判断",
+       "correct": false,
+       "misconceptionId": "mis-swap",
+       "misconceptionReason": "混淆了相邻机制的职责边界"
+      }
+     ],
+     "answer": "选择 opt-correct：必须先核对「进程调度」成立的前提约束。",
+     "rubric": "",
+     "explanation": "考察在具体限定条件下辨析概念边界，而非背诵定义原文。"
+    },
+    "confirmations": {
+     "appearanceApproved": false,
+     "intentApproved": false,
+     "answerVerified": false,
+     "confirmedSpecVersion": null,
+     "staleReason": null
+    }
+   },
+   {
+    "id": "multi-step-derivation",
+    "title": "虚拟内存置换：多步推导与条件演算",
+    "origin": "reference-observed",
+    "knowledgePoints": [
+     "虚拟内存置换"
+    ],
+    "keyConditions": [
+     "给出初始参数或中间状态变化",
+     "要求按步骤写出推导依据与最终结果"
+    ],
+    "reasoningSteps": [
+     "列出已知量与守恒/约束关系",
+     "逐步代入并验证边界情况",
+     "得出可核验结论并说明单位或量级"
+    ],
+    "expectedArtifact": "完整分步推导过程与最终结果",
+    "primaryFormat": "open",
+    "allowedFormats": [
+     "open",
+     "quiz"
+    ],
+    "formatTradeoff": "将开放推导/实操改为选择题会把“主动构造与分步论证”降为“选项识别”，仅适合作为前置辨析，默认不计入原复杂任务达标。",
+    "allowFormSubstitute": false,
+    "quota": 2,
+    "quotaUnit": "question",
+    "questionsPerUnit": 1,
+    "priority": "high",
+    "marksPerItem": 10,
+    "timeBudgetSec": 420,
+    "distractorRules": [],
+    "rubricPoints": [
+     {
+      "id": "rub-setup",
+      "criterion": "正确列出关系式或状态转移条件",
+      "marks": 4,
+      "condition": "明确写出适用公式及对应前提变量"
+     },
+     {
+      "id": "rub-step",
+      "criterion": "完成中间步骤代入与边界检验",
+      "marks": 4,
+      "condition": "中间量计算无跳步，指明边界约束是否满足"
+     },
+     {
+      "id": "rub-final",
+      "criterion": "给出准确最终结果与结论解释",
+      "marks": 2,
+      "condition": "数值/符号与前序推导一致"
+     }
+    ],
+    "sample": {
+     "id": "sample-multi-step-derivation",
+     "format": "open",
+     "stem": "已知「虚拟内存置换」的初始约束条件发生调整，请分步推导调整后的关键指标并检验边界条件是否仍然满足。",
+     "answer": "第1步列出约束方程；第2步代入调整参数逐步求解；第3步验证边界条件并给出结论。",
+     "rubric": "1. 写出适用关系式与前提变量（4分）；2. 中间推导无跳步并检验边界（4分）；3. 最终结果准确且与推导一致（2分）。",
+     "explanation": "必须保留开放分步作答，不能默认退化为单选识别题。"
+    },
+    "confirmations": {
+     "appearanceApproved": false,
+     "intentApproved": false,
+     "answerVerified": false,
+     "confirmedSpecVersion": null,
+     "staleReason": null
+    }
+   },
+   {
+    "id": "scenario-tradeoff-task",
+    "title": "虚拟内存置换：综合方案权衡与故障诊断",
+    "origin": "source-fact",
+    "knowledgePoints": [
+     "进程调度",
+     "虚拟内存置换"
+    ],
+    "keyConditions": [
+     "存在相互冲突的资源/一致性/成本约束",
+     "需结合材料证据给出取舍理由"
+    ],
+    "reasoningSteps": [
+     "定位材料中的瓶颈或冲突条件",
+     "对比候选方案在当前约束下的代价",
+     "给出可执行方案与风险兜底措施"
+    ],
+    "expectedArtifact": "诊断依据 + 方案对比 + 落地验证指标",
+    "primaryFormat": "task",
+    "allowedFormats": [
+     "task",
+     "open"
+    ],
+    "formatTradeoff": "保持开放推导或实操交付物，完整考察条件核对与分步推理，不降级为选择题。",
+    "allowFormSubstitute": false,
+    "quota": 1,
+    "quotaUnit": "question",
+    "questionsPerUnit": 1,
+    "priority": "medium",
+    "marksPerItem": 15,
+    "timeBudgetSec": 600,
+    "distractorRules": [],
+    "rubricPoints": [
+     {
+      "id": "rub-diag",
+      "criterion": "准确定位核心矛盾或根因",
+      "marks": 5,
+      "condition": "引用题干给定约束指出关键瓶颈而非泛泛而谈"
+     },
+     {
+      "id": "rub-tradeoff",
+      "criterion": "结合约束对比至少两种方案的取舍",
+      "marks": 6,
+      "condition": "说明所选方案为何优于备选方案及其代价"
+     },
+     {
+      "id": "rub-verify",
+      "criterion": "提出可观测的验证或回滚条件",
+      "marks": 4,
+      "condition": "给出明确的检验指标或边界回退策略"
+     }
+    ],
+    "sample": {
+     "id": "sample-scenario-tradeoff",
+     "format": "task",
+     "stem": "综合「进程调度」与「虚拟内存置换」的约束条件，分析给定瓶颈的根因，提出改进方案并说明权衡代价与验证方法。",
+     "answer": "定位约束冲突根因；对比备选方案代价并给出选型依据；列出上线后的关键验证指标。",
+     "rubric": "1. 结合题干约束定位根因（5分）；2. 对比候选方案收益与代价（6分）；3. 给出可量化验证或兜底指标（4分）。",
+     "explanation": "考察多约束综合权衡，不在定义题前拼“某公司”充数。"
+    },
+    "confirmations": {
+     "appearanceApproved": false,
+     "intentApproved": false,
+     "answerVerified": false,
+     "confirmedSpecVersion": null,
+     "staleReason": null
+    }
+   }
+  ],
+  "updatedAt": "2026-11-27T00:00:00.000Z",
+  "specVersion": "coach-v1-d408f9a70446"
+ },
+ "withoutPaper": {
+  "schema": "coach-spec-v1",
+  "course": "语文",
+  "stage": "confirm",
+  "templateName": "语文 校准训练方案",
+  "scopeBoundary": {
+   "samplePaperIds": [],
+   "materialSourceIds": [
+    "mat-2"
+   ],
+   "sampleFrequencyNote": "当前基于 1 份课程资料推导考察方式（暂无往年样卷输入，题型配额为建议初值，请结合考纲确认）。",
+   "uncoveredMaterialSections": []
+  },
+  "crunchMode": {
+   "enabled": false,
+   "remainingMinutes": 120,
+   "deferredFamilyIds": []
+  },
+  "exposedSampleStems": [],
+  "specHistory": [],
+  "taskFamilies": [
+   {
+    "id": "concept-discrimination",
+    "title": "修辞手法：边界条件与概念辨析",
+    "origin": "source-fact",
+    "knowledgePoints": [
+     "修辞手法"
+    ],
+    "keyConditions": [
+     "给定具体前提约束条件",
+     "区分易混概念适用边界"
+    ],
+    "reasoningSteps": [
+     "识别题干限定条件",
+     "排除表面相似但前提不符的干扰项"
+    ],
+    "expectedArtifact": "唯一成立的判断及排除依据",
+    "primaryFormat": "quiz",
+    "allowedFormats": [
+     "quiz",
+     "multi",
+     "truefalse"
+    ],
+    "formatTradeoff": "允许在等价客观题形式间切换，但须保留相同的条件约束与干扰项错因映射。",
+    "allowFormSubstitute": true,
+    "quota": 4,
+    "quotaUnit": "question",
+    "questionsPerUnit": 1,
+    "priority": "high",
+    "marksPerItem": 2,
+    "timeBudgetSec": 90,
+    "distractorRules": [
+     {
+      "id": "mis-boundary",
+      "code": "M1",
+      "label": "忽略适用前提",
+      "reason": "把仅在特定约束下成立的结论当成无条件成立"
+     },
+     {
+      "id": "mis-swap",
+      "code": "M2",
+      "label": "混淆相邻概念职责",
+      "reason": "记住了术语名称但把上下游或对偶概念的职责张冠李戴"
+     }
+    ],
+    "rubricPoints": [],
+    "sample": {
+     "id": "sample-concept-discrimination",
+     "format": "quiz",
+     "stem": "围绕「修辞手法」，当约束条件发生变化时，下列哪一项判断严格成立？",
+     "options": [
+      {
+       "id": "opt-correct",
+       "text": "满足「修辞手法」核心前提与边界约束的判断",
+       "correct": true,
+       "explanation": "同时核对了前提条件与作用边界。"
+      },
+      {
+       "id": "opt-ignore-cond",
+       "text": "忽略前置约束、直接套用默认结论的判断",
+       "correct": false,
+       "misconceptionId": "mis-boundary",
+       "misconceptionReason": "忽略了结论成立所依赖的边界前提"
+      },
+      {
+       "id": "opt-swap-role",
+       "text": "将「表达方式」的机制误归入「修辞手法」的判断",
+       "correct": false,
+       "misconceptionId": "mis-swap",
+       "misconceptionReason": "混淆了相邻机制的职责边界"
+      }
+     ],
+     "answer": "选择 opt-correct：必须先核对「修辞手法」成立的前提约束。",
+     "rubric": "",
+     "explanation": "考察在具体限定条件下辨析概念边界，而非背诵定义原文。"
+    },
+    "confirmations": {
+     "appearanceApproved": false,
+     "intentApproved": false,
+     "answerVerified": false,
+     "confirmedSpecVersion": null,
+     "staleReason": null
+    }
+   },
+   {
+    "id": "scenario-tradeoff-task",
+    "title": "表达方式：综合方案权衡与故障诊断",
+    "origin": "model-suggested",
+    "knowledgePoints": [
+     "修辞手法",
+     "表达方式"
+    ],
+    "keyConditions": [
+     "存在相互冲突的资源/一致性/成本约束",
+     "需结合材料证据给出取舍理由"
+    ],
+    "reasoningSteps": [
+     "定位材料中的瓶颈或冲突条件",
+     "对比候选方案在当前约束下的代价",
+     "给出可执行方案与风险兜底措施"
+    ],
+    "expectedArtifact": "诊断依据 + 方案对比 + 落地验证指标",
+    "primaryFormat": "task",
+    "allowedFormats": [
+     "task",
+     "open"
+    ],
+    "formatTradeoff": "保持开放推导或实操交付物，完整考察条件核对与分步推理，不降级为选择题。",
+    "allowFormSubstitute": false,
+    "quota": 1,
+    "quotaUnit": "question",
+    "questionsPerUnit": 1,
+    "priority": "medium",
+    "marksPerItem": 15,
+    "timeBudgetSec": 600,
+    "distractorRules": [],
+    "rubricPoints": [
+     {
+      "id": "rub-diag",
+      "criterion": "准确定位核心矛盾或根因",
+      "marks": 5,
+      "condition": "引用题干给定约束指出关键瓶颈而非泛泛而谈"
+     },
+     {
+      "id": "rub-tradeoff",
+      "criterion": "结合约束对比至少两种方案的取舍",
+      "marks": 6,
+      "condition": "说明所选方案为何优于备选方案及其代价"
+     },
+     {
+      "id": "rub-verify",
+      "criterion": "提出可观测的验证或回滚条件",
+      "marks": 4,
+      "condition": "给出明确的检验指标或边界回退策略"
+     }
+    ],
+    "sample": {
+     "id": "sample-scenario-tradeoff",
+     "format": "task",
+     "stem": "综合「修辞手法」与「表达方式」的约束条件，分析给定瓶颈的根因，提出改进方案并说明权衡代价与验证方法。",
+     "answer": "定位约束冲突根因；对比备选方案代价并给出选型依据；列出上线后的关键验证指标。",
+     "rubric": "1. 结合题干约束定位根因（5分）；2. 对比候选方案收益与代价（6分）；3. 给出可量化验证或兜底指标（4分）。",
+     "explanation": "考察多约束综合权衡，不在定义题前拼“某公司”充数。"
+    },
+    "confirmations": {
+     "appearanceApproved": false,
+     "intentApproved": false,
+     "answerVerified": false,
+     "confirmedSpecVersion": null,
+     "staleReason": null
+    }
+   }
+  ],
+  "updatedAt": "2026-11-27T00:00:00.000Z",
+  "specVersion": "coach-v1-7c5437c4227b"
+ }
+}

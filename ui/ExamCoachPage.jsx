@@ -37,6 +37,7 @@ const ORIGIN_LABELS = {
   'reference-observed': '样卷观察',
   'model-suggested': '模型建议',
   'user-defined': '自定义',
+  'built-in-template': '通用模板',
 };
 
 function formatLabel(fmt) {
@@ -44,7 +45,7 @@ function formatLabel(fmt) {
 }
 
 function originLabel(origin) {
-  return ui(ORIGIN_LABELS[origin] || '资料事实');
+  return ui(ORIGIN_LABELS[origin] || '自定义');
 }
 
 export default function ExamCoachPage({
@@ -505,7 +506,7 @@ export default function ExamCoachPage({
         <EmptyState
           icon="file"
           title={ui('还没有课程资料')}
-          description={ui('导入讲义、教材或往年样卷后，教练可以区分资料事实与样卷观察并整理考察任务族；你也可以先查看现有题库的能力证据分界。')}
+          description={ui('导入讲义、教材或往年样卷后，教练会整理一组考察任务族供你逐项确认；你也可以先查看现有题库的能力证据分界。')}
           primary={onGoGenerate ? { label: ui('前往创建题组导入资料'), iconEnd: 'arrow-right', onClick: onGoGenerate } : undefined}
         />
       )}
