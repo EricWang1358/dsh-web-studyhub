@@ -12,6 +12,7 @@ import { StudyService } from '../lib/service.js';
 import { createPreviewServer } from '../scripts/preview-server.mjs';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
+import { confirmStart } from '../scripts/qa/confirm-start.mjs';
 
 // #183: the shared Menu opens against its trigger (also under the interface zoom) and reserves an icon column only when an item has an icon.
 const require = createRequire(import.meta.url);
@@ -78,6 +79,7 @@ test('the review 更多 menu and the library ⋯ menu open against their trigger
 
     // 2. Review 更多 menu: includes menuitemcheckbox toggles, so plain items reserve .sh-menu__gap and all labels align cleanly.
     await page.getByRole('button', { name: 'Start studying Flash deck' }).first().click();
+    await confirmStart(page);
     await page.locator('.flashcard').waitFor();
     await page.waitForTimeout(1500); // the toolbar is rebuilt once when the run's first refresh lands
     await page.locator('.review-more-trigger').scrollIntoViewIfNeeded();

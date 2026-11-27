@@ -12,6 +12,7 @@ import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 import { StudyService } from '../lib/service.js';
 import { sampleAction } from '../lib/sample-library.js';
+import { confirmStartIfAsked } from '../scripts/qa/confirm-start.mjs';
 
 /* #1073 / #1074, round 4 of the review of PR #1118, measured in a real browser on the sample course (and on a library with one material of the learner's own):
      3  the tick and cross of an answer are as heavy as the bold label beside them (stroke measured on a 2x screenshot: Regular was 0.9px against 2px);
@@ -278,6 +279,7 @@ test('round 4 in the browser: answer marks as heavy as their label, the station 
       const { page, context } = await open(browser, zh, { lang: 'zh', width: 1440 });
       await later(page, 'zh');
       await page.locator('.deck-row .map-play[aria-label*="Bridge"]').first().click({ force: true });
+      await confirmStartIfAsked(page, page.locator('.question-card, .flash-area'));
       const options = page.locator('.question-card .option'), submit = page.getByRole('button', { name: /^提交/ });
       await page.locator('.question-card').first().waitFor({ timeout: 30000 });
       // The path starts where the course does: skip (K) to the multiple-answer question, answering a single choice on the way.

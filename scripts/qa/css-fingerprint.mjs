@@ -16,6 +16,7 @@ import { createFakeModel } from '../fake-model.mjs';
 import { launchChromium } from './browser.mjs';
 import { scrubProcessEnv } from './env.mjs';
 import { seedLibrary } from './perf-seed.mjs';
+import { confirmStartIfAsked } from './confirm-start.mjs';
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
@@ -215,6 +216,7 @@ export async function capture({ dist, out, lang = 'zh', theme = 'dark', width = 
     await settle();
     if (await page.locator('.map-play').count()) {
       await page.locator('.map-play').first().click({ timeout: 3000 }).catch(() => {});
+      await confirmStartIfAsked(page, page.locator('.question-card, .flash-area'), { timeout: 3000 }).catch(() => {});
       await settle(800);
       const ticks = await page.locator('.review-tick').count();
       for (let i = 0; i < Math.min(ticks, 8); i++) {

@@ -291,5 +291,10 @@
   "答错后列出生词": "List unfamiliar words after wrong answers",
   "打开后，每道答错的题第一次会多一次轻量调用": "When on, the first wrong answer on a question runs one light model call",
   "可能的生词": "Suggested words",
-  "把空格补全 · 代码块里的空可填多行：Enter 换行，Ctrl/⌘+Enter 提交 · Esc 退回题目": "Fill in the blanks · Blanks inside a code block take several lines: Enter adds a line, Ctrl/⌘+Enter submits · Esc to return to the question"
+  "把空格补全 · 代码块里的空可填多行：Enter 换行，Ctrl/⌘+Enter 提交 · Esc 退回题目": "Fill in the blanks · Blanks inside a code block take several lines: Enter adds a line, Ctrl/⌘+Enter submits · Esc to return to the question",
+  "开始练「{0}」？": "Start practising “{0}”?",
+  "开始练主题「{0}」？": "Start practising the topic “{0}”?",
+  "开始今日学习？": "Start today’s study?",
+  "现在没有没做完的练习。": "There is no unfinished practice right now.",
+  "开始练习": "Start practising"
 }

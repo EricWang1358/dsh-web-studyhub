@@ -10,6 +10,7 @@ import { buildPreview } from '../scripts/build.mjs';
 import { build } from 'esbuild';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
+import { confirmStart } from '../scripts/qa/confirm-start.mjs';
 
 /* #1197 browser acceptance:
    A course with chaptered PDF materials and NO skeleton:
@@ -141,6 +142,7 @@ test('question source place renders cleanly at 1280 and 420 px, hides in exam mo
 
       await page.goto(server.url);
       await page.getByRole('button', { name: words.start }).first().click();
+      await confirmStart(page);
 
       const placeLocator = page.locator('[data-review-place]');
       await placeLocator.waitFor({ state: 'visible', timeout: 30000 });
@@ -243,6 +245,7 @@ test('question source place renders cleanly at 1280 and 420 px, hides in exam mo
   await examPage.addInitScript(() => { localStorage.setItem('study-ui-language', 'zh'); localStorage.setItem('study-autopilot', 'off'); });
   await examPage.goto(server.url);
   await examPage.getByRole('button', { name: WORDS.zh.start }).first().click();
+  await confirmStart(examPage);
   await examPage.locator('[data-review-place]').waitFor({ state: 'visible', timeout: 30000 });
   // Answer Q1 -> Next -> Q2 shows Replication Logs -> Answer Q2 -> Finish -> round complete hides 出处.
   await examPage.locator('.option', { hasText: 'Majority quorum' }).click();
@@ -417,6 +420,7 @@ test('outline target resets stale deck filter, restores filter without target, c
     // Return to library, practise Deck B, and click 出处 -> filter resets to all decks and Deck B chapter #2 expands into viewport.
     await page.locator('.outline-header').getByRole('button', { name: '返回学习库' }).click();
     await page.getByRole('button', { name: '开始学习 Replication Deck' }).first().click();
+    await confirmStart(page);
     const place = page.locator('[data-review-place]');
     await place.waitFor({ state: 'visible', timeout: 30000 });
     await place.click();
@@ -486,6 +490,7 @@ test('outline target resets stale deck filter, restores filter without target, c
     // 2a. Abort while loading (back before course.outline settles).
     await page.goto(server.url);
     await page.getByRole('button', { name: '开始学习 Consensus Deck' }).first().click();
+    await confirmStart(page);
     const place = page.locator('[data-review-place]');
     await place.waitFor({ state: 'visible', timeout: 30000 });
 
@@ -527,6 +532,7 @@ test('outline target resets stale deck filter, restores filter without target, c
     await endRuns();
     await page.goto(server.url);
     await page.getByRole('button', { name: '开始学习 Consensus Deck' }).first().click();
+    await confirmStart(page);
     await place.waitFor({ state: 'visible', timeout: 30000 });
 
     let failNext = true;

@@ -9,6 +9,7 @@ import { launchChromium, skipMissingChromium } from '../scripts/qa/browser.mjs';
 import { seedLibrary } from '../scripts/qa/perf-seed.mjs';
 import { frames, openPage, settleAnimations, startLateServer, until } from '../scripts/qa/layout-late.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
+import { confirmStartIfAsked } from '../scripts/qa/confirm-start.mjs';
 
 /* #1073 round 3: the library home in a real browser, in both languages at 1440 and 420 px. A button never lets its text or its icon out of its own box (the English 「Continue →」 of a deck
    row overflowed a fixed 72px pill by 6px on each side), the play slots of all the rows are one width, and the eyebrow of a resume row breaks at words, not inside 「继续上次学习」. */
@@ -84,7 +85,10 @@ test('library home: no button lets its text or icon out, the play slots are one 
         await settleAnimations(page);
         await frames(page, 4);
         // Start a run on the first deck and come back: its row now says 继续 / Continue, the others keep the idle ▶.
-        await page.locator('.deck-row .map-play').first().click();
+        const play = page.locator('.deck-row .map-play').first();
+        const open = await play.evaluate((button) => button.classList.contains('is-run'));
+        await play.click();
+        assert.equal(await confirmStartIfAsked(page, page.locator('.question-card, .flash-area')), !open, `${where}: asked only while the row has no open run`);
         await page.locator('.question-card, .flash-area').first().waitFor({ timeout: 30000 });
         await (await revealNavRow(page, 'library')).dispatchEvent('click');
         await page.locator('.map-play.is-run').first().waitFor({ timeout: 30000 });

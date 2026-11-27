@@ -52,7 +52,7 @@ import LazyDeskPlayStrip from "./desk-play/LazyDeskPlayStrip.jsx";
    switches (search, archived, other and parked courses).
    The services (call, act, busy, host) come from useStudy(); what is left to pass is the
    library snapshot and the verbs only the app can do:
-     actions        { start, resume, manage, removeDeck, openDraft, topUpDraft, retryGeneration, addSource, createManual,
+     actions        { start, confirmStart (asks before a row's ▶ starts), resume, manage, removeDeck, openDraft, topUpDraft, retryGeneration, addSource, createManual,
                       importLibrary, generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints, onShowGraph,
                       onCourseSettings, onShowOutline } (see ui/app/page-views.jsx)
      setupHandlers  the 课程准备 checklist's handlers (createSetupHandlers)
@@ -71,7 +71,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const toast = useToast();
   const quick = useQuickActions();
   const openModelSettings = useContext(ModelSettingsContext) || undefined;
-  const { start, resume, manage, removeDeck, openDraft, topUpDraft, retryGeneration, addSource, createManual, importLibrary,
+  const { start, confirmStart, resume, manage, removeDeck, openDraft, topUpDraft, retryGeneration, addSource, createManual, importLibrary,
     generateFromSources, onCoachPractice, onWeakPoints, onOpenExamBook, onShowGraph, onOpenMasteryMap, onCourseSettings, onGenerateFocus, onShowOutline } = actions;
   const endRun = (runId) => act("review.end", { runId });
   const restoreDeck = (id) => act("deck.archive", { id, archived: false }, () => toast.success(ui("题组已恢复。")));
@@ -138,7 +138,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const showNotebooks = data.decks.length > 0 || (notebooks?.notebooks?.notebooks || []).some((notebook) => !notebook.current);
   const selectedRun = tree.scope.length ? runFor(tree.scope) : null;
   const openVoicePack = typeof openModal === "function" ? (opts) => openModal({ type: "voicePack", ...opts }) : undefined;
-  const deckActions = { start, resume, manage, restoreDeck, removeDeck, archiveDeck, openVoicePack, runsOn: (deckId) => data.decks.find((deck) => deck.id === deckId)?.openRuns ?? openRunsOn(runs, deckId) };
+  const deckActions = { start, confirmStart, resume, manage, restoreDeck, removeDeck, archiveDeck, openVoicePack, runsOn: (deckId) => data.decks.find((deck) => deck.id === deckId)?.openRuns ?? openRunsOn(runs, deckId) };
   const line = useFirstRunLine(data);
   /* The one 下一步 card (ui/study-map/next-step.js): worked out from the snapshot alone. Before a first deck of the learner's own its three states are the first-run line
      (drawn below, as the whole first screen or as the compact card), so this draws only the states after it; 「今天先不」 hides it for the local day. */

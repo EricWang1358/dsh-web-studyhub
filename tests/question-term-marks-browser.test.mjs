@@ -15,6 +15,7 @@ import { scrubProcessEnv } from "../scripts/qa/env.mjs";
 import { openPage, settleAnimations, startLateServer } from "../scripts/qa/layout-late.mjs";
 import { highlightDrawn } from "./helpers/highlight-drawn.mjs";
 import { until } from "./helpers/wait.mjs";
+import { confirmStart } from "../scripts/qa/confirm-start.mjs";
 
 const SHOTS = process.env.QUESTION_TERM_MARKS_SHOTS || "";
 
@@ -1769,6 +1770,7 @@ test("More menu › 生词表… opens TermListDialog with 0 marked terms on fla
         const coursePlay = page.locator('[data-deck-id="d-course"] > .deck-row .map-play');
         await coursePlay.waitFor({ state: "visible", timeout: 30000 });
         await coursePlay.click();
+        await confirmStart(page);
         await page.locator(".flashcard").waitFor({ state: "visible", timeout: 30000 });
         await settleAnimations(page);
         await assertMoreMenuOpensTermList(`${tag}-flashcard`);
@@ -1851,6 +1853,7 @@ test("More menu › 生词表… opens TermListDialog with 0 marked terms on fla
         const noCoursePlay = page.locator('[data-deck-id="d-nocourse"] > .deck-row .map-play');
         await noCoursePlay.waitFor({ state: "visible", timeout: 15000 });
         await noCoursePlay.click();
+        await confirmStart(page);
         await page.locator(".flashcard").waitFor({ state: "visible", timeout: 15000 });
         await settleAnimations(page);
         await page.locator(".review-more-trigger").scrollIntoViewIfNeeded();

@@ -11,6 +11,7 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { StudyService } from '../lib/service.js';
 import { sampleAction } from '../lib/sample-library.js';
+import { confirmStartIfAsked } from '../scripts/qa/confirm-start.mjs';
 
 /* #1073 round 8 of the review of PR #1118, measured in a real browser:
      4  a citation card's → sits at the card's inline end (it floated after the title, 178px short of the end on a wide card), with the Button's gap before it
@@ -70,6 +71,7 @@ const shown = (page) => page.evaluate(() => [...document.querySelectorAll('.sh-t
 /** Answer the first choice question of the second deck (its flashcards before it turned and rated) so that its citations show. */
 async function answerChoice(page, lang) {
   await page.locator('.deck-row .map-play').nth(1).click({ force: true });
+  await confirmStartIfAsked(page, page.locator('.question-card, .flash-area'));
   await page.locator('.question-card, .flash-area').first().waitFor({ timeout: 30000 });
   await page.keyboard.press('Escape');
   for (let step = 0; step < 8; step++) {
@@ -230,6 +232,7 @@ test('round 8 in the browser: the citation card\'s → at its end, the first-run
     await t.test('7: a finished round of the sample course has one way back with ←, 回到学习路径 (zh 1440)', async () => {
       const { page, context, errors } = await open(browser, servers.zh, { lang: 'zh', theme: 'light', width: 1440 });
       await page.locator('.deck-row .map-play').nth(1).click({ force: true });
+      await confirmStartIfAsked(page, page.locator('.question-card, .flash-area'));
       await page.locator('.question-card, .flash-area').first().waitFor({ timeout: 30000 });
       await page.keyboard.press('Escape');
       for (let i = 0; i < 45; i++) {

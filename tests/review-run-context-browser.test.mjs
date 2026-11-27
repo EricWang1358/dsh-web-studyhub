@@ -8,6 +8,7 @@ import { StudyService } from '../lib/service.js';
 import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
+import { confirmStart } from '../scripts/qa/confirm-start.mjs';
 
 /* The line under the title of the practice page (查看 N 份资料) also says the course, how this chapter (the deck) stands and how the whole course stands, in the
    words of the lists. In a real browser, in both languages at 1280 and 420 px: the figures are there and say what the library says, the line sits inside the
@@ -72,6 +73,7 @@ test('the practice page names the course and how this chapter and the whole cour
         await page.addInitScript((language) => { localStorage.setItem('study-ui-language', language); localStorage.setItem('study-autopilot', 'off'); }, lang);
         await page.goto(server.url);
         await page.getByRole('button', { name: words.start(deckTitle) }).first().click();
+        await confirmStart(page);
         const line = page.locator('[data-review-context]');
         await line.waitFor({ timeout: 30000 });
         const read = await page.evaluate(() => {

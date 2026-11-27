@@ -8,6 +8,7 @@ import { StudyService } from '../lib/service.js';
 import { createPreviewServer } from '../scripts/preview-server.mjs';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
+import { confirmStart } from '../scripts/qa/confirm-start.mjs';
 
 // #745: a 0-5 key answers from the session's key handler, so no <button> is ever clicked and nothing shows the press. The button the key named
 // takes it for a moment now, and the shortcut words moved from a title attribute to the shared tooltip.
@@ -37,6 +38,7 @@ test('in the browser: a 0-5 key makes its own button look pressed, and the short
   await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'en'); localStorage.setItem('study-autopilot', 'off'); });
   await page.goto(server.url);
   await page.getByRole('button', { name: 'Start studying First' }).first().click();
+  await confirmStart(page);
   await page.locator('.flashcard').waitFor();
   await page.locator('.flip-control').click();
   await page.locator('.grade-scale').waitFor();

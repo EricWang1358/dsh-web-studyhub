@@ -9,6 +9,7 @@ import { launchChromium } from "../scripts/qa/browser.mjs";
 import { previewCall } from "../scripts/preview-server.mjs";
 import { until } from "./helpers/wait.mjs";
 import { startNavServer, collectStates, checkContract, compareStates, measureSidebar } from "../scripts/qa/nav-layout.mjs";
+import { confirmStartIfAsked } from "../scripts/qa/confirm-start.mjs";
 
 /* The sidebar in a real browser (scripts/qa/nav-layout.mjs measures every row with getBoundingClientRect): the rows must
    keep their y position and height from "no run" to "run open" and back, on every page, in both languages, wide and
@@ -100,6 +101,7 @@ test('the resume highlight returns when saving finishes before its snapshot arri
         await openNav();
         await page.waitForFunction(() => document.querySelector('.resume-nav')?.disabled === false);
         await page.locator('.resume-nav').click();
+        assert.equal(await confirmStartIfAsked(page, page.locator('.review-page')), scale === 100, 'asked only while there is no round to resume');
         await until(() => held > 0, 'the post-action snapshot response to be held');
         await openNav();
         // The action runner releases busy independently of the held refresh. The row must regain its highlight at that point.

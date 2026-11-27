@@ -9,6 +9,7 @@ import { createPreviewServer } from '../scripts/preview-server.mjs';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium, skipMissingChromium } from '../scripts/qa/browser.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
+import { confirmStart } from '../scripts/qa/confirm-start.mjs';
 
 // UI wave 2 · WP-F in a real browser: the dialogs own focus and Escape (#73), the flag save is a footer action (#74), the board's
 // undo goes through the one toast region and is held while hovered (#90), the keyboard and the nav menu still work.
@@ -31,6 +32,7 @@ test('the composed shell: shortcut sheet over a dialog, the flag save, the 更�
 
   // Practice: the session hook drives the page (space flips, grading keys answer).
   await page.locator('[data-usage="nav.resume"]').click();
+  await confirmStart(page); // nothing to resume in this library yet, so 回到题目 asks before today's study
   await page.locator('.question-card').waitFor();
   await page.locator('.flip-control:not([disabled])').waitFor(); // the card ignores keys while the round is still being started (its flip button is disabled then)
   await page.keyboard.press('Space');
