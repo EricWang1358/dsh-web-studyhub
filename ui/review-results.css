@@ -11,7 +11,7 @@
       text-transform: uppercase;
     }
     .result-page .result-title { margin: var(--space-2-5) 0 var(--space-1-5); font-size: clamp(var(--fs-3xl), 4cqi, var(--fs-5xl)); }
-    .result-page .result-subtitle { margin: 0 0 calc(var(--space-6) + var(--space-half)); color: var(--text-muted); }
+    .result-page .result-subtitle { margin: 0 0 var(--space-4); color: var(--text-muted); }
     /* 这组题掌握度 a% → b%: one framed card between the subtitle and the score, visually consistent with ReadingResult. */
     .result-page .result-mastery {
       margin: 0 0 var(--space-4-5);
@@ -90,6 +90,12 @@
     .round-look-back__lead { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); min-width: 0; }
     .round-look-back__tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5); margin-inline-start: auto; }
     .round-look-back__head h3 { margin: 0; font-size: var(--fs-lg); }
+    /* The list's quieter row (#1688): its toggles and actions in muted, regular-weight words under the header, which keeps only 重练错题. */
+    .round-look-back__more { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5); margin-top: var(--space-2); }
+    .round-look-back__hint { margin-inline-end: auto; }
+    /* The reading settings (Aa) stand beside the kicker instead of on a line of their own (#1688). */
+    .result-page > .result-reading { float: inline-end; margin: 0; }
+    .round-look-back__more .sh-btn--quiet:not([aria-pressed="true"]) { color: var(--text-muted); font-weight: var(--fw-regular); }
     .look-back__rows { margin: var(--space-3) 0 0; padding: 0; list-style: none; }
     .look-back__row { border-top: 1px solid var(--line-soft); }
     .look-back__line { display: flex; width: 100%; min-width: 0; gap: var(--space-2-5); align-items: center; text-align: left; padding-block: var(--space-2-5); }
@@ -148,9 +154,10 @@
     .result-note-link { font-size: var(--fs-md); text-decoration: none; }
     .oral-report .result-weak { padding: var(--space-4-5); border: 1px solid var(--line); border-radius: var(--radius); }
     .oral-report .result-details { border: 1px solid var(--line); border-radius: var(--radius); padding: var(--space-4); }
+    /* Room above the score is kept small (#1688): at 1440×900 the score, the next step and the first row of 本轮题目 share the first screen. */
     .result-page.result-page {
       max-width: 760px;
-      margin: calc(var(--space-8) + var(--space-2)) auto calc(var(--space-9) + var(--space-4));
+      margin: var(--space-4) auto calc(var(--space-9) + var(--space-4));
       text-align: left;
       padding: 0 var(--space-6);
     }

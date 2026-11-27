@@ -569,42 +569,46 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onOp
             )}
           </div>
         )}
-        {(hesitantRows.length > 0 || shown.length >= 2 || (onPracticeWrong && wrong >= 1) || wrong >= 1 || taggedReasons.length > 0 || withSolution.length > 0) && (
+        {/* The header keeps one action beside the list (#1688): 重练错题. The ways to look at the list and to take it away are a quieter row under it. */}
+        {onPracticeWrong && wrong >= 1 && (
           <div className="round-look-back__tools">
-            {wrong >= 1 && (
-              <Button variant="quiet" size="sm" aria-pressed={veilActive} onClick={toggleBlindRecall}>
-                {ui("先遮答案自测")}
-              </Button>
-            )}
-            {hesitantRows.length > 0 && (
-              <Button variant="quiet" size="sm" aria-pressed={hesitantOnly} onClick={() => { setHesitantOnly((prev) => !prev); onSegmentChange?.(null); }}>
-                {uiFormat("只看想了较久 ({0})", [hesitantRows.length])}
-              </Button>
-            )}
-            {shown.length >= 2 && (
-              <Button variant="quiet" size="sm" onClick={toggleAllShown}>
-                {allShownOpen ? ui("全部收起") : ui("全部展开")}
-              </Button>
-            )}
-            {onPracticeWrong && wrong >= 1 && (
-              <Button iconEnd="arrow-right" size="sm" variant="quiet" lock={study?.busy} onClick={() => onPracticeWrong(wrongRefs)}>
-                {wrong === 1 ? ui("重练这道错题") : uiFormat("重练这 {0} 道错题", [wrong])}
-              </Button>
-            )}
-            {taggedReasons.map((group) => (
-              <Button key={group.id} iconEnd="arrow-right" size="sm" variant="quiet" lock={study?.busy} onClick={() => onPracticeWrong(group.refs)}>
-                {uiFormat("重练「{0}」({1})", [ui(group.label), group.refs.length])}
-              </Button>
-            ))}
-            {withSolution.length > 0 && (
-              <Button variant="quiet" size="sm" onClick={copy}>
-                {copied ? ui("已复制") : ui("复制复盘摘录")}
-              </Button>
-            )}
+            <Button iconEnd="arrow-right" size="sm" lock={study?.busy} onClick={() => onPracticeWrong(wrongRefs)}>
+              {wrong === 1 ? ui("重练这道错题") : uiFormat("重练这 {0} 道错题", [wrong])}
+            </Button>
           </div>
         )}
       </div>
-      <p className="muted small">{ui("点一道题回看：题目、你的答案、正确答案、讲解和问答。只是回看，不会重新计时或改成绩。")}</p>
+      {/* The quieter row: how the list works in a few words, then two display toggles drawn as toggles (a pill that shows when it is on), then the actions. */}
+      <div className="round-look-back__more">
+        <span className="muted small round-look-back__hint">{ui("点一道题回看答案和讲解，不改成绩。")}</span>
+        {(hesitantRows.length > 0 || shown.length >= 2 || wrong >= 1 || taggedReasons.length > 0 || withSolution.length > 0) && <>
+          {wrong >= 1 && (
+            <Button variant="quiet" size="sm" shape="pill" aria-pressed={veilActive} onClick={toggleBlindRecall}>
+              {ui("先遮答案自测")}
+            </Button>
+          )}
+          {hesitantRows.length > 0 && (
+            <Button variant="quiet" size="sm" shape="pill" aria-pressed={hesitantOnly} onClick={() => { setHesitantOnly((prev) => !prev); onSegmentChange?.(null); }}>
+              {uiFormat("只看想了较久 ({0})", [hesitantRows.length])}
+            </Button>
+          )}
+          {shown.length >= 2 && (
+            <Button variant="quiet" size="sm" onClick={toggleAllShown}>
+              {allShownOpen ? ui("全部收起") : ui("全部展开")}
+            </Button>
+          )}
+          {taggedReasons.map((group) => (
+            <Button key={group.id} iconEnd="arrow-right" size="sm" variant="quiet" lock={study?.busy} onClick={() => onPracticeWrong(group.refs)}>
+              {uiFormat("重练「{0}」({1})", [ui(group.label), group.refs.length])}
+            </Button>
+          ))}
+          {withSolution.length > 0 && (
+            <Button variant="quiet" size="sm" onClick={copy}>
+              {copied ? ui("已复制") : ui("复制复盘摘录")}
+            </Button>
+          )}
+        </>}
+      </div>
       <ol className="look-back__rows">
         <ChunkedRows items={shown} render={render} chunk={ROW_CHUNK} resetKey={`${view}:${segment || ""}:${hesitantOnly}`} as="li" />
       </ol>

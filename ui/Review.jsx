@@ -347,7 +347,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               activeSegment={lookBackSegment ? STATUS_TO_SEGMENT[lookBackSegment] : null}
               onSelectSegment={run.mode !== "exam" ? handleSelectSegment : undefined} />
           </div>
-          {/* The next step comes first (the page decided it with today's plan in view): one filled button, then the 点评 and the rest. */}
+          {/* The next step comes first (the page decided it with today's plan in view): one filled button, then 本轮题目, the 点评 and the rest. */}
           {/* A round started in the book (or on the 总纲) goes back there first; the page's own next step is then the second button. */}
           {(onward || wayBack || practiseWrong) && (
             <div className={cx("result-next", wayBack && "result-next--back")}>
@@ -362,7 +362,21 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             </div>
           )}
           {destination?.note && <p className="muted" role="status">{destination.note}</p>}
-          {/* The 雷霆建议 sits right under the next step: its own suggestion (定制题 or 补薄弱) is one click, so it must not hide inside the fold. */}
+          {/* 本轮题目 (#1009): which questions went wrong or were left, each with a read-only look-back from the run itself. It comes right after the score and
+              the next step (#1688): what went wrong is what a learner looks for first, so the 点评, the seal card and 今日学习总结 come after it. */}
+          <RoundLookBack collapsible key={"look-back-" + run.id} run={run} sources={data?.sources}
+            segment={lookBackSegment} onSegmentChange={setLookBackSegment}
+            onPracticeWrong={(refs) => act("review.start", practiceArgs(refs), enterRun)}
+            onAck={(row) => actions.reviewAct("review.correction.ack", { entryIndex: row.entryIndex, cardId: row.cardId })}
+            onOpenBook={pageAvailable(data, "book") ? ({ course: targetCourse, hid, view } = {}) => {
+              const chosen = targetCourse || data?.focus?.course || null;
+              app?.learn?.rememberContext?.(app.learn.captureContext());
+              keepBook(data?.root, chosen, { target: hid || null, ...(view ? { view } : {}) });
+              if (targetCourse && targetCourse !== data?.focus?.course) void act("focus.set", { course: targetCourse });
+              navigate("book");
+            } : undefined}
+            onOpenWrongBook={pageAvailable(data, "wrongbook") ? (refs) => { askForLeeches(data?.root, refs); navigate("wrongbook"); } : undefined} />
+          {/* The 雷霆建议 comes after the list, outside the fold: its own suggestion (定制题 or 补薄弱) is one click, so it must not hide inside it. */}
           {coachProps && run.mode !== "exam" && run.answered > 0 && (
             <CoachDebrief
               key={"debrief-" + run.id}
@@ -460,19 +474,6 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               </Tooltip>
             </p>
           )}
-          {/* 本轮题目 (#1009): which questions went wrong or were left, each with a read-only look-back from the run itself. */}
-          <RoundLookBack collapsible key={"look-back-" + run.id} run={run} sources={data?.sources}
-            segment={lookBackSegment} onSegmentChange={setLookBackSegment}
-            onPracticeWrong={(refs) => act("review.start", practiceArgs(refs), enterRun)}
-            onAck={(row) => actions.reviewAct("review.correction.ack", { entryIndex: row.entryIndex, cardId: row.cardId })}
-            onOpenBook={pageAvailable(data, "book") ? ({ course: targetCourse, hid, view } = {}) => {
-              const chosen = targetCourse || data?.focus?.course || null;
-              app?.learn?.rememberContext?.(app.learn.captureContext());
-              keepBook(data?.root, chosen, { target: hid || null, ...(view ? { view } : {}) });
-              if (targetCourse && targetCourse !== data?.focus?.course) void act("focus.set", { course: targetCourse });
-              navigate("book");
-            } : undefined}
-            onOpenWrongBook={pageAvailable(data, "wrongbook") ? (refs) => { askForLeeches(data?.root, refs); navigate("wrongbook"); } : undefined} />
           <details key={run.id} className="result-details">
             <summary>{ui("更多结果与练习")}</summary>
             <p className="muted">{ui("每道题的下次复习时间已保存。")}</p>
