@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 
 // UI wave 3 · WP-P (#173): the home's 今天先做什么 block folds to one hairline row, is remembered per browser, has no heavy
@@ -88,12 +89,37 @@ test('English is complete', () => {
 });
 
 test('the stylesheet uses tokens only, the UI font for numbers and no box around the block', () => {
-  const css = readFileSync('ui/daily-plan.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/@(?:media|container)[^{]*/g, '');
-  assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b|\b(?![123]px)\d+px\b|font-weight:\s*\d{3}/i, 'no raw colours, px sizes (hairlines aside) or numeric weights');
-  assert.doesNotMatch(css, /monospace|--font-mono/);
-  const block = css.match(/\.daily-plan\s*\{[^}]*\}/)?.[0] || '';
-  assert.doesNotMatch(block, /background:\s*(?!none)\S|padding:\s*var\(--space-[5-9]\)[^;]*var\(--space-[5-9]\)/, 'not a heavy box');
-  assert.match(css, /tabular-nums/);
+  // Repo-wide raw colour and numeric font-weight guards also run in tests/ui-guardrails.test.mjs.
+  const { declarations } = parseCss(readFileSync('ui/daily-plan.css', 'utf8'));
+  assert.ok(declarations.length > 0, 'ui/daily-plan.css declares styles');
+  const rawTokens = declarations.filter((d) =>
+    /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?)\(/i.test(d.value)
+    || (d.value.match(/(?<![\w.-])\d*\.?\d+px\b/gi) || []).some((px) => parseFloat(px) > 3)
+    || (d.prop === 'font-weight' && /^\d{3}$/.test(d.value))
+    || (d.prop === 'font' && /^\d{3}(?=\s)/.test(d.value)));
+  assert.deepEqual(rawTokens, [], 'no raw colours, px sizes (hairlines aside) or numeric weights');
+  assert.deepEqual(
+    declarations.filter((d) => /monospace|--font-mono/i.test(d.value)),
+    [],
+    'no monospace font in daily-plan.css',
+  );
+  const rootDecls = declarations.filter((d) => d.ctx.at(-1) === '.daily-plan');
+  assert.ok(rootDecls.length > 0, '.daily-plan rule exists');
+  assert.equal(
+    rootDecls.some((d) => (d.prop === 'background' || d.prop === 'background-color') && d.value !== 'none' && d.value !== 'transparent'),
+    false,
+    'not a heavy box (no filled background)',
+  );
+  assert.equal(
+    rootDecls.some((d) => d.prop === 'padding' && /var\(--space-[5-9]\)[\s\S]*var\(--space-[5-9]\)/.test(d.value)),
+    false,
+    'not a heavy box (no heavy padding)',
+  );
+  assert.equal(
+    rootDecls.some((d) => d.prop === 'font-variant-numeric' && /\btabular-nums\b/.test(d.value)),
+    true,
+    '.daily-plan sets tabular-nums for times and counts',
+  );
 });
 
 // #174: a failed AI planning call names its reason and its fix, next to the 本地建议 heading.

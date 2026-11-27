@@ -8,6 +8,7 @@ import { withStudy } from './helpers/study-services.mjs';
 import { openCourseBook } from '../lib/course-book-files.js';
 import { courseNotesMaterial } from '../lib/course-book.js';
 import { POINT_REASONS } from '../lib/evidence/point-report.js';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { COURSE, pointLibrary } from './helpers/point-library.mjs';
 
 /* 复习全书接入查缺 (UI): BookPointGaps (reusing PointGaps), TOC 缺题 lens + per-chapter/leaf indicators,
@@ -269,8 +270,20 @@ test('UI guardrails: BookPointGaps uses no title= attributes and book-point-gaps
   assert.match(tooltipMatch[1], /\bsh-tooltip\b/);
   assert.equal(tooltipMatch[2], '有 2 个知识点建立在它之上，先补它。');
 
-  const css = await readFile(new URL('../ui/book/book-point-gaps.css', import.meta.url), 'utf8');
-  assert.match(css, /@layer study\.features/);
-  assert.match(css, /:where\(\.study-app, \.study-seat\)/);
-  assert.doesNotMatch(css, /#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/, 'token-only colors for light and dark themes');
+  // Repo-wide layer/scope and raw-colour guards also run in tests/css-layers.test.mjs,
+  // tests/css-token-guard.test.mjs, and tests/ui-guardrails.test.mjs. Here we verify the
+  // book-point-gaps stylesheet's specific @layer study.features + zero-specificity :where() scope and token-only colours.
+  const { declarations, blocks } = parseCss(await readFile(new URL('../ui/book/book-point-gaps.css', import.meta.url), 'utf8'));
+  assert.ok(declarations.length > 0, 'book-point-gaps.css declares styles');
+  assert.equal(blocks.some((b) => b.prelude === '@layer study.features'), true, 'belongs to @layer study.features');
+  assert.equal(
+    declarations.every((d) => d.ctx.includes('@layer study.features') && d.ctx.includes(':where(.study-app, .study-seat)')),
+    true,
+    'every declaration is scoped to @layer study.features > :where(.study-app, .study-seat)',
+  );
+  assert.deepEqual(
+    declarations.filter((d) => /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(/i.test(d.value)),
+    [],
+    'token-only colors for light and dark themes',
+  );
 });
