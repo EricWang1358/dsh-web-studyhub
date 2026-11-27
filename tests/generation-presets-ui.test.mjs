@@ -11,7 +11,7 @@ const m = await loadUi(`
   export * from './ui/presets/Presets.jsx';
   export { DepthChoice, CostMatrix, CostLine } from './ui/presets/PresetsFold.jsx';
   export * as words from './ui/presets/cost-words.js';
-  export { DEPTHS, DEFAULT_PRESET, PRESETS } from './lib/contexts/generation/presets.js';
+  export { DEPTHS, PRESETS, presetOf } from './lib/contexts/generation/presets.js';
   export { askCells } from './ui/presets/use-cell-estimates.js';
   export { estimateRequestOf, generationRequest } from './ui/generate-form.js';
   export { generationFormDefaults } from './ui/generation-status.js';
@@ -217,11 +217,14 @@ test('the form\'s 出题深度 is sent as performance with this run and its esti
 
 test('the copy names the default preset only where lib/contexts/generation/presets.js says it is the default', () => {
   m.setUiLanguage('zh');
-  // The copy says 「情境题（默认）」 and prices against 「情境题」: if DEFAULT_PRESET moves, this fails until the words move with it.
-  assert.equal(m.DEFAULT_PRESET, 'scenario');
-  for (const { id } of m.PRESETS) assert.equal(/（默认）/.test(m.copy.presetNote(id)), id === m.DEFAULT_PRESET, `${id}: 默认 only on the default`);
-  const label = m.copy.presetLabel(m.DEFAULT_PRESET);
+  // The copy says 「情境题（默认）」 and prices against 「情境题」: if the default preset moves, this fails until the words move with it.
+  const [defaultCell] = m.cost.cellsToAsk(m.cost.PRESET_CELLS);
+  const defaultPreset = m.presetOf(defaultCell);
+  assert.equal(defaultPreset, 'scenario');
+  assert.deepEqual(defaultCell, { density: 'standard', depth: 'scenario' });
+  for (const { id } of m.PRESETS) assert.equal(/（默认）/.test(m.copy.presetNote(id)), id === defaultPreset, `${id}: 默认 only on the default`);
+  const label = m.copy.presetLabel(defaultPreset);
   assert.ok(m.words.costTip().includes(`「${label}」`), 'the hover card prices against the default');
-  const matrix = m.words.matrixWords(m.cost.cellCosts(new Map(), m.cost.MATRIX_CELLS), { density: 'standard', depth: 'scenario' }, { columns: m.copy.matrixColumns(), depths: m.DEPTHS });
+  const matrix = m.words.matrixWords(m.cost.cellCosts(new Map(), m.cost.MATRIX_CELLS), defaultCell, { columns: m.copy.matrixColumns(), depths: m.DEPTHS });
   assert.ok(matrix.caption.includes(`「${label}」`), 'and so does the caption of the matrix');
 });

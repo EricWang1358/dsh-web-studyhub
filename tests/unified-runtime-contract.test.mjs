@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import Schema from 'schemastery';
-import { CONTRACT_VERSION, STATUSES, jobContract } from '../lib/job-contract.js';
+import { STATUSES, jobContract } from '../lib/job-contract.js';
 import { archiveRecordOf } from '../lib/job-archive.js';
 import {
   PROPOSED_CONTRACT_VERSION, JobSchema, AttemptSchema, StepSchema, CallSchema, validateRuntimeContract, goldenRuntimeContracts,
@@ -21,7 +21,9 @@ const reject = (name, change, code) => {
 };
 
 test('v2 review fixtures retain the nine-state vocabulary while production still publishes v1', () => {
-  assert.equal(CONTRACT_VERSION, 1);
+  const published = jobContract({ id: 'live-v1', type: 'generate', status: 'running' });
+  assert.equal(published.contractVersion, 1);
+  assert.equal(published.status, 'running');
   assert.equal(PROPOSED_CONTRACT_VERSION, 2);
   assert.deepEqual(STATUSES, ['queued', 'running', 'pausing', 'paused', 'cancelling', 'cancelled', 'complete', 'failed', 'interrupted']);
   for (const [name, fixture] of Object.entries(goldenRuntimeContracts)) {

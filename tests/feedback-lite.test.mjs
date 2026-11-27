@@ -150,14 +150,17 @@ const stats = (totals = {}) => ({ generatedAt: "2026-10-02T04:00:00Z", today: "2
 const statsView = (totals, language = "zh") => render(StatsView, { stats: stats(totals), course: "*", data: { decks: [], focus: {} }, busy: false, onStartScope: noop, onLibrary: noop, onCreate: noop, onSources: noop }, language);
 
 test("mastery-terms names every measure once; 掌握度 belongs to the level-weighted one alone", async () => {
-  const { MEASURES, MIN_ANSWERS, TERMS } = await import("../ui/mastery-terms.js");
+  const { MEASURES, enoughAnswers, TERMS } = await import("../ui/mastery-terms.js");
   assert.equal(MEASURES.mastery.label, "掌握度");
   assert.equal(MEASURES.mastery, TERMS.mastery, "the Home number keeps its words");
   const labels = Object.values(MEASURES).map((measure) => measure.label);
   assert.equal(new Set(labels).size, labels.length, "no two measures share a name");
   for (const [id, measure] of Object.entries(MEASURES)) if (id !== "mastery") assert.doesNotMatch(measure.label + (measure.hint ?? ""), /掌握度/, `${id} is not a mastery number`);
   assert.deepEqual(Object.keys(MEASURES).sort(), ["gradedRate", "mastery", "passRate", "roundGraded", "roundSelf", "selfRate"]);
-  assert.equal(MIN_ANSWERS, 3, "the same threshold the server uses for 数据不足");
+  assert.equal(enoughAnswers(2), false, "below the server threshold for 数据不足");
+  assert.equal(enoughAnswers(3), true, "at the threshold: three answers are enough");
+  assert.equal(enoughAnswers(0), false);
+  assert.equal(enoughAnswers(NaN), false);
 });
 
 /* The words that are not numbers (ui/mastery-terms.js GLOSSARY): what the interface assumes a learner already knows, said once in one place,

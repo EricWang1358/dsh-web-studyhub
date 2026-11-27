@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DEFAULT_JEV_PROVIDER, JEV_PROVIDERS, JEV_PROVIDER_IDS, isKeyEnvName, jevProvider, keyFromEnvironment } from '../lib/jev-providers.js';
+import { JEV_PROVIDERS, JEV_PROVIDER_IDS, isKeyEnvName, jevProvider, keyFromEnvironment, scriptKeySource } from '../lib/jev-providers.js';
 import { JEV, JEV_MESSAGES, JEV_MESSAGES_EN, JevError, createJevClient, jevMessage, mapJevStatus, noul } from '../lib/jev.js';
 import { JEV_NOTICE_VERSION, jevGate, jevSettingsPath, publicJevSettings, readJevSettings, saveJevSettings } from '../lib/jev-settings.js';
 import { createJevRuntime, createBreaker } from '../lib/jev-runtime.js';
@@ -43,7 +43,6 @@ test('the preset table: TypeSafe stays the default and the two OpenCode Zen pres
   const go = JEV_PROVIDERS['opencode-go'];
   assert.equal(`${go.baseUrl}${go.path}`, 'https://opencode.ai/zen/go/v1/systemone', 'OpenCode Go has its own route, not the Zen one');
   assert.deepEqual([go.model, go.family, go.defaultKeyEnv, go.brand], ['jev-1.13', 'opencode', 'OPENCODE_GO_API_KEY_2', 'OpenCode Go']);
-  assert.equal(DEFAULT_JEV_PROVIDER, 'typesafe');
   const typesafe = JEV_PROVIDERS.typesafe, free = JEV_PROVIDERS['opencode-zen-free'], paid = JEV_PROVIDERS['opencode-zen'];
   assert.deepEqual([typesafe.baseUrl, typesafe.path, typesafe.model, typesafe.defaultKeyEnv], [JEV.baseUrl, JEV.path, JEV.model, 'JEV_API_KEY']);
   assert.equal(`${free.baseUrl}${free.path}`, 'https://opencode.ai/zen/v1/systemone');
@@ -55,6 +54,8 @@ test('the preset table: TypeSafe stays the default and the two OpenCode Zen pres
   for (const id of JEV_PROVIDER_IDS) assert.equal(JEV_PROVIDERS[id].id, id);
   assert.equal(jevProvider('nope').id, 'typesafe', 'an unknown id is the default');
   assert.equal(jevProvider(undefined).id, 'typesafe');
+  assert.equal(scriptKeySource([], {}).provider.id, 'typesafe', 'scripts without --provider default to TypeSafe');
+  assert.equal(keyFromEnvironment('nope', '', { JEV_API_KEY: 'k' }).name, 'JEV_API_KEY', 'env lookup for an unknown id falls back to the default provider');
   assert.ok(!JSON.stringify(JEV_PROVIDERS).match(/\$|price|usd/i), 'no price in the table the UI reads');
 });
 

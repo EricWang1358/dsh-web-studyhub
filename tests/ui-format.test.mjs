@@ -159,7 +159,11 @@ test('joinMeta joins the parts of a meta line with the middle dot and drops the 
   assert.equal(m.joinMeta(['只有一部分']), '只有一部分');
   assert.equal(m.joinMeta([]), '');
   assert.equal(m.joinMeta(['a', 0, 'b']), 'a · 0 · b', 'a zero is a value');
-  assert.equal(m.META_DOT, ' · ');
+  m.setUiLanguage('en');
+  try {
+    assert.equal(m.joinMeta(['3 min', '0:20']), '3 min · 0:20', 'middle dot stays untranslated punctuation in English');
+    assert.equal(m.joinMeta(['', null, 'only', undefined, false]), 'only');
+  } finally { m.setUiLanguage('zh'); }
 });
 
 test('the language helpers say which language data is wanted in, without choosing a sentence (#123)', () => {
