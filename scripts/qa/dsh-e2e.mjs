@@ -219,11 +219,13 @@ export async function runDshE2e(options) {
     });
     await step("studyhub-presets", async () => {
       const result = await page.evaluate(async () => {
+        let status = "no response";
         try {
           const response = await fetch("/api/agentPresets/list", { method: "POST", headers: { "content-type": "application/json" },
             body: JSON.stringify({ type: "client-request", rpcId: crypto.randomUUID(), method: "agentPresets/list", payload: { args: {} } }) });
+          status = `HTTP ${response.status}`;
           return (await response.json()).result;
-        } catch { return null; }
+        } catch (error) { return { ok: false, error: { message: `${status}: ${error?.message || error}` } }; }
       });
       const { readable, problems } = studyPresetProblems(result, wantedVersion);
       summary.studyPresets = { readable, problems };

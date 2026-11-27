@@ -118,6 +118,26 @@ test("the fake OpenAI-compatible server answers study prompts like the fake mode
   assert.match(reminded.choices[0].message.content, /收到：还在吗$/);
 });
 
+test("the fake model reads past the host's own trailing turns, and only past those", async (t) => {
+  const server = await createFakeOpenAI({ port: 0, toolCall: ({ prompt }) => (prompt.includes("[[tool:probe]]") ? { name: "probe", arguments: {} } : null) });
+  t.after(() => server.close());
+  const ask = async (...messages) => (await (await fetch(server.url + "/chat/completions", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model: FAKE_OPENAI_MODEL, tools: [{ type: "function", function: { name: "probe", parameters: {} } }],
+      messages: [{ role: "system", content: "You are a coding agent." }, ...messages] }) })).json()).choices[0].message;
+  const reminder = { role: "user", content: "<system-reminder>only the host speaking</system-reminder>" };
+  const asked = { role: "user", content: "[[tool:probe]] 查一下" };
+  assert.equal((await ask(asked, reminder)).tool_calls?.[0].function.name, "probe");
+  // once the tool has answered, a reminder after its result must not start the same call again
+  const called = { role: "assistant", content: null, tool_calls: [{ id: "c1", type: "function", function: { name: "probe", arguments: "{}" } }] };
+  const answered = await ask(asked, called, { role: "tool", tool_call_id: "c1", content: "done" }, reminder);
+  assert.equal(answered.tool_calls, undefined);
+  assert.ok(answered.content);
+  // a turn with a picture and no words is the learner's own turn: the earlier question is not asked again
+  const picture = await ask({ role: "user", content: "earlier question" }, { role: "assistant", content: "ok" },
+    { role: "user", content: [{ type: "image_url", image_url: { url: "data:image/png;base64,AA==" } }] });
+  assert.doesNotMatch(picture.content, /earlier question/);
+});
+
 test("the DSH e2e patch routes the default model to the local fake and keeps documents inside output/qa", () => {
   const documents = resolve(repo, "output/qa/dsh-documents");
   const patch = dshPatch({ fakeModelUrl: "http://127.0.0.1:3191/v1", documentsDirectory: documents, keyEnv: "STUDYHUB_QA_FAKE_KEY" });

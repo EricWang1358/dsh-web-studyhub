@@ -36,12 +36,15 @@ export async function createFakeOpenAI({ port = 0, host = "127.0.0.1", model, be
         // DSH ends the conversation of a delegated call with turns of its own (a runtime-context snapshot; from 0.2.2 also a turn that holds only a
         // <system-reminder>): what was asked is the last user turn before them.
         const turns = messages.filter((m) => m.role === "user").map((m) => text(m.content));
-        const hostOnly = (turn) => /^\s*Current runtime context\./.test(turn) || !turn.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "").trim();
+        // A turn with no words and no reminder (a picture) is the learner's own.
+        const hostOnly = (turn) => /^\s*Current runtime context\./.test(turn)
+          || (turn.includes("<system-reminder>") && !turn.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "").trim());
         const prompt = turns.findLast((turn) => !hostOnly(turn)) ?? turns.at(-1) ?? "";
+        const lastSaid = messages.findLast((m) => !(m.role === "user" && hostOnly(text(m.content))));
         await beforeReply?.(system, prompt); // a run may hold the model (scripts/qa/dsh-runtime-smoke.mjs shows a job while it runs)
         // `toolCall({ prompt, tools })` may return { name, arguments } to make the model call a tool instead of answering (once: the turn after the tool result is a plain answer).
         const toolNames = (request.tools || []).map((tool) => tool.function?.name || tool.name).filter(Boolean);
-        const lastTool = messages.at(-1)?.role === "tool" ? text(messages.at(-1).content) : "";
+        const lastTool = lastSaid?.role === "tool" ? text(lastSaid.content) : "";
         const call = !lastTool && toolCall ? toolCall({ prompt: prompt.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "").trim(), tools: toolNames }) : null;
         if (call && toolNames.includes(call.name)) {
           log.push({ at: new Date().toISOString(), model: request.model, stream: !!request.stream, handled: false, toolCall: call.name, tools: toolNames, systemHead: system.slice(0, 200) });
