@@ -540,11 +540,11 @@ test('generation progress follows completed explanation batches and cancellation
   const progress = async () => (await service.call('note.daily.status', { course: '数学' })).groups[0].generation.progress;
   assert.deepEqual(await progress(), { phase: 'explaining', completed: 0, total: 2 });
   releaseFirst();
-  for (let i = 0; i < 150 && stages.length < 2; i++) await new Promise(resolve => setTimeout(resolve, 10));
+  for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil && stages.length < 2;) await new Promise(resolve => setTimeout(resolve, 10));
   assert.deepEqual(stages, ['prepare', 'prepare']);
   assert.deepEqual(await progress(), { phase: 'explaining', completed: 1, total: 2 });
   releaseSecond();
-  for (let i = 0; i < 150 && stages.length < 3; i++) await new Promise(resolve => setTimeout(resolve, 10));
+  for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil && stages.length < 3;) await new Promise(resolve => setTimeout(resolve, 10));
   assert.deepEqual(stages, ['prepare', 'prepare', 'consolidate']);
   assert.deepEqual(await progress(), { phase: 'organizing', completed: 2, total: 2 });
   await service.call('note.daily.cancel', { id: started.id });

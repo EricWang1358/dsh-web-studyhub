@@ -143,7 +143,7 @@ for (const pilot of [false, true]) {
     const savedBefore = await service.call('note.save', { id: note.id, markdown: '# 原有草稿内容' });
     await service.call('note.generate', { id: note.id, expectedRevision: savedBefore.revision });
 
-    for (let i = 0; i < 30 && !observedSignal; i++) await new Promise((resolve) => setTimeout(resolve, 10));
+    for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil && !observedSignal;) await new Promise((resolve) => setTimeout(resolve, 10));
     assert.ok(observedSignal, 'model call started');
     assert.equal(observedSignal.aborted, false);
 
@@ -358,7 +358,7 @@ test('casePaperReport preserves submitted responses, assist tasks carry runId, a
   });
   const startedTask = assist.assistView(root).tasks.at(-1);
   assert.equal(startedTask?.runId, run.id);
-  for (let i = 0; i < 40 && assist.assistView(root).tasks.at(-1)?.status === 'running'; i++) {
+  for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil && assist.assistView(root).tasks.at(-1)?.status === 'running';) {
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
 

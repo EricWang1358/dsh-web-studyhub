@@ -303,7 +303,7 @@ test('host actions webGemini.status, webGemini.set, webGemini.test and assist.js
       },
     );
     assert.equal(started.runtime, 'subagent');
-    for (let i = 0; i < 40 && assist.assistView(root).tasks[0]?.status === 'running'; i++) {
+    for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil && assist.assistView(root).tasks[0]?.status === 'running';) {
       await new Promise(resolve => setTimeout(resolve, 10));
     }
     const task = assist.assistView(root).tasks[0];

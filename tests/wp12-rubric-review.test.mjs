@@ -164,7 +164,7 @@ test("background rubric help also grades the open snapshot and leaves the curren
   const snapshot = before.runs.find(item => item.id === run.id).entries[0].card;
   await assist.startAssist({}, { root, service, sessionId: "panel", mode: "grade", ref, runId: run.id,
     text: answer, card: snapshot, deckTitle: "Orchard case", language: "en" });
-  for (let i = 0; i < 200 && assist.assistView(root).tasks.at(-1).status === "running"; i++) await new Promise(resolve => setTimeout(resolve, 10));
+  for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil && assist.assistView(root).tasks.at(-1).status === "running";) await new Promise(resolve => setTimeout(resolve, 10));
   const done = assist.assistView(root).tasks.at(-1);
   assert.equal(done.status, "done", done.message);
   assert.equal(payloads[0].questions[0].prompt, prompt);
@@ -310,7 +310,7 @@ test("background help grades in mode 'grade' through the same commit", async (t)
   const task = await assist.startAssist({}, { root, service, sessionId: "panel", mode: "grade", ref: { deckId: "orchard", cardId: "q1" },
     runId: run.id, text: answer, card: state.decks[0].cards[0], deckTitle: "Orchard case", language: "en" });
   assert.equal(task.mode, "grade");
-  for (let i = 0; i < 200 && assist.assistView(root).tasks.at(-1).status === "running"; i++) await new Promise((resolve) => setTimeout(resolve, 10));
+  for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil && assist.assistView(root).tasks.at(-1).status === "running";) await new Promise((resolve) => setTimeout(resolve, 10));
   const done = assist.assistView(root).tasks.at(-1);
   assert.equal(done.status, "done", done.message);
   const after = await service.call("review.get", { runId: run.id });

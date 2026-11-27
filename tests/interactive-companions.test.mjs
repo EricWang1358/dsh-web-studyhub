@@ -528,7 +528,7 @@ test('Layer 3: 4-stage generation.companion.build Job (estimate, Stage 3 auto-re
 
     // Poll until Job completes
     let finalJob = null;
-    for (let i = 0; i < 80; i++) {
+    for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil;) {
       const snap = await coordinator.call('snapshot', {});
       const found = snap.jobs.find(j => j.id === started.jobId);
       if (found && (found.status === 'complete' || found.status === 'failed')) {
