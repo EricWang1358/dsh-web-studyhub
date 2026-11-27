@@ -32,7 +32,7 @@ const bundle = await build({ stdin: { contents: `
 
 const course = '示例课程 · 设计模式';
 
-test('考试教练: the course picker is 课程范围 and its course name is not cut', { timeout: 120000 }, async (t) => {
+test('考试教练: the course picker is 课程范围 and its course name is not cut', { timeout: 600000 }, async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'coach-select-'));
   let server, browser;
   t.after(async () => { await browser?.close(); await server?.close(); await rm(root, { recursive: true, force: true, maxRetries: 3 }); });

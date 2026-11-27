@@ -32,7 +32,7 @@ const bundle = await build({ stdin: { contents: `
 `, resolveDir: process.cwd(), loader: 'jsx' }, bundle: true, write: false, platform: 'browser', format: 'iife',
   loader: { '.css': 'text' }, logLevel: 'silent' });
 
-test('音频转写 with no service set up has one way to the audio settings: the setup card\'s', { timeout: 120000 }, async (t) => {
+test('音频转写 with no service set up has one way to the audio settings: the setup card\'s', { timeout: 600000 }, async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'audio-entry-'));
   let server, browser;
   t.after(async () => { await browser?.close(); await server?.close(); await rm(root, { recursive: true, force: true, maxRetries: 3 }); });

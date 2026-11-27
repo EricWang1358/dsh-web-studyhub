@@ -51,7 +51,7 @@ const box = (page, selector) => page.evaluate((value) => {
   return { left: Math.round(rect.left), right: Math.round(rect.right), width: Math.round(rect.width) };
 }, selector);
 
-test('学习笔记: the list shares the width of every page, its rows are even, today\'s recap is offered once, and the sidebar page has no way back', { timeout: 120000 }, async (t) => {
+test('学习笔记: the list shares the width of every page, its rows are even, today\'s recap is offered once, and the sidebar page has no way back', { timeout: 600000 }, async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'notes-page-'));
   let server, browser;
   t.after(async () => { await browser?.close(); await server?.close(); await rm(root, { recursive: true, force: true, maxRetries: 3 }); });

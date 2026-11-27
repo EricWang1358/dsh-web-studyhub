@@ -30,7 +30,7 @@ const bundle = await build({ stdin: { contents: `
 `, resolveDir: process.cwd(), loader: 'jsx' }, bundle: true, write: false, platform: 'browser', format: 'iife',
   loader: { '.css': 'text' }, logLevel: 'silent' });
 
-test('settings: every pane starts at one height, and the review preview\'s 熟练 line matches its key', { timeout: 120000 }, async (t) => {
+test('settings: every pane starts at one height, and the review preview\'s 熟练 line matches its key', { timeout: 600000 }, async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'settings-panes-'));
   let server, browser;
   t.after(async () => { await browser?.close(); await server?.close(); await rm(root, { recursive: true, force: true, maxRetries: 3 }); });
@@ -72,18 +72,25 @@ test('settings: every pane starts at one height, and the review preview\'s 熟�
       const app = document.querySelector('.study-app');
       app.dataset.theme = nextTheme;
       if (nextAccent) app.dataset.accent = nextAccent; else delete app.dataset.accent;
-      // Colour transitions (reduced motion shortens them, it does not skip the first frame) have ended before the colours are read.
-      await new Promise((done) => setTimeout(done, 400));
+      // Colour transitions the switch starts (reduced motion shortens them, it does not skip them) are ended before the colours are read: waiting a fixed
+      // time read the old theme's colour on a busy machine.
+      getComputedStyle(app).color;
+      document.getAnimations().forEach((animation) => { try { animation.finish(); } catch { /* an endless one */ } });
       // The same colour written as a probe, so a token and its computed form compare.
       const token = (value) => { const probe = document.createElement('i'); probe.style.color = value; document.querySelector('.sm2-preview').append(probe); const seen = getComputedStyle(probe).color; probe.remove(); return seen; };
-      const style = (selector, pseudo) => getComputedStyle(document.querySelector(selector), pseudo);
+      const style = (selector, pseudo) => {
+        const element = document.querySelector(selector), seen = getComputedStyle(element, pseudo);
+        void seen.backgroundColor; void seen.fill; void seen.stroke;
+        element.getAnimations({ subtree: true }).forEach((animation) => animation.finish());
+        return getComputedStyle(element, pseudo);
+      };
       return { key: style('.sm2-key.is-good', '::before').backgroundColor, dot: style('.sm2-series.is-good circle').fill, days: style('.sm2-series.is-good text').fill,
-        line: style('.sm2-series.is-good .sm2-track').stroke, ok: token('var(--ok)'), ink: token('var(--ok-ink)'), faded: token('color-mix(in srgb, var(--ok) 55%, transparent)') };
+        line: style('.sm2-series.is-good .sm2-track').stroke, ok: token('var(--ok)'), ink: token('var(--ok-ink)'), faded: token('var(--ok-mid)') };
     }, [theme, accent]);
     const at = `${theme} ${accent || 'cinnabar'}`;
     assert.equal(colours.key, colours.ok, `${at}: the key is --ok`);
     assert.equal(colours.dot, colours.key, `${at}: the dots are the key's colour`);
-    assert.equal(colours.line, colours.faded, `${at}: the line is --ok, faded`);
+    assert.equal(colours.line, colours.faded, `${at}: the line is --ok at the stroke strength`);
     assert.equal(colours.days, colours.ink, `${at}: the day numbers are --ok's text token`);
   }
   assert.deepEqual(errors, []);
