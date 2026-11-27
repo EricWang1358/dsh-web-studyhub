@@ -332,67 +332,78 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
       );
     }
 
-    // Runtime behavior: mount AppShell and open each lazy overlay, proving <Suspense> resolves all 4 without uncaught suspense errors
+    // Runtime behavior: mount AppShell inside an outer sentinel <Suspense> and open each lazy overlay,
+    // proving AppShell's own <Suspense> boundaries catch suspension without bubbling out and blanking the shell.
     const unregisterTsx = register();
-    const { AppShell } = await import('../src/shell/AppShell.tsx');
-    const { useTuiStore, DEFAULT_PREFERENCES } = await import('../src/state/store.ts');
-
-    const prevState = useTuiStore.getState();
-    const savedStore = {
-      page: prevState.page,
-      loading: prevState.loading,
-      snapshot: prevState.snapshot,
-      preferences: prevState.preferences,
-      showLaunchpad: prevState.showLaunchpad,
-      commandPaletteOpen: prevState.commandPaletteOpen,
-      helpOpen: prevState.helpOpen,
-      coursePickerOpen: prevState.coursePickerOpen,
-      inboxOpen: prevState.inboxOpen,
-      notificationHistoryOpen: prevState.notificationHistoryOpen,
-      voicePackOpen: prevState.voicePackOpen,
-      quitConfirmOpen: prevState.quitConfirmOpen,
-      assistantOpen: prevState.assistantOpen,
-      assistantFocused: prevState.assistantFocused,
-      toasts: prevState.toasts,
-    };
-
-    const stdin = new PassThrough();
-    stdin.isTTY = true;
-    stdin.setRawMode = () => stdin;
-    stdin.ref = () => stdin;
-    stdin.unref = () => stdin;
-
-    const stdout = new PassThrough();
-    stdout.isTTY = true;
-    stdout.columns = 100;
-    stdout.rows = 30;
-    stdout.getColorDepth = () => 1;
-
-    const frames = [];
-    stdout.on('data', (chunk) => {
-      const plain = stripAnsi(String(chunk));
-      if (plain.trim().length > 0) frames.push(plain);
-    });
-
-    const waitForOverlay = async (marker, label, timeoutMs = 6000) => {
-      const deadline = Date.now() + timeoutMs;
-      while (Date.now() < deadline) {
-        const frame = frames.at(-1) ?? '';
-        if (frame.includes(marker)) return frame;
-        await new Promise((done) => setTimeout(done, 20));
-      }
-      assert.fail(`Timed out waiting for lazy overlay ${label} (${marker}).\nLast frame:\n${frames.at(-1) ?? ''}`);
-    };
-
-    const stubHost = {
-      call: async (action) => (action === 'inbox' ? { ok: true, value: { items: [] } } : { ok: true, value: {} }),
-      subscribe: () => () => {},
-      dispose: async () => {},
-      getLibraryRoot: () => '',
-    };
-
+    let useTuiStore = null;
+    let savedStore = null;
     let inst = null;
     try {
+      const { AppShell } = await import('../src/shell/AppShell.tsx');
+      const storeMod = await import('../src/state/store.ts');
+      useTuiStore = storeMod.useTuiStore;
+      const { DEFAULT_PREFERENCES } = storeMod;
+
+      const prevState = useTuiStore.getState();
+      savedStore = {
+        page: prevState.page,
+        loading: prevState.loading,
+        snapshot: prevState.snapshot,
+        preferences: prevState.preferences,
+        showLaunchpad: prevState.showLaunchpad,
+        commandPaletteOpen: prevState.commandPaletteOpen,
+        helpOpen: prevState.helpOpen,
+        coursePickerOpen: prevState.coursePickerOpen,
+        inboxOpen: prevState.inboxOpen,
+        notificationHistoryOpen: prevState.notificationHistoryOpen,
+        voicePackOpen: prevState.voicePackOpen,
+        quitConfirmOpen: prevState.quitConfirmOpen,
+        assistantOpen: prevState.assistantOpen,
+        assistantFocused: prevState.assistantFocused,
+        toasts: prevState.toasts,
+      };
+
+      const stdin = new PassThrough();
+      stdin.isTTY = true;
+      stdin.setRawMode = () => stdin;
+      stdin.ref = () => stdin;
+      stdin.unref = () => stdin;
+
+      const stdout = new PassThrough();
+      stdout.isTTY = true;
+      stdout.columns = 100;
+      stdout.rows = 30;
+      stdout.getColorDepth = () => 1;
+
+      const frames = [];
+      stdout.on('data', (chunk) => {
+        const plain = stripAnsi(String(chunk));
+        if (plain.trim().length > 0) frames.push(plain);
+      });
+
+      let outerSuspenseHits = 0;
+      function OuterFallback() {
+        outerSuspenseHits += 1;
+        return React.createElement(Text, null, 'OUTER_SUSPENSE_FALLBACK');
+      }
+
+      const waitForOverlay = async (marker, label, timeoutMs = 6000) => {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+          const frame = frames.at(-1) ?? '';
+          if (frame.includes(marker)) return frame;
+          await new Promise((done) => setTimeout(done, 20));
+        }
+        assert.fail(`Timed out waiting for lazy overlay ${label} (${marker}).\nLast frame:\n${frames.at(-1) ?? ''}`);
+      };
+
+      const stubHost = {
+        call: async (action) => (action === 'inbox' ? { ok: true, value: { items: [] } } : { ok: true, value: {} }),
+        subscribe: () => () => {},
+        dispose: async () => {},
+        getLibraryRoot: () => '',
+      };
+
       useTuiStore.setState({
         page: 'library',
         loading: false,
@@ -419,11 +430,15 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
       });
 
       inst = render(
-        React.createElement(AppShell, {
-          host: stubHost,
-          autoLaunchpad: false,
-          renderPage: () => React.createElement(Text, null, 'SHELL_OVERLAY_BASE'),
-        }),
+        React.createElement(
+          React.Suspense,
+          { fallback: React.createElement(OuterFallback) },
+          React.createElement(AppShell, {
+            host: stubHost,
+            autoLaunchpad: false,
+            renderPage: () => React.createElement(Text, null, 'SHELL_OVERLAY_BASE'),
+          }),
+        ),
         { stdout, stdin, debug: true, exitOnCtrlC: false, patchConsole: false },
       );
 
@@ -439,11 +454,21 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
       for (const overlay of overlaysToCheck) {
         useTuiStore.setState({ [overlay.flag]: true });
         await waitForOverlay(overlay.marker, overlay.name);
+        assert.equal(
+          outerSuspenseHits,
+          0,
+          `${overlay.name} must be caught by AppShell's own <Suspense> rather than bubbling to outer Suspense`,
+        );
+        assert.equal(
+          frames.some((f) => f.includes('OUTER_SUSPENSE_FALLBACK')),
+          false,
+          `${overlay.name} must not trigger outer Suspense fallback`,
+        );
         useTuiStore.setState({ [overlay.flag]: false });
       }
     } finally {
       if (inst) inst.unmount();
-      useTuiStore.setState(savedStore);
+      if (useTuiStore && savedStore) useTuiStore.setState(savedStore);
       unregisterTsx?.();
     }
   });
