@@ -7,7 +7,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
-import { Store, LATEST_VERSION } from '../lib/store.js';
+import { Store, normalizeState } from '../lib/store.js';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { courseIdFor, courseIdsOf, courseOf, courseIdOf, courseEntities, examProfile } from '../lib/courses.js';
 import { courseOf as legacyCourseOf } from '../lib/focus.js';
@@ -87,8 +87,8 @@ test('an old library reads with virtual course entities and ids; the first write
   const root = await directory(t, 'study-wp13-v3-');
   await writeVersion3Library(root);
   const read = await new Store(root).read();
-  assert.equal(LATEST_VERSION, 5);
-  assert.equal(read.version, LATEST_VERSION, 'migrated in memory on read');
+  assert.equal(read.version, 5, 'migrated in memory on read to schema version 5');
+  assert.throws(() => normalizeState({ version: 6 }), /version 6.*up to 5/, 'store rejects schemas newer than v5');
   assert.equal((await manifestOf(root)).version, 3, 'reading never rewrites the library');
   const names = courseEntities(read).map(course => course.name).sort();
   assert.deepEqual(names, ['Databases', 'Networks', 'Old name only', 'Systems']);
@@ -110,7 +110,7 @@ test('an old library reads with virtual course entities and ids; the first write
   assert.deepEqual(before.map(course => course.id).sort(), names.map(courseIdFor).sort(), 'the API sees the same virtual ids');
   await service.call('focus.set', { course: 'Systems' });
   const manifest = await manifestOf(root);
-  assert.equal(manifest.version, LATEST_VERSION, 'the first write upgrades the format');
+  assert.equal(manifest.version, 5, 'the first write upgrades the format to schema version 5');
   assert.ok(Array.isArray(manifest.shards.courses) && manifest.shards.courses.length === 4, 'course entities are persisted as item shards');
   const backups = await readdir(join(root, 'backups'));
   assert.ok(backups.some(name => /^study-workspace-v3-/.test(name)), 'the normal upgrade path keeps a pre-upgrade backup');
