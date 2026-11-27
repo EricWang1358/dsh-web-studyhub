@@ -29,6 +29,7 @@ import { scrubProcessEnv } from "./env.mjs";
 import { sampleMaterial, sampleMarkdown, samplePdfHtml } from "./fixtures.mjs";
 import { FAKE_SILICONFLOW_KEY, fakeSiliconflow, longM4a, toneWav } from "./audio-fixtures.mjs";
 import { DEFAULT_CLS_MAX, drainLayoutStability, emptyLayoutLog, installLayoutObserver, judgeLayoutStability, mergeLayoutLog } from "./layout-stability.mjs";
+import { DEFAULT_LEVEL, autoCompleteOf } from "../../lib/coverage-strength.js";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -95,14 +96,15 @@ export const JOURNEY_STEPS = [
     await j.nav("generate");
     await j.clickIfPresent(j.anchor("generate-from-sources").or(j.page.getByRole("tab", { name: j.t("从资料补题") })));
     await j.clickIfPresent(j.page.getByRole("button", { name: j.t("选择当前范围") }));
-    // The question types (单选测验 is the default) and the 覆盖强度 with 自定义 as its fourth choice are on the main path; the deck name is under 更多选项.
+    // The question types (单选测验 is the default) and 出题方式 (its three presets) are on the main path. A number of questions of one's own is
+    // 更多选项 › 覆盖强度 › 自定义 (#1281), and the deck name is under the same 更多选项.
     const quiz = j.page.locator('[data-tour="generate-kinds"]').getByRole("checkbox", { name: j.t("单选测验"), exact: true });
     if (!await quiz.isChecked()) await quiz.check();
+    const more = j.page.locator(".generate-more").first();
+    if (!await more.evaluate((element) => element.open)) await more.locator("summary").first().click();
     const count = j.page.locator("#generate-count");
     if (!await count.isVisible()) await j.page.locator(".cov-strength__levels .sh-seg__item", { hasText: j.t("自定义") }).first().click();
     await count.fill("4");
-    const more = j.page.locator(".generate-more").first();
-    if (!await more.evaluate((element) => element.open)) await more.locator("summary").first().click();
     await j.page.getByLabel(j.t("题组名称（可选）")).fill(j.lang === "en" ? "QA journey deck" : "QA 旅程题组");
     await j.shot("form", { fullPage: true });
     const before = (await j.snapshot()).jobs.length;
@@ -297,7 +299,9 @@ export const JOURNEY_STEPS = [
     await j.settle();
     await j.shot("merge-confirm");
     await j.dialog().getByRole("button", { name: j.t("取消"), exact: true }).first().click();
-    await j.dialog().getByRole("button", { name: j.t("保存课程信息") }).click();
+    // The merge was called off but its course stays ticked: the first press only says that saving will not merge, and the button then reads 仍保存课程信息 (#1259).
+    await j.dialog().getByRole("button", { name: j.t("保存课程信息"), exact: true }).click();
+    await j.dialog().getByRole("button", { name: j.t("仍保存课程信息"), exact: true }).click();
     await j.until(async () => (await j.snapshot()).courses?.some((course) => course.name === name && course.exam?.date === date), "the exam profile is saved");
     await j.until(async () => !(await j.page.locator("dialog[open]").count()), "the panel closes after saving");
     await j.page.locator(".course-heading-exam").first().waitFor({ timeout: 15000 });
@@ -482,6 +486,14 @@ export const CASE_STEPS = [
 
 /* ---------- state a step can require, created through the API ---------- */
 
+/** The run the seed starts is the one 创建题组 would send for these materials and 4 questions of one's own: the form always sends its 覆盖强度 and whether the run
+ *  goes on by itself. A request without them is a plain run, which can end 「补题」: its card then stands on the first-run line and the steps that wait for
+ *  发布并开始练 or 检查草稿 find neither. */
+export function seedGeneration(lang, sourceIds) {
+  return { sourceIds, count: 4, kind: "quiz", title: "QA seed", language: lang === "en" ? "English" : "中文",
+    coverageLevel: DEFAULT_LEVEL, autoComplete: autoCompleteOf(DEFAULT_LEVEL) };
+}
+
 const SEED = {
   async material(j) {
     if ((await j.snapshot()).sources.length) return;
@@ -491,7 +503,7 @@ const SEED = {
     if (j.state.jobId) return;
     await SEED.material(j);
     const sourceIds = (await j.snapshot()).sources.map((source) => source.id);
-    j.state.jobId = (await j.api("generate", { sourceIds, count: 4, kind: "quiz", title: "QA seed", language: j.lang === "en" ? "English" : "中文" })).jobId;
+    j.state.jobId = (await j.api("generate", seedGeneration(j.lang, sourceIds))).jobId;
     await j.nav("library");
   },
   async draft(j) {
