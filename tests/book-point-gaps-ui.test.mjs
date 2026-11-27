@@ -221,7 +221,7 @@ test('every Review Book gap check word is translated into English (no untranslat
   }
 }));
 
-test('UI guardrails: BookPointGaps uses accessible Tooltip instead of raw title= across all branches and book-point-gaps.css uses design tokens only', async () => {
+test('UI guardrails: BookPointGaps uses no title= attributes and book-point-gaps.css uses design tokens only', async () => {
   const richReport = {
     ...report,
     chapters: report.chapters.map((ch, idx) => (idx === 1 ? {
