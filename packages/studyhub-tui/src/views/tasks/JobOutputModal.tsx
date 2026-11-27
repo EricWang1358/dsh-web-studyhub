@@ -73,11 +73,13 @@ export const JobOutputModal = memo(function JobOutputModal({
         const traceRes = await tryAction<{ calls?: Array<{ callId?: string; status?: string }> }>(host, 'job.trace', {
           jobId: job.id,
         });
-        if (!cancelled && traceRes.ok && Array.isArray(traceRes.value?.calls) && traceRes.value.calls.length > 0) {
+        if (cancelled) return;
+        if (traceRes.ok && Array.isArray(traceRes.value?.calls) && traceRes.value.calls.length > 0) {
           const running = [...traceRes.value.calls].reverse().find((c) => c.status === 'running');
           targetCallId = running?.callId || traceRes.value.calls.at(-1)?.callId;
         }
       }
+      if (cancelled) return;
       const args: Record<string, unknown> = targetCallId
         ? { jobId: job.id, callId: targetCallId, cursor: 0 }
         : { jobId: job.id };

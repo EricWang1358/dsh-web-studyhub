@@ -22,8 +22,8 @@ export interface UseTasksActionsParams {
   mountedRef: MutableRefObject<boolean>;
   setLiveJobs: Dispatch<SetStateAction<Array<Record<string, unknown>> | null>>;
   setControlOverrides: Dispatch<SetStateAction<Record<string, ControlOverride>>>;
-  setConfirmDeleteOpen: Dispatch<SetStateAction<boolean>>;
-  setConfirmPurgeTraceOpen: Dispatch<SetStateAction<boolean>>;
+  setConfirmDeleteTarget: Dispatch<SetStateAction<JobRecord | null>>;
+  setConfirmPurgeTraceTarget: Dispatch<SetStateAction<JobRecord | null>>;
   setTraceReloadTick: Dispatch<SetStateAction<number>>;
 }
 
@@ -32,9 +32,9 @@ export interface TasksActions {
   syncLiveAndRefresh: () => Promise<void>;
   handleCancel: () => Promise<void>;
   handleArchive: () => Promise<void>;
-  handleDeleteConfirm: () => Promise<void>;
+  handleDeleteConfirm: (explicitJob?: JobRecord | null) => Promise<void>;
   handleExportTrace: () => Promise<void>;
-  handlePurgeTraceConfirm: () => Promise<void>;
+  handlePurgeTraceConfirm: (explicitJob?: JobRecord | null) => Promise<void>;
   handleTogglePause: () => Promise<void>;
   handleStartParallel: () => Promise<void>;
   handleAdjustConcurrency: (delta: -1 | 1) => Promise<void>;
@@ -51,8 +51,8 @@ export function useTasksActions({
   mountedRef,
   setLiveJobs,
   setControlOverrides,
-  setConfirmDeleteOpen,
-  setConfirmPurgeTraceOpen,
+  setConfirmDeleteTarget,
+  setConfirmPurgeTraceTarget,
   setTraceReloadTick,
 }: UseTasksActionsParams): TasksActions {
   const [busy, setBusy] = useState(false);
@@ -161,58 +161,61 @@ export function useTasksActions({
     });
   }, [busy, host, lang, mountedRef, notify, refresh, runBusy, selectedJob]);
 
-  const handleDeleteConfirm = useCallback(async () => {
-    const targetJob = selectedJob;
-    if (!targetJob || busy || busyRef.current) return;
-    await runBusy(async () => {
-      const dismissRes = await tryAction(host, 'job.dismiss', { jobId: targetJob.id });
-      if (!mountedRef.current) return;
-      if (dismissRes.ok) {
-        setConfirmDeleteOpen(false);
+  const handleDeleteConfirm = useCallback(
+    async (explicitJob?: JobRecord | null) => {
+      const targetJob = explicitJob ?? selectedJob;
+      if (!targetJob || busy || busyRef.current) return;
+      await runBusy(async () => {
+        const dismissRes = await tryAction(host, 'job.dismiss', { jobId: targetJob.id });
+        if (!mountedRef.current) return;
+        if (dismissRes.ok) {
+          setConfirmDeleteTarget(null);
+          await refresh();
+          if (mountedRef.current) {
+            notify(t(lang, '任务记录已移除', 'Job removed'), 'success');
+          }
+          return;
+        }
+        const delRes = await tryAction<{
+          deleted?: string[];
+          skipped?: Array<{ id?: string; reason?: string }>;
+          missing?: string[];
+        }>(host, 'job.delete', { jobIds: [targetJob.id] });
+        if (!mountedRef.current) return;
+        setConfirmDeleteTarget(null);
+        if (!delRes.ok) {
+          notify(delRes.error?.message || t(lang, '删除任务失败', 'Delete failed'), 'error');
+          return;
+        }
+        if (delRes.value?.skipped?.length) {
+          const reason = delRes.value.skipped[0]?.reason;
+          notify(
+            reason === 'running'
+              ? t(
+                  lang,
+                  '运行中的任务无法直接删除，请先按 [x] 取消任务',
+                  'Running job cannot be removed; press [x] to cancel it first',
+                )
+              : t(lang, `任务未能删除 (${reason || 'skipped'})`, `Job could not be removed (${reason || 'skipped'})`),
+            'warning',
+          );
+          return;
+        }
+        if (delRes.value?.deleted && delRes.value.deleted.length === 0 && delRes.value.missing?.length) {
+          await refresh();
+          if (mountedRef.current) {
+            notify(t(lang, '该任务记录已不存在，已刷新列表', 'Job record was already gone; list refreshed'), 'info');
+          }
+          return;
+        }
         await refresh();
         if (mountedRef.current) {
           notify(t(lang, '任务记录已移除', 'Job removed'), 'success');
         }
-        return;
-      }
-      const delRes = await tryAction<{
-        deleted?: string[];
-        skipped?: Array<{ id?: string; reason?: string }>;
-        missing?: string[];
-      }>(host, 'job.delete', { jobIds: [targetJob.id] });
-      if (!mountedRef.current) return;
-      setConfirmDeleteOpen(false);
-      if (!delRes.ok) {
-        notify(delRes.error?.message || t(lang, '删除任务失败', 'Delete failed'), 'error');
-        return;
-      }
-      if (delRes.value?.skipped?.length) {
-        const reason = delRes.value.skipped[0]?.reason;
-        notify(
-          reason === 'running'
-            ? t(
-                lang,
-                '运行中的任务无法直接删除，请先按 [x] 取消任务',
-                'Running job cannot be removed; press [x] to cancel it first',
-              )
-            : t(lang, `任务未能删除 (${reason || 'skipped'})`, `Job could not be removed (${reason || 'skipped'})`),
-          'warning',
-        );
-        return;
-      }
-      if (delRes.value?.deleted && delRes.value.deleted.length === 0 && delRes.value.missing?.length) {
-        await refresh();
-        if (mountedRef.current) {
-          notify(t(lang, '该任务记录已不存在，已刷新列表', 'Job record was already gone; list refreshed'), 'info');
-        }
-        return;
-      }
-      await refresh();
-      if (mountedRef.current) {
-        notify(t(lang, '任务记录已移除', 'Job removed'), 'success');
-      }
-    });
-  }, [busy, host, lang, mountedRef, notify, refresh, runBusy, selectedJob, setConfirmDeleteOpen]);
+      });
+    },
+    [busy, host, lang, mountedRef, notify, refresh, runBusy, selectedJob, setConfirmDeleteTarget],
+  );
 
   const handleExportTrace = useCallback(async () => {
     const targetJob = selectedJob;
@@ -254,36 +257,39 @@ export function useTasksActions({
     });
   }, [busy, host, lang, mountedRef, notify, resolveLibraryRoot, runBusy, selectedJob]);
 
-  const handlePurgeTraceConfirm = useCallback(async () => {
-    const targetJob = selectedJob;
-    if (!targetJob || busy || busyRef.current) return;
-    await runBusy(async () => {
-      const res = await tryAction<{ jobId?: string; removed?: number }>(host, 'job.trace.delete', {
-        jobId: targetJob.id,
+  const handlePurgeTraceConfirm = useCallback(
+    async (explicitJob?: JobRecord | null) => {
+      const targetJob = explicitJob ?? selectedJob;
+      if (!targetJob || busy || busyRef.current) return;
+      await runBusy(async () => {
+        const res = await tryAction<{ jobId?: string; removed?: number }>(host, 'job.trace.delete', {
+          jobId: targetJob.id,
+        });
+        if (!mountedRef.current) return;
+        setConfirmPurgeTraceTarget(null);
+        if (!res.ok) {
+          notify(res.error?.message || t(lang, '清空调用轨迹失败', 'Failed to purge traces'), 'error');
+          return;
+        }
+        const removed = typeof res.value?.removed === 'number' ? res.value.removed : 0;
+        setTraceReloadTick((n) => n + 1);
+        await refresh();
+        if (!mountedRef.current) return;
+        if (removed > 0) {
+          notify(
+            t(lang, `已清空 ${removed} 条调用轨迹（任务记录保留）`, `Purged ${removed} trace(s) (job record kept)`),
+            'success',
+          );
+        } else {
+          notify(
+            t(lang, '该任务暂无可清空的缓存轨迹（任务记录保留）', 'No cached traces to purge (job record kept)'),
+            'info',
+          );
+        }
       });
-      if (!mountedRef.current) return;
-      setConfirmPurgeTraceOpen(false);
-      if (!res.ok) {
-        notify(res.error?.message || t(lang, '清空调用轨迹失败', 'Failed to purge traces'), 'error');
-        return;
-      }
-      const removed = typeof res.value?.removed === 'number' ? res.value.removed : 0;
-      setTraceReloadTick((n) => n + 1);
-      await refresh();
-      if (!mountedRef.current) return;
-      if (removed > 0) {
-        notify(
-          t(lang, `已清空 ${removed} 条调用轨迹（任务记录保留）`, `Purged ${removed} trace(s) (job record kept)`),
-          'success',
-        );
-      } else {
-        notify(
-          t(lang, '该任务暂无可清空的缓存轨迹（任务记录保留）', 'No cached traces to purge (job record kept)'),
-          'info',
-        );
-      }
-    });
-  }, [busy, host, lang, mountedRef, notify, refresh, runBusy, selectedJob, setConfirmPurgeTraceOpen, setTraceReloadTick]);
+    },
+    [busy, host, lang, mountedRef, notify, refresh, runBusy, selectedJob, setConfirmPurgeTraceTarget, setTraceReloadTick],
+  );
 
   const handleTogglePause = useCallback(async () => {
     if (busy || busyRef.current) return;

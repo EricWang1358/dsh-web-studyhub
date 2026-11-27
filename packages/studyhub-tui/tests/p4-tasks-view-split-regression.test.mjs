@@ -946,10 +946,13 @@ describe('P4 (#1354 D12): TasksView Split Guardrail & Behavioral Regression Suit
     );
 
     await h.waitFor((f) => f.includes('OS Scheduling Generation'), 4000, 'mounted');
+    await waitCondition(() => calls.some((c) => c.name === 'job.output'), 2000, 'output in flight');
     h.dispatchKey('x', {});
     await waitCondition(() => calls.some((c) => c.name === 'job.cancel'), 2000, 'cancel in flight');
 
-    // Unmount while all four RPCs are still unresolved
+    const traceCallsBeforeUnmount = calls.filter((c) => c.name === 'job.trace').length;
+
+    // Unmount while cancel/output/live polls are still unresolved
     h.cleanup();
 
     // Settle all gates after unmount
@@ -960,5 +963,223 @@ describe('P4 (#1354 D12): TasksView Split Guardrail & Behavioral Regression Suit
     await new Promise((r) => setTimeout(r, 50));
 
     assert.equal(useTuiStore.getState().toasts.length, 0, 'unmounted TasksView must not emit late toasts');
+    assert.equal(
+      calls.filter((c) => c.name === 'job.trace').length,
+      traceCallsBeforeUnmount,
+      'unmounted TasksView must not fire a stray job.trace RPC after late job.output settles',
+    );
+  });
+
+  test('10. ConfirmDialog target pinning: live poll shifts & tab emptying never hijack delete target or leave ghost dialogs', async () => {
+    // Subcase A: live poll prepends a new job while Dismiss Job ConfirmDialog is open -> 'y' still deletes original job
+    {
+      const liveGate = deferred();
+      const { calls, host } = makeHost(async (name) => {
+        if (name === 'job.live.list') {
+          await liveGate.promise;
+          return {
+            ok: true,
+            value: {
+              jobs: [
+                { id: 'job-old', title: 'Old Target Job', type: 'generate', status: 'running', progress: 0.5, calls: [] },
+                { id: 'job-new', title: 'New Arriving Job', type: 'generate', status: 'running', progress: 0.1, calls: [] },
+              ],
+            },
+          };
+        }
+        return { ok: true, value: { calls: [], text: '' } };
+      });
+      resetStore({
+        language: 'en',
+        asciiMode: false,
+        snapshot: {
+          root: '',
+          courses: [],
+          decks: [],
+          sources: [],
+          drafts: [],
+          archivedJobs: [],
+          jobs: [{ id: 'job-old', title: 'Old Target Job', type: 'generate', status: 'running', progress: 0.5, calls: [] }],
+        },
+      });
+      const h = createHarness(
+        React.createElement(TasksView, { host, width: 120, height: 34, isActive: true }),
+        { cols: 120, rows: 34, shellActions: makeShellActions() },
+      );
+      try {
+        await h.waitFor((f) => f.includes('Old Target Job'), 4000, 'initial single job');
+        h.dispatchKey('d', {});
+        await h.waitFor((f) => f.includes('Remove job record "Old Target Job"'), 4000, 'confirm dialog pinned to Old Target Job');
+        liveGate.resolve();
+        await h.waitFor((f) => f.includes('New Arriving Job'), 4000, 'new job landed in list');
+        assert.equal(
+          h.frame().includes('Remove job record "Old Target Job"'),
+          true,
+          'confirm dialog title must remain pinned to Old Target Job',
+        );
+        h.dispatchKey('y', {});
+        await waitCondition(() => calls.some((c) => c.name === 'job.dismiss'), 2000, 'dismiss called');
+        assert.deepEqual(calls.find((c) => c.name === 'job.dismiss')?.args, { jobId: 'job-old' });
+      } finally {
+        h.cleanup();
+      }
+    }
+
+    // Subcase B: job completes while on Running tab with ConfirmDialog open -> stays pinned until Esc, no ghost dialog on All tab
+    {
+      const liveGate = deferred();
+      const { host } = makeHost(async (name) => {
+        if (name === 'job.live.list') {
+          await liveGate.promise;
+          return {
+            ok: true,
+            value: {
+              jobs: [{ id: 'job-only', title: 'Finishing Job', type: 'generate', status: 'complete', progress: 1, calls: [] }],
+            },
+          };
+        }
+        return { ok: true, value: { calls: [], text: '' } };
+      });
+      resetStore({
+        language: 'en',
+        asciiMode: false,
+        snapshot: {
+          root: '',
+          courses: [],
+          decks: [],
+          sources: [],
+          drafts: [],
+          archivedJobs: [],
+          jobs: [
+            { id: 'job-other', title: 'Unrelated Completed Job', type: 'generate', status: 'complete', progress: 1, calls: [] },
+            { id: 'job-only', title: 'Finishing Job', type: 'generate', status: 'running', progress: 0.9, calls: [] },
+          ],
+        },
+      });
+      const h = createHarness(
+        React.createElement(TasksView, { host, width: 120, height: 34, isActive: true }),
+        { cols: 120, rows: 34, shellActions: makeShellActions() },
+      );
+      try {
+        await h.waitFor((f) => f.includes('Finishing Job'), 4000, 'initial jobs');
+        h.dispatchKey('1', {});
+        await h.waitFor((f) => !f.includes('Unrelated Completed Job'), 4000, 'running tab active');
+        h.dispatchKey('d', {});
+        await h.waitFor((f) => f.includes('Remove job record "Finishing Job"'), 4000, 'confirm dialog open');
+        liveGate.resolve();
+        await h.waitFor((f) => f.includes('1. Running (0)'), 4000, 'running tab became empty');
+        assert.equal(
+          h.frame().includes('Remove job record "Finishing Job"'),
+          true,
+          'confirm dialog must stay mounted until explicitly dismissed',
+        );
+        h.dispatchKey('', { escape: true });
+        await h.waitFor((f) => !f.includes('Dismiss Job'), 4000, 'dialog closed on Esc');
+        h.dispatchKey('2', {});
+        await h.waitFor((f) => f.includes('Unrelated Completed Job'), 4000, 'switched to All tab');
+        assert.equal(h.frame().includes('Dismiss Job'), false, 'no ghost ConfirmDialog after switching tabs');
+      } finally {
+        h.cleanup();
+      }
+    }
+  });
+
+  test('11. JobOutputModal empty job.calls fallback via job.trace, unsupported/archived hints, and cancel mid-trace safety', async () => {
+    // Subcase A: job.calls is empty -> queries job.trace -> picks running call -> fetches job.output; unsupported hint shown on supported:false
+    {
+      const { calls, host } = makeHost(async (name, args) => {
+        if (name === 'job.trace') {
+          return {
+            ok: true,
+            value: {
+              calls: [
+                { callId: 'c-1', status: 'complete' },
+                { callId: 'c-2-run', status: 'running' },
+              ],
+            },
+          };
+        }
+        if (name === 'job.output' && args?.callId === 'c-2-run') {
+          return { ok: true, value: { supported: false } };
+        }
+        return { ok: true, value: {} };
+      });
+      resetStore({
+        language: 'en',
+        asciiMode: false,
+        snapshot: {
+          root: '',
+          courses: [],
+          decks: [],
+          sources: [],
+          drafts: [],
+          archivedJobs: [],
+          jobs: [{ id: 'job-empty-calls', title: 'Fallback Trace Job', type: 'generate', status: 'complete', progress: 1, calls: [] }],
+        },
+      });
+      const h = createHarness(
+        React.createElement(TasksView, { host, width: 120, height: 34, isActive: true }),
+        { cols: 120, rows: 34, shellActions: makeShellActions() },
+      );
+      try {
+        await h.waitFor((f) => f.includes('Fallback Trace Job'), 4000, 'fallback job rendered');
+        h.dispatchKey('o', {});
+        await h.waitFor(
+          (f) => f.includes('Live streaming output is not supported by this runner'),
+          4000,
+          'unsupported runner empty-state hint',
+        );
+        const outCall = calls.find((c) => c.name === 'job.output');
+        assert.deepEqual(outCall?.args, { jobId: 'job-empty-calls', callId: 'c-2-run', cursor: 0 });
+      } finally {
+        h.cleanup();
+      }
+    }
+
+    // Subcase B: closing JobOutputModal while job.trace fallback is in-flight fires 0 stray job.output RPCs
+    {
+      const traceGate = deferred();
+      const { calls, host } = makeHost(async (name) => {
+        if (name === 'job.trace') {
+          await traceGate.promise;
+          return { ok: true, value: { calls: [{ callId: 'c-late', status: 'running' }] } };
+        }
+        return { ok: true, value: { text: 'should not be fetched' } };
+      });
+      resetStore({
+        language: 'en',
+        asciiMode: false,
+        snapshot: {
+          root: '',
+          courses: [],
+          decks: [],
+          sources: [],
+          drafts: [],
+          archivedJobs: [],
+          jobs: [{ id: 'job-cancel-trace', title: 'Cancel Trace Job', type: 'generate', status: 'complete', progress: 1, calls: [] }],
+        },
+      });
+      const h = createHarness(
+        React.createElement(TasksView, { host, width: 120, height: 34, isActive: true }),
+        { cols: 120, rows: 34, shellActions: makeShellActions() },
+      );
+      try {
+        await h.waitFor((f) => f.includes('Cancel Trace Job'), 4000, 'cancel trace job rendered');
+        h.dispatchKey('o', {});
+        await h.waitFor((f) => f.includes('Job Output:'), 4000, 'output modal open');
+        h.dispatchKey('', { escape: true });
+        await h.waitFor((f) => !f.includes('Job Output:'), 4000, 'output modal closed');
+        const outBefore = calls.filter((c) => c.name === 'job.output').length;
+        traceGate.resolve();
+        await new Promise((r) => setTimeout(r, 60));
+        assert.equal(
+          calls.filter((c) => c.name === 'job.output').length,
+          outBefore,
+          'closed JobOutputModal must not fire stray job.output RPC after late job.trace settles',
+        );
+      } finally {
+        h.cleanup();
+      }
+    }
   });
 });

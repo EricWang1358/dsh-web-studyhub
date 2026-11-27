@@ -84,10 +84,10 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
   const [controlOverrides, setControlOverrides] = useState<Record<string, ControlOverride>>({});
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [detailMode, setDetailMode] = useState<'output' | 'trace'>('output');
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-  const [confirmPurgeTraceOpen, setConfirmPurgeTraceOpen] = useState(false);
-  const [outputModalOpen, setOutputModalOpen] = useState(false);
-  const [messageModalOpen, setMessageModalOpen] = useState(false);
+  const [confirmDeleteTarget, setConfirmDeleteTarget] = useState<JobRecord | null>(null);
+  const [confirmPurgeTraceTarget, setConfirmPurgeTraceTarget] = useState<JobRecord | null>(null);
+  const [outputModalTarget, setOutputModalTarget] = useState<JobRecord | null>(null);
+  const [messageModalTarget, setMessageModalTarget] = useState<JobRecord | null>(null);
   const [workflowModalOpen, setWorkflowModalOpen] = useState(false);
   const [traceReloadTick, setTraceReloadTick] = useState(0);
   const [outputLines, setOutputLines] = useState<string[]>([]);
@@ -214,21 +214,28 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
           callId: latestCall.id,
           cursor: 0,
         });
-        if (!cancelled && outRes.ok && outRes.value) {
+        if (cancelled) return;
+        if (outRes.ok && outRes.value) {
           const txt = String(outRes.value.text || '');
           setOutputLines(txt ? capLines(txt) : []);
+        } else {
+          setOutputLines([]);
         }
-      } else if (!cancelled) {
+      } else {
         setOutputLines([]);
       }
 
+      if (cancelled) return;
       const traceRes = await tryAction<{ calls?: TraceCallEntry[]; unavailableReason?: string }>(host, 'job.trace', {
         jobId: selectedJobId,
       });
-      if (!cancelled && traceRes.ok && traceRes.value) {
+      if (cancelled) return;
+      if (traceRes.ok && traceRes.value) {
         setTraceLines(
           formatTraceCallLines(traceRes.value.calls ?? [], traceRes.value.unavailableReason, asciiMode),
         );
+      } else {
+        setTraceLines([]);
       }
     };
 
@@ -258,8 +265,8 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
     mountedRef,
     setLiveJobs,
     setControlOverrides,
-    setConfirmDeleteOpen,
-    setConfirmPurgeTraceOpen,
+    setConfirmDeleteTarget,
+    setConfirmPurgeTraceTarget,
     setTraceReloadTick,
   });
 
@@ -367,7 +374,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
       }
       if (input === 'o') {
         if (!selectedJob) notify(t(lang, '请先选择一个任务', 'Select a job first'), 'info');
-        else setOutputModalOpen(true);
+        else setOutputModalTarget(selectedJob);
         return true;
       }
       if (input === 'm') {
@@ -375,7 +382,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
         else if (!ACTIVE_STATUSES.has(selectedJob.status)) {
           notify(t(lang, '仅运行中的任务可发送补充说明', 'Only active jobs accept refinement messages'), 'info');
         } else {
-          setMessageModalOpen(true);
+          setMessageModalTarget(selectedJob);
         }
         return true;
       }
@@ -394,7 +401,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
       }
       if (input === 'D') {
         if (!selectedJob) notify(t(lang, '请先选择一个任务', 'Select a job first'), 'info');
-        else setConfirmPurgeTraceOpen(true);
+        else setConfirmPurgeTraceTarget(selectedJob);
         return true;
       }
       if (input === 'x') {
@@ -406,7 +413,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
         return true;
       }
       if (input === 'd' && selectedJob) {
-        setConfirmDeleteOpen(true);
+        setConfirmDeleteTarget(selectedJob);
         return true;
       }
       return false;
@@ -488,6 +495,12 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
     setSelectedIndex(0);
   }, []);
 
+  const resolvedOutputJob = useMemo(() => {
+    if (!outputModalTarget) return null;
+    const pool = outputModalTarget.archived ? allNormalized.archived : allNormalized.activeAndRecent;
+    return pool.find((j) => j.id === outputModalTarget.id) ?? outputModalTarget;
+  }, [allNormalized.activeAndRecent, allNormalized.archived, outputModalTarget]);
+
   return (
     <Box flexDirection="column" width={width} height={height}>
       <TasksHeaderBar
@@ -552,66 +565,66 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
         />
       </Box>
 
-      {confirmDeleteOpen && selectedJob ? (
+      {confirmDeleteTarget ? (
         <KeyScope id="tasks:confirm-delete" opaque>
           <ConfirmDialog
             title={t(lang, '删除任务记录', 'Dismiss Job')}
             message={t(
               lang,
-              `确认移除任务「${selectedJob.title}」的记录吗？（保留已生成的草稿）`,
-              `Remove job record "${selectedJob.title}"? (Generated drafts are preserved.)`,
+              `确认移除任务「${confirmDeleteTarget.title}」的记录吗？（保留已生成的草稿）`,
+              `Remove job record "${confirmDeleteTarget.title}"? (Generated drafts are preserved.)`,
             )}
             confirmLabel={t(lang, '确认移除', 'Remove')}
             cancelLabel={t(lang, '取消', 'Cancel')}
             danger
             isActive={isActive}
-            onConfirm={() => void handleDeleteConfirm()}
-            onCancel={() => setConfirmDeleteOpen(false)}
+            onConfirm={() => void handleDeleteConfirm(confirmDeleteTarget)}
+            onCancel={() => setConfirmDeleteTarget(null)}
           />
         </KeyScope>
       ) : null}
 
-      {confirmPurgeTraceOpen && selectedJob ? (
+      {confirmPurgeTraceTarget ? (
         <KeyScope id="tasks:confirm-purge-trace" opaque>
           <ConfirmDialog
             title={t(lang, '清空请求轨迹', 'Purge Request Traces')}
             message={t(
               lang,
-              `确认清空任务「${selectedJob.title}」的缓存请求轨迹吗？（任务记录与草稿保持不变）`,
-              `Purge saved request traces for "${selectedJob.title}"? (The job record itself stays intact.)`,
+              `确认清空任务「${confirmPurgeTraceTarget.title}」的缓存请求轨迹吗？（任务记录与草稿保持不变）`,
+              `Purge saved request traces for "${confirmPurgeTraceTarget.title}"? (The job record itself stays intact.)`,
             )}
             confirmLabel={t(lang, '确认清空', 'Purge')}
             cancelLabel={t(lang, '取消', 'Cancel')}
             danger
             isActive={isActive}
-            onConfirm={() => void handlePurgeTraceConfirm()}
-            onCancel={() => setConfirmPurgeTraceOpen(false)}
+            onConfirm={() => void handlePurgeTraceConfirm(confirmPurgeTraceTarget)}
+            onCancel={() => setConfirmPurgeTraceTarget(null)}
           />
         </KeyScope>
       ) : null}
 
-      {outputModalOpen && selectedJob ? (
+      {resolvedOutputJob ? (
         <KeyScope id="tasks:output" opaque>
           <JobOutputModal
             host={host}
-            job={selectedJob}
-            isActive={isActive && outputModalOpen}
-            onClose={() => setOutputModalOpen(false)}
+            job={resolvedOutputJob}
+            isActive={isActive && Boolean(outputModalTarget)}
+            onClose={() => setOutputModalTarget(null)}
             lang={lang}
             asciiMode={asciiMode}
           />
         </KeyScope>
       ) : null}
 
-      {messageModalOpen && selectedJob ? (
+      {messageModalTarget ? (
         <KeyScope id="tasks:message" opaque>
           <JobMessageModal
             host={host}
-            job={selectedJob}
-            isActive={isActive && messageModalOpen}
-            onClose={() => setMessageModalOpen(false)}
+            job={messageModalTarget}
+            isActive={isActive && Boolean(messageModalTarget)}
+            onClose={() => setMessageModalTarget(null)}
             onSent={(receipt) => {
-              setMessageModalOpen(false);
+              setMessageModalTarget(null);
               const receiptMsg =
                 receipt.delivery === 'delivered'
                   ? t(lang, '补充说明已实时送达当前子任务', 'Refinement delivered to active workers')

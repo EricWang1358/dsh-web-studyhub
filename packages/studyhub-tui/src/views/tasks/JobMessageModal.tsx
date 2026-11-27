@@ -93,6 +93,11 @@ export const JobMessageModal = memo(function JobMessageModal({
     [lang],
   );
 
+  const handleCloseSafe = useCallback(() => {
+    if (submittingRef.current) return;
+    onClose();
+  }, [onClose]);
+
   return (
     <Modal
       title={t(lang, '发送任务补充说明', 'Send Refinement Message')}
@@ -100,7 +105,7 @@ export const JobMessageModal = memo(function JobMessageModal({
       tone="accent"
       subtitle={truncateDisplay(job.title, 24, ell)}
       width={frameW}
-      onClose={submitting ? undefined : onClose}
+      onClose={submitting ? undefined : handleCloseSafe}
       isActive={isActive}
       hints={hints}
     >
@@ -129,7 +134,7 @@ export const JobMessageModal = memo(function JobMessageModal({
               if (validationError) setValidationError('');
             }}
             onSubmit={(val) => void handleSubmit(val)}
-            onCancel={onClose}
+            onCancel={handleCloseSafe}
             isActive={isActive && !submitting}
             width={inputW}
             prompt={asciiMode ? '> ' : '› '}
