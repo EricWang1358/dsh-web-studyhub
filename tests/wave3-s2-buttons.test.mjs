@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 
 // WP-S2 (#152 #153): Button gains wrap / block / align / pill / busyLabel, and
 // SegmentedControl gains fill / wrap / stack / xs, so features stop re-skinning
@@ -17,7 +18,6 @@ new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(requi
 const m = module.exports;
 const h = React.createElement;
 const html = (type, props = {}, ...children) => renderToStaticMarkup(h(type, props, ...children));
-const css = readFileSync(new URL('../ui/components/button-variants.css', import.meta.url), 'utf8');
 
 test('Button: wrap, block and align are class modifiers', () => {
   const out = html(m.Button, { wrap: true, block: true, align: 'start' }, '一个很长的按钮文案');
@@ -45,8 +45,17 @@ test('Button: busy keeps its width, announces aria-busy and can swap its label',
   m.holdWidth({ offsetWidth: 132, style: { setProperty: (name, value) => { stored[name] = value; } } });
   assert.deepEqual(stored, { '--sh-held-width': '132px' });
   assert.doesNotThrow(() => m.holdWidth(null));
-  const baseCss = readFileSync(new URL('../ui/components/components.css', import.meta.url), 'utf8');
-  assert.match(baseCss, /\.sh-btn\[aria-busy="true"\]\s*\{[^}]*min-width:\s*var\(--sh-held-width/);
+  // Behavioral busy-lock width retention is also covered in tests/busy-lock-browser.test.mjs;
+  // assert the parsed CSS declaration directly so dropping min-width: var(--sh-held-width, ...) fails even for shorter busyLabel swaps.
+  const { declarations } = parseCss(readFileSync(new URL('../ui/components/components.css', import.meta.url), 'utf8'));
+  assert.ok(
+    declarations.some(
+      (d) => d.ctx.at(-1) === '.sh-btn[aria-busy="true"]'
+        && d.prop === 'min-width'
+        && /^var\(\s*--sh-held-width\b/.test(d.value),
+    ),
+    '.sh-btn[aria-busy="true"] holds width via min-width: var(--sh-held-width, ...)',
+  );
 });
 
 test('Button: lock disables without a spinner (only the pressed button spins, see the browser test)', () => {
@@ -77,12 +86,29 @@ test('SegmentedControl: fill, wrap, stack and xs are class modifiers', () => {
 });
 
 test('button-variants.css is token-only, scoped and defines every modifier', () => {
-  for (const name of ['wrap', 'block', 'start', 'center', 'pill']) assert.match(css, new RegExp(`\\.sh-btn--${name}\\b`), `sh-btn--${name}`);
-  for (const name of ['fill', 'wrap', 'stack', 'xs']) assert.match(css, new RegExp(`\\.sh-seg--${name}\\b`), `sh-seg--${name}`);
-  assert.doesNotMatch(css, /!important/);
-  assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
-  assert.doesNotMatch(css, /font-size:\s*\d+px/);
-  assert.doesNotMatch(css, /z-index:\s*\d{2,}/);
-  assert.match(css, /study-app, \.study-seat/);
-  assert.match(css, /prefers-reduced-motion/);
+  // Repo-wide !important, raw hex/rgb/hsl colors, px font-size, numeric z-index (> 2), and
+  // @layer / :is(.study-app, .study-seat) scoping are enforced across all ui/**/*.css by
+  // tests/ui-guardrails.test.mjs, tests/css-token-guard.test.mjs, and tests/css-layers.test.mjs.
+  // Here we inspect parsed AST rules for button/segment modifier declarations and reduced-motion.
+  const { declarations } = parseCss(readFileSync(new URL('../ui/components/button-variants.css', import.meta.url), 'utf8'));
+  const hasDecl = (selector, prop, valuePattern, ctxPattern = null) => declarations.some(
+    (d) => d.ctx.at(-1) === selector
+      && d.prop === prop
+      && valuePattern.test(d.value)
+      && (!ctxPattern || ctxPattern.test(d.ctx.join(' | '))),
+  );
+  assert.equal(hasDecl('.sh-btn--wrap', 'white-space', /^normal$/), true, 'sh-btn--wrap enables wrapping');
+  assert.equal(hasDecl('.sh-btn--block', 'width', /^100%$/), true, 'sh-btn--block spans full width');
+  assert.equal(hasDecl('.sh-btn--start', 'justify-content', /^flex-start$/), true, 'sh-btn--start aligns content to start');
+  assert.equal(hasDecl('.sh-btn--center', 'justify-content', /^center$/), true, 'sh-btn--center centers content');
+  assert.equal(hasDecl('.sh-btn--pill', 'border-radius', /^var\(\s*--radius-pill\s*\)$/), true, 'sh-btn--pill applies pill radius token');
+  assert.equal(hasDecl('.sh-seg--fill', 'width', /^100%$/), true, 'sh-seg--fill spans full width');
+  assert.equal(hasDecl('.sh-seg--wrap', 'flex-wrap', /^wrap$/), true, 'sh-seg--wrap enables wrapping');
+  assert.equal(hasDecl('.sh-seg--stack', 'flex-direction', /^column$/, /@container study \(max-width:\s*480px\)/), true, 'sh-seg--stack stacks vertically in narrow study container');
+  assert.equal(hasDecl('.sh-seg--xs', 'padding', /var\(\s*--space-1\s*\)/), true, 'sh-seg--xs tightens padding via spacing token');
+  assert.equal(
+    hasDecl('.sh-btn--pill', 'transition', /^none$/, /@media \(prefers-reduced-motion:\s*reduce\)/),
+    true,
+    'sh-btn--pill disables transition under prefers-reduced-motion: reduce',
+  );
 });

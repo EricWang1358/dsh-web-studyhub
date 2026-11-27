@@ -5,6 +5,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { withStudy } from './helpers/study-services.mjs';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 
 const m = await loadUi(`
   export * from './ui/mastery-map/model.js';
@@ -456,14 +457,23 @@ test('MasteryMap modules obey client boundaries (zero lib/ imports) and CSS toke
     assert.doesNotMatch(src, /<(?:button|Button|span|div|li|p)\b[^>]*\stitle=/, `${rel} uses Tooltip/aria-label instead of native title=`);
     assert.doesNotMatch(src, /eslint-disable/, `${rel} contains no eslint-disable comments`);
   }
-  const css = await readFile(new URL('../ui/mastery-map/mastery-map.css', import.meta.url), 'utf8');
-  assert.match(css, /@layer study\.features/);
-  assert.match(css, /prefers-reduced-motion:\s*reduce/);
-  assert.match(css, /data-motion="reduced"/);
-  assert.match(css, /data-motion="off"/);
-  assert.doesNotMatch(css, /#[0-9a-fA-F]{3,8}\b/);
-  assert.doesNotMatch(css, /\b(?:rgba?|hsla?)\(/i);
-  assert.doesNotMatch(css, /var\(--fw-strong\)/);
-  assert.doesNotMatch(css, /var\(--fs-xs\)/);
-  assert.doesNotMatch(css, /!important/);
+  // Repo-wide @layer/:where(.study-app, .study-seat) structure, raw hex/rgb/hsl colors, and !important
+  // are enforced across all ui/**/*.css by tests/css-layers.test.mjs, tests/ui-guardrails.test.mjs,
+  // and tests/css-token-guard.test.mjs. Here we inspect parsed AST rules for mastery-map-specific
+  // layer placement, motion-reduction declarations, and typographic token restraints.
+  const { declarations, blocks } = parseCss(await readFile(new URL('../ui/mastery-map/mastery-map.css', import.meta.url), 'utf8'));
+  assert.ok(blocks.some((b) => b.prelude === '@layer study.features'), 'mastery-map.css belongs to @layer study.features');
+  const disablesMotionIn = (ctxPattern) => {
+    const turnedOff = declarations.filter(
+      (d) => d.prop === 'transition' && d.value === 'none' && ctxPattern.test(d.ctx.join(' | ')),
+    );
+    return ['.mm-cell', '.mm-spine__fill', '.mm-point__bar-fill'].every(
+      (sel) => turnedOff.some((d) => d.ctx.at(-1).includes(sel)),
+    );
+  };
+  assert.equal(disablesMotionIn(/@media \(prefers-reduced-motion:\s*reduce\)/), true, 'disables transitions under prefers-reduced-motion: reduce');
+  assert.equal(disablesMotionIn(/\[data-motion=['"]reduced['"]\]/), true, 'disables transitions under data-motion="reduced"');
+  assert.equal(disablesMotionIn(/\[data-motion=['"]off['"]\]/), true, 'disables transitions under data-motion="off"');
+  assert.equal(declarations.some((d) => /var\(\s*--fw-strong\b/.test(d.value)), false, 'mastery-map.css must not use var(--fw-strong)');
+  assert.equal(declarations.some((d) => /var\(\s*--fs-xs\b/.test(d.value)), false, 'mastery-map.css must not use var(--fs-xs)');
 });
