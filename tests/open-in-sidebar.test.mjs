@@ -141,6 +141,9 @@ for (const [label, withReading, options] of [['a run started from the reader (ru
     await sidebarButton(page).click();
     // The sidebar seat shows the same run at the same card.
     await page.locator('#side .review-page').getByText(text, { exact: true }).first().waitFor({ timeout: 15000 });
+    // The switch to the conversation comes after the seat has drawn the run, so wait for it (a slow runner read the log in between);
+    // the log must then be exactly these two calls, in this order.
+    await page.waitForFunction(() => window.dshLog.includes('openView:chat'), null, { timeout: 15000 }).catch(() => {});
     assert.deepEqual(await page.evaluate(() => window.dshLog), ['openTab:study-workspace', 'openView:chat']);
     assert.equal(await page.locator('#main').innerHTML(), '', 'the main area gave the question up');
     assert.deepEqual(errors, []);

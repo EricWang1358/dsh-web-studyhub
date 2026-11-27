@@ -73,6 +73,17 @@ const hasReadyCli = (providers) => Array.isArray(providers) && providers.some((i
 function CorruptConfigBanner({ config, actions, working }) {
   if (!config?.configProblem) return null;
   const pathText = config.configProblem.path || config.configPath || 'desktop.json';
+  if (config.configProblem.code === 'config-unsupported-version') {
+    return (
+      <InlineMessage
+        tone="warning"
+        boxed
+        title={ui('配置文件由更新版本写入')}
+      >
+        {uiFormat('配置文件版本高于当前程序支持范围（{0}），已保持原样未修改。请升级 StudyHub 后再保存设置或更改学习库目录。', [pathText])}
+      </InlineMessage>
+    );
+  }
   return (
     <InlineMessage
       tone="warning"

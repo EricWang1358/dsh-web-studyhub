@@ -133,7 +133,7 @@ export function formatReturnHintLabel(stack: readonly PracticeContextFrame[], la
   return lang === 'en' ? 'Back to card' : '回到原题';
 }
 
-/** Convert a review context frame into the compact `tui.json` persistence record. */
+/** Convert a review context frame into the compact persistence record (IDs & indices only; never persists `promptPreview`, #1354 D11). */
 export function toLastPracticeContext(frame: PracticeContextFrame): LastPracticeContext | null {
   if (frame.kind !== 'review' || !frame.runId || !frame.cardId) return null;
   return {
@@ -142,7 +142,6 @@ export function toLastPracticeContext(frame: PracticeContextFrame): LastPractice
     ...(frame.deckId ? { deckId: frame.deckId } : {}),
     cardIndex: typeof frame.cardIndex === 'number' && frame.cardIndex >= 0 ? Math.floor(frame.cardIndex) : 0,
     ...(typeof frame.total === 'number' && frame.total > 0 ? { total: Math.floor(frame.total) } : {}),
-    ...(frame.promptPreview ? { promptPreview: frame.promptPreview.slice(0, 120) } : {}),
     savedAt: frame.pushedAt || Date.now(),
   };
 }
