@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  AUTO_ADVANCE_MS, emptyEntry, entryForRun, shouldResetEntry, isPassed, advanceKeyOf, autopilotPlan, shortcutGate, shortcutAction,
+  emptyEntry, entryForRun, shouldResetEntry, isPassed, advanceKeyOf, autopilotPlan, shortcutGate, shortcutAction,
   isCurrentEntry, createFlightSet, pressedGradeOf, reviewChoiceKind, shouldAdvanceOnSelfGrade,
 } from '../ui/review/session-logic.js';
 
@@ -62,13 +62,14 @@ test('shouldAdvanceOnSelfGrade holds low grades only when autoTerms is on (#1246
 
 test('autopilot moves on by itself only after a pass, on the practice page, and only until the learner touches something', () => {
   const ready = { autopilot: true, page: 'review', passed: true, complete: false, teaching: false, skippedKey: '', advanceKey: 'r:1:0' };
-  assert.deepEqual(autopilotPlan(ready), { schedule: true, key: 'r:1:0', ms: AUTO_ADVANCE_MS });
-  assert.equal(AUTO_ADVANCE_MS, 1500);
+  assert.deepEqual(autopilotPlan(ready), { schedule: true, key: 'r:1:0', ms: 1500 });
+  assert.deepEqual(autopilotPlan({ ...ready, passed: false, grading: true }), { schedule: true, key: 'r:1:0', ms: 1500 });
   for (const [name, patch] of Object.entries({ off: { autopilot: false }, elsewhere: { page: 'library' }, 'not passed': { passed: false },
-    finished: { complete: true }, teaching: { teaching: true }, 'learner stopped it': { skippedKey: 'r:1:0' } })) {
+    finished: { complete: true }, teaching: { teaching: true }, 'learner stopped it': { skippedKey: 'r:1:0' }, 'held on this question': { holdKey: 'r:1:0' } })) {
     assert.deepEqual(autopilotPlan({ ...ready, ...patch }), { schedule: false, key: '', ms: 0 }, name);
   }
   assert.deepEqual(autopilotPlan({ ...ready, skippedKey: 'r:0:0' }).schedule, true, 'stopping one question does not stop the next');
+  assert.deepEqual(autopilotPlan({ ...ready, holdKey: 'r:0:0' }), { schedule: true, key: 'r:1:0', ms: 1500 }, 'holding one question does not stop the next');
   assert.equal(advanceKeyOf(run({ queueVersion: 2 })), 'r:1:2');
   assert.equal(advanceKeyOf(null), '');
 });

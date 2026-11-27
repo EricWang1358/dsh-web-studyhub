@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import YAML from 'yaml';
-import { SERVER_NAME, serverConfig, mount, readEndpoint } from '../packages/studyhub-retrieval/index.js';
+import { serverConfig, mount, readEndpoint } from '../packages/studyhub-retrieval/index.js';
 import { EXTENSION_BUILD } from '../lib/retrieval-extension.js';
 import { compareVersions } from '../lib/semver.js';
 
@@ -47,8 +47,7 @@ test('peers the server needs at runtime are declared, because DSH\'s installer d
 test('the server runs on DSH\'s own Node with absolute paths under the StudyHub home; nothing is read from PATH or a config file', () => {
   const home = join(tmpdir(), 'dsh-home');
   const config = serverConfig({ home, entry: join(home, 'node_modules', 'mcp-local-rag', 'dist', 'index.js'), execPath: process.execPath });
-  assert.equal(config.serverName, SERVER_NAME);
-  assert.equal(SERVER_NAME, 'studyhub');
+  assert.equal(config.serverName, 'studyhub');
   assert.equal(config.transport, 'stdio');
   assert.equal(config.command, process.execPath);
   assert.ok(isAbsolute(config.args[0]));
@@ -56,6 +55,7 @@ test('the server runs on DSH\'s own Node with absolute paths under the StudyHub 
   assert.equal(config.args[1], join(home, 'node_modules', 'mcp-local-rag', 'dist', 'index.js'));
   for (const key of ['DB_PATH', 'CACHE_DIR', 'BASE_DIR']) assert.ok(config.env[key].startsWith(join(home, 'study', 'retrieval')), key);
   assert.equal(config.env.ELECTRON_RUN_AS_NODE, undefined);
+  assert.equal(config.env.HF_ENDPOINT, undefined);
   assert.ok(config.toolCallTimeoutMs >= 10 * 60 * 1000, 'the first call downloads the embedding model');
   assert.equal(config.failOnStartupError, false);
   assert.equal(JSON.stringify(config).match(/KEY|TOKEN|SECRET|PASSWORD/i), null, 'no credentials');
@@ -63,6 +63,7 @@ test('the server runs on DSH\'s own Node with absolute paths under the StudyHub 
 
 test('under DSH Desktop (Electron as Node) the child is told to run as Node; a documented download endpoint is passed on', () => {
   const config = serverConfig({ home: '/h', entry: '/h/x.js', execPath: '/app/DSH.exe', electron: true, hfEndpoint: 'https://models.example.org' });
+  assert.equal(config.serverName, 'studyhub');
   assert.equal(config.env.ELECTRON_RUN_AS_NODE, '1');
   assert.equal(config.env.HF_ENDPOINT, 'https://models.example.org');
   assert.equal(config.command, '/app/DSH.exe');
