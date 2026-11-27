@@ -3,9 +3,12 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { PassThrough } from 'node:stream';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { tsImport } from 'tsx/esm/api';
+import React from 'react';
+import { render, Text } from 'ink';
+import { register, tsImport } from 'tsx/esm/api';
 import stripAnsi from 'strip-ansi';
 import { eastAsianWidth } from 'get-east-asian-width';
 
@@ -301,8 +304,7 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
     }
   });
 
-  test('5. Shell overlays (CommandPalette, HelpOverlay, CoursePickerModal, InboxModal) are dynamically loaded in AppShell.tsx and code-split out of App.mjs', () => {
-    const appShellSrc = fs.readFileSync(path.join(pkgRoot, 'src/shell/AppShell.tsx'), 'utf8');
+  test('5. Shell overlays (CommandPalette, HelpOverlay, CoursePickerModal, InboxModal) are code-split out of App.mjs and resolve lazily through <Suspense> in AppShell', async () => {
     const appPath = path.join(distDir, 'App.mjs');
     assert.ok(fs.existsSync(appPath), 'missing dist/App.mjs');
 
@@ -311,17 +313,6 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
     const overlayNames = ['CommandPalette', 'HelpOverlay', 'CoursePickerModal', 'InboxModal'];
 
     for (const overlayName of overlayNames) {
-      // Source must dynamically load each shell overlay via lazy(() => import('./...')) and never statically import it
-      assert.ok(
-        new RegExp(`lazy\\s*\\([\\s\\S]*?import\\(\\s*['"]\\.\\/${overlayName}\\.js['"]\\s*\\)`).test(appShellSrc),
-        `src/shell/AppShell.tsx must lazy-load ./${overlayName}.js`,
-      );
-      assert.equal(
-        new RegExp(`^\\s*import\\b[^;]*\\bfrom\\s*['"]\\.\\/${overlayName}\\.js['"]`, 'm').test(appShellSrc),
-        false,
-        `src/shell/AppShell.tsx must not statically import ./${overlayName}.js`,
-      );
-
       // Static import closure of dist/App.mjs must not statically reference the overlay
       for (const { file, spec } of appClosure.staticSpecifiers) {
         assert.equal(
@@ -340,7 +331,121 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
         `dist/App.mjs closure must dynamically import ${overlayName}-*.mjs`,
       );
     }
-    assert.ok(appShellSrc.includes('<Suspense'), 'src/shell/AppShell.tsx must wrap lazy overlays in <Suspense>');
+
+    // Runtime behavior: mount AppShell and open each lazy overlay, proving <Suspense> resolves all 4 without uncaught suspense errors
+    const unregisterTsx = register();
+    const { AppShell } = await import('../src/shell/AppShell.tsx');
+    const { useTuiStore, DEFAULT_PREFERENCES } = await import('../src/state/store.ts');
+
+    const prevState = useTuiStore.getState();
+    const savedStore = {
+      page: prevState.page,
+      loading: prevState.loading,
+      snapshot: prevState.snapshot,
+      preferences: prevState.preferences,
+      showLaunchpad: prevState.showLaunchpad,
+      commandPaletteOpen: prevState.commandPaletteOpen,
+      helpOpen: prevState.helpOpen,
+      coursePickerOpen: prevState.coursePickerOpen,
+      inboxOpen: prevState.inboxOpen,
+      notificationHistoryOpen: prevState.notificationHistoryOpen,
+      voicePackOpen: prevState.voicePackOpen,
+      quitConfirmOpen: prevState.quitConfirmOpen,
+      assistantOpen: prevState.assistantOpen,
+      assistantFocused: prevState.assistantFocused,
+      toasts: prevState.toasts,
+    };
+
+    const stdin = new PassThrough();
+    stdin.isTTY = true;
+    stdin.setRawMode = () => stdin;
+    stdin.ref = () => stdin;
+    stdin.unref = () => stdin;
+
+    const stdout = new PassThrough();
+    stdout.isTTY = true;
+    stdout.columns = 100;
+    stdout.rows = 30;
+    stdout.getColorDepth = () => 1;
+
+    const frames = [];
+    stdout.on('data', (chunk) => {
+      const plain = stripAnsi(String(chunk));
+      if (plain.trim().length > 0) frames.push(plain);
+    });
+
+    const waitForOverlay = async (marker, label, timeoutMs = 6000) => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const frame = frames.at(-1) ?? '';
+        if (frame.includes(marker)) return frame;
+        await new Promise((done) => setTimeout(done, 20));
+      }
+      assert.fail(`Timed out waiting for lazy overlay ${label} (${marker}).\nLast frame:\n${frames.at(-1) ?? ''}`);
+    };
+
+    const stubHost = {
+      call: async (action) => (action === 'inbox' ? { ok: true, value: { items: [] } } : { ok: true, value: {} }),
+      subscribe: () => () => {},
+      dispose: async () => {},
+      getLibraryRoot: () => '',
+    };
+
+    let inst = null;
+    try {
+      useTuiStore.setState({
+        page: 'library',
+        loading: false,
+        snapshot: {
+          decks: [],
+          sources: [],
+          jobs: [],
+          archivedJobs: [],
+          focus: { courses: [] },
+          inbox: { items: [] },
+        },
+        preferences: { ...DEFAULT_PREFERENCES, language: 'zh', asciiMode: true, sidebarCollapsed: false, showKeyHints: true },
+        showLaunchpad: false,
+        commandPaletteOpen: false,
+        helpOpen: false,
+        coursePickerOpen: false,
+        inboxOpen: false,
+        notificationHistoryOpen: false,
+        voicePackOpen: false,
+        quitConfirmOpen: false,
+        assistantOpen: false,
+        assistantFocused: false,
+        toasts: [],
+      });
+
+      inst = render(
+        React.createElement(AppShell, {
+          host: stubHost,
+          autoLaunchpad: false,
+          renderPage: () => React.createElement(Text, null, 'SHELL_OVERLAY_BASE'),
+        }),
+        { stdout, stdin, debug: true, exitOnCtrlC: false, patchConsole: false },
+      );
+
+      await waitForOverlay('SHELL_OVERLAY_BASE', 'base shell');
+
+      const overlaysToCheck = [
+        { name: 'CommandPalette', flag: 'commandPaletteOpen', marker: '命令面板' },
+        { name: 'HelpOverlay', flag: 'helpOpen', marker: '快捷键与帮助' },
+        { name: 'CoursePickerModal', flag: 'coursePickerOpen', marker: '切换课程' },
+        { name: 'InboxModal', flag: 'inboxOpen', marker: '收件箱与通知' },
+      ];
+
+      for (const overlay of overlaysToCheck) {
+        useTuiStore.setState({ [overlay.flag]: true });
+        await waitForOverlay(overlay.marker, overlay.name);
+        useTuiStore.setState({ [overlay.flag]: false });
+      }
+    } finally {
+      if (inst) inst.unmount();
+      useTuiStore.setState(savedStore);
+      unregisterTsx?.();
+    }
   });
 
   test('6. Zero barrel imports (render/index.js, components/index.js, host/index.js, shell/index.js, views/*/index.js) across src/', () => {
