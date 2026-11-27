@@ -1,7 +1,7 @@
 # Exact bounded chemistry balancing
 
-`balanceEquation(input)` balances **atom counts** for the listed neutral ASCII
-formulas. It uses exact rational row reduction and accepts a result only when
+`balanceEquation(input)` balances **atom counts** and **net ionic charge** for
+the listed formulas. It uses exact rational row reduction and accepts a result only when
 there is one unique coefficient ratio and every coefficient is positive. The
 returned integers are reduced to their smallest common ratio.
 
@@ -15,7 +15,7 @@ balanceEquation('H2 + O2 -> H2O')
 //     { element: 'H', reactants: 4, products: 4 },
 //     { element: 'O', reactants: 2, products: 2 }
 //   ],
-//   reason: 'Atom counts conserved ... feasibility and charge/redox chemistry were not checked'
+//   reason: 'Atom counts conserved for the supplied neutral formulas; reaction feasibility and thermodynamic spontaneity were not checked'
 // }
 ```
 
@@ -30,17 +30,21 @@ Conservation rows contain exact integer totals in the returned equation. No
 | `not_checked` | Syntax is unsupported, the coefficient ratio is ambiguous, or a resource limit was reached. No approximate balance is offered. |
 
 `balanced` does **not** establish that the compounds exist, that the reaction
-occurs, that it is thermodynamically feasible, or that charge and redox rules are
-satisfied. Source grounding and subject-matter review remain necessary. This is
-not an ionic/redox equation solver or a general chemical correctness proof.
+occurs, or that it is thermodynamically feasible (when ionic charges are supplied,
+net charge conservation is checked and returned in `chargeConservation`, while
+reaction feasibility and thermodynamic spontaneity are not checked). Source
+grounding and subject-matter review remain necessary. This is not a general
+chemical correctness proof.
 
 ## Input grammar
 
-Use one `->` arrow, with one or more formulas on each side separated by `+`.
+Use one reaction arrow (`->`, `<=>`, `⇌`, `\rightleftharpoons`, or `\leftrightarrow`),
+with one or more formulas on each side separated by `+`.
 Formulas contain case-sensitive current element symbols, positive integer
-subscripts and nested parentheses, such as `Al2(SO4)3`. Optional `(s)`, `(l)`,
-`(g)` and `(aq)` suffixes are retained. Whitespace can surround terms/arrows;
-whitespace inside a formula is unsupported.
+subscripts and nested parentheses, such as `Al2(SO4)3`, with optional ionic
+charges (`^{2+}`, `^2+`, `+`, `-`). Optional `(s)`, `(l)`,
+`(g)` and `(aq)` suffixes and trailing `↑`/`↓` markers are retained. Whitespace
+can surround terms/arrows; whitespace inside a formula is unsupported.
 
 A single outer mhchem wrapper is accepted:
 
@@ -56,10 +60,11 @@ multiple independent coefficient ratios are conservatively `not_checked`.
 For example, `C + O2 -> CO + CO2` has ambiguous atom-conserving ratios, so the
 engine does not choose one by sampling or guessing.
 
-Charges, electrons, isotope labels, hydrate dots, square-bracket complexes,
-symbolic/fractional coefficients, nested mhchem braces, TeX commands and other
-arrow forms are unsupported. `+` always separates neutral species; the engine
-never infers an ionic charge from it. No input is evaluated or executed.
+Electrons, isotope labels, hydrate dots, square-bracket complexes,
+symbolic/fractional coefficients, nested mhchem braces, and other TeX commands
+or arrow forms are unsupported. Bare `+` separates species unless written as an
+unambiguous trailing ionic charge (use caret/braces such as `Fe^{2+}` or
+`SO4^{2-}` when needed). No input is evaluated or executed.
 
 ## Resource policy
 
