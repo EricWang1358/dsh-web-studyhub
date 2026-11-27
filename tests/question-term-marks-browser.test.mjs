@@ -187,7 +187,7 @@ async function gradeCard1AndReachCard2(page) {
   const card2Option = page.locator(".options .option:not([disabled])").first();
   await page.locator(".grade-scale .grade").nth(4).click();
   await card2Option.or(page.locator('[data-usage="review.next"]:not([disabled])')).first().waitFor({ timeout: 15000 });
-  if (!(await card2Option.isVisible())) await page.locator('[data-usage="review.next"]').click();
+  if (!(await card2Option.isVisible())) await page.locator('[data-usage="review.next"]:not([disabled])').click();
   await card2Option.waitFor({ timeout: 15000 });
 }
 
