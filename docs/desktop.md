@@ -42,8 +42,8 @@ Each release on the [GitHub release page](https://github.com/EricWang1358/dsh-we
 
 StudyHub Desktop uses the system **Microsoft Edge WebView2 Runtime** to render its interface:
 
-- **Windows 11**: WebView2 is pre-installed. Both `.msi` and `.zip` work out of the box.
-- **Windows 10 with `.msi`**: The `.msi` installer bundles the official Microsoft WebView2 bootstrapper (`downloadBootstrapper`). If WebView2 is missing on your PC, the installer downloads and installs it during setup (internet access required once).
+- **Windows 11**: WebView2 is pre-installed. `Setup.exe`, `.msi`, and `.zip` all work out of the box.
+- **Windows 10 with `Setup.exe` or `.msi`**: Both installers bundle the official Microsoft WebView2 bootstrapper (`downloadBootstrapper`). If WebView2 is missing on your PC, the installer downloads and installs it during setup (internet access required once).
 - **Windows 10 with portable `.zip`**: The portable archive does **not** install WebView2. If StudyHub fails to open with a WebView2 error, install the [Microsoft Edge WebView2 Evergreen Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) first, then launch `StudyHub.exe` again.
 
 ## Windows SmartScreen unsigned executable warning
@@ -72,14 +72,14 @@ StudyHub Desktop supports two ways to connect a model in **Settings › Library 
 ### 1. OpenAI-compatible API Key (recommended for batch generation)
 
 1. Open **Settings › Library & model** (or use the setup form shown whenever a feature needs a model).
-2. Pick a built-in provider preset — **DeepSeek**, **Zhipu GLM**, **SiliconFlow**, or **OpenAI** — or choose **Custom** to enter any OpenAI-compatible base URL and model ID.
+2. Pick a built-in provider preset — **DeepSeek**, **Zhipu GLM**, or **SiliconFlow** — or choose **Custom** to enter OpenAI or any other OpenAI-compatible base URL and model ID.
 3. Paste your API key and click **Save and test**.
 
 Your API key is stored locally in your StudyHub Desktop configuration directory and is never written into your study library, backups, or exports.
 
 ### 2. Automatic local CLI detection (`agy` & `codex`)
 
-If you already have **Google Antigravity CLI (`agy`)** or **OpenAI Codex CLI (`codex`)** installed and signed in on your computer, StudyHub Desktop automatically probes and detects them at startup. In **Settings › Library & model**, you can switch between ready local CLIs, optionally configure a model and reasoning effort (`low` / `medium` / `high`), and enable or test them without pasting an API key.
+If you already have **Google Antigravity CLI (`agy`)** or **OpenAI Codex CLI (`codex`)** installed and signed in on your computer, StudyHub Desktop automatically probes and detects them at startup. In **Settings › Library & model**, you can switch between ready local CLIs, optionally configure a model and reasoning effort (`low` / `medium` / `high` in the UI; the config file also accepts `xhigh` for `codex` and `xhigh` / `max` for `agy`), and enable or test them without pasting an API key.
 
 Good to know about CLI backends:
 - Because each request runs an isolated CLI process, both `agy` and `codex` use a lower concurrency cap (default `1`, maximum `2`) than direct HTTP API keys.
@@ -129,5 +129,5 @@ StudyHub Desktop uses a hybrid setup that works smoothly both standalone and alo
 
 - **Local-first storage**: All documents, decks, notes, and review history stay on your computer. Only the text sent for AI generation, explanation, or audio transcription leaves your machine to the provider you configured.
 - **Strict loopback isolation**: The desktop UI loads from static bundled assets (`tauri://localhost`), never from `127.0.0.1` HTML. On every launch, the Rust shell generates a fresh 256-bit random token and sends it to the local Node.js sidecar over `stdin` (never in command-line arguments, URLs, or HTML). The sidecar listens only on `127.0.0.1` and rejects requests without that token.
-- **Minimal desktop permissions**: The Tauri shell exposes only five commands to the main window (`get_bootstrap_info`, `pick_directory`, `open_external`, `desktop_check_update`, and `desktop_install_update`). External links are strictly validated to `http://` or `https://` before opening in your default browser, and in-app updates require a valid Ed25519 signature checked against the embedded public key before installation.
+- **Minimal desktop permissions**: The Tauri shell exposes only seven commands to the main window (`get_bootstrap_info`, `get_sidecar_health`, `pick_directory`, `pick_file`, `open_external`, `desktop_check_update`, and `desktop_install_update`). External links are strictly validated to `http://` or `https://` before opening in your default browser, and in-app updates require a valid Ed25519 signature checked against the embedded public key before installation.
 - **One program the app starts for you to see**: "Open agy / codex in the library" starts only the local CLI that detection found ready, only in the current library folder. The page sends the CLI's name and nothing else; paths with characters the Windows command line could read as syntax are refused, not escaped.
