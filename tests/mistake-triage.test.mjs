@@ -6,7 +6,6 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 import {
   FRAGILE_ROUTES,
-  MAX_PREREQ_BRANCH_DEPTH,
   TRIAGE_REASONS,
   TRIAGE_ROUTES,
   matchConfusablePair,
@@ -140,7 +139,6 @@ function htmlOfElement(el, services, appData) {
 test('mistake-triage engine: explicit errorReason routing table covers all 6 reasons deterministically', () => {
   assert.deepEqual(TRIAGE_REASONS, ['concept', 'condition', 'derivation', 'slip', 'prerequisite', 'bad_question']);
   assert.deepEqual(TRIAGE_ROUTES, ['fsrs_only', 'confusable_contrast', 'book_retell', 'rescue_companion', 'prereq_branch', 'fix_question']);
-  assert.equal(MAX_PREREQ_BRANCH_DEPTH, 5);
 
   // 1. slip -> fsrs_only even when stubborn and matching C001
   const slipRes = triageMistake({
@@ -211,6 +209,34 @@ test('mistake-triage engine: explicit errorReason routing table covers all 6 rea
   });
   assert.equal(depthCapped.route, 'book_retell');
   assert.equal(depthCapped.fallback, true);
+
+  const depthCappedNoBook = triageMistake({
+    errorReason: 'prerequisite',
+    hasBook: false,
+    prereqCards: [{ deckId: 'd1', cardId: 'pre-weak', level: 'weak' }],
+    returnDepth: 5,
+  });
+  assert.equal(depthCappedNoBook.route, 'rescue_companion');
+  assert.equal(depthCappedNoBook.rescueFocus, 'prerequisite');
+  assert.equal(depthCappedNoBook.fallback, true);
+
+  const depthAboveCap = triageMistake({
+    errorReason: 'prerequisite',
+    hid: 'h12',
+    hasBook: true,
+    prereqCards: [{ deckId: 'd1', cardId: 'pre-weak', level: 'weak' }],
+    returnDepth: 6,
+  });
+  assert.equal(depthAboveCap.route, 'book_retell');
+  assert.equal(depthAboveCap.fallback, true);
+
+  const negativeDepth = triageMistake({
+    errorReason: 'prerequisite',
+    prereqCards: [{ deckId: 'd1', cardId: 'pre-weak', level: 'weak' }],
+    returnDepth: -1,
+  });
+  assert.equal(negativeDepth.route, 'prereq_branch');
+  assert.equal(negativeDepth.prereq.cardId, 'pre-weak');
 
   // §6.3 #3 invariant: outline prereqIds / prereqGaps MUST NOT trigger prereq_branch without card.requires
   const prereqIdsIgnored = triageMistake({

@@ -10,7 +10,7 @@ import { loadUi } from './helpers/ui-module.mjs';
 import { withStudy } from './helpers/study-services.mjs';
 
 const ui = await loadUi(`
-  export { CUSTOM_BOOK_PAGES, customRowOffer, customGateOf, CUSTOM_ROW_LABEL, CUSTOM_ROW_EDIT_LABEL } from './ui/custom-entry.js';
+  export { customRowOffer, customGateOf, CUSTOM_ROW_LABEL, CUSTOM_ROW_EDIT_LABEL } from './ui/custom-entry.js';
   export { default as Sources } from './ui/Sources.jsx';
   export { CourseOutlineView } from './ui/outline/CourseOutline.jsx';
   export { default as CustomGate, gateScaleOf } from './ui/outline/CustomGate.jsx';
@@ -36,12 +36,12 @@ const itemsOf = sources => ui.groupSourcesByDocument(sources);
 /* ================= A: the entry on the 资料 row ================= */
 
 test('the offer of a row: a paged document of 150 pages or more, with what the hand-off needs; not below, not a short text, not an archived one', () => {
-  assert.equal(ui.CUSTOM_BOOK_PAGES, 150);
   const [big] = itemsOf(book(150));
   assert.deepEqual(ui.customRowOffer(big, [{ name: '宏经' }]), { course: '宏经', document: 'document-bigbook', pages: 150, hasCustom: false });
   assert.equal(ui.customRowOffer(itemsOf(book(149))[0], []), null, '149 pages');
   assert.equal(ui.customRowOffer(itemsOf([note])[0], []), null, 'a text is not paged');
   assert.equal(ui.customRowOffer({ ...big, archived: true }, []), null, 'an archived row offers nothing');
+  assert.equal(ui.customRowOffer({ ...big, pages: [] }, []), null, 'no text pages');
   assert.equal(ui.customRowOffer(null, []), null);
 });
 
@@ -107,10 +107,13 @@ test('English: both labels and the hover have the English of the catalogue', () 
 
 test('the gate applies to a course with a document of 150 pages or more and no plan; the largest is named, one document is passed on', () => {
   const items = itemsOf([...book(513), note]);
+  const [atCap] = itemsOf(book(150));
   const within = () => true;
   assert.deepEqual(ui.customGateOf({ items, course: '宏经', records: [{ name: '宏经' }], within }), { pages: 513, document: 'document-bigbook', docPages: 513 });
+  assert.deepEqual(ui.customGateOf({ items: [atCap, ...itemsOf([note])], course: '宏经', records: [], within }), { pages: 150, document: 'document-bigbook', docPages: 150 }, 'exact 150-page threshold triggers gate');
   assert.equal(ui.customGateOf({ items, course: '宏经', records: [{ name: '宏经', custom: { version: 1 } }], within }), null, 'a plan: no gate');
   assert.equal(ui.customGateOf({ items: itemsOf([...book(149), note]), course: '宏经', records: [], within }), null, 'no big document: no gate');
+  assert.equal(ui.customGateOf({ items: [{ ...atCap, pages: [] }], course: '宏经', records: [], within }), null, 'no text pages: no gate');
   assert.equal(ui.customGateOf({ items, course: null, records: [], within }), null, 'no course');
   assert.equal(ui.customGateOf({ items: items.map(item => ({ ...item, archived: true })), course: '宏经', records: [], within }), null, 'archived documents do not count');
   assert.equal(ui.customGateOf({ items, course: '宏经', records: [], within: item => item.courses.includes('微观') }), null, 'a document of another course does not count');
