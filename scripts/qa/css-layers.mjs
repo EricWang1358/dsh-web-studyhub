@@ -192,7 +192,8 @@ export function checkStructure(source, options = {}) {
   const problems = [];
   const tree = parseTree(source.replace(/\r\n/g, '\n'), { comments: true });
   const rootEntry = (entry) => /^(\.study-app|\.study-seat|:is\(\.study-app, \.study-seat\))/.test(entry.trim());
-  const bothRoots = (entry) => /^:(is|where)\(\.study-app, \.study-seat\)/.test(entry.trim());
+  const bothRoots = (entry) => entry.trim().startsWith(SCOPE);
+  const bareRootDescendant = (entry) => /^\.study-(app|seat)\s*[\s>+~]/.test(entry.trim());
   const checkInner = (children, inScope) => {
     for (const node of children) {
       if (node.kind === 'comment' || node.kind === 'statement') continue;
@@ -205,8 +206,13 @@ export function checkStructure(source, options = {}) {
       if (node.prelude === SCOPE || node.prelude === SCOPE_LOW) continue;
       const entries = splitSelectorList(node.prelude);
       if (!entries.every(rootEntry)) problems.push(`line ${node.line}: "${node.prelude.slice(0, 70)}" is outside ${SCOPE}`);
-      /* A root rule may style the app box or the seat itself, but rules nested in it reach one root only: a block of nested rules
-         under `.study-app` is unstyled in the DSH seat. Such a block has to name both roots. */
+      /* A root rule that reaches into the app has to say which app state or host it is for (`.study-app[data-theme="dark"] .x`).
+         A bare `.study-app .x` or `.study-seat .x` reaches one root only; write it inside the shared scope. */
+      else if (entries.some(bareRootDescendant)) {
+        problems.push(`line ${node.line}: "${node.prelude.slice(0, 70)}" styles inside one root only; write it inside ${SCOPE}`);
+      }
+      /* A root rule may style the app box or the seat itself, but rules nested in it reach one root only: under `.study-app` they
+         miss host chrome in the seat, under `.study-seat` they miss the standalone page and portaled dialogs. Such a block names both roots. */
       else if (node.children.some((child) => child.kind === 'rule' || child.kind === 'at') && !entries.every(bothRoots)) {
         problems.push(`line ${node.line}: "${node.prelude.slice(0, 70)}" nests rules under one root; nest them under ${SCOPE}`);
       }
