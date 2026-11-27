@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 
 // WP26: the wrong-book page groups by topic, recommends similar questions, offers
 // variants per topic/row, and splits "重练" into three scopes.
@@ -168,7 +169,7 @@ test('an opened row shows your answer, the correct answer, the explanation and i
   assert.match(self, /自评 2 分/);
 });
 
-test('formulas in an opened row, its prompt line and its variants are formulas, and the facts cannot push the panel wider', async () => {
+test('formulas in an opened row, its prompt line and its variants are formulas, and the facts cannot push the panel wider', () => {
   const math = String.raw`逐年转存：$20220\times1.1\%=222.42$元，$ F = ma $，质量为5$kg$。`;
   const hard = { ...row('c1', 'd4', '保护状态', String.raw`年利率为$1.1\%$，存$20000$元`) };
   const html = render({ items: [hard], initial: { expanded: ['c1'], groups: 'all' },
@@ -177,10 +178,21 @@ test('formulas in an opened row, its prompt line and its variants are formulas, 
   assert.equal(drawn >= 10, true, `the prompt line and every fact draw their formulas through the one formula unit (${drawn})`);
   assert.match(html, /<span class="wb-prompt"[^>]*>[^<]*<span class="md-math"/, 'the prompt line keeps one line, its formulas inline');
   // An auto grid track takes the longest unbroken line as its minimum width: the panel must use minmax(0, 1fr).
-  const { readFile } = await import('node:fs/promises');
-  const css = await readFile(new URL('../ui/wrongbook.css', import.meta.url), 'utf8');
-  assert.match(css, /\.wb-detail \{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
-  assert.match(css, /\.wb-facts \{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
+  const { declarations } = parseCss(readFileSync(new URL('../ui/wrongbook.css', import.meta.url), 'utf8'));
+  const splitSelectors = (sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim());
+  const baseRuleDecls = (selector) => declarations.filter(
+    (d) => splitSelectors(d.ctx.at(-1) || '').includes(selector) && !d.ctx.some((c) => c.startsWith('@container') || c.startsWith('@media')),
+  );
+  assert.equal(
+    baseRuleDecls('.wb-detail').some((d) => d.prop === 'grid-template-columns' && d.value === 'minmax(0, 1fr)'),
+    true,
+    '.wb-detail constrains its grid track to minmax(0, 1fr)',
+  );
+  assert.equal(
+    baseRuleDecls('.wb-facts').some((d) => d.prop === 'grid-template-columns' && d.value === 'minmax(0, 1fr)'),
+    true,
+    '.wb-facts constrains its grid track to minmax(0, 1fr)',
+  );
 });
 
 test('an opened row lists similar questions with the reason that fits that row', () => {

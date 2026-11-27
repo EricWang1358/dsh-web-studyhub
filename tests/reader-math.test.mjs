@@ -11,6 +11,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { parseFragment } from 'parse5';
 import { splitStudyMath } from '../ui/study-media.js';
 import { launchChromium } from '../scripts/qa/browser.mjs';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 
 const compiled = await build({ stdin: { contents: `
   export { default as ReadingSections } from './ui/document-preview/reader/ReadingSections.jsx';
@@ -75,9 +76,30 @@ test('a line that is just a formula is body text, not a heading (a heading would
 });
 
 test('StudyMath display copy button copies trimmed TeX source and stops propagation', { timeout: 60000 }, async t => {
-  const css = readFileSync(new URL('../ui/markdown.css', import.meta.url), 'utf8');
-  assert.match(css, /\.md-math-copy/);
-  assert.match(css, /data-copied="true"/);
+  const { declarations } = parseCss(readFileSync(new URL('../ui/markdown.css', import.meta.url), 'utf8'));
+  const splitSelectors = (sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim());
+  assert.equal(
+    declarations.some((d) => !d.ctx.some((c) => c.startsWith('@media'))
+      && splitSelectors(d.ctx.at(-1) || '').includes('.md-math-copy')
+      && d.prop === 'position'
+      && d.value === 'absolute'),
+    true,
+    '.md-math-copy is positioned inside the display formula box',
+  );
+  assert.equal(
+    declarations.some((d) => splitSelectors(d.ctx.at(-1) || '').some(
+      (s) => s.startsWith('.md-math-copy') && s.includes(':focus-visible'),
+    ) && d.prop === 'opacity' && d.value === '1'),
+    true,
+    '.md-math-copy becomes visible on :focus-visible',
+  );
+  assert.equal(
+    declarations.some((d) => splitSelectors(d.ctx.at(-1) || '').some(
+      (s) => s.startsWith('.md-math-copy') && s.includes('[data-copied="true"]'),
+    ) && d.prop === 'opacity' && d.value === '1'),
+    true,
+    '.md-math-copy stays visible when data-copied="true"',
+  );
 
   const bundle = await build({
     stdin: {

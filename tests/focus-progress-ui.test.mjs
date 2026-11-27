@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { fakeApp, inApp } from './helpers/fake-app.mjs';
 import { loadInteractiveUi, withBrowserGlobals, click } from './helpers/react-harness.mjs';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 
 /* 重点 × 掌握度 in the interface (#690 S1): one compact line on the home under the course progress (the counts of the focus topics, a link to practise the ones the
    learner cannot do yet, the summary opens the course settings), and a read-only list of the saved focus topics in the course settings. Both read the same
@@ -269,9 +270,17 @@ test('empty focus topics offer an entry into existing generation from both cours
 });
 
 test('narrow viewports: focus action links wrap instead of overflowing and keep the trailing arrow glued to the last word (#1155)', () => {
-  const css = readFileSync('ui/components/components.css', 'utf8');
-  assert.match(css, /\.sh-btn--link\[class~="sh-btn--wrap"\][^{]*\{[^}]*display:\s*inline;[^}]*min-width:\s*0;/);
-  assert.match(css, /\.sh-btn__tail\s*\{\s*white-space:\s*nowrap;\s*\}/);
+  const { declarations } = parseCss(readFileSync('ui/components/components.css', 'utf8'));
+  const splitSelectors = (sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim());
+  const wrapDecls = declarations.filter(
+    (d) => splitSelectors(d.ctx.at(-1) || '').includes('.sh-btn--link[class~="sh-btn--wrap"]'),
+  );
+  assert.equal(wrapDecls.some((d) => d.prop === 'display' && d.value === 'inline'), true, '.sh-btn--link[class~="sh-btn--wrap"] sets display: inline');
+  assert.equal(wrapDecls.some((d) => d.prop === 'min-width' && d.value === '0'), true, '.sh-btn--link[class~="sh-btn--wrap"] sets min-width: 0');
+  const tailDecls = declarations.filter(
+    (d) => splitSelectors(d.ctx.at(-1) || '').includes('.sh-btn__tail'),
+  );
+  assert.equal(tailDecls.some((d) => d.prop === 'white-space' && d.value === 'nowrap'), true, '.sh-btn__tail sets white-space: nowrap');
 
   const enWeak = render(h(m.FocusProgressLine, { progress, courseId: 'course-os', lock: false, start: noop, onCourseSettings: noop }), 'en');
   assert.match(enWeak, /class="sh-btn sh-btn--link sh-btn--md sh-btn--wrap"[^>]*>Practise the focus topics you can&#x27;t do <span class="sh-btn__tail">yet<svg[^>]*sh-icon--inline sh-icon--trail/);

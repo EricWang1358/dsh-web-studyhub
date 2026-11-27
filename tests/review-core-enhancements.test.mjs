@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { projection } from '../lib/study-state.js';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { click, loadInteractiveUi, textOf, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 async function loadOperations(t) {
@@ -208,9 +209,33 @@ test('Batch 2.5: review.grade.adjust { clozeEquivalent: true } overrides failed 
 });
 
 test('Batch 1.1 (static CSS guard): Recall Veil :has() selector targets .question-area and dead .review-body selector is removed', () => {
-  const questionCss = readFileSync('ui/review/question.css', 'utf8');
-  assert.match(questionCss, /\.question-area:has\(\[data-retell-drafting\]\)\s*>\s*\.explanation:not\(:hover,\s*:focus-within\)/);
-  assert.doesNotMatch(questionCss, /\.review-body\s*>\s*\.explanation:has\(~\s*\[data-retell-drafting\]\)/, 'dead selector removed');
+  const { declarations, blocks } = parseCss(readFileSync('ui/review/question.css', 'utf8'));
+  const splitSelectors = (sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim());
+  const veilDecls = declarations.filter((d) =>
+    !d.ctx.some((c) => /^@(?:media|container)\b/.test(c))
+    && splitSelectors(d.ctx.at(-1) || '').includes('.question-area:has([data-retell-drafting]) > .explanation:not(:hover, :focus-within)'));
+  assert.equal(
+    veilDecls.some((d) => d.prop === 'filter' && d.value === 'blur(5px)'),
+    true,
+    'Recall Veil blurs .explanation under .question-area:has([data-retell-drafting])',
+  );
+  assert.equal(
+    veilDecls.some((d) => d.prop === 'opacity' && parseFloat(d.value) < 1),
+    true,
+    'Recall Veil dims .explanation under .question-area:has([data-retell-drafting])',
+  );
+
+  const deadSelectorRe = /\.review-body\s*>\s*\.explanation:has\(~\s*\[data-retell-drafting\]\)/;
+  assert.deepEqual(
+    declarations.filter((d) => d.ctx.some((c) => deadSelectorRe.test(c))),
+    [],
+    'dead selector removed from declarations',
+  );
+  assert.deepEqual(
+    blocks.filter((b) => deadSelectorRe.test(b.prelude) || b.ctx.some((c) => deadSelectorRe.test(c))),
+    [],
+    'dead selector removed from blocks',
+  );
 });
 
 const reviewUiBundle = await loadInteractiveUi(`

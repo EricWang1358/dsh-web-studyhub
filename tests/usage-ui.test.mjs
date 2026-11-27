@@ -7,6 +7,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { buildReport } from '../lib/usage-report.js';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { readAppSource } from './helpers/app-source.mjs';
 
 /* Settings › Advanced › Usage frequency record: the privacy contract is on the screen before the switch, there is one clear state for
@@ -205,7 +206,21 @@ test('the section is quiet: no first-run banner, no badge on the sidebar, nothin
   assert.ok(!/UsageSettings|usage\.frequency\.|usage-frequency\.json/.test(app), 'App only hosts the controller and the area marker: the section and the operations are Settings\'');
   assert.match(app, /createUsageController/);
   assert.match(app, /data-usage-area=\{page\}/);
-  const css = await readFile('ui/usage.css', 'utf8');
-  assert.ok(!/position:\s*(fixed|sticky)/.test(css), 'no floating widget');
-  assert.ok(!/@keyframes|animation:/.test(css), 'no motion');
+  const { declarations, blocks } = parseCss(await readFile('ui/usage.css', 'utf8'));
+  assert.ok(declarations.length > 0, 'ui/usage.css declares styles');
+  assert.deepEqual(
+    declarations.filter((d) => d.prop === 'position' && /^(?:fixed|sticky)$/i.test(d.value)),
+    [],
+    'no floating widget',
+  );
+  assert.deepEqual(
+    declarations.filter((d) => /^animation(?:-|$)/.test(d.prop)),
+    [],
+    'no animation declarations',
+  );
+  assert.deepEqual(
+    blocks.filter((b) => /^@(?:-webkit-|-moz-)?keyframes\b/i.test(b.prelude)),
+    [],
+    'no @keyframes motion blocks',
+  );
 });

@@ -216,10 +216,31 @@ test('no stylesheet asks the seat or the app root with :has() before a combinato
 });
 
 test('控件与字阶 reads the choice from the seat and the glyph, never from a :has()', () => {
-  const craft = readFileSync(join(ROOT, 'ui/appearance-craft.css'), 'utf8');
-  assert.match(craft, /\.study-seat\[data-craft='refined'\] /);
-  assert.match(craft, /> :is\(\.sh-icon, \.sh-spinner\):first-child/);
-  assert.doesNotMatch(craft, /:has\(> \.study-app\[data-craft/);
+  const { declarations, blocks } = parseCss(readFileSync(join(ROOT, 'ui/appearance-craft.css'), 'utf8'));
+  const selectors = [...new Set(declarations.flatMap((d) => flatSelectors(d.ctx)))];
+  assert.ok(declarations.length > 0, 'appearance-craft.css declares styles');
+  assert.equal(
+    selectors.some((sel) => /\.study-seat\[data-craft=['"]refined['"]\]\s+/.test(sel)),
+    true,
+    'appearance-craft.css reads refined craft directly from .study-seat[data-craft="refined"]',
+  );
+  assert.equal(
+    declarations.some(
+      (d) => d.prop === 'margin-inline-start'
+        && flatSelectors(d.ctx).some((sel) => />\s*:is\(\.sh-icon,\s*\.sh-spinner\):first-child\b/.test(sel)),
+    ),
+    true,
+    'the leading glyph adjusts its own margin via > :is(.sh-icon, .sh-spinner):first-child',
+  );
+  const craftHasRe = /:has\(\s*>\s*\.study-app\[data-craft/;
+  assert.deepEqual(
+    [
+      ...declarations.flatMap((d) => d.ctx).filter((c) => craftHasRe.test(c)),
+      ...blocks.map((b) => b.prelude).filter((p) => craftHasRe.test(p)),
+    ],
+    [],
+    'appearance-craft.css never queries data-craft via :has(> .study-app[data-craft...])',
+  );
 });
 
 /* 2026-11-18, measured with page-switch-perf on React's production build (300 资料, 1440 px, 21 switches): long tasks 1948 ms -> 996 ms, the

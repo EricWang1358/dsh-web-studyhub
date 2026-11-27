@@ -27,6 +27,7 @@ import { openLibrary, stagedModel } from './helpers/generation-baseline.mjs';
 import { qualityReview } from './helpers/assessment.mjs';
 import { requestData } from './helpers/request-data.mjs';
 import { reviewParts } from './helpers/review-render.mjs';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 
 /* ---------- the rule ---------- */
 
@@ -285,13 +286,29 @@ test('a cloze question draws its code spans as code and keeps the blank as an in
 });
 
 test('code looks like code through tokens: the mono stack, a block that scrolls instead of widening the card, a regular weight inside a bold stem', () => {
-  const css = readFileSync(new URL('../ui/markdown.css', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
-  const block = rule => new RegExp(`${rule.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{([^}]*)\\}`).exec(css)?.[1] ?? '';
-  assert.match(block('.md code'), /font-family: var\(--font-stack-mono\)/);
-  assert.doesNotMatch(css, /JetBrains/);
-  assert.match(block('.md .md-code'), /overflow-x: auto/);
-  assert.match(block('.md .md-code'), /white-space: pre/);
-  assert.match(block('.md .md-code'), /font-weight: var\(--fw-regular\)/);
-  const graph = readFileSync(new URL('../ui/graph.css', import.meta.url), 'utf8');
-  assert.match(graph, /\.cloze-code \{[^}]*var\(--font-stack-mono\)/);
+  const splitSelectors = (sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim());
+  const declsFor = (declarations, selector) => declarations.filter(
+    (d) => splitSelectors(d.ctx.at(-1) || '').includes(selector),
+  );
+
+  const md = parseCss(readFileSync(new URL('../ui/markdown.css', import.meta.url), 'utf8'));
+  const mdCode = declsFor(md.declarations, '.md code');
+  assert.equal(mdCode.some((d) => d.prop === 'font-family' && d.value === 'var(--font-stack-mono)'), true, '.md code uses var(--font-stack-mono)');
+  assert.deepEqual(
+    [
+      ...md.declarations.filter((d) => /JetBrains/i.test(d.value)),
+      ...md.blocks.filter((b) => /JetBrains/i.test(b.prelude)),
+    ],
+    [],
+    'no hardcoded JetBrains font in markdown.css',
+  );
+
+  const mdCodeBlock = declsFor(md.declarations, '.md .md-code');
+  assert.equal(mdCodeBlock.some((d) => d.prop === 'overflow-x' && d.value === 'auto'), true, '.md .md-code scrolls horizontally');
+  assert.equal(mdCodeBlock.some((d) => d.prop === 'white-space' && d.value === 'pre'), true, '.md .md-code preserves whitespace');
+  assert.equal(mdCodeBlock.some((d) => d.prop === 'font-weight' && d.value === 'var(--fw-regular)'), true, '.md .md-code resets font-weight to regular');
+
+  const graph = parseCss(readFileSync(new URL('../ui/graph.css', import.meta.url), 'utf8'));
+  const clozeCode = declsFor(graph.declarations, '.cloze-code');
+  assert.equal(clozeCode.some((d) => d.prop === 'font-family' && d.value === 'var(--font-stack-mono)'), true, '.cloze-code uses var(--font-stack-mono)');
 });

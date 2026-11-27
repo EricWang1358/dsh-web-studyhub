@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { nativeSelects } from './helpers/native-selects.mjs';
 
 const require = createRequire(import.meta.url);
@@ -228,6 +229,14 @@ test('ShortcutHelp keeps Alt+Shift+A in zh and en without Han leaks, and origami
     dp.setUiLanguage('zh');
   }
 
-  const deskCss = readFileSync(new URL('../ui/desk-play/desk-play.css', import.meta.url), 'utf8');
-  assert.match(deskCss, /\.desk-play-origami__accent-fold\s*\{[\s\S]*stroke:\s*var\(--accent\)/);
+  const { declarations } = parseCss(readFileSync(new URL('../ui/desk-play/desk-play.css', import.meta.url), 'utf8'));
+  const splitSelectors = (sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim());
+  const accentFoldDecls = declarations.filter(
+    (d) => splitSelectors(d.ctx.at(-1) || '').includes('.desk-play-origami__accent-fold'),
+  );
+  assert.equal(
+    accentFoldDecls.some((d) => d.prop === 'stroke' && d.value === 'var(--accent)'),
+    true,
+    '.desk-play-origami__accent-fold paints its stroke with var(--accent)',
+  );
 });
