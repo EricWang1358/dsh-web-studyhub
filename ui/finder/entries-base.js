@@ -29,7 +29,7 @@ export const PREPARE_STEPS = Object.freeze({
   'add-dialog': { text: '点「添加资料」，在弹出的窗口里就有这一项。' },
   'live-class': { text: '先在「课堂实录」里开始或打开一场实录，这一项才会出现。' },
   // `part`: the directions go through this part of the home (ui/lite-view.js); where 简洁版 left it out, the notice says so first (`hidden`) and offers the full view.
-  outline: { text: '先在首页点「总纲」，打开这门课的总纲页。', part: 'home.catalog-maps', hidden: '现在是简洁版，首页的「总纲」按钮收起了。切回完整版后：' },
+  outline: { text: '先在首页点「总纲」，打开这门课的总纲页。', part: 'home.course-extras', hidden: '现在是简洁版，首页的「总纲」按钮收起了。切回完整版后：' },
   'tool-failed': { text: '本地工具（MinerU、Marker、本地转写、电脑声音组件、检索扩展）安装或启动失败时，出错的那张卡片上才有这一项；没出错时这里没有它。' },
 });
 

@@ -6,7 +6,7 @@ import { Tooltip } from "./components/index.js";
 
 /* 课程进度：课程按题组顺序排成一章一章。进度条每一段是一章（按题量占宽），学过的部分填色。
    找题、挑题练在「总纲」页（ui/outline/）：按资料的章节排开这门课的题，它取代了首页原来折叠的课程路线列表；
-   去总纲的按钮在课程标题旁和学习目录的标题上（ui/study-map/OutlineEntry.jsx）。 */
+   去总纲的按钮在课程标题旁（ui/study-map/OutlineEntry.jsx）。 */
 export default function CourseRoute({ route }) {
   if (!route?.chapters?.length) return null;
   const chapter = route.current === null ? null : route.chapters[route.current];

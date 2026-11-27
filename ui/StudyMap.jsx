@@ -153,6 +153,8 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const drafts = data.drafts || [];
   const showNotebooks = data.decks.length > 0 || (notebooks?.notebooks?.notebooks || []).some((notebook) => !notebook.current);
   const selectedRun = tree.scope.length ? runFor(tree.scope) : null;
+  // One way to the graph on the home (#1695): 掌握图谱 under the desk's mastery while it is drawn (its tabs reach 知识结构), else the 学习目录 heading's 查看图谱.
+  const deskGraph = shows("home.course-extras") && !!mastery.primary && !!onOpenMasteryMap;
   const openVoicePack = typeof openModal === "function" ? (opts) => openModal({ type: "voicePack", ...opts }) : undefined;
   const deckActions = { start, confirmStart, resume, manage, restoreDeck, removeDeck, archiveDeck, openVoicePack, runsOn: (deckId) => data.decks.find((deck) => deck.id === deckId)?.openRuns ?? openRunsOn(runs, deckId) };
   const line = useFirstRunLine(data);
@@ -221,8 +223,8 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
       })()}
       <CatalogHeading count={data.decks.filter((deck) => !!deck.archived === showArchived).length} showArchived={showArchived} hasDecks={data.decks.length > 0}
         hasSources={data.sources.length > 0} course={data.focus?.course} merge={merge} slain={data.decks.find((deck) => deck.systemKind === "slain")}
-        addSource={addSource} createManual={createManual} importLibrary={importLibrary} manage={manage} onShowGraph={onShowGraph}
-        onShowOutline={home.route?.chapters?.length ? onShowOutline : undefined} maps={shows("home.catalog-maps")} />
+        addSource={addSource} createManual={createManual} importLibrary={importLibrary} manage={manage} onShowGraph={!deskGraph ? onShowGraph : undefined}
+        maps={shows("home.catalog-maps")} />
       {shows("home.topic-groups") && <TopicGroupReminder grouping={data.topicGrouping} root={data.root} />}
       <BookBackupHint bookCourses={data.bookCourses} root={data.root} />
       <MergeSuggestions merge={merge} />
