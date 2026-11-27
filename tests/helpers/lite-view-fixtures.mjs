@@ -1,9 +1,12 @@
 /* One library with every home block on it at once (tests/lite-view.test.mjs): a learner a few weeks in, with a course that has an exam, a route, a method,
    focus topics, drafts, a running and a failed generation, another unfinished round, a companion and topics to group. Plus what the app gives the sidebar. */
 
-const DAY = 86400000;
-/** A calendar date `days` from now, as the courses store it. */
-export const dateIn = (days) => new Date(Date.now() + days * DAY).toISOString().slice(0, 10);
+/** The calendar date `days` from today, as the courses store it. Local, like daysUntilExam (lib/courses.js): the UTC date is another day for part of
+    every day outside UTC. */
+export const dateIn = (days) => {
+  const now = new Date(), date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + days), pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
 
 const deck = { id: 'd1', title: 'Behavioural patterns', folder: 'CS3219', course: 'CS3219', topics: ['Memento'], available: 5, count: 5, quizCount: 3, wrong: 2, createdAt: '2026-09-01T00:00:00Z' };
 const progress = { d1: { counts: { mastered: 1, familiar: 1, learning: 1, weak: 1, new: 1 }, total: 5, mastery: 60, due: 1, status: 'active', topics: [] } };
