@@ -143,6 +143,21 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    /* 正在打开资料… while the material is read (DocumentViewer.jsx): over the top of the text and out of the flow, so its going moves nothing. */
+    .reader-loading {
+      position: absolute;
+      top: var(--space-4);
+      left: 50%;
+      z-index: var(--z-popover, 40);
+      max-width: calc(100% - var(--space-6));
+      padding: var(--space-2) var(--space-4);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-pill);
+      background: var(--bg-raised);
+      transform: translateX(-50%);
+    }
+    /* A control whose place is held while the material opens (目录, 看原页): it takes its room and is not drawn. */
+    .study-document-viewer [data-reserved] { visibility: hidden; }
     .reader-scroll {
       flex: 1 1 0;
       min-width: 0;

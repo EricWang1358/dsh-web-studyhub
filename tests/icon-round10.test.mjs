@@ -75,8 +75,8 @@ test('1: the whole of ui/ agrees with the rule: no control that leaves leads wit
     for (const { label, want } of externalProblems(source, { file })) found.push(`${file}: external ${label} wants ${want}`);
   }
   assert.deepEqual(found, []);
-  // Round 9 left 230 to their words; reading a guard and a rest spread, 229.
-  assert.ok(seen.unknown <= 229, `the click decides for most Buttons (${JSON.stringify(seen)})`);
+  // Round 9 left 230 to their words; reading a guard and a rest spread, 229; held places (data-reserved) are not controls, 228.
+  assert.ok(seen.unknown <= 228, `the click decides for most Buttons (${JSON.stringify(seen)})`);
 });
 
 /* ---- 2: one look for the hand-off to the main chat ----------------------------------------------------------------------------------------------------------- */
@@ -228,6 +228,19 @@ test('4: the 资料 header joins its two parts properly: no space after 。 in C
   const sources = await read('ui/Sources.jsx');
   assert.match(sources, /joinSummary\(ui\("题目从这里生长。原文与引用一直保留。"\), items\.length > 0 \? groupSummaryDescription\(/);
   assert.doesNotMatch(sources, /\{ui\("题目从这里生长。原文与引用一直保留。"\)\}\{items\.length/);
+});
+
+/* ---- #1606: a held place is not a control ------------------------------------------------------------------------------------------------------------------- */
+
+test('#1606: a Button that only holds a place (data-reserved, aria-hidden, disabled) is not read as a control; one missing any of the three still is', () => {
+  const read = (open) => { const seen = {}; goOnProblems(`const A = () => ${open}{ui('看原页')}</Button>;`, { seen }); return seen; };
+  assert.equal(read('<Button data-reserved="" aria-hidden="true" tabIndex={-1} disabled>').reserved, 1);
+  assert.equal(read('<Button data-reserved="" aria-hidden="true" tabIndex={-1} disabled>').unknown, undefined);
+  for (const open of ['<Button data-reserved="" aria-hidden="true">', '<Button data-reserved="" disabled>', '<Button aria-hidden="true" disabled>']) {
+    const seen = read(open);
+    assert.equal(seen.reserved, undefined, open);
+    assert.equal(seen.unknown, 1, open);
+  }
 });
 
 void React;
