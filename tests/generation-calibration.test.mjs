@@ -330,8 +330,8 @@ test("a damaged file is put aside before the next write; a file that cannot be r
   await writeFile(path, "{ not json");
   await createCalibration(root).record({ stageTotals: totals, actual: { author: 150 } });
   const { readdir } = await import("node:fs/promises");
-  const aside = (await readdir(root)).filter((name) => name.startsWith("estimate-calibration.json.damaged-"));
-  assert.equal(aside.length, 1, "the damaged file is kept beside the new one");
+  const aside = (await readdir(root)).filter((name) => name.startsWith("estimate-calibration.json.corrupt-") && name.endsWith(".bak"));
+  assert.equal(aside.length, 1, "the damaged file is backed up beside the new one, as every damaged settings file is (lib/atomic-json.js)");
   assert.equal(await readFile(join(root, aside[0]), "utf8"), "{ not json");
   assert.equal(JSON.parse(await readFile(path, "utf8")).runs.length, 1);
   const before = await readFile(path, "utf8");
