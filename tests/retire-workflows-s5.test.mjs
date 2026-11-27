@@ -11,7 +11,7 @@ import { createRequire } from "node:module";
 import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Store, LATEST_VERSION, normalizeState } from "../lib/store.js";
+import { Store, emptyState, normalizeState } from "../lib/store.js";
 import { StudyService } from "../lib/service.js";
 import { INTERVIEW_METHOD } from "../lib/courses.js";
 import { PAGES } from "../ui/pages.js";
@@ -102,7 +102,9 @@ async function writeV4ShardedLibrary(root, { focus, courses = [], decks = [], so
 }
 
 test("LATEST_VERSION is 5 and v4 → v5 migrates active interview focus into a course idempotently", async (t) => {
-  assert.equal(LATEST_VERSION, 5);
+  assert.equal(emptyState().version, 5, "fresh library starts at store schema version 5");
+  assert.equal(normalizeState({ version: 5 }).version, 5, "v5 state loads without throwing");
+  assert.throws(() => normalizeState({ version: 6 }), /version 6.*up to 5/, "store rejects schemas newer than v5");
 
   const v4ActiveInterview = {
     version: 4,
