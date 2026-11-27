@@ -289,7 +289,7 @@ test('BlogNotes supports >= 1100px split edit + live Markdown/KaTeX preview, nar
   const underFocus = blogDecls.filter((d) => d.ctx.some((c) => splitSelectors(c).includes('.note-edit-pane:has(.cm-editor.cm-focused)')));
   const focusStart = Math.min(...underFocus.map((d) => d.line));
   assert.deepEqual(
-    blogDecls.filter((d) => d.line >= focusStart && d.prop === 'box-shadow' && /var\(--ring\)/.test(d.value)).map((d) => `${d.line}: ${d.ctx.join(' > ')}`),
+    blogDecls.filter((d) => d.line >= focusStart && /^(?:-[a-z]+-)?box-shadow$/.test(d.prop) && /var\(--ring\)/.test(d.value)).map((d) => `${d.line}: ${d.ctx.join(' > ')}`),
     [],
     'one focus ring: nothing from the focused editor pane rule onwards adds box-shadow: var(--ring)',
   );
