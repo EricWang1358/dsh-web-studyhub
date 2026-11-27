@@ -485,7 +485,10 @@ describe('StudyHub TUI Large-Library Scale NFR Budgets (5,000 cards / 2,000 sour
         assert.equal(hitOut, coldOut);
         return hitOut;
       },
-      () => R.renderMarkdown(doc200, mdOpts),
+      () => {
+        R.clearMarkdownCache();
+        return R.renderMarkdown(doc200, mdOpts);
+      },
       {
         warmup: 1,
         samples: 5,
@@ -494,9 +497,6 @@ describe('StudyHub TUI Large-Library Scale NFR Budgets (5,000 cards / 2,000 sour
         minSpeedup: 10,
         beforeFast: () => {
           if (R.markdownCacheSize() === 0) R.renderMarkdown(doc200, mdOpts);
-        },
-        beforeRef: () => {
-          R.clearMarkdownCache();
         },
       },
     );

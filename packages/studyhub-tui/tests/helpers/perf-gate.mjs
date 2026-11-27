@@ -57,6 +57,60 @@ export function trimmedMean(sorted, trimFraction = 0.2) {
   return sum / target.length;
 }
 
+const DEFAULT_MIN_BATCH_CPU_MS = process.platform === 'win32' ? 64 : 4;
+
+/**
+ * Adaptively scale `batch` so a single CPU measurement bracket spans enough CPU time to
+ * clear OS timer quantization (notably Windows `GetProcessTimes` 15.625ms ticks), while
+ * staying bounded in both iteration count and wall time.
+ */
+function calibrateClockBatch(
+  fn,
+  {
+    batch = 1,
+    clock = cpuClock,
+    minBatchCpuMs = DEFAULT_MIN_BATCH_CPU_MS,
+    maxBatch = 100_000,
+    maxCalibrateWallMs = 250,
+  } = {},
+) {
+  let effectiveBatch = Math.max(1, Math.floor(batch));
+  let lastValue;
+  if (!(minBatchCpuMs > 0)) {
+    return { batch: effectiveBatch, lastValue };
+  }
+
+  let targetMs = minBatchCpuMs;
+  const upperBatch = Math.max(effectiveBatch, Math.floor(maxBatch));
+  const wallStart = performance.now();
+  let sawZeroTick = false;
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const token = clock.start();
+    for (let b = 0; b < effectiveBatch; b += 1) lastValue = fn();
+    const elapsedMs = clock.elapsedMs(token);
+
+    if (elapsedMs === 0) {
+      sawZeroTick = true;
+    } else if (sawZeroTick && elapsedMs >= 10) {
+      targetMs = Math.max(targetMs, elapsedMs * 4);
+      sawZeroTick = false;
+    }
+
+    if (elapsedMs >= targetMs || effectiveBatch >= upperBatch) {
+      break;
+    }
+    if (performance.now() - wallStart >= maxCalibrateWallMs) {
+      break;
+    }
+
+    const factor = elapsedMs > 0 ? Math.max(2, Math.ceil(targetMs / elapsedMs)) : 2;
+    effectiveBatch = Math.min(upperBatch, effectiveBatch * factor);
+  }
+
+  return { batch: effectiveBatch, lastValue };
+}
+
 /**
  * Runs warmup iterations followed by multi-sample batched measurements using `clock` (default:
  * `process.cpuUsage()`), returning sorted quantile and trimmed-mean statistics in ms per call.
@@ -68,6 +122,8 @@ export function sampleTiming(fn, opts = {}) {
     batch = 1,
     clock = cpuClock,
     beforeSample,
+    minBatchCpuMs,
+    maxBatch = 100_000,
   } = opts;
 
   let lastValue;
@@ -76,21 +132,35 @@ export function sampleTiming(fn, opts = {}) {
     lastValue = fn();
   }
 
+  const shouldCalibrate =
+    !beforeSample && (minBatchCpuMs !== undefined ? minBatchCpuMs > 0 : clock === cpuClock);
+  let effectiveBatch = Math.max(1, Math.floor(batch));
+  if (shouldCalibrate) {
+    const calibrated = calibrateClockBatch(fn, {
+      batch: effectiveBatch,
+      clock,
+      minBatchCpuMs: minBatchCpuMs ?? DEFAULT_MIN_BATCH_CPU_MS,
+      maxBatch,
+    });
+    effectiveBatch = calibrated.batch;
+    if (calibrated.lastValue !== undefined) lastValue = calibrated.lastValue;
+  }
+
   const raw = new Array(samples);
   for (let i = 0; i < samples; i++) {
     if (beforeSample) beforeSample();
     const token = clock.start();
-    for (let b = 0; b < batch; b++) {
+    for (let b = 0; b < effectiveBatch; b++) {
       lastValue = fn();
     }
-    raw[i] = clock.elapsedMs(token) / batch;
+    raw[i] = clock.elapsedMs(token) / effectiveBatch;
   }
 
   const sorted = raw.slice().sort((a, b) => a - b);
   const p50 = quantile(sorted, 0.5);
   return {
     clock: clock.name ?? 'custom',
-    batch,
+    batch: effectiveBatch,
     samples: raw,
     sorted,
     min: sorted[0] ?? 0,
@@ -136,6 +206,8 @@ export function assertRelativePerf(label, fastFn, refFn, opts = {}) {
     fastBudgetMs,
     beforeFast,
     beforeRef,
+    minBatchCpuMs,
+    maxBatch = 100_000,
   } = opts;
 
   let lastFast;
@@ -147,18 +219,45 @@ export function assertRelativePerf(label, fastFn, refFn, opts = {}) {
     lastRef = refFn();
   }
 
+  const shouldCalibrate = minBatchCpuMs !== undefined ? minBatchCpuMs > 0 : clock === cpuClock;
+  const targetMinBatchMs = minBatchCpuMs ?? DEFAULT_MIN_BATCH_CPU_MS;
+
+  let effectiveFastBatch = Math.max(1, Math.floor(fastBatch));
+  if (shouldCalibrate && !beforeFast) {
+    const calFast = calibrateClockBatch(fastFn, {
+      batch: effectiveFastBatch,
+      clock,
+      minBatchCpuMs: targetMinBatchMs,
+      maxBatch,
+    });
+    effectiveFastBatch = calFast.batch;
+    if (calFast.lastValue !== undefined) lastFast = calFast.lastValue;
+  }
+
+  let effectiveRefBatch = Math.max(1, Math.floor(refBatch));
+  if (shouldCalibrate && !beforeRef) {
+    const calRef = calibrateClockBatch(refFn, {
+      batch: effectiveRefBatch,
+      clock,
+      minBatchCpuMs: targetMinBatchMs,
+      maxBatch,
+    });
+    effectiveRefBatch = calRef.batch;
+    if (calRef.lastValue !== undefined) lastRef = calRef.lastValue;
+  }
+
   const fastRaw = new Array(samples);
   const refRaw = new Array(samples);
   for (let i = 0; i < samples; i++) {
     if (beforeFast) beforeFast();
     const ft = clock.start();
-    for (let b = 0; b < fastBatch; b++) lastFast = fastFn();
-    fastRaw[i] = clock.elapsedMs(ft) / fastBatch;
+    for (let b = 0; b < effectiveFastBatch; b++) lastFast = fastFn();
+    fastRaw[i] = clock.elapsedMs(ft) / effectiveFastBatch;
 
     if (beforeRef) beforeRef();
     const rt = clock.start();
-    for (let b = 0; b < refBatch; b++) lastRef = refFn();
-    refRaw[i] = clock.elapsedMs(rt) / refBatch;
+    for (let b = 0; b < effectiveRefBatch; b++) lastRef = refFn();
+    refRaw[i] = clock.elapsedMs(rt) / effectiveRefBatch;
   }
 
   const summarize = (raw, lastValue, batch) => {
@@ -178,8 +277,8 @@ export function assertRelativePerf(label, fastFn, refFn, opts = {}) {
     };
   };
 
-  const fast = summarize(fastRaw, lastFast, fastBatch);
-  const ref = summarize(refRaw, lastRef, refBatch);
+  const fast = summarize(fastRaw, lastFast, effectiveFastBatch);
+  const ref = summarize(refRaw, lastRef, effectiveRefBatch);
   const fastMs = fast[stat];
   const refMs = ref[stat];
   const speedup = refMs / Math.max(fastMs, 1e-6);

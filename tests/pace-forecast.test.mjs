@@ -416,6 +416,36 @@ test("pace-forecast flake-repro: minute-boundary & wall-clock jitter flake legac
   });
   assert.ok(cpuStats.median < 15);
 
+  // (b2) Windows 15.625ms GetProcessTimes tick quantization: adaptive batch calibration keeps
+  // relative CPU ratio accurate (ref never quantizes to 0.000ms) even under coarse 15.625ms ticks.
+  const smallState = {
+    ...state,
+    decks: state.decks.slice(0, 2),
+    attempts: state.attempts.slice(0, 40),
+  };
+  const WIN32_TICK_US = 15_625;
+  const quantizedWin32Cpu = (prev) => {
+    const raw = process.cpuUsage();
+    const totalUs = raw.user + raw.system;
+    const snappedUs = Math.floor(totalUs / WIN32_TICK_US) * WIN32_TICK_US;
+    if (!prev) return { user: snappedUs, system: 0 };
+    return { user: Math.max(0, snappedUs - (prev.user + prev.system)), system: 0 };
+  };
+  const win32Stats = assertCpuBudget(() => libraryPaceForecast(state, { now: NOW }), {
+    maxMedianMs: 15,
+    warmup: 2,
+    samples: 5,
+    batch: 2,
+    cpuUsage: quantizedWin32Cpu,
+    minBatchCpuMs: 64,
+    label: "win32 15.625ms quantized pace-forecast CPU gate",
+    referenceFn: () => libraryPaceForecast(smallState, { now: NOW }),
+    maxRatio: 10,
+  });
+  assert.ok(win32Stats.reference.median > 0, `quantized reference must resolve > 0ms (got ${win32Stats.reference.median})`);
+  assert.ok(win32Stats.reference.batch > 2, `quantized reference must adaptively grow batch above 2 (got ${win32Stats.reference.batch})`);
+  assert.ok(win32Stats.ratio <= 10, `quantized relative ratio must stay <= 10x (got ${win32Stats.ratio.toFixed(2)}x)`);
+
   // (c) Genuine regressions still fail the hardened gates (zero busy-loops, zero hand-built tautologies):
   // (c1) Real algorithmic CPU regression: recomputing uncached FSRS spacingProfile once per card (violating
   // forecast.js's "ONCE per settings bucket — never per card" invariant) naturally breaches < 15 ms CPU.
