@@ -5,6 +5,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { nativeSelects } from './helpers/native-selects.mjs';
+import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 import { addNode, answerNode, emptyThread } from '../ui/document-preview/ask-thread.js';
 
 /* The reader's learning panel after the shortening: the first-level questions send at once, the top-up form starts filled in and keeps its kind and number
@@ -455,12 +456,134 @@ test('the page chips sit in an even two-column grid; the original-PDF notice is 
   const { readFile } = await import('node:fs/promises');
   const css = await readFile(new URL('../ui/document-preview/document-preview.css', import.meta.url), 'utf8');
   assert.match(css, /\.study-page-ask \.ask-quick \{[^}]*display: grid;[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
-  const viewer = await readFile(new URL('../ui/document-preview/DocumentViewer.jsx', import.meta.url), 'utf8');
+
   // The sentence is a 「?」 beside the page label now (HelpTip), not a paragraph under the toolbar: one line on a phone-width reader, two at most.
-  const notice = viewer.match(/view === 'original' && !localMode && <HelpTip [^>]*>\{ui\('([^']+)'\)\}<\/HelpTip>/)?.[1];
-  assert.equal(notice, '在原始 PDF 里按页提问（「学习工具」）；要问选中的一段，请切换到「阅读」。');
-  assert.ok(notice.length <= 40, 'one line on a phone-width reader, two at most');
-  assert.doesNotMatch(viewer, /reader-pdf-note/, 'no paragraph of its own');
+  const interactive = await loadInteractiveUi(`
+    export { default as DocumentViewer } from './ui/document-preview/DocumentViewer.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { ToastContext } from './ui/components/Feedback.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `, {
+    plugins: [{
+      name: 'stub-pdf-peek',
+      setup(b) {
+        b.onResolve({ filter: /peek\/PagePeek\.jsx$/ }, () => ({
+          path: 'stub-page-peek',
+          namespace: 'stub-pdf-peek',
+        }));
+        b.onLoad({ filter: /.*/, namespace: 'stub-pdf-peek' }, () => ({
+          contents: 'export function PdfPageView() { return null; } export default function PagePeek() { return null; }',
+          loader: 'js',
+        }));
+      },
+    }],
+  });
+  await withBrowserGlobals(async () => {
+    const prevStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+    const storageMap = new Map();
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key) => (storageMap.has(key) ? storageMap.get(key) : null),
+        setItem: (key, value) => { storageMap.set(key, String(value)); },
+        removeItem: (key) => { storageMap.delete(key); },
+      },
+    });
+    const {
+      React: HarnessReact,
+      mount,
+      exports: { DocumentViewer, StudyServicesContext, ToastContext, setUiLanguage },
+    } = interactive;
+    setUiLanguage('zh');
+    const pdfDoc = {
+      documentId: 'doc-pdf-notice',
+      id: 'doc-pdf-notice',
+      revision: 'r1',
+      format: 'pdf',
+      title: 'Operating Systems',
+      filename: 'Operating Systems.pdf',
+      originalAvailable: true,
+      original: { mode: 'copy', status: 'ok', bytes: 4096, format: 'pdf' },
+      sources: [
+        { id: 'p1', text: 'Page 1 text about virtual memory.', document: { format: 'pdf', page: 1, totalPages: 2 } },
+        { id: 'p2', text: 'Page 2 text about scheduling.', document: { format: 'pdf', page: 2, totalPages: 2 } },
+      ],
+    };
+    const call = async (action) => {
+      if (action === 'materials.document.get') return pdfDoc;
+      if (action === 'materials.document.bytes') {
+        return {
+          status: 'paged',
+          paged: { documentId: 'doc-pdf-notice', revision: 'r1', totalPages: 2, bytes: 4096, rangeSupported: true },
+        };
+      }
+      if (action === 'materials.links.list') return { links: [] };
+      if (action === 'materials.annotation.list') return { items: [], stale: [] };
+      if (action === 'materials.marks.list') return { items: [], stale: [], limits: { queue: 40 } };
+      if (action === 'runtime.capabilities') return [];
+      if (action === 'snapshot') return { decks: [], settings: {} };
+      return {};
+    };
+    const noop = () => {};
+    const toast = { show: noop, error: noop, dismiss: noop };
+    const studyServices = { call, act: async () => undefined, busy: false, notify: noop, askInChat: noop, host: {}, openSettings: noop, navigate: noop, openModal: noop };
+    const viewer = mount(() => HarnessReact.createElement(
+      ToastContext.Provider,
+      { value: toast },
+      HarnessReact.createElement(
+        StudyServicesContext.Provider,
+        { value: studyServices },
+        HarnessReact.createElement(DocumentViewer, {
+          source: { id: 'p1', title: 'Operating Systems', text: pdfDoc.sources[0].text, document: { format: 'pdf', page: 1, totalPages: 2 } },
+          call,
+          data: { sources: [], decks: [], settings: {} },
+          host: {},
+        }),
+      ),
+    ));
+    try {
+      await viewer.flush(10);
+      const originalBtn = viewer.find((node) => node.type === 'button' && viewer.text(node).trim() === '原始 PDF');
+      assert.ok(originalBtn, 'toolbar renders the 原始 PDF view switch');
+      // The notice belongs to 原始 PDF only: in the text view it would tell a reader who is already in 阅读 to switch to it.
+      assert.equal(
+        viewer.findAll((node) => node.type === 'button' && node.props?.['aria-label'] === '在原始 PDF 里怎么提问').length,
+        0,
+        'no 原始 PDF ask notice before switching to 原始 PDF',
+      );
+      await viewer.act(() => click(originalBtn));
+      await viewer.flush(6);
+
+      const rootEl = viewer.find((node) => node.type === 'div' && typeof node.props?.className === 'string' && node.props.className.includes('study-document-viewer'));
+      assert.equal(rootEl?.props?.['data-mode'], 'original', 'viewer switched to original PDF mode');
+
+      const toolbar = viewer.find((node) => node.type === 'div' && node.props?.className === 'reader-toolbar');
+      assert.ok(toolbar, 'reader toolbar renders in original PDF mode');
+      const helpAnchor = viewer.find(
+        (node) => node.type === 'span'
+          && typeof node.props?.className === 'string'
+          && node.props.className.includes('sh-help-tip__anchor')
+          && viewer.find((child) => child.type === 'button' && child.props?.['aria-label'] === '在原始 PDF 里怎么提问', node),
+        toolbar,
+      );
+      assert.ok(helpAnchor, 'HelpTip renders in toolbar in original PDF mode');
+      const tooltipNode = viewer.find((node) => node.type === 'span' && node.props?.role === 'tooltip', helpAnchor);
+      assert.ok(tooltipNode, 'HelpTip renders its tooltip content');
+      const notice = viewer.text(tooltipNode).trim();
+      assert.equal(notice, '在原始 PDF 里按页提问（「学习工具」）；要问选中的一段，请切换到「阅读」。');
+      assert.ok(notice.length <= 40, 'one line on a phone-width reader, two at most');
+      assert.equal(
+        viewer.findAll((node) => typeof node.props?.className === 'string' && node.props.className.split(/\s+/).includes('reader-pdf-note')).length,
+        0,
+        'no paragraph of its own',
+      );
+    } finally {
+      viewer.unmount();
+      setUiLanguage('zh');
+      if (prevStorage) Object.defineProperty(globalThis, 'localStorage', prevStorage);
+      else delete globalThis.localStorage;
+    }
+  });
 });
 
 test('English: the hints and the new sentences are English', () => {
