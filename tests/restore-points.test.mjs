@@ -12,9 +12,8 @@ import { Store } from '../lib/store.js';
 import { StudyService } from '../lib/service.js';
 import { assistantRefusal } from '../lib/assistant-boundary.js';
 import {
-  DAILY_RESTORE_POINTS,
-  WEEKLY_RESTORE_POINTS,
   RESTORE_POINT_RETENTION,
+  selectRetainedRestorePoints,
   shardNamesOfManifest,
 } from '../lib/contexts/library/restore-points.js';
 import { createPreviewServer } from '../scripts/preview-server.mjs';
@@ -115,8 +114,6 @@ test('#892: 35+ consecutive days keep exactly 7 daily + 4 weekly restore points,
 
   const listing = await store.listRestorePoints();
   assert.deepEqual(listing.retention, { daily: 7, weekly: 4 });
-  assert.equal(DAILY_RESTORE_POINTS, 7);
-  assert.equal(WEEKLY_RESTORE_POINTS, 4);
   assert.deepEqual(RESTORE_POINT_RETENTION, { daily: 7, weekly: 4 });
 
   const dailyPoints = listing.points.filter((p) => p.tier === 'daily');
@@ -154,6 +151,67 @@ test('#892: 35+ consecutive days keep exactly 7 daily + 4 weekly restore points,
   // User/upgrade backups in backups/ were NEVER touched.
   const backupsRemaining = await readdir(userBackupDir);
   assert.ok(backupsRemaining.includes('user-manual-export-keep-forever.json'));
+});
+
+test('#892: selectRetainedRestorePoints enforces 7 daily + 4 weekly boundary caps, custom overrides, and invalid-input fallbacks', () => {
+  // 1) 8 consecutive days -> 7 daily + 1 weekly (catches +-1 drift on daily cap).
+  const eightDays = [
+    '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04',
+    '2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08',
+  ];
+  const eightRes = selectRetainedRestorePoints(eightDays);
+  assert.deepEqual(
+    eightRes.kept.filter((p) => p.tier === 'daily').map((p) => p.id),
+    ['2026-10-08', '2026-10-07', '2026-10-06', '2026-10-05', '2026-10-04', '2026-10-03', '2026-10-02'],
+  );
+  assert.deepEqual(
+    eightRes.kept.filter((p) => p.tier === 'weekly').map((p) => p.id),
+    ['2026-10-01'],
+  );
+  assert.deepEqual(eightRes.pruned, []);
+
+  // 2) 7 newest days + 6 older calendar weeks -> 7 daily + 4 weekly + 2 pruned (catches +-1 drift on weekly cap).
+  const newestSeven = [
+    '2026-11-16', '2026-11-15', '2026-11-14', '2026-11-13',
+    '2026-11-12', '2026-11-11', '2026-11-10',
+  ];
+  const sixOlderWeeks = [
+    '2026-11-02', '2026-10-26', '2026-10-19', '2026-10-12',
+    '2026-10-05', '2026-09-28',
+  ];
+  const boundaryRes = selectRetainedRestorePoints([...newestSeven, ...sixOlderWeeks]);
+  assert.deepEqual(
+    boundaryRes.kept.filter((p) => p.tier === 'daily').map((p) => p.id),
+    newestSeven,
+  );
+  assert.deepEqual(
+    boundaryRes.kept.filter((p) => p.tier === 'weekly').map((p) => p.id),
+    ['2026-11-02', '2026-10-26', '2026-10-19', '2026-10-12'],
+  );
+  assert.deepEqual(boundaryRes.pruned, ['2026-10-05', '2026-09-28']);
+
+  // Same-week deduplication among older points keeps the newest date per calendar week.
+  const sameWeekRes = selectRetainedRestorePoints([...newestSeven, '2026-11-03', '2026-11-02']);
+  assert.deepEqual(
+    sameWeekRes.kept.filter((p) => p.tier === 'weekly').map((p) => p.id),
+    ['2026-11-03'],
+  );
+  assert.deepEqual(sameWeekRes.pruned, ['2026-11-02']);
+
+  // 3) Custom { daily: 2, weekly: 1 } override.
+  const customRes = selectRetainedRestorePoints(['2026-11-16', '2026-11-15', '2026-11-02', '2026-10-26'], { daily: 2, weekly: 1 });
+  assert.deepEqual(customRes.kept, [
+    { id: '2026-11-16', date: '2026-11-16', tier: 'daily' },
+    { id: '2026-11-15', date: '2026-11-15', tier: 'daily' },
+    { id: '2026-11-02', date: '2026-11-02', tier: 'weekly' },
+  ]);
+  assert.deepEqual(customRes.pruned, ['2026-10-26']);
+
+  // 4) Invalid retention { daily: -1, weekly: 1.5 } falls back to default 7 daily / 4 weekly.
+  const fallbackRes = selectRetainedRestorePoints([...newestSeven, ...sixOlderWeeks], { daily: -1, weekly: 1.5 });
+  assert.equal(fallbackRes.kept.filter((p) => p.tier === 'daily').length, 7);
+  assert.equal(fallbackRes.kept.filter((p) => p.tier === 'weekly').length, 4);
+  assert.deepEqual(fallbackRes.pruned, ['2026-10-05', '2026-09-28']);
 });
 
 test('#892: deleting a deck today and restoring to yesterday recovers all end-of-yesterday decks while saving a safety backup of current state', async (t) => {

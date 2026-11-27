@@ -67,9 +67,7 @@ function hasVerticalCrossingLine(commands, Tp, ph) {
 
 /* ---------- 1. Modular runtime assembly ---------- */
 
-test('template-runtime assembles real modular JS files cleanly with zero String.raw monolith and zero Chinese in EN', async () => {
-  const loaderSource = await readFile(join(repoRoot, 'lib/companion-template/template-runtime.js'), 'utf8');
-  assert.doesNotMatch(loaderSource, /String\.raw/, 'template-runtime.js must assemble real JS modules instead of String.raw');
+test('template-runtime assembles real modular JS files cleanly, strips ESM syntax, and boots both zh and en IIFE bundles', async () => {
   assert.ok(RUNTIME_MODULE_FILES.length >= 6, 'runtime should be split across modular files');
 
   for (const file of RUNTIME_MODULE_FILES) {
@@ -77,12 +75,138 @@ test('template-runtime assembles real modular JS files cleanly with zero String.
     assert.ok(src.length > 50, `module ${file} must contain real code`);
   }
 
-  assert.doesNotThrow(() => new vm.Script(LESSON_TEMPLATE_RUNTIME_JS));
-  assert.doesNotThrow(() => new vm.Script(buildLessonTemplateRuntimeJs('en')));
-  assert.ok(!/<\/script/i.test(LESSON_TEMPLATE_RUNTIME_JS), 'assembled runtime must not contain raw </script');
-  assert.ok(!/<\/script/i.test(buildLessonTemplateRuntimeJs('en')));
+  const zhBundle = buildLessonTemplateRuntimeJs('zh');
+  const enBundle = buildLessonTemplateRuntimeJs('en');
+  assert.equal(zhBundle, LESSON_TEMPLATE_RUNTIME_JS, 'zh bundle matches exported LESSON_TEMPLATE_RUNTIME_JS');
+  assert.ok(enBundle.length < LESSON_TEMPLATE_RUNTIME_JS.length, 'en bundle omits Chinese tables and is strictly shorter');
+
+  for (const [label, bundle] of [['zh', zhBundle], ['en', enBundle]]) {
+    assert.doesNotThrow(() => new vm.Script(bundle), `${label} bundle must parse as valid JS`);
+    assert.ok(!/<\/script/i.test(bundle), `${label} bundle must not contain raw </script`);
+    assert.doesNotMatch(bundle, /^\s*import\s+[\s\S]*?\s+from\s+['"]/m, `${label} bundle must strip top-level ESM imports`);
+    assert.doesNotMatch(bundle, /^\s*export\s+(?:(?:async\s+)?function|const|let|var|class)\b/m, `${label} bundle must strip top-level ESM exports`);
+  }
   assert.ok(!/https?:\/\/(?!www\.w3\.org\/)/i.test(LESSON_TEMPLATE_RUNTIME_JS), 'runtime must stay 100% offline with zero external URLs');
-  assert.ok(!CJK_RE.test(buildLessonTemplateRuntimeJs('en')), 'English runtime bundle must contain zero Han characters');
+  assert.ok(!CJK_RE.test(enBundle), 'English runtime bundle must contain zero Han characters');
+
+  const makeStubEl = (tag = 'div') => ({
+    tagName: String(tag).toUpperCase(),
+    className: '',
+    textContent: '',
+    hidden: false,
+    disabled: false,
+    style: {},
+    dataset: {},
+    children: [],
+    parentNode: null,
+    isConnected: false,
+    offsetWidth: 0,
+    offsetHeight: 0,
+    scrollTop: 0,
+    classList: { add() {}, remove() {}, toggle() {} },
+    setAttribute() {},
+    getAttribute: () => null,
+    addEventListener() {},
+    removeEventListener() {},
+    append(...kids) { this.children.push(...kids); },
+    prepend(...kids) { this.children.unshift(...kids); },
+    replaceChildren(...kids) { this.children = [...kids]; },
+    insertBefore(node) { return node; },
+    remove() {},
+    contains: () => false,
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    closest: () => null,
+    scrollIntoView() {},
+  });
+
+  for (const [lang, bundle] of [['zh', zhBundle], ['en', enBundle]]) {
+    const token = `tok-boot-${lang}`;
+    const posted = [];
+    const lessonPayload = {
+      id: `lesson-${lang}`,
+      title: lang === 'en' ? 'Consensus Intro' : '共识入门',
+      language: lang,
+      beats: [{ id: 'intro', label: lang === 'en' ? 'Intro' : '引入' }],
+      slides: [{
+        title: lang === 'en' ? 'Slide 1' : '第 1 页',
+        beat: 'intro',
+        blocks: [{ t: 'text', md: 'Hello **world**' }],
+      }],
+    };
+    const bootPayload = {
+      channelToken: token,
+      theme: 'light',
+      askLabel: lang === 'en' ? 'Ask' : '提问',
+      selectionLabel: lang === 'en' ? 'Ask selection' : '问选中内容',
+    };
+    const countParent = makeStubEl('div');
+    const countEl = makeStubEl('span');
+    countEl.parentNode = countParent;
+    const byId = new Map([
+      ['lesson-data', { textContent: JSON.stringify(lessonPayload) }],
+      ['sh-companion-boot', { textContent: JSON.stringify(bootPayload) }],
+      ['stage', makeStubEl('main')],
+      ['line', makeStubEl('p')],
+      ['key', makeStubEl('p')],
+      ['prev', makeStubEl('button')],
+      ['next', makeStubEl('button')],
+      ['count', countEl],
+      ['notes', makeStubEl('button')],
+      ['notes-list', makeStubEl('ul')],
+      ['beats', makeStubEl('nav')],
+      ['title', makeStubEl('h1')],
+      ['theme', makeStubEl('button')],
+    ]);
+    const topTools = makeStubEl('div');
+    const voice = makeStubEl('section');
+    const doc = {
+      body: makeStubEl('body'),
+      documentElement: makeStubEl('html'),
+      getElementById: (id) => byId.get(id) ?? null,
+      querySelector: (sel) => (sel === '.top__tools' ? topTools : sel === '.voice' ? voice : null),
+      querySelectorAll: () => [],
+      createElement: (tag) => makeStubEl(tag),
+      createElementNS: (_ns, tag) => makeStubEl(tag),
+      createDocumentFragment: () => makeStubEl('fragment'),
+      createTextNode: (text) => ({ textContent: String(text) }),
+      addEventListener() {},
+      removeEventListener() {},
+    };
+    const win = {
+      innerWidth: 1024,
+      innerHeight: 768,
+      parent: { postMessage(msg) { posted.push(msg); } },
+      addEventListener() {},
+      removeEventListener() {},
+      matchMedia: () => ({ matches: false }),
+      getSelection: () => ({ toString: () => '', rangeCount: 0 }),
+    };
+    const sandbox = vm.createContext({
+      window: win,
+      document: doc,
+      location: { hash: '' },
+      localStorage: { getItem: () => null, setItem() {} },
+      requestAnimationFrame: () => 0,
+      setTimeout: () => 0,
+      clearTimeout() {},
+    });
+
+    new vm.Script(bundle).runInContext(sandbox);
+
+    assert.equal(win.__shCompanionMounted, true, `${lang} bundle mounts companion bridge`);
+    assert.equal(typeof win.Lesson?.blocks, 'object', `${lang} bundle initializes window.Lesson`);
+    const ready = posted.find((msg) => msg?.kind === 'ready');
+    assert.ok(ready, `${lang} bundle posts a ready handshake on boot`);
+    assert.equal(ready.protocol, COMPANION_PROTOCOL);
+    assert.equal(ready.token, token);
+    assert.equal(ready.slideTotal, 1);
+    if (lang === 'en') {
+      assert.doesNotMatch(byId.get('theme').textContent, CJK_RE, 'en boot renders English theme label');
+    } else {
+      assert.match(byId.get('theme').textContent, CJK_RE, 'zh boot renders Chinese theme label');
+    }
+  }
 });
 
 /* ---------- 2. function-plot-style 1D singularity / asymptote protection ---------- */

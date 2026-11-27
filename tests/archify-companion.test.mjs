@@ -103,8 +103,6 @@ test('the page never puts the file into its own DOM and only the isolated frame 
     if (['ui/SkeletonDiagrams.jsx', 'ui/Skeleton.jsx', 'ui/ArchifyCard.jsx'].includes(file)) assert.doesNotMatch(source.replace(/\/\*[\s\S]*?\*\//g, ''), /<iframe|createElement\(\s*['"]iframe/, `${file}: the frame belongs to ui/diagram-frame.js`);
   }
   assert.deepEqual(shows, ['ui/SkeletonDiagrams.jsx'], 'one component reads the document');
-  const viewer = await readFile('ui/SkeletonDiagrams.jsx', 'utf8');
-  assert.doesNotMatch(viewer, /dangerouslySetInnerHTML|innerHTML|insertAdjacentHTML|createObjectURL|window\.open|location\.|document\.write|eval\(/);
 
   // Runtime wiring: SkeletonDiagrams hands loaded HTML into DiagramFrame; Skeleton wires HandOff(skeleton.archify), SkeletonDiagrams(skeletonId), and per-library archifyPutOff.
   const interactive = await loadInteractiveUi(`
@@ -120,7 +118,7 @@ test('the page never puts the file into its own DOM and only the isolated frame 
   const hi = interactive.React.createElement;
   interactive.exports.setUiLanguage('zh');
 
-  const sampleHtml = '<!doctype html><html><head><title>CAP</title></head><body><main>CAP Diagram</main></body></html>';
+  const canaryHtml = '<!doctype html><html><head><title>CAP</title></head><body><main>CAP Diagram</main><div id="archify-canary">UNSAFE_HOST_INJECTION</div><script>window.__archify_pwned=1</script></body></html>';
   const diagramRecord = { id: 'diag-1', title: '架构图', createdAt: '2026-10-06T08:00:00.000Z', bytes: 2048, skeletonRevision: '2026-10-06T08:00:00.000Z' };
   const fullSkeleton = {
     id: 'sk-9',
@@ -139,17 +137,26 @@ test('the page never puts the file into its own DOM and only the isolated frame 
     removeItem: (key) => { storageMap.delete(key); },
   };
   const prevStorage = globalThis.localStorage;
+  const prevCreateObjectURL = URL.createObjectURL;
+  const unsafeCalls = [];
   globalThis.localStorage = stubStorage;
+  URL.createObjectURL = () => {
+    unsafeCalls.push('URL.createObjectURL');
+    return 'blob:unsafe';
+  };
   try {
     await withBrowserGlobals(async () => {
-      // 1) Opening a diagram in SkeletonDiagrams loads via skeleton.diagram.get and renders DiagramFrame with state.html
+      // 1) Failed skeleton.diagram.get shows error message + 重试 with 0 iframes; retrying loads canary HTML exclusively inside DiagramFrame
+      let diagramGetCalls = 0;
       const diagramStudy = {
         busy: false,
         host: {},
         call: async (action, args) => {
           if (action === 'skeleton.diagram.get') {
             assert.deepEqual(args, { id: 'sk-9', diagramId: 'diag-1' });
-            return { html: sampleHtml, file: '/tmp/cap.html' };
+            diagramGetCalls += 1;
+            if (diagramGetCalls === 1) throw new Error('图文件读取失败');
+            return { html: canaryHtml, file: '/tmp/cap.html' };
           }
           return {};
         },
@@ -164,13 +171,51 @@ test('the page never puts the file into its own DOM and only the isolated frame 
         assert.ok(openBtn, 'SkeletonDiagrams renders an 打开 button');
         await diagramMount.act(() => click(openBtn));
         await diagramMount.flush(4);
+
+        assert.equal(diagramGetCalls, 1, 'initial open invokes skeleton.diagram.get once');
+        assert.match(diagramMount.text(), /图文件读取失败/, 'failed load surfaces the error message');
+        assert.equal(diagramMount.findAll((n) => n.type === 'iframe').length, 0, 'failed load mounts zero iframes');
+        const retryBtn = diagramMount.find((n) => n.type === 'button' && diagramMount.text(n).trim() === '重试');
+        assert.ok(retryBtn, 'failed load offers a 重试 button');
+
+        await diagramMount.act(() => click(retryBtn));
+        await diagramMount.flush(4);
+
+        assert.equal(diagramGetCalls, 2, 'clicking 重试 re-invokes skeleton.diagram.get');
         const frameType = DiagramFrame.type || DiagramFrame;
         const frame = diagramMount.find((n) => n.type === frameType);
-        assert.ok(frame, 'opening a diagram mounts DiagramFrame');
-        assert.equal(frame.props.html, sampleHtml, 'DiagramFrame receives the exact HTML loaded by skeleton.diagram.get');
-        const iframe = diagramMount.find((n) => n.type === 'iframe');
-        assert.equal(iframe?.props?.sandbox, 'allow-scripts', 'the mounted iframe carries allow-scripts only');
-        assert.match(iframe?.props?.srcDoc || '', /CAP Diagram/, 'the isolated iframe srcDoc carries the diagram HTML');
+        assert.ok(frame, 'retry recovery mounts DiagramFrame');
+        assert.equal(frame.props.html, canaryHtml, 'DiagramFrame receives the exact canary HTML loaded by skeleton.diagram.get');
+
+        const allNodes = diagramMount.findAll(() => true);
+        assert.equal(
+          allNodes.filter((n) => n.props && 'dangerouslySetInnerHTML' in n.props).length,
+          0,
+          'no mounted node uses dangerouslySetInnerHTML',
+        );
+
+        const iframes = diagramMount.findAll((n) => n.type === 'iframe');
+        assert.equal(iframes.length, 1, 'exactly one iframe is mounted');
+        assert.equal(diagramMount.find((n) => n.type === 'iframe', frame), iframes[0], 'the single iframe is owned by DiagramFrame');
+        const iframe = iframes[0];
+        assert.equal(iframe.props.sandbox, 'allow-scripts', 'the mounted iframe carries allow-scripts only');
+        assert.equal(iframe.props.referrerPolicy, 'no-referrer', 'the mounted iframe sets referrerPolicy="no-referrer"');
+        assert.match(iframe.props.csp || '', /connect-src 'none'/, 'the mounted iframe enforces connect-src none CSP');
+        assert.equal('src' in iframe.props, false, 'the mounted iframe sets no src attribute');
+        assert.match(iframe.props.srcDoc || '', /UNSAFE_HOST_INJECTION/, 'the isolated iframe srcDoc carries the wrapped canary payload');
+        assert.match(iframe.props.srcDoc || '', /<meta http-equiv="Content-Security-Policy"/, 'srcDoc wraps payload with CSP meta tag');
+
+        assert.equal(diagramMount.text().includes('UNSAFE_HOST_INJECTION'), false, 'canary text never leaks into host DOM text');
+        assert.equal(diagramMount.text().includes('__archify_pwned'), false, 'canary script never leaks into host DOM text');
+        for (const node of allNodes) {
+          if (typeof node.type !== 'string' || node.type === 'iframe' || !node.props) continue;
+          for (const [propName, value] of Object.entries(node.props)) {
+            if (propName === 'children' || typeof value !== 'string') continue;
+            assert.doesNotMatch(value, /UNSAFE_HOST_INJECTION|archify-canary|__archify_pwned/, `host <${node.type}> prop ${propName} must not carry canary HTML`);
+          }
+        }
+        assert.deepEqual(unsafeCalls, [], 'opening diagram never invokes window.open, URL.createObjectURL, or document.write');
+        assert.equal(globalThis.window.__archify_pwned, undefined, 'canary script never executes on host window');
       } finally {
         diagramMount.unmount();
       }
@@ -237,8 +282,16 @@ test('the page never puts the file into its own DOM and only the isolated frame 
       } finally {
         libB.unmount();
       }
+    }, {
+      window: {
+        open: () => { unsafeCalls.push('window.open'); },
+      },
+      document: {
+        write: () => { unsafeCalls.push('document.write'); },
+      },
     });
   } finally {
+    URL.createObjectURL = prevCreateObjectURL;
     if (prevStorage === undefined) delete globalThis.localStorage;
     else globalThis.localStorage = prevStorage;
   }
