@@ -17,12 +17,29 @@ import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { seedLibrary } from '../scripts/qa/perf-seed.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 import { confirmStartIfAsked } from '../scripts/qa/confirm-start.mjs';
-import { settleAnimations, until } from '../scripts/qa/layout-late.mjs';
+import { frames, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
 import { Store } from '../lib/store.js';
 
 const SCALE = 50;
 const rect = (locator) => locator.evaluate((element) => { const box = element.getBoundingClientRect(); return { x: box.left, y: box.top, w: box.width, h: box.height }; });
 const near = (actual, expected, slack, message) => assert.ok(Math.abs(actual - expected) <= slack, `${message}: ${actual}, expected ${expected} ± ${slack}`);
+/* A slow machine draws later, never differently: read until the number is there, and say the last one when it never is. */
+const eventually = async (read, expected, slack, message) => {
+  let last = NaN;
+  await until(async () => Math.abs((last = await read()) - expected) <= slack, message, { timeoutMs: 15000, intervalMs: 50 }).catch(() => {});
+  near(last, expected, slack, message);
+};
+/* Where something rests: two readings a few frames apart that agree. */
+const atRest = async (locator, page) => {
+  let last = null;
+  await until(async () => {
+    const now = await rect(locator), same = last && ['x', 'y', 'w', 'h'].every((key) => Math.abs(now[key] - last[key]) < 0.5);
+    last = now;
+    await frames(page, 6);
+    return same;
+  }, 'the element comes to rest', { timeoutMs: 15000, intervalMs: 100 });
+  return last;
+};
 
 /* The 词解 card is position: fixed inside the zoomed reader, and the passage it explains is known in drawn pixels. */
 const explainHarness = `
@@ -104,15 +121,13 @@ test('below 100% the pointer, the measured widths and the first paint agree with
     await t.test('a lifted sidebar row stays under the pointer', async (t2) => {
       const { page, errors } = await open(t2);
       const row = page.locator('.study-app > .sidebar [data-nav-id="generate"]');
-      const before = await rect(row), x = before.x + before.w / 2, y = before.y + before.h / 2;
+      const before = await atRest(row, page), x = before.x + before.w / 2, y = before.y + before.h / 2;
       await page.mouse.move(x, y);
       await page.mouse.down();
-      await page.waitForTimeout(700); // the hold that lifts a row (ui/nav-order.js)
+      await page.locator('.study-app > .sidebar [data-nav-id="generate"].is-dragging').waitFor({ timeout: 15000 }); // held long enough to be lifted
       await page.mouse.move(x, y + 6, { steps: 3 });
       await page.mouse.move(x, y + 40, { steps: 12 });
-      await page.waitForTimeout(150);
-      const lifted = await rect(row);
-      near(lifted.y + lifted.h / 2, y + 40, 2, 'the row centre follows the pointer');
+      await eventually(async () => { const lifted = await rect(row); return lifted.y + lifted.h / 2; }, y + 40, 2, 'the row centre follows the pointer');
       await page.keyboard.press('Escape');
       await page.mouse.up();
       assert.deepEqual(errors, []);
@@ -123,8 +138,7 @@ test('below 100% the pointer, the measured widths and the first paint agree with
       await (await revealNavRow(page, 'dashboard')).click();
       const chart = page.locator('.dash-trend-panel .dash-chart-box');
       await chart.locator('svg').waitFor({ timeout: 30000 });
-      await until(async () => Math.abs((await rect(chart.locator('svg'))).w - (await rect(chart)).w) <= 2, 'the chart takes the width of its box', { timeoutMs: 5000 })
-        .catch(async () => near((await rect(chart.locator('svg'))).w, (await rect(chart)).w, 2, 'the svg is as wide as the box'));
+      await eventually(async () => (await rect(chart.locator('svg'))).w, (await atRest(chart, page)).w, 2, 'the svg is as wide as its box');
       await (await revealNavRow(page, 'library')).click();
       await page.getByRole('button', { name: '总纲' }).first().click();
       await page.locator('.outline-filter-bar').waitFor({ timeout: 30000 });
@@ -143,16 +157,13 @@ test('below 100% the pointer, the measured widths and the first paint agree with
       const node = view.getByText('Deck 1', { exact: true }).first();
       await node.waitFor({ timeout: 30000 });
       await settleAnimations(page);
-      await page.waitForTimeout(400);
-      const area = await rect(view), before = await rect(node), x = area.x + 30, y = area.y + area.h - 30;
+      const before = await atRest(node, page), area = await rect(view), x = area.x + 30, y = area.y + area.h - 30;
       await page.mouse.move(x, y);
       await page.mouse.down();
       await page.mouse.move(x + 120, y - 60, { steps: 12 });
       await page.mouse.up();
-      await page.waitForTimeout(300);
-      const after = await rect(node);
-      near(after.x - before.x, 120, 2, 'sideways');
-      near(after.y - before.y, -60, 2, 'up');
+      await eventually(async () => (await rect(node)).x - before.x, 120, 2, 'sideways');
+      await eventually(async () => (await rect(node)).y - before.y, -60, 2, 'up');
       assert.deepEqual(errors, []);
     });
 
@@ -167,16 +178,13 @@ test('below 100% the pointer, the measured widths and the first paint agree with
       const column = page.locator('.source-column'), handle = page.locator('.source-column__handle');
       await handle.waitFor({ timeout: 30000 });
       await settleAnimations(page);
-      await page.waitForTimeout(400);
-      const width = (await rect(column)).w, grip = await rect(handle), x = grip.x + grip.w / 2, y = Math.min(grip.y + grip.h / 2, 450);
+      const grip = await atRest(handle, page), width = (await rect(column)).w, x = grip.x + grip.w / 2, y = Math.min(grip.y + grip.h / 2, 450);
       await page.mouse.move(x, y);
       await page.mouse.down();
       await page.mouse.move(x - 60, y, { steps: 10 });
-      await page.waitForTimeout(150);
-      near(grip.x - (await rect(handle)).x, 60, 2, 'the divider follows the pointer while it is held');
+      await eventually(async () => grip.x - (await rect(handle)).x, 60, 2, 'the divider follows the pointer while it is held');
       await page.mouse.up();
-      await page.waitForTimeout(300);
-      near((await rect(column)).w - width, 60, 2, 'the column takes the width the pointer asked for');
+      await eventually(async () => (await rect(column)).w - width, 60, 2, 'the column takes the width the pointer asked for');
       assert.deepEqual(errors, []);
     });
   } finally {
