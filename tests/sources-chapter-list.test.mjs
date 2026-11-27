@@ -6,6 +6,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 /* The chapter list of a big converted book (资料 page, "查看 N 章"): one line per chapter (title, size, 从这一章出题), inside a list that
@@ -13,31 +14,43 @@ import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-ha
    the 从这一章出题 button, so it dropped to a line of its own, centred, and every chapter took two rows; and a 400-page book simply pushed
    the whole page down. */
 
-const css = readFileSync(new URL('../ui/sources.css', import.meta.url), 'utf8');
+const { declarations, blocks } = parseCss(readFileSync(new URL('../ui/sources.css', import.meta.url), 'utf8'));
+const splitSelectors = (sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim());
 
-/** The body of the first rule whose selector (after trimming) is exactly `selector`. */
-function rule(selector) {
-  const pattern = new RegExp(`(?:^|\\n)[ \\t]*${selector.replace(/[.>:()[\]]/g, match => `\\${match}`)}[ \\t]*\\{([^}]*)\\}`);
-  return pattern.exec(css)?.[1] ?? '';
+/** Value of `prop` in base (non-media, non-narrow) rules whose selector list includes `selector`. */
+function declValue(selector, prop) {
+  return declarations.findLast((d) =>
+    !d.ctx.some((c) => c.startsWith('@media') || c.includes('.is-narrow'))
+    && splitSelectors(d.ctx.at(-1) || '').includes(selector)
+    && d.prop === prop)?.value;
 }
 
 test('a chapter row is one flex line: the title takes the room, the generate button keeps its own width', () => {
-  const row = rule('.source-doc__chapters > li');
-  assert.match(row, /display:\s*flex/);
-  assert.match(row, /align-items:\s*center/);
-  assert.match(rule('.source-doc__chapters > li > .source-doc__chapter-btn'), /flex:\s*none/);
-  assert.match(rule('.source-doc__chapters > li > .source-doc__chapter-btn'), /width:\s*auto/);
+  assert.equal(declValue('.source-doc__chapters > li', 'display'), 'flex');
+  assert.equal(declValue('.source-doc__chapters > li', 'align-items'), 'center');
+  assert.equal(declValue('.source-doc__chapters > li > .source-doc__chapter-btn', 'flex'), 'none');
+  assert.equal(declValue('.source-doc__chapters > li > .source-doc__chapter-btn', 'width'), 'auto');
 });
 
 test('no stylesheet rule is written for a raw button of the list any more: the rows are <Button> (#137)', () => {
-  assert.doesNotMatch(css, /source-doc__page-list button:not\(\.sh-btn\)|source-doc__chapters > li > button:not\(\.sh-btn\)/);
+  const rawListButtonRe = /\.source-doc__(?:page-list|chapters)\b[^,]*[\s>+~]button(?![\w-])/;
+  const hasRawListButton = (ctxText) => splitSelectors(ctxText).some((s) => rawListButtonRe.test(s));
+  assert.deepEqual(
+    declarations.filter((d) => d.ctx.some(hasRawListButton)),
+    [],
+    'no declaration targets a raw button inside .source-doc__page-list or .source-doc__chapters',
+  );
+  assert.deepEqual(
+    blocks.filter((b) => hasRawListButton(b.prelude) || b.ctx.some(hasRawListButton)),
+    [],
+    'no block targets a raw button inside .source-doc__page-list or .source-doc__chapters',
+  );
 });
 
 test('the list scrolls inside its own box', () => {
-  const list = rule('.source-doc__page-list');
-  assert.match(list, /max-height:/);
-  assert.match(list, /overflow-y:\s*auto/);
-  assert.match(list, /overscroll-behavior:\s*contain/);
+  assert.ok(declValue('.source-doc__page-list', 'max-height'), '.source-doc__page-list sets max-height');
+  assert.equal(declValue('.source-doc__page-list', 'overflow-y'), 'auto');
+  assert.equal(declValue('.source-doc__page-list', 'overscroll-behavior'), 'contain');
 });
 
 /* The wave-4 regression: the row buttons became <Button> and the `:not(.sh-btn)` rules that made them full-width one-line rows matched
@@ -115,12 +128,20 @@ test('the page list rows carry the same row class, and the class gives the old l
     }
   });
 
-  const row = rule('.source-doc__row');
-  assert.match(row, /align-items:\s*baseline/);
-  assert.match(row, /min-height:\s*0/);
-  assert.match(row, /padding:\s*calc\(var\(--space-1\) \+ var\(--space-half\)\) var\(--space-2\)/);
-  assert.match(row, /font-size:\s*var\(--fs-sm\)/);
-  assert.match(rule('.source-doc__row > span:first-child'), /text-overflow:\s*ellipsis/);
-  assert.match(rule('.source-doc__row > span:first-child'), /white-space:\s*nowrap/);
-  assert.doesNotMatch(css, /:not\(\.sh-btn\)/);
+  assert.equal(declValue('.source-doc__row', 'align-items'), 'baseline');
+  assert.equal(declValue('.source-doc__row', 'min-height'), '0');
+  assert.equal(declValue('.source-doc__row', 'padding'), 'calc(var(--space-1) + var(--space-half)) var(--space-2)');
+  assert.equal(declValue('.source-doc__row', 'font-size'), 'var(--fs-sm)');
+  assert.equal(declValue('.source-doc__row > span:first-child', 'text-overflow'), 'ellipsis');
+  assert.equal(declValue('.source-doc__row > span:first-child', 'white-space'), 'nowrap');
+  assert.deepEqual(
+    declarations.filter((d) => d.ctx.some((c) => c.includes(':not(.sh-btn)'))),
+    [],
+    'no declaration uses a :not(.sh-btn) guard',
+  );
+  assert.deepEqual(
+    blocks.filter((b) => b.prelude.includes(':not(.sh-btn)') || b.ctx.some((c) => c.includes(':not(.sh-btn)'))),
+    [],
+    'no block uses a :not(.sh-btn) guard',
+  );
 });

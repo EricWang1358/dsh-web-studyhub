@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 
 const uiMod = await loadUi(`
@@ -83,18 +84,26 @@ test('#1436 Item 1: useSocraticInlineState derives open synchronously from voice
 });
 
 test('#1436 Item 3: source dock + Socratic inline drawer collapses to single column and excludes Socratic elements from term-marking', () => {
-  const sessionCss = readFileSync(new URL('../ui/review/session.css', import.meta.url), 'utf8');
-  const socraticCss = readFileSync(new URL('../ui/review/socratic-inline.css', import.meta.url), 'utf8');
+  const { declarations: sessionDecls } = parseCss(readFileSync(new URL('../ui/review/session.css', import.meta.url), 'utf8'));
+  const { declarations: socraticDecls } = parseCss(readFileSync(new URL('../ui/review/socratic-inline.css', import.meta.url), 'utf8'));
+  const splitSelectors = (sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim());
+  const isUnconditional = (d) => !d.ctx.some((c) => /^@(?:media|container)\b/.test(c));
 
   // 1) Paired override in session.css + socratic-inline.css prevents empty 2nd column under .review-page.has-source
-  assert.match(
-    sessionCss,
-    /\.review-page\.has-source\s*>\s*\.review-body\.has-socratic\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s,
+  assert.equal(
+    sessionDecls.some((d) => isUnconditional(d)
+      && splitSelectors(d.ctx.at(-1) || '').includes('.review-page.has-source > .review-body.has-socratic')
+      && d.prop === 'grid-template-columns'
+      && /^minmax\(0,\s*1fr\)$/.test(d.value)),
+    true,
     'session.css must collapse .review-body.has-socratic to 1 column when .review-page.has-source is active',
   );
-  assert.match(
-    socraticCss,
-    /\.review-page\.has-source\s*>\s*\.review-body\.has-socratic\s*>\s*\.socratic-inline-drawer\s*\{[^}]*grid-column:\s*1/s,
+  assert.equal(
+    socraticDecls.some((d) => isUnconditional(d)
+      && splitSelectors(d.ctx.at(-1) || '').includes('.review-page.has-source > .review-body.has-socratic > .socratic-inline-drawer')
+      && d.prop === 'grid-column'
+      && d.value === '1'),
+    true,
     'socratic-inline.css must place .socratic-inline-drawer in column 1 when .review-page.has-source is active',
   );
 
