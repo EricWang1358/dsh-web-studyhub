@@ -177,11 +177,12 @@ test('an AI draft that replaces the text forgets the Q&A it held; 存进笔记 d
   await assert.rejects(service.call('note.qa.add', { ...ref, followupId: 'f2' }), /AI/, 'a new Q&A is refused with a plain message while the draft is written');
   release();
   let ready;
-  for (let i = 0; i < 60; i++) {
+  const pollDeadline = Date.now() + 10_000; // a deadline, not a count of short polls: a busy CI machine outran the count
+  do {
     ready = await service.call('note.get', { id: first.note.id });
     if (ready.generation?.status !== 'running') break;
     await new Promise(resolve => setTimeout(resolve, 10));
-  }
+  } while (Date.now() < pollDeadline);
   assert.equal(ready.generation.status, 'done', 'the draft was not superseded');
   assert.equal(ready.markdown.trim(), draft.trim());
   assert.deepEqual(ready.followupIds || [], [], 'the new text holds no Q&A');
@@ -322,11 +323,12 @@ test('note.qa.save rolls back atomically when note drafting is running: zero hal
   assert.deepEqual(afterFollowups, beforeFollowups, 'atomic rollback: card.followups must remain untouched when note write fails');
 
   release();
-  for (let i = 0; i < 60; i++) {
+  const pollDeadline = Date.now() + 10_000; // a deadline, not a count of short polls: a busy CI machine outran the count
+  do {
     const cur = await service.call('note.get', { id: initial.note.id });
     if (cur.generation?.status !== 'running') break;
     await new Promise(resolve => setTimeout(resolve, 10));
-  }
+  } while (Date.now() < pollDeadline);
 });
 
 test('note.qa.save rejects empty answer or missing card with zero state changes', async t => {

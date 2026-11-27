@@ -528,7 +528,7 @@ test('Layer 3: 4-stage generation.companion.build Job (estimate, Stage 3 auto-re
 
     // Poll until Job completes
     let finalJob = null;
-    for (let i = 0; i < 80; i++) {
+    for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil;) {
       const snap = await coordinator.call('snapshot', {});
       const found = snap.jobs.find(j => j.id === started.jobId);
       if (found && (found.status === 'complete' || found.status === 'failed')) {
@@ -837,12 +837,13 @@ test('Wave 1 Companion Core: smart high-signal source chunking, deterministic pr
       workspace: join(tmp, 'ws'),
     });
     let settled = null;
-    for (let i = 0; i < 80; i++) {
+    const pollDeadline = Date.now() + 10_000; // a deadline, not a count of short polls: a busy CI machine outran the count
+    do {
       const snap = await svc.call('snapshot', {});
       const job = snap.jobs.find(j => j.id === started.jobId);
       if (job && (job.status === 'complete' || job.status === 'failed')) { settled = job; break; }
       await new Promise(r => setTimeout(r, 25));
-    }
+    } while (Date.now() < pollDeadline);
     assert.equal(settled?.status, 'complete');
     assert.equal(calls, 3, 'Deterministic pre-repair must save the 4th LLM repair call');
     assert.equal(settled.contract.detail.preRepaired, true);

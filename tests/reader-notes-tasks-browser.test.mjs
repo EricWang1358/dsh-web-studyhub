@@ -338,7 +338,7 @@ test('the reader with no model shows the gate where a question would be asked, w
         assert.equal(await learning.getByRole('button', { name: '没听懂' }).isDisabled(), true, `${width}px: a chip cannot ask without a model`);
         await shot(page, `reader-${width}-nomodel`);
         assert.deepEqual(errors, [], `${width}px: no console errors`);
-      } finally { await context.close(); }
+      } finally { await page.unrouteAll({ behavior: 'ignoreErrors' }).catch(() => {}); await context.close(); }
     }
   } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true }); }
 });

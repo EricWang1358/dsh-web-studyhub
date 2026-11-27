@@ -506,7 +506,7 @@ test('source.folder.classify tracks taxonomy -> batch -> done phases, deduplicat
 
   // Release taxonomy; first two batches finish while 3rd batch waits on batchGate
   taxonomyGate.resolve();
-  for (let i = 0; i < 50 && batchesSeen < 3; i++) {
+  for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil && batchesSeen < 3;) {
     await new Promise(r => setTimeout(r, 10));
   }
   await new Promise(r => setTimeout(r, 20));

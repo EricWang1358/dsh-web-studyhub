@@ -26,7 +26,7 @@ test('concurrent Gemini replies report their own reasoning after independent fal
   } });
   const one = tiers.complete('gemini-3-flash', 'system', 'fallback', { thinkingLevel: 'high', onReasoning: value => { reasoning.fallback = value; } });
   const two = tiers.complete('gemini-3-flash', 'system', 'accepted', { thinkingLevel: 'high', onReasoning: value => { reasoning.accepted = value; } });
-  for (let i = 0; i < 100 && held.length < 2; i++) await new Promise(resolve => setTimeout(resolve, 5));
+  for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil && held.length < 2;) await new Promise(resolve => setTimeout(resolve, 5));
   assert.equal(held.length, 2);
   held.find(item => item.prompt === 'accepted').resolve();
   held.find(item => item.prompt === 'fallback').resolve();

@@ -120,7 +120,7 @@ test("card translation, assist answers and improvements are valid for their save
   for (const mode of ["ask", "improve"]) {
     const task = await start(mode, mode === "ask" ? "为什么间隔会变长？" : "解析再具体一点");
     let view;
-    for (let i = 0; i < 100; i++) {
+    for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil;) {
       view = assist.assistView(service.store.root).tasks.find((item) => item.id === task.id);
       if (view.status !== "running") break;
       await new Promise((done) => setTimeout(done, 20));

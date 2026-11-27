@@ -228,7 +228,7 @@ test('复习全书 structure: 更多 › 改名 / 移动到 / 删除 change the 
           assert.deepEqual(errors.filter(text => !/Failed to load resource: the server responded with a status of 400/.test(text)), [], `${width}px: no page errors`);
           overflow = await sideways(page);
           assert.equal(overflow.doc <= 0 && overflow.wide.length === 0, true, `${width}px: nothing scrolls sideways: ${JSON.stringify(overflow)}`);
-        } finally { await context.close(); }
+        } finally { await page.unrouteAll({ behavior: 'ignoreErrors' }).catch(() => {}); await context.close(); }
       } finally { await running.close(); }
     }
   } finally { await browser.close(); await rm(dist, { recursive: true, force: true }); }
@@ -277,7 +277,7 @@ test('复习全书 未归位: 放回… picks a point, the text moves, 撤销 br
       assert.doesNotMatch(back.nodes[0].children[0].mine, /Parked words/);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth) <= 0, `${width}px: nothing runs sideways`);
       assert.deepEqual(errors, [], `${width}px: no page errors`);
-      await context.close();
+      await page.unrouteAll({ behavior: 'ignoreErrors' }).catch(() => {}); await context.close();
     }
   } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true }); }
 });
@@ -331,7 +331,7 @@ test('复习全书 upkeep: 更新全书 when the materials changed, 补漏 on a 
       await page.locator('.book-page').waitFor({ state: 'detached', timeout: 30000 });
       // The preview has no task runner, so the build's own refusal is a failed request here; nothing else may fail.
       assert.deepEqual(errors.filter(text => !/Failed to load resource/.test(text)), [], `${width}px: no page errors`);
-      await context.close();
+      await page.unrouteAll({ behavior: 'ignoreErrors' }).catch(() => {}); await context.close();
     }
   } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true }); }
 });

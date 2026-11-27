@@ -9,7 +9,7 @@ import { mergeLiveSnapshot } from '../ui/live-client.js';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const gate = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
-async function until(predicate) { for (let i = 0; i < 200; i++) { if (predicate()) return; await sleep(2); } throw new Error('condition did not become true'); }
+async function until(predicate) { const deadline = Date.now() + 10_000; do { if (predicate()) return; await sleep(2); } while (Date.now() < deadline); throw new Error('condition did not become true'); }
 const segments = count => Array.from({ length: count }, (_, i) => ({ id: i + 1, en: `Sentence ${i + 1}.`, zh: `句 ${i + 1}`, t: i * 1000, rev: i + 1, zhState: 'done' }));
 function fixture(count, complete, extra = {}) {
   const saved = [];

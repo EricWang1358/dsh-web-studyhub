@@ -120,11 +120,13 @@ test("late AI drafting cannot overwrite a subsequently saved note", async () => 
   finish("# Writing\n\n" + "A clear explanation with examples and supporting reasoning. ".repeat(8));
   await new Promise(resolve => setTimeout(resolve, 60));
   let ready;
-  for (let i = 0; i < 40; i++) {
+  // by a deadline, not 40 polls of 5 ms, which a busy CI machine can outrun
+  const readyDeadline = Date.now() + 10_000;
+  do {
     ready = await service.call("note.get", { id: note.id });
     if (ready.generation?.status !== "running") break;
     await new Promise(resolve => setTimeout(resolve, 5));
-  }
+  } while (Date.now() < readyDeadline);
   assert.equal(ready.markdown, "My writing after generation started");
   assert.equal(ready.generation.status, "superseded");
 });
