@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { scrubSecrets, secretEnvNames } from "../scripts/qa/env.mjs";
 import { findChromium, launchChromium, skipMissingChromium, startTestChromium } from "../scripts/qa/browser.mjs";
 import { parseJourneyArgs, JOURNEY_STEPS } from "../scripts/qa/journey.mjs";
-import { dshPatch, parseDshArgs, resolveDshVersion, DSH_VERSION } from "../scripts/qa/dsh-e2e.mjs";
+import { dshPatch, parseDshArgs, resolveDshVersion, studyPresetProblems, DSH_VERSION, WORKER_PICKER_LABEL } from "../scripts/qa/dsh-e2e.mjs";
 import { createFakeOpenAI, FAKE_OPENAI_MODEL } from "../scripts/qa/fake-openai.mjs";
 
 test("shared test browser isolates cookies and closing one client leaves the other running", async t => {
@@ -111,6 +111,31 @@ test("the fake OpenAI-compatible server answers study prompts like the fake mode
   const text = stream.split("\n").filter((line) => line.startsWith("data: {")).map((line) => JSON.parse(line.slice(6)).choices[0].delta.content || "").join("");
   assert.match(text, /收到：你好$/);
   assert.equal(server.log.length, 2);
+  // DSH 0.2.2 can end a request with a user turn that holds only its own reminder: what was asked is the turn before it
+  const reminded = await (await post({ model: FAKE_OPENAI_MODEL, messages: [
+    { role: "system", content: "You are a coding agent." }, { role: "user", content: "还在吗" },
+    { role: "user", content: "<system-reminder>only the host speaking</system-reminder>  " }] })).json();
+  assert.match(reminded.choices[0].message.content, /收到：还在吗$/);
+});
+
+test("the fake model reads past the host's own trailing turns, and only past those", async (t) => {
+  const server = await createFakeOpenAI({ port: 0, toolCall: ({ prompt }) => (prompt.includes("[[tool:probe]]") ? { name: "probe", arguments: {} } : null) });
+  t.after(() => server.close());
+  const ask = async (...messages) => (await (await fetch(server.url + "/chat/completions", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model: FAKE_OPENAI_MODEL, tools: [{ type: "function", function: { name: "probe", parameters: {} } }],
+      messages: [{ role: "system", content: "You are a coding agent." }, ...messages] }) })).json()).choices[0].message;
+  const reminder = { role: "user", content: "<system-reminder>only the host speaking</system-reminder>" };
+  const asked = { role: "user", content: "[[tool:probe]] 查一下" };
+  assert.equal((await ask(asked, reminder)).tool_calls?.[0].function.name, "probe");
+  // once the tool has answered, a reminder after its result must not start the same call again
+  const called = { role: "assistant", content: null, tool_calls: [{ id: "c1", type: "function", function: { name: "probe", arguments: "{}" } }] };
+  const answered = await ask(asked, called, { role: "tool", tool_call_id: "c1", content: "done" }, reminder);
+  assert.equal(answered.tool_calls, undefined);
+  assert.ok(answered.content);
+  // a turn with a picture and no words is the learner's own turn: the earlier question is not asked again
+  const picture = await ask({ role: "user", content: "earlier question" }, { role: "assistant", content: "ok" },
+    { role: "user", content: [{ type: "image_url", image_url: { url: "data:image/png;base64,AA==" } }] });
+  assert.doesNotMatch(picture.content, /earlier question/);
 });
 
 test("the DSH e2e patch routes the default model to the local fake and keeps documents inside output/qa", () => {
@@ -123,6 +148,34 @@ test("the DSH e2e patch routes the default model to the local fake and keeps doc
   assert.equal(provider.baseURL, "http://127.0.0.1:3191/v1");
   assert.equal(provider.apiKeyEnv, "STUDYHUB_QA_FAKE_KEY");
   assert.doesNotMatch(provider.apiKeyEnv, /_API_KEY|_TOKEN|BASE_URL/, "the fake key survives the secret scrub");
+});
+
+/* A preset the host cannot compose is only marked `broken` in its roster, and the picker leaves it out without saying why. */
+test("the DSH harness reads a broken or missing StudyHub preset off the host's roster", () => {
+  const roster = (...presets) => ({ ok: true, value: { presets } });
+  const standard = { id: "standard" }, study = { id: "study" }, worker = { id: "study-worker" };
+  assert.deepEqual(studyPresetProblems(roster(standard, study, worker), "0.2.2-rc.5"), { readable: true, problems: [] });
+  assert.deepEqual(studyPresetProblems(roster(standard, { ...study, broken: "tool-x (@deepseek-ai/dsh-tool-x/y): never started" }, worker), "0.2.2-rc.5"),
+    { readable: true, problems: ["study: tool-x (@deepseek-ai/dsh-tool-x/y): never started"] });
+  assert.deepEqual(studyPresetProblems(roster({ ...standard, broken: "not ours" }, study), "0.2.2-rc.5"), { readable: true, problems: ["study-worker: not registered"] });
+  // From 0.2.2 the roster is known to answer, so one that cannot be read is a failure: a request the host refuses must not pass for healthy presets.
+  const refused = { ok: false, error: { message: "gateway/internal: Remote payload must contain exactly one plain-object args field" } };
+  assert.deepEqual(studyPresetProblems(refused, "0.2.2-rc.5"),
+    { readable: false, problems: ["the preset roster could not be read: gateway/internal: Remote payload must contain exactly one plain-object args field"] });
+  for (const unknown of [undefined, null, { ok: true, value: {} }])
+    assert.deepEqual(studyPresetProblems(unknown, "0.2.2"), { readable: false, problems: ["the preset roster could not be read: no preset list in the answer"] });
+  // Older hosts have not been asked this way: the picker step still runs there.
+  for (const version of ["0.2.0-rc.2", "0.2.1-rc.2"])
+    assert.deepEqual(studyPresetProblems(refused, version), { readable: false, problems: [] });
+});
+
+/* The harness finds the sub-agents' preset in the picker by its name: a rename must fail here, not on a host. */
+test("the DSH harness looks for the worker preset by the name it ships with", async () => {
+  const shipped = await readFile(resolve(repo, "presets/study-worker.patch.yml"), "utf8");
+  const name = /^ {8}name: (.+)$/m.exec(shipped)?.[1].trim();
+  assert.ok(name, "the worker preset has a name");
+  assert.match(name, WORKER_PICKER_LABEL);
+  for (const other of ["StudyHub · Study Mode (学习模式)", "标准模式", "Standard"]) assert.doesNotMatch(other, WORKER_PICKER_LABEL);
 });
 
 test("the DSH harness takes the host release from --dsh-version or DSH_QA_VERSION and defaults to 0.2.1-rc.2", () => {

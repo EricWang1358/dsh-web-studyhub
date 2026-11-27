@@ -18,6 +18,11 @@
 #     0.2.0-rc.2 does not ship @deepseek-ai/dsh-tool-schedule, and an enabled
 #     row whose package is missing breaks the whole preset there. On 0.2.1 the
 #     package resolves and the row is enabled, as in standard.
+#   - tool-subagent-list-agents is disabled where its subpath is not exported:
+#     DSH 0.2.2-rc.5 dropped @deepseek-ai/dsh-tool-subagent-control/list-agents
+#     (the main tool-subagent-control row registers list_agents there). An
+#     enabled row that cannot be imported breaks the whole preset, and the host
+#     then leaves 学习模式 out of the preset picker without saying why.
 # The StudyHub tools (study_workspace, study_capabilities, study_bank,
 # study_materials, study_generate_selection, study_practice, study_audio) are
 # registered by the plugin on the host tools registry, so every preset sees
@@ -182,6 +187,8 @@
                 name: '@deepseek-ai/dsh-tool-subagent-control'
               - id: tool-subagent-list-agents
                 name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+                # Exception (see the header): DSH 0.2.0 and 0.2.1 export this subpath; 0.2.2-rc.5 does not.
+                disabled: !!js "(() => { try { process.getBuiltinModule('node:module').createRequire(new URL('.', baseUrl)).resolve('@deepseek-ai/dsh-tool-subagent-control/list-agents'); return false } catch { return true } })()"
               - id: tool-subagent
                 name: '@deepseek-ai/dsh-tool-subagent'
                 config:
