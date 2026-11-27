@@ -1,52 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
-import { createHostHandler } from '../lib/host.js';
-import { MANIFEST_FILENAME, createLibraryEventBus, readLibraryMeta } from '../lib/runtime/library-watch.js';
-import { until } from './helpers/wait.mjs';
+import { MANIFEST_FILENAME, readLibraryMeta } from '../lib/runtime/library-watch.js';
+import { DEBOUNCE_MS, eventArrives, foreignWrite, hostFor, ownCommit, pause, seedDocument, watchedBus, withRoot } from './helpers/quiet-write.mjs';
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
 /* A quiet local write (lib/host.js QUIET_LOCAL_MUTATIONS) holds the disk watcher back so StudyHub's own commit is not echoed as a full reload.
-   The window must swallow only that commit: a write by another process or a background job inside it is still reported, at the latest when it ends. */
-
-const DEBOUNCE_MS = 40;
-const pause = (ms) => new Promise((done) => setTimeout(done, ms));
-// An expected event is waited for (a loaded machine delivers fs.watch late); an event that must not come gets a few debounce windows to show up.
-const eventArrives = (events, what) => until(() => events.length > 0, what, { timeoutMs: 10_000 }).then(() => pause(DEBOUNCE_MS * 5));
-
-async function withRoot(t, prefix) {
-  const root = await mkdtemp(join(tmpdir(), prefix));
-  t.after(() => rm(root, { recursive: true, force: true }));
-  return root;
-}
-
-/** Another writer (CLI, main chat, a desktop sidecar) bumps the revision without writing the refresh signal. */
-function foreignWrite(root) {
-  const path = join(root, MANIFEST_FILENAME);
-  const manifest = JSON.parse(readFileSync(path, 'utf8'));
-  manifest.revision += 1;
-  writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
-  return manifest.revision;
-}
-
-/** A plain-file stand-in for the store's own commit: the record the store gives for it ({from, to, revision}). */
-async function ownCommit(root, revision) {
-  const from = (await readLibraryMeta(root)).stamp;
-  await writeFile(join(root, MANIFEST_FILENAME), JSON.stringify({ revision, own: true }));
-  return { from, to: (await readLibraryMeta(root)).stamp, revision };
-}
-
-async function watchedBus(t, root) {
-  const bus = createLibraryEventBus({ debounceMs: DEBOUNCE_MS });
-  const events = [];
-  t.after(() => bus.dispose());
-  bus.subscribe(root, (event) => events.push(event));
-  await pause(300); // the watcher's baseline
-  return { bus, events };
-}
+   The window must swallow only that commit: a write by another process or a background job inside it is still reported, at the latest when it ends.
+   The races around it (a fresh watcher, background work started inside the action, a finished round) are in library-quiet-write-races.test.mjs. */
 
 test('a quiet window swallows its own commit even when the acknowledgement comes after the debounce', async (t) => {
   const root = await withRoot(t, 'quiet-own-');
@@ -82,13 +44,7 @@ test('a foreign write inside a quiet window is reported when the window ends, no
 
 test('a quiet host action (materials.reading.save) during which another writer commits still wakes subscribers; alone it stays quiet', async (t) => {
   const root = await withRoot(t, 'quiet-host-');
-  const now = new Date().toISOString();
-  await new StudyService(root).store.update((state) => {
-    state.sources = [{ id: 'src-0', title: 'a.md', text: '# A\n\n## B\n\nbody\n', format: 'markdown', createdAt: now, importedAt: now,
-      document: { materialId: 'doc-0', materialRevision: 'rev-0', format: 'md', filename: 'a.md' } }];
-    state.documents = [{ id: 'doc-0', title: 'a.md', filename: 'a.md', format: 'md', currentRevision: 'rev-0',
-      versions: [{ revision: 'rev-0', sourceIds: ['src-0'], importedAt: now, attachment: null }] }];
-  });
+  await seedDocument(root);
   const { bus, events } = await watchedBus(t, root);
   let duringWindow = null;
   // The other writer lands after the window opened and before StudyHub's own commit: the race the window must not hide.
@@ -97,14 +53,8 @@ test('a quiet host action (materials.reading.save) during which another writer c
     duringWindow?.();
     return release;
   } };
-  const cleanups = [];
-  const sessions = new Map([['s', { header: { cwd: root } }]]);
-  const ctx = { sessions, get: (name) => (name === 'sessions' ? sessions : undefined),
-    effect(setup) { const dispose = setup(); if (typeof dispose === 'function') cleanups.push(dispose); } };
-  t.after(() => Promise.allSettled(cleanups.map((fn) => fn())));
-  const handler = createHostHandler(ctx, {}, undefined, { owner: ctx, libraryEvents });
-  const save = (read) => handler('call', { action: 'materials.reading.save', sessionId: 's',
-    args: { documentId: 'doc-0', revision: 'rev-0', read } });
+  const call = hostFor(t, root, libraryEvents);
+  const save = (read) => call('materials.reading.save', { documentId: 'doc-0', revision: 'rev-0', read });
 
   const alone = await save([{ id: 'ch-1', title: 'B' }]);
   assert.equal(alone.ok, true, JSON.stringify(alone.error));
