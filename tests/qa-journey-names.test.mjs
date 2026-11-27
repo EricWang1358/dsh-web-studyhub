@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { controlName } from "../scripts/qa/control-name.mjs";
-import { journeyContext } from "../scripts/qa/journey.mjs";
+import { createJourneyNav } from "../scripts/qa/journey-nav.mjs";
 
 const zh = (text) => text;
 
@@ -99,17 +99,8 @@ function navPageHarness({ drawerClosed = false, drawerLabel = "打开导航", en
 }
 
 function makeJourney(page, { lang = "zh", english = {} } = {}) {
-  const j = journeyContext({
-    page,
-    server: {},
-    previewCall: async () => ({}),
-    options: { lang, out: "" },
-    english,
-    fixtures: {},
-    step: () => "test",
-  });
-  j.settle = async () => {};
-  return j;
+  const t = (text) => (lang === "en" && Object.hasOwn(english, text) ? english[text] : text);
+  return createJourneyNav({ page, t, wait: async () => {} });
 }
 
 test("a zh name matches with or without the typed arrow or plus", () => {
