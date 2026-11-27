@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
-import { inApp } from './helpers/fake-app.mjs';
+import { fakeApp, inApp } from './helpers/fake-app.mjs';
+import { loadInteractiveUi, withBrowserGlobals, click } from './helpers/react-harness.mjs';
 
 /* 重点 × 掌握度 in the interface (#690 S1): one compact line on the home under the course progress (the counts of the focus topics, a link to practise the ones the
    learner cannot do yet, the summary opens the course settings), and a read-only list of the saved focus topics in the course settings. Both read the same
@@ -146,15 +147,96 @@ test('the settings list shows each saved topic with its status and counts, and "
   assert.equal(render(h(m.FocusProgressRows, { progress: { ...progress, topics: [], total: 0 } })), '', 'nothing without saved topics');
 });
 
-test('the course settings carry the list under the topic chips, for the saved topics only', () => {
-  const source = readFileSync('ui/CourseSettings.jsx', 'utf8');
-  const chips = source.indexOf('<TopicChips'), list = source.indexOf('<FocusProgressList');
-  assert.ok(chips > 0 && list > chips, 'the list comes after the chips');
-  assert.match(source, /<FocusProgressList course=\{course\.name\}/, 'it reads the saved course (course.name), not the draft chips');
-  assert.doesNotMatch(source.slice(list, list + 120), /draft/);
-  const course = { id: 'course-os', name: 'OS', focusTopics: ['死锁'], exam: null, aliases: [], guidanceSourceIds: [], decks: 1, sources: 0 };
-  const html = render(h(m.CourseSettings, { data: { root: '/lib', courses: [course], sources: [], focus: { course: 'OS', courses: [{ name: 'OS' }] } }, courseId: 'course-os', onClose: noop }));
-  assert.match(text(html), /重点知识点/);
+test('the course settings carry the list under the topic chips, for the saved topics only', async () => {
+  const ui = await loadInteractiveUi(`
+    export { default as CourseSettings } from './ui/CourseSettings.jsx';
+    export { AppContext } from './ui/app/app-context.js';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const ih = ui.React.createElement;
+  const hasClass = (node, cls) => typeof node?.props?.className === 'string' && node.props.className.split(/\s+/).includes(cls);
+  const focusCalls = [];
+  const call = async (method, args) => {
+    if (method === 'course.focusProgress') {
+      focusCalls.push(args);
+      return progress;
+    }
+    if (method === 'generate.weakTopics') return { topics: [] };
+    return {};
+  };
+  const study = {
+    call,
+    act: async () => undefined,
+    busy: false,
+    notify: noop,
+    askInChat: noop,
+    host: {},
+    openSettings: noop,
+    navigate: noop,
+    openModal: noop,
+  };
+  const makeElement = (course) => {
+    const data = { root: '/lib', courses: [course], sources: [], focus: { course: 'OS', courses: [{ name: 'OS' }] } };
+    return ih(
+      ui.exports.StudyServicesContext.Provider,
+      { value: study },
+      ih(
+        ui.exports.AppContext.Provider,
+        { value: fakeApp({ data, call }) },
+        ih(ui.exports.CourseSettings, { data, courseId: 'course-os', onClose: noop }),
+      ),
+    );
+  };
+
+  const initialCourse = { id: 'course-os', name: 'OS', focusTopics: ['死锁'], exam: null, aliases: [], guidanceSourceIds: [], decks: 1, sources: 0 };
+  await withBrowserGlobals(async () => {
+    ui.exports.setUiLanguage('zh');
+    const mounted = ui.mount(() => makeElement(initialCourse));
+    try {
+      await mounted.flush(5);
+      assert.deepEqual(focusCalls, [{ course: 'OS' }], 'CourseSettings queries course.focusProgress for the saved course once on mount');
+      assert.match(mounted.text(), /重点知识点/);
+
+      const hosts = mounted.findAll((node) => typeof node.type === 'string');
+      const chipsIdx = hosts.findIndex((node) => hasClass(node, 'topic-field'));
+      const listIdx = hosts.findIndex((node) => hasClass(node, 'focus-progress-list'));
+      assert.ok(chipsIdx >= 0 && listIdx > chipsIdx, 'FocusProgressList renders after TopicChips');
+
+      const listNode = hosts[listIdx];
+      assert.match(mounted.text(listNode), /死锁/);
+      assert.match(mounted.text(listNode), /页面置换/);
+
+      // Mutate unsaved draft topics through TopicChips: FocusProgressList must stay on saved topics and not re-fetch.
+      const topicField = hosts[chipsIdx];
+      const topicInput = mounted.find((node) => node.type === 'input' && hasClass(node, 'topic-field__input'), topicField);
+      assert.ok(topicInput, 'TopicChips renders its text input');
+      await mounted.act(() => {
+        topicInput.props.onChange({ target: { value: '未保存草案' } });
+      });
+      const addWrap = mounted.find((node) => hasClass(node, 'topic-field__add'));
+      const addBtn = mounted.find((node) => node.type === 'button', addWrap);
+      assert.ok(addBtn && !addBtn.props.disabled, 'add button becomes enabled for draft topic');
+      await mounted.act(() => {
+        click(addBtn);
+      });
+      await mounted.flush(5);
+
+      const updatedField = mounted.find((node) => hasClass(node, 'topic-field'));
+      const updatedList = mounted.find((node) => hasClass(node, 'focus-progress-list'));
+      assert.match(mounted.text(updatedField), /未保存草案/, 'draft chip is added to TopicChips');
+      assert.equal(focusCalls.length, 1, 'unsaved draft edits must not re-fetch course.focusProgress');
+      assert.doesNotMatch(mounted.text(updatedList), /未保存草案/, 'FocusProgressList must not show unsaved draft topics');
+
+      // Updating saved course.focusTopics re-fires course.focusProgress.
+      mounted.rerender(() => makeElement({ ...initialCourse, focusTopics: ['死锁', '信号量'] }));
+      await mounted.flush(5);
+      assert.deepEqual(focusCalls, [{ course: 'OS' }, { course: 'OS' }], 'saved course.focusTopics update re-fetches course.focusProgress');
+    } finally {
+      mounted.unmount();
+      ui.exports.setUiLanguage('zh');
+    }
+  });
 });
 
 test('empty focus topics offer an entry into existing generation from both course settings and the home line when no weak focus question blocks it', () => {
