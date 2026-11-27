@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 // #107 / #123: the live-class and audio pages speak through the catalogue (ui / uiFormat) like every other page, so the
 // English is complete, one Chinese sentence has one English, and nothing keeps a private zh/en dictionary.
@@ -14,6 +14,10 @@ const m = await loadUi(`
   export { default as LiveAudioMonitor } from './ui/LiveAudioMonitor.jsx';
   export { default as AudioReasoning } from './ui/AudioReasoning.jsx';
   export { AudioDashboardView, AudioDashboardPanel } from './ui/AudioDashboard.jsx';
+  export { default as AudioSettings } from './ui/AudioSettings.jsx';
+  export { default as JevSettings } from './ui/JevSettings.jsx';
+  export { default as WorkflowPortal } from './ui/WorkflowPortal.jsx';
+  export { StudyServicesContext } from './ui/study-context.jsx';
   export { LiveAudioHealth } from './ui/live-audio-health.js';
   export { setUiLanguage } from './ui/i18n.js';`);
 const h = React.createElement;
@@ -37,7 +41,65 @@ const providers = ['free', 'siliconflow', 'groq', 'paid'].map((tier, index) => (
   models: [{ model: 'm-' + tier, limit: tier === 'paid' ? null : 20, remaining: 12, used: 8, source: tier === 'groq' ? 'unknown' : 'local-estimate', lastQuota: tier === 'groq' ? {} : undefined }] }));
 const dashboard = { providers, timings: [], trend: [{ date: '2026-10-01', free: 1, siliconflow: 2, groq: 3, paid: 4 }, { date: '2026-10-02', free: 0, siliconflow: 0, groq: 0, paid: 0 }] };
 const keys = { freeKey: { set: true, hint: '••••1' }, siliconflowKey: { set: true, hint: '••••2' }, groqKey: { set: false, hint: '' }, paidKey: { set: false, hint: '' } };
-const audioSettings = { ...keys, dailyLimits: {}, transcribeModel: 'gemini-x', textModel: 'gemini-y', proofreadReasoning: 'default', translateReasoning: 'low' };
+const audioSettings = { ...keys, dailyLimits: {}, transcribeModel: 'gemini-x', textModel: 'gemini-y', proofreadReasoning: 'default', translateReasoning: 'low',
+  textProvider: 'auto', liveProvider: 'auto', mode: 'SMART', settingsFile: '~/.dsh/study/audio.json' };
+const jevInitial = {
+  settings: {
+    provider: 'typesafe',
+    providers: [{ id: 'typesafe', family: 'typesafe', host: 'api.typesafe.ai', model: 'jev-1.13' }],
+    key: { set: true, source: 'file', hint: '••••9' },
+    confirmed: true,
+    enabled: false,
+    threshold: 0.8,
+    features: { courseSuggest: false, preReview: false, outlineNoise: false, levelCheck: false },
+    replace: { cardReview: false, courseOrganize: false },
+    privacyUrl: 'https://typesafe.ai/privacy',
+    settingsFile: '~/.dsh/study/jev.json',
+  },
+  usage: {
+    today: { calls: 2, inputTokens: 120, outputTokens: 10 },
+    total: { calls: 5, inputTokens: 300, outputTokens: 25 },
+    byFeature: { courseSuggest: { calls: 2, inputTokens: 120, outputTokens: 10 } },
+  },
+  failure: null,
+};
+const workflowInitial = {
+  session: {
+    id: 'wf-1',
+    topic: 'Graphs',
+    currentStepId: 's1',
+    pickedBy: 'ai',
+    course: { name: 'Algorithms' },
+    template: {
+      title: 'Deep Study',
+      steps: [
+        { id: 's1', kind: 'lesson', title: 'BFS Basics', instructions: 'Read first', content: 'Queue traversal' },
+        { id: 's2', kind: 'practice', title: 'Practice' },
+      ],
+    },
+    records: { s1: { outcome: 'done', content: 'Traversal note', output: 'My note' } },
+    history: [{ stepId: 's1', outcome: 'done', at: '2026-10-01T10:00:00Z', output: 'Done' }],
+  },
+  resources: { readings: [], sources: [], cardCount: 3, scopeTopics: ['BFS', 'DFS'], scopeTopicCount: 2 },
+};
+const studyServices = {
+  call: async (action) => {
+    if (action === 'workflow.session.get') return workflowInitial;
+    if (action === 'audio.settings.get') return audioSettings;
+    if (action === 'audio.usage') return dashboard;
+    if (action === 'live.list') return { sessions };
+    return {};
+  },
+  act: async () => undefined,
+  busy: false,
+  notify: noop,
+  askInChat: noop,
+  host: {},
+  openSettings: noop,
+  navigate: noop,
+  openModal: noop,
+};
+const withServices = (el) => h(m.StudyServicesContext.Provider, { value: studyServices }, el);
 
 const pages = () => [
   h(m.LiveClass, { call: noop, data: { root: 'r', focus: { courses: [] } }, visible: true, initialReadiness: { live: true } }),
@@ -50,19 +112,26 @@ const pages = () => [
   h(m.AudioReasoning, { settings: audioSettings, busy: false, onSave: noop, timings: [{ stage: 'proofread', averageMs: 4200, count: 3 }] }),
   h(m.AudioDashboardView, { data: dashboard, settings: audioSettings, busy: false, refresh: noop, save: noop, error: '' }),
   h(m.AudioDashboardPanel, { data: dashboard, settings: audioSettings, busy: false, refresh: noop, save: noop, error: '' }),
+  withServices(h(m.AudioSettings, { initialView: audioSettings })),
+  withServices(h(m.JevSettings, { initial: jevInitial })),
+  withServices(h(m.WorkflowPortal, { id: 'wf-1', initialResult: workflowInitial, onBack: noop })),
 ];
 
-test('English: no Chinese on any live-class or audio-dashboard surface', () => {
+test('English: no Chinese on any live-class, audio, Jev, or workflow-portal surface', () => {
   for (const element of pages()) {
     const html = render(element, 'en').replace(/<p class="live-chinese"[^>]*>[^<]*<\/p>/g, ''); // the transcript's own Chinese translation is content
     assert.doesNotMatch(html, han, `${element.type.name || element.type.displayName || 'component'}: ${text(html).match(/[^|]*[㐀-鿿][^|]*/)?.[0]}`);
+    assert.doesNotMatch(html, /\{\d+\}/, 'an English template placeholder was left unfilled');
   }
 });
 
-test('Chinese: the Chinese source copy is shown and no English template placeholder leaks', () => {
+test('Chinese: the Chinese source copy is shown, switches cleanly with setUiLanguage, and no placeholder leaks', () => {
   for (const element of pages()) {
-    const html = render(element, 'zh');
-    assert.doesNotMatch(html, /\{\d+\}/, 'a placeholder was left unfilled');
+    const zh = render(element, 'zh');
+    const en = render(element, 'en');
+    assert.doesNotMatch(zh, /\{\d+\}/, 'a placeholder was left unfilled');
+    assert.match(zh, han, `expected Chinese copy when language is zh: ${element.type.name || element.type.displayName || 'component'}`);
+    assert.notEqual(zh, en, `expected zh and en renders to differ when toggling setUiLanguage: ${element.type.name || element.type.displayName || 'component'}`);
   }
   const live = text(render(h(m.LiveClass, { call: noop, data: { root: 'r', focus: { courses: [] } }, visible: true, initialReadiness: { live: true } }), 'zh'));
   assert.match(live, /课堂实录/);
@@ -106,12 +175,75 @@ test('dashboard numbers follow the interface language', () => {
   assert.match(en, /\|1,234\|calls\|/);
 });
 
-test('no live or audio page keeps a private zh/en dictionary or reads the language to pick copy', async () => {
-  for (const file of ['LiveClass', 'LiveHistory', 'LiveNotes', 'LiveAudioMonitor', 'AudioDashboard', 'AudioReasoning', 'AudioSettings', 'JevSettings', 'WorkflowPortal']) {
-    const source = await readFile(new URL(`../ui/${file}.jsx`, import.meta.url), 'utf8');
-    assert.doesNotMatch(source, /const t = \(zh/, `${file}: local t(zh, en)`);
-    assert.doesNotMatch(source, /language === 'en' \?|getUiLanguage\(\) === 'en'/, `${file}: a language ternary`);
-    assert.doesNotMatch(source, /\}\{ui\(["'` ]/, `${file}: a sentence glued from fragments`);
-    assert.doesNotMatch(source, /setInterval\(/, `${file}: its own timer`);
-  }
+test('live, audio, Jev, and workflow-portal surfaces register zero private setInterval timers when mounted', async () => {
+  const ui = await loadInteractiveUi(`
+    export { default as LiveClass } from './ui/LiveClass.jsx';
+    export { default as LiveHistory } from './ui/LiveHistory.jsx';
+    export { default as LiveNotes } from './ui/LiveNotes.jsx';
+    export { default as LiveAudioMonitor } from './ui/LiveAudioMonitor.jsx';
+    export { default as AudioDashboard } from './ui/AudioDashboard.jsx';
+    export { default as AudioReasoning } from './ui/AudioReasoning.jsx';
+    export { default as AudioSettings } from './ui/AudioSettings.jsx';
+    export { default as JevSettings } from './ui/JevSettings.jsx';
+    export { default as WorkflowPortal } from './ui/WorkflowPortal.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { LiveAudioHealth } from './ui/live-audio-health.js';
+  `);
+  const r = ui.React.createElement;
+  const wrap = (el) => r(ui.exports.StudyServicesContext.Provider, { value: studyServices }, el);
+
+  await withBrowserGlobals(async () => {
+    const origSetInterval = globalThis.setInterval;
+    const origClearInterval = globalThis.clearInterval;
+    const intervalCalls = [];
+    const clearedIntervals = [];
+    globalThis.setInterval = (...args) => {
+      const id = origSetInterval(...args);
+      id?.unref?.();
+      intervalCalls.push({ id, ms: args[1] });
+      return id;
+    };
+    globalThis.clearInterval = (id) => {
+      clearedIntervals.push(id);
+      return origClearInterval(id);
+    };
+    const mounts = [];
+    try {
+      const pausedHealth = new ui.exports.LiveAudioHealth(() => 100_000);
+      pausedHealth.reset('tab', 'paused');
+      pausedHealth.update({ capturedMs: 1000, acceptedMs: 1000, lastFrameAt: 99_000, lastAckAt: 99_000 });
+
+      mounts.push(
+        ui.mount(() => wrap(r(ui.exports.LiveClass, { call: studyServices.call, data: { root: 'r', focus: { courses: [] } }, visible: true, initialReadiness: { live: true } }))),
+        ui.mount(() => r(ui.exports.LiveHistory, { sessions, disabled: false, capturing: false, onOpen: noop, onArchive: noop, onDelete: noop })),
+        ui.mount(() => r(ui.exports.LiveNotes, { correction, onSentence: noop, onRetry: noop, disabled: false })),
+        ui.mount(() => r(ui.exports.LiveAudioMonitor, { health: pausedHealth, visible: true, recording: false })),
+        ui.mount(() => wrap(r(ui.exports.AudioDashboard, {}))),
+        ui.mount(() => r(ui.exports.AudioReasoning, { settings: audioSettings, busy: false, onSave: noop, timings: [{ stage: 'proofread', averageMs: 4200, count: 3 }] })),
+        ui.mount(() => wrap(r(ui.exports.AudioSettings, { initialView: audioSettings }))),
+        ui.mount(() => wrap(r(ui.exports.JevSettings, { initial: jevInitial }))),
+        ui.mount(() => wrap(r(ui.exports.WorkflowPortal, { id: 'wf-1', initialResult: workflowInitial, onBack: noop }))),
+      );
+      for (const mounted of mounts) await mounted.flush();
+      assert.equal(intervalCalls.length, 0, `expected 0 private setInterval registrations across mounted surfaces, saw ${JSON.stringify(intervalCalls)}`);
+
+      // LiveAudioMonitor while running subscribes to the shared useNow clock (1 shared timer even across 2 mounts, never a per-instance setInterval).
+      const activeHealth = new ui.exports.LiveAudioHealth(() => 100_000);
+      activeHealth.reset('tab', 'running');
+      activeHealth.update({ capturedMs: 1000, acceptedMs: 1000, lastFrameAt: 99_000, lastAckAt: 99_000 });
+      const monA = ui.mount(() => r(ui.exports.LiveAudioMonitor, { health: activeHealth, visible: true, recording: true }));
+      const monB = ui.mount(() => r(ui.exports.LiveAudioMonitor, { health: activeHealth, visible: true, recording: true, compact: true }));
+      mounts.push(monA, monB);
+      await monA.flush();
+      await monB.flush();
+      assert.equal(intervalCalls.length, 1, 'two active LiveAudioMonitors must share the single useNow clock');
+      monA.unmount();
+      monB.unmount();
+      assert.equal(clearedIntervals.length, 1, 'shared useNow clock must stop once the last subscriber unmounts');
+    } finally {
+      for (const mounted of mounts) mounted.unmount();
+      globalThis.setInterval = origSetInterval;
+      globalThis.clearInterval = origClearInterval;
+    }
+  });
 });

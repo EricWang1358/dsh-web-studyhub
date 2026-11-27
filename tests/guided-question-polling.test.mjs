@@ -1,11 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
-import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 /* #564: the guided workbench reads its session through the shared poller. The read itself is readGuidedSession; here it runs inside
    createPoller with the same options useGuidedQuestion gives usePolling (POLL_MS, immediate, backoffDelay), driven by fake timers. */
@@ -140,33 +138,82 @@ test('the hook renders without reading anything on the server', () => {
   assert.equal(calls.length, 0);
 });
 
-// The hook with usePolling swapped for a probe that records what it is asked: the options are read during render, so a server render shows them.
-const polled = [];
-globalThis.__guidedPollProbe = polled;
-const probe = { name: 'polling-probe', setup(build) {
-  build.onResolve({ filter: /use-polling\.js$/ }, () => ({ path: 'probe', namespace: 'probe' }));
-  build.onLoad({ filter: /.*/, namespace: 'probe' }, () => ({ contents: 'export function usePolling(fn, options) { globalThis.__guidedPollProbe.push(options); return { refresh() {} }; }' }));
-} };
-const compiled = await build({ entryPoints: ['ui/guided-study/use-guided-question.js'], bundle: true, write: false, platform: 'node', format: 'cjs',
-  external: ['react', 'react-dom'], plugins: [probe], logLevel: 'silent' });
-const hooked = { exports: {} };
-new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), hooked, hooked.exports);
+// The hook with usePolling swapped for a probe that records options & refresh calls: verified interactively with real React lifecycles and timer spies.
+const probeState = { options: [], refreshes: 0 };
+globalThis.__guidedPollProbe = probeState;
+const probePlugin = {
+  name: 'polling-probe',
+  setup(builder) {
+    builder.onResolve({ filter: /use-polling\.js$/ }, () => ({ path: 'probe', namespace: 'probe' }));
+    builder.onLoad({ filter: /.*/, namespace: 'probe' }, () => ({
+      contents: `
+        const stableHandle = { refresh() { globalThis.__guidedPollProbe.refreshes += 1; } };
+        export function usePolling(fn, options) {
+          globalThis.__guidedPollProbe.options.push(options);
+          return stableHandle;
+        }
+      `,
+    }));
+  },
+};
+const probed = await loadInteractiveUi(`export { useGuidedQuestion } from './ui/guided-study/use-guided-question.js';`, { plugins: [probePlugin] });
 
-test('the hook polls through usePolling: every 3 s at once, backed off, and not at all for a paused or ended session', async () => {
-  const Probe = ({ session, call }) => { hooked.exports.useGuidedQuestion({ session, call }); return null; };
+test('the hook polls through usePolling: every 3 s at once, backed off, not for paused/ended, and registers zero timers of its own', async () => {
   const reads = async () => null;
-  const options = (session, call = reads) => { polled.length = 0; renderToStaticMarkup(React.createElement(Probe, { session, call })); return polled.at(-1); };
-  const running = options(active());
-  assert.equal(running.enabled, true);
-  assert.equal(running.intervalMs, m.POLL_MS);
-  assert.equal(running.immediate, true, 'the workbench reads at once when it opens');
-  for (const state of [{ unchanged: 0 }, { unchanged: 12 }, { unchanged: 48 }, { unchanged: 48, running: true }])
-    assert.equal(running.backoff(m.POLL_MS, state), m.backoffDelay(m.POLL_MS, state), `the standard table, scaled to 3 s: ${JSON.stringify(state)}`);
-  assert.notEqual(running.pauseWhenHidden, false, 'paused while the page is hidden (the usePolling default)');
-  assert.equal(options({ ...active(), status: 'paused' }).enabled, false);
-  assert.equal(options({ ...active(), status: 'ended' }).enabled, false);
-  assert.equal(options(null).enabled, false);
-  assert.equal(options(active(), null).enabled, false, 'nothing to call with');
-  const source = await readFile(new URL('../ui/guided-study/use-guided-question.js', import.meta.url), 'utf8');
-  assert.doesNotMatch(source, /setTimeout\(|setInterval\(/, 'no timer of its own');
+  await withBrowserGlobals(async () => {
+    const origSetTimeout = globalThis.setTimeout;
+    const origSetInterval = globalThis.setInterval;
+    const timeoutCalls = [];
+    const intervalCalls = [];
+    globalThis.setTimeout = (...args) => {
+      timeoutCalls.push(args);
+      return origSetTimeout(...args);
+    };
+    globalThis.setInterval = (...args) => {
+      intervalCalls.push(args);
+      return origSetInterval(...args);
+    };
+    let hook;
+    try {
+      probeState.options.length = 0;
+      probeState.refreshes = 0;
+
+      // Mount active session -> polls through usePolling with expected schedule and backoff
+      hook = probed.mountHook(probed.exports.useGuidedQuestion, { session: active(), call: reads });
+      const running = probeState.options.at(-1);
+      assert.equal(running.enabled, true);
+      assert.equal(running.intervalMs, m.POLL_MS);
+      assert.equal(running.immediate, true, 'the workbench reads at once when it opens');
+      for (const state of [{ unchanged: 0 }, { unchanged: 12 }, { unchanged: 48 }, { unchanged: 48, running: true }]) {
+        assert.equal(running.backoff(m.POLL_MS, state), m.backoffDelay(m.POLL_MS, state), `the standard table, scaled to 3 s: ${JSON.stringify(state)}`);
+      }
+      assert.notEqual(running.pauseWhenHidden, false, 'paused while the page is hidden (the usePolling default)');
+      assert.equal(probeState.refreshes, 0);
+
+      // Switching session id triggers an immediate refresh through usePolling (never a private timer)
+      hook.rerender({ session: { ...active(), id: 's2' }, call: reads });
+      assert.equal(probeState.options.at(-1).enabled, true);
+      assert.equal(probeState.refreshes, 1, 'switching to another active session refreshes through usePolling');
+
+      // Transitioning to paused, ended, null session, or missing call disables polling
+      hook.rerender({ session: { ...active(), id: 's2', status: 'paused' }, call: reads });
+      assert.equal(probeState.options.at(-1).enabled, false);
+      hook.rerender({ session: { ...active(), id: 's2', status: 'ended' }, call: reads });
+      assert.equal(probeState.options.at(-1).enabled, false);
+      hook.rerender({ session: null, call: reads });
+      assert.equal(probeState.options.at(-1).enabled, false);
+      hook.rerender({ session: active(), call: null });
+      assert.equal(probeState.options.at(-1).enabled, false, 'nothing to call with');
+
+      hook.unmount();
+      hook = null;
+
+      assert.equal(timeoutCalls.length, 0, 'useGuidedQuestion must not schedule setTimeout of its own');
+      assert.equal(intervalCalls.length, 0, 'useGuidedQuestion must not schedule setInterval of its own');
+    } finally {
+      hook?.unmount();
+      globalThis.setTimeout = origSetTimeout;
+      globalThis.setInterval = origSetInterval;
+    }
+  });
 });

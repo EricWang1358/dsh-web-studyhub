@@ -5,10 +5,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
+import { click, loadInteractiveUi, syntheticEvent, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 test('#1436 Item 6: materials.document.restoreRepeated preserves external original PDF reference and originalCheck', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'studyhub-1436-item6-'));
@@ -99,18 +100,182 @@ test('#1436 Item 6: materials.document.restoreRepeated preserves external origin
   assert.deepEqual(latestVersion.originalCheck, { pages: 1, verified: true }, 'new version must preserve originalCheck');
 });
 
-test('#1436 Item 6 UI wiring: PdfConvertJob passes onRestored and ImportHub surfaces restore errors', () => {
-  const pdfJobSrc = readFileSync(new URL('../ui/PdfConvertJob.jsx', import.meta.url), 'utf8');
-  const importHubSrc = readFileSync(new URL('../ui/ImportHub.jsx', import.meta.url), 'utf8');
-
-  const repeatedMatches = [...pdfJobSrc.matchAll(/<RepeatedNote\b[^>]*>/g)].map((m) => m[0]);
-  assert.ok(repeatedMatches.length >= 2, 'PdfConvertJob renders RepeatedNote in detail & history');
-  for (const tag of repeatedMatches) {
-    assert.match(tag, /\bonRestored\s*=/, `Every <RepeatedNote> in PdfConvertJob must pass onRestored: ${tag}`);
-  }
-  assert.doesNotMatch(
-    importHubSrc,
-    /catch\s*\{\s*\/\*\s*the row keeps its 恢复/,
-    'ImportHub putBack must surface restore errors instead of silently swallowing them',
+test('#1436 Item 6 UI behavior: PdfDetail and PdfConvertHistory trigger refresh on restore, and ImportHub surfaces restore errors', async () => {
+  const ui = await loadInteractiveUi(`
+    export { PdfDetail, PdfConvertHistory } from './ui/PdfConvertJob.jsx';
+    export { default as ImportHub } from './ui/ImportHub.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const h = ui.React.createElement;
+  const noop = () => {};
+  const makeServices = (overrides) => ({
+    call: async () => ({}),
+    act: async () => undefined,
+    busy: false,
+    notify: noop,
+    askInChat: noop,
+    host: {},
+    openSettings: noop,
+    navigate: noop,
+    openModal: noop,
+    ...overrides,
+  });
+  const findRestoreButton = (mounted) => mounted.find(
+    (node) => node.type === 'button' && ui.textOf(node).trim() === '恢复',
   );
+
+  await withBrowserGlobals(async () => {
+    ui.exports.setUiLanguage('zh');
+    try {
+      // (a) PdfDetail: clicking 恢复 calls materials.document.restoreRepeated and fires both onChanged and study.refresh
+      {
+        const calls = [];
+        let changed = 0;
+        let refreshed = 0;
+        const services = makeServices({
+          call: async (action, args) => {
+            calls.push([action, args]);
+            return { status: 'restored', restored: 2 };
+          },
+          refresh: () => { refreshed += 1; },
+        });
+        const job = {
+          id: 'job-1',
+          status: 'complete',
+          documentId: 'doc-detail-1',
+          repeated: { count: 2, lines: [{ text: 'Chapter 1 Header' }] },
+        };
+        let mounted;
+        try {
+          mounted = ui.mount(() => h(
+            ui.exports.StudyServicesContext.Provider,
+            { value: services },
+            h(ui.exports.PdfDetail, { job, onChanged: () => { changed += 1; } }),
+          ));
+          const btn = findRestoreButton(mounted);
+          assert.ok(btn, 'PdfDetail must render a 恢复 button for completed jobs with repeated lines');
+          await mounted.act(() => click(btn));
+          await mounted.flush();
+          assert.deepEqual(calls, [['materials.document.restoreRepeated', { documentId: 'doc-detail-1' }]]);
+          assert.equal(changed, 1, 'PdfDetail must invoke onChanged after restoreRepeated');
+          assert.equal(refreshed, 1, 'PdfDetail must invoke study.refresh after restoreRepeated');
+          assert.match(mounted.text(), /已放回这些重复的行。/);
+        } finally {
+          mounted?.unmount();
+        }
+      }
+
+      // (b) PdfConvertHistory: clicking 恢复 calls materials.document.restoreRepeated and triggers onChanged + mineru.history.list reload
+      {
+        const calls = [];
+        let changed = 0;
+        const services = makeServices({
+          call: async (action, args) => {
+            calls.push([action, args]);
+            if (action === 'materials.document.restoreRepeated') return { status: 'restored', restored: 3 };
+            if (action === 'mineru.history.list') return { records: [] };
+            return {};
+          },
+        });
+        const initialRecords = [{
+          id: 'rec-1',
+          filename: 'textbook.pdf',
+          status: 'complete',
+          route: 'local',
+          documentId: 'doc-hist-1',
+          startedAt: '2026-11-24T00:00:00.000Z',
+          finishedAt: '2026-11-24T00:01:00.000Z',
+          document: {
+            exists: true,
+            title: '操作系统教材',
+            pages: 10,
+            sourceIds: ['s1'],
+            repeated: { count: 3, lines: [{ text: 'Page Footer' }] },
+          },
+        }];
+        let mounted;
+        try {
+          mounted = ui.mount(() => h(
+            ui.exports.StudyServicesContext.Provider,
+            { value: services },
+            h(ui.exports.PdfConvertHistory, {
+              initialRecords,
+              now: Date.parse('2026-11-24T00:02:00.000Z'),
+              onChanged: () => { changed += 1; },
+            }),
+          ));
+          const btn = findRestoreButton(mounted);
+          assert.ok(btn, 'PdfConvertHistory must render a 恢复 button for completed records with repeated lines');
+          await mounted.act(() => click(btn));
+          await mounted.flush();
+          assert.deepEqual(calls[0], ['materials.document.restoreRepeated', { documentId: 'doc-hist-1' }]);
+          assert.ok(
+            calls.some(([action]) => action === 'mineru.history.list'),
+            `PdfConvertHistory must reload mineru.history.list after restore, saw ${JSON.stringify(calls)}`,
+          );
+          assert.equal(changed, 1, 'PdfConvertHistory must invoke onChanged after restoreRepeated');
+        } finally {
+          mounted?.unmount();
+        }
+      }
+
+      // (c) ImportHub: restoreRepeated rejection renders the real error visibly and keeps the 恢复 button for retry
+      {
+        const calls = [];
+        const services = makeServices({
+          call: async (action, args) => {
+            calls.push([action, args]);
+            if (action === 'materials.document.import') {
+              return {
+                documentId: 'doc-imp-1',
+                sourceIds: ['s1'],
+                document: { title: 'lecture.pdf', format: 'pdf', sourceIds: ['s1'] },
+                repeated: { count: 2, lines: [{ text: 'Header' }] },
+              };
+            }
+            if (action === 'materials.document.restoreRepeated') {
+              throw new Error('disk locked');
+            }
+            return {};
+          },
+        });
+        let mounted;
+        try {
+          mounted = ui.mount(() => h(
+            ui.exports.StudyServicesContext.Provider,
+            { value: services },
+            h(ui.exports.ImportHub, { data: { focus: { courses: [] }, courses: [], jobs: [] } }),
+          ));
+          const input = mounted.find((node) => node.type === 'input' && node.props?.type === 'file');
+          assert.ok(input, 'ImportHub must render a file input');
+          const fakeFile = {
+            name: 'lecture.pdf',
+            size: 16,
+            type: 'application/pdf',
+            lastModified: 1,
+            arrayBuffer: async () => new TextEncoder().encode('%PDF-1.4\nhello\n').buffer,
+          };
+          await mounted.act(() => input.props.onChange(syntheticEvent({ target: { files: [fakeFile], value: '' } })));
+          await mounted.flush(8);
+
+          const restoreBtn = findRestoreButton(mounted);
+          assert.ok(restoreBtn, 'ImportHub must show a 恢复 button on a row with repeated lines');
+          await mounted.act(() => click(restoreBtn));
+          await mounted.flush(5);
+
+          assert.ok(
+            calls.some(([action, args]) => action === 'materials.document.restoreRepeated' && args?.documentId === 'doc-imp-1'),
+            `expected materials.document.restoreRepeated call, saw ${JSON.stringify(calls)}`,
+          );
+          assert.match(mounted.text(), /disk locked/, 'ImportHub must visibly render the restore error instead of swallowing it');
+          assert.ok(findRestoreButton(mounted), 'ImportHub must keep the 恢复 button available for retry after a failed restore');
+        } finally {
+          mounted?.unmount();
+        }
+      }
+    } finally {
+      ui.exports.setUiLanguage('zh');
+    }
+  });
 });
