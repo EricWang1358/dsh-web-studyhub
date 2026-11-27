@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
@@ -18,9 +17,10 @@ const m = await loadUi(`
   export { default as AudioSettings } from './ui/AudioSettings.jsx';
   export { default as JevSettings } from './ui/JevSettings.jsx';
   export { default as WorkflowPortal } from './ui/WorkflowPortal.jsx';
+  export { default as LiveLoopbackCard } from './ui/LiveLoopbackCard.jsx';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { LiveAudioHealth } from './ui/live-audio-health.js';
-  export { setUiLanguage } from './ui/i18n.js';`);
+  export { setUiLanguage, uiCatalogue } from './ui/i18n.js';`);
 const h = React.createElement;
 const han = /[㐀-鿿]/;
 const noop = () => {};
@@ -102,21 +102,52 @@ const studyServices = {
 };
 const withServices = (el) => h(m.StudyServicesContext.Provider, { value: studyServices }, el);
 
-const pages = () => [
-  h(m.LiveClass, { call: noop, data: { root: 'r', focus: { courses: [] } }, visible: true, initialReadiness: { live: true } }),
-  h(m.LiveClass, { call: noop, data: { root: 'r', focus: { courses: [] } }, visible: true, initialReadiness: { live: false }, onSettings: noop }),
-  ...segments.map((segment, index) => h(m.Sentence, { segment, selected: index === 0, generated: index === 0, checked: index === 2, onToggle: noop, language: 'x' })),
-  h(m.SentenceMark, { segment: segments[1], checked: false }), h(m.SentenceMark, { segment: segments[0], checked: true }),
-  h(m.LiveHistory, { sessions, disabled: false, capturing: false, onOpen: noop, onArchive: noop, onDelete: noop }),
-  h(m.LiveNotes, { correction, onSentence: noop, onRetry: noop, disabled: false }),
-  h(m.LiveAudioMonitor, { health, visible: true, recording: true }), h(m.LiveAudioMonitor, { health, visible: true, recording: true, compact: true }),
-  h(m.AudioReasoning, { settings: audioSettings, busy: false, onSave: noop, timings: [{ stage: 'proofread', averageMs: 4200, count: 3 }] }),
-  h(m.AudioDashboardView, { data: dashboard, settings: audioSettings, busy: false, refresh: noop, save: noop, error: '' }),
-  h(m.AudioDashboardPanel, { data: dashboard, settings: audioSettings, busy: false, refresh: noop, save: noop, error: '' }),
-  withServices(h(m.AudioSettings, { initialView: audioSettings })),
-  withServices(h(m.JevSettings, { initial: jevInitial })),
-  withServices(h(m.WorkflowPortal, { id: 'wf-1', initialResult: workflowInitial, onBack: noop })),
+const loopbackFolder = 'D:\\StudyHub\\LiveLoopback';
+const loopbackBase = {
+  status: 'idle', stage: '', stages: ['compile', 'check'], done: [], step: 0, of: 2,
+  folder: '', installedFolder: '', installed: false, ready: false, supported: true, tested: true,
+  helperVersion: '1.0.0', downloadMb: 0, diskMb: 1, log: [], error: null,
+};
+const loopbackPlan = {
+  ok: true, problems: [], warnings: [], folder: loopbackFolder, defaultFolder: loopbackFolder, defaultReason: 'largest-data-drive',
+  platform: 'win32', supported: true, tested: true,
+  drives: [{ root: 'D:\\', freeMb: 80_000, totalMb: 200_000, system: false, recommended: true, folder: loopbackFolder }],
+  disk: { freeMb: 80_000, neededMb: 5, drive: 'D:' }, estimate: { downloadMb: 0, diskMb: 1 }, files: [],
+};
+const loopbackStates = {
+  notInstalled: loopbackBase,
+  installing: { ...loopbackBase, status: 'running', stage: 'compile', step: 1, folder: loopbackFolder, stageFraction: 0.5 },
+  ready: { ...loopbackBase, status: 'complete', stage: 'done', step: 2, done: ['compile', 'check'], folder: loopbackFolder, installedFolder: loopbackFolder, installed: true, ready: true },
+  failed: { ...loopbackBase, status: 'failed', stage: 'check', step: 2, done: ['compile'], folder: loopbackFolder, error: { code: 'check-failed' } },
+  paused: { ...loopbackBase, status: 'cancelled', stage: 'compile', step: 1, folder: loopbackFolder, error: { code: 'cancelled' } },
+  repair: { ...loopbackBase, status: 'complete', stage: 'done', step: 2, done: ['compile', 'check'], folder: loopbackFolder, needsRepair: true },
+  unsupported: { ...loopbackBase, supported: false },
+};
+
+const surfaces = () => [
+  { name: 'LiveClass(ready)', element: h(m.LiveClass, { call: noop, data: { root: 'r', focus: { courses: [] } }, visible: true, initialReadiness: { live: true } }) },
+  { name: 'LiveClass(unready)', element: h(m.LiveClass, { call: noop, data: { root: 'r', focus: { courses: [] } }, visible: true, initialReadiness: { live: false }, onSettings: noop }) },
+  ...segments.map((segment, index) => ({ name: `Sentence[${index}]`, element: h(m.Sentence, { segment, selected: index === 0, generated: index === 0, checked: index === 2, onToggle: noop, language: 'x' }) })),
+  { name: 'SentenceMark[0]', element: h(m.SentenceMark, { segment: segments[1], checked: false }) },
+  { name: 'SentenceMark[1]', element: h(m.SentenceMark, { segment: segments[0], checked: true }) },
+  { name: 'LiveHistory', element: h(m.LiveHistory, { sessions, disabled: false, capturing: false, onOpen: noop, onArchive: noop, onDelete: noop }) },
+  { name: 'LiveNotes', element: h(m.LiveNotes, { correction, onSentence: noop, onRetry: noop, disabled: false }) },
+  { name: 'LiveAudioMonitor(full)', element: h(m.LiveAudioMonitor, { health, visible: true, recording: true }) },
+  { name: 'LiveAudioMonitor(compact)', element: h(m.LiveAudioMonitor, { health, visible: true, recording: true, compact: true }) },
+  { name: 'AudioReasoning', element: h(m.AudioReasoning, { settings: audioSettings, busy: false, onSave: noop, timings: [{ stage: 'proofread', averageMs: 4200, count: 3 }] }) },
+  { name: 'AudioDashboardView', element: h(m.AudioDashboardView, { data: dashboard, settings: audioSettings, busy: false, refresh: noop, save: noop, error: '' }) },
+  { name: 'AudioDashboardPanel', element: h(m.AudioDashboardPanel, { data: dashboard, settings: audioSettings, busy: false, refresh: noop, save: noop, error: '' }) },
+  // AudioSettings legitimately reorders provider cards via providerOrder(language) without changing any copy.
+  { name: 'AudioSettings', element: withServices(h(m.AudioSettings, { initialView: audioSettings })), orderAgnostic: true },
+  { name: 'JevSettings', element: withServices(h(m.JevSettings, { initial: jevInitial })) },
+  // WorkflowPortal formats one history timestamp with Intl.DateTimeFormat according to uiLocale().
+  { name: 'WorkflowPortal', element: withServices(h(m.WorkflowPortal, { id: 'wf-1', initialResult: workflowInitial, onBack: noop })), normalizeDates: true },
+  ...Object.entries(loopbackStates).map(([state, initialStatus]) => ({
+    name: `LiveLoopbackCard(${state})`,
+    element: withServices(h(m.LiveLoopbackCard, { call: noop, initialStatus, initialPlan: loopbackPlan, settings: true })),
+  })),
 ];
+const pages = () => surfaces().map((surface) => surface.element);
 
 test('English: no Chinese on any live-class, audio, Jev, or workflow-portal surface', () => {
   for (const element of pages()) {
@@ -249,15 +280,107 @@ test('live, audio, Jev, and workflow-portal surfaces register zero private setIn
   });
 });
 
-// How a page picks its copy cannot be seen in what it renders: a private t(zh, en), a language ternary or a sentence glued from ui() fragments draws the same
-// words in both languages as the catalogue does (the review of #1610 proved each one passes every rendering test above). So these three, and only these, are read
-// from the source. Timers are checked by mounting (the test above), not here.
-// The title is the one this check had before #1610 (the test-audit gate matches a kept source check by it); it also covers fragments glued into a sentence.
-test('no live or audio page keeps a private zh/en dictionary or reads the language to pick copy', async () => {
-  for (const file of ['LiveClass', 'LiveHistory', 'LiveNotes', 'LiveAudioMonitor', 'AudioDashboard', 'AudioReasoning', 'AudioSettings', 'JevSettings', 'WorkflowPortal', 'LiveLoopbackCard']) {
-    const source = await readFile(new URL(`../ui/${file}.jsx`, import.meta.url), 'utf8');
-    assert.doesNotMatch(source, /const t = \(zh/, `${file}: local t(zh, en)`);
-    assert.doesNotMatch(source, /language === 'en' \?|getUiLanguage\(\) === 'en'/, `${file}: a language ternary`);
-    assert.doesNotMatch(source, /\}\{ui\(["'` ]/, `${file}: a sentence glued from fragments`);
+function withCatalogue(mutate, fn) {
+  const cat = m.uiCatalogue();
+  const backup = Object.entries(cat);
+  try {
+    mutate(cat, backup);
+    return fn();
+  } finally {
+    for (const key of Object.keys(cat)) delete cat[key];
+    for (const [key, value] of backup) cat[key] = value;
+    m.setUiLanguage('zh');
   }
+}
+
+const copyTokens = (html) => {
+  const tokens = [];
+  for (const part of html.split(/<[^>]+>/)) {
+    const trimmed = part.trim();
+    if (trimmed) tokens.push(trimmed);
+  }
+  for (const match of html.matchAll(/\b(?:aria-label|placeholder|title|alt)="([^"]*)"/g)) {
+    const trimmed = match[1].trim();
+    if (trimmed) tokens.push(trimmed);
+  }
+  return tokens.sort();
+};
+
+const normalizeStamp = (html) => html.replace(/\b\d{1,2}\/\d{1,2},?\s+\d{1,2}:\d{2}(?:\s*[AP]M)?\b/g, '<STAMP>');
+
+// Shared <HandOff> tooltip (ui/hand-off/use-hand-off.js joinSentences) joins two complete sentences with ". " in en vs "。" in zh.
+const HAND_OFF_TOOLTIP = /(<span class="sh-popover-anchor sh-handoff__tip">[\s\S]*?<span [^>]*role="tooltip"[^>]*>)([\s\S]*?)(<\/span>)/g;
+const normalizeHandOffJoin = (html) => html.replace(HAND_OFF_TOOLTIP, (_, open, body, close) => `${open}${body.replace(/\. /g, '。')}${close}`);
+const splitHandOffSentences = (html) => html.replace(HAND_OFF_TOOLTIP, (_, open, body, close) => `${open}${body.replace(/⟫\. ⟪/g, '⟫\n⟪')}${close}`);
+
+// Detect glued copy fragments inside one sentinel-wrapped text/attribute piece (`⟪...⟫`).
+// Allows nested catalogue calls (`⟪Computer heard ⟪1 min 5 sec⟫⟫`) and `uiRich` spans split across inline tags (`<strong>`),
+// while rejecting two top-level catalogue calls (`⟫...⟪`) or non-whitespace glued before opening `⟪` / after closing `⟫`.
+function isGluedFragment(piece) {
+  let depth = 0;
+  let closedTop = false;
+  for (let i = 0; i < piece.length; i++) {
+    const ch = piece[i];
+    if (ch === '⟪') {
+      if (closedTop) return true;
+      if (depth === 0 && piece.slice(0, i).trim()) return true;
+      depth += 1;
+    } else if (ch === '⟫') {
+      if (depth > 0) {
+        depth -= 1;
+        if (depth === 0) closedTop = true;
+      } else {
+        // Closing tail of a uiRich sentence split across an inline formatting tag.
+        closedTop = true;
+      }
+    } else if (closedTop && !/\s/.test(ch)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+test('every live, audio, Jev, workflow-portal, and loopback surface speaks solely through uiCatalogue (no private t(zh, en) or language ternary)', () => {
+  const all = surfaces();
+  withCatalogue((cat, backup) => {
+    for (const [key] of backup) {
+      // Keep #one singular keys mapped to their Chinese base template so the WeakMap singulars cache in ui/i18n.js falls back to the Chinese source string.
+      if (/#one(?::\d+(?:,\d+)*)?$/.test(key)) cat[key] = key.replace(/#one(?::\d+(?:,\d+)*)?$/, '');
+      else delete cat[key];
+    }
+  }, () => {
+    for (const { name, element, orderAgnostic, normalizeDates } of all) {
+      const zh = normalizeHandOffJoin(render(element, 'zh'));
+      const enEmpty = normalizeHandOffJoin(render(element, 'en'));
+      if (orderAgnostic) {
+        assert.deepEqual(copyTokens(enEmpty), copyTokens(zh), `${name}: emitted non-catalogue copy when language=en with an empty catalogue`);
+      } else if (normalizeDates) {
+        assert.equal(normalizeStamp(enEmpty), normalizeStamp(zh), `${name}: emitted non-catalogue copy when language=en with an empty catalogue`);
+      } else {
+        assert.equal(enEmpty, zh, `${name}: emitted non-catalogue copy when language=en with an empty catalogue`);
+      }
+    }
+  });
+});
+
+test('no live, audio, Jev, workflow-portal, or loopback surface glues a sentence from separate catalogue fragments', () => {
+  const all = surfaces();
+  withCatalogue((cat, backup) => {
+    for (const [key, value] of backup) cat[key] = `⟪${value}⟫`;
+  }, () => {
+    for (const { name, element } of all) {
+      const html = splitHandOffSentences(render(element, 'en'));
+      const pieces = [];
+      for (const segment of html.split(/<[^>]+>/)) pieces.push(...segment.split(/\n|\s*·\s*/));
+      for (const match of html.matchAll(/\b(?:aria-label|placeholder|alt)="([^"]*)"/g)) {
+        // Skip AudioDashboard's daily trend series label ("YYYY-MM-DD: Provider1 N, Provider2 M, ...").
+        if (/^\d{4}-\d{2}-\d{2}:/.test(match[1])) continue;
+        pieces.push(...match[1].split(/\n|\s*·\s*/));
+      }
+      for (const piece of pieces) {
+        if (!piece.includes('⟪') && !piece.includes('⟫')) continue;
+        assert.equal(isGluedFragment(piece), false, `${name}: glued sentence fragment in ${JSON.stringify(piece)}`);
+      }
+    }
+  });
 });
