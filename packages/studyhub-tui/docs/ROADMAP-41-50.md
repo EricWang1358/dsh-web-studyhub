@@ -1,5 +1,7 @@
 # StudyHub TUI Roadmap — Rounds 41–50
 
+> **Historical milestone archive**: Standalone `round41-50-*.test.mjs` files referenced below were later consolidated into current suites, and `ReaderNotesDrawer`'s seen/reread toggle has since moved to `[R]`; see `docs/KEYBINDINGS.md` and `docs/ARCHITECTURE.md` for current state.
+
 > **Baseline at Round 40 (`48b64afb`, `feat/studyhub-tui`)**:
 > - **16 views** live (`Library`, `Review`, `Sources`, `Generate`, `WrongBook`, `Exam`, `Dashboard`, `Book`, `Skeleton`, `ExamCoach`, `ExamPrep`, `Notes`, `Board`, `Tasks`, `Audio`, `Settings`) + global `AppShell`.
 > - **Round 40 gate**: `318/318` TUI tests (`0` failures), `34/34` Live + Core, `0` AST keymap conflicts, `0` `zod` runtime imports, `9` minimal runtime dependencies.
@@ -66,7 +68,7 @@
 - **DeckManageModal `[L]`**: Batch prerequisite linking (`card.link.batch`).
 - **Tests**: `round49-textinput-edge.test.mjs`, `round49-tasks-recover.test.mjs`, `round49-batch-link.test.mjs`.
 
-### Round 50 — Milestone Release: Diagrams, Original Files, Retrieval Coverage & Docs Sync *(Current)*
+### Round 50 — Milestone Release: Diagrams, Original Files, Retrieval Coverage & Docs Sync *(Completed: `15684e2e`)*
 - **SkeletonView `[M]` (`SkeletonDiagramsModal`)**: Interactive HTML diagrams manager (`skeleton.diagram.list` / `.attach` / `.get` / `.remove`, max 8 diagrams).
 - **SourcesView `[O]` (`OriginalFileModal`)**: Original file attachment (`reference`/`copy`), probe, verification, and safe disk-preserving detach (`materials.original.*`).
 - **Settings `WorkspaceTab` `[v]`**: Live `retrieval.index.coverage` status display and provider cycling (`retrieval.set`).
