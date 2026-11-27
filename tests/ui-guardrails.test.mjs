@@ -265,7 +265,7 @@ test('the coach skeleton keyframes are renamed and still used (#102)', () => {
   const keyframeNames = blocks
     .map((b) => /^@(?:-webkit-|-moz-)?keyframes\s+([\w-]+)\b/.exec(b.prelude)?.[1])
     .filter(Boolean);
-  assert.deepEqual(keyframeNames.filter((k) => k === 'shimmer'), [], 'unprefixed @keyframes shimmer must not exist in ui/coach.css');
+  assert.deepEqual(keyframeNames.filter((k) => /^shimmer\b/.test(k)), [], 'unprefixed @keyframes shimmer (or shimmer-*) must not exist in ui/coach.css');
   const shimmerNames = keyframeNames.filter((k) => /^sh-[\w-]*shimmer$/.test(k));
   assert.ok(shimmerNames.length >= 1, 'expected an sh-*-shimmer @keyframes definition in ui/coach.css');
   const animRef = new RegExp(`(?:^|[\\s,])${shimmerNames[0]}(?![\\w-])`);
