@@ -1329,9 +1329,19 @@ describe('P4 (#1354 D12): DeckManageModal Split Guardrail & Behavioral Regressio
         2000,
         'stale deck-a write still reported truthfully',
       );
-      // Trigger a render flush on deck-b (select & clear) and verify deck-b folder is untouched
+      // The toast + onUpdated above run AFTER the stale reply's setDeck/setFolderValue would have run, so the
+      // stale reply is fully processed by now. Force a render flush (select, then clear) and read the folder badge
+      // with NOTHING selected: with a card selected the meta strip hides the folder (DeckManagePanels), which
+      // would make this check vacuous.
       h.dispatchKey(' ', {});
-      const afterStale = await h.waitFor((f) => f.includes('[1 sel]'), 2000, 'flushed deck-b render');
+      await h.waitFor((f) => f.includes('[1 sel]'), 2000, 'flushed deck-b render');
+      h.dispatchKey('x', {});
+      const afterStale = await h.waitFor(
+        (f) => !f.includes('[1 sel]') && /Folder: (Beta \/ Root|STALE_ALPHA_FOLDER)/.test(f),
+        2000,
+        'deck-b folder badge visible with nothing selected after the stale reply',
+      );
+      assert.equal(afterStale.includes('Folder: Beta / Root'), true, 'deck-b folder badge must still show its own folder');
       assert.equal(afterStale.includes('STALE_ALPHA_FOLDER'), false, 'stale deck-a deck.move must not overwrite deck-b folder');
       assert.equal(afterStale.includes('Deck Beta'), true, 'deck-b title must remain intact');
 
@@ -1370,6 +1380,82 @@ describe('P4 (#1354 D12): DeckManageModal Split Guardrail & Behavioral Regressio
     } finally {
       moveAGate.resolve();
       practiceAGate.resolve();
+      h.cleanup();
+    }
+  });
+
+  test('11. A stale deck-A endBusy must not release the busy lock of a deck-B write that is still in flight', async () => {
+    const deckA = makeSampleDeck({ id: 'deck-a', title: 'Deck Alpha', folder: 'Alpha / Root', course: 'CS101' });
+    const deckB = makeSampleDeck({ id: 'deck-b', title: 'Deck Beta', folder: 'Beta / Root', course: 'MATH201' });
+    const snap = makeSampleSnapshot();
+    resetStore({ language: 'en', asciiMode: true, snapshot: snap });
+
+    const moveAGate = deferred();
+    const moveBGate = deferred();
+
+    const { host, calls } = makeHost(async (name, args) => {
+      if (name === 'deck.get') {
+        if (args.id === 'deck-a') return { ok: true, value: structuredClone(deckA) };
+        if (args.id === 'deck-b') return { ok: true, value: structuredClone(deckB) };
+      }
+      if (name === 'snapshot') return { ok: true, value: snap };
+      if (name === 'deck.move') {
+        if (args.id === 'deck-a') {
+          await moveAGate.promise;
+          return { ok: true, value: { id: 'deck-a', folder: 'ALPHA_LATE_FOLDER' } };
+        }
+        await moveBGate.promise;
+        return { ok: true, value: { id: args.id, folder: args.folder } };
+      }
+      return { ok: true, value: {} };
+    });
+
+    const moveCalls = (id) => calls.filter((c) => c.name === 'deck.move' && c.args.id === id);
+    const element = (deckId) =>
+      React.createElement(DeckManageModal, { host, deckId, isActive: true, width: 120, height: 36, onClose: () => {} });
+    const hasToast = (needle) => useTuiStore.getState().toasts.some((t) => t.text.includes(needle));
+
+    const h = createHarness(element('deck-a'));
+
+    try {
+      await h.waitFor((f) => f.includes('Deck Alpha') && f.includes('Folder: Alpha / Root'), 3000, 'deck-a loaded');
+
+      // 1) deck-A write in flight (held)
+      h.dispatchKey('m', {});
+      await h.waitFor((f) => f.includes('Deck folder'), 2000, 'deck-a folder mode open');
+      h.write(' / Sub');
+      await h.waitFor((f) => f.includes('/ Sub'), 2000, 'deck-a folder typed');
+      h.dispatchKey('', { return: true });
+      await h.waitFor(() => moveCalls('deck-a').length === 1, 2000, 'deck-a deck.move in flight');
+
+      // 2) switch to deck-B, 3) start a deck-B write and hold it
+      h.rerender(element('deck-b'));
+      await h.waitFor((f) => f.includes('Deck Beta') && f.includes('Folder: Beta / Root') && !f.includes('Deck folder'), 3000, 'deck-b loaded');
+      h.dispatchKey('m', {});
+      await h.waitFor((f) => f.includes('Deck folder'), 2000, 'deck-b folder mode open');
+      h.write(' / Sub');
+      await h.waitFor((f) => f.includes('/ Sub'), 2000, 'deck-b folder typed');
+      h.dispatchKey('', { return: true });
+      await h.waitFor(() => moveCalls('deck-b').length === 1, 2000, 'deck-b deck.move in flight');
+
+      // 4) let deck-A's write finish; its toast is emitted right before its finally -> endBusy(token-A) runs
+      moveAGate.resolve();
+      await h.waitFor(() => hasToast('ALPHA_LATE_FOLDER'), 3000, 'deck-a late write finished (its endBusy has run)');
+
+      // 5) deck-B's write is still held: a second deck-B submit must be refused as busy
+      h.dispatchKey('', { return: true });
+
+      // Release deck-B and wait for its own completion; only then count, so no fixed sleep is needed.
+      moveBGate.resolve();
+      await h.waitFor(() => hasToast('Beta / Root / Sub'), 3000, 'deck-b write finished');
+      assert.equal(
+        moveCalls('deck-b').length,
+        1,
+        'a late deck-a endBusy must not release the deck-b lock: the second deck-b submit must be refused',
+      );
+    } finally {
+      moveAGate.resolve();
+      moveBGate.resolve();
       h.cleanup();
     }
   });
