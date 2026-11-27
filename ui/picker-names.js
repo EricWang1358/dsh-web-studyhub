@@ -1,5 +1,6 @@
 import { useLayoutEffect } from 'react';
 import { liveScope } from './use-async.js';
+import { drawnScale } from './drawn-scale.js';
 
 /* What the rows' facts lines of one picker say follows one rule for the whole scope (#1084, round 8): a run of rows reads the same, and scrolling a long
    list (the window draws more rows) changes no row. The rule is decided from the words of every document in the scope, drawn or not, and the room of the
@@ -72,8 +73,9 @@ export function decideFacts(rows, { room, gap, em, everyCourse = false, spare = 
 export const charsSummary = (off, present) => (!off.length ? 'all' : off.length === present.size ? 'none' : off.length === 1 && off[0] === 'paged' ? 'unpaged' : 'some');
 
 // Measure in the row's language and font. With Chinese fallback fonts the same middle dot can
-// occupy a full character cell here and a narrow Latin glyph on a detached canvas.
-function measured(rows, facts) {
+// occupy a full character cell here and a narrow Latin glyph on a detached canvas. `scale`: drawn px per px of the line (the interface zoom);
+// the widths are kept in the line's own px, as its gap, font size and --picker-dot are.
+function measured(rows, facts, scale) {
   const words = new Set(['· ']);
   for (const row of rows) {
     for (const word of [row.kind, row.pages, row.size, row.short, row.first, ...row.later]) {
@@ -91,7 +93,7 @@ function measured(rows, facts) {
   }
   // Insert the probes together, read all widths in one layout, then remove them before paint.
   facts.append(ruler);
-  const sizes = new Map(Array.from(ruler.children, span => [span.textContent, span.getBoundingClientRect().width]));
+  const sizes = new Map(Array.from(ruler.children, span => [span.textContent, span.getBoundingClientRect().width / scale]));
   ruler.remove();
   const size = text => sizes.get(text) ?? 0;
   const widths = rows.map(row => ({ kind: size(row.kind), pages: size(row.pages), size: size(row.size), short: size(row.short), first: size(row.first), later: row.later.map(size),
@@ -100,9 +102,9 @@ function measured(rows, facts) {
   return widths;
 }
 
-/** The facts line's width on a row with 选择页面 and on one without, read from a drawn row of each (a kind not drawn yet takes the other's). */
-function rooms(root) {
-  const width = selector => root.querySelector(selector)?.getBoundingClientRect().width ?? null;
+/** The facts line's width on a row with 选择页面 and on one without, read from a drawn row of each (a kind not drawn yet takes the other's), in its own px. */
+function rooms(root, scale) {
+  const width = selector => { const box = root.querySelector(selector)?.getBoundingClientRect(); return box ? box.width / scale : null; };
   const plain = width('.source-picker__row:not(.has-expand) .source-picker__facts'), wide = width('.source-picker__row.has-expand .source-picker__facts');
   return { plain: plain ?? wide, wide: wide ?? plain };
 }
@@ -121,12 +123,12 @@ export function useFactsFit(ref, rows, everyCourse) {
       const facts = root.querySelector('.source-picker__facts');
       if (!facts) return;
       const style = getComputedStyle(facts), face = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily} ${style.letterSpacing} ${style.fontFeatureSettings}`;
-      const width = root.getBoundingClientRect().width;
+      const box = root.getBoundingClientRect(), width = box.width, scale = drawnScale(root, box);
       // more rows drawn (the list grows taller) is no reason to look again: only another width or font is
       if (decided === width && face === font) return;
-      if (face !== font || !widths) { font = face; widths = measured(rows, facts); }
+      if (face !== font || !widths) { font = face; widths = measured(rows, facts, scale); }
       decided = width;
-      const room = rooms(root), em = parseFloat(style.fontSize), gap = parseFloat(style.columnGap) || 0.3 * em;
+      const room = rooms(root, scale), em = parseFloat(style.fontSize), gap = parseFloat(style.columnGap) || 0.3 * em;
       const { names, unit, off } = decideFacts(widths, { room: row => (row.multi ? room.wide : room.plain), gap, em, everyCourse });
       if (names) root.dataset.names = names; else delete root.dataset.names;
       if (unit === 'short') root.dataset.unit = unit; else delete root.dataset.unit;

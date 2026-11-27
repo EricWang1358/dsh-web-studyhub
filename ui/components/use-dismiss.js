@@ -115,13 +115,18 @@ const within = (box, outer) => ({ left: Math.max(box.left ?? outer.left, outer.l
  * the one measuring the Menu, the reader's 译 chip and its 原文 card share. `host`: the positioned ancestor, or document.body for a fixed element.
  * `bounds` (screen pixels, default the host's box) is where the element may sit. gap/margin are CSS pixels.
  * Returns { fixed, left, top, maxHeight, placement, scale }; maxHeight is set only when the element is taller than the room.
+ * The element is measured at the origin and then put back where it was: a caller that places it through React state (the Menu, the 词解 card) gets
+ * no stale write, since React rewrites only a left or top that changed since its last render and would leave a shared one at the origin.
  */
 export function placeInHost({ element, host, rect, placement = 'bottom-end', flip = true, gap, margin, bounds }) {
   const fixed = host === document.body;
   const box = bounds || (fixed ? viewport() : host.getBoundingClientRect());
+  const was = { left: element.style.left, top: element.style.top };
   element.style.left = '0px';
   element.style.top = '0px';
   const size = element.getBoundingClientRect();
+  element.style.left = was.left;
+  element.style.top = was.top;
   const scale = element.offsetWidth ? size.width / element.offsetWidth : 1;
   const result = computePlacement({ anchor: rect, size, placement, flip, ...(gap === undefined ? {} : { gap: gap * scale }), ...(margin === undefined ? {} : { margin: margin * scale }),
     bounds: within(box, viewport()) });
