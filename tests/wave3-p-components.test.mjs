@@ -62,7 +62,7 @@ test('Panel tones, density and element', () => {
 
 test('the tones live in a new stylesheet that uses tokens only', () => {
   // Repo-wide raw colour and px guards also run in tests/css-token-guard.test.mjs and tests/ui-guardrails.test.mjs.
-  const { declarations } = parseCss(readFileSync('ui/components/panel-tones.css', 'utf8'));
+  const { declarations, blocks } = parseCss(readFileSync('ui/components/panel-tones.css', 'utf8'));
   const splitSelectors = (sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim());
   assert.ok(declarations.length > 0, 'panel-tones.css declares styles');
   for (const tone of ['sunken', 'accent', 'dashed', 'compact']) {
@@ -82,6 +82,12 @@ test('the tones live in a new stylesheet that uses tokens only', () => {
     declarations.filter((d) => /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?)\(|\d+(?:\.\d+)?px\b/i.test(d.value)),
     [],
     'no raw colours or px sizes',
+  );
+  // The repo-wide guards read declaration values only; a breakpoint such as @media (max-width: 640px) has to use rem or a token here too.
+  assert.deepEqual(
+    blocks.filter((b) => /#[0-9a-f]{3,8}\b|\d+(?:\.\d+)?px\b/i.test(b.prelude)).map((b) => b.prelude),
+    [],
+    'no raw colours or px sizes in @media / @container / @supports conditions either',
   );
 });
 
