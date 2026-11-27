@@ -51,7 +51,7 @@ Notes on the options:
 - By default, questions are written in batches of up to 5, and up to 4 batches run at once (1–8 can be set).
 - First, StudyHub picks knowledge points from the selected pages, each with a verbatim passage. For each batch it then prepares the answers, writes the questions with a self-check and runs **one independent review**.
 - Only questions that pass the review are kept. Rejected candidates are recorded with their reasons.
-- Since 1.4.6, generation does not repair, review again or write extra questions to reach the count. Repair is a separate step that you request later.
+- Wording-only flagged cards get one bounded automatic rewrite and re-review (and optional suggestion rewrites when enabled), and shortfalls can run up to 2 automatic fill rounds by default (0–4 in settings); manual **Send for background repair** remains a separate step that you request later.
 - Each model call may take up to 10 minutes. A task may run for its time budget, 20 minutes by default (5–180); a coverage plan has it for each round and no limit as a whole. Time spent waiting in the queue does not count. When the budget runs out, the accepted questions are kept.
 - Restarting DeepSeek Harness (DSH) interrupts unfinished jobs. A saved draft that does not cover all of its material can be completed with its **Add questions for the uncovered parts** button: a new model task uses the same sources, covers the sections that have no question and keeps the accepted questions. An old model conversation is not resumed.
 - Existing questions are never rewritten because the extraction or StudyHub changed.
