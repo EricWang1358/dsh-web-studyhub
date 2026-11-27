@@ -42,8 +42,8 @@
 
 StudyHub 桌面版使用系统自带的 **Microsoft Edge WebView2 运行时**渲染界面：
 
-- **Windows 11**：系统已预装 WebView2，`.msi` 和 `.zip` 都可以直接运行。
-- **Windows 10 使用 `.msi`**：安装器内置了微软官方 WebView2 引导程序（`downloadBootstrapper`）。如果电脑尚未安装 WebView2，安装过程中会自动联网下载并安装（首次安装需要联网）。
+- **Windows 11**：系统已预装 WebView2，`Setup.exe`、`.msi` 和 `.zip` 都可以直接运行。
+- **Windows 10 使用 `Setup.exe` 或 `.msi`**：两个安装器都内置了微软官方 WebView2 引导程序（`downloadBootstrapper`）。如果电脑尚未安装 WebView2，安装过程中会自动联网下载并安装（首次安装需要联网）。
 - **Windows 10 使用便携版 `.zip`**：压缩包**不包含** WebView2 安装步骤。如果启动时提示缺少 WebView2，请先手动安装微软官方 [Microsoft Edge WebView2 Evergreen 运行时](https://developer.microsoft.com/zh-cn/microsoft-edge/webview2/)，再重新运行 `StudyHub.exe`。
 
 ## Windows SmartScreen 未签名提示
@@ -72,14 +72,14 @@ StudyHub 桌面版使用系统自带的 **Microsoft Edge WebView2 运行时**渲
 ### 1. OpenAI 兼容 API Key（批量出题推荐）
 
 1. 打开 **「设置 › 学习库与模型」**（或在需要模型的功能页面直接按引导填写）。
-2. 选择内置服务商预设 —— **DeepSeek**、**智谱 GLM**、**硅基流动（SiliconFlow）** 或 **OpenAI**，也可以选择**自定义**填写任意 OpenAI 兼容接口地址和模型 ID。
+2. 选择内置服务商预设 —— **DeepSeek**、**智谱 GLM** 或 **硅基流动（SiliconFlow）**，也可以选择**自定义**填写 OpenAI 或任意其他 OpenAI 兼容接口地址和模型 ID。
 3. 粘贴 API Key，点击**「保存并测试」**。
 
 API Key 仅保存在本机桌面配置目录中，绝不会写入你的学习库、备份文件或导出包。
 
 ### 2. 自动检测本机 CLI（`agy` / `codex`）
 
-如果你的电脑上已经安装并登录了 **Google Antigravity CLI（`agy`）** 或 **OpenAI Codex CLI（`codex`）**，StudyHub 桌面版会在启动时自动探测并识别它们。你可以直接在 **「设置 › 学习库与模型」** 中切换已就绪的本机 CLI、按需指定模型与推理强度（低 / 中 / 高），并一键启用或测试连通，无需复制粘贴 API Key。
+如果你的电脑上已经安装并登录了 **Google Antigravity CLI（`agy`）** 或 **OpenAI Codex CLI（`codex`）**，StudyHub 桌面版会在启动时自动探测并识别它们。你可以直接在 **「设置 › 学习库与模型」** 中切换已就绪的本机 CLI、按需指定模型与推理强度（界面提供低 / 中 / 高；配置文件另兼容 `codex` 的 `xhigh` 与 `agy` 的 `xhigh` / `max`），并一键启用或测试连通，无需复制粘贴 API Key。
 
 使用 CLI 后端需要了解：
 - 由于每次调用都会启动独立的 CLI 子进程，`agy` 与 `codex` 后端默认限制较低的并发数（默认 `1`，上限 `2`），以保护本机资源与限额。
@@ -129,5 +129,5 @@ API Key 仅保存在本机桌面配置目录中，绝不会写入你的学习库
 
 - **本地优先**：资料原文、题组、笔记和复习历史全部保存在你的电脑上；只有触发 AI 出题、讲解或转写时，相关内容才会发送到你配置的模型服务商。
 - **严格的本机回环隔离**：桌面界面从内置静态资源（`tauri://localhost`）加载，不加载 `127.0.0.1` 的 HTML。每次启动时，Rust 壳层生成一次性 256 位随机令牌，并通过 `stdin` 管道传给本地 Node.js 后端（绝不出现在命令行参数、URL 或 HTML 中）；后端只监听 `127.0.0.1` 且拒绝缺少有效令牌的请求。
-- **最小桌面权限**：Tauri 壳层只向主窗口暴露 5 个命令（`get_bootstrap_info`、`pick_directory`、`open_external`、`desktop_check_update`、`desktop_install_update`）；外部链接会严格校验为 `http://` 或 `https://` 后再交由系统默认浏览器打开，应用内更新在安装前会使用内置 Ed25519 公钥强制验证更新包签名。
+- **最小桌面权限**：Tauri 壳层只向主窗口暴露 7 个命令（`get_bootstrap_info`、`get_sidecar_health`、`pick_directory`、`pick_file`、`open_external`、`desktop_check_update`、`desktop_install_update`）；外部链接会严格校验为 `http://` 或 `https://` 后再交由系统默认浏览器打开，应用内更新在安装前会使用内置 Ed25519 公钥强制验证更新包签名。
 - **唯一会替你打开的可见程序**：「在学习库里打开 agy / codex」只启动检测为就绪的那个本机 CLI，目录只会是当前学习库。界面只传 CLI 的名字；路径里有可能被 Windows 命令行当成语法的字符时直接拒绝，不做转义。
