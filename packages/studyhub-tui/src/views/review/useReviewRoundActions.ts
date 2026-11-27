@@ -226,14 +226,21 @@ export function useReviewRoundActions(p: UseReviewRoundActionsParams) {
       setLoadError(null);
       setEndedRestoreFrame(null);
       // Peek, don't consume: a newer load that supersedes this one (seq guard) must still find the
-      // frame. Only the load that actually applies its result consumes it.
+      // frame. Every other exit drops exactly the frame this load read (unmount, applied, no runId).
       const store = useTuiStore.getState();
       if (forceFresh) store.consumePendingPracticeRestore();
       const pendingRestore = forceFresh ? null : store.pendingPracticeRestore;
+      const dropRestore = () => {
+        if (pendingRestore) useTuiStore.getState().consumePendingPracticeRestore(pendingRestore);
+      };
       const targetRunId = !forceFresh ? pendingRestore?.runId || navContext.runId || activeRunId : null;
       if (targetRunId) {
         const res = await tryAction<ReviewRun>(host, 'review.get', { runId: targetRunId });
-        if (!mountedRef.current || loadSeqRef.current !== seq) return;
+        if (!mountedRef.current) {
+          dropRestore();
+          return;
+        }
+        if (loadSeqRef.current !== seq) return;
         let restoredRun = res.ok && res.value ? res.value : null;
         if (
           restoredRun &&
@@ -247,10 +254,14 @@ export function useReviewRoundActions(p: UseReviewRoundActionsParams) {
             runId: restoredRun.id,
             index: pendingRestore.cardIndex,
           });
-          if (!mountedRef.current || loadSeqRef.current !== seq) return;
+          if (!mountedRef.current) {
+            dropRestore();
+            return;
+          }
+          if (loadSeqRef.current !== seq) return;
           if (moved.ok && moved.value) restoredRun = moved.value;
         }
-        if (pendingRestore) useTuiStore.getState().consumePendingPracticeRestore();
+        dropRestore();
         if (restoredRun) {
           if (pendingRestore && (restoredRun.complete || restoredRun.closed)) {
             setLoading(false);
@@ -277,6 +288,7 @@ export function useReviewRoundActions(p: UseReviewRoundActionsParams) {
         }
       }
 
+      dropRestore(); // a frame without runId cannot be restored; do not let it linger
       const course = navContext.course ?? currentCourse(snapshot) ?? undefined;
       const mode: ReviewMode = (navContext.mode as ReviewMode) || 'path';
       const args: Record<string, unknown> = {

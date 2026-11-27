@@ -173,7 +173,8 @@ export interface TuiStoreState {
   pushPracticeContext: (frame: PracticeContextFrame) => void;
   popPracticeContext: () => PracticeContextFrame | null;
   returnViaPracticeStack: () => PracticeContextFrame | null;
-  consumePendingPracticeRestore: () => PracticeContextFrame | null;
+  /** Take the pending restore frame; with `expected`, only when it is still that same frame. */
+  consumePendingPracticeRestore: (expected?: PracticeContextFrame) => PracticeContextFrame | null;
   clearPracticeStack: () => void;
 
   openAssistant: (opts?: {
@@ -343,8 +344,9 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
     return frame;
   },
 
-  consumePendingPracticeRestore: () => {
+  consumePendingPracticeRestore: (expected) => {
     const frame = get().pendingPracticeRestore;
+    if (expected && frame !== expected) return null;
     if (frame) set({ pendingPracticeRestore: null });
     return frame;
   },

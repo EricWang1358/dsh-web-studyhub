@@ -1120,4 +1120,115 @@ describe('P4 (#1354 D12): ReviewView Split Behavioral & Interaction Regressions'
       if (!cleaned) h.cleanup();
     }
   });
+
+  test('12. Unmounting mid-restore drops the frame, so opening another deck does not reopen the old run', async () => {
+    const mkMulti = (id, deckId, cardId, prompt) => ({
+      id,
+      mode: 'path',
+      title: id,
+      deckId,
+      index: 0,
+      total: 1,
+      answered: 0,
+      queueVersion: 1,
+      card: { id: cardId, kind: 'multiple', prompt, options: [{ id: 'o1', text: 'alpha' }, { id: 'o2', text: 'beta' }] },
+      navigation: [{ index: 0, cardId, deckId, status: 'pending' }],
+    });
+    const runOrig = mkMulti('run-leak-orig', 'd-sim', 'c-orig', 'ORIGINAL-Q');
+    const runOther = mkMulti('run-leak-other', 'd-other', 'c-other', 'OTHER-DECK-Q');
+    const { host } = makeBaseHost(async (name, args) => {
+      if (name === 'review.get' && args.runId === 'run-leak-orig') {
+        await new Promise((r) => setTimeout(r, 150));
+        return { ok: true, value: runOrig };
+      }
+      if (name === 'review.start') return { ok: true, value: runOther };
+      return { ok: true, value: {} };
+    });
+    resetStore({
+      navContext: { runId: 'run-leak-orig', deckId: 'd-sim' },
+      pendingPracticeRestore: {
+        kind: 'review',
+        returnPage: 'review',
+        runId: 'run-leak-orig',
+        cardId: 'c-orig',
+        deckId: 'd-sim',
+        cardIndex: 0,
+        draft: { selected: ['o2'] },
+        submitted: false,
+        originKind: 'similar',
+        pushedAt: Date.now(),
+      },
+    });
+    const h1 = createHarness(React.createElement(ReviewView, { host, width: 116, height: 34, isActive: true }));
+    await new Promise((r) => setTimeout(r, 40));
+    h1.cleanup();
+    await new Promise((r) => setTimeout(r, 250));
+    assert.equal(useTuiStore.getState().pendingPracticeRestore, null, 'abandoned load must drop the frame it read');
+
+    useTuiStore.setState({ navContext: { deckId: 'd-other' }, activeRunId: null, page: 'review' });
+    const h2 = createHarness(React.createElement(ReviewView, { host, width: 116, height: 34, isActive: true }));
+    try {
+      await h2.waitFor((s) => s.includes('OTHER-DECK-Q') || s.includes('ORIGINAL-Q'), 4000, 'second mount loaded');
+      assert.ok(h2.frame().includes('OTHER-DECK-Q'), 'opening another deck must not load the stale restore run');
+    } finally {
+      h2.cleanup();
+    }
+  });
+
+  test('13. A restore frame without runId is dropped when the load falls through to review.start', async () => {
+    const runFresh = {
+      id: 'run-norunid',
+      mode: 'path',
+      title: 'fresh',
+      deckId: 'd-x',
+      index: 0,
+      total: 1,
+      answered: 0,
+      queueVersion: 1,
+      card: { id: 'c-x', kind: 'flashcard', prompt: 'FRESH-Q' },
+      navigation: [{ index: 0, cardId: 'c-x', deckId: 'd-x', status: 'pending' }],
+    };
+    const { host } = makeBaseHost(async (name) => {
+      if (name === 'review.start') return { ok: true, value: runFresh };
+      return { ok: true, value: {} };
+    });
+    resetStore({
+      navContext: { deckId: 'd-x' },
+      pendingPracticeRestore: {
+        kind: 'review',
+        returnPage: 'review',
+        cardId: 'c-x',
+        deckId: 'd-x',
+        submitted: false,
+        originKind: 'similar',
+        pushedAt: Date.now(),
+      },
+    });
+    const h = createHarness(React.createElement(ReviewView, { host, width: 116, height: 34, isActive: true }));
+    try {
+      await h.waitFor((s) => s.includes('FRESH-Q'), 4000, 'fresh run loaded');
+      assert.equal(useTuiStore.getState().pendingPracticeRestore, null);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test('14. An abandoned load drops only the frame it read, never a newer frame pushed while it waited', async () => {
+    const { host } = makeBaseHost(async (name) => {
+      if (name === 'review.get') {
+        await new Promise((r) => setTimeout(r, 150));
+        return { ok: true, value: { id: 'run-old', mode: 'path', index: 0, total: 1, card: { id: 'c-old', kind: 'flashcard', prompt: 'OLD-Q' } } };
+      }
+      return { ok: true, value: {} };
+    });
+    const frame = (runId) => ({ kind: 'review', returnPage: 'review', runId, cardId: 'c', cardIndex: 0, submitted: false, originKind: 'similar', pushedAt: Date.now() });
+    resetStore({ navContext: { runId: 'run-old' }, pendingPracticeRestore: frame('run-old') });
+    const h = createHarness(React.createElement(ReviewView, { host, width: 116, height: 34, isActive: true }));
+    await new Promise((r) => setTimeout(r, 40));
+    h.cleanup();
+    const newer = frame('run-newer');
+    useTuiStore.setState({ pendingPracticeRestore: newer });
+    await new Promise((r) => setTimeout(r, 250));
+    assert.equal(useTuiStore.getState().pendingPracticeRestore, newer);
+  });
 });
