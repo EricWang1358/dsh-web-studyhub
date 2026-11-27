@@ -44,8 +44,10 @@ export function useAppShell() {
     narrowObserver.current?.disconnect();
     narrowObserver.current = null;
     // Measured as the node attaches, before the first paint: the observer's first answer comes after it, and the open sidebar was drawn for one frame
-    // and then folded into the rail, moving the whole page 128 px (found by the journey at 420 px).
-    if (node && typeof node.getBoundingClientRect === 'function') setNarrowWindow(node.getBoundingClientRect().width <= NARROW_WIDTH);
+    // and then folded into the rail, moving the whole page 128 px (found by the journey at 420 px). In the app's own pixels, as the observer
+    // answers: the drawn width differs by 界面大小, and at 50 % or 70 % a 420 px panel then painted the drawer button once and jumped.
+    const own = node?.clientWidth || node?.getBoundingClientRect?.().width;
+    if (own) setNarrowWindow(own <= NARROW_WIDTH);
     if (node && typeof ResizeObserver !== 'undefined') {
       const observer = new ResizeObserver(([entry]) => setNarrowWindow(entry.contentRect.width <= NARROW_WIDTH));
       observer.observe(node);

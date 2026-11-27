@@ -2,6 +2,9 @@ import test from 'node:test';
 import { warmSettingsPanes } from './helpers/settings-panes.mjs';
 import assert from 'node:assert/strict';
 import { globalCss } from './helpers/global-css.mjs';
+import { readFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { ROOT, walk, parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { INTERFACE_DEFAULTS, MOTIONS, normalizeInterface, loadInterface, saveInterface, effectiveMotion, leaveDelayMs, INTERFACE_KEY } from '../ui/interface-prefs.js';
 
 /* Interface preferences (设置 › 界面): how much the interface moves. Stored per browser; "auto" follows the system's reduced-motion setting. */
@@ -80,7 +83,7 @@ test('the Animation setting is in 设置 › 界面 with its four choices, in bo
 
 test('interface size and typeface: a fixed list of sizes up to 200%, the registry typefaces, and anything else falls back', async () => {
   const { SCALES, FONTS, normalizeInterface: normalize } = await import('../ui/interface-prefs.js');
-  assert.deepEqual(SCALES, ['auto', 90, 100, 110, 125, 150, 175, 200], '跟随窗口 first, then the fixed sizes');
+  assert.deepEqual(SCALES, ['auto', 50, 70, 90, 100, 110, 125, 150, 175, 200], '跟随窗口 first, then the fixed sizes, smallest first');
   assert.deepEqual(FONTS, ['system', 'serif', 'kai', 'round', 'mono', 'custom']);
   assert.equal(INTERFACE_DEFAULTS.scale, 100);
   assert.equal(INTERFACE_DEFAULTS.font, 'system');
@@ -93,10 +96,24 @@ test('interface size and typeface: a fixed list of sizes up to 200%, the registr
   assert.deepEqual(normalize({ motion: 'off', scale: 175, font: 'mono' }), { ...normalize({}), motion: 'off', scale: 175, font: 'mono' });
 });
 
-test('the stylesheet scales the whole interface with CSS zoom for each size and switches the typeface by attribute', () => {
+/* Inside the zoomed app a viewport-height unit is zoomed with everything else: 62vh is drawn 31vh tall at 界面大小 50%, and 124vh at 200%. A panel
+   whose HEIGHT is a share of the window divides by the interface scale. (A max-height only caps a box that scrolls, so it is left as written.) */
+test('every height taken from the window is divided by the interface scale, so it is the same share of the window at every 界面大小', () => {
+  const divided = /\d*\.?\d+(?:d|s|l)?v(?:h|min|max)\)?\s*\/\s*var\(--study-ui-scale, 1\)/g;
+  const loose = [];
+  for (const file of walk(join(ROOT, 'ui'), ['.css']))
+    for (const declaration of parseCss(readFileSync(file, 'utf8')).declarations)
+      if (/^(min-)?height$/.test(declaration.prop) && /\d(?:d|s|l)?v(?:h|min|max)(?![a-z])/.test(declaration.value.replace(divided, '')))
+        loose.push(`${relative(ROOT, file)}:${declaration.line} ${declaration.prop}: ${declaration.value}`);
+  assert.deepEqual(loose, []);
+});
+
+test('the stylesheet scales the whole interface with CSS zoom for each size and switches the typeface by attribute', async () => {
+  const { SCALES } = await import('../ui/interface-prefs.js');
   const css = globalCss();
   assert.match(css, /\.study-app\s*\{\s*zoom:\s*var\(--study-ui-scale,\s*1\)/, 'dialogs share the applied scale when converting viewport bounds');
-  for (const scale of [90, 110, 125, 150, 175, 200])
+  // Every fixed size the settings page offers needs its own rule: a size without one is drawn at 100% while the page says otherwise.
+  for (const scale of SCALES.filter(value => value !== 'auto' && value !== 100))
     assert.match(css, new RegExp(String.raw`\.study-app\[data-ui-scale='${scale}'\]\s*\{\s*--study-ui-scale:\s*${scale / 100}`), `${scale}%`);
   assert.doesNotMatch(css, /data-ui-scale='100'/, 'the default needs no rule');
   assert.match(css, /\.study-app\[data-ui-font='serif'\][^{]*\{[^}]*--font-ui:/);

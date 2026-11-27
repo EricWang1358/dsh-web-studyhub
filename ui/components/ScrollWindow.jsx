@@ -4,6 +4,7 @@ import css from './scroll-window.css';
 import { useComponentCss, cx } from './css.js';
 import { ui, uiFormat } from '../i18n.js';
 import { edgeTracker } from './scroll-edges.js';
+import { drawnScale } from '../drawn-scale.js';
 import { REVEAL_ANCHORS_EVENT } from '../tour/anchor.js';
 
 // The edge rules moved to ./scroll-edges.js (the horizontal strips share them); re-exported here because they were published from this module.
@@ -152,9 +153,9 @@ export default function ScrollWindow({ label, items = [], itemKey = (item, index
     if (!element || activeKey === undefined || activeKey === null) return;
     const target = element.querySelector('[data-active="true"]');
     if (!target) return;
-    const box = element.getBoundingClientRect(), item = target.getBoundingClientRect();
-    if (item.top < box.top) element.scrollTop -= box.top - item.top + 8;
-    else if (item.bottom > box.bottom) element.scrollTop += item.bottom - box.bottom + 8;
+    const box = element.getBoundingClientRect(), item = target.getBoundingClientRect(), scale = drawnScale(element, box);
+    if (item.top < box.top) element.scrollTop -= (box.top - item.top) / scale + 8;
+    else if (item.bottom > box.bottom) element.scrollTop += (item.bottom - box.bottom) / scale + 8;
   }, [activeKey]);
   const List = as === 'div' ? 'div' : 'ul', Item = as === 'div' ? 'div' : 'li';
   const counted = showCount ?? filterable;

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { PAN_SLOP, ZOOM_LIMITS, centerOn, fitTransform, keyAction, readableView, zoomAround } from './pan-zoom.js';
+import { drawnScale } from '../drawn-scale.js';
 
 const IGNORE = 'button, a, input, select, textarea';
 
@@ -61,9 +62,9 @@ export function usePanZoom(width, height, { maxFit = 1.2, insetRight = 0, minIni
   const zoomAt = useCallback((factor, clientX, clientY) => {
     const el = viewRef.current;
     if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const cx = clientX === undefined ? el.clientWidth / 2 : clientX - rect.left;
-    const cy = clientY === undefined ? el.clientHeight / 2 : clientY - rect.top;
+    const rect = el.getBoundingClientRect(), scale = drawnScale(el, rect);
+    const cx = clientX === undefined ? el.clientWidth / 2 : (clientX - rect.left) / scale;
+    const cy = clientY === undefined ? el.clientHeight / 2 : (clientY - rect.top) / scale;
     setView(v => zoomAround(v, factor, cx, cy, { min: zoomMin, max: zoomMax }));
   }, [zoomMin, zoomMax]);
   const readable = useCallback(() => setView(v => readableView(v, box())), []);
@@ -82,7 +83,7 @@ export function usePanZoom(width, height, { maxFit = 1.2, insetRight = 0, minIni
   const panHandlers = {
     onPointerDown: ev => {
       if (ev.button !== 0 || ev.target.closest?.(IGNORE)) return;
-      drag.current = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, view, moved: false };
+      drag.current = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, view, moved: false, scale: drawnScale(ev.currentTarget) };
     },
     onPointerMove: ev => {
       const d = drag.current;
@@ -94,7 +95,7 @@ export function usePanZoom(width, height, { maxFit = 1.2, insetRight = 0, minIni
         ev.currentTarget.setPointerCapture?.(ev.pointerId);
         ev.currentTarget.classList.add('is-panning');
       }
-      setView({ ...d.view, x: d.view.x + dx, y: d.view.y + dy });
+      setView({ ...d.view, x: d.view.x + dx / d.scale, y: d.view.y + dy / d.scale });
     },
     onPointerUp: ev => {
       const d = drag.current;

@@ -38,7 +38,7 @@
     .note-heading { align-items: flex-start; gap: var(--space-5); flex-wrap: wrap; }
     .note-daily-meta { color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.7; margin: 0; font-variant-numeric: tabular-nums; }
     .note-unsaved { display: block; margin-top: var(--space-1-5); font-size: var(--fs-sm); color: var(--text-muted); }
-    .note-reader { min-width: 0; height: min(78vh, 950px); min-height: 420px; margin: var(--space-4-5) 0; }
+    .note-reader { min-width: 0; height: min(78vh / var(--study-ui-scale, 1), 950px); min-height: 420px; margin: var(--space-4-5) 0; }
     .note-editor.note-editor-single { grid-template-columns: minmax(0, 1fr); max-width: 56rem; }
     .note-editor.note-editor-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); max-width: none; align-items: stretch; }
     .note-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-3) 0; }
@@ -115,7 +115,7 @@
       .note-list > .note-list-item { flex-wrap: wrap; padding: var(--space-3); }
       .note-practice-bar { flex-direction: column; align-items: stretch; }
       .note-card-search { flex-wrap: wrap; }
-      .note-reader { min-height: 360px; height: 72vh; }
+      .note-reader { min-height: 360px; height: calc(72vh / var(--study-ui-scale, 1)); }
       .note-actions > .note-action-btn { white-space: normal; }
       .blog-notes-page { padding-top: var(--space-5); }
       .note-heading { gap: var(--space-3); }

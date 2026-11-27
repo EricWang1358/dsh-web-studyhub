@@ -73,7 +73,7 @@
   }
   .study-document-body iframe {
     width: 100%;
-    height: 62vh;
+    height: calc(62vh / var(--study-ui-scale, 1));
     border: 1px solid var(--line);
     border-radius: var(--radius-sm);
   }
@@ -221,12 +221,12 @@
   }
   @container study (max-width: 800px) {
     .study-document-side { position: static; }
-    .study-document-body iframe { height: 48vh; }
+    .study-document-body iframe { height: calc(48vh / var(--study-ui-scale, 1)); }
     .study-document-learning { padding: .8rem; }
   }
   @container reader (max-width: 800px) {
     .study-document-side { position: static; }
-    .study-document-body iframe { height: 48vh; }
+    .study-document-body iframe { height: calc(48vh / var(--study-ui-scale, 1)); }
     .study-document-learning { padding: .8rem; }
   }
   @media (max-width:800px) {
@@ -234,7 +234,7 @@
       position: static;
     }
     .study-document-body iframe {
-      height: 48vh;
+      height: calc(48vh / var(--study-ui-scale, 1));
     }
     .study-document-learning {
       padding: .8rem;

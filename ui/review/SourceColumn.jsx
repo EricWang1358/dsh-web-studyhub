@@ -4,6 +4,7 @@ import { Button, CloseButton, IconButton, Tooltip } from "../components/index.js
 import { DocumentViewer } from "../workspace-views.jsx";
 import { useSourceReader } from "../app/modals/source-reader.jsx";
 import { useInjectCss } from "../shared.js";
+import { drawnScale } from "../drawn-scale.js";
 import { COLUMN_MIN, QUESTION_MIN, clearColumnWidth, columnWidth, dockReducer, dockedPlace, openDock, questionRoom } from "./source-dock.js";
 import css from "./source-split.css";
 
@@ -55,7 +56,7 @@ const SourceColumn = React.forwardRef(function SourceColumn({ request, followKey
   const asideRef = React.useRef(null);
 
   const handleRef = React.useRef(null);
-  const widthNow = () => asideRef.current?.getBoundingClientRect().width || COLUMN_MIN;
+  const widthNow = () => asideRef.current?.offsetWidth || asideRef.current?.getBoundingClientRect().width || COLUMN_MIN;
   const roomNow = () => roomOf(pageRef.current);
   // What the divider says to a screen reader: the column's width now, and the most it can take (measured when the divider is drawn and let go, never per frame).
   const tellWidth = (px) => {
@@ -113,12 +114,12 @@ const SourceColumn = React.forwardRef(function SourceColumn({ request, followKey
     if (event.button !== 0) return;
     event.preventDefault();
     // The width moves by what the pointer moved (to the left: wider), from the width it had when grabbed.
-    const handle = event.currentTarget, from = widthNow(), startX = event.clientX, room = roomNow();
+    const handle = event.currentTarget, from = widthNow(), startX = event.clientX, room = roomNow(), scale = drawnScale(asideRef.current);
     let frame = 0, wanted = from;
     handle.setPointerCapture?.(event.pointerId);
     asideRef.current.dataset.dragging = "true";
     const move = (moved) => {
-      wanted = columnWidth(from + startX - moved.clientX, room);
+      wanted = columnWidth(from + (startX - moved.clientX) / scale, room);
       if (!frame) frame = requestAnimationFrame(() => { frame = 0; handle.style.transform = `translateX(${Math.round(from - wanted)}px)`; });
     };
     const stop = () => {

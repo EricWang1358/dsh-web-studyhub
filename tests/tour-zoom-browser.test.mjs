@@ -13,7 +13,7 @@ import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-
 
 /* The tour's spotlight at a larger 界面大小 (設置 › 界面, CSS zoom on the app). The tour layer lives inside the zoomed app, so screen
    rectangles have to be divided by the zoom before they become its left/top; at 125 % the spotlight used to land to the right of and below
-   the 今天 card (owner's screenshot, 2026-11-05). At 90 %, 100 % and 125 %, the lit box frames the step's anchor. */
+   the 今天 card (owner's screenshot, 2026-11-05). At 50 %, 70 %, 90 %, 100 % and 125 %, the lit box frames the step's anchor. */
 
 const box = (page, selector) => page.evaluate((css) => {
   const rect = document.querySelector(css)?.getBoundingClientRect();
@@ -27,7 +27,7 @@ test('the tour spotlight frames its anchor at every interface size', { timeout: 
   const dist = await mkdtemp(join(tmpdir(), 'study-tour-zoom-dist-'));
   await buildPreview({ outdir: dist });
   try {
-    for (const scale of [90, 100, 125]) {
+    for (const scale of [50, 70, 90, 100, 125]) {
       const base = await mkdtemp(join(tmpdir(), 'study-tour-zoom-'));
       const server = await createPreviewServer({ libraryRoot: join(base, 'library'), home: join(base, 'home'), port: 0,
         model: createFakeModel({ latencyMs: 20 }), distDir: dist });

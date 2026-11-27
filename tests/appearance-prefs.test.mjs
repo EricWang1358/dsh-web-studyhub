@@ -46,6 +46,22 @@ test('界面大小 has 跟随窗口: the size follows the window width, a chosen
   assert.equal(normalizeAppearance(null).scale, 100, 'DSH keeps 100%');
 });
 
+test('界面大小 goes down to 50% and 70%: kept through save, reload, export and 跟随窗口 never picks them by itself', () => {
+  const dark = { light: false, reducedMotion: false, contrast: false };
+  for (const scale of [50, 70]) {
+    assert.equal(normalizeAppearance({ scale }).scale, scale, `${scale}% is one of the sizes`);
+    assert.equal(normalizeAppearance({ scale: String(scale) }).scale, scale, 'a number stored as text still counts');
+    const storage = memory();
+    createAppearanceStore({ storage }).update({ scale });
+    assert.equal(JSON.parse(storage.map.get('study-interface')).scale, scale, 'saved as chosen, not pushed back up');
+    assert.equal(loadAppearance(storage).scale, scale, 'and read back after a reload');
+    assert.equal(importAppearance(exportAppearance({ scale })).scale, scale);
+    assert.equal(appearanceAttrs({ scale }, { ...dark, autoScale: 150 })['data-ui-scale'], scale, 'a chosen percent wins over the window');
+  }
+  assert.deepEqual(APPEARANCE_OPTIONS.scale.slice(1, 4), [50, 70, 90], 'offered in order, below 90%');
+  for (const width of [200, 320, 420, 800, 1280]) assert.equal(appearance.autoScaleFor(width), 100, `跟随窗口 never shrinks the interface (${width}px)`);
+});
+
 /* ---------- one definition ---------- */
 
 test('one list of settings with defaults and the values each one allows; interface-prefs keeps exporting the same constants', () => {

@@ -112,7 +112,7 @@ export default function BookEditor({ book, file, onPick, onChanged, onDirty, onS
         {ui('上次离开时这份文件还有没保存的改动，当时没来得及问你。')}</InlineMessage>}
       {merged && <InlineMessage tone="info">{ui('书已更新：你的改动已保存，另一边的内容放在了建议里，可以在预览里采用或忽略。')}</InlineMessage>}
       {historyOpen && <BookHistory course={book.course} book={book} file={file} dirty={dirty} locked={working} onRestored={next => { settle(next); setMerged(false); }} />}
-      <CodeMirror className="book-editor__code" value={draft} height="60vh" theme={theme === 'light' ? 'light' : 'dark'} extensions={editorExtensions} readOnly={reverting} onChange={setDraft}
+      <CodeMirror className="book-editor__code" value={draft} height="calc(60vh / var(--study-ui-scale, 1))" theme={theme === 'light' ? 'light' : 'dark'} extensions={editorExtensions} readOnly={reverting} onChange={setDraft}
         basicSetup={{ lineNumbers: false, foldGutter: false }} />
     </section>
   );

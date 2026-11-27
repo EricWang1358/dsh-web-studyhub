@@ -30,7 +30,8 @@ function useChartWidth(fallback = 640) {
     const element = ref.current;
     if (!element) return undefined;
     const measure = () => {
-      const next = Math.floor(element.getBoundingClientRect().width);
+      // The svg takes this as its own width, so it is the box's layout width: the drawn one is off by 界面大小 (half a chart at 50 %).
+      const next = Math.floor(element.clientWidth || element.getBoundingClientRect().width);
       if (next > 0) setWidth(next);
     };
     measure();

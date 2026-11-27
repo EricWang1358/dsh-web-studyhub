@@ -588,7 +588,7 @@
   "有 {0} 份资料的索引还没建完#one": "The index of {0} material is not finished",
   "{0} 份资料未建完索引": "{0} not fully indexed",
   "界面大小": "Interface size",
-  "放大整个界面（文字、按钮和间距一起），最大 200%；「跟随窗口」在窗口变宽时自动放大一些。阅读和做题页另有 Aa 可以单独调字号和宽度。": "Scales the whole interface (text, buttons and spacing together), up to 200%; Fit window scales it up a little when the window is wide. Reading and review pages also have Aa for text size and width.",
+  "缩放整个界面（文字、按钮和间距一起），50% 到 200%：低于 100% 时一屏放得下更多，字也更小；「跟随窗口」只在窗口变宽时自动放大。阅读和做题页另有 Aa 可以单独调字号和宽度。": "Scales the whole interface (text, buttons and spacing together), from 50% to 200%: below 100% more fits on the screen and the text gets smaller. Fit window only scales up, when the window is wide. Reading and review pages also have Aa for text size and width.",
   "界面字体": "Interface typeface",
   "系统默认": "System default",
   "等宽": "Monospace",

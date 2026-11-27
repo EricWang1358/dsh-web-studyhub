@@ -138,7 +138,7 @@ test('an order saved by the sidebar of before (每天 / 阶段性 / 课程准备
   }
 });
 
-test('sidebar footer stays clickable within the host at 100%, 150% and 200% interface size', { timeout: 300000 }, async (t) => {
+test('sidebar footer stays clickable within the host from 50% to 200% interface size', { timeout: 300000 }, async (t) => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-scaled-nav-dist-'));
@@ -146,7 +146,7 @@ test('sidebar footer stays clickable within the host at 100%, 150% and 200% inte
   try {
     await buildPreview({ outdir: dist });
     running = await startNavServer({ distDir: dist });
-    for (const width of [1280, 420]) for (const height of [900, 480]) for (const scale of [100, 150, 200]) {
+    for (const width of [1280, 420]) for (const height of [900, 480]) for (const scale of [50, 70, 100, 150, 200]) {
       await t.test(`${width}x${height} at ${scale}%`, async () => {
         const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
         await context.addInitScript(() => { localStorage.setItem('study-ui-language', 'zh'); });
@@ -161,7 +161,8 @@ test('sidebar footer stays clickable within the host at 100%, 150% and 200% inte
           await page.waitForFunction(value => document.querySelector('.study-app')?.getAttribute('data-ui-scale') === String(value), scale);
           await page.setViewportSize({ width, height });
           // A workspace too narrow for the sidebar (#657) has it in a drawer behind the top bar's menu button; choosing a row closes the drawer.
-          const inDrawer = width === 420;
+          // Below 100 % a 420 px panel has the room of a wider one (600 and 840 of the app's own pixels), so its sidebar is docked.
+          const inDrawer = width / (scale / 100) <= 560;
           const showSidebar = async () => {
             if (inDrawer) await page.locator('.nav-menu-toggle').click();
             await page.locator(inDrawer ? '.nav-drawer .sidebar' : '.study-app > .sidebar').waitFor();

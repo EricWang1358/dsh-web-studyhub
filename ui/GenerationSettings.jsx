@@ -12,6 +12,7 @@ import { depthHint, depthOption, depthTip } from './presets/depth-copy.js';
 import { EFFORT_STAGES, effortKey } from '../lib/stage-effort.js';
 import { EffortSelect } from './EffortSelect.jsx';
 import { useStudy } from './study-context.jsx';
+import { drawnScale } from './drawn-scale.js';
 
 const labels = { kinds: '默认题型', coverageLevel: '默认覆盖强度', selectionCount: '选段补题默认题数', count: '主会话里出题的默认题数', language: '默认语言', difficulty: '默认难度', focus: '默认侧重点', notation: '默认公式写法',
   concurrency: '同时生成的批数', batchSize: '每批题数', jobTimeoutMinutes: '每轮运行时限（分钟）', bookCallTimeoutMinutes: '总纲与全书单次调用时限（分钟）', fillRounds: '自动补题轮数',
@@ -97,7 +98,7 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
     if (barBox.height > 0 && fieldBox.bottom > barBox.top - 12) {
       let node = formRef.current.parentElement;
       while (node && !(node.scrollHeight > node.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(node).overflowY))) node = node.parentElement;
-      (node || document.scrollingElement)?.scrollBy?.({ top: fieldBox.bottom - barBox.top + 16 });
+      (node || document.scrollingElement)?.scrollBy?.({ top: (fieldBox.bottom - barBox.top) / drawnScale(bar, barBox) + 16 });
     }
   }, [dirty]);
   const save = async event => {

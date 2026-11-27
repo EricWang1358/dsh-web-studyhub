@@ -4,6 +4,7 @@ import { plainAssistFailure } from "../generation-status.js";
 import { nextDueGap, nextDueWhen, nextDueWord } from "../NextDue.jsx";
 import { focusQuietly } from "../components/index.js";
 import { keysElsewhere } from "./session-logic.js";
+import { drawnScale } from "../drawn-scale.js";
 
 const QUESTION_HEADING_SELECTOR = '[data-question-heading], .question[role="heading"], .question, .flash-prompt, .cloze-text, .question-card';
 
@@ -155,18 +156,20 @@ export default function usePinQuestion(pageRef, run, { scroller: given } = {}) {
       // Batch all DOM layout reads before mutating style/scroll to prevent forced synchronous reflow (layout thrashing).
       const cardTop = card.getBoundingClientRect().top;
       const areaTop = area.getBoundingClientRect().top;
-      const scrollerTop = scroller.getBoundingClientRect().top;
+      const scrollerBox = scroller.getBoundingClientRect(), scale = drawnScale(scroller, scrollerBox);
+      const scrollerTop = scrollerBox.top;
       const scrollerHeight = scroller.clientHeight;
-      const lead = cardTop - areaTop;
+      const lead = (cardTop - areaTop) / scale;
       const minHeight = `${Math.max(0, scrollerHeight - bar - gap + lead)}px`;
       if (area.style.minHeight !== minHeight) area.style.minHeight = minHeight;
       if (!first) {
-        scrollBy(cardTop - scrollerTop - bar - gap);
+        scrollBy((cardTop - scrollerTop) / scale - bar - gap);
         focusQuestionHeading(card);
         return;
       }
     }
-    const offset = page.getBoundingClientRect().top - scroller.getBoundingClientRect().top - bar;
+    const box = scroller.getBoundingClientRect();
+    const offset = (page.getBoundingClientRect().top - box.top) / drawnScale(scroller, box) - bar;
     if (offset < 0) scrollBy(offset);
     if (!first && run.complete && !isFocusInDialog()) {
       const heading = page.querySelector("h1, h2");

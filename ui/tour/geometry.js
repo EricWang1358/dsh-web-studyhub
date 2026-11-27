@@ -4,6 +4,8 @@
    there is no target, inside the target's corner when it fills the view, and
    docked along the bottom edge on narrow panels (the ~420 px DSH sidebar). */
 
+import { drawnScale } from "../drawn-scale.js";
+
 export const NARROW_WIDTH = 560;
 
 const clamp = (value, low, high) => Math.min(Math.max(value, low), Math.max(low, high));
@@ -38,8 +40,8 @@ export function placePopover({ target, popover, bounds, prefer, gap = 14, margin
     top: clamp(Math.min(bottom, height) - popover.height - margin, margin, height - popover.height - margin) };
 }
 
-/** The zoom between screen pixels and the layer's own CSS pixels (the app's 界面大小 is a CSS zoom): its drawn width over its layout width. */
-export const layerScale = (view, layer) => (layer?.offsetWidth && view?.width ? view.width / layer.offsetWidth : 1);
+/** The zoom between screen pixels and the layer's own CSS pixels (ui/drawn-scale.js); 1 while there is no layer or rectangle. */
+export const layerScale = (view, layer) => (view ? drawnScale(layer, view) : 1);
 
 /** A screen rectangle in the layer's own coordinates, where the spotlight and the popover are placed. */
 export const inLayer = (box, view, scale = 1) => ({ left: (box.left - view.left) / scale, top: (box.top - view.top) / scale,
