@@ -1,5 +1,7 @@
 # M0 Empirical Verification & Audit Report
 
+> **Historical snapshot (M0 / StudyHub v4.14.0)**: Kept as the pre-Wave-2 audit record. Most Wave 2 items (including central `hasChatHost` copy-prompt degradation, `hostPart` registrations, Desktop Retrieval support, and `mapAgyUsageToBuckets`) have since landed; see current code for up-to-date line numbers and status.
+
 > **Scope**: `studyhub-desktop` (branch `desktop`, based on StudyHub v4.14.0).
 > **Deliverables**:
 > 1. Real `agy` CLI empirical probe, sanitized fixtures (`packages/studyhub-desktop/fixtures/agy-real-output.json` & `packages/studyhub-desktop/fixtures/agy-stream-output.jsonl`), and Windows CLI shim discovery failure signatures (`claude` / `codex`).
@@ -283,7 +285,7 @@ These UI surfaces currently ALWAYS render `发给主会话` / `AI 带学` contro
 | `ui/tasks/call-model.js:57`, `ui/GenerationTrace.jsx:75`, `ui/tasks/OutputPanel.jsx:79-81,113`, `ui/tasks/output-wait.js:22`, `ui/tasks/task-facts.js:290,302`, `ui/coverage/copy.js:92`, `ui/draft-shortfall.js:121`, `ui/generation-status.js:380-382` | `"DSH 子代理"`, `"完整回复读取自 DSH 会话"`, `"文字处理由 DSH 模型完成"`, `"DSH 没能启动出题用的子代理"` | Desktop always runs with `runtime: 'direct'` (never `'subagent'`), so subagent/session error strings are rarely triggered; `task-facts.js:290,302` (`由 DSH 模型完成`) IS visible on audio/text jobs. |
 | `ui/token-usage.js:175` | `"下限按 DSH 的固定估算"` | Visible in token-estimate tooltip. |
 | `ui/app/page-views.jsx:659`, `ui/app/modals/AddSourceDialog.jsx:15`, `ui/ImportHub.jsx:602`, `ui/PdfConversion.jsx:132`, `ui/finder/availability.js:15,17`, `ui/finder/entries.js:721`, `ui/settings/ExamPrepPane.jsx:19` | `"在 DSH 插件管理器里启用..."`, `"这个 DSH 里没有开启..."` | Only reached if a backend context/feature flag is disabled; Desktop should publish all supported contexts (`bank`, `study`, `materials`, `authoring`, `generation`, `notes`, `skeleton`, `audio`, `system`, `workflows`) so `DisabledPage` is never hit for standard pages. |
-| `ui/transport.js:10,47` | `"StudyHub 只对这台电脑上的 DSH 主人开放"`, `"DSH 可能刚重启"` | Only used by `createStudyCall` (DSH Fetch RPC); Desktop uses its own HTTP+Bearer transport (`ui/desktop.jsx`), so these strings are **NOT executed** in Desktop! |
+| `ui/transport.js:10,47` | `"StudyHub 只对这台电脑上的 DSH 主人开放"`, `"DSH 可能刚重启"` | Only used by `createStudyCall` (DSH Fetch RPC); Desktop uses its own HTTP + `X-Study-Token` transport (`ui/desktop/ipc.js`, mounted by `ui/desktop.jsx`), so these strings are **NOT executed** in Desktop! |
 | `ui/GenerationSettings.jsx:13,132`, `ui/settings/CoachSection.jsx:67,73`, `ui/settings/PracticePane.jsx:172`, `ui/review/QuestionRun.jsx:633`, `ui/Workflows.jsx:68`, `ui/WorkflowPortal.jsx:34,186,212`, `ui/WorkflowScope.jsx:89,91`, `ui/Dashboard.jsx:274`, `ui/study-map/BookBackupHint.jsx:25`, `ui/JevSettings.jsx:184`, `ui/jev-flow.js:95` | Minor mentions of `主会话` / `DSH` in hints, legacy workflow retirement notes, backup tooltip, and experimental JEV settings | Non-blocking; safe to clean up opportunistically or leave for post-v1 copy polish. |
 
 ---
