@@ -1058,7 +1058,8 @@ describe('P4 (#1354): WorkspaceTab split behavioral regression', () => {
     try {
       await app.waitFor((f) => f.includes('auto-save'), { label: 'restore points loaded' });
       app.send('\u001b[B');
-      await new Promise((r) => setTimeout(r, 60));
+      // Wait until the pointer is on the second point, so Enter cannot race the selection change.
+      await app.waitFor((f) => /[\u276f>] 2026-11-25/.test(f), { label: 'second restore point selected' });
       app.send('\r');
       await app.waitFor((f) => f.includes('恢复备份点'), { label: 'confirm restore point dialog' });
       app.send('y');
