@@ -149,6 +149,9 @@ test('round 4 in the browser: answer marks as heavy as their label, the station 
         const { page, context } = await open(browser, server, { lang, width });
         await later(page, lang);
         await page.locator('.first-run-card .frl-step[data-step="model"] .frl-step__text').first().waitFor({ timeout: 30000 });
+        // The pointer the 以后再说 click left behind may rest on the card, which tilts under it: the tilted row's box is some pixels taller than the row. Measured flat.
+        await page.mouse.move(0, 0);
+        await page.waitForFunction(() => getComputedStyle(document.querySelector('.first-run-card')).transform === 'none');
         // The preview's model is "preview · fake-model"; a learner's is longer. The row is given the ids of the free providers the guide names, as the card would say them.
         for (const id of ['preview · fake-model', 'deepseek · deepseek-chat', 'siliconflow · Qwen/Qwen2.5-7B-Instruct', 'SiliconFlow · Qwen/Qwen3-235B-A22B-Instruct-2507']) {
           const seen = await page.evaluate(([label, zh]) => {
