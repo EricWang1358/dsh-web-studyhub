@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import ts from 'typescript';
 import { loadUi } from './helpers/ui-module.mjs';
 import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
@@ -386,14 +387,50 @@ test('no live, audio, Jev, workflow-portal, or loopback surface glues a sentence
   });
 });
 
+function findPrivateI18nInJsx(fileName, source) {
+  const sf = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JSX);
+  const violations = [];
+  const lineOf = (node) => sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+  const isLanguageRead = (node) => (ts.isIdentifier(node) && node.text === 'language')
+    || (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && (node.expression.text === 'getUiLanguage' || node.expression.text === 'useUiLanguage'));
+  const isLocaleLiteral = (node) => ts.isStringLiteralLike(node) && (node.text === 'en' || node.text === 'zh');
+  const isEqualityOp = (kind) => kind === ts.SyntaxKind.EqualsEqualsEqualsToken
+    || kind === ts.SyntaxKind.ExclamationEqualsEqualsToken
+    || kind === ts.SyntaxKind.EqualsEqualsToken
+    || kind === ts.SyntaxKind.ExclamationEqualsToken;
+  const checkBilingualParams = (fnName, params, node) => {
+    const first = params[0] && ts.isIdentifier(params[0].name) ? params[0].name.text : '';
+    const second = params[1] && ts.isIdentifier(params[1].name) ? params[1].name.text : '';
+    if ((fnName === 't' && /^zh/i.test(first)) || (first === 'zh' && second === 'en') || (first === 'en' && second === 'zh')) {
+      violations.push(`${fileName}:${lineOf(node)}: private bilingual helper ${fnName || '<anonymous>'}(${first}${second ? `, ${second}` : ''})`);
+    }
+  };
+  const visit = (node) => {
+    if (ts.isFunctionDeclaration(node)) {
+      checkBilingualParams(node.name?.text || '', node.parameters, node);
+    } else if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer
+      && (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))) {
+      checkBilingualParams(node.name.text, node.initializer.parameters, node);
+    } else if ((ts.isArrowFunction(node) || ts.isFunctionExpression(node)) && !ts.isVariableDeclaration(node.parent)) {
+      checkBilingualParams('', node.parameters, node);
+    } else if (ts.isBinaryExpression(node) && isEqualityOp(node.operatorToken.kind)
+      && ((isLanguageRead(node.left) && isLocaleLiteral(node.right)) || (isLocaleLiteral(node.left) && isLanguageRead(node.right)))) {
+      violations.push(`${fileName}:${lineOf(node)}: direct UI language comparison (${node.getText(sf)})`);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return violations;
+}
+
 // The catalogue test above sees only copy a page renders. A toast shown after an action (电脑声音直采组件可以用了。, 已取消安装。) is never
-// rendered there, so a private t(zh, en) or a language ternary used only for it passes every rendering test (checked in the review of #1610).
-// These two patterns, and only these, are still read from the source; the title is the one this check had before #1610 (the test-audit gate
-// matches a kept source check by it).
+// rendered there, so a private t(zh, en) or a language branch used only for it passes every rendering test (checked in the review of #1610).
+// Parse each JSX module with TypeScript's AST so comments never false-positive and formatting/quote/function-declaration variants are still caught.
 test('no live or audio page keeps a private zh/en dictionary or reads the language to pick copy', async () => {
+  const violations = [];
   for (const file of ['LiveClass', 'LiveHistory', 'LiveNotes', 'LiveAudioMonitor', 'AudioDashboard', 'AudioReasoning', 'AudioSettings', 'JevSettings', 'WorkflowPortal', 'LiveLoopbackCard']) {
     const source = await readFile(new URL(`../ui/${file}.jsx`, import.meta.url), 'utf8');
-    assert.doesNotMatch(source, /const t = \(zh/, `${file}: local t(zh, en)`);
-    assert.doesNotMatch(source, /language === 'en' \?|getUiLanguage\(\) === 'en'/, `${file}: a language ternary`);
+    violations.push(...findPrivateI18nInJsx(`${file}.jsx`, source));
   }
+  assert.deepEqual(violations, []);
 });
