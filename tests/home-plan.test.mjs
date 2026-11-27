@@ -216,7 +216,7 @@ test('an own deck is one the learner published: not the sample\'s, not one the a
 
 test('课程准备 and 今天先做什么 wait for the first deck of their own, on the library home', async () => {
   const { readFile } = await import('node:fs/promises');
-  assert.match(await readFile('ui/StudyMap.jsx', 'utf8'), /\{hasOwnDeck\(data\) && <SetupChecklist /);
+  assert.match(await readFile('ui/StudyMap.jsx', 'utf8'), /hasOwnDeck\(data\) && <SetupChecklist /);
   assert.match(await readFile('ui/app/page-views.jsx', 'utf8'), /pageAvailable\(data, 'review'\) && hasOwnDeck\(data\) && <DailyPlan /);
 });
 

@@ -106,6 +106,7 @@ import sealPressCopy from './locales/en.seal-press.json';
 import deskPlayCopy from './locales/en.desk-play.json';
 import masteryMapCopy from './locales/en.mastery-map.json';
 import paceCopy from './locales/en.pace.json';
+import liteViewCopy from './locales/en.lite-view.json';
 import appMessages from '../lib/application-messages-en.js';
 
 export const ENGLISH_SOURCES = {
@@ -210,6 +211,7 @@ export const ENGLISH_SOURCES = {
   'en.desk-play.json': deskPlayCopy,
   'en.mastery-map.json': masteryMapCopy,
   'en.pace.json': paceCopy,
+  'en.lite-view.json': liteViewCopy,
 };
 
 /** The English of lib/application-messages.js (localizeAppMessage), handed to it once this module is here. */

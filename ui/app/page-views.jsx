@@ -44,6 +44,8 @@ import WorkspaceBindingPanel from './WorkspaceBindingPanel.jsx';
 import { RecoveryBanner } from './AppBanners.jsx';
 import { qaToNoteArgs, questionNoteCourse, questionNoteRef, questionNoteTitle } from '../review/question-note.js';
 import { appendFocus } from '../generate-form.js';
+import { liteShows } from '../lite-view.js';
+import { useLiteView } from '../use-lite-view.js';
 import { retryForm, retryNotice } from './retry-generation.js';
 import { practiseRound } from './practise-round.js';
 import { openCompanionTarget } from '../companions/companion-ref.js';
@@ -55,6 +57,7 @@ function LibraryView() {
   const { data, core, nav, lib, set, session, intents, drafts, notebooks, tour, dailyPlan, settingsEntry, learn, connection } = useApp();
   const busy = useStudyBusy();
   const { notify } = core;
+  const lite = useLiteView();
   /* 期末一周 (M7): a course's book at a point, in 翻看 or with 今天读哪几节 open; another course than the current one is made current first (the book
      page shows the current course's book). 练 5 道 practises the point's next five, in a practice round's order. */
   const openCrunchBook = async (course, { target = null, view = null } = {}) => {
@@ -118,11 +121,11 @@ function LibraryView() {
           onGenerateFocus: (topics, course) => intents.goGenerate({ genPatch: (cur) => ({ ...cur, ...(course ? { course } : {}), focus: appendFocus(cur.focus, topics) }), remember: true }),
           onShowOutline: pageAvailable(data, 'outline') ? () => nav.navigate('outline') : undefined,
         }}>
-        {!linePage && pageAvailable(data, 'review') && hasOwnDeck(data) && <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan} primaryAction={false}
+        {liteShows(lite, 'home.daily-plan') && !linePage && pageAvailable(data, 'review') && hasOwnDeck(data) && <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan} primaryAction={false}
           onBoard={() => { set.setBoardView('today'); nav.navigate('board'); }}
           modelReady={data.model?.ready !== false} openModelSettings={settingsEntry.openModelSettings} />}
-        {!linePage && pageAvailable(data, 'book') && <CrunchCard data={data} onOpenBook={openCrunchBook} onPractice={practiseCrunch} onExamRun={startMock} />}
-        {!linePage && pageAvailable(data, 'book') && <WeeklyCard data={data} onOpenBook={openCrunchBook} onPractice={practiseCrunch} onExamRun={startMock} />}
+        {liteShows(lite, 'home.exam-cards') && !linePage && pageAvailable(data, 'book') && <CrunchCard data={data} onOpenBook={openCrunchBook} onPractice={practiseCrunch} onExamRun={startMock} />}
+        {liteShows(lite, 'home.exam-cards') && !linePage && pageAvailable(data, 'book') && <WeeklyCard data={data} onOpenBook={openCrunchBook} onPractice={practiseCrunch} onExamRun={startMock} />}
         <RecoveryBanner />
       </StudyMap>
     </>

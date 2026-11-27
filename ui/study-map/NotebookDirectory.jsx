@@ -12,9 +12,10 @@ const readOpen = () => readText(OPEN_KEY) !== '0';
 /* Cross-workspace notebook directory. Entries are links, not copies: each
    published notebook's study data stays in its own workspace, and clicking a
    foreign entry opens a fresh conversation there. */
-export default function NotebookDirectory({ notebooks, error, onPublish, onUnpublish, onOpen, refresh, onSearch }) {
+export default function NotebookDirectory({ notebooks, error, onPublish, onUnpublish, onOpen, refresh, onSearch, folded = false }) {
   const { busy } = useStudy();
-  const [open, setOpen] = useState(readOpen);
+  // `folded` (简洁版) starts it as its heading line; only the learner's own press saves a fold choice.
+  const [open, setOpen] = useState(() => !folded && readOpen());
   const [query, setQuery] = useState(''), [searching, setSearching] = useState(false), [results, setResults] = useState(null), [searchError, setSearchError] = useState('');
   const searchRequest = useRef(0);
   useEffect(() => {

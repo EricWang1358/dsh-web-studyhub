@@ -15,6 +15,11 @@
     .home-activity .sh-job .tech-details { margin-top: var(--space-2); font-size: var(--fs-sm); color: var(--text-muted); }
     /* A container, so a narrow list puts a row's 删除 on its own line (ui/study-map/desk.css, @container home-drafts). */
     .home-drafts { margin: var(--space-4) 0 var(--space-2); container: home-drafts / inline-size; }
+    /* 简洁版 leaves out the strip between the day's work and 待发布: the desk's rule is then the one divider, not two lines 40px apart. */
+    .desk.is-lite + .home-drafts { border-top: 0; }
+    /* 简洁版 leaves the left column a heading and one fold beside a card several times as tall. The column is set down by a fixed step, not centred:
+       opening 其他开始方式 must not move the heading above it. A narrow pane stacks the parts, so there is no step there. */
+    @container study (min-width: 761px) { .desk.is-lite:not(.is-empty) > .desk-intro { padding-top: calc(var(--space-9) * 2); } }
     /* ── 创建题组 ─────────────────────────────────────────────────────────── */
     .generate-page .source-mode { margin-top: var(--space-5); }
     .generate-page .source-tab strong { display: flex; align-items: center; gap: var(--space-2); }

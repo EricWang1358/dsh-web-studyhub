@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { ui } from '../i18n.js';
 import { APPEARANCE_LABELS, APPEARANCE_OPTIONS } from '../appearance-prefs.js';
 import { FONT_NAME_MAX, cleanFontName } from '../font-presets.js';
-import { Button, Disclosure, Field, Hint, InlineMessage, SegmentedControl, SettingsSection, TextInput } from '../components/index.js';
+import { Button, Disclosure, Field, Hint, InlineMessage, SegmentedControl, SettingsSection, Switch, TextInput } from '../components/index.js';
+import { useLiteViewSetting } from '../use-lite-view.js';
 import { playSound, playSoundPreview, stopSoundPreview } from '../sound-effects.js';
 import AppearanceTransfer from './AppearanceTransfer.jsx';
 
@@ -37,6 +38,17 @@ function AppearanceReset({ onReset }) {
   );
 }
 
+/** 简洁版 (ui/lite-view.js), at the top of the section. It is a choice of this browser with its own key, so 恢复默认外观 below does not reach it. */
+function LiteViewSwitch() {
+  const [on, setOn] = useLiteViewSetting();
+  return (
+    <div data-tour="settings-appearance-lite">
+      <Switch name="lite-view" data-usage="settings.lite-view" label={ui('简洁版')} checked={on} onChange={setOn}
+        hint={ui('侧栏和首页只留练题常用的部分，其余页面仍在「更多」里；不删数据，也不改复习安排。')} />
+    </div>
+  );
+}
+
 /** One appearance choice: a label, the segmented control and an optional hint. */
 const Choice = ({ label, hint, value, onChange, kind, ...rest }) => (
   <Field group label={label} hint={hint} width="full" {...rest}>
@@ -49,6 +61,7 @@ export default function AppearanceSection({ appearance }) {
   if (!appearance) return null;
   return (
     <SettingsSection className="appearance-settings" tour="settings-appearance" title={ui('界面')}>
+      <LiteViewSwitch />
       <Field group label={ui('界面语言')} width="full" data-tour="settings-appearance-language">
         <SegmentedControl label={ui('界面语言')} value={appearance.language} onChange={appearance.onLanguage}
           options={[{ value: 'zh', label: '中文' }, { value: 'en', label: 'English' }]} />
