@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
+import { parseTree, walkTree } from '../scripts/qa/css-tools.mjs';
 import { typeCounts } from '../scripts/qa/type-weight-counts.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -94,7 +95,16 @@ test('--fw-medium is 500, not 550: the Han fallback fonts only have 400 and 700,
   const fwStrong = declarations.filter((d) => d.prop === '--fw-strong');
   assert.deepEqual(fwMedium.map((d) => d.value), ['500'], 'a medium of 500 is a real medium in Inter and the regular face in Microsoft YaHei; 550 draws every Han label as full bold');
   assert.deepEqual(fwStrong.map((d) => d.value), ['650']);
-  assert.match(tokens, /#1079/, 'the token says why (a comment that names #1079)');
+  const tree = parseTree(tokens, { comments: true });
+  const mediumComments = [];
+  walkTree(tree, (node) => {
+    if (node.kind === 'rule' && node.decls.some((d) => d.prop === '--fw-medium')) {
+      for (const child of node.children) {
+        if (child.kind === 'comment') mediumComments.push(child.prelude);
+      }
+    }
+  });
+  assert.ok(mediumComments.some((comment) => /#1079/.test(comment)), 'the token says why (a comment next to --fw-medium that names #1079)');
 });
 
 test('strong weight and small type may only fall, file by file (#1079)', async (t) => {

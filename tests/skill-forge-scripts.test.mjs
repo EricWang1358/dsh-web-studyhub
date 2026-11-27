@@ -25,15 +25,29 @@ const writeRaw = async (wb, prs, issues = []) => {
   await writeFile(join(wb, 'raw', 'issues.jsonl'), jsonl(issues));
 };
 
-const fakePr = (number, over = {}) => ({
-  kind: 'pr', ref: `#${number}`, number, title: `feat: thing ${number}`, body: '', state: 'MERGED',
-  createdAt: '2026-10-05T10:00:00Z', mergedAt: '2026-10-06T10:00:00Z', closedAt: '2026-10-06T10:00:00Z', author: 'alice',
-  labels: [], files: [], comments: [], reviews: [], threadComments: [], closes: [], crossRefs: [], ...over,
-});
-const fakeIssue = (number, over = {}) => ({
-  kind: 'issue', ref: `#${number}`, number, title: `bug ${number}`, body: '', state: 'CLOSED', stateReason: 'COMPLETED',
-  createdAt: '2026-10-07T10:00:00Z', closedAt: '2026-10-08T10:00:00Z', author: 'bob', labels: [], comments: [], reopened: 0, crossRefs: [], closedBy: null, ...over,
-});
+function assertKnownKeys(base, over, kind) {
+  for (const key of Object.keys(over)) {
+    if (!Object.hasOwn(base, key)) throw new Error(`${kind} override has unknown field "${key}" not produced by forge-lib normalizer`);
+  }
+}
+const samplePr = (number, over = {}) => {
+  const base = lib.normalizePr({
+    number, title: `feat: thing ${number}`, body: '', state: 'MERGED',
+    createdAt: '2026-10-05T10:00:00Z', mergedAt: '2026-10-06T10:00:00Z', closedAt: '2026-10-06T10:00:00Z',
+    author: { login: 'alice' },
+  });
+  assertKnownKeys(base, over, 'pr');
+  return { ...base, ...over };
+};
+const sampleIssue = (number, over = {}) => {
+  const base = lib.normalizeIssue({
+    number, title: `bug ${number}`, body: '', state: 'CLOSED', stateReason: 'COMPLETED',
+    createdAt: '2026-10-07T10:00:00Z', closedAt: '2026-10-08T10:00:00Z',
+    author: { login: 'bob' },
+  });
+  assertKnownKeys(base, over, 'issue');
+  return { ...base, ...over };
+};
 
 /* ---------- normalize ---------- */
 
@@ -84,32 +98,32 @@ test('normalizeIssue counts reopen events and finds the closing PR', () => {
 
 test('noise: release and dependency chores are noise by default, patterns can be overridden', () => {
   const pats = lib.compileNoisePatterns();
-  assert.equal(lib.noiseOf(fakePr(1, { title: 'chore(release): 5.3.3 (#1287)' }), pats).noise, true);
-  assert.equal(lib.noiseOf(fakePr(2, { title: 'build(deps-dev): bump vite from 5 to 6' }), pats).noise, true);
-  assert.equal(lib.noiseOf(fakePr(3, { title: 'chore(deps): update x' }), pats).noise, true);
-  assert.equal(lib.noiseOf(fakePr(4, { title: 'Bump actions/checkout' }), pats).noise, true);
-  const real = lib.noiseOf(fakePr(5, { title: 'fix(review): stop restyling' }), pats);
+  assert.equal(lib.noiseOf(samplePr(1, { title: 'chore(release): 5.3.3 (#1287)' }), pats).noise, true);
+  assert.equal(lib.noiseOf(samplePr(2, { title: 'build(deps-dev): bump vite from 5 to 6' }), pats).noise, true);
+  assert.equal(lib.noiseOf(samplePr(3, { title: 'chore(deps): update x' }), pats).noise, true);
+  assert.equal(lib.noiseOf(samplePr(4, { title: 'Bump actions/checkout' }), pats).noise, true);
+  const real = lib.noiseOf(samplePr(5, { title: 'fix(review): stop restyling' }), pats);
   assert.equal(real.noise, false);
   assert.equal(real.noiseReason, '');
-  const reason = lib.noiseOf(fakePr(1, { title: 'chore(release): 5.3.3' }), pats).noiseReason;
+  const reason = lib.noiseOf(samplePr(1, { title: 'chore(release): 5.3.3' }), pats).noiseReason;
   assert.match(reason, /release/);
   const custom = lib.compileNoisePatterns(['^docs:']);
-  assert.equal(lib.noiseOf(fakePr(6, { title: 'docs: typo' }), custom).noise, true);
-  assert.equal(lib.noiseOf(fakePr(7, { title: 'chore(release): 1' }), custom).noise, false, 'overriding replaces the defaults');
+  assert.equal(lib.noiseOf(samplePr(6, { title: 'docs: typo' }), custom).noise, true);
+  assert.equal(lib.noiseOf(samplePr(7, { title: 'chore(release): 1' }), custom).noise, false, 'overriding replaces the defaults');
 });
 
 test('friction: revert, reopened, follow-up fix, cross refs, comments and the weighted score', () => {
   const items = [
-    fakePr(10, { title: 'feat: a' }),
-    fakePr(11, { title: 'Revert "feat: a"', body: 'This reverts commit abc.' }),
-    fakePr(12, { title: 'x', body: 'This reverts commit def.' }),
-    fakePr(20, { title: 'fix(ui): broke it', body: 'Follow-up to #10, which missed the case.' }),
-    fakePr(21, { title: 'fix: via xref', crossRefs: [10] }),
-    fakePr(22, { title: 'feat: mentions merged', body: 'see #10' }),
-    fakePr(5, { title: 'fix: mentions a later PR', body: 'see #10' }),
-    fakePr(30, { title: 'fix: mentions unmerged', body: 'see #31' }),
-    fakePr(31, { title: 'wip', state: 'CLOSED', mergedAt: null }),
-    fakeIssue(40, { reopened: 2, crossRefs: [1, 2], comments: [{}, {}, {}] }),
+    samplePr(10, { title: 'feat: a' }),
+    samplePr(11, { title: 'Revert "feat: a"', body: 'This reverts commit abc.' }),
+    samplePr(12, { title: 'x', body: 'This reverts commit def.' }),
+    samplePr(20, { title: 'fix(ui): broke it', body: 'Follow-up to #10, which missed the case.' }),
+    samplePr(21, { title: 'fix: via xref', crossRefs: [10] }),
+    samplePr(22, { title: 'feat: mentions merged', body: 'see #10' }),
+    samplePr(5, { title: 'fix: mentions a later PR', body: 'see #10' }),
+    samplePr(30, { title: 'fix: mentions unmerged', body: 'see #31' }),
+    samplePr(31, { title: 'wip', state: 'CLOSED', mergedAt: null }),
+    sampleIssue(40, { reopened: 2, crossRefs: [1, 2], comments: [{}, {}, {}] }),
   ];
   const idx = lib.buildIndex(items);
   const by = Object.fromEntries(idx.map(e => [e.number, e]));
@@ -132,7 +146,7 @@ test('friction: revert, reopened, follow-up fix, cross refs, comments and the we
 });
 
 test('index entry fields: date, month, dirs from the top two path segments, labels', () => {
-  const [e] = lib.buildIndex([fakePr(9, {
+  const [e] = lib.buildIndex([samplePr(9, {
     createdAt: '2026-11-03T23:59:00Z', labels: ['bug'],
     files: [{ path: 'lib/contexts/a/x.js' }, { path: 'lib/contexts/b/y.js' }, { path: 'ui/z.css' }, { path: 'README.md' }, { path: 'tests/a.test.mjs' }],
   })]);
@@ -143,7 +157,7 @@ test('index entry fields: date, month, dirs from the top two path segments, labe
   assert.deepEqual(e.dirs, ['(root)', 'lib/contexts', 'tests', 'ui']);
   assert.deepEqual(e.labels, ['bug']);
   assert.equal(e.noise, false);
-  const [i] = lib.buildIndex([fakeIssue(3)]);
+  const [i] = lib.buildIndex([sampleIssue(3)]);
   assert.deepEqual(i.dirs, []);
 });
 
@@ -155,10 +169,10 @@ const pool = () => {
     const month = 1 + (n % 4);
     const rev = n % 11 === 0;
     items.push(n % 5 === 0
-      ? fakeIssue(n, { createdAt: `2026-0${month}-15T00:00:00Z`, reopened: n % 10 === 0 ? 1 : 0 })
-      : fakePr(n, { createdAt: `2026-0${month}-15T00:00:00Z`, title: rev ? 'Revert "x"' : `feat: n${n}` }));
+      ? sampleIssue(n, { createdAt: `2026-0${month}-15T00:00:00Z`, reopened: n % 10 === 0 ? 1 : 0 })
+      : samplePr(n, { createdAt: `2026-0${month}-15T00:00:00Z`, title: rev ? 'Revert "x"' : `feat: n${n}` }));
   }
-  items.push(fakePr(100, { title: 'chore(release): 1.0.0', createdAt: '2026-01-02T00:00:00Z' }));
+  items.push(samplePr(100, { title: 'chore(release): 1.0.0', createdAt: '2026-01-02T00:00:00Z' }));
   return lib.buildIndex(items);
 };
 
@@ -205,7 +219,7 @@ test('cleanBody strips HTML comments and images, collapses long fenced blocks, k
 });
 
 test('buildDossierBlock: header first, bots skipped, comments cut, hard cap, files collapsed to directory counts', () => {
-  const pr = fakePr(77, {
+  const pr = samplePr(77, {
     title: 'fix(ui): the thing', labels: ['bug'], body: 'Body text. '.repeat(2000), crossRefs: [78], closes: [70],
     files: [{ path: 'ui/a.js', additions: 1, deletions: 0 }, { path: 'ui/b.js', additions: 1, deletions: 0 }, { path: 'lib/x/y.js', additions: 1, deletions: 0 }],
     comments: [
@@ -363,14 +377,14 @@ test('triage index, split, sample, dossier run end to end on a fake workbench an
   const wb = await tmp();
   const prs = [];
   for (let n = 1; n <= 30; n += 1) {
-    prs.push(fakePr(n, {
+    prs.push(samplePr(n, {
       createdAt: `2026-1${n % 2}-${String(1 + (n % 27)).padStart(2, '0')}T00:00:00Z`, title: n % 7 === 0 ? 'Revert "x"' : `feat: n${n}`,
       files: [{ path: `ui/f${n}.js`, additions: 1, deletions: 1 }], body: `body ${n}\n<!-- hidden -->`,
       comments: [{ author: 'dana', body: `comment ${n}`, createdAt: '' }],
     }));
   }
-  prs.push(fakePr(99, { title: 'chore(release): 9.9.9' }));
-  await writeRaw(wb, prs, [fakeIssue(50), fakeIssue(51, { reopened: 1 })]);
+  prs.push(samplePr(99, { title: 'chore(release): 9.9.9' }));
+  await writeRaw(wb, prs, [sampleIssue(50), sampleIssue(51, { reopened: 1 })]);
   const idx = run('triage.mjs', ['index', '--workbench', wb]);
   assert.equal(idx.status, 0, idx.stderr);
   const rows = (await readFile(join(wb, 'index.jsonl'), 'utf8')).trim().split('\n').map(l => JSON.parse(l));

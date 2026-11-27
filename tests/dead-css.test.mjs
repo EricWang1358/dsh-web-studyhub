@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { scanDead, collectUsage, isAlive, deleteDead, pruneEmpty, NEVER_SET, ONLY_COMPOUND } from '../scripts/qa/dead-css.mjs';
-import { ROOT, FROZEN_FILES, cssFiles, parseTree } from '../scripts/qa/css-tools.mjs';
+import { ROOT, FROZEN_FILES, cssFiles, parseTree, walkTree } from '../scripts/qa/css-tools.mjs';
 
 // Dead CSS (#155): a class selector that no ui source can put on an element is a rule nobody can see.
 
@@ -50,10 +50,35 @@ test('the checker understands dynamic and third-party class names', () => {
     const keyed = report.map((hit) => `${hit.line}:${hit.dead.join(',')}${hit.partial ? ':partial' : ''}`);
     assert.deepEqual(keyed, ['8:empty', '9:empty', '10:never-rendered', '11:never-rendered', '12:only-in-comment', '13:job', '14:never-rendered', '15:gone-class:partial', '17:never-rendered']);
     deleteDead(root);
-    const after = readFileSync(join(root, 'ui', 'x.css'), 'utf8');
-    assert.doesNotMatch(after, /never-rendered|gone-class|unused-spin|@media|only-in-comment|\.job/, 'dead rules, emptied @media and the unused @keyframes are removed');
-    assert.match(after, /\.used-class \{/);
-    assert.match(after, /:is\(\.used-class, \.not-needed\)/, 'a class inside :is() is an option, not a requirement');
+    const afterTree = parseTree(readFileSync(join(root, 'ui', 'x.css'), 'utf8'));
+    const nodes = [];
+    walkTree(afterTree, (node) => nodes.push(node));
+    const survivingRules = nodes.filter((node) => node.kind === 'rule');
+    assert.deepEqual(
+      nodes.filter((node) => node.kind === 'at').map((node) => node.prelude),
+      [],
+      'emptied @media and unused @keyframes are removed',
+    );
+    assert.deepEqual(
+      survivingRules.map((node) => node.prelude),
+      [
+        '.used-class',
+        '.a__title',
+        '.tone-ok, .tone-bad',
+        '.cell.l3',
+        '.k__icon',
+        '.cm-editor .cm-line',
+        '.mastery-bar.empty',
+        '.used-class',
+        ':is(.used-class, .not-needed)',
+      ],
+      'dead rules are deleted, partial selector lists are pruned, and a class inside :is() stays an option',
+    );
+    assert.ok(
+      survivingRules.every((node) => node.decls.length === 1 && node.decls[0].prop === 'color' && node.decls[0].value === 'red'),
+      'every surviving rule keeps its declaration intact',
+    );
+    assert.deepEqual(scanDead(root).report, [], 're-scanning after deleteDead reports zero dead rules');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
