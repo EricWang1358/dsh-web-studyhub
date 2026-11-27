@@ -133,12 +133,18 @@ export async function openDsh(page, url) {
   await page.locator(".study-app").or(page.getByRole("textbox")).or(page.getByRole("button", { name: ONBOARDING })).first().waitFor({ state: "visible", timeout: 90000 });
 }
 
+/** The sub-agents' preset (presets/study-worker.patch.yml) as the host's preset picker names it. */
+export const WORKER_PICKER_LABEL = /StudyHub.*勿选/;
+
 /** What the host's roster (the `result` of its `agentPresets/list`) says about StudyHub's two presets. One the host cannot
-    compose is only marked `broken` there: the picker leaves it out and the host's output says nothing. A roster this
-    cannot read is not called a failure. */
-export function studyPresetProblems(result) {
+    compose is only marked `broken` there, and the picker leaves it out without saying why. From DSH 0.2.2 the roster is
+    known to answer, so not reading it is a problem too; older hosts have never been asked this way. */
+export function studyPresetProblems(result, version = DSH_VERSION) {
   const presets = result?.ok ? result.value?.presets : null;
-  if (!Array.isArray(presets)) return { readable: false, problems: [] };
+  if (!Array.isArray(presets)) {
+    const untried = /^0\.2\.[01](?!\d)/.test(version);
+    return { readable: false, problems: untried ? [] : [`the preset roster could not be read: ${result?.error?.message || "no preset list in the answer"}`] };
+  }
   const problems = ["study", "study-worker"].flatMap((id) => {
     const preset = presets.find((item) => item.id === id);
     return !preset ? [`${id}: not registered`] : preset.broken ? [`${id}: ${preset.broken}`] : [];
@@ -215,13 +221,13 @@ export async function runDshE2e(options) {
       const result = await page.evaluate(async () => {
         try {
           const response = await fetch("/api/agentPresets/list", { method: "POST", headers: { "content-type": "application/json" },
-            body: JSON.stringify({ type: "client-request", rpcId: crypto.randomUUID(), method: "agentPresets/list", payload: { args: [] } }) });
+            body: JSON.stringify({ type: "client-request", rpcId: crypto.randomUUID(), method: "agentPresets/list", payload: { args: {} } }) });
           return (await response.json()).result;
         } catch { return null; }
       });
-      const { readable, problems } = studyPresetProblems(result);
+      const { readable, problems } = studyPresetProblems(result, wantedVersion);
       summary.studyPresets = { readable, problems };
-      if (problems.length) throw new Error(["the host cannot use a StudyHub preset:", ...problems].join("\n"));
+      if (problems.length) throw new Error(["the StudyHub preset check failed:", ...problems].join("\n"));
     });
     await step("first-message", async () => {
       // DSH 0.2.0-rc.2 opens straight on the Study plugin page (its only plugin tab): there is no composer to type in then.
@@ -493,7 +499,7 @@ export async function runDshE2e(options) {
       const sameTools = JSON.stringify(study.tools || []) === JSON.stringify([...new Set([...(standard.tools || []), ...studyOwn])].sort());
       const problem = (key, value) => value.error || (!value.reply && "no reply") || (key === "study" && !value.personaSent && "the preset's persona never reached the model")
         || Object.entries(value.toolTurns || {}).map(([name, turn]) => !(turn.called && turn.resultSeen && turn.reply) && `the ${name} tool turn did not complete: ${JSON.stringify(turn)}`).find(Boolean);
-      const workerAt = (summary.presetPicker || []).findIndex((text) => /StudyHub 后台|StudyHub background/.test(text));
+      const workerAt = (summary.presetPicker || []).findIndex((text) => WORKER_PICKER_LABEL.test(text));
       if (workerAt < 0) throw new Error(`the worker preset is missing from the picker: ${JSON.stringify(summary.presetPicker || [])}`);
       if (workerAt !== summary.presetPicker.length - 1) throw new Error(`the worker preset is not last in the picker: ${JSON.stringify(summary.presetPicker)}`);
       const bad = Object.entries(summary.presetChat).map(([key, value]) => [key, problem(key, value)]).filter(([, text]) => text);

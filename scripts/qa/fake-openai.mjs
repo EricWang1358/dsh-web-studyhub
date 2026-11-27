@@ -33,9 +33,11 @@ export async function createFakeOpenAI({ port = 0, host = "127.0.0.1", model, be
         const request = JSON.parse(body || "{}");
         const messages = Array.isArray(request.messages) ? request.messages : [];
         const system = messages.filter((m) => m.role === "system" || m.role === "developer").map((m) => text(m.content)).join("\n");
-        // DSH ends the conversation of a delegated call with a runtime-context snapshot of its own: what was asked is the last user turn before it.
+        // DSH ends the conversation of a delegated call with turns of its own (a runtime-context snapshot; from 0.2.2 also a turn that holds only a
+        // <system-reminder>): what was asked is the last user turn before them.
         const turns = messages.filter((m) => m.role === "user").map((m) => text(m.content));
-        const prompt = turns.findLast((turn) => !/^\s*Current runtime context\./.test(turn)) ?? turns.at(-1) ?? "";
+        const hostOnly = (turn) => /^\s*Current runtime context\./.test(turn) || !turn.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "").trim();
+        const prompt = turns.findLast((turn) => !hostOnly(turn)) ?? turns.at(-1) ?? "";
         await beforeReply?.(system, prompt); // a run may hold the model (scripts/qa/dsh-runtime-smoke.mjs shows a job while it runs)
         // `toolCall({ prompt, tools })` may return { name, arguments } to make the model call a tool instead of answering (once: the turn after the tool result is a plain answer).
         const toolNames = (request.tools || []).map((tool) => tool.function?.name || tool.name).filter(Boolean);

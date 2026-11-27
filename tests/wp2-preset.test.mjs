@@ -123,7 +123,7 @@ test('exception: the schedule row is enabled exactly where its package resolves'
   } finally { await rm(host, { recursive: true, force: true }); }
 });
 
-/* What @deepseek-ai/dsh-tool-subagent-control exports, as its published package.json says per release. */
+/* The entries of @deepseek-ai/dsh-tool-subagent-control's published `exports` that decide this, per release (npm view; the rest left out). */
 const SUBAGENT_CONTROL_EXPORTS = {
   '0.2.0-rc.2 and 0.2.1-rc.2': { '.': { default: './lib/index.js' }, './list-agents': { types: './lib/types/list-agents.d.ts', default: './lib/types/list-agents.js' }, './package.json': './package.json' },
   '0.2.2-rc.5': { '.': { default: './lib/index.js' }, './src/*': './src/*', './package.json': './package.json' },
