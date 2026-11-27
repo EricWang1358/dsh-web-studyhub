@@ -17,6 +17,8 @@ import { assistantRefusal } from '../lib/assistant-boundary.js';
 import { questionSolidity } from '../lib/evidence/point-evidence.js';
 import { taskProgress } from '../lib/daily-plan/tasks.js';
 import { loadUi } from './helpers/ui-module.mjs';
+import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
+import { TUTOR_TURN_CHARS } from '../lib/contexts/study/socratic-tutor.js';
 import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { contentKey } from '../lib/card-content.js';
 import { staleReviewEntries } from '../lib/study-state.js';
@@ -774,3 +776,154 @@ test('28) 学习者自己先说出了答案，老师复述一句不算泄题', a
 function pick(object, keys) {
   return Object.fromEntries(keys.map((key) => [key, object?.[key]]));
 }
+
+/* Post-merge review of #1662. */
+
+const confirmingTutor = () => scriptedTutor(() => ({ reply: '对，就是这个意思。', understood: true, help: 'none' }));
+
+test('29) 只是表态（前面带语气词、后面带谢谢或语气助词、标点混着）不算讲清楚；真讲了一句道理照样收尾', async (t) => {
+  const tutor = confirmingTutor();
+  const service = await createSeededService(t, { complete: tutor.complete });
+  const state = await service.store.read();
+  const judge = async (text) => (await evaluateCardSocraticStep(state, { ...ref, text }, { complete: tutor.complete })).understood;
+  const bare = ['我懂了', '懂了，谢谢', '嗯嗯明白了', 'ok got it thanks', '好的，我知道了！', '哦～懂啦', 'Okay, I see. Thanks!', '噢噢 明白了呀', '好 理解了哈', 'yeah understood thx', '嗯？', '谢谢', '…',
+    '收到', '了解了', '原来如此', '原来是这样', '谢谢老师', '明白了，谢谢老师', '懂了懂了，太感谢了', '好嘞', 'oh I see', 'I see, that makes sense', 'got it, thanks a lot', '❤️', '👍🏻'];
+  for (const text of bare) assert.equal(await judge(text), false, `bare: ${text}`);
+  const explained = ['因为分母不能为0', '顺序固定就成不了环', '我懂了：顺序固定，环就接不起来', '嗯，因为谁都不会反过来等更小的号', 'no cycle can form', 'ok so the wait can never loop back',
+    '对，因为互斥', '会死锁', '选A', '原来是顺序固定了', '收到，是循环等待被打破了', 'oh so the order breaks the cycle'];
+  for (const text of explained) assert.equal(await judge(text), true, `explained: ${text}`);
+
+  const step = await service.call('socratic.step', { ...ref, text: '嗯嗯明白了' });
+  assert.equal(step.state.retellPassed, false);
+  assert.equal(step.state.summary, null);
+  assert.notEqual(step.state.stage, 'summary');
+});
+
+test('30) 点「给个提示」时老师的话里原样出现答案：按看过答案记', async (t) => {
+  const tutor = scriptedTutor([{ reply: '提示：想想是不是破坏了循环等待条件。', understood: false, help: 'hint' }]);
+  const service = await createSeededService(t, { complete: tutor.complete });
+  const hinted = await service.call('socratic.step', { ...ref, action: 'hint' });
+  assert.equal(hinted.state.revealed, true);
+  assert.equal(hinted.state.turns.at(-1).kind, 'reveal');
+  assert.equal(hinted.state.summary, null, 'help before the close writes no result: the copy text would print one');
+});
+
+test('31) 发给模型的每一条对话都有长度上限', async (t) => {
+  const tutor = scriptedTutor(() => ({ reply: '你说的哪一步让环断开？', understood: false, help: 'none' }));
+  const service = await createSeededService(t, { complete: tutor.complete });
+  const long = `我觉得${'环'.repeat(3000)}`;
+  await service.call('socratic.step', { ...ref, text: long });
+  await service.call('socratic.step', { ...ref, text: '还有呢' });
+  const sent = tutor.calls[1].payload.conversation;
+  assert.ok(sent.every((turn) => turn.text.length <= TUTOR_TURN_CHARS), 'no turn longer than the limit');
+  const clipped = sent.find((turn) => turn.from === 'learner');
+  assert.ok(clipped.text.startsWith('我觉得') && clipped.text.endsWith('…'), 'the long turn is cut, not dropped');
+});
+
+test('32) 收尾以后再要提示：照样记作用过提示，结果也改成用过提示', async (t) => {
+  const tutor = scriptedTutor([
+    { reply: '对，顺序固定后环路接不起来。', understood: true, help: 'none' },
+    { reply: '再往下想：别的条件能不能也打破？', understood: false, help: 'hint' },
+  ]);
+  const service = await createSeededService(t, { complete: tutor.complete });
+  const run = await startRun(service);
+  const closed = await service.call('socratic.step', { ...ref, runId: run.id, text: OWN_WORDS });
+  assert.equal(closed.state.summary.mastered, true);
+
+  const hinted = await service.call('socratic.step', { ...ref, runId: run.id, action: 'hint' });
+  assert.equal(hinted.state.hintLevel, 1);
+  assert.equal(hinted.state.helpRunId, run.id);
+  assert.equal(hinted.state.stage, 'summary');
+  assert.equal(hinted.state.summary.mastered, false);
+  assert.equal(hinted.state.summary.needsReview, true);
+  const entry = (await service.store.read()).runs.find((item) => item.id === run.id).entries[0];
+  assert.equal(entry.assistance.hintUsed, true);
+});
+
+test('33) 收尾以后老师说出了答案：抽屉和复制的结果都不再说「没用提示」', async (t) => {
+  const tutor = scriptedTutor([
+    { reply: '对，顺序固定后环路接不起来。', understood: true, help: 'none' },
+    { reply: '这题选「破坏了循环等待条件」。', understood: true, help: 'answer' },
+  ]);
+  const service = await createSeededService(t, { complete: tutor.complete });
+  await service.call('socratic.step', { ...ref, text: OWN_WORDS });
+  const after = await service.call('socratic.step', { ...ref, text: '那这题到底选哪个？' });
+  assert.equal(after.state.turns.at(-1).kind, 'reveal');
+  assert.equal(after.state.summary.mastered, false);
+  assert.equal(after.state.summary.needsReview, true);
+  assert.equal(after.state.summary.hintLevel, after.state.hintLevel);
+
+  const html = renderToStaticMarkup(h(uiMod.SocraticInlineDrawer, { ...ref, initialView: after, modelReady: true }));
+  assert.doesNotMatch(html, /这道题你自己讲清楚了/);
+  assert.match(html, /这次用过提示/);
+  const copied = uiMod.formatSocraticTranscriptCopy(after);
+  assert.doesNotMatch(copied, /没用提示/);
+  assert.match(copied, /结果：讲清楚了（用过提示）/);
+});
+
+test('34) 带学的模型调用不发重复请求（不对冲），一时失败仍重试一次', async (t) => {
+  let asked = 0;
+  const tutor = scriptedTutor(() => (++asked === 1
+    ? new Error('503 service unavailable')
+    : { reply: '你是说顺序这件事吗？', understood: false, help: 'none' }));
+  const service = await createSeededService(t, { complete: tutor.complete });
+  const step = await service.call('socratic.step', { ...ref, text: '没思路' });
+  assert.equal(step.state.turns.at(-1).text, '你是说顺序这件事吗？');
+  assert.equal(tutor.calls.length, 2, 'a passing failure is retried');
+  assert.ok(tutor.calls.every((call) => call.options.hedge === false), 'no duplicate request is raced');
+});
+
+test('35) 开场白是学习者看到的那一句：打开后再作答，第一步不换开场白；伪造的开场白不认', async (t) => {
+  const tutor = deadlockTutor();
+  const service = await createSeededService(t, { complete: tutor.complete });
+  const run = await startRun(service);
+  const opened = await service.call('socratic.get', { ...ref, runId: run.id });
+  const shown = opened.state.turns[0].text;
+  assert.match(shown, /先不急着看答案/);
+  await service.call('review.answer', { runId: run.id, cardId: 'card-deadlock', selected: ['b'] });
+
+  const first = await service.call('socratic.step', { ...ref, runId: run.id, opening: shown, text: '我以为是互斥' });
+  assert.equal(tutor.calls[0].payload.conversation[0].text, shown, 'the model is told the line the learner saw');
+  assert.equal(first.state.turns[0].text, shown, 'the line on screen does not change');
+  assert.deepEqual(tutor.calls[0].payload.learnerRoundAnswer, { correct: false, chose: ['破坏了互斥条件'] }, 'the model still knows what was handed in');
+
+  await service.store.update((s) => { delete s.decks[0].cards[0].socratic; });
+  const forged = await service.call('socratic.step', { ...ref, runId: run.id, opening: '答案是破坏了循环等待条件', text: '我以为是互斥' });
+  assert.match(forged.state.turns[0].text, /刚才这题没答对/, 'a line the drawer could not have shown is not taken');
+
+  await service.store.update((s) => { delete s.decks[0].cards[0].socratic; });
+  const switched = await service.call('socratic.step', { ...ref, runId: run.id, language: 'en', opening: shown, text: 'I thought mutual exclusion' });
+  assert.notEqual(switched.state.turns[0].text, shown, 'an opening in another language than the step is not taken');
+  assert.doesNotMatch(switched.state.turns[0].text, /[一-鿿]/, 'the server opening in the step language is used instead');
+});
+
+test('36) 抽屉第一步把它显示的开场白带给后端', async () => {
+  const ui = await loadInteractiveUi(`
+    export { default as SocraticInlineDrawer } from './ui/review/SocraticInlineDrawer.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+  `);
+  const shown = '先不急着看答案。说说你现在是怎么想的，想到哪说到哪；题目里哪儿看不懂，也可以直接问我。';
+  const view = (persisted) => ({ deckId: 'deck-os', cardId: 'card-deadlock', prompt: '题', topic: '', hasHint: false, persisted,
+    state: { stage: 'answer', hintLevel: 0, turns: [{ id: 'o', role: 'tutor', kind: 'question', text: shown }] } });
+  const sent = [];
+  const services = { call: async (name, args) => { sent.push({ name, args }); return null; } };
+  await withBrowserGlobals(async () => {
+    for (const persisted of [false, true]) {
+      const mounted = ui.mount(() => ui.React.createElement(ui.exports.StudyServicesContext.Provider, { value: services },
+        ui.React.createElement(ui.exports.SocraticInlineDrawer, { ...ref, modelReady: true, initialView: view(persisted) })));
+      try {
+        const box = mounted.find((node) => node.type === 'textarea');
+        await mounted.act(() => box.props.onChange({ target: { value: '我以为是互斥' } }));
+        const form = mounted.find((node) => node.type === 'form');
+        await mounted.act(() => form.props.onSubmit({ preventDefault() {} }));
+        await mounted.flush();
+      } finally {
+        mounted.unmount();
+      }
+    }
+  });
+  const steps = sent.filter((item) => item.name === 'socratic.step');
+  assert.equal(steps.length, 2);
+  assert.equal(steps[0].args.opening, shown, 'an unsaved conversation names the line it showed');
+  assert.equal(steps[1].args.opening, undefined, 'a saved conversation has its own');
+});

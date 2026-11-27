@@ -122,6 +122,8 @@ const SocraticInlineDrawer = React.memo(function SocraticInlineDrawer({
   const spoke = turns.some((turn) => turn.role === 'learner');
   const resolvedPrompt = conversation?.prompt || prompt;
   const resolvedTopic = conversation?.topic || topic;
+  // Not saved yet: the first step names the opening on screen, so the record starts from the line the learner saw (checked by the backend).
+  const shownOpening = conversation && !conversation.persisted && turns[0]?.text ? { opening: turns[0].text } : {};
   const busy = Boolean(pending);
   const thinking = Boolean(pending?.thinks);
   const seconds = useSecondsSince(thinking ? pending.startedAt : 0);
@@ -159,7 +161,7 @@ const SocraticInlineDrawer = React.memo(function SocraticInlineDrawer({
     if (fromBox) setDraft('');
     try {
       const next = await call('socratic.step', {
-        deckId, cardId, ...(runId ? { runId } : {}), language: getUiLanguage(), ...payload, ...(modelReady ? {} : { offline: true }),
+        deckId, cardId, ...(runId ? { runId } : {}), language: getUiLanguage(), ...payload, ...(modelReady ? {} : { offline: true }), ...shownOpening,
       });
       if (next) setConversation(next);
     } catch (err) {
