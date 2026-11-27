@@ -261,11 +261,16 @@ test('layer, scrim, weight, radius and duration tokens are defined (#76 #147 #14
 });
 
 test('the coach skeleton keyframes are renamed and still used (#102)', () => {
-  const coach = readFileSync(new URL('../ui/coach.css', import.meta.url), 'utf8');
-  assert.doesNotMatch(coach, /@keyframes shimmer\b/);
-  assert.match(coach, /@keyframes sh-[\w-]*shimmer\b/);
-  const name = coach.match(/@keyframes (sh-[\w-]*shimmer)\b/)[1];
-  assert.match(coach, new RegExp(`animation:\\s*${name}\\b`));
+  const { declarations, blocks } = parseCss(readFileSync(new URL('../ui/coach.css', import.meta.url), 'utf8'));
+  const keyframeNames = blocks
+    .map((b) => /^@(?:-webkit-|-moz-)?keyframes\s+([\w-]+)\b/.exec(b.prelude)?.[1])
+    .filter(Boolean);
+  assert.deepEqual(keyframeNames.filter((k) => k === 'shimmer'), [], 'unprefixed @keyframes shimmer must not exist in ui/coach.css');
+  const shimmerNames = keyframeNames.filter((k) => /^sh-[\w-]*shimmer$/.test(k));
+  assert.ok(shimmerNames.length >= 1, 'expected an sh-*-shimmer @keyframes definition in ui/coach.css');
+  const animRef = new RegExp(`(?:^|[\\s,])${shimmerNames[0]}(?![\\w-])`);
+  const animDecls = declarations.filter((d) => (d.prop === 'animation' || d.prop === 'animation-name') && animRef.test(d.value));
+  assert.ok(animDecls.length >= 1, `expected an animation declaration referencing ${shimmerNames[0]}`);
 });
 
 test('tokens are documented in DESIGN.md', () => {
