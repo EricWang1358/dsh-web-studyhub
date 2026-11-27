@@ -505,8 +505,12 @@ describe('P3 (#1354): shared lib/atomic-json.js & backend settings/state atomic 
     for (const record of records) {
       const before = await record.count();
       const release = await holdUnreadable(record.file);
+      // Whether this machine really denies the read while the lock is held: a Windows CI runner was seen to let it through (the
+      // write was then refused at the rename with EPERM). Either way the write must be refused and the history kept.
+      const readDenied = await readFile(record.file, 'utf8').then(() => false, () => true);
       const outcome = await record.write().then(() => 'written', (err) => err?.code).finally(release);
-      assert.equal(outcome, 'json-unreadable', `${record.name}: a write over a file that stays unreadable must be refused`);
+      if (readDenied) assert.equal(outcome, 'json-unreadable', `${record.name}: a write over a file that stays unreadable must be refused`);
+      else assert.ok(['EPERM', 'EBUSY', 'EACCES'].includes(outcome), `${record.name}: the read got through the lock, so the replace must be refused (got ${outcome})`);
       assert.equal(await record.count(), before, `${record.name}: history must survive an unreadable read`);
     }
   });
