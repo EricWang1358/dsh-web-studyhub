@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 
 /* 创建题组, the submit area (#1082): the DOM is in the order it is seen, so Tab reaches the one button before anything the run's facts hold (the estimate's ⓘ).
@@ -60,8 +61,13 @@ test('with nothing ticked the bar still has its two lines, the first saying what
 });
 
 test('no CSS `order` rearranges 创建题组: what is seen is the DOM, so the Tab order is the reading order', async () => {
-  const css = await readFile(new URL('../ui/generate-home.css', import.meta.url), 'utf8');
-  assert.deepEqual(css.match(/(?<![-\w])order\s*:[^;]+/g) || [], [], 'no order rules in ui/generate-home.css');
+  const { declarations } = parseCss(await readFile(new URL('../ui/generate-home.css', import.meta.url), 'utf8'));
+  assert.ok(declarations.length > 0, 'ui/generate-home.css declares styles');
+  assert.deepEqual(
+    declarations.filter((d) => d.prop === 'order'),
+    [],
+    'no order rules in ui/generate-home.css',
+  );
 });
 
 test('额外要求 names its own field for what it is: not 「名称（可选）」 beside 题组名称（可选）', () => {
