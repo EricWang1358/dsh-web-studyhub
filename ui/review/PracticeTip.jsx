@@ -10,7 +10,8 @@ const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayout
    It is a small card in the top layer (a manual popover, like <Tooltip layer>) placed from the rectangle of the control it points at, so it pushes nothing: the toolbar,
    the 目标 panel and the question stay where they are. It never takes focus (the learner's next key still reaches the page: Enter or → for 下一题), 知道了 and Esc close it,
    and it steps aside while a menu or the tag tray is open. It lies over empty space only: where it goes is chosen from the boxes of everything the learner reads or presses
-   (practice-tip-spot.js; no free slot, no tip yet), and the control it is about carries a quiet outline while it is open. No motion, so nothing to reduce. */
+   (practice-tip-spot.js; no free slot, no tip yet). With a narrow question column the same card follows its control in the page instead. Only time actually in view
+   counts toward reading it, including while the sticky toolbar is on screen. */
 
 /** The control each tip points at (the usage name it already carries) and the tip's words (Chinese source text, English in ui/locales/en.practice.json). */
 export const PRACTICE_TIP_TARGET = Object.freeze({
@@ -61,7 +62,7 @@ function keepClear(area, card) {
   return boxes;
 }
 
-export default function PracticeTip({ id, onClose, onShown }) {
+export default function PracticeTip({ id, inline = false, onClose, onShown }) {
   const element = useRef(null);
   const visibleNow = useRef(false);
   const latest = useRef({});
@@ -70,19 +71,45 @@ export default function PracticeTip({ id, onClose, onShown }) {
   useIsoLayoutEffect(() => {
     const card = element.current;
     if (!card) return undefined;
+    card.hidden = false;
+    if (inline) {
+      card.style.visibility = '';
+      card.style.maxWidth = '';
+    }
     let frame = 0, reported = false, ringed = null, dwellTimer = 0;
     // Its own question only: another question may be on the page too (the reader's 本节题目 round over the practice page, #1013).
     const scope = card.closest('.review-body') || document;
     const open = () => card.matches?.(':popover-open');
     const clearDwell = () => { if (dwellTimer) { clearTimeout(dwellTimer); dwellTimer = 0; } };
     const ring = target => { if (ringed !== target) { ringed?.removeAttribute(RING); target?.setAttribute(RING, ''); ringed = target; } };
-    const hide = () => { visibleNow.current = false; clearDwell(); ring(null); if (open()) card.hidePopover(); };
+    const pause = () => { visibleNow.current = false; clearDwell(); ring(null); };
+    const hide = () => { pause(); if (inline) card.hidden = true; else if (open()) card.hidePopover(); };
+    const shown = target => {
+      ring(target);
+      visibleNow.current = true;
+      if (!reported && !dwellTimer) {
+        dwellTimer = setTimeout(() => {
+          dwellTimer = 0;
+          if (visibleNow.current && !reported) { reported = true; latest.current.onShown?.(); }
+        }, PRACTICE_TIP_DWELL_MS);
+      }
+    };
     const measure = () => { const box = card.getBoundingClientRect(); return { width: box.width, height: box.height }; };
     const place = () => {
       frame = 0;
-      const target = [...scope.querySelectorAll(control)].find(visible), at = target?.getBoundingClientRect();
-      // Only next to a control that is on screen (a link far down the page waits until the learner scrolls to it), and not on top of an open menu, sheet or tray.
-      if (!at || at.top < BAR_HEIGHT || at.bottom > window.innerHeight || document.querySelector(PRACTICE_TIP_YIELD_TO)) { hide(); return; }
+      const host = inline ? (card.closest('.followup-item') || scope) : scope;
+      const target = [...host.querySelectorAll(control)].find(visible), at = target?.getBoundingClientRect();
+      if (!at || document.querySelector(PRACTICE_TIP_YIELD_TO)) { hide(); return; }
+      if (inline) {
+        card.hidden = false;
+        const rect = card.getBoundingClientRect(), mid = (rect.left + rect.right) / 2;
+        // A card below the fold or behind the sticky toolbar is still available to scroll to, and remains unread.
+        const readable = rect.height > 0 && rect.top >= BAR_HEIGHT && rect.bottom <= window.innerHeight
+          && [rect.top + 2, rect.bottom - 2].every(y => card.contains(document.elementFromPoint(mid, y)));
+        if (readable) shown(target); else pause();
+        return;
+      }
+      if (at.top < BAR_HEIGHT || at.bottom > window.innerHeight) { hide(); return; }
       card.style.visibility = 'hidden';
       card.style.maxWidth = '';
       if (card.showPopover && !open()) card.showPopover();
@@ -104,14 +131,7 @@ export default function PracticeTip({ id, onClose, onShown }) {
       card.style.left = `${spot.left / scale}px`;
       card.style.top = `${spot.top / scale}px`;
       card.style.visibility = '';
-      ring(target);
-      visibleNow.current = true;
-      if (!reported && !dwellTimer) {
-        dwellTimer = setTimeout(() => {
-          dwellTimer = 0;
-          if (visibleNow.current && !reported) { reported = true; latest.current.onShown?.(); }
-        }, PRACTICE_TIP_DWELL_MS);
-      }
+      shown(target);
     };
     const soon = () => { if (!frame) frame = requestAnimationFrame(place); };
     place();
@@ -131,7 +151,7 @@ export default function PracticeTip({ id, onClose, onShown }) {
       changes?.disconnect();
       hide();
     };
-  }, [control]);
+  }, [control, inline]);
   // Esc closes it from anywhere while it is actually visible (it never has the focus); a menu, sheet or tray that Esc closes first prevents default before it gets here.
   useEffect(() => {
     const key = event => {
@@ -144,7 +164,7 @@ export default function PracticeTip({ id, onClose, onShown }) {
     return () => document.removeEventListener('keydown', key);
   }, []);
   return (
-    <div ref={element} popover="manual" role="status" className="practice-tip" data-practice-tip={id}>
+    <div ref={element} popover={inline ? undefined : 'manual'} role="status" className={inline ? 'practice-tip practice-tip--inline' : 'practice-tip'} data-practice-tip={id}>
       <p className="practice-tip__words"><span className="practice-tip__text">{ui(words)}</span>
         <Button size="sm" className="practice-tip__ok" onClick={event => {
           // A click leaves the keyboard on the page, not on a button that is about to go: Enter still means 下一题.

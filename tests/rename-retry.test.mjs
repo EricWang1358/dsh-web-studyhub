@@ -31,7 +31,8 @@ test('every writer that replaces a file in the shared study folder goes through 
   const lineBreaks = new RegExp(String.fromCharCode(13) + String.fromCharCode(10), 'g');
   for (const file of ['lib/atomic-json.js', 'lib/board.js', 'lib/notebooks.js']) {
     const source = (await readFile(new URL(`../${file}`, import.meta.url), 'utf8')).replace(lineBreaks, String.fromCharCode(10));
-    assert.match(source, /renameWithRetry\(/, file);
+    // Directly, or through lib/atomic-json.js's atomicJson / atomicUpdateJson, which rename with it.
+    assert.match(source, /renameWithRetry\(|atomicJson\(|atomicUpdateJson\(/, file);
     assert.doesNotMatch(source.replace(/export async function renameWithRetry[\s\S]*?\n}\n/, ''), /[^.\w]rename\(/, `${file} replaces a file with a bare rename`);
   }
 });

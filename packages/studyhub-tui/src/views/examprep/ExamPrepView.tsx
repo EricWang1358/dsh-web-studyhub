@@ -6,7 +6,6 @@ import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Divider, EmptyState, ProgressBar, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
-import { Prose } from '../../components/Layout.js';
 import { Panel } from '../../components/Panel.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
@@ -1057,18 +1056,11 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
                   <Text color={theme.text}>
                     {`${t(lang, '题数', 'Questions')}: ${selectedCrunch.questions ?? 0}   ${t(lang, '薄弱', 'Weak')}: ${selectedCrunch.weak ?? 0}   ${t(lang, '到期', 'Due')}: ${selectedCrunch.due ?? 0}   ${t(lang, '未练', 'Fresh')}: ${selectedCrunch.fresh ?? 0}`}
                   </Text>
-                  {selectedCrunch.tested?.length ? (
-                    <Text color={theme.accent}>{`${t(lang, '样卷考过', 'Tested in')}: ${selectedCrunch.tested.join(', ')}`}</Text>
+                  {(selectedCrunch.tested ?? 0) > 0 ? (
+                    <Text color={theme.accent}>{t(lang, `样卷考过：${selectedCrunch.tested} 套`, `Sample papers: ${selectedCrunch.tested}`)}</Text>
                   ) : null}
-                  {selectedCrunch.pitfalls?.length ? (
-                    <Box flexDirection="column">
-                      <Text color={theme.warning} bold>{t(lang, '易错点提醒', 'Pitfalls')}:</Text>
-                      {selectedCrunch.pitfalls.slice(0, 5).map((pf, i) => (
-                        <Prose key={i} width={Math.max(10, sz.width - 4)} color={theme.muted} ascii={asciiMode}>
-                          {`${asciiMode ? '*' : '•'} ${pf}`}
-                        </Prose>
-                      ))}
-                    </Box>
+                  {(selectedCrunch.pitfalls ?? 0) > 0 ? (
+                    <Text color={theme.warning}>{t(lang, `易错点：${selectedCrunch.pitfalls} 个`, `Pitfalls: ${selectedCrunch.pitfalls}`)}</Text>
                   ) : null}
                 </Box>
               ) : null}

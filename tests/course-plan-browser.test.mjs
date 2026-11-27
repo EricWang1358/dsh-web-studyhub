@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { buildPreview } from '../scripts/build.mjs';
-import { launchChromium } from '../scripts/qa/browser.mjs';
+import { buildChatPreview } from './helpers/chat-preview.mjs';
+import { launchChromium, skipMissingChromium } from '../scripts/qa/browser.mjs';
 import { StudyService } from '../lib/service.js';
 import { openPage, settleAnimations, startLateServer } from '../scripts/qa/layout-late.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
@@ -60,9 +60,9 @@ async function openBook(page, running, open = '打开书页') {
 
 test('备考计划: a saved plan (open, folded, kept), the final week handing over, the quiet lines, no horizontal scroll (1280 and 420 px)', { timeout: 480000 }, async (t) => {
   let browser;
-  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
+  try { browser = await launchChromium(); } catch (error) { skipMissingChromium(t, error); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-course-plan-dist-'));
-  await buildPreview({ outdir: dist });
+  await buildChatPreview({ outdir: dist });
   const running = await startLateServer({ distDir: dist, seed });
   const shots = process.env.COURSE_PLAN_SHOTS;
   if (shots) await mkdir(shots, { recursive: true });
@@ -73,7 +73,6 @@ test('备考计划: a saved plan (open, folded, kept), the final week handing ov
       await running.api('course.save', { name: COURSE, plan: PLAN });
       await running.api('focus.set', { course: COURSE });
       const { page, errors, context } = await openPage(browser, running, { width, height: 900 });
-      await context.grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => {});
       await openBook(page, running);
       const section = page.locator('.book-plan[data-plan="plan"]');
       await section.waitFor({ timeout: 30000 });
@@ -114,11 +113,11 @@ test('备考计划: a saved plan (open, folded, kept), the final week handing ov
       await page.locator('.book-plan__title').click();
       await page.locator('.book-plan__phases').waitFor({ timeout: 30000 });
 
-      // 想调整这份计划 › 发给主会话: the message goes to the clipboard (no chat in the preview) and names the tools and the rule.
+      // The hand-off drafts the plan request in the host composer and names the tools and the consent rule.
       await section.locator('.book-plan__revise [data-hand-off="course.plan"]').click();
-      await page.getByText(/已复制到剪贴板|需要手动复制|已填进主会话/).first().waitFor({ timeout: 10000 });
-      const copied = await page.evaluate(() => navigator.clipboard.readText()).catch(() => '');
-      if (copied) for (const part of ['course.plan', 'course.save', '我同意之后才用 course.save 存 plan', '要不要调整']) assert.ok(copied.includes(part), `${width}px: the message has ${part}`);
+      await page.waitForFunction(() => window.chatDrafts.length === 1);
+      const draft = await page.evaluate(() => window.chatDrafts[0]);
+      for (const part of ['course.plan', 'course.save', '我同意之后才用 course.save 存 plan', '要不要调整']) assert.ok(draft.includes(part), `${width}px: the message has ${part}`);
 
       // Inside the final week (10 days to the exam): the plan keeps its head and phases; the daily part is 期末一周's, shown once from 今天读哪几节.
       await running.api('course.save', { name: COURSE, exam: { date: addDays(TODAY, 10) } });

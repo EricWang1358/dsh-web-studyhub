@@ -125,7 +125,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 ## Used by several contexts (72)
 
 - `lib/assessment-quality.js`: contexts authoring, generation; 9 other lib files
-- `lib/atomic-json.js`: contexts generation, library; 19 other lib files
+- `lib/atomic-json.js`: contexts generation, library; 31 other lib files
 - `lib/audio-messages.js`: contexts audio, jobs; 4 other lib files
 - `lib/audio-pool.js`: contexts audio, generation; 6 other lib files
 - `lib/audio-settings.js`: contexts audio, generation; 4 other lib files
@@ -195,7 +195,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/translation-source.js`: contexts authoring, study; 4 other lib files
 - `lib/update-check.js`: contexts generation, system; 4 other lib files
 - `lib/usage-scope.js`: contexts authoring, coach, generation, materials, study, workflows; 9 other lib files
-- `lib/util.js`: contexts audio, authoring, bank, coach, generation, jobs, library, materials, notes, recording, skeleton, study; 49 other lib files
+- `lib/util.js`: contexts audio, authoring, bank, coach, generation, jobs, library, materials, notes, recording, skeleton, study; 47 other lib files
 
 ## Used by exactly one context (134)
 

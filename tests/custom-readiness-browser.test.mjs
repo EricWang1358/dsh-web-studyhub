@@ -1,4 +1,3 @@
-/* global document window */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp } from 'node:fs/promises';
@@ -9,6 +8,7 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 import { StudyService } from '../lib/service.js';
 import { openPage, settleAnimations, startLateServer } from '../scripts/qa/layout-late.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
+import { viewportOverflow } from './helpers/viewport-overflow.mjs';
 import { COURSE, library, planOf } from './helpers/readiness-library.mjs';
 
 /* 「章节准备度」 in the real course settings (深度定制 S5), zh dark at 1440 px and en light at 420 px: a row for each chapter of the plan with its thin bar and number, the four
@@ -24,12 +24,6 @@ async function seed(root) {
   await service.call('course.save', { name: COURSE, exam: { date: '2027-01-20' }, custom: planOf() });
   await service.dispose();
 }
-
-const sideways = page => page.evaluate(() => {
-  const width = window.innerWidth;
-  const wide = [...document.querySelectorAll('.course-settings *')].filter(element => element.getBoundingClientRect().right > width + 1).map(element => `${element.tagName.toLowerCase()}.${element.className}`).slice(0, 5);
-  return { doc: document.documentElement.scrollWidth - width, wide };
-});
 
 async function openSettings(page, name) {
   await (await revealNavRow(page, 'settings')).dispatchEvent('click');
@@ -86,7 +80,7 @@ test('「章节准备度」: the rows, the hover counts, 未生成, 补齐 says 
       assert.match(await ask.innerText(), say(/补齐 「Requirements」[\s\S]*出题 3 个知识点/, /Fill gaps in “Requirements”[\s\S]*write questions for 3 points/));
       assert.match(await ask.innerText(), say(/调用|次/, /calls|Jobs/), `${width}px: the calls are said (or that they cannot be)`);
       assert.deepEqual((await running.api('job.status')).jobs, [], 'asking started nothing');
-      const flat = await sideways(page);
+      const flat = await viewportOverflow(page, '.course-settings *');
       assert.ok(flat.doc <= 0 && flat.wide.length === 0, `${width}px: nothing scrolls sideways: ${JSON.stringify(flat)}`);
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `readiness-fill-${lang}-${theme}-${width}.png`) });

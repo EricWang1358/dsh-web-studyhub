@@ -609,12 +609,12 @@ test('planning and dependent stages share concurrency 1, 2 and 6, with serialize
     const stages = new Set();
     const model = batchStageModel(async stage => {
       stages.add(stage); active++; peak = Math.max(peak, active);
-      await new Promise(resolve => setTimeout(resolve, 3)); active--;
+      await new Promise(resolve => setImmediate(resolve)); active--;
     });
     const result = await generateBatched(model,
       { sources: batchSources(), count: 12, kind: 'flashcard', performance: { concurrency, batchSize: 1 } }, () => {}, async () => {
         saving++; savePeak = Math.max(savePeak, saving);
-        await new Promise(resolve => setTimeout(resolve, 1)); saving--;
+        await new Promise(resolve => setImmediate(resolve)); saving--;
       });
     assert.equal(result.cards.length, 12);
     assert.equal(peak, concurrency, 'the budget applies to planning as well as blueprint/author/review');

@@ -22,7 +22,6 @@ import YAML from "yaml";
 import { scrubSecrets, scrubProcessEnv } from "./env.mjs";
 import { launchChromium } from "./browser.mjs";
 import { createFakeOpenAI, FAKE_OPENAI_MODEL, FAKE_VISION_MODEL } from "./fake-openai.mjs";
-import { handOffStep, pagePictureStep, seedHandOffBook } from "./dsh-hand-off.mjs";
 
 // The host release the harness pins by default; `--dsh-version <x>` / DSH_QA_VERSION tests another release (see resolveDshVersion).
 // StudyHub supports 0.2.0-rc.2 and 0.2.1-rc.2: run both before a release (`npm run qa:dsh -- --dsh-version 0.2.0-rc.2`).
@@ -125,6 +124,7 @@ export async function bootDsh(bin, { env, cwd, patch, port }) {
 }
 
 export async function runDshE2e(options) {
+  const { handOffStep, pagePictureStep, seedHandOffBook } = await import("./dsh-hand-off.mjs");
   const removed = scrubProcessEnv();
   const home = join(qaRoot, "dsh-home"), documents = join(qaRoot, "dsh-documents"), packDir = join(qaRoot, "dsh-pack");
   // DSH's own default workspace under documentsDirectory; also the launch directory.

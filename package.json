@@ -167,7 +167,7 @@
     "test:smart": "node scripts/test.mjs --smart",
     "test:fast": "node scripts/test.mjs --fast",
     "case-study": "node scripts/case-study/build.mjs --out docs/case-study/studyhub-case-study.pdf --write-facts",
-    "lint": "eslint --cache --cache-location node_modules/.cache/eslint/ lib scripts tests ui packages eslint.config.js",
+    "lint": "eslint --cache --cache-location node_modules/.cache/eslint/ --max-warnings=0 lib scripts tests ui packages eslint.config.js",
     "lib-graph": "node scripts/qa/lib-graph.mjs",
     "typecheck": "tsc -p .",
     "dev": "node scripts/dev.mjs",

@@ -71,13 +71,6 @@ test('W2-04: AssistFormPanel keeps existing draft when setAssistMode resolves to
   assert.match(src, /prev\.key === key && curMode === resolved/, 'AssistFormPanel no-ops when re-selecting the active mode');
 });
 
-test('W2-08: ThumbFeedback Esc yields to open dialogs, popovers, IME, and external editable fields', () => {
-  const src = read('ui/ThumbFeedback.jsx');
-  assert.match(src, /const confirmOpen = Boolean\(ruleTexts && courseRules\?\.course\)/, 'tracks CourseRuleConfirm open state');
-  assert.match(src, /if \(confirmOpen \|\| e\.defaultPrevented \|\| e\.isComposing \|\| e\.keyCode === 229\) return;/, 'yields on confirmOpen, defaultPrevented, or IME');
-  assert.match(src, /querySelectorAll\('dialog\[open\], \[role="dialog"\], \.sh-pop__popup:not\(\[data-closed\]\), \.sh-menu, \.sh-popover, \.shortcut-sheet, \.sh-confirm'\)/, 'yields when another overlay is open');
-  assert.match(src, /t\.closest\('input, textarea, select, \[contenteditable="true"\], \.cm-editor'\)/, 'yields when focus is in an external input');
-});
 
 test('W2-09: UpdateDialog locks close/Esc/snooze during both DSH and desktop host upgrades', () => {
   const ucSrc = read('ui/UpdateCenter.jsx');

@@ -13,9 +13,10 @@ const PDF_TOOLS_TIP = '在原始 PDF 里按页提问；要问选中的一段，�
  * dialog adds: rename, today's tasks, the question sets) }; handlers: { setView(value), find, translate, display, tools, quality, assist, download, hostPreview, attach }.
  */
 export function moreItems(state, handlers) {
-  const { view, format, fileUrl, localMode, tools, quality, extra = [] } = state, original = view === 'original';
+  const { view, format, fileUrl, originalLoading = false, localMode, tools, quality, extra = [] } = state, original = view === 'original';
+  const originalHint = fileUrl ? {} : originalLoading ? { hint: ui('正在载入…') } : { hint: ui('没有原文件'), tip: ui(NO_ORIGINAL_TIP) };
   const views = [{ id: 'view:read', value: 'read', label: ui('阅读') }, { id: 'view:text', value: 'text', label: ui('原文') },
-    ...(format === 'pdf' && !localMode ? [{ id: 'view:original', value: 'original', label: ui('原始 PDF'), ...(fileUrl ? {} : { hint: ui('没有原文件'), tip: ui(NO_ORIGINAL_TIP) }) }] : [])];
+    ...(format === 'pdf' && !localMode ? [{ id: 'view:original', value: 'original', label: ui('原始 PDF'), ...originalHint }] : [])];
   const items = [{ heading: true, label: ui('显示方式') },
     ...views.map(({ value, ...item }) => ({ ...item, checked: view === value, run: () => handlers.setView(value) })),
     { heading: true, label: ui('工具') }];

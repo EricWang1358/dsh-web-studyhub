@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { buildPreview } from '../scripts/build.mjs';
-import { launchChromium } from '../scripts/qa/browser.mjs';
+import { buildChatPreview } from './helpers/chat-preview.mjs';
+import { launchChromium, skipMissingChromium } from '../scripts/qa/browser.mjs';
 import { StudyService } from '../lib/service.js';
 import { openPage, settleAnimations, startLateServer } from '../scripts/qa/layout-late.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
@@ -46,11 +46,11 @@ const description = (target) => target.locator('.sh-page-header__description').f
 
 test('round 10 in the browser: 总纲 ends in →, the hand-off leads with the external mark, the 资料 header joins its sentences', { timeout: 900000 }, async (t) => {
   let browser;
-  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
+  try { browser = await launchChromium(); } catch (error) { skipMissingChromium(t, error); return; }
   t.after(() => browser.close());
   const dist = await mkdtemp(join(tmpdir(), 'study-icon-round10-'));
   t.after(() => rm(dist, { recursive: true, force: true }));
-  await buildPreview({ outdir: dist });
+  await buildChatPreview({ outdir: dist });
   if (SHOTS) await mkdir(SHOTS, { recursive: true });
   for (const { lang, width } of [{ lang: 'zh', width: 1440 }, { lang: 'en', width: 1440 }, { lang: 'zh', width: 420 }]) {
     const running = await startLateServer({ distDir: dist, seed, lang });

@@ -901,7 +901,8 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     const go = () => {
       if (destination.kind === 'original') {
         return act('review.get', { runId: destination.runId },
-          (result) => enterRun(result, returnInput.current?.runId === destination.runId ? returnInput.current.input : undefined));
+          (result) => enterRun(result, returnInput.current?.runId === destination.runId ? returnInput.current.input : undefined),
+          { refreshAfter: false });
       }
       if (destination.kind === 'plan' && plan?.start) return plan.start(destination.taskId);
       // The next round of the course the finished round was a round of: the same arguments the home card starts it with.
@@ -919,7 +920,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
         notify?.(ui('原练习轮次已结束，已为你打开该轮次结果。'));
       }
       enterRun(result, returnInput.current?.runId === originId ? returnInput.current.input : undefined);
-    });
+    }, { refreshAfter: false });
   }, [act, enterRun, notify]);
   const activeAutoAdvance = Boolean(autoAdvance && autoAdvance === advanceKey);
   const coach = useMemo(() => ({

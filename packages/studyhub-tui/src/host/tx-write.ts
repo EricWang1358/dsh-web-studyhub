@@ -98,7 +98,12 @@ export async function runIdempotentTwoStep<A, B>(opts: {
   if (opts.cachedStep1 !== null) {
     v1 = opts.cachedStep1;
   } else {
-    const r1 = await opts.step1();
+    let r1: TxStepResult<A>;
+    try {
+      r1 = await opts.step1();
+    } catch (err) {
+      r1 = { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
     if (!r1.ok || r1.value === undefined) {
       return { ok: false, step1Succeeded: false, error: r1.error || 'Step 1 failed' };
     }
@@ -106,7 +111,12 @@ export async function runIdempotentTwoStep<A, B>(opts: {
     opts.setCachedStep1(v1);
   }
 
-  const r2 = await opts.step2(v1);
+  let r2: TxStepResult<B>;
+  try {
+    r2 = await opts.step2(v1);
+  } catch (err) {
+    r2 = { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
   if (!r2.ok) {
     let rolledBack = false;
     if (opts.rollbackStep1) {

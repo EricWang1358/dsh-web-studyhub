@@ -8,7 +8,7 @@ import { build } from 'esbuild';
 import { Store } from '../lib/store.js';
 import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 import { createFakeModel } from '../scripts/fake-model.mjs';
-import { focusByKeyboard, launchChromium } from '../scripts/qa/browser.mjs';
+import { focusByKeyboard, launchChromium, skipMissingChromium } from '../scripts/qa/browser.mjs';
 
 /* 「在右栏打开」 on the practice page moves THAT run into DSH's right sidebar and returns the main area to the conversation.
    The REAL host adapter (ui/host/workspace.jsx) and the REAL App run in Chromium against a real library; only DSH is faked:
@@ -78,8 +78,7 @@ async function getSharedBrowser(t) {
   try {
     return await sharedBrowserPromise;
   } catch (error) {
-    if (!/browserType\.launch: Executable doesn't exist/.test(error.message)) throw error;
-    t.skip('Chromium unavailable');
+    skipMissingChromium(t, error);
     return null;
   }
 }
@@ -114,16 +113,17 @@ async function open(t, { sidebar = 'works', withReading = true, premount = false
   await page.addScriptTag({ content: `window.dshSidebar = ${JSON.stringify(sidebar)};` });
   await page.addScriptTag({ content: bundle.outputFiles[0].text });
   await page.evaluate((where) => { window.installDsh(); where === 'page' ? window.mountPage() : window.mountMain(); }, placement);
-  await page.waitForTimeout(100); // the first-run landing has run
+  const mainSeat = page.locator('#main');
+  await mainSeat.locator('.sidebar:visible, .nav-menu-toggle:visible').first().waitFor();
   await page.evaluate((delay) => { window.dshReady = true; window.dshMountDelay = delay; }, mountDelay);
   if (premount) {
     await page.evaluate(() => window.mountSidebar());
     await page.locator('#side .study-app').waitFor();
   }
   // A narrow seat has the sidebar in a drawer behind the top bar's menu button (#657).
-  const menu = page.locator('#main .nav-menu-toggle');
-  if (await menu.count()) await menu.first().click();
-  await page.locator(await menu.count() ? '.nav-drawer' : '#main').getByRole('button', { name: /^回到题目/ }).first().click();
+  const menu = mainSeat.locator('.nav-menu-toggle');
+  if (await menu.isVisible()) await menu.click();
+  await mainSeat.getByRole('button', { name: /^回到题目/ }).first().click();
   await page.locator('#main .review-page').waitFor();
   return { page, errors };
 }
@@ -141,6 +141,9 @@ for (const [label, withReading, options] of [['a run started from the reader (ru
     await sidebarButton(page).click();
     // The sidebar seat shows the same run at the same card.
     await page.locator('#side .review-page').getByText(text, { exact: true }).first().waitFor({ timeout: 15000 });
+    // The switch to the conversation comes after the seat has drawn the run, so wait for it (a slow runner read the log in between);
+    // the log must then be exactly these two calls, in this order.
+    await page.waitForFunction(() => window.dshLog.includes('openView:chat'), null, { timeout: 15000 }).catch(() => {});
     assert.deepEqual(await page.evaluate(() => window.dshLog), ['openTab:study-workspace', 'openView:chat']);
     assert.equal(await page.locator('#main').innerHTML(), '', 'the main area gave the question up');
     assert.deepEqual(errors, []);

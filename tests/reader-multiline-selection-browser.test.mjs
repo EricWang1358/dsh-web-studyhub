@@ -93,8 +93,13 @@ const rightClickSelection = async page => {
     const range = sel.getRangeAt(0);
     const el = range.endContainer.nodeType === 1 ? range.endContainer : range.endContainer.parentElement;
     el?.scrollIntoView?.({ block: 'center' });
-    const rect = [...range.getClientRects()].reverse().find(r => r.width > 1 && r.height > 1) || range.getBoundingClientRect();
-    return { x: rect.left + Math.min(rect.width / 2, 20), y: rect.top + rect.height / 2 };
+    for (const rect of [...range.getClientRects()].reverse()) {
+      if (rect.width <= 1 || rect.height <= 1) continue;
+      const x = rect.left + Math.min(rect.width / 2, 20), y = rect.top + rect.height / 2;
+      const hit = document.elementFromPoint(x, y);
+      if (hit?.closest('.study-document-body') && range.intersectsNode(hit)) return { x, y };
+    }
+    return null;
   });
   assert.ok(pt, 'live selection rect available for right-click');
   await page.mouse.click(pt.x, pt.y, { button: 'right' });
@@ -147,14 +152,14 @@ test('multi-paragraph selection on Page 2 of a converted book preserves line bre
     assert.equal(await tools.getByText('无法在已保存的资料中核实这段文字，请重新选择。').count(), 0);
 
     // 2. Right-click -> 下划线, 加入待出题, and AI 词解 on the multi-paragraph selection all succeed on Page 2.
-    await page.mouse.click(point.x, point.y, { button: 'right' });
+    await rightClickSelection(page);
     await menu(page).waitFor();
     await menu(page).getByRole('menuitem', { name: '下划线', exact: true }).click();
     await menu(page).waitFor({ state: 'detached' });
     await until(async () => (await painted(page, 'study-mark-underline')) === 1, 'multi-paragraph underline painted');
 
-    const point2 = await selectSpan(page, '代码解析', '向浏览器返回结果。');
-    await page.mouse.click(point2.x, point2.y, { button: 'right' });
+    await selectSpan(page, '代码解析', '向浏览器返回结果。');
+    await rightClickSelection(page);
     await menu(page).waitFor();
     await menu(page).getByRole('menuitem', { name: 'AI 词解', exact: true }).click();
     await menu(page).waitFor({ state: 'detached' });
@@ -191,7 +196,7 @@ test('multi-paragraph selection on Page 2 of a converted book preserves line bre
     await tools.getByText('选区跨了多页，请在一页内选择。').waitFor({ timeout: 15000 });
     assert.equal(await tools.getByText('无法在已保存的资料中核实这段文字，请重新选择。').count(), 0);
 
-    await page.mouse.click(crossPoint.x, crossPoint.y, { button: 'right' });
+    await rightClickSelection(page);
     await menu(page).waitFor();
     await menu(page).getByRole('menuitem', { name: 'AI 词解', exact: true }).click();
     await menu(page).waitFor({ state: 'detached' });

@@ -1,11 +1,11 @@
-/* global document window navigator */
+/* global document window */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { buildPreview } from '../scripts/build.mjs';
-import { launchChromium } from '../scripts/qa/browser.mjs';
+import { buildChatPreview } from './helpers/chat-preview.mjs';
+import { launchChromium, skipMissingChromium } from '../scripts/qa/browser.mjs';
 import { StudyService } from '../lib/service.js';
 import { customDefaults } from '../lib/custom-plan.js';
 import { openPage, settleAnimations, startLateServer, until } from '../scripts/qa/layout-late.mjs';
@@ -38,40 +38,47 @@ const seeder = (course, { plan = false } = {}) => async root => {
 };
 
 const sideways = (page, selector) => page.evaluate(selector => {
-  const width = window.innerWidth, wide = [...document.querySelectorAll(`${selector} *`)].filter(element => element.getBoundingClientRect().right > width + 1)
-    .map(element => `${element.tagName.toLowerCase()}.${element.className}`).slice(0, 5);
+  const width = document.documentElement.clientWidth, region = document.querySelector(selector);
+  const controls = [region, ...region.querySelectorAll('a, button, input, select, textarea, [role="button"]')];
+  const wide = controls.filter(element => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && (rect.left < -1 || rect.right > width + 1);
+  }).map(element => element.outerHTML.slice(0, 120));
   return { doc: document.documentElement.scrollWidth - width, wide };
 }, selector);
 
-const captureClipboard = async context => context.addInitScript(() => {
-  window.__handed = [];
-  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async text => { window.__handed.push(String(text)); } } });
-});
-const handed = page => page.evaluate(() => window.__handed.slice());
+const handed = page => page.evaluate(() => window.chatDrafts.slice());
 /* The preview has no background executor, so a build that is really asked for answers "后台执行器暂时不可用": what is checked is the request the page sends (not an estimate), and that no task exists. */
 const watchBuilds = page => {
   const sent = [];
   page.on('request', request => {
     if (!request.url().includes('/api/call')) return;
-    try { const { action, args } = JSON.parse(request.postData() || '{}'); if (/^generation\.course(Outline|Book)\.build$/.test(action) && args?.estimate !== true) sent.push({ action, args }); } catch { /* not JSON */ }
+    try { const { action, args } = JSON.parse(request.postData() || '{}'); if (/^generation\.course(Outline|Book)\.build$/.test(action) && args?.estimate !== true) sent.push({ action, args, request }); } catch { /* not JSON */ }
   });
   return sent;
 };
 
+async function assertBuildRefused(build, errors) {
+  const response = await build.request.response();
+  assert.equal(response?.status(), 400, 'the preview refused the requested build');
+  assert.equal((await response.json()).ok, false);
+  assert.deepEqual(errors.filter(message => message !== REFUSED), []);
+  assert.ok(errors.length <= 1, 'only the expected refusal may appear in the browser console');
+}
+
 test('深度定制 on the 资料 row and the gate before 生成总纲 / 生成复习全书 (zh, 1280 and 420 px)', { timeout: 480000 }, async t => {
   let browser;
-  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
+  try { browser = await launchChromium(); } catch (error) { skipMissingChromium(t, error); return; }
   t.after(() => browser.close());
   const dist = await mkdtemp(join(tmpdir(), 'study-custom-gate-dist-'));
   t.after(() => rm(dist, { recursive: true, force: true }));
-  await buildPreview({ outdir: dist });
+  await buildChatPreview({ outdir: dist });
   const shots = process.env.CUSTOM_GATE_SHOTS;
   if (shots) await mkdir(shots, { recursive: true });
   for (const width of [1280, 420]) {
     const running = await startLateServer({ distDir: dist, seed: seeder('宏经') });
     try {
       const { page, errors, context } = await openPage(browser, running, { width, height: 900 });
-      await captureClipboard(context);
       const builds = watchBuilds(page);
       await page.goto(running.server.url);
       // ---- the 资料 row ----
@@ -155,7 +162,7 @@ test('深度定制 on the 资料 row and the gate before 生成总纲 / 生成�
       await page.locator('dialog[data-custom-gate]').waitFor({ state: 'detached', timeout: 10000 });
       await until(async () => builds.length === 1, '整本生成 asks for the 总纲 build');
       assert.deepEqual([builds[0].action, builds[0].args.course, builds[0].args.confirm], ['generation.courseOutline.build', '宏经', true], `${width}px: the original request, unchanged`);
-      assert.deepEqual(errors, [REFUSED], `${width}px: no page error but the one build the preview cannot run`);
+      await assertBuildRefused(builds[0], errors);
       await context.close();
     } finally { await running.close(); }
   }
@@ -163,17 +170,16 @@ test('深度定制 on the 资料 row and the gate before 生成总纲 / 生成�
 
 test('a course with a custom plan: the row reads 查看/修改定制 and 生成总纲 starts at once (zh, 1280 px)', { timeout: 240000 }, async t => {
   let browser;
-  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
+  try { browser = await launchChromium(); } catch (error) { skipMissingChromium(t, error); return; }
   t.after(() => browser.close());
   const dist = await mkdtemp(join(tmpdir(), 'study-custom-gate-plan-dist-'));
   t.after(() => rm(dist, { recursive: true, force: true }));
-  await buildPreview({ outdir: dist });
+  await buildChatPreview({ outdir: dist });
   const shots = process.env.CUSTOM_GATE_SHOTS;
   if (shots) await mkdir(shots, { recursive: true });
   const running = await startLateServer({ distDir: dist, seed: seeder('微观', { plan: true }) });
   try {
     const { page, errors, context } = await openPage(browser, running, { width: 1280, height: 900 });
-    await captureClipboard(context);
     const builds = watchBuilds(page);
     await page.goto(running.server.url);
     await (await revealNavRow(page, 'sources')).dispatchEvent('click');
@@ -192,7 +198,7 @@ test('a course with a custom plan: the row reads 查看/修改定制 and 生成�
     await until(async () => builds.length === 1, 'the build is asked for at once');
     assert.equal(builds[0].action, 'generation.courseOutline.build');
     assert.equal(await page.locator('dialog[data-custom-gate]').count(), 0, 'no question');
-    assert.deepEqual(errors, [REFUSED], 'no page error but the one build the preview cannot run');
+    await assertBuildRefused(builds[0], errors);
     await context.close();
   } finally { await running.close(); }
 });

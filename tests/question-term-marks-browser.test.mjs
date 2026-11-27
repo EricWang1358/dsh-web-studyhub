@@ -14,6 +14,7 @@ import { launchChromium } from "../scripts/qa/browser.mjs";
 import { scrubProcessEnv } from "../scripts/qa/env.mjs";
 import { openPage, settleAnimations, startLateServer } from "../scripts/qa/layout-late.mjs";
 import { highlightDrawn } from "./helpers/highlight-drawn.mjs";
+import { until } from "./helpers/wait.mjs";
 
 const SHOTS = process.env.QUESTION_TERM_MARKS_SHOTS || "";
 
@@ -145,6 +146,11 @@ async function substringSpan(page, rootSelector, substring, occurrence = 0) {
   return span;
 }
 
+async function waitForRevealedBack(page, timeout = 15000) {
+  await page.locator('.flip-back[aria-hidden="false"]').waitFor({ state: "visible", timeout });
+  await page.locator('.flip-back[aria-hidden="false"] .flip-loading').waitFor({ state: "detached", timeout });
+}
+
 async function clickWord(page, rootSelector, substring, occurrence = 0) {
   const pt = await substringSpan(page, rootSelector, substring, occurrence);
   await page.mouse.click(pt.x, pt.y);
@@ -212,7 +218,7 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
         // 1. Not in marking mode: clicking flashcard text flips the card.
         const frontProbe = lang === "en" ? "contrapositive" : "分布式";
         await clickWord(page, '.flip-front[aria-hidden="false"]', frontProbe);
-        await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 10000 });
+        await waitForRevealedBack(page);
         await settleAnimations(page);
         assert.equal(await page.locator(".term-strip").count(), 0, `${tag}: no chips before marking`);
 
@@ -282,6 +288,10 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
         await takeShot(page, `term-marks-${lang}-${width}`);
 
         // 5. Space still flips flashcard while marking; Escape exits marking while keeping chips.
+        // The pointer stayed over the old card as the strip scrolled into view. A hover
+        // tooltip owns Escape while open, so leave it before exercising the card shortcuts.
+        await page.mouse.move(-1, -1);
+        await page.locator('[role="tooltip"]:visible').first().waitFor({ state: "hidden", timeout: 10000 });
         await page.keyboard.press("Space");
         await page.locator('.flip-front[aria-hidden="false"]').waitFor({ timeout: 10000 });
         assert.equal(await termsBtn.getAttribute("aria-pressed"), "true", `${tag}: Space keeps marking mode active`);
@@ -289,7 +299,7 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
         await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 10000 });
 
         await page.keyboard.press("Escape");
-        assert.equal(await termsBtn.getAttribute("aria-pressed"), "false", `${tag}: Escape exits marking mode`);
+        await termsBtn.and(page.locator('[aria-pressed="false"]')).waitFor({ timeout: 10000 });
         assert.equal(await page.locator(".review-body.is-marking").count(), 0);
         assert.equal((await chipTexts(page)).length, 3, `${tag}: chips remain visible after Escape`);
 
@@ -320,7 +330,9 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
           assert.match(followupText, /补词：/, `${tag}: Chinese terms title shown`);
           assert.match(followupText, /预览正式说法/, `${tag}: ladder sections appeared`);
         }
-        await page.locator(".prereq-strip summary > span").click();
+        const prerequisites = page.locator(".prereq-strip__toggle");
+        await prerequisites.click();
+        assert.equal(await prerequisites.getAttribute("aria-expanded"), "true");
         assert.equal(
           await page.locator(".prereq-strip .prereq-item").count(),
           3,
@@ -336,7 +348,8 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
         await firstFollowup.scrollIntoViewIfNeeded();
         await settleAnimations(page);
         await takeShot(page, `terms-followup-${lang}-${width}`);
-        await page.locator(".prereq-strip summary > span").click();
+        await prerequisites.click();
+        assert.equal(await prerequisites.getAttribute("aria-expanded"), "false");
         await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
 
         // Mark 1 unfilled word on Card 1 so returning from Card 2 verifies per-question term memory (#1192, #1214).
@@ -380,7 +393,7 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
           () => !!document.querySelector(".explanation-followup .followup-item[open]") && !!document.querySelector(".prereq-strip"),
           { timeout: 25000 },
         );
-        await page.locator(".prereq-strip summary > span").click();
+        await prerequisites.click();
         assert.equal(
           await page.locator(".prereq-strip .prereq-item").count(),
           2,
@@ -572,7 +585,7 @@ test("course term persistence, pale study-term-seen highlight, click-to-stage, a
         // 1. Mark unfamiliar term on Card 1 -> persists non-blockingly to course.terms.
         const frontProbe = lang === "en" ? "replication" : "副本";
         await clickWord(page, '.flip-front[aria-hidden="false"]', frontProbe);
-        await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 10000 });
+        await waitForRevealedBack(page);
         await settleAnimations(page);
 
         const termsBtn = page.locator('[data-usage="review.terms"]');
@@ -1098,7 +1111,7 @@ test("term-strip remove only unmarks unattached visit-added terms and protects f
 
       // Flip Card 1 and enter marking mode.
       await clickWord(page, '.flip-front[aria-hidden="false"]', lang === "en" ? "replication" : "副本");
-      await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 10000 });
+      await waitForRevealedBack(page);
       await settleAnimations(page);
       const termsBtn = page.locator('[data-usage="review.terms"]');
       await termsBtn.click();
@@ -1446,7 +1459,7 @@ test("term strip clears only filled terms on done, preserves mid-task marks, and
 
       // Flip Card 1 and enter marking mode.
       await clickWord(page, '.flip-front[aria-hidden="false"]', lang === "en" ? "protocols" : "分布式");
-      await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 10000 });
+      await waitForRevealedBack(page);
       await settleAnimations(page);
       const termsBtn = page.locator('[data-usage="review.terms"]');
       await termsBtn.click();
@@ -1809,9 +1822,21 @@ test("More menu › 生词表… opens TermListDialog with 0 marked terms on fla
 
         // 4. Start self-paced flashcard mode on the course deck and verify 更多 › 生词表… opens TermListDialog too.
         await page.locator(".review-return").click();
-        await page.locator('[data-deck-id="d-course"] > .deck-row .map-menu-wrap button').waitFor({ state: "visible", timeout: 15000 });
-        await page.locator('[data-deck-id="d-course"] > .deck-row .map-menu-wrap button').click();
-        await page.getByRole("menuitem", { name: lang === "en" ? "Browse flashcards" : "闪卡翻看" }).click();
+        // Back in the library the list is still being placed (the run's snapshot lands, the page settles its scroll). A menu opened meanwhile
+        // shuts when its trigger moves (ui/components/Menu.jsx), so open it once the row stops moving, and open it again if it shut anyway.
+        const deckMenu = page.locator('[data-deck-id="d-course"] > .deck-row .map-menu-wrap button');
+        await deckMenu.waitFor({ state: "visible", timeout: 15000 });
+        await settleAnimations(page);
+        let lastBox = "";
+        await until(async () => { const box = JSON.stringify(await deckMenu.boundingBox()); const still = box === lastBox; lastBox = box; return still; },
+          `${tag}: the deck row to stop moving`, { timeoutMs: 15000, intervalMs: 150 });
+        const browse = page.getByRole("menuitem", { name: lang === "en" ? "Browse flashcards" : "闪卡翻看" });
+        await until(async () => {
+          if (await page.locator(".flashcard").count()) return true;
+          if (!(await browse.isVisible())) await deckMenu.click();
+          else await browse.click({ timeout: 2000 }).catch(() => {});
+          return false;
+        }, `${tag}: 闪卡翻看 from the deck menu`, { timeoutMs: 30000, intervalMs: 200 });
         await page.locator(".flashcard").waitFor({ state: "visible", timeout: 15000 });
         await settleAnimations(page);
         await assertMoreMenuOpensTermList(`${tag}-self-paced-flashcard`);
@@ -2194,7 +2219,7 @@ test("candidate terms behavioral guards: flashcard 1/4, right quiz, cache revisi
     await rm(dist, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
-  // 0. Guard #1246 non-regression: with autoTerms OFF (default), rating flashcard 1 still auto-advances with 0 card.terms calls.
+  // With autoTerms off, a low grade keeps its feedback on screen without requesting candidate terms.
   {
     const running = await startLateServer({ distDir: dist, lang: "zh", seed: (root) => seedCandidateCoverageDeck(root, "zh") });
     const { context, page, errors } = await openPage(browser, running, { lang: "zh", theme: "light", width: 1280, height: 900 });
@@ -2211,11 +2236,15 @@ test("candidate terms behavioral guards: flashcard 1/4, right quiz, cache revisi
       await page.locator('[data-usage="review.flip"]').click();
       await page.locator('.flip-back[aria-hidden="false"]').waitFor({ state: "visible", timeout: 10000 });
       await page.locator(".grade-scale .grade").nth(1).click();
+      await page.locator(".next-due").first().waitFor({ state: "visible", timeout: 10000 });
+      assert.match(await page.locator('.flip-back[aria-hidden="false"] .flash-prompt').innerText(), /线性一致性/);
+      assert.equal(await page.locator(".term-strip .term-strip__candidate").count(), 0);
+      await page.locator('[data-usage="review.next"]').click();
       await page.waitForFunction(
         () => (document.querySelector(".question-card .flash-prompt")?.textContent || "").includes("幂等性"),
-        { timeout: 10000 },
+        null, { timeout: 10000 },
       );
-      assert.equal(cardTermsCalls, 0, "autoTerms OFF + flashcard grade 1 keeps auto-advance and calls card.terms 0 times");
+      assert.equal(cardTermsCalls, 0, "autoTerms OFF makes no card.terms call during feedback or on moving to the next card");
       assert.equal(await page.locator(".term-strip .term-strip__candidate").count(), 0);
       assert.deepEqual(errors, [], `autoTerms-off guard errors: ${errors.join(" | ")}`);
     } finally {

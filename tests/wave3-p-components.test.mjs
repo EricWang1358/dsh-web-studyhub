@@ -6,9 +6,15 @@ import { join } from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { withStudy } from './helpers/study-services.mjs';
 
 // UI wave 3 · WP-P: the one page header with a scope slot (#142) and the Panel tones (#143).
-const m = await loadUi(`export * from './ui/components/index.js'; export { setUiLanguage } from './ui/i18n.js';`);
+const m = await loadUi(`
+  export * from './ui/components/index.js';
+  export { default as Draft } from './ui/Draft.jsx';
+  export { StudyServicesContext } from './ui/study-context.jsx';
+  export { setUiLanguage } from './ui/i18n.js';
+`);
 const h = React.createElement;
 const html = (type, props = {}, ...children) => renderToStaticMarkup(h(type, props, ...children));
 
@@ -84,6 +90,27 @@ test('<h1 appears only in PageHeader and the allow-listed frames (#142)', () => 
 
 test('no hard-coded English eyebrows and no AudioPageHeader wrapper', () => {
   assert.equal(existsSync('ui/AudioPageHeader.jsx'), false, 'AudioPageHeader.jsx is deleted; the audio page renders PageHeader itself');
-  const draft = readFileSync('ui/Draft.jsx', 'utf8');
-  assert.doesNotMatch(draft, /PUBLISH YOUR DRAFT/, 'the Draft eyebrow goes through ui()');
+  const han = /[\u3400-\u9fff]/;
+  const draft = { id: 'draft-1', title: 'Sample Draft', cards: [], quality: { errors: [], warnings: [] } };
+  const data = { root: '/tmp/lib', sources: [], decks: [], drafts: [draft], jobs: [], courses: [], settings: {} };
+  const renderDraft = (language) => {
+    m.setUiLanguage(language);
+    const out = renderToStaticMarkup(withStudy(m.StudyServicesContext, h(m.Draft, { draft, data })));
+    const eyebrowMatch = out.match(/<p class="sh-page-header__eyebrow">([^<]+)<\/p>/);
+    assert.ok(eyebrowMatch, `Draft renders .sh-page-header__eyebrow in ${language}`);
+    return { out, eyebrow: eyebrowMatch[1].trim() };
+  };
+  try {
+    const zh = renderDraft('zh');
+    assert.equal(zh.eyebrow, '发布草稿', 'the Draft eyebrow renders localized Chinese through ui()');
+    assert.doesNotMatch(zh.out, /PUBLISH YOUR DRAFT/, 'Draft never emits hardcoded PUBLISH YOUR DRAFT in zh');
+
+    const en = renderDraft('en');
+    assert.ok(en.eyebrow.length > 0, 'the Draft eyebrow renders localized English');
+    assert.doesNotMatch(en.eyebrow, han, 'the Draft eyebrow has no untranslated Han characters in en');
+    assert.notEqual(en.eyebrow, 'PUBLISH YOUR DRAFT', 'the Draft eyebrow is not hardcoded uppercase PUBLISH YOUR DRAFT');
+    assert.doesNotMatch(en.out, /PUBLISH YOUR DRAFT/, 'Draft never emits hardcoded PUBLISH YOUR DRAFT in en');
+  } finally {
+    m.setUiLanguage('zh');
+  }
 });

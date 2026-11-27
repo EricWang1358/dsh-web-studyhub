@@ -27,7 +27,14 @@ test('the reader keeps its names, its storage key and its defaults: they are the
   for (const name of ['SIZES', 'WIDTHS', 'FACES', 'TONES', 'UNDERLINES', 'READER_DEFAULTS', 'READER_STORAGE_KEY', 'normalizeReaderSettings', 'underlineShown',
     'resetReaderSettings', 'stepSize', 'readerVars', 'loadReaderSettings', 'saveReaderSettings'])
     assert.equal(reader[name], shared[name], name);
-  assert.equal(shared.READER_STORAGE_KEY, 'study-reader-settings', 'the key the reader always used');
+  const persisted = memory({ 'study-reader-settings': JSON.stringify({ size: 18, width: 'wide', face: 'serif', tone: 'paper', outline: false }) });
+  const expectedLoaded = { ...shared.READER_DEFAULTS, size: 18, width: 'wide', face: 'serif', tone: 'paper', outline: false };
+  assert.deepEqual(shared.loadReaderSettings(persisted), expectedLoaded, 'shared loads from the literal study-reader-settings key');
+  assert.deepEqual(reader.loadReaderSettings(persisted), expectedLoaded, 'reader loads from the literal study-reader-settings key');
+  const freshStorage = memory();
+  shared.saveReaderSettings({ size: 20, tone: 'paper' }, freshStorage);
+  assert.equal(freshStorage.data.has('study-reader-settings'), true, 'saveReaderSettings writes to the literal study-reader-settings key');
+  assert.deepEqual(JSON.parse(freshStorage.data.get('study-reader-settings')), { ...shared.READER_DEFAULTS, size: 20, tone: 'paper' });
   assert.deepEqual({ ...shared.READER_DEFAULTS }, { size: 16, width: 'standard', face: 'sans', tone: 'auto', underline: 'show', outline: true, tools: true, weight: 'normal', leading: 'standard', gap: 'standard' });
 });
 

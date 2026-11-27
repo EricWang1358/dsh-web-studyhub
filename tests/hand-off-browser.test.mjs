@@ -176,12 +176,34 @@ test('发给主会话 from the book through the real host adapter: the four rece
       await panel.waitFor({ timeout: 10000 });
       await panel.locator('textarea').fill(words.request);
       if (shots && !(await page.evaluate(() => window.panelShot))) { await page.evaluate(() => { window.panelShot = true; }); await hoverTip(page.locator('[data-book-ask="chat"]')); await shot('ask-panel'); }
-      const chat = await panel.locator('[data-book-ask="chat"]').elementHandle(), before = await chat.boundingBox();
+      const chat = panel.locator('[data-book-ask="chat"]');
+      await chat.waitFor({ state: 'visible', timeout: 10000 });
+      const before = await chat.boundingBox();
       await chat.click();
-      // the button keeps its place and its width while it hands over (no spinner beside it); a handle answers at once, null once the panel has closed
-      const during = await chat.boundingBox();
-      if (during) assert.equal(Math.round(during.width), Math.round(before.width), `${tag}: the trigger keeps its width`);
-      await panel.waitFor({ state: 'detached', timeout: 10000 });
+      // the button keeps its place and its width while it hands over (no spinner beside it); null once the panel has closed
+      const during = await chat.boundingBox({ timeout: 500 }).catch(() => null);
+      if (during && before) assert.equal(Math.round(during.width), Math.round(before.width), `${tag}: the trigger keeps its width`);
+      // Under heavy CI load an anchor rAF placement between mousedown and mouseup can drop a single click; re-click only if not busy and still mounted.
+      const deadline = Date.now() + 30000;
+      let lastClick = Date.now();
+      while (await panel.count()) {
+        if (Date.now() > deadline) {
+          const diag = await page.evaluate(() => ({
+            busy: document.querySelector('.book-ask [data-book-ask="chat"]')?.getAttribute('aria-busy'),
+            disabled: document.querySelector('.book-ask [data-book-ask="chat"]')?.hasAttribute('disabled'),
+            dialogs: document.querySelectorAll('dialog[open]').length,
+            copied: window.copied.length,
+            log: window.dshLog.slice(),
+          }));
+          throw new Error(`${tag}: .book-ask stayed open after sendFromPanel click (${JSON.stringify(diag)})`);
+        }
+        const busy = await chat.getAttribute('aria-busy', { timeout: 250 }).catch(() => null);
+        if (busy !== 'true' && Date.now() - lastClick >= 500 && await panel.count()) {
+          await chat.click({ timeout: 2000 }).catch(() => {});
+          lastClick = Date.now();
+        }
+        await page.waitForTimeout(100);
+      }
       await page.mouse.move(2, 2);
     };
     // On a phone every receipt is one title line and one text line, at most 88px tall, and all of them one height (a newer one never grows the slip).

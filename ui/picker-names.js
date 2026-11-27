@@ -27,7 +27,7 @@ import { liveScope } from './use-async.js';
    index answer lands (the badges' column is the same width coming, with a badge and without). In a picker that shows badges the line is as wide on a
    row with 选择页面 as on one without, at every width (ui/source-picker.css), so a wider window never says less. A word a row does not show stays in its checkbox's name. */
 
-/** A little room kept spare: the canvas measures the words a hair differently from the line (rounding, the digits' font). */
+/** A little room kept spare: allow for subpixel rounding when the pieces share a line. */
 const SPARE = 4;
 
 /* The names, most said first. A course scope gives its other names way before a note's characters; 全部课程 keeps the course. */
@@ -71,14 +71,29 @@ export function decideFacts(rows, { room, gap, em, everyCourse = false, spare = 
 /** `data-chars` for `off` of the groups `present`: 'all', 'unpaged' (only the rows with pages leave their characters out), 'some' or 'none'. */
 export const charsSummary = (off, present) => (!off.length ? 'all' : off.length === present.size ? 'none' : off.length === 1 && off[0] === 'paged' ? 'unpaged' : 'some');
 
-let canvas;
-/** The rows' words measured in the facts line's font, or null where there is no canvas (a test without a browser). `dot`: the width of a name's 「· 」. */
-function measured(rows, style) {
-  try { canvas ??= document.createElement('canvas').getContext('2d'); } catch { canvas = null; }
-  if (!canvas) return null;
-  canvas.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-  if ('letterSpacing' in canvas) canvas.letterSpacing = style.letterSpacing === 'normal' ? '0px' : style.letterSpacing;
-  const sizes = new Map(), size = text => { if (!text) return 0; if (!sizes.has(text)) sizes.set(text, canvas.measureText(text).width); return sizes.get(text); };
+// Measure in the row's language and font. With Chinese fallback fonts the same middle dot can
+// occupy a full character cell here and a narrow Latin glyph on a detached canvas.
+function measured(rows, facts) {
+  const words = new Set(['· ']);
+  for (const row of rows) {
+    for (const word of [row.kind, row.pages, row.size, row.short, row.first, ...row.later]) {
+      if (word) words.add(word);
+    }
+  }
+  const ruler = document.createElement('span');
+  ruler.setAttribute('aria-hidden', 'true');
+  ruler.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;pointer-events:none';
+  for (const word of words) {
+    const span = document.createElement('span');
+    span.style.display = 'inline-block';
+    span.textContent = word;
+    ruler.append(span);
+  }
+  // Insert the probes together, read all widths in one layout, then remove them before paint.
+  facts.append(ruler);
+  const sizes = new Map(Array.from(ruler.children, span => [span.textContent, span.getBoundingClientRect().width]));
+  ruler.remove();
+  const size = text => sizes.get(text) ?? 0;
   const widths = rows.map(row => ({ kind: size(row.kind), pages: size(row.pages), size: size(row.size), short: size(row.short), first: size(row.first), later: row.later.map(size),
     shortened: row.shortened, multi: row.multi, group: row.group }));
   widths.dot = size('· ');
@@ -105,12 +120,11 @@ export function useFactsFit(ref, rows, everyCourse) {
     const look = () => {
       const facts = root.querySelector('.source-picker__facts');
       if (!facts) return;
-      const style = getComputedStyle(facts), face = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily} ${style.letterSpacing}`;
+      const style = getComputedStyle(facts), face = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily} ${style.letterSpacing} ${style.fontFeatureSettings}`;
       const width = root.getBoundingClientRect().width;
       // more rows drawn (the list grows taller) is no reason to look again: only another width or font is
       if (decided === width && face === font) return;
-      if (face !== font || !widths) { font = face; widths = measured(rows, style); }
-      if (!widths) return;
+      if (face !== font || !widths) { font = face; widths = measured(rows, facts); }
       decided = width;
       const room = rooms(root), em = parseFloat(style.fontSize), gap = parseFloat(style.columnGap) || 0.3 * em;
       const { names, unit, off } = decideFacts(widths, { room: row => (row.multi ? room.wide : room.plain), gap, em, everyCourse });

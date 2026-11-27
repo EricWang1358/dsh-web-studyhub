@@ -692,6 +692,8 @@ test('cross-course 出处 switches focus course to card course, restores previou
             topic: 'Consensus',
             prompt: 'Which mechanism ensures leader election safety during a network partition in Raft?',
             answer: 'Majority quorum and term numbers.',
+            // A mixed path puts due reviews before new questions, independently of the order of the scope array.
+            review: { repetitions: 1, interval_days: 1, last_review: '2000-01-01T00:00:00Z', due_at: '2000-01-02T00:00:00Z' },
             options: [
               { id: 'a', text: 'Majority quorum and up-to-date log term checks', correct: true },
               { id: 'b', text: 'Static priority configured by node IP', correct: false },
@@ -718,6 +720,7 @@ test('cross-course 出处 switches focus course to card course, restores previou
     ordered: true,
     fresh: true,
   });
+  assert.equal(mixedRun.card.id, 'c-raft', 'the resumed question belongs to the course outside the current focus');
   assert.equal((await previewCall(server, 'snapshot', {})).focus.course, COURSE_A);
 
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });

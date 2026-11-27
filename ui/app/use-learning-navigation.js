@@ -448,10 +448,12 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
 
   const trail = lib.state.contextTrail;
   const practiceStack = lib.state.practiceStack || [];
-  const lastPractice = useMemo(
-    () => (practiceStack.length === 0 && currentRoot ? readLastPracticePosition(safeStorage(), currentRoot) : null),
-    [currentRoot, practiceStack.length, lastPracticeVersion],
-  );
+  // Always read from storage (the one source of truth), never from a copy kept in state: another library or tab can change it while this root is not current.
+  // The version says "storage was written, read it again"; a change of root or of the stack says the same.
+  const lastPractice = useMemo(() => {
+    void lastPracticeVersion;
+    return practiceStack.length === 0 && currentRoot ? readLastPracticePosition(safeStorage(), currentRoot) : null;
+  }, [currentRoot, practiceStack.length, lastPracticeVersion]);
   return { captureContext, rememberContext, contextLabel, openLearningTarget, currentStudyReference, openBoardReference, openBoardWithContext,
     returnFromContext, returnFromDetour, returnToReading, openAudioSources, openSourceAt, verbs,
     practiceStack, practiceTop: peekPracticeFrame(practiceStack), practiceOrigin: rootPracticeFrame(practiceStack),

@@ -2,11 +2,14 @@
  * Zero-dependency validated, atomic persistence for TUI-only preferences at `<DSH_HOME || ~/.dsh>/study/tui.json`.
  * Lives beside StudyHub Desktop's `desktop.json` (never inside the study library).
  */
+import { isKnownAssistantChipId } from '../shell/assistant-chips.js';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import type { AssistantCommandStat, LastPracticeContext, PinnedTarget, ThemeId, TuiPreferences, UiLanguage } from '../types/contracts.js';
-import { atomicCopyFile, atomicUpdateJson } from './atomic-write.js';
+import { type AtomicFsOps, atomicUpdateJson, backupCorruptFile, detectUnsupportedSchemaVersion, stripUtf8Bom } from './atomic-write.js';
+
+export const TUI_PREFS_SCHEMA_VERSION = 1;
 
 export const THEME_IDS: readonly ThemeId[] = Object.freeze([
   'dsh-dark',
@@ -110,16 +113,14 @@ function parseTuiPreferencesObject(source: Record<string, unknown>): TuiPreferen
     if (runId && cardId) {
       const deckId = typeof raw.deckId === 'string' && raw.deckId.trim() ? raw.deckId.trim().slice(0, 128) : undefined;
       const total = typeof raw.total === 'number' && Number.isSafeInteger(raw.total) && raw.total > 0 ? raw.total : undefined;
-      const promptPreview =
-        typeof raw.promptPreview === 'string' && raw.promptPreview.trim() ? raw.promptPreview.trim().slice(0, 120) : undefined;
       const savedAt = typeof raw.savedAt === 'number' && Number.isFinite(raw.savedAt) && raw.savedAt > 0 ? raw.savedAt : Date.now();
+      // #1354 D11: never retain or persist `promptPreview` (question stem text) inside `tui.json`.
       lastPracticeContext = {
         runId,
         cardId,
         ...(deckId ? { deckId } : {}),
         cardIndex,
         ...(total ? { total } : {}),
-        ...(promptPreview ? { promptPreview } : {}),
         savedAt,
       };
     }
@@ -141,7 +142,8 @@ function parseTuiPreferencesObject(source: Record<string, unknown>): TuiPreferen
       for (const [cmd, rawStat] of Object.entries(rawMap as Record<string, unknown>)) {
         if (cmdCount >= 20) break;
         const cleanCmd = cmd.trim().slice(0, 60);
-        if (!cleanCmd || !rawStat || typeof rawStat !== 'object') continue;
+        // #1354 D11: never persist free-text user input in `tui.json`; only registered canonical chip IDs ([C24]) may pass.
+        if (!isKnownAssistantChipId(cleanCmd) || !rawStat || typeof rawStat !== 'object') continue;
         const rec = rawStat as Record<string, unknown>;
         const count = typeof rec.count === 'number' && Number.isFinite(rec.count) && rec.count > 0 ? Math.floor(rec.count) : 0;
         const lastUsedAt =
@@ -222,6 +224,8 @@ export interface TuiPrefsLocation {
   home?: string;
   /** Explicit file path (overrides env/home resolution). */
   filePath?: string;
+  /** Internal / test fault-injection hooks forwarded to atomic persistence. */
+  fsOps?: AtomicFsOps;
 }
 
 export function resolveStudyHome({ env = process.env, home = homedir() }: TuiPrefsLocation = {}): string {
@@ -247,8 +251,19 @@ export function parseTuiPreferences(raw: unknown): TuiPreferences {
 
 export interface LoadTuiPreferencesResult {
   prefs: TuiPreferences;
-  status: 'ok' | 'missing' | 'corrupt' | 'unreadable';
+  status: 'ok' | 'missing' | 'corrupt' | 'unreadable' | 'unsupported-version';
   error?: string;
+}
+
+class UnsupportedPrefsVersionError extends Error {
+  readonly version: unknown;
+  constructor(version: unknown) {
+    super(
+      `Unsupported tui.json schema version ${String(version)} (supported: ${TUI_PREFS_SCHEMA_VERSION}); refusing to overwrite settings`,
+    );
+    this.name = 'UnsupportedPrefsVersionError';
+    this.version = version;
+  }
 }
 
 const PASSIVE_PREF_KEYS = new Set<string>([
@@ -285,9 +300,17 @@ export async function loadTuiPreferencesSafe(location: TuiPrefsLocation = {}): P
     };
   }
   try {
-    const parsed: unknown = JSON.parse(text);
+    const parsed: unknown = JSON.parse(stripUtf8Bom(text));
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return { prefs: defaults(), status: 'corrupt', error: 'Expected preferences JSON object' };
+    }
+    const unsupportedVersion = detectUnsupportedSchemaVersion(parsed as Record<string, unknown>, TUI_PREFS_SCHEMA_VERSION);
+    if (unsupportedVersion !== null) {
+      return {
+        prefs: defaults(),
+        status: 'unsupported-version',
+        error: new UnsupportedPrefsVersionError(unsupportedVersion.version).message,
+      };
     }
     return { prefs: parseTuiPreferences(parsed), status: 'ok' };
   } catch (err) {
@@ -313,7 +336,7 @@ export async function loadTuiPreferences(location: TuiPrefsLocation = {}): Promi
  * - If the existing file is unreadable (e.g. EACCES/EBUSY), never clobber it with defaults.
  * - If the existing file is corrupt JSON:
  *   - Passive/usage-only patches skip writing and leave the original file untouched on disk.
- *   - Explicit user setting changes first back up the corrupt file to `tui.json.corrupt-<ts>.bak`
+ *   - Explicit user setting changes first back up the corrupt file to `tui.json.corrupt-<ts>-<rand>.bak`
  *     before writing the new preferences.
  */
 export async function saveTuiPreferences(
@@ -329,21 +352,32 @@ export async function saveTuiPreferences(
       return merged;
     },
     {
+      fsOps: location.fsOps,
+      stringify: (value) => `${JSON.stringify({ version: TUI_PREFS_SCHEMA_VERSION, ...value }, null, 2)}\n`,
       parse: (text) => {
-        const parsed: unknown = JSON.parse(text);
+        const parsed: unknown = JSON.parse(stripUtf8Bom(text));
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
           throw new Error('Expected preferences JSON object');
         }
+        const unsupportedVersion = detectUnsupportedSchemaVersion(parsed as Record<string, unknown>, TUI_PREFS_SCHEMA_VERSION);
+        if (unsupportedVersion !== null) {
+          throw new UnsupportedPrefsVersionError(unsupportedVersion.version);
+        }
         return parseTuiPreferences(parsed);
       },
-      onCorrupt: async () => {
+      onCorrupt: async (error) => {
         const recovered = parseTuiPreferences({ ...DEFAULT_TUI_PREFERENCES, ...prefs });
+        if (error instanceof UnsupportedPrefsVersionError) {
+          if (!hasExplicitUserSetting(prefs)) {
+            return { skip: recovered };
+          }
+          throw error;
+        }
         if (!hasExplicitUserSetting(prefs)) {
           // Passive/usage-only patch: report the merged defaults but never touch the corrupt file.
           return { skip: recovered };
         }
-        const backupPath = `${target}.corrupt-${Date.now()}.bak`;
-        await atomicCopyFile(target, backupPath, { mode: 0o600 }).catch(() => {});
+        await backupCorruptFile(target, { mode: 0o600, fsOps: location.fsOps });
         return { recover: recovered };
       },
     },

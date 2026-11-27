@@ -222,8 +222,53 @@ test('every Review Book gap check word is translated into English (no untranslat
 }));
 
 test('UI guardrails: BookPointGaps uses no title= attributes and book-point-gaps.css uses design tokens only', async () => {
-  const jsx = await readFile(new URL('../ui/book/BookPointGaps.jsx', import.meta.url), 'utf8');
-  assert.ok(!/\stitle=/.test(jsx), 'use Tooltip/HelpTip instead of raw title=');
+  const richReport = {
+    ...report,
+    chapters: report.chapters.map((ch, idx) => (idx === 1 ? {
+      ...ch,
+      drafted: 1,
+      sections: [{ id: 's1', hid: 'h-sec-1', number: '2.1', title: 'Sec 2.1', points: 2, covered: 1, published: 0, drafted: 1, uncovered: 1, uncoverable: 0, topUp: { pointIds: ['pc'], questions: 1 } }],
+      missing: [
+        { id: 'pc', hid: 'h-pc', number: '2.1', title: 'Point C', dependents: 2, coverable: true },
+        { id: 'pd', hid: null, number: '2.2', title: 'Point D', dependents: 0, coverable: false },
+      ],
+    } : ch)),
+  };
+  // modelReady: false omits the nested TokenEstimate icon button while rendering every branch of BookPointGaps and PointGaps.
+  const quietHtml = render(h(m.BookPointGaps, { course: COURSE, report: { status: 'unavailable', reason: 'stale' }, onOutline: noop }));
+  const fullHtml = render(h(m.BookPointGaps, {
+    course: COURSE,
+    report: richReport,
+    modelReady: false,
+    fillingJob: { id: 'job-1', status: 'running' },
+    onOpenTask: noop,
+    onTopUp: noop,
+    onGo: noop,
+  }));
+  const plainHtml = render(h(m.BookPointGaps, {
+    course: COURSE,
+    report: richReport,
+    modelReady: false,
+    onTopUp: noop,
+  }));
+
+  for (const [label, rendered] of [['unavailable', quietHtml], ['full ok with onGo', fullHtml], ['full ok without onGo', plainHtml]]) {
+    assert.ok(rendered.length > 0, `${label} renders non-empty HTML`);
+    assert.doesNotMatch(rendered, /\btitle="/, `use Tooltip/HelpTip instead of raw title= (${label})`);
+  }
+
+  const missingList = fullHtml.match(/<ul\b[^>]*class="book-gaps__missing"[^>]*>[\s\S]*?<\/ul>/)?.[0] ?? '';
+  assert.ok(missingList, 'MissingLinks list is rendered for chapter missing points');
+  const badgeTag = missingList.match(/<span\b[^>]*\bsh-badge\b[^>]*>前置<\/span>/)?.[0] ?? '';
+  const tooltipId = badgeTag.match(/\baria-describedby="([^"]+)"/)?.[1];
+  assert.ok(tooltipId, 'prerequisite badge in MissingLinks has aria-describedby wired to Tooltip');
+  const escapedId = tooltipId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const tooltipMatch = missingList.match(new RegExp(`<span\\b([^>]*\\bid="${escapedId}"[^>]*)>([^<]*)<\\/span>`));
+  assert.ok(tooltipMatch, 'rendered Tooltip element matches prerequisite badge aria-describedby');
+  assert.match(tooltipMatch[1], /\brole="tooltip"/);
+  assert.match(tooltipMatch[1], /\bsh-tooltip\b/);
+  assert.equal(tooltipMatch[2], '有 2 个知识点建立在它之上，先补它。');
+
   const css = await readFile(new URL('../ui/book/book-point-gaps.css', import.meta.url), 'utf8');
   assert.match(css, /@layer study\.features/);
   assert.match(css, /:where\(\.study-app, \.study-seat\)/);

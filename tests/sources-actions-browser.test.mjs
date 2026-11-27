@@ -44,7 +44,14 @@ test('a 资料 row with several actions stays tidy at every width in zh and en',
   await buildPreview({ outdir: distDir });
   const server = await createPreviewServer({ libraryRoot: service.store.root, home: join(root, 'home'), port: 0, model: createFakeModel({ latencyMs: 20 }), distDir });
   let browser;
-  t.after(async () => { await browser?.close(); await server.close(); await service.dispose(); await rm(root, { recursive: true, force: true }); });
+  const closePage = async page => {
+    await page.unrouteAll({ behavior: 'wait' });
+    await page.close();
+  };
+  t.after(async () => {
+    for (const context of browser?.contexts() || []) await Promise.all(context.pages().map(closePage));
+    await browser?.close(); await server.close(); await service.dispose(); await rm(root, { recursive: true, force: true });
+  });
   try { browser = await launchChromium(); }
   catch (error) { if (!/Executable doesn't exist/.test(error.message)) throw error; t.skip('Chromium unavailable'); return; }
 
@@ -200,7 +207,7 @@ test('a 资料 row with several actions stays tidy at every width in zh and en',
         if (!after) faults.push(`${at}: ${rows[cutAt].title}: after F2 then Esc the cut courses tip no longer opens`);
       }
       assert.deepEqual(errors, [], `${at}: page errors`);
-      await page.close();
+      await closePage(page);
     }
   }
   assert.deepEqual(faults, []);

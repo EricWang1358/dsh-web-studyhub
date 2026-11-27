@@ -9,15 +9,18 @@ import { buildHostClient } from '../scripts/build.mjs';
 
 // Measured with this file's closure() on the change that made these pages lazy: 4,839,744 bytes (79 chunks, 6 waves) before, 3,858,173 bytes (96 chunks, 6 waves) after.
 const CEILING_BYTES = 3_950_000;
+// Final DSH modules include the loader registration and chunk-loading code added after esbuild.
+// 4,193,489 shipped bytes on 2026-11-26, with 106,511 bytes for routine changes.
+const MAX_SHIPPED_BYTES = 4_300_000;
 const MAX_WAVES = 6;
 const ON_DEMAND = ['ui/Exam.jsx', 'ui/Board.jsx', 'ui/Dashboard.jsx', 'ui/book/BookPage.jsx', 'ui/outline/CourseOutline.jsx', 'ui/exam-prep/ExamPrep.jsx',
   'ui/LiveClass.jsx', 'ui/AudioDashboard.jsx', 'ui/BlogNotes.jsx', 'ui/Skeleton.jsx', 'ui/Workflows.jsx', 'ui/Graph.jsx', 'ui/tasks/TaskConsole.jsx',
   'ui/guided-study/GuidedStudyWorkbench.jsx'];
 const DAILY = ['ui/StudyMap.jsx', 'ui/Sources.jsx', 'ui/Generate.jsx', 'ui/Draft.jsx', 'ui/Review.jsx', 'ui/WrongBook.jsx', 'ui/Settings.jsx'];
 
-async function closure() {
-  const { metafile } = await buildHostClient({ write: false });
+function closure({ metafile, outputFiles }) {
   const outputs = new Map(Object.entries(metafile.outputs).map(([path, output]) => [basename(path), output]));
+  const shipped = new Map(outputFiles.map(file => [basename(file.path), file.contents.byteLength]));
   const statics = (name) => outputs.get(name).imports.filter((edge) => !edge.external && edge.kind === 'import-statement').map((edge) => basename(edge.path));
   const workspace = [...outputs].find(([, output]) => output.entryPoint === 'ui/host/workspace.jsx')?.[0];
   assert.ok(workspace, 'the workspace has a chunk of its own');
@@ -29,11 +32,23 @@ async function closure() {
   const inputs = new Set([...chunks].flatMap((name) => Object.keys(outputs.get(name).inputs)));
   const lazilyReached = new Set([...outputs.values()].flatMap((output) => output.imports.filter((edge) => edge.kind === 'dynamic-import').map((edge) => basename(edge.path))));
   const entryChunk = (input) => [...outputs].find(([, output]) => output.entryPoint === input)?.[0];
-  return { bytes: [...chunks].reduce((sum, name) => sum + outputs.get(name).bytes, 0), waves: depthOf(workspace), inputs, lazilyReached, entryChunk };
+  let shippedBytes = 0;
+  for (const name of chunks) {
+    assert.ok(shipped.has(name), `missing shipped DSH chunk ${name}`);
+    shippedBytes += shipped.get(name);
+  }
+  return { bytes: [...chunks].reduce((sum, name) => sum + outputs.get(name).bytes, 0), shippedBytes,
+    waves: depthOf(workspace), inputs, lazilyReached, entryChunk };
 }
 
-test('the pages off the daily path are not in the workspace first load, and that load stays under its ceiling', async () => {
-  const { bytes, waves, inputs, lazilyReached, entryChunk } = await closure();
+function assertShippedBudget(bytes) {
+  assert.ok(bytes <= MAX_SHIPPED_BYTES, `opening the workspace loads ${bytes} shipped JS bytes; limit ${MAX_SHIPPED_BYTES}`);
+}
+
+test('the pages off the daily path are not in the workspace first load, and that load stays under its ceiling', async t => {
+  const { bytes, shippedBytes, waves, inputs, lazilyReached, entryChunk } = closure(await buildHostClient({ write: false }));
+  t.diagnostic(`workspace loader: ${shippedBytes} shipped JS bytes, ${waves} dependency waves`);
+  assertShippedBudget(shippedBytes);
   for (const page of ON_DEMAND) {
     assert.ok(!inputs.has(page), `${page} is loaded on demand, not with the workspace`);
     const chunk = entryChunk(page);
@@ -42,4 +57,25 @@ test('the pages off the daily path are not in the workspace first load, and that
   for (const page of DAILY) assert.ok(inputs.has(page), `${page} is on the daily path and stays in the first load`);
   assert.ok(bytes <= CEILING_BYTES, `the workspace static closure is ${bytes} bytes, over the ${CEILING_BYTES} ceiling: a page or a library joined the first load`);
   assert.ok(waves <= MAX_WAVES, `the loader needs ${waves} sequential waves before the workspace, more than ${MAX_WAVES}`);
+});
+
+test('the shipped budget counts shared static files once and excludes deferred bytes until the loader needs them', () => {
+  const edge = (path, kind = 'import-statement') => ({ path, kind });
+  const chunk = (imports = []) => ({ imports, inputs: {}, bytes: 1 });
+  const outputs = {
+    'workspace.js': { ...chunk([edge('shared.js'), edge('daily.js'), edge('exam.js', 'dynamic-import')]), entryPoint: 'ui/host/workspace.jsx' },
+    'daily.js': chunk([edge('shared.js')]),
+    'shared.js': chunk(),
+    'exam.js': chunk(),
+  };
+  const outputFiles = [
+    { path: 'workspace.js', contents: Buffer.alloc(MAX_SHIPPED_BYTES - 2) },
+    ...['daily.js', 'shared.js', 'exam.js'].map(path => ({ path, contents: Buffer.alloc(1) })),
+  ];
+  const measure = () => closure({ metafile: { outputs }, outputFiles }).shippedBytes;
+  assert.equal(measure(), MAX_SHIPPED_BYTES);
+  assertShippedBudget(measure());
+  outputs['workspace.js'].imports[2] = edge('exam.js');
+  assert.equal(measure(), MAX_SHIPPED_BYTES + 1);
+  assert.throws(() => assertShippedBudget(measure()), /opening the workspace loads/);
 });
