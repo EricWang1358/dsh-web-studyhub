@@ -138,6 +138,19 @@ test('every other finished card keeps its own button: a draft with something mis
   assert.doesNotMatch(draw(done({ status: 'failed', stage: 'boom' })), /发布并开始练/);
 });
 
+test('where the card is all the screen has of the draft, a button that is something else keeps 检查草稿 as the quiet way in, and never says it twice', () => {
+  const owing = cleanDraft({ editorial: { requested: 5 } }), failed = done({ status: 'failed', stage: 'boom', requestedTotal: 5 });
+  const quiet = html => text(html.match(/<div class="cjc__links"[\s\S]*?<\/div>/)?.[0] || '');
+  const alone = draw(failed, { draft: owing, props: { draftLink: true } });
+  assert.match(buttons(alone).join('|'), /接着做/, 'the button continues the run');
+  assert.match(quiet(alone), /检查草稿/, 'and the questions it kept can be opened from the card');
+  assert.equal((alone.match(/cjc__go\b/g) || []).length, 1, 'still one button');
+  assert.doesNotMatch(quiet(draw(failed, { draft: owing })), /检查草稿/, 'on the ordinary home the 待发布 row under the card opens the draft');
+  const looked = draw(done(), { draft: cleanDraft({ editorial: { rejectedIssues: { c1: ['x'] } } }), props: { draftLink: true } });
+  assert.equal(buttons(looked).filter(label => label === '检查草稿').length, 1, 'the button already is 检查草稿: no link beside it');
+  assert.doesNotMatch(quiet(draw(done({ status: 'running' }), { props: { draftLink: true } })), /检查草稿/, 'a run in progress keeps the draft for its end');
+});
+
 /* ---------- the draft page while a job works on it ---------- */
 
 test('holdLine says what works on the draft, why saving and publishing wait, and how to get past it', () => {
