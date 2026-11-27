@@ -29,7 +29,7 @@ import { scrubProcessEnv } from "./env.mjs";
 import { sampleMaterial, sampleMarkdown, samplePdfHtml } from "./fixtures.mjs";
 import { FAKE_SILICONFLOW_KEY, fakeSiliconflow, longM4a, toneWav } from "./audio-fixtures.mjs";
 import { DEFAULT_CLS_MAX, drainLayoutStability, emptyLayoutLog, installLayoutObserver, judgeLayoutStability, mergeLayoutLog } from "./layout-stability.mjs";
-import { DEFAULT_LEVEL, autoCompleteOf } from "../../lib/coverage-strength.js";
+import { seedGeneration } from "./journey-seed.mjs";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -485,14 +485,6 @@ export const CASE_STEPS = [
 ];
 
 /* ---------- state a step can require, created through the API ---------- */
-
-/** The run the seed starts is the one 创建题组 would send for these materials and 4 questions of one's own: the form always sends its 覆盖强度 and whether the run
- *  goes on by itself. A request without them is a plain run, which can end 「补题」: its card then stands on the first-run line and the steps that wait for
- *  发布并开始练 or 检查草稿 find neither. */
-export function seedGeneration(lang, sourceIds) {
-  return { sourceIds, count: 4, kind: "quiz", title: "QA seed", language: lang === "en" ? "English" : "中文",
-    coverageLevel: DEFAULT_LEVEL, autoComplete: autoCompleteOf(DEFAULT_LEVEL) };
-}
 
 const SEED = {
   async material(j) {

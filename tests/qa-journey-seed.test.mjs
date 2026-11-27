@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { sampleMaterial, sampleMarkdown } from '../scripts/qa/fixtures.mjs';
-import { seedGeneration } from '../scripts/qa/journey.mjs';
+import { seedGeneration } from '../scripts/qa/journey-seed.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 
 const ui = await loadUi(`export { firstRunLine, firstRunDraft } from './ui/first-run/line.js';
