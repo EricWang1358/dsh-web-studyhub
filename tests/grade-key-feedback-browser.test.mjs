@@ -44,12 +44,22 @@ test('in the browser: a 0-5 key makes its own button look pressed, and the short
   assert.equal(await grades.count(), 6, 'the 0-5 scale');
   assert.equal(await grades.nth(4).getAttribute('title'), null, 'no title attribute on a grade button');
   assert.equal(await grades.nth(4).getAttribute('aria-keyshortcuts'), '4', 'the key is still announced on the button');
-  // The tooltip's anchor is the grid cell (#745): the buttons must still be six equal columns on one row, not content-width boxes.
-  const boxes = await grades.evaluateAll((els) => els.map((el) => { const box = el.getBoundingClientRect(); return { top: Math.round(box.top), height: Math.round(box.height), width: Math.round(box.width) }; }));
-  assert.equal(new Set(boxes.map((box) => box.top)).size, 1, 'one row');
-  assert.equal(new Set(boxes.map((box) => box.height)).size, 1, 'one height');
-  assert.ok(Math.max(...boxes.map((box) => box.width)) - Math.min(...boxes.map((box) => box.width)) <= 1, 'equal columns');
-  assert.ok(Math.min(...boxes.map((box) => box.width)) > 80, 'each button fills its cell');
+  // Each outcome group has three equal cells. The two groups can stack on a narrow study surface.
+  const groups = page.locator('.grade-group');
+  assert.equal(await groups.count(), 2);
+  for (const group of await groups.all()) {
+    const boxes = await group.locator('.grade').evaluateAll(els => els.map(el => {
+      const box = el.getBoundingClientRect(), cell = el.parentElement.getBoundingClientRect();
+      return { top: box.top, height: box.height, width: box.width, cellWidth: cell.width };
+    }));
+    assert.equal(boxes.length, 3, 'three grades per outcome group');
+    for (const box of boxes) {
+      assert.ok(Math.abs(box.top - boxes[0].top) <= 1, 'one row within each group');
+      assert.ok(Math.abs(box.height - boxes[0].height) <= 1, 'equal button heights');
+      assert.ok(box.width > 0 && Math.abs(box.width - boxes[0].width) <= 1, 'equal columns');
+      assert.ok(Math.abs(box.width - box.cellWidth) <= 1, 'the button fills its anchor');
+    }
+  }
   // The words come from the shared tooltip, on hover, in the top layer so the card cannot clip them.
   await grades.nth(4).hover();
   const tip = page.locator('.grade-tip').nth(4).locator('[role="tooltip"]');

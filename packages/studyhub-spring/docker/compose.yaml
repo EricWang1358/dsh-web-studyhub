@@ -1,0 +1,14 @@
+services:
+  sync:
+    build:
+      context: ../../..
+      dockerfile: packages/studyhub-spring/docker/Dockerfile
+    environment:
+      STUDYHUB_SYNC_TOKEN: ${STUDYHUB_SYNC_TOKEN:?Set a private bearer token of at least 32 characters}
+    ports:
+      - "127.0.0.1:${STUDYHUB_SYNC_PORT:-8080}:8080"
+    volumes:
+      - studyhub-data:/data
+    restart: unless-stopped
+volumes:
+  studyhub-data:

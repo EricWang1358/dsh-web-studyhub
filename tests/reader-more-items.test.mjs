@@ -30,6 +30,9 @@ test('without the original file the 原始 PDF item says so and leads to 补全�
   assert.equal(original.hint, '没有原文件');
   assert.ok(original.tip, 'and the longer words are in its tip');
   assert.equal(original.checked, false);
+  const loadingOriginal = m.moreItems({ ...base, fileUrl: false, originalLoading: true }, h).find(item => item.id === 'view:original');
+  assert.equal(loadingOriginal.hint, '正在载入…', 'while original PDF bytes are still loading, do not claim the file is missing');
+  assert.equal(loadingOriginal.tip, undefined);
   original.run();
   assert.deepEqual(h.calls, [['view', 'original']], 'the reader decides what a click on it does (it opens the 补全原文件 dialog)');
   assert.ok(!ids(m.moreItems({ ...base, format: 'md' }, h)).includes('view:original'));

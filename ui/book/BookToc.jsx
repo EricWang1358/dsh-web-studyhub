@@ -1,3 +1,4 @@
+import { hasVisibleOverlayOutside } from '../components/use-dismiss.js';
 import React, { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, Icon, IconButton, SegmentedControl, TextInput, Tooltip } from '../components/index.js';
@@ -150,7 +151,7 @@ export default function BookToc({ entries, here, onGo, narrow, onClose, returnRe
     const press = event => {
       if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
       if (event.target?.closest?.('dialog, [role="dialog"]')) return;
-      if (document.querySelector('dialog[open], [role="dialog"], .sh-pop__popup:not([data-closed]), .sh-menu, .sh-popover')) return;
+      if (hasVisibleOverlayOutside(panel.current)) return;
       event.preventDefault();
       onClose();
     };

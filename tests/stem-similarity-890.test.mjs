@@ -11,7 +11,23 @@ test("the exam coach uses the shared function and threshold, not a copy", () => 
   assert.equal(coach.stemSimilarity, shared.stemSimilarity);
   assert.equal(coach.normalizeStemForComparison, shared.normalizeStemForComparison);
   assert.equal(coach.NEAR_DUPLICATE_SIMILARITY, shared.NEAR_DUPLICATE_SIMILARITY);
-  assert.equal(shared.NEAR_DUPLICATE_SIMILARITY, 0.72);
+});
+
+test("similarStemPairs defaults to the 0.72 near-duplicate threshold at the exact boundary", () => {
+  // 26-char stems have 25 bigrams each: 18 shared bigrams gives 2*18/(25+25) = 0.72 exactly;
+  // one extra non-matching char (26 bigrams) drops similarity to 36/51 ≈ 0.7059.
+  const base = "abcdefghijklmnopqrstuvwxyz";
+  const atBoundary = "abcdefghijklmnopqrs0123456";
+  const justBelow = "abcdefghijklmnopqrs01234567";
+  assert.equal(shared.stemSimilarity(base, atBoundary), 0.72);
+  assert.equal(shared.stemSimilarity(base, justBelow), 36 / 51);
+  assert.deepEqual(shared.similarStemPairs([base, atBoundary, justBelow], { probes: [0] }), [[0, 1, 0.72]]);
+  // A pair just under the line (33-char stems, 23 of 32 bigrams shared: 2*23/64 = 0.71875) keeps the default from drifting down by a hundredth.
+  const wide = "abcdefghijklmnopqrstuvwxyzABCDEFG";
+  const nearMiss = "abcdefghijklmnopqrstuvwx012345678";
+  assert.equal(shared.stemSimilarity(wide, nearMiss), 23 / 32);
+  assert.deepEqual(shared.similarStemPairs([wide, nearMiss], { probes: [0] }), []);
+  assert.deepEqual(shared.similarStemPairs([wide, nearMiss], { probes: [0], threshold: 0.71 }), [[0, 1, 23 / 32]]);
 });
 
 test("stemSimilarity keeps its meaning: punctuation, spacing and case do not count, repeated bigrams count as often as they occur", () => {

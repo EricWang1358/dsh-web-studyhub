@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { MATTER_WORDS } from '../ui/generation-path-flow.js';
 import { loadUi } from './helpers/ui-module.mjs';
-import { CALL_PAGES, CALL_QUESTIONS } from '../lib/generation-path.js';
 
 /* 2.5.8: the brief that opens the conversation about the path. It carries the book page range of every step (so "p.55-76" can be mapped without guessing), how to get
    the sourceIds of a custom range, the size of one generate call, how to see a job (job.status) and to start the next step only after the one before ended, and
@@ -45,13 +44,12 @@ test('it says how to get the sourceIds of a custom page range, and that ids are 
 });
 
 test('the size of one generate call is told: at most 20 pages and 15 questions, a bigger step is split into several calls', () => {
-  assert.equal(CALL_PAGES, 20); assert.equal(CALL_QUESTIONS, 15);
   const zh = brief('zh'), en = brief('en');
-  assert.match(zh, new RegExp(`至多 ${CALL_PAGES} 页`));
-  assert.match(zh, new RegExp(`${CALL_QUESTIONS} 题`));
+  assert.match(zh, /至多 20 页/);
+  assert.match(zh, /15 题/);
   assert.match(zh, /拆成/);
-  assert.match(en, new RegExp(`at most ${CALL_PAGES} pages`, 'i'));
-  assert.match(en, new RegExp(`${CALL_QUESTIONS} questions`));
+  assert.match(en, /at most 20 pages/i);
+  assert.match(en, /15 questions/);
   assert.match(en, /split/i);
 });
 
@@ -82,7 +80,7 @@ test('a step that is optional or switched off is listed as one to skip (no ids),
 
 test('English and Chinese carry the same things; the English brief has no Han at all', () => {
   const zh = brief('zh'), en = brief('en');
-  for (const token of ['source.list', 'job.status', 'generate', 'source.search', String(CALL_PAGES), String(CALL_QUESTIONS), book, 'step-1'.replace('step-1', 'src-6')])
+  for (const token of ['source.list', 'job.status', 'generate', 'source.search', '20', '15', book, 'step-1'.replace('step-1', 'src-6')])
     for (const [name, text] of [['zh', zh], ['en', en]]) assert.ok(text.includes(token), `${name} brief is missing ${token}`);
   assert.doesNotMatch(en, /[㐀-鿿]/);
   assert.match(en, /nothing until I confirm/);

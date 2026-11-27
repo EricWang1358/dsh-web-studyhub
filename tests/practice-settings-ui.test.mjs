@@ -2,7 +2,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { readFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -71,10 +70,29 @@ test('saved choices are shown, a size outside the list is kept, and 恢复默认
   assert.doesNotMatch(html.match(/<button[^>]*>(?:(?!<\/button>).)*恢复默认/)[0], /disabled/);
 });
 
-test('the pane is one section of the shared settings primitives, with no raw colours', async () => {
-  const source = await readFile(new URL('../ui/settings/PracticePane.jsx', import.meta.url), 'utf8');
-  assert.match(source, /SettingsSection/);
-  assert.doesNotMatch(source, /#[0-9a-fA-F]{3,8}\b|rgb\(|hsl\(|style=\{\{/);
+test('PracticePane renders inside one shared SettingsSection with no inline styles or raw colours', () => {
+  const states = [
+    { lang: 'zh', data: { settings: {} } },
+    { lang: 'zh', data: { settings: { practice: { autopilot: true, roundSize: 30, debrief: false, wrongbookClinic: true } } } },
+    { lang: 'en', data: { settings: {} } },
+  ];
+  try {
+    for (const { lang, data } of states) {
+      ssr.setUiLanguage(lang);
+      const html = pane({ data });
+      assert.equal((html.match(/<fieldset\b[^>]*class="settings-section"/g) || []).length, 1, 'exactly one shared SettingsSection fieldset');
+      assert.match(html, /<fieldset\b[^>]*class="settings-section"[^>]*data-tour="settings-practice"/);
+      assert.match(html, /<legend class="settings-section__title">/);
+      assert.match(html, /<p class="settings-section__lead">/);
+      assert.doesNotMatch(html, /<style\b/i, 'no embedded raw <style> blocks in rendered PracticePane markup');
+      for (const tag of html.match(/<[^>]+>/g) || []) {
+        assert.doesNotMatch(tag, /\sstyle\s*=/i, `no inline styles in rendered PracticePane tag: ${tag}`);
+        assert.doesNotMatch(tag, /\s(?:style|color|bgcolor|fill|stroke)\s*=\s*"[^"]*(?:#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\()/i, `no raw colour attributes in rendered PracticePane tag: ${tag}`);
+      }
+    }
+  } finally {
+    ssr.setUiLanguage('zh');
+  }
 });
 
 test('English: every word of the pane is translated', () => {
@@ -125,7 +143,7 @@ const paneView = (extra = {}) => {
   return { view, calls };
 };
 
-test('a switch saves just its own field at once and shows the choice without waiting for the library', async () => {
+test('PracticePane switches save just their own practice field at once without waiting for the library', async () => {
   const { view, calls } = paneView();
   await named(view, 'autopilot').props.onChange(true);
   assert.deepEqual(calls.map(call => call.slice(0, 2)), [['settings.practice.set', { patch: { autopilot: true } }]]);

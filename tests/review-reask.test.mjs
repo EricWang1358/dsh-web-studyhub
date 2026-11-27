@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { generateDeck, reviewDeck } from "../lib/generation.js";
-import { REVIEW_REASKS, REVIEW_PROTOCOL, classifyFailure } from "../lib/generation-failure.js";
+import { REVIEW_PROTOCOL, classifyFailure } from "../lib/generation-failure.js";
 import { injectedModel, source, quizCard, keepChecks, cutInCheck } from "./helpers/review-injector.mjs";
 
 /* The review of a part is asked again when its reply cannot be used: cut off, not JSON, or without a complete check for every question. A truncated
@@ -10,8 +10,6 @@ import { injectedModel, source, quizCard, keepChecks, cutInCheck } from "./helpe
 
 const request = { count: 3, kind: "quiz", sources: [source] };
 const reviews = (model) => model.log.reviews;
-
-test("the review is asked again at most twice: 1 + REVIEW_REASKS calls", () => { assert.equal(REVIEW_REASKS, 2); });
 
 test("a review reply that is not JSON is asked again once, and the part goes on", async () => {
   const model = injectedModel({ review: ({ nth }) => (nth === 1 ? '{"issues":' : undefined) });
@@ -50,7 +48,7 @@ test("a reply that stays unusable gets two re-asks, the second with the exact fo
   const error = await generateDeck(model.complete, request).then(() => null, (failure) => failure);
   assert.ok(error, "the part failed");
   assert.equal(error.code, REVIEW_PROTOCOL);
-  assert.equal(error.attempts, 1 + REVIEW_REASKS);
+  assert.equal(error.attempts, 3);
   assert.match(error.message, /^Review (?:JSON )?protocol failed after 3 attempts/);
   assert.equal(model.count("review"), 3);
   assert.deepEqual(reviews(model).map((entry) => entry.retry), [0, 1, 2]);

@@ -380,11 +380,20 @@ test('domain/retrieval-policy shapes desktop extension states and suppresses DSH
 
 test('adapters/retrieval/mcp-stdio-client handshakes, calls tools, handles timeouts/crashes, and terminates child cleanly', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'studyhub-mcp-client-'));
-  t.after(() => rm(dir, { recursive: true, force: true }));
+  const clients = [];
+  const makeClient = options => {
+    const client = createMcpStdioClient(options);
+    clients.push(client);
+    return client;
+  };
+  t.after(async () => {
+    await Promise.all(clients.map(client => client.close()));
+    await rm(dir, { recursive: true, force: true });
+  });
 
   const okServer = join(dir, 'ok-server.mjs');
   await writeFile(okServer, fakeMcpServerSource({ tag: 'ok' }), 'utf8');
-  const client = createMcpStdioClient({
+  const client = makeClient({
     command: process.execPath,
     args: [okServer],
     cwd: dir,
@@ -406,9 +415,9 @@ test('adapters/retrieval/mcp-stdio-client handshakes, calls tools, handles timeo
   // Timeout & AbortSignal
   const slowServer = join(dir, 'slow-server.mjs');
   await writeFile(slowServer, fakeMcpServerSource({ tag: 'slow', slowMs: 5000 }), 'utf8');
-  const slowClient = createMcpStdioClient({ command: process.execPath, args: [slowServer], cwd: dir });
-  t.after(() => slowClient.close());
+  const slowClient = makeClient({ command: process.execPath, args: [slowServer], cwd: dir });
   await slowClient.start();
+  const slowPid = slowClient.pid;
   await assert.rejects(
     slowClient.callTool('query_documents', { query: 'q' }, { timeoutMs: 80 }),
     (err) => err?.code === 'retrieval-call-timeout'
@@ -417,18 +426,18 @@ test('adapters/retrieval/mcp-stdio-client handshakes, calls tools, handles timeo
   setTimeout(() => ac.abort(new Error('user-cancel')), 40);
   await assert.rejects(slowClient.callTool('query_documents', { query: 'q' }, { signal: ac.signal }), /user-cancel/);
   await slowClient.close();
+  assert.equal(pidExists(slowPid), false, 'close waits for the server holding the working directory');
 
   // Unexpected child crash rejects pending call and invokes onExit
   const crashServer = join(dir, 'crash-server.mjs');
   await writeFile(crashServer, fakeMcpServerSource({ tag: 'crash', crashOnCall: true }), 'utf8');
   let exitEvent = null;
-  const crashClient = createMcpStdioClient({
+  const crashClient = makeClient({
     command: process.execPath,
     args: [crashServer],
     cwd: dir,
     onExit: (outcome) => { exitEvent = outcome; },
   });
-  t.after(() => crashClient.close());
   await crashClient.start();
   await assert.rejects(crashClient.callTool('query_documents', { query: 'boom' }), /exited unexpectedly/);
   assert.equal(exitEvent?.code, 42);

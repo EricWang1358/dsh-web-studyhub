@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { fixtureSourcePreload } from '../../scripts/qa/test-source-cache.mjs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -10,7 +11,7 @@ const fixture = fileURLToPath(new URL('../fixtures/audio-batch-process.mjs', imp
  */
 export function runBatchChild({ directory, root, mode, preload, env = {} }) {
   return new Promise((resolve, reject) => {
-    const args = [...(preload ? ['--import', `data:text/javascript,${encodeURIComponent(preload)}`] : []), fixture, root, mode];
+    const args = [...fixtureSourcePreload(), ...(preload ? ['--import', `data:text/javascript,${encodeURIComponent(preload)}`] : []), fixture, root, mode];
     const child = spawn(process.execPath, args, { env: { ...process.env, DSH_HOME: join(directory, 'home'), STUDY_RUNTIME_SWITCH: 'runtime', ...env }, windowsHide: true });
     let out = '', err = '';
     child.stdout.on('data', data => { out += data; }); child.stderr.on('data', data => { err += data; });

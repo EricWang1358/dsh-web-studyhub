@@ -245,17 +245,20 @@ test("libraryPaceForecast benchmarks < 15ms and < 5 KB payload on 2,000 cards", 
     settings: { request_retention: 0.9, maximum_interval: 36500 },
   };
 
-  // Warmup cache (1 call) then measure 25 runs via CPU time so parallel CI scheduling cannot inflate wall-clock readings
+  // Warmup cache & JIT (5 calls), then measure batched CPU time (5 batches x 10 calls) so parallel CI scheduling
+  // and Windows 15.625ms process.cpuUsage() tick quantization cannot inflate single-call readings.
   const first = libraryPaceForecast(state, { now: NOW });
+  for (let i = 0; i < 4; i++) libraryPaceForecast(state, { now: NOW });
+  const BATCH = 10;
   const times = [];
-  for (let i = 0; i < 25; i++) {
+  for (let i = 0; i < 5; i++) {
     const cpuBefore = process.cpuUsage();
-    libraryPaceForecast(state, { now: NOW });
+    for (let j = 0; j < BATCH; j++) libraryPaceForecast(state, { now: NOW });
     const cpuUsed = process.cpuUsage(cpuBefore);
-    times.push((cpuUsed.user + cpuUsed.system) / 1000);
+    times.push((cpuUsed.user + cpuUsed.system) / 1000 / BATCH);
   }
   times.sort((a, b) => a - b);
-  const medianMs = times[12];
+  const medianMs = times[Math.floor(times.length / 2)];
   const payloadBytes = JSON.stringify(first).length;
   t.diagnostic(`2,000-card libraryPaceForecast: median ${medianMs.toFixed(3)} ms CPU, payload ${payloadBytes} bytes`);
 

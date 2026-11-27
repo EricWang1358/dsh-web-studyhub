@@ -36,14 +36,14 @@ export interface CrunchPoint {
   number?: string;
   title: string;
   order?: number;
-  tested?: string[];
+  tested?: number;
   weakness?: number;
   questions?: number;
   weak?: number;
   due?: number;
   fresh?: number;
   size?: number;
-  pitfalls?: string[];
+  pitfalls?: number;
   done?: string | null;
   seen?: string | null;
   examDay?: {

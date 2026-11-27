@@ -1,5 +1,12 @@
 import type { BindingSnapshot, DesktopConfigSnapshot, PageId, StudySnapshot } from '../types/contracts.js';
 import type { ContextualTip, ContextualTipInput } from './contextual-tips.js';
+import {
+  courseEntryKey,
+  isActiveStudyDeck as selectorIsActiveStudyDeck,
+  selectCourseMetrics,
+  selectDeckDueCount,
+  selectStudySummary,
+} from '../selectors/study-metrics.js';
 
 export type SelectContextualTipFn = (input: ContextualTipInput) => ContextualTip | null;
 let cachedTipSelector: SelectContextualTipFn | null = null;
@@ -151,73 +158,47 @@ export interface CourseEntry {
 }
 
 export function courseKey(c: { name?: string; id?: string; title?: string }): string {
-  return String(c.name ?? c.id ?? c.title ?? '');
+  return courseEntryKey(c);
 }
 
 export function listCourses(snapshot: StudySnapshot | null | undefined): CourseEntry[] {
-  const out: CourseEntry[] = [];
-  const seen = new Set<string>();
-  for (const c of snapshot?.courses ?? []) {
-    const key = courseKey(c);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    out.push({
-      key,
-      label: String(c.title ?? c.name ?? c.id ?? key),
-      dueCount: Number(c.dueCount ?? 0) || 0,
-      deckCount: Number(c.deckCount ?? 0) || 0,
-    });
-  }
-  return out;
+  return selectCourseMetrics(snapshot).map((c) => ({
+    key: c.key,
+    label: c.label,
+    dueCount: c.dueCount,
+    deckCount: c.deckCount,
+  }));
 }
 
 export function currentCourse(snapshot: StudySnapshot | null | undefined): string | null {
   const c = snapshot?.focus?.course;
-  return typeof c === 'string' && c ? c : null;
+  return typeof c === 'string' && c.trim() ? c.trim() : null;
 }
 
 export function isActiveStudyDeck(
   deck: { archived?: unknown; systemKind?: unknown; course?: unknown } | null | undefined,
   course?: string | null,
 ): boolean {
-  if (!deck || deck.archived) return false;
-  if (deck.systemKind) return false;
-  if (course && String(deck.course ?? '').trim() !== course) return false;
-  return true;
+  return selectorIsActiveStudyDeck(deck, course);
 }
 
 /**
- * Single source of truth for a deck's due-for-review count (#1342).
- * Prefers `progress[deck.id].due` (scheduled due cards only, excluding unstudied new cards)
- * and falls back to `deck.due` / `deck.dueCount` when `progress` is unavailable.
+ * Single source of truth for a deck's due-for-review count (#1342 / #1354 D9).
+ * Delegates directly to `src/selectors/study-metrics.ts`.
  */
 export function deckDueCount(
   deck: { id?: string; due?: unknown; dueCount?: unknown } | null | undefined,
   progressMap?: Record<string, { due?: unknown } | undefined> | null,
 ): number {
-  if (!deck) return 0;
-  const p = deck.id && progressMap ? progressMap[deck.id] : undefined;
-  const fromProgress = Number(p?.due);
-  if (Number.isFinite(fromProgress) && fromProgress >= 0) return fromProgress;
-  const fromDeck = Number(deck.due ?? deck.dueCount);
-  return Number.isFinite(fromDeck) && fromDeck >= 0 ? fromDeck : 0;
+  return selectDeckDueCount(deck, progressMap);
 }
 
 export function dueToday(snapshot: StudySnapshot | null | undefined, course?: string | null): number {
-  const progressMap = (snapshot?.progress as Record<string, { due?: unknown } | undefined> | undefined) ?? undefined;
-  const decks = (snapshot?.decks ?? []).filter((d) => isActiveStudyDeck(d, course));
-  if (progressMap && decks.length > 0 && decks.some((d) => d.id && progressMap[d.id]?.due !== undefined)) {
-    return decks.reduce((n, d) => n + deckDueCount(d, progressMap), 0);
-  }
-  if (!course) {
-    const direct = Number(snapshot?.today?.due);
-    if (Number.isFinite(direct) && direct >= 0) return direct;
-  }
-  return decks.reduce((n, d) => n + deckDueCount(d, progressMap), 0);
+  return selectStudySummary(snapshot, course).due;
 }
 
-export function wrongCount(snapshot: StudySnapshot | null | undefined): number {
-  return (snapshot?.decks ?? []).reduce((n, d) => n + (d.archived ? 0 : Number(d.wrong ?? d.wrongCount ?? 0) || 0), 0);
+export function wrongCount(snapshot: StudySnapshot | null | undefined, course?: string | null): number {
+  return selectStudySummary(snapshot, course).weak;
 }
 
 const RUNNING = new Set(['running', 'queued', 'pending', 'active', 'in_progress', 'started', 'processing']);

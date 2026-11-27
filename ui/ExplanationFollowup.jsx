@@ -10,7 +10,7 @@ import BookQaButton, { BookQaAuto, hasCourseBook } from "./book/BookQaButton.jsx
    the practice page (ui/review/QuestionRun.jsx), which is on screen even while this list is folded away; `note` says when one failed.
    noteQa (optional): { savedIn(followupId) -> noteId | '', onSave(followupId), onOpen(noteId) } — 「存进笔记」 under each Q&A (#1017): into this question's
    learning note once (note.qa.add); saved, it reads 已存进笔记 · 打开. Needs no review book. */
-export default function ExplanationFollowup({ run, readOnly = false, onDerive, onAskMore = null, deriving = false, bookQa = null, noteQa = null, cardNotes = [], onOpenBookSection = null }) {
+export default function ExplanationFollowup({ run, readOnly = false, onDerive, onAskMore = null, deriving = false, deriveTip = null, bookQa = null, noteQa = null, cardNotes = [], onOpenBookSection = null }) {
   const { call } = useStudy();
   const book = bookQa?.book;
   const withBook = !!book && book.ready && hasCourseBook(book.courses, bookQa.course ?? "");
@@ -48,6 +48,7 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, o
     return next;
   });
   const allOpen = items.length > 0 && items.every((item) => openIds.has(item.id));
+  const tipItem = deriveTip && items.find(item => openIds.has(item.id));
   if (readOnly && !items.length) return null;
 
   async function suggest() {
@@ -133,6 +134,7 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, o
             <Button variant="link" size="sm" data-usage="review.derive-prereq" disabled={deriving} onClick={() => onDerive(item.id, "prerequisite")}>{ui("出成前置题")}</Button>
             <Button variant="link" size="sm" data-usage="review.derive-standalone" disabled={deriving} onClick={() => onDerive(item.id, "standalone")}>{ui("出成独立题")}</Button>
           </div>}
+          {item === tipItem && deriveTip}
           <Button variant="link" size="sm" className="followup-fold" onClick={(event) => {
             const summary = event.currentTarget.closest("details")?.querySelector("summary");
             toggle(item.id, false);

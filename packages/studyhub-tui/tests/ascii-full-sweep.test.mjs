@@ -370,6 +370,12 @@ const OWNED_STRICT_FILES = [
   'src/views/examprep/StudyPlanModal.tsx',
   'src/views/examcoach/ExamCoachView.tsx',
   'src/views/settings/WorkspaceTab.tsx',
+  'src/views/settings/LibraryContextModal.tsx',
+  'src/views/settings/ReleaseUpdateModal.tsx',
+  'src/views/settings/RetrievalDiagModal.tsx',
+  'src/views/settings/UsageReportModal.tsx',
+  'src/views/settings/useWorkspaceActions.ts',
+  'src/views/settings/workspace-model.ts',
   'src/views/notes/NoteEditorModal.tsx',
   'src/views/library/GuidedStudyModal.tsx',
   'src/views/tasks/WorkflowHistoryModal.tsx',
@@ -377,7 +383,6 @@ const OWNED_STRICT_FILES = [
 ];
 
 const R35_VIEW_FILES = [
-  'src/views/review/TeachModal.tsx',
   'src/views/review/RoundSummary.tsx',
   'src/views/wrongbook/WrongBookView.tsx',
   'src/views/generate/GenerateView.tsx',
@@ -594,7 +599,7 @@ describe('Modal / Drawer / Overlay / Palette --ascii Audit', () => {
     }
   });
 
-  test('Round-35 owned views (TeachModal, RoundSummary, WrongBookView, GenerateView) have zero unguarded UI chrome', () => {
+  test('Round-35 owned views (RoundSummary, WrongBookView, GenerateView) have zero unguarded UI chrome', () => {
     const violations = [];
     for (const rel of R35_VIEW_FILES) {
       const abs = path.join(pkgRoot, rel);

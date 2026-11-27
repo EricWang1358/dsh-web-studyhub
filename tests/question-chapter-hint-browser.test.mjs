@@ -435,7 +435,15 @@ test('chapter basics hint (#1191, #1193): deeper trigger, source dock/dialog, ha
       const hintText = await hint.innerText();
       assert.match(hintText, /Chapter 1 Storage Primitives/);
       assert.match(hintText, /Read source alongside/);
-      assert.match(hintText, /Ask main chat to teach/);
+      // This standalone preview has no DSH chat. Capture its clipboard write without changing the user's clipboard.
+      let copied = '';
+      await page.exposeFunction('captureChapterPrompt', text => { copied = text; });
+      await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', {
+        configurable: true, value: { writeText: globalThis.captureChapterPrompt },
+      }));
+      assert.equal(await hint.getByRole('button', { name: 'Ask main chat to teach' }).count(), 0);
+      await hint.getByRole('button', { name: 'Copy explanation prompt', exact: true }).click();
+      await until(() => copied.includes('Chapter 1 Storage Primitives'), 'the copied prompt includes the source chapter');
       assert.match(hintText, /Don't show this tip again/);
       assert.doesNotMatch(hintText, /[㐀-鿿]/, 'English hint contains no Chinese characters');
       await hint.scrollIntoViewIfNeeded();

@@ -62,7 +62,8 @@ describe('#1459 · 1) one place describes 0–5, and it keeps the backend pass l
   test('all six grades have words, and only 3–5 count as correct', () => {
     assert.deepEqual(scale.GRADE_SEMANTICS.map((item) => item.grade), [0, 1, 2, 3, 4, 5]);
     assert.deepEqual(scale.GRADE_SEMANTICS.map((item) => item.countsCorrect), [false, false, false, true, true, true]);
-    assert.equal(scale.GRADE_PASS_LINE, 3);
+    assert.equal(scale.countsAsCorrect(2), false);
+    assert.equal(scale.countsAsCorrect(3), true);
   });
 
   test('0 and 1 say different things in both languages', () => {

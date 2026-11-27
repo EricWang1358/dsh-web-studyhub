@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { reportUsage } from '../lib/usage-scope.js';
+import { createRoundClock } from '../lib/contexts/generation/generate/round-clock.js';
 import { jobContract } from '../lib/job-contract.js';
 import { roundList, FILL_ROUNDS, REPEAT_LIMIT } from '../lib/coverage-run.js';
 import { settleJob, until, sleep } from './helpers/wait.mjs';
@@ -131,27 +132,47 @@ const eventCodes = contract => contract.events.map(event => event.code);
 /** Counts every model call the run makes, and holds nothing: what a pause must stop is the NEXT one. */
 const counting = (complete, counter) => async (system, prompt, context = {}) => { counter.calls += 1; return complete(system, prompt, context); };
 
+test('each round receives its whole time budget and a paused round keeps its remaining time', t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1000 });
+  const plan = {}, controller = new AbortController();
+  const clock = createRoundClock({ job: {}, controller, plan, roundMs: 100 });
+  for (let round = 0; round < 3; round++) {
+    plan.t0 = Date.now();
+    clock.restartMeasure();
+    clock.arm();
+    t.mock.timers.tick(75);
+    assert.equal(clock.signal.aborted, false);
+    assert.equal(clock.workedMs(), 75);
+    clock.disarm();
+  }
+  plan.t0 = Date.now();
+  clock.restartMeasure();
+  clock.arm();
+  t.mock.timers.tick(40);
+  clock.hold();
+  t.mock.timers.tick(1000);
+  assert.equal(clock.workedMs(), 40);
+  assert.equal(clock.signal.aborted, false);
+  clock.resume();
+  t.mock.timers.tick(59);
+  assert.equal(clock.signal.aborted, false);
+  t.mock.timers.tick(1);
+  assert.equal(clock.signal.reason.code, 'GENERATION_BUDGET');
+  assert.equal(clock.workedMs(), 100);
+  assert.equal(controller.signal.aborted, false);
+  clock.disarm();
+});
+
 describe('coverage run executor', { concurrency: 3 }, () => {
 
-test('a round has its own time limit; the run has none: three rounds take longer than one round is allowed', async (t) => {
-  // Every round waits 2.5 s once (its first planning call): a round takes 2.5 s plus the run's own overhead (up to ~3 s more on a slow Windows runner), the three of them more than the 6 s one round may take, and one round alone less.
-  const slowRounds = (complete, service) => {
-    const slept = new Set();
-    return async (system, prompt, context = {}) => {
-      if (system.startsWith(PLAN)) {
-        const running = ((await service.call('export')).drafts[0]?.editorial.coverageSpec?.rounds || []).findIndex(round => round.status === 'running'), key = Math.max(0, running);
-        if (!slept.has(key)) { slept.add(key); await sleep(2500); }
-      }
-      return complete(system, prompt, context);
-    };
-  };
-  const { service, ids } = await library(t, { coverage: { roundLimit: 8, roundTimeoutMs: 6000 }, wrap: slowRounds });
+test('the executor records each completed round and ends a stalled round at its budget', async t => {
+  const { service, ids } = await library(t);
   const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz' });
   const job = await settleJob(service, started.jobId);
   assert.equal(job.status, 'complete', job.stage);
-  const draft = await draftOf(service), spec = draft.editorial.coverageSpec;
-  assert.ok(Date.parse(spec.rounds[2].finishedAt) - Date.parse(spec.rounds[0].startedAt) > 6000, 'the run lasted longer than one round may');
-  assert.ok(spec.rounds.every(round => round.ms >= 2400 && round.ms < 6000), JSON.stringify(spec.rounds.map(round => round.ms)));
+  const rounds = roundList((await draftOf(service)).editorial.coverageSpec);
+  assert.deepEqual(rounds.map(round => round.status), ['done', 'done', 'done']);
+  assert.ok(rounds.every(round => round.ms > 0));
   const stuck = await library(t, { coverage: { roundLimit: 8, roundTimeoutMs: 300 }, wrap: complete => async (system, prompt, context = {}) => {
     if (system.startsWith(PLAN) && context.signal) await new Promise((_, reject) => { context.signal.addEventListener('abort', () => reject(context.signal.reason), { once: true }); });
     return complete(system, prompt, context);
@@ -162,23 +183,24 @@ test('a round has its own time limit; the run has none: three rounds take longer
   assert.match(ended.stage, /round|轮|budget/i);
 });
 
-test('the time limit of a round is the time it works: a pause longer than the limit does not cost the round, and the round records only the time it worked', async (t) => {
-  const hold = gate(), roundMs = 3000;
-  const { service, ids } = await library(t, { coverage: { roundLimit: 8, roundTimeoutMs: roundMs }, wrap: complete => gated({ complete }, { at: 1, hold }).complete });
+test('the executor excludes a confirmed pause from the time recorded for the round', async (t) => {
+  const hold = gate();
+  const { service, ids } = await library(t, { wrap: complete => gated({ complete }, { at: 1, hold }).complete });
   const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz' });
   await until(() => hold.entered, 'round 1 to be in flight');
   await service.call('job.control', { jobId: started.jobId, action: 'pause' });
   hold.open();
   await until(async () => (await contractOfJob(service, started.jobId)).status === 'paused', 'the pause to be reached');
   const since = Date.now();
-  await until(() => Date.now() - since > roundMs + 500, 'the pause to outlast the limit of a round', { intervalMs: 50 });
+  await sleep(200);
+  const idleMs = Date.now() - since;
   await service.call('job.control', { jobId: started.jobId, action: 'resume' });
   const job = await settleJob(service, started.jobId);
   assert.equal(job.status, 'complete', `the round must not have timed out while paused: ${job.stage}`);
   const rounds = roundList((await draftOf(service)).editorial.coverageSpec);
   assert.deepEqual(rounds.map(round => round.status), ['done', 'done', 'done']);
-  assert.ok(rounds[0].ms < roundMs, `the pause is not in the ${rounds[0].ms} ms the round took`);
-  assert.ok(Date.parse(rounds[0].finishedAt) - Date.parse(rounds[0].startedAt) > roundMs, 'although it ended long after it started');
+  const elapsed = Date.parse(rounds[0].finishedAt) - Date.parse(rounds[0].startedAt);
+  assert.ok(elapsed - rounds[0].ms >= idleMs - 2, `the saved round took ${elapsed}ms including ${idleMs}ms paused, and reported ${rounds[0].ms}ms worked`);
 });
 
 test('a round larger than the 30 questions of a production round is accepted when the seam says so: the button of a manual run is not refused by a limit the plan did not use', async (t) => {

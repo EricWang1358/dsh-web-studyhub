@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { argsForTool, describeProviders, hitsFromMcpResult, narrowSources, normalizeHits, resolveHits, retrieveFromPort, RETRIEVAL_SERVICE } from '../lib/retrieval.js';
+import { argsForTool, describeProviders, hitsFromMcpResult, narrowSources, normalizeHits, resolveHits, retrieveFromPort } from '../lib/retrieval.js';
 
 /* WP28: the retrieval provider contract
    retrieve({ query, sourceIds?, course?, limit }) -> [{ sourceId, page?, text, score }]
@@ -88,7 +88,7 @@ test('providers are listed from the MCP tools DSH exposes and from a registered 
   const none = describeProviders({ tools: [], service: undefined });
   assert.deepEqual(none.providers, []);
   const found = describeProviders({ tools, service: { retrieve() {} } });
-  assert.equal(RETRIEVAL_SERVICE, 'studyRetrieval');
+  assert.equal(found.providers[0].label, 'studyRetrieval');
   assert.deepEqual(found.providers.map(provider => [provider.id, provider.kind]), [['service', 'service'], ['mcp:mcp__rag__query_documents', 'mcp']]);
   assert.equal(found.providers[1].server, 'rag');
   assert.equal(found.providers[1].tool, 'mcp__rag__query_documents');
@@ -108,9 +108,13 @@ test('retrieving through a port: the tool is called with the schema arguments an
   assert.equal(result.provider, 'mcp:mcp__rag__query_documents');
 });
 
-test('a missing tool, a failing tool and a service are reported plainly or used', async () => {
+test('a missing tool, a failing tool and a missing or registered service are reported plainly or used', async () => {
   const port = { tools: () => [], call: async () => { throw new Error('boom'); } };
   await assert.rejects(retrieveFromPort(port, { provider: 'mcp:mcp__gone__search' }, { query: 'q', sources: book }), /mcp__gone__search/);
+  await assert.rejects(
+    retrieveFromPort({ tools: () => [], call: async () => ({}), service: () => undefined }, { provider: 'service' }, { query: 'q', sources: book }),
+    { name: 'RetrievalError', code: 'retrieval-missing', message: /studyRetrieval/ },
+  );
   const failing = { tools: () => [{ name: 'mcp__a__search', description: 'search', parameters: { type: 'object', properties: { query: { type: 'string' } } } }], call: async () => { throw new Error('connection refused'); } };
   await assert.rejects(retrieveFromPort(failing, { provider: 'mcp:mcp__a__search' }, { query: 'q', sources: book }), /connection refused/);
   const service = { retrieve: async ({ query, sourceIds, course, limit }) => [{ sourceId: sourceIds[1], text: query, score: 1, course, limit }] };

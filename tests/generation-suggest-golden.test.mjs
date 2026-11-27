@@ -68,7 +68,7 @@ test('generate.weakTopics: the course, every course, and a course argument that 
 
 /* ---------- generate.suggest ---------- */
 
-for (const language of ['zh', 'en']) test(`generate.suggest: one call, its prompts and answer in ${language}`, async (t) => {
+for (const language of ['zh', 'en']) test(`generate.suggest: pins the single light-model focus/coverage/difficulty/kind prompt and reply in ${language}`, async (t) => {
   const { service, calls, ids } = await library(t, { answers: [GOOD], language });
   const output = await service.call('generate.suggest', { sourceIds: ids, course: 'SWE5001', goal: 'exam' });
   pinned(`suggest.model.${language}`, { calls, output });

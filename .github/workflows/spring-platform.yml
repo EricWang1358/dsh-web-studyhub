@@ -1,0 +1,194 @@
+name: StudyHub Spring platform
+
+on:
+  workflow_call:
+    outputs:
+      required:
+        description: "'true' when the change touches Spring itself, so verify lets this workflow's result block it"
+        value: ${{ jobs.inputs.outputs.required }}
+  workflow_dispatch:
+  # Spring is a beta experiment: only a GitHub prerelease tagged spring-v<semver>-beta.<n> builds its installers (see the inputs job and
+  # packages/studyhub-spring/README.md). A main-product release (v<digit>...) also publishes here and must do nothing.
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spring-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+
+jobs:
+  # Every other job needs this one, so its release guard stops the whole workflow for any release that is not a Spring prerelease.
+  inputs:
+    if: github.event_name != 'release' || (github.event.release.prerelease && startsWith(github.event.release.tag_name, 'spring-'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      build: ${{ steps.changes.outputs.build }}
+      required: ${{ steps.changes.outputs.required }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - id: changes
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # build: Spring ships with this code, so run its checks. required: the change is Spring itself, so a red result blocks it.
+          build=true
+          required=false
+          if [[ -n "$BASE" && "$BASE" != 0000000000000000000000000000000000000000 ]]; then
+            if git cat-file -e "$BASE^{commit}" || git fetch --depth=1 origin "$BASE"; then
+              if git diff --quiet "$BASE" HEAD -- packages/studyhub-spring packages/studyhub-desktop lib ui locale \
+                  scripts/build.mjs scripts/host-react.mjs scripts/qa tests/helpers package.json package-lock.json \
+                  .npmrc .github/actions/setup-chromium .github/workflows/spring-platform.yml .github/workflows/verify.yml; then
+                build=false
+              fi
+              if ! git diff --quiet "$BASE" HEAD -- packages/studyhub-spring .github/workflows/spring-platform.yml; then
+                required=true
+              fi
+            fi
+          fi
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "required=$required" >> "$GITHUB_OUTPUT"
+  linux:
+    needs: inputs
+    if: needs.inputs.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ (github.event_name == 'release' || github.event_name == 'workflow_dispatch') && 30 || 10 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.3'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+        env:
+          STUDYHUB_SKIP_PREPARE: '1'
+      - uses: ./.github/actions/setup-chromium
+      - uses: actions/cache@v4
+        with:
+          path: packages/studyhub-spring/studyhub-retrieval/target/model
+          key: studyhub-minilm-${{ hashFiles('packages/studyhub-spring/studyhub-retrieval/src/main/resources/io/studyhub/retrieval/model.properties') }}
+      - run: node packages/studyhub-spring/studyhub-retrieval/fetch-model.mjs packages/studyhub-spring/studyhub-retrieval/target/model
+      - run: mvn -B -ntp -f packages/studyhub-spring/pom.xml -Prelay-aot "-Dstudyhub.real-model=true" verify
+      - name: Verify reviewed publication and desktop history replication
+        shell: bash
+        run: |
+          node --test packages/studyhub-spring/studyhub-sync-api/src/test/resources/desktop-history-source.test.mjs
+          api=packages/studyhub-spring/studyhub-sync-api/target
+          checks=packages/studyhub-spring/studyhub-platform-shell/verification
+          node "$checks/desktop-lifecycle.mjs" "$api"/*-exec.jar --editor > "$RUNNER_TEMP/editor.log" 2>&1 &
+          editor=$!
+          node "$checks/desktop-history-lifecycle.mjs" "$api"/*-exec.jar "$api"/*-relay.jar > "$RUNNER_TEMP/history.log" 2>&1 &
+          history=$!
+          result=0
+          wait "$editor" || result=1
+          wait "$history" || result=1
+          cat "$RUNNER_TEMP/editor.log" "$RUNNER_TEMP/history.log"
+          exit "$result"
+      - run: docker build --build-arg RELAY_BUILD=prebuilt -t studyhub-sync -f packages/studyhub-spring/docker/Dockerfile .
+      - name: Verify relay size, runtime identity, health and authentication
+        shell: bash
+        run: |
+          bytes=$(docker image inspect studyhub-sync --format '{{.Size}}')
+          echo "Relay image size: $bytes bytes (budget <120000000)" >> "$GITHUB_STEP_SUMMARY"
+          test "$bytes" -lt 120000000
+          docker run -d --name studyhub-sync-test -p 127.0.0.1:18080:8080 -e STUDYHUB_SYNC_TOKEN="$(openssl rand -hex 32)" studyhub-sync
+          trap 'docker rm -f studyhub-sync-test' EXIT
+          test "$(docker exec studyhub-sync-test id -u)" = 10001
+          curl -fsS --retry 20 --retry-all-errors --retry-delay 1 http://127.0.0.1:18080/actuator/health | jq -e '.status == "UP"'
+          status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/sync/v1/vaults/36efdd17-303a-4d99-a7fd-daf04bf685fa/ops)
+          test "$status" = 401
+      - if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+        run: |
+          docker build -t studyhub-sync-from-source -f packages/studyhub-spring/docker/Dockerfile .
+          test "$(docker image inspect studyhub-sync-from-source --format '{{.Size}}')" -lt 120000000
+          docker run -d --name studyhub-source-test -p 127.0.0.1:18081:8080 -e STUDYHUB_SYNC_TOKEN="$(openssl rand -hex 32)" studyhub-sync-from-source
+          trap 'docker rm -f studyhub-source-test' EXIT
+          curl -fsS --retry 20 --retry-all-errors --retry-delay 1 http://127.0.0.1:18081/actuator/health | jq -e '.status == "UP"'
+          sudo apt-get update && sudo apt-get install -y fakeroot rpm
+          node packages/studyhub-spring/studyhub-platform-shell/pack.mjs app-image
+          image=$(find packages/studyhub-spring/studyhub-platform-shell/target/packaging -name 'StudyHub Spring' -type d | head -1)
+          node packages/studyhub-spring/studyhub-platform-shell/verification/desktop-lifecycle.mjs "$image/bin/StudyHub Spring"
+          node packages/studyhub-spring/studyhub-platform-shell/pack.mjs deb "--app-image=$image"
+          node packages/studyhub-spring/studyhub-platform-shell/pack.mjs rpm "--app-image=$image"
+          for ext in deb rpm; do
+            compgen -G "packages/studyhub-spring/studyhub-platform-shell/target/packaging/*/*.$ext" >/dev/null
+          done
+      - if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: studyhub-spring-linux
+          if-no-files-found: error
+          path: |
+            packages/studyhub-spring/studyhub-platform-shell/target/packaging/*/*.deb
+            packages/studyhub-spring/studyhub-platform-shell/target/packaging/*/*.rpm
+            packages/studyhub-spring/studyhub-sync-api/target/*-relay.jar
+  windows:
+    needs: inputs
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.3'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+        env:
+          STUDYHUB_SKIP_PREPARE: '1'
+      - uses: ./.github/actions/setup-chromium
+      - name: Install WiX 3.14.1 for JDK 21 jpackage
+        shell: pwsh
+        run: |
+          $zip = Join-Path $env:RUNNER_TEMP 'wix314-binaries.zip'
+          $bin = Join-Path $env:RUNNER_TEMP 'studyhub-wix'
+          Invoke-WebRequest 'https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip' -OutFile $zip
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne '6AC824E1642D6F7277D0ED7EA09411A508F6116BA6FAE0AA5F2C7DAA2FF43D31') { throw 'WiX archive checksum mismatch' }
+          Expand-Archive -LiteralPath $zip -DestinationPath $bin
+          "WIX_BIN=$bin" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - uses: actions/cache@v4
+        with:
+          path: packages/studyhub-spring/studyhub-retrieval/target/model
+          key: studyhub-minilm-${{ hashFiles('packages/studyhub-spring/studyhub-retrieval/src/main/resources/io/studyhub/retrieval/model.properties') }}
+      - run: node packages/studyhub-spring/studyhub-retrieval/fetch-model.mjs packages/studyhub-spring/studyhub-retrieval/target/model
+      - run: mvn -B -ntp -f packages/studyhub-spring/pom.xml -Prelay-aot "-Dstudyhub.real-model=true" verify
+      - run: |
+          node packages/studyhub-spring/studyhub-platform-shell/pack.mjs app-image
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $image = (Get-ChildItem packages/studyhub-spring/studyhub-platform-shell/target/packaging -Directory -Recurse -Filter 'StudyHub Spring' | Select-Object -First 1).FullName
+          node packages/studyhub-spring/studyhub-platform-shell/verification/desktop-lifecycle.mjs (Join-Path $image 'StudyHub Spring.exe')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test packages/studyhub-spring/studyhub-sync-api/src/test/resources/desktop-history-source.test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $relay = (Get-ChildItem packages/studyhub-spring/studyhub-sync-api/target/*-relay.jar).FullName
+          node packages/studyhub-spring/studyhub-platform-shell/verification/desktop-history-lifecycle.mjs (Join-Path $image 'StudyHub Spring.exe') $relay
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($type in 'msi','exe') {
+            node packages/studyhub-spring/studyhub-platform-shell/pack.mjs $type "--app-image=$image"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: studyhub-spring-windows-msi
+          if-no-files-found: error
+          path: packages/studyhub-spring/studyhub-platform-shell/target/packaging/msi-*/*.msi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: studyhub-spring-windows-exe
+          if-no-files-found: error
+          path: packages/studyhub-spring/studyhub-platform-shell/target/packaging/exe-*/*.exe

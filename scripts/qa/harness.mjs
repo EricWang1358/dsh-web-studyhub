@@ -5,9 +5,6 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildPreview } from "../build.mjs";
-import { createPreviewServer } from "../preview-server.mjs";
-import { createFakeModel } from "../fake-model.mjs";
 import { launchChromium } from "./browser.mjs";
 import { scrubProcessEnv } from "./env.mjs";
 
@@ -34,6 +31,7 @@ export function parseQaArgs(argv, name, extra = {}) {
 export const resolveQaDistDir = (options) => (options.distDir ? resolve(options.distDir) : join(options.out, "work", "dist"));
 
 export async function runQa({ name, options, seed, run, model = "fake", localStorageSeed = {}, latencyMs = 300, coverage = null }) {
+  const [{ createPreviewServer }, { createFakeModel }] = await Promise.all([import("../preview-server.mjs"), import("../fake-model.mjs")]);
   const removed = scrubProcessEnv();
   await rm(options.out, { recursive: true, force: true });
   await mkdir(options.out, { recursive: true });
@@ -42,7 +40,10 @@ export async function runQa({ name, options, seed, run, model = "fake", localSto
   await mkdir(library, { recursive: true });
   // `--production true` is measured on the bundle built here: the speed scripts used to rebuild the repository's dist/ with React's production build
   // and then measure this development one, several times slower.
-  if (!options.distDir) await buildPreview({ outdir: distDir, production: options.production === "true", readable: options.readable === "true" });
+  if (!options.distDir) {
+    const { buildPreview } = await import("../build.mjs");
+    await buildPreview({ outdir: distDir, production: options.production === "true", readable: options.readable === "true" });
+  }
   await seed(library);
   const server = await createPreviewServer({ libraryRoot: library, home: join(options.out, "work", "home"), distDir, port: 0, ...(coverage ? { coverage } : {}),
     model: model === "none" ? null : typeof model === "function" ? model : createFakeModel({ latencyMs, usage: true }) });

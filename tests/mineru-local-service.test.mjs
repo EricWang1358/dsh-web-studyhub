@@ -212,19 +212,22 @@ test('the service dying mid-run is named, and 接着做 starts it again before i
 });
 
 test('cancel stops the running window promptly, kills the process and cleans the temporary files', async t => {
-  const h = await harness(t, { state: { delayMs: 60_000 } });
-  await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 120 })), route: 'local' });
-  const running = await h.until(async () => { const [job] = await h.jobs(); return job?.phase === 'local' && (await h.parses()).length ? job : null; }, 'the first window to run');
-  const started = Date.now();
-  await h.call('job.cancel', { jobId: running.id });
-  await h.until(async () => (await h.jobs())[0]?.status === 'cancelled', 'the cancel');
-  assert.ok(Date.now() - started < 45_000, 'cancelled promptly, not after the 60 s the window would have taken');
-  const pid = (await h.parses())[0].pid;
-  const gone = await until(() => { try { process.kill(pid, 0); return false; } catch (error) { return error.code === 'ESRCH'; } }, 'the child process to be gone', { intervalMs: 50 }).catch(() => false);
-  assert.equal(gone, true, 'the child process is gone');
-  // The cancelled status is set just before the job folder is removed (lib/contexts/audio/convert.js); the process is now gone when the cancel settles, so wait for the cleanup itself.
-  await until(async () => !(await filesUnder(join(convertHome(h.root), 'jobs'))).length, 'the job folder to be cleaned');
-  assert.equal((await h.call('snapshot')).inbox.items.filter(item => item.kind.startsWith('pdf-')).length, 0);
+  const h = await harness(t);
+  const release = join(h.work, 'finish-parse');
+  await h.set({ finishSignal: release });
+  try {
+    const { jobId } = await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 120 })), route: 'local' });
+    const { pid } = await until(async () => (await h.parses())[0], 'the first parse process to start');
+    await h.call('job.cancel', { jobId });
+    const ended = await h.call('job.wait', { jobId, timeoutSeconds: 45 });
+    assert.equal(ended.status, 'cancelled', 'cancellation finished while the parser was still held');
+    assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+    assert.deepEqual(await filesUnder(join(convertHome(h.root), 'jobs')), []);
+    assert.equal((await h.call('snapshot')).inbox.items.filter(item => item.kind.startsWith('pdf-')).length, 0);
+  } finally {
+    // Let a surviving fixture exit even if a cancellation or cleanup assertion fails.
+    await writeFile(release, 'finish');
+  }
 });
 
 test('the local route is refused, before anything runs, unless MinerU is set up (a stopped service is fine: the run starts it)', async t => {

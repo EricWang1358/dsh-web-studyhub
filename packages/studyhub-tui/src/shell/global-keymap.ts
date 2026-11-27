@@ -1,11 +1,12 @@
 /**
- * Single source of truth for StudyHub TUI global shortcuts (#1354 P2-a).
+ * Single source of truth for StudyHub TUI global shortcuts (#1354 D2/D3/P2-a).
  *
- * Both the bottom `KeyHintBar` default/tail hints (`components/focus.ts`) and
- * `HelpOverlay`'s global shortcuts section (`shell/HelpOverlay.tsx`) derive
- * from `GLOBAL_KEYMAP_ENTRIES`, eliminating shortcut drift between footer and help.
+ * `TopBar`, `Launchpad`, the bottom `KeyHintBar` default/tail hints (`components/focus.ts`),
+ * and `HelpOverlay`'s global shortcuts section (`shell/HelpOverlay.tsx`) all derive from
+ * `GLOBAL_KEYMAP_ENTRIES`, eliminating shortcut and copy drift across shell surfaces.
  */
 import type { KeyHint, UiLanguage } from '../types/contracts.js';
+import { toastHistoryCopy } from './toast-copy.js';
 
 export interface GlobalKeymapEntry {
   id: string;
@@ -17,6 +18,8 @@ export interface GlobalKeymapEntry {
   footerKey?: string;
   footerZh?: string;
   footerEn?: string;
+  /** Un-abbreviated English label for surfaces with room (Launchpad); falls back to `footerEn`. */
+  roomyEn?: string;
   helpZh: string;
   helpEn: string;
   /** Included in default shell footer when no page-specific hints are set. */
@@ -25,6 +28,9 @@ export interface GlobalKeymapEntry {
   inFooterTail?: boolean;
 }
 
+const TOAST_COPY_ZH = toastHistoryCopy('zh');
+const TOAST_COPY_EN = toastHistoryCopy('en');
+
 export const GLOBAL_KEYMAP_ENTRIES: readonly GlobalKeymapEntry[] = Object.freeze([
   {
     id: 'command-palette',
@@ -32,6 +38,7 @@ export const GLOBAL_KEYMAP_ENTRIES: readonly GlobalKeymapEntry[] = Object.freeze
     footerKey: 'Ctrl+K',
     footerZh: '命令',
     footerEn: 'Cmd',
+    roomyEn: 'Commands',
     helpZh: '命令面板 / 全文搜题与原文',
     helpEn: 'Command palette & search',
     inFooterTail: true,
@@ -74,8 +81,8 @@ export const GLOBAL_KEYMAP_ENTRIES: readonly GlobalKeymapEntry[] = Object.freeze
     footerKey: 'Ctrl+O',
     footerZh: '提示',
     footerEn: 'Notif',
-    helpZh: '通知历史（最近 50 条，可复制/清空）',
-    helpEn: 'Notification history (last 50, copy/clear)',
+    helpZh: TOAST_COPY_ZH.helpSummary,
+    helpEn: TOAST_COPY_EN.helpSummary,
     inDefaultFooter: true,
   },
   {
@@ -175,6 +182,18 @@ export const GLOBAL_KEYMAP_ENTRIES: readonly GlobalKeymapEntry[] = Object.freeze
     helpEn: 'Alt+click = mouse action; plain click keeps terminal selection (--mouse-alt=0 allows plain)',
   },
 ]);
+
+const ENTRY_BY_ID = new Map<string, GlobalKeymapEntry>(GLOBAL_KEYMAP_ENTRIES.map((e) => [e.id, e]));
+
+/** Look up a single canonical shell hint (`key` + concise localized `label`) by entry ID; `roomy` spells out abbreviations. */
+export function formatGlobalKeyHint(id: string, lang: UiLanguage, asciiMode = false, roomy = false): KeyHint {
+  const zh = lang === 'zh';
+  const entry = ENTRY_BY_ID.get(id);
+  if (!entry) return { key: '', label: '' };
+  const key = entry.footerKey ?? (asciiMode && entry.helpKeyAscii ? entry.helpKeyAscii : entry.helpKey);
+  const label = zh ? (entry.footerZh ?? entry.helpZh) : ((roomy ? entry.roomyEn : undefined) ?? entry.footerEn ?? entry.helpEn);
+  return { key, label };
+}
 
 const DEFAULT_FOOTER_ORDER: readonly string[] = [
   'page-jump',

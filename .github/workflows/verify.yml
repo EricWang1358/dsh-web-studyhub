@@ -14,17 +14,43 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  browser:
+    uses: ./.github/workflows/browser-smoke.yml
+  spring:
+    uses: ./.github/workflows/spring-platform.yml
+
   # Lint and the bundle do not depend on the system, so they run once (they used to run on both systems, one after the other with the tests).
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+      - name: Reject newly introduced low-signal assertions
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git cat-file -e "$BASE_SHA^{commit}" || git fetch --depth=1 origin "$BASE_SHA"
+          node scripts/test-audit.mjs --gate-from="$BASE_SHA" --annotations
       - run: npm ci --legacy-peer-deps
+        env:
+          STUDYHUB_SKIP_PREPARE: '1'
+      - name: Prove changed regression tests catch their registered defects
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
+            node scripts/qa/replacement-controls.mjs --all
+          else
+            git cat-file -e "$BASE_SHA^{commit}" || git fetch --depth=1 origin "$BASE_SHA"
+            node scripts/qa/replacement-controls.mjs --base="$BASE_SHA"
+          fi
       - run: npm --prefix packages/studyhub-tui ci --no-audit --no-fund
       - name: Restore StudyHub TUI dist cache
         uses: actions/cache@v4
@@ -32,13 +58,13 @@ jobs:
           path: packages/studyhub-tui/dist
           key: tui-dist-${{ runner.os }}-${{ hashFiles('packages/studyhub-tui/src/**', 'packages/studyhub-tui/package.json', 'packages/studyhub-tui/scripts/build.mjs') }}
       - run: npm run lint
+      - run: npm run typecheck
       - run: npm --prefix packages/studyhub-tui run lint
       - run: npm --prefix packages/studyhub-tui run typecheck
       - run: npm run build
       - run: npm run tui:build
 
-  # Pull requests run all 3 Ubuntu shards (full suite) plus 1 fast Windows platform-smoke VM below (~4 test VMs per PR, ~3 minutes, well under GitHub's 20-VM cap).
-  # Pushes to main run the full cross-platform shard matrix across both Ubuntu (1..3) and Windows (1..5), with cancel-in-progress replacing superseded main runs.
+  # PRs cover every root test on Linux plus platform-specific Windows smoke. Main also runs the full suite on Windows.
   # tests/test-runner-shards.test.mjs checks that the shards below are 1..N for each system.
   test:
     name: test (${{ matrix.os }} ${{ matrix.shard }}/${{ matrix.shards }})
@@ -48,20 +74,44 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, shard: 1, shards: 3 }
-          - { os: ubuntu-latest, shard: 2, shards: 3 }
-          - { os: ubuntu-latest, shard: 3, shards: 3 }
+          - { os: ubuntu-latest, shard: 1, shards: 12 }
+          - { os: ubuntu-latest, shard: 2, shards: 12 }
+          - { os: ubuntu-latest, shard: 3, shards: 12 }
+          - { os: ubuntu-latest, shard: 4, shards: 12 }
+          - { os: ubuntu-latest, shard: 5, shards: 12 }
+          - { os: ubuntu-latest, shard: 6, shards: 12 }
+          - { os: ubuntu-latest, shard: 7, shards: 12 }
+          - { os: ubuntu-latest, shard: 8, shards: 12 }
+          - { os: ubuntu-latest, shard: 9, shards: 12 }
+          - { os: ubuntu-latest, shard: 10, shards: 12 }
+          - { os: ubuntu-latest, shard: 11, shards: 12 }
+          - { os: ubuntu-latest, shard: 12, shards: 12 }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      # lint above runs prepare + npm run build; tests build isolated bundles on demand when needed.
+      # The lint job builds the bundle. Test shards build isolated bundles on demand.
       - run: npm ci --legacy-peer-deps
         env:
           STUDYHUB_SKIP_PREPARE: '1'
+      - uses: ./.github/actions/setup-chromium
+      - name: Install the search extension for its index recovery tests
+        env:
+          SHARD: ${{ matrix.shard }}/${{ matrix.shards }}
+        run: |
+          files=$(node scripts/qa/run-tests.mjs --shard="$SHARD" --list)
+          if grep -Fxq 'tests/retrieval-self-heal.test.mjs' <<< "$files"; then
+            extension="$RUNNER_TEMP/studyhub-retrieval"
+            cp -R packages/studyhub-retrieval "$extension"
+            npm --prefix "$extension" install --prefer-offline --no-package-lock --no-audit --no-fund
+            echo "STUDY_TEST_RETRIEVAL_PACKAGE=$extension" >> "$GITHUB_ENV"
+          fi
       - run: node scripts/test.mjs --shard=${{ matrix.shard }}/${{ matrix.shards }} --test-concurrency=4
+        env:
+          STUDY_QA_REQUIRE_BROWSER: '1'
+          STUDY_TEST_REQUIRE_LANCEDB: '1'
       # What this shard measured, to refresh tests/test-weights.json: node scripts/qa/test-weights.mjs --sum --write durations-*/durations.json
       - uses: actions/upload-artifact@v4
         if: always()
@@ -80,11 +130,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: windows-latest, shard: 1, shards: 5 }
-          - { os: windows-latest, shard: 2, shards: 5 }
-          - { os: windows-latest, shard: 3, shards: 5 }
-          - { os: windows-latest, shard: 4, shards: 5 }
-          - { os: windows-latest, shard: 5, shards: 5 }
+          - { os: windows-latest, shard: 1, shards: 16 }
+          - { os: windows-latest, shard: 2, shards: 16 }
+          - { os: windows-latest, shard: 3, shards: 16 }
+          - { os: windows-latest, shard: 4, shards: 16 }
+          - { os: windows-latest, shard: 5, shards: 16 }
+          - { os: windows-latest, shard: 6, shards: 16 }
+          - { os: windows-latest, shard: 7, shards: 16 }
+          - { os: windows-latest, shard: 8, shards: 16 }
+          - { os: windows-latest, shard: 9, shards: 16 }
+          - { os: windows-latest, shard: 10, shards: 16 }
+          - { os: windows-latest, shard: 11, shards: 16 }
+          - { os: windows-latest, shard: 12, shards: 16 }
+          - { os: windows-latest, shard: 13, shards: 16 }
+          - { os: windows-latest, shard: 14, shards: 16 }
+          - { os: windows-latest, shard: 15, shards: 16 }
+          - { os: windows-latest, shard: 16, shards: 16 }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -94,7 +155,10 @@ jobs:
       - run: npm ci --legacy-peer-deps
         env:
           STUDYHUB_SKIP_PREPARE: '1'
+      - uses: ./.github/actions/setup-chromium
       - run: node scripts/test.mjs --shard=${{ matrix.shard }}/${{ matrix.shards }} --test-concurrency=4
+        env:
+          STUDY_QA_REQUIRE_BROWSER: '1'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -107,9 +171,11 @@ jobs:
   windows-smoke:
     if: github.event_name == 'pull_request'
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -131,9 +197,16 @@ jobs:
           tests/test-runner-shards.test.mjs
           tests/test-runner-timeout.test.mjs
 
+      - name: Run changed fast tests alongside related Windows suites
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git cat-file -e "${BASE_SHA}^{commit}" || git fetch --depth=1 origin "$BASE_SHA"
+          node scripts/test.mjs --fast --smart --since="$BASE_SHA" --test-concurrency=4
+
   tui-test:
     name: tui-test (ubuntu-latest ${{ matrix.tui_shard }}/3)
-    needs: [lint]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -155,15 +228,11 @@ jobs:
         with:
           path: packages/studyhub-tui/dist
           key: tui-dist-${{ runner.os }}-${{ hashFiles('packages/studyhub-tui/src/**', 'packages/studyhub-tui/package.json', 'packages/studyhub-tui/scripts/build.mjs') }}
-      - name: Lint and typecheck StudyHub TUI
-        if: matrix.tui_shard == 1
-        run: npx eslint --max-warnings=0 packages/studyhub-tui/src packages/studyhub-tui/tests packages/studyhub-tui/scripts packages/studyhub-tui/bin && npm --prefix packages/studyhub-tui run typecheck
       - run: node packages/studyhub-tui/scripts/run-tests.mjs --shard=${{ matrix.tui_shard }}/3
 
   tui-windows-smoke:
     name: tui-windows-smoke
     if: github.event_name == 'pull_request'
-    needs: [lint]
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
@@ -199,11 +268,19 @@ jobs:
   # The one result to look at (and to require, if a branch ever needs a required check): green only when lint and every active test job are green.
   verify:
     if: always()
-    needs: [lint, test, test-windows, windows-smoke, tui-test, tui-windows-smoke]
+    needs: [lint, test, test-windows, windows-smoke, tui-test, tui-windows-smoke, browser, spring]
     runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      actions: read
     steps:
       - name: Lint and every test shard passed
         env:
+          BROWSER: ${{ needs.browser.result }}
+          SPRING: ${{ needs.spring.result }}
+          # StudyHub Spring is a beta experiment: its result blocks only a change to Spring itself (spring-platform.yml decides which).
+          SPRING_REQUIRED: ${{ needs.spring.outputs.required }}
+          EVENT: ${{ github.event_name }}
           LINT: ${{ needs.lint.result }}
           TEST: ${{ needs.test.result }}
           TEST_WIN: ${{ needs['test-windows'].result }}
@@ -211,5 +288,37 @@ jobs:
           TUI_TEST: ${{ needs['tui-test'].result }}
           TUI_WIN_SMOKE: ${{ needs['tui-windows-smoke'].result }}
         run: |
-          echo "lint: $LINT, linux shards: $TEST, windows shards: $TEST_WIN, windows-smoke: $WIN_SMOKE, tui-test: $TUI_TEST, tui-windows-smoke: $TUI_WIN_SMOKE"
-          [ "$LINT" = success ] && [ "$TEST" = success ] && [ "$TUI_TEST" = success ] && { [ "$TEST_WIN" = success ] || [ "$TEST_WIN" = skipped ]; } && { [ "$WIN_SMOKE" = success ] || [ "$WIN_SMOKE" = skipped ]; } && { [ "$TUI_WIN_SMOKE" = success ] || [ "$TUI_WIN_SMOKE" = skipped ]; }
+          echo "lint: $LINT, linux shards: $TEST, windows shards: $TEST_WIN, windows-smoke: $WIN_SMOKE, tui-test: $TUI_TEST, tui-windows-smoke: $TUI_WIN_SMOKE, browser: $BROWSER, spring: $SPRING (blocking: ${SPRING_REQUIRED:-unknown})"
+          test "$LINT" = success
+          test "$TEST" = success
+          test "$TUI_TEST" = success
+          test "$BROWSER" = success
+          if [ "$EVENT" = pull_request ]; then
+            test "$WIN_SMOKE" = success
+            test "$TUI_WIN_SMOKE" = success
+          else
+            test "$TEST_WIN" = success
+          fi
+          if [ "$SPRING_REQUIRED" = false ]; then
+            if [ "$SPRING" != success ] && [ "$SPRING" != skipped ]; then
+              echo "::warning title=StudyHub Spring (beta)::The Spring workflow is $SPRING. It does not block this change, which touches no Spring files."
+            fi
+          else
+            test "$SPRING" = success
+          fi
+      # Report only: the time includes waiting for runners, which depends on GitHub's queue rather than on this change.
+      - name: Measure workflow wall time, including queueing
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          attempt="/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT"
+          if started=$(gh api "$attempt" --jq 'if .run_attempt == 1 then .created_at else .run_started_at end') && start=$(date -d "$started" +%s); then
+            elapsed=$(( $(date +%s) - start ))
+            echo "Workflow attempt to verification, including queueing: ${elapsed}s (target <600s, report only)." | tee -a "$GITHUB_STEP_SUMMARY"
+            if [ "$elapsed" -ge 600 ]; then
+              echo "::warning title=Workflow wall time::${elapsed}s from the attempt's start to verification, queueing included (target <600s). Report only."
+            fi
+          else
+            echo "::warning title=Workflow wall time::Could not read this run's start time, so the wall time was not measured."
+          fi

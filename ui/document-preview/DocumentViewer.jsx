@@ -213,6 +213,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   useInjectCss(translationCss, 'study-reader-translation');
   const [loadedDocument, setDocument] = useState(null), [loadedContent, setContent] = useState(''), [fileUrl, setFileUrl] = useState('');
   const [error, setError] = useState(''), [fetching, setLoading] = useState(true), [mode, setMode] = useState(initialMode);
+  const [pendingOriginal, setPendingOriginal] = useState(false);
   // The text view the 文字 | 原始 PDF switch goes back to (阅读 or 原文: the one last chosen).
   const [textView, setTextView] = useState(initialMode === 'original' ? 'read' : initialMode);
   // Local writing is authoritative on every render, including edits and a switch from an open material.
@@ -242,7 +243,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const outlineId = useId(), toolsId = useId();
   useEffect(() => {
     let current = true, objectUrl = '';
-    setLoading(true); setError(''); setDocument(null); setContent(''); setFileUrl(''); setCapture(null);
+    setLoading(true); setError(''); setDocument(null); setContent(''); setFileUrl(''); setCapture(null); setPendingOriginal(false);
     setPdfView(previous => previous.slow || previous.keepSinglePage ? { zoom: previous.zoom, native: false, slow: false, keepSinglePage: false } : previous);
     setLinks([]);
     if (localMode) { setLoading(false); return undefined; }
@@ -801,11 +802,28 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     }
   };
 
+  const loadingOriginalPdf = !localMode && fetching && format === 'pdf' && (!document || originalHandling(document) === 'pdf');
+  useEffect(() => {
+    if (!pendingOriginal || loading) return;
+    setPendingOriginal(false);
+    if (!fileUrl) {
+      setMode(textView);
+      if (document && !error) setAttaching(issueOf(document.original)?.kind === 'none' ? 'attach' : 'relink');
+    }
+  }, [pendingOriginal, loading, fileUrl, document, error, textView]);
+
   // The 原始 PDF tab without a file is not dead: it explains and offers 补全原文件.
   const chooseView = value => {
-    if (value === 'original' && !fileUrl) { if (document) setAttaching(issueOf(document.original)?.kind === 'none' ? 'attach' : 'relink'); return; }
+    if (value !== 'original') setPendingOriginal(false);
+    if (value === 'original' && !fileUrl) {
+      if (!loadingOriginalPdf) {
+        if (document) setAttaching(issueOf(document.original)?.kind === 'none' ? 'attach' : 'relink');
+        return;
+      }
+      setPendingOriginal(true);
+    }
     // To 原始 PDF, it opens at the page being read (#1001); the text place of this moment is kept with the view (上次读到), before the text goes.
-    if (value === 'original' && view !== 'original') {
+    if (value === 'original' && view !== 'original' && mode !== 'original') {
       const place = loop.here();
       if (Number.isInteger(place?.page)) goToPage(place.page);
       switchPlace.current = place;
@@ -950,7 +968,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       run: syncExternalOriginal,
     }] : []),
   ];
-  const menu = moreItems({ view, format, fileUrl: !!fileUrl, localMode, translate: bilingual.supported, display: true, tools: localMode ? null : { on: toolsOn, count: groups.length },
+  const menu = moreItems({ view, format, fileUrl: !!fileUrl, originalLoading: loadingOriginalPdf, localMode, translate: bilingual.supported, display: true, tools: localMode ? null : { on: toolsOn, count: groups.length },
     quality: qualityText && canOutline ? { text: qualityText } : null, assist: !!(assistTarget && call && view !== 'original'), download: originalHandling(document) === 'download',
     hostPreview: !!(document?.preview?.kind === 'file' && host?.openDocument), attach: !localMode && format !== 'pdf' && originalNone, extra: [...lifecycleMoreItems, ...marks.moreItems, ...(extraItems || [])] },
   { setView: chooseView, find: openFind, translate: bilingual.openDialog, display: () => setDisplayOpen(true), tools: () => toggle('tools'), quality: () => openOutlineAnd(),

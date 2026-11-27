@@ -1,3 +1,5 @@
+import { selectBoardQueueMetrics } from './selectors/board-metrics.js';
+import { singleLine, todayLocalYmd } from './selectors/primitives.js';
 import {
   buildDoctorReport,
   buildStatsSummary,
@@ -7,6 +9,13 @@ import {
   toPureAscii,
   type ParsedCliArgs,
 } from './cli-args.js';
+import {
+  countsInScope,
+  getProgressMap,
+  selectCourseScope,
+  selectDeckMetrics,
+  type StudySnapshotLike,
+} from './selectors/study-metrics.js';
 
 export interface ExportReceipt {
   ok: true;
@@ -197,10 +206,14 @@ export async function runStatsFastPath(parsed: ParsedCliArgs, version = '1.0.0')
  * Run `--export` 1-shot atomic JSON library backup without loading React, Ink, or any LLM provider.
  */
 export async function runExportFastPath(args: ParsedCliArgs, version = '1.0.0'): Promise<void> {
-  const [{ createTuiHost }, { atomicWriteExportJson, resolveSafeBackupExportPath }] = await Promise.all([
-    import('./host/tui-host.js'),
-    import('./host/atomic-write.js'),
-  ]);
+  const { atomicWriteExportJson, resolveSafeBackupExportPath } = await import('./host/atomic-write.js');
+
+  // Fail fast on unsafe user-supplied export paths before booting the full desktop host.
+  if (args.libraryRoot && args.exportPath) {
+    resolveSafeBackupExportPath(args.libraryRoot, args.exportPath, 'studyhub-backup', '.json');
+  }
+
+  const { createTuiHost } = await import('./host/tui-host.js');
 
   const host = await createTuiHost({
     libraryRoot: args.libraryRoot,
@@ -268,10 +281,6 @@ export async function runExportFastPath(args: ParsedCliArgs, version = '1.0.0'):
 
 function strVal(value: unknown): string {
   return typeof value === 'string' ? value : typeof value === 'number' ? String(value) : '';
-}
-
-function singleLine(value: unknown): string {
-  return strVal(value).replace(/\s+/g, ' ').trim();
 }
 
 function clipText(value: unknown, max: number, ascii: boolean): string {
@@ -473,27 +482,12 @@ interface SnapshotDeckLike {
   mastery?: number;
 }
 
-interface SnapshotProgressLike {
-  total?: number;
-  due?: number;
-  mastery?: number;
-  counts?: {
-    new?: number;
-    weak?: number;
-  };
-}
-
-function finiteNonNeg(val: unknown): number {
-  const n = Number(val);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
-}
-
 /**
  * Build a deterministic offline due-queue report from a StudySnapshot.
  */
 export function buildDueReport(opts: {
   libraryRoot: string;
-  snapshot: { decks?: SnapshotDeckLike[]; progress?: Record<string, unknown> } | null | undefined;
+  snapshot: { decks?: SnapshotDeckLike[]; progress?: Record<string, unknown>; courses?: StudySnapshotLike['courses'] } | null | undefined;
   courseFilter?: string;
   limit?: number;
   version?: string;
@@ -501,13 +495,10 @@ export function buildDueReport(opts: {
 }): DueCliReport {
   const snap = opts.snapshot ?? {};
   const rawDecks = Array.isArray(snap.decks) ? snap.decks : [];
-  const progress = (snap.progress && typeof snap.progress === 'object' ? snap.progress : {}) as Record<
-    string,
-    SnapshotProgressLike | undefined
-  >;
+  const progress = getProgressMap(snap);
   const courseFilterRaw = (opts.courseFilter ?? '').trim();
-  const courseNeedle = courseFilterRaw.toLowerCase();
   const limit = Math.max(1, Math.min(100, Math.trunc(opts.limit ?? 20)));
+  const scope = selectCourseScope(snap, courseFilterRaw || null, { fuzzy: true });
 
   const matched: DueDeckEntry[] = [];
   let totalDue = 0;
@@ -517,19 +508,17 @@ export function buildDueReport(opts: {
   let decksWithDue = 0;
 
   for (const deck of rawDecks) {
-    if (!deck || typeof deck !== 'object' || deck.archived || deck.systemKind) continue;
+    if (!countsInScope(deck, scope)) continue;
     const id = strVal(deck.id);
     if (!id) continue;
     const course = singleLine(deck.course);
-    if (courseNeedle && !course.toLowerCase().includes(courseNeedle)) continue;
 
-    const p = progress[id];
-    const total = finiteNonNeg(deck.count ?? deck.cardCount ?? p?.total);
-    const due = finiteNonNeg(p?.due ?? deck.due ?? deck.dueCount);
-    const weak = finiteNonNeg(deck.wrong ?? deck.wrongCount ?? p?.counts?.weak);
-    const newCount = finiteNonNeg(p?.counts?.new ?? deck.newCount);
-    const rawMastery = typeof p?.mastery === 'number' ? p.mastery : typeof deck.mastery === 'number' ? deck.mastery : 0;
-    const mastery = Number.isFinite(rawMastery) ? Math.max(0, Math.min(100, Math.round(rawMastery))) : 0;
+    const m = selectDeckMetrics(deck, progress);
+    const total = m.total;
+    const due = m.due;
+    const weak = m.weak;
+    const newCount = m.newCount;
+    const mastery = m.mastery;
 
     totalDue += due;
     totalWeak += weak;
@@ -681,53 +670,21 @@ export function buildBoardCliReport(opts: {
   version?: string;
   generatedAt?: string;
 }): BoardCliReport {
-  const today = opts.todayYmd ?? new Date().toISOString().slice(0, 10);
+  const today = opts.todayYmd ?? todayLocalYmd();
   const courseFilterRaw = (opts.courseFilter ?? '').trim();
-  const courseNeedle = courseFilterRaw.toLowerCase();
-  const colRank: Record<'todo' | 'doing' | 'done', number> = { doing: 0, todo: 1, done: 2 };
+  const queue = selectBoardQueueMetrics(opts.doc.cards ?? [], {
+    todayYmd: today,
+    courseFilter: courseFilterRaw || undefined,
+  });
 
-  const cards: BoardCliCard[] = [];
-  let todo = 0;
-  let doing = 0;
-  let done = 0;
-  let overdue = 0;
-  let dueToday = 0;
-
-  for (const c of opts.doc.cards ?? []) {
-    const course = singleLine(c.course);
-    if (courseNeedle && !course.toLowerCase().includes(courseNeedle)) continue;
-    const dueDate = singleLine(c.dueDate);
-    let status: BoardCliCard['status'] = 'none';
-    if (dueDate) {
-      if (c.column === 'done') status = 'done';
-      else if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) status = 'upcoming';
-      else if (dueDate < today) status = 'overdue';
-      else if (dueDate === today) status = 'today';
-      else status = 'upcoming';
-    }
-    if (c.column === 'todo') todo += 1;
-    else if (c.column === 'doing') doing += 1;
-    else done += 1;
-    if (status === 'overdue') overdue += 1;
-    if (status === 'today') dueToday += 1;
-
-    cards.push({
-      id: c.id,
-      title: singleLine(c.title) || c.id,
-      column: c.column,
-      course,
-      dueDate,
-      status,
-    });
-  }
-
-  cards.sort(
-    (a, b) =>
-      colRank[a.column] - colRank[b.column] ||
-      (a.status === 'overdue' ? 0 : a.status === 'today' ? 1 : 2) -
-        (b.status === 'overdue' ? 0 : b.status === 'today' ? 1 : 2) ||
-      a.title.localeCompare(b.title),
-  );
+  const cards: BoardCliCard[] = queue.classified.map(({ card, status }) => ({
+    id: card.id,
+    title: singleLine(card.title) || card.id,
+    column: card.column,
+    course: singleLine(card.course),
+    dueDate: singleLine(card.dueDate),
+    status,
+  }));
 
   return {
     version: opts.version ?? '1.0.0',
@@ -737,12 +694,12 @@ export function buildBoardCliReport(opts: {
     courseFilter: courseFilterRaw || null,
     generatedAt: opts.generatedAt ?? new Date().toISOString(),
     counts: {
-      total: cards.length,
-      todo,
-      doing,
-      done,
-      overdue,
-      dueToday,
+      total: queue.total,
+      todo: queue.todo,
+      doing: queue.doing,
+      done: queue.done,
+      overdue: queue.overdue,
+      dueToday: queue.dueToday,
     },
     focusStats: opts.doc.focusStats ? { ...opts.doc.focusStats } : null,
     cards,
@@ -806,7 +763,7 @@ export function formatBoardCliReport(report: BoardCliReport, ascii = false): str
  * Run `--board` offline Kanban summary directly from `<libraryRoot>/tui-board.json` without mounting React/Ink/StudyRuntime.
  */
 export async function runBoardFastPath(parsed: ParsedCliArgs, version = '1.0.0'): Promise<void> {
-  const [{ resolve: resolvePath }, { boardFilePath, loadBoardSafe, todayLocalYmd }] = await Promise.all([
+  const [{ resolve: resolvePath }, { boardFilePath, loadBoardSafe }] = await Promise.all([
     import('node:path'),
     import('./views/board/board-store.js'),
   ]);

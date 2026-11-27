@@ -1,11 +1,13 @@
 /* Tests of the audit itself (#1468): one fixture per category, one clean fixture that must stay quiet, and the report/argument surface.
-   The audit is imported, not started as a child process, so this file stays out of tests/slow-tests.json. */
+   The gate test additionally checks the actual CLI exit status in an isolated Git repository. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   auditSource,
   auditTree,
@@ -49,6 +51,26 @@ test('the sidebar has a page row', () => {
   assert.ok(changelog.includes('## 1.0.0'));
 });`, 1);
   assert.deepEqual(document, [], 'a generated document is not program source');
+});
+
+test('multiline and negative source checks are detected without attributing another test’s bindings, comments or fixtures', () => {
+  const findings = category([
+    "test('program', () => {",
+    "  const input = readFileSync('ui/view.jsx', 'utf8');",
+    "  assert.doesNotMatch(",
+    "    input, /privateMethod/);",
+    "  assert.ok(!/private/.test(input));",
+    "});",
+    "test('document', () => {",
+    "  const input = readFileSync('docs/example.md', 'utf8');",
+    "  assert.match(input, /heading/);",
+    "  const sample = readFileSync('tests/fixtures/snippet.js', 'utf8');",
+    "  assert.ok(sample.includes('token'));",
+    "  // assert.ok(input.includes('private'));",
+    "});",
+  ].join('\n'), 1);
+  assert.deepEqual(findings.map(hit => hit.line), [3, 5]);
+  assert.deepEqual(category("test('failures', () => { assert.fail(true); assert.notEqual(x, x); assert.equal(false, true); });", 3), []);
 });
 
 test('category 2: a fake return object whose fields the real backend never has is flagged, the known ones are not', () => {
@@ -711,6 +733,62 @@ test('repo docs/test-audit-baseline.json parses cleanly and totals match byCateg
 });
 
 /** A throwaway checkout with the given files. */
+test('the PR gate blocks new assertions in place even at equal category totals, and keeps existing debt through a rename', async t => {
+  const file = 'tests/asset.test.mjs';
+  const original = [
+    "test('source check', () => {",
+    "  const src = readFileSync('lib/cards.js', 'utf8');",
+    "  assert.ok(src.includes('old-token'));",
+    "});",
+    "test('smoke', () => { assert.ok(true); });",
+  ].join('\n');
+  const root = await fixture(t, { [file]: original });
+  const git = (...args) => execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.invalid',
+    '-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', ...args], { cwd: root, windowsHide: true });
+  git('init', '--quiet');
+  git('add', '--', file);
+  git('commit', '--quiet', '-m', 'fixture');
+  const cli = fileURLToPath(new URL('../scripts/test-audit.mjs', import.meta.url));
+  const gate = (ref = 'HEAD') => spawnSync(process.execPath, [cli, '--root=' + root, '--gate-from=' + ref, '--json'],
+    { cwd: root, encoding: 'utf8', windowsHide: true });
+  const renamed = 'tests/asset renamed.test.mjs';
+  git('mv', file, renamed);
+  await writeFile(join(root, renamed), '\n' + original.replace('assert.ok(src', 'assert.ok( src'));
+  const moved = gate();
+  assert.equal(moved.status, 0, moved.stderr);
+  assert.deepEqual(JSON.parse(moved.stdout), { filesChecked: 1, hits: [] });
+
+  await writeFile(join(root, renamed), original.replace('old-token', 'other-token').replace('assert.ok(true)', 'assert.strictEqual(card, card)'));
+  const replacement = gate();
+  assert.equal(replacement.status, 1, replacement.stderr);
+  assert.deepEqual(JSON.parse(replacement.stdout).hits.map(hit => [hit.file, hit.category, hit.line]),
+    [[renamed, 1, 3], [renamed, 3, 5]]);
+
+  // Baseline and head have the same source check. A second copy must consume its own allowance.
+  await writeFile(join(root, renamed), original.replace("  assert.ok(src.includes('old-token'));", "  assert.ok(src.includes('old-token'));\n  assert.ok(src.includes('old-token'));"));
+  const doubled = gate();
+  assert.equal(doubled.status, 1, doubled.stderr);
+  assert.deepEqual(JSON.parse(doubled.stdout).hits.map(hit => hit.line), [4]);
+
+  await writeFile(join(root, renamed), original);
+  const added = join(root, 'tests', 'new.test.mjs');
+  await writeFile(added, [
+    "test('added', () => {",
+    "  // assert.ok(true);",
+    "  assert.ok(true && response.ok);",
+    "  assert.notEqual(a, b);",
+    "  const src = readFileSync('guide.md', 'utf8');",
+    "  assert.match(src, /example/);",
+    "});",
+  ].join('\n'));
+  assert.equal(gate().status, 0);
+  await writeFile(added, "test('added', () => {\n  assert.ok(\n    true,\n    'placeholder');\n});");
+  const newFile = gate();
+  assert.equal(newFile.status, 1, newFile.stderr);
+  assert.deepEqual(JSON.parse(newFile.stdout).hits.map(hit => [hit.file, hit.line]), [['tests/new.test.mjs', 2]]);
+  assert.notEqual(gate('does-not-exist').status, 0, 'missing PR base must fail closed');
+});
+
 async function fixture(t, files) {
   const root = await mkdtemp(join(tmpdir(), 'test-audit-'));
   t.after(() => rm(root, { recursive: true, force: true }));

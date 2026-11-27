@@ -226,7 +226,11 @@ test('file 2 and 3 are transcribed while file 1 is still being proofread', async
 
 test('the DSH/text model is limited by the text pool across all files of a batch', async t => {
   const f = await batch(t, { textConcurrency: 2 });
+  // Hold the first text call until a second enters the pool so slow disk writes cannot serialize the batch into 1-at-a-time.
+  f.holdFirstProofread();
   const started = await f.service.call('audio.import', { files: f.members });
+  await until(() => f.text.maximum >= 2, 'a second text call to share the pool while the first is held');
+  f.held.get('first')?.();
   const job = await settleJob(f.service, started.jobId);
   assert.equal(job.status, 'complete', job.stage);
   assert.ok(f.text.maximum >= 2, 'the pool is used');

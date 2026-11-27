@@ -4,8 +4,9 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { buildChatPreview } from './helpers/chat-preview.mjs';
 import { buildPreview } from '../scripts/build.mjs';
-import { launchChromium } from '../scripts/qa/browser.mjs';
+import { launchChromium, skipMissingChromium } from '../scripts/qa/browser.mjs';
 import { StudyService } from '../lib/service.js';
 import { openPage, settleAnimations, startLateServer } from '../scripts/qa/layout-late.mjs';
 
@@ -44,11 +45,11 @@ const measure = (button) => button.evaluate((element) => {
 
 test('#1127 in the browser: the recommended button of the gate dialog keeps its icon level with its first line (the middles within 2px) at 320, 375 and 420px (en, light and dark; zh at 420)', { timeout: 900000 }, async (t) => {
   let browser;
-  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
+  try { browser = await launchChromium(); } catch (error) { skipMissingChromium(t, error); return; }
   t.after(() => browser.close());
   const dist = await mkdtemp(join(tmpdir(), 'study-icon-round12-'));
   t.after(() => rm(dist, { recursive: true, force: true }));
-  await buildPreview({ outdir: dist });
+  await buildChatPreview({ outdir: dist });
   if (SHOTS) await mkdir(SHOTS, { recursive: true });
   let wrapped = 0;
   for (const lang of ['en', 'zh']) {
@@ -94,11 +95,11 @@ const GATE_CASES = [
   { lang: 'en', width: 420, iface: { density: 'comfortable' } }, { lang: 'en', width: 420, iface: { craft: 'refined' } }, { lang: 'zh', width: 1440, iface: null }, { lang: 'en', width: 420, iface: null }];
 test('#1127 round 13 in the browser: under 紧凑, 宽松 and 精致紧凑 the recommended gate button is as tall as its neighbour with its words in the middle (one line), or has its icon level with its first line (wrapped), with the same padding as the next button', { timeout: 900000 }, async (t) => {
   let browser;
-  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
+  try { browser = await launchChromium(); } catch (error) { skipMissingChromium(t, error); return; }
   t.after(() => browser.close());
   const dist = await mkdtemp(join(tmpdir(), 'study-icon-round13-'));
   t.after(() => rm(dist, { recursive: true, force: true }));
-  await buildPreview({ outdir: dist });
+  await buildChatPreview({ outdir: dist });
   if (SHOTS) await mkdir(SHOTS, { recursive: true });
   let oneLine = 0, wrapped = 0;
   for (const lang of ['en', 'zh']) {
@@ -185,7 +186,7 @@ const focusLines = (summary, pieces) => summary.evaluate((element, wanted) => {
 
 test('#1130 in the browser: the home focus line breaks only between its pieces, never inside a count and its words (320, 375, 420px; en light and dark, zh)', { timeout: 900000 }, async (t) => {
   let browser;
-  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
+  try { browser = await launchChromium(); } catch (error) { skipMissingChromium(t, error); return; }
   t.after(() => browser.close());
   const dist = await mkdtemp(join(tmpdir(), 'study-icon-round12-focus-'));
   t.after(() => rm(dist, { recursive: true, force: true }));

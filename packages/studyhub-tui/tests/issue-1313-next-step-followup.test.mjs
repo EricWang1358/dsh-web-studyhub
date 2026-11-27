@@ -16,20 +16,17 @@ after(() => {
 const [
   nextStepMod,
   { CardToolsModal },
-  { TeachModal },
   { RetellModal },
   storeMod,
 ] = await Promise.all([
   import('../src/views/review/NextStepFollowupBar.tsx'),
   import('../src/views/review/CardToolsModal.tsx'),
-  import('../src/views/review/TeachModal.tsx'),
   import('../src/views/review/RetellModal.tsx'),
   import('../src/state/store.ts'),
 ]);
 
 const {
   NEXT_STEP_PRESETS,
-  NEXT_STEP_ACTIVATION_KEY,
   nextStepIdlePrompt,
   buildNextStepUserPrompt,
 } = nextStepMod;
@@ -167,7 +164,8 @@ describe('#1313 unified AI result follow-up bar', () => {
     assert.ok(prompt.includes('ReadIndex'));
     assert.ok(prompt.includes('Quorum'));
     assert.ok(prompt.includes('给每个词写一段通俗讲解'));
-    assert.equal(NEXT_STEP_ACTIVATION_KEY, 'a');
+    assert.ok(nextStepIdlePrompt('zh').includes('[a]'));
+    assert.ok(nextStepIdlePrompt('en').includes('[a]'));
     assert.equal(NEXT_STEP_PRESETS.length, 4);
   });
 
@@ -190,13 +188,10 @@ describe('#1313 unified AI result follow-up bar', () => {
             },
           };
         }
-        if (name === 'card.followup.add') {
+        if (name === 'note.qa.save') {
           savedFollowups.push(payload);
-          return { ok: true, value: { item: { id: 'fu-1313' } } };
-        }
-        if (name === 'note.qa.add') {
           savedNotes.push(payload);
-          return { ok: true, value: { status: 'ok' } };
+          return { ok: true, value: { item: { id: 'fu-1313' }, status: 'created', note: { id: 'n-1313', title: payload?.title } } };
         }
         return { ok: true, value: {} };
       },
@@ -261,67 +256,8 @@ describe('#1313 unified AI result follow-up bar', () => {
     }
   });
 
-  test('3. TeachModal (complete) and RetellModal (verdict) show identical follow-up prompt & accept custom instructions', async () => {
+  test('3. RetellModal (verdict) shows unified follow-up prompt & accepts custom instructions', async () => {
     resetStore();
-    const teachPrompts = [];
-    const teachHost = {
-      call: async (name) => {
-        if (name === 'teach.get' || name === 'teach.start') {
-          return {
-            ok: true,
-            value: {
-              id: 'ts-1',
-              mode: 'understanding',
-              index: 2,
-              total: 2,
-              complete: true,
-              takeaway: 'TEACH_LESSON_SUMMARY',
-            },
-          };
-        }
-        return { ok: true, value: {} };
-      },
-      streamComplete: async ({ prompt }) => {
-        teachPrompts.push(prompt);
-        return 'TEACH_NEXT_STEP_REPLY';
-      },
-    };
-
-    const hTeach = createInkHarness(
-      React.createElement(
-        Box,
-        { width: 96, height: 28 },
-        React.createElement(TeachModal, {
-          host: teachHost,
-          run: baseRun,
-          cardId: 'card-1313',
-          kind: 'short_answer',
-          width: 96,
-          height: 28,
-          isActive: true,
-          mathUnicode: true,
-          onClose: () => {},
-        }),
-      ),
-      { cols: 96, rows: 28 },
-    );
-
-    try {
-      const f = await hTeach.waitFor((s) => s.includes('带学完成') && s.includes('接下来想做什么'));
-      assert.ok(f.includes(nextStepIdlePrompt('zh').slice(0, 14)));
-      await new Promise((r) => setTimeout(r, 30));
-      hTeach.write('a');
-      await hTeach.waitFor((s) => s.includes('[1]通俗讲解'));
-      await new Promise((r) => setTimeout(r, 30));
-      hTeach.write('换个生活例子再讲一遍');
-      await hTeach.waitFor((s) => s.includes('换个生活例子再讲一遍'));
-      hTeach.write('\r');
-      await hTeach.waitFor((s) => s.includes('TEACH_NEXT_STEP_REPLY'));
-      assert.ok(teachPrompts[0].includes('带学完成'));
-    } finally {
-      hTeach.cleanup();
-    }
-
     // RetellModal verdict phase
     const retellPrompts = [];
     const retellHost = {
@@ -372,7 +308,8 @@ describe('#1313 unified AI result follow-up bar', () => {
       hRetell.write('Leader 通过心跳确认自己仍是主节点');
       await hRetell.waitFor((s) => s.includes('Leader 通过心跳确认自己仍是主节点'));
       hRetell.write('\x13'); // Ctrl+S to submit multiline retell
-      await hRetell.waitFor((s) => s.includes('RETELL_RIGHT_POINT_XYZ') && s.includes('接下来想做什么'));
+      const verdictFrame = await hRetell.waitFor((s) => s.includes('RETELL_RIGHT_POINT_XYZ') && s.includes('接下来想做什么'));
+      assert.ok(verdictFrame.includes(nextStepIdlePrompt('zh').slice(0, 14)));
       await new Promise((r) => setTimeout(r, 30));
       hRetell.write('a');
       await hRetell.waitFor((s) => s.includes('[1]通俗讲解'));
@@ -392,18 +329,18 @@ describe('#1313 unified AI result follow-up bar', () => {
     resetStore();
     useTuiStore.setState({ page: 'review', activeRunId: baseRun.id });
 
-    const teachHost = {
+    const retellHost = {
       call: async (name) => {
-        if (name === 'teach.get' || name === 'teach.start') {
+        if (name === 'teach.retell') {
           return {
             ok: true,
             value: {
-              id: 'ts-1344',
-              mode: 'understanding',
-              index: 2,
-              total: 2,
-              complete: true,
-              takeaway: 'TEACH_SUMMARY_1344',
+              passed: true,
+              gap: 'none',
+              right: ['RETELL_SUMMARY_1344'],
+              missed: [],
+              wrong: [],
+              note: 'Good job',
             },
           };
         }
@@ -414,11 +351,11 @@ describe('#1313 unified AI result follow-up bar', () => {
 
     const h = createInkHarness(
       React.createElement(AppShell, {
-        host: teachHost,
+        host: retellHost,
         autoLaunchpad: false,
         renderPage: (_page, view) =>
-          React.createElement(TeachModal, {
-            host: teachHost,
+          React.createElement(RetellModal, {
+            host: retellHost,
             run: baseRun,
             cardId: 'card-1313',
             kind: 'short_answer',
@@ -427,13 +364,18 @@ describe('#1313 unified AI result follow-up bar', () => {
             isActive: view.isActive,
             mathUnicode: true,
             onClose: () => {},
+            onNavigateToSource: () => {},
           }),
       }),
       { cols: 120, rows: 32 },
     );
 
     try {
-      await h.waitFor((s) => s.includes('带学完成') && s.includes('接下来想做什么'));
+      await h.waitFor((s) => s.includes('费曼复述'));
+      h.write('Leader 通过心跳确认自己是主节点');
+      await h.waitFor((s) => s.includes('Leader 通过心跳确认自己是主节点'));
+      h.write('\x13');
+      await h.waitFor((s) => s.includes('RETELL_SUMMARY_1344') && s.includes('接下来想做什么'));
       await new Promise((r) => setTimeout(r, 30));
       // Expand & submit an instruction so bar stays expanded with inputFocused=false
       h.write('a');

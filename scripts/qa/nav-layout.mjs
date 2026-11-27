@@ -25,8 +25,6 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createPreviewServer, previewCall } from "../preview-server.mjs";
-import { createFakeModel } from "../fake-model.mjs";
 import { launchChromium } from "./browser.mjs";
 import { scrubProcessEnv } from "./env.mjs";
 
@@ -134,6 +132,7 @@ export function checkContract(states, label, { insertsRows = [] } = {}) {
 
 /** Start the preview on an empty temporary library (`distDir`: another build of app.js/app.css than ./dist). */
 export async function startNavServer({ distDir, retrieval = null } = {}) {
+  const [{ createPreviewServer }, { createFakeModel }] = await Promise.all([import("../preview-server.mjs"), import("../fake-model.mjs")]);
   scrubProcessEnv();
   const base = await mkdtemp(join(tmpdir(), "study-nav-"));
   const server = await createPreviewServer({ libraryRoot: join(base, "library"), home: join(base, "home"), port: 0, model: createFakeModel({ latencyMs: 50 }), ...(retrieval ? { retrieval } : {}), ...(distDir ? { distDir } : {}) });
@@ -142,6 +141,7 @@ export async function startNavServer({ distDir, retrieval = null } = {}) {
 
 /** All states for one language, theme, width and sidebar mode. Returns { label, states, errors, insertsRows }. */
 export async function collectStates({ browser, running, lang, theme, width, mode, shots = false, out = "", full = true }) {
+  const { previewCall } = await import("../preview-server.mjs");
   const { server, base } = running;
   const api = (action, input = {}) => previewCall(server, action, input);
   const label = `${width}px ${lang} ${theme} ${mode}`;

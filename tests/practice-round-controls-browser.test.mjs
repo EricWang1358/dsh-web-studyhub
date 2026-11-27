@@ -1,5 +1,6 @@
 /* global localStorage, document, innerWidth, window, KeyboardEvent */
 import test from 'node:test';
+import { dismissAfterOverlay } from './helpers/overlay-escape.mjs';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -7,7 +8,7 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 import { buildPreview } from '../scripts/build.mjs';
-import { launchChromium } from '../scripts/qa/browser.mjs';
+import { launchChromium, skipMissingChromium } from '../scripts/qa/browser.mjs';
 import { globalCss } from './helpers/global-css.mjs';
 import { PLAIN_HELP_REQUEST } from '../lib/assist-contract.js';
 
@@ -24,7 +25,7 @@ const WORDS = {
   zh: { skip: /先跳过/, end: /到此为止…/, confirm: '到此为止，看结果', next: '下一题', resume: (title) => `继续 ${title}`, pending: (n) => `${n} 题待答`, closed: '这一轮，已结束。', unanswered: '未答 1',
     lookBack: '本轮题目', showAll: (n) => `显示全部 ${n} 题`, unansweredNote: /这道题这一轮没有作答/, left: (n) => `还有 ${n} 题没答` },
   en: { skip: /Skip for now/, end: /Stop here…/, confirm: 'Stop and see the result', next: 'Next question', resume: (title) => `Resume ${title}`, pending: (n) => `${n} to answer`, closed: 'This session has ended.', unanswered: 'unanswered 1',
-    lookBack: 'Questions in this round', showAll: (n) => `Show all ${n} questions`, unansweredNote: /did not answer this question/, left: (n) => `${n} questions are still unanswered` },
+    lookBack: 'Questions in this round', showAll: (n) => `Show all ${n} questions`, unansweredNote: /did not answer this question/, left: (n) => n === 1 ? '1 question is still unanswered' : `${n} questions are still unanswered` },
 };
 
 async function serve(t, setup) {
@@ -39,7 +40,7 @@ async function serve(t, setup) {
   const server = await createPreviewServer({ libraryRoot: join(root, 'library'), home: join(root, 'home'), port: 0, model: null, distDir });
   let browser;
   t.after(async () => { await browser?.close(); await server.close(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
-  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return null; }
+  try { browser = await launchChromium(); } catch (error) { skipMissingChromium(t, error); return null; }
   return { server, browser };
 }
 
@@ -158,27 +159,44 @@ test('先跳过, 「N 题待答」, 到此为止 and the look-back, at 1280 and 
   await previewCall(server, 'review.start', { mode: 'path', fresh: true, scope: [{ deckId: control.id }] });
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
-  await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'zh'); });
-  await page.goto(server.url);
-  await page.getByRole('button', { name: '接着做' }).first().click(); // the home card for the open round
-  const on = (k) => page.waitForFunction((n) => new RegExp(`Question number ${n}\\?`).test(document.querySelector('.question-card .question')?.textContent || ''), k);
-  await on(1);
-  await page.keyboard.press('k');
-  for (const n of [2, 3]) {
-    await on(n);
+  let releaseSnapshot, holdSnapshot = false;
+  const heldSnapshot = new Promise((resolve) => { releaseSnapshot = resolve; });
+  try {
+    await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'zh'); });
+    await page.route('**/api/call', async (route) => {
+      if (holdSnapshot && route.request().postDataJSON()?.action === 'snapshot') await heldSnapshot;
+      return route.fallback();
+    });
+    await page.goto(server.url);
+    const resumeButton = page.getByRole('button', { name: '接着做' }).first();
+    await resumeButton.waitFor();
+    // Hold any post-resume snapshot so openRun cannot mask a busy-lock regression behind a fast local server.
+    holdSnapshot = true;
+    await resumeButton.click(); // the home card for the open round
+    const on = (k) => page.waitForFunction((n) => new RegExp(`Question number ${n}\\?`).test(document.querySelector('.question-card .question')?.textContent || ''), k);
+    await on(1);
+    await page.keyboard.press('k');
+    await on(2);
+    holdSnapshot = false;
+    releaseSnapshot();
+    for (const n of [2, 3]) {
+      await on(n);
+      await answerRight(page);
+      await nextButton(page).click();
+    }
+    await on(1);
     await answerRight(page);
+    assert.equal((await nextButton(page).innerText()).replace('→', '').trim(), '完成', 'the set-aside question was the last one waiting');
+    // The switch goes on only for the last step, so the questions themselves do not move on by the countdown (the step reloads the library).
+    await previewCall(server, 'settings.practice.set', { patch: { autopilot: true } });
     await nextButton(page).click();
+    await page.locator('.result-page').waitFor({ timeout: 30000 });
+    assert.equal(await page.locator('.result-title').innerText(), '这一轮，完成了。');
+    await page.locator('.coach-countdown[role="status"]').waitFor({ timeout: 15000 });
+  } finally {
+    releaseSnapshot?.();
+    await context.close();
   }
-  await on(1);
-  await answerRight(page);
-  assert.equal((await nextButton(page).innerText()).replace('→', '').trim(), '完成', 'the set-aside question was the last one waiting');
-  // The switch goes on only for the last step, so the questions themselves do not move on by the countdown (the step reloads the library).
-  await previewCall(server, 'settings.practice.set', { patch: { autopilot: true } });
-  await nextButton(page).click();
-  await page.locator('.result-page').waitFor({ timeout: 30000 });
-  assert.equal(await page.locator('.result-title').innerText(), '这一轮，完成了。');
-  await page.locator('.coach-countdown[role="status"]').waitFor({ timeout: 15000 });
-  await context.close();
 });
 
 test('Cloze Enter/Esc keyboard flow and RoundLookBack source-page jump in a real browser', { timeout: 600000 }, async (t) => {
@@ -233,8 +251,9 @@ test('Cloze Enter/Esc keyboard flow and RoundLookBack source-page jump in a real
   await page.locator('.cloze-right').first().waitFor({ timeout: 15000 });
   await nextButton(page).click();
   await page.locator('.result-page').waitFor({ timeout: 30000 });
-  const lookBackSummary = page.locator('details.round-look-back > summary');
-  if (await lookBackSummary.count()) await lookBackSummary.click();
+  // All answers are correct, so the result initially folds the look-back.
+  const lookBackSummary = page.locator('details.round-look-back:not([open]) > summary');
+  await lookBackSummary.click();
   const row = page.locator('.round-look-back .look-back__row').first();
   await row.locator('.look-back__line').click();
   const panel = row.locator('.look-back__panel');
@@ -293,8 +312,7 @@ test('Slice 1 practice controls: multi-choice clear, cloze Shift+Enter, open dra
   await page.keyboard.press('b');
   await page.locator('.thumb-tray').waitFor();
   assert.match(await page.locator('.thumb-tray__keys').innerText(), /按 1–7 选标签，Esc 收起/);
-  await page.keyboard.press('Escape');
-  assert.equal(await page.locator('.thumb-tray').count(), 0, 'Esc closes thumb tray');
+  await dismissAfterOverlay(page, page.locator('.thumb-tray'), { externalInput: true });
   assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('question-card')), true, 'Esc restores focus to .question-card');
 
   // Answer multi-choice & check #39 long explanation footer collapse/expand.
@@ -463,8 +481,7 @@ test('RetellPanel (#3, #4), ExplanationFollowup (#3, #25), and QuestionRun assis
   let browser;
   try { browser = await launchChromium(); }
   catch (error) {
-    if (!/browserType\.launch: Executable doesn't exist/.test(String(error.message))) throw error;
-    t.skip('Chromium unavailable'); return;
+    skipMissingChromium(t, error); return;
   }
   t.after(() => browser.close());
   const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 900 } });
@@ -486,7 +503,13 @@ test('RetellPanel (#3, #4), ExplanationFollowup (#3, #25), and QuestionRun assis
   const holeHeight = await page.locator('.assist-form .action-feedback-slot').evaluate((el) => el.getBoundingClientRect().height);
   assert.equal(holeHeight, 0, 'empty feedback slot inside assist form collapses to 0px');
   await page.locator('.assist-actions').getByRole('button', { name: '取消' }).focus();
-  await page.keyboard.press('Shift+Tab');
+  const assistInput = page.locator('.assist-form__input');
+  const controls = await page.locator('.assist-form').locator('button, input, textarea, select, a').count();
+  for (let step = 0; step < controls; step++) {
+    await page.keyboard.press('Shift+Tab');
+    if (await assistInput.evaluate(el => document.activeElement === el)) break;
+    assert.ok(await page.locator('.assist-form').evaluate(form => form.contains(document.activeElement)), 'backward keyboard navigation stays in the form until it reaches the answer field');
+  }
   const focusStyle = await page.locator('.assist-form__input').evaluate((el) => ({
     active: document.activeElement === el,
     outlineOffset: window.getComputedStyle(el).outlineOffset,
@@ -540,9 +563,18 @@ test('RetellPanel (#3, #4), ExplanationFollowup (#3, #25), and QuestionRun assis
   await page.keyboard.press('Control+Enter');
   await page.locator('.retell-result__restore').waitFor();
   assert.equal(await retellInput.inputValue(), '');
-  await page.locator('.retell-result__restore').click();
+  // Focus the button as a press does, then click: the draft must hold focus when the click returns, not a frame later (the button unmounts).
+  assert.equal(await page.evaluate(() => {
+    const restore = document.querySelector('.retell-result__restore');
+    restore.focus();
+    restore.click();
+    return document.activeElement?.classList.contains('retell-panel__input');
+  }), true, '对照漏点再补一句 moves focus to the draft within the click');
   assert.equal(await retellInput.inputValue(), 'First retell draft');
-  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('retell-panel__input')), true);
+  await page.locator('.retell-panel__input:focus').waitFor();
+  await page.keyboard.press('End');
+  await page.keyboard.insertText(' continued');
+  assert.equal(await retellInput.inputValue(), 'First retell draft continued', 'typing continues in the restored draft');
   await retellInput.fill('');
   await page.keyboard.press('Escape');
   assert.equal(await page.evaluate(() => window.__retellClosed), 1);

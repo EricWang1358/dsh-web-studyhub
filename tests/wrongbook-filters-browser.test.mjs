@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Store } from '../lib/store.js';
 import { buildPreview } from '../scripts/build.mjs';
-import { launchChromium } from '../scripts/qa/browser.mjs';
+import { launchChromium, skipMissingChromium } from '../scripts/qa/browser.mjs';
 import { drainLayoutStability, judgeLayoutStability } from '../scripts/qa/layout-stability.mjs';
 import { frames, openPage, seedWrongBookLibrary, settleAnimations, startLateServer, until } from '../scripts/qa/layout-late.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
@@ -35,7 +35,8 @@ const readState = (page) => page.evaluate(() => {
 
 test('mistakes page: folded by deck, one-click deck filter, honest generate button, steady on refresh (1280 and 420 px)', { timeout: 300000 }, async (t) => {
   let browser;
-  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
+  try { browser = await launchChromium(); }
+  catch (error) { skipMissingChromium(t, error); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-wb-filters-dist-'));
   await buildPreview({ outdir: dist });
   const running = await startLateServer({ distDir: dist, seed: (root) => seedWrongBookLibrary(root, { wrong: 72 }) });

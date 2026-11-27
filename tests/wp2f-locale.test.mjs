@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import { loadUi } from './helpers/ui-module.mjs';
+import { loadInteractiveUi, click } from './helpers/react-harness.mjs';
 
 // UI wave 2 · WP-F: every sentence the files this work package touched put through ui() has an English line, and the
 // shell no longer chooses its copy with language ternaries (#123).
@@ -49,7 +50,60 @@ test('the fold labels of a follow-up come from the catalogue, not from CSS conte
   assert.doesNotMatch(css, /followup-item[^{]*::after\s*\{[^}]*content/);
   assert.equal(catalogue['展开'], 'Expand');
   assert.equal(catalogue['收起'], 'Collapse');
-  const source = await readFile('ui/ExplanationFollowup.jsx', 'utf8');
-  assert.match(source, /ui\("收起"\)/);
-  assert.match(source, /ui\("展开"\)/);
+
+  const { exports: ui, React: R, mount } = await loadInteractiveUi(`
+    export { default as ExplanationFollowup } from './ui/ExplanationFollowup.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const run = {
+    id: 'run-fold',
+    deckId: 'd1',
+    card: { id: 'c1', kind: 'quiz', prompt: 'Q?' },
+    solution: { followups: [{ id: 'f1', question: '为什么？', answer: '因为边界条件不同。' }] },
+  };
+  const services = { call: async () => ({}) };
+  const prevRaf = globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame = () => 0;
+
+  try {
+    for (const [language, openLabel, closedLabel] of [['zh', '收起', '展开'], ['en', 'Collapse', 'Expand']]) {
+      ui.setUiLanguage(language);
+      const mounted = mount(() => R.createElement(
+        ui.StudyServicesContext.Provider,
+        { value: services },
+        R.createElement(ui.ExplanationFollowup, { run }),
+      ));
+      try {
+        const stateBadge = () => mounted.find((n) => n.type === 'span' && n.props?.className === 'followup-state');
+        const detailsEl = () => mounted.find((n) => n.type === 'details' && n.props?.className === 'followup-item');
+        const foldBtn = () => mounted.find((n) => n.type === 'button' && String(n.props?.className || '').includes('followup-fold'));
+
+        // Newest follow-up starts open with the collapse label.
+        assert.equal(detailsEl().props.open, true, `${language}: starts open`);
+        assert.equal(mounted.text(stateBadge()), openLabel, `${language}: open state label`);
+        assert.equal(mounted.text(foldBtn()), openLabel, `${language}: fold button label`);
+
+        // Clicking the fold button collapses it and switches the summary badge to expand.
+        await mounted.act(() => {
+          click(foldBtn(), { currentTarget: { closest: () => ({ querySelector: () => null }) } });
+        });
+        assert.equal(detailsEl().props.open, false, `${language}: collapsed after fold click`);
+        assert.equal(mounted.text(stateBadge()), closedLabel, `${language}: collapsed state label`);
+
+        // Toggling the <details> back open restores the collapse label.
+        await mounted.act(() => {
+          detailsEl().props.onToggle({ currentTarget: { open: true } });
+        });
+        assert.equal(detailsEl().props.open, true, `${language}: re-opened via details onToggle`);
+        assert.equal(mounted.text(stateBadge()), openLabel, `${language}: re-opened state label`);
+      } finally {
+        mounted.unmount();
+      }
+    }
+  } finally {
+    ui.setUiLanguage('zh');
+    if (prevRaf === undefined) delete globalThis.requestAnimationFrame;
+    else globalThis.requestAnimationFrame = prevRaf;
+  }
 });

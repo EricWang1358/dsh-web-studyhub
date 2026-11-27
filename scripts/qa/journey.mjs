@@ -23,8 +23,6 @@
 import { mkdir, rm, writeFile, readFile, readdir, access } from "node:fs/promises";
 import { join, resolve, basename } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createPreviewServer, previewCall } from "../preview-server.mjs";
-import { createFakeModel } from "../fake-model.mjs";
 import { launchChromium } from "./browser.mjs";
 import { pick } from "./pick.mjs";
 import { scrubProcessEnv } from "./env.mjs";
@@ -598,6 +596,7 @@ async function writeFixtures(browser, lang, dir) {
 /* ---------- runner ---------- */
 
 export async function runJourney(options) {
+  const [{ createPreviewServer, previewCall }, { createFakeModel }] = await Promise.all([import("../preview-server.mjs"), import("../fake-model.mjs")]);
   const removed = scrubProcessEnv();
   await access(resolve(repoRoot, "dist/app.js")).catch(() => { throw new Error("dist/app.js is missing: run `npm run build` first"); });
   await rm(options.out, { recursive: true, force: true });
@@ -629,7 +628,7 @@ export async function runJourney(options) {
       const body = await response.json().catch(() => ({}));
       summary.apiErrors.push({ step: current, action, status: response.status(), error: body.error || "" });
     });
-    const j = journeyContext({ page, server, options, english, fixtures, step: () => current });
+    const j = journeyContext({ page, server, previewCall, options, english, fixtures, step: () => current });
     j.cleanups = cleanups;
     await page.goto(server.url);
     await j.ready();
@@ -689,7 +688,7 @@ export async function runJourney(options) {
   return summary;
 }
 
-function journeyContext({ page, server, options, english, fixtures, step }) {
+function journeyContext({ page, server, previewCall, options, english, fixtures, step }) {
   const index = () => String([...JOURNEY_STEPS, ...TOUR_STEPS, ...CASE_STEPS].findIndex((item) => item.name === step()) + 1).padStart(2, "0");
   const t = (zh) => options.lang === "en" && Object.hasOwn(english, zh) ? english[zh] : zh;
   const named = (zh) => controlName(t, zh);

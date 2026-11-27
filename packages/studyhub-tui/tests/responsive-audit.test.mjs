@@ -336,7 +336,7 @@ describe('StudyHub TUI 4-Viewport Bilingual & ASCII Responsive Audit', () => {
     });
   }
 
-  test('Clean resource teardown with zero leaked handles', async () => {
+  test('Populated responsive audit teardown leaves zero leaked handles', async () => {
     await host.dispose();
     disposeTerminalPool();
     const afterRes = await waitForResourceTeardown(baselineResources);
@@ -567,7 +567,7 @@ describe('StudyHub TUI Empty-Library 16-View Onboarding & Bilingual Audit', () =
   }
 
   for (const vp of EMPTY_VIEWPORTS) {
-    test(`Test 3: All 16 views empty-library sweep in zh (${vp.cols}x${vp.rows})`, async () => {
+    test(`Test 3: Chinese (zh) empty-library responsive audit (${vp.cols}x${vp.rows})`, async () => {
       resetTuiStore('zh', true);
       await saveTuiPreferences({ language: 'zh', asciiMode: true }, { env: { DSH_HOME: dshHome } });
       host.setLanguage('zh');
@@ -641,7 +641,7 @@ describe('StudyHub TUI Empty-Library 16-View Onboarding & Bilingual Audit', () =
     });
   }
 
-  test('Clean resource teardown with zero leaked handles', async () => {
+  test('Empty-library responsive audit teardown leaves zero leaked handles', async () => {
     await host.dispose();
     disposeTerminalPool();
     const afterRes = await waitForResourceTeardown(baselineResources);

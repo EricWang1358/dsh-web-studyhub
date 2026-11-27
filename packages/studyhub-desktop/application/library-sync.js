@@ -48,7 +48,7 @@ export function createDesktopLibrarySync({ libraryEvents = null, getRoot, forwar
     };
   }
 
-  async function notifyChanged(args = {}) {
+  async function runNotifyChanged(args = {}) {
     if (!libraryEvents) return forwardNotify(forward, args);
     const root = getRoot();
     const reason = cleanText(args?.reason, 'explicit');
@@ -59,6 +59,14 @@ export function createDesktopLibrarySync({ libraryEvents = null, getRoot, forwar
     libraryEvents.publish(root, payload);
     if (args?.broadcastDisk === true) await libraryEvents.writeSignal(root, { source, reason }).catch(() => {});
     return { ok: true, notified: true, root: meta.root, revision: meta.revision, stamp: meta.stamp };
+  }
+
+  // Serialize explicit notifications so concurrent readMeta calls publish in invocation order.
+  let notifyChain = Promise.resolve();
+  function notifyChanged(args = {}) {
+    const next = notifyChain.then(() => runNotifyChanged(args), () => runNotifyChanged(args));
+    notifyChain = next.catch(() => {});
+    return next;
   }
 
   function dispose() {

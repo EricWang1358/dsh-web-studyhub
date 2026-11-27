@@ -67,9 +67,12 @@ test('the editor of a conversion waiting before its import, at 1280 and 420 px',
         let body = {};
         try { body = JSON.parse(route.request().postData() || '{}'); } catch { /* not JSON */ }
         if (String(body.action).startsWith('mineru.') || String(body.action).startsWith('marker.') || ['job.delete', 'job.unarchive'].includes(body.action)) {
-          if (String(body.action).endsWith('.import') && !body.action.includes('edit')) started.push(body);
-          try { return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, value: await service.call(body.action, body.args ?? {}) }) }); }
-          catch (error) { return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: false, error: { message: error.message } }) }); }
+          let reply;
+          try { reply = { ok: true, value: await service.call(body.action, body.args ?? {}) }; }
+          catch (error) { reply = { ok: false, error: { message: error.message } }; }
+          await route.fulfill({ json: reply });
+          if (String(body.action).endsWith('.import') && !body.action.includes('edit')) started.push({ ...body, reply });
+          return undefined;
         }
         if (body.action !== 'snapshot') return route.continue();
         // A poll still in flight when the page closes has nobody to answer.
@@ -170,14 +173,19 @@ test('the editor of a conversion waiting before its import, at 1280 and 420 px',
         await box.waitFor({ state: 'attached', timeout: 5000 });
         assert.equal(await box.isChecked(), false, 'off by default');
         if (shots) await page.screenshot({ path: join(shots, 'convert-edit-switch-zh-1280.png') });
-        await box.check({ force: true });
+        await more.getByText('导入前先让我改', { exact: true }).click();
+        assert.equal(await box.isChecked(), true, 'the labelled option enables review before import');
         assert.match(await page.locator('.mineru-route-panel__head').innerText(), /转换好后先等你改/, 'the panel does not promise an automatic save');
         await page.locator('.mineru-start button').first().click();
         await until(async () => started.length > 0, 'the conversion to start');
         assert.equal(started[0].action, 'marker.import');
         assert.equal(started[0].args.reviewBeforeImport, true);
+        assert.equal(started[0].reply.ok, true, started[0].reply.error?.message);
+        const { jobId: startedJobId } = started[0].reply.value;
+        await until(async () => (await service.call('snapshot')).jobs.some(job => job.id === startedJobId && job.held), 'the selected file to wait for review');
       }
       assert.deepEqual(errors, []);
+      await page.unrouteAll({ behavior: 'wait' });
       await context.close();
     }
   } finally { await browser.close(); await preview.close(); await rm(dist, { recursive: true, force: true }); }

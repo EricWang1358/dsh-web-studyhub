@@ -10,6 +10,12 @@ const elementsOf = refs => (Array.isArray(refs) ? refs : [refs]).map(entry => en
 // Open dismissables, oldest first: Escape belongs to the newest one only.
 const open = [];
 
+/** A mounted, closed tooltip has no layout. It must leave Escape to the visible surface beneath it. */
+export function hasVisibleOverlayOutside(root) {
+  const selectors = 'dialog[open], [role="dialog"], .sh-pop__popup:not([data-closed]), .sh-menu, .sh-popover, .shortcut-sheet, .sh-confirm';
+  return [...document.querySelectorAll(selectors)].some(layer => layer.getClientRects().length && !(root && layer.contains(root)));
+}
+
 /**
  * Register one open dismissable on the shared Escape stack; returns its cleanup.
  * Pure DOM helper behind `useDismiss`. When `escapeAnywhere` is true (e.g. Tooltip,
@@ -98,6 +104,10 @@ export function computePlacement({ anchor, size, bounds, placement = 'bottom-end
   return { placement: `${side}-${align === 'start' ? 'start' : 'end'}`, left, top, maxHeight };
 }
 
+const viewport = () => ({ left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight });
+const within = (box, outer) => ({ left: Math.max(box.left ?? outer.left, outer.left), top: Math.max(box.top ?? outer.top, outer.top),
+  right: Math.min(box.right ?? outer.right, outer.right), bottom: Math.min(box.bottom ?? outer.bottom, outer.bottom) });
+
 /**
  * Where an absolutely positioned (or, in the window itself, fixed) `element` that lives inside `host` goes next to `rect`, in the host's own
  * CSS pixels. Rectangles are screen pixels, the host may be zoomed (the interface size) and scrolled, so the element is measured from the
@@ -108,21 +118,17 @@ export function computePlacement({ anchor, size, bounds, placement = 'bottom-end
  */
 export function placeInHost({ element, host, rect, placement = 'bottom-end', flip = true, gap, margin, bounds }) {
   const fixed = host === document.body;
-  const box = bounds || (fixed ? { left: 0, top: 0, bottom: window.innerHeight, right: window.innerWidth } : host.getBoundingClientRect());
+  const box = bounds || (fixed ? viewport() : host.getBoundingClientRect());
   element.style.left = '0px';
   element.style.top = '0px';
   const size = element.getBoundingClientRect();
   const scale = element.offsetWidth ? size.width / element.offsetWidth : 1;
   const result = computePlacement({ anchor: rect, size, placement, flip, ...(gap === undefined ? {} : { gap: gap * scale }), ...(margin === undefined ? {} : { margin: margin * scale }),
-    bounds: { left: box.left, top: box.top, right: box.right, bottom: Math.min(box.bottom, window.innerHeight) } });
+    bounds: within(box, viewport()) });
   const origin = fixed ? { left: 0, top: 0 } : size;
   return { fixed, placement: result.placement, scale, left: (result.left - origin.left) / scale, top: (result.top - origin.top) / scale,
     maxHeight: size.height > result.maxHeight ? result.maxHeight / scale : undefined };
 }
-
-const viewport = () => ({ left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight });
-const within = (box, outer) => ({ left: Math.max(box.left ?? outer.left, outer.left), top: Math.max(box.top ?? outer.top, outer.top),
-  right: Math.min(box.right ?? outer.right, outer.right), bottom: Math.min(box.bottom ?? outer.bottom, outer.bottom) });
 
 /**
  * Keep a panel that CSS places under (or over) its anchor inside `boundsRef`
