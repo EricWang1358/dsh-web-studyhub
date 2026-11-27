@@ -15,7 +15,7 @@ import { importExample } from '../lib/deck-format.js';
 import { TASK_RULE, blueprintPrompts, qualityCriteriaFor } from '../lib/assessment-quality.js';
 import { authorPrompts, reviewPrompts } from '../lib/generation.js';
 import { generateBatched } from '../lib/batch.js';
-import { MAX_TASK_ISSUES, normalizeTaskStaticCheck, publicTaskRubric, renderRubric } from '../lib/case-study.js';
+import { normalizeTaskStaticCheck, publicTaskRubric, renderRubric } from '../lib/case-study.js';
 import { gradeTaskStatic } from '../lib/rubric-grading.js';
 import { stageGate } from '../lib/course-method-gate.js';
 import { methodProgress } from '../lib/course-method-progress.js';
@@ -351,21 +351,55 @@ test('card.grade writes per-criterion static check back to run & attempts, advan
     /satisfied.*missing.*issue/,
   );
 
-  // Submit 5 concrete issues: must strictly truncate concrete issues to MAX_TASK_ISSUES (3)!
-  assert.equal(MAX_TASK_ISSUES, 3);
+  // Exact cap-boundary checks on normalizeTaskStaticCheck: 3 issues are all kept without truncation, while 4 issues truncate strictly at 3.
+  const fiveIssueChecks = [
+    { id: 'c1', status: 'issue', line: 12, feedback: 'GET and DECRBY are split across two client calls instead of one Lua script.', evidence: 'const cur = await redis.get(key)' },
+    { id: 'c2', status: 'issue', line: '19-21', feedback: 'Zero quantity passes through without early rejection.' },
+    { id: 'c3', status: 'issue', line: 27, feedback: 'tonumber(nil) is not defaulted to 0 before comparison.' },
+    { id: 'c4', status: 'issue', line: 34, feedback: 'Comparison uses <= instead of <, blocking exact-stock purchase.' },
+    { id: 'c5', status: 'issue', line: 41, feedback: 'Returns boolean true instead of remaining integer stock.' },
+  ];
+  const exactThree = normalizeTaskStaticCheck({
+    files: ['src/stock.lua'],
+    checks: [
+      ...fiveIssueChecks.slice(0, 3),
+      { id: 'c4', status: 'satisfied', feedback: 'Underflow guard ok.' },
+      { id: 'c5', status: 'satisfied', feedback: 'Return contract ok.' },
+    ],
+  }, fiveCriteriaCard);
+  assert.equal(exactThree.taskCheck.issues.length, 3, 'exact 3 concrete issues are all retained');
+  assert.equal(exactThree.taskCheck.issueCount, 3);
+  assert.equal(exactThree.taskCheck.totalIssuesFound, 3);
+  assert.equal(exactThree.taskCheck.omittedIssueCount, 0);
+  assert.equal(exactThree.taskCheck.issuesTruncated, false);
+  assert.equal(exactThree.taskCheck.checks.some((item) => item.issueTruncated), false, 'no check is truncated at exact cap of 3');
+  assert.ok(exactThree.taskCheck.checks[2].detail, '3rd issue detail is preserved');
+
+  const fourIssues = normalizeTaskStaticCheck({
+    files: ['src/stock.lua'],
+    checks: [
+      ...fiveIssueChecks.slice(0, 4),
+      { id: 'c5', status: 'satisfied', feedback: 'Return contract ok.' },
+    ],
+  }, fiveCriteriaCard);
+  assert.equal(fourIssues.taskCheck.issues.length, 3, '4 concrete issues truncate strictly at 3');
+  assert.equal(fourIssues.taskCheck.issueCount, 3);
+  assert.equal(fourIssues.taskCheck.totalIssuesFound, 4);
+  assert.equal(fourIssues.taskCheck.omittedIssueCount, 1);
+  assert.equal(fourIssues.taskCheck.issuesTruncated, true);
+  assert.equal(fourIssues.taskCheck.checks[2].issueTruncated, undefined);
+  assert.ok(fourIssues.taskCheck.checks[2].detail);
+  assert.equal(fourIssues.taskCheck.checks[3].issueTruncated, true, '4th issue is truncated');
+  assert.equal(fourIssues.taskCheck.checks[3].detail, undefined);
+
+  // Submit 5 concrete issues via card.grade: must also strictly truncate concrete issues at 3.
   const graded = await service.call('card.grade', {
     deckId: 'd-tasks',
     cardId: 'task-5c',
     runId: run.id,
     files: ['src/stock.lua'],
     summary: 'Found several concurrency and boundary issues in src/stock.lua.',
-    checks: [
-      { id: 'c1', status: 'issue', line: 12, feedback: 'GET and DECRBY are split across two client calls instead of one Lua script.', evidence: 'const cur = await redis.get(key)' },
-      { id: 'c2', status: 'issue', line: '19-21', feedback: 'Zero quantity passes through without early rejection.' },
-      { id: 'c3', status: 'issue', line: 27, feedback: 'tonumber(nil) is not defaulted to 0 before comparison.' },
-      { id: 'c4', status: 'issue', line: 34, feedback: 'Comparison uses <= instead of <, blocking exact-stock purchase.' },
-      { id: 'c5', status: 'issue', line: 41, feedback: 'Returns boolean true instead of remaining integer stock.' },
-    ],
+    checks: fiveIssueChecks,
   });
 
   assert.equal(graded.taskCheck.issues.length, 3, 'concrete issue list strictly capped at 3');
