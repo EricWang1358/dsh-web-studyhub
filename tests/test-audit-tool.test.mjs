@@ -789,6 +789,139 @@ test('the PR gate blocks new assertions in place even at equal category totals, 
   assert.notEqual(gate('does-not-exist').status, 0, 'missing PR base must fail closed');
 });
 
+test('parseBaselineJson normalizes Windows paths and rejects invalid totals fields', () => {
+  const winBaseline = parseBaselineJson(JSON.stringify({
+    version: 1,
+    totals: { hits: 2, files: 1, byCategory: { 1: 2 } },
+    files: { 'tests\\win-style.test.mjs': { 1: 2 } },
+  }));
+  assert.deepEqual(winBaseline.counts, { 'tests/win-style.test.mjs': { 1: 2 } });
+
+  const unchanged = diffAgainstBaseline({
+    files: [{
+      file: 'tests/win-style.test.mjs',
+      score: 20,
+      counts: { 1: 2 },
+      hits: [
+        { category: 1, file: 'tests/win-style.test.mjs', line: 3, message: 'a' },
+        { category: 1, file: 'tests/win-style.test.mjs', line: 4, message: 'b' },
+      ],
+    }],
+  }, winBaseline);
+  assert.equal(unchanged.newHits, 0);
+
+  assert.throws(
+    () => parseBaselineJson(JSON.stringify({ version: 1, totals: { files: -1 }, files: {} })),
+    /"totals\.files"/i,
+  );
+  assert.throws(
+    () => parseBaselineJson(JSON.stringify({ version: 1, totals: { byCategory: { 9: 1 } }, files: {} })),
+    /unknown category/i,
+  );
+  assert.throws(
+    () => parseBaselineJson(JSON.stringify({ version: 1, totals: { byCategory: { 1: -1 } }, files: {} })),
+    /invalid count/i,
+  );
+});
+
+test('CLI --compare-baseline exits 0, isolates new hits despite net reductions, formats step summary, and tolerates summary I/O errors', async t => {
+  const root = await fixture(t, {
+    'lib/cards.js': "export const MAX_ITEMS = 7;\nexport const cardOf = ({ topic }) => ({ publicCard: topic });\n",
+    'tests/unchanged.test.mjs': `import { readFileSync } from 'node:fs';
+test('unchanged source check', () => {
+  const src = readFileSync('lib/cards.js', 'utf8');
+  assert.ok(src.includes('publicCard'));
+});
+`,
+    'tests/improved.test.mjs': `import { readFileSync } from 'node:fs';
+test('improved checks', () => {
+  const src = readFileSync('lib/cards.js', 'utf8');
+  assert.ok(src.includes('a'));
+  assert.ok(src.includes('b'));
+  assert.ok(src.includes('c'));
+});
+`,
+    'tests/mixed.test.mjs': `import { readFileSync } from 'node:fs';
+test('mixed checks', () => {
+  const src = readFileSync('lib/cards.js', 'utf8');
+  assert.ok(src.includes('x'));
+  assert.ok(src.includes('y'));
+});
+`,
+  });
+
+  const cli = fileURLToPath(new URL('../scripts/test-audit.mjs', import.meta.url));
+  const runCli = (args, extraEnv = {}) => spawnSync(process.execPath, [cli, '--root=' + root, ...args], {
+    cwd: root,
+    encoding: 'utf8',
+    env: { ...process.env, ...extraEnv },
+    windowsHide: true,
+  });
+
+  const wrote = runCli(['--write-baseline']);
+  assert.equal(wrote.status, 0, wrote.stderr);
+
+  // Reduce 4 existing hits while introducing 2 new hits (1 brand-new file + 1 new category in mixed.test.mjs).
+  // Net repo total drops by 2, yet both regressions must be reported without blocking (exit 0).
+  await writeFile(join(root, 'tests/improved.test.mjs'), `import test from 'node:test';
+import assert from 'node:assert/strict';
+test('cleaned behavior test', () => { assert.equal(1 + 1, 2); });
+`);
+  await writeFile(join(root, 'tests/mixed.test.mjs'), `import { readFileSync } from 'node:fs';
+test('mixed checks', () => {
+  const src = readFileSync('lib/cards.js', 'utf8');
+  assert.ok(src.includes('x'));
+  assert.equal(MAX_ITEMS, 7);
+});
+`);
+  await writeFile(join(root, 'tests/brand-new.test.mjs'), `import { readFileSync } from 'node:fs';
+test('brand new grep test', () => {
+  const src = readFileSync('lib/cards.js', 'utf8');
+  assert.ok(src.includes('MAX_ITEMS'));
+});
+`);
+
+  const summaryFile = join(root, 'step-summary.md');
+  await writeFile(summaryFile, 'Prior step summary line\n', 'utf8');
+
+  const compared = runCli(['--compare-baseline=docs/test-audit-baseline.json', '--annotations'], {
+    GITHUB_STEP_SUMMARY: summaryFile,
+  });
+  assert.equal(compared.status, 0, compared.stderr);
+  assert.match(compared.stdout, /Found \*\*\+2 new hit\(s\)\*\* in \*\*2 file\(s\)\*\*/);
+  assert.match(compared.stdout, /cleaned up: -4/);
+  assert.match(compared.stdout, /::warning file=tests\/brand-new\.test\.mjs,line=4,title=test-audit \(cat 1\)::/);
+  assert.match(compared.stdout, /::warning file=tests\/mixed\.test\.mjs,line=5,title=test-audit \(cat 6\)::/);
+  assert.doesNotMatch(compared.stdout, /::error /);
+  assert.doesNotMatch(compared.stdout, /tests\/unchanged\.test\.mjs/);
+  assert.doesNotMatch(compared.stdout, /tests\/improved\.test\.mjs/);
+
+  const summary = await readFile(summaryFile, 'utf8');
+  assert.match(summary, /Prior step summary line\n\n## Test audit \(advisory, non-blocking\)/);
+  assert.match(summary, /tests\/brand-new\.test\.mjs/);
+  assert.match(summary, /tests\/mixed\.test\.mjs/);
+
+  // Unwritable GITHUB_STEP_SUMMARY path must never turn advisory mode into a non-zero exit.
+  const badSummary = runCli(['--compare-baseline=docs/test-audit-baseline.json'], {
+    GITHUB_STEP_SUMMARY: join(root, 'missing-dir', 'summary.md'),
+  });
+  assert.equal(badSummary.status, 0, badSummary.stderr);
+  assert.match(badSummary.stdout, /could not append to GITHUB_STEP_SUMMARY/i);
+
+  // Missing and corrupt baselines must also stay exit 0 via the CLI entrypoint.
+  const missing = runCli(['--compare-baseline=docs/does-not-exist.json']);
+  assert.equal(missing.status, 0, missing.stderr);
+  assert.match(missing.stdout, /baseline file not found/i);
+
+  const baselineFile = join(root, 'docs', 'test-audit-baseline.json');
+  const corrupt = '{"version": 999, "files": {}}\n';
+  await writeFile(baselineFile, corrupt, 'utf8');
+  const invalid = runCli(['--compare-baseline=docs/test-audit-baseline.json']);
+  assert.equal(invalid.status, 0, invalid.stderr);
+  assert.match(invalid.stdout, /failed to load baseline/i);
+  assert.equal(await readFile(baselineFile, 'utf8'), corrupt);
+});
+
 async function fixture(t, files) {
   const root = await mkdtemp(join(tmpdir(), 'test-audit-'));
   t.after(() => rm(root, { recursive: true, force: true }));

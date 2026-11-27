@@ -161,3 +161,66 @@ test('the Spring tag scheme never starts a main-product release', () => {
   assert.ok(mainReleaseTags.every(filter => filter.test('v4.16.0')), 'the filters are read as GitHub reads them');
   assert.ok(mainReleaseTags.every(filter => !filter.test(springTag)));
 });
+
+test('verify workflow runs baseline test audit as a non-blocking warning step and posts the report to job summary', t => {
+  const lintSteps = verify.jobs.lint.steps;
+  const auditIndex = lintSteps.findIndex(
+    step => typeof step.run === 'string' && step.run.includes('scripts/test-audit.mjs') && step.run.includes('--compare-baseline=docs/test-audit-baseline.json'),
+  );
+  assert.ok(auditIndex >= 0, 'verify.yml lint job must run scripts/test-audit.mjs --compare-baseline=docs/test-audit-baseline.json');
+  const auditStep = lintSteps[auditIndex];
+  assert.equal(auditStep['continue-on-error'], true, 'advisory baseline comparison must be non-blocking');
+  assert.match(auditStep.run, /--annotations\b/, 'advisory baseline comparison must emit GitHub warning annotations');
+
+  const gateIndex = lintSteps.findIndex(step => typeof step.run === 'string' && step.run.includes('--gate-from='));
+  assert.ok(gateIndex > auditIndex, 'advisory baseline report must run before the blocking --gate-from step so job summary is always posted');
+
+  const standaloneAudit = workflow('test-audit.yml');
+  assert.equal('pull_request' in standaloneAudit.on, false, 'test-audit.yml must not duplicate pull_request warnings already emitted by verify.yml');
+  assert.equal('workflow_dispatch' in standaloneAudit.on, true, 'test-audit.yml keeps manual workflow_dispatch entry point');
+
+  // Execute the exact verify.yml command against an isolated fixture repo with a newly introduced hit.
+  const dir = mkdtempSync(join(tmpdir(), 'studyhub-verify-audit-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, 'lib'), { recursive: true });
+  mkdirSync(join(dir, 'tests'), { recursive: true });
+  mkdirSync(join(dir, 'docs'), { recursive: true });
+  writeFileSync(join(dir, 'lib', 'sample.js'), 'export const LIMIT = 3;\n');
+  writeFileSync(join(dir, 'tests', 'existing.test.mjs'), [
+    "import { readFileSync } from 'node:fs';",
+    "test('existing hit', () => {",
+    "  const src = readFileSync('lib/sample.js', 'utf8');",
+    "  assert.ok(src.includes('LIMIT'));",
+    '});',
+  ].join('\n'));
+  const cli = join(root, 'scripts', 'test-audit.mjs');
+  const writeBase = spawnSync(process.execPath, [cli, '--root=' + dir, '--write-baseline'], {
+    cwd: root, encoding: 'utf8', windowsHide: true,
+  });
+  assert.equal(writeBase.status, 0, writeBase.stderr);
+
+  writeFileSync(join(dir, 'tests', 'new-hit.test.mjs'), [
+    "import { readFileSync } from 'node:fs';",
+    "test('new regression hit', () => {",
+    "  const src = readFileSync('lib/sample.js', 'utf8');",
+    "  assert.ok(src.includes('export'));",
+    '});',
+  ].join('\n'));
+
+  const tokens = auditStep.run.trim().split(/\s+/);
+  assert.equal(tokens[0], 'node');
+  const summaryFile = join(dir, 'summary.md');
+  const res = spawnSync(process.execPath, [...tokens.slice(1), '--root=' + dir], {
+    cwd: root,
+    encoding: 'utf8',
+    env: { ...process.env, GITHUB_STEP_SUMMARY: summaryFile },
+    windowsHide: true,
+  });
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stdout, /::warning file=tests\/new-hit\.test\.mjs,line=4,title=test-audit \(cat 1\)::/);
+  assert.doesNotMatch(res.stdout, /::error /);
+  assert.doesNotMatch(res.stdout, /tests\/existing\.test\.mjs/);
+  const summary = readFileSync(summaryFile, 'utf8');
+  assert.match(summary, /## Test audit \(advisory, non-blocking\)/);
+  assert.match(summary, /tests\/new-hit\.test\.mjs/);
+});
