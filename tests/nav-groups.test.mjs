@@ -128,6 +128,17 @@ test('「更多」 is a row with aria-expanded over a native fold, so the finder
   assert.match(flagged, /role="tooltip"[^>]*>1 个任务没有完成，点开看原因/, 'with its reason');
 });
 
+test('#1689: an open fold says nothing about itself, so no card lies over the rows it just showed; the row keeps its anchor and the keys stay on it', () => {
+  setUiLanguage('zh');
+  const draw = (open, extra = {}) => html(h(NavFold, { id: 'more', glyph: 'more', label: '更多', purpose: '其余的功能按内容分组收在这里', open, onToggle() {}, ...extra }, h('i')));
+  assert.match(draw(false), /role="tooltip"[^>]*>其余的功能按内容分组收在这里/, 'folded, the card says what is inside (and how to move rows)');
+  const open = draw(true);
+  assert.doesNotMatch(open, /其余的功能按内容分组收在这里/);
+  // The same elements around the button, open or folded: React keeps the button, so a keyboard press does not lose the focus.
+  assert.match(open, /<span class="sh-popover-anchor nav-tip"[^>]*><button[^>]*class="nav nav-fold__toggle"/);
+  assert.match(draw(false), /<span class="sh-popover-anchor nav-tip"[^>]*><button[^>]*class="nav nav-fold__toggle"/);
+});
+
 test('English renders without Han, and every label has English text', () => {
   setUiLanguage('en');
   try {
