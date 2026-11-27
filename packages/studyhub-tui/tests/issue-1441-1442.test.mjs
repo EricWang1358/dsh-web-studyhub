@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { after, describe, test } from 'node:test';
+import ts from 'typescript';
 import { register } from 'tsx/esm/api';
 
 const unregisterTsx = register();
@@ -128,12 +129,29 @@ describe('#1441: openExternal & app.open local HTML path allowlist inside study 
     }
   });
 
-  test('3. CompanionsModal app.open call does not pass unused path parameter', () => {
-    const src = fs.readFileSync(
-      path.resolve(testsDir, '../src/views/sources/CompanionsModal.tsx'),
-      'utf8',
-    );
-    assert.ok(!src.includes("tryAction(host, 'app.open', { url: openTarget, path: rawPath })"), 'CompanionsModal must not pass unused path param to app.open');
+  test('3. CompanionsModal app.open call passes url without unused path parameter', () => {
+    const filePath = path.resolve(testsDir, '../src/views/sources/CompanionsModal.tsx');
+    const sf = ts.createSourceFile(filePath, fs.readFileSync(filePath, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const appOpenPayloads = [];
+    const visit = (node) => {
+      if (ts.isCallExpression(node) && node.arguments.length >= 3) {
+        const actionArg = node.arguments[1];
+        const payloadArg = node.arguments[2];
+        if (ts.isStringLiteral(actionArg) && actionArg.text === 'app.open' && ts.isObjectLiteralExpression(payloadArg)) {
+          const propNames = payloadArg.properties
+            .map((p) => (ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p)) && ts.isIdentifier(p.name) ? p.name.text : null)
+            .filter(Boolean);
+          appOpenPayloads.push(propNames);
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sf);
+    assert.ok(appOpenPayloads.length >= 1, 'CompanionsModal must call app.open with an object payload');
+    for (const props of appOpenPayloads) {
+      assert.ok(props.includes('url'), `app.open payload must include url: ${JSON.stringify(props)}`);
+      assert.equal(props.includes('path'), false, `app.open payload must not pass unused path param: ${JSON.stringify(props)}`);
+    }
   });
 });
 
@@ -166,10 +184,27 @@ describe('#1442: Plain explanation saved followup uses learner-friendly title in
   });
 
   test('2. AssistantPanel uses resolvePlainExplainQuestionTitle for card.followup.add question field', () => {
-    const src = fs.readFileSync(
-      path.resolve(testsDir, '../src/shell/AssistantPanel.tsx'),
-      'utf8',
+    const filePath = path.resolve(testsDir, '../src/shell/AssistantPanel.tsx');
+    const sf = ts.createSourceFile(filePath, fs.readFileSync(filePath, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    let foundResolvedQuestion = false;
+    const visit = (node) => {
+      if (
+        ts.isPropertyAssignment(node) &&
+        ts.isIdentifier(node.name) &&
+        node.name.text === 'question' &&
+        ts.isCallExpression(node.initializer) &&
+        ts.isIdentifier(node.initializer.expression) &&
+        node.initializer.expression.text === 'resolvePlainExplainQuestionTitle'
+      ) {
+        foundResolvedQuestion = true;
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sf);
+    assert.equal(
+      foundResolvedQuestion,
+      true,
+      'AssistantPanel must pass resolvePlainExplainQuestionTitle() to card.followup.add question field',
     );
-    assert.match(src, /question:\s*resolvePlainExplainQuestionTitle\(/, 'AssistantPanel must pass resolvePlainExplainQuestionTitle() to card.followup.add');
   });
 });

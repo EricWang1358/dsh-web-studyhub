@@ -1025,7 +1025,7 @@ describe('Round 47: Batch Topic Retagging (card.update.batch)', () => {
     }
   });
 
-  test('2) PTY E2E (120x36 zh): DeckManageModal Space multi-select 2 cards -> T -> Esc cancel -> T -> type topic -> Enter', async () => {
+  test('2) PTY E2E (120x36 zh): DeckManageModal batch retag topic via [T] (Esc cancel then apply)', async () => {
     const base = await temps.make('r47-pty-zh');
     const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     process.env.DSH_HOME = env.DSH_HOME;

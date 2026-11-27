@@ -100,10 +100,46 @@ describe('#1429 Esc consumption guardrail (legacy useInput handlers)', () => {
   });
 
   test('DraftEditor keeps a single Ctrl+S save path shared by the modal footer and both multi-line inputs', () => {
-    const src = fs.readFileSync(path.join(SRC_ROOT, 'views/generate/DraftEditor.tsx'), 'utf8');
-    assert.match(src, /const saveEditCard = useCallback/, 'DraftEditor must extract saveEditCard()');
-    const editCardSection = src.slice(src.indexOf("overlay === 'edit-card' && selectedCard"));
-    const inputsWithSubmit = editCardSection.match(/onSubmit=\{saveEditCard\}/g) ?? [];
-    assert.equal(inputsWithSubmit.length, 2, 'both edit-card multi-line TextInputs must pass onSubmit={saveEditCard}');
+    const filePath = path.join(SRC_ROOT, 'views/generate/DraftEditor.tsx');
+    const sf = ts.createSourceFile(filePath, fs.readFileSync(filePath, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    let hasSaveEditCard = false;
+    let editCardSubmitInputs = 0;
+
+    const visit = (node) => {
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.name.text === 'saveEditCard' &&
+        node.initializer &&
+        ts.isCallExpression(node.initializer) &&
+        ts.isIdentifier(node.initializer.expression) &&
+        node.initializer.expression.text === 'useCallback'
+      ) {
+        hasSaveEditCard = true;
+      }
+      if (ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) {
+        if (ts.isIdentifier(node.tagName) && node.tagName.text === 'TextInput') {
+          for (const attr of node.attributes.properties) {
+            if (
+              ts.isJsxAttribute(attr) &&
+              ts.isIdentifier(attr.name) &&
+              attr.name.text === 'onSubmit' &&
+              attr.initializer &&
+              ts.isJsxExpression(attr.initializer) &&
+              attr.initializer.expression &&
+              ts.isIdentifier(attr.initializer.expression) &&
+              attr.initializer.expression.text === 'saveEditCard'
+            ) {
+              editCardSubmitInputs += 1;
+            }
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sf);
+
+    assert.equal(hasSaveEditCard, true, 'DraftEditor must define saveEditCard via useCallback');
+    assert.equal(editCardSubmitInputs, 2, 'both edit-card multi-line TextInputs must pass onSubmit={saveEditCard}');
   });
 });

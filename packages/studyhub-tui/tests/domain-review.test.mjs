@@ -7,7 +7,7 @@ import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { after, describe, test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { render } from 'ink';
+import { Box, render } from 'ink';
 import React from 'react';
 import { register } from 'tsx/esm/api';
 import {
@@ -19,7 +19,6 @@ import {
   distDir,
   installNoNetworkGuard,
   loadDistRuntime,
-  pkgRoot,
   sanitizedTestEnv,
 } from './helpers/virtual-tty.mjs';
 
@@ -1527,7 +1526,7 @@ describe('Round 54: CardToolsModal [R] Failed Rewrite Retry (coach.rewrite.retry
 });
 
 describe('Round 60 Track 1: CoachNudgeModal (coach.nudge + coach.reply) with P2 ConfirmDialog Guard', () => {
-  test('1) Unit & static guard: normalizeAsciiChrome strips Unicode chrome from LLM nudge/followup text and CoachNudgeModal sanitizes note fields', () => {
+  test('1) Unit & live render guard: normalizeAsciiChrome strips Unicode chrome from LLM nudge/followup text and CoachNudgeModal renders ASCII-clean output', async () => {
     const rawNudge = 'TCP vs UDP reliability … ✓ → •';
     const clean = normalizeAsciiChrome(rawNudge, true);
     assert.equal(clean.match(UNICODE_UI_CHROME_RE), null, `ASCII sanitized output must have zero Unicode chrome: ${clean}`);
@@ -1537,8 +1536,64 @@ describe('Round 60 Track 1: CoachNudgeModal (coach.nudge + coach.reply) with P2 
     assert.equal(normalizeAsciiChrome('keep original ✓', false), 'keep original ✓');
     assert.equal(normalizeAsciiChrome('▸ Item • ☑ Done ☐ Todo ⚠ Warn', true).match(UNICODE_UI_CHROME_RE), null);
 
-    const modalSrc = fs.readFileSync(join(pkgRoot, 'src/views/review/CoachNudgeModal.tsx'), 'utf8');
-    assert.ok(modalSrc.includes('normalizeAsciiChrome'), 'CoachNudgeModal must sanitize rendered text via normalizeAsciiChrome');
+    const [{ CoachNudgeModal }, { useTuiStore }] = await Promise.all([
+      import('../src/views/review/CoachNudgeModal.tsx'),
+      import('../src/state/store.ts'),
+    ]);
+    const prevPrefs = useTuiStore.getState().preferences;
+    useTuiStore.setState({ preferences: { ...DEFAULT_PREFERENCES, language: 'en', asciiMode: true } });
+    const tty = createVirtualTty(100, 26);
+    let inst = null;
+    try {
+      inst = render(
+        React.createElement(
+          Box,
+          { width: 100, height: 26 },
+          React.createElement(CoachNudgeModal, {
+            host: {
+              call: async () => ({ ok: true, value: {} }),
+              onEvent: () => () => {},
+              dispose: async () => {},
+            },
+            run: {
+              id: 'run-ascii',
+              title: 'Network',
+              index: 0,
+              total: 1,
+              answered: 0,
+              revealed: false,
+              card: { id: 'c1', deckId: 'd1', kind: 'short', prompt: 'Explain TCP vs UDP' },
+            },
+            cardId: 'c1',
+            width: 96,
+            height: 24,
+            isActive: false,
+            initialNote: {
+              id: 'n1',
+              type: 'nudge',
+              runId: 'run-ascii',
+              entryIndex: 0,
+              point: 'TCP vs UDP reliability … ✓',
+              explain: 'Ordered delivery → • check ACK',
+            },
+            onClose: () => {},
+          }),
+        ),
+        { stdin: tty.stdin, stdout: tty.stdout, stderr: tty.stderr, interactive: true, exitOnCtrlC: false, patchConsole: false },
+      );
+      await tty.waitFor((s) => s.includes('TCP vs UDP reliability'), { timeoutMs: 4_000, label: 'CoachNudgeModal ASCII render' });
+      const screen = tty.readScreen();
+      assert.equal(screen.match(UNICODE_UI_CHROME_RE), null, `CoachNudgeModal ASCII screen must not leak Unicode chrome:\n${screen}`);
+      assert.ok(screen.includes('...'), 'CoachNudgeModal must downgrade ellipsis to ... in ASCII mode');
+    } finally {
+      try {
+        inst?.unmount();
+      } catch {
+        // ignore
+      }
+      tty.dispose();
+      useTuiStore.setState({ preferences: prevPrefs });
+    }
   });
 
   test('2) createTuiHost integration: coach.nudge + coach.reply (check / got / confused) round-trip cleanly with strict call counts', async () => {

@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
+import ts from 'typescript';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const pkgRoot = path.resolve(__dirname, '..');
@@ -139,9 +140,46 @@ test('P3-b: desktop applyConfigPatch persists mode + openai + reasoningEffort in
 });
 
 test('P3-b guardrail: settings, decks, board, drafts, notes, and focus use single atomic writes or tx-write rollback helpers', () => {
-  const modelsTab = fs.readFileSync(path.join(srcDir, 'views/settings/ModelsTab.tsx'), 'utf8');
-  assert.match(modelsTab, /reasoningEffort:\s*openaiEffort/, 'ModelsTab must send reasoningEffort in the single desktop.config.save write');
-  assert.doesNotMatch(modelsTab, /'binding\.set'/, 'ModelsTab must not split OpenAI save into two writes (desktop.config.save + binding.set)');
+  const modelsPath = path.join(srcDir, 'views/settings/ModelsTab.tsx');
+  const modelsSf = ts.createSourceFile(
+    modelsPath,
+    fs.readFileSync(modelsPath, 'utf8'),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  let hasReasoningEffortPatch = false;
+  let callsBindingSet = false;
+  const visitModels = (node) => {
+    if (
+      ts.isPropertyAssignment(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === 'reasoningEffort' &&
+      ts.isIdentifier(node.initializer) &&
+      node.initializer.text === 'openaiEffort'
+    ) {
+      hasReasoningEffortPatch = true;
+    }
+    if (ts.isCallExpression(node)) {
+      for (const arg of node.arguments) {
+        if (ts.isStringLiteral(arg) && arg.text === 'binding.set') {
+          callsBindingSet = true;
+        }
+      }
+    }
+    ts.forEachChild(node, visitModels);
+  };
+  visitModels(modelsSf);
+  assert.equal(
+    hasReasoningEffortPatch,
+    true,
+    'ModelsTab must send reasoningEffort: openaiEffort in the single desktop.config.save write',
+  );
+  assert.equal(
+    callsBindingSet,
+    false,
+    'ModelsTab must not split OpenAI save into two writes (desktop.config.save + binding.set)',
+  );
 
   for (const rel of [
     'views/library/DeckManageModal.tsx',
@@ -150,7 +188,14 @@ test('P3-b guardrail: settings, decks, board, drafts, notes, and focus use singl
     'views/notes/NoteEditorModal.tsx',
     'views/examprep/AddFocusModal.tsx',
   ]) {
-    const code = fs.readFileSync(path.join(srcDir, rel), 'utf8');
-    assert.match(code, /tx-write\.js/, `${rel} must use host/tx-write.js transactional write/rollback primitives`);
+    const filePath = path.join(srcDir, rel);
+    const sf = ts.createSourceFile(filePath, fs.readFileSync(filePath, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const importsTxWrite = sf.statements.some(
+      (stmt) =>
+        ts.isImportDeclaration(stmt) &&
+        ts.isStringLiteral(stmt.moduleSpecifier) &&
+        stmt.moduleSpecifier.text.endsWith('/tx-write.js'),
+    );
+    assert.equal(importsTxWrite, true, `${rel} must import host/tx-write.js transactional write/rollback primitives`);
   }
 });

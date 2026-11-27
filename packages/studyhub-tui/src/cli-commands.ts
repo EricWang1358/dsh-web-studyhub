@@ -1,3 +1,5 @@
+import { selectBoardQueueMetrics } from './selectors/board-metrics.js';
+import { singleLine, todayLocalYmd } from './selectors/primitives.js';
 import {
   buildDoctorReport,
   buildStatsSummary,
@@ -275,10 +277,6 @@ export async function runExportFastPath(args: ParsedCliArgs, version = '1.0.0'):
 
 function strVal(value: unknown): string {
   return typeof value === 'string' ? value : typeof value === 'number' ? String(value) : '';
-}
-
-function singleLine(value: unknown): string {
-  return strVal(value).replace(/\s+/g, ' ').trim();
 }
 
 function clipText(value: unknown, max: number, ascii: boolean): string {
@@ -668,53 +666,21 @@ export function buildBoardCliReport(opts: {
   version?: string;
   generatedAt?: string;
 }): BoardCliReport {
-  const today = opts.todayYmd ?? new Date().toISOString().slice(0, 10);
+  const today = opts.todayYmd ?? todayLocalYmd();
   const courseFilterRaw = (opts.courseFilter ?? '').trim();
-  const courseNeedle = courseFilterRaw.toLowerCase();
-  const colRank: Record<'todo' | 'doing' | 'done', number> = { doing: 0, todo: 1, done: 2 };
+  const queue = selectBoardQueueMetrics(opts.doc.cards ?? [], {
+    todayYmd: today,
+    courseFilter: courseFilterRaw || undefined,
+  });
 
-  const cards: BoardCliCard[] = [];
-  let todo = 0;
-  let doing = 0;
-  let done = 0;
-  let overdue = 0;
-  let dueToday = 0;
-
-  for (const c of opts.doc.cards ?? []) {
-    const course = singleLine(c.course);
-    if (courseNeedle && !course.toLowerCase().includes(courseNeedle)) continue;
-    const dueDate = singleLine(c.dueDate);
-    let status: BoardCliCard['status'] = 'none';
-    if (dueDate) {
-      if (c.column === 'done') status = 'done';
-      else if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) status = 'upcoming';
-      else if (dueDate < today) status = 'overdue';
-      else if (dueDate === today) status = 'today';
-      else status = 'upcoming';
-    }
-    if (c.column === 'todo') todo += 1;
-    else if (c.column === 'doing') doing += 1;
-    else done += 1;
-    if (status === 'overdue') overdue += 1;
-    if (status === 'today') dueToday += 1;
-
-    cards.push({
-      id: c.id,
-      title: singleLine(c.title) || c.id,
-      column: c.column,
-      course,
-      dueDate,
-      status,
-    });
-  }
-
-  cards.sort(
-    (a, b) =>
-      colRank[a.column] - colRank[b.column] ||
-      (a.status === 'overdue' ? 0 : a.status === 'today' ? 1 : 2) -
-        (b.status === 'overdue' ? 0 : b.status === 'today' ? 1 : 2) ||
-      a.title.localeCompare(b.title),
-  );
+  const cards: BoardCliCard[] = queue.classified.map(({ card, status }) => ({
+    id: card.id,
+    title: singleLine(card.title) || card.id,
+    column: card.column,
+    course: singleLine(card.course),
+    dueDate: singleLine(card.dueDate),
+    status,
+  }));
 
   return {
     version: opts.version ?? '1.0.0',
@@ -724,12 +690,12 @@ export function buildBoardCliReport(opts: {
     courseFilter: courseFilterRaw || null,
     generatedAt: opts.generatedAt ?? new Date().toISOString(),
     counts: {
-      total: cards.length,
-      todo,
-      doing,
-      done,
-      overdue,
-      dueToday,
+      total: queue.total,
+      todo: queue.todo,
+      doing: queue.doing,
+      done: queue.done,
+      overdue: queue.overdue,
+      dueToday: queue.dueToday,
     },
     focusStats: opts.doc.focusStats ? { ...opts.doc.focusStats } : null,
     cards,
@@ -793,7 +759,7 @@ export function formatBoardCliReport(report: BoardCliReport, ascii = false): str
  * Run `--board` offline Kanban summary directly from `<libraryRoot>/tui-board.json` without mounting React/Ink/StudyRuntime.
  */
 export async function runBoardFastPath(parsed: ParsedCliArgs, version = '1.0.0'): Promise<void> {
-  const [{ resolve: resolvePath }, { boardFilePath, loadBoardSafe, todayLocalYmd }] = await Promise.all([
+  const [{ resolve: resolvePath }, { boardFilePath, loadBoardSafe }] = await Promise.all([
     import('node:path'),
     import('./views/board/board-store.js'),
   ]);
