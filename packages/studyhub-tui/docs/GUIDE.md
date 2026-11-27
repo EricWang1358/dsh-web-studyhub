@@ -312,12 +312,13 @@ node packages/studyhub-tui/bin/studyhub-tui.mjs --root /path/to/.dsh-study
 | --- | --- |
 | `--doctor` | 检查终端环境、色彩能力、Unicode/ASCII 策略、终端能力矩阵（tmux/screen、OSC 52/8/2/9、DEC 1004 焦点上报、6 套主题）、学习库绑定状态与各模型提供方就绪状态（绝不泄露 API Key） |
 | `--stats` | 离线输出学习库总览统计（课程数、题组/题数、今日到期、掌握度分布） |
-| `--due [--course 课程名]` | 按题组列出今日到期复习队列汇总 |
+| `--due [--course 课程名] [--limit N]` | 按题组列出今日到期复习队列汇总（默认最多 20 条，可用 `--limit` 限制为 1..100） |
 | `--board [--course 课程名]` | 直接读取 `tui-board.json` 输出三列待办看板与番茄钟摘要 |
 | `--search <关键词> [--limit N]` | 离线关键词搜索题库题目与资料正文 |
 | `--export [相对路径]` | 一键原子化导出整个学习库 JSON 备份。**导出位置**：严格保存在 `<学习库根目录>/backups/` 下（默认文件名 `studyhub-backup-YYYY-MM-DD-HHmmss.json`） |
 | `--root <路径>` / `--library <路径>` | 指定学习库目录 |
 | `--page <id>` / `--theme <id>` / `--lang <zh\|en>` | 启动时指定默认进入的页面、主题或语言 |
+| `--no-alt-screen` / `--no-launchpad` / `--skip-probe` | 内联渲染不切备用屏幕 / 空库时跳过新手启动台 / 启动时跳过后台 CLI 模型自动探测 |
 | `--mouse` / `--no-mouse` / `--mouse-alt=0` | 启用/禁用 SGR 鼠标；默认 Alt+点击生效、普通点击保留终端选择，`--mouse-alt=0` 放开普通点击 |
 | `--ascii` / `--unicode` | 强制开启或关闭纯 ASCII 边框与图标模式 |
 

@@ -194,7 +194,7 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = memo(function Appeara
       key: 'theme' as const,
       label: t(lang, '配色主题 (Theme)', 'Color Theme'),
       value: getTheme(prefs.theme).label,
-      hint: t(lang, `${arrows} 切换 4 套终端主题，即时生效`, `${arrows} cycle 4 themes with live preview`),
+      hint: t(lang, `${arrows} 切换 ${THEME_IDS.length} 套终端主题，即时生效`, `${arrows} cycle ${THEME_IDS.length} themes with live preview`),
     },
     {
       key: 'language' as const,
