@@ -1,6 +1,6 @@
 [package]
 name = "studyhub-desktop"
-version = "5.3.3"
+version = "5.4.0"
 description = "StudyHub Desktop shell (Tauri v2)"
 authors = ["ericwang1358"]
 license = "MIT"

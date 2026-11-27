@@ -1,6 +1,6 @@
 {
   "name": "@ericwang1358/dsh-daily-flashcard",
-  "version": "5.3.3",
+  "version": "5.4.0",
   "description": "StudyHub: turn your lecture slides into questions that each link back to their page, plus cross-discipline Interactive Companions (offline MathML & sandboxes), review books, mock exams, and FSRS-6 spaced review.",
   "repository": {
     "type": "git",
