@@ -13,6 +13,7 @@ import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 /* The home and 统计 of the sample course, measured in a real browser (#1690, #1703, #1704):
      1690  at 420px every part of the home's left column sits under the course heading, the pace line right after 掌握度, and a part nobody gave a place
            still cannot rise above the heading;
+     1703  at 1280 and 1440, no line of a 需要补强 row on 统计 holds a single character, and the count with its unit is never split;
    HOME_LAYOUT_SHOTS=<dir> keeps a screenshot of each place. */
 
 const SHOTS = process.env.HOME_LAYOUT_SHOTS || '';
@@ -62,6 +63,40 @@ test('the sample course\'s home and 统计 in a real browser', { timeout: 900000
       assert.ok(added['unplaced-part'] > added['course-header'], `a part with no place of its own stays under the heading: ${JSON.stringify(added)}`);
       assert.deepEqual(errors, []);
       await context.close();
+    });
+
+    await t.test('#1703: no 需要补强 row of 统计 leaves a single character on a line or splits the count from its unit, at 1280 and 1440', async () => {
+      for (const width of [1280, 1440]) {
+        const { context, page } = await open(browser, server, { width });
+        await page.locator('[data-tour="nav-dashboard"]').first().click();
+        await page.locator('.dash-weak-row').first().waitFor({ timeout: 30000 });
+        await page.waitForTimeout(800);
+        const rows = () => page.evaluate(() => [...document.querySelector('.dash-weak').querySelectorAll('.dash-weak-row')].map((row) => {
+          // The description as the screen breaks it: its characters grouped by the line they are drawn on.
+          const small = row.querySelector('.dash-weak-name small'), walker = document.createTreeWalker(small, 4), range = document.createRange(), lines = new Map();
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) for (let at = 0; at < node.length; at += 1) {
+            range.setStart(node, at); range.setEnd(node, at + 1);
+            const box = range.getClientRects()[0];
+            if (box && box.width) lines.set(Math.round(box.top), (lines.get(Math.round(box.top)) || '') + node.data[at]);
+          }
+          return [...lines.values()].map((line) => line.trim()).filter(Boolean);
+        }));
+        const check = (seen, when) => {
+          assert.ok(seen.length >= 2, `${width}px: the sample has weak topics`);
+          for (const lines of seen) {
+            assert.ok(lines.every((line) => line.length > 1), `${width}px ${when}: a single character on a line of its own ${JSON.stringify(lines)}`);
+            assert.ok(lines.some((line) => /当前薄弱 \d+ 题/.test(line)), `${width}px ${when}: the count and its unit share a line ${JSON.stringify(lines)}`);
+          }
+        };
+        check(await rows(), 'as drawn');
+        await shot(page, `stats-weak-${width}`);
+        // A longer deck name wraps above the count; the count still goes down whole.
+        for (let extra = 1; extra <= 12; extra += 1) {
+          await page.evaluate((more) => { for (const lead of document.querySelectorAll('.dash-weak-name small')) { const node = document.createTreeWalker(lead, 4).nextNode(); node.original ??= node.data; node.data = `${'课'.repeat(more * 3)}${node.original}`; } }, extra);
+          check(await rows(), `with a ${extra * 3}-character deck name`);
+        }
+        await context.close();
+      }
     });
   } finally {
     await server.close();
