@@ -132,12 +132,14 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const shown = visibleGenerationJobs(jobs);
   const visibleJobs = [...shown.filter(isActiveJob), ...shown.filter((job) => !isActiveJob(job)).reverse()];
   const showFullHome = () => { setLiteView(false); setFullAgain(true); };
-  // After 切回完整版 the blocks come back above the line the learner pressed (which is gone): the page returns to its top, and the keys stay with the app.
+  // After 切回完整版 the blocks come back above the line the learner pressed (which is gone): the page returns to its top, and the keys stay with the app, on
+  // the course switcher where there is one (the app's root focused from the keyboard would be ringed all round the window).
   useEffect(() => {
     if (!fullAgain) return;
     setFullAgain(false);
-    pageRef.current?.closest?.(".study-app")?.focus?.({ preventScroll: true });
-    pageRef.current?.scrollIntoView?.({ block: "start" });
+    const page = pageRef.current;
+    (page?.querySelector?.('[data-tour="home-course"] button') || page?.closest?.(".study-app"))?.focus?.({ preventScroll: true });
+    page?.scrollIntoView?.({ block: "start" });
   }, [fullAgain]);
   const revealActivity = () => (activityRef.current || pageRef.current)?.scrollIntoView?.({ block: "start", behavior: "smooth" });
   const revealDrafts = () => {

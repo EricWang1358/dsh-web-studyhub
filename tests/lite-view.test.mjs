@@ -262,7 +262,7 @@ test('ON never writes the saved sidebar order: a mounted sidebar keeps the learn
   fresh();
 });
 
-test('ON: the home leaves each listed block out and keeps each kept one; DailyPlan, 期末一周 and 本周 are not mounted', () => {
+test('ON: the home leaves each listed block out and keeps each kept one; DailyPlan and 本周 are not mounted, 期末一周 is', () => {
   app.setUiLanguage('zh');
   fresh();
   const html = withLite(true, () => home());
@@ -273,7 +273,9 @@ test('ON: the home leaves each listed block out and keeps each kept one; DailyPl
   assert.equal((html.match(/sh-btn--primary[^"]*today-go/g) || []).length, 1, 'the Today card keeps the one primary button');
   const page = withLite(true, () => libraryPage());
   assert.doesNotMatch(page, /daily-plan|今天先做什么/, 'DailyPlan is not mounted, so it asks for no proposal');
-  assert.doesNotMatch(page, /data-stub="(crunch|weekly|desk-play)"/);
+  assert.doesNotMatch(page, /data-stub="(weekly|desk-play)"/);
+  // The only thing on the home that says, unasked, that another course's exam is near: it draws itself only inside a course's final weeks.
+  assert.match(page, /data-stub="crunch"/);
   assert.deepEqual(written.filter((key) => key !== rules.LITE_VIEW_KEY), [], 'no dismissal or other key is written');
 });
 
@@ -303,13 +305,12 @@ const foldOf = (html) => html.slice(html.indexOf('class="desk-more"'), html.inde
 
 /** What only the 下一步 card tells the learner unasked, by the state that says it. */
 const CARD_ONLY = {
-  'an exam within a week': { id: 'exam', data: () => quietDay(), says: [/「CS3219」5 天后考试/, /打开复习全书/] },
   'one new material without questions': { id: 'new-source', data: () => quietDay({ sources: [newMaterial('s1', 'Lecture 1')] }), says: [/「Lecture 1」还没出过题/, /用这份资料出题/] },
   'several new materials without questions': { id: 'new-source', data: () => quietDay({ sources: [newMaterial('s1', 'Lecture 1'), newMaterial('s2', 'Lecture 2')] }),
     says: [/2 份新资料还没出过题/, /用这 2 份新资料出题/] },
 };
 
-test('ON keeps the 下一步 card for the two reminders nothing else gives: a coming exam and a new material without questions', () => {
+test('ON keeps the 下一步 card for the reminder nothing else gives: a new material without questions', () => {
   app.setUiLanguage('zh');
   fresh();
   for (const [name, { id, data, says }] of Object.entries(CARD_ONLY)) {
@@ -325,9 +326,20 @@ test('ON keeps the 下一步 card for the two reminders nothing else gives: a co
   }
 });
 
-test('ON draws the 下一步 card for those two states alone', () => {
+test('ON leaves a coming exam to 期末一周, which has the book and covers every course: the home says it once', () => {
+  app.setUiLanguage('zh');
+  fresh();
+  const off = bookHome(quietDay()), on = withLite(true, () => bookHome(quietDay()));
+  assert.match(off, /class="next-card" data-next="exam"/);
+  assert.doesNotMatch(on, /class="next-card"/);
+  assert.match(on, /距考试 5 天/, 'the countdown stays');
+  assert.equal(doorsOf(on), 1);
+  assert.match(foldOf(on), /data-hand-off="guide\.start"/);
+});
+
+test('ON draws the 下一步 card for that state alone', () => {
   for (const id of NEXT_STEP_IDS) {
-    assert.equal(rules.liteShowsNext(true, id), id === 'exam' || id === 'new-source', id);
+    assert.equal(rules.liteShowsNext(true, id), id === 'new-source', id);
     assert.equal(rules.liteShowsNext(false, id), true, id);
   }
   app.setUiLanguage('zh');
@@ -344,8 +356,8 @@ test('ON: the kept card\'s button does what it does in the full view, and 今天
     export { liteViewStore } from './ui/use-lite-view.js'; export { default as NextStepCard } from './ui/study-map/NextStepCard.jsx';
     export { HandOff } from './ui/hand-off/HandOff.jsx'; export { default as DeskIntro } from './ui/study-map/DeskIntro.jsx';`, { plugins: [stubs] });
   const pressed = [];
-  const actions = { onOpenExamBook: (course) => pressed.push(['exam', course]), generateFromSources: (ids) => pressed.push(['generate', ids]) };
-  for (const key of ['an exam within a week', 'one new material without questions']) {
+  const actions = { generateFromSources: (ids) => pressed.push(['generate', ids]) };
+  for (const key of ['one new material without questions', 'several new materials without questions']) {
     fresh();
     stored.set(rules.LITE_VIEW_KEY, 'on');
     ui.exports.liteViewStore.reload();
@@ -364,7 +376,7 @@ test('ON: the kept card\'s button does what it does in the full view, and 今天
       view.unmount();
     });
   }
-  assert.deepEqual(pressed, [['exam', 'CS3219'], ['generate', ['s1']]]);
+  assert.deepEqual(pressed.map(([name, ids]) => [name, [...ids].sort()]), [['generate', ['s1']], ['generate', ['s1', 's2']]]);
   ui.exports.liteViewStore.set(false);
   fresh();
 });

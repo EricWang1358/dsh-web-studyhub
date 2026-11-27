@@ -2,8 +2,9 @@
    rule every consumer reads, plain data and pure functions (no DOM, no React, no ui()): which parts are left out, how the sidebar is drawn, and the one
    stored value. It is a display filter: no page becomes unavailable, no library data, dismissal, setting or saved sidebar order is read or written.
 
-   Where the rule is read: ui/app/SidebarNav.jsx (rows), ui/StudyMap.jsx with ui/study-map/DeskIntro.jsx, CourseHeading.jsx and CatalogHeading.jsx (home
-   blocks), ui/app/page-views.jsx (the app's own home blocks) and ui/finder/trip.js (directions that go through a button the home left out).
+   Where the rule is read: ui/app/SidebarNav.jsx (rows), ui/StudyMap.jsx with ui/study-map/DeskIntro.jsx (home blocks, which it hands to
+   CatalogHeading.jsx and NotebookDirectory.jsx as props), ui/app/page-views.jsx (the app's own home blocks) and ui/finder/trip.js (directions that go
+   through a button the home left out).
    ui/use-lite-view.js is the React side. */
 import { PAGES } from './pages.js';
 import { browserStorage, readText, writeText } from './storage.js';
@@ -20,7 +21,7 @@ export const LITE_HIDDEN = Object.freeze([
   'nav.reorder', //         drag, Alt+arrows and 恢复默认顺序: rows that are drawn elsewhere must not rewrite the saved order
   'home.next', //           the 下一步 card, except in the states liteShowsNext keeps
   'home.daily-plan', //     今天先做什么
-  'home.exam-cards', //     期末一周 and 本周
+  'home.weekly-card', //    本周 (期末一周 stays: it draws only inside a course's final weeks, and says so for a course that is not the current one too)
   'home.setup', //          课程准备 (card or chip)
   'home.course-extras', //  the 总纲 button by the course, 课程进度, 学法 and 重点 lines, 掌握度 with 掌握图谱 and pace, 推荐下一步 (the exam countdown stays)
   'home.desk-play', //      今日折纸 and 抽一签
@@ -29,10 +30,9 @@ export const LITE_HIDDEN = Object.freeze([
   'home.notebooks-open', // what is under the 全局笔记本 heading: it starts folded (publishing and searching have no other way in, so it stays)
 ]);
 
-/** The 下一步 card's states (ui/study-map/next-step.js) that stay in the lite view: nothing else on the home offers them unasked, since the exam cards are left
-    out (the countdown gives the days, not the way to the review book) and 创建题组 only ticks new materials once the learner is there. The other states are
-    said elsewhere on screen. */
-export const LITE_NEXT_STATES = Object.freeze(['new-source', 'exam']);
+/** The 下一步 card's states (ui/study-map/next-step.js) that stay in the lite view: nothing else on the home offers it unasked, since 创建题组 only ticks new
+    materials once the learner is there. The other states are said elsewhere on screen; a coming exam by the 期末一周 card and the countdown. */
+export const LITE_NEXT_STATES = Object.freeze(['new-source']);
 
 /** Is `part` drawn? `lite`: whether the lite view is what is on screen (liteViewOn). */
 export const liteShows = (lite, part) => !lite || !LITE_HIDDEN.includes(part);

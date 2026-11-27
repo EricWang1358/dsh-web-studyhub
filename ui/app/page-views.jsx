@@ -124,8 +124,8 @@ function LibraryView() {
         {liteShows(lite, 'home.daily-plan') && !linePage && pageAvailable(data, 'review') && hasOwnDeck(data) && <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan} primaryAction={false}
           onBoard={() => { set.setBoardView('today'); nav.navigate('board'); }}
           modelReady={data.model?.ready !== false} openModelSettings={settingsEntry.openModelSettings} />}
-        {liteShows(lite, 'home.exam-cards') && !linePage && pageAvailable(data, 'book') && <CrunchCard data={data} onOpenBook={openCrunchBook} onPractice={practiseCrunch} onExamRun={startMock} />}
-        {liteShows(lite, 'home.exam-cards') && !linePage && pageAvailable(data, 'book') && <WeeklyCard data={data} onOpenBook={openCrunchBook} onPractice={practiseCrunch} onExamRun={startMock} />}
+        {!linePage && pageAvailable(data, 'book') && <CrunchCard data={data} onOpenBook={openCrunchBook} onPractice={practiseCrunch} onExamRun={startMock} />}
+        {liteShows(lite, 'home.weekly-card') && !linePage && pageAvailable(data, 'book') && <WeeklyCard data={data} onOpenBook={openCrunchBook} onPractice={practiseCrunch} onExamRun={startMock} />}
         <RecoveryBanner />
       </StudyMap>
     </>
