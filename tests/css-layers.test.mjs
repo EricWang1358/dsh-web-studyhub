@@ -59,6 +59,9 @@ test('the wrapper puts bare, scoped and root rules where they belong and is idem
   assert.match(wrapped, /@keyframes spin/);
   assert.notEqual(checkStructure('.loose { color: red; }').length, 0, 'an unwrapped sheet is reported');
   assert.notEqual(checkStructure(`${LAYER_STATEMENT}\n@layer study.features { .loose { color: red; } }`).length, 0, 'an unscoped rule inside a layer is reported');
+  assert.notEqual(checkStructure(`${LAYER_STATEMENT}\n@layer study.features { .study-app { .card { color: red; } } }`).length, 0, 'rules nested under one root are reported: the DSH seat would not get them');
+  assert.notEqual(checkStructure(`${LAYER_STATEMENT}\n@layer study.features { .study-seat { @media (width > 1px) { .card { color: red; } } } }`).length, 0, 'so are rules nested under the seat alone');
+  assert.deepEqual(checkStructure(`${LAYER_STATEMENT}\n@layer study.features { .study-app { display: flex; } ${SCOPE} { .card { color: red; } } }`), [], 'the app box itself and the shared scope stay allowed');
 });
 
 test('the scope a rule is wrapped in keeps the specificity its author wrote', () => {
