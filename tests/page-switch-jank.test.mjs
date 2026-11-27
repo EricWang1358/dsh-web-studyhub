@@ -5,7 +5,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { join, relative } from 'node:path';
+import { build } from 'esbuild';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { ROOT, walk, parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { refuseLeavingPress } from '../ui/app/leave-guard.js';
 import { appearanceAttrs, seatAttrs } from '../ui/appearance-prefs.js';
@@ -119,13 +123,70 @@ test('no stylesheet has a :has() that makes every insertion restyle the whole ap
   assert.deepEqual(found, []);
 });
 
-test('the DSH seat wears the motion and contrast choices itself, so what sits beside the app (a note, the candidate dialog) follows them without a :has()', () => {
+const appProbe = {
+  name: 'app-probe',
+  setup(builder) {
+    builder.onResolve({ filter: /[\\/]App\.jsx$/ }, () => ({ path: 'app-probe', namespace: 'probe' }));
+    builder.onLoad({ filter: /.*/, namespace: 'probe' }, () => ({
+      loader: 'js',
+      contents: "import React from 'react'; export default function App() { return React.createElement('div', { 'data-probe': 'app' }); }",
+    }));
+  },
+};
+
+async function loadWorkspaceSeat() {
+  const compiled = await build({
+    stdin: {
+      contents: `
+        export { createWorkspaceHost } from './ui/host/workspace.jsx';
+        export { appearanceStore } from './ui/use-appearance.js';
+      `,
+      resolveDir: ROOT,
+    },
+    bundle: true,
+    write: false,
+    platform: 'node',
+    format: 'cjs',
+    external: ['react', 'react-dom'],
+    loader: { '.css': 'text' },
+    plugins: [appProbe],
+    logLevel: 'silent',
+  });
+  const mod = { exports: {} };
+  new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), mod, mod.exports);
+  return mod.exports;
+}
+
+test('the DSH seat wears the motion and contrast choices itself, so what sits beside the app (a note, the candidate dialog) follows them without a :has()', async () => {
   const dark = { light: false, reducedMotion: false, contrast: false };
   assert.deepEqual(seatAttrs(appearanceAttrs({ motion: 'off', contrast: 'high', craft: 'refined' }, dark)), { 'data-motion': 'off', 'data-contrast': 'high', 'data-craft': 'refined' });
   assert.deepEqual(seatAttrs(appearanceAttrs({}, { ...dark, reducedMotion: true })), { 'data-motion': 'reduced', 'data-contrast': 'standard', 'data-craft': 'standard' }, 'auto follows the system');
-  const workspace = readFileSync(join(ROOT, 'ui/host/workspace.jsx'), 'utf8');
-  assert.match(workspace, /const seatLook = useSeatAppearance\(\);/);
-  assert.match(workspace, /<div className="study-seat" \{\.\.\.seatLook\}>/);
+  const { createWorkspaceHost, appearanceStore } = await loadWorkspaceSeat();
+  const { Seat } = createWorkspaceHost({ get: () => null }, { effect: () => {} });
+  const renderSeatTag = () => {
+    const html = renderToStaticMarkup(React.createElement(Seat, { sessionId: 's-1', placement: 'page' }));
+    const match = html.match(/<div\b[^>]*class="study-seat"[^>]*>/);
+    assert.ok(match, `expected .study-seat root in ${html}`);
+    return match[0];
+  };
+  const previous = appearanceStore.get();
+  try {
+    appearanceStore.reset();
+    const defaultTag = renderSeatTag();
+    assert.match(defaultTag, /\bdata-motion="full"/);
+    assert.match(defaultTag, /\bdata-contrast="standard"/);
+    assert.match(defaultTag, /\bdata-craft="standard"/);
+    assert.doesNotMatch(defaultTag, /\bdata-theme=/);
+
+    appearanceStore.update({ motion: 'off', contrast: 'high', craft: 'refined' });
+    const updatedTag = renderSeatTag();
+    assert.match(updatedTag, /\bdata-motion="off"/);
+    assert.match(updatedTag, /\bdata-contrast="high"/);
+    assert.match(updatedTag, /\bdata-craft="refined"/);
+    assert.doesNotMatch(updatedTag, /\bdata-theme=/);
+  } finally {
+    appearanceStore.update(previous);
+  }
 });
 
 /* 4.11.1 felt slow to switch pages inside DSH (owner, 2026-11-17): 控件与字阶 (ui/appearance-craft.css) asked
