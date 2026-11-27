@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 
 const mod = await loadUi(`
   export { default as ChoiceFeedback } from './ui/ChoiceFeedback.jsx';
@@ -605,9 +606,18 @@ test('ReviewNavigator marks answered ticks with data-outcome and session.css sty
   assert.match(ticks[1], /data-outcome="wrong"/);
   assert.doesNotMatch(ticks[2], /data-outcome=/);
 
-  const sessionCss = await readFile(new URL('../ui/review/session.css', import.meta.url), 'utf8');
-  assert.match(sessionCss, /\[data-answered="true"\]\[data-outcome="right"\][\s\S]*?var\(--ok\)/);
-  assert.match(sessionCss, /\[data-answered="true"\]\[data-outcome="wrong"\][\s\S]*?var\(--bad\)/);
+  const { declarations } = parseCss(await readFile(new URL('../ui/review/session.css', import.meta.url), 'utf8'));
+  const splitSelectors = (sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim());
+  const hasTickOutcome = (outcome, token) => {
+    const selRe = new RegExp(`\\.review-tick\\[data-answered=['"]true['"]\\]\\[data-outcome=['"]${outcome}['"]\\]\\s+\\.review-tick-line\\b`);
+    return declarations.some(
+      (d) => splitSelectors(d.ctx.at(-1) || '').some((sel) => selRe.test(sel))
+        && d.prop === 'border-top-color'
+        && d.value === `var(${token})`,
+    );
+  };
+  assert.equal(hasTickOutcome('right', '--ok'), true, 'answered right tick styles .review-tick-line with border-top-color: var(--ok)');
+  assert.equal(hasTickOutcome('wrong', '--bad'), true, 'answered wrong tick styles .review-tick-line with border-top-color: var(--bad)');
 });
 
 test('StudyMath renders synchronously without flicker once renderer is warmed; MathText & Markdown are memoized', async () => {
