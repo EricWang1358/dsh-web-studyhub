@@ -131,6 +131,7 @@ test('#853 browser: Exam Coach 4-stage calibration, sample exposure guard, rule 
 
     // Switch back to Stage 1 briefly to verify uncovered material section honesty ("崩溃恢复日志")
     await page.getByRole('button', { name: '1. 分析考法' }).click();
+    await page.locator('[data-page="examcoach"]').getByText('样卷未覆盖的资料章节：').waitFor({ timeout: 15000 });
     const stage1Text = await page.locator('[data-page="examcoach"]').innerText();
     assert.match(stage1Text, /样卷未覆盖的资料章节：.*崩溃恢复日志/, 'uncovered material chapter surfaced honestly');
 
@@ -209,6 +210,8 @@ test('#853 browser: Exam Coach 4-stage calibration, sample exposure guard, rule 
     await openedEn.page.locator('aside, nav').first().waitFor({ timeout: 30000 });
     await nav(openedEn.page, 'examcoach');
     await openedEn.page.locator('[data-page="examcoach"]').waitFor({ state: 'visible', timeout: 30000 });
+    // The three evidence cards render once the coach's evidence has loaded, after the page itself is visible: read the page only then.
+    await openedEn.page.locator('[data-testid="coach-three-layer-evidence"]').waitFor({ state: 'visible', timeout: 15000 });
     const enText = await openedEn.page.locator('[data-page="examcoach"]').innerText();
     assert.match(enText, /Exam coach/i);
     assert.match(enText, /1\. Material coverage/);
