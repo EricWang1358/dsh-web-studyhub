@@ -36,7 +36,7 @@ The final desktop JAR also ran offline in an emulated Linux ARM64 Ubuntu contain
 mvn -pl studyhub-retrieval test "-Dstudyhub.real-model=true" "-Dstudyhub.benchmark=true" "-Dstudyhub.benchmark.pages=10000"
 ```
 
-The benchmark loads 57 entries from the repository's agent-lessons taxonomy. It adds actual Markdown passages from the repository to reach 1,000 and 10,000 entries in one course. Twelve hand-labeled Chinese and English questions each have one designated taxonomy entry. Recall@10 counts queries that return that entry, and MRR@10 weights its position. Other relevant passages receive no credit under this known-item criterion. The BM25 control searches the same FTS5 postings. Warm p95 includes tokenization, local inference, both searches, fusion and reading the resulting text. It uses 36 requests per size. The first-query measurement includes constructing a fresh graph.
+The benchmark loads all non-merged entries (58 currently; 57 in the 2026-11-26 run below) from the repository's agent-lessons taxonomy. It adds actual Markdown passages from the repository to reach 1,000 and 10,000 entries in one course. Twelve hand-labeled Chinese and English questions each have one designated taxonomy entry. Recall@10 counts queries that return that entry, and MRR@10 weights its position. Other relevant passages receive no credit under this known-item criterion. The BM25 control searches the same FTS5 postings. Warm p95 includes tokenization, local inference, both searches, fusion and reading the resulting text. It uses 36 requests per size. The first-query measurement includes constructing a fresh graph.
 
 ## Windows measurement
 
