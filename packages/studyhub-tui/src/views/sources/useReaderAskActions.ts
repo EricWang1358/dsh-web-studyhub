@@ -293,7 +293,9 @@ export function useReaderAskActions({
         width,
       );
       const { savePageAskToNote } = await import('./ReaderNotesDrawer.js');
-      if (!mountedRef.current || seq !== askActionSeqRef.current) return;
+      // Once s was pressed the note is saved and its result shown, even if Esc closed the ask view meanwhile (as before the split);
+      // only this view's own busy state follows the ask counter.
+      if (!mountedRef.current) return;
       const result = await savePageAskToNote({
         host,
         lang,
@@ -309,10 +311,10 @@ export function useReaderAskActions({
         ...(anchorOffset !== undefined ? { anchorOffset } : {}),
         ...(selectedExcerpt !== undefined ? { selectedExcerpt } : {}),
       });
-      if (!mountedRef.current || seq !== askActionSeqRef.current) return;
+      if (!mountedRef.current) return;
       notify(result.message, result.ok ? 'success' : 'warning');
     } catch (err) {
-      if (mountedRef.current && seq === askActionSeqRef.current) notify(errorMessage(err), 'error');
+      if (mountedRef.current) notify(errorMessage(err), 'error');
     } finally {
       if (mountedRef.current && seq === askActionSeqRef.current) setSavingNote(false);
     }
@@ -409,7 +411,10 @@ export function useReaderAskActions({
         operationId,
         uiLanguage: lang,
       });
-      if (!mountedRef.current || seq !== askActionSeqRef.current) return;
+      // The card is written by now: report it and refresh the library even if Esc closed the ask view meanwhile (as before the split).
+      // Only the view's own 已保存 mark follows the ask counter, so it never lands on a later question.
+      if (!mountedRef.current) return;
+      const sameAsk = seq === askActionSeqRef.current;
       if (!res.ok || !res.value) {
         notify(
           res.error?.message || t(lang, '保存闪卡失败', 'Failed to save flashcard'),
@@ -418,16 +423,16 @@ export function useReaderAskActions({
         return;
       }
       if (res.value.status === 'complete') {
-        setSavedCard(true);
+        if (sameAsk) setSavedCard(true);
         const snapRes = await tryAction(host, 'snapshot');
-        if (mountedRef.current && seq === askActionSeqRef.current && snapRes.ok && snapRes.value && typeof snapRes.value === 'object') {
+        if (mountedRef.current && snapRes.ok && snapRes.value && typeof snapRes.value === 'object') {
           setSnapshot(snapRes.value as never);
         }
-        if (mountedRef.current && seq === askActionSeqRef.current) {
+        if (mountedRef.current) {
           notify(t(lang, '已保存为原文关联闪卡', 'Saved as passage-linked flashcard'), 'success');
         }
       } else if (res.value.status === 'duplicate') {
-        setSavedCard(true);
+        if (sameAsk) setSavedCard(true);
         notify(t(lang, '该问答卡片已存在于题组中', 'This Q&A flashcard already exists'), 'info');
       } else {
         notify(
@@ -436,7 +441,7 @@ export function useReaderAskActions({
         );
       }
     } catch (err) {
-      if (mountedRef.current && seq === askActionSeqRef.current) notify(errorMessage(err, lang), 'error');
+      if (mountedRef.current) notify(errorMessage(err, lang), 'error');
     } finally {
       if (seq === askActionSeqRef.current) {
         saveCardBusyRef.current = false;

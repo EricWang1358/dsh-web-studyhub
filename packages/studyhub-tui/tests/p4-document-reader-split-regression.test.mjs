@@ -1132,6 +1132,7 @@ describe('P4 (#1354 D12): DocumentReader.tsx Line-Limit Guardrail & Split Regres
     resetTuiStore({ language: 'en', asciiMode: true });
     const saveAHold = deferred();
     const searchAHold = deferred();
+    const searchAReplied = deferred();
     const translateAHold = deferred();
 
     const { host, calls } = makeMockHost({
@@ -1186,6 +1187,7 @@ describe('P4 (#1354 D12): DocumentReader.tsx Line-Limit Guardrail & Split Regres
       },
       'source.search': async () => {
         await searchAHold.promise;
+        searchAReplied.resolve();
         return { matches: [{ id: 'src-a2', page: 2, snippet: 'hit' }] };
       },
       'materials.translation.list': async () => ({ target: 'en', items: [] }),
@@ -1268,6 +1270,9 @@ describe('P4 (#1354 D12): DocumentReader.tsx Line-Limit Guardrail & Split Regres
     saveAHold.resolve();
     searchAHold.resolve();
     translateAHold.resolve();
+    // Let the stale search reply reach the reader before the flush: without this the flush frame can be taken before a missing guard has jumped Doc B.
+    await searchAReplied.promise;
+    await new Promise((resolve) => setImmediate(resolve));
     m.send('m');
     await m.waitFor((s) => s.includes('TeX'), { label: 'post-stale-resolution render flushed' });
 
@@ -1436,5 +1441,64 @@ describe('P4 (#1354 D12): DocumentReader.tsx Line-Limit Guardrail & Split Regres
         s.includes('The rest could not be read'),
       { label: 'multi-slice page stitched with incomplete notice' },
     );
+  });
+
+  test('13. Esc while a flashcard save is in flight still reports the saved card and refreshes the library, without marking a later question as saved', async (t) => {
+    resetTuiStore({ language: 'en', asciiMode: true });
+    const saveHold = deferred();
+    let snapshotRefreshed = false;
+    const { host, calls } = makeMockHost(
+      makeThreePageDocHandlers({
+        'materials.selection.ask': async () => ({ answer: 'Momentum is conserved when no external force acts.' }),
+        'materials.selection.resolve': async (args) => ({ status: 'resolved', selection: { ...args, revision: 'rev-13' } }),
+        'generation.selection.saveAnswer': async () => {
+          await saveHold.promise;
+          return { status: 'complete', deckId: 'deck-13', cardId: 'card-13' };
+        },
+        snapshot: async () => {
+          snapshotRefreshed = true;
+          return { decks: [], sources: [], courses: [], jobs: [] };
+        },
+      }),
+    );
+    const m = mountDocumentReader({ host, documentId: 'doc-phys-1', sourceId: 'src-p1', initialPage: 1, totalPagesHint: 3 });
+    t.after(() => m.cleanup());
+
+    await m.waitFor((s) => s.includes('Alpha theorem'), { label: 'page 1 loaded' });
+    m.send('a');
+    await m.waitFor((s) => s.includes('Ask AI about this page:'), { label: 'ask input opened' });
+    m.send('Why conserved?');
+    await m.waitFor((s) => s.includes('Ask AI about this page: Why conserved?'), { label: 'question typed' });
+    m.send('\r');
+    await m.waitFor((s) => s.includes('Momentum is conserved'), { label: 'answer shown' });
+
+    const toastsBefore = useTuiStore.getState().toastHistory.length;
+    m.send('f');
+    await m.waitFor(() => calls.some((c) => c.name === 'generation.selection.saveAnswer'), { label: 'saveAnswer requested' });
+    m.send('\x1b');
+    await m.waitFor((s) => !s.includes('Momentum is conserved'), { label: 'Esc closed the answer while the save is held' });
+
+    // A second question is asked and answered while the first save is still held; the save then lands during the second question.
+    m.send('a');
+    await m.waitFor((s) => s.includes('Ask AI about this page:'), { label: 'second ask input opened' });
+    m.send('Next?');
+    await m.waitFor((s) => s.includes('Ask AI about this page: Next?'), { label: 'second question typed' });
+    m.send('\r');
+    await m.waitFor((s) => s.includes('Momentum is conserved'), { label: 'second answer shown' });
+
+    saveHold.resolve();
+    await m.waitFor(
+      () => useTuiStore.getState().toastHistory.slice(toastsBefore).some((item) => item.text === 'Saved as passage-linked flashcard'),
+      { label: 'the written card is still reported after Esc' },
+    );
+    await m.waitFor(() => snapshotRefreshed, { label: 'the library snapshot is still refreshed after Esc' });
+    // Flush: save the second answer as a note. Its own reply re-renders the panel after the card reply, so a leaked 已保存 mark would show by then.
+    const toastsAfterCard = useTuiStore.getState().toastHistory.length;
+    m.send('s');
+    await m.waitFor(
+      (s) => useTuiStore.getState().toastHistory.length > toastsAfterCard && s.includes('s/f/Esc') && !s.includes('Saving'),
+      { label: 'note save of the second answer finished and rendered' },
+    );
+    assert.equal(m.frame().includes('Card saved'), false, 'the earlier save must not mark the new question as saved');
   });
 });
