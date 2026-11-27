@@ -12,13 +12,20 @@ packages/studyhub-tui/
 ├── docs/                       # ARCHITECTURE.md, GUIDE.md, KEYBINDINGS.md, ASSISTANT-UX.md, ROADMAP-*.md
 ├── scripts/
 │   ├── build.mjs               # esbuild code-split build (cli, boot-frame, App, host)
-│   └── bench.mjs               # Bundle size, cold spawn, boot-frame & RSS/heap probe
+│   ├── bench.mjs               # Bundle size, cold spawn, boot-frame & RSS/heap probe
+│   ├── lint.mjs                # ESLint runner with key-routing & resize guardrails
+│   ├── run-tests.mjs           # Test runner for packages/studyhub-tui/tests
+│   └── line-limit-guard.mjs    # 1000-line ratchet guard for TUI source files
 ├── src/
-│   ├── cli.tsx, cli-args.ts    # Fast-path --help/--version/--doctor [--json], color/ASCII probe, boot frame
+│   ├── cli.tsx, cli-args.ts,   # Fast-path --help/--version/--doctor/--stats/--due/--board/--search/--export,
+│   │   cli-commands.ts         # color/ASCII probe, boot frame
+│   ├── grade-scale.ts          # Unified 0–5 grade labels & semantics
 │   ├── terminal.ts             # UTF-8 stdio, alt-screen, signal-exit TTY teardown
 │   ├── App.tsx                 # StudyHubTuiApp, ViewErrorBoundary, syncFromHost, lazy views
 │   ├── types/contracts.ts      # PageId, PAGE_REGISTRY (16 views), HostClient & snapshot types
 │   ├── input/                  # P1 single key dispatcher: dispatcher.ts, global-router.ts, hooks.ts
+│   ├── layout/                 # Responsive layout breakpoints & geometry helpers
+│   ├── selectors/              # Shared derived selectors (due, weak, mastery populations)
 │   ├── shell/                  # AppShell, TopBar, SideNav, Launchpad, CommandPalette,
 │   │                           # HelpOverlay, CoursePickerModal, InboxModal, NotificationHistoryModal,
 │   │                           # AssistantPanel, ShellBootFrame, global-keymap.ts, toast-copy.ts, fuzzy
@@ -26,9 +33,9 @@ packages/studyhub-tui/
 │   │                           # ScrollView, ScrollArea, SelectList, SplitPane, MarkdownView, Badge,
 │   │                           # focus.ts, layout-tokens.ts, useAiConversation.ts, useStreamingBuffer.ts
 │   ├── state/                  # Zustand store (store.ts) & O(K) snapshot-fingerprint.ts
-│   ├── host/                   # desktop-deps.ts, tui-host.ts, presets.ts, tui-prefs.ts,
+│   ├── host/                   # desktop-deps.ts, tui-host.ts, presets.ts, tui-prefs.ts, tui-usage.ts,
 │   │                           # sample-actions.ts, ai-dialogue.ts, atomic-write.ts, tx-write.ts
-│   ├── render/                 # lru.ts, cjk.ts, math.ts, markdown.ts, charts.ts
+│   ├── render/                 # lru.ts, cjk.ts, math.ts, markdown.ts, charts.ts, clipboard.ts, terminal-compat.ts
 │   ├── theme/tokens.ts         # 6 WCAG palettes + runtime ColorLevel / makeChalk(level)
 │   └── views/*/                # 16 view directories (lazy-loaded views & internal modals)
 └── tests/                      # Unit, perf, scale, AST keymap, resilience, smoke & xterm E2E
@@ -59,7 +66,7 @@ packages/studyhub-tui/
 - **Minimal 9-dependency runtime footprint (`package.json`)**:
   - Runtime `dependencies` are pruned to 9 packages (`chalk`, `cli-highlight`, `get-east-asian-width`, `ink`, `marked`, `react`, `signal-exit`, `strip-ansi`, `zustand`), verified by bidirectional dependency and `npm pack --dry-run --json` audits in `tests/packaging-smoke.test.mjs`.
 - **Shared cross-platform atomic persistence (`src/host/atomic-write.ts`)**:
-  - `atomicWriteTextFile`, `atomicWriteJsonFile`, and `defaultBackupFilePath` centralize `<libraryRoot>/backups/studyhub-*-YYYY-MM-DD.{md,json}` writes across views and modals, powering universal `[x]`/`[X]` Markdown and JSON exports.
+  - `atomicWriteTextFile`, `atomicWriteJsonFile`, and `defaultBackupFilePath` centralize `<libraryRoot>/backups/studyhub-*[-<slug>]-YYYY-MM-DD-HHmmss.{md,json}` writes across views and modals, powering universal `[x]`/`[X]` Markdown and JSON exports.
   - Writes to a UUID-suffixed `.tmp` sibling and promotes via `renameWithRetry` (retrying Windows transient lock errors `EBUSY`/`EPERM`/`EACCES`), with guaranteed `.tmp` cleanup on failure.
   - `atomicUpdateJson(path, mutator)` is the single entry for overwrite-style persistence (`tui.json`, `tui-board.json`): it reads, mutates, and renames as one queued unit, aborts on unreadable/corrupt input instead of clobbering it, and leaves the original bytes untouched on failure. `AtomicSkip` reports a merged value without writing (passive preference patches).
   - `withRollback(path, run)` restores the pre-write snapshot (or removes a file the failed run created) for a single logical write, rethrowing the original error so callers keep their existing failure notices; `AtomicRollbackError` separates the original failure from a failed restore. Multi-file commits use `atomicWriteFilesBatch` / `AtomicBatchWriteError` (#1465).
@@ -101,15 +108,15 @@ Keypress (single Ink useInput in src/input/hooks.ts)
   - `src/cli.tsx` and `src/cli-args.ts` handle `--help`, `--version`, and `--doctor` / `--doctor --json` before importing React, Ink, `App.mjs`, or `host.mjs` (delivering cross-platform Linux/Windows terminal, path, and provider diagnostics with zero API key value leakage while keeping `dist/cli.mjs <= 15 KB`), then mount `dist/boot-frame.mjs` (`ShellBootFrame`, tested to carry zero static `marked` or `cli-highlight` imports) immediately while `createTuiHost` and `dist/App.mjs` load in parallel.
   - A 64-byte boot stdin buffer captures early user keystrokes while stripping terminal probe/mouse escape noise.
 - **5 Barrel-Bypass rules (startup bundle & chunk isolation, enforced in `tests/perf-budget.test.mjs` & `tests/keymap-audit.test.mjs`)**:
-  1. `views/*/index.js`: `src/App.tsx` eagerly imports only `LibraryView` and lazy-loads the remaining 15 views plus `VoicePackModal` directly via `React.lazy(() => import('./views/<dir>/<View>.js'))` — never `./views/*/index.js` barrels (`tests/keymap-audit.test.mjs`).
-  2. `shell/index.js`: `AppShell` lazy-loads `Launchpad`, `CommandPalette`, `HelpOverlay`, `CoursePickerModal`, and `InboxModal` directly (`./Launchpad.js`, etc.), and `src/App.tsx` / views never import `shell/index.js` (`0` static overlays in `App.mjs`, allowing `AppShell` to inline cleanly; `tests/perf-budget.test.mjs`).
+  1. `views/*/index.js`: `src/App.tsx` lazy-loads all 16 views (including `LibraryView`) plus `VoicePackModal` directly via `React.lazy(() => import('./views/<dir>/<View>.js'))` — never `./views/*/index.js` barrels (`tests/keymap-audit.test.mjs`).
+  2. `shell/index.js`: `AppShell` lazy-loads `Launchpad`, `CommandPalette`, `HelpOverlay`, `CoursePickerModal`, `InboxModal`, `NotificationHistoryModal`, and `AssistantPanel` directly (`./Launchpad.js`, etc.), and `src/App.tsx` / views never import `shell/index.js` (`0` static overlays in `App.mjs`, allowing `AppShell` to inline cleanly; `tests/perf-budget.test.mjs`).
   3. `components/index.js`: Complete `0`-importer Barrel-Bypass across all of `src/` (Round 47); every view, modal, drawer, and shell overlay imports leaf component files directly (`./Panel.js`, `./Badge.js`, `./focus.js`) instead of `components/index.js` (which re-exports `MarkdownView`; `tests/perf-budget.test.mjs`).
-  4. `render/index.js`: Complete `0`-importer Barrel-Bypass across all of `src/` (Round 46); callers import leaf render utilities (`cjk.js`, `charts.js`) rather than `render/index.js` (which re-exports `markdown.js` and `math.js`), keeping `marked`, `cli-highlight`, `render/markdown.ts`, and `render/math.ts` out of `dist/boot-frame.mjs`, `dist/App.mjs`, and `55+` non-markdown `dist/*.mjs` entry chunks (`tests/perf-budget.test.mjs`, including `OriginalFileModal-`, `SkeletonDiagramsModal-`, `BookExplainModal-`, `CoachNudgeModal-`, `BookHistoryModal-`, `BookAiBlocksModal-`, and `GeneratePathModal-`).
+  4. `render/index.js`: Complete `0`-importer Barrel-Bypass across all of `src/` (Round 46); callers import leaf render utilities (`cjk.js`, `charts.js`) rather than `render/index.js` (which re-exports `markdown.js` and `math.js`), keeping `marked`, `cli-highlight`, `render/markdown.ts`, and `render/math.ts` out of `dist/boot-frame.mjs`, `dist/App.mjs`, and all dynamically discovered non-markdown `dist/*.mjs` entry chunks (`>= 40` chunks enforced by `tests/perf-budget.test.mjs`, including `OriginalFileModal-`, `SkeletonDiagramsModal-`, `BookExplainModal-`, `CoachNudgeModal-`, `BookHistoryModal-`, `BookAiBlocksModal-`, and `GeneratePathModal-`).
   5. `host/index.js`: Complete `0`-importer Barrel-Bypass across all of `src/` (Round 48); UI modules import `host/sample-actions.js`, `host/tui-prefs.js`, or `host/presets.js` directly rather than `host/index.js`, isolating `tui-host.ts` and `desktop-deps.ts` from `dist/App.mjs` (`tests/perf-budget.test.mjs`).
 - **Signed-int32 $O(K)$ snapshot fingerprinting (`src/state/snapshot-fingerprint.ts`)**:
   - `computeSnapshotFingerprint` feeds a dual signed-int32 FNV-1a `RollingHasher` (`Math.imul` + `| 0`) over structural metadata (revision, counts, timestamps, decks/progress, sources, courses, drafts, runs, jobs, attempts, settings) — avoiding `>>> 0` V8 HeapNumber boxing per step and deferring unsigned conversion to `digest()` — skipping unchanged store updates in `syncFromHost` in `< 1 ms` without full-snapshot `JSON.stringify`.
 - **60fps streaming coalescing (`src/components/useStreamingBuffer.ts`)**:
-  - `createStreamingCoalescer` and `useStreamingBuffer(24)` coalesce rapid AI token deltas in `AiHelpDrawer`, `DocumentReader`, and `CompanionsModal` using a 24 ms trailing timer (`<= ~40` Ink renders/s) and flush synchronously on `finish()`, error, abort, or unmount.
+  - `createStreamingCoalescer` and `useStreamingBuffer(24)` coalesce rapid AI token deltas in `AiHelpDrawer`, `DocumentReader`, `CompanionsModal`, `AssistantPanel`, `NextStepFollowupBar`, and `useReaderAskActions` using a 24 ms trailing timer (`<= ~40` Ink renders/s) and flush synchronously on `finish()`, error, abort, or unmount.
 - **Bounded caches & virtualized rendering**:
   - `LruCache` (`src/render/lru.ts`) caps Markdown renders at 256 entries (`mdCache`, keyed with `colorLevel`) and TeX math conversions at 512 entries (`mathCache`).
   - `ReviewView` caps card translations at 32 entries; `store.ts` caps navigation history (24), active toasts (4), and `toastHistory (50)`; `TasksView` caps logs (200 lines); `cli-highlight` loads lazily on fenced code blocks; `VirtualList` windows long lists to viewport height.
@@ -119,11 +126,11 @@ Keypress (single Ink useInput in src/input/hooks.ts)
 - **`NO_COLOR=1` & cached `makeChalk(level)` (`src/theme/tokens.ts`)**:
   - `resolveColorCapability` maps `NO_COLOR`, `FORCE_COLOR`, `TERM=dumb`, TTY state, `WT_SESSION`, and `COLORTERM` to `ColorLevel` (`0–3`).
   - `makeChalk(level)` memoizes `ChalkInstance` objects in `CHALK_CACHE` per `ColorLevel` to avoid per-render `new Chalk({ level })` allocations.
-  - When `level === 0`, `src/cli.tsx` sets `FORCE_COLOR = '0'` before importing Ink and calls `setColorLevel(0)`; `src/render/markdown.ts`, `src/render/charts.ts`, `src/shell/HelpOverlay.tsx`, and `src/views/exam/ExamRunner.tsx` style text via `makeChalk(colorLevel)` so `NO_COLOR=1` emits zero SGR color escapes.
+  - When `level === 0`, `src/cli.tsx` sets `FORCE_COLOR = '0'` before importing Ink and calls `setColorLevel(0)`; `src/render/markdown.ts`, `src/render/charts.ts`, `src/shell/HelpOverlay.tsx`, `src/shell/AssistantPanel.tsx`, and `src/views/exam/ExamRunner.tsx` style text via `makeChalk(colorLevel)` so `NO_COLOR=1` emits zero SGR color escapes.
 - **Centralized `--ascii` chrome normalization (`src/components/Badge.tsx`)**:
-  - `normalizeAsciiChrome(text, ascii)` maps Unicode UI chrome glyphs (`…`, `↑↓`, `←→`, `›`, `▸`, `▾`, `•`, `✓`, `✕`, `★`, `◆`, `●`, `○`, `☑`, `☐`, `⚠`) via `ASCII_CHROME_MAP` across `Badge`, `StatusPill`, `Panel`, `KeyHintBar`, `ToastStack`, `EmptyState`, and `TextInput` without mutating user-entered values.
+  - `normalizeAsciiChrome(text, ascii)` maps Unicode UI chrome glyphs (`…`, `↑↓`, `←→`, `›`, `▸`, `▾`, `•`, `✓`, `✕`, `★`, `◆`, `●`, `○`, `☑`, `☐`, `⚠`) via `ASCII_CHROME_MAP` across `Spinner`, `KeyHintBar`, `ToastStack`, `EmptyState`, `TextInput`, and `src/components/Layout.tsx` without mutating user-entered values.
 - **Deterministic GC & leak soak**:
-  - `@xterm/headless` soak suites (`tests/responsive-audit.test.mjs`, `tests/packaging-smoke.test.mjs`) invoke V8 GC (`--expose_gc`) across resize storms (`80x24` ↔ `160x44`) and assert bounded heap deltas and `0` leaked `FSEventWrap`/`StatWatcher`/`ProcessWrap`/`Timeout` handles after `unmount()` and `host.dispose()`.
+  - `@xterm/headless` soak suites (`tests/packaging-smoke.test.mjs`, `tests/xterm-e2e.test.mjs`, `tests/core-views-e2e.test.mjs`) invoke V8 GC (`--expose_gc`) across resize storms (`80x24` ↔ `160x44`) and assert bounded heap deltas and `0` leaked `FSEventWrap`/`StatWatcher`/`ProcessWrap`/`Timeout` handles after `unmount()` and `host.dispose()`, while `tests/responsive-audit.test.mjs` audits multi-viewport responsive layout.
 
 ---
 
