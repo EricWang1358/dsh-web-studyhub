@@ -14,7 +14,6 @@
     "views/generate/DraftEditor.tsx": 1486,
     "views/generate/GenerateView.tsx": 1271,
     "views/library/CourseSettingsModal.tsx": 2225,
-    "views/library/DeckManageModal.tsx": 2260,
     "views/library/DeckOpsModal.tsx": 1506,
     "views/library/GuidedStudyModal.tsx": 1995,
     "views/library/LibraryView.tsx": 1467,
