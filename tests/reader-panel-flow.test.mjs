@@ -545,6 +545,12 @@ test('the page chips sit in an even two-column grid; the original-PDF notice is 
       await viewer.flush(10);
       const originalBtn = viewer.find((node) => node.type === 'button' && viewer.text(node).trim() === '原始 PDF');
       assert.ok(originalBtn, 'toolbar renders the 原始 PDF view switch');
+      // The notice belongs to 原始 PDF only: in the text view it would tell a reader who is already in 阅读 to switch to it.
+      assert.equal(
+        viewer.findAll((node) => node.type === 'button' && node.props?.['aria-label'] === '在原始 PDF 里怎么提问').length,
+        0,
+        'no 原始 PDF ask notice before switching to 原始 PDF',
+      );
       await viewer.act(() => click(originalBtn));
       await viewer.flush(6);
 
