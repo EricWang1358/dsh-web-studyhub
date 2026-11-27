@@ -242,7 +242,11 @@
       display: flex;
       flex-direction: column;
       --paper-pad-top: var(--space-4-5);
-      /* Index-card ruling under the cinnabar header rule. */
+      transition: transform 0.5s var(--ease-out);
+      animation: card-deal 0.55s var(--ease-out) backwards;
+    }
+    /* Index-card ruling under the cinnabar header rule, on the day's card. The first-run card in the same slot rules only its rows (ui/first-run/first-run.css). */
+    .today-card:has(> .today-card-main) {
       background-image: repeating-linear-gradient(
         to bottom,
         transparent 0 31px,
@@ -252,8 +256,6 @@
       background-size: 100% calc(100% - 52px);
       background-repeat: no-repeat;
       background-origin: border-box;
-      transition: transform 0.5s var(--ease-out);
-      animation: card-deal 0.55s var(--ease-out) backwards;
     }
     .today-stack:hover .today-card { transform: translateY(-4px) rotate(-0.6deg); }
     /* The card's body holds the card's height (330px with its padding), so the line under the action (重读 N 段) adds to the card instead of
@@ -395,7 +397,7 @@
       .desk > .today-stack { order: 11; justify-self: stretch; width: auto; max-width: none; margin: 0 var(--space-3-5) var(--space-2) 0; }
       /* Every part has its place below; one nobody placed waits with the last of them, never at the flex default (0), above the course heading (#1690). */
       .desk > .desk-intro > * { order: 10; }
-      .desk > .desk-intro > :is(.desk-mastery, .pace-meta) { order: 6; }
+      .desk > .desk-intro > :is(.desk-mastery, .desk-pace) { order: 6; }
       .desk > .desk-intro > .desk-next { order: 7; margin-top: 0; }
       .desk > .desk-intro > .desk-also { order: 8; }
       .desk > .desk-intro > .resume-list { order: 10; }

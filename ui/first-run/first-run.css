@@ -123,7 +123,6 @@
        (and per line of the plan). The ruled area is a whole number of lines and ends before the buttons, so no line runs beside or under them (#1704).
        --frl-rule is the ruling's pitch, not a spacing token: it must not scale with the density setting. */
     .first-run-card { --frl-rule: 32px; --frl-card-mark: 20px; }
-    .today-card.first-run-card { background-image: none; }
     .first-run-card .frl-ruled {
       margin: 0 calc(var(--paper-pad-x) * -1) var(--space-5);
       padding: var(--frl-rule) var(--paper-pad-x) 0;

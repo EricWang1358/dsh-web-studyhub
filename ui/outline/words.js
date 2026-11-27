@@ -157,7 +157,7 @@ export const levelsText = levels => uiFormat('覆盖：资料用了 {0}/{1} 份�
 /* ---------- Pre-run scale and quota-saving guidance (#708) ---------- */
 
 /** Quota-saving tip shown before starting an unbuilt review book build. */
-export const bookCostTipText = () => ui('整本比较费：可以先生成总纲再挑章节生成，或者把资料交给网页版 AI 生成后导入');
+export const bookCostTipText = () => ui('整本比较费：可以只挑几章生成，或者把资料交给网页版 AI 生成后导入');
 
 /** Knowledge points to write and estimated model calls. */
 export const bookScalePointsText = (points, calls) => uiFormat('要写 {0} 个知识点 · {1}', [points, callsText(calls)]);

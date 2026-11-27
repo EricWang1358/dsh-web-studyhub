@@ -84,7 +84,7 @@ export default function DeskIntro({ data, home, mastery, start, resume, endRun, 
         <MethodLine method={data.focus?.method} courseId={data.focus?.courseId} onCourseSettings={onCourseSettings} />
         <FocusProgressLine progress={data.focus?.progress} courseId={data.focus?.courseId} lock={busy} start={start} onCourseSettings={onCourseSettings} onGenerateFocus={onGenerateFocus} />
         {mastery.primary && <DeskMastery mastery={mastery} onOpenMasteryMap={onOpenMasteryMap} />}
-        {coursePace && <PaceMeta variant="course" forecast={coursePace} pace={paceForecast?.pace} asOf={paceForecast?.asOf} />}
+        {coursePace && <PaceMeta className="desk-pace" variant="course" forecast={coursePace} pace={paceForecast?.pace} asOf={paceForecast?.asOf} />}
       </>}
       {/* Without the extras there is no 推荐下一步; what a newcomer's empty home says about its next step stays. */}
       {(extras || (!data.next && starter)) && <p className="desk-next">
