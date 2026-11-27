@@ -214,7 +214,7 @@ test('the section is quiet: no first-run banner, no badge on the sidebar, nothin
     'no floating widget',
   );
   assert.deepEqual(
-    declarations.filter((d) => /^animation(?:-|$)/.test(d.prop)),
+    declarations.filter((d) => /^(?:-[a-z]+-)?animation(?:-|$)/.test(d.prop)),
     [],
     'no animation declarations',
   );
