@@ -8,6 +8,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StudyService } from '../lib/service.js';
 import { followupDigest } from '../lib/followup.js';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 
 const m = await loadUi(`
@@ -27,6 +28,7 @@ const m = await loadUi(`
 const h = React.createElement;
 const noop = () => {};
 const han = /[\u3400-\u9fff]/;
+const splitSelectors = (sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim());
 
 function makeMemoryStorage() {
   const map = new Map();
@@ -276,11 +278,13 @@ test('BlogNotes supports >= 1100px split edit + live Markdown/KaTeX preview, nar
     m.setUiLanguage('zh');
   }
 
-  const blogCss = readFileSync(new URL('../ui/blog-notes.css', import.meta.url), 'utf8');
-  const focusBlock = blogCss.slice(blogCss.indexOf('.note-edit-pane:has(.cm-editor.cm-focused)'));
-  assert.match(focusBlock, /box-shadow:\s*none/);
-  assert.match(focusBlock, /outline:\s*2px solid var\(--accent\)/);
-  assert.doesNotMatch(focusBlock, /box-shadow:\s*var\(--ring\)/);
+  const { declarations: blogDecls } = parseCss(readFileSync(new URL('../ui/blog-notes.css', import.meta.url), 'utf8'));
+  assert.ok(blogDecls.length > 0, 'blog-notes.css declares styles');
+  const focusDecls = blogDecls.filter((d) => splitSelectors(d.ctx.at(-1) || '').includes('.note-edit-pane:has(.cm-editor.cm-focused)'));
+  assert.ok(focusDecls.length > 0, 'blog-notes.css defines .note-edit-pane:has(.cm-editor.cm-focused)');
+  assert.equal(focusDecls.some((d) => d.prop === 'box-shadow' && d.value === 'none'), true);
+  assert.equal(focusDecls.some((d) => d.prop === 'outline' && d.value === '2px solid var(--accent)'), true);
+  assert.equal(focusDecls.some((d) => d.prop === 'box-shadow' && /var\(--ring\)/.test(d.value)), false);
 });
 
 test('1 Day + 1 Course = 1 Note Article: quick-saves append into one daily course note while separating other courses, days, and 挑题成文 articles', async t => {
@@ -445,38 +449,99 @@ test('FlagDialog uses shared Field + TextArea (.sh-input), and CSS enforces tabu
   assert.match(flagHtml, /class="[^"]*\bsh-field\b[^"]*"/);
   assert.match(flagHtml, /<textarea[^>]*class="[^"]*\bsh-input\b[^"]*"/);
 
-  const checks = [
-    ['ui/shell.css', /\.nav-count\s*\{[^}]*font-variant-numeric:\s*tabular-nums/],
-    ['ui/home-tiers.css', /\.today-count\s*\{[^}]*font-variant-numeric:\s*tabular-nums/],
-    ['ui/case-study.css', /\.case-paper__clock\s*\{[^}]*font-variant-numeric:\s*tabular-nums/],
-    ['ui/exam.css', /\.exam-countdown\s*\{[^}]*font-variant-numeric:\s*tabular-nums/],
-    ['ui/audio-dashboard.css', /\.audio-token-count\s*\{[^}]*font-variant-numeric:\s*tabular-nums/],
-    ['ui/book/book-plan.css', /\.book-plan__countdown\s*\{[^}]*font-variant-numeric:\s*tabular-nums/],
-    ['ui/skeleton.css', /minmax\(min\(260px,\s*100%\),\s*380px\)/],
-    ['ui/study-map/desk.css', /minmax\(min\(270px,\s*100%\),\s*340px\)/],
-    ['ui/study-map/desk.css', /\.desk > \.today-stack \{[^}]*width:\s*auto/],
+  const tabularChecks = [
+    ['ui/shell.css', '.nav-count'],
+    ['ui/home-tiers.css', '.today-count'],
+    ['ui/case-study.css', '.case-paper__clock'],
+    ['ui/exam.css', '.exam-countdown'],
+    ['ui/audio-dashboard.css', '.audio-dashboard-metrics .audio-token-count'],
+    ['ui/book/book-plan.css', '.book-plan__countdown'],
   ];
-  for (const [file, pattern] of checks) {
-    const css = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
-    assert.match(css, pattern, `${file} matches ${pattern}`);
+  for (const [file, selector] of tabularChecks) {
+    const { declarations } = parseCss(readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'));
+    assert.ok(declarations.length > 0, `${file} declares styles`);
+    assert.equal(
+      declarations.some((d) =>
+        !d.ctx.some((c) => c.startsWith('@media') || c.startsWith('@container'))
+        && splitSelectors(d.ctx.at(-1) || '').includes(selector)
+        && d.prop === 'font-variant-numeric'
+        && d.value === 'tabular-nums',
+      ),
+      true,
+      `${file} sets font-variant-numeric: tabular-nums on ${selector}`,
+    );
   }
+  const { declarations: skeletonDecls } = parseCss(readFileSync(new URL('../ui/skeleton.css', import.meta.url), 'utf8'));
+  assert.ok(skeletonDecls.length > 0, 'ui/skeleton.css declares styles');
+  assert.equal(
+    skeletonDecls.some((d) =>
+      !d.ctx.some((c) => c.startsWith('@media') || c.startsWith('@container'))
+      && splitSelectors(d.ctx.at(-1) || '').includes('.sk-layout')
+      && d.prop === 'grid-template-columns'
+      && /minmax\(min\(260px,\s*100%\),\s*380px\)/.test(d.value),
+    ),
+    true,
+    'ui/skeleton.css .sk-layout clamps first column for narrow viewports',
+  );
+  const { declarations: deskDecls } = parseCss(readFileSync(new URL('../ui/study-map/desk.css', import.meta.url), 'utf8'));
+  assert.ok(deskDecls.length > 0, 'ui/study-map/desk.css declares styles');
+  assert.equal(
+    deskDecls.some((d) =>
+      !d.ctx.some((c) => c.startsWith('@media') || c.startsWith('@container'))
+      && splitSelectors(d.ctx.at(-1) || '').includes('.desk')
+      && d.prop === 'grid-template-columns'
+      && /minmax\(min\(270px,\s*100%\),\s*340px\)/.test(d.value),
+    ),
+    true,
+    'ui/study-map/desk.css .desk clamps card column for narrow viewports',
+  );
+  assert.equal(
+    deskDecls.some((d) =>
+      d.ctx.some((c) => /@container\s+study\s*\(max-width:\s*760px\)|@media\s*\(max-width:\s*760px\)/.test(c))
+      && splitSelectors(d.ctx.at(-1) || '').includes('.desk > .today-stack')
+      && d.prop === 'width'
+      && d.value === 'auto',
+    ),
+    true,
+    'ui/study-map/desk.css resets .desk > .today-stack width: auto in narrow layout',
+  );
 });
 
 test('BookPage AI/term jumps (showBlock, showWords, showCard) and CSS scroll-margin-top clear sticky .topbar + .book-bar', () => {
-  const bookCss = readFileSync(new URL('../ui/book/book.css', import.meta.url), 'utf8');
-  const aiCss = readFileSync(new URL('../ui/book/book-ai.css', import.meta.url), 'utf8');
-  assert.match(bookCss, /--book-scroll-top:\s*calc\(var\(--book-bar-top,\s*0px\)\s*\+\s*var\(--book-bar-h,\s*44px\)\s*\+\s*var\(--space-5\)\)/);
-  for (const selector of ['.book-step {', '.book-step__heading {', '.book-chapter__heading {', '.book-node__heading {', '.book-card {', '.book-point [data-book-search-hit] {']) {
-    const idx = bookCss.indexOf(selector);
-    assert.ok(idx >= 0, `book.css contains ${selector}`);
-    const block = bookCss.slice(idx, bookCss.indexOf('}', idx) + 1);
-    assert.match(block, /scroll-margin-top:\s*var\(--book-scroll-top\)/, `${selector} uses --book-scroll-top`);
+  const { declarations: bookDecls } = parseCss(readFileSync(new URL('../ui/book/book.css', import.meta.url), 'utf8'));
+  const { declarations: aiDecls } = parseCss(readFileSync(new URL('../ui/book/book-ai.css', import.meta.url), 'utf8'));
+  assert.ok(bookDecls.length > 0, 'book.css declares styles');
+  assert.ok(aiDecls.length > 0, 'book-ai.css declares styles');
+  assert.equal(
+    bookDecls.some((d) =>
+      splitSelectors(d.ctx.at(-1) || '').includes('.book-page')
+      && d.prop === '--book-scroll-top'
+      && d.value.replace(/\s+/g, ' ') === 'calc(var(--book-bar-top, 0px) + var(--book-bar-h, 44px) + var(--space-5))',
+    ),
+    true,
+    '.book-page defines --book-scroll-top clearing sticky .topbar + .book-bar',
+  );
+  for (const selector of ['.book-step', '.book-step__heading', '.book-chapter__heading', '.book-node__heading', '.book-card', '.book-point [data-book-search-hit]']) {
+    assert.equal(
+      bookDecls.some((d) =>
+        splitSelectors(d.ctx.at(-1) || '').includes(selector)
+        && d.prop === 'scroll-margin-top'
+        && d.value === 'var(--book-scroll-top)',
+      ),
+      true,
+      `book.css ${selector} uses scroll-margin-top: var(--book-scroll-top)`,
+    );
   }
-  for (const selector of ['.book-ai {', '.book-ai-anchor {']) {
-    const idx = aiCss.indexOf(selector);
-    assert.ok(idx >= 0, `book-ai.css contains ${selector}`);
-    const block = aiCss.slice(idx, aiCss.indexOf('}', idx) + 1);
-    assert.match(block, /scroll-margin-top:\s*var\(--book-scroll-top/, `${selector} uses --book-scroll-top`);
+  for (const selector of ['.book-ai', '.book-ai-anchor']) {
+    assert.equal(
+      aiDecls.some((d) =>
+        splitSelectors(d.ctx.at(-1) || '').includes(selector)
+        && d.prop === 'scroll-margin-top'
+        && /^var\(--book-scroll-top(?:\s*,|\))/.test(d.value),
+      ),
+      true,
+      `book-ai.css ${selector} uses scroll-margin-top: var(--book-scroll-top, ...)`,
+    );
   }
 
   const prevWindow = globalThis.window;

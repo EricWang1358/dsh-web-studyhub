@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { nativeSelects } from './helpers/native-selects.mjs';
 import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 import { addNode, answerNode, emptyThread } from '../ui/document-preview/ask-thread.js';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 
 /* The reader's learning panel after the shortening: the first-level questions send at once, the top-up form starts filled in and keeps its kind and number
    behind 更多设置 (with the way to 设置), and every place that needs a model offers the gate with its button instead of a plain line. */
@@ -454,8 +455,19 @@ test('refusals and empty states say what to do next, in one sentence each', () =
 
 test('the page chips sit in an even two-column grid; the original-PDF notice is one short sentence', async () => {
   const { readFile } = await import('node:fs/promises');
-  const css = await readFile(new URL('../ui/document-preview/document-preview.css', import.meta.url), 'utf8');
-  assert.match(css, /\.study-page-ask \.ask-quick \{[^}]*display: grid;[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  const { declarations } = parseCss(await readFile(new URL('../ui/document-preview/document-preview.css', import.meta.url), 'utf8'));
+  assert.ok(declarations.length > 0, 'document-preview.css declares styles');
+  const splitSelectors = (sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim());
+  const askQuickDecls = declarations.filter((d) =>
+    !d.ctx.some((c) => c.startsWith('@media') || c.startsWith('@container'))
+    && splitSelectors(d.ctx.at(-1) || '').includes('.study-page-ask .ask-quick'),
+  );
+  assert.equal(askQuickDecls.some((d) => d.prop === 'display' && d.value === 'grid'), true, '.study-page-ask .ask-quick uses display: grid');
+  assert.equal(
+    askQuickDecls.some((d) => d.prop === 'grid-template-columns' && d.value.replace(/\s+/g, ' ') === 'repeat(2, minmax(0, 1fr))'),
+    true,
+    '.study-page-ask .ask-quick sets an even two-column grid',
+  );
 
   // The sentence is a 「?」 beside the page label now (HelpTip), not a paragraph under the toolbar: one line on a phone-width reader, two at most.
   const interactive = await loadInteractiveUi(`

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { readFileSync } from 'node:fs';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 
 /* The one-click MinerU card (ui/MineruInstallCard.jsx): every display state with its exact words, exactly one primary button, Tooltips (never title=),
@@ -273,8 +274,19 @@ test('更多 (Settings only): tier with the memory note, source, Python, stop, m
 
 test('reserved slots: the status line, the hint, the facts and the last line keep their height before an answer arrives', async () => {
   const { readFile } = await import('node:fs/promises');
-  const css = await readFile(new URL('../ui/mineru-install.css', import.meta.url), 'utf8');
-  for (const slot of ['__status', '__hint', '__facts', '__last']) assert.match(css, new RegExp(`\\.mineru-install${slot} \\{[^}]*min-height`), slot);
+  const { declarations } = parseCss(await readFile(new URL('../ui/mineru-install.css', import.meta.url), 'utf8'));
+  assert.ok(declarations.length > 0, 'mineru-install.css declares styles');
+  const splitSelectors = (sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim());
+  for (const slot of ['__status', '__hint', '__facts', '__last']) {
+    const target = `.mineru-install${slot}`;
+    const hasMinHeight = declarations.some((d) =>
+      !d.ctx.some((c) => c.startsWith('@media') || c.startsWith('@container'))
+      && splitSelectors(d.ctx.at(-1) || '').includes(target)
+      && d.prop === 'min-height'
+      && d.value.length > 0 && d.value !== '0' && d.value !== '0px' && d.value !== 'auto' && d.value !== 'none',
+    );
+    assert.equal(hasMinHeight, true, `${target} reserves height with min-height`);
+  }
   assert.match(textOf(render({ initialLocal: local.missing })), /正在计算剩余空间…/, 'the facts slot says it is computing');
 });
 
