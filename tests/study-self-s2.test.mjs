@@ -9,7 +9,6 @@ import { StudyService } from '../lib/service.js';
 import {
   AI_DRAFTED_SOURCE,
   INDEPENDENT_SOURCE,
-  JSON_CARD_SOURCE,
   aiDraftedCitedCardCount,
   isAiDraftedSource,
   normalizeSourceProvenance,
@@ -67,27 +66,28 @@ async function createLibrary(t) {
 }
 
 test('source-provenance: AI_DRAFTED_SOURCE & INDEPENDENT_SOURCE validation, explicit vs legacy title inference, and cited card counting', () => {
-  assert.equal(INDEPENDENT_SOURCE, 'independent-source');
-  assert.equal(AI_DRAFTED_SOURCE, 'ai-drafted-unverified');
   assert.equal(normalizeSourceProvenance(undefined), undefined);
   assert.equal(normalizeSourceProvenance(null), undefined);
   assert.equal(normalizeSourceProvenance(''), undefined);
-  assert.equal(normalizeSourceProvenance(INDEPENDENT_SOURCE), INDEPENDENT_SOURCE);
-  assert.equal(normalizeSourceProvenance(AI_DRAFTED_SOURCE), AI_DRAFTED_SOURCE);
-  assert.equal(normalizeSourceProvenance(JSON_CARD_SOURCE), JSON_CARD_SOURCE);
+  assert.equal(normalizeSourceProvenance('independent-source'), 'independent-source');
+  assert.equal(normalizeSourceProvenance('ai-drafted-unverified'), 'ai-drafted-unverified');
+  assert.equal(normalizeSourceProvenance('json-card-self-reference'), 'json-card-self-reference');
   assert.throws(() => normalizeSourceProvenance('guessed-by-llm'), /Invalid source provenance/);
 
-  // Explicit provenance is authoritative (including INDEPENDENT_SOURCE overriding legacy AI-drafted titles)
-  assert.equal(isAiDraftedSource({ id: 's1', title: 'Concurrency notes', provenance: AI_DRAFTED_SOURCE }), true);
+  // Explicit provenance is authoritative (including independent-source overriding legacy AI-drafted titles)
+  assert.equal(isAiDraftedSource({ id: 's1', title: 'Concurrency notes', provenance: 'ai-drafted-unverified' }), true);
   assert.equal(isAiDraftedSource({ id: 's2', title: 'Java 并发讲义（AI 撰写 · 未核对）' }), true);
   assert.equal(isAiDraftedSource({ id: 's3', title: '民法总则提纲 AI撰写-未核对' }), true);
-  assert.equal(isAiDraftedSource({ id: 's4', title: 'AI 撰写 · 未核对（已人工核实）', provenance: INDEPENDENT_SOURCE }), false);
+  assert.equal(isAiDraftedSource({ id: 's4', title: 'AI 撰写 · 未核对（已人工核实）', provenance: 'independent-source' }), false);
   assert.equal(isAiDraftedSource({ id: 's5', title: 'Official Lecture Slides Week 3' }), false);
-  assert.equal(resolveSourceProvenance({ id: 's2', title: 'Java 并发讲义（AI 撰写 · 未核对）' }), AI_DRAFTED_SOURCE);
-  assert.equal(resolveSourceProvenance({ id: 's4', title: 'AI 撰写 · 未核对（已人工核实）', provenance: INDEPENDENT_SOURCE }), INDEPENDENT_SOURCE);
+  assert.equal(resolveSourceProvenance({ id: 's2', title: 'Java 并发讲义（AI 撰写 · 未核对）' }), 'ai-drafted-unverified');
+  assert.equal(resolveSourceProvenance({ id: 's4', title: 'AI 撰写 · 未核对（已人工核实）', provenance: 'independent-source' }), 'independent-source');
+  assert.equal(resolveSourceProvenance({ id: 's5', title: 'Official Lecture Slides Week 3' }), 'independent-source');
+  assert.equal(resolveSourceProvenance({ id: 's6', title: 'JSON 导入：题组草稿' }), 'json-card-self-reference');
+  assert.equal(resolveSourceProvenance({ id: 's7', title: 'JSON 导入：已核实', provenance: 'independent-source' }), 'independent-source');
 
   const sources = [
-    { id: 'ai-1', title: 'Handout', provenance: AI_DRAFTED_SOURCE },
+    { id: 'ai-1', title: 'Handout', provenance: 'ai-drafted-unverified' },
     { id: 'own-1', title: 'Textbook Ch.2' },
   ];
   const cards = [
@@ -97,6 +97,8 @@ test('source-provenance: AI_DRAFTED_SOURCE & INDEPENDENT_SOURCE validation, expl
   ];
   assert.equal(aiDraftedCitedCardCount(cards, sources), 2);
   assert.equal(aiDraftedCitedCardCount([cards[0]], sources), 0);
+  assert.equal(aiDraftedCitedCardCount([], sources), 0);
+  assert.equal(aiDraftedCitedCardCount(cards, []), 0);
 });
 
 test('source.add, materials.document.import, and per-revision replacement persist and clear ai-drafted-unverified provenance cleanly without poisoning authentic revisions', async t => {

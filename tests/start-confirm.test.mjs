@@ -69,10 +69,14 @@ function mountPlaces({ data = {}, runs = [], busy = false, page = 'library', run
   };
 }
 
-const scenario = (name, run) => test(name, () => withBrowserGlobals(async () => {
+const withZh = (run) => withBrowserGlobals(async () => {
   m.setUiLanguage('zh');
-  await run();
-}));
+  try {
+    await run();
+  } finally {
+    m.setUiLanguage('zh');
+  }
+});
 
 const rows = [
   { row: 'deck', args: deckArgs, title: '开始练「行为型模式」？' },
@@ -80,7 +84,7 @@ const rows = [
 ];
 
 for (const { row, args, title } of rows) {
-  scenario(`${row} row ▶ without an open run asks first and sends nothing`, async () => {
+  test(`${row} row ▶ without an open run asks first and sends nothing`, () => withZh(async () => {
     const places = mountPlaces();
     try {
       await places.click(places.play(row));
@@ -92,9 +96,9 @@ for (const { row, args, title } of rows) {
       assert.match(String(places.confirmButton().props.className), /primary/, 'a start is not drawn as a destructive action');
       assert.deepEqual(places.calls, [], 'nothing was sent');
     } finally { places.mounted.unmount(); }
-  });
+  }));
 
-  scenario(`${row} row ▶: confirming sends the same review.start once, however often the button is hit`, async () => {
+  test(`${row} row ▶: confirming sends the same review.start once, however often the button is hit`, () => withZh(async () => {
     const places = mountPlaces();
     try {
       await places.click(places.play(row));
@@ -104,9 +108,9 @@ for (const { row, args, title } of rows) {
       assert.equal(places.dialog(), null, 'the dialog closed');
       assert.deepEqual(places.leaves, [], 'a row start does not add a leave gate it did not have');
     } finally { places.mounted.unmount(); }
-  });
+  }));
 
-  scenario(`${row} row ▶: Cancel, Escape and a press outside send nothing`, async () => {
+  test(`${row} row ▶: Cancel, Escape and a press outside send nothing`, () => withZh(async () => {
     const places = mountPlaces();
     try {
       await places.click(places.play(row));
@@ -121,19 +125,19 @@ for (const { row, args, title } of rows) {
       assert.equal(places.dialog(), null, 'a press outside closes');
       assert.deepEqual(places.calls, []);
     } finally { places.mounted.unmount(); }
-  });
+  }));
 
-  scenario(`${row} row with an open run resumes at once, without a dialog`, async () => {
+  test(`${row} row with an open run resumes at once, without a dialog`, () => withZh(async () => {
     const places = mountPlaces({ runs: [{ id: 'run-7', mode: 'path', scope: args.scope, index: 1, total: 4 }] });
     try {
       await places.click(places.play(row));
       assert.equal(places.dialog(), null);
       assert.deepEqual(places.calls, [['review.get', { runId: 'run-7' }, places.enterRun, { refreshAfter: false }]]);
     } finally { places.mounted.unmount(); }
-  });
+  }));
 }
 
-scenario('S / 回到题目 with a round to resume resumes it with no dialog, behind the leave gate as before', async () => {
+test('S / 回到题目 with a round to resume resumes it with no dialog, behind the leave gate as before', () => withZh(async () => {
   const places = mountPlaces({ data: { lastRun: { id: 'run-42' } } });
   try {
     await places.act(() => places.app.intents.resumeOrStart());
@@ -143,9 +147,9 @@ scenario('S / 回到题目 with a round to resume resumes it with no dialog, beh
     await places.act(() => places.leaves[0]());
     assert.deepEqual(places.calls, [['review.get', { runId: 'run-42' }, places.enterRun, { refreshAfter: false }]]);
   } finally { places.mounted.unmount(); }
-});
+}));
 
-scenario('S / 回到题目 with nothing to resume asks before today\'s study: no start and no leave gate until confirmed', async () => {
+test('S / 回到题目 with nothing to resume asks before today\'s study: no start and no leave gate until confirmed', () => withZh(async () => {
   const places = mountPlaces();
   try {
     await places.act(() => places.app.intents.resumeOrStart());
@@ -162,9 +166,9 @@ scenario('S / 回到题目 with nothing to resume asks before today\'s study: no
     await places.act(() => places.leaves[0]());
     assert.deepEqual(places.calls, [['review.start', m.dailyPathArgs(today), places.enterRun, undefined]]);
   } finally { places.mounted.unmount(); }
-});
+}));
 
-scenario('S / 回到题目: cancelling asks no leave gate and starts nothing', async () => {
+test('S / 回到题目: cancelling asks no leave gate and starts nothing', () => withZh(async () => {
   const places = mountPlaces();
   try {
     await places.act(() => places.app.intents.resumeOrStart());
@@ -175,9 +179,9 @@ scenario('S / 回到题目: cancelling asks no leave gate and starts nothing', a
     assert.deepEqual(places.leaves, []);
     assert.deepEqual(places.calls, []);
   } finally { places.mounted.unmount(); }
-});
+}));
 
-scenario('S / 回到题目 with no decks still goes to 创建题组, with no dialog', async () => {
+test('S / 回到题目 with no decks still goes to 创建题组, with no dialog', () => withZh(async () => {
   const places = mountPlaces({ data: { decks: [] } });
   try {
     await places.act(() => places.app.intents.resumeOrStart());
@@ -187,18 +191,18 @@ scenario('S / 回到题目 with no decks still goes to 创建题组, with no dia
     assert.deepEqual(places.generated, ['generate']);
     assert.deepEqual(places.calls, []);
   } finally { places.mounted.unmount(); }
-});
+}));
 
-scenario('S on an unfinished practice page does nothing, as before', async () => {
+test('S on an unfinished practice page does nothing, as before', () => withZh(async () => {
   const places = mountPlaces({ page: 'review', run: { id: 'r', complete: false } });
   try {
     await places.act(() => places.app.intents.resumeOrStart());
     assert.equal(places.dialog(), null);
     assert.deepEqual([places.leaves.length, places.calls.length], [0, 0]);
   } finally { places.mounted.unmount(); }
-});
+}));
 
-scenario('a pending confirmation does not survive another library, and starts nothing there', async () => {
+test('a pending confirmation does not survive another library, and starts nothing there', () => withZh(async () => {
   for (const open of [(places) => places.click(places.play('deck')), (places) => places.act(() => places.app.intents.resumeOrStart())]) {
     const places = mountPlaces();
     try {
@@ -214,9 +218,9 @@ scenario('a pending confirmation does not survive another library, and starts no
       assert.deepEqual(places.calls, []);
     } finally { places.mounted.unmount(); }
   }
-});
+}));
 
-scenario('while another write runs, the confirm button waits (Cancel does not): a press would otherwise be dropped silently', async () => {
+test('while another write runs, the confirm button waits (Cancel does not): a press would otherwise be dropped silently', () => withZh(async () => {
   const places = mountPlaces();
   try {
     await places.click(places.play('deck'));
@@ -225,9 +229,9 @@ scenario('while another write runs, the confirm button waits (Cancel does not): 
     assert.equal(places.confirmButton().props.disabled, true);
     assert.notEqual(places.cancelButton().props.disabled, true);
   } finally { places.mounted.unmount(); }
-});
+}));
 
-scenario('the ⋯ menu items still start without a dialog', async () => {
+test('the ⋯ menu items still start without a dialog', () => withZh(async () => {
   const places = mountPlaces();
   try {
     for (const id of ['new', 'flashcard', 'quiz', 'wrong']) await places.act(() => places.menu().props.onSelect(id));
@@ -239,7 +243,7 @@ scenario('the ⋯ menu items still start without a dialog', async () => {
       ['review.start', { deckId: 'd1', mode: 'wrong' }],
     ]);
   } finally { places.mounted.unmount(); }
-});
+}));
 
 test('the dialog speaks English on an English page', () => withBrowserGlobals(async () => {
   m.setUiLanguage('en');

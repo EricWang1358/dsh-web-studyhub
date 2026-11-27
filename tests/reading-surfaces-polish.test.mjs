@@ -17,7 +17,7 @@ const m = await loadUi(`
   export { keepBook, keptBook } from './ui/book/model.js';
   export { filterOutline, keepView, keptView, outlineViewKey, emptyPick } from './ui/outline/model.js';
   export { CourseOutlineView } from './ui/outline/CourseOutline.jsx';
-  export { default as BlogNotes, SPLIT_NOTE_MIN_WIDTH, isSplitNoteViewport, resolveNoteEditLayout } from './ui/BlogNotes.jsx';
+  export { default as BlogNotes, isSplitNoteViewport, resolveNoteEditLayout } from './ui/BlogNotes.jsx';
   export { default as FlagDialog } from './ui/app/modals/FlagDialog.jsx';
   export { questionNoteTitle, questionNoteCourse, qaToNoteArgs } from './ui/review/question-note.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
@@ -206,12 +206,15 @@ test('CourseOutline persists chapter fold state per root+course in localStorage 
 });
 
 test('BlogNotes supports >= 1100px split edit + live Markdown/KaTeX preview, narrow fallback, and single focus ring', () => {
-  assert.equal(m.SPLIT_NOTE_MIN_WIDTH, 1100);
   assert.equal(m.isSplitNoteViewport(1099), false);
   assert.equal(m.isSplitNoteViewport(1100), true);
+  assert.equal(m.isSplitNoteViewport(1101), true);
+  assert.equal(m.isSplitNoteViewport(0), false);
+  assert.equal(m.isSplitNoteViewport(NaN), false);
   assert.equal(m.resolveNoteEditLayout('split', true), 'split');
   assert.equal(m.resolveNoteEditLayout('split', false), 'edit');
   assert.equal(m.resolveNoteEditLayout('preview', false), 'preview');
+  assert.equal(m.resolveNoteEditLayout('unknown', true), 'edit');
 
   const note = {
     id: 'n-split',
