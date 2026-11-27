@@ -10,8 +10,9 @@ import { applyBoardAction } from '../../lib/board-model.js';
 const isConflict = (message) => /revision conflict/i.test(String(message));
 /* Writes that only add something new. When the board moved on before one of them reached the server (the daily plan
    writes it on its own, #855), it is sent once more on the latest revision: it cannot overwrite a change the learner has
-   not seen. Moves and edits are never replayed; they stay refused and the page says so. */
-const REPLAY_ON_CONFLICT = new Set(['board.card.add', 'board.column.add', 'board.timeLog.add']);
+   not seen. Moves and edits are never replayed; they stay refused and the page says so. A time-log add is left out: it
+   also undoes a deleted entry, and replaying that undo could log the same minutes twice. */
+const REPLAY_ON_CONFLICT = new Set(['board.card.add', 'board.column.add']);
 
 export function createBoardStore(call, { initialBoard = null, onBoard } = {}) {
   let state = { board: initialBoard, error: '', conflict: false, busy: false };
@@ -70,7 +71,15 @@ export function createBoardStore(call, { initialBoard = null, onBoard } = {}) {
           try {
             server = await call('board.get', {});
             onBoard?.(server);
-            return await send();
+            await send();
+            /* Writes queued behind this add were made on a board without the change that made it stale. Sent now they
+               would carry the revision just read and overwrite that change unseen, so they are dropped and the page
+               says so, as when the add itself fails. */
+            if (pending > 1) {
+              epoch++;
+              set({ error: error.message, conflict: true });
+            }
+            return true;
           } catch (again) {
             failure = again;
           }

@@ -52,11 +52,12 @@ test('Browser (#855): a quick-add on 今日 sent while the daily plan has just w
   let releaseAnswer, addSent;
   const answerGate = new Promise((done) => { releaseAnswer = done; });
   const addGate = new Promise((done) => { addSent = done; });
-  const seen = { written: false, add: null };
+  const seen = { suggesting: false, written: false, add: null };
   const bodyOf = (route) => { try { return JSON.parse(route.request().postData() || '{}'); } catch { return {}; } };
   await page.route('**/api/call', async (route) => {
     const body = bodyOf(route), action = body.action || '';
     if (action === 'daily.plan.suggest') {
+      seen.suggesting = true;
       const response = await route.fetch();
       seen.written = true;
       await answerGate;
@@ -66,7 +67,13 @@ test('Browser (#855): a quick-add on 今日 sent while the daily plan has just w
       seen.add = { sent: body.args?.revision, server: (await running.api('board.get')).revision };
       addSent();
     }
-    if (action === 'board.get' && seen.written) await addGate;
+    if (action === 'board.get') {
+      // A read the server answers once the proposal may be written would show the page the new revision early: its
+      // answer waits until the quick-add has gone out, whenever the read itself was sent.
+      const response = await route.fetch();
+      if (seen.suggesting) await addGate;
+      return route.fulfill({ response });
+    }
     return route.continue();
   });
 

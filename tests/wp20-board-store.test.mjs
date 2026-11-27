@@ -206,3 +206,33 @@ test('a move or an edit on a stale revision is still refused, never replayed on 
   assert.equal(server.log.filter((entry) => entry.action !== 'board.get').length, 3, 'each write was sent once');
   assert.equal(server.board.cards.a.title, 'a');
 });
+
+test('a write queued behind a resent add is dropped, so the change that made the add stale is not overwritten unseen', async () => {
+  const server = fakeServer();
+  const heard = [];
+  const store = createBoardStore(server.call, { onBoard: (board) => heard.push(board.revision) });
+  await store.refresh();
+  // Another writer renames card a; the page still shows the old board.
+  server.board = { ...structuredClone(server.board), revision: 5 };
+  server.board.cards.a.title = 'Theirs';
+  const add = store.mutate('board.card.add', { column: 'todo', title: 'new' }, { optimistic: false });
+  const edit = store.mutate('board.card.edit', { id: 'a', title: 'Mine' });
+  assert.equal(await add, true, 'the add itself still lands');
+  assert.equal(await edit, false);
+  assert.equal(server.board.cards.a.title, 'Theirs');
+  assert.deepEqual(server.log.filter((entry) => entry.action !== 'board.get').map((entry) => `${entry.action}@${entry.args.revision}`),
+    ['board.card.add@1', 'board.card.add@5'], 'the edit was never sent');
+  assert.equal(store.getState().conflict, true, 'the page says the board changed');
+  assert.equal(store.getState().board.cards.a.title, 'Theirs', 'and shows the latest board');
+  assert.ok(heard.includes(5), 'the warm cache heard the board read for the resend');
+});
+
+test('a time-log add is not resent: replaying an undo could log the same minutes twice', async () => {
+  const server = fakeServer();
+  const store = createBoardStore(server.call);
+  await store.refresh();
+  server.board = { ...server.board, revision: 5 };
+  assert.equal(await store.mutate('board.timeLog.add', { cardId: 'a', minutes: 25 }, { optimistic: false }), false);
+  assert.equal(server.log.filter((entry) => entry.action === 'board.timeLog.add').length, 1);
+  assert.equal(store.getState().conflict, true);
+});
