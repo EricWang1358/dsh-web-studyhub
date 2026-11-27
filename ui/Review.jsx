@@ -204,6 +204,13 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
      back beside a forward step; only when neither stands under the score does the header keep its 返回学习库. The foot's 回到学习目录 went to the same place. */
   const resultBack = run.complete && (backHere || !!onward?.back || !!(onward && contextReturnLabel));
   const roundSetup = onward && !backHere && !flow && !detour && !run.course ? resultTarget(run, destination, { newBatch: newBatchArgs }) : null;
+  /* What went wrong comes first (#1687): a round with wrong answers has 重练这 N 道错题 as its one filled button and the next step, whatever it is, is the plain
+     button after it. A round with a way back of its own keeps that way back as the filled button: the book, the 总纲 and the reader (backHere), a learning
+     flow, a detour and a prerequisite round that goes back to its question (run.returnTo); the wrong ones are in 本轮题目 below. */
+  const ownWayBack = backHere || !!flow || !!detour || !!run.returnTo || destination?.kind === "original";
+  const wrongRefs = run.complete && run.mode !== "exam" && !ownWayBack && Array.isArray(run.missedCards)
+    ? run.missedCards.map(({ deckId, cardId }) => ({ deckId, cardId })) : [];
+  const practiseWrong = wrongRefs.length > 0;
   const roundCourse = run.complete ? resolveRoundCourse(data, run) : "";
   const roundStage = roundCourse ? (currentMethodStage(data, roundCourse)?.stage?.name || "") : "";
   const missedList = run.complete && run.mode !== "exam"
@@ -342,10 +349,12 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           </div>
           {/* The next step comes first (the page decided it with today's plan in view): one filled button, then the 点评 and the rest. */}
           {/* A round started in the book (or on the 总纲) goes back there first; the page's own next step is then the second button. */}
-          {(onward || wayBack) && (
+          {(onward || wayBack || practiseWrong) && (
             <div className={cx("result-next", wayBack && "result-next--back")}>
               {wayBack && <ReturnPrimary arrow oneLine label={wayBack.label} place={wayBack.place} disabled={busy} onReturn={wayBack.go} />}
-              {onward && <Button variant={backHere ? "secondary" : "primary"} align={backHere ? "start" : undefined} icon={onward.back ? "arrow-left" : undefined}
+              {practiseWrong && <Button variant="primary" iconEnd="arrow-right" lock={busy} onClick={() => act("review.start", practiceArgs(wrongRefs), enterRun)}>
+                {wrongRefs.length === 1 ? ui("重练这道错题") : uiFormat("重练这 {0} 道错题", [wrongRefs.length])}</Button>}
+              {onward && <Button variant={backHere || practiseWrong ? "secondary" : "primary"} align={backHere ? "start" : undefined} icon={onward.back ? "arrow-left" : undefined}
                 iconEnd={onward.back ? undefined : "arrow-right"} lock={busy} onClick={onward.run}>{onward.label}</Button>}
               {roundSetup && <RoundSetup data={data} context={roundSetup} chapterRefs={run.scope} onStart={(args, options) => act("review.start", args, enterRun, options)} className="result-setup" />}
 
@@ -366,7 +375,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               onContinue={coachProps.onContinue}
               destination={coachProps.destination}
               onReviewWeak={coachProps.onReviewWeak}
-              ctaMode={destination?.kind === "original" ? "none" : nextStep ? "secondary-suggestion" : backHere ? "secondary" : "primary"}
+              ctaMode={destination?.kind === "original" ? "none" : nextStep ? "secondary-suggestion" : backHere || practiseWrong ? "secondary" : "primary"}
               suppressNextPromise={backHere && !onward}
               debriefModel={practice.debrief}
               onSettings={goPracticeSettings} onProfileSettings={() => openSettings("settings-profile")}
@@ -376,7 +385,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             <LazyRoundSealSection run={run} title={shellTitle} course={roundCourse} allCorrect={allCorrect} />
           )}
           {call && <DailyRecap root={data.root} runId={run.id} saved={data.settings?.dailyRecap}
-            poll primary={!nextStep && !backHere} onOpenNote={onOpenNote} onSettings={onRecapSettings} onModelSettings={onModelSettings} />}
+            poll primary={!nextStep && !backHere && !practiseWrong} onOpenNote={onOpenNote} onSettings={onRecapSettings} onModelSettings={onModelSettings} />}
           {run.weakTopics?.length > 0 && (
             <div className="summary-topics sh-paper-card">
               <h3>{ui("接下来重点复习 · 最多 3 个主题")}</h3>

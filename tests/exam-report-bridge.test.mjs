@@ -448,3 +448,23 @@ test('examReport + snapshot-shaped decks (without cards) still resolve usable ci
     }
   });
 });
+
+const missReport = { runId: 'exam-2', total: 3, answered: 1, unanswered: 2, correct: 0, scorePct: 0, durationMs: 1000,
+  byTopic: [{ deckId: 'd1', deckTitle: 'OS', topic: 'Locks', correct: 0, total: 3 }],
+  wrong: [{ deckId: 'd1', cardId: 'c1', topic: 'Locks', prompt: 'a?', kind: 'quiz' }],
+  skipped: [{ deckId: 'd1', cardId: 'c2', topic: 'Locks', prompt: 'b?', kind: 'quiz' }, { deckId: 'd1', cardId: 'c3', topic: 'Locks', prompt: 'c?', kind: 'quiz' }],
+  weakScope: [{ deckId: 'd1', cardId: 'c1' }, { deckId: 'd1', cardId: 'c2' }, { deckId: 'd1', cardId: 'c3' }] };
+const missProps = { report: missReport, busy: false, pathNote: '', onQueueWeak: noop, onPracticeTopic: noop, onPracticeScope: noop, onTogglePostmortem: async () => true, onExit: noop, onAgain: noop };
+const reportButtons = (html) => [...html.matchAll(/<button[^>]*class="([^"]*)"[^>]*>([\s\S]*?)<\/button>/g)].map(([, cls, inner]) => ({ cls, text: textOf(inner) }));
+const filledOf = (props) => reportButtons(renderToStaticMarkup(h(ssr.WrittenReport, props))).filter((button) => /sh-btn--primary/.test(button.cls)).map((button) => button.text);
+
+test('#1687: with wrong or unanswered questions the one filled button practises them; going back is plain', () => {
+  ssr.setUiLanguage('zh');
+  assert.deepEqual(filledOf(missProps), ['练习答错与未答的 3 道'], 'one filled button, and it practises the misses');
+  assert.match(reportButtons(renderToStaticMarkup(h(ssr.WrittenReport, missProps))).find((button) => button.text === '回学习库').cls, /sh-btn--secondary/);
+  // All right: going back stays the filled button.
+  const clean = { ...missReport, correct: 3, answered: 3, unanswered: 0, scorePct: 100, wrong: [], skipped: [], weakScope: [], byTopic: [{ ...missReport.byTopic[0], correct: 3 }] };
+  assert.deepEqual(filledOf({ ...missProps, report: clean }), ['回学习库']);
+  // A practice that cannot start now (pathNote) does not take the filled button either.
+  assert.deepEqual(filledOf({ ...missProps, pathNote: '先完成学习路径' }), ['回学习库']);
+});
