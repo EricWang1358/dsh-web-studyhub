@@ -1,0 +1,1 @@
+- **In the review timing preview the “Easy” line now matches its key.** The line, its dots and day numbers are the green of the key, whatever accent colour you pick. Not verified: the paper and black themes were not looked at on their own.
