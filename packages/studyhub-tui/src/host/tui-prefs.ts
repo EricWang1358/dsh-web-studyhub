@@ -2,11 +2,12 @@
  * Zero-dependency validated, atomic persistence for TUI-only preferences at `<DSH_HOME || ~/.dsh>/study/tui.json`.
  * Lives beside StudyHub Desktop's `desktop.json` (never inside the study library).
  */
+import { isKnownAssistantChipId } from '../shell/assistant-chips.js';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import type { AssistantCommandStat, LastPracticeContext, PinnedTarget, ThemeId, TuiPreferences, UiLanguage } from '../types/contracts.js';
-import { type AtomicFsOps, atomicUpdateJson, backupCorruptFile } from './atomic-write.js';
+import { type AtomicFsOps, atomicUpdateJson, backupCorruptFile, detectUnsupportedSchemaVersion, stripUtf8Bom } from './atomic-write.js';
 
 export const TUI_PREFS_SCHEMA_VERSION = 1;
 
@@ -112,16 +113,14 @@ function parseTuiPreferencesObject(source: Record<string, unknown>): TuiPreferen
     if (runId && cardId) {
       const deckId = typeof raw.deckId === 'string' && raw.deckId.trim() ? raw.deckId.trim().slice(0, 128) : undefined;
       const total = typeof raw.total === 'number' && Number.isSafeInteger(raw.total) && raw.total > 0 ? raw.total : undefined;
-      const promptPreview =
-        typeof raw.promptPreview === 'string' && raw.promptPreview.trim() ? raw.promptPreview.trim().slice(0, 120) : undefined;
       const savedAt = typeof raw.savedAt === 'number' && Number.isFinite(raw.savedAt) && raw.savedAt > 0 ? raw.savedAt : Date.now();
+      // #1354 D11: never retain or persist `promptPreview` (question stem text) inside `tui.json`.
       lastPracticeContext = {
         runId,
         cardId,
         ...(deckId ? { deckId } : {}),
         cardIndex,
         ...(total ? { total } : {}),
-        ...(promptPreview ? { promptPreview } : {}),
         savedAt,
       };
     }
@@ -143,7 +142,8 @@ function parseTuiPreferencesObject(source: Record<string, unknown>): TuiPreferen
       for (const [cmd, rawStat] of Object.entries(rawMap as Record<string, unknown>)) {
         if (cmdCount >= 20) break;
         const cleanCmd = cmd.trim().slice(0, 60);
-        if (!cleanCmd || !rawStat || typeof rawStat !== 'object') continue;
+        // #1354 D11: never persist free-text user input in `tui.json`; only registered canonical chip IDs ([C24]) may pass.
+        if (!isKnownAssistantChipId(cleanCmd) || !rawStat || typeof rawStat !== 'object') continue;
         const rec = rawStat as Record<string, unknown>;
         const count = typeof rec.count === 'number' && Number.isFinite(rec.count) && rec.count > 0 ? Math.floor(rec.count) : 0;
         const lastUsedAt =
@@ -266,16 +266,6 @@ class UnsupportedPrefsVersionError extends Error {
   }
 }
 
-function stripUtf8Bom(text: string): string {
-  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-}
-
-function detectUnsupportedSchemaVersion(raw: Record<string, unknown>): { version: unknown } | null {
-  if (!Object.hasOwn(raw, 'version') || raw.version === undefined) return null;
-  if (raw.version === TUI_PREFS_SCHEMA_VERSION) return null;
-  return { version: raw.version };
-}
-
 const PASSIVE_PREF_KEYS = new Set<string>([
   'recentCommands',
   'lastPracticeContext',
@@ -314,7 +304,7 @@ export async function loadTuiPreferencesSafe(location: TuiPrefsLocation = {}): P
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return { prefs: defaults(), status: 'corrupt', error: 'Expected preferences JSON object' };
     }
-    const unsupportedVersion = detectUnsupportedSchemaVersion(parsed as Record<string, unknown>);
+    const unsupportedVersion = detectUnsupportedSchemaVersion(parsed as Record<string, unknown>, TUI_PREFS_SCHEMA_VERSION);
     if (unsupportedVersion !== null) {
       return {
         prefs: defaults(),
@@ -369,7 +359,7 @@ export async function saveTuiPreferences(
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
           throw new Error('Expected preferences JSON object');
         }
-        const unsupportedVersion = detectUnsupportedSchemaVersion(parsed as Record<string, unknown>);
+        const unsupportedVersion = detectUnsupportedSchemaVersion(parsed as Record<string, unknown>, TUI_PREFS_SCHEMA_VERSION);
         if (unsupportedVersion !== null) {
           throw new UnsupportedPrefsVersionError(unsupportedVersion.version);
         }

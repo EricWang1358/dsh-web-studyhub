@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { StudyService } from '../lib/service.js';
@@ -210,4 +210,22 @@ test('the sidebar badge does not count the day\'s row unless a batch is in fligh
   release.resolve();
   await service.call('coach.prepare');
   assert.equal((await rowOf(service))[0].contract.status, 'complete');
+});
+
+test('a damaged coach-daily.json still lists today with its controls and the reason; pausing backs the file up and starts the record afresh', async (t) => {
+  const { root, service } = await setup(t);
+  const damaged = '{"version":1,"settings":{"maxBatchesPerDay":2},"days":{"20';
+  await writeFile(join(root, DAILY.file), damaged, 'utf8');
+  coachDailyLedger(root).reload();
+  const [row] = await rowOf(service);
+  assert.equal(row?.id, `coach:${today()}`, 'today is listed although no batch could start or be recorded');
+  assert.equal(row.contract.actions.pause.available, true, 'the learner can act on the day');
+  assert.ok(row.contract.events.some((event) => event.level === 'warn' && /coach-daily\.json/.test(event.text)), 'the row says why no batch starts');
+  const reply = await service.call('job.control', { jobId: `coach:${today()}`, action: 'pause' });
+  assert.equal(reply.paused, true);
+  const backups = (await readdir(root)).filter((name) => name.startsWith(`${DAILY.file}.corrupt-`) && name.endsWith('.bak'));
+  assert.equal(backups.length, 1, 'the damaged file is backed up before it is replaced');
+  assert.equal(await readFile(join(root, backups[0]), 'utf8'), damaged);
+  assert.equal(JSON.parse(await readFile(join(root, DAILY.file), 'utf8')).settings.pausedDay, today(), 'the record starts afresh with the pause');
+  assert.equal((await coachDailyLedger(root).gate()).reason, 'paused');
 });
