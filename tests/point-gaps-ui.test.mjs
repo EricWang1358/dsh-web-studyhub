@@ -24,7 +24,6 @@ const m = await loadUi(`
   export { default as RunRounds } from './ui/tasks/RunRounds.jsx';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';`);
-const source = await readFile(new URL('../ui/coverage/PointGaps.jsx', import.meta.url), 'utf8');
 const han = /[㐀-鿿]/;
 const text = html => html.replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#x27;/g, "'").replace(/\s+/g, ' ');
 const inLanguage = (language, run) => { m.setUiLanguage(language); try { return run(); } finally { m.setUiLanguage('zh'); } };
@@ -47,14 +46,23 @@ test('the one line, the fold of uncovered points and the one action, in zh', () 
   assert.match(words, /补其中 1 个，约 1 题；一轮补不完的下次再补。|补 1 个知识点，约 1 题。/);
   assert.match(words, /补这些知识点/);
   assert.equal((html.match(/data-points-topup/g) || []).length, 1, 'ONE action');
-  assert.ok(!/\stitle=/.test(source), 'explanations are tooltips, never title=');
+  assert.match(html, /class="sh-help-tip"[^>]*aria-label="知识点是怎么算的"[^>]*aria-describedby="[^"]+"/, 'explanation uses HelpTip trigger bound to tooltip');
+  assert.match(html, /role="tooltip"[^>]*>[\s\S]*?整门课所有题组和草稿里的题，不只这份草稿/, 'explanation text lives inside tooltip');
+  assert.doesNotMatch(render({ report, modelReady: false }), /\stitle="/, 'explanations are tooltips, never title=');
 });
 
 test('a point others rest on is marked 前置, with why in a tooltip', () => {
   const marked = { ...report, list: report.list.map(point => (point.id === 'pc' ? { ...point, dependents: 2 } : point)) };
-  const html = render({ report: marked });
-  assert.match(html, /data-point="pc"[\s\S]*?data-point-prereq[^>]*>前置</);
-  assert.match(html, /有 2 个知识点建立在它之上，先补它。/);
+  const html = render({ report: marked, modelReady: false });
+  assert.match(html, /data-point="pc"[\s\S]*?data-point-prereq="true"[^>]*aria-describedby="[^"]+"[^>]*>前置</);
+  assert.match(html, /role="tooltip"[^>]*>有 2 个知识点建立在它之上，先补它。/);
+  assert.doesNotMatch(html, /\stitle="/, 'prereq badge uses tooltip, never title=');
+
+  const courseJump = { ...marked, list: marked.list.map(point => (point.id === 'pc' ? { ...point, hid: 'h-pc', number: '1.2' } : point)) };
+  const jumpHtml = render({ draft: null, course: COURSE, report: courseJump, modelReady: false, onOpenPoint: () => {} });
+  assert.match(jumpHtml, /data-point-jump="h-pc"/, 'course-jump point renders clickable jump button');
+  assert.match(jumpHtml, /role="tooltip"[^>]*>有 2 个知识点建立在它之上，先补它。/);
+  assert.doesNotMatch(jumpHtml, /\stitle="/, 'course-jump render uses tooltips, never title=');
 });
 
 test('every word in English, the learner\'s point titles aside', () => inLanguage('en', () => {
@@ -77,6 +85,7 @@ test('an outline that cannot be counted by: one quiet line saying why and where;
     assert.match(html, new RegExp(`data-points-unavailable="${reason}"`));
     assert.match(text(html), /「总纲」页/, `${reason} says where`);
     assert.ok(!/data-points-topup|data-point=/.test(html), `${reason}: no list, no action`);
+    assert.doesNotMatch(html, /\stitle="/, `${reason}: the quiet line explains with text, never title=`);
   }
   for (const reason of ['no-outline', 'unreadable', 'unknown']) assert.equal(render({ report: { status: 'unavailable', reason } }), '', reason);
   assert.equal(render({ report: { ...report, points: 0 } }), '', 'a draft whose materials hold no point says nothing');
@@ -109,6 +118,11 @@ test('a draft that cannot be topped up shows the count and the list, never the a
   assert.ok(!/data-points-topup|data-points-held/.test(offerless), 'no action, no hold line');
   const held = render({ report: { ...report, topUp: null, hold: 'planned-rounds' } });
   assert.ok(!/data-points-topup/.test(held));
+  assert.doesNotMatch(held, /\stitle="/, 'the plan-hold line uses text, never title=');
+  const more = render({ report: { ...report, more: 3 }, modelReady: false });
+  assert.match(more, /data-points-list/, 'the fold renders with a trailing note');
+  assert.match(more, /class="cov-points__note"/, 'the note about the points left out renders');
+  assert.doesNotMatch(more, /\stitle="/, 'the note about the points left out uses text, never title=');
   assert.match(text(held), /计划还有轮次没跑完：先接着做完，再按知识点补。/);
   inLanguage('en', () => assert.match(text(render({ report: { ...report, topUp: null, hold: 'planned-rounds' } })), /Rounds of this draft's plan have not run yet/));
 });

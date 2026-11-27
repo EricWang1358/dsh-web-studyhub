@@ -6,9 +6,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { after, describe, test } from 'node:test';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import React from 'react';
-import { render } from 'ink';
+import { render, Text } from 'ink';
 import { register } from 'tsx/esm/api';
 import {
   cloneSampleLibrary,
@@ -17,8 +17,11 @@ import {
   disposeTerminalPool,
   distDir,
   loadDistRuntime,
+  pkgRoot,
   sanitizedTestEnv,
 } from './helpers/virtual-tty.mjs';
+
+const srcDir = path.join(pkgRoot, 'src');
 
 const unregisterTsx = register();
 const temps = createTempTracker('studyhub-p2-d5-');
@@ -28,11 +31,17 @@ after(async () => {
   unregisterTsx?.();
 });
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const pkgRoot = path.resolve(__dirname, '..');
-const srcDir = path.join(pkgRoot, 'src');
-
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+
+async function waitForFrame(harness, predicate, label, timeoutMs = 4000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const frame = harness.lastFrame();
+    if (predicate(frame)) return frame;
+    await sleep(20);
+  }
+  assert.fail(`Timed out waiting for ${label}.\nLast frame:\n${harness.lastFrame()}`);
+}
 
 function createScrollHarness(element, { cols = 60, rows = 10 } = {}) {
   const stdin = new PassThrough();
@@ -179,33 +188,541 @@ describe('P2 (#1354 D5): Breakpoints, Typography/Scroll Primitives & 80x24 / 120
     }
   });
 
-  test('3. Migrated 5 views (Review -> Reader -> Library -> Sources -> Tasks) have zero content truncation on fill-in diff / topics / banners & zero raw hardcoded width thresholds', () => {
-    const reviewSrc = fs.readFileSync(path.join(srcDir, 'views/review/ReviewView.tsx'), 'utf8');
-    assert.doesNotMatch(
-      reviewSrc,
-      /truncateDisplay\s*\(\s*(?:rawUser|diff\.expected|wrongStreakBanner|fatigueBanner)\b/,
-      'ReviewView must wrap fill-in-the-blank diffs and coaching banners with <Prose> instead of truncateDisplay',
+  // Source check kept on purpose: which module owns a width constant is not visible in rendered output
+  // (a literal `innerW < 60` renders exactly like `innerW < LAYOUT_BP.CONTENT_NARROW`), so test 3a cannot prove it.
+  test('3. Migrated 5 views (Review -> Reader -> Library -> Sources -> Tasks) have zero content truncation on fill-in diff / topics / banners & zero raw hardcoded width thresholds', async () => {
+    const { LAYOUT_BP, CONTENT_TIERS } = await import('../src/layout/breakpoints.ts');
+    // Every canonical breakpoint (>= 46 cols; row counts like MIN_VIEWPORT_ROWS are excluded) plus the legacy literals
+    // 64 / 82 that the views used before LAYOUT_BP existed. Local sizing literals such as `ctx.width >= 52` or
+    // `innerW >= 32` are not breakpoints and must stay allowed.
+    const bpValues = [
+      ...new Set(
+        [...Object.values(LAYOUT_BP), ...Object.values(CONTENT_TIERS), 64, 82].filter((n) => Number.isInteger(n) && n >= 46),
+      ),
+    ];
+    assert.ok(bpValues.includes(60) && bpValues.includes(84) && bpValues.includes(96), `breakpoint literal set looks wrong: ${bpValues}`);
+    const thresholdLiteral = new RegExp(
+      String.raw`\b(?:innerW|contentW|width|\w+Width)\s*(?:<=|>=|<|>)\s*(?:${bpValues.join('|')})\b`,
     );
-    assert.doesNotMatch(
-      reviewSrc,
-      /\binnerW\s*(?:<\s*(?:90|64|82)|>=\s*96)\b/,
-      'ReviewView must use centralized LAYOUT_BP / resolveContentTier instead of hardcoded width numbers',
-    );
+    const hardcoded = (name) => {
+      const src = fs.readFileSync(path.join(srcDir, name), 'utf8');
+      return src.split(/\r?\n/).flatMap((line, i) => (thresholdLiteral.test(line) ? [`${name}:${i + 1}: ${line.trim()}`] : []));
+    };
+    for (const name of [
+      'views/review/ReviewView.tsx',
+      'views/review/ReviewFeedbackSections.tsx',
+      'views/library/LibraryView.tsx',
+      'views/sources/SourcesView.tsx',
+    ]) {
+      assert.deepEqual(hardcoded(name), [], `${name} must compare widths against LAYOUT_BP.*, not a raw number`);
+    }
+  });
 
-    const librarySrc = fs.readFileSync(path.join(srcDir, 'views/library/LibraryView.tsx'), 'utf8');
-    assert.doesNotMatch(
-      librarySrc,
-      /truncateDisplay\s*\(\s*topicsLine\b/,
-      'LibraryView must wrap deck topics with <Prose> instead of truncateDisplay',
-    );
-    assert.doesNotMatch(
-      librarySrc,
-      /\bwidth\s*>=\s*(?:64|96)\b/,
-      'LibraryView must use centralized LAYOUT_BP instead of hardcoded width >= 64 / 96',
-    );
+  test('3a. ReviewFeedbackSections, LibraryView, and SourcesView wrap diffs/banners/topics without truncation and layouts flip at the 59/60, 83/84 and 85/86 width boundaries', async () => {
+    const { LAYOUT_BP } = await import('../src/layout/breakpoints.ts');
+    const { KeyScopeProvider, useKeyDispatcherBridge } = await import('../src/components/key-dispatcher.ts');
+    const { SplitPane } = await import('../src/components/SplitPane.tsx');
+    const { useTuiStore, DEFAULT_PREFERENCES } = await import('../src/state/store.ts');
+    const { ReviewFeedbackHeader, ReviewPostAnswerFooter } = await import('../src/views/review/ReviewFeedbackSections.tsx');
+    const { LibraryView } = await import('../src/views/library/LibraryView.tsx');
+    const { SourcesView } = await import('../src/views/sources/SourcesView.tsx');
 
-    const sourcesSrc = fs.readFileSync(path.join(srcDir, 'views/sources/SourcesView.tsx'), 'utf8');
-    assert.doesNotMatch(sourcesSrc, /\bwidth\s*<\s*82\b/, 'SourcesView must use LAYOUT_BP instead of hardcoded width < 82');
+    const prevStore = {
+      preferences: useTuiStore.getState().preferences,
+      snapshot: useTuiStore.getState().snapshot,
+      navContext: useTuiStore.getState().navContext,
+    };
+
+    function ViewBridge({ children }) {
+      useKeyDispatcherBridge();
+      return React.createElement(KeyScopeProvider, null, children);
+    }
+
+    const noop = () => {};
+    const stubHost = {
+      call: async () => ({ ok: true, value: {} }),
+      subscribe: () => () => {},
+      dispose: async () => {},
+      getLibraryRoot: () => '',
+    };
+
+    try {
+      // 1) ReviewFeedbackHeader: narrow innerW=36 wraps long cloze diff userValue & expected with zero ellipsis truncation
+      useTuiStore.setState({
+        preferences: { ...DEFAULT_PREFERENCES, language: 'zh', asciiMode: false, proactiveHints: true },
+        navContext: {},
+      });
+      const headerH = createScrollHarness(
+        React.createElement(
+          ViewBridge,
+          null,
+          React.createElement(ReviewFeedbackHeader, {
+            innerW: 36,
+            lang: 'zh',
+            asciiMode: false,
+            isActive: true,
+            gradingBusy: false,
+            gradeError: null,
+            feedback: null,
+            userAnswerText: '',
+            canUndo: false,
+            clozeBlankDiffs: [
+              {
+                id: 'blank-wrap-1',
+                index: 1,
+                userValue: 'DIFF_USER_HEAD virtual memory page table entry translation DIFF_USER_TAIL',
+                expected: 'DIFF_EXPECT_HEAD inverted page table hash lookup mechanism DIFF_EXPECT_TAIL',
+                matched: false,
+              },
+            ],
+            activeRubric: null,
+            gradeResult: null,
+            canAckCorrection: false,
+            revealed: false,
+            referenceAnswer: '',
+            activeTranslation: null,
+          }),
+        ),
+        { cols: 44, rows: 16 },
+      );
+      try {
+        const diffFrame = await waitForFrame(
+          headerH,
+          (f) => f.includes('DIFF_USER_HEAD'),
+          'ReviewFeedbackHeader wrapped cloze diff',
+        );
+        assert.ok(diffFrame.includes('DIFF_USER_TAIL'), `cloze userValue tail must not be truncated:\n${diffFrame}`);
+        assert.ok(diffFrame.includes('DIFF_EXPECT_HEAD'), `cloze expected head missing:\n${diffFrame}`);
+        assert.ok(diffFrame.includes('DIFF_EXPECT_TAIL'), `cloze expected tail must not be truncated:\n${diffFrame}`);
+        assert.ok(!diffFrame.includes('…') && !diffFrame.includes('...'), `cloze diff must not contain ellipsis:\n${diffFrame}`);
+      } finally {
+        headerH.inst.unmount();
+      }
+
+      // 2) ReviewPostAnswerFooter: narrow innerW=36 wraps wrongStreakBanner & fatigueBanner with zero truncation
+      const footerBaseProps = {
+        innerW: 36,
+        lang: 'zh',
+        asciiMode: false,
+        cardScopeActive: false,
+        proactiveHints: true,
+        revealed: false,
+        citation: null,
+        citationUrl: '',
+        needsRating: false,
+        canRubricGrade: false,
+        activeRubric: null,
+        intervals: null,
+        onClickWrongStreak: noop,
+        onDismissFatigue: noop,
+        onOpenCitation: noop,
+        onRubricGrade: noop,
+        onFsrsGrade: noop,
+      };
+
+      const streakH = createScrollHarness(
+        React.createElement(
+          ViewBridge,
+          null,
+          React.createElement(ReviewPostAnswerFooter, {
+            ...footerBaseProps,
+            wrongStreakBanner: 'STREAK_HEAD repeated misses on paging translation flow review STREAK_TAIL',
+            fatigueBanner: null,
+          }),
+        ),
+        { cols: 44, rows: 12 },
+      );
+      try {
+        const streakFrame = await waitForFrame(
+          streakH,
+          (f) => f.includes('STREAK_HEAD'),
+          'ReviewPostAnswerFooter wrongStreakBanner',
+        );
+        assert.ok(streakFrame.includes('STREAK_TAIL'), `wrongStreakBanner tail must not be truncated:\n${streakFrame}`);
+        assert.ok(!streakFrame.includes('…') && !streakFrame.includes('...'), `wrongStreakBanner must not contain ellipsis:\n${streakFrame}`);
+      } finally {
+        streakH.inst.unmount();
+      }
+
+      const fatigueH = createScrollHarness(
+        React.createElement(
+          ViewBridge,
+          null,
+          React.createElement(ReviewPostAnswerFooter, {
+            ...footerBaseProps,
+            wrongStreakBanner: null,
+            fatigueBanner: 'FATIGUE_HEAD long continuous review session consider a short break FATIGUE_TAIL',
+          }),
+        ),
+        { cols: 44, rows: 12 },
+      );
+      try {
+        const fatigueFrame = await waitForFrame(
+          fatigueH,
+          (f) => f.includes('FATIGUE_HEAD'),
+          'ReviewPostAnswerFooter fatigueBanner',
+        );
+        assert.ok(fatigueFrame.includes('FATIGUE_TAIL'), `fatigueBanner tail must not be truncated:\n${fatigueFrame}`);
+        assert.ok(!fatigueFrame.includes('…') && !fatigueFrame.includes('...'), `fatigueBanner must not contain ellipsis:\n${fatigueFrame}`);
+      } finally {
+        fatigueH.inst.unmount();
+      }
+
+      // 3) ReviewPostAnswerFooter: rating header switches at LAYOUT_BP.CONTENT_NARROW (59 vs 60)
+      const rateNarrowH = createScrollHarness(
+        React.createElement(
+          ViewBridge,
+          null,
+          React.createElement(ReviewPostAnswerFooter, {
+            ...footerBaseProps,
+            innerW: LAYOUT_BP.CONTENT_NARROW - 1,
+            asciiMode: true,
+            wrongStreakBanner: null,
+            fatigueBanner: null,
+            needsRating: true,
+          }),
+        ),
+        { cols: 72, rows: 8 },
+      );
+      try {
+        const narrowRateFrame = await waitForFrame(
+          rateNarrowH,
+          (f) => f.includes('FSRS评分 [0-5]:'),
+          'ReviewPostAnswerFooter narrow rating header (innerW=59)',
+        );
+        assert.ok(
+          !narrowRateFrame.includes('FSRS-6 记忆评分（按数字键 0-5）:'),
+          `innerW=${LAYOUT_BP.CONTENT_NARROW - 1} must use compact rating header:\n${narrowRateFrame}`,
+        );
+      } finally {
+        rateNarrowH.inst.unmount();
+      }
+
+      const rateRegularH = createScrollHarness(
+        React.createElement(
+          ViewBridge,
+          null,
+          React.createElement(ReviewPostAnswerFooter, {
+            ...footerBaseProps,
+            innerW: LAYOUT_BP.CONTENT_NARROW,
+            asciiMode: true,
+            wrongStreakBanner: null,
+            fatigueBanner: null,
+            needsRating: true,
+          }),
+        ),
+        { cols: 72, rows: 8 },
+      );
+      try {
+        const regularRateFrame = await waitForFrame(
+          rateRegularH,
+          (f) => f.includes('FSRS-6 记忆评分（按数字键 0-5）:'),
+          'ReviewPostAnswerFooter regular rating header (innerW=60)',
+        );
+        assert.ok(
+          !regularRateFrame.includes('FSRS评分 [0-5]:'),
+          `innerW=${LAYOUT_BP.CONTENT_NARROW} must use full rating header:\n${regularRateFrame}`,
+        );
+      } finally {
+        rateRegularH.inst.unmount();
+      }
+
+      // 4) LibraryView: 5 long topics wrap without truncation at 96x28 & SplitPane switches at LAYOUT_BP.SPLIT_DEFAULT (85 vs 86)
+      useTuiStore.setState({
+        preferences: { ...DEFAULT_PREFERENCES, language: 'zh', asciiMode: false, proactiveHints: false },
+        snapshot: {
+          decks: [
+            {
+              id: 'deck-wrap-1',
+              title: 'DECK_WRAP_TITLE',
+              course: 'CS162',
+              cards: [{ id: 'c1' }],
+              topics: [
+                'TOPIC_FIRST_TOKEN alpha concept',
+                'Second architectural pattern module',
+                'Third concurrency scheduling layer',
+                'Fourth distributed storage engine',
+                'Fifth summary TOPIC_LAST_TOKEN',
+              ],
+            },
+          ],
+          progress: {
+            'deck-wrap-1': {
+              total: 5,
+              due: 2,
+              mastery: 40,
+              counts: { new: 2, weak: 1, learning: 1, familiar: 0, mastered: 1 },
+            },
+          },
+          sources: [],
+          jobs: [],
+          archivedJobs: [],
+          drafts: [],
+          focus: { courses: ['CS162'] },
+        },
+        navContext: {},
+      });
+
+      const libTopicsH = createScrollHarness(
+        React.createElement(
+          ViewBridge,
+          null,
+          React.createElement(LibraryView, { host: stubHost, width: 96, height: 28, isActive: false }),
+        ),
+        { cols: 100, rows: 30 },
+      );
+      try {
+        const libFrame = await waitForFrame(
+          libTopicsH,
+          (f) => f.includes('涵盖主题') && f.includes('TOPIC_FIRST_TOKEN'),
+          'LibraryView wrapped topics at 96x28',
+        );
+        assert.ok(libFrame.includes('TOPIC_LAST_TOKEN'), `LibraryView topics tail must wrap instead of truncating:\n${libFrame}`);
+        const topicSectionLines = libFrame
+          .split('\n')
+          .filter((line) => /涵盖主题|TOPIC_FIRST_TOKEN|Second architectural|Third concurrency|Fourth distributed|TOPIC_LAST_TOKEN/.test(line));
+        assert.ok(
+          topicSectionLines.every((line) => !line.includes('…') && !line.includes('...')),
+          `LibraryView topics lines must not contain ellipsis:\n${topicSectionLines.join('\n')}`,
+        );
+      } finally {
+        libTopicsH.inst.unmount();
+      }
+
+      const libStackedH = createScrollHarness(
+        React.createElement(
+          ViewBridge,
+          null,
+          React.createElement(LibraryView, {
+            host: stubHost,
+            width: LAYOUT_BP.SPLIT_DEFAULT - 1,
+            height: 22,
+            isActive: false,
+          }),
+        ),
+        { cols: 90, rows: 24 },
+      );
+      try {
+        const stackedFrame = await waitForFrame(
+          libStackedH,
+          (f) => f.includes('题组列表') && f.includes('DECK_WRAP_TITLE'),
+          'LibraryView stacked at SPLIT_DEFAULT - 1 (85)',
+        );
+        const listHeaderLine = stackedFrame.split('\n').find((line) => line.includes('题组列表')) ?? '';
+        assert.ok(
+          !listHeaderLine.includes('DECK_WRAP_TITLE'),
+          `LibraryView at width=${LAYOUT_BP.SPLIT_DEFAULT - 1} must stack panes vertically:\n${stackedFrame}`,
+        );
+      } finally {
+        libStackedH.inst.unmount();
+      }
+
+      const libDualH = createScrollHarness(
+        React.createElement(
+          ViewBridge,
+          null,
+          React.createElement(LibraryView, {
+            host: stubHost,
+            width: LAYOUT_BP.SPLIT_DEFAULT,
+            height: 22,
+            isActive: false,
+          }),
+        ),
+        { cols: 90, rows: 24 },
+      );
+      try {
+        const dualFrame = await waitForFrame(
+          libDualH,
+          (f) => f.includes('题组列表') && f.includes('DECK_WRAP_TITLE'),
+          'LibraryView dual-pane at SPLIT_DEFAULT (86)',
+        );
+        const listHeaderLine = dualFrame.split('\n').find((line) => line.includes('题组列表')) ?? '';
+        assert.ok(
+          listHeaderLine.includes('DECK_WRAP_TITLE'),
+          `LibraryView at width=${LAYOUT_BP.SPLIT_DEFAULT} must render dual panes side-by-side:\n${dualFrame}`,
+        );
+      } finally {
+        libDualH.inst.unmount();
+      }
+
+      // Direct SplitPane default threshold check (85 stacked vs 86 dual-pane)
+      const splitStackedH = createScrollHarness(
+        React.createElement(SplitPane, {
+          width: LAYOUT_BP.SPLIT_DEFAULT - 1,
+          height: 8,
+          narrowMode: 'stack',
+          left: ({ narrow }) => React.createElement(Text, null, narrow ? 'LEFT_STACKED' : 'LEFT_DUAL'),
+          right: ({ narrow }) => React.createElement(Text, null, narrow ? 'RIGHT_STACKED' : 'RIGHT_DUAL'),
+        }),
+        { cols: 90, rows: 10 },
+      );
+      try {
+        const splitStacked = await waitForFrame(splitStackedH, (f) => f.includes('LEFT_STACKED'), 'SplitPane stacked at 85');
+        assert.ok(splitStacked.includes('RIGHT_STACKED'), `SplitPane at 85 must report narrow=true:\n${splitStacked}`);
+      } finally {
+        splitStackedH.inst.unmount();
+      }
+
+      const splitDualH = createScrollHarness(
+        React.createElement(SplitPane, {
+          width: LAYOUT_BP.SPLIT_DEFAULT,
+          height: 8,
+          narrowMode: 'stack',
+          left: ({ narrow }) => React.createElement(Text, null, narrow ? 'LEFT_STACKED' : 'LEFT_DUAL'),
+          right: ({ narrow }) => React.createElement(Text, null, narrow ? 'RIGHT_STACKED' : 'RIGHT_DUAL'),
+        }),
+        { cols: 90, rows: 10 },
+      );
+      try {
+        const splitDual = await waitForFrame(splitDualH, (f) => f.includes('LEFT_DUAL'), 'SplitPane dual at 86');
+        assert.ok(splitDual.includes('RIGHT_DUAL'), `SplitPane at 86 must report narrow=false:\n${splitDual}`);
+      } finally {
+        splitDualH.inst.unmount();
+      }
+
+      // 5) SourcesView: top bar switches at LAYOUT_BP.SPLIT_COMPACT (83 narrow vs 84 full)
+      useTuiStore.setState({
+        preferences: { ...DEFAULT_PREFERENCES, language: 'zh', asciiMode: true },
+        snapshot: {
+          sources: [
+            {
+              id: 'src-bp-1',
+              title: '断点测试资料',
+              format: 'md',
+              chars: 42,
+              courses: [],
+            },
+          ],
+          decks: [],
+          jobs: [],
+          archivedJobs: [],
+          focus: { courses: [] },
+        },
+        navContext: {},
+      });
+
+      const srcNarrowH = createScrollHarness(
+        React.createElement(
+          ViewBridge,
+          null,
+          React.createElement(SourcesView, {
+            host: stubHost,
+            width: LAYOUT_BP.SPLIT_COMPACT - 1,
+            height: 14,
+            isActive: false,
+          }),
+        ),
+        { cols: 90, rows: 16 },
+      );
+      try {
+        const srcNarrow = await waitForFrame(
+          srcNarrowH,
+          (f) => f.includes('资料') && f.includes('断点测试资料'),
+          'SourcesView narrow top bar at SPLIT_COMPACT - 1 (83)',
+        );
+        assert.ok(
+          !srcNarrow.includes('学习资料库'),
+          `SourcesView at width=${LAYOUT_BP.SPLIT_COMPACT - 1} must show compact header '资料':\n${srcNarrow}`,
+        );
+        assert.ok(
+          !srcNarrow.includes('[i] 导入'),
+          `SourcesView at width=${LAYOUT_BP.SPLIT_COMPACT - 1} must hide [i] 导入 hint:\n${srcNarrow}`,
+        );
+      } finally {
+        srcNarrowH.inst.unmount();
+      }
+
+      const srcFullH = createScrollHarness(
+        React.createElement(
+          ViewBridge,
+          null,
+          React.createElement(SourcesView, {
+            host: stubHost,
+            width: LAYOUT_BP.SPLIT_COMPACT,
+            height: 14,
+            isActive: false,
+          }),
+        ),
+        { cols: 90, rows: 16 },
+      );
+      try {
+        const srcFull = await waitForFrame(
+          srcFullH,
+          (f) => f.includes('学习资料库') && f.includes('[i] 导入'),
+          'SourcesView full top bar at SPLIT_COMPACT (84)',
+        );
+        assert.ok(srcFull.includes('学习资料库'), `SourcesView at width=${LAYOUT_BP.SPLIT_COMPACT} must show '学习资料库':\n${srcFull}`);
+        assert.ok(srcFull.includes('[i] 导入'), `SourcesView at width=${LAYOUT_BP.SPLIT_COMPACT} must show '[i] 导入':\n${srcFull}`);
+      } finally {
+        srcFullH.inst.unmount();
+      }
+    } finally {
+      useTuiStore.setState(prevStore);
+    }
+  });
+
+  test('3c. LibraryView briefing strip shortens the dismiss hint below 60 columns and drops the reason below 96', async () => {
+    const { KeyScopeProvider, useKeyDispatcherBridge } = await import('../src/components/key-dispatcher.ts');
+    const { useTuiStore, DEFAULT_PREFERENCES } = await import('../src/state/store.ts');
+    const { LibraryView } = await import('../src/views/library/LibraryView.tsx');
+    const prevStore = {
+      preferences: useTuiStore.getState().preferences,
+      snapshot: useTuiStore.getState().snapshot,
+      navContext: useTuiStore.getState().navContext,
+    };
+    function ViewBridge({ children }) {
+      useKeyDispatcherBridge();
+      return React.createElement(KeyScopeProvider, null, children);
+    }
+    const stubHost = {
+      call: async () => ({ ok: true, value: {} }),
+      subscribe: () => () => {},
+      dispose: async () => {},
+      getLibraryRoot: () => '',
+    };
+    try {
+      useTuiStore.setState({
+        preferences: { ...DEFAULT_PREFERENCES, language: 'zh', asciiMode: false, proactiveHints: true, dismissedBriefingDate: undefined },
+        snapshot: {
+          decks: [{ id: 'deck-brief-1', title: 'BRIEF_DECK', course: 'CS162', cards: [{ id: 'c1' }], topics: [] }],
+          progress: {
+            'deck-brief-1': { total: 5, due: 2, mastery: 40, counts: { new: 2, weak: 1, learning: 1, familiar: 0, mastered: 1 } },
+          },
+          sources: [],
+          jobs: [],
+          archivedJobs: [],
+          drafts: [],
+          focus: { courses: ['CS162'] },
+        },
+        navContext: {},
+      });
+      const renderAt = async (width) => {
+        const h = createScrollHarness(
+          React.createElement(
+            ViewBridge,
+            null,
+            React.createElement(LibraryView, { host: stubHost, width, height: 22, isActive: false }),
+          ),
+          { cols: width + 4, rows: 24 },
+        );
+        try {
+          return await waitForFrame(h, (f) => f.includes('[B]') && f.includes('[Z]'), `LibraryView briefing strip at width ${width}`);
+        } finally {
+          h.inst.unmount();
+        }
+      };
+      const narrow = await renderAt(59);
+      assert.ok(!narrow.includes('今日隐藏'), `width 59 must use the short [Z] hint:\n${narrow}`);
+      const regular = await renderAt(60);
+      assert.ok(regular.includes('[Z]今日隐藏'), `width 60 must show the full [Z]今日隐藏 hint:\n${regular}`);
+      assert.ok(!regular.includes('先清到期题'), `width 60 must not show the briefing reason:\n${regular}`);
+      const belowWide = await renderAt(95);
+      assert.ok(!belowWide.includes('先清到期题'), `width 95 must not show the briefing reason:\n${belowWide}`);
+      const wide = await renderAt(96);
+      assert.ok(wide.includes('先清到期题'), `width 96 must append the briefing reason:\n${wide}`);
+    } finally {
+      useTuiStore.setState(prevStore);
+    }
   });
 
   test('3b. DocumentReader, SourcesView, and TasksView behaviorally clamp and scroll overflow content within viewport bounds', async () => {
@@ -219,16 +736,6 @@ describe('P2 (#1354 D5): Breakpoints, Typography/Scroll Primitives & 80x24 / 120
       preferences: useTuiStore.getState().preferences,
       snapshot: useTuiStore.getState().snapshot,
       navContext: useTuiStore.getState().navContext,
-    };
-
-    const waitFrame = async (harness, predicate, label, timeoutMs = 4000) => {
-      const deadline = Date.now() + timeoutMs;
-      while (Date.now() < deadline) {
-        const frame = harness.lastFrame();
-        if (predicate(frame)) return frame;
-        await sleep(20);
-      }
-      assert.fail(`Timed out waiting for ${label}.\nLast frame:\n${harness.lastFrame()}`);
     };
 
     function ViewBridge({ children }) {
@@ -285,7 +792,7 @@ describe('P2 (#1354 D5): Breakpoints, Typography/Scroll Primitives & 80x24 / 120
         { cols: 80, rows: 16 },
       );
       try {
-        const initialReader = await waitFrame(readerH, (f) => f.includes('READER_ROW_01'), 'DocumentReader initial clamped frame');
+        const initialReader = await waitForFrame(readerH, (f) => f.includes('READER_ROW_01'), 'DocumentReader initial clamped frame');
         assert.ok(!initialReader.includes('READER_ROW_30'), `DocumentReader must clamp overflow tail initially:\n${initialReader}`);
         assert.ok(initialReader.includes('0%'), `DocumentReader must show 0% scroll indicator:\n${initialReader}`);
         assert.ok(initialReader.split('\n').length <= 16, `DocumentReader exceeded viewport height: ${initialReader.split('\n').length}`);
@@ -294,7 +801,7 @@ describe('P2 (#1354 D5): Breakpoints, Typography/Scroll Primitives & 80x24 / 120
           readerH.stdin.write('j');
           await sleep(15);
         }
-        const scrolledReader = await waitFrame(
+        const scrolledReader = await waitForFrame(
           readerH,
           (f) => !f.includes('READER_ROW_01') && /READER_ROW_(?:0[7-9]|1\d|2\d|30)/.test(f),
           'DocumentReader scrolled down via j',
@@ -349,7 +856,7 @@ describe('P2 (#1354 D5): Breakpoints, Typography/Scroll Primitives & 80x24 / 120
         { cols: 110, rows: 20 },
       );
       try {
-        const sourcesFrame = await waitFrame(sourcesH, (f) => f.includes('EXCERPT_ROW_01'), 'SourcesView clamped excerpt');
+        const sourcesFrame = await waitForFrame(sourcesH, (f) => f.includes('EXCERPT_ROW_01'), 'SourcesView clamped excerpt');
         assert.ok(!sourcesFrame.includes('EXCERPT_ROW_30'), `SourcesView excerpt must clamp overflow rows:\n${sourcesFrame}`);
         assert.ok(sourcesFrame.includes('0%'), `SourcesView excerpt must show scroll indicator:\n${sourcesFrame}`);
         assert.ok(sourcesFrame.split('\n').length <= 20, `SourcesView exceeded viewport height: ${sourcesFrame.split('\n').length}`);
@@ -403,7 +910,7 @@ describe('P2 (#1354 D5): Breakpoints, Typography/Scroll Primitives & 80x24 / 120
         { cols: 110, rows: 20 },
       );
       try {
-        const tasksFrame = await waitFrame(tasksH, (f) => f.includes('TASK_LOG_30'), 'TasksView tail-following output ScrollArea');
+        const tasksFrame = await waitForFrame(tasksH, (f) => f.includes('TASK_LOG_30'), 'TasksView tail-following output ScrollArea');
         assert.ok(!tasksFrame.includes('TASK_LOG_01'), `TasksView running job log must clamp head rows when following tail:\n${tasksFrame}`);
         assert.ok(tasksFrame.includes('100%'), `TasksView running job log must show 100% tail indicator:\n${tasksFrame}`);
         assert.ok(tasksFrame.split('\n').length <= 20, `TasksView exceeded viewport height: ${tasksFrame.split('\n').length}`);

@@ -1,13 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { withStudy } from './helpers/study-services.mjs';
 
 // #118: one key form for every secret (audio providers, Jev, later MinerU): paste, save (and check), check a saved
 // key, clear it unless the environment supplies it.
-const m = await loadUi(`export * from './ui/components/index.js'; export { submitSecret, clearSecret } from './ui/components/SecretKeyForm.jsx'; export { setUiLanguage } from './ui/i18n.js';`);
+const m = await loadUi(`
+  export * from './ui/components/index.js';
+  export { submitSecret, clearSecret } from './ui/components/SecretKeyForm.jsx';
+  export { default as AudioSettings } from './ui/AudioSettings.jsx';
+  export { default as JevSettings } from './ui/JevSettings.jsx';
+  export { default as MineruSettings } from './ui/MineruSettings.jsx';
+  export { default as MineruInstallCard } from './ui/MineruInstallCard.jsx';
+  export { StudyServicesContext } from './ui/study-context.jsx';
+  export { setUiLanguage } from './ui/i18n.js';
+`);
 const h = React.createElement;
 const han = /[㐀-鿿]/;
 const render = (props, language = 'zh') => { m.setUiLanguage(language); try { return renderToStaticMarkup(h(m.SecretKeyForm, { name: 'audio-key', label: '密钥', placeholder: '粘贴密钥', onSave() {}, ...props })); } finally { m.setUiLanguage('zh'); } };
@@ -140,11 +149,108 @@ test('clearSecret clears through the page callback and refuses an environment ke
   assert.deepEqual(log, ['clear'], 'an environment key or canClear:false is never cleared');
 });
 
-test('the audio and Jev settings use the shared form; MinerU has no key at all (its token went with the cloud route in 3.5.5)', async () => {
-  const count = async (file) => ((await readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8')).match(/type="password"/g) || []).length;
-  assert.equal(await count('components/SecretKeyForm.jsx'), 1);
-  for (const file of ['AudioSettings.jsx', 'JevSettings.jsx', 'MineruSettings.jsx', 'MineruInstallCard.jsx']) assert.equal(await count(file), 0, file);
-  const audio = await readFile(new URL('../ui/AudioSettings.jsx', import.meta.url), 'utf8');
-  assert.doesNotMatch(audio, /audio-key-(form|input|actions|foot|clear)/, 'the audio page does not reuse the old form classes');
-  for (const file of ['AudioSettings.jsx', 'JevSettings.jsx']) assert.match(await readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8'), /SecretKeyForm/, file);
+test('the audio and Jev settings use the shared form; MinerU has no key at all (its token went with the cloud route in 3.5.5)', () => {
+  const renderWithStudy = (element) => renderToStaticMarkup(withStudy(m.StudyServicesContext, element));
+
+  const audioView = {
+    freeKey: { set: false, hint: '' },
+    paidKey: { set: false, hint: '' },
+    groqKey: { set: false, hint: '' },
+    siliconflowKey: { set: false, hint: '' },
+    settingsFile: '',
+    textProvider: 'auto',
+    mode: 'SMART',
+    partMinutes: 45,
+    textConcurrency: 3,
+    proofreadReasoning: 'default',
+    translateReasoning: 'low',
+    transcribeModel: 'gemini-2.5-flash',
+    textModel: 'gemini-2.5-flash',
+    groqTranscribeModel: 'whisper-large-v3',
+    groqTextModel: 'openai/gpt-oss-120b',
+    siliconflowTranscribeModel: 'FunAudioLLM/SenseVoiceSmall',
+    liveModel: 'gemini-2.5-flash-live',
+    liveTranslateModel: 'gemini-2.5-flash-lite',
+    liveCorrectionReasoning: 'low',
+    liveProvider: 'auto',
+    liveSentencePause: 'standard',
+    dailyLimits: {},
+  };
+  const audioHtml = renderWithStudy(h(m.AudioSettings, { initialView: audioView, initialLocal: null, initialLoopback: null }));
+  assert.equal((audioHtml.match(/class="sh-secret(?:\s|")/g) || []).length, 4, 'AudioSettings renders shared SecretKeyForm for 3 providers + paid key');
+  assert.equal((audioHtml.match(/type="password"/g) || []).length, 4, 'AudioSettings renders exactly 4 password inputs via SecretKeyForm');
+  assert.doesNotMatch(audioHtml, /audio-key-(form|input|actions|foot|clear)/, 'the audio page does not reuse the old form classes');
+
+  const jevSettings = {
+    key: { set: false, hint: '', source: '' },
+    confirmed: false,
+    confirmedAt: '',
+    enabled: false,
+    features: { courseSuggest: false, preReview: false, outlineNoise: false, levelCheck: false },
+    threshold: 0.8,
+    privacyUrl: 'https://docs.typesafe.ai/legal',
+    docsUrl: 'https://docs.typesafe.ai',
+    settingsFile: '',
+  };
+  const jevHtml = renderWithStudy(h(m.JevSettings, { initial: { settings: jevSettings, usage: null, failure: null } }));
+  assert.equal((jevHtml.match(/class="sh-secret(?:\s|")/g) || []).length, 1, 'JevSettings renders shared SecretKeyForm');
+  assert.equal((jevHtml.match(/type="password"/g) || []).length, 1, 'JevSettings renders exactly 1 password input via SecretKeyForm');
+  assert.match(jevHtml, /name="jev-key"/, 'JevSettings password input uses jev-key');
+
+  const mineruLocal = {
+    state: 'not-installed',
+    next: 'install',
+    origin: null,
+    install: { status: 'idle', stage: '', stages: ['tools', 'python', 'package', 'models', 'enable', 'check'], done: [], step: 0, of: 6, folder: '', installedFolder: '', installed: false, tier: '', source: null, log: [], error: null },
+    lastError: null,
+    external: null,
+  };
+  const mineruPlan = {
+    ok: true,
+    problems: [],
+    warnings: [],
+    folder: '/tmp/StudyHub-MinerU',
+    adjusted: false,
+    existing: false,
+    defaultFolder: '/tmp/StudyHub-MinerU',
+    defaultReason: 'largest-data-drive',
+    platform: 'linux',
+    drives: [],
+    disk: { freeMb: 50_000, neededMb: 4000, drive: '/' },
+    estimate: { downloadMb: 1300, minutes: [10, 30] },
+    tier: 'basic',
+    tiers: [{ id: 'basic', modelsMb: 800, secondsPerPage: 1.6 }, { id: 'standard', modelsMb: 2000, secondsPerPage: 2.5 }],
+    ramMb: 16_384,
+    source: { id: 'mainland', chosenBy: 'auto', reason: 'faster', hosts: [] },
+    pythons: [],
+    python: '',
+    external: null,
+    commands: [],
+  };
+  // The install card is a different screen in every state (offer, progress, problem, ready): none of them may grow a key field.
+  const mineruScenarios = [
+    ['not-installed', { state: 'not-installed' }],
+    ['installing', { state: 'installing', install: { ...mineruLocal.install, status: 'running', stage: 'package', done: ['tools', 'python'], step: 2 } }],
+    ['paused', { state: 'not-installed', install: { ...mineruLocal.install, status: 'cancelled', stage: 'package', done: ['tools', 'python'], step: 2 } }],
+    ['stopped', { state: 'server-stopped', next: 'start' }],
+    ['ready', { state: 'ready', next: 'parse' }],
+    ['error', { state: 'server-stopped', lastError: { code: 'start-failed', message: 'boom' } }],
+  ];
+  for (const [state, overrides] of mineruScenarios) {
+    const local = { ...mineruLocal, ...overrides };
+    for (const initialMore of [false, true]) {
+      const where = `state=${state}, initialMore=${initialMore}`;
+      const mineruSettingsHtml = renderWithStudy(h(m.MineruSettings, { initialLocal: local, initialPlan: mineruPlan, initialMore }));
+      assert.match(mineruSettingsHtml, /class="[^"]*mineru-settings/, `MineruSettings renders (${where})`);
+      assert.match(mineruSettingsHtml, new RegExp(`data-state="${state}"`), `MineruSettings shows the ${state} card (${where})`);
+      assert.doesNotMatch(mineruSettingsHtml, /type="password"/, `MineruSettings has no password input (${where})`);
+      assert.doesNotMatch(mineruSettingsHtml, /sh-secret/, `MineruSettings has no SecretKeyForm (${where})`);
+
+      const mineruCardHtml = renderWithStudy(h(m.MineruInstallCard, { initialLocal: local, initialPlan: mineruPlan, initialMore }));
+      assert.match(mineruCardHtml, /class="[^"]*mineru-install/, `MineruInstallCard renders (${where})`);
+      assert.match(mineruCardHtml, new RegExp(`data-state="${state}"`), `MineruInstallCard shows the ${state} card (${where})`);
+      assert.doesNotMatch(mineruCardHtml, /type="password"/, `MineruInstallCard has no password input (${where})`);
+      assert.doesNotMatch(mineruCardHtml, /sh-secret/, `MineruInstallCard has no SecretKeyForm (${where})`);
+    }
+  }
 });

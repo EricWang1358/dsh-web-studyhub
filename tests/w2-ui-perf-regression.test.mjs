@@ -6,6 +6,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { draftView } from './helpers/coverage-view.mjs';
 import { click, loadInteractiveUi, syntheticEvent, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const require = createRequire(import.meta.url);
@@ -866,8 +867,121 @@ test('useDraftDirty avoids synchronous JSON.stringify on every keystroke and rec
     runtime.reset();
     JSON.stringify = origStringify;
   }
+});
 
-  // Verify missing i18n toast strings in ui/Draft.jsx are now localized via uiFormat.
-  const draftSrc = await readFile(new URL('../ui/Draft.jsx', import.meta.url), 'utf8');
-  assert.doesNotMatch(draftSrc, /toast\.error\(\s*["']JSON 格式不正确：["']\s*\+/);
+/* ---------- 7. ui/Draft.jsx: invalid JSON is reported in the learner's language and never saved ---------- */
+
+test('invalid JSON on save, publish, save-as-new, top-up and view switch shows a localized error and never saves', async () => {
+  const invalidJson = '{ invalid json';
+  let expectedParseError = '';
+  try {
+    JSON.parse(invalidJson);
+  } catch (err) {
+    expectedParseError = err.message;
+  }
+  const interactive = await loadInteractiveUi(`
+    export { default as Draft } from './ui/Draft.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { ToastContext } from './ui/components/index.js';
+    export { setUiLanguage, ui } from './ui/i18n.js';
+  `);
+  const { Draft, StudyServicesContext, ToastContext, setUiLanguage, ui } = interactive.exports;
+  const h = interactive.React.createElement;
+  const noop = () => {};
+
+  // One draft that is saved (version 3, the library holds the same version) with a coverage answer that offers a top-up;
+  // `missing` is the same page after the library lost the draft (deleted or published), which is the only state that shows 另存为新草稿.
+  const draftModel = { id: 'd1', title: 'Algorithms', cards: [{ id: 'c1', prompt: 'What is Dijkstra?' }], draftVersion: 3 };
+  const coverageView = draftView({ draftId: 'd1', draftVersion: 3, covered: ['r1.p1', 'r1.p3', 'r2.p2'], failed: ['r1.p2', 'r3.p1'] });
+  const requested = [];
+  const toastErrors = [];
+  const toastApi = { error: (msg) => toastErrors.push(msg), success: noop, info: noop, warning: noop };
+  const services = {
+    call: async (action) => { requested.push(action); return action === 'coverage.get' ? coverageView : {}; },
+    act: (action) => { requested.push(action); },
+    busy: false,
+    host: {},
+  };
+  const renderDraft = ({ missing = false, onSetDraft = noop, onSetJsonMode = noop } = {}) => () => h(
+    StudyServicesContext.Provider,
+    { value: services },
+    h(
+      ToastContext.Provider,
+      { value: toastApi },
+      h(Draft, {
+        data: { revision: 1, root: '/tmp/lib', jobs: [], decks: [], drafts: missing ? [] : [draftModel], sources: [], runs: [], settings: {}, modelReady: true },
+        draft: draftModel,
+        draftLoaded: JSON.stringify(draftModel),
+        setDraft: onSetDraft,
+        draftText: invalidJson,
+        setDraftText: noop,
+        jsonMode: true,
+        setJsonMode: onSetJsonMode,
+        openDraft: noop,
+        topUpDraft: noop,
+        openSourceAt: noop,
+        onOpenPublished: noop,
+        onStartPublished: noop,
+        clearRecovery: noop,
+        setPage: noop,
+        setModal: noop,
+        blankCard: () => ({}),
+        patchCard: noop,
+        parseDraft: (t) => JSON.parse(t),
+      }),
+    ),
+  );
+  const isButton = (node, test) => node.type === 'button' && test(node);
+  const labelled = (label) => (node) => isButton(node, (n) => interactive.textOf(n).includes(label));
+  const barButton = (primary) => (node) => isButton(node, (n) => {
+    const cls = String(n.props?.className || '');
+    return cls.includes('draft-bar__button') && cls.includes('sh-btn--primary') === primary;
+  });
+  // Every place in ui/Draft.jsx that parses the JSON text, with the control that reaches it.
+  const sites = [
+    { name: 'save (保存并校验)', find: barButton(false) },
+    { name: 'publish (onPublish)', find: barButton(true) },
+    { name: 'top-up with unsaved edits (saveThen)', find: (node) => isButton(node, (n) => n.props?.['data-coverage-start'] !== undefined) },
+    { name: 'back to per-question editing (toggleJsonMode)', find: (node) => labelled(ui('返回逐题编辑'))(node) },
+    { name: 'save as new draft (saveAsNewDraft)', missing: true, find: (node) => labelled(ui('另存为新草稿'))(node) },
+  ];
+
+  await withBrowserGlobals(async () => {
+    try {
+      for (const language of ['en', 'zh']) {
+        for (const site of sites) {
+          setUiLanguage(language);
+          const where = `${site.name} (${language})`;
+          const view = renderDraft({ missing: !!site.missing, onSetDraft: () => requested.push('setDraft'), onSetJsonMode: () => requested.push('setJsonMode') });
+          const mounted = interactive.mount(view);
+          try {
+            await mounted.flush(8);
+            toastErrors.length = 0;
+            requested.length = 0;
+            const button = mounted.find(site.find);
+            assert.ok(button, `${where}: the control renders in JSON mode`);
+            await mounted.act(() => click(button));
+            assert.equal(toastErrors.length, 1, `${where}: invalid JSON emits exactly one error toast`);
+            assert.ok(toastErrors[0].includes(expectedParseError), `${where}: toast includes the underlying parse error`);
+            if (language === 'en') {
+              assert.match(toastErrors[0], /^Invalid JSON:/, `${where}: toast uses the localized English prefix`);
+              assert.doesNotMatch(toastErrors[0], /[㐀-鿿]/, `${where}: English toast contains zero Han characters`);
+            } else {
+              assert.match(toastErrors[0], /^JSON 格式不正确：/, `${where}: toast uses the Chinese prefix`);
+            }
+            // Nothing was saved, published, generated or switched: only the coverage question and the estimate may have been asked.
+            assert.deepEqual(
+              requested.filter((name) => name !== 'coverage.get' && !/estimate/i.test(name)),
+              [],
+              `${where}: invalid JSON must not save, publish, top up or leave JSON mode`,
+            );
+          } finally {
+            mounted.unmount();
+          }
+        }
+      }
+    } finally {
+      setUiLanguage('zh');
+    }
+  });
 });
