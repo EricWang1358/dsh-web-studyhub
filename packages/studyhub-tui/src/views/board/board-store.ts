@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import { atomicCopyFile, atomicUpdateJson, todayLocalYmd } from '../../host/atomic-write.js';
 import type { UiLanguage } from '../../types/contracts.js';
 import { t } from '../../state/store.js';
+import { selectBoardColumnBuckets, selectBoardDueStatus, selectTodayFocusStats } from '../../selectors/board-metrics.js';
 
 export { todayLocalYmd };
 
@@ -379,30 +380,15 @@ export function adjacentColumn(col: BoardColumnId, dir: -1 | 1, wrap = false): B
 }
 
 export function cardsInColumn(cards: readonly BoardCard[], col: BoardColumnId): BoardCard[] {
-  return cards.filter((c) => c.column === col);
+  return selectBoardColumnBuckets(cards)[col];
 }
 
 export function dueStatus(dueDate: string | undefined, column: BoardColumnId): 'none' | 'done' | 'overdue' | 'today' | 'upcoming' {
-  if (!dueDate) return 'none';
-  if (column === 'done') return 'done';
-  const norm = dueDate.trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(norm)) return 'upcoming';
-  const today = todayLocalYmd();
-  if (norm < today) return 'overdue';
-  if (norm === today) return 'today';
-  return 'upcoming';
+  return selectBoardDueStatus(dueDate, column, todayLocalYmd());
 }
 
 export function todayFocusStats(stats?: FocusStats): FocusStats {
-  const today = todayLocalYmd();
-  if (stats && stats.date === today) {
-    return {
-      date: today,
-      completedPomodoros: Math.max(0, Math.floor(stats.completedPomodoros)),
-      focusedMinutes: Math.max(0, Math.floor(stats.focusedMinutes)),
-    };
-  }
-  return { date: today, completedPomodoros: 0, focusedMinutes: 0 };
+  return selectTodayFocusStats(stats, todayLocalYmd());
 }
 
 export function addCompletedPomodoro(stats: FocusStats | undefined, minutes: number): FocusStats {

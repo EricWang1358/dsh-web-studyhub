@@ -297,7 +297,16 @@ describe('Reader Domain Suite 1: Lazy-Split Chunks & Pure Unit Helpers', () => {
 
   test('1.2) parseTuiPreferences omits empty/corrupt lastReadPages and filters invalid entries cleanly', () => {
     assert.equal('lastReadPages' in prefsMod.DEFAULT_TUI_PREFERENCES, false);
-    assert.equal(prefsMod.MAX_LAST_READ_PAGES, 100);
+
+    const overflowInput = Object.fromEntries(
+      Array.from({ length: 105 }, (_, i) => [`doc-cap-${i}`, i + 1]),
+    );
+    const capped = prefsMod.parseTuiPreferences({ lastReadPages: overflowInput });
+    assert.equal(
+      Object.keys(capped.lastReadPages ?? {}).length,
+      100,
+      'parseTuiPreferences must cap lastReadPages at 100 entries',
+    );
 
     const empty = prefsMod.parseTuiPreferences({ lastReadPages: {} });
     assert.equal('lastReadPages' in empty, false);

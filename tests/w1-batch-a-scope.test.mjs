@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { selectedSources as backendSelectedSources } from '../lib/contexts/generation/generate/materials.js';
 import { loadUi } from './helpers/ui-module.mjs';
+import { click, loadInteractiveUi, textOf, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const h = React.createElement;
 const noop = () => {};
@@ -277,9 +277,142 @@ test('W1-28: ExamCoachPage avoids dual primary buttons on step 1 without sources
   const primaryBtns = [...emptyHtml.matchAll(/<button[^>]*sh-btn--primary[^>]*>([\s\S]*?)<\/button>/g)].map((hit) => hit[1].replace(/<[^>]+>/g, ''));
   assert.equal(primaryBtns.length, 1, `step 1 with no sources must have only one primary CTA, got: ${JSON.stringify(primaryBtns)}`);
 
-  const src = await readFile(new URL('../ui/ExamCoachPage.jsx', import.meta.url), 'utf8');
-  assert.match(src, /handleCourseChange/, 'ExamCoachPage uses explicit handleCourseChange to clear cross-course state');
-  assert.match(src, /const ok = await handleSaveSpec/, 'saveRuleEdits checks save success before closing editor');
+  // Interactive verification: save failure keeps rule editor open with error feedback,
+  // save success closes & commits cleanly, and switching course resets cross-course state.
+  await withBrowserGlobals(async () => {
+    const ui = await loadInteractiveUi(`
+      export { setUiLanguage } from './ui/i18n.js';
+      export { default as ExamCoachPage } from './ui/ExamCoachPage.jsx';
+      export { Select } from './ui/components/index.js';
+      export { StudyServicesContext } from './ui/study-context.jsx';
+    `);
+    ui.exports.setUiLanguage('zh');
+
+    const osSpec = {
+      specVersion: 1,
+      stage: 'confirm',
+      templateName: 'OS Exam',
+      taskFamilies: [
+        {
+          id: 'fam-os',
+          title: 'OS Scheduling Proof',
+          origin: 'source-fact',
+          primaryFormat: 'open',
+          allowedFormats: ['open'],
+          reasoningSteps: ['Identify process states'],
+          sample: { stem: 'Analyze round-robin turnaround', rubric: 'Original OS rubric', redacted: false },
+          confirmations: {},
+          calibrated: false,
+        },
+      ],
+    };
+
+    const calls = [];
+    const notices = [];
+    let failSave = true;
+    let resolveDbGet;
+    const dbGetPromise = new Promise((res) => { resolveDbGet = res; });
+
+    const call = async (action, args) => {
+      calls.push({ action, args });
+      if (action === 'coach.calibration.get') {
+        if (args.course === 'OS') return { spec: osSpec, evidence: null };
+        if (args.course === 'DB') return dbGetPromise;
+        return { spec: null, evidence: null };
+      }
+      if (action === 'coach.calibration.save') {
+        if (failSave) throw new Error('Calibration store write failed');
+        return {
+          spec: { ...osSpec, specVersion: 2, taskFamilies: args.taskFamilies },
+          evidence: null,
+        };
+      }
+      return {};
+    };
+
+    const pageData = {
+      sources: [{ id: 's-os', title: 'OS Notes', course: 'OS' }],
+      decks: [],
+      courses: [{ name: 'OS' }, { name: 'DB' }],
+      focus: { course: 'OS' },
+      model: { ready: true },
+    };
+
+    const mounted = ui.mount(() => ui.React.createElement(
+      ui.exports.StudyServicesContext.Provider,
+      {
+        value: {
+          call,
+          act: async () => undefined,
+          busy: false,
+          notify: (note) => notices.push(note),
+          askInChat: noop,
+          host: {},
+          openSettings: noop,
+          navigate: noop,
+          openModal: noop,
+        },
+      },
+      ui.React.createElement(ui.exports.ExamCoachPage, { data: pageData, onGoGenerate: noop }),
+    ));
+
+    try {
+      await mounted.flush(5);
+      assert.match(mounted.text(), /OS Scheduling Proof/, 'OS spec loads into confirm stage');
+      assert.match(mounted.text(), /规格版本 1/);
+
+      // Open the rule editor for fam-os
+      const editBtn = mounted.find((n) => n.type === 'button' && textOf(n).includes('编辑推理步骤与评分规则'));
+      assert.ok(editBtn, 'rule editor trigger button renders');
+      await mounted.act(() => click(editBtn));
+      assert.ok(mounted.find((n) => n.type === 'button' && textOf(n).includes('保存规则修改')), 'rule editor opens');
+
+      // Modify reasoning steps draft
+      const textareas = mounted.findAll((n) => n.type === 'textarea');
+      assert.equal(textareas.length, 2, 'rule editor renders reasoning and rubric textareas');
+      await mounted.act(() => textareas[0].props.onChange({ target: { value: 'Identify process states\nVerify quantum bound' } }));
+
+      // 1. Failed coach.calibration.save keeps rule editor open with error feedback
+      const saveBtnFail = mounted.find((n) => n.type === 'button' && textOf(n).includes('保存规则修改'));
+      await mounted.act(() => click(saveBtnFail));
+      await mounted.flush(5);
+      assert.match(mounted.text(), /Calibration store write failed/, 'save error feedback is shown');
+      assert.ok(mounted.find((n) => n.type === 'button' && textOf(n).includes('保存规则修改')), 'rule editor stays open after failed save');
+      assert.equal(mounted.findAll((n) => n.type === 'textarea')[0].props.value, 'Identify process states\nVerify quantum bound', 'edited draft is preserved after failed save');
+
+      // 2. Successful coach.calibration.save closes editor, clears error, and commits updated spec
+      failSave = false;
+      const saveBtnOk = mounted.find((n) => n.type === 'button' && textOf(n).includes('保存规则修改'));
+      await mounted.act(() => click(saveBtnOk));
+      await mounted.flush(5);
+      assert.equal(mounted.find((n) => n.type === 'button' && textOf(n).includes('保存规则修改')), null, 'rule editor closes after successful save');
+      assert.doesNotMatch(mounted.text(), /Calibration store write failed/, 'error feedback clears after successful save');
+      assert.match(mounted.text(), /规格版本 2/, 'committed spec version updates');
+      assert.match(mounted.text(), /Verify quantum bound/, 'committed reasoning step renders');
+      assert.ok(notices.some((n) => n?.tone === 'success'), 'success toast emitted');
+
+      // Re-open editor before switching course to verify course switch clears editor + spec + stage immediately
+      const reopenBtn = mounted.find((n) => n.type === 'button' && textOf(n).includes('编辑推理步骤与评分规则'));
+      await mounted.act(() => click(reopenBtn));
+      assert.ok(mounted.find((n) => n.type === 'button' && textOf(n).includes('保存规则修改')));
+
+      // 3. Switching course resets cross-course state before the new course request even settles
+      const courseSelect = mounted.find((n) => n.type === ui.exports.Select);
+      assert.ok(courseSelect, 'course selector renders');
+      await mounted.act(() => courseSelect.props.onChange('DB'));
+      assert.doesNotMatch(mounted.text(), /OS Scheduling Proof/, 'prior course task family is cleared on course switch');
+      assert.equal(mounted.find((n) => n.type === 'button' && textOf(n).includes('保存规则修改')), null, 'open rule editor is cleared on course switch');
+      assert.match(mounted.text(), /第 1 步：分析考察方式与范围边界/, 'stage resets to analyze on course switch');
+      assert.ok(calls.some((c) => c.action === 'coach.calibration.get' && c.args.course === 'DB'), 'fetches calibration for new course');
+
+      resolveDbGet({ spec: null, evidence: null });
+      await mounted.flush(5);
+      assert.doesNotMatch(mounted.text(), /OS Scheduling Proof/, 'new course remains isolated after calibration get resolves');
+    } finally {
+      resolveDbGet({ spec: null, evidence: null });
+      mounted.unmount();
+    }
+  });
 });
 
 /* ---------- W1-26: Archived/deleted sources excluded from selection & generation ---------- */

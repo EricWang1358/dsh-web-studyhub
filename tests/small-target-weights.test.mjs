@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { estimateFromState } from '../lib/token-estimate.js';
-import { weighsSections, SMALL_TARGET_QUESTIONS } from '../lib/coverage-plan.js';
+import { weighsSections } from '../lib/coverage-plan.js';
 import { settleJob } from './helpers/wait.mjs';
 import { transcriptFixture } from './helpers/coverage-fixture.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
@@ -22,11 +22,11 @@ const ids = fx.sources.map(source => source.id);
 const planned = (args) => estimateFromState('generate', { sourceIds: ids, performance: { strategy: 'staged' }, ...args }, state, { language: 'zh' });
 
 test('the rule: a custom total of at most 10 questions, or fewer than a quarter of the sections, is not weighed by the model', () => {
-  assert.equal(SMALL_TARGET_QUESTIONS, 10);
   assert.equal(weighsSections({ goalCount: 4, sections: 81 }), false, '4 questions over 81 sections');
   assert.equal(weighsSections({ goalCount: 10, sections: 81 }), false, 'the bound itself is small');
   assert.equal(weighsSections({ goalCount: 20, sections: 81 }), false, '20 questions: fewer than a quarter of 81 sections');
   assert.equal(weighsSections({ goalCount: 20, sections: 80 }), true, '20 questions over 80 sections is a quarter, not less');
+  assert.equal(weighsSections({ goalCount: 10, sections: 30 }), false, 'at 10 questions even when at least a quarter of the sections is still small');
   assert.equal(weighsSections({ goalCount: 11, sections: 30 }), true, 'above 10 and not under a quarter of the sections');
   assert.equal(weighsSections({ goalCount: 1, sections: 3 }), false);
   assert.equal(weighsSections({ goalCount: undefined, sections: 81 }), true, 'a level (no custom total) is always weighed');
