@@ -424,7 +424,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           <div className="summary-actions">
             {!run.closed && run.undoable && actions.undoAnswer && (
               <Button variant="quiet" data-usage="review.undo" aria-keyshortcuts="Z" lock={busy} onClick={actions.undoAnswer}>
-                {ui("已记分 · 撤销上一题评分 (Z)")}
+                {ui("撤销上一题评分 (Z)")}
               </Button>
             )}
             {summaryCase && <>
