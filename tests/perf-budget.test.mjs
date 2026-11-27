@@ -10,6 +10,7 @@ import { buildCompactScene } from "../lib/study-scene.js";
 import { seedLibrary } from "../scripts/qa/perf-seed.mjs";
 import { Probe, settledMemory } from "../scripts/qa/perf-probe.mjs";
 import { fingerprintDiff } from "./helpers/fingerprint-diff.mjs";
+import { assertCpuBudget, measureWallSamples } from "./helpers/perf-gate.mjs";
 
 /* Performance budgets on a deterministic synthetic library (scripts/qa/perf-seed.mjs). They count work, not time:
    JSON parsed and written, structuredClone calls and characters copied, bytes sent, and heap growth after a collection.
@@ -151,6 +152,21 @@ test("opening a page does not copy the library to read it (read budget)", async 
   t.diagnostic(`page reads: ${report.map((row) => `${row.action} ${row.cloned}/${row.response}`).join(", ")}`);
 });
 
+function runWithSourceTextSpy(view, fn) {
+  let sourceTextReads = 0;
+  const instrumentedView = {
+    ...view,
+    sources: view.sources.map((src) => new Proxy(src, {
+      get(target, prop, receiver) {
+        if (prop === "text") sourceTextReads += 1;
+        return Reflect.get(target, prop, receiver);
+      },
+    })),
+  };
+  const result = fn(instrumentedView);
+  return { result, sourceTextReads };
+}
+
 test("study.scene.get on a 1 000-source, 2 900-question library stays under 10 ms and reads nothing it need not (scene budget)", async (t) => {
   // #536 states this budget in time. A single call is at the mercy of a garbage collection or a busy runner, so the median of many calls
   // is held to the limit and the spread is only reported. The call as a whole is not timed against the limit: its first step, the
@@ -173,20 +189,108 @@ test("study.scene.get on a 1 000-source, 2 900-question library stays under 10 m
 
   f.probe.uninstall(); // the probe doubles the cost of every clone: time the work as the host runs it
   const view = await f.service.store.read();
-  const median = (run1) => {
-    for (let i = 0; i < 20; i++) run1();
-    const times = [];
-    for (let i = 0; i < 101; i++) { const started = performance.now(); run1(); times.push(performance.now() - started); }
-    times.sort((a, b) => a - b);
-    return { median: times[50], p90: times[90], max: times[100] };
-  };
-  const scene = median(() => buildCompactScene(view, args));
-  t.diagnostic(`scene projection over ${f.seeded.sources} sources / ${f.seeded.cards} questions: median ${scene.median.toFixed(3)} ms, p90 ${scene.p90.toFixed(3)} ms, max ${scene.max.toFixed(3)} ms (101 calls)`);
-  assert.ok(scene.median < 10, `the median scene projection took ${scene.median.toFixed(3)} ms over ${f.seeded.cards} questions; budget 10 ms`);
+  // Batched CPU-time median (`process.cpuUsage`) with warmup eliminates OS preemption spikes that
+  // inflated single-shot wall-clock `performance.now()` loops under parallel CI load while keeping
+  // the strict < 10 ms budget unchanged (see docs/performance.md).
+  const scene = assertCpuBudget(() => buildCompactScene(view, args), {
+    maxMedianMs: 10,
+    warmup: 20,
+    samples: 7,
+    batch: 25,
+    label: `scene projection over ${f.seeded.sources} sources / ${f.seeded.cards} questions`,
+  });
+  t.diagnostic(`scene projection over ${f.seeded.sources} sources / ${f.seeded.cards} questions: median ${scene.median.toFixed(3)} ms CPU, p90 ${scene.p90.toFixed(3)} ms CPU, max ${scene.max.toFixed(3)} ms CPU (7x25 batched)`);
+  // Deterministic work invariant: projecting a card scene must never scan all 1,000 sources' texts.
+  const { result: guardedScene, sourceTextReads } = runWithSourceTextSpy(view, (v) => buildCompactScene(v, args));
+  assert.equal(guardedScene.focusObject?.cardId, run.card.id);
+  assert.equal(sourceTextReads, 0, `scene projection touched source.text ${sourceTextReads} times; must stay O(1) w.r.t. source texts`);
   const times = [];
   for (let i = 0; i < 31; i++) { const started = performance.now(); await f.service.call("study.scene.get", args); times.push(performance.now() - started); }
   times.sort((a, b) => a - b);
   t.diagnostic(`whole study.scene.get call (not asserted: it includes the store's stat of the manifest): median ${times[15].toFixed(3)} ms, max ${times[30].toFixed(3)} ms (31 calls)`);
+});
+
+test("scene budget flake-repro: wall-clock jitter flakes legacy gate, CPU-time + Proxy gates stay green and catch real source-scan regressions", async (t) => {
+  const f = await fixture(t, { sources: 160, decks: 6, cardsPerDeck: 25, runs: 2, attempts: 120, courses: 2, largeSources: 4, largeSourceChars: 30000 });
+  const run = f.run;
+  const session = await f.service.call("study.session.start", {
+    courseId: "Course 01 / Chapter 1",
+    goal: { title: "Scene flake repro" },
+    scope: [{ kind: "deck", id: run.deckId }],
+    focus: { kind: "card", id: run.card.id, runId: run.id, deckId: run.deckId },
+  });
+  const args = { sessionId: session.id };
+  f.probe.uninstall();
+  const view = await f.service.store.read();
+
+  // (a) Legacy wall-clock gate flakes when real performance.now() experiences +12 ms OS preemption stalls
+  // on >50% of calls while executing the real buildCompactScene projection.
+  let stallOffsetMs = 0;
+  let sampleIdx = 0;
+  let inCall = false;
+  const preemptedWallNow = () => {
+    const realMs = performance.now();
+    if (!inCall) {
+      inCall = true;
+      return realMs + stallOffsetMs;
+    }
+    inCall = false;
+    sampleIdx += 1;
+    if (sampleIdx % 5 < 3) stallOffsetMs += 12;
+    return realMs + stallOffsetMs;
+  };
+  const legacyWall = measureWallSamples(() => buildCompactScene(view, args), {
+    warmup: 5,
+    samples: 21,
+    now: preemptedWallNow,
+  });
+  assert.throws(
+    () => assert.ok(legacyWall.median < 10, `median ${legacyWall.median.toFixed(3)} ms exceeded 10 ms`),
+    /exceeded 10 ms/,
+    "legacy wall-clock gate must fail under OS preemption stalls",
+  );
+
+  // (b) Hardened CPU-time batched gate + Proxy source.text invariant stay green on the real buildCompactScene.
+  const realStats = assertCpuBudget(() => buildCompactScene(view, args), {
+    maxMedianMs: 10,
+    warmup: 10,
+    samples: 7,
+    batch: 20,
+    label: "hardened scene CPU gate",
+  });
+  assert.ok(realStats.median < 10);
+  const cleanCheck = runWithSourceTextSpy(view, (v) => buildCompactScene(v, args));
+  assert.equal(cleanCheck.result.focusObject?.cardId, run.card.id);
+  assert.equal(cleanCheck.sourceTextReads, 0);
+
+  // (c) Genuine regression sensitivity (no busy-loop): a regressed scene builder that scans and clones/serializes
+  // every source's `text` (like a full-library read regression) is caught by BOTH the Proxy invariant and the CPU gate.
+  const regressedBuildScene = (targetView) => {
+    let serializedChars = 0;
+    for (let pass = 0; pass < 8; pass += 1) {
+      for (let i = 0; i < targetView.sources.length; i += 1) {
+        serializedChars += JSON.stringify(targetView.sources[i].text).length;
+      }
+    }
+    const scene = buildCompactScene(targetView, args);
+    return serializedChars >= 0 ? scene : null;
+  };
+  const regressedSpy = runWithSourceTextSpy(view, regressedBuildScene);
+  assert.ok(
+    regressedSpy.sourceTextReads >= view.sources.length,
+    `Proxy invariant must detect source.text scans (saw ${regressedSpy.sourceTextReads} reads)`,
+  );
+  assert.throws(
+    () => assertCpuBudget(() => regressedBuildScene(view), {
+      maxMedianMs: 10,
+      warmup: 1,
+      samples: 3,
+      batch: 1,
+      label: "regressed full-source-scan scene projection",
+    }),
+    /exceeded budget < 10 ms/,
+    "hardened CPU-time gate must fail on real full-source serialization regression",
+  );
 });
 
 test("a write that copies a whole collection reads no shard files back (write budget)", async (t) => {

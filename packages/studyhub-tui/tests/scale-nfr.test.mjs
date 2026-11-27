@@ -3,10 +3,17 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import { tsImport } from 'tsx/esm/api';
+import {
+  assertPerfBudget,
+  assertRelativePerf,
+  cpuClock,
+  createJitteredClock,
+  wallClock,
+} from './helpers/perf-gate.mjs';
 
 const R = await tsImport('../src/render/index.ts', import.meta.url);
 const { buildScopeChoices } = await tsImport('../src/views/exam/utils.ts', import.meta.url);
-const { fuzzyFilter } = await tsImport('../src/shell/fuzzy.ts', import.meta.url);
+const { fuzzyFilter, fuzzyScore } = await tsImport('../src/shell/fuzzy.ts', import.meta.url);
 const { groupSourcesFromSnapshot } = await tsImport('../src/views/sources/source-helpers.ts', import.meta.url);
 const { computeSnapshotFingerprint } = await tsImport('../src/state/snapshot-fingerprint.ts', import.meta.url);
 
@@ -39,20 +46,7 @@ const SAMPLE_THEME = {
   heat: ['#21262d', '#1d3b6e', '#2f56c4', '#4b6fff', '#9fb4ff'],
 };
 
-function medianMs(fn, runs = 15) {
-  fn(); // warm JIT
-  const timings = [];
-  for (let i = 0; i < runs; i++) {
-    const t0 = performance.now();
-    fn();
-    timings.push(performance.now() - t0);
-  }
-  timings.sort((a, b) => a - b);
-  return timings[Math.floor(timings.length / 2)];
-}
-
 function buildLargeLibrary() {
-  const t0 = performance.now();
 
   const courses = Array.from({ length: 8 }, (_, i) => ({
     id: `course-${i}`,
@@ -258,24 +252,25 @@ function buildLargeLibrary() {
     },
   };
 
-  const buildMs = performance.now() - t0;
-  return { snapshot, searchableCards, buildMs, docCount, pagesPerDoc };
+  return { snapshot, searchableCards, docCount, pagesPerDoc };
 }
 
-const { snapshot, searchableCards, buildMs, docCount, pagesPerDoc } = buildLargeLibrary();
+const { snapshot, searchableCards, docCount, pagesPerDoc } = buildLargeLibrary();
 
 describe('StudyHub TUI Large-Library Scale NFR Budgets (5,000 cards / 2,000 sources)', () => {
-  test('0. Synthetic large library fixture (5,000 cards, 2,000 page sources, 200 notes) builds in < 200ms', () => {
+  test('0. Synthetic large library fixture (5,000 cards, 2,000 page sources, 200 notes) has exact structure and builds in < 200ms CPU', () => {
     assert.equal(snapshot.decks.length, 250);
     const totalCards = snapshot.decks.reduce((acc, d) => acc + d.cards.length, 0);
     assert.equal(totalCards, 5000);
     assert.equal(searchableCards.length, 5000);
     assert.equal(snapshot.notes.length, 200);
-    assert.ok(snapshot.sources.length >= 2000);
-    assert.ok(buildMs < 200, `synthetic library build took ${buildMs.toFixed(2)}ms (budget < 200ms)`);
+    assert.equal(snapshot.courses.length, 8);
+    assert.equal(snapshot.documents.length, 10);
+    assert.equal(snapshot.sources.length, docCount * pagesPerDoc + 20 + 2);
+    assertPerfBudget('buildLargeLibrary fixture', buildLargeLibrary, 200, { warmup: 1, samples: 5 });
   });
 
-  test('1. fuzzyFilter over 5,000 items (EN & CJK): median < 25ms and accurate ranking', () => {
+  test('1. fuzzyFilter over 5,000 items (EN & CJK): median < 25ms CPU and accurate ranking', () => {
     const pool = searchableCards.slice();
     pool[3210] = {
       id: 'card-exact-en',
@@ -288,22 +283,19 @@ describe('StudyHub TUI Large-Library Scale NFR Budgets (5,000 cards / 2,000 sour
       keywords: ['os'],
     };
 
-    for (let w = 0; w < 3; w++) {
-      fuzzyFilter(pool, 'virtual memory page', (x) => x.label, (x) => x.keywords, 50);
-      fuzzyFilter(pool, '虚拟内存页表', (x) => x.label, (x) => x.keywords, 50);
-    }
-
-    const enMedian = medianMs(() =>
-      fuzzyFilter(pool, 'virtual memory page', (x) => x.label, (x) => x.keywords, 50),
+    const { lastValue: enHits } = assertPerfBudget(
+      'fuzzyFilter EN (5,000 items)',
+      () => fuzzyFilter(pool, 'virtual memory page', (x) => x.label, (x) => x.keywords, 50),
+      25,
+      { warmup: 3, samples: 9 },
     );
-    const cjkMedian = medianMs(() =>
-      fuzzyFilter(pool, '虚拟内存页表', (x) => x.label, (x) => x.keywords, 50),
+    assertPerfBudget(
+      'fuzzyFilter CJK (5,000 items)',
+      () => fuzzyFilter(pool, '虚拟内存页表', (x) => x.label, (x) => x.keywords, 50),
+      25,
+      { warmup: 3, samples: 9 },
     );
 
-    assert.ok(enMedian < 25, `fuzzyFilter EN median ${enMedian.toFixed(2)}ms exceeded 25ms`);
-    assert.ok(cjkMedian < 25, `fuzzyFilter CJK median ${cjkMedian.toFixed(2)}ms exceeded 25ms`);
-
-    const enHits = fuzzyFilter(pool, 'virtual memory page', (x) => x.label, (x) => x.keywords, 50);
     assert.equal(enHits.length, 50);
     assert.equal(enHits[0].item.id, 'card-exact-en', 'exact prefix match must rank #1 for EN query');
     for (let i = 1; i < enHits.length; i++) {
@@ -316,17 +308,80 @@ describe('StudyHub TUI Large-Library Scale NFR Budgets (5,000 cards / 2,000 sour
     for (let i = 1; i < cjkHits.length; i++) {
       assert.ok(cjkHits[i - 1].score >= cjkHits[i].score, 'CJK fuzzy results must be sorted descending by score');
     }
+
+    // Seeded differential check (500 mixed ASCII/CJK/İ/K/emoji items): verify fuzzyFilter's
+    // candidate ranking path matches fuzzyScore identically with and without keywords.
+    const seedTokens = [
+      'Virtual Memory',
+      'Page_Table',
+      '虚拟内存',
+      '页表机制',
+      'İstanbul',
+      'Kelvin',
+      '🚀TLB',
+      'Cache/Hit',
+      'OS-Kernel',
+      '缺页中断',
+      '👨‍👩‍👧‍👦Group',
+      'sched.c',
+    ];
+    let prng = 0x51a7f319;
+    const nextRand = () => {
+      prng = (Math.imul(prng, 1664525) + 1013904223) >>> 0;
+      return prng;
+    };
+    const diffItems = Array.from({ length: 500 }, (_, idx) => {
+      const a = seedTokens[nextRand() % seedTokens.length];
+      const b = seedTokens[nextRand() % seedTokens.length];
+      const c = seedTokens[nextRand() % seedTokens.length];
+      const kw1 = seedTokens[nextRand() % seedTokens.length];
+      const kw2 = seedTokens[nextRand() % seedTokens.length];
+      return {
+        id: `diff-${idx}`,
+        label: `${a} ${b} ${c} #${idx}`,
+        keywords: [kw1, kw2, `tag-${idx % 17}`],
+      };
+    });
+    const diffQueries = ['vmp', 'page', '虚拟内存', 'i', 'k', 'tlb', '🚀', 'os-k', '缺页'];
+    for (const q of diffQueries) {
+      // Without keywords: every result must match fuzzyScore(q, label) exactly.
+      const noKwActual = fuzzyFilter(diffItems, q, (x) => x.label, undefined, diffItems.length);
+      const noKwExpected = [];
+      for (const item of diffItems) {
+        const res = fuzzyScore(q, item.label);
+        if (res) noKwExpected.push({ item, score: res.score, positions: res.positions });
+      }
+      noKwExpected.sort((a, b) => b.score - a.score);
+      assert.deepEqual(noKwActual, noKwExpected, `fuzzyFilter (no keywords) diverged from fuzzyScore for "${q}"`);
+
+      // With keywords: label match wins, else best keyword score - 2 with empty positions.
+      const withKwActual = fuzzyFilter(diffItems, q, (x) => x.label, (x) => x.keywords, diffItems.length);
+      const withKwExpected = [];
+      for (const item of diffItems) {
+        let best = fuzzyScore(q, item.label);
+        if (!best) {
+          for (const kw of item.keywords) {
+            const r = fuzzyScore(q, kw);
+            if (r && (!best || r.score - 2 > best.score)) {
+              best = { score: r.score - 2, positions: [] };
+            }
+          }
+        }
+        if (best) withKwExpected.push({ item, score: best.score, positions: best.positions });
+      }
+      withKwExpected.sort((a, b) => b.score - a.score);
+      assert.deepEqual(withKwActual, withKwExpected, `fuzzyFilter (with keywords) diverged from fuzzyScore for "${q}"`);
+    }
   });
 
-  test('2. groupSourcesFromSnapshot over 2,000 page sources (400 docs + historical/list): median < 40ms & exact ordering', () => {
-    for (let w = 0; w < 3; w++) {
-      groupSourcesFromSnapshot(snapshot);
-    }
+  test('2. groupSourcesFromSnapshot over 2,000 page sources (400 docs + historical/list): median < 40ms CPU & exact ordering', () => {
+    const { lastValue: groups } = assertPerfBudget(
+      'groupSourcesFromSnapshot (2,000 sources)',
+      () => groupSourcesFromSnapshot(snapshot),
+      40,
+      { warmup: 3, samples: 9 },
+    );
 
-    const median = medianMs(() => groupSourcesFromSnapshot(snapshot));
-    assert.ok(median < 40, `groupSourcesFromSnapshot median ${median.toFixed(2)}ms exceeded 40ms`);
-
-    const groups = groupSourcesFromSnapshot(snapshot);
     assert.equal(groups.length, docCount, `expected exactly ${docCount} grouped documents`);
 
     for (const g of groups) {
@@ -355,12 +410,14 @@ describe('StudyHub TUI Large-Library Scale NFR Budgets (5,000 cards / 2,000 sour
     assert.equal(totalCardHits, 10000, 'each of 5,000 cards references 2 distinct pages = 10,000 cardCount hits');
   });
 
-  test('3. computeSnapshotFingerprint over 5,000-card / 250-deck / 2,000-source snapshot: median < 10ms', () => {
-    for (let i = 0; i < 3; i += 1) computeSnapshotFingerprint(snapshot);
-    const median = medianMs(() => computeSnapshotFingerprint(snapshot));
-    assert.ok(median < 10, `computeSnapshotFingerprint median ${median.toFixed(2)}ms exceeded 10ms`);
+  test('3. computeSnapshotFingerprint over 5,000-card / 250-deck / 2,000-source snapshot: median < 10ms CPU', () => {
+    const { lastValue: fp1 } = assertPerfBudget(
+      'computeSnapshotFingerprint (5k cards / 2k sources)',
+      () => computeSnapshotFingerprint(snapshot),
+      10,
+      { warmup: 3, samples: 9, batch: 3 },
+    );
 
-    const fp1 = computeSnapshotFingerprint(snapshot);
     const fp2 = computeSnapshotFingerprint(snapshot);
     assert.equal(fp1, fp2);
 
@@ -371,18 +428,25 @@ describe('StudyHub TUI Large-Library Scale NFR Budgets (5,000 cards / 2,000 sour
     assert.notEqual(fpMutated, fp1, 'deck mutation must invalidate fingerprint');
   });
 
-  test('4. buildScopeChoices (written, oral, case) over 250 decks: median < 15ms', () => {
-    const writtenMedian = medianMs(() => buildScopeChoices(snapshot, 'written', 'zh'));
-    const oralMedian = medianMs(() => buildScopeChoices(snapshot, 'oral', 'zh'));
-    const caseMedian = medianMs(() => buildScopeChoices(snapshot, 'case', 'zh'));
-
-    assert.ok(writtenMedian < 15, `buildScopeChoices(written) median ${writtenMedian.toFixed(2)}ms exceeded 15ms`);
-    assert.ok(oralMedian < 15, `buildScopeChoices(oral) median ${oralMedian.toFixed(2)}ms exceeded 15ms`);
-    assert.ok(caseMedian < 15, `buildScopeChoices(case) median ${caseMedian.toFixed(2)}ms exceeded 15ms`);
-
-    const written = buildScopeChoices(snapshot, 'written', 'zh');
-    const oral = buildScopeChoices(snapshot, 'oral', 'zh');
-    const caseChoices = buildScopeChoices(snapshot, 'case', 'zh');
+  test('4. buildScopeChoices (written, oral, case) over 250 decks: median < 15ms CPU', () => {
+    const { lastValue: written } = assertPerfBudget(
+      'buildScopeChoices(written)',
+      () => buildScopeChoices(snapshot, 'written', 'zh'),
+      15,
+      { warmup: 3, samples: 9, batch: 5 },
+    );
+    const { lastValue: oral } = assertPerfBudget(
+      'buildScopeChoices(oral)',
+      () => buildScopeChoices(snapshot, 'oral', 'zh'),
+      15,
+      { warmup: 3, samples: 9, batch: 5 },
+    );
+    const { lastValue: caseChoices } = assertPerfBudget(
+      'buildScopeChoices(case)',
+      () => buildScopeChoices(snapshot, 'case', 'zh'),
+      15,
+      { warmup: 3, samples: 9, batch: 5 },
+    );
 
     assert.equal(written.length, 241, 'written: 1 aggregate choice + 240 non-case decks');
     assert.equal(oral.length, 251, 'oral: 1 aggregate choice + 250 active decks');
@@ -402,49 +466,63 @@ describe('StudyHub TUI Large-Library Scale NFR Budgets (5,000 cards / 2,000 sour
     }
     assert.equal(docLines.length, 200);
     const doc200 = docLines.join('\n');
+    const mdOpts = { width: 80, theme: SAMPLE_THEME, mathUnicode: true };
 
-    R.renderMarkdown('```ts\nconst x = 1;\n```', { width: 80, theme: SAMPLE_THEME, mathUnicode: true });
+    R.renderMarkdown('```ts\nconst x = 1;\n```', mdOpts);
     R.clearMarkdownCache();
     assert.equal(R.markdownCacheSize(), 0);
 
-    const tCold0 = performance.now();
-    const coldOut = R.renderMarkdown(doc200, { width: 80, theme: SAMPLE_THEME, mathUnicode: true });
-    const coldMs = performance.now() - tCold0;
-
+    const coldOut = R.renderMarkdown(doc200, mdOpts);
     assert.ok(coldOut.length > 0);
     assert.equal(R.markdownCacheSize(), 1);
+    assert.equal(R.renderMarkdown(doc200, mdOpts), coldOut);
+    assert.equal(R.markdownCacheSize(), 1, 'LRU cache hit must not grow cache size');
 
-    const hitRepeats = 50;
-    const tWarm0 = performance.now();
-    for (let i = 0; i < hitRepeats; i++) {
-      const hitOut = R.renderMarkdown(doc200, { width: 80, theme: SAMPLE_THEME, mathUnicode: true });
-      assert.equal(hitOut, coldOut);
-    }
-    const warmAvgMs = (performance.now() - tWarm0) / hitRepeats;
-
-    assert.ok(
-      warmAvgMs * 10 < coldMs,
-      `expected >=10x LRU cache speedup for renderMarkdown (cold=${coldMs.toFixed(3)}ms, warmAvg=${warmAvgMs.toFixed(4)}ms)`,
+    assertRelativePerf(
+      'renderMarkdown LRU cache hit vs cold render',
+      () => {
+        const hitOut = R.renderMarkdown(doc200, mdOpts);
+        assert.equal(hitOut, coldOut);
+        return hitOut;
+      },
+      () => R.renderMarkdown(doc200, mdOpts),
+      {
+        warmup: 1,
+        samples: 5,
+        fastBatch: 50,
+        refBatch: 1,
+        minSpeedup: 10,
+        beforeFast: () => {
+          if (R.markdownCacheSize() === 0) R.renderMarkdown(doc200, mdOpts);
+        },
+        beforeRef: () => {
+          R.clearMarkdownCache();
+        },
+      },
     );
 
-    const tWrapCold0 = performance.now();
     const wrappedCold = R.wrapDisplay(doc200, 80);
-    const wrapColdMs = performance.now() - tWrapCold0;
     assert.ok(wrappedCold.length >= 200);
     for (const line of wrappedCold) {
       assert.ok(R.displayWidth(line) <= 80, `wrapDisplay line exceeded 80 cols: ${R.displayWidth(line)}`);
     }
 
-    const tWrapWarm0 = performance.now();
-    for (let i = 0; i < 20; i++) {
-      const wrappedWarm = R.wrapDisplay(doc200, 80);
-      assert.equal(wrappedWarm.length, wrappedCold.length);
-    }
-    const wrapWarmAvgMs = (performance.now() - tWrapWarm0) / 20;
-    assert.ok(wrapWarmAvgMs < 15, `wrapDisplay warm avg ${wrapWarmAvgMs.toFixed(2)}ms exceeded 15ms`);
-    assert.ok(
-      wrapWarmAvgMs <= wrapColdMs * 1.5,
-      `wrapDisplay warm (${wrapWarmAvgMs.toFixed(2)}ms) regressed vs cold (${wrapColdMs.toFixed(2)}ms)`,
+    assertRelativePerf(
+      'wrapDisplay sustained vs initial CPU stability',
+      () => {
+        const wrapped = R.wrapDisplay(doc200, 80);
+        assert.equal(wrapped.length, wrappedCold.length);
+        return wrapped;
+      },
+      () => R.wrapDisplay(doc200, 80),
+      {
+        warmup: 2,
+        samples: 9,
+        fastBatch: 3,
+        refBatch: 3,
+        fastBudgetMs: 15,
+        maxRatio: 1.5,
+      },
     );
   });
 });
@@ -575,12 +653,6 @@ function createBaseSnapshot() {
   };
 }
 
-function median(values) {
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
-}
-
 describe('computeSnapshotFingerprint', () => {
   test('returns deterministic fingerprints for null, undefined, and identical deep-cloned snapshots', () => {
     assert.equal(computeSnapshotFingerprint(null), 'empty');
@@ -669,7 +741,7 @@ describe('computeSnapshotFingerprint', () => {
     );
   });
 
-  test('runs in < 5ms median on a 5,000-card / 250-deck / 500-source snapshot and beats JSON.stringify', () => {
+  test('runs in < 5ms CPU median on a 5,000-card / 250-deck / 500-source snapshot and beats JSON.stringify', () => {
     const longFront = 'Explain virtual memory page table walk, TLB shootdown, and copy-on-write semantics. '.repeat(4);
     const longBack = 'Detailed solution with multi-level page tables, ASID tagging, and fault handling. '.repeat(5);
 
@@ -723,36 +795,112 @@ describe('computeSnapshotFingerprint', () => {
       sources,
     };
 
-    for (let i = 0; i < 3; i++) {
-      computeSnapshotFingerprint(bigSnapshot);
-      JSON.stringify(bigSnapshot);
-    }
-
-    const fpTimings = [];
-    const jsonTimings = [];
-    for (let i = 0; i < 15; i++) {
-      const t0 = performance.now();
-      const fp = computeSnapshotFingerprint(bigSnapshot);
-      const t1 = performance.now();
-      const serialized = JSON.stringify(bigSnapshot);
-      const t2 = performance.now();
-
-      assert.ok(fp.length > 0);
-      assert.ok(serialized.length > 1000);
-      fpTimings.push(t1 - t0);
-      jsonTimings.push(t2 - t1);
-    }
-
-    const fpMedianMs = median(fpTimings);
-    const jsonMedianMs = median(jsonTimings);
-
-    assert.ok(
-      fpMedianMs < 5,
-      `expected computeSnapshotFingerprint median < 5ms, got ${fpMedianMs.toFixed(2)}ms`,
+    const { fast, ref } = assertRelativePerf(
+      'computeSnapshotFingerprint vs JSON.stringify',
+      () => {
+        const fp = computeSnapshotFingerprint(bigSnapshot);
+        assert.ok(fp.length > 0);
+        return fp;
+      },
+      () => {
+        const serialized = JSON.stringify(bigSnapshot);
+        assert.ok(serialized.length > 1000);
+        return serialized;
+      },
+      {
+        warmup: 2,
+        samples: 7,
+        fastBatch: 2,
+        refBatch: 1,
+        fastBudgetMs: 5,
+        minSpeedup: 3,
+      },
     );
-    assert.ok(
-      fpMedianMs * 3 < jsonMedianMs,
-      `expected computeSnapshotFingerprint (${fpMedianMs.toFixed(2)}ms) to be >3x faster than JSON.stringify (${jsonMedianMs.toFixed(2)}ms)`,
+    assert.ok(fast.lastValue.length > 0);
+    assert.ok(ref.lastValue.length > 1000);
+  });
+
+  test('flake-reproduction: wall-clock preemption spikes flake single-shot scale checks while CPU+relative gates stay green and catch regressions', () => {
+    // (a) Reproduce CI high-load wall-clock preemption (+25ms stall): naive single-shot wall-clock check FLAKES.
+    const jitteredWall = createJitteredClock([25], wallClock);
+    assert.throws(
+      () =>
+        assertPerfBudget('naive wall-clock computeSnapshotFingerprint', () => computeSnapshotFingerprint(snapshot), 10, {
+          warmup: 0,
+          samples: 1,
+          clock: jitteredWall,
+        }),
+      /exceeded budget < 10ms/,
+      'single-shot wall-clock scale check must flake under injected 25ms preemption stall',
+    );
+
+    // (b) Hardened CPU-time + multi-sample median and paired relative gates STAY GREEN under the same jitter
+    //     and under isolated outlier spikes (2 of 7 samples spiked +30ms / +45ms).
+    assertPerfBudget('hardened CPU computeSnapshotFingerprint', () => computeSnapshotFingerprint(snapshot), 10, {
+      warmup: 2,
+      samples: 7,
+      batch: 2,
+      clock: cpuClock,
+    });
+
+    const spikedSampleClock = createJitteredClock([0, 30, 0, 45, 0, 0, 0], cpuClock);
+    assertPerfBudget(
+      'sampled median computeSnapshotFingerprint with outlier spikes',
+      () => computeSnapshotFingerprint(snapshot),
+      10,
+      { warmup: 0, samples: 7, batch: 2, clock: spikedSampleClock },
+    );
+
+    assertRelativePerf(
+      'hardened CPU fingerprint vs JSON.stringify',
+      () => computeSnapshotFingerprint(snapshot),
+      () => JSON.stringify(snapshot),
+      {
+        warmup: 1,
+        samples: 5,
+        fastBatch: 2,
+        refBatch: 1,
+        clock: cpuClock,
+        fastBudgetMs: 10,
+        minSpeedup: 3,
+      },
+    );
+
+    // (c) Genuine slowdown regression: wrapping the real `computeSnapshotFingerprint` with an
+    //     accidental full `JSON.stringify(snapshot)` still FAILS both the `< 10ms` CPU budget
+    //     and the `>= 3x` relative speedup gate against `JSON.stringify`.
+    const regressedFingerprint = () => {
+      const structural = computeSnapshotFingerprint(snapshot);
+      return `${structural}:${JSON.stringify(snapshot).length}`;
+    };
+    assert.throws(
+      () =>
+        assertPerfBudget('regressed fingerprint CPU budget', regressedFingerprint, 10, {
+          warmup: 1,
+          samples: 3,
+          clock: cpuClock,
+        }),
+      /exceeded budget < 10ms/,
+      'hardened CPU gate must fail when computeSnapshotFingerprint regresses to O(N) serialization',
+    );
+    assert.throws(
+      () =>
+        assertRelativePerf(
+          'regressed fingerprint vs JSON.stringify',
+          regressedFingerprint,
+          () => JSON.stringify(snapshot),
+          {
+            warmup: 1,
+            samples: 3,
+            fastBatch: 1,
+            refBatch: 1,
+            clock: cpuClock,
+            fastBudgetMs: 10,
+            minSpeedup: 3,
+          },
+        ),
+      /exceeded budget < 10ms|expected >=3x speedup/,
+      'hardened relative gate must fail when computeSnapshotFingerprint regresses to O(N) serialization',
     );
   });
 });

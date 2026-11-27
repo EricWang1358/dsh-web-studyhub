@@ -38,6 +38,17 @@ interface CliHighlightModule {
 
 let cachedHighlighter: CliHighlightModule | null | undefined;
 let highlighterLoadAttempted = false;
+const supportedLangCache = new Map<string, boolean>();
+
+function isLanguageSupported(hl: CliHighlightModule, lang: string): boolean {
+  let supported = supportedLangCache.get(lang);
+  if (supported === undefined) {
+    supported = hl.supportsLanguage(lang);
+    if (supportedLangCache.size > 128) supportedLangCache.clear();
+    supportedLangCache.set(lang, supported);
+  }
+  return supported;
+}
 
 function getHighlighter(): CliHighlightModule | null {
   if (highlighterLoadAttempted) return cachedHighlighter ?? null;
@@ -366,6 +377,23 @@ const NO_COLOR_STYLES: StyleCache = Object.freeze({
   success: identityStyle,
 });
 
+const STYLE_CACHE_BY_THEME = new WeakMap<ThemeTokens, Partial<Record<ColorLevel, StyleCache>>>();
+
+function getStyleCache(theme: ThemeTokens, colorLevel: ColorLevel): StyleCache {
+  if (colorLevel === 0) return NO_COLOR_STYLES;
+  let byLevel = STYLE_CACHE_BY_THEME.get(theme);
+  if (!byLevel) {
+    byLevel = {};
+    STYLE_CACHE_BY_THEME.set(theme, byLevel);
+  }
+  let styles = byLevel[colorLevel];
+  if (!styles) {
+    styles = {};
+    byLevel[colorLevel] = styles;
+  }
+  return styles;
+}
+
 interface Ctx {
   theme: ThemeTokens;
   c: ChalkInstance;
@@ -536,7 +564,7 @@ function renderCode(tok: Tokens.Code, width: number, ctx: Ctx): string[] {
   let body = code;
   if (lang && c.level > 0) {
     const hl = getHighlighter();
-    if (hl && hl.supportsLanguage(lang)) {
+    if (hl && isLanguageSupported(hl, lang)) {
       try {
         body = hl.highlight(code, { language: lang, ignoreIllegals: true });
       } catch {
@@ -800,7 +828,7 @@ function renderUncached(
   const { src: mathSafe, store } = protectMath(normalized, mathOn);
   const src = preprocessCjkEmphasis(mathSafe);
   const c = makeChalk(colorLevel);
-  const ctx: Ctx = { theme, c, s: colorLevel === 0 ? NO_COLOR_STYLES : {}, store, listDepth: 0, mathOn, ascii };
+  const ctx: Ctx = { theme, c, s: getStyleCache(theme, colorLevel), store, listDepth: 0, mathOn, ascii };
   let lines: string[];
   try {
     const tokens = marked.lexer(src, { gfm: true });

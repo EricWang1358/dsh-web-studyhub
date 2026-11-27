@@ -19,6 +19,7 @@ import {
 import { StudyService } from "../lib/service.js";
 import { schedule } from "../lib/sm2.js";
 import { seedLibrary } from "../scripts/qa/perf-seed.mjs";
+import { assertCpuBudget, measureWallSamples } from "./helpers/perf-gate.mjs";
 
 const NOW = Date.parse("2026-11-22T12:00:00Z");
 const DAY_MS = 864e5;
@@ -245,24 +246,44 @@ test("libraryPaceForecast benchmarks < 15ms and < 5 KB payload on 2,000 cards", 
     settings: { request_retention: 0.9, maximum_interval: 36500 },
   };
 
-  // Warmup cache & JIT (5 calls), then measure batched CPU time (5 batches x 10 calls) so parallel CI scheduling
-  // and Windows 15.625ms process.cpuUsage() tick quantization cannot inflate single-call readings.
+  // Warmup cache & JIT (5 calls), then measure batched CPU time (5 batches x 10 calls) via shared perf-gate helper
+  // so parallel CI scheduling and Windows 15.625ms process.cpuUsage() tick quantization cannot inflate single-call readings.
   const first = libraryPaceForecast(state, { now: NOW });
-  for (let i = 0; i < 4; i++) libraryPaceForecast(state, { now: NOW });
-  const BATCH = 10;
-  const times = [];
-  for (let i = 0; i < 5; i++) {
-    const cpuBefore = process.cpuUsage();
-    for (let j = 0; j < BATCH; j++) libraryPaceForecast(state, { now: NOW });
-    const cpuUsed = process.cpuUsage(cpuBefore);
-    times.push((cpuUsed.user + cpuUsed.system) / 1000 / BATCH);
+  const smallState = {
+    ...state,
+    decks: decks.slice(0, 5), // 500 cards (1/4 of full state)
+    attempts: attempts.slice(0, 150),
+  };
+  const stats = assertCpuBudget(() => libraryPaceForecast(state, { now: NOW }), {
+    maxMedianMs: 15,
+    warmup: 5,
+    samples: 5,
+    batch: 10,
+    label: "2,000-card libraryPaceForecast",
+    referenceFn: () => libraryPaceForecast(smallState, { now: NOW }),
+    maxRatio: 10, // 4x cards in O(N) stays well under 10x (O(N^2) would be ~16x)
+  });
+  // Deterministic O(N) work invariant: Date.parse is called at most once per attempt + once per non-mastered card with due_at.
+  const origDateParse = Date.parse;
+  let dateParseCalls = 0;
+  Date.parse = (...args) => {
+    dateParseCalls += 1;
+    return origDateParse(...args);
+  };
+  try {
+    libraryPaceForecast(state, { now: NOW });
+  } finally {
+    Date.parse = origDateParse;
   }
-  times.sort((a, b) => a - b);
-  const medianMs = times[Math.floor(times.length / 2)];
   const payloadBytes = JSON.stringify(first).length;
-  t.diagnostic(`2,000-card libraryPaceForecast: median ${medianMs.toFixed(3)} ms CPU, payload ${payloadBytes} bytes`);
+  t.diagnostic(
+    `2,000-card libraryPaceForecast: median ${stats.median.toFixed(3)} ms CPU (${stats.ratio.toFixed(2)}x vs 500-card ref ${stats.reference.median.toFixed(3)} ms), ${dateParseCalls} Date.parse calls, payload ${payloadBytes} bytes`,
+  );
 
-  assert.ok(medianMs < 15, `expected median < 15ms CPU on 2,000 cards, got ${medianMs.toFixed(3)}ms`);
+  assert.ok(
+    dateParseCalls <= 2000 + attempts.length,
+    `expected O(N) Date.parse calls <= ${2000 + attempts.length}, got ${dateParseCalls}`,
+  );
   assert.ok(payloadBytes < 5120, `expected compact payload < 5 KB, got ${payloadBytes} bytes`);
   assert.equal(first.library.total, 2000);
   assert.equal(Object.keys(first.decks).length, 20);
@@ -280,6 +301,10 @@ test("buildRevisionBase caches compact paceForecast (< 5 KB) and skips it on tim
     await rm(root, { recursive: true, force: true });
   });
 
+  // Pin Date after seeding so snapshot minute-bucket polling is 100% deterministic and never races real :00 or midnight rollovers.
+  const localNoon = new Date(2026, 10, 22, 12, 0, 30, 0).getTime();
+  t.mock.timers.enable({ apis: ["Date"], now: localNoon });
+
   const snap1 = await service.call("snapshot");
   assert.ok(snap1.paceForecast, "full snapshot carries paceForecast");
   const paceBytes = JSON.stringify(snap1.paceForecast).length;
@@ -287,30 +312,143 @@ test("buildRevisionBase caches compact paceForecast (< 5 KB) and skips it on tim
   assert.equal(Object.keys(snap1.paceForecast.decks).length, 8);
   assert.ok(snap1.paceForecast.library.total > 0);
 
-  // Unchanged poll short-circuits (re-read once if the real clock crossed a minute boundary between snap1 and the poll)
-  let baseSnap = snap1;
-  let unchanged = await service.call("snapshot", { since: baseSnap.fingerprint });
-  if (!unchanged.unchanged && unchanged.fingerprint && unchanged.fingerprint !== baseSnap.fingerprint) {
-    baseSnap = unchanged;
-    unchanged = await service.call("snapshot", { since: baseSnap.fingerprint });
-  }
+  // Within the same minute (12:00:30 -> 12:00:45): unchanged poll deterministically short-circuits.
+  t.mock.timers.tick(15_000);
+  const unchanged = await service.call("snapshot", { since: snap1.fingerprint });
   assert.equal(unchanged.unchanged, true);
 
-  // Simulated timeOnly partial poll (advance minute in fingerprint within same local day) does NOT emit paceForecast
-  const fpParts = JSON.parse(baseSnap.fingerprint);
-  const currentMinute = fpParts[6];
-  const sameLocalDay = new Date((currentMinute - 1) * 60_000).toDateString() === new Date(currentMinute * 60_000).toDateString();
-  if (sameLocalDay) {
-    fpParts[6] = currentMinute - 1;
-    const earlierFp = JSON.stringify(fpParts);
-    const partial = await service.call("snapshot", { since: earlierFp, partial: true });
-    assert.equal(partial.partial, true);
-    assert.equal(Object.hasOwn(partial, "paceForecast"), false, "timeOnly partial poll must not resend or recompute paceForecast");
-  }
+  // Advance across a real minute boundary within the same local day (12:00:45 -> 12:01:45):
+  // timeOnly partial poll MUST execute (never silently skipped at 00:00) and MUST NOT emit paceForecast.
+  t.mock.timers.tick(60_000);
+  const partial = await service.call("snapshot", { since: snap1.fingerprint, partial: true });
+  assert.equal(partial.partial, true);
+  assert.equal(Object.hasOwn(partial, "paceForecast"), false, "timeOnly partial poll must not resend or recompute paceForecast");
+
+  // Explicit midnight rollover check (23:59:45 -> 00:00:15 next local day): crossing local midnight yields a full snapshot with fresh paceForecast.
+  const beforeMidnightMs = new Date(2026, 10, 22, 23, 59, 45, 0).getTime();
+  t.mock.timers.setTime(beforeMidnightMs);
+  const preMidnightSnap = await service.call("snapshot");
+  t.mock.timers.tick(30_000); // 2026-11-23 00:00:15 local
+  const postMidnightSnap = await service.call("snapshot", { since: preMidnightSnap.fingerprint, partial: true });
+  assert.notEqual(postMidnightSnap.partial, true, "crossing local midnight must return a full snapshot, not a timeOnly partial");
+  assert.ok(postMidnightSnap.paceForecast, "post-midnight full snapshot refreshes paceForecast");
 
   // Compact agent snapshot omits paceForecast
   const compact = await service.call("snapshot", { compact: true });
   assert.equal(Object.hasOwn(compact, "paceForecast"), false, "compact snapshot omits paceForecast");
+});
+
+test("pace-forecast flake-repro: minute-boundary & wall-clock jitter flake legacy checks, hardened gates stay green and catch real regressions", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-pace-flake-"));
+  await seedLibrary(root, { sources: 6, decks: 4, cardsPerDeck: 15, runs: 1, attempts: 40, courses: 2 });
+  const service = new StudyService(root);
+  t.after(async () => {
+    await service.dispose();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  // (a1) Reproduce the legacy minute-boundary race: clock sits 100ms before :00, crosses :00 before the poll.
+  const boundaryMs = new Date(2026, 10, 22, 12, 0, 59, 900).getTime();
+  t.mock.timers.enable({ apis: ["Date"], now: boundaryMs });
+  const snapBeforeTick = await service.call("snapshot");
+  t.mock.timers.tick(200); // crosses into 12:01:00.100
+  const racedPoll = await service.call("snapshot", { since: snapBeforeTick.fingerprint });
+  assert.notEqual(racedPoll.unchanged, true, "a naive unpinned poll flakes when real wall clock crosses :00");
+
+  // (a2) Reproduce wall-clock jitter flaking a legacy single-shot performance.now() gate on real libraryPaceForecast.
+  const state = {
+    decks: Array.from({ length: 10 }, (_, d) => ({
+      id: `deck-${d}`,
+      course: `Course ${d % 3}`,
+      cards: Array.from({ length: 100 }, (_, c) => makeCard(`c-${d}-${c}`)),
+    })),
+    attempts: Array.from({ length: 200 }, (_, i) => ({
+      deckId: `deck-${i % 10}`,
+      quiz_id: `c-${i % 10}-${i % 100}`,
+      grade: i % 4 === 0 ? 1 : 4,
+      elapsed_ms: 40_000,
+      timestamp: isoDaysAgo(i % 10),
+    })),
+    courses: [{ id: "c0", name: "Course 0" }],
+    settings: { request_retention: 0.9, maximum_interval: 36500 },
+  };
+  let wallStallMs = 0;
+  let wallCall = 0;
+  let inside = false;
+  const preemptedWallNow = () => {
+    const realMs = performance.now();
+    if (!inside) {
+      inside = true;
+      return realMs + wallStallMs;
+    }
+    inside = false;
+    wallCall += 1;
+    if (wallCall % 5 < 3) wallStallMs += 18; // +18 ms OS scheduling stall layered onto real performance.now()
+    return realMs + wallStallMs;
+  };
+  const legacyWall = measureWallSamples(() => libraryPaceForecast(state, { now: NOW }), {
+    warmup: 3,
+    samples: 11,
+    now: preemptedWallNow,
+  });
+  assert.throws(
+    () => assert.ok(legacyWall.median < 15, `median ${legacyWall.median.toFixed(2)} ms exceeded 15 ms`),
+    /exceeded 15 ms/,
+    "legacy wall-clock gate must fail under OS preemption stalls",
+  );
+
+  // (b) Hardened deterministic clock & batched CPU-time gate stay green.
+  t.mock.timers.setTime(new Date(2026, 10, 22, 12, 5, 10, 0).getTime());
+  const pinnedSnap = await service.call("snapshot");
+  t.mock.timers.tick(5_000);
+  assert.equal((await service.call("snapshot", { since: pinnedSnap.fingerprint })).unchanged, true);
+  t.mock.timers.tick(60_000);
+  const pinnedPartial = await service.call("snapshot", { since: pinnedSnap.fingerprint, partial: true });
+  assert.equal(pinnedPartial.partial, true);
+  assert.equal(Object.hasOwn(pinnedPartial, "paceForecast"), false);
+
+  const cpuStats = assertCpuBudget(() => libraryPaceForecast(state, { now: NOW }), {
+    maxMedianMs: 15,
+    warmup: 3,
+    samples: 5,
+    batch: 5,
+    label: "hardened pace-forecast CPU gate",
+  });
+  assert.ok(cpuStats.median < 15);
+
+  // (c) Genuine regressions still fail the hardened gates (zero busy-loops, zero hand-built tautologies):
+  // (c1) Real algorithmic CPU regression: recomputing uncached FSRS spacingProfile once per card (violating
+  // forecast.js's "ONCE per settings bucket — never per card" invariant) naturally breaches < 15 ms CPU.
+  let uniqueInterval = 10_000;
+  const regressedPerCardSpacing = () => {
+    let totalFloor = 0;
+    for (const deck of state.decks) {
+      for (let i = 0; i < deck.cards.length; i += 1) {
+        uniqueInterval += 1;
+        totalFloor += spacingProfile({ request_retention: 0.9, maximum_interval: uniqueInterval }).totalDays;
+      }
+    }
+    const res = libraryPaceForecast(state, { now: NOW });
+    return totalFloor > 0 ? res : null;
+  };
+  assert.throws(
+    () => assertCpuBudget(regressedPerCardSpacing, {
+      maxMedianMs: 15,
+      warmup: 1,
+      samples: 3,
+      batch: 1,
+      label: "regressed per-card spacingProfile forecast",
+    }),
+    /exceeded budget < 15 ms/,
+    "genuine per-card FSRS spacingProfile regression must fail the hardened pace-forecast CPU gate",
+  );
+
+  // (c2) Real buildRevisionBase / snapshot contract check: when a library mutation occurs before the next
+  // `partial: true` poll, snapshot MUST invalidate the timeOnly shortcut and emit a fresh paceForecast.
+  await service.call("source.add", { title: "Mutation invalidates timeOnly", text: "Content for revision bump", courses: [] });
+  const afterMutation = await service.call("snapshot", { since: pinnedPartial.fingerprint, partial: true });
+  assert.notEqual(afterMutation.partial, true, "real library write must bypass timeOnly partial poll");
+  assert.ok(afterMutation.paceForecast, "post-write full snapshot must recompute and emit paceForecast");
 });
 
 test("sm2.schedule same-day spaced_reps and Easy->Good last_grade=5 integrate cleanly with pace-forecast", () => {

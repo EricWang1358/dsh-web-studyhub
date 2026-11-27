@@ -6,8 +6,9 @@ import { dirname, join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { reportUsage } from '../lib/usage-scope.js';
 import { createRoundClock } from '../lib/contexts/generation/generate/round-clock.js';
+import { listOf } from '../lib/contexts/generation/coverage-runs.js';
 import { jobContract } from '../lib/job-contract.js';
-import { roundList, FILL_ROUNDS, REPEAT_LIMIT } from '../lib/coverage-run.js';
+import { roundList, finishRound, FILL_ROUNDS, REPEAT_LIMIT } from '../lib/coverage-run.js';
 import { settleJob, until, sleep } from './helpers/wait.mjs';
 import { mergedTranscript } from './helpers/merged-transcript.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
@@ -152,6 +153,7 @@ test('each round receives its whole time budget and a paused round keeps its rem
   clock.hold();
   t.mock.timers.tick(1000);
   assert.equal(clock.workedMs(), 40);
+  assert.equal(clock.idleMs(), 1000);
   assert.equal(clock.signal.aborted, false);
   clock.resume();
   t.mock.timers.tick(59);
@@ -159,8 +161,86 @@ test('each round receives its whole time budget and a paused round keeps its rem
   t.mock.timers.tick(1);
   assert.equal(clock.signal.reason.code, 'GENERATION_BUDGET');
   assert.equal(clock.workedMs(), 100);
+  assert.equal(clock.idleMs(), 1000);
+  assert.equal(clock.workedMs() + clock.idleMs(), Date.now() - plan.t0);
   assert.equal(controller.signal.aborted, false);
   clock.disarm();
+});
+
+test('coverage-run-exec flake-repro: sub-ms rounds and hold-lag drift flake legacy checks, hardened clock & listOf stay exact and catch bugs', t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 10_000 });
+
+  // (a1)+(b1) Real sub-ms round through createRoundClock -> finishRound -> listOf:
+  // when a fast mock round starts and finishes within the same millisecond, workedMs() returns 0.
+  // Legacy `round.ms > 0` failed and legacy `round.ms ? { ms: round.ms } : {}` dropped `ms` to undefined;
+  // hardened `listOf` preserves `ms: 0` while omitting `ms` on pending rounds.
+  const subPlan = { t0: Date.now() };
+  const subClock = createRoundClock({ job: {}, controller: new AbortController(), plan: subPlan, roundMs: 100 });
+  subClock.restartMeasure();
+  subClock.arm();
+  const subWorkedMs = subClock.workedMs(); // 0 ms elapsed on fast round
+  subClock.disarm();
+  const spec = {
+    rounds: [
+      { round: 1, questions: 4, sectionIds: ['s1'], status: 'running', startedAt: new Date(Date.now()).toISOString() },
+      { round: 2, questions: 4, sectionIds: ['s2'], status: 'pending' },
+    ],
+  };
+  const finished = finishRound(spec, 0, {
+    status: 'done',
+    kept: 4,
+    covered: 1,
+    ms: subWorkedMs,
+    at: new Date(Date.now()).toISOString(),
+  });
+  const projected = listOf(finished);
+  assert.equal(roundList(finished)[0].ms, 0, 'sub-ms round produces 0 ms from createRoundClock.workedMs()');
+  assert.equal(projected[0].ms, 0, 'listOf must preserve ms: 0 on finished sub-ms rounds');
+  assert.ok(Number.isFinite(projected[0].ms) && projected[0].ms >= 0);
+  assert.equal(projected[1].ms, undefined, 'pending rounds without recorded ms still omit ms');
+
+  // (a2)+(b2) Real createRoundClock pause-exclusion under 5 ms onPaused microtask lag:
+  // external observer stamps `since` 5 ms before `clock.hold()` fires, causing legacy `-2ms` drift
+  // check to flake, while `createRoundClock` accounts workedMs + idleMs === totalElapsed with 0 ms error.
+  const plan = { t0: Date.now() };
+  const controller = new AbortController();
+  const clock = createRoundClock({ job: {}, controller, plan, roundMs: 100 });
+  clock.restartMeasure();
+  clock.arm();
+  t.mock.timers.tick(20);
+  const externalSince = Date.now();
+  t.mock.timers.tick(5); // 5 ms lag before clock.hold() runs
+  clock.hold();
+  t.mock.timers.tick(200);
+  const externalIdleMs = Date.now() - externalSince; // 205 ms
+  clock.resume();
+  t.mock.timers.tick(20);
+  const totalElapsed = Date.now() - plan.t0; // 245 ms
+  const worked = clock.workedMs(); // 45 ms
+  clock.disarm();
+  assert.throws(
+    () => assert.ok(totalElapsed - worked >= externalIdleMs - 2, `drift: ${totalElapsed - worked} < ${externalIdleMs - 2}`),
+    /drift:/,
+    'legacy external-Date.now() `-2ms` gate fails under 5 ms hold lag',
+  );
+  assert.equal(clock.idleMs(), 200);
+  assert.equal(worked + clock.idleMs(), totalElapsed, 'workedMs + idleMs must equal total elapsed exactly');
+  assert.equal(clock.signal.aborted, false, '200 ms pause did not consume the 100 ms round budget');
+
+  // (c) Genuine clock regression: omitting hold() during a 200 ms pause leaks pause duration into workedMs
+  // and trips GENERATION_BUDGET abort on the real createRoundClock.
+  const brokenPlan = { t0: Date.now() };
+  const brokenClock = createRoundClock({ job: {}, controller: new AbortController(), plan: brokenPlan, roundMs: 100 });
+  brokenClock.restartMeasure();
+  brokenClock.arm();
+  t.mock.timers.tick(20);
+  // Missing brokenClock.hold() -> pause duration consumes budget and leaks into workedMs
+  t.mock.timers.tick(200);
+  assert.equal(brokenClock.signal.aborted, true, 'failing to hold the clock during a pause must trip budget abort');
+  assert.equal(brokenClock.signal.reason.code, 'GENERATION_BUDGET');
+  assert.equal(brokenClock.idleMs(), 0, 'broken clock failed to account for idle time');
+  assert.ok(brokenClock.workedMs() > 100, 'broken clock leaked pause duration into workedMs');
+  brokenClock.disarm();
 });
 
 describe('coverage run executor', { concurrency: 3 }, () => {
@@ -172,9 +252,21 @@ test('the executor records each completed round and ends a stalled round at its 
   assert.equal(job.status, 'complete', job.stage);
   const rounds = roundList((await draftOf(service)).editorial.coverageSpec);
   assert.deepEqual(rounds.map(round => round.status), ['done', 'done', 'done']);
-  assert.ok(rounds.every(round => round.ms > 0));
+  for (const round of rounds) {
+    assert.ok(Number.isFinite(round.ms) && round.ms >= 0, `round ${round.round} must record non-negative finite ms, got ${round.ms}`);
+    const span = Date.parse(round.finishedAt) - Date.parse(round.startedAt);
+    assert.ok(span >= 0 && round.ms <= span, `round ${round.round} worked ${round.ms}ms must be within wall span ${span}ms`);
+  }
+  const completedContract = await contractOfJob(service, started.jobId);
+  assert.ok(
+    completedContract.detail.run.list.every(row => Number.isFinite(row.ms) && row.ms >= 0),
+    'projected run list must preserve round ms (including 0 ms sub-ms rounds)',
+  );
   const stuck = await library(t, { coverage: { roundLimit: 8, roundTimeoutMs: 300 }, wrap: complete => async (system, prompt, context = {}) => {
-    if (system.startsWith(PLAN) && context.signal) await new Promise((_, reject) => { context.signal.addEventListener('abort', () => reject(context.signal.reason), { once: true }); });
+    if (system.startsWith(PLAN) && context.signal) {
+      if (context.signal.aborted) throw context.signal.reason;
+      await new Promise((_, reject) => { context.signal.addEventListener('abort', () => reject(context.signal.reason), { once: true }); });
+    }
     return complete(system, prompt, context);
   } });
   const startedStuck = await stuck.service.call('generate', { sourceIds: stuck.ids, coverageLevel: 'standard', kind: 'quiz' });
@@ -191,16 +283,23 @@ test('the executor excludes a confirmed pause from the time recorded for the rou
   await service.call('job.control', { jobId: started.jobId, action: 'pause' });
   hold.open();
   await until(async () => (await contractOfJob(service, started.jobId)).status === 'paused', 'the pause to be reached');
+  // `onPaused` -> `clock.hold()` runs on a microtask after `job.pausedAt` is stamped (lib/job-control.js);
+  // yield one macrotask turn so `clock.hold()` is strictly ordered before measuring the pause window.
+  await new Promise(resolve => setImmediate(resolve));
   const since = Date.now();
   await sleep(200);
-  const idleMs = Date.now() - since;
+  const pauseWindowMs = Date.now() - since;
   await service.call('job.control', { jobId: started.jobId, action: 'resume' });
   const job = await settleJob(service, started.jobId);
   assert.equal(job.status, 'complete', `the round must not have timed out while paused: ${job.stage}`);
   const rounds = roundList((await draftOf(service)).editorial.coverageSpec);
   assert.deepEqual(rounds.map(round => round.status), ['done', 'done', 'done']);
   const elapsed = Date.parse(rounds[0].finishedAt) - Date.parse(rounds[0].startedAt);
-  assert.ok(elapsed - rounds[0].ms >= idleMs - 2, `the saved round took ${elapsed}ms including ${idleMs}ms paused, and reported ${rounds[0].ms}ms worked`);
+  assert.ok(Number.isFinite(rounds[0].ms) && rounds[0].ms >= 0);
+  assert.ok(
+    elapsed - rounds[0].ms >= pauseWindowMs,
+    `the saved round took ${elapsed}ms including ${pauseWindowMs}ms confirmed pause, and reported ${rounds[0].ms}ms worked`,
+  );
 });
 
 test('a round larger than the 30 questions of a production round is accepted when the seam says so: the button of a manual run is not refused by a limit the plan did not use', async (t) => {
@@ -532,20 +631,41 @@ test('cancel while paused inside a round ends the run as stopped by the learner,
 
 test('pause and resume more than once in one round: each pause is reached with no call running, and the run still ends complete', async (t) => {
   const counter = { calls: 0 };
-  // Every call takes a moment, so the run is still working when each of the three pauses is asked.
-  const { service, ids } = await library(t, { wrap: complete => counting(async (system, prompt, context) => { await sleep(40); return complete(system, prompt, context); }, counter) });
+  // Deterministic barrier per cycle replaces hardcoded sleep(40)/sleep(80) so all 3 pause/resume
+  // cycles reliably execute without racing round completion under load.
+  let armedGate = gate();
+  let activeGate = armedGate;
+  const { service, ids } = await library(t, {
+    wrap: complete => counting(async (system, prompt, context) => {
+      if (armedGate) {
+        const hold = armedGate;
+        armedGate = null;
+        hold.entered = true;
+        await hold.promise;
+      }
+      return complete(system, prompt, context);
+    }, counter),
+  });
   const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz' });
-  await until(() => counter.calls >= 1, 'the first model call');
+  let pausesReached = 0;
   for (let cycle = 1; cycle <= 3; cycle += 1) {
+    await until(() => activeGate.entered, `model call to reach barrier for pause ${cycle}`);
     await service.call('job.control', { jobId: started.jobId, action: 'pause' });
-    await until(async () => ['paused', 'complete'].includes((await contractOfJob(service, started.jobId)).status), `pause ${cycle} to be reached`);
-    if ((await contractOfJob(service, started.jobId)).status === 'complete') break;
+    assert.equal((await contractOfJob(service, started.jobId)).status, 'pausing', `cycle ${cycle}: waiting for in-flight call`);
+    activeGate.open();
+    await until(async () => (await contractOfJob(service, started.jobId)).status === 'paused', `pause ${cycle} to be reached`);
+    pausesReached += 1;
     const frozen = counter.calls;
-    await sleep(80);
+    for (let turn = 0; turn < 5; turn += 1) await new Promise(resolve => setImmediate(resolve));
     assert.equal(counter.calls, frozen, `nothing starts during pause ${cycle}`);
+    assert.equal((await contractOfJob(service, started.jobId)).status, 'paused');
+    if (cycle < 3) {
+      activeGate = gate();
+      armedGate = activeGate;
+    }
     await service.call('job.control', { jobId: started.jobId, action: 'resume' });
-    await until(() => counter.calls > frozen, `the run to go on after resume ${cycle}`);
   }
+  assert.equal(pausesReached, 3, 'all three pause/resume cycles must execute');
   const job = await settleJob(service, started.jobId);
   assert.equal(job.status, 'complete', job.stage);
   assert.deepEqual(statuses(await draftOf(service)), ['done', 'done', 'done']);

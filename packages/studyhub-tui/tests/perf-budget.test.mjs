@@ -11,6 +11,7 @@ import { render, Text } from 'ink';
 import { register, tsImport } from 'tsx/esm/api';
 import stripAnsi from 'strip-ansi';
 import { eastAsianWidth } from 'get-east-asian-width';
+import { assertPerfBudget, cpuClock, createJitteredClock, wallClock } from './helpers/perf-gate.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pkgRoot = path.resolve(here, '..');
@@ -165,7 +166,7 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
     }
   });
 
-  test('2. Markdown LRU cache stays <= 256 and renders 300 mixed documents in < 1500ms', () => {
+  test('2. Markdown LRU cache stays <= 256 and renders 300 mixed documents in < 1500ms CPU', () => {
     R.clearMarkdownCache();
     assert.equal(R.markdownCacheSize(), 0);
 
@@ -183,27 +184,47 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
     ].join('\n'));
 
     const width = 72;
-    const t0 = performance.now();
-    for (let i = 0; i < docs.length; i++) {
-      const lines = R.renderMarkdownLines(docs[i], {
-        width,
-        theme: SAMPLE_THEME,
-        mathUnicode: true,
-        ascii: i % 2 === 1,
-      });
+    const renderBatch = () => {
+      const rendered = new Array(docs.length);
+      for (let i = 0; i < docs.length; i++) {
+        rendered[i] = R.renderMarkdownLines(docs[i], {
+          width,
+          theme: SAMPLE_THEME,
+          mathUnicode: true,
+          ascii: i % 2 === 1,
+        });
+      }
+      return rendered;
+    };
+
+    // Measure pure render CPU time across multiple cache-cleared samples; verify every line outside the timer.
+    const { lastValue: renderedDocs } = assertPerfBudget(
+      'rendering 300 markdown docs',
+      renderBatch,
+      1500,
+      {
+        warmup: 1,
+        samples: 3,
+        beforeSample: () => {
+          R.clearMathCache();
+          R.clearMarkdownCache();
+        },
+      },
+    );
+
+    for (let i = 0; i < renderedDocs.length; i++) {
+      const lines = renderedDocs[i];
       assert.ok(Array.isArray(lines) && lines.length > 0, `doc ${i} produced empty output`);
       for (const line of lines) {
         assert.ok(R.displayWidth(line) <= width, `doc ${i} line exceeded width ${width}: ${R.displayWidth(line)}`);
       }
     }
-    const elapsedMs = performance.now() - t0;
 
     const cacheSize = R.markdownCacheSize();
     assert.ok(cacheSize > 0 && cacheSize <= 256, `expected markdown cache size in (0, 256], got ${cacheSize}`);
-    assert.ok(elapsedMs < 1500, `rendering 300 markdown docs took ${elapsedMs.toFixed(1)}ms (budget < 1500ms)`);
   });
 
-  test('3. CJK & ANSI displayWidth/truncateDisplay 10,000-call throughput < 500ms and width invariant', () => {
+  test('3. CJK & ANSI displayWidth/truncateDisplay 10,000-call throughput < 500ms CPU and width invariant', () => {
     const samples = [
       '操作系统原理：虚拟内存与缺页中断处理流程详解',
       '\u001B[31m重要考点\u001B[39m: Page Table & TLB Hit Ratio 🚀',
@@ -222,25 +243,22 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
       }
     }
 
-    // Warm up JIT before measuring 10,000-call throughput
-    let warm = 0;
-    for (let i = 0; i < 100; i++) {
-      warm += R.displayWidth(samples[i % samples.length]) + R.truncateDisplay(samples[i % samples.length], widths[i % widths.length]).length;
-    }
-    assert.ok(warm > 0);
-
-    const t0 = performance.now();
-    let acc = 0;
-    for (let i = 0; i < 5_000; i++) {
-      const s = samples[i % samples.length];
-      const w = widths[i % widths.length];
-      acc += R.displayWidth(s);
-      acc += R.truncateDisplay(s, w).length;
-    }
-    const elapsedMs = performance.now() - t0;
-
+    const { lastValue: acc } = assertPerfBudget(
+      '10,000 displayWidth/truncateDisplay calls',
+      () => {
+        let total = 0;
+        for (let i = 0; i < 5_000; i++) {
+          const s = samples[i % samples.length];
+          const w = widths[i % widths.length];
+          total += R.displayWidth(s);
+          total += R.truncateDisplay(s, w).length;
+        }
+        return total;
+      },
+      500,
+      { warmup: 1, samples: 5 },
+    );
     assert.ok(acc > 0);
-    assert.ok(elapsedMs < 500, `10,000 displayWidth/truncateDisplay calls took ${elapsedMs.toFixed(1)}ms (budget < 500ms)`);
   });
 
   test('4. Static import closures of dist/boot-frame.mjs and dist/App.mjs exclude zod, marked, and cli-highlight (plus zero zod anywhere in dist/*.mjs)', () => {
@@ -865,9 +883,32 @@ describe('CJK/ANSI performance & bit-exactness', () => {
         }
       }
     }
+
+    // Differential check for every code point in the expanded fast-path BMP width-1 ranges
+    // (box drawing, Latin-1, Greek, punctuation, super/sub, math operators) + SGR-styled variants.
+    const fastBmpRanges = [
+      [0x2500, 0x257f],
+      [0x00b0, 0x00ff],
+      [0x0391, 0x03c9],
+      [0x2010, 0x2027],
+      [0x2070, 0x209f],
+      [0x2200, 0x22ff],
+    ];
+    for (const [lo, hi] of fastBmpRanges) {
+      let chunk = '';
+      for (let cp = lo; cp <= hi; cp++) {
+        const ch = String.fromCharCode(cp);
+        assert.equal(R.displayWidth(ch), refDisplayWidth(ch), `displayWidth mismatch at U+${cp.toString(16)}`);
+        assert.equal(R.graphemeWidth(ch), refGraphemeWidth(ch), `graphemeWidth mismatch at U+${cp.toString(16)}`);
+        chunk += ch;
+      }
+      const styled = `\u001B[38;2;75;111;255m${chunk}\u001B[0m中文`;
+      assert.equal(R.displayWidth(styled), refDisplayWidth(styled), `styled SGR displayWidth mismatch for 0x${lo.toString(16)}`);
+      assert.equal(R.truncateDisplay(chunk, 12), refTruncateDisplay(chunk, 12), `truncateDisplay mismatch for 0x${lo.toString(16)}`);
+    }
   });
 
-  test('2. 10,000 mixed ASCII+CJK displayWidth + truncateDisplay calls complete in < 200ms', () => {
+  test('2. 10,000 mixed ASCII+CJK displayWidth + truncateDisplay calls complete in < 200ms CPU', () => {
     const samples = [
       '操作系统原理：虚拟内存与缺页中断处理流程详解',
       'plain ascii diagnostic line for fast-path verification',
@@ -878,29 +919,22 @@ describe('CJK/ANSI performance & bit-exactness', () => {
     ];
     const widths = [4, 8, 15, 24, 32, 48];
 
-    let warm = 0;
-    for (let i = 0; i < 500; i++) {
-      const s = samples[i % samples.length];
-      const w = widths[i % widths.length];
-      warm += R.displayWidth(s) + R.truncateDisplay(s, w).length;
-    }
-    assert.ok(warm > 0);
-
-    const t0 = performance.now();
-    let acc = 0;
-    for (let i = 0; i < 5_000; i++) {
-      const s = samples[i % samples.length];
-      const w = widths[i % widths.length];
-      acc += R.displayWidth(s);
-      acc += R.truncateDisplay(s, w).length;
-    }
-    const elapsedMs = performance.now() - t0;
-
-    assert.ok(acc > 0);
-    assert.ok(
-      elapsedMs < 200,
-      `10,000 mixed ASCII+CJK displayWidth/truncateDisplay calls took ${elapsedMs.toFixed(1)}ms (budget < 200ms)`,
+    const { lastValue: acc } = assertPerfBudget(
+      '10,000 mixed ASCII+CJK displayWidth/truncateDisplay calls',
+      () => {
+        let total = 0;
+        for (let i = 0; i < 5_000; i++) {
+          const s = samples[i % samples.length];
+          const w = widths[i % widths.length];
+          total += R.displayWidth(s);
+          total += R.truncateDisplay(s, w).length;
+        }
+        return total;
+      },
+      200,
+      { warmup: 2, samples: 7 },
     );
+    assert.ok(acc > 0);
   });
 });
 
@@ -1056,7 +1090,7 @@ describe('Math & Markdown fast-path equivalence and NFR throughput', () => {
     assert.ok(noColorJoined.includes('const x = 1;'));
   });
 
-  test('2. NFR throughput: 5,000 plain-prose replaceMath < 25ms and 300 mixed docs < 1200ms', () => {
+  test('2. NFR throughput: 5,000 plain-prose replaceMath < 25ms CPU and 300 mixed docs < 700ms CPU', () => {
     T.setColorLevel(3);
     const plainSamples = [
       'Operating systems manage virtual memory using multi-level page tables and TLB caches.',
@@ -1066,28 +1100,22 @@ describe('Math & Markdown fast-path equivalence and NFR throughput', () => {
       '中文纯文本段落测试：不包含任何数学公式定界符，直接跳过正则扫描。',
     ];
 
-    let warmLen = 0;
-    for (let i = 0; i < 200; i++) {
-      warmLen += R.replaceMath(plainSamples[i % plainSamples.length], () => '').length;
-    }
-    assert.ok(warmLen > 0);
-
-    const tMath0 = performance.now();
-    let plainAcc = 0;
-    for (let i = 0; i < 5_000; i++) {
-      const out = R.replaceMath(plainSamples[i % plainSamples.length], () => '');
-      plainAcc += out.length;
-    }
-    const mathElapsedMs = performance.now() - tMath0;
-    assert.ok(plainAcc > 0);
-    assert.ok(
-      mathElapsedMs < 25,
-      `5,000 plain-prose replaceMath calls took ${mathElapsedMs.toFixed(2)}ms (budget < 25ms)`,
+    const { lastValue: plainAcc } = assertPerfBudget(
+      '5,000 plain-prose replaceMath calls',
+      () => {
+        let acc = 0;
+        for (let i = 0; i < 5_000; i++) {
+          const out = R.replaceMath(plainSamples[i % plainSamples.length], () => '');
+          acc += out.length;
+        }
+        return acc;
+      },
+      25,
+      { warmup: 3, samples: 9, batch: 5 },
     );
+    assert.ok(plainAcc > 0);
 
     R.renderMarkdownLines('```js\nconst warmup = 1;\n```', { width: 72, theme: THEME });
-    R.clearMathCache();
-    R.clearMarkdownCache();
 
     const docs = Array.from({ length: 300 }, (_, i) => [
       `# 章节 ${i + 1}: 虚拟内存与调度`,
@@ -1104,14 +1132,33 @@ describe('Math & Markdown fast-path equivalence and NFR throughput', () => {
     ].join('\n'));
 
     const width = 72;
-    const tDocs0 = performance.now();
-    for (let i = 0; i < docs.length; i++) {
-      const lines = R.renderMarkdownLines(docs[i], {
-        width,
-        theme: THEME,
-        mathUnicode: true,
-        ascii: i % 2 === 1,
-      });
+    const { lastValue: renderedDocs } = assertPerfBudget(
+      '300 mixed Markdown+LaTeX+table docs',
+      () => {
+        const rendered = new Array(docs.length);
+        for (let i = 0; i < docs.length; i++) {
+          rendered[i] = R.renderMarkdownLines(docs[i], {
+            width,
+            theme: THEME,
+            mathUnicode: true,
+            ascii: i % 2 === 1,
+          });
+        }
+        return rendered;
+      },
+      700,
+      {
+        warmup: 1,
+        samples: 3,
+        beforeSample: () => {
+          R.clearMathCache();
+          R.clearMarkdownCache();
+        },
+      },
+    );
+
+    for (let i = 0; i < renderedDocs.length; i++) {
+      const lines = renderedDocs[i];
       assert.ok(lines.length > 0, `doc ${i} produced empty lines`);
       for (const line of lines) {
         assert.ok(
@@ -1120,14 +1167,9 @@ describe('Math & Markdown fast-path equivalence and NFR throughput', () => {
         );
       }
     }
-    const docsElapsedMs = performance.now() - tDocs0;
 
     assert.ok(R.markdownCacheSize() > 0 && R.markdownCacheSize() <= 256);
     assert.ok(R.mathCacheSize() > 0 && R.mathCacheSize() <= 512);
-    assert.ok(
-      docsElapsedMs < 1200,
-      `300 mixed Markdown+LaTeX+table docs took ${docsElapsedMs.toFixed(2)}ms (budget < 1200ms)`,
-    );
   });
 });
 
@@ -1241,18 +1283,6 @@ function refFuzzyFilter(items, query, getText, getKeywords, limit = 200) {
   }
   out.sort((a, b) => b.score - a.score);
   return out.length > limit ? out.slice(0, limit) : out;
-}
-
-function medianMs(fn, runs = 15) {
-  for (let w = 0; w < 3; w++) fn();
-  const timings = [];
-  for (let i = 0; i < runs; i++) {
-    const t0 = performance.now();
-    fn();
-    timings.push(performance.now() - t0);
-  }
-  timings.sort((a, b) => a - b);
-  return timings[Math.floor(timings.length / 2)];
 }
 
 function buildScalePerfLibrary() {
@@ -1543,24 +1573,102 @@ describe('Bit-Exact Equivalence & Large-Library Scale NFR (fuzzy & source-helper
     assert.equal(groups[2].cardCount, 2);
   });
 
-  test('2. Large-scale NFR proof: fuzzyFilter 5,000 items median < 15ms & groupSourcesFromSnapshot 2,000 sources median < 25ms', () => {
+  test('2. Large-scale NFR proof: fuzzyFilter 5,000 items median < 15ms CPU & groupSourcesFromSnapshot 2,000 sources median < 25ms CPU', () => {
     const { snapshot, searchableCards, docCount } = buildScalePerfLibrary();
 
-    const enMedian = medianMs(() =>
-      fuzzyFilter(searchableCards, 'virtual memory page', (x) => x.label, (x) => x.keywords, 50),
+    assertPerfBudget(
+      'fuzzyFilter EN (5,000 items)',
+      () => fuzzyFilter(searchableCards, 'virtual memory page', (x) => x.label, (x) => x.keywords, 50),
+      15,
+      { warmup: 3, samples: 9 },
     );
-    const cjkMedian = medianMs(() =>
-      fuzzyFilter(searchableCards, '虚拟内存页表', (x) => x.label, (x) => x.keywords, 50),
+    assertPerfBudget(
+      'fuzzyFilter CJK (5,000 items)',
+      () => fuzzyFilter(searchableCards, '虚拟内存页表', (x) => x.label, (x) => x.keywords, 50),
+      15,
+      { warmup: 3, samples: 9 },
     );
-    const groupMedian = medianMs(() => groupSourcesFromSnapshot(snapshot));
+    const { lastValue: groups } = assertPerfBudget(
+      'groupSourcesFromSnapshot (2,000 sources)',
+      () => groupSourcesFromSnapshot(snapshot),
+      25,
+      { warmup: 3, samples: 9 },
+    );
 
-    assert.ok(enMedian < 15, `fuzzyFilter EN median ${enMedian.toFixed(2)}ms exceeded 15ms`);
-    assert.ok(cjkMedian < 15, `fuzzyFilter CJK median ${cjkMedian.toFixed(2)}ms exceeded 15ms`);
-    assert.ok(groupMedian < 25, `groupSourcesFromSnapshot median ${groupMedian.toFixed(2)}ms exceeded 25ms`);
-
-    const groups = groupSourcesFromSnapshot(snapshot);
     assert.equal(groups.length, docCount);
     const totalCardHits = groups.reduce((acc, g) => acc + g.cardCount, 0);
     assert.equal(totalCardHits, 10000);
+  });
+
+  test('3. Flake-reproduction: wall-clock preemption jitter flakes single-shot checks while sampled CPU gate stays green and still catches genuine slowdowns', () => {
+    const plainSamples = [
+      'Operating systems manage virtual memory using multi-level page tables and TLB caches.',
+      'Plain prose without any dollar signs or backslashes should hit the immediate return path.',
+      '中文纯文本段落测试：不包含任何数学公式定界符，直接跳过正则扫描。',
+    ];
+    const runReplaceMathBatch = () => {
+      let acc = 0;
+      for (let i = 0; i < 5_000; i++) {
+        acc += R.replaceMath(plainSamples[i % plainSamples.length], () => '').length;
+      }
+      return acc;
+    };
+
+    // (a) Reproduce CI high-load wall-clock preemption (+45ms stall): naive single-shot wall-clock check FLAKES.
+    const jitteredWall = createJitteredClock([45], wallClock);
+    assert.throws(
+      () => assertPerfBudget('naive wall-clock replaceMath', runReplaceMathBatch, 25, {
+        warmup: 0,
+        samples: 1,
+        clock: jitteredWall,
+      }),
+      /exceeded budget < 25ms/,
+      'single-shot wall-clock check must flake under injected 45ms preemption stall',
+    );
+
+    // (b) Hardened gate stays GREEN under both off-CPU preemption (process.cpuUsage()) and
+    //     isolated multi-sample jitter spikes (2 of 9 samples spiked +60ms / +95ms).
+    const cpuResult = assertPerfBudget('hardened CPU replaceMath', runReplaceMathBatch, 25, {
+      warmup: 3,
+      samples: 9,
+      batch: 5,
+      clock: cpuClock,
+    });
+    assert.ok(cpuResult.lastValue > 0);
+
+    const spikedSampleClock = createJitteredClock([0, 60, 0, 0, 95, 0, 0, 0, 0], cpuClock);
+    assertPerfBudget('sampled median replaceMath with outlier spikes', runReplaceMathBatch, 25, {
+      warmup: 0,
+      samples: 9,
+      batch: 5,
+      clock: spikedSampleClock,
+    });
+
+    // (c) A genuine slowdown regression (wrapping the real `replaceMath` batch with uncached
+    //     LaTeX parsing across 1,500 unique expressions as if the plain-prose fast path were
+    //     bypassed) STILL FAILS the hardened gate.
+    const regressedInputs = Array.from(
+      { length: 1_500 },
+      (_, k) => `Derivation #${k}: $\\lambda_${k} = \\frac{1}{\\mu + ${k}}$ and $$\\sum_{i=1}^{${k + 1}} \\alpha_i + x^${k}$$.`,
+    );
+    const runRegressedReplaceMathBatch = () => {
+      let acc = runReplaceMathBatch();
+      R.clearMathCache();
+      for (let i = 0; i < regressedInputs.length; i++) {
+        acc += R.replaceMath(regressedInputs[i], ({ tex }) => R.renderMath(tex)).length;
+      }
+      return acc;
+    };
+    assert.throws(
+      () =>
+        assertPerfBudget(
+          'genuinely slow uncached replaceMath regression',
+          runRegressedReplaceMathBatch,
+          25,
+          { warmup: 1, samples: 3, clock: cpuClock },
+        ),
+      /exceeded budget < 25ms/,
+      'hardened CPU gate must still fail when replaceMath falls off its fast path',
+    );
   });
 });
