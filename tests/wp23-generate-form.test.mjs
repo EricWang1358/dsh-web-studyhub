@@ -74,7 +74,10 @@ test("the form sends a coverage level and a count only when the learner typed on
 
 test("the three levels, their words and the line that says what a choice means for the chosen materials", () => {
   assert.deepEqual(form.COVERAGE_LEVELS.map((item) => [item.value, item.label]), [["lean", "精简"], ["standard", "标准"], ["full", "完整"]]);
-  assert.equal(form.DEFAULT_LEVEL, "standard");
+  assert.deepEqual(form.effectiveCoverage({}), { choice: "standard", level: "standard", count: null }, "empty form defaults to standard coverage");
+  assert.equal(form.levelNote(undefined), form.levelNote("standard"), "omitted levelNote falls back to standard");
+  assert.equal(form.levelNote("bogus"), form.levelNote("standard"), "unknown levelNote falls back to standard");
+  assert.equal(form.estimateRequestOf({}, { course: "C", sourceIds: ["a"] }).coverageLevel, "standard", "estimate request defaults missing coverageLevel to standard");
   assert.match(form.levelNote("standard"), /标准：每个不少于 600 字的小节都出题.*每万字约 6 题/);
   assert.match(form.levelNote("lean"), /精简：.*六成.*每万字约 3 题/);
   assert.match(form.levelNote("full"), /完整：.*每万字约 10 题/);

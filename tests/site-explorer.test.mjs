@@ -113,9 +113,11 @@ test('explorer metadata matches live StudyRuntime contexts, generation stages, t
 
   const demo = globalThis.STUDY_DEMO;
   assert.ok(demo && demo.FSRS6_WEIGHTS.length === 21);
-  assert.equal(demo.FAMILIAR_DAYS, 6);
-  assert.equal(demo.MASTERED_DAYS, 21);
-  assert.equal(demo.MASTERED_STREAK, 2);
+  assert.equal(demo.cardLevel({ review: { interval_days: 5, spaced_reps: 1 } }, 4), 'learning');
+  assert.equal(demo.cardLevel({ review: { interval_days: 6, spaced_reps: 1 } }, 4), 'familiar');
+  assert.equal(demo.cardLevel({ review: { interval_days: 20, spaced_reps: 2 } }, 4), 'familiar');
+  assert.equal(demo.cardLevel({ review: { interval_days: 21, spaced_reps: 1 } }, 4), 'familiar');
+  assert.equal(demo.cardLevel({ review: { interval_days: 21, spaced_reps: 2 } }, 4), 'mastered');
   const boosted = demo.focusScheduleSettings(demo.defaults, { isFocus: true });
   assert.equal(boosted.request_retention, 0.94);
 });

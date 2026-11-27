@@ -14,6 +14,7 @@ import { JSON_CARD_SOURCE, AI_DRAFTED_SOURCE } from "../lib/source-provenance.js
 import { openInboxResult } from "../ui/app/inbox-open.js";
 import { reviewParts } from "./helpers/review-render.mjs";
 import { nativeSelects } from "./helpers/native-selects.mjs";
+import { loadInteractiveUi, withBrowserGlobals } from "./helpers/react-harness.mjs";
 
 const realRequire = createRequire(import.meta.url);
 const realJsxRuntime = realRequire("react/jsx-runtime");
@@ -47,8 +48,6 @@ const compiled = await build({
       export { default as CitationDisclosure } from './ui/CitationDisclosure.jsx';
       export { default as FigurePageLink } from './ui/document-preview/practice/FigurePageLink.jsx';
       export { default as DocumentViewer } from './ui/document-preview/DocumentViewer.jsx';
-      export { default as PracticeTip } from './ui/review/PracticeTip.jsx';
-      export * from './ui/review/PracticeTip.jsx';
       export { usePracticeTip } from './ui/review/use-practice-tip.js';
       export * from './ui/guidance/practice-tips.js';
       export { default as ThumbFeedback } from './ui/ThumbFeedback.jsx';
@@ -377,9 +376,153 @@ test("#959 UI: QuestionRun renders done task with no-change or unlinked outcome,
 
 /* ── #960: Practice first-use tips dwell, Escape scoping, G/B cancelAutoAdvance, difficulty tags ── */
 
-test("#960 rules: dwell constant is 1500ms, shortcut-sheet yields, and difficulty-only tags never trigger 修题 tip", () => {
-  assert.equal(m.PRACTICE_TIP_DWELL_MS, 1500);
-  assert.match(m.PRACTICE_TIP_YIELD_TO, /\.shortcut-sheet/);
+test("#960 rules: dwell constant is 1500ms, shortcut-sheet yields, and difficulty-only tags never trigger 修题 tip", async () => {
+  const prevSetTimeout = globalThis.setTimeout;
+  const prevClearTimeout = globalThis.clearTimeout;
+  const prevRaf = globalThis.requestAnimationFrame;
+  const prevCancelRaf = globalThis.cancelAnimationFrame;
+
+  const timers = new Map();
+  const clearedTimers = [];
+  let nextTimerId = 1;
+  let shortcutSheetOpen = false;
+  let activeCard = null;
+  const docListeners = new Map();
+  const targetAttrs = new Map();
+  const targetControl = {
+    getClientRects: () => [{ left: 20, top: 100, right: 80, bottom: 130, width: 60, height: 30 }],
+    getBoundingClientRect: () => ({ left: 20, top: 100, right: 80, bottom: 130, width: 60, height: 30 }),
+    setAttribute: (name, value) => targetAttrs.set(name, value),
+    removeAttribute: (name) => targetAttrs.delete(name),
+  };
+
+  await withBrowserGlobals(async () => {
+    globalThis.setTimeout = (fn, delay) => {
+      const id = nextTimerId++;
+      timers.set(id, { fn, delay });
+      return id;
+    };
+    globalThis.clearTimeout = (id) => {
+      clearedTimers.push(id);
+      timers.delete(id);
+    };
+    globalThis.requestAnimationFrame = () => 1;
+    globalThis.cancelAnimationFrame = () => {};
+
+    let mounted = null;
+    try {
+      const tipUi = await loadInteractiveUi(`
+        export { default as PracticeTip } from './ui/review/PracticeTip.jsx';
+        export { PRACTICE_TIP } from './ui/guidance/practice-tips.js';
+      `);
+      const { PracticeTip, PRACTICE_TIP } = tipUi.exports;
+      const th = tipUi.React.createElement;
+
+      let shownCount = 0;
+      let closedCount = 0;
+      mounted = tipUi.mount(() => th(PracticeTip, {
+        id: PRACTICE_TIP.fix,
+        inline: true,
+        onShown: () => { shownCount += 1; },
+        onClose: () => { closedCount += 1; },
+      }));
+
+      const cardNode = mounted.find((node) => node.type === "div" && node.props?.["data-practice-tip"]);
+      assert.ok(cardNode?.ref?.current, "PracticeTip renders root card element with ref");
+      const card = cardNode.ref.current;
+      card.closest = () => null;
+      card.getBoundingClientRect = () => ({ left: 100, right: 300, top: 120, bottom: 180, width: 200, height: 60 });
+      card.contains = (node) => node === card;
+      card.style = {};
+      activeCard = card;
+
+      // Visible inline tip rings its control and schedules a 1500ms dwell timer before reporting onShown.
+      shortcutSheetOpen = false;
+      mounted.rerender(() => th(PracticeTip, {
+        id: PRACTICE_TIP.help,
+        inline: true,
+        onShown: () => { shownCount += 1; },
+        onClose: () => { closedCount += 1; },
+      }));
+      assert.equal(card.hidden, false, "visible inline tip is not hidden");
+      assert.equal(shownCount, 0, "onShown waits for full dwell");
+      assert.equal(targetAttrs.has("data-practice-tip-ring"), true, "target control is ringed while tip is visible");
+      assert.equal(timers.size, 1, "exactly one dwell timer is scheduled");
+      const [[dwellId, dwellEntry]] = [...timers.entries()];
+      assert.equal(dwellEntry.delay, 1500, "dwell timer uses 1500ms");
+
+      // While .shortcut-sheet is open, Escape yields instead of closing the tip.
+      shortcutSheetOpen = true;
+      const escYield = { key: "Escape", defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
+      for (const listener of docListeners.get("keydown") || []) listener(escYield);
+      assert.equal(closedCount, 0, "Escape does not close PracticeTip while .shortcut-sheet is open");
+      assert.equal(escYield.defaultPrevented, false);
+
+      // Firing the 1500ms dwell timer reports onShown once.
+      shortcutSheetOpen = false;
+      timers.delete(dwellId);
+      dwellEntry.fn();
+      assert.equal(shownCount, 1, "onShown fires once the 1500ms dwell timer completes");
+
+      // When .shortcut-sheet is open during placement, PracticeTip hides, unrings target, and schedules no dwell timer.
+      shortcutSheetOpen = true;
+      mounted.rerender(() => th(PracticeTip, {
+        id: PRACTICE_TIP.prereq,
+        inline: true,
+        onShown: () => { shownCount += 1; },
+        onClose: () => { closedCount += 1; },
+      }));
+      assert.equal(card.hidden, true, "PracticeTip hides when .shortcut-sheet is open");
+      assert.equal(targetAttrs.has("data-practice-tip-ring"), false, "target ring is cleared while yielding to .shortcut-sheet");
+      assert.equal(timers.size, 0, "no dwell timer is scheduled while yielding to .shortcut-sheet");
+
+      // Unmounting before the 1500ms dwell elapses cancels the timer and never fires onShown.
+      shortcutSheetOpen = false;
+      let unmountShown = 0;
+      mounted.rerender(() => th(PracticeTip, {
+        id: PRACTICE_TIP.help,
+        inline: true,
+        onShown: () => { unmountShown += 1; },
+        onClose: () => { closedCount += 1; },
+      }));
+      assert.equal(timers.size, 1);
+      const [[pendingId, pendingEntry]] = [...timers.entries()];
+      assert.equal(pendingEntry.delay, 1500);
+      mounted.unmount();
+      mounted = null;
+      assert.equal(clearedTimers.includes(pendingId), true, "unmount cancels pending dwell timer via clearTimeout");
+      assert.equal(timers.size, 0);
+      assert.equal(targetAttrs.has("data-practice-tip-ring"), false, "unmount clears target ring");
+      assert.equal(unmountShown, 0, "unmounting before dwell completes never reports onShown");
+    } finally {
+      mounted?.unmount();
+      globalThis.setTimeout = prevSetTimeout;
+      globalThis.clearTimeout = prevClearTimeout;
+      if (prevRaf === undefined) delete globalThis.requestAnimationFrame;
+      else globalThis.requestAnimationFrame = prevRaf;
+      if (prevCancelRaf === undefined) delete globalThis.cancelAnimationFrame;
+      else globalThis.cancelAnimationFrame = prevCancelRaf;
+    }
+  }, {
+    document: {
+      elementFromPoint: () => activeCard,
+      querySelector: (sel) => (shortcutSheetOpen && sel.split(",").some((s) => s.trim() === ".shortcut-sheet") ? {} : null),
+      querySelectorAll: (sel) => (
+        sel === '[data-usage="review.help"]'
+        || sel === '[data-usage="review.improve"]'
+        || sel === '[data-usage="review.derive-prereq"]'
+          ? [targetControl]
+          : []
+      ),
+      addEventListener: (type, fn) => {
+        if (!docListeners.has(type)) docListeners.set(type, new Set());
+        docListeners.get(type).add(fn);
+      },
+      removeEventListener: (type, fn) => {
+        docListeners.get(type)?.delete(fn);
+      },
+    },
+  });
 
   assert.deepEqual(m.voteTipMoments("down", [], true), { votedDown: true, tooHard: false }, "bare 👎 still triggers fix-first");
   assert.deepEqual(m.voteTipMoments("down", ["too-easy"], true), { votedDown: false, tooHard: false }, "too-easy alone does not trigger fix-first");
