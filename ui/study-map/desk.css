@@ -393,7 +393,9 @@
       .desk[data-tour="home-hero"] { gap: var(--space-5) 0; padding-top: var(--space-4); }
       .desk > .desk-intro { display: contents; }
       .desk > .today-stack { order: 11; justify-self: stretch; width: auto; max-width: none; margin: 0 var(--space-3-5) var(--space-2) 0; }
-      .desk > .desk-intro > .desk-mastery { order: 6; }
+      /* Every part has its place below; one nobody placed waits with the last of them, never at the flex default (0), above the course heading (#1690). */
+      .desk > .desk-intro > * { order: 10; }
+      .desk > .desk-intro > :is(.desk-mastery, .pace-meta) { order: 6; }
       .desk > .desk-intro > .desk-next { order: 7; margin-top: 0; }
       .desk > .desk-intro > .desk-also { order: 8; }
       .desk > .desk-intro > .resume-list { order: 10; }
