@@ -33,28 +33,33 @@ export default function useRangeAnchor({ elementRef, host, rangeRef, scrollerRef
   useEffect(() => {
     if (!active) return undefined;
     const scroller = scrollerRef?.current;
-    let frame = 0, pressed = false, held = false;
+    // `pressed`: the pointer whose main-button press is on the element (null: none). Whatever moved meanwhile is placed once it lets go.
+    let frame = 0, pressed = null, held = false;
     const schedule = () => {
-      if (pressed) { held = true; return; }
+      if (pressed !== null) { held = true; return; }
       if (!frame) frame = requestAnimationFrame(() => { frame = 0; place(); });
     };
     const press = (event) => {
-      if (!elementRef.current?.contains(event.target)) return;
-      pressed = true;
+      if (event.button !== 0 || !elementRef.current?.contains(event.target)) return;
+      pressed = event.pointerId;
       if (frame) { cancelAnimationFrame(frame); frame = 0; held = true; }
     };
-    // The click follows the release in the same task; the move waits for the next frame, after it.
-    const release = () => { if (!pressed) return; pressed = false; if (held) { held = false; schedule(); } };
+    // The click follows the release in the same task; the move waits for the next frame, after it. A press that never sees its pointerup (the window
+    // loses focus, a context menu takes the release) ends too, so the element is never left frozen.
+    const end = () => { if (pressed === null) return; pressed = null; if (held) { held = false; schedule(); } };
+    const release = (event) => { if (event.pointerId === pressed) end(); };
+    // Only the window's own blur: the focus leaving the box for the pressed button is part of the press.
+    const away = (event) => { if (event.target === window) end(); };
+    const listeners = [[document, 'pointerdown', press], [window, 'pointerup', release], [window, 'pointercancel', release],
+      [window, 'lostpointercapture', release], [window, 'contextmenu', end], [window, 'blur', away]];
     scroller?.addEventListener('scroll', schedule, { passive: true });
     window.addEventListener('resize', schedule);
-    document.addEventListener('pointerdown', press, true);
-    window.addEventListener('pointerup', release, true);
-    window.addEventListener('pointercancel', release, true);
+    for (const [target, type, listener] of listeners) target.addEventListener(type, listener, true);
     const observer = typeof ResizeObserver === 'undefined' || !host ? null : new ResizeObserver(schedule);
     observer?.observe(host);
     return () => {
       scroller?.removeEventListener('scroll', schedule); window.removeEventListener('resize', schedule);
-      document.removeEventListener('pointerdown', press, true); window.removeEventListener('pointerup', release, true); window.removeEventListener('pointercancel', release, true);
+      for (const [target, type, listener] of listeners) target.removeEventListener(type, listener, true);
       observer?.disconnect(); if (frame) cancelAnimationFrame(frame);
     };
   }, [active, host, scrollerRef, place, elementRef]);
