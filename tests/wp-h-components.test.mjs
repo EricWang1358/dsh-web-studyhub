@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 
 // UI wave 2 · WP-H: the Tabs and DisclosureToggle primitives (#144 #146).
 const require = createRequire(import.meta.url);
@@ -91,10 +92,33 @@ test('the icon registry has the glyph replacements wave 2 needs', () => {
 });
 
 test('the stylesheet rotates the caret and tokens carry every colour', () => {
-  const css = readFileSync(new URL('../ui/components/disclosure.css', import.meta.url), 'utf8');
-  assert.match(css, /\[aria-expanded="true"\][^{]*\{[^}]*rotate\(90deg\)/);
-  assert.match(css, /prefers-reduced-motion/);
-  assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b|rgba?\(/i);
+  const { declarations, blocks } = parseCss(readFileSync(new URL('../ui/components/disclosure.css', import.meta.url), 'utf8'));
+  assert.ok(declarations.length > 0, 'disclosure.css declares styles');
+  assert.equal(
+    declarations.some(
+      (d) => /\[aria-expanded=['"]true['"]\]/.test(d.ctx.at(-1) || '')
+        && d.prop === 'transform'
+        && /\brotate\(90deg\)/.test(d.value),
+    ),
+    true,
+    '[aria-expanded="true"] rotates the caret 90deg',
+  );
+  assert.equal(
+    blocks.some((b) => /@media\s*\(prefers-reduced-motion:\s*reduce\)/.test(b.prelude))
+      && declarations.some(
+        (d) => d.ctx.some((c) => /prefers-reduced-motion:\s*reduce/.test(c))
+          && d.prop === 'transition'
+          && d.value === 'none',
+      ),
+    true,
+    'prefers-reduced-motion disables the caret transition',
+  );
+  // Repo-wide raw colour guards also run in tests/ui-guardrails.test.mjs and tests/css-token-guard.test.mjs.
+  assert.deepEqual(
+    declarations.filter((d) => /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?)\(/i.test(d.value)),
+    [],
+    'tokens carry every colour',
+  );
 });
 
 const files = (dir, out = []) => {

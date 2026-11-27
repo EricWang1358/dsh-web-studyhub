@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { isTeachSkipPhrase, skipTeaching } from '../lib/teaching.js';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 import { loadInteractiveUi, click } from './helpers/react-harness.mjs';
 
@@ -64,11 +65,27 @@ test('#1436 Item 9b: skipTeaching throws localized Chinese nonRetryableError on 
 });
 
 test('#1436 Item 9c: TeachingPanel uses variant="quiet", renders Markdown + reference answer in skipped summary, and has CSS rules', async () => {
-  const cssSrc = readFileSync(new URL('../ui/review/question.css', import.meta.url), 'utf8');
+  const { declarations } = parseCss(readFileSync(new URL('../ui/review/question.css', import.meta.url), 'utf8'));
+  const splitSelectors = (sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim());
+  const ruleDecls = (selector) => declarations.filter(
+    (d) => splitSelectors(d.ctx.at(-1) || '').includes(selector),
+  );
 
-  assert.match(cssSrc, /\.teaching-panel__actions\s*\{/, 'question.css must style .teaching-panel__actions');
-  assert.match(cssSrc, /\.teaching-skipped-summary\s*\{/, 'question.css must style .teaching-skipped-summary');
-  assert.match(cssSrc, /\.teaching-wrong-nudge\s*\{/, 'question.css must style .teaching-wrong-nudge');
+  assert.equal(
+    ruleDecls('.teaching-panel__actions').some((d) => d.prop === 'display' && d.value === 'flex'),
+    true,
+    'question.css must style .teaching-panel__actions',
+  );
+  assert.equal(
+    ruleDecls('.teaching-skipped-summary').some((d) => d.prop === 'display' && d.value === 'grid'),
+    true,
+    'question.css must style .teaching-skipped-summary',
+  );
+  assert.equal(
+    ruleDecls('.teaching-wrong-nudge').some((d) => d.prop === 'background' && d.value === 'var(--bg-sunken)'),
+    true,
+    'question.css must style .teaching-wrong-nudge',
+  );
 
   // Behavioral render + interaction of active TeachingPanel (complete: false)
   const actCalls = [];

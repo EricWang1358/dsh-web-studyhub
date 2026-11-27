@@ -13,6 +13,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import * as shared from '../ui/reading-settings/settings.js';
 import * as reader from '../ui/document-preview/reader/settings.js';
 import { createReadingStore } from '../ui/reading-settings/store.js';
+import { parseCss, targetsFormElement } from '../scripts/qa/guardrail-baseline.mjs';
 import { nativeSelects } from './helpers/native-selects.mjs';
 
 const han = /[㐀-鿿]/;
@@ -167,11 +168,34 @@ test('a reading block is a class, a face, a tone and variables on the long-form 
 });
 
 test('the shared stylesheet scopes everything to .study-reading, never touches controls, and keeps 15px as the floor', async () => {
-  const css = await readFile(new URL('../ui/reading-settings/reading.css', import.meta.url), 'utf8');
-  assert.match(css, /\.study-reading/);
-  assert.doesNotMatch(css, /(^|[,{}\s])(button|input|textarea|select)\s*[,{]/m, 'no bare control selectors');
-  assert.doesNotMatch(css, /font-size:\s*(?:1[0-4]|[0-9])px/, 'no size under 15px is ever written');
-  for (const rule of css.match(/\.study-reading[^{}]*\{/g) || []) assert.doesNotMatch(rule, /\b(?:button|input|select|textarea)\b/, rule);
+  // Repo-wide bare form-control and px font-size guards also run in tests/ui-guardrails.test.mjs.
+  const { declarations } = parseCss(await readFile(new URL('../ui/reading-settings/reading.css', import.meta.url), 'utf8'));
+  const selectors = [...new Set(declarations.map((d) => d.ctx.at(-1) || '').filter((s) => s && !s.startsWith('@')))];
+  const readingSelectors = selectors.filter((s) => /\.study-reading\b/.test(s));
+  assert.ok(readingSelectors.length > 0, 'reading.css defines .study-reading rules');
+  assert.equal(
+    declarations
+      .filter((d) => /--read(?:er|ing)-/.test(d.prop) || /var\(--read(?:er|ing)-/.test(d.value))
+      .every((d) => /\.study-reading\b/.test(d.ctx.at(-1) || '')),
+    true,
+    'every reading-variable rule is scoped to .study-reading',
+  );
+  assert.deepEqual(
+    selectors.filter((s) => targetsFormElement(s)),
+    [],
+    'no bare control selectors',
+  );
+  assert.deepEqual(
+    readingSelectors.filter((s) => /\b(?:button|input|select|textarea)\b/.test(s)),
+    [],
+    'no .study-reading selector targets form controls',
+  );
+  assert.deepEqual(
+    declarations.filter((d) => (d.prop === 'font-size' || d.prop === 'font')
+      && (d.value.match(/(?<![\w.-])\d*\.?\d+px\b/gi) || []).some((px) => parseFloat(px) < 15)),
+    [],
+    'no size under 15px is ever written',
+  );
 });
 
 test('an `extra` row (the reader\'s 译文显示 choice) is drawn between the rows and 恢复默认', () => {
@@ -183,14 +207,32 @@ test('an `extra` row (the reader\'s 译文显示 choice) is drawn between the ro
 });
 
 test('the serif face is drawn a little heavier than regular so thin CJK strokes do not look blurry on a dark page', async () => {
-  const { readFile: read } = await import('node:fs/promises');
-  const shared = await read(new URL('../ui/reading-settings/reading.css', import.meta.url), 'utf8');
-  const reader = await read(new URL('../ui/document-preview/reader/reader.css', import.meta.url), 'utf8');
-  assert.match(shared, /\[data-face='serif'\]\s*\{[^}]*--reader-weight:\s*450/, 'the study content reading blocks');
-  assert.match(reader, /\[data-face='serif'\]\s*\{[^}]*--reader-weight:\s*450/, 'the source reader');
+  const sharedSheet = parseCss(await readFile(new URL('../ui/reading-settings/reading.css', import.meta.url), 'utf8'));
+  const readerSheet = parseCss(await readFile(new URL('../ui/document-preview/reader/reader.css', import.meta.url), 'utf8'));
+  assert.equal(
+    sharedSheet.declarations.some((d) => /\[data-face=['"]serif['"]\]/.test(d.ctx.at(-1) || '') && d.prop === '--reader-weight' && d.value === '450'),
+    true,
+    'the study content reading blocks',
+  );
+  assert.equal(
+    readerSheet.declarations.some((d) => /\[data-face=['"]serif['"]\]/.test(d.ctx.at(-1) || '') && d.prop === '--reader-weight' && d.value === '450'),
+    true,
+    'the source reader',
+  );
   // every text rule that takes the face also takes the weight, so the two cannot drift apart
-  for (const [name, css] of [['reading.css', shared], ['reader.css', reader]]) {
-    const faces = css.match(/font-family:\s*var\(--reader-face\);/g)?.length ?? 0, weights = css.match(/font-weight:\s*var\(--reader-weight,\s*400\);/g)?.length ?? 0;
-    assert.ok(faces > 0 && weights >= faces, `${name}: ${faces} face rules, ${weights} weight rules`);
+  for (const [name, sheet] of [['reading.css', sharedSheet], ['reader.css', readerSheet]]) {
+    const faceRules = new Set(
+      sheet.declarations
+        .filter((d) => d.prop === 'font-family' && d.value === 'var(--reader-face)')
+        .map((d) => d.ctx.join(' | ')),
+    );
+    const weightRules = new Set(
+      sheet.declarations
+        .filter((d) => d.prop === 'font-weight' && /^var\(--reader-weight,\s*400\)$/.test(d.value))
+        .map((d) => d.ctx.join(' | ')),
+    );
+    assert.ok(faceRules.size > 0, `${name}: expected at least one var(--reader-face) rule`);
+    const missing = [...faceRules].filter((rule) => !weightRules.has(rule));
+    assert.deepEqual(missing, [], `${name}: every var(--reader-face) rule must also declare font-weight: var(--reader-weight, 400)`);
   }
 });
