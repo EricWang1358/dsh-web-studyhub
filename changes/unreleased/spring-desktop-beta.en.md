@@ -1,0 +1,1 @@
+- **A Spring Boot desktop edition exists as a beta experiment only.** It is published separately as a GitHub prerelease tagged `spring-v…-beta.N`, is never the latest release, and is not meant for everyday use; keep using the DSH plugin or StudyHub Desktop. Nothing in this release depends on it. Not verified: the beta build on a computer other than the developer's.
