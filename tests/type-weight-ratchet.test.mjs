@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { typeCounts } from '../scripts/qa/type-weight-counts.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -88,8 +89,11 @@ const BASELINE = {
 
 test('--fw-medium is 500, not 550: the Han fallback fonts only have 400 and 700, and 550 rounds up to bold (#1079)', async () => {
   const tokens = await readFile(join(root, 'ui/tokens.css'), 'utf8');
-  assert.match(tokens, /--fw-medium:\s*500;/, 'a medium of 500 is a real medium in Inter and the regular face in Microsoft YaHei; 550 draws every Han label as full bold');
-  assert.match(tokens, /--fw-strong:\s*650;/);
+  const { declarations } = parseCss(tokens);
+  const fwMedium = declarations.filter((d) => d.prop === '--fw-medium');
+  const fwStrong = declarations.filter((d) => d.prop === '--fw-strong');
+  assert.deepEqual(fwMedium.map((d) => d.value), ['500'], 'a medium of 500 is a real medium in Inter and the regular face in Microsoft YaHei; 550 draws every Han label as full bold');
+  assert.deepEqual(fwStrong.map((d) => d.value), ['650']);
   assert.match(tokens, /#1079/, 'the token says why (a comment that names #1079)');
 });
 

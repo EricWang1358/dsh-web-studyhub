@@ -17,6 +17,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import { GLOBAL_CSS_FILES } from './helpers/global-css.mjs';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 
 const stripComments = text => text.replace(/\/\*[\s\S]*?\*\//g, '');
 
@@ -123,9 +124,10 @@ test('radius and font-size literals that equal a token are written as the token 
 });
 
 test('the blue-violet fallback colour is gone from the document preview, and the learning panel needs no accent fallback (its dialog carries the tokens)', async () => {
-  const source = await readFile('ui/document-preview/document-preview.css', 'utf8');
-  assert.doesNotMatch(source, /#7284ef/i);
-  assert.doesNotMatch(source, /var\(--accent\s*,/);
+  const { declarations: decls } = parseCss(await readFile('ui/document-preview/document-preview.css', 'utf8'));
+  assert.ok(decls.length > 0);
+  assert.deepEqual(decls.filter((d) => /#7284ef/i.test(d.value)), []);
+  assert.deepEqual(decls.filter((d) => /var\(--accent\s*,/.test(d.value)), []);
 });
 
 test('the dead-token counters read colour values, aliases and var() references (fixtures)', () => {
