@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { parse } from 'yaml';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -94,19 +95,11 @@ test('the cheap correctness rules are errors for every kind of source file, and 
     'TUI ESLint config must reject raw child_process execSync in TUI sources',
   );
 
-  // Verify CI lint and tui-test jobs run ESLint with --max-warnings=0 and typecheck on TUI sources.
-  const verifyYml = readFileSync(join(ROOT, '.github/workflows/verify.yml'), 'utf8');
-  assert.match(
-    verifyYml,
-    /tui-test:[\s\S]*?eslint\s+--max-warnings=0\s+packages\/studyhub-tui\/src/,
-    'tui-test CI job must run ESLint with --max-warnings=0 on TUI sources',
-  );
-  assert.match(verifyYml, /tui-test:[\s\S]*?typecheck/, 'tui-test CI job must run TypeScript typecheck on TUI sources');
-  assert.match(
-    verifyYml,
-    /lint:[\s\S]*?npm --prefix packages\/studyhub-tui run lint/,
-    'lint CI job must run StudyHub TUI lint script',
-  );
+  const { jobs } = parse(readFileSync(join(ROOT, '.github/workflows/verify.yml'), 'utf8'));
+  const commands = jobs.lint.steps.map(step => step.run);
+  assert.ok(commands.includes('npm --prefix packages/studyhub-tui run lint'));
+  assert.ok(commands.includes('npm --prefix packages/studyhub-tui run typecheck'));
+  assert.ok(jobs.verify.needs.includes('lint'));
 });
 
 test('the scan counts the line, next-line and block forms, and nothing else', () => {

@@ -161,9 +161,10 @@ export const Spinner = memo(function Spinner({ label, tone = 'accent', intervalM
   const [frame, setFrame] = useState(0);
   useEffect(() => {
     if (!active) return undefined;
-    const timer = setInterval(() => setFrame((f) => (f + 1) % frames.length), intervalMs);
-    return () => clearInterval(timer);
-  }, [active, intervalMs, frames.length]);
+    // Schedule the next frame after commit (not setInterval) so slow renders never fire back-to-back ticks that starve Suspense retries.
+    const timer = setTimeout(() => setFrame((f) => (f + 1) % frames.length), intervalMs);
+    return () => clearTimeout(timer);
+  }, [active, intervalMs, frames.length, frame]);
   const normLabel = label ? normalizeAsciiChrome(label, asciiMode) : undefined;
   return (
     <Text>

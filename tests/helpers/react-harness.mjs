@@ -478,10 +478,6 @@ function collectNodes(node, pred, out = []) {
   return out;
 }
 
-const RUNTIME_SLOTS = new Map();
-let slotSeq = 0;
-globalThis.__STUDY_REACT_HARNESS__ = RUNTIME_SLOTS;
-
 /**
  * Bundle one or more UI modules against a fresh interactive React runtime and return
  * `{ exports, mount, mountHook, React }`.
@@ -552,9 +548,7 @@ export async function withBrowserGlobals(fn, overrides = {}) {
 }
 
 export async function loadInteractiveUi(contents, { plugins = [], onUnmountedStateWrite } = {}) {
-  const slotId = `slot_${++slotSeq}`;
   const runtime = createRuntime(onUnmountedStateWrite);
-  RUNTIME_SLOTS.set(slotId, runtime.React);
 
   const shimPlugin = {
     name: 'study-react-harness-shim',
@@ -565,7 +559,7 @@ export async function loadInteractiveUi(contents, { plugins = [], onUnmountedSta
       }));
       builder.onLoad({ filter: /.*/, namespace: 'study-react-shim' }, () => ({
         contents: `
-          const R = globalThis.__STUDY_REACT_HARNESS__.get(${JSON.stringify(slotId)});
+          const R = __studyHarnessReact;
           export default R;
           export const {
             Fragment, Suspense, StrictMode, Component, PureComponent, createElement, cloneElement, isValidElement, Children,
@@ -608,7 +602,8 @@ export async function loadInteractiveUi(contents, { plugins = [], onUnmountedSta
   });
 
   const mod = { exports: {} };
-  new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, mod, mod.exports);
+  // The batch runner can clear globals between imports. Each compiled module captures only its own React runtime.
+  new Function('require', 'module', 'exports', '__studyHarnessReact', compiled.outputFiles[0].text)(require, mod, mod.exports, runtime.React);
 
   const mount = (renderEl) => {
     let currentFn = typeof renderEl === 'function' ? renderEl : () => renderEl;

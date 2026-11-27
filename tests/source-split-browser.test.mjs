@@ -495,9 +495,13 @@ test('对照栏: quote inside a tall Markdown block lands in view with top breat
   t.after(() => context.close());
 
   await answerWrong(page);
-  await page.locator('.reading-source').scrollIntoViewIfNeeded();
-  const appScrollBefore = await page.evaluate(() => document.querySelector('.study-app')?.scrollTop ?? 0);
-  await page.locator('.reading-source').click();
+  const sourceButton = page.locator('.reading-source');
+  // A real pointer click may scroll the button past the sticky answer bar. Measure when the reader action is activated.
+  await sourceButton.evaluate(button => {
+    button.addEventListener('click', () => { window.scrollAtSourceOpen = button.closest('.study-app').scrollTop; }, { capture: true, once: true });
+  });
+  await sourceButton.click();
+  const appScrollBefore = await page.evaluate(() => window.scrollAtSourceOpen);
   await page.locator('.source-column .reader-aux__quote').waitFor({ timeout: 30000 });
   await until(async () => (await quoteShown(page)).mark, 'the quote highlighted in the tall block');
   await page.waitForTimeout(300);

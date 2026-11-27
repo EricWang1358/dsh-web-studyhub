@@ -158,6 +158,8 @@ On a seeded 600-source library the 8 combinations of zh/en, dark/light and 1440/
 
 ## Budgets (`tests/perf-budget.test.mjs`)
 
+The DSH workspace has a separate first-load check in `tests/workspace-closure-pages.test.mjs`. Opening the workspace loads each of its static JavaScript dependencies once. At the November 26 baseline that closure was 3,861,788 esbuild bytes and 4,193,489 bytes of final DSH modules across 150 files. The final count includes the loader code added during packaging, before HTTP compression. The limits are 3,950,000 esbuild bytes, 4,300,000 final bytes and six sequential dependency waves. Optional page chunks enter the budget only when an import makes them part of the initial load. Run `node scripts/test.mjs tests/workspace-closure-pages.test.mjs` to print the bytes and waves for the current checkout.
+
 Deterministic bounds on a seeded library (`scripts/qa/perf-seed.mjs`: 160 sources, 14 decks, 420 cards, 24 runs, 1 200 attempts), as ratios of the library's own size so they do not depend on the machine:
 
 - a review click parses and copies <= 5% of the library, stringifies <= 10%, writes <= 2 shards;

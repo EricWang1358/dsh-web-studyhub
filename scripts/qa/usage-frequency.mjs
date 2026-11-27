@@ -14,6 +14,7 @@
    With --all it runs zh and en x dark and light x 1440 and 420 and checks that both languages recorded the same keys.
    Writes <out>/summary.json and one screenshot per step; exits non-zero when a step fails or the page throws. */
 /* global document, window, EventTarget -- page.evaluate callbacks run in the browser */
+import { text as streamText } from 'node:stream/consumers';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -272,8 +273,7 @@ export async function runUsageQa(options) {
       const exported = [];
       for (const [label, ext] of [[t('导出 Markdown', 'Export Markdown'), 'md'], [t('导出 JSON', 'Export JSON'), 'json']]) {
         const [download] = await Promise.all([page.waitForEvent('download'), section.getByRole('button', { name: label, exact: true }).click()]);
-        const path = await download.path();
-        const content = await readFile(path, 'utf8');
+        const content = await streamText(await download.createReadStream());
         if (!download.suggestedFilename().endsWith(`.${ext}`)) throw new Error(`file name ${download.suggestedFilename()}`);
         exported.push(content); scanned.push(content);
         if (options.lang === 'en' && ext === 'md' && han.test(content)) throw new Error(`Han in the English Markdown: ${content.match(/.{0,24}[㐀-鿿]+.{0,24}/)?.[0]}`);

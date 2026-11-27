@@ -308,8 +308,16 @@ export const DocumentRow = memo(function DocumentRow({ item, source, companionTa
     if (!isNew || !row.current) return undefined;
     // In one scroll, not an animation, and re-checked once frames settle in case an open chunked group right above appended a batch (#900, #930).
     const jump = scrollToAnchor(row.current, { block: "center" });
-    row.current.querySelector(".source-main")?.focus({ preventScroll: true });
-    return jump.cancel;
+    const focusRow = () => main.current?.focus({ preventScroll: true });
+    // The refreshed list can render before the import dialog closes. Outside
+    // buttons are inert until the native dialog releases focus.
+    const dialog = row.current.ownerDocument.querySelector('dialog:modal');
+    if (dialog) dialog.addEventListener('close', focusRow, { once: true });
+    else focusRow();
+    return () => {
+      dialog?.removeEventListener('close', focusRow);
+      jump.cancel();
+    };
   }, [isNew]);
   // The courses and 用于 piece of the facts ellipsises on its own; once it is cut, a hover tip says all of it.
   const coursesRef = useRef(null);

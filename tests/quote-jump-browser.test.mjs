@@ -63,7 +63,7 @@ for (const width of [1280, 420]) {
     const shots = process.env.JUMP_FALLBACK_SHOTS;
     if (shots) await mkdir(shots, { recursive: true });
     const shot = async (page, name) => { if (shots) await page.screenshot({ path: join(shots, `${width}-${name}.png`) }); };
-    const { context, page, errors } = await openPage(browser, running, { width, height: 900 });
+    const { context, page, errors } = await openPage(browser, running, { width, height: 900, selfGradeAdvance: false });
     try {
       await page.goto(running.server.url);
       await page.getByRole('button', { name: '开始今日学习' }).first().click();
@@ -79,7 +79,7 @@ for (const width of [1280, 420]) {
         assert.equal(await button.count(), 0, `${current.kind}: no source button before the question is answered`);
         await page.locator('.review-heading h1').first().click().catch(() => {});
         await page.keyboard.press('Space');
-        await page.waitForTimeout(400);
+        await page.locator('.grade.high').first().waitFor();
         assert.equal(await button.count(), 0, `${current.kind}: none while the answer is only revealed`);
         await page.keyboard.press('5'); // a right answer: the source is one click away too
         await button.waitFor({ timeout: 15000 });

@@ -100,6 +100,15 @@ test('a control under the stuck answer bar comes clear of the bar when it takes 
   assert.ok(kept.before.bottom > kept.before.bar, 'it was covered by the bar');
   assert.ok(kept.after.bottom <= kept.after.bar + 1, `focused, it is above the bar (${JSON.stringify(kept)})`);
 
+  // The toolbar wraps on a narrow screen. The same question updates its clearance when the viewport changes.
+  await page.setViewportSize({ width: 420, height: 460 });
+  await page.waitForFunction(() => {
+    const area = document.querySelector('.question-area'), bar = area.querySelector('.review-sticky-bar');
+    return parseFloat(area.style.getPropertyValue('--review-bar-room')) === bar.offsetHeight;
+  });
+  const narrow = await focusUnderBar(page);
+  assert.ok(narrow.found && narrow.focused && narrow.after.bottom <= narrow.after.bar + 1, `focused, it clears the wrapped toolbar (${JSON.stringify(narrow)})`);
+
   // The same control without the mark on the question area: it keeps the focus under the bar. The rule is what brought it out.
   await page.evaluate(() => document.querySelector('.question-area').removeAttribute('data-bar-stuck'));
   const bare = await focusUnderBar(page);

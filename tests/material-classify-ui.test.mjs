@@ -732,7 +732,9 @@ test('Browser E2E: narrowing 01 / 选择资料 by type & category selects only m
   assert.match(estLine, /预计 .+ tok/);
   assert.doesNotMatch(estLine, /–/, 'single upper-bound number without range dash');
 
-  // Clear initial auto-selection, filter by 内容分类 -> 计算机网络 (2), and click 选择当前范围
+  // Without filters the action selects the whole scope. A category narrows the same action to two results.
+  const pickerActions = page.locator('[data-tour="generate-sources"] .source-picker__actions');
+  assert.ok(await pickerActions.getByRole('button', { name: '选择当前范围', exact: true }).isVisible());
   const clearBtn = page.locator('[data-tour="generate-sources"] .source-picker__actions button', { hasText: '清空选择' });
   if (await clearBtn.count()) await clearBtn.click();
   assert.match(await page.locator('[data-tour="generate-sources"] .source-picker__count').innerText(), /已选择 0 \/ 8 份资料/);
@@ -742,7 +744,7 @@ test('Browser E2E: narrowing 01 / 选择资料 by type & category selects only m
   await page.locator('[role="option"]', { hasText: '计算机网络 (2)' }).click();
   await page.waitForFunction(() => document.querySelector('[data-tour="generate-sources"]')?.innerText.includes('共 2 项'));
 
-  await page.locator('[data-tour="generate-sources"] .source-picker__actions button', { hasText: '选择当前范围' }).click();
+  await pickerActions.getByRole('button', { name: '选择筛选结果', exact: true }).click();
   assert.match(await page.locator('[data-tour="generate-sources"] .source-picker__count').innerText(), /已选择 2 \/ 8 份资料/);
   assert.equal(await page.locator('[data-tour="generate-sources"] .source-picker__actions button').count(), 2, 'keeps exact 2 buttons in .source-picker__actions');
 

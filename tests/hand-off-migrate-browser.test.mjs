@@ -8,7 +8,7 @@ import { build } from 'esbuild';
 import { StudyService } from '../lib/service.js';
 import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 import { createFakeModel } from '../scripts/fake-model.mjs';
-import { launchChromium } from '../scripts/qa/browser.mjs';
+import { launchChromium, skipMissingChromium } from '../scripts/qa/browser.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* 「发给主会话」 on every place that handed over before the shared unit existed (the hand-off plan, S2b), in Chromium through the REAL host adapter
@@ -63,7 +63,7 @@ const card = (n) => ({ id: `c${n}`, kind: 'flashcard', topic: `主题${n}`, obje
 const bookPage = (n) => ({ id: `bp${n}`, title: `操作系统教材 · p.${n}`, text: '进程调度与内存管理。'.repeat(3600), createdAt: '2026-10-01T08:00:00.000Z', courses: ['操作系统'],
   document: { id: 'book', page: n, totalPages: 12, bookTitle: '操作系统教材', origin: 'converted', converter: 'mineru' } });
 
-/** A library with one deck of fourteen topics (no topic groups yet), a saved skeleton, a finished round with weak topics and a big book for 分步出题. */
+/** A library with fourteen ungrouped topics, a saved skeleton and a big book for 分步出题. */
 async function seed(root) {
   const service = new StudyService(root);
   await service.store.update((state) => {
@@ -75,12 +75,6 @@ async function seed(root) {
     nodes: [{ id: 'n1', term: '进程', meaning: '资源分配的单位', attributes: ['独立的地址空间'], cards: [{ deckId: 'd1', cardId: 'c1' }] },
       { id: 'n2', term: '线程', meaning: '调度的单位', attributes: ['共享进程的地址空间'], parent: 'n1', cards: [{ deckId: 'd1', cardId: 'c2' }] }],
     relations: [{ from: 'n2', to: 'n1', type: 'part-of' }], sequences: [] } });
-  let run = await service.call('review.start', { mode: 'path', scope: [{ deckId: 'd1', topic: '主题1' }, { deckId: 'd1', topic: '主题2' }, { deckId: 'd1', topic: '主题3' }], fresh: true });
-  while (!run.complete) {
-    await service.call('review.reveal', { runId: run.id, cardId: run.card.id });
-    await service.call('review.answer', { runId: run.id, cardId: run.card.id, grade: 1 });
-    run = await service.call('review.move', { runId: run.id, direction: 1 });
-  }
   await service.dispose?.();
 }
 
@@ -88,7 +82,7 @@ const RULE = '只填进主会话的输入框';
 
 test('发给主会话 on the places that handed over before: the shared control, the shared notice, the prompt in the box and nothing sent', { timeout: 900000 }, async (t) => {
   let browser;
-  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
+  try { browser = await launchChromium(); } catch (error) { skipMissingChromium(t, error); return; }
   const root = await mkdtemp(join(tmpdir(), 'hand-off-migrate-'));
   t.after(async () => { await browser.close(); await rm(root, { recursive: true, force: true, maxRetries: 3 }); });
   await seed(join(root, 'library'));
@@ -99,6 +93,10 @@ test('发给主会话 on the places that handed over before: the shared control,
   t.after(() => server.close());
   if (shots) await mkdir(shots, { recursive: true });
   for (const [width, height, theme] of views) {
+    // 回到题目 resumes this round. A completed seed would start a new daily round across the whole deck.
+    const topics = ['主题1', '主题2', '主题3'];
+    const round = await previewCall(server, 'review.start', { mode: 'path', scope: topics.map(topic => ({ deckId: 'd1', topic })), fresh: true });
+    assert.equal(round.total, topics.length);
     const context = await browser.newContext({ viewport: { width, height }, locale: 'zh-CN', colorScheme: theme, reducedMotion: 'reduce' });
     const page = await context.newPage();
     const errors = [];
@@ -108,7 +106,7 @@ test('发给主会话 on the places that handed over before: the shared control,
       try { return { ok: true, value: await previewCall(server, action, args) }; } catch (error) { return { ok: false, error: error.message, code: error.code }; }
     });
     await context.addInitScript(([chosen]) => {
-      try { localStorage.setItem('study-ui-language', 'zh'); localStorage.setItem('study-theme', chosen); } catch { /* blocked */ }
+      try { localStorage.setItem('study-ui-language', 'zh'); localStorage.setItem('study-theme', chosen); localStorage.setItem('study-self-grade-advance', '0'); } catch { /* blocked */ }
       window.composerText = ''; window.copied = [];
       if (!crypto.randomUUID) crypto.randomUUID = () => '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) => (Number(c) ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (Number(c) / 4)))).toString(16));
       Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text) => { window.copied.push(text); } } });
@@ -120,11 +118,11 @@ test('发给主会话 on the places that handed over before: the shared control,
     await page.waitForTimeout(100);
     await page.evaluate(() => { window.dshReady = true; });
     const tag = `${width}-${theme}`;
-    const shot = async (name) => { if (shots) { await page.waitForTimeout(500); await page.screenshot({ path: join(shots, `${name}-${tag}.png`) }); } };
+    const shot = async (name) => { if (process.env.MIGRATE_DEBUG) console.error('reached', name); if (shots) { await page.waitForTimeout(500); await page.screenshot({ path: join(shots, `${name}-${tag}.png`) }); } };
     /** The receipt of `outcome` (ui/hand-off/use-hand-off.js), its line matching `line` (what a write before it did comes first). */
     const receipt = (outcome, line) => page.locator(`.sh-toasts .sh-toast--receipt[data-receipt="${outcome}"]`).filter({ hasText: line });
     const FILLED = '看一眼，再由你按发送', KEPT = '输入框里你写的字都留着';
-    const go = async (id) => { await (await revealNavRow(page, id)).click({ timeout: 60000, force: true }); };
+    const go = async (id) => { if (process.env.MIGRATE_DEBUG) console.error('open', id); await (await revealNavRow(page, id)).click({ timeout: 60000, force: true }); };
     const state = () => page.evaluate(() => ({ log: window.dshLog.slice(), text: window.composerText, copied: window.copied.slice() }));
     const reset = async (extra = {}) => {
       await page.evaluate((s) => { Object.assign(window, { composerText: '', noChat: false, copied: [] }, s); window.dshLog.length = 0; }, extra);
@@ -227,19 +225,16 @@ test('发给主会话 on the places that handed over before: the shared control,
     await group.waitFor({ timeout: 30000 });
     text = await handOver(group, { shotName: 'skeleton-groups' });
     assert.match(text, /skeleton\.topics/);
-    await page.locator('.sk-picker input[type="checkbox"]').first().check().catch(() => {});
+    await page.getByRole('checkbox', { name: '选择主题 主题1', exact: true }).check();
     const design = page.getByRole('button', { name: '在主会话里生成骨架' });
     assert.match(await design.evaluate((element) => element.className), /sh-btn--primary/);
     assert.equal(await design.getAttribute('title'), null);
-    await page.locator('.sk-picker .sk-topic, .sk-picker label').filter({ hasText: '主题1' }).first().click().catch(() => {});
-    if (await design.isEnabled()) {
-      await reset();
-      await design.click();
-      await receipt('filled', FILLED).waitFor({ timeout: 15000 });
-      assert.match((await state()).text, /skeleton\.context/);
-      assert.equal(await page.locator('.sk-note').count(), 0, `${tag}: no line of the page's own about it`);
-      await shot('skeleton-primary');
-    }
+    await reset();
+    await design.click();
+    await receipt('filled', FILLED).waitFor({ timeout: 15000 });
+    assert.match((await state()).text, /skeleton\.context/);
+    assert.equal(await page.locator('.sk-note').count(), 0, `${tag}: no line of the page's own about it`);
+    await shot('skeleton-primary');
     await page.locator('.sk-saved-item').first().click();
     const update = page.locator('.sk-view-head [data-hand-off="skeleton.design"]');
     await update.waitFor({ timeout: 30000 });
@@ -259,7 +254,9 @@ test('发给主会话 on the places that handed over before: the shared control,
     text = (await state()).text;
     assert.match(text, /```request 我的要求\n加上 CAP 定理，并和 BASE 对比\n```/);
     assert.equal(await extend.locator('textarea').inputValue(), '', `${tag}: the box is empty once handed over`);
-    await page.getByRole('radio', { name: '结构图' }).click().catch(async () => { await page.getByRole('button', { name: '结构图' }).click(); });
+    const diagram = page.getByRole('group', { name: '骨架视图' }).getByRole('button', { name: '结构图', exact: true });
+    await diagram.click();
+    assert.equal(await diagram.getAttribute('aria-pressed'), 'true');
     await page.locator('.skc-class').first().click();
     const concept = page.locator('.skc-extend [data-hand-off-form="skeleton.extend"]');
     await concept.waitFor({ timeout: 15000 });
@@ -273,24 +270,26 @@ test('发给主会话 on the places that handed over before: the shared control,
     // ---------------- the result page: the weak topics of the round ----------------
     await reset();
     await page.getByRole('button', { name: /^回到题目/ }).first().click({ force: true });
-    // The round on screen is answered through the page (every card 'again', the low grades), up to its result page.
-    await page.locator('[data-usage="review.flip"]').waitFor({ timeout: 30000 });
-    for (let guard = 0; guard < 30 && !(await page.locator('.result-page').count()); guard++) {
-      await page.locator('.question-card, .result-page').first().waitFor({ timeout: 15000 });
-      if (await page.locator('.result-page').count()) break;
-      if (await page.locator('[data-usage="review.flip"]').count() && !(await page.locator('.next-due').count())) {
-        const before = await page.locator('.flashcard').innerText();
-        await page.locator('[data-usage="review.flip"]').click();
-        await page.locator('.grade.low').first().waitFor({ timeout: 10000 });
-        await page.locator('.grade.low').first().click();
-        await page.waitForFunction((prev) => document.querySelector('.result-page') || document.querySelector('.flashcard')?.innerText !== prev, before, { timeout: 15000 });
-        continue;
-      }
-      await page.locator('[data-usage="review.next"]:not([disabled])').waitFor({ timeout: 15000 });
-      await page.locator('[data-usage="review.next"]').click();
-      await page.waitForFunction(() => document.querySelector('.result-page') || !document.querySelector('.next-due'), null, { timeout: 15000 });
+    // Low grades stay on feedback. Advance explicitly, including one re-ask per original card.
+    // The original weak topics remain available on the result page after a successful re-ask.
+    const answeredPrompts = new Set();
+    for (let step = 0; step < topics.length * 2; step++) {
+      const visible = page.locator('[data-usage="review.flip"], .result-page').first();
+      await visible.waitFor();
+      if (await page.locator('.result-page').isVisible()) break;
+      const prompt = await page.locator('.flashcard').innerText();
+      await page.locator('[data-usage="review.flip"]').click();
+      const retry = answeredPrompts.has(prompt);
+      answeredPrompts.add(prompt);
+      await page.locator(retry ? '.grade.high' : '.grade.low').first().click();
+      await page.locator('.next-due').waitFor();
+      await page.locator('[data-usage="review.next"]:not([disabled])').click();
+      await page.waitForFunction(() => document.querySelector('.result-page') || !document.querySelector('.next-due'));
     }
     await page.locator('.result-page').waitFor({ timeout: 30000 });
+    const finished = await previewCall(server, 'review.get', { runId: round.id });
+    assert.equal(finished.complete, true, 'the sidebar resumed the seeded round and the learner finished it');
+    assert.deepEqual(new Set(finished.weakTopics), new Set(topics));
     const details = page.locator('details.result-details');
     await details.waitFor({ timeout: 60000 }).catch(async (error) => { if (process.env.MIGRATE_DEBUG) await page.screenshot({ path: 'output/hand-off-migrate-fail.png' }); throw error; });
     await details.locator('summary').click();

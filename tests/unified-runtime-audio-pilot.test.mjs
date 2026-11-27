@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { fixtureSourcePreload } from '../scripts/qa/test-source-cache.mjs';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -205,7 +206,7 @@ for (const boundary of ['checkpoint', 'unresolved-request']) test(`new process c
   const directory = await mkdtemp(join(tmpdir(), 'audio-pilot-process-')), root = join(directory, 'library'), children = new Set();
   t.after(async () => { await Promise.all([...children].map(child => new Promise(resolve => { child.once('close', resolve); child.kill(); }))); await rm(directory, { recursive: true, force: true }); });
   const run = mode => new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [fileURLToPath(new URL('./fixtures/unified-runtime-audio-process.mjs', import.meta.url)), root, mode],
+    const child = spawn(process.execPath, [...fixtureSourcePreload(), fileURLToPath(new URL('./fixtures/unified-runtime-audio-process.mjs', import.meta.url)), root, mode],
       { env: { ...process.env, DSH_HOME: join(directory, 'home') }, windowsHide: true });
     children.add(child); let out = '', err = '';
     child.stdout.on('data', data => { out += data; }); child.stderr.on('data', data => { err += data; }); child.on('error', reject);

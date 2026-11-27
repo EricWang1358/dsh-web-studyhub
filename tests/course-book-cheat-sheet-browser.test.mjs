@@ -1,7 +1,8 @@
 /* global window document */
+import { text as streamText } from 'node:stream/consumers';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -128,7 +129,7 @@ test('复习全书: 更多 › 速查表 shows the one page, a code goes back to
       await page.getByRole('button', { name: '下载 .html' }).click();
       const saved = await fromView, name = saved.suggestedFilename();
       assert.equal(name, '复习全书 · SA 速查表.html');
-      const html = await readFile(await saved.path(), 'utf8');
+      const html = await streamText(await saved.createReadStream());
       assert.doesNotMatch(html, /https?:\/\/|<script|<link|<img|data-go=/, `${width}px: the file names no address, runs no script and has no link back into the app`);
       assert.match(html, /@media print/);
 
@@ -145,7 +146,7 @@ test('复习全书: 更多 › 速查表 shows the one page, a code goes back to
       await page.locator('.book-export').getByRole('button', { name: '速查表（.html）' }).click();
       const second = await fromExport;
       assert.equal(second.suggestedFilename(), name);
-      assert.equal(await readFile(await second.path(), 'utf8'), html, `${width}px: the same page from both`);
+      assert.equal(await streamText(await second.createReadStream()), html, `${width}px: the same page from both`);
       // The frame is sandboxed without scripts, and the init scripts the harness puts into every frame (storage, layout observer) are what Chrome refuses there.
       assert.deepEqual(errors.filter(message => !/^Blocked script execution in 'about:srcdoc'/.test(message)), [], `${width}px: no page errors`);
       await context.close();

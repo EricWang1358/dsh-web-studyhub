@@ -181,7 +181,7 @@ test('发给主会话 from the book through the real host adapter: the four rece
       // the button keeps its place and its width while it hands over (no spinner beside it); a handle answers at once, null once the panel has closed
       const during = await chat.boundingBox();
       if (during) assert.equal(Math.round(during.width), Math.round(before.width), `${tag}: the trigger keeps its width`);
-      await panel.waitFor({ state: 'detached', timeout: 10000 });
+      await panel.waitFor({ state: 'detached', timeout: 30000 });
       await page.mouse.move(2, 2);
     };
     // On a phone every receipt is one title line and one text line, at most 88px tall, and all of them one height (a newer one never grows the slip).

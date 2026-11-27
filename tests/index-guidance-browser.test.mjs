@@ -76,7 +76,7 @@ test('a 513-page book with no index: the shortcut line on 创建题组 explains 
       await page.locator('.extension-panel__course').first().waitFor({ timeout: 30000 });
       await until(async () => (await page.locator('.extension-panel__course').first().innerText()).includes(COURSE), 'the course of the book to be chosen');
       assert.match(await note.innerText(), /在这台电脑上建索引：不调用 AI、不耗 token，资料不离开电脑。建好后，整本书出题只读相关页面。/);
-      assert.match(await note.innerText(), /首次需要下载约 90 MB/);
+      await note.filter({ hasText: /首次需要下载约 90 MB/ }).waitFor({ timeout: 15000 });
       await settleAnimations(page);
       await note.scrollIntoViewIfNeeded();
       if (SHOTS) await page.screenshot({ path: join(SHOTS, `panel-note-${width}.png`) });

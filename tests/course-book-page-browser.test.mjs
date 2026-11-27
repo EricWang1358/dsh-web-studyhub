@@ -156,10 +156,20 @@ test('复习全书: 打开书页 from the 总纲, the 目录 and the heading bei
       assert.equal(await page.locator('.review-return').getAttribute('aria-label'), '回到复习全书', `${width}px: the header's return button names the book`);
       assert.equal(await page.locator('.review-return', { hasText: '返回学习库' }).count(), 0, `${width}px: not 返回学习库`);
       if (width === 420) {
-        // On its own row the label lines up with the title above it.
-        const lines = await page.evaluate(() => { const title = document.querySelector('.review-heading h1').getBoundingClientRect(), label = document.querySelector('.review-return-short').getBoundingClientRect();
-          return { own: label.top > title.bottom - 2, title: title.left, label: label.left }; });
-        if (lines.own) assert.ok(Math.abs(lines.label - lines.title) <= 2, `420px: the header's return label lines up with the title: ${JSON.stringify(lines)}`);
+        // The focus timer can share the action row with the arrow and its return label.
+        const layout = await back.evaluate(button => {
+          const title = button.closest('header').querySelector('h1').getBoundingClientRect(), actions = button.parentElement;
+          const box = button.getBoundingClientRect(), label = button.querySelector('.review-return-short').getBoundingClientRect(), arrow = button.querySelector('svg').getBoundingClientRect();
+          const row = [...actions.children].map(control => control.getBoundingClientRect()).filter(peer => peer.width && peer.top < box.bottom - 1 && peer.bottom > box.top + 1);
+          row.sort((a, b) => a.left - b.left);
+          return { below: actions.getBoundingClientRect().top > title.bottom - 2, title: title.left, first: row[0].left,
+            overlaps: row.some((peer, i) => i > 0 && row[i - 1].right > peer.left + 1),
+            readable: arrow.width > 0 && label.width > 0 && arrow.left >= box.left - 1 && arrow.right <= label.left + 1
+              && label.right <= box.right + 1 && box.left >= 0 && box.right <= window.innerWidth + 1 };
+        });
+        if (layout.below) assert.ok(Math.abs(layout.first - layout.title) <= 2, `420px: the action row lines up with the title: ${JSON.stringify(layout)}`);
+        assert.equal(layout.overlaps, false, '420px: the return action has its own space beside other controls');
+        assert.ok(layout.readable, '420px: the return arrow and the full short label are visible inside the button');
       }
       assert.equal(await page.locator('.review-detour').count(), 0, `${width}px: no second 回到复习全书 under the card`);
       assert.equal(await page.getByRole('button', { name: '回到复习全书' }).count(), 1, `${width}px: exactly one way back to the book on the page`);

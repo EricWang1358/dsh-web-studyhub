@@ -6,6 +6,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadUi } from './helpers/ui-module.mjs';
+import { loadInteractiveUi } from './helpers/react-harness.mjs';
 import { StudyService } from '../lib/service.js';
 import { parseDraft } from '../lib/review-draft.js';
 import { entryForRun } from '../ui/review/session-logic.js';
@@ -40,6 +41,35 @@ function makeMemoryStorage() {
     removeItem: (k) => map.delete(k),
   };
 }
+
+test('returning to a library reads the resume position after another tab clears it', async t => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const storage = makeMemoryStorage();
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage });
+  t.after(() => {
+    if (original) Object.defineProperty(globalThis, 'localStorage', original);
+    else delete globalThis.localStorage;
+  });
+  const ui = await loadInteractiveUi("export { useLearningNavigation } from './ui/app/use-learning-navigation.js';");
+  const refs = { dataRef: { current: { root: 'library-A' } } };
+  const props = {
+    core: { refs }, lib: { set: {}, state: { contextTrail: [], practiceStack: [] } },
+    nav: { page: 'sources', show: {}, referenceRef: { current: null } }, rootRef: { current: null },
+    session: { run: { id: 'run-A', card: { id: 'card-A' }, index: 0, total: 1 } },
+  };
+  const hook = ui.mountHook(ui.exports.useLearningNavigation, props);
+  t.after(() => hook.unmount());
+  await hook.flush();
+  assert.equal(hook.current.lastPractice?.runId, 'run-A', 'the first library offers its saved practice');
+  refs.dataRef.current = { root: 'library-B' };
+  const idle = { ...props, session: { run: null } };
+  hook.rerender(idle);
+  assert.equal(hook.current.lastPractice, null, 'the second library has no saved round');
+  clearLastPracticePosition(storage, 'library-A');
+  refs.dataRef.current = { root: 'library-A' };
+  hook.rerender(idle);
+  assert.equal(hook.current.lastPractice, null, 'the other tab cleared the round while library B was open');
+});
 
 test('#1319-1: multi-hop stack push (原题 -> 原文 -> 同类题 -> 错题本 -> 统计) pops layer by layer back to original and persists last position', () => {
   const root = '/tmp/lib-demo';

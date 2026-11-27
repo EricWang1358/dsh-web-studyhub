@@ -10,8 +10,8 @@
       display: inline-grid;
       place-items: center;
       flex: none;
-      width: 20px;
-      height: 20px;
+      width: var(--help-tip-size);
+      height: var(--help-tip-size);
       padding: 0;
       border: 0;
       border-radius: var(--radius-pill);

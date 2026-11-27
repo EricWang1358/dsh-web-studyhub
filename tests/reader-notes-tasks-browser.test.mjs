@@ -268,6 +268,7 @@ test('a new course is made from the course list, asked about when its name is ne
         await settleAnimations(page);
         await shot(page, `courses-${width}-existing`);
         await existing.getByRole('button', { name: '关闭', exact: true }).last().click();
+        await page.getByRole('button', { name: '放弃改动', exact: true }).click();
         await existing.waitFor({ state: 'detached', timeout: 30000 });
         await create.click();
         const input = page.getByRole('textbox', { name: '课程名称' });

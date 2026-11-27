@@ -9,7 +9,7 @@ import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs'
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { scrubProcessEnv } from '../scripts/qa/env.mjs';
-import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
+import { openPage, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
 import { StudyService } from '../lib/service.js';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
@@ -148,18 +148,20 @@ test('#852 browser: non-uniform quotas, modular rules, zero-call preview, and Ta
 
     // Open TaskConsole -> select job -> click 实际请求 tab
     await nav(page, 'tasks');
-    await page.locator('.tc-row').first().waitFor({ timeout: 30000 });
-    await page.locator('.tc-row').first().dispatchEvent('click');
-    await frames(page, 4);
+    await page.locator(`.tc-row[data-task-id="${finishedJob.id}"]`).click();
 
     await page.getByRole('tab', { name: '实际请求' }).click();
-    await until(async () => (await page.locator('[data-trace-call]').count()) >= 2, 'trace calls loaded');
-
-    // Stage 1 (plan) does not contain solution blueprints -> visible immediately
-    assert.ok(await page.locator('[data-trace-prompt]').isVisible(), 'Stage 1 plan prompt is visible without redaction');
-
-    // Click a solution-bearing stage (含解法) -> redacted by default
-    const solutionCallBtn = page.locator('[data-trace-call]', { hasText: '含解法' }).first();
+    const trace = await previewCall(running.server, 'job.trace', { jobId: finishedJob.id, revealSolutions: false });
+    const plan = trace.calls.find(call => call.purpose === 'plan' && !call.mechanical);
+    const blueprint = trace.calls.find(call => call.purpose === 'blueprint');
+    assert.ok(plan?.prompt && blueprint?.redacted, 'the job recorded a readable plan and a protected blueprint');
+    const planButton = page.locator(`[data-trace-call="${plan.callId}"]`);
+    await planButton.click();
+    await page.locator('[data-trace-prompt]').waitFor({ state: 'visible' });
+    assert.equal(await planButton.getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.locator('[data-trace-prompt]').textContent(), plan.prompt, 'selecting the plan shows its actual prompt');
+    const solutionCallBtn = page.locator(`[data-trace-call="${blueprint.callId}"]`);
+    assert.match(await solutionCallBtn.innerText(), /含解法/);
     await solutionCallBtn.click();
     await page.locator('[data-solution-guard]').waitFor({ state: 'visible', timeout: 10000 });
     assert.equal(await page.locator('[data-trace-prompt]').count(), 0, 'solution-bearing prompt is collapsed by default');

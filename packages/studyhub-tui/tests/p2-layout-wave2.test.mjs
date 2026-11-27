@@ -262,7 +262,7 @@ describe('#1354 P2 Layout Convergence Wave 2', () => {
     }
   });
 
-  test('3. ExamPrepView Crunch pitfalls wrap via <Prose> without silent truncation at 80x24 & 120x36', async (t) => {
+  test('3. ExamPrepView Crunch detail shows the backend sample-paper and pitfall counts inside the frame at 80x24 & 120x36', async (t) => {
     const prev = useTuiStore.getState();
     useTuiStore.setState({
       page: 'examprep',
@@ -305,9 +305,9 @@ describe('#1354 P2 Layout Convergence Wave 2', () => {
                   weak: 2,
                   due: 2,
                   fresh: 1,
-                  pitfalls: [
-                    'Belady anomaly occurs in FIFO replacement when frame count increases unexpectedly PITFALL_TAIL_SENTINEL',
-                  ],
+                  // book.crunch returns counts, not texts (lib/course-book-crunch.js: tested = sample papers, pitfalls = 易错点).
+                  tested: 2,
+                  pitfalls: 3,
                 },
               ],
             },
@@ -332,11 +332,8 @@ describe('#1354 P2 Layout Convergence Wave 2', () => {
       if (cols < LAYOUT_BP.SPLIT_DEFAULT) {
         h.send('\t');
       }
-      const frame = await h.waitFor((s) => s.includes('易错点提醒'), 3000, `ExamPrepView Crunch detail ${cols}x${rows}`);
-      assert.ok(
-        frame.includes('PITFALL_TAIL_SENTINEL'),
-        `ExamPrepView (${cols}x${rows}) must wrap Crunch pitfall via <Prose> without clipping PITFALL_TAIL_SENTINEL:\n${frame}`,
-      );
+      const frame = await h.waitFor((s) => s.includes('易错点：3 个'), 3000, `ExamPrepView Crunch detail ${cols}x${rows}`);
+      assert.ok(frame.includes('样卷考过：2 套'), `ExamPrepView (${cols}x${rows}) must show the sample-paper count:\n${frame}`);
       assertBoundedFrame(frame, cols, rows, `ExamPrepView ${cols}x${rows}`);
       h.cleanup();
     }

@@ -31,19 +31,19 @@ const scrollToEnd = (page) => page.evaluate(() => {
   const scroller = element || document.scrollingElement;
   scroller.scrollTop = scroller.scrollHeight;
 });
-/** Scroll to a hundred pixels from the end of the page (the end of the drawn rows is then within a screen), and say which row is first in sight and where, in the same breath:
+/** Scroll to the given distance from the end of the page, and say which row is first in sight and where, in the same breath:
     the next chunk is drawn after this returns. */
-const scrollNearEnd = (page, selector, attribute) => page.evaluate(([rows, name]) => {
+const scrollNearEnd = (page, selector, attribute, remaining = 100) => page.evaluate(([rows, name, gap]) => {
   let element = document.querySelector(".page");
   while (element && !(element.scrollHeight > element.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(element).overflowY))) element = element.parentElement;
   const scroller = element || document.scrollingElement;
-  scroller.scrollTop = scroller.scrollHeight - scroller.clientHeight - 100;
+  scroller.scrollTop = scroller.scrollHeight - scroller.clientHeight - gap;
   for (const row of document.querySelectorAll(rows)) {
     const box = row.getBoundingClientRect();
     if (box.bottom > 0 && box.top < window.innerHeight) return { key: row.getAttribute(name), top: Math.round(box.top * 10) / 10 };
   }
   return null;
-}, [selector, attribute]);
+}, [selector, attribute, remaining]);
 const topOfKey = (page, attribute, key) => page.evaluate(([name, value]) => { const row = document.querySelector(`[${name}="${value}"]`); return row ? Math.round(row.getBoundingClientRect().top * 10) / 10 : null; }, [attribute, key]);
 const inView = (page, selector) => page.evaluate((query) => {
   const element = document.querySelector(query);
@@ -60,6 +60,14 @@ async function openApp(browser, running, zone, { width = 1280, height = 900 } = 
 }
 async function openNav(page, id) {
   await (await revealNavRow(page, id)).dispatchEvent("click");
+  if (id !== "sources") return;
+  await page.locator(".sources-view-bar").getByText("按导入日期", { exact: true }).click();
+  // Start each date scenario with the newest day and any pinned group open. Moving the viewport during setup would load extra chunks.
+  const days = page.locator(".source-group-head").filter({ hasNotText: "已置顶" });
+  await days.first().waitFor();
+  for (const older of (await days.all()).slice(1)) {
+    if (await older.getAttribute("aria-expanded") === "true") await older.dispatchEvent("click");
+  }
 }
 const scrollerTop = (page, to) => page.evaluate((value) => {
   let element = document.querySelector(".page");
@@ -122,6 +130,10 @@ test("the sources page, the wrong book and a long draft draw their rows in chunk
 
       // Near the end: the next chunk is drawn after the first one, and the row that was first in sight has not moved; the same again for the third.
       for (const chunks of [2, 3]) {
+        // Approach the last rows before crossing the growth threshold. Chromium replaces their intrinsic-size estimates when they approach the viewport.
+        await scrollNearEnd(page, rows, "data-document-key", page.viewportSize().height);
+        await frames(page, 4);
+        assert.equal(await count(page, rows), (chunks - 1) * CHUNK, "approaching the last rows has not requested the next chunk yet");
         const sight = await scrollNearEnd(page, rows, "data-document-key");
         await until(async () => (await count(page, rows)) === chunks * CHUNK, `${chunks} chunks drawn after scrolling to the end`, { timeoutMs: 15000 });
         await frames(page, 3);
@@ -162,7 +174,7 @@ test("the sources page, the wrong book and a long draft draw their rows in chunk
       // The group is drawn up to the new row, and the end of what is drawn is then in sight just below it, so it may draw one more chunk: never the rest of the thousand.
       assert.ok(drawn >= at + 1 && drawn <= at + 1 + CHUNK, `the group draws up to the new row and at most one chunk further: ${drawn} rows for index ${at}`);
       await until(() => inView(page, fresh), "the new row scrolled into view", { timeoutMs: 15000 });
-      assert.equal(await page.evaluate(() => document.activeElement?.closest?.(".source-doc")?.getAttribute("data-new")), "true", "the focus is on the new row");
+      await page.locator(`${fresh} .source-main:focus`).waitFor({ timeout: 5000 });
       assert.deepEqual(errors.filter((error) => !/favicon/.test(error)), []);
       await context.close();
     });
@@ -211,8 +223,8 @@ test("the sources page, the wrong book and a long draft draw their rows in chunk
       // The days, newest first: the notes (450), the four small sources, the book alone. The book is more than half a window below the end of the first day, so the end of
       // that day is not in sight when the book is: only the way down passes it, and a smooth scroll would let the day draw a chunk on that way and move the book.
       await withLibrary({ documents: 450, bookOlderDays: 400 }, async (page) => {
-        await page.locator(".source-group-head").nth(2).dispatchEvent("click");
-        await page.locator(".source-group-head").nth(1).dispatchEvent("click");
+        const olderDays = page.locator('.source-group-head[aria-expanded="false"]');
+        for (const head of (await olderDays.all()).reverse()) await head.dispatchEvent("click");
         await page.locator('[data-tour="custom-book-row"]').first().waitFor({ timeout: 15000 });
         await scrollerTop(page, 0);
         await frames(page, 6);

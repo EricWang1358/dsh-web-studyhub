@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { execFile, spawn } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { promisify } from 'node:util';
 import { chooseConcurrency, listTestFiles, mergeDurations, orderLongestFirst, parseTestArgs, readDurations, readSlowList } from '../scripts/qa/test-schedule.mjs';
 
 /* How a full run is scheduled: the longest files start first (node's own runner sorts files by name, so scripts/qa/run-tests.mjs
@@ -12,6 +13,150 @@ import { chooseConcurrency, listTestFiles, mergeDurations, orderLongestFirst, pa
 
 const runner = fileURLToPath(new URL('../scripts/qa/run-tests.mjs', import.meta.url));
 const suite = fileURLToPath(new URL('./fixtures/runner-suite/', import.meta.url));
+
+test('a timing file finishes alone and every success, failure and skip has one number in the combined report', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'study-quiet-phase-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const quiet = join(dir, 'quiet.test.mjs'), regular = join(dir, 'regular.test.mjs');
+  const marker = JSON.stringify(join(dir, 'quiet.finished'));
+  await writeFile(quiet, `import test from 'node:test'; import {writeFileSync} from 'node:fs';
+    test('frame measurement', async () => { await new Promise(r => setTimeout(r, 50)); writeFileSync(${marker}, 'done'); });`);
+  await writeFile(regular, `import test from 'node:test'; import {readFileSync} from 'node:fs'; import assert from 'node:assert/strict';
+    test('after measurement', () => assert.equal(readFileSync(${marker}, 'utf8'), 'done'));
+    test.skip('platform-specific', () => {}); test('deliberate failure', () => assert.fail('checked'));`);
+  const driver = join(dir, 'driver.mjs');
+  const helper = JSON.stringify(new URL('../scripts/qa/test-phases.mjs', import.meta.url).href);
+  await writeFile(driver, `import { runWithTimingFiles } from ${helper};
+    const records = []; const files = ${JSON.stringify([regular, quiet])};
+    for await (const e of runWithTimingFiles({files, concurrency: 2}, [files[1]])) {
+      if (['test:pass','test:fail','test:plan','test:summary'].includes(e.type)) records.push(e);
+    }
+    console.log(JSON.stringify(records));`);
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
+  const { stdout } = await promisify(execFile)(process.execPath, [driver], { env, windowsHide: true });
+  const events = JSON.parse(stdout);
+  const results = events.filter(e => ['test:pass', 'test:fail'].includes(e.type) && e.data.nesting === 0);
+  assert.deepEqual(results.map(e => [e.data.name, e.data.testNumber]), [
+    ['frame measurement', 1], ['after measurement', 2], ['platform-specific', 3], ['deliberate failure', 4],
+  ]);
+  assert.deepEqual(events.filter(e => e.type === 'test:plan' && e.data.nesting === 0).map(e => e.data.count), [4]);
+  const summaries = events.filter(e => e.type === 'test:summary' && !e.data.file);
+  assert.equal(summaries.length, 1);
+  assert.equal(summaries[0].data.success, false);
+  const { tests, passed, failed, skipped } = summaries[0].data.counts;
+  assert.deepEqual({ tests, passed, failed, skipped }, { tests: 4, passed: 2, failed: 1, skipped: 1 });
+});
+
+test('relative ESM requests share native resolutions only for the same canonical library module', async () => {
+  const { cacheLocalImports } = await import('../scripts/qa/test-module-loader.mjs');
+  const sibling = new URL('../lib/host.js', import.meta.url).href;
+  const resolveImport = cacheLocalImports(url => url === sibling ? Buffer.alloc(0) : undefined);
+  const from = name => ({ parentURL: new URL(name, import.meta.url).href, conditions: ['node', 'import'] });
+  let calls = 0;
+  const delegate = (name, context) => {
+    calls++;
+    return { url: new URL(name, context.parentURL).href, format: 'module' };
+  };
+  const direct = resolveImport('../lib/service.js', from('./probe.mjs'), delegate);
+  const indirect = resolveImport('./service.js', from('../lib/host.js'), delegate);
+  assert.equal(indirect.url, direct.url);
+  assert.equal(calls, 1);
+  assert.equal(resolveImport('../lib/host.js', from('./probe.mjs'), delegate).url, sibling);
+  assert.equal(calls, 1, 'a verified regular sibling uses the same directory format');
+  for (let i = 0; i < 2; i++) {
+    resolveImport('./fixture.js', from('./probe.mjs'), delegate);
+    resolveImport('../lib/service.js', { ...from('./probe.mjs'), importAttributes: { type: 'json' } }, delegate);
+  }
+  assert.equal(calls, 5);
+  const redirected = () => { calls++; return { ...direct, url: direct.url + '?loader-alias' }; };
+  resolveImport('../lib/other.js', from('./probe.mjs'), redirected);
+  resolveImport('../lib/other.js', from('./second.mjs'), redirected);
+  assert.equal(calls, 7);
+});
+
+test('a browser test that skips a failed launch still fails the required Chromium run', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'study-missing-browser-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'browser.test.mjs');
+  const helper = new URL('../scripts/qa/browser.mjs', import.meta.url).href;
+  await writeFile(file, [
+    "import test from 'node:test';",
+    `import { launchChromium } from ${JSON.stringify(helper)};`,
+    "test('browser launch', async t => {",
+    `  try { await launchChromium({ executablePath: ${JSON.stringify(join(dir, 'missing-chromium'))} }); }`,
+    "  catch (error) { t.skip(error.message); }",
+    "});",
+  ].join('\n'));
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
+  const run = required => promisify(execFile)(process.execPath, ['--test', '--test-reporter=tap', file], {
+    env: { ...env, STUDY_QA_REQUIRE_BROWSER: required }, windowsHide: true,
+  });
+  const optional = await run('0');
+  assert.match(optional.stdout, /# skipped 1/);
+  await assert.rejects(run('1'), error => error.code === 1 && error.stdout.includes('missing-chromium'));
+});
+
+test('a real fixture can use archived sources without inheriting the network policy of its test worker', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'study-fixture-preload-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const report = join(dir, 'network.jsonl');
+  const env = { ...process.env, STUDY_TEST_NETWORK_REPORT: '1', STUDY_TEST_NETWORK_REPORT_FILE: report };
+  const child = script => promisify(execFile)(process.execPath, ['--import', new URL(script, import.meta.url).href, '-e', ''], { env, windowsHide: true });
+  await child('../scripts/qa/test-module-loader.mjs');
+  await assert.rejects(readFile(report), { code: 'ENOENT' });
+  await child('../scripts/qa/test-preload.mjs');
+  assert.deepEqual(JSON.parse(await readFile(report, 'utf8')), { attempts: 0 });
+});
+
+test('a Windows test worker reads the original source and falls back for edits, deletions and generated chunks', async t => {
+  const { readTestSources, writeTestSources } = await import('../scripts/qa/test-source-cache.mjs');
+  const dir = await mkdtemp(join(tmpdir(), 'study-source-cache-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const path = join(dir, 'example.js');
+  const chunk = join(dir, 'client.chunk.js');
+  const file = join(dir, 'sources.bin');
+  await writeFile(path, 'export default "甲";');
+  await writeFile(chunk, 'export default 12;');
+  // Windows TEMP may use an 8.3 name or a junction. Node's default ESM resolution hands load() the canonical URL.
+  const url = pathToFileURL(await realpath(path)).href;
+  writeTestSources(dir, file);
+  const sourceFor = readTestSources(file);
+  assert.deepEqual(sourceFor(url), Buffer.from('export default "甲";'));
+  const requested = pathToFileURL(path).href;
+  if (requested !== url) assert.equal(sourceFor(requested), undefined);
+  assert.equal(sourceFor(pathToFileURL(await realpath(chunk)).href), undefined);
+  assert.equal(sourceFor(url + '?revision=two'), undefined);
+  await writeFile(path, 'export default "乙";');
+  assert.equal(sourceFor(url), undefined);
+  await rm(path);
+  assert.equal(sourceFor(url), undefined);
+});
+
+test('two browser fixtures get independent copies of the test runner preview', async t => {
+  const { buildPreview } = await import('../scripts/build.mjs');
+  const dir = await mkdtemp(join(tmpdir(), 'study-preview-fixtures-'));
+  const digest = 'fixture-source-revision';
+  const prepared = join(dir, digest);
+  const previous = Object.fromEntries(['STUDY_SOURCE_TREE_DIGEST', 'STUDY_TEST_PREVIEW_DIR', 'STUDY_BUILD_CACHE'].map(key => [key, process.env[key]]));
+  t.after(async () => {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    await rm(dir, { recursive: true, force: true });
+  });
+  await mkdir(prepared);
+  await writeFile(join(prepared, 'app.js'), 'original application');
+  await writeFile(join(prepared, 'app.css'), '.test { color: green }');
+  Object.assign(process.env, { STUDY_SOURCE_TREE_DIGEST: digest, STUDY_TEST_PREVIEW_DIR: prepared, STUDY_BUILD_CACHE: '1' });
+  await buildPreview({ outdir: join(dir, 'one') });
+  await writeFile(join(dir, 'one', 'app.js'), 'fixture edit');
+  await buildPreview({ outdir: join(dir, 'two') });
+  assert.equal(await readFile(join(dir, 'two', 'app.js'), 'utf8'), 'original application');
+  assert.equal(await readFile(join(dir, 'two', 'app.css'), 'utf8'), '.test { color: green }');
+});
 
 test('files nobody has timed start first, then the longest known file down to the shortest', () => {
   const keys = ['tests/a.test.mjs', 'tests/b.test.mjs', 'tests/c.test.mjs', 'tests/d.test.mjs', 'tests/e.test.mjs'];

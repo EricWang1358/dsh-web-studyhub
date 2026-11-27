@@ -299,7 +299,7 @@ test('the stuck answer bar keeps the focus clear of itself from the question are
   const css = source('ui/review/review.css');
   assert.doesNotMatch(css.replace(/\/\*[^]*?\*\//g, ''), /scroll-padding/);
   assert.match(css, /\.question-area\[data-bar-stuck="true"\] > :not\(\.review-sticky-bar\) :is\(a\[href\], :enabled, summary, \[tabindex\], \[contenteditable\]\),/);
-  assert.match(css, /\[contenteditable\]\):not\(\.review-sticky-bar\) \{\s*scroll-margin-bottom: calc\(var\(--space-9\) \+ var\(--space-7\)\);/, 'the bar\'s own controls are not pushed away from the bar');
+  assert.match(css, /\[contenteditable\]\):not\(\.review-sticky-bar\) \{\s*scroll-margin-bottom: [^;]*var\(--review-bar-room\)/, 'the bar\'s own controls are excluded from its measured focus clearance');
   const run = source('ui/review/QuestionRun.jsx');
   assert.match(run, /const barStuck = !!run\.feedback \|\| barGrading;/);
   assert.match(run, /data-bar-stuck=\{barStuck \? "true" : undefined\}/);

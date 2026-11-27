@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { fixtureSourcePreload } from '../scripts/qa/test-source-cache.mjs';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -96,7 +97,7 @@ test('a running single import interrupted by process exit becomes an idle recove
     await rm(dir, { recursive: true, force: true });
   });
   const child = mode => new Promise((resolve, reject) => {
-    const proc = spawn(process.execPath, [fileURLToPath(new URL('./fixtures/audio-single-characterization-process.mjs', import.meta.url)), root, mode],
+    const proc = spawn(process.execPath, [...fixtureSourcePreload(), fileURLToPath(new URL('./fixtures/audio-single-characterization-process.mjs', import.meta.url)), root, mode],
       { env: { ...process.env, DSH_HOME: join(dir, 'home') }, windowsHide: true });
     children.add(proc);
     let out = '', err = '';

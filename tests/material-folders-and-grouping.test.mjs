@@ -378,8 +378,12 @@ test('Browser E2E: course/folder grouping, persisted fold state, B6 visible-only
   await page.locator('[data-document-key="source:os2"] .source-doc__check').check();
   assert.match(await page.locator('details.source-organize').innerText(), /已选择 1 份资料/);
   await page.locator('details.source-organize .course-field__input').fill('Networks');
+  const saved = page.waitForResponse(response =>
+    response.url().endsWith('/api/call') && response.request().postDataJSON()?.action === 'source.courses.set');
   await page.locator('details.source-organize button', { hasText: '应用课程归属' }).click();
-  await page.waitForTimeout(400);
+  const reply = await saved;
+  assert.ok(reply.ok(), 'course assignments were accepted');
+  await reply.finished();
 
   const snapAfterB6 = await service.call('snapshot');
   assert.deepEqual(snapAfterB6.sources.find(s => s.id === 'db1').courses, ['DB'], 'B6: hidden checked material db1 was not mutated');
