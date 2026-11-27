@@ -12,11 +12,13 @@ import css from "./exam-setup.css";
    setup card all three formats share (怎么考 · settings · start footer), the
    题数 field and the recent-exams list of every format. */
 
+/* Each format's icon says what the exam is (#1683): a question sheet, a case document, a microphone. Never a check mark: on a tab that is not
+   chosen it read as the chosen one. */
 export function formatOptions() {
   return [
-    { value: "written", label: ui("选择题笔试"), icon: "check" },
+    { value: "written", label: ui("选择题笔试"), icon: "clipboard" },
     { value: "case", label: ui("案例分析卷"), icon: "file" },
-    { value: "oral", label: ui("口头面试"), icon: "audio" },
+    { value: "oral", label: ui("口头面试"), icon: "microphone" },
   ];
 }
 const TAGS = () => ({ written: ui("选择题"), case: ui("案例"), oral: ui("口头") });
