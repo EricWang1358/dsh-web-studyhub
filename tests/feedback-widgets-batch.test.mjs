@@ -16,7 +16,7 @@ const mod = await loadUi(`
   export { default as ReviewNavigator } from './ui/ReviewNavigator.jsx';
   export { default as StudyMath, warmStudyMathRenderer, resetStudyMathCacheForTests } from './ui/StudyMath.jsx';
   export { default as MathText } from './ui/MathText.jsx';
-  export { default as Markdown } from './ui/Markdown.jsx';
+  export { default as Markdown, ScrollEdgeWrap } from './ui/Markdown.jsx';
   export { createInteractionTracker, classifyInteractionAction, INTERACTION_LIMIT } from './ui/use-session-performance.js';
   export { getAppearanceSound, saveAppearance, invalidateAppearanceCache } from './ui/appearance-prefs.js';
   export { playSound, scheduleSoundPrebake, resetSoundEngineForTests, SOUND_CUES } from './ui/sound-effects.js';
@@ -614,8 +614,44 @@ test('StudyMath renders synchronously without flicker once renderer is warmed; M
   assert.equal(mod.MathText.$$typeof, Symbol.for('react.memo'), 'MathText is wrapped in React.memo');
   assert.equal(mod.Markdown.$$typeof, Symbol.for('react.memo'), 'Markdown is wrapped in React.memo');
 
-  const mdSrc = await readFile(new URL('../ui/Markdown.jsx', import.meta.url), 'utf8');
-  assert.match(mdSrc, /useIsoLayoutEffect\(\(\) => \{ measure\(\); \}, \[measure, children\]\)/);
+  const wrapApp = mountSync();
+  const scroller = { scrollLeft: 0, clientWidth: 100, scrollWidth: 240 };
+  let scrollRef = null;
+  try {
+    let wrapTree = wrapApp.render(mod.ScrollEdgeWrap, { className: 'md-table-wrap', scrollClassName: 'md-table-scroll', children: 'initial' });
+    scrollRef = wrapTree.props.children.props.ref;
+    scrollRef(scroller);
+
+    // Changing children re-runs useIsoLayoutEffect -> measure() without any scroll event
+    wrapApp.render(mod.ScrollEdgeWrap, { className: 'md-table-wrap', scrollClassName: 'md-table-scroll', children: 'wide-table' });
+    wrapTree = wrapApp.render(mod.ScrollEdgeWrap, { className: 'md-table-wrap', scrollClassName: 'md-table-scroll', children: 'wide-table' });
+    assert.equal(wrapTree.props['data-edge-left'], undefined, 'at scrollLeft=0, left edge stays unset');
+    assert.equal(wrapTree.props['data-edge-right'], 'true', 'useIsoLayoutEffect measures overflow and sets data-edge-right');
+
+    // Threshold boundary: left edge appears strictly above 2px
+    scroller.scrollLeft = 2;
+    wrapTree.props.children.props.onScroll();
+    wrapTree = wrapApp.render(mod.ScrollEdgeWrap, { className: 'md-table-wrap', scrollClassName: 'md-table-scroll', children: 'wide-table' });
+    assert.equal(wrapTree.props['data-edge-left'], undefined, 'scrollLeft=2 stays below >2px threshold');
+    assert.equal(wrapTree.props['data-edge-right'], 'true');
+
+    scroller.scrollLeft = 3;
+    wrapTree.props.children.props.onScroll();
+    wrapTree = wrapApp.render(mod.ScrollEdgeWrap, { className: 'md-table-wrap', scrollClassName: 'md-table-scroll', children: 'wide-table' });
+    assert.equal(wrapTree.props['data-edge-left'], 'true', 'scrollLeft=3 crosses >2px threshold and sets data-edge-left');
+    assert.equal(wrapTree.props['data-edge-right'], 'true');
+
+    // Shrinking content with new children clears edges via useIsoLayoutEffect([measure, children])
+    scroller.scrollLeft = 0;
+    scroller.scrollWidth = 100;
+    wrapApp.render(mod.ScrollEdgeWrap, { className: 'md-table-wrap', scrollClassName: 'md-table-scroll', children: 'narrow-table' });
+    wrapTree = wrapApp.render(mod.ScrollEdgeWrap, { className: 'md-table-wrap', scrollClassName: 'md-table-scroll', children: 'narrow-table' });
+    assert.equal(wrapTree.props['data-edge-left'], undefined, 'left edge clears when new children fit');
+    assert.equal(wrapTree.props['data-edge-right'], undefined, 'right edge clears when new children fit (catches missing children dep)');
+  } finally {
+    scrollRef?.(null);
+    wrapApp.unmount();
+  }
 
   mod.resetStudyMathCacheForTests();
   try {
