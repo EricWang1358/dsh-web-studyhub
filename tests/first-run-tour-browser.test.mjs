@@ -13,6 +13,7 @@ import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-
 import { drainLayoutStability, judgeLayoutStability } from '../scripts/qa/layout-stability.mjs';
 import { TOUR_STEPS, CORE_TOUR_LENGTH } from '../ui/tour/steps.js';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
+import { Store } from '../lib/store.js';
 
 /* The first run in the browser preview, on an empty temporary library with the host's 备考补习 switch on: the welcome page, the default tour
    (CORE_TOUR_LENGTH steps, every anchored step lit), its last step offering the full tour, the full tour from there to its end (every anchored
@@ -112,6 +113,62 @@ test('载入示例并开始导览 moves nothing when a poll overtakes the refres
       } finally { await running.close(); }
     }
   } finally {
+    await browser.close().catch(() => {});
+    await rm(dist, { recursive: true, force: true, maxRetries: 20, retryDelay: 150 });
+  }
+});
+
+/* 载入示例并开始导览 when a snapshot is read in the middle of the load: the sample's lecture is imported (and its case scenario added) one write before it is
+   tagged as the sample's. The library here pauses 3 s (longer than the 2.5 s poll) right after each such write, so the app's poll lands in that window: the
+   snapshot must still say the material is the sample's, or the line takes it for the learner's own, folds step 2 and opens step 3 (将从 1 份资料…) until a later
+   snapshot folds it back (CLS 0.054 at 420 px on CI). The library is empty before the load, so any untagged material during it is the sample's. */
+test('载入示例并开始导览 moves nothing when a snapshot is read between writing the sample material and tagging it', { timeout: 300000 }, async (t) => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
+  const dist = await mkdtemp(join(tmpdir(), 'study-first-run-mid-load-dist-'));
+  await buildPreview({ outdir: dist });
+  const update = Store.prototype.update;
+  let paused = 0;
+  Store.prototype.update = async function pausedUpdate(...args) {
+    const result = await update.apply(this, args);
+    const state = await this.read();
+    if (state.sampleLibrary?.status === 'loading' && (state.sources || []).some((source) => !source.sample)) {
+      paused++;
+      await new Promise((done) => setTimeout(done, 3000));
+    }
+    return result;
+  };
+  try {
+    const running = await start(dist);
+    try {
+      const { page, errors, context } = await openPage(browser, running, { lang: 'zh', theme: 'dark', width: 420, height: 900 });
+      // The load starts once the click's own grace (500 ms) is over, so what it moves counts.
+      await page.route('**/api/call', async (route) => {
+        let action = '';
+        try { action = JSON.parse(route.request().postData() || '{}').action; } catch { /* not JSON */ }
+        if (action === 'sample.load') await new Promise((done) => setTimeout(done, 600));
+        return route.continue();
+      });
+      await page.goto(running.server.url);
+      await page.locator('.first-run').waitFor({ timeout: 30000 });
+      await settleAnimations(page);
+      await drainLayoutStability(page);
+      await page.getByRole('button', { name: '载入示例并开始导览' }).click();
+      await page.locator('.tour-layer:not(.is-measuring) .tour-pop').waitFor({ timeout: 60000 });
+      await page.waitForTimeout(1500);
+      await settleAnimations(page);
+      await frames(page, 3);
+      assert.ok(paused > 0, 'the library paused in the middle of the load');
+      assert.equal(await page.locator('.sample-banner').count(), 1, 'the sample banner is there');
+      const log = await drainLayoutStability(page);
+      log.shifts = log.shifts.filter((shift) => !shift.sources.length || !shift.sources.every((source) => /sh-toast|top-right|topbar/.test(source.element)));
+      const layout = judgeLayoutStability(log, { maxCls: 0.01 });
+      assert.ok(layout.ok, `420px: a snapshot in the middle of the sample load moved the line: ${layout.message}`);
+      assert.deepEqual(errors, [], 'no console or page errors');
+      await context.close();
+    } finally { await running.close(); }
+  } finally {
+    Store.prototype.update = update;
     await browser.close().catch(() => {});
     await rm(dist, { recursive: true, force: true, maxRetries: 20, retryDelay: 150 });
   }

@@ -15,6 +15,7 @@ import { validateDeck, quoteFound } from "../lib/domain.js";
 import { visibleHtmlText } from "../lib/contexts/materials/files.js";
 import en from "../lib/sample/en.js";
 import zh from "../lib/sample/zh.js";
+import { SAMPLE_IDS } from "../lib/sample-library.js";
 
 const repo = fileURLToPath(new URL("../", import.meta.url));
 const savedHome = process.env.DSH_HOME;
@@ -243,6 +244,32 @@ test("a snapshot taken while the sample is loading says which decks are the samp
   assert.equal(snapshot.sample.deckId, null);
   assert.equal(snapshot.decks.find((deck) => deck.id === "sample-deck").sample, true, "the deck says it is the sample's");
   assert.equal(Object.hasOwn(snapshot.decks.find((deck) => deck.id === "user-graphs"), "sample"), false, "a deck of the learner's own carries no sample flag");
+});
+
+test("a snapshot taken between writing a sample material and tagging it still says the material is the sample's", async (t) => {
+  const { call, libraryRoot } = await start(t);
+  const store = new Store(libraryRoot);
+  const own = await call("source.add", { title: "My notes", text: "Graphs: a vertex and an edge." });
+  // The two windows of a real load (lib/sample-library.js buildSample): the lecture imported, its sources not tagged yet; the case scenario added, not tagged yet.
+  await store.update((state) => { state.sampleLibrary = { version: 1, status: "loading", language: "zh", course: zh.course }; });
+  const imported = await call("materials.document.import", { dataBase64: Buffer.from(zh.document.markdown, "utf8").toString("base64"),
+    filename: zh.document.filename, format: "md", title: zh.document.title, courses: [zh.course] });
+  await call("source.add", { id: SAMPLE_IDS.caseSource, title: zh.caseStudy.scenario.title, text: zh.caseStudy.scenario.paragraphs.join("\n\n"), courses: [zh.course] });
+  assert.ok((await store.read()).sources.every((source) => !source.sample), "nothing is tagged yet, as in the middle of a load");
+  const snapshot = await call("snapshot");
+  assert.equal(snapshot.sample.loaded, false);
+  const flagged = (id) => snapshot.sources.find((source) => source.id === id)?.sample === true;
+  for (const id of imported.sourceIds) assert.ok(flagged(id), `the lecture's ${id} says it is the sample's`);
+  assert.ok(flagged(SAMPLE_IDS.caseSource), "the case scenario says it is the sample's");
+  assert.equal(Object.hasOwn(snapshot.sources.find((source) => source.id === own.id), "sample"), false, "a material of the learner's own carries no sample flag");
+});
+
+test("without a sample marker, the same lecture imported by the learner is the learner's own", async (t) => {
+  const { call } = await start(t);
+  const imported = await call("materials.document.import", { dataBase64: Buffer.from(zh.document.markdown, "utf8").toString("base64"),
+    filename: zh.document.filename, format: "md", title: zh.document.title });
+  const snapshot = await call("snapshot");
+  for (const id of imported.sourceIds) assert.equal(Object.hasOwn(snapshot.sources.find((source) => source.id === id), "sample"), false);
 });
 
 test("a load interrupted half-way is cleaned up by the next load", async (t) => {
