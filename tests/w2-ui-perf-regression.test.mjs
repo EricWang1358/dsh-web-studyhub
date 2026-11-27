@@ -867,7 +867,101 @@ test('useDraftDirty avoids synchronous JSON.stringify on every keystroke and rec
     JSON.stringify = origStringify;
   }
 
-  // Verify missing i18n toast strings in ui/Draft.jsx are now localized via uiFormat.
-  const draftSrc = await readFile(new URL('../ui/Draft.jsx', import.meta.url), 'utf8');
-  assert.doesNotMatch(draftSrc, /toast\.error\(\s*["']JSON 格式不正确：["']\s*\+/);
+  // Verify invalid-JSON save toast in ui/Draft.jsx is localized via uiFormat in both en and zh.
+  const invalidJson = '{ invalid json';
+  let expectedParseError = '';
+  try {
+    JSON.parse(invalidJson);
+  } catch (err) {
+    expectedParseError = err.message;
+  }
+  const interactive = await loadInteractiveUi(`
+    export { default as Draft } from './ui/Draft.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { ToastContext } from './ui/components/index.js';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const { Draft, StudyServicesContext, ToastContext, setUiLanguage } = interactive.exports;
+  const h = interactive.React.createElement;
+  const draftModel = { ...structuredClone(original), draftVersion: 0 };
+  const data = { revision: 1, root: '/tmp/lib', jobs: [], decks: [], drafts: [draftModel], sources: [], runs: [], settings: {}, modelReady: true };
+  const saveCalls = [];
+  const toastErrors = [];
+  const services = {
+    call: async () => ({}),
+    act: (action, payload) => { saveCalls.push([action, payload]); },
+    busy: false,
+    host: {},
+  };
+  const toastApi = {
+    error: (msg) => toastErrors.push(msg),
+    success: () => {},
+    info: () => {},
+    warning: () => {},
+  };
+  const noop = () => {};
+  const renderDraft = () => h(
+    StudyServicesContext.Provider,
+    { value: services },
+    h(
+      ToastContext.Provider,
+      { value: toastApi },
+      h(Draft, {
+        data,
+        draft: draftModel,
+        draftLoaded: JSON.stringify(draftModel),
+        setDraft: noop,
+        draftText: invalidJson,
+        setDraftText: noop,
+        jsonMode: true,
+        setJsonMode: noop,
+        openDraft: noop,
+        topUpDraft: noop,
+        openSourceAt: noop,
+        onOpenPublished: noop,
+        onStartPublished: noop,
+        clearRecovery: noop,
+        setPage: noop,
+        setModal: noop,
+        blankCard: () => ({}),
+        patchCard: noop,
+        parseDraft: (t) => JSON.parse(t),
+      }),
+    ),
+  );
+
+  await withBrowserGlobals(async () => {
+    const mounted = interactive.mount(renderDraft);
+    try {
+      await mounted.flush();
+      const saveBtn = () => mounted.find((n) => n.type === 'button' && String(n.props?.className || '').includes('draft-bar__button') && !String(n.props?.className || '').includes('sh-btn--primary'));
+
+      setUiLanguage('en');
+      mounted.rerender(renderDraft);
+      await mounted.flush();
+      const enBtn = saveBtn();
+      assert.ok(enBtn, 'Save button renders in JSON mode (en)');
+      await mounted.act(() => click(enBtn));
+      assert.equal(toastErrors.length, 1, 'invalid JSON emits one error toast in en');
+      assert.match(toastErrors[0], /^Invalid JSON:/, 'en toast uses localized Invalid JSON prefix');
+      assert.doesNotMatch(toastErrors[0], /[㐀-鿿]/, 'en toast contains zero Han characters');
+      assert.ok(toastErrors[0].includes(expectedParseError), 'en toast includes underlying parse error message');
+      assert.equal(saveCalls.length, 0, 'invalid JSON never invokes draft.save in en');
+
+      toastErrors.length = 0;
+      setUiLanguage('zh');
+      mounted.rerender(renderDraft);
+      await mounted.flush();
+      const zhBtn = saveBtn();
+      assert.ok(zhBtn, 'Save button renders in JSON mode (zh)');
+      await mounted.act(() => click(zhBtn));
+      assert.equal(toastErrors.length, 1, 'invalid JSON emits one error toast in zh');
+      assert.match(toastErrors[0], /^JSON 格式不正确：/, 'zh toast uses localized Chinese prefix');
+      assert.ok(toastErrors[0].includes(expectedParseError), 'zh toast includes underlying parse error message');
+      assert.equal(saveCalls.length, 0, 'invalid JSON never invokes draft.save in zh');
+    } finally {
+      mounted.unmount();
+      setUiLanguage('zh');
+    }
+  });
 });
