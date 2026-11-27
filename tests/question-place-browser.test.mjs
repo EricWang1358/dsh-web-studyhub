@@ -494,18 +494,22 @@ test('outline target resets stale deck filter, restores filter without target, c
     const place = page.locator('[data-review-place]');
     await place.waitFor({ state: 'visible', timeout: 30000 });
 
+    // Every course.outline is held while the route is on, not only the first: starting the round bumps the library revision, and when the
+    // poll brings it in while the outline is loading, the page reads the outline again; an unheld second read would end the loading state early.
     let markRequested;
     const outlineRequested = new Promise((resolve) => { markRequested = resolve; });
-    let releaseOutline;
-    let markDone;
-    const outlineDone = new Promise((resolve) => { markDone = resolve; });
-    let holdNext = true;
+    let released = false;
+    let markReleased;
+    const releasedOutline = new Promise((resolve) => { markReleased = resolve; });
+    const releaseOutline = () => { released = true; markReleased(); };
+    const heldDone = [];
     const holdHandler = async (route) => {
       const body = route.request().postData() || '';
-      if (holdNext && /"action":"course\.outline"/.test(body)) {
-        holdNext = false;
+      if (!released && /"action":"course\.outline"/.test(body)) {
+        let markDone;
+        heldDone.push(new Promise((resolve) => { markDone = resolve; }));
         markRequested();
-        await new Promise((resolve) => { releaseOutline = resolve; });
+        await releasedOutline;
         await route.continue().catch(() => {});
         markDone();
         return;
@@ -519,7 +523,7 @@ test('outline target resets stale deck filter, restores filter without target, c
     await page.locator('.outline-header').getByRole('button', { name: /回到之前的第 1 题/ }).click();
     await page.locator('.question').waitFor({ state: 'visible', timeout: 15000 });
     releaseOutline();
-    await outlineDone;
+    await Promise.all(heldDone);
     await page.unroute('**/api/call', holdHandler);
 
     await (await revealNavRow(page, 'library')).click();
@@ -535,11 +539,10 @@ test('outline target resets stale deck filter, restores filter without target, c
     await confirmStart(page);
     await place.waitFor({ state: 'visible', timeout: 30000 });
 
-    let failNext = true;
+    // Every course.outline fails while the route is on, for the same reason as 2a: a second read brought in by the poll would replace the error.
     const failHandler = async (route) => {
       const body = route.request().postData() || '';
-      if (failNext && /"action":"course\.outline"/.test(body)) {
-        failNext = false;
+      if (/"action":"course\.outline"/.test(body)) {
         await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'Simulated outline failure' }) });
         return;
       }
