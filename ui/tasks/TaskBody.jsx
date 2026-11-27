@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useMemo, useState } from 'react';
 import { ui, uiFormat, uiMessage } from '../i18n.js';
-import { Button, Tabs, TabPanel, useNow } from '../components/index.js';
+import { Button, Disclosure, Tabs, TabPanel, useNow } from '../components/index.js';
 import { useScrollEdges } from '../components/use-scroll-edges.js';
 import { useApp } from '../app/app-context.js';
 import AgentLink from '../AgentLink.jsx';
@@ -22,9 +22,12 @@ import InstallStages from '../install/InstallStages.jsx';
 import IndexDetail from './IndexDetail.jsx';
 import RequestTracePanel from './RequestTracePanel.jsx';
 
-/* The two columns under the controls, one template for every kind of job: on the left the parallel timeline above the tabs 「正在进行」 and the kind's own
-   section (文件 for audio, 轮次与批次 for a question run); on the right the tabs 「实时输出」 and 「日志」. Both columns are as tall as the window leaves them and
-   every list scrolls inside its own panel, so a job with one file looks as complete as one with fifty, and nothing here grows the page. */
+/* The two columns under the controls of a task that is going on, one template for every kind of job: on the left the parallel timeline above the tabs
+   「正在进行」 and the kind's own section (文件 for audio, 轮次与批次 for a question run); on the right the tabs 「实时输出」 and 「日志」. Both columns are as tall
+   as the window leaves them and every list scrolls inside its own panel, so a job with one file looks as complete as one with fifty, and nothing here
+   grows the page.
+   A task that has ended (#1691) keeps in sight only what it made (the kind's own section, 目标与知识点). How it went (the timeline, 实时输出, 实际请求,
+   日志) is one closed fold, 运行记录, drawn when it is first opened; no call is in progress any more, so there is no 正在进行. */
 
 const stepDot = (status) => (status === 'ok' ? 'done' : status === 'failed' ? 'fail' : status === 'cancelled' || status === 'skipped' ? 'stopped' : 'run');
 const stepTime = (call, now) => {
@@ -85,29 +88,34 @@ const BOOK_SECTION = { value: 'points', label: '知识点', count: (contract) =>
 
 /* `marks` (callId -> 'long' | 'slowest', time-limit.js) draws the steps the time-limit strip points at on the timeline; `focusCall` ({ id, at }) is that strip asking for one of them: it is selected and its output shown, like a click on its bar. */
 export default function TaskBody({ task, archived = false, marks, focusCall }) {
-  const contract = contractOf(task), calls = contract.calls, live = isRunningTask(task), kind = taskKindOf(task);
+  const contract = contractOf(task), calls = contract.calls, kind = taskKindOf(task), day = contract.kind === 'coach-daily';
+  // Today's record of 为你定制 rests between batches and goes on later: it is not an ended task.
+  const live = isRunningTask(task), ended = !live && !(day && contract.detail.today);
   const isMaterialTask = kind === 'material-classify' || kind === 'material-organize';
   const hasStepList = isMaterialTask || kind === 'assist';
   const install = Array.isArray(contract.detail?.install?.steps), index = contract.kind === 'retrieval-index';
   const section = contract.kind === 'audio-live-correction' ? null : contract.kind === 'course-book-build' ? BOOK_SECTION : install ? INSTALL_SECTION : index ? INDEX_SECTION : SECTIONS[kind], left = useId(), right = useId();
   const [selected, setSelected] = useState(null), [leftTab, setLeftTab] = useState(() => (hasStepList && !live ? 'steps' : 'running')), [rightTab, setRightTab] = useState('output');
+  const [recordOpen, setRecordOpen] = useState(false);
   // Both tab strips fade the side that still has a panel beyond it (ui/components/scroll-fade.css, #747); the scroll position and the arrow keys are untouched.
   const [leftStrip, leftEdges, measureLeft] = useScrollEdges();
   const [rightStrip, rightEdges, measureRight] = useScrollEdges();
   const running = useMemo(() => runningCalls(calls), [calls]);
-  const fallbackCall = hasStepList && !live ? calls.filter((call) => call.kind !== 'wait').at(-1) || null : null;
+  // An ended task has no call in flight: its record opens on the last one.
+  const fallbackCall = ended || (!live && hasStepList) ? calls.filter((call) => call.kind !== 'wait').at(-1) || null : null;
   const target = calls.find((call) => call.callId === selected) || running.find((call) => call.kind !== 'wait') || fallbackCall;
-  const choose = (callId) => { setSelected(callId); setRightTab((cur) => (cur === 'trace' ? 'trace' : 'output')); };
-  useEffect(() => { if (focusCall?.id) { setSelected(focusCall.id); setRightTab('output'); } }, [focusCall]);
+  // A call picked from a list or the time-limit strip is shown by its output, so an ended task's record opens for it.
+  const choose = (callId) => { setSelected(callId); setRightTab((cur) => (cur === 'trace' ? 'trace' : 'output')); setRecordOpen(true); };
+  useEffect(() => { if (focusCall?.id) { setSelected(focusCall.id); setRightTab('output'); setRecordOpen(true); } }, [focusCall]);
   // A PDF conversion, an install and a search-index build make no model calls: no timeline, no 正在进行 and no 实时输出 (they would only say there are none); a
   // conversion's windows are in 转换详情, an install's steps in 安装步骤, a build's pages in 索引详情, and the story of each in 日志.
   const callFree = (kind === 'pdf' && !!section) || install || index;
-  const leftItems = [...(callFree ? [] : [{ value: 'running', label: uiFormat('正在进行 {0}', [running.length]) }]), ...(section ? [{ value: section.value, label: `${ui(section.label)} ${section.count(contract)}`.trim() }] : [])];
+  const leftItems = [...(callFree || ended ? [] : [{ value: 'running', label: uiFormat('正在进行 {0}', [running.length]) }]), ...(section ? [{ value: section.value, label: `${ui(section.label)} ${section.count(contract)}`.trim() }] : [])];
   // 目标与知识点: a question run or a top-up lists the points its plan holds (ui/tasks/PlanTable.jsx), as a third tab beside the two.
   const planned = kind === 'generation' || kind === 'supplement';
   const hasRequestTrace = planned || kind === 'repair' || contract.kind === 'course-book-build' || contract.kind === 'companion-lesson-build';
   if (planned) leftItems.push(planTabItem(contract));
-  const tab = leftItems.some((item) => item.value === leftTab) ? leftTab : leftItems[0].value;
+  const tab = leftItems.some((item) => item.value === leftTab) ? leftTab : leftItems[0]?.value;
   const rightItems = [
     ...(callFree ? [] : [{ value: 'output', label: ui('实时输出') }]),
     ...(hasRequestTrace ? [{ value: 'trace', label: ui('实际请求') }] : []),
@@ -115,30 +123,41 @@ export default function TaskBody({ task, archived = false, marks, focusCall }) {
   ];
   const rightShown = rightItems.some((item) => item.value === rightTab) ? rightTab : 'log';
   const View = section?.View;
+  const timeline = !callFree && <Timeline calls={calls} running={live} family={kind === 'audio' ? 'audio' : kind === 'coach' ? 'coach' : isMaterialTask ? kind : 'generation'} contractKind={isMaterialTask ? kind : contract.kind} selected={target?.callId} marks={marks} onSelect={choose} />;
+  const lists = leftItems.length > 0 && <>
+    <Tabs id={left} ref={leftStrip} className="tc-tabs sh-fade-x sh-fade-x--pad" data-fade-start={leftEdges.start || undefined} data-fade-end={leftEdges.end || undefined}
+      onScroll={measureLeft} itemClassName="tc-tab" label={ui('左侧面板')} value={tab} onChange={setLeftTab} items={leftItems} />
+    {!ended && !callFree && <TabPanel id={left} value="running" selected={tab} className="tc-panel" tabIndex={undefined}>
+      <div className="tc-scroll"><RunningCalls calls={calls} selected={target?.callId} onSelect={choose} /></div>
+    </TabPanel>}
+    {/* In an ended task's lists a row is marked once the learner picked it (a step list opens on its last step, as it did). */}
+    {section && <TabPanel id={left} value={section.value} selected={tab} className="tc-panel" tabIndex={undefined}><View contract={contract} task={task} selected={!ended || hasStepList ? target?.callId : selected} onSelect={choose} /></TabPanel>}
+    {planned && <TabPanel id={left} value="plan" selected={tab} className="tc-panel" tabIndex={undefined}><PlanTable contract={contract} task={task} /></TabPanel>}
+  </>;
+  const output = <>
+    <Tabs id={right} ref={rightStrip} className="tc-tabs sh-fade-x sh-fade-x--pad" data-fade-start={rightEdges.start || undefined} data-fade-end={rightEdges.end || undefined}
+      onScroll={measureRight} itemClassName="tc-tab" label={ui('右侧面板')} value={rightShown} onChange={setRightTab} items={rightItems} />
+    {/* A day of 为你定制 has no sub-agent and keeps no output: its 实时输出 says so and shows the batch instead of asking job.output for nothing. */}
+    {!callFree && <TabPanel id={right} value="output" selected={rightShown} className="tc-panel" tabIndex={undefined}>
+      {kind === 'coach' ? <CoachOutputNote contract={contract} call={target} /> : <OutputPanel jobId={contract.jobId} call={target} archived={archived} />}
+    </TabPanel>}
+    {hasRequestTrace && <TabPanel id={right} value="trace" selected={rightShown} className="tc-panel" tabIndex={undefined}>
+      <RequestTracePanel jobId={contract.jobId} selectedCallId={target?.callId || null} callCount={calls.length} archived={archived} />
+    </TabPanel>}
+    <TabPanel id={right} value="log" selected={rightShown} className="tc-panel" tabIndex={undefined}><LogPanel contract={contract} /></TabPanel>
+  </>;
+  if (ended) return (
+    <div className="tc-ended">
+      {lists && <div className="tc-col tc-ended__made">{lists}</div>}
+      <Disclosure className="tc-record" bodyClassName="tc-record__body" summary={ui('运行记录')} lazy open={recordOpen} onToggle={setRecordOpen}>
+        <div className="tc-col tc-record__col">{timeline}{output}</div>
+      </Disclosure>
+    </div>
+  );
   return (
     <div className="tc-body">
-      <div className="tc-col">
-        {!callFree && <Timeline calls={calls} running={live} family={kind === 'audio' ? 'audio' : kind === 'coach' ? 'coach' : isMaterialTask ? kind : 'generation'} contractKind={isMaterialTask ? kind : contract.kind} selected={target?.callId} marks={marks} onSelect={choose} />}
-        <Tabs id={left} ref={leftStrip} className="tc-tabs sh-fade-x sh-fade-x--pad" data-fade-start={leftEdges.start || undefined} data-fade-end={leftEdges.end || undefined}
-          onScroll={measureLeft} itemClassName="tc-tab" label={ui('左侧面板')} value={tab} onChange={setLeftTab} items={leftItems} />
-        {!callFree && <TabPanel id={left} value="running" selected={tab} className="tc-panel" tabIndex={undefined}>
-          <div className="tc-scroll"><RunningCalls calls={calls} active={live} selected={target?.callId} onSelect={choose} /></div>
-        </TabPanel>}
-        {section && <TabPanel id={left} value={section.value} selected={tab} className="tc-panel" tabIndex={undefined}><View contract={contract} task={task} selected={target?.callId} onSelect={choose} /></TabPanel>}
-        {planned && <TabPanel id={left} value="plan" selected={tab} className="tc-panel" tabIndex={undefined}><PlanTable contract={contract} task={task} /></TabPanel>}
-      </div>
-      <div className="tc-col">
-        <Tabs id={right} ref={rightStrip} className="tc-tabs sh-fade-x sh-fade-x--pad" data-fade-start={rightEdges.start || undefined} data-fade-end={rightEdges.end || undefined}
-          onScroll={measureRight} itemClassName="tc-tab" label={ui('右侧面板')} value={rightShown} onChange={setRightTab} items={rightItems} />
-        {/* A day of 为你定制 has no sub-agent and keeps no output: its 实时输出 says so and shows the batch instead of asking job.output for nothing. */}
-        {!callFree && <TabPanel id={right} value="output" selected={rightShown} className="tc-panel" tabIndex={undefined}>
-          {kind === 'coach' ? <CoachOutputNote contract={contract} call={target} /> : <OutputPanel jobId={contract.jobId} call={target} active={live} archived={archived} />}
-        </TabPanel>}
-        {hasRequestTrace && <TabPanel id={right} value="trace" selected={rightShown} className="tc-panel" tabIndex={undefined}>
-          <RequestTracePanel jobId={contract.jobId} selectedCallId={target?.callId || null} callCount={calls.length} archived={archived} />
-        </TabPanel>}
-        <TabPanel id={right} value="log" selected={rightShown} className="tc-panel" tabIndex={undefined}><LogPanel contract={contract} /></TabPanel>
-      </div>
+      <div className="tc-col">{timeline}{lists}</div>
+      <div className="tc-col">{output}</div>
     </div>
   );
 }
