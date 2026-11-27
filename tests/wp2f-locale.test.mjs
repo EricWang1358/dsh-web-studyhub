@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 import { loadInteractiveUi, click } from './helpers/react-harness.mjs';
 
@@ -46,8 +47,21 @@ test('the copy is not chosen with language ternaries or hard-coded English in th
 });
 
 test('the fold labels of a follow-up come from the catalogue, not from CSS content (#160)', async () => {
-  const css = await readFile('ui/followup.css', 'utf8');
-  assert.doesNotMatch(css, /followup-item[^{]*::after\s*\{[^}]*content/);
+  const { declarations } = parseCss(await readFile(new URL('../ui/followup.css', import.meta.url), 'utf8'));
+  assert.ok(declarations.length > 0, 'followup.css declares styles');
+  assert.ok(
+    declarations.some((d) => d.ctx.some((c) => /\.followup-item(?![\w-])/.test(c))),
+    'followup.css styles .followup-item',
+  );
+  assert.deepEqual(
+    declarations.filter((d) =>
+      d.prop === 'content'
+      && d.ctx.some((c) => /followup-item/.test(c))
+      && d.ctx.some((c) => /::?(?:before|after)\b/.test(c)),
+    ),
+    [],
+    'followup-item pseudo-elements must not render fold labels via CSS content',
+  );
   assert.equal(catalogue['展开'], 'Expand');
   assert.equal(catalogue['收起'], 'Collapse');
 

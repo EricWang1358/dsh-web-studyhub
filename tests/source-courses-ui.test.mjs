@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { withStudy } from './helpers/study-services.mjs';
 import { nativeSelects } from './helpers/native-selects.mjs';
 
@@ -18,6 +20,7 @@ const sourcesPage = (props) => withStudy(StudyServicesContext, React.createEleme
 const data = { root: 'library-A', decks: [], drafts: [], sources: [{ id: 'a', title: 'Database notes', text: 'Transactions keep changes consistent.', courses: ['Databases'], createdAt: '2026-09-30' }],
   focus: { course: 'Systems', courses: [{ name: 'Databases' }, { name: 'Systems' }] }, jobs: [], modelReady: true };
 const noop = () => {};
+const splitSelectors = (sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim());
 
 test('source organization and import forms expose local course choices in English', () => {
   try {
@@ -99,16 +102,24 @@ test('the course dialog starts from the current course and applies it through th
 });
 
 test('the row menu lists its actions in one stacked menu instead of putting every button at the same spot', async () => {
-  const { readFileSync } = await import('node:fs');
   const here = { ...data, focus: { ...data.focus, course: 'Databases' } };
   const html = renderToStaticMarkup(sourcesPage({ data: here }));
   const menu = /<details class="source-row-actions"><summary>[^<]*<\/summary>(<div class="source-row-menu"[^>]*>(.*?)<\/div>)<\/details>/.exec(html);
   assert.ok(menu, 'the buttons sit inside one .source-row-menu container');
   assert.deepEqual([...menu[2].matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map(match => match[1]), ['重命名…', '置顶', '改课程…', '移入文件夹…', '归档']);
-  const css = readFileSync(new URL('../ui/sources.css', import.meta.url), 'utf8');
-  assert.doesNotMatch(css, /source-row-actions\[open\]\s*>\s*button/, 'a rule that makes every direct button absolute stacks them on top of each other');
-  const rule = /\.source-row-actions\[open\]\s*>\s*\.source-row-menu\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
-  assert.match(rule, /position:\s*absolute/); assert.match(rule, /display:\s*grid/);
+  const { declarations } = parseCss(readFileSync(new URL('../ui/sources.css', import.meta.url), 'utf8'));
+  assert.ok(declarations.length > 0, 'sources.css declares styles');
+  assert.deepEqual(
+    declarations.filter((d) => d.ctx.some((c) => /source-row-actions\[open\]\s*>\s*button(?![\w-])/.test(c))),
+    [],
+    'a rule that makes every direct button absolute stacks them on top of each other',
+  );
+  const menuDecls = declarations.filter((d) =>
+    !d.ctx.some((c) => c.startsWith('@media') || c.startsWith('@container'))
+    && splitSelectors(d.ctx.at(-1) || '').some((s) => /(?:^|\s)\.source-row-actions\[open\]\s*>\s*\.source-row-menu$/.test(s)),
+  );
+  assert.equal(menuDecls.some((d) => d.prop === 'position' && d.value === 'absolute'), true, '.source-row-actions[open] > .source-row-menu is position: absolute');
+  assert.equal(menuDecls.some((d) => d.prop === 'display' && d.value === 'grid'), true, '.source-row-actions[open] > .source-row-menu is display: grid');
 });
 
 test('a failed course save is said inside the dialog and never raises the global notice that covers its buttons', async () => {
@@ -124,8 +135,18 @@ test('a failed course save is said inside the dialog and never raises the global
 });
 
 test('a long course path is not cut without a trace: the field shows an ellipsis and the whole path as its title', async () => {
-  const { readFileSync } = await import('node:fs');
-  assert.match(readFileSync(new URL('../ui/course-field.css', import.meta.url), 'utf8'), /course-field__control > \.course-field__input \{[^}]*text-overflow:\s*ellipsis/);
+  const { declarations } = parseCss(readFileSync(new URL('../ui/course-field.css', import.meta.url), 'utf8'));
+  assert.ok(declarations.length > 0, 'course-field.css declares styles');
+  assert.equal(
+    declarations.some((d) =>
+      !d.ctx.some((c) => c.startsWith('@media') || c.startsWith('@container'))
+      && splitSelectors(d.ctx.at(-1) || '').includes('.course-field__control > .course-field__input')
+      && d.prop === 'text-overflow'
+      && d.value === 'ellipsis',
+    ),
+    true,
+    '.course-field__control > .course-field__input truncates with text-overflow: ellipsis',
+  );
   const item = { key: 'doc-1', title: 'Book', sourceIds: ['a'], courses: ['Cloud Native Solution Design / 07 微服务设计：边界、通信、发现与兼容演进'], usedBy: [], pages: [] };
   const html = renderToStaticMarkup(React.createElement(CourseDialog, { item, items: [item], byId: new Map([['a', { id: 'a', courses: item.courses }]]), courses: [{ name: 'Databases' }], onClose: noop }));
   assert.match(html, /title="Cloud Native Solution Design \/ 07 微服务设计：边界、通信、发现与兼容演进"/);
