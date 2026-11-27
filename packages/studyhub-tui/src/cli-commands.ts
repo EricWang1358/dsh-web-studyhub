@@ -208,8 +208,9 @@ export async function runStatsFastPath(parsed: ParsedCliArgs, version = '1.0.0')
 export async function runExportFastPath(args: ParsedCliArgs, version = '1.0.0'): Promise<void> {
   const { atomicWriteExportJson, resolveSafeBackupExportPath } = await import('./host/atomic-write.js');
 
-  // Fail fast on unsafe user-supplied export paths before booting the full desktop host.
-  if (args.libraryRoot && args.exportPath) {
+  // Fail fast on unsafe user-supplied export paths before booting the full desktop host, with or without --root:
+  // an absolute or ".." path is refused whatever the library folder turns out to be.
+  if (args.exportPath) {
     resolveSafeBackupExportPath(args.libraryRoot, args.exportPath, 'studyhub-backup', '.json');
   }
 

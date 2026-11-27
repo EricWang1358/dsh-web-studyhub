@@ -4,7 +4,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, statSync, readdirSync } from 'node:fs';
 import { basename } from 'node:path';
-import { INTER_FAMILY, INTER_UNICODE_RANGE, INTER_STYLE_MARKER, interFaceCss, installInterFace } from '../ui/fonts/inter-face.js';
+import { build } from 'esbuild';
+import { INTER_UNICODE_RANGE, INTER_STYLE_MARKER, interFaceCss, installInterFace } from '../ui/fonts/inter-face.js';
 
 const FONT = 'ui/fonts/inter-latin-opsz-normal.woff2';
 const BUDGET = 110 * 1024;
@@ -33,12 +34,23 @@ test('the font file is one variable woff2 within the size budget, and its OFL li
   assert.deepEqual(fonts, [basename(FONT)], 'exactly one font file is bundled');
 });
 
-test('inter-data.js carries exactly the committed woff2 (regenerate with node ui/fonts/build-inter-data.mjs) and needs no bundler loader', () => {
-  const source = readFileSync(new URL('../ui/fonts/inter-data.js', import.meta.url), 'utf8');
-  const encoded = /export default 'data:font\/woff2;base64,([A-Za-z0-9+/=]+)';/.exec(source);
-  assert.ok(encoded, 'a plain JS module with one data: URI');
+test('inter-data.js carries exactly the committed woff2 (regenerate with node ui/fonts/build-inter-data.mjs) and needs no bundler loader', async () => {
+  const built = await build({
+    entryPoints: ['ui/fonts/inter-data.js'],
+    bundle: true,
+    write: false,
+    format: 'esm',
+    metafile: true,
+    logLevel: 'silent',
+  });
+  assert.equal(built.outputFiles.length, 1, 'bundles cleanly without a .woff2 loader');
+  assert.deepEqual(Object.keys(built.metafile.inputs), ['ui/fonts/inter-data.js'], 'self-contained module with zero external font imports');
+
+  const { default: dataUri } = await import('../ui/fonts/inter-data.js');
+  assert.equal(typeof dataUri, 'string', 'default export is a data: URI string');
+  const encoded = /^data:font\/woff2;base64,([A-Za-z0-9+/=]+)$/.exec(dataUri);
+  assert.ok(encoded, 'a plain JS module with one base64 woff2 data: URI');
   assert.ok(Buffer.from(encoded[1], 'base64').equals(readFileSync(new URL(`../${FONT}`, import.meta.url))), 'the module is the woff2, byte for byte');
-  assert.doesNotMatch(source, /^import /m, 'no import of the font file, so esbuild needs no .woff2 loader (the tests bundle ui/ with their own options)');
 });
 
 test('the unicode-range covers digits, Latin letters and number punctuation and leaves every CJK block to the system fonts', () => {
@@ -54,12 +66,12 @@ test('the unicode-range covers digits, Latin letters and number punctuation and 
 
 test('the @font-face is one variable face under a private name: swap, the wght range, woff2, the range above', () => {
   const css = interFaceCss('data:font/woff2;base64,AAAA');
-  assert.equal(INTER_FAMILY, 'StudyHub Inter');
   assert.equal(css.split('@font-face').length - 1, 1);
   assert.match(css, /font-family:\s*"StudyHub Inter"/);
   assert.match(css, /font-display:\s*swap/);
   assert.match(css, /font-weight:\s*100 900/);
   assert.match(css, /src:\s*url\("data:font\/woff2;base64,AAAA"\)\s*format\("woff2"\)/);
+  assert.match(interFaceCss('data:font/woff2;base64,BBBB'), /src:\s*url\("data:font\/woff2;base64,BBBB"\)\s*format\("woff2"\)/);
   assert.ok(css.includes(`unicode-range: ${INTER_UNICODE_RANGE}`));
   assert.doesNotMatch(css, /U\+(?:4E00|3000|FF00)/i, 'no CJK start points');
 });
@@ -89,6 +101,7 @@ test('the installer is idempotent and never throws without a browser or with a h
   await installInterFace({ document: doc, load: loaded });
   assert.equal(added.length, 1);
   assert.match(added[0].textContent, /@font-face/);
+  assert.match(added[0].textContent, /font-family:\s*"StudyHub Inter"/);
   const present = { textContent: interFaceCss('data:font/woff2;base64,AAAA') };
   const again = [];
   await installInterFace({ document: { head: { querySelector: selector => { assert.ok(selector.includes(INTER_STYLE_MARKER)); return present; }, appendChild: node => again.push(node) }, createElement: doc.createElement }, load: loaded });

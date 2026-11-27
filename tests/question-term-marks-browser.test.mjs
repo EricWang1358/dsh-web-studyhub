@@ -1824,6 +1824,8 @@ test("More menu › 生词表… opens TermListDialog with 0 marked terms on fla
         await page.locator(".review-return").click();
         // Back in the library the list is still being placed (the run's snapshot lands, the page settles its scroll). A menu opened meanwhile
         // shuts when its trigger moves (ui/components/Menu.jsx), so open it once the row stops moving, and open it again if it shut anyway.
+        // Every click in the loop has a short limit of its own: once 闪卡翻看 has started review.start the library leaves the page, and a
+        // click still waiting on the deck menu then waits for a row that is gone (Playwright's 120 s) instead of the loop seeing the flashcard.
         const deckMenu = page.locator('[data-deck-id="d-course"] > .deck-row .map-menu-wrap button');
         await deckMenu.waitFor({ state: "visible", timeout: 15000 });
         await settleAnimations(page);
@@ -1833,7 +1835,7 @@ test("More menu › 生词表… opens TermListDialog with 0 marked terms on fla
         const browse = page.getByRole("menuitem", { name: lang === "en" ? "Browse flashcards" : "闪卡翻看" });
         await until(async () => {
           if (await page.locator(".flashcard").count()) return true;
-          if (!(await browse.isVisible())) await deckMenu.click();
+          if (!(await browse.isVisible())) await deckMenu.click({ timeout: 2000 }).catch(() => {});
           else await browse.click({ timeout: 2000 }).catch(() => {});
           return false;
         }, `${tag}: 闪卡翻看 from the deck menu`, { timeoutMs: 30000, intervalMs: 200 });

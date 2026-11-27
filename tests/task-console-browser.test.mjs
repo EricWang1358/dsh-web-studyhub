@@ -10,6 +10,7 @@ import { drainLayoutStability, judgeLayoutStability } from '../scripts/qa/layout
 import { frames, until } from '../scripts/qa/layout-late.mjs';
 import { startConsole, startJobs, finishJobsThenHoldOne, openConsole, measure, measureCards, measureSelection, contrastRatio } from '../scripts/qa/task-console.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
+import { commitPreviewAction } from './helpers/preview-write.mjs';
 
 /* WP-TC in the browser, on a seeded temporary library with the fake model: an audio batch and a question run held in flight, and four days of 为你定制 in the
    coach's file. At 1280 the console is as tall as the window and every list scrolls INSIDE its panel (the page never grows); at 420 the columns stack and the page
@@ -141,8 +142,8 @@ test('select two finished tasks → 归档 → 已归档 → 取消归档, then 
           return { right: Math.round(r.right), parentRight: Math.round(p.right), bottom: Math.round(r.bottom), parentBottom: Math.round(p.bottom) };
         });
         assert.ok(actionBox.right <= actionBox.parentRight + 1 && actionBox.bottom <= actionBox.parentBottom + 1, `the actions fit in the bar: ${JSON.stringify(actionBox)}`);
-        // 归档
-        await page.locator('.tc-pickbar__actions').getByRole('button', { name: '归档', exact: true }).dispatchEvent('click');
+        // 归档: the list changes at once (ui/quick-actions.js), before the host has written it, so the host is asked only after job.archive has answered
+        await commitPreviewAction(page, 'job.archive', () => page.locator('.tc-pickbar__actions').getByRole('button', { name: '归档', exact: true }).dispatchEvent('click'));
         await until(async () => (await filterText('已归档')) === '已归档 2', 'the two tasks under 已归档');
         await until(async () => (await page.locator('.tc-item__check input').count()) === 0, 'the two finished tasks out of the default list');
         for (const id of ids) assert.equal(await page.locator(`.tc-row[data-task-id="${id}"]`).count(), 0, 'gone from the default list');
@@ -167,7 +168,7 @@ test('select two finished tasks → 归档 → 已归档 → 取消归档, then 
         if (width === 1280) { assert.equal(archivedMeasure.appScrolls, false); assert.deepEqual(archivedMeasure.console, first.console); }
         // 取消归档 (from the bar)
         await page.locator('.tc-pickbar__all input').dispatchEvent('click');
-        await page.locator('.tc-pickbar__actions').getByRole('button', { name: '取消归档', exact: true }).dispatchEvent('click');
+        await commitPreviewAction(page, 'job.unarchive', () => page.locator('.tc-pickbar__actions').getByRole('button', { name: '取消归档', exact: true }).dispatchEvent('click'));
         await until(async () => (await filterText('已归档')) === '已归档 0', 'nothing archived any more');
         await page.locator('.tc-scope .sh-seg__item', { hasText: '全部' }).first().dispatchEvent('click');
         await until(async () => (await page.locator('.tc-item__check input').count()) === 2, 'both tasks back in the list');

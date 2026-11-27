@@ -4,6 +4,8 @@ import BookSelectBar from './BookSelectBar.jsx';
 import { useSendToChat } from './send-to-chat.js';
 import { scrollerOf } from './use-book-place.js';
 import { rowOf } from './model.js';
+import { ui } from '../i18n.js';
+import { useStudy } from '../study-context.jsx';
 
 /* What floats over the review book's text (docs/review-book.md "Ask AI"): the selection toolbar and the 问 AI panel, on the reading surface and in 翻看. Both
    are placed in the page element and follow its scroller; the panel is one at a time (a new 问 AI or 写一段… replaces it). */
@@ -11,7 +13,7 @@ import { rowOf } from './model.js';
 /** ai: ui/book/use-book-ai.js; rows: the book's rows (the point of a heading); book: course.book.open (its files' versions for the chat); model: modelReadiness;
     pageRef: the page element. */
 export default function BookAskLayer({ ai, rows, book, course, model, pageRef }) {
-  const send = useSendToChat(course);
+  const send = useSendToChat(course), { notify } = useStudy();
   const host = pageRef.current;
   // What the two follow: the page's scroller (its scroll moves them), and as their bounds the page's own column within the visible part of the scroller, so
   // neither ever covers the app's sidebar.
@@ -26,7 +28,8 @@ export default function BookAskLayer({ ai, rows, book, course, model, pageRef })
   } }), [host]);
   const toChat = async ({ heading, words = '', instruction = '' }) => {
     const node = rowOf(rows, heading)?.node;
-    if (!node) return;
+    // The point went while the panel was open (another writer rebuilt the outline): said as every action on a gone point says it; the panel keeps what was typed.
+    if (!node) { notify(ui('这一节已不在总纲里。')); return; }
     await send({ scope: words ? 'selection' : 'point', node, files: book.files, selection: words, instruction, language: book.language });
     ai.closeAsk();
     window.getSelection?.()?.removeAllRanges?.();
