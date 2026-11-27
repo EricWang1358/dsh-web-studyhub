@@ -931,7 +931,7 @@ test('invalid JSON on save, publish, save-as-new, top-up and view switch shows a
       }),
     ),
   );
-  const isButton = (node, test) => node.type === 'button' && test(node);
+  const isButton = (node, matches) => node.type === 'button' && matches(node);
   const labelled = (label) => (node) => isButton(node, (n) => interactive.textOf(n).includes(label));
   const barButton = (primary) => (node) => isButton(node, (n) => {
     const cls = String(n.props?.className || '');

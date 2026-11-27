@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { jobContract, archivedContract } from '../lib/job-contract.js';
 import { loadUi } from './helpers/ui-module.mjs';
 import { inApp } from './helpers/fake-app.mjs';
+import { loadInteractiveUi, withBrowserGlobals, textOf } from './helpers/react-harness.mjs';
 
 /* The time limit of a task, said on the task's page (the owner's complaint of 2026-10-06: 「生成用时到了上限，已自动停止」 with no number, no way to change it, and no
    word on which step took the time). One fact, one place: the contract says the limit (detail.timeLimit, docs/job-contract.md), ui/tasks/time-limit.js says
@@ -188,14 +189,82 @@ test('nothing is drawn for a task whose record has no limit (an older record, an
   assert.equal(strip({ id: 'a', type: 'audio-import', status: 'running', startedAt: at(0), filename: 'x', members: [] }), '');
 });
 
-test('the link opens 设置 › 出题偏好 at the field of the limit: the strip calls openSettings with the one anchor the setting has', () => {
-  const calls = [];
-  const element = React.createElement(m.TimeLimit, { task: owner(), now: T0 + 1201e3, steps: [], onPick: () => {} });
-  m.setUiLanguage('zh');
-  const tree = inApp(m, element, { data: {}, app: { settingsEntry: { openSettings: (section) => calls.push(section), openModelSettings: () => {} } } });
-  renderToStaticMarkup(tree);
-  assert.deepEqual(calls, [], 'rendering opens nothing');
-  assert.equal(m.LIMIT_ANCHOR, 'settings-generation-time');
+test('the link opens 设置 › 出题偏好 at the field of the limit: the strip calls openSettings with the one anchor the setting has', async () => {
+  const ui = await loadInteractiveUi(`
+    export { AppContext } from './ui/app/app-context.js';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { default as TimeLimit } from './ui/tasks/TimeLimit.jsx';
+    export { default as GenerationSettings } from './ui/GenerationSettings.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const { AppContext, StudyServicesContext, TimeLimit, GenerationSettings, setUiLanguage } = ui.exports;
+  const h = ui.React.createElement;
+  const noop = () => {};
+  const studyValue = { call: async () => ({}), act: async () => undefined, busy: false, notify: noop, askInChat: noop, host: {}, openSettings: noop, navigate: noop, openModal: noop };
+  const wrap = (settingsEntry, child) => () => h(
+    StudyServicesContext.Provider,
+    { value: studyValue },
+    h(AppContext.Provider, { value: { data: {}, settingsEntry } }, child),
+  );
+
+  await withBrowserGlobals(async () => {
+    setUiLanguage('zh');
+    try {
+      const task = owner();
+      const steps = m.slowSteps(view(task).calls, { now: T0 + 1201e3, hitLimit: true });
+      const calls = [];
+      const picked = [];
+      const mounted = ui.mount(wrap(
+        { openSettings: (section) => calls.push(section), openModelSettings: noop },
+        h(TimeLimit, { task, now: T0 + 1201e3, steps, onPick: (id) => picked.push(id) }),
+      ));
+      try {
+        assert.deepEqual(calls, [], 'rendering opens nothing');
+        assert.deepEqual(picked, [], 'rendering picks no step');
+        const adjust = mounted.find((node) => node.type === 'button' && node.props['data-limit-adjust'] !== undefined);
+        assert.ok(adjust, 'adjustable task renders the 调整时限 button');
+        assert.equal(textOf(adjust).trim(), '调整时限');
+        await mounted.act(() => adjust.props.onClick({}));
+        assert.deepEqual(calls, ['settings-generation-time']);
+
+        const slowButton = mounted.find((node) => node.type === 'button' && node.props['data-slow-call'] === 'plan-1');
+        assert.ok(slowButton, 'slowest step renders its jump button');
+        await mounted.act(() => slowButton.props.onClick({}));
+        assert.deepEqual(picked, ['plan-1']);
+      } finally {
+        mounted.unmount();
+      }
+
+      const withoutEntry = ui.mount(wrap(
+        {},
+        h(TimeLimit, { task, now: T0 + 1201e3, steps: [], onPick: noop }),
+      ));
+      try {
+        assert.equal(
+          withoutEntry.findAll((node) => node.type === 'button' && node.props['data-limit-adjust'] !== undefined).length,
+          0,
+          'omits 调整时限 when openSettings is absent',
+        );
+      } finally {
+        withoutEntry.unmount();
+      }
+
+      const settings = ui.mount(wrap(
+        { openSettings: noop, openModelSettings: noop },
+        h(GenerationSettings, { root: '/lib/time-limit', saved: {} }),
+      ));
+      try {
+        const anchorField = settings.find((node) => node.props?.['data-tour'] === calls[0]);
+        assert.ok(anchorField, 'GenerationSettings emits the exact data-tour anchor that 调整时限 passes to openSettings');
+        const timeoutInput = settings.find((node) => node.type === 'input' && node.props?.name === 'jobTimeoutMinutes', anchorField);
+        assert.ok(timeoutInput, 'the deep-link anchor wraps the jobTimeoutMinutes field');
+      } finally {
+        settings.unmount();
+      }
+    } finally {
+      setUiLanguage('zh');
+    }
+  });
 });
 
 test('the timeline marks the long steps and the slowest one: data-slow on the bar, and the rule in its title (not colour alone: the CSS adds a pattern and an outline)', () => {
