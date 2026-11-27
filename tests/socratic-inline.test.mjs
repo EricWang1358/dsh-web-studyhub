@@ -786,9 +786,11 @@ test('29) 只是表态（前面带语气词、后面带谢谢或语气助词、�
   const service = await createSeededService(t, { complete: tutor.complete });
   const state = await service.store.read();
   const judge = async (text) => (await evaluateCardSocraticStep(state, { ...ref, text }, { complete: tutor.complete })).understood;
-  const bare = ['我懂了', '懂了，谢谢', '嗯嗯明白了', 'ok got it thanks', '好的，我知道了！', '哦～懂啦', 'Okay, I see. Thanks!', '噢噢 明白了呀', '好 理解了哈', 'yeah understood thx', '嗯？', '谢谢', '…'];
+  const bare = ['我懂了', '懂了，谢谢', '嗯嗯明白了', 'ok got it thanks', '好的，我知道了！', '哦～懂啦', 'Okay, I see. Thanks!', '噢噢 明白了呀', '好 理解了哈', 'yeah understood thx', '嗯？', '谢谢', '…',
+    '收到', '了解了', '原来如此', '原来是这样', '谢谢老师', '明白了，谢谢老师', '懂了懂了，太感谢了', '好嘞', 'oh I see', 'I see, that makes sense', 'got it, thanks a lot', '❤️', '👍🏻'];
   for (const text of bare) assert.equal(await judge(text), false, `bare: ${text}`);
-  const explained = ['因为分母不能为0', '顺序固定就成不了环', '我懂了：顺序固定，环就接不起来', '嗯，因为谁都不会反过来等更小的号', 'no cycle can form', 'ok so the wait can never loop back'];
+  const explained = ['因为分母不能为0', '顺序固定就成不了环', '我懂了：顺序固定，环就接不起来', '嗯，因为谁都不会反过来等更小的号', 'no cycle can form', 'ok so the wait can never loop back',
+    '对，因为互斥', '会死锁', '选A', '原来是顺序固定了', '收到，是循环等待被打破了', 'oh so the order breaks the cycle'];
   for (const text of explained) assert.equal(await judge(text), true, `explained: ${text}`);
 
   const step = await service.call('socratic.step', { ...ref, text: '嗯嗯明白了' });
@@ -803,6 +805,7 @@ test('30) 点「给个提示」时老师的话里原样出现答案：按看过�
   const hinted = await service.call('socratic.step', { ...ref, action: 'hint' });
   assert.equal(hinted.state.revealed, true);
   assert.equal(hinted.state.turns.at(-1).kind, 'reveal');
+  assert.equal(hinted.state.summary, null, 'help before the close writes no result: the copy text would print one');
 });
 
 test('31) 发给模型的每一条对话都有长度上限', async (t) => {
@@ -887,6 +890,11 @@ test('35) 开场白是学习者看到的那一句：打开后再作答，第一�
   await service.store.update((s) => { delete s.decks[0].cards[0].socratic; });
   const forged = await service.call('socratic.step', { ...ref, runId: run.id, opening: '答案是破坏了循环等待条件', text: '我以为是互斥' });
   assert.match(forged.state.turns[0].text, /刚才这题没答对/, 'a line the drawer could not have shown is not taken');
+
+  await service.store.update((s) => { delete s.decks[0].cards[0].socratic; });
+  const switched = await service.call('socratic.step', { ...ref, runId: run.id, language: 'en', opening: shown, text: 'I thought mutual exclusion' });
+  assert.notEqual(switched.state.turns[0].text, shown, 'an opening in another language than the step is not taken');
+  assert.doesNotMatch(switched.state.turns[0].text, /[一-鿿]/, 'the server opening in the step language is used instead');
 });
 
 test('36) 抽屉第一步把它显示的开场白带给后端', async () => {
