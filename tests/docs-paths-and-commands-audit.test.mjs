@@ -160,7 +160,7 @@ function stripFencedCodeBlocks(text) {
 
 function isPlaceholderPath(p) {
   return (
-    /[<>*?{}\[\]$]/.test(p) ||
+    /[<>*?{}[\]$]/.test(p) ||
     p.includes("...") ||
     p.includes("YYYY") ||
     p.includes("x.y.z") ||
