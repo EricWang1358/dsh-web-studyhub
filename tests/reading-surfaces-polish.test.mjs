@@ -285,6 +285,14 @@ test('BlogNotes supports >= 1100px split edit + live Markdown/KaTeX preview, nar
   assert.equal(focusDecls.some((d) => d.prop === 'box-shadow' && d.value === 'none'), true);
   assert.equal(focusDecls.some((d) => d.prop === 'outline' && d.value === '2px solid var(--accent)'), true);
   assert.equal(focusDecls.some((d) => d.prop === 'box-shadow' && /var\(--ring\)/.test(d.value)), false);
+  // As before the AST rewrite: no ring from the focused pane rule to the end of the file, nested `&` rules and later rules included.
+  const underFocus = blogDecls.filter((d) => d.ctx.some((c) => splitSelectors(c).includes('.note-edit-pane:has(.cm-editor.cm-focused)')));
+  const focusStart = Math.min(...underFocus.map((d) => d.line));
+  assert.deepEqual(
+    blogDecls.filter((d) => d.line >= focusStart && d.prop === 'box-shadow' && /var\(--ring\)/.test(d.value)).map((d) => `${d.line}: ${d.ctx.join(' > ')}`),
+    [],
+    'one focus ring: nothing from the focused editor pane rule onwards adds box-shadow: var(--ring)',
+  );
 });
 
 test('1 Day + 1 Course = 1 Note Article: quick-saves append into one daily course note while separating other courses, days, and 挑题成文 articles', async t => {
