@@ -31,6 +31,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Report test quality audit diff against baseline (advisory)
+        continue-on-error: true
+        run: node scripts/test-audit.mjs --compare-baseline=docs/test-audit-baseline.json --annotations
       - name: Reject newly introduced low-signal assertions
         if: github.event_name == 'pull_request'
         env:

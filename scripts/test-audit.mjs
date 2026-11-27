@@ -800,15 +800,29 @@ export function parseBaselineJson(text) {
   if (parsed.totals?.hits !== undefined && (!Number.isInteger(parsed.totals.hits) || parsed.totals.hits < 0)) {
     throw new Error('Invalid baseline JSON: "totals.hits" must be a non-negative integer');
   }
-  if (parsed.totals?.byCategory !== undefined && !isPlainObject(parsed.totals.byCategory)) {
-    throw new Error('Invalid baseline JSON: "totals.byCategory" must be an object');
+  if (parsed.totals?.files !== undefined && (!Number.isInteger(parsed.totals.files) || parsed.totals.files < 0)) {
+    throw new Error('Invalid baseline JSON: "totals.files" must be a non-negative integer');
+  }
+  if (parsed.totals?.byCategory !== undefined) {
+    if (!isPlainObject(parsed.totals.byCategory)) {
+      throw new Error('Invalid baseline JSON: "totals.byCategory" must be an object');
+    }
+    for (const [rawId, count] of Object.entries(parsed.totals.byCategory)) {
+      if (!/^[1-7]$/.test(rawId)) {
+        throw new Error(`Invalid baseline JSON: unknown category "${rawId}" in "totals.byCategory"`);
+      }
+      if (!Number.isInteger(count) || count < 0) {
+        throw new Error(`Invalid baseline JSON: invalid count for "totals.byCategory.${rawId}"`);
+      }
+    }
   }
 
   const byCategory = Object.fromEntries(CATEGORY_IDS.map(id => [id, 0]));
   const counts = {};
-  for (const [file, fileCounts] of Object.entries(parsed.files)) {
+  for (const [rawFile, fileCounts] of Object.entries(parsed.files)) {
+    const file = String(rawFile).replace(/\\/g, '/').trim();
     if (!file || !isPlainObject(fileCounts)) {
-      throw new Error(`Invalid baseline JSON: entry for "${file}" must be an object`);
+      throw new Error(`Invalid baseline JSON: entry for "${rawFile}" must be an object`);
     }
     for (const [rawId, count] of Object.entries(fileCounts)) {
       if (!/^[1-7]$/.test(rawId)) {
@@ -820,7 +834,7 @@ export function parseBaselineJson(text) {
       if (count === 0) continue;
       const id = Number(rawId);
       if (!counts[file]) counts[file] = {};
-      counts[file][id] = count;
+      counts[file][id] = (counts[file][id] ?? 0) + count;
       byCategory[id] += count;
     }
   }
@@ -1186,6 +1200,28 @@ export function parseArgs(argv) {
   return options;
 }
 
+/** Append Markdown to GITHUB_STEP_SUMMARY with blank-line separation; advisory mode never fails on summary I/O errors. */
+function appendStepSummary(env, content, { advisory = false, log = console.log } = {}) {
+  const summaryFile = env?.GITHUB_STEP_SUMMARY;
+  if (!summaryFile) return false;
+  try {
+    let prefix = '';
+    if (existsSync(summaryFile)) {
+      const existing = readFileSync(summaryFile, 'utf8');
+      if (existing.length > 0 && !existing.endsWith('\n\n')) {
+        prefix = existing.endsWith('\n') ? '\n' : '\n\n';
+      }
+    }
+    const suffix = content.endsWith('\n') ? '' : '\n';
+    appendFileSync(summaryFile, `${prefix}${content}${suffix}`, 'utf8');
+    return true;
+  } catch (error) {
+    if (!advisory) throw error;
+    log(`Test audit (advisory): could not append to GITHUB_STEP_SUMMARY (${error.message}); continuing (non-blocking).`);
+    return false;
+  }
+}
+
 export function run(argv = process.argv.slice(2), { log = console.log, env = process.env } = {}) {
   const options = parseArgs(argv);
   const root = options.root ?? fileURLToPath(new URL('../', import.meta.url));
@@ -1197,7 +1233,7 @@ export function run(argv = process.argv.slice(2), { log = console.log, env = pro
       log(report);
       for (const hit of gate.hits) log(hit.file + ':' + hit.line + ': ' + hit.message);
       if (options.annotations) for (const line of formatAnnotations(gate, { severity: 'error' })) log(line);
-      if (env?.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, report + '\n', 'utf8');
+      appendStepSummary(env, report, { advisory: false, log });
     }
     return { gate, exitCode: gate.hits.length ? 1 : 0 };
   }
@@ -1211,9 +1247,9 @@ export function run(argv = process.argv.slice(2), { log = console.log, env = pro
         log(JSON.stringify({ baselinePath: options.compareBaseline, baselineMissing: true, diff: null }, null, 2));
       } else {
         log(notice);
-        if (env?.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${notice}\n`, 'utf8');
+        appendStepSummary(env, notice, { advisory: true, log });
       }
-      return { ...result, baselineMissing: true, diff: null };
+      return { ...result, baselineMissing: true, diff: null, exitCode: 0 };
     }
 
     let baseline;
@@ -1225,15 +1261,15 @@ export function run(argv = process.argv.slice(2), { log = console.log, env = pro
         log(JSON.stringify({ baselinePath: options.compareBaseline, baselineInvalid: true, error: error.message, diff: null }, null, 2));
       } else {
         log(notice);
-        if (env?.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${notice}\n`, 'utf8');
+        appendStepSummary(env, notice, { advisory: true, log });
       }
-      return { ...result, baselineInvalid: true, error: error.message, diff: null };
+      return { ...result, baselineInvalid: true, error: error.message, diff: null, exitCode: 0 };
     }
 
     const diff = diffAgainstBaseline(result, baseline, { only: options.only });
     if (options.json) {
       log(JSON.stringify({ baselinePath: options.compareBaseline, diff }, null, 2));
-      return { ...result, diff };
+      return { ...result, diff, exitCode: 0 };
     }
 
     const report = renderDiffReport(diff, { baselinePath: options.compareBaseline });
@@ -1245,8 +1281,8 @@ export function run(argv = process.argv.slice(2), { log = console.log, env = pro
         log(`Test audit (advisory): omitted ${diff.hits.length - annotations.length} additional annotation(s) (cap ${MAX_ANNOTATIONS}).`);
       }
     }
-    if (env?.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${report}\n`, 'utf8');
-    return { ...result, diff };
+    appendStepSummary(env, report, { advisory: true, log });
+    return { ...result, diff, exitCode: 0 };
   }
 
   if (options.json) {

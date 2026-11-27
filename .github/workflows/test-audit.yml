@@ -1,13 +1,8 @@
 name: test-audit
 
+# Pull requests and main pushes run the advisory baseline comparison inside .github/workflows/verify.yml
+# (warning-only, job summary). Keep this workflow for manual on-demand runs without duplicating PR annotations.
 on:
-  pull_request:
-    paths:
-      - 'tests/**'
-      - 'packages/*/tests/**'
-      - 'scripts/test-audit.mjs'
-      - 'docs/test-audit-baseline.json'
-      - '.github/workflows/test-audit.yml'
   workflow_dispatch:
 
 permissions:
