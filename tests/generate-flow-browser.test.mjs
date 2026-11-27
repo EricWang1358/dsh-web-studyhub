@@ -180,6 +180,8 @@ test('a failed run: the time limit is one press from its setting, a run the cont
         assert.ok(await page.locator('input[name="jobTimeoutMinutes"]').isVisible(), 'at the field of the limit');
         await shot(page, 'limit-1280');
       }
+      // a snapshot poll can still be inside the route when the context closes; its fetched response is then disposed under it
+      await page.unrouteAll({ behavior: 'ignoreErrors' });
       await context.close();
     }
   } finally { await running.close(); await browser.close(); await rm(dist, { recursive: true, force: true }); }
