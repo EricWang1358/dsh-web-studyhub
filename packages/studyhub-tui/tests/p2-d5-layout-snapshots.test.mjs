@@ -17,8 +17,11 @@ import {
   disposeTerminalPool,
   distDir,
   loadDistRuntime,
+  pkgRoot,
   sanitizedTestEnv,
 } from './helpers/virtual-tty.mjs';
+
+const srcDir = path.join(pkgRoot, 'src');
 
 const unregisterTsx = register();
 const temps = createTempTracker('studyhub-p2-d5-');
@@ -185,7 +188,37 @@ describe('P2 (#1354 D5): Breakpoints, Typography/Scroll Primitives & 80x24 / 120
     }
   });
 
-  test('3. ReviewFeedbackSections, LibraryView, and SourcesView wrap diffs/banners/topics without truncation and switch at centralized LAYOUT_BP thresholds', async () => {
+  // Source check kept on purpose: which module owns a width constant is not visible in rendered output
+  // (a literal `innerW < 60` renders exactly like `innerW < LAYOUT_BP.CONTENT_NARROW`), so test 3a cannot prove it.
+  test('3. Migrated 5 views (Review -> Reader -> Library -> Sources -> Tasks) have zero content truncation on fill-in diff / topics / banners & zero raw hardcoded width thresholds', async () => {
+    const { LAYOUT_BP, CONTENT_TIERS } = await import('../src/layout/breakpoints.ts');
+    // Every canonical breakpoint (>= 46 cols; row counts like MIN_VIEWPORT_ROWS are excluded) plus the legacy literals
+    // 64 / 82 that the views used before LAYOUT_BP existed. Local sizing literals such as `ctx.width >= 52` or
+    // `innerW >= 32` are not breakpoints and must stay allowed.
+    const bpValues = [
+      ...new Set(
+        [...Object.values(LAYOUT_BP), ...Object.values(CONTENT_TIERS), 64, 82].filter((n) => Number.isInteger(n) && n >= 46),
+      ),
+    ];
+    assert.ok(bpValues.includes(60) && bpValues.includes(84) && bpValues.includes(96), `breakpoint literal set looks wrong: ${bpValues}`);
+    const thresholdLiteral = new RegExp(
+      String.raw`\b(?:innerW|contentW|width|\w+Width)\s*(?:<=|>=|<|>)\s*(?:${bpValues.join('|')})\b`,
+    );
+    const hardcoded = (name) => {
+      const src = fs.readFileSync(path.join(srcDir, name), 'utf8');
+      return src.split(/\r?\n/).flatMap((line, i) => (thresholdLiteral.test(line) ? [`${name}:${i + 1}: ${line.trim()}`] : []));
+    };
+    for (const name of [
+      'views/review/ReviewView.tsx',
+      'views/review/ReviewFeedbackSections.tsx',
+      'views/library/LibraryView.tsx',
+      'views/sources/SourcesView.tsx',
+    ]) {
+      assert.deepEqual(hardcoded(name), [], `${name} must compare widths against LAYOUT_BP.*, not a raw number`);
+    }
+  });
+
+  test('3a. ReviewFeedbackSections, LibraryView, and SourcesView wrap diffs/banners/topics without truncation and layouts flip at the 59/60, 83/84 and 85/86 width boundaries', async () => {
     const { LAYOUT_BP } = await import('../src/layout/breakpoints.ts');
     const { KeyScopeProvider, useKeyDispatcherBridge } = await import('../src/components/key-dispatcher.ts');
     const { SplitPane } = await import('../src/components/SplitPane.tsx');
@@ -623,6 +656,70 @@ describe('P2 (#1354 D5): Breakpoints, Typography/Scroll Primitives & 80x24 / 120
       } finally {
         srcFullH.inst.unmount();
       }
+    } finally {
+      useTuiStore.setState(prevStore);
+    }
+  });
+
+  test('3c. LibraryView briefing strip shortens the dismiss hint below 60 columns and drops the reason below 96', async () => {
+    const { KeyScopeProvider, useKeyDispatcherBridge } = await import('../src/components/key-dispatcher.ts');
+    const { useTuiStore, DEFAULT_PREFERENCES } = await import('../src/state/store.ts');
+    const { LibraryView } = await import('../src/views/library/LibraryView.tsx');
+    const prevStore = {
+      preferences: useTuiStore.getState().preferences,
+      snapshot: useTuiStore.getState().snapshot,
+      navContext: useTuiStore.getState().navContext,
+    };
+    function ViewBridge({ children }) {
+      useKeyDispatcherBridge();
+      return React.createElement(KeyScopeProvider, null, children);
+    }
+    const stubHost = {
+      call: async () => ({ ok: true, value: {} }),
+      subscribe: () => () => {},
+      dispose: async () => {},
+      getLibraryRoot: () => '',
+    };
+    try {
+      useTuiStore.setState({
+        preferences: { ...DEFAULT_PREFERENCES, language: 'zh', asciiMode: false, proactiveHints: true, dismissedBriefingDate: undefined },
+        snapshot: {
+          decks: [{ id: 'deck-brief-1', title: 'BRIEF_DECK', course: 'CS162', cards: [{ id: 'c1' }], topics: [] }],
+          progress: {
+            'deck-brief-1': { total: 5, due: 2, mastery: 40, counts: { new: 2, weak: 1, learning: 1, familiar: 0, mastered: 1 } },
+          },
+          sources: [],
+          jobs: [],
+          archivedJobs: [],
+          drafts: [],
+          focus: { courses: ['CS162'] },
+        },
+        navContext: {},
+      });
+      const renderAt = async (width) => {
+        const h = createScrollHarness(
+          React.createElement(
+            ViewBridge,
+            null,
+            React.createElement(LibraryView, { host: stubHost, width, height: 22, isActive: false }),
+          ),
+          { cols: width + 4, rows: 24 },
+        );
+        try {
+          return await waitForFrame(h, (f) => f.includes('[B]') && f.includes('[Z]'), `LibraryView briefing strip at width ${width}`);
+        } finally {
+          h.inst.unmount();
+        }
+      };
+      const narrow = await renderAt(59);
+      assert.ok(!narrow.includes('今日隐藏'), `width 59 must use the short [Z] hint:\n${narrow}`);
+      const regular = await renderAt(60);
+      assert.ok(regular.includes('[Z]今日隐藏'), `width 60 must show the full [Z]今日隐藏 hint:\n${regular}`);
+      assert.ok(!regular.includes('先清到期题'), `width 60 must not show the briefing reason:\n${regular}`);
+      const belowWide = await renderAt(95);
+      assert.ok(!belowWide.includes('先清到期题'), `width 95 must not show the briefing reason:\n${belowWide}`);
+      const wide = await renderAt(96);
+      assert.ok(wide.includes('先清到期题'), `width 96 must append the briefing reason:\n${wide}`);
     } finally {
       useTuiStore.setState(prevStore);
     }

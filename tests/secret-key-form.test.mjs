@@ -227,15 +227,30 @@ test('the audio and Jev settings use the shared form; MinerU has no key at all (
     external: null,
     commands: [],
   };
-  for (const initialMore of [false, true]) {
-    const mineruSettingsHtml = renderWithStudy(h(m.MineruSettings, { initialLocal: mineruLocal, initialPlan: mineruPlan, initialMore }));
-    assert.match(mineruSettingsHtml, /class="[^"]*mineru-settings/);
-    assert.doesNotMatch(mineruSettingsHtml, /type="password"/, `MineruSettings (initialMore=${initialMore}) has no password input`);
-    assert.doesNotMatch(mineruSettingsHtml, /sh-secret/, `MineruSettings (initialMore=${initialMore}) has no SecretKeyForm`);
+  // The install card is a different screen in every state (offer, progress, problem, ready): none of them may grow a key field.
+  const mineruScenarios = [
+    ['not-installed', { state: 'not-installed' }],
+    ['installing', { state: 'installing', install: { ...mineruLocal.install, status: 'running', stage: 'package', done: ['tools', 'python'], step: 2 } }],
+    ['paused', { state: 'not-installed', install: { ...mineruLocal.install, status: 'cancelled', stage: 'package', done: ['tools', 'python'], step: 2 } }],
+    ['stopped', { state: 'server-stopped', next: 'start' }],
+    ['ready', { state: 'ready', next: 'parse' }],
+    ['error', { state: 'server-stopped', lastError: { code: 'start-failed', message: 'boom' } }],
+  ];
+  for (const [state, overrides] of mineruScenarios) {
+    const local = { ...mineruLocal, ...overrides };
+    for (const initialMore of [false, true]) {
+      const where = `state=${state}, initialMore=${initialMore}`;
+      const mineruSettingsHtml = renderWithStudy(h(m.MineruSettings, { initialLocal: local, initialPlan: mineruPlan, initialMore }));
+      assert.match(mineruSettingsHtml, /class="[^"]*mineru-settings/, `MineruSettings renders (${where})`);
+      assert.match(mineruSettingsHtml, new RegExp(`data-state="${state}"`), `MineruSettings shows the ${state} card (${where})`);
+      assert.doesNotMatch(mineruSettingsHtml, /type="password"/, `MineruSettings has no password input (${where})`);
+      assert.doesNotMatch(mineruSettingsHtml, /sh-secret/, `MineruSettings has no SecretKeyForm (${where})`);
 
-    const mineruCardHtml = renderWithStudy(h(m.MineruInstallCard, { initialLocal: mineruLocal, initialPlan: mineruPlan, initialMore }));
-    assert.match(mineruCardHtml, /class="[^"]*mineru-install/);
-    assert.doesNotMatch(mineruCardHtml, /type="password"/, `MineruInstallCard (initialMore=${initialMore}) has no password input`);
-    assert.doesNotMatch(mineruCardHtml, /sh-secret/, `MineruInstallCard (initialMore=${initialMore}) has no SecretKeyForm`);
+      const mineruCardHtml = renderWithStudy(h(m.MineruInstallCard, { initialLocal: local, initialPlan: mineruPlan, initialMore }));
+      assert.match(mineruCardHtml, /class="[^"]*mineru-install/, `MineruInstallCard renders (${where})`);
+      assert.match(mineruCardHtml, new RegExp(`data-state="${state}"`), `MineruInstallCard shows the ${state} card (${where})`);
+      assert.doesNotMatch(mineruCardHtml, /type="password"/, `MineruInstallCard has no password input (${where})`);
+      assert.doesNotMatch(mineruCardHtml, /sh-secret/, `MineruInstallCard has no SecretKeyForm (${where})`);
+    }
   }
 });

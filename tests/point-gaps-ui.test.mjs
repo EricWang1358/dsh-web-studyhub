@@ -85,6 +85,7 @@ test('an outline that cannot be counted by: one quiet line saying why and where;
     assert.match(html, new RegExp(`data-points-unavailable="${reason}"`));
     assert.match(text(html), /「总纲」页/, `${reason} says where`);
     assert.ok(!/data-points-topup|data-point=/.test(html), `${reason}: no list, no action`);
+    assert.doesNotMatch(html, /\stitle="/, `${reason}: the quiet line explains with text, never title=`);
   }
   for (const reason of ['no-outline', 'unreadable', 'unknown']) assert.equal(render({ report: { status: 'unavailable', reason } }), '', reason);
   assert.equal(render({ report: { ...report, points: 0 } }), '', 'a draft whose materials hold no point says nothing');
@@ -117,6 +118,11 @@ test('a draft that cannot be topped up shows the count and the list, never the a
   assert.ok(!/data-points-topup|data-points-held/.test(offerless), 'no action, no hold line');
   const held = render({ report: { ...report, topUp: null, hold: 'planned-rounds' } });
   assert.ok(!/data-points-topup/.test(held));
+  assert.doesNotMatch(held, /\stitle="/, 'the plan-hold line uses text, never title=');
+  const more = render({ report: { ...report, more: 3 }, modelReady: false });
+  assert.match(more, /data-points-list/, 'the fold renders with a trailing note');
+  assert.match(more, /class="cov-points__note"/, 'the note about the points left out renders');
+  assert.doesNotMatch(more, /\stitle="/, 'the note about the points left out uses text, never title=');
   assert.match(text(held), /计划还有轮次没跑完：先接着做完，再按知识点补。/);
   inLanguage('en', () => assert.match(text(render({ report: { ...report, topUp: null, hold: 'planned-rounds' } })), /Rounds of this draft's plan have not run yet/));
 });
