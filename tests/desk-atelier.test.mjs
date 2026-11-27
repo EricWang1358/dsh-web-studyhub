@@ -18,6 +18,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { boardAction } from '../lib/board.js';
 import { SOUNDSCAPE_DATA_URIS, SOUNDSCAPE_CHANNEL_GAINS } from '../ui/desk-atelier/soundscape-assets.js';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 
 const require = createRequire(import.meta.url);
@@ -540,26 +541,59 @@ test('Desk Atelier, AtmosphereLayer, FocusRitualDial, BreathingHalo and upgraded
 });
 
 test('desk-atelier stylesheets respect StudyHub layer, contrast, opacity ceiling, motion and zero-:has() guardrails', async () => {
-  const triggerCss = await readFile(new URL('../ui/desk-atelier/desk-atelier-trigger.css', import.meta.url), 'utf8');
-  const panelCss = await readFile(new URL('../ui/desk-atelier/desk-atelier.css', import.meta.url), 'utf8');
-  for (const css of [triggerCss, panelCss]) {
-    assert.match(css, /@layer study\.features/);
-    assert.doesNotMatch(css, /:has\(/, 'must never use :has() selectors');
-    assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
-    assert.match(css, /\[data-motion="reduced"\]/);
-    assert.match(css, /\[data-motion="off"\]/);
+  // Repo-wide @layer / :is(.study-app, .study-seat) structure is also enforced across all ui/**/*.css
+  // by tests/css-layers.test.mjs. Here we inspect parsed AST rules for desk-atelier-specific
+  // layer placement, zero-:has(), reduced-motion, contrast/forced-colors, opacity ceiling, and compact fit.
+  const triggerSheet = parseCss(await readFile(new URL('../ui/desk-atelier/desk-atelier-trigger.css', import.meta.url), 'utf8'));
+  const panelSheet = parseCss(await readFile(new URL('../ui/desk-atelier/desk-atelier.css', import.meta.url), 'utf8'));
+  const splitSelectors = (sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim());
+  const hasDecl = (sheet, selector, prop, value, ctxPattern = null) => sheet.declarations.some(
+    (d) => splitSelectors(d.ctx.at(-1) || '').includes(selector)
+      && d.prop === prop
+      && d.value === value
+      && (!ctxPattern || d.ctx.some((c) => ctxPattern.test(c))),
+  );
+
+  for (const sheet of [triggerSheet, panelSheet]) {
+    assert.equal(sheet.blocks.some((b) => b.prelude === '@layer study.features'), true, 'belongs to @layer study.features');
+    assert.equal(sheet.declarations.some((d) => d.ctx.some((c) => /:has\(/.test(c))), false, 'must never use :has() selectors');
   }
-  assert.match(triggerCss, /@keyframes sh-desk-atelier-/);
-  assert.match(triggerCss, /\[data-contrast="high"\][\s\S]*?\.desk-atelier-atmosphere[\s\S]*?display:\s*none/);
-  assert.match(triggerCss, /@media \(forced-colors: active\)[\s\S]*?\.desk-atelier-atmosphere[\s\S]*?display:\s*none/);
-  const opacityMatch = triggerCss.match(/\.desk-atelier-atmosphere\s*\{[^}]*opacity:\s*([0-9.]+)/);
-  assert.ok(opacityMatch, 'atmosphere layer declares explicit opacity');
-  assert.ok(Number(opacityMatch[1]) <= 0.06, `atmosphere opacity (${opacityMatch[1]}) must stay <= 0.06`);
+  for (const motionCtx of [/@media \(prefers-reduced-motion:\s*reduce\)/, /\[data-motion=['"]reduced['"]\]/, /\[data-motion=['"]off['"]\]/]) {
+    assert.equal(hasDecl(triggerSheet, '.desk-atelier__bar', 'animation', 'none', motionCtx), true, `trigger disables bar animation under ${motionCtx}`);
+    assert.equal(hasDecl(triggerSheet, '.desk-atelier-atmosphere', 'transition', 'none', motionCtx), true, `trigger disables atmosphere transition under ${motionCtx}`);
+    assert.equal(hasDecl(panelSheet, '.desk-atelier__preset', 'transition', 'none', motionCtx), true, `panel disables preset transition under ${motionCtx}`);
+    assert.equal(hasDecl(panelSheet, '.desk-dial__arc', 'transition', 'none', motionCtx), true, `panel disables dial arc transition under ${motionCtx}`);
+    assert.equal(hasDecl(panelSheet, '.desk-breath__halo', 'transform', 'none', motionCtx), true, `panel disables breathing halo transform under ${motionCtx}`);
+  }
+
+  assert.equal(triggerSheet.blocks.some((b) => /^@keyframes sh-desk-atelier-/.test(b.prelude)), true, 'trigger declares sh-desk-atelier-* keyframes');
+  assert.equal(
+    triggerSheet.declarations.some(
+      (d) => d.prop === 'display'
+        && d.value === 'none'
+        && splitSelectors(d.ctx.at(-1) || '').some((s) => /\[data-contrast=['"]high['"]\].*\.desk-atelier-atmosphere\b/.test(s)),
+    ),
+    true,
+    'high-contrast mode hides .desk-atelier-atmosphere',
+  );
+  assert.equal(
+    hasDecl(triggerSheet, '.desk-atelier-atmosphere', 'display', 'none', /@media \(forced-colors:\s*active\)/),
+    true,
+    'forced-colors mode hides .desk-atelier-atmosphere',
+  );
+  const atmosphereOpacity = triggerSheet.declarations.filter(
+    (d) => splitSelectors(d.ctx.at(-1) || '').includes('.desk-atelier-atmosphere') && d.prop === 'opacity',
+  );
+  assert.ok(atmosphereOpacity.length > 0, 'atmosphere layer declares explicit opacity');
+  for (const decl of atmosphereOpacity) {
+    const val = Number(decl.value);
+    assert.ok(Number.isFinite(val) && val <= 0.06, `atmosphere opacity (${decl.value}) must stay <= 0.06`);
+  }
 
   // Wave 3 popover compact fit: zero out base.css label margin and slider border so 1280x800 never overflows.
-  assert.match(panelCss, /\.desk-atelier__master-label\s*\{[^}]*margin:\s*0;/);
-  assert.match(panelCss, /\.desk-atelier__channel-name\s*\{[^}]*margin:\s*0;/);
-  assert.match(panelCss, /\.desk-atelier__slider\s*\{[^}]*border:\s*0;/);
+  assert.equal(hasDecl(panelSheet, '.desk-atelier__master-label', 'margin', '0'), true, '.desk-atelier__master-label zeroes base.css label margin');
+  assert.equal(hasDecl(panelSheet, '.desk-atelier__channel-name', 'margin', '0'), true, '.desk-atelier__channel-name zeroes base.css label margin');
+  assert.equal(hasDecl(panelSheet, '.desk-atelier__slider', 'border', '0'), true, '.desk-atelier__slider zeroes base.css input border');
 });
 
 /** Minimal stateful shallow React hook runner for testing a single component's hooks, effects, and subscriptions in Node. */

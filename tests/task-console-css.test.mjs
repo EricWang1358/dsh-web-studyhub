@@ -7,8 +7,7 @@ import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
    #659 numbers are tabular figures of the interface face, only the model's own output and the log are monospace;
    #658 a picked job is the neutral selected surface, never an accent edge;
    #680 at a narrow width the filters stay on one line (they scroll) and the metrics are a short list, not a grid of empty tiles. */
-const css = readFileSync(new URL('../ui/tasks/task-console.css', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
-const { declarations } = parseCss(css);
+const { declarations, blocks } = parseCss(readFileSync(new URL('../ui/tasks/task-console.css', import.meta.url), 'utf8'));
 const selectorOf = (decl) => decl.ctx[decl.ctx.length - 1] || '';
 const decls = (prop) => declarations.filter((d) => d.prop === prop);
 
@@ -33,11 +32,20 @@ test('a picked or running row is the neutral selected surface with a neutral edg
 });
 
 test('narrow: the filters are one scrolling line and the metrics are a compact list (#680)', () => {
-  const narrow = css.slice(css.indexOf('@container study (max-width: 560px)'));
-  assert.ok(narrow.startsWith('@container study (max-width: 560px)'), 'a container rule for the narrow console');
-  assert.match(css, /\.tc-scope\s*\{[^}]*flex-wrap: nowrap/, 'the filter control never wraps');
-  assert.match(css, /\.tc-scope-wrap\s*\{[^}]*overflow-x: auto/, 'and its box scrolls sideways when it must');
-  assert.doesNotMatch(css, /\.sh-page-header__actions|\.sh-seg__item/, 'the shared header and segmented control keep their own classes (css-ownership)');
+  assert.ok(blocks.some((b) => b.prelude === '@container study (max-width: 560px)'), 'a container rule for the narrow console');
+  assert.ok(
+    declarations.some((d) => selectorOf(d) === '.tc-scope' && d.prop === 'flex-wrap' && d.value === 'nowrap'),
+    'the filter control never wraps',
+  );
+  assert.ok(
+    declarations.some((d) => selectorOf(d) === '.tc-scope-wrap' && d.prop === 'overflow-x' && d.value === 'auto'),
+    'and its box scrolls sideways when it must',
+  );
+  assert.equal(
+    declarations.some((d) => d.ctx.some((c) => /\.sh-page-header__actions|\.sh-seg__item/.test(c))),
+    false,
+    'the shared header and segmented control keep their own classes (css-ownership)',
+  );
   const rules = declarations.filter((d) => /@container study \(max-width: 560px\)/.test(d.ctx.join('|')));
   const metrics = rules.filter((d) => /\.tc-metrics$/.test(selectorOf(d)) && d.prop === 'grid-template-columns');
   assert.deepEqual(metrics.map((d) => d.value), ['minmax(0, 1fr)'], 'one metric per row');
