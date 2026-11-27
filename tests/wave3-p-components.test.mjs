@@ -7,6 +7,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { withStudy } from './helpers/study-services.mjs';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 
 // UI wave 3 · WP-P: the one page header with a scope slot (#142) and the Panel tones (#143).
 const m = await loadUi(`
@@ -60,10 +61,28 @@ test('Panel tones, density and element', () => {
 });
 
 test('the tones live in a new stylesheet that uses tokens only', () => {
-  const css = readFileSync('ui/components/panel-tones.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-  for (const tone of ['sunken', 'accent', 'dashed', 'compact']) assert.match(css, new RegExp(`\\.sh-panel--${tone}\\b`), tone);
-  assert.doesNotMatch(css, /--radius-card|--paper-radius/, 'desktop surfaces use --radius; the paper card (ui/paper.css) owns the card corner');
-  assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b|\d+px/i, 'no raw colours or px sizes');
+  // Repo-wide raw colour and px guards also run in tests/css-token-guard.test.mjs and tests/ui-guardrails.test.mjs.
+  const { declarations } = parseCss(readFileSync('ui/components/panel-tones.css', 'utf8'));
+  const splitSelectors = (sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim());
+  assert.ok(declarations.length > 0, 'panel-tones.css declares styles');
+  for (const tone of ['sunken', 'accent', 'dashed', 'compact']) {
+    const toneRe = new RegExp(`\\.sh-panel--${tone}\\b`);
+    assert.equal(
+      declarations.some((d) => splitSelectors(d.ctx.at(-1) || '').some((sel) => toneRe.test(sel))),
+      true,
+      tone,
+    );
+  }
+  assert.deepEqual(
+    declarations.filter((d) => /--radius-card\b|--paper-radius\b/.test(`${d.prop} ${d.value}`)),
+    [],
+    'desktop surfaces use --radius; the paper card (ui/paper.css) owns the card corner',
+  );
+  assert.deepEqual(
+    declarations.filter((d) => /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?)\(|\d+(?:\.\d+)?px\b/i.test(d.value)),
+    [],
+    'no raw colours or px sizes',
+  );
 });
 
 const walk = (dir, out = []) => {
