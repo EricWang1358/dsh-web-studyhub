@@ -6,13 +6,13 @@ StudyHub can count how often you use each control, on this computer and only aft
 
 The record is off by default, and nothing else in StudyHub depends on it. It is available from 2.5.2.
 
-Where to find it: **Settings › Usage frequency record**.
+Where to find it: **Settings › Advanced › Usage frequency record**.
 
 ## The privacy contract
 
 These are promises the code keeps, and automated tests check each one (see [Development](#development)).
 
-- **Off by default.** Until you turn it on, nothing is recorded: no listener is installed on the page, no timer runs and no file is created. The page only asks the host whether the record is on. It asks once when it loads (a few more times if the host has not finished starting) and again when you open **Settings › Usage frequency record**. Pausing or turning the record off removes the listener and the timer again.
+- **Off by default.** Until you turn it on, nothing is recorded: no listener is installed on the page, no timer runs and no file is created. The page only asks the host whether the record is on. It asks once when it loads (a few more times if the host has not finished starting) and again when you open **Settings › Advanced › Usage frequency record**. Pausing or turning the record off removes the listener and the timer again.
 - **Counts only.** For each control, the file keeps a count per day, the first and last day it was used and a total. For each page, it keeps a count per day. It also keeps whether the record is on or paused, and the day recording started. Days are your local date (`YYYY-MM-DD`). There is no time of day: nothing is finer than a day.
 - **Never your content.**
   - Nothing you typed, read or answered.
@@ -27,7 +27,7 @@ These are promises the code keeps, and automated tests check each one (see [Deve
 
 ## Turn it on
 
-1. Open **Settings › Usage frequency record**. It is near the end of the left-hand list, next to **Experimental features**. The two are independent.
+1. Open **Settings › Advanced › Usage frequency record**. It is near the end of the left-hand list, next to **Experimental features**. The two are independent.
 2. Read the four promises above the switch.
 3. Turn on **Record usage frequency**. The status line changes to "Recording. Nothing recorded yet".
 4. Use StudyHub as usual. After a day or two, come back and open **My usage report**.
@@ -50,8 +50,8 @@ At the top, choose **Last 7 days**, **Last 30 days** (the default) or **All time
 
 | Part | What it shows |
 | --- | --- |
-| Summary | **Days with records**, **Interactions** and **Controls used**. |
-| **Most used controls** | Up to 15 controls, busiest first. Each has a plain name, its count, its share and a bar. |
+| Summary | **Days with records**, **Interactions** and **Features used** (Markdown export: **Controls used**). |
+| **Most used features** (Markdown export: **Most used controls**) | Up to 15 controls, busiest first. Each has a plain name, its count, its share and a bar. |
 | **By page** | The page you were on when you used them. |
 | **By when it is used** | Each control's tier from the registry: Every day, Now and then or Once per course (see [feature-tiers.md](feature-tiers.md), in Chinese). Controls outside the registry count as Other. |
 | **Daily rhythm** | One bar per day: 7 or 30 bars, or the last 60 days for **All time**. It also names the busiest day. |
@@ -99,11 +99,11 @@ StudyHub itself never sends an export. Keep it, read it, or send it to the devel
 - **Clicking a control**: a button, link, tab, switch, menu item and so on. Clicking plain text or empty space counts for nothing.
 - **A click into a text box, text area or editor** counts as "text field". Typing never counts.
 - **A documented keyboard shortcut**, only where the app itself acts on it:
-  - **?**, **S** and **A** on any page;
+  - **?**, **S**, **A** and **Ctrl K** / **⌘K** / **/** on any page;
   - **P** in the reader;
   - the number keys 0–6, Enter, ← and →, Space, **H** and **T** on the practice page only.
 
-  A shortcut does not count while Ctrl, Alt or Cmd is held, while you type in a field or editor, or inside a dialog, except for **P** in the reader. Enter or Space on a focused button is that button's click, not a second use.
+  A shortcut does not count while Ctrl, Alt or Cmd is held (except **Ctrl K** / **⌘K**, which also counts inside a text field or editor), while you type in a field or editor, or inside a dialog (except for **P** in the reader). Enter or Space on a focused button is that button's click, not a second use.
 - **Repeats count once.** The same control twice within 150 ms is one use, and a key held down is one use.
 - **The usage section itself never counts.** Nothing you do inside it (the switch, the report and its buttons) is recorded.
 
