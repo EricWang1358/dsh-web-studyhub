@@ -276,7 +276,7 @@ node packages/studyhub-tui/bin/studyhub-tui.mjs --root /path/to/.dsh-study
 
 ## 5. 命令面板（`Ctrl+K` / `/`）与全局搜索
 
-按 `Ctrl+K`（任意页面甚至弹窗内均可呼出）或 `/`（在未占用 `/` 筛选的页面）打开命令面板。支持 **5 种前缀过滤**：
+按 `Ctrl+K`（无弹窗且未聚焦输入框时任意页面均可呼出；面板已打开时再按 `Ctrl+K` 可关闭）或 `/`（在未占用 `/` 筛选的页面）打开命令面板。支持 **5 种前缀过滤**：
 
 | 前缀 | 搜索范围 | 效果 |
 | --- | --- | --- |
@@ -310,8 +310,8 @@ node packages/studyhub-tui/bin/studyhub-tui.mjs --root /path/to/.dsh-study
 
 | 命令参数 | 干什么 / 输出什么 |
 | --- | --- |
-| `--doctor` | 检查终端环境、色彩能力、Unicode/ASCII 策略、终端能力矩阵（tmux/screen、OSC 52/8/2/9、DEC 1004 焦点上报、6 套主题）、学习库绑定状态与各模型提供方就绪状态（绝不泄露 API Key） |
-| `--stats` | 离线输出学习库总览统计（课程数、题组/题数、今日到期、掌握度分布） |
+| `--doctor` | 检查终端环境、色彩能力、Unicode/ASCII 策略、终端能力矩阵（tmux/screen、OSC 52/8/2/9、DEC 1004 焦点上报、6 套主题）、`DSH_HOME` / `tui.json` / 桌面核心路径（`desktopRoot`）与各模型提供方就绪状态（绝不泄露 API Key） |
+| `--stats` | 离线输出学习库总览统计（课程数、题组/题数、今日到期、薄弱题数、资料/笔记/草稿数与主要课程列表） |
 | `--due [--course 课程名] [--limit N]` | 按题组列出今日到期复习队列汇总（默认最多 20 条，可用 `--limit` 限制为 1..100） |
 | `--board [--course 课程名]` | 直接读取 `tui-board.json` 输出三列待办看板与番茄钟摘要 |
 | `--search <关键词> [--limit N]` | 离线关键词搜索题库题目与资料正文 |
