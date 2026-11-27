@@ -76,12 +76,14 @@ test("AI note draft is generated in the background and keeps review links", asyn
   });
   const note = await service.call("note.create", { title: "Capacity planning", cards: [{ cardId: "card" }] });
   assert.equal((await service.call("note.generate", { id: note.id })).status, "running");
+  // Wait for the background job by a deadline, not a count of polls: 30 polls of 10 ms ran out on a busy CI machine before the job finished.
   let ready;
-  for (let attempt = 0; attempt < 30; attempt++) {
+  const deadline = Date.now() + 10_000;
+  do {
     ready = await service.call("note.get", { id: note.id });
     if (ready.generation.status !== "running") break;
     await new Promise((resolve) => setTimeout(resolve, 10));
-  }
+  } while (Date.now() < deadline);
   assert.equal(ready.generation.status, "done");
   assert.match(ready.markdown, /容量规划/);
   assert.ok(!ready.markdown.includes("Private course"));
