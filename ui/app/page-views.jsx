@@ -671,7 +671,7 @@ function NotesView() {
       initialId={lib.noteInitialId} onSelect={set.setNoteInitialId} onOpenCard={(reference) => learn.openLearningTarget({ kind: 'card', ...reference })}
       onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })}
       onPracticeCards={pageAvailable(data, 'review') ? (scope) => practiseRound({ intents, learn, session }, scope) : undefined}
-      backLabel={learn.trailLabel} onBack={learn.hasTrail ? learn.returnFromContext : () => { set.setNoteInitialId(''); nav.navigate('library'); }} />
+      backLabel={learn.trailLabel} onBack={learn.hasTrail ? learn.returnFromContext : undefined} />
   );
 }
 

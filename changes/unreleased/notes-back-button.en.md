@@ -1,0 +1,1 @@
+- **Opening Study notes from the sidebar no longer shows “Back to library”.** When you arrive from a question, a result page or elsewhere, the way back still takes you there, and an open note keeps “All notes”. Not verified: the way back after opening a note from an inbox notice was not clicked through in a browser.
