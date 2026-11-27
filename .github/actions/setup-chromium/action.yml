@@ -38,6 +38,8 @@ runs:
         }
         if has_chinese_weights; then exit 0; fi
         apt_options=(-o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20)
-        timeout 90s sudo apt-get "${apt_options[@]}" update -qq
+        # A third-party source on the runner image (for example packages.microsoft.com answering 403) makes `update` exit non-zero
+        # even when the Ubuntu lists that carry fonts-noto-cjk refreshed. Go on to the install; the final check still fails the step if the fonts are missing.
+        timeout 90s sudo apt-get "${apt_options[@]}" update -qq || echo "::warning::apt-get update reported errors; trying the font install anyway"
         timeout 90s sudo apt-get "${apt_options[@]}" install -y --no-install-recommends fonts-noto-cjk
         has_chinese_weights
