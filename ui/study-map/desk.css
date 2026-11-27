@@ -135,6 +135,9 @@
       min-width: 0;
     }
     .desk-intro { min-width: 0; }
+    /* 简洁版 leaves the left column a heading and one fold beside a card several times as tall. The column is set down by a fixed step, not centred:
+       opening 其他开始方式 must not move the heading above it. A narrow pane stacks the parts, so there is no step there. */
+    @container study (min-width: 761px) { .desk.is-lite:not(.is-empty) > .desk-intro { padding-top: calc(var(--space-9) * 2); } }
     .desk-mastery {
       display: grid;
       grid-template-columns: auto 1fr;
