@@ -280,7 +280,10 @@ test('narrow viewports: focus action links wrap instead of overflowing and keep 
   const tailDecls = declarations.filter(
     (d) => splitSelectors(d.ctx.at(-1) || '').includes('.sh-btn__tail'),
   );
-  assert.equal(tailDecls.findLast((d) => d.prop === 'white-space')?.value, 'nowrap', '.sh-btn__tail sets white-space: nowrap (the last declaration wins)');
+  // The last word of the label keeps its arrow: the last declaration that sets the wrap mode must be white-space: nowrap.
+  // A later text-wrap shorthand (pretty, balance, wrap) or text-wrap-mode resets the mode and would let the arrow wrap away (#1155).
+  const lastWrapMode = tailDecls.findLast((d) => /^(?:white-space|text-wrap|text-wrap-mode)$/.test(d.prop));
+  assert.equal(lastWrapMode && `${lastWrapMode.prop}: ${lastWrapMode.value}`, 'white-space: nowrap', '.sh-btn__tail sets white-space: nowrap (the last declaration wins)');
 
   const enWeak = render(h(m.FocusProgressLine, { progress, courseId: 'course-os', lock: false, start: noop, onCourseSettings: noop }), 'en');
   assert.match(enWeak, /class="sh-btn sh-btn--link sh-btn--md sh-btn--wrap"[^>]*>Practise the focus topics you can&#x27;t do <span class="sh-btn__tail">yet<svg[^>]*sh-icon--inline sh-icon--trail/);
