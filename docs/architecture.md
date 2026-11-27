@@ -74,7 +74,7 @@ Every runtime and UI dependency in `package.json` is pure JavaScript (zero C++ n
 
 The package also exports `./runtime` (`StudyRuntime`), `./service` (`StudyService`) and `./client` (the generated DSH client entry).
 
-The workbench's config is `libraryRoot`, `provider`, `model`, `modular` and `contexts`.
+The workbench's config is `libraryRoot`, `provider`, `model`, `modular`, `contexts` and `runtime`.
 
 ### Full install
 
@@ -165,7 +165,7 @@ Materials, bank, study, authoring, generation and audio are the optional context
 | Runtime | `StudyRuntime` / `studyRuntime` | – | Registration, owned persistence ports, request services, transactions, capability discovery and disposal |
 | Materials | `materials.v1` | `sources`, `documents` | Original files, versioned text projections, exact selections, grounded questions (`selection.ask`), outlines, document titles and page translations |
 | Bank | `bank.v1` | `decks`, `drafts` | JSON decks and drafts, card content, idempotent additions (`append`), material associations and a narrow schedule update port (`schedule.update`) |
-| Study | `study.v1` | `runs`, `attempts`, `oralRuns`, `teaching` | Practice runs, grading, attempts, scheduling policy, exams, oral exams and guided teaching |
+| Study | `study.v1` | `runs`, `attempts`, `oralRuns`, `teaching`, `studySessions` | Practice runs, grading, attempts, scheduling policy, exams, oral exams and guided teaching |
 | Authoring | `authoring.v1` | – | Publication (`draft.publish`, `draft.publish.quick`), deck import, merge and split, and validation, as transactions across content and study records |
 | Generation | `generation.v1` | `selectionJobs` | Generation, supplement and repair jobs, independent review, publication through authoring, passage supplementation, retrieval providers and page-translation jobs |
 | Audio | `audio.v1` | `audioResults` | Transcription, subtitle import, transcript corrections, live class recording (on Gemini Live, or on the optional local engine of `lib/live-local.js`, installed on demand by `lib/live-local-install.js` through the shared `lib/tool-install.js` engine and never a package dependency) and MinerU PDF conversion, with their jobs; publishes through materials and generation when they are installed |
@@ -202,7 +202,7 @@ The transition container and the legacy authority are removed.
 ### Dependencies, grants and transactions
 
 - The dependency graph is acyclic. Settings, notifications and the data-only contexts form the bottom layer. Bank reads material evidence and study reads bank data. Authoring coordinates content and referential updates, generation publishes through authoring, and audio can invoke generation. Library supplies presentation joins.
-- `lib/runtime/domain-contracts.js` declares each context's owned fields, reads, exact operation grants and per-action write sets. A few extra dependencies live in `builtins.js` (generation on authoring, audio on generation, jobs on audio, library on coach and jobs).
+- `lib/runtime/domain-contracts.js` declares each context's owned fields, reads, exact operation grants and per-action write sets. A few extra dependencies live in `builtins.js` (generation on authoring, audio on generation, jobs on audio and generation, library on coach and jobs).
 - A context can call another only through a declared dependency and, for built-ins, a granted operation. Domains never receive the `StudyService` facade or the unrestricted store.
 - Cross-context transactions use named participants under one storage lock.
 - ESLint (`eslint.config.js`, for `lib/contexts/**`) and `tests/architecture-boundaries.test.mjs` check actual imports and runtime declarations, not an illustrative graph.
@@ -228,7 +228,7 @@ StudyHub registers these tools on DSH's tool registry. The five per-context tool
 | `study_capabilities` | Any StudyHub plugin | Discovery: without arguments a compact index of installed contexts and operation names; `{context}` or `{operation}` returns exact schemas and model availability; a field at its default is left out (`description` `""`, `output` `{}`, `requiresModel` `false`, `available` `true`), so `requiresModel: true`, `available: false` and `reason` are the only ones written |
 | `study_materials` | The materials context | `document.import`, `document.get`, `document.list`, `document.attach`, `original.*`, `selection.resolve`, `selection.ask`, `outline.*`, `links.list`, `pages.cards`, `enrich` |
 | `study_bank` | The bank context | `list`, `get`, `cards`, `append` |
-| `study_practice` | The study context | `review.start`, `review.get`, `review.reveal`, `review.answer`, `review.move`, `review.end`, `exam.report` |
+| `study_practice` | The study context | `review.start`, `review.get`, `review.reveal`, `review.answer`, `review.move`, `review.end`, `exam.report`, `teach.start`, `teach.get`, `teach.answer`, `teach.skip` |
 | `study_generate_selection` | The generation context | `selection.supplement`, `selection.get`, `selection.commit`, `selection.review` |
 | `study_audio` | The audio context | Results, jobs, audio settings, import, retry, subtitle import, correction review and live recordings |
 | `study_workspace` | The workbench | The transition entry: any study action by name, with `payload_json`. It refuses `usage.frequency.*`, which belongs to the learner's panel only |
@@ -325,7 +325,7 @@ How the choice is used:
 - The choice is stored in `$DSH_HOME/study/retrieval.json`, with no secrets. It is managed with the generation context's `retrieval.status`, `retrieval.set`, `retrieval.test` and `retrieval.preview`. The `retrieval.index.*` operations plan, build, report on and cancel an index.
 - Contexts reach the host through `ports.retrieval` (`{ tools(), call(), service() }`), never through `ctx` itself.
 - The jobs context reads a finished DSH sub-agent's final reply through `ports.sessions.lastReply(childId)` (`lib/session-reply.js`, over `ctx.get('sessionQuery')`, passed to the runtime as the request service `sessionQuery`); it never throws and answers `null` when the session cannot be read.
-- `generate` narrows a selection to the retrieved pages (`narrowSelection`) when it is above 150,000 characters or the request asks for retrieval, and a provider and a topic (`focus`) are set. It records `job.retrieval`.
+- `generate` narrows a selection to the retrieved pages (`narrowSelection`) when it is above 150,000 characters (3,000,000 characters for coverage runs) or the request asks for retrieval, and a provider and a topic (`focus`) are set. It records `job.retrieval`.
 
 The search extension is a companion bundle (`packages/studyhub-retrieval`), published as a release asset by `npm run release:pack`:
 
@@ -486,7 +486,7 @@ Self-contained interactive HTML lessons (`studyhub-lesson/1`) are compiled by `l
 
 - **Entry.** The native entry (`ui/host.jsx`) loads the workspace seat (`ui/host/workspace.jsx`) and the document contributions (`ui/document-preview/native.jsx`).
 - **Fine-grained shell store.** `ui/app/store.js` backs the workbench with a per-`<App>` Zustand store (`useAppSelector` / `useAppSlice`), staging slice updates synchronously (`stageSlices`) during render so newly mounted subtrees never read a stale `data: null` on boot, and flushing subscriber notifications in `useLayoutEffect` (`flushPending`).
-- **Lazy views.** Optional views use eight lazy-loading boundaries in `ui/workspace-views.jsx`: `BlogNotes`, `Skeleton`, `Workflows`, `Graph`, `TaskConsole`, `AudioDashboard`, `DocumentViewer` and `LiveClass`. The document viewer loads its page peek (`PagePeek`) lazily as well; interaction sound assets (`ui/sound-effects-assets.js`, ~40 KB) load dynamically on first sound playback.
+- **Lazy views.** Optional views use 16 lazy-loading boundaries in `ui/workspace-views.jsx`: `BlogNotes`, `Skeleton`, `Workflows`, `Graph`, `TaskConsole`, `AudioDashboard`, `DocumentViewer`, `LiveClass`, `GuidedStudy`, `Dashboard`, `Exam`, `ExamPrep`, `ExamCoach`, `CourseOutline`, `BookPage` and `Board`. The document viewer loads its page peek (`PagePeek`) lazily as well; interaction sound assets (`ui/sound-effects-assets.js`, ~40 KB) load dynamically on first sound playback.
 - **Page peek assets.** DSH serves a plugin's `client.*.js` chunks and no other file, so the page peek cannot point pdf.js at wasm, CMap or font URLs. `ui/document-preview/peek/assets/*.js` (made by `node scripts/pdf-assets.mjs --write` from `pdfjs-dist`; a test fails when they drift) are base64 modules that the build splits into chunks of their own, and `pdf-assets.js` hands them to pdf.js through its `BinaryDataFactory` when it asks: `jbig2.wasm` (JBIG2 and CCITT scans), `openjpeg.wasm` (JPX scans), the Symbol/ZapfDingbats fonts and the CMaps of four scripts. Nothing loads for a page without scans, and the reader and the start-up bundle do not contain them. A page whose images still fail to decode says so and offers the **Original PDF** tab instead of looking blank.
 - **Live class.** `LiveClass` stays mounted when you navigate between views, so a recording keeps running.
 - **Chunks.** `scripts/build.mjs` emits sibling `lib/client.<name>.js` classic factories through DSH's official `require.async` chunk protocol. All chunks use the host's React instance. Generated chunks are packaged and ignored by git; the authored boundaries live under `ui/`.
