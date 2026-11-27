@@ -180,6 +180,17 @@ const highlightTexts = (page, name) =>
 
 const covers = (a, b) => !!a && !!b && a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 
+/* Grade Card 1 as 4 and wait for Card 2 (a quiz). Grading either advances by itself or leaves 下一题 to press; settle which in one wait,
+   so no waiter outlives this step: one left behind pressed 下一题 the moment an answered Card 1 came back on screen (← 上一题) and carried
+   the round off to Card 2 again. */
+async function gradeCard1AndReachCard2(page) {
+  const card2Option = page.locator(".options .option:not([disabled])").first();
+  await page.locator(".grade-scale .grade").nth(4).click();
+  await card2Option.or(page.locator('[data-usage="review.next"]:not([disabled])')).first().waitFor({ timeout: 15000 });
+  if (!(await card2Option.isVisible())) await page.locator('[data-usage="review.next"]:not([disabled])').click();
+  await card2Option.waitFor({ timeout: 15000 });
+}
+
 async function takeShot(page, name) {
   if (!SHOTS) return;
   await mkdir(SHOTS, { recursive: true });
@@ -361,14 +372,7 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
         assert.deepEqual(await chipTexts(page), [memoryWord], `${tag}: unfilled memoryWord staged on Card 1`);
 
         // Advance to Card 2 (quiz) to verify option click interception + per-question term memory.
-        await page.locator(".grade-scale .grade").nth(4).click();
-        await Promise.race([
-          page.locator(".options .option:not([disabled])").first().waitFor({ timeout: 15000 }),
-          page.locator('[data-usage="review.next"]:not([disabled])').waitFor({ timeout: 15000 }).then(() =>
-            page.locator('[data-usage="review.next"]').click(),
-          ),
-        ]);
-        await page.locator(".options .option:not([disabled])").first().waitFor({ timeout: 15000 });
+        await gradeCard1AndReachCard2(page);
         assert.equal(await termsBtn.getAttribute("aria-pressed"), "false", `${tag}: question switch resets marking`);
         assert.equal(await page.locator(".term-strip").count(), 0, `${tag}: Card 2 starts with no chips`);
 
@@ -608,14 +612,7 @@ test("course term persistence, pale study-term-seen highlight, click-to-stage, a
         );
 
         // 2. Move to Card 2 containing same term: pale study-term-seen highlight shows, term strip stays closed, no extra RPC fetch!
-        await page.locator(".grade-scale .grade").nth(4).click();
-        await Promise.race([
-          page.locator(".options .option:not([disabled])").first().waitFor({ timeout: 15000 }),
-          page.locator('[data-usage="review.next"]:not([disabled])').waitFor({ timeout: 15000 }).then(() =>
-            page.locator('[data-usage="review.next"]').click(),
-          ),
-        ]);
-        await page.locator(".options .option:not([disabled])").first().waitFor({ timeout: 15000 });
+        await gradeCard1AndReachCard2(page);
         await settleAnimations(page);
 
         assert.equal(termsGetCalls, 1, `${tag}: round cache prevents refetching course.terms.get on Card 2`);
@@ -1183,14 +1180,7 @@ test("term-strip remove only unmarks unattached visit-added terms and protects f
       await dlgB.waitFor({ state: "hidden", timeout: 10000 });
 
       // (c) Advance to Card 2 -> click pale study-term-seen historical termC into .term-strip -> click × -> still present!
-      await page.locator(".grade-scale .grade").nth(4).click();
-      await Promise.race([
-        page.locator(".options .option:not([disabled])").first().waitFor({ timeout: 15000 }),
-        page.locator('[data-usage="review.next"]:not([disabled])').waitFor({ timeout: 15000 }).then(() =>
-          page.locator('[data-usage="review.next"]').click(),
-        ),
-      ]);
-      await page.locator(".options .option:not([disabled])").first().waitFor({ timeout: 15000 });
+      await gradeCard1AndReachCard2(page);
       await settleAnimations(page);
 
       assert.equal(await page.locator(".term-strip").count(), 0, `${tag}: Card 2 starts without strip`);
@@ -1524,14 +1514,7 @@ test("term strip clears only filled terms on done, preserves mid-task marks, and
       await lastMarkPromise;
 
       // Advance to Card 2 (quiz).
-      await page.locator(".grade-scale .grade").nth(4).click();
-      await Promise.race([
-        page.locator(".options .option:not([disabled])").first().waitFor({ timeout: 15000 }),
-        page.locator('[data-usage="review.next"]:not([disabled])').waitFor({ timeout: 15000 }).then(() =>
-          page.locator('[data-usage="review.next"]').click(),
-        ),
-      ]);
-      await page.locator(".options .option:not([disabled])").first().waitFor({ timeout: 15000 });
+      await gradeCard1AndReachCard2(page);
       await settleAnimations(page);
       assert.equal(await page.locator(".term-strip").count(), 0, `${tag}: Card 2 starts with no strip`);
 
@@ -1811,14 +1794,7 @@ test("More menu › 生词表… opens TermListDialog with 0 marked terms on fla
         await page.locator('[data-usage="review.flip"]').click();
         await page.locator('.flip-back[aria-hidden="false"]').waitFor({ state: "visible", timeout: 10000 });
         await settleAnimations(page);
-        await page.locator(".grade-scale .grade").nth(4).click();
-        await Promise.race([
-          page.locator(".options .option:not([disabled])").first().waitFor({ timeout: 15000 }),
-          page.locator('[data-usage="review.next"]:not([disabled])').waitFor({ timeout: 15000 }).then(() =>
-            page.locator('[data-usage="review.next"]').click(),
-          ),
-        ]);
-        await page.locator(".options .option:not([disabled])").first().waitFor({ timeout: 15000 });
+        await gradeCard1AndReachCard2(page);
         await settleAnimations(page);
         await assertMoreMenuOpensTermList(`${tag}-quiz`);
 
