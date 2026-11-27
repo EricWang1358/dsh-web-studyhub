@@ -7,7 +7,8 @@ import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { build as esbuild } from 'esbuild';
 import { ESLint } from 'eslint';
 import { register } from 'tsx/esm/api';
 
@@ -342,20 +343,177 @@ describe('P3-b (#1354): Atomic File Persistence, Rollback & Zero Half-Write Guar
     );
   });
 
-  test('6. Desktop config-store wraps temp writeFile inside try/catch cleanup so write failures never leak .tmp files', () => {
-    const cfgSrc = fs.readFileSync(
-      path.join(REPO_ROOT, 'packages/studyhub-desktop/adapters/storage/config-store.mjs'),
-      'utf8',
+  test('6. Desktop config-store cleans up orphan .tmp and write-probe files on write/rename failures', async (t) => {
+    const configStorePath = path.join(REPO_ROOT, 'packages/studyhub-desktop/adapters/storage/config-store.mjs');
+    const hookKey = '__studyhubConfigStoreFsHook_p3__';
+    const fsHook = { writeFile: null, rename: null };
+    globalThis[hookKey] = fsHook;
+    const prevDshHome = process.env.DSH_HOME;
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'studyhub-p3-cfg-'));
+    t.after(async () => {
+      delete globalThis[hookKey];
+      if (prevDshHome === undefined) delete process.env.DSH_HOME;
+      else process.env.DSH_HOME = prevDshHome;
+      await rm(dir, { recursive: true, force: true });
+    });
+
+    const bundled = await esbuild({
+      entryPoints: [configStorePath],
+      bundle: true,
+      format: 'esm',
+      platform: 'node',
+      write: false,
+      plugins: [
+        {
+          name: 'inject-config-store-fs-faults',
+          setup(buildApi) {
+            buildApi.onResolve({ filter: /^node:fs\/promises$/ }, (args) => {
+              if (args.namespace === 'fs-fault-inject') {
+                return { path: 'node:fs/promises', external: true };
+              }
+              return {
+                path: 'config-store-fs-wrapper',
+                namespace: 'fs-fault-inject',
+              };
+            });
+            buildApi.onLoad({ filter: /.*/, namespace: 'fs-fault-inject' }, () => ({
+              contents: `
+                import * as realFs from 'node:fs/promises';
+                export const copyFile = realFs.copyFile;
+                export const mkdir = realFs.mkdir;
+                export const readFile = realFs.readFile;
+                export const rm = realFs.rm;
+                export const writeFile = (...args) => {
+                  const hook = globalThis[${JSON.stringify(hookKey)}]?.writeFile;
+                  return hook ? hook(realFs, ...args) : realFs.writeFile(...args);
+                };
+                export const rename = (...args) => {
+                  const hook = globalThis[${JSON.stringify(hookKey)}]?.rename;
+                  return hook ? hook(realFs, ...args) : realFs.rename(...args);
+                };
+              `,
+              loader: 'js',
+            }));
+            buildApi.onResolve({ filter: /^node:/ }, (args) => ({ path: args.path, external: true }));
+            buildApi.onResolve({ filter: /^\./ }, (args) => {
+              if (!args.importer) return null;
+              return {
+                path: pathToFileURL(path.resolve(path.dirname(args.importer), args.path)).href,
+                external: true,
+              };
+            });
+          },
+        },
+      ],
+    });
+    const code = bundled.outputFiles[0].text;
+    const { createConfigStore } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
+
+    const dshHome = path.join(dir, 'dsh');
+    const home = path.join(dir, 'home');
+    const documentsDir = path.join(dir, 'docs');
+    const store = createConfigStore({ env: { DSH_HOME: dshHome }, home, documentsDir });
+    const studyHome = path.dirname(store.configPath);
+
+    // Pre-seed valid desktop.json
+    await store.save({ mode: 'openai', openai: { providerId: 'deepseek', model: 'deepseek-chat' } });
+    const originalJson = await readFile(store.configPath, 'utf8');
+
+    // A1) atomicWriteJson mid-write failure (ENOSPC after creating .tmp) -> rejects, target intact, 0 *.tmp
+    let writeFaultFired = 0;
+    fsHook.writeFile = async (realFs, targetPath, data, opts) => {
+      if (String(targetPath).endsWith('.tmp')) {
+        writeFaultFired += 1;
+        await realFs.writeFile(targetPath, '{"partial":', 'utf8');
+        throw Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' });
+      }
+      return realFs.writeFile(targetPath, data, opts);
+    };
+    try {
+      await assert.rejects(store.save({ mode: 'agy' }), /ENOSPC/);
+    } finally {
+      fsHook.writeFile = null;
+    }
+    assert.equal(writeFaultFired, 1, 'injected ENOSPC writeFile failure must have fired on temp file');
+    assert.equal(await readFile(store.configPath, 'utf8'), originalJson, 'desktop.json must remain intact after mid-write failure');
+    assert.deepEqual(
+      (await readdir(studyHome)).filter((f) => f.endsWith('.tmp')),
+      [],
+      'zero orphan *.tmp files allowed in studyHome after mid-write failure',
     );
-    assert.match(
-      cfgSrc,
-      /try\s*\{[\s\S]{0,220}writeFile\s*\(\s*temp[\s\S]{0,220}renameWithRetry\s*\(\s*temp/m,
-      'config-store.mjs must wrap temp writeFile + renameWithRetry inside try/catch temp cleanup',
+
+    // A2) atomicWriteJson mid-rename failure (EIO after writeFile completes) -> rejects, target intact, 0 *.tmp
+    let renameFaultFired = 0;
+    fsHook.rename = async () => {
+      renameFaultFired += 1;
+      throw Object.assign(new Error('EIO: rename failed'), { code: 'EIO' });
+    };
+    try {
+      await assert.rejects(store.save({ mode: 'agy' }), /EIO/);
+    } finally {
+      fsHook.rename = null;
+    }
+    assert.equal(renameFaultFired, 1, 'injected EIO rename failure must have fired');
+    assert.equal(await readFile(store.configPath, 'utf8'), originalJson, 'desktop.json must remain intact after rename failure');
+    assert.deepEqual(
+      (await readdir(studyHome)).filter((f) => f.endsWith('.tmp')),
+      [],
+      'zero orphan *.tmp files allowed in studyHome after rename failure',
     );
-    assert.match(
-      cfgSrc,
-      /try\s*\{[\s\S]{0,120}writeFile\s*\(\s*probe[\s\S]{0,120}\}\s*finally\s*\{[\s\S]{0,80}rm\s*\(\s*probe/m,
-      'config-store.mjs verifyWritableDirectory must clean up probe file in try/finally',
+
+    // B1) verifyWritableDirectory happy path leaves 0 .studyhub-write-check-*.tmp probe files
+    const normalLoaded = await store.load();
+    assert.deepEqual(
+      (await readdir(normalLoaded.library.root)).filter((f) => f.startsWith('.studyhub-write-check-')),
+      [],
+      'normal store.load() must leave zero write-check probe files',
+    );
+
+    // B2) verifyWritableDirectory probe writeFile failure (ENOSPC after creating probe) -> falls back & cleans probe
+    const failingCandidate = path.join(dir, 'candidate-full');
+    await fs.promises.mkdir(failingCandidate, { recursive: true });
+    const resolvedCandidate = path.resolve(failingCandidate);
+    const probeStore = createConfigStore({
+      env: { DSH_HOME: dshHome, STUDYHUB_LIBRARY: failingCandidate },
+      home,
+      documentsDir,
+    });
+    let probeFaultFired = 0;
+    fsHook.writeFile = async (realFs, targetPath, data, opts) => {
+      const resolvedTarget = path.resolve(String(targetPath));
+      if (
+        path.dirname(resolvedTarget) === resolvedCandidate &&
+        path.basename(resolvedTarget).startsWith('.studyhub-write-check-')
+      ) {
+        probeFaultFired += 1;
+        await realFs.writeFile(resolvedTarget, 'partial-probe', 'utf8');
+        throw Object.assign(new Error('ENOSPC: probe write failed'), { code: 'ENOSPC' });
+      }
+      return realFs.writeFile(targetPath, data, opts);
+    };
+    let fallbackLoaded;
+    try {
+      fallbackLoaded = await probeStore.load();
+    } finally {
+      fsHook.writeFile = null;
+    }
+    assert.equal(probeFaultFired, 1, 'injected ENOSPC probe failure must have fired in candidateDir');
+    assert.ok(fallbackLoaded.library.problem, 'store.load() must report library fallback problem');
+    assert.match(String(fallbackLoaded.library.problem.reason), /ENOSPC/);
+    assert.notEqual(
+      path.resolve(fallbackLoaded.library.root),
+      resolvedCandidate,
+      'store.load() must fall back away from unwritable candidate directory',
+    );
+    assert.deepEqual(
+      (await readdir(failingCandidate)).filter((f) => f.startsWith('.studyhub-write-check-')),
+      [],
+      'zero orphan .studyhub-write-check-*.tmp probe files allowed in candidate directory after writeFile failure',
+    );
+    assert.deepEqual(
+      (await readdir(fallbackLoaded.library.root)).filter((f) => f.startsWith('.studyhub-write-check-')),
+      [],
+      'zero orphan .studyhub-write-check-*.tmp probe files allowed in fallback library directory',
     );
   });
 });
