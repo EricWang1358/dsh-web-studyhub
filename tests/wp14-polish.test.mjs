@@ -94,8 +94,10 @@ test('the reader toolbar is slim: AI 出题 (the one primary button, with the ar
   assert.equal(reserved.length, 1, 'one held place, for 目录');
   assert.match(reserved[0], /aria-hidden="true"/);
   assert.match(reserved[0], /tabindex="-1"/);
+  assert.match(reserved[0], /\sdisabled=""/, 'the held place cannot be pressed');
+  assert.match(reserved[0], /aria-label="目录"/, 'the held place is 目录, the button it keeps room for');
   const names = buttons.filter(tag => !reserved.includes(tag)).map(tag => tag.match(/aria-label="([^"]*)"/)?.[1] || '(text)');
-  assert.deepEqual(names, ['(text)', '做这几页的题', '更多'], 'three buttons: 出题, the arrow beside it, and 更多 (目录, 错题 and 思维导图 appear once the material has loaded)');
+  assert.deepEqual(names, ['(text)', '做这几页的题', '更多'], 'three buttons: 出题, the arrow beside it, and 更多 (错题 and 思维导图 appear once the material has loaded; 目录 holds its place until then)');
   assert.match(toolbar, /class="sh-btn sh-btn--primary[^"]*"[^>]*>[\s\S]*?AI 出题/, 'generate is the primary button inside the toolbar');
   assert.equal((toolbar.match(/sh-btn--primary/g) || []).length, 2, 'the primary button and its attached arrow');
   assert.match(toolbar, /class="reader-split"/, 'one control: the button and its arrow');
