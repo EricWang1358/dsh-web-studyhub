@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
@@ -383,4 +384,16 @@ test('no live, audio, Jev, workflow-portal, or loopback surface glues a sentence
       }
     }
   });
+});
+
+// The catalogue test above sees only copy a page renders. A toast shown after an action (电脑声音直采组件可以用了。, 已取消安装。) is never
+// rendered there, so a private t(zh, en) or a language ternary used only for it passes every rendering test (checked in the review of #1610).
+// These two patterns, and only these, are still read from the source; the title is the one this check had before #1610 (the test-audit gate
+// matches a kept source check by it).
+test('no live or audio page keeps a private zh/en dictionary or reads the language to pick copy', async () => {
+  for (const file of ['LiveClass', 'LiveHistory', 'LiveNotes', 'LiveAudioMonitor', 'AudioDashboard', 'AudioReasoning', 'AudioSettings', 'JevSettings', 'WorkflowPortal', 'LiveLoopbackCard']) {
+    const source = await readFile(new URL(`../ui/${file}.jsx`, import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /const t = \(zh/, `${file}: local t(zh, en)`);
+    assert.doesNotMatch(source, /language === 'en' \?|getUiLanguage\(\) === 'en'/, `${file}: a language ternary`);
+  }
 });
