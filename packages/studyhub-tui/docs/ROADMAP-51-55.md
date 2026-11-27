@@ -1,5 +1,7 @@
 # StudyHub TUI Roadmap — Rounds 51–55
 
+> **Historical milestone archive**: Standalone `round51-55-*.test.mjs` and `round12-e2e.test.mjs` files referenced below were later consolidated into current suites; see `docs/ARCHITECTURE.md` for current state.
+
 > **Baseline at Round 50 (`15684e2e`, `feat/studyhub-tui`)**:
 > - **16 views** live + global `AppShell`, all **5 Barrel-Bypass rules** enforced (`0` importers across `render/index.js`, `components/index.js`, `host/index.js`), `0` `zod` runtime imports, `9` minimal runtime dependencies.
 > - **Round 50 gate**: `391+` automated TUI tests across `85+` suites, `49+/71` entry chunks `marked`-free, `0` AST keymap conflicts, `0` `--ascii` / `NO_COLOR=1` leaks.
@@ -36,7 +38,7 @@
 - **`CardToolsModal.tsx` (`[R]`)**: Wired `[R]` P2 `ConfirmDialog`-guarded retry for failed AI card rewrites (`coach.rewrite.retry`).
 - **Tests**: `round54-org-sources-guard.test.mjs`, `round54-notes-gen-cancel.test.mjs`, `round54-card-retry.test.mjs`.
 
-### Round 55 — Milestone Release: Coach Prep Queue, Import Filing Proposal, Permanent P2 Audit & Docs Sync *(Current)*
+### Round 55 — Milestone Release: Coach Prep Queue, Import Filing Proposal, Permanent P2 Audit & Docs Sync *(Completed: `22746d91`)*
 - **`ExamCoachView.tsx` (`[f]`)**: Wired `[f]` P2 `ConfirmDialog`-guarded manual flush of the background coach prep queue (`coach.prepare`).
 - **`DeckOpsModal.tsx` (Tab 1 `Ctrl+G`)**: Wired `Ctrl+G` P2 `ConfirmDialog`-guarded AI import filing proposal (`draft.import.propose`) with automatic blank-course prefill and merge-target display.
 - **Permanent P2 Quota-Guard Static Audit (`tests/p2-quota-audit.test.mjs`)**: AST-based static guardrail scanning all `src/views/` and `src/shell/` `.ts`/`.tsx` files to enforce zero silent LLM calls in `useEffect(...)`, direct `ConfirmDialog` import & render co-location for all guarded LLM actions, and zero `target: '中文' | 'English'` translation regressions.
