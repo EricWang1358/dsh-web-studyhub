@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { setImmediate as nextTurn } from 'node:timers/promises';
@@ -9,6 +8,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { reviewElement } from './helpers/review-render.mjs';
 import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
+import { loadUi } from './helpers/ui-module.mjs';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({
@@ -258,21 +258,83 @@ test('TodayCard, DeskIntro, and Review result hero preserve exact numeric SSR ma
   assert.doesNotMatch(reviewHtml, /number-flow-react/i);
 });
 
-test('reader moreItems and DocumentViewer stay uncluttered after InkScratchpad removal', () => {
-  const base = {
+test('reader moreItems and DocumentViewer stay uncluttered after InkScratchpad removal', async () => {
+  // 1) Bundler metafile verification: neither static inputs nor lazy/dynamic chunks of DocumentViewer reference InkScratchpad/scratchpad.
+  const viewerEntry = 'ui/document-preview/DocumentViewer.jsx';
+  const viewerBundle = await build({
+    entryPoints: [resolve(process.cwd(), viewerEntry)],
+    bundle: true,
+    splitting: true,
+    format: 'esm',
+    write: false,
+    metafile: true,
+    outdir: 'out',
+    external: ['react', 'react-dom', 'react/*', 'react-dom/*', 'dompurify', 'katex', 'katex/*', 'pdfjs-dist', 'pdfjs-dist/*'],
+    loader: { '.css': 'text' },
+    logLevel: 'silent',
+  });
+  const inputPaths = Object.keys(viewerBundle.metafile.inputs);
+  const outputEntries = Object.entries(viewerBundle.metafile.outputs);
+  const allImports = outputEntries.flatMap(([, meta]) => (meta.imports || []).map((imp) => imp.path));
+  assert.ok(inputPaths.some((file) => file.endsWith(viewerEntry)), 'metafile includes DocumentViewer entry');
+  assert.equal(inputPaths.some((file) => /InkScratchpad|scratchpad/i.test(file)), false, 'no bundled input references InkScratchpad or scratchpad');
+  assert.equal(outputEntries.some(([file]) => /InkScratchpad|scratchpad/i.test(file)), false, 'no bundled output chunk references InkScratchpad or scratchpad');
+  assert.equal(allImports.some((imp) => /InkScratchpad|scratchpad/i.test(imp)), false, 'no static or dynamic import references InkScratchpad or scratchpad');
+
+  // 2) Bilingual moreItems verification for both PDF and Markdown formats.
+  const pdfState = {
     view: 'read', format: 'pdf', fileUrl: true, localMode: false, find: { on: false },
     translate: true, display: true, tools: { on: false, count: 0 },
     quality: null, assist: false, download: false, hostPreview: false, attach: false, extra: [],
+  };
+  const mdState = {
+    ...pdfState, format: 'md', fileUrl: false, translate: false,
   };
   const handlers = {
     setView: () => {}, find: () => {}, translate: () => {}, display: () => {},
     tools: () => {}, quality: () => {}, assist: () => {}, download: () => {}, hostPreview: () => {}, attach: () => {},
   };
 
-  m.setUiLanguage('zh');
-  const zhItems = m.moreItems(base, handlers);
-  assert.equal(zhItems.some((item) => item.id === 'scratchpad'), false);
+  const hanRe = /[\u3400-\u9fff]/;
+  const { DocumentViewer, setUiLanguage: setViewerLang } = await loadUi(`
+    export { default as DocumentViewer } from './ui/document-preview/DocumentViewer.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  try {
+    for (const lang of ['zh', 'en']) {
+      m.setUiLanguage(lang);
+      const pdfItems = m.moreItems(pdfState, handlers);
+      const mdItems = m.moreItems(mdState, handlers);
+      const pdfIds = pdfItems.map((item) => item.id).filter(Boolean);
+      const mdIds = mdItems.map((item) => item.id).filter(Boolean);
 
-  const viewerSrc = readFileSync(new URL('../ui/document-preview/DocumentViewer.jsx', import.meta.url), 'utf8');
-  assert.doesNotMatch(viewerSrc, /LazyInkScratchpadDialog|scratchpadOpen|毛笔草稿纸/);
+      assert.deepEqual(pdfIds, ['view:read', 'view:text', 'view:original', 'find', 'translate', 'display', 'tools']);
+      assert.deepEqual(mdIds, ['view:read', 'view:text', 'find', 'display', 'tools']);
+      for (const item of [...pdfItems, ...mdItems]) {
+        assert.doesNotMatch(String(item.id || ''), /scratchpad/i, `${lang}: no scratchpad item id`);
+        assert.doesNotMatch(String(item.label || ''), /scratchpad|草稿纸/i, `${lang}: no scratchpad label`);
+        if (lang === 'en') {
+          assert.doesNotMatch(String(item.label || ''), hanRe, `en moreItems label "${item.label}" has no Han characters`);
+        }
+      }
+
+      // 3) SSR render of DocumentViewer in localContent mode renders .reader-toolbar with zero scratchpad controls.
+      setViewerLang(lang);
+      const viewerHtml = renderToStaticMarkup(
+        h(DocumentViewer, {
+          source: { id: 'local-1', title: 'Local Notes' },
+          localContent: { id: 'local-1', title: 'Local Notes', markdown: '' },
+          data: { sources: [], courses: [], decks: [] },
+        }),
+      );
+      assert.match(viewerHtml, /class="reader-toolbar"/, `${lang}: DocumentViewer renders .reader-toolbar`);
+      assert.doesNotMatch(viewerHtml, /毛笔草稿纸|scratchpad/i, `${lang}: DocumentViewer renders zero scratchpad controls`);
+      if (lang === 'en') {
+        assert.doesNotMatch(viewerHtml.replace(/<[^>]*>/g, ' '), hanRe, 'en DocumentViewer localContent SSR has zero Han characters');
+      }
+    }
+  } finally {
+    m.setUiLanguage('zh');
+    setViewerLang('zh');
+  }
 });

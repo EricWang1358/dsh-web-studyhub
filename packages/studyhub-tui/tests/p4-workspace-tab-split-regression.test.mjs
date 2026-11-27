@@ -999,14 +999,47 @@ describe('P4 (#1354): WorkspaceTab split behavioral regression', () => {
       snapshot: { revision: 1, experimental: false, sample: { loaded: false } },
       desktopConfig: { libraryPlaceConfirmed: true },
     });
-    const { host, calls } = createWorkspaceHost({ libraryRoot: libRoot });
+    let listInvocation = 0;
+    const { host, calls } = createWorkspaceHost({
+      libraryRoot: libRoot,
+      handlers: {
+        'library.restorePoints.list': () => {
+          listInvocation += 1;
+          const isSecond = listInvocation >= 2;
+          return {
+            ok: true,
+            value: {
+              points: [
+                {
+                  id: isSecond ? 'rp-rev-2' : 'rp-rev-1',
+                  createdAt: isSecond ? '2026-11-26T10:30:00Z' : '2026-11-26T09:15:00Z',
+                  reason: isSecond ? 'rev-2-point' : 'rev-1-point',
+                  sizeBytes: isSecond ? 6144 : 4096,
+                  summary: { cards: isSecond ? 24 : 18, decks: 2 },
+                },
+              ],
+            },
+          };
+        },
+      },
+    });
     const app = mountWorkspaceTab({ host, binding: { root: libRoot, defaultRoot: libRoot, rootSource: 'default' } });
     const listCalls = () => calls.filter((c) => c.action === 'library.restorePoints.list').length;
     try {
-      await app.waitFor((f) => f.includes('auto-save'), { label: 'restore points loaded' });
-      const before = listCalls();
+      const initialFrame = await app.waitFor((f) => f.includes('rev-1-point'), { label: 'initial restore point loaded' });
+      assert.equal(listCalls(), 1, 'initial mount loads restore points exactly once');
+      assert.match(initialFrame, /rev-1-point/);
+      assert.doesNotMatch(initialFrame, /rev-2-point/);
+
       useTuiStore.setState({ snapshot: { revision: 2, experimental: false, sample: { loaded: false } } });
-      await app.waitFor(() => listCalls() > before, { label: 'restore points reloaded on revision bump' });
+      const updatedFrame = await app.waitFor((f) => f.includes('rev-2-point'), { label: 'restore points reloaded on revision bump' });
+      assert.equal(listCalls(), 2, 'revision bump triggers exactly one reload');
+      assert.match(updatedFrame, /rev-2-point/);
+      assert.doesNotMatch(updatedFrame, /rev-1-point/);
+
+      useTuiStore.setState({ snapshot: { revision: 2, experimental: false, sample: { loaded: false } } });
+      await new Promise((r) => setTimeout(r, 80));
+      assert.equal(listCalls(), 2, 're-setting snapshot with unchanged revision does not trigger a 3rd list call');
     } finally {
       app.cleanup();
     }
