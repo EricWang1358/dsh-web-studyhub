@@ -21,9 +21,14 @@ const standardRows = async version => parseYaml(await read(`tests/fixtures/dsh-s
 /* The documented exceptions (see the header of presets/study.patch.yml), each tested below:
    - tool-subagent / tool-subagent-fork keep the 0.2.0-rc.2 `backgroundMode: continuable` (0.2.1 has no such option);
    - tool-schedule is disabled where its package does not resolve: 0.2.0-rc.2 ships no @deepseek-ai/dsh-tool-schedule,
-     and there an enabled row whose package is missing breaks the whole preset (measured with npm run qa:dsh). */
+     and there an enabled row whose package is missing breaks the whole preset (measured with npm run qa:dsh);
+   - tool-subagent-list-agents is disabled where its subpath does not resolve: 0.2.2-rc.5 stopped exporting
+     ./list-agents (the main tool-subagent-control row registers list_agents there), and the enabled row made
+     the host mark the whole preset broken and leave 学习模式 out of the picker. */
 const CONTINUABLE = new Set(['tool-subagent', 'tool-subagent-fork']);
 const SCHEDULE = 'tool-schedule';
+const LIST_AGENTS = 'tool-subagent-list-agents';
+const GUARDED = new Set([SCHEDULE, LIST_AGENTS]);
 
 /** Every row of a composition in order, with the id of the group it sits in. */
 function rows(list, out = [], parent = null) {
@@ -77,7 +82,7 @@ test('the study preset composes every row of the DSH 0.2.1 standard preset, the 
     const expected = shape(standard[index]), actual = shape(row);
     if (row.id === 'persona') { assert.equal(actual.name, expected.name); continue; }
     if (CONTINUABLE.has(row.id)) expected.config = { ...expected.config, backgroundMode: 'continuable' };
-    if (row.id === SCHEDULE) { assert.ok(row.disabled?.__jsExpr, 'the schedule row is guarded'); expected.disabled = row.disabled; }
+    if (GUARDED.has(row.id)) { assert.ok(row.disabled?.__jsExpr, `${row.id} is guarded`); expected.disabled = row.disabled; }
     assert.deepEqual(actual, expected, `row ${row.id} differs from standard`);
   }
   // the platform shell rows are standard's own expressions: pwsh on Windows, bash elsewhere
@@ -116,6 +121,38 @@ test('exception: the schedule row is enabled exactly where its package resolves'
     assert.equal(evaluateDisabled(expression, { baseUrl }), false, 'a host that ships it (DSH 0.2.1-rc.2)');
     assert.equal(evaluateDisabled(expression, {}), true, 'no baseUrl in scope: disabled, never a broken preset');
   } finally { await rm(host, { recursive: true, force: true }); }
+});
+
+/* What @deepseek-ai/dsh-tool-subagent-control exports, as its published package.json says per release. */
+const SUBAGENT_CONTROL_EXPORTS = {
+  '0.2.0-rc.2 and 0.2.1-rc.2': { '.': { default: './lib/index.js' }, './list-agents': { types: './lib/types/list-agents.d.ts', default: './lib/types/list-agents.js' }, './package.json': './package.json' },
+  '0.2.2-rc.5': { '.': { default: './lib/index.js' }, './src/*': './src/*', './package.json': './package.json' },
+};
+
+test('exception: the list-agents row is enabled exactly where its subpath resolves', async () => {
+  const row = rows((await preset()).config.plugins).find(plugin => plugin.id === LIST_AGENTS);
+  assert.equal(row.name, '@deepseek-ai/dsh-tool-subagent-control/list-agents');
+  assert.ok(row.disabled?.__jsExpr, 'the row is guarded: unguarded, DSH 0.2.2-rc.5 marks the whole preset broken');
+  const expression = row.disabled.__jsExpr;
+  for (const [version, exports] of Object.entries(SUBAGENT_CONTROL_EXPORTS)) {
+    const host = await mkdtemp(join(tmpdir(), 'studyhub-list-agents-'));
+    try {
+      const folder = join(host, 'node_modules', '@deepseek-ai', 'dsh-tool-subagent-control');
+      await mkdir(join(folder, 'lib', 'types'), { recursive: true });
+      await writeFile(join(folder, 'package.json'), JSON.stringify({ name: '@deepseek-ai/dsh-tool-subagent-control', version: version.split(' ')[0], type: 'module', exports }));
+      await writeFile(join(folder, 'lib', 'index.js'), '');
+      await writeFile(join(folder, 'lib', 'types', 'list-agents.js'), '');
+      assert.equal(evaluateDisabled(expression, { baseUrl: pathToFileURL(host + sep).href }), version === '0.2.2-rc.5', `DSH ${version}`);
+      assert.equal(evaluateDisabled(expression, {}), true, 'no baseUrl in scope: disabled, never a broken preset');
+    } finally { await rm(host, { recursive: true, force: true }); }
+  }
+});
+
+/* One row that cannot be imported breaks the whole preset, and the host hides a broken preset without a word. */
+test('a row the newest known host no longer composes is never enabled unguarded', async () => {
+  const study = rows((await preset()).config.plugins), newest = new Set(rows(await standardRows('0.2.2-rc.5')).map(row => row.name));
+  const unknown = study.filter(row => !newest.has(row.name) && row.disabled !== true && !row.disabled?.__jsExpr).map(row => `${row.id} (${row.name})`);
+  assert.deepEqual(unknown, []);
 });
 
 test('rows the DSH 0.2.0-rc.2 host does not ship are never enabled there', async () => {

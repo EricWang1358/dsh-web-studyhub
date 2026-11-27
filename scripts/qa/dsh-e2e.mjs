@@ -8,7 +8,7 @@
       SSH_TTY=audit (in-browser folder picker, never a native dialog), a local
       fake OpenAI-compatible model (scripts/qa/fake-openai.mjs) as the default
       model, and the default workspace under output/qa/dsh-documents;
-   4. opens Study with Playwright, screenshots it, checks that 发给主会话 from the 复习全书 (seeded into the workspace's library) never overwrites what
+   4. fails at once, with the host's reason, if it cannot compose a StudyHub preset; opens Study with Playwright, screenshots it, checks that 发给主会话 from the 复习全书 (seeded into the workspace's library) never overwrites what
       was typed into the chat's input box and never sends, chats in the standard preset and in 学习模式 (the same command,
       sandbox-leaving command and file turns in both: same tools, same approvals, same outcome), then stops everything.
    It never reads or writes ~/.dsh or the owner's Documents folder.
@@ -123,6 +123,29 @@ export async function bootDsh(bin, { env, cwd, patch, port }) {
   return { child, url, output: () => output };
 }
 
+/** A button of the host's first-run screens, in either language. */
+const ONBOARDING = /^(继续|稍后配置|跳过|Continue|Configure later|Skip)$/;
+
+/** Loads the host's page and waits for something to act on. `networkidle` is no sign of that here: the plugin long-polls
+    (library.events.wait, panel.intent.next stay open), so a working host could still run into the load timeout. */
+export async function openDsh(page, url) {
+  await page.goto(url, { waitUntil: "domcontentloaded" });
+  await page.locator(".study-app").or(page.getByRole("textbox")).or(page.getByRole("button", { name: ONBOARDING })).first().waitFor({ state: "visible", timeout: 90000 });
+}
+
+/** What the host's roster (the `result` of its `agentPresets/list`) says about StudyHub's two presets. One the host cannot
+    compose is only marked `broken` there: the picker leaves it out and the host's output says nothing. A roster this
+    cannot read is not called a failure. */
+export function studyPresetProblems(result) {
+  const presets = result?.ok ? result.value?.presets : null;
+  if (!Array.isArray(presets)) return { readable: false, problems: [] };
+  const problems = ["study", "study-worker"].flatMap((id) => {
+    const preset = presets.find((item) => item.id === id);
+    return !preset ? [`${id}: not registered`] : preset.broken ? [`${id}: ${preset.broken}`] : [];
+  });
+  return { readable: true, problems };
+}
+
 export async function runDshE2e(options) {
   const { handOffStep, pagePictureStep, seedHandOffBook } = await import("./dsh-hand-off.mjs");
   const removed = scrubProcessEnv();
@@ -175,10 +198,10 @@ export async function runDshE2e(options) {
     page.on("pageerror", (error) => summary.pageErrors.push(String(error?.message || error)));
     const shot = (name) => page.screenshot({ path: join(options.out, `${name}.png`) });
     await step("open-dsh", async () => {
-      await page.goto(dsh.url, { waitUntil: "networkidle" });
+      await openDsh(page, dsh.url);
       await sleep(1500);
       for (let i = 0; i < 4; i++) {
-        const next = page.getByRole("button", { name: /^(继续|稍后配置|跳过|Continue|Configure later|Skip)$/ });
+        const next = page.getByRole("button", { name: ONBOARDING });
         if (!await next.count()) break;
         const clicked = await next.first().elementHandle();
         await clicked.click();
@@ -187,6 +210,18 @@ export async function runDshE2e(options) {
         await clicked.dispose();
       }
       await shot("01-dsh-home");
+    });
+    await step("studyhub-presets", async () => {
+      const result = await page.evaluate(async () => {
+        try {
+          const response = await fetch("/api/agentPresets/list", { method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ type: "client-request", rpcId: crypto.randomUUID(), method: "agentPresets/list", payload: { args: [] } }) });
+          return (await response.json()).result;
+        } catch { return null; }
+      });
+      const { readable, problems } = studyPresetProblems(result);
+      summary.studyPresets = { readable, problems };
+      if (problems.length) throw new Error(["the host cannot use a StudyHub preset:", ...problems].join("\n"));
     });
     await step("first-message", async () => {
       // DSH 0.2.0-rc.2 opens straight on the Study plugin page (its only plugin tab): there is no composer to type in then.
@@ -552,7 +587,7 @@ export async function runDshE2e(options) {
       await new Promise((done) => { if (dsh.child.exitCode !== null) done(); else { dsh.child.once("exit", done); setTimeout(done, 15000); } });
       await writeFile(join(options.out, "dsh-first-boot.log"), dsh.output().replace(/token=\S+/g, "token=…"));
       dsh = await bootDsh(bin, { env: { ...baseEnv, [FAKE_KEY_ENV]: "not-a-real-key" }, cwd: workspace, patch, port: options.port });
-      await page.goto(dsh.url, { waitUntil: "networkidle" });
+      await openDsh(page, dsh.url);
       await sleep(1500);
       const items = (await rpc("session/list", { args: { _request: {} } })).value.items;
       const cold = items.filter((item) => item.projections?.kind === "cached");

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { scrubSecrets, secretEnvNames } from "../scripts/qa/env.mjs";
 import { findChromium, launchChromium, skipMissingChromium, startTestChromium } from "../scripts/qa/browser.mjs";
 import { parseJourneyArgs, JOURNEY_STEPS } from "../scripts/qa/journey.mjs";
-import { dshPatch, parseDshArgs, resolveDshVersion, DSH_VERSION } from "../scripts/qa/dsh-e2e.mjs";
+import { dshPatch, parseDshArgs, resolveDshVersion, studyPresetProblems, DSH_VERSION } from "../scripts/qa/dsh-e2e.mjs";
 import { createFakeOpenAI, FAKE_OPENAI_MODEL } from "../scripts/qa/fake-openai.mjs";
 
 test("shared test browser isolates cookies and closing one client leaves the other running", async t => {
@@ -123,6 +123,19 @@ test("the DSH e2e patch routes the default model to the local fake and keeps doc
   assert.equal(provider.baseURL, "http://127.0.0.1:3191/v1");
   assert.equal(provider.apiKeyEnv, "STUDYHUB_QA_FAKE_KEY");
   assert.doesNotMatch(provider.apiKeyEnv, /_API_KEY|_TOKEN|BASE_URL/, "the fake key survives the secret scrub");
+});
+
+/* A preset the host cannot compose is only marked `broken` in its roster: the picker leaves it out and the host's output says nothing. */
+test("the DSH harness reads a broken or missing StudyHub preset off the host's roster", () => {
+  const roster = (...presets) => ({ ok: true, value: { presets } });
+  const standard = { id: "standard" }, study = { id: "study" }, worker = { id: "study-worker" };
+  assert.deepEqual(studyPresetProblems(roster(standard, study, worker)), { readable: true, problems: [] });
+  assert.deepEqual(studyPresetProblems(roster(standard, { ...study, broken: "tool-x (@deepseek-ai/dsh-tool-x/y): never started" }, worker)),
+    { readable: true, problems: ["study: tool-x (@deepseek-ai/dsh-tool-x/y): never started"] });
+  assert.deepEqual(studyPresetProblems(roster({ ...standard, broken: "not ours" }, study)), { readable: true, problems: ["study-worker: not registered"] });
+  // A host whose roster cannot be read this way is not a failure of the plugin: the picker step still runs.
+  for (const unknown of [undefined, null, { ok: false, error: { message: "unknown method" } }, { ok: true, value: {} }])
+    assert.deepEqual(studyPresetProblems(unknown), { readable: false, problems: [] });
 });
 
 test("the DSH harness takes the host release from --dsh-version or DSH_QA_VERSION and defaults to 0.2.1-rc.2", () => {
