@@ -15,7 +15,6 @@ const m = await loadUi(`
   export { default as DeskIntro } from './ui/study-map/DeskIntro.jsx';
   export { default as FocusProgressLine } from './ui/study-map/FocusProgressLine.jsx';
   export { FocusProgressRows } from './ui/FocusProgressList.jsx';
-  export { default as CourseSettings } from './ui/CourseSettings.jsx';
   export { appendFocus } from './ui/generate-form.js';
   export { AppContext } from './ui/app/app-context.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
