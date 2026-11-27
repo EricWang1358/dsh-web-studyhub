@@ -235,7 +235,8 @@ describe('#1439 panel: pick a reason, write it through the real action, undo it'
   });
 
   test('Esc on the picker writes nothing', async () => {
-    const host = hostOverRealAction(libraryWithFailedAttempt());
+    const library = libraryWithFailedAttempt();
+    const host = hostOverRealAction(library);
     const h = openPanelOnWrongCard(host);
     try {
       const chipFrame = await h.waitFor((s) => s.includes('标记错因'));
@@ -243,7 +244,8 @@ describe('#1439 panel: pick a reason, write it through the real action, undo it'
       await h.waitFor((s) => s.includes('粗心手滑'));
       h.write('\u001b');
       await h.waitFor((s) => s.includes('已取消'));
-      assert.equal(host.calls.length, 0);
+      assert.deepEqual(host.calls, []);
+      assert.equal(library.attempts[0].errorReason, undefined);
     } finally {
       h.cleanup();
     }

@@ -116,6 +116,35 @@ test('P2-a guardrail: footer default hints and HelpOverlay globalShortcuts deriv
       practiceReturnLabel: null,
       lang,
     });
+    assert.deepEqual(
+      footerDefaults,
+      [...Bundle.buildDefaultFooterHints(lang), ...Bundle.buildFooterTailHints(lang, false)],
+      `resolveShellFooterHints default (${lang}) must match global-keymap builders`,
+    );
+
+    const capturedFooter = Bundle.resolveShellFooterHints({
+      modalHints: null,
+      footerHints: [],
+      inputCaptured: true,
+      overlayOpen: false,
+      compactMode: false,
+      practiceReturnLabel: null,
+      lang,
+    });
+    assert.deepEqual(
+      capturedFooter,
+      [Bundle.buildCloseFooterHint(lang)],
+      `resolveShellFooterHints captured (${lang}) must match buildCloseFooterHint`,
+    );
+
+    for (const asciiMode of [false, true]) {
+      assert.deepEqual(
+        Bundle.globalShortcuts(lang, asciiMode),
+        Bundle.buildGlobalHelpShortcuts(lang, asciiMode),
+        `HelpOverlay globalShortcuts (${lang}, ascii=${asciiMode}) must match buildGlobalHelpShortcuts`,
+      );
+    }
+
     const helpGlobals = Bundle.globalShortcuts(lang, false);
     const helpKeyText = helpGlobals.map((h) => h.key).join(' | ');
 
@@ -127,9 +156,4 @@ test('P2-a guardrail: footer default hints and HelpOverlay globalShortcuts deriv
       );
     }
   }
-
-  const focusSrc = fs.readFileSync(path.join(srcDir, 'components/focus.ts'), 'utf8');
-  const helpSrc = fs.readFileSync(path.join(srcDir, 'shell/HelpOverlay.tsx'), 'utf8');
-  assert.match(focusSrc, /global-keymap\.js/, 'focus.ts must build footer hints from global-keymap.js');
-  assert.match(helpSrc, /global-keymap\.js/, 'HelpOverlay.tsx must build globalShortcuts from global-keymap.js');
 });

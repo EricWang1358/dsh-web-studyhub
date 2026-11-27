@@ -42,9 +42,6 @@ const [
 const { PROSE_MAX_COLS, computeProseLayout, ProseContainer } = layoutMod;
 const { filterPaletteItems, parsePaletteScope } = paletteMod;
 const {
-  STUCK_NUDGE_DELAY_MS,
-  MAX_STUCK_NUDGES_PER_ROUND,
-  STUCK_NUDGE_COOLDOWN_MS,
   shouldScheduleStuckNudge,
   buildStuckNudgeMessage,
 } = stuckMod;
@@ -234,10 +231,6 @@ describe('Round 83 Track B2: CommandPalette Recent Pinning Across Scopes', () =>
 
 describe('Round 83 Track D1: Proactive 20s Stuck Nudge (Opt-out + Rate Limit + Non-Interrupting)', () => {
   test('1. Pure guardrail enforces disable switch, max 3/round, 60s cooldown, once/card, and never during editing/modals', () => {
-    assert.equal(STUCK_NUDGE_DELAY_MS, 20_000);
-    assert.equal(MAX_STUCK_NUDGES_PER_ROUND, 3);
-    assert.equal(STUCK_NUDGE_COOLDOWN_MS, 60_000);
-
     const base = {
       enabled: true,
       isActive: true,
@@ -257,10 +250,80 @@ describe('Round 83 Track D1: Proactive 20s Stuck Nudge (Opt-out + Rate Limit + N
     assert.equal(shouldScheduleStuckNudge({ ...base, anyModalOpen: true }), false, 'Must NEVER fire while modal open');
     assert.equal(shouldScheduleStuckNudge({ ...base, revealed: true }), false);
     assert.equal(shouldScheduleStuckNudge({ ...base, nudgedCardIds: new Set(['c1']) }), false, 'At most once per card');
+    assert.equal(shouldScheduleStuckNudge({ ...base, roundNudgeCount: 2 }), true, '3rd nudge in round is still allowed');
     assert.equal(shouldScheduleStuckNudge({ ...base, roundNudgeCount: 3 }), false, 'Rate limit max 3 per round');
-    assert.equal(shouldScheduleStuckNudge({ ...base, lastNudgeAt: 70_000, now: 100_000 }), false, '60s cooldown enforced');
-    assert.equal(shouldScheduleStuckNudge({ ...base, lastNudgeAt: 30_000, now: 100_000 }), true);
+    assert.equal(shouldScheduleStuckNudge({ ...base, lastNudgeAt: 40_001, now: 100_000 }), false, '60s cooldown enforced at 59,999ms');
+    assert.equal(shouldScheduleStuckNudge({ ...base, lastNudgeAt: 40_000, now: 100_000 }), true, '60s cooldown expires at 60,000ms');
     assert.ok(buildStuckNudgeMessage('zh', true).includes('[t]'));
+  });
+
+  test('1b. ReviewView default stuck-nudge delay is 20s: silent at 19,999 ms, nudge at 20,000 ms', async () => {
+    const mockRun = {
+      id: 'run-r83-delay',
+      title: 'Stuck Nudge Delay',
+      index: 0,
+      total: 3,
+      answered: 0,
+      revealed: false,
+      card: {
+        id: 'card-delay-1',
+        deckId: 'd1',
+        kind: 'single',
+        prompt: '请选出正确答案',
+        options: [
+          { id: 'A', text: 'OptA' },
+          { id: 'B', text: 'OptB' },
+        ],
+      },
+    };
+    const mockHost = {
+      call: async (name) => (name === 'review.start' || name === 'review.get' ? { ok: true, value: mockRun } : { ok: true, value: {} }),
+      getSnapshot: async () => ({ decks: [], courses: [], jobs: [] }),
+    };
+
+    // Fake clock for long timers only (>= 5 s): the harness' own short timers keep running on real time.
+    const realSetTimeout = globalThis.setTimeout;
+    const realClearTimeout = globalThis.clearTimeout;
+    const fake = new Map();
+    let fakeNow = 0;
+    let fakeSeq = 0;
+    globalThis.setTimeout = (fn, ms, ...args) => {
+      if (typeof ms === 'number' && ms >= 5_000 && ms < 1e9) {
+        const handle = { fakeId: (fakeSeq += 1), unref() {}, ref() {} };
+        fake.set(handle, { fn: () => fn(...args), due: fakeNow + ms });
+        return handle;
+      }
+      return realSetTimeout(fn, ms, ...args);
+    };
+    globalThis.clearTimeout = (handle) => {
+      if (fake.delete(handle)) return;
+      realClearTimeout(handle);
+    };
+    const advance = async (ms) => {
+      fakeNow += ms;
+      for (const [handle, t] of [...fake.entries()].sort((a, b) => a[1].due - b[1].due)) {
+        if (t.due <= fakeNow && fake.delete(handle)) t.fn();
+      }
+      await new Promise((r) => realSetTimeout(r, 150));
+    };
+
+    resetStore({ preferences: { ...DEFAULT_PREFERENCES, language: 'zh', asciiMode: false, proactiveHints: true } });
+    const h = createInkHarness(
+      React.createElement(ReviewView, { host: mockHost, width: 100, height: 24, isActive: true }),
+      { cols: 100, rows: 24 },
+    );
+    try {
+      await h.waitFor((s) => s.includes('OptA'));
+      assert.ok(fake.size >= 1, 'ReviewView must schedule a long stuck-nudge timer by default');
+      await advance(19_999);
+      assert.equal(h.latest().includes('卡住了？'), false, 'No stuck nudge before 20,000 ms');
+      await advance(1);
+      assert.ok(h.latest().includes('卡住了？'), 'Stuck nudge must appear at 20,000 ms');
+    } finally {
+      globalThis.setTimeout = realSetTimeout;
+      globalThis.clearTimeout = realClearTimeout;
+      h.cleanup();
+    }
   });
 
   test('2. ReviewView shows calm inline stuck nudge after delay, stays silent when disabled, and persists proactiveHints=false in tui.json', async () => {

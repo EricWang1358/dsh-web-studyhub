@@ -9,6 +9,7 @@ import { useClaimedKeys } from '../components/focus.js';
 import { ClickableBox } from '../components/mouse.js';
 import { formatReturnHintLabel } from '../state/practice-stack.js';
 import { currentCourse, dueToday, modelInfo, pageIcon, runningJobs, unreadInboxCount } from './data.js';
+import { formatGlobalKeyHint } from './global-keymap.js';
 
 export interface TopBarProps {
   width: number;
@@ -62,16 +63,22 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
   const pageLabel = meta ? ` ${pIcon} ${t(lang, meta.labelZh, meta.labelEn)} ` : '';
   const rawCourse = course ?? t(lang, '全部课程', 'All courses');
   const rawModel = `${mIcon} ${model.provider}${model.model ? `${sep}${model.model}` : ''}`;
-  const inboxText = asciiMode ? ` [I] M:${unread} ` : ` [I] ✉ ${unread} `;
+  const inboxHint = formatGlobalKeyHint('inbox', lang, asciiMode);
+  const courseHint = formatGlobalKeyHint('course-picker', lang, asciiMode);
+  const helpHint = formatGlobalKeyHint('help', lang, asciiMode);
+  const cmdHint = formatGlobalKeyHint('command-palette', lang, asciiMode);
+  const inboxText = asciiMode ? ` [${inboxHint.key}] M:${unread} ` : ` [${inboxHint.key}] ✉ ${unread} `;
   const dueText = ` ${t(lang, '今日', 'Due')} ${due} `;
   const jobsText = `  ${jobs} ${t(lang, '任务', 'jobs')} `;
-  const cmdKeyLabel = paletteKeyOverridden ? '[Ctrl+K]' : '[/]';
-  const helpText = ` [?] ${t(lang, '帮助', 'Help')}  ${cmdKeyLabel} ${t(lang, '命令', 'Cmd')} `;
+  const cmdKeyLabel = paletteKeyOverridden ? `[${cmdHint.key}]` : '[/]';
+  const helpChipText = `  [${helpHint.key}] ${helpHint.label} `;
+  const cmdChipText = ` ${cmdKeyLabel} ${cmdHint.label} `;
+  const helpSegmentWidth = displayWidth(helpChipText) + displayWidth(cmdChipText);
   const returnChipLabel = formatReturnHintLabel(practiceStack, lang);
   const returnChipText = returnChipLabel ? ` ${asciiMode ? '<-' : '←'} ${returnChipLabel} [r] ` : '';
 
   // Dynamic budget allocation for course & model so wide terminals never truncate unnecessarily.
-  const coursePrefix = courseKeyOverridden ? ' ' : ' [c] ';
+  const coursePrefix = courseKeyOverridden ? ' ' : ` [${courseHint.key}] `;
   const COURSE_CHROME = displayWidth(coursePrefix) + 2; // leading space + prefix + trailing space
   const MODEL_CHROME = 3; // leading space + " " + " "
   const rawCourseW = displayWidth(rawCourse);
@@ -84,7 +91,7 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
     ...(unread > 0 ? [{ id: 'inbox', priority: 55, width: displayWidth(inboxText) + 1 }] : []),
     ...(jobs > 0 || refreshing ? [{ id: 'jobs', priority: 70, width: displayWidth(jobsText) + 1 }] : []),
     { id: 'due', priority: 75, width: displayWidth(dueText) + 1 },
-    { id: 'help', priority: 50, width: displayWidth(helpText) + 1 },
+    { id: 'help', priority: 50, width: helpSegmentWidth },
   ];
 
   const kept = new Set<string>([...staticWidths.map((s) => s.id), 'course', 'model']);
@@ -269,14 +276,14 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
     {
       id: 'help',
       priority: 50,
-      width: displayWidth(helpText) + 1,
+      width: helpSegmentWidth,
       node: (
         <Box key="help" flexDirection="row">
           <ClickableBox onClick={() => useTuiStore.getState().setHelpOpen(true)}>
-            <Text color={theme.muted}>{`  [?] ${t(lang, '帮助', 'Help')} `}</Text>
+            <Text color={theme.muted}>{helpChipText}</Text>
           </ClickableBox>
           <ClickableBox onClick={() => useTuiStore.getState().setCommandPaletteOpen(true)}>
-            <Text color={theme.muted}>{` ${cmdKeyLabel} ${t(lang, '命令', 'Cmd')} `}</Text>
+            <Text color={theme.muted}>{cmdChipText}</Text>
           </ClickableBox>
         </Box>
       ),

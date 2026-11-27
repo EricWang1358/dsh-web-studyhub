@@ -95,7 +95,6 @@ describe('#1354 P2-b notification history panel', () => {
       store.notify(`msg-${i}`, 'info', 'test');
     }
     const history = useTuiStore.getState().toastHistory;
-    assert.equal(MAX_TOAST_HISTORY, 50);
     assert.equal(history.length, 50);
     assert.equal(history[0].text, 'msg-7', 'oldest entries must be dropped');
     assert.equal(history.at(-1).text, 'msg-56', 'newest entry must be kept');

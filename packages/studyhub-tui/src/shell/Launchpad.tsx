@@ -10,6 +10,7 @@ import { Spinner } from '../components/Badge.js';
 import { LAYOUT_BP } from '../components/layout-tokens.js';
 import { detectAgy, modelInfo } from './data.js';
 import { useShellActions } from './actions.js';
+import { formatGlobalKeyHint } from './global-keymap.js';
 
 /** 3-row half-block pixel font for the header. */
 const GLYPHS: Record<string, readonly [string, string, string]> = {
@@ -144,6 +145,11 @@ export const Launchpad = memo(function Launchpad({ width, height, isActive }: La
     </Box>
   );
 
+  const cmdHint = formatGlobalKeyHint('command-palette', lang, asciiMode, true);
+  const helpHint = formatGlobalKeyHint('help', lang, asciiMode);
+  const quitHint = formatGlobalKeyHint('quit', lang, asciiMode);
+  const launchpadFooterLine = `${cmdHint.key} ${cmdHint.label}${dotSep}${helpHint.key} ${helpHint.label}${dotSep}${quitHint.key} ${quitHint.label}`;
+
   return (
     <Box width={width} height={height} flexDirection="column" alignItems="center" justifyContent="center">
       {asciiMode ? (
@@ -195,11 +201,7 @@ export const Launchpad = memo(function Launchpad({ width, height, isActive }: La
         </Box>
       </Box>
       <Box marginTop={1}>
-        <Text color={theme.dim}>
-          {asciiMode
-            ? t(lang, 'Ctrl+K 命令面板 - ? 快捷键 - q 退出', 'Ctrl+K palette - ? shortcuts - q quit')
-            : t(lang, 'Ctrl+K 命令面板 · ? 快捷键 · q 退出', 'Ctrl+K palette · ? shortcuts · q quit')}
-        </Text>
+        <Text color={theme.dim}>{launchpadFooterLine}</Text>
       </Box>
     </Box>
   );
