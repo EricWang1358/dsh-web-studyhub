@@ -107,6 +107,7 @@ StudyHub 读取 PDF 的文字层，按页保存，并把你选中的页面交给
 | 工具 | 协议 | 平台 | MCP | StudyHub 读取的输出 | 说明 |
 |---|---|---|---|---|---|
 | **MinerU**（推荐；StudyHub 一键装到这台电脑上并在本机运行。桌面客户端和命令行是手动路线） | MinerU 开源许可证：Apache-2.0 加附加条件（月活超过 1 亿或月收入超过 2000 万美元需另行授权；在线服务需署名） | Windows、macOS、Linux（库需要 Python 3.10–3.14） | 项目本身没有（社区版服务调用它的云端 API） | `content_list.json`（v1 为平铺列表，带 `page_idx`；v2 按页分组）。它的 Markdown 不带 `<!-- page: N -->` 分页标记 | 能处理扫描件、公式、表格和中文。官网提供 Windows 和 macOS（Apple 芯片与 Intel）桌面客户端：[mineru.net/client](https://mineru.net/client)。该页没有说明客户端在本机解析还是在云端解析，处理私密资料前请先确认。GitHub 的 README 介绍的是命令行、SDK 和 WebUI，没有介绍客户端。CPU 即可运行（基础档 2 GB 内存），GPU 可选。 |
+| **PaddleOCR 在线解析**（推荐；网页端免安装） | Apache-2.0 | 网页端（免安装） | 无 | JSON、Markdown | 官方在线解析入口 [paddleocr.ai](https://www.paddleocr.ai)（国内可直连，源码见 [GitHub](https://github.com/PaddlePaddle/PaddleOCR)）。文件需上传至网页服务，处理私密资料前请先确认隐私要求。 |
 | **Docling**（高级：需要命令行） | MIT | Windows、macOS、Linux | `docling-mcp`（MIT；stdio、SSE、streamable HTTP） | JSON（`DoclingDocument`，`prov.page_no` 从 1 开始）；Markdown | 用命令行或 Python 运行：`docling file.pdf --to json`。OCR 引擎有 RapidOCR、EasyOCR、Tesseract（`--ocr-engine`、`--ocr-lang`）。没有桌面应用。 |
 
 也核对过、但**不推荐**：
