@@ -309,6 +309,12 @@ test('the recommendation card: neutral credit, both links, one install command w
   assert.match(markup, />复制</);
   assert.match(markup, /web[^<]*profile[^<]*desktop/, 'web is the profile name and desktop is the usual one for the desktop app');
   assert.match(markup, />以后再说</);
+  // #1705: one quiet line until the learner opens it. The fold is closed, its line is the question alone, and the command is inside it.
+  assert.match(markup, /<details class="sh-disclosure[^"]*"(?![^>]*\sopen=)[^>]*>/, 'closed by default');
+  const line = /<summary[^>]*>(.*?)<\/summary>/s.exec(markup)[1].replace(/<[^>]+>/g, '');
+  assert.equal(line, '想要更漂亮、可以交互的图？推荐开源插件 Archify', 'nothing else is on the line');
+  assert.doesNotMatch(markup.slice(0, markup.indexOf('</summary>')), /dsh plugin/, 'no command before the fold is opened');
+  assert.doesNotMatch(markup, /sh-panel--sunken/, 'not the darkest block of the page');
   assert.doesNotMatch(markup, /官方|赞助|合作伙伴|联合出品|认证/, 'no claim of partnership or endorsement by them');
   assert.match(markup, /与 StudyHub 没有合作关系|没有关联/);
   assert.doesNotMatch(markup, /\stitle="/, 'no title attribute on plain text');
