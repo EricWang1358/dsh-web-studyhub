@@ -836,12 +836,17 @@ describe('computeSnapshotFingerprint', () => {
 
     // (b) Hardened CPU-time + multi-sample median and paired relative gates STAY GREEN under the same jitter
     //     and under isolated outlier spikes (2 of 7 samples spiked +30ms / +45ms).
-    assertPerfBudget('hardened CPU computeSnapshotFingerprint', () => computeSnapshotFingerprint(snapshot), 10, {
-      warmup: 2,
-      samples: 7,
-      batch: 2,
-      clock: cpuClock,
-    });
+    const fastBaseline = assertPerfBudget(
+      'hardened CPU computeSnapshotFingerprint',
+      () => computeSnapshotFingerprint(snapshot),
+      10,
+      {
+        warmup: 2,
+        samples: 7,
+        batch: 2,
+        clock: cpuClock,
+      },
+    );
 
     const spikedSampleClock = createJitteredClock([0, 30, 0, 45, 0, 0, 0], cpuClock);
     assertPerfBudget(
@@ -867,20 +872,23 @@ describe('computeSnapshotFingerprint', () => {
     );
 
     // (c) Genuine slowdown regression: wrapping the real `computeSnapshotFingerprint` with an
-    //     accidental full `JSON.stringify(snapshot)` still FAILS both the `< 10ms` CPU budget
-    //     and the `>= 3x` relative speedup gate against `JSON.stringify`.
+    //     accidental full `JSON.stringify(snapshot)` still FAILS both the hardened CPU gate
+    //     (calibrated from the measured O(K) baseline so fast CI CPUs where a single
+    //     JSON.stringify drops below 10ms still catch the ~30x O(N) regression) and the
+    //     `>= 3x` relative speedup gate against `JSON.stringify`.
     const regressedFingerprint = () => {
       const structural = computeSnapshotFingerprint(snapshot);
       return `${structural}:${JSON.stringify(snapshot).length}`;
     };
+    const calibratedBudgetMs = Math.min(10, Math.max(fastBaseline.median * 3, 0.25));
     assert.throws(
       () =>
-        assertPerfBudget('regressed fingerprint CPU budget', regressedFingerprint, 10, {
+        assertPerfBudget('regressed fingerprint CPU budget', regressedFingerprint, calibratedBudgetMs, {
           warmup: 1,
           samples: 3,
           clock: cpuClock,
         }),
-      /exceeded budget < 10ms/,
+      /exceeded budget </,
       'hardened CPU gate must fail when computeSnapshotFingerprint regresses to O(N) serialization',
     );
     assert.throws(

@@ -280,15 +280,18 @@ test("scene budget flake-repro: wall-clock jitter flakes legacy gate, CPU-time +
     regressedSpy.sourceTextReads >= view.sources.length,
     `Proxy invariant must detect source.text scans (saw ${regressedSpy.sourceTextReads} reads)`,
   );
+  const calibratedBudgetMs = Math.min(10, Math.max(realStats.median * 10, 0.5));
   assert.throws(
     () => assertCpuBudget(() => regressedBuildScene(view), {
-      maxMedianMs: 10,
+      maxMedianMs: calibratedBudgetMs,
+      referenceFn: () => buildCompactScene(view, args),
+      maxRatio: 20,
       warmup: 1,
       samples: 3,
       batch: 1,
       label: "regressed full-source-scan scene projection",
     }),
-    /exceeded budget < 10 ms/,
+    /exceeded budget </,
     "hardened CPU-time gate must fail on real full-source serialization regression",
   );
 });

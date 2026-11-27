@@ -1659,15 +1659,16 @@ describe('Bit-Exact Equivalence & Large-Library Scale NFR (fuzzy & source-helper
       }
       return acc;
     };
+    const calibratedBudgetMs = Math.min(25, Math.max(cpuResult.median * 10, 0.5));
     assert.throws(
       () =>
         assertPerfBudget(
           'genuinely slow uncached replaceMath regression',
           runRegressedReplaceMathBatch,
-          25,
+          calibratedBudgetMs,
           { warmup: 1, samples: 3, clock: cpuClock },
         ),
-      /exceeded budget < 25ms/,
+      /exceeded budget </,
       'hardened CPU gate must still fail when replaceMath falls off its fast path',
     );
   });

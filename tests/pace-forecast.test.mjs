@@ -431,15 +431,18 @@ test("pace-forecast flake-repro: minute-boundary & wall-clock jitter flake legac
     const res = libraryPaceForecast(state, { now: NOW });
     return totalFloor > 0 ? res : null;
   };
+  const calibratedBudgetMs = Math.min(15, Math.max(cpuStats.median * 3, 0.5));
   assert.throws(
     () => assertCpuBudget(regressedPerCardSpacing, {
-      maxMedianMs: 15,
+      maxMedianMs: calibratedBudgetMs,
+      referenceFn: () => libraryPaceForecast(state, { now: NOW }),
+      maxRatio: 5,
       warmup: 1,
       samples: 3,
       batch: 1,
       label: "regressed per-card spacingProfile forecast",
     }),
-    /exceeded budget < 15 ms/,
+    /exceeded budget </,
     "genuine per-card FSRS spacingProfile regression must fail the hardened pace-forecast CPU gate",
   );
 
