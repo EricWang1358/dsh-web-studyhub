@@ -1,0 +1,9 @@
+{
+  "简洁版": "Lite view",
+  "侧栏和首页只留练题常用的部分，其余页面仍在「更多」里；不删数据，也不改复习安排。": "The sidebar and the home keep what daily practice needs, and the other pages stay under “More”. Nothing is deleted and your review schedule does not change.",
+  "现在是简洁版，部分内容已收起。": "Lite view is on, so some parts are tucked away.",
+  "切回完整版": "Switch to full view",
+  "其余的功能按内容分组收在这里": "The other features are kept here, grouped by what they are about",
+  "现在是简洁版，首页的「总纲」按钮收起了。切回完整版后：": "Lite view is on, so the “Course outline” button on the home is tucked away. After switching to the full view: ",
+  "打开后，侧栏和首页只留练题常用的部分，其余页面仍在侧栏的「更多」里；不删数据，也不改复习安排。首页原来的某一块找不到了，关掉它，或点首页底部的「切回完整版」。默认关闭，只记在这个浏览器里。": "When on, the sidebar and the home keep what daily practice needs, and the other pages stay under “More” in the sidebar. Nothing is deleted and your review schedule does not change. If a part that used to be on the home is missing, turn it off, or click “Switch to full view” at the foot of the home. It is off by default and kept only in this browser."
+}

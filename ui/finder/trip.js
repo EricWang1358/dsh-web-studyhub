@@ -4,9 +4,10 @@
                 (an open document, a round of practice, a draft) is reached from the page named by its `prepare`, and a settings anchor is a settings link
                 (that is what selects its category).
    tripNotice   the toast that says where the control is, when it cannot simply be lit: the path, then what is left to do. Nothing when the control was
-                found where the entry says it is. */
+                found where the entry says it is. Directions through a part of the home that 简洁版 left out say that first and carry 切回完整版. */
 import { ui, uiFormat } from '../i18n.js';
 import { PREPARE_STEPS } from './entries-base.js';
+import { liteShows } from '../lite-view.js';
 
 /** `{ here, land, settings }` for an entry and the page the learner is on. `here`: look on this page first; `land`: the page to go to otherwise (null: stay); `settings`: the anchor to open Settings at. */
 export function planTrip(entry, { page }) {
@@ -21,13 +22,14 @@ export const pathText = (entry) => entry.path.map((crumb) => ui(crumb)).join(' �
 /**
  * The toast for a trip, or null. `found` is the index in `entry.anchors` of the anchor that was lit, or -1 for none. The words of what is left to do
  * (`prepare`) are said when nothing was found, when only the page's gateway was (the last of several anchors: the list a document is opened from), and
- * always for a step that ends behind a menu (`after`).
+ * always for a step that ends behind a menu (`after`). `lite`: 简洁版 is what is on screen; `showFull` turns it off.
  */
-export function tripNotice(entry, found) {
+export function tripNotice(entry, found, { lite = false, showFull } = {}) {
   const step = PREPARE_STEPS[entry.prepare];
   const gateway = found >= 0 && entry.anchors.length > 1 && found === entry.anchors.length - 1;
   const say = found < 0 || (step && (gateway || step.after));
   if (!say) return null;
   const where = uiFormat('在「{0}」里。', [pathText(entry)]);
+  if (step?.part && !liteShows(lite, step.part)) return { text: `${where}${ui(step.hidden)}${ui(step.text)}`, tone: 'info', action: { label: ui('切回完整版'), run: showFull } };
   return { text: step ? `${where}${ui(step.text)}` : where, tone: 'info' };
 }

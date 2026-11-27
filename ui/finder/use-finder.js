@@ -3,6 +3,7 @@ import { ANCHOR_WAIT_MS, findAnchor, locateAnchor, scrollToAnchor } from '../tou
 import { keepBook } from '../book/model.js';
 import { opensFinder } from './keys.js';
 import { planTrip, tripNotice } from './trip.js';
+import { liteViewStore } from '../use-lite-view.js';
 
 /* 找功能 (#653): opening the finder and what 「带我去」 does. The sheet (FinderSheet.jsx) only asks; this hook moves.
 
@@ -126,7 +127,8 @@ export function useFinder({ nav, settingsEntry, core, tour, rootRef, learn }) {
       hit = await waitFor(() => locateAnchor(root, entry.anchors), ANCHOR_WAIT_MS, aborted);
     }
     if (aborted()) return;
-    const notice = tripNotice(entry, hit ? hit.index : -1);
+    // A trip never starts during a tour, so the saved choice is what is on screen.
+    const notice = tripNotice(entry, hit ? hit.index : -1, { lite: liteViewStore.get(), showFull: () => liteViewStore.set(false) });
     if (hit) {
       // The fold we opened has told its page by now (its toggle event); the page draws what it holds. Settings scrolls to its own anchor (unless the control sat in a fold we opened).
       await frames(2);

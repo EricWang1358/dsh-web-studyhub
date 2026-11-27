@@ -8,6 +8,8 @@ import { NavItem, ResumeNavItem, CoachNavItem, NavGroup, NavFold, resumeProgress
 import { bookEntryPage } from '../book/model.js';
 import { NAV_DEFAULTS, NAV_GROUPS, NAV_MORE_KEY, groupOf, moreIsOpen, useNavOrder } from '../nav-order.js';
 import { useReorderHint } from '../nav-reorder-hint.js';
+import { liteNavOrder, liteShows } from '../lite-view.js';
+import { useLiteView } from '../use-lite-view.js';
 import { usePersistentState } from '../storage.js';
 import { Button } from '../components/index.js';
 import { flag } from './use-app-shell.js';
@@ -15,9 +17,12 @@ import { useApp } from './app-context.js';
 import { useStudyBusy } from '../study-context.jsx';
 
 /* The rows of the sidebar (#654): 回到题目 (and 为你定制 when it has questions ready), the main list, and 「更多」 with the other pages in sections
-   by what they are about. Which page sits where comes from ui/pages.js through ui/nav-order.js; nothing here lists pages. */
+   by what they are about. Which page sits where comes from ui/pages.js through ui/nav-order.js; nothing here lists pages. 简洁版 (ui/lite-view.js) changes
+   only what is drawn: the saved order is the same, and nothing here can change it while it is on. */
 
 const moreCodec = flag('open', 'closed');
+/** Where rows cannot be moved (简洁版), the line that says how to move them is never due. */
+const NO_REORDER_HINT = Object.freeze({ show: false, tipChange: undefined });
 
 /** What the number on 任务 says: what is running, and what ended since the console was last opened (and how many of those did not finish). */
 const taskBadgeTitle = ({ running, unseen, failed }) => [running > 0 ? uiFormat('{0} 个任务正在进行', [running]) : '',
@@ -43,15 +48,20 @@ export default function SidebarNav({ alert, reason, tasks }) {
   const navRef = useRef(null), [navMark, setNavMark] = useState(null);
   const navOrder = useNavOrder(NAV_DEFAULTS, navRef);
   const { order } = navOrder;
+  // The order as drawn: the learner's own, or in 简洁版 a view of it (more pages under 「更多」). Moving rows is off then, so what is drawn is never saved.
+  const lite = useLiteView();
+  const drawn = useMemo(() => liteNavOrder(order, lite), [order, lite]);
+  const canReorder = liteShows(lite, 'nav.reorder');
   /* 「更多」: open when the learner opened it (remembered), and while the page on screen is one of its pages, unless they closed it right there. */
   const [moreOpen, setMoreOpen] = usePersistentState(NAV_MORE_KEY, false, moreCodec);
   const [closedOn, setClosedOn] = useState(null);
-  const more = moreIsOpen({ open: moreOpen, activePage: navPage, order, closedOn });
+  const more = moreIsOpen({ open: moreOpen, activePage: navPage, order: drawn, closedOn });
   const toggleMore = (next) => { setMoreOpen(next); setClosedOn(next ? null : navPage); };
   /* How to reorder is said once, in the first row tooltip the learner opens, not in all of them (ui/nav-reorder-hint.js); a learner who has
      lifted or moved a row has found it. */
-  const reorderHint = useReorderHint();
-  const { learned } = reorderHint;
+  const savedHint = useReorderHint();
+  const reorderHint = canReorder ? savedHint : NO_REORDER_HINT;
+  const { learned } = savedHint;
   useEffect(() => { if (navOrder.lifted || navOrder.announce) learned(); }, [navOrder.lifted, navOrder.announce, learned]);
   /* A full main list says why on screen too (a drop or Alt+↑ that cannot land would otherwise look like nothing happened); the sentence is the one
      the live region reads. */
@@ -80,14 +90,14 @@ export default function SidebarNav({ alert, reason, tasks }) {
     const observer = new ResizeObserver(() => flushSync(measure));
     observer.observe(element);
     return () => observer.disconnect();
-  }, [page, pageTarget, busy, !!data, data?.lastRun?.id, data?.lastRun?.index, order, more, shell.navDrawer]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [page, pageTarget, busy, !!data, data?.lastRun?.id, data?.lastRun?.index, drawn, more, shell.navDrawer]); // eslint-disable-line react-hooks/exhaustive-deps
   /* 复习全书: the book of the current course when it has been written, else the 总纲 page, which offers to organise the course and write it. */
   const openBookEntry = async () => {
     let target = 'book';
     try { target = bookEntryPage(await core.call('course.book.open', { course: data?.focus?.course ?? null })); } catch { /* the book page shows the failure, with a retry */ }
     gotoPage(nav, target);
   };
-  const shown = (group) => order[group].filter((id) => pageAvailable(data, id));
+  const shown = (group) => drawn[group].filter((id) => pageAvailable(data, id));
   /* The number on 资料. Counting groups every page of every material into its document, so it is done once per snapshot of the library:
      the sidebar renders several times on each page change, and with 300 资料 each count took a few milliseconds of it. */
   const sources = data?.sources;
@@ -95,7 +105,7 @@ export default function SidebarNav({ alert, reason, tasks }) {
   const row = (id) => {
     const news = id === 'tasks' ? tasks : null;
     return (
-      <NavItem key={id} {...navOrder.bind(id)} data-tour={`nav-${id}`} data-usage={`nav.${id}`}
+      <NavItem key={id} {...(canReorder ? navOrder.bind(id) : { 'data-nav-id': id })} data-tour={`nav-${id}`} data-usage={`nav.${id}`}
         className={navOrder.lifted === id ? 'is-dragging' : ''} active={navPage === id}
         glyph={PAGES[id].glyph} label={ui(PAGES[id].label)} purpose={ui(PAGES[id].purpose)} alert={alert?.id === id ? reason : undefined}
         tail={reorderHint.show ? ui('长按并拖动可调整顺序（键盘：Alt+↑/↓）') : undefined} onTipChange={reorderHint.tipChange}
@@ -107,23 +117,23 @@ export default function SidebarNav({ alert, reason, tasks }) {
   };
   const sections = NAV_GROUPS.filter((group) => group.more && shown(group.id).length);
   // The dot of a row folded away in 「更多」 is carried by 「更多」 itself, with the same reason.
-  const alertInMore = alert && alert.id !== 'review' && groupOf(order, alert.id) !== 'main' && !more;
+  const alertInMore = alert && alert.id !== 'review' && groupOf(drawn, alert.id) !== 'main' && !more;
   return (
     <nav ref={navRef} className={'side-nav' + (navOrder.lifted ? ' is-reordering' : '')} data-tour="nav" aria-label={ui('导航')}>
       {navMark && <span className="nav-mark" aria-hidden="true" style={{ transform: `translateY(${navMark.top}px)`, height: navMark.height }} />}
       <NavGroup id="main" label="主导航" hidden>
         <ResumeNavItem lastRun={lastRun} hasDecks={!!data?.decks.length} ready={!!data} active={navPage === 'review'} alert={alert?.id === 'review' ? reason : undefined}
           disabled={!data || busy || !pageAvailable(data, 'review')} onClick={intents.resumeOrStart} />
-        {data?.coach?.ready > 0 && pageAvailable(data, 'review') && <CoachNavItem ready={data.coach.ready} disabled={busy} onClick={session.onCoachPractice} />}
+        {liteShows(lite, 'nav.coach') && data?.coach?.ready > 0 && pageAvailable(data, 'review') && <CoachNavItem ready={data.coach.ready} disabled={busy} onClick={session.onCoachPractice} />}
         {shown('main').map(row)}
       </NavGroup>
       {sections.length > 0 && (
-        <NavFold id="more" glyph="more" label={ui('更多')} purpose={uiFormat('其余的功能按内容分组收在这里；按住一项拖到上方，就放进主导航（最多 {0} 项，满了先把其中一项拖下来）', [MAIN_LIMIT])}
+        <NavFold id="more" glyph="more" label={ui('更多')} purpose={canReorder ? uiFormat('其余的功能按内容分组收在这里；按住一项拖到上方，就放进主导航（最多 {0} 项，满了先把其中一项拖下来）', [MAIN_LIMIT]) : ui('其余的功能按内容分组收在这里')}
           alert={alertInMore ? reason : undefined} open={more} onToggle={toggleMore} data-tour="nav-more" data-usage="nav.more">
           {sections.map((group) => <NavGroup key={group.id} id={group.id} label={group.label}>{shown(group.id).map(row)}</NavGroup>)}
         </NavFold>
       )}
-      {navOrder.customized && <Button variant="link" size="sm" className="nav-reset" onClick={navOrder.reset}>{ui('恢复默认顺序')}</Button>}
+      {canReorder && navOrder.customized && <Button variant="link" size="sm" className="nav-reset" onClick={navOrder.reset}>{ui('恢复默认顺序')}</Button>}
       <span className="sh-visually-hidden" role="status" aria-live="polite">{movedText(navOrder.announce)}</span>
     </nav>
   );

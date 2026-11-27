@@ -15,5 +15,17 @@
     }
     .map-row .map-fold:hover:not(:disabled) { background: transparent; color: var(--text); }
     .nb-dir .map-fold { margin-inline-end: var(--space-1); }
+
+    /* 简洁版's one line at the foot of the home (LiteViewLine.jsx): quiet, and it wraps in a narrow pane. */
+    .lite-view-line {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: center;
+      gap: var(--space-1) var(--space-3);
+      margin: var(--space-6) 0 0;
+      font-size: var(--fs-sm);
+      color: var(--text-faint);
+    }
   }
 }

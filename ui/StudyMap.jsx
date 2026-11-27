@@ -45,6 +45,9 @@ import FirstRunLine from "./first-run/FirstRunLine.jsx";
 import { useFirstRunLine } from "./first-run/use-first-run-line.js";
 import { AppContext } from "./app/app-context.js";
 import LazyDeskPlayStrip from "./desk-play/LazyDeskPlayStrip.jsx";
+import { liteShows, liteShowsNext } from "./lite-view.js";
+import { useLiteView, useLiteViewSetting } from "./use-lite-view.js";
+import LiteViewLine from "./study-map/LiteViewLine.jsx";
 
 /* The library home: the day's one card, the course heading, generation
    progress and drafts, and the catalogue of decks by course. Each part lives in
@@ -70,6 +73,9 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const refreshLibrary = app.core?.refresh;
   const toast = useToast();
   const quick = useQuickActions();
+  // 简洁版 (ui/lite-view.js): which blocks of this page are left out. Nothing else changes: the same data, the same verbs.
+  const lite = useLiteView(), shows = (part) => liteShows(lite, part);
+  const [, setLiteView] = useLiteViewSetting(), [fullAgain, setFullAgain] = useState(false);
   const openModelSettings = useContext(ModelSettingsContext) || undefined;
   const { start, confirmStart, resume, manage, removeDeck, openDraft, topUpDraft, retryGeneration, addSource, createManual, importLibrary,
     generateFromSources, onCoachPractice, onWeakPoints, onOpenExamBook, onShowGraph, onOpenMasteryMap, onCourseSettings, onGenerateFocus, onShowOutline } = actions;
@@ -125,6 +131,16 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   // Top of the home: what is still running first, then the newest finished cards.
   const shown = visibleGenerationJobs(jobs);
   const visibleJobs = [...shown.filter(isActiveJob), ...shown.filter((job) => !isActiveJob(job)).reverse()];
+  const showFullHome = () => { setLiteView(false); setFullAgain(true); };
+  // After 切回完整版 the blocks come back above the line the learner pressed (which is gone): the page returns to its top, and the keys stay with the app, on
+  // the course switcher where there is one (the app's root focused from the keyboard would be ringed all round the window).
+  useEffect(() => {
+    if (!fullAgain) return;
+    setFullAgain(false);
+    const page = pageRef.current;
+    (page?.querySelector?.('[data-tour="home-course"] button') || page?.closest?.(".study-app"))?.focus?.({ preventScroll: true });
+    page?.scrollIntoView?.({ block: "start" });
+  }, [fullAgain]);
   const revealActivity = () => (activityRef.current || pageRef.current)?.scrollIntoView?.({ block: "start", behavior: "smooth" });
   const revealDrafts = () => {
     const el = pageRef.current?.querySelector?.("details.home-drafts");
@@ -150,7 +166,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const nextView = !line.show && next.surface === "card" && (ownDeck || next.id === "draft")
     ? nextCardView(next.id, nextFacts, { plan: home.plan, today: home.todayAction, openDraft, viewDrafts: revealDrafts, generate: generateFromSources, wrong: onWeakPoints, exam: onOpenExamBook, modelSettings: openModelSettings, settingsLabel })
     : null;
-  const showNext = !!nextView && !nextDismissed, nextHasButton = showNext && !!nextView.action;
+  const showNext = !!nextView && liteShowsNext(lite, nextView.id) && !nextDismissed, nextHasButton = showNext && !!nextView.action;
   const shownDraftIds = new Set(visibleJobs.map((job) => job.draftId).filter(Boolean));
   const autoOpenDrafts = !activeJobs.length && nextFacts.drafts.draftIds.some((id) => !shownDraftIds.has(id)) && (next.id === "draft" || !ownDeck || !today.size || !!today.ahead);
   // 出第一组题 runs the request itself (firstRun.on.generate, the app's); without it the step offers only 改题型和题数, which opens 创建题组 with the materials ticked.
@@ -182,15 +198,15 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
         start={start} manage={manage} openDraft={openDraft} openAgent={host.openAgent} cancelJob={cancelJob} dismissJob={dismissJob}
         retryGeneration={retryGeneration} openModelSettings={openModelSettings} topUpDraft={topUpDraft} />
       {/* 课程准备: what is done once per course, above the day's work while it is open and one quiet line after; it waits until the learner has published a deck of their own. */}
-      {hasOwnDeck(data) && <SetupChecklist key={`${data.root}:${data.focus?.course ?? ""}`} data={data} on={setupHandlers} />}
-      <div className={"desk" + (home.plan.kind === "empty" ? " is-empty" : "")} data-tour="home-hero">
+      {shows("home.setup") && hasOwnDeck(data) && <SetupChecklist key={`${data.root}:${data.focus?.course ?? ""}`} data={data} on={setupHandlers} />}
+      <div className={"desk" + (home.plan.kind === "empty" ? " is-empty" : "") + (lite ? " is-lite" : "")} data-tour="home-hero">
         <DeskIntro data={data} home={home} mastery={mastery} start={start} resume={resume} endRun={endRun}
-          onFocus={onFocus} onCourseSettings={onCourseSettings} onGenerateFocus={onGenerateFocus} onShowOutline={onShowOutline} onOpenMasteryMap={onOpenMasteryMap} />
+          onFocus={onFocus} onCourseSettings={onCourseSettings} onGenerateFocus={onGenerateFocus} onShowOutline={onShowOutline} onOpenMasteryMap={onOpenMasteryMap} lite={lite} nextShown={showNext} />
         {line.show
           ? <div className="today-stack" data-depth={0} data-tour="home-today"><FirstRunLine line={line} form="compact" todayLabel={home.todayLabel} on={lineOn} plan={firstRun?.plan} /></div>
           : <TodayCard plan={home.plan} todayLabel={home.todayLabel} quiet={nextHasButton} extra={<RereadLine data={data} />} />}
       </div>
-      <LazyDeskPlayStrip key={data.root} data={data} onPracticeDeck={(deckId) => start?.({ mode: "path", scope: [{ deckId }] })} />
+      {shows("home.desk-play") && <LazyDeskPlayStrip key={data.root} data={data} onPracticeDeck={(deckId) => start?.({ mode: "path", scope: [{ deckId }] })} />}
       {/* 待发布 sits under the day's work; it opens on its own when unpublished drafts wait and today's round is empty or finished. */}
       <HomeDrafts drafts={drafts} data={data} modelReady={modelReadiness(data).ready} openDraft={openDraft} topUpDraft={topUpDraft} defaultOpen={autoOpenDrafts} />
       {(() => {
@@ -205,8 +221,8 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
       <CatalogHeading count={data.decks.filter((deck) => !!deck.archived === showArchived).length} showArchived={showArchived} hasDecks={data.decks.length > 0}
         hasSources={data.sources.length > 0} course={data.focus?.course} merge={merge} slain={data.decks.find((deck) => deck.systemKind === "slain")}
         addSource={addSource} createManual={createManual} importLibrary={importLibrary} manage={manage} onShowGraph={onShowGraph}
-        onShowOutline={home.route?.chapters?.length ? onShowOutline : undefined} />
-      <TopicGroupReminder grouping={data.topicGrouping} root={data.root} />
+        onShowOutline={home.route?.chapters?.length ? onShowOutline : undefined} maps={shows("home.catalog-maps")} />
+      {shows("home.topic-groups") && <TopicGroupReminder grouping={data.topicGrouping} root={data.root} />}
       <BookBackupHint bookCourses={data.bookCourses} root={data.root} />
       <MergeSuggestions merge={merge} />
       {data.decks.length > 0 && <CatalogToolbar search={search} onSearch={setSearch} showArchived={showArchived}
@@ -226,8 +242,10 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
         icon={<Icon name="caret" size={14} className="sh-caret" />}
         onClick={() => setShowParked((value) => !value)}>{uiFormat("未激活的课程 ({0})", [folders.parkedFolders.length])}</Button>}
       {/* Cross-workspace notebooks are for people with decks, or with notebooks elsewhere (P12). */}
-      {showNotebooks && <NotebookDirectory notebooks={notebooks?.notebooks} error={notebooks?.notebookError} onPublish={notebooks?.publish}
+      {showNotebooks && <NotebookDirectory key={lite ? "lite" : "full"} folded={!shows("home.notebooks-open")} notebooks={notebooks?.notebooks} error={notebooks?.notebookError} onPublish={notebooks?.publish}
         onUnpublish={notebooks?.unpublish} onOpen={notebooks?.open} refresh={notebooks?.loadNotebooks} onSearch={notebooks?.search} />}
+      {/* The one line that says the page is shorter than it can be, with the way back (never during a tour: that is the full view). */}
+      {lite && <LiteViewLine onFull={showFullHome} />}
       <SelectionBar scope={tree.scope} run={selectedRun} onClear={tree.clearSelection} onShowGraph={onShowGraph} onStart={start} onResume={resume}
         onOpenVoicePack={openVoicePack ? (scope) => openVoicePack({ scope }) : undefined} />
     </section>

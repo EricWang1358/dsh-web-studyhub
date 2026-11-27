@@ -28,9 +28,9 @@ const split = (html) => {
 };
 const anchorsIn = (html) => [...html.matchAll(/data-tour="(settings-appearance-[a-z-]+)"/g)].map((match) => match[1]);
 
-test('without opening anything there are five open choices: language, look, accent colour, size, sound effects', async () => {
+test('without opening anything there are six open choices: the lite view switch, language, look, accent colour, size, sound effects', async () => {
   const { main } = split(await draw());
-  assert.deepEqual(anchorsIn(main).filter((anchor) => !anchor.endsWith('-reset')), ['settings-appearance-language', 'settings-appearance-theme', 'settings-appearance-accent', 'settings-appearance-scale', 'settings-appearance-sound']);
+  assert.deepEqual(anchorsIn(main).filter((anchor) => !anchor.endsWith('-reset')), ['settings-appearance-lite', 'settings-appearance-language', 'settings-appearance-theme', 'settings-appearance-accent', 'settings-appearance-scale', 'settings-appearance-sound']);
   assert.match(main, />试听</);
   for (const gone of ['界面字体', '标题字体', '动画', '对比度', '界面密度', '圆角', '控件与字阶']) assert.doesNotMatch(main, new RegExp(`>${gone}<`), `${gone} is not in the open`);
 });

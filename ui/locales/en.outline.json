@@ -488,7 +488,7 @@
   "写进这个知识点，或发给主会话": "Write into this point, or send it to the main chat",
   "备考计划": "Study plan",
   "每周几章的备考计划": "Study plan by chapters a week",
-  "在深度定制里选「按每周几章排」，没有考试日期也有计划：复习全书的「备考计划」和首页的「本周」卡片写着「本周：第 3–4 章」和今天读哪几节；前几周没学完的会排进本周，不会丢。": "Choose \"by chapters a week\" in the in-depth customization and there is a plan without an exam date: the review book's \"Study plan\" and the home's \"This week\" card say \"This week: chapters 3–4\" and which points to read today; what earlier weeks left unlearnt is placed in this week, never lost.",
+  "在深度定制里选「按每周几章排」，没有考试日期也有计划：复习全书的「备考计划」和首页的「本周」卡片写着「本周：第 3–4 章」和今天读哪几节；前几周没学完的会排进本周，不会丢。（简洁版的首页不显示这张卡片，在复习全书里看。）": "Choose \"by chapters a week\" in the in-depth customization and there is a plan without an exam date: the review book's \"Study plan\" and the home's \"This week\" card say \"This week: chapters 3–4\" and which points to read today; what earlier weeks left unlearnt is placed in this week, never lost. (The lite home does not show this card; look in the review book.)",
   "按每周几章排：今天读 {0} 节，约 {1} 分钟，其中 {2} 节是前几周没学完的。": "Planned by chapters a week: {0} points today, about {1} minutes, {2} of them left over from earlier weeks.",
   "按每周几章排：今天读 {0} 节，约 {1} 分钟，其中 {2} 节是前几周没学完的。#one": "Planned by chapters a week: {0} point today, about {1} minutes, {2} of them left over from earlier weeks.",
   "按每周几章排：今天读 {0} 节，约 {1} 分钟，其中 {2} 节是前几周没学完的。#one:1": "Planned by chapters a week: {0} points today, about {1} minute, {2} of them left over from earlier weeks.",

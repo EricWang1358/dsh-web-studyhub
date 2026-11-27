@@ -14,6 +14,7 @@ import { META_DOT } from '../format.js';
 import { useStudy } from '../study-context.jsx';
 import LetterpressNumber from '../letterpress/LetterpressNumber.jsx';
 import PaceMeta from '../pace/PaceMeta.jsx';
+import { liteShows } from '../lite-view.js';
 
 /** The mastery of the current course (and the whole library when it differs), with what the words mean on hover. */
 function DeskMastery({ mastery, onOpenMasteryMap }) {
@@ -52,13 +53,17 @@ function OtherRuns({ runs, otherCourse, resume, endRun }) {
   );
 }
 
-/** The left of the home desk: the course heading, the way to the 总纲 beside the course title, the course route, method, mastery, the next step and the other ways to start. */
-export default function DeskIntro({ data, home, mastery, start, resume, endRun, onFocus, onCourseSettings, onGenerateFocus, onShowOutline, onOpenMasteryMap }) {
+/** The left of the home desk: the course heading, the way to the 总纲 beside the course title, the course route, method, mastery, the next step and the other ways to start.
+    `lite` (ui/lite-view.js): the course heading and the ways to start stay; the course's extras are left out. `nextShown`: the 下一步 card is on the page. */
+export default function DeskIntro({ data, home, mastery, start, resume, endRun, onFocus, onCourseSettings, onGenerateFocus, onShowOutline, onOpenMasteryMap, lite = false, nextShown = false }) {
   const { busy } = useStudy();
   const { route, starter, headline, plan, alternatives, otherRuns, otherCourse } = home;
   const currentEntry = (data.focus?.courses || []).find((course) => course.name === data.focus?.course);
   const paceForecast = data?.paceForecast;
   const focusedCourse = data.focus?.course;
+  const extras = liteShows(lite, 'home.course-extras');
+  // 「不知道从哪开始？」 for a learner with decks is on the 下一步 card; while the lite view draws no card, it waits under 其他开始方式.
+  const frontDoor = lite && !nextShown;
   const coursePace = paceForecast
     ? (focusedCourse != null && focusedCourse !== '*'
       ? (paceForecast.courses?.[focusedCourse] || null)
@@ -67,15 +72,18 @@ export default function DeskIntro({ data, home, mastery, start, resume, endRun, 
   return (
     <div className="desk-intro">
       <CourseHeading data={data} headline={headline} onFocus={onFocus} onCourseSettings={onCourseSettings}
-        aside={route?.chapters?.length && onShowOutline ? <OutlineEntry onShowOutline={onShowOutline} /> : undefined} />
+        aside={extras && route?.chapters?.length && onShowOutline ? <OutlineEntry onShowOutline={onShowOutline} /> : undefined} />
       {isParked(currentEntry) && <p className="course-parked-line"><ParkedChip course={currentEntry} />
         <small>{ui('未激活的课程不进入到期复习和推荐；随时可以再激活')}</small></p>}
-      {route && <CourseRoute route={route} />}
-      <MethodLine method={data.focus?.method} courseId={data.focus?.courseId} onCourseSettings={onCourseSettings} />
-      <FocusProgressLine progress={data.focus?.progress} courseId={data.focus?.courseId} lock={busy} start={start} onCourseSettings={onCourseSettings} onGenerateFocus={onGenerateFocus} />
-      {mastery.primary && <DeskMastery mastery={mastery} onOpenMasteryMap={onOpenMasteryMap} />}
-      {coursePace && <PaceMeta variant="course" forecast={coursePace} pace={paceForecast?.pace} asOf={paceForecast?.asOf} />}
-      <p className="desk-next">
+      {extras && <>
+        {route && <CourseRoute route={route} />}
+        <MethodLine method={data.focus?.method} courseId={data.focus?.courseId} onCourseSettings={onCourseSettings} />
+        <FocusProgressLine progress={data.focus?.progress} courseId={data.focus?.courseId} lock={busy} start={start} onCourseSettings={onCourseSettings} onGenerateFocus={onGenerateFocus} />
+        {mastery.primary && <DeskMastery mastery={mastery} onOpenMasteryMap={onOpenMasteryMap} />}
+        {coursePace && <PaceMeta variant="course" forecast={coursePace} pace={paceForecast?.pace} asOf={paceForecast?.asOf} />}
+      </>}
+      {/* Without the extras there is no 推荐下一步; what a newcomer's empty home says about its next step stays. */}
+      {(extras || (!data.next && starter)) && <p className="desk-next">
         {data.next ? (
           <>
             <span className="desk-next-label">{ui('推荐下一步')}</span>
@@ -84,7 +92,7 @@ export default function DeskIntro({ data, home, mastery, start, resume, endRun, 
             <Button variant="link" iconEnd="arrow-right" lock={busy} onClick={() => start({ mode: 'path', scope: [{ deckId: data.next.deckId, topic: data.next.topic }] })}>{ui('只学这个主题')}</Button>
           </>
         ) : starter ? starter.next : ui('现在没有未掌握的主题，可以提前巩固。')}
-      </p>
+      </p>}
       {plan.kind === 'empty' && plan.also.length > 0 && (
         <p className="desk-also">
           {/* The other ways in beside 再添加资料 are text actions like it, so they are ink too (sh-btn--ink; the hand-off link by .desk-also in desk.css) and one size: one row, one system (#1074). */}
@@ -94,15 +102,16 @@ export default function DeskIntro({ data, home, mastery, start, resume, endRun, 
         </p>
       )}
       {plan.kind === 'empty' && <p className="desk-also"><HandOff id="guide.start" lead={ui('不知道从哪开始？')} what={ui('让主会话看一眼你的学习库，再说两三条能马上开始的路。')} disabled={busy} /></p>}
-      {plan.kind !== 'empty' && alternatives.length > 0 && (
+      {plan.kind !== 'empty' && (alternatives.length > 0 || frontDoor) && (
         <details className="desk-more">
           <summary>{ui('其他开始方式')}</summary>
-          <p className="desk-also">
+          {alternatives.length > 0 && <p className="desk-also">
             {alternatives.map(([label, run, hint]) => {
               const btn = <Button key={label} variant="link" lock={busy} onClick={run}>{label}</Button>;
               return hint ? <Tooltip key={label} layer content={hint}>{btn}</Tooltip> : btn;
             })}
-          </p>
+          </p>}
+          {frontDoor && <p className="desk-also"><HandOff id="guide.start" lead={ui('不知道从哪开始？')} what={ui('让主会话看一眼你的学习库，再说两三条能马上开始的路。')} disabled={busy} /></p>}
         </details>
       )}
       {otherRuns.length > 0 && <OtherRuns runs={otherRuns} otherCourse={otherCourse} resume={resume} endRun={endRun} />}
