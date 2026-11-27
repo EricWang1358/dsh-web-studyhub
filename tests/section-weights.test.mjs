@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sectionWeights, weightsPrompts, lengthWeights, WEIGHT_CHUNK, HEAD_CHARS } from '../lib/section-weights.js';
+import { sectionWeights, weightsPrompts, lengthWeights, HEAD_CHARS } from '../lib/section-weights.js';
 import { sectionKey } from '../lib/coverage.js';
 import { transcriptFixture } from './helpers/coverage-fixture.mjs';
 
@@ -30,7 +30,6 @@ function lightModel(script = () => null) {
 test('one call per chunk of about 20 sections, over titles, positions, sizes and the first 300 characters only', async () => {
   const model = lightModel();
   const result = await sectionWeights({ sections: leaves, sources, light: model.complete, language: 'zh' });
-  assert.equal(WEIGHT_CHUNK, 20);
   assert.equal(model.calls.length, Math.ceil(leaves.length / 20), `${model.calls.length} calls for ${leaves.length} sections`);
   assert.deepEqual(model.calls.map(call => call.evidence.length), [20, 20, 20, 20, 1]);
   const first = model.calls[0];
@@ -44,6 +43,17 @@ test('one call per chunk of about 20 sections, over titles, positions, sizes and
   assert.equal(result.calls, model.calls.length);
   assert.equal(result.weights.length, leaves.length);
   assert.deepEqual(result.weights.map(item => item.sectionId), leaves.map(item => item.key), 'reading order, section keys');
+
+  // Exact ±1 chunk boundary: 20 sections fit in one call, 21 split into [20, 1].
+  const model20 = lightModel();
+  const result20 = await sectionWeights({ sections: leaves.slice(0, 20), sources, light: model20.complete, language: 'zh' });
+  assert.equal(result20.calls, 1);
+  assert.deepEqual(model20.calls.map(call => call.evidence.length), [20]);
+
+  const model21 = lightModel();
+  const result21 = await sectionWeights({ sections: leaves.slice(0, 21), sources, light: model21.complete, language: 'zh' });
+  assert.equal(result21.calls, 2);
+  assert.deepEqual(model21.calls.map(call => call.evidence.length), [20, 1]);
 });
 
 test('the prompt puts instructions and focus topics in shared system and evidence first in prompt (a stable, cache-friendly prefix)', () => {

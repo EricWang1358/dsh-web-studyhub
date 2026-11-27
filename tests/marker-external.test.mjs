@@ -27,7 +27,14 @@ function fixture(t, { mode = 'success', filename = process.platform === 'win32' 
 
 test('downloaded helper is standalone and never installs Marker or enables paid/cloud LLM flags', () => {
   const script = createMarkerConversionScript();
-  assert.equal(MARKER_SCRIPT_FILENAME, 'studyhub-marker-convert.py');
+  assert.match(MARKER_SCRIPT_FILENAME, /^[^/\\]+\.py$/, 'helper filename must be a plain .py basename');
+  const expectedCli = `python ${MARKER_SCRIPT_FILENAME} "path/to/material.pdf"`;
+  assert.ok(script.includes(`#   ${expectedCli}`), 'script header documents CLI usage with MARKER_SCRIPT_FILENAME');
+  assert.ok(
+    script.includes(`"File picker unavailable. Run: python ${MARKER_SCRIPT_FILENAME} "\n            "\\"path/to/material.pdf\\""`),
+    'no-picker RuntimeError fallback matches MARKER_SCRIPT_FILENAME',
+  );
+  assert.ok(script.includes('python studyhub-marker-convert.py "path/to/material.pdf"'), 'CLI invocation matches the expected helper filename');
   assert.match(script, /shell=False/);
   assert.match(script, /first use may download model weights/);
   assert.match(script, /--paginate_output/);
