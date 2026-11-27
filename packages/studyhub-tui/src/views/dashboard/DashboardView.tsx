@@ -25,6 +25,13 @@ import {
   type BarChartItem,
   type HeatmapDay,
 } from '../../render/charts.js';
+import {
+  selectBucketTotalTokens,
+  selectDailyHabitMetrics,
+  selectDashboardKpis,
+  selectForecastQueueDepth,
+  selectUsageTotals,
+} from '../../selectors/dashboard-metrics.js';
 
 const StudyMapModal = lazy(() =>
   import('./StudyMapModal.js').then((m) => ({ default: m.StudyMapModal })),
@@ -173,13 +180,7 @@ function formatTokens(n: number): string {
 }
 
 function totalTokensOf(u?: UsageTotals | null): number {
-  if (!u) return 0;
-  return (
-    (Number(u.uncachedInputTokens) || 0) +
-    (Number(u.outputTokens) || 0) +
-    (Number(u.cacheReadTokens) || 0) +
-    (Number(u.cacheWriteTokens) || 0)
-  );
+  return selectBucketTotalTokens(u);
 }
 
 export type UsageWindowDays = 7 | 30 | 90;
@@ -199,6 +200,8 @@ export interface DashboardReportInput {
   usage: UsageSummaryResponse | null;
   usageDays: UsageWindowDays;
   courseRows: readonly DashboardCourseReportRow[];
+  /** Library snapshot: when `stats.totals` is missing the KPIs fall back to `selectStudySummary(snapshot, focusCourse)`. */
+  snapshot?: StudySnapshot | null;
   focusCourse?: string | null;
   lang: 'zh' | 'en';
   generatedAt?: string;
@@ -217,21 +220,15 @@ export function formatDashboardMarkdownReport({
   usage,
   usageDays,
   courseRows,
+  snapshot,
   focusCourse,
   lang,
   generatedAt,
 }: DashboardReportInput): string {
   const reportDate = generatedAt || stats?.today || todayLocalYmd();
-  const totals = stats?.totals;
-  const totalCards = totals?.cards ?? courseRows.reduce((sum, row) => sum + (Number(row.totalCards) || 0), 0);
-  const mastered = totals?.mastered ?? 0;
-  const dueTodayCount = totals?.due ?? courseRows.reduce((sum, row) => sum + (Number(row.dueCount) || 0), 0);
-  const weakCount = totals?.weak ?? courseRows.reduce((sum, row) => sum + (Number(row.weakCount) || 0), 0);
-  const attempts = totals?.attempts ?? 0;
-  const acc = totals?.recentRate ?? totals?.correctRate;
-  const accStr = acc !== null && acc !== undefined ? `${acc}%` : '--';
-  const activeDays = totals?.activeDays ?? 0;
-  const streak = totals?.streak ?? 0;
+  const kpis = selectDashboardKpis(stats, selectStudySummary(snapshot, focusCourse));
+  const { totalCards, mastered, due: dueTodayCount, weak: weakCount, attempts, accuracyLabel: accStr, activeDays, streak } = kpis;
+  const habits = selectDailyHabitMetrics(dailyPlan);
 
   const lines: string[] = [
     `# ${t(lang, 'StudyHub 学习进度报告', 'StudyHub Study Progress Report')}`,
@@ -241,9 +238,9 @@ export function formatDashboardMarkdownReport({
   if (focusCourse) {
     lines.push(`- ${t(lang, '当前课程', 'Focus Course')}: ${escapeMdCell(focusCourse)}`);
   }
-  if (dailyPlan && (dailyPlan.budgetMinutes !== undefined || dailyPlan.spentMinutes !== undefined)) {
+  if (habits.hasDailyBudget) {
     lines.push(
-      `- ${t(lang, '今日学习时长', 'Daily Plan')}: ${Number(dailyPlan.spentMinutes) || 0} / ${Number(dailyPlan.budgetMinutes) || 0} ${t(lang, '分钟', 'min')}`,
+      `- ${t(lang, '今日学习时长', 'Daily Plan')}: ${habits.spentMinutes} / ${habits.budgetMinutes} ${t(lang, '分钟', 'min')}`,
     );
   }
 
@@ -263,7 +260,8 @@ export function formatDashboardMarkdownReport({
     `| ${t(lang, '连续学习 (Streak)', 'Streak')} | ${streak}${t(lang, ' 天', 'd')} |`,
   );
 
-  const forecastDays = (stats?.forecast?.days ?? []).slice(0, 7);
+  const forecastQueue = selectForecastQueueDepth(stats?.forecast?.days);
+  const forecastDays = forecastQueue.days;
   if (forecastDays.length > 0) {
     lines.push(
       '',
@@ -310,12 +308,14 @@ export function formatDashboardMarkdownReport({
     lines.push(`_${t(lang, '暂无课程统计数据。', 'No course mastery data yet.')}_`);
   }
 
-  const totalTokens = totalTokensOf(usage?.total);
-  const totalCalls = Number(usage?.total?.calls ?? 0);
-  const inputTokens = Number(usage?.total?.uncachedInputTokens ?? 0);
-  const outputTokens = Number(usage?.total?.outputTokens ?? 0);
-  const cacheRead = Number(usage?.total?.cacheReadTokens ?? 0);
-  const cacheWrite = Number(usage?.total?.cacheWriteTokens ?? 0);
+  const {
+    totalTokens,
+    totalCalls,
+    uncachedInputTokens: inputTokens,
+    outputTokens,
+    cacheReadTokens: cacheRead,
+    cacheWriteTokens: cacheWrite,
+  } = selectUsageTotals(usage);
 
   lines.push(
     '',
@@ -624,6 +624,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
         usage,
         usageDays,
         courseRows: courseStats,
+        snapshot,
         focusCourse: course,
         lang,
         generatedAt: todayLocalYmd(),
@@ -642,7 +643,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
     } finally {
       exportBusyRef.current = false;
     }
-  }, [asciiMode, bindingRoot, course, courseStats, dailyPlan, host, lang, notify, stats, usage, usageDays]);
+  }, [asciiMode, bindingRoot, course, courseStats, dailyPlan, host, lang, notify, snapshot, stats, usage, usageDays]);
 
   const claimedKeys = useMemo(() => ['j', 'k', 'p', 'w', 'f', 'm', 'd', 'x', '/', 'T'], []);
   useInputCapture(isActive && !mapModalOpen && filterOpen);
@@ -726,13 +727,15 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
   });
   useFooterHints(footerHints, pageActive);
 
-  const totals = stats?.totals;
-  const totalCards = totals?.cards ?? studySummary.totalCards;
-  const dueCount = totals?.due ?? studySummary.due;
-  const weakCount = totals?.weak ?? studySummary.weak;
-  const masteredCount = totals?.mastered ?? studySummary.mastered;
-  const accuracy = totals?.recentRate ?? totals?.correctRate;
-  const accuracyStr = accuracy !== null && accuracy !== undefined ? `${accuracy}%` : '--';
+  // The same call the Markdown report makes: backend totals first, the focus course's study summary otherwise.
+  const dashboardKpis = useMemo(() => selectDashboardKpis(stats, studySummary), [stats, studySummary]);
+  const {
+    totalCards,
+    due: dueCount,
+    weak: weakCount,
+    mastered: masteredCount,
+    accuracyLabel: accuracyStr,
+  } = dashboardKpis;
   const totalTokens = totalTokensOf(usage?.total);
   const totalCalls = Number(usage?.total?.calls ?? 0);
 
@@ -765,12 +768,12 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
     return renderBarChart(courseBars, innerW, theme, { ascii: asciiMode });
   }, [courseBars, rightW, theme, asciiMode]);
 
-  const forecastDays = useMemo(() => (stats?.forecast?.days ?? []).slice(0, 7), [stats?.forecast?.days]);
-  const forecastSummary = useMemo(() => {
-    const total7d = forecastDays.reduce((sum, d) => sum + (Number(d.count) || 0), 0);
-    const overdue = Number(forecastDays[0]?.overdue) || 0;
-    return { total7d, overdue };
-  }, [forecastDays]);
+  const forecastQueue = useMemo(() => selectForecastQueueDepth(stats?.forecast?.days), [stats?.forecast?.days]);
+  const forecastDays = forecastQueue.days;
+  const forecastSummary = useMemo(
+    () => ({ total7d: forecastQueue.total7d, overdue: forecastQueue.overdue }),
+    [forecastQueue.total7d, forecastQueue.overdue],
+  );
 
   const forecastPanelWidth = forecastVisibleOnWide ? forecastW : rightW;
   const forecastLines = useMemo(() => {
@@ -789,17 +792,15 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
   }, [forecastDays, forecastPanelWidth, lang, theme, asciiMode]);
 
   const habitInfo = useMemo(() => {
-    const p = dailyPlan?.profile;
-    if (!p) return null;
-    const hasObserved = p.observedWeekdayMinutes !== undefined || p.observedWeekendMinutes !== undefined;
-    if (!hasObserved) return null;
-    const wdStr = p.observedWeekdayMinutes !== undefined ? `${p.observedWeekdayMinutes}m` : '--';
-    const weStr = p.observedWeekendMinutes !== undefined ? `${p.observedWeekendMinutes}m` : '--';
+    const h = selectDailyHabitMetrics(dailyPlan);
+    if (!h.hasObservedHabits) return null;
+    const wdStr = h.observedWeekdayMinutes !== null ? `${h.observedWeekdayMinutes}m` : '--';
+    const weStr = h.observedWeekendMinutes !== null ? `${h.observedWeekendMinutes}m` : '--';
     return {
       full: t(lang, `习惯(实测): 工作日 ${wdStr} / 周末 ${weStr}`, `Habits (obs): Wkday ${wdStr} / Wkend ${weStr}`),
       compact: t(lang, `习惯 ${wdStr}/${weStr}`, `Habits ${wdStr}/${weStr}`),
     };
-  }, [dailyPlan?.profile, lang]);
+  }, [dailyPlan, lang]);
 
   const sep = asciiMode ? '  |  ' : '  │  ';
   const kpiCards = wide ? (
@@ -828,7 +829,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
       <KpiCard
         label={t(lang, '正确率 (30天)', 'Accuracy (30d)')}
         value={accuracyStr}
-        sub={t(lang, `连续 ${totals?.streak ?? 0} 天`, `${totals?.streak ?? 0}d streak`)}
+        sub={t(lang, `连续 ${dashboardKpis.streak} 天`, `${dashboardKpis.streak}d streak`)}
         tone="accent"
         width={kpiW}
       />
@@ -864,7 +865,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
       <Text wrap="truncate">
         <Text color={theme.muted}>{t(lang, '正确率 ', 'Acc ')}</Text>
         <Text color={theme.accent} bold>{accuracyStr}</Text>
-        <Text color={theme.dim}>{t(lang, ` (连续${totals?.streak ?? 0}天)${sep}`, ` (${totals?.streak ?? 0}d)${sep}`)}</Text>
+        <Text color={theme.dim}>{t(lang, ` (连续${dashboardKpis.streak}天)${sep}`, ` (${dashboardKpis.streak}d)${sep}`)}</Text>
         <Text color={theme.muted}>{t(lang, '用量 ', 'Usage ')}</Text>
         <Text color={theme.info} bold>{formatTokens(totalTokens)}</Text>
         <Text color={theme.dim}>{t(lang, ` (${totalCalls}次/${usageDays}天)`, ` (${totalCalls}/${usageDays}d)`)}</Text>
@@ -1065,7 +1066,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
       <Box flexDirection="row" gap={1} width={width} height={midH} flexShrink={0}>
         <Panel
           title={wide ? t(lang, '12 周学习热力图', '12-Week Activity') : t(lang, '12周热力', 'Activity')}
-          subtitle={wide ? t(lang, `活跃 ${totals?.activeDays ?? 0} 天`, `${totals?.activeDays ?? 0} active days`) : undefined}
+          subtitle={wide ? t(lang, `活跃 ${dashboardKpis.activeDays} 天`, `${dashboardKpis.activeDays} active days`) : undefined}
           width={leftW}
           height={midH}
         >

@@ -18,8 +18,8 @@ const compiled = await build({
 });
 const mod = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, mod, mod.exports);
-const { NavGroup, NavFold, NavItem, NAV_DEFAULTS, NAV_GROUPS, NAV_HOMES, NAV_SECTIONS, MAIN_LIMIT, PAGES, NAV_ORDER_KEY, LEGACY_ORDER_KEY,
-  mergeOrder, moreIsOpen, readNavOrder, writeNavOrder, setUiLanguage } = mod.exports;
+const { NavGroup, NavFold, NavItem, NAV_DEFAULTS, NAV_GROUPS, NAV_HOMES, NAV_SECTIONS, PAGES, NAV_ORDER_KEY, LEGACY_ORDER_KEY,
+  keyMove, mergeOrder, moreIsOpen, readNavOrder, writeNavOrder, setUiLanguage } = mod.exports;
 const html = (element) => renderToStaticMarkup(element);
 const h = React.createElement;
 
@@ -32,9 +32,8 @@ function store(entries = {}) {
 }
 
 test('at most six pages in the main list, so the sidebar shows at most seven rows with 回到题目; the rest sit in 「更多」', () => {
-  assert.equal(MAIN_LIMIT, 6);
   assert.deepEqual(NAV_DEFAULTS.main, ['library', 'sources', 'generate', 'wrongbook', 'exam', 'dashboard'], 'today, materials, making questions, mistakes, exams, statistics');
-  assert.ok(NAV_DEFAULTS.main.length <= MAIN_LIMIT);
+  assert.equal(NAV_DEFAULTS.main.length, 6);
   assert.deepEqual(NAV_DEFAULTS.main, Object.keys(PAGES).filter((id) => PAGES[id].main), 'derived from ui/pages.js, in registry order');
   const all = Object.values(NAV_DEFAULTS).flat();
   assert.deepEqual([...all].sort(), [...BEFORE].sort(), 'no page dropped');
@@ -83,7 +82,13 @@ test('a page dragged from 「更多」 into the main list stays there after a re
   assert.deepEqual(order.main, ['library', 'sources', 'generate', 'wrongbook', 'book']);
   assert.deepEqual(order.exam, ['exam', 'dashboard', 'examprep', 'examcoach'], 'pages taken out of the main list are in their own section');
   const crowded = readNavOrder(store({ [NAV_ORDER_KEY]: JSON.stringify({ main: BEFORE }) }));
-  assert.equal(crowded.main.length, MAIN_LIMIT);
+  assert.equal(crowded.main.length, 6);
+  assert.deepEqual(keyMove(NAV_DEFAULTS, 'audio', -1), { refused: 'full', id: 'audio' }, 'a full main list of six refuses promotion');
+  const withRoom = { ...NAV_DEFAULTS, main: NAV_DEFAULTS.main.slice(0, 5), exam: ['dashboard', ...NAV_DEFAULTS.exam] };
+  const promoted = keyMove(withRoom, 'audio', -1);
+  assert.equal(promoted.group, 'main');
+  assert.equal(promoted.order.main.length, 6);
+  assert.equal(promoted.order.main.at(-1), 'audio');
 });
 
 test('「更多」 is open when the learner opened it, and while the page on screen is in it (unless they closed it right there)', () => {
