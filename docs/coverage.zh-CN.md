@@ -1,6 +1,6 @@
 # 每份所选资料都出题（覆盖 · 流程 A）
 
-English: [coverage.md](coverage.md)（“Every selected material gets questions”一节）。
+本文为 [coverage.md](coverage.md) 中“Every selected material gets questions”一节的节选译文；其余章节（覆盖强度、自动多轮、状态与发布后补题等）请见英文完整版。
 
 2026-10-11 的真实情况：一份混合题组要 30 题，只规划了 18 题、留下 8 题，8 段录音里有 6 段（占 60% 的文字）一道题都没有；一次“完整”运行的第 1 轮 29 题只覆盖了 30 个小节中的 2 个。
 
