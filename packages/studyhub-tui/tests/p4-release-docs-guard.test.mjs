@@ -215,8 +215,15 @@ describe('P4 Stabilization, Pre-release Audit & Docs Sync Guardrail (#1354)', ()
     const guide = fs.readFileSync(path.join(PKG_ROOT, 'docs/GUIDE.md'), 'utf8');
     const assistantUx = fs.readFileSync(path.join(PKG_ROOT, 'docs/ASSISTANT-UX.md'), 'utf8');
 
-    // README stale items must be gone
-    assert.ok(!readme.includes('`T` 翻译') && !readme.includes('/ `T` /'), 'README.md must not map T to Translate (use W)');
+    // README stale items must be gone (scope `/ `T` /` to Review lines so Dashboard's `T` stat-matrix shortcut does not false-positive)
+    const reviewReadmeLines = readme
+      .split(/\r?\n/)
+      .filter((line) => line.includes('刷题复习') || line.includes('FSRS-6 全题型刷题'))
+      .join('\n');
+    assert.ok(
+      reviewReadmeLines.length > 0 && !readme.includes('`T` 翻译') && !reviewReadmeLines.includes('/ `T` /'),
+      'README.md must not map T to Translate (use W)',
+    );
     assert.ok(!readme.includes('`q` 二次确认结束本轮'), 'README.md must not map q to end-round (use X)');
     assert.ok(!/4 套[^\n]*主题/.test(readme), 'README.md must reflect 6 WCAG themes, not 4');
 
