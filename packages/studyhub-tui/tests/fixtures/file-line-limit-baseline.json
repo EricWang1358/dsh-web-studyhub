@@ -21,7 +21,6 @@
     "views/notes/NotesView.tsx": 1676,
     "views/review/CardToolsModal.tsx": 1813,
     "views/review/RoundSummary.tsx": 1065,
-    "views/settings/WorkspaceTab.tsx": 2699,
     "views/skeleton/SkeletonView.tsx": 1909,
     "views/sources/CompanionsModal.tsx": 2055,
     "views/sources/DocumentReader.tsx": 2285,
