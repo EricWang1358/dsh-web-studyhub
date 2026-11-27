@@ -9,6 +9,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { mapProps } from './helpers/study-map-props.mjs';
 import { nativeSelects } from './helpers/native-selects.mjs';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
@@ -229,6 +230,12 @@ test('the locale carries every new string, the styles use tokens only, the conte
   const english = JSON.parse(readFileSync(new URL('../ui/locales/en.course.json', import.meta.url), 'utf8'));
   for (const key of ['有效课程', '未激活', '激活', '这门课未激活', '显示', '隐藏', '未激活的课程 ({0})', '不含 {0} 门未激活的课程', '含 {0} 门未激活的课程', '仅有效课程 · 另有 {0} 题在未激活的课程里', '管理课程',
     '只停这一门', '连同子课程一起', '未激活的课程不进入到期复习和推荐；随时可以再激活']) assert.ok(english[key], key);
-  const css = readFileSync(new URL('../ui/course-active.css', import.meta.url), 'utf8');
-  assert.doesNotMatch(css, /#[0-9a-fA-F]{3,8}\b/, 'no hard-coded colours');
+  // Repo-wide raw-colour guards also run in tests/css-token-guard.test.mjs and tests/ui-guardrails.test.mjs.
+  const { declarations } = parseCss(readFileSync(new URL('../ui/course-active.css', import.meta.url), 'utf8'));
+  assert.ok(declarations.length > 0, 'course-active.css declares styles');
+  assert.deepEqual(
+    declarations.filter((d) => /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(/i.test(d.value)),
+    [],
+    'no hard-coded colours',
+  );
 });

@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import rough from 'roughjs';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 
 const m = await loadUi(`
@@ -355,20 +356,61 @@ test('Graph: toggles crisp/sketch mode, illuminates prerequisite lineage spotlig
 });
 
 test('Wave 2 stylesheets (forecast-tide.css, graph-sketch.css) satisfy all token, weight, and motion guardrails', async () => {
+  // Repo-wide layer/scope and raw-colour guards also run in tests/css-layers.test.mjs,
+  // tests/css-token-guard.test.mjs, and tests/ui-guardrails.test.mjs. Here we verify the
+  // Wave 2 feature sheets' @layer study.features placement, reduced-motion rules, token bans, and spotlight dim opacities.
+  const splitSelectors = (sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim());
+  const parsed = new Map();
   for (const rel of ['../ui/charts/forecast-tide.css', '../ui/graph-sketch/graph-sketch.css']) {
-    const css = await readFile(new URL(rel, import.meta.url), 'utf8');
-    assert.match(css, /@layer study\.features/);
-    assert.match(css, /prefers-reduced-motion:\s*reduce/);
-    assert.match(css, /data-motion="reduced"/);
-    assert.doesNotMatch(css, /#[0-9a-fA-F]{3,8}\b/);
-    assert.doesNotMatch(css, /\b(?:rgba?|hsla?)\(/i);
-    assert.doesNotMatch(css, /var\(--fw-strong\)/);
-    assert.doesNotMatch(css, /var\(--fs-xs\)/);
-    assert.doesNotMatch(css, /var\(--paper\)/);
-    assert.doesNotMatch(css, /var\(--shadow-(?:card|sm)\)/);
-    assert.doesNotMatch(css, /!important/);
+    const ast = parseCss(await readFile(new URL(rel, import.meta.url), 'utf8'));
+    parsed.set(rel, ast);
+    const { declarations, blocks } = ast;
+    assert.ok(declarations.length > 0, `${rel} declares styles`);
+    assert.equal(blocks.some((b) => b.prelude === '@layer study.features'), true, `${rel} belongs to @layer study.features`);
+    assert.equal(declarations.every((d) => d.ctx.includes('@layer study.features')), true, `${rel} keeps every declaration inside @layer study.features`);
+    assert.equal(
+      blocks.some((b) => /@media\s*\(prefers-reduced-motion:\s*reduce\)/.test(b.prelude))
+        && declarations.some(
+          (d) => d.ctx.some((c) => /prefers-reduced-motion:\s*reduce/.test(c))
+            && d.prop === 'transition'
+            && d.value === 'none',
+        ),
+      true,
+      `${rel} disables transitions under prefers-reduced-motion: reduce`,
+    );
+    assert.equal(
+      declarations.some(
+        (d) => d.ctx.some((c) => /\[data-motion=["']reduced["']\]/.test(c))
+          && d.prop === 'transition'
+          && d.value === 'none',
+      ),
+      true,
+      `${rel} disables transitions under data-motion="reduced"`,
+    );
+    assert.deepEqual(
+      declarations.filter((d) => /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(/i.test(d.value)),
+      [],
+      `${rel} uses token-only colours`,
+    );
+    assert.deepEqual(declarations.filter((d) => /\bvar\(\s*--fw-strong\b/.test(d.value)), [], `${rel} avoids --fw-strong`);
+    assert.deepEqual(declarations.filter((d) => /\bvar\(\s*--fs-xs\b/.test(d.value)), [], `${rel} avoids --fs-xs`);
+    assert.deepEqual(declarations.filter((d) => /\bvar\(\s*--paper\s*[,)]/.test(d.value)), [], `${rel} avoids --paper`);
+    assert.deepEqual(declarations.filter((d) => /\bvar\(\s*--shadow-(?:card|sm)\b/.test(d.value)), [], `${rel} avoids --shadow-card and --shadow-sm`);
+    assert.deepEqual(declarations.filter((d) => d.important), [], `${rel} avoids !important`);
   }
-  const graphCss = await readFile(new URL('../ui/graph-sketch/graph-sketch.css', import.meta.url), 'utf8');
-  assert.match(graphCss, /\.gn-spotlight-dim\s*\{\s*opacity:\s*0\.42;/);
-  assert.match(graphCss, /\.gn-spotlight-edge-dim\s*\{\s*opacity:\s*0\.24;/);
+  const graphDecls = parsed.get('../ui/graph-sketch/graph-sketch.css').declarations;
+  const isDefaultRule = (d, selector) => (
+    splitSelectors(d.ctx.at(-1) || '').includes(selector)
+    && !d.ctx.some((c) => c.startsWith('@media'))
+  );
+  assert.equal(
+    graphDecls.some((d) => isDefaultRule(d, '.gn-spotlight-dim') && d.prop === 'opacity' && d.value === '0.42'),
+    true,
+    '.gn-spotlight-dim sets opacity: 0.42',
+  );
+  assert.equal(
+    graphDecls.some((d) => isDefaultRule(d, '.gn-spotlight-edge-dim') && d.prop === 'opacity' && d.value === '0.24'),
+    true,
+    '.gn-spotlight-edge-dim sets opacity: 0.24',
+  );
 });
