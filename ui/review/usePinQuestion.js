@@ -119,11 +119,13 @@ export function useQuestionRunA11y({ entryKey, run, hasFeedback, choice, isCloze
   return liveAnnouncement;
 }
 
-/* Switching questions pins the question header ("21 / 54 · topic") just under the sticky top bar, so every question opens at the same
-   spot instead of wherever the previous one's length left the scroll offset. The first question keeps the natural layout; the summary
-   only scrolls back if its top is out of view. Runs before paint, so there is no visible jump.
-   On subsequent question transitions, also moves focus quietly to the new question prompt heading (`preventScroll: true`) so keyboard
-   and screen-reader users land right on the new question without losing focus to `document.body`.
+/* Every question, the first one of a round included (#1678: the first one used to keep the natural layout, a page header and a blank
+   band above it, so a flipped flashcard put its grade buttons below the window), is pinned by its header ("21 / 54 · topic") just under the
+   sticky top bar, so every question opens at the same spot instead of wherever the previous one's length left the scroll offset; the
+   summary only scrolls back if its top is out of view. Runs before paint, so there is no visible jump.
+   It also moves focus quietly to the question's prompt heading (`preventScroll: true`), on arrival as on each next question, so keyboard
+   and screen-reader users land right on the question (#1679: not on whatever opened the way here, such as the drawer's menu button,
+   where Space would press that button instead of flipping the card).
    pageRef: the element that holds the question (the practice page's <section>). It is also where the top bar is looked up (the
    `main` around it) and where the nearest scrolling ancestor is found, unless `scroller` names one: an element or a function returning it.
    The practice page calls this; a page that embeds <QuestionRun> only calls it when it wants the same pinning. */
@@ -153,18 +155,31 @@ export default function usePinQuestion(pageRef, run, { scroller: given } = {}) {
       const card = meta.closest(".question-card") || meta.closest(".question-area"),
         area = card.closest(".review-body") || card;
       // Batch all DOM layout reads before mutating style/scroll to prevent forced synchronous reflow (layout thrashing).
-      const cardTop = card.getBoundingClientRect().top;
-      const areaTop = area.getBoundingClientRect().top;
-      const scrollerTop = scroller.getBoundingClientRect().top;
+      const cardTop = settledTop(card, scroller);
+      const areaTop = settledTop(area, scroller);
       const scrollerHeight = scroller.clientHeight;
+      const head = page.querySelector(".review-heading");
+      let headHeight = head?.offsetHeight;
       const lead = cardTop - areaTop;
       const minHeight = `${Math.max(0, scrollerHeight - bar - gap + lead)}px`;
       if (area.style.minHeight !== minHeight) area.style.minHeight = minHeight;
-      if (!first) {
-        scrollBy(cardTop - scrollerTop - bar - gap);
-        focusQuestionHeading(card);
-        return;
-      }
+      scrollBy(cardTop - bar - gap);
+      focusQuestionHeading(card);
+      /* The page header above the card fills in after the pin (the question's place, the course's mastery are asked for). The browser's own scroll
+         anchoring would keep the card still, but not while the page or the card is still sliding in (a transform there switches it off), which is
+         exactly when the first question's header fills. So the header's growth is taken up here, until the learner scrolls: then it is theirs. */
+      if (!head || typeof ResizeObserver !== "function") return undefined;
+      let expected = scroller.scrollTop;
+      const observer = new ResizeObserver(() => {
+        const height = head.offsetHeight, delta = height - headHeight;
+        headHeight = height;
+        if (!delta) return;
+        if (Math.abs(scroller.scrollTop - expected) > 1) { observer.disconnect(); return; }
+        scrollBy(delta);
+        expected = scroller.scrollTop;
+      });
+      observer.observe(head);
+      return () => observer.disconnect();
     }
     const offset = page.getBoundingClientRect().top - scroller.getBoundingClientRect().top - bar;
     if (offset < 0) scrollBy(offset);
@@ -175,5 +190,18 @@ export default function usePinQuestion(pageRef, run, { scroller: given } = {}) {
         focusQuietly(heading, { preventScroll: true });
       }
     }
+    return undefined;
   }, [run.id, run.index, run.card?.id, run.complete]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+/** Where `element`'s top edge will be, below the top of `scroller`'s box, once nothing slides any more: from the layout (offsetTop), which the page's
+    entrance (page-in) and a card being dealt (card-deal) do not move, as their transforms do to the drawn box (#1678: the first card was pinned 10px
+    too high, by the entering page's rise). The drawn box when the scroller is not on the element's chain of offset parents. */
+function settledTop(element, scroller) {
+  let top = 0;
+  for (let node = element; node && typeof node.offsetTop === "number"; node = node.offsetParent) {
+    top += node.offsetTop + (node === element ? 0 : node.clientTop || 0);
+    if (node.offsetParent === scroller) return top + (scroller.clientTop || 0) - scroller.scrollTop;
+  }
+  return element.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
 }

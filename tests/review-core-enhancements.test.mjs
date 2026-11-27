@@ -313,6 +313,8 @@ test('Batch 4.3 + 4.4: usePinQuestion batches reads before minHeight write, sync
       run: { id: 'r1', index: 0, card: { id: 'c1' }, complete: false },
     });
     try {
+      assert.equal(scrollCalls.length, 1, 'the first question is pinned like the next ones (#1678)');
+      scrollCalls.length = 0;
       ops.length = 0;
       minHeightValue = '';
       pinHook.rerender({ run: { id: 'r1', index: 1, card: { id: 'c2' }, complete: false } });
