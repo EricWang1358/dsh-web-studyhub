@@ -583,27 +583,27 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onOp
         <span className="muted small round-look-back__hint">{ui("点一道题回看答案和讲解，不改成绩。")}</span>
         {(hesitantRows.length > 0 || shown.length >= 2 || wrong >= 1 || taggedReasons.length > 0 || withSolution.length > 0) && <>
           {wrong >= 1 && (
-            <Button variant="quiet" size="sm" shape="pill" aria-pressed={veilActive} onClick={toggleBlindRecall}>
+            <Button className="round-look-back__tool" variant="quiet" size="sm" shape="pill" aria-pressed={veilActive} onClick={toggleBlindRecall}>
               {ui("先遮答案自测")}
             </Button>
           )}
           {hesitantRows.length > 0 && (
-            <Button variant="quiet" size="sm" shape="pill" aria-pressed={hesitantOnly} onClick={() => { setHesitantOnly((prev) => !prev); onSegmentChange?.(null); }}>
+            <Button className="round-look-back__tool" variant="quiet" size="sm" shape="pill" aria-pressed={hesitantOnly} onClick={() => { setHesitantOnly((prev) => !prev); onSegmentChange?.(null); }}>
               {uiFormat("只看想了较久 ({0})", [hesitantRows.length])}
             </Button>
           )}
           {shown.length >= 2 && (
-            <Button variant="quiet" size="sm" onClick={toggleAllShown}>
+            <Button className="round-look-back__tool" variant="quiet" size="sm" onClick={toggleAllShown}>
               {allShownOpen ? ui("全部收起") : ui("全部展开")}
             </Button>
           )}
           {taggedReasons.map((group) => (
-            <Button key={group.id} iconEnd="arrow-right" size="sm" variant="quiet" lock={study?.busy} onClick={() => onPracticeWrong(group.refs)}>
+            <Button key={group.id} className="round-look-back__tool" iconEnd="arrow-right" size="sm" variant="quiet" lock={study?.busy} onClick={() => onPracticeWrong(group.refs)}>
               {uiFormat("重练「{0}」({1})", [ui(group.label), group.refs.length])}
             </Button>
           ))}
           {withSolution.length > 0 && (
-            <Button variant="quiet" size="sm" onClick={copy}>
+            <Button className="round-look-back__tool" variant="quiet" size="sm" onClick={copy}>
               {copied ? ui("已复制") : ui("复制复盘摘录")}
             </Button>
           )}

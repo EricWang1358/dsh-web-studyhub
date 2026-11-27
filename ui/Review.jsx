@@ -320,7 +320,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
         // for the summary, and the ✓ badge inherited .question-area's inline
         // min-height (set by the pinning effect above), stretching into an oval.
         <div key="summary" className="session-summary result-page">
-          <div className="result-reading"><ReadingSettingsButton /></div>
+          <div className="result-reading result-page__reading"><ReadingSettingsButton /></div>
           <div className="result-kicker">{ui("本轮学习结果")}</div>
           <h2 className="result-title">{run.closed ? ui("这一轮，已结束。") : ui("这一轮，完成了。")}</h2>
           <p className="result-subtitle">{uiFormat("{0} · {1} 道题", [shellTitle, run.questions ?? run.total])}</p>

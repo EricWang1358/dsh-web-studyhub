@@ -94,8 +94,8 @@
     .round-look-back__more { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5); margin-top: var(--space-2); }
     .round-look-back__hint { margin-inline-end: auto; }
     /* The reading settings (Aa) stand beside the kicker instead of on a line of their own (#1688). */
-    .result-page > .result-reading { float: inline-end; margin: 0; }
-    .round-look-back__more .sh-btn--quiet:not([aria-pressed="true"]) { color: var(--text-muted); font-weight: var(--fw-regular); }
+    .result-page .result-page__reading { float: inline-end; margin: 0; }
+    .round-look-back__more .round-look-back__tool:not([aria-pressed="true"]) { color: var(--text-muted); font-weight: var(--fw-regular); }
     .look-back__rows { margin: var(--space-3) 0 0; padding: 0; list-style: none; }
     .look-back__row { border-top: 1px solid var(--line-soft); }
     .look-back__line { display: flex; width: 100%; min-width: 0; gap: var(--space-2-5); align-items: center; text-align: left; padding-block: var(--space-2-5); }
