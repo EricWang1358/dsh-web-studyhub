@@ -66,8 +66,8 @@ export function createBoardStore(call, { initialBoard = null, onBoard } = {}) {
       try {
         return await send();
       } catch (error) {
-        let failure = error;
         if (isConflict(error.message) && REPLAY_ON_CONFLICT.has(action) && !Object.hasOwn(args, 'revision')) {
+          const before = server;
           try {
             server = await call('board.get', {});
             onBoard?.(server);
@@ -77,15 +77,18 @@ export function createBoardStore(call, { initialBoard = null, onBoard } = {}) {
                says so, as when the add itself fails. */
             if (pending > 1) {
               epoch++;
-              set({ error: error.message, conflict: true });
+              // Show the board those writes missed at once, so the next one is made on it and not on the old view.
+              set({ board: server, error: error.message, conflict: true });
             }
             return true;
-          } catch (again) {
-            failure = again;
+          } catch {
+            // The board changed under the add and could not be brought up to date: say so, as before the resend, and
+            // show the board just read (if any), since the next write will carry its revision.
+            if (server !== before) set({ board: server });
           }
         }
         epoch++;
-        set({ error: failure.message, conflict: isConflict(failure.message) });
+        set({ error: error.message, conflict: isConflict(error.message) });
         return false;
       }
     };

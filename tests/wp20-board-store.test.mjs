@@ -236,3 +236,56 @@ test('a time-log add is not resent: replaying an undo could log the same minutes
   assert.equal(server.log.filter((entry) => entry.action === 'board.timeLog.add').length, 1);
   assert.equal(store.getState().conflict, true);
 });
+
+test('when writes behind a resent add are dropped, the page shows the latest board at once, before the reconciling read answers', async () => {
+  const server = fakeServer();
+  const store = createBoardStore(server.call);
+  await store.refresh();
+  server.board = { ...structuredClone(server.board), revision: 5 };
+  server.board.cards.a.title = 'Theirs';
+  for (let call = 0; call < 3; call++) server.hold()(); // the stale add, the re-read and the resend pass
+  const reconcile = server.hold(); // the read after the dropped move waits
+  const add = store.mutate('board.card.add', { column: 'todo', title: 'new' }, { optimistic: false });
+  const move = store.mutate('board.card.move', { id: 'b', column: 'doing' });
+  assert.equal(await add, true);
+  const shown = store.getState();
+  assert.equal(shown.conflict, true);
+  assert.equal(shown.board.cards.a.title, 'Theirs', 'a write made now is made on the board the server has');
+  assert.equal(shown.board.revision, server.board.revision);
+  reconcile();
+  assert.equal(await move, false);
+});
+
+test('when a resend is refused again, the page shows the board it read, before the reconciling read answers', async () => {
+  const server = fakeServer();
+  const busy = async (action, args) => {
+    const value = await server.call(action, args);
+    if (action === 'board.get') server.board = { ...server.board, revision: server.board.revision + 1 }; // someone writes after every read
+    return value;
+  };
+  const store = createBoardStore(busy);
+  await store.refresh();
+  for (let call = 0; call < 3; call++) server.hold()(); // the stale add, the re-read and the refused resend pass
+  const reconcile = server.hold();
+  const add = store.mutate('board.card.add', { column: 'todo', title: 'c' }, { optimistic: false });
+  for (let turn = 0; turn < 50 && !store.getState().conflict; turn++) await Promise.resolve();
+  assert.equal(store.getState().conflict, true);
+  assert.equal(store.getState().board.revision, 2, 'the board read for the resend (revision 2), not the one the page opened with (1)');
+  reconcile();
+  assert.equal(await add, false);
+});
+
+test('when the read for a resend fails, the page says the board changed, as before the resend', async () => {
+  const server = fakeServer();
+  let reads = 0;
+  const flaky = async (action, args) => {
+    if (action === 'board.get' && ++reads === 2) throw new Error('network down');
+    return server.call(action, args);
+  };
+  const store = createBoardStore(flaky);
+  await store.refresh();
+  server.board = { ...server.board, revision: 5 };
+  assert.equal(await store.mutate('board.card.add', { column: 'todo', title: 'c' }, { optimistic: false }), false);
+  assert.equal(store.getState().conflict, true);
+  assert.match(store.getState().error, /revision conflict/i);
+});
