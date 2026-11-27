@@ -36,30 +36,30 @@ test("the course name, this chapter and the whole course sit on the line of 查�
   const html = render(library);
   assert.ok(html.indexOf("review-heading-links") < html.indexOf("查看 1 份资料") && html.indexOf("查看 1 份资料") < html.indexOf("data-review-context"), "same row, after the button");
   // Design holds a (10 q, 62%) and b (30 q, 30%): 40 q at round((620 + 900) / 40) = 38%
-  assert.equal(text(html), "Design 本章 掌握 62% · 10 题 整课程 掌握 38% · 40 题");
+  assert.equal(text(html), "Design 本组 掌握 62% · 10 题 整课程 掌握 38% · 40 题");
   assert.doesNotMatch(html, /review-context[^>]*title=/, "no title attribute: the hover is the Tooltip");
 });
 
 test("the numbers are the very ones of the lists: roll-up weighted by questions, 未学 for untouched decks, nothing for another course's decks", () => {
   setUiLanguage("zh");
   const fresh = data([deck("a", "Design"), deck("b", "Design")], { a: row(4, 0, 4), b: row(6, 0, 6) });
-  assert.equal(text(render(fresh)), "Design 本章 未学 · 4 题 整课程 未学 · 10 题");
-  assert.equal(text(render(library, "c")), "Other 本章 掌握 90% · 5 题", "the only deck of its course: the course figure would repeat the chapter, so it is left out");
+  assert.equal(text(render(fresh)), "Design 本组 未学 · 4 题 整课程 未学 · 10 题");
+  assert.equal(text(render(library, "c")), "Other 本组 掌握 90% · 5 题", "the only deck of its course: the course figure would repeat the chapter, so it is left out");
   assert.deepEqual(runContextOf(library, "a").whole, { total: 40, percent: 38, state: "learning" });
 });
 
 test("it follows the question on screen, and an uncategorised course says so", () => {
   setUiLanguage("zh");
   const mixed = data([deck("a", "Design"), deck("c", "")], { a: row(10, 62), c: row(5, 90) });
-  assert.match(text(render(mixed, "c")), /^未分类课程 本章 掌握 90% · 5 题$/);
-  assert.match(text(render(mixed, "a")), /^Design 本章/);
+  assert.match(text(render(mixed, "c")), /^未分类课程 本组 掌握 90% · 5 题$/);
+  assert.match(text(render(mixed, "a")), /^Design 本组/);
 });
 
 test("a sub-course counts in its parent's whole-course figure only when the parent is the course", () => {
   setUiLanguage("zh");
   const tree = data([deck("a", "Design"), deck("b", "Design / Kubernetes")], { a: row(10, 50), b: row(10, 70) }, ["Design", "Design / Kubernetes"]);
-  assert.equal(text(render(tree, "a")), "Design 本章 掌握 50% · 10 题 整课程 掌握 60% · 20 题");
-  assert.equal(text(render(tree, "b")), "Design / Kubernetes 本章 掌握 70% · 10 题", "the sub-course alone has one deck");
+  assert.equal(text(render(tree, "a")), "Design 本组 掌握 50% · 10 题 整课程 掌握 60% · 20 题");
+  assert.equal(text(render(tree, "b")), "Design / Kubernetes 本组 掌握 70% · 10 题", "the sub-course alone has one deck");
 });
 
 test("nothing is drawn without a course deck, without progress, or for a system deck", () => {
@@ -80,13 +80,13 @@ const mixedLibrary = data(
 
 test("a run over one course says nothing more; a run over several adds +N and names the others on hover", () => {
   setUiLanguage("zh");
-  assert.equal(text(render(mixedLibrary, "a", ["a", "b", "a"])), "Design 本章 掌握 62% · 10 题 整课程 掌握 38% · 40 题", "two decks, one course: no +N");
-  assert.equal(text(render(mixedLibrary, "a")), "Design 本章 掌握 62% · 10 题 整课程 掌握 38% · 40 题", "a run without the list of questions (an exam) behaves as before");
+  assert.equal(text(render(mixedLibrary, "a", ["a", "b", "a"])), "Design 本组 掌握 62% · 10 题 整课程 掌握 38% · 40 题", "two decks, one course: no +N");
+  assert.equal(text(render(mixedLibrary, "a")), "Design 本组 掌握 62% · 10 题 整课程 掌握 38% · 40 题", "a run without the list of questions (an exam) behaves as before");
   const two = render(mixedLibrary, "a", ["a", "b", "c", "c"]);
-  assert.equal(text(two), "Design +1 本章 掌握 62% · 10 题 整课程 掌握 38% · 40 题", "+N right after the course, the figures stay the current course's");
+  assert.equal(text(two), "Design +1 本组 掌握 62% · 10 题 整课程 掌握 38% · 40 题", "+N right after the course, the figures stay the current course's");
   assert.deepEqual(tips(two)[0], "这一轮还有：Other");
   const three = render(mixedLibrary, "c", ["a", "c", "d", "b"]);
-  assert.equal(text(three), "Other +2 本章 掌握 90% · 5 题", "the other course's own figures; the other courses are counted, not the decks");
+  assert.equal(text(three), "Other +2 本组 掌握 90% · 5 题", "the other course's own figures; the other courses are counted, not the decks");
   assert.deepEqual(tips(three)[0], "这一轮还有：Design、Third", "in the order the run meets them");
   assert.doesNotMatch(context(three), /title=/, "the hover is the Tooltip, never a title attribute");
 });
@@ -94,9 +94,9 @@ test("a run over one course says nothing more; a run over several adds +N and na
 test("an uncategorised deck counts once as 未分类课程, and a coach deck is no course", () => {
   setUiLanguage("zh");
   const html = render(mixedLibrary, "a", ["a", "u", "u", "tailor", "c"]);
-  assert.match(text(html), /^Design \+2 本章/);
+  assert.match(text(html), /^Design \+2 本组/);
   assert.deepEqual(tips(html)[0], "这一轮还有：未分类课程、Other");
-  assert.match(text(render(mixedLibrary, "u", ["a", "u"])), /^未分类课程 \+1 本章 掌握 20% · 2 题$/);
+  assert.match(text(render(mixedLibrary, "u", ["a", "u"])), /^未分类课程 \+1 本组 掌握 20% · 2 题$/);
   assert.doesNotMatch(text(render(mixedLibrary, "a", ["a", "tailor", "tailor"])), /\+\d/, "the coach deck belongs to no course");
   assert.equal(context(render(mixedLibrary, "tailor", ["a", "tailor"])), "", "a coach question on screen: still no line");
   assert.deepEqual(runContextOf(mixedLibrary, "a", ["a", "missing", "u"]).also, [""], "an unknown deck is ignored");
@@ -105,11 +105,11 @@ test("an uncategorised deck counts once as 未分类课程, and a coach deck is 
 test("English: the same facts in the English words", () => {
   setUiLanguage("en");
   try {
-    assert.equal(text(render(library)), "Design This chapter Mastery 62% · 10 questions Whole course Mastery 38% · 40 questions");
-    assert.equal(text(render(data([deck("a", "")], { a: row(4, 0, 4) }))), "Uncategorised course This chapter New · 4 questions");
+    assert.equal(text(render(library)), "Design This set Mastery 62% · 10 questions Whole course Mastery 38% · 40 questions");
+    assert.equal(text(render(data([deck("a", "")], { a: row(4, 0, 4) }))), "Uncategorised course This set New · 4 questions");
     assert.match(render(library), /View 1 source</);
     const mixed = render(mixedLibrary, "a", ["a", "c", "u"]);
-    assert.equal(text(mixed), "Design +2 This chapter Mastery 62% · 10 questions Whole course Mastery 38% · 40 questions");
+    assert.equal(text(mixed), "Design +2 This set Mastery 62% · 10 questions Whole course Mastery 38% · 40 questions");
     assert.deepEqual(tips(mixed)[0], "Also in this round: Other, Uncategorised course");
   } finally { setUiLanguage("zh"); }
 });
