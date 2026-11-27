@@ -69,7 +69,7 @@ export default function AppearanceSection({ appearance }) {
       <Choice data-tour="settings-appearance-theme" label={ui('外观')} value={appearance.theme} onChange={appearance.onTheme} kind="theme" />
       {appearance.onAccent && <Choice data-tour="settings-appearance-accent" label={ui('强调色')} value={appearance.accent} onChange={appearance.onAccent} kind="accent" />}
       {appearance.onScale && <Choice data-tour="settings-appearance-scale" label={ui('界面大小')} value={appearance.scale} onChange={appearance.onScale} kind="scale"
-        hint={ui('放大整个界面（文字、按钮和间距一起），最大 200%；「跟随窗口」在窗口变宽时自动放大一些。阅读和做题页另有 Aa 可以单独调字号和宽度。')} />}
+        hint={ui('缩放整个界面（文字、按钮和间距一起），50% 到 200%：低于 100% 时一屏放得下更多，字也更小；「跟随窗口」只在窗口变宽时自动放大。阅读和做题页另有 Aa 可以单独调字号和宽度。')} />}
       {appearance.onSound && (
         <Field group label={ui('互动音效')} width="full" data-tour="settings-appearance-sound"
           hint={ui('翻面、判分和完成一轮时的纸木轻响；选「标准」时，点选多选项和标重点也有轻触声。录音或课堂实录时自动静音。')}>

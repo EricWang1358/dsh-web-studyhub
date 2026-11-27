@@ -1,5 +1,5 @@
 /* node scripts/qa/interface.mjs [--lang zh|en --theme dark|light --width 1440|420 --out <dir>]   (build first: node scripts/build.mjs)
-   设置 › 界面: interface size (up to 200%), typeface and animation. Each choice reaches the app root (data-ui-scale / data-ui-font / data-motion), really
+   设置 › 界面: interface size (50% to 200%), typeface and animation. Each choice reaches the app root (data-ui-scale / data-ui-font / data-motion), really
    changes the rendering (computed zoom, font family, the page-switch wait), is remembered after a reload, can be restored/exported/imported, reaches a second window, and never causes horizontal overflow, in the
    window sizes the other journeys use. Seeded temporary library, fake model, no network. */
 /* global document, localStorage, getComputedStyle, requestAnimationFrame */
@@ -25,7 +25,7 @@ export async function runInterfaceQa(options) {
       };
       await step("settings-interface-section", async () => {
         await open();
-        for (const label of ["90%", "100%", "125%", "150%", "175%", "200%", t("系统默认", "System default"), t("无动画", "Off")]) await choose(label).waitFor({ timeout: 5000 });
+        for (const label of ["50%", "70%", "90%", "100%", "125%", "150%", "175%", "200%", t("系统默认", "System default"), t("无动画", "Off")]) await choose(label).waitFor({ timeout: 5000 });
         return { scale: await root("data-ui-scale"), font: await root("data-ui-font"), motion: await root("data-motion") };
       });
       await step("size-150", async () => {

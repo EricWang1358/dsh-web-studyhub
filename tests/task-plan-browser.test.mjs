@@ -93,6 +93,9 @@ test('the goal and the points tab fills the panel, scrolls inside it, moves noth
         running.release();
         await until(async () => (await page.locator('[data-plan-state="passed"]').count()) > 0, 'a point that passed', 120000);
         await until(async () => !(await running.api('snapshot')).jobs.some((job) => ['queued', 'running', 'cancelling'].includes(job.status)), 'the jobs to end', 120000);
+        // The page learns it later than the server, and then its controls fold into one line, which shortens the page and pulls its scroll position back.
+        // Wait for the page to say so: a scroll position read before that and again after it differs, whatever the plan did.
+        await until(async () => (await page.locator('.tc-controls__idle').count()) > 0, 'the page to show the task has ended', { timeoutMs: 120000 });
         await frames(page, 6);
         const after = await inside(page);
         assert.deepEqual(after.map((box) => box[1]), before.map((box) => box[1]), `${width}px: no row changed its height when the states did`);

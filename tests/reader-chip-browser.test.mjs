@@ -72,7 +72,7 @@ const reveal = (page) => page.evaluate(() => {
 const gap = (a, b) => Math.hypot(Math.max(0, a.left - b.right, b.left - a.right), Math.max(0, a.top - b.bottom, b.top - a.bottom));
 const overlaps = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
 
-test('the 译 chip stays at the end of the selection at 100% and 150%, wide and narrow, and after scrolling (#231)', { timeout: 600000 }, async (t) => {
+test('the 译 chip stays at the end of the selection from 50% to 150%, wide and narrow, and after scrolling (#231)', { timeout: 600000 }, async (t) => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-chip-dist-'));
@@ -83,7 +83,7 @@ test('the 译 chip stays at the end of the selection at 100% and 150%, wide and 
     runtime.dispose();
   } });
   try {
-    for (const [width, scale] of [[1280, 100], [1280, 150], [420, 100], [420, 150]]) {
+    for (const [width, scale] of [[1280, 50], [1280, 100], [1280, 150], [420, 70], [420, 100], [420, 150]]) {
       const label = `${width}px @${scale}%`;
       const { context, page, errors } = await openPage(browser, running, { width, height: 900 });
       await context.addInitScript((value) => { try { localStorage.setItem('study-interface', JSON.stringify({ scale: value })); } catch { /* blocked */ } }, scale);

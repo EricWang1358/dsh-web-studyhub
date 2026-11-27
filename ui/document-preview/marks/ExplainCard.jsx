@@ -1,7 +1,7 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import MathText from '../../MathText.jsx';
 import { ui } from '../../i18n.js';
-import { computePlacement } from '../../components/index.js';
+import { placeInHost } from '../../components/index.js';
 
 /* The 词解 of a passage, shown while the pointer is on its wavy line (usePassageLinkLayer's cardOf / onCard): the term and the kept answer,
    under the passage (over it when there is no room). Hidden until hovered, never a title= on the text. A click on the line opens the whole
@@ -10,9 +10,8 @@ export default function ExplainCard({ shown }) {
   const panel = useRef(null), [at, setAt] = useState(null);
   useLayoutEffect(() => {
     if (!shown || !panel.current) { setAt(null); return; }
-    const size = panel.current.getBoundingClientRect();
-    const placed = computePlacement({ anchor: shown.rect, size, placement: 'bottom-start', flip: true, gap: 6, margin: 8,
-      bounds: { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight } });
+    // The card is position: fixed inside the zoomed reader: placeInHost with the window as its host answers in the card's own pixels.
+    const placed = placeInHost({ element: panel.current, host: document.body, rect: shown.rect, placement: 'bottom-start', flip: true, gap: 6, margin: 8 });
     setAt({ left: placed.left, top: placed.top });
   }, [shown]);
   if (!shown?.card) return null;

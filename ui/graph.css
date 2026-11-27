@@ -106,7 +106,7 @@
       /* A fixed height, not max-height: a content-sized box would feed its own
          scaled content back into the fit calculation and collapse to the minimum
          zoom. */
-      height: min(1200px, 68vh);
+      height: min(1200px, 68vh / var(--study-ui-scale, 1));
       border: 1px solid var(--line-soft);
       border-radius: var(--radius);
       background: var(--bg-surface);

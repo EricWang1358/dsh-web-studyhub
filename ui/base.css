@@ -259,6 +259,8 @@
   /* 界面大小 / 界面字体 (设置 › 界面): the whole interface scales with CSS zoom (text, controls and spacing together; the app box keeps filling the window), and the
      typeface of its text switches by attribute. 100% and the system typeface are the defaults and need no rule. Reading text keeps its own Aa settings. */
   .study-app { zoom: var(--study-ui-scale, 1); }
+  .study-app[data-ui-scale='50'] { --study-ui-scale: 0.5; }
+  .study-app[data-ui-scale='70'] { --study-ui-scale: 0.7; }
   .study-app[data-ui-scale='90'] { --study-ui-scale: 0.9; }
   .study-app[data-ui-scale='110'] { --study-ui-scale: 1.1; }
   .study-app[data-ui-scale='125'] { --study-ui-scale: 1.25; }

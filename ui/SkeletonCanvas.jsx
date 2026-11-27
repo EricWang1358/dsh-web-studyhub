@@ -5,6 +5,7 @@ import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingS
 import { Badge, Button, Checkbox, CloseButton, Icon, IconButton, Popover, SegmentedControl, Select, TabPanel, Tabs } from './components/index.js';
 import { FullscreenButton, ZoomBar, useCanvasFullscreen, usePanZoom } from "./canvas/index.js";
 import { readJSON, removeKey, writeJSON } from "./storage.js";
+import { drawnScale } from "./drawn-scale.js";
 import { CLASS, SEQ, classComponents, visibleClasses, routeClassEdge, layoutClasses, layoutFocus, layoutSequence } from "./skeleton-diagrams.js";
 import { usePolling } from './use-polling.js';
 import { HandOffForm } from './hand-off/HandOff.jsx';
@@ -223,14 +224,15 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, fresh })
     onPointerDown: (ev) => {
       if (ev.button !== 0) return;
       ev.stopPropagation();
-      nodeDrag.current = { id: ev.pointerId, node: b.id, x: ev.clientX, y: ev.clientY, bx: b.x, by: b.y, moved: false, focus: focused };
+      nodeDrag.current = { id: ev.pointerId, node: b.id, x: ev.clientX, y: ev.clientY, bx: b.x, by: b.y, moved: false, focus: focused,
+        scale: drawnScale(viewRef.current) };
       ev.currentTarget.setPointerCapture?.(ev.pointerId);
     },
     onPointerMove: (ev) => {
       const d = nodeDrag.current;
       if (!d || d.id !== ev.pointerId) return;
-      const dx = (ev.clientX - d.x) / view.k,
-        dy = (ev.clientY - d.y) / view.k;
+      const dx = (ev.clientX - d.x) / d.scale / view.k,
+        dy = (ev.clientY - d.y) / d.scale / view.k;
       if (!d.moved && Math.hypot(dx, dy) < 3) return;
       if (!d.moved) setDragging(true);
       d.moved = true;

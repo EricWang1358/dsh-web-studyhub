@@ -6,6 +6,7 @@ import { MasteryMark } from '../practice/MasteryMark.jsx';
 import MathText from '../../MathText.jsx';
 import { CoverageMark } from '../../coverage/Coverage.jsx';
 import { useInjectCss } from '../../shared.js';
+import { drawnScale } from '../../drawn-scale.js';
 import coverageCss from '../../coverage/coverage.css';
 import { coverageOutlineHead, rangeCoverageText, neverPlannedText, plannedFailedText } from '../../coverage/copy.js';
 import { joinMeta } from '../../format.js';
@@ -81,9 +82,9 @@ export default function OutlinePanel({ items, activeId, onJump, labelOf = () => 
   useEffect(() => {
     const panel = list.current, mark = panel?.querySelector('[aria-current="location"]');
     if (!panel || !mark) return;
-    const box = panel.getBoundingClientRect(), rect = mark.getBoundingClientRect();
-    if (rect.top < box.top + 8) panel.scrollTop -= box.top + 8 - rect.top;
-    else if (rect.bottom > box.bottom - 8) panel.scrollTop += rect.bottom - box.bottom + 8;
+    const box = panel.getBoundingClientRect(), rect = mark.getBoundingClientRect(), scale = drawnScale(panel, box);
+    if (rect.top < box.top + 8) panel.scrollTop -= (box.top + 8 - rect.top) / scale;
+    else if (rect.bottom > box.bottom - 8) panel.scrollTop += (rect.bottom - box.bottom + 8) / scale;
   }, [current, items, expanded]);
   const toggle = item => setToggled(previous => new Map(previous).set(item.id, !expanded.has(item.id)));
   const onFilterKey = event => {

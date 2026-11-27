@@ -24,7 +24,7 @@ export const MOTIONS = Object.freeze(['auto', 'full', 'reduced', 'off']);
 export const SOUNDS = Object.freeze(['off', 'subtle', 'standard']);
 /** The sizes of the whole interface, in percent (CSS zoom on the app: text, controls and spacing scale together), and the typefaces of its text.
     `auto` (跟随窗口) takes the percent of the widest AUTO_SCALE_STEPS entry the window reaches: a wider window shows a slightly larger interface. */
-export const SCALES = Object.freeze(['auto', 90, 100, 110, 125, 150, 175, 200]);
+export const SCALES = Object.freeze(['auto', 50, 70, 90, 100, 110, 125, 150, 175, 200]);
 /** [window width in CSS px, percent], widest first; below the last one the interface stays at 100%. */
 export const AUTO_SCALE_STEPS = Object.freeze([[3000, 150], [2000, 125], [1600, 110]]);
 export const autoScaleQuery = (width) => `(min-width: ${width}px)`;

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { browserStorage, readJSON, removeKey, writeJSON } from "./storage.js";
 import { MAIN_LIMIT, NAV_SECTIONS, PAGES, PAGE_IDS } from "./pages.js";
+import { drawnScale } from "./drawn-scale.js";
 
 /* The sidebar's pages and their order (#654). Two places:
 
@@ -165,10 +166,11 @@ export function useNavOrder(defaults, navRef, { homes = NAV_HOMES, limit = MAIN_
   };
   const change = (next) => { latest.current = next; setOrder(next); };
   const said = (next, id, group) => setAnnounce({ id, group, position: next[group].indexOf(id) + 1, count: next[group].length });
-  /** Keep the lifted item under the pointer, wherever the list has moved around it. */
+  /** Keep the lifted item under the pointer, wherever the list has moved around it. `dy` is in the app's own pixels, the rest in drawn ones. */
   const follow = (state) => {
-    const natural = state.el.getBoundingClientRect().top - state.dy;
-    state.dy = state.y - state.grab - natural;
+    const rect = state.el.getBoundingClientRect(), scale = drawnScale(state.el, rect);
+    const natural = rect.top - state.dy * scale;
+    state.dy = (state.y - state.grab - natural) / scale;
     state.el.style.transform = `translateY(${state.dy}px)`;
   };
   const finish = (state, { cancel = false } = {}) => {

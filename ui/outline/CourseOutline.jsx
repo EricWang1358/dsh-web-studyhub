@@ -3,6 +3,7 @@ import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Button, Checkbox, Combobox, Disclosure, EmptyState, ErrorState, LoadingState, PageHeader, SegmentedControl, Select, TextInput, Tooltip } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
 import { useInjectCss } from '../shared.js';
+import { drawnScale } from '../drawn-scale.js';
 import { useLiveEffect } from '../use-async.js';
 import { MasteryLine } from '../document-preview/practice/MasteryMark.jsx';
 import ModelSetupGate from '../ModelSetupGate.jsx';
@@ -382,7 +383,8 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
     if (!bar || !page || typeof window === 'undefined') return undefined;
     const syncTop = () => {
       const app = bar.closest('.study-app, .study-seat'), topbar = app?.querySelector('.topbar');
-      const top = topbar ? Math.max(0, Math.round(topbar.getBoundingClientRect().bottom - app.getBoundingClientRect().top - app.clientTop)) : 0;
+      const appBox = topbar ? app.getBoundingClientRect() : null;
+      const top = topbar ? Math.max(0, Math.round((topbar.getBoundingClientRect().bottom - appBox.top) / drawnScale(app, appBox) - app.clientTop)) : 0;
       const next = `${top}px`;
       if (page.style.getPropertyValue('--outline-bar-top') !== next) page.style.setProperty('--outline-bar-top', next);
     };

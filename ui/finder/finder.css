@@ -11,7 +11,7 @@
     /* A fixed height: a result list that changes with every key must not make the dialog grow and shrink under the pointer. */
     .finder-sheet .finder-results {
       box-sizing: border-box;
-      height: min(56dvh, 30rem);
+      height: min(56dvh / var(--study-ui-scale, 1), 30rem);
       margin-top: var(--space-3);
       overflow-y: auto;
       overscroll-behavior: contain;

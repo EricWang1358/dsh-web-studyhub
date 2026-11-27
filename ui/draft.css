@@ -114,7 +114,7 @@
     .json-editor {
       font-family: Consolas, monospace;
       font-size: var(--fs-md);
-      height: 60vh;
+      height: calc(60vh / var(--study-ui-scale, 1));
       tab-size: 2;
     }
     /* The action bar (ui/DraftBar.jsx, #669): the LAST thing on the page, stuck to the bottom of the view, so publishing is within reach at every scroll position while the questions come

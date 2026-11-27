@@ -3,6 +3,7 @@
    underline is under. One walk over the text per page of the document, however many questions there are; never on scroll. */
 import { locateGroups } from '../links/link-ranges.js';
 import { lastAtOrBefore } from './practice-range.js';
+import { drawnScale } from '../../drawn-scale.js';
 
 const escape = id => String(id).replace(/["\\]/g, '\\$&');
 
@@ -17,7 +18,8 @@ export function pageOfNode(node) {
 
 /** The top of `node` in the scroll area's own coordinates (what scrollTop is measured against). */
 export function nodeTop(scroller, node) {
-  return node.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+  const box = scroller.getBoundingClientRect();
+  return (node.getBoundingClientRect().top - box.top) / drawnScale(scroller, box) + scroller.scrollTop;
 }
 
 /**

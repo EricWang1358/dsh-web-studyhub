@@ -6,7 +6,7 @@ import { build } from 'esbuild';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 
 // WP-4 in a real browser: Select and Combobox on Base UI: aria wiring through Field, keyboard, search, footer actions, the popup's
-// place under the interface zoom (90% and 125%), flipping, a narrow pane, inside a Dialog, and reduced motion.
+// place under the interface zoom (50%, 70%, 90% and 125%), flipping, a narrow pane, inside a Dialog, and reduced motion.
 const bundle = await build({ entryPoints: ['tests/helpers/select-harness.jsx'], bundle: true, write: false, format: 'iife', platform: 'browser',
   loader: { '.css': 'text', '.jsx': 'jsx' }, define: { 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' });
 const script = bundle.outputFiles[0].text;
@@ -236,7 +236,7 @@ test('the heading variant keeps the heading size, shows only a caret, and choose
   assert.deepEqual(errors, []);
 });
 
-for (const scale of ['90', '125']) {
+for (const scale of ['50', '70', '90', '125']) {
   test(`at ${scale}% interface size the popup sits flush under its trigger and matches its width`, { skip: unavailable }, async t => {
     const { page, errors } = await open(t, { scale });
     for (const name of ['讲解口吻', '换课程']) {
