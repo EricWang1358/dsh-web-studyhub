@@ -4,8 +4,9 @@
 // raw fs.rename bans, streamComplete AbortController signals) intentionally inspect the entire
 // packages/studyhub-tui/src/ tree statically because they enforce cross-codebase invariants that
 // no single runtime scenario can exhaustively cover. Single-component behaviors (AiHelpDrawer,
-// NoteEditorModal, AddFocusModal, ExamSetup, GenerateView, CoachNudgeModal, update-check &
-// usage-frequency corrupt backups) are verified dynamically at runtime via Ink / module execution.
+// NoteEditorModal, AddFocusModal, BoardView, ExamSetup, GenerateView, CoachNudgeModal,
+// WrongBookView, ReviewView, DeckManageModal, ExamRunner, ModelsTab, shell/actions, update-check
+// & usage-frequency corrupt backups) are verified dynamically at runtime via Ink / module execution.
 // node --test tests/audit-guardrails.test.mjs
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -34,9 +35,9 @@ const [{ useTuiStore, DEFAULT_PREFERENCES }, { getModalHintsSnapshot }, { useKey
   import('../src/input/hooks.ts'),
 ]);
 
-function KeyBridgeWrapper({ children }) {
+function KeyBridgeWrapper({ children, width = 112, height = 34 }) {
   useKeyDispatcherBridge();
-  return React.createElement(Box, { width: 112, height: 34 }, children);
+  return React.createElement(Box, { width, height }, children);
 }
 
 function createInkHarness(element, { cols = 112, rows = 34 } = {}) {
@@ -59,7 +60,7 @@ function createInkHarness(element, { cols = 112, rows = 34 } = {}) {
   });
 
   const instance = render(
-    React.createElement(KeyBridgeWrapper, null, element),
+    React.createElement(KeyBridgeWrapper, { width: cols, height: rows }, element),
     { stdout, stdin, exitOnCtrlC: false, patchConsole: false, debug: true },
   );
 
@@ -330,7 +331,7 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
     );
   });
 
-  test('[Cat 4: Multi-Write Guard Runtime] NoteEditorModal and AddFocusModal deduplicate retries after step-1 success, and BoardView tracks editApplied (#1381, #1382)', async () => {
+  test('[Cat 4: Multi-Write Guard Runtime] NoteEditorModal and AddFocusModal deduplicate retries after step-1 success, and BoardView tracks editApplied (#1381, #1382)', async (t) => {
     // 1) NoteEditorModal: step-1 note.create succeeds, step-2 note.save fails once -> surfaces error & does NOT call onSaved;
     //    retrying Ctrl+S skips note.create (1 call total) and completes note.save.
     resetTuiStore();
@@ -466,11 +467,145 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
       focusH.cleanup();
     }
 
-    const boardView = fs.readFileSync(path.join(SRC_ROOT, 'views/board/BoardView.tsx'), 'utf8');
-    assert.ok(
-      boardView.includes('editApplied') && boardView.includes('board.card.move'),
-      'BoardView must track editApplied so board.card.move failure does not double-edit or lose partial sync (#1382)',
+    // 3) BoardView (#1382): edit succeeds (editApplied=true), move fails, rollback edit also fails ->
+    //    surfaces partial-sync error and pressing [S] retries only board.card.move without double-editing.
+    resetTuiStore({ snapshot: { courses: [], sources: [], decks: [] } });
+    const [{ BoardView }, { saveBoard }] = await Promise.all([
+      import('../src/views/board/BoardView.tsx'),
+      import('../src/views/board/board-store.ts'),
+    ]);
+    const boardDir = await mkdtemp(path.join(os.tmpdir(), 'studyhub-1382-board-'));
+    t.after(() => rm(boardDir, { recursive: true, force: true }));
+    const nowIso = '2026-11-24T00:00:00.000Z';
+    await saveBoard(boardDir, {
+      version: 1,
+      cards: [
+        {
+          id: 'sh-up-1382',
+          title: 'Task Alpha',
+          column: 'todo',
+          upstreamCardId: 'up-1382',
+          createdAt: nowIso,
+          updatedAt: nowIso,
+        },
+      ],
+      deletedUpstreamIds: [],
+      updatedAt: nowIso,
+    });
+    let upstreamRev = 1;
+    let upstreamTitle = 'Task Alpha';
+    let upstreamCol = 'todo';
+    const editCalls = [];
+    const moveCalls = [];
+    const boardHost = {
+      mode: 'embedded',
+      getLibraryRoot: () => boardDir,
+      snapshot: async () => null,
+      call: async (name, args) => {
+        if (name === 'board.get') {
+          return {
+            ok: true,
+            value: {
+              revision: upstreamRev,
+              columns: [
+                { id: 'todo', title: 'Todo', cardIds: upstreamCol === 'todo' ? ['up-1382'] : [] },
+                { id: 'doing', title: 'Doing', cardIds: upstreamCol === 'doing' ? ['up-1382'] : [] },
+                { id: 'done', title: 'Done', done: true, cardIds: upstreamCol === 'done' ? ['up-1382'] : [] },
+              ],
+              cards: { 'up-1382': { id: 'up-1382', title: upstreamTitle } },
+            },
+          };
+        }
+        if (name === 'board.card.edit') {
+          editCalls.push(args);
+          if (editCalls.length === 1) {
+            upstreamTitle = String(args?.title ?? upstreamTitle);
+            upstreamRev += 1;
+            return { ok: true, value: { revision: upstreamRev } };
+          }
+          // Rollback edit fails -> editApplied remains true
+          return { ok: false, error: { message: 'rollback edit denied' } };
+        }
+        if (name === 'board.card.move') {
+          moveCalls.push(args);
+          if (moveCalls.length === 1) {
+            return { ok: false, error: { message: 'upstream move timeout' } };
+          }
+          upstreamCol = String(args?.column ?? upstreamCol);
+          upstreamRev += 1;
+          return { ok: true, value: { revision: upstreamRev } };
+        }
+        return { ok: true, value: {} };
+      },
+      stream: async () => {},
+      close: async () => {},
+    };
+    const boardH = createInkHarness(
+      React.createElement(BoardView, {
+        host: boardHost,
+        width: 112,
+        height: 32,
+        isActive: true,
+      }),
     );
+    try {
+      await boardH.waitFor((s) => s.includes('Task Alpha'), 4000, 'BoardView loaded card');
+      await new Promise((r) => setTimeout(r, 40));
+      boardH.write('e');
+      await boardH.waitFor((s) => s.includes('编辑看板任务'), 4000, 'BoardCardModal opened');
+      await new Promise((r) => setTimeout(r, 30));
+      boardH.write(' v2');
+      await new Promise((r) => setTimeout(r, 30));
+      // Tab x3: title -> course -> dueDate -> column; select '2' (doing) and Enter to submit
+      boardH.write('\t');
+      await new Promise((r) => setTimeout(r, 20));
+      boardH.write('\t');
+      await new Promise((r) => setTimeout(r, 20));
+      boardH.write('\t');
+      await new Promise((r) => setTimeout(r, 30));
+      boardH.write('2');
+      await new Promise((r) => setTimeout(r, 30));
+      boardH.write('\r');
+
+      const deadline1 = Date.now() + 4000;
+      while (
+        !(
+          editCalls.length === 2 &&
+          moveCalls.length === 1 &&
+          useTuiStore.getState().toasts.some((toast) => toast.text.includes('任务内容已更新，但列移动失败'))
+        ) &&
+        Date.now() < deadline1
+      ) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      assert.equal(editCalls.length, 2, 'initial edit + failed rollback edit called once each');
+      assert.equal(moveCalls.length, 1, 'initial board.card.move attempted once');
+      const partialToast = useTuiStore
+        .getState()
+        .toasts.find((toast) => toast.text.includes('任务内容已更新，但列移动失败'));
+      assert.ok(partialToast, 'BoardView must emit partial-sync warning when editApplied=true and move+rollback fail');
+      assert.equal(partialToast.tone, 'warning');
+      await boardH.waitFor((s) => s.includes('任务内容已更新，但列移动失败'), 4000, 'BoardView displays partial-sync error banner');
+
+      // Retry pending upstream ops via [S]: must call board.card.move WITHOUT double-calling board.card.edit!
+      boardH.write('S');
+      const deadline2 = Date.now() + 4000;
+      while (
+        !(
+          moveCalls.length === 2 &&
+          useTuiStore.getState().toasts.some((toast) => toast.tone === 'success' && toast.text.includes('已同步'))
+        ) &&
+        Date.now() < deadline2
+      ) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      assert.equal(moveCalls.length, 2, 'retrying [S] must execute pending board.card.move');
+      assert.equal(moveCalls[1].column, 'doing');
+      assert.equal(editCalls.length, 2, 'retrying [S] must NOT double-call board.card.edit when editApplied was already true');
+    } finally {
+      boardH.cleanup();
+      resetTuiStore();
+    }
   });
 
   test('[Cat 5 Runtime] saveBoard refuses to overwrite corrupt tui-board.json by default and backs up when forced (#1383)', async (t) => {
@@ -647,33 +782,298 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
       coachH.cleanup();
     }
 
-    const wrongBook = fs.readFileSync(path.join(SRC_ROOT, 'views/wrongbook/WrongBookView.tsx'), 'utf8');
-    assert.ok(
-      /input\s*===\s*['"] ['"]\s*&&\s*activePane\s*===\s*['"]left['"]/.test(wrongBook),
-      'WrongBookView Space multi-select must be gated to activePane === "left" (#1387)',
+    // 4) WrongBookView (#1387): Space toggles multi-select in left pane, but NOT when right detail pane is focused.
+    resetTuiStore({ snapshot: { courses: [{ id: 'c-os', name: 'OS' }], sources: [], decks: [] } });
+    const { WrongBookView } = await import('../src/views/wrongbook/WrongBookView.tsx');
+    const wbHost = {
+      mode: 'embedded',
+      snapshot: async () => null,
+      call: async (name, args) => {
+        if (name === 'wrongbook') {
+          if (args?.view === 'weak') {
+            return {
+              ok: true,
+              value: {
+                total: 2,
+                counts: { weak: 2, history: 0 },
+                items: [
+                  {
+                    deckId: 'd1',
+                    cardId: 'c1',
+                    deckTitle: 'OS Deck',
+                    topic: 'Paging',
+                    kind: 'quiz',
+                    prompt: 'What is a TLB miss?',
+                    wrongCount: 2,
+                    lastGrade: 1,
+                  },
+                  {
+                    deckId: 'd1',
+                    cardId: 'c2',
+                    deckTitle: 'OS Deck',
+                    topic: 'Locks',
+                    kind: 'quiz',
+                    prompt: 'What is priority inversion?',
+                    wrongCount: 1,
+                    lastGrade: 2,
+                  },
+                ],
+              },
+            };
+          }
+          return { ok: true, value: { total: 0, counts: { weak: 2, history: 0 }, items: [] } };
+        }
+        if (name === 'wrongbook.recommend') return { ok: true, value: { items: [] } };
+        if (name === 'wrongbook.detail') {
+          return {
+            ok: true,
+            value: {
+              prompt: 'What is a TLB miss?',
+              correctAnswer: 'TLB lookup miss',
+              explanation: Array.from({ length: 18 }, (_, i) => `- WrongBook detail line ${i + 1}`).join('\n'),
+            },
+          };
+        }
+        return { ok: true, value: {} };
+      },
+      stream: async () => {},
+      close: async () => {},
+    };
+    const wbH = createInkHarness(
+      React.createElement(WrongBookView, {
+        host: wbHost,
+        width: 108,
+        height: 28,
+        isActive: true,
+      }),
+      { cols: 108, rows: 28 },
     );
+    try {
+      await wbH.waitFor((s) => s.includes('What is a TLB miss?'), 4000, 'WrongBookView loaded mistake');
+      await new Promise((r) => setTimeout(r, 40));
+      // Left pane (default): Space selects item -> badge '已选 1' appears
+      wbH.write(' ');
+      await wbH.waitFor((s) => s.includes('已选 1'), 4000, 'WrongBookView left-pane Space selects card');
+      await new Promise((r) => setTimeout(r, 30));
+      // Toggle off in left pane
+      wbH.write(' ');
+      await wbH.waitFor((s) => !s.includes('已选 1'), 4000, 'WrongBookView left-pane Space deselects card');
+      await new Promise((r) => setTimeout(r, 30));
+      // Switch focus to right detail pane (RightArrow -> activePane === 'right')
+      wbH.write('\x1b[C');
+      await wbH.waitFor((s) => s.includes('j/k 滚动'), 4000, 'WrongBookView switched focus to right pane');
+      await new Promise((r) => setTimeout(r, 30));
+      // Space in right pane must NOT toggle left-pane multi-select
+      wbH.write(' ');
+      await new Promise((r) => setTimeout(r, 80));
+      assert.ok(
+        !wbH.frame().includes('已选 1') && !wbH.frame().includes('1 sel'),
+        'WrongBookView Space in right pane must NOT select cards in left pane (#1387)',
+      );
+    } finally {
+      wbH.cleanup();
+      resetTuiStore();
+    }
   });
 
-  test('[Cat 2: Scrollability] Scrollable MarkdownViews wire focus/scrollTop and ExamRunner wraps MCQ options (#1390)', () => {
+  test('[Cat 2: Scrollability] Scrollable MarkdownViews wire focus/scrollTop and ExamRunner wraps MCQ options (#1390)', async () => {
     // Note: Modal.tsx raw useWindowSize ban (#1392) is enforced codebase-wide via TypeScript AST
     // in packages/studyhub-tui/tests/p4-release-docs-guard.test.mjs (test #1).
-    const review = fs.readFileSync(path.join(SRC_ROOT, 'views/review/ReviewView.tsx'), 'utf8');
-    assert.ok(
-      /markdown=\{postAnswerMarkdown\}[\s\S]{0,240}isActive=\{(?:cardScopeActive|mainActive) && revealed\}/.test(review),
-      'ReviewView postAnswerMarkdown MarkdownView must enable scrolling after reveal (#1390)',
-    );
 
-    const deckManage = fs.readFileSync(path.join(SRC_ROOT, 'views/library/DeckManageModal.tsx'), 'utf8');
-    assert.ok(
-      /markdown=\{previewMarkdown\}[\s\S]{0,240}scrollTop=\{previewScrollTop\}/.test(deckManage),
-      'DeckManageModal preview MarkdownView must wire previewScrollTop (#1390)',
+    // 1) ReviewView (#1390): revealed card's postAnswerMarkdown scrolls on Down/PageDown (isActive={cardScopeActive && revealed}).
+    const longExplain = Array.from(
+      { length: 26 },
+      (_, i) => `- EXPLAIN-LINE-${String(i + 1).padStart(2, '0')}: detailed explanation row`,
+    ).join('\n');
+    const reviewRun = {
+      id: 'run-1390',
+      index: 0,
+      total: 1,
+      answered: 0,
+      mode: 'path',
+      title: 'OS Review',
+      deckId: 'd1',
+      revealed: true,
+      card: {
+        id: 'c-1390',
+        kind: 'flashcard',
+        topic: 'Paging',
+        prompt: 'Explain page table walk.',
+        answer: 'Multi-level lookup',
+      },
+      solution: {
+        answer: 'Multi-level lookup',
+        explanation: longExplain,
+      },
+    };
+    resetTuiStore({
+      navContext: { runId: 'run-1390' },
+      activeRunId: 'run-1390',
+      snapshot: { courses: [], sources: [], decks: [] },
+    });
+    const { ReviewView } = await import('../src/views/review/ReviewView.tsx');
+    const reviewHost = {
+      mode: 'embedded',
+      snapshot: async () => null,
+      call: async (name) => {
+        if (name === 'review.get' || name === 'review.start') return { ok: true, value: reviewRun };
+        return { ok: true, value: {} };
+      },
+      stream: async () => {},
+      close: async () => {},
+    };
+    const reviewH = createInkHarness(
+      React.createElement(ReviewView, {
+        host: reviewHost,
+        width: 100,
+        height: 26,
+        isActive: true,
+        stuckNudgeDelayMs: 60_000,
+      }),
+      { cols: 100, rows: 26 },
     );
+    try {
+      const initFrame = await reviewH.waitFor((s) => s.includes('EXPLAIN-LINE-01'), 4000, 'ReviewView revealed explanation');
+      assert.ok(!initFrame.includes('EXPLAIN-LINE-20'), 'initial compact ReviewView frame clips tail explanation lines');
+      await new Promise((r) => setTimeout(r, 40));
+      // Send PageDown twice so postAnswerMarkdown ScrollView advances into later lines
+      reviewH.write('\x1b[6~');
+      await new Promise((r) => setTimeout(r, 40));
+      reviewH.write('\x1b[6~');
+      const scrolledFrame = await reviewH.waitFor(
+        (s) => s.includes('EXPLAIN-LINE-16') || s.includes('EXPLAIN-LINE-18') || s.includes('EXPLAIN-LINE-20'),
+        4000,
+        'ReviewView postAnswerMarkdown scrolled after reveal',
+      );
+      assert.ok(!scrolledFrame.includes('EXPLAIN-LINE-01'), 'scrolling postAnswerMarkdown advances viewport past line 01');
+    } finally {
+      reviewH.cleanup();
+      resetTuiStore({ navContext: {}, activeRunId: null });
+    }
 
-    const examRunner = fs.readFileSync(path.join(SRC_ROOT, 'views/exam/ExamRunner.tsx'), 'utf8');
-    assert.ok(
-      !/truncateDisplay\s*\(\s*opt\.text/.test(examRunner),
-      'ExamRunner MCQ options must wrap instead of truncating opt.text (#1390)',
+    // 2) DeckManageModal (#1390): pressing 'J' advances previewScrollTop wired into preview MarkdownView.
+    resetTuiStore({ snapshot: { courses: [], sources: [], decks: [] } });
+    const { DeckManageModal } = await import('../src/views/library/DeckManageModal.tsx');
+    const longPreview = [
+      'Deck preview scroll heading',
+      '',
+      ...Array.from(
+        { length: 25 },
+        (_, i) => `- PREVIEW-LINE-${String(i + 1).padStart(2, '0')}: preview content detail`,
+      ),
+    ].join('\n');
+    const dmHost = {
+      mode: 'embedded',
+      snapshot: async () => null,
+      call: async (name) => {
+        if (name === 'deck.get') {
+          return {
+            ok: true,
+            value: {
+              id: 'deck-1390',
+              title: 'OS Concepts',
+              course: 'OS',
+              cards: [{ id: 'c1', kind: 'flashcard', prompt: longPreview, answer: 'Preview Answer' }],
+            },
+          };
+        }
+        return { ok: true, value: {} };
+      },
+      stream: async () => {},
+      close: async () => {},
+    };
+    const dmH = createInkHarness(
+      React.createElement(DeckManageModal, {
+        host: dmHost,
+        deckId: 'deck-1390',
+        isActive: true,
+        width: 96,
+        height: 24,
+        onClose: () => {},
+      }),
+      { cols: 96, rows: 24 },
     );
+    try {
+      const initPreview = await dmH.waitFor((s) => s.includes('PREVIEW-LINE-03'), 4000, 'DeckManageModal initial preview');
+      assert.ok(!initPreview.includes('PREVIEW-LINE-14'), 'initial DeckManageModal preview clips lower lines');
+      await new Promise((r) => setTimeout(r, 40));
+      for (let i = 0; i < 7; i += 1) {
+        dmH.write('J');
+        await new Promise((r) => setTimeout(r, 25));
+      }
+      const scrolledPreview = await dmH.waitFor(
+        (s) => s.includes('PREVIEW-LINE-14'),
+        4000,
+        'DeckManageModal J scrolled preview viewport',
+      );
+      assert.ok(!scrolledPreview.includes('PREVIEW-LINE-03'), 'DeckManageModal preview viewport moved past line 03');
+    } finally {
+      dmH.cleanup();
+      resetTuiStore();
+    }
+
+    // 3) ExamRunner (#1390): long written MCQ option wraps across lines without '…' truncation.
+    resetTuiStore({ snapshot: { courses: [], sources: [], decks: [] } });
+    const { ExamRunner } = await import('../src/views/exam/ExamRunner.tsx');
+    const longOptionText =
+      'OPTION-PREFIX-1390: Virtual memory translates linear addresses through multilevel page tables and hardware TLB caches ENDING-SENTINEL-1390';
+    const examH = createInkHarness(
+      React.createElement(ExamRunner, {
+        kind: 'written',
+        run: {
+          id: 'exam-1390',
+          startedAt: new Date().toISOString(),
+          mode: 'exam',
+          limitMs: 30 * 60_000,
+          index: 0,
+          total: 1,
+          title: 'OS Mock',
+          card: {
+            id: 'c1',
+            kind: 'quiz',
+            prompt: 'Which statement describes address translation?',
+            options: [
+              { id: 'A', text: longOptionText },
+              { id: 'B', text: 'Short alternative option' },
+            ],
+          },
+          picks: [{ deckId: 'd1', cardId: 'c1', selected: null }],
+        },
+        oral: null,
+        width: 60,
+        height: 26,
+        lang: 'zh',
+        isActive: true,
+        busy: false,
+        error: null,
+        onSelectPick: () => {},
+        onSaveCaseResponse: () => {},
+        onJumpWritten: () => {},
+        onSubmitWritten: () => {},
+        onSaveOralAnswer: () => {},
+        onOralFollowup: () => {},
+        onOralNext: () => {},
+        onSubmitOral: () => {},
+        onAbortBack: () => {},
+      }),
+      { cols: 60, rows: 26 },
+    );
+    try {
+      const frame = await examH.waitFor(
+        (s) => s.includes('OPTION-PREFIX-1390') && s.includes('ENDING-SENTINEL-1390'),
+        4000,
+        'ExamRunner rendered wrapped MCQ option',
+      );
+      const optionLines = frame.split('\n');
+      const prefixLineIdx = optionLines.findIndex((l) => l.includes('OPTION-PREFIX-1390'));
+      const sentinelLineIdx = optionLines.findIndex((l) => l.includes('ENDING-SENTINEL-1390'));
+      assert.ok(prefixLineIdx >= 0 && sentinelLineIdx > prefixLineIdx, 'long MCQ option must wrap across multiple lines at cols=60');
+      const wrappedSpan = optionLines.slice(prefixLineIdx, sentinelLineIdx + 1).join('\n');
+      assert.ok(!wrappedSpan.includes('…'), 'ExamRunner MCQ option must NOT truncate opt.text with ellipsis (#1390)');
+    } finally {
+      examH.cleanup();
+      resetTuiStore();
+    }
   });
 
   test('[Cat 3: AI Stream Abort] Every view calling host.streamComplete() passes an AbortController signal (#1393)', () => {
@@ -690,22 +1090,185 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
     assert.deepEqual(violations, [], `Streaming AI views missing AbortController cleanup:\n${violations.join('\n')}`);
   });
 
-  test('[Cat 4: Round-2 Multi-Write] ModelsTab, DeckManageModal, and shell/actions handle step-2 failures truthfully (#1394)', () => {
-    const modelsTab = fs.readFileSync(path.join(SRC_ROOT, 'views/settings/ModelsTab.tsx'), 'utf8');
-    assert.ok(
-      modelsTab.includes('reasoningEffort: openaiEffort') && !modelsTab.includes("'binding.set'"),
-      'ModelsTab must save OpenAI config and reasoningEffort in one single atomic desktop.config.save write (#1394 / #1354 P3-b)',
+  test('[Cat 4: Round-2 Multi-Write] ModelsTab, DeckManageModal, and shell/actions handle step-2 failures truthfully (#1394)', async (t) => {
+    // 1) ModelsTab (#1394): saving OpenAI config sends ONE atomic desktop.config.save with mode + reasoningEffort and 0 binding.set calls.
+    resetTuiStore();
+    const { ModelsTab } = await import('../src/views/settings/ModelsTab.tsx');
+    const prefsDir = await mkdtemp(path.join(os.tmpdir(), 'studyhub-1394-models-'));
+    t.after(() => rm(prefsDir, { recursive: true, force: true }));
+    const modelCalls = [];
+    const modelsHost = {
+      mode: 'embedded',
+      dshHome: prefsDir,
+      snapshot: async () => null,
+      call: async (name, args) => {
+        modelCalls.push({ name, args });
+        return { ok: true, value: {} };
+      },
+      stream: async () => {},
+      close: async () => {},
+    };
+    const modelsConfig = {
+      mode: 'openai',
+      reasoningEffort: 'high',
+      openai: {
+        providerId: 'deepseek',
+        baseUrl: 'https://api.deepseek.com/v1',
+        model: 'deepseek-chat',
+        hasKey: true,
+        keyLast4: '9999',
+      },
+      providers: [],
+      effective: { ready: true, label: 'deepseek-chat' },
+    };
+    const modelsH = createInkHarness(
+      React.createElement(ModelsTab, {
+        host: modelsHost,
+        config: modelsConfig,
+        width: 108,
+        height: 28,
+        isActive: true,
+        onRefreshConfig: async () => {},
+      }),
+      { cols: 108, rows: 28 },
     );
-    const deckManage = fs.readFileSync(path.join(SRC_ROOT, 'views/library/DeckManageModal.tsx'), 'utf8');
-    assert.ok(
-      deckManage.includes("'draft.delete'"),
-      'DeckManageModal must clean up orphan edit draft if draft.save fails during rename (#1394)',
+    try {
+      await modelsH.waitFor((s) => s.includes('deepseek-chat'), 4000, 'ModelsTab OpenAI mode rendered');
+      await new Promise((r) => setTimeout(r, 40));
+      modelsH.write('s');
+      const deadline = Date.now() + 4000;
+      while (
+        !(modelCalls.some((c) => c.name === 'desktop.config.save') && useTuiStore.getState().toasts.length > 0) &&
+        Date.now() < deadline
+      ) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      const saveCalls = modelCalls.filter((c) => c.name === 'desktop.config.save');
+      assert.equal(saveCalls.length, 1, 'ModelsTab must issue one atomic desktop.config.save');
+      assert.equal(saveCalls[0].args?.mode, 'openai');
+      assert.equal(saveCalls[0].args?.reasoningEffort, 'high', 'desktop.config.save payload must include reasoningEffort');
+      assert.equal(
+        modelCalls.filter((c) => c.name === 'binding.set').length,
+        0,
+        'ModelsTab must NOT call separate binding.set when saving OpenAI config (#1394)',
+      );
+    } finally {
+      modelsH.cleanup();
+      resetTuiStore();
+    }
+
+    // 2) DeckManageModal (#1394): rename failure at draft.save cleans up orphan draft via draft.delete.
+    resetTuiStore({ snapshot: { courses: [], sources: [], decks: [], drafts: [] } });
+    const { DeckManageModal } = await import('../src/views/library/DeckManageModal.tsx');
+    const renameCalls = [];
+    const renameHost = {
+      mode: 'embedded',
+      snapshot: async () => null,
+      call: async (name, args) => {
+        renameCalls.push({ name, args });
+        if (name === 'deck.get') {
+          return {
+            ok: true,
+            value: {
+              id: 'deck-1394',
+              title: 'Original Deck',
+              course: 'OS',
+              cards: [{ id: 'c1', kind: 'flashcard', prompt: 'Q1', answer: 'A1' }],
+            },
+          };
+        }
+        if (name === 'snapshot') return { ok: true, value: { drafts: [] } };
+        if (name === 'deck.edit') {
+          return { ok: true, value: { id: 'orphan-draft-1394', draftVersion: 1, title: 'Original Deck' } };
+        }
+        if (name === 'draft.save') {
+          return { ok: false, error: { message: 'draft.save disk failure' } };
+        }
+        if (name === 'draft.delete') return { ok: true, value: {} };
+        return { ok: true, value: {} };
+      },
+      stream: async () => {},
+      close: async () => {},
+    };
+    const renameH = createInkHarness(
+      React.createElement(DeckManageModal, {
+        host: renameHost,
+        deckId: 'deck-1394',
+        isActive: true,
+        width: 96,
+        height: 26,
+        onClose: () => {},
+      }),
+      { cols: 96, rows: 26 },
     );
-    const shellActions = fs.readFileSync(path.join(SRC_ROOT, 'shell/actions.ts'), 'utf8');
+    try {
+      await renameH.waitFor((s) => s.includes('Original Deck'), 4000, 'DeckManageModal loaded for rename');
+      await new Promise((r) => setTimeout(r, 40));
+      renameH.write('n');
+      await renameH.waitFor((s) => s.includes('输入新题组标题'), 4000, 'DeckManageModal entered rename mode');
+      await new Promise((r) => setTimeout(r, 30));
+      renameH.write(' Renamed');
+      await new Promise((r) => setTimeout(r, 30));
+      renameH.write('\r');
+      const deadline = Date.now() + 4000;
+      while (!renameCalls.some((c) => c.name === 'draft.delete') && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      const deleteCall = renameCalls.find((c) => c.name === 'draft.delete');
+      assert.ok(deleteCall, 'DeckManageModal must call draft.delete when draft.save fails during rename');
+      assert.deepEqual(deleteCall.args, { id: 'orphan-draft-1394' });
+      assert.ok(
+        useTuiStore.getState().toasts.some((toast) => toast.tone === 'error' && toast.text.includes('draft.save disk failure')),
+        'DeckManageModal must surface draft.save failure toast',
+      );
+    } finally {
+      renameH.cleanup();
+      resetTuiStore();
+    }
+
+    // 3) shell/actions.ts (#1394): createCourse emits 'warning' toast (NOT 'success') if focus.set fails, and 'success' on happy path.
+    const { createDefaultShellActions } = await import('../src/shell/actions.ts');
+    resetTuiStore();
+    const failFocusHost = {
+      mode: 'embedded',
+      snapshot: async () => null,
+      call: async (name) => {
+        if (name === 'course.save') return { ok: true, value: { id: 'course-ds', name: 'Distributed Systems' } };
+        if (name === 'focus.set') return { ok: false, error: { message: 'focus lock unavailable' } };
+        if (name === 'snapshot') return { ok: true, value: { courses: [{ id: 'course-ds', name: 'Distributed Systems' }], decks: [], sources: [] } };
+        return { ok: true, value: {} };
+      },
+      stream: async () => {},
+      close: async () => {},
+    };
+    await createDefaultShellActions(failFocusHost, () => {}).createCourse('Distributed Systems');
+    const warnToasts = useTuiStore.getState().toasts;
+    assert.equal(warnToasts.length, 1);
+    assert.equal(warnToasts[0].tone, 'warning', 'createCourse must emit warning toast when focus.set fails');
     assert.ok(
-      shellActions.includes('focusRes') && shellActions.includes('!focusRes.ok'),
-      'shell/actions.ts createCourse must inspect focus.set failure (#1394)',
+      warnToasts[0].text.includes('focus lock unavailable') && warnToasts[0].text.includes('Distributed Systems'),
+      `expected focus.set error details in warning toast, got: ${warnToasts[0].text}`,
     );
+
+    resetTuiStore();
+    const okFocusHost = {
+      mode: 'embedded',
+      snapshot: async () => null,
+      call: async (name) => {
+        if (name === 'course.save') return { ok: true, value: { id: 'course-ds', name: 'Distributed Systems' } };
+        if (name === 'focus.set') return { ok: true, value: { course: 'Distributed Systems' } };
+        if (name === 'snapshot') return { ok: true, value: { courses: [{ id: 'course-ds', name: 'Distributed Systems' }], decks: [], sources: [] } };
+        return { ok: true, value: {} };
+      },
+      stream: async () => {},
+      close: async () => {},
+    };
+    await createDefaultShellActions(okFocusHost, () => {}).createCourse('Distributed Systems');
+    const okToasts = useTuiStore.getState().toasts;
+    assert.equal(okToasts.length, 1);
+    assert.equal(okToasts[0].tone, 'success', 'createCourse must emit success toast when both course.save and focus.set succeed');
+    assert.ok(okToasts[0].text.includes('Distributed Systems'));
+    resetTuiStore();
   });
 
   test('[Cat 5 Runtime] desktop config-store refuses to overwrite corrupt desktop.json by default and backs up when forced (#1388)', async (t) => {

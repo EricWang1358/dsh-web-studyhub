@@ -12,6 +12,7 @@ import { Store } from '../lib/store.js';
 import { createMaterialsOperations, reanchorPosition, reanchorSelection, resolveSelectionState } from '../lib/contexts/materials/operations.js';
 import { makeTextPdf } from './helpers/text-pdf.mjs';
 import { nativeSelects } from './helpers/native-selects.mjs';
+import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const HAN_RE = /[\u3400-\u9fff]/;
 const require = createRequire(import.meta.url);
@@ -521,17 +522,131 @@ test('offline-first HTML plugin copy is honest and English UI + Markdown export 
   assert.match(enPlugin.meta.description, /\.html/i);
   assert.doesNotMatch(enPlugin.meta.description, HAN_RE);
 
-  const viewerSource = await readFile('ui/document-preview/DocumentViewer.jsx', 'utf8');
-  assert.doesNotMatch(
-    viewerSource,
-    /annotationMode === 'annotate' && <StaleAnnotations/,
-    'StaleAnnotations stays accessible in Read mode without requiring mode switch',
-  );
-  assert.doesNotMatch(
-    viewerSource,
-    /annotationLinks\(keptItems\)\.filter\(link => annotationMode === 'annotate'/,
-    'kept user annotations remain visible in Read mode as well',
-  );
+  const interactive = await loadInteractiveUi(`
+    export { default as DocumentViewer } from './ui/document-preview/DocumentViewer.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { ToastContext } from './ui/components/Feedback.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  await withBrowserGlobals(async () => {
+    const prevStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+    const storageMap = new Map();
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key) => (storageMap.has(key) ? storageMap.get(key) : null),
+        setItem: (key, value) => { storageMap.set(key, String(value)); },
+        removeItem: (key) => { storageMap.delete(key); },
+      },
+    });
+    const {
+      React: HarnessReact,
+      mount,
+      exports: { DocumentViewer, StudyServicesContext, ToastContext, setUiLanguage },
+    } = interactive;
+    setUiLanguage('zh');
+    const doc = {
+      documentId: 'doc-read-mode',
+      id: 'doc-read-mode',
+      revision: 'r2',
+      format: 'pdf',
+      title: 'Distributed Systems Lecture',
+      filename: 'distributed.pdf',
+      originalAvailable: false,
+      sources: [{ id: 's1', text: 'Linearizability guarantees atomic ordering across replicas.', document: { format: 'pdf', page: 1, totalPages: 1 } }],
+    };
+    const keptUserAnnotation = {
+      id: 'ann-keep-read-mode',
+      key: 's1|0|15',
+      parentId: null,
+      question: 'What does linearizability guarantee?',
+      answer: 'Real-time atomic ordering across replicas.',
+      status: 'resolved',
+      selection: {
+        documentId: 'doc-read-mode',
+        revision: 'r2',
+        sourceId: 's1',
+        start: 0,
+        end: 15,
+        quote: 'Linearizability',
+      },
+    };
+    const staleGroup = {
+      revision: 'r1',
+      count: 1,
+      threads: [
+        {
+          key: 's1|40|72',
+          ids: ['ann-stale-1'],
+          quote: 'Two-phase commit blocks without coordinator recovery.',
+          question: 'Why does 2PC block?',
+          answer: 'Participants wait while coordinator is down.',
+          nodes: 1,
+        },
+      ],
+    };
+    const call = async (action) => {
+      if (action === 'materials.document.get') return doc;
+      if (action === 'materials.links.list') return { links: [] };
+      if (action === 'materials.annotation.list') return { items: [keptUserAnnotation], stale: [staleGroup] };
+      if (action === 'materials.marks.list') return { items: [], stale: [], limits: { queue: 40 } };
+      if (action === 'runtime.capabilities') return [];
+      if (action === 'snapshot') return { decks: [], settings: {} };
+      return {};
+    };
+    const noop = () => {};
+    const toast = { show: noop, error: noop, dismiss: noop };
+    const studyServices = { call, act: async () => undefined, busy: false, notify: noop, askInChat: noop, host: {}, openSettings: noop, navigate: noop, openModal: noop };
+    const viewer = mount(() => HarnessReact.createElement(
+      ToastContext.Provider,
+      { value: toast },
+      HarnessReact.createElement(
+        StudyServicesContext.Provider,
+        { value: studyServices },
+        HarnessReact.createElement(DocumentViewer, {
+          source: { id: 's1', title: 'Distributed Systems Lecture', text: doc.sources[0].text, document: { format: 'pdf', page: 1, totalPages: 1 } },
+          call,
+          data: { sources: [], decks: [], settings: {} },
+          host: {},
+        }),
+      ),
+    ));
+    try {
+      await viewer.flush(10);
+      assert.equal(globalThis.localStorage.getItem('study-reader-annotation'), null, 'starts in default Read mode');
+      const toolsAside = viewer.find((node) => node.type === 'aside' && typeof node.props?.className === 'string' && node.props.className.includes('reader-tools'));
+      assert.ok(toolsAside, 'reader tools aside is mounted');
+      assert.equal(toolsAside.props.hidden, true, 'tools panel is closed (toolsOn === false) in narrow Read mode');
+
+      const aux = viewer.find((node) => node.type === 'div' && node.props?.className === 'reader-aux');
+      assert.ok(aux, 'reader-aux container renders');
+      const staleDetails = viewer.find(
+        (node) => node.type === 'details' && typeof node.props?.className === 'string' && node.props.className.includes('reader-annotations-stale'),
+        aux,
+      );
+      assert.ok(staleDetails, 'StaleAnnotations renders inside .reader-aux in Read mode without switching to Annotate mode');
+      assert.match(
+        viewer.text(staleDetails),
+        /Two-phase commit blocks without coordinator recovery\./,
+        'StaleAnnotations displays the stale quote in Read mode',
+      );
+
+      const linksSection = viewer.find((node) => node.type === 'section' && node.props?.className === 'reader-links');
+      assert.ok(linksSection, 'PassageLinksPanel renders kept user annotations in Read mode');
+      const annotationGroup = viewer.find(
+        (node) => node.type === 'details' && node.props?.['data-kind'] === 'annotation',
+        linksSection,
+      );
+      assert.ok(annotationGroup, 'kept user annotation group is present in PassageLinksPanel in Read mode');
+      assert.match(viewer.text(annotationGroup), /Linearizability/);
+      assert.match(viewer.text(annotationGroup), /批注 1/);
+    } finally {
+      viewer.unmount();
+      setUiLanguage('zh');
+      if (prevStorage) Object.defineProperty(globalThis, 'localStorage', prevStorage);
+      else delete globalThis.localStorage;
+    }
+  });
 
   uiLib.setUiLanguage('en');
   try {
