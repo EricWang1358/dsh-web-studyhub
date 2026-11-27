@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
@@ -231,14 +232,14 @@ test('live, audio, Jev, and workflow-portal surfaces register zero private setIn
       const activeHealth = new ui.exports.LiveAudioHealth(() => 100_000);
       activeHealth.reset('tab', 'running');
       activeHealth.update({ capturedMs: 1000, acceptedMs: 1000, lastFrameAt: 99_000, lastAckAt: 99_000 });
-      const monA = ui.mount(() => r(ui.exports.LiveAudioMonitor, { health: activeHealth, visible: true, recording: true }));
-      const monB = ui.mount(() => r(ui.exports.LiveAudioMonitor, { health: activeHealth, visible: true, recording: true, compact: true }));
-      mounts.push(monA, monB);
-      await monA.flush();
-      await monB.flush();
+      // Both monitors live in one tree at the same time (two mounts of one harness would share one root, so the second would only re-render the first).
+      const both = ui.mount(() => r(ui.React.Fragment, null,
+        r(ui.exports.LiveAudioMonitor, { key: 'a', health: activeHealth, visible: true, recording: true }),
+        r(ui.exports.LiveAudioMonitor, { key: 'b', health: activeHealth, visible: true, recording: true, compact: true })));
+      mounts.push(both);
+      await both.flush();
       assert.equal(intervalCalls.length, 1, 'two active LiveAudioMonitors must share the single useNow clock');
-      monA.unmount();
-      monB.unmount();
+      both.unmount();
       assert.equal(clearedIntervals.length, 1, 'shared useNow clock must stop once the last subscriber unmounts');
     } finally {
       for (const mounted of mounts) mounted.unmount();
@@ -246,4 +247,16 @@ test('live, audio, Jev, and workflow-portal surfaces register zero private setIn
       globalThis.clearInterval = origClearInterval;
     }
   });
+});
+
+// How a page picks its copy cannot be seen in what it renders: a private t(zh, en), a language ternary or a sentence glued from ui() fragments draws the same
+// words in both languages as the catalogue does (the review of #1610 proved each one passes every rendering test above). So these three, and only these, are read
+// from the source. Timers are checked by mounting (the test above), not here.
+test('no live, audio, Jev or workflow-portal page keeps a private zh/en dictionary, reads the language to pick copy, or glues a sentence from fragments', async () => {
+  for (const file of ['LiveClass', 'LiveHistory', 'LiveNotes', 'LiveAudioMonitor', 'AudioDashboard', 'AudioReasoning', 'AudioSettings', 'JevSettings', 'WorkflowPortal', 'LiveLoopbackCard']) {
+    const source = await readFile(new URL(`../ui/${file}.jsx`, import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /const t = \(zh/, `${file}: local t(zh, en)`);
+    assert.doesNotMatch(source, /language === 'en' \?|getUiLanguage\(\) === 'en'/, `${file}: a language ternary`);
+    assert.doesNotMatch(source, /\}\{ui\(["'` ]/, `${file}: a sentence glued from fragments`);
+  }
 });
