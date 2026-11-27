@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
+import { drawnScale } from './drawn-scale.js';
 
 const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
@@ -16,7 +17,11 @@ export function useRowFit(ref, rowSelector, probeSelector) {
     const row = ref.current?.querySelector(rowSelector), probe = ref.current?.querySelector(probeSelector), title = row?.firstElementChild;
     if (!row || !probe || !title) return undefined;
     const width = el => el.getBoundingClientRect().width;
-    const check = () => setFits(width(title) + (parseFloat(getComputedStyle(row).columnGap) || 0) + width(probe) <= width(row) + 0.5);
+    // The widths are drawn (through the interface zoom), the gap is the row's own style: drawn too before it is added.
+    const check = () => {
+      const box = row.getBoundingClientRect(), gap = (parseFloat(getComputedStyle(row).columnGap) || 0) * drawnScale(row, box);
+      setFits(width(title) + gap + width(probe) <= box.width + 0.5);
+    };
     check();
     if (typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(check);

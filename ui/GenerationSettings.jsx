@@ -98,7 +98,9 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
     if (barBox.height > 0 && fieldBox.bottom > barBox.top - 12) {
       let node = formRef.current.parentElement;
       while (node && !(node.scrollHeight > node.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(node).overflowY))) node = node.parentElement;
-      (node || document.scrollingElement)?.scrollBy?.({ top: (fieldBox.bottom - barBox.top) / drawnScale(bar, barBox) + 16 });
+      // In the pixels of what is scrolled: the window (no zoom of its own) or a scroller inside the zoomed app.
+      const scroller = node || document.scrollingElement;
+      scroller?.scrollBy?.({ top: (fieldBox.bottom - barBox.top) / drawnScale(scroller) + 16 });
     }
   }, [dirty]);
   const save = async event => {
