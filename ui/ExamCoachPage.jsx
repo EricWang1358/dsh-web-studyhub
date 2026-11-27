@@ -84,12 +84,39 @@ export default function ExamCoachPage({
   const [timeDrafts, setTimeDrafts] = useState({});
   const [pageError, setPageError] = useState('');
   const [working, setWorking] = useState(false);
+  /* Step 3 edits not yet saved, in order. A save or reload can answer after the learner has typed more (the step switcher
+     saves in the background), so its plan is taken as the base and these edits are laid on top again instead of lost. */
+  const pendingEditsRef = useRef({ seq: 0, edits: [] });
 
   function resetConfigureDrafts() {
+    pendingEditsRef.current.edits = [];
     setConfigureDirty(false);
     setRemainingDraft(null);
     setQuotaDrafts({});
     setTimeDrafts({});
+  }
+
+  /** Record one unsaved step 3 edit; `apply` changes the plan (a draft keystroke has none). */
+  function recordEdit(apply = null) {
+    const pending = pendingEditsRef.current;
+    pending.seq += 1;
+    pending.edits.push({ seq: pending.seq, apply });
+    setConfigureDirty(true);
+    if (apply) setSpec((cur) => (cur ? apply(cur) : cur));
+  }
+
+  /** Take the server's plan; edits numbered above `savedSeq` were not in the request, so they are laid on top again. */
+  function adoptServerSpec(serverSpec, savedSeq = 0) {
+    const pending = pendingEditsRef.current;
+    const later = serverSpec ? pending.edits.filter((edit) => edit.seq > savedSeq) : [];
+    if (!later.length) {
+      setSpec(serverSpec || null);
+      resetConfigureDrafts();
+      return;
+    }
+    pending.edits = later;
+    setSpec(later.reduce((cur, edit) => (edit.apply ? edit.apply(cur) : cur), serverSpec));
+    setConfigureDirty(true);
   }
 
   function clampRemainingMinutes(raw, fallback = 60) {
@@ -198,9 +225,8 @@ export default function ExamCoachPage({
     Promise.resolve(call?.('coach.calibration.get', { course: reqCourse })).then(
       (res) => {
         if (!live() || !res || courseSeqRef.current !== seq || courseRef.current !== reqCourse) return;
-        setSpec(res.spec || null);
+        adoptServerSpec(res.spec || null);
         setEvidence(res.evidence || null);
-        resetConfigureDrafts();
         if (res.spec?.stage) setStage(res.spec.stage);
       },
       (err) => {
@@ -250,10 +276,7 @@ export default function ExamCoachPage({
     try {
       const res = await call('coach.calibration.confirm', { course: reqCourse, familyId, ...patch });
       if (courseSeqRef.current !== seq || courseRef.current !== reqCourse) return;
-      if (res?.spec) {
-        setSpec(res.spec);
-        resetConfigureDrafts();
-      }
+      if (res?.spec) adoptServerSpec(res.spec);
       if (res?.evidence) setEvidence(res.evidence);
       setCompiledPreview(null);
       if (patch.revealSampleSolution) {
@@ -267,15 +290,15 @@ export default function ExamCoachPage({
   async function handleSaveSpec(patch, toastText) {
     const reqCourse = course;
     const seq = courseSeqRef.current;
+    // A save of the step alone carries none of the plan, so every unsaved edit stays pending after it answers.
+    const carriesPlan = ['taskFamilies', 'templateName', 'crunchMode'].some((key) => patch[key] !== undefined);
+    const savedSeq = carriesPlan ? pendingEditsRef.current.seq : 0;
     setWorking(true);
     setPageError('');
     try {
       const res = await call('coach.calibration.save', { course: reqCourse, ...patch });
       if (courseSeqRef.current !== seq || courseRef.current !== reqCourse) return false;
-      if (res?.spec) {
-        setSpec(res.spec);
-        resetConfigureDrafts();
-      }
+      if (res?.spec) adoptServerSpec(res.spec, savedSeq);
       if (res?.evidence) setEvidence(res.evidence);
       if (patch.stage) setStage(patch.stage);
       setCompiledPreview(null);
@@ -317,11 +340,10 @@ export default function ExamCoachPage({
 
   function updateFamilyLocal(familyId, updater) {
     if (!spec) return;
-    setConfigureDirty(true);
-    setSpec({
-      ...spec,
-      taskFamilies: spec.taskFamilies.map((f) => (f.id === familyId ? updater(f) : f)),
-    });
+    recordEdit((cur) => ({
+      ...cur,
+      taskFamilies: (cur.taskFamilies || []).map((f) => (f.id === familyId ? updater(f) : f)),
+    }));
   }
 
   async function handleBuildPreview() {
@@ -738,8 +760,8 @@ export default function ExamCoachPage({
                   <TextInput
                     value={spec.templateName || ''}
                     onChange={(e) => {
-                      setConfigureDirty(true);
-                      setSpec({ ...spec, templateName: e.target.value });
+                      const templateName = e.target.value;
+                      recordEdit((cur) => ({ ...cur, templateName }));
                     }}
                   />
                 </Field>
@@ -747,11 +769,7 @@ export default function ExamCoachPage({
                   label={ui('开启考前压缩模式（自动延后非重点项，不降低通过标准）')}
                   checked={!!spec.crunchMode?.enabled}
                   onChange={(checked) => {
-                    setConfigureDirty(true);
-                    setSpec({
-                      ...spec,
-                      crunchMode: { ...(spec.crunchMode || {}), enabled: checked },
-                    });
+                    recordEdit((cur) => ({ ...cur, crunchMode: { ...(cur.crunchMode || {}), enabled: checked } }));
                   }}
                 />
                 {spec.crunchMode?.enabled && (
@@ -762,16 +780,13 @@ export default function ExamCoachPage({
                       suffix={ui('分钟')}
                       value={remainingDraft ?? String(spec.crunchMode?.remainingMinutes ?? 120)}
                       onChange={(e) => {
-                        setConfigureDirty(true);
+                        recordEdit();
                         setRemainingDraft(e.target.value);
                       }}
                       onBlur={() => {
                         if (remainingDraft === null) return;
                         const clamped = clampRemainingMinutes(remainingDraft, 60);
-                        setSpec((cur) => (cur ? {
-                          ...cur,
-                          crunchMode: { ...(cur.crunchMode || {}), remainingMinutes: clamped },
-                        } : cur));
+                        recordEdit((cur) => ({ ...cur, crunchMode: { ...(cur.crunchMode || {}), remainingMinutes: clamped } }));
                         setRemainingDraft(null);
                       }}
                     />
@@ -805,7 +820,7 @@ export default function ExamCoachPage({
                         max={50}
                         value={quotaDrafts[f.id] ?? String(f.quota)}
                         onChange={(e) => {
-                          setConfigureDirty(true);
+                          recordEdit();
                           setQuotaDrafts((cur) => ({ ...cur, [f.id]: e.target.value }));
                         }}
                         onBlur={() => {
@@ -849,7 +864,7 @@ export default function ExamCoachPage({
                         suffix={ui('秒')}
                         value={timeDrafts[f.id] ?? String(f.timeBudgetSec)}
                         onChange={(e) => {
-                          setConfigureDirty(true);
+                          recordEdit();
                           setTimeDrafts((cur) => ({ ...cur, [f.id]: e.target.value }));
                         }}
                         onBlur={() => {
