@@ -4,7 +4,7 @@
   /* ── The library home's own pieces ───────────────────────────────────────
      What the split of StudyMap left to style: the fold button of a row (it was
      .map-caret in style.css) and the caret beside the course heading. Tokens only. */
-  .study-app {
+  :is(.study-app, .study-seat) {
     .map-row .map-fold {
       flex: none;
       width: var(--space-6);
