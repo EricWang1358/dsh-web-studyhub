@@ -49,6 +49,8 @@ globalThis.window = { addEventListener: (type, listener) => windowListeners.push
 try { new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), bundleModule, bundleModule.exports); }
 finally { delete globalThis.window; }
 const app = bundleModule.exports;
+// The interface's default follows the machine's language (Chinese on one machine, English on CI): every assertion below reads the Chinese one.
+app.setUiLanguage('zh');
 const { tripNotice, NEXT_STEP_IDS } = app;
 const rules = await import('../ui/lite-view.js');
 const { NAV_DEFAULTS, NAV_ORDER_KEY } = await import('../ui/nav-order.js');
