@@ -62,7 +62,7 @@ const mod = await loadUi(`
   export { default as DeskAtelierPanel } from './ui/desk-atelier/DeskAtelierPanel.jsx';
   export { default as AtmosphereLayer } from './ui/desk-atelier/AtmosphereLayer.jsx';
   export { default as FocusRitualDial, dialArcMetrics } from './ui/desk-atelier/FocusRitualDial.jsx';
-  export { default as BreathingHalo, BREATH_PHASES, BREATH_TOTAL_SEC, breathingSnapshot } from './ui/desk-atelier/BreathingHalo.jsx';
+  export { default as BreathingHalo, BREATH_PHASES, breathingSnapshot } from './ui/desk-atelier/BreathingHalo.jsx';
   export { default as FocusSoundscapePill } from './ui/desk-atelier/FocusSoundscapePill.jsx';
   export { default as TodayTimer } from './ui/board/TodayTimer.jsx';
 `);
@@ -103,7 +103,6 @@ const {
   dialArcMetrics,
   BreathingHalo,
   BREATH_PHASES,
-  BREATH_TOTAL_SEC,
   breathingSnapshot,
   FocusSoundscapePill,
   TodayTimer,
@@ -394,7 +393,6 @@ test('solar lighting resolution, analog ink-dial arc math and 60s 4-4-6 breathin
 
   // BreathingHalo 4-4-6 phase sequence over 60 seconds.
   assert.deepEqual(BREATH_PHASES.map((p) => [p.id, p.seconds]), [['inhale', 4], ['hold', 4], ['exhale', 6]]);
-  assert.equal(BREATH_TOTAL_SEC, 60);
 
   const bStart = breathingSnapshot(0);
   assert.equal(bStart.phaseId, 'inhale');
@@ -415,6 +413,11 @@ test('solar lighting resolution, analog ink-dial arc math and 60s 4-4-6 breathin
   assert.equal(bExhale.phaseId, 'exhale');
   assert.ok(bExhale.scale < 1 && bExhale.scale > 0.66);
   assert.equal(bExhale.phaseRemainingSec, 3);
+
+  const bJustBeforeDone = breathingSnapshot(59_999);
+  assert.equal(bJustBeforeDone.done, false);
+  assert.equal(bJustBeforeDone.remainingSec, 1);
+  assert.notEqual(bJustBeforeDone.phaseId, 'done');
 
   const bDone = breathingSnapshot(60_000);
   assert.equal(bDone.done, true);
