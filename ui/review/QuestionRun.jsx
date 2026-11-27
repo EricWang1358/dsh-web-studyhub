@@ -1,4 +1,5 @@
 import { ui, uiFormat } from "../i18n.js";
+import { uiRich } from "../i18n-rich.jsx";
 import React from "react";
 import Markdown from "../Markdown.jsx";
 import EnBlock from "../EnBlock.jsx";
@@ -470,15 +471,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 <div className="grading">
                   <div className="grading-head">
                     <span>{run.retry ? ui("本轮重练 · 掌握程度") : ui("掌握程度")}</span>
+                    {/* Only what grading needs (#1697): the keys of flipping back (Space) and of the explanation (H) are in the ? sheet, and the card's face says which side is up. */}
                     <small className="grading-head__meta">
-                      <span className="grading-side-cue">
-                        {!showBack ? ui("正在看正面题干 · 按 Space 回背面") : ui("按 Space 可翻回正面核对题干")}
-                      </span>
-                      {" · "}
                       {ui("按 0–5 评分")}
-                      {!explain && (run.solution?.explanation || run.solution?.citations?.length > 0) && (
-                        <>{" · "}<span>{ui("含详细解析 · 按 H 展开")}</span></>
-                      )}
                       {run.intervals && <>{" · "}<Tooltip layer content={`${ui("每个按钮下面是选它以后，隔多久再复习这道题。间隔按上次复习到现在实际隔了几天来算：没到期就复习，间隔涨得少；当天重复答，间隔不再变长。")} ${ui("0–2 分未达标会留在本题看解析，其中 0–1 分还会在本轮末尾再练一次，2 分不重排本轮。")}`}>
                       <span tabIndex={0} className="grade-gaps-tip">{ui("下面是下次复习的间隔")}</span>
                     </Tooltip></>}</small>
@@ -514,6 +509,11 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                               : grade === 2
                                 ? (gap ? uiFormat("{0} · 不重排本轮", [gap]) : ui("明日再练（不重排本轮）"))
                                 : gap;
+                            // The same words on the button, with the gap ("1 天") kept on one line: a number never ends one line and its unit starts the next (#1697).
+                            const gapWords = gap ? <span className="grade-gap__time">{gap}</span> : null;
+                            const retryWords = !gap ? retryHint
+                              : !run.retry && grade <= 1 ? uiRich("本轮末尾重练 · {0}", gapWords)
+                                : grade === 2 ? uiRich("{0} · 不重排本轮", gapWords) : gapWords;
                             const tip = !run.retry && grade <= 1
                               ? uiFormat("快捷键 {0}：{1}（本轮末尾重练）", [grade, label])
                               : grade === 2
@@ -537,7 +537,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                                 >
                                   <strong>{grade}</strong>
                                   <span>{label}</span>
-                                  {retryHint && <small className="grade-gap">{retryHint}</small>}
+                                  {retryHint && <small className="grade-gap">{retryWords}</small>}
                                 </button>
                               </Tooltip>
                             );

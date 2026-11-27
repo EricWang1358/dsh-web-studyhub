@@ -1,4 +1,4 @@
-/* global document, window, localStorage -- page.evaluate callbacks run in the browser */
+/* global document, window, localStorage, getComputedStyle -- page.evaluate callbacks run in the browser */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -15,7 +15,9 @@ import { until } from '../scripts/qa/layout-late.mjs';
    #1678: the first flashcard sits where the later ones sit (pinned under the top bar), and once it is flipped the six 0–5 grade buttons are wholly on screen
    without scrolling, at 1440×900, 1536×730 and 1280×720.
    #1679: in a narrow pane (420 wide) the sidebar is a drawer. Going to the practice page through it, by mouse and by keyboard, leaves the focus on the question
-   card, so Space flips the card instead of opening the drawer again; closing the drawer with Esc still gives the focus back to the button that opened it. */
+   card, so Space flips the card instead of opening the drawer again; closing the drawer with Esc still gives the focus back to the button that opened it.
+   #1697: once flipped, the row above the grade buttons is one line of at most two items, and no grade's gap ("1 天") breaks between number and unit,
+   at the three laptop sizes and at 420 wide. */
 
 const GRADES = 'button[aria-label*="分："]';
 
@@ -35,6 +37,40 @@ async function settledGrades(page) {
     if (!settled) await new Promise((done) => setTimeout(done, 150));
     return settled ? JSON.parse(now) : null;
   }, 'six settled grade buttons', { timeoutMs: 20000 });
+}
+
+/** #1697: the row above the grade buttons (how many lines, how many items) and every "number unit" of the grade buttons' gaps (on how many lines). */
+const gradingLayout = (page) => page.evaluate(() => {
+  const meta = document.querySelector('.grading-head__meta');
+  const lineHeight = meta ? parseFloat(getComputedStyle(meta).lineHeight) || 20 : 20;
+  const split = [];
+  for (const gap of document.querySelectorAll('.grade-gap')) {
+    const walker = document.createTreeWalker(gap, 4);
+    const nodes = [];
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) nodes.push(node);
+    const text = nodes.map((node) => node.data).join('');
+    for (const match of text.matchAll(/\d+(?:\.\d+)?\s*(?:天|个月|年|days?|months?|years?)/g)) {
+      // The text nodes that hold the match, and the boxes of its characters: two tops = the number and its unit on different lines.
+      const range = document.createRange();
+      let at = 0;
+      for (const node of nodes) {
+        const end = at + node.data.length;
+        if (match.index >= at && match.index < end) range.setStart(node, match.index - at);
+        if (match.index + match[0].length > at && match.index + match[0].length <= end) range.setEnd(node, match.index + match[0].length - at);
+        at = end;
+      }
+      const tops = new Set([...range.getClientRects()].filter((rect) => rect.width > 0).map((rect) => Math.round(rect.top)));
+      if (tops.size > 1) split.push(match[0]);
+    }
+  }
+  return { metaLines: meta ? Math.round(meta.getBoundingClientRect().height / lineHeight) : 0,
+    metaItems: meta ? meta.innerText.split('·').map((part) => part.trim()).filter(Boolean) : [], split };
+});
+
+function assertGradingLayout(layout, tag) {
+  assert.ok(layout.metaLines <= 1, `${tag}: the row above the grades is one line (${JSON.stringify(layout)})`);
+  assert.ok(layout.metaItems.length <= 2, `${tag}: and says at most two things (${JSON.stringify(layout.metaItems)})`);
+  assert.deepEqual(layout.split, [], `${tag}: no number is on another line than its unit`);
 }
 
 /** The first question card's top edge, once it stops moving. */
@@ -99,6 +135,7 @@ test('#1678: the first flashcard is pinned like the next ones and, flipped, show
       const flipped = await settledGrades(page);
       assert.ok(flipped.bottoms.every((bottom) => bottom <= flipped.vh), `${tag}: every grade button ends inside the window (${JSON.stringify(flipped)})`);
       assert.ok(flipped.tops.every((top) => top >= flipped.barBottom), `${tag}: and starts below the top bar (${JSON.stringify(flipped)})`);
+      assertGradingLayout(await gradingLayout(page), tag);
       // The next card is pinned by the page itself; the first one must open in the same place.
       await page.keyboard.press('4');
       await page.waitForFunction((selector) => document.querySelectorAll(selector).length === 0, GRADES, { timeout: 20000 });
@@ -138,6 +175,8 @@ test('#1679: at 420 wide, 回到题目 from the drawer leaves the focus on the q
       await page.keyboard.press('Space');
       await page.locator(GRADES).first().waitFor({ timeout: 10000 });
       assert.equal(await page.locator('.nav-drawer[open]').count(), 0, `${how}: Space did not open the drawer`);
+      await settledGrades(page);
+      assertGradingLayout(await gradingLayout(page), `420 ${how}`);
 
       // Esc closes the drawer and puts the focus back on the button that opened it.
       await opener.click();
