@@ -183,7 +183,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
         {lead}
         {children}
         <FirstRunLine line={line} form="page" sample={data.sample} sampleBusy={firstRun?.sampleBusy} on={lineOn} plan={firstRun?.plan}
-          jobs={deckJobs.length ? <HomeActivity sectionRef={activityRef} jobs={deckJobs} drafts={drafts} data={data} modelReady={modelReadiness(data).ready}
+          jobs={deckJobs.length ? <HomeActivity sectionRef={activityRef} jobs={deckJobs} drafts={drafts} data={data} modelReady={modelReadiness(data).ready} draftLink
             start={start} manage={manage} openDraft={openDraft} openAgent={host.openAgent} cancelJob={cancelJob} dismissJob={dismissJob}
             retryGeneration={retryGeneration} openModelSettings={openModelSettings} topUpDraft={topUpDraft} /> : null} />
       </section>

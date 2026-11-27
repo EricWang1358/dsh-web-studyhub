@@ -72,8 +72,9 @@ function DraftRow({ draft: d, data, modelReady, openDraft, topUpDraft }) {
 /* Generation progress and drafts waiting for review sit at the top of the
    home (P26): a job started from 创建题组 is in view when the learner lands
    here, and a failure shows up where they are looking (P15). `jobs` are the
-   ones to show, running first. */
-export default function HomeActivity({ sectionRef, jobs, drafts, data, modelReady, start, manage, openDraft, cancelJob, dismissJob, retryGeneration, openModelSettings, topUpDraft }) {
+   ones to show, running first. `draftLink`: no 待发布 list is on this screen, so
+   each card keeps its own way to its draft (ui/study-map/JobCard.jsx). */
+export default function HomeActivity({ sectionRef, jobs, drafts, data, modelReady, start, manage, openDraft, cancelJob, dismissJob, retryGeneration, openModelSettings, topUpDraft, draftLink }) {
   const quick = useQuickActions(), toast = useToast();
   if (!jobs.length) return null;
   // One card per deck: the older jobs of a draft fold into its newest job's card.
@@ -85,7 +86,7 @@ export default function HomeActivity({ sectionRef, jobs, drafts, data, modelRead
   return (
     <section className="home-activity" ref={sectionRef} aria-label={ui('出题进度与待发布草稿')}>
       {jobs.length > 0 && <div className="jobs generation-jobs cjc-list">
-        {cards.map(({ job, earlier }) => <JobCard key={job.id} job={job} jobs={jobs} drafts={drafts} data={data} modelReady={modelReady} topUpDraft={topUpDraft} openDraft={openDraft}
+        {cards.map(({ job, earlier }) => <JobCard key={job.id} job={job} jobs={jobs} drafts={drafts} data={data} modelReady={modelReady} topUpDraft={topUpDraft} openDraft={openDraft} draftLink={draftLink}
           cancelJob={cancelJob} dismissJob={dismissJob && ((jobId) => {
             const older = earlier.filter((old) => !isActiveJob(old));
             // Every run the card stands for goes under 已归档 together; their names travel back so the card's 撤销 brings all of them back.

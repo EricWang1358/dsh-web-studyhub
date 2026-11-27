@@ -205,8 +205,8 @@ function DeckPlan({ plan }) {
 function DeckBody({ step, on, jobs, plan }) {
   const { busy } = useStudy();
   const { status, draft } = step;
-  // A run that stands over its draft: its card is the story and carries the one way on (接着做, 去配置模型, 为没覆盖的部分补题, or 检查草稿). Without the card
-  // (it was put away), the draft is the way on; it is not called 「出好了」.
+  // A run that stands over its draft: its card is the story and carries the one way on (接着做, 去配置模型, 为没覆盖的部分补题, or 检查草稿; beside any of the
+  // others, the home gives the card a quiet 检查草稿). Without the card (it was put away), the draft is the way on; it is not called 「出好了」.
   if (status === 'stopped' && !jobs) return (
     <>
       <p className="frl-body__text">{ui('已出的题都在草稿里。打开草稿能看到还差什么，也能从那里接着出。')}</p>

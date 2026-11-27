@@ -21,8 +21,9 @@ import { continueArgs, continueNotice } from '../coverage/top-up.js';
    of a run (its parts, the model calls behind them, the live output, the log and what went wrong in full) is in the 任务 console, which the card's
    button opens with the run selected; the runs a draft folded away are listed there too.
    A run that has left a draft says where it stands the way every screen does (lib/shortfall.js: the same questions, sections and next step as the 待发布 row, the console and the draft
-   page), and its button is the shortfall's ONE action: 接着做 (interrupted), 继续 (paused), 去配置模型 (a refused key), 为没覆盖的部分补题 (it stopped with sections left). */
-export default function JobCard({ job: j, jobs = [], drafts, data, openDraft, cancelJob, dismissJob, retryGeneration, openModelSettings, openDeck, practiceCards, topUpDraft, modelReady = true }) {
+   page), and its button is the shortfall's ONE action: 接着做 (interrupted), 继续 (paused), 去配置模型 (a refused key), 为没覆盖的部分补题 (it stopped with sections left).
+   `draftLink`: this card is all the screen has of the draft (the first-run line's third step, where 待发布 is not drawn), so an ended run keeps 检查草稿 as the quiet link beside any other button. */
+export default function JobCard({ job: j, jobs = [], drafts, data, openDraft, cancelJob, dismissJob, retryGeneration, openModelSettings, openDeck, practiceCards, topUpDraft, modelReady = true, draftLink = false }) {
   const { act, notify, openSettings, busy } = useStudy();
   const publishDraft = (useContext(AppContext) || {}).drafts?.publishAndPractice;
   const active = isActiveJob(j);
@@ -61,6 +62,8 @@ export default function JobCard({ job: j, jobs = [], drafts, data, openDraft, ca
   const retryAgain = generation && !draft && j.type !== JOB_TYPES.SUPPLEMENT && !active && ['failed', 'cancelled'].includes(j.status) && !j.continuedBy && contractOf(j).actions?.retry?.available === true;
   const published = j.origin === 'selection' && j.status === 'complete' && j.publication?.cardIds?.length > 0 ? j.publication : null;
   const jobId = j.contract?.jobId || j.id;
+  // The draft of an ended run: the card's button when there is nothing else to do about the run, else the quiet link beside the button.
+  const look = draft && !active && { label: ui('检查草稿'), run: () => openDraft(draft) };
   // The shortfall's action first: the same button as the 待发布 row of this draft.
   const own = !stands ? null : ({
     'model-settings': openModelSettings && { label: actionLabel('model-settings'), run: openModelSettings },
@@ -76,13 +79,14 @@ export default function JobCard({ job: j, jobs = [], drafts, data, openDraft, ca
     own,
     failure?.action === 'settings' && openModelSettings && { label: ui('去配置模型'), run: openModelSettings },
     retryAgain && { label: ui('再试一次'), here: true, disabled: !modelReady, run: () => act('job.control', { jobId, action: 'retry' }) },
-    draft && !active && !atOnce && { label: ui('检查草稿'), run: () => openDraft(draft) },
+    !atOnce && look,
     retryGeneration && generation && j.type !== JOB_TYPES.SUPPLEMENT && ['failed', 'cancelled'].includes(j.status) && !draft && !retryAgain && { label: ui('按原资料重新设置'), run: () => retryGeneration(j) },
     published && openDeck && { label: ui('打开题组'), run: () => openDeck(published.deckId) },
   ].filter(Boolean);
-  // The quiet other ways, under the card: look at the draft first; the limit that ended the run is one press from its setting (设置 › 出题偏好); the form again when the one-press retry is the button.
+  // The quiet other ways, under the card: look at the draft first (beside 发布并开始练, and wherever the card is the only way to the draft); the limit that ended the run is one press from its setting
+  // (设置 › 出题偏好); the form again when the one-press retry is the button.
   const links = [
-    atOnce && { label: ui('检查草稿'), run: () => openDraft(draft), disabled: busy },
+    (atOnce || draftLink) && look && choices[0] !== look && { ...look, disabled: busy },
     failure && hitTimeLimit(j.stage) && openSettings && { label: ui('调整时限'), run: () => openSettings(LIMIT_ANCHOR) },
     retryAgain && choices[0]?.label === ui('再试一次') && retryGeneration && { label: ui('按原资料重新设置'), run: () => retryGeneration(j) },
   ].filter(Boolean);
