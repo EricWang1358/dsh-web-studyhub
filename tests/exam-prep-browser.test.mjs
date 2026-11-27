@@ -133,16 +133,18 @@ test('turned off in Settings the page has no sidebar entry and one switch there 
         // the reader is open while its material is still being read (held here, as on a slow machine): what it shows then stays where it is when the text comes.
         // Chromium excuses a shift within 500 ms of a click, so the layout-shift score alone only saw this on a slow runner (CLS 0.152, the text 62 px up).
         const held = await holdActions(page, ['materials.document.get']);
-        await peek.click();
-        await until(async () => (await page.locator('dialog[open], [role="dialog"]').count()) > 0, 'the reader');
-        await until(async () => held.seen('materials.document.get'), 'the reader asks for its material');
-        await settleAnimations(page);
         const readerPlaces = () => page.locator('dialog[open] :is(.reader-toolbar, .reader-aux, .reader-scroll)').evaluateAll(elements => elements.map(element => {
           const box = element.getBoundingClientRect();
           return `${element.className.split(' ')[0]} ${Math.round(box.x)},${Math.round(box.y)} ${Math.round(box.width)}x${Math.round(box.height)}`;
         }));
-        const whileReading = await readerPlaces();
-        held.release('materials.document.get');
+        let whileReading;
+        try {
+          await peek.click();
+          await until(async () => (await page.locator('dialog[open], [role="dialog"]').count()) > 0, 'the reader');
+          await until(async () => held.seen('materials.document.get'), 'the reader asks for its material');
+          await settleAnimations(page);
+          whileReading = await readerPlaces();
+        } finally { held.release('materials.document.get'); } // a failed step above does not leave the reader's request hanging
         // the quote in the text of the material, not only in the bar above it, which shows before the material has been read
         await until(async () => /三次握手建立连接/.test(await page.locator('dialog[open] .study-document-body').first().innerText()), 'the quote in the reader', { timeoutMs: 30000 });
         await settleAnimations(page);
