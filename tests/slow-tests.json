@@ -2,6 +2,7 @@
   "browser": [
     "tests/answer-card-browser.test.mjs",
     "tests/answer-card-ui.test.mjs",
+    "tests/archify-diagram-isolation-browser.test.mjs",
     "tests/board-today-s1-browser.test.mjs",
     "tests/board-today-s2-browser.test.mjs",
     "tests/board-today-s3-browser.test.mjs",
