@@ -33,6 +33,7 @@ For any question you cannot answer at once, read that class's entry (condition, 
 - "Open it full screen, it is clearer."
 - "One request per item is simpler; batches can come later."
 - "The ideal version is worth the upkeep."
+- "I will ask the owner which option they want." (Read the code or run a probe first; ask only the product choice, with your pick first.)
 
 ## Pinned commands
 

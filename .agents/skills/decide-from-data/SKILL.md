@@ -21,7 +21,7 @@ Each question is the catch of a general-mistake class mined from this repo's PRs
 - [C51] If the user does this by mistake, or the data is damaged, what brings the earlier state back, and does that path exist before the action ships?
 - [C37] Does this rule or boundary select by a list of known names or spellings, and what else has the same capability that is not on the list (new, renamed, aliased)?
 - [C58] For this key or lookup, which exact unit does the value belong to, does the identifier carry every coordinate that tells it from its neighbours, and does a test use data where the similar identifiers differ?
-- [C22] Does this operation touch only the items I created or intend, or does it select by exclusion or wildcard, or switch, pull, rebase, reset or stash a checkout that another session may be using?
+- [C22] Does this operation touch only the items I created or intend, or does it select by exclusion or wildcard, or switch, pull, rebase, reset, stash or reinstall the dependencies of a checkout that another session may be using?
 
 For any question you cannot answer at once, read that class's entry (condition, boundary, pairs): `grep -A9 '^## C03 ' docs/agent-lessons/taxonomy.md`, with the class id in place of C03.
 

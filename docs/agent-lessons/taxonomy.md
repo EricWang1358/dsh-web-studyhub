@@ -4,7 +4,7 @@ Classes of mistakes that recur in this repo on different surfaces. Each class is
 
 Status: `seed` came from owner feedback before mining and has no mined card yet; `candidate` has mined cards but is not yet recurring; `recurring` and `costly` follow the rules in `taxonomy-rules.md`. Evidence counts come from `cards.mjs stats`; a surface is a feature area.
 
-Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12 and C14 widened; C05 merged into C02; C16–C20 added. Revision 2, after review of b02: C13, C16, C17 and C19 widened; C21 and C22 added. Revision 3, after review of b03: C02 narrowed to components and mechanisms; C24 (facts and lists) split off; C23 (accessibility semantics) added. Revision 4, after review of b04: C25 (shared primitive shaped for one case) and C26 (replaced code left behind) split from C02. Revision 5, after reviews of b05 and b06: C17 widened to hand-offs that drop the target; C27 (late-arriving content), C28 (serialised independent work), C29 (quality gate without severity) and C30 (group information repeated per row) added. Revision 6, after review of b07: C31–C37 added (parity, leftover state, stop that did not stop, work outside the task surface, duplicate after restart, test timing, name lists); C19 narrowed. Revision 7, after review of b08: C21 widened to family members keyed by the family's common shape; C32 widened to resumes that trust their own record; C38 (format across a release boundary) and C39 (setting read at the wrong moment) added. Revision 8, after review of b09: C40 (control or warning shown without checking its condition) split from C17; C08 wording covers blocks. Revision 9, after review of b10: C18 widened to writes over input the user already filled; C36 widened to machine state; C41 (work counted as delivered without checking the shipping branch) and C42 (same item handed to parallel workers with no claim) added. Revision 10, after review of b11: C03 widened to code adopted from outside; C12 widened to call order that defeats provider reuse; C43 (failure kinds not told apart) added. Revision 11, after review of b12: C44 (bytes or work paid on the common path) and C45 (view checked only with data present) added. Revision 12, after review of b13: C46 (status taken from a signal that over-fires) split from C19; C23 widened to lists with no keyboard model. Revision 13, after review of b14: C47 (placement and weight follow build order, not the user's look and decision order) added; C26 widened to functions whose only users were removed. Revision 14, after review of b15: C29 widened to precondition checks that refuse an action; C38 widened to a stored key whose meaning changed; C26 widened to unreferenced definitions. Revision 15, after review of b16: C04 widened to checks outside CI; C12 widened to uncapped paid work; C41 widened to publishing channels; C46 widened to absent evidence; C48 (external resource unpinned, unbounded) added. Revision 16, after review of b17: C49 (proposal scoped to the ideal end state without weighing upkeep) added. Revision 17, after review of b18: C50 (decision ignored the system's own recorded signals) and C51 (change to stored work with no way back) added. Revision 18, after review of b19: C47 widened to default sequences; C46 and C50 separated; C49 covers reports closed as already covered. Revision 19, after review of b20: C52 (faithful original form unsupported or buried) added; C36 widened to cleanup only on the passing path; C44 widened to every release package. Revision 20, after review of b21: C53 (a step taken mid-job replaced or closed the view the user worked from) split from C17. Revision 21, after review of b22: C54 (parts of one unit set independently) added; C27 widened to worst-case reserved slots; C36 widened to held requests; C03 widened to input method; C44 widened to prompt text per turn. Revision 22, after review of b23: C54 widened to rows of one list that each decide how much to show. Revision 23, after review of b24: C55 (feature acts on the stored unit, not the user's unit) added; C35 widened to repeated requests. Revision 24, after review of b25: C56 (composite action fired single-item side effects per step) added; C53 widened to a selection switched by the step and not restored. Revision 25, after the C17 and new-card sweep: C57 (renderer lacks a rule for a form the producer emits) and C58 (identifier does not name the unit) added.
+Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12 and C14 widened; C05 merged into C02; C16–C20 added. Revision 2, after review of b02: C13, C16, C17 and C19 widened; C21 and C22 added. Revision 3, after review of b03: C02 narrowed to components and mechanisms; C24 (facts and lists) split off; C23 (accessibility semantics) added. Revision 4, after review of b04: C25 (shared primitive shaped for one case) and C26 (replaced code left behind) split from C02. Revision 5, after reviews of b05 and b06: C17 widened to hand-offs that drop the target; C27 (late-arriving content), C28 (serialised independent work), C29 (quality gate without severity) and C30 (group information repeated per row) added. Revision 6, after review of b07: C31–C37 added (parity, leftover state, stop that did not stop, work outside the task surface, duplicate after restart, test timing, name lists); C19 narrowed. Revision 7, after review of b08: C21 widened to family members keyed by the family's common shape; C32 widened to resumes that trust their own record; C38 (format across a release boundary) and C39 (setting read at the wrong moment) added. Revision 8, after review of b09: C40 (control or warning shown without checking its condition) split from C17; C08 wording covers blocks. Revision 9, after review of b10: C18 widened to writes over input the user already filled; C36 widened to machine state; C41 (work counted as delivered without checking the shipping branch) and C42 (same item handed to parallel workers with no claim) added. Revision 10, after review of b11: C03 widened to code adopted from outside; C12 widened to call order that defeats provider reuse; C43 (failure kinds not told apart) added. Revision 11, after review of b12: C44 (bytes or work paid on the common path) and C45 (view checked only with data present) added. Revision 12, after review of b13: C46 (status taken from a signal that over-fires) split from C19; C23 widened to lists with no keyboard model. Revision 13, after review of b14: C47 (placement and weight follow build order, not the user's look and decision order) added; C26 widened to functions whose only users were removed. Revision 14, after review of b15: C29 widened to precondition checks that refuse an action; C38 widened to a stored key whose meaning changed; C26 widened to unreferenced definitions. Revision 15, after review of b16: C04 widened to checks outside CI; C12 widened to uncapped paid work; C41 widened to publishing channels; C46 widened to absent evidence; C48 (external resource unpinned, unbounded) added. Revision 16, after review of b17: C49 (proposal scoped to the ideal end state without weighing upkeep) added. Revision 17, after review of b18: C50 (decision ignored the system's own recorded signals) and C51 (change to stored work with no way back) added. Revision 18, after review of b19: C47 widened to default sequences; C46 and C50 separated; C49 covers reports closed as already covered. Revision 19, after review of b20: C52 (faithful original form unsupported or buried) added; C36 widened to cleanup only on the passing path; C44 widened to every release package. Revision 20, after review of b21: C53 (a step taken mid-job replaced or closed the view the user worked from) split from C17. Revision 21, after review of b22: C54 (parts of one unit set independently) added; C27 widened to worst-case reserved slots; C36 widened to held requests; C03 widened to input method; C44 widened to prompt text per turn. Revision 22, after review of b23: C54 widened to rows of one list that each decide how much to show. Revision 23, after review of b24: C55 (feature acts on the stored unit, not the user's unit) added; C35 widened to repeated requests. Revision 24, after review of b25: C56 (composite action fired single-item side effects per step) added; C53 widened to a selection switched by the step and not restored. Revision 25, after the C17 and new-card sweep: C57 (renderer lacks a rule for a form the producer emits) and C58 (identifier does not name the unit) added. Revision 26 (2026-11-27), after mining #1465-#1638 (b26, b27): C59 added (a check accepted green without being seen to fail on its defect); C19 and C43 widened; C22 widened to dependency reinstalls.
 
 ## C01 A fix reached one path, not every path that carries the same thing
 - Layer: process · Moment: declare-done
@@ -12,7 +12,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: Which other paths carry this content or perform this action, and does each one now go through the one unit I changed?
 - Not this class: C02 is how the second path came to exist; C01 is forgetting it when changing behaviour.
 - Pairs: #62 (formula display fixed for text sources only) ↔ #341 (crash-safe publish added to the publish job but not to the supplement run's own publish)
-- Evidence: 28 cards over 10 surfaces (cards.mjs stats at revision 25); first refs #13 #62 #209 #229 #231
+- Evidence: 28 cards over 10 surfaces (cards.mjs stats at revision 26); first refs #13 #62 #209 #229 #231
 - Home: question in `.claude/skills/verify-before-done`; hook `declare-done` in `.claude/hooks/skill-moments.json`
 - Status: recurring, costly
 
@@ -22,7 +22,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: Does something in the repo already own this, and am I going through it? If it does not fit my context, can I widen it instead of copying it?
 - Not this class: C25 (the owner itself was shaped, scoped or placed for one case, so callers could not use it); C24 (a fact, list or decision restated, no component involved); C26 (an old owner left behind after replacement); C14 (code piled into one place); C16 (a rule with no check at all).
 - Pairs: #68 (ten hand-written confirmation footers) ↔ #75 (overlays built their own dialog because the shared one did not work in their container); #288 (a new gateway skipped the preparation the existing model path applies) ↔ #353 (two modules wrapped one lock with their own retry budgets)
-- Evidence: 81 cards over 15 surfaces (cards.mjs stats at revision 25); first refs #44 #68 #69 #70 #72
+- Evidence: 84 cards over 16 surfaces (cards.mjs stats at revision 26); first refs #44 #68 #69 #70 #72
 - Home: question in `.claude/skills/place-shared-code`
 - Status: recurring, costly
 
@@ -32,7 +32,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: Which real environments and inputs will this meet (language, width, theme, host, input method, real files, real model, real dependency version), and have I observed it on a sample of each?
 - Not this class: C04 (the right checks exist but did not run); C20 (the change itself breaks a property).
 - Pairs: #1118 (a button sized for the Chinese label overflowed in English) ↔ #753 (chapter detection built for the numbering already seen split a real book into wrong chapters); #875 (a transcription option trusted from its name) ↔ #255 (a library assumed not to mutate its input)
-- Evidence: 91 cards over 15 surfaces (cards.mjs stats at revision 25); first refs #17 #19 #20 #21 #29
+- Evidence: 97 cards over 15 surfaces (cards.mjs stats at revision 26); first refs #17 #19 #20 #21 #29
 - Home: question in `.claude/skills/verify-before-done`; hook `declare-done` in `.claude/hooks/skill-moments.json`
 - Status: recurring, costly
 
@@ -42,7 +42,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: Which checks read the whole tree or the merged result, did they run on what will actually land, and for checks that live outside CI, did I run each one once after the change?
 - Not this class: C03 (wrong environment); C16 (no check exists).
 - Pairs: #1251 (smart selection skipped whole-tree guards) ↔ #1355 (three green PRs together exceeded the first-load ceiling)
-- Evidence: 23 cards over 4 surfaces (cards.mjs stats at revision 25); first refs #329 #373 #391 #411 #633
+- Evidence: 26 cards over 4 surfaces (cards.mjs stats at revision 26); first refs #329 #373 #391 #411 #633
 - Home: question in `.claude/skills/verify-before-done`; hook `declare-done` in `.claude/hooks/skill-moments.json`
 - Status: recurring, costly
 
@@ -55,7 +55,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: For each outcome (success, each failure cause, each item in a list), does the user or caller see the real state and the real cause?
 - Not this class: C09 (behaviour with no explanation); C11 (the failure itself is silent).
 - Pairs: #458 (two failure causes behind one size message) ↔ #12 (parallel import rows with no per-item state); #465 (an action with no declared input reported unrelated errors)
-- Evidence: 60 cards over 13 surfaces (cards.mjs stats at revision 25); first refs #26 #34 #57 #58 #88
+- Evidence: 62 cards over 13 surfaces (cards.mjs stats at revision 26); first refs #26 #34 #57 #58 #88
 - Home: question in `.claude/skills/design-screen-content`
 - Status: recurring, costly
 
@@ -65,7 +65,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: How many required actions are on the best path and on a fresh user's path, and can each optional choice live behind one fold?
 - Not this class: C08.
 - Pairs: none yet
-- Evidence: 9 cards over 3 surfaces (cards.mjs stats at revision 25); first refs #378 #386 #665 #666 #667
+- Evidence: 9 cards over 3 surfaces (cards.mjs stats at revision 26); first refs #378 #386 #665 #666 #667
 - Home: question in `.claude/skills/design-user-flow`
 - Status: recurring, costly
 
@@ -75,7 +75,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: Looking at the whole surface after this change, how many equal-weight entries are there, and what tells a first-time user that this feature exists at the moment they need it?
 - Not this class: C07 (choices on one flow); C17 (the feature itself stops short).
 - Pairs: #654 (eighteen equal-weight sidebar entries) ↔ #948 (a new learner never found the three core practice tools)
-- Evidence: 44 cards over 9 surfaces (cards.mjs stats at revision 25); first refs #27 #173 #381 #398 #404
+- Evidence: 44 cards over 9 surfaces (cards.mjs stats at revision 26); first refs #27 #173 #381 #398 #404
 - Home: question in `.claude/skills/design-user-flow`
 - Status: recurring, costly
 
@@ -85,7 +85,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: Can a user predict what this does, when, and what it costs, and can a keyboard or touch user reach that explanation?
 - Not this class: C06 (an explanation exists but is untrue).
 - Pairs: #86 (key details only in native title attributes)
-- Evidence: 9 cards over 6 surfaces (cards.mjs stats at revision 25); first refs #370 #601 #673 #745 #764
+- Evidence: 9 cards over 6 surfaces (cards.mjs stats at revision 26); first refs #370 #601 #673 #745 #764
 - Home: question in `.claude/skills/design-screen-content`
 - Status: recurring, costly
 
@@ -95,7 +95,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: Is this limit a product decision with a configurable default, or did I pin it to the case in front of me?
 - Not this class: C12 (a default with no limit at all).
 - Pairs: none yet (seed: current-course-only home card; a fixed question cap enforced in several modules)
-- Evidence: 6 cards over 5 surfaces (cards.mjs stats at revision 25); first refs #134 #220 #380 #383 #805
+- Evidence: 6 cards over 5 surfaces (cards.mjs stats at revision 26); first refs #134 #220 #380 #383 #805
 - Home: question in `.claude/skills/place-shared-code`
 - Status: recurring
 
@@ -105,7 +105,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: If this step fails or returns empty, what does the user see, and does the work retry or resume without paying twice?
 - Not this class: C06 (something is shown, but it is wrong).
 - Pairs: none yet (seed: an empty search index silently stopped retrieval; malformed review replies dropped batches)
-- Evidence: 11 cards over 6 surfaces (cards.mjs stats at revision 25); first refs #50 #106 #184 #197 #234
+- Evidence: 12 cards over 7 surfaces (cards.mjs stats at revision 26); first refs #50 #106 #184 #197 #234
 - Home: question in `.claude/skills/design-background-work`
 - Status: recurring, costly
 
@@ -115,7 +115,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: For a large input, how many calls, how much cost and how much output does this default produce, can the user afford and read it, is the repeated part placed first (measured on the real provider's cache), is there a cap checked before each paid call, and does each stage use only the model it needs?
 - Not this class: C10 (a limit pinned too tight); C11 (spend that is silent).
 - Pairs: #462 (an outline build split one material set into 636 tiny points)
-- Evidence: 15 cards over 3 surfaces (cards.mjs stats at revision 25); first refs #10 #218 #266 #519 #617
+- Evidence: 15 cards over 3 surfaces (cards.mjs stats at revision 26); first refs #10 #218 #266 #519 #617
 - Home: question in `.claude/skills/design-user-flow`
 - Status: recurring, costly
 
@@ -125,7 +125,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: What does this handler or call cost each time, measured in the real host, is the work scoped to what changed, and can unchanged data be reused?
 - Not this class: C03.
 - Pairs: #1304 (the whole page restyled on every answer)
-- Evidence: 18 cards over 7 surfaces (cards.mjs stats at revision 25); first refs #2 #24 #38 #215 #224
+- Evidence: 18 cards over 7 surfaces (cards.mjs stats at revision 26); first refs #2 #24 #38 #215 #224
 - Home: question in `.claude/skills/design-background-work`
 - Status: recurring, costly
 
@@ -135,7 +135,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: Does this addition make an existing file, function or prop chain longer, and is there a seam it should plug into instead?
 - Not this class: C02 (a second owner instead of none).
 - Pairs: #113 (services threaded as props through every page) ↔ #130 (the home component grew to 917 lines)
-- Evidence: 11 cards over 6 surfaces (cards.mjs stats at revision 25); first refs #74 #108 #112 #131 #154
+- Evidence: 11 cards over 6 surfaces (cards.mjs stats at revision 26); first refs #74 #108 #112 #131 #154
 - Home: question in `.claude/skills/place-shared-code`
 - Status: recurring
 
@@ -145,7 +145,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: none needed at a moment; this is long-tail knowledge.
 - Not this class: C03 (product behaviour judged from a stand-in).
 - Pairs: none yet
-- Evidence: 3 cards over 2 surfaces (cards.mjs stats at revision 25); first refs #52 #357 #810
+- Evidence: 3 cards over 2 surfaces (cards.mjs stats at revision 26); first refs #52 #357 #810
 - Home: record `docs/agent-lessons/solutions/windows-tool-assumptions.md`
 - Status: recurring
 
@@ -153,9 +153,9 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Layer: process · Moment: implement
 - Condition: a design or consistency rule (a style restraint, an icon size, a number repeated in docs) or a property the output must have (a question that tests the concept, delimited formulas) was stated, but nothing failed when a change or a generated output broke it; form checks passed while the needed property went unchecked.
 - Catch: Which test or guard fails if the next change or the next generated output breaks this rule or lacks this property, and does it scan the whole tree or the real outputs?
-- Not this class: C04 (the check exists but did not run); C02 (the rule has two owners).
+- Not this class: C04 (the check exists but did not run); C02 (the rule has two owners). C59 (a check exists and is green but cannot fail when its defect is put back).
 - Pairs: #1094 (info-blue and side stripes spread over 19 files) ↔ #1041 (docs kept old limits after the code changed); #1041 ↔ #37 (generated questions passed form checks while testing wording memory)
-- Evidence: 65 cards over 13 surfaces (cards.mjs stats at revision 25); first refs #6 #37 #49 #66 #76
+- Evidence: 70 cards over 14 surfaces (cards.mjs stats at revision 26); first refs #6 #37 #49 #66 #76
 - Home: question in `.claude/skills/place-shared-code`
 - Status: recurring, costly
 
@@ -166,7 +166,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Use only when the catch reads that way; a missing content kind, a pending state or an unsafe removal with its own lesson is a different class.
 - Not this class: C01 (one path of a fix); C08 (the feature exists but cannot be found).
 - Pairs: #459 (the book write interface could add but not move or delete) ↔ #1017 (a note made from a question kept the template and dropped the Q&A); #189 (a converter usable only after manual install) ↔ #456 (selection Q&A shown in a view that cannot report selections); #470 ("free editing" declared done at file level only)
-- Evidence: 56 cards over 11 surfaces (cards.mjs stats at revision 25); first refs #15 #22 #23 #48 #54
+- Evidence: 56 cards over 11 surfaces (cards.mjs stats at revision 26); first refs #15 #22 #23 #48 #54
 - Home: question in `.claude/skills/design-user-flow`
 - Status: recurring, costly
 
@@ -176,17 +176,17 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: If this runs over content the user already has or has typed, what happens to each existing item, and does the code keep it or show the user and get confirmation first?
 - Not this class: C20 (a transformation breaks a property, without a rebuild).
 - Pairs: #478 (notes moved by page number to points they did not belong to) ↔ #461 (rebuilt outline kept ids but changed their titles)
-- Evidence: 10 cards over 4 surfaces (cards.mjs stats at revision 25); first refs #453 #489 #612 #618 #827
+- Evidence: 10 cards over 4 surfaces (cards.mjs stats at revision 26); first refs #453 #489 #612 #618 #827
 - Home: question in `.claude/skills/decide-from-data`
 - Status: recurring, costly
 
 ## C19 A decision was made on state that was not settled at that instant
 - Layer: logic · Moment: implement
-- Condition: code decided from state that another step was about to fill or change (fields set after submit, a save in flight, layout still moving, a flag the same step had just written), from shared state a concurrent request can change, or applied an async result to the current state instead of the request that issued it.
-- Catch: At the instant this code decides, reads or applies a result, is everything it reads final and does it still belong to the request or state it came from, including during a request in flight, a fast second request, or layout still settling?
+- Condition: code decided from state that another step was about to fill or change (fields set after submit, a save in flight, layout still moving, a flag the same step had just written), from shared state a concurrent request can change, or applied an async result, a confirm or a held selection to the current state instead of the request, target or list it was issued for (a late result closing a newer dialog, a confirm acting on whichever item now sits at the remembered position, values captured when a dialog opened and used when it was confirmed, a pending item consumed when a load began instead of when its result was applied).
+- Catch: At the instant this code decides, reads or applies a result, is everything it reads final, and does it still belong to the request, target or state it came from, including during a request in flight, a fast second request, a list that shifted under a poll, or layout still settling?
 - Not this class: C11 (the outcome is silent); C33 (a terminal state reported before the work stopped); C36 (a test racing); C32 (settled state left from an earlier use). C39 (a settled setting read at the wrong moment). C46 (a settled signal that also fires where the thing is not true).
 - Pairs: #322 (a duplicate check read fields filled after submit) ↔ #603 (a scroll position restored before the layout settled); #1047 (a close decided while a save was in flight) ↔ #609 (a restore used a stored offset while rows arrived)
-- Evidence: 15 cards over 9 surfaces (cards.mjs stats at revision 25); first refs #3 #4 #14 #61 #303
+- Evidence: 25 cards over 11 surfaces (cards.mjs stats at revision 26); first refs #3 #4 #14 #61 #303
 - Home: question in `.claude/skills/design-background-work`
 - Status: recurring, costly
 
@@ -196,7 +196,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: Which properties of this data do other parts or the user rely on, and have I run the transformation on real data to see each one survive?
 - Not this class: C03 (judged from a stand-in, but nothing was broken by the change itself); C18.
 - Pairs: #8 (a whitespace cleanup turned every letter s into a space) ↔ #932 (an exam alignment pass ignored the scheduler's minimum gap); #467 (quote normalisation dropped the footnote mark next to a match)
-- Evidence: 12 cards over 7 surfaces (cards.mjs stats at revision 25); first refs #51 #181 #187 #248 #413
+- Evidence: 13 cards over 7 surfaces (cards.mjs stats at revision 26); first refs #51 #181 #187 #248 #413
 - Home: question in `.claude/skills/decide-from-data`
 - Status: recurring, costly
 
@@ -206,19 +206,19 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: Which other variants, element kinds or family members does this rule, label or handler match or move, and have I looked at each one with its own kind and shape?
 - Not this class: C01 (a fix reached too few paths; C21 reaches too many); C03 (a stand-in environment).
 - Pairs: #9 (a strip placed in flow for every card type pushed one type under its floating header) ↔ #30 (a rule for plain row buttons also dropped a new chapter button onto its own line)
-- Evidence: 23 cards over 10 surfaces (cards.mjs stats at revision 25); first refs #9 #30 #244 #297 #362
+- Evidence: 25 cards over 10 surfaces (cards.mjs stats at revision 26); first refs #9 #30 #244 #297 #362
 - Home: question in `.claude/skills/decide-from-data`
 - Status: recurring, costly
 
 ## C22 A broad operation acted on a place others share as if it were the only user
 - Layer: logic · Moment: implement
-- Condition: a cleanup, add, delete or whole-checkout change (switching branch, pulling, rebasing, resetting, stashing) ran in a location other components or sessions also use, selected its targets by exclusion, wildcard or "the whole tree", and so removed, committed, moved or misread things it did not create.
-- Catch: Does this operation touch only the items I created or intend, or does it select by exclusion or wildcard, or switch, pull, rebase, reset or stash a checkout that another session may be using?
+- Condition: a cleanup, add, delete or whole-checkout change (switching branch, pulling, rebasing, resetting, stashing, reinstalling dependencies) ran in a location other components or sessions also use, selected its targets by exclusion, wildcard or "the whole tree", and so removed, committed, moved or misread things it did not create.
+- Catch: Does this operation touch only the items I created or intend, or does it select by exclusion or wildcard, or switch, pull, rebase, reset, stash or reinstall the dependencies of a checkout that another session may be using?
 - Not this class: C02 (a second owner of the same thing); C20 (a rewrite that breaks a property of the data); C42 (two workers given the same item).
 - Pairs: #25 (an upgrade cleanup deleted every file in a shared folder except the one it installed) ↔ #36 (a broad add committed six files of another session)
-- Evidence: 2 cards over 2 surfaces (cards.mjs stats at revision 25); first refs #25 #36. Captured after: #1481 (2026-11-25: a session switched branch in a checkout another session was editing, and that session's untracked test failed the whole-tree run).
+- Evidence: 3 cards over 2 surfaces (cards.mjs stats at revision 26); first refs #25 #36 #1482
 - Home: question in `.claude/skills/decide-from-data`; hook `shared-checkout` in `.claude/hooks/skill-moments.json`
-- Status: costly
+- Status: recurring, costly
 
 ## C23 Accessibility semantics were added without checking what keyboard and screen-reader users get
 - Layer: logic · Moment: implement
@@ -226,7 +226,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: For each role, state or live region I add, what does a keyboard and screen-reader user get (focus, keys, what is announced, the name), and did I try it that way?
 - Not this class: C09 (an explanation is missing or unreachable); C06 (the displayed state is wrong for everyone); C03 (a stand-in environment in general).
 - Pairs: #71 (focus lost when a dialog role mounted without taking focus) ↔ #100 (a whole job row made a live region, so a ticking timer was read every second)
-- Evidence: 10 cards over 1 surfaces (cards.mjs stats at revision 25); first refs #71 #79 #82 #100 #144
+- Evidence: 10 cards over 1 surfaces (cards.mjs stats at revision 26); first refs #71 #79 #82 #100 #144
 - Home: none yet
 - Status: candidate
 
@@ -236,7 +236,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: Is this fact or list defined once and read everywhere else? If I am adding another case, how many places must I edit, and should they become one table?
 - Not this class: C02 (a component or mechanism rebuilt per caller); C16 (a rule with no guard at all).
 - Pairs: #63 (the accent colour restated as literals) ↔ #110 (opening, returning and describing a target each branched on kind in four places); #1045 (the warning and the validator decided one schema rule separately)
-- Evidence: 69 cards over 13 surfaces (cards.mjs stats at revision 25); first refs #28 #63 #64 #65 #93
+- Evidence: 74 cards over 13 surfaces (cards.mjs stats at revision 26); first refs #28 #63 #64 #65 #93
 - Home: question in `.claude/skills/place-shared-code`
 - Status: recurring, costly
 
@@ -246,7 +246,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: Is this shared thing in a shared place under a neutral name, does it cover the variants its callers need, and can a consumer differ from it without an override? How many overrides, resets or copies exist already?
 - Not this class: C02 (a usable owner exists and callers skipped it); C21 (one rule reached siblings it was never looked at for, with no pattern of consumer patches).
 - Pairs: #152 (button and segmented control lacked wrap and full-width variants, so each stylesheet copied overrides) ↔ #120 (shared constants lived in a module the browser could not import, so the UI copied them and one copy was wrong); #136 (a global primary-button rule forced with !important) ↔ #141 (generic provider and key-form primitives owned by one feature, borrowed by others)
-- Evidence: 26 cards over 5 surfaces (cards.mjs stats at revision 25); first refs #78 #80 #120 #129 #136
+- Evidence: 26 cards over 5 surfaces (cards.mjs stats at revision 26); first refs #78 #80 #120 #129 #136
 - Home: question in `.claude/skills/place-shared-code`
 - Status: recurring
 
@@ -256,7 +256,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: When I replace or remove something, did I delete everything it made redundant (code, tests, styles, listeners, and functions whose only users were what I removed), and what check fails on an orphan?
 - Not this class: C02 (a second live owner built on purpose); C16 (a rule with no guard, nothing superseded).
 - Pairs: #133 (a dead import component still under test) ↔ #155 (dozens of unused selectors after code was removed); #73 (an old focus trap left running after a new dialog replaced it)
-- Evidence: 8 cards over 5 surfaces (cards.mjs stats at revision 25); first refs #73 #133 #155 #340 #685
+- Evidence: 9 cards over 6 surfaces (cards.mjs stats at revision 26); first refs #73 #133 #155 #340 #685
 - Home: question in `.claude/skills/verify-before-done`; hook `declare-done` in `.claude/hooks/skill-moments.json`
 - Status: recurring
 
@@ -266,7 +266,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: When this data arrives after first paint, does anything already shown move or change, is the loading state the same size as the ready state, and does a row that never gets it pay nothing for the slot?
 - Not this class: C19 (a decision made on unsettled state, or a result applied to the wrong request; here the request is right and its arrival disturbs the display); C13 (cost, not movement).
 - Pairs: #204 (an estimate row changed width on load and moved the action next to it) ↔ #206 (a late recommendation panel pushed the list down and switched the default mode); #205 (late badges made every row taller) ↔ #225 (late derived titles moved visible rows)
-- Evidence: 11 cards over 5 surfaces (cards.mjs stats at revision 25); first refs #204 #205 #206 #225 #1084
+- Evidence: 13 cards over 5 surfaces (cards.mjs stats at revision 26); first refs #204 #205 #206 #225 #1084
 - Home: question in `.claude/skills/design-screen-content`
 - Status: recurring, costly
 
@@ -276,7 +276,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: Which of these units are independent, is the concurrency adjustable, and does a per-stage timeline show where the wall clock goes?
 - Not this class: C13 (too much work per event, not too serial); C12 (cost, not latency).
 - Pairs: #198 (generation stages chained at low default parallelism) ↔ #212 (proofreading in blocking waves with files forced serial)
-- Evidence: 6 cards over 3 surfaces (cards.mjs stats at revision 25); first refs #198 #212 #320 #377 #643
+- Evidence: 6 cards over 3 surfaces (cards.mjs stats at revision 26); first refs #198 #212 #320 #377 #643
 - Home: question in `.claude/skills/design-background-work`
 - Status: recurring, costly
 
@@ -286,7 +286,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: For each finding this gate can raise, is it fatal, fixable or advisory, and does the gate act accordingly?
 - Not this class: C16 (no gate exists); C11 (the loss is silent; here it is visible but wrongly severe).
 - Pairs: #202 (a hint that revealed the answer dropped the whole question although a local fix existed) ↔ #216 (formatting differences and rewrite suggestions each dropped a question)
-- Evidence: 3 cards over 2 surfaces (cards.mjs stats at revision 25); first refs #202 #216 #696
+- Evidence: 3 cards over 2 surfaces (cards.mjs stats at revision 26); first refs #202 #216 #696
 - Home: question in `.claude/skills/design-background-work`
 - Status: recurring, costly
 
@@ -296,7 +296,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: What is common to all rows here, and is it stated once at the group level with the right unit?
 - Not this class: C24 (a fact restated in code with no single table); C08 (crowded entry points).
 - Pairs: #201 (the same long file name on every page row, pages counted as documents) ↔ #214 (the same warning and setting line on every history row)
-- Evidence: 4 cards over 3 surfaces (cards.mjs stats at revision 25); first refs #201 #214 #569 #586
+- Evidence: 4 cards over 3 surfaces (cards.mjs stats at revision 26); first refs #201 #214 #569 #586
 - Home: question in `.claude/skills/design-screen-content`
 - Status: recurring
 
@@ -306,7 +306,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: For the path I replace, which outputs, codes, fields and abilities can a caller observe, and has each one been run on both paths and compared?
 - Not this class: C01 (a change made on one path while siblings keep the old behaviour); C02 (a second owner built beside an existing one); C04 (checks exist but did not run).
 - Pairs: #279 (a receipt field was 0 on the new path) ↔ #287 (an explicit retry refused after a clearly observed failure); #309 (the new path lost the old rate-limit retry)
-- Evidence: 6 cards over 3 surfaces (cards.mjs stats at revision 25); first refs #279 #287 #290 #309 #330
+- Evidence: 8 cards over 5 surfaces (cards.mjs stats at revision 26); first refs #279 #287 #290 #309 #330
 - Home: question in `.claude/skills/verify-before-done`; hook `declare-done` in `.claude/hooks/skill-moments.json`
 - Status: recurring
 
@@ -316,7 +316,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: What state from the earlier attempt, cycle or context is still present when this one starts or resumes, is each part reset, re-derived or checked as valid for the new use (including after a failed start), and does a resume compare its own record with the facts in the store?
 - Not this class: C19 (state not settled at this instant); C35 (finished work repeated or duplicated).
 - Pairs: #275 (a restored-state flag and finish time carried into the next attempt) ↔ #182 (a finished round reused for a new entry); #316 (a resume applied a saved manifest to a changed source)
-- Evidence: 19 cards over 7 surfaces (cards.mjs stats at revision 25); first refs #182 #275 #316 #343 #739
+- Evidence: 22 cards over 8 surfaces (cards.mjs stats at revision 26); first refs #182 #275 #316 #343 #739
 - Home: question in `.claude/skills/design-background-work`
 - Status: recurring, costly
 
@@ -326,7 +326,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: When this code reports cancelled, timed out or finished, has the work it stands for actually stopped and released what it held (process, request, queue slot, files)?
 - Not this class: C19 (a decision on state still changing); C11 (a failure is silent).
 - Pairs: #304 (cancelled while an installer was still writing, so an immediate uninstall raced it) ↔ #305 (a timeout dropped the late answer while the request kept billing); #315
-- Evidence: 5 cards over 4 surfaces (cards.mjs stats at revision 25); first refs #304 #305 #315 #451 #615
+- Evidence: 5 cards over 4 surfaces (cards.mjs stats at revision 26); first refs #304 #305 #315 #451 #615
 - Home: question in `.claude/skills/design-background-work`
 - Status: recurring, costly
 
@@ -336,7 +336,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: For this background work, can the user see it in the shared task console, stop it, and see its usage there?
 - Not this class: C02 (code rebuilt per caller; C34 is about what the user can see and control); C06 (a displayed state is wrong).
 - Pairs: #306 (a local setup absent from the console) ↔ #317 (a live correction that could not be cancelled and had no total); #310 #311 #325
-- Evidence: 10 cards over 3 surfaces (cards.mjs stats at revision 25); first refs #306 #310 #311 #317 #325
+- Evidence: 10 cards over 3 surfaces (cards.mjs stats at revision 26); first refs #306 #310 #311 #317 #325
 - Home: question in `.claude/skills/design-background-work`
 - Status: recurring, costly
 
@@ -346,7 +346,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: If this operation is cut off after each step and started again, or the user repeats the same request, which finished steps are repeated or duplicated, and is each one keyed by a stable id or receipt?
 - Not this class: C32 (stale state carried in); C11 (silent loss).
 - Pairs: #324 (a bank append done but not marked, so a rerun appended again) ↔ #314 (material of an interrupted run duplicated on resume)
-- Evidence: 6 cards over 3 surfaces (cards.mjs stats at revision 25); first refs #314 #324 #342 #614 #1215
+- Evidence: 6 cards over 3 surfaces (cards.mjs stats at revision 26); first refs #314 #324 #342 #614 #1215
 - Home: question in `.claude/skills/design-background-work`
 - Status: recurring
 
@@ -356,7 +356,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: Does this test depend on wall-clock time, timer order, machine load or runtime behaviour it does not control, does it still pass if the run is slow or crosses a boundary, does cleanup run on the failure path in an order that does not race the code under test, and does every held request or promise get released when the code under test cancels or disposes?
 - Not this class: C19 (production code deciding on unsettled state); C03 (judging the product from a stand-in); C16 (a rule with no check).
 - Pairs: #307 (a test read the clock twice across midnight) ↔ #298 (a second run had to start inside a fixed window); #285 (a helper copied a directory still being written), #318 (mocked timers stalled retries)
-- Evidence: 28 cards over 4 surfaces (cards.mjs stats at revision 25); first refs #260 #285 #293 #298 #307
+- Evidence: 39 cards over 4 surfaces (cards.mjs stats at revision 26); first refs #260 #285 #293 #298 #307
 - Home: question in `.claude/skills/verify-before-done`; hook `declare-done` in `.claude/hooks/skill-moments.json`
 - Status: recurring, costly
 
@@ -366,7 +366,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: Does this rule or boundary select by a list of known names or spellings, and what else has the same capability that is not on the list (new, renamed, aliased)?
 - Not this class: C22 (a destructive operation scoped by exclusion over a shared place); C21 (a rule reached too many siblings; C37 reaches too few); C16 (no guard exists).
 - Pairs: #291 (two install actions refused by name while equivalent actions got through) ↔ #326 (a guard matched one function name only)
-- Evidence: 2 cards over 2 surfaces (cards.mjs stats at revision 25); first refs #291 #326
+- Evidence: 2 cards over 2 surfaces (cards.mjs stats at revision 26); first refs #291 #326
 - Home: question in `.claude/skills/decide-from-data`
 - Status: costly
 
@@ -376,7 +376,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: Can the previous release read what this change writes, does this code refuse a newer or unknown version and leave its bytes alone, and which test runs each reader on real output of the other release?
 - Not this class: C16 (a rule with no check at all; C38 is one specific untested compatibility direction); C32 (a stale record reused on resume).
 - Pairs: #331 (new manifest keys rejected by the previous release's closed schema) ↔ #360 (a stored version never compared, so an older reader overwrote a newer file); #339
-- Evidence: 6 cards over 4 surfaces (cards.mjs stats at revision 25); first refs #331 #339 #360 #487 #611
+- Evidence: 7 cards over 4 surfaces (cards.mjs stats at revision 26); first refs #331 #339 #360 #487 #611
 - Home: question in `.claude/skills/verify-before-done`; hook `declare-done` in `.claude/hooks/skill-moments.json`; hook `release` in `.claude/hooks/skill-moments.json`
 - Status: recurring, costly
 
@@ -386,7 +386,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: For each setting this operation uses across steps or on a continuation, is it taken as issued or as it is now, is that written down, and does a test change the setting mid-run and on a continuation?
 - Not this class: C19 (a decision on state not yet final, or a result applied to the wrong request; here the value is settled and the question is which moment's value is meant); C32 (stale state carried into a new attempt).
 - Pairs: #312 (a glossary re-read each wave, so a mid-run edit changed a submitted translation) ↔ #368 (a continuation kept a limit frozen in the draft; #371 is the same change)
-- Evidence: 4 cards over 2 surfaces (cards.mjs stats at revision 25); first refs #312 #368 #371 #937
+- Evidence: 4 cards over 2 surfaces (cards.mjs stats at revision 26); first refs #312 #368 #371 #937
 - Home: question in `.claude/skills/design-background-work`
 - Status: recurring
 
@@ -396,7 +396,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: For each control, prompt or warning I show, what condition makes it valid or true, is that condition read at the moment of showing, and is it shown only then?
 - Not this class: C17 (the user's job stops short at its edges, or a view lacks a capability and offers no fallback, as in #456); C06 (a displayed state or cause is wrong); C09 (a hidden rule has no explanation).
 - Pairs: #400 (a hand-in dialog warned about 0 unanswered items on a full paper) ↔ #211 (a link always shown, with the host's inability reported only on click)
-- Evidence: 13 cards over 4 surfaces (cards.mjs stats at revision 25); first refs #211 #400 #620 #675 #746
+- Evidence: 13 cards over 4 surfaces (cards.mjs stats at revision 26); first refs #211 #400 #620 #675 #746
 - Home: question in `.claude/skills/design-screen-content`
 - Status: recurring, costly
 
@@ -406,7 +406,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: Is this work present on the branch that ships and on every channel users install from, checked there and not from the PR, the branch or one channel's state?
 - Not this class: C04 (the checks exist but did not run on the merged result); C01 (a fix reached one code path, not one branch); C42 (the work was handed out twice).
 - Pairs: #251 (a stacked PR merged into its base, so the shipping branch lacked a phase) ↔ #474 (a finished fix sat on a side branch and was in neither of the last two releases); #473 #491
-- Evidence: 6 cards over 2 surfaces (cards.mjs stats at revision 25); first refs #251 #473 #474 #491 #750
+- Evidence: 6 cards over 2 surfaces (cards.mjs stats at revision 26); first refs #251 #473 #474 #491 #750
 - Home: question in `.claude/skills/verify-before-done`; hook `declare-done` in `.claude/hooks/skill-moments.json`; hook `release` in `.claude/hooks/skill-moments.json`
 - Status: recurring
 
@@ -415,18 +415,18 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Condition: an item was given to more than one worker, or to a worker while an open branch or PR already covered it, with no recorded claim and no decision on who merges or discards a second result, so a full duplicate was built and thrown away.
 - Catch: Before handing this item to a worker, is it already assigned, on a branch or in an open PR, and who merges or discards a second result?
 - Not this class: C35 (a restart repeats finished steps; here two workers start the same item); C02 (a second live component built on purpose).
-- Pairs: #498 ↔ #500 (two duplicate implementations of one issue by parallel workers; find a more different second pair when one turns up)
-- Evidence: 2 cards over 1 surfaces (cards.mjs stats at revision 25); first refs #498 #500
+- Pairs: #498 ↔ #500 (two duplicate implementations of one issue by parallel workers); #1488 (a second session fixed a hook bug that an open PR already fixed, after its own checklist said no duplicate existed, so seven PRs stacked on the first had to be retargeted) ↔ #498
+- Evidence: 3 cards over 1 surfaces (cards.mjs stats at revision 26); first refs #498 #500 #1488
 - Home: question in `.claude/skills/verify-before-done`; hook `declare-done` in `.claude/hooks/skill-moments.json`
 - Status: costly
 
 ## C43 A failure was handled by one generic response without telling its kind apart
 - Layer: logic · Moment: design
-- Condition: a step's failures (a permanent per-item outcome, a transient fault, the guard's own outage) all got the same treatment: counted toward an abort threshold, retried unchanged, or treated as a refusal; one run aborted on an item that can never succeed, or one outage blocked even harmless calls, and nothing recorded the terminal state, so the next attempt hit the same thing.
-- Catch: For each way this step can fail, is the failure permanent, transient or the guard's own fault, and does each kind get a different response (recorded and skipped, retried, degraded and reported as a fault) so that a retry makes progress and one kind cannot abort or block everything?
+- Condition: a step's failures (a permanent per-item outcome, a transient fault, the guard's own outage) all got the same treatment: counted toward an abort threshold, retried unchanged, or treated as a refusal; one run aborted on an item that can never succeed, or one outage blocked even harmless calls, and nothing recorded the terminal state, so the next attempt hit the same thing. Also: a read of stored data that failed (unreadable, locked, a newer version, bad bytes) was handled as the data being empty or absent, so a write rebuilt over it or a cap or gate read it as zero use.
+- Catch: For each way this step can fail, is the failure permanent, transient or the guard's own fault, and does each kind get a different response (recorded and skipped, retried, degraded and reported as a fault) so that a retry makes progress and one kind cannot abort or block everything, and does a failed read of stored data refuse the write or the gate rather than read as empty?
 - Not this class: C29 (a review finding judged fatal when fixable; C43 is failure kind and retry policy); C11 (the failure is silent); C35 (finished work repeated after restart); C06 (the message is wrong, not the handling).
 - Pairs: #521 (a page that can never yield passages counted toward an abort and was never recorded) ↔ #463 (a permission reviewer's own error treated as a refusal of every call); #523
-- Evidence: 16 cards over 7 surfaces (cards.mjs stats at revision 25); first refs #463 #521 #523 #688 #695
+- Evidence: 19 cards over 7 surfaces (cards.mjs stats at revision 26); first refs #463 #521 #523 #688 #695
 - Home: question in `.claude/skills/design-background-work`
 - Status: recurring, costly
 
@@ -436,7 +436,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: Which of what the common path loads or builds will most sessions never use, and what measure fails when that grows?
 - Not this class: C13 (work repeated per interaction or per recurring call on unchanged data); C16 (a stated rule with no guard; here the lesson is what the default path pays for, whether or not a rule was written); C04 (a ceiling exists but did not run on the merged result); C27 (late arrival moving the display).
 - Pairs: #562 (almost every page in the first-load closure, with no ceiling) ↔ #590 (page entry built a hidden picker and thousands of elements inside a shut fold); #563 (a second language's tables loaded for every user) ↔ #560 (a renderer pulled in by a static chain that bypassed the lazy wrapper)
-- Evidence: 19 cards over 9 surfaces (cards.mjs stats at revision 25); first refs #560 #561 #562 #563 #565
+- Evidence: 19 cards over 9 surfaces (cards.mjs stats at revision 26); first refs #560 #561 #562 #563 #565
 - Home: question in `.claude/skills/design-background-work`
 - Status: recurring, costly
 
@@ -446,7 +446,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: For each view, what does it show with no data, a zero value or nothing configured, and have I looked at that state next to the populated one?
 - Not this class: C03 (wrong environment such as language, width or a fake model; here the input is real but empty); C06 (one empty message covers several causes, #508); C17 (a fresh user cannot get started); C02 (a shared empty-state component was bypassed).
 - Pairs: #573 (a statistics page opened on a huge zero for a broken streak) ↔ #576 (an empty board showed four empty messages); #591
-- Evidence: 7 cards over 3 surfaces (cards.mjs stats at revision 25); first refs #573 #576 #591 #655 #700
+- Evidence: 7 cards over 3 surfaces (cards.mjs stats at revision 26); first refs #573 #576 #591 #655 #700
 - Home: question in `.claude/skills/design-screen-content`
 - Status: recurring
 
@@ -454,9 +454,9 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Layer: logic · Moment: design
 - Condition: a derived status, count or action (studied, hand-off intended, whole book, user wants to close) was computed or triggered from a raw signal that usually accompanies the thing but also fires in other contexts where it is not true, or from the absence of its evidence, so missing input counted as proof; nobody listed the contexts that produce the signal or the case where it is absent.
 - Catch: Which contexts produce the signal this status or action is computed from, including the context where the evidence is absent, is it true in each of them, and is there an explicit flag that only the real thing sets?
-- Not this class: C19 (the state is not yet final; here the signal is settled but means something else); C24 (several sources count one fact differently; here one source over-fires); C21 (a selector reaches sibling variants); C06 (what is shown is untrue; here the computation behind it is wrong). C50 (the signal is true but other recorded evidence is ignored; C46 is a signal or record that stands for something untrue in that context, such as a record that is not an answer, a clock running while the user is away, a visibility event caused by a jump).
+- Not this class: C19 (the state is not yet final; here the signal is settled but means something else); C24 (several sources count one fact differently; here one source over-fires); C21 (a selector reaches sibling variants); C06 (what is shown is untrue; here the computation behind it is wrong). C50 (the signal is true but other recorded evidence is ignored; C46 is a signal or record that stands for something untrue in that context, such as a record that is not an answer, a clock running while the user is away, a visibility event caused by a jump). C43 (a failed or unreadable read counted as empty).
 - Pairs: #625 (a point counted as studied from any recorded attempt, which also fires in mock exams) ↔ #597 (a stored link taken as proof of an explicit hand-off, so a board opened its composer on its own); #1028 (a menu closed on any scroll event)
-- Evidence: 25 cards over 9 surfaces (cards.mjs stats at revision 25); first refs #522 #597 #625 #737 #754
+- Evidence: 26 cards over 9 surfaces (cards.mjs stats at revision 26); first refs #522 #597 #625 #737 #754
 - Home: question in `.claude/skills/decide-from-data`
 - Status: recurring, costly
 
@@ -466,7 +466,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: On this screen and in this sequence, where does the user look and in what order do they decide or work through the items, and does each action, message, warning and default order sit and weigh in that order?
 - Not this class: C08 (equal-weight entries counted across a surface; C47 is where and how heavily one item sits); C40 (a control shown when its condition is false); C06 (a message that is untrue or missing); #56 (a destructive action with no recoverable step is irreversibility, not placement). C50 (the order is wrong because a signal the system already recorded is ignored, as in #906).
 - Pairs: #669 (publish placed before the questions the user must review) ↔ #676 (a needs-action warning in the same grey line as plain facts); #668 #672 #677
-- Evidence: 9 cards over 4 surfaces (cards.mjs stats at revision 25); first refs #668 #669 #672 #676 #677
+- Evidence: 9 cards over 4 surfaces (cards.mjs stats at revision 26); first refs #668 #669 #672 #676 #677
 - Home: question in `.claude/skills/design-user-flow`
 - Status: recurring
 
@@ -476,7 +476,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: For each external thing this step pulls (image tag, package mirror, download), is its version pinned, is a stall bounded by a time limit, and is a transient failure retried?
 - Not this class: C15 (assumed behaviour of a local tool); C36 (a test's own timing); C03 (product judged from a stand-in); C04 (a check that exists did not run).
 - Pairs: #757 ↔ #789 (issue and fix PR of one CI incident; find a second surface such as an unpinned action or tool version)
-- Evidence: 2 cards over 1 surfaces (cards.mjs stats at revision 25); first refs #757 #789
+- Evidence: 3 cards over 1 surfaces (cards.mjs stats at revision 26); first refs #757 #789 #1600
 - Home: question in `.claude/skills/design-background-work`
 - Status: costly
 
@@ -486,7 +486,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: Before proposing this, what does the existing mechanism already cover, what is the smallest change that closes the remaining gap, and who pays the upkeep of the proposal on every later change?
 - Not this class: C02 (code-level copies actually built); C03 or C04 (the gap was real and fixed in a lighter form); C07 or C08 (when the only reason was an extra click or a crowded surface and no existing mechanism was named).
 - Pairs: #841 (a text-only interface that would double the upkeep of every UI change) ↔ #844 (a release receipt state machine on top of existing CI, release check and hash list); #843 (platform-wide hash locking) ↔ #846 (an evaluation framework where light sampling sufficed)
-- Evidence: 13 cards over 6 surfaces (cards.mjs stats at revision 25); first refs #841 #843 #844 #846 #848
+- Evidence: 13 cards over 6 surfaces (cards.mjs stats at revision 26); first refs #841 #843 #844 #846 #848
 - Home: question in `.claude/skills/design-user-flow`
 - Status: recurring, costly
 
@@ -496,7 +496,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: For each decision this code makes, which signals the system already records or computes bear on it, and is each one read here or deliberately left out?
 - Not this class: C46 (a signal that over-fires or whose absence counts as proof; C50 is evidence that never arrives); C02 (a usable component rebuilt); C24 (a fact restated in several places); C17 (a job that stops short at its edges).
 - Pairs: #882 (a scheduler ignored a deadline stored on the same record) ↔ #884 (a failure count was written and read by nothing); #883 (a flat grade despite stored hint use) ↔ #894 (readiness ignored projected forgetting)
-- Evidence: 17 cards over 4 surfaces (cards.mjs stats at revision 25); first refs #881 #882 #883 #884 #889
+- Evidence: 18 cards over 4 surfaces (cards.mjs stats at revision 26); first refs #881 #882 #883 #884 #889
 - Home: question in `.claude/skills/decide-from-data`
 - Status: recurring, costly
 
@@ -506,9 +506,9 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: If the user does this by mistake, or the data is damaged, what brings the earlier state back, and does that path exist before the action ships?
 - Not this class: C18 (a check or preview before an operation rewrites existing content; C51 is the way back after the write); C47 (placement of a destructive control); C29 (a gate that refuses).
 - Pairs: #56 (a removal went straight to permanent deletion) ↔ #885 (a mis-keyed grade reset the interval and could not be corrected); #892
-- Evidence: 5 cards over 3 surfaces (cards.mjs stats at revision 25); first refs #56 #885 #892 #1107 #1109
+- Evidence: 7 cards over 4 surfaces (cards.mjs stats at revision 26); first refs #56 #885 #892 #1107 #1109
 - Home: question in `.claude/skills/decide-from-data`
-- Status: recurring
+- Status: recurring, costly
 
 ## C52 The faithful original form of the user's material was unsupported or buried, so the user was forced through a lossy derived form
 - Layer: concept · Moment: design
@@ -516,7 +516,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: For each kind of material the user owns, can they bring it in and read it in its faithful original form without an export or conversion first, and is that form one step from the derived view, at the same place and remembered?
 - Not this class: C20 (the system's own transformation broke a property, as in #897; C52 is the faithful form never offered or reachable); C17 (excludes a missing content kind); C08 (the crowd of entries, not which form of one thing is the default).
 - Pairs: #978 (the user had to export source markup to PDF before upload) ↔ #1001 (formula-heavy PDFs defaulted to garbled extracted text with the original view buried); #998
-- Evidence: 5 cards over 2 surfaces (cards.mjs stats at revision 25); first refs #781 #978 #998 #1001 #1021
+- Evidence: 5 cards over 2 surfaces (cards.mjs stats at revision 26); first refs #781 #978 #998 #1001 #1021
 - Home: question in `.claude/skills/design-user-flow`
 - Status: recurring
 
@@ -526,7 +526,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: When the user takes this step, what must stay visible or be restored (the question, the place, the draft, and any selection this step changed), and does this step keep it in view or bring the user back to it?
 - Not this class: C17 (the job stops short of its start, end or a variant; a hand-off that drops its target is C17); C47 (where one item sits and how heavily it is weighted); C40 (a control shown although its condition is false); C32 (stale state reused).
 - Pairs: #1012 (material opened as a full-screen dialog that hid the question) ↔ #1013 (answering a section question closed the reader and lost the reading position); #1034
-- Evidence: 5 cards over 2 surfaces (cards.mjs stats at revision 25); first refs #1012 #1013 #1034 #1223 #1234
+- Evidence: 5 cards over 2 surfaces (cards.mjs stats at revision 26); first refs #1012 #1013 #1034 #1223 #1234
 - Home: question in `.claude/skills/design-user-flow`
 - Status: recurring
 
@@ -536,7 +536,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: Which pieces (or rows of one list) does the user take as one unit here, and does one grid, row unit, builder or list-level value set their edges, frames, spacing, separators and how much each shows, checked with each optional piece present and absent and with neighbouring rows side by side?
 - Not this class: C02 (one action rebuilt on several pages; C54 is the parts inside one place); C24 (a fact or decision restated in code); C25 (a shared primitive lacked variants); C16 (a written rule had no guard); C21 (a rule reached siblings).
 - Pairs: #1085 (a dropdown and a filter box with different widths, edges and looks) ↔ #1086 (a header sentence with a stray dot and a missing separator); #1081 (three frame styles stacked in one small dialog); #1135 (rows of one list each decided alone how much of their size to show)
-- Evidence: 4 cards over 3 surfaces (cards.mjs stats at revision 25); first refs #1081 #1085 #1086 #1135
+- Evidence: 4 cards over 3 surfaces (cards.mjs stats at revision 26); first refs #1081 #1085 #1086 #1135
 - Home: question in `.claude/skills/design-screen-content`
 - Status: recurring
 
@@ -546,7 +546,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: In which unit does the user get stuck, understand or work on this, is that the unit this feature acts on and records, and if not, where can the user name that unit and see the result gathered by it?
 - Not this class: C08 (the feature exists but is not found where the need appears; C55 is found but acts on the wrong unit); C17 (the job stops at its start, end or a variant); C50 (a recorded signal ignored); C47 (placement or order); C24 (a fact restated).
 - Pairs: #1192 (help acted only on the whole question; the user could not mark one unfamiliar word) ↔ #1194 (help records kept per question, nothing gathered for the section where the gap sits); #1202 (marking five words took five separate requests)
-- Evidence: 8 cards over 3 surfaces (cards.mjs stats at revision 25); first refs #551 #553 #1014 #1154 #1192
+- Evidence: 8 cards over 3 surfaces (cards.mjs stats at revision 26); first refs #551 #553 #1014 #1154 #1192
 - Home: question in `.claude/skills/design-user-flow`
 - Status: recurring
 
@@ -556,7 +556,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: When this action calls operations built for a single item, which of them also notify, record or spend on their own, and does the composite action suppress those and emit one effect for the whole?
 - Not this class: C21 (a rule reached sibling variants it was never meant for; here the operation was reused as designed); C02 (a second owner built); C35 (a restart or repeat re-runs finished steps); C13 (a local event triggers global work); C06 (the message is wrong, not repeated).
 - Pairs: #1218 (one supplement left six inbox letters, one per linked item and follow-up) ↔ #1235 (the fix: a silent flag on the reused operations and one summary from the composite). One incident so far; look for a second surface (a bulk action that logs, charges or notifies per item).
-- Evidence: 2 cards over 1 surfaces (cards.mjs stats at revision 25); first refs #1218 #1235
+- Evidence: 2 cards over 1 surfaces (cards.mjs stats at revision 26); first refs #1218 #1235
 - Home: none yet
 - Status: candidate
 
@@ -566,7 +566,7 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: For the content this writer or model can produce, does every component that displays it have a rule for each form, and have I rendered one sample of each form?
 - Not this class: C17 (a job stopping short; a missing content kind is not C17); C52 (the faithful original form unsupported); C20 (a transformation broke a property); C03 (accepted from tidy input; C57 is the producer/renderer contract).
 - Pairs: #32 (question cards showed image markup as raw text) ↔ #232 (a line of dashes in transcripts showed as raw text in the reader)
-- Evidence: 2 cards over 2 surfaces (cards.mjs stats at revision 25); first refs #32 #232
+- Evidence: 2 cards over 2 surfaces (cards.mjs stats at revision 26); first refs #32 #232
 - Home: none yet
 - Status: candidate
 
@@ -576,6 +576,16 @@ Revision 1 (2026-11-25), after calibration batch 1: C02, C03, C06, C08, C09, C12
 - Catch: For this key or lookup, which exact unit does the value belong to, does the identifier carry every coordinate that tells it from its neighbours, and does a test use data where the similar identifiers differ?
 - Not this class: C35 (a step re-run or duplicated after restart or repeat; C58 is the key itself naming the wrong unit); C32 (stale state reused); C03 (behaviour accepted from a stand-in).
 - Pairs: #302 (generation step keys were the same for different rounds) ↔ #1146 (a history view read the clearing attempt's run instead of the missed attempt's); #1150
-- Evidence: 3 cards over 2 surfaces (cards.mjs stats at revision 25); first refs #302 #1146 #1150
+- Evidence: 3 cards over 2 surfaces (cards.mjs stats at revision 26); first refs #302 #1146 #1150
 - Home: question in `.claude/skills/decide-from-data`
 - Status: recurring
+
+## C59 A new or rewritten check was accepted because it was green, without seeing it fail on the defect it guards
+- Layer: process · Moment: verify
+- Condition: a test or guard was written, rewritten or swapped in for an older one (a source-text match replaced by a behaviour test, a count of calls, a stub whose shape differs from the real sink, one sample value) and accepted because it passed on the current code; it asserted the outcome too loosely to tell, so putting the defect back (the guard deleted, a value hardcoded or nudged, a key dropped) left it green until a later review or mutation run found it.
+- Catch: Before I remove, rewrite or add a check for a property, which defect does it stop, and have I put that defect back (one change only: the guard deleted, the value hardcoded, the key dropped) and watched this check fail?
+- Not this class: C16 (no check exists for the rule, or only a form check; C59 is a check that exists and cannot fail); C04 (the right check exists but did not run); C36 (a check that fails without a defect, from timing); C26 (replaced code left behind).
+- Pairs: #1616 (a source check on a diagram trust boundary was replaced by a harness that two injection mutants passed) ↔ #1531 (a lazily loaded component's test stayed green when it wrote state after unmount); #1582 (a replacement test passed with the similarity threshold changed) ↔ #1551 (only the first and last samples were checked, so a hardcoded sample rate passed)
+- Evidence: 12 cards over 1 surfaces (cards.mjs stats at revision 26); first refs #1468 #1511 #1531 #1532 #1545
+- Home: question in `.claude/skills/verify-before-done`; hook `declare-done` in `.claude/hooks/skill-moments.json`
+- Status: costly

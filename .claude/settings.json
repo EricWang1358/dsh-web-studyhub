@@ -31,6 +31,13 @@
             "shell": "bash",
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/skill-moment.mjs\" shared-checkout",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "if": "Bash(npm *)",
+            "shell": "bash",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/skill-moment.mjs\" shared-checkout",
+            "timeout": 10
           }
         ]
       }

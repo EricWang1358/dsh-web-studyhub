@@ -16,10 +16,10 @@
     },
     {
       "name": "shared-checkout",
-      "pattern": "(^|[;&|(]\\s*)git\\s+(switch|checkout|pull|rebase|stash)\\b|(^|[;&|(]\\s*)git\\s+reset\\s+--hard\\b",
+      "pattern": "(^|[;&|(]\\s*)git\\s+(switch|checkout|pull|rebase|stash)\\b|(^|[;&|(]\\s*)git\\s+reset\\s+--hard\\b|(^|[;&|(]\\s*)(npm|pnpm|yarn)\\s+(ci|install|i)\\b",
       "skill": "decide-from-data",
       "classes": ["C22"],
-      "lead": "This changes the whole checkout. If `git status` shows changes you did not make, another session may be using this folder: work in a worktree instead (git worktree add .local/wt/<name>)."
+      "lead": "This changes the whole checkout (its branch or its installed dependencies). If `git status` shows changes you did not make, another session may be using this folder: work in a worktree instead (git worktree add .local/wt/<name>). Join a `cd` to this command with `&&`, not `;`, so a failed cd cannot leave it running in the folder you started from."
     }
   ]
 }
