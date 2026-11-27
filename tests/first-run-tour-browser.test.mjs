@@ -109,7 +109,7 @@ test('载入示例并开始导览 moves nothing when a poll overtakes the refres
         const layout = judgeLayoutStability(log, { maxCls: 0.01 });
         assert.ok(layout.ok, `${width}px: the tour's home came in by moving the page: ${layout.message}`);
         assert.deepEqual(errors, [], 'no console or page errors');
-        await context.close();
+        await page.unrouteAll({ behavior: 'ignoreErrors' }).catch(() => {}); await context.close();
       } finally { await running.close(); }
     }
   } finally {
@@ -165,7 +165,7 @@ test('载入示例并开始导览 moves nothing when a snapshot is read between 
       const layout = judgeLayoutStability(log, { maxCls: 0.01 });
       assert.ok(layout.ok, `420px: a snapshot in the middle of the sample load moved the line: ${layout.message}`);
       assert.deepEqual(errors, [], 'no console or page errors');
-      await context.close();
+      await page.unrouteAll({ behavior: 'ignoreErrors' }).catch(() => {}); await context.close();
     } finally { await running.close(); }
   } finally {
     Store.prototype.update = update;

@@ -119,7 +119,7 @@ test('Settings › 学习库与模型: not connected with the steps, a re-check 
     assert.ok(await overflow(page) <= 0, `${width}px: no sideways scroll when connected`);
     await shot(page, `pane-connected-${width}`);
     assert.deepEqual(errors, [], 'no page errors');
-    await context.close();
+    await page.unrouteAll({ behavior: 'ignoreErrors' }).catch(() => {}); await context.close();
   }
 });
 
@@ -149,6 +149,6 @@ test('创建题组 without a model: the gate on top, the submit off, and 前往�
     assert.match(await missing.innerText(), /还没有选择 AI 模型。/);
     assert.equal(await missing.locator('li').count(), 3, 'a key, a model, coming back');
     assert.deepEqual(errors, [], 'no page errors');
-    await context.close();
+    await page.unrouteAll({ behavior: 'ignoreErrors' }).catch(() => {}); await context.close();
   }
 });

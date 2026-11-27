@@ -8,7 +8,9 @@ import { readAudioSettings, saveAudioSettings } from '../lib/audio-settings.js';
 
 const paragraphs = Array.from({ length: 7 }, (_, index) => `Window ${index + 1}: ` + 'lecture evidence '.repeat(260));
 const until = async condition => {
-  for (let i = 0; i < 200; i++) { if (condition()) return; await new Promise(resolve => setTimeout(resolve, 5)); }
+  // by a deadline, not a count of 5 ms polls (about one second of wall clock on a busy machine)
+  const deadline = Date.now() + 10_000;
+  do { if (condition()) return; await new Promise(resolve => setTimeout(resolve, 5)); } while (Date.now() < deadline);
   assert.fail('Window work did not start');
 };
 const answer = (prompt, options) => options.kind === 'proofread' ? '{"corrections":[]}'
