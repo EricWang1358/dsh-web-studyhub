@@ -27,7 +27,7 @@ export default function TopicGroupReminder({ grouping, root }) {
     <div className="group-reminder" role="status">
       <span>{first ? uiFormat('学习库有 {0} 个主题，还没按知识域归并成主题组', [grouping.topics]) : uiFormat('有 {0} 个主题还没归入主题组（通常来自新导入的题组）', [grouping.ungrouped])}</span>
       <span className="group-reminder-actions">
-        <HandOff id="topics.group" what={first ? '让主会话把主题按知识域归并成主题组（不改题目）' : '让主会话把新增的主题归入主题组（不改题目）'}
+        <HandOff id="topics.group" copyLabel="复制「归并主题」的话" what={first ? '让主会话把主题按知识域归并成主题组（不改题目）' : '让主会话把新增的主题归入主题组（不改题目）'}
           input={first ? { mode: 'replace', topicCount: grouping.topics } : { mode: 'merge', ungrouped: grouping.ungrouped, alternative: true }} />
         <Button variant="quiet" size="sm" onClick={hold}>{ui('稍后')}</Button>
       </span>

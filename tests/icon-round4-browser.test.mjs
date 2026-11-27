@@ -227,8 +227,10 @@ test('round 4 in the browser: answer marks as heavy as their label, the station 
     await t.test(`round 5 (3 / #1074): the ways in on the home row of the sample state are one system: one colour and one size, the hand-off link too`, async () => { for (const [lang, server] of [['zh', zh], ['en', en]]) {
       const { page, context } = await open(browser, server, { lang, width: 1440 });
       await later(page, lang);
+      // The workspace-file hand-off waits under 其他开始方式 (#1696): opened, it looks like the links of the row above it.
+      await page.locator('.desk-more > summary').first().click();
       await page.locator('.desk-also [data-hand-off="import.file"]').first().waitFor({ timeout: 30000 });
-      const row = await page.evaluate(() => [...document.querySelectorAll('.desk-also')].filter((line) => line.querySelector('[data-hand-off="import.file"]')).flatMap((line) => [...line.querySelectorAll('button')].filter((button) => button.getClientRects().length).map((button) => {
+      const row = await page.evaluate(() => [...document.querySelectorAll('.desk-also')].filter((line) => !line.querySelector('[data-hand-off="guide.start"]')).flatMap((line) => [...line.querySelectorAll('button')].filter((button) => button.getClientRects().length).map((button) => {
         const style = getComputedStyle(button);
         return { text: button.textContent.trim().slice(0, 24), color: style.color, size: style.fontSize };
       })));
