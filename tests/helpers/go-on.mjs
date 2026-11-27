@@ -510,6 +510,8 @@ export function goOnProblems(source, { file = '', helpers = new Map(), used = nu
     const labels = labelsOf(children, helpers, vars);
     count('buttons');
     if (!labels.length) { count('data'); continue; }
+    // A held place is not a control: it keeps the room of one not offered yet, so nothing moves when it comes (data-reserved, hidden, disabled, out of the tab order).
+    if (/\sdata-reserved(?:=|\s|>|\/)/.test(open) && /\saria-hidden="true"/.test(open) && /\sdisabled(?:=|\s|>|\/)/.test(open)) { count('reserved'); continue; }
     // Its own leading icon is the `icon` prop, or an <Icon> its words start with (drawn inside its first span).
     const click = propOf(open, 'onClick') || submitOf(source, at, open), arrow = isArrow(open);
     const icon = leadIcon(open) || (/^\s*(?:<span\b[^>]*>\s*)?<Icon\b[^>]*\bname="([^"]+)"/.exec(children)?.[1] ?? '');

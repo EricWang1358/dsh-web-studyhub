@@ -73,22 +73,24 @@ function Furniture({ paragraph }) {
  * `scrollRoot` (a ref to the scroll area) draws the formulas as they come near the screen (ui/formula-queue.js); without it every one is drawn at once.
  * Memoised: a change of the reading position, a selection or a panel does not draw the chapter again (keep `labelOf` and `onPeek` stable).
  */
-const ReadingSections = React.memo(function ReadingSections({ sections, labelOf, onPeek, scrollRoot }) {
+const ReadingSections = React.memo(function ReadingSections({ sections, labelOf, onPeek, peekHeld = false, scrollRoot }) {
   const [watch] = useState(() => scrollRoot ? createFormulaWatch(() => scrollRoot.current) : null);
   useEffect(() => () => watch?.disconnect(), [watch]);
-  const drawn = <Sections sections={sections} labelOf={labelOf} onPeek={onPeek} />;
+  const drawn = <Sections sections={sections} labelOf={labelOf} onPeek={onPeek} peekHeld={peekHeld} />;
   return watch ? <FormulaWatch.Provider value={watch}>{drawn}</FormulaWatch.Provider> : drawn;
 });
 export default ReadingSections;
 
-function Sections({ sections, labelOf, onPeek }) {
+/** `peekHeld`: no 看原页 to press yet (the material is still opening), but each one keeps its place, hidden, so the page does not grow a line when it comes. */
+function Sections({ sections, labelOf, onPeek, peekHeld }) {
   return sections.map(section => {
     const label = labelOf(section), paged = section.kind === 'page';
     return <section key={section.id} className={`reader-section reader-section--${section.kind}`} data-outline-id={section.kind === 'lead' ? undefined : section.id}
       {...(paged ? { 'data-study-page': section.page, 'data-study-source': section.sourceId } : {})}>
       {(label || (!paged && section.title)) && <header className="reader-section__head" data-find-skip={paged ? 'true' : undefined}>
         {label && <span className="reader-section__label">{label}</span>}
-        {paged && onPeek && <Button variant="quiet" size="sm" className="reader-peek" data-peek-page={section.page} title={ui('看原页')} onClick={event => onPeek(section.page, { figure: false, trigger: event.currentTarget })}>{ui('看原页')}</Button>}
+        {paged && (onPeek ? <Button variant="quiet" size="sm" className="reader-peek" data-peek-page={section.page} title={ui('看原页')} onClick={event => onPeek(section.page, { figure: false, trigger: event.currentTarget })}>{ui('看原页')}</Button>
+          : peekHeld && <Button variant="quiet" size="sm" className="reader-peek" data-reserved="" aria-hidden="true" tabIndex={-1} disabled>{ui('看原页')}</Button>)}
         {!paged && section.title && <h3 className="reader-section__title">
           <span className="reader-bracket" aria-hidden="true">{section.open ?? '【'}</span>{section.title}<span className="reader-bracket" aria-hidden="true">{section.close ?? '】'}</span></h3>}
       </header>}

@@ -859,7 +859,6 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const originalNone = originalIssue?.kind === 'none', originalFault = !!originalIssue && !originalNone;
   if (document) attachTarget.current = { documentId: document.documentId || document.id, revision: document.revision, title: document.filename || document.title || source.title, format };
   const notices = [
-    loading && <LoadingState key="loading" label={ui('正在打开资料…')} />,
     !localMode && pickPagesGuide && view !== 'original' && onPracticePages && (
       <InlineMessage key="pick-pages" tone="info" onDismiss={() => setPickPagesGuide(false)}
         action={{ label: ui('做这几页的题'), disabled: generateDisabled, onClick: () => loop.setOpen(!loop.open) }}>
@@ -897,7 +896,9 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     : { label: ui('上一节与下一节'), previous: pagerLink(around.previous, ui('上一节')), next: pagerLink(around.next, ui('下一节')) };
   const pageText = section => textBySource.get(section.sourceId) ?? '';
   // 看原页: one page of the attached original PDF in a small panel, from the text views of a page-based document (never in the PDF tab).
-  const canPeek = paged && format === 'pdf' && view !== 'original' && !loading && !!document;
+  const peekable = paged && format === 'pdf' && view !== 'original', canPeek = peekable && !loading && !!document;
+  // While the material opens, each page's 看原页 holds its place (hidden, not offered): a page does not grow a line when the material is there.
+  const holdPeek = peekable && loading;
   const openPeek = useCallback((page, { figure = false } = {}) => setPeek({ page, figure }), []);
   useEffect(() => { if (!canPeek) setPeek(null); }, [canPeek]);
   // Opened from a question's 看原页图: the original page is up as soon as the document can show it, once (closing it does not bring it back).
@@ -981,6 +982,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         {onBack && <Button size="sm" variant="secondary" icon="arrow-left" className="reader-back-to-question" onClick={onBack}>{backLabel}</Button>}
         {canOutline && <IconButton icon="list" className="reader-toolbar__icon-btn" label={ui('目录')} aria-pressed={outlineOn} aria-controls={outlineOn ? outlineId : undefined}
           onClick={() => toggle('outline')} />}
+        {/* While the material opens, 目录's place is held (hidden, not offered), so the toolbar does not grow or move when 目录 comes with the material. */}
+        {!canOutline && loading && <IconButton icon="list" className="reader-toolbar__icon-btn" label={ui('目录')} data-reserved="" aria-hidden="true" tabIndex={-1} disabled />}
       </div>
       {/* 出题 is the one primary control; the arrow beside it opens 做这几页的题 (shortcut P). 错题 and 思维导图 are panels. */}
       <div className="reader-toolbar__actions">
@@ -1024,6 +1027,10 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     </div>
     <div className="reader-layout" data-outline={outlineOn ? 'on' : 'off'} data-tools={toolsOn ? 'on' : 'off'}>
       {narrow && (outlineOn || toolsOn) && <button type="button" className="reader-scrim" aria-label={ui('关闭面板')} onClick={() => setOverlay(null)} />}
+      {/* While the material opens, the 目录 column it will open in keeps its width, so the text does not slide right when it comes. */}
+      {loading && !narrow && settings.outline && !outlineOn && <div className="reader-outline" aria-hidden="true" />}
+      {/* 正在打开资料… floats over the top of the text instead of taking a line above it: when the material comes, nothing on screen moves up. */}
+      {loading && <LoadingState className="reader-loading" label={ui('正在打开资料…')} />}
       {outlineOn && <OutlinePanel id={outlineId} data-tour="reader-outline" items={outline} activeId={activeId} labelOf={itemLabel} onJump={jumpTo} meters={meters} upgradedIds={loop.upgradedIds} reads={outlineReads}
         coverage={!localMode && view !== 'original' && loop.coverage?.cards > 0 ? loop.outlineCoverage : null} coverageTotals={loop.coverage}
         coverageAction={!localMode && data && canQueueGenerate && offersDocumentTopUp({ item: documentItem, coverage: loop.coverage, jobs: data.jobs, modelReady: modelReadiness(data).ready })
@@ -1042,11 +1049,12 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
               ? <PdfOriginal fileUrl={fileUrl} title={source.title || ui('原始 PDF')} page={pdfPage} total={totalPages} onPage={goToPage} settings={pdfView} onSettings={change => setPdfView(current => ({ ...current, ...change }))} />
               : reading
                 ? html ? <div className="reader-html source-md" data-study-text="true" dangerouslySetInnerHTML={{ __html: html }} />
-                  : <ReadingSections key={chapter.current?.id} sections={sections} labelOf={labelOf} onPeek={canPeek ? openPeek : undefined} scrollRoot={scroller} />
+                  : <ReadingSections key={chapter.current?.id} sections={sections} labelOf={labelOf} onPeek={canPeek ? openPeek : undefined} peekHeld={holdPeek} scrollRoot={scroller} />
                 : paged ? sections.map(section => <section key={section.id} className="study-document-page reader-section reader-section--page"
                   data-outline-id={section.id} data-study-page={section.page} data-study-source={section.sourceId}>
                   <span className="reader-section__label" data-find-skip="true">{labelOf(section)}</span>
-                  {canPeek && <Button variant="quiet" size="sm" className="reader-peek" data-find-skip="true" data-peek-page={section.page} title={ui('看原页')} onClick={() => openPeek(section.page)}>{ui('看原页')}</Button>}
+                  {canPeek ? <Button variant="quiet" size="sm" className="reader-peek" data-find-skip="true" data-peek-page={section.page} title={ui('看原页')} onClick={() => openPeek(section.page)}>{ui('看原页')}</Button>
+                    : holdPeek && <Button variant="quiet" size="sm" className="reader-peek" data-find-skip="true" data-reserved="" aria-hidden="true" tabIndex={-1} disabled>{ui('看原页')}</Button>}
                   <QuotedText format={format} text={pageText(section)} quote={section.sourceId === source.id ? quote : ''} anchor={source.selection} scroller={scroller} />
                 </section>)
                   : <QuotedText format={format} text={content || sources[0]?.text || ''} quote={quote} anchor={source.selection} scroller={scroller} />}

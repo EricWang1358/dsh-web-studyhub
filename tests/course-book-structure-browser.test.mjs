@@ -92,6 +92,12 @@ test('复习全书 structure: 更多 › 改名 / 移动到 / 删除 change the 
         try {
           const mode = {};
           const sent = await watchCalls(page, mode);
+          // Each refused request by its action and answer, so a failure of the log check below names it (the console line has neither).
+          const refused = [];
+          page.on('response', response => {
+            if (response.status() < 400) return;
+            response.text().catch(() => '').then(text => refused.push(`${response.status()} ${response.request().postData() || response.url()} -> ${text.slice(0, 200)}`));
+          });
           const openBook = async () => {
             await page.goto(running.server.url);
             await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
@@ -218,7 +224,7 @@ test('复习全书 structure: 更多 › 改名 / 移动到 / 删除 change the 
 
           // The stale version is refused as an HTTP 400 (course-book-conflict), which the browser logs as a failed resource load: it is deliberate.
           const failed = errors.filter(text => /Failed to load resource/.test(text));
-          assert.deepEqual(failed.map(text => /status of 400/.test(text)), [true], `${width}px: only the conflict's refusal is logged`);
+          assert.deepEqual(failed.map(text => /status of 400/.test(text)), [true], `${width}px: only the conflict's refusal is logged; refused: ${refused.join(' | ')}`);
           assert.deepEqual(errors.filter(text => !/Failed to load resource: the server responded with a status of 400/.test(text)), [], `${width}px: no page errors`);
           overflow = await sideways(page);
           assert.equal(overflow.doc <= 0 && overflow.wide.length === 0, true, `${width}px: nothing scrolls sideways: ${JSON.stringify(overflow)}`);
