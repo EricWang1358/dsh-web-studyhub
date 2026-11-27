@@ -9,10 +9,10 @@ EN is separate from the interface language. Switching the interface to English c
 ## Turn EN on or off
 
 1. Open a question in practice.
-2. Click **EN** in the toolbar. It sits next to **Hint** (or **Explanation** after you reveal the answer) and **Help me understand**.
-3. Click **EN** again to hide the English.
+2. Open **More** in the toolbar and click **Show English**.
+3. Click **Show English** again to hide the English.
 
-- While a question is being translated, the button reads **EN…**.
+- While a question is being translated, **Show English** shows **EN…**.
 - With EN on, every new question you open is translated automatically.
 - The same browser remembers the setting across sessions; it does not sync to other browsers or devices.
 - Mock exams have no **EN** button, so a translation cannot give away an answer before you submit.
