@@ -35,6 +35,7 @@ const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
 import { controlName } from "./control-name.mjs";
+import { confirmStartIfAsked } from "./confirm-start.mjs";
 export { controlName };
 
 /* ---------- layout offenders that are known and not fixed yet (#208) ---------- */
@@ -153,6 +154,7 @@ export const JOURNEY_STEPS = [
     if (!await j.page.locator(".options .option").count()) {
       await j.openDrawer();
       await j.page.getByRole("button", { name: j.t("回到题目") }).first().click();
+      await confirmStartIfAsked(j.page, j.page.locator(".options .option"), { timeout: 15000 });
       await j.page.locator(".options .option").first().waitFor({ timeout: 15000 });
     }
     // The first answer is wrong (it feeds the mistakes page), the second right.

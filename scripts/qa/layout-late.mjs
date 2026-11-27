@@ -18,6 +18,7 @@ import { scrubProcessEnv } from "./env.mjs";
 import { drainLayoutStability, installLayoutObserver, judgeLayoutStability } from "./layout-stability.mjs";
 import { SELF_GRADE_ADVANCE_KEY } from "../../ui/review/session-logic.js";
 import { revealNavRow } from "./nav-reveal.mjs";
+import { confirmStart } from "./confirm-start.mjs";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
@@ -391,6 +392,7 @@ export async function resultScenario({ browser, running, lang = "zh", theme = "d
   const start = page.getByRole("button", { name: lang === "en" ? `Start studying ${RESULT_DECK}` : `开始学习 ${RESULT_DECK}` }).first();
   await start.waitFor({ timeout: 30000 });
   await start.click();
+  await confirmStart(page);
   await page.locator('[data-usage="review.flip"]').waitFor({ timeout: 30000 });
   await page.evaluate(() => {
     window.__resultFirstDraw = null;

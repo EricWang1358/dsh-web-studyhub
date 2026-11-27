@@ -9,6 +9,7 @@ import { StudyService } from '../lib/service.js';
 import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
+import { confirmStart } from '../scripts/qa/confirm-start.mjs';
 
 /* The unsubmitted answer and the help an answer got, in Chromium through the REAL practice page on a real library (#537, #542): typing reaches review.draft.save without the
    page going busy and with no model anywhere near, a reload brings it back, a cleared answer stays cleared, a step waits for the save and is refused when the save fails, and the
@@ -58,6 +59,7 @@ async function openPage(browser, server) {
   const saves = () => calls.filter((call) => call.action === 'review.draft.save');
   const startDeck = async (title) => {
     await page.getByRole('button', { name: `开始学习 ${title}` }).first().click();
+    await confirmStart(page);
     await page.locator('[data-tour="review-question"]').waitFor({ timeout: 30000 });
   };
   // What 刷新 does to the learner: the page is gone; the S key opens the last round again, as it does from anywhere.

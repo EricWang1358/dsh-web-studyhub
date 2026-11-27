@@ -11,6 +11,7 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { StudyService } from '../lib/service.js';
 import { sampleAction } from '../lib/sample-library.js';
+import { confirmStartIfAsked } from '../scripts/qa/confirm-start.mjs';
 
 /* #1073 round 7 of the review of PR #1118, measured in a real browser on the sample course:
      4  the citation card under an answered question ends in its → (StudyHub's own reader, never the external mark), with the Button's gap before it, level
@@ -87,6 +88,7 @@ test('round 7 in the browser: the citation card\'s arrow, the first-run model id
         // The first choice question of the second deck (its flashcards before it are turned and rated), answered: its explanation carries the citations.
         let answered = false;
         await page.locator('.deck-row .map-play').nth(1).click({ force: true });
+        await confirmStartIfAsked(page, page.locator('.question-card, .flash-area'));
         await page.locator('.question-card, .flash-area').first().waitFor({ timeout: 30000 });
         await page.keyboard.press('Escape');
         for (let step = 0; step < 8 && !answered; step++) {

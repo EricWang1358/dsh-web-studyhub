@@ -44,6 +44,16 @@ export function useIntents({ core, lib, nav, session, learn }) {
   // Opening an existing run reads it directly; holding the busy lock behind a full library refresh blocks the first shortcut press.
   const openRun = useCallback((runId) => act('review.get', { runId }, session.enterRun, { refreshAfter: false }), [act, session.enterRun]);
 
+  /**
+   * Ask before a start that one mis-click could make: the round would take over the home's card, 回到题目 and the deck row. `ask` is { kind: 'deck' |
+   * 'topic', name } or { kind: 'today' } (the dialog words it: ui/app/AppModalHost.jsx); `start` runs on the confirm only, and only in the library it
+   * was asked in. The three places that ask: a deck row's ▶, a topic row's ▶ and resumeOrStart. A round that is resumed is never asked about.
+   */
+  const confirmStart = useCallback((ask, start) => {
+    const root = refs.dataRef.current?.root;
+    setModal({ type: 'confirmStart', root, ask, start: () => { if (refs.dataRef.current?.root === root) start(); } });
+  }, [refs, setModal]);
+
   // 读 → 做这几页的题 → 回到阅读: the run keeps where the learner was reading (lib/reading-return.js), so the way back is on the
   // run itself and survives closing the app; nothing is held only in memory. `then` (the reader's 本节题目, #1013) keeps the round in the reader
   // instead of going to the practice page: the same request, only where it is answered differs (`takeUp`: see readingPracticeArgs).
@@ -53,19 +63,23 @@ export function useIntents({ core, lib, nav, session, learn }) {
       then || ((started) => { setModal(null); session.enterRun(started); setFocusRequest({}); }));
   }, [act, session, setModal, setFocusRequest]);
 
-  /** S from anywhere: resume the last round, start today's path (the one the home card starts), or (with no decks) go and make some. */
+  /** S from anywhere: resume the last round, start today's path (the one the home card starts, asked about first), or (with no decks) go and make some. */
   const resumeOrStart = useCallback(() => {
     setError('');
     const { page, run } = latest.current, data = refs.dataRef.current;
     if (page === 'review' && run && !run.complete) return;
-    // Asked before a run is opened or started, not when the run arrives.
+    // nav.leaving (the unsaved-work gate) is asked before a run is opened or started, not when the run arrives; a start asks the learner first.
+    if (!data?.lastRun && data?.decks.length) {
+      const args = dailyPathArgs(data.today);
+      confirmStart({ kind: 'today' }, () => nav.leaving(() => startReview(args)));
+      return;
+    }
     nav.leaving(() => {
       if (data?.lastRun) openRun(data.lastRun.id);
-      else if (data?.decks.length) act('review.start', dailyPathArgs(data.today), session.enterRun);
       else goGenerate();
     });
-  }, [act, goGenerate, nav, openRun, refs, session.enterRun, setError]);
+  }, [confirmStart, goGenerate, nav, openRun, refs, setError, startReview]);
 
-  return useMemo(() => ({ genSource, setGenSource, revealHome, setRevealHome, goGenerate, openDeck, practice, startReview, openRun, practiceFromReading, resumeOrStart }),
-  [genSource, revealHome, goGenerate, openDeck, practice, startReview, openRun, practiceFromReading, resumeOrStart]);
+  return useMemo(() => ({ genSource, setGenSource, revealHome, setRevealHome, goGenerate, openDeck, practice, startReview, openRun, practiceFromReading, confirmStart, resumeOrStart }),
+  [genSource, revealHome, goGenerate, openDeck, practice, startReview, openRun, practiceFromReading, confirmStart, resumeOrStart]);
 }

@@ -27,6 +27,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchChromium } from "./browser.mjs";
 import { scrubProcessEnv } from "./env.mjs";
+import { confirmStartIfAsked } from "./confirm-start.mjs";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
@@ -191,7 +192,7 @@ export async function collectStates({ browser, running, lang, theme, width, mode
   };
   // Choosing a page from the drawer closes it.
   const nav = async (id) => { await drawer(); await page.locator(`[data-tour="nav-${id}"]`).first().click(); await settle(900); };
-  const resume = async () => { await drawer(); await page.locator(".resume-nav").click(); await settle(900); };
+  const resume = async () => { await drawer(); await page.locator(".resume-nav").click(); await confirmStartIfAsked(page, page.locator(".review-page")); await settle(900); };
   await open();
   await record("1-empty");
   await api("source.add", { id: "s1", title: "Bridge", text: quote });

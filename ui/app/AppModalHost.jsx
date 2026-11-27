@@ -1,5 +1,7 @@
-import React from 'react';
-import { ui } from '../i18n.js';
+import React, { useEffect } from 'react';
+import { ui, uiFormat } from '../i18n.js';
+import ConfirmDialog from '../components/ConfirmDialog.jsx';
+import { useStudy } from '../study-context.jsx';
 import RemoveDeckDialog from '../RemoveDeckDialog.jsx';
 import CourseSettings from '../CourseSettings.jsx';
 import FocusIntakeDialog from '../FocusIntakeDialog.jsx';
@@ -21,8 +23,28 @@ function CompanionModal({ modal, onClose }) {
   return <CompanionViewer key={modal.id || modal.companionId || 'companion'} modal={modal} onClose={onClose} inlinePractice={inlinePractice} />;
 }
 
+/* The question before a start (intents.confirmStart, ui/app/use-intents.js). No question count: review.start pulls unlearned prerequisites into the
+   round, which the snapshot does not tell, so a row's number is not always what its round holds. A dialog left over from another library is closed. */
+const START_TITLES = {
+  deck: (name) => uiFormat('开始练「{0}」？', [name]),
+  topic: (name) => uiFormat('开始练主题「{0}」？', [name]),
+  today: () => ui('开始今日学习？'),
+};
+function StartConfirm({ modal, onClose, root }) {
+  const { busy } = useStudy();
+  const stale = modal.root !== root;
+  useEffect(() => { if (stale) onClose(); }, [stale, onClose]);
+  if (stale) return null;
+  // The start is not awaited: the dialog closes at once and the round opens as it does from any start button. While another write runs the start would be dropped, so it waits.
+  return <ConfirmDialog className="confirm-start" tone="primary" title={START_TITLES[modal.ask.kind](modal.ask.name)} confirmLabel={ui('开始练习')} blocked={busy}
+    onConfirm={() => { modal.start(); }} onClose={onClose}>
+    {modal.ask.kind === 'today' ? <p>{ui('现在没有没做完的练习。')}</p> : null}
+  </ConfirmDialog>;
+}
+
 /* The app's dialogs, each in its own file. `modal` (library state) says which one is open; any other value is the reader. */
 const DIALOGS = {
+  confirmStart: ({ modal, onClose, app }) => <StartConfirm modal={modal} onClose={onClose} root={app.data?.root} />,
   add: ({ onClose }) => <AddSourceDialog onClose={onClose} />,
   sources: ({ modal, onClose, app }) => <SourceListDialog modal={modal} run={app.session.run} data={app.data} onClose={onClose}
     onOpenSource={(source) => app.set.setModal({ type: 'source', source, ...(modal.pickPages ? { pickPages: true } : {}), ...(modal.back ? { back: true } : {}) })} />,

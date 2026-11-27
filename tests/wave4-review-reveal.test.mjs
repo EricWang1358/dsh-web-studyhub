@@ -9,6 +9,7 @@ import { notify } from '../lib/inbox.js';
 import { createPreviewServer } from '../scripts/preview-server.mjs';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium, skipMissingChromium } from '../scripts/qa/browser.mjs';
+import { confirmStart } from '../scripts/qa/confirm-start.mjs';
 
 // #182: a flashcard opens on its question unless it was already answered or revealed in the run being shown.
 const flash = (id, n) => ({ id, kind: 'flashcard', topic: 'Topic', objective: 'Recall', prompt: `Question ${n}?`, answer: `Answer ${n}`, hint: '', explanation: 'Because.', misconception: '', citations: [] });
@@ -101,6 +102,7 @@ test('in the browser: next after a reveal shows the question, inside an inbox de
   await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'en'); localStorage.setItem('study-autopilot', 'off'); });
   await page.goto(server.url);
   await page.getByRole('button', { name: 'Start studying First' }).first().click();
+  await confirmStart(page);
   const card = page.locator('.flashcard');
   await card.waitFor();
   const flipped = () => card.evaluate((element) => element.classList.contains('flipped'));
