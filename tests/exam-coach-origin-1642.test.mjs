@@ -123,3 +123,29 @@ test('a family saved without an origin is not called a fact of the material', ()
   const next = saveCoachSpec({}, { taskFamilies: [{ id: 'mine', title: '我的任务', primaryFormat: 'quiz' }] });
   assert.equal(next.taskFamilies[0].origin, 'user-defined');
 });
+
+test('a built-in family whose key conditions or mistake reasons were rewritten, or that a learner wrote, keeps the origin it was saved with', () => {
+  const saved = legacy().withPaper;
+  saved.taskFamilies[0].keyConditions = ['样卷第 2 题的前提'];
+  saved.taskFamilies[1].keyConditions = [...saved.taskFamilies[1].keyConditions];
+  saved.taskFamilies[2].distractorRules = [];
+  const reasonOnly = legacy().withPaper;
+  reasonOnly.taskFamilies[0].distractorRules = reasonOnly.taskFamilies[0].distractorRules.map(rule => ({ ...rule, reason: '样卷里写的错因' }));
+  const learnerWrote = legacy().withPaper;
+  learnerWrote.taskFamilies[1].origin = 'user-defined';
+  const read = normalizeCoachSpec(saved);
+  assert.equal(read.taskFamilies[0].origin, 'reference-observed', 'key conditions written anew');
+  assert.equal(read.taskFamilies[1].origin, 'built-in-template', 'the same key conditions, copied');
+  assert.equal(normalizeCoachSpec(reasonOnly).taskFamilies[0].origin, 'reference-observed', 'mistake reasons written anew under the same labels');
+  assert.equal(normalizeCoachSpec(learnerWrote).taskFamilies[1].origin, 'user-defined', 'a learner family is never relabelled, whatever its text');
+});
+
+test('every note the analysis saved before #1642 is rewritten, with its own counts', () => {
+  const noteOf = sampleFrequencyNote => projectCoachSpecForView({ ...legacy().withPaper, scopeBoundary: { ...legacy().withPaper.scopeBoundary, sampleFrequencyNote } })
+    .scopeBoundary.sampleFrequencyNote;
+  assert.match(noteOf('已分析 2 份参考样卷与 3 份课程资料：样卷题型频次仅代表样本观察，未覆盖章节仍需在规划中显式取舍。'), /^纳入 2 份参考样卷、3 份课程资料。/);
+  assert.match(noteOf('当前基于 4 份课程资料推导考察方式（暂无往年样卷输入，题型配额为建议初值，请结合考纲确认）。'), /^纳入 4 份课程资料，暂无往年样卷。/);
+  const unanalyzed = noteOf('历史样卷统计仅反映所给样本的观察频率，不等同真实考试必然分布；未出现在样卷中的教材章节仍需核对。');
+  assert.doesNotMatch(unanalyzed, /统计|观察频率/);
+  assert.match(unanalyzed, /请对照考纲确认。$/);
+});
