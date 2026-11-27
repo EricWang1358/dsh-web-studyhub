@@ -26,7 +26,6 @@
     "views/sources/SourceCoverageModal.tsx": 1131,
     "views/sources/SourcesView.tsx": 1868,
     "views/sources/TranslationGlossaryModal.tsx": 1106,
-    "views/tasks/TasksView.tsx": 2236,
     "views/tasks/WorkflowHistoryModal.tsx": 1188,
     "views/wrongbook/WrongBookView.tsx": 1802
   }
