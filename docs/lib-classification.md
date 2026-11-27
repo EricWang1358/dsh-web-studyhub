@@ -426,7 +426,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/session-reply.js`: 1 other lib file
 - `lib/short-text-list.js`: 2 other lib files
 - `lib/siliconflow.js`: 3 other lib files
-- `lib/store.js`: 3 other lib files
+- `lib/store.js`: 4 other lib files
 - `lib/stored-version.js`: 3 other lib files
 - `lib/study-contracts.js`: 2 other lib files
 - `lib/study-session-cost.js`: 1 other lib file
