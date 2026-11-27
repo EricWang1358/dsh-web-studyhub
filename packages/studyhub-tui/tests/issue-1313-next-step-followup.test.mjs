@@ -27,7 +27,6 @@ const [
 
 const {
   NEXT_STEP_PRESETS,
-  NEXT_STEP_ACTIVATION_KEY,
   nextStepIdlePrompt,
   buildNextStepUserPrompt,
 } = nextStepMod;
@@ -165,7 +164,8 @@ describe('#1313 unified AI result follow-up bar', () => {
     assert.ok(prompt.includes('ReadIndex'));
     assert.ok(prompt.includes('Quorum'));
     assert.ok(prompt.includes('给每个词写一段通俗讲解'));
-    assert.equal(NEXT_STEP_ACTIVATION_KEY, 'a');
+    assert.ok(nextStepIdlePrompt('zh').includes('[a]'));
+    assert.ok(nextStepIdlePrompt('en').includes('[a]'));
     assert.equal(NEXT_STEP_PRESETS.length, 4);
   });
 
