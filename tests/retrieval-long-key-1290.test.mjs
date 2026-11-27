@@ -9,7 +9,6 @@ import {
   sourceKey,
 } from '../lib/retrieval-index.js';
 import {
-  MAX_PLAIN_SOURCE_KEY_BYTES,
   SOURCE_KEY_HASH_PREFIX,
   normalizeHits,
   resolveHits,
@@ -70,7 +69,7 @@ test('#1290: long sourceIds hash under 255-char filename limit while short & nor
   // 159-char ID is hashed to a fixed-length key safely under 255-char base64url + .meta.json limit
   const longKey = sourceKey(longId, lib);
   assert.ok(longKey.startsWith(`studyhub://lib/${lib}/source/${SOURCE_KEY_HASH_PREFIX}`));
-  assert.ok(Buffer.byteLength(longKey, 'utf8') <= MAX_PLAIN_SOURCE_KEY_BYTES);
+  assert.ok(Buffer.byteLength(longKey, 'utf8') <= 183);
   assert.ok(base64UrlFilenameLength(longKey, '.meta.json') <= 255, `meta filename must fit in 255 chars, got ${base64UrlFilenameLength(longKey)}`);
   assert.ok(base64UrlFilenameLength(longKey, '.md') <= 255);
 });
@@ -158,12 +157,39 @@ test('#1290 review: the plain-key threshold is the longest key the old code coul
     assert.ok(base64UrlFilenameLength(`${prefix}${id}`) <= 255, `${bytes}-byte key fits`);
     assert.equal(sourceKey(id, lib), `${prefix}${id}`, `${bytes}-byte key stays plain`);
   }
-  assert.equal(MAX_PLAIN_SOURCE_KEY_BYTES, 183);
 
   // 184 bytes never fitted, so nothing was ever stored under it: hashing it cannot orphan anything.
   const over = idOf(184);
   assert.ok(base64UrlFilenameLength(`${prefix}${over}`) > 255);
   assert.ok(sourceKey(over, lib).startsWith(`${prefix}${SOURCE_KEY_HASH_PREFIX}`));
+
+  // Multi-byte UTF-8 boundary: threshold counts UTF-8 bytes (not UTF-16 code units), so CJK IDs with .length < 183 still hash past 183 bytes.
+  const cjk183 = '题'.repeat((183 - Buffer.byteLength(prefix, 'utf8')) / 3);
+  const cjkPlain183 = `${prefix}${cjk183}`;
+  assert.ok(cjkPlain183.length < 183);
+  assert.equal(Buffer.byteLength(cjkPlain183, 'utf8'), 183);
+  assert.ok(base64UrlFilenameLength(cjkPlain183) <= 255);
+  assert.equal(sourceKey(cjk183, lib), cjkPlain183, '183 UTF-8 bytes of multi-byte CJK stays plain');
+
+  const cjk184 = `${cjk183}a`;
+  const cjkPlain184 = `${prefix}${cjk184}`;
+  assert.ok(cjkPlain184.length < 183);
+  assert.equal(Buffer.byteLength(cjkPlain184, 'utf8'), 184);
+  assert.ok(base64UrlFilenameLength(cjkPlain184) > 255);
+  const cjkHashed = sourceKey(cjk184, lib);
+  assert.ok(cjkHashed.startsWith(`${prefix}${SOURCE_KEY_HASH_PREFIX}`), '184 UTF-8 bytes of multi-byte CJK hashes');
+  assert.ok(base64UrlFilenameLength(cjkHashed) <= 255);
+
+  // Unscoped (`libraryId = undefined`, `studyhub://source/`) enforces the same 183-plain / 184-hashed byte boundary.
+  const unscopedPrefix = 'studyhub://source/';
+  const unscoped183 = 'u'.repeat(183 - Buffer.byteLength(unscopedPrefix, 'utf8'));
+  const unscoped184 = 'u'.repeat(184 - Buffer.byteLength(unscopedPrefix, 'utf8'));
+  assert.equal(Buffer.byteLength(`${unscopedPrefix}${unscoped183}`, 'utf8'), 183);
+  assert.ok(base64UrlFilenameLength(`${unscopedPrefix}${unscoped183}`) <= 255);
+  assert.equal(sourceKey(unscoped183), `${unscopedPrefix}${unscoped183}`);
+  assert.equal(Buffer.byteLength(`${unscopedPrefix}${unscoped184}`, 'utf8'), 184);
+  assert.ok(base64UrlFilenameLength(`${unscopedPrefix}${unscoped184}`) > 255);
+  assert.ok(sourceKey(unscoped184).startsWith(`${unscopedPrefix}${SOURCE_KEY_HASH_PREFIX}`));
 });
 
 test('#1290 review: a page indexed under a 182-byte plain key is replaced in place when edited and leaves nothing behind when removed', async () => {

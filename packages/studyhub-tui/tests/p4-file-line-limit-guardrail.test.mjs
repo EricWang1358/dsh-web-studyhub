@@ -6,7 +6,6 @@ import fs from 'node:fs';
 import {
   LEGACY_GROWTH_TOLERANCE,
   LINE_LIMIT_BASELINE_PATH,
-  MAX_SOURCE_FILE_LINES,
   countSourceLines,
   evaluateLineLimitRatchet,
   formatLineLimitReport,
@@ -29,7 +28,47 @@ describe('P4 (#1354 D12): TUI Source File Line-Limit Guardrail & Ratchet', () =>
   test('the 1000-line limit lives only in MAX_SOURCE_FILE_LINES; the baseline JSON carries no copy of it', () => {
     const raw = JSON.parse(fs.readFileSync(LINE_LIMIT_BASELINE_PATH, 'utf8'));
     assert.equal(Object.hasOwn(raw, 'maxLines'), false);
-    assert.equal(MAX_SOURCE_FILE_LINES, 1000);
+
+    const defaultEval = evaluateLineLimitRatchet({
+      lineCounts: {
+        'views/ok/AtLimit.tsx': 1000,
+        'views/bad/OverByOne.tsx': 1001,
+        'views/legacy/ValidBase.tsx': 1001,
+        'views/legacy/InvalidBase.tsx': 1000,
+      },
+      baseline: {
+        files: {
+          'views/legacy/ValidBase.tsx': 1001,
+          'views/legacy/InvalidBase.tsx': 1000,
+        },
+      },
+    });
+    assert.equal(defaultEval.ok, false);
+    assert.equal(defaultEval.maxLines, 1000);
+    assert.deepEqual(defaultEval.newOverLimit, [
+      { file: 'views/bad/OverByOne.tsx', lines: 1001, maxLines: 1000 },
+    ]);
+    assert.deepEqual(defaultEval.invalidBaselineEntries, [
+      { file: 'views/legacy/InvalidBase.tsx', limit: 1000 },
+    ]);
+    assert.deepEqual(defaultEval.staleBaselineEntries, []);
+    assert.deepEqual(defaultEval.grewAboveBaseline, []);
+
+    const defaultRatchet = ratchetDownBaseline({
+      lineCounts: {
+        'views/legacy/DroppedAtLimit.tsx': 1000,
+        'views/legacy/KeptOverLimit.tsx': 1001,
+      },
+      baseline: {
+        files: {
+          'views/legacy/DroppedAtLimit.tsx': 1100,
+          'views/legacy/KeptOverLimit.tsx': 1100,
+        },
+      },
+    });
+    assert.deepEqual(defaultRatchet.files, {
+      'views/legacy/KeptOverLimit.tsx': 1001,
+    });
   });
 
   test('evaluateLineLimitRatchet ignores Object.prototype keys', () => {
@@ -125,15 +164,15 @@ describe('P4 (#1354 D12): TUI Source File Line-Limit Guardrail & Ratchet', () =>
     );
     assert.ok(
       typeof lineCounts['views/review/ReviewView.tsx'] === 'number' &&
-        lineCounts['views/review/ReviewView.tsx'] <= MAX_SOURCE_FILE_LINES,
-      `ReviewView.tsx must be <= ${MAX_SOURCE_FILE_LINES} lines (found ${lineCounts['views/review/ReviewView.tsx']})`,
+        lineCounts['views/review/ReviewView.tsx'] <= 1000,
+      `ReviewView.tsx must be <= 1000 lines (found ${lineCounts['views/review/ReviewView.tsx']})`,
     );
 
     const result = evaluateLineLimitRatchet({
       lineCounts,
       baseline,
-      maxLines: MAX_SOURCE_FILE_LINES,
     });
+    assert.equal(result.maxLines, 1000);
     assert.equal(result.ok, true, formatLineLimitReport(result));
   });
 });

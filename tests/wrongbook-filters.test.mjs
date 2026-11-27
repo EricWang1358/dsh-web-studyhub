@@ -13,7 +13,7 @@ const m = await loadUi(`export { WrongBookView } from './ui/WrongBook.jsx';
   export { setUiLanguage, uiCatalogue } from './ui/i18n.js';`);
 Object.assign(m.uiCatalogue(), JSON.parse(readFileSync(new URL('../ui/locales/en.polish-results.json', import.meta.url), 'utf8')));
 const { WrongBookView, groupRows, filterRows, filterActive, NO_FILTER, statusOf, groupSummary, groupSummaryText, deckChoices, scopedFilter, readGroupBy, saveGroupBy,
-  readOpenGroups, saveOpenGroups, SORT_KINDS, DEFAULT_SORT_BY, sortGroupRows, readSortBy, saveSortBy, sameVariantState, variantState, VARIANT_BATCH_CAP, setUiLanguage } = m;
+  readOpenGroups, saveOpenGroups, SORT_KINDS, sortGroupRows, readSortBy, saveSortBy, sameVariantState, variantState, VARIANT_BATCH_CAP, setUiLanguage } = m;
 const noop = () => {};
 const han = /\p{Script=Han}/u;
 
@@ -501,13 +501,13 @@ test('#10: Escape on .wb-search-input clears query first while keeping focus, th
 
 test('#46: sortGroupRows sorts by recent, most missed, and original deck order and persists preference', () => {
   assert.deepEqual(SORT_KINDS, ['recent', 'most', 'order']);
-  assert.equal(DEFAULT_SORT_BY, 'recent');
   const storage = memoryStorage();
   assert.equal(readSortBy(storage), 'recent');
   saveSortBy('most', storage);
   assert.equal(readSortBy(storage), 'most');
   storage.setItem('study-wrongbook-sort', 'invalid');
   assert.equal(readSortBy(storage), 'recent');
+  assert.equal(readSortBy({ getItem() { throw new Error('blocked'); } }), 'recent');
 
   const decksWithOrder = [{ id: 'd4', title: decks[0].title, cards: [{ id: 'c2' }, { id: 'c3' }, { id: 'c1' }] }];
   const mixed = [
@@ -520,6 +520,18 @@ test('#46: sortGroupRows sorts by recent, most missed, and original deck order a
   const wrongCounts = new Map([['d4\0c1', 5], ['d4\0c2', 2], ['d4\0c3', 2]]);
   assert.deepEqual(sortGroupRows(groups, 'most', { wrongCounts })[0].rows.map((r) => r.cardId), ['c1', 'c2', 'c3']);
   assert.deepEqual(sortGroupRows(groups, 'order', { decks: decksWithOrder })[0].rows.map((r) => r.cardId), ['c2', 'c3', 'c1']);
+
+  const distinct = [
+    row('c1', 'd4', 'T', 'Q1', 'graded', '2026-10-01T10:00:00Z'),
+    row('c2', 'd4', 'T', 'Q2', 'graded', '2026-10-01T08:00:00Z'),
+    row('c3', 'd4', 'T', 'Q3', 'graded', '2026-10-01T12:00:00Z'),
+  ];
+  const distinctGroups = groupRows(distinct, 'deck', decksWithOrder);
+  const distinctCounts = new Map([['d4\0c1', 5], ['d4\0c2', 3], ['d4\0c3', 1]]);
+  assert.deepEqual(sortGroupRows(distinctGroups, 'recent', { wrongCounts: distinctCounts, decks: decksWithOrder })[0].rows.map((r) => r.cardId), ['c3', 'c1', 'c2']);
+  assert.deepEqual(sortGroupRows(distinctGroups, 'most', { wrongCounts: distinctCounts, decks: decksWithOrder })[0].rows.map((r) => r.cardId), ['c1', 'c2', 'c3']);
+  assert.deepEqual(sortGroupRows(distinctGroups, 'order', { wrongCounts: distinctCounts, decks: decksWithOrder })[0].rows.map((r) => r.cardId), ['c2', 'c3', 'c1']);
+  assert.deepEqual(sortGroupRows(distinctGroups, undefined, { wrongCounts: distinctCounts, decks: decksWithOrder })[0].rows.map((r) => r.cardId), ['c3', 'c1', 'c2']);
 
   setUiLanguage('zh');
   const htmlZh = render();
