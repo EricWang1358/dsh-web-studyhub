@@ -36,7 +36,7 @@ test('the wrapper puts bare, scoped and root rules where they belong and is idem
     '.study-app .old, :is(.study-app, .study-seat) .both { color: blue; }',
     ':where(.study-app) .where { color: green; }',
     '.study-app[data-theme="light"] .themed { color: black; }',
-    '.study-seat[data-host] .seat-only { color: white; }',
+    '.study-seat[data-craft] .seat-only { color: white; }',
     ':where(.study-app) { & { display: flex; } button { margin: 0; } &::before { content: ""; } }',
     '@container study (max-width: 600px) { .narrow { padding: 0; } .study-app .narrow2 { padding: 0; } }',
     '@keyframes spin { to { opacity: 1; } }',
@@ -51,7 +51,7 @@ test('the wrapper puts bare, scoped and root rules where they belong and is idem
   assert.ok(inside(SCOPE_LOW, '.where { color: green; }'), 'so does one written under :where(.study-app)');
   assert.ok(inside(SCOPE, '.old, .both { color: blue; }'), 'a .study-app / :is() rule keeps the scope that adds a class');
   assert.match(wrapped, /\.study-app\[data-theme="light"\] \.themed \{/, 'a root-conditional selector stays a root rule');
-  assert.match(wrapped, /\.study-seat\[data-host\] \.seat-only \{/, 'a seat-only rule stays a root rule');
+  assert.match(wrapped, /\.study-seat\[data-craft\] \.seat-only \{/, 'a seat-only rule stays a root rule');
   assert.match(wrapped, /\.study-app \{\s*display: flex;/, 'the app box itself is a root rule, not the seat');
   assert.match(wrapped, /& button \{ margin: 0; \}/);
   assert.match(wrapped, /\.study-app::before \{/);
@@ -63,8 +63,8 @@ test('the wrapper puts bare, scoped and root rules where they belong and is idem
   assert.notEqual(checkStructure(`${LAYER_STATEMENT}\n@layer study.features { .study-seat { @media (width > 1px) { .card { color: red; } } } }`).length, 0, 'so are rules nested under the seat alone');
   assert.deepEqual(checkStructure(`${LAYER_STATEMENT}\n@layer study.features { .study-app { display: flex; } ${SCOPE} { .card { color: red; } } }`), [], 'the app box itself and the shared scope stay allowed');
   assert.notEqual(checkStructure(`${LAYER_STATEMENT}\n@layer study.features { .study-app .card { color: red; } }`).length, 0, 'a flat rule under the app root alone is reported');
-  assert.notEqual(checkStructure(`${LAYER_STATEMENT}\n@layer study.features { .x, .study-seat > .card { color: red; } }`).length, 0, 'and under the seat alone');
-  assert.deepEqual(checkStructure(`${LAYER_STATEMENT}\n@layer study.features { .study-app[data-theme="dark"] .card, .study-seat[data-host] .bar { color: red; } }`), [], 'a root rule that names an app state or host stays allowed');
+  assert.notEqual(checkStructure(`${LAYER_STATEMENT}\n@layer study.features { .study-app[data-contrast] .ok, .study-seat > .card { color: red; } }`).length, 0, 'and under the seat alone');
+  assert.deepEqual(checkStructure(`${LAYER_STATEMENT}\n@layer study.features { .study-app[data-theme="dark"] .card, .study-seat[data-craft] .bar { color: red; } }`), [], 'a root rule that names an app state or host stays allowed');
 });
 
 test('the scope a rule is wrapped in keeps the specificity its author wrote', () => {

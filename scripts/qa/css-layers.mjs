@@ -6,7 +6,7 @@
 
      @layer study.reset, study.tokens, study.components, study.features, study.overrides;   <- same line in every file
      @layer study.<layer> {
-       <root rules: selectors that start with .study-app / .study-seat (theme attributes, host overlays, the app box itself)>
+       <root rules: the app box or seat itself, or .study-app / .study-seat qualified by a state (theme attributes, host overlays)>
        :is(.study-app, .study-seat) {
          <every other rule, written relative to the scope: `.x { ... }`>
        }
