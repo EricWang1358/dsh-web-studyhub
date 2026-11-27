@@ -252,7 +252,8 @@ test('live, audio, Jev, and workflow-portal surfaces register zero private setIn
 // How a page picks its copy cannot be seen in what it renders: a private t(zh, en), a language ternary or a sentence glued from ui() fragments draws the same
 // words in both languages as the catalogue does (the review of #1610 proved each one passes every rendering test above). So these three, and only these, are read
 // from the source. Timers are checked by mounting (the test above), not here.
-test('no live, audio, Jev or workflow-portal page keeps a private zh/en dictionary, reads the language to pick copy, or glues a sentence from fragments', async () => {
+// The title is the one this check had before #1610 (the test-audit gate matches a kept source check by it); it also covers fragments glued into a sentence.
+test('no live or audio page keeps a private zh/en dictionary or reads the language to pick copy', async () => {
   for (const file of ['LiveClass', 'LiveHistory', 'LiveNotes', 'LiveAudioMonitor', 'AudioDashboard', 'AudioReasoning', 'AudioSettings', 'JevSettings', 'WorkflowPortal', 'LiveLoopbackCard']) {
     const source = await readFile(new URL(`../ui/${file}.jsx`, import.meta.url), 'utf8');
     assert.doesNotMatch(source, /const t = \(zh/, `${file}: local t(zh, en)`);
