@@ -98,6 +98,8 @@ export const DeckManageModal = memo(function DeckManageModal({
   const [confirmBatchSlay, setConfirmBatchSlay] = useState(false);
   const busyRef = useRef(false);
   const mountedRef = useRef(true);
+  const deckGenRef = useRef(0);
+  const busyTokenRef = useRef(0);
 
   // Batch prerequisite link sub-mode state ([L])
   const [linkPrereqCursor, setLinkPrereqCursor] = useState(0);
@@ -113,6 +115,7 @@ export const DeckManageModal = memo(function DeckManageModal({
 
   // Convert card kind sub-mode state ([k])
   const [convertKindIdx, setConvertKindIdx] = useState(0);
+  const convertKindIdxRef = useRef(0);
   const [convertDraft, setConvertDraft] = useState<ConvertDraft>({
     primaryText: '',
     secondaryText: '',
@@ -120,6 +123,21 @@ export const DeckManageModal = memo(function DeckManageModal({
   });
   const [convertEditActive, setConvertEditActive] = useState(false);
   const [convertError, setConvertError] = useState('');
+
+  const beginBusy = useCallback((): { token: number; gen: number } | null => {
+    if (busyRef.current || busy) return null;
+    const token = busyTokenRef.current + 1;
+    busyTokenRef.current = token;
+    busyRef.current = true;
+    setBusy(true);
+    return { token, gen: deckGenRef.current };
+  }, [busy]);
+
+  const endBusy = useCallback((token: number) => {
+    if (busyTokenRef.current !== token) return;
+    busyRef.current = false;
+    if (mountedRef.current) setBusy(false);
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -129,16 +147,38 @@ export const DeckManageModal = memo(function DeckManageModal({
   }, []);
 
   useEffect(() => {
+    deckGenRef.current += 1;
+    busyTokenRef.current += 1;
+    busyRef.current = false;
+    setBusy(false);
+    setMode('browse');
+    setSearchQuery('');
+    setSelectedIndex(0);
+    setPreviewScrollTop(0);
     setSelectedIds(new Set());
     setConfirmBatchSlay(false);
+    setRenameValue('');
+    setFolderValue('');
     setCourseDraft('');
     setTopicValue('');
     setLinkPrereqCursor(0);
     setLinkError('');
+    setSuppSelectedIds(new Set());
+    setSuppSourceCursor(0);
+    setSuppCountIdx(1);
+    setSuppKindIdx(0);
+    setSuppError('');
+    setSuppJobResult(null);
+    convertKindIdxRef.current = 0;
+    setConvertKindIdx(0);
+    setConvertEditActive(false);
+    setConvertError('');
   }, [deckId]);
 
-  const reloadDeck = useCallback(async (): Promise<FullDeckDetail | null> => {
+  const reloadDeck = useCallback(async (expectedGen?: number): Promise<FullDeckDetail | null> => {
+    const startGen = expectedGen ?? deckGenRef.current;
     const res = await tryAction<FullDeckDetail>(host, 'deck.get', { id: deckId });
+    if (!mountedRef.current || deckGenRef.current !== startGen) return null;
     if (res.ok && res.value) {
       setDeck(res.value);
       setRenameValue(res.value.title || '');
@@ -245,6 +285,7 @@ export const DeckManageModal = memo(function DeckManageModal({
     if (!selectedCard) return;
     const targets = CONVERT_TARGETS.filter((k) => k !== selectedCard.kind);
     const firstKind = targets[0] ?? 'flashcard';
+    convertKindIdxRef.current = 0;
     setConvertKindIdx(0);
     setConvertDraft(buildDefaultConvertDraft(selectedCard, firstKind, lang));
     setConvertEditActive(false);
@@ -256,14 +297,15 @@ export const DeckManageModal = memo(function DeckManageModal({
     (delta: number) => {
       if (!selectedCard || availableConvertTargets.length === 0) return;
       const nextIdx =
-        (convertKindIdx + delta + availableConvertTargets.length) % availableConvertTargets.length;
+        (convertKindIdxRef.current + delta + availableConvertTargets.length) % availableConvertTargets.length;
       const nextKind = availableConvertTargets[nextIdx];
+      convertKindIdxRef.current = nextIdx;
       setConvertKindIdx(nextIdx);
       setConvertDraft(buildDefaultConvertDraft(selectedCard, nextKind, lang));
       setConvertEditActive(false);
       setConvertError('');
     },
-    [selectedCard, availableConvertTargets, convertKindIdx, lang],
+    [selectedCard, availableConvertTargets, lang],
   );
 
   // Kept co-located with DeckManageModal so atomic edit-draft rollback ('draft.delete') stays auditable here (#1394).
@@ -274,91 +316,96 @@ export const DeckManageModal = memo(function DeckManageModal({
         setMode('browse');
         return;
       }
-      setBusy(true);
-      const editDraftWarning = t(
-        lang,
-        '该题组已有未发布的编辑草稿，请先在「创建题组」处理后再重命名',
-        'This deck has an unpublished edit draft; resolve it in Generate before renaming',
-      );
-      const snapRes = await tryAction<{ drafts?: Array<{ id?: string; editingDeckId?: string }> }>(host, 'snapshot');
-      if (!mountedRef.current) return;
-      const draftsToCheck =
-        snapRes.ok && Array.isArray(snapRes.value?.drafts)
-          ? snapRes.value.drafts
-          : (useTuiStore.getState().snapshot?.drafts ?? []);
-      if (draftsToCheck.some((d) => (d as { editingDeckId?: string }).editingDeckId === deck.id)) {
-        setBusy(false);
-        setMode('browse');
-        notify(editDraftWarning, 'warning');
-        return;
-      }
-      const tx = await runAtomicSteps([
-        {
-          name: 'deck.edit',
-          run: async () => {
-            const editRes = await tryAction<Record<string, unknown> & { draftVersion?: number }>(host, 'deck.edit', {
-              id: deck.id,
-            });
-            if (!editRes.ok || !editRes.value) {
-              return { ok: false, error: editRes.error?.message || t(lang, '无法创建编辑草稿', 'Could not create edit draft') };
-            }
-            if ((editRes.value.draftVersion ?? 1) !== 1) {
-              return { ok: false, error: editDraftWarning };
-            }
-            return { ok: true, value: editRes.value };
-          },
-          rollback: async (val) => {
-            const orphanDraftId =
-              typeof (val as { id?: unknown } | undefined)?.id === 'string'
-                ? String((val as { id: string }).id)
-                : '';
-            if (orphanDraftId) {
-              await tryAction(host, 'draft.delete', { id: orphanDraftId }).catch(() => {});
-            }
-          },
-        },
-        {
-          name: 'draft.save',
-          run: async (prev) => {
-            const editVal = prev[0] as Record<string, unknown>;
-            const draft = { ...editVal, title: nextTitle };
-            const saveRes = await tryAction<{ id: string; draftVersion?: number }>(host, 'draft.save', { deck: draft });
-            if (!saveRes.ok || !saveRes.value) {
-              return { ok: false, error: saveRes.error?.message || t(lang, '保存标题失败', 'Failed to save title') };
-            }
-            return { ok: true, value: saveRes.value };
-          },
-        },
-      ]);
-      if (!mountedRef.current) return;
-      if (!tx.ok) {
-        setBusy(false);
-        setMode('browse');
-        notify(tx.error, tx.error === editDraftWarning ? 'warning' : 'error');
-        return;
-      }
-      const savedDraft = tx.results[1] as { id: string; draftVersion?: number };
-      const pubRes = await tryAction(host, 'draft.publish.quick', {
-        id: savedDraft.id,
-        draftVersion: savedDraft.draftVersion,
-      });
-      if (!mountedRef.current) return;
-      setBusy(false);
-      setMode('browse');
-      if (pubRes.ok) {
-        setDeck((prev) => (prev ? { ...prev, title: nextTitle } : prev));
-        onUpdated?.();
-        notify(t(lang, `已重命名为「${nextTitle}」`, `Renamed to "${nextTitle}"`), 'success');
-      } else {
-        notify(
-          t(lang, '已保存草稿，请在创建/编辑页完成发布', 'Draft saved; finish publishing in Generate'),
-          'warning',
+      const lock = beginBusy();
+      if (!lock) return;
+      try {
+        const editDraftWarning = t(
+          lang,
+          '该题组已有未发布的编辑草稿，请先在「创建题组」处理后再重命名',
+          'This deck has an unpublished edit draft; resolve it in Generate before renaming',
         );
-        onClose();
-        navigate('generate', { draftId: savedDraft.id });
+        const snapRes = await tryAction<{ drafts?: Array<{ id?: string; editingDeckId?: string }> }>(host, 'snapshot');
+        if (!mountedRef.current || deckGenRef.current !== lock.gen) return;
+        const draftsToCheck =
+          snapRes.ok && Array.isArray(snapRes.value?.drafts)
+            ? snapRes.value.drafts
+            : (useTuiStore.getState().snapshot?.drafts ?? []);
+        if (draftsToCheck.some((d) => (d as { editingDeckId?: string }).editingDeckId === deck.id)) {
+          setMode('browse');
+          notify(editDraftWarning, 'warning');
+          return;
+        }
+        const tx = await runAtomicSteps([
+          {
+            name: 'deck.edit',
+            run: async () => {
+              const editRes = await tryAction<Record<string, unknown> & { draftVersion?: number }>(host, 'deck.edit', {
+                id: deck.id,
+              });
+              if (!editRes.ok || !editRes.value) {
+                return { ok: false, error: editRes.error?.message || t(lang, '无法创建编辑草稿', 'Could not create edit draft') };
+              }
+              if ((editRes.value.draftVersion ?? 1) !== 1) {
+                return { ok: false, error: editDraftWarning };
+              }
+              return { ok: true, value: editRes.value };
+            },
+            rollback: async (val) => {
+              const orphanDraftId =
+                typeof (val as { id?: unknown } | undefined)?.id === 'string'
+                  ? String((val as { id: string }).id)
+                  : '';
+              if (orphanDraftId) {
+                await tryAction(host, 'draft.delete', { id: orphanDraftId }).catch(() => {});
+              }
+            },
+          },
+          {
+            name: 'draft.save',
+            run: async (prev) => {
+              const editVal = prev[0] as Record<string, unknown>;
+              const draft = { ...editVal, title: nextTitle };
+              const saveRes = await tryAction<{ id: string; draftVersion?: number }>(host, 'draft.save', { deck: draft });
+              if (!saveRes.ok || !saveRes.value) {
+                return { ok: false, error: saveRes.error?.message || t(lang, '保存标题失败', 'Failed to save title') };
+              }
+              return { ok: true, value: saveRes.value };
+            },
+          },
+        ]);
+        if (!mountedRef.current) return;
+        if (!tx.ok) {
+          if (deckGenRef.current === lock.gen) setMode('browse');
+          notify(tx.error, tx.error === editDraftWarning ? 'warning' : 'error');
+          return;
+        }
+        const savedDraft = tx.results[1] as { id: string; draftVersion?: number };
+        const pubRes = await tryAction(host, 'draft.publish.quick', {
+          id: savedDraft.id,
+          draftVersion: savedDraft.draftVersion,
+        });
+        if (!mountedRef.current) return;
+        const sameDeck = deckGenRef.current === lock.gen;
+        if (sameDeck) setMode('browse');
+        if (pubRes.ok) {
+          if (sameDeck) setDeck((prev) => (prev ? { ...prev, title: nextTitle } : prev));
+          onUpdated?.();
+          notify(t(lang, `已重命名为「${nextTitle}」`, `Renamed to "${nextTitle}"`), 'success');
+        } else {
+          notify(
+            t(lang, '已保存草稿，请在创建/编辑页完成发布', 'Draft saved; finish publishing in Generate'),
+            'warning',
+          );
+          if (sameDeck) {
+            onClose();
+            navigate('generate', { draftId: savedDraft.id });
+          }
+        }
+      } finally {
+        endBusy(lock.token);
       }
     },
-    [deck, host, lang, notify, onUpdated, onClose, navigate],
+    [deck, host, lang, notify, onUpdated, onClose, navigate, beginBusy, endBusy],
   );
 
   const actions = useDeckManageActions({
@@ -366,9 +413,11 @@ export const DeckManageModal = memo(function DeckManageModal({
     deck,
     selectedCard,
     selectedIds,
-    busy,
     busyRef,
     mountedRef,
+    deckGenRef,
+    beginBusy,
+    endBusy,
     lang,
     ell,
     suppSelectedIds,
@@ -376,7 +425,6 @@ export const DeckManageModal = memo(function DeckManageModal({
     suppKind,
     convertTargetKind,
     convertDraft,
-    setBusy,
     setDeck,
     setMode,
     setSelectedIds,
@@ -690,6 +738,7 @@ export const DeckManageModal = memo(function DeckManageModal({
     convertTargetKind,
     deck,
     filteredCount: filteredCards.length,
+    asciiMode,
   });
 
   return (

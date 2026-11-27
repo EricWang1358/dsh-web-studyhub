@@ -704,6 +704,7 @@ export function buildDeckManageSubtitle(input: {
   convertTargetKind: ConvertTargetKind;
   deck: FullDeckDetail | null;
   filteredCount: number;
+  asciiMode?: boolean;
 }): string | undefined {
   const {
     mode,
@@ -714,6 +715,7 @@ export function buildDeckManageSubtitle(input: {
     convertTargetKind,
     deck,
     filteredCount,
+    asciiMode = false,
   } = input;
   if (mode === 'supplement') return `${suppSelectedCount} ${t(lang, '页已选', 'pg')}`;
   if (mode === 'link') return `${selectedCount} ${t(lang, '题待关联', 'sel')}`;
@@ -721,6 +723,7 @@ export function buildDeckManageSubtitle(input: {
     return `${kindLabel(selectedCard.kind, lang)} -> ${kindLabel(convertTargetKind, lang)}`;
   }
   if (!deck) return undefined;
-  const selPart = selectedCount > 0 ? ` · [${t(lang, `已选 ${selectedCount}`, `${selectedCount} sel`)}]` : '';
+  const sep = asciiMode ? ' | ' : ' · ';
+  const selPart = selectedCount > 0 ? `${sep}[${t(lang, `已选 ${selectedCount}`, `${selectedCount} sel`)}]` : '';
   return `${filteredCount}/${deck.cards.length} ${t(lang, '题', 'cards')}${selPart}`;
 }

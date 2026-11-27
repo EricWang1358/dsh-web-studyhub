@@ -365,6 +365,8 @@ const OWNED_STRICT_FILES = [
   'src/views/library/CourseSettingsModal.tsx',
   'src/views/library/DeckOpsModal.tsx',
   'src/views/library/DeckManageModal.tsx',
+  'src/views/library/DeckManagePanels.tsx',
+  'src/views/library/deck-manage-model.ts',
   'src/views/examprep/AddFocusModal.tsx',
   'src/views/examprep/ExamPrepView.tsx',
   'src/views/examprep/StudyPlanModal.tsx',

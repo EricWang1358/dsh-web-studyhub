@@ -18,14 +18,21 @@ import {
   type SuppJobResult,
 } from './deck-manage-model.js';
 
+export interface BusyLock {
+  token: number;
+  gen: number;
+}
+
 export interface UseDeckManageActionsParams {
   host: HostClient;
   deck: FullDeckDetail | null;
   selectedCard: DeckCardItem | null;
   selectedIds: Set<string>;
-  busy: boolean;
   busyRef: MutableRefObject<boolean>;
   mountedRef: MutableRefObject<boolean>;
+  deckGenRef: MutableRefObject<number>;
+  beginBusy: () => BusyLock | null;
+  endBusy: (token: number) => void;
   lang: 'zh' | 'en';
   ell: string;
   suppSelectedIds: Set<string>;
@@ -33,7 +40,6 @@ export interface UseDeckManageActionsParams {
   suppKind: string;
   convertTargetKind: ConvertTargetKind;
   convertDraft: ConvertDraft;
-  setBusy: Dispatch<SetStateAction<boolean>>;
   setDeck: Dispatch<SetStateAction<FullDeckDetail | null>>;
   setMode: Dispatch<SetStateAction<ModalMode>>;
   setSelectedIds: Dispatch<SetStateAction<Set<string>>>;
@@ -47,7 +53,7 @@ export interface UseDeckManageActionsParams {
   setSuppJobResult: Dispatch<SetStateAction<SuppJobResult | null>>;
   setConvertEditActive: Dispatch<SetStateAction<boolean>>;
   setConvertError: Dispatch<SetStateAction<string>>;
-  reloadDeck: () => Promise<FullDeckDetail | null>;
+  reloadDeck: (expectedGen?: number) => Promise<FullDeckDetail | null>;
   refreshSnapshot: () => Promise<void>;
   notify: (text: string, tone?: 'info' | 'success' | 'warning' | 'error') => void;
   navigate: (page: PageId, context?: Record<string, unknown>) => void;
@@ -61,9 +67,11 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
     deck,
     selectedCard,
     selectedIds,
-    busy,
     busyRef,
     mountedRef,
+    deckGenRef,
+    beginBusy,
+    endBusy,
     lang,
     ell,
     suppSelectedIds,
@@ -71,7 +79,6 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
     suppKind,
     convertTargetKind,
     convertDraft,
-    setBusy,
     setDeck,
     setMode,
     setSelectedIds,
@@ -94,7 +101,7 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
   } = params;
 
   const handleSubmitSupplement = useCallback(async () => {
-    if (!deck || busy) return;
+    if (!deck || busyRef.current) return;
     const sourceIds = [...suppSelectedIds];
     if (sourceIds.length === 0) {
       const msg = t(lang, '请先按 [Space] 勾选至少一份资料', 'Press [Space] to select at least one source');
@@ -102,72 +109,103 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
       notify(msg, 'warning');
       return;
     }
-    setBusy(true);
+    const lock = beginBusy();
+    if (!lock) return;
     setSuppError('');
-    const res = await tryAction<{ jobId?: string; id?: string; status?: string }>(host, 'supplement', {
-      deckId: deck.id,
-      sourceIds,
-      count: suppCount,
-      kind: suppKind,
-    });
-    if (!mountedRef.current) return;
-    setBusy(false);
-    if (!res.ok) {
-      const msg = res.error?.message || t(lang, '提交补题任务失败', 'Failed to queue supplement job');
-      setSuppError(msg);
-      notify(msg, 'error');
-      return;
+    try {
+      const res = await tryAction<{ jobId?: string; id?: string; status?: string }>(host, 'supplement', {
+        deckId: deck.id,
+        sourceIds,
+        count: suppCount,
+        kind: suppKind,
+      });
+      if (!mountedRef.current) return;
+      const sameDeck = deckGenRef.current === lock.gen;
+      if (!res.ok) {
+        const msg = res.error?.message || t(lang, '提交补题任务失败', 'Failed to queue supplement job');
+        if (sameDeck) setSuppError(msg);
+        notify(msg, 'error');
+        return;
+      }
+      const jobId = String(res.value?.jobId || res.value?.id || 'queued');
+      if (sameDeck) {
+        setSuppJobResult({
+          jobId,
+          status: res.value?.status,
+          count: suppCount,
+          kind: suppKind,
+        });
+      }
+      onUpdated?.();
+      notify(
+        t(lang, `补题任务已入队 (${jobId})，可按 [t] 查看后台任务`, `Supplement job queued (${jobId}) — press [t] for Tasks`),
+        'success',
+      );
+    } finally {
+      endBusy(lock.token);
     }
-    const jobId = String(res.value?.jobId || res.value?.id || 'queued');
-    setSuppJobResult({
-      jobId,
-      status: res.value?.status,
-      count: suppCount,
-      kind: suppKind,
-    });
-    onUpdated?.();
-    notify(
-      t(lang, `补题任务已入队 (${jobId})，可按 [t] 查看后台任务`, `Supplement job queued (${jobId}) — press [t] for Tasks`),
-      'success',
-    );
-  }, [deck, busy, suppSelectedIds, suppCount, suppKind, host, lang, notify, onUpdated, mountedRef, setBusy, setSuppError, setSuppJobResult]);
+  }, [
+    deck,
+    busyRef,
+    suppSelectedIds,
+    suppCount,
+    suppKind,
+    host,
+    lang,
+    notify,
+    onUpdated,
+    mountedRef,
+    deckGenRef,
+    beginBusy,
+    endBusy,
+    setSuppError,
+    setSuppJobResult,
+  ]);
 
   const handleSubmitConvert = useCallback(async () => {
-    if (!deck || !selectedCard || busy) return;
-    setBusy(true);
+    if (!deck || !selectedCard) return;
+    const lock = beginBusy();
+    if (!lock) return;
     setConvertError('');
-    const patch = buildConvertPatch(selectedCard, convertTargetKind, convertDraft, lang);
-    const res = await tryAction<{ deckId?: string; cardId?: string; kind?: string }>(host, 'card.convert', {
-      cardId: selectedCard.id,
-      deckId: deck.id,
-      kind: convertTargetKind,
-      patch,
-      reason: `Converted from ${selectedCard.kind || 'unknown'} to ${convertTargetKind} in TUI`,
-    });
-    if (!mountedRef.current) return;
-    if (!res.ok) {
-      setBusy(false);
-      setConvertError(res.error?.message || t(lang, '转换题型失败', 'Card conversion failed'));
-      return;
+    try {
+      const patch = buildConvertPatch(selectedCard, convertTargetKind, convertDraft, lang);
+      const res = await tryAction<{ deckId?: string; cardId?: string; kind?: string }>(host, 'card.convert', {
+        cardId: selectedCard.id,
+        deckId: deck.id,
+        kind: convertTargetKind,
+        patch,
+        reason: `Converted from ${selectedCard.kind || 'unknown'} to ${convertTargetKind} in TUI`,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        if (deckGenRef.current === lock.gen) {
+          setConvertError(res.error?.message || t(lang, '转换题型失败', 'Card conversion failed'));
+        }
+        return;
+      }
+      if (deckGenRef.current === lock.gen) {
+        await reloadDeck(lock.gen);
+        if (!mountedRef.current) return;
+      }
+      onUpdated?.();
+      if (deckGenRef.current === lock.gen) {
+        setConvertEditActive(false);
+        setMode('browse');
+      }
+      notify(
+        t(
+          lang,
+          `已转换为「${kindLabel(convertTargetKind, lang)}」`,
+          `Converted card to ${kindLabel(convertTargetKind, lang)}`,
+        ),
+        'success',
+      );
+    } finally {
+      endBusy(lock.token);
     }
-    await reloadDeck();
-    if (!mountedRef.current) return;
-    onUpdated?.();
-    setBusy(false);
-    setConvertEditActive(false);
-    setMode('browse');
-    notify(
-      t(
-        lang,
-        `已转换为「${kindLabel(convertTargetKind, lang)}」`,
-        `Converted card to ${kindLabel(convertTargetKind, lang)}`,
-      ),
-      'success',
-    );
   }, [
     deck,
     selectedCard,
-    busy,
     convertTargetKind,
     convertDraft,
     lang,
@@ -176,134 +214,142 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
     onUpdated,
     notify,
     mountedRef,
-    setBusy,
+    deckGenRef,
+    beginBusy,
+    endBusy,
     setConvertError,
     setConvertEditActive,
     setMode,
   ]);
 
   const handleOpenDraft = useCallback(async () => {
-    if (!deck || busy) return;
-    setBusy(true);
-    const editRes = await tryAction<{ id: string }>(host, 'deck.edit', { id: deck.id });
-    if (!mountedRef.current) return;
-    setBusy(false);
-    if (!editRes.ok || !editRes.value?.id) {
-      notify(editRes.error?.message || t(lang, '打开草稿失败', 'Failed to open draft'), 'error');
-      return;
+    if (!deck) return;
+    const lock = beginBusy();
+    if (!lock) return;
+    try {
+      const editRes = await tryAction<{ id: string }>(host, 'deck.edit', { id: deck.id });
+      if (!mountedRef.current || deckGenRef.current !== lock.gen) return;
+      if (!editRes.ok || !editRes.value?.id) {
+        notify(editRes.error?.message || t(lang, '打开草稿失败', 'Failed to open draft'), 'error');
+        return;
+      }
+      onClose();
+      navigate('generate', { draftId: editRes.value.id });
+    } finally {
+      endBusy(lock.token);
     }
-    onClose();
-    navigate('generate', { draftId: editRes.value.id });
-  }, [deck, busy, host, notify, lang, onClose, navigate, mountedRef, setBusy]);
+  }, [deck, host, notify, lang, onClose, navigate, mountedRef, deckGenRef, beginBusy, endBusy]);
 
   const handleBatchFocus = useCallback(async () => {
-    if (busyRef.current || busy || !deck || selectedIds.size === 0) return;
+    if (!deck || selectedIds.size === 0) return;
     const targetCards = (deck.cards ?? []).filter((c) => selectedIds.has(c.id));
     if (targetCards.length === 0) return;
     const allFocused = targetCards.every((c) => Boolean(c.focus));
     const nextFocus = !allFocused;
-    busyRef.current = true;
-    setBusy(true);
+    const lock = beginBusy();
+    if (!lock) return;
     let succeeded = 0;
     let failed = 0;
-    for (const card of targetCards) {
-      const res = await tryAction<{ ok?: boolean; focus?: boolean }>(host, 'card.focus', {
-        deckId: deck.id,
-        cardId: card.id,
-        focus: nextFocus,
-      });
-      if (!mountedRef.current) {
-        busyRef.current = false;
-        return;
+    try {
+      for (const card of targetCards) {
+        if (!mountedRef.current || deckGenRef.current !== lock.gen) break;
+        const res = await tryAction<{ ok?: boolean; focus?: boolean }>(host, 'card.focus', {
+          deckId: deck.id,
+          cardId: card.id,
+          focus: nextFocus,
+        });
+        if (!mountedRef.current) return;
+        if (res.ok) succeeded += 1;
+        else failed += 1;
       }
-      if (res.ok) succeeded += 1;
-      else failed += 1;
+      if (deckGenRef.current === lock.gen) {
+        await reloadDeck(lock.gen);
+        if (!mountedRef.current) return;
+      }
+      if (succeeded > 0 || deckGenRef.current === lock.gen) {
+        onUpdated?.();
+      }
+      if (succeeded > 0) {
+        notify(
+          nextFocus
+            ? t(
+                lang,
+                `已将 ${succeeded} 题标为重点${failed > 0 ? `（${failed} 题失败）` : ''}`,
+                `Marked ${succeeded} card(s) as Focus${failed > 0 ? ` (${failed} failed)` : ''}`,
+              )
+            : t(
+                lang,
+                `已取消 ${succeeded} 题的重点标记${failed > 0 ? `（${failed} 题失败）` : ''}`,
+                `Removed Focus from ${succeeded} card(s)${failed > 0 ? ` (${failed} failed)` : ''}`,
+              ),
+          failed > 0 ? 'warning' : 'success',
+        );
+      } else if (failed > 0) {
+        notify(t(lang, '批量更新重点标记失败', 'Failed to update Focus marks'), 'error');
+      }
+    } finally {
+      endBusy(lock.token);
     }
-    await reloadDeck();
-    if (!mountedRef.current) {
-      busyRef.current = false;
-      return;
-    }
-    onUpdated?.();
-    busyRef.current = false;
-    setBusy(false);
-    if (succeeded > 0) {
-      notify(
-        nextFocus
-          ? t(
-              lang,
-              `已将 ${succeeded} 题标为重点${failed > 0 ? `（${failed} 题失败）` : ''}`,
-              `Marked ${succeeded} card(s) as Focus${failed > 0 ? ` (${failed} failed)` : ''}`,
-            )
-          : t(
-              lang,
-              `已取消 ${succeeded} 题的重点标记${failed > 0 ? `（${failed} 题失败）` : ''}`,
-              `Removed Focus from ${succeeded} card(s)${failed > 0 ? ` (${failed} failed)` : ''}`,
-            ),
-        failed > 0 ? 'warning' : 'success',
-      );
-    } else if (failed > 0) {
-      notify(t(lang, '批量更新重点标记失败', 'Failed to update Focus marks'), 'error');
-    }
-  }, [busy, busyRef, mountedRef, deck, selectedIds, host, reloadDeck, onUpdated, notify, lang, setBusy]);
+  }, [mountedRef, deckGenRef, beginBusy, endBusy, deck, selectedIds, host, reloadDeck, onUpdated, notify, lang]);
 
   const handleBatchSuspend = useCallback(async () => {
-    if (busyRef.current || busy || !deck || selectedIds.size === 0) return;
+    if (!deck || selectedIds.size === 0) return;
     const targetCards = (deck.cards ?? []).filter((c) => selectedIds.has(c.id));
     if (targetCards.length === 0) return;
     const allSuspended = targetCards.every((c) => Boolean(c.suspended));
     const nextSuspended = !allSuspended;
-    busyRef.current = true;
-    setBusy(true);
+    const lock = beginBusy();
+    if (!lock) return;
     let succeeded = 0;
     let failed = 0;
     let lastError = '';
-    for (const card of targetCards) {
-      const res = await tryAction<{ ok?: boolean }>(host, 'card.suspend', {
-        deckId: deck.id,
-        cardId: card.id,
-        suspended: nextSuspended,
-      });
-      if (!mountedRef.current) {
-        busyRef.current = false;
-        return;
+    try {
+      for (const card of targetCards) {
+        if (!mountedRef.current || deckGenRef.current !== lock.gen) break;
+        const res = await tryAction<{ ok?: boolean }>(host, 'card.suspend', {
+          deckId: deck.id,
+          cardId: card.id,
+          suspended: nextSuspended,
+        });
+        if (!mountedRef.current) return;
+        if (res.ok) succeeded += 1;
+        else {
+          failed += 1;
+          if (res.error?.message) lastError = res.error.message;
+        }
       }
-      if (res.ok) succeeded += 1;
-      else {
-        failed += 1;
-        if (res.error?.message) lastError = res.error.message;
+      if (deckGenRef.current === lock.gen) {
+        await reloadDeck(lock.gen);
+        if (!mountedRef.current) return;
       }
+      if (succeeded > 0 || deckGenRef.current === lock.gen) {
+        onUpdated?.();
+      }
+      if (succeeded > 0) {
+        notify(
+          nextSuspended
+            ? t(
+                lang,
+                `已暂停 ${succeeded} 题${failed > 0 ? `（${failed} 题失败）` : ''}`,
+                `Suspended ${succeeded} card(s)${failed > 0 ? ` (${failed} failed)` : ''}`,
+              )
+            : t(
+                lang,
+                `已恢复 ${succeeded} 题${failed > 0 ? `（${failed} 题失败）` : ''}`,
+                `Resumed ${succeeded} card(s)${failed > 0 ? ` (${failed} failed)` : ''}`,
+              ),
+          failed > 0 ? 'warning' : 'success',
+        );
+      } else if (failed > 0) {
+        notify(lastError || t(lang, '批量暂停/恢复失败', 'Failed to update suspend status'), 'error');
+      }
+    } finally {
+      endBusy(lock.token);
     }
-    await reloadDeck();
-    if (!mountedRef.current) {
-      busyRef.current = false;
-      return;
-    }
-    onUpdated?.();
-    busyRef.current = false;
-    setBusy(false);
-    if (succeeded > 0) {
-      notify(
-        nextSuspended
-          ? t(
-              lang,
-              `已暂停 ${succeeded} 题${failed > 0 ? `（${failed} 题失败）` : ''}`,
-              `Suspended ${succeeded} card(s)${failed > 0 ? ` (${failed} failed)` : ''}`,
-            )
-          : t(
-              lang,
-              `已恢复 ${succeeded} 题${failed > 0 ? `（${failed} 题失败）` : ''}`,
-              `Resumed ${succeeded} card(s)${failed > 0 ? ` (${failed} failed)` : ''}`,
-            ),
-        failed > 0 ? 'warning' : 'success',
-      );
-    } else if (failed > 0) {
-      notify(lastError || t(lang, '批量暂停/恢复失败', 'Failed to update suspend status'), 'error');
-    }
-  }, [busy, busyRef, mountedRef, deck, selectedIds, host, reloadDeck, onUpdated, notify, lang, setBusy]);
+  }, [mountedRef, deckGenRef, beginBusy, endBusy, deck, selectedIds, host, reloadDeck, onUpdated, notify, lang]);
 
   const handleBatchSlay = useCallback(async () => {
-    if (busyRef.current || busy || !deck || deck.systemKind || selectedIds.size === 0) {
+    if (!deck || deck.systemKind || selectedIds.size === 0) {
       setConfirmBatchSlay(false);
       return;
     }
@@ -312,16 +358,22 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
       setConfirmBatchSlay(false);
       return;
     }
-    busyRef.current = true;
-    setBusy(true);
+    const lock = beginBusy();
+    if (!lock) {
+      setConfirmBatchSlay(false);
+      return;
+    }
     setConfirmBatchSlay(false);
     try {
       const result = await executeBatchSlay(host, deck.id, targetIds, lang);
       if (!mountedRef.current) return;
+      const sameDeck = deckGenRef.current === lock.gen;
       if (!result.ok) {
         if (result.partial) {
-          setSelectedIds(new Set());
-          await reloadDeck();
+          if (sameDeck) {
+            setSelectedIds(new Set());
+            await reloadDeck(lock.gen);
+          }
           await refreshSnapshot();
           if (!mountedRef.current) return;
           onUpdated?.();
@@ -329,8 +381,10 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
         notify(result.error || t(lang, '批量斩题失败', 'Batch slay failed'), result.partial ? 'warning' : 'error');
         return;
       }
-      setSelectedIds(new Set());
-      await reloadDeck();
+      if (sameDeck) {
+        setSelectedIds(new Set());
+        await reloadDeck(lock.gen);
+      }
       await refreshSnapshot();
       if (!mountedRef.current) return;
       onUpdated?.();
@@ -343,13 +397,13 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
         'success',
       );
     } finally {
-      busyRef.current = false;
-      if (mountedRef.current) setBusy(false);
+      endBusy(lock.token);
     }
   }, [
-    busy,
-    busyRef,
     mountedRef,
+    deckGenRef,
+    beginBusy,
+    endBusy,
     deck,
     selectedIds,
     host,
@@ -358,14 +412,13 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
     reloadDeck,
     refreshSnapshot,
     onUpdated,
-    setBusy,
     setConfirmBatchSlay,
     setSelectedIds,
   ]);
 
   const handleBatchTopicSubmit = useCallback(
     async (raw: string) => {
-      if (busyRef.current || busy || !deck || deck.systemKind || selectedIds.size === 0) {
+      if (!deck || deck.systemKind || selectedIds.size === 0) {
         setMode('browse');
         return;
       }
@@ -379,30 +432,35 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
         setMode('browse');
         return;
       }
-      busyRef.current = true;
-      setBusy(true);
+      const lock = beginBusy();
+      if (!lock) return;
       try {
         const result = await executeBatchTopicUpdate(host, deck.id, targetIds, trimmed, lang);
         if (!mountedRef.current) return;
+        const sameDeck = deckGenRef.current === lock.gen;
         if (!result.ok) {
           if (result.partial) {
-            setSelectedIds(new Set());
-            await reloadDeck();
+            if (sameDeck) {
+              setSelectedIds(new Set());
+              await reloadDeck(lock.gen);
+            }
             await refreshSnapshot();
             if (!mountedRef.current) return;
             onUpdated?.();
           }
-          setMode('browse');
+          if (deckGenRef.current === lock.gen) setMode('browse');
           notify(result.error || t(lang, '批量修改主题失败', 'Batch topic retag failed'), result.partial ? 'warning' : 'error');
           return;
         }
-        setSelectedIds(new Set());
-        setTopicValue('');
-        await reloadDeck();
+        if (sameDeck) {
+          setSelectedIds(new Set());
+          setTopicValue('');
+          await reloadDeck(lock.gen);
+        }
         await refreshSnapshot();
         if (!mountedRef.current) return;
         onUpdated?.();
-        setMode('browse');
+        if (deckGenRef.current === lock.gen) setMode('browse');
         notify(
           result.failed > 0
             ? t(
@@ -418,14 +476,14 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
           result.failed > 0 ? 'warning' : 'success',
         );
       } finally {
-        busyRef.current = false;
-        if (mountedRef.current) setBusy(false);
+        endBusy(lock.token);
       }
     },
     [
-      busy,
-      busyRef,
       mountedRef,
+      deckGenRef,
+      beginBusy,
+      endBusy,
       deck,
       selectedIds,
       host,
@@ -434,7 +492,6 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
       reloadDeck,
       refreshSnapshot,
       onUpdated,
-      setBusy,
       setMode,
       setSelectedIds,
       setTopicValue,
@@ -443,35 +500,40 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
 
   const handleBatchLinkSubmit = useCallback(
     async (prereq: DeckCardItem) => {
-      if (busyRef.current || busy || !deck || deck.systemKind || selectedIds.size === 0) return;
+      if (!deck || deck.systemKind || selectedIds.size === 0) return;
       const targetIds = [...selectedIds];
-      busyRef.current = true;
-      setBusy(true);
+      const lock = beginBusy();
+      if (!lock) return;
       setLinkError('');
       try {
         const result = await executeBatchLink(host, deck.id, targetIds, prereq.id, lang);
         if (!mountedRef.current) return;
+        const sameDeck = deckGenRef.current === lock.gen;
         if (!result.ok) {
           if (result.partial) {
-            setSelectedIds(new Set());
-            await reloadDeck();
+            if (sameDeck) {
+              setSelectedIds(new Set());
+              await reloadDeck(lock.gen);
+            }
             await refreshSnapshot();
             if (!mountedRef.current) return;
             onUpdated?.();
           }
           const msg = result.error || t(lang, '批量关联前置题失败', 'Batch prerequisite linking failed');
-          setLinkError(msg);
+          if (deckGenRef.current === lock.gen) setLinkError(msg);
           notify(msg, result.partial ? 'warning' : 'error');
           return;
         }
-        setSelectedIds(new Set());
-        setLinkPrereqCursor(0);
-        setLinkError('');
-        await reloadDeck();
+        if (sameDeck) {
+          setSelectedIds(new Set());
+          setLinkPrereqCursor(0);
+          setLinkError('');
+          await reloadDeck(lock.gen);
+        }
         await refreshSnapshot();
         if (!mountedRef.current) return;
         onUpdated?.();
-        setMode('browse');
+        if (deckGenRef.current === lock.gen) setMode('browse');
         const prereqLabel = truncateDisplay(
           String(prereq.prompt || prereq.cloze?.text || prereq.id).replace(/\s+/g, ' ').trim(),
           28,
@@ -492,14 +554,14 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
           result.failed > 0 ? 'warning' : 'success',
         );
       } finally {
-        busyRef.current = false;
-        if (mountedRef.current) setBusy(false);
+        endBusy(lock.token);
       }
     },
     [
-      busy,
-      busyRef,
       mountedRef,
+      deckGenRef,
+      beginBusy,
+      endBusy,
       deck,
       selectedIds,
       host,
@@ -509,7 +571,6 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
       refreshSnapshot,
       onUpdated,
       ell,
-      setBusy,
       setLinkError,
       setLinkPrereqCursor,
       setMode,
@@ -519,7 +580,7 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
 
   const handleFolderSubmit = useCallback(
     async (raw: string) => {
-      if (busyRef.current || busy || !deck) {
+      if (!deck) {
         setMode('browse');
         return;
       }
@@ -533,8 +594,8 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
         setMode('browse');
         return;
       }
-      busyRef.current = true;
-      setBusy(true);
+      const lock = beginBusy();
+      if (!lock) return;
       try {
         const res = await tryAction<{ id?: string; folder?: string }>(host, 'deck.move', {
           id: deck.id,
@@ -542,17 +603,19 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
         });
         if (!mountedRef.current) return;
         if (!res.ok) {
-          setMode('browse');
+          if (deckGenRef.current === lock.gen) setMode('browse');
           notify(res.error?.message || t(lang, '移动目录失败', 'Failed to move folder'), 'error');
           return;
         }
         const savedFolder = typeof res.value?.folder === 'string' ? res.value.folder : normalizedFolder;
-        setDeck((prev) => (prev ? { ...prev, folder: savedFolder } : prev));
-        setFolderValue(savedFolder);
+        if (deckGenRef.current === lock.gen) {
+          setDeck((prev) => (prev ? { ...prev, folder: savedFolder } : prev));
+          setFolderValue(savedFolder);
+        }
         await refreshSnapshot();
         if (!mountedRef.current) return;
         onUpdated?.();
-        setMode('browse');
+        if (deckGenRef.current === lock.gen) setMode('browse');
         notify(
           savedFolder
             ? t(lang, `已移动到目录「${savedFolder}」`, `Moved to folder "${savedFolder}"`)
@@ -560,16 +623,15 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
           'success',
         );
       } finally {
-        busyRef.current = false;
-        if (mountedRef.current) setBusy(false);
+        endBusy(lock.token);
       }
     },
-    [busy, busyRef, mountedRef, deck, host, notify, lang, refreshSnapshot, onUpdated, setBusy, setDeck, setFolderValue, setMode],
+    [mountedRef, deckGenRef, beginBusy, endBusy, deck, host, notify, lang, refreshSnapshot, onUpdated, setDeck, setFolderValue, setMode],
   );
 
   const handleCourseSubmit = useCallback(
     async (raw: string) => {
-      if (busyRef.current || busy || !deck) return;
+      if (!deck) return;
       if (deck.systemKind) {
         setMode('browse');
         notify(t(lang, '系统题组不能修改所属课程', 'System decks cannot change course'), 'warning');
@@ -588,8 +650,8 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
         setMode('browse');
         return;
       }
-      busyRef.current = true;
-      setBusy(true);
+      const lock = beginBusy();
+      if (!lock) return;
       try {
         const res = await tryAction<{ id?: string; course?: string }>(host, 'deck.course', {
           id: deck.id,
@@ -601,29 +663,30 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
           return;
         }
         const savedCourse = res.value?.course ?? trimmed;
-        setDeck((prev) => (prev ? { ...prev, course: savedCourse } : prev));
-        setCourseDraft(savedCourse);
+        if (deckGenRef.current === lock.gen) {
+          setDeck((prev) => (prev ? { ...prev, course: savedCourse } : prev));
+          setCourseDraft(savedCourse);
+        }
         await refreshSnapshot();
         if (!mountedRef.current) return;
         onUpdated?.();
-        setMode('browse');
+        if (deckGenRef.current === lock.gen) setMode('browse');
         notify(
           t(lang, `已将题组归入课程「${savedCourse}」`, `Moved deck to course "${savedCourse}"`),
           'success',
         );
       } finally {
-        busyRef.current = false;
-        if (mountedRef.current) setBusy(false);
+        endBusy(lock.token);
       }
     },
-    [busy, busyRef, mountedRef, deck, host, notify, lang, refreshSnapshot, onUpdated, setBusy, setDeck, setCourseDraft, setMode],
+    [mountedRef, deckGenRef, beginBusy, endBusy, deck, host, notify, lang, refreshSnapshot, onUpdated, setDeck, setCourseDraft, setMode],
   );
 
   const handleRestoreCard = useCallback(async () => {
-    if (busyRef.current || busy || !deck || !selectedCard) return;
+    if (!deck || !selectedCard) return;
     if (deck.systemKind !== 'slain' && !selectedCard.slain) return;
-    busyRef.current = true;
-    setBusy(true);
+    const lock = beginBusy();
+    if (!lock) return;
     try {
       const res = await tryAction<{ deckId?: string; cardId?: string; title?: string }>(host, 'card.restore', {
         deckId: deck.id,
@@ -637,28 +700,30 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
       const targetTitle = String(
         res.value?.title || selectedCard.slain?.deckTitle || selectedCard.slain?.deckId || t(lang, '原题组', 'original deck'),
       );
-      await reloadDeck();
+      if (deckGenRef.current === lock.gen) {
+        await reloadDeck(lock.gen);
+      }
       await refreshSnapshot();
       if (!mountedRef.current) return;
       onUpdated?.();
       notify(t(lang, `已恢复到「${targetTitle}」`, `Restored to "${targetTitle}"`), 'success');
     } finally {
-      busyRef.current = false;
-      if (mountedRef.current) setBusy(false);
+      endBusy(lock.token);
     }
-  }, [busy, busyRef, mountedRef, deck, selectedCard, host, notify, lang, reloadDeck, refreshSnapshot, onUpdated, setBusy]);
+  }, [mountedRef, deckGenRef, beginBusy, endBusy, deck, selectedCard, host, notify, lang, reloadDeck, refreshSnapshot, onUpdated]);
 
   const handlePracticeCard = useCallback(
     async (card: DeckCardItem) => {
-      if (!deck || busy) return;
-      setBusy(true);
+      if (!deck) return;
+      const lock = beginBusy();
+      if (!lock) return;
       try {
         const run = await startReview(host, {
           mode: 'path',
           scope: [{ deckId: deck.id, cardId: card.id }],
           fresh: true,
         });
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || deckGenRef.current !== lock.gen) return;
         onClose();
         navigate('review', { runId: run.id, deckId: deck.id });
       } catch (err) {
@@ -666,10 +731,10 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
           notify(err instanceof Error ? err.message : String(err), 'error');
         }
       } finally {
-        if (mountedRef.current) setBusy(false);
+        endBusy(lock.token);
       }
     },
-    [deck, busy, host, onClose, navigate, notify, mountedRef, setBusy],
+    [deck, host, onClose, navigate, notify, mountedRef, deckGenRef, beginBusy, endBusy],
   );
 
   return {

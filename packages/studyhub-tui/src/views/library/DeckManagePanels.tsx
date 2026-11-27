@@ -333,7 +333,7 @@ export function DeckManageSupplementPanel({
       {suppJobResult ? (
         <Box flexDirection="column" paddingY={1} gap={1}>
           <Box flexDirection="row" gap={1} alignItems="center">
-            <Badge label={asciiMode ? '+ QUEUED' : '✓ 已入队'} tone="success" variant="solid" />
+            <Badge label={asciiMode ? '+ QUEUED' : t(lang, '✓ 已入队', '✓ QUEUED')} tone="success" variant="solid" />
             <Text color={theme.text} bold>
               {`Job ID: ${suppJobResult.jobId}`}
             </Text>
@@ -341,8 +341,8 @@ export function DeckManageSupplementPanel({
           <Text color={theme.accent}>
             {t(
               lang,
-              `目标题组：${deck?.title || deckId}  ·  题数：${suppJobResult.count}  ·  题型：${supplementKindLabel(suppJobResult.kind, lang)}`,
-              `Target: ${deck?.title || deckId}  ·  Count: ${suppJobResult.count}  ·  Kind: ${supplementKindLabel(suppJobResult.kind, lang)}`,
+              `目标题组：${deck?.title || deckId}${asciiMode ? '  |  ' : '  ·  '}题数：${suppJobResult.count}${asciiMode ? '  |  ' : '  ·  '}题型：${supplementKindLabel(suppJobResult.kind, lang)}`,
+              `Target: ${deck?.title || deckId}${asciiMode ? '  |  ' : '  ·  '}Count: ${suppJobResult.count}${asciiMode ? '  |  ' : '  ·  '}Kind: ${supplementKindLabel(suppJobResult.kind, lang)}`,
             )}
           </Text>
           <Text color={theme.muted}>

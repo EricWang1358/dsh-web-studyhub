@@ -18,6 +18,7 @@ import {
   loadLineLimitBaseline,
   scanSourceLineCounts,
 } from '../scripts/line-limit-guard.mjs';
+import { UNICODE_UI_CHROME_RE } from './helpers/virtual-tty.mjs';
 
 const unregisterTsx = register();
 after(() => {
@@ -46,7 +47,17 @@ const {
   executeBatchLink,
 } = deckManageMod;
 
-const UNICODE_CHROME_RE = /[›…✓✕↑↓←→•★⚑⚠☑☐●○◆▸▾▤⏸]/;
+const ASCII_FORBIDDEN_CHROME_RE = new RegExp(`${UNICODE_UI_CHROME_RE.source}|[·▤⏸]`);
+
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
 
 function KeyBridgeRoot({ width, height, children }) {
   useKeyDispatcherBridge();
@@ -81,6 +92,9 @@ function createHarness(element, { cols = 120, rows = 36 } = {}) {
   return {
     write: (data) => stdin.write(data),
     dispatchKey: (input, key = {}) => dispatchToHub(getHub(stdin), input, key),
+    rerender: (nextElement) => {
+      instance.rerender(React.createElement(KeyBridgeRoot, { width: cols, height: rows }, nextElement));
+    },
     frame: () => latest,
     async waitFor(pred, timeoutMs = 4000, label = 'condition') {
       const start = Date.now();
@@ -361,10 +375,28 @@ describe('P4 (#1354 D12): DeckManageModal Split Guardrail & Behavioral Regressio
       'en',
       true,
     );
-    assert.equal(UNICODE_CHROME_RE.test(mdAscii), false, `ASCII markdown leaked unicode chrome: ${mdAscii}`);
+    assert.equal(ASCII_FORBIDDEN_CHROME_RE.test(mdAscii), false, `ASCII markdown leaked unicode chrome: ${mdAscii}`);
     assert.match(mdAscii, /\+ TLB/);
     assert.match(mdAscii, /o ALU/);
     assert.match(mdAscii, /Slain origin.*Origin Deck/);
+
+    const asciiSelectedSubtitle = model.buildDeckManageSubtitle({
+      mode: 'browse',
+      lang: 'en',
+      suppSelectedCount: 0,
+      selectedCount: 2,
+      selectedCard: quizCard,
+      convertTargetKind: 'flashcard',
+      deck,
+      filteredCount: 3,
+      asciiMode: true,
+    });
+    assert.equal(
+      ASCII_FORBIDDEN_CHROME_RE.test(asciiSelectedSubtitle ?? ''),
+      false,
+      `ASCII subtitle must not leak unicode chrome or middle-dot: ${asciiSelectedSubtitle}`,
+    );
+    assert.match(asciiSelectedSubtitle ?? '', /3\/3 cards \| \[2 sel\]/);
 
     // Filter cards & normalize folder
     assert.equal(model.filterDeckCards(deck.cards, '').length, 3);
@@ -494,8 +526,19 @@ describe('P4 (#1354 D12): DeckManageModal Split Guardrail & Behavioral Regressio
 
     try {
       const initial = await h.waitFor((f) => f.includes('Operating Systems Core') && f.includes('Paging'), 4000, 'deck loaded');
-      assert.equal(UNICODE_CHROME_RE.test(initial), false, `ASCII frame must not leak unicode chrome:\n${initial}`);
+      assert.equal(ASCII_FORBIDDEN_CHROME_RE.test(initial), false, `ASCII frame must not leak unicode chrome:\n${initial}`);
       assert.match(initial, /3\/3 cards/);
+
+      // Multi-select subtitle in ASCII mode must also contain zero non-ASCII separators
+      h.dispatchKey(' ', {});
+      const selectedFrame = await h.waitFor((f) => f.includes('[1 sel]'), 2000, '1 card selected in ASCII mode');
+      assert.equal(
+        ASCII_FORBIDDEN_CHROME_RE.test(selectedFrame),
+        false,
+        `ASCII multi-select frame must not leak unicode chrome or middle-dot:\n${selectedFrame}`,
+      );
+      h.dispatchKey('x', {});
+      await h.waitFor((f) => !f.includes('[1 sel]'), 2000, 'selection cleared');
 
       // Move cursor to bottom (G) then top (g), scroll preview (J/K)
       h.dispatchKey('G', {});
@@ -858,6 +901,22 @@ describe('P4 (#1354 D12): DeckManageModal Split Guardrail & Behavioral Regressio
       await h.waitFor(() => useTuiStore.getState().page === 'generate', 3000, 'open draft navigated');
       assert.equal(useTuiStore.getState().navContext.draftId, 'dr-open-1');
       assert.equal(closedCount, 1);
+
+      // Single-card practice (Enter) -> calls review.start with card scope & navigates to review
+      useTuiStore.setState({ page: 'library', navContext: {} });
+      h.dispatchKey('', { return: true });
+      await h.waitFor(() => calls.some((c) => c.name === 'review.start'), 3000, 'review.start called');
+      await h.waitFor(() => useTuiStore.getState().page === 'review', 3000, 'single-card practice navigated');
+      const startCall = calls.find((c) => c.name === 'review.start');
+      assert.deepEqual(startCall.args.scope, [{ deckId: deck.id, cardId: 'card-1' }]);
+      assert.equal(useTuiStore.getState().navContext.runId, 'run-single-1');
+      assert.equal(closedCount, 2);
+
+      // Whole-deck practice (p) -> closes modal & navigates to review with deckId
+      useTuiStore.setState({ page: 'library', navContext: {} });
+      h.dispatchKey('p', {});
+      await h.waitFor(() => useTuiStore.getState().page === 'review' && closedCount === 3, 2000, 'deck practice navigated');
+      assert.equal(useTuiStore.getState().navContext.deckId, deck.id);
     } finally {
       h.cleanup();
     }
@@ -952,9 +1011,27 @@ describe('P4 (#1354 D12): DeckManageModal Split Guardrail & Behavioral Regressio
       // Convert sub-mode (k) on quiz card: targets = [flashcard, open, truefalse, cloze]
       h.dispatchKey('k', {});
       await h.waitFor((f) => f.includes('Convert Card Kind') && f.includes('MCQ -> Card'), 2000, 'convert open');
-      // Cycle to open -> truefalse
+      // Cycle to open -> press [e] to edit rubric -> type custom suffix -> Esc exits edit (stays in convert)
       h.dispatchKey('', { tab: true });
       await h.waitFor((f) => f.includes('MCQ -> Open'), 2000, 'cycled to open');
+      h.dispatchKey('e', {});
+      await h.waitFor((f) => f.includes('Cancel') && f.includes('Done'), 2000, 'convert edit active');
+      h.write(' + TLB miss');
+      await h.waitFor((f) => f.includes('TLB miss'), 2000, 'edited convert rubric text');
+      h.dispatchKey('', { escape: true });
+      await h.waitFor((f) => f.includes('Convert Card Kind') && f.includes('Edit'), 2000, 'Esc exited edit but stayed in convert');
+      // Submit open conversion with edited rubric
+      h.dispatchKey('', { return: true });
+      await h.waitFor(() => calls.some((c) => c.name === 'card.convert'), 3000, 'open card.convert submitted');
+      const openConvCall = calls.find((c) => c.name === 'card.convert');
+      assert.equal(openConvCall.args.kind, 'open');
+      assert.match(openConvCall.args.patch.rubric, /TLB miss/);
+
+      // Re-open convert (k) -> cycle to truefalse -> toggle Space -> submit
+      await h.waitFor((f) => f.includes('Manage Deck:'), 2000, 'returned to browse after open convert');
+      h.dispatchKey('k', {});
+      await h.waitFor((f) => f.includes('Convert Card Kind'), 2000, 'convert reopened');
+      h.dispatchKey('', { tab: true });
       h.dispatchKey('', { tab: true });
       await h.waitFor((f) => f.includes('MCQ -> T/F'), 2000, 'cycled to truefalse');
       // Toggle T/F answer with Space
@@ -962,8 +1039,8 @@ describe('P4 (#1354 D12): DeckManageModal Split Guardrail & Behavioral Regressio
       await h.waitFor((f) => f.includes('False'), 2000, 'toggled truefalse to False');
       // Submit conversion
       h.dispatchKey('', { return: true });
-      await h.waitFor(() => calls.some((c) => c.name === 'card.convert'), 3000, 'card.convert submitted');
-      const convCall = calls.find((c) => c.name === 'card.convert');
+      await h.waitFor(() => calls.filter((c) => c.name === 'card.convert').length === 2, 3000, 'tf card.convert submitted');
+      const convCall = calls.filter((c) => c.name === 'card.convert')[1];
       assert.equal(convCall.args.kind, 'truefalse');
       assert.equal(convCall.args.patch.answer, 'False');
 
@@ -984,7 +1061,12 @@ describe('P4 (#1354 D12): DeckManageModal Split Guardrail & Behavioral Regressio
       h.dispatchKey('t', {});
       await h.waitFor((f) => f.includes('Kind: MCQ'), 2000, 'kind cycled to MCQ');
       h.dispatchKey('s', { ctrl: true });
-      await h.waitFor((f) => f.includes('Job ID: job-supp-42'), 3000, 'supplement job queued');
+      const queuedFrame = await h.waitFor((f) => f.includes('Job ID: job-supp-42'), 3000, 'supplement job queued');
+      assert.equal(
+        ASCII_FORBIDDEN_CHROME_RE.test(queuedFrame),
+        false,
+        `ASCII supplement queued screen must not leak unicode chrome or middle-dot:\n${queuedFrame}`,
+      );
 
       const suppCall = calls.find((c) => c.name === 'supplement');
       assert.deepEqual(suppCall.args, {
@@ -1041,5 +1123,254 @@ describe('P4 (#1354 D12): DeckManageModal Split Guardrail & Behavioral Regressio
     resolveFocusCall();
     await new Promise((r) => setTimeout(r, 30));
     assert.equal(holdHost.calls.some((c) => c.name === 'card.focus'), true);
+  });
+
+  test('9. Synchronous busyRef mutex blocks same-tick double-submits and Esc dismissal while supplement/convert/practice RPCs are in flight', async () => {
+    const deck = makeSampleDeck();
+    const snap = makeSampleSnapshot();
+    resetStore({ language: 'en', asciiMode: true, snapshot: snap });
+
+    const suppGate = deferred();
+    const convertGate = deferred();
+    const practiceGate = deferred();
+    let closedCount = 0;
+
+    const { host, calls } = makeHost(async (name, args) => {
+      if (name === 'deck.get') return { ok: true, value: deck };
+      if (name === 'supplement') {
+        await suppGate.promise;
+        return { ok: true, value: { jobId: 'job-mutex-1', status: 'queued' } };
+      }
+      if (name === 'card.convert') {
+        await convertGate.promise;
+        return { ok: true, value: { deckId: args.deckId, cardId: args.cardId, kind: args.kind } };
+      }
+      if (name === 'review.start') {
+        await practiceGate.promise;
+        return { ok: true, value: { id: 'run-mutex-1' } };
+      }
+      return { ok: true, value: {} };
+    });
+
+    const h = createHarness(
+      React.createElement(DeckManageModal, {
+        host,
+        deckId: deck.id,
+        isActive: true,
+        width: 120,
+        height: 36,
+        onClose: () => {
+          closedCount += 1;
+        },
+      }),
+    );
+
+    try {
+      await h.waitFor((f) => f.includes('Operating Systems Core'), 3000, 'loaded for mutex test');
+
+      // 1) Supplement: same-tick double Ctrl+S fires only once, and Esc while in flight does not dismiss supplement mode
+      h.dispatchKey('+', {});
+      await h.waitFor((f) => f.includes('Supplement Deck'), 2000, 'supplement open');
+      h.dispatchKey(' ', {});
+      await h.waitFor((f) => f.includes('2 pg'), 2000, 'source toggled');
+      h.dispatchKey('s', { ctrl: true });
+      h.dispatchKey('s', { ctrl: true });
+      await h.waitFor(() => calls.filter((c) => c.name === 'supplement').length >= 1, 2000, 'supplement RPC started');
+      h.dispatchKey('', { escape: true });
+      await new Promise((r) => setTimeout(r, 40));
+      assert.equal(calls.filter((c) => c.name === 'supplement').length, 1, 'same-tick double Ctrl+S must fire supplement only once');
+      assert.equal(h.frame().includes('Supplement Deck'), true, 'Esc while supplement is in flight must not exit supplement mode');
+      suppGate.resolve();
+      await h.waitFor((f) => f.includes('Job ID: job-mutex-1'), 3000, 'supplement queued result rendered after Esc guard');
+      // Esc after completion returns cleanly to browse
+      h.dispatchKey('', { escape: true });
+      await h.waitFor((f) => f.includes('Manage Deck:'), 2000, 'returned to browse after supplement finished');
+
+      // 2) Convert: same-tick double Enter fires only once, and Esc while in flight does not exit convert mode
+      h.dispatchKey('k', {});
+      await h.waitFor((f) => f.includes('Convert Card Kind'), 2000, 'convert open');
+      h.dispatchKey('', { return: true });
+      h.dispatchKey('', { return: true });
+      await h.waitFor(() => calls.filter((c) => c.name === 'card.convert').length >= 1, 2000, 'convert RPC started');
+      h.dispatchKey('', { escape: true });
+      await new Promise((r) => setTimeout(r, 40));
+      assert.equal(calls.filter((c) => c.name === 'card.convert').length, 1, 'same-tick double Enter must fire card.convert only once');
+      assert.equal(h.frame().includes('Convert Card Kind'), true, 'Esc while card.convert is in flight must not exit convert mode');
+      convertGate.resolve();
+      await h.waitFor((f) => f.includes('Manage Deck:'), 3000, 'returned to browse after convert finished');
+
+      // 3) Single-card practice: same-tick double Enter fires review.start once, and Esc while in flight does not close modal
+      h.dispatchKey('', { return: true });
+      h.dispatchKey('', { return: true });
+      await h.waitFor(() => calls.filter((c) => c.name === 'review.start').length >= 1, 2000, 'review.start started');
+      h.dispatchKey('', { escape: true });
+      await new Promise((r) => setTimeout(r, 40));
+      assert.equal(calls.filter((c) => c.name === 'review.start').length, 1, 'same-tick double Enter must fire review.start only once');
+      assert.equal(closedCount, 0, 'Esc while review.start is in flight must not close modal prematurely');
+      practiceGate.resolve();
+      await h.waitFor(() => closedCount === 1 && useTuiStore.getState().page === 'review', 3000, 'navigated to review once resolved');
+    } finally {
+      suppGate.resolve();
+      convertGate.resolve();
+      practiceGate.resolve();
+      h.cleanup();
+    }
+  });
+
+  test('10. Switching deckId mid-flight resets all sub-mode/busy state cleanly and blocks stale deck-A callbacks from corrupting deck-B', async () => {
+    const deckA = makeSampleDeck({ id: 'deck-a', title: 'Deck Alpha', folder: 'Alpha / Root', course: 'CS101' });
+    const deckB = makeSampleDeck({
+      id: 'deck-b',
+      title: 'Deck Beta',
+      folder: 'Beta / Root',
+      course: 'MATH201',
+      cards: [
+        {
+          id: 'beta-c1',
+          kind: 'flashcard',
+          topic: 'Vectors',
+          prompt: 'Define linear independence.',
+          answer: 'Only trivial combination equals zero.',
+        },
+      ],
+    });
+    const snap = makeSampleSnapshot();
+    resetStore({ language: 'en', asciiMode: true, snapshot: snap });
+
+    const moveAGate = deferred();
+    const moveAReplied = deferred();
+    const practiceAGate = deferred();
+    let updatedCount = 0;
+    let closedCount = 0;
+
+    const { host } = makeHost(async (name, args) => {
+      if (name === 'deck.get') {
+        if (args.id === 'deck-a') return { ok: true, value: structuredClone(deckA) };
+        if (args.id === 'deck-b') return { ok: true, value: structuredClone(deckB) };
+      }
+      if (name === 'snapshot') return { ok: true, value: snap };
+      if (name === 'deck.move') {
+        if (args.id === 'deck-a') {
+          await moveAGate.promise;
+          setImmediate(() => moveAReplied.resolve());
+          return { ok: true, value: { id: 'deck-a', folder: 'STALE_ALPHA_FOLDER' } };
+        }
+        return { ok: true, value: { id: args.id, folder: args.folder } };
+      }
+      if (name === 'review.start') {
+        await practiceAGate.promise;
+        return { ok: true, value: { id: 'run-stale-a' } };
+      }
+      return { ok: true, value: {} };
+    });
+
+    const onClose = () => {
+      closedCount += 1;
+    };
+    const onUpdated = () => {
+      updatedCount += 1;
+    };
+
+    const h = createHarness(
+      React.createElement(DeckManageModal, {
+        host,
+        deckId: 'deck-a',
+        isActive: true,
+        width: 120,
+        height: 36,
+        onClose,
+        onUpdated,
+      }),
+    );
+
+    try {
+      await h.waitFor((f) => f.includes('Deck Alpha') && f.includes('Folder: Alpha / Root'), 3000, 'deck-a loaded');
+
+      // Enter search + folder move on deck-a so sub-mode and in-flight busy are both active
+      h.dispatchKey('m', {});
+      await h.waitFor((f) => f.includes('Deck folder'), 2000, 'deck-a folder mode open');
+      h.write(' / Sub');
+      await h.waitFor((f) => f.includes('/ Sub'), 2000, 'deck-a folder typed');
+      h.dispatchKey('', { return: true });
+      // Wait one tick for deck.move(deck-a) to be in flight
+      await new Promise((r) => setTimeout(r, 30));
+
+      // Switch deckId prop to deck-b while deck-a's deck.move is still pending
+      h.rerender(
+        React.createElement(DeckManageModal, {
+          host,
+          deckId: 'deck-b',
+          isActive: true,
+          width: 120,
+          height: 36,
+          onClose,
+          onUpdated,
+        }),
+      );
+
+      const betaFrame = await h.waitFor(
+        (f) => f.includes('Deck Beta') && f.includes('Folder: Beta / Root') && !f.includes('Deck folder'),
+        3000,
+        'deck-b loaded cleanly in browse mode',
+      );
+      assert.equal(betaFrame.includes('STALE_ALPHA_FOLDER'), false);
+
+      // Deck B must be immediately interactive (not blocked by deck-a's busy lock)
+      h.dispatchKey(' ', {});
+      await h.waitFor((f) => f.includes('[1 sel]'), 2000, 'deck-b interactive immediately');
+      h.dispatchKey('x', {});
+      await h.waitFor((f) => !f.includes('[1 sel]'), 2000, 'deck-b selection cleared');
+
+      // Now resolve deck-a's stale deck.move -> must report toast & onUpdated, but NOT overwrite deck-b's folder
+      moveAGate.resolve();
+      await moveAReplied.promise;
+      await h.waitFor(
+        () => updatedCount >= 1 && useTuiStore.getState().toasts.some((t) => t.text.includes('STALE_ALPHA_FOLDER')),
+        2000,
+        'stale deck-a write still reported truthfully',
+      );
+      // Trigger a render flush on deck-b (select & clear) and verify deck-b folder is untouched
+      h.dispatchKey(' ', {});
+      const afterStale = await h.waitFor((f) => f.includes('[1 sel]'), 2000, 'flushed deck-b render');
+      assert.equal(afterStale.includes('STALE_ALPHA_FOLDER'), false, 'stale deck-a deck.move must not overwrite deck-b folder');
+      assert.equal(afterStale.includes('Deck Beta'), true, 'deck-b title must remain intact');
+
+      // Switch back to deck-a, start review.start (held), switch to deck-b, resolve -> must NOT close or navigate away from deck-b
+      h.rerender(
+        React.createElement(DeckManageModal, {
+          host,
+          deckId: 'deck-a',
+          isActive: true,
+          width: 120,
+          height: 36,
+          onClose,
+          onUpdated,
+        }),
+      );
+      await h.waitFor((f) => f.includes('Deck Alpha'), 3000, 'back to deck-a');
+      h.dispatchKey('', { return: true });
+      await new Promise((r) => setTimeout(r, 30));
+
+      h.rerender(
+        React.createElement(DeckManageModal, {
+          host,
+          deckId: 'deck-b',
+          isActive: true,
+          width: 120,
+          height: 36,
+          onClose,
+          onUpdated,
+        }),
+      );
+      await h.waitFor((f) => f.includes('Deck Beta'), 3000, 'switched back to deck-b while deck-a practice pending');
+      practiceAGate.resolve();
+      await new Promise((r) => setTimeout(r, 50));
+      assert.equal(closedCount, 0, 'stale deck-a review.start must not close deck-b');
+      assert.equal(useTuiStore.getState().page, 'library', 'stale deck-a review.start must not navigate away from deck-b');
+    } finally {
+      moveAGate.resolve();
+      practiceAGate.resolve();
+      h.cleanup();
+    }
   });
 });
