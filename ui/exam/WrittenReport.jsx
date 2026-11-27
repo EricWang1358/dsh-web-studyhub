@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { plainPrompt, useInjectCss } from '../shared.js';
-import { Badge, Button, ErrorState, PageHeader, ProgressBar, Tooltip } from '../components/index.js';
+import { Badge, Button, ErrorState, PageHeader, ProgressBar, Switch, Tooltip } from '../components/index.js';
 import { formatDuration } from '../format.js';
 import { examPostmortemBridge } from '../../lib/practice-settings.js';
 import { fixedOptionsOf } from '../../lib/card-kinds.js';
@@ -149,9 +149,8 @@ export default function WrittenReport({ report, busy, pathNote, error, practiceS
   const [togglingBridge, setTogglingBridge] = useState(false);
   useEffect(() => { setBridgeOverride(null); }, [settingBridgeOn]);
   const bridgeOn = bridgeOverride ?? settingBridgeOn;
-  const handleToggleBridge = async () => {
+  const handleToggleBridge = async (next) => {
     if (typeof onTogglePostmortem !== 'function' || togglingBridge) return;
-    const next = !bridgeOn;
     setBridgeOverride(next);
     setTogglingBridge(true);
     try {
@@ -218,11 +217,10 @@ export default function WrittenReport({ report, busy, pathNote, error, practiceS
           </div>
         )}
         {typeof onTogglePostmortem === 'function' && hasMissedOrSkipped && (
+          // A display switch looks like one and shows whether it is on (#1707); the same words either way.
           <div className="exam-postmortem-toggle" data-exam-postmortem-toggle="">
-            <Button variant="quiet" size="sm" aria-pressed={bridgeOn} lock={togglingBridge || busy} onClick={handleToggleBridge}>
-              {bridgeOn ? ui('收起错题拆分') : ui('拆分答错与未答')}
-            </Button>
-            {!bridgeOn && <span className="muted small">{ui('显示已作答正确率、分练答错/未答与原出处（不消耗模型）')}</span>}
+            <Switch label={ui('拆分答错与未答')} hint={ui('显示已作答正确率、分练答错/未答与原出处（不消耗模型）')}
+              checked={bridgeOn} disabled={togglingBridge} onChange={handleToggleBridge} />
           </div>
         )}
         {pathNote && <p className="muted exam-path-note">{pathNote}</p>}

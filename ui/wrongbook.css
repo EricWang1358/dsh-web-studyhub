@@ -349,14 +349,12 @@
       font-weight: var(--fw-medium);
     }
     .wb-clinic-lead { font-size: var(--fs-sm); }
-    .wb-clinic-hide { margin-inline-start: auto; }
     .wb-plan-offer {
       display: flex;
       align-items: center;
       flex-wrap: wrap;
       gap: var(--space-2);
     }
-    .wb-plan-offer__hint { font-size: var(--fs-sm); }
     .wb-clinic-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
     .wb-clinic-item {
       display: flex;

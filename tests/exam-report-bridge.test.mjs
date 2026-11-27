@@ -468,3 +468,15 @@ test('#1687: with wrong or unanswered questions the one filled button practises 
   // A practice that cannot start now (pathNote) does not take the filled button either.
   assert.deepEqual(filledOf({ ...missProps, pathNote: '先完成学习路径' }), ['回学习库']);
 });
+
+test('#1707: the split of wrong and unanswered is a switch that shows on or off, with the same words either way', () => {
+  ssr.setUiLanguage('zh');
+  const row = (markup) => markup.match(/<label class="sh-check sh-switch[^"]*"[\s\S]*?<\/label>/)?.[0] || '';
+  const off = renderToStaticMarkup(h(ssr.WrittenReport, missProps));
+  assert.match(row(off), /role="switch"/);
+  assert.match(textOf(row(off)), /拆分答错与未答/);
+  assert.doesNotMatch(row(off), /\schecked=""/);
+  const on = renderToStaticMarkup(h(ssr.WrittenReport, { ...missProps, practiceSettings: { examPostmortemBridge: true } }));
+  assert.match(row(on), /\schecked=""/);
+  assert.doesNotMatch(textOf(on), /收起错题拆分/, 'switched on, the same switch says so; no second label');
+});

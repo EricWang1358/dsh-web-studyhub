@@ -14,7 +14,7 @@ import EmptyStudyActions from "./EmptyStudyActions.jsx";
 import { RubricResult, RubricSkills } from "./CaseResult.jsx";
 import CorrectionCard from "./review/CorrectionCard.jsx";
 import PageScope, { courseMatcher, courseParked, decksInCourse, scopedAttemptsOf, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
-import { Badge, Banner, Button, ChunkedRows, Combobox, DisclosureToggle, foldLabel, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl, Spinner, TextInput, Tooltip, Chip, highlightParts, useToast } from './components/index.js';
+import { Badge, Banner, Button, ChunkedRows, Combobox, DisclosureToggle, foldLabel, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl, Spinner, Switch, TextInput, Tooltip, Chip, highlightParts, useToast } from './components/index.js';
 import { scrollToAnchor } from './tour/anchor.js';
 import { HandOff } from './hand-off/HandOff.jsx';
 import { hasChatHost } from './hand-off/use-hand-off.js';
@@ -751,7 +751,7 @@ function HeadItem({ first, children }) {
 function WrongBookClinic({
   lanes, filterLeech, loading, canOpenSource, canPractice, course = '', canChat = true, canOpenModel = false,
   experimentJobs = {}, rescuePrompt = null, onOpenSource, onOpenCompanion, onPracticeScope, onToggleLeech,
-  onRescueCluster, onDismissRescue, onOpenModel, onHideClinic = null, togglingClinic = false,
+  onRescueCluster, onDismissRescue, onOpenModel,
 }) {
   const { busy } = useStudy();
   if (!lanes.length) return null;
@@ -787,11 +787,6 @@ function WrongBookClinic({
       <div className="wb-clinic-head">
         <h2 id="wb-clinic-title">{ui("靶向清零处方")}<span className="wb-free">{ui("不消耗模型")}</span></h2>
         <span className="muted wb-clinic-lead">{ui("按引用位置与作答记录整理，可回看原文或直接专项重练。")}</span>
-        {onHideClinic && (
-          <Button variant="quiet" size="sm" className="wb-clinic-hide" aria-pressed={true} lock={togglingClinic || busy} onClick={onHideClinic}>
-            {ui("关闭清零处方")}
-          </Button>
-        )}
       </div>
       <ul className="wb-clinic-list">
         {lanes.map((lane) => {
@@ -1261,7 +1256,7 @@ export function WrongBookView({
   const batchButton = (
     <div className="wb-batch">
       <Tooltip layer content={generateTip()}>
-        <Button variant="quiet" size="sm" icon="sparkle" data-tour="wrongbook-batch" busy={working} disabled={busy || !batch.length} onClick={() => generate(batch)}>
+        <Button size="sm" icon="sparkle" data-tour="wrongbook-batch" busy={working} disabled={busy || !batch.length} onClick={() => generate(batch)}>
           {filtering ? uiFormat("为当前筛选的 {0} 题生成变式", [shown.length]) : ui("为全部错题生成变式")}
         </Button>
       </Tooltip>
@@ -1521,6 +1516,13 @@ export function WrongBookView({
         onPractice={scopedCaseDecks.length
           ? () => onPractice(scopedCaseDecks.map((deck) => ({ deckId: deck.id }))) : undefined} />}
 
+      {/* 显示靶向清零处方 shows the 处方 below or not: a display switch looks like one and says whether it is on, the same switch either way (#1707). */}
+      {!isHistory && rows.length >= 2 && typeof onToggleClinic === "function" && (
+        <div className="wb-plan-offer" data-wrongbook-plan-toggle="">
+          <Switch label={ui("显示靶向清零处方")} hint={ui("按同页出处、顽固题与单次失误整理（不消耗模型）")}
+            checked={clinicOn} disabled={togglingClinic} onChange={handleToggleClinic} />
+        </div>
+      )}
       {!isHistory && clinicLanes.length > 0 && (
         <WrongBookClinic lanes={clinicLanes} filterLeech={!!filter.leech} loading={loading}
           course={course && course !== '*' ? course : ''} canChat={canChat} canOpenModel={!!openModel}
@@ -1530,17 +1532,7 @@ export function WrongBookView({
           onPracticeScope={(refs) => practiceScope(refs)}
           onToggleLeech={() => patchFilter({ leech: !filter.leech })}
           onRescueCluster={(onStartClusterExperiment || onStartExperiment) ? triggerClusterExperiment : undefined}
-          onDismissRescue={dismissRescue} onOpenModel={openModel}
-          onHideClinic={typeof onToggleClinic === "function" ? () => handleToggleClinic(false) : null}
-          togglingClinic={togglingClinic} />
-      )}
-      {!isHistory && !clinicOn && rows.length >= 2 && typeof onToggleClinic === "function" && (
-        <div className="wb-plan-offer" data-wrongbook-plan-toggle="">
-          <Button variant="quiet" size="sm" aria-pressed={false} lock={togglingClinic || busy} onClick={() => handleToggleClinic(true)}>
-            {ui("开启专项清零建议")}
-          </Button>
-          <span className="muted wb-plan-offer__hint">{ui("按同页出处、顽固题与单次失误整理（不消耗模型）")}</span>
-        </div>
+          onDismissRescue={dismissRescue} onOpenModel={openModel} />
       )}
 
       {showRecs && (
