@@ -12,6 +12,8 @@ import { loadUi } from './helpers/ui-module.mjs';
 
 const m = await loadUi(`
   export { default as Generate } from './ui/Generate.jsx';
+  export { StudyServicesContext } from './ui/study-context.jsx';
+  export { AppContext } from './ui/app/app-context.js';
   export { setUiLanguage, ui, uiFormat } from './ui/i18n.js';`);
 const noop = () => {};
 const sources = [
@@ -19,10 +21,15 @@ const sources = [
   { id: 'b', title: '事务笔记.md', text: '事务保证一致性。'.repeat(20), courses: ['数据库'], usedBy: [], document: { id: 'md', format: 'markdown' } },
 ];
 const gen = { kind: 'quiz', kinds: ['quiz'], count: 10, difficulty: 'mixed', language: '中文', focus: '', role: '', coverageLevel: 'standard', customCount: '', notation: 'auto' };
-function render(patch = {}, props = {}) {
+function render(patch = {}, props = {}, services = null) {
   const data = { root: 'lib', decks: [], drafts: [], jobs: [], sources, modelReady: true, focus: { course: '数据库', courses: [{ name: '数据库' }] }, ...patch };
-  return renderToStaticMarkup(React.createElement(m.Generate, { data, busy: false, running: false, act: noop, call: noop, openDraft: noop, setPage: noop, setNotice: noop,
-    genSource: 'files', setGenSource: noop, gen, setGen: noop, selectedSources: ['a', 'b'], setSelectedSources: noop, setModal: noop, askInChat: noop, openModelSettings: noop, ...props }));
+  const el = React.createElement(m.Generate, { data, busy: false, running: false, act: noop, call: noop, openDraft: noop, setPage: noop, setNotice: noop,
+    genSource: 'files', setGenSource: noop, gen, setGen: noop, selectedSources: ['a', 'b'], setSelectedSources: noop, setModal: noop, askInChat: noop, openModelSettings: noop, ...props });
+  if (!services) return renderToStaticMarkup(el);
+  return renderToStaticMarkup(
+    React.createElement(m.AppContext.Provider, { value: { data } },
+      React.createElement(m.StudyServicesContext.Provider, { value: services }, el)),
+  );
 }
 
 test('the submit area is in the order it is seen: the count and the tokens, the button, then the rest of the plan, then the note about the checks', () => {
@@ -97,11 +104,38 @@ test('one focus topic is one in English: 「1 focus topic」, never 「1 focus t
 });
 
 test('the page draws its list and its form at once, as on main: nothing waits for the index answer (#1084, round 4)', async () => {
-  const source = await readFile(new URL('../ui/Generate.jsx', import.meta.url), 'utf8');
-  assert.doesNotMatch(source, /useIndexWait|holding/, 'no hold before the ways in, the list and the form are drawn');
   const coverage = await loadUi(`export * from './ui/use-index-coverage.js';`);
   assert.deepEqual(Object.keys(coverage).filter(name => /wait/i.test(name)), [], 'and no wait left to call');
-  assert.match(render(), /data-tour="generate-sources"[\s\S]*data-tour="generate-options"/, 'a first render (no answer yet) has the list and the form');
+
+  const pendingServices = {
+    call: () => new Promise(() => {}),
+    act: async () => undefined,
+    busy: false,
+    notify: noop,
+    askInChat: noop,
+    host: {},
+    openSettings: noop,
+    navigate: noop,
+    openModal: noop,
+  };
+  try {
+    for (const lang of ['zh', 'en']) {
+      m.setUiLanguage(lang);
+      const html = render({}, {}, pendingServices);
+      const sourcesAt = html.indexOf('data-tour="generate-sources"');
+      const optionsAt = html.indexOf('data-tour="generate-options"');
+      const summaryAt = html.indexOf('data-tour="generate-summary"');
+      const submitAt = html.indexOf('data-tour="generate-submit"');
+      assert.ok(sourcesAt >= 0, `${lang}: source list renders synchronously while index coverage is pending`);
+      assert.ok(optionsAt > sourcesAt, `${lang}: options form follows source list in DOM order`);
+      assert.ok(summaryAt > optionsAt, `${lang}: summary bar follows options form in DOM order`);
+      assert.ok(submitAt > summaryAt, `${lang}: submit button follows summary bar in DOM order`);
+      assert.ok(html.includes('索引笔记') && html.includes('事务笔记.md'), `${lang}: material rows are drawn on first paint`);
+      assert.doesNotMatch(html, /sh-loading|aria-busy="true"|class="[^"]*holding/i, `${lang}: no loading or holding gate blocks first paint`);
+    }
+  } finally {
+    m.setUiLanguage('zh');
+  }
 });
 
 test('更多选项 says the choices that are not the defaults while it is shut: the difficulty and the language a run will use are seen (#1082)', () => {
