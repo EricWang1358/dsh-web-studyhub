@@ -84,9 +84,9 @@ Spring 只以 beta 预发布形式出现在 GitHub 上，从不作为最新版�
 
 - 标签格式：`spring-v<semver>-beta.<n>`，例如 `spring-v0.1.1-beta.1`。
 - 在 GitHub 上发布时必须勾选 **Set as a pre-release**，并且不要勾选 **Set as the latest release**。`spring-platform.yml` 只在「预发布 + 标签以 `spring-` 开头」时构建 deb、rpm、msi 和 exe；主产品的发布和未标为预发布的 Spring 标签都不会触发构建。
-- Spring 标签绝不能以 `v` 加数字开头（如 `v0.1.1`）。`release.yml` 和 `release-desktop.yml` 会对 `v[0-9]*` 标签发布主产品并把它标为最新版本。
+- Spring 标签绝不能以 `v` 加数字开头（如 `v0.1.1`）。`release.yml` 和 `release-desktop.yml` 会对 `v[0-9]*.[0-9]*.[0-9]*` 标签发布主产品并把它标为最新版本。
 
-Spring ships only as a GitHub **prerelease** tagged `spring-v<semver>-beta.<n>`, never as the latest release. Its installers are built only for a published prerelease whose tag starts with `spring-`. A Spring tag must never start with `v` followed by a digit, because the main-product release workflows publish every `v[0-9]*` tag and mark it latest.
+Spring ships only as a GitHub **prerelease** tagged `spring-v<semver>-beta.<n>`, never as the latest release. Its installers are built only for a published prerelease whose tag starts with `spring-`. A Spring tag must never start with `v` followed by a digit, because the main-product release workflows publish every `v[0-9]*.[0-9]*.[0-9]*` tag and mark it latest.
 
 ### 0.1.1 本地验收
 
