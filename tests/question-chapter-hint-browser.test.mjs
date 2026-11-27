@@ -197,6 +197,20 @@ async function takeShot(page, name) {
   await page.screenshot({ path: join(SHOTS, `${name}.png`) });
 }
 
+/** 开始今日学习 on the home page. If it does not come within the same 30 s, the failure says what the page showed and logged instead
+    (CI run 45918312676 gave only the locator, so nothing told whether the page was blank, still loading or in another state). */
+async function startToday(page, errors) {
+  try {
+    await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
+  } catch (error) {
+    const shown = await page.locator('body').innerText({ timeout: 2000 }).catch(() => '(unreadable)');
+    error.message += `
+  the page showed: ${shown.replace(/\s+/g, ' ').slice(0, 600)}
+  the page logged: ${errors.join(' | ') || '(nothing)'}`;
+    throw error;
+  }
+}
+
 async function chooseMore(page, item) {
   await page.locator('.review-more-trigger').click();
   await page.getByRole('menuitem', { name: item }).click();
@@ -241,7 +255,7 @@ test('chapter basics hint (#1191, #1193): deeper trigger, source dock/dialog, ha
     const { context, page, errors } = await openPage(browser, running, { lang: 'zh', theme: 'light', width: 1280, height: 900 });
     try {
       await page.goto(running.server.url);
-      await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
+      await startToday(page, errors);
       await page.locator('.question-toolbar').waitFor({ timeout: 30000 });
       await page.locator('[data-usage="review.flip"]').click();
       await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 10000 });
@@ -325,7 +339,7 @@ test('chapter basics hint (#1191, #1193): deeper trigger, source dock/dialog, ha
     const { context, page, errors } = await openPage(browser, running, { lang: 'zh', theme: 'light', width: 420, height: 900 });
     try {
       await page.goto(running.server.url);
-      await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
+      await startToday(page, errors);
       await page.locator('.question-toolbar').waitFor({ timeout: 30000 });
       await page.locator('[data-usage="review.flip"]').click();
       await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 10000 });
@@ -423,7 +437,7 @@ test('chapter basics hint (#1191, #1193): deeper trigger, source dock/dialog, ha
     const { context, page, errors } = await openPage(browser, running, { lang: 'en', theme: 'light', width: 1280, height: 900 });
     try {
       await page.goto(running.server.url);
-      await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
+      await startToday(page, errors);
       await page.locator('.question-toolbar').waitFor({ timeout: 30000 });
       await page.locator('[data-usage="review.flip"]').click();
       await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 10000 });
@@ -462,7 +476,7 @@ test('chapter basics hint (#1191, #1193): deeper trigger, source dock/dialog, ha
     const { context, page, errors } = await openPage(browser, running, { lang: 'zh', theme: 'light', width: 1280, height: 900 });
     try {
       await page.goto(running.server.url);
-      await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
+      await startToday(page, errors);
       await page.locator('.question-toolbar').waitFor({ timeout: 30000 });
       await page.locator('[data-usage="review.flip"]').click();
       await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 10000 });
@@ -489,7 +503,7 @@ test('chapter basics hint (#1191, #1193): deeper trigger, source dock/dialog, ha
       await page.locator('.result-page').waitFor({ timeout: 15000 });
       const navLibrary = await revealNavRow(page, 'library');
       await navLibrary.dispatchEvent('click');
-      await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
+      await startToday(page, errors);
       await page.locator('.question-toolbar').waitFor({ timeout: 30000 });
       const topicTicks = page.locator('.review-navigator .review-tick[aria-label*="分层存储基础"]');
       const tickCount = await topicTicks.count();
@@ -546,7 +560,7 @@ test('chapter basics hint (#1191, #1193): deeper trigger, source dock/dialog, ha
     const { context, page, errors } = await openPage(browser, running, { lang: 'zh', theme: 'light', width: 1280, height: 900 });
     try {
       await page.goto(running.server.url);
-      await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
+      await startToday(page, errors);
       await page.locator('.question-toolbar').waitFor({ timeout: 30000 });
       await page.locator('[data-usage="review.flip"]').click();
       await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 10000 });

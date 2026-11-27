@@ -88,7 +88,13 @@ test('a hard line break inside Chinese text stays in the text but is drawn witho
 test('the reader toolbar is slim: AI 出题 (the one primary button, with the arrow of 做这几页的题) and 更多; find, views, display and study tools are in 更多, not on the toolbar', () => {
   const html = viewer(transcript, { onGenerate() {}, onPracticePages() {} });
   const toolbar = html.match(/<div class="reader-toolbar">([\s\S]*?)<div class="reader-progress"/)?.[1] || '';
-  const names = [...toolbar.matchAll(/<button[^>]*>/g)].map(match => match[0].match(/aria-label="([^"]*)"/)?.[1] || '(text)');
+  const buttons = [...toolbar.matchAll(/<button[^>]*>/g)].map(match => match[0]);
+  // 目录's place is held while the material loads (hidden, unfocusable, out of the accessibility tree), so the toolbar does not move when it comes: not a button offered.
+  const reserved = buttons.filter(tag => /data-reserved/.test(tag));
+  assert.equal(reserved.length, 1, 'one held place, for 目录');
+  assert.match(reserved[0], /aria-hidden="true"/);
+  assert.match(reserved[0], /tabindex="-1"/);
+  const names = buttons.filter(tag => !reserved.includes(tag)).map(tag => tag.match(/aria-label="([^"]*)"/)?.[1] || '(text)');
   assert.deepEqual(names, ['(text)', '做这几页的题', '更多'], 'three buttons: 出题, the arrow beside it, and 更多 (目录, 错题 and 思维导图 appear once the material has loaded)');
   assert.match(toolbar, /class="sh-btn sh-btn--primary[^"]*"[^>]*>[\s\S]*?AI 出题/, 'generate is the primary button inside the toolbar');
   assert.equal((toolbar.match(/sh-btn--primary/g) || []).length, 2, 'the primary button and its attached arrow');
