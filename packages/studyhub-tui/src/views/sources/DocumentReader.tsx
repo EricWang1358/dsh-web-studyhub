@@ -8,6 +8,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { useClaimKeys, useInputCapture } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
+import { buildReaderAskPrompt, buildUnifiedAiSystemPrompt } from '../../host/ai-dialogue.js';
 import { errorMessage, tryAction } from '../../host/sample-actions.js';
 import {
   buildCachedTranslationState,
@@ -16,6 +17,7 @@ import {
   computeReaderLayout,
   extractPageAnchorSlice,
   normalizeTranslationCounts,
+  type PageProjection,
   type PendingTranslateConfirm,
   type ReaderSubMode,
   type TranslateMeta,
@@ -149,6 +151,20 @@ export const DocumentReader = memo(function DocumentReader({
     [navigateToPage],
   );
 
+  const buildAskPrompts = useCallback(
+    (page: PageProjection, question: string) => ({
+      system: buildUnifiedAiSystemPrompt('reader_ask', lang),
+      prompt: buildReaderAskPrompt({
+        title: page.title,
+        page: page.page,
+        lastPage: page.lastPage,
+        text: page.text,
+        question,
+      }),
+    }),
+    [lang],
+  );
+
   const {
     activeSearch,
     searchHits,
@@ -182,6 +198,7 @@ export const DocumentReader = memo(function DocumentReader({
     setSubMode,
     onSearchJumpPage: handleSearchJumpPage,
     abortAllInFlight: cancelActiveTranslation,
+    buildAskPrompts,
   });
 
   // Clear local translation buffers and cancel active streams on unmount.

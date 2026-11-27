@@ -3,11 +3,7 @@ import type { HostClient, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
 import { useAiConversation } from '../../components/useAiConversation.js';
-import {
-  buildReaderAskPrompt,
-  buildUnifiedAiSystemPrompt,
-  isAiStreamingAvailable,
-} from '../../host/ai-dialogue.js';
+import { isAiStreamingAvailable } from '../../host/ai-dialogue.js';
 import { errorMessage, startReview, tryAction } from '../../host/sample-actions.js';
 import {
   computeScrollAnchorExcerpt,
@@ -32,6 +28,7 @@ export interface UseReaderAskActionsParams {
   setSubMode: (next: ReaderSubMode | ((prev: ReaderSubMode) => ReaderSubMode)) => void;
   onSearchJumpPage: (page: number) => void;
   abortAllInFlight: () => void;
+  buildAskPrompts: (page: PageProjection, question: string) => { system: string; prompt: string };
 }
 
 export function useReaderAskActions({
@@ -49,6 +46,7 @@ export function useReaderAskActions({
   setSubMode,
   onSearchJumpPage,
   abortAllInFlight,
+  buildAskPrompts,
 }: UseReaderAskActionsParams) {
   const setSnapshot = useTuiStore((s) => s.setSnapshot);
   const navigate = useTuiStore((s) => s.navigate);
@@ -155,15 +153,10 @@ export function useReaderAskActions({
 
       try {
         if (isAiStreamingAvailable(host)) {
+          const { system, prompt } = buildAskPrompts(pageData, q);
           const outcome = await sendAiTurn({
-            system: buildUnifiedAiSystemPrompt('reader_ask', lang),
-            prompt: buildReaderAskPrompt({
-              title: pageData.title,
-              page: pageData.page,
-              lastPage: pageData.lastPage,
-              text: pageData.text,
-              question: q,
-            }),
+            system,
+            prompt,
             onChunk: (delta) => {
               if (ac.signal.aborted) return;
               pushAiAnswer(delta);
@@ -216,6 +209,7 @@ export function useReaderAskActions({
       abortAllInFlight,
       abortAskInFlight,
       asciiMode,
+      buildAskPrompts,
       finishAiAnswer,
       host,
       lang,
