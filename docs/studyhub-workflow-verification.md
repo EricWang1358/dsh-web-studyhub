@@ -1,5 +1,7 @@
 # 可选学习流验收（2026-09-27）
 
+> 历史验收记录（2026-09-27）：学习流及五条流程模板的写入能力现已退役（`WORKFLOW_RETIRED`），仅保留只读历史归档，详见 [study-workflows.zh-CN.md](study-workflows.zh-CN.md)。
+
 范围依据 `requirements/studyhub-workflows.md`：新增可选的工作台和 Portal，保留学习库默认首页与独立闪卡、主题、知识骨架入口。未把旧的系统学习提案作为本次范围。
 
 ## 自动验证
