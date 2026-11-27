@@ -114,7 +114,7 @@ export function stepSentence(step) {
  * `plan` is the third step's (useFirstDeck): 出第一组题 carries `blocked`, the reason it cannot be pressed ('' when it can), as the page form's button does.
  */
 export function compactAction(line, on = {}, plan = null) {
-  const [, material, deck] = line.steps;
+  const [, , deck] = line.steps;
   if (line.step === 0) return null;
   if (deck.status === 'stopped') return !deck.jobIds.length && on.openDraft ? { label: ui('检查草稿'), run: () => on.openDraft(deck.draft) } : null;
   // Only while the card marks step 2: a draft made from the sample's material (or from one archived since) leaves it 'todo' under a marked third step (#1680).
