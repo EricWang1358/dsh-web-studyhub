@@ -868,7 +868,7 @@ describe('Round 68 Track 3: ExamCoachView [X] Atomic Markdown Export & HelpOverl
       assert.ok(prepSec?.items.some((i) => i.key === '/ / x'), `missing [/ / x] in Exam Prep HelpOverlay (${lang})`);
     }
     const keybindingsMd = await readFile(join(pkgRoot, 'docs', 'KEYBINDINGS.md'), 'utf8');
-    assert.ok(keybindingsMd.includes('studyhub-coach-YYYY-MM-DD.md'), 'KEYBINDINGS.md must document studyhub-coach export');
+    assert.ok(keybindingsMd.includes('studyhub-coach[-<slug>]-YYYY-MM-DD-HHmmss.md'), 'KEYBINDINGS.md must document studyhub-coach export');
     assert.ok(keybindingsMd.includes('export exam prep plan Markdown'), 'KEYBINDINGS.md must document exam prep export');
   });
 
@@ -1251,7 +1251,7 @@ describe('Round 74 Track 3: ExamCoachView `/` Live Filter + HelpOverlay & KEYBIN
     assert.ok(keybindingsMd.includes('--limit <n>'), 'KEYBINDINGS.md must document --limit <n>');
     assert.ok(keybindingsMd.includes('live filter weak topics & courses'), 'KEYBINDINGS.md must document Dashboard / filter');
     assert.ok(keybindingsMd.includes('live filter Calibration families, Variants weak items, or Evidence points'), 'KEYBINDINGS.md must document ExamCoach / filter');
-    assert.ok(keybindingsMd.includes('studyhub-coach-YYYY-MM-DD.md'), 'KEYBINDINGS.md must document ExamCoach X export');
+    assert.ok(keybindingsMd.includes('studyhub-coach[-<slug>]-YYYY-MM-DD-HHmmss.md'), 'KEYBINDINGS.md must document ExamCoach X export');
     assert.ok(keybindingsMd.includes('flush coach prep queue (`coach.prepare`)'), 'KEYBINDINGS.md must document coach.prepare');
     assert.ok(keybindingsMd.includes('CoachPreferencesModal'), 'KEYBINDINGS.md must document CoachPreferencesModal');
 

@@ -2244,7 +2244,7 @@ describe('Domain Tasks & Audio: AudioView, TasksView Jobs Control/Recovery/Paral
 
     const keybindingsMd = fs.readFileSync(join(pkgRoot, 'docs/KEYBINDINGS.md'), 'utf8');
     assert.ok(keybindingsMd.includes('filter decks by keyword'));
-    assert.ok(keybindingsMd.includes('studyhub-tasks-YYYY-MM-DD.md'));
+    assert.ok(keybindingsMd.includes('studyhub-tasks[-<slug>]-YYYY-MM-DD-HHmmss.md'));
     assert.ok(keybindingsMd.includes('workflow.context'));
     assert.ok(keybindingsMd.includes('promote queued job to parallel'));
     assert.ok(keybindingsMd.includes('recover interrupted jobs'));
