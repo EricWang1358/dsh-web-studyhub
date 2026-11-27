@@ -102,13 +102,13 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 
 清单：[`s1-7-legacy-exceptions.json`](s1-7-legacy-exceptions.json)；守卫 `unified-runtime-architecture.test.mjs`、`unified-runtime-boundaries.test.mjs`、`instant-model-guard.test.mjs` 对它们做**精确**匹配：新增一处调用、一处启动点或一处模型获取，必须先在清单里有一行（含负责人、理由、移除时点），否则测试变红。清单里 **24 个**定义是 `managed`（运行时的 Job 定义，由守卫逐个审计"不得绕过网关/不得自建任务表"；第 19 个是课程总纲的整理任务 `course-outline-build`，第 20 个是复习全书的生成任务 `course-book-build`，都在 2026-10-09 加入；第 21 个是复习全书的弄懂 / 加一段 `course-book-ai`，第 22 个是分析题答案卡 `case-answer-card`，都在 2026-10-11 加入；第 23 个是交互伴学课构建任务 `companion-lesson-build`，在 2026-11-16 加入；第 24 个是课程级批量整理前置与生词任务 `course-organize`，在 2026-11-24 加入。3.6 起本机 MinerU 的旧准备任务 `mineru-setup` 删除，Marker 与 MinerU 的一键安装共用一个定义 `install-job.js`）；其余全部在下面。
 
-**数量**：模型形状的调用点 41 行、后台启动点 39 行（合计 103 个已审查的位置）、边界例外 13 行、模型获取例外 3 行。位置的处置：
+**数量**：模型形状的调用点 42 行、后台启动点 39 行（合计 104 个已审查的位置）、边界例外 13 行、模型获取例外 3 行。位置的处置：
 
 | 处置 | 数量 | 含义 |
 |---|---|---|
 | `migrate`（开关全开后仍在运行时之外，须由某一步迁移） | **0** | 没有。每一个迁移位置都已迁移，没有"以后再迁"的静默旁路 |
 | `delete-s6-2`（旧路径，开关全开后不可达） | 20 | 24 个开关默认关闭，所以这些旧路径**就是今天的默认路径**，关闭开关即回退。只有在默认值翻转之后才能删；清单里它们的移除时点都写 `after default flip`（守卫强制）。S6-2 已经删掉了那时就无使用者的部分 |
-| `exception`（有意保留，写明类别和理由） | 83 | 见下表的类别与理由；没有"待定"类 |
+| `exception`（有意保留，写明类别和理由） | 84 | 见下表的类别与理由；没有"待定"类 |
 
 **不是干净清零的几处，以及所有者对它们的决定（2026-10-07）：**
 
@@ -116,7 +116,7 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 2. **八条前台即时请求行**（capture、coach、followup、ingest、oral exam、rubric grading、`study`/`recording` 的操作）原先写着"owner decision at S6-5"。现在写 `decided in S6-5a (#345): no Job, metered through the gateway`：它们**保持即时**（不建 Job、不出卡片），经唯一的计量入口 `lib/runtime/instant.js` 共享 provider 配额并只记一次用量（[s6-5a-instant.md](s6-5a-instant.md)）。
 3. **没有"模型获取"裸奔**：`modelServices(` 只在入口 `lib/runtime/instant.js`、定义 `lib/runtime/models.js` 和 `lib/service.js` 的兼容 getter 里被调用（三行，见下）。getter 随进程内旧执行器（上面 `delete-s6-2`）一起离开。
 
-### 4.1 模型形状的调用点（41 行）
+### 4.1 模型形状的调用点（42 行）
 
 | 文件 | 负责人 | 类别 | 理由 | 移除时点 |
 |---|---|---|---|---|
@@ -139,6 +139,7 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 | `lib/contexts/notes/note-generation.js` | existing domain maintainer | 共享流水线（模型由调用方传入） | The note draft body takes its model as an argument (the gateway step when noteGenerate is on) | S6-2 (the in-process caller) |
 | `lib/contexts/recording/operations.js` | existing domain maintainer | 前台即时请求 | capture: one awaited request (decision S4-0) | decided in S6-5a (#345): no Job, metered through the gateway |
 | `lib/contexts/study/card-terms.js` | existing domain maintainer | 共享流水线（模型由调用方传入） | card.terms: shared pipeline called by instant action card.terms via injected light gateway step | retained: shared pipeline |
+| `lib/contexts/study/socratic-tutor.js` | existing domain maintainer | 前台即时请求 | One turn of the tutor beside a question: one awaited request while the learner waits (instant action socratic.step, decision S4-0) | retained: an instant request with no Job, metered through the gateway like the other instant rows (#345) |
 | `lib/contexts/study/operations.js` | existing domain maintainer | 前台即时请求 | card.grade: one awaited rubric grading request | decided in S6-5a (#345): no Job, metered through the gateway |
 | `lib/daily-recap.js` | existing domain maintainer | 共享流水线（模型由调用方传入） | The recap rewrite takes its model as an argument | S6-2 (original caller) |
 | `lib/followup.js` | existing domain maintainer | 前台即时请求 | A follow-up question: one awaited request (decision S4-0) | decided in S6-5a (#345): no Job, metered through the gateway |

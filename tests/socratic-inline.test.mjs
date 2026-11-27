@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StudyService } from '../lib/service.js';
-import { SOCRATIC_MAX_TURNS, buildRevealMessage, enforceSingleQuestion } from '../lib/contexts/study/socratic-inline.js';
+import { SOCRATIC_MAX_TURNS, buildRevealMessage, evaluateCardSocraticStep } from '../lib/contexts/study/socratic-inline.js';
 import { studyStats, wrongBook } from '../lib/insights.js';
 import { cardLevel, latestOutcomes } from '../lib/mastery.js';
 import { undoableForRun } from '../lib/contexts/study/undo-ops.js';
@@ -54,6 +54,7 @@ async function createSeededService(t, { complete = null } = {}) {
           prompt: '为什么按全局顺序编号并升序申请资源可以预防死锁？',
           answer: '按全局顺序编号并要求按升序申请资源，会破坏循环等待条件，不可能形成环路等待。',
           explanation: '死锁需要互斥、占有且等待、不可剥夺、循环等待四个必要条件同时成立；按序申请破坏了循环等待，因此不会死锁。',
+          hint: '想想死锁的四个必要条件',
           options: [
             { id: 'a', text: '破坏了循环等待条件', correct: true },
             { id: 'b', text: '破坏了互斥条件', correct: false },
@@ -65,31 +66,43 @@ async function createSeededService(t, { complete = null } = {}) {
   return service;
 }
 
-test('1) 单问推进 + 打开 0 模型调用 + Shift+T 快捷键与抽屉入口 + 不抢焦点布局', async (t) => {
-  let modelCalls = 0;
-  const service = await createSeededService(t, {
-    complete: async () => {
-      modelCalls += 1;
-      return JSON.stringify({ passed: false, reply: 'L1?' });
-    },
-  });
+/** A stand-in model: replies come from `script` (a list, or a function of the request), and every request is kept for the test to read. */
+function scriptedTutor(script) {
+  const calls = [];
+  const complete = async (system, prompt, options) => {
+    const payload = JSON.parse(prompt);
+    calls.push({ system, payload, options });
+    const next = typeof script === 'function' ? script(payload) : script[Math.min(calls.length - 1, script.length - 1)];
+    if (next instanceof Error) throw next;
+    return typeof next === 'string' ? next : JSON.stringify(next);
+  };
+  return { complete, calls };
+}
 
-  // Opening drawer (socratic.get) performs ZERO model calls and returns 1 opening guiding question (no answer spoiler)
+/** Behaves like a sensible tutor for the deadlock question: stuck gets a hint, a real explanation closes, anything else gets a plain reply. */
+const deadlockTutor = () => scriptedTutor(({ message, request }) => {
+  if (request === 'hint') return { reply: '想一想：按序申请之后，还可能出现 A 等 B、B 又等 A 吗？', understood: false, help: 'hint' };
+  if (/^(?:不会|不知道|想不出来|不太清楚|不清楚|忘了)/.test(message)) return { reply: '没关系。两个人各拿一把钥匙又都想要对方那把，会怎样？', understood: false, help: 'hint' };
+  if (message.length >= 20) return { reply: '对，你说到点子上了：顺序固定后环就接不起来。', understood: true, help: 'none' };
+  return { reply: '你是说顺序这件事吗？为什么固定顺序就不会互相等？', understood: false, help: 'none' };
+});
+
+const OWN_WORDS = '给资源编上号，大家只能从小往大拿，于是不会有人反过来等别人手里更小的号，圈就接不起来了。';
+
+test('1) 打开 0 模型调用 + Shift+T 快捷键与抽屉入口 + 不抢焦点', async (t) => {
+  const tutor = deadlockTutor();
+  const service = await createSeededService(t, { complete: tutor.complete });
+
   const opened = await service.call('socratic.get', { deckId: 'deck-os', cardId: 'card-deadlock' });
-  assert.equal(modelCalls, 0, 'opening inline Socratic panel must invoke 0 model calls');
+  assert.equal(tutor.calls.length, 0, 'opening inline Socratic panel must invoke 0 model calls');
   assert.equal(opened.persisted, false);
   assert.equal(opened.state.stage, 'answer');
   assert.equal(opened.state.hintLevel, 0);
   assert.equal(opened.state.turns.length, 1);
-  assert.equal((opened.state.turns[0].text.match(/[?？]/g) || []).length, 1, 'opening prompt asks strictly one question');
   assert.doesNotMatch(opened.state.turns[0].text, /破坏了循环等待/, 'opening prompt does not spoil the answer');
+  assert.match(opened.state.turns[0].text, /可以直接问/, 'the opening says a question is welcome');
+  assert.doesNotMatch(opened.state.turns[0].text, /死锁必要条件/, 'the topic string (which can carry internal tags) is not pasted into the line');
 
-  // Single-question guardrail collapses multi-question replies
-  const single = enforceSingleQuestion('1. 先看互斥条件？\n2. 再看占有且等待？\n3. 最后看循环等待？');
-  assert.equal((single.match(/[?？]/g) || []).length, 1);
-  assert.doesNotMatch(single, /2\./);
-
-  // Shift+T toggles inline Socratic outside exams while plain T preserves assist-plain
   const ctx = {
     inside: true, modalOpen: false, page: 'review', busy: false,
     run: { id: 'r1', mode: 'path', card: { id: 'card-deadlock', kind: 'quiz' } },
@@ -99,14 +112,8 @@ test('1) 单问推进 + 打开 0 模型调用 + Shift+T 快捷键与抽屉入口
   const examShiftT = uiMod.shortcutAction({ key: 'T', code: 'KeyT', shiftKey: true, repeat: false, defaultPrevented: false, ctrlKey: false, metaKey: false, altKey: false, inEditable: false, onButton: false }, { ...ctx, run: { ...ctx.run, mode: 'exam' } });
   assert.equal(examShiftT?.action, null);
 
-  // AssistFormPanel shows mode switch 「AI 帮我理解 / 苏格拉底带学」; SocraticInlineDrawer has no autoFocus (does not steal focus)
   const drawerHtml = renderToStaticMarkup(h(uiMod.SocraticInlineDrawer, {
-    deckId: 'deck-os',
-    cardId: 'card-deadlock',
-    prompt: opened.prompt,
-    topic: opened.topic,
-    modelReady: true,
-    initialView: opened,
+    deckId: 'deck-os', cardId: 'card-deadlock', prompt: opened.prompt, topic: opened.topic, modelReady: true, initialView: opened,
   }));
   assert.match(drawerHtml, /data-testid="socratic-inline-drawer"/);
   assert.match(drawerHtml, /data-own-keys=""/);
@@ -127,206 +134,134 @@ test('1) 单问推进 + 打开 0 模型调用 + Shift+T 快捷键与抽屉入口
   assert.match(assistHtml, /AI 帮我理解/);
   assert.match(assistHtml, /苏格拉底带学/);
 
-  // Assistant boundary prevents AI assistant from spoofing learner Socratic steps (HB-1)
   assert.ok(assistantRefusal('socratic.step'));
 });
 
-test('2) 阶梯提示 L1 -> L2：答偏逐级升级、等级可见且后端持久化绑定 cardId', async (t) => {
-  const service = await createSeededService(t);
+test('2) 反问不算答错：「什么排队？」得到直接回答，提示等级不动，模型看得到上一句', async (t) => {
+  const tutor = scriptedTutor([
+    { reply: '先说场景：好几个线程抢同一个资源。你觉得为什么会卡住？', understood: false, help: 'none' },
+    { reply: '这里的「排队」指拿不到锁的线程停下来等。按固定顺序拿锁会改变什么？', understood: false, help: 'none' },
+  ]);
+  const service = await createSeededService(t, { complete: tutor.complete });
+  const run = await service.call('review.start', { mode: 'path', scope: [{ deckId: 'deck-os', cardId: 'card-deadlock' }] });
+  const say = (text) => service.call('socratic.step', { deckId: 'deck-os', cardId: 'card-deadlock', runId: run.id, text });
 
-  // 1st wrong answer -> L1 minimal counter-question
-  const s1 = await service.call('socratic.step', {
-    deckId: 'deck-os',
-    cardId: 'card-deadlock',
-    text: '不知道',
-    offline: true,
-  });
-  assert.equal(s1.state.stage, 'judge');
-  assert.equal(s1.state.hintLevel, 1);
-  assert.equal(s1.state.maxHintLevelUsed, 1);
-  assert.equal(s1.state.turns.at(-1).hintLevel, 1);
-  assert.equal((s1.state.turns.at(-1).text.match(/[?？]/g) || []).length, 1);
+  await say('理解是在什么情景下会需要这个机制，解决什么需求');
+  const asked = await say('什么排队？');
 
-  const htmlL1 = renderToStaticMarkup(h(uiMod.SocraticInlineDrawer, {
-    deckId: 'deck-os', cardId: 'card-deadlock', initialView: s1, modelReady: false,
-  }));
-  assert.match(htmlL1, /data-hint-level="1"/);
-  assert.match(htmlL1, /L1 最小提示/);
-
-  // 2nd wrong answer -> L2 key clue
-  const s2 = await service.call('socratic.step', {
-    deckId: 'deck-os',
-    cardId: 'card-deadlock',
-    text: '还是想不出来',
-    offline: true,
-  });
-  assert.equal(s2.state.stage, 'judge');
-  assert.equal(s2.state.hintLevel, 2);
-  assert.equal(s2.state.maxHintLevelUsed, 2);
-  assert.equal(s2.state.turns.at(-1).hintLevel, 2);
-
-  // Verify persisted directly on card in backend state
-  const raw = await service.store.read();
-  const card = raw.decks[0].cards[0];
-  assert.equal(card.socratic.hintLevel, 2);
-  assert.equal(card.socratic.stage, 'judge');
+  assert.equal(asked.state.hintLevel, 0, 'a question never climbs a hint ladder');
+  assert.equal(asked.state.maxHintLevelUsed, 0);
+  assert.equal(asked.state.stage, 'answer');
+  assert.equal(asked.state.turns.at(-1).kind, 'reply');
+  assert.equal(asked.state.turns.at(-1).text, '这里的「排队」指拿不到锁的线程停下来等。按固定顺序拿锁会改变什么？', 'the reply is shown whole');
+  const second = tutor.calls[1].payload;
+  assert.equal(second.message, '什么排队？');
+  assert.deepEqual(second.conversation.map((turn) => turn.from), ['tutor', 'learner', 'tutor'], 'the model is given what both sides said');
+  assert.match(second.conversation.at(-1).text, /好几个线程抢同一个资源/);
+  assert.equal(second.card.question.length > 0 && second.card.referenceAnswer.length > 0, true);
+  const entry = (await service.store.read()).runs.find((item) => item.id === run.id).entries[0];
+  assert.equal(entry.assistance.askedTutorBeforeAnswer, true);
+  assert.equal(entry.assistance.hintUsed, false, 'no hint was given, so none is recorded');
 });
 
-test('3) 答对要求复述，复述不合格继续追问，合格后进入小结并提供诚实的收尾 CTA', async (t) => {
-  const service = await createSeededService(t);
+test('3) 第一句就讲清楚了直接收尾，不再要求复述；之后还能接着问', async (t) => {
+  const tutor = scriptedTutor([
+    { reply: '对，顺序固定后环路接不起来。', understood: true, help: 'answer' },
+    { reply: '可以，打破占有且等待也行：一次把需要的都申请到。', understood: true, help: 'none' },
+  ]);
+  const service = await createSeededService(t, { complete: tutor.complete });
+  const ref = { deckId: 'deck-os', cardId: 'card-deadlock' };
 
-  // Right answer at L0 -> moves to retell stage
-  const answered = await service.call('socratic.step', {
-    deckId: 'deck-os',
-    cardId: 'card-deadlock',
-    text: '按全局顺序编号并要求升序申请资源，破坏了循环等待条件，不会形成环路等待。',
-    offline: true,
-  });
-  assert.equal(answered.state.stage, 'retell');
-  assert.equal(answered.state.hintLevel, 0);
-  assert.equal(answered.state.turns.at(-1).kind, 'retell-prompt');
+  const first = await service.call('socratic.step', { ...ref, text: OWN_WORDS });
+  assert.equal(first.state.stage, 'summary', 'an own-words explanation closes at once');
+  assert.equal(first.state.retellPassed, true);
+  assert.equal(first.state.summary.mastered, true, 'the recap in the confirmation is not counted as help');
+  assert.equal(first.state.revealed, false);
+  assert.equal(first.state.turns.at(-1).kind, 'summary');
+  assert.equal(tutor.calls.length, 1);
 
-  // Unqualified retell ("懂了") -> stays in retell and keeps probing with 1 question
-  const badRetell = await service.call('socratic.step', {
-    deckId: 'deck-os',
-    cardId: 'card-deadlock',
-    text: '懂了',
-    offline: true,
-  });
-  assert.equal(badRetell.state.stage, 'retell');
-  assert.equal(badRetell.state.retellAttempts, 1);
-  assert.equal(badRetell.state.retellPassed, false);
-  assert.equal(badRetell.state.turns.at(-1).kind, 'retell-probe');
-  assert.equal((badRetell.state.turns.at(-1).text.match(/[?？]/g) || []).length, 1);
+  const more = await service.call('socratic.step', { ...ref, text: '那打破别的条件行不行？' });
+  assert.equal(more.state.stage, 'summary');
+  assert.equal(more.state.retellPassed, true);
+  assert.match(more.state.turns.at(-1).text, /占有且等待/);
 
-  // Qualified own-words retell -> summary stage + retellPassed = true
-  const goodRetell = await service.call('socratic.step', {
-    deckId: 'deck-os',
-    cardId: 'card-deadlock',
-    text: '因为死锁需要四个必要条件同时满足，给所有资源统一编号并规定只能按升序申请后，任何进程都不会等比自己编号小的资源，因此不可能形成循环等待环路，死锁就被预防了。',
-    offline: true,
-  });
-  assert.equal(goodRetell.state.stage, 'summary');
-  assert.equal(goodRetell.state.retellPassed, true);
-  assert.equal(goodRetell.state.summary.mastered, true);
+  const doneHtml = renderToStaticMarkup(h(uiMod.SocraticInlineDrawer, { ...ref, initialView: more, modelReady: true, cardAnswered: false }));
+  assert.match(doneHtml, /data-testid="socratic-inline-summary"/);
+  assert.match(doneHtml, /回到原题作答/);
+  assert.match(doneHtml, /<textarea(?![^>]*disabled)/, 'the box stays open for follow-up questions');
 
-  // Unanswered card -> CTA is 「回到原题作答」
-  const unansweredSummaryHtml = renderToStaticMarkup(h(uiMod.SocraticInlineDrawer, {
-    deckId: 'deck-os', cardId: 'card-deadlock', initialView: goodRetell, modelReady: false, cardAnswered: false,
-  }));
-  assert.match(unansweredSummaryHtml, /data-testid="socratic-inline-summary"/);
-  assert.match(unansweredSummaryHtml, /回到原题作答/);
-
-  // Already-answered card with queued retry -> honest 「收起带学」 + retry note, never misleading 「回到原题重做」 button
-  const answeredSummaryHtml = renderToStaticMarkup(h(uiMod.SocraticInlineDrawer, {
-    deckId: 'deck-os', cardId: 'card-deadlock', initialView: goodRetell, modelReady: false, cardAnswered: true, retryQueued: true,
-  }));
-  assert.match(answeredSummaryHtml, /<button[^>]*>收起带学<\/button>/);
-  assert.match(answeredSummaryHtml, /本轮末尾会再考一遍这道题/);
-  assert.doesNotMatch(answeredSummaryHtml, /<button[^>]*>[^<]*回到原题重做/);
+  const answeredHtml = renderToStaticMarkup(h(uiMod.SocraticInlineDrawer, { ...ref, initialView: more, modelReady: true, cardAnswered: true, retryQueued: true }));
+  assert.match(answeredHtml, /<button[^>]*>收起带学<\/button>/);
+  assert.match(answeredHtml, /本轮末尾会再考一遍这道题/);
+  assert.doesNotMatch(answeredHtml, /<button[^>]*>[^<]*回到原题重做/);
 });
 
-test('4) 中断恢复与历史滑动窗口：重新打开该卡从上次阶段恢复，历史不超过上限', async (t) => {
-  const service = await createSeededService(t);
+test('4) 提示由模型顺着对话给；中断后恢复；历史与发给模型的内容都有上限', async (t) => {
+  const tutor = deadlockTutor();
+  const service = await createSeededService(t, { complete: tutor.complete });
+  const ref = { deckId: 'deck-os', cardId: 'card-deadlock' };
 
-  // Step into L1 judge stage
-  await service.call('socratic.step', {
-    deckId: 'deck-os',
-    cardId: 'card-deadlock',
-    text: '不太清楚',
-    offline: true,
-  });
+  await service.call('socratic.step', { ...ref, text: '不太清楚' });
+  const hinted = await service.call('socratic.step', { ...ref, action: 'hint' });
+  assert.equal(tutor.calls.at(-1).payload.request, 'hint');
+  assert.equal(tutor.calls.at(-1).payload.conversation.length, 3, 'the hint request carries the talk so far');
+  assert.equal(hinted.state.hintLevel, 2);
+  assert.equal(hinted.state.turns.at(-1).kind, 'hint');
+  assert.match(hinted.state.turns.at(-1).text, /还可能出现 A 等 B/);
+  assert.equal((await service.store.read()).decks[0].cards[0].socratic.hintLevel, 2, 'kept on the card in the backend');
 
-  // Simulate closing drawer and reopening the same card later -> socratic.get restores exact stage & hintLevel
-  const resumed = await service.call('socratic.get', { deckId: 'deck-os', cardId: 'card-deadlock' });
+  const resumed = await service.call('socratic.get', ref);
   assert.equal(resumed.persisted, true);
-  assert.equal(resumed.state.stage, 'judge');
-  assert.equal(resumed.state.hintLevel, 1);
-  assert.equal(resumed.state.turns.length, 3);
+  assert.equal(resumed.state.stage, 'answer');
+  assert.equal(resumed.state.turns.length, 4);
 
-  // Sliding window cap: many unqualified retells never grow turns beyond SOCRATIC_MAX_TURNS
-  await service.call('socratic.step', {
-    deckId: 'deck-os',
-    cardId: 'card-deadlock',
-    text: '按全局顺序编号并按升序申请资源，破坏循环等待不形成环路',
-    offline: true,
-  });
-  for (let i = 0; i < 20; i += 1) {
-    await service.call('socratic.step', {
-      deckId: 'deck-os',
-      cardId: 'card-deadlock',
-      text: '懂了',
-      offline: true,
-    });
-  }
-  const capped = await service.call('socratic.get', { deckId: 'deck-os', cardId: 'card-deadlock' });
+  for (let i = 0; i < 20; i += 1) await service.call('socratic.step', { ...ref, text: `懂了吗 ${i}` });
+  const capped = await service.call('socratic.get', ref);
   assert.ok(capped.state.turns.length <= SOCRATIC_MAX_TURNS, `turns capped at ${SOCRATIC_MAX_TURNS}`);
+  assert.ok(tutor.calls.at(-1).payload.conversation.length <= 12, 'only the last turns are sent');
+  assert.equal(capped.state.hintLevel, 2, 'plain replies add no help');
 });
 
-test('5) 复制本条与复制整段包含题目、我的作答、提示等级、阶段与 AI 追问', async (t) => {
-  const service = await createSeededService(t);
-  await service.call('socratic.step', {
-    deckId: 'deck-os',
-    cardId: 'card-deadlock',
-    text: '忘了',
-    offline: true,
-  });
-  const answered = await service.call('socratic.step', {
-    deckId: 'deck-os',
-    cardId: 'card-deadlock',
-    text: '按全局顺序编号并按升序申请资源，破坏循环等待条件',
-    offline: true,
-  });
+test('5) 复制本条与复制整段含题目、两边说的话、用过的提示，不带内部阶段代号', async (t) => {
+  const tutor = deadlockTutor();
+  const service = await createSeededService(t, { complete: tutor.complete });
+  const ref = { deckId: 'deck-os', cardId: 'card-deadlock' };
+  await service.call('socratic.step', { ...ref, text: '忘了' });
+  const done = await service.call('socratic.step', { ...ref, text: OWN_WORDS });
 
-  const lastTurn = answered.state.turns.at(-1);
-  const singleCopy = uiMod.formatSocraticTurnCopy(lastTurn, answered);
-  assert.match(singleCopy, /题目：为什么按全局顺序编号并升序申请资源可以预防死锁/);
-  assert.match(singleCopy, /阶段：复述/);
-  assert.match(singleCopy, /提示等级：L1 最小提示/);
-  assert.match(singleCopy, /AI 追问/);
+  const single = uiMod.formatSocraticTurnCopy(done.state.turns[2], done);
+  assert.match(single, /题目：为什么按全局顺序编号并升序申请资源可以预防死锁/);
+  assert.match(single, /老师（给了提示）：没关系/);
 
-  const fullCopy = uiMod.formatSocraticTranscriptCopy(answered);
-  assert.match(fullCopy, /苏格拉底带学：死锁必要条件/);
-  assert.match(fullCopy, /题目：为什么按全局顺序编号并升序申请资源可以预防死锁/);
-  assert.match(fullCopy, /当前阶段：复述/);
-  assert.match(fullCopy, /L1 最小提示/);
-  assert.match(fullCopy, /我的作答：忘了/);
-  assert.match(fullCopy, /AI 提示/);
-  assert.match(fullCopy, /AI 追问/);
+  const full = uiMod.formatSocraticTranscriptCopy(done);
+  assert.match(full, /苏格拉底带学：死锁必要条件/);
+  assert.match(full, /我：忘了/);
+  assert.match(full, /老师（给了提示）/);
+  assert.match(full, /结果：讲清楚了（用过提示）/);
+  assert.doesNotMatch(full, /L0|L1|L2|阶段|判定/);
 
-  const html = renderToStaticMarkup(h(uiMod.SocraticInlineDrawer, {
-    deckId: 'deck-os', cardId: 'card-deadlock', initialView: answered, modelReady: false,
-  }));
+  const html = renderToStaticMarkup(h(uiMod.SocraticInlineDrawer, { ...ref, initialView: done, modelReady: true }));
   assert.match(html, /复制本条/);
   assert.match(html, /复制整段/);
+  assert.doesNotMatch(html, /L0|socratic-inline__stages|判定/, 'no state-machine words on screen');
 });
 
 test('6) 统计隔离与独立口径 (#1323-11) + 错题本保留薄弱并显示提示等级 + 宽/窄屏不遮挡题目与选项', async (t) => {
-  const service = await createSeededService(t);
+  const service = await createSeededService(t, { complete: deadlockTutor().complete });
   const now = Date.now();
 
   // Official wrong answer on the real question first -> card enters WrongBook weak & is undoable
   const run = await service.call('review.start', { mode: 'path', scope: [{ deckId: 'deck-os', cardId: 'card-deadlock' }] });
   await service.call('review.answer', { runId: run.id, cardId: 'card-deadlock', selected: ['b'] });
 
-  // Now open Socratic drawer, get L1 hint, answer right, and pass retell (all inside the same runId)
-  await service.call('socratic.step', { deckId: 'deck-os', cardId: 'card-deadlock', runId: run.id, text: '不会', offline: true });
-  const right = await service.call('socratic.step', {
-    deckId: 'deck-os',
-    cardId: 'card-deadlock',
-    runId: run.id,
-    text: '给资源按全局顺序编号并升序申请，破坏循环等待条件',
-    offline: true,
-  });
-  assert.equal(right.state.stage, 'retell');
+  // Now open the drawer, get stuck (one hint), then explain it (all inside the same runId)
+  await service.call('socratic.step', { deckId: 'deck-os', cardId: 'card-deadlock', runId: run.id, text: '不会' });
+  const right = await service.call('socratic.step', { deckId: 'deck-os', cardId: 'card-deadlock', runId: run.id, text: OWN_WORDS });
+  assert.equal(right.state.stage, 'summary');
   assert.equal(right.state.maxHintLevelUsed, 1);
 
   await service.call('socratic.step', {
-    deckId: 'deck-os',
-    cardId: 'card-deadlock',
-    runId: run.id,
-    text: '因为死锁需要四个必要条件同时成立，全局升序编号后不会形成循环等待环路，所以能预防死锁。',
-    offline: true,
+    deckId: 'deck-os', cardId: 'card-deadlock', runId: run.id, text: '那我回原题试试',
   });
 
   const state = await service.store.read();
@@ -380,13 +315,8 @@ test('6) 统计隔离与独立口径 (#1323-11) + 错题本保留薄弱并显示
   assert.notEqual(recapCard?.attempts[0]?.assessment, 'socratic');
 
   // 5) New untouched card stays `new` after Socratic tutoring alone (never orphaned from new-card queue)
-  const freshService = await createSeededService(t);
-  await freshService.call('socratic.step', {
-    deckId: 'deck-os',
-    cardId: 'card-deadlock',
-    text: '给资源按全局顺序编号并升序申请，破坏循环等待条件',
-    offline: true,
-  });
+  const freshService = await createSeededService(t, { complete: deadlockTutor().complete });
+  await freshService.call('socratic.step', { deckId: 'deck-os', cardId: 'card-deadlock', text: OWN_WORDS });
   const freshState = await freshService.store.read();
   const freshCard = freshState.decks[0].cards[0];
   assert.equal(cardLevel(freshCard, latestOutcomes(freshState.attempts)('deck-os', 'card-deadlock')), 'new');
@@ -430,55 +360,25 @@ test('6) 统计隔离与独立口径 (#1323-11) + 错题本保留薄弱并显示
   assert.ok(card.socratic.retellPassed);
 });
 
-test('7) #1323-12: 智能单问截断（忽略引号/代码/URL/三元）+ 参考答案讲解不误截 + L2 0调用查看参考答案', async (t) => {
-  // 1) enforceSingleQuestion ignores `?`/`？` inside quotes, inline/fenced code, URLs, contractions, and ternary operators
-  const tricky = '提示：看「为什么？」和 `x ? a : b` 以及 https://example.com?a=1&b=2，还有 cond ? 1 : 0，你觉得破坏了哪个条件？顺便回答第二个问题？';
-  const trimmed = enforceSingleQuestion(tricky);
-  assert.equal(trimmed, '提示：看「为什么？」和 `x ? a : b` 以及 https://example.com?a=1&b=2，还有 cond ? 1 : 0，你觉得破坏了哪个条件？');
+test('7) 回复不按问号截断；参考答案随时可看且 0 模型调用', async (t) => {
+  const long = '你问的是排队吗？这里指拿不到锁的线程停下来等。\n\n`ok ? 1 : 0` 和它无关。那固定顺序会改变什么？';
+  const tutor = scriptedTutor([{ reply: long, understood: false, help: 'none' }]);
+  const service = await createSeededService(t, { complete: tutor.complete });
+  const asked = await service.call('socratic.step', { deckId: 'deck-os', cardId: 'card-deadlock', text: '什么排队？' });
+  assert.equal(asked.state.turns.at(-1).text, long);
 
-  const fenced = '先看代码：\n```js\n// why?\nconst v = ok ? 1 : 0;\n```\n这段代码解决了什么问题？\n2. 另一个问题？';
-  const trimmedFenced = enforceSingleQuestion(fenced);
-  assert.match(trimmedFenced, /\/\/ why\?/);
-  assert.match(trimmedFenced, /这段代码解决了什么问题？$/);
-  assert.doesNotMatch(trimmedFenced, /另一个问题/);
-
-  const englishContraction = "Don't you think TCP's handshake needs SYN? What about ACK?";
-  assert.equal(enforceSingleQuestion(englishContraction), "Don't you think TCP's handshake needs SYN?");
-
-  // 2) buildRevealMessage keeps full answer & explanation even when they contain `?`/`？`
-  const revealText = buildRevealMessage({
-    answer: '使用三元表达式 x > 0 ? 1 : -1（为什么？因为需要无分支返回值）',
-    explanation: '为什么这样写？参考 https://docs.example.com?q=1，这样能避免空值。',
-  }, 'zh');
-  assert.match(revealText, /参考答案：使用三元表达式 x > 0 \? 1 : -1/);
-  assert.match(revealText, /简要讲解：为什么这样写？参考 https:\/\/docs\.example\.com\?q=1/);
-  assert.match(revealText, /请用你自己的话复述一遍这道题为什么这样解？$/);
-
-  // 3) L2 zero-model-call `action: 'reveal'` + UI button rendered at hintLevel >= 2
-  let modelCalls = 0;
-  const service = await createSeededService(t, {
-    complete: async () => {
-      modelCalls += 1;
-      return JSON.stringify({ passed: false, reply: 'Should not be called' });
-    },
-  });
-  await service.call('socratic.step', { deckId: 'deck-os', cardId: 'card-deadlock', action: 'hint', offline: true });
-  const atL2 = await service.call('socratic.step', { deckId: 'deck-os', cardId: 'card-deadlock', action: 'hint', offline: true });
-  assert.equal(atL2.state.hintLevel, 2);
-
-  const l2Html = renderToStaticMarkup(h(uiMod.SocraticInlineDrawer, {
-    deckId: 'deck-os', cardId: 'card-deadlock', initialView: atL2, modelReady: true,
-  }));
-  assert.match(l2Html, /data-testid="socratic-reveal-btn"/);
-  assert.match(l2Html, /查看参考答案/);
+  const html = renderToStaticMarkup(h(uiMod.SocraticInlineDrawer, { deckId: 'deck-os', cardId: 'card-deadlock', initialView: asked, modelReady: true }));
+  assert.match(html, /data-testid="socratic-reveal-btn"/, 'offered from the first turn, not only after two hints');
 
   const revealed = await service.call('socratic.step', { deckId: 'deck-os', cardId: 'card-deadlock', action: 'reveal' });
-  assert.equal(modelCalls, 0, 'action: reveal must invoke 0 model calls');
-  assert.equal(revealed.state.stage, 'retell');
+  assert.equal(tutor.calls.length, 1, 'action: reveal must invoke 0 model calls');
+  assert.equal(revealed.state.stage, 'answer');
   assert.equal(revealed.state.hintLevel, 2);
   assert.equal(revealed.state.turns.at(-1).kind, 'reveal');
-  assert.match(revealed.state.turns.at(-1).text, /参考答案：/);
-  assert.match(revealed.state.turns.at(-1).text, /简要讲解：/);
+
+  const text = buildRevealMessage({ answer: '使用三元表达式 x > 0 ? 1 : -1', explanation: '为什么这样写？这样能避免空值。' }, 'zh');
+  assert.match(text, /参考答案\*\*：使用三元表达式 x > 0 \? 1 : -1/);
+  assert.match(text, /为什么\*\*：为什么这样写？这样能避免空值。$/);
 });
 
 const ref = { deckId: 'deck-os', cardId: 'card-deadlock' };
@@ -512,9 +412,9 @@ test('8) help taken in the drawer before answering marks the run answer as assis
 });
 
 test('9) the evidence follows what the drawer showed: asking only marks the tutor, a hint marks the hint', async (t) => {
-  const service = await createSeededService(t);
+  const service = await createSeededService(t, { complete: deadlockTutor().complete });
   const run = await startRun(service);
-  const step = (args) => service.call('socratic.step', { ...ref, runId: run.id, offline: true, ...args });
+  const step = (args) => service.call('socratic.step', { ...ref, runId: run.id, ...args });
   const entryAssistance = async () => (await service.store.read()).runs.find((r) => r.id === run.id).entries[0].assistance;
 
   // A right answer at L0 in the drawer: the tutor was asked, no hint and no answer was shown.
@@ -526,7 +426,7 @@ test('9) the evidence follows what the drawer showed: asking only marks the tuto
 
   // Reset and take one hint: the hint is recorded too, and evidence only adds up.
   await step({ action: 'reset' });
-  await step({ action: 'hint' });
+  await step({ action: 'hint', offline: true });
   const marked = await entryAssistance();
   assert.equal(marked.hintUsed, true);
   assert.equal(marked.revealedBeforeAnswer, false);
@@ -544,7 +444,7 @@ test('10) no run: a step without runId writes the card only; an exam in progress
   await service.call('socratic.step', { ...ref, action: 'reveal' });
   const state = await service.store.read();
   assert.equal(state.runs.find((r) => r.id === run.id).entries[0].assistance, undefined, 'a step outside a run marks no run');
-  assert.equal(state.decks[0].cards[0].socratic.stage, 'retell');
+  assert.equal(state.decks[0].cards[0].socratic.stage, 'answer');
 
   const exam = await service.call('review.start', { mode: 'exam', scope: [ref] });
   await assert.rejects(
@@ -554,10 +454,10 @@ test('10) no run: a step without runId writes the card only; an exam in progress
 });
 
 test('11) Socratic steps never enter the answer log: 错因 lands on the real answer and the daily plan does not count an unanswered question', async (t) => {
-  const service = await createSeededService(t);
+  const service = await createSeededService(t, { complete: deadlockTutor().complete });
 
   // Every kind of step on a question outside a run: nothing in state.attempts.
-  const step = (args) => service.call('socratic.step', { ...ref, offline: true, ...args });
+  const step = (args) => service.call('socratic.step', { ...ref, ...args });
   await step({ text: '不知道' });
   await step({ text: '按全局顺序编号并要求升序申请资源，破坏了循环等待条件，不会形成环路等待。' });
   await step({ text: '因为死锁需要四个必要条件同时成立，全局升序编号后不会形成循环等待环路，所以能预防死锁。' });
@@ -570,7 +470,7 @@ test('11) Socratic steps never enter the answer log: 错因 lands on the real an
   await service.store.update((s) => { s.runs.find((r) => r.id === run.id).dailyPlanTaskId = 'task-1'; });
   const task = { id: 'task-1', learningTask: { kind: 'practice', scope: [ref] } };
   await service.call('socratic.step', { ...ref, runId: run.id, offline: true, action: 'reset' });
-  await service.call('socratic.step', { ...ref, runId: run.id, offline: true, text: '按全局顺序编号并要求升序申请资源，破坏了循环等待条件，不会形成环路等待。' });
+  await service.call('socratic.step', { ...ref, runId: run.id, text: '按全局顺序编号并要求升序申请资源，破坏了循环等待条件，不会形成环路等待。' });
   assert.equal(taskProgress(await service.store.read(), task).done, 0, 'an unanswered question is not done');
 
   // 错因 after a wrong answer and a Socratic step is saved on the wrong answer.
@@ -699,6 +599,176 @@ test('16) while an answer is being graded the drawer does not show the reference
   assert.notEqual((await liveCardOf(service)).socratic?.revealed, true);
   // A hint is not the answer: it stays available.
   await service.call('socratic.step', { ...ref, runId: run.id, offline: true, action: 'hint' });
+});
+
+test('17) 模型没回复：说出真实原因，什么都不存，绝不拿本地模板顶替', async (t) => {
+  const tutor = scriptedTutor([new Error('rate limit: 429 too many requests')]);
+  const service = await createSeededService(t, { complete: tutor.complete });
+  await assert.rejects(service.call('socratic.step', { ...ref, text: '没懂啥意思' }), (error) => /带学没有拿到回复/.test(error.message) && /429/.test(error.message));
+  assert.equal((await liveCardOf(service)).socratic, undefined, 'a failed step saves nothing');
+});
+
+test('18) 没有模型：对话直说需要模型；自带提示和参考答案照常可看，且永远不判「讲清楚了」', async (t) => {
+  const service = await createSeededService(t);
+  await assert.rejects(service.call('socratic.step', { ...ref, text: OWN_WORDS }), /带学对话需要模型/);
+  assert.equal((await liveCardOf(service)).socratic, undefined);
+  const hinted = await service.call('socratic.step', { ...ref, action: 'hint' });
+  assert.equal(hinted.state.turns.at(-1).text, '题目自带的提示：想想死锁的四个必要条件');
+  const shown = await service.call('socratic.step', { ...ref, action: 'reveal' });
+  assert.match(shown.state.turns.at(-1).text, /参考答案/);
+  assert.equal(shown.state.retellPassed, false);
+
+  await service.store.update((s) => { delete s.decks[0].cards[0].hint; delete s.decks[0].cards[0].socratic; });
+  await assert.rejects(service.call('socratic.step', { ...ref, action: 'hint' }), /没有自带提示/);
+  assert.equal((await liveCardOf(service)).socratic, undefined, 'no hint given, no hint recorded');
+
+  const view = await service.call('socratic.get', ref);
+  assert.equal(view.hasHint, false);
+  const html = renderToStaticMarkup(h(uiMod.SocraticInlineDrawer, { ...ref, initialView: view, modelReady: false }));
+  assert.match(html, /data-model-gate/);
+  assert.doesNotMatch(html, /<textarea/, 'no box that cannot be answered');
+  assert.doesNotMatch(html, /给个提示/, 'a hint that cannot be given is not offered');
+  assert.match(html, /看参考答案/);
+});
+
+test('19) 光说「懂了」或照抄老师的话，模型说懂了也不算讲清楚', async (t) => {
+  const said = '两个线程各占一把锁又等对方那把，就谁也走不了。固定顺序后不会出现这种情况。';
+  const tutor = scriptedTutor([{ reply: said, understood: false, help: 'hint' }, { reply: '好。', understood: true, help: 'none' }]);
+  const service = await createSeededService(t, { complete: tutor.complete });
+  await service.call('socratic.step', { ...ref, text: '不会' });
+  for (const text of ['懂了！', '好的。', '两个线程各占一把锁又等对方那把，就谁也走不了']) {
+    const step = await service.call('socratic.step', { ...ref, text });
+    assert.equal(step.state.retellPassed, false, text);
+    assert.notEqual(step.state.stage, 'summary', text);
+  }
+});
+
+test('20) 模型不按 JSON 回：纯文字照样显示但不算懂、按给过提示记；坏数据报错', async (t) => {
+  const tutor = scriptedTutor(['我换个说法：两个人在窄桥上对着走，谁也不让，会怎样？', '```json\n{"reply": ']);
+  const service = await createSeededService(t, { complete: tutor.complete });
+  const plain = await service.call('socratic.step', { ...ref, text: '没懂啥意思' });
+  assert.match(plain.state.turns.at(-1).text, /窄桥/);
+  assert.equal(plain.state.retellPassed, false);
+  assert.equal(plain.state.hintLevel, 1);
+  await assert.rejects(service.call('socratic.step', { ...ref, text: '还是不懂' }), /读不出来/);
+  assert.equal((await liveCardOf(service)).socratic.turns.length, plain.state.turns.length);
+});
+
+test('21) 回复实际说出了答案：按看过答案记；批改中则整步拒绝', async (t) => {
+  const tutor = scriptedTutor([{ reply: '答案就是破坏了循环等待条件。', understood: false, help: 'answer' }]);
+  const service = await createSeededService(t, { complete: tutor.complete });
+  const run = await startRun(service);
+  await service.store.update((s) => { claimGrading(s.runs.find((item) => item.id === run.id).entries[0], 'task-1'); });
+  await assert.rejects(service.call('socratic.step', { ...ref, runId: run.id, text: '直接告诉我' }), (error) => error.message.includes(GRADING_BUSY));
+  assert.equal(tutor.calls[0].payload.answerMustStayHidden, true, 'the model is told too');
+  assert.equal((await liveCardOf(service)).socratic, undefined);
+
+  const free = await service.call('socratic.step', { ...ref, text: '直接告诉我' });
+  assert.equal(free.state.revealed, true);
+  assert.equal(free.state.turns.at(-1).kind, 'reveal');
+});
+
+test('22) 本轮已作答时：开场从结果出发，模型拿到学习者实际选了什么', async (t) => {
+  const tutor = deadlockTutor();
+  const service = await createSeededService(t, { complete: tutor.complete });
+  const run = await startRun(service);
+  await service.call('review.answer', { runId: run.id, cardId: 'card-deadlock', selected: ['b'] });
+  const opened = await service.call('socratic.get', { ...ref, runId: run.id });
+  assert.match(opened.state.turns[0].text, /刚才这题没答对/);
+  await service.call('socratic.step', { ...ref, runId: run.id, text: '我以为是互斥' });
+  assert.deepEqual(tutor.calls[0].payload.learnerRoundAnswer, { correct: false, chose: ['破坏了互斥条件'] });
+});
+
+test('23) 旧版留下的对话（复述阶段、旧的 turn 类型）能接着聊', async (t) => {
+  const tutor = scriptedTutor([{ reply: '你问得对，刚才那句没说清。固定顺序为什么能让圈接不起来？', understood: false, help: 'none' }]);
+  const service = await createSeededService(t, { complete: tutor.complete });
+  await service.store.update((s) => {
+    s.decks[0].cards[0].socratic = { version: 1, language: 'zh', stage: 'retell', hintLevel: 0, maxHintLevelUsed: 0, retellAttempts: 1, retellPassed: false,
+      answeredCorrectly: true, revealed: false, currentAnswer: '', startedAt: 1, updatedAt: 1, summary: null,
+      turns: [{ id: 't1', role: 'tutor', kind: 'retell-probe', stage: 'retell', hintLevel: 0, text: '这次复述还偏简略', at: 1 }] };
+  });
+  const next = await service.call('socratic.step', { ...ref, action: 'retell', text: '没懂啥意思' });
+  assert.equal(next.state.stage, 'answer');
+  assert.equal(next.state.turns.length, 3);
+  assert.equal(tutor.calls[0].payload.conversation[0].text, '这次复述还偏简略', 'the old line is context the tutor can explain');
+});
+
+test('24) 超时会叫停底层调用，并带上任务名与时限交给轻量模型通道', async () => {
+  let signal;
+  let options;
+  const hang = (system, prompt, given) => { options = given; signal = given.signal; return new Promise(() => {}); };
+  const state = { decks: [{ id: 'deck-os', cards: [{ id: 'card-deadlock', prompt: '题', answer: '答案', kind: 'flashcard' }] }], sources: [], runs: [] };
+  await assert.rejects(evaluateCardSocraticStep(state, { ...ref, text: '在吗' }, { complete: hang, timeoutMs: 20 }), /没有回应/);
+  assert.equal(signal.aborted, true);
+  assert.equal(options.task, 'review.socratic');
+  assert.equal(options.timeoutMs, 20);
+});
+
+test('25) 收尾以后再问出答案或提示，照样记到还没作答的这道题上', async (t) => {
+  const tutor = scriptedTutor([
+    { reply: '对，顺序固定后环路接不起来。', understood: true, help: 'none' },
+    { reply: '这题选「破坏了循环等待条件」。', understood: true, help: 'answer' },
+  ]);
+  const service = await createSeededService(t, { complete: tutor.complete });
+  const run = await startRun(service);
+  const say = (text) => service.call('socratic.step', { ...ref, runId: run.id, text });
+  assert.equal((await say(OWN_WORDS)).state.stage, 'summary');
+
+  const after = await say('那这题到底选哪个？');
+  assert.equal(after.state.revealed, true, '「understood」 stays true after closing; the help in that reply still counts');
+  assert.equal(after.state.turns.at(-1).kind, 'reveal');
+  await service.call('review.answer', { runId: run.id, cardId: 'card-deadlock', selected: ['a'] });
+  const answer = (await service.store.read()).attempts.find((a) => a.runId === run.id);
+  assert.equal(answer.assistance.revealedBeforeAnswer, true);
+  assert.equal(answer.grade, 3, 'not a clean pass');
+});
+
+test('26) 回复里原样出现标准答案：模型自报没给帮助也按看过答案记', async (t) => {
+  const leak = '你想想看，是不是破坏了循环等待条件这一条？';
+  const tutor = scriptedTutor([{ reply: leak, understood: false, help: 'none' }]);
+  const service = await createSeededService(t, { complete: tutor.complete });
+  const step = await service.call('socratic.step', { ...ref, text: '我没思路' });
+  assert.equal(step.state.revealed, true);
+  assert.equal(step.state.turns.at(-1).kind, 'reveal');
+});
+
+test('27) 等回复时题目改了、对话清了或另一条先落盘：这条回复不保存', async (t) => {
+  let during = async () => {};
+  const complete = async () => { await during(); return JSON.stringify({ reply: '为什么固定顺序就不会互相等？', understood: false, help: 'none' }); };
+  const service = await createSeededService(t, { complete });
+  const say = (text) => service.call('socratic.step', { ...ref, text });
+  await say('第一句');
+  const turnsNow = async () => (await liveCardOf(service)).socratic?.turns.length ?? 0;
+
+  during = async () => { during = async () => {}; await service.call('socratic.step', { ...ref, action: 'reset' }); };
+  await assert.rejects(say('清空前发的'), /刚刚变了/);
+  assert.equal(await turnsNow(), 1, 'only the fresh opening line');
+
+  during = async () => { during = async () => {}; await say('后发先到'); };
+  await assert.rejects(say('先发后到'), /刚刚变了/);
+  assert.equal(await turnsNow(), 3, 'one exchange, not two that never saw each other');
+
+  during = async () => { await service.store.update((s) => { s.decks[0].cards[0].prompt = '改过的题干'; delete s.decks[0].cards[0].socratic; }); };
+  await assert.rejects(say('改题前发的'), /刚刚变了/);
+  assert.equal(await turnsNow(), 0);
+});
+
+test('28) 学习者自己先说出了答案，老师复述一句不算泄题', async (t) => {
+  const tutor = scriptedTutor([
+    { reply: '你说「破坏了循环等待条件」，方向对。为什么这样就不会死锁？', understood: false, help: 'none' },
+    { reply: '回到你说的破坏了循环等待条件：环是怎么被拆掉的？', understood: false, help: 'none' },
+  ]);
+  const service = await createSeededService(t, { complete: tutor.complete });
+  const run = await startRun(service);
+  for (const text of ['破坏了循环等待条件', '不太会解释']) {
+    const step = await service.call('socratic.step', { ...ref, runId: run.id, text });
+    assert.equal(step.state.revealed, false, text);
+    assert.equal(step.state.hintLevel, 0, text);
+    assert.equal(step.state.turns.at(-1).kind, 'reply', text);
+  }
+  const entry = (await service.store.read()).runs.find((item) => item.id === run.id).entries[0];
+  assert.equal(entry.assistance.revealedBeforeAnswer, false);
+  assert.equal(entry.assistance.hintUsed, false);
 });
 
 function pick(object, keys) {

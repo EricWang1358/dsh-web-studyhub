@@ -144,7 +144,13 @@ function createConfigHandlers({ configStore, providerDiscovery, completePort, ge
       return { recovered: rec?.recovered !== false, backupPath: rec?.backupPath || '', config: await configReply(args) };
     },
     'desktop.config.test': async (args) => {
-      await providerDiscovery.scan({ force: false });
+      // The scan only supplies a ready CLI's path when the draft and the saved config name none, and the last scan answers that however
+      // old it is (as in buildBindingView) as long as it found the CLI being tested; if it did not, look again (installed or signed in
+      // since). A full scan costs ~6 s of CLI probes and its 30 s cache is always stale after one ~40 s agy test.
+      const cached = providerDiscovery.getCached();
+      const mode = args?.mode || getState()?.config?.mode;
+      const unfound = (mode === 'agy' || mode === 'codex') && !cached.some((item) => item.id === mode && item.status === 'ready');
+      if (!cached.length || unfound) await providerDiscovery.scan({ force: false });
       const { uiLanguage: _lang, ...draft } = args || {};
       return completePort.testConnection(Object.keys(draft).length ? draft : null, langOf(args));
     },

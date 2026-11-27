@@ -3,7 +3,8 @@ import { stageRequest } from '../../../lib/prompt-order.js';
 import { normalizeBaseUrl } from '../domain/config-policy.js';
 
 const OPENAI_TEST_TIMEOUT_MS = 30_000;
-const AGY_TEST_TIMEOUT_MS = 45_000;
+// A healthy agy answers a one-word test in about 40 s when one of the CLI's own plugins is slow to connect (measured 39.9-43.4 s), so 45 s called a working CLI broken.
+const AGY_TEST_TIMEOUT_MS = 90_000;
 const CODEX_TEST_TIMEOUT_MS = 60_000;
 const REASONING_MODEL_RE = /^(?:o[134](?:$|[-.])|gpt-5(?:$|[-.]))/i;
 

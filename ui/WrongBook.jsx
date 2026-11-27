@@ -516,12 +516,12 @@ function RowDetail({ id, item, course, detail, variants, recs, shortName, rescue
       {item.similarWin && <p className="muted" data-similar-win="">{similarWinLine()}</p>}
       {(detail?.socratic || item.socratic) && (() => {
         const soc = detail?.socratic || item.socratic;
-        const levelTag = `L${soc.hintLevel ?? 0}`;
+        const helped = (soc.hintLevel ?? 0) > 0;
         return (
           <p className="muted" data-socratic-meta="">
             {soc.retellPassed
-              ? uiFormat("苏格拉底带学：用过 {0} 级提示，已通过复述", [levelTag])
-              : uiFormat("苏格拉底带学：用过 {0} 级提示", [levelTag])}
+              ? (helped ? ui("苏格拉底带学：自己讲清楚了，期间用过提示") : ui("苏格拉底带学：没用提示就讲清楚了"))
+              : (helped ? ui("苏格拉底带学：用过提示，还没讲清楚") : ui("苏格拉底带学：聊过，还没讲清楚"))}
           </p>
         );
       })()}

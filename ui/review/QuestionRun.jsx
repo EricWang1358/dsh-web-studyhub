@@ -742,7 +742,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
         <PostAnswerDetails session={liveSession} data={data} model={model} onModelSettings={modelSettings} openModal={openModal} showSolution={showSolution} verdict={verdict} enOn={enOn} enAnswer={enAnswer} defaultOpen={!!inline} misconceptionShownAbove={answeredWrong} similarShownAbove={answeredWrong && !run.returnTo} nextDueNode={run.feedback ? <NextDue feedback={run.feedback} telemetry={run.feedbackTelemetry} whyOnly /> : null} />
         <TeachingPanel session={liveSession} data={data} model={model} onModelSettings={modelSettings} />
       </div>
-      {socratic.open && <LazySocraticInlineDrawer key={`socratic:${run.deckId}:${run.card.id}`} deckId={run.deckId} cardId={run.card.id} runId={run.id} prompt={run.card.prompt || ""} topic={run.card.topic || ""} modelReady={model.ready} modelConfirmed={socratic.modelConfirmed} onSaveModelConfirm={socratic.saveModelConfirm} cardAnswered={socratic.cardAnswered} retryQueued={socratic.retryQueued} onClose={socratic.close} onCloseToQuestion={socratic.returnToQuestion} onNotify={notify} />}
+      {socratic.open && <LazySocraticInlineDrawer key={`socratic:${run.deckId}:${run.card.id}`} deckId={run.deckId} cardId={run.card.id} runId={run.id} prompt={run.card.prompt || ""} topic={run.card.topic || ""} modelReady={model.ready} cardAnswered={socratic.cardAnswered} retryQueued={socratic.retryQueued} onClose={socratic.close} onCloseToQuestion={socratic.returnToQuestion} onNotify={notify} />}
     </div>
   );
 }

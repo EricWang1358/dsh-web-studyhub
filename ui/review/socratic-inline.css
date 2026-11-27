@@ -21,7 +21,7 @@
       display: flex;
       flex-direction: column;
       min-width: 0;
-      min-height: 22rem;
+      min-height: 26rem;
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: var(--bg-surface);
@@ -41,15 +41,9 @@
       background: var(--bg-surface);
     }
 
-    .socratic-inline__title-row {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--space-2);
-      min-width: 0;
-    }
-
     .socratic-inline__title {
       margin: 0;
+      min-width: 0;
       font-size: var(--fs-md);
       font-weight: var(--fw-medium);
       color: var(--text);
@@ -58,44 +52,8 @@
     .socratic-inline__head-actions {
       display: inline-flex;
       align-items: center;
-      gap: var(--space-1);
+      gap: var(--space-half);
       flex-shrink: 0;
-    }
-
-    .socratic-inline__stages {
-      flex: 0 0 auto;
-      list-style: none;
-      margin: 0;
-      padding: var(--space-2) var(--space-3);
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: var(--space-1-5);
-      border-bottom: 1px solid var(--line-soft);
-      background: var(--bg-sunken);
-    }
-
-    .socratic-inline__stage {
-      padding: var(--space-half) var(--space-2);
-      border-radius: var(--radius-pill);
-      border: 1px solid var(--line-soft);
-      background: var(--bg-surface);
-      color: var(--text-muted);
-      font-size: var(--fs-sm);
-      line-height: var(--lh-tight);
-    }
-
-    .socratic-inline__stage[data-done="true"] {
-      border-color: var(--ok-line);
-      background: var(--ok-bg);
-      color: var(--ok-ink);
-    }
-
-    .socratic-inline__stage[data-active="true"] {
-      border-color: var(--line-strong);
-      background: var(--bg-selected);
-      color: var(--text);
-      font-weight: var(--fw-medium);
     }
 
     .socratic-inline__notice {
@@ -108,52 +66,44 @@
       overflow-wrap: anywhere;
     }
 
+    /* A conversation: the tutor's words stand on the drawer's own ground, the learner's sit in a bubble on the right. */
     .socratic-inline__history {
       flex: 1 1 auto;
       min-height: 0;
       overflow-y: auto;
       overflow-anchor: auto;
-      padding: var(--space-3);
+      padding: var(--space-4) var(--space-3);
       display: flex;
       flex-direction: column;
-      gap: var(--space-2-5);
+      gap: var(--space-5);
     }
 
     .socratic-inline__turn {
+      position: relative;
       display: flex;
       flex-direction: column;
-      gap: var(--space-1-5);
-      padding: var(--space-2-5) var(--space-3);
-      border: 1px solid var(--line-soft);
-      border-radius: var(--radius-sm);
-      background: var(--bg-canvas);
+      gap: var(--space-1);
       min-width: 0;
     }
 
+    .socratic-inline__turn--tutor {
+      align-self: stretch;
+      padding-inline: var(--space-1);
+    }
+
     .socratic-inline__turn--learner {
-      background: var(--bg-sunken);
-      border-color: var(--line);
+      align-self: flex-end;
+      max-width: 86%;
+      padding: var(--space-2) var(--space-3);
+      border-radius: var(--radius);
+      background: var(--bg-selected);
     }
 
-    .socratic-inline__turn-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: var(--space-1-5);
-    }
-
-    .socratic-inline__turn-meta {
-      display: inline-flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: var(--space-1);
-    }
-
-    .socratic-inline__role {
-      font-size: var(--fs-sm);
-      font-weight: var(--fw-medium);
-      color: var(--text);
+    .socratic-inline__tag {
+      align-self: flex-start;
+      font-size: var(--fs-xs);
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
     }
 
     .socratic-inline__body {
@@ -164,7 +114,65 @@
       word-break: break-word;
     }
 
+    .socratic-inline__body .md > :first-child { margin-top: 0; }
+    .socratic-inline__body .md > :last-child { margin-bottom: 0; }
+
+    /* Copy sits in the gap under its line and shows when the line is pointed at or has the keyboard; a touch screen has it always, faintly. */
+    .socratic-inline__turn > .socratic-inline__copy {
+      position: absolute;
+      inset-block-start: 100%;
+      inset-inline-start: 0;
+      width: var(--space-5);
+      min-height: var(--space-5);
+      height: var(--space-5);
+      padding: 0;
+      opacity: 0;
+      transition: opacity var(--dur-fast) var(--ease);
+    }
+
+    .socratic-inline__turn--learner > .socratic-inline__copy {
+      inset-inline: auto 0;
+    }
+
+    .socratic-inline__turn:hover > .socratic-inline__copy,
+    .socratic-inline__turn:focus-within > .socratic-inline__copy {
+      opacity: 1;
+    }
+
+    /* The waiting line. Its class says busy, so the 动画 setting (ui/motion.css) keeps it going: it is how the learner knows something is on its way. */
+    .socratic-inline__waiting {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding-inline: var(--space-1);
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .socratic-inline__busy-dots {
+      display: inline-flex;
+      gap: var(--space-1);
+    }
+
+    .socratic-inline__busy-dots > i {
+      width: var(--space-1-5);
+      height: var(--space-1-5);
+      border-radius: 50%;
+      background: currentColor;
+      animation: socratic-busy 1.2s ease-in-out infinite;
+    }
+
+    .socratic-inline__busy-dots > i:nth-child(2) { animation-delay: 0.16s; }
+    .socratic-inline__busy-dots > i:nth-child(3) { animation-delay: 0.32s; }
+
+    .socratic-inline__failure {
+      flex: 0 0 auto;
+    }
+
     .socratic-inline__summary {
+      flex: 0 0 auto;
+      margin: 0 var(--space-3) var(--space-2);
       padding: var(--space-3);
       border: 1px solid var(--ok-line);
       border-radius: var(--radius-sm);
@@ -188,31 +196,26 @@
       gap: var(--space-2);
     }
 
-    .socratic-inline__confirm {
+    .socratic-inline__composer {
       flex: 0 0 auto;
-      padding: var(--space-2-5) var(--space-3);
-      border-top: 1px solid var(--line);
-      background: var(--bg-sunken);
-      display: grid;
+      padding: var(--space-2-5) var(--space-3) var(--space-3);
+      border-top: 1px solid var(--line-soft);
+      background: var(--bg-surface);
+      display: flex;
+      flex-direction: column;
       gap: var(--space-2);
-      font-size: var(--fs-sm);
-      color: var(--text-dim);
-      line-height: var(--lh-snug);
     }
 
-    .socratic-inline__confirm-actions {
+    .socratic-inline__chips {
       display: flex;
       flex-wrap: wrap;
       gap: var(--space-1-5);
     }
 
-    .socratic-inline__composer {
-      flex: 0 0 auto;
-      padding: var(--space-2-5) var(--space-3);
-      border-top: 1px solid var(--line);
-      background: var(--bg-surface);
-      display: flex;
-      flex-direction: column;
+    .socratic-inline__entry {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
       gap: var(--space-2);
     }
 
@@ -232,22 +235,20 @@
       line-height: var(--lh-body);
     }
 
-    .socratic-inline__composer-actions {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: var(--space-1-5);
-    }
-
-    .socratic-inline__error {
+    .socratic-inline__cost {
       margin: 0;
       font-size: var(--fs-sm);
-      color: var(--bad-ink);
+      color: var(--text-muted);
     }
 
     .assist-drawer-mode {
       margin-bottom: var(--space-2);
+    }
+  }
+
+  @media (hover: none) {
+    :where(.study-app, .study-seat) {
+      .socratic-inline__turn > .socratic-inline__copy { opacity: 0.6; }
     }
   }
 
@@ -273,4 +274,9 @@
       }
     }
   }
+}
+
+@keyframes socratic-busy {
+  0%, 80%, 100% { opacity: 0.25; }
+  40% { opacity: 1; }
 }

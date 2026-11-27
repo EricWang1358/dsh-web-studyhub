@@ -156,6 +156,7 @@
 | `lib/contexts/audio/worker.js:262,272` | 实时翻译仍走；旧校正调用不走 | 翻译：会话子系统；旧校正 S6-2 删除（`audioLiveCorrection`） | |
 | `lib/contexts/notes/daily-generation.js:39,48`、`lib/daily-recap.js:256` | 仍走 | 例外：共享流水线 | 每日总结的模型由调用方传入 |
 | `lib/followup.js:50`、`lib/ingest.js:59`、`lib/oral-exam-service.js:36`、`lib/rubric-grading.js:29` | 仍走 | 例外：即时请求 | 单次等待的请求，无任务记录 |
+| `lib/contexts/study/socratic-tutor.js` | 仍走 | 例外：即时请求 | 刷题页带学的一轮对话：学习者在等的单次请求（`socratic.step`），无任务记录 |
 | `lib/generation.js:96,101,142,272,273,756` | 仍走 | 例外：共享流水线 | |
 | `lib/one-pass/reply.js:10,12` | 仍走 | 例外：共享流水线 | 一次写完（出题方式默认），模型由 lib/batch.js 传入（运行的限流调用）；回复读不出 JSON 时再问一次 |
 | `lib/jobs/gateway.js:138` | 仍走 | 例外：内核 | 批准的模型网关 |

@@ -77,6 +77,13 @@ const FEATURES = {
     ...FEATURES.generate(model),
     then: ui('回到这里，点「出一套案例题」'),
   }),
+  // 带学 beside a question: talking needs a model, the reference answer and the question's own hint do not.
+  tutor: () => ({
+    why: ui('带学对话要调用 AI 模型；参考答案和题目自带的提示不需要。'),
+    then: ui('回到这里，接着聊'),
+    line: ui('带学对话需要先配置模型；参考答案和题目自带的提示不需要。'),
+    note: ui('可以先看参考答案；对话前需要先配置模型。'),
+  }),
   grade: () => ({
     badge: ui('批改需要模型'),
     why: ui('批改要调用 AI 模型。答案会先保存；配置好模型后点「重新提交批改」。'),

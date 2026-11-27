@@ -8,26 +8,21 @@ import { Button, LoadingState } from '../components/index.js';
 
 let cachedDrawer = null;
 
-/** Local drawer open/dismiss/P2-confirm state for inline Socratic tutoring inside QuestionRun (#1316, #1436). */
+/** Local drawer open/dismiss state for inline Socratic tutoring inside QuestionRun (#1316, #1436). */
 export function useSocraticInlineState({ run, closeAssist, reviewBodyRef }) {
   const [openKey, setOpenKey] = React.useState('');
   const [dismissedKey, setDismissedKey] = React.useState('');
-  const [confirmedRunId, setConfirmedRunId] = React.useState('');
   const allowed = run?.mode !== 'exam' && !run?.complete && Boolean(run?.card?.id);
   const scopeKey = voiceScopeKey(run);
   // A drawer is open for one question only: when the question changes the key is cleared (while rendering, so there is no frame in between),
   // otherwise A -> B -> A would find the old key again and re-open the drawer and ask the tutor by itself.
   if (openKey && openKey !== scopeKey) setOpenKey('');
   const open = Boolean(allowed && scopeKey && openKey === scopeKey);
-  const modelConfirmed = Boolean(run?.id && confirmedRunId === run.id);
   const cardAnswered = Boolean(run?.feedback);
   const retryQueued = Boolean(
     run?.feedback && run?.mode !== 'exam'
     && (run.feedback.correct === false || (Number.isInteger(run.feedback.grade) && run.feedback.grade <= 1)),
   );
-  const saveModelConfirm = React.useCallback(() => {
-    if (run?.id) setConfirmedRunId(run.id);
-  }, [run?.id]);
   const toggle = React.useCallback(() => {
     if (!allowed || !scopeKey) return;
     setOpenKey((prev) => (prev === scopeKey ? '' : scopeKey));
@@ -47,8 +42,6 @@ export function useSocraticInlineState({ run, closeAssist, reviewBodyRef }) {
     allowed,
     dismissedKey,
     setDismissedKey,
-    modelConfirmed,
-    saveModelConfirm,
     cardAnswered,
     retryQueued,
     toggle,

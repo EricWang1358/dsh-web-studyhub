@@ -281,6 +281,27 @@
       ]
     },
     {
+      "file": "lib/contexts/study/socratic-tutor.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 1
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "One turn of the tutor beside a question: one awaited request while the learner waits (instant action socratic.step, decision S4-0)",
+      "removeAt": "retained: an instant request with no Job, metered through the gateway like the other instant rows (#345)",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "one tutor reply for the conversation beside a question",
+          "disposition": "exception",
+          "kind": "foreground-request",
+          "reached": true
+        }
+      ]
+    },
+    {
       "file": "lib/contexts/audio/worker.js",
       "calls": [
         {

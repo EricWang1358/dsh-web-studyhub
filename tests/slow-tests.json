@@ -14,6 +14,7 @@
     "tests/book-entry-browser.test.mjs",
     "tests/book-html-browser.test.mjs",
     "tests/book-send-to-chat-browser.test.mjs",
+    "tests/busy-button-looks-browser.test.mjs",
     "tests/busy-lock-browser.test.mjs",
     "tests/calculation-guidance-browser.test.mjs",
     "tests/case-narrow-cls.test.mjs",

@@ -53,12 +53,12 @@
   }
   /* The glyph's side of a button is half a step tighter (optical balance): the glyph itself takes the half step back, so no rule has to ask the
      button what its first or last child is with :has() (that made every page switch restyle the app, tests/page-switch-jank.test.mjs). */
-  .study-app[data-craft='refined'] .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end) > :is(.sh-icon, .sh-spinner):first-child,
-  .study-seat[data-craft='refined'] .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end) > :is(.sh-icon, .sh-spinner):first-child {
+  .study-app[data-craft='refined'] .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end, .sh-btn--spin-over) > :is(.sh-icon, .sh-spinner):first-child,
+  .study-seat[data-craft='refined'] .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end, .sh-btn--spin-over) > :is(.sh-icon, .sh-spinner):first-child {
     margin-inline-start: calc(var(--space-half) * -1);
   }
-  .study-app[data-craft='refined'] .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end) > :is(.sh-icon, .sh-spinner):last-child:not(:first-child),
-  .study-seat[data-craft='refined'] .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end) > :is(.sh-icon, .sh-spinner):last-child:not(:first-child) {
+  .study-app[data-craft='refined'] .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end, .sh-btn--spin-over) > :is(.sh-icon, .sh-spinner):last-child:not(:first-child),
+  .study-seat[data-craft='refined'] .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end, .sh-btn--spin-over) > :is(.sh-icon, .sh-spinner):last-child:not(:first-child) {
     margin-inline-end: calc(var(--space-half) * -1);
   }
   .study-app[data-craft='refined'] :where(.sh-btn > .sh-icon),
@@ -81,20 +81,22 @@
     width: 14px;
     height: 14px;
   }
-  .study-app[data-craft='refined'] :where(.sh-btn:disabled),
-  .study-seat[data-craft='refined'] :where(.sh-btn:disabled) {
+  /* Disabled, not busy: a busy button is disabled too, but it keeps the component's busy look (components.css: accent fill, progress cursor, a hidden
+     label under a centred spinner). This layer outranks the component, so these rules and the glyph margins above have to leave a busy button alone. */
+  .study-app[data-craft='refined'] :where(.sh-btn:disabled:not([aria-busy="true"])),
+  .study-seat[data-craft='refined'] :where(.sh-btn:disabled:not([aria-busy="true"])) {
     cursor: not-allowed;
     color: color-mix(in srgb, var(--text-faint) 58%, transparent);
     background: color-mix(in srgb, var(--text) 3%, transparent);
     border-color: var(--line-soft);
   }
-  .study-app[data-craft='refined'] :where(.sh-btn--quiet:disabled),
-  .study-seat[data-craft='refined'] :where(.sh-btn--quiet:disabled) {
+  .study-app[data-craft='refined'] :where(.sh-btn--quiet:disabled:not([aria-busy="true"])),
+  .study-seat[data-craft='refined'] :where(.sh-btn--quiet:disabled:not([aria-busy="true"])) {
     background: transparent;
     border-color: transparent;
   }
-  .study-app[data-craft='refined'] :where(.sh-btn--link:disabled),
-  .study-seat[data-craft='refined'] :where(.sh-btn--link:disabled) {
+  .study-app[data-craft='refined'] :where(.sh-btn--link:disabled:not([aria-busy="true"])),
+  .study-seat[data-craft='refined'] :where(.sh-btn--link:disabled:not([aria-busy="true"])) {
     background: none;
     border-color: transparent;
     text-decoration-color: transparent;
