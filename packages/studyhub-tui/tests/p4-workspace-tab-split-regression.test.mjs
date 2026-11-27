@@ -1,13 +1,11 @@
-// P4 (#1354 D12): WorkspaceTab.tsx line-limit guardrail (<= 1000 lines) & split behavioral regression suite.
+// P4 (#1354 D12): WorkspaceTab.tsx split behavioral regression suite (line limit: scripts/line-limit-guard.mjs).
 // Run: node --test tests/p4-workspace-tab-split-regression.test.mjs
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { after, describe, test } from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { Box, render } from 'ink';
 import React from 'react';
 import stripAnsi from 'strip-ansi';
@@ -20,10 +18,6 @@ after(async () => {
   unregisterTsx?.();
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true }).catch(() => {})));
 });
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SETTINGS_SRC_DIR = path.resolve(__dirname, '../src/views/settings');
-const MAX_SETTINGS_FILE_LINES = 1000;
 
 const [
   workspaceTabMod,
@@ -62,27 +56,6 @@ const {
 
 const UNICODE_UI_CHROME_RE =
   /[\u2500-\u257F\u2580-\u259F\u25A0-\u25FF\u2600-\u27BF\u2800-\u28FF\u2190-\u21FF\u2022\u2026\u2039\u203A]/g;
-
-function countPhysicalLines(text) {
-  if (!text) return 0;
-  const normalized = text.replace(/\r\n|\r/g, '\n');
-  const parts = normalized.split('\n');
-  return normalized.endsWith('\n') ? parts.length - 1 : parts.length;
-}
-
-function collectSettingsLineCounts(dir) {
-  const entries = fs
-    .readdirSync(dir, { withFileTypes: true })
-    .filter((ent) => ent.isFile() && /\.(ts|tsx)$/.test(ent.name))
-    .map((ent) => ent.name)
-    .sort();
-  const counts = {};
-  for (const name of entries) {
-    const raw = fs.readFileSync(path.join(dir, name), 'utf8');
-    counts[name] = countPhysicalLines(raw);
-  }
-  return counts;
-}
 
 async function makeTempDir(label) {
   const dir = await mkdtemp(path.join(os.tmpdir(), `studyhub-p4-ws-${label}-`));
@@ -485,23 +458,7 @@ function createWorkspaceHost({ libraryRoot, handlers = {} }) {
   return { host, calls };
 }
 
-describe('P4 (#1354): WorkspaceTab line-limit guardrail & split behavioral regression', () => {
-  test('1) Line-limit guardrail: WorkspaceTab.tsx and all settings view source files stay <= 1000 lines', () => {
-    const counts = collectSettingsLineCounts(SETTINGS_SRC_DIR);
-    assert.ok(
-      typeof counts['WorkspaceTab.tsx'] === 'number',
-      'packages/studyhub-tui/src/views/settings/WorkspaceTab.tsx must exist',
-    );
-    const violations = Object.entries(counts)
-      .filter(([, lines]) => lines > MAX_SETTINGS_FILE_LINES)
-      .map(([file, lines]) => `${file}: ${lines} lines (max ${MAX_SETTINGS_FILE_LINES})`);
-    assert.deepEqual(
-      violations,
-      [],
-      `Settings view source files must stay <= ${MAX_SETTINGS_FILE_LINES} lines:\n${violations.join('\n')}`,
-    );
-  });
-
+describe('P4 (#1354): WorkspaceTab split behavioral regression', () => {
   test('2) Public WorkspaceTab exports preserve backup path sandbox, export summary, path truncation, and retrieval coverage semantics', async () => {
     const libRoot = await makeTempDir('exports');
 
@@ -1030,6 +987,87 @@ describe('P4 (#1354): WorkspaceTab line-limit guardrail & split behavioral regre
         { label: 'traversal path rejected with error toast' },
       );
       assert.equal(calls.some((c) => c.action === 'export'), false, 'must reject unsafe path before calling export');
+    } finally {
+      app.cleanup();
+    }
+  });
+
+  test('8) A new snapshot revision reloads restore points while the tab stays mounted', async () => {
+    const libRoot = await makeTempDir('revision');
+    resetTuiStore({
+      language: 'zh',
+      snapshot: { revision: 1, experimental: false, sample: { loaded: false } },
+      desktopConfig: { libraryPlaceConfirmed: true },
+    });
+    const { host, calls } = createWorkspaceHost({ libraryRoot: libRoot });
+    const app = mountWorkspaceTab({ host, binding: { root: libRoot, defaultRoot: libRoot, rootSource: 'default' } });
+    const listCalls = () => calls.filter((c) => c.action === 'library.restorePoints.list').length;
+    try {
+      await app.waitFor((f) => f.includes('auto-save'), { label: 'restore points loaded' });
+      const before = listCalls();
+      useTuiStore.setState({ snapshot: { revision: 2, experimental: false, sample: { loaded: false } } });
+      await app.waitFor(() => listCalls() > before, { label: 'restore points reloaded on revision bump' });
+    } finally {
+      app.cleanup();
+    }
+  });
+
+  test('9) [x] does not open the backup export modal while another action is busy', async () => {
+    const libRoot = await makeTempDir('busy-x');
+    resetTuiStore({
+      language: 'zh',
+      snapshot: { revision: 1, experimental: false, sample: { loaded: false } },
+      desktopConfig: { libraryPlaceConfirmed: true },
+    });
+    let releaseSample;
+    const sampleGate = new Promise((r) => {
+      releaseSample = r;
+    });
+    const { host } = createWorkspaceHost({
+      libraryRoot: libRoot,
+      handlers: {
+        'sample.load': async () => {
+          await sampleGate;
+          return { ok: true, value: { loaded: true } };
+        },
+      },
+    });
+    const app = mountWorkspaceTab({ host, binding: { root: libRoot, defaultRoot: libRoot, rootSource: 'default' } });
+    try {
+      await app.waitFor((f) => f.includes('auto-save'), { label: 'restore points loaded' });
+      app.send('s');
+      await app.waitFor((f) => /载入示例课程(…|\.\.\.)/.test(f), { label: 'sample load busy' });
+      app.send('x');
+      await new Promise((r) => setTimeout(r, 150));
+      assert.equal(app.frame().includes('输入备份文件路径'), false, 'export modal must stay closed while busy');
+    } finally {
+      releaseSample();
+      app.cleanup();
+    }
+  });
+
+  test('10) Enter restores the selected restore point, not the first one', async () => {
+    const libRoot = await makeTempDir('restore-selected');
+    resetTuiStore({
+      language: 'zh',
+      snapshot: { revision: 1, experimental: false, sample: { loaded: false } },
+      desktopConfig: { libraryPlaceConfirmed: true },
+    });
+    const { host, calls } = createWorkspaceHost({ libraryRoot: libRoot });
+    const app = mountWorkspaceTab({ host, binding: { root: libRoot, defaultRoot: libRoot, rootSource: 'default' } });
+    try {
+      await app.waitFor((f) => f.includes('auto-save'), { label: 'restore points loaded' });
+      app.send('\u001b[B');
+      // Wait until the pointer is on the second point, so Enter cannot race the selection change.
+      await app.waitFor((f) => /[\u276f>] 2026-11-25/.test(f), { label: 'second restore point selected' });
+      app.send('\r');
+      await app.waitFor((f) => f.includes('恢复备份点'), { label: 'confirm restore point dialog' });
+      app.send('y');
+      await app.waitFor(() => calls.some((c) => c.action === 'library.restorePoints.restore'), {
+        label: 'restore called',
+      });
+      const restore = calls.find((c) => c.action === 'library.restorePoints.restore');
+      assert.equal(restore.params?.id, 'rp-2');
     } finally {
       app.cleanup();
     }
