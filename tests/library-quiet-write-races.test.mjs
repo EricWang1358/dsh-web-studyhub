@@ -5,7 +5,7 @@ import { stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { Store } from '../lib/store.js';
-import { collectCommits } from '../lib/commit-log.js';
+import { collectCommits } from '../lib/runtime/commit-log.js';
 import { createTaskService } from '../lib/runtime/tasks.js';
 import { hostJobExecutor } from '../lib/jobs/executor.js';
 import { MANIFEST_FILENAME, createLibraryWatcher, readLibraryMeta } from '../lib/runtime/library-watch.js';

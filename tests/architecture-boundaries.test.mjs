@@ -67,8 +67,8 @@ test('retired legacy authority and transition container are removed from distrib
 
 // The kernel (lib/jobs) is the layer below every domain: it reaches out of its own folder to exactly these shared infrastructure modules (storage, usage and effort vocabularies, the
 // worker owner marker, the permit pool, the host child helper) and to nothing of a context, a domain pipeline or the UI. A new import is a review, not a wildcard.
-const KERNEL_REACHES = ['lib/atomic-json.js', 'lib/audio-pool.js', 'lib/commit-log.js', 'lib/host-capabilities.js', 'lib/job-output.js', 'lib/model-effort.js', 'lib/model-usage.js', 'lib/reasoning-effort.js',
-  'lib/runtime/work-ownership.js', 'lib/token-usage.js', 'lib/usage-scope.js'];
+const KERNEL_REACHES = ['lib/atomic-json.js', 'lib/audio-pool.js', 'lib/host-capabilities.js', 'lib/job-output.js', 'lib/model-effort.js', 'lib/model-usage.js', 'lib/reasoning-effort.js',
+  'lib/runtime/commit-log.js', 'lib/runtime/work-ownership.js', 'lib/token-usage.js', 'lib/usage-scope.js'];
 
 test('the kernel imports only the reviewed shared infrastructure outside lib/jobs, and no context, pipeline or UI', async () => {
   const reaches = new Map();
