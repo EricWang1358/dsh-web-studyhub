@@ -445,11 +445,11 @@ test('outline target resets stale deck filter, restores filter without target, c
     // Missing target row in Outline notifies instead of failing silently.
     await page.locator('.outline-header').getByRole('button', { name: /回到之前的第 1 题/ }).click();
     await place.waitFor({ state: 'visible', timeout: 30000 });
-    let stripNextOutline = true;
+    // Every course.outline answer leaves the document out while the route is on, not only the first: the return above (review.move) bumps the
+    // library revision, and when the poll brings it in while the outline is loading, the page reads the outline again and drops the first answer.
     const stripHandler = async (route) => {
       const body = route.request().postData() || '';
-      if (stripNextOutline && /"action":"course\.outline"/.test(body)) {
-        stripNextOutline = false;
+      if (/"action":"course\.outline"/.test(body)) {
         const response = await route.fetch();
         const json = await response.json();
         if (json?.value) {
