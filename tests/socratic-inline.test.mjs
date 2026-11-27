@@ -17,6 +17,7 @@ import { assistantRefusal } from '../lib/assistant-boundary.js';
 import { questionSolidity } from '../lib/evidence/point-evidence.js';
 import { taskProgress } from '../lib/daily-plan/tasks.js';
 import { loadUi } from './helpers/ui-module.mjs';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { contentKey } from '../lib/card-content.js';
 import { staleReviewEntries } from '../lib/study-state.js';
 import { claimGrading, GRADING_BUSY } from '../lib/contexts/study/grading-marker.js';
@@ -391,12 +392,41 @@ test('6) 统计隔离与独立口径 (#1323-11) + 错题本保留薄弱并显示
   assert.equal(cardLevel(freshCard, latestOutcomes(freshState.attempts)('deck-os', 'card-deadlock')), 'new');
 
   // Responsive CSS: 2-column beside question on wide screen, single-column below on narrow screen (<=959px), text wraps (#1309)
-  const sessionCss = readFileSync(new URL('../ui/review/session.css', import.meta.url), 'utf8');
-  const css = readFileSync(new URL('../ui/review/socratic-inline.css', import.meta.url), 'utf8');
-  assert.match(sessionCss, /\.review-body\.has-socratic\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(320px,\s*420px\)/s);
-  assert.match(css, /@container study \(max-width:\s*959px\)/);
-  assert.match(css, /@media \(max-width:\s*959px\)/);
-  assert.match(css, /\.socratic-inline__body\s*\{[^}]*overflow-wrap:\s*anywhere/s);
+  const sessionSheet = parseCss(readFileSync(new URL('../ui/review/session.css', import.meta.url), 'utf8'));
+  const drawerSheet = parseCss(readFileSync(new URL('../ui/review/socratic-inline.css', import.meta.url), 'utf8'));
+  assert.equal(
+    sessionSheet.declarations.some(
+      (d) => d.ctx.at(-1) === '.review-body.has-socratic'
+        && !d.ctx.some((c) => /^@(?:media|container)\b/.test(c))
+        && d.prop === 'grid-template-columns'
+        && d.value === 'minmax(0, 1fr) minmax(320px, 420px)',
+    ),
+    true,
+    '.review-body.has-socratic lays out a 2-column desktop grid beside the question',
+  );
+  for (const narrowCtx of [/^@container study \(max-width:\s*959px\)$/, /^@media \(max-width:\s*959px\)$/]) {
+    assert.equal(drawerSheet.blocks.some((b) => narrowCtx.test(b.prelude)), true, `socratic-inline.css declares ${narrowCtx}`);
+    assert.equal(
+      drawerSheet.declarations.some(
+        (d) => d.ctx.at(-1) === '.has-socratic > .socratic-inline-drawer'
+          && d.prop === 'grid-column'
+          && d.value === '1'
+          && d.ctx.some((c) => narrowCtx.test(c)),
+      ) && drawerSheet.declarations.some(
+        (d) => d.ctx.at(-1) === '.has-socratic > .socratic-inline-drawer'
+          && d.prop === 'position'
+          && d.value === 'static'
+          && d.ctx.some((c) => narrowCtx.test(c)),
+      ),
+      true,
+      `narrow rule ${narrowCtx} stacks drawer in column 1 with static position`,
+    );
+  }
+  assert.equal(
+    drawerSheet.declarations.some((d) => d.ctx.at(-1) === '.socratic-inline__body' && d.prop === 'overflow-wrap' && d.value === 'anywhere'),
+    true,
+    '.socratic-inline__body wraps long tokens without overflow',
+  );
   assert.ok(card.socratic.retellPassed);
 });
 

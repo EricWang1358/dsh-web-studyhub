@@ -16,6 +16,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { nativeSelects } from './helpers/native-selects.mjs';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 
 const require = createRequire(import.meta.url);
 const REPO_ROOT = fileURLToPath(new URL('../', import.meta.url));
@@ -392,12 +393,29 @@ test('W1-21: MineruInstallCard chooseHere renders folder & blocking error, and c
     card.unmount();
   }
 
-  const compCss = await readFile(new URL('../ui/components/components.css', import.meta.url), 'utf8');
-  assert.match(compCss, /\.sh-btn:hover:not\(:disabled\):not\(\[aria-disabled="true"\]\)/);
-  assert.match(compCss, /\.sh-btn--primary:hover:not\(:disabled\):not\(\[aria-disabled="true"\]\)/);
-  assert.match(compCss, /\.sh-btn--primary\[aria-disabled="true"\]/);
-  const overlaysCss = await readFile(new URL('../ui/components/overlays.css', import.meta.url), 'utf8');
-  assert.doesNotMatch(overlaysCss, /\.sh-btn\[aria-disabled="true"\]/, 'duplicate aria-disabled style removed from overlays.css');
+  const compSheet = parseCss(await readFile(new URL('../ui/components/components.css', import.meta.url), 'utf8'));
+  assert.equal(
+    compSheet.declarations.some((d) => d.ctx.at(-1) === '.sh-btn:hover:not(:disabled):not([aria-disabled="true"])' && d.prop === 'background'),
+    true,
+    '.sh-btn hover excludes both :disabled and [aria-disabled="true"]',
+  );
+  assert.equal(
+    compSheet.declarations.some((d) => d.ctx.at(-1) === '.sh-btn--primary:hover:not(:disabled):not([aria-disabled="true"])' && d.prop === 'transform'),
+    true,
+    '.sh-btn--primary hover lift excludes both :disabled and [aria-disabled="true"]',
+  );
+  assert.equal(
+    compSheet.declarations.some((d) => d.ctx.at(-1) === '.sh-btn--primary[aria-disabled="true"]' && d.prop === 'box-shadow' && d.value === 'none')
+      && compSheet.declarations.some((d) => d.ctx.at(-1) === '.sh-btn--primary[aria-disabled="true"]' && d.prop === 'transform' && d.value === 'none'),
+    true,
+    '.sh-btn--primary[aria-disabled="true"] renders flat without shadow or lift',
+  );
+  const overlaysSheet = parseCss(await readFile(new URL('../ui/components/overlays.css', import.meta.url), 'utf8'));
+  assert.equal(
+    overlaysSheet.declarations.some((d) => d.ctx.some((c) => /\.sh-btn\[aria-disabled=["']true["']\]/.test(c))),
+    false,
+    'duplicate aria-disabled style removed from overlays.css',
+  );
 });
 
 /* ---------- W1-22: Graph mastery mode demotes FullscreenButton & locks practiseOutlineKeys ---------- */
@@ -585,11 +603,25 @@ test('W1-33: layoutPath even-row curves travel right-to-left inside the gap and 
 /* ---------- W1-12: wrongbook.css narrow container rules use :is() specificity ---------- */
 
 test('W1-12: wrongbook.css narrow viewport rules use :is(.study-app, .study-seat) instead of zero-specificity :where()', async () => {
-  const css = await readFile(new URL('../ui/wrongbook.css', import.meta.url), 'utf8');
-  const narrowSection = css.slice(css.indexOf('@container study (max-width: 640px)'));
-  assert.doesNotMatch(narrowSection, /:where\(\.study-app, \.study-seat\)/, 'must not use zero-specificity :where() in narrow container block');
-  assert.match(narrowSection, /\.wb-retrain-copy small \{ white-space: normal; \}/);
-  assert.match(narrowSection, /\.wb-rec-line \.wb-why \{/);
-  assert.match(narrowSection, /\.wb-rec-line \.wb-why-tip \{ flex: 1 1 100%; \}/);
-  assert.match(narrowSection, /\.wb-row-toggle \{ flex-wrap: wrap; align-items: center; \}/);
+  const { declarations } = parseCss(await readFile(new URL('../ui/wrongbook.css', import.meta.url), 'utf8'));
+  const narrowDecls = declarations.filter((d) => d.ctx.includes('@container study (max-width: 640px)'));
+  assert.ok(narrowDecls.length > 0, 'wrongbook.css declares @container study (max-width: 640px) rules');
+  assert.equal(
+    narrowDecls.some((d) => d.ctx.some((c) => /:where\(\.study-app, \.study-seat\)/.test(c))),
+    false,
+    'must not use zero-specificity :where() in narrow container block',
+  );
+  assert.equal(
+    narrowDecls.every((d) => d.ctx.includes(':is(.study-app, .study-seat)')),
+    true,
+    'narrow container rules sit inside :is(.study-app, .study-seat)',
+  );
+  const hasNarrowDecl = (selector, prop, value) => narrowDecls.some(
+    (d) => d.ctx.at(-1) === selector && d.prop === prop && d.value === value,
+  );
+  assert.equal(hasNarrowDecl('.wb-retrain-copy small', 'white-space', 'normal'), true);
+  assert.equal(hasNarrowDecl('.wb-rec-line .wb-why', 'flex', '1 1 100%'), true);
+  assert.equal(hasNarrowDecl('.wb-rec-line .wb-why-tip', 'flex', '1 1 100%'), true);
+  assert.equal(hasNarrowDecl('.wb-row-toggle', 'flex-wrap', 'wrap'), true);
+  assert.equal(hasNarrowDecl('.wb-row-toggle', 'align-items', 'center'), true);
 });

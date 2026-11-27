@@ -22,6 +22,7 @@ import { methodProgress } from '../lib/course-method-progress.js';
 import { deriveItemStatus } from '../lib/study-progress.js';
 import { libraryContracts } from '../lib/study-contracts.js';
 import { createFakeModel } from '../scripts/fake-model.mjs';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { reviewChoiceKind, shortcutAction } from '../ui/review/session-logic.js';
 import { daysAgo, service as readinessService } from './helpers/readiness-library.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
@@ -701,12 +702,33 @@ test('UI rendering: bilingual zh/en (zero Han leakage), hand-off dispatch, Draft
   uiMod.setUiLanguage('zh');
 
   // CSS craftsmanship & 420px / 1280px responsive layout contract check on ui/task-card.css.
-  const cssText = await readFile(new URL('../ui/task-card.css', import.meta.url), 'utf8');
-  assert.match(cssText, /@layer\s+study\.features/);
-  assert.doesNotMatch(cssText, /--bg-glass|backdrop-filter|#[0-9a-fA-F]{3,8}|rgba?\(|hsla?\(/, 'uses Ink-desk semantic tokens only');
-  assert.match(cssText, /flex-wrap:\s*wrap/, 'actions and metadata wrap cleanly at 420px narrow width');
-  assert.match(cssText, /overflow-wrap:\s*anywhere/, 'long file paths and identifiers wrap without horizontal overflow at 420px and 1280px');
-  assert.match(cssText, /@media\s*\(max-width:\s*480px\)/, 'narrow-screen adaptation rule is present for 420px viewports');
+  // Repo-wide @layer scoping and raw hex/rgb/hsl color guards are enforced across all ui/**/*.css by
+  // tests/css-layers.test.mjs, tests/css-token-guard.test.mjs, and tests/ui-guardrails.test.mjs.
+  const { declarations, blocks } = parseCss(await readFile(new URL('../ui/task-card.css', import.meta.url), 'utf8'));
+  assert.equal(blocks.some((b) => b.prelude === '@layer study.features'), true, 'task-card.css belongs to @layer study.features');
+  assert.equal(
+    declarations.some((d) => d.prop === 'backdrop-filter' || d.prop === '-webkit-backdrop-filter' || d.prop === '--bg-glass' || /--bg-glass\b/.test(d.value)),
+    false,
+    'uses Ink-desk semantic tokens only (no --bg-glass or backdrop-filter)',
+  );
+  assert.equal(
+    declarations.some((d) => d.ctx.at(-1) === '.task-run__actions' && d.prop === 'flex-wrap' && d.value === 'wrap')
+      && declarations.some((d) => d.ctx.at(-1) === '.task-run__meta' && d.prop === 'flex-wrap' && d.value === 'wrap'),
+    true,
+    'actions and metadata wrap cleanly at 420px narrow width',
+  );
+  assert.equal(
+    declarations.some((d) => d.ctx.at(-1) === '.task-run__files' && d.prop === 'overflow-wrap' && d.value === 'anywhere')
+      && declarations.some((d) => d.ctx.at(-1) === '.task-run__evidence' && d.prop === 'overflow-wrap' && d.value === 'anywhere'),
+    true,
+    'long file paths and identifiers wrap without horizontal overflow at 420px and 1280px',
+  );
+  assert.equal(
+    blocks.some((b) => /^@media\s*\(max-width:\s*480px\)$/.test(b.prelude))
+      && declarations.some((d) => d.ctx.at(-1) === '.task-run__actions' && d.prop === 'align-items' && d.value === 'stretch' && d.ctx.some((c) => /^@media\s*\(max-width:\s*480px\)$/.test(c))),
+    true,
+    'narrow-screen adaptation rule is present for 420px viewports',
+  );
 });
 
 test('re-checking an active task run after fixing issues updates checks, keeps UI re-check controls visible, normalizes blank runId, localizes en output, and increments FSRS reps once', async (t) => {
