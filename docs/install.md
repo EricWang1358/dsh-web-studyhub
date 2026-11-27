@@ -141,9 +141,9 @@ Real-time transcription in **Live class** works with either **Google Gemini** or
 ## Choose English or Chinese
 
 - On first use, StudyHub follows your browser: Chinese if its preferred language is Chinese, English otherwise.
-- Switch with **Language** at the bottom of StudyHub's sidebar. This browser remembers your choice.
+- Switch with **Interface language** under **Settings › Interface**. This browser remembers your choice.
 - Switching does not translate saved sources, questions, notes or file names. New explanations and feedback follow the interface language.
-- For a new deck, set the question language in the **Language** field of **Create deck**. To show English under a Chinese question while you practise, use the **EN** button on the practice toolbar ([details](translate-en.md)).
+- For a new deck, set the question language in the **Language** field of **Create deck**. To show English under a Chinese question while you practise, use **More › Show English** on the practice toolbar ([details](translate-en.md)).
 
 ## Update StudyHub
 

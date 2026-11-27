@@ -1,5 +1,7 @@
 # StudyHub TUI Roadmap — Rounds 56–60
 
+> **Historical milestone archive**: Standalone `round56-60-*.test.mjs` files referenced below were later consolidated into current suites, and `useInput` references were later migrated to the P1 single dispatcher (`useScopedInput` / `useKeyScope`); see `docs/ARCHITECTURE.md` for current state.
+
 > **Baseline at Round 55 (`22746d91`, `feat/studyhub-tui`)**:
 > - **16 views** live + global `AppShell`, all **5 Barrel-Bypass rules** enforced (`0` importers across `render/index.js`, `components/index.js`, `host/index.js`), `0` `zod` runtime imports, `9` minimal runtime dependencies.
 > - **Round 55 gate**: `425+` automated TUI tests across `120+` suites, permanent AST P2 quota-guard audit (`tests/p2-quota-audit.test.mjs`), `52/74` (`51+` non-markdown) entry chunks locked `marked`-free (`tests/perf-budget.test.mjs`), `0` AST keymap conflicts, and `0` `--ascii` / `NO_COLOR=1` leaks.

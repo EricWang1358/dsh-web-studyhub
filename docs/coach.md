@@ -30,9 +30,9 @@ Open **Settings › Study profile and tour** and find the **Study coach** sectio
 
 1. While practising, click the thumbs-down button (**Question needs work**) or press B. For a good question, click thumbs-up (**Good question**) or press G.
 2. A tray of tags opens (**What needs improvement?**). Click one or more tags, or press 1–7 while the tray is open.
-3. Pause for 1.2 seconds. The tags you chose are sent. Sent tags cannot be withdrawn.
+3. Pause for 4 seconds (or close the tray). The tags you chose are sent. Sent tags cannot be withdrawn.
 
-If you choose no tag, the thumbs-down still counts: after 1.2 seconds it is sent as a general "check and fix this question" request. If the question only asks what the material says, **Only asks what the source says** is already selected. You can unselect it before it is sent.
+Clicking thumbs-down records the thumbs-down immediately; if you choose no tag, it remains recorded as a general "check and fix this question" request (any tags selected later submit after 4 seconds). If the question only asks what the material says, **Only asks what the source says** is already selected. You can unselect it before it is sent.
 
 | Tag | What happens |
 | --- | --- |
@@ -115,7 +115,7 @@ A wrong answer during practice does not prepare anything on its own. To get vari
 ### How they are written
 
 - Targets wait up to 20 seconds, or until 3 are waiting, then go out together. Each model call writes up to 4 questions.
-- Variants are single-choice questions, or multiple-choice when the original was. A **Too hard** target becomes a flashcard.
+- Variants keep multiple-choice, true/false, open-response and hands-on task forms (unless form downgrade is explicitly requested), and otherwise become single-choice questions. A **Too hard** target becomes a flashcard.
 - Each question is checked on its own. Its quotes must come verbatim from the cited sources, it must not repeat an existing question, and it must pass normal question validation. A question that fails is dropped, not repaired.
 - At most 12 personalised questions wait at a time.
 
@@ -152,8 +152,10 @@ Shortcuts work while the panel has focus and you are not typing in a text field.
 | Key | Action |
 | --- | --- |
 | 1–6 | Choose an option |
+| 0 / Backspace | Multiple choice: clear selected options |
 | 1–7 | Choose a tag while the thumbs-down tray is open |
 | 0–5 | Rate a flashcard or open response |
+| Z / Ctrl+Z | Undo the previous question's rating |
 | Enter | Next question; submit a multiple-choice or fill-in-the-blank answer; flip a card |
 | Space | Flip a card |
 | ← / → | Previous / next question (→ after you answer) |
@@ -161,7 +163,16 @@ Shortcuts work while the panel has focus and you are not typing in a text field.
 | T | Ask the background assistant for a plain-language explanation |
 | G / B | Thumbs-up / thumbs-down |
 | A | Turn autopilot on or off |
+| K | Skip for now (move to the end of this round) |
+| N | Write a note |
+| F | Mark or unmark as important |
+| O | Open the question's source page |
+| Alt+` | Switch focus between the question and the side-by-side source pane |
+| W | Mark unfamiliar terms |
+| V / Shift+V | Voice answer (flashcard, open, cloze) / voice question to **Help me understand** |
 | S | Resume the last round or start today's study, from any page |
+| Ctrl K / ⌘K / / | Find a feature (`/` when no text field is focused) |
+| Alt+Shift+A | Toggle study ambience soundscape |
 | P | While reading a source: practise these pages |
 | ? | Show or hide the shortcut sheet |
 | Esc | Close a dialog |
@@ -184,7 +195,7 @@ The Settings › Practice choices (autopilot, round size, the round review, what
 ## Model use and tokens
 
 - The coach uses the session model at its lowest reasoning level: off, none or minimal when the model offers one, otherwise low, otherwise the lowest level listed. Your **Reasoning effort** setting for question generation does not apply here.
-- Output caps apply only when reasoning is fully off, so reasoning is never cut short: 450 tokens for a hint, 320 for a coach reply, 1,600 for a repair, 3,600 for a batch of personalised questions and 650 for a round summary.
+- Output caps apply only when reasoning is fully off, so reasoning is never cut short: 450 tokens (600 in English) for a hint, 320 (450 in English) for a coach reply, 1,600 for a repair, 4,096 + 1,200 per target for a batch of personalised questions and 650 (750 in English) for a round summary.
 - A hint sends only the question with its own answer and explanation, no source text. A repair sends source excerpts around the cited quotes, up to 5,000 characters. A batch of personalised questions sends up to 6,000 characters. Code checks every quote verbatim.
 - Cognitive level, metrics, notes and the next step are computed by code.
 - The panel polls the host with a fingerprint. When nothing has changed, the host answers `unchanged` instead of sending the library again, source text included. The fingerprint also rolls over every minute, because due counts move with the clock; when that is all that moved (nothing written, the same day), the host answers only the parts that read the clock and came out different (`lib/snapshot-time.js`), and the panel keeps the rest. Polling runs every 2.5 seconds, slows down after many unchanged answers in a row (unless a task is running) and stops while the panel is hidden.

@@ -1,5 +1,7 @@
 # StudyHub TUI Roadmap — Rounds 66–70
 
+> **Historical milestone archive**: Early standalone test names (such as `ergonomics.test.mjs`) were later consolidated, backup export filenames now include a `-HHmmss` timestamp suffix, and `dist/App.mjs` has since been split further (`<= 64 KB` budget); see `docs/ARCHITECTURE.md` for current state.
+
 > **Baseline at Round 65 (`55e9226d`, `feat/studyhub-tui`)**:
 > - **16 views** live + global `AppShell`, all **5 Barrel-Bypass rules** enforced (`0` importers across `render/index.js`, `components/index.js`, `host/index.js`), `0` `zod` runtime imports, `9` minimal runtime dependencies.
 > - **Round 65 gate**: `510+` automated TUI tests across `150+` suites (`511` at `55e9226d`), permanent AST P2 quota-guard audit (`tests/p2-quota-audit.test.mjs`), `55+` non-markdown entry chunks locked `marked`-free (`tests/perf-budget.test.mjs`), `0` AST keymap conflicts, `0` `--ascii` / `NO_COLOR=1` leaks, and `dist/cli.mjs <= 15 KB` with `--doctor` CLI diagnostics.

@@ -54,7 +54,7 @@ Keys act on the diagram that has keyboard focus. For the class diagram, focus it
 
 ## Performance
 
-- Viewport culling starts above 120 nodes. Overscan keeps nearby content and the node being dragged.
+- Viewport culling hides offscreen boxes and edges whenever the canvas viewport is measured. Overscan keeps nearby content and the node being dragged.
 - The minimap's nodes are memoised.
 - Pointer updates are batched to animation frames, and saving dragged positions is debounced.
 - Saved layouts are kept separately for each combination of direction, spacing and attribute display.

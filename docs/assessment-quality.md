@@ -13,7 +13,7 @@ In short:
 
 ## How generation works
 
-The pipeline covers **Quiz + flashcards**, **Single choice**, **Multiple choice**, **True/False**, **Flashcard**, **Open response** and **Fill in the blank**, including questions written from converted PDFs. **Case paper** has its own workflow, which this pipeline does not change.
+The pipeline covers **Quiz + flashcards**, **Single choice**, **Multiple choice**, **True/False**, **Flashcard**, **Open response** and **Fill in the blank**, including questions written from converted PDFs. **Case paper** has its own workflow, which this pipeline does not change. For **Single choice** coverage runs, StudyHub defaults to the one-pass strategy (`strategy: 'one-pass'`); other question types, non-coverage runs and staged mode use the four-stage pipeline below.
 
 StudyHub splits a request into batches of up to 5 questions by default. Knowledge extraction runs once for each group of selected pages. After that, up to 4 batches run at the same time by default (you can set 1–8). Adjust [question defaults and generation pace](generation-agents-sidebar.md#what-a-generation-task-does) in **Settings › Question defaults**.
 
@@ -93,7 +93,7 @@ The draft page's main button is **Publish and practise**. It reads **Save & upda
 1. saves the draft and checks its structure question by question;
 2. publishes every question, without a model review;
 3. marks questions without a current review record **Not automatically reviewed** (a review made before the course's [generation rules](#course-generation-rules) changed is not current);
-4. opens a practice round of up to 10 new questions from the deck.
+4. opens a practice round of new questions from the deck (up to the new-question limit in **Settings › Practice**, 10 by default).
 
 Questions with structural problems still publish. During practice they carry a **Needs verification** mark that lists the problems and offers **Send for background repair**. A question with nothing to grade can be skipped without recording a result.
 

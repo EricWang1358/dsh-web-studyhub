@@ -89,6 +89,8 @@ Each file is checked as soon as it is added, and again when you click **Start im
 
 When SiliconFlow or Groq is first in line, the request count includes the pieces their file limits require.
 
+Preflight checks whether the recording can be split using the current **Longest per request** setting under **Settings › Audio transcription › Advanced › Expert options** (5–45 minutes; a value saved earlier above 45, such as 59, counts as 45). The notice reports the limit that applies.
+
 ### Several files as one transcript
 
 Choose more than one file and they become one transcript, in the listed order. Drag them, or use the arrow buttons, to reorder. The files are processed one after another. The finished source has a heading for each file (`## 1. lecture-a.mp3`). Its default name is the first file name plus the number of other files.
@@ -99,8 +101,6 @@ If a file fails its check when the run starts, the others wait instead of being 
 
 Timestamped subtitles downloaded from Bilibili or similar sites (SRT, VTT, JSON or TXT, up to 8 MB) skip transcription. They go straight to proofreading and translation, and each paragraph keeps its start time. Import one subtitle file at a time, without audio files. No transcription provider is needed, only a model for the text steps.
 
-
-Preflight checks whether the recording can be split using the current **Longest per request** setting under **Settings › Audio transcription › Advanced › Expert options** (5–45 minutes; a value saved earlier above 45, such as 59, counts as 45). The notice reports the limit that applies.
 ## Follow progress
 
 Task cards appear on the **Audio transcription** page and at the top of **Sources**. A card shows:
@@ -347,7 +347,7 @@ Everything below is in **Settings › Audio transcription**.
 | Setting | Where | Default | Notes |
 | --- | --- | --- | --- |
 | Provider keys | Provider cards | None | One is enough |
-| **Reasoning strength of proofreading and translation** | **Advanced** | Proofreading: model default; translation: Low | The current model's own levels, see [Proofreading and translation depth](#proofreading-and-translation-depth) |
+| **Reasoning strength of proofreading and translation** | **Advanced** | Proofreading: Low; translation: Low (UI falls back to model default when unset) | The current model's own levels, see [Proofreading and translation depth](#proofreading-and-translation-depth) |
 | **Gemini paid key (optional)** | **Advanced** | None | Separate, billed Google project |
 | **Model for proofreading and translation** | **Advanced › Expert options** | **Automatic** | See [Which model proofreads and translates](#which-model-proofreads-and-translates) |
 | **Transcription model** | **Expert options** | `gemini-3.5-transcribe` | Gemini |

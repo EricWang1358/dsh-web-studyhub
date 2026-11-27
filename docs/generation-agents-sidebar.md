@@ -5,7 +5,7 @@ English · [简体中文](generation-agents-sidebar.zh-CN.md)
 StudyHub runs model work in the background, so you can keep practising or chatting while it works. Background tasks include:
 
 - generating a deck with **Generate from sources** or **Add questions from sources**, and **Send for background repair** on a draft;
-- **Help me understand**, **Improve question**, **Fill terms**, making a new question from a Q&A, and rubric grading of an open answer;
+- **Help me understand**, **Improve question**, **Fill in terms**, making a new question from a Q&A, and rubric grading of an open answer;
 - correcting earlier sentences of a **Live class** transcript.
 
 This page shows where to follow these tasks, what each one saves, and what to do when one fails.
@@ -61,10 +61,10 @@ To change the batch settings for new tasks, open **Settings › Question default
 
 The same page saves a default question type, the default count for questions asked in the main chat (1–500; a total above 30 is made in rounds of at most 30), language, difficulty and focus. Initial defaults are Single choice, 10 questions, Follow interface language, Mixed difficulty and an empty focus. Choices on a new request take precedence, and a started task keeps its own settings snapshot. Continue or supplement from a draft keeps that draft’s content choices and generation pace, independently of later library-default changes. Older drafts without a pace snapshot use the built-in pace, 4 parallel batches and 5 questions per batch; their time budget is the current setting. Reset edits the form until you save; saving these preferences does not start generation.
 
-Each batch gets exactly one independent review:
+Each batch goes through independent review (eligible single-choice coverage runs default to the one-pass strategy; wording-only flagged cards or enabled suggestion rewrites receive one bounded re-review):
 
 - Questions that pass are kept. Rejected candidates are listed with the reason.
-- StudyHub does not repair and re-review automatically, and it does not generate extra questions to reach the count you asked for.
+- StudyHub automatically runs one bounded wording rewrite and re-review pass for wording-only flagged cards (and optional suggestion rewrites when enabled) and up to 2 automatic fill rounds by default (0–4 in **Settings › Question defaults**), without unbounded retry loops.
 - To repair rejected questions later, click **Send for background repair** in the draft. That is a separate task you start yourself.
 
 A model review does not prove that a question is correct. Check the sources before you publish.
@@ -79,7 +79,7 @@ These actions start a background assistant for the current question:
 | **Improve question** | A button under the question | An edit to the question. The old version stays in the question's history, and you can undo the change. The box offers common problems and your own saved phrases. |
 | **Make a prerequisite question** | **More** menu | One new flashcard about a knowledge point you type, as a prerequisite of this question or as a separate question. |
 | **Make a prerequisite question** / **Make a separate question** | Under a saved Q&A | One new flashcard built from that Q&A. See [Follow-up questions](followup.md). |
-| **Fill terms** | Term bar while practising or viewing answers | Runs as a **Jobs** console task (preferring a bounded tool-less DSH subagent and falling back automatically) with live output, stop control, and an **Open deck** action on completion. |
+| **Fill in terms** | Term bar while practising or viewing answers | Runs as a **Jobs** console task (preferring a bounded tool-less DSH subagent and falling back automatically) with live output, stop control, and an **Open deck** action on completion. |
 
 How these tasks behave:
 

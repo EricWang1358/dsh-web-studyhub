@@ -1,7 +1,7 @@
 # Report kit
 
 Makes the before/after material for a UX change: sequence diagrams, a plain-words explanation, and one offline HTML deck.
-No dependencies; pure ESM. Output goes under `output/reports/<step>/` (gitignored).
+No external dependencies for building decks (`shots.mjs` uses Playwright via `scripts/qa/browser.mjs`); pure ESM. Output goes under `output/reports/<step>/` (gitignored).
 Try it: `node scripts/report/build.mjs scripts/report/examples/sample-deck.json --out output/reports/try/deck.html`.
 
 ## Add a step's slides

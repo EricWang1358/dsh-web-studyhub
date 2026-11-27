@@ -1,5 +1,7 @@
 # StudyHub TUI Roadmap — Rounds 61–65
 
+> **Historical milestone archive**: Standalone `round61-65-*.test.mjs` files referenced below were later consolidated into current suites, and backup export filenames now include a `-HHmmss` timestamp suffix; see `docs/ARCHITECTURE.md` for current state.
+
 > **Baseline at Round 60 (`7454ed03`, `feat/studyhub-tui`)**:
 > - **16 views** live + global `AppShell`, all **5 Barrel-Bypass rules** enforced (`0` importers across `render/index.js`, `components/index.js`, `host/index.js`), `0` `zod` runtime imports, `9` minimal runtime dependencies.
 > - **Round 60 gate**: `470+` automated TUI tests across `135+` suites, permanent AST P2 quota-guard audit (`tests/p2-quota-audit.test.mjs`), `53+` non-markdown entry chunks locked `marked`-free (`tests/perf-budget.test.mjs`), `0` AST keymap conflicts, and `0` `--ascii` / `NO_COLOR=1` leaks.

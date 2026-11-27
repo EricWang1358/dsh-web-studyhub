@@ -65,15 +65,23 @@ precede addition/subtraction; powers associate right and precede unary signs:
 integers in `[-12, 12]`. There are no functions, implicit multiplication,
 properties, arrays, strings, assignments or executable statements.
 
-Supported units are `m`, `cm`, `mm`, `km`, `kg`, `g`, `s`, `min`, `h`, `%`
-and unit products/quotients with integer powers, such as `kg*m/s^2`. Empty unit
-or `1` means dimensionless. Products/quotients associate left; parentheses in
-unit strings are unsupported. Quantities normalize to metre/kilogram/second
+Supported units cover dimensionless `%`, length (`m`, `km`, `dm`, `cm`, `mm`, `nm`),
+mass (`kg`, `g`, `mg`, `t`), time (`s`, `ms`, `ns`, `min`, `h`), area (`ha`),
+volume (`L`, `mL`, `dL`), temperature (`K`, plus standalone affine `°C`), force
+(`N`, `kN`, `mN`), energy (`J`, `kJ`, `MJ`, `mJ`, `eV`, `keV`, `MeV`, `Wh`, `kWh`,
+`cal`, `kcal`), power (`W`, `kW`, `MW`, `mW`), pressure (`Pa`, `kPa`, `MPa`, `GPa`,
+`bar`, `atm`), electrical (`A`, `mA`, `kA`, `V`, `mV`, `kV`, `Ω`, `kΩ`, `MΩ`, `mΩ`,
+`ohm`, `kohm`), frequency (`Hz`, `kHz`, `MHz`, `GHz`), amount/concentration (`mol`,
+`mmol`, `M`, `mM`), plane angle (`rad`, `deg`, `°`), and unit products/quotients
+with integer powers, such as `kg*m/s^2`. Outer TeX math wrappers (`$...$`, `$$...$$`,
+`\(...\)`, `\[...\]`) and `\SI` / `\qty` macros on answers are stripped before
+parsing. Empty unit or `1` means dimensionless. Products/quotients associate left;
+parentheses in unit strings are unsupported. Quantities normalize to SI base
 dimensions and scales, allowing e.g. `36 km/h * 2 min = 1.2 km`. Addition
 and subtraction require matching dimensions; the result must match the stated
 unit's dimensions. Unknown units are unverified, even if their labels match.
 
-Comparisons use a fixed absolute tolerance of `1e-12` plus a relative tolerance
+Comparisons use an absolute tolerance of `1e-12 * Math.min(1, unitScale)` plus a relative tolerance
 of `1e-9`, measured after normalization to SI scales. A generated composite unit
 cannot enlarge the absolute tolerance. Optional `decimalPlaces`
 must be an integer from 0 through 10; it rounds only the final result in each
