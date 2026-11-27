@@ -40,6 +40,8 @@ const [
   aiDialogue,
   { executeAssistantWriteAction },
   { savePageAskToNote },
+  { AiHelpDrawer },
+  { NextStepFollowupBar },
   { AssistantPanel, _resetAssistantSessionMemory },
   { ReviewView },
   { useTuiStore, DEFAULT_PREFERENCES },
@@ -48,10 +50,30 @@ const [
   import('../src/host/ai-dialogue.ts'),
   import('../src/shell/assistant-actions.ts'),
   import('../src/views/sources/ReaderNotesDrawer.tsx'),
+  import('../src/views/review/AiHelpDrawer.tsx'),
+  import('../src/views/review/NextStepFollowupBar.tsx'),
   import('../src/shell/AssistantPanel.tsx'),
   import('../src/views/review/ReviewView.tsx'),
   import('../src/state/store.ts'),
 ]);
+
+function resetTuiState() {
+  _resetAssistantSessionMemory();
+  useTuiStore.setState({
+    page: 'review',
+    activeRunId: null,
+    preferences: { ...DEFAULT_PREFERENCES },
+    snapshot: null,
+    inputCaptured: false,
+    assistantOpen: false,
+    assistantFocused: false,
+    assistantTab: 'assistant',
+    assistantStage: 'question',
+    assistantFullscreen: false,
+    assistantCardContext: null,
+    toasts: [],
+  });
+}
 
 function mountInk(element, { cols = 104, rows = 32 } = {}) {
   const stdin = new PassThrough();
@@ -65,6 +87,7 @@ function mountInk(element, { cols = 104, rows = 32 } = {}) {
   stdout.rows = rows;
   stdout.getColorDepth = () => 1;
   let lastFrame = '';
+  let cleaned = false;
   stdout.on('data', (chunk) => {
     const plain = stripAnsi(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
     if (plain.trim().length > 0) lastFrame = plain;
@@ -82,6 +105,8 @@ function mountInk(element, { cols = 104, rows = 32 } = {}) {
       throw new Error(`Timed out waiting for ${label} (${timeoutMs}ms).\nLast frame:\n${lastFrame}`);
     },
     cleanup() {
+      if (cleaned) return;
+      cleaned = true;
       inst.unmount();
       stdin.destroy();
       stdout.destroy();
@@ -98,7 +123,7 @@ function walkTsFiles(dir, out = []) {
   return out;
 }
 
-function makeHostFromService(service, callLog = []) {
+function makeHostFromService(service, callLog = [], extra = {}) {
   return {
     mode: 'embedded',
     async call(action, args = {}) {
@@ -117,6 +142,7 @@ function makeHostFromService(service, callLog = []) {
       return { effective: { ready: true, provider: 'stub', model: 'stub' } };
     },
     async close() {},
+    ...extra,
   };
 }
 
@@ -184,37 +210,216 @@ describe('#1354 P3 AI merge guardrails (D7 + P3-c + note.qa.save)', () => {
     }
   });
 
-  test('Guard 3: all Q&A-to-note persistence uses single atomic backend action note.qa.save via persistCardQaToFollowupAndNote', () => {
-    const aiDialogueSrc = fs.readFileSync(path.join(SRC_ROOT, 'host/ai-dialogue.ts'), 'utf8');
-    assert.ok(
-      aiDialogueSrc.includes("'note.qa.save'"),
-      'src/host/ai-dialogue.ts persistCardQaToFollowupAndNote must invoke atomic backend action note.qa.save',
+  test('Guard 3: AiHelpDrawer [N] and NextStepFollowupBar [N] persist Q&A via single atomic note.qa.save on real StudyService (zero split calls)', async (t) => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'studyhub-p3c-guard3-'));
+    const service = new StudyService(root, { complete: async () => '{}' });
+    t.after(async () => {
+      resetTuiState();
+      service.dispose();
+      await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    });
+
+    await service.store.update((state) => {
+      state.decks.push({
+        id: 'd-g3',
+        title: '操作系统',
+        course: '操作系统',
+        cards: [
+          {
+            id: 'c-ai-drawer',
+            kind: 'flashcard',
+            topic: '虚拟内存',
+            prompt: '什么是缺页中断？',
+            answer: '访问未装入物理内存的页面时触发硬件异常。',
+            explanation: '页表有效位为 0 时触发。',
+          },
+          {
+            id: 'c-next-step',
+            kind: 'flashcard',
+            topic: '局部性原理',
+            prompt: '什么是局部性原理？',
+            answer: '时间局部性与空间局部性。',
+            explanation: '缓存命中依赖程序访问的局部性。',
+          },
+        ],
+      });
+    });
+
+    const callLog = [];
+    const nextStepReply = '局部性原理分为时间局部性（近期访问还会再用）和空间局部性（邻近地址很快会被访问）。';
+    const host = makeHostFromService(service, callLog, {
+      async streamComplete({ onChunk }) {
+        onChunk?.(nextStepReply);
+        return nextStepReply;
+      },
+    });
+    const snap = await host.snapshot();
+
+    resetTuiState();
+    useTuiStore.setState({
+      page: 'review',
+      preferences: { ...DEFAULT_PREFERENCES, language: 'zh', asciiMode: true },
+      snapshot: snap,
+      toasts: [],
+    });
+
+    // 1) AiHelpDrawer: press [N] -> saveLatestQaToNotes executes single atomic note.qa.save
+    const drawerQuestion = '缺页中断触发后谁负责调页？';
+    const drawerAnswer = '操作系统内核的缺页中断处理程序负责从外存调入页面并更新页表。';
+    const drawerRun = {
+      id: 'run-g3-drawer',
+      deckId: 'd-g3',
+      title: '操作系统',
+      index: 0,
+      total: 2,
+      answered: 1,
+      revealed: true,
+      card: {
+        id: 'c-ai-drawer',
+        deckId: 'd-g3',
+        kind: 'flashcard',
+        topic: '虚拟内存',
+        prompt: '什么是缺页中断？',
+        answer: '访问未装入物理内存的页面时触发硬件异常。',
+      },
+      solution: { answer: '访问未装入物理内存的页面时触发硬件异常。' },
+    };
+    const savedFollowups = [];
+    const hDrawer = mountInk(
+      React.createElement(AiHelpDrawer, {
+        host,
+        run: drawerRun,
+        cardId: 'c-ai-drawer',
+        kind: 'flashcard',
+        userAnswer: '',
+        width: 96,
+        height: 24,
+        isActive: true,
+        mathUnicode: false,
+        history: [
+          { role: 'user', text: drawerQuestion },
+          { role: 'assistant', text: drawerAnswer },
+        ],
+        onSavedFollowup: (cid, item) => savedFollowups.push({ cid, item }),
+        onClose: () => {},
+      }),
+      { cols: 96, rows: 24 },
     );
+    t.after(() => hDrawer.cleanup());
+    try {
+      await hDrawer.waitFor((s) => s.includes('缺页中断处理程序'), 5000, 'AiHelpDrawer transcript rendered');
+      hDrawer.write('N');
+      await hDrawer.waitFor(
+        () => savedFollowups.length === 1 && callLog.some((c) => c.action === 'note.qa.save'),
+        5000,
+        'AiHelpDrawer note.qa.save completed',
+      );
+    } finally {
+      hDrawer.cleanup();
+    }
+
+    assert.deepEqual(
+      callLog.map((c) => c.action),
+      ['note.qa.save'],
+      'AiHelpDrawer [N] must invoke single atomic note.qa.save (never split card.followup.add + note.qa.add)',
+    );
+    assert.equal(savedFollowups[0].cid, 'c-ai-drawer');
+    assert.equal(savedFollowups[0].item.question, drawerQuestion);
+    assert.equal(savedFollowups[0].item.answer, drawerAnswer);
+
+    const stateAfterDrawer = await service.store.read();
+    const drawerCard = stateAfterDrawer.decks[0].cards.find((c) => c.id === 'c-ai-drawer');
+    assert.equal(drawerCard.followups.length, 1, 'AiHelpDrawer save must persist card followup');
+    assert.equal(drawerCard.followups[0].question, drawerQuestion);
+    assert.equal(drawerCard.followups[0].answer, drawerAnswer);
     assert.ok(
-      !aiDialogueSrc.includes("'note.qa.add'"),
-      'src/host/ai-dialogue.ts must not keep legacy two-step note.qa.add write',
+      stateAfterDrawer.notes.some((n) => n.markdown.includes(drawerQuestion) && n.markdown.includes(drawerAnswer)),
+      'AiHelpDrawer save must persist Q&A into a real study note',
     );
 
-    const forbiddenDirectNoteQa = [
-      'shell/assistant-actions.ts',
-      'views/sources/ReaderNotesDrawer.tsx',
-      'views/review/AiHelpDrawer.tsx',
-      'views/review/NextStepFollowupBar.tsx',
-    ];
-    for (const rel of forbiddenDirectNoteQa) {
-      const src = fs.readFileSync(path.join(SRC_ROOT, rel), 'utf8');
-      assert.ok(
-        src.includes('persistCardQaToFollowupAndNote'),
-        `${rel} must persist Q&A to notes through persistCardQaToFollowupAndNote`,
+    // 2) NextStepFollowupBar: expand ([a]) -> submit instruction -> stream reply -> press [N] -> saveLatestToNotes
+    callLog.length = 0;
+    useTuiStore.setState({ toasts: [] });
+    const nextStepQuestion = '请结合缓存说明局部性原理';
+    const nextStepRun = {
+      id: 'run-g3-next',
+      deckId: 'd-g3',
+      title: '操作系统',
+      index: 1,
+      total: 2,
+      answered: 1,
+      revealed: true,
+      card: {
+        id: 'c-next-step',
+        deckId: 'd-g3',
+        kind: 'flashcard',
+        topic: '局部性原理',
+        prompt: '什么是局部性原理？',
+        answer: '时间局部性与空间局部性。',
+      },
+      solution: { answer: '时间局部性与空间局部性。' },
+    };
+    const hNext = mountInk(
+      React.createElement(
+        Box,
+        { width: 96, height: 14 },
+        React.createElement(NextStepFollowupBar, {
+          host,
+          run: nextStepRun,
+          cardId: 'c-next-step',
+          kind: 'flashcard',
+          userAnswer: '',
+          toolLabel: '通俗讲解',
+          resultContext: '缓存利用局部性减少访存延迟',
+          width: 96,
+          expandedHeight: 12,
+          isActive: true,
+        }),
+      ),
+      { cols: 96, rows: 14 },
+    );
+    t.after(() => hNext.cleanup());
+    try {
+      await hNext.waitFor((s) => s.includes('接下来想做什么'), 5000, 'NextStepFollowupBar idle rendered');
+      hNext.write('a');
+      await hNext.waitFor((s) => s.includes('快捷:'), 5000, 'NextStepFollowupBar expanded');
+      hNext.write(nextStepQuestion);
+      await hNext.waitFor((s) => s.includes(nextStepQuestion), 5000, 'NextStepFollowupBar input typed');
+      hNext.write('\r');
+      await hNext.waitFor(
+        (s) => s.includes('时间局部性') && s.includes('[N]') && !s.includes('生成中'),
+        5000,
+        'NextStepFollowupBar reply rendered',
       );
-      assert.ok(
-        !/tryAction[^)]*'note\.qa\.add'/.test(src),
-        `${rel} must not call split tryAction(..., 'note.qa.add') directly`,
+      hNext.write('N');
+      await hNext.waitFor(
+        () =>
+          callLog.some((c) => c.action === 'note.qa.save') &&
+          useTuiStore.getState().toasts.some((toast) => toast.text.includes('已保存为本题追问与学习笔记')),
+        5000,
+        'NextStepFollowupBar note.qa.save completed',
       );
+    } finally {
+      hNext.cleanup();
     }
+
+    assert.deepEqual(
+      callLog.map((c) => c.action),
+      ['note.qa.save'],
+      'NextStepFollowupBar [N] must invoke single atomic note.qa.save (never split card.followup.add + note.qa.add)',
+    );
+    const stateAfterNext = await service.store.read();
+    const nextCard = stateAfterNext.decks[0].cards.find((c) => c.id === 'c-next-step');
+    assert.equal(nextCard.followups.length, 1, 'NextStepFollowupBar save must persist card followup');
+    assert.equal(nextCard.followups[0].question, nextStepQuestion);
+    assert.equal(nextCard.followups[0].answer, nextStepReply);
+    assert.ok(
+      stateAfterNext.notes.some((n) => n.markdown.includes(nextStepQuestion) && n.markdown.includes(nextStepReply)),
+      'NextStepFollowupBar save must persist Q&A into a real study note',
+    );
   });
 
-  test('Guard 4: P3-c removes duplicate TeachModal and ReviewView L teach entry; AssistantPanel guided tab drives backend teach.*', () => {
+  test('Guard 4: P3-c removes duplicate TeachModal and AssistantPanel Guided Study [S] invokes teach.skip on real StudyService with 0 extra model calls', async (t) => {
     const teachModalPath = path.join(SRC_ROOT, 'views/review/TeachModal.tsx');
     assert.equal(
       fs.existsSync(teachModalPath),
@@ -222,17 +427,109 @@ describe('#1354 P3 AI merge guardrails (D7 + P3-c + note.qa.save)', () => {
       'Duplicate TeachModal.tsx must be deleted once Guided Study merges into AssistantPanel',
     );
 
-    const reviewSrc = fs.readFileSync(path.join(SRC_ROOT, 'views/review/ReviewView.tsx'), 'utf8');
-    assert.ok(!reviewSrc.includes('TeachModal'), 'ReviewView.tsx must not import or render TeachModal');
-    assert.ok(!reviewSrc.includes('teachModalOpen'), 'ReviewView.tsx must not keep teachModalOpen state');
+    const root = await mkdtemp(path.join(os.tmpdir(), 'studyhub-p3c-guard4-'));
+    let modelCalls = 0;
+    const service = new StudyService(root, {
+      complete: async () => {
+        modelCalls += 1;
+        return JSON.stringify({
+          diagnosis: '需巩固页面置换算法',
+          transfer: '比较页面置换算法时，重点看缺页率与实现开销。',
+          rungs: [
+            { lesson: '第1步：理解页面置换触发条件', check: '何时触发页面置换？', answer: '物理内存无空闲页框时' },
+            { lesson: '第2步：区分 LRU 与 FIFO', check: 'LRU 淘汰哪一页？', answer: '最久未使用的页面' },
+          ],
+        });
+      },
+    });
+    t.after(async () => {
+      resetTuiState();
+      service.dispose();
+      await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    });
 
-    const assistantSrc = fs.readFileSync(path.join(SRC_ROOT, 'shell/AssistantPanel.tsx'), 'utf8');
-    assert.ok(
-      assistantSrc.includes('loadTeachSession') &&
-        assistantSrc.includes('submitTeachAnswer') &&
-        assistantSrc.includes('skipTeachStep'),
-      'AssistantPanel.tsx guided tab must drive backend teach.* via unified ai-dialogue helpers',
+    await service.store.update((state) => {
+      state.decks.push({
+        id: 'd-g4',
+        title: 'OS',
+        course: 'OS',
+        cards: [
+          {
+            id: 'c-g4',
+            kind: 'flashcard',
+            topic: '页面置换',
+            prompt: '简述 LRU 与 FIFO 的区别',
+            answer: 'LRU 淘汰最久未使用的页面，FIFO 淘汰最早装入的页面。',
+          },
+        ],
+      });
+    });
+
+    const run = await service.call('review.start', { deckId: 'd-g4', mode: 'flashcard' });
+    await service.call('review.reveal', { runId: run.id, cardId: 'c-g4', index: 0 });
+    await service.call('review.answer', { runId: run.id, cardId: 'c-g4', index: 0, grade: 2 });
+
+    const callLog = [];
+    const host = makeHostFromService(service, callLog);
+
+    resetTuiState();
+    useTuiStore.setState({
+      page: 'review',
+      preferences: { ...DEFAULT_PREFERENCES, language: 'zh', asciiMode: true },
+      assistantOpen: true,
+      assistantFocused: true,
+      assistantTab: 'guided',
+      assistantStage: 'question',
+      assistantFullscreen: false,
+      assistantCardContext: {
+        runId: run.id,
+        deckId: 'd-g4',
+        cardId: 'c-g4',
+        cardIndex: 0,
+        queueVersion: run.queueVersion ?? 0,
+        revealed: true,
+        answered: true,
+        prompt: '简述 LRU 与 FIFO 的区别',
+        kind: 'flashcard',
+      },
+      toasts: [],
+    });
+
+    const h = mountInk(
+      React.createElement(
+        Box,
+        { width: 104, height: 32 },
+        React.createElement(AssistantPanel, { host, width: 100, height: 32, isActive: true, onClose: () => {} }),
+      ),
     );
+    t.after(() => h.cleanup());
+    try {
+      // 1) Guided Study auto-starts Step 1/2 via teach.start
+      await h.waitFor((s) => s.includes('第 1/2 步') && s.includes('页面置换触发条件'), 5000, 'teach.start step 1/2');
+      const callsAfterStart = modelCalls;
+      assert.equal(callsAfterStart, 1, 'teach.start should invoke model once to build plan');
+
+      // 2) Blur input with Esc, then press [S] -> teach.skip advances to Step 2/2 with 0 extra model calls
+      h.write('\x1b');
+      await new Promise((r) => setTimeout(r, 40));
+      h.write('S');
+      await h.waitFor((s) => s.includes('第 2/2 步') && s.includes('区分 LRU 与 FIFO'), 5000, 'teach.skip step 1 -> 2');
+      assert.equal(modelCalls, callsAfterStart, 'first [S] teach.skip must make 0 extra model calls');
+
+      // 3) Press [S] again -> teach.skip completes real StudyService session with 0 extra model calls
+      h.write('S');
+      await h.waitFor((s) => s.includes('带学完成') && s.includes('已跳过步骤'), 5000, 'teach.skip completes session');
+      assert.equal(modelCalls, callsAfterStart, 'second [S] teach.skip must make 0 extra model calls');
+      assert.equal(useTuiStore.getState().assistantStage, 'summary', 'completed teach session moves to summary stage');
+    } finally {
+      h.cleanup();
+    }
+
+    const skipCalls = callLog.filter((c) => c.action === 'teach.skip');
+    assert.equal(skipCalls.length, 2, 'pressing [S] twice must invoke teach.skip twice');
+    const persisted = await service.call('teach.get', { id: skipCalls[0].args.id });
+    assert.equal(persisted.complete, true, 'real StudyService teach session must be complete after skipping all steps');
+    assert.equal(persisted.skippedSteps.length, 2, 'both skipped steps must be persisted on real StudyService session');
   });
 
   test('Regression 1: assistant-actions note.qa.add and persistCardQaToFollowupAndNote execute atomic note.qa.save on real StudyService (idempotent + zero split calls)', async (t) => {
