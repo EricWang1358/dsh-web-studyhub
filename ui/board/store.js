@@ -8,6 +8,10 @@ import { applyBoardAction } from '../../lib/board-model.js';
    never freeze or show a state the server does not have. */
 
 const isConflict = (message) => /revision conflict/i.test(String(message));
+/* Writes that only add something new. When the board moved on before one of them reached the server (the daily plan
+   writes it on its own, #855), it is sent once more on the latest revision: it cannot overwrite a change the learner has
+   not seen. Moves and edits are never replayed; they stay refused and the page says so. */
+const REPLAY_ON_CONFLICT = new Set(['board.card.add', 'board.column.add', 'board.timeLog.add']);
 
 export function createBoardStore(call, { initialBoard = null, onBoard } = {}) {
   let state = { board: initialBoard, error: '', conflict: false, busy: false };
@@ -49,17 +53,30 @@ export function createBoardStore(call, { initialBoard = null, onBoard } = {}) {
     ticket++; // any read already in flight is now stale
     pending++;
     set({ busy: true, error: '', conflict: false });
+    const send = async () => {
+      const next = await call(action, { revision: server.revision, ...args });
+      server = next;
+      onBoard?.(next);
+      if (pending === 1) set({ board: next });
+      return true;
+    };
     const run = async () => {
       if (mine !== epoch) return false;
       try {
-        const next = await call(action, { revision: server.revision, ...args });
-        server = next;
-        onBoard?.(next);
-        if (pending === 1) set({ board: next });
-        return true;
+        return await send();
       } catch (error) {
+        let failure = error;
+        if (isConflict(error.message) && REPLAY_ON_CONFLICT.has(action) && !Object.hasOwn(args, 'revision')) {
+          try {
+            server = await call('board.get', {});
+            onBoard?.(server);
+            return await send();
+          } catch (again) {
+            failure = again;
+          }
+        }
         epoch++;
-        set({ error: error.message, conflict: isConflict(error.message) });
+        set({ error: failure.message, conflict: isConflict(failure.message) });
         return false;
       }
     };

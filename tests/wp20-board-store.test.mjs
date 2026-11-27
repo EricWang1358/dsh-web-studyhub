@@ -20,6 +20,13 @@ function fakeServer(start = initial()) {
     if (gates.length) await gates.shift();
     if (action === 'board.get') return args.since === board.revision ? { unchanged: true, revision: board.revision } : structuredClone(board);
     if (args.revision !== board.revision) throw new Error(`Board revision conflict: expected ${args.revision}, current ${board.revision}. Call board.get, review the latest board, and retry with its revision.`);
+    if (action === 'board.card.add') { // the pure model has no add: the server makes the id
+      const id = `new-${log.length}`;
+      board = { ...structuredClone(board), revision: board.revision + 1 };
+      board.cards[id] = { ...card(id), title: args.title };
+      board.columns.find((column) => column.id === (args.column ?? board.columns[0].id)).cardIds.push(id);
+      return structuredClone(board);
+    }
     const next = applyBoardAction(board, action, args);
     if (next === board) throw new Error('Card not found; refresh the board');
     board = { ...next, revision: board.revision + 1 };
@@ -154,4 +161,48 @@ test('subscribers hear about every change and can unsubscribe', async () => {
   stop();
   await store.mutate('board.card.move', { id: 'a', column: 'doing' });
   assert.equal(heard, seen);
+});
+
+test('an add the board moved under is sent once more on the latest revision, so the new card is not lost (#855)', async () => {
+  const server = fakeServer();
+  const store = createBoardStore(server.call);
+  await store.refresh();
+  // The app itself (the daily plan) writes the board; the page has not read it yet.
+  server.board = { ...server.board, revision: 5 };
+  const ok = await store.mutate('board.card.add', { column: 'todo', title: '做 10 道概念辨析' }, { optimistic: false });
+  assert.equal(ok, true);
+  const adds = server.log.filter((entry) => entry.action === 'board.card.add');
+  assert.deepEqual(adds.map((entry) => entry.args.revision), [1, 5], 'refused on the old revision, then sent on the one just read');
+  const state = store.getState();
+  assert.equal(state.conflict, false);
+  assert.equal(state.error, '');
+  assert.equal(state.board.revision, 6);
+  assert.equal(Object.values(state.board.cards).filter((entry) => entry.title === '做 10 道概念辨析').length, 1, 'added exactly once');
+});
+
+test('an add refused twice in a row reports the conflict instead of retrying again', async () => {
+  const server = fakeServer();
+  const busy = async (action, args) => {
+    const value = await server.call(action, args);
+    if (action === 'board.get') server.board = { ...server.board, revision: server.board.revision + 1 }; // someone writes after every read
+    return value;
+  };
+  const store = createBoardStore(busy);
+  await store.refresh();
+  const ok = await store.mutate('board.card.add', { column: 'todo', title: 'c' }, { optimistic: false });
+  assert.equal(ok, false);
+  assert.equal(server.log.filter((entry) => entry.action === 'board.card.add').length, 2, 'one retry, no loop');
+  assert.equal(store.getState().conflict, true);
+});
+
+test('a move or an edit on a stale revision is still refused, never replayed on a board the learner has not seen', async () => {
+  const server = fakeServer();
+  const store = createBoardStore(server.call);
+  await store.refresh();
+  server.board = { ...server.board, revision: 5 };
+  assert.equal(await store.mutate('board.card.edit', { id: 'a', title: 'Mine' }, { optimistic: false }), false);
+  assert.equal(await store.mutate('board.card.edit', { id: 'a', revision: 1, title: 'Pinned' }, { optimistic: false }), false);
+  assert.equal(await store.mutate('board.card.add', { column: 'todo', revision: 1, title: 'Pinned add' }, { optimistic: false }), false, 'a revision the caller pinned is kept');
+  assert.equal(server.log.filter((entry) => entry.action !== 'board.get').length, 3, 'each write was sent once');
+  assert.equal(server.board.cards.a.title, 'a');
 });
