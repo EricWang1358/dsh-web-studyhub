@@ -17,7 +17,6 @@ import { StudyService } from '../lib/service.js';
 import { writesFor } from '../lib/runtime/domain-contracts.js';
 import {
   ERROR_REASONS,
-  THINKING_NOTE_MAX_CHARS,
   normalizeErrorReason,
   normalizeThinkingNote,
 } from '../lib/contexts/study/error-reason.js';
@@ -135,7 +134,6 @@ test('domain contract narrows attempt.errorReason.set write lock strictly to att
   assert.deepEqual([...ERROR_REASONS], ['concept', 'condition', 'derivation', 'slip', 'prerequisite', 'bad_question']);
   assert.equal(ERROR_REASONS, TRIAGE_REASONS);
   assert.equal(TRAP_ERROR_REASONS, TRIAGE_REASONS);
-  assert.equal(THINKING_NOTE_MAX_CHARS, 200);
   assert.equal(normalizeErrorReason('condition'), 'condition');
   assert.equal(normalizeErrorReason('prerequisite'), 'prerequisite');
   assert.equal(normalizeErrorReason('bad_question'), 'bad_question');
@@ -143,8 +141,13 @@ test('domain contract narrows attempt.errorReason.set write lock strictly to att
   assert.equal(normalizeErrorReason(null), null);
   assert.throws(() => normalizeErrorReason('bogus'), { code: 'invalid-error-reason' });
   assert.equal(normalizeThinkingNote('  missed   edge\ncase  '), 'missed edge case');
+  const exact200 = `${'a'.repeat(199)}Z`;
+  assert.equal(normalizeThinkingNote(exact200), exact200);
+  assert.equal(normalizeThinkingNote(`${exact200}!`), exact200);
   assert.equal(normalizeThinkingNote('x'.repeat(250)).length, 200);
   assert.equal(normalizeThinkingNote('   '), null);
+  assert.equal(normalizeThinkingNote(null), null);
+  assert.throws(() => normalizeThinkingNote(123), { code: 'invalid-thinking-note' });
 });
 
 test('StudyService attempt.errorReason.set persists errorReason + thinkingNote without touching FSRS and projects through review.lookBack', async (t) => {

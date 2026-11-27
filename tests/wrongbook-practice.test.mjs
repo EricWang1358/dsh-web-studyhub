@@ -11,7 +11,7 @@ import { checkScope } from '../lib/prereq.js';
 
 const m = await loadUi(`
   export { WrongBookView } from './ui/WrongBook.jsx';
-  export { PRACTICE_SCOPE_CAP, capPracticeScope, practiceCappedText } from './ui/wrongbook-model.js';
+  export { capPracticeScope, practiceCappedText } from './ui/wrongbook-model.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage, errorMessage, uiCatalogue } from './ui/i18n.js';
 `);
@@ -106,16 +106,32 @@ test('#928: groups over 200 questions cap scope to the first 200 with a plain no
     assert.equal(errorMessage(overErr), 'A scoped practice round accepts at most 200 questions (got 201)');
   } finally { setUiLanguage('zh'); }
 
-  assert.equal(m.PRACTICE_SCOPE_CAP, 200);
+  const atCap = m.capPracticeScope(bigCards.slice(0, 200).map((c) => ({ deckId: 'd4', cardId: c.id })));
+  assert.equal(atCap.capped, false);
+  assert.equal(atCap.total, 200);
+  assert.equal(atCap.limit, 200);
+  assert.equal(atCap.scope.length, 200);
+  assert.equal(atCap.scope[0].cardId, 'b0');
+  assert.equal(atCap.scope[199].cardId, 'b199');
+  assert.doesNotThrow(() => checkScope(state, atCap.scope), 'an exact 200-card scope is accepted by checkScope');
+
   const capped = m.capPracticeScope(bigCards.map((c) => ({ deckId: 'd4', cardId: c.id })));
   assert.equal(capped.capped, true);
   assert.equal(capped.total, 201);
+  assert.equal(capped.limit, 200);
   assert.equal(capped.scope.length, 200);
   assert.equal(capped.scope[0].cardId, 'b0');
   assert.equal(capped.scope[199].cardId, 'b199');
   assert.doesNotThrow(() => checkScope(state, capped.scope), 'the capped 200-card scope is accepted by checkScope');
   assert.equal(m.practiceCappedText(201, { group: true }), '这一组有 201 道题，一次最多 200 道：先练前 200 道。');
   assert.equal(m.practiceCappedText(201, { group: false }), '共选了 201 道题，一次最多 200 道：先练前 200 道。');
+
+  const atCapItems = [
+    ...bigCards.slice(0, 200).map((c) => row(c.id, 'd4', '保护状态', c.prompt)),
+    row('x1', 'd2', '恢复探测', 'X'),
+  ];
+  const htmlAtCapZh = render({ items: atCapItems, counts: { total: 201, graded: 201, self: 0, oral: 0, rubric: 0 } });
+  assert.doesNotMatch(text(htmlAtCapZh), /这一组有 \d+ 道题，一次最多/, 'a 200-question group is not capped and omits the group cap tooltip');
 
   const bigItems = [
     ...bigCards.map((c) => row(c.id, 'd4', '保护状态', c.prompt)),

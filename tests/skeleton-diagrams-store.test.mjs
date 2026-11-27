@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { localizeAppMessage } from '../lib/application-messages.js';
 import { libraryContracts, studyToolDescription, studyUsagePrompt } from '../lib/study-contracts.js';
-import { MAX_DIAGRAMS, MAX_DIAGRAM_BYTES, scopeDiagramArgs } from '../lib/skeleton-diagrams.js';
+import { MAX_DIAGRAM_BYTES, scopeDiagramArgs } from '../lib/skeleton-diagrams.js';
 
 /* An interactive diagram the learner's agent drew (for example with the open-source Archify skill) is attached to a skeleton as a
    file in the library. These tests pin the path rules (the workspace or the library only), the content rules (one UTF-8 HTML
@@ -154,9 +154,17 @@ test('attaching the same file again changes nothing, a changed file is a new dia
 
 test('a skeleton keeps at most eight diagrams, the oldest rotate out with a notice and their files go', async t => {
   const { service, put, attach, skeletonId, root } = await setup(t);
-  assert.equal(MAX_DIAGRAMS, 8);
   const made = [];
-  for (let i = 0; i < 8; i += 1) made.push((await attach(await put(`d${i}.html`, html(`d${i}`)))).diagram);
+  for (let i = 0; i < 8; i += 1) {
+    const res = await attach(await put(`d${i}.html`, html(`d${i}`)));
+    assert.equal(res.rotated, undefined, `attach #${i + 1} does not rotate`);
+    assert.equal(res.notice, undefined, `attach #${i + 1} emits no notice`);
+    made.push(res.diagram);
+  }
+  const atCap = (await service.call('skeleton.diagram.list', { id: skeletonId })).diagrams;
+  assert.equal(atCap.length, 8);
+  assert.deepEqual(atCap.map(item => item.title), ['d7', 'd6', 'd5', 'd4', 'd3', 'd2', 'd1', 'd0']);
+  assert.equal(await exists(join(root, 'skeleton-diagrams', skeletonId, `${made[0].id}.html`)), true, '8th attach keeps oldest file on disk');
   const ninth = await attach(await put('d8.html', html('d8')));
   assert.deepEqual(ninth.rotated.map(item => item.title), ['d0']);
   assert.match(ninth.notice, /d0/);
@@ -164,6 +172,7 @@ test('a skeleton keeps at most eight diagrams, the oldest rotate out with a noti
   assert.equal(listed.length, 8);
   assert.deepEqual(listed.map(item => item.title), ['d8', 'd7', 'd6', 'd5', 'd4', 'd3', 'd2', 'd1'], 'newest first');
   assert.equal(await exists(join(root, 'skeleton-diagrams', skeletonId, `${made[0].id}.html`)), false);
+  assert.equal(await exists(join(root, 'skeleton-diagrams', skeletonId, `${made[1].id}.html`)), true);
   assert.equal(await exists(join(root, 'skeleton-diagrams', skeletonId, `${ninth.diagram.id}.html`)), true);
 });
 
