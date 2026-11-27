@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, open, readFile, readdir, rm, stat } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { mount } from '../packages/studyhub-retrieval/index.js';
+import { mount as mountCheckout } from '../packages/studyhub-retrieval/index.js';
 import { RESET_MARKER, healIndex, inspectFiles, inspectWithLanceDB, manifestVersion, stamp } from '../packages/studyhub-retrieval/heal.js';
 
 /* The search extension checks its index before its server starts (2026-10-23: a crash while the index was being written left the newest
@@ -16,13 +16,19 @@ import { RESET_MARKER, healIndex, inspectFiles, inspectWithLanceDB, manifestVers
    LanceDB tables, written by the LanceDB the extension installs (packages/studyhub-retrieval/node_modules); without it those tests are skipped. */
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const pkg = join(root, 'packages', 'studyhub-retrieval');
+// The owning CI shard installs a copy so packing and missing-dependency tests still see the original checkout.
+const installed = process.env.STUDY_TEST_RETRIEVAL_PACKAGE;
+const pkg = installed || join(root, 'packages', 'studyhub-retrieval');
+const mount = installed ? (await import(pathToFileURL(join(pkg, 'index.js')).href)).mount : mountCheckout;
 let entry, lanceUrl, arrowUrl;
 try {
   entry = createRequire(join(pkg, 'package.json')).resolve('mcp-local-rag');
   lanceUrl = pathToFileURL(createRequire(entry).resolve('@lancedb/lancedb')).href;
   arrowUrl = pathToFileURL(createRequire(join(pkg, 'package.json')).resolve('apache-arrow')).href;
-} catch { lanceUrl = undefined; }
+} catch (error) {
+  if (process.env.STUDY_TEST_REQUIRE_LANCEDB === '1') throw new Error('The index recovery tests require the search extension’s LanceDB and Apache Arrow', { cause: error });
+  lanceUrl = undefined;
+}
 const real = lanceUrl ? {} : { skip: 'LanceDB is not installed next to the extension (npm install in packages/studyhub-retrieval)' };
 
 function run(args) {

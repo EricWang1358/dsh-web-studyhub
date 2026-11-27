@@ -8,7 +8,7 @@ import { StudyService } from '../lib/service.js';
 import { notify } from '../lib/inbox.js';
 import { createPreviewServer } from '../scripts/preview-server.mjs';
 import { buildPreview } from '../scripts/build.mjs';
-import { launchChromium } from '../scripts/qa/browser.mjs';
+import { launchChromium, skipMissingChromium } from '../scripts/qa/browser.mjs';
 
 // #182: a flashcard opens on its question unless it was already answered or revealed in the run being shown.
 const flash = (id, n) => ({ id, kind: 'flashcard', topic: 'Topic', objective: 'Recall', prompt: `Question ${n}?`, answer: `Answer ${n}`, hint: '', explanation: 'Because.', misconception: '', citations: [] });
@@ -95,7 +95,7 @@ test('in the browser: next after a reveal shows the question, inside an inbox de
   let browser;
   t.after(async () => { await browser?.close(); await server.close(); });
   try { browser = await launchChromium(); }
-  catch (error) { if (!/Executable doesn't exist/.test(error.message)) throw error; t.skip('Chromium unavailable'); return; }
+  catch (error) { skipMissingChromium(t, error); return; }
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } }), errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'en'); localStorage.setItem('study-autopilot', 'off'); });

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { buildPreview } from '../scripts/build.mjs';
+import { buildChatPreview } from './helpers/chat-preview.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { StudyService } from '../lib/service.js';
 import { openPage, settleAnimations, startLateServer } from '../scripts/qa/layout-late.mjs';
@@ -15,8 +15,7 @@ import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 
 /* 「发给主会话」 in the real page at 1280 and 420 px (docs/review-book-agent.md "Sending it from the book page"), one destination of 问 AI: at a point's title the
-   panel with the five presets and a box: a preset fills the box, 发给主会话 hands the message to the chat (the preview has no chat, so it is copied: the clipboard is
-   the test's stand-in for askInChat) and closes the panel; an empty box is allowed; the keyboard opens it and Escape gives the focus back. Selected words: the
+   panel with the five presets and a box: a preset fills the box, 发给主会话 hands the message to the host composer and closes the panel; an empty box is allowed; the keyboard opens it and Escape gives the focus back. Selected words: the
    toolbar's 发给主会话 sends them in a fence at once, 写一段… opens the panel with them; 更多 › 整本书 › 发给主会话 sends the whole-book message at once (no form).
    The messages open with the learner's sentence and carry no book text; nothing scrolls sideways. Screenshots go to BOOK_SEND_SHOTS when set. */
 
@@ -60,10 +59,10 @@ const selectWords = (page, text) => page.evaluate(words => {
   selection.removeAllRanges(); selection.addRange(range);
 }, text);
 
-/** The messages handed over so far: the preview has no chat, so askInChat copies (the stand-in is installed before the page starts). */
-const sentOf = page => page.evaluate(() => window.__sentToChat.slice());
-const sentCount = page => page.evaluate(() => window.__sentToChat.length);
-const nextSent = async (page, before) => { await page.waitForFunction(count => window.__sentToChat.length > count, before, { timeout: 15000 }); return (await sentOf(page)).at(-1); };
+/** The messages handed over so far: the host adapter records the actual text the app passes to its composer. */
+const sentOf = page => page.evaluate(() => window.chatDrafts.slice());
+const sentCount = page => page.evaluate(() => window.chatDrafts.length);
+const nextSent = async (page, before) => { await page.waitForFunction(count => window.chatDrafts.length > count, before, { timeout: 15000 }); return (await sentOf(page)).at(-1); };
 const toastSaid = (page, text) => page.getByText(text).first().waitFor({ timeout: 5000 });
 
 async function openBook(page, running) {
@@ -82,7 +81,7 @@ test('发给主会话: one destination of 问 AI at the title, the selection too
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-book-send-dist-'));
-  await buildPreview({ outdir: dist });
+  await buildChatPreview({ outdir: dist });
   const running = await startLateServer({ distDir: dist, seed });
   const shots = process.env.BOOK_SEND_SHOTS;
   if (shots) await mkdir(shots, { recursive: true });
@@ -90,10 +89,6 @@ test('发给主会话: one destination of 问 AI at the title, the selection too
     for (const width of [1280, 420]) {
       await running.api('focus.set', { course: COURSE });
       const { page, errors, context } = await openPage(browser, running, { width, height: 900 });
-      await context.addInitScript(() => {
-        window.__sentToChat = [];
-        Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async text => { window.__sentToChat.push(text); } } });
-      });
       await openBook(page, running);
 
       // The point's row has no button of its own: 问 AI at the title opens the panel with the keyboard, the focus in its box; Escape gives it back.
@@ -107,11 +102,17 @@ test('发给主会话: one destination of 问 AI at the title, the selection too
       await inside(page, '.book-ask', width, 'the panel');
       await flat(page, width, 'the panel');
       if (shots) { await settleAnimations(page); await page.screenshot({ path: join(shots, `send-point-panel-${width}.png`) }); }
-      await page.keyboard.press('Escape');
+      // Keyboard focus can also open the trigger tooltip. Escape dismisses the top layer first.
+      const openTip = page.getByRole('tooltip').filter({ visible: true }).first();
+      if (await openTip.isVisible()) {
+        await page.keyboard.press('Escape');
+        await openTip.waitFor({ state: 'hidden' });
+      }
+      if (await panel.isVisible()) await page.keyboard.press('Escape');
       await panel.waitFor({ state: 'detached', timeout: 5000 });
       assert.equal(await page.evaluate(() => document.activeElement?.hasAttribute('data-book-ask-open')), true, `${width}px: the focus is back on 问 AI`);
 
-      // A preset fills the box; 发给主会话 hands the message over (copied here): it names the skill, the point, its files and the request, and carries no book text.
+      // A preset fills the box; 发给主会话 hands the message over: it names the skill, the point, its files and the request, and carries no book text.
       await trigger.click();
       await panel.waitFor();
       await panel.locator('[data-book-ask-preset="润色成大白话"]').click();
@@ -127,7 +128,7 @@ test('发给主会话: one destination of 问 AI at the title, the selection too
       assert.ok(first.includes('资料以外的内容标（资料以外）') && !first.includes('beyond the materials'), `${width}px: a Chinese book: only its own marker`);
       assert.match(first, /^帮我按下面的要求改复习全书的知识点 `What architects do`：\n````?request 我的要求\n润色成大白话，再慢一点\n````?\n/, `${width}px: the learner's sentence and words first`);
       assert.doesNotMatch(first, /writes each decision down/, `${width}px: no book text`);
-      await toastSaid(page, '已复制到剪贴板');
+      await toastSaid(page, '已填进主会话的输入框');
       // An empty box is allowed.
       await trigger.click();
       await panel.waitFor();

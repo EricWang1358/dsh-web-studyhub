@@ -33,7 +33,7 @@ import { localDate } from '../lib/board-model.js';
 import { addDays } from '../lib/crunch-plan.js';
 import { expandOrder, orderPrompt } from '../lib/contexts/generation/outline/order.js';
 import { readReduce } from '../lib/contexts/generation/outline/read.js';
-import { MAX_PREREQ_IDS, sanitizePrereqIds } from '../lib/contexts/generation/outline/inventory-tree.js';
+import { sanitizePrereqIds } from '../lib/contexts/generation/outline/inventory-tree.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 
@@ -201,7 +201,6 @@ test('outline prereqIds: orderPrompt/readReduce/expandOrder preserve prereqIds; 
   assert.deepEqual(expanded.chapters[0].leaves[1].prereqIds, ['p1']);
 
   // Direct cycle, 3-cycle, self-loop, out-of-bounds, duplicates, and >3 cap stripping.
-  assert.equal(MAX_PREREQ_IDS, 3);
   const tree = [
     {
       id: 'ch1',
@@ -209,16 +208,17 @@ test('outline prereqIds: orderPrompt/readReduce/expandOrder preserve prereqIds; 
       children: [
         { id: 'a', title: 'A', anchors: ['doc#0'], prereqIds: ['a', 'missing', 'b'] },
         { id: 'b', title: 'B', anchors: ['doc#1'], prereqIds: ['a', 'c'] },
-        { id: 'c', title: 'C', anchors: ['doc#2'], prereqIds: ['b', 'a', 'd', 'e', 'f'] },
+        { id: 'c', title: 'C', anchors: ['doc#2'], prereqIds: ['b', 'a', 'd', 'e', 'f', 'g'] },
         { id: 'd', title: 'D', anchors: ['doc#3'] },
         { id: 'e', title: 'E', anchors: ['doc#4'] },
         { id: 'f', title: 'F', anchors: ['doc#5'] },
+        { id: 'g', title: 'G', anchors: ['doc#6'] },
       ],
     },
   ];
   sanitizePrereqIds(tree);
   const [a, b, c] = tree[0].children;
-  // a keeps b (self & missing dropped); b drops a (would cycle with a->b) and keeps c; c drops b & a (would cycle with b->c and a->b->c) and keeps at most 3 valid leaves (d, e, f).
+  // a keeps b (self & missing dropped); b drops a (would cycle with a->b) and keeps c; c drops b & a (would cycle with b->c and a->b->c) and keeps at most 3 valid leaves (d, e, f), dropping excess g.
   assert.deepEqual(a.prereqIds, ['b']);
   assert.deepEqual(b.prereqIds, ['c']);
   assert.deepEqual(c.prereqIds, ['d', 'e', 'f']);

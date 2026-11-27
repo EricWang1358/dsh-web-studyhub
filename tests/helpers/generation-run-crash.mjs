@@ -1,6 +1,7 @@
 /* Shared harness for generation crash recovery tests (issue #608): spawns tests/fixtures/generation-crash-worker.mjs at a chosen window
    and reopens a fresh StudyService over the directory left behind. Fake models only. */
 import test, { before, describe } from 'node:test';
+import { fixtureSourcePreload } from '../../scripts/qa/test-source-cache.mjs';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
@@ -111,7 +112,7 @@ export async function die(t, name, mode, scenario = {}, root, roundOne = null) {
     await copySeedFiles(root, seed.seedFiles);
     workerScenario = { ...scenario, seeded: true, sourceIds: seed.sourceIds };
   }
-  const child = spawn(process.execPath, [WORKER, root, name, mode, String(roundOne), JSON.stringify(workerScenario)], { env: { ...process.env, DSH_HOME: join(root, '.home') }, stdio: 'inherit' });
+  const child = spawn(process.execPath, [...fixtureSourcePreload(), WORKER, root, name, mode, String(roundOne), JSON.stringify(workerScenario)], { env: { ...process.env, DSH_HOME: join(root, '.home') }, stdio: 'inherit' });
   const code = await new Promise((resolve, reject) => { child.on('error', reject); child.on('exit', resolve); });
   assert.equal(code, WINDOWS[name].code, `the process died in the window "${name}" (70: the window was never reached)`);
   return root;

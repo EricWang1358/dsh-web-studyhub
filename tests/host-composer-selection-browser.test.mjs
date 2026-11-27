@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { launchChromium } from '../scripts/qa/browser.mjs';
+import { launchChromium, skipMissingChromium } from '../scripts/qa/browser.mjs';
 
 // The native DSH seat shares its document with the floating composer. A drag
 // starting in the composer's padding must not anchor in the page behind it.
@@ -38,10 +38,7 @@ async function drag(page, from, to) {
 test('DSH composer padding cannot select StudyHub, including with a skin', { timeout: 60000 }, async t => {
   let browser;
   try { browser = await launchChromium(); }
-  catch (error) {
-    if (process.env.STUDY_QA_REQUIRE_BROWSER === '1') throw error;
-    t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return;
-  }
+  catch (error) { skipMissingChromium(t, error); return; }
   t.after(() => browser.close());
   const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
   for (const [palette, theme] of [['standard', 'dark'], ['standard', 'light'], ['oled', 'dark'], ['paper', 'light']]) {

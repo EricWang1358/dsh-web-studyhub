@@ -985,6 +985,9 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
                   {st.flagged > 0 ? (
                     <Text color={theme.warning}>{t(lang, '待修标记', 'Flagged')}: <Text bold>{st.flagged}</Text></Text>
                   ) : null}
+                  {st.suspended > 0 ? (
+                    <Text color={theme.muted}>{t(lang, '已暂停', 'Suspended')}: <Text bold>{st.suspended}</Text></Text>
+                  ) : null}
                 </Box>
               </>
             ) : null}

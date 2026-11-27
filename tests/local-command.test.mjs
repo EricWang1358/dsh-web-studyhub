@@ -71,6 +71,21 @@ function controlledCommand(t, { pid = 12345, killThrows = false } = {}) {
 }
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
+test('a Windows taskkill that exits unsuccessfully falls back to the child and still waits for close', { skip: process.platform !== 'win32' }, async t => {
+  const { child, killer, cli } = controlledCommand(t), controller = new AbortController();
+  let settled = false;
+  const running = runLocalCommand(cli, [], { signal: controller.signal }).finally(() => { settled = true; });
+  const reason = new Error('cancel the conversion');
+  const rejected = assert.rejects(running, error => error === reason);
+  controller.abort(reason);
+  killer.emit('exit', 1);
+  assert.equal(child.kill.mock.callCount(), 1);
+  await flush();
+  assert.equal(settled, false);
+  child.emit('close', null);
+  await rejected;
+});
+
 for (const killThrows of [false, true]) test(`a refused kill (${killThrows ? 'throws' : 'returns false'}) keeps caller resources until close, beyond the old deadline`, async t => {
   const { child, killer, cli } = controlledCommand(t, { killThrows });
   const controller = new AbortController(), reason = new Error('original stop');

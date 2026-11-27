@@ -5,7 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildPreview } from '../scripts/build.mjs';
-import { launchChromium } from '../scripts/qa/browser.mjs';
+import { launchChromium, skipMissingChromium } from '../scripts/qa/browser.mjs';
 import { seedLibrary } from '../scripts/qa/perf-seed.mjs';
 import { frames, openPage, settleAnimations, startLateServer, until } from '../scripts/qa/layout-late.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
@@ -25,11 +25,22 @@ const overflowing = (page) => page.evaluate(() => {
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       if (!node.textContent.trim()) continue;
       const parent = node.parentElement;
-      // A ghost (the hidden twin that holds the slot's width) or an ellipsised value is not what the learner reads.
-      if (getComputedStyle(parent).visibility === 'hidden' || getComputedStyle(parent).textOverflow === 'ellipsis') continue;
+      if (getComputedStyle(parent).visibility === 'hidden') continue;
+      // Range rectangles include glyphs past a nested ellipsis, even when the ancestor clips them before the button edge.
+      let leftEdge = -Infinity, rightEdge = Infinity;
+      for (let element = parent; element !== button; element = element.parentElement) {
+        const style = getComputedStyle(element);
+        if (style.textOverflow !== 'ellipsis' || style.overflowX === 'visible') continue;
+        const clip = element.getBoundingClientRect();
+        leftEdge = Math.max(leftEdge, clip.left);
+        rightEdge = Math.min(rightEdge, clip.right);
+      }
       const range = document.createRange();
       range.selectNodeContents(node);
-      for (const rect of range.getClientRects()) parts.push(rect);
+      for (const rect of range.getClientRects()) {
+        const left = Math.max(leftEdge, rect.left), right = Math.min(rightEdge, rect.right);
+        if (right > left) parts.push({ left, right });
+      }
     }
     for (const rect of parts) {
       if (rect.left < box.left - 0.5) out.push({ text: button.textContent.trim().slice(0, 30), cls: String(button.className).slice(0, 40), side: 'left', by: +(box.left - rect.left).toFixed(1) });
@@ -39,9 +50,26 @@ const overflowing = (page) => page.evaluate(() => {
   return out;
 });
 
+test('the button fit probe detects visible text beyond a nested clipping box', async t => {
+  let browser;
+  try { browser = await launchChromium(); }
+  catch (error) { skipMissingChromium(t, error); return; }
+  try {
+    const page = await browser.newPage();
+    await page.setContent('<style>button{width:100px;padding:0;border:0;text-align:left} .label{display:block;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}</style><button><span class="label"><span>Long text that extends well past this narrow button</span></span></button>');
+    assert.deepEqual(await overflowing(page), []);
+    const label = page.locator('.label');
+    await label.evaluate(element => { element.style.overflow = 'visible'; });
+    assert.ok((await overflowing(page)).some(overflow => overflow.side === 'right'), 'unclipped text escapes the button');
+    await label.evaluate(element => { element.style.overflow = 'hidden'; element.style.width = '130px'; });
+    assert.ok((await overflowing(page)).some(overflow => overflow.by > 20), 'a clip that itself extends beyond the button still overflows');
+  } finally { await browser.close(); }
+});
+
 test('library home: no button lets its text or icon out, the play slots are one width, and the resume eyebrow does not orphan a character (zh and en, 1440 and 420 px)', { timeout: 600000 }, async (t) => {
   let browser;
-  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
+  try { browser = await launchChromium(); }
+  catch (error) { skipMissingChromium(t, error); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-deck-fit-dist-'));
   await buildPreview({ outdir: dist });
   const running = await startLateServer({ distDir: dist, seed: (root) => seedLibrary(root, { sources: 2, decks: 4, cardsPerDeck: 8, runs: 4, attempts: 0, courses: 1, largeSources: 0 }) });

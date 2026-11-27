@@ -5,9 +5,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { paragraphKey } from '../lib/passage-translation.js';
 import {
-  DISPLAY_MODES, SIDE_MIN_COLUMN, SIDE_MIN_WIDTH, TRANSLATION_SETTINGS_KEY, blockState, buttonState, countTranslated, effectiveMode, failureKind, hostShown, initialState, isShown, jobActive, jobClock,
+  DISPLAY_MODES, TRANSLATION_SETTINGS_KEY, blockState, buttonState, countTranslated, effectiveMode, failureKind, hostShown, initialState, isShown, jobActive, jobClock,
   jobFraction, jobToShow, keyedParagraphs, loadTranslationSettings, normalizeTranslationSettings, passageOf, reducer, saveTranslationSettings, shortQuote, versionOf,
 } from '../ui/document-preview/translation/model.js';
+import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const item = (key, extra = {}) => ({ key, kind: 'paragraph', sourceId: 's1', text: '译文', version: 1, history: [], warnings: [], outdated: false, ...extra });
 const loaded = (items = [], extra = {}) => reducer(initialState, { type: 'loaded', list: { target: 'zh', targetSource: 'default', glossary: [], modelAvailable: true, items, stale: [], ...extra } });
@@ -30,13 +31,80 @@ test('four display modes, one remembered choice; anything stored that is not a m
 });
 
 test('左右分栏 needs room: under the reader\'s narrow width it is drawn as 逐段对照, the other modes never change', () => {
-  assert.equal(SIDE_MIN_WIDTH, 900);
-  assert.equal(SIDE_MIN_COLUMN, 640, 'the reading column needs room for two columns too');
   assert.equal(effectiveMode('side', 1200), 'side');
   assert.equal(effectiveMode('side', 900), 'side');
   assert.equal(effectiveMode('side', 899), 'pairs');
   assert.equal(effectiveMode('side', undefined), 'pairs');
   for (const mode of ['pairs', 'only', 'hidden']) assert.equal(effectiveMode(mode, 300), mode);
+});
+
+test('useBilingual marks the reading column crowded below 640px and disconnects its ResizeObserver on unmount', async () => {
+  await withBrowserGlobals(async () => {
+    const observed = [];
+    let resizeCallback = null;
+    let disconnected = 0;
+    globalThis.ResizeObserver = class StubResizeObserver {
+      constructor(cb) { resizeCallback = cb; }
+      observe(el) { observed.push(el); }
+      unobserve() {}
+      disconnect() { disconnected += 1; }
+    };
+
+    const ui = await loadInteractiveUi(`
+      export { default as useBilingual } from './ui/document-preview/translation/useBilingual.jsx';
+    `);
+    const scrollerEl = { clientWidth: 640 };
+    const scroller = { current: scrollerEl };
+    const body = { current: null };
+    const doc = { documentId: 'doc-1' };
+    const source = { id: 's1' };
+    const call = async (op) => {
+      if (op === 'materials.translation.list') {
+        return { target: 'zh', targetSource: 'default', glossary: [], modelAvailable: true, items: [], stale: [] };
+      }
+      return {};
+    };
+
+    const hook = ui.mountHook((props) => ui.exports.useBilingual(props), {
+      call,
+      document: doc,
+      source,
+      view: 'read',
+      paged: false,
+      narrow: false,
+      body,
+      scroller,
+      rendered: 0,
+      outline: [],
+      activeId: null,
+      chapterLevel: 1,
+      enabled: true,
+      batchEnabled: false,
+    });
+
+    let unmounted = false;
+    try {
+      await hook.flush();
+      assert.equal(hook.current.supported, true);
+      assert.deepEqual(observed, [scrollerEl]);
+      assert.equal(typeof resizeCallback, 'function');
+      assert.equal(hook.current.displayRow?.props.narrow, false, '640px column still has room for 左右分栏');
+
+      scrollerEl.clientWidth = 639;
+      await hook.act(() => { resizeCallback(); });
+      assert.equal(hook.current.displayRow?.props.narrow, true, '639px column is too narrow for two columns');
+
+      scrollerEl.clientWidth = 640;
+      await hook.act(() => { resizeCallback(); });
+      assert.equal(hook.current.displayRow?.props.narrow, false, 'widening back to 640px restores 左右分栏');
+
+      hook.unmount();
+      unmounted = true;
+      assert.equal(disconnected, 1, 'ResizeObserver disconnects on unmount');
+    } finally {
+      if (!unmounted) hook.unmount();
+    }
+  });
 });
 
 test('paragraphs get their ordinal and key the way the backend keys them, the second copy of a paragraph apart from the first', () => {

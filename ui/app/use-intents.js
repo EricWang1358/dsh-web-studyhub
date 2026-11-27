@@ -41,7 +41,8 @@ export function useIntents({ core, lib, nav, session, learn }) {
 
   /** Any other review.start (the library map picks its own mode and scope), a resume, a run by id. */
   const startReview = useCallback((args, options) => act('review.start', args, session.enterRun, options), [act, session.enterRun]);
-  const openRun = useCallback((runId) => act('review.get', { runId }, session.enterRun), [act, session.enterRun]);
+  // Opening an existing run reads it directly; holding the busy lock behind a full library refresh blocks the first shortcut press.
+  const openRun = useCallback((runId) => act('review.get', { runId }, session.enterRun, { refreshAfter: false }), [act, session.enterRun]);
 
   // 读 → 做这几页的题 → 回到阅读: the run keeps where the learner was reading (lib/reading-return.js), so the way back is on the
   // run itself and survives closing the app; nothing is held only in memory. `then` (the reader's 本节题目, #1013) keeps the round in the reader

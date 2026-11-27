@@ -11,6 +11,7 @@ import { createFakeModel } from "../scripts/fake-model.mjs";
 import { launchChromium } from "../scripts/qa/browser.mjs";
 import { scrubProcessEnv } from "../scripts/qa/env.mjs";
 import { openPage, settleAnimations } from "../scripts/qa/layout-late.mjs";
+import { commitPreviewAction } from "./helpers/preview-write.mjs";
 
 const SHOTS = process.env.CHAPTER_FINISH_SHOTS || "";
 
@@ -141,23 +142,18 @@ test("summary-course renders newly finished chapter highlight and 3-state segmen
       hasText: lang === "en" ? /Next course batch/ : /课程下一批/,
     });
     await batchBtn.waitFor({ timeout: 15000 });
-    await batchBtn.click();
-    await page.locator(".options .option").first().waitFor({ timeout: 30000 });
+    const batch = await commitPreviewAction(page, "review.start", () => batchBtn.click());
 
     // Answer the batch: make the first ch1 card wrong when finishWithWeak=true, rest right
-    let madeWrong = false;
-    while (true) {
-      const finished = await page.locator(".result-page .summary-course").isVisible().catch(() => false);
-      if (finished) break;
-      const option = finishWithWeak && !madeWrong
-        ? page.locator(".options .option", { hasText: "Option B fails" })
-        : page.locator(".options .option", { hasText: "Option A holds" });
-      if (finishWithWeak && !madeWrong) madeWrong = true;
+    let run = batch;
+    for (let answer = 0; !run.complete && answer < batch.total + 1; answer++) {
+      const text = finishWithWeak && answer === 0 ? "Option B fails" : "Option A holds";
+      const option = page.locator(".options .option:enabled", { hasText: text });
       await option.click();
-      await page.locator('[data-usage="review.next"]').waitFor({ timeout: 15000 });
-      await page.locator('[data-usage="review.next"]').click();
-      await page.waitForTimeout(40);
+      run = await commitPreviewAction(page, "review.move", () => page.locator('[data-usage="review.next"]:enabled').click());
     }
+    assert.equal(run.id, batch.id);
+    assert.equal(run.complete, true, `${lang} ${width}px: the chosen course batch finished including any re-ask`);
 
     await page.locator(".result-page .summary-course__bar").waitFor({ state: "visible", timeout: 15000 });
     await settleAnimations(page);

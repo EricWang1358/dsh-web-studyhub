@@ -13,6 +13,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, realpathSync } from 'node:fs';
 import { mkdir, open, readFile, rename, rm, stat } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
+import { todayLocalYmd } from '../selectors/primitives.js';
 
 const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
 const IGNORABLE_SYNC_CODES = new Set(['EINVAL', 'ENOSYS', 'ENOTSUP', 'EROFS']);
@@ -54,12 +55,7 @@ export interface AtomicWriteOptions {
   fsOps?: AtomicFsOps;
 }
 
-export function todayLocalYmd(now: Date = new Date()): string {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
+export { todayLocalYmd };
 
 export function localTimestampCompact(now: Date = new Date()): string {
   const hh = String(now.getHours()).padStart(2, '0');

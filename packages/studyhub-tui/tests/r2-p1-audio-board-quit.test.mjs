@@ -192,9 +192,15 @@ describe('Round 2 P1: AudioView results, BoardView read-only lock, Unified /quit
       id: 'subtitle-lecture-01',
       title: 'Distributed Systems Lecture 01',
       courses: ['CS401'],
-      text: '[00:00] Welcome to Distributed Systems.\n[00:12] Today we study Raft consensus.',
+      text: ['[00:00] Welcome to Distributed Systems.', '[00:12] Today we study Raft consensus.',
+        ...Array.from({ length: 64 }, (_, i) => `Transcript line ${i + 1}`), 'LECTURE_TRANSCRIPT_TAIL'].join('\n'),
     });
     assert.equal(addRes.ok, true, `source.add failed: ${addRes.error?.message}`);
+
+    const next = await host.call('source.add', {
+      id: 'subtitle-lecture-02', title: 'Distributed Systems Lecture 02', text: '[00:00] NEXT_LECTURE_BODY',
+    });
+    assert.equal(next.ok, true);
 
     // Spy on host.call to guarantee AudioView NEVER invokes nonexistent audio.results / audio.result.get
     const seenActions = [];
@@ -207,7 +213,7 @@ describe('Round 2 P1: AudioView results, BoardView read-only lock, Unified /quit
       },
     };
 
-    const app = await mountApp(spyHost, { initialPage: 'audio', autoLaunchpad: false });
+    const app = await mountApp(spyHost, { cols: 200, rows: 24, initialPage: 'audio', autoLaunchpad: false });
     try {
       const screen = await app.tty.waitFor(
         (s) =>
@@ -220,6 +226,17 @@ describe('Round 2 P1: AudioView results, BoardView read-only lock, Unified /quit
       assert.equal(seenActions.includes('audio.result.get'), false, 'AudioView must NEVER call nonexistent audio.result.get');
       assert.equal(seenActions.includes('snapshot'), true, 'AudioView must read audio sources via real snapshot action');
       assert.equal(seenActions.includes('source.get'), true, 'AudioView must load transcript body via real source.get action');
+
+      assert.ok(!screen.includes('LECTURE_TRANSCRIPT_TAIL'));
+      app.tty.send('\r');
+      await app.tty.waitFor(/返回列表/, { label: 'transcript reader has keyboard focus' });
+      for (let page = 0; page < 20 && !app.tty.readScreen().includes('LECTURE_TRANSCRIPT_TAIL'); page++) {
+        const before = app.tty.readScreen().match(/Transcript line \d+/)?.[0];
+        app.tty.send('\x1b[6~'); // Page Down in xterm.
+        await app.tty.waitFor(s => s.includes('LECTURE_TRANSCRIPT_TAIL') || s.match(/Transcript line \d+/)?.[0] !== before,
+          { label: 'Page Down advances the transcript' });
+      }
+      assert.match(app.tty.readScreen(), /LECTURE_TRANSCRIPT_TAIL/, 'the last line is reachable at 200×24');
 
       // Export twice via [x] — must write unique timestamped slugged files in backups/ without overwriting
       app.tty.send('x');
@@ -239,6 +256,10 @@ describe('Round 2 P1: AudioView results, BoardView read-only lock, Unified /quit
       assert.ok(files.some((f) => f.includes('Distributed-Systems')), `Expected slug in filename: ${files.join(', ')}`);
       const mdBody = await readFile(join(backupsDir, files[0]), 'utf8');
       assert.ok(mdBody.includes('Raft consensus'), 'Exported Markdown must include transcript content');
+      app.tty.send('\x1b');
+      await app.tty.waitFor(s => !s.includes('返回列表'), { label: 'Esc returns focus to the transcript list' });
+      app.tty.send('\x1b[B');
+      await app.tty.waitFor(/NEXT_LECTURE_BODY/, { label: 'after Esc, Down selects the next transcript in the list' });
     } finally {
       app.unmount();
       await host.dispose();

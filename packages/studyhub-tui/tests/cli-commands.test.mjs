@@ -537,8 +537,8 @@ describe('CLI fast-path subprocess suite (--doctor / --stats / --search / --expo
         updatedAt: '2026-11-23T00:00:00.000Z',
         focusStats: { date: today, completedPomodoros: 3, focusedMinutes: 75 },
         cards: [
-          { id: 'b1', title: 'Overdue OS Lab', column: 'todo', course: 'CS101', dueDate: '2020-01-01' },
-          { id: 'b2', title: 'Today Algorithm Drill', column: 'doing', course: 'CS101', dueDate: today },
+          { id: 'b1', title: 'Overdue OS Lab', column: 'todo', course: 'CS  101', dueDate: '2020-01-01' },
+          { id: 'b2', title: 'Today Algorithm Drill', column: 'doing', course: 'CS  101', dueDate: today },
           { id: 'b3', title: 'Linear Algebra Sheet', column: 'done', course: 'Math', dueDate: '2020-01-01' },
         ],
       }),
@@ -569,9 +569,11 @@ describe('CLI fast-path subprocess suite (--doctor / --stats / --search / --expo
       'cards sort doing -> todo -> done',
     );
 
+    const shownCourse = report.cards.find(card => card.id === 'b1').course;
+    assert.equal(shownCourse, 'CS 101', 'the CLI renders a single-line course name');
     const { stdout: asciiOut, stderr: asciiErr } = await execFileAsync(
       process.execPath,
-      [distCliPath, '--board', '--ascii', '--course', 'CS101', '--library', boardLib],
+      [distCliPath, '--board', '--ascii', '--course', shownCourse, '--library', boardLib],
       {
         timeout: 15_000,
         env: sanitizedTestEnv({ DSH_HOME: fakeDshHome }),
@@ -580,10 +582,10 @@ describe('CLI fast-path subprocess suite (--doctor / --stats / --search / --expo
     assert.equal(asciiErr, '');
     assert.ok(!/[^\x00-\x7f]/.test(asciiOut), '--board --ascii output must be 100% pure ASCII');
     assert.match(asciiOut, /StudyHub TUI Board \(v1\.0\.0\)/);
-    assert.match(asciiOut, /Course: CS101/);
+    assert.match(asciiOut, /Course: CS 101/);
     assert.match(asciiOut, /Summary: 2 tasks \(1 doing \| 1 todo \| 0 done \| 1 overdue \| 1 due today\)/);
-    assert.match(asciiOut, /Overdue OS Lab \[CS101\] \(OVERDUE 2020-01-01\)/);
-    assert.match(asciiOut, /Today Algorithm Drill \[CS101\] \(TODAY /);
+    assert.match(asciiOut, /Overdue OS Lab \[CS 101\] \(OVERDUE 2020-01-01\)/);
+    assert.match(asciiOut, /Today Algorithm Drill \[CS 101\] \(TODAY /);
     assert.ok(!asciiOut.includes('Linear Algebra Sheet'), '--course filter must exclude non-matching courses');
 
     let corruptExit = 0;

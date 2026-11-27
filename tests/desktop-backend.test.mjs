@@ -489,9 +489,9 @@ test('adapters/cli/process-runner handles >40KB stdin, output cap, timeout, Abor
   assert.equal(treeRes.aborted, true);
   const grandchildPid = Number((await readFile(pidFile, 'utf8')).trim());
   assert.ok(grandchildPid > 0);
-  // Give OS a brief moment to reap the killed grandchild
+  // Windows taskkill reports when the tree is stopped. Unix may still be reaping a signalled process.
   let stillAlive = pidExists(grandchildPid);
-  for (let i = 0; i < 20 && stillAlive; i += 1) {
+  for (let i = 0; process.platform !== 'win32' && i < 20 && stillAlive; i += 1) {
     await new Promise((r) => setTimeout(r, 100));
     stillAlive = pidExists(grandchildPid);
   }
@@ -512,6 +512,65 @@ test('adapters/cli/process-runner handles >40KB stdin, output cap, timeout, Abor
   await writeFile(brokenCmd, '@ECHO off\r\n"%_prog%" "%dp0%\\missing-target.js" %*\r\n', 'utf8');
   const brokenRes = await runProcess({ command: brokenCmd, args: ['--version'], timeoutMs: 10_000 });
   assert.equal(brokenRes.errorCode, 'BROKEN_SHIM');
+});
+
+test('adapters/cli/process-runner settles a killed run and terminate() even when an escaped grandchild keeps stdout open', async (t) => {
+  const work = await mkdtemp(join(tmpdir(), 'studyhub-runner-escape-'));
+  const escaped = [];
+  t.after(async () => {
+    for (const pid of escaped) { try { process.kill(pid); } catch { /* already gone */ } }
+    await rm(work, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  });
+  // The killed child's stdout pipe stays open while a process outside its tree holds it, so 'close' never arrives.
+  // The middle process starts the holder detached (outside the child's process group / job object) and exits, which also
+  // takes the holder out of the tree that `taskkill /T` walks. Only a backstop timer can then settle the caller.
+  const holder = join(work, 'holder.mjs');
+  await writeFile(holder, 'setTimeout(() => {}, 60000);\n', 'utf8');
+  const middle = join(work, 'middle.mjs');
+  await writeFile(middle, [
+    'import { spawn } from "node:child_process";',
+    'import { writeFileSync } from "node:fs";',
+    `const held = spawn(process.execPath, [${JSON.stringify(holder)}], { stdio: ["ignore", "inherit", "inherit"], detached: true, windowsHide: true });`,
+    'writeFileSync(process.argv[2], String(held.pid), "utf8");',
+    'held.unref();',
+  ].join('\n'), 'utf8');
+  const parent = join(work, 'parent.mjs');
+  await writeFile(parent, [
+    'import { spawnSync } from "node:child_process";',
+    `spawnSync(process.execPath, [${JSON.stringify(middle)}, process.argv[2]], { stdio: ["ignore", "inherit", "inherit"], windowsHide: true });`,
+    'console.log("READY");',
+    'setTimeout(() => {}, 60000);',
+  ].join('\n'), 'utf8');
+  const settleWithin = (promise, ms) => Promise.race([
+    promise.then(value => ({ settled: true, value })),
+    new Promise(resolve => { setTimeout(() => resolve({ settled: false }), ms).unref(); }),
+  ]);
+  const holderPid = async file => {
+    const pid = Number((await readFile(file, 'utf8')).trim());
+    escaped.push(pid);
+    return pid;
+  };
+
+  const runPidFile = join(work, 'run-holder.pid');
+  const controller = new AbortController();
+  const run = runProcess({
+    command: parent,
+    args: [runPidFile],
+    signal: controller.signal,
+    timeoutMs: 30_000,
+    onStdoutLine: line => { if (line.trim() === 'READY') controller.abort(new Error('cancel')); },
+  });
+  const ran = await settleWithin(run, 10_000);
+  assert.equal(ran.settled, true, 'runProcess must settle after a kill even though stdout never closes');
+  assert.equal(ran.value.aborted, true);
+  assert.ok(pidExists(await holderPid(runPidFile)), 'the holder really outlived the kill and kept the pipe');
+
+  const persistentPidFile = join(work, 'persistent-holder.pid');
+  const persistent = createProcessRunner().spawnPersistent({ command: process.execPath, args: [parent, persistentPidFile], cwd: work });
+  await new Promise(resolve => persistent.stdout.on('data', chunk => { if (String(chunk).includes('READY')) resolve(); }));
+  const stopped = await settleWithin(persistent.terminate(), 10_000);
+  assert.equal(stopped.settled, true, 'terminate() must settle even though the exit event never arrives');
+  assert.ok(pidExists(await holderPid(persistentPidFile)));
 });
 
 test('adapters/cli/agy-adapter runs stream-json in fresh temp cwd, streams chunks, reports usage, and cleans up cwd', async (t) => {

@@ -1,5 +1,5 @@
 /* node scripts/qa/run-tests.mjs [--fast] [--shard=I/N [--list]] [--test-concurrency=N] [--test-timeout=MS] [--test-reporter=X [--test-reporter-destination=Y]]... [--test-name-pattern=P]... [--test-skip-pattern=P]...
-   The whole suite, longest file first (started by scripts/test.mjs, which sets up the environment).
+   The whole suite, with real scroll measurements alone before the longest-first worker pool (scripts/test.mjs sets up the environment).
 
    `node --test` sorts its files by name, so the slowest ones start whenever their name comes up and the run ends with whatever is
    left of them. `run()` from node:test takes the files in the order given, so this runner lists them itself: files with no recorded
@@ -17,7 +17,6 @@
      and stops its process (a hang outside any test: a hook, an import, a handle left open after the last test).
    When a limit trips, or the run is stopped (SIGINT, SIGTERM, or a { stop } message from scripts/test.mjs), the test files that had
    started and not finished are printed on stderr, with the tests in them that had started and not finished where they are known. */
-import { run } from 'node:test';
 import * as builtInReporters from 'node:test/reporters';
 import { createWriteStream } from 'node:fs';
 import { once } from 'node:events';
@@ -26,6 +25,7 @@ import { compose, PassThrough } from 'node:stream';
 import { pathToFileURL } from 'node:url';
 import { durationsFile, listTestFiles, mergeDurations, orderLongestFirst, parseShard, readDurations, readSlowList, readWeights, repoRoot, shardKeys, suiteDir } from './test-schedule.mjs';
 import { planBatches } from './test-batch.mjs';
+import { runWithTimingFiles } from './test-phases.mjs';
 import { buildReverseDependencyGraph, selectSmartTests } from './test-smart.mjs';
 import { detectChangedPaths } from './test-smart-git.mjs';
 import { FILE_TIMEOUT_MARK, TIMEOUT_MARK } from './test-timeout.mjs';
@@ -45,7 +45,7 @@ const includeSlow = args.includes('--include-slow');
 const explain = args.includes('--explain');
 const values = name => args.flatMap((arg, i) => arg.startsWith(`${name}=`) ? [arg.slice(name.length + 1)] : arg === name && i + 1 < args.length ? [args[i + 1]] : []);
 const concurrency = Number(values('--test-concurrency').at(-1)) || undefined;
-const guard = new URL('./test-network.mjs', import.meta.url).href;
+const guard = new URL('./test-preload.mjs', import.meta.url).href;
 const keyOf = file => relative(repoRoot, file).split(sep).join('/');
 
 /** A limit in ms from the first of these that is set: a whole number, 0 for none. */
@@ -201,10 +201,13 @@ function noteFileTimeout(file) {
 const measured = {}, fileWall = {};
 let failed = false;
 try {
-  const stream = run({ files: runFiles, concurrency, cwd: repoRoot, signal: abort.signal, ...(fileMs ? { timeout: fileMs } : {}),
+  // This regression asserts an actual 100 ms Chromium scroll budget. Other workers competing for the same CPU
+  // can turn a 54 ms scroll into a 179 ms one despite all formulas being painted. Keep its full assertions intact.
+  const timingFiles = runFiles.filter(file => keyOf(file) === 'tests/reader-formula-scroll-browser.test.mjs');
+  const stream = runWithTimingFiles({ files: runFiles, concurrency, cwd: repoRoot, signal: abort.signal, ...(fileMs ? { timeout: fileMs } : {}),
     execArgv: ['--import', guard, ...((testMs || fileMs) ? ['--import', `${new URL('./test-timeout.mjs', import.meta.url).href}?ms=${testMs}&fileMs=${fileMs}`] : [])],
     ...(values('--test-name-pattern').length ? { testNamePatterns: values('--test-name-pattern') } : {}),
-    ...(values('--test-skip-pattern').length ? { testSkipPatterns: values('--test-skip-pattern') } : {}) });
+    ...(values('--test-skip-pattern').length ? { testSkipPatterns: values('--test-skip-pattern') } : {}) }, timingFiles);
 
   for await (const event of stream) {
     for (const { input } of sinks) if (!input.write(event)) await once(input, 'drain');

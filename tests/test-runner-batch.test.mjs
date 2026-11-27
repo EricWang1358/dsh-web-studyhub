@@ -116,6 +116,32 @@ test('clean files share one batch worker process while env-mutating files stay i
   assert.deepEqual(Object.keys(recorded).sort(), expectedKeys, 'durations.json records real files, never synthetic batch containers');
 });
 
+test('batched UI tests keep a private interactive React runtime for each module evaluation', async t => {
+  const suite = await makeTempSuite(t);
+  const harness = new URL('./helpers/react-harness.mjs', import.meta.url).href;
+  for (const name of ['page', 'dialog']) {
+    await writeFile(join(suite, name + '.test.mjs'), [
+      "import test from 'node:test';",
+      "import assert from 'node:assert/strict';",
+      "import { appendFileSync } from 'node:fs';",
+      `import { loadInteractiveUi } from ${JSON.stringify(harness)};`,
+      `appendFileSync(process.env.STUDY_FIXTURE_LOG, process.pid + '\\n');`,
+      `test('${name}', async () => {`,
+      `  const entry = "export { default as react } from 'react'";`,
+      '  const [one, two] = await Promise.all([loadInteractiveUi(entry), loadInteractiveUi(entry)]);',
+      '  assert.equal(one.exports.react, one.React);',
+      '  assert.equal(two.exports.react, two.React);',
+      '  assert.notEqual(one.React, two.React);',
+      '});',
+    ].join('\n'));
+  }
+  const { code, out, err, log } = await runSuite(suite, { env: { STUDY_TEST_BATCH: '1', STUDY_TEST_BATCH_SIZE: '10' } });
+  assert.equal(code, 0, err + out);
+  assert.equal(new Set((await readFile(log, 'utf8')).trim().split('\n')).size, 1, 'both files used the same batch');
+  assert.match(out, /# pass 2/);
+});
+
+
 test('a test timeout inside a batch names the real test file rather than the batch container', async t => {
   const suite = await makeTempSuite(t);
   await writeFile(join(suite, 'fast-ok.test.mjs'), "import test from 'node:test';\ntest('passes quickly', () => {});\n", 'utf8');

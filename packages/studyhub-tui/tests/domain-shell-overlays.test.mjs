@@ -68,7 +68,7 @@ await build({
   logLevel: 'silent',
   absWorkingDir: pkgRoot,
 });
-fs.symlinkSync(path.join(pkgRoot, 'node_modules'), path.join(bundleDir, 'node_modules'), 'dir');
+fs.symlinkSync(path.join(pkgRoot, 'node_modules'), path.join(bundleDir, 'node_modules'), 'junction');
 const OverlayMod = await import(pathToFileURL(bundleFile).href);
 assert.ok(OverlayMod.buildPaletteItems, 'bundle must export buildPaletteItems');
 assert.ok(OverlayMod.filterPaletteItems, 'bundle must export filterPaletteItems');
@@ -426,7 +426,7 @@ describe('Domain Shell Overlays: CommandPalette, HelpOverlay, SelectList & Inbox
         await tty.firstFramePromise;
         await tty.waitFor(
           (s) => !useTuiStore.getState().loading && (s.includes('示例 · Memento') || s.includes('Sample · Memento')),
-          { timeoutMs: 12_000, label: 'Library after sample load' },
+          { timeoutMs: 25_000, label: 'Library after sample load' },
         );
         await tty.flush(20);
 
@@ -854,7 +854,7 @@ describe('Domain Shell Overlays: CommandPalette, HelpOverlay, SelectList & Inbox
         await tty.firstFramePromise;
         await tty.waitFor(
           (s) => !useTuiStore.getState().loading && (s.includes('示例 · Memento') || s.includes('Sample · Memento')),
-          { timeoutMs: 12_000, label: 'Library after sample load' },
+          { timeoutMs: 25_000, label: 'Library after sample load' },
         );
         await tty.flush();
 

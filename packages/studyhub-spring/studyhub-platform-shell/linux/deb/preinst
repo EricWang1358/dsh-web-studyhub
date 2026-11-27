@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+# jpackage registers the .desktop entry in postinst. Minimal Debian desktops
+# may ship xdg-utils before any application has populated its menu directory.
+case "$1" in
+    install|upgrade) mkdir -p /usr/share/desktop-directories /usr/share/applications ;;
+    abort-upgrade) ;;
+    *) exit 1 ;;
+esac

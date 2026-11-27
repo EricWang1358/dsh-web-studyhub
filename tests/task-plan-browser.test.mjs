@@ -1,4 +1,4 @@
-/* global document, getComputedStyle */
+/* global document, getComputedStyle, window */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -49,6 +49,18 @@ test('the goal and the points tab fills the panel, scrolls inside it, moves noth
           const box = element.getBoundingClientRect(), host = element.parentElement.getBoundingClientRect(), s = getComputedStyle(element);
           return { top: Math.round(box.top), height: Math.round(box.height), hostHeight: Math.round(host.height), scrolls: element.scrollHeight > element.clientHeight + 1, sideways: element.scrollWidth > element.clientWidth + 1, overflowY: s.overflowY };
         });
+        if (panel.height < 150) {
+          const ancestors = await page.locator('.tc-plan').evaluate(element => {
+            const result = [];
+            for (let box = element; box && !box.classList.contains('study-app'); box = box.parentElement) {
+              const style = getComputedStyle(box), rect = box.getBoundingClientRect();
+              result.push({ box: box.className, top: rect.top, height: rect.height, minHeight: style.minHeight,
+                overflow: style.overflowY, clientHeight: box.clientHeight, scrollHeight: box.scrollHeight });
+            }
+            return result;
+          });
+          t.diagnostic(`${width}px plan viewport and ancestors: ${JSON.stringify(ancestors)}`);
+        }
         assert.ok(panel.height >= 150, `${width}px: the section has room (${panel.height}px)`);
         assert.ok(Math.abs(panel.height - panel.hostHeight) <= 2, `${width}px: it fills its panel (${panel.height} of ${panel.hostHeight}px)`);
         assert.equal(panel.overflowY, 'auto');
@@ -86,6 +98,27 @@ test('the goal and the points tab fills the panel, scrolls inside it, moves noth
         assert.deepEqual(after.map((box) => box[1]), before.map((box) => box[1]), `${width}px: no row changed its height when the states did`);
         assert.deepEqual(after.map((box) => box[0]), before.map((box) => box[0]), `${width}px: no row moved when the states changed`);
         assert.ok(await page.locator('.tc-plan').evaluate((element) => Math.abs(element.getBoundingClientRect().height - element.parentElement.getBoundingClientRect().height) <= 2), 'the section still fills its panel');
+        const plan = page.locator('.tc-plan');
+        await plan.scrollIntoViewIfNeeded();
+        await plan.evaluate(element => { element.scrollTop = 0; });
+        const scrollState = () => plan.evaluate(element => {
+          const box = element.getBoundingClientRect(), ancestors = [];
+          let top = Math.max(box.top, 0), bottom = Math.min(box.bottom, window.innerHeight);
+          for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+            if (getComputedStyle(parent).overflowY === 'visible') continue;
+            const rect = parent.getBoundingClientRect();
+            top = Math.max(top, rect.top + parent.clientTop);
+            bottom = Math.min(bottom, rect.top + parent.clientTop + parent.clientHeight);
+            ancestors.push([parent.className, parent.scrollTop]);
+          }
+          return { plan: element.scrollTop, ancestors, visible: bottom - top, x: (box.left + box.right) / 2, y: (top + bottom) / 2 };
+        });
+        const initial = await scrollState();
+        assert.ok(initial.visible >= 150, `${width}px: the reading area is visible through its ancestors: ${JSON.stringify(initial)}`);
+        await page.mouse.move(initial.x, initial.y);
+        await page.mouse.wheel(0, 64);
+        await until(async () => (await scrollState()).plan > initial.plan, 'the wheel to scroll the plan itself');
+        assert.deepEqual((await scrollState()).ancestors, initial.ancestors, `${width}px: reading the next points keeps the column and the page still`);
         assert.deepEqual(errors, []);
         await context.close();
       } finally { await running.close(); }
