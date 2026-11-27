@@ -2,8 +2,9 @@
    chapter on screen in the order of the text. The browser side is tests/reader-chapter-progress-browser.test.mjs. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { READ_AT, chapterRefs, chapterStep, drainReads, outlineChapterMarks, queueRead, scrollProgress } from '../ui/document-preview/reader/chapter-reads.js';
+import { chapterRefs, chapterStep, drainReads, outlineChapterMarks, queueRead, scrollProgress } from '../ui/document-preview/reader/chapter-reads.js';
 import { chapterGroups, inReadingOrder } from '../ui/document-preview/links/link-scope.js';
+import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 test('with a kept AI outline, the first entry inside each chapter carries that chapter\'s ✓ (gate review of #1021, 2)', () => {
   const chapters = [{ id: 'chapter-0', sourceIds: ['p1', 'p2', 'p3'] }, { id: 'chapter-1', sourceIds: ['p4', 'p5'] }, { id: 'chapter-2', sourceIds: ['p6'] }];
@@ -37,12 +38,133 @@ test('queued reads keep the chapter and material they were made under, also afte
     'unread goes as the chapter as it was shown (re-review L1), not its id alone');
 });
 
-test('a chapter is read once scrolled 90% through; one that fits on the screen is seen whole', () => {
-  assert.equal(READ_AT, 0.9);
+test('a chapter is read once scrolled 90% through; one that fits on the screen is seen whole', async () => {
+  assert.equal(scrollProgress({ scrollTop: 899, clientHeight: 100, scrollHeight: 1100 }), 0.899);
   assert.equal(scrollProgress({ scrollTop: 900, clientHeight: 100, scrollHeight: 1100 }), 0.9);
   assert.equal(scrollProgress({ scrollTop: 0, clientHeight: 800, scrollHeight: 800 }), 1);
   assert.equal(scrollProgress({ scrollTop: 5000, clientHeight: 100, scrollHeight: 1100 }), 1);
   assert.equal(scrollProgress({}), 1);
+
+  const ui = await loadInteractiveUi(`
+    export { useChapterReads } from './ui/document-preview/reader/useChapterReads.js';
+  `);
+  const makeTarget = (extra = {}) => {
+    const listeners = new Map();
+    return {
+      ...extra,
+      addEventListener(type, fn) {
+        if (!listeners.has(type)) listeners.set(type, new Set());
+        listeners.get(type).add(fn);
+      },
+      removeEventListener(type, fn) {
+        listeners.get(type)?.delete(fn);
+      },
+      emit(type, event = {}) {
+        for (const fn of [...(listeners.get(type) || [])]) fn(event);
+      },
+    };
+  };
+
+  const prevRaf = globalThis.requestAnimationFrame;
+  const prevCancelRaf = globalThis.cancelAnimationFrame;
+  let rafSeq = 0;
+  const rafQueue = new Map();
+  globalThis.requestAnimationFrame = (cb) => {
+    const id = ++rafSeq;
+    rafQueue.set(id, cb);
+    return id;
+  };
+  globalThis.cancelAnimationFrame = (id) => {
+    rafQueue.delete(id);
+  };
+  const flushRaf = () => {
+    const batch = [...rafQueue.entries()];
+    rafQueue.clear();
+    for (const [, cb] of batch) cb();
+  };
+
+  try {
+    await withBrowserGlobals(async () => {
+      const area = makeTarget({ scrollTop: 0, clientHeight: 100, scrollHeight: 1100 });
+      const frame = makeTarget();
+      const scroller = { current: area };
+      const root = { current: frame };
+      const target = { sourceId: 'p1', revision: 'r1' };
+      const chapters = [
+        { id: 'chapter-0', title: 'Intro', startPage: 1, endPage: 10 },
+        { id: 'chapter-1', title: 'Body', startPage: 11, endPage: 20 },
+      ];
+      const saves = [];
+      const call = async (method, payload) => {
+        if (method === 'materials.reading.get') return { read: [] };
+        if (method === 'materials.reading.save') {
+          saves.push(payload);
+          return { ok: true };
+        }
+        return {};
+      };
+
+      const hook = ui.mountHook(
+        (props) => ui.exports.useChapterReads(props),
+        { call, target, chapters, current: chapters[0], scroller, root, watching: true },
+      );
+      try {
+        await hook.flush(4);
+        assert.equal(hook.current.ready, true);
+        assert.equal(hook.current.read.has('chapter-0'), false);
+
+        // Without user input (touched === false), scrolling past 90% does not mark the chapter read.
+        area.scrollTop = 950;
+        await hook.act(() => {
+          area.emit('scroll');
+          flushRaf();
+        });
+        assert.equal(hook.current.read.has('chapter-0'), false, 'programmatic scroll without user input must not mark chapter read');
+
+        // After user input (wheel), 0.899 (< 0.9) is still unread.
+        area.scrollTop = 899;
+        await hook.act(() => {
+          frame.emit('wheel');
+          flushRaf();
+        });
+        assert.equal(hook.current.read.has('chapter-0'), false, '0.899 progress must not mark chapter read');
+
+        await hook.act(() => {
+          area.emit('scroll');
+          flushRaf();
+        });
+        assert.equal(hook.current.read.has('chapter-0'), false, 'scroll at 0.899 stays unread');
+
+        // Reaching exact 0.900 (>= 0.9) after user input marks the chapter read immediately on screen, without saving yet.
+        area.scrollTop = 900;
+        await hook.act(() => {
+          area.emit('scroll');
+          flushRaf();
+        });
+        assert.equal(hook.current.read.has('chapter-0'), true, '0.900 progress after user input marks chapter read');
+        assert.equal(hook.current.count, 1);
+        assert.equal(saves.length, 0, 'reads are flushed on chapter change/unmount/hide, never while scrolling');
+
+        // Unmounting flushes materials.reading.save with the read chapter ref.
+        hook.unmount();
+        assert.equal(saves.length, 1);
+        assert.deepEqual(saves[0], {
+          sourceId: 'p1',
+          revision: 'r1',
+          chapters,
+          read: [chapters[0]],
+          unread: [],
+        });
+      } finally {
+        hook.unmount();
+      }
+    });
+  } finally {
+    if (prevRaf === undefined) delete globalThis.requestAnimationFrame;
+    else globalThis.requestAnimationFrame = prevRaf;
+    if (prevCancelRaf === undefined) delete globalThis.cancelAnimationFrame;
+    else globalThis.cancelAnimationFrame = prevCancelRaf;
+  }
 });
 
 test('the library names a chapter by its id, title and pages only', () => {
