@@ -19,6 +19,8 @@ import { mapProps } from './helpers/study-map-props.mjs';
    main pages produce identical in Chinese and in English. */
 
 const han = /[㐀-鿿]/;
+// Loaded before any test is registered: a test that starts while the module is still waiting on this would find `m` uninitialised.
+const m = await loadUsageModules();
 
 async function sourceFiles(directory) {
   const files = [];
@@ -149,7 +151,6 @@ async function bundle(entry, exports) {
   new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
   return module.exports;
 }
-const m = await loadUsageModules();
 const pages = await bundle('pages', `
   export { default as StudyMap } from './ui/StudyMap.jsx';
   export { default as Review } from './ui/Review.jsx';
