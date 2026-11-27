@@ -487,6 +487,11 @@
     .outline-book-line__coverage {
       margin: 0;
     }
+    /* 讲解详尽程度: its name and its choice are one item of the button row, never split over two lines. */
+    .outline-organise__level-field {
+      flex: 0 0 auto;
+      flex-wrap: nowrap;
+    }
     .outline-organise__level {
       width: auto;
       min-width: 6.5em;

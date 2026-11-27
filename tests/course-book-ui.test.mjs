@@ -108,8 +108,11 @@ test('讲解详尽程度 beside the book\'s button, a point read in passes under
   const html = page({ outline: outline(notesLine({ coverage: { read: 300, total: 1000, partial: 1 } })), details: deep({ unit: 'page', read: 16, total: 80, more: 'full' }),
     coverage: 'standard', actions: { ...actions, setCoverage: noop, readMore: (...args) => asked.push(args) } });
   const text = textOf(html);
-  assert.match(text, /更新全书 精简 标准 详尽 重新整理/, 'the level beside the book\'s button');
-  assert.match(html, /aria-label="讲解详尽程度"/);
+  assert.match(text, /更新全书 讲解详尽程度 精简 标准 详尽 重新整理/, 'the level beside the book\'s button, with its name in front (#1693)');
+  // The name is on screen and is the control's own label, not only an aria-label.
+  const levelName = /<label class="sh-field__label" for="([^"]+)">讲解详尽程度<\/label>/.exec(html);
+  assert.ok(levelName, 'a visible label');
+  assert.match(html, new RegExp(`<select[^>]* id="${levelName[1]}"`), 'tied to the level control');
   assert.match(ui.levelOptions().find(option => option.value === 'standard').tip, /^标准：再加上步骤、规则和易错提醒都列入必讲清单/, 'the chosen level explains itself on hover');
   assert.doesNotMatch(text, /费用|元|\$/, 'no cost estimate');
   assert.match(text, /第 1–8 页 Trust boundaries first 1 Where data crosses a boundary 1 \. 第 73–80 页 Record each threat 2 The log closes the loop\. 例子 ：Example: a login form 2/);
