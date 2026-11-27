@@ -649,7 +649,8 @@ test('check-skills CLI: exit 1 on errors only, --json is parseable, the estimate
   await rm(root, { recursive: true, force: true });
 });
 
-test('the real .claude/skills pass the budget check', { skip: !existsSync(join(REPO_ROOT, '.claude/skills/skill-forge/SKILL.md')) && 'skill-forge/SKILL.md not written yet' }, () => {
+test('the real .claude/skills pass the budget check', () => {
+  assert.ok(existsSync(join(REPO_ROOT, '.claude/skills/skill-forge/SKILL.md')), '.claude/skills/skill-forge/SKILL.md must exist');
   const r = run('check-skills.mjs', ['--root', join(REPO_ROOT, '.claude/skills')]);
   assert.equal(r.status, 0, r.stdout + r.stderr);
 });
