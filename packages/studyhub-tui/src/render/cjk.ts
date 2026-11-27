@@ -32,7 +32,17 @@ const widthCache = new Map<string, number>();
  * the full `Intl.Segmenter` path (surrogates, combining marks, tone marks, control/ANSI, etc.).
  */
 function bmpCharWidth(c: number): number {
-  if (c >= 0x20 && c <= 0x7e) return 1;
+  if (
+    (c >= 0x20 && c <= 0x7e) ||
+    (c >= 0x2500 && c <= 0x257f) ||
+    (c >= 0x00b0 && c <= 0x00ff) ||
+    (c >= 0x0391 && c <= 0x03c9) ||
+    (c >= 0x2010 && c <= 0x2027) ||
+    (c >= 0x2070 && c <= 0x209f) ||
+    (c >= 0x2200 && c <= 0x22ff)
+  ) {
+    return 1;
+  }
   if (
     (c >= 0x4e00 && c <= 0x9fff) ||
     (c >= 0x3000 && c <= 0x3029) ||
@@ -58,6 +68,38 @@ function fastBmpWidth(str: string): number {
     const cw = bmpCharWidth(str.charCodeAt(i));
     if (cw < 0) return -1;
     w += cw;
+  }
+  return w;
+}
+
+/**
+ * Zero-allocation display width for safe BMP strings optionally interleaved with standard SGR
+ * escape sequences (`ESC [ digits/;/:' m`). Returns `-1` on any non-SGR escape or unsafe char
+ * so callers fall back to `stripAnsi` + `Intl.Segmenter`.
+ */
+function fastBmpSgrWidth(str: string): number {
+  let w = 0;
+  const len = str.length;
+  for (let i = 0; i < len; i++) {
+    const c = str.charCodeAt(i);
+    const cw = bmpCharWidth(c);
+    if (cw >= 0) {
+      w += cw;
+      continue;
+    }
+    if (c === 0x1b && i + 2 < len && str.charCodeAt(i + 1) === 0x5b) {
+      let j = i + 2;
+      while (j < len) {
+        const b = str.charCodeAt(j);
+        if ((b >= 0x30 && b <= 0x39) || b === 0x3b || b === 0x3a) j++;
+        else break;
+      }
+      if (j < len && str.charCodeAt(j) === 0x6d) {
+        i = j;
+        continue;
+      }
+    }
+    return -1;
   }
   return w;
 }
@@ -105,7 +147,7 @@ export function splitGraphemes(str: string): string[] {
 /** Visible width in terminal columns (ANSI ignored, CJK/emoji = 2, combining marks = 0). */
 export function displayWidth(str: string): number {
   if (!str) return 0;
-  const fast = fastBmpWidth(str);
+  const fast = fastBmpSgrWidth(str);
   if (fast >= 0) return fast;
   const plain = str.includes('\u001B') || str.includes('\u009B') ? stripAnsi(str) : str;
   if (plain !== str) {
@@ -149,7 +191,7 @@ function tokenize(str: string): Tok[] {
 function pushText(out: Tok[], text: string): void {
   if (fastBmpWidth(text) >= 0) {
     for (let i = 0; i < text.length; i++) {
-      out.push({ s: text[i], w: text.charCodeAt(i) <= 0x7e ? 1 : 2, ansi: false });
+      out.push({ s: text[i], w: bmpCharWidth(text.charCodeAt(i)), ansi: false });
     }
     return;
   }
@@ -262,7 +304,7 @@ export function truncateDisplay(str: string, maxCols: number, ellipsis = '…'):
     let w = 0;
     let cutIdx = 0;
     for (; cutIdx < str.length; cutIdx++) {
-      const cw = str.charCodeAt(cutIdx) <= 0x7e ? 1 : 2;
+      const cw = bmpCharWidth(str.charCodeAt(cutIdx));
       if (w + cw > target) break;
       w += cw;
     }

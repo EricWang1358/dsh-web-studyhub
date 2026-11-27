@@ -251,6 +251,15 @@ export function StudyHubTuiApp({
   useEffect(() => {
     let alive = true;
 
+    // Apply `initialPage` synchronously before async preference reads so user navigation
+    // performed during startup (e.g. `,` to Settings) is never clobbered when disk I/O settles.
+    if (initialPage) {
+      const store = useTuiStore.getState();
+      if (store.page !== initialPage) {
+        store.navigate(initialPage);
+      }
+    }
+
     const boot = async () => {
       try {
         const location = { env: { DSH_HOME: host.dshHome } };
@@ -270,9 +279,6 @@ export function StudyHubTuiApp({
         const store = useTuiStore.getState();
         store.setPreferences(merged);
         host.setLanguage(merged.language);
-        if (initialPage) {
-          store.navigate(initialPage);
-        }
       } catch {
         // Fallback to defaults if prefs read fails
       }

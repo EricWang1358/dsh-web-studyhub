@@ -77,7 +77,13 @@ async function mountSourcesReader(host, docTitle, bodyMatch) {
   await tty.firstFramePromise;
   await tty.waitFor((s) => s.includes(docTitle), { timeoutMs: 8_000, label: `Sources list shows ${docTitle}` });
   tty.send('\r');
-  await tty.waitFor((s) => s.includes(bodyMatch), { timeoutMs: 8_000, label: `DocumentReader shows ${bodyMatch}` });
+  // Wait for DocumentReader-exclusive header/footer markers alongside body text: SourcesView's
+  // right-hand preview pane also renders `bodyMatch`, which can satisfy a body-only waitFor
+  // before the lazy DocumentReader chunk finishes mounting and registering its `G` handler.
+  await tty.waitFor(
+    (s) => s.includes(bodyMatch) && s.includes('第 1 /') && s.includes('术语译文'),
+    { timeoutMs: 8_000, label: `DocumentReader shows ${bodyMatch}` },
+  );
   return {
     tty,
     unmount: () => {
@@ -304,7 +310,10 @@ describe('#1419: TranslationGlossaryModal AI-suggested translation', () => {
     const session = await mountSourcesReader(host, 'Offline Doc', 'FSRS updates memory stability');
     try {
       session.tty.send('G');
-      await session.tty.waitFor((s) => s.includes('翻译术语表与已存译文'), { timeoutMs: 8_000 });
+      await session.tty.waitFor((s) => s.includes('翻译术语表与已存译文') && s.includes('术语表为空'), {
+        timeoutMs: 8_000,
+        label: 'TranslationGlossaryModal open (no-model)',
+      });
       session.tty.send('a');
       await session.tty.waitFor((s) => s.includes('添加术语 (1/2)'), { timeoutMs: 5_000 });
       session.tty.send('FSRS');
