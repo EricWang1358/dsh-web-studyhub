@@ -118,6 +118,14 @@ test('explorer metadata matches live StudyRuntime contexts, generation stages, t
   assert.equal(demo.cardLevel({ review: { interval_days: 20, spaced_reps: 2 } }, 4), 'familiar');
   assert.equal(demo.cardLevel({ review: { interval_days: 21, spaced_reps: 1 } }, 4), 'familiar');
   assert.equal(demo.cardLevel({ review: { interval_days: 21, spaced_reps: 2 } }, 4), 'mastered');
+  // explorer.html colours its preview timeline from the thresholds STUDY_DEMO exposes, not from cardLevel; the same rule fed with those
+  // values must give the level cardLevel gives at every boundary, so a threshold missing from STUDY_DEMO or out of step shows here.
+  const timelineTone = (interval, review) => (interval >= demo.MASTERED_DAYS && review >= demo.MASTERED_STREAK
+    ? 'mastered'
+    : (interval >= demo.FAMILIAR_DAYS ? 'familiar' : 'learning'));
+  for (const [interval, review] of [[5, 1], [6, 1], [20, 2], [21, 1], [21, 2]]) {
+    assert.equal(timelineTone(interval, review), demo.cardLevel({ review: { interval_days: interval, spaced_reps: review } }, 4), `timeline tone at ${interval} days, ${review} reviews`);
+  }
   const boosted = demo.focusScheduleSettings(demo.defaults, { isFocus: true });
   assert.equal(boosted.request_retention, 0.94);
 });
