@@ -254,6 +254,44 @@ test('the compact card (以后再说) is the same line: three rows and the open 
   assert.equal(m.compactAction(m.firstRunLine(library()), {}), null, 'no handler, no dead button');
 });
 
+test('compactAction follows step 3 (draft / run) even when own material is still todo (#1680)', () => {
+  m.setUiLanguage('zh');
+  const sampleOnly = { sample: SAMPLE, sources: [{ id: SAMPLE.sourceId, title: '示例讲义', sample: true }] };
+  const cleanLine = m.firstRunLine(library({ ...sampleOnly, drafts: [draft] }), { publishAtOnce: true });
+  assert.equal(cleanLine.step, 2);
+  assert.equal(cleanLine.steps[1].status, 'todo');
+  assert.equal(cleanLine.steps[2].status, 'draft-clean');
+  let published = null;
+  const cleanAction = m.compactAction(cleanLine, { ...on, publish: (d) => { published = d; } });
+  assert.equal(cleanAction?.label, '发布并开始练');
+  cleanAction.run();
+  assert.equal(published, draft);
+  const cleanMarkup = compact(cleanLine);
+  assert.equal(primaries(cleanMarkup), 1);
+  assert.match(cleanMarkup, />发布并开始练</);
+  assert.doesNotMatch(cleanMarkup, />添加资料</);
+
+  const reviewLine = m.firstRunLine(library({ ...sampleOnly, drafts: [draft] }));
+  assert.equal(reviewLine.step, 2);
+  assert.equal(reviewLine.steps[1].status, 'todo');
+  assert.equal(reviewLine.steps[2].status, 'draft-review');
+  let opened = null;
+  const reviewAction = m.compactAction(reviewLine, { ...on, openDraft: (d) => { opened = d; } });
+  assert.equal(reviewAction?.label, '检查草稿');
+  reviewAction.run();
+  assert.equal(opened, draft);
+
+  const runningLine = m.firstRunLine(library({ ...sampleOnly, jobs: [job('running', { sourceIds: [SAMPLE.sourceId] })] }));
+  assert.equal(runningLine.step, 2);
+  assert.equal(runningLine.steps[2].status, 'generating');
+  assert.equal(m.compactAction(runningLine, on), null, 'generating step belongs to its run card, not step 2 import');
+
+  const failedLine = m.firstRunLine(library({ ...sampleOnly, jobs: [job('failed', { sourceIds: [SAMPLE.sourceId] })] }));
+  assert.equal(failedLine.step, 2);
+  assert.equal(failedLine.steps[2].status, 'failed');
+  assert.equal(m.compactAction(failedLine, on), null, 'failed step belongs to its run card, not step 2 import');
+});
+
 test('English: the whole line has no Chinese left', () => {
   m.setUiLanguage('en');
   try {
