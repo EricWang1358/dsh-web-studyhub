@@ -30,6 +30,7 @@ import { writesFor } from '../lib/runtime/domain-contracts.js';
 import { listSaved } from '../lib/live.js';
 import { StudyService } from '../lib/service.js';
 import { loadUi } from './helpers/ui-module.mjs';
+import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 const FAKE_ENGINE = fileURLToPath(new URL('./fixtures/live-local/fake-sherpa.cjs', import.meta.url));
 const han = /[\u3400-\u9fff]/;
@@ -391,13 +392,6 @@ test('UI: LiveClient system-audio sync and bilingual rendering of LiveLoopbackCa
   const render = (el, lang = 'zh') => { uiMod.setUiLanguage(lang); try { return renderToStaticMarkup(el); } finally { uiMod.setUiLanguage('zh'); } };
   const callStub = async () => ({});
 
-  // Static guardrail on LiveLoopbackCard.jsx matching tests/live-audio-i18n.test.mjs.
-  const cardSource = await readFile(new URL('../ui/LiveLoopbackCard.jsx', import.meta.url), 'utf8');
-  assert.doesNotMatch(cardSource, /const t = \(zh/);
-  assert.doesNotMatch(cardSource, /language === 'en' \?|getUiLanguage\(\) === 'en'/);
-  assert.doesNotMatch(cardSource, /\}\{ui\(["'` ]/);
-  assert.doesNotMatch(cardSource, /setInterval\(/);
-
   // LiveClient with kind='system': never touches browser mediaDevices, syncs inputAudio into health without churning session reference on meter-only ticks.
   let pollStep = 0, mockStatus = 'live';
   const calls = [];
@@ -468,9 +462,48 @@ test('UI: LiveClient system-audio sync and bilingual rendering of LiveLoopbackCa
   for (const [name, st] of Object.entries(states)) {
     const zh = render(h(uiMod.LiveLoopbackCard, { call: callStub, initialStatus: st, initialPlan: plan, settings: true }), 'zh');
     assert.doesNotMatch(zh, / title="/, name);
+    assert.match(textOf(zh), han, `Chinese card (${name}) should render Chinese copy: ${textOf(zh)}`);
+    assert.doesNotMatch(textOf(zh), /\{\d+\}/, `Chinese card (${name}) left a placeholder unfilled: ${textOf(zh)}`);
     const en = render(h(uiMod.LiveLoopbackCard, { call: callStub, initialStatus: st, initialPlan: plan, settings: true }), 'en');
     assert.doesNotMatch(textOf(en), han, `English card (${name}): ${textOf(en)}`);
+    assert.doesNotMatch(textOf(en), /\{\d+\}/, `English card (${name}) left a placeholder unfilled: ${textOf(en)}`);
+    assert.notEqual(textOf(en), textOf(zh), `card (${name}) should switch copy with setUiLanguage`);
   }
+
+  // Interactive check: LiveLoopbackCard in installing state polls via usePolling (setTimeout), never its own setInterval.
+  const interactive = await loadInteractiveUi(`
+    export { default as LiveLoopbackCard } from './ui/LiveLoopbackCard.jsx';
+  `);
+  await withBrowserGlobals(async () => {
+    const origSetInterval = globalThis.setInterval;
+    const origSetTimeout = globalThis.setTimeout;
+    const intervalCalls = [];
+    const timeoutDelays = [];
+    globalThis.setInterval = (...args) => {
+      intervalCalls.push(args);
+      return origSetInterval(...args);
+    };
+    globalThis.setTimeout = (fn, ms, ...rest) => {
+      timeoutDelays.push(ms);
+      return origSetTimeout(fn, ms, ...rest);
+    };
+    let mounted;
+    try {
+      mounted = interactive.mount(() => interactive.React.createElement(interactive.exports.LiveLoopbackCard, {
+        call: async () => states.installing,
+        initialStatus: states.installing,
+        initialPlan: plan,
+        settings: true,
+      }));
+      await mounted.flush();
+      assert.equal(intervalCalls.length, 0, 'LiveLoopbackCard must not register a private setInterval');
+      assert.ok(timeoutDelays.includes(800), `LiveLoopbackCard installing poll should schedule 800ms usePolling timer, saw ${JSON.stringify(timeoutDelays)}`);
+    } finally {
+      mounted?.unmount();
+      globalThis.setInterval = origSetInterval;
+      globalThis.setTimeout = origSetTimeout;
+    }
+  });
 
   // Electron LiveClass with computer audio selected shows the inline hot-install card and only 1 primary CTA.
   const electronUninstalledZh = render(h(uiMod.LiveClass, {
