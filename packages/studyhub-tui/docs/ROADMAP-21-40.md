@@ -1,5 +1,7 @@
 # StudyHub TUI Roadmap — Rounds 21–40
 
+> **Historical milestone archive**: Early standalone `round*-*.test.mjs` / `pr1297-*.test.mjs` test files referenced below were later consolidated into current suites, and package metadata (`engines`, `files`) has since evolved; see `docs/ARCHITECTURE.md` and `package.json` for current state.
+
 > **Baseline at Round 21** (`b9965932`, PR #1297 `feat/studyhub-tui-r20` → `main`):
 > - **16 views** live (`Library`, `Review`, `Sources`, `Generate`, `WrongBook`, `Exam`, `Dashboard`, `Book`, `Skeleton`, `ExamCoach`, `ExamPrep`, `Notes`, `Board`, `Tasks`, `Audio`, `Settings`) + global `AppShell` (`CommandPalette`, `Inbox`, `HelpOverlay`, `CoursePicker`, `Launchpad`).
 > - **Dual-model engine**: `agy` CLI primary (auto-probed, streaming) + 8 OpenAI-compatible presets secondary (env-key memory overlay).
