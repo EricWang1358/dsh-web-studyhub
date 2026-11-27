@@ -153,6 +153,31 @@ test('the compact card offers no button that belongs to another step than the on
   }
 });
 
+test('#1680: a draft made from material that does not count (the sample\'s, or one archived since) gets the third step\'s button, not 添加资料', () => {
+  m.setUiLanguage('zh');
+  const sampled = (extra = {}) => library({ sample: SAMPLE, sources: [{ id: 'sample-src', sample: true, title: '示例讲义' }], ...extra });
+  const clean = m.firstRunLine(sampled({ drafts: [draft] }), { publishAtOnce: true });
+  assert.equal(clean.steps[1].status, 'todo', 'the sample material never ticks step 2');
+  assert.equal(clean.step, 2, 'the card marks the third step');
+  assert.equal(m.compactAction(clean, on).label, '发布并开始练');
+  const review = m.firstRunLine(sampled({ drafts: [draft] }));
+  assert.equal(m.compactAction(review, on).label, '检查草稿');
+  // The learner's own material, archived after the draft was made: the same rule.
+  const archived = m.firstRunLine(library({ sources: [{ ...mine, archived: true }], drafts: [draft] }), { publishAtOnce: true });
+  assert.equal(archived.steps[1].status, 'todo');
+  assert.equal(m.compactAction(archived, on).label, '发布并开始练');
+  // A run going or ended from the sample's material: the third step is marked and its run card carries it, so the compact card offers no other step's button.
+  for (const status of ['running', 'failed']) {
+    const line = m.firstRunLine(sampled({ jobs: [job(status, { sourceIds: ['sample-src'] })] }));
+    assert.equal(line.step, 2, status);
+    assert.equal(m.compactAction(line, on), null, status);
+  }
+  // The button follows the marked step: while the card marks step 2 it is still 添加资料.
+  const first = m.firstRunLine(sampled());
+  assert.equal(first.step, 1);
+  assert.equal(m.compactAction(first, on).label, '添加资料');
+});
+
 test('the sample course never counts, and the line is gone once a deck of the learner\'s own is published', () => {
   const sampleOnly = library({ sample: SAMPLE, decks: [{ id: 'sample-deck', sample: true }], sources: [{ id: 'sample-src', sample: true, title: '示例讲义' }],
     drafts: [{ id: 'sample-draft', sample: true, cards: [] }], jobs: [job('running', { draftId: 'sample-draft' })] });

@@ -117,8 +117,9 @@ export function compactAction(line, on = {}, plan = null) {
   const [, material, deck] = line.steps;
   if (line.step === 0) return null;
   if (deck.status === 'stopped') return !deck.jobIds.length && on.openDraft ? { label: ui('检查草稿'), run: () => on.openDraft(deck.draft) } : null;
-  if (material.status === 'todo' && on.importFirst) return { ...addSourceAction(on.importFirst), run: on.importFirst };
-  if (deck.status === 'ready' && on.generate && deck.modelReady) return { label: ui('出第一组题'), run: () => on.generate(deck.sourceIds), blocked: generateBlockReason(deck, plan) };
+  // Only while the card marks step 2: a draft made from the sample's material (or from one archived since) leaves it 'todo' under a marked third step (#1680).
+  if (line.step === 1) return on.importFirst ? { ...addSourceAction(on.importFirst), run: on.importFirst } : null;
+  if (deck.status === 'ready'&& on.generate && deck.modelReady) return { label: ui('出第一组题'), run: () => on.generate(deck.sourceIds), blocked: generateBlockReason(deck, plan) };
   if (deck.status === 'draft-clean' && on.publish) return { label: ui('发布并开始练'), run: () => on.publish(deck.draft) };
   if (deck.status === 'draft-review' && on.openDraft) return { label: ui('检查草稿'), run: () => on.openDraft(deck.draft) };
   return null;
