@@ -6,6 +6,7 @@ import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button } from '../components/Button.jsx';
 import { readJSON } from '../storage.js';
+import { useAppearance } from '../use-appearance.js';
 import { useLiveEffect } from '../use-async.js';
 
 const ALBUM_KEY = 'study-seal-album';
@@ -23,9 +24,15 @@ export default function LazySealAlbumTrigger({
   variant = 'quiet',
   className,
 }) {
+  const [appearance] = useAppearance();
+  const minimal = appearance.minimal === 'on';
   const [count, setCount] = React.useState(readAlbumCount);
   const [open, setOpen] = React.useState(false);
   const [DialogComp, setDialogComp] = React.useState(() => dialogCache);
+
+  React.useEffect(() => {
+    if (minimal) setOpen(false);
+  }, [minimal]);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -42,7 +49,7 @@ export default function LazySealAlbumTrigger({
   }, []);
 
   useLiveEffect((isLive) => {
-    if (!open || DialogComp) return undefined;
+    if (minimal || !open || DialogComp) return undefined;
     import('./SealAlbumDialog.jsx')
       .then((mod) => {
         const Comp = mod?.default || null;
@@ -54,9 +61,9 @@ export default function LazySealAlbumTrigger({
         if (isLive()) setOpen(false);
       });
     return undefined;
-  }, [open, DialogComp]);
+  }, [minimal, open, DialogComp]);
 
-  if (onlyWhenNonEmpty && count <= 0) return null;
+  if (minimal || (onlyWhenNonEmpty && count <= 0)) return null;
 
   return (
     <>

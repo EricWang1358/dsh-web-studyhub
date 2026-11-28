@@ -2,13 +2,16 @@
    and seal-press.css stay out of the workspace first-load closure until a learner
    actually hits a 3+ flow streak or conquers a stubborn/leech card. */
 import React from 'react';
+import { useAppearance } from '../use-appearance.js';
 import { computeFlowStreak, isLeechConquered } from './flow-logic.js';
 
 let cachedCue = null;
 
 export default function LazyFlowSealCue({ run, variant = 'header' }) {
+  const [appearance] = useAppearance();
+  const minimal = appearance.minimal === 'on';
   const [Cue, setCue] = React.useState(() => cachedCue);
-  const active = Boolean(run && run.mode !== 'exam' && !run.complete && (isLeechConquered(run) || computeFlowStreak(run)));
+  const active = !minimal && Boolean(run && run.mode !== 'exam' && !run.complete && (isLeechConquered(run) || computeFlowStreak(run)));
 
   React.useEffect(() => {
     if (!active || Cue) return undefined;

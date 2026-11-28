@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useLiveEffect } from '../use-async.js';
+import { useAppearance } from '../use-appearance.js';
 
 let cachedStrip = null;
 
@@ -9,17 +10,20 @@ let cachedStrip = null;
  * without altering the `React.lazy` boundary count.
  */
 export default function LazyDeskPlayStrip(props) {
+  const [appearance] = useAppearance();
+  const minimal = appearance.minimal === 'on';
   const [StripImpl, setStripImpl] = useState(() => cachedStrip);
 
   useLiveEffect((isLive) => {
-    if (StripImpl) return;
+    if (minimal || StripImpl) return;
     import('./DeskPlayStrip.jsx')
       .then((mod) => {
         cachedStrip = mod.default;
         if (isLive()) setStripImpl(() => mod.default);
       })
       .catch(() => { /* ignore transient chunk load failure */ });
-  }, [StripImpl]);
+  }, [minimal, StripImpl]);
 
+  if (minimal) return null;
   return StripImpl ? <StripImpl {...props} /> : null;
 }

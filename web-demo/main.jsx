@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import '../ui/styles.js';
 import '../ui/appearance-themes.css';
 import '../ui/appearance-craft.css';
+import '../ui/appearance-minimal.css';
 import '../ui/accent.css';
 import '../ui/audio-dashboard.css';
 import App from '../ui/App.jsx';

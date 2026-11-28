@@ -159,8 +159,8 @@ async function loadWorkspaceSeat() {
 
 test('the DSH seat wears the motion and contrast choices itself, so what sits beside the app (a note, the candidate dialog) follows them without a :has()', async () => {
   const dark = { light: false, reducedMotion: false, contrast: false };
-  assert.deepEqual(seatAttrs(appearanceAttrs({ motion: 'off', contrast: 'high', craft: 'refined' }, dark)), { 'data-motion': 'off', 'data-contrast': 'high', 'data-craft': 'refined' });
-  assert.deepEqual(seatAttrs(appearanceAttrs({}, { ...dark, reducedMotion: true })), { 'data-motion': 'reduced', 'data-contrast': 'standard', 'data-craft': 'standard' }, 'auto follows the system');
+  assert.deepEqual(seatAttrs(appearanceAttrs({ motion: 'off', contrast: 'high', craft: 'refined', minimal: 'on' }, dark)), { 'data-motion': 'off', 'data-contrast': 'high', 'data-craft': 'refined', 'data-minimal': 'on' });
+  assert.deepEqual(seatAttrs(appearanceAttrs({}, { ...dark, reducedMotion: true })), { 'data-motion': 'reduced', 'data-contrast': 'standard', 'data-craft': 'standard', 'data-minimal': 'off' }, 'auto follows the system');
   const { createWorkspaceHost, appearanceStore } = await loadWorkspaceSeat();
   const { Seat } = createWorkspaceHost({ get: () => null }, { effect: () => {} });
   const renderSeatTag = () => {
@@ -176,13 +176,15 @@ test('the DSH seat wears the motion and contrast choices itself, so what sits be
     assert.match(defaultTag, /\bdata-motion="full"/);
     assert.match(defaultTag, /\bdata-contrast="standard"/);
     assert.match(defaultTag, /\bdata-craft="standard"/);
+    assert.match(defaultTag, /\bdata-minimal="off"/);
     assert.doesNotMatch(defaultTag, /\bdata-theme=/);
 
-    appearanceStore.update({ motion: 'off', contrast: 'high', craft: 'refined' });
+    appearanceStore.update({ motion: 'off', contrast: 'high', craft: 'refined', minimal: 'on' });
     const updatedTag = renderSeatTag();
     assert.match(updatedTag, /\bdata-motion="off"/);
     assert.match(updatedTag, /\bdata-contrast="high"/);
     assert.match(updatedTag, /\bdata-craft="refined"/);
+    assert.match(updatedTag, /\bdata-minimal="on"/);
     assert.doesNotMatch(updatedTag, /\bdata-theme=/);
   } finally {
     appearanceStore.update(previous);

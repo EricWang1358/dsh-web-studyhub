@@ -8,6 +8,7 @@ import {
   ACTUAL_MINUTES_MAX, TIMER_BREAK_MAX, TIMER_WORK_MAX, isMeaningfulTitle, resolveTimerPrefs, selectTodayTimeLog, timerSnapshot,
 } from '../../lib/board-model.js';
 import { playTimerChime } from '../sound-effects.js';
+import { useAppearance } from '../use-appearance.js';
 import { useLiveEffect } from '../use-async.js';
 import FocusRitualDial from '../desk-atelier/FocusRitualDial.jsx';
 import BreathingHalo from '../desk-atelier/BreathingHalo.jsx';
@@ -56,7 +57,7 @@ function timerStateLabel(snap) {
 
 /** Narrow-viewport sticky bottom bar for an active focus/break timer (#858). */
 export function TodayTimerBar({
-  board, readOnly = false, nowMs: nowProp, onPause, onResume, onComplete, onOpenFullscreen,
+  board, readOnly = false, nowMs: nowProp, onPause, onResume, onCancel, onComplete, onOpenFullscreen,
 }) {
   const timer = board?.timer || null;
   const liveNow = useNow(1000, { enabled: Boolean(timer && !timer.pausedAt) && nowProp === undefined });
@@ -84,12 +85,19 @@ export function TodayTimerBar({
             {ui('暂停')}
           </Button>
         )}
-        <IconButton
-          icon={<Icon name="fit" size={16} />}
-          size="sm"
-          label={ui('全屏专注')}
-          onClick={onOpenFullscreen}
-        />
+        {!snap.finished && onCancel && (
+          <Button variant="quiet" size="sm" icon="close" disabled={readOnly} onClick={onCancel}>
+            {ui('放弃这一个')}
+          </Button>
+        )}
+        {onOpenFullscreen && (
+          <IconButton
+            icon={<Icon name="fit" size={16} />}
+            size="sm"
+            label={ui('全屏专注')}
+            onClick={onOpenFullscreen}
+          />
+        )}
       </div>
     </aside>
   );
@@ -102,6 +110,8 @@ export default function TodayTimer({
   onStartFreeFocus, onStartBreak, onPause, onResume, onCancel, onComplete, onSavePrefs, onAddLog, onEditLog, onRemoveLog,
 }) {
   const toast = useToast();
+  const [appearance] = useAppearance();
+  const minimal = appearance.minimal === 'on';
   const timer = board?.timer || null;
   const prefs = useMemo(() => resolveTimerPrefs(board), [board]);
   const todayLog = useMemo(() => selectTodayTimeLog(board, today), [board, today]);
@@ -116,8 +126,15 @@ export default function TodayTimer({
   const [ChimeDialog, setChimeDialog] = useState(() => cachedChimeDialog);
   const [ambientMode, setAmbientMode] = useState(() => loadAmbientMode());
 
+  useEffect(() => {
+    if (minimal) {
+      setBreathOpen(false);
+      setChimeOpen(false);
+    }
+  }, [minimal]);
+
   useLiveEffect((isLive) => {
-    if (!chimeOpen || ChimeDialog) return undefined;
+    if (minimal || !chimeOpen || ChimeDialog) return undefined;
     import('../desk-atelier/DeskChimeDialog.jsx')
       .then((mod) => {
         cachedChimeDialog = mod?.default || null;
@@ -168,10 +185,10 @@ export default function TodayTimer({
         ? ui('休息到点了。')
         : uiFormat('专注到点了：{0}', [snap.cardTitle]);
       toast.show({ tone: 'info', message: msg });
-      if (prefs.sound) playTimerChime();
+      if (prefs.sound && !minimal) playTimerChime();
       if (prefs.notify) sendSystemNotification(ui('专注计时'), msg);
     }
-  }, [snap, prefs.sound, prefs.notify, toast]);
+  }, [snap, prefs.sound, prefs.notify, minimal, toast]);
 
   useEffect(() => {
     if (timer) setOfferBreak(false);
@@ -394,17 +411,23 @@ export default function TodayTimer({
               </span>
             </div>
 
-            <FocusRitualDial
-              size="compact"
-              remainingLabel={formatClock(snap.remainingMs)}
-              progress={dialProgress}
-              mode={snap.mode}
-              state={dialState}
-              clockClassName="board-timer__clock desk-dial__clock"
-              clockState={dialState}
-            />
+            {minimal ? (
+              <div className="board-timer__clock" data-timer-state={dialState}>
+                {formatClock(snap.remainingMs)}
+              </div>
+            ) : (
+              <FocusRitualDial
+                size="compact"
+                remainingLabel={formatClock(snap.remainingMs)}
+                progress={dialProgress}
+                mode={snap.mode}
+                state={dialState}
+                clockClassName="board-timer__clock desk-dial__clock"
+                clockState={dialState}
+              />
+            )}
 
-            {snap.mode === 'break' && (
+            {!minimal && snap.mode === 'break' && (
               breathOpen ? (
                 <BreathingHalo compact onClose={() => setBreathOpen(false)} />
               ) : (
@@ -459,12 +482,18 @@ export default function TodayTimer({
           </div>
         ) : (
           <div className="board-timer__idle">
-            <FocusRitualDial
-              size="compact"
-              state="idle"
-              remainingLabel={formatClock(prefs.workMinutes * 60_000)}
-              clockClassName="board-timer__clock is-idle desk-dial__clock"
-            />
+            {minimal ? (
+              <div className="board-timer__clock is-idle" data-timer-state="idle">
+                {formatClock(prefs.workMinutes * 60_000)}
+              </div>
+            ) : (
+              <FocusRitualDial
+                size="compact"
+                state="idle"
+                remainingLabel={formatClock(prefs.workMinutes * 60_000)}
+                clockClassName="board-timer__clock is-idle desk-dial__clock"
+              />
+            )}
             <p className="board-timer__meta">
               {uiFormat('番茄 {0} 分钟 · 休息 {1} 分钟', [prefs.workMinutes, prefs.breakMinutes])}
             </p>
@@ -504,26 +533,30 @@ export default function TodayTimer({
                 >
                   {uiFormat('休息 {0} 分钟', [prefs.breakMinutes])}
                 </Button>
-                <Button
-                  variant="quiet"
-                  size="sm"
-                  icon="sparkle"
-                  aria-expanded={breathOpen}
-                  onClick={() => setBreathOpen((open) => !open)}
-                >
-                  {ui('60 秒呼吸引导')}
-                </Button>
-                <Button
-                  variant="quiet"
-                  size="sm"
-                  icon="sparkle"
-                  onClick={() => setChimeOpen(true)}
-                >
-                  {ui('五声风铃')}
-                </Button>
+                {!minimal && (
+                  <>
+                    <Button
+                      variant="quiet"
+                      size="sm"
+                      icon="sparkle"
+                      aria-expanded={breathOpen}
+                      onClick={() => setBreathOpen((open) => !open)}
+                    >
+                      {ui('60 秒呼吸引导')}
+                    </Button>
+                    <Button
+                      variant="quiet"
+                      size="sm"
+                      icon="sparkle"
+                      onClick={() => setChimeOpen(true)}
+                    >
+                      {ui('五声风铃')}
+                    </Button>
+                  </>
+                )}
               </div>
             )}
-            {offerBreak && breathOpen && (
+            {!minimal && offerBreak && breathOpen && (
               <BreathingHalo compact onClose={() => setBreathOpen(false)} />
             )}
           </div>
@@ -715,7 +748,7 @@ export default function TodayTimer({
           onClose={() => onFullscreenChange?.(false)}
         >
           <div className="desk-focus-stage-wrap">
-            <FocusAmbientCanvas mode={ambientMode} />
+            {!minimal && <FocusAmbientCanvas mode={ambientMode} />}
             <div className="desk-focus-stage-inner">
               <div className="board-focus-stage">
                 <span className="board-chip board-timer__badge" data-timer-mode={snap.mode}>
@@ -727,16 +760,22 @@ export default function TodayTimer({
                 {snap.mode === 'work' && activeSubtitle && (
                   <p className="board-focus-stage__note">{activeSubtitle}</p>
                 )}
-                <FocusRitualDial
-                  size="stage"
-                  remainingLabel={formatClock(snap.remainingMs)}
-                  progress={dialProgress}
-                  mode={snap.mode}
-                  state={dialState}
-                  clockClassName="board-focus-stage__clock desk-dial__clock"
-                  clockState={dialState}
-                />
-                {snap.mode === 'break' && (
+                {minimal ? (
+                  <div className="board-focus-stage__clock" data-timer-state={dialState}>
+                    {formatClock(snap.remainingMs)}
+                  </div>
+                ) : (
+                  <FocusRitualDial
+                    size="stage"
+                    remainingLabel={formatClock(snap.remainingMs)}
+                    progress={dialProgress}
+                    mode={snap.mode}
+                    state={dialState}
+                    clockClassName="board-focus-stage__clock desk-dial__clock"
+                    clockState={dialState}
+                  />
+                )}
+                {!minimal && snap.mode === 'break' && (
                   <div className="board-focus-stage__bar">
                     {breathOpen ? (
                       <BreathingHalo onClose={() => setBreathOpen(false)} />
@@ -788,8 +827,8 @@ export default function TodayTimer({
                     {ui('放弃这一个')}
                   </Button>
                 </div>
-                <FocusSoundscapePill />
-                <FocusAmbientControls mode={ambientMode} onChange={handleAmbientChange} />
+                {!minimal && <FocusSoundscapePill />}
+                {!minimal && <FocusAmbientControls mode={ambientMode} onChange={handleAmbientChange} />}
                 <p className="board-focus-stage__meta">
                   {joinMeta([
                     uiFormat('今日已专注 {0} 分钟', [todayLog.totalMinutes]),
@@ -801,7 +840,7 @@ export default function TodayTimer({
           </div>
         </Dialog>
       )}
-      {chimeOpen && ChimeDialog && (
+      {!minimal && chimeOpen && ChimeDialog && (
         <ChimeDialog onClose={() => setChimeOpen(false)} />
       )}
     </>
