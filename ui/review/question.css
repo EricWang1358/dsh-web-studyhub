@@ -1435,6 +1435,21 @@
       .question-toolbar .question-navigation > .sh-menu-anchor { flex: none; }
       .question-toolbar .question-navigation > [data-usage="review.prev"],
       .question-toolbar .question-navigation > [data-usage="review.next"] { flex: 1 1 0; }
+      /* When undo is shown on a narrow screen, use CSS Grid so undo keeps its intrinsic width (no full-width ghost hit area) right-aligned above
+         the 3-control nav row while 更多 / 上一题 / 下一题 stay uncrushed on one line. DOM keeps undo beside 上一题 for desktop layouts. */
+      .question-toolbar .question-navigation:has(> [data-usage="review.undo"]) {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+        align-items: center;
+      }
+      .question-toolbar .question-navigation:has(> [data-usage="review.undo"]) > [data-usage="review.undo"] {
+        grid-column: 1 / -1;
+        grid-row: 1;
+        justify-self: end;
+      }
+      .question-toolbar .question-navigation:has(> [data-usage="review.undo"]) > .sh-menu-anchor { grid-column: 1; grid-row: 2; }
+      .question-toolbar .question-navigation:has(> [data-usage="review.undo"]) > [data-usage="review.prev"] { grid-column: 2; grid-row: 2; }
+      .question-toolbar .question-navigation:has(> [data-usage="review.undo"]) > [data-usage="review.next"] { grid-column: 3; grid-row: 2; }
       .term-strip { padding: var(--space-2); }
       .term-strip__list { flex: 1 1 100%; }
       .term-strip__actions { margin-left: auto; }

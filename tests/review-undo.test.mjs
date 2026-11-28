@@ -339,7 +339,8 @@ test('Z and Ctrl+Z shortcuts trigger undo outside inputs (including on round sum
       busy: false,
       undoAnswer: noop,
     }));
-    assert.match(html, /Graded · Undo \(Z\)/);
+    assert.match(html, /Undo last grade \(Z\)/);
+    assert.doesNotMatch(html, /Graded · Undo \(Z\)/);
     assert.doesNotMatch(html.replace(/<[^>]*>/g, ' '), /[\u3400-\u9fff]/, 'zero leaked Han characters in English undo toolbar');
   } finally {
     uiMods.setUiLanguage('zh');

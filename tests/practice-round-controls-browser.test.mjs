@@ -52,10 +52,33 @@ async function chooseMore(page, item) {
   await page.getByRole('menuitem', { name: item }).click();
 }
 const layout = (page) => page.evaluate(() => {
-  const box = (el) => { const r = el?.getBoundingClientRect(); return r ? { top: r.top, bottom: r.bottom, height: r.height } : null; };
+  const box = (el) => { const r = el?.getBoundingClientRect(); return r ? { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height } : null; };
   const nav = document.querySelector('.question-navigation');
-  const buttons = [...(nav?.querySelectorAll('button') || [])].map((button) => { const b = box(button); return Math.round(b.top + b.height / 2); });
-  return { overflow: document.documentElement.scrollWidth - innerWidth, navigationTops: buttons };
+  const buttons = [...(nav?.querySelectorAll('.review-more-trigger, [data-usage="review.prev"], [data-usage="review.next"]') || [])].map((button) => { const b = box(button); return Math.round(b.top + b.height / 2); });
+  const undoEl = nav?.querySelector('[data-usage="review.undo"]');
+  const moreEl = nav?.querySelector('.review-more-trigger');
+  const prevEl = nav?.querySelector('[data-usage="review.prev"]');
+  let undo = null;
+  if (undoEl && moreEl && prevEl && nav) {
+    const app = document.querySelector('.study-app') || document.body;
+    const probe = document.createElement('span');
+    probe.style.color = 'var(--accent-text)';
+    app.appendChild(probe);
+    const accentColor = window.getComputedStyle(probe).color;
+    probe.remove();
+    const u = box(undoEl), m = box(moreEl), p = box(prevEl), n = box(nav);
+    undo = {
+      text: undoEl.innerText.trim(),
+      color: window.getComputedStyle(undoEl).color,
+      moreColor: window.getComputedStyle(moreEl).color,
+      accentColor,
+      left: u.left, right: u.right, top: u.top, bottom: u.bottom, width: u.width,
+      midY: Math.round(u.top + u.height / 2),
+      moreRight: m.right, prevLeft: p.left, prevTop: p.top,
+      navWidth: n.width, navRight: n.right,
+    };
+  }
+  return { overflow: document.documentElement.scrollWidth - innerWidth, navigationTops: buttons, undo };
 });
 
 test('先跳过, 「N 题待答」, 到此为止 and the look-back, at 1280 and 420 px', { timeout: 600000 }, async (t) => {
@@ -108,10 +131,27 @@ test('先跳过, 「N 题待答」, 到此为止 and the look-back, at 1280 and 
       await page.locator('.round-pending__item', { hasText: /^1$/ }).click();
       await page.waitForFunction(() => /Question number 1\?/.test(document.querySelector('.question-card .question')?.textContent || ''));
     }
+    await page.waitForFunction(() => {
+      const undo = document.querySelector('.question-navigation [data-usage="review.undo"]');
+      return !!undo && !undo.disabled && undo.getAttribute('aria-disabled') !== 'true'
+        && undo.getAnimations().every((anim) => anim.playState !== 'running');
+    });
     const shape = await layout(page);
     assert.ok(shape.overflow <= 0, `${where}: no sideways scroll (${shape.overflow})`);
     // English labels are longer and the row may wrap there by design (ui/language.css); nothing this change adds sits in that row.
     if (lang === 'zh') assert.ok(shape.navigationTops.length >= 3 && shape.navigationTops.every((top) => Math.abs(top - shape.navigationTops[0]) <= 4), `${where}: 更多 / 上一题 / 下一题 stay one row (${shape.navigationTops})`);
+    assert.ok(shape.undo, `${where}: unanswered Q1 renders undo button for last graded question`);
+    assert.equal(shape.undo.text, lang === 'zh' ? '撤销上一题评分 (Z)' : 'Undo last grade (Z)', `${where}: undo label names last question grade`);
+    assert.equal(shape.undo.color, shape.undo.moreColor, `${where}: undo button matches neighboring quiet tool ink color`);
+    assert.notEqual(shape.undo.color, shape.undo.accentColor, `${where}: undo button must not use accent color`);
+    if (wide) {
+      assert.ok(Math.abs(shape.undo.midY - shape.navigationTops[0]) <= 4, `${where}: undo shares the desktop navigation row`);
+      assert.ok(shape.undo.left >= shape.undo.moreRight - 1 && shape.undo.right <= shape.undo.prevLeft + 1, `${where}: undo sits between 更多 and 上一题`);
+    } else {
+      assert.ok(shape.undo.width < shape.undo.navWidth * 0.75, `${where}: narrow undo keeps intrinsic width (${Math.round(shape.undo.width)}px vs nav ${Math.round(shape.undo.navWidth)}px)`);
+      assert.ok(shape.undo.bottom <= shape.undo.prevTop + 1, `${where}: narrow undo sits cleanly above the navigation row`);
+      assert.ok(Math.abs(shape.undo.right - shape.undo.navRight) <= 2, `${where}: narrow undo stays right-aligned`);
+    }
     const attemptsBefore = (await previewCall(server, 'export', {})).attempts.filter((item) => item.deckId === deck.id).length;
     assert.equal(attemptsBefore, 3, `${where}: three answers, nothing for the skip`);
     // 到此为止 asks once, says what is left, then the result page. Autopilot is on by now: it must not carry the stopped round on.

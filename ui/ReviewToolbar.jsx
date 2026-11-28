@@ -104,7 +104,6 @@ export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, o
             {ui("标生词")}
           </Button>
         )}
-        {canUndo && !run.feedback && <Button variant="quiet" className="tool-action review-undo" data-usage="review.undo" aria-keyshortcuts="Z" lock={busy} onClick={onUndo}>{ui("已记分 · 撤销 (Z)")}</Button>}
         {thumbs}
       </div>
       {run.mode === "exam" && <p className="muted small next-due">{ui("这是进行中的模拟考试：这里可以继续作答，交卷和成绩单在「模拟考试」页。")}</p>}
@@ -114,6 +113,7 @@ export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, o
         <Menu label={ui("更多")} items={more.map(({ run: _run, ...item }) => item)} defaultOpen={moreDefaultOpen}
           onSelect={(id) => more.find((item) => item.id === id)?.run?.()}
           trigger={({ props, ref }) => <Button ref={ref} variant="quiet" className="tool-action review-more-trigger" {...props}>{ui("更多")}</Button>} />
+        {canUndo && !run.feedback && <Button variant="quiet" className="tool-action" data-usage="review.undo" aria-keyshortcuts="Z" lock={busy} onClick={onUndo}>{ui("撤销上一题评分 (Z)")}</Button>}
         <Button icon="arrow-left" data-usage="review.prev" disabled={run.index === 0} lock={busy} title={busy ? ui("正在保存上一步，稍等一下") : undefined}
           onClick={() => onReviewAction("review.move", { direction: -1 })}>{ui("上一题")}</Button>
         <Button variant="primary" iconEnd="arrow-right" data-usage="review.next"
