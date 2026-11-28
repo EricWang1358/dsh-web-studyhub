@@ -2,10 +2,11 @@
 
 @layer study.features {
   :where(.study-app, .study-seat) {
-    /* 推荐 Archify (ui/ArchifyCard.jsx): one quiet recessed block at the end of the 知识骨架 page. Tokens only; it never grows when a copy is made. */
-    .sk-archify { display: grid; gap: var(--space-2); min-width: 0; margin-top: var(--space-4); }
-    .sk-archify__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-    .sk-archify__head strong { font-size: var(--fs-md); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    /* 推荐 Archify (ui/ArchifyCard.jsx): one quiet line at the end of the 知识骨架 page, lighter than the page itself. Tokens only; it never grows when a copy is made. */
+    .sk-archify { min-width: 0; margin-top: var(--space-5); }
+    .sk-archify .sk-archify__summary { color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-regular); overflow-wrap: anywhere; }
+    .sk-archify .sk-archify__body { display: grid; gap: var(--space-2); min-width: 0; }
+    .sk-archify__later { justify-self: start; }
     .sk-archify__text, .sk-archify__credit, .sk-archify__note { margin: 0; line-height: var(--lh-body); overflow-wrap: anywhere; }
     .sk-archify__credit a { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--accent-text); }
     .sk-archify__install { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }

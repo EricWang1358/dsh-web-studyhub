@@ -53,6 +53,17 @@ for (const [name, page] of Object.entries(screens)) {
   });
 }
 
+// #1708: while the setup card is on screen it is the one way to the audio settings; without it, the header's button is.
+test('live class and audio: one way to the audio settings, whether or not the setup card is on screen', () => {
+  const ways = (html) => [...html.matchAll(/<button[^>]*>(?:(?!<\/button>)[\s\S])*?(?:音频设置|改用 Gemini 密钥)(?:(?!<\/button>)[\s\S])*?<\/button>/g)].map((match) => match[0]);
+  const gated = screens['live class']('zh');
+  assert.equal(ways(gated).length, 1, JSON.stringify(ways(gated)));
+  assert.equal(ways(headerOf(gated)).length, 0, 'the card is the way, not the header');
+  assert.equal(ways(screens['live class form']('zh')).length, 1);
+  assert.equal(ways(render(h(AudioHeader, { onSettings: noop, onSources: noop, setupShown: true }), 'zh')).length, 0);
+  assert.equal(ways(screens.audio('zh')).length, 1);
+});
+
 const page = (name) => screens[name]('zh');
 test('the page-level wrappers use the page frame, not a narrow centred column', async () => {
   assert.match(page('live class'), /<section class="page live-class"/);
@@ -63,7 +74,7 @@ test('the page-level wrappers use the page frame, not a narrow centred column', 
 });
 
 test('the old bare-text actions are shared Buttons', () => {
-  const live = screens['live class']('zh');
+  const live = screens['live class form']('zh');
   assert.ok(isShButton(headerOf(live), '音频设置'), 'live class: 音频设置 is a sh- Button');
   const audio = screens.audio('zh');
   assert.ok(isShButton(audio, '音频设置') && isShButton(audio, '查看资料'), 'audio: both header actions are sh- Buttons');

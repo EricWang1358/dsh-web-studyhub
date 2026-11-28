@@ -86,7 +86,7 @@ export function endedNote(view) {
 }
 
 /** The panel's drawing, from the state of the output (a plain object, so every state can be shown without a host). */
-export function OutputView({ record: call, active, view, now }) {
+export function OutputView({ record: call, view, now }) {
   const { host } = useApp();
   const mode = outputMode(call);
   const bodyRef = useRef(null), follow = useRef(true);
@@ -95,7 +95,7 @@ export function OutputView({ record: call, active, view, now }) {
     if (!body) return;
     if (mode === 'ended') body.scrollTop = 0; else if (follow.current) body.scrollTop = body.scrollHeight;
   }, [view?.text, mode]);
-  if (!call) return <div className="tc-output"><div className="tc-output__head"><strong>{active ? ui('没有选中的调用') : ui('任务已经结束')}</strong></div>
+  if (!call) return <div className="tc-output"><div className="tc-output__head"><strong>{ui('没有选中的调用')}</strong></div>
     <p className="tc-empty">{ui('点「正在进行」里的一行，或时间线上的一段，在这里看它正在写什么。')}</p><div className="tc-output__foot" /></div>;
   const ended = mode === 'ended';
   const quiet = mode === 'none' || (mode === 'stream' && view.supported === false);
@@ -129,15 +129,15 @@ export function OutputView({ record: call, active, view, now }) {
   );
 }
 
-function LiveOutputPanel({ jobId, call, active }) {
+function LiveOutputPanel({ jobId, call }) {
   const mode = outputMode(call), now = useNow(1000, { enabled: mode === 'stream' });
   const view = useOutput({ jobId, call, mode });
-  return <OutputView jobId={jobId} record={call} active={active} view={view} now={now} />;
+  return <OutputView jobId={jobId} record={call} view={view} now={now} />;
 }
 
 /** An archived task is a record: its job is gone from the host, so nothing is asked of it (a read would only fail). */
 function ArchivedOutput() {
-  return <div className="tc-output"><div className="tc-output__head"><strong>{ui('任务已经结束')}</strong></div><p className="tc-empty tc-output__quiet">{ui('已归档的任务不再保留模型输出。')}</p><div className="tc-output__foot" /></div>;
+  return <div className="tc-output"><p className="tc-empty tc-output__quiet">{ui('已归档的任务不再保留模型输出。')}</p></div>;
 }
 
 export default function OutputPanel({ archived = false, ...props }) {

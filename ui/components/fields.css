@@ -93,6 +93,7 @@
     /* ── Settings section shell ────────────────────────────────────────── */
     .settings-section { display: grid; gap: var(--space-3); align-content: start; min-width: 0; margin: var(--space-7) 0 0; padding: var(--space-5) 0 0; border: 0; border-top: 1px solid var(--line); }
     .settings-page .settings-pane > :first-child.settings-section,
+    .settings-page .settings-pane > :first-child > .settings-section:first-child,
     .settings-page .settings-pane > .settings-form:first-child > .settings-section { margin-top: 0; padding-top: 0; border-top: 0; }
     /* A floated legend is laid out as ordinary content: the title sits under the rule, at the section's edge. */
     .settings-section__title { float: left; width: 100%; margin: 0; padding: 0; color: var(--text); font-size: var(--fs-lg); font-weight: var(--fw-strong); line-height: var(--lh-tight); }

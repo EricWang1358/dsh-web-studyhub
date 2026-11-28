@@ -1,4 +1,4 @@
-import React, { useId } from 'react';
+import React, { useEffect, useId } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button } from './components/Button.jsx';
@@ -25,15 +25,19 @@ function presentation(group) {
   if (group.hasContent) return group.stale ? 'update' : 'ready';
   return group.eligible ? 'available' : 'locked';
 }
+const readable = group => !!(group.noteId && group.hasContent);
 const stateLabels = { running: '整理中', protected: '你的版本', failed: '待重试', paused: '已停止', update: '有新作答', ready: '已留存', available: '可以生成', locked: '今日进度' };
 
 export function DailyRecapPanel(props) {
   // `primary` false: the page already has its one filled button (the result page's next step), so this panel's buttons are plain.
-  const { onOpenNote, onSettings, onModelSettings, primary = true } = props;
+  const { onOpenNote, onOffered, onSettings, onModelSettings, primary = true } = props;
   const { busy } = useStudy();
   useInjectCss(css, 'study-daily-recap');
   const recap = useDailyRecap(props), prefix = useId();
   const { status, error, working } = recap;
+  // The recaps with a read button here: a list under the card (学习笔记, onOffered) leaves them out, so one recap is not offered twice (#1711).
+  const offered = JSON.stringify((status?.groups || []).filter(readable).map(group => group.noteId));
+  useEffect(() => { onOffered?.(JSON.parse(offered)); }, [offered, onOffered]);
   // The host says whether a model can write it; an older host that does not say is taken as ready.
   const modelReady = status?.modelReady !== false;
   // The tone has a default in Settings; the choice is folded, named on the fold, and one click inside it.
@@ -95,7 +99,7 @@ export function DailyRecapPanel(props) {
         <div className="daily-recap-actions">
           {canGenerate && toneControl(group)}
           <div className="daily-recap-buttons">
-            {group.noteId && group.hasContent && <Button iconEnd="arrow-right" className="daily-recap-buttons__btn" variant={primary ? 'primary' : 'secondary'} disabled={!onOpenNote} lock={busy} onClick={() => onOpenNote(group.noteId)}>{ui('阅读今日合集')}</Button>}
+            {readable(group) && <Button iconEnd="arrow-right" className="daily-recap-buttons__btn" variant={primary ? 'primary' : 'secondary'} disabled={!onOpenNote} lock={busy} onClick={() => onOpenNote(group.noteId)}>{ui('阅读今日合集')}</Button>}
             {canGenerate && <Button className="daily-recap-buttons__btn" variant={group.hasContent || !primary ? 'secondary' : 'primary'} busy={working === recapGroupKey(group)} disabled={busy || !!working || !group.eligible || !modelReady}
               onClick={() => recap.generate(group)}>{ui(retry ? '重试生成合集' : group.hasContent ? '更新今日合集' : '生成今日合集')}</Button>}
             {running && <Button className="daily-recap-buttons__btn" size="sm" variant="quiet" disabled={!!working} lock={busy} onClick={() => recap.cancel(group)}>{ui('停止生成')}</Button>}

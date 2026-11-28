@@ -65,9 +65,10 @@
     .sm2-tick text { fill: var(--text-muted); font-size: var(--fs-xs); }
     .sm2-track { stroke-width: 2; stroke-linecap: round; }
     .sm2-series text { font-size: var(--fs-xs); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
-    .sm2-series.is-good .sm2-track { stroke: color-mix(in srgb, var(--accent) 55%, transparent); }
-    .sm2-series.is-good circle { fill: var(--accent); stroke: var(--bg-surface); stroke-width: 2; }
-    .sm2-series.is-good text { fill: var(--accent-text); }
+    /* 熟练 is jade, line and key alike: the accent is the learner's choice, not a meaning (#1682). */
+    .sm2-series.is-good .sm2-track { stroke: var(--ok-mid); }
+    .sm2-series.is-good circle { fill: var(--ok); stroke: var(--bg-surface); stroke-width: 2; }
+    .sm2-series.is-good text { fill: var(--ok-ink); }
     .sm2-series.is-hard .sm2-track { stroke: var(--line-strong); stroke-dasharray: 4 4; }
     .sm2-series.is-hard circle { fill: var(--bg-surface); stroke: var(--text-muted); stroke-width: 1.5; }
     .sm2-series.is-hard text { fill: var(--text-muted); font-weight: var(--fw-medium); }

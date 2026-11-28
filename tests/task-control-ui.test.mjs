@@ -72,7 +72,7 @@ test('a generation job offers concurrency and the reasoning of each stage, and w
   assert.deepEqual(defaultsPatch(audio()), { action: 'audio.settings.set', args: { textConcurrency: 3, transcribeConcurrency: 1, proofreadReasoning: 'high', translateReasoning: 'low' } });
 });
 
-test('the row is always there: a job that cannot be adjusted, or has ended, says so in the same place', () => {
+test('the row is there while a job runs, and says when it cannot be adjusted; a finished job draws no row that could only say it ended', () => {
   const none = render({ ...audio(), control: undefined });
   assert.match(none, /aria-label="即时控制"/);
   assert.match(none, /任务还没有开始/, 'the contract says why: there is nothing to adjust yet');
@@ -84,7 +84,7 @@ test('the row is always there: a job that cannot be adjusted, or has ended, says
   assert.match(unsupported, /这类任务没有可以安全暂停的地方；可以停止，已完成的部分会保留/, 'and says what to do instead of pausing');
   assert.doesNotMatch(unsupported, />暂停</, 'no pause button where the contract offers no pause');
   const ended = render(audio({ status: 'complete', control: undefined }));
-  assert.match(ended, /任务已经结束。/);
+  assert.doesNotMatch(ended, /aria-label="即时控制"|任务已经结束/, '#1691');
   assert.doesNotMatch(ended, />暂停</);
 });
 

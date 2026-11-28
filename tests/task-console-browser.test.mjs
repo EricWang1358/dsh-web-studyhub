@@ -49,8 +49,10 @@ test('the 任务 console fits the window, scrolls inside its panels, stacks when
         const picked = await measure(page);
         if (width === 1280) {
           assert.deepEqual(picked.console, first.console, `picking task ${index} moved the console`);
-          assert.equal(picked.cols[0].height, picked.cols[1].height, `task ${index}: the two columns are as tall as each other`);
-          assert.ok(Math.abs(picked.body.bottom - picked.detail.bottom) <= 2 && picked.body.height >= 300, `task ${index}: the panels take the rest of the detail (body ${picked.body.top}-${picked.body.bottom}, ${picked.body.height}px high; detail ends at ${picked.detail.bottom}), whether or not there is a usage line`);
+          // A task that has ended draws one column, what it made over the closed 运行记录 (#1691); it takes the same room as the two columns of a running one.
+          const rest = picked.ended || picked.body;
+          if (!picked.ended) assert.equal(picked.cols[0].height, picked.cols[1].height, `task ${index}: the two columns are as tall as each other`);
+          assert.ok(Math.abs(rest.bottom - picked.detail.bottom) <= 2 && rest.height >= (picked.ended ? 200 : 300), `task ${index}: the panels take the rest of the detail (body ${rest.top}-${rest.bottom}, ${rest.height}px high; detail ends at ${picked.detail.bottom}), whether or not there is a usage line`);
           assert.equal(picked.appScrolls, false, `picking task ${index} made the page scroll`);
         }
         assert.ok(picked.scrollWidth <= width);

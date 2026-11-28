@@ -102,7 +102,7 @@ test('a paused day offers to resume; a past day has no settings and can be dismi
   assert.doesNotMatch(out, />暂停</);
   assert.doesNotMatch(out, />删除这一天</, 'the item is in the ⋯ menu (#668, tests/danger-menu.test.mjs), not a button of the row');
   assert.match(out, /aria-label="更多操作"/, 'one step away');
-  assert.match(out, /这个任务现在没有可以调整的设置|任务已经结束/);
+  assert.doesNotMatch(out, /aria-label="即时控制"|任务已经结束/, 'a past day has nothing to set, so no row that could only say so (#1691)');
 });
 
 test('the batches panel: newest first, a batch that wrote nothing says why in words, the settings in force in the strip', () => {

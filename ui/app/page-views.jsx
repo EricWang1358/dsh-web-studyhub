@@ -311,12 +311,13 @@ function SourcesView() {
   );
 }
 
-/** The 音频转写 page's header: the shared PageHeader, its two links to neighbouring pages as quiet Buttons. */
-export function AudioHeader({ onSettings, onSources }) {
+/** The 音频转写 page's header: the shared PageHeader, its two links to neighbouring pages as quiet Buttons. While the setup card is on the page
+    (`setupShown`), the card is the one way to the audio settings (#1708). */
+export function AudioHeader({ onSettings, onSources, setupShown = false }) {
   return (
     <PageHeader title={ui('音频转写')} description={ui('导入录音文件，后台完成转录、校对和翻译；实时进度在本页和「任务」查看，转好后存入「资料」，完成时信箱会提醒你。')}
       actions={<>
-        <Button iconEnd="arrow-right" variant="quiet" onClick={onSettings}>{ui('音频设置')}</Button>
+        {!setupShown && <Button iconEnd="arrow-right" variant="quiet" onClick={onSettings}>{ui('音频设置')}</Button>}
         <Button iconEnd="arrow-right" variant="quiet" onClick={onSources}>{ui('查看资料')}</Button>
       </>} />
   );
@@ -324,10 +325,11 @@ export function AudioHeader({ onSettings, onSources }) {
 
 export function AudioView() {
   const { data, host, nav, lib, set, learn, sources } = useApp();
+  const [setupShown, setSetupShown] = React.useState(false);
   return (
     <section className="page">
-      <AudioHeader onSettings={openAudioSettings(() => nav.navigate('settings'))} onSources={() => nav.navigate('sources')} />
-      <AudioImport data={data}
+      <AudioHeader onSettings={openAudioSettings(() => nav.navigate('settings'))} onSources={() => nav.navigate('sources')} setupShown={setupShown} />
+      <AudioImport data={data} onSetupShown={setSetupShown}
         openAgent={host.openAgent} onOpenSources={learn.openAudioSources} onOpenSettings={() => nav.show.page('settings')} onGenerate={sources.generateFromSources}
         recoveryJobId={lib.legacyAudioJobId} onRecoveryChange={set.setLegacyAudioJobId} />
       <AudioDashboard />
@@ -671,7 +673,7 @@ function NotesView() {
       initialId={lib.noteInitialId} onSelect={set.setNoteInitialId} onOpenCard={(reference) => learn.openLearningTarget({ kind: 'card', ...reference })}
       onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })}
       onPracticeCards={pageAvailable(data, 'review') ? (scope) => practiseRound({ intents, learn, session }, scope) : undefined}
-      backLabel={learn.trailLabel} onBack={learn.hasTrail ? learn.returnFromContext : () => { set.setNoteInitialId(''); nav.navigate('library'); }} />
+      backLabel={learn.trailLabel} onBack={learn.hasTrail ? learn.returnFromContext : undefined} />
   );
 }
 

@@ -73,6 +73,13 @@ test('the console of a running and of a failed Marker conversion at 1280 and 420
       for (const [name, job] of [['running', running[lang]], ['failed', failed[lang]]]) {
         await page.locator(`.tc-row[data-task-id="${job.contract.jobId}"]`).dispatchEvent('click');
         await page.locator(`.tc-detail[data-task-id="${job.contract.jobId}"]`).waitFor({ timeout: 15000 });
+        // An ended task keeps its log behind 运行记录 (#1691); the cause and the way out stay in sight.
+        if (name === 'failed') {
+          assert.equal(await page.locator('.tc-log__body').count(), 0, `${lang} ${width}: the record starts closed`);
+          assert.ok(await page.locator('.tc-result[data-state="fail"]').isVisible(), `${lang} ${width}: the cause is in sight`);
+          await page.locator('.tc-record > summary').click();
+          await page.locator('.tc-log__body').waitFor();
+        }
         await settleAnimations(page); await frames(page, 4);
         const seen = await page.evaluate(() => ({ timeline: !!document.querySelector('.tc-detail .tc-timeline'), lines: document.querySelectorAll('.tc-log__body .tc-line').length,
           failure: document.querySelector('.pdf-failure')?.innerText || '', block: document.querySelector('.tc-line__block')?.innerText || '', fix: !!document.querySelector('[data-fix="settings"]'),

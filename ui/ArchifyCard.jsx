@@ -3,12 +3,12 @@ import { ui } from './i18n.js';
 import { ARCHIFY, installCommand } from './archify.js';
 import { useCopyFeedback } from './use-copy-feedback.js';
 import { useInjectCss } from './shared.js';
-import { Button, Icon, Panel } from './components/index.js';
+import { Button, Disclosure, Icon } from './components/index.js';
 import css from './skeleton-companion.css';
 
-/* 推荐 Archify (docs/companions.md). One quiet block on the 知识骨架 page: what the open-source plugin does, who made it under what
-   licence (a fact, not a partnership), where to read more, and the one DSH command that installs it in a field that copies. StudyHub
-   neither bundles nor rebuilds Archify. "以后再说" is remembered by the page (ui/archify.js); the card never blocks anything. */
+/* 推荐 Archify (docs/companions.md). One quiet line on the 知识骨架 page, closed until the learner opens it (#1705); inside: what the open-source
+   plugin does, who made it under what licence (a fact, not a partnership), where to read more, and the one DSH command that installs it in a field
+   that copies. StudyHub neither bundles nor rebuilds Archify. "以后再说" is remembered by the page (ui/archify.js); the line never blocks anything. */
 
 function OutsideLink({ href, children }) {
   return (
@@ -21,11 +21,8 @@ export default function ArchifyCard({ onLater, profile = 'web' }) {
   const command = installCommand(profile);
   const { copied, copy } = useCopyFeedback(command);
   return (
-    <Panel as="aside" density="compact" tone="sunken" className="sk-archify" aria-label={ui('想要更漂亮、可以交互的图？推荐开源插件 Archify')} data-archify-card="">
-      <div className="sk-archify__head">
-        <strong>{ui('想要更漂亮、可以交互的图？推荐开源插件 Archify')}</strong>
-        {onLater && <Button variant="link" size="sm" onClick={onLater}>{ui('以后再说')}</Button>}
-      </div>
+    <aside className="sk-archify" aria-label={ui('想要更漂亮、可以交互的图？推荐开源插件 Archify')} data-archify-card="">
+    <Disclosure summary={ui('想要更漂亮、可以交互的图？推荐开源插件 Archify')} summaryClassName="sk-archify__summary" bodyClassName="sk-archify__body">
       <p className="sk-archify__text">{ui('Archify 能把描述、方案或代码库画成一份自包含的交互式 HTML 图，有架构图、流程图、时序图、数据流图和生命周期图五种，离线也能在浏览器里打开。')}</p>
       <p className="sk-archify__credit muted small">
         {ui('MIT 开源，作者 tt-a1i；与 StudyHub 没有合作关系。')}{' '}
@@ -39,6 +36,8 @@ export default function ArchifyCard({ onLater, profile = 'web' }) {
         <Button size="sm" icon={copied ? 'check' : undefined} onClick={copy}>{copied ? ui('已复制') : ui('复制')}</Button>
       </div>
       <p className="sk-archify__note muted small">{ui('命令里的 web 是 DSH 的 profile 名；桌面版通常是 desktop，请换成你正在用的。')}</p>
-    </Panel>
+      {onLater && <Button variant="link" size="sm" className="sk-archify__later" onClick={onLater}>{ui('以后再说')}</Button>}
+    </Disclosure>
+    </aside>
   );
 }

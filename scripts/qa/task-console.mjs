@@ -152,7 +152,7 @@ export const measure = (page) => page.evaluate(() => {
     overflow: getComputedStyle(element).overflowY }));
   const app = document.querySelector(".study-app"), main = document.querySelector("main");
   return { viewport: { width: innerWidth, height: innerHeight }, docHeight: document.documentElement.scrollHeight, scrollWidth: document.documentElement.scrollWidth, appScrolls: app ? app.scrollHeight > app.clientHeight + 1 : null, appHeight: app?.clientHeight, appScrollHeight: app?.scrollHeight,
-    main: box("main"), console: box(".tc"), list: box(".tc-list"), detail: box(".tc-detail"), body: box(".tc-body"), cols: [...document.querySelectorAll(".tc-col")].map((element) => { const r = element.getBoundingClientRect(); return { top: Math.round(r.top), height: Math.round(r.height), bottom: Math.round(r.bottom) }; }),
+    main: box("main"), console: box(".tc"), list: box(".tc-list"), detail: box(".tc-detail"), body: box(".tc-body"), ended: box(".tc-detail > .tc-ended"), cols: [...document.querySelectorAll(".tc-col")].map((element) => { const r = element.getBoundingClientRect(); return { top: Math.round(r.top), height: Math.round(r.height), bottom: Math.round(r.bottom) }; }),
     scrollers: { list: scroller(".tc-list .tc-scroll"), panels: scroller(".tc-panel .tc-scroll, .tc-output__body, .tc-log__body, .tc-lanes"), mainScrolls: main ? main.scrollHeight > main.clientHeight + 1 : null } };
 });
 

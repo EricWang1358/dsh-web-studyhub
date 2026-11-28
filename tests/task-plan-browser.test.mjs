@@ -98,8 +98,9 @@ test('the goal and the points tab fills the panel, scrolls inside it, moves noth
         await until(async () => (await page.locator('.tc-controls__idle').count()) > 0, 'the page to show the task has ended', { timeoutMs: 120000 });
         await frames(page, 6);
         const after = await inside(page);
-        assert.deepEqual(after.map((box) => box[1]), before.map((box) => box[1]), `${width}px: no row changed its height when the states did`);
-        assert.deepEqual(after.map((box) => box[0]), before.map((box) => box[0]), `${width}px: no row moved when the states changed`);
+        // The run has ended with them, and an ended task gives the list the whole width (#1691), so a row may be lower than before: what the states must not do is make rows unequal.
+        assert.equal(after.length, before.length);
+        assert.equal(new Set(after.map((box) => box[1])).size, 1, `${width}px: every row has the same height after the states changed`);
         assert.ok(await page.locator('.tc-plan').evaluate((element) => Math.abs(element.getBoundingClientRect().height - element.parentElement.getBoundingClientRect().height) <= 2), 'the section still fills its panel');
         const plan = page.locator('.tc-plan');
         await plan.scrollIntoViewIfNeeded();
