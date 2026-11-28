@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { installUpdate } from '../lib/update-install.js';
-import { checkForUpdate, markUpdateInstalled, readUpdateView, releaseFromGithub, setUpdatePreferences, updateStatePath } from '../lib/update-check.js';
+import { checkForUpdate, markUpdateInstalled, markUpdateInstalling, readUpdateView, releaseFromGithub, setUpdatePreferences, updateStatePath } from '../lib/update-check.js';
 import { createHostHandler } from '../lib/host.js';
 import { githubRelease } from './helpers/wp15-release.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
@@ -119,6 +119,27 @@ for (const [name, installBundle] of [
     assert.equal(await told(NEW), null, 'even if that version arrives another way later');
   });
 }
+
+// Review of #1733: two guards in lib/update-check.js had no test (removing either kept every test green).
+test('a notice a page has already shown stays shown when the install then fails, even if the marker for that version comes later', async t => {
+  await home(t);
+  await assert.rejects(upgrade(async () => {
+    assert.equal(await told(NEW), NEW);
+    await setUpdatePreferences({ upgradeTold: NEW }, { current: NEW });
+    throw new Error('pnpm exited with 1 after DSH had loaded the new code');
+  }), error => error.code === 'UPDATE_INSTALL');
+  assert.deepEqual((await saved()).announce, { version: NEW, told: true }, 'the shown notice is kept, not taken back');
+  await markUpdateInstalled(NEW);
+  assert.equal(await told(NEW), null, 'never said a second time');
+});
+
+test('a restart marker for the running version leaves a later announced upgrade alone', async t => {
+  await home(t);
+  await markUpdateInstalled(NEW);
+  await markUpdateInstalling('100.0.0');
+  assert.equal(await told(NEW), null, 'the upgrade under way is to 100.0.0, so 99.0.0 is not announced over it');
+  assert.equal((await saved()).announce.version, '100.0.0');
+});
 
 test('installing the same version again is announced again', async t => {
   await home(t);
