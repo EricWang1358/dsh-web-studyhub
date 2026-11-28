@@ -15,6 +15,9 @@ import { useAiConversation } from '../../components/useAiConversation.js';
 import { buildUnifiedAiSystemPrompt, isAiStreamingAvailable } from '../../host/ai-dialogue.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { errorMessage, tryAction } from '../../host/sample-actions.js';
+import { useGlossaryLoad, type GlossaryData, type GlossaryEntry, type SavedTranslationItem, type StaleRevisionGroup, type TranslationListResponse } from './glossary-load.js';
+
+export type { GlossaryEntry, SavedTranslationItem } from './glossary-load.js';
 
 export interface TranslationGlossaryModalProps {
   host: HostClient;
@@ -28,41 +31,6 @@ export interface TranslationGlossaryModalProps {
   onClose: () => void;
 }
 
-export interface GlossaryEntry {
-  term: string;
-  to: string;
-}
-
-export interface SavedTranslationItem {
-  key: string;
-  kind?: 'paragraph' | 'selection' | string;
-  sourceId: string;
-  start: number;
-  end: number;
-  ordinal?: number;
-  hash: string;
-  quote: string;
-  target: 'zh' | 'en' | string;
-  text: string;
-  version?: number;
-  outdated?: boolean;
-  at?: string;
-  updatedAt?: string;
-}
-
-interface StaleRevisionGroup {
-  revision: string;
-  count: number;
-  savedAt?: string;
-}
-
-interface GlossaryGetResponse {
-  documentId?: string;
-  target?: 'zh' | 'en';
-  targetSource?: string;
-  glossary?: GlossaryEntry[];
-}
-
 interface GlossarySetResponse {
   documentId?: string;
   target?: 'zh' | 'en';
@@ -72,18 +40,6 @@ interface GlossarySetResponse {
     count?: number;
     passages?: Array<Record<string, unknown>>;
   };
-}
-
-interface TranslationListResponse {
-  documentId?: string;
-  revision?: string;
-  target?: 'zh' | 'en';
-  targetSource?: string;
-  glossary?: GlossaryEntry[];
-  items?: SavedTranslationItem[];
-  stale?: StaleRevisionGroup[];
-  otherTarget?: number;
-  modelAvailable?: boolean;
 }
 
 interface TranslationDeleteResponse {
@@ -210,8 +166,6 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
 
   const [glossaryIndex, setGlossaryIndex] = useState(0);
   const [savedIndex, setSavedIndex] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const [addStep, setAddStep] = useState<AddStep>('none');
@@ -258,77 +212,17 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
     [documentId, revision, sourceId],
   );
 
-  const loadData = useCallback(
-    async (explicitTarget?: 'zh' | 'en') => {
-      if (!documentId && !sourceId) {
-        setLoading(false);
-        setLoadError(t(lang, '缺少文档标识，无法加载术语表与译文', 'Missing document identifier'));
-        return;
-      }
-      setLoading(true);
-      setLoadError(null);
-      try {
-        const [glossaryRes, listRes] = await Promise.all([
-          tryAction<GlossaryGetResponse>(host, 'materials.translation.glossary.get', identityPayload),
-          tryAction<TranslationListResponse>(host, 'materials.translation.list', {
-            ...identityPayload,
-            ...(explicitTarget ? { target: explicitTarget } : {}),
-          }),
-        ]);
-        if (!mountedRef.current) return;
-
-        if (!glossaryRes.ok && !listRes.ok) {
-          setLoadError(
-            glossaryRes.error?.message ||
-              listRes.error?.message ||
-              t(lang, '无法加载术语表与译文', 'Failed to load glossary and saved translations'),
-          );
-          return;
-        }
-
-        const nextTarget: 'zh' | 'en' =
-          explicitTarget ??
-          (glossaryRes.value?.target === 'en' || glossaryRes.value?.target === 'zh'
-            ? glossaryRes.value.target
-            : listRes.value?.target === 'en' || listRes.value?.target === 'zh'
-              ? listRes.value.target
-              : lang === 'en'
-                ? 'en'
-                : 'zh');
-
-        const nextGlossary = Array.isArray(glossaryRes.value?.glossary)
-          ? glossaryRes.value.glossary
-          : Array.isArray(listRes.value?.glossary)
-            ? listRes.value.glossary
-            : [];
-        const nextSaved = Array.isArray(listRes.value?.items) ? listRes.value.items : [];
-        const nextStale = Array.isArray(listRes.value?.stale) ? listRes.value.stale : [];
-        const nextOther = Number(listRes.value?.otherTarget ?? 0) || 0;
-        const nextModelAvailable =
-          typeof listRes.value?.modelAvailable === 'boolean'
-            ? listRes.value.modelAvailable
-            : Boolean(host.getConfig()?.effective?.ready || useTuiStore.getState().snapshot?.modelReady);
-
-        setTarget(nextTarget);
-        setGlossary(nextGlossary);
-        setSavedItems(nextSaved);
-        setStaleGroups(nextStale);
-        setOtherTargetCount(nextOther);
-        setModelAvailable(nextModelAvailable);
-      } catch (err) {
-        if (mountedRef.current) {
-          setLoadError(errorMessage(err));
-        }
-      } finally {
-        if (mountedRef.current) setLoading(false);
-      }
-    },
-    [documentId, host, identityPayload, lang, sourceId],
-  );
-
-  useEffect(() => {
-    void loadData();
-  }, [loadData]);
+  const showLoaded = useCallback((data: GlossaryData) => {
+    setTarget(data.target);
+    setGlossary(data.glossary);
+    setSavedItems(data.saved);
+    setStaleGroups(data.stale);
+    setOtherTargetCount(data.otherTarget);
+    setModelAvailable(data.modelAvailable);
+  }, []);
+  const { loading, loadError, reload, refreshIfLoading } = useGlossaryLoad({
+    host, documentId, sourceId, identity: identityPayload, lang, onData: showLoaded,
+  });
 
   useEffect(() => {
     setGlossaryIndex((prev) => (glossary.length === 0 ? 0 : Math.max(0, Math.min(prev, glossary.length - 1))));
@@ -370,6 +264,7 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
         const updatedGlossary = Array.isArray(res.value.glossary) ? res.value.glossary : nextGlossary;
         cancelAiSuggest();
         setGlossary(updatedGlossary);
+        refreshIfLoading();
         setAddStep('none');
         setDraftTerm('');
         setDraftTo('');
@@ -408,7 +303,7 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
         if (mountedRef.current) setBusy(false);
       }
     },
-    [host, identityPayload, lang, notify, refreshSavedList, target, cancelAiSuggest],
+    [host, identityPayload, lang, notify, refreshSavedList, target, cancelAiSuggest, refreshIfLoading],
   );
 
   const handleToggleTarget = useCallback(async () => {
@@ -429,6 +324,7 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
       const resolved = res.value.target === 'en' || res.value.target === 'zh' ? res.value.target : nextTarget;
       setTarget(resolved);
       if (Array.isArray(res.value.glossary)) setGlossary(res.value.glossary);
+      refreshIfLoading();
       await refreshSavedList(resolved);
       if (!mountedRef.current) return;
       notify(
@@ -445,7 +341,7 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
       busyRef.current = false;
       if (mountedRef.current) setBusy(false);
     }
-  }, [host, identityPayload, lang, notify, refreshSavedList, target]);
+  }, [host, identityPayload, lang, notify, refreshSavedList, target, refreshIfLoading]);
 
   const handleConfirmSavedDelete = useCallback(
     async (action: ConfirmAction) => {
@@ -465,6 +361,7 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
           return;
         }
         const deleted = Number(res.value.deleted ?? 0) || 0;
+        refreshIfLoading();
         setConfirmAction(null);
         await refreshSavedList(target);
         if (!mountedRef.current) return;
@@ -481,7 +378,7 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
         if (mountedRef.current) setBusy(false);
       }
     },
-    [host, identityPayload, lang, notify, refreshSavedList, target],
+    [host, identityPayload, lang, notify, refreshSavedList, target, refreshIfLoading],
   );
 
   const canSuggestWithAi = Boolean(modelAvailable && isAiStreamingAvailable(host));
@@ -615,6 +512,7 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
   );
 
   const modalNavActive = isActive && addStep === 'none' && confirmAction === null;
+  const listShown = !loading && !loadError;
   const claimKeys = useMemo(() => ['1', '2', 'a', 'd', 'l', 'C', 'j', 'k', 'r'], []);
   useClaimKeys(claimKeys, modalNavActive);
 
@@ -635,9 +533,10 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
         return;
       }
       if (input === 'r') {
-        void loadData(target);
+        void reload(target);
         return;
       }
+      if (!listShown) return;
 
       if (tab === 'glossary') {
         if (input === 'a') {
@@ -685,6 +584,12 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
         { key: 'Esc', label: t(lang, '取消', 'Cancel') },
       ];
     }
+    if (!listShown) {
+      return [
+        { key: 'Tab/1-2', label: t(lang, '切页', 'Tabs') },
+        { key: 'Esc', label: t(lang, '关闭', 'Close') },
+      ];
+    }
     if (tab === 'glossary') {
       return [
         { key: 'Tab/1-2', label: t(lang, '切页', 'Tabs') },
@@ -704,7 +609,7 @@ export const TranslationGlossaryModal = memo(function TranslationGlossaryModal({
         : []),
       { key: 'Esc', label: t(lang, '关闭', 'Close') },
     ];
-  }, [addStep, glossary.length, lang, savedItems.length, tab]);
+  }, [addStep, glossary.length, lang, listShown, savedItems.length, tab]);
 
   const frameWidth = Math.max(48, Math.min(92, columns - 4));
   const frameHeight = Math.max(14, Math.min(28, termRows - 2));
