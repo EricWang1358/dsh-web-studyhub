@@ -99,6 +99,7 @@ test('先跳过, 「N 题待答」, 到此为止 and the look-back, at 1280 and 
     await page.addInitScript((language) => { localStorage.setItem('study-ui-language', language); }, lang);
     await page.goto(server.url);
     // The map lists three question sets of a course until asked for all (the fourth run's set is past that).
+    await page.locator('.map-tree').waitFor({ timeout: 30000 });
     const showAll = page.locator('.show-other-courses[aria-expanded="false"]');
     if (await showAll.count()) await showAll.first().click();
     await page.getByRole('button', { name: words.resume(deck.title) }).first().click();
