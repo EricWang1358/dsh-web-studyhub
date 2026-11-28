@@ -18,6 +18,10 @@ export interface CardOptionItem {
 
 export interface ClozeBlankItem {
   id: string;
+  /** True when the blank sits inside a fenced code block or is explicitly flagged `code: true` (#1460). */
+  inCodeBlock?: boolean;
+  /** Lowercased fence language tag ('' if untagged). */
+  codeLang?: string;
 }
 
 export interface ClozeBlankDiff {
@@ -185,34 +189,95 @@ export function resolveOptions(
   return [];
 }
 
+/** Mirror `lib/cloze-text.js` fenced-block & marker rules so TUI matches Web & `gradeCloze` (#1295/#1403/#1460). */
+const FENCED_CLOZE_RE = /(^|\n)[ \t]*(`{3,}|~{3,})([^\n`]*)\n([\s\S]*?)\n?[ \t]*\2[ \t]*(?=\n|$)/g;
+const CLOZE_MARK_RE = /\{\{\s*([^{}\s]+)\s*\}\}/g;
+
+interface FencedSpan {
+  start: number;
+  end: number;
+  lang: string;
+  body: string;
+}
+
+function findFencedCodeSpans(text: string): FencedSpan[] {
+  const spans: FencedSpan[] = [];
+  for (const match of text.matchAll(FENCED_CLOZE_RE)) {
+    const leadNewline = match[1] || '';
+    const start = (match.index ?? 0) + leadNewline.length;
+    const end = (match.index ?? 0) + match[0].length;
+    const lang = String(match[3] || '').trim().split(/\s+/)[0].toLowerCase();
+    spans.push({ start, end, lang, body: match[4] ?? '' });
+  }
+  return spans;
+}
+
+/** Map of blank id -> fenced code block language ('' if untagged) for blanks inside fenced code blocks (#1460). */
+export function codeBlockBlankLangs(text: string): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const span of findFencedCodeSpans(String(text ?? ''))) {
+    for (const m of span.body.matchAll(CLOZE_MARK_RE)) {
+      map.set(m[1], span.lang);
+    }
+  }
+  return map;
+}
+
+function normalizeClozeDisplayValue(raw: string): string {
+  const normalized = String(raw ?? '').replace(/\r\n?/g, '\n');
+  if (!normalized.includes('\n')) return normalized.trim();
+  const stripped = normalized.replace(/^\n+|\n+$/g, '');
+  return stripped.trim().length > 0 ? stripped : '';
+}
+
+function indentMultiline(value: string, indent: string): string {
+  return value
+    .split('\n')
+    .map((line) => `${indent}${line}`)
+    .join('\n');
+}
+
 export function resolveClozeBlanks(card: Record<string, unknown> | null | undefined): {
   text: string;
   blanks: ClozeBlankItem[];
 } {
   const cloze = (card?.cloze as { text?: unknown; blanks?: unknown; answers?: unknown } | undefined) || {};
   const text = typeof cloze.text === 'string' && cloze.text ? cloze.text : String(card?.prompt ?? '');
+  const codeLangs = codeBlockBlankLangs(text);
   const rawBlanks = Array.isArray(cloze.blanks)
     ? cloze.blanks
     : Array.isArray(cloze.answers)
       ? cloze.answers
       : [];
-  const blanks: ClozeBlankItem[] = rawBlanks
-    .map((b, idx) => {
-      if (typeof b === 'string') return { id: b };
-      if (b && typeof b === 'object' && typeof (b as { id?: unknown }).id === 'string') {
-        return { id: String((b as { id: string }).id) };
-      }
-      return { id: `b${idx + 1}` };
-    });
-  if (blanks.length === 0) {
-    const matches = text.match(/\{\{[^{}]+\}\}/g);
-    if (matches && matches.length > 0) {
-      return {
-        text,
-        blanks: matches.map((_, idx) => ({ id: `b${idx + 1}` })),
-      };
+  const decorate = (id: string, explicitCode?: boolean): ClozeBlankItem => {
+    const inFence = codeLangs.has(id);
+    const inCodeBlock = inFence || explicitCode === true;
+    const codeLang = codeLangs.get(id) ?? '';
+    return inCodeBlock ? { id, inCodeBlock: true, codeLang } : { id };
+  };
+  const blanks: ClozeBlankItem[] = rawBlanks.map((b, idx) => {
+    if (typeof b === 'string') return decorate(b);
+    if (b && typeof b === 'object' && typeof (b as { id?: unknown }).id === 'string') {
+      const obj = b as { id: string; code?: unknown };
+      return decorate(String(obj.id), obj.code === true);
     }
-    return { text, blanks: [{ id: 'b1' }] };
+    return decorate(`b${idx + 1}`);
+  });
+  if (blanks.length === 0) {
+    const matches = [...text.matchAll(CLOZE_MARK_RE)];
+    if (matches.length > 0) {
+      const seen = new Set<string>();
+      const extracted: ClozeBlankItem[] = [];
+      for (const m of matches) {
+        const id = m[1];
+        if (!seen.has(id)) {
+          seen.add(id);
+          extracted.push(decorate(id));
+        }
+      }
+      return { text, blanks: extracted };
+    }
+    return { text, blanks: [decorate('b1')] };
   }
   return { text, blanks };
 }
@@ -227,28 +292,69 @@ export function formatClozeDisplay(
 ): string {
   let idx = 0;
   const solAnswers = solution?.cloze?.answers ?? [];
+  const fencedSpans = findFencedCodeSpans(clozeText);
+  const isOffsetInFence = (offset: number): boolean =>
+    fencedSpans.some((s) => offset >= s.start && offset < s.end);
+  const lineIndentAt = (offset: number): string => {
+    const lineStart = clozeText.lastIndexOf('\n', Math.max(0, offset - 1)) + 1;
+    const before = clozeText.slice(lineStart, offset);
+    const m = /^([ \t]*)/.exec(before);
+    return m ? m[1] : '';
+  };
+
   const openBr = ascii ? '[' : '〔';
   const closeBr = ascii ? ']' : '〕';
   const blankMark = ascii ? '___' : '＿＿＿';
   const arrow = ascii ? '->' : '→';
-  const replaceBlank = () => {
-    const blank = blanks[idx];
-    const num = idx + 1;
+
+  const replaceBlank = (offset: number, matchedId?: string) => {
+    const blank =
+      (matchedId ? blanks.find((b) => b.id === matchedId) : undefined) ?? blanks[idx];
+    const num = matchedId
+      ? Math.max(1, blanks.findIndex((b) => b.id === matchedId) + 1)
+      : idx + 1;
     idx += 1;
     if (!blank) return `${openBr}${ascii ? '__' : '＿＿'}${closeBr}`;
-    const userVal = (values[blank.id] ?? '').trim();
-    const expected = solAnswers.find((a) => a.id === blank.id)?.value;
+
+    const inCode = isOffsetInFence(offset) || Boolean(blank.inCodeBlock);
+    const indent = lineIndentAt(offset);
+    const userVal = normalizeClozeDisplayValue(values[blank.id] ?? '');
+    const rawExpected = solAnswers.find((a) => a.id === blank.id)?.value;
+    const expected = rawExpected !== undefined ? normalizeClozeDisplayValue(rawExpected) : undefined;
+    const isMultiline = Boolean((userVal && userVal.includes('\n')) || (expected && expected.includes('\n')));
+
+    if (isMultiline) {
+      if (revealed && expected) {
+        if (userVal && userVal !== expected) {
+          return [
+            `${openBr}#${num}${closeBr}`,
+            indentMultiline(userVal, indent),
+            `${indent}${arrow}`,
+            indentMultiline(expected, indent),
+          ].join('\n');
+        }
+        return `${openBr}#${num}${closeBr}\n${indentMultiline(expected, indent)}`;
+      }
+      if (userVal) {
+        return `${openBr}#${num}${closeBr}\n${indentMultiline(userVal, indent)}`;
+      }
+      return `${openBr}#${num}: ${blankMark}${closeBr}`;
+    }
+
     if (revealed && expected) {
-      if (userVal) return `${openBr}#${num}: ${userVal} ${arrow} **${expected}**${closeBr}`;
-      return `${openBr}#${num}: **${expected}**${closeBr}`;
+      const expText = inCode ? expected : `**${expected}**`;
+      if (userVal) return `${openBr}#${num}: ${userVal} ${arrow} ${expText}${closeBr}`;
+      return `${openBr}#${num}: ${expText}${closeBr}`;
     }
     return userVal ? `${openBr}#${num}: ${userVal}${closeBr}` : `${openBr}#${num}: ${blankMark}${closeBr}`;
   };
   if (/\{\{[^{}]+\}\}/.test(clozeText)) {
-    return clozeText.replace(/\{\{[^{}]+\}\}/g, () => replaceBlank());
+    return clozeText.replace(/\{\{\s*([^{}\s]+)\s*\}\}|\{\{[^{}]+\}\}/g, (_m, id: string | undefined, offset: number) =>
+      replaceBlank(offset, id),
+    );
   }
   if (/_{3,}/.test(clozeText)) {
-    return clozeText.replace(/_{3,}/g, () => replaceBlank());
+    return clozeText.replace(/_{3,}/g, (_m, offset: number) => replaceBlank(offset));
   }
   return clozeText;
 }
@@ -263,14 +369,14 @@ export function buildClozeBlankDiffs(
   const solAnswers = solution?.cloze?.answers;
   return blanks.map((blank, idx) => {
     const rawUser = values[blank.id] ?? feedback?.answers?.[blank.id] ?? '';
-    const userValue = String(rawUser).trim();
+    const userValue = normalizeClozeDisplayValue(String(rawUser));
     const detail = Array.isArray(details) ? details.find((d) => d.id === blank.id) : undefined;
     const solAns = Array.isArray(solAnswers) ? solAnswers.find((a) => a.id === blank.id) : undefined;
     const rawExpected =
       typeof detail?.expected === 'string' && detail.expected.trim().length > 0
         ? detail.expected
         : (solAns?.value ?? '');
-    const expected = String(rawExpected).trim();
+    const expected = normalizeClozeDisplayValue(String(rawExpected));
 
     let matched: boolean | null = null;
     if (typeof detail?.correct === 'boolean') {
@@ -430,7 +536,12 @@ export function extractUserAnswerText(
   if (kind === 'fill_blank') {
     const map = fb?.answers && typeof fb.answers === 'object' ? fb.answers : localCloze;
     const entries = Object.entries(map).filter(([, v]) => String(v || '').trim());
-    return entries.map(([k, v], i) => `#${i + 1}(${k}): ${v}`).join('  |  ');
+    return entries
+      .map(([k, v], i) => {
+        const display = String(v).replace(/\r\n?/g, '\n').replace(/\n/g, ' / ');
+        return `#${i + 1}(${k}): ${display}`;
+      })
+      .join('  |  ');
   }
   if (localOpenText.trim()) return localOpenText.trim();
   return '';

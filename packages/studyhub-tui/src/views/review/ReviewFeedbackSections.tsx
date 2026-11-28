@@ -202,6 +202,39 @@ export function ReviewFeedbackHeader({
                 : diff.matched === false
                   ? theme.error
                   : theme.text;
+            const isMultilineDiff = diff.userValue.includes('\n') || diff.expected.includes('\n');
+            if (isMultilineDiff) {
+              const userLines = rawUser.split('\n');
+              const expectedLines = diff.expected ? diff.expected.split('\n') : [];
+              return (
+                <Box key={diff.id} flexDirection="column" width={innerW}>
+                  <Box flexDirection="row" width={innerW}>
+                    <Text color={theme.muted}>{`#${diff.index} `}</Text>
+                    <Text color={statusColor} bold>{`${icon} `}</Text>
+                    <Text color={theme.muted}>
+                      {diff.matched === true
+                        ? t(lang, '回答正确', 'Correct')
+                        : t(lang, '你的作答:', 'Yours:')}
+                    </Text>
+                  </Box>
+                  {userLines.map((ln, lineIdx) => (
+                    <Text key={`u-${lineIdx}`} color={userColor}>
+                      {`    ${ln}`}
+                    </Text>
+                  ))}
+                  {showMismatch ? (
+                    <>
+                      <Text color={theme.muted}>{`  ${arrowText.trim()} ${t(lang, '参考答案:', 'Expected:')}`}</Text>
+                      {expectedLines.map((ln, lineIdx) => (
+                        <Text key={`e-${lineIdx}`} color={theme.success} bold>
+                          {`    ${ln}`}
+                        </Text>
+                      ))}
+                    </>
+                  ) : null}
+                </Box>
+              );
+            }
             return (
               <Box key={diff.id} flexDirection="row" width={innerW}>
                 <Box flexShrink={0}>

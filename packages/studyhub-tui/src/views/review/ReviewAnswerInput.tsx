@@ -175,33 +175,131 @@ export function ReviewAnswerInput({
   }
 
   if (kind === 'fill_blank' && clozeData && !feedback) {
+    const safeIdx = Math.min(activeBlankIdx, Math.max(0, clozeData.blanks.length - 1));
+    const activeBlank = clozeData.blanks[safeIdx];
+    const hasCodeBlank = clozeData.blanks.some((b) => b.inCodeBlock);
+    const activeIsMultiline = Boolean(activeBlank?.inCodeBlock);
+    const showHintBar = clozeData.blanks.length > 1 || hasCodeBlank;
+    const sep = asciiMode ? ' | ' : ' · ';
+    const editingHint = activeIsMultiline
+      ? clozeData.blanks.length > 1
+        ? t(
+            lang,
+            `Enter 换行${sep}Tab 下一空${sep}Ctrl+S/Ctrl+Enter 提交${sep}Esc 退出`,
+            `Enter newline${sep}Tab next${sep}Ctrl+S/Ctrl+Enter submit${sep}Esc blur`,
+          )
+        : t(
+            lang,
+            `Enter 换行${sep}Ctrl+S/Ctrl+Enter 提交${sep}Esc 退出`,
+            `Enter newline${sep}Ctrl+S/Ctrl+Enter submit${sep}Esc blur`,
+          )
+      : t(
+          lang,
+          `Tab 下一空${sep}Enter 下一空/提交${sep}Esc 退出`,
+          `Tab next blank${sep}Enter next/submit${sep}Esc blur`,
+        );
+
     return (
       <Box flexDirection="column" marginTop={1} width={innerW}>
-        {clozeData.blanks.length > 1 ? (
+        {showHintBar ? (
           <Box flexDirection="row" alignItems="center" gap={1} marginBottom={0} width={innerW} overflow="hidden">
             <Badge
-              label={`${Math.min(activeBlankIdx, Math.max(0, clozeData.blanks.length - 1)) + 1}/${clozeData.blanks.length}`}
+              label={
+                clozeData.blanks.length > 1
+                  ? `${safeIdx + 1}/${clozeData.blanks.length}`
+                  : activeBlank?.codeLang
+                    ? `code:${activeBlank.codeLang}`
+                    : 'code'
+              }
               tone={clozeEditing ? 'primary' : 'neutral'}
               variant="outline"
             />
             <Text color={theme.dim} wrap="truncate">
               {truncateDisplay(
                 clozeEditing
-                  ? asciiMode
-                    ? t(lang, 'Tab 下一空 | Enter 下一空/提交 | Esc 退出', 'Tab next blank | Enter next/submit | Esc blur')
-                    : t(lang, 'Tab 下一空 · Enter 下一空/提交 · Esc 退出', 'Tab next blank · Enter next/submit · Esc blur')
+                  ? editingHint
                   : cardScopeActive
-                    ? t(lang, '按 [i] 或 [Enter] 开始填空', 'Press [i] or [Enter] to fill blanks')
+                    ? activeIsMultiline
+                      ? t(lang, '按 [i] 或 [Enter] 编辑多行代码填空', 'Press [i] or [Enter] to edit multi-line code blank')
+                      : t(lang, '按 [i] 或 [Enter] 开始填空', 'Press [i] or [Enter] to fill blanks')
                     : t(lang, '按 [Esc] 返回题卡后开始填空', 'Press [Esc] to return to card to fill blanks'),
-                Math.max(10, innerW - 10),
+                Math.max(10, innerW - 14),
                 asciiMode ? '...' : '…',
               )}
             </Text>
           </Box>
         ) : null}
         {clozeData.blanks.map((blank, idx) => {
-          const safeIdx = Math.min(activeBlankIdx, Math.max(0, clozeData.blanks.length - 1));
           const isThisActive = clozeEditing && idx === safeIdx;
+          const isCodeMultiline = Boolean(blank.inCodeBlock);
+          const boxWidth = Math.min(innerW, isCodeMultiline ? 76 : 64);
+          const handleSubmitBlank = (val: string) => {
+            const updated = { ...clozeInputs, [blank.id]: val };
+            setClozeInputs(updated);
+            if (idx + 1 < clozeData.blanks.length) {
+              setActiveBlankIdx(idx + 1);
+            } else {
+              setClozeEditing(false);
+              onSubmitCloze(updated);
+            }
+          };
+          const handleTabBlank =
+            clozeData.blanks.length > 1
+              ? () => {
+                  setActiveBlankIdx((idx + 1) % clozeData.blanks.length);
+                  return undefined;
+                }
+              : undefined;
+
+          if (isCodeMultiline) {
+            return (
+              <Box
+                key={blank.id}
+                flexDirection="column"
+                borderStyle={asciiMode ? 'classic' : 'single'}
+                borderColor={isThisActive ? theme.primary : theme.border}
+                paddingX={1}
+                width={boxWidth}
+              >
+                <Box flexDirection="row" justifyContent="space-between" width={Math.max(12, boxWidth - 4)}>
+                  <Text color={isThisActive ? theme.primary : theme.muted} bold={isThisActive}>
+                    {`#${idx + 1}${blank.codeLang ? ` [${blank.codeLang}]` : ' [code]'}`}
+                  </Text>
+                  <Text color={theme.dim}>
+                    {truncateDisplay(
+                      t(lang, `Enter 换行${sep}Ctrl+S 提交`, `Enter newline${sep}Ctrl+S submit`),
+                      Math.max(10, boxWidth - 16),
+                      asciiMode ? '...' : '…',
+                    )}
+                  </Text>
+                </Box>
+                <KeyScope id={`review:cloze-${blank.id}`} opaque active={isActive && isThisActive}>
+                  <TextInput
+                    multiline
+                    submitOnEnter={false}
+                    height={4}
+                    value={clozeInputs[blank.id] ?? ''}
+                    onChange={(val) => {
+                      const next = { ...clozeInputs, [blank.id]: val };
+                      setClozeInputs(next);
+                      onScheduleDraftSave({ stepInputs: next });
+                    }}
+                    isActive={isActive && isThisActive}
+                    width={Math.max(14, boxWidth - 4)}
+                    placeholder={t(
+                      lang,
+                      '输入多行代码 (Enter 换行, Ctrl+S/Ctrl+Enter 提交)',
+                      'Type multi-line code (Enter newline, Ctrl+S/Ctrl+Enter submit)',
+                    )}
+                    onTab={handleTabBlank}
+                    onSubmit={handleSubmitBlank}
+                    onCancel={() => setClozeEditing(false)}
+                  />
+                </KeyScope>
+              </Box>
+            );
+          }
+
           return (
             <Box
               key={blank.id}
@@ -209,7 +307,7 @@ export function ReviewAnswerInput({
               borderStyle={asciiMode ? 'classic' : 'single'}
               borderColor={isThisActive ? theme.primary : theme.border}
               paddingX={1}
-              width={Math.min(innerW, 64)}
+              width={boxWidth}
             >
               <Text color={theme.muted}>{`#${idx + 1} `}</Text>
               <KeyScope id={`review:cloze-${blank.id}`} opaque active={isActive && isThisActive}>
@@ -221,26 +319,14 @@ export function ReviewAnswerInput({
                     onScheduleDraftSave({ stepInputs: next });
                   }}
                   isActive={isActive && isThisActive}
-                  width={Math.max(12, Math.min(innerW, 64) - 10)}
+                  width={Math.max(12, boxWidth - 10)}
                   placeholder={t(
                     lang,
                     '输入答案 (Enter 下一空/提交, Esc 退出)',
                     'Type answer (Enter next/submit, Esc blur)',
                   )}
-                  onTab={() => {
-                    setActiveBlankIdx((idx + 1) % clozeData.blanks.length);
-                    return undefined;
-                  }}
-                  onSubmit={(val) => {
-                    const updated = { ...clozeInputs, [blank.id]: val };
-                    setClozeInputs(updated);
-                    if (idx + 1 < clozeData.blanks.length) {
-                      setActiveBlankIdx(idx + 1);
-                    } else {
-                      setClozeEditing(false);
-                      onSubmitCloze(updated);
-                    }
-                  }}
+                  onTab={handleTabBlank}
+                  onSubmit={handleSubmitBlank}
                   onCancel={() => setClozeEditing(false)}
                 />
               </KeyScope>
