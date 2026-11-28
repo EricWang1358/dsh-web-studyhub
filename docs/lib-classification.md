@@ -45,7 +45,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/course-method.js`: 4 ui files; context courses; 5 other lib files
 - `lib/course-rules.js`: 4 ui files; context authoring; 3 other lib files
 - `lib/course-setup.js`: 1 ui file
-- `lib/course-tree.js`: 13 ui files; contexts generation, library, materials, study; 20 other lib files
+- `lib/course-tree.js`: 13 ui files; contexts generation, library, materials, study; 19 other lib files
 - `lib/courses.js`: 12 ui files; contexts authoring, coach, courses, generation, library, study; 15 other lib files
 - `lib/coverage-run.js`: 6 ui files; contexts generation, library; 5 other lib files
 - `lib/coverage-strength.js`: 5 ui files; context generation; 5 other lib files
@@ -109,7 +109,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/semver.js`: 1 ui file; context generation; 4 other lib files
 - `lib/shortfall.js`: 2 ui files
 - `lib/sm2.js`: 2 ui files; 8 other lib files
-- `lib/source-courses.js`: 7 ui files; contexts audio, bank, courses, generation, library, materials, recording, study; 32 other lib files
+- `lib/source-courses.js`: 7 ui files; contexts audio, bank, courses, generation, library, materials, recording, study; 31 other lib files
 - `lib/source-groups.js`: 29 ui files; contexts generation, library, materials; 9 other lib files
 - `lib/source-provenance.js`: 7 ui files; contexts generation, library, materials; 6 other lib files
 - `lib/source-relations.js`: 2 ui files

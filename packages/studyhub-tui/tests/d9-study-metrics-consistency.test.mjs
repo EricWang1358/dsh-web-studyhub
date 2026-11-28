@@ -507,6 +507,13 @@ describe('#1354 D9 Single-Source Study Metrics Consistency', () => {
     assert.deepEqual(cliDue('OLD'), withoutMastered(backend('OLD')), 'CLI --due --course OLD reads the parked course it names');
     const focusMastery = studyMap({ ...state, focus: { ...(state.focus ?? {}), course: 'OS' } }).mastery.course;
     assert.equal(selectors.selectStudySummary(snap, 'OS').masteryPct, focusMastery.value, 'course mastery % = studyMap mastery.course');
+    assert.equal(selectors.selectStudySummary(snap, 'OS').totalCards, focusMastery.cards, 'course mastery cards = studyMap mastery.course');
+    const netMastery = studyMap({ ...state, focus: { ...(state.focus ?? {}), course: 'NET' } }).mastery.course;
+    assert.equal(selectors.selectStudySummary(snap, 'NET').masteryPct, netMastery.value, 'active course with paused sub-course: mastery % matches TUI');
+    assert.equal(selectors.selectStudySummary(snap, 'NET').totalCards, netMastery.cards, 'active course with paused sub-course: card count matches TUI');
+    const oldMastery = studyMap({ ...state, focus: { ...(state.focus ?? {}), course: 'OLD' } }).mastery.course;
+    assert.equal(selectors.selectStudySummary(snap, 'OLD').masteryPct, oldMastery.value, 'paused focused course: mastery % matches TUI');
+    assert.equal(selectors.selectStudySummary(snap, 'OLD').totalCards, oldMastery.cards, 'paused focused course: card count matches TUI');
   });
   test('7. Suspended cards: every screen weights mastery by the learnable cards the backend counts (11 cards, 2 learnable => 50%, not 91%)', async (t) => {
     const base = await mkdtemp(path.join(os.tmpdir(), 'studyhub-d9-suspended-'));
