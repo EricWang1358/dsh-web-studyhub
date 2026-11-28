@@ -5,7 +5,7 @@ import { AddSourceButton, Button, IconButton, Icon, ProgressBar } from "../compo
 import { useTopDialog } from "../components/dialog-stack.js";
 import { useInjectCss } from "../shared.js";
 import { NARROW_WIDTH, driftedOut, inLayer, layerScale, placePopover, spotlightBox } from "./geometry.js";
-import { ANCHOR_WAIT_MS, findAnchor, isPinned, pageLead } from "./anchor.js";
+import { ANCHOR_WAIT_MS, closedFolds, isPinned, locateAnchor, pageLead } from "./anchor.js";
 import { chapterHeading, opensFromNav, tourKeyAction, tourNextChapter } from "./steps.js";
 import css from "./tour.css";
 import { usePolling } from '../use-polling.js';
@@ -180,7 +180,8 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
     const started = Date.now();
     const look = () => {
       if (!live) return;
-      const found = findAnchor(rootRef.current, anchors);
+      // A fold the page keeps shut is opened (as 找功能 does): its content has a size while shut, and a spotlight on it would light nothing.
+      const found = locateAnchor(rootRef.current, anchors)?.element;
       if (found) {
         targetRef.current = found;
         bringIntoView(found);
@@ -213,9 +214,9 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
     const layer = layerRef.current, popover = popoverRef.current;
     if (!layer || !popover) return;
     let element = targetRef.current;
-    if (element && (!element.isConnected || !element.getBoundingClientRect().height)) {
-      // The page re-rendered the anchor; follow the new element.
-      element = findAnchor(rootRef.current, anchors);
+    if (element && (!element.isConnected || !element.getBoundingClientRect().height || closedFolds(element).length)) {
+      // The page re-rendered the anchor (or shut the fold around it); follow the new element.
+      element = locateAnchor(rootRef.current, anchors)?.element ?? null;
       targetRef.current = element;
     }
     const view = layer.getBoundingClientRect();

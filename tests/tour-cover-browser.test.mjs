@@ -204,3 +204,54 @@ test("the tour's steps over pages that save on arrival write nothing to the libr
     await rm(dist, { recursive: true, force: true, maxRetries: 20, retryDelay: 150 });
   }
 });
+
+/* A step may point into a fold the page keeps shut (错题与待巩固 keeps 为你推荐 inside 错题诊断与推荐). Chrome gives a shut fold's content a box, so a tour that
+   only asks for a size lights empty space where nothing is drawn. The tour opens the fold, as 找功能 does, and lights what it talks about. */
+test('the wrong-answer step opens the fold that holds 为你推荐 and lights it where it is drawn', { timeout: 600000 }, async (t) => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
+  scrubProcessEnv();
+  const dist = await mkdtemp(join(tmpdir(), 'study-tour-fold-dist-'));
+  await buildPreview({ outdir: dist });
+  try {
+    for (const [width, height] of [[1440, 900], [420, 860]]) {
+      const base = await mkdtemp(join(tmpdir(), 'study-tour-fold-'));
+      const server = await createPreviewServer({ libraryRoot: join(base, 'library'), home: join(base, 'home'), port: 0, model: createFakeModel({ latencyMs: 20 }), distDir: dist });
+      try {
+        await previewCall(server, 'sample.load', { language: 'zh' });
+        const { root } = await previewCall(server, 'snapshot', { uiLanguage: 'zh' });
+        const { page, errors, context } = await openPage(browser, { server }, { lang: 'zh', theme: 'light', width, height });
+        await page.goto(server.url);
+        await page.locator('.study-app').waitFor({ timeout: 30000 });
+        await page.evaluate(([key, value]) => localStorage.setItem(key, value), [`study-tour:${root}`, JSON.stringify({ stepId: 'wrongbook', done: false, full: true, order: FULL_TOUR_ORDER })]);
+        await page.reload();
+        await page.locator('.study-app').waitFor({ timeout: 30000 });
+        await page.locator('[data-tour="nav-menu"], [data-tour="nav-settings"]').first().waitFor({ timeout: 30000 });
+        if (await page.locator('[data-tour="nav-menu"]').isVisible()) await page.locator('[data-tour="nav-menu"]').click();
+        await page.locator('[data-tour="nav-settings"]').click();
+        await page.locator('.settings-nav__item[data-category="profile"]').click();
+        await page.getByRole('button', { name: /^继续功能导览/ }).click();
+        await page.locator('.tour-layer:not(.is-measuring) .tour-pop').waitFor({ timeout: 30000 });
+        await page.locator('[data-tour="wrongbook-recs"]').waitFor({ state: 'attached', timeout: 30000 });
+        let seen = null;
+        await until(async () => {
+          await settleAnimations(page);
+          await frames(page, 4);
+          const now = await page.evaluate(() => {
+            const recs = document.querySelector('[data-tour="wrongbook-recs"]'), spot = document.querySelector('.tour-spot')?.getBoundingClientRect();
+            const box = recs.getBoundingClientRect();
+            return { visible: recs.checkVisibility(), recs: [Math.round(box.left), Math.round(box.top), Math.round(box.width)],
+              spot: spot ? [Math.round(spot.left), Math.round(spot.top), Math.round(spot.width)] : null };
+          });
+          const same = JSON.stringify(now) === JSON.stringify(seen);
+          seen = now;
+          return same && !!now.spot;
+        }, `${width}px: the spotlight settles`, { timeoutMs: 20000, intervalMs: 600 });
+        assert.ok(seen.visible, `${width}px: 为你推荐 is drawn while the step talks about it (${JSON.stringify(seen)})`);
+        assert.ok(Math.abs(seen.spot[0] - seen.recs[0]) <= 14 && Math.abs(seen.spot[1] - seen.recs[1]) <= 14, `${width}px: and the spotlight is on it (${JSON.stringify(seen)})`);
+        assert.deepEqual(errors, []);
+        await context.close();
+      } finally { await server.close(); await rm(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
+    }
+  } finally { await browser.close(); await rm(dist, { recursive: true, force: true }); }
+});
