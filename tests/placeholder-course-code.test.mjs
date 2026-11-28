@@ -9,7 +9,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { parse } = createRequire(require.resolve('eslint/package.json'))('espree');
 
-/* A course code as schools write it: 2 to 4 capitals right before 4 digits, with an optional letter (SWE5001, CS2040S). */
+/* A course code as schools write it: 2 to 4 capitals right before 4 digits, with an optional letter (AB1234, XY2040S). */
 const COURSE_CODE = /(?<![A-Za-z0-9])[A-Z]{2,4}\d{4}[A-Z]?(?![A-Za-z0-9])/;
 const PLACEHOLDER = /placeholder$/i;
 
@@ -58,7 +58,7 @@ async function english() {
 test('the guard reads a placeholder wherever it is written, and knows a course code from other figures', () => {
   assert.deepEqual(placeholderStrings(`const a = <input placeholder={ui('例如 AB1234 · 课')} />; const b = <Pick searchPlaceholder={wide ? 'x' : \`y \${n}\`} />; const c = { filterPlaceholder: 'z' };`),
     ['例如 AB1234 · 课', 'x', 'y ', '', 'z']);
-  for (const code of ['SWE5001', '例如 CS2040S', 'For example: IT5002 · Networks']) assert.match(code, COURSE_CODE);
+  for (const code of ['AB1234', '例如 XY2040S', 'For example: ZQ5002 · Networks']) assert.match(code, COURSE_CODE);
   for (const plain of ['2M', 'sk-xxxx', 'Lab2', 'HTTP 404', 'AES256', 'https://api.example.com/v1']) assert.doesNotMatch(plain, COURSE_CODE);
 });
 
