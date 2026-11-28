@@ -67,11 +67,18 @@ test('English: nothing is left in Chinese', () => {
 test('BlogNotes editing mode mounts CodeMirror markdown editor cleanly, handles Ctrl/Cmd+S, and defines English copy for 已是最新 (#21, #22)', () => {
   const baseData = { root: 'lib', model: ready, focus: { course: '*', courses: [] }, notes: [{ ...note, cardCount: 1 }], decks: [], sources: [], settings: {} };
   const services = { call: async () => ({}), act: async () => undefined, busy: false, notify() {}, askInChat() {}, host: {}, openSettings() {}, navigate() {}, openModal() {} };
+  const listHtml = renderToStaticMarkup(
+    React.createElement(m.StudyServicesContext.Provider, { value: services },
+      React.createElement(m.BlogNotes, { data: baseData })),
+  );
+  assert.match(listHtml, /class="page blog-notes-page"[^>]*data-note-view="list"/);
+
   const editHtml = renderToStaticMarkup(
     React.createElement(m.StudyServicesContext.Provider, { value: services },
       React.createElement(m.BlogNotes, { data: baseData, initialId: note.id, initialNote: { ...note, markdown: '# Heading\n\nBody' }, initialEditing: true })),
   );
   assert.match(editHtml, /class="page blog-notes-page"/);
+  assert.match(editHtml, /data-note-view="open"/);
   assert.match(editHtml, /class="note-editor note-editor-single"/);
   assert.match(editHtml, /编辑 Markdown/);
 

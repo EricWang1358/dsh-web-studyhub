@@ -295,7 +295,7 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
     if (isImeComposing(event)) return;
     if (event.key === "Enter") { event.preventDefault(); void addCard(); }
   };
-  return <section className="page blog-notes-page" onKeyDown={editing && writable ? (event) => handleSaveKeyDown(event, () => saveShortcutRef.current?.()) : undefined}>
+  return <section className="page blog-notes-page" data-note-view={note ? 'open' : 'list'} onKeyDown={editing && writable ? (event) => handleSaveKeyDown(event, () => saveShortcutRef.current?.()) : undefined}>
     <PageHeader className={`note-heading${note && !editing && note.markdown ? ' note-heading-reading' : ''}`}
       back={note ? { label: ui('全部笔记'), onClick: () => guardLeave(() => { setId(''); setLookup(null); }) } : undefined}
       title={note?.title || ui('学习笔记')} titleProps={{ tabIndex: -1, 'data-context-heading': true }}

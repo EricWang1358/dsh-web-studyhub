@@ -2,8 +2,9 @@
 
 @layer study.features {
   :where(.study-app, .study-seat) {
-    .blog-notes-page { max-width: none; }
-    .note-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); max-width: 44rem; }
+    /* Keep the list view on the shared .page measure and centring (#1710); only an open note stretches wide for reading and split editing. */
+    .blog-notes-page[data-note-view="open"] { max-width: none; }
+    .note-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
     .note-list > * { min-width: 0; }
     .note-list > .note-list-item {
       display: flex;

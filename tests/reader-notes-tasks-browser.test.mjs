@@ -1,4 +1,4 @@
-/* global document, getSelection, NodeFilter, MouseEvent -- page.evaluate callbacks run in the browser */
+/* global document, getSelection, NodeFilter, MouseEvent, getComputedStyle -- page.evaluate callbacks run in the browser */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, mkdir } from 'node:fs/promises';
@@ -197,6 +197,142 @@ test('a note has its AI draft as a main button, with the estimate beside it and 
       } finally { await context.close(); }
     }
   } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true }); }
+});
+
+test('notes list aligns with sources page at 1440, 1920, and 2560 px while open note reading and editing stay full width (#1710)', { timeout: 600000 }, async t => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
+  const dist = await mkdtemp(join(tmpdir(), 'study-notes-wide-dist-'));
+  await buildPreview({ outdir: dist });
+  const running = await start(dist, {
+    seed: async (call) => {
+      const snap = await call('snapshot');
+      const existing = snap.notes?.find((n) => !n.daily && n.id);
+      if (existing) {
+        await call('note.save', { id: existing.id, title: existing.title, markdown: '# 标题\n\n这是一段用于验证阅读与分栏编辑宽度的学习笔记正文。' });
+      }
+    },
+  });
+  const cases = [
+    { width: 1440, height: 900, collapsed: false },
+    { width: 1920, height: 1080, collapsed: true },
+    { width: 2560, height: 1080, collapsed: true },
+  ];
+  const { page, errors, context } = await openPage(browser, running, { lang: 'zh', theme: 'dark', width: 1440, height: 900 });
+  try {
+    await page.goto(running.server.url, { timeout: 60000 });
+    await page.locator('aside, nav, .nav-menu-toggle').first().waitFor({ timeout: 30000 });
+    const goNav = async (id) => {
+      const toggle = page.locator('.nav-menu-toggle').first();
+      if (await toggle.isVisible().catch(() => false)) {
+        await toggle.click();
+        await page.locator('dialog.nav-drawer[open]').waitFor({ timeout: 10000 });
+      }
+      await (await revealNavRow(page, id)).dispatchEvent('click');
+    };
+    const setSidebarCollapsed = async (collapsed) => {
+      const isDrawer = await page.locator('.nav-menu-toggle').first().isVisible().catch(() => false);
+      if (collapsed && !isDrawer) {
+        await page.locator('[data-tour="nav-collapse"]').first().click();
+        await page.locator('.nav-menu-toggle').first().waitFor({ timeout: 10000 });
+      } else if (!collapsed && isDrawer) {
+        await page.locator('.nav-menu-toggle').first().click();
+        await page.locator('dialog.nav-drawer[open]').waitFor({ timeout: 10000 });
+        await page.locator('.nav-dock').first().click();
+        await page.locator('aside.sidebar').first().waitFor({ timeout: 10000 });
+      }
+    };
+
+    for (const c of cases) {
+      await page.setViewportSize({ width: c.width, height: c.height });
+      await setSidebarCollapsed(c.collapsed);
+
+      // Measure the Sources page content box as the alignment reference.
+      await goNav('sources');
+      await page.locator('.sources-page').waitFor({ timeout: 30000 });
+      await settleAnimations(page);
+      const sourcesBox = await page.evaluate(() => {
+        const pageEl = document.querySelector('.sources-page');
+        const style = getComputedStyle(pageEl);
+        const rect = pageEl.getBoundingClientRect();
+        const padL = parseFloat(style.paddingLeft) || 0;
+        const padR = parseFloat(style.paddingRight) || 0;
+        return { left: rect.left + padL, right: rect.right - padR, pageLeft: rect.left, pageRight: rect.right, width: rect.width };
+      });
+
+      // Switch to Notes list view and verify left/right edges match Sources and header actions stay within content.
+      await goNav('notes');
+      await page.locator('.blog-notes-page[data-note-view="list"] .note-list').waitFor({ timeout: 30000 });
+      await settleAnimations(page);
+      const listMetrics = await page.evaluate(() => {
+        const pageEl = document.querySelector('.blog-notes-page');
+        const style = getComputedStyle(pageEl);
+        const rect = pageEl.getBoundingClientRect();
+        const padL = parseFloat(style.paddingLeft) || 0;
+        const padR = parseFloat(style.paddingRight) || 0;
+        const listRect = pageEl.querySelector('.note-list').getBoundingClientRect();
+        const itemRect = pageEl.querySelector('.note-list-item').getBoundingClientRect();
+        const headerRect = pageEl.querySelector('.sh-page-header').getBoundingClientRect();
+        const actionsRect = pageEl.querySelector('.sh-page-header__actions').getBoundingClientRect();
+        return {
+          contentLeft: rect.left + padL,
+          contentRight: rect.right - padR,
+          pageLeft: rect.left,
+          pageRight: rect.right,
+          pageWidth: rect.width,
+          listLeft: listRect.left,
+          listRight: listRect.right,
+          listWidth: listRect.width,
+          itemLeft: itemRect.left,
+          itemRight: itemRect.right,
+          headerLeft: headerRect.left,
+          headerRight: headerRect.right,
+          actionsLeft: actionsRect.left,
+          actionsRight: actionsRect.right,
+        };
+      });
+      assert.ok(Math.abs(listMetrics.contentLeft - sourcesBox.left) <= 2, `${c.width}px: notes left (${listMetrics.contentLeft}) should align with sources left (${sourcesBox.left})`);
+      assert.ok(Math.abs(listMetrics.contentRight - sourcesBox.right) <= 2, `${c.width}px: notes right (${listMetrics.contentRight}) should align with sources right (${sourcesBox.right})`);
+      assert.ok(Math.abs(listMetrics.listLeft - listMetrics.contentLeft) <= 2, `${c.width}px: .note-list left aligns with content container`);
+      assert.ok(Math.abs(listMetrics.listRight - listMetrics.contentRight) <= 2, `${c.width}px: .note-list right fills content container instead of capping at 44rem (${listMetrics.listWidth}px)`);
+      assert.ok(Math.abs(listMetrics.itemRight - listMetrics.contentRight) <= 2, `${c.width}px: .note-list-item right edge aligns with content container`);
+      assert.ok(listMetrics.actionsRight <= listMetrics.contentRight + 2 && listMetrics.actionsLeft >= listMetrics.contentLeft - 2,
+        `${c.width}px: header actions (${listMetrics.actionsLeft}..${listMetrics.actionsRight}) stay inside content (${listMetrics.contentLeft}..${listMetrics.contentRight})`);
+      if (c.collapsed) {
+        const leftMargin = listMetrics.pageLeft;
+        const rightMargin = c.width - listMetrics.pageRight;
+        assert.ok(Math.abs(leftMargin - rightMargin) <= 24, `${c.width}px collapsed: notes page is centred (left ${leftMargin}, right ${rightMargin})`);
+      }
+      await shot(page, `notes-wide-${c.width}-list`);
+
+      // Open the seeded note: reading view and editing view keep their full-width layout on wide viewports.
+      await page.locator('.note-list > button', { hasText: /\d+ 题/ }).first().click();
+      await page.locator('.blog-notes-page[data-note-view="open"] .note-reader').waitFor({ timeout: 30000 });
+      await settleAnimations(page);
+      const readingWidth = await page.locator('.blog-notes-page[data-note-view="open"]').evaluate((el) => el.getBoundingClientRect().width);
+      if (c.width >= 1920) {
+        assert.ok(readingWidth > 1200, `${c.width}px: open note reading view stays wide (${readingWidth}px)`);
+      }
+
+      const editBtn = page.getByRole('button', { name: '编辑内容' }).first();
+      await editBtn.click();
+      await page.locator('.blog-notes-page[data-note-view="open"] .note-editor').waitFor({ timeout: 30000 });
+      await settleAnimations(page);
+      const editingWidth = await page.locator('.blog-notes-page[data-note-view="open"]').evaluate((el) => el.getBoundingClientRect().width);
+      if (c.width >= 1920) {
+        assert.ok(editingWidth > 1200, `${c.width}px: open note editing view stays wide (${editingWidth}px)`);
+      }
+      // Return to the list so the next viewport iteration enters cleanly.
+      await page.getByRole('button', { name: '全部笔记' }).first().click();
+      await page.locator('.blog-notes-page[data-note-view="list"] .note-list').waitFor({ timeout: 30000 });
+    }
+    assert.deepEqual(errors, [], 'no console errors');
+  } finally {
+    await context.close().catch(() => {});
+    await browser.close();
+    await running.close();
+    await rm(dist, { recursive: true, force: true });
+  }
 });
 
 /* ---------- the page scope says whether it follows the current course ---------- */
