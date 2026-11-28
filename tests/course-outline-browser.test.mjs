@@ -115,6 +115,14 @@ test('总纲: open from the home, expand, pick two questions in two chapters, pr
       const tree = page.locator('.outline-tree');
       await tree.waitFor({ timeout: 30000 });
       assert.match(await page.locator('.outline-page h1').innerText(), /总纲 · Databases/);
+      // The 交互伴学 card: its buttons stay inside it (at 420 新建交互伴学课 used to run past its right edge).
+      const spills = await page.evaluate(() => [...document.querySelectorAll('.outline-page .sh-comp-bar')].flatMap((bar) => {
+        const box = bar.getBoundingClientRect();
+        return [...bar.querySelectorAll('button')].filter((button) => { const own = button.getBoundingClientRect(); return own.left < box.left - 0.5 || own.right > box.right + 0.5; })
+          .map((button) => `${button.innerText.trim()} ${Math.round(button.getBoundingClientRect().right)} > ${Math.round(box.right)}`);
+      }));
+      assert.equal(await page.locator('.outline-page .sh-comp-bar').count(), 1, `${width}px: the 交互伴学 card is on the 总纲`);
+      assert.deepEqual(spills, [], `${width}px: every button of the 交互伴学 card is inside it`);
       const rows = await page.locator('.outline-tree > .outline-row').evaluateAll(list => list.map(row => [row.dataset.key, row.querySelector('.outline-row__title')?.innerText, row.querySelector('.mastery-line__text')?.innerText]));
       assert.deepEqual(rows.map(row => row[1]), ['database-book', 'Lecture notes', 'Unused slides', '未归位'], `${width}px: ${JSON.stringify(rows)}`);
       assert.match(rows[0][2], /3 题/, 'i1, i2 and i3 (cited in both chapters, once)');
