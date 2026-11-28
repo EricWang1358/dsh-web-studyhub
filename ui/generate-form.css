@@ -29,8 +29,10 @@
     .generate-note { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     /* Six question types wrap instead of overflowing a narrow pane. */
     .generate-form .generate-seg { max-width: 100%; }
-    /* Beside its label (a wide form) the first row of boxes is level with the label's words, which sit lower to meet a field's text (#1082). */
-    .generate-form .generate-kind { display: flex; flex-wrap: wrap; margin-top: var(--space-1-5); }
+    /* Beside its label (a wide form) a row that starts with boxes or plain words, not a control with its own inset, is level with the label's words, which sit
+       lower to meet a field's text (#1082, #1702). */
+    .generate-form .generate-kind { display: flex; flex-wrap: wrap; }
+    .generate-form .generate-kind, .generate-form .generate-plan__line { margin-top: var(--space-1-5); }
     /* ── Custom number of questions: field and presets ───────────────────── */
     .generate-count { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
     /* ── Chips: presets, focus suggestions ──────────────── */
@@ -46,13 +48,12 @@
     .generate-assist__note { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .generate-assist__apply { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
     .generate-assist__why { color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); min-width: 0; overflow-wrap: anywhere; }
-    /* ── The main path: the one line of what will be made, the reason the page opened ticked, the plan under the form ── */
+    /* ── The main path: its rows, the reason the page opened ticked, the plan under the form ── */
     .generate-rows--main { gap: var(--space-3); margin-top: var(--space-3); }
-    .generate-plan { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin-top: var(--space-2); }
-    /* The case-exam hint is one more line of the plan: it follows the links and wraps with them. */
-    .generate-plan__hint { flex-basis: 100%; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-    .generate-plan__line { margin: 0; min-width: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
-    .generate-course { margin-top: var(--space-2); }
+    /* Where the new deck goes: the course's name, then 更改 and the way to the defaults, wrapping as words do. The case-exam hint under it is a note like the other rows'. */
+    .generate-plan__line { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); min-width: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .generate-plan__course { min-width: 0; color: var(--text); overflow-wrap: anywhere; }
+    .generate-course { width: 100%; }
     .generate-opening { margin: 0 0 var(--space-3); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .generate-estimate { display: grid; gap: var(--space-1); }
     /* ── 更多选项 and the case-exam hint ──────────────────────────────────── */
@@ -94,7 +95,7 @@
     :is(.study-app, .study-seat) {
       .generate-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
       .generate-row__label { padding-top: 0; }
-      .generate-form .generate-kind { margin-top: 0; }
+      .generate-form .generate-kind, .generate-form .generate-plan__line { margin-top: 0; }
     }
   }
 }

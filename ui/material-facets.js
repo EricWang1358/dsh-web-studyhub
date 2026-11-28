@@ -196,6 +196,12 @@ export function buildMaterialCategoryOptions(items = [], materialFolders) {
   return options;
 }
 
+/** The names of the facets in use, without their counts (「PDF (3)」 → 「PDF」), for the line that says a filter is in use. `chosen`: [options, value] a facet. */
+export function facetNames(chosen) {
+  return chosen.filter(([, value]) => value && value !== ALL_FACET)
+    .map(([options, value]) => String(flattenOptions(options).find(option => option.value === value)?.label ?? '').replace(/\s*\(\d+\)$/, '')).filter(Boolean);
+}
+
 /** True when `value` is `'*'` or exists in `options` (including inside option groups). */
 export function hasFacetOption(options = [], value = ALL_FACET) {
   if (!value || value === ALL_FACET) return true;

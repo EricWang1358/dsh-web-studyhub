@@ -155,10 +155,10 @@ export function coverageChoicePatch(choice, { suggested } = {}) {
   return { coverageLevel: levelOf(choice), customCount: '' };
 }
 
-/** The performance keys of the form's 出题深度 (`gen.depth`, lib/contexts/generation/presets.js): sent with this run only, over the saved settings; nothing for a form without one. */
+/** The performance keys of the form's 写法 (`gen.depth`, lib/contexts/generation/presets.js): sent with this run only, over the saved settings; nothing for a form without one. */
 const depthPerformance = (gen) => (DEPTHS.includes(gen?.depth) ? { performance: performanceOfDepth(gen.depth) } : {});
 
-/** The generation request the form sends: the form as typed, the 覆盖强度, the 出题深度 and, only when the learner typed one, a total number of questions. A request without a count is planned by its level. */
+/** The generation request the form sends: the form as typed, the 覆盖强度, the 写法 and, only when the learner typed one, a total number of questions. A request without a count is planned by its level. */
 export function generationRequest(gen, { course, sourceIds }) {
   const { count: _saved, customCount: _typed, autoComplete: _chosen, tokenBudget: _budget, kindCounts: _kc, depth: _depth, learnerLevel: _learnerLevel, ...rest } = gen, custom = customCountOf(gen), budget = parseTokenBudget(gen.tokenBudget);
   const patchedKinds = kindsPatch(kindsOfForm(gen), gen.kindCounts);
@@ -337,12 +337,9 @@ export const hasSettings = (suggestion = {}) => LEVELS.includes(suggestion.cover
 /** The target role is for interview preparation; a role already typed stays visible. */
 export const roleOpenByDefault = ({ goal, focus, course, role } = {}) => goal === 'interview' || !!String(focus?.role || '').trim() || !!String(course?.interview?.role || '').trim() || !!String(course?.interview?.jd || '').trim() || !!course?.interview?.migratedFromFocus || !!String(role || '').trim();
 
-/** The one line of the main path about where the new deck goes: the course it is filed under (the page infers it from the ticked materials and the 课程范围; 更改 edits it). */
-export const courseLine = (course = '') => uiFormat('新题组放进课程：{0}', [course || ui('未分类')]);
-
 /**
  * Does the form carry a choice of its own in the fold (something typed, or a choice that is not the saved default)? Then 更多选项 opens at once, so nothing the learner set is hidden. `defaults` are the
- * form's defaults from Settings (generationFormDefaults). The question types, the preset of 出题方式 and the course stand on the main path; the 覆盖强度 and the 出题深度 of the preset are
+ * form's defaults from Settings (generationFormDefaults). The question types, the preset of 出题方式 and the course stand on the main path; the 覆盖强度 and the 写法 of the preset are
  * in the fold, but the main path says them (the preset, or 自定义 with both), so only a typed number of questions and 自动补到完整 chosen by hand open it.
  */
 export function moreValuesOf(gen = {}, defaults = {}) {

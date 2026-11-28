@@ -139,7 +139,7 @@ test('the generation job keeps what the learner asked beyond what its card carri
   assert.equal(patch.difficulty, 'advanced');
 });
 
-test('按原资料重新设置 puts back the 出题深度 the run was asked with; a single-choice job that did not record one says so', () => {
+test('按原资料重新设置 puts back the 写法 the run was asked with; a single-choice job that did not record one says so', () => {
   const quiz = (asked) => ({ kind: 'quiz', kinds: ['quiz'], sourceIds: ['a'], coveragePlan: { level: 'lean', goal: 20, rounds: 1 },
     asked: { focus: '', difficulty: 'mixed', language: '中文', notation: 'auto', referenceSourceIds: [], referenceFormat: 'balanced', coverageLevel: 'lean', ...asked } });
   for (const depth of ['quick', 'scenario', 'blueprint']) {
@@ -151,8 +151,8 @@ test('按原资料重新设置 puts back the 出题深度 the run was asked with
   // From before the depth was recorded: the form's own depth is cleared (the saved one applies) and the notice names what was not put back.
   const old = m.retryForm(quiz({}));
   assert.ok('depth' in old.patch && old.patch.depth === undefined, 'the form does not keep a depth of its own');
-  assert.deepEqual(old.lost, ['出题深度']);
-  assert.match(m.retryNotice({ lost: old.lost }), /出题深度当时没有记录/);
+  assert.deepEqual(old.lost, ['写法']);
+  assert.match(m.retryNotice({ lost: old.lost }), /写法当时没有记录/);
   // Where the depth means nothing (another question type), nothing is said about it.
   const mixed = m.retryForm({ ...quiz({}), kinds: ['quiz', 'open'] });
   assert.deepEqual(mixed.lost, []);

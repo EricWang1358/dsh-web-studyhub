@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { withStudy } from './helpers/study-services.mjs';
 import { nativeSelects } from './helpers/native-selects.mjs';
+import { withOpenSourcesTools } from './helpers/sources-tools.mjs';
 
 const compiled = await build({ stdin: { contents: `export {default as Sources, CourseDialog, courseAssignments, saveDocumentCourses} from './ui/Sources.jsx';
   export {default as Generate} from './ui/Generate.jsx'; export {default as ImportHub} from './ui/ImportHub.jsx';
@@ -25,7 +26,8 @@ const splitSelectors = (sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim());
 test('source organization and import forms expose local course choices in English', () => {
   try {
     setUiLanguage('en');
-    const sources = renderToStaticMarkup(sourcesPage({ data }));
+    // The organizer is behind 「Filter & group」, here left open.
+    const sources = withOpenSourcesTools(data.root, () => renderToStaticMarkup(sourcesPage({ data })));
     assert.match(sources, /Organize courses/);
     assert.match(sources, /All courses/);
     assert.match(sources, /Uncategorised/);

@@ -7,12 +7,12 @@ import { depthNote, depthTip } from './depth-copy.js';
 import { costLoading, costTip, costWords, matrixWords } from './cost-words.js';
 import css from './presets-fold.css';
 
-/* The parts of 出题方式 that wait for their own chunk (ui/presets/Presets.jsx has the presets of the main path): 出题深度 beside the 覆盖强度 in 更多选项, the
+/* The parts of 出题方式 that wait for their own chunk (ui/presets/Presets.jsx has the presets of the main path): 写法 beside the 覆盖强度 in 更多选项, the
    matrix of the rough cost of every cell, and the line of rough costs beside the presets. 创建题组 loads this file on its own (deferredView), after the first
    screen, so the workspace's first load does not carry it (tests/workspace-closure-pages.test.mjs). It reaches nothing in lib/: the form hands it the depths,
    the columns and the costs, so loading it apart splits none of the first load's chunks (that test's count of waves). */
 
-/** 出题深度 in 更多选项 (`depths`: lib/contexts/generation/presets.js DEPTHS; `offReason`: why it does nothing for these question types), with the matrix under it
+/** 写法 in 更多选项 (`depths`: lib/contexts/generation/presets.js DEPTHS; `offReason`: why it does nothing for these question types), with the matrix under it
     once there is something to price (`costs`: ui/presets/cost.js cellCosts of every cell, or null; `cell`: the form's; `columns`: ui/presets/copy.js matrixColumns). */
 export default function PresetsFold({ depth, depths, applies, offReason, disabled = false, onDepth, costs, cell, columns }) {
   const matrix = costs ? matrixWords(costs, cell, { columns, depths }) : null;
@@ -22,14 +22,14 @@ export default function PresetsFold({ depth, depths, applies, offReason, disable
   </>;
 }
 
-/** 出题深度 in 更多选项: the depth alone, what it does, and why it does nothing for other question types. */
+/** 写法 in 更多选项: the depth alone, what it does, and why it does nothing for other question types. */
 export function DepthChoice({ depth, depths, applies, offReason, disabled = false, onDepth }) {
   useInjectCss(css, 'study-presets-fold');
   return <div className="presets-depth" data-depth={applies ? depth : 'off'}>
     <span className="presets-depth__choice">
-      <SegmentedControl label={ui('出题深度')} value={applies ? depth : ''} disabled={disabled || !applies}
+      <SegmentedControl label={ui('写法')} value={applies ? depth : ''} disabled={disabled || !applies}
         options={depths.map(value => ({ value, label: depthLabel(value) }))} onChange={onDepth} />
-      <HelpTip label={ui('出题深度是什么')}>{depthTip()}</HelpTip>
+      <HelpTip label={ui('写法是什么')}>{depthTip()}</HelpTip>
     </span>
     <p className="generate-note" data-depth-note>{applies ? depthNote(depth) : offReason}</p>
   </div>;
@@ -53,7 +53,7 @@ export function CostMatrix({ matrix }) {
   useInjectCss(css, 'study-presets-fold');
   return <div className="presets-matrix-wrap"><table className="presets-matrix" data-preset-matrix data-status={matrix.ready ? 'ready' : 'loading'}>
     <caption><span className="presets-matrix__caption"><span>{matrix.caption}</span><HelpTip label={ui('大致花费是怎么算的')}>{matrix.tip}</HelpTip></span></caption>
-    <thead><tr><th scope="col"><span className="sh-visually-hidden">{ui('出题深度')}</span></th>{matrix.columns.map(column => <th scope="col" key={column.key}>{column.label}</th>)}</tr></thead>
+    <thead><tr><th scope="col"><span className="sh-visually-hidden">{ui('写法')}</span></th>{matrix.columns.map(column => <th scope="col" key={column.key}>{column.label}</th>)}</tr></thead>
     <tbody>{matrix.rows.map(row => <tr key={row.key}><th scope="row">{row.label}</th>{row.cells.map(cell =>
       <td key={cell.key} data-cell={cell.key} data-current={cell.current ? 'true' : undefined}>
         {/* While asked: a mark the width of a figure, 正在估算 said to a screen reader only (in each of nine narrow cells it would push the table past 320 px). */}

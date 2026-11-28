@@ -12,10 +12,12 @@
     .source-picker__facets-tip { display: inline-flex; flex: none; }
     /* The filter gives the button its room, so the count stays on the filter's line wherever it was before (en 375: 220 + 32 + 49 px and two gaps fill 325). */
     .source-picker__window--facets { --sh-scroll-filter-basis: 12rem; }
-    .source-picker__facets-toggle { position: relative; flex: none; color: var(--text-muted); }
-    .source-picker__facets-toggle[aria-expanded="true"] { color: var(--text); background: var(--bg-sunken); }
-    .source-picker__facets-toggle.is-on { color: var(--text); }
-    .source-picker__facets-toggle.is-on::after { content: ""; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--text); pointer-events: none; }
+    .source-picker__facets-toggle { flex: none; color: var(--text-muted); }
+    /* The button that puts filters away (here and 「筛选与分组」 of 资料): pressed in while open, a dot while a filter is in use. */
+    .material-facets-toggle { position: relative; }
+    .material-facets-toggle[aria-expanded="true"] { color: var(--text); background: var(--bg-sunken); }
+    .material-facets-toggle.is-on { color: var(--text); }
+    .material-facets-toggle.is-on::after { content: ""; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--text); pointer-events: none; }
     .material-category-bar[hidden], .material-category-bar__controls[hidden] { display: none; }
     /* Open, in the picker: the labels in one column and the selects with AI 智能分类 under them in the next, every label on its select's line at every width. */
     .source-picker__filters .material-category-bar__controls { display: grid; grid-template-columns: max-content minmax(0, 20rem); justify-content: start; align-items: center; gap: var(--space-2) var(--space-3); }
@@ -23,8 +25,8 @@
     .source-picker__filters .material-category-bar__select { width: 100%; max-width: none; min-width: 0; }
     .source-picker__filters .material-category-bar__ai { grid-column: 2; justify-self: stretch; display: grid; justify-items: start; gap: var(--space-1); min-width: 0; }
     .source-picker__filters .material-category-bar__estimate { max-width: 100%; }
-    .source-picker__facets-on { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2); margin: 0; min-width: 0; font-size: var(--fs-sm); color: var(--text-muted); }
-    .source-picker__facets-said { min-width: 0; overflow-wrap: anywhere; }
+    .material-facets-on { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2); margin: 0; min-width: 0; font-size: var(--fs-sm); color: var(--text-muted); }
+    .material-facets-on__said { min-width: 0; overflow-wrap: anywhere; }
     .material-category-bar { display: grid; gap: var(--space-2); min-width: 0; }
     .material-category-bar__controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); min-width: 0; }
     .material-category-bar__field { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--space-2); flex: 0 1 auto; min-width: 0; max-width: 100%; }
@@ -38,6 +40,8 @@
        share the space left by the filters, keeping the classification button in place. */
     .sources-facets .material-category-bar__ai { flex: 1 1 20rem; flex-wrap: nowrap; }
     .sources-facets .material-category-bar__estimate { flex: 1 1 0; }
+    /* One row, one height (#1694): in 「筛选与分组」 of 资料 the selects and AI 智能分类 are as tall as a standard button. */
+    .sources-facets :is(.material-category-bar__select, .material-category-bar__ai-btn) { min-height: var(--control-h, 40px); }
     .material-classify-progress { display: grid; gap: var(--space-1-5); padding: var(--space-2-5) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); min-width: 0; }
     .material-classify-progress__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); min-width: 0; }
     .material-classify-progress__text { font-size: var(--fs-sm); color: var(--text-dim); font-variant-numeric: tabular-nums; }

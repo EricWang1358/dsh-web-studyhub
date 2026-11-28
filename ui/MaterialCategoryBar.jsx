@@ -30,11 +30,20 @@ import {
 import { TokenEstimate } from './TokenUsage.jsx';
 import css from './source-picker.css';
 
+/** The line that says which filters hide rows while their controls are put away, with the way back (the picker of 创建题组 #1182, 资料 #1694). */
+export function FacetsOnLine({ names, onClear, className = '' }) {
+  useInjectCss(css, 'study-source-picker');
+  return <p className={`material-facets-on${className ? ` ${className}` : ''}`} data-material-filters-on>
+    <span className="material-facets-on__said">{uiFormat('只显示：{0}', [names.join(' · ')])}</span>
+    <Button variant="link" size="sm" className="sh-btn--ink" onClick={onClear}>{ui('清除筛选')}</Button>
+  </p>;
+}
+
 /* Shared compact selector bar + batched AI topic classification panel for both
    SourcePicker (`01 / 选择资料` & `CaseCreate`) and Sources (`资料` library page).
    Reads `call` / `act` / `busy` from `useStudy()` directly (no service prop handoff).
-   `open` (default true): SourcePicker keeps the selects behind a button on the list's filter line (#1182); shut, the bar draws nothing, except a classify
-   that is running or waiting for review, which stays in view (and keeps its state: the bar stays mounted). */
+   `open` (default true): SourcePicker keeps the selects behind a button on the list's filter line (#1182) and 资料 inside 「筛选与分组」 (#1694); shut, the bar
+   draws nothing, except a classify that is running or waiting for review, which stays in view (and keeps its state: the bar stays mounted). */
 
 export default function MaterialCategoryBar({
   items = [],

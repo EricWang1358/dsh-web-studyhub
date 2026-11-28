@@ -214,15 +214,15 @@ test('发给主会话 at the dead ends of adding files and of jobs: only once th
 
     // ---------------- N1 录题: under the page's own button ----------------
     await go('generate');
-    const chatTab = page.getByRole('tab', { name: /在主会话里录题/ });
-    assert.match(await chatTab.innerText(), /题册、刷题软件、错题或截图/, `${tag}: the tab says 题册 first`);
-    await chatTab.click();
+    const ways = page.getByRole('group', { name: '创建方式' });
+    await ways.getByRole('button', { name: '在主会话里录题' }).click();
+    assert.match(await page.locator('#generate-way-note').textContent(), /题册、刷题软件、错题或截图/, `${tag}: the way says 题册 first`);
     let text = await handOver(page.locator('.ingest-file [data-hand-off="import.file"]'), { name: 'n1-ingest', first: '我在 StudyHub 的「在主会话里录题」想把文件里已有的题目原样录进题组' });
     assert.match(text, /```data 情况\ncourse: 操作系统/);
     assert.match(text, /draft:true/);
 
     // ---------------- N4, N2, N5 JSON 导入 ----------------
-    await page.getByRole('tab', { name: /导入 JSON 题组/ }).click();
+    await ways.getByRole('button', { name: '导入 JSON 题组' }).click();
     const panel = page.locator('.generate-panel');
     const before = await panel.locator('[data-hand-off="import.file"]').count();
     assert.equal(before, 1, `${tag}: before anything failed, only the line under the prompts`);

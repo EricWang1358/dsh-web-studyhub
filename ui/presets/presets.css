@@ -3,7 +3,7 @@
 @layer study.features {
   :is(.study-app, .study-seat) {
     /* 出题方式 (ui/presets/Presets.jsx): the three presets of the 创建题组 main path and their rough costs. Injected by the component (useInjectCss 'study-presets').
-       Tokens only. The depth and the matrix of 更多选项 are presets-fold.css. */
+       Tokens only. 写法 and the matrix of 更多选项 are presets-fold.css. */
     .presets { display: grid; gap: var(--space-2); width: 100%; min-width: 0; justify-items: start; container: preset-cost / inline-size; }
     /* The deferred estimate adds a help button beside this line. Reserve its height from the first frame. */
     .presets__cost { display: flex; flex-wrap: wrap; align-items: center; align-content: start; min-height: var(--help-tip-size); gap: var(--space-half) var(--space-1); font-variant-numeric: tabular-nums; }

@@ -9,6 +9,7 @@ import {
   reviewUrgencyOf,
 } from '../lib/contexts/materials/material-practice.js';
 import { loadUi } from './helpers/ui-module.mjs';
+import { withOpenSourcesTools } from './helpers/sources-tools.mjs';
 
 const m = await loadUi(`
   export { default as Sources, RowMenuItems } from './ui/Sources.jsx';
@@ -190,9 +191,10 @@ test('Sources renders 待巩固优先 sort, 只看待巩固 chip, neutral urgenc
   m.StudyServicesContext._currentValue = study;
   m.ToastContext._currentValue = toast;
   try {
-    const zhHtml = renderToStaticMarkup(React.createElement(m.Sources, {
+    // The sort and 只看待巩固 are behind 「筛选与分组」, here left open.
+    const zhHtml = withOpenSourcesTools(data.root, () => renderToStaticMarkup(React.createElement(m.Sources, {
       data, setModal() {}, onGenerate() {}, onPractice,
-    }));
+    })));
     assert.match(zhHtml, /待巩固优先/);
     assert.match(zhHtml, /只看待巩固（1）/);
     assert.match(zhHtml, /2 题薄弱 · 3 题到期/);
@@ -238,9 +240,9 @@ test('Sources renders 待巩固优先 sort, 只看待巩固 chip, neutral urgenc
     assert.equal(events.at(-1)?.msg, '这份资料现在没有可练的题（已斩或已归档的不算）。可以先从它出题。');
 
     m.setUiLanguage('en');
-    const enHtml = renderToStaticMarkup(React.createElement(m.Sources, {
+    const enHtml = withOpenSourcesTools(data.root, () => renderToStaticMarkup(React.createElement(m.Sources, {
       data, setModal() {}, onGenerate() {}, onPractice() {},
-    }));
+    })));
     assert.match(enHtml, /Needs review first/);
     assert.match(enHtml, /Needs review \(1\)/);
     assert.match(enHtml, /2 weak · 3 due/);

@@ -17,6 +17,7 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 import { withStudy } from './helpers/study-services.mjs';
 import { nativeSelects } from './helpers/native-selects.mjs';
+import { openSourcesTools } from './helpers/sources-tools.mjs';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({
@@ -648,6 +649,7 @@ test('Browser E2E: AI 智能分类 & 整理课程归属 (>100 items) survive pag
   await page.goto(server.url);
   await page.locator('aside, nav').first().waitFor();
   await (await revealNavRow(page, 'sources')).click();
+  await openSourcesTools(page);
   await page.locator('[data-material-category-bar]').waitFor();
 
   // 1. Click AI 智能分类 on 110 items -> shows taxonomy progress + 查看任务 + 停止

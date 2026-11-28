@@ -5,6 +5,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { inApp } from './helpers/fake-app.mjs';
+import { withOpenSourcesTools } from './helpers/sources-tools.mjs';
 
 /* Model setup that works (the model-setup batch of the learner-flow work): the gate says WHERE the key is set (DSH keeps it, StudyHub has no key field),
    the button is named for where it goes (打开模型设置 only when the host opens DSH's own panel, else 前往设置), Settings › 学习库与模型 shows
@@ -183,7 +184,8 @@ test('创建题组 shows the gate on top as a banner, like 备考补习, and the
   assert.doesNotMatch(render(h(m.Generate, generateProps(library({ model: NO_ROUTE, modelReady: false }))), { language: 'en' }), /先配置|模型/);
 });
 
-const organize = data => render(h(m.Sources, { data, setModal: noop, onGenerate: noop }), { call: noop, act: noop });
+// 请 AI 建议 is in the organizer, behind 「筛选与分组」 of 资料, here left open.
+const organize = data => withOpenSourcesTools(data.root, () => render(h(m.Sources, { data, setModal: noop, onGenerate: noop }), { call: noop, act: noop }));
 const sourceData = over => ({ root: 'lib', sources: [{ id: 'n1', title: '笔记', text: '内容内容内容', createdAt: '2025-03-04T09:00:00.000Z', courses: ['DB'], usedBy: [] }],
   decks: [], drafts: [], jobs: [], focus: { course: '*', courses: [{ name: 'DB' }] }, ...over });
 

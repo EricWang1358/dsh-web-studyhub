@@ -1,27 +1,29 @@
-import { ui, uiFormat, uiLocale, errorMessage } from "./i18n.js";
+import { ui, uiFormat, uiLocale, errorMessage, getUiLanguage } from "./i18n.js";
 import { formatNumber, formatDay } from "./format.js";
 import React, { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { AudioJobs } from "./audio/AudioJobs.jsx";
 import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
-import MaterialCategoryBar from './MaterialCategoryBar.jsx';
+import MaterialCategoryBar, { FacetsOnLine } from './MaterialCategoryBar.jsx';
 import { LIVE_MATERIAL_JOB_STATUSES, consumeOpenSourcesOrganize } from './use-material-classify.js';
 import {
   ALL_FACET,
   buildMaterialCategoryOptions,
   buildMaterialTypeOptions,
   buildSourceFlags,
+  facetNames,
   filterMaterialsByFacets,
   hasFacetOption,
 } from './material-facets.js';
 import { useInjectCss } from "./shared.js";
-import { AddSourceButton, Badge, Button, Checkbox, CheckboxInput, Chip, ChunkedRows, ConfirmDialog, Dialog, Disclosure, Field, Icon, InlineMessage, Menu, PageHeader, ProgressBar, SegmentedControl, Select, TextInput, Tooltip, filterItems, scrollWindowCount, useToast } from "./components/index.js";
+import { AddSourceButton, Badge, Button, Checkbox, CheckboxInput, ChunkedRows, ConfirmDialog, Dialog, Disclosure, Field, Icon, InlineMessage, Menu, PageHeader, ProgressBar, SegmentedControl, Select, TextInput, Tooltip, filterItems, scrollWindowCount, useToast } from "./components/index.js";
 import { browserStorage, readJSON, writeJSON } from "./storage.js";
 import { useNarrow } from "./use-narrow.js";
 import { useRowFit } from "./use-row-fit.js";
 import { useCut } from "./use-cut.js";
-import { scrollToAnchor } from "./tour/anchor.js";
+import { REVEAL_ANCHORS_EVENT, scrollToAnchor } from "./tour/anchor.js";
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import {
   UNASSIGNED_COURSE,
@@ -93,6 +95,8 @@ const VALID_SORTS = new Set(["recent", "title", "review"]);
 const groupModeKey = root => `study-sources-group-mode:v1:${root || ""}`;
 const sortModeKey = root => `study-sources-sort-mode:v1:${root || ""}`;
 const closedGroupsKey = (root, mode) => `study-sources-group-closed:v1:${root || ""}:${mode}`;
+const toolsOpenKey = root => `study-sources-tools-open:v1:${root || ""}`;
+const readToolsOpen = root => readJSON(toolsOpenKey(root), false, browserStorage()) === true;
 const readGroupMode = root => {
   const saved = readJSON(groupModeKey(root), "course", browserStorage());
   return VALID_GROUP_MODES.has(saved) ? saved : "course";
@@ -270,6 +274,9 @@ const sameCompanionTarget = (a, b) => a === b || (!!a && !!b
  * carries `.is-narrow` and ui/sources.css follows it.
  */
 export const ROWS_NARROW = 681;
+/** Below this width of the column, 「筛选与分组」 beside the search box is its icon: its words would leave the course and the box too little room. The English
+    words (and the label before the course) are wider, so English gives them up sooner. */
+const TOOLS_TIGHT = { zh: 360, en: 440 };
 const ROW_PROPS = ['item', 'source', 'isNew', 'organizing', 'selected', 'mastery', 'coverage', 'topUp', 'canIndex', 'indexLink', 'slot', 'advice', 'retrieval', 'courses', 'defaultCourse', 'canGenerate', 'canPractice', 'canSegment', 'canRename', 'actions', 'pinned', 'pinFirst', 'pinLast', 'dragging', 'dropMark', 'custom', 'showExtraCourseBadges', 'folderDrag', 'canMoveFolder'];
 
 /**
@@ -512,6 +519,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   // One measure for the page: the width of the study container, which is what the container queries of ui/sources.css read.
   const pageRef = useRef(null);
   const narrow = useNarrow(pageRef, ROWS_NARROW, { content: true });
+  const tight = useNarrow(pageRef, TOOLS_TIGHT[getUiLanguage()] ?? TOOLS_TIGHT.zh, { content: true });
   const allItems = useMemo(() => groupSourcesByDocument(data.sources), [data.sources]);
   const sourceFlags = useMemo(() => buildSourceFlags(data.sources), [data.sources]);
   const items = useMemo(() => allItems.filter(item => item.archived === showArchived), [allItems, showArchived]);
@@ -688,6 +696,19 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const activeOrganizeJob = snapshotOrganizeJob || (optimisticOrganizeJob && LIVE_MATERIAL_JOB_STATUSES.has(optimisticOrganizeJob.contract?.status || optimisticOrganizeJob.status) ? optimisticOrganizeJob : null);
   const pendingOrganizeKey = pendingOrganize ? String(pendingOrganize.jobId || pendingOrganize.createdAt || 'pending') : '';
   const [organizing, setOrganizing] = useState(() => Boolean(activeOrganizeJob || pendingOrganize || consumeOpenSourcesOrganize()));
+  // 「筛选与分组」 (#1694): shut unless the learner left it open (kept per library). A job or a request to look at the course suggestions opens it, and so does
+  // 找功能 on its way to 整理课程归属; neither changes what is kept.
+  const [toolsState, setToolsState] = useState(() => ({ root: data.root, open: organizing || readToolsOpen(data.root) }));
+  const toolsOpen = toolsState.root === data.root ? toolsState.open : readToolsOpen(data.root);
+  const showTools = useCallback(() => setToolsState({ root: data.root, open: true }), [data.root]);
+  const chooseTools = open => { writeJSON(toolsOpenKey(data.root), open, browserStorage()); setToolsState({ root: data.root, open }); };
+  const toolsId = useId();
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    const reveal = event => { if (event.detail?.anchors?.includes('sources-organize')) flushSync(showTools); };
+    document.addEventListener(REVEAL_ANCHORS_EVENT, reveal);
+    return () => document.removeEventListener(REVEAL_ANCHORS_EVENT, reveal);
+  }, [showTools]);
   const [selected, setSelected] = useState([]);
   const [courseText, setCourseText] = useState(''), [proposals, setProposals] = useState(null);
   const [organizeStartingCount, setOrganizeStartingCount] = useState(0);
@@ -701,8 +722,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     const newPending = Boolean(pendingOrganizeKey && pendingOrganizeKey !== prevOrganizeSignal.current.pendingKey);
     prevOrganizeSignal.current = { jobId: activeOrganizeJob?.id || '', pendingKey: pendingOrganizeKey };
     if (requested) setShowArchived(false);
-    if (requested || newJob || newPending) setOrganizing(true);
-  }, [activeOrganizeJob?.id, pendingOrganizeKey]);
+    if (requested || newJob || newPending) { setOrganizing(true); showTools(); }
+  }, [activeOrganizeJob?.id, pendingOrganizeKey, showTools]);
   const [batchFolder, setBatchFolder] = useState('');
   // EXPERIMENTAL (hidden unless "Show experimental features" is on, off by default): Jev's course suggestions share the AI suggestions' rows and apply button.
   const experimental = experimentalShown(data), jevOn = useJevCourseSuggest(call, experimental ? undefined : false), [jevNote, setJevNote] = useState(''), [jevRun, setJevRun] = useState(null);
@@ -740,6 +761,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const shownProposals = proposals || hydratedProposals;
   const shownJevRun = proposals ? jevRun : (pendingOrganize?.jev ?? null);
   const organizeRunning = Boolean(activeOrganizeJob || organizeStartingCount > 0);
+  // The organizer is in 「筛选与分组」; shut, it stays while it has something to show (a run, suggestions to review, why it failed). Without it no row has a box.
+  const organizeShown = toolsOpen || organizeRunning || Boolean(shownProposals) || Boolean(organizeError);
   const organizeDone = activeOrganizeJob ? Number(activeOrganizeJob.contract?.progress?.done ?? activeOrganizeJob.done ?? 0) : 0;
   const organizeTotal = activeOrganizeJob
     ? Number(activeOrganizeJob.contract?.progress?.total ?? activeOrganizeJob.total ?? 0)
@@ -891,7 +914,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   // One document (its row) or the checked ones (整理 panel) go through the same notice (ui/archive-entries.js); several have no single dialog, so permanent delete stays per document.
   const offerArchived = items => offerDocumentsArchived({ toast, items, onRemove: setRemoving,
     restore: async () => { await call('source.archive', { sourceIds: idsOfDocuments(items), archived: false }); Promise.resolve(refresh?.()).catch(() => {}); return true; },
-    focus: items.length === 1 ? rowMenu(items[0].key) : () => document.querySelector('.source-organize > summary') });
+    // Several: the organizer they were ticked in; put away by then, 「筛选与分组」. (Two queries: one selector list answers with whichever comes first on the page.)
+    focus: items.length === 1 ? rowMenu(items[0].key) : () => document.querySelector('.source-organize > summary') || document.querySelector('[data-tour="sources-tools"]') });
   const closeRemoving = () => {
     const was = removing;
     setRemoving(null);
@@ -1010,7 +1034,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const anchorsOf = rows => ({ 'custom-book-row': rowOf(rows, offers) });
   // One row, in a group or in the pinned group (`pin`: where it stands among the pinned rows).
   const renderRow = (item, pin = {}) => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])} companionTarget={companionTargets.get(item.key) ?? null}
-    isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)} actions={actions}
+    isNew={fresh.has(item.key)} organizing={organizing && organizeShown} selected={selected.includes(item.key)} actions={actions}
     canGenerate={!showArchived && !!onGenerate} canPractice={!showArchived && !!onPractice} canSegment={typeof call === 'function'} canRename={!!renameFor}
     canMoveFolder={!!(act || call)} showExtraCourseBadges={groupMode === 'course'} folderDrag={groupMode === 'folder' && !showArchived}
     mastery={data.materialMastery?.[item.key]} coverage={data.materialCoverage?.[item.key]}
@@ -1029,6 +1053,9 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   };
   const openCompanions = () => setModal({ type: "companionBuild", course: scope === '*' ? (data.focus?.course || '') : scope });
   const archiveLabels = [uiFormat('已归档（{0}）', [archivedCount]), ui('返回资料')], archiveLabel = archiveLabels[showArchived ? 1 : 0];
+  // What hides rows while 「筛选与分组」 is shut is said under the search box, with one way back. Grouping and sorting hide nothing.
+  const facetsSaid = [...facetNames([[typeOptions, activeTypeScope], [categoryOptions, activeCategoryScope]]), ...(activeReviewFilter ? [ui('待巩固')] : [])];
+  const clearFacets = () => { setTypeScope(ALL_FACET); setCategoryScope(ALL_FACET); setReviewOnly(false); };
   const requestDeleteFolder = (folder, count) => {
     if (count > 0) { setDeletingFolder({ folder, count }); return; }
     act('source.folder.delete', { folder });
@@ -1067,14 +1094,15 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
       {addButton}
     </>;
   return (
-    <section ref={pageRef} className={`page sources-page${narrow ? ' is-narrow' : ''}`}>
+    <section ref={pageRef} className={`page sources-page${narrow ? ' is-narrow' : ''}${tight ? ' is-tight' : ''}`}>
       <PageHeader className={`sources-page__header sh-page-header--measured${fullHeader ? '' : ' sh-page-header--compact-actions'}`} title={ui("资料")}
         description={joinSummary(ui("题目从这里生长。原文与引用一直保留。"), items.length > 0 ? groupSummaryDescription({ mode: groupMode, summary: scopeSummary }) : "")}
         actions={headerActions} actionsOnTitleRow />
       <div className="sources-page__fit" aria-hidden="true" inert><div className="sh-page-header__actions">{fullActions(false)}</div></div>
       {gap && <IndexGapLine count={gap.count} canIndex={indexCoverage?.canIndex} onGo={() => onBuildIndex(gap.course)} />}
       {(items.length > 0 || (groupMode === 'folder' && !showArchived && materialFolders.folders.length > 0)) && <>
-        {/* 课程范围 and 筛选资料 are one small form: the label in one column, both controls in the next, at one left edge and one width (#1085). */}
+        {/* 课程范围 and 筛选资料 are one small form: the label in one column, both controls in the next, at one left edge and one width (#1085). They are all that
+            stands over the list by default (#1694): everything else is behind 「筛选与分组」, on the line of the search box. */}
         <div className="page-scope-form sources-toolbar">
         <PageScope value={scope} onChange={setScope} courses={data.focus?.courses} />
         <div className="sources-filter">
@@ -1097,16 +1125,24 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
             <Button variant="quiet" size="sm" icon="close" aria-label={ui('清除筛选')} title={ui('清除筛选')} onClick={() => setQuery('')} />
           </span>}
         </div>
+          <Tooltip layer anchorClassName="sources-tools-anchor" content={tight ? ui('筛选与分组') : ''}>
+            <Button variant="quiet" size="sm" icon="filter" className={`material-facets-toggle sources-tools-toggle${facetsSaid.length ? ' is-on' : ''}`}
+              aria-expanded={toolsOpen} aria-controls={toolsId} data-tour="sources-tools" onClick={() => chooseTools(!toolsOpen)}>
+              <span className="sources-tools-toggle__label">{ui('筛选与分组')}</span>
+            </Button>
+          </Tooltip>
         </div>
-        {showCategoryBar && <MaterialCategoryBar className="sources-facets" items={courseScoped} targetItems={scoped}
+        {!toolsOpen && facetsSaid.length > 0 && <FacetsOnLine className="sources-tools-said" names={facetsSaid} onClear={clearFacets} />}
+        <div id={toolsId} className="sources-tools">
+        {showCategoryBar && <MaterialCategoryBar open={toolsOpen} className="sources-facets" items={courseScoped} targetItems={scoped}
           course={scope === '*' || scope === '' ? '' : scope}
           materialFolders={materialFolders} sourceFlags={sourceFlags}
           typeOptions={typeOptions} categoryOptions={categoryOptions}
           typeScope={activeTypeScope} onTypeScopeChange={setTypeScope}
           categoryScope={activeCategoryScope} onCategoryScopeChange={setCategoryScope}
           modelReady={modelReadiness(data).ready} />}
-        <div className="sources-view-bar">
-          <SegmentedControl size="sm" wrap label={ui('分组方式')} value={groupMode} onChange={chooseGroupMode} options={[
+        {toolsOpen && <div className="sources-view-bar">
+          <SegmentedControl size="sm" wrap className="sources-view-bar__group" label={ui('分组方式')} value={groupMode} onChange={chooseGroupMode} options={[
             { value: 'course', label: ui('按课程') },
             { value: 'folder', label: ui('按文件夹') },
             { value: 'day', label: ui('按导入日期') },
@@ -1118,15 +1154,15 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
             { value: 'review', label: ui('待巩固优先') },
           ]} />
           {!showArchived && (urgentScopedCount > 0 || reviewOnly) && (
-            <Chip size="sm" className="sources-view-bar__review" selected={reviewOnly} onClick={() => setReviewOnly(current => !current)}>
+            <Button aria-pressed={reviewOnly} className="sources-view-bar__review" onClick={() => setReviewOnly(current => !current)}>
               {uiFormat('只看待巩固（{0}）', [urgentScopedCount])}
-            </Chip>
+            </Button>
           )}
           {groupMode === 'folder' && !showArchived && !!(act || call) && (
-            <Button size="sm" variant="secondary" icon="plus" lock={busy} onClick={() => setCreatingFolder(true)}>{ui('新建文件夹')}</Button>
+            <Button variant="secondary" icon="plus" lock={busy} onClick={() => setCreatingFolder(true)}>{ui('新建文件夹')}</Button>
           )}
-        </div>
-        {items.length > 0 && <details className="source-organize" data-tour="sources-organize" open={organizing || undefined} onToggle={event => setOrganizing(event.currentTarget.open)}>
+        </div>}
+        {items.length > 0 && organizeShown && <details className="source-organize" data-tour="sources-organize" open={organizing || undefined} onToggle={event => setOrganizing(event.currentTarget.open)}>
           <summary>{showArchived ? ui('批量管理已归档资料') : ui('整理课程归属')}</summary>
           <p className="muted">{showArchived ? ui('勾选已归档资料后，可批量恢复、统一永久删除，或整理课程归属。') : ui('勾选资料后统一整理。改课程归属时，原文与引用保持不变。')}</p>
           <p>{uiFormat('已选择 {0} 份资料', [chosen.length])}{' '}
@@ -1208,6 +1244,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
             </div>
           </div>}
         </details>}
+        </div>
         {items.length > 0 && !courseScoped.length && <p className="muted">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
         {items.length > 0 && courseScoped.length > 0 && !scoped.length && <p className="muted">{ui('当前类型与分类组合下没有匹配的资料，可调整筛选条件。')}</p>}
         {items.length > 0 && scoped.length > 0 && !filtered.length && (

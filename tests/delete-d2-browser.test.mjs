@@ -8,6 +8,7 @@ import { StudyService } from '../lib/service.js';
 import { createPreviewServer } from '../scripts/preview-server.mjs';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
+import { openSourcesTools } from './helpers/sources-tools.mjs';
 
 // 3.7.x delete track, D2 in the real app: 归档 from a deck row's ⋯ menu (notice with 撤销 and 永久删除…, which opens the one permanent-delete dialog), and 归档所选 on the
 // Sources page (several documents, one call, one notice). Archive-first stays: nothing is deleted for good without that dialog.
@@ -99,6 +100,7 @@ test('archive from the deck row menu and from the checked materials, each with �
 
   // Sources: check two documents, 归档所选: one call, one notice with the count and Undo, and no single permanent-delete dialog for several.
   await page.locator('[data-tour="nav-sources"]').click();
+  await openSourcesTools(page);
   await page.locator('.source-organize > summary').click();
   const archiveChosen = page.locator('[data-archive-selected]');
   assert.equal(await archiveChosen.isDisabled(), true, 'nothing checked: nothing to archive');
@@ -151,6 +153,7 @@ test('archive selected leaves out a checked document the course scope now hides'
   await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'en'); localStorage.setItem('study-autopilot', 'off'); });
   await page.goto(server.url);
   await page.locator('[data-tour="nav-sources"]').click();
+  await openSourcesTools(page);
   await page.locator('.source-organize > summary').click();
   // The page follows the current course (Math) at first: show every course, check both documents, then narrow to Math again.
   await page.locator('.page-scope').getByRole('combobox').first().click();
