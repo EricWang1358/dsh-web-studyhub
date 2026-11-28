@@ -435,3 +435,26 @@ test('#1679: after a visit through the drawer, the feature tour keeps the focus 
     assert.deepEqual(errors, [], 'no page errors');
   } finally { await context.close(); }
 });
+
+/* A drawer row that opens a layer over the page (快捷键) leads nowhere: the sheet takes the focus as it opens, and the arrival must not pull it back to the
+   page's heading behind it (a modal dialog is guarded by the browser; this sheet is not modal). */
+test('#1679: 帮助 › 快捷键 from the drawer leaves the focus in the shortcut sheet', { timeout: 600000 }, async (t) => {
+  const env = await setup(t);
+  if (!env) return;
+  const { context, page, errors } = await openPractice(env, { width: 420, height: 860 });
+  try {
+    const opener = page.getByRole('button', { name: '打开导航', exact: true }).first();
+    await opener.waitFor({ timeout: 30000 });
+    await opener.click();
+    const drawer = page.locator('.nav-drawer[open]');
+    await drawer.waitFor();
+    const help = drawer.locator('[data-tour="nav-help"]');
+    if (await help.getAttribute('aria-expanded') !== 'true') await help.click();
+    await drawer.locator('[data-tour="nav-shortcuts"]').click();
+    await page.locator('.shortcut-sheet').waitFor({ timeout: 10000 });
+    await new Promise((done) => setTimeout(done, 1200));
+    assert.equal(await page.evaluate(() => !!document.activeElement?.closest('.shortcut-sheet')), true,
+      `the focus is in the shortcut sheet (it is on ${await page.evaluate(() => `${document.activeElement?.tagName} ${document.activeElement?.className}`)})`);
+    assert.deepEqual(errors, [], 'no page errors');
+  } finally { await context.close(); }
+});

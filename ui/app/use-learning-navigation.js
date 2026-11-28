@@ -445,13 +445,18 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
     };
     const shown = (selector) => [...(rootRef.current?.querySelectorAll(selector) || [])].find((element) => element.getClientRects().length);
     return focusOnArrival(rootRef.current, () => (focusRequest.element?.isConnected && focusRequest.element.getClientRects().length ? focusRequest.element
-      : placedHeading()
+      // 快捷键 from the drawer opens its sheet over the page: that is where the row led (the closing drawer hands the focus back to its button first).
+      : shown('.shortcut-sheet') || placedHeading()
         || shown('dialog[open] h2, .review-body .question-card, .question[role="heading"], [data-context-heading], main .page h1, main .page h2')
         // A page whose root is not a .page (任务) has only the shared page title. Not on the practice page: its title is there before its question is.
         || (!rootRef.current?.querySelector('main .review-page') && shown('main .sh-page-header__title'))), (target) => {
       if (!target.matches('button,a,input,select,textarea,[tabindex]')) target.setAttribute('tabindex', '-1');
       target.focus(target === placedHeading() ? { preventScroll: true } : undefined);
-    }, { taken: () => !!rootRef.current?.ownerDocument.querySelector('.tour-layer') });
+    }, { taken: () => {
+      const doc = rootRef.current?.ownerDocument;
+      // The tour keeps the focus on its card, and so does a layer that is not a modal <dialog> (快捷键, 信箱, a popover): the browser guards only modal ones.
+      return !!doc?.querySelector('.tour-layer') || !!doc?.activeElement?.closest('[role="dialog"]:not(dialog)');
+    } });
   }, [focusRequest, nav.page, nav.pageTarget]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const trail = lib.state.contextTrail;
