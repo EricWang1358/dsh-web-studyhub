@@ -107,6 +107,128 @@ test('useBilingual marks the reading column crowded below 640px and disconnects 
   });
 });
 
+test('useBilingual refreshes translations, renders notice and announces completion when a pure-reuse job completes before loadJobs resolves (#1508)', async () => {
+  await withBrowserGlobals(async () => {
+    const ui = await loadInteractiveUi(`
+      export { default as useBilingual } from './ui/document-preview/translation/useBilingual.jsx';
+      export { ToastContext } from './ui/components/Feedback.jsx';
+      export { setUiLanguage } from './ui/i18n.js';
+    `);
+    ui.exports.setUiLanguage('zh');
+    const paragraphText = 'An unchanged paragraph whose translation can be reused.';
+    const key = paragraphKey('s1', { text: paragraphText, ordinal: 0 });
+    const makeNode = (tag) => ({
+      tagName: tag,
+      dataset: {},
+      style: {},
+      children: [],
+      firstChild: null,
+      isConnected: true,
+      setAttribute() {},
+      remove() {},
+      append(child) { this.children.push(child); this.firstChild ??= child; },
+      after() {},
+      closest() { return null; },
+    });
+    const ownerDocument = {
+      createElement: makeNode,
+      createTreeWalker: () => {
+        let read = false;
+        return { nextNode: () => { if (read) return null; read = true; return { data: paragraphText }; } };
+      },
+    };
+    const paragraphEl = { ...makeNode('p'), ownerDocument };
+    const bodyEl = {
+      ownerDocument,
+      querySelectorAll: (selector) => selector.includes('.reader-p') ? [paragraphEl] : [],
+      closest: () => null,
+      addEventListener() {},
+      removeEventListener() {},
+    };
+    const toasts = [];
+    const toastApi = { show: (entry) => toasts.push(entry), success() {}, info() {}, warning() {}, error() {}, dismiss() {} };
+    let started = false;
+    const reusedItem = { key, kind: 'paragraph', sourceId: 's1', quote: paragraphText, target: 'zh', text: '一段可沿用的译文。', version: 1, history: [], warnings: [], outdated: false, reused: true };
+    const call = async (op, args = {}) => {
+      if (op === 'materials.translation.list') {
+        return {
+          target: 'zh',
+          targetSource: 'default',
+          glossary: [],
+          modelAvailable: false,
+          items: started ? [reusedItem] : [],
+          stale: started ? [] : [{ revision: 'r0', count: 1 }],
+        };
+      }
+      if (op === 'generation.translation.jobs') {
+        return {
+          jobs: started ? [{
+            id: 'job-reuse-1',
+            status: 'complete',
+            total: 1,
+            done: 1,
+            translated: 0,
+            reused: 1,
+            savedCount: 1,
+            rejected: 0,
+            scopeLabel: '本页',
+            startedAt: '2026-11-28T14:00:00.000Z',
+            finishedAt: '2026-11-28T14:00:00.005Z',
+          }] : [],
+        };
+      }
+      if (op === 'generation.translation.start') {
+        if (args.estimate) {
+          return { status: 'estimate', modelAvailable: false, counts: { toTranslate: 0, cached: 0, reused: 1 }, estimate: null };
+        }
+        started = true;
+        return { jobId: 'job-reuse-1', status: 'running', alreadyRunning: false, job: { id: 'job-reuse-1', total: 1 } };
+      }
+      return {};
+    };
+
+    const hook = ui.mountHook(
+      (props) => ui.exports.useBilingual(props),
+      {
+        call,
+        document: { documentId: 'doc-1', revision: 'r1' },
+        source: { id: 's1' },
+        view: 'read',
+        paged: false,
+        narrow: false,
+        body: { current: bodyEl },
+        scroller: { current: { clientWidth: 960 } },
+        rendered: 0,
+        outline: [],
+        activeId: null,
+        chapterLevel: 1,
+        enabled: true,
+        batchEnabled: true,
+      },
+      (el) => ui.React.createElement(ui.exports.ToastContext.Provider, { value: toastApi }, el),
+    );
+
+    try {
+      await hook.flush();
+      assert.equal(hook.current.toolbar.props.hasTranslations, false);
+
+      await hook.act(() => { hook.current.toolbar.props.onOpenChange(true); });
+      await hook.flush();
+
+      await hook.act(() => hook.current.toolbar.props.onStart('page'));
+      await hook.flush();
+
+      assert.equal(hook.current.toolbar.props.hasTranslations, true, 'completed pure-reuse job must trigger materials.translation.list refresh');
+      assert.ok(hook.current.notice, 'completed pure-reuse job must surface TranslationJobCard notice');
+      assert.equal(hook.current.notice.props.job.id, 'job-reuse-1');
+      assert.equal(hook.current.notice.props.job.status, 'complete');
+      assert.ok(toasts.some((entry) => /已译好 1 段。/.test(entry.message)), 'completed pure-reuse job must emit completion toast');
+    } finally {
+      hook.unmount();
+    }
+  });
+});
+
 test('paragraphs get their ordinal and key the way the backend keys them, the second copy of a paragraph apart from the first', () => {
   const list = keyedParagraphs([{ sourceId: 's1', text: 'Same.' }, { sourceId: 's1', text: 'Other.' }, { sourceId: 's1', text: ' Same. ' }, { sourceId: 's2', text: 'Same.' }]);
   assert.deepEqual(list.map(paragraph => paragraph.ordinal), [0, 0, 1, 0]);
@@ -139,12 +261,13 @@ test('the answers of a translate call fill the state: kept items and the reasons
   let state = loaded([]);
   state = reducer(state, { type: 'pending', keys: ['a', 'b', 'c', 'd'] });
   state = reducer(state, { type: 'settled', reveal: true, results: [
-    { key: 'a', status: 'translated', item: item('a') }, { key: 'b', status: 'cached', item: item('b') }, { key: 'c', status: 'rejected', code: 'refusal', message: 'no' }, { key: 'd', status: 'unlocated', code: 'ambiguous' }] });
-  assert.deepEqual(Object.keys(state.items), ['a', 'b']);
+    { key: 'a', status: 'translated', item: item('a') }, { key: 'b', status: 'cached', item: item('b') }, { key: 'r', status: 'reused', item: item('r', { reused: true }) }, { key: 'c', status: 'rejected', code: 'refusal', message: 'no' }, { key: 'd', status: 'unlocated', code: 'ambiguous' }] });
+  assert.deepEqual(Object.keys(state.items), ['a', 'b', 'r']);
   assert.deepEqual(state.pending, {});
   assert.equal(state.errors.c.code, 'refusal');
   assert.equal(state.errors.d.code, 'ambiguous');
   assert.equal(state.shown.a, true, 'what was just translated is shown even in 隐藏译文');
+  assert.equal(state.shown.r, true, 'what was just reused is also shown even in 隐藏译文');
   assert.equal(state.shown.b, undefined, 'what was already there follows the mode');
   assert.equal(reducer(loaded([]), { type: 'settled', results: [{ key: 'a', status: 'translated', item: item('a') }] }).shown.a, undefined, 'without the reveal the mode decides');
   state = reducer(state, { type: 'unavailable', keys: ['e'] });

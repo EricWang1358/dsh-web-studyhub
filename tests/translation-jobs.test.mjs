@@ -269,3 +269,45 @@ test('a chapter is a job scope too, as the effective segmentation defines it: on
   assert.equal(first.job.total, 8, 'the other chapter still has its own paragraphs to do');
   await wait(f, first.jobId);
 });
+
+test('pure reuse after a document update runs without a model for both passages and scope, while mixed todo+reuse still refuses without a model (#1508)', async t => {
+  const f = await fixture(t);
+  const first = await f.runtime.call('generation.translation.start', { documentId: f.imported.documentId, scope: f.scope });
+  assert.equal((await wait(f, first.jobId)).status, 'complete');
+  const nextBody = `${markdown}\nOne brand-new paragraph added in revision two.\n`;
+  const updated = await f.runtime.call('materials.document.import', { filename: 'notes.md', documentId: f.imported.documentId, dataBase64: Buffer.from(nextBody).toString('base64') });
+  assert.notEqual(updated.revision, f.imported.revision);
+  const nextSource = updated.document.sources[0];
+
+  // Reopen the same library with no model connected.
+  const noModelRuntime = createStudyRuntime(f.root, { ...switchOptions(SWITCH_MODE, { paths: ['translation'] }) });
+  t.after(async () => { await noModelRuntime.dispose(); });
+
+  // Pure reuse via explicit passages (the reader's 翻译本页 / 翻译本章 path) succeeds without a model.
+  const reusedPassages = lines.slice(0, 4).map(text => ({ sourceId: nextSource.id, text }));
+  const reuseStarted = await noModelRuntime.call('generation.translation.start', { documentId: updated.documentId, passages: reusedPassages });
+  assert.ok(reuseStarted.jobId, `expected a reuse job without a model, got: ${JSON.stringify(reuseStarted)}`);
+  const reuseDone = await noModelRuntime.call('job.wait', { jobId: reuseStarted.jobId, timeoutSeconds: 30 });
+  assert.equal(reuseDone.status, 'complete', reuseDone.stage);
+  assert.equal(reuseDone.reused, 4);
+  assert.equal(reuseDone.translated, 0);
+  assert.equal(reuseDone.savedCount, 4);
+  const listed = (await noModelRuntime.call('materials.translation.list', { documentId: updated.documentId })).items;
+  assert.equal(listed.length, 4);
+  assert.ok(listed.every(entry => entry.reused === true));
+
+  // Mixed scope (has the new paragraph that needs a model) is still refused cleanly without a model.
+  const refused = await noModelRuntime.call('generation.translation.start', { documentId: updated.documentId, scope: { sourceIds: [nextSource.id] } });
+  assert.deepEqual([refused.available, refused.reason], [false, 'model_unavailable']);
+
+  // Pure reuse via scope (when every paragraph in the scope is unchanged) also succeeds without a model.
+  const unchangedBody = `${markdown}\n`;
+  const sameDoc = await noModelRuntime.call('materials.document.import', { filename: 'notes.md', documentId: f.imported.documentId, dataBase64: Buffer.from(unchangedBody).toString('base64') });
+  const scopeSource = sameDoc.document.sources[0];
+  const scopeReuse = await noModelRuntime.call('generation.translation.start', { documentId: sameDoc.documentId, scope: { sourceIds: [scopeSource.id] } });
+  assert.ok(scopeReuse.jobId, `expected a scope reuse job without a model, got: ${JSON.stringify(scopeReuse)}`);
+  const scopeDone = await noModelRuntime.call('job.wait', { jobId: scopeReuse.jobId, timeoutSeconds: 30 });
+  assert.equal(scopeDone.status, 'complete', scopeDone.stage);
+  assert.equal(scopeDone.reused, 15);
+  assert.equal(scopeDone.translated, 0);
+});
