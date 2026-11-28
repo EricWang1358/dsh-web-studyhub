@@ -214,7 +214,7 @@ export const FEATURES = Object.freeze([
   feature({ id: 'material-facets', area: 'generate', title: '按类型或内容分类筛选资料', page: 'generate', anchors: ['source-filters', 'generate-sources', 'generate-from-sources'], prepare: 'materials',
     aliases: ['类型', '内容分类', '分类', '筛选', '只看 PDF', '按格式', 'AI 智能分类', '智能分类', '归类', 'type', 'category', 'filter', 'ai classify', 'classify'],
     path: ['创建题组', '01 / 选择资料', '类型与分类'],
-    what: '资料多于 6 份时，列表上方「筛选资料…」旁边有一个筛选按钮：点开后可以按「类型」和「内容分类」只显示一部分资料，「AI 智能分类」也在这里（它要用模型）。收起后，正在用的筛选写在下一行，点「清除筛选」就恢复全部。「资料」页的列表上方也有同样的类型与分类筛选。' }),
+    what: '资料多于 6 份时，列表上方「筛选资料…」旁边有一个筛选按钮：点开后可以按「类型」和「内容分类」只显示一部分资料，「AI 智能分类」也在这里（它要用模型）。收起后，正在用的筛选写在下一行，点「清除筛选」就恢复全部。「资料」页也有同样的类型与分类筛选，在搜索框旁的「筛选与分组」里。' }),
   feature({ id: 'top-up', area: 'generate', title: '为没覆盖的部分补题', page: 'draft', anchors: ['coverage-topup', 'draft-publish'], prepare: 'draft',
     aliases: ['补题', '补齐', '没覆盖', '补全题目', '接着补', 'top up', 'top-up', 'coverage gap'],
     path: ['草稿与发布', '为没覆盖的部分补题'],
