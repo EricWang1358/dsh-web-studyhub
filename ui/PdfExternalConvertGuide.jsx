@@ -14,12 +14,13 @@ import {
   EXTERNAL_PDF_PRIVACY_NOTICE,
   EXTERNAL_PDF_SCOPE_NOTE,
   EXTERNAL_PDF_TOOLS,
-  PAGE_MARKER,
 } from './pdf-external-guide.js';
-import css from './mineru.css';
+import { ConvertedFileFormats, toolMetaLine } from './converter-lines.jsx';
+import css from './pdf-external-guide.css';
 
 /* 「想用外部工具转换？」 + 「转换完成后怎么导入」 (#1765).
-   Shared across PDF conversion entry (PdfConversion), job detail (PdfDetail), and Settings (MineruPane).
+   Shared across PDF conversion entry (PdfConversion), job detail (PdfDetail), and Settings (MineruPane). Not in the workspace's first load: PdfDetail, which is,
+   brings it through ui/pdf-external-guide-lazy.jsx (tests/workspace-closure-pages.test.mjs).
    Plain copyable text URLs only: StudyHub never invokes third-party conversion APIs or proxies files. */
 
 function selectElementText(node) {
@@ -32,14 +33,6 @@ function selectElementText(node) {
     selection?.removeAllRanges?.();
     selection?.addRange?.(range);
   } catch { /* selection API unavailable in this environment */ }
-}
-
-/** Licence, platforms and outputs of a catalogue tool on one line (the line a tool card shows). */
-export const toolMetaLine = tool => [ui(tool.license), tool.platforms.map(platform => ui(platform)).join(' / '), ...(tool.outputs ? [tool.outputs.join(', ')] : [])].join(' · ');
-
-/** What to download once a converter is done: the one line the PaddleOCR option (LargeDocumentCard) and step 1 below both say. */
-export function ConvertedFileFormats() {
-  return <>{ui('解析完成后，下载 JSON 结果文件（或带')}{' '}<code translate="no">{PAGE_MARKER}</code>{' '}{ui('页码标记的 Markdown）')}</>;
 }
 
 /** Step 1: the file to download, the formats StudyHub reads and its limits (the same sentence and constants the import hub's drop area uses). */
@@ -94,7 +87,7 @@ function ExternalToolRow({ entry }) {
 }
 
 export default function PdfExternalConvertGuide({ defaultOpen = false, className, ...rest }) {
-  useInjectCss(css, 'study-mineru');
+  useInjectCss(css, 'study-pdf-ext-guide');
   return (
     <Disclosure
       summary={ui(EXTERNAL_PDF_GUIDE_TITLE)}
