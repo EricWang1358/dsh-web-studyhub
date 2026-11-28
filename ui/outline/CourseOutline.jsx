@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
-import { Button, Checkbox, Combobox, Disclosure, EmptyState, ErrorState, LoadingState, PageHeader, SegmentedControl, Select, TextInput, Tooltip } from '../components/index.js';
+import { Button, Checkbox, Combobox, Disclosure, EmptyState, ErrorState, Field, LoadingState, PageHeader, SegmentedControl, Select, TextInput, Tooltip } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
 import { useInjectCss } from '../shared.js';
 import { drawnScale } from '../drawn-scale.js';
@@ -334,8 +334,9 @@ function Organise({ book, documents, running, writing, model, quiet, coverage, g
         onClick={ask ? () => setAsking('outline') : startOutline}>{ui('生成总纲')}</Button>}
       {!sample && <Button variant={bookMain ? 'primary' : book ? 'quiet' : 'secondary'} size={bookMain || !book ? undefined : 'sm'} icon="book" disabled={off}
         onClick={ask && !book?.notes ? () => setAsking('book') : startBook}>{rest ? ui('生成全部其余章节') : book?.notes ? ui('更新全书') : ui('生成复习全书')}</Button>}
-      {actions.setCoverage && <Select className="outline-organise__level" aria-label={ui('讲解详尽程度')} value={coverage} options={levelOptions()} disabled={off}
-        onChange={value => actions.setCoverage(value)} />}
+      {actions.setCoverage && <Field inline className="outline-organise__level-field" label={ui('讲解详尽程度')}>
+        <Select className="outline-organise__level" value={coverage} options={levelOptions()} disabled={off} onChange={value => actions.setCoverage(value)} />
+      </Field>}
       {book && <Tooltip layer content={rebuildTipText()}><Button variant="quiet" size="sm" icon="refresh" disabled={off} onClick={() => actions.organise(chosen())}>{ui('重新整理')}</Button></Tooltip>}
       {pickable && <BookPick key={book.id} parts={book.parts} built={!!book.notes} off={off} showTip={!showTip} onScale={actions.pickScale} onBuild={chapters => actions.writeBook(chosen(), { chapters })} />}
       {choices.length > 0 && <Disclosure className="outline-papers" summary={used.length ? ui('更改样卷') : ui('提供了试卷？')} meta={papers.size ? uiFormat('已选 {0} 份', [papers.size]) : null}>
@@ -436,11 +437,14 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
   const stale = book?.notes ? (book.notes.stale && !book.notes.sample ? ui('资料有更新，建议更新全书') : null) : book?.stale ? ui('资料有更新，建议重新整理') : null;
   // With an outline the book is the main action, so 创建题组 of a course without questions is the quiet one.
   const create = { label: ui('创建题组'), iconEnd: 'arrow-right', onClick: actions.onCreate };
+  // While no 复习全书 is written, one line says what it is: inside the offer's box when there is no outline yet, else above the outline's line.
+  const offer = !book && outline.status === 'ok' && outline.documents.length > 0;
+  const bookIntro = !book?.notes && outline.status === 'ok' && outline.documents.length > 0 && <p className="outline-book-intro">{bookIntroText()}</p>;
   return (
     <section ref={pageRef} className="page outline-page">
       {header}
       {companionsSlot}
-      {!book?.notes && outline.status === 'ok' && outline.documents.length > 0 && <p className="outline-book-intro">{bookIntroText()}</p>}
+      {!offer && bookIntro}
       {book && <div className="outline-book-line">
         <p className="outline-book-line__basis">{basisText(book.orderBasis)}</p>
         {book.notes && actions.onOpenBook && <Button size={openMain ? undefined : 'sm'} variant={openMain ? 'primary' : 'secondary'} iconEnd="arrow-right" className="outline-book-line__open" onClick={() => actions.onOpenBook()}>{ui('打开书页')}</Button>}
@@ -455,7 +459,8 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
         {book.notes && unbuiltText(book.parts) && <p className="outline-book-line__coverage" data-book-unbuilt="">{unbuiltText(book.parts)}</p>}
         {organise}
       </div>}
-      {!book && outline.status === 'ok' && outline.documents.length > 0 && <section className="outline-organise" aria-label={ui('生成总纲')} data-tour="outline-organise">
+      {offer && <section className="outline-organise" aria-label={ui('生成总纲')} data-tour="outline-organise">
+        {bookIntro}
         <p className="outline-organise__text">{offerText(outline.documents.length)}</p>
         {organise}
       </section>}

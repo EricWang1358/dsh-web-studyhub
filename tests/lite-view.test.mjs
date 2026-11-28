@@ -90,7 +90,6 @@ const HIDDEN_BLOCKS = {
   '推荐下一步': /推荐下一步/,
   '只学这个主题': /只学这个主题/,
   'desk-play strip': /data-stub="desk-play"/,
-  '查看图谱': /查看图谱/,
   'topic-group reminder': /个主题，还没按知识域归并/,
   'what is open inside 全局笔记本': /class="nb-search"/,
 };
@@ -277,6 +276,10 @@ test('ON: the home leaves each listed block out and keeps each kept one; DailyPl
   // The only thing on the home that says, unasked, that another course's exam is near: it draws itself only inside a course's final weeks.
   assert.match(page, /data-stub="crunch"/);
   assert.deepEqual(written.filter((key) => key !== rules.LITE_VIEW_KEY), [], 'no dismissal or other key is written');
+  // The 学习目录 heading's 查看图谱 is drawn only while the desk has no 掌握图谱 of its own (#1695): lite leaves it out then too.
+  const unmapped = () => { const props = homeElementProps(mapProps, richLibrary()); delete props.actions.onOpenMasteryMap; return renderToStaticMarkup(provided(null, h(app.StudyMap, props))); };
+  assert.match(withLite(false, unmapped), /查看图谱/);
+  assert.doesNotMatch(withLite(true, unmapped), /查看图谱/);
 });
 
 test('ON keeps the door to the main chat that only the 下一步 card had: it moves into 其他开始方式', () => {

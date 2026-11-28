@@ -153,6 +153,71 @@ test('the compact card offers no button that belongs to another step than the on
   }
 });
 
+test('#1680: material archived after its draft was made leaves the third step\'s button; while the card marks step 2 it is still 添加资料', () => {
+  m.setUiLanguage('zh');
+  const archived = m.firstRunLine(library({ sources: [{ ...mine, archived: true }], drafts: [draft] }), { publishAtOnce: true });
+  assert.equal(archived.steps[1].status, 'todo');
+  assert.equal(m.compactAction(archived, on).label, '发布并开始练');
+  const first = m.firstRunLine(library({ sample: SAMPLE, sources: [{ id: 'sample-src', sample: true, title: '示例讲义' }] }));
+  assert.equal(first.step, 1);
+  assert.equal(m.compactAction(first, on).label, '添加资料');
+});
+
+test('#1681: with the sample loaded and no deck of their own, one visible secondary button starts a round of the sample deck', () => {
+  m.setUiLanguage('zh');
+  const decks = [{ id: 'sample-deck', sample: true }];
+  const sampled = library({ sample: SAMPLE, decks, sources: [{ id: 'sample-src', sample: true, title: '示例讲义' }] });
+  const line = m.firstRunLine(sampled);
+  assert.equal(line.sampleDeckId, 'sample-deck');
+  const started = [];
+  const handlers = { ...on, practiseSample: (deckId) => started.push(deckId) };
+  for (const [form, draw] of [['compact', compact], ['page', page]]) {
+    const markup = draw(line, { on: handlers, sample: SAMPLE });
+    const button = markup.match(/<button[^>]*data-first-run="practise-sample"[^>]*>(.*?)<\/button>/);
+    assert.ok(button, `${form}: the sample round is offered without opening a fold`);
+    assert.match(button[0], /sh-btn--secondary/, `${form}: secondary`);
+    assert.match(text(button[1]), /练一轮示例题/, form);
+    assert.equal(primaries(markup), form === 'compact' ? 1 : 0, `${form}: 添加资料 stays the one primary (the page form's is secondary beside the sample banner)`);
+    assert.doesNotMatch(draw(line, { on, sample: SAMPLE }), /practise-sample/, `${form}: no handler, no dead button`);
+  }
+  // Gone once the sample is removed, when its deck is archived or deleted, and with a deck of the learner's own (the whole line goes).
+  for (const [why, data] of [
+    ['removed', library()],
+    ['not loaded', library({ sample: { ...SAMPLE, loaded: false }, decks })],
+    ['deck deleted', library({ sample: { ...SAMPLE, deckId: null }, decks: [] })],
+    ['deck archived', library({ sample: SAMPLE, decks: [{ id: 'sample-deck', sample: true, archived: true }] })],
+  ]) {
+    assert.equal(m.firstRunLine(data).sampleDeckId, '', why);
+    assert.doesNotMatch(compact(m.firstRunLine(data), { on: handlers }), /practise-sample/, why);
+  }
+  assert.equal(m.firstRunLine(library({ sample: SAMPLE, decks: [...decks, { id: 'own' }] })).show, false);
+  m.setUiLanguage('en');
+  try { assert.doesNotMatch(text(compact(line, { on: handlers, todayLabel: 'Thu 22 Oct' })), han); } finally { m.setUiLanguage('zh'); }
+});
+
+test('#1681: the home starts the sample round through the start path of the app', async () => {
+  const app = await loadInteractiveUi(`
+    export { default as StudyMap } from './ui/StudyMap.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const { StudyMap, StudyServicesContext, setUiLanguage } = app.exports;
+  setUiLanguage('zh');
+  const started = [];
+  const data = library({ root: '/lib-sample-round', sample: SAMPLE, decks: [{ id: 'sample-deck', sample: true, title: '示例题组', cards: [] }],
+    runs: [], today: { due: 0, weak: 0, new: 0, size: 0 }, focus: { mode: 'all', course: '*', courses: [], fresh: [] } });
+  await withBrowserGlobals(async () => {
+    const mounted = app.mount(() => app.React.createElement(StudyServicesContext.Provider, { value: { busy: false, call: async () => ({}), act: async () => ({}), host: {} } },
+      app.React.createElement(StudyMap, { data, actions: { start: (args) => started.push(args) }, firstRun: { form: 'compact', on: {} } })));
+    try {
+      const button = mounted.find((node) => node.props?.['data-first-run'] === 'practise-sample');
+      assert.ok(button, 'the compact card on the home draws the button');
+      await mounted.act(() => button.props.onClick());
+      assert.deepEqual(started, [{ mode: 'path', scope: [{ deckId: 'sample-deck' }] }]);
+    } finally { mounted.unmount(); }
+  });
+});
+
 test('the sample course never counts, and the line is gone once a deck of the learner\'s own is published', () => {
   const sampleOnly = library({ sample: SAMPLE, decks: [{ id: 'sample-deck', sample: true }], sources: [{ id: 'sample-src', sample: true, title: '示例讲义' }],
     drafts: [{ id: 'sample-draft', sample: true, cards: [] }], jobs: [job('running', { draftId: 'sample-draft' })] });

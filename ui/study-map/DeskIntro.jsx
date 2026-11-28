@@ -10,6 +10,7 @@ import CourseHeading from './CourseHeading.jsx';
 import OutlineEntry from './OutlineEntry.jsx';
 import MasteryBar from './MasteryBar.jsx';
 import { HandOff } from '../hand-off/HandOff.jsx';
+import { FrontDoor } from './NextStepCard.jsx';
 import { META_DOT } from '../format.js';
 import { useStudy } from '../study-context.jsx';
 import LetterpressNumber from '../letterpress/LetterpressNumber.jsx';
@@ -64,6 +65,9 @@ export default function DeskIntro({ data, home, mastery, start, resume, endRun, 
   const extras = liteShows(lite, 'home.course-extras');
   // 「不知道从哪开始？」 for a learner with decks is on the 下一步 card; while the lite view draws no card, it waits under 其他开始方式.
   const frontDoor = lite && !nextShown;
+  // The empty card's other way to the main chat (a file in the workspace) waits under 其他开始方式, so the surface has one hand-off (#1696).
+  const folded = plan.kind === 'empty' ? plan.more || [] : [];
+  const offers = plan.kind !== 'empty' && (alternatives.length > 0 || frontDoor);
   const coursePace = paceForecast
     ? (focusedCourse != null && focusedCourse !== '*'
       ? (paceForecast.courses?.[focusedCourse] || null)
@@ -80,7 +84,7 @@ export default function DeskIntro({ data, home, mastery, start, resume, endRun, 
         <MethodLine method={data.focus?.method} courseId={data.focus?.courseId} onCourseSettings={onCourseSettings} />
         <FocusProgressLine progress={data.focus?.progress} courseId={data.focus?.courseId} lock={busy} start={start} onCourseSettings={onCourseSettings} onGenerateFocus={onGenerateFocus} />
         {mastery.primary && <DeskMastery mastery={mastery} onOpenMasteryMap={onOpenMasteryMap} />}
-        {coursePace && <PaceMeta variant="course" forecast={coursePace} pace={paceForecast?.pace} asOf={paceForecast?.asOf} />}
+        {coursePace && <PaceMeta className="desk-pace" variant="course" forecast={coursePace} pace={paceForecast?.pace} asOf={paceForecast?.asOf} />}
       </>}
       {/* Without the extras there is no 推荐下一步; what a newcomer's empty home says about its next step stays. */}
       {(extras || (!data.next && starter)) && <p className="desk-next">
@@ -97,21 +101,23 @@ export default function DeskIntro({ data, home, mastery, start, resume, endRun, 
         <p className="desk-also">
           {/* The other ways in beside 再添加资料 are text actions like it, so they are ink too (sh-btn--ink; the hand-off link by .desk-also in desk.css) and one size: one row, one system (#1074). */}
           {plan.also.map((entry) => (Array.isArray(entry) ? <Button key={entry[0]} variant="link" className="sh-btn--ink" icon={entry[2]} lock={busy} onClick={entry[1]}>{entry[0]}</Button>
-            : entry.onClick ? <AddSourceButton key={entry.label} more variant="link" lock={busy} onClick={entry.onClick} />
-              : <HandOff key={entry.handOff.id} id={entry.handOff.id} input={entry.handOff.input} lead={entry.handOff.lead} what={entry.handOff.what} size="md" disabled={busy} />))}
+            : <AddSourceButton key={entry.label} more variant="link" lock={busy} onClick={entry.onClick} />))}
         </p>
       )}
-      {plan.kind === 'empty' && <p className="desk-also"><HandOff id="guide.start" lead={ui('不知道从哪开始？')} what={ui('让主会话看一眼你的学习库，再说两三条能马上开始的路。')} disabled={busy} /></p>}
-      {plan.kind !== 'empty' && (alternatives.length > 0 || frontDoor) && (
+      {plan.kind === 'empty' && <p className="desk-also"><FrontDoor /></p>}
+      {(offers || folded.length > 0) && (
         <details className="desk-more">
           <summary>{ui('其他开始方式')}</summary>
-          {alternatives.length > 0 && <p className="desk-also">
+          {folded.length > 0 && <p className="desk-also">
+            {folded.map(({ handOff }) => <HandOff key={handOff.id} id={handOff.id} input={handOff.input} lead={handOff.lead} what={handOff.what} copyLabel={handOff.copyLabel} size="md" disabled={busy} />)}
+          </p>}
+          {offers && alternatives.length > 0 && <p className="desk-also">
             {alternatives.map(([label, run, hint]) => {
               const btn = <Button key={label} variant="link" lock={busy} onClick={run}>{label}</Button>;
               return hint ? <Tooltip key={label} layer content={hint}>{btn}</Tooltip> : btn;
             })}
           </p>}
-          {frontDoor && <p className="desk-also"><HandOff id="guide.start" lead={ui('不知道从哪开始？')} what={ui('让主会话看一眼你的学习库，再说两三条能马上开始的路。')} disabled={busy} /></p>}
+          {offers && frontDoor && <p className="desk-also"><FrontDoor /></p>}
         </details>
       )}
       {otherRuns.length > 0 && <OtherRuns runs={otherRuns} otherCourse={otherCourse} resume={resume} endRun={endRun} />}

@@ -281,7 +281,8 @@ test('the empty home: the workspace-file link is the shared unit (import.file, m
   const data = { decks: [], sources: [], drafts: [], focus: {} };
   const actions = Object.fromEntries(['start', 'resume', 'openDraft', 'addSource', 'importLibrary', 'generateFromSources', 'startCourseFlow', 'onCoachPractice', 'onWeakPoints'].map(name => [name, noop]));
   const home = m.buildHomePlan({ data, today: { due: 0, weak: 0, new: 0, size: 0 }, runs: [], runFor: () => null, activeJobs: [], inFocus: () => true, actions, revealActivity: noop });
-  const entry = home.plan.also.find(item => !Array.isArray(item));
+  assert.ok(home.plan.also.every(item => Array.isArray(item)), 'the main row keeps the plain links');
+  const [entry] = home.plan.more;
   assert.deepEqual(entry.handOff.id, 'import.file');
   assert.deepEqual(entry.handOff.input, { purpose: 'material', goal: 'generate', area: '学习库' }, 'the learner is on the home, not in 添加资料');
   assert.ok(m.handOffText('import.file', entry.handOff.input, 'zh').startsWith('我在 StudyHub 的「学习库」想用工作区里的一个文件出第一组题'));
@@ -292,4 +293,25 @@ test('the empty home: the workspace-file link is the shared unit (import.file, m
   assert.equal(handOffs(html, 'import.file'), 1);
   assert.doesNotMatch(html, /在对话中用工作区文件出题/);
   assert.doesNotMatch(readFileSync('ui/study-map/home-plan.js', 'utf8'), /askInChat|canChat/);
+});
+
+test('#1696: in a host with no main chat the home keeps one hand-off on its surface, the other under 其他开始方式, and each says what it copies', () => {
+  const data = { decks: [], sources: [], drafts: [], focus: {} };
+  const actions = Object.fromEntries(['start', 'resume', 'openDraft', 'addSource', 'importLibrary', 'generateFromSources', 'startCourseFlow', 'onCoachPractice', 'onWeakPoints'].map(name => [name, noop]));
+  const home = m.buildHomePlan({ data, today: { due: 0, weak: 0, new: 0, size: 0 }, runs: [], runFor: () => null, activeJobs: [], inFocus: () => true, actions, revealActivity: noop });
+  const draw = host => renderToStaticMarkup(inApp(m, h(m.DeskIntro, { data: { ...data, next: null }, home, mastery: {}, start: noop, resume: noop, endRun: noop }), { data, host }));
+  const copy = draw({ capabilities: { chat: false } });
+  const fold = copy.match(/<details class="desk-more">[\s\S]*?<\/details>/)?.[0] || '';
+  assert.match(fold, /<summary>其他开始方式<\/summary>/);
+  assert.equal(handOffs(copy, 'guide.start'), 1);
+  assert.equal(handOffs(copy, 'import.file'), 1);
+  assert.equal(handOffs(fold, 'import.file'), 1, 'the workspace file is another way to start: folded');
+  assert.equal(handOffs(fold, 'guide.start'), 0, 'the way in for a learner who is lost stays on the surface');
+  const words = id => [...copy.matchAll(/<button[^>]*>.*?<\/button>/g)].map(match => match[0]).find(tag => tag.includes(`data-hand-off="${id}"`)).replace(/<[^>]+>/g, '').trim();
+  assert.equal(words('guide.start'), '复制「怎么开始」的话');
+  assert.equal(words('import.file'), '复制「用文件出题」的话');
+  // With a main chat the label is the shared one, as everywhere (one fact, one wording); only the copy mode has to tell the two apart.
+  const chat = draw({});
+  assert.equal((chat.match(/>发给主会话<\/button>/g) || []).length, 2);
+  assert.doesNotMatch(chat, /复制「/);
 });

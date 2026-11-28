@@ -28,9 +28,12 @@ export function firstRunDraft(data) {
   return (data?.drafts || []).filter((draft) => !draft.sample && !sample.has(draft.id)).at(-1) || null;
 }
 
+/** The sample course's practice deck while a round of it can be started (loaded, there, not archived), else ''. */
+const sampleDeckToPractise = (data) => (data.sample?.loaded && (data.decks || []).find((deck) => deck.id === data.sample.deckId && !deck.archived)?.id) || '';
+
 /**
- * The line for a library snapshot: { show, step, steps }. `show` is false once the learner has published a deck of their own (and for no snapshot); then
- * `step` is -1 and `steps` is empty. Otherwise `step` is the index of the one step that is open, and `steps` are, in FIRST_RUN_STEPS order:
+ * The line for a library snapshot: { show, step, steps, sampleDeckId }. `show` is false once the learner has published a deck of their own (and for no snapshot); then
+ * `step` is -1 and `steps` is empty (no `sampleDeckId`). `sampleDeckId` is the sample deck a learner can try a round of while the line is up (#1681), or ''. Otherwise `step` is the index of the one step that is open, and `steps` are, in FIRST_RUN_STEPS order:
  *   model     { status: 'done' | 'todo', ready, reason, label, verified }: the readiness (modelReadiness); `verified` when DSH said the key is there too
  *   material  { status: 'done' | 'todo', count, title, sourceIds, sampleCount }: the learner's own materials (a PDF is one), the newest one's title, their ids
  *             (an archived one left out, as 资料 and 创建题组 leave it out); `sampleCount` the sample's materials, which the step names but never counts (#1087)
@@ -69,5 +72,5 @@ export function firstRunLine(data, { publishAtOnce = false, shortfallAction = nu
     sourceIds: material.sourceIds, modelReady: readiness.ready };
   const working = ['generating', 'failed', 'stopped', 'draft-clean', 'draft-review'].includes(status);
   const step = working ? 2 : model.status === 'todo' ? 0 : material.status === 'todo' ? 1 : 2;
-  return { show: true, step, steps: [model, material, deck] };
+  return { show: true, step, steps: [model, material, deck], sampleDeckId: sampleDeckToPractise(data) };
 }

@@ -50,8 +50,9 @@ export const dailyPathArgs = (today) => practiceArgs(undefined, { fresh: false, 
  *
  * Returns { interview, route, starter, headline, plan, todayAction, alternatives, shownRun,
  * otherRuns, otherCourse, todayLabel }. `todayAction` is { label, run, disabled }: start (or continue) today's own round, even when `plan` resumes another. `plan` is { kind, eyebrow, count, unit,
- * detail, action: { label, run, disabled }, also: [[label, run] | { handOff: { id, input, lead, what } }], depth }. A handOff entry is drawn by the shared
- * 「发给主会话」 unit (ui/hand-off/), never as a link of its own.
+ * detail, action: { label, run, disabled }, also: [[label, run] | an addSourceAction], more?: [{ handOff: { id, input, lead, what, copyLabel } }], depth }.
+ * `more` (the empty card's) waits under 其他开始方式: the home keeps one hand-off to the main chat on its surface (#1696). A handOff entry is drawn by the
+ * shared 「发给主会话」 unit (ui/hand-off/), never as a link of its own; `copyLabel` is what its button says where there is no main chat and it copies.
  */
 export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, actions, revealActivity, revealDrafts, guidedSession }) {
   const { start, resume, openDraft, addSource, importLibrary, generateFromSources, onCoachPractice, onWeakPoints, onCourseSettings, onAdvanceStage, onPickPages } = actions;
@@ -105,8 +106,8 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
             action: { ...addSourceAction(addSource), run: addSource },
             // A file already in the workspace: the main chat adds it and makes a first set from it (the hand-off plan item 5; offered with or without a
             // chat: without one the message is copied).
-            also: [jsonLink, { handOff: { id: 'import.file', input: { purpose: 'material', goal: 'generate', area: '学习库' }, lead: '用工作区里的文件出题：',
-              what: '让主会话把工作区里的文件加为资料，再出 10 道题；文件在输入框里用 @ 选' } }] }
+            also: [jsonLink], more: [{ handOff: { id: 'import.file', input: { purpose: 'material', goal: 'generate', area: '学习库' }, lead: '用工作区里的文件出题：',
+              what: '让主会话把工作区里的文件加为资料，再出 10 道题；文件在输入框里用 @ 选', copyLabel: '复制「用文件出题」的话' } }] }
     : null;
   const breakdown = [
     today.due && uiFormat('{0} 题到期', [today.due]),
@@ -243,7 +244,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
   /* The other ways to start (new questions, due review, the flow, personalised questions, weak points) sit under one folded
      line: the card is the one thing to continue, the recommendation the one next step. */
   const alternatives = [
-    // (a hand-off entry is drawn by the shared unit on the empty card only, never as a link of the fold)
+    // (only the plain links of `also` become links of the fold)
     ...plan.also.filter(Array.isArray).map(([label, run, hint]) => (hint ? [label, run, hint] : [label, run])),
     ...(data.coach?.ready > 0 && onCoachPractice ? [[uiFormat('刷 {0} 道为你定制的题', [data.coach.ready]), onCoachPractice,
       ui('从你答错、标记太简单/太难和只练了概念的地方出发，换成具体场景再练一遍。')]] : []),

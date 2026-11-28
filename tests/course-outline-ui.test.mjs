@@ -14,6 +14,7 @@ const ui = await loadUi(`
   export { default as CourseRoute } from './ui/CourseRoute.jsx';
   export { default as DeskIntro } from './ui/study-map/DeskIntro.jsx';
   export { default as CatalogHeading } from './ui/study-map/CatalogHeading.jsx';
+  export { default as StudyMap } from './ui/StudyMap.jsx';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';
   export { PAGES, backLabelOf, navLabelOf } from './ui/pages.js';
@@ -279,7 +280,7 @@ test('the home: the folded 课程路线 list is gone, the course area links to t
 const buttons = html => [...html.matchAll(/<button\b[^>]*>/g)].map(match => match[0]);
 const outlineButtons = html => buttons(html).filter(tag => /outline-entry/.test(tag));
 
-test('the home: the 总纲 is a real secondary button beside the course title, and in the 学习目录 heading before 查看图谱', () => {
+test('the home: the 总纲 is one real secondary button, beside the course title (the 学习目录 heading does not repeat it, #1695)', () => {
   const route = { course: 'Databases', cards: 10, learned: 4, mastered: 1, weak: 0, current: 0, next: null,
     chapters: [{ deckId: 'd1', title: 'Indexes deck', total: 6, learned: 4, weak: 0, mastered: 1, status: 'current' }] };
   const data = { decks: [{ id: 'd1' }], focus: { mode: 'class', course: 'Databases', courses: [{ name: 'Databases' }], route } };
@@ -299,19 +300,36 @@ test('the home: the 总纲 is a real secondary button beside the course title, a
   assert.equal(outlineButtons(desk(noop, { route: null })).length, 0, 'no course route, no button');
   assert.equal(outlineButtons(desk(noop, { route: { ...route, chapters: [] } })).length, 0, 'a route without chapters, no button');
 
-  const heading = onShowOutline => render(h(ui.CatalogHeading, { count: 2, showArchived: false, hasDecks: true, hasSources: true, course: 'Databases', merge: { busy: false, run: noop }, busy: false, slain: null,
-    addSource: noop, createManual: noop, importLibrary: noop, manage: noop, onShowGraph: noop, onShowOutline }));
-  const catalog = heading(noop);
-  assert.equal(outlineButtons(catalog).length, 1, 'one 总纲 button in the 学习目录 heading');
-  assert.match(outlineButtons(catalog)[0], /^<button type="button" class="sh-btn sh-btn--secondary sh-btn--sm outline-entry"/);
-  assert.equal(buttons(catalog).findIndex(tag => /outline-entry/.test(tag)), 0, 'the first of the heading buttons');
-  assert.ok(catalog.indexOf('outline-entry') < catalog.indexOf('查看图谱'), '总纲 before 查看图谱');
-  assert.equal(outlineButtons(heading(undefined)).length, 0, 'hidden when it cannot work');
+  const heading = over => render(h(ui.CatalogHeading, { count: 2, showArchived: false, hasDecks: true, hasSources: true, course: 'Databases', merge: { busy: false, run: noop }, busy: false, slain: null,
+    addSource: noop, createManual: noop, importLibrary: noop, manage: noop, onShowGraph: noop, onShowOutline: noop, ...over }));
+  const catalog = heading();
+  assert.equal(outlineButtons(catalog).length, 0, 'no second 总纲 in the 学习目录 heading');
+  assert.match(textOf(catalog), /查看图谱/);
+  assert.doesNotMatch(textOf(heading({ onShowGraph: undefined })), /查看图谱/, 'no graph handler, no button');
   assert.doesNotMatch(catalog + withIt, /sh-btn--primary/, 'neither entry is a primary button');
 
-  const wording = english(() => desk(noop) + heading(noop));
+  const wording = english(() => desk(noop) + heading());
   assert.doesNotMatch(textOf(wording), han, textOf(wording).match(/.{0,30}[㐀-鿿].{0,30}/)?.[0]);
   assert.match(textOf(wording), /Course outline Find questions by the chapters of your materials/);
+});
+
+test('#1695: the home draws one 总纲 and one graph entry: 掌握图谱 under mastery, else 查看图谱 on the 学习目录 heading', () => {
+  const route = { course: 'Databases', cards: 10, learned: 4, mastered: 1, weak: 0, current: 0, next: null,
+    chapters: [{ deckId: 'd1', title: 'Indexes deck', total: 6, learned: 4, weak: 0, mastered: 1, status: 'current' }] };
+  const deck = { id: 'd1', title: 'Indexes deck', course: 'Databases', folder: 'Databases', topics: [], available: 6, count: 6, createdAt: '2026-09-01T00:00:00Z' };
+  const home = ({ progress = {}, actions = {} } = {}) => render(h(ui.StudyMap, { data: { root: '/one-entry', decks: [deck], progress, sources: [{ id: 's' }], drafts: [], jobs: [], runs: [],
+    today: { due: 0, weak: 0, new: 0, size: 0 }, focus: { mode: 'class', course: 'Databases', courses: [{ name: 'Databases' }], route, fresh: [] } },
+  actions: { onShowOutline: noop, onShowGraph: noop, onOpenMasteryMap: noop, ...actions } }));
+  const count = (html, words) => (html.match(new RegExp(`>${words}<`, 'g')) || []).length;
+  const measured = { d1: { counts: { mastered: 1, familiar: 1, learning: 1, weak: 1, new: 2 }, total: 6, mastery: 40, due: 0, status: 'active', topics: [] } };
+  const full = home({ progress: measured });
+  assert.equal(outlineButtons(full).length, 1, 'one 总纲');
+  assert.deepEqual([count(full, '掌握图谱'), count(full, '查看图谱')], [1, 0], 'one graph entry, under mastery');
+  const unmeasured = home();
+  assert.deepEqual([count(unmeasured, '掌握图谱'), count(unmeasured, '查看图谱')], [0, 1], 'no mastery to show yet: the catalogue keeps the way to the graph');
+  const noMap = home({ progress: measured, actions: { onOpenMasteryMap: undefined } });
+  assert.deepEqual([count(noMap, '掌握图谱'), count(noMap, '查看图谱')], [0, 1], 'no way to the mastery map: the catalogue keeps the way to the graph');
+  assert.equal(outlineButtons(home({ actions: { onShowOutline: undefined } })).length, 0);
 });
 
 function mountOutlineSync(Component, initialProps, overrideServices = services) {

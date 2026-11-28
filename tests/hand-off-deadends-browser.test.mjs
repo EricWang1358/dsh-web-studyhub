@@ -198,7 +198,9 @@ test('发给主会话 at the dead ends of adding files and of jobs: only once th
       await go('library');
       // Since 3.6 an empty library opens on the first-run line; 以后再说 puts it away and the home's desk (with its quiet other ways) is there.
       await page.getByRole('button', { name: '以后再说' }).first().click({ timeout: 30000 });
-      const link = page.locator('.desk-also [data-hand-off="import.file"]');
+      // The workspace file is one of the other ways to start: folded, so the surface has one hand-off (#1696).
+      await page.locator('.desk-more > summary').click();
+      const link = page.locator('.desk-more .desk-also [data-hand-off="import.file"]');
       const text = await handOver(link, { name: 'home-empty', first: '我在 StudyHub 的「学习库」想用工作区里的一个文件出第一组题' });
       assert.match(text, /- 出题：导入后用 generate 出 10 道题，存成草稿给我检查。/);
       assert.equal(await page.getByText('在对话中用工作区文件出题').count(), 0);
