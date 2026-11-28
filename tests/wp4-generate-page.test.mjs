@@ -31,18 +31,30 @@ function render(patch = {}, props = {}) {
 }
 const text = (html) => html.replace(/<[^>]+>/g, " ");
 
-test("generating from materials is the first tab, in plain words", () => {
+test("generating from materials is the first way in, in plain words, on the app's one segmented control (#1700)", () => {
   const html = render();
   assert.doesNotMatch(html, /IMPORT → STUDY|导入或补充题目|从资料补题/);
   assert.equal(html.match(/<h1/g)?.length, 1);
-  const tabs = [...html.matchAll(/<button[^>]*role="tab"[^>]*>(.*?)<\/button>/g)].map((match) => match[0]);
-  assert.ok(tabs.length >= 2, "two ways to create a deck");
-  assert.match(tabs[0], /用资料出题/);
-  assert.match(tabs[0], /aria-selected="true"/);
-  assert.match(tabs[0], /data-tour="generate-from-sources"/);
-  assert.match(tabs[1], /导入 JSON 题组/);
-  assert.match(tabs[1], /已有题目/);
-  assert.doesNotMatch(tabs[1], /推荐/);
+  const group = /<div[^>]*role="group"[^>]*aria-label="创建方式"[^>]*>([\s\S]*?)<\/div>/.exec(html);
+  assert.ok(group, "the ways in are one named group");
+  assert.match(group[0], /class="sh-seg [^"]*source-mode"/, "drawn as every other segmented control, so the chosen one looks chosen");
+  const ways = [...group[1].matchAll(/<button[^>]*>(.*?)<\/button>/g)].map((match) => match[0]);
+  assert.ok(ways.length >= 2, "two ways to create a deck");
+  assert.match(ways[0], /用资料出题/);
+  assert.match(ways[0], /class="sh-seg__item is-active"[^>]*aria-pressed="true"/);
+  assert.match(ways[0], /data-tour="generate-from-sources"/, "the anchor the tour and 找功能 light stays on the button");
+  assert.match(ways[1], /导入 JSON 题组/);
+  assert.match(ways[1], /aria-pressed="false"/);
+  assert.match(ways[1], /data-tour="generate-json"/);
+  assert.equal(ways.filter((way) => /aria-pressed="true"/.test(way)).length, 1, "one is on");
+  assert.equal(ways.filter((way) => /tabindex="0"/.test(way)).length, 1, "one tab stop for the row; the arrow keys move along it");
+  // What the chosen way does is said once, as the group's description, and no panel points at a tab that is not there.
+  const described = /aria-describedby="([^"]+)"/.exec(group[0])?.[1];
+  assert.ok(described, "the group is described");
+  assert.match(html, new RegExp(`<p[^>]*id="${described}"[^>]*>AI 按你的资料出题，并逐题检查</p>`));
+  assert.doesNotMatch(html, /role="tab(panel|list)?"/);
+  assert.match(render({}, { genSource: "json" }), new RegExp(`<p[^>]*id="${described}"[^>]*>已有题目，或外部 AI 生成的题</p>`));
+  assert.doesNotMatch(group[0], /推荐/);
 });
 
 test("the PDF importer is no longer embedded; one link opens the import dialog", () => {

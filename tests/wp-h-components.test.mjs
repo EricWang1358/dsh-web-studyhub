@@ -133,5 +133,5 @@ const files = (dir, out = []) => {
 test('role="tab" lives in components/Tabs.jsx; the remaining hand-written tablists are listed work for other packages (#144)', () => {
   const owners = files(join(process.cwd(), 'ui')).filter(file => /role=["']tab["']/.test(readFileSync(file, 'utf8')))
     .map(file => file.replace(/\\/g, '/').replace(/^.*\/ui\//, 'ui/')).sort();
-  assert.deepEqual(owners, ['ui/components/Tabs.jsx'], 'Generate.jsx uses <Tabs> since wave 3');
+  assert.deepEqual(owners, ['ui/components/Tabs.jsx'], 'a tab list is <Tabs>, never hand-written');
 });

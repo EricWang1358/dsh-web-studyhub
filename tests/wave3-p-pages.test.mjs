@@ -71,7 +71,7 @@ test('Settings gets plain services and data; its panes draw the panels themselve
 
 test('role="tab" lives in Tabs only, and the fold arrows are not hand-drawn glyphs (#144 #146)', () => {
   for (const file of ['ui/Generate.jsx', 'ui/Sources.jsx', 'ui/Skeleton.jsx']) assert.doesNotMatch(read(file), /role=["']tab["']/, file);
-  assert.match(read('ui/Generate.jsx'), /<Tabs\b/);
+  assert.match(read('ui/Generate.jsx'), /<SegmentedControl[^>]*className="source-mode"/, 'the ways in are the shared segmented control (#1700)');
   assert.doesNotMatch(read('ui/Sources.jsx'), /source-group-caret|▸/);
   for (const file of ownedFiles) assert.doesNotMatch(read(file), /className="[^"]*\b(map-caret|course-caret|sk-caret|source-group-caret)\b/, file);
 });

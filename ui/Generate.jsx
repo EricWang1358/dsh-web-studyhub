@@ -18,7 +18,7 @@ import { useGenerationPath } from './use-generation-path.js';
 import { MODES, availableModes, effectiveMode, pathSummary, showsChoice } from './too-big-choice.js';
 import { courseForSources } from '../lib/source-courses.js';
 import { generationRulesOf } from '../lib/courses.js';
-import { Button, Disclosure, EmptyState, Hint, Icon, InlineMessage, PageHeader, SegmentedControl, TabPanel, Tabs, Tooltip, addSourceAction } from './components/index.js';
+import { Button, Disclosure, EmptyState, Hint, Icon, InlineMessage, PageHeader, SegmentedControl, Tooltip, addSourceAction } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { freshGeneration, generationFormDefaults, modelReadiness } from './generation-status.js';
 import { startGeneration } from './generate-start.js';
@@ -194,14 +194,15 @@ export default function Generate({
     setOpening(found);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const tabs = [
-    { id: "files", label: ui("用资料出题"), note: ui("AI 按你的资料出题，并逐题检查"), icon: "sparkle", attrs: { "data-tour": "generate-from-sources" } },
-    { id: "json", label: ui("导入 JSON 题组"), note: ui("已有题目，或外部 AI 生成的题"), icon: "file", attrs: { "data-tour": "generate-json" } },
+    { id: "files", label: ui("用资料出题"), note: ui("AI 按你的资料出题，并逐题检查"), attrs: { "data-tour": "generate-from-sources" } },
+    { id: "json", label: ui("导入 JSON 题组"), note: ui("已有题目，或外部 AI 生成的题"), attrs: { "data-tour": "generate-json" } },
     // Case-study papers (WP12): a long case with open questions, graded criterion by criterion.
-    { id: "case", label: ui("案例分析题"), note: ui("长案例 + 开放题，按评分标准逐项批改"), icon: "file", attrs: { "data-tour": "generate-case" } },
+    { id: "case", label: ui("案例分析题"), note: ui("长案例 + 开放题，按评分标准逐项批改"), attrs: { "data-tour": "generate-case" } },
     // Recording into the conversation needs a chat that can take it (plan C3).
     ...(canChat ? [{ id: "chat", label: ui("在主会话里录题"), note: ui("题册、刷题软件、错题或截图") }] : []),
   ];
   const current = tabs.some((tab) => tab.id === genSource) ? genSource : "files";
+  const wayNoteId = React.useId();
   const invalidQuota = Boolean(gen.kindCounts && typeof gen.kindCounts === "object" && !Array.isArray(gen.kindCounts)
     && kindsOfForm(gen).length >= 2 && kindsOfForm(gen).reduce((sum, k) => sum + (Number(gen.kindCounts?.[k]) || 0), 0) < 1);
   function submit(event) {
@@ -249,14 +250,14 @@ export default function Generate({
       <PageHeader className="generate-header" title={ui("出一组新题")}
         description={ui("用你的资料让 AI 出题；已经有现成的题目，也可以直接导入。")}
         actions={pageAvailable(data, 'examcoach') ? <Button iconEnd="arrow-right" variant="quiet" className="sh-btn--flush-start sh-btn--flush-end" onClick={() => setPage?.('examcoach')}>{ui("去教练先校准考法")}</Button> : undefined} />
-      {/* The row measures its own width (generate-home.css): where the cards no longer fit side by side they become one row of
-          titles and the chosen way's line is said once under it (#575). The tab keeps its note, so a screen reader hears the same name. */}
+      {/* The ways in are the app's one segmented control (#1700), so the chosen one looks chosen. What the chosen way does describes the group; the row measures
+          its own width (generate-home.css) and a narrow one says that line once under it (#575). */}
       <div className="source-mode-frame">
-        <Tabs id="generate" className="source-mode" itemClassName="source-tab" noteClassName="source-tab__note" label={ui("创建方式")} value={current} onChange={setGenSource}
-          items={tabs.map((tab) => ({ value: tab.id, label: tab.label, note: tab.note, attrs: tab.attrs }))} />
-        <p className="source-mode-note" aria-hidden="true">{tabs.find((tab) => tab.id === current)?.note}</p>
+        <SegmentedControl className="source-mode" label={ui("创建方式")} wrap value={current} onChange={setGenSource} aria-describedby={wayNoteId}
+          options={tabs.map((tab) => ({ value: tab.id, label: tab.label, attrs: tab.attrs }))} />
+        <p className="source-mode-note" id={wayNoteId}>{tabs.find((tab) => tab.id === current)?.note}</p>
       </div>
-      <TabPanel id="generate" value={current} selected={current} className="generate-panel" tabIndex={undefined}>
+      <div className="generate-panel">
       {current === "json" ? (
         <JsonImport data={data} openDraft={openDraft} />
       ) : current === "case" ? (
@@ -484,7 +485,7 @@ export default function Generate({
           </form>
         </>
       )}
-      </TabPanel>
+      </div>
     </section>
   );
 }
