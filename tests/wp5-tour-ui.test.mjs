@@ -14,7 +14,7 @@ const compiled = await build({
     export { SampleBanner } from './ui/Welcome.jsx';
     export { default as FirstRunLine } from './ui/first-run/FirstRunLine.jsx';
     export { firstRunLine } from './ui/first-run/line.js';
-    export { TourPopover } from './ui/tour/Tour.jsx';
+    export { default as Tour, TourPopover } from './ui/tour/Tour.jsx';
     export { placePopover } from './ui/tour/geometry.js';
     export { readTourProgress, writeTourProgress, welcomeDismissed, dismissWelcome } from './ui/tour/progress.js';
     export { TOUR_STEPS } from './ui/tour/steps.js';`, resolveDir: process.cwd() },
@@ -103,6 +103,29 @@ test("the tour popover is a labelled, non-modal dialog with progress and Back / 
     onBack: noop, onClose: noop, onSkip: noop, onImport: noop }))), han);
   const en = html(React.createElement(ui.TourPopover, { step, index: 2, total: 17, onNext: noop, onBack: noop, onClose: noop, onSkip: noop }));
   assert.doesNotMatch(text(en), han);
+  ui.setUiLanguage("zh");
+});
+
+test("the card's header says the chapter, and only the full tour offers 跳到下一章, never on the last chapter", () => {
+  ui.setUiLanguage("zh");
+  const steps = ui.TOUR_STEPS.filter((item) => item.only !== "core");
+  const render = (id, extra = {}) => html(React.createElement(ui.Tour, { steps, stepId: id, rootRef: { current: null }, sampleLoaded: true,
+    onEnter: noop, onMove: noop, onClose: noop, onFinish: noop, ...extra }));
+  const dashboard = render("dashboard", { onJump: noop });
+  assert.match(text(dashboard), /功能导览 · 复习/);
+  assert.match(dashboard, /<button[^>]*type="button"(?:(?!<\/button>).)*跳到下一章/s, "a real button: Tab reaches it and Enter presses it");
+  assert.doesNotMatch(dashboard.match(/<button(?:(?!<\/button>).)*跳到下一章/s)[0], /sh-btn--primary/, "quiet: 下一步 stays the one filled button");
+  assert.match(text(render("welcome", { onJump: noop })), /跳到下一章/);
+  assert.doesNotMatch(text(render("welcome", { onJump: noop, sampleLoaded: false })), /跳到下一章/, "the sample is chosen first");
+  assert.doesNotMatch(text(render("skeleton", { onJump: noop })), /跳到下一章/, "更多 is the last chapter");
+  assert.doesNotMatch(text(render("finish", { onJump: noop })), /跳到下一章/);
+  assert.doesNotMatch(text(render("dashboard")), /跳到下一章/, "the short tour has no chapter jump");
+  ui.setUiLanguage("en");
+  const english = text(render("dashboard", { onJump: noop }));
+  assert.match(english, /Feature tour · Review/);
+  assert.match(english, /Next chapter/);
+  assert.doesNotMatch(english, han);
+  assert.match(text(render("settings-model", { onJump: noop })), /Feature tour · Setup/);
   ui.setUiLanguage("zh");
 });
 

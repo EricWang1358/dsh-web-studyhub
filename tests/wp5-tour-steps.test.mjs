@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { readFile, readdir, access } from "node:fs/promises";
 import { join } from "node:path";
 import { anchorsInSource, sourceFiles } from "./helpers/tour-anchors.mjs";
-import { TOUR_STEPS, availableTourSteps, tourNeighbour, tourKeyAction, tourStepCopy, CORE_TOUR_LENGTH, CORE_ORDER } from "../ui/tour/steps.js";
+import { TOUR_STEPS, TOUR_CHAPTERS, availableTourSteps, tourNeighbour, tourNextChapter, tourKeyAction, tourStepCopy, chapterHeading,
+  CORE_TOUR_LENGTH, CORE_ORDER } from "../ui/tour/steps.js";
 import { NAV_DEFAULTS, mergeOrder, migrateOrder } from "../ui/nav-order.js";
 
 const han = /[㐀-鿿]/;
@@ -70,8 +71,13 @@ test("the default tour is the first-run line's order in 7 steps: 欢迎, 设置�
 });
 
 test("the full tour is the explicit extra: every step but the short-tour-only ones, in order, with 任务, notes, 备考补习 and the reader's two controls", () => {
-  assert.deepEqual(idsOf({ full: true }), ["welcome", "nav", "home", "course", "sources", "document", "reader-practice", "translation", "generate", "generate-tune", "generate-cost",
-    "tasks", "draft", "practice", "help", "guided-study", "wrongbook", "exam", "examprep", "dashboard", "notes", "skeleton", "settings-model", "settings-audio", "settings-extensions", "finish"]);
+  assert.deepEqual(idsOf({ full: true }), ["welcome", "nav",
+    "settings-model", "course",
+    "sources", "document", "reader-practice", "translation", "generate", "generate-tune", "generate-cost", "tasks", "draft",
+    "home", "practice", "help", "guided-study",
+    "wrongbook", "dashboard",
+    "exam", "examprep",
+    "notes", "skeleton", "settings-audio", "settings-extensions", "finish"]);
   assert.ok(!idsOf({ full: true }).includes("generate-quick"), "the short generate step has longer siblings in the full tour");
   assert.deepEqual(idsOf({ full: true, line: true }), idsOf({ full: true }), "the full tour is the same whether or not the line is up");
   assert.equal(new Set(TOUR_STEPS.map((step) => step.id)).size, TOUR_STEPS.length, "unique ids");
@@ -83,6 +89,40 @@ test("the full tour is the explicit extra: every step but the short-tour-only on
     for (const anchor of [step.anchor].flat().filter(Boolean)) assert.ok(PLAN_ANCHORS.includes(anchor) || ["source-tools", "reader-more", "draft-publish", "exam-case", "home-course",
       "reader-practice", "nav-tasks", "nav-notes", "nav-examprep", "first-run-material"].includes(anchor), `${step.id}: anchor ${anchor} is not in the plan's list`);
   }
+});
+
+test("every step has a chapter, and the list walks the chapters in the learning order, each in one piece", () => {
+  assert.deepEqual([...TOUR_CHAPTERS], ["开始", "前置", "备料", "练习", "复习", "考试", "更多"]);
+  for (const step of TOUR_STEPS) assert.ok(TOUR_CHAPTERS.includes(step.chapter), `${step.id}: chapter ${step.chapter}`);
+  const walked = TOUR_STEPS.map((step) => step.chapter).filter((chapter, at, all) => chapter !== all[at - 1]);
+  assert.deepEqual(walked, [...TOUR_CHAPTERS], "no chapter comes back after the tour left it");
+  const chapterOf = (id) => TOUR_STEPS.find((step) => step.id === id).chapter;
+  for (const [id, chapter] of [["welcome", "开始"], ["nav", "开始"], ["settings-model", "前置"], ["course", "前置"], ["sources", "备料"], ["draft", "备料"],
+    ["home", "练习"], ["guided-study", "练习"], ["wrongbook", "复习"], ["dashboard", "复习"], ["exam", "考试"], ["examprep", "考试"], ["notes", "更多"], ["finish", "更多"], ["finish-line", "更多"]])
+    assert.equal(chapterOf(id), chapter, id);
+  // The header says the chapter; each heading has its own English, so 前置 here is not the coverage view's 前置 ("Prerequisite").
+  for (const chapter of TOUR_CHAPTERS) {
+    assert.equal(chapterHeading(chapter), `功能导览 · ${chapter}`);
+    assert.ok(english[chapterHeading(chapter)], `missing English for ${chapterHeading(chapter)}`);
+    assert.doesNotMatch(english[chapterHeading(chapter)], han);
+  }
+  assert.ok(english["跳到下一章"], "the skip action has its English");
+});
+
+test("跳到下一章 goes to the first step of the next chapter that is shown, and nowhere from the last chapter", () => {
+  const full = availableTourSteps(TOUR_STEPS, { ...ALL, full: true });
+  assert.equal(tourNextChapter(full, "welcome"), "settings-model");
+  assert.equal(tourNextChapter(full, "nav"), "settings-model", "from the middle of a chapter too");
+  assert.equal(tourNextChapter(full, "settings-model"), "sources");
+  assert.equal(tourNextChapter(full, "translation"), "home");
+  assert.equal(tourNextChapter(full, "help"), "wrongbook");
+  assert.equal(tourNextChapter(full, "dashboard"), "exam");
+  assert.equal(tourNextChapter(full, "exam"), "notes");
+  for (const step of full.filter((item) => item.chapter === "更多")) assert.equal(tourNextChapter(full, step.id), null, step.id);
+  assert.equal(tourNextChapter(full, "gone"), null, "a step that disappeared offers no jump (下一步 restarts at the first)");
+  // A chapter whose first step is left out is entered at its first step that is there.
+  const noExam = availableTourSteps(TOUR_STEPS, { ...ALL, full: true, pageAvailable: (page) => page !== "exam" });
+  assert.equal(tourNextChapter(noExam, "dashboard"), "examprep");
 });
 
 test("the reader's 原始 PDF page bar and page panel carry their tour anchors (#456)", async () => {
@@ -147,7 +187,7 @@ test("the tour's sidebar step describes the layout of #654–#657: the main page
 
 test("back, next and the keyboard move one step; Escape pauses", () => {
   const steps = TOUR_STEPS.slice(0, 4);
-  assert.equal(tourNeighbour(steps, "nav", 1), "home");
+  assert.equal(tourNeighbour(steps, "nav", 1), "settings-model");
   assert.equal(tourNeighbour(steps, "nav", -1), "welcome");
   assert.equal(tourNeighbour(steps, "welcome", -1), null);
   assert.equal(tourNeighbour(steps, steps.at(-1).id, 1), null);

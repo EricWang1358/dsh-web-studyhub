@@ -96,14 +96,18 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
   }
   /** 看完整导览: the explicit extra, from the end of the short tour or from Settings. */
   const startFullTour = () => startTour({ restart: true, full: true });
+  /** Show step `id` and remember it: 下一步, 上一步 and 跳到下一章 all end here. */
+  function jumpTour(id) {
+    setTourStep(id);
+    if (data?.root) writeTourProgress(data.root, { stepId: id, full: fullTour });
+  }
   function moveTour(direction) {
     const next = tourNeighbour(tourSteps, tourStep, direction);
     if (!next) {
       if (direction > 0) finishTour();
       return;
     }
-    setTourStep(next);
-    if (data?.root) writeTourProgress(data.root, { stepId: next, full: fullTour });
+    jumpTour(next);
   }
   /** Leave the tour: close what it opened, go back to where it started, return focus. */
   function endTour({ then } = {}) {
@@ -238,5 +242,5 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
   }
 
   return { tourStep, fullTour, sampleBusy, sampleForTour, removingSample, setRemovingSample, modelState, tourSteps, tourResume, lineLater, hideWelcome, openFirstImport, startTour,
-    startFullTour, moveTour, endTour, closeTour, finishTour, enterTourStep, loadSampleAndTour, loadSampleInTour, loadSampleOnly, removeSampleData };
+    startFullTour, moveTour, jumpTour, endTour, closeTour, finishTour, enterTourStep, loadSampleAndTour, loadSampleInTour, loadSampleOnly, removeSampleData };
 }
