@@ -10,12 +10,15 @@ import { createFakeModel } from '../scripts/fake-model.mjs';
 import { launchChromium, skipMissingChromium } from '../scripts/qa/browser.mjs';
 import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { until } from '../scripts/qa/layout-late.mjs';
+import { gradeRowPaint, withoutScrollState } from './helpers/grade-row.mjs';
 
 /* Entering a practice round, the way a learner does it (the sidebar's 回到题目), with the sample course and the fake model in the browser preview.
    #1678: the first flashcard sits where the later ones sit (pinned under the top bar), and once it is flipped the six 0–5 grade buttons are wholly on screen
    without scrolling, at 1440×900, 1536×730 and 1280×720; the first card keeps the focus through its flip, as the next ones do. At 界面大小 150% those windows
    are short (600 px of the app's own or less), so the row is one line per button and sticks to the bottom over the card: all six are in the window and
-   clickable for two cards running, Tab never leaves the focus under the row, and the answer's last line still scrolls above it.
+   clickable for two cards running, Tab never leaves the focus under the row, and the answer's last line still scrolls above it. Stuck, the row is opaque in the
+   page's colour down to the window's edge; where the card fits it paints nothing over the card's shadow, also in an engine without scroll-state queries
+   (tests/helpers/grade-row.mjs). At 420×860 the short row covers at most a fifth of the window.
    #1679: in a narrow pane (420 wide) the sidebar is a drawer. Going to the practice page through it, by mouse and by keyboard, leaves the focus on the question
    card, so Space flips the card instead of opening the drawer again, also when the practice page was already on screen; closing the drawer with Esc still gives
    the focus back to the button that opened it.
@@ -156,6 +159,9 @@ test('#1678: the first flashcard is pinned like the next ones and, flipped, show
       // At 100% these windows are not short (ui/use-short-view.js): the row keeps its full look, each button with its gap under the words.
       assert.equal(await page.locator('.grading--short').count(), 0, `${tag}: the full grade row, not the short window's one-line row`);
       assert.equal(await page.locator('.grade .grade-gap').count(), 6, `${tag}: every grade button says its gap under its words`);
+      // The card fits, so the row is not stuck: it paints nothing over the card's shadow, also where the engine has no scroll-state queries.
+      await withoutScrollState(page);
+      await assertRowPaint(page, tag, false);
       // The next card is pinned by the page itself; the first one must open in the same place.
       await page.keyboard.press('4');
       await page.waitForFunction((selector) => document.querySelectorAll(selector).length === 0, GRADES, { timeout: 20000 });
@@ -178,6 +184,21 @@ const gradeReach = (page) => page.evaluate((selector) => {
       return { grade: button.dataset.grade, top: Math.round(box.top), bottom: Math.round(box.bottom), hit: !!hit && button.contains(hit) };
     }) };
 }, GRADES);
+
+/** How the row is painted: stuck over a card taller than the window, it is on the window's bottom edge (no strip of the card under it) and opaque in the
+ *  page's own colour; under a card that fits it paints nothing, so the card's shadow shows. `stuck` says which one this card must be (else either). */
+async function assertRowPaint(page, tag, stuck) {
+  let row = null;
+  const right = (now) => (now.stuck ? now.rowAtEdge && now.paints === now.surface : now.paints === 'none');
+  await until(async () => { row = await gradeRowPaint(page); return right(row) && (stuck === undefined || row.stuck === stuck); }, `${tag}: the row painted`, { timeoutMs: 5000 })
+    .catch(() => {});
+  if (stuck !== undefined) assert.equal(row.stuck, stuck, `${tag}: the grade row is ${stuck ? '' : 'not '}stuck to the window's bottom edge (${JSON.stringify(row)})`);
+  if (row.stuck) {
+    assert.ok(row.rowAtEdge, `${tag}: the stuck row reaches the window's bottom edge, nothing of the card under it (${JSON.stringify(row)})`);
+    assert.equal(row.paints, row.surface, `${tag}: the stuck row is opaque in the colour of the page it scrolls in (${JSON.stringify(row)})`);
+  } else assert.equal(row.paints, 'none', `${tag}: the row under a card that fits paints nothing over the card's shadow (${JSON.stringify(row)})`);
+  return row;
+}
 
 /** Scrolls the answer's last line to just above the area under the card (the grade row), as far as the page lets it, and says where that line ends up. */
 const answerLastLine = (page) => page.evaluate(() => {
@@ -208,7 +229,14 @@ const tabToGrades = (page) => page.evaluate(() => ({ barBottom: Math.round(docum
         const active = document.activeElement, follow = document.querySelector('.flash-follow');
         if (!active || follow.contains(active) || !active.closest('.question-card')) return null;
         const box = active.getBoundingClientRect();
-        return { what: active.getAttribute('aria-label') || active.className, top: Math.round(box.top), bottom: Math.round(box.bottom), rowTop: Math.round(follow.getBoundingClientRect().top) };
+        // The room the page keeps for a focus: under the scroller's scroll-padding-top (the top bar) and above the stop's scroll-margin-bottom (the row).
+        let scroller = active.parentElement;
+        while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement;
+        const area = scroller.getBoundingClientRect(), drawn = area.width / scroller.offsetWidth;
+        const room = Math.min(area.bottom, window.innerHeight) - parseFloat(getComputedStyle(active).scrollMarginBottom) * drawn
+          - (area.top + (parseFloat(getComputedStyle(scroller).scrollPaddingTop) || 0) * drawn);
+        return { what: active.getAttribute('aria-label') || active.className, top: Math.round(box.top), bottom: Math.round(box.bottom), rowTop: Math.round(follow.getBoundingClientRect().top),
+          fits: box.height <= room };
       });
       if (!stop) break;
       stops.push(stop);
@@ -231,6 +259,8 @@ test('#1678: at 界面大小 150% the six grade buttons of a flipped flashcard s
       const cardTops = [];
       for (const card of [1, 2]) {
         const tag = `150% ${width}×${height}, card ${card}`;
+        // The second card as an engine without scroll-state queries draws it (WebKit, Firefox): the row must look the same there.
+        if (card === 2) await withoutScrollState(page);
         const front = await settledCardTop(page);
         cardTops.push(front.top);
         await page.keyboard.press('Space');
@@ -243,12 +273,13 @@ test('#1678: at 界面大小 150% the six grade buttons of a flipped flashcard s
           assert.ok(grade.top >= reach.barBottom && grade.bottom <= reach.vh, `${tag}: grade ${grade.grade} is wholly in the window, below the top bar (${JSON.stringify(reach)})`);
           assert.ok(grade.hit, `${tag}: grade ${grade.grade} is what the window shows at its middle (${JSON.stringify(reach)})`);
         }
+        await assertRowPaint(page, tag);
         assert.equal(await page.locator('.grading--short').count(), 1, `${tag}: the window is short at 150% (under 640 px of the app's own), so the row is one line per button`);
-        // Tabbing through the card never leaves the focus under the row (WCAG 2.4.11): a stop shorter than the room above the row is wholly above it.
+        // Tabbing through the card never leaves the focus under the row (WCAG 2.4.11): a stop that fits in the room the page keeps for a focus (under the top bar's scroll-padding, above its own scroll-margin for the row) is wholly there.
         const tabbed = await tabToGrades(page);
         for (const stop of tabbed.stops) {
           assert.ok(stop.top < stop.rowTop && stop.bottom > tabbed.barBottom, `${tag}: the focus on ${stop.what} is not hidden under the grade row (${JSON.stringify(tabbed)})`);
-          if (stop.bottom - stop.top < stop.rowTop - tabbed.barBottom) assert.ok(stop.bottom <= stop.rowTop + 1 && stop.top >= tabbed.barBottom - 1, `${tag}: ${stop.what} is wholly between the top bar and the row (${JSON.stringify(tabbed)})`);
+          if (stop.fits) assert.ok(stop.bottom <= stop.rowTop + 1 && stop.top >= tabbed.barBottom - 1, `${tag}: ${stop.what} is wholly between the top bar and the row (${JSON.stringify(tabbed)})`);
         }
         // Nothing of the card is hidden for good: the answer's last line scrolls up above the row.
         const line = await answerLastLine(page);
@@ -263,6 +294,32 @@ test('#1678: at 界面大小 150% the six grade buttons of a flipped flashcard s
       assert.deepEqual(errors, [], `150% ${width}×${height}: no page errors`);
     } finally { await context.close(); }
   }
+});
+
+test('#1678: at 420×860 and 界面大小 150% the short grade row stays in reach and covers at most a fifth of the window', { timeout: 600000 }, async (t) => {
+  const env = await setup(t);
+  if (!env) return;
+  const { context, page, errors } = await openPractice(env, { width: 420, height: 860, scale: 150, mode: 'flashcard' });
+  try {
+    const tag = '150% 420×860';
+    const opener = page.getByRole('button', { name: '打开导航', exact: true }).first();
+    await opener.click();
+    await page.locator('.nav-drawer[open]').getByRole('button', { name: /^回到题目/ }).first().click();
+    await page.locator('.nav-drawer[open]').waitFor({ state: 'detached' });
+    await page.locator('[data-tour="review-question"]').waitFor({ timeout: 30000 });
+    await page.mouse.move(415, 5);
+    await settledCardTop(page);
+    await page.keyboard.press('Space');
+    await settledGrades(page);
+    const reach = await gradeReach(page);
+    assert.equal(reach.grades.length, 6, `${tag}: six grade buttons`);
+    for (const grade of reach.grades) assert.ok(grade.hit && grade.top >= reach.barBottom && grade.bottom <= reach.vh, `${tag}: grade ${grade.grade} is wholly in the window (${JSON.stringify(reach)})`);
+    const row = await assertRowPaint(page, tag, true);
+    assert.ok(row.height <= row.vh / 5, `${tag}: the stuck row covers at most a fifth of the window (${JSON.stringify(row)})`);
+    // What the row no longer spells out on screen is still each group's name.
+    for (const name of ['未达标 · 留在本题看解析', '达标']) assert.equal(await page.getByRole('group', { name, exact: true }).count(), 1, `${tag}: the group ${name} keeps its name`);
+    assert.deepEqual(errors, [], `${tag}: no page errors`);
+  } finally { await context.close(); }
 });
 
 test('#1679: at 420 wide, 回到题目 from the drawer leaves the focus on the question, so Space flips; Esc gives the focus back to the drawer button', { timeout: 600000 }, async (t) => {
