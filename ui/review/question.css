@@ -1511,6 +1511,13 @@
       .question-toolbar .question-navigation > .sh-menu-anchor { flex: none; }
       .question-toolbar .question-navigation > [data-usage="review.prev"],
       .question-toolbar .question-navigation > [data-usage="review.next"] { flex: 1 1 0; }
+      /* With the undo of the previous grade in the row (#1685) the row would crush 上一题 / 下一题: the undo takes its own line above, at its own width and
+         at the right, and 更多 / 上一题 / 下一题 stay on one line below it. The markup keeps the undo beside 上一题, which is where a wide page shows it. */
+      .question-toolbar .question-navigation:has(> [data-usage="review.undo"]) { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); align-items: center; }
+      .question-toolbar .question-navigation:has(> [data-usage="review.undo"]) > [data-usage="review.undo"] { grid-column: 1 / -1; grid-row: 1; justify-self: end; }
+      .question-toolbar .question-navigation:has(> [data-usage="review.undo"]) > .sh-menu-anchor { grid-column: 1; grid-row: 2; }
+      .question-toolbar .question-navigation:has(> [data-usage="review.undo"]) > [data-usage="review.prev"] { grid-column: 2; grid-row: 2; }
+      .question-toolbar .question-navigation:has(> [data-usage="review.undo"]) > [data-usage="review.next"] { grid-column: 3; grid-row: 2; }
       .term-strip { padding: var(--space-2); }
       .term-strip__list { flex: 1 1 100%; }
       .term-strip__actions { margin-left: auto; }

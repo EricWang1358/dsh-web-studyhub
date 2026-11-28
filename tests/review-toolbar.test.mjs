@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { loadInteractiveUi, click, withBrowserGlobals } from "./helpers/react-harness.mjs";
 
 const compiled = await build({
   stdin: { contents: "export { default as ReviewToolbar } from './ui/ReviewToolbar.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage } from './ui/i18n.js';", resolveDir: process.cwd() },
@@ -273,4 +274,66 @@ test("on a question not yet answered, the undo says it is the previous question'
   try {
     assert.match(undoButton(render({ feedback: null, undoable: { attemptId: "a1" } }, { onUndo() {} })), />Undo last grade \(Z\)<\/button>$/);
   } finally { setUiLanguage("zh"); }
+});
+
+test("the undo of an unanswered question sits in the navigation beside 上一题, gates on state, and clicks through (#1685)", async () => {
+  setUiLanguage("zh");
+  const undoable = { attemptId: "a1", cardId: "q0", entryIndex: 0 };
+  const html = render({ index: 1, feedback: null, undoable }, { onUndo() {} });
+  const navIdx = html.indexOf('class="question-navigation"');
+  const moreIdx = html.indexOf("review-more-trigger");
+  const undoIdx = html.indexOf('data-usage="review.undo"');
+  const prevIdx = html.indexOf('data-usage="review.prev"');
+  const nextIdx = html.indexOf('data-usage="review.next"');
+  assert.ok(navIdx > 0 && moreIdx > navIdx && undoIdx > moreIdx && undoIdx < prevIdx && prevIdx < nextIdx,
+    "undo sits inside .question-navigation right before 上一题");
+  const tools = html.slice(html.indexOf('class="question-tools"'), navIdx);
+  assert.doesNotMatch(tools, /review\.undo/, "no longer in the tool row");
+  // Gating: hidden once answered, when not undoable, in a mock exam, and without the handler.
+  assert.equal(undoButton(render({ index: 1, feedback: { correct: true }, undoable }, { onUndo() {} })), "", "answered");
+  assert.equal(undoButton(render({ index: 1, feedback: null, undoable: null }, { onUndo() {} })), "", "not undoable");
+  assert.equal(undoButton(render({ index: 1, mode: "exam", feedback: null, undoable }, { onUndo() {} })), "", "mock exam");
+  assert.equal(undoButton(render({ index: 1, feedback: null, undoable })), "", "no handler");
+  setUiLanguage("en");
+  try {
+    const english = render({ index: 1, feedback: null, undoable }, { onUndo() {} });
+    assert.match(undoButton(english), />Undo last grade \(Z\)<\/button>$/);
+    assert.ok(english.indexOf('class="question-navigation"') < english.indexOf('data-usage="review.undo"')
+      && english.indexOf('data-usage="review.undo"') < english.indexOf('data-usage="review.prev"'), "en: same place");
+    assert.doesNotMatch(english.replace(/data-usage="[^"]*"/g, ""), han);
+  } finally { setUiLanguage("zh"); }
+
+  // Click calls onUndo; a busy page locks it.
+  const ui = await loadInteractiveUi(`
+    export { default as ReviewToolbar } from './ui/ReviewToolbar.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  await withBrowserGlobals(async () => {
+    ui.exports.setUiLanguage("zh");
+    let undoCalls = 0;
+    const mountToolbar = (busy) => ui.mount(() => ui.React.createElement(
+      ui.exports.StudyServicesContext.Provider,
+      { value: { busy } },
+      ui.React.createElement(ui.exports.ReviewToolbar, {
+        run: { ...baseRun, index: 1, feedback: null, undoable },
+        onToggleHelp() {}, onAsk() {}, onImprove() {}, onSlay() {}, onNote() {}, onReviewAction() {},
+        onUndo: () => { undoCalls += 1; },
+      }),
+    ));
+    const idle = mountToolbar(false);
+    try {
+      const target = idle.find((n) => n.type === "button" && n.props?.["data-usage"] === "review.undo");
+      assert.ok(target, "the undo button mounts");
+      assert.equal(target.props["aria-keyshortcuts"], "Z");
+      await idle.act(() => click(target));
+      assert.equal(undoCalls, 1, "clicking calls onUndo");
+    } finally { idle.unmount(); }
+    const locked = mountToolbar(true);
+    try {
+      const target = locked.find((n) => n.type === "button" && n.props?.["data-usage"] === "review.undo");
+      assert.ok(target, "the locked undo button mounts");
+      assert.equal(target.props.disabled || target.props["aria-disabled"] === "true", true, "busy locks it");
+    } finally { locked.unmount(); }
+  });
 });
