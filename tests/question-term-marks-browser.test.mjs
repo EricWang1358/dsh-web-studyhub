@@ -168,6 +168,21 @@ async function dragPhrase(page, rootSelector, phrase, occurrence = 0) {
 const chipTexts = (page) =>
   page.locator(".term-strip .sh-chip__label").allTextContents();
 
+const chipStrip = (page) =>
+  page.locator(".term-strip:not(.term-strip--mode)");
+
+const modeBar = (page) =>
+  page.locator(".term-strip.term-strip--mode[data-term-marking-bar]");
+
+const waitForChipStripGone = (page, timeout = 10000) =>
+  page.waitForFunction(() => document.querySelectorAll(".term-strip:not(.term-strip--mode)").length === 0, { timeout });
+
+async function enterMarkingMode(page, termsBtn = page.locator('[data-usage="review.terms"]')) {
+  await termsBtn.click();
+  await page.locator(".review-body.is-marking").waitFor({ state: "attached", timeout: 10000 });
+  await modeBar(page).waitFor({ state: "visible", timeout: 10000 });
+}
+
 const highlightCount = (page, name = "study-term-mark") =>
   page.evaluate((hlName) => (typeof CSS !== "undefined" && CSS.highlights ? CSS.highlights.get(hlName)?.size || 0 : -1), name);
 
@@ -238,6 +253,8 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
         await termsBtn.click();
         assert.equal(await termsBtn.getAttribute("aria-pressed"), "true", `${tag}: button reports aria-pressed=true`);
         assert.equal(await page.locator(".review-body.is-marking").count(), 1, `${tag}: .review-body.is-marking set`);
+        assert.equal(await modeBar(page).count(), 1, `${tag}: marking-mode bar appears before any word is marked`);
+        assert.equal(await chipStrip(page).count(), 0, `${tag}: no chip strip before any word is marked`);
 
         const backSel = '.flip-back[aria-hidden="false"] .flash-prompt';
         const toggleWord = lang === "en" ? "contrapositive" : "权衡";
@@ -248,9 +265,10 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
         if (hl >= 0) assert.ok(hl >= expectedHl, `${tag}: highlight spans all occurrences (${hl})`);
         if (hl >= 0) assert.equal(await highlightDrawn(page, "study-term-mark"), true, `${tag}: and it is drawn on the question, not only registered`);
 
-        // Click again (on 2nd occurrence in EN, same word in ZH) -> toggles off.
+        // Click again (on 2nd occurrence in EN, same word in ZH) -> toggles off (chip strip clears back to marking-mode bar).
         await clickWord(page, backSel, toggleWord, lang === "en" ? 1 : 0);
-        assert.equal(await page.locator(".term-strip").count(), 0, `${tag}: clicking marked word cancels it`);
+        assert.equal(await chipStrip(page).count(), 0, `${tag}: clicking marked word cancels it`);
+        assert.equal(await modeBar(page).count(), 1, `${tag}: marking-mode bar returns while still in marking mode`);
 
         // 3. Adjacent merge in ZH (`线性` + `一致性` -> `线性一致性`); in EN add first chip `linearizability`.
         if (lang === "zh") {
@@ -365,7 +383,7 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
         await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
 
         // Mark 1 unfilled word on Card 1 so returning from Card 2 verifies per-question term memory (#1192, #1214).
-        await termsBtn.click();
+        await enterMarkingMode(page, termsBtn);
         const memoryWord = lang === "en" ? "contrapositive" : "原子";
         if (lang === "zh") await dragPhrase(page, backSel, memoryWord, 0);
         else await clickWord(page, backSel, memoryWord, 0);
@@ -594,7 +612,7 @@ test("course term persistence, pale study-term-seen highlight, click-to-stage, a
         await settleAnimations(page);
 
         const termsBtn = page.locator('[data-usage="review.terms"]');
-        await termsBtn.click();
+        await enterMarkingMode(page, termsBtn);
         const targetWord = lang === "en" ? "linearizability" : "线性一致性";
         if (lang === "zh") {
           await dragPhrase(page, '.flip-back[aria-hidden="false"] .flash-prompt', targetWord, 0);
@@ -627,7 +645,7 @@ test("course term persistence, pale study-term-seen highlight, click-to-stage, a
         await takeShot(page, `term-seen-${lang}-${width}`);
 
         // 3. Enter marking mode on Card 2 and click the pale-highlighted word -> enters term strip!
-        await termsBtn.click();
+        await enterMarkingMode(page, termsBtn);
         await clickWord(page, ".question-card .question", targetWord, 0);
         assert.deepEqual(await chipTexts(page), [targetWord], `${tag}: clicking seen word adds it to active term strip`);
         const activeHlAfter = await highlightCount(page, "study-term-mark");
@@ -1112,7 +1130,7 @@ test("term-strip remove only unmarks unattached visit-added terms and protects f
       await waitForRevealedBack(page);
       await settleAnimations(page);
       const termsBtn = page.locator('[data-usage="review.terms"]');
-      await termsBtn.click();
+      await enterMarkingMode(page, termsBtn);
       const backSel = '.flip-back[aria-hidden="false"] .flash-prompt';
 
       // (a) Mark Term A -> complete fill (补齐这 1 个词) -> click × in .term-strip -> TermListDialog & card link stay intact.
@@ -1135,11 +1153,12 @@ test("term-strip remove only unmarks unattached visit-added terms and protects f
       await lastGetPromise;
 
       // #1214 automatically clears filled termA from the strip; re-stage pale termA and verify #1212 guard on ×.
-      await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
+      await waitForChipStripGone(page);
+      assert.equal(await modeBar(page).count(), 1, `${tag}: mode bar remains while marking mode is active`);
       await clickWord(page, backSel, termA, 0);
       assert.deepEqual(await chipTexts(page), [termA], `${tag}: pale termA clicks back into strip`);
       await page.locator(".term-strip .sh-chip__remove").click();
-      await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
+      await waitForChipStripGone(page);
 
       const afterA = await previewCall(running.server, "course.terms.get", { course: courseName });
       const savedA = afterA.items?.find((item) => item.term === termA);
@@ -1154,7 +1173,7 @@ test("term-strip remove only unmarks unattached visit-added terms and protects f
       await page.keyboard.press("Escape");
       await dlgA.waitFor({ state: "hidden", timeout: 10000 });
       await page.locator(".term-strip .sh-chip__remove").click();
-      await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
+      await waitForChipStripGone(page);
 
       // (b) Mark brand-new Term B (NOT filled) -> click × -> deleted from course.terms & TermListDialog.
       if (lang === "zh") await dragPhrase(page, backSel, termB, 0);
@@ -1164,7 +1183,7 @@ test("term-strip remove only unmarks unattached visit-added terms and protects f
 
       await page.getByRole("button", { name: removeAria(termB) }).click();
       await lastUnmarkPromise;
-      await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
+      await waitForChipStripGone(page);
 
       const afterB = await previewCall(running.server, "course.terms.get", { course: courseName });
       assert.equal(afterB.items?.some((item) => item.term === termB), false, `${tag}: unfilled misclick termB removed`);
@@ -1187,13 +1206,13 @@ test("term-strip remove only unmarks unattached visit-added terms and protects f
       const seenHl = await highlightCount(page, "study-term-seen");
       if (seenHl >= 0) assert.ok(seenHl >= 1, `${tag}: Card 2 paints study-term-seen for historical termC`);
 
-      await termsBtn.click();
+      await enterMarkingMode(page, termsBtn);
       await clickWord(page, ".question-card .question", termC, 0);
       assert.deepEqual(await chipTexts(page), [termC], `${tag}: historical termC staged into strip`);
 
       const unmarkBeforeC = unmarkCalls;
       await page.getByRole("button", { name: removeAria(termC) }).click();
-      await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
+      await waitForChipStripGone(page);
       assert.equal(unmarkCalls, unmarkBeforeC, `${tag}: removing historical termC from strip triggers no unmark RPC`);
 
       const afterC = await previewCall(running.server, "course.terms.get", { course: courseName });
@@ -1209,7 +1228,7 @@ test("term-strip remove only unmarks unattached visit-added terms and protects f
       await page.keyboard.press("Escape");
       await dlgC.waitFor({ state: "hidden", timeout: 10000 });
       await page.getByRole("button", { name: removeAria(termA) }).click();
-      await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
+      await waitForChipStripGone(page);
 
       // (zh) Verify adjacent merge of historical A ("分布式") + new B ("系统") preserves A and manages merged term.
       if (lang === "zh") {
@@ -1453,7 +1472,7 @@ test("term strip clears only filled terms on done, preserves mid-task marks, and
       await waitForRevealedBack(page);
       await settleAnimations(page);
       const termsBtn = page.locator('[data-usage="review.terms"]');
-      await termsBtn.click();
+      await enterMarkingMode(page, termsBtn);
       const backSel = '.flip-back[aria-hidden="false"] .flash-prompt';
 
       // 1. Mark 2 terms -> 补齐 -> done -> strip disappears, pale highlight remains, 生词表 keeps both, 0 unmark calls.
@@ -1475,13 +1494,14 @@ test("term strip clears only filled terms on done, preserves mid-task marks, and
         () => !!document.querySelector(".explanation-followup .followup-item[open]") && !!document.querySelector(".prereq-strip"),
         { timeout: 25000 },
       );
-      await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
+      await waitForChipStripGone(page);
       for (const pollUntil = Date.now() + 10_000; Date.now() < pollUntil && termsGetCalls <= getsBeforeFill1;) {
         await page.waitForTimeout(50);
       }
       await lastGetPromise;
 
-      assert.equal(await page.locator(".term-strip").count(), 0, `${tag}: term strip disappears once 补齐 finishes done`);
+      assert.equal(await chipStrip(page).count(), 0, `${tag}: term chip strip disappears once 补齐 finishes done`);
+      assert.equal(await modeBar(page).count(), 1, `${tag}: marking-mode bar remains visible while still in marking mode`);
       assert.equal(unmarkCalls, 0, `${tag}: clearing strip on done never calls course.terms.unmark`);
       const activeHl1 = await highlightCount(page, "study-term-mark");
       const seenHl1 = await highlightCount(page, "study-term-seen");
@@ -1504,7 +1524,7 @@ test("term strip clears only filled terms on done, preserves mid-task marks, and
       await page.keyboard.press("Escape");
       await dlg.waitFor({ state: "hidden", timeout: 10000 });
       await page.locator(".term-strip .sh-chip__remove").click();
-      await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
+      await waitForChipStripGone(page);
       assert.equal(unmarkCalls, 0, `${tag}: removing attached term still keeps unmarkCalls=0`);
 
       // Stage an unfilled 3rd term on Card 1 so we can also confirm Card 2's completion leaves Card 1 untouched.
@@ -1519,7 +1539,7 @@ test("term strip clears only filled terms on done, preserves mid-task marks, and
       assert.equal(await page.locator(".term-strip").count(), 0, `${tag}: Card 2 starts with no strip`);
 
       // 2. Mark term A -> click 补齐 -> while running, mark term B -> on done, A clears while B stays and count reads 1.
-      await termsBtn.click();
+      await enterMarkingMode(page, termsBtn);
       const qSel = ".question-card .question";
       if (lang === "zh") await dragPhrase(page, qSel, k2TermA, 0);
       else await clickWord(page, qSel, k2TermA, 0);
@@ -2555,7 +2575,8 @@ test("term marking works inside inline <code> and fenced <pre><code> blocks whil
     );
     // Click again to toggle off.
     await clickWord(page, ".options", "s1", 0);
-    assert.equal(await page.locator(".term-strip").count(), 0, "clicking marked inline <code> word toggles it off");
+    assert.equal(await chipStrip(page).count(), 0, "clicking marked inline <code> word toggles it off");
+    assert.equal(await modeBar(page).count(), 1, "marking-mode bar returns after untoggling inline <code> word");
 
     // 2. Exit marking mode, answer the quiz to reveal option explanation (inside disabled option button) + fenced code block explanation.
     await page.keyboard.press("Escape");
@@ -2564,7 +2585,7 @@ test("term marking works inside inline <code> and fenced <pre><code> blocks whil
     await page.locator(".explanation .md-code-block pre.md-code code").waitFor({ state: "visible", timeout: 10000 });
     await settleAnimations(page);
 
-    await termsBtn.click();
+    await enterMarkingMode(page, termsBtn);
 
     // 3. Exact repro: drag substring `intern` inside inline <code>s3.intern()</code> in disabled option's explanation.
     await dragPhrase(page, ".option-explanation", "intern", 0);
@@ -2582,7 +2603,8 @@ test("term marking works inside inline <code> and fenced <pre><code> blocks whil
 
     // Clicking the highlighted `intern` inside <code> toggles it off cleanly.
     await clickWord(page, ".option-explanation", "intern", 0);
-    assert.equal(await page.locator(".term-strip").count(), 0, "clicking highlighted substring inside inline <code> removes it");
+    assert.equal(await chipStrip(page).count(), 0, "clicking highlighted substring inside inline <code> removes it");
+    assert.equal(await modeBar(page).count(), 1, "marking-mode bar returns after removing inline <code> substring");
 
     // 4. Drag full inline code `s3.intern()` inside option explanation.
     await dragPhrase(page, ".option-explanation", "s3.intern()", 0);
@@ -2600,7 +2622,8 @@ test("term marking works inside inline <code> and fenced <pre><code> blocks whil
     //    (b) clicking `intern` inside <pre><code> marks `intern`
     //    (c) dragging intra-identifier substring `Builder` inside `StringBuilder` marks & highlights `Builder`
     await clickWord(page, ".explanation .md-code-block pre.md-code code", "intern", 0);
-    assert.equal(await page.locator(".term-strip").count(), 0, "clicking highlighted expression inside <pre><code> toggles it off");
+    assert.equal(await chipStrip(page).count(), 0, "clicking highlighted expression inside <pre><code> toggles it off");
+    assert.equal(await modeBar(page).count(), 1, "marking-mode bar returns after untoggling <pre><code> expression");
 
     await clickWord(page, ".explanation .md-code-block pre.md-code code", "intern", 0);
     assert.deepEqual(await chipTexts(page), ["intern"], "clicking word inside fenced <pre><code> marks it");
@@ -2643,7 +2666,7 @@ test("term marking works inside inline <code> and fenced <pre><code> blocks whil
     if (seenOnCard2 !== null) {
       assert.ok(seenOnCard2.some((text) => text.toLowerCase() === "intern"), `seen term highlights inside Card 2 <code> (${seenOnCard2.join(", ")})`);
     }
-    await termsBtn.click();
+    await enterMarkingMode(page, termsBtn);
     await clickWord(page, '.flip-front[aria-hidden="false"] code', "intern", 0);
     assert.deepEqual(await chipTexts(page), ["intern"], "clicking pale seen term inside <code> stages it into term strip");
 
