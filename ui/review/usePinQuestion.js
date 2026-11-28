@@ -120,6 +120,62 @@ export function useQuestionRunA11y({ entryKey, run, hasFeedback, choice, isCloze
   return liveAnnouncement;
 }
 
+const useIsoLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect;
+
+function findScroller(element, given) {
+  let scroller = typeof given === "function" ? given() : given || element?.parentElement;
+  if (!given) {
+    while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) {
+      scroller = scroller.parentElement;
+    }
+  }
+  return scroller || null;
+}
+
+/** When a flashcard flips to its answer and the 0–5 grading scale extends below the scroll viewport
+ *  (e.g. long answers, short laptop screens, or larger UI scale), nudge the scroll container down by
+ *  the minimal amount needed to keep the full rating row in view. Stops immediately on user scroll. */
+export function useRevealGradingInView({ reviewBodyRef, showBack, hasFeedback, entryKey }) {
+  useIsoLayoutEffect(() => {
+    if (!showBack || hasFeedback) return undefined;
+    const body = reviewBodyRef.current;
+    const scroller = findScroller(body);
+    if (!body || !scroller || typeof scroller.scrollTo !== "function") return undefined;
+    let cancelled = false;
+    const stop = () => { cancelled = true; };
+    const pad = 16;
+    const bringInView = () => {
+      if (cancelled) return;
+      const grading = body.querySelector(".grading");
+      if (!grading) return;
+      const scrollerBox = scroller.getBoundingClientRect();
+      const scale = drawnScale(scroller, scrollerBox);
+      const gradingBox = grading.getBoundingClientRect();
+      if (gradingBox.height <= 0) return;
+      const overflow = (gradingBox.bottom - scrollerBox.bottom) / scale + pad;
+      if (overflow <= 1) return;
+      const bar = body.closest("main")?.querySelector(":scope > .topbar")?.offsetHeight || 0;
+      const maxDelta = Math.max(0, (gradingBox.top - scrollerBox.top) / scale - bar - pad);
+      const delta = Math.min(overflow, maxDelta);
+      if (delta > 1) {
+        scroller.scrollTo({ top: Math.max(0, scroller.scrollTop + delta), behavior: "instant" });
+      }
+    };
+    bringInView();
+    const card = body.querySelector(".question-card");
+    const observer = typeof ResizeObserver !== "undefined" && card ? new ResizeObserver(bringInView) : null;
+    if (observer && card) observer.observe(card);
+    scroller.addEventListener?.("wheel", stop, { passive: true });
+    scroller.addEventListener?.("touchstart", stop, { passive: true });
+    return () => {
+      cancelled = true;
+      observer?.disconnect();
+      scroller.removeEventListener?.("wheel", stop);
+      scroller.removeEventListener?.("touchstart", stop);
+    };
+  }, [entryKey, showBack, hasFeedback, reviewBodyRef]);
+}
+
 /* Switching questions pins the question header ("21 / 54 · topic") just under the sticky top bar, so every question opens at the same
    spot instead of wherever the previous one's length left the scroll offset. The first question keeps the natural layout; the summary
    only scrolls back if its top is out of view. Runs before paint, so there is no visible jump.
@@ -132,9 +188,7 @@ export default function usePinQuestion(pageRef, run, { scroller: given } = {}) {
   const openedRef = React.useRef(false);
   React.useLayoutEffect(() => {
     const page = pageRef.current;
-    let scroller = typeof given === "function" ? given() : given || page?.parentElement;
-    if (!given) while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY))
-      scroller = scroller.parentElement;
+    const scroller = findScroller(page, given);
     if (!page || !scroller) return;
     const bar = page.closest("main")?.querySelector(":scope > .topbar")?.offsetHeight || 0;
     // Block body on purpose: newer Chromium's scrollTo returns a Promise, and an

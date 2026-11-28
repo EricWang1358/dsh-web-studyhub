@@ -47,7 +47,7 @@ import { RubricAnswer, ScenarioPanel } from "../CaseWorkspace.jsx";
 import TaskCardRun from "../TaskCardRun.jsx";
 import { WrongAnswerSource } from "../document-preview/practice/ReadingReturn.jsx";
 import { NextDue } from "../NextDue.jsx";
-import { buildFeedbackAnnouncement, useQuestionRunA11y } from "./usePinQuestion.js";
+import { buildFeedbackAnnouncement, useQuestionRunA11y, useRevealGradingInView } from "./usePinQuestion.js";
 import { formatGap } from "../format.js";
 import { roundAt, roundWords } from "./round-words.js";
 import { fixedOptionsOf } from "../../lib/card-kinds.js";
@@ -228,6 +228,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const barStuck = !!run.feedback || barGrading;
   const barRoom = useStickyRoom("--review-bar-room", ".question-area");
   const liveAnnouncement = useQuestionRunA11y({ entryKey, run, hasFeedback, choice, isCloze, gradeTask, autoAdvanceActive, reviewBodyRef, choiceFeedbackRef, verdictFocusRef });
+  useRevealGradingInView({ reviewBodyRef, showBack, hasFeedback, entryKey });
   const voice = useVoiceAnswer({ session: liveSession, data, model, rubricCard, setAssistMode, setAssistText: setAssistTextForVoice });
   const roundSteps = useRoundSteps({ session: liveSession, run, sources: data?.sources, openModal, onNote: onMakeNote, toggleFocus: toggleCardFocus, toggleSocratic: socratic.toggle, voiceKeys: voice.keys,
     focusCloze: isCloze && !run.feedback && !busy ? () => setClozeFocusTick((n) => n + 1) : undefined });

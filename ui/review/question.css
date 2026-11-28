@@ -740,7 +740,7 @@
       inset: calc(var(--space-1) * -1);
     }
     .flash-area {
-      margin-top: var(--space-9);
+      margin-top: var(--space-6);
     }
     .flashcard {
       position: relative;
@@ -994,7 +994,7 @@
       position: relative;
       grid-area: 1 / 1;
       min-width: 0;
-      min-height: 400px;
+      min-height: clamp(220px, 38dvh, 360px);
       /* Below the head that floats over the face (its height is measured into --flash-head, ui/review/use-flash-head.js), with a gap. */
       --paper-pad-top: calc(var(--flash-head, 4rem) + var(--space-5));
       display: flex;
@@ -1342,27 +1342,24 @@
   }
   @container study (min-width:1400px) {
     :where(.study-app, .study-seat) {
-      .flash-area {
-        margin-top: calc(var(--space-9) * 2 + var(--space-7));
-      }
       .flip-face {
-        min-height: 480px;
+        min-height: clamp(240px, 40dvh, 420px);
       }
       .question-area {
-        margin-top: var(--space-9);
+        margin-top: var(--space-7);
       }
       .question-area.flash-area {
-        margin-top: calc(var(--space-9) * 2 + var(--space-4));
+        margin-top: var(--space-6);
       }
     }
   }
   @container study (max-width:1050px) {
     :where(.study-app, .study-seat) {
       .flash-area {
-        margin-top: calc(var(--space-9) + var(--space-3-5));
+        margin-top: var(--space-5);
       }
       .flip-face {
-        min-height: 380px;
+        min-height: clamp(220px, 38dvh, 340px);
       }
       .flash-prompt {
         font-size: calc(var(--fs-2xl) * var(--card-scale, 1));
@@ -1400,7 +1397,7 @@
         margin-top: var(--space-5-5);
       }
       .flip-face {
-        min-height: 280px;
+        min-height: clamp(200px, 34dvh, 280px);
         --paper-pad-x: var(--space-5);
         --paper-pad-bottom: var(--space-5);
       }
