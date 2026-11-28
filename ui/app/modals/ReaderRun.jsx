@@ -24,11 +24,11 @@ const NO_HOST = Object.freeze({});
 /** started: the run review.start (or the move to the question clicked) answered; label: what is practised; onClose(); onSeek({ source, quote, peekPage }) -> boolean;
     shown: the panel holding the round is on screen. */
 export default function ReaderRun({ started, label, onClose, onSeek, shown = true }) {
-  const { core, nav, intents, set, data, host, settingsEntry, learn } = useApp();
+  const { core, nav, intents, lib, set, data, host, settingsEntry, learn } = useApp();
   const study = useStudy();
   const rootRef = useRef(null), late = useRef({});
   const readerNav = useMemo(() => ({ page: shown ? PAGE : HIDDEN, setPage: () => {}, show: nav.show }), [nav.show, shown]);
-  const session = useReviewSession({ core, nav: readerNav, modalOpen: !shown, host: NO_HOST, rootRef, late, embeddedIn: PAGE });
+  const session = useReviewSession({ core, nav: readerNav, modalOpen: !shown || !!lib?.startConfirm, host: NO_HOST, rootRef, late, embeddedIn: PAGE });
   const { enterRun, shortcutHelp, actions: { closeShortcutHelp } } = session;
   const helpOpen = shown && shortcutHelp;
   useEffect(() => { if (!shown) closeShortcutHelp(); }, [shown, closeShortcutHelp]); // hidden with the panel, it does not come back by itself

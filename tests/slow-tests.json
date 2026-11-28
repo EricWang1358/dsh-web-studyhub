@@ -189,6 +189,7 @@
     "tests/sources-narrow-browser.test.mjs",
     "tests/sources-tools-fold-browser.test.mjs",
     "tests/spine-layout.test.mjs",
+    "tests/start-confirm-browser.test.mjs",
     "tests/study-image-cards.test.mjs",
     "tests/study-markdown.test.mjs",
     "tests/task-console-browser.test.mjs",

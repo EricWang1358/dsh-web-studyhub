@@ -296,5 +296,7 @@
   "开始练主题「{0}」？": "Start practising the topic “{0}”?",
   "开始今日学习？": "Start today’s study?",
   "现在没有没做完的练习。": "There is no unfinished practice right now.",
-  "开始练习": "Start practising"
+  "开始练习": "Start practising",
+  "继续未完成的练习？": "Resume unfinished practice?",
+  "刚有了一组未完成的练习，确认后会接着这组练，不会新开一轮。": "An unfinished practice round just appeared. Confirming will resume it instead of starting a new one."
 }
