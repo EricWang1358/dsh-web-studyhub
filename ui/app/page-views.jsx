@@ -311,25 +311,31 @@ function SourcesView() {
   );
 }
 
-/** The 音频转写 page's header: the shared PageHeader, its two links to neighbouring pages as quiet Buttons. */
+/** The 音频转写 page's header: the shared PageHeader, its links to neighbouring pages as quiet Buttons. */
 export function AudioHeader({ onSettings, onSources }) {
+  const actions = (onSettings || onSources) ? <>
+    {onSettings && <Button iconEnd="arrow-right" variant="quiet" onClick={onSettings}>{ui('音频设置')}</Button>}
+    {onSources && <Button iconEnd="arrow-right" variant="quiet" onClick={onSources}>{ui('查看资料')}</Button>}
+  </> : undefined;
   return (
     <PageHeader title={ui('音频转写')} description={ui('导入录音文件，后台完成转录、校对和翻译；实时进度在本页和「任务」查看，转好后存入「资料」，完成时信箱会提醒你。')}
-      actions={<>
-        <Button iconEnd="arrow-right" variant="quiet" onClick={onSettings}>{ui('音频设置')}</Button>
-        <Button iconEnd="arrow-right" variant="quiet" onClick={onSources}>{ui('查看资料')}</Button>
-      </>} />
+      actions={actions} />
   );
 }
 
 export function AudioView() {
   const { data, host, nav, lib, set, learn, sources } = useApp();
+  const openSettings = nav?.navigate ? () => nav.navigate('settings') : undefined;
+  const openSources = nav?.navigate ? () => nav.navigate('sources') : undefined;
+  const openGateSettings = nav?.show?.page ? () => nav.show.page('settings') : openSettings;
   return (
     <section className="page">
-      <AudioHeader onSettings={openAudioSettings(() => nav.navigate('settings'))} onSources={() => nav.navigate('sources')} />
       <AudioImport data={data}
-        openAgent={host.openAgent} onOpenSources={learn.openAudioSources} onOpenSettings={() => nav.show.page('settings')} onGenerate={sources.generateFromSources}
-        recoveryJobId={lib.legacyAudioJobId} onRecoveryChange={set.setLegacyAudioJobId} />
+        renderHeader={({ setupGate }) => (
+          <AudioHeader onSettings={openAudioSettings(setupGate ? undefined : openSettings)} onSources={openSources} />
+        )}
+        openAgent={host?.openAgent} onOpenSources={learn?.openAudioSources} onOpenSettings={openGateSettings} onGenerate={sources?.generateFromSources}
+        recoveryJobId={lib?.legacyAudioJobId} onRecoveryChange={set?.setLegacyAudioJobId} />
       <AudioDashboard />
     </section>
   );

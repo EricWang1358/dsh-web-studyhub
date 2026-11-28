@@ -63,8 +63,11 @@ test('the page-level wrappers use the page frame, not a narrow centred column', 
 });
 
 test('the old bare-text actions are shared Buttons', () => {
-  const live = screens['live class']('zh');
-  assert.ok(isShButton(headerOf(live), '音频设置'), 'live class: 音频设置 is a sh- Button');
+  const liveForm = screens['live class form']('zh');
+  assert.ok(isShButton(headerOf(liveForm), '音频设置'), 'live class form: 音频设置 is a sh- Button');
+  const liveGated = screens['live class']('zh');
+  assert.equal(button(headerOf(liveGated), '音频设置'), '', 'live class setup gate: header hides redundant 音频设置 button');
+  assert.ok(isShButton(liveGated, '打开音频设置'), 'live class setup gate: keeps the gate CTA button');
   const audio = screens.audio('zh');
   assert.ok(isShButton(audio, '音频设置') && isShButton(audio, '查看资料'), 'audio: both header actions are sh- Buttons');
   for (const label of ['音频设置', '查看资料']) assert.doesNotMatch(button(audio, label), /class="sh-btn--primary|sh-btn--primary/, `${label} is not a primary`);

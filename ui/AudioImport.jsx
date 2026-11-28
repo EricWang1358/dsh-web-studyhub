@@ -58,6 +58,7 @@ export default function AudioImport({
   recoveryJobId = '',
   onRecoveryChange,
   onOpenSettings,
+  renderHeader,
   initialReadiness = null,
   initialChecks,
 }) {
@@ -236,7 +237,7 @@ export default function AudioImport({
   // The text steps of the recordings (WP27); transcription is counted in minutes on its own page.
   const estimate = estimateRequest(files, checks, { subject, terms });
   const percent = upload?.size ? Math.min(100, Math.round((upload.sent / upload.size) * 100)) : 0;
-  return (
+  const body = (
     <div className={`pdf-import audio-import${gated ? ' audio-import--setup' : ''}`}>
       {!gated && <strong>{ui("音频 / 录音 → 中英对照逐字稿")}</strong>}
       {recoveryJobId && <p className="muted">{ui('正在接续旧版失败任务：请选择同一份原录音。原提交参数未保存，请核对下面的课程和术语设置。')}
@@ -325,4 +326,5 @@ export default function AudioImport({
       </form>}
     </div>
   );
+  return renderHeader ? <>{renderHeader({ setupGate: gated && Boolean(openSettings) })}{body}</> : body;
 }

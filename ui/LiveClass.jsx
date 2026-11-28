@@ -289,10 +289,11 @@ export default function LiveClass({ data, visible, onQueued, onSettings, onSourc
     const ids = [...feed.current.querySelectorAll('[data-segment-id]')].filter((node) => range.intersectsNode(node)).map((node) => Number(node.dataset.segmentId));
     if (ids.length) { setSelected(new Set(ids)); setFollow(false); }
   }
+  const showSetupGate = !active(session) && !!readiness && readiness.live === false;
   return <section className="page live-class" hidden={!visible} aria-label={ui('课堂实录')}>
     <PageHeader title={ui('课堂实录')}
       description={session ? undefined : ui('边听边看简体中文，选中重点就能出题。')}
-      actions={<Button iconEnd="arrow-right" variant="quiet" onClick={openAudio}>{ui('音频设置')}</Button>} />
+      actions={!showSetupGate && openAudio ? <Button iconEnd="arrow-right" variant="quiet" onClick={openAudio}>{ui('音频设置')}</Button> : undefined} />
     {error && <InlineMessage tone="error" boxed>{uiMessage(error)}</InlineMessage>}
     {error && !active(session) && <CaptureHelp kind={errorKind} facts={errorFacts} activeOp={activeOp} lock={disabled}
       liveLoopback={readiness?.liveLoopback || null} initialLoopback={initialLoopback}
@@ -300,9 +301,9 @@ export default function LiveClass({ data, visible, onQueued, onSettings, onSourc
       onLoopbackReady={() => { setKind('system'); setChecked((value) => value + 1); }}
       onMicrophone={() => { setKind('microphone'); void begin('microphone', 'start-mic'); }}
       onRetry={() => void begin('tab', 'start-tab')} />}
-    {!active(session) && readiness && readiness.live === false && <LiveSetup readiness={readiness} onSettings={openAudio} initialLocal={initialLocal}
+    {showSetupGate && <LiveSetup readiness={readiness} onSettings={openAudio} initialLocal={initialLocal}
       onReady={() => setChecked((value) => value + 1)} />}
-    {!active(session) && !(readiness && readiness.live === false) && <form className="live-setup" onSubmit={(event) => {
+    {!active(session) && !showSetupGate && <form className="live-setup" onSubmit={(event) => {
       event.preventDefault(); if (!needsLoopbackInstall) void begin(effectiveKind, 'start');
     }}>
       <div className="live-fields"><label className="live-field">{ui('课堂名称')}<input className="live-input" value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} placeholder={ui('例如：数据库 · 分区与索引')} /></label>
