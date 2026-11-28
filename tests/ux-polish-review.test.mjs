@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
@@ -10,12 +9,14 @@ const ssr = await loadUi(`
   export { default as TermChips } from './ui/review/TermChips.jsx';
   export { shortcutAction } from './ui/review/session-logic.js';
   export { openAssistPanel } from './ui/review/useReviewSession.js';
+  export { default as SourceColumn } from './ui/review/SourceColumn.jsx';
   export { default as DocumentViewer } from './ui/document-preview/DocumentViewer.jsx';
   export { WrongBookView } from './ui/WrongBook.jsx';
   export { default as CompanionViewer } from './ui/companions/CompanionViewer.jsx';
   export { default as GuidedStudyWorkbench } from './ui/guided-study/GuidedStudyWorkbench.jsx';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { AppContext } from './ui/app/app-context.js';
+  export { ToastContext } from './ui/components/index.js';
   export { setUiLanguage } from './ui/i18n.js';
 `);
 
@@ -75,7 +76,7 @@ test('1. TermChips renders calm 1-line mode bar when markingTerms is active with
   }
 });
 
-test('2. Single-key T opens 帮我弄懂 pre-selected on 通俗详解 without auto-firing a paid model call', () => {
+test('2. Single-key T opens 帮我弄懂 pre-selected on 通俗详解 without auto-firing a paid model call', async () => {
   const ctx = {
     inside: true,
     modalOpen: false,
@@ -96,12 +97,14 @@ test('2. Single-key T opens 帮我弄懂 pre-selected on 通俗详解 without au
   assert.deepEqual(outcome?.action, { type: 'assist-open', choice: 'plain' });
   assert.equal(ssr.shortcutAction(keyT, { ...ctx, run: { ...ctx.run, mode: 'exam' } })?.action, null);
 
-  // Verify useReviewSession never auto-invokes assistCard for T / assist-plain
-  const sessionSrc = readFileSync(new URL('../ui/review/useReviewSession.js', import.meta.url), 'utf8');
-  assert.doesNotMatch(sessionSrc, /assistCard\(\s*['"]ask['"]\s*,\s*['"]['"]\s*,\s*\[\s*['"]plain['"]\s*\]\s*\)/);
-
-  // Verify openAssistPanel opens 帮我弄懂, selects 通俗详解 chip, and focuses input
-  ssr.setUiLanguage('zh');
+  // Mount real useReviewSession and dispatch KeyT: opens 帮我弄懂, selects 通俗详解, focuses input, and fires zero paid RPCs
+  const interactive = await loadInteractiveUi(`
+    export { useReviewSession } from './ui/review/useReviewSession.js';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  interactive.exports.setUiLanguage('zh');
+  const rpcCalls = [];
+  const windowListeners = new Map();
   let helpClicked = 0;
   let chipClicked = 0;
   let inputFocused = 0;
@@ -120,7 +123,9 @@ test('2. Single-key T opens 帮我弄懂 pre-selected on 通俗详解 without au
     getAttribute: (name) => (name === 'aria-expanded' ? (formMounted ? 'true' : 'false') : null),
     click: () => { helpClicked += 1; formMounted = true; },
   };
+  const targetNode = { closest: () => null };
   const root = {
+    contains: () => true,
     querySelector: (sel) => {
       if (sel === '.assist-form') return formMounted ? formEl : null;
       if (sel === '[data-tour="review-help"]') return helpBtn;
@@ -130,23 +135,217 @@ test('2. Single-key T opens 帮我弄懂 pre-selected on 通俗详解 without au
   const prevRaf = globalThis.requestAnimationFrame;
   globalThis.requestAnimationFrame = (cb) => { cb(); return 1; };
   try {
-    assert.equal(ssr.openAssistPanel(root, 'plain'), true);
-    assert.equal(helpClicked, 1, 'opens 帮我弄懂 panel');
-    assert.equal(chipClicked, 1, 'pre-selects 通俗详解 chip');
-    assert.equal(inputFocused, 1, 'focuses assist input for explicit submission');
+    await withBrowserGlobals(async () => {
+      const core = {
+        busy: false,
+        call: async (action, args) => { rpcCalls.push({ action, args }); return {}; },
+        act: async (action, args) => { rpcCalls.push({ action, args }); return {}; },
+        notify: noop,
+        setError: noop,
+        refresh: async () => {},
+        refs: { dataRef: { current: { root: 'r', settings: {} } }, bindingRoot: { current: 'r' } },
+      };
+      const nav = { page: 'review', setPage: noop, show: { exam: noop } };
+      const rootRef = { current: root };
+      const late = { current: {} };
+      const sessionHook = interactive.mountHook(() => interactive.exports.useReviewSession({
+        core, nav, modalOpen: false, host: {}, rootRef, late,
+      }), {});
+      try {
+        await sessionHook.act(() => {
+          sessionHook.current.enterRun({
+            id: 'r1',
+            deckId: 'd1',
+            index: 0,
+            mode: 'path',
+            card: { id: 'c1', kind: 'quiz', prompt: 'Q?' },
+            revealed: false,
+            feedback: null,
+            complete: false,
+          });
+        });
+        const keydownHandlers = [...(windowListeners.get('keydown') || [])];
+        assert.ok(keydownHandlers.length > 0, 'useReviewSession registers window keydown listener');
+
+        // Fallback path (no questionKeys['assist-open']): dispatches openAssistPanel without calling assistCard / assist.start
+        let prevented = false;
+        await sessionHook.act(() => {
+          for (const listener of keydownHandlers) {
+            listener({
+              key: 't',
+              code: 'KeyT',
+              shiftKey: false,
+              repeat: false,
+              defaultPrevented: false,
+              ctrlKey: false,
+              metaKey: false,
+              altKey: false,
+              target: targetNode,
+              preventDefault: () => { prevented = true; },
+            });
+          }
+        });
+        assert.equal(prevented, true, 'KeyT prevents default');
+        assert.equal(helpClicked, 1, 'opens 帮我弄懂 panel');
+        assert.equal(chipClicked, 1, 'pre-selects 通俗详解 chip');
+        assert.equal(inputFocused, 1, 'focuses assist input for explicit submission');
+        assert.deepEqual(rpcCalls.filter((c) => c.action === 'assist.start'), [], 'KeyT never auto-fires assist.start paid model call');
+
+        // Direct QuestionRun handler path: invokes questionKeys['assist-open']('plain') without firing assist.start
+        const openedChoices = [];
+        sessionHook.current.questionKeys.current['assist-open'] = (choice) => { openedChoices.push(choice); };
+        await sessionHook.act(() => {
+          for (const listener of keydownHandlers) {
+            listener({
+              key: 't',
+              code: 'KeyT',
+              shiftKey: false,
+              repeat: false,
+              defaultPrevented: false,
+              ctrlKey: false,
+              metaKey: false,
+              altKey: false,
+              target: targetNode,
+              preventDefault: noop,
+            });
+          }
+        });
+        assert.deepEqual(openedChoices, ['plain'], 'delegates KeyT to registered assist-open handler with plain choice');
+        assert.deepEqual(rpcCalls.filter((c) => c.action === 'assist.start'), [], 'registered assist-open path never auto-fires assist.start');
+      } finally {
+        sessionHook.unmount();
+      }
+    }, {
+      window: {
+        addEventListener: (type, fn) => {
+          if (!windowListeners.has(type)) windowListeners.set(type, new Set());
+          windowListeners.get(type).add(fn);
+        },
+        removeEventListener: (type, fn) => {
+          windowListeners.get(type)?.delete(fn);
+        },
+      },
+      document: { activeElement: targetNode },
+    });
   } finally {
     globalThis.requestAnimationFrame = prevRaf;
   }
 });
 
-test('3. SourceColumn shows Alt+` focus hint and DocumentViewer hides heavy authoring controls when docked', () => {
+test('3. SourceColumn shows Alt+` focus hint and DocumentViewer hides heavy authoring controls when docked', async () => {
   ssr.setUiLanguage('zh');
-  const sourceColSrc = readFileSync(new URL('../ui/review/SourceColumn.jsx', import.meta.url), 'utf8');
-  assert.match(sourceColSrc, /source-column__key/);
-  assert.match(sourceColSrc, /Alt\+`/);
-  assert.match(sourceColSrc, /<ColumnReader[^>]*\bdocked\b/);
-
   const source = { id: 's1', title: 'Ch1', text: 'Sample text', format: 'md' };
+  const sourceCall = async (action) => (action === 'runtime.capabilities' ? [] : {});
+  const appValue = {
+    data: { root: 'r', decks: [], drafts: [], courses: [], sources: [source] },
+    host: {},
+    core: { call: sourceCall, act: async () => undefined, refresh: async () => {}, busy: false },
+    nav: { navigate: noop },
+    learn: { openLearningTarget: noop },
+    intents: { goGenerate: noop, practiceFromReading: noop },
+    drafts: { openDraft: noop },
+    dailyPlan: null,
+    selectionNotices: { track: noop },
+    settingsEntry: { openSettings: noop, openModelSettings: noop },
+    set: { setModal: noop },
+    session: { run: null },
+  };
+  const studyValue = { busy: false, call: sourceCall, act: async () => undefined, host: {}, notify: noop };
+  const toastValue = { success: noop, error: noop, info: noop, warning: noop, show: noop, dismiss: noop };
+
+  // Mount SourceColumn interactively so ColumnReader renders the real DocumentViewer with docked prop
+  const sourceColumnPlugins = [{
+    name: 'source-column-direct-viewer',
+    setup(builder) {
+      builder.onResolve({ filter: /^dompurify$/ }, () => ({ path: 'dompurify', namespace: 'test-dp' }));
+      builder.onLoad({ filter: /.*/, namespace: 'test-dp' }, () => ({
+        contents: 'export default { sanitize: (html) => String(html || "") };',
+        loader: 'js',
+      }));
+      builder.onResolve({ filter: /workspace-views\.jsx$/ }, () => ({ path: 'workspace-views', namespace: 'test-wv' }));
+      builder.onLoad({ filter: /.*/, namespace: 'test-wv' }, () => ({
+        contents: 'export { default as DocumentViewer } from "./ui/document-preview/DocumentViewer.jsx";',
+        resolveDir: process.cwd(),
+        loader: 'js',
+      }));
+    },
+  }];
+  const interactive = await loadInteractiveUi(`
+    export { default as SourceColumn } from './ui/review/SourceColumn.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { AppContext } from './ui/app/app-context.js';
+    export { ToastContext } from './ui/components/index.js';
+    export { setUiLanguage } from './ui/i18n.js';
+  `, { plugins: sourceColumnPlugins });
+  interactive.exports.setUiLanguage('zh');
+  const hi = interactive.React.createElement;
+  await withBrowserGlobals(async () => {
+    const mounted = interactive.mount(() => hi(
+      interactive.exports.ToastContext.Provider,
+      { value: toastValue },
+      hi(
+        interactive.exports.StudyServicesContext.Provider,
+        { value: studyValue },
+        hi(
+          interactive.exports.AppContext.Provider,
+          { value: appValue },
+          hi(interactive.exports.SourceColumn, {
+            request: { modal: { type: 'source', source, back: true }, nonce: 1 },
+            followKey: 'k1',
+            place: null,
+            pageRef: { current: null },
+            shownRef: { current: null },
+            onWidth: noop,
+            onClose: noop,
+          }),
+        ),
+      ),
+    ));
+    try {
+      await mounted.flush(6);
+      const keyHint = mounted.find((node) => node.type === 'kbd' && String(node.props?.className || '').includes('source-column__key'));
+      assert.ok(keyHint, 'SourceColumn renders <kbd class="source-column__key">');
+      assert.equal(mounted.text(keyHint), 'Alt+`', 'SourceColumn renders Alt+` focus shortcut hint');
+      assert.equal(keyHint.props['aria-label'], '快捷键 Alt+`：在题目与对照资料间切换焦点', 'Alt+` hint carries accessible aria-label');
+
+      const dockedViewer = mounted.find((node) => node.props?.['data-docked'] === true);
+      assert.ok(dockedViewer, 'SourceColumn passes docked to its ColumnReader (DocumentViewer)');
+      const toolbar = mounted.find((node) => String(node.props?.className || '').split(/\s+/).includes('reader-toolbar'), dockedViewer);
+      assert.ok(toolbar, 'docked reader toolbar is rendered inside SourceColumn');
+      assert.doesNotMatch(mounted.text(toolbar), /AI 出题/, 'SourceColumn docked reader hides AI 出题');
+      assert.doesNotMatch(mounted.text(toolbar), /打开交互伴学页/, 'SourceColumn docked reader hides 打开交互伴学页');
+      assert.equal(
+        mounted.find((node) => String(node.props?.className || '').includes('sh-btn--primary'), toolbar),
+        null,
+        'SourceColumn docked reader renders no competing primary CTA',
+      );
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  ssr.setUiLanguage('en');
+  try {
+    const enSourceColHtml = renderToStaticMarkup(
+      h(ssr.ToastContext.Provider, { value: toastValue },
+        h(ssr.StudyServicesContext.Provider, { value: studyValue },
+          h(ssr.AppContext.Provider, { value: appValue },
+            h(ssr.SourceColumn, {
+              request: { modal: { type: 'source', source, back: true }, nonce: 1 },
+              followKey: 'k1',
+              place: null,
+              pageRef: { current: null },
+              shownRef: { current: null },
+              onWidth: noop,
+              onClose: noop,
+            })))),
+    );
+    assert.match(enSourceColHtml, /<kbd[^>]*class="source-column__key"[^>]*>Alt\+`<\/kbd>/);
+    assert.doesNotMatch(textOf(enSourceColHtml), han, 'English SourceColumn has zero Han characters');
+  } finally {
+    ssr.setUiLanguage('zh');
+  }
+
   const commonProps = {
     source,
     call: async () => ({}),
