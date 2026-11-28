@@ -9,7 +9,7 @@ import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
-import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { Modal, modalChildRows, modalContentWidth } from '../../components/Modal.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
@@ -266,6 +266,14 @@ function deckCardCount(deck: DeckItem, progressMap: Record<string, { total?: num
 function deckLabel(deck: DeckItem): string {
   return String(deck.title ?? deck.name ?? deck.id);
 }
+
+/** Rows above each tab's body: the tab bar and its separator line. */
+const DECK_OPS_TAB_BAR_ROWS = 2;
+/**
+ * Body rows the Import tab needs to keep a blank line between its groups: path label + input + completions (3),
+ * course label + input (1 + 2), preview or hint (1 + 1), AI banner (1 + 1), error (1 + 1).
+ */
+const IMPORT_SPACED_MIN_ROWS = 12;
 
 function isOrdinaryActiveDeck(deck: DeckItem): boolean {
   return !deck.archived && !(deck as Record<string, unknown>).systemKind;
@@ -1022,7 +1030,6 @@ export const DeckOpsModal = memo(function DeckOpsModal({
   const frameW = Math.max(48, Math.min(86, availCols - 4));
   const frameH = Math.max(18, Math.min(30, availRows - 2));
   const innerW = modalContentWidth(frameW);
-  const bodyH = Math.max(8, frameH - 7); // 5 chrome rows + 2 tab-bar rows
 
   const hints = useMemo<KeyHint[]>(() => {
     if (tab === 'import') {
@@ -1057,6 +1064,12 @@ export const DeckOpsModal = memo(function DeckOpsModal({
       { key: 'Esc', label: t(lang, '关闭', 'Close') },
     ];
   }, [tab, importFocus, splitFocus, topMergeSuggestion, lang, asciiMode]);
+
+  // Body rows = what Modal really leaves for its children (it clamps the frame to the terminal) minus the
+  // tab bar and its separator (#1748: a fixed 18-row floor overflowed the 60x18 minimum viewport).
+  const bodyH = Math.max(1, modalChildRows(frameH, rows, hints.length > 0) - DECK_OPS_TAB_BAR_ROWS);
+  // On a short terminal the Import tab drops its blank spacer rows so the hint and error rows still fit.
+  const importGap = bodyH >= IMPORT_SPACED_MIN_ROWS ? 1 : 0;
 
   const renderMergeRow = useCallback(
     (item: DeckItem, ctx: VirtualListRenderContext) => {
@@ -1185,7 +1198,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
               </Box>
             ) : null}
 
-            <Box marginTop={1} height={1}>
+            <Box marginTop={importGap} height={1}>
               <Text color={importFocus === 'course' ? theme.primary : theme.muted} bold={importFocus === 'course'}>
                 {t(lang, '覆盖所属课程 (可选，留空沿用文件或当前课程):', 'Course Override (optional):')}
               </Text>
@@ -1211,7 +1224,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
             />
 
             {jsonPreview ? (
-              <Box marginTop={1} height={1} overflow="hidden">
+              <Box marginTop={importGap} height={1} overflow="hidden">
                 <Text color={theme.muted} wrap="truncate-end">
                   {t(lang, '预览:', 'Preview:')}{' '}
                   <Text color={theme.text}>{jsonPreview.title || t(lang, '(将用文件名)', '(filename)')}</Text>
@@ -1221,7 +1234,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
                 </Text>
               </Box>
             ) : jsonHintErr ? (
-              <Box marginTop={1} height={1} overflow="hidden">
+              <Box marginTop={importGap} height={1} overflow="hidden">
                 <Text color={theme.warning} wrap="truncate-end">
                   {`${asciiMode ? '[!]' : '▲'} ${jsonHintErr}`}
                 </Text>
@@ -1229,11 +1242,11 @@ export const DeckOpsModal = memo(function DeckOpsModal({
             ) : null}
 
             {proposeBusy ? (
-              <Box marginTop={1} height={1} overflow="hidden">
+              <Box marginTop={importGap} height={1} overflow="hidden">
                 <Spinner label={t(lang, `正在分析导入归档建议${ell}`, `Suggesting import filing${ell}`)} active={isActive} />
               </Box>
             ) : importProposal ? (
-              <Box marginTop={1} height={1} overflow="hidden">
+              <Box marginTop={importGap} height={1} overflow="hidden">
                 <Text color={theme.ai} wrap="truncate-end">
                   {truncateDisplay(importProposalBannerText, innerW, ell)}
                 </Text>
@@ -1241,13 +1254,13 @@ export const DeckOpsModal = memo(function DeckOpsModal({
             ) : null}
 
             {busy ? (
-              <Box marginTop={1}>
+              <Box marginTop={importGap}>
                 <Spinner label={t(lang, `正在导入题组 JSON${ell}`, `Importing deck JSON${ell}`)} active={isActive} />
               </Box>
             ) : null}
 
             {error ? (
-              <Box marginTop={1}>
+              <Box marginTop={importGap}>
                 <Text color={theme.error} wrap="wrap">
                   {`${asciiMode ? '[X]' : '✕'} ${error}`}
                 </Text>

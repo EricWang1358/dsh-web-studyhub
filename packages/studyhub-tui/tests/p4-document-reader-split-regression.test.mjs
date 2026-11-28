@@ -43,6 +43,8 @@ const [
 ]);
 
 const { DocumentReader, extractPageAnchorSlice } = readerMod;
+// Synchronous key dispatch, for presses that must land in the same tick (e.g. Esc right after s, #1603).
+const { getHub, dispatchToHub } = await import('../src/input/dispatcher.ts');
 
 const UNICODE_UI_CHROME_RE =
   /[\u2500-\u257F\u2580-\u259F\u25A0-\u25FF\u2600-\u27BF\u2800-\u28FF\u2190-\u21FF\u2022\u2026\u2039\u203A]/g;
@@ -194,6 +196,7 @@ function mountDocumentReader(props, { cols = 112, rows = 30 } = {}) {
 
   return {
     send: (data) => stdin.write(data),
+    dispatchKey: (input, key = {}) => dispatchToHub(getHub(stdin), input, key),
     rerender: (nextProps) => instance.rerender(buildTree(nextProps)),
     frame: () => latest,
     waitFor,
@@ -1500,5 +1503,169 @@ describe('P4 (#1354 D12): DocumentReader.tsx Line-Limit Guardrail & Split Regres
       { label: 'note save of the second answer finished and rendered' },
     );
     assert.equal(m.frame().includes('Card saved'), false, 'the earlier save must not mark the new question as saved');
+  });
+});
+
+// #1603 follow-ups to the DocumentReader split review: what Esc does to a save that is already running.
+describe('#1603 DocumentReader: Esc never drops a note or card save that was already started', () => {
+  const historySince = (before) => useTuiStore.getState().toastHistory.slice(before);
+  const countCalls = (calls, name) => calls.filter((c) => c.name === name).length;
+
+  async function askAndAnswer(m, question, answerNeedle) {
+    m.send('a');
+    await m.waitFor((s) => s.includes('Ask AI about this page:'), { label: `ask input opened for ${question}` });
+    m.send(question);
+    await m.waitFor((s) => s.includes(`Ask AI about this page: ${question}`), { label: `${question} typed` });
+    m.send('\r');
+    await m.waitFor((s) => s.includes(answerNeedle), { label: `${question} answered` });
+  }
+
+  function mountAskReader(t, overrides) {
+    resetTuiStore({ language: 'en', asciiMode: true });
+    const mock = makeMockHost(
+      makeThreePageDocHandlers({
+        'materials.selection.ask': async () => ({ answer: 'Noether links each symmetry to a conserved quantity.' }),
+        'materials.selection.resolve': async (args) => ({ status: 'resolved', selection: { ...args, revision: 'rev-1603' } }),
+        ...overrides,
+      }),
+    );
+    const m = mountDocumentReader({ host: mock.host, documentId: 'doc-phys-1', sourceId: 'src-p1', initialPage: 1, totalPagesHint: 3 });
+    t.after(() => m.cleanup());
+    return { m, ...mock };
+  }
+
+  test('14. Esc in the same tick as s still saves the note and shows its result', async (t) => {
+    const annotHold = deferred();
+    const { m, calls } = mountAskReader(t, {
+      'materials.annotation.save': async () => {
+        await annotHold.promise;
+        return { status: 'saved', id: 'ann-14' };
+      },
+    });
+    await m.waitFor((s) => s.includes('Alpha theorem'), { label: 'page 1 loaded' });
+    await askAndAnswer(m, 'Noether?', 'Noether links');
+
+    const before = useTuiStore.getState().toastHistory.length;
+    // Same tick: Esc lands before the lazily loaded note saver has even started.
+    m.dispatchKey('s', {});
+    m.dispatchKey('', { escape: true });
+    await m.waitFor((s) => !s.includes('Noether links'), { label: 'Esc closed the answer' });
+    annotHold.resolve();
+    await m.waitFor(
+      () => historySince(before).some((item) => item.text === 'Saved as page annotation (press B to view)'),
+      { label: 'the note save started by s still finishes and reports after Esc' },
+    );
+    const saveCall = calls.find((c) => c.name === 'materials.annotation.save');
+    assert.ok(saveCall, 'the note must still be written after Esc');
+    assert.equal(saveCall.args?.nodes?.[0]?.question, 'Noether?');
+  });
+
+  test('15. A duplicate-card reply that lands after Esc is still reported, without marking the next question as saved', async (t) => {
+    const saveHold = deferred();
+    const { m, calls } = mountAskReader(t, {
+      'generation.selection.saveAnswer': async () => {
+        await saveHold.promise;
+        return { status: 'duplicate' };
+      },
+    });
+    await m.waitFor((s) => s.includes('Alpha theorem'), { label: 'page 1 loaded' });
+    await askAndAnswer(m, 'First?', 'Noether links');
+
+    const before = useTuiStore.getState().toastHistory.length;
+    m.send('f');
+    await m.waitFor(() => calls.some((c) => c.name === 'generation.selection.saveAnswer'), { label: 'saveAnswer held' });
+    m.send('\x1b');
+    await m.waitFor((s) => !s.includes('Noether links'), { label: 'Esc closed the answer while the save is held' });
+    await askAndAnswer(m, 'Second?', 'Noether links');
+
+    saveHold.resolve();
+    await m.waitFor(
+      () => historySince(before).some((item) => item.text === 'This Q&A flashcard already exists'),
+      { label: 'the duplicate reply is still reported after Esc' },
+    );
+    // Flush with a note save of the second answer, so a leaked 已保存 mark would have rendered by then.
+    const afterCard = useTuiStore.getState().toastHistory.length;
+    m.send('s');
+    await m.waitFor(
+      (s) => useTuiStore.getState().toastHistory.length > afterCard && s.includes('s/f/Esc') && !s.includes('Saving'),
+      { label: 'note save of the second answer finished and rendered' },
+    );
+    assert.equal(m.frame().includes('Card saved'), false, 'the earlier duplicate must not mark the second question as saved');
+  });
+
+  test("16. A save that finishes after Esc does not release the busy flag of the next question's save", async (t) => {
+    const holds = [deferred(), deferred()];
+    let saveIndex = 0;
+    const { m, calls } = mountAskReader(t, {
+      'generation.selection.saveAnswer': async () => {
+        const hold = holds[saveIndex++];
+        if (hold) await hold.promise;
+        return { status: 'complete', deckId: 'deck-16', cardId: `card-16-${saveIndex}` };
+      },
+    });
+    t.after(() => holds.forEach((h) => h.resolve()));
+    await m.waitFor((s) => s.includes('Alpha theorem'), { label: 'page 1 loaded' });
+    await askAndAnswer(m, 'First?', 'Noether links');
+
+    const before = useTuiStore.getState().toastHistory.length;
+    m.send('f');
+    await m.waitFor(() => countCalls(calls, 'generation.selection.saveAnswer') === 1, { label: 'save A held' });
+    m.send('\x1b');
+    await m.waitFor((s) => !s.includes('Noether links'), { label: 'Esc closed the first answer' });
+    await askAndAnswer(m, 'Second?', 'Noether links');
+    m.send('f');
+    await m.waitFor(() => countCalls(calls, 'generation.selection.saveAnswer') === 2, { label: 'save B held' });
+
+    holds[0].resolve();
+    await m.waitFor(
+      () => historySince(before).some((item) => item.text === 'Saved as passage-linked flashcard'),
+      { label: 'save A finished' },
+    );
+    const resolvesBefore = countCalls(calls, 'materials.selection.resolve');
+    m.send('f');
+    await new Promise((r) => setTimeout(r, 250));
+    assert.equal(countCalls(calls, 'materials.selection.resolve'), resolvesBefore, 'f must stay blocked while save B is still running');
+    assert.equal(countCalls(calls, 'generation.selection.saveAnswer'), 2, 'no second save of the same answer may start');
+  });
+
+  test('17. Esc while the passage is still being located still saves the card with the normal toast', async (t) => {
+    const resolveHold = deferred();
+    let snapshotRefreshed = false;
+    const docHandlers = makeThreePageDocHandlers();
+    const { m, calls } = mountAskReader(t, {
+      // No revision on the page, so f first has to locate the passage (materials.selection.resolve).
+      'materials.document.get': async (args) => {
+        const { currentRevision: _omit, ...doc } = await docHandlers['materials.document.get'](args);
+        return doc;
+      },
+      'materials.selection.resolve': async (args) => {
+        await resolveHold.promise;
+        return { status: 'resolved', selection: { ...args, revision: 'rev-17' } };
+      },
+      'generation.selection.saveAnswer': async () => ({ status: 'complete', deckId: 'deck-17', cardId: 'card-17' }),
+      snapshot: async () => {
+        snapshotRefreshed = true;
+        return { decks: [], sources: [], courses: [], jobs: [] };
+      },
+    });
+    t.after(() => resolveHold.resolve());
+    await m.waitFor((s) => s.includes('Alpha theorem'), { label: 'page 1 loaded' });
+    await askAndAnswer(m, 'Locate?', 'Noether links');
+
+    const before = useTuiStore.getState().toastHistory.length;
+    m.send('f');
+    await m.waitFor(() => calls.some((c) => c.name === 'materials.selection.resolve'), { label: 'resolve held' });
+    m.send('\x1b');
+    await m.waitFor((s) => !s.includes('Noether links'), { label: 'Esc closed the answer while resolve is held' });
+    resolveHold.resolve();
+    await m.waitFor(
+      () => historySince(before).some((item) => item.text === 'Saved as passage-linked flashcard'),
+      { label: 'the card started by f is still saved and reported after Esc' },
+    );
+    const saveCall = calls.find((c) => c.name === 'generation.selection.saveAnswer');
+    assert.ok(saveCall, 'f must not be silently dropped by Esc');
+    assert.equal(saveCall.args?.question, 'Locate?');
+    assert.equal(saveCall.args?.selection?.revision, 'rev-17');
+    assert.equal(snapshotRefreshed, true, 'the library is refreshed after the save');
   });
 });

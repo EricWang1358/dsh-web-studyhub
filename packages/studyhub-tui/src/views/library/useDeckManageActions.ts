@@ -14,6 +14,7 @@ import {
   type ConvertTargetKind,
   type DeckCardItem,
   type FullDeckDetail,
+  type BusyWait,
   type ModalMode,
   type SuppJobResult,
 } from './deck-manage-model.js';
@@ -31,7 +32,7 @@ export interface UseDeckManageActionsParams {
   busyRef: MutableRefObject<boolean>;
   mountedRef: MutableRefObject<boolean>;
   deckGenRef: MutableRefObject<number>;
-  beginBusy: () => BusyLock | null;
+  beginBusy: (wait?: BusyWait) => BusyLock | null;
   endBusy: (token: number) => void;
   lang: 'zh' | 'en';
   ell: string;
@@ -224,7 +225,7 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
 
   const handleOpenDraft = useCallback(async () => {
     if (!deck) return;
-    const lock = beginBusy();
+    const lock = beginBusy('open');
     if (!lock) return;
     try {
       const editRes = await tryAction<{ id: string }>(host, 'deck.edit', { id: deck.id });
@@ -715,7 +716,7 @@ export function useDeckManageActions(params: UseDeckManageActionsParams) {
   const handlePracticeCard = useCallback(
     async (card: DeckCardItem) => {
       if (!deck) return;
-      const lock = beginBusy();
+      const lock = beginBusy('open');
       if (!lock) return;
       try {
         const run = await startReview(host, {
