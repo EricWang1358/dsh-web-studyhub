@@ -80,22 +80,28 @@ test("the full tour is the explicit extra: every step but the short-tour-only on
     "exam", "examprep", "exam-plan",
     "notes", "skeleton", "book", "board", "settings-audio", "settings-extensions", "backup", "finish"]);
   // A paused full tour is remembered as a step of THIS order: stale orders restart at stepId "" while current order resumes at its saved step.
-  const prevStorage = globalThis.localStorage;
+  const prevStorage = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
   const mem = new Map();
-  globalThis.localStorage = {
-    getItem: (k) => (mem.has(k) ? mem.get(k) : null),
-    setItem: (k, v) => { mem.set(k, String(v)); },
-    removeItem: (k) => { mem.delete(k); },
-  };
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (k) => (mem.has(k) ? mem.get(k) : null),
+      setItem: (k, v) => { mem.set(k, String(v)); },
+      removeItem: (k) => { mem.delete(k); },
+    },
+  });
   try {
     writeTourProgress("tour-order-lib", { stepId: "draft", done: false, full: true });
+    // Tripwire kept on purpose: reordering the list above must bump the order, so the stamp a paused tour persists is pinned to 2.
+    assert.equal(JSON.parse(mem.get("study-tour:tour-order-lib")).order, 2, "persisted full-tour progress stamps order 2");
     assert.deepEqual(readTourProgress("tour-order-lib"), { stepId: "draft", done: false, full: true });
     mem.set("study-tour:tour-order-lib", JSON.stringify({ stepId: "draft", done: false, full: true, order: FULL_TOUR_ORDER - 1 }));
     assert.deepEqual(readTourProgress("tour-order-lib"), { stepId: "", done: false, full: true }, "stale full-tour order restarts from the beginning");
     writeTourProgress("tour-order-lib", { stepId: "draft", done: false });
     assert.deepEqual(readTourProgress("tour-order-lib"), { stepId: "draft", done: false }, "short tour progress is unaffected by full-tour order");
   } finally {
-    globalThis.localStorage = prevStorage;
+    if (prevStorage) Object.defineProperty(globalThis, "localStorage", prevStorage);
+    else delete globalThis.localStorage;
   }
   assert.ok(!idsOf({ full: true }).includes("generate-quick"), "the short generate step has longer siblings in the full tour");
   assert.deepEqual(idsOf({ full: true, line: true }), idsOf({ full: true }), "the full tour is the same whether or not the line is up");

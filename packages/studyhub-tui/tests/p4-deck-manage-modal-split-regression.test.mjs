@@ -1520,6 +1520,7 @@ describe('#1608 DeckManageModal: submit returns to browse, replies for a switche
       assert.equal(batchCall?.args?.updates?.[0]?.patch?.topic, 'Memory');
       assert.equal(afterTopicFrame.includes('Batch retag topic'), false);
       assert.equal(afterTopicFrame.includes('Sel'), true);
+      assert.equal(afterTopicFrame.includes('[1 sel]'), false, 'selection cleared after batch retag');
     } finally {
       h.cleanup();
     }

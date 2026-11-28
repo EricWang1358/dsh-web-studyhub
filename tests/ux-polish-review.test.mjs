@@ -128,26 +128,13 @@ test('2. Single-key T opens 帮我弄懂 pre-selected on 通俗详解 without au
     },
   };
   const calls = [];
+  const keyListeners = [];
   const prevRaf = globalThis.requestAnimationFrame;
   const prevCancel = globalThis.cancelAnimationFrame;
   globalThis.requestAnimationFrame = (cb) => { cb(); return 1; };
   globalThis.cancelAnimationFrame = noop;
   try {
     await withBrowserGlobals(async () => {
-      const keyListeners = [];
-      const origAdd = globalThis.window.addEventListener;
-      const origRemove = globalThis.window.removeEventListener;
-      globalThis.window.addEventListener = (type, fn, ...rest) => {
-        if (type === 'keydown') keyListeners.push(fn);
-        return origAdd?.call(globalThis.window, type, fn, ...rest);
-      };
-      globalThis.window.removeEventListener = (type, fn, ...rest) => {
-        if (type === 'keydown') {
-          const idx = keyListeners.indexOf(fn);
-          if (idx >= 0) keyListeners.splice(idx, 1);
-        }
-        return origRemove?.call(globalThis.window, type, fn, ...rest);
-      };
       const dataRef = { current: { root: '/lib-t-key', settings: {}, focus: { course: null }, sources: [], runs: [], progress: {} } };
       const core = {
         call: async (action, args) => { calls.push(['call', action, args]); return {}; },
@@ -171,21 +158,42 @@ test('2. Single-key T opens 帮我弄懂 pre-selected on 通俗详解 without au
           card: { id: 'c1', kind: 'quiz', prompt: 'Q1', options: [{ id: 'a', text: 'A' }] },
         }));
         assert.ok(keyListeners.length > 0, 'useReviewSession registers a window keydown handler');
-        const evt = {
-          key: 't', code: 'KeyT', shiftKey: false, repeat: false, defaultPrevented: false,
-          ctrlKey: false, metaKey: false, altKey: false, target: root,
-          preventDefault() { this.defaultPrevented = true; },
+        const pressT = () => {
+          const evt = {
+            key: 't', code: 'KeyT', shiftKey: false, repeat: false, defaultPrevented: false,
+            ctrlKey: false, metaKey: false, altKey: false, target: root,
+            preventDefault() { this.defaultPrevented = true; },
+          };
+          for (const fn of [...keyListeners]) fn(evt);
+          return evt;
         };
-        await hook.act(() => { for (const fn of [...keyListeners]) fn(evt); });
+        // Fallback path (no registered assist-open handler): useReviewSession itself clicks 帮我弄懂, picks 通俗详解 and focuses the input
+        let evt;
+        await hook.act(() => { evt = pressT(); });
+        assert.equal(evt.defaultPrevented, true, 'KeyT prevents the browser default');
         assert.equal(helpClicked, 1, 'KeyT opens 帮我弄懂 panel through useReviewSession');
         assert.equal(chipClicked, 1, 'KeyT pre-selects 通俗详解 chip');
         assert.equal(inputFocused, 1, 'KeyT focuses assist input for explicit submission');
         assert.deepEqual(calls, [], 'pressing T must never auto-fire assistCard / paid model RPCs');
+
+        // Question view registered its own assist-open handler: KeyT is delegated to it with the plain choice, and still fires no RPC
+        const openedChoices = [];
+        hook.current.questionKeys.current['assist-open'] = (choice) => { openedChoices.push(choice); };
+        await hook.act(() => { pressT(); });
+        assert.deepEqual(openedChoices, ['plain'], 'KeyT delegates to the registered assist-open handler with the plain choice');
+        assert.equal(helpClicked, 1, 'the fallback panel opener is not run a second time when a handler is registered');
+        assert.deepEqual(calls, [], 'the delegated path never auto-fires a paid model RPC either');
       } finally {
         hook.unmount();
-        globalThis.window.addEventListener = origAdd;
-        globalThis.window.removeEventListener = origRemove;
       }
+    }, {
+      window: {
+        addEventListener: (type, fn) => { if (type === 'keydown') keyListeners.push(fn); },
+        removeEventListener: (type, fn) => {
+          const idx = keyListeners.indexOf(fn);
+          if (type === 'keydown' && idx >= 0) keyListeners.splice(idx, 1);
+        },
+      },
     });
   } finally {
     globalThis.requestAnimationFrame = prevRaf;
@@ -227,7 +235,7 @@ test('3. SourceColumn shows Alt+` focus hint and DocumentViewer hides heavy auth
         selectionNotices: {},
         session: {},
       };
-      const mounted = interactive.mount(() => interactive.React.createElement(
+      const mountColumn = () => interactive.mount(() => interactive.React.createElement(
         interactive.exports.StudyServicesContext.Provider,
         { value: studyValue },
         interactive.React.createElement(
@@ -244,11 +252,13 @@ test('3. SourceColumn shows Alt+` focus hint and DocumentViewer hides heavy auth
           }),
         ),
       ));
+      const mounted = mountColumn();
       try {
         await mounted.flush(6);
         const keyHint = mounted.find((node) => node.type === 'kbd' && node.props?.className === 'source-column__key');
         assert.ok(keyHint, 'SourceColumn renders .source-column__key focus hint');
         assert.equal(mounted.text(keyHint).trim(), 'Alt+`');
+        assert.match(keyHint.props['aria-label'], /Alt\+`/, 'the hint carries an accessible name that names the shortcut');
         const dockedViewer = mounted.find((node) => node.props?.['data-docked'] === true);
         assert.ok(dockedViewer, 'SourceColumn mounts DocumentViewer with data-docked={true}');
         const toolbar = mounted.find((node) => node.props?.className === 'reader-toolbar', dockedViewer);
@@ -260,6 +270,24 @@ test('3. SourceColumn shows Alt+` focus hint and DocumentViewer hides heavy auth
         assert.equal(primaryInToolbar, null, 'no competing primary button inside SourceColumn');
       } finally {
         mounted.unmount();
+      }
+
+      // English: same hint, and the docked reader toolbar carries no untranslated Han text
+      interactive.exports.setUiLanguage('en');
+      const mountedEn = mountColumn();
+      try {
+        await mountedEn.flush(6);
+        const keyHintEn = mountedEn.find((node) => node.type === 'kbd' && node.props?.className === 'source-column__key');
+        assert.ok(keyHintEn, 'English SourceColumn renders the focus hint');
+        assert.equal(mountedEn.text(keyHintEn).trim(), 'Alt+`');
+        const dockedEn = mountedEn.find((node) => node.props?.['data-docked'] === true);
+        assert.ok(dockedEn, 'English SourceColumn still mounts the docked DocumentViewer');
+        const toolbarEn = mountedEn.find((node) => node.props?.className === 'reader-toolbar', dockedEn);
+        assert.ok(toolbarEn, 'English docked reader toolbar is rendered');
+        assert.doesNotMatch(mountedEn.text(toolbarEn), han, 'English docked reader toolbar has zero Han characters');
+      } finally {
+        mountedEn.unmount();
+        interactive.exports.setUiLanguage('zh');
       }
     });
   } finally {
