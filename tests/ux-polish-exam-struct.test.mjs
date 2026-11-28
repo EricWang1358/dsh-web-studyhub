@@ -539,12 +539,12 @@ test('#1455-5 ExamCoachPage shows honest case-paper warning and jump button in p
           assert.match(previewText, /案例分析卷/);
           assert.match(previewText, /请求总题量（60 题）/);
         } else {
-          assert.match(previewText, /case-study paper/i);
+          assert.match(previewText, /case paper/i);
           assert.match(previewText, /Requested question count \(60\)/);
           assert.doesNotMatch(previewText.replace(/OS|v1|req-1|综合案例分析/g, ''), han, 'en preview warning has no untranslated Han');
         }
 
-        const goCasePreviewBtn = mounted.find((n) => n.type === 'button' && (mounted.text(n).includes('去创建案例分析卷') || mounted.text(n).includes('Create case-study paper')), previewBox);
+        const goCasePreviewBtn = mounted.find((n) => n.type === 'button' && (mounted.text(n).includes('去创建案例分析卷') || mounted.text(n).includes('Create case paper')), previewBox);
         assert.ok(goCasePreviewBtn, `preview jump to case-study button renders in ${lang}`);
         await mounted.act(() => interactive.click(goCasePreviewBtn));
         assert.equal(caseJumps.at(-1)?.lang, lang);
@@ -563,12 +563,12 @@ test('#1455-5 ExamCoachPage shows honest case-paper warning and jump button in p
           assert.match(mockReportText, /案例分析卷/);
           assert.doesNotMatch(mockReportText, /\b(?:sharedMaterial|subquestions|figure)\b/);
         } else {
-          assert.match(mockReportText, /case-study papers/i);
+          assert.match(mockReportText, /case papers/i);
           assert.match(mockReportText, /Shared-material case problem/);
           assert.doesNotMatch(mockReportText.replace(/OS|v1|req-1|综合案例分析/g, ''), han, 'en mock shortfall report has no untranslated Han');
         }
 
-        const goCaseMockBtn = mounted.find((n) => n.type === 'button' && (mounted.text(n).includes('去创建案例分析卷') || mounted.text(n).includes('Create case-study paper')), mockReportBox);
+        const goCaseMockBtn = mounted.find((n) => n.type === 'button' && (mounted.text(n).includes('去创建案例分析卷') || mounted.text(n).includes('Create case paper')), mockReportBox);
         assert.ok(goCaseMockBtn, `mock report jump to case-study button renders in ${lang}`);
         await mounted.act(() => interactive.click(goCaseMockBtn));
         assert.equal(caseJumps.at(-1)?.lang, lang);
