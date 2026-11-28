@@ -47,10 +47,12 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
   useComponentCss(overlayCss, 'study-overlays');
   useComponentCss(layerCss, 'study-tooltip-layer');
   const [open, setOpen] = useState(false);
+  const worded = Boolean(content);
+  const shown = open && worded;
   // forceOpen: the caller opens the card while something the card's own handlers cannot see holds (keyboard focus on a control that contains the anchor),
   // and closes it when that ends. It opens like any other way, so another card of its `group` still closes it. Esc, a click outside or another card of
   // the group waives the hold: the card stays shut until the caller lets go and holds again (the next keyboard focus).
-  const forced = forceOpen && Boolean(content);
+  const forced = forceOpen && worded;
   const [waived, setWaived] = useState(false);
   const held = useRef(false);
   held.current = forced && !waived;
@@ -60,18 +62,18 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
   self.current.close = () => { clearTimeout(timer.current); if (held.current) setWaived(true); setOpen(false); };
   const closeOthers = () => { const other = group && openInGroup.get(group); if (other && other !== self.current) other.close(); };
   useIsoLayoutEffect(() => {
-    if (!group || !open) return undefined;
+    if (!group || !shown) return undefined;
     closeOthers();
     openInGroup.set(group, self.current);
     return () => { if (openInGroup.get(group) === self.current) openInGroup.delete(group); };
-  }, [group, open]);
-  useAnchoredPosition({ anchorRef: anchor, panelRef: panel, placement, flip, open: open && !layer });
+  }, [group, shown]);
+  useAnchoredPosition({ anchorRef: anchor, panelRef: panel, placement, flip, open: shown && !layer });
   // WCAG 1.4.13 (#1174): an open tooltip closes on Escape wherever focus or the pointer sits, through the shared dismiss stack so stacked cards close top-down.
-  useDismiss({ open, onClose: () => { clearTimeout(timer.current); if (held.current) setWaived(true); setOpen(false); }, refs: anchor, escapeAnywhere: true });
+  useDismiss({ open: shown, onClose: () => { clearTimeout(timer.current); if (held.current) setWaived(true); setOpen(false); }, refs: anchor, escapeAnywhere: true });
   useIsoLayoutEffect(() => {
     const element = panel.current;
     if (!layer || !element?.showPopover) return undefined;
-    if (!open) { if (element.matches(':popover-open')) element.hidePopover(); return undefined; }
+    if (!shown) { if (element.matches(':popover-open')) element.hidePopover(); return undefined; }
     // Place from the anchor's rectangle: top-layer coordinates are the window's, through the interface zoom.
     const place = () => {
       const box = element.getBoundingClientRect(), scale = element.offsetWidth ? box.width / element.offsetWidth : 1;
@@ -91,18 +93,17 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
     window.addEventListener('scroll', place, true);
     window.addEventListener('resize', place);
     return () => { window.removeEventListener('scroll', place, true); window.removeEventListener('resize', place); };
-  }, [layer, open, placement, flip, outside]);
+  }, [layer, shown, placement, flip, outside]);
   useEffect(() => () => clearTimeout(timer.current), []);
   const openChange = useRef(onOpenChange), wasOpen = useRef(false);
   openChange.current = onOpenChange;
   useIsoLayoutEffect(() => {
-    if (wasOpen.current === open) return;
-    wasOpen.current = open;
-    openChange.current?.(open);
-  }, [open]);
+    if (wasOpen.current === shown) return;
+    wasOpen.current = shown;
+    openChange.current?.(shown);
+  }, [shown]);
   useEffect(() => () => { if (wasOpen.current) openChange.current?.(false); }, []); // an open card that goes away has closed
-  const worded = Boolean(content);
-  useEffect(() => { if (!worded) { clearTimeout(timer.current); setOpen(false); } }, [worded]);
+  useIsoLayoutEffect(() => { if (!worded) { clearTimeout(timer.current); setOpen(false); } }, [worded]);
   // Hover and focus on the anchor itself only add to a forced card: leaving the anchor returns to it (still open while the caller holds it).
   const later = (delay, visible) => { clearTimeout(timer.current); timer.current = setTimeout(() => setOpen((visible || held.current) && worded), delay); };
   const now = visible => { clearTimeout(timer.current); setOpen((visible || held.current) && worded); };
@@ -114,20 +115,20 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
     <span ref={anchor} className={cx('sh-popover-anchor', anchorClassName)}>
       {cloneElement(child, {
         'aria-describedby': describedBy,
-        onPointerEnter: chain(own.onPointerEnter, event => { if (event.pointerType !== 'touch') { closeOthers(); later(HOVER_DELAY, true); } }),
+        onPointerEnter: chain(own.onPointerEnter, event => { if (event.pointerType !== 'touch') { closeOthers(); if (worded) later(HOVER_DELAY, true); } }),
         onPointerLeave: chain(own.onPointerLeave, event => { if (event.pointerType !== 'touch') { if (interactive) later(LEAVE_DELAY, false); else now(false); } }),
         onFocus: chain(own.onFocus, event => { if (userFocus(event) || (!quiet && Date.now() - pressedAt.current < PRESS_FOCUS)) now(true); }),
         onBlur: chain(own.onBlur, () => { pressedAt.current = 0; now(false); }),
         onPointerDown: chain(own.onPointerDown, event => {
           pressedAt.current = Date.now();
-          if (event.pointerType !== 'touch') return;
+          if (event.pointerType !== 'touch' || !worded) return;
           clearTimeout(timer.current);
           timer.current = setTimeout(() => { setOpen(worded); timer.current = setTimeout(() => setOpen(false), TOUCH_LINGER); }, PRESS_DELAY);
         }),
-        onPointerUp: chain(own.onPointerUp, event => { if (event.pointerType === 'touch' && !open) clearTimeout(timer.current); }),
-        onPointerCancel: chain(own.onPointerCancel, () => { if (!open) clearTimeout(timer.current); }),
+        onPointerUp: chain(own.onPointerUp, event => { if (event.pointerType === 'touch' && !shown) clearTimeout(timer.current); }),
+        onPointerCancel: chain(own.onPointerCancel, () => { if (!shown) clearTimeout(timer.current); }),
       })}
-      <span id={id} role="tooltip" ref={panel} hidden={layer ? undefined : !open} popover={layer ? 'manual' : undefined} data-placement={placement}
+      <span id={id} role="tooltip" ref={panel} hidden={layer ? undefined : !shown} popover={layer ? 'manual' : undefined} data-placement={placement}
         onPointerEnter={interactive ? () => clearTimeout(timer.current) : undefined}
         onPointerLeave={interactive ? event => { if (event.pointerType !== 'touch') later(LEAVE_DELAY, false); } : undefined}
         className={cx('sh-popover', 'sh-tooltip', interactive && 'sh-tooltip--interactive', className)}>{content}</span>

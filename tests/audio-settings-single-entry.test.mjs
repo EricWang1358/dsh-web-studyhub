@@ -430,6 +430,14 @@ test('AudioHeader omits missing action callbacks cleanly without empty action co
       sourcesOnly.unmount();
     }
 
+    // Settings without a sources handler: only 音频设置, no dead 查看资料 beside it.
+    const settingsOnly = ui.mount(() => h(AudioHeader, { onSettings: () => {} }));
+    try {
+      assert.deepEqual(buttonLabels(settingsOnly), ['音频设置']);
+    } finally {
+      settingsOnly.unmount();
+    }
+
     const empty = ui.mount(() => h(AudioHeader, {}));
     try {
       assert.deepEqual(buttonLabels(empty), []);
