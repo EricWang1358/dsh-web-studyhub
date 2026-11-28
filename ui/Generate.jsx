@@ -398,7 +398,7 @@ export default function Generate({
                 </FormGroup>
                 <FormGroup title={ui("题组信息")}>
                   <FormRow label={ui("题组名称（可选）")} htmlFor="generate-title">
-                    <input id="generate-title" className="generate-row__input" value={gen.title || ""} onChange={(e) => setGen({ ...gen, title: e.target.value })} placeholder={ui("例如 SWE5001 · Solution Architecture")} />
+                    <input id="generate-title" className="generate-row__input" value={gen.title || ""} onChange={(e) => setGen({ ...gen, title: e.target.value })} placeholder={ui("例如：数据库 · 索引与事务")} />
                   </FormRow>
                   {/* For interview preparation only: folded away unless the learner's goal is an interview or a role is already typed (#666). */}
                   <Disclosure className="generate-role" bodyClassName="generate-fold__body" summary={ui("面试方向（可选）")} meta={ui("目标岗位")} defaultOpen={roleOpenByDefault({ goal, focus: data.focus, course: activeCourseRecord, role: gen.role })}>
