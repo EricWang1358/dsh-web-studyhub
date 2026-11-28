@@ -322,7 +322,7 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
           onClick={() => editing ? returnToReading() : setEditing(true)}>{ui(editing ? dirty ? '保存并返回阅读' : '返回阅读' : '编辑内容')}</Button>}
         {(editing || dirty) && writable && <Button variant="primary" disabled={!dirty || note.generation?.status === 'running'} lock={saving} onClick={save}>{ui(daily ? '保存合集' : '保存草稿')}</Button>}
         {/* A page of the sidebar: a way back only when the learner came from somewhere (#1709). An open note has 全部笔记 above its title. */}
-        {onBack && <Button icon="arrow-left" onClick={() => guardLeave(onBack)}>{backLabel || ui('返回学习库')}</Button>}
+        {onBack && <Button icon="arrow-left" onClick={() => guardLeave(() => onBack())}>{backLabel || ui('返回学习库')}</Button>}
         {/* Behind the note's ⋯ (更多操作), never beside 返回: a slip on the way back must not delete. One choice there, then 撤销 in the notice. */}
         {note && <Menu className="note-more" label={ui('更多操作')} items={[{ id: 'delete', label: ui('删除这篇笔记'), danger: true, disabled: saving || publishing, attrs: { 'data-note-delete': '' } }]}
           onSelect={(id) => { if (id === 'delete') removeNote(); }} />}
