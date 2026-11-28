@@ -299,6 +299,23 @@ describe('TextInput real Ink grapheme-cluster, multiline CSI-u, mask & width tes
     }
   });
 
+  test("b2) Multiline orphaned modifyOtherKeys Ctrl+Enter submits; conhost's bare LF stays a newline, so Ctrl+Enter is never advertised (#1736)", async () => {
+    const h = createTextInputHarness({ initialValue: 'A', multiline: true, width: 30, height: 5 });
+    try {
+      await sleep(20);
+      // Ink drops an intact ESC[27;5;13~ before any handler runs, so only the orphaned tail can be handled here.
+      await h.send('[27;5;13~');
+      assert.deepEqual(h.submits, ['A'], 'orphaned modifyOtherKeys Ctrl+Enter must submit');
+      assert.equal(h.getValue(), 'A', 'it must not leak literal text into the value');
+      // conhost reports Ctrl+Enter as a bare LF, which cannot be told from Ctrl+J: a newline, never a submit.
+      await h.send('\n');
+      assert.equal(h.submits.length, 1);
+      assert.equal(h.getValue(), 'A\n');
+    } finally {
+      h.cleanup();
+    }
+  });
+
   test('c) Masked secret input (mask={true}) renders one mask glyph per grapheme and respects asciiMode', async () => {
     const prevPrefs = useTuiStore.getState().preferences;
     try {

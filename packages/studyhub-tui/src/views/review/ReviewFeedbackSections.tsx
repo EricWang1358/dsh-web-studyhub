@@ -13,6 +13,7 @@ import { buildReviewQuickActions } from './quick-actions.js';
 import {
   FSRS_GRADES,
   formatGapDays,
+  wrapIndentedCodeLines,
   type CardSourceLocation,
   type CardFeedbackShape,
   type CardTranslation,
@@ -202,6 +203,40 @@ export function ReviewFeedbackHeader({
                 : diff.matched === false
                   ? theme.error
                   : theme.text;
+            const isMultilineDiff = diff.userValue.includes('\n') || diff.expected.includes('\n');
+            if (isMultilineDiff) {
+              // Wrapped pieces keep each line's own indentation; 4 columns are the fixed left gutter below.
+              const userLines = wrapIndentedCodeLines(rawUser.split('\n'), innerW - 4);
+              const expectedLines = diff.expected ? wrapIndentedCodeLines(diff.expected.split('\n'), innerW - 4) : [];
+              return (
+                <Box key={diff.id} flexDirection="column" width={innerW}>
+                  <Box flexDirection="row" width={innerW}>
+                    <Text color={theme.muted}>{`#${diff.index} `}</Text>
+                    <Text color={statusColor} bold>{`${icon} `}</Text>
+                    <Text color={theme.muted}>
+                      {diff.matched === true
+                        ? t(lang, '回答正确', 'Correct')
+                        : t(lang, '你的作答:', 'Yours:')}
+                    </Text>
+                  </Box>
+                  {userLines.map((ln, lineIdx) => (
+                    <Text key={`u-${lineIdx}`} color={userColor}>
+                      {`    ${ln}`}
+                    </Text>
+                  ))}
+                  {showMismatch ? (
+                    <>
+                      <Text color={theme.muted}>{`  ${arrowText.trim()} ${t(lang, '参考答案:', 'Expected:')}`}</Text>
+                      {expectedLines.map((ln, lineIdx) => (
+                        <Text key={`e-${lineIdx}`} color={theme.success} bold>
+                          {`    ${ln}`}
+                        </Text>
+                      ))}
+                    </>
+                  ) : null}
+                </Box>
+              );
+            }
             return (
               <Box key={diff.id} flexDirection="row" width={innerW}>
                 <Box flexShrink={0}>
