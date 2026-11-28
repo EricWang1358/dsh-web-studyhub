@@ -529,7 +529,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
           })()}
         </div>
       )}
-      {!archifyLater && guidanceAllows("skeleton.archify") && <ArchifyCard onLater={() => { setArchifyPutOff(data?.root, true); setArchifyLater(true); }} />}
+      {!archifyLater && guidanceAllows("skeleton.archify") && <ArchifyCard hasSkeletons={listedSkeletons.length > 0} onLater={() => { setArchifyPutOff(data?.root, true); setArchifyLater(true); }} />}
     </section>
   );
 }

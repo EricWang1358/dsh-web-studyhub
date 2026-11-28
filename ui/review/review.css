@@ -51,7 +51,7 @@
   :is(.study-app, .study-seat) {
     /* The practice page's buttons are the shared <Button> (ui-consistency #135). A shared button never wraps its label; a long label in a
        narrow column (the teaching form at 320px, the question toolbar) must be allowed to, or it widens the whole column. Tokens only. */
-    .question-navigation > :is(.review-more-trigger, [data-usage="review.prev"], [data-usage="review.next"]) { min-width: 0; white-space: normal; }
+    .question-navigation > :is(.review-more-trigger, [data-usage="review.undo"], [data-usage="review.prev"], [data-usage="review.next"]) { min-width: 0; white-space: normal; }
     .assist-actions > .assist-actions__btn { white-space: normal; }
   }
 }

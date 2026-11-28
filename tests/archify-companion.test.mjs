@@ -260,6 +260,7 @@ test('the page never puts the file into its own DOM and only the isolated frame 
 
         const cardA = libA.find((n) => n.type === ArchifyCard);
         assert.ok(cardA, 'ArchifyCard is shown initially for /lib-a');
+        assert.equal(cardA.props.hasSkeletons, true, 'Skeleton tells ArchifyCard when a saved skeleton is listed (#1705)');
         await libA.act(() => cardA.props.onLater());
         assert.equal(libA.find((n) => n.type === ArchifyCard), null, 'dismissing ArchifyCard hides it immediately');
       } finally {
@@ -325,6 +326,44 @@ test('the recommendation card: neutral credit, both links, one install command w
   assert.match(en, />Copy</);
   assert.match(en, />Maybe later</);
   m.setUiLanguage('zh');
+});
+
+test('an open recommendation folds again when the first skeleton appears, and only then (#1705)', async () => {
+  const interactive = await loadInteractiveUi(`
+    export { default as ArchifyCard } from './ui/ArchifyCard.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const { ArchifyCard, setUiLanguage } = interactive.exports;
+  const hi = interactive.React.createElement;
+  await withBrowserGlobals(async () => {
+    setUiLanguage('zh');
+    let setHas;
+    function Harness() {
+      const [has, set] = interactive.React.useState(false);
+      setHas = set;
+      return hi(ArchifyCard, { hasSkeletons: has, onLater() {} });
+    }
+    const card = interactive.mount(() => hi(Harness));
+    try {
+      const fold = () => card.find((n) => n.type === 'details');
+      const openFold = (open) => card.act(() => fold().props.onToggle({ currentTarget: { open } }));
+      assert.equal(!!fold().props.open, false, 'closed to begin with');
+      await openFold(true);
+      assert.equal(fold().props.open, true, 'the learner opened it');
+      await card.act(() => setHas(true));
+      assert.equal(!!fold().props.open, false, 'a skeleton appeared: folded again');
+      // Opened afterwards, it stays open: only the change from none to some folds it.
+      await openFold(true);
+      await card.act(() => setHas(true));
+      assert.equal(fold().props.open, true, 'no change in whether there are skeletons: left as the learner has it');
+      await card.act(() => setHas(false));
+      assert.equal(fold().props.open, true, 'the last skeleton gone does not fold it');
+      await openFold(false);
+      assert.equal(!!fold().props.open, false, 'the learner can close it');
+    } finally {
+      card.unmount();
+    }
+  });
 });
 
 test('the list of attached diagrams: title, date, size, a stale note, open and delete', () => {

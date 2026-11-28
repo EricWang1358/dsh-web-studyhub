@@ -1,0 +1,5 @@
+- **Four small fixes to the screens you use most.** Not verified: not looked at inside DSH or the desktop app.
+  - The undo of the last grade sits next to "Previous question", also on a narrow screen. On a question you have not answered yet, "Undo last grade (Z)" is in the row with "More", "Previous" and "Next"; at phone width it takes its own line above that row, at the right, so the three buttons are not squeezed. It is hidden in a mock exam.
+  - When "More" or "Help" in the sidebar is open, its hover card stays away and no longer covers the group heading and the rows under it. Not verified: screen readers.
+  - On the audio and live class pages, an audio setup that is not done shows one way to the audio settings, not two. The page header button comes back as soon as transcription works, and is left out when there is nothing to open.
+  - On the knowledge skeleton page, the Archify suggestion folds up again when your first skeleton shows up. Open it before that and it closes by itself once there is one to look at; after that it stays as you leave it.

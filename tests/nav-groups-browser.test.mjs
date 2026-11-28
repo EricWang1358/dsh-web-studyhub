@@ -246,3 +246,143 @@ test('a narrow workspace has no icon rail: a labelled drawer from the top bar, o
     await rm(dist, { recursive: true, force: true });
   }
 });
+
+test('expanding 「更多」 or 「帮助」 hides its toggle tooltip so no section label or row underneath is obscured (#1689)', { timeout: 300000 }, async (t) => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
+  const dist = await mkdtemp(join(tmpdir(), 'study-more-tip-dist-'));
+  await buildPreview({ outdir: dist });
+  const running = await startNavServer({ distDir: dist });
+  const cases = [
+    { name: 'desktop 1280 zh', width: 1280, height: 900, lang: 'zh', moreTip: /其余的功能按内容分组收在这里/, helpTip: /功能导览、快捷键和名词解释/ },
+    { name: 'narrow 420 en', width: 420, height: 800, lang: 'en', moreTip: /Everything else, grouped by what it is about/, helpTip: /Feature tour, keyboard shortcuts and glossary/ },
+  ];
+  const openTooltipOverlaps = (page, foldId) => page.evaluate((id) => {
+    const tips = [...document.querySelectorAll('[role="tooltip"]:popover-open')];
+    const items = [...document.querySelectorAll(`[data-nav-fold="${id}"] .nav-fold__items :is(.nav-group-label, button.nav)`)]
+      .filter((el) => el.checkVisibility());
+    const hits = [];
+    for (const tip of tips) {
+      const a = tip.getBoundingClientRect();
+      if (!a.width || !a.height) continue;
+      for (const el of items) {
+        const b = el.getBoundingClientRect();
+        if (a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top) {
+          hits.push({ tip: tip.textContent.trim(), target: el.textContent.trim() });
+        }
+      }
+    }
+    return { openTips: tips.length, visibleItems: items.length, hits };
+  }, foldId);
+  try {
+    for (const cfg of cases) {
+      await t.test(cfg.name, async () => {
+        const context = await browser.newContext({ viewport: { width: cfg.width, height: cfg.height } });
+        await context.addInitScript((lang) => {
+          try {
+            localStorage.setItem('study-ui-language', lang);
+            localStorage.setItem('study-theme', 'dark');
+          } catch { /* blocked */ }
+        }, cfg.lang);
+        const page = await context.newPage();
+        const errors = [];
+        page.on('pageerror', (error) => errors.push(String(error)));
+        try {
+          await page.goto(running.server.url, { timeout: 60000 });
+          await page.locator('.sidebar, .nav-menu-toggle').first().waitFor({ timeout: 30000 });
+          if (!await page.locator('.sidebar').count()) await page.locator('.nav-menu-toggle').click();
+          const more = page.locator('[data-tour="nav-more"]');
+          await more.waitFor({ timeout: 30000 });
+          await page.locator('[data-nav-id="library"]:not([disabled])').waitFor({ timeout: 30000 });
+
+          // 1. Collapsed 「更多」 still shows its purpose tooltip on hover (discoverable in both zh and en).
+          assert.ok(await more.getAttribute('aria-describedby'), 'collapsed 「更多」 links to its tooltip via aria-describedby');
+          await more.hover();
+          const openTip = page.locator('.nav-tooltip:popover-open');
+          await openTip.waitFor({ timeout: 5000 });
+          const tipText = (await openTip.innerText()).trim();
+          assert.match(tipText, cfg.moreTip, 'collapsed 「更多」 tooltip explains its contents and dragging');
+          if (cfg.lang === 'en') assert.doesNotMatch(tipText, /[㐀-鿿]/, 'English tooltip has no Han');
+
+          // 2. Click 「更多」 while hovered (and keep pointer stationary past the 250ms hover delay): tooltip must close immediately and never reopen over the expanded items.
+          await more.click();
+          assert.equal(await more.getAttribute('aria-expanded'), 'true');
+          assert.equal(await more.getAttribute('aria-describedby'), null, 'expanded 「更多」 omits aria-describedby while tooltip is empty');
+          await page.waitForTimeout(500);
+          const afterHoveredClick = await openTooltipOverlaps(page, 'more');
+          assert.equal(afterHoveredClick.openTips, 0, `tooltip must stay closed after expanding while hovered: ${JSON.stringify(afterHoveredClick)}`);
+          assert.ok(afterHoveredClick.visibleItems >= 4, 'expanded 「更多」 shows section headers and rows');
+          assert.deepEqual(afterHoveredClick.hits, [], 'no tooltip overlaps expanded section labels or rows');
+
+          // 3. Re-hovering expanded 「更多」 must not pop the tooltip back over the items below.
+          await page.mouse.move(cfg.width - 10, 10);
+          await more.hover();
+          await page.waitForTimeout(500);
+          const afterRehover = await openTooltipOverlaps(page, 'more');
+          assert.equal(afterRehover.openTips, 0, `re-hovering expanded 「更多」 keeps tooltip suppressed: ${JSON.stringify(afterRehover)}`);
+
+          // 4. Exact issue #1689 repro: collapse 「更多」, move pointer away, then click directly and leave pointer stationary past hover delay.
+          await more.click();
+          assert.equal(await more.getAttribute('aria-expanded'), 'false');
+          await page.mouse.move(cfg.width - 10, 10);
+          await openTip.waitFor({ state: 'detached', timeout: 5000 });
+          await more.click();
+          assert.equal(await more.getAttribute('aria-expanded'), 'true');
+          await page.waitForTimeout(600);
+          const afterDirectClick = await openTooltipOverlaps(page, 'more');
+          assert.equal(afterDirectClick.openTips, 0, `stationary pointer after clicking 「更多」 must not open tooltip: ${JSON.stringify(afterDirectClick)}`);
+          assert.deepEqual(afterDirectClick.hits, [], 'nothing inside 「更多」 is obscured');
+
+          // 5. Keyboard focus & toggle: starting collapsed with focus elsewhere, Tab onto 「更多」 opens its tooltip; Enter expands, hides tooltip immediately and keeps focus; Space collapses with focus retained and tooltip stays closed (open state reset).
+          await more.click();
+          assert.equal(await more.getAttribute('aria-expanded'), 'false');
+          await page.mouse.move(cfg.width - 10, 10);
+          await openTip.waitFor({ state: 'detached', timeout: 5000 });
+          await page.locator('[data-nav-id="dashboard"]').focus();
+          await page.keyboard.press('Tab');
+          assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-tour')), 'nav-more', 'Tab moves keyboard focus onto collapsed 「更多」');
+          await openTip.waitFor({ timeout: 5000 });
+          assert.match((await openTip.innerText()).trim(), cfg.moreTip, 'keyboard focus on collapsed 「更多」 opens its tooltip');
+          await page.keyboard.press('Enter'); // expand
+          assert.equal(await more.getAttribute('aria-expanded'), 'true');
+          assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-tour')), 'nav-more', 'focus stays on 「更多」 when expanded');
+          await openTip.waitFor({ state: 'detached', timeout: 5000 });
+          const afterKeyExpand = await openTooltipOverlaps(page, 'more');
+          assert.equal(afterKeyExpand.openTips, 0, `keyboard-expanded 「更多」 closes tooltip immediately: ${JSON.stringify(afterKeyExpand)}`);
+          assert.deepEqual(afterKeyExpand.hits, [], 'no tooltip overlaps expanded items after keyboard toggle');
+          await page.keyboard.press('Space'); // collapse while focus stays on 「更多」
+          assert.equal(await more.getAttribute('aria-expanded'), 'false');
+          assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-tour')), 'nav-more', 'focus stays on 「更多」 when collapsed');
+          await page.waitForTimeout(400);
+          assert.equal((await openTooltipOverlaps(page, 'more')).openTips, 0, 'collapsing while focused keeps tooltip cleanly closed');
+
+          // 6. Second NavFold caller: 「帮助」 in SidebarFooter behaves identically.
+          const help = page.locator('[data-tour="nav-help"]');
+          const helpToggleTip = page.locator('[data-nav-fold="help"] > .nav-tip > .nav-tooltip:popover-open');
+          await help.scrollIntoViewIfNeeded();
+          await help.hover();
+          await helpToggleTip.waitFor({ timeout: 5000 });
+          assert.match((await helpToggleTip.innerText()).trim(), cfg.helpTip, 'collapsed 「帮助」 shows its purpose tooltip');
+          await help.click();
+          assert.equal(await help.getAttribute('aria-expanded'), 'true');
+          assert.equal(await help.getAttribute('aria-describedby'), null, 'expanded 「帮助」 omits aria-describedby while tooltip is empty');
+          await helpToggleTip.waitFor({ state: 'detached', timeout: 5000 });
+          // 「帮助」 lives in the bottom-pinned footer so expanding shifts the toggle upward; re-hover the expanded toggle itself to verify it stays silent.
+          await help.hover();
+          await page.waitForTimeout(500);
+          const afterHelpHover = await openTooltipOverlaps(page, 'help');
+          assert.equal(await helpToggleTip.count(), 0, 'expanded 「帮助」 toggle tooltip stays closed');
+          assert.equal(afterHelpHover.openTips, 0, `hovering expanded 「帮助」 opens no tooltip: ${JSON.stringify(afterHelpHover)}`);
+          assert.deepEqual(afterHelpHover.hits, [], 'no tooltip overlaps expanded 「帮助」 items');
+          assert.deepEqual(errors, []);
+        } finally {
+          await context.close();
+        }
+      });
+    }
+  } finally {
+    await browser.close().catch(() => {});
+    await running.close();
+    await rm(dist, { recursive: true, force: true });
+  }
+});
