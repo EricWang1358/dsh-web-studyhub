@@ -239,5 +239,22 @@
   "导出 .md": "Export .md",
   "已导出 Markdown": "Exported Markdown",
   "展开窗口": "Open in window",
-  "跳转到原文": "Jump to passage"
+  "跳转到原文": "Jump to passage",
+  "当前主会话模型不支持看图，发过去只会带文字；如需看图请先在主会话换一个能看图的模型。": "The current main chat model does not support images, so only text will be sent; switch to a vision-capable model in the main chat first to send the page image.",
+  "把这一页的文字、你的问题和已存到工作区的页面截图路径复制到剪贴板，贴进 agy CLI 即可看图": "Copy this page’s text, your question, and the workspace path of the rendered page image to the clipboard for agy CLI",
+  "把资料名、页码和已存到工作区的页面截图路径复制到剪贴板，贴进 agy CLI 即可看图": "Copy the material name, page number, and the workspace path of the rendered page image to the clipboard for agy CLI",
+  "第 {0} 张幻灯片仅含图片或没有可读文字，已跳过。": "Slide {0} contains images only or no readable text and was skipped.",
+  "第 {0} 页仅含图片或没有可读文字，已跳过。": "Page {0} contains images only or no readable text and was skipped.",
+  "第 {0} 页仅含图片或没有可读文字，已跳过；未附原 PDF，无法自动带本页截图。": "Page {0} contains images only or no readable text and was skipped; no original PDF is attached, so no page image can be included automatically.",
+  "这一张幻灯片里的{0}没有读进来，文字版不包含这些内容（幻灯片不会自动附截图）。": "The {0} on this slide were not read in, so the text view omits them (slide images are not attached automatically).",
+  "这一张幻灯片里的图片或图表没有读进来，文字版不包含这些内容（幻灯片不会自动附截图）。": "Images or charts on this slide were not read in, so the text view omits them (slide images are not attached automatically).",
+  "这一页里的图片或图表没有读进来，文字版不包含图里的内容。": "Images or charts on this page were not read in, so the text view omits their content.",
+  "这一页里的图片或图表没有读进来，文字版不包含图里的内容；未附原 PDF，无法自动带本页截图。": "Images or charts on this page were not read in, so the text view omits their content; no original PDF is attached, so no page image can be included automatically.",
+  "把这一页的文字、本页图片和你的问题发给主会话": "Send this page’s text, page image, and your question to the main chat",
+  "把这一张幻灯片的文字、页码和你的问题发给主会话": "Send this slide’s text, slide number, and your question to the main chat",
+  "把这一页的文字、页码和你的问题发给主会话": "Send this page’s text, page number, and your question to the main chat",
+  "把这一张幻灯片的文字、页码和你的问题复制到剪贴板，贴进 agy CLI 继续看图": "Copy this slide’s text, slide number, and your question to the clipboard for agy CLI",
+  "把这一页的文字、页码和你的问题复制到剪贴板，贴进 agy CLI 继续看图": "Copy this page’s text, page number, and your question to the clipboard for agy CLI",
+  "补充你的问题或需求": "Add your question or request",
+  "补充你的问题或需求（可选）": "Add your question or request (optional)"
 }

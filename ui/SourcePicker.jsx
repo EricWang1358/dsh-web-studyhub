@@ -119,8 +119,20 @@ export const SOURCE_PICKER_FIRST_ROWS = 24;
 
 /** Small notes a learner should check before generating. */
 export function documentNotes(item) {
+  const imageCount = Array.isArray(item.imagePages) ? item.imagePages.length : 0;
+  const skippedCount = Array.isArray(item.skippedPages) ? item.skippedPages.length : 0;
+  const visualNote = imageCount > 0 && skippedCount > 0
+    ? uiFormat('含未识别图片（{0} 页）· 跳过 {1} 页', [imageCount, skippedCount])
+    : imageCount > 0
+      ? uiFormat('含未识别图片（{0} 页）', [imageCount])
+      : item.hasImages
+        ? ui('含未识别图片')
+        : skippedCount > 0
+          ? uiFormat('跳过 {0} 个图片或空白页', [skippedCount])
+          : false;
   return [item.warnings.includes('sparse') && ui('文字偏少，核对正文'), item.warnings.includes('layout') && ui('排版复杂，建议对照原文'),
     item.warnings.includes('legacy-extraction') && ui('含旧版提取页，建议重新导入'),
+    visualNote,
     isAiDraftedSource(item) && ui('AI 撰写 · 未核对')].filter(Boolean);
 }
 

@@ -9,6 +9,7 @@ import CourseField from './CourseField.jsx';
 import TopicChips from './TopicChips.jsx';
 import { splitTopics } from './course-topics.js';
 import { HandOff } from './hand-off/HandOff.jsx';
+import { stageImageFiles } from './hand-off/stage-images.js';
 import { useStudy } from './study-context.jsx';
 import { useLiveEffect } from './use-async.js';
 import {
@@ -22,16 +23,6 @@ export { buildPdfFileFromImages };
 
 const IMAGE_ACCEPT = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
 
-function readFileAsDataUrl(file) {
-  if (typeof file?.dataUrl === 'string') return Promise.resolve(file.dataUrl);
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(reader.error || new Error(ui('读取图片失败')));
-    reader.readAsDataURL(file);
-  });
-}
-
 export async function prepareFocusImageHandOff({
   rawFiles,
   course = '',
@@ -41,17 +32,9 @@ export async function prepareFocusImageHandOff({
   host = null,
   call,
 }) {
-  let staged;
-  if (typeof host?.stageFocusImages === 'function') {
-    staged = await host.stageFocusImages(rawFiles);
-  } else {
-    const encoded = await Promise.all(rawFiles.map(async (file) => ({
-      name: file.name || 'focus.png',
-      dataUrl: await readFileAsDataUrl(file),
-    })));
-    staged = await call('focus.images.stage', { files: encoded });
-  }
-  const stagedPaths = (staged?.files || []).map((item) => item.relativePath).filter(Boolean);
+  const staged = await stageImageFiles({ files: rawFiles, host, call, fallbackName: 'focus.png' });
+  if (staged.error) throw staged.error;
+  const stagedPaths = staged.files;
   let takes = undefined;
   if (typeof host?.chatTakesPictures === 'function') {
     try { takes = await host.chatTakesPictures(); } catch { takes = undefined; }

@@ -4,6 +4,8 @@ import { Button, HelpTip, IconButton, InlineMessage, TextArea, Tooltip } from '.
 import { READER_HINTS, useReaderHint } from './reader/hints.js';
 import { usePagePresets, visiblePagePresets } from './reader/page-presets.js';
 import { HandOff } from '../hand-off/HandOff.jsx';
+import { hasChatHost } from '../hand-off/use-hand-off.js';
+import { stageImageFiles } from '../hand-off/stage-images.js';
 import { StudyServicesContext } from '../study-context.jsx';
 import { useLiveEffect } from '../use-async.js';
 import AskThread from './AskThread.jsx';
@@ -78,13 +80,51 @@ export const pageWords = picture => (picture ? {
   hint: '点一个预设就直接提问；图表或扫描页可以「发给主会话」，截图只在主会话能看图片时有用。',
 });
 
+/** 4-state vision capability of the DSH main chat model: 'supported' | 'unsupported' | 'unknown' | 'none'. */
+export function visionStateOf(takes) {
+  if (takes === true) return 'supported';
+  if (takes === false) return 'unsupported';
+  if (takes === null) return 'none';
+  return 'unknown';
+}
+
+/** Query and track the DSH main chat model's 4-state image capability when the host has a chat composer. */
+export function useVisionState(host, enabled = true) {
+  const canChat = hasChatHost(host);
+  const model = host?.sessionModel;
+  const [state, setState] = useState('none');
+  useLiveEffect((isLive) => {
+    if (!enabled || !canChat || typeof host?.chatTakesPictures !== 'function') { setState('none'); return; }
+    Promise.resolve().then(() => host.chatTakesPictures()).then(
+      takes => { if (isLive()) setState(visionStateOf(takes)); },
+      () => { if (isLive()) setState('unknown'); },
+    );
+  }, [enabled, canChat, host, model?.provider, model?.model]);
+  return state;
+}
+
+export const VISION_UNSUPPORTED_NOTICE = '当前主会话模型不支持看图，发过去只会带文字；如需看图请先在主会话换一个能看图的模型。';
+
 /**
- * What goes with 发给主会话 of a page, asked at the press (the learner may have changed the model): the host must say this model takes images, because a picture for one that does not
- * blocks the whole message. Only then is anything drawn (onDrawing: the panel says so; a scanned range takes seconds). -> { picture: { images, wanted } | { refused } }, or {} on a host
- * without attachment faces.
+ * What goes with 发给主会话 / agy CLI of a page, asked at the press (the learner may have changed the model):
+ * - In DSH (`hasChatHost(host)`): the host must say this model takes images, because a picture for one that does not blocks the whole message.
+ *   Only then is anything drawn -> `{ picture: { images, wanted } | { refused } }`, or `{}` on a host without attachment faces.
+ * - In Desktop / standalone (`!hasChatHost(host)`): render the page image(s) and stage them into the workspace via `focus.images.stage`
+ *   -> `{ stagedImages: string[] }`, so `reader.page` carries disk paths for `agy CLI`.
  */
-export async function pagePicture(host, handOff, onDrawing = noop) {
-  if (typeof host?.chatTakesPictures !== 'function' || !handOff?.loadImages) return {};
+export async function pagePicture(host, handOff, onDrawing = noop, { call } = {}) {
+  if (!handOff?.loadImages) return {};
+  if (!hasChatHost(host)) {
+    if (typeof host?.stageFocusImages !== 'function' && typeof call !== 'function') return {};
+    onDrawing(true);
+    try {
+      const files = await handOff.loadImages().catch(() => []);
+      if (!files?.length) return {};
+      const staged = await stageImageFiles({ files, host, call, fallbackName: 'page.jpg' });
+      return staged.files?.length ? { stagedImages: staged.files } : {};
+    } finally { onDrawing(false); }
+  }
+  if (typeof host?.chatTakesPictures !== 'function') return {};
   let takes;
   try { takes = await host.chatTakesPictures(); } catch { takes = undefined; }
   if (takes === null) return {};
@@ -113,20 +153,19 @@ export default function PageAsk({ scope, handOff = null, onQuick, resolution, re
   const refused = refusal || (resolution && resolution.status !== 'resolved' ? resolution : null);
   // Only where an app can take it (the reader also runs as a bare preview of the host, which has no chat and no notices).
   const services = useContext(StudyServicesContext), canHandOff = !!services && !!handOff;
-  const host = services?.host, model = host?.sessionModel;
+  const host = services?.host, call = services?.call;
   // The words follow what a press will do: the panel asks when it opens and when the model changes; the press asks again (pagePicture).
-  const [picture, setPicture] = useState(false), [drawing, setDrawing] = useState(false);
-  useLiveEffect((isLive) => {
-    if (!canHandOff || !handOff.loadImages || typeof host?.chatTakesPictures !== 'function') { setPicture(false); return; }
-    Promise.resolve().then(() => host.chatTakesPictures()).then(takes => { if (isLive()) setPicture(takes === true); }, () => { if (isLive()) setPicture(false); });
-  }, [canHandOff, !!handOff?.loadImages, model?.provider, model?.model]);
+  const visionState = useVisionState(host, canHandOff && !!handOff?.loadImages);
+  const picture = visionState === 'supported';
+  const visionUnsupported = canHandOff && hasChatHost(host) && visionState === 'unsupported';
+  const [drawing, setDrawing] = useState(false);
   const words = pageWords(picture);
   // The presets of this browser (#485): visiblePagePresets puts the built-ins not hidden before the learner's own; the dialog that adds and
   // changes them is outside the section, so it never nests a form inside the question form.
   const [presets, updatePresets] = usePagePresets(), [managing, setManaging] = useState(false);
   const locked = !askReady || asking || !!refused, range = !!scope.to, label = pagesLabel(scope);
-  const handOffInput = async () => ({ ...pageHandOffInput(handOff, question, false), ...await pagePicture(host, handOff, setDrawing) });
-  const handOffEmptyInput = async () => ({ ...pageHandOffInput(handOff, question, true), ...await pagePicture(host, handOff, setDrawing) });
+  const handOffInput = async () => ({ ...pageHandOffInput(handOff, question, false), ...await pagePicture(host, handOff, setDrawing, { call }) });
+  const handOffEmptyInput = async () => ({ ...pageHandOffInput(handOff, question, true), ...await pagePicture(host, handOff, setDrawing, { call }) });
   return <>
     <section className="study-document-learning study-page-ask" aria-label={ui('按页提问')} ref={sectionRef} data-scope="page" data-tour="reader-page-ask" tabIndex={-1}>
       {list}
@@ -148,8 +187,9 @@ export default function PageAsk({ scope, handOff = null, onQuick, resolution, re
           : uiFormat('第 {0} 页没有保存文字（多半是扫描页或图片页）：换一页再问，或在「阅读」里点「看原页」看这一页的图。', [label])}</InlineMessage>
         {/* The page is only a picture: the main chat can read the screenshot the learner pastes; here it is the way forward, not a side link. */}
         {canHandOff && <div className="study-page-ask__forward">
+          {visionUnsupported && <InlineMessage tone="warning" className="study-page-ask__vision-warn" data-vision-unsupported="true">{ui(VISION_UNSUPPORTED_NOTICE)}</InlineMessage>}
           <p className="muted">{ui(words.forward)}</p>
-          <HandOff id="reader.page" shape="secondary" what={words.whatEmpty} input={handOffEmptyInput} />
+          <HandOff id="reader.page" shape="secondary" copyLabel="复制给 agy CLI" what={words.whatEmpty} copyWhat="把资料名、页码和已存到工作区的页面截图路径复制到剪贴板，贴进 agy CLI 即可看图" input={handOffEmptyInput} />
         </div>}
       </> : <>
         {refused && <InlineMessage tone="warning">{ui(pageReasons[refused.status] || PAGE_REFUSED)}</InlineMessage>}
@@ -165,7 +205,8 @@ export default function PageAsk({ scope, handOff = null, onQuick, resolution, re
         {cut?.truncated && <CutNote cut={cut} range={range} disabled={locked} onContinue={onContinue} />}
         <AskThread thread={thread} notice={notice} noticeWhy={noticeWhy} onAsk={onAskInside || noop} onRetry={onRetryNode || noop} onToggle={onToggleNode || noop} />
         {/* A quiet way out where the built-in answer cannot help: a figure, a formula drawn as a picture. */}
-        {canHandOff && <HandOff id="reader.page" shape="quiet" lead={words.lead} what={words.what} input={handOffInput} className="study-page-ask__handoff" />}
+        {visionUnsupported && <InlineMessage tone="warning" className="study-page-ask__vision-warn" data-vision-unsupported="true">{ui(VISION_UNSUPPORTED_NOTICE)}</InlineMessage>}
+        {canHandOff && <HandOff id="reader.page" shape="quiet" copyLabel="复制给 agy CLI" lead={words.lead} what={words.what} copyWhat="把这一页的文字、你的问题和已存到工作区的页面截图路径复制到剪贴板，贴进 agy CLI 即可看图" input={handOffInput} className="study-page-ask__handoff" />}
       </>}
       {drawing && <p className="muted" role="status">{uiFormat('正在画第 {0} 页的图…', [label])}</p>}
       {/* A page without saved text has no question box to paste into. */}

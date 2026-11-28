@@ -61,15 +61,17 @@ test('the learner\'s page text, question and the original travel together; the p
   assert.deepEqual(sent, { ...input, original: { path: BOOK }, question: 'Why?' });
 });
 
-test('which original the library can name: a reference to the learner\'s file, or the copy it holds; nothing when there is none or the file is not a PDF', () => {
+test('which original the library can name: a reference to the learner\'s file, or the copy it holds; nothing when there is none or the file is neither a PDF nor slides', () => {
   const reference = { format: 'pdf', original: { mode: 'reference', status: 'ok', path: BOOK } };
   assert.deepEqual(ui.handOffOriginal(reference), { path: BOOK });
   // too big for the reader to open, but the main chat can
   assert.deepEqual(ui.handOffOriginal({ ...reference, originalAvailable: false, original: { ...reference.original, tooLargeForReader: true } }), { path: BOOK });
   assert.deepEqual(ui.handOffOriginal({ format: 'pdf', original: { mode: 'copy', status: 'ok' }, preview: { kind: 'file', absolutePath: 'C:\\lib\\attachments\\materials\\abc.pdf' } }), { path: 'C:\\lib\\attachments\\materials\\abc.pdf' });
+  // PPTX / PPT slide originals are also handed off when ok (#1457).
+  assert.deepEqual(ui.handOffOriginal({ format: 'pptx', original: { mode: 'reference', status: 'ok', path: 'D:\\x.pptx' } }), { path: 'D:\\x.pptx' });
   for (const none of [undefined, null, {}, { format: 'pdf', original: { mode: null, status: 'none' } },
     { format: 'pdf', original: { mode: 'reference', status: 'missing', path: BOOK } }, { format: 'pdf', original: { mode: 'reference', status: 'changed', path: BOOK } },
-    { format: 'pptx', original: { mode: 'reference', status: 'ok', path: 'D:\\x.pptx' } }, { format: 'pdf', original: { mode: 'copy', status: 'ok' } }]) {
+    { format: 'txt', original: { mode: 'reference', status: 'ok', path: 'D:\\x.txt' } }, { format: 'pdf', original: { mode: 'copy', status: 'ok' } }]) {
     assert.equal(ui.handOffOriginal(none), undefined, JSON.stringify(none));
   }
 });

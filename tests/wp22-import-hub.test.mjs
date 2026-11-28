@@ -136,9 +136,9 @@ test('Office imports report slides and skipped slides like PDF pages', async () 
   assert.match(results[3].error, /没有可用的文字/);
   assert.doesNotMatch(results[3].error, /OCR/);
   const summary = importSummary(results);
-  assert.equal(importDoneMessage({ ...summary, documents: [summary.documents[0]] }), '已导入「OS Lecture 5」（3 页）');
+  assert.equal(importDoneMessage({ ...summary, documents: [summary.documents[0]] }), '已导入「OS Lecture 5」（3 页）；第 4 张仅含图片或没有文字已跳过');
   assert.equal(importDoneMessage({ ...summary, documents: [summary.documents[1]] }), '已导入「Notes」');
   setUiLanguage('en');
-  try { assert.equal(importDoneMessage({ ...summary, documents: [summary.documents[0]] }), 'Imported “OS Lecture 5” (3 pages)'); }
+  try { assert.equal(importDoneMessage({ ...summary, documents: [summary.documents[0]] }), 'Imported “OS Lecture 5” (3 pages); slide 4 had images only or no text and was skipped'); }
   finally { setUiLanguage('zh'); }
 });
