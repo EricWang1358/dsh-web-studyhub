@@ -195,11 +195,31 @@ test('a plain run whose key was refused says so (去配置模型 first) and can 
   assert.deepEqual([s.state, s.action, s.failure, s.canContinue, s.continueKind], ['refused', 'model-settings', 'credential', true, 'count']);
 });
 
-test('a plain draft that is full, or whose request is unknown, has nothing to continue: its sections without a question are the top-up\'s business', () => {
+test('a plain count run that met its request is done (even with uncovered sections left as an optional secondary top-up); an unknown request stays topup', () => {
+  // #1649: a plain count run promised N questions, not every section of the material. Once kept >= requested without failing/cancelling/interrupting,
+  // it is done and ready (100%), with top-up available only as a deliberate secondary action when uncovered sections remain.
   const full = shortfallOf({ draft: plainDraft({ cards: 15 }), coverage: coverageOf(108, 94), round: round(27, 27, 67, 4) });
-  assert.deepEqual([full.questionsMissing, full.action, full.secondary], [0, 'topup', null]);
+  assert.deepEqual(
+    [full.state, full.reason, full.ready, full.percent, full.questionsMissing, full.action, full.secondary, full.planned],
+    ['done', null, true, 100, 0, null, 'topup', false],
+  );
+  // Every section covered (uncovered === 0) or cannot top up or coverage not yet arrived: secondary is null.
+  const allCovered = shortfallOf({ draft: plainDraft({ cards: 15 }), coverage: coverageOf(10, 0), round: round(0, 0, 0, 0) });
+  assert.deepEqual([allCovered.state, allCovered.ready, allCovered.percent, allCovered.action, allCovered.secondary], ['done', true, 100, null, null]);
+  const noTopUp = shortfallOf({ draft: plainDraft({ cards: 15 }), coverage: coverageOf(108, 94), round: round(27, 27, 67, 4), canTopUp: false });
+  assert.deepEqual([noTopUp.state, noTopUp.ready, noTopUp.action, noTopUp.secondary], ['done', true, null, null]);
+  const early = shortfallOf({ draft: plainDraft({ cards: 15 }) });
+  assert.deepEqual([early.state, early.ready, early.percent, early.action, early.secondary], ['done', true, 100, null, null]);
+  // A plain run whose job failed, was cancelled, or was interrupted stays in that state even if cards >= requested.
+  const endedFailed = shortfallOf({ draft: plainDraft({ cards: 15 }), coverage: coverageOf(108, 94), round: round(27, 27, 67, 4), job: failedPlain() });
+  assert.deepEqual([endedFailed.state, endedFailed.reason, endedFailed.ready], ['stopped', 'time-limit', false]);
+  const endedCancelled = shortfallOf({ draft: plainDraft({ cards: 15 }), coverage: coverageOf(108, 94), round: round(27, 27, 67, 4), job: { ...failedPlain('Generation was cancelled'), status: 'cancelled' } });
+  assert.deepEqual([endedCancelled.state, endedCancelled.reason, endedCancelled.ready], ['cancelled', 'learner', false]);
+  const endedInterrupted = shortfallOf({ draft: plainDraft({ cards: 15 }), coverage: coverageOf(108, 94), round: round(27, 27, 67, 4), job: { id: 'j9', draftId: 'p1', status: 'interrupted' } });
+  assert.deepEqual([endedInterrupted.state, endedInterrupted.reason, endedInterrupted.action], ['interrupted', 'interrupted', 'continue']);
+  // A legacy/imported draft with no explicit editorial.requested keeps the existing stopped/no-plan/topup behavior.
   const old = shortfallOf({ draft: { id: 'o', title: 'Old', cards: [{ id: 'c' }], editorial: {} }, coverage: coverageOf(10, 5), round: round(5, 5, 0, 1) });
-  assert.equal(old.action, 'topup');
+  assert.deepEqual([old.state, old.reason, old.action, old.secondary], ['stopped', 'no-plan', 'topup', null]);
 });
 
 test('a draft with a plan promises sections as before (planned), and a top-up\'s plan counts as one', () => {

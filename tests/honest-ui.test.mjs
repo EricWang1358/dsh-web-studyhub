@@ -302,3 +302,58 @@ test('every new sentence has an English twin without Chinese in it', () => {
       m.copy.failedWhy('credential'), m.copy.failedWhy('timeout'), m.copy.failedWhy('Part 1: Quality gate failed: q1: answerLeak failed')]) assert.doesNotMatch(sentence, han, sentence);
   });
 });
+
+test('#1649: a completed plain count run with uncovered sections shows a neutral ready badge on Home 待发布 while keeping optional top-up on Draft page and TaskConsole', () => {
+  const plainDraft = {
+    id: 'd1',
+    title: 'Plain count deck',
+    draftVersion: 3,
+    folder: '',
+    cards: Array.from({ length: 15 }, (_, i) => ({ id: `c${i}`, kind: 'quiz' })),
+    editorial: { requested: 15, generated: 15, generation: { sourceIds: ['s'], kind: 'quiz' } },
+  };
+  const plainJob = {
+    id: 'j-plain',
+    type: 'generate',
+    status: 'complete',
+    stage: 'Draft ready for review',
+    deckTitle: 'Plain count deck',
+    draftId: 'd1',
+    kind: 'quiz',
+    count: 15,
+    requestedTotal: 15,
+    savedCount: 15,
+    parts: 1,
+    steps: [],
+    startedAt: at(0),
+    finishedAt: at(100),
+  };
+  const d = { revision: undefined, jobs: [plainJob], drafts: [plainDraft], decks: [], sources: [], model: { ready: true } };
+  seed();
+  const homeHtml = render(React.createElement(HomeBoth, {
+    jobs: d.jobs, drafts: d.drafts, busy: false, openDraft: noop, openAgent: noop, cancelJob: noop, dismissJob: noop, retryGeneration: noop, manage: noop,
+    start: noop, topUpDraft: noop, openModelSettings: noop, modelReady: true, data: d,
+  }), { data: d });
+  const rowHtml = /<div class="draft-row">[\s\S]*$/.exec(homeHtml)[0];
+  assert.match(rowHtml, /data-tone="neutral"[^>]*data-draft-status[^>]*>待发布检查/, 'neutral badge, never warning 待补齐');
+  assert.doesNotMatch(text(rowHtml), /待补齐/);
+  assert.match(text(rowHtml), /15 道题/);
+  assert.match(text(rowHtml), /覆盖 10\/12 个小节（83%）/, 'still states honest section coverage');
+  assert.ok(!buttonsOf(rowHtml).includes('为没覆盖的部分补题'), 'no compact top-up button competing on the home 待发布 row');
+
+  // Draft page (variant="block") keeps optional top-up available without falsely claiming a plan finished.
+  seed();
+  const pageHtml = render(React.createElement(m.DraftCoverage, { draft: plainDraft, view, jobs: d.jobs, onTopUp: noop }), { data: d });
+  assert.ok(buttonsOf(pageHtml).includes('为没覆盖的部分补题'), 'draft page still offers optional section top-up');
+  assert.doesNotMatch(text(pageHtml), /计划内 \d+ 题已全部出完/, 'plain run never claims a coverage plan finished');
+
+  // TaskConsole header keeps 打开草稿 and optional top-up popover reachable via secondary === "topup".
+  seed();
+  const consoleHtml = render(React.createElement(m.TaskConsole, {
+    data: d,
+    openers: { resultOf: () => ({ kind: 'draft', label: '打开草稿', run: noop }) },
+  }), { data: d });
+  assert.ok(buttonsOf(consoleHtml).includes('打开草稿'));
+  assert.ok(buttonsOf(consoleHtml).includes('为没覆盖的部分补题'), 'TaskConsole keeps top-up popover reachable via secondary');
+  assert.doesNotMatch(consoleHtml, /data-run-state=/, 'RunLine renders nothing for a completed plain run');
+});
