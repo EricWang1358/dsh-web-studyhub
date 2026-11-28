@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { joinMeta } from '../format.js';
 import { Button, CheckboxInput, ErrorState, Icon, InlineMessage, SegmentedControl } from '../components/index.js';
@@ -27,6 +27,10 @@ export default function WrittenSetup({ data, header, recent, decks, deckNames, p
   const pickedTotal = kinds.quiz + kinds.multi;
   const typeAvailable = typeAvailableOf(kinds, typeMode);
   const canStart = decks.length > 0 && picked.size > 0 && typeAvailable > 0;
+  const [tuneOpen, setTuneOpen] = useState(!canStart);
+  useEffect(() => {
+    if (!canStart) setTuneOpen(true);
+  }, [canStart]);
   const pickedLine = picked.size ? uiFormat('已选 {0} 个题组 · 共 {1} 道选择题', [picked.size, pickedTotal]) : '';
   const course = limit?.course;
   const targetCourse = typeof course === 'string' && course !== '*'
@@ -59,56 +63,64 @@ export default function WrittenSetup({ data, header, recent, decks, deckNames, p
         {examRole && <p className="es-note"><Icon className="sh-icon--inline" name="info" />
           <span>{uiFormat('目标岗位：{0}。本次按上方范围和勾选题组出题。', [examRole])}</span></p>}
         {decks.length ? (
-          <>
-            <div className="es-section">
-              <div className="es-section__head">
-                <div>
-                  <strong>{ui('选题组')}</strong>
-                  <small>{pickedLine || ui('至少勾选一个题组')}</small>
+          <details className="es-tune" open={tuneOpen || !canStart} onToggle={(event) => setTuneOpen(event.currentTarget.open)}>
+            <summary className="es-tune__summary">
+              <span>{ui('调整试卷范围与题数')}</span>
+              <small className="es-tune__meta">
+                {[uiFormat('{0} 题 · 限时 {1} 分钟', [count, minutes]), picked.size ? pickedLine : ui('至少勾选一个题组')].join(' · ')}
+              </small>
+            </summary>
+            <div className="es-tune__body">
+              <div className="es-section">
+                <div className="es-section__head">
+                  <div>
+                    <strong>{ui('选题组')}</strong>
+                    <small>{pickedLine || ui('至少勾选一个题组')}</small>
+                  </div>
+                  <div className="es-tools">
+                    <Button size="sm" variant="quiet" disabled={picked.size === decks.length} onClick={() => onPick(new Set(decks.map((deck) => deck.id)))}>{ui('全选')}</Button>
+                    <Button size="sm" variant="quiet" disabled={!picked.size} onClick={() => onPick(new Set())}>{ui('清空')}</Button>
+                  </div>
                 </div>
-                <div className="es-tools">
-                  <Button size="sm" variant="quiet" disabled={picked.size === decks.length} onClick={() => onPick(new Set(decks.map((deck) => deck.id)))}>{ui('全选')}</Button>
-                  <Button size="sm" variant="quiet" disabled={!picked.size} onClick={() => onPick(new Set())}>{ui('清空')}</Button>
-                </div>
+                <ul className="es-decks">
+                  {decks.map((deck) => (
+                    <li key={deck.id}>
+                      <label className={'es-deck' + (picked.has(deck.id) ? ' is-checked' : '')}>
+                        <CheckboxInput checked={picked.has(deck.id)}
+                          onChange={(event) => onPick((previous) => {
+                            const next = new Set(previous);
+                            if (event.target.checked) next.add(deck.id); else next.delete(deck.id);
+                            return next;
+                          })} />
+                        <span className="es-deck__name">
+                          <strong title={deck.title}>{deckNames[deck.id] || deck.title}</strong>
+                          <small>{joinMeta([uiFormat('单选 {0} · 多选 {1}', [deck.examQuizCount || 0, deck.examMultiCount || 0]),
+                            deck.examTrueFalseCount ? uiFormat('判断 {0}', [deck.examTrueFalseCount]) : null])}</small>
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <ul className="es-decks">
-                {decks.map((deck) => (
-                  <li key={deck.id}>
-                    <label className={'es-deck' + (picked.has(deck.id) ? ' is-checked' : '')}>
-                      <CheckboxInput checked={picked.has(deck.id)}
-                        onChange={(event) => onPick((previous) => {
-                          const next = new Set(previous);
-                          if (event.target.checked) next.add(deck.id); else next.delete(deck.id);
-                          return next;
-                        })} />
-                      <span className="es-deck__name">
-                        <strong title={deck.title}>{deckNames[deck.id] || deck.title}</strong>
-                        <small>{joinMeta([uiFormat('单选 {0} · 多选 {1}', [deck.examQuizCount || 0, deck.examMultiCount || 0]),
-                          deck.examTrueFalseCount ? uiFormat('判断 {0}', [deck.examTrueFalseCount]) : null])}</small>
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
+              <div className="exam-type-settings">
+                <strong>{ui('题型')}</strong>
+                <SegmentedControl className="exam-type-settings__seg" label={ui('考试题型')} value={typeMode} onChange={onTypeMode}
+                  options={Object.entries(EXAM_KIND_LABELS).map(([value, label]) => ({ value, label: ui(label) }))} />
+                <small className="muted">{uiFormat('已选题组：单选 {0} 道，多选 {1} 道。均衡模式尽量各占一半，不足时由另一类补齐。', [kinds.quiz, kinds.multi])}</small>
+                {picked.size > 0 && !typeAvailable && <InlineMessage tone="warning">{ui('所选题组没有这种题型，请换题型或题组。')}</InlineMessage>}
+              </div>
+              <div className="es-pair">
+                <CountField value={count} presets={[5, 10, 20]} min={EXAM_QUESTION_COUNT.min} max={EXAM_QUESTION_COUNT.max} onChange={onCount}
+                  hint={picked.size && !typeAvailable
+                    ? ui('当前题型可选 0 道')
+                    : picked.size && typeAvailable < count
+                      ? uiFormat('符合题型的题只有 {0} 道，将全部出题', [typeAvailable])
+                      : uiFormat('{0}–{1} · 默认 {2}', [EXAM_QUESTION_COUNT.min, EXAM_QUESTION_COUNT.max, DEFAULT_COUNT])} />
+                <CountField key={`limit:${limit.course}`} label={ui('限时（分钟）')} value={minutes} presets={limitPresets(limit.defaults.minutes)} min={LIMIT_MINUTES.min} max={LIMIT_MINUTES.max}
+                  onChange={onLimit} hint={limitHint(limit)} />
+              </div>
             </div>
-            <div className="exam-type-settings">
-              <strong>{ui('题型')}</strong>
-              <SegmentedControl className="exam-type-settings__seg" label={ui('考试题型')} value={typeMode} onChange={onTypeMode}
-                options={Object.entries(EXAM_KIND_LABELS).map(([value, label]) => ({ value, label: ui(label) }))} />
-              <small className="muted">{uiFormat('已选题组：单选 {0} 道，多选 {1} 道。均衡模式尽量各占一半，不足时由另一类补齐。', [kinds.quiz, kinds.multi])}</small>
-              {picked.size > 0 && !typeAvailable && <InlineMessage tone="warning">{ui('所选题组没有这种题型，请换题型或题组。')}</InlineMessage>}
-            </div>
-            <div className="es-pair">
-              <CountField value={count} presets={[5, 10, 20]} min={EXAM_QUESTION_COUNT.min} max={EXAM_QUESTION_COUNT.max} onChange={onCount}
-                hint={picked.size && !typeAvailable
-                  ? ui('当前题型可选 0 道')
-                  : picked.size && typeAvailable < count
-                    ? uiFormat('符合题型的题只有 {0} 道，将全部出题', [typeAvailable])
-                    : uiFormat('{0}–{1} · 默认 {2}', [EXAM_QUESTION_COUNT.min, EXAM_QUESTION_COUNT.max, DEFAULT_COUNT])} />
-              <CountField key={`limit:${limit.course}`} label={ui('限时（分钟）')} value={minutes} presets={limitPresets(limit.defaults.minutes)} min={LIMIT_MINUTES.min} max={LIMIT_MINUTES.max}
-                onChange={onLimit} hint={limitHint(limit)} />
-            </div>
-          </>
+          </details>
         ) : (
           <div className="es-empty">
             <strong>{ui('还没有可以模考的选择题')}</strong>

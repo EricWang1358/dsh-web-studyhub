@@ -669,5 +669,10 @@
   "补齐生词": "Fill in terms",
   "正在补齐生词": "Filling in unfamiliar terms",
   "正在修复补词格式": "Repairing term-ladder format",
-  "修复补词格式": "Repair term-ladder format"
+  "修复补词格式": "Repair term-ladder format",
+  "上一个操作还没结束，等它完成后再点一次。": "The previous action has not finished yet. Wait for it to finish, then try again.",
+  "首次响应": "First response",
+  "生成速度": "Output speed",
+  "并发通道": "Parallel lane",
+  "发送内容": "Request sent"
 }

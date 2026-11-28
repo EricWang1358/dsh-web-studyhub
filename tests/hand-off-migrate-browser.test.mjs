@@ -236,13 +236,14 @@ test('发给主会话 on the places that handed over before: the shared control,
     assert.equal(await page.locator('.sk-note').count(), 0, `${tag}: no line of the page's own about it`);
     await shot('skeleton-primary');
     await page.locator('.sk-saved-item').first().click();
-    const update = page.locator('.sk-view-head [data-hand-off="skeleton.design"]');
+    await page.locator('details.skeleton-extend-fold > summary.skeleton-extend-fold__summary').click();
+    const update = page.locator('.skeleton-extend-fold [data-hand-off="skeleton.design"]');
     await update.waitFor({ timeout: 30000 });
     text = await handOver(update, { shotName: 'skeleton-update' });
     assert.match(text, /^帮我更新知识骨架 `进程与线程`：/);
-    text = await handOver(page.locator('.sk-view-head [data-hand-off="skeleton.archify"]'));
+    text = await handOver(page.locator('.skeleton-extend-fold [data-hand-off="skeleton.archify"]'));
     assert.match(text, /archify/);
-    assert.equal(await page.locator('.sk-view-head').getByText('这门课').count(), 0, `${tag}: the link says 这份骨架`);
+    assert.equal(await page.locator('.skeleton-extend-fold').getByText('这门课').count(), 0, `${tag}: the link says 这份骨架`);
     const extend = page.locator('[data-hand-off-form="skeleton.extend"]').first();
     await extend.scrollIntoViewIfNeeded();
     assert.equal(await extend.getByRole('button', { name: '发给主会话' }).isDisabled(), true, `${tag}: the button waits for a word`);

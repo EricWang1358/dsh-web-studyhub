@@ -84,8 +84,8 @@ test('every number has one plain label and a hover that says what it counts', ()
   const html = render();
   // Today's plan when nothing else leads: the breakdown names each count.
   assert.match(render({ focus: { mode: 'class', course: 'CS3219', courses: [{ name: 'CS3219' }], fresh: [] } }), /1 题到期 · 2 题薄弱 · 1 题未学/);
-  assert.match(html, /<span class="desk-mastery-label">掌握度<\/span>/);
-  assert.match(html, /title="[^"]*间隔复习累积[^"]*"/, 'what mastered means');
+  assert.match(html, /<span class="desk-mastery-label"[^>]*>掌握度<\/span>/);
+  assert.match(html, /role="tooltip"[^>]*>[^<]*间隔复习累积/, 'what mastered means');
   assert.match(html, /学过 3 \/ 5 题/);
   for (const key of ['due', 'learned', 'mastered', 'weak', 'new', 'mastery']) {
     assert.ok(TERMS[key]?.label && TERMS[key]?.hint, `${key} has a label and a hint`);
@@ -94,7 +94,7 @@ test('every number has one plain label and a hover that says what it counts', ()
   assert.match(TERMS.due.label, /到期/);
   assert.match(TERMS.learned.label, /学过/);
   // The legend carries the hints, so a colour is never the only explanation.
-  assert.match(html, /<span title="[^"]*"><i class="lv-mastered"><\/i>已掌握<\/span>/);
+  assert.match(html, /<span[^>]*><i class="lv-mastered"><\/i>已掌握<\/span><span[^>]*role="tooltip"[^>]*>[^<]*间隔复习累积/);
 });
 
 test('English renders without Han outside the learner\'s own names', () => {

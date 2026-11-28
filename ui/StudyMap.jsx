@@ -221,7 +221,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
       <CatalogHeading count={data.decks.filter((deck) => !!deck.archived === showArchived).length} showArchived={showArchived} hasDecks={data.decks.length > 0}
         hasSources={data.sources.length > 0} course={data.focus?.course} merge={merge} slain={data.decks.find((deck) => deck.systemKind === "slain")}
         addSource={addSource} createManual={createManual} importLibrary={importLibrary} manage={manage} onShowGraph={onShowGraph}
-        onShowOutline={home.route?.chapters?.length ? onShowOutline : undefined} maps={shows("home.catalog-maps")} />
+        onShowOutline={!(shows("home.course-extras") && onShowOutline) && home.route?.chapters?.length ? onShowOutline : undefined} maps={shows("home.catalog-maps")} />
       {shows("home.topic-groups") && <TopicGroupReminder grouping={data.topicGrouping} root={data.root} />}
       <BookBackupHint bookCourses={data.bookCourses} root={data.root} />
       <MergeSuggestions merge={merge} />

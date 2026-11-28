@@ -151,6 +151,11 @@
     .sh-stacked__swatch { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--sh-tone); box-shadow: inset 0 0 0 1px var(--sh-swatch-ring, transparent); }
     /* ── Error state and crash fallback ─────────────────────────────────── */
     .sh-error-state--compact { margin: 0; }
+    .sh-error-state--inline { margin: 0; padding: var(--space-1) 0; }
+    :is(.sh-panel, .sh-paper-card) .sh-error-state:not(.sh-error-state--compact):not(.sh-error-state--inline) {
+      border-color: transparent;
+      background: color-mix(in srgb, var(--sh-tone) 6%, transparent);
+    }
     .sh-crash {
       display: flex;
       align-items: flex-start;

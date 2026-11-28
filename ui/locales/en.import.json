@@ -178,5 +178,10 @@
   "PDF · Word · PowerPoint · Markdown · LaTeX · HTML · TXT · 转换结果 JSON（PaddleOCR / MinerU / Docling）· JSON 题组 · SRT / VTT 字幕": "PDF · Word · PowerPoint · Markdown · LaTeX · HTML · TXT · Converted JSON (PaddleOCR / MinerU / Docling) · JSON decks · SRT / VTT subtitles",
   "PDF · Word · PowerPoint · Markdown · LaTeX · HTML · TXT · 转换结果 JSON（PaddleOCR / MinerU / Docling）· JSON 题组": "PDF · Word · PowerPoint · Markdown · LaTeX · HTML · TXT · Converted JSON (PaddleOCR / MinerU / Docling) · JSON decks",
   "PDF 与文本最大 {0} MB，Word / PPT / 转换 JSON 最大 {1} MB": "PDF & text up to {0} MB, Word / PPT / converted JSON up to {1} MB",
-  "文字读不出来、公式多，或超过 8 MB 的 PDF，可先在本机解析成带页码的文字（不上传）；不想装本机工具，也可在 paddleocr.ai 在线解析后下载 JSON 直接拖进上面的导入框。": "A PDF whose text cannot be read, that has many formulas, or that is over 8 MB can first be converted locally into text with page numbers (stays on device); or convert online at paddleocr.ai and drop the downloaded JSON into the box above."
+  "文字读不出来、公式多，或超过 8 MB 的 PDF，可先在本机解析成带页码的文字（不上传）；不想装本机工具，也可在 paddleocr.ai 在线解析后下载 JSON 直接拖进上面的导入框。": "A PDF whose text cannot be read, that has many formulas, or that is over 8 MB can first be converted locally into text with page numbers (stays on device); or convert online at paddleocr.ai and drop the downloaded JSON into the box above.",
+  "获取各题型 JSON 提示词与格式示例": "Get JSON prompt templates and examples",
+  "已识别「{0}」共 {1} 道题，点下方按钮检查并建议归类。": "Detected “{0}” with {1} questions. Click below to check and suggest filing.",
+  "已识别「{0}」共 {1} 道题，点下方按钮检查并建议归类。#one:1": "Detected “{0}” with {1} question. Click below to check and suggest filing.",
+  "已识别 {0} 道题，点下方按钮检查并建议归类。": "Detected {0} questions. Click below to check and suggest filing.",
+  "已识别 {0} 道题，点下方按钮检查并建议归类。#one": "Detected {0} question. Click below to check and suggest filing."
 }

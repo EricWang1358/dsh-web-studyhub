@@ -125,24 +125,20 @@ test('#853 browser: Exam Coach 4-stage calibration, sample exposure guard, rule 
     await page.locator('[data-page="examcoach"]').waitFor({ state: 'visible', timeout: 30000 });
     assert.ok(await overflow(page) <= 0, 'no sideways scroll on initial Exam Coach page');
 
-    // Stage 1: Click 分析考察方式 -> automatically advances to Stage 2 (confirm)
+    // Stage 1: Click 分析考察方式 -> renders analyzed summary and folded calibration details
     await page.getByRole('button', { name: '分析考察方式' }).click();
-    await page.locator('[data-family-id]').first().waitFor({ state: 'visible', timeout: 15000 });
-
-    // Switch back to Stage 1 briefly to verify uncovered material section honesty ("崩溃恢复日志")
-    await page.getByRole('button', { name: '1. 分析考法' }).click();
     await page.locator('[data-page="examcoach"]').getByText('样卷未覆盖的资料章节：').waitFor({ timeout: 15000 });
     const stage1Text = await page.locator('[data-page="examcoach"]').innerText();
     assert.match(stage1Text, /样卷未覆盖的资料章节：.*崩溃恢复日志/, 'uncovered material chapter surfaced honestly');
 
-    // Return to Stage 2: Confirm representative sample, exposure guard, 3 independent checkboxes, and rule-edit invalidation
-    await page.getByRole('button', { name: '2. 确认代表题与错因' }).click();
+    // Open folded calibration details: representative sample, exposure guard, 3 independent checkboxes, and rule-edit invalidation
+    await page.locator('details.ec-advanced-fold summary').click();
     const firstFamily = page.locator('[data-family-id]').first();
     await firstFamily.waitFor({ state: 'visible', timeout: 10000 });
 
     // Sample answer is redacted before explicit reveal
     assert.equal(await firstFamily.getByText('参考答案：').count(), 0, 'sample answer hidden by default');
-    await firstFamily.getByRole('button', { name: '展开答案与评分解析（记录解法暴露）' }).click();
+    await firstFamily.getByRole('button', { name: '查看参考答案与评分标准' }).click();
     await until(async () => (await firstFamily.getByText('参考答案：').count()) > 0, 'sample answer revealed');
 
     // Verify backend recorded immutable `sample-calibration` solution exposure
@@ -156,7 +152,7 @@ test('#853 browser: Exam Coach 4-stage calibration, sample exposure guard, rule 
     await firstFamily.locator('label.sh-check', { hasText: '外观满意' }).click();
     await firstFamily.locator('label.sh-check', { hasText: '考察意图满意' }).click();
     await firstFamily.locator('label.sh-check', { hasText: '答案已核实' }).click();
-    await until(async () => /三项校准已就绪/.test(await firstFamily.innerText()), 'all 3 confirmations calibrate family 0');
+    await until(async () => /三项核对已就绪/.test(await firstFamily.innerText()), 'all 3 confirmations calibrate family 0');
 
     const versionBadgeBefore = await page.locator('.exam-coach-toolbar .sh-badge[data-tone="info"]').first().innerText();
 
@@ -169,15 +165,16 @@ test('#853 browser: Exam Coach 4-stage calibration, sample exposure guard, rule 
     const versionBadgeAfter = await page.locator('.exam-coach-toolbar .sh-badge[data-tone="info"]').first().innerText();
     assert.notEqual(versionBadgeAfter, versionBadgeBefore, 'specVersion bumped on substantive rule edit');
 
-    // Stage 3: Configure non-uniform quota (set second family quota = 0) & crunch mode
-    await page.getByRole('button', { name: '3. 调整训练配置' }).click();
+    // Step 2: Generate targeted practice & open folded advanced checks
+    await page.getByRole('button', { name: '2. 生成针对练习' }).click();
+    await page.locator('details.ec-advanced-fold summary').click();
     const secondFamilyTitle = await page.getByRole('textbox', { name: '考察任务名称', exact: true }).nth(1).inputValue();
     const secondQuota = page.getByRole('spinbutton', { name: '本轮配额（可填 0）', exact: true }).nth(1);
     await secondQuota.fill('0');
     await page.locator('label.sh-check', { hasText: '开启考前压缩模式' }).click();
     await page.getByRole('button', { name: '保存配置并查看生成与能力证据' }).click();
 
-    // Stage 4: Evidence & compiled generation preview & strict mock-paper shortfall check
+    // Evidence & compiled generation preview & strict mock-paper shortfall check inside folded details
     const evidenceGrid = page.locator('[data-testid="coach-three-layer-evidence"]');
     await evidenceGrid.waitFor({ state: 'visible', timeout: 15000 });
     const evidenceText = await evidenceGrid.innerText();
@@ -210,7 +207,7 @@ test('#853 browser: Exam Coach 4-stage calibration, sample exposure guard, rule 
     await openedEn.page.locator('aside, nav').first().waitFor({ timeout: 30000 });
     await nav(openedEn.page, 'examcoach');
     await openedEn.page.locator('[data-page="examcoach"]').waitFor({ state: 'visible', timeout: 30000 });
-    // The three evidence cards render once the coach's evidence has loaded, after the page itself is visible: read the page only then.
+    await openedEn.page.locator('details.ec-advanced-fold summary').click();
     await openedEn.page.locator('[data-testid="coach-three-layer-evidence"]').waitFor({ state: 'visible', timeout: 15000 });
     const enText = await openedEn.page.locator('[data-page="examcoach"]').innerText();
     assert.match(enText, /Exam coach/i);

@@ -84,17 +84,17 @@ test('a job with settled calls shows 实际用量 and DSH\'s two speed figures u
   assert.match(detail, /185,616 tok/);
   assert.match(detail, /2,863,104 tok/);
   assert.match(detail, /20,320 tok/);
-  assert.match(detail, /首 token 平均（TTFT）/);
+  assert.match(detail, /首次响应/);
   assert.match(detail, /1\.6秒/);
-  assert.match(detail, /输出速度（TPS）/);
+  assert.match(detail, /生成速度/);
   assert.match(detail, /254 tok\/s/);
   assert.doesNotMatch(html, /[¥$￥]|价格|费用/);
   // A job that reported nothing keeps the same shape: no strip at all, rather than a row of dashes.
   const quiet = render({ jobs: [jobs()[1]] });
   assert.doesNotMatch(quiet, /data-task-usage|data-task-timing/);
   const en = render({ jobs: [measured] }, 'en');
-  assert.match(en, /<dt>Avg time to first token \(TTFT\)<\/dt><dd>1\.6s<\/dd>/);
-  assert.match(en, /<dt>Tokens per second \(TPS\)<\/dt><dd>254 tok\/s<\/dd>/);
+  assert.match(en, /<dt>First response<\/dt><dd>1\.6s<\/dd>/);
+  assert.match(en, /<dt>Output speed<\/dt><dd>254 tok\/s<\/dd>/);
   assert.match(en, /Actual usage/);
 });
 

@@ -21,9 +21,9 @@ function DeskMastery({ mastery, onOpenMasteryMap }) {
   const { primary, course, whole, name, others } = mastery;
   const title = `${course ? uiFormat('「{0}」的掌握度 {1}%（{2} 题）', [name || ui('未分类课程'), course.value, course.cards]) : uiFormat('所有课程的掌握度 {0}%', [primary.value])}\n${ui(TERMS.mastery.hint)}\n${ui(TERMS.mastered.hint)}`;
   return (
-    <div className="desk-mastery" title={title}>
+    <div className="desk-mastery">
       <span className="desk-mastery-value">{typeof primary.value === 'number' && Number.isFinite(primary.value) ? <LetterpressNumber value={primary.value} /> : primary.value}<small>%</small></span>
-      <span className="desk-mastery-label">{ui(TERMS.mastery.label)}</span>
+      <Tooltip layer content={title}><span className="desk-mastery-label" tabIndex={0}>{ui(TERMS.mastery.label)}</span></Tooltip>
       <MasteryBar node={primary.node} />
       {onOpenMasteryMap && <Button variant="link" size="sm" iconEnd="arrow-right" onClick={onOpenMasteryMap}>{ui('掌握图谱')}</Button>}
       {others && whole && <span className="desk-mastery-all"><Tooltip layer content={uiFormat('全部课程合计 {0} 题', [whole.cards])}><span tabIndex={0}>{ui('所有课程')}{' '}<strong>{whole.value}%</strong></span></Tooltip></span>}

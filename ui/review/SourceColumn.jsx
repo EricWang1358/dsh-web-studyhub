@@ -174,6 +174,9 @@ const SourceColumn = React.forwardRef(function SourceColumn({ request, followKey
       <div className="source-column__body" hidden={collapsed}>
         <header className="source-column__head">
           <div className="source-column__title">{title}</div>
+          <Tooltip layer content={ui("在题目与对照资料间切换焦点")}>
+            <kbd className="source-column__key" tabIndex={0} aria-label={ui("快捷键 Alt+`：在题目与对照资料间切换焦点")}>Alt+`</kbd>
+          </Tooltip>
           <Tooltip layer content={state.pinned ? ui("取消固定") : ui("固定当前资料，切题不自动跟随")}>
             <IconButton icon="pin" size="sm" aria-pressed={!!state.pinned} data-pinned={state.pinned ? "true" : undefined}
               label={state.pinned ? ui("取消固定") : ui("固定资料")} onClick={() => dispatch({ type: "toggle-pin" })} />
@@ -190,7 +193,7 @@ const SourceColumn = React.forwardRef(function SourceColumn({ request, followKey
             <CloseButton label={ui("关闭资料栏")} onClick={onClose} />
           </Tooltip>
         </header>
-        {viewer && <ColumnReader key={state.key} {...viewer} seek={state.seek} onSeekMissed={onSeekMissed} />}
+        {viewer && <ColumnReader key={state.key} {...viewer} docked seek={state.seek} onSeekMissed={onSeekMissed} />}
       </div>
     </aside>
   );

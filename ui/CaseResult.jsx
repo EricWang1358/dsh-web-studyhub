@@ -4,6 +4,7 @@ import { useInjectCss } from "./shared.js";
 import Markdown from "./Markdown.jsx";
 import { Badge, Button, Disclosure, InlineMessage, Panel, ProgressBar, Spinner } from "./components/index.js";
 import { rubricSkills } from "../lib/case-study.js";
+export { rubricSkills };
 import { useStudy } from "./study-context.jsx";
 import css from "./case-result.css";
 import { joinMeta } from './format.js';
