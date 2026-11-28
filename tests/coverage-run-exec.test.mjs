@@ -7,6 +7,7 @@ import { StudyService } from '../lib/service.js';
 import { reportUsage } from '../lib/usage-scope.js';
 import { createRoundClock } from '../lib/contexts/generation/generate/round-clock.js';
 import { listOf } from '../lib/contexts/generation/coverage-runs.js';
+import { admitCall, holdClock, queuedRun, startParallel, stepBack } from '../lib/job-parallel.js';
 import { jobContract } from '../lib/job-contract.js';
 import { roundList, finishRound, FILL_ROUNDS, REPEAT_LIMIT } from '../lib/coverage-run.js';
 import { settleJob, until, sleep } from './helpers/wait.mjs';
@@ -243,10 +244,80 @@ test('coverage-run-exec flake-repro: sub-ms rounds and hold-lag drift flake lega
   brokenClock.disarm();
 });
 
+test('a round that begins while the clock is held counts its time from its own start: the wait before it and the hold after it are not worked time', t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1000 });
+  const plan = { t0: Date.now() }, controller = new AbortController();
+  const clock = createRoundClock({ job: {}, controller, plan, roundMs: 10_000 });
+  clock.restartMeasure();
+  clock.arm();
+  t.mock.timers.tick(100);
+  clock.hold(); // the queue holds the job as its last call ends
+  t.mock.timers.tick(5); // the round settles while held
+  plan.t0 = Date.now();
+  clock.restartMeasure(); // the next round begins, still held
+  t.mock.timers.tick(500);
+  assert.equal(clock.workedMs(), 0, 'nothing ran since the round began');
+  assert.equal(clock.idleMs(), 500, 'the round has stood still since it began; the 5 ms before it belong to the round before');
+  clock.resume();
+  t.mock.timers.tick(10);
+  assert.equal(clock.workedMs(), 10, 'the 500 ms the round was held are not worked time');
+  assert.equal(clock.idleMs(), 500);
+  assert.equal(clock.workedMs() + clock.idleMs(), Date.now() - plan.t0);
+  clock.disarm();
+});
+
+test('a round that begins while the clock runs starts with no idle time, even when the round before it was paused', t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1000 });
+  const plan = { t0: Date.now() }, controller = new AbortController();
+  const clock = createRoundClock({ job: {}, controller, plan, roundMs: 10_000 });
+  clock.restartMeasure();
+  clock.arm();
+  t.mock.timers.tick(30);
+  clock.hold();
+  t.mock.timers.tick(50);
+  clock.resume();
+  t.mock.timers.tick(5);
+  plan.t0 = Date.now();
+  clock.restartMeasure();
+  t.mock.timers.tick(20);
+  assert.equal(clock.idleMs(), 0, 'the pause of the round before is not this round\'s');
+  assert.equal(clock.workedMs(), 20);
+  assert.equal(clock.workedMs() + clock.idleMs(), Date.now() - plan.t0);
+  clock.disarm();
+});
+
+test('through the library queue: a round that begins while its job is held (sent back after a rate limit) records only the time it worked after the hold', t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1000 });
+  const job = { id: `round-clock-held-${process.pid}-${Date.now()}`, root: 'round-clock-held', status: 'running', parallel: true };
+  queuedRun(job, async () => {});
+  const plan = { t0: Date.now() }, controller = new AbortController();
+  const clock = createRoundClock({ job, controller, plan, roundMs: 10_000 });
+  clock.restartMeasure();
+  clock.arm();
+  // The executor's wiring (lib/contexts/generation/generate/execute.js startClocks).
+  const letGo = holdClock(job, { stop: () => clock.hold(), resume: () => clock.resume() });
+  const leave = admitCall(job, controller.signal);
+  t.mock.timers.tick(100);
+  assert.deepEqual(stepBack(new Map([[job.id, job]]), job, Object.assign(new Error('Too Many Requests'), { status: 429 })), [job.id]);
+  leave(); // the last call in flight ends: the queue freezes the clock
+  t.mock.timers.tick(5);
+  plan.t0 = Date.now();
+  clock.restartMeasure(); // round-begin.js measureFrom, while still held
+  t.mock.timers.tick(500);
+  startParallel(job); // the hold ends: the queue thaws the clock
+  t.mock.timers.tick(10);
+  assert.equal(clock.workedMs(), 10, `the round worked 10 ms after a 500 ms hold, recorded ${clock.workedMs()} ms`);
+  assert.equal(clock.idleMs(), 500);
+  letGo();
+  clock.disarm();
+});
+
 describe('coverage run executor', { concurrency: 3 }, () => {
 
 test('the executor records each completed round and ends a stalled round at its budget', async t => {
-  const { service, ids } = await library(t);
+  // Every model call takes at least MODEL_MS, so every round has worked time to record: a round that records 0 ms is a bug, not a fast machine.
+  const MODEL_MS = 5;
+  const { service, ids } = await library(t, { wrap: complete => async (...args) => { await sleep(MODEL_MS); return complete(...args); } });
   const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz' });
   const job = await settleJob(service, started.jobId);
   assert.equal(job.status, 'complete', job.stage);
@@ -256,6 +327,7 @@ test('the executor records each completed round and ends a stalled round at its 
     assert.ok(Number.isFinite(round.ms) && round.ms >= 0, `round ${round.round} must record non-negative finite ms, got ${round.ms}`);
     const span = Date.parse(round.finishedAt) - Date.parse(round.startedAt);
     assert.ok(span >= 0 && round.ms <= span, `round ${round.round} worked ${round.ms}ms must be within wall span ${span}ms`);
+    assert.ok(round.ms > 0, `round ${round.round} called the model (>= ${MODEL_MS} ms a call) and must record its worked time, got ${round.ms}ms`);
   }
   const completedContract = await contractOfJob(service, started.jobId);
   assert.ok(
