@@ -232,7 +232,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   // A flipped flashcard's 0–5 grades stick to the bottom of the window over the card, one line per button when the window is short (#1678, question.css).
   const flashGrading = !choice && !isCloze && !rubricCard && !taskCard && !run.card?.publicationUngrable && !!(run.revealed || showBack) && !run.feedback;
   const gradeRowRoom = useStickyRoom("--grade-row-room", ".question-area");
-  const gradeRowStuck = useStuckMark();
+  const gradeRowStuck = useStuckMark(".grading");
   const gradeRow = React.useCallback((element) => { gradeRowRoom(element); gradeRowStuck(element); }, [gradeRowRoom, gradeRowStuck]);
   const [shortView, shortViewRef] = useShortView();
   const liveAnnouncement = useQuestionRunA11y({ entryKey, run, hasFeedback, choice, isCloze, gradeTask, autoAdvanceActive, reviewBodyRef, choiceFeedbackRef, verdictFocusRef });

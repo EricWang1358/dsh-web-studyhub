@@ -17,17 +17,18 @@ export function useStickyRoom(variable, owner = ".study-app, .study-seat") {
 }
 
 /** A bar sticks only while it leaves the box it scrolls in this much to what scrolls behind it; a taller one stays where it is in the page. */
-export const STICK_SHARE = 0.4;
+export const STICK_SHARE = 0.5;
 
 /**
  * Marks a bar kept at the bottom of the box it scrolls in (position: sticky) with `data-stuck` while it sits on that box's bottom edge over what scrolls
  * behind it, so it is opaque only then: where everything fits, it sits where it always sat and paints nothing. A sticky bar stops at the box's padding,
  * so the box's bottom padding goes to `--sticky-under` on the bar, for it to sit on the very edge (else the content shows in that strip). One
  * IntersectionObserver per bar, so every engine draws it the same (scroll-state container queries are Chromium-only, #1678).
- * A bar taller than STICK_SHARE of the box (the full grade row stacked in a narrow side panel) gets `data-in-flow` instead, and the question area
- * around it `data-grades-in-flow`: stuck, it would cover most of what it is about.
+ * Where the part that must stay in reach (`core`, a selector inside the bar; the whole bar without one) is taller than STICK_SHARE of the box (the full
+ * grade row stacked in the reader's narrow panel), the bar gets `data-in-flow` instead, and the question area around it `data-grades-in-flow`: stuck,
+ * it would cover most of what it is about. What comes and goes above that part (a spoken answer's words) does not change the choice.
  */
-export function useStuckMark() {
+export function useStuckMark(core) {
   const stop = useRef(null);
   return useCallback((element) => {
     stop.current?.();
@@ -39,9 +40,10 @@ export function useStuckMark() {
     const under = scroller ? getComputedStyle(scroller).paddingBottom : "0px";
     element.style.setProperty("--sticky-under", under);
     const area = element.closest(".question-area");
-    // Its own height, without the room it keeps under its buttons while stuck, so that room cannot tip it back and forth across the line.
+    // Measured without the room the bar keeps under its buttons while stuck, so that room cannot tip it back and forth across the line.
     const sizes = scroller && typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => {
-      const own = element.offsetHeight - (element.hasAttribute("data-stuck") ? parseFloat(under) || 0 : 0);
+      const part = core ? element.querySelector(core) : null;
+      const own = part ? part.offsetHeight : element.offsetHeight - (element.hasAttribute("data-stuck") ? parseFloat(under) || 0 : 0);
       const large = scroller.clientHeight > 0 && own > scroller.clientHeight * STICK_SHARE;
       if (large === element.hasAttribute("data-in-flow")) return;
       element.toggleAttribute("data-in-flow", large);
@@ -66,5 +68,5 @@ export function useStuckMark() {
       area?.removeAttribute("data-grades-in-flow");
       element.style.removeProperty("--sticky-under");
     };
-  }, []);
+  }, [core]);
 }

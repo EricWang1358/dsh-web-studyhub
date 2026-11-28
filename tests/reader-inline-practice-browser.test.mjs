@@ -424,7 +424,7 @@ test('本节题目: a flipped flashcard\'s grade row sticks to the panel\'s bott
         assert.ok(row.stuck && row.rowAtEdge, `${tag}: the row sits on the panel's bottom edge, nothing of the card under it (${JSON.stringify(row)})`);
         assert.equal(row.paints, row.surface, `${tag}: the stuck row is opaque in the panel's own colour (${JSON.stringify(row)})`);
       } else {
-        // At 100% this narrow panel stacks the full row to more than two fifths of its height: stuck, it would cover most of the card. It stays below the card.
+        // At 100% this narrow panel stacks the full row to more than half of its height: stuck, it would cover most of the card. It stays below the card.
         const follow = panel.locator('[data-inline-run] .flash-follow.is-grading');
         await until(async () => (await follow.getAttribute('data-in-flow')) !== null, `${tag}: a tall row is left in the page`, { timeoutMs: 8000 }).catch(() => {});
         assert.equal(await follow.evaluate((element) => window.getComputedStyle(element).position), 'static', `${tag}: a row that would cover most of the panel does not stick`);

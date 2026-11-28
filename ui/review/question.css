@@ -998,7 +998,7 @@
       bottom: calc(-1 * var(--sticky-under, 0px));
       z-index: var(--z-sticky);
     }
-    /* A row that would cover more than two fifths of the box (the full row stacked in a narrow side panel) stays where it is (data-in-flow, use-sticky-room.js). */
+    /* A row that would cover more than half of the box (the full row stacked in the reader's narrow panel) stays where it is (data-in-flow, use-sticky-room.js). */
     .flash-follow.is-grading[data-in-flow] {
       position: static;
     }
