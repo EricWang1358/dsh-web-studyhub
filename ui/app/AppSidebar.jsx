@@ -47,7 +47,7 @@ const AppSidebar = React.memo(function AppSidebar() {
   if (!shell.navOpen) return null;
   const close = () => shell.setNavOpen(false);
   /* A row that leads somewhere closes the drawer once it has done its work; a fold (更多, 帮助) and the glossary keep it open. The focus then goes
-     where the row led (#1679: the page's heading, the question on the practice page, which takes it itself on arrival), not back to the menu button,
+     where the row led (#1679: the page's heading, the question card on the practice page, also when it was already on screen), not back to the menu button,
      which Esc, the close button and the backdrop still return it to: a Space meant for the page must not open the drawer again. */
   const leave = (event) => {
     if (!event.target.closest?.('button.nav:not([aria-expanded]):not([data-keep-open])')) return;

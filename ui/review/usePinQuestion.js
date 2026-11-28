@@ -124,7 +124,7 @@ export function useQuestionRunA11y({ entryKey, run, hasFeedback, choice, isCloze
    band above it, so a flipped flashcard put its grade buttons below the window), is pinned by its header ("21 / 54 · topic") just under the
    sticky top bar, so every question opens at the same spot instead of wherever the previous one's length left the scroll offset; the
    summary only scrolls back if its top is out of view. Runs before paint, so there is no visible jump.
-   It also moves focus quietly to the question's prompt heading (`preventScroll: true`), on arrival as on each next question, so keyboard
+   It also moves focus quietly to the question card (`preventScroll: true`), on arrival as on each next question, so keyboard
    and screen-reader users land right on the question (#1679: not on whatever opened the way here, such as the drawer's menu button,
    where Space would press that button instead of flipping the card).
    pageRef: the element that holds the question (the practice page's <section>). It is also where the top bar is looked up (the
@@ -165,7 +165,8 @@ export default function usePinQuestion(pageRef, run, { scroller: given } = {}) {
       const minHeight = `${Math.max(0, scrollerHeight - bar - gap + lead)}px`;
       if (area.style.minHeight !== minHeight) area.style.minHeight = minHeight;
       scrollBy(cardTop - bar - gap);
-      focusQuestionHeading(card);
+      // From the question's body, as on each next question (useQuestionRunA11y): the card itself, not the prompt on a flashcard's front face, which its flip hides.
+      focusQuestionHeading(area);
       /* The page header above the card fills in after the pin (the question's place, the course's mastery are asked for). The browser's own scroll
          anchoring would keep the card still, but not while the page or the card is still sliding in (a transform there switches it off), which is
          exactly when the first question's header fills. So the header's growth is taken up here, until the learner scrolls: then it is theirs. */
