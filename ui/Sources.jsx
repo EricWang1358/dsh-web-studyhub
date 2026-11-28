@@ -1,4 +1,4 @@
-import { ui, uiFormat, uiLocale, errorMessage } from "./i18n.js";
+import { ui, uiFormat, uiLocale, errorMessage, getUiLanguage } from "./i18n.js";
 import { formatNumber, formatDay } from "./format.js";
 import React, { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
@@ -274,8 +274,9 @@ const sameCompanionTarget = (a, b) => a === b || (!!a && !!b
  * carries `.is-narrow` and ui/sources.css follows it.
  */
 export const ROWS_NARROW = 681;
-/** Below this width of the column, 「筛选与分组」 beside the search box is its icon: its words would leave the course and the box too little room. */
-const TOOLS_TIGHT = 360;
+/** Below this width of the column, 「筛选与分组」 beside the search box is its icon: its words would leave the course and the box too little room. The English
+    words (and the label before the course) are wider, so English gives them up sooner. */
+const TOOLS_TIGHT = { zh: 360, en: 440 };
 const ROW_PROPS = ['item', 'source', 'isNew', 'organizing', 'selected', 'mastery', 'coverage', 'topUp', 'canIndex', 'indexLink', 'slot', 'advice', 'retrieval', 'courses', 'defaultCourse', 'canGenerate', 'canPractice', 'canSegment', 'canRename', 'actions', 'pinned', 'pinFirst', 'pinLast', 'dragging', 'dropMark', 'custom', 'showExtraCourseBadges', 'folderDrag', 'canMoveFolder'];
 
 /**
@@ -518,7 +519,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   // One measure for the page: the width of the study container, which is what the container queries of ui/sources.css read.
   const pageRef = useRef(null);
   const narrow = useNarrow(pageRef, ROWS_NARROW, { content: true });
-  const tight = useNarrow(pageRef, TOOLS_TIGHT, { content: true });
+  const tight = useNarrow(pageRef, TOOLS_TIGHT[getUiLanguage()] ?? TOOLS_TIGHT.zh, { content: true });
   const allItems = useMemo(() => groupSourcesByDocument(data.sources), [data.sources]);
   const sourceFlags = useMemo(() => buildSourceFlags(data.sources), [data.sources]);
   const items = useMemo(() => allItems.filter(item => item.archived === showArchived), [allItems, showArchived]);
@@ -1124,7 +1125,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           </span>}
         </div>
           <Tooltip layer anchorClassName="sources-tools-anchor" content={tight ? ui('筛选与分组') : ''}>
-            <Button variant="quiet" icon="filter" className={`material-facets-toggle sources-tools-toggle${facetsSaid.length ? ' is-on' : ''}`}
+            <Button variant="quiet" size="sm" icon="filter" className={`material-facets-toggle sources-tools-toggle${facetsSaid.length ? ' is-on' : ''}`}
               aria-expanded={toolsOpen} aria-controls={toolsId} data-tour="sources-tools" onClick={() => chooseTools(!toolsOpen)}>
               <span className="sources-tools-toggle__label">{ui('筛选与分组')}</span>
             </Button>

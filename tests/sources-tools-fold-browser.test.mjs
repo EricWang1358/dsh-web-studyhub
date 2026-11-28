@@ -90,6 +90,12 @@ test('资料 keeps filters, grouping and the organizer in 「筛选与分组」'
         sideways: document.documentElement.scrollWidth - window.innerWidth }));
       if (height >= 860) assert.ok(first.bottom <= height && first.title < height * 0.6, `${where}: the first material is whole on the first screen (name at ${Math.round(first.title)}, ends ${Math.round(first.bottom)} of ${height})`);
       assert.ok(first.sideways <= 0, `${where}: no sideways scroll`);
+      // The words of the button never cost the course its name: where there is no room for both, the button is its icon.
+      const course = await page.locator('.sources-page .page-scope__select').evaluate(select => {
+        const words = [...select.querySelectorAll('span')].find(span => span.scrollWidth > 0 && span.textContent.trim()) ?? select;
+        return { cut: words.scrollWidth > words.clientWidth + 1, wordsShown: document.querySelector('.sources-tools-toggle__label').getBoundingClientRect().width > 2 };
+      });
+      if (width >= 420) assert.equal(course.cut && course.wordsShown, false, `${where}: the course is not cut to make room for the button's words`);
 
       await toggle.click();
       await page.locator('.sources-view-bar').waitFor();
