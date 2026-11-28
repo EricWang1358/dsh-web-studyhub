@@ -5,8 +5,8 @@ import { AddSourceButton, Button, IconButton, Icon, ProgressBar } from "../compo
 import { useTopDialog } from "../components/dialog-stack.js";
 import { useInjectCss } from "../shared.js";
 import { NARROW_WIDTH, inLayer, layerScale, placePopover, spotlightBox } from "./geometry.js";
-import { ANCHOR_WAIT_MS, findAnchor } from "./anchor.js";
-import { chapterHeading, tourKeyAction, tourNextChapter } from "./steps.js";
+import { ANCHOR_WAIT_MS, findAnchor, isPinned, pageLead } from "./anchor.js";
+import { chapterHeading, opensFromNav, tourKeyAction, tourNextChapter } from "./steps.js";
 import css from "./tour.css";
 import { usePolling } from '../use-polling.js';
 
@@ -196,9 +196,16 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
     const bounds = { width: view.width / scale, height: view.height / scale };
     const screen = element?.getBoundingClientRect();
     const box = screen ? inLayer(screen, view, scale) : null;
-    const spot = spotlightBox(box, bounds);
+    const lit = spotlightBox(box, bounds);
     const size = { width: popover.offsetWidth, height: popover.offsetHeight };
-    const place = placePopover({ target: spot, popover: size, bounds, prefer: step?.placement });
+    // What the card keeps off besides the lit area (#1712): the title of the page (or dialog) on screen, and the first block for a step from the sidebar.
+    const lead = pageLead(layer.closest("dialog") || rootRef.current?.querySelector("main"));
+    const avoid = [lead.title, step && opensFromNav(step) ? lead.block : null].flatMap((rect) => {
+      const own = rect && inLayer(rect, view, scale);
+      return own && own.top < bounds.height && own.top + own.height > 0 ? [own] : [];
+    });
+    const place = placePopover({ target: lit, popover: size, bounds, prefer: step?.placement, avoid, pinned: !!element && isPinned(element) });
+    const spot = place.spot || lit;
     setDockRoom(rootRef.current, place.docked ? size.height : 0);
     if (place.docked && element && box) {
       const sizeKey = `${step?.id}:${Math.round(box.height)}:${Math.round(size.height)}`;

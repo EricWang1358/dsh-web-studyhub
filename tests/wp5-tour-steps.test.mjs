@@ -6,7 +6,7 @@ import { readFile, readdir, access } from "node:fs/promises";
 import { join } from "node:path";
 import { anchorsInSource, sourceFiles } from "./helpers/tour-anchors.mjs";
 import { TOUR_STEPS, TOUR_CHAPTERS, availableTourSteps, tourNeighbour, tourNextChapter, tourKeyAction, tourStepCopy, chapterHeading,
-  CORE_TOUR_LENGTH, CORE_ORDER } from "../ui/tour/steps.js";
+  opensFromNav, CORE_TOUR_LENGTH, CORE_ORDER } from "../ui/tour/steps.js";
 import { NAV_DEFAULTS, mergeOrder, migrateOrder } from "../ui/nav-order.js";
 
 const han = /[㐀-鿿]/;
@@ -87,7 +87,7 @@ test("the full tour is the explicit extra: every step but the short-tour-only on
   for (const step of TOUR_STEPS) {
     if (step.page) assert.ok(PAGES.has(step.page), `${step.id}: unknown page ${step.page}`);
     for (const anchor of [step.anchor].flat().filter(Boolean)) assert.ok(PLAN_ANCHORS.includes(anchor) || ["source-tools", "reader-more", "draft-publish", "exam-case", "home-course",
-      "reader-practice", "nav-tasks", "nav-notes", "nav-examprep", "first-run-material"].includes(anchor), `${step.id}: anchor ${anchor} is not in the plan's list`);
+      "reader-practice", "nav-tasks", "nav-notes", "nav-examprep", "tasks-head", "notes-head", "examprep-head", "first-run-material"].includes(anchor), `${step.id}: anchor ${anchor} is not in the plan's list`);
   }
 });
 
@@ -128,6 +128,17 @@ test("跳到下一章 goes to the first step of the next chapter that is shown, 
 test("the reader's 原始 PDF page bar and page panel carry their tour anchors (#456)", async () => {
   const anchors = await anchorsInSource();
   for (const anchor of ["reader-pdf-bar", "reader-page-ask"]) assert.ok(anchors.has(anchor), anchor);
+});
+
+test("#1712: a step that lights a sidebar entry for its page falls back to that page's own heading, not to the menu button", () => {
+  const entries = TOUR_STEPS.filter((step) => step.page && [step.anchor].flat()[0]?.startsWith("nav-"));
+  assert.deepEqual(entries.map((step) => step.id).filter((id) => ["tasks", "examprep", "notes"].includes(id)).sort(), ["examprep", "notes", "tasks"]);
+  for (const step of entries) {
+    assert.deepEqual(step.anchor, [`nav-${step.page}`, `${step.page}-head`], step.id);
+    assert.equal(opensFromNav(step), true, `${step.id}: its card keeps off the page's first block`);
+  }
+  assert.equal(opensFromNav(TOUR_STEPS.find((step) => step.id === "nav")), true);
+  for (const id of ["welcome", "sources", "dashboard", "settings-model"]) assert.equal(opensFromNav(TOUR_STEPS.find((step) => step.id === id)), false, id);
 });
 
 test("every anchor the tour uses exists in the UI source", async (t) => {

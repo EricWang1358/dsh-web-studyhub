@@ -92,6 +92,8 @@
       width: auto;
       max-height: min(58%, 440px);
     }
+    /* A bar pinned to the bottom is what the step shows: the sheet sits along the top edge (geometry.js). */
+    .tour-pop--dock-top { top: 12px; bottom: auto; }
     .tour-pop__head {
       display: flex;
       align-items: center;

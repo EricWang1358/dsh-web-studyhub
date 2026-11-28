@@ -81,7 +81,7 @@ export function ExamPrepDetailView({ row, blueprint = null, failure = null, onBa
   const ready = !!tree;
   return (
     <section className="page exam-prep" data-usage-area="examprep">
-      <PageHeader title={row.title} description={meta || undefined} back={{ label: ui('返回考点清单'), onClick: onBack }}
+      <PageHeader data-tour="examprep-head" title={row.title} description={meta || undefined} back={{ label: ui('返回考点清单'), onClick: onBack }}
         actions={<>
           <Explain k="regenerate"><Button variant="secondary" data-usage="examprep.regenerate" disabled={!ready || !!row.build} lock={busy} onClick={() => onRegenerate(row, blueprint)}>{ui('重新生成')}</Button></Explain>
           <Explain k="delete"><Button variant="quiet" data-usage="examprep.delete" lock={busy} onClick={() => setDeleting(true)}>{ui('删除')}</Button></Explain>

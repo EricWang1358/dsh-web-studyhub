@@ -34,7 +34,8 @@ export const TOUR_STEPS = [
   { id: "welcome", chapter: "开始", core: true,
     title: "欢迎来到 StudyHub",
     body: "导览用一门示例课程（设计模式）带你看一遍主线：模型在哪里设置、添加资料、出题、检查草稿、练习。示例内容都标着「示例」，看完可以一键移除。" },
-  // In a narrow window the sidebar is a drawer behind the top bar's menu button (#657): the step then lights that button.
+  // While the sidebar is a drawer (a narrow window, or put away) it is behind the top bar's menu button (#657): the step then lights that button. A step
+  // that introduces a page lights that page's own heading instead (#1712).
   { id: "nav", chapter: "开始", page: "library", anchor: ["nav", "nav-menu"], placement: "right",
     title: "左侧是全部功能",
     body: "上面是最常用的几项：学习库、资料、创建题组、错题与待巩固、模拟考试、统计。其余的按内容收在「更多」里：资料与出题、练习与复习、考试与统计、任务、笔记与待办；按住一项拖到上方，就放进常用的几项。底部是「找功能」（Ctrl K，选中后直接带你过去）、「帮助」（导览、快捷键、名词解释）和「设置」，语言和外观在「设置 › 界面」。窗口窄时，点左上角的菜单按钮打开导航。" },
@@ -73,7 +74,7 @@ export const TOUR_STEPS = [
   { id: "generate-cost", chapter: "备料", page: "generate", prepare: "prepareGenerate", anchor: "generate-summary", placement: "top",
     title: "开始前先看一眼用量",
     body: "摘要行写明这次出什么题；「预计 … tok」是按真实提示词估算的 token 用量。出题完成后，任务详情的「实际用量」会列出真实消耗和缓存命中。" },
-  { id: "tasks", chapter: "备料", page: "tasks", anchor: ["nav-tasks", "nav-menu"], placement: "right",
+  { id: "tasks", chapter: "备料", page: "tasks", anchor: ["nav-tasks", "tasks-head"], placement: "right",
     title: "任务：后台工作的进度",
     body: "出题、音频转写这类要等一阵的工作在后台进行，可以边等边做别的；进度、暂停、停止和重试都在「任务」里。" },
   { id: "draft", chapter: "备料", core: true, page: "draft", prepare: "openSampleDraft", anchor: "draft-publish", placement: "top", needs: "draftId",
@@ -103,11 +104,11 @@ export const TOUR_STEPS = [
     title: "模拟考试：三种考试形式",
     body: "在这里切换选择题笔试、案例分析卷和口头面试，都是限时作答。交卷后给出成绩单和逐题解析；案例卷按评分标准逐项批改，示例里有一套已经批改好的案例。",
     modelNote: "批改需要 AI 模型；示例里的批改结果不需要。" },
-  { id: "examprep", chapter: "考试", page: "examprep", anchor: ["nav-examprep", "nav-menu"], placement: "right",
+  { id: "examprep", chapter: "考试", page: "examprep", anchor: ["nav-examprep", "examprep-head"], placement: "right",
     title: "备考补习：考前补漏",
     body: "把课件和样卷整理成一份考点清单：哪些样卷考过，哪些是补充，每个考点出自课件的哪一页。整理在后台进行，进度在「任务」里看。",
     modelNote: "整理考点清单需要 AI 模型。" },
-  { id: "notes", chapter: "更多", page: "notes", anchor: ["nav-notes", "nav-menu"], placement: "right",
+  { id: "notes", chapter: "更多", page: "notes", anchor: ["nav-notes", "notes-head"], placement: "right",
     title: "学习笔记：把想法留下来",
     body: "练习时点「写笔记」存下的笔记，和每日讲解合集，都收在这里。笔记可以跳回对应的题，也可以存入资料库，再用资料页的阅读功能打开。" },
   { id: "skeleton", chapter: "更多", page: "skeleton", prepare: "openSampleSkeleton", anchor: "skeleton-main",
@@ -169,6 +170,9 @@ export function tourNextChapter(steps, id) {
   if (at < 0) return null;
   return steps.slice(at + 1).find((step) => step.chapter !== steps[at].chapter)?.id ?? null;
 }
+
+/** A step that came from the sidebar (the whole sidebar or one of its entries): the card also keeps off the first block of the page it opens (#1712). */
+export const opensFromNav = (step) => /^nav(-|$)/.test([step.anchor].flat()[0] || "");
 
 /** ←/→ move, Esc pauses; anything with a modifier belongs to someone else. */
 export function tourKeyAction(event) {

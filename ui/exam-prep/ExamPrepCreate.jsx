@@ -86,7 +86,7 @@ export default function ExamPrepCreate({ data, initial, initialMore, onBack, onS
   const again = !!form.supersedes;
   return (
     <section className="page exam-prep exam-prep-create" data-usage-area="examprep">
-      <PageHeader title={again ? ui('重新生成考点清单') : ui('新建考点清单')} back={{ label: ui('返回考点清单'), onClick: onBack }}
+      <PageHeader data-tour="examprep-head" title={again ? ui('重新生成考点清单') : ui('新建考点清单')} back={{ label: ui('返回考点清单'), onClick: onBack }}
         description={again ? ui('按下面的资料再列一份，生成后取代旧清单，旧清单保留为历史版本。')
           : ui('看得出用途的资料已经分好，其余默认不用；选好课件后开始生成，过程在后台进行，进度在任务页，这里会自动更新。')} />
       <form className="exam-prep-form" onSubmit={event => { event.preventDefault(); if (ready && !shown && model.ready) start(); }}>

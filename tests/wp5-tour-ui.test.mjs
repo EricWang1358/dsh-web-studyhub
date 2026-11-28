@@ -15,7 +15,7 @@ const compiled = await build({
     export { default as FirstRunLine } from './ui/first-run/FirstRunLine.jsx';
     export { firstRunLine } from './ui/first-run/line.js';
     export { default as Tour, TourPopover } from './ui/tour/Tour.jsx';
-    export { placePopover } from './ui/tour/geometry.js';
+    export { placePopover, spotlightBox } from './ui/tour/geometry.js';
     export { readTourProgress, writeTourProgress, welcomeDismissed, dismissWelcome } from './ui/tour/progress.js';
     export { TOUR_STEPS } from './ui/tour/steps.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: "node", format: "cjs", external: ["react", "react-dom"], loader: { ".css": "text" }, logLevel: "silent",
@@ -150,6 +150,71 @@ test("the popover sits beside its target, centres without one and docks at the b
   const narrow = ui.placePopover({ target: { left: 10, top: 300, width: 380, height: 100 }, popover: { width: 396, height: 260 }, bounds: { width: 420, height: 860 } });
   assert.equal(narrow.side, "dock");
   assert.equal(narrow.docked, true);
+});
+
+/* #1712: the card keeps off what introduces the page (its title, and for a step that came from the sidebar its first block) and never lies on the lit area. */
+const meet = (a, b) => Math.min(a.left + a.width, b.left + b.width) - Math.max(a.left, b.left) > 0 && Math.min(a.top + a.height, b.top + b.height) - Math.max(a.top, b.top) > 0;
+const cardOf = (placed, popover) => ({ left: placed.left, top: placed.top, width: popover.width, height: popover.height });
+const inside = (placed, popover, bounds) => placed.left >= 0 && placed.top >= 0 && placed.left + popover.width <= bounds.width && placed.top + popover.height <= bounds.height;
+
+test("#1712: with the sidebar put away the card beside the menu button keeps off the page's title and first block", () => {
+  const bounds = { width: 2000, height: 1088 }, popover = { width: 380, height: 256 };
+  // Measured on 学习笔记 with the sidebar put away: the card used to take 76–456 × 16–272 px, on the title, the course picker and 今日学习总结.
+  const menu = { left: 6, top: 6, width: 44, height: 44 };
+  const title = { left: 92, top: 96, width: 120, height: 36 }, block = { left: 92, top: 220, width: 900, height: 240 };
+  const placed = ui.placePopover({ target: menu, popover, bounds, prefer: "right", avoid: [title, block] });
+  const card = cardOf(placed, popover);
+  for (const [name, box] of [["title", title], ["first block", block], ["menu button", menu]]) assert.ok(!meet(card, box), `${name}: ${JSON.stringify(card)}`);
+  assert.ok(inside(placed, popover, bounds), JSON.stringify(placed));
+});
+
+test("#1712: the card keeps off both when the in-page heading is lit, and keeps its preferred side when that side is already clear", () => {
+  const bounds = { width: 1440, height: 900 }, popover = { width: 380, height: 260 };
+  const header = { left: 170, top: 80, width: 1100, height: 110 }, title = { left: 170, top: 80, width: 90, height: 36 };
+  const block = { left: 170, top: 214, width: 1100, height: 220 };
+  const placed = ui.placePopover({ target: header, popover, bounds, prefer: "right", avoid: [title, block] });
+  const card = cardOf(placed, popover);
+  for (const box of [header, title, block]) assert.ok(!meet(card, box), JSON.stringify(card));
+  assert.ok(inside(placed, popover, bounds));
+  // The sidebar's entry, low on the left: beside it is clear of the page's top, so nothing changes.
+  const entry = { left: 8, top: 640, width: 200, height: 36 };
+  assert.deepEqual(ui.placePopover({ target: entry, popover, bounds, prefer: "right", avoid: [title, block] }),
+    ui.placePopover({ target: entry, popover, bounds, prefer: "right" }));
+});
+
+test("#1712: when the first block fills the page the title still stays clear", () => {
+  const bounds = { width: 1440, height: 900 }, popover = { width: 380, height: 280 };
+  const menu = { left: 6, top: 6, width: 44, height: 44 }, title = { left: 80, top: 70, width: 120, height: 36 };
+  const block = { left: 0, top: 120, width: 1440, height: 900 };
+  const placed = ui.placePopover({ target: menu, popover, bounds, prefer: "right", avoid: [title, block] });
+  const card = cardOf(placed, popover);
+  assert.ok(!meet(card, title) && !meet(card, menu), JSON.stringify(card));
+  assert.ok(inside(placed, popover, bounds));
+});
+
+test("a target too tall for any side is lit only above the card: the card never lies on the lit area", () => {
+  const popover = { width: 380, height: 260 };
+  const wide = ui.placePopover({ target: { left: 200, top: 90, width: 1040, height: 1400 }, popover, bounds: { width: 1440, height: 900 } });
+  assert.ok(wide.spot, "the placement says what is lit");
+  assert.ok(!meet(cardOf(wide, popover), wide.spot), JSON.stringify(wide));
+  assert.equal(wide.spot.top, 90, "the target's top stays where it is");
+  assert.ok(wide.spot.height >= 160, "enough of the target stays lit to be recognised");
+  const phone = { width: 420, height: 860 }, sheet = { width: 396, height: 380 };
+  const docked = ui.placePopover({ target: { left: 10, top: 96, width: 400, height: 700 }, popover: sheet, bounds: phone });
+  assert.equal(docked.docked, true);
+  assert.ok(!meet(cardOf(docked, sheet), docked.spot) && docked.spot.top === 96, JSON.stringify(docked));
+  // A short target well above the sheet is lit whole.
+  assert.deepEqual(ui.placePopover({ target: { left: 10, top: 100, width: 400, height: 80 }, popover: sheet, bounds: phone }).spot, undefined);
+});
+
+test("a bar pinned to the bottom of a narrow panel moves the sheet to the top instead of lying under it", () => {
+  const phone = { width: 420, height: 860 }, sheet = { width: 396, height: 380 }, bar = { left: 10, top: 780, width: 400, height: 70 };
+  const placed = ui.placePopover({ target: bar, popover: sheet, bounds: phone, pinned: true });
+  assert.equal(placed.docked, true);
+  assert.equal(placed.top, 12);
+  assert.ok(!meet(cardOf(placed, sheet), bar));
+  // A target that can still be scrolled above the sheet keeps it at the bottom (the tour scrolls the page, and the sheet does not jump about).
+  assert.equal(ui.placePopover({ target: bar, popover: sheet, bounds: phone }).top, 860 - 380 - 12);
 });
 
 test("tour progress and the welcome choice are remembered per library, and blocked storage is harmless", () => {
