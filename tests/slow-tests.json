@@ -240,6 +240,7 @@
     "tests/convert-edit-browser.test.mjs",
     "tests/convert-edit.test.mjs",
     "tests/course-book-export-pandoc.test.mjs",
+    "tests/desktop-agy-prewarm.test.mjs",
     "tests/desktop-architecture-boundaries.test.mjs",
     "tests/desktop-backend.test.mjs",
     "tests/doc-drift.test.mjs",

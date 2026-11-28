@@ -27,6 +27,21 @@
       margin-top: var(--space-2);
     }
 
+    .desktop-cli__prewarm {
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+
+    .desktop-cli__prewarm-guide {
+      display: grid;
+      gap: var(--space-2);
+      margin: 0;
+      padding-inline-start: var(--space-4);
+      color: var(--text-dim);
+      font-size: var(--fs-sm);
+    }
+
     .desktop-cli__grid {
       display: grid;
       gap: var(--space-3);

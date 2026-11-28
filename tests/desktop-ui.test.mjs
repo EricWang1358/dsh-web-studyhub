@@ -9,6 +9,7 @@ const h = React.createElement;
 const m = await loadUi(`
   export { DESKTOP_PARTS, desktopGuideUrl } from './ui/desktop/parts.jsx';
   export { default as DesktopCliCard, CliOpenedNote, cliOpenResult } from './ui/desktop/DesktopCliCard.jsx';
+  export { cliDraftOf, cliDraftState } from './ui/desktop/cli-draft.js';
   export { createDesktopConfigActions, desktopSetupActions, DesktopSetupBody } from './ui/desktop/DesktopModelSetup.jsx';
   export { cliOpeningMessage } from './ui/agent-prompts/message.js';
   export { recheckSentence } from './ui/first-run/recheck.js';
@@ -241,6 +242,52 @@ test('DesktopCliCard renders primary ready card when agy or codex is ready, dual
   assert.match(quietHtml, /<details/);
   assert.match(quietHtml, /重新扫描本机 CLI/);
   assert.match(quietHtml, /agy \/ codex/);
+});
+
+test('the agy card lets the learner choose when agy is started ahead of time, and says what each choice costs and who it suits', () => {
+  const actions = { saveCli: () => {}, testCli: () => {}, scan: () => {}, openCli: () => {} };
+  const card = (props, language) => render(h(m.DesktopCliCard, { providers: [READY_AGY, READY_CODEX], mode: 'agy', agy: {}, codex: {}, actions, working: '', ...props }), language);
+
+  const fresh = card({});
+  assert.match(fresh, /data-desktop-agy-prewarm="after-use"/, 'a config saved before the setting existed shows the default');
+  assert.match(fresh, /提前启动 agy（预热）/);
+  for (const label of ['关闭', '用过之后', '一直']) assert.ok(fresh.includes(label), label);
+  assert.match(fresh, /10 分钟内/, 'the chosen setting says what it does');
+  assert.match(fresh, /约占 200 MB/, 'and what it costs');
+  assert.match(fresh, /怎么选/);
+  assert.match(fresh, /内存紧张/);
+  assert.match(fresh, /约 11–20 秒[^<]*约 5–10 秒/, 'with the measured difference, said as one computer’s measurement');
+  assert.match(fresh, /一台电脑/);
+  assert.match(fresh, /每个备用进程只回答一次/);
+  assert.match(fresh, /agy plugin list/, 'a very slow agy is usually a plugin: where to look');
+
+  assert.match(card({ agy: { prewarm: 'off' } }), /data-desktop-agy-prewarm="off"[\s\S]*不多占内存/);
+  assert.match(card({ agy: { prewarm: 'always' } }), /data-desktop-agy-prewarm="always"[\s\S]*每 10 分钟换一个新的/);
+  assert.doesNotMatch(card({ mode: 'codex' }), /data-desktop-agy-prewarm/, 'codex has no such setting');
+  assert.doesNotMatch(card({ compact: true }), /data-desktop-agy-prewarm/, 'the first-run and gate cards stay short');
+
+  for (const prewarm of ['off', 'after-use', 'always']) {
+    const english = card({ agy: { prewarm } }, 'en').replace(/<[^>]+>/g, ' ').replace(/Antigravity CLI \(agy\)/g, '');
+    assert.doesNotMatch(english, /[㐀-鿿]/, `no untranslated Chinese in English (${prewarm})`);
+  }
+});
+
+test('the pre-start choice is saved with the other agy settings and counts as an unsaved change; codex never sends it', () => {
+  const saved = { model: '', effort: '', prewarm: 'after-use' };
+  const draft = m.cliDraftOf('agy', saved);
+  assert.deepEqual(draft, { model: '', effort: '', prewarm: 'after-use' });
+  assert.equal(m.cliDraftOf('agy', {}).prewarm, 'after-use');
+  assert.deepEqual(m.cliDraftOf('codex', { model: 'x', prewarm: 'always' }), { model: 'x', effort: '' });
+
+  const provider = { id: 'agy', executablePath: 'C:\\agy.exe' };
+  assert.equal(m.cliDraftState(provider, saved, draft).dirty, false);
+  assert.equal(m.cliDraftState(provider, {}, draft).dirty, false, 'an older config with no value is not a change');
+  const changed = m.cliDraftState(provider, saved, { ...draft, prewarm: 'off' });
+  assert.equal(changed.dirty, true);
+  assert.deepEqual(changed.payload, { executablePath: 'C:\\agy.exe', model: '', effort: '', prewarm: 'off' });
+
+  const codex = m.cliDraftState({ id: 'codex', executablePath: 'C:\\codex.exe' }, {}, m.cliDraftOf('codex', {}));
+  assert.deepEqual(codex.payload, { executablePath: 'C:\\codex.exe', model: '', effort: '' });
 });
 
 test('Settings offers 「在学习库里打开 CLI」 for the ready local CLI; the short first-run and gate cards do not, and the page sends only the CLI name', async () => {

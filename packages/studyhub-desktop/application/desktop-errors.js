@@ -22,6 +22,7 @@ const DESKTOP_ERROR_EN = Object.freeze({
   'invalid-config': 'Configuration payload must be an object',
   'invalid-mode': 'Unsupported model provider mode',
   'invalid-effort': 'Invalid reasoning effort value',
+  'invalid-prewarm': 'Invalid pre-warm setting',
   'model-url-invalid': 'Invalid base URL; please provide a full http:// or https:// URL',
   'model-key-invalid': 'Invalid API key format; spaces and control characters are not allowed',
 });

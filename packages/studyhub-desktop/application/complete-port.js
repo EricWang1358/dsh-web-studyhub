@@ -170,7 +170,8 @@ export function createDesktopCompletePort({
     const started = Date.now();
     const draft = resolveDraftConfig(getConfig(), override);
     const timeoutMs = testTimeoutForMode(draft.mode);
-    const runner = buildForConfig(draft, { timeoutMs, language });
+    // `fresh`: the test must start the CLI now; a process started ahead of time would not show that it can still start and sign in.
+    const runner = buildForConfig(draft, { timeoutMs, language, fresh: true });
     if (!runner) {
       return { ok: false, message: formatMissingRunnerMessage(draft.mode, language), latencyMs: Date.now() - started };
     }

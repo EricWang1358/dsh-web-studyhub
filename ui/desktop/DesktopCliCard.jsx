@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Badge, Button, Field, Hint, Icon, InlineMessage, ProviderCard, SegmentedControl, Select, TextArea, TextInput } from '../components/index.js';
+import AgyPrewarmField from './AgyPrewarmField.jsx';
+import { cliDraftOf, cliDraftState } from './cli-draft.js';
 
 const EFFORT_OPTIONS = Object.freeze([
   { value: '', label: 'CLI 默认' },
@@ -96,6 +98,7 @@ function CliControls({ provider, draft, setDraft, locked }) {
           options={EFFORT_OPTIONS.map((item) => ({ value: item.value, label: ui(item.label) }))}
           onChange={(value) => setDraft({ ...draft, effort: value })} />
       </Field>
+      {provider.id === 'agy' && <AgyPrewarmField value={draft.prewarm} disabled={locked} onChange={(prewarm) => setDraft({ ...draft, prewarm })} />}
     </div>
   );
 }
@@ -214,27 +217,13 @@ function cliConfigMap({ agy, codex }) {
 }
 
 function initialDrafts(configs) {
-  return Object.fromEntries(
-    Object.entries(configs).map(([id, cfg]) => [id, { model: cfg?.model || '', effort: cfg?.effort || '' }]),
-  );
+  return Object.fromEntries(Object.entries(configs).map(([id, cfg]) => [id, cliDraftOf(id, cfg)]));
 }
 
 function pickSelectedProvider(readyProviders, selectedId, mode) {
   return readyProviders.find((item) => item.id === selectedId)
     || readyProviders.find((item) => item.id === mode)
     || readyProviders[0];
-}
-
-function cliDraftState(provider, savedConfig, draft) {
-  const savedModel = savedConfig?.model || '';
-  const savedEffort = savedConfig?.effort || '';
-  const dirty = draft.model !== savedModel || draft.effort !== savedEffort;
-  const payload = {
-    executablePath: provider.executablePath || savedConfig?.executablePath || '',
-    model: draft.model.trim(),
-    effort: draft.effort,
-  };
-  return { dirty, payload };
 }
 
 function ReadyCliFooter({ compact, otherProviders }) {
@@ -256,7 +245,7 @@ function ReadyCliCard({ readyProviders, otherProviders, mode, configs, actions, 
 
   const selected = pickSelectedProvider(readyProviders, selectedId, mode);
   const saved = configs[selected.id] || {};
-  const draft = drafts[selected.id] || { model: saved.model || '', effort: saved.effort || '' };
+  const draft = drafts[selected.id] || cliDraftOf(selected.id, saved);
   const setDraft = (next) => setDrafts((prev) => ({ ...prev, [selected.id]: next }));
   const active = mode === selected.id;
   const { dirty, payload } = cliDraftState(selected, saved, draft);
@@ -270,7 +259,7 @@ function ReadyCliCard({ readyProviders, otherProviders, mode, configs, actions, 
   const activate = async () => {
     setTestResults((prev) => ({ ...prev, [selected.id]: null }));
     const updated = await actions.saveCli(selected.id, payload);
-    if (updated) setDraft({ model: payload.model, effort: payload.effort });
+    if (updated) setDraft(cliDraftOf(selected.id, payload));
   };
   const testCli = async () => {
     setTestResults((prev) => ({ ...prev, [selected.id]: null }));

@@ -1,6 +1,3 @@
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { GENERATION_TIMEOUT_MS } from '../../../../lib/generation-limits.js';
 import { usageFromTokenUsage } from '../../../../lib/token-usage.js';
 import { reportUsage } from '../../../../lib/usage-scope.js';
@@ -12,8 +9,10 @@ import {
   parseAgyStreamLine,
   parseAgyStreamOutput,
 } from '../../domain/agy-protocol.js';
+import { agyWarmSpec } from '../../domain/agy-warm-policy.js';
 import { clipDetail } from '../../domain/redact.js';
 import { parseCliVersion } from '../../domain/shim-parser.js';
+import { createAgyWorkDir } from './agy-spare.mjs';
 
 const VERSION_PROBE_TIMEOUT_MS = 5_000;
 const MODELS_PROBE_TIMEOUT_MS = 15_000;
@@ -153,48 +152,91 @@ function resolveEffort(agyConfig, execution) {
   return typeof raw === 'string' ? raw.trim() : '';
 }
 
+/** What one call to agy needs: its flags, the line on stdin, and the limits the runner keeps. */
+function planAgyCall(agyConfig, { system, prompt, execution, timeoutMs }) {
+  const spec = agyWarmSpec({ ...agyConfig, effort: resolveEffort(agyConfig, execution) }, resolveTimeoutMs(execution, timeoutMs));
+  return {
+    spec,
+    turn: {
+      stdinText: buildAgyUserMessageLine(buildAgyWrappedPrompt(system, prompt)),
+      timeoutMs: spec.timeoutMs,
+      signal: execution?.signal,
+      onStdoutLine: buildLineDeltaHandler(execution),
+    },
+  };
+}
+
+async function runFresh(runner, { spec, turn }) {
+  const work = await createAgyWorkDir();
+  try {
+    const args = buildAgyStreamArgs({ timeoutMs: spec.timeoutMs, model: spec.model, effort: spec.effort });
+    return await runner.run({ command: spec.executablePath, args, cwd: work.dir, ...turn });
+  } finally {
+    await work.remove();
+  }
+}
+
+/**
+ * Ask the spare that was already waiting. null means it never got the question: there is no such process, or it had ended and not
+ * one byte came after the question. The call then starts fresh. After any output at all, an error included, agy may already have
+ * asked the model, and sending again could be paid twice; neither is a call sent again once it was stopped or ran out of time.
+ */
+async function runOnSpare(spare, { turn }) {
+  const result = await spare.run(turn);
+  if (!result) return null;
+  const unheard = result.silentTurn && !result.aborted && !result.timedOut && !turn.signal?.aborted;
+  return unheard ? null : result;
+}
+
+/** The result of the call from a waiting spare when there is one that fits, else from a process started now. `warm.claim` also starts the next spare. */
+async function runAgyCall(call, { runner, warm }) {
+  const spare = warm?.claim(call.spec) ?? null;
+  if (!spare) return runFresh(runner, call);
+  try {
+    return await runOnSpare(spare, call) ?? await runFresh(runner, call);
+  } finally {
+    await spare.close?.();
+  }
+}
+
+function parseAgyRun(result) {
+  try {
+    return parseAgyStreamOutput(result.stdout);
+  } catch (error) {
+    if (result.truncated) {
+      throw Object.assign(new Error('Antigravity CLI 输出超出上限被截断，未能读取最终结果'), { modelFailure: true });
+    }
+    throw error;
+  }
+}
+
 /**
  * Create a StudyHub `complete(system, prompt, execution)` backed by `agy` CLI `stream-json`.
- * Always executes inside a fresh empty temp `cwd` cleaned up in `finally`.
+ * Every call gets its own agy process in its own empty temp `cwd`, removed afterwards. With `warm` (see `agy-spare.mjs`) that
+ * process may already be waiting, started by an earlier call or by the settings; without it every call starts one.
  */
 export function createAgyCompleteAdapter(agyConfig, {
   runner,
   report = reportTokens,
   timeoutMs = GENERATION_TIMEOUT_MS,
+  warm = null,
 } = {}) {
   const executablePath = String(agyConfig?.executablePath || '').trim();
   if (!executablePath) return undefined;
 
   return async function agyComplete(system, prompt, execution = {}) {
-    const effectiveTimeoutMs = resolveTimeoutMs(execution, timeoutMs);
-    const tempDir = await mkdtemp(join(tmpdir(), 'studyhub-agy-'));
+    const call = planAgyCall({ ...agyConfig, executablePath }, { system, prompt, execution, timeoutMs });
+    let result = null;
     try {
-      const effort = resolveEffort(agyConfig, execution);
-      const args = buildAgyStreamArgs({ timeoutMs: effectiveTimeoutMs, model: agyConfig.model, effort });
-      const stdinText = buildAgyUserMessageLine(buildAgyWrappedPrompt(system, prompt));
-      const result = await runner.run({
-        command: executablePath,
-        args,
-        cwd: tempDir,
-        stdinText,
-        timeoutMs: effectiveTimeoutMs,
-        signal: execution?.signal,
-        onStdoutLine: buildLineDeltaHandler(execution),
-      });
-      assertAgyRunOk(result, execution, effectiveTimeoutMs);
-      let parsed;
-      try {
-        parsed = parseAgyStreamOutput(result.stdout);
-      } catch (error) {
-        if (result.truncated) {
-          throw Object.assign(new Error('Antigravity CLI 输出超出上限被截断，未能读取最终结果'), { modelFailure: true });
-        }
-        throw error;
-      }
+      result = await runAgyCall(call, { runner, warm });
+      assertAgyRunOk(result, execution, call.spec.timeoutMs);
+      const parsed = parseAgyRun(result);
       report?.(parsed.usage, execution);
       return parsed.text;
-    } finally {
-      await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }).catch(() => {});
+    } catch (error) {
+      // A stopped call says nothing about the CLI; any other failure may also hit the spare that is waiting.
+      if (!execution?.signal?.aborted && !result?.aborted) warm?.fault();
+      throw error;
     }
   };
 }
