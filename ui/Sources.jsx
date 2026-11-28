@@ -1101,7 +1101,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
       {gap && <IndexGapLine count={gap.count} canIndex={indexCoverage?.canIndex} onGo={() => onBuildIndex(gap.course)} />}
       {(items.length > 0 || (groupMode === 'folder' && !showArchived && materialFolders.folders.length > 0)) && <>
         {/* 课程范围 and 筛选资料 are one small form: the label in one column, both controls in the next, at one left edge and one width (#1085). They are all that
-            stands over the list by default (#1694): everything else is behind 「筛选与分组」, on the search box's line. */}
+            stands over the list by default (#1694): everything else is behind 「筛选与分组」, on the line of the search box. */}
         <div className="page-scope-form sources-toolbar">
         <PageScope value={scope} onChange={setScope} courses={data.focus?.courses} />
         <div className="sources-filter">

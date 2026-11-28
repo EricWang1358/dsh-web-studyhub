@@ -202,7 +202,6 @@ export default function Generate({
     ...(canChat ? [{ id: "chat", label: ui("在主会话里录题"), note: ui("题册、刷题软件、错题或截图") }] : []),
   ];
   const current = tabs.some((tab) => tab.id === genSource) ? genSource : "files";
-  const wayNoteId = React.useId();
   const invalidQuota = Boolean(gen.kindCounts && typeof gen.kindCounts === "object" && !Array.isArray(gen.kindCounts)
     && kindsOfForm(gen).length >= 2 && kindsOfForm(gen).reduce((sum, k) => sum + (Number(gen.kindCounts?.[k]) || 0), 0) < 1);
   function submit(event) {
@@ -253,9 +252,9 @@ export default function Generate({
       {/* The ways in are the app's one segmented control (#1700), so the chosen one looks chosen. What the chosen way does describes the group; the row measures
           its own width (generate-home.css) and a narrow one says that line once under it (#575). */}
       <div className="source-mode-frame">
-        <SegmentedControl className="source-mode" label={ui("创建方式")} wrap value={current} onChange={setGenSource} aria-describedby={wayNoteId}
+        <SegmentedControl className="source-mode" label={ui("创建方式")} wrap value={current} onChange={setGenSource} aria-describedby="generate-way-note"
           options={tabs.map((tab) => ({ value: tab.id, label: tab.label, attrs: tab.attrs }))} />
-        <p className="source-mode-note" id={wayNoteId}>{tabs.find((tab) => tab.id === current)?.note}</p>
+        <p className="source-mode-note" id="generate-way-note">{tabs.find((tab) => tab.id === current)?.note}</p>
       </div>
       <div className="generate-panel">
       {current === "json" ? (
