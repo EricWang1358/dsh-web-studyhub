@@ -208,7 +208,11 @@ export default [
     languageOptions: {
       ecmaVersion: 2024,
       sourceType: "module",
-      globals: { ...globals.browser },
+      globals: {
+        ...globals.browser,
+        // Build-time StudyHub UI marker (`studyhub-ui@<version>`) injected by esbuild in scripts/build.mjs, scripts/build-demo.mjs, and packages/studyhub-desktop/scripts/build-ui.mjs (#1782).
+        __STUDYHUB_UI_BUILD__: "readonly",
+      },
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
     plugins: { react, "react-hooks": reactHooks },

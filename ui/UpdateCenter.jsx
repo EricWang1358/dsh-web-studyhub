@@ -62,8 +62,15 @@ async function savePreferences(call, preferences) {
    The host names the version (update.check's `upgraded`); this says it once and tells the host, so no later start repeats it. */
 const UPGRADE_NOTICE_MS = 12000;
 const announced = new Set();
-/** The version this page's own code was built from: package.json, the same file the host reads for the version it runs (lib/update-check.js). */
-export const UI_BUILD_VERSION = builtVersion;
+const UI_BUILD_MARKER_PREFIX = 'studyhub-ui@';
+/** Dedicated StudyHub UI build marker (`studyhub-ui@<version>`). Injected at build time via esbuild `define` (`__STUDYHUB_UI_BUILD__`) so `release:check` verifies StudyHub's own compiled UI bundle rather than incidental dependency version literals (#1782). */
+export const UI_BUILD_MARKER = typeof __STUDYHUB_UI_BUILD__ === 'string'
+  ? __STUDYHUB_UI_BUILD__
+  : `${UI_BUILD_MARKER_PREFIX}${builtVersion}`;
+/** The version this page's own code was built from, derived directly from `UI_BUILD_MARKER` (backed by package.json, the same file the host reads for the version it runs in lib/update-check.js). */
+export const UI_BUILD_VERSION = UI_BUILD_MARKER.startsWith(UI_BUILD_MARKER_PREFIX)
+  ? UI_BUILD_MARKER.slice(UI_BUILD_MARKER_PREFIX.length)
+  : builtVersion;
 /* Only the code of X says it. On a host that loads the new code at once (DSH 0.2.2) old code still hears update.check say `upgraded`: the page that asked
    for the install (DSH closes it around the time the install answers, before or just after), another StudyHub window or tab, an <UpdateWatch> mounted again
    in the old module. A notice there would be the old code's, and reporting it would leave nothing for the new code when it is on screen. `running`: for tests. */
