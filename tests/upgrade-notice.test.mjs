@@ -229,6 +229,54 @@ test('during the install the dialog says a closed page does not stop it', () => 
     assert.doesNotMatch(render({ update: offer, initialPhase: phase }), /本页被关掉也不影响安装/, phase.phase);
 });
 
+/* The "installed" page is the first thing a learner reads after the install answers. DSH 0.2.2 answers 'applied' (the new code is already running, restartRequired
+   false); an older DSH answers 'restart-required'. Each case has its own sentence: telling the first to restart DSH sends them off to fix nothing. */
+const installedOf = (restartRequired, desktop = false) => ({ phase: 'installed', version: '2.1.1', restartRequired, desktop });
+const RESTART_WORDS = /等待重启|请重启 DSH 服务|请完全退出 DSH 桌面版|仍在运行旧版本|重启后还看到/;
+const RESTART_WORDS_EN = /waiting for a restart|Restart the DSH service|Quit DSH desktop|keeps running the old version|after a restart/;
+
+test('after an install that took effect at once the dialog says the new version is running and nothing needs a restart', () => {
+  for (const desktop of [false, true]) {
+    const applied = render({ update: { ...offer, install: { available: true, desktop } }, initialPhase: installedOf(false, desktop) });
+    assert.match(applied, /StudyHub 2\.1\.1 已升级/, 'the title');
+    assert.match(applied, /已升级到 2\.1\.1/, 'the same words as the notice the new version shows');
+    assert.match(applied, /不用重启 DSH/);
+    assert.match(applied, /重新打开 StudyHub/, 'this page is the old code; opening StudyHub again shows the new version');
+    assert.doesNotMatch(applied, RESTART_WORDS, `desktop ${desktop}`);
+    const en = render({ update: { ...offer, install: { available: true, desktop } }, initialPhase: installedOf(false, desktop) }, 'en');
+    assert.match(en, /StudyHub 2\.1\.1 has been upgraded/);
+    assert.match(en, /Upgraded to 2\.1\.1/);
+    assert.match(en, /No need to restart DSH/);
+    assert.match(en, /open StudyHub again/);
+    assert.doesNotMatch(en, RESTART_WORDS_EN, `desktop ${desktop}`);
+    assert.doesNotMatch(en, han);
+  }
+});
+
+test('after an install that needs a restart the dialog still says it is waiting for one, in the words of the sidebar chip', () => {
+  for (const [desktop, step] of [[false, /重启 DSH 服务/], [true, /完全退出 DSH 桌面版/]]) {
+    for (const phase of [installedOf(true, desktop), { phase: 'installed', version: '2.1.1', desktop }]) {
+      const html = render({ update: { ...offer, install: { available: true, desktop } }, initialPhase: phase });
+      assert.match(html, /StudyHub 2\.1\.1 等待重启/);
+      assert.match(html, /已安装 2\.1\.1/);
+      assert.match(html, step);
+      assert.match(html, /重启前，当前页面仍在运行旧版本/);
+      assert.doesNotMatch(html, /已升级到|不用重启/, 'a restart is needed, so it is not said to be upgraded');
+    }
+    const en = render({ update: { ...offer, install: { available: true, desktop } }, initialPhase: installedOf(true, desktop) }, 'en');
+    assert.match(en, /StudyHub 2\.1\.1 is waiting for a restart/);
+    assert.match(en, /2\.1\.1 installed/);
+    assert.doesNotMatch(en, /Upgraded to|No need to restart/);
+    assert.doesNotMatch(en, han);
+  }
+});
+
+test('the install answer decides which installed page the dialog shows', async () => {
+  const answer = restartRequired => ui.startUpgrade(async () => ({ status: 'installed', version: '2.1.1', restartRequired }), { latest: '2.1.1' });
+  assert.match(render({ update: offer, initialPhase: await answer(false) }), /不用重启 DSH/);
+  assert.match(render({ update: offer, initialPhase: await answer(true) }), /等待重启/);
+});
+
 test('the notice is said once per version in a page, then reported to the host', async () => {
   const shown = [], calls = [];
   const toast = { success: (message, options) => shown.push({ message, options }) };

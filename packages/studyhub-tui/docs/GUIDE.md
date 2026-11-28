@@ -94,6 +94,8 @@ node packages/studyhub-tui/bin/studyhub-tui.mjs --root /path/to/.dsh-study
 - `1-6` / `a-f`：单选直接选并提交；多选勾选/取消（也可用 `Space`），选完按 `Enter` 提交。
 - `1` 与 `2`：判断题选「对 / 错」（`t` 留给带学，不再用来作答）。
 - `i` / `Enter`：填空题或简答题进入输入模式（多空题用 `Tab` 切下一空，自动保存草稿，离开再回来不丢）。
+  - 正文里的填空是单行：`Enter` 去下一空，最后一空按 `Enter` 提交整张卡。
+  - 代码块里的填空是多行输入框（标题栏显示语言，如 `[python]`）：`Enter` 换行，不会提交；`Ctrl+S` 去下一空，最后一空按 `Ctrl+S` 提交整张卡（和正文填空的 `Enter` 同一步）；`Esc` 退出输入。提示里只写 `Ctrl+S`，因为 `Ctrl+Enter` 在不少终端（如 Windows 控制台）会被当成换行。
 - `Space` / `Enter`：闪卡翻开参考答案；已提交反馈后按 `Enter` 或 `.` 进入下一题。
 - `m`：在「Unicode 渲染数学公式」和「原始 LaTeX」之间切换。
 - `X`：结束本轮练习进入「本轮小结」（带二次确认，不会误退；想退出整个 TUI 按全局 `q`）。
