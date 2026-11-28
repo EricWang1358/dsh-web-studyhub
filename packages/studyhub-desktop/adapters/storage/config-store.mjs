@@ -5,7 +5,7 @@ import { homedir as osHomedir } from 'node:os';
 import { isAbsolute, join, resolve, sep } from 'node:path';
 import { newerVersion, parseJsonObject } from '../../../../lib/atomic-json.js';
 import { workspaceLibrary } from '../../../../lib/host.js';
-import { preserveUnknownKeys } from '../../../../lib/preserve-unknown-keys.js';
+import { preserveUnknownKeys } from '../../../../lib/contexts/system/preserve-unknown-keys.js';
 import { defaultDesktopConfig, normalizeDesktopConfig } from '../../domain/config-policy.js';
 
 function resolveStudyHubHome(env, home) {
