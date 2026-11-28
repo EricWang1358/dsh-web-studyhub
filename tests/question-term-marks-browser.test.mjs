@@ -2681,3 +2681,65 @@ test("term marking works inside inline <code> and fenced <pre><code> blocks whil
     await running.close();
   }
 });
+
+/* Touch taps (#1759 follow-up): Chromium synthesizes a tap's click in a later task, so the click that follows the pointerup
+   that marked a word must be swallowed however late it comes. The race is only a few ms wide and cannot be forced from
+   outside, so this is a soak guard (the deterministic cases are in tests/term-marks.test.mjs); TOUCH_TAP_ROUNDS raises
+   the number of taps (5 per round) for a longer soak run. */
+test("a touch tap marks a word once and the late paired click does not unmark it (#1759)", async (t) => {
+  let browser;
+  try {
+    browser = await launchChromium();
+  } catch (error) {
+    t.skip(`no Chromium to look with: ${String(error.message).split("\n")[0]}`);
+    return;
+  }
+  const dist = await mkdtemp(join(tmpdir(), "study-term-touch-dist-"));
+  await buildPreview({ outdir: dist });
+  t.after(async () => {
+    await browser.close();
+    await rm(dist, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  });
+  const lang = "en";
+  const rounds = Number(process.env.TOUCH_TAP_ROUNDS) || 2;
+  const running = await startLateServer({ distDir: dist, lang, seed: (root) => seedDeck(root, lang) });
+  const context = await browser.newContext({ viewport: { width: 420, height: 900 }, hasTouch: true, deviceScaleFactor: 1, locale: "en-US" });
+  await context.addInitScript(() => {
+    try {
+      localStorage.setItem("study-ui-language", "en");
+      localStorage.setItem("study-theme", "light");
+    } catch {
+      /* storage may be unavailable */
+    }
+  });
+  const page = await context.newPage();
+  try {
+    await page.goto(running.server.url);
+    await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
+    await page.locator(".question-toolbar").waitFor({ timeout: 30000 });
+    await settleAnimations(page);
+    const front = await substringSpan(page, '.flip-front[aria-hidden="false"]', "contrapositive", 0);
+    await page.mouse.click(front.x, front.y);
+    await waitForRevealedBack(page);
+    await settleAnimations(page);
+    await enterMarkingMode(page);
+    const words = ["contrapositive", "linearizability", "consensus", "idempotency", "invariant"];
+    const doubleToggled = [];
+    const tapRound = async (tag) => {
+      for (const word of words) {
+        const wasMarked = (await chipTexts(page)).includes(word);
+        const pt = await substringSpan(page, '.flip-back[aria-hidden="false"]', word, 0);
+        await page.touchscreen.tap(pt.x, pt.y);
+        // Wait for the tap's own click to have come and gone (it is a later task than the pointerup), then read the result.
+        await page.waitForTimeout(300);
+        const nowMarked = (await chipTexts(page)).includes(word);
+        if (nowMarked === wasMarked) doubleToggled.push(`${word} ${tag}`);
+      }
+    };
+    for (let round = 0; round < rounds; round += 1) await tapRound(`round ${round}`);
+    assert.deepEqual(doubleToggled, [], "every touch tap toggles its word exactly once");
+  } finally {
+    await context.close();
+    await running.close();
+  }
+});
