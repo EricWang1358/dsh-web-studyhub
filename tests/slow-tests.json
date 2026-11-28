@@ -120,6 +120,7 @@
     "tests/model-setup-browser.test.mjs",
     "tests/modular-materials-guards-browser.test.mjs",
     "tests/nav-drag-promote-browser.test.mjs",
+    "tests/nav-drawer-focus-browser.test.mjs",
     "tests/nav-drawer-frame-browser.test.mjs",
     "tests/nav-groups-browser.test.mjs",
     "tests/nav-layout.test.mjs",

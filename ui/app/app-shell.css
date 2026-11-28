@@ -5,6 +5,8 @@
     /* The shell's own parts built from components (ui-consistency #87 #108): the banner strip under the top bar, and the sidebar and
        top-bar controls that used to be raw buttons. They keep the look of the rules in style.css and library-location.css, which they
        outrank now that the buttons carry .sh-btn. Tokens only. */
+    /* <main> takes programmatic focus when leaving the navigation drawer (never a Tab stop): no ring around the whole page. */
+    & > main:focus-visible { outline: none; }
     /* Messages that stay until their cause is gone: one Banner each, never accent-coloured. */
     .app-banner {
       width: auto;

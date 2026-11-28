@@ -159,7 +159,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                   lang={LANG_ATTR[language]} ref={shell.attachRoot} data-usage-area={page} tabIndex={-1} onKeyDown={finder.onKeyDown}
                   onPointerDown={(event) => { if (!event.target.closest('button,input,textarea,select,a')) shell.rootRef.current?.focus(); }}>
                   <AppSidebar />
-                  <main className={nav.pageTarget ? 'is-leaving' : undefined} onClickCapture={nav.pageTarget ? refuseLeavingPress : undefined}>
+                  <main tabIndex={-1} className={nav.pageTarget ? 'is-leaving' : undefined} onClickCapture={nav.pageTarget ? refuseLeavingPress : undefined}>
                     <AppTopbar title={shellTitleOf(page, { run, decks: data?.decks })} />
                     <IngestBanner />
                     <StorageIssuesBanner />
