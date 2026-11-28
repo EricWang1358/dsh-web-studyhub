@@ -57,6 +57,7 @@
     "tests/exam-submit-count-browser.test.mjs",
     "tests/feature-finder-browser.test.mjs",
     "tests/feedback-lite-browser.test.mjs",
+    "tests/first-run-card-ruling-browser.test.mjs",
     "tests/first-run-line-browser.test.mjs",
     "tests/first-run-tour-browser.test.mjs",
     "tests/fix-phrases-browser.test.mjs",

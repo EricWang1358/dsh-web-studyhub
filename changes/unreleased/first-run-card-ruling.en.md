@@ -1,0 +1,2 @@
+- **The ruled lines on the compact "First Deck" card now stop before the primary button.** Previously the card's index-card ruling ran all the way down behind the primary button and poked out on either side; the 32 px ruling now paints only across the step rows (and compact plan when shown), leaving clean paper around the button in both light and dark themes. (#1704)
+  - Not verified: verified in Chromium preview at 1280×900 in both light and dark themes; not visually re-checked inside the DSH host or desktop app window.

@@ -118,12 +118,25 @@
     .first-run__later { margin-left: auto; }
 
     /* ── The compact card (after 以后再说): the home's today slot ──────── */
-    /* The rows sit on the today card's index-card ruling (ui/study-map/desk.css: a rule every 32px from 52px down the card's border box): the head ends
-       exactly there (the 1px border, the top padding, the head), whatever the font's line height; then one ruled line left blank, then one 32px line per row. --frl-rule is that
+    /* The rows sit on 32px index-card ruling painted only over the steps/plan zone so the ruling stops cleanly before the primary action button (#1704):
+       the head ends at 52px, then one blank 32px ruled line, then one 32px line per step row (and compact plan when present). --frl-rule is that
        ruling's pitch, not a spacing token: it must not scale with the density setting. */
-    .first-run-card { --frl-rule: 32px; --frl-card-mark: 20px; }
+    .first-run-card {
+      --frl-rule: 32px;
+      --frl-card-mark: 20px;
+      --frl-ruling: repeating-linear-gradient(
+        to bottom,
+        transparent 0 calc(var(--frl-rule) - 1px),
+        var(--paper-rule) calc(var(--frl-rule) - 1px) var(--frl-rule)
+      );
+      background-image: none;
+    }
     .first-run-card .frl-head { box-sizing: border-box; height: calc(51px - var(--paper-pad-top)); flex-wrap: nowrap; }
-    .first-run-card .frl-steps { margin: var(--frl-rule) 0 var(--space-5); }
+    .first-run-card .frl-steps {
+      margin: 0 calc(-1 * var(--paper-pad-x)) var(--space-5);
+      padding: var(--frl-rule) var(--paper-pad-x) 0;
+      background-image: var(--frl-ruling);
+    }
     .first-run-card .frl-step__row { height: var(--frl-rule); min-height: 0; padding: 0; gap: var(--space-2); }
     .first-run-card .frl-step__text { color: var(--paper-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .first-run-card .frl-step[aria-current="step"] .frl-step__text { color: var(--paper-ink); }
@@ -138,7 +151,12 @@
     .first-run-card .frl-step[data-status="done"] .frl-mark { border-color: transparent; background: color-mix(in srgb, var(--paper-ink) 10%, transparent); color: var(--paper-dim); }
     /* The first deck's summary and estimate: two more ruled lines under the rows (held while the estimate is asked), cut with an ellipsis like the rows. */
     .first-run-card .frl-steps:has(+ .frl-compact-plan) { margin-bottom: 0; }
-    .frl-compact-plan { margin: 0 0 var(--space-5); min-width: 0; }
+    .frl-compact-plan {
+      margin: 0 calc(-1 * var(--paper-pad-x)) var(--space-5);
+      padding: 0 var(--paper-pad-x);
+      min-width: 0;
+      background-image: var(--frl-ruling);
+    }
     .frl-compact-plan__line {
       height: var(--frl-rule);
       margin: 0;
