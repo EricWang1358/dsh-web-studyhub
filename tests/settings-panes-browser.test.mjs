@@ -74,13 +74,12 @@ test('settings: every pane starts at one height, and the review preview\'s ç†Ÿç»
       if (nextAccent) app.dataset.accent = nextAccent; else delete app.dataset.accent;
       // Colour transitions the switch starts (reduced motion shortens them, it does not skip them) are ended before the colours are read: waiting a fixed
       // time read the old theme's colour on a busy machine.
-      getComputedStyle(app).color;
       document.getAnimations().forEach((animation) => { try { animation.finish(); } catch { /* an endless one */ } });
       // The same colour written as a probe, so a token and its computed form compare.
       const token = (value) => { const probe = document.createElement('i'); probe.style.color = value; document.querySelector('.sm2-preview').append(probe); const seen = getComputedStyle(probe).color; probe.remove(); return seen; };
       const style = (selector, pseudo) => {
-        const element = document.querySelector(selector), seen = getComputedStyle(element, pseudo);
-        void seen.backgroundColor; void seen.fill; void seen.stroke;
+        const element = document.querySelector(selector);
+        // getAnimations flushes the pending style first, so a transition the switch starts on this element (or its ::before) is in the list.
         element.getAnimations({ subtree: true }).forEach((animation) => animation.finish());
         return getComputedStyle(element, pseudo);
       };
