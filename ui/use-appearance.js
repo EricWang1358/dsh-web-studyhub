@@ -13,6 +13,11 @@ export function useAppearance() {
   return [prefs, appearanceStore.update, appearanceStore.reset];
 }
 
+/** Whether Minimal Mode (极简模式) is active in this browser. */
+export function useMinimalMode() {
+  return useAppearance()[0].minimal === 'on';
+}
+
 /* What the OS asks for right now, live: `auto` follows it. */
 const watch = query => [
   listener => { const media = typeof matchMedia === 'function' ? matchMedia(query) : null; media?.addEventListener?.('change', listener); return () => media?.removeEventListener?.('change', listener); },

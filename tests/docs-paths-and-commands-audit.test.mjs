@@ -158,6 +158,33 @@ function stripFencedCodeBlocks(text) {
   return out.join("\n");
 }
 
+/** The lines inside fenced code blocks: the examples a reader copies into a terminal (same fence rules as stripFencedCodeBlocks). */
+function fencedCodeLines(text) {
+  const out = [];
+  let inFence = false;
+  let fenceChar = "";
+  for (const line of text.split(/\r?\n/)) {
+    const m = /^\s*(`{3,}|~{3,})/.exec(line);
+    if (m) {
+      if (!inFence) {
+        inFence = true;
+        fenceChar = m[1][0];
+      } else if (m[1][0] === fenceChar) {
+        inFence = false;
+        fenceChar = "";
+      }
+      continue;
+    }
+    if (inFence) out.push(line);
+  }
+  return out;
+}
+
+/** In a fenced example, the token after one of these names a file the command writes, so it need not exist before the command runs. */
+const OUTPUT_TOKENS = new Set([">", ">>", "1>", "2>", "&>", "-o", "--out", "--output", "--out-dir", "--outfile", "tee"]);
+/** A fenced line that starts with one of these creates, moves or removes files, so its paths are not required to exist. */
+const FILE_CREATING_COMMANDS = new Set(["cp", "mv", "mkdir", "touch", "rm", "ln"]);
+
 function isPlaceholderPath(p) {
   return (
     /[<>*?{}[\]$]/.test(p) ||
@@ -211,6 +238,17 @@ function extractRepoPaths(docRel, content) {
     for (const token of inner.split(/\s+/)) {
       checkToken(token, "backtick");
     }
+  }
+
+  // 2b) Fenced examples: the commands a reader copies must name files that exist, like the prose does. A token is left out when it is a placeholder,
+  //    a glob, a Windows path (backslash), or a file the command itself creates (redirection, -o, cp/mv/mkdir/touch/rm).
+  for (const line of fencedCodeLines(content)) {
+    const tokens = line.trim().replace(/^\$\s+/, "").split(/\s+/);
+    if (FILE_CREATING_COMMANDS.has(tokens[0])) continue;
+    tokens.forEach((token, index) => {
+      if (token.includes("\\") || OUTPUT_TOKENS.has(tokens[index - 1])) return;
+      checkToken(token, "fenced");
+    });
   }
 
   // 2) Markdown links [label](target)
@@ -290,6 +328,8 @@ test("docs path audit: backticked and linked repository file paths exist on disk
       if (ALLOWED_MISSING_PATHS.has(ref.path) || [...ALLOWED_MISSING_PATHS].some((a) => a.endsWith("/") && ref.path.startsWith(a))) {
         continue;
       }
+      // A file under a build-output folder (Maven `target/`) exists only after the build the doc tells the reader to run.
+      if (ref.kind === "fenced" && /\/target\//.test(ref.path)) continue;
       const candidates = resolvePathCandidates(docRel, ref);
       const exists = candidates.some((c) => existsSync(c));
       if (!exists) {
@@ -355,7 +395,9 @@ test("docs command audit: npm/pnpm run scripts exist in package.json", async () 
 test("docs CLI audit: node script invocations target existing files", async () => {
   const docs = await collectTargetDocs();
   const failures = [];
-  const nodeRe = /\bnode\s+(?:\.[\\/])?((?:scripts|packages|evals|bin|studyhub-[a-z-]+)[\\/][A-Za-z0-9_.\-/\\]+\.(?:mjs|cjs|js))\b/g;
+  // `node [--flag ...] <file> [<file> ...]`: flags without a value (`--test`) may come first, and `node --test tests/a.test.mjs tests/b.test.mjs` names several files.
+  const targetSource = String.raw`(?:\.[\\/])?(?:scripts|packages|evals|bin|tests|lib|studyhub-[a-z-]+)[\\/][A-Za-z0-9_.\-/\\]+\.(?:mjs|cjs|js)`;
+  const nodeRe = new RegExp(String.raw`\bnode\s+(?:--?[A-Za-z][\w=.:-]*\s+)*(${targetSource}(?:[ \t]+${targetSource})*)\b`, "g");
 
   for (const docRel of docs) {
     const content = await readFile(join(ROOT, docRel), "utf8");
@@ -363,13 +405,16 @@ test("docs CLI audit: node script invocations target existing files", async () =
     const docDir = dirname(docRel);
 
     for (const m of content.matchAll(nodeRe)) {
-      const target = toPosix(m[1]);
-      if (isPlaceholderPath(target)) continue;
-      const candidates = [join(ROOT, target)];
-      if (pkgRoot) candidates.push(join(ROOT, pkgRoot, target));
-      if (docDir && docDir !== ".") candidates.push(join(ROOT, docDir, target));
-      if (!candidates.some((c) => existsSync(c))) {
-        failures.push(`${docRel}: node ${target}`);
+      for (const raw of m[1].split(/[ \t]+/)) {
+        const target = toPosix(raw).replace(/^\.\//, "");
+        if (isPlaceholderPath(target)) continue;
+        const candidates = [join(ROOT, target)];
+        if (pkgRoot) candidates.push(join(ROOT, pkgRoot, target));
+        if (docDir && docDir !== ".") candidates.push(join(ROOT, docDir, target));
+        for (const extraPkg of EXTRA_PACKAGE_ROOTS_FOR_DOC.get(docRel) || []) candidates.push(join(ROOT, extraPkg, target));
+        if (!candidates.some((c) => existsSync(c))) {
+          failures.push(`${docRel}: node ${target}`);
+        }
       }
     }
   }

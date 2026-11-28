@@ -11,7 +11,7 @@ import { loadUi } from './helpers/ui-module.mjs';
 const h = React.createElement;
 const noop = () => {};
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
-const full = { language: 'zh', onLanguage: noop, theme: 'dark', onTheme: noop, accent: 'cinnabar', onAccent: noop, scale: 100, onScale: noop, sound: 'off', onSound: noop, font: 'system', onFont: noop,
+const full = { language: 'zh', onLanguage: noop, theme: 'dark', onTheme: noop, minimal: 'off', onMinimal: noop, accent: 'cinnabar', onAccent: noop, scale: 100, onScale: noop, sound: 'off', onSound: noop, font: 'system', onFont: noop,
   fontCustom: '', onFontCustom: noop, fontTitle: 'follow', onFontTitle: noop, motion: 'auto', onMotion: noop, contrast: 'auto', onContrast: noop, density: 'standard', onDensity: noop,
   radius: 'standard', onRadius: noop, craft: 'standard', onCraft: noop, onReset: noop, onExport: () => '{"studyhubAppearance":1}', onImport: () => true };
 
@@ -28,11 +28,28 @@ const split = (html) => {
 };
 const anchorsIn = (html) => [...html.matchAll(/data-tour="(settings-appearance-[a-z-]+)"/g)].map((match) => match[1]);
 
-test('without opening anything there are six open choices: the lite view switch, language, look, accent colour, size, sound effects', async () => {
+test('without opening anything there are seven open choices: the lite view switch, language, look, minimal mode, accent colour, size, sound effects', async () => {
   const { main } = split(await draw());
-  assert.deepEqual(anchorsIn(main).filter((anchor) => !anchor.endsWith('-reset')), ['settings-appearance-lite', 'settings-appearance-language', 'settings-appearance-theme', 'settings-appearance-accent', 'settings-appearance-scale', 'settings-appearance-sound']);
+  assert.deepEqual(anchorsIn(main).filter((anchor) => !anchor.endsWith('-reset')), ['settings-appearance-lite', 'settings-appearance-language', 'settings-appearance-theme', 'settings-appearance-minimal', 'settings-appearance-accent', 'settings-appearance-scale', 'settings-appearance-sound']);
+  assert.match(main, />极简模式</);
   assert.match(main, />试听</);
   for (const gone of ['界面字体', '标题字体', '动画', '对比度', '界面密度', '圆角', '控件与字阶']) assert.doesNotMatch(main, new RegExp(`>${gone}<`), `${gone} is not in the open`);
+});
+
+test('minimal mode=on shows honest override hints on sound and motion, hides 试听, and translates cleanly', async () => {
+  const html = await draw({ ...full, minimal: 'on', sound: 'standard', motion: 'full' });
+  const { main, more } = split(html);
+  assert.doesNotMatch(main, />试听</, 'Preview button is hidden while muted by Minimal mode');
+  assert.match(main, /当前已由极简模式临时静音；你的选项仍会保留，关闭极简模式后恢复。/);
+  assert.match(more, /当前已由极简模式临时停用动画；你的选项仍会保留，关闭极简模式后恢复。/);
+
+  const en = await draw({ ...full, minimal: 'on', sound: 'standard', motion: 'full' }, 'en');
+  assert.match(en, />Minimal mode</);
+  assert.match(en, />Off<[\s\S]*>On</);
+  assert.match(en, /Temporarily muted by Minimal mode/);
+  assert.match(en, /Motion is temporarily turned off by Minimal mode/);
+  assert.doesNotMatch(en, />Preview</);
+  assert.doesNotMatch(en.replace(/>中文</g, '><'), /[㐀-鿿]/);
 });
 
 test('every other choice is still there, inside 更多外观选项, with its anchor', async () => {
@@ -67,10 +84,14 @@ test('without the handlers there is nothing to restore or carry; in English the 
 });
 
 test('the finder and the settings category know the new places', async () => {
-  const [entries, groups] = await Promise.all([read('ui/finder/entries.js'), read('ui/settings-groups.js')]);
+  const [entries, groups, views] = await Promise.all([read('ui/finder/entries.js'), read('ui/settings-groups.js'), read('ui/app/page-views.jsx')]);
   assert.match(entries, /settings-appearance-reset/);
+  assert.match(entries, /settings-appearance-minimal/);
   assert.match(groups, /'settings-appearance-reset'/);
+  assert.match(groups, /'settings-appearance-minimal'/);
+  assert.match(views, /onMinimal:\s*\(value\)\s*=>\s*updateAppearance\(\{\s*minimal:\s*value\s*\}\)/);
   assert.doesNotMatch(entries, /把整套外观导出成一小段文字/, 'the old export sentence is gone');
   const section = await read('ui/settings/AppearanceSection.jsx');
   assert.doesNotMatch(section, /TextArea/, 'no raw text box on the settings surface');
+  assert.match(section, /stopSoundPreview\(\);\s*appearance\.onMinimal\(value\)/);
 });

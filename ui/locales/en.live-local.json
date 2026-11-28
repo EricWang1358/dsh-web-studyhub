@@ -78,5 +78,8 @@
   "直接采集这台电脑耳机或扬声器正在播放的声音，不弹共享窗口；暂停或结束实录会立即释放声卡。": "Captures what your headphones or speakers are playing directly without a share picker; pausing or stopping releases the audio device immediately.",
   "改用电脑系统声音并开始": "Switch to computer audio and start",
   "电脑系统声音（客户端 / 网课）": "Computer audio (desktop / online class)",
-  "电脑系统声音（本机组件直采）": "Computer audio (direct local component)"
+  "电脑系统声音（本机组件直采）": "Computer audio (direct local component)",
+  "其他保存方式": "More save options",
+  "AI 润色": "AI polished",
+  "已检查": "Checked"
 }

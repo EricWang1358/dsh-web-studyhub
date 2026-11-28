@@ -150,7 +150,7 @@ export default function Generate({
   const [courseOpen, setCourseOpen] = React.useState(false);
 
   const activeCourseRecord = (data.courses || []).find((course) => course?.name === generationCourse);
-  const foldOpen = moreChoice ?? (moreValuesOf(gen, saved) || roleOpenByDefault({ goal, focus: data.focus, course: activeCourseRecord, role: gen.role }) || retrievalMode);
+  const foldOpen = moreChoice ?? (moreValuesOf(gen, saved) || roleOpenByDefault({ goal, focus: data.focus, course: activeCourseRecord, role: gen.role }));
   const setMoreOpen = (open) => setMoreChoice(open);
   // 额外要求 inside it: shut unless a quota or a module is already set, so nothing set is hidden.
   const [extraChoice, setExtraChoice] = React.useState(null);
@@ -293,6 +293,7 @@ export default function Generate({
                 onIndex={(course) => openIndexBuilder(openLargeDocumentSettings, course)} />
               {/* A selection too big for one generation: ONE block with the ways on (steps / pages by topic), only the chosen one drawn; with no search tool the old card is a fold under it. */}
               {choice && <TooBigChoice advice={advice} stats={stats} modes={modes} mode={mode} onMode={setChosenMode} disabled={busy}
+                focus={gen.focus || ''} onFocusChange={(focus) => setGen({ ...gen, focus })}
                 card={advice.tooBig && !retrievalReady(retrieval) ? <LargeDocumentCard reason="selection" detail={{ chars: advice.chars }} retrieval={retrieval} onOpenSettings={openLargeDocumentSettings}
                   runnable courses={data.focus?.courses} defaultCourse={generationCourse} /> : null}>
                 {pathMode && <GenerationPath path={path} disabled={busy || !model.ready || !!referenceState.reason} onSettings={openSettings} onUseStep={narrowToStep} />}

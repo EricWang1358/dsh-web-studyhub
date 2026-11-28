@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import "./styles.js";
 import "./appearance-themes.css";
 import "./appearance-craft.css";
+import "./appearance-minimal.css";
 import "./accent.css";
 import './audio-dashboard.css';
 import App from "./App.jsx";

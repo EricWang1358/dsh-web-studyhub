@@ -6,6 +6,7 @@
    - Retains procedural stereo DSP synthesis as synchronous fallback (for mock AudioContext unit tests or decode failure).
    - Default OFF: zero AudioContext constructed until the learner explicitly enables playback.
    - Auto-mutes immediately whenever Live Class or Voice Mic capture is active (ui/audio-capture-state.js). */
+import { getCachedAppearance, onAppearanceCacheChange } from '../appearance-prefs.js';
 import { isAudioCaptureActive } from '../audio-capture-state.js';
 import { ATELIER_CHANNEL_IDS, hasActiveChannel } from './atelier-presets.js';
 import { sharedAtelierStore } from './atelier-storage.js';
@@ -1019,8 +1020,30 @@ export function syncSoundscapeCaptureGuard() {
   return false;
 }
 
-/** Start Desk Atelier soundscape (explicit user opt-in). Respects isAudioCaptureActive() guard. */
+let minimalHookInstalled = false;
+
+function isMinimalModeSuppressed() {
+  try {
+    if (getCachedAppearance().minimal === 'on') return true;
+  } catch { /* ignore */ }
+  const root = globalThis.document?.querySelector?.('.study-app, .study-seat');
+  return root?.getAttribute?.('data-minimal') === 'on';
+}
+
+function ensureMinimalHook() {
+  if (minimalHookInstalled) return;
+  minimalHookInstalled = true;
+  onAppearanceCacheChange((next) => {
+    if (next?.minimal === 'on' && sharedAtelierStore.get().playing) {
+      stopSoundscape();
+    }
+  });
+}
+
+/** Start Desk Atelier soundscape (explicit user opt-in). Respects isAudioCaptureActive() and Minimal Mode guards. */
 export function startSoundscape() {
+  ensureMinimalHook();
+  if (isMinimalModeSuppressed()) return false;
   let state = sharedAtelierStore.ensureAudibleMix();
   state = sharedAtelierStore.setPlaying(true);
   if (isAudioCaptureActive()) {

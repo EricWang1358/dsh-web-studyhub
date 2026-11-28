@@ -22,11 +22,14 @@ export function pageOfScope(scope) {
 /** Pin an unbound notice to the page that renders it first. */
 export const bindNotice = (entry, scope) => !entry || entry.page !== undefined ? entry : { ...entry, page: pageOfScope(scope) };
 
-/** A notice with an explicit scope shows only there; any other stays on its page. */
+/** The scope of a notice that belongs to no page: it is about StudyHub itself and stays up wherever the learner goes. */
+export const ANY_PAGE = 'any-page';
+
+/** A notice with an explicit scope shows only there (ANY_PAGE: everywhere); any other stays on its page. */
 export function noticeVisible(entry, scope) {
   if (!entry) return false;
   const explicit = entry.value && typeof entry.value === 'object' ? entry.value.scope : undefined;
-  if (explicit !== undefined) return explicit === scope;
+  if (explicit !== undefined) return explicit === ANY_PAGE || explicit === scope;
   return entry.page === undefined || entry.page === pageOfScope(scope);
 }
 

@@ -1,5 +1,4 @@
 {
-  "暂时无法读取这份交互伴学页。": "Unable to load this interactive companion right now.",
   "已完成本节交互推演，{0} 张关联卡片已采信首学记录并排入后续复习。": "Interactive walkthrough completed: {0} linked cards received first-pass credit and are scheduled for spaced review.",
   "已完成本节交互推演，{0} 张关联卡片已采信首学记录并排入后续复习。#one": "Interactive walkthrough completed: {0} linked card received first-pass credit and is scheduled for spaced review.",
   "请帮我讲清这句：「{0}」": "Please unpack this excerpt for me: \"{0}\"",
@@ -9,8 +8,6 @@
   "已加入「伴学拾遗」题组（排入次日复习），可继续往下看课。": "Saved to \"Companion Catch-ups\" (due tomorrow); keep going with the lesson.",
   "请结合这一页帮我拆解底层机制与易混边界。": "Please walk me through the underlying mechanism and tricky boundary on this slide.",
   "交互伴学页": "Interactive companion",
-  "AI 推演伴学页（隔离沙箱运行，未绑定原讲义）": "AI-drafted interactive companion (sandboxed; not grounded to an uploaded material)",
-  "隔离沙箱交互伴学舞台 · 划选文字或点右上角可随时查前置、问导师、存防混卡": "Sandboxed interactive stage · Highlight text or open the side drawer to look up terms, ask the tutor, or save a catch-up card",
   "磁盘文件已更新，已加载最新版": "Updated on disk · Latest version loaded",
   "收起解惑栏": "Hide study drawer",
   "查前置 / 记疑问": "Look up / Ask",
@@ -90,7 +87,6 @@
   "伴学疑问清单": "Doubt & Feedback Ledger",
   "待解决 {0} 条 · 共 {1} 条": "{0} open · {1} total",
   "刷新疑问清单": "Sync ledger",
-  "当前暂无待解决的伴学疑问。": "No open doubts recorded for this lesson.",
   "跳至第 {0} 页": "Jump to slide {0}",
   "没看懂": "Unclear",
   "想深挖": "Deep dive",
@@ -117,7 +113,6 @@
   "同步讲义与题卡": "Sync source & cards",
   "已同步磁盘最新伴学内容与关联题卡（原有复习进度已保留）。": "Synced the latest companion content and linked cards from disk (review schedules preserved).",
   "打开伴学课第 {0} 页": "Open slide {0} in companion",
-  "铺满伴学舞台": "Expand stage",
   "退出铺满视图": "Exit expanded view",
   "第 {0}/{1} 页：{2}": "Slide {0}/{1}: {2}",
   "第 {0}/{1} 页": "Slide {0}/{1}",
@@ -142,5 +137,10 @@
   "随堂自测": "Self-check",
   "练配套题 ({0})": "Practise linked ({0})",
   "打开 4 页交互实验": "Open 4-slide interactive experiment",
-  "实验已完成": "Experiment complete"
+  "实验已完成": "Experiment complete",
+  "没能读取这份交互伴学页。点「重试」再试一次。": "Could not load this interactive companion. Press Retry to try again.",
+  "AI 推演伴学页（未绑定原讲义）": "AI-drafted interactive companion (not linked to an uploaded material)",
+  "交互伴学页 · 划选文字或打开解惑栏可随时查前置、问导师、存防混卡": "Interactive companion · Highlight text or open the study drawer to look up terms, ask the tutor, or save a catch-up card",
+  "铺满视图": "Expand view",
+  "这节课没有待解决的伴学疑问。": "No open doubts recorded for this lesson."
 }

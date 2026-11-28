@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import { getCachedAppearance } from '../appearance-prefs.js';
 import { useInjectCss } from '../shared.js';
+import { useAppearance } from '../use-appearance.js';
 import { useLiveEffect } from '../use-async.js';
 import css from './letterpress.css';
 
@@ -14,17 +16,21 @@ export function formatPlainNumber(value, { prefix = '', suffix = '', fallback = 
   return `${prefix}${String(value)}${suffix}`;
 }
 
-/** True only in a browser whose active study surface runs `data-motion="full"` without OS reduced motion. */
+/** True only in a browser whose active study surface runs `data-motion="full"` without OS reduced motion or Minimal Mode. */
 export function isFullMotionBrowser(doc = globalThis.document, win = globalThis.window) {
   if (!doc || !win) return false;
   if (win.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return false;
   const root = doc.querySelector?.('.study-app, .study-seat');
+  if (root?.getAttribute?.('data-minimal') === 'on') return false;
+  try {
+    if (getCachedAppearance().minimal === 'on') return false;
+  } catch { /* ignore */ }
   return root?.getAttribute?.('data-motion') === 'full';
 }
 
 /**
  * SSR- and closure-safe mechanical letterpress counter (< 1 KB static footprint).
- * Renders plain text on SSR, first paint, non-finite values, and reduced/off motion;
+ * Renders plain text on SSR, first paint, non-finite values, Minimal Mode, and reduced/off motion;
  * lazily loads `@number-flow/react` via `letterpress-runtime.jsx` only when live
  * full motion is active in the browser.
  */
@@ -38,12 +44,14 @@ export default function LetterpressNumber({
   className = '',
 }) {
   useInjectCss(css, 'study-letterpress');
+  const [appearance] = useAppearance();
+  const minimal = appearance.minimal === 'on';
   const numeric = typeof value === 'number' && Number.isFinite(value);
   const [Runtime, setRuntime] = useState(null);
   const [motionFull, setMotionFull] = useState(false);
 
   useLiveEffect((isLive) => {
-    if (!numeric) {
+    if (!numeric || minimal) {
       setMotionFull(false);
       return undefined;
     }
@@ -69,7 +77,7 @@ export default function LetterpressNumber({
     const observer = root && typeof MutationObserver === 'function'
       ? new MutationObserver(sync)
       : null;
-    observer?.observe(root, { attributes: true, attributeFilter: ['data-motion'] });
+    observer?.observe(root, { attributes: true, attributeFilter: ['data-motion', 'data-minimal'] });
 
     const media = globalThis.window?.matchMedia?.('(prefers-reduced-motion: reduce)');
     media?.addEventListener?.('change', sync);
@@ -78,9 +86,9 @@ export default function LetterpressNumber({
       observer?.disconnect();
       media?.removeEventListener?.('change', sync);
     };
-  }, [numeric]);
+  }, [numeric, minimal]);
 
-  if (numeric && motionFull && Runtime) {
+  if (numeric && !minimal && motionFull && Runtime) {
     return (
       <Runtime
         value={value}

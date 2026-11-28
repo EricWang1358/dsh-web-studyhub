@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, Checkbox, EmptyState, PageHeader, SegmentedControl, Tooltip, useNow } from '../components/index.js';
+import { Button, Checkbox, EmptyState, Menu, PageHeader, SegmentedControl, Tooltip, useNow } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { useApp } from '../app/app-context.js';
 import { useQuickActions, dismissJobs } from '../quick-actions.js';
@@ -141,6 +141,16 @@ function Detail({ task, data, openers, full, onFull, onDelete, undoable }) {
   const fix = !live && !archived && fixOf(task) === 'settings' && settingsEntry?.openSettings ? (contract.detail?.converter === 'marker' ? 'settings-marker' : 'settings-mineru') : null;
   // A one-click install that stopped (paused, failed or interrupted) goes on where it stopped: 继续安装 is its one action here, in the folder it used (in place of the crimson 删除: 知道了 still archives it).
   const install = contract.detail?.install || null, resume = install && !live && !archived ? installResume(task) : null;
+  const canModelSettings = shortfall?.action === 'model-settings' && !live && Boolean(settingsEntry?.openModelSettings);
+  const overflowModelSettings = canModelSettings && Boolean(fix || resume);
+  const visibleModelSettings = canModelSettings && !overflowModelSettings;
+  const overflowFullscreen = !live && !archived && !full && [fix, actions.retry || draftContinue, visibleModelSettings, result, material, resume].filter(Boolean).length >= 3;
+  const canDelete = (!live && !archived && !contract.detail.today && day) || (!live && !day && !resume);
+  const overflowItems = [
+    overflowFullscreen && { id: 'fullscreen', label: ui('全屏'), run: onFull },
+    overflowModelSettings && { id: 'model-settings', label: actionLabel('model-settings'), attrs: { 'data-shortfall-act': 'model-settings' }, run: settingsEntry.openModelSettings },
+    canDelete && { id: 'delete', label: day ? ui('删除这一天') : ui('删除任务记录'), hint: day ? ui('只保留最近 14 天') : undefined, danger: true, attrs: { 'data-task-delete': '' }, run: () => (day ? removeDay() : onDelete([key])) },
+  ].filter(Boolean);
   return (
     <section className="tc-detail" data-tour="tasks-detail" data-surface="dense" aria-label={ui('任务详情')} data-task-id={contract.jobId} data-status={contract.status} data-archived={archived ? 'true' : undefined}>
       <header className="tc-bar tc-head">
@@ -149,7 +159,7 @@ function Detail({ task, data, openers, full, onFull, onDelete, undoable }) {
           <span className="tc-head__sub">{joinMeta([summary.kindLabel, started && uiFormat('{0} 开始', [started])])}</span>
         </div>
         <div className="tc-head__actions">
-          <Button size="sm" variant="quiet" className="tc-head__full" aria-pressed={full} onClick={onFull}>{full ? ui('退出全屏') : ui('全屏')}</Button>
+          {!overflowFullscreen && <Button size="sm" variant="quiet" className="tc-head__full" aria-pressed={full} onClick={onFull}>{full ? ui('退出全屏') : ui('全屏')}</Button>}
           <ParallelBadge task={task} />
           <ParallelButton task={task} />
           {actions.pause && <Button size="sm" aria-pressed="false" lock={core.busy} onClick={() => act('pause')}>{ui('暂停')}</Button>}
@@ -164,7 +174,7 @@ function Detail({ task, data, openers, full, onFull, onDelete, undoable }) {
             onChange={(value) => core.act('job.control', { jobId: contract.jobId, action: 'set', patch: { autoComplete: value } })} />}
           {result && <Button size="sm" iconEnd="arrow-right" onClick={result.run}>{result.label}</Button>}
           {material && <Button size="sm" iconEnd="arrow-right" data-task-material aria-label={uiFormat('打开「{0}」', [material.title])} onClick={material.run}>{ui('打开资料')}</Button>}
-          {shortfall?.action === 'model-settings' && !live && settingsEntry?.openModelSettings && <Button size="sm" variant="primary" iconEnd="arrow-right" data-shortfall-act="model-settings" onClick={settingsEntry.openModelSettings}>{actionLabel('model-settings')}</Button>}
+          {visibleModelSettings && <Button size="sm" variant="primary" iconEnd="arrow-right" data-shortfall-act="model-settings" onClick={settingsEntry.openModelSettings}>{actionLabel('model-settings')}</Button>}
           {draft && !live && !continued && <CoverageTopUpPopover draft={draft} view={covered.view} jobs={data?.jobs || []} modelReady={modelReadiness(data || {}).ready}
             onTopUp={(target, sectionIds) => core.act('generate', topUpArgs(target, sectionIds), (job) => core.notify?.(topUpNotice(target, job)))} />}
           {actions.cancel && <Button size="sm" variant="danger" lock={core.busy} title={run ? ui('已通过的题都保留') : undefined} onClick={() => act('cancel')}>{run ? ui('停在这里') : ui('停止')}</Button>}
@@ -173,8 +183,10 @@ function Detail({ task, data, openers, full, onFull, onDelete, undoable }) {
             <Button size="sm" variant="quiet" lock={core.busy} onClick={archive}>{ui('归档')}</Button>
           </Tooltip>}
           {resume && <Button size="sm" variant="primary" data-install-resume lock={core.busy} onClick={() => core.act(resume.action, resume.args, () => core.notify?.(ui('已开始安装：进度在这里和「任务」里。')))}>{ui('继续安装')}</Button>}
-          {/* 删除 is behind the ⋯ (ui/tasks/TaskMore.jsx): not beside the primary action. A past day of 为你定制 is a record its own file ages out (fourteen days): the item says it deletes the day (知道了 archives everywhere else). */}
-          {((!live && !archived && !contract.detail.today && day) || (!live && !day && !resume)) && <TaskMore day={day} onDelete={() => (day ? removeDay() : onDelete([key]))} />}
+          {/* Low-frequency actions overflow and 删除 sit behind the ⋯ menu (ui/tasks/TaskMore.jsx): not beside the primary action. A past day of 为你定制 is a record its own file ages out (fourteen days): the item says it deletes the day (知道了 archives everywhere else). */}
+          {overflowItems.length === 1 && canDelete
+            ? <TaskMore day={day} onDelete={() => (day ? removeDay() : onDelete([key]))} />
+            : overflowItems.length > 0 && <Menu className="tc-head__more" label={ui('更多操作')} items={overflowItems} data-tour="tasks-more" data-task-more />}
         </div>
       </header>
       <Metrics job={task} summary={summary} now={now} />

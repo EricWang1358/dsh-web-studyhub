@@ -82,6 +82,23 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .source-column__key {
+      flex: none;
+      padding: var(--space-half) var(--space-1-5);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xs);
+      background: var(--bg-surface);
+      color: var(--text-muted);
+      font-family: var(--font-ui);
+      font-size: var(--fs-xs);
+      line-height: 1.2;
+      white-space: nowrap;
+      cursor: help;
+    }
+    .source-column__key:focus-visible {
+      outline: 2px solid var(--accent-soft);
+      outline-offset: 2px;
+    }
     /* Folded: a rail on the right edge, the whole height, one click to unfold (the page's track is 32px then: session.css [data-source-folded]). */
     .source-column__rail {
       align-items: flex-start;

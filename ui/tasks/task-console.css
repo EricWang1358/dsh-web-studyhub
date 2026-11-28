@@ -363,6 +363,14 @@
       border-bottom: 1px solid var(--line);
       background: var(--bg-surface);
     }
+    .tc-controls[data-empty="true"] {
+      min-height: 0;
+      padding: var(--space-1) var(--space-5);
+      gap: var(--space-1) var(--space-3);
+      background: transparent;
+    }
+    .tc-controls[data-empty="true"] .tc-controls__bar { min-height: 0; gap: var(--space-1) var(--space-3); }
+    .tc-controls[data-empty="true"] .tc-controls__title { font-weight: var(--fw-regular); }
     /* A coverage run (lib/coverage-run.js): its line under the facts (the round, the coverage, what it has used and what is left) and the true reason when it has stopped; the toggle beside the header's buttons. */
     .tc-run { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-4); flex: none; padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--line); background: var(--bg-surface); }
     .tc-run__k { color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-medium); letter-spacing: 0.04em; }

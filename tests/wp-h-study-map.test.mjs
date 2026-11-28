@@ -187,9 +187,11 @@ test('the notebook directory read error is an InlineMessage alert, not a status 
   const waiting = html(m.NotebookDirectory, { notebooks: null, error: '', busy: false, refresh: noop });
   assert.match(waiting, /role="status"/);
   assert.match(waiting, /正在读取全局笔记本目录/);
-  const open = html(m.NotebookDirectory, { notebooks: { notebooks: [] }, error: '', busy: false, refresh: noop });
+  const folded = html(m.NotebookDirectory, { notebooks: { notebooks: [] }, error: '', busy: false, refresh: noop });
+  assert.match(folded, /<button[^>]*aria-expanded="false"[^>]*aria-label="展开 全局笔记本"|<button[^>]*aria-label="展开 全局笔记本"[^>]*aria-expanded="false"/);
+  assert.doesNotMatch(folded, /map-caret|[▾▸]/);
+  const open = html(m.NotebookDirectory, { notebooks: { notebooks: [{ root: '/other', workspace: '/other', current: false, deckCount: 1, dueToday: 0, decks: [] }] }, error: '', busy: false, refresh: noop });
   assert.match(open, /<button[^>]*aria-expanded="true"[^>]*aria-label="收起 全局笔记本"|<button[^>]*aria-label="收起 全局笔记本"[^>]*aria-expanded="true"/);
-  assert.doesNotMatch(open, /map-caret|[▾▸]/);
   const stale = html(m.NotebookDirectory, { notebooks: { notebooks: [] }, error: '连接超时', busy: false, refresh: noop });
   assert.match(stale, /role="alert"/);
   assert.match(stale, /没能刷新目录，下面仍是上次读到的内容：连接超时/);

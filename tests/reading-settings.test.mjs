@@ -209,13 +209,18 @@ test('an `extra` row (the reader\'s 译文显示 choice) is drawn between the ro
 test('the serif face is drawn a little heavier than regular so thin CJK strokes do not look blurry on a dark page', async () => {
   const sharedSheet = parseCss(await readFile(new URL('../ui/reading-settings/reading.css', import.meta.url), 'utf8'));
   const readerSheet = parseCss(await readFile(new URL('../ui/document-preview/reader/reader.css', import.meta.url), 'utf8'));
+  // The weight must be set on the face block itself: a rule on a descendant (`[data-face='serif'] p`) would weigh only that element, not the rest of the block.
+  const splitSelectors = (sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim());
+  const endsOnSerifBlock = (selector) => /\[data-face=['"]serif['"]\]/.test(selector.split(/\s*[\s>+~]\s*/).pop() || '');
+  const setsSerifWeight = (sheet) => sheet.declarations.some((d) => d.prop === '--reader-weight' && d.value === '450'
+    && splitSelectors(d.ctx.at(-1) || '').some(endsOnSerifBlock));
   assert.equal(
-    sharedSheet.declarations.some((d) => /\[data-face=['"]serif['"]\]/.test(d.ctx.at(-1) || '') && d.prop === '--reader-weight' && d.value === '450'),
+    setsSerifWeight(sharedSheet),
     true,
     'the study content reading blocks',
   );
   assert.equal(
-    readerSheet.declarations.some((d) => /\[data-face=['"]serif['"]\]/.test(d.ctx.at(-1) || '') && d.prop === '--reader-weight' && d.value === '450'),
+    setsSerifWeight(readerSheet),
     true,
     'the source reader',
   );

@@ -1458,5 +1458,31 @@
   :is(.study-app, .study-seat) {
     /* The skeleton desk panel is a <Panel> (ui-consistency #143): the Panel owns the surface; this keeps the desk's quieter border. */
     .sk-panel { border-color: var(--line-soft); }
+    .skeleton-extend-fold {
+      border-top: 1px solid var(--line-soft);
+      padding-top: var(--space-3);
+    }
+    .skeleton-extend-fold__summary {
+      --sh-summary-marker-gap: 0;
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      cursor: pointer;
+      color: var(--text-dim);
+      font-size: var(--fs-md);
+      font-weight: var(--fw-medium);
+    }
+    .skeleton-extend-fold__body {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+      padding-top: var(--space-3);
+    }
+    .sk-extend-handoffs {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2) var(--space-4);
+    }
   }
 }

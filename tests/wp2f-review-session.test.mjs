@@ -148,10 +148,10 @@ test('shortcuts: Enter flips, submits or moves on, depending on the card', () =>
   assert.deepEqual(act(key('Enter'), { isCloze: true, clozeValues: { x: '  ' } }).action, { type: 'focus-cloze' }, 'blanks only focuses first blank without submitting');
 });
 
-test('shortcuts: H toggles the hint before and the explanation after revealing; T asks for a plain explanation outside exams', () => {
+test('shortcuts: H toggles the hint before and the explanation after revealing; T opens assist pre-selected on plain outside exams without auto-firing', () => {
   assert.deepEqual(act(key('h'), {}).action, { type: 'hint' });
   assert.deepEqual(act(key('h'), { run: run({ revealed: true }) }).action, { type: 'explain' });
-  assert.deepEqual(act(key('t'), {}).action, { type: 'assist-plain' });
+  assert.deepEqual(act(key('t'), {}).action, { type: 'assist-open', choice: 'plain' });
   assert.equal(act(key('t'), { run: run({ mode: 'exam' }) }).action, null);
 });
 

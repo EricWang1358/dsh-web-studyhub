@@ -5,7 +5,19 @@
     .audio-import .audio-more-field { display: block; margin-top: var(--space-3); }
     .audio-import .audio-more-terms { width: 100%; }
     .audio-drop-icon { font-size: var(--fs-3xl); line-height: 1; color: var(--accent-soft); }
-    .audio-ways { display: grid; gap: var(--space-3); margin-top: var(--space-3-5); text-align: left; }
+    .audio-ways {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2) var(--space-4);
+      margin-top: var(--space-3);
+      padding-top: var(--space-2-5);
+      border-top: 1px solid var(--line-soft);
+      color: var(--text-dim);
+      font-size: var(--fs-sm);
+      text-align: left;
+    }
+    .audio-ways > .audio-workspace[open], .audio-ways > .audio-path[open] { flex: 1 0 100%; }
     .audio-ways summary { cursor: pointer; }
     .audio-workspace .audio-workspace-search, .audio-path-row .audio-path-input { width: 100%; min-width: 0; margin-top: var(--space-2); }
     .audio-path-row { display: flex; align-items: center; gap: var(--space-2); }

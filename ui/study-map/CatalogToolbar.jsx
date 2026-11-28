@@ -3,7 +3,7 @@ import { ui } from '../i18n.js';
 import { LEVEL_LABEL } from '../shared.js';
 import { LEVEL_HINT } from '../mastery-terms.js';
 import { BAR_ORDER } from './map-model.js';
-import { Chip, TextInput } from '../components/index.js';
+import { Chip, TextInput, Tooltip } from '../components/index.js';
 
 /** Search, the 已归档 switch and the mastery legend above the tree. */
 export default function CatalogToolbar({ search, onSearch, showArchived, onToggleArchived }) {
@@ -25,7 +25,7 @@ export default function CatalogToolbar({ search, onSearch, showArchived, onToggl
         <Chip className="map-tools__archived" selected={showArchived} onClick={onToggleArchived}>{ui('已归档')}</Chip>
       </div>
       {!showArchived && <div className="map-legend" aria-label={ui('掌握程度图例')}>
-        {BAR_ORDER.map((level) => <span key={level} title={ui(LEVEL_HINT[level])}><i className={`lv-${level}`} />{LEVEL_LABEL[level]}</span>)}
+        {BAR_ORDER.map((level) => <Tooltip key={level} layer content={ui(LEVEL_HINT[level])}><span tabIndex={0}><i className={`lv-${level}`} />{LEVEL_LABEL[level]}</span></Tooltip>)}
       </div>}
     </div>
   );

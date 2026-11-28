@@ -276,6 +276,8 @@ test("the sources page, the wrong book and a long draft draw their rows in chunk
       // (Bottom up: a group's end that is in sight draws its next chunk, so opening a group right under an open one would do that.)
       for (const at of [2, 1, 0]) await toggles.nth(at).click();
       await until(async () => (await count(page, rows)) === 3 * CHUNK, "three open groups, one chunk each");
+      const diagFold = page.locator("details.wb-diagnostics-fold");
+      if (await diagFold.count() && !(await diagFold.evaluate((el) => el.open))) await diagFold.locator("> summary").click();
       await page.locator(".wb-dist-seg").nth(5).click();
       await until(async () => (await page.evaluate(() => { const top = document.querySelectorAll(".wb-group")[5].getBoundingClientRect().top; return top >= -2 && top < 250; })), "the sixth group's head at the top of the window", { timeoutMs: 15000 });
       await frames(page, 6);

@@ -3,13 +3,13 @@ import Markdown from '../Markdown.jsx';
 import { getUiLanguage, ui, uiFormat } from '../i18n.js';
 import { Button } from '../components/Button.jsx';
 import { Badge } from '../components/Badge.jsx';
-import { Tooltip, Icon } from '../components/index.js';
+import { Icon } from '../components/index.js';
 import { joinMeta } from '../format.js';
 import { TeachingArtifactBlock } from './TeachingArtifactBlock.jsx';
 import { QuestionPrepSlot } from './QuestionPrepSlot.jsx';
 import { StudyProgressPanel } from './StudyProgressPanel.jsx';
 import { buildAskTutorPrompt, applyAskTutorMessage } from '../agent-prompts/guided-study.js';
-import { HandOff } from '../hand-off/HandOff.jsx';
+import { HandOff, HandOffButton } from '../hand-off/HandOff.jsx';
 import { useStudy } from '../study-context.jsx';
 import { useInjectCss } from '../shared.js';
 import css from './guided-study.css';
@@ -412,24 +412,16 @@ export default function GuidedStudyWorkbench({
                     </Button>
                   </>
                 ) : null}
-                <Tooltip layer content={ui('把这道题和你的作答发给主会话')}>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="guided-study-btn"
-                    onClick={handleAskTutor}
-                  >
-                    {ui('请教主会话')}
-                  </Button>
-                </Tooltip>
-                {currentMissed && (
+                {currentMissed ? (
                   <HandOff
                     id="method.missed"
-                    shape="quiet"
+                    shape="secondary"
+                    className="guided-study-btn"
                     label={ui('带着错题回主会话')}
                     copyLabel={ui('复制错题讲解提示词')}
                     what={ui('把这道没过关的题目带回主会话讲透，讲完再回 StudyHub 重测')}
                     copyWhat={ui('复制这道错题的提示词，可粘贴到外部 AI 讲透后再回 StudyHub 重测')}
+                    onSent={() => onBeforeAskTutor?.()}
                     input={{
                       course: session?.courseId || '',
                       stage: session?.goal?.title || '',
@@ -440,6 +432,17 @@ export default function GuidedStudyWorkbench({
                         prompt: String(currentCard.prompt || '').slice(0, 240),
                       }],
                     }}
+                  />
+                ) : (
+                  <HandOffButton
+                    shape="secondary"
+                    size="sm"
+                    className="guided-study-btn"
+                    label={ui('请教主会话')}
+                    copyLabel={ui('复制请教提示词')}
+                    what={ui('把这道题和你的作答发给主会话')}
+                    copyWhat={ui('复制这道题的请教提示词，可粘贴到外部 AI 继续讨论')}
+                    onClick={handleAskTutor}
                   />
                 )}
               </div>

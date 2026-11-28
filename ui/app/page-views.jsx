@@ -560,6 +560,7 @@ function SettingsView() {
       legacy={settingsEntry.legacy} setLegacy={settingsEntry.setLegacy}
       exportData={exportData} onOpenRef={openProfileRef}
       appearance={{ language, onLanguage: setUiLanguage, ...appearance, onTheme: shell.setTheme,
+        onMinimal: (value) => updateAppearance({ minimal: value }),
         onStyle: (value) => updateAppearance({ style: value }),
         onScience: (value) => shell.setSciencePrefs(normalizeScienceSettings(value)),
         onMotion: (value) => updateAppearance({ motion: value }),

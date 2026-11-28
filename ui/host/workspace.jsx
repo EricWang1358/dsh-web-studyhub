@@ -9,6 +9,7 @@ import App from "../App.jsx";
 import css from "../styles.js";
 import themesCss from "../appearance-themes.css";
 import craftCss from "../appearance-craft.css";
+import minimalCss from "../appearance-minimal.css";
 import accentCss from "../accent.css";
 import bridgeCss from "../panel-bridge.css";
 import audioDashboardCss from '../audio-dashboard.css';
@@ -128,7 +129,7 @@ export function createWorkspaceHost(ctx, { effect = (fn, label) => ctx.effect(fn
   };
   effect(() => {
     const el = document.createElement("style");
-    el.textContent = css + "\n" + accentCss + "\n" + themesCss + "\n" + craftCss + "\n" + bridgeCss + '\n' + audioDashboardCss + '\n' + hostCss;
+    el.textContent = css + "\n" + accentCss + "\n" + themesCss + "\n" + craftCss + "\n" + minimalCss + "\n" + bridgeCss + '\n' + audioDashboardCss + '\n' + hostCss;
     document.head.appendChild(el);
     return () => el.remove();
   }, "study styles");

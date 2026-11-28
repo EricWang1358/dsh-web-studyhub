@@ -5,6 +5,7 @@
 import React from 'react';
 import { cx } from '../components/css.js';
 import { useInjectCss } from '../shared.js';
+import { useAppearance } from '../use-appearance.js';
 import { cssColorToHex, findStudyRoot, prefersReducedMotion, resolveThemePalette } from './palette.js';
 import inkMarkCss from './ink-mark.css';
 
@@ -35,20 +36,22 @@ export default function InkMark({
   children,
 }) {
   useInjectCss(inkMarkCss, 'study-ink-mark');
+  const [appearance] = useAppearance();
+  const minimal = appearance.minimal === 'on';
   const targetRef = React.useRef(null);
   const [themeTick, setThemeTick] = React.useState(0);
 
   React.useEffect(() => {
-    if (typeof window === 'undefined' || !active) return undefined;
+    if (minimal || typeof window === 'undefined' || !active) return undefined;
     const root = findStudyRoot(targetRef.current);
     if (!root || typeof MutationObserver !== 'function') return undefined;
     const observer = new MutationObserver(() => setThemeTick((n) => n + 1));
     observer.observe(root, { attributes: true, attributeFilter: ['data-theme', 'data-palette', 'data-accent', 'data-motion'] });
     return () => observer.disconnect();
-  }, [active]);
+  }, [active, minimal]);
 
   React.useEffect(() => {
-    if (!active || typeof window === 'undefined') return undefined;
+    if (minimal || !active || typeof window === 'undefined') return undefined;
     const el = targetRef.current;
     if (!el) return undefined;
     let cancelled = false;
@@ -87,7 +90,9 @@ export default function InkMark({
       }
       annotation = null;
     };
-  }, [active, animate, iterations, multiline, padding, strokeWidth, themeTick, tone, type]);
+  }, [active, animate, iterations, minimal, multiline, padding, strokeWidth, themeTick, tone, type]);
+
+  if (minimal) return children ?? null;
 
   return (
     <span className={cx('sh-ink-mark-host', className)}>

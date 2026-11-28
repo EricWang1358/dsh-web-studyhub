@@ -1,5 +1,5 @@
 import { ui, uiFormat, getUiLanguage } from "./i18n.js";
-import React, { useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { kinds } from "./shared.js";
 import { importExample, importPrompt } from "./json-prompts.js";
 import CourseField from './CourseField.jsx';
@@ -9,6 +9,27 @@ import { useStudy } from './study-context.jsx';
 import { HandOff } from './hand-off/HandOff.jsx';
 import { useHandOff } from './hand-off/use-hand-off.js';
 import { pastedJsonInput, rejectedFilesInput } from './import-hand-off.js';
+
+/** Pure-local, zero-token preview of pasted JSON before calling draft.import.propose. */
+export function previewJsonImport(rawText) {
+  const cleaned = String(rawText || "")
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "")
+    .trim();
+  if (!cleaned || (!cleaned.startsWith("{") && !cleaned.startsWith("["))) return null;
+  try {
+    const parsed = JSON.parse(cleaned);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || !Array.isArray(parsed.cards) || !parsed.cards.length) return null;
+    return {
+      count: parsed.cards.length,
+      title: typeof parsed.title === "string" ? parsed.title.trim() : "",
+    };
+  } catch {
+    return null;
+  }
+}
 
 export default function JsonImport({ data, openDraft }) {
   const { busy, act, call } = useStudy();
@@ -25,6 +46,7 @@ export default function JsonImport({ data, openDraft }) {
   const [proposing, setProposing] = useState(false);
   const [merge, setMerge] = useState(false);
   const fileRead = useRef(0);
+  const preview = useMemo(() => previewJsonImport(text), [text]);
   async function readFile([file]) {
     if (!file) return;
     const request = ++fileRead.current;
@@ -41,19 +63,6 @@ export default function JsonImport({ data, openDraft }) {
   }
   return <div>
     <p className="muted">{ui("粘贴 JSON 或读取 JSON/TXT 文件（TXT 内也需为 JSON）。支持五种题型混合导入。导入时建议标题和课程，确认后保存草稿；发布时快速校验并直接开始学习。")}</p>
-    <fieldset>
-      <legend>{ui("01 / 各题型 JSON 提示词")}</legend>
-      <label>{ui("题型")}<Select value={kind} onChange={(next) => { setKind(next); setMessage(""); }}
-        options={Object.entries({ mixed: ui("混合题型（一次复制全部）"), ...kinds }).map(([id, label]) => ({ value: id, label }))} /></label>
-      <label>{ui("复制给 AI，追加你的资料与出题要求")}<textarea readOnly rows={8} value={importPrompt(kind, kinds[kind], getUiLanguage())} /></label>
-      <Button icon={promptCopy.copied ? "check" : undefined} onClick={async () => {
-        setMessage("");
-        if (!(await promptCopy.copy())) setMessage(ui("无法访问剪贴板，请在上方文本框中手动复制提示词"));
-      }}>{promptCopy.copied ? ui("提示词已复制") : ui("复制提示词")}</Button>
-      <details><summary>{ui("查看 JSON 格式示例")}</summary><pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{importExample(kind, getUiLanguage())}</pre></details>
-      <HandOff id="import.file" input={{ purpose: 'questions', area: '导入 JSON 题组' }} lead="题目在 Word、PDF 或 Excel 里：" shape="quiet"
-        what="让主会话把文件里的题按章原样整理成题组，存成草稿给你检查；文件在输入框里用 @ 选" />
-    </fieldset>
     <form onSubmit={async (e) => {
       e.preventDefault();
       if (!proposal) {
@@ -67,13 +76,18 @@ export default function JsonImport({ data, openDraft }) {
           openDraft(deck);
         });
     }}>
-      <fieldset><legend>{ui("02 / 导入题组")}</legend>
+      <fieldset><legend>{ui("导入题组")}</legend>
         <FileDrop compact accept={[".json", ".txt"]} maxBytes={2_000_000} busy={reading} disabled={busy || proposing}
           label={ui("把 JSON 题组文件拖到这里")} hint={ui("JSON 或内容为 JSON 的 TXT · 最大 2 MB")} buttonLabel={ui("读取 JSON / TXT 文件")}
           rejectAction={rejections => handOff.action('import.file', rejectedFilesInput(rejections, { purpose: 'questions', area: '导入 JSON 题组' }),
             { what: '让主会话把这些文件里的题原样整理成题组，存成草稿给你检查；文件在输入框里用 @ 选' })}
           onFiles={accepted => void readFile(accepted)} />
         <label>{ui("JSON 内容")}<textarea rows={14} required value={text} disabled={busy || reading || proposing} onChange={(e) => { setText(e.target.value); setProposal(null); setMerge(false); setInvalid(null); }} placeholder={ui("{\"title\":\"题组名称\",\"cards\":[...]}")} /></label>
+        {preview && !proposal && <p className="muted json-import-preview" role="status">
+          {preview.title
+            ? uiFormat("已识别「{0}」共 {1} 道题，点下方按钮检查并建议归类。", [preview.title, preview.count])
+            : uiFormat("已识别 {0} 道题，点下方按钮检查并建议归类。", [preview.count])}
+        </p>}
         {proposal && <div className="import-proposal">
           <p className="muted">{uiFormat("{0} · 原标题：{1}", [proposal.method === "ai" ? ui("AI 建议，请确认或修改") : ui("初步整理建议，请确认或修改"), proposal.originalTitle])}</p>
           <label>{ui("短标题")}<input value={proposal.title} onChange={(e) => setProposal({ ...proposal, title: e.target.value })} /></label>
@@ -82,10 +96,25 @@ export default function JsonImport({ data, openDraft }) {
           {proposal.mergeTargetId && <Checkbox checked={merge} onChange={setMerge} label={ui("发布时并入建议的同知识点题组（保留全部题和记录）")} />}
           {proposal.mergeTargetId && <p className="muted">{data?.decks?.find(deck => deck.id === proposal.mergeTargetId)?.title} · {proposal.course || ui('未分类')}</p>}
         </div>}
-        <Button type="submit" variant="primary" iconEnd="arrow-right" busy={reading || proposing} busyLabel={reading ? ui("正在读取文件…") : ui("正在整理建议…")} disabled={busy || !text.trim()}>{proposal ? ui("确认并导入草稿") : ui("检查并建议归类")}</Button>
+        <Button type="submit" variant="primary" iconEnd={proposal ? "arrow-right" : undefined} busy={reading || proposing} busyLabel={reading ? ui("正在读取文件…") : ui("正在整理建议…")} disabled={busy || !text.trim()}>{proposal ? ui("确认并导入草稿") : ui("检查并建议归类")}</Button>
       </fieldset>
     </form>
     {message && <InlineMessage tone="error" secondary={invalid?.error === message ? handOff.action('import.file', pastedJsonInput(invalid.text, invalid.error),
       { what: '让主会话按这个错误改好这段 JSON，存成草稿给你检查' }) : undefined}>{message}</InlineMessage>}
+    <details className="json-prompt-fold">
+      <summary>{ui("获取各题型 JSON 提示词与格式示例")}</summary>
+      <fieldset>
+        <label>{ui("题型")}<Select value={kind} onChange={(next) => { setKind(next); setMessage(""); }}
+          options={Object.entries({ mixed: ui("混合题型（一次复制全部）"), ...kinds }).map(([id, label]) => ({ value: id, label }))} /></label>
+        <label>{ui("复制给 AI，追加你的资料与出题要求")}<textarea readOnly rows={8} value={importPrompt(kind, kinds[kind], getUiLanguage())} /></label>
+        <Button icon={promptCopy.copied ? "check" : undefined} onClick={async () => {
+          setMessage("");
+          if (!(await promptCopy.copy())) setMessage(ui("无法访问剪贴板，请在上方文本框中手动复制提示词"));
+        }}>{promptCopy.copied ? ui("提示词已复制") : ui("复制提示词")}</Button>
+        <details><summary>{ui("查看 JSON 格式示例")}</summary><pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{importExample(kind, getUiLanguage())}</pre></details>
+        <HandOff id="import.file" input={{ purpose: 'questions', area: '导入 JSON 题组' }} lead="题目在 Word、PDF 或 Excel 里：" shape="quiet"
+          what="让主会话把文件里的题按章原样整理成题组，存成草稿给你检查；文件在输入框里用 @ 选" />
+      </fieldset>
+    </details>
   </div>;
 }

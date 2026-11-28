@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Badge, Button, Disclosure, LoadingState, Tooltip } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import PointGaps from '../coverage/PointGaps.jsx';
-import { prereqMark, prereqTip, unavailableLine } from '../coverage/point-words.js';
+import { pointsLine, prereqMark, prereqTip, unavailableLine } from '../coverage/point-words.js';
 import css from './book-point-gaps.css';
 
 /* 知识点查缺 inside 复习全书 (ui/book/BookPage.jsx): reuses the shared PointGaps component (ui/coverage/PointGaps.jsx) for the course summary, uncovered list and
@@ -60,6 +60,10 @@ function MissingLinks({ items, onGo }) {
  */
 export default function BookPointGaps({ course, report, disabled = false, modelReady = true, fillingJob = null, onTopUp, onGo, onOutline, onOpenTask }) {
   useInjectCss(css, 'study-book-point-gaps');
+  const [foldOpen, setFoldOpen] = useState(Boolean(fillingJob));
+  useEffect(() => {
+    if (fillingJob) setFoldOpen(true);
+  }, [fillingJob]);
   if (course === null || course === undefined || !report) return null;
   if (report.status !== 'ok') {
     const line = unavailableLine(report.reason);
@@ -83,83 +87,92 @@ export default function BookPointGaps({ course, report, disabled = false, modelR
     });
   };
   return (
-    <section className="book-gaps" aria-label={ui('知识点查缺')} data-book-point-gaps="ok">
-      <PointGaps
-        course={course}
-        report={report}
-        disabled={disabled || !!fillingJob}
-        modelReady={modelReady}
-        onTopUp={onTopUp}
-        onOpenPoint={onGo ? (point) => point.hid && onGo(point.hid) : null}
-      />
-      {fillingJob && (
-        <p className="book-gaps__running" role="status" data-book-gaps-running="">
-          <LoadingState inline label={ui('正在按知识点补题…')} />
-          {onOpenTask && <Button iconEnd="arrow-right" variant="link" size="sm" onClick={() => onOpenTask(fillingJob.id)}>{ui('看进度')}</Button>}
-        </p>
-      )}
-      {chapters.length > 0 && (
-        <Disclosure
-          summary={ui('按章节查缺')}
-          meta={uiFormat('{0}/{1}', [report.covered, report.points])}
-          className="book-gaps__chapters"
-          data-book-gaps-chapters=""
-        >
-          <ul className="book-gaps__chapter-list">
-            {chapters.map((chapter) => (
-              <li key={chapter.id} className="book-gaps__chapter" data-gap-chapter={chapter.id} data-uncovered={chapter.uncovered}>
-                <div className="book-gaps__row">
-                  {onGo && chapter.hid
-                    ? <Button variant="quiet" size="sm" wrap className="book-gaps__title" data-gap-jump={chapter.hid} onClick={() => onGo(chapter.hid)}>
-                      {labelOf(chapter)}
-                    </Button>
-                    : <span className="book-gaps__title">{labelOf(chapter)}</span>}
-                  <GroupMeta group={chapter} />
-                  {chapter.topUp && onTopUp && (
-                    <Button
-                      size="sm"
-                      variant="quiet"
-                      iconEnd="arrow-right"
-                      disabled={disabled || !!fillingJob}
-                      data-chapter-topup={chapter.id}
-                      onClick={() => fillGroup(chapter)}
-                    >
-                      {uiFormat('补本章（约 {0} 题）', [chapter.topUp.questions])}
-                    </Button>
-                  )}
-                </div>
-                {chapter.sections?.length > 0 && (
-                  <ul className="book-gaps__sections" aria-label={ui('按小节查缺')}>
-                    {chapter.sections.map((section) => (
-                      <li key={section.id} className="book-gaps__row" data-gap-section={section.id} data-uncovered={section.uncovered}>
-                        {onGo && section.hid
-                          ? <Button variant="quiet" size="sm" wrap className="book-gaps__title book-gaps__title--section" data-gap-jump={section.hid} onClick={() => onGo(section.hid)}>
-                            {labelOf(section)}
-                          </Button>
-                          : <span className="book-gaps__title book-gaps__title--section">{labelOf(section)}</span>}
-                        <GroupMeta group={section} />
-                        {section.topUp && onTopUp && (
-                          <Button
-                            size="sm"
-                            variant="quiet"
-                            iconEnd="arrow-right"
-                            disabled={disabled || !!fillingJob}
-                            data-section-topup={section.id}
-                            onClick={() => fillGroup(section)}
-                          >
-                            {ui('补本节')}
-                          </Button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {chapter.missing?.length > 0 && <MissingLinks items={chapter.missing} onGo={onGo} />}
-              </li>
-            ))}
-          </ul>
-        </Disclosure>
-      )}
+    <section className="book-gaps book-gaps--compact" aria-label={ui('知识点查缺')} data-book-point-gaps="ok">
+      <details className="book-gaps__fold" open={foldOpen} onToggle={(e) => setFoldOpen(e.currentTarget.open)}>
+        <summary className="book-gaps__summary">
+          <span className="book-gaps__summary-title">{ui('知识点查缺')}</span>
+          <span className="book-gaps__summary-line">{pointsLine(report, 'course')}</span>
+          <span className="book-gaps__meta">{uiFormat('{0}/{1}', [report.covered, report.points])}</span>
+        </summary>
+        <div className="book-gaps__body">
+          <PointGaps
+            course={course}
+            report={report}
+            disabled={disabled || !!fillingJob}
+            modelReady={modelReady}
+            onTopUp={onTopUp}
+            onOpenPoint={onGo ? (point) => point.hid && onGo(point.hid) : null}
+          />
+          {fillingJob && (
+            <p className="book-gaps__running" role="status" data-book-gaps-running="">
+              <LoadingState inline label={ui('正在按知识点补题…')} />
+              {onOpenTask && <Button iconEnd="arrow-right" variant="link" size="sm" onClick={() => onOpenTask(fillingJob.id)}>{ui('看进度')}</Button>}
+            </p>
+          )}
+          {chapters.length > 0 && (
+            <Disclosure
+              summary={ui('按章节查缺')}
+              meta={uiFormat('{0}/{1}', [report.covered, report.points])}
+              className="book-gaps__chapters"
+              data-book-gaps-chapters=""
+            >
+              <ul className="book-gaps__chapter-list">
+                {chapters.map((chapter) => (
+                  <li key={chapter.id} className="book-gaps__chapter" data-gap-chapter={chapter.id} data-uncovered={chapter.uncovered}>
+                    <div className="book-gaps__row">
+                      {onGo && chapter.hid
+                        ? <Button variant="quiet" size="sm" wrap className="book-gaps__title" data-gap-jump={chapter.hid} onClick={() => onGo(chapter.hid)}>
+                          {labelOf(chapter)}
+                        </Button>
+                        : <span className="book-gaps__title">{labelOf(chapter)}</span>}
+                      <GroupMeta group={chapter} />
+                      {chapter.topUp && onTopUp && (
+                        <Button
+                          size="sm"
+                          variant="quiet"
+                          iconEnd="arrow-right"
+                          disabled={disabled || !!fillingJob}
+                          data-chapter-topup={chapter.id}
+                          onClick={() => fillGroup(chapter)}
+                        >
+                          {uiFormat('补本章（约 {0} 题）', [chapter.topUp.questions])}
+                        </Button>
+                      )}
+                    </div>
+                    {chapter.sections?.length > 0 && (
+                      <ul className="book-gaps__sections" aria-label={ui('按小节查缺')}>
+                        {chapter.sections.map((section) => (
+                          <li key={section.id} className="book-gaps__row" data-gap-section={section.id} data-uncovered={section.uncovered}>
+                            {onGo && section.hid
+                              ? <Button variant="quiet" size="sm" wrap className="book-gaps__title book-gaps__title--section" data-gap-jump={section.hid} onClick={() => onGo(section.hid)}>
+                                {labelOf(section)}
+                              </Button>
+                              : <span className="book-gaps__title book-gaps__title--section">{labelOf(section)}</span>}
+                            <GroupMeta group={section} />
+                            {section.topUp && onTopUp && (
+                              <Button
+                                size="sm"
+                                variant="quiet"
+                                iconEnd="arrow-right"
+                                disabled={disabled || !!fillingJob}
+                                data-section-topup={section.id}
+                                onClick={() => fillGroup(section)}
+                              >
+                                {ui('补本节')}
+                              </Button>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {chapter.missing?.length > 0 && <MissingLinks items={chapter.missing} onGo={onGo} />}
+                  </li>
+                ))}
+              </ul>
+            </Disclosure>
+          )}
+        </div>
+      </details>
     </section>
   );
 }

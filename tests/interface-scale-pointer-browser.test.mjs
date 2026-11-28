@@ -50,8 +50,8 @@ const explainHarness = `
   import ExplainCard from './ui/document-preview/marks/ExplainCard.jsx';
   import { ContextMenu } from './ui/components/index.js';
   let root, menuRoot;
-  window.show = (rect) => { root ||= createRoot(document.getElementById('app')); root.render(<ExplainCard shown={{ rect, card: { term: '双边市场', answer: '两类用户通过平台找到彼此。' } }} />); };
-  window.menuAt = (point) => { menuRoot ||= createRoot(document.getElementById('menu')); menuRoot.render(<ContextMenu label="m" point={point} items={[{ id: 'a', label: '复制' }, { id: 'b', label: '问 AI' }]} onClose={() => {}} />); };
+  window.show = (rect, answer = '两类用户通过平台找到彼此。') => { root ||= createRoot(document.getElementById('app')); root.render(<ExplainCard shown={{ rect, card: { term: '双边市场', answer } }} />); };
+  window.menuAt = (point, hint, inApp = false) => { menuRoot ||= createRoot(document.getElementById('menu')); menuRoot.render(<ContextMenu label="m" point={point} within={inApp ? document.getElementById('menu') : undefined} items={[{ id: 'a', label: '复制' }, { id: 'b', label: '问 AI', hint }]} onClose={() => {}} />); };
 `;
 
 test('the 词解 card opens right under its passage at 50 %, 100 % and 150 %, and follows the pointer to the next passage', { timeout: 120000 }, async (t) => {
@@ -109,6 +109,36 @@ test('the 词解 card opens right under its passage at 50 %, 100 % and 150 %, an
         const drawn = await rect(menu);
         near(drawn.x, 400, 2, 'the menu opens at the new point');
         near(drawn.y, 252, 2, 'on the same line as before, not at the window\'s top');
+      });
+    });
+    /* A panel with no width of its own is as wide as the room left of its left edge, up to its maximum. Placing it puts it at the window's corner
+       to measure, where it is as wide as it wants; its zoom is that width against the one it is drawn at there. Read after it was put back at its
+       old place (near the right edge) it is narrower, and every length is divided by a zoom that is too big: the new place lands far to the left. */
+    for (const scale of [50, 100]) await t.test(`${scale}%: moved from a narrow panel at the right edge to a wide one, it is placed by the width it has at the corner`, async (t2) => {
+      const wide = '两类用户通过平台找到彼此。'.repeat(8);
+      await t2.test('the card, from a short one at the right edge to a long one under a passage further left', async (t3) => {
+        const page = await blank(t3, scale), card = page.locator('.reader-explain');
+        await page.evaluate(() => window.show({ left: 950, top: 100, right: 990, bottom: 120, width: 40, height: 20 }));
+        await card.waitFor({ state: 'visible' });
+        await page.evaluate((answer) => window.show({ left: 400, top: 300, right: 520, bottom: 320, width: 120, height: 20 }, answer), wide);
+        await card.getByText(wide).waitFor({ state: 'attached' });
+        await frames(page, 4);
+        const drawn = await rect(card);
+        near(drawn.x, 400, 2, 'the long card lines up with its passage, not left over it');
+        near(drawn.y, 320 + 6 * (scale / 100), 2, 'and starts just under the passage');
+      });
+      await t2.test('the right-click menu, from a narrow one at the right edge to one with a long hint at another point', async (t3) => {
+        const page = await blank(t3, scale), menu = page.locator('.sh-menu--context');
+        // The menu is placed inside the app, which here has no content: give it the window's height, as the app has.
+        await page.evaluate((zoom) => { document.querySelector('.study-app').style.height = `${800 / zoom}px`; }, scale / 100);
+        await page.evaluate(() => window.menuAt({ x: 990, y: 100 }, undefined, true));
+        await menu.waitFor({ state: 'visible' });
+        await page.evaluate((hint) => window.menuAt({ x: 400, y: 300 }, hint, true), '把这一段原文连同上下文一起发给主会话，在那里继续追问，不会改动这里的任何内容');
+        await menu.getByText('把这一段原文', { exact: false }).waitFor({ state: 'attached' });
+        await frames(page, 4);
+        const drawn = await rect(menu);
+        near(drawn.x, 400, 2, 'the wide menu opens at the new point, not left of it');
+        near(drawn.y, 302, 2, 'just under it');
       });
     });
   } finally {
@@ -282,6 +312,23 @@ test('below 100% the pointer, the measured widths and the first paint agree with
       // pointer over many, so many small moves would hide it.
       await page.mouse.move(x, to);
       await eventually(async () => { const lifted = await rect(row); return lifted.y + lifted.h / 2; }, to, 2, 'the row centre is under the pointer after its first move');
+      await page.keyboard.press('Escape');
+      await page.mouse.up();
+      assert.deepEqual(errors, []);
+    });
+
+    /* The other half: dragged down past the rows below it, the list reorders under the lifted row, which moves its natural place. Each pointer event
+       reads the offset again, so a sum that mixes the two pixels goes further off with the distance dragged. Moved in steps, as the pointer does. */
+    await t.test('a lifted sidebar row dragged down past other rows stays under the pointer after the list reorders', async (t2) => {
+      const { page, errors } = await open(t2);
+      const row = page.locator('.study-app > .sidebar [data-nav-id="generate"]');
+      const before = await atRest(row, page), x = before.x + before.w / 2, y = before.y + before.h / 2;
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.locator('.study-app > .sidebar [data-nav-id="generate"].is-dragging').waitFor({ timeout: 15000 }); // held long enough to be lifted
+      await page.mouse.move(x, y + 6, { steps: 3 });
+      await page.mouse.move(x, y + 40, { steps: 12 });
+      await eventually(async () => { const lifted = await rect(row); return lifted.y + lifted.h / 2; }, y + 40, 1, 'the row centre follows the pointer');
       await page.keyboard.press('Escape');
       await page.mouse.up();
       assert.deepEqual(errors, []);

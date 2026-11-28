@@ -146,13 +146,13 @@ test('#852 browser: non-uniform quotas, modular rules, zero-call preview, and Ta
     assert.equal(finishedJob.status, 'complete', `expected job complete, got ${finishedJob.status}: ${finishedJob.error || finishedJob.stage}`);
     await settleAnimations(page);
 
-    // Open TaskConsole -> select job -> click 实际请求 tab
+    // Open TaskConsole -> select job -> click 发送内容 tab
     await nav(page, 'tasks');
     await page.locator(`.tc-row[data-task-id="${finishedJob.id}"]`).click();
 
     // The run has ended, so its requests are behind the closed 运行记录 (#1691).
     await page.locator('.tc-record:not([open]) > summary').click();
-    await page.getByRole('tab', { name: '实际请求' }).click();
+    await page.getByRole('tab', { name: '发送内容' }).click();
     const trace = await previewCall(running.server, 'job.trace', { jobId: finishedJob.id, revealSolutions: false });
     const plan = trace.calls.find(call => call.purpose === 'plan' && !call.mechanical);
     const blueprint = trace.calls.find(call => call.purpose === 'blueprint');

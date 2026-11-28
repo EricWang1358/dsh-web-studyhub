@@ -26,7 +26,7 @@ import RequestTracePanel from './RequestTracePanel.jsx';
    「正在进行」 and the kind's own section (文件 for audio, 轮次与批次 for a question run); on the right the tabs 「实时输出」 and 「日志」. Both columns are as tall
    as the window leaves them and every list scrolls inside its own panel, so a job with one file looks as complete as one with fifty, and nothing here
    grows the page.
-   A task that has ended (#1691) keeps in sight only what it made (the kind's own section, 目标与知识点). How it went (the timeline, 实时输出, 实际请求,
+   A task that has ended (#1691) keeps in sight only what it made (the kind's own section, 目标与知识点). How it went (the timeline, 实时输出, 发送内容,
    日志) is one closed fold, 运行记录, drawn when it is first opened; no call is in progress any more, so there is no 正在进行. */
 
 const stepDot = (status) => (status === 'ok' ? 'done' : status === 'failed' ? 'fail' : status === 'cancelled' || status === 'skipped' ? 'stopped' : 'run');
@@ -51,7 +51,7 @@ function MaterialSteps({ contract, selected, onSelect }) {
             <span className="tc-dot" data-state={stepDot(call.status)} aria-hidden="true" />
             <span className="tc-callrow__step">{callLabel(call)}</span>
             <span className="tc-num">{stepTime(call, now)}</span>
-            <span className="tc-callrow__by">{joinMeta([runnerLabel(call), call.tokens > 0 ? uiFormat('{0} tok', [formatNumber(call.tokens)]) : '', call.slot ? `${ui('槽')} ${call.slot}` : ''])}</span>
+            <span className="tc-callrow__by">{joinMeta([runnerLabel(call), call.tokens > 0 ? uiFormat('{0} tok', [formatNumber(call.tokens)]) : '', call.slot ? `${ui('并发通道')} ${call.slot}` : ''])}</span>
           </Button>
           <AgentLink childId={call.childId} parentId={call.parentId} openAgent={host?.openAgent} className="tc-partrow__open"
             label={ui('查看后台助手')} ariaLabel={uiFormat('查看后台助手：{0}', [callLabel(call)])} />
@@ -118,7 +118,7 @@ export default function TaskBody({ task, archived = false, marks, focusCall }) {
   const tab = leftItems.some((item) => item.value === leftTab) ? leftTab : leftItems[0]?.value;
   const rightItems = [
     ...(callFree ? [] : [{ value: 'output', label: ui('实时输出') }]),
-    ...(hasRequestTrace ? [{ value: 'trace', label: ui('实际请求') }] : []),
+    ...(hasRequestTrace ? [{ value: 'trace', label: ui('发送内容') }] : []),
     { value: 'log', label: ui('日志') },
   ];
   const rightShown = rightItems.some((item) => item.value === rightTab) ? rightTab : 'log';

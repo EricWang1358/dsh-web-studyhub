@@ -214,6 +214,9 @@ test('expanded recommendations with long prompts stay inside .wb-recs at 1280px 
         await page.goto(running.server.url);
         await page.locator('aside, nav').first().waitFor({ timeout: 30000 });
         await (await revealNavRow(page, 'wrongbook')).dispatchEvent('click');
+        const diagFold = page.locator('details.wb-diagnostics-fold');
+        await diagFold.waitFor({ timeout: 30000 });
+        if (!(await diagFold.evaluate((el) => el.open))) await diagFold.locator('> summary').click();
         const toggle = page.locator('.wb-recs-bar button[aria-expanded]');
         await toggle.waitFor({ timeout: 30000 });
         await toggle.click();

@@ -19,6 +19,18 @@ import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget 
 import CourseField from './CourseField.jsx';
 import { deckCourseOf } from './deck-course.js';
 
+/** Pure filter for deck question rows by keyword and card status (flagged / suspended). */
+export function filterManageCards(cards = [], { query = "", filter = "all" } = {}) {
+  const needle = String(query || "").trim().toLowerCase();
+  return cards.filter((card) => {
+    if (filter === "flagged" && !card.flag) return false;
+    if (filter === "suspended" && !card.suspended) return false;
+    if (!needle) return true;
+    const haystack = [card.prompt, card.topic, card.answer, card.flag].filter(Boolean).join(" ").toLowerCase();
+    return haystack.includes(needle);
+  });
+}
+
 /** The question before a merge removes the source deck: an in-app confirmation (host webviews may block the browser's own). */
 export function MergeDeckDialog({ deck, target, onConfirm, onClose }) {
   return <ConfirmDialog title={uiFormat("合并到「{0}」？", [target.title])} confirmLabel={ui("合并到目标题组")}
@@ -56,10 +68,16 @@ export default function Manage({
   const [reordering, setReordering] = useState(false);
   const [splitTitle, setSplitTitle] = useState("");
   const [splitTopics, setSplitTopics] = useState([]);
+  const [query, setQuery] = useState("");
+  const [cardFilter, setCardFilter] = useState("all");
   // The parts of the deck (lib/deck-parts.js): 「第一部分 12 题 · 第二部分 9 题」 and one part at a time on screen. Practice and mastery read the whole deck.
   const parts = partsOf(managedDeck), [shownPart, setShownPart] = useState(0);
   const showing = parts.length > 1 && parts.some((part) => part.n === shownPart) ? shownPart : 0;
   const shownCards = showing ? managedDeck.cards.filter((card) => partOf(card) === showing) : managedDeck.cards;
+  const flaggedCount = shownCards.filter((card) => Boolean(card.flag)).length;
+  const suspendedCount = shownCards.filter((card) => Boolean(card.suspended)).length;
+  const filteredCards = filterManageCards(shownCards, { query, filter: cardFilter });
+  const hasFilterPills = flaggedCount > 0 || suspendedCount > 0 || cardFilter !== "all";
   const topics = [...new Set(managedDeck.cards.map((c) => c.topic || ui("未分类")))];
   const peers = decks.filter((d) => d.id !== managedDeck.id && !d.systemKind && !d.archived);
   const deckIndex = decks.findIndex((d) => d.id === managedDeck.id);
@@ -136,92 +154,102 @@ export default function Manage({
           {selfCited > 0 && <p>{uiFormat("{0} 题只引用导入题目自身；请先在草稿中换成原始资料引用。", [selfCited])}</p>}
         </Banner>
       )}
-      {!managedDeck.systemKind && <form
-        className="manage-folder"
-        onSubmit={(e) => {
-          e.preventDefault();
-          act(
-            "deck.course",
-            { id: managedDeck.id, course: folderDraft.trim() },
-            (moved) => {
-              setManagedDeck({ ...managedDeck, course: moved.course, folder: "" });
-              setFolderDraft(moved.course);
-              toast.success(moved.course ? uiFormat("已归入课程「{0}」", [moved.course]) : ui("已移回未分类"));
-            },
-          );
-        }}
-      >
-        <CourseField
-          courses={focus?.courses || courses || []}
-          value={folderDraft}
-          onChange={setFolderDraft}
-          label={ui("所属课程")}
-          current={deckCourseOf(managedDeck)}
-          disabled={busy}
-        />
-        <div className="manage-folder__actions">
-          <Button className="manage-row__action" disabled={folderDraft.trim() === deckCourseOf(managedDeck).trim()} lock={busy} type="submit">{ui("保存课程")}</Button>
-        </div>
-      </form>}
-      {!managedDeck.systemKind && !managedDeck.archived && <Panel className="manage-panel" title={ui("整理题组")}
-        description={ui("合并保留全部题目；拆分按主题移动。题目复习记录和前置题关联会一起保留。")}>
-        {siblings.length > 1 && <div className="manage-section">
-          <span className="manage-label">{ui("题组顺序")}</span>
-          <p className="muted small">{uiFormat("当前在课程学习顺序中第 {0} / {1} 个（用于课程进度与推荐下一步；学习库目录按最近发布排序）。", [siblingIndex + 1, siblings.length])}</p>
-          <div className="manage-row manage-row--pair">
-            <Button className="manage-row__action" disabled={siblingIndex <= 0} lock={busy} onClick={() => moveOrder(-1)}>{ui("上移题组")}</Button>
-            <Button className="manage-row__action" disabled={siblingIndex < 0 || siblingIndex >= siblings.length - 1} lock={busy} onClick={() => moveOrder(1)}>{ui("下移题组")}</Button>
-            <Tooltip layer content={ui("按「前置筑基 → 章节精讲 → 源码实验 → 综合大卷」给出建议顺序；仅在你确认后才写入，不会自动改写已排好的顺序。")}>
-              <Button className="manage-row__action" variant="quiet" disabled={!recommendedOrder?.changed} lock={busy} onClick={() => setConfirmRecommend(true)}>
-                {recommendedOrder?.changed ? ui("按推荐顺序排…") : ui("已符合推荐顺序")}
-              </Button>
-            </Tooltip>
-          </div>
-          {confirmRecommend && recommendedOrder?.changed && (
-            <InlineConfirm tone="primary" title={ui("按推荐学习顺序重排当前课程的题组？")} confirmLabel={ui("确认应用推荐顺序")} busy={reordering}
-              onConfirm={applyRecommendedOrder} onCancel={() => setConfirmRecommend(false)}>
-              <p className="muted small">{ui("仅调整当前课程题组的顺序，不改动任何题目或复习记录；取消后保持原顺序不变。")}</p>
-              <ol className="manage-recommend-list">
-                {recommendedOrder.items.map((item) => <li key={item.id}>{item.title}</li>)}
-              </ol>
-            </InlineConfirm>
-          )}
-        </div>}
-        <form className="manage-section" onSubmit={(e) => {
-          e.preventDefault();
-          if (targetId) setMerging(true);
-        }}>
-          <label className="manage-label" htmlFor="manage-merge-target">{ui("合并到题组")}</label>
-          <div className="manage-row">
-            <Combobox id="manage-merge-target" className="manage-row__control" value={targetId} onChange={setTargetId} placeholder={ui("选择合并目标")} label={ui("合并到题组")} searchPlaceholder={ui("搜索题组")}
-              emptyText={(query) => uiFormat("没有叫「{0}」的题组", [query])}
-              options={deckEntries(deckChoices(peers, { focus }))} />
-            <Button className="manage-row__action" disabled={!targetId} lock={busy} type="submit">{ui("合并到目标题组")}</Button>
-          </div>
-        </form>
-        {topics.length > 1 && <form className="manage-section" onSubmit={(e) => {
-          e.preventDefault();
-          if (!splitReady) return;
-          act("deck.split", { id: managedDeck.id, title: splitTitle, topics: splitTopics }, async (result) => {
-            setManagedDeck(await call("deck.get", { id: managedDeck.id }));
-            setSplitTopics([]); setSplitTitle("");
-            toast.success(uiFormat("已拆出 {0} 道题到新题组",[result.moved]));
-          });
-        }}>
-          <span className="manage-label">
-            {ui("按主题拆分")}
-            <small>{uiFormat("已选 {0} / {1} 个主题", [splitTopics.length, topics.length])}</small>
+      {!managedDeck.systemKind && <details className="manage-organize-fold">
+        <summary className="manage-organize-fold__summary">
+          <span className="manage-organize-fold__title">{ui("整理题组")}</span>
+          <span className="manage-organize-fold__hint">
+            {managedDeck.archived ? ui("课程归属") : ui("课程归属、排序、合并与拆分")}
           </span>
-          <div className="manage-topics">{topics.map((topic) => <label key={topic} className="manage-topic">
-            <CheckboxInput className="manage-topic__check" checked={splitTopics.includes(topic)} onChange={(e) => setSplitTopics((old) => e.target.checked ? [...old, topic] : old.filter((x) => x !== topic))} />
-            <span>{topic}</span>
-          </label>)}</div>
-          <div className="manage-row">
-            <input className="manage-row__control" aria-label={ui("新题组名称")} value={splitTitle} onChange={(e) => setSplitTitle(e.target.value)} placeholder={ui("新题组名称")} />
-            <Button className="manage-row__action" disabled={!splitReady} lock={busy} type="submit">{ui("拆出所选主题")}</Button>
-          </div>
-        </form>}
-      </Panel>}
+        </summary>
+        <div className="manage-organize-fold__body">
+          <form
+            className="manage-folder"
+            onSubmit={(e) => {
+              e.preventDefault();
+              act(
+                "deck.course",
+                { id: managedDeck.id, course: folderDraft.trim() },
+                (moved) => {
+                  setManagedDeck({ ...managedDeck, course: moved.course, folder: "" });
+                  setFolderDraft(moved.course);
+                  toast.success(moved.course ? uiFormat("已归入课程「{0}」", [moved.course]) : ui("已移回未分类"));
+                },
+              );
+            }}
+          >
+            <CourseField
+              courses={focus?.courses || courses || []}
+              value={folderDraft}
+              onChange={setFolderDraft}
+              label={ui("所属课程")}
+              current={deckCourseOf(managedDeck)}
+              disabled={busy}
+            />
+            <div className="manage-folder__actions">
+              <Button className="manage-row__action" disabled={folderDraft.trim() === deckCourseOf(managedDeck).trim()} lock={busy} type="submit">{ui("保存课程")}</Button>
+            </div>
+          </form>
+          {!managedDeck.archived && <Panel className="manage-panel"
+            description={ui("合并保留全部题目；拆分按主题移动。题目复习记录和前置题关联会一起保留。")}>
+            {siblings.length > 1 && <div className="manage-section">
+              <span className="manage-label">{ui("题组顺序")}</span>
+              <p className="muted small">{uiFormat("当前在课程学习顺序中第 {0} / {1} 个（用于课程进度与推荐下一步；学习库目录按最近发布排序）。", [siblingIndex + 1, siblings.length])}</p>
+              <div className="manage-row manage-row--pair">
+                <Button className="manage-row__action" disabled={siblingIndex <= 0} lock={busy} onClick={() => moveOrder(-1)}>{ui("上移题组")}</Button>
+                <Button className="manage-row__action" disabled={siblingIndex < 0 || siblingIndex >= siblings.length - 1} lock={busy} onClick={() => moveOrder(1)}>{ui("下移题组")}</Button>
+                <Tooltip layer content={ui("按「前置筑基 → 章节精讲 → 源码实验 → 综合大卷」给出建议顺序；仅在你确认后才写入，不会自动改写已排好的顺序。")}>
+                  <Button className="manage-row__action" variant="quiet" disabled={!recommendedOrder?.changed} lock={busy} onClick={() => setConfirmRecommend(true)}>
+                    {recommendedOrder?.changed ? ui("按推荐顺序排…") : ui("已符合推荐顺序")}
+                  </Button>
+                </Tooltip>
+              </div>
+              {confirmRecommend && recommendedOrder?.changed && (
+                <InlineConfirm tone="primary" title={ui("按推荐学习顺序重排当前课程的题组？")} confirmLabel={ui("确认应用推荐顺序")} busy={reordering}
+                  onConfirm={applyRecommendedOrder} onCancel={() => setConfirmRecommend(false)}>
+                  <p className="muted small">{ui("仅调整当前课程题组的顺序，不改动任何题目或复习记录；取消后保持原顺序不变。")}</p>
+                  <ol className="manage-recommend-list">
+                    {recommendedOrder.items.map((item) => <li key={item.id}>{item.title}</li>)}
+                  </ol>
+                </InlineConfirm>
+              )}
+            </div>}
+            <form className="manage-section" onSubmit={(e) => {
+              e.preventDefault();
+              if (targetId) setMerging(true);
+            }}>
+              <label className="manage-label" htmlFor="manage-merge-target">{ui("合并到题组")}</label>
+              <div className="manage-row">
+                <Combobox id="manage-merge-target" className="manage-row__control" value={targetId} onChange={setTargetId} placeholder={ui("选择合并目标")} label={ui("合并到题组")} searchPlaceholder={ui("搜索题组")}
+                  emptyText={(query) => uiFormat("没有叫「{0}」的题组", [query])}
+                  options={deckEntries(deckChoices(peers, { focus }))} />
+                <Button className="manage-row__action" disabled={!targetId} lock={busy} type="submit">{ui("合并到目标题组")}</Button>
+              </div>
+            </form>
+            {topics.length > 1 && <form className="manage-section" onSubmit={(e) => {
+              e.preventDefault();
+              if (!splitReady) return;
+              act("deck.split", { id: managedDeck.id, title: splitTitle, topics: splitTopics }, async (result) => {
+                setManagedDeck(await call("deck.get", { id: managedDeck.id }));
+                setSplitTopics([]); setSplitTitle("");
+                toast.success(uiFormat("已拆出 {0} 道题到新题组",[result.moved]));
+              });
+            }}>
+              <span className="manage-label">
+                {ui("按主题拆分")}
+                <small>{uiFormat("已选 {0} / {1} 个主题", [splitTopics.length, topics.length])}</small>
+              </span>
+              <div className="manage-topics">{topics.map((topic) => <label key={topic} className="manage-topic">
+                <CheckboxInput className="manage-topic__check" checked={splitTopics.includes(topic)} onChange={(e) => setSplitTopics((old) => e.target.checked ? [...old, topic] : old.filter((x) => x !== topic))} />
+                <span>{topic}</span>
+              </label>)}</div>
+              <div className="manage-row">
+                <input className="manage-row__control" aria-label={ui("新题组名称")} value={splitTitle} onChange={(e) => setSplitTitle(e.target.value)} placeholder={ui("新题组名称")} />
+                <Button className="manage-row__action" disabled={!splitReady} lock={busy} type="submit">{ui("拆出所选主题")}</Button>
+              </div>
+            </form>}
+          </Panel>}
+        </div>
+      </details>}
       {merging && targetId && <MergeDeckDialog deck={managedDeck} target={peers.find((d) => d.id === targetId) || { title: "" }}
         onClose={() => setMerging(false)} onConfirm={async () => {
           const result = await act("deck.merge", { sourceIds: [managedDeck.id], targetId }, (moved) => {
@@ -232,8 +260,22 @@ export default function Manage({
       {!managedDeck.cards.length && <p className="muted">{slainView ? ui("斩题组为空。练习时点击“斩”，题目会收纳到这里。") : ui("当前题组没有题目。已斩的题可从斩题组恢复。")}</p>}
       {parts.length > 1 && <SegmentedControl size="sm" className="manage-part-filter" label={ui("按部分查看")} value={showing} onChange={setShownPart} data-part-filter
         options={[{ value: 0, label: ui("全部") }, ...parts.map((part) => ({ value: part.n, label: partLabel(part.n) }))]} />}
+      {managedDeck.cards.length > 0 && <div className="manage-filter-bar" data-manage-filter>
+        <input type="search" className="manage-search" value={query} onChange={(e) => setQuery(e.target.value)}
+          placeholder={ui("搜索题目或主题")} aria-label={ui("搜索题目")} />
+        {hasFilterPills && <SegmentedControl size="sm" className="manage-status-filter" label={ui("筛选题目")} value={cardFilter} onChange={setCardFilter}
+          options={[
+            { value: "all", label: ui("全部") },
+            { value: "flagged", label: flaggedCount > 0 ? uiFormat("已标记 ({0})", [flaggedCount]) : ui("已标记") },
+            { value: "suspended", label: suspendedCount > 0 ? uiFormat("已暂停 ({0})", [suspendedCount]) : ui("已暂停") },
+          ]} />}
+      </div>}
+      {shownCards.length > 0 && !filteredCards.length && <div className="manage-filter-empty">
+        <p className="muted">{ui("当前筛选下没有匹配的题目。")}</p>
+        <Button size="sm" variant="link" onClick={() => { setQuery(""); setCardFilter("all"); }}>{ui("清除筛选")}</Button>
+      </div>}
       <div className="manage-cards">
-        {shownCards.map((card) => {
+        {filteredCards.map((card) => {
           const companionTarget = resolveCompanionTarget({
             card,
             courses,

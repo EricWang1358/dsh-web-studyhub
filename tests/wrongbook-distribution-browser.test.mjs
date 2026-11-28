@@ -22,6 +22,9 @@ test('mistakes page: the distribution bar says the same words it draws, and a se
     await page.goto(running.server.url);
     await page.locator('aside, nav').first().waitFor({ timeout: 30000 });
     await (await revealNavRow(page, 'wrongbook')).dispatchEvent('click');
+    const diagFold = page.locator('details.wb-diagnostics-fold');
+    await diagFold.waitFor({ timeout: 30000 });
+    if (!(await diagFold.evaluate((el) => el.open))) await diagFold.locator('> summary').click();
     await page.locator('.wb-dist').waitFor({ timeout: 30000 });
     await settleAnimations(page);
     await frames(page, 4);

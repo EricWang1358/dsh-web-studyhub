@@ -273,6 +273,9 @@ export default function LiveClass({ data, visible, onQueued, onSettings, onSourc
   const selectedChars = chosen.reduce((n, segment) => n + segment.en.length, 0);
   const disabled = busy || working;
   const total = session?.total || segments.length;
+  const showPaidEstimate = !!session && session.engine !== 'local' && session.tier !== 'local'
+    && (session.tier === 'paid' || (Number(session.usage?.estimatedPaidUsd) || 0) > 0);
+  const showFeedLegend = !!(correction?.enabled || polished > 0 || checkedThrough > 0);
   const canGenerate = !disabled && selectedChars >= MIN_CHARS && chosen.length <= 400 && Number.isInteger(count) && count >= 1 && count <= 15;
   // Why 选中内容出题 is off (nothing while a request is running: that is just waiting).
   const generateWhy = canGenerate || disabled ? '' : chosen.length > 400 ? ui('一次最多选 400 句') : !chosen.length ? ui('先选几句话；至少约 120 个原文字符才能出题')
@@ -343,6 +346,10 @@ export default function LiveClass({ data, visible, onQueued, onSettings, onSourc
         <div className="live-feed-head">
           <span className="muted">{everyChinese ? ui('勾选句子或划选文字即可出题。') : ui('原文在上，简体中文在下；勾选句子或划选文字即可出题。')}</span>
           <div className="live-actions">
+            {showFeedLegend && <span className="live-feed-legend" aria-label={ui('右侧标记说明')}>
+              <span><i className="live-dot polished" aria-hidden="true" />{ui('AI 润色')}</span>
+              <span><i className="live-dot checked" aria-hidden="true" />{ui('已检查')}</span>
+            </span>}
             {segments.some((segment) => showsTranslation(segment) && segment.zhState === 'error') && <Button busy={activeOp === 'retry-zh'} lock={disabled} onClick={() => void perform('retry-zh', async () => { await call('live.retry', { id: session.id }); await client.poll(); })}>{ui('重试失败的翻译')}</Button>}
             <Button variant="link" size="sm" className="live-follow" onClick={() => setFollow(!follow)} aria-pressed={follow}>{follow ? ui('正在跟随最新') : ui('回到最新')}</Button></div>
         </div>
@@ -384,7 +391,8 @@ export default function LiveClass({ data, visible, onQueued, onSettings, onSourc
         const node = feed.current?.querySelector(`[data-segment-id="${id}"]`);
         node?.scrollIntoView({ block: 'center' }); node?.focus({ preventScroll: true });
       }} onRetry={() => void perform('notes-retry', async () => { client.accept(await call('live.correct.background', { id: session.id })); })} />}
-      <footer className="live-footer"><p className="muted">{ui('付费转写估算')} ${session.usage?.estimatedPaidUsd || 0} · {ui('不含翻译费用')}</p>
+      {(showPaidEstimate || (!active(session) && segments.length > 0)) && <footer className="live-footer">
+        {showPaidEstimate && <p className="muted live-paid-estimate">{ui('付费转写估算')} ${session.usage?.estimatedPaidUsd || 0} · {ui('不含翻译费用')}</p>}
         {!active(session) && segments.length > 0 && <div className="live-actions" data-tour="live-save">
           {/* Never off for what the polish or the translations are doing: the save finishes what is missing first (one job in 任务) and says what it could not. */}
           <Why reason={ui('保存时会先补完润色和译文，再存下文字稿和课堂笔记；没能做完的，会在任务里说明。')}>
@@ -396,11 +404,18 @@ export default function LiveClass({ data, visible, onQueued, onSettings, onSourc
               else toast.warning(ui('已保存文字稿，但没有保存课堂笔记：没有可用的文字模型，或模型没有给出可用的笔记。'));
               onQueued?.(saved?.jobId ? saved : undefined);
             })}>{ui('保存为资料')}</Button></Why>
-          <Why reason={ui('再校对一遍整份文字、按段翻译并起标题，需要文字模型，比较慢；一般点「保存为资料」就够了。')}>
-            <Button variant="quiet" busy={activeOp === 'save-proofread'} lock={disabled} onClick={() => void perform('save-proofread', async () => {
-              await call('live.save', { id: session.id, proofread: true, paidOnly }); toast.success(ui('已加入校对任务，完成后会保存为资料。')); onQueued?.();
-            })}>{ui('校对后保存')}</Button></Why>
-          <Button iconEnd="arrow-right" variant="link" size="sm" onClick={onSources}>{ui('打开资料')}</Button></div>}</footer>
+          <Button iconEnd="arrow-right" variant="link" size="sm" onClick={onSources}>{ui('打开资料')}</Button>
+          <details className="live-save-more">
+            <summary>{ui('其他保存方式')}</summary>
+            <div className="live-save-more__body">
+              <Why reason={ui('再校对一遍整份文字、按段翻译并起标题，需要文字模型，比较慢；一般点「保存为资料」就够了。')}>
+                <Button variant="quiet" busy={activeOp === 'save-proofread'} lock={disabled} onClick={() => void perform('save-proofread', async () => {
+                  await call('live.save', { id: session.id, proofread: true, paidOnly }); toast.success(ui('已加入校对任务，完成后会保存为资料。')); onQueued?.();
+                })}>{ui('校对后保存')}</Button></Why>
+            </div>
+          </details>
+        </div>}
+      </footer>}
     </>}
     <LiveHistory sessions={sessions.filter(item => !undoable.hidden(`live:${item.id}`))} disabled={disabled} capturing={capturing}
       onOpen={id => void perform('history-open', async () => { setSelected(new Set()); await client.open(id); })}

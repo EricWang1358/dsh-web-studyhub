@@ -69,7 +69,7 @@ export default function ControlRow({ job }) {
     try {
       const reply = await core.act(defaults.action, defaults.args, undefined, { rethrow: true });
       if (reply === undefined) {
-        setNote({ text: ui('上一个操作还没结束，请稍后再点。'), tone: 'idle' });
+        setNote({ text: ui('上一个操作还没结束，等它完成后再点一次。'), tone: 'idle' });
         return;
       }
       setSaved(true);

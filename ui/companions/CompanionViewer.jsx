@@ -11,7 +11,7 @@ import { companionSlideCheck } from '../../lib/practice-settings.js';
 import { selectCompanionPracticeCards } from './companion-cards.js';
 import { createCompanionChannel, DiagramFrame } from '../diagram-frame.js';
 import Markdown from '../Markdown.jsx';
-import { Badge, Button, Checkbox, Dialog, Disclosure, Field, IconButton, InlineMessage, LoadingState, Select, TextArea, TextInput } from '../components/index.js';
+import { Badge, Button, Checkbox, Dialog, Disclosure, Field, IconButton, InlineMessage, LoadingState, Menu, Select, TextArea, TextInput } from '../components/index.js';
 import css from './companions.css';
 
 function currentTheme(fallbackTheme) {
@@ -191,7 +191,7 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
         }));
       })
       .catch(err => {
-        if (isLive()) setState({ status: 'failed', text: errorMessage(err) || ui('暂时无法读取这份交互伴学页。') });
+        if (isLive()) setState({ status: 'failed', text: errorMessage(err) || ui('没能读取这份交互伴学页。点「重试」再试一次。') });
       });
     return () => { flushPendingProgress(); };
   }, [call, companionId, course, attempt, flushPendingProgress, isPreview, language]);
@@ -568,7 +568,8 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
 
   const slideCheckOn = companionSlideCheck(app?.data?.settings?.practice);
   const InlineRunView = inlinePractice?.Run;
-  const canInlineRun = Boolean(slideCheckOn && InlineRunView && inlinePractice?.load);
+  const hasInlineRunner = Boolean(InlineRunView && inlinePractice?.load);
+  const canInlineRun = Boolean(slideCheckOn && hasInlineRunner);
   const { slideCards, lessonCards } = useMemo(
     () => (slideCheckOn ? selectCompanionPracticeCards(state.relatedCards || [], { companionId, slide: slideCtx.slide }) : { slideCards: [], lessonCards: [] }),
     [companionId, slideCheckOn, slideCtx.slide, state.relatedCards],
@@ -595,6 +596,13 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
   }, [drawerOpen, inlineRound, refresh]);
 
   const practicePrereqCard = useCallback(async cardRef => {
+    if (hasInlineRunner) {
+      startInlineCheck(
+        [cardRef],
+        uiFormat('第 {0} 页 · {1}', [cardRef.slide || slideCtx.slide, cardRef.topic || cardRef.deckTitle || ui('单题自测')]),
+      );
+      return;
+    }
     try {
       const run = await call('review.start', { mode: 'path', fresh: true, scope: [{ deckId: cardRef.deckId, cardId: cardRef.cardId }] });
       onClose();
@@ -602,7 +610,7 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
     } catch (err) {
       notify({ text: errorMessage(err), tone: 'error' });
     }
-  }, [app?.session, call, notify, onClose]);
+  }, [app?.session, call, hasInlineRunner, notify, onClose, slideCtx.slide, startInlineCheck]);
 
   const copyPath = useCopyFeedback(() => state.file || '');
   const openExternal = typeof host?.openFile === 'function' && state.file ? () => host.openFile(state.file) : null;
@@ -642,14 +650,43 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
     };
   });
 
+  const footMoreItems = [
+    {
+      id: 'expand',
+      icon: 'fit',
+      checked: expanded,
+      label: expanded ? ui('退出铺满视图') : ui('铺满视图'),
+      run: () => setExpanded(v => !v),
+    },
+    {
+      id: 'export-html',
+      icon: 'download',
+      disabled: !state?.html,
+      label: ui('导出 HTML'),
+      run: handleExportHtml,
+    },
+    ...(state.file ? [{
+      id: 'copy-path',
+      icon: 'copy',
+      label: copyPath.copied ? ui('已复制路径') : ui('复制文件路径'),
+      run: copyPath.copy,
+    }] : []),
+    ...(openExternal ? [{
+      id: 'open-external',
+      icon: 'external',
+      label: ui('在外部浏览器打开'),
+      run: openExternal,
+    }] : []),
+  ];
+
   return (
     <Dialog
       size="full"
       className={expanded ? 'sh-comp-dialog--expanded' : undefined}
       title={state.companion?.title || modal?.title || ui('交互伴学页')}
       description={state.companion?.grounded === false
-        ? ui('AI 推演伴学页（隔离沙箱运行，未绑定原讲义）')
-        : ui('隔离沙箱交互伴学舞台 · 划选文字或点右上角可随时查前置、问导师、存防混卡')}
+        ? ui('AI 推演伴学页（未绑定原讲义）')
+        : ui('交互伴学页 · 划选文字或打开解惑栏可随时查前置、问导师、存防混卡')}
       onClose={handleClose}
       footer={state.status === 'ready' && (
         <div className="sh-comp-foot">
@@ -712,22 +749,6 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
             )}
           </div>
           <div className="sh-comp-foot__actions sh-comp-bar__actions">
-            <IconButton
-              size="sm"
-              variant="secondary"
-              icon="download"
-              disabled={!state?.html}
-              label={ui('导出 HTML')}
-              onClick={handleExportHtml}
-            />
-            <IconButton
-              size="sm"
-              variant={expanded ? 'primary' : 'secondary'}
-              icon="fit"
-              aria-pressed={expanded}
-              label={expanded ? ui('退出铺满视图') : ui('铺满伴学舞台')}
-              onClick={() => setExpanded(v => !v)}
-            />
             <Button size="sm" variant={drawerOpen ? 'primary' : 'secondary'} onClick={toggleDrawer}>
               {drawerOpen ? ui('收起解惑栏') : ui('查前置 / 记疑问')}
             </Button>
@@ -747,12 +768,11 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
                 {slideCards.length > 0 ? uiFormat('当页自测 ({0})', [slideCards.length]) : uiFormat('本课自测 ({0})', [lessonCards.length])}
               </Button>
             )}
-            {state.file && (
-              <Button size="sm" variant="quiet" onClick={copyPath.copy}>
-                {copyPath.copied ? ui('已复制路径') : ui('复制文件路径')}
-              </Button>
-            )}
-            {openExternal && <Button icon="external" size="sm" variant="quiet" onClick={openExternal}>{ui('在外部浏览器打开')}</Button>}
+            <Menu
+              label={ui('更多')}
+              items={footMoreItems}
+              buttonClassName="sh-comp-foot__more"
+            />
           </div>
         </div>
       )}
@@ -777,7 +797,7 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
           </div>
           {drawerOpen && (
             <aside className="sh-comp-drawer" aria-label={ui('伴学解惑栏')}>
-              {canInlineRun && inlineRound ? (
+              {hasInlineRunner && inlineRound ? (
                 <InlineRunView
                   key={inlineRound.started?.id || 'companion-inline'}
                   started={inlineRound.started}
@@ -859,7 +879,7 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
                       </div>
                       {feedbackState.error && <InlineMessage tone="error">{feedbackState.error}</InlineMessage>}
                       {!feedbackState.loading && openFeedbackItems.length === 0 && !feedbackState.error && (
-                        <p className="sh-comp-ledger__empty">{ui('当前暂无待解决的伴学疑问。')}</p>
+                        <p className="sh-comp-ledger__empty">{ui('这节课没有待解决的伴学疑问。')}</p>
                       )}
                       {openFeedbackItems.length > 0 && (
                         <ul className="sh-comp-terms">

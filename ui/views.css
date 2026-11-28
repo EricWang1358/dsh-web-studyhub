@@ -467,6 +467,33 @@
       flex-wrap: wrap;
       margin-top: var(--space-5);
     }
+    .dash-fold {
+      border-top: 1px solid var(--line-soft);
+      padding-top: var(--space-3);
+    }
+    .dash-usage-fold {
+      margin-top: var(--space-4);
+    }
+    .dash-fold__summary {
+      --sh-summary-marker-gap: 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-1) var(--space-2);
+      cursor: pointer;
+      font-size: var(--fs-md);
+      font-weight: var(--fw-medium);
+      color: var(--text);
+    }
+    .dash-fold__meta {
+      margin-left: auto;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-regular);
+    }
+    .dash-fold__body {
+      padding-top: var(--space-3);
+    }
   }
   @container study (max-width: 480px) {
     :where(.study-app, .study-seat) {

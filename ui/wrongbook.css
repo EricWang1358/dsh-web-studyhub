@@ -25,6 +25,43 @@
     .wb-retrain .wb-retrain__seg { flex-wrap: wrap; max-width: 100%; }
     /* The tooltip anchor that says why a choice is disabled: it holds the choices, so it must not shrink them. */
     .wb-retrain-pick { display: flex; max-width: 100%; }
+    /* Secondary diagnostics fold: keeps clinic, rubric skills, recommendations and distribution behind one quiet disclosure so wrong questions sit above the fold. */
+    .wb-diagnostics-fold {
+      border-top: 1px solid var(--line-soft);
+      border-bottom: 1px solid var(--line-soft);
+      padding-block: var(--space-2);
+    }
+    .wb-diagnostics-fold__summary {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: nowrap;
+      gap: var(--space-2);
+      min-width: 0;
+      --sh-summary-marker-gap: 0;
+      cursor: pointer;
+      color: var(--text-dim);
+      font-size: var(--fs-md);
+      font-weight: var(--fw-medium);
+    }
+    .wb-diagnostics-fold__summary:hover { color: var(--text); }
+    .wb-diagnostics-fold__title { flex: none; white-space: nowrap; color: inherit; }
+    .wb-diagnostics-fold__meta {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-regular);
+      font-variant-numeric: tabular-nums;
+    }
+    .wb-diagnostics-fold__body {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-3);
+      min-width: 0;
+      padding-top: var(--space-3);
+    }
+    .wb-diagnostics-fold__body .wb-dist { margin-bottom: 0; }
     /* recommendations — one line from the first paint (#206): loading, empty and found all fit it, so the answer never moves the list below. */
     .wb-recs {
       display: grid;

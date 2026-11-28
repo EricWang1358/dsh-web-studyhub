@@ -6,6 +6,7 @@ import { readTourProgress, writeTourProgress, hideWelcomeFor, welcomeLater } fro
 import { practiceArgs } from '../learning-navigation.js';
 import { importForFirstRun } from './import-handoff.js';
 import { firstRunLine } from '../first-run/line.js';
+import { hasOwnDeck } from '../study-map/home-plan.js';
 
 /**
  * Refresh until `seen()` holds for the snapshot on screen, at most `tries` times. A poll that overtakes a refresh drops that refresh's answer (only the newest
@@ -64,9 +65,9 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
      home, it is the compact card in the today slot. */
   // Stored and held for the visit; 设置 › 引导's 再显示一次 in this tab undoes both (ui/tour/progress.js welcomeLater).
   const lineLater = welcomeLater(data?.root, hiddenWelcome);
-  function hideWelcome() {
-    if (!data?.root) return;
-    setHiddenWelcome(hideWelcomeFor(data.root));
+  function hideWelcome(root = data?.root) {
+    if (!root) return;
+    setHiddenWelcome(hideWelcomeFor(root));
   }
   // While the first-run line is up, the first import comes back to it (ui/app/import-handoff.js, 3.6 D4): its third step makes the first deck, so neither
   // 创建题组 nor 资料 with a toast to press is in the way; from elsewhere (the tour's last step ended on another page) it lands on the library home. Once the
@@ -125,12 +126,17 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
     });
   }
   function closeTour(reason) {
-    if (data?.root) writeTourProgress(data.root, { stepId: tourStep, done: reason === 'skip', full: fullTour });
+    const snapshot = refs.dataRef?.current || data;
+    if (snapshot?.root) writeTourProgress(snapshot.root, { stepId: tourStep, done: reason === 'skip', full: fullTour });
+    // Finishing or closing a sample-backed tour with no own deck puts the full-screen first-run line aside so the learner lands on the sample library they just toured.
+    if (snapshot?.sample?.loaded && !hasOwnDeck(snapshot)) hideWelcome(snapshot.root);
     endTour();
     if (reason !== 'skip') notify({ text: ui('导览已暂停，可以从侧栏「功能导览」接着看。'), tone: 'info' });
   }
   function finishTour() {
-    if (data?.root) writeTourProgress(data.root, { stepId: tourStep, done: true, full: fullTour });
+    const snapshot = refs.dataRef?.current || data;
+    if (snapshot?.root) writeTourProgress(snapshot.root, { stepId: tourStep, done: true, full: fullTour });
+    if (snapshot?.sample?.loaded && !hasOwnDeck(snapshot)) hideWelcome(snapshot.root);
     endTour();
     notify({ text: ui('导览完成。想再看一遍，点侧栏的「功能导览」。'), tone: 'success' });
   }

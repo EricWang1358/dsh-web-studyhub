@@ -157,12 +157,15 @@ Automatic update checks normally use a 6-hour cache and retry sooner after a fai
 
 1. Click the chip, then **Upgrade to x.y.z** and **Upgrade now**.
 2. If background tasks are running, StudyHub says how many. **Stop tasks and upgrade** stops them and keeps the parts already finished. You can also wait until they are done.
-3. StudyHub downloads the package from the GitHub release, checks its SHA-256 against `SHA256SUMS-x.y.z.txt` and hands it to DSH's plugin manager. You can keep studying until you restart.
-4. Restart DSH:
+3. StudyHub downloads the package from the GitHub release, checks its SHA-256 against `SHA256SUMS-x.y.z.txt` and hands it to DSH's plugin manager.
+4. What happens next is one of two things, and it cannot be told before the upgrade which your DSH will do:
+   - **The new version loads at once** (as seen on DSH 0.2.2-rc.5): there is nothing to restart. DSH may close the StudyHub page while it installs; open StudyHub again after a moment.
+   - **DSH needs a restart:** the upgrade window says **x.y.z installed** and the sidebar shows **Restart DSH to finish the upgrade**. You can keep studying until you restart.
+5. If it needs a restart:
    - **Desktop:** quit DSH fully, including the tray icon, and open it again.
    - **Web:** stop the DSH service, start it again the way you usually do (same profile), then reload the page.
 
-Reloading the browser alone does not load new plugin code.
+Either way, the first time the new version opens it says **Upgraded to x.y.z**, once. Where a restart is needed, reloading the browser alone does not load new plugin code.
 
 If the sidebar still says **Restart DSH to finish the upgrade** after you restarted, make sure DSH was really quit (on desktop, from the tray icon) before you opened it again: a DSH that was only closed to the tray keeps its old process, and StudyHub cannot tell. If DSH was started again after the install and the old version still runs (for example another StudyHub profile on this computer took the upgrade), the chip says **Upgrade did not take effect**. Its page and Settings › About & updates explain the possible causes and offer **Reinstall x.y.z** when a newer release is known, plus the manual steps below. The record of the last install is kept, because another profile may really be waiting for its restart.
 
@@ -175,9 +178,9 @@ Use these steps before 2.1.2, when DSH cannot install plugins from inside the ap
 1. Copy the new release's package address from the upgrade dialog or the release page.
 2. Open DSH's **Plugins** page, find StudyHub and click **Uninstall**.
 3. On the same page, click **Add plugin**, paste the address and click **Enable** once it installs.
-4. Restart DSH as described above.
+4. Restart DSH as in step 5 above.
 
-If you installed the search extension, most upgrades leave it alone: it needs updating only when a release changed the extension itself. Then **Settings › About & updates** says so and offers **Update the search extension**. Restart DSH after that update too.
+If you installed the search extension, most upgrades leave it alone: it needs updating only when a release changed the extension itself. Then **Settings › About & updates** says so and offers **Update the search extension**. Whether DSH needs a restart after that update is what the message there says.
 
 ## Customise components
 

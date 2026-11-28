@@ -10,7 +10,8 @@
       model, and the default workspace under output/qa/dsh-documents;
    4. fails at once, with the host's reason, if it cannot compose a StudyHub preset; opens Study with Playwright, screenshots it, checks that 发给主会话 from the 复习全书 (seeded into the workspace's library) never overwrites what
       was typed into the chat's input box and never sends, chats in the standard preset and in 学习模式 (the same command,
-      sandbox-leaving command and file turns in both: same tools, same approvals, same outcome), then stops everything.
+      sandbox-leaving command and file turns in both: same tools, same approvals, same outcome), then stops everything
+      (stopTree, also used by qa:dsh-runtime and dsh-upgrade: a host that is still running afterwards fails the run, PID printed).
    It never reads or writes ~/.dsh or the owner's Documents folder.
    Output: output/qa/dsh-e2e/*.png and summary.json. Not part of npm test. */
 /* global document, window, getComputedStyle -- callbacks passed to page.evaluate / waitForFunction run in the browser */
@@ -99,28 +100,109 @@ export async function ensureDsh(options, env) {
   return join(cli, "node_modules/@deepseek-ai/dsh/lib/bin.js");
 }
 
-export function stopTree(child) {
-  if (!child || child.exitCode !== null) return;
-  if (process.platform === "win32") spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true });
-  else child.kill("SIGTERM");
+/** A signalled child has exitCode null and signalCode set; child.killed only says a signal was sent. */
+const hasExited = (child) => child.exitCode !== null || child.signalCode !== null;
+/** Resolves true once `done()` holds (checked at once and on each `event`), or with `done()` after `ms`. */
+const waitFor = (emitter, event, ms, done) => new Promise((resolve) => {
+  if (done()) return resolve(true);
+  const timer = setTimeout(() => { emitter.off(event, on); resolve(done()); }, ms);
+  const on = () => { clearTimeout(timer); resolve(true); };
+  emitter.once(event, on);
+});
+const pipesClosed = (child) => [child.stdin, child.stdout, child.stderr].every((stream) => !stream || stream.destroyed || stream.closed);
+
+/** `taskkill /T /F` on the tree, answered with { status, output, error }; a taskkill that gives no answer within `timeoutMs` is ended. */
+function runTaskkill(pid, { timeoutMs }) {
+  return new Promise((resolve) => {
+    let killer, output = "", settled = false, timer;
+    const finish = (answer) => {
+      if (settled) return;
+      settled = true; clearTimeout(timer);
+      if (killer) { killer.stdout?.destroy(); killer.stderr?.destroy(); killer.unref(); }
+      resolve({ output: output.trim(), ...answer });
+    };
+    try { killer = spawn("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }); }
+    catch (error) { return finish({ status: null, error }); }
+    timer = setTimeout(() => { try { killer.kill(); } catch { /* reported below */ } finish({ status: null, error: new Error(`no answer within ${timeoutMs} ms`) }); }, timeoutMs);
+    killer.stdout.on("data", (chunk) => { output += chunk; });
+    killer.stderr.on("data", (chunk) => { output += chunk; });
+    killer.once("error", (error) => finish({ status: null, error }));
+    killer.once("close", (status) => finish({ status }));
+  });
 }
 
-export async function bootDsh(bin, { env, cwd, patch, port }) {
+/** Stops a host started with piped stdio and resolves { pid, stopped, fallback } only once it has exited or the bounded waits have passed.
+    Windows: taskkill /T /F, which needs WMI; when it errors, hangs or leaves the host running, child.kill() (TerminateProcess, the host
+    alone: its descendants may remain). POSIX: SIGTERM, then SIGKILL if it is ignored. Either way the parent's ends of the child's pipes are
+    released and the child unref'd, so the script can exit even if a descendant still holds them. `stopped: false` means the host is still
+    running: callers fail the run. Options (tests): platform, taskkill(pid, { timeoutMs }), taskkillTimeoutMs, exitWaitMs, closeWaitMs, log. */
+export async function stopTree(child, { platform = process.platform, taskkill = runTaskkill, taskkillTimeoutMs = 20000,
+  exitWaitMs = 15000, closeWaitMs = 2000, log = (line) => console.warn(line) } = {}) {
+  if (!child) return { pid: null, stopped: true, fallback: false };
+  const pid = child.pid ?? null, exited = () => hasExited(child);
+  let fallback = false;
+  const kill = (signal) => { try { child.kill(signal); } catch { /* not exiting is caught by the wait */ } };
+  if (!exited() && pid !== null) {
+    if (platform === "win32") {
+      let timer;
+      const answer = await Promise.race([
+        Promise.resolve().then(() => taskkill(pid, { timeoutMs: taskkillTimeoutMs })).catch((error) => ({ status: null, error })),
+        new Promise((resolve) => { timer = setTimeout(() => resolve({ status: null, error: new Error(`no answer within ${taskkillTimeoutMs} ms`) }), taskkillTimeoutMs); }),
+      ]);
+      clearTimeout(timer);
+      const ok = !answer?.error && answer?.status === 0;
+      // taskkill /T /F may end the host and still answer non-zero (a descendant could not be ended or was gone): wait a moment
+      // for the host's exit to be handled, so a host taskkill did end is not reported as a fallback.
+      if (ok || (answer?.status !== null && answer?.status !== undefined)) await waitFor(child, "exit", ok ? exitWaitMs : Math.min(exitWaitMs, 3000), exited);
+      if (!exited()) {
+        fallback = true;
+        const why = !ok ? (answer?.error?.message || `exit ${answer?.status}${answer?.output ? `: ${answer.output.split(/\r?\n/)[0]}` : ""}`) : "it reported success, but the host kept running";
+        log(`stopTree: taskkill could not stop PID ${pid} (${why}); ended it with child.kill() instead, so its descendants may still be running.`);
+        kill();
+        await waitFor(child, "exit", exitWaitMs, exited);
+      }
+    } else {
+      kill("SIGTERM");
+      if (!await waitFor(child, "exit", exitWaitMs, exited)) {
+        log(`stopTree: PID ${pid} did not stop on SIGTERM within ${exitWaitMs} ms; sent SIGKILL.`);
+        kill("SIGKILL");
+        await waitFor(child, "exit", exitWaitMs, exited);
+      }
+    }
+  }
+  const stopped = exited();
+  // Let the last output arrive, but a descendant holding the pipes must not keep the script alive.
+  if (stopped) await waitFor(child, "close", closeWaitMs, () => pipesClosed(child));
+  for (const stream of [child.stdin, child.stdout, child.stderr]) stream?.destroy();
+  child.unref?.();
+  if (!stopped) log(`stopTree: PID ${pid} is still running after stopTree; end it by hand (its descendants may remain too).`);
+  return { pid, stopped, fallback };
+}
+
+/** Starts the host and resolves once it prints its URL. A host that fails to get there is stopped here (stopTree) before the
+    rejection: the caller never gets it back, and its piped stdio would otherwise keep the script alive. `readyTimeoutMs`: tests. */
+export async function bootDsh(bin, { env, cwd, patch, port, readyTimeoutMs = 180000 }) {
   const child = spawn(process.execPath, [bin, "--profile", DSH_PROFILE, "--patch", patch, "--port", String(port), "--no-open"],
     { cwd, env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
   let output = "";
-  const url = await new Promise((done, fail) => {
-    const timer = setTimeout(() => fail(new Error(`DSH did not print its URL within 180 s:\n${output.slice(-2000)}`)), 180000);
-    const read = (chunk) => {
-      output += chunk;
-      const match = output.match(/http:\/\/127\.0\.0\.1:\d+\/\?token=\S+/);
-      if (match) { clearTimeout(timer); done(match[0]); }
-    };
-    child.stdout.on("data", read);
-    child.stderr.on("data", read);
-    child.once("exit", (code) => { clearTimeout(timer); fail(new Error(`DSH exited (${code}) before it was ready:\n${output.slice(-2000)}`)); });
-  });
-  return { child, url, output: () => output };
+  try {
+    const url = await new Promise((done, fail) => {
+      const timer = setTimeout(() => fail(new Error(`DSH did not print its URL within ${readyTimeoutMs / 1000} s:\n${output.slice(-2000)}`)), readyTimeoutMs);
+      const read = (chunk) => {
+        output += chunk;
+        const match = output.match(/http:\/\/127\.0\.0\.1:\d+\/\?token=\S+/);
+        if (match) { clearTimeout(timer); done(match[0]); }
+      };
+      child.stdout.on("data", read);
+      child.stderr.on("data", read);
+      child.once("exit", (code) => { clearTimeout(timer); fail(new Error(`DSH exited (${code}) before it was ready:\n${output.slice(-2000)}`)); });
+    });
+    return { child, url, output: () => output };
+  } catch (error) {
+    const stopped = await stopTree(child);
+    if (!stopped.stopped) error.message += `\n(the host, PID ${stopped.pid}, is still running)`;
+    throw error;
+  }
 }
 
 /** A button of the host's first-run screens, in either language. */
@@ -591,8 +673,8 @@ export async function runDshE2e(options) {
     await step("studyhub-child-cold", async () => {
       // leave the page first, so the stopped host does not show up as the page's connection errors
       await page.goto("about:blank");
-      stopTree(dsh.child);
-      await new Promise((done) => { if (dsh.child.exitCode !== null) done(); else { dsh.child.once("exit", done); setTimeout(done, 15000); } });
+      const stopped = await stopTree(dsh.child);
+      if (!stopped.stopped) { summary.hostStillRunning = stopped.pid; throw new Error(`the host (PID ${stopped.pid}) did not stop, so it cannot be restarted on port ${options.port}`); }
       await writeFile(join(options.out, "dsh-first-boot.log"), dsh.output().replace(/token=\S+/g, "token=…"));
       dsh = await bootDsh(bin, { env: { ...baseEnv, [FAKE_KEY_ENV]: "not-a-real-key" }, cwd: workspace, patch, port: options.port });
       await openDsh(page, dsh.url);
@@ -617,11 +699,12 @@ export async function runDshE2e(options) {
     summary.error = String(error?.message || error).slice(0, 4000);
   } finally {
     await browser?.close().catch(() => {});
-    stopTree(dsh?.child);
+    const stopped = await stopTree(dsh?.child);
+    if (!stopped.stopped) summary.hostStillRunning = stopped.pid;
     await model?.close();
     if (dsh) await writeFile(join(options.out, "dsh.log"), dsh.output().replace(/token=\S+/g, "token=…"));
     summary.finishedAt = new Date().toISOString();
-    summary.ok = !summary.error && !summary.pageErrors.length && summary.steps.every((item) => item.status === "ok");
+    summary.ok = !summary.error && !summary.pageErrors.length && summary.steps.every((item) => item.status === "ok") && summary.hostStillRunning === undefined;
     await writeFile(join(options.out, "summary.json"), JSON.stringify(summary, null, 2) + "\n");
   }
   return summary;

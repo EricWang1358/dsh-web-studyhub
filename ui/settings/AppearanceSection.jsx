@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ui } from '../i18n.js';
+import { ui, uiIsEnglish } from '../i18n.js';
 import { APPEARANCE_LABELS, APPEARANCE_OPTIONS } from '../appearance-prefs.js';
 import { FONT_NAME_MAX, cleanFontName } from '../font-presets.js';
 import { Button, Disclosure, Field, Hint, InlineMessage, SegmentedControl, SettingsSection, Switch, TextInput } from '../components/index.js';
@@ -10,7 +10,10 @@ import AppearanceTransfer from './AppearanceTransfer.jsx';
 /** The choices of one appearance setting, from the module's own lists (so a new value shows up here by itself). */
 const appearanceOptions = (kind) => APPEARANCE_OPTIONS[kind].map((value) => {
   const label = APPEARANCE_LABELS[kind]?.[value];
-  return { value, label: label ? ui(label) : kind === 'scale' ? `${value}%` : String(value) };
+  const text = kind === 'minimal' && label === '关闭' && uiIsEnglish()
+    ? ui('关')
+    : label ? ui(label) : kind === 'scale' ? `${value}%` : String(value);
+  return { value, label: text };
 });
 
 /** The name of a font installed on this computer (the `custom` typeface), typed. Only a name that passes cleanFontName is applied; anything
@@ -56,9 +59,10 @@ const Choice = ({ label, hint, value, onChange, kind, ...rest }) => (
   </Field>
 );
 
-/** The interface language and appearance, the same two switches as the sidebar's, for people who look for them here. Open: language, look, accent colour, size, sound effects (and 恢复默认外观); the rest (typefaces, animation, contrast, density, corners, carrying the look to another computer) is behind 更多外观选项. */
+/** The interface language and appearance, the same two switches as the sidebar's, for people who look for them here. Open: language, look, minimal mode, accent colour, size, sound effects (and 恢复默认外观); the rest (typefaces, animation, contrast, density, corners, carrying the look to another computer) is behind 更多外观选项. */
 export default function AppearanceSection({ appearance }) {
   if (!appearance) return null;
+  const minimal = appearance.minimal === 'on';
   return (
     <SettingsSection className="appearance-settings" tour="settings-appearance" title={ui('界面')}>
       <LiteViewSwitch />
@@ -67,27 +71,43 @@ export default function AppearanceSection({ appearance }) {
           options={[{ value: 'zh', label: '中文' }, { value: 'en', label: 'English' }]} />
       </Field>
       <Choice data-tour="settings-appearance-theme" label={ui('外观')} value={appearance.theme} onChange={appearance.onTheme} kind="theme" />
+      {appearance.onMinimal && (
+        <Choice
+          data-tour="settings-appearance-minimal"
+          label={ui('极简模式')}
+          value={appearance.minimal || 'off'}
+          onChange={(value) => {
+            if (value === 'on') stopSoundPreview();
+            appearance.onMinimal(value);
+          }}
+          kind="minimal"
+          hint={ui('开启后隐藏书房声景、小笺、印谱与手绘特效并压平卡片；启动停留在「学习库」不自动跳待办，将待办「今日」收为单列（隐藏上下午分栏与番茄钟）并精简顶栏；同时临时静音互动音效并停用动画，关闭后原样恢复原有设置与印谱记录。')}
+        />
+      )}
       {appearance.onAccent && <Choice data-tour="settings-appearance-accent" label={ui('强调色')} value={appearance.accent} onChange={appearance.onAccent} kind="accent" />}
       {appearance.onScale && <Choice data-tour="settings-appearance-scale" label={ui('界面大小')} value={appearance.scale} onChange={appearance.onScale} kind="scale"
         hint={ui('缩放整个界面（文字、按钮和间距一起），50% 到 200%：低于 100% 时一屏放得下更多，字也更小；「跟随窗口」只在窗口变宽时自动放大。阅读和做题页另有 Aa 可以单独调字号和宽度。')} />}
       {appearance.onSound && (
         <Field group label={ui('互动音效')} width="full" data-tour="settings-appearance-sound"
-          hint={ui('翻面、判分和完成一轮时的纸木轻响；选「标准」时，点选多选项和标重点也有轻触声。录音或课堂实录时自动静音。')}>
+          hint={minimal
+            ? ui('当前已由极简模式临时静音；你的选项仍会保留，关闭极简模式后恢复。')
+            : ui('翻面、判分和完成一轮时的纸木轻响；选「标准」时，点选多选项和标重点也有轻触声。录音或课堂实录时自动静音。')}>
           <div className="appearance-sound-row">
             <SegmentedControl label={ui('互动音效')} value={appearance.sound || 'off'}
               onChange={(value) => {
                 appearance.onSound(value);
-                if (!value || value === 'off') stopSoundPreview();
-                else {
-                  stopSoundPreview();
+                stopSoundPreview();
+                if (!minimal && value && value !== 'off') {
                   playSound(value === 'standard' ? 'tap' : 'flip', { mode: value });
                 }
               }}
               options={appearanceOptions('sound')} />
-            <Button variant="quiet" size="sm" icon="play" className="appearance-sound-preview"
-              onClick={() => playSoundPreview(appearance.sound)}>
-              {ui('试听')}
-            </Button>
+            {!minimal && (
+              <Button variant="quiet" size="sm" icon="play" className="appearance-sound-preview"
+                onClick={() => playSoundPreview(appearance.sound)}>
+                {ui('试听')}
+              </Button>
+            )}
           </div>
         </Field>
       )}
@@ -101,7 +121,9 @@ export default function AppearanceSection({ appearance }) {
           ? ui('可让标题跟随上方所选的界面字体，或继续保持系统默认字体。')
           : ui('修改上方「界面字体」后生效；当前使用系统默认字体时切换不会有视觉变化。')} />}
       {appearance.onMotion && <Choice data-tour="settings-appearance-motion" label={ui('动画')} value={appearance.motion} onChange={appearance.onMotion} kind="motion"
-        hint={ui('减弱只保留很短的淡入淡出；无动画则不再有页面切换和卡片动画（转圈提示仍会转）。页面切换卡顿时可以试试。')} />}
+        hint={minimal
+          ? ui('当前已由极简模式临时停用动画；你的选项仍会保留，关闭极简模式后恢复。')
+          : ui('减弱只保留很短的淡入淡出；无动画则不再有页面切换和卡片动画（转圈提示仍会转）。页面切换卡顿时可以试试。')} />}
       {appearance.onContrast && <Choice data-tour="settings-appearance-contrast" label={ui('对比度')} value={appearance.contrast} onChange={appearance.onContrast} kind="contrast"
         hint={ui('高对比会加深边框和次要文字、加粗焦点框；跟随系统时遵循系统的“增加对比度”设置。')} />}
       {appearance.onDensity && <Choice data-tour="settings-appearance-density" label={ui('界面密度')} value={appearance.density} onChange={appearance.onDensity} kind="density" hint={ui('密度只改间距和行距，不改字号。')} />}

@@ -43,7 +43,7 @@ test('an old browser keeps its look, and the new settings are saved in the exist
   const storage = memory();
   saveAppearance({ theme: 'paper', contrast: 'high', density: 'comfortable', radius: 'sharp' }, storage);
   assert.equal(storage.map.get('study-theme'), 'paper', 'the theme key stays one plain string');
-  assert.deepEqual(JSON.parse(storage.map.get('study-interface')), { motion: 'auto', sound: 'off', scale: 100, font: 'system', fontTitle: 'follow', fontCustom: '', accent: 'cinnabar', contrast: 'high', density: 'comfortable', radius: 'sharp', craft: 'standard' });
+  assert.deepEqual(JSON.parse(storage.map.get('study-interface')), { motion: 'auto', sound: 'off', scale: 100, font: 'system', fontTitle: 'follow', fontCustom: '', accent: 'cinnabar', contrast: 'high', density: 'comfortable', radius: 'sharp', craft: 'standard', minimal: 'off' });
   assert.deepEqual(loadAppearance(storage), { ...APPEARANCE_DEFAULTS, theme: 'paper', contrast: 'high', density: 'comfortable', radius: 'sharp' });
 });
 
