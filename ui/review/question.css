@@ -994,7 +994,7 @@
       position: relative;
       grid-area: 1 / 1;
       min-width: 0;
-      min-height: clamp(220px, 38dvh, 360px);
+      min-height: clamp(220px, 38dvh / var(--study-ui-scale, 1), 360px);
       /* Below the head that floats over the face (its height is measured into --flash-head, ui/review/use-flash-head.js), with a gap. */
       --paper-pad-top: calc(var(--flash-head, 4rem) + var(--space-5));
       display: flex;
@@ -1343,7 +1343,7 @@
   @container study (min-width:1400px) {
     :where(.study-app, .study-seat) {
       .flip-face {
-        min-height: clamp(240px, 40dvh, 420px);
+        min-height: clamp(240px, 40dvh / var(--study-ui-scale, 1), 420px);
       }
       .question-area {
         margin-top: var(--space-7);
@@ -1359,7 +1359,7 @@
         margin-top: var(--space-5);
       }
       .flip-face {
-        min-height: clamp(220px, 38dvh, 340px);
+        min-height: clamp(220px, 38dvh / var(--study-ui-scale, 1), 340px);
       }
       .flash-prompt {
         font-size: calc(var(--fs-2xl) * var(--card-scale, 1));
@@ -1397,7 +1397,7 @@
         margin-top: var(--space-5-5);
       }
       .flip-face {
-        min-height: clamp(200px, 34dvh, 280px);
+        min-height: clamp(200px, 34dvh / var(--study-ui-scale, 1), 280px);
         --paper-pad-x: var(--space-5);
         --paper-pad-bottom: var(--space-5);
       }

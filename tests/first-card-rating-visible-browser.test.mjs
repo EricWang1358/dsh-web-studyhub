@@ -91,10 +91,8 @@ test('entering a flashcard round keeps all 6 rating buttons inside the viewport 
   }
   const dist = await mkdtemp(join(tmpdir(), 'study-1678-dist-'));
   await buildPreview({ outdir: dist });
-  const running = await startLateServer({ distDir: dist, seed });
   t.after(async () => {
     await browser.close();
-    await running.close();
     await rm(dist, { recursive: true, force: true });
   });
 
@@ -105,59 +103,83 @@ test('entering a flashcard round keeps all 6 rating buttons inside the viewport 
   ];
 
   for (const viewport of viewports) {
-    await running.api('review.start', {
-      mode: 'path',
-      scope: CARDS.map((card) => ({ deckId: 'd1', cardId: card.id })),
-      fresh: true,
-    });
-    const { page, errors, context } = await openPage(browser, running, {
-      lang: 'zh',
-      theme: 'light',
-      width: viewport.width,
-      height: viewport.height,
-      selfGradeAdvance: true,
-    });
+    // Use an isolated library per viewport so grading card 1 in one viewport never reorders the path queue in the next.
+    const running = await startLateServer({ distDir: dist, seed });
     try {
-      await page.goto(running.server.url);
-      await page.getByRole('button', { name: '回到题目' }).first().click({ timeout: 20000 });
-      await page.locator('.flashcard').waitFor({ timeout: 20000 });
-      await settleAnimations(page);
+      await running.api('review.start', {
+        mode: 'path',
+        scope: CARDS.map((card) => ({ deckId: 'd1', cardId: card.id })),
+        fresh: true,
+      });
+      const { page, errors, context } = await openPage(browser, running, {
+        lang: 'zh',
+        theme: 'light',
+        width: viewport.width,
+        height: viewport.height,
+        selfGradeAdvance: true,
+      });
+      try {
+        await page.goto(running.server.url);
+        await page.getByRole('button', { name: '回到题目' }).first().click({ timeout: 20000 });
+        await page.waitForFunction(
+          () => {
+            const prompt = document.querySelector('.flip-front .flash-prompt')?.textContent || '';
+            const flipBtn = document.querySelector('[data-usage="review.flip"]');
+            return /桥接模式/.test(prompt) && !!flipBtn && !flipBtn.disabled;
+          },
+          null,
+          { timeout: 20000 },
+        );
+        await settleAnimations(page);
 
-      if (viewport.width === 1440 && viewport.height === 900) {
-        const nextBottom = await page.evaluate(() => Math.round(
-          document.querySelector('[data-usage="review.next"]')?.getBoundingClientRect().bottom || 0,
-        ));
-        assert.ok(nextBottom > 0 && nextBottom <= viewport.height,
-          `1440x900 front face: 下一题 button bottom (${nextBottom}px) stays inside ${viewport.height}px`);
+        if (viewport.width === 1440 && viewport.height === 900) {
+          const nextBottom = await page.evaluate(() => Math.round(
+            document.querySelector('[data-usage="review.next"]')?.getBoundingClientRect().bottom || 0,
+          ));
+          assert.ok(nextBottom > 0 && nextBottom <= viewport.height,
+            `1440x900 front face: 下一题 button bottom (${nextBottom}px) stays inside ${viewport.height}px`);
+        }
+
+        // First flashcard: flip with Space and verify all 6 rating buttons fit without scrolling.
+        await page.keyboard.press('Space');
+        const card1 = await measureGrades(page);
+        assert.equal(card1.count, 6, `${viewport.width}x${viewport.height} card 1 renders 6 rating buttons`);
+        assert.equal(card1.fullyVisible, 6,
+          `${viewport.width}x${viewport.height} card 1: all 6 rating buttons visible without scroll (${JSON.stringify(card1)})`);
+        assert.ok(card1.maxBottom <= viewport.height,
+          `${viewport.width}x${viewport.height} card 1: rating bottom (${card1.maxBottom}px) <= viewport (${viewport.height}px)`);
+
+        // Grade card 1 to advance to card 2 (longer multi-paragraph answer), wait for card 2 to mount unflipped and idle, then flip.
+        await page.keyboard.press('4');
+        await page.waitForFunction(
+          () => {
+            const prompt = document.querySelector('.flip-front .flash-prompt')?.textContent || '';
+            const card = document.querySelector('.flashcard');
+            const flipBtn = document.querySelector('[data-usage="review.flip"]');
+            return /观察者模式|级联更新/.test(prompt)
+              && !!card
+              && !card.classList.contains('flipped')
+              && !document.querySelector('.grade-scale')
+              && !!flipBtn
+              && !flipBtn.disabled;
+          },
+          null,
+          { timeout: 20000 },
+        );
+        await page.keyboard.press('Space');
+        const card2 = await measureGrades(page);
+        assert.equal(card2.count, 6, `${viewport.width}x${viewport.height} card 2 renders 6 rating buttons`);
+        assert.equal(card2.fullyVisible, 6,
+          `${viewport.width}x${viewport.height} card 2: all 6 rating buttons visible without scroll (${JSON.stringify(card2)})`);
+        assert.ok(card2.maxBottom <= viewport.height,
+          `${viewport.width}x${viewport.height} card 2: rating bottom (${card2.maxBottom}px) <= viewport (${viewport.height}px)`);
+
+        assert.deepEqual(errors, [], `${viewport.width}x${viewport.height}: zero page errors`);
+      } finally {
+        await context.close();
       }
-
-      // First flashcard: flip with Space and verify all 6 rating buttons fit without scrolling.
-      await page.keyboard.press('Space');
-      const card1 = await measureGrades(page);
-      assert.equal(card1.count, 6, `${viewport.width}x${viewport.height} card 1 renders 6 rating buttons`);
-      assert.equal(card1.fullyVisible, 6,
-        `${viewport.width}x${viewport.height} card 1: all 6 rating buttons visible without scroll (${JSON.stringify(card1)})`);
-      assert.ok(card1.maxBottom <= viewport.height,
-        `${viewport.width}x${viewport.height} card 1: rating bottom (${card1.maxBottom}px) <= viewport (${viewport.height}px)`);
-
-      // Grade card 1 to advance to card 2 (longer multi-paragraph answer), flip, and verify all 6 buttons fit too.
-      await page.keyboard.press('4');
-      await page.waitForFunction(
-        () => /观察者模式|级联更新/.test(document.querySelector('.flashcard')?.innerText || ''),
-        null,
-        { timeout: 20000 },
-      );
-      await page.keyboard.press('Space');
-      const card2 = await measureGrades(page);
-      assert.equal(card2.count, 6, `${viewport.width}x${viewport.height} card 2 renders 6 rating buttons`);
-      assert.equal(card2.fullyVisible, 6,
-        `${viewport.width}x${viewport.height} card 2: all 6 rating buttons visible without scroll (${JSON.stringify(card2)})`);
-      assert.ok(card2.maxBottom <= viewport.height,
-        `${viewport.width}x${viewport.height} card 2: rating bottom (${card2.maxBottom}px) <= viewport (${viewport.height}px)`);
-
-      assert.deepEqual(errors, [], `${viewport.width}x${viewport.height}: zero page errors`);
     } finally {
-      await context.close();
+      await running.close();
     }
   }
 });
