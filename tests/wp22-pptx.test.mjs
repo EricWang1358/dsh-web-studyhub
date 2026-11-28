@@ -123,3 +123,46 @@ test('the text cap applies to the whole deck', async () => {
   const slides = Array.from({ length: 700 }, (_, index) => ({ shapes: [shape([apara(`${index} ${'x'.repeat(1000)}`)], { ph: 'title' })] }));
   await assert.rejects(extract(slides), /Extracted text exceeds 600,000 characters/);
 });
+
+const chartFrame = (uri = 'http://schemas.openxmlformats.org/drawingml/2006/chart') =>
+  `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="11" name="Chart 1"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr><p:xfrm/><a:graphic><a:graphicData uri="${uri}"><c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="rId2"/></a:graphicData></a:graphic></p:graphicFrame>`;
+const diagramFrame = (uri = 'http://schemas.openxmlformats.org/drawingml/2006/diagram') =>
+  `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="12" name="Diagram 1"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr><p:xfrm/><a:graphic><a:graphicData uri="${uri}"><dgm:relIds xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" r:dm="rId3"/></a:graphicData></a:graphic></p:graphicFrame>`;
+const visualPlaceholder = (type, id = 15) =>
+  `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="ph-${type}"/><p:cNvSpPr/><p:nvPr><p:ph type="${type}"/></p:nvPr></p:nvSpPr><p:spPr/></p:sp>`;
+
+test('omitted visuals (pictures, charts, SmartArt, visual placeholders) are flagged per slide and aggregated on the projection', async () => {
+  const result = await extract([
+    { shapes: [shape([apara('Intro')], { ph: 'title' })] },
+    { shapes: [shape([apara('Photos')], { ph: 'title' }), picture(), group(picture()), visualPlaceholder('clipArt', 16)] },
+    { shapes: [shape([apara('Metrics')], { ph: 'title' }), chartFrame(), diagramFrame()] },
+    { shapes: [picture(), chartFrame()] },
+    { shapes: [shape([apara('Placeholders')], { ph: 'title' }), visualPlaceholder('chart', 17), visualPlaceholder('dgm', 18), visualPlaceholder('pic', 19)] },
+  ]);
+  assert.deepEqual(result.sources.map(source => source.document.page), [1, 2, 3, 5]);
+  assert.deepEqual(result.skippedPages, [4]);
+  assert.deepEqual(result.imagePages, [2, 3, 5]);
+  assert.deepEqual(result.omittedVisuals, ['image', 'chart', 'smartart']);
+
+  assert.equal(result.sources[0].document.hasImages, undefined);
+  assert.equal(result.sources[0].document.omittedVisuals, undefined);
+
+  assert.equal(result.sources[1].document.hasImages, true);
+  assert.deepEqual(result.sources[1].document.omittedVisuals, ['image']);
+
+  assert.equal(result.sources[2].document.hasImages, true);
+  assert.deepEqual(result.sources[2].document.omittedVisuals, ['chart', 'smartart']);
+
+  assert.equal(result.sources[3].document.hasImages, true);
+  assert.deepEqual(result.sources[3].document.omittedVisuals, ['image', 'chart', 'smartart']);
+});
+
+test('tables and slides without visuals do not report omittedVisuals or imagePages', async () => {
+  const result = await extract([
+    { shapes: [shape([apara('Data')], { ph: 'title' }), slideTable([['A', 'B'], ['1', '2']])] },
+  ]);
+  assert.deepEqual(result.imagePages, []);
+  assert.deepEqual(result.omittedVisuals, []);
+  assert.equal(result.sources[0].document.hasImages, undefined);
+  assert.equal(result.sources[0].document.omittedVisuals, undefined);
+});
