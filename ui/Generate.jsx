@@ -35,7 +35,7 @@ import { generateAdvice, retrievalReady } from './large-document-advice.js';
 import { useRetrievalStatus } from './retrieval-status.js';
 import {
   DIFFICULTIES, LANGUAGES, LEARNER_LEVELS, appendFocus, applySuggestion, autoOf, customCountOf, courseHasCaseExam, coverageStructure,
-  NOTATION_CHOICES, caseEvidence, chosenOptions, difficultyNote, estimateMinutes, estimateRequestOf, importDialog, kindNote, kindsOfForm, kindsPatch, extraValuesOf, learnerLevelNote, moreValuesOf, notationNote, courseLine, roleOpenByDefault, selectionStats, summaryLine,
+  NOTATION_CHOICES, caseEvidence, chosenOptions, difficultyNote, estimateMinutes, estimateRequestOf, importDialog, kindNote, kindsOfForm, kindsPatch, extraValuesOf, learnerLevelNote, moreValuesOf, notationNote, roleOpenByDefault, selectionStats, summaryLine,
 } from './generate-form.js';
 import { DEFAULT_LEVEL, levelOf } from '../lib/coverage-strength.js';
 import { writesInOnePass } from '../lib/one-pass/route.js';
@@ -318,16 +318,19 @@ export default function Generate({
                 {!pathMode && <FormRow label={ui("出题方式")} data-tour="generate-preset">
                   <PresetPicker cell={cell} applies={applies} costs={costs} disabled={busy} onPick={pickPreset} />
                 </FormRow>}
+                {/* One course field: 课程范围 above only filters the list of materials. Where the new deck goes follows it (and the ticked materials) and is one more row
+                    here (#1702); 更改 opens the field for the rare other choice (#665). Its links are in ink: the accent is the one primary button's. */}
+                <FormRow label={ui("新题组放进的课程")} data-tour="generate-course" data-generate-plan="">
+                  <div className="generate-plan__line">
+                    <span className="generate-plan__course">{generationCourse || ui("未分类")}</span>
+                    <Button variant="link" size="sm" className="sh-btn--ink" aria-expanded={courseOpen} onClick={() => setCourseOpen(open => !open)}>{courseOpen ? ui("收起") : ui("更改")}</Button>
+                    <Button iconEnd="arrow-right" variant="link" size="sm" className="sh-btn--ink" data-open-settings="settings-generation" onClick={openGenerationSettings}>{ui("前往设置")}</Button>
+                  </div>
+                  {courseOpen && <div className="generate-course"><CourseField courses={data.focus?.courses} label={ui("课程名称")} value={generationCourse} onChange={course => setGen({ ...gen, course })} /></div>}
+                  {caseExam && <p className="generate-note generate-plan__hint">{ui("这门课考案例题，可以切到「案例分析题」出题。")}{" "}
+                    <Button variant="link" size="sm" className="sh-btn--ink" onClick={() => setGenSource("case")}>{ui("切到案例分析题")}</Button></p>}
+                </FormRow>
               </div>
-              {/* One course field: 课程范围 above only filters the list of materials. Where the new deck goes follows it (and the ticked materials) and is said here; 更改 opens the field for the rare other choice (#665). */}
-              <div className="generate-plan" data-generate-plan data-tour="generate-course">
-                <p className="generate-plan__line">{courseLine(generationCourse)}</p>
-                <Button variant="link" size="sm" aria-expanded={courseOpen} onClick={() => setCourseOpen(open => !open)}>{courseOpen ? ui("收起") : ui("更改")}</Button>
-                <Button iconEnd="arrow-right" variant="link" size="sm" data-open-settings="settings-generation" onClick={openGenerationSettings}>{ui("前往设置")}</Button>
-                {caseExam && <span className="generate-plan__hint">{ui("这门课考案例题，可以切到「案例分析题」出题。")}{" "}
-                  <Button variant="link" size="sm" onClick={() => setGenSource("case")}>{ui("切到案例分析题")}</Button></span>}
-              </div>
-              {courseOpen && <div className="generate-course"><CourseField courses={data.focus?.courses} label={ui("新题组放进的课程")} value={generationCourse} onChange={course => setGen({ ...gen, course })} /></div>}
               {/* Shut, its summary says the choices that are not the defaults, each whole (they wrap after a 「·」, ui/generate-form.css); open, its hint on one line,
                   as with none chosen, and the choices are not drawn: a choice picked inside the open fold moves nothing (round 7). */}
               <Disclosure className="generate-more" bodyClassName="generate-more__body" data-tour="generate-more" summary={ui("更多选项")} open={foldOpen} onToggle={setMoreOpen}
@@ -364,7 +367,7 @@ export default function Generate({
                         ? uiFormat("当前课程已设 {0} 个重点知识点：相关章节自动提高题量配额，重点题加深为应用 / 进阶难度。", [activeFocusCount])
                         : ui("手上有老师划的重点图或范围？先录入重点，出题会自动提高重点占比并加深难度。")}
                     </p>
-                    <Button variant="link" size="sm" lock={busy} onClick={openFocusDialog}>
+                    <Button variant="link" size="sm" className="sh-btn--ink" lock={busy} onClick={openFocusDialog}>
                       {activeFocusCount > 0 ? ui("修改重点") : ui("录入重点…")}
                     </Button>
                   </div>

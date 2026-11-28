@@ -53,7 +53,10 @@ test('the main path of the options: the question types, the three presets of 出
   assert.match(open, /data-preset="off"/);
   assert.match(text(open), /快问和情境题只用于单选题/);
   assert.match(main, /data-generate-plan/);
-  assert.match(text(main.slice(main.indexOf('data-generate-plan'))), /^[^>]*> 新题组放进课程：数据库 更改 前往设置/, 'where the new deck goes (as the page infers it), 更改, and the way to the defaults');
+  assert.match(text(main.slice(main.indexOf('data-generate-plan'))), /^[^>]*> 新题组放进的课程 数据库 更改 前往设置/, 'where the new deck goes (as the page infers it), 更改, and the way to the defaults');
+  assert.match(main, /<div class="generate-row" data-tour="generate-course" data-generate-plan="[^"]*"><div class="generate-row__label">新题组放进的课程<\/div>/, 'one more row of the form, so it lines up with the rows above it (#1702)');
+  const links = [...main.slice(main.indexOf('data-generate-plan')).matchAll(/<button[^>]*class="(sh-btn sh-btn--link[^"]*)"/g)].map(match => match[1]);
+  assert.ok(links.length >= 2 && links.every(name => name.split(' ').includes('sh-btn--ink')), `the row's links are in ink, not the accent of the one primary button (${links})`);
   assert.match(main, /<button[^>]*data-open-settings="settings-generation"[^>]*>前往设置(?:<svg[\s\S]*?<\/svg>)?<\/button>/);
   assert.doesNotMatch(main, /generate-focus|generate-title|generate-role|generate-count|data-tour="generate-(difficulty|language|notation)"/, 'nothing optional on the main path');
   assert.doesNotMatch(main, /课程归属|课程范围/, 'the course field of the new deck is not drawn until 更改 (the page has one course field: 课程范围 of the materials)');
@@ -118,7 +121,7 @@ test('the page promises no check at publish: it says what the generation already
 test('an uncategorised result is said once, in the plan line, and points at the fold, not at something "above"', () => {
   const data = { sources: sources.map(source => ({ ...source, courses: [] })), focus: { course: '*', courses: [] } };
   const html = render(data);
-  assert.match(text(parts(html).main), /新题组放进课程：未分类/);
+  assert.match(text(parts(html).main), /新题组放进的课程 未分类/);
   assert.doesNotMatch(text(html), /可在上方指定课程/);
 });
 
@@ -130,15 +133,9 @@ test('the same page in English has no Chinese outside the control values', () =>
     assert.doesNotMatch(text(bare).replace(/数据库|索引笔记|事务笔记/g, ''), han);
     assert.match(text(parts(html).main), /How questions are written Quick Scenario Step by step Scenario \(default\)/);
     assert.match(text(parts(html).fold), /How and how many Coverage strength Lean Standard Full Custom/);
-    assert.match(text(parts(html).main), /New deck goes into course: 数据库 Change Go to settings/);
+    assert.match(text(parts(html).main), /Course for the new deck 数据库 Change Go to settings/);
     assert.match(parts(html).main, />Go to settings</);
   } finally { m.setUiLanguage('zh'); }
-});
-
-test('courseLine says which course the new deck goes into', () => {
-  const { courseLine } = m.form;
-  assert.equal(courseLine('网络'), '新题组放进课程：网络');
-  assert.equal(courseLine(''), '新题组放进课程：未分类');
 });
 
 test('moreValuesOf: what makes the fold open', () => {

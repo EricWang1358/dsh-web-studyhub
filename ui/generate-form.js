@@ -337,9 +337,6 @@ export const hasSettings = (suggestion = {}) => LEVELS.includes(suggestion.cover
 /** The target role is for interview preparation; a role already typed stays visible. */
 export const roleOpenByDefault = ({ goal, focus, course, role } = {}) => goal === 'interview' || !!String(focus?.role || '').trim() || !!String(course?.interview?.role || '').trim() || !!String(course?.interview?.jd || '').trim() || !!course?.interview?.migratedFromFocus || !!String(role || '').trim();
 
-/** The one line of the main path about where the new deck goes: the course it is filed under (the page infers it from the ticked materials and the 课程范围; 更改 edits it). */
-export const courseLine = (course = '') => uiFormat('新题组放进课程：{0}', [course || ui('未分类')]);
-
 /**
  * Does the form carry a choice of its own in the fold (something typed, or a choice that is not the saved default)? Then 更多选项 opens at once, so nothing the learner set is hidden. `defaults` are the
  * form's defaults from Settings (generationFormDefaults). The question types, the preset of 出题方式 and the course stand on the main path; the 覆盖强度 and the 出题深度 of the preset are

@@ -61,6 +61,7 @@
     "tests/first-run-tour-browser.test.mjs",
     "tests/fix-phrases-browser.test.mjs",
     "tests/follow-label-fit-browser.test.mjs",
+    "tests/generate-create-controls-browser.test.mjs",
     "tests/generate-filters-off-path-browser.test.mjs",
     "tests/generate-flow-browser.test.mjs",
     "tests/generate-margin-browser.test.mjs",

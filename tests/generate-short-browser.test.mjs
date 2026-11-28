@@ -98,7 +98,7 @@ test('创建题组 opens ticked with a reason, the main path is one line, the pl
 
       // the main path: 出题方式 is one choice of three presets, the course is one line with a link, nothing else to fill in
       const plan = page.locator('[data-generate-plan]');
-      assert.match(await plan.innerText(), /新题组放进课程：数据库/);
+      assert.match(await plan.innerText(), /新题组放进的课程\s+数据库/);
       assert.equal(await plan.locator('input, select, textarea').count(), 0, 'nothing to fill in on the plan line');
       assert.equal(await page.locator('.generate-page .course-field').count(), 0, 'the field of the deck\'s course waits for 更改: the page has one course field (课程范围)');
       const pressedOf = items => async () => (await items.evaluateAll(list => list.filter(item => item.getAttribute('aria-pressed') === 'true').map(item => item.textContent.trim())));
