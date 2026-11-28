@@ -131,6 +131,7 @@ export const createRequire = () => unavailable, watch = unavailable;
 export const WorkerMessageHandler = {};
 export const readFileSync = p => String(p).includes('package.json') ? '{"version":"4.11.0"}' : unavailable();
 export const existsSync = () => false;
+export const realpathSync = p => String(p);
 export const constants = { F_OK: 0, R_OK: 4, W_OK: 2, X_OK: 1 };
 export const crc32 = unavailable, inflateRawSync = unavailable, gunzipSync = unavailable;
 export const Worker = unavailable, pipeline = unavailableAsync;

@@ -709,6 +709,17 @@ test('Wave 1 Stage Engine: university STEM & modal logic MathML, sandbox crossha
   });
   assert.match(multiCurr.slides[0].blocks[0].md, /\$100 to \$250 when @@SHM_0@@\./);
 
+  // A closed $...$ pair around a bare number is math, not currency: "decays to $0$", "crosses $1.0$."
+  const bareNumbers = compileMathInLesson({
+    format: 'studyhub-lesson/1',
+    id: 'bare-number-math',
+    title: 'Numbers',
+    slides: [{ beat: 'open', title: 'Limits', blocks: [{ t: 'text', md: 'It decays to $0$ as $\\zeta$ crosses $1.0$. Budget $100 to $250.' }] }],
+  });
+  const bareMd = bareNumbers.slides[0].blocks[0].md;
+  assert.equal(bareMd, 'It decays to @@SHM_0@@ as @@SHM_1@@ crosses @@SHM_2@@. Budget $100 to $250.');
+  assert.deepEqual(bareNumbers._math.map(entry => entry.tex), ['0', '\\zeta', '1.0']);
+
   // 2. Expanded safe AST functions + sandbox threshold + schematic node detail & feedback edge validation
   assert.ok(Math.abs(compileMathExpression('hypot(3, 4)').evaluate({}) - 5) < 1e-9);
   assert.equal(compileMathExpression('heaviside(2) - heaviside(-2)').evaluate({}), 1);
