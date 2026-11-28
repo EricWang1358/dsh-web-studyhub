@@ -6,6 +6,8 @@ import { join } from 'node:path';
 import { localizeAppMessage } from '../lib/application-messages.js';
 import { INBOX_KINDS } from '../lib/inbox.js';
 import { JOB_TEXT, convertHome, jobDir, planFile } from '../lib/mineru-job.js';
+import { MINERU_MESSAGES } from '../lib/mineru-api.js';
+import { NO_MINERU_ACK, NO_MINERU_TOKEN } from '../lib/mineru-settings.js';
 import { MineruResultError, mergeChunkResults } from '../lib/mineru-merge.js';
 import { LOCAL_MESSAGES } from '../lib/mineru-local.js';
 import { MINERU_INSTALL_JOB_TEXT, MINERU_INSTALL_MESSAGES, MINERU_STAGE_NAMES } from '../lib/mineru-install-text.js';
@@ -29,11 +31,11 @@ async function collected() {
   const before = process.env.DSH_HOME;
   process.env.DSH_HOME = home;
   try {
-    found.push(NO_MATERIALS, ...Object.values(JOB_TEXT), ...Object.values(LOCAL_MESSAGES), ...Object.values(MINERU_STAGE_NAMES), ...Object.values(MINERU_FAILURE_TEXT),
+    found.push(NO_MATERIALS, NO_MINERU_TOKEN, NO_MINERU_ACK, ...Object.values(MINERU_MESSAGES), ...Object.values(JOB_TEXT), ...Object.values(LOCAL_MESSAGES), ...Object.values(MINERU_STAGE_NAMES), ...Object.values(MINERU_FAILURE_TEXT),
       ...Object.values(MINERU_INSTALL_MESSAGES).filter(value => typeof value === 'string'), MINERU_INSTALL_MESSAGES.noSpace('D:', '900 MB', '3.9 GB'), MINERU_INSTALL_MESSAGES.wrongVersion('3.1.0'),
       MINERU_INSTALL_JOB_TEXT.title, MINERU_INSTALL_JOB_TEXT.done, MINERU_INSTALL_JOB_TEXT.cancelled, MINERU_INSTALL_JOB_TEXT.failed,
       ...['tools', 'python', 'package', 'models', 'enable', 'check'].map(mineruStageText),
-      CONVERT_TEXT.cloudGone, CONVERT_TEXT.serviceFailed, CONVERT_TEXT.started({ converter: 'mineru' }), CONVERT_TEXT.started({ converter: 'marker' }));
+      CONVERT_TEXT.serviceFailed, CONVERT_TEXT.started({ converter: 'mineru', route: 'local' }), CONVERT_TEXT.started({ converter: 'mineru', route: 'cloud' }), CONVERT_TEXT.started({ converter: 'marker' }));
     await note(() => jobDir('x', 'bad id'));
     await note(() => inspectPdf(Buffer.from('not a pdf')));
     await note(() => inspectPdf(Buffer.from('%PDF-1.7\n' + 'garbage '.repeat(60))));

@@ -70,12 +70,12 @@ async function filesUnder(directory) {
   return found;
 }
 
-test('before any conversion the history is empty, and the removed cloud settings are not asked for', async t => {
+test('before any conversion the history is empty, and MinerU settings default to local', async t => {
   const h = await harness(t);
   const view = await h.history();
   assert.deepEqual(view.records, []);
   assert.deepEqual([view.keepLatest, view.keepDays], [50, 90]);
-  await assert.rejects(h.call('mineru.settings.get'), /Unknown/);
+  assert.equal((await h.call('mineru.settings.get')).mode, 'local');
 });
 
 test('a conversion is on record while it runs, and complete only once the document is really imported', async t => {
@@ -266,7 +266,7 @@ test('a conversion that was unfinished before the history existed gets a record 
   assert.equal(row.canRetry, true);
 });
 
-test('an unfinished conversion of the removed cloud route comes back failed for good, with what to do instead; its row lists and never resumes', async t => {
+test('an unfinished cloud conversion recovers as interrupted and can switch to local via mineru.retry', async t => {
   const h = await harness(t);
   const { record } = await crashed(h, { route: 'cloud', pages: 3 });
   h.restart();
@@ -274,11 +274,14 @@ test('an unfinished conversion of the removed cloud route comes back failed for 
   assert.equal(row.id, record.id);
   assert.equal(row.route, 'cloud');
   assert.equal(row.status, 'interrupted');
-  assert.equal(row.canRetry, false, 'a cloud row never offers 接着做');
+  assert.equal(row.canRetry, true, 'an interrupted cloud row with manifest on disk can retry or switch to local');
   const [job] = await h.jobs();
-  assert.equal(job.retryable, false);
-  assert.match(job.stage, /云端解析已停用/);
-  await assert.rejects(h.call('mineru.retry', { jobId: job.id }), /云端解析已停用|不能重试/);
+  assert.equal(job.retryable, true);
+  await h.call('mineru.retry', { jobId: job.id, route: 'local' });
+  await h.finished();
+  const [done] = (await h.history()).records;
+  assert.equal(done.status, 'complete');
+  assert.equal(done.route, 'local');
 });
 
 /* ---------- deleting ---------- */

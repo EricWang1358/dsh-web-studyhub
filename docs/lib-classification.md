@@ -31,7 +31,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/case-study.js`: 6 ui files; contexts generation, library, study; 10 other lib files
 - `lib/chemistry-balance.js`: 1 ui file
 - `lib/cloze-text.js`: 3 ui files; 3 other lib files
-- `lib/converted-document.js`: 1 ui file; contexts audio, materials; 2 other lib files
+- `lib/converted-document.js`: 1 ui file; contexts audio, materials; 3 other lib files
 - `lib/course-book-ai-anchor.js`: 1 ui file
 - `lib/course-book-ai-text.js`: 5 ui files; context generation; 5 other lib files
 - `lib/course-book-card-index.js`: 1 ui file; context generation; 1 other lib file
@@ -410,7 +410,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/option-cues.js`: 4 other lib files
 - `lib/oral-exam-service.js`: 1 other lib file
 - `lib/panel-bridge.js`: 1 other lib file
-- `lib/pdf-runtime.js`: 1 other lib file
+- `lib/pdf-runtime.js`: 2 other lib files
 - `lib/plan-schedule.js`: 1 other lib file
 - `lib/plan-split.js`: 3 other lib files
 - `lib/plan-target-record.js`: 1 other lib file

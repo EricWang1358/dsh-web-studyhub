@@ -128,9 +128,9 @@ test('PDF uploads wait in the DSH home, never in the study library, and only PDF
   await assert.rejects(h.service.call('mineru.upload.start', { name: 'huge.pdf', size: 900 * 1024 * 1024 }), /800 MB/);
 });
 
-test('a conversion is local whatever route is asked for, except the removed cloud, which is refused before anything is read', async t => {
+test('default route is local; requesting cloud without a key is refused cleanly before anything is read', async t => {
   const h = await harness(t, { state: { total: 3 } });
-  await assert.rejects(h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })), route: 'cloud' }), error => error.code === 'cloud-removed' && /云端解析已停用/.test(error.message));
+  await assert.rejects(h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })), route: 'cloud' }), error => error.code === 'no-token' && /密钥/.test(error.message));
   const started = await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })) });
   await h.until(async () => (await h.jobs())[0]?.status === 'complete', 'the conversion');
   assert.equal((await h.jobs())[0].route, 'local');

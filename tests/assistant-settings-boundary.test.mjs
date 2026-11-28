@@ -22,6 +22,7 @@ const SETTINGS_ONLY = {
   'marker.settings.set': [{ command: process.execPath }],
   'marker.install.start': [{ confirm: true }],
   'marker.install.uninstall': [{ confirm: true }],
+  'mineru.settings.set': [{ mode: 'cloud', baseUrl: 'https://example.com/v4', token: 'sk-12345678', acknowledge: true }],
   'mineru.install.start': [{ confirm: true }, { confirm: true, location: 'D:\\StudyHub\\MinerU', tier: 'standard' }],
   'mineru.install.uninstall': [{ confirm: true }],
   'mineru.local.stop': [{}],
@@ -40,8 +41,8 @@ test('the assistant cannot choose the program StudyHub runs, install or uninstal
   assert.equal(await exists(join(h.dirs.dshHome, 'studyhub', 'mineru')), false, 'no install folder was made');
   assert.equal((await h.mineruState()).running, true, 'the local MinerU service was not stopped');
   assert.deepEqual(await h.spawns(), [], 'no program was started');
-  // The removed cloud route and the old setup flow are gone for the assistant too.
-  for (const action of ['mineru.settings.set', 'mineru.settings.get', 'mineru.test', 'mineru.local.setup', 'mineru.local.setup.status'])
+  // The old setup flow stays gone for the assistant too.
+  for (const action of ['mineru.local.setup', 'mineru.local.setup.status'])
     await assert.rejects(h.assistant(action, {}), /Unknown|not available/i, action);
   // 检测并保存 asks marker.local.status about a path before it is saved: that start-a-program-of-my-choice form is the panel's, not the assistant's.
   for (const args of [{ command: process.execPath }, { command: '' }, { command: 42 }])
@@ -76,7 +77,7 @@ test('status, plan and history reads stay with the assistant, and they only read
   assert.equal(await exists(mineruInstallStatePath()), false);
   // A MinerU that is not set up is refused before anything is read, with the one place to fix it.
   await assert.rejects(h.assistant('mineru.import', { path: h.files.pdf }), /一键安装/);
-  await assert.rejects(h.assistant('mineru.import', { path: h.files.pdf, route: 'cloud' }), /云端解析已停用/);
+  await assert.rejects(h.assistant('mineru.import', { path: h.files.pdf, route: 'cloud' }), /密钥/);
 });
 
 test('what the learner sets in Settings is what the assistant\'s imports use: the chosen Marker program converts, and the ready local MinerU parses', async t => {

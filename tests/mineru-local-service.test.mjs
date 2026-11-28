@@ -241,12 +241,12 @@ test('the local route is refused, before anything runs, unless MinerU is set up 
   await assert.rejects(fresh.call('mineru.import', { uploadId: await fresh.upload(await makePdf({ pages: 3 })), route: 'nonsense' }), /route/);
 });
 
-test('"auto" and no route both convert locally; the removed cloud is refused in words', async t => {
+test('"auto" and no route both convert locally when local is ready; cloud without key is refused cleanly', async t => {
   const h = await harness(t, { pages: 3 });
   await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })), route: 'auto' });
   await h.until(async () => (await h.jobs())[0]?.status === 'complete', 'the local conversion');
   assert.equal((await h.jobs())[0].route, 'local');
-  await assert.rejects(h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })), route: 'cloud' }), error => error.code === 'cloud-removed');
+  await assert.rejects(h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })), route: 'cloud' }), error => error.code === 'no-token');
 });
 
 test('the local route in English: no Chinese in stages, notes or status', async t => {
