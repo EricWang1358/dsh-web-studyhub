@@ -159,8 +159,8 @@ Automatic update checks normally use a 6-hour cache and retry sooner after a fai
 2. If background tasks are running, StudyHub says how many. **Stop tasks and upgrade** stops them and keeps the parts already finished. You can also wait until they are done.
 3. StudyHub downloads the package from the GitHub release, checks its SHA-256 against `SHA256SUMS-x.y.z.txt` and hands it to DSH's plugin manager.
 4. What happens next is one of two things, and it cannot be told before the upgrade which your DSH will do:
-   - **The new version loads at once** (as seen on DSH 0.2.2-rc.5): there is nothing to restart. DSH may close the StudyHub page while it installs; open StudyHub again after a moment.
-   - **DSH needs a restart:** the upgrade window says **x.y.z installed** and the sidebar shows **Restart DSH to finish the upgrade**. You can keep studying until you restart.
+   - **The new version loads at once** (as seen on DSH 0.2.2-rc.5): there is nothing to restart. The upgrade window is titled **StudyHub x.y.z has been upgraded** and says **No need to restart DSH**. DSH may close the StudyHub page while it installs; open StudyHub again after a moment, and the page that opens is the new version.
+   - **DSH needs a restart:** the upgrade window is titled **StudyHub x.y.z is waiting for a restart** and the sidebar shows **Restart DSH to finish the upgrade**. You can keep studying until you restart.
 5. If it needs a restart:
    - **Desktop:** quit DSH fully, including the tray icon, and open it again.
    - **Web:** stop the DSH service, start it again the way you usually do (same profile), then reload the page.

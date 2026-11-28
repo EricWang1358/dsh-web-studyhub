@@ -226,7 +226,19 @@ function GuidedUpgrade({ update, host, address = update.assetUrl || update.url, 
   );
 }
 
+/** The install answered and DSH loaded the new code at once (restartRequired false). Only an answer that says so is "no restart": the page that asked is the old code, so opening StudyHub again is what shows the new version. */
+const appliedAtOnce = phase => phase.restartRequired === false;
+
 function Installed({ phase, host, onGuided }) {
+  if (appliedAtOnce(phase)) return (
+    <div className="update-done">
+      <InlineMessage tone="success" boxed title={uiFormat('已升级到 {0}', [phase.version])}>
+        {ui('新版本已经在运行，不用重启 DSH。')}
+      </InlineMessage>
+      <p className="update-note">{ui('这个页面可能还是旧版本的画面：重新打开 StudyHub，看到的就是新版本。学习库和设置不受影响。')}</p>
+      {host?.openPluginManager && <Button variant="quiet" size="sm" icon="external" onClick={() => host.openPluginManager()}>{ui('在插件管理中查看')}</Button>}
+    </div>
+  );
   return (
     <div className="update-done">
       <InlineMessage tone="success" boxed title={uiFormat('已安装 {0}', [phase.version])}>
@@ -307,7 +319,7 @@ export function UpdateDialog({ update, onClose, initialPhase = null }) {
     </div>
   );
   return (
-    <Dialog title={phase.phase === 'installed' ? uiFormat('StudyHub {0} 等待重启', [phase.version]) : stuck ? uiFormat('StudyHub {0} 没有生效', [stuck.pending]) : uiFormat('StudyHub {0} 可以升级了', [update.latest])} description={description} size="md" busy={busy} onClose={onClose} footer={footer}
+    <Dialog title={phase.phase === 'installed' ? (appliedAtOnce(phase) ? uiFormat('StudyHub {0} 已升级', [phase.version]) : uiFormat('StudyHub {0} 等待重启', [phase.version])) : stuck ? uiFormat('StudyHub {0} 没有生效', [stuck.pending]) : uiFormat('StudyHub {0} 可以升级了', [update.latest])} description={description} size="md" busy={busy} onClose={onClose} footer={footer}
       className="update-dialog" bodyLabel={ui('升级说明')}>
       {phase.phase === 'installed' ? <><Installed phase={phase} host={host} onGuided={guided ? undefined : () => setGuided(true)} />{guided && <GuidedUpgrade update={update} host={host} onBusyChange={setHostWorking} />}</> : <>
         {stuck && <InlineMessage tone="warning" boxed actionsBelow className="update-stuck" action={inApp ? { label: ui('改用手动升级'), onClick: () => { setGuided(true); setPhase({ phase: 'idle' }); } } : undefined}>
