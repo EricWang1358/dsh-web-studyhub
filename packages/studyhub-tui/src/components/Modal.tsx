@@ -48,6 +48,23 @@ export function modalContentWidth(frameWidth: number): number {
   return Math.max(10, frameWidth - LAYOUT_CHROME.MODAL_CHROME_X);
 }
 
+/** Rows Modal draws around its children: top + bottom border, title row and hairline (the hint row is extra). */
+const MODAL_CHROME_ROWS = 4;
+
+/** Frame height Modal really draws when asked for `height` on a terminal `rows` tall. */
+export function modalFrameHeight(height: number, rows: number): number {
+  return Math.min(height, rows - LAYOUT_CHROME.MODAL_MARGIN_Y);
+}
+
+/**
+ * Rows Modal leaves for its children when asked for `height` on a terminal `rows` tall (#1748).
+ * Size a fixed-height body from this instead of from the requested `height`: Modal clamps the frame,
+ * and a body taller than what is left is cut off or squeezed out of sight.
+ */
+export function modalChildRows(height: number, rows: number, hasHints: boolean): number {
+  return Math.max(0, modalFrameHeight(height, rows) - MODAL_CHROME_ROWS - (hasHints ? 1 : 0));
+}
+
 export const Modal = memo(function Modal({
   title,
   subtitle,
@@ -100,7 +117,7 @@ export const Modal = memo(function Modal({
       <Box
         flexDirection="column"
         width={frameWidth}
-        height={height ? Math.min(height, rows - 2) : undefined}
+        height={height ? modalFrameHeight(height, rows) : undefined}
         borderStyle={asciiMode ? 'classic' : 'round'}
         borderColor={accent}
         backgroundColor={theme.surface}

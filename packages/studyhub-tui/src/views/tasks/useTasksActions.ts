@@ -28,8 +28,6 @@ export interface UseTasksActionsParams {
 }
 
 export interface TasksActions {
-  busy: boolean;
-  syncLiveAndRefresh: () => Promise<void>;
   handleCancel: () => Promise<void>;
   handleArchive: () => Promise<void>;
   handleDeleteConfirm: (explicitJob?: JobRecord | null) => Promise<void>;
@@ -65,12 +63,34 @@ export function useTasksActions({
       setBusy(true);
       try {
         await task();
+      } catch (err) {
+        // Callers fire these with `void`, so a throw here (e.g. a failing refresh) would be an unhandled rejection
+        // with no feedback (#1623). Report it instead.
+        if (mountedRef.current) {
+          const msg = err instanceof Error ? err.message : String(err);
+          notify(t(lang, `操作失败：${msg}`, `Action failed: ${msg}`), 'error');
+        }
       } finally {
         busyRef.current = false;
         if (mountedRef.current) setBusy(false);
       }
     },
-    [mountedRef],
+    [lang, mountedRef, notify],
+  );
+
+  /** A confirm pressed while another action runs is refused with a reason, not silently (#1623). */
+  const refuseWhileBusy = useCallback((): boolean => {
+    if (!busy && !busyRef.current) return false;
+    notify(t(lang, '上一个操作还在进行', 'The previous action is still running'), 'info');
+    return true;
+  }, [busy, lang, notify]);
+
+  /** Close a confirm dialog only if it still belongs to the job whose action just finished (#1623). */
+  const clearTargetIfFor = useCallback(
+    (setTarget: Dispatch<SetStateAction<JobRecord | null>>, job: JobRecord) => {
+      setTarget((cur) => (cur && cur.id === job.id ? null : cur));
+    },
+    [],
   );
 
   const resolveLibraryRoot = useCallback((): string => {
@@ -164,12 +184,12 @@ export function useTasksActions({
   const handleDeleteConfirm = useCallback(
     async (explicitJob?: JobRecord | null) => {
       const targetJob = explicitJob ?? selectedJob;
-      if (!targetJob || busy || busyRef.current) return;
+      if (!targetJob || refuseWhileBusy()) return;
       await runBusy(async () => {
         const dismissRes = await tryAction(host, 'job.dismiss', { jobId: targetJob.id });
         if (!mountedRef.current) return;
         if (dismissRes.ok) {
-          setConfirmDeleteTarget(null);
+          clearTargetIfFor(setConfirmDeleteTarget, targetJob);
           await refresh();
           if (mountedRef.current) {
             notify(t(lang, '任务记录已移除', 'Job removed'), 'success');
@@ -182,7 +202,7 @@ export function useTasksActions({
           missing?: string[];
         }>(host, 'job.delete', { jobIds: [targetJob.id] });
         if (!mountedRef.current) return;
-        setConfirmDeleteTarget(null);
+        clearTargetIfFor(setConfirmDeleteTarget, targetJob);
         if (!delRes.ok) {
           notify(delRes.error?.message || t(lang, '删除任务失败', 'Delete failed'), 'error');
           return;
@@ -214,7 +234,7 @@ export function useTasksActions({
         }
       });
     },
-    [busy, host, lang, mountedRef, notify, refresh, runBusy, selectedJob, setConfirmDeleteTarget],
+    [clearTargetIfFor, host, lang, mountedRef, notify, refresh, refuseWhileBusy, runBusy, selectedJob, setConfirmDeleteTarget],
   );
 
   const handleExportTrace = useCallback(async () => {
@@ -260,13 +280,13 @@ export function useTasksActions({
   const handlePurgeTraceConfirm = useCallback(
     async (explicitJob?: JobRecord | null) => {
       const targetJob = explicitJob ?? selectedJob;
-      if (!targetJob || busy || busyRef.current) return;
+      if (!targetJob || refuseWhileBusy()) return;
       await runBusy(async () => {
         const res = await tryAction<{ jobId?: string; removed?: number }>(host, 'job.trace.delete', {
           jobId: targetJob.id,
         });
         if (!mountedRef.current) return;
-        setConfirmPurgeTraceTarget(null);
+        clearTargetIfFor(setConfirmPurgeTraceTarget, targetJob);
         if (!res.ok) {
           notify(res.error?.message || t(lang, '清空调用轨迹失败', 'Failed to purge traces'), 'error');
           return;
@@ -288,7 +308,19 @@ export function useTasksActions({
         }
       });
     },
-    [busy, host, lang, mountedRef, notify, refresh, runBusy, selectedJob, setConfirmPurgeTraceTarget, setTraceReloadTick],
+    [
+      clearTargetIfFor,
+      host,
+      lang,
+      mountedRef,
+      notify,
+      refresh,
+      refuseWhileBusy,
+      runBusy,
+      selectedJob,
+      setConfirmPurgeTraceTarget,
+      setTraceReloadTick,
+    ],
   );
 
   const handleTogglePause = useCallback(async () => {
@@ -497,8 +529,6 @@ export function useTasksActions({
   }, [busy, host, lang, mountedRef, notify, runBusy, syncLiveAndRefresh]);
 
   return {
-    busy,
-    syncLiveAndRefresh,
     handleCancel,
     handleArchive,
     handleDeleteConfirm,

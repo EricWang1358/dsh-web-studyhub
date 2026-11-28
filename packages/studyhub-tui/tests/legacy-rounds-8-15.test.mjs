@@ -1569,7 +1569,8 @@ describe('Round 12: Sources Organize/Coverage, DraftEditor Similar/Repair & Deck
     );
     tty.assertHealthyScreen(manageScreen, 120, 36, 'DeckManageModal browse');
 
-    tty.send('k');
+    // Card-kind conversion moved from k to v (#1748); k now moves the list up.
+    tty.send('v');
     const convertScreen = await tty.waitFor(
       (s) =>
         (s.includes('转换题型') || s.includes('Convert Card Kind')) &&
