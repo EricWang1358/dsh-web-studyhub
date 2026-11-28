@@ -1005,17 +1005,17 @@ describe('P4 (#1354): WorkspaceTab split behavioral regression', () => {
       handlers: {
         'library.restorePoints.list': () => {
           listInvocation += 1;
-          const isSecond = listInvocation >= 2;
+          const idx = listInvocation;
           return {
             ok: true,
             value: {
               points: [
                 {
-                  id: isSecond ? 'rp-rev-2' : 'rp-rev-1',
-                  createdAt: isSecond ? '2026-11-26T10:30:00Z' : '2026-11-26T09:15:00Z',
-                  reason: isSecond ? 'rev-2-point' : 'rev-1-point',
-                  sizeBytes: isSecond ? 6144 : 4096,
-                  summary: { cards: isSecond ? 24 : 18, decks: 2 },
+                  id: `rp-rev-${idx}`,
+                  createdAt: idx === 1 ? '2026-11-26T09:15:00Z' : idx === 2 ? '2026-11-26T10:30:00Z' : '2026-11-26T11:45:00Z',
+                  reason: `rev-${idx}-point`,
+                  sizeBytes: idx * 2048 + 2048,
+                  summary: { cards: 12 + idx * 6, decks: 2 },
                 },
               ],
             },
@@ -1037,9 +1037,17 @@ describe('P4 (#1354): WorkspaceTab split behavioral regression', () => {
       assert.match(updatedFrame, /rev-2-point/);
       assert.doesNotMatch(updatedFrame, /rev-1-point/);
 
-      useTuiStore.setState({ snapshot: { revision: 2, experimental: false, sample: { loaded: false } } });
-      await new Promise((r) => setTimeout(r, 80));
+      // Re-render with a fresh snapshot object that changes visible UI (sample.loaded -> 已载入) while keeping revision === 2,
+      // then follow with revision === 3 so React is guaranteed to have flushed all passive effects from the revision-2 commit.
+      useTuiStore.setState({ snapshot: { revision: 2, experimental: false, sample: { loaded: true } } });
+      await app.waitFor((f) => f.includes('已载入'), { label: 'same-revision snapshot update rendered' });
       assert.equal(listCalls(), 2, 're-setting snapshot with unchanged revision does not trigger a 3rd list call');
+
+      useTuiStore.setState({ snapshot: { revision: 3, experimental: false, sample: { loaded: true } } });
+      const thirdFrame = await app.waitFor((f) => f.includes('rev-3-point'), { label: 'revision 3 reload settled' });
+      assert.equal(listCalls(), 3, 'exactly one list call fires across the unchanged-revision render + revision 3 bump');
+      assert.match(thirdFrame, /rev-3-point/);
+      assert.doesNotMatch(thirdFrame, /rev-4-point/);
     } finally {
       app.cleanup();
     }
