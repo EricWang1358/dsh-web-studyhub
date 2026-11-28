@@ -76,7 +76,7 @@ test('science settings apply, persist and run exact local tools in the real app'
   await draftsFold.waitFor({ state: 'attached', timeout: 30000 });
   if (!await draftsFold.evaluate(el => el.open)) await draftsFold.locator('summary').first().click();
   await page.locator('.draft-open').filter({ hasText: 'Image draft' }).click();
-  await page.locator('.draft-card summary').click();
+  await page.locator('.draft-card > summary').click(); // the question's own row, not the 更多字段 fold inside it (#1750)
   await page.locator('.draft-card input[type="file"]').first().setInputFiles({
     name: 'diagram.png', mimeType: 'image/png',
     buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jN1kAAAAASUVORK5CYII=', 'base64'),
@@ -84,7 +84,7 @@ test('science settings apply, persist and run exact local tools in the real app'
   const prompt = page.locator('.draft-card textarea').first();
   await page.waitForFunction(() => [...globalThis.document.querySelectorAll('.draft-card textarea')].some(el => el.value.includes('data:image/png;base64,')));
   assert.match(await prompt.inputValue(), /Expand.*data:image\/png;base64,/s);
-  assert.doesNotMatch(await page.locator('.draft-card summary').innerText(), /iVBOR/);
+  assert.doesNotMatch(await page.locator('.draft-card > summary').innerText(), /iVBOR/);
   const savedResponse = page.waitForResponse(response => response.request().postData()?.includes('"draft.save"'));
   await page.getByRole('button', { name: 'Save & validate', exact: true }).click();
   await savedResponse;
