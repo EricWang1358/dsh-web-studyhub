@@ -799,6 +799,11 @@
        options keep text selection & cursor without firing answer clicks, and marked words stay highlighted. */
     .review-body.is-marking .flashcard .flip-inner { pointer-events: auto; }
     .review-body.is-marking .flashcard .flip-control { pointer-events: none; }
+    /* While marking words the card is what is being read and tapped: a flipped card's grade row does not stick over it (#1678), where a tap on a word
+       under the row would land on a grade instead. */
+    .review-body.is-marking .flash-follow.is-grading { position: static; }
+    .review-body.is-marking .flash-follow.is-grading > .smooth-height-inner { padding-bottom: 0; background: none; }
+    .review-body.is-marking .flash-follow.is-grading > .smooth-height-inner::before { content: none; }
     .review-body.is-marking .options .option {
       user-select: text;
       cursor: text;
