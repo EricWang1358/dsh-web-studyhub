@@ -68,8 +68,8 @@ export async function seedChunkLibrary(root, { documents = 1000, mistakes = 1000
         explanation: `Explanation ${index}`, misconception: `Mistake ${index}`, rubric: `Rubric ${index}`, citations: [] })),
       editorial: { requested: length, generated: length, failures: [], reviewedCards: {}, ...extra } });
     library.drafts.push(draft("chunk-draft", "A long draft", questions, similarAt));
-    // Over one chunk (80) and under the 100 questions a draft can be added to; the second question was sent back, so the page offers 查看详情.
-    library.drafts.push(draft("short-draft", "A draft of ninety", SHORT_DRAFT, -1, { rejectedIssues: { "short-draft-q2": ["The answer is not in the cited text."] } }));
+    // Over one chunk (80) and under the 100 questions a draft can be added to; a deck-level quality error (no card index) makes the page offer 查看详情.
+    library.drafts.push({ ...draft("short-draft", "A draft of ninety", SHORT_DRAFT, -1), quality: { errors: ["Deck-level quality check needs review."], warnings: [] } });
   });
   return { documents, mistakes, questions, bookKey: `pdf:${hash(1)}`, similarAt };
 }

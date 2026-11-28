@@ -236,7 +236,7 @@ test('发给主会话 on the places that handed over before: the shared control,
     assert.equal(await page.locator('.sk-note').count(), 0, `${tag}: no line of the page's own about it`);
     await shot('skeleton-primary');
     await page.locator('.sk-saved-item').first().click();
-    await page.locator('details.skeleton-extend-fold summary').click();
+    await page.locator('details.skeleton-extend-fold > summary.skeleton-extend-fold__summary').click();
     const update = page.locator('.skeleton-extend-fold [data-hand-off="skeleton.design"]');
     await update.waitFor({ timeout: 30000 });
     text = await handOver(update, { shotName: 'skeleton-update' });
