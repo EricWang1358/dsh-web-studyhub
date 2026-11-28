@@ -153,14 +153,14 @@
     .pdf-ext-guide__list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; min-width: 0; }
     .pdf-ext-guide__item { display: grid; gap: var(--space-1); min-width: 0; padding: var(--space-2) var(--space-3); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg-sunken); }
     .pdf-ext-guide__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-half) var(--space-2); min-width: 0; }
-    .pdf-ext-guide__head strong { color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
+    .pdf-ext-guide__head strong { color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
     .pdf-ext-guide__role { color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .pdf-ext-guide__url-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); min-width: 0; }
-    .pdf-ext-guide__url { flex: 1 1 200px; min-width: 0; padding: var(--space-half) var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); color: var(--text); font-family: var(--font-stack-mono); font-size: var(--fs-xs); overflow-wrap: anywhere; word-break: break-all; user-select: text; }
+    .pdf-ext-guide__url { flex: 1 1 200px; min-width: 0; padding: var(--space-half) var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); color: var(--text); font-family: var(--font-stack-mono); font-size: var(--fs-sm); overflow-wrap: anywhere; word-break: break-all; user-select: text; }
     .pdf-ext-guide__copy-btn { flex: none; }
     .pdf-ext-guide__copy-error { display: block; color: var(--warn-ink); }
     .pdf-ext-guide__guide { display: grid; gap: var(--space-2); min-width: 0; padding-top: var(--space-2); border-top: 1px solid var(--line-soft); }
-    .pdf-ext-guide__subtitle { margin: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-strong); line-height: var(--lh-tight); }
+    .pdf-ext-guide__subtitle { margin: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); line-height: var(--lh-tight); }
     .pdf-ext-guide__steps { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; min-width: 0; }
     .pdf-ext-guide__step { display: grid; gap: var(--space-1); min-width: 0; font-size: var(--fs-sm); line-height: var(--lh-body); }
     .pdf-ext-guide__step > strong { color: var(--text); font-weight: var(--fw-medium); }
