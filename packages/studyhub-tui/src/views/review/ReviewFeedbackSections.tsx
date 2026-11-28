@@ -13,6 +13,7 @@ import { buildReviewQuickActions } from './quick-actions.js';
 import {
   FSRS_GRADES,
   formatGapDays,
+  wrapIndentedCodeLines,
   type CardSourceLocation,
   type CardFeedbackShape,
   type CardTranslation,
@@ -204,8 +205,9 @@ export function ReviewFeedbackHeader({
                   : theme.text;
             const isMultilineDiff = diff.userValue.includes('\n') || diff.expected.includes('\n');
             if (isMultilineDiff) {
-              const userLines = rawUser.split('\n');
-              const expectedLines = diff.expected ? diff.expected.split('\n') : [];
+              // Wrapped pieces keep each line's own indentation; 4 columns are the fixed left gutter below.
+              const userLines = wrapIndentedCodeLines(rawUser.split('\n'), innerW - 4);
+              const expectedLines = diff.expected ? wrapIndentedCodeLines(diff.expected.split('\n'), innerW - 4) : [];
               return (
                 <Box key={diff.id} flexDirection="column" width={innerW}>
                   <Box flexDirection="row" width={innerW}>

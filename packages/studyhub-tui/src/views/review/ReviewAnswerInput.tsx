@@ -8,7 +8,7 @@ import { Badge } from '../../components/Badge.js';
 import { SectionHeader, computeProseLayout } from '../../layout/index.js';
 import { TextInput } from '../../components/TextInput.js';
 import { ClickableBox } from '../../components/mouse.js';
-import { truncateDisplay } from '../../render/cjk.js';
+import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import type {
   CardFeedbackShape,
   NormalizedKind,
@@ -181,17 +181,21 @@ export function ReviewAnswerInput({
     const activeIsMultiline = Boolean(activeBlank?.inCodeBlock);
     const showHintBar = clozeData.blanks.length > 1 || hasCodeBlank;
     const sep = asciiMode ? ' | ' : ' · ';
+    // Ctrl+S in a code blank does what Enter does in a prose blank: next blank, and submit the card on the last one.
+    // Ctrl+Enter is deliberately not advertised: conhost sends a bare LF (a newline) and Ink drops xterm's CSI 27;5;13~ (#1736).
+    const saveVerb = (blankIdx: number) =>
+      blankIdx + 1 < clozeData.blanks.length ? t(lang, '下一空', 'next blank') : t(lang, '提交', 'submit');
     const editingHint = activeIsMultiline
       ? clozeData.blanks.length > 1
         ? t(
             lang,
-            `Enter 换行${sep}Tab 下一空${sep}Ctrl+S/Ctrl+Enter 提交${sep}Esc 退出`,
-            `Enter newline${sep}Tab next${sep}Ctrl+S/Ctrl+Enter submit${sep}Esc blur`,
+            `Enter 换行${sep}Tab 下一空${sep}Ctrl+S ${saveVerb(safeIdx)}${sep}Esc 退出`,
+            `Enter newline${sep}Tab next${sep}Ctrl+S ${saveVerb(safeIdx)}${sep}Esc blur`,
           )
         : t(
             lang,
-            `Enter 换行${sep}Ctrl+S/Ctrl+Enter 提交${sep}Esc 退出`,
-            `Enter newline${sep}Ctrl+S/Ctrl+Enter submit${sep}Esc blur`,
+            `Enter 换行${sep}Ctrl+S ${saveVerb(safeIdx)}${sep}Esc 退出`,
+            `Enter newline${sep}Ctrl+S ${saveVerb(safeIdx)}${sep}Esc blur`,
           )
       : t(
           lang,
@@ -252,6 +256,20 @@ export function ReviewAnswerInput({
               : undefined;
 
           if (isCodeMultiline) {
+            const ellipsis = asciiMode ? '...' : '…';
+            const tag = truncateDisplay(blank.codeLang || 'code', 12, ellipsis);
+            const boxLabel = `#${idx + 1} [${tag}]`;
+            // The header row is boxWidth - 4 columns wide (border + padding); the hint gets what the label leaves,
+            // and is dropped (the hint bar above still has it) when too little is left to read.
+            const hintBudget = boxWidth - 4 - displayWidth(boxLabel) - 1;
+            const boxHint =
+              hintBudget >= 8
+                ? truncateDisplay(
+                    t(lang, `Enter 换行${sep}Ctrl+S ${saveVerb(idx)}`, `Enter newline${sep}Ctrl+S ${saveVerb(idx)}`),
+                    hintBudget,
+                    ellipsis,
+                  )
+                : '';
             return (
               <Box
                 key={blank.id}
@@ -262,15 +280,11 @@ export function ReviewAnswerInput({
                 width={boxWidth}
               >
                 <Box flexDirection="row" justifyContent="space-between" width={Math.max(12, boxWidth - 4)}>
-                  <Text color={isThisActive ? theme.primary : theme.muted} bold={isThisActive}>
-                    {`#${idx + 1}${blank.codeLang ? ` [${blank.codeLang}]` : ' [code]'}`}
+                  <Text color={isThisActive ? theme.primary : theme.muted} bold={isThisActive} wrap="truncate">
+                    {boxLabel}
                   </Text>
-                  <Text color={theme.dim}>
-                    {truncateDisplay(
-                      t(lang, `Enter 换行${sep}Ctrl+S 提交`, `Enter newline${sep}Ctrl+S submit`),
-                      Math.max(10, boxWidth - 16),
-                      asciiMode ? '...' : '…',
-                    )}
+                  <Text color={theme.dim} wrap="truncate">
+                    {boxHint}
                   </Text>
                 </Box>
                 <KeyScope id={`review:cloze-${blank.id}`} opaque active={isActive && isThisActive}>
@@ -288,8 +302,8 @@ export function ReviewAnswerInput({
                     width={Math.max(14, boxWidth - 4)}
                     placeholder={t(
                       lang,
-                      '输入多行代码 (Enter 换行, Ctrl+S/Ctrl+Enter 提交)',
-                      'Type multi-line code (Enter newline, Ctrl+S/Ctrl+Enter submit)',
+                      '输入多行代码 (Enter 换行)',
+                      'Type multi-line code (Enter newline)',
                     )}
                     onTab={handleTabBlank}
                     onSubmit={handleSubmitBlank}
