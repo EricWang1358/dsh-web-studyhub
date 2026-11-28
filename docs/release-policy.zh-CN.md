@@ -52,7 +52,8 @@ PR 不直接改 `CHANGELOG.md` 和 `CHANGELOG.zh-CN.md`，而是在 `changes/unr
    - [ ] 「看原页」里的一页扫描书，以及长书里的脚注和公式。
    - [ ] 改动涉及的模型路径：正在用的模型的推理档位，「实时输出」里已结束的调用。
    - [ ] 任务控制台在窄窗口和宽窗口、浅色和深色下的样子。
-5. 在停在 `origin/main` 的工作树里构建和打包（`node scripts/build.mjs`、`npm run release:pack`），把资源清单和上一个版本对比（11 个资源），用更新日志对应的一节作为发布说明（`npm run -s changelog:preview -- <版本>` 会打印出来），并确认远端的 `SHA256SUMS` 和主包的哈希与本地一致。
+5. 在停在 `origin/main` 的工作树里构建和打包（`node scripts/build.mjs`、`npm run release:pack`），把资源清单和上一个版本对比（11 个插件资源；桌面版流程补上 8 个后共 19 个），用更新日志对应的一节作为发布说明（`npm run -s changelog:preview -- <版本>` 会打印出来），并确认远端的 `SHA256SUMS` 和主包的哈希与本地一致。
+   推送 `v<版本>` 标签会同时启动 `release.yml`（11 个插件资源，几分钟）和 `release-desktop.yml`（8 个桌面版资源：`Setup.exe` 及其 `.sig`、`.msi`、`.zip`、桌面检索 `.zip`、两份 `SHA256SUMS-Desktop-*` 和更新清单 `latest.json`，约 20 分钟）。两个流程都把发布页建成或补成**草稿**，然后运行 `node scripts/release-publish.mjs --tag v<版本>`：19 个资源全部到齐才发布并标为 latest，后完成的那个流程负责发布。草稿不是 GitHub 的「latest」发布，所以桌面安装包和 `latest.json` 上传之前，任何 StudyHub 都不会提示这个版本（5.4.2 提早约 20 分钟提示了桌面版升级，一键更新因为缺 `latest.json` 失败）。某个流程失败时，发布页停在草稿：重跑它（`release-desktop.yml` 用 `workflow_dispatch`，填标签并打开 `publish_release`），或者手动补传缺的资源后自己运行 `node scripts/release-publish.mjs --tag v<版本>`；还缺资源时它会拒绝发布。只有确实要不带桌面版资源发布时才用 `gh release edit v<版本> --draft=false --latest`，并在发布说明里写明：在 `latest.json` 补上之前，桌面版一键更新会失败。
 6. 三个名字和会落后的渠道：查一下 `npm view @ericwang1358/dsh-daily-flashcard version`。这条发布流程只发布 GitHub 发布页，npm 要手动更新，所以 npm 的 `latest` 还停在上一个版本是正常的，不算发布失败；安装说明和两份 README 都以发布页为准。如果这次顺手也更新了 npm，在发布说明里写一句。
 
 ## 发布之后
