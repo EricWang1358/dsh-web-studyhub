@@ -2,10 +2,12 @@ import React, { useRef } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, Disclosure, Hint, InlineMessage } from './components/index.js';
+import { formatNumber } from './format.js';
 import { useCopyFeedback } from './use-copy-feedback.js';
 import {
   EXTERNAL_PDF_GUIDE_META,
   EXTERNAL_PDF_GUIDE_TITLE,
+  EXTERNAL_PDF_IMPORT_LIMITS,
   EXTERNAL_PDF_IMPORT_STEPS,
   EXTERNAL_PDF_IMPORT_TITLE,
   EXTERNAL_PDF_PRIVACY_NOTICE,
@@ -15,7 +17,7 @@ import {
 import css from './mineru.css';
 
 /* 「想用外部工具转换？」 + 「转换完成后怎么导入」 (#1765).
-   Shared across PDF conversion entry (PdfConversion), job detail (PdfDetail), and Settings (MineruPane).
+   Shared across PDF conversion entry (PdfConversion), failed-job detail (PdfDetail), and Settings (MineruPane).
    Plain copyable text URLs only: StudyHub never invokes third-party conversion APIs or proxies files. */
 
 function selectElementText(node) {
@@ -67,6 +69,26 @@ function ExternalToolRow({ tool }) {
   );
 }
 
+function StepBody({ step }) {
+  if (step.markerCode) {
+    return (
+      <p>
+        {ui(step.prefix)}{' '}
+        <code className="pdf-ext-guide__inline-code" translate="no">{step.markerCode}</code>{' '}
+        {ui(step.suffix)}{' '}
+        {uiFormat(step.limitsTemplate, [
+          EXTERNAL_PDF_IMPORT_LIMITS.textMb,
+          EXTERNAL_PDF_IMPORT_LIMITS.pdfPages,
+          formatNumber(EXTERNAL_PDF_IMPORT_LIMITS.selectionChars),
+          EXTERNAL_PDF_IMPORT_LIMITS.officeMb,
+        ])}
+      </p>
+    );
+  }
+  if (step.body) return <p>{ui(step.body)}</p>;
+  return null;
+}
+
 export default function PdfExternalConvertGuide({ defaultOpen = false, className, ...rest }) {
   useInjectCss(css, 'study-mineru');
   return (
@@ -94,7 +116,7 @@ export default function PdfExternalConvertGuide({ defaultOpen = false, className
           {EXTERNAL_PDF_IMPORT_STEPS.map(step => (
             <li key={step.id} className="pdf-ext-guide__step" data-guide-step={step.id}>
               <strong>{ui(step.title)}</strong>
-              {step.body && <p>{ui(step.body)}</p>}
+              <StepBody step={step} />
               {step.items && (
                 <ul className="pdf-ext-guide__troubles">
                   {step.items.map(item => (

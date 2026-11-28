@@ -5,6 +5,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { click, loadInteractiveUi, textOf, withBrowserGlobals } from './helpers/react-harness.mjs';
+import { TOOLS } from '../lib/large-documents.js';
 import {
   EXTERNAL_PDF_GUIDE_TITLE,
   EXTERNAL_PDF_IMPORT_TITLE,
@@ -14,11 +15,20 @@ import {
 } from '../ui/pdf-external-guide.js';
 
 /* Behavioral regression tests for #1765:
-   - External PDF conversion reference links (plain copyable text, no cloud API / baseUrl / API Key)
+   - External PDF conversion reference links sourced from lib/large-documents.js TOOLS (plain copyable text, no cloud API / baseUrl / API Key)
    - Explicit privacy & non-guarantee notice
-   - 3-step post-conversion import guide (verified formats, import entry, 3 failure modes)
+   - 3-step post-conversion import guide (verified formats + live limits + <code><!-- page: N --></code>, import entry, 3 failure modes)
+   - PdfDetail shows the guide ONLY for failed jobs (never while running or completed/done)
    - Interactive clipboard copy + fallback behavior when clipboard is unavailable or rejects
    - Documentation parity across docs/pdf-workflow.zh-CN.md and docs/pdf-workflow.md */
+
+// Pinned expected URL list (intentionally independent of EXTERNAL_PDF_TOOL_URLS so dropping/changing any tool fails immediately).
+const EXPECTED_URLS = Object.freeze([
+  'https://www.paddleocr.ai',
+  'https://github.com/datalab-to/marker',
+  'https://github.com/docling-project/docling',
+  'https://mathpix.com',
+]);
 
 const mod = await loadUi(`
   export { default as PdfExternalConvertGuide } from './ui/PdfExternalConvertGuide.jsx';
@@ -43,17 +53,33 @@ function render(element, language = 'zh') {
   }
 }
 
-const sampleJob = {
-  id: 'job-ext-1',
+const makeJob = (status = 'failed') => ({
+  id: `job-ext-${status}`,
   type: 'pdf-convert',
   route: 'local',
   filename: 'Textbook.pdf',
-  status: 'failed',
-  phase: 'local',
-  done: 0,
+  status,
+  phase: status === 'running' ? 'local' : status === 'failed' ? 'local' : 'done',
+  done: status === 'running' ? 40 : status === 'failed' ? 0 : 120,
   total: 120,
   env: { kind: 'local', mineruVersion: '4.0.10', tier: 'basic' },
-};
+});
+
+function extractRenderedUrls(html) {
+  return [...html.matchAll(/<code[^>]*class="pdf-ext-guide__url"[^>]*>([^<]+)<\/code>/g)].map(match => match[1]);
+}
+
+function assertExactPlainUrls(html, label) {
+  const renderedUrls = extractRenderedUrls(html);
+  assert.deepEqual(renderedUrls, EXPECTED_URLS, `${label}: renders the exact 4 pinned URLs in order`);
+  for (const url of renderedUrls) {
+    const parsed = new URL(url);
+    assert.equal(parsed.protocol, 'https:', `${label}: ${url} uses https:`);
+    assert.equal(parsed.search, '', `${label}: ${url} has no query parameters`);
+    assert.equal(parsed.hash, '', `${label}: ${url} has no fragment`);
+    assert.ok(!html.includes(`href="${url}"`), `${label}: does not render ${url} as an <a> link`);
+  }
+}
 
 function assertGuideInZh(html, label) {
   assert.match(html, new RegExp(EXTERNAL_PDF_GUIDE_TITLE), `${label}: renders heading`);
@@ -63,18 +89,19 @@ function assertGuideInZh(html, label) {
   assert.match(html, /不承诺/, `${label}: states no availability guarantee`);
   assert.match(html, new RegExp(EXTERNAL_PDF_IMPORT_TITLE), `${label}: renders 3-step import title`);
 
-  // 3-4 legitimate plain copyable URLs inside <code>, NOT anchor links or defunct MinerU cloud.
-  assert.ok(EXTERNAL_PDF_TOOLS.length >= 3 && EXTERNAL_PDF_TOOLS.length <= 4, 'canonical list has 3-4 tools');
-  for (const url of EXTERNAL_PDF_TOOL_URLS) {
-    assert.ok(html.includes(`>${url}</code>`), `${label}: renders ${url} as plain copyable <code>`);
-    assert.ok(!html.includes(`href="${url}"`), `${label}: does not render ${url} as an <a> link`);
-  }
+  assertExactPlainUrls(html, label);
   assert.doesNotMatch(html, /mineru\.net|type="password"|baseUrl|api[\s_-]?key|云端/i, `${label}: zero cloud/key/baseUrl fields`);
 
-  // Step 1: verified supported formats from lib/contexts/materials/files.js
+  // Step 1: verified supported formats + dynamic limits + <!-- page: N --> inside <code> (no font ligature)
   for (const ext of ['.md', '.txt', '.tex', '.html', '.docx', '.pptx', '.ppt', '.pdf', '.json']) {
     assert.ok(html.includes(ext), `${label}: step 1 mentions real supported format ${ext}`);
   }
+  assert.match(html, /<code[^>]*>&lt;!-- page: N --&gt;<\/code>/, `${label}: renders <!-- page: N --> inside <code>`);
+  assert.match(html, /8 MB/, `${label}: displays live text/PDF size limit`);
+  assert.match(html, /200 页/, `${label}: displays live PDF page limit`);
+  assert.match(html, /600,000 字符/, `${label}: displays live selection char limit`);
+  assert.match(html, /40 MB/, `${label}: displays live office/JSON size limit`);
+
   // Step 2: real import entry labels
   assert.match(html, /资料/, `${label}: step 2 mentions Sources page`);
   assert.match(html, /添加资料/, `${label}: step 2 mentions Add source button`);
@@ -92,19 +119,31 @@ function assertGuideInEn(html, label) {
   assert.match(html, /Want to convert with an external tool\?/, `${label}: renders English heading`);
   assert.match(html, /Uploading files to a third-party service is strictly between you and that service; StudyHub does not handle or store them\./, `${label}: renders English privacy notice`);
   assert.match(html, /How to import after conversion/, `${label}: renders English 3-step import title`);
-  for (const url of EXTERNAL_PDF_TOOL_URLS) {
-    assert.ok(html.includes(`>${url}</code>`), `${label}: renders ${url} in English mode`);
-    assert.ok(!html.includes(`href="${url}"`), `${label}: no anchor link for ${url} in English mode`);
-  }
+  assertExactPlainUrls(html, label);
+  assert.match(html, /<code[^>]*>&lt;!-- page: N --&gt;<\/code>/, `${label}: renders <!-- page: N --> inside <code> in English mode`);
+  assert.match(html, /8 MB/, `${label}: English displays live text/PDF size limit`);
+  assert.match(html, /200 pages/, `${label}: English displays live PDF page limit`);
+  assert.match(html, /600,000 characters/, `${label}: English displays live selection char limit`);
+  assert.match(html, /40 MB/, `${label}: English displays live office/JSON size limit`);
   assert.match(html, /Missing formulas/, `${label}: English step 3 covers missing formulas`);
   assert.match(html, /Scanned pages remain images/, `${label}: English step 3 covers image-only scans`);
   assert.match(html, /Non-UTF-8 encoding/, `${label}: English step 3 covers non-UTF-8 encoding`);
 }
 
-test('PdfConversion, PdfDetail (PdfConvertJob), and MineruPane all render the shared external guide once without cloud inputs (zh + en)', () => {
+test('external tool list is derived from lib/large-documents.js TOOLS and matches the pinned canonical HTTPS URLs', () => {
+  assert.deepEqual(EXTERNAL_PDF_TOOL_URLS, EXPECTED_URLS);
+  for (const tool of EXTERNAL_PDF_TOOLS) {
+    const canonical = TOOLS.find(entry => entry.id === tool.id);
+    assert.ok(canonical, `${tool.id} exists in lib/large-documents.js TOOLS`);
+    assert.equal(tool.name, canonical.name, `${tool.id} reuses canonical name from TOOLS`);
+    assert.ok(canonical.channels.some(ch => ch.url === tool.url), `${tool.id} URL comes from TOOLS.channels`);
+  }
+});
+
+test('PdfConversion, failed PdfDetail (PdfConvertJob), and MineruPane render the shared external guide once without cloud inputs (zh + en)', () => {
   const surfaces = [
     ['PdfConversion', h(mod.PdfConversion, { available: true, initialLocal: { state: 'ready', tier: 'basic' } })],
-    ['PdfDetail', h(mod.PdfDetail, { job: sampleJob })],
+    ['PdfDetail (failed)', h(mod.PdfDetail, { job: makeJob('failed') })],
     ['MineruPane (routes on)', h(mod.MineruPane, { capabilities: { audio: true } })],
     ['MineruPane (routes off)', h(mod.MineruPane, { capabilities: { audio: false } })],
   ];
@@ -116,6 +155,17 @@ test('PdfConversion, PdfDetail (PdfConvertJob), and MineruPane all render the sh
     const en = render(element, 'en');
     assert.equal((en.match(/data-pdf-external-guide=/g) || []).length, 1, `${label} (en): renders guide exactly once`);
     assertGuideInEn(en, label);
+  }
+});
+
+test('PdfDetail hides the external guide when job status is running, complete, or done', () => {
+  for (const status of ['running', 'complete', 'done']) {
+    const zh = render(h(mod.PdfDetail, { job: makeJob(status) }), 'zh');
+    assert.doesNotMatch(zh, /data-pdf-external-guide/, `PdfDetail (${status}): does not render external guide`);
+    assert.doesNotMatch(zh, new RegExp(EXTERNAL_PDF_GUIDE_TITLE), `PdfDetail (${status}): does not render guide title`);
+
+    const en = render(h(mod.PdfDetail, { job: makeJob(status) }), 'en');
+    assert.doesNotMatch(en, /data-pdf-external-guide/, `PdfDetail (${status}, en): does not render external guide`);
   }
 });
 
@@ -136,6 +186,7 @@ test('interactive copy button writes the exact URL to clipboard and shows copied
         ui.exports.setUiLanguage(lang);
         const mounted = ui.mount(() => ui.React.createElement(ui.exports.PdfExternalConvertGuide, { defaultOpen: true }));
         try {
+          const langCopied = [];
           for (const tool of EXTERNAL_PDF_TOOLS) {
             const btn = mounted.find(node => node.type === 'button' && node.props?.['data-copy-tool'] === tool.id);
             assert.ok(btn, `${lang}: copy button renders for ${tool.id}`);
@@ -145,10 +196,12 @@ test('interactive copy button writes the exact URL to clipboard and shows copied
             await mounted.act(async () => { await click(btn); });
             await mounted.flush();
 
+            langCopied.push(copied.at(-1));
             assert.equal(copied.at(-1), tool.url, `${lang}: clipboard received exact canonical URL for ${tool.id}`);
             const updatedBtn = mounted.find(node => node.type === 'button' && node.props?.['data-copy-tool'] === tool.id);
             assert.equal(textOf(updatedBtn).trim(), doneLabel, `${lang}: shows copied feedback for ${tool.id}`);
           }
+          assert.deepEqual(langCopied, EXPECTED_URLS, `${lang}: copied every pinned URL in order`);
         } finally {
           mounted.unmount();
         }
@@ -201,11 +254,11 @@ test('clipboard unavailable or rejecting falls back gracefully without throwing 
   });
 });
 
-test('docs/pdf-workflow.zh-CN.md and docs/pdf-workflow.md stay in sync with the canonical URLs, privacy notice, and 3-step guide', () => {
+test('docs/pdf-workflow.zh-CN.md and docs/pdf-workflow.md stay in sync with the pinned URLs, privacy notice, and 3-step guide', () => {
   const zhDoc = readFileSync('docs/pdf-workflow.zh-CN.md', 'utf8');
   const enDoc = readFileSync('docs/pdf-workflow.md', 'utf8');
 
-  for (const url of EXTERNAL_PDF_TOOL_URLS) {
+  for (const url of EXPECTED_URLS) {
     assert.ok(zhDoc.includes(`\`${url}\``), `zh doc lists plain-text URL ${url}`);
     assert.ok(enDoc.includes(`\`${url}\``), `en doc lists plain-text URL ${url}`);
   }

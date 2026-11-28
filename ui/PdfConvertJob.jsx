@@ -105,7 +105,7 @@ export function PdfDetail({ job, expandChunks, onChanged }) {
       {job.note && running && <Hint as="small">{uiMessage(job.note)}</Hint>}
       {running && job.local?.halved > 0 && <Hint as="small">{uiFormat('有窗口没有成功，已自动拆成更小的段重试（{0} 次）', [job.local.halved])}</Hint>}
       {(adaptive ? job.chunks?.length > 0 : count > 1 && job.chunks?.length > 1) && job.status !== 'complete' && <ChunkList chunks={job.chunks} index={index} count={count} running={running} expanded={expandChunks} adaptive={adaptive} next={adaptive && running ? job.local?.next : 0} />}
-      <PdfExternalConvertGuide />
+      {job.status === 'failed' && <PdfExternalConvertGuide />}
     </div>
   );
 }

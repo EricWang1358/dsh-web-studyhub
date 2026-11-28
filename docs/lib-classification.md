@@ -77,7 +77,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/job-model.js`: 3 ui files; contexts generation, materials; 4 other lib files
 - `lib/job-status.js`: 30 ui files; contexts audio, jobs, library; 5 other lib files
 - `lib/job-timing.js`: 1 ui file
-- `lib/large-documents.js`: 10 ui files; context generation; 6 other lib files
+- `lib/large-documents.js`: 11 ui files; context generation; 6 other lib files
 - `lib/learner.js`: 1 ui file; context coach; 5 other lib files
 - `lib/leech.js`: 3 ui files; context study; 2 other lib files
 - `lib/limits.js`: 6 ui files; contexts generation, materials, study; 12 other lib files

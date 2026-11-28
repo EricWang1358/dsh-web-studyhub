@@ -97,7 +97,7 @@ export const converterHandOffWhat = (scanned, canChat = true) => (canChat
     ? '复制提示词，方便你在外部 AI 工具里把这份扫描件转成文字后再导入'
     : '复制提示词，方便你在外部 AI 工具里把这份 PDF 按章拆分后再导入'));
 
-const PADDLEOCR_URL = 'https://www.paddleocr.ai';
+const PADDLEOCR_URL = byId('paddleocr').channels.find(channel => channel.kind === 'official').url;
 
 /** Option 2 for large PDFs: zero-install online conversion via PaddleOCR, with clear 3-step import instructions and privacy notice. */
 export function PaddleOcrOption() {
