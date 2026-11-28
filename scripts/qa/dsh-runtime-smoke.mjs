@@ -17,7 +17,7 @@ import YAML from "yaml";
 import { scrubProcessEnv, scrubSecrets } from "./env.mjs";
 import { launchChromium } from "./browser.mjs";
 import { createFakeOpenAI } from "./fake-openai.mjs";
-import { DSH_PROFILE, DSH_VERSION, FAKE_KEY_ENV, bootDsh, dshPatch, ensureDsh, resolveDshVersion, stopTree } from "./dsh-e2e.mjs";
+import { DSH_PROFILE, DSH_VERSION, FAKE_KEY_ENV, bootDsh, dshPatch, ensureDsh, openDsh, resolveDshVersion, stopTree } from "./dsh-e2e.mjs";
 import { MIGRATION_SWITCHES } from "../../lib/runtime-config.js";
 import { subtitleText, wav } from "../../tests/helpers/audio-fakes.mjs";
 
@@ -89,7 +89,7 @@ export async function runSmoke(options) {
     summary.consoleErrors = []; summary.pageErrors = [];
     page.on("console", (message) => { if (message.type() === "error") summary.consoleErrors.push(message.text().slice(0, 300)); });
     page.on("pageerror", (error) => summary.pageErrors.push(String(error?.message || error).slice(0, 300)));
-    await page.goto(dsh.url, { waitUntil: "networkidle" });
+    await openDsh(page, dsh.url);
     await page.locator(".study-app").first().waitFor({ timeout: 90000 });
     await sleep(2500);
     // The wire of the host's fetch RPC: the Study route takes {sessionId, action, args} as its payload, the host's own routes {args}.
@@ -222,11 +222,12 @@ export async function runSmoke(options) {
   } finally {
     gate.release();
     await browser?.close().catch(() => {});
-    stopTree(dsh?.child);
+    const stopped = await stopTree(dsh?.child);
     if (dsh) await writeFile(join(options.out, "dsh.log"), dsh.output().replace(/token=\S+/g, "token=…")).catch(() => {}); // the host's own output, to read for errors and warnings
     await model?.close().catch(() => {});
     await sleep(1500);
-    summary.stoppedCleanly = !dsh?.child || dsh.child.exitCode !== null || dsh.child.killed;
+    // stopTree waited for the exit itself; child.killed would only say a signal was sent
+    summary.stoppedCleanly = stopped.stopped;
     summary.touched = { dotDshUnchanged: JSON.stringify(before.dotDsh) === JSON.stringify(await listing(dotDsh)), mineruUnchanged: JSON.stringify(before.mineru) === JSON.stringify(await listing(join(homedir(), ".mineru"))) };
     summary.finishedAt = new Date().toISOString();
     summary.ok = !summary.fatal && summary.steps.every((item) => item.status === "ok") && summary.stoppedCleanly && summary.touched.dotDshUnchanged && summary.touched.mineruUnchanged;
