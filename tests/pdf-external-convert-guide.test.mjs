@@ -71,7 +71,9 @@ const sampleJob = {
   env: { kind: 'local', mineruVersion: '4.0.10', tier: 'basic' },
 };
 
-const rendered = html => [...html.matchAll(/<code[^>]*translate="no"[^>]*>([^<]*)<\/code>/g)].map(match => match[1]);
+const rendered = html => [...html.matchAll(/<code[^>]*class="pdf-ext-guide__url"[^>]*>([^<]*)<\/code>/g)].map(match => match[1]);
+/** The page marker as rendered: escaped, inside <code>, kept out of machine translation. */
+const MARKER_CODE = `<code translate="no">${PAGE_MARKER.replace('<', '&lt;').replace('>', '&gt;')}</code>`;
 
 function assertGuideInZh(html, label) {
   assert.match(html, new RegExp(EXTERNAL_PDF_GUIDE_TITLE), `${label}: renders heading`);
@@ -92,7 +94,7 @@ function assertGuideInZh(html, label) {
   // Step 1 quotes the limits from their homes, and the page marker sits in <code> (the arrow ligature of `-->` in the UI font).
   assert.ok(html.includes(`PDF 最多 ${LARGE_DOCUMENT_LIMITS.pdfPages} 页，提取出的文字最多 ${LARGE_DOCUMENT_LIMITS.selectionChars.toLocaleString('en-US')} 字符`), `${label}: pages and characters come from LARGE_DOCUMENT_LIMITS`);
   assert.ok(html.includes(`PDF 与文本最大 ${megabytes(MAX_TEXT_DOCUMENT_BYTES)} MB，Word / PPT / 转换 JSON 最大 ${megabytes(MAX_OFFICE_BYTES)} MB`), `${label}: sizes come from lib/office/limits.js`);
-  assert.ok(html.includes(`<code>${PAGE_MARKER.replace('<', '&lt;').replace('>', '&gt;')}</code>`), `${label}: page marker is inside <code>`);
+  assert.ok(html.includes(MARKER_CODE), `${label}: page marker is inside <code>`);
   // Step 1: verified supported formats from lib/contexts/materials/files.js
   for (const ext of ['.md', '.txt', '.tex', '.html', '.docx', '.pptx', '.ppt', '.pdf', '.json']) {
     assert.ok(html.includes(ext), `${label}: step 1 mentions real supported format ${ext}`);
@@ -119,7 +121,7 @@ function assertGuideInEn(html, label) {
     assert.ok(!html.includes(`href="${url}"`), `${label}: no anchor link for ${url} in English mode`);
   }
   assert.ok(html.includes(`PDF page limit: ${LARGE_DOCUMENT_LIMITS.pdfPages}; extracted text limit (characters): ${LARGE_DOCUMENT_LIMITS.selectionChars.toLocaleString('en-US')}`), `${label}: English limits come from LARGE_DOCUMENT_LIMITS`);
-  assert.ok(html.includes(`<code>${PAGE_MARKER.replace('<', '&lt;').replace('>', '&gt;')}</code>`), `${label}: English page marker is inside <code>`);
+  assert.ok(html.includes(MARKER_CODE), `${label}: English page marker is inside <code>`);
   assert.deepEqual(rendered(html), PINNED_URLS, `${label}: English mode prints exactly the approved addresses`);
   assert.match(html, /Missing formulas/, `${label}: English step 3 covers missing formulas`);
   assert.match(html, /Scanned pages remain images/, `${label}: English step 3 covers image-only scans`);
@@ -161,6 +163,7 @@ test('interactive copy button writes the exact URL to clipboard and shows copied
         ui.exports.setUiLanguage(lang);
         const mounted = ui.mount(() => ui.React.createElement(ui.exports.PdfExternalConvertGuide, { defaultOpen: true }));
         try {
+          const copiedHere = copied.length;
           for (const tool of EXTERNAL_PDF_TOOLS) {
             const btn = mounted.find(node => node.type === 'button' && node.props?.['data-copy-tool'] === tool.id);
             assert.ok(btn, `${lang}: copy button renders for ${tool.id}`);
@@ -174,6 +177,7 @@ test('interactive copy button writes the exact URL to clipboard and shows copied
             const updatedBtn = mounted.find(node => node.type === 'button' && node.props?.['data-copy-tool'] === tool.id);
             assert.equal(textOf(updatedBtn).trim(), doneLabel, `${lang}: shows copied feedback for ${tool.id}`);
           }
+          assert.deepEqual(copied.slice(copiedHere), PINNED_URLS, `${lang}: copied every pinned address, in order`);
         } finally {
           mounted.unmount();
         }
@@ -230,6 +234,10 @@ test('docs/pdf-workflow.zh-CN.md and docs/pdf-workflow.md stay in sync with the 
   const zhDoc = readFileSync('docs/pdf-workflow.zh-CN.md', 'utf8');
   const enDoc = readFileSync('docs/pdf-workflow.md', 'utf8');
 
+  for (const url of PINNED_URLS) {
+    assert.ok(zhDoc.includes(`\`${url}\``), `zh doc lists the pinned plain-text address ${url}`);
+    assert.ok(enDoc.includes(`\`${url}\``), `en doc lists the pinned plain-text address ${url}`);
+  }
   for (const [language, doc] of [['zh', zhDoc], ['en', enDoc]]) {
     mod.setUiLanguage(language);
     try {
@@ -294,7 +302,7 @@ test('the guide has no second copy of a limit: no hard-coded 8 MB / 40 MB / 200 
 test('PaddleOCR option (LargeDocumentCard) and guide step 1 say the same download line, and the option takes its address from the catalogue', () => {
   const option = render(h(mod.PaddleOcrOption), 'zh');
   const guide = render(h(mod.PdfExternalConvertGuide, { defaultOpen: true }), 'zh');
-  const line = `解析完成后，下载 JSON 结果文件（或带 <code>&lt;!-- page: N --&gt;</code> 页码标记的 Markdown）`;
+  const line = `解析完成后，下载 JSON 结果文件（或带 ${MARKER_CODE} 页码标记的 Markdown）`;
   assert.ok(option.includes(line), 'option says it');
   assert.ok(guide.includes(line), 'guide step 1 says it the same way');
   assert.ok(option.includes(`href="${TOOLS.find(tool => tool.id === 'paddleocr').channels[0].url}"`), 'the option links the catalogue address');

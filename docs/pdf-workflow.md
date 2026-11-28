@@ -39,7 +39,7 @@ If you prefer not to install a local conversion engine, or want to convert a PDF
 > **Privacy and boundary**: Uploading files to a third-party service is strictly between you and that service; StudyHub does not handle or store them. StudyHub does not invoke these tools, does not transmit your files, and makes no guarantee of third-party availability.
 
 - **PaddleOCR Online**: `https://www.paddleocr.ai` — Apache-2.0 · Web (no install) · JSON, Markdown
-- **Marker**: `https://github.com/datalab-to/marker` — Apache-2.0 (model weights: modified OpenRAIL-M) · Windows / macOS / Linux · Markdown (--paginate_output), JSON
+- **Marker**: `https://github.com/datalab-to/marker` — Apache-2.0 (model weights: modified AI Pubs Open Rail-M) · Windows / macOS / Linux · Markdown (--paginate_output), JSON
 - **Docling**: `https://github.com/docling-project/docling` — MIT · Windows / macOS / Linux · JSON (DoclingDocument), Markdown
 - **Mathpix**: `https://mathpix.com` — Proprietary (commercial service) · Web (no install) · Markdown (.md), LaTeX (.tex)
 

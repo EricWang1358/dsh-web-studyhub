@@ -39,7 +39,7 @@ export const toolMetaLine = tool => [ui(tool.license), tool.platforms.map(platfo
 
 /** What to download once a converter is done: the one line the PaddleOCR option (LargeDocumentCard) and step 1 below both say. */
 export function ConvertedFileFormats() {
-  return <>{ui('解析完成后，下载 JSON 结果文件（或带')}{' '}<code>{PAGE_MARKER}</code>{' '}{ui('页码标记的 Markdown）')}</>;
+  return <>{ui('解析完成后，下载 JSON 结果文件（或带')}{' '}<code translate="no">{PAGE_MARKER}</code>{' '}{ui('页码标记的 Markdown）')}</>;
 }
 
 /** Step 1: the file to download, the formats StudyHub reads and its limits (the same sentence and constants the import hub's drop area uses). */

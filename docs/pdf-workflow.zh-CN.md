@@ -39,7 +39,7 @@ StudyHub 保存的内容：
 > **隐私与边界说明**：文件上传到第三方属于你与该服务之间的事，本产品不经手、不保存。StudyHub 不内置调用、不代传文件、不承诺第三方服务的可用性。
 
 - **PaddleOCR 在线解析**：`https://www.paddleocr.ai` — Apache-2.0 · 网页端（免安装） · JSON, Markdown
-- **Marker**：`https://github.com/datalab-to/marker` — Apache-2.0 (model weights: modified OpenRAIL-M) · Windows / macOS / Linux · Markdown (--paginate_output), JSON
+- **Marker**：`https://github.com/datalab-to/marker` — Apache-2.0 (model weights: modified AI Pubs Open Rail-M) · Windows / macOS / Linux · Markdown (--paginate_output), JSON
 - **Docling**：`https://github.com/docling-project/docling` — MIT · Windows / macOS / Linux · JSON (DoclingDocument), Markdown
 - **Mathpix**：`https://mathpix.com` — Proprietary (commercial service) · 网页端（免安装） · Markdown (.md), LaTeX (.tex)
 
