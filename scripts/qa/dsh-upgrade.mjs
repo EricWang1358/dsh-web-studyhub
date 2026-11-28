@@ -21,7 +21,7 @@ import YAML from "yaml";
 import { scrubSecrets, scrubProcessEnv } from "./env.mjs";
 import { launchChromium } from "./browser.mjs";
 import { createFakeOpenAI } from "./fake-openai.mjs";
-import { dshPatch, DSH_VERSION, FAKE_KEY_ENV } from "./dsh-e2e.mjs";
+import { dshPatch, DSH_VERSION, FAKE_KEY_ENV, openDsh, stopTree } from "./dsh-e2e.mjs";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const PROFILE = "studyhub-upgrade";
@@ -93,23 +93,25 @@ async function fakeGithub(port, packagePath, packageName) {
   return { origin, log, sha: sha256(bytes), close: () => new Promise((done) => server.close(done)) };
 }
 
-function stopTree(child) {
-  if (!child || child.exitCode !== null) return;
-  if (process.platform === "win32") spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true });
-  else child.kill("SIGTERM");
-}
 async function bootDsh(bin, { env, cwd, patch, port }) {
   const child = spawn(process.execPath, [bin, "--profile", PROFILE, "--patch", patch, "--port", String(port), "--no-open"],
     { cwd, env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
   let output = "";
-  const url = await new Promise((done, fail) => {
-    const timer = setTimeout(() => fail(new Error(`DSH did not print its URL within 180 s:\n${output.slice(-2000)}`)), 180000);
-    const read = (chunk) => { output += chunk; const match = output.match(/http:\/\/127\.0\.0\.1:\d+\/\?token=\S+/); if (match) { clearTimeout(timer); done(match[0]); } };
-    child.stdout.on("data", read);
-    child.stderr.on("data", read);
-    child.once("exit", (code) => { clearTimeout(timer); fail(new Error(`DSH exited (${code}) before it was ready:\n${output.slice(-2000)}`)); });
-  });
-  return { child, url, output: () => output };
+  try {
+    const url = await new Promise((done, fail) => {
+      const timer = setTimeout(() => fail(new Error(`DSH did not print its URL within 180 s:\n${output.slice(-2000)}`)), 180000);
+      const read = (chunk) => { output += chunk; const match = output.match(/http:\/\/127\.0\.0\.1:\d+\/\?token=\S+/); if (match) { clearTimeout(timer); done(match[0]); } };
+      child.stdout.on("data", read);
+      child.stderr.on("data", read);
+      child.once("exit", (code) => { clearTimeout(timer); fail(new Error(`DSH exited (${code}) before it was ready:\n${output.slice(-2000)}`)); });
+    });
+    return { child, url, output: () => output };
+  } catch (error) {
+    // the caller never gets this host back: stop it here, or its piped stdio keeps the script alive
+    const stopped = await stopTree(child);
+    if (!stopped.stopped) error.message += `\n(the host, PID ${stopped.pid}, is still running)`;
+    throw error;
+  }
 }
 
 /** Bring the StudyHub page up: it opens by itself, offers 新建会话 without a session, or sits behind its sidebar entry. */
@@ -126,7 +128,7 @@ async function ensureStudy(page) {
   await sleep(2500);
 }
 async function openStudy(page, url) {
-  await page.goto(url, { waitUntil: "networkidle" });
+  await openDsh(page, url);
   await sleep(1500);
   for (let i = 0; i < 4; i++) {
     const next = page.getByRole("button", { name: /^(继续|稍后配置|跳过|Continue|Configure later|Skip)$/ });
@@ -238,8 +240,9 @@ export async function runUpgradeProof(options) {
     });
     await step("restart-dsh", async () => {
       await context.close();
-      stopTree(dsh.child);
+      const stopped = await stopTree(dsh.child);
       logs.push(dsh.output());
+      if (!stopped.stopped) { summary.hostStillRunning = stopped.pid; throw new Error(`the host (PID ${stopped.pid}) did not stop, so it cannot be restarted on port ${options.port}`); }
       await sleep(2000);
       dsh = await bootDsh(options.dshBin, { env: dshEnv, cwd: workspace, patch, port: options.port });
     });
@@ -260,13 +263,14 @@ export async function runUpgradeProof(options) {
   } finally {
     if (feed) summary.feedRequests = feed.log;
     await browser?.close().catch(() => {});
-    stopTree(dsh?.child);
+    const stopped = await stopTree(dsh?.child);
+    if (!stopped.stopped) summary.hostStillRunning = stopped.pid;
     if (dsh) logs.push(dsh.output());
     await model?.close();
     await feed?.close();
     await writeFile(join(options.out, "dsh.log"), logs.join("\n----- restart -----\n").replace(/token=\S+/g, "token=…"));
     summary.finishedAt = new Date().toISOString();
-    summary.ok = !summary.error && summary.steps.every((item) => item.status === "ok");
+    summary.ok = !summary.error && summary.steps.every((item) => item.status === "ok") && summary.hostStillRunning === undefined;
     await writeFile(join(options.out, "summary.json"), JSON.stringify(summary, null, 2) + "\n");
   }
   return summary;
