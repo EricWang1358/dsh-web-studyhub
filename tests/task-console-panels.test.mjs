@@ -67,13 +67,13 @@ test('the timeline: a lane per file in order, a dashed wait on the file whose sl
   assert.match(html(React.createElement(m.Timeline, { calls: [], running: true, family: 'audio', onSelect: () => {} })), /还没有模型调用/);
 });
 
-test('the list of calls in flight shows what runs, for how long and by whom; an ended job says there is nothing', () => {
+test('the list of calls in flight shows what runs, for how long and by whom, and says when nothing is in flight', () => {
   const contract = contractOf(audioJob());
   const out = html(React.createElement(m.RunningCalls, { calls: contract.calls, active: true, selected: null, onSelect: () => {} }));
   assert.equal((out.match(/data-call-id=/g) || []).length, 1, 'only the call that is running');
   assert.match(out, /校对 2\/4 · b\.mp3/);
   assert.match(out, /DSH 子代理 · 推理 高/);
-  assert.match(html(React.createElement(m.RunningCalls, { calls: [], active: false, onSelect: () => {} })), /任务已经结束，没有正在进行的调用/);
+  assert.match(html(React.createElement(m.RunningCalls, { calls: [], onSelect: () => {} })), /现在没有正在进行的调用/);
 });
 
 test('the files: a row per recording with its three bars, a 实为 WAV badge on its own row, and a fixed strip for the one picked', () => {

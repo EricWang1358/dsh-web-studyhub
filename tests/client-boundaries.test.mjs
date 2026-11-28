@@ -214,6 +214,7 @@ test('generated native modules resolve through classic chunk factories and share
   for (const [entryPoint, verify] of [
     ['ui/desk-atelier/DeskAtelierPanel.jsx', module => assert.equal(typeof module.default, 'function')],
     ['ui/desk-atelier/DeskChimeDialog.jsx', module => assert.equal(typeof module.default, 'function')],
+    // 极简模式 stops a playing soundscape through a dynamic import of the engine (ui/desk-atelier/DeskAtelierButton.jsx).
     ['ui/desk-atelier/soundscape-engine.js', module => {
       assert.equal(typeof module.startSoundscape, 'function');
       assert.equal(typeof module.stopSoundscape, 'function');

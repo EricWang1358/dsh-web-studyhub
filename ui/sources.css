@@ -28,7 +28,15 @@
     .sources-filter__figures { display: inline-grid; justify-items: end; }
     .sources-filter__figures > *, .sources-filter__figures::after { grid-area: 1 / 1; }
     .sources-filter__figures::after { content: attr(data-widest); visibility: hidden; }
-    .sources-view-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: 0 0 var(--space-3); }
+    /* 「筛选与分组」 (#1694): on the search box's line, as tall as the box; the line that says a filter is in use, and what it opens, follow the form. */
+    .sources-toolbar > .sources-tools-anchor { grid-column: 3; justify-self: start; align-self: stretch; display: flex; }
+    .sources-tools-anchor > .sources-tools-toggle { min-height: 0; color: var(--text); }
+    .sources-tools-said { margin: 0 0 var(--space-3); }
+    .sources-tools { min-width: 0; }
+    /* One row, one height (#1694): the controls on one line stretch to the tallest (a standard button is taller on a narrow pane, for a finger); the segmented
+       control and the sort field are never shorter than a standard button. */
+    .sources-view-bar { display: flex; flex-wrap: wrap; align-items: stretch; gap: var(--space-2) var(--space-3); margin: 0 0 var(--space-3); }
+    .sources-view-bar :is(.sources-view-bar__group, .sources-view-bar__sort) { box-sizing: border-box; min-height: var(--control-h, 40px); }
     .sources-facets { margin: 0 0 var(--space-3); }
     .sources-view-bar__sort { flex: 0 0 auto; width: auto; min-width: 8.5em; }
     .source-groups { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
@@ -159,6 +167,9 @@
       .source-doc:hover { background: var(--bg-hover); }
     }
   }
+  /* A pane too narrow for the words beside the course (.is-tight, ui/Sources.jsx TOOLS_TIGHT): the button is its icon; its name is still read out, and its hover
+     says it. */
+  :is(.study-app, .study-seat) .sources-page.is-tight .sources-tools-toggle__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   /* A narrow 资料 page (.is-narrow: Sources.jsx measures the page's own column against ROWS_NARROW, the one place the width is decided, #1083): the facts break
      in two (courses over format), a row's actions take their own line under its status line, and the index badge says its pages without the scope word. */
   :is(.study-app, .study-seat) .sources-page.is-narrow {

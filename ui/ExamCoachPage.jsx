@@ -485,7 +485,7 @@ export default function ExamCoachPage({
 
       <div className="exam-coach-toolbar">
         <div className="exam-coach-course-row">
-          <Field label={ui('当前课程')} inline width="sm">
+          <Field label={ui('课程范围')} inline>
             <Select options={courseOptions} value={course} onChange={handleCourseChange} />
           </Field>
           {spec && (

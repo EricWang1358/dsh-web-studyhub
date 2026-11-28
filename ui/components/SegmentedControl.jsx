@@ -14,7 +14,7 @@ const ITEMS = ':scope > .sh-seg__item';
  * (and any browser before mount) fills the active item itself, and once the
  * thumb is measured it takes over without a visible jump. Arrow keys move
  * focus along the row (roving tab stop); Enter and Space select.
- * options: [{ value, label, icon?, title?, disabled? }]
+ * options: [{ value, label, icon?, title?, disabled?, attrs? }] (`attrs` is spread on that option's button, e.g. data-tour, as in Tabs).
  * size: md | sm | xs. fill: full width, equal segments. wrap: long labels may
  * run over lines. stack: becomes a column when its container is narrow.
  */
@@ -116,7 +116,7 @@ export default function SegmentedControl({ label, value, options = [], onChange,
         return (
           <button type="button" key={option.value} className={cx('sh-seg__item', itemClassName, active && 'is-active')} aria-pressed={active}
             tabIndex={index === tabStop ? 0 : -1} title={option.title} disabled={disabled || option.disabled}
-            onClick={() => { if (!active) onChange?.(option.value); }}>
+            onClick={() => { if (!active) onChange?.(option.value); }} {...option.attrs}>
             {option.icon ? <Icon name={option.icon} size={16} className={iconClassName} /> : null}{option.label}
           </button>
         );

@@ -1,6 +1,6 @@
 {
   "name": "@ericwang1358/studyhub-desktop",
-  "version": "5.4.0",
+  "version": "5.4.1",
   "private": true,
   "type": "module",
   "description": "StudyHub Desktop: standalone Tauri v2 desktop edition of StudyHub.",

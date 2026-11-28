@@ -163,8 +163,10 @@
     .question-area[data-bar-stuck="true"] > :is(a[href], :enabled, summary, [tabindex], [contenteditable]):not(.review-sticky-bar) {
       scroll-margin-bottom: calc(var(--review-bar-room) + var(--space-1));
     }
-    .review-undo {
-      color: var(--accent-text);
+    /* The same for a flipped flashcard's grade row, stuck to the bottom over the card (#1678, question.css .flash-follow.is-grading): the card's own
+       controls (the face, its links, the header's) stop above the row's measured height; the row's buttons are left out, they are the row. */
+    .question-area[data-grades-stuck="true"]:not([data-grades-in-flow]) :is(a[href], :enabled, summary, [tabindex], [contenteditable]):not(.flash-follow *) {
+      scroll-margin-bottom: calc(var(--grade-row-room) + var(--space-1));
     }
     .post-answer-more {
       margin-top: var(--space-4);

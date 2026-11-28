@@ -43,6 +43,27 @@ test("花费 finds 花费上限 first, and an English UI user can type the Engli
   } finally { setUiLanguage("zh"); }
 });
 
+test("出题深度 became 写法: the old name and the new options still find it (#1686)", () => {
+  setUiLanguage("zh");
+  assert.equal(FINDER_ENTRIES.find((entry) => entry.id === "generation-depth").title, "写法");
+  for (const word of ["出题深度", "写法", "直接问", "短情境", "先设计再写"]) assert.equal(ids(word)[0], "generation-depth", word);
+  assert.equal(ids("快问")[0], "generation-preset", "the presets keep their names");
+});
+
+test("资料's type and category filters are said to be where they are, behind its 「筛选与分组」 button (#1694)", () => {
+  const { what } = FINDER_ENTRIES.find((entry) => entry.id === "material-facets");
+  try {
+    for (const language of ["zh", "en"]) {
+      setUiLanguage(language);
+      // 找功能 answers 类型 with this entry and with the 资料 page's own one: both name the button the filters are behind.
+      for (const id of ["material-facets", "material-view"]) assert.ok(ids("类型", english).concat(ids("内容分类", english)).includes(id), `${language}: ${id}`);
+      const said = ui(what).split(language === "zh" ? "。" : /\. /).filter((sentence) => sentence.includes(language === "zh" ? "「资料」页" : "Sources page"));
+      assert.equal(said.length, 1, `${language}: one sentence about the 资料 page`);
+      assert.ok(said[0].includes(ui("筛选与分组")), `${language}: it names ${ui("筛选与分组")}: ${said[0]}`);
+    }
+  } finally { setUiLanguage("zh"); }
+});
+
 test("an old name or a synonym still finds the entry; a page is found by its sidebar label", () => {
   assert.equal(ids("双语")[0], "translation");
   assert.equal(ids("导览")[0], "tour");

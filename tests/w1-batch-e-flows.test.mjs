@@ -355,6 +355,11 @@ test('W1-25: Sources decouples organize error close from dismissOrganizeProposal
       hI(ui.exports.AppContext.Provider, { value: { language: 'zh', data, host: {}, canChat: false, core: { call, act, busy: false, notify: noop } } },
         hI(ui.exports.Sources, { data, onOpenSource: noop }))));
     try {
+      // The organizer is behind 「筛选与分组」.
+      const toolsBtn = view.find((n) => n.type === 'button' && n.props?.['data-tour'] === 'sources-tools');
+      assert.ok(toolsBtn, '筛选与分组 rendered');
+      await view.act(() => click(toolsBtn));
+
       // Select current scope and load proposals via Jev suggest
       const selectAllBtn = view.find((n) => n.type === 'button' && ui.textOf(n).includes('选择当前范围'));
       assert.ok(selectAllBtn, 'select scope button rendered');

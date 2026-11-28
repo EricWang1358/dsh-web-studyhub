@@ -18,9 +18,6 @@
     /* 简洁版 leaves out the strip between the day's work and 待发布: the desk's rule is then the one divider, not two lines 40px apart. */
     .desk.is-lite + .home-drafts { border-top: 0; }
     /* ── 创建题组 ─────────────────────────────────────────────────────────── */
-    .generate-page .source-mode { margin-top: var(--space-5); }
-    .generate-page .source-tab strong { display: flex; align-items: center; gap: var(--space-2); }
-    .generate-page .source-tab small { font-size: var(--fs-sm); }
     .generate-page .generate-panel { margin-top: var(--space-3); }
     .generate-page .generate-header { margin-bottom: var(--space-3); }
     /* Two steps on one page: the rule above a step and the room under it are one rhythm, not the 52px of a bare fieldset. */
@@ -73,23 +70,16 @@
 
 @layer study.features {
   :is(.study-app, .study-seat) {
-    /* The way-in tabs of 创建题组 are the shared <Tabs>: one compact row of the three titles (ui-consistency #144, #575): the first screen holds the path, not three cards. Each tab keeps its
-       note for a screen reader (clipped, not removed); on a narrow pane the chosen way's line is shown once under the row. Tokens only. */
-    .generate-page .source-mode { display: flex; flex-wrap: wrap; gap: var(--space-1); margin: 0; }
-    .generate-page .source-mode > .source-tab { flex: 0 1 auto; align-items: center; justify-content: center; padding: var(--space-2) var(--space-4); border-radius: var(--radius-sm); font-size: var(--fs-md); text-align: center; }
-    .generate-page .source-mode > .source-tab .sh-tab__label { font-weight: var(--fw-medium); color: var(--text); }
-    .generate-page .source-mode > .source-tab .source-tab__note { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-    .generate-page .source-mode > .source-tab.is-active { background: var(--bg-selected); border-color: var(--line-strong); }
+    /* The ways in of 创建题组 are the shared SegmentedControl (#1700, #575): its look is its own, this sheet only places the row. Tokens only. */
     /* The row is its own container: it is that width, not the window's (the sidebar may be open or folded), that decides when the chosen way's line is shown under it. The row's margins are the frame's, so
        they still collapse with the heading above and the panel below. */
     .generate-page .source-mode-frame { container: generate-ways / inline-size; margin: var(--space-3) 0 var(--space-2); }
-    /* The chosen way's line under a narrow row (#575); a wide row says it in each tab's note, for a screen reader. */
+    /* The chosen way's line under a narrow row (#575); on a wide row it only describes the group, for a screen reader. */
     .generate-page .source-mode-note { display: none; }
   }
-  /* A narrow pane (#575): the chosen way's line is shown once under the row (each tab keeps its note for a screen reader). */
+  /* A narrow pane (#575): the chosen way's line is shown once under the row. */
   @container generate-ways (max-width: 38rem) {
     :is(.study-app, .study-seat) {
-      .generate-page .source-mode > .source-tab { flex: 1 1 auto; padding: var(--space-2); font-size: var(--fs-sm); }
       .generate-page .source-mode-note {
         display: block;
         margin: var(--space-2) 0 0;

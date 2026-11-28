@@ -53,7 +53,7 @@ test('a waiting sample is the 总纲 line\'s one action: 生成其余 N 个; 重
   // The estimate's parts are spans (ui/TokenUsage.jsx summaryParts) and textOf turns a tag into a space, so one may sit after the colon.
   assert.match(text, /生成其余：\s?预计 1\.2M–2\.4M tok · 76–120 次模型调用/);
   assert.match(text, /按现在的并行 4 个，大约 18–31 分钟/);
-  assert.match(text, /整本比较费：可以把资料交给网页版 AI 生成后导入，或者用 opencode \/ commandcode 这类套餐再生成/);
+  assert.match(text, /整本比较费：可以只挑几章生成，或者把资料交给网页版 AI 生成后导入/);
   assert.match(text, /重做样例/);
   assert.match(text, /改了讲解详尽程度或样卷以后，按新的设置只重写这 2 个知识点/, 'the hover of 重做样例');
   assert.doesNotMatch(text, /更新全书/, 'one way on: the sample\'s');
@@ -83,6 +83,14 @@ test('the scale without the provider\'s usage: points, calls and time, no token 
   const linked = render(h(ui.BookSample, { sample: sample(), coverage: 'standard', onRest: noop, onRedo: noop, onOpen: point => opened.push(point) }));
   assert.equal(buttons(linked).filter(item => /Entropy|Enthalpy/.test(item.textContent)).length, 2);
 });
+
+test('English: the sample names the setting by the label on the page (one fact, one wording)', () => english(() => {
+  const changed = textOf(page(notesLine({ sample: sample() }), { coverage: 'full' }));
+  assert.match(changed, /Explanation depth/, 'the setting\'s visible label');
+  assert.match(changed, /The explanation depth is now/, 'the changed-settings line says the same words');
+  assert.match(changed, /After changing the explanation depth or the sample papers/, 'and so does the hover of Redo the sample');
+  assert.doesNotMatch(changed, /detail level/i, 'no other name for it');
+}));
 
 test('English: the same card without a Chinese character', () => english(() => {
   const html = page(notesLine({ sample: sample() }));

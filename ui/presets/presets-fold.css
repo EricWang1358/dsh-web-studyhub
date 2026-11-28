@@ -2,7 +2,7 @@
 
 @layer study.features {
   :is(.study-app, .study-seat) {
-    /* 出题深度 and the matrix of rough costs in 更多选项 (ui/presets/PresetsFold.jsx, loaded after the first screen). Injected by the components (useInjectCss
+    /* 写法 and the matrix of rough costs in 更多选项 (ui/presets/PresetsFold.jsx, loaded after the first screen). Injected by the components (useInjectCss
        'study-presets-fold'). Tokens only; the matrix keeps to the pane at 320 px (four short columns, no 「约」 in its cells). */
     .presets-depth { display: grid; gap: var(--space-2); min-width: 0; justify-items: start; }
     .presets-depth__choice { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); min-width: 0; }

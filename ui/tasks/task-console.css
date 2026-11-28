@@ -168,7 +168,17 @@
       min-width: 0;
     }
     .tc-detail > * { flex: none; }
-    .tc-detail > .tc-body { flex: 1 1 0; }
+    .tc-detail > :is(.tc-body, .tc-ended) { flex: 1 1 0; }
+    /* An ended task (TaskBody.jsx, #1691): what it made, then the closed 运行记录. The two scroll as one when the record is open. */
+    .tc-ended { display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow-y: auto; }
+    .tc-ended > .tc-ended__made { flex: 1 0 14rem; overflow: hidden; }
+    .tc-record { flex: none; border-top: 1px solid var(--line); }
+    .tc-record > summary { padding-inline: var(--space-5); font-size: var(--fs-sm); }
+    .tc-record .tc-record__body { padding: 0; border-top: 1px solid var(--line-soft); }
+    /* The record keeps its own heights and the pane above scrolls: the timeline as tall as it is, the panel under it as tall as a panel of a running task. */
+    .tc-record .tc-record__col { height: auto; overflow: visible; }
+    .tc-record__col > .tc-panel { flex: none; height: 30rem; }
+    .tc-result { margin: 0; padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--line); background: var(--bad-bg); color: var(--bad-ink); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     /* The title keeps 16rem; when the actions of a task (a long label such as the top-up in English, a round control) would take it below that, they wrap onto a second row on the right instead of squeezing the name. */
     .tc-head { flex-wrap: wrap; height: auto; min-height: 44px; row-gap: var(--space-1); padding: var(--space-1) var(--space-5); }
     /* The name of the task over its one line of facts (not beside it: the facts took the room and the name was cut to three letters); each is cut with an ellipsis, the actions never are. */
@@ -509,7 +519,7 @@
       .tc:not([data-empty='all']) { overflow-y: auto; }
       .tc-main { flex: 1 0 auto; }
       .tc-list { height: 0; min-height: 100%; }
-      .tc-detail > .tc-body { flex: 1 0 14rem; min-height: 14rem; }
+      .tc-detail > :is(.tc-body, .tc-ended) { flex: 1 0 14rem; min-height: 14rem; }
       .tc-body { grid-template-rows: minmax(14rem, 1fr); }
       .tc-panel { min-height: 14rem; }
     }
@@ -528,9 +538,11 @@
       .tc-list > .tc-scroll { flex: none; max-height: 220px; }
       .tc-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .tc-metric--progress { grid-column: 1 / -1; border-bottom: 1px solid var(--line-soft); }
-      .tc-detail > .tc-body { flex: none; min-height: 0; }
+      .tc-detail > :is(.tc-body, .tc-ended) { flex: none; min-height: 0; }
       .tc-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
       .tc-col { height: 440px; }
+      /* Stacked, what an ended task made keeps the height of a column too (its flex basis would crush it to 14rem). */
+      .tc-ended > .tc-ended__made { flex: none; }
       .tc-panel { min-height: 0; }
       .tc-col + .tc-col { border-inline-start: 0; border-top: 1px solid var(--line); }
       .tc-head { height: auto; min-height: 44px; flex-wrap: wrap; row-gap: var(--space-2); padding-block: var(--space-2); }

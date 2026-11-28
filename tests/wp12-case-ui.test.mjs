@@ -217,7 +217,7 @@ test("创建题组 offers 案例分析题, and its form starts with the course, 
     openDraft: noop, setPage: noop, setNotice: noop, setGenSource: noop, gen: { kind: "quiz", count: 5, difficulty: "mixed", language: "中文" }, setGen: noop,
     selectedSources: [], setSelectedSources: noop, setModal: noop, askInChat: noop, openModelSettings: noop };
   const tabs = render(Generate, { ...props, genSource: "files" });
-  assert.match(tabs, /role="tab"[^>]*>[^]*?案例分析题/);
+  assert.match(tabs, /<button[^>]*data-tour="generate-case"[^>]*>案例分析题<\/button>/);
   const form = render(Generate, { ...props, genSource: "case" });
   assert.match(form, /data-tour="case-create"/);
   assert.match(form, /用资料出新案例[\s\S]*仿照真题出题[\s\S]*粘贴题目直接批改/);

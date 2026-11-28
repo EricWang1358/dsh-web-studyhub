@@ -7,6 +7,7 @@ import {
   ABORT, captureContext as captureOrigin, currentStudyReference as referenceOf, leavesTrail, loadLearningTarget, loadReturnTarget,
   openLearningTarget as openTarget, openReturnTarget, practiceArgs, returnTargetFor, withoutSelfReturn,
 } from '../learning-navigation.js';
+import { ARRIVAL_WAIT_MS, focusOnArrival } from './arrival-focus.js';
 import {
   capturePracticeFrame, clearLastPracticePosition, originKindForDestination, peekPracticeFrame, popPracticeFrame, popToOriginalFrame,
   pushPracticeFrame, readLastPracticePosition, restorePracticeFrame, rootPracticeFrame, saveLastPracticePosition,
@@ -427,24 +428,36 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
     setModal({ type: 'source', source, resume: { at: Math.max(0, Number(offset) || 0), sectionOffset: 0, scrollTop: 0, progress: 0, nonce: Date.now() } });
   }, [notify, refs, setModal]);
 
-  // After an arrival, the heading (or the control the learner came from) takes focus.
+  // After an arrival, the heading (or the control the learner came from) takes focus. On a page with a question run it is the question card, where the
+  // practice page keeps its focus (Esc comes back to it, and it keeps the focus through a flashcard's flip): also when the arrival did not change the page
+  // (#1679: 回到题目 from the drawer while the question is on screen, where the focus would otherwise stay on the drawer's button and Space reopen it).
+  // Not while the page on screen is still lifting away (nav.pageTarget): its heading would take the focus and drop it to the body as it goes.
   const focusRequest = lib.state.focusRequest;
+  // A request is for one arrival: it stays in the state, so a page change long after it must not start the wait again (it took the focus from the tour).
+  const asked = useRef({ request: null, at: 0 });
   useEffect(() => {
-    if (!focusRequest) return undefined;
-    const frame = requestAnimationFrame(() => {
-      // A page that put the learner back at a place of its own (the review book: the point they left) names its heading; that one takes the focus, where it is.
+    if (focusRequest && asked.current.request !== focusRequest) asked.current = { request: focusRequest, at: Date.now() };
+    if (!focusRequest || nav.pageTarget || Date.now() - asked.current.at > ARRIVAL_WAIT_MS) return undefined;
+    // A page that put the learner back at a place of its own (the review book: the point they left) names its heading; that one takes the focus, where it is.
+    const placedHeading = () => {
       const placed = rootRef.current?.querySelector('[data-return-focus]');
-      const target = focusRequest.element?.isConnected && focusRequest.element.getClientRects().length ? focusRequest.element
-        : placed?.getClientRects().length ? placed
-          : [...(rootRef.current?.querySelectorAll('dialog[open] h2, .question[role="heading"], [data-context-heading], main .page h1, main .page h2') || [])]
-            .find((element) => element.getClientRects().length);
-      if (target) {
-        if (!target.matches('button,a,input,select,textarea,[tabindex]')) target.setAttribute('tabindex', '-1');
-        target.focus(target === placed ? { preventScroll: true } : undefined);
-      }
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [focusRequest, nav.page]); // eslint-disable-line react-hooks/exhaustive-deps
+      return placed?.getClientRects().length ? placed : null;
+    };
+    const shown = (selector) => [...(rootRef.current?.querySelectorAll(selector) || [])].find((element) => element.getClientRects().length);
+    return focusOnArrival(rootRef.current, () => (focusRequest.element?.isConnected && focusRequest.element.getClientRects().length ? focusRequest.element
+      // 快捷键 from the drawer opens its sheet over the page: that is where the row led (the closing drawer hands the focus back to its button first).
+      : shown('.shortcut-sheet') || placedHeading()
+        || shown('dialog[open] h2, .review-body .question-card, .question[role="heading"], [data-context-heading], main .page h1, main .page h2')
+        // A page whose root is not a .page (任务) has only the shared page title. Not on the practice page: its title is there before its question is.
+        || (!rootRef.current?.querySelector('main .review-page') && shown('main .sh-page-header__title'))), (target) => {
+      if (!target.matches('button,a,input,select,textarea,[tabindex]')) target.setAttribute('tabindex', '-1');
+      target.focus(target === placedHeading() ? { preventScroll: true } : undefined);
+    }, { taken: () => {
+      const doc = rootRef.current?.ownerDocument;
+      // The tour keeps the focus on its card, and so does a layer that is not a modal <dialog> (快捷键, 信箱, a popover): the browser guards only modal ones.
+      return !!doc?.querySelector('.tour-layer') || !!doc?.activeElement?.closest('[role="dialog"]:not(dialog)');
+    } });
+  }, [focusRequest, nav.page, nav.pageTarget]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const trail = lib.state.contextTrail;
   const practiceStack = lib.state.practiceStack || [];

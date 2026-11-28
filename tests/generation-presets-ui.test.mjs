@@ -82,11 +82,11 @@ test('a combination that is no preset is 自定义, and another question type tu
   const custom = renderToStaticMarkup(React.createElement(m.PresetPicker, { cell: { density: 'full', depth: 'blueprint' }, applies: true, costs: null, onPick: () => {} }));
   assert.match(custom, /data-preset="custom"/);
   assert.doesNotMatch(custom, /aria-pressed="true"/);
-  assert.match(text(custom), /自定义：完整 × 逐题精出。/);
+  assert.match(text(custom), /自定义：完整 × 先设计再写。/, 'a combination is said by its two axes: the strength and the writing method');
   const off = renderToStaticMarkup(React.createElement(m.PresetPicker, { cell: { density: 'standard', depth: 'scenario' }, applies: false, costs: null, onPick: () => {} }));
   assert.match(off, /data-preset="off"/);
   assert.equal((off.match(/<button[^>]*sh-seg__item[^>]*disabled=""/g) || []).length, 3, 'the three presets are off');
-  assert.match(text(off), /快问和情境题只用于单选题/);
+  assert.match(text(off), /只有单选题能选写法/);
 });
 
 test('the matrix: a row per depth, a column per 覆盖强度, the form\'s cell marked (in words too) without its count', () => {
@@ -94,8 +94,8 @@ test('the matrix: a row per depth, a column per 覆盖强度, the form\'s cell m
   const answers = new Map(m.cost.MATRIX_CELLS.map((cell, at) => [m.cost.cellKey(cell), estimate(50000 + at * 10000, 10 + at)]));
   answers.set('standard:scenario', estimate(100000, 66, 53));
   const html = renderToStaticMarkup(React.createElement(m.CostMatrix, { matrix: m.words.matrixWords(m.cost.cellCosts(answers, m.cost.MATRIX_CELLS), { density: 'lean', depth: 'quick' }, { columns: m.copy.matrixColumns(), depths: m.DEPTHS }) }));
-  assert.deepEqual([...html.matchAll(/<thead>[\s\S]*?<\/thead>/g)].map(match => text(match[0])), ['出题深度 精简 标准 完整']);
-  assert.deepEqual([...html.matchAll(/<th scope="row">(.*?)<\/th>/g)].map(match => match[1]), ['快问', '情境题', '逐题精出']);
+  assert.deepEqual([...html.matchAll(/<thead>[\s\S]*?<\/thead>/g)].map(match => text(match[0])), ['写法 精简 标准 完整']);
+  assert.deepEqual([...html.matchAll(/<th scope="row">(.*?)<\/th>/g)].map(match => match[1]), ['直接问', '短情境', '先设计再写']);
   const current = /<td[^>]*data-current="true"[^>]*>([\s\S]*?)<\/td>/.exec(html);
   assert.match(current[0], /data-cell="lean:quick"/);
   assert.equal(text(current[1]), '×0.5 （当前）', 'its ratio (the caption says the costs are rough) and 当前, not its count');
@@ -111,6 +111,37 @@ test('the matrix in words: loading cells say no figure, and nothing is drawn whe
   const failed = new Map(m.cost.MATRIX_CELLS.map(cell => [m.cost.cellKey(cell), estimate(1000, 1)]));
   failed.set('standard:scenario', null);
   assert.equal(m.words.matrixWords(m.cost.cellCosts(failed, m.cost.MATRIX_CELLS), { density: 'standard', depth: 'scenario' }, { columns: m.copy.matrixColumns(), depths: m.DEPTHS }), null);
+});
+
+test('the matrix says nothing when every row costs and makes the same in all its columns (a small material): there is nothing to compare (#1686)', () => {
+  m.setUiLanguage('zh');
+  const words = (answers, cell = { density: 'standard', depth: 'scenario' }) => m.words.matrixWords(m.cost.cellCosts(answers, m.cost.MATRIX_CELLS), cell, { columns: m.copy.matrixColumns(), depths: m.DEPTHS });
+  // The rows differ from each other (the writing methods cost differently), but the strength changes nothing in any of them.
+  const flat = () => new Map(m.cost.MATRIX_CELLS.map(cell => [m.cost.cellKey(cell), estimate({ quick: 3000, scenario: 4000, blueprint: 9000 }[cell.depth], 2)]));
+  assert.equal(words(flat()), null);
+  assert.equal(words(flat(), { density: 'lean', depth: 'quick' }), null, 'whichever cell is the form\'s (it says no count of its own)');
+  // One column that makes another number of questions, or costs another ratio, in one row is a comparison again.
+  for (const other of [estimate(4000, 5), estimate(8000, 2)]) {
+    const answers = flat();
+    answers.set('full:scenario', other);
+    assert.equal(words(answers).rows.length, 3);
+  }
+  // While cells are still asked, the table keeps its place.
+  const asking = flat();
+  asking.delete('full:blueprint');
+  assert.equal(words(asking).ready, false);
+});
+
+test('出题方式 and 写法 share no option words: one set of words per control, in both languages (#1686)', () => {
+  for (const language of ['zh', 'en']) {
+    m.setUiLanguage(language);
+    const presets = m.PRESETS.map(({ id }) => m.copy.presetLabel(id)), methods = m.DEPTHS.map(depth => m.copy.depthLabel(depth));
+    assert.deepEqual(presets.filter(word => methods.includes(word)), [], language);
+    assert.equal(new Set(methods).size, 3, language);
+  }
+  m.setUiLanguage('zh');
+  assert.deepEqual(m.PRESETS.map(({ id }) => m.copy.presetLabel(id)), ['快问', '情境题', '逐题精出'], '出题方式 keeps its names');
+  assert.deepEqual(m.DEPTHS.map(depth => m.copy.depthLabel(depth)), ['直接问', '短情境', '先设计再写'], '写法 names the writing method itself');
 });
 
 test('the part of 更多选项 reaches nothing in lib/: loading it apart must not split the chunks of the first load', async () => {
@@ -134,7 +165,7 @@ test('the same words in English have no Chinese', () => {
   m.setUiLanguage('en');
   try {
     const costs = m.cost.cellCosts(ANSWERS, m.cost.PRESET_CELLS);
-    const answers = new Map(m.cost.MATRIX_CELLS.map(cell => [m.cost.cellKey(cell), estimate(80000, 20)]));
+    const answers = new Map(m.cost.MATRIX_CELLS.map((cell, at) => [m.cost.cellKey(cell), estimate(80000 + at * 8000, 20 + at)]));
     const html = [
       renderToStaticMarkup(React.createElement(m.PresetPicker, { cell: { density: 'standard', depth: 'scenario' }, applies: true, costs, onPick: () => {} })),
       renderToStaticMarkup(React.createElement(m.CostLine, { lead: m.copy.costLead(), items: m.cost.PRESET_CELLS.map(cell => ({ label: m.copy.presetLabel(cell.depth), cost: costs.get(m.cost.cellKey(cell)), current: false })) })),
@@ -163,7 +194,7 @@ test('a typed number of questions: the presets read 自定义 with that number (
   const html = renderToStaticMarkup(React.createElement(m.PresetPicker, { cell: { density: 'standard', depth: 'scenario', count: 40 }, applies: true, costs: null, onPick: () => {} }));
   assert.match(html, /data-preset="custom"/);
   assert.doesNotMatch(html, /aria-pressed="true"/, 'no preset is lit');
-  assert.match(text(html), /自定义：40 题 × 情境题。/);
+  assert.match(text(html), /自定义：40 题 × 短情境。/);
   assert.doesNotMatch(text(html), /标准题量|标准 ×/, 'the note names no level\'s amount');
   assert.doesNotMatch(html, /data-preset-cost/);
   // Every ratio is the estimate of a level; a run by a typed number would not be that run, so nothing is priced while one is set.
@@ -176,7 +207,7 @@ test('a typed number of questions: the presets read 自定义 with that number (
   m.setUiLanguage('en');
   try {
     const en = renderToStaticMarkup(React.createElement(m.PresetPicker, { cell: { density: 'standard', depth: 'quick', count: 40 }, applies: true, costs: null, onPick: () => {} }));
-    assert.match(text(en), /Custom: 40 questions × Quick\./);
+    assert.match(text(en), /Custom: 40 questions × Ask directly\./);
   } finally { m.setUiLanguage('zh'); }
 });
 

@@ -85,6 +85,8 @@ const rule = (rules, selectorStart) => {
 const styleRules = parse(styleCss);
 const darkBase = rule(styleRules, '.study-app,\n.study-seat').decls;
 const lightBase = rule(styleRules, '.study-app[data-theme="light"],').decls;
+/* The card stock is drawn unless 极简模式 is on; a minimal card is the theme's own surface (ui/appearance-minimal.css), which the
+   every-surface tests below already hold to AA. */
 const cardBase = rule(parse(dedent(await read('ui/paper.css'))), ":is(.study-app, .study-seat):not([data-minimal='on']) :is(.sh-paper").decls;
 const accentRules = parse(accentCss);
 const presetRule = name => accentRules.find(r => r.selector.includes(`[data-accent=${name}]`));

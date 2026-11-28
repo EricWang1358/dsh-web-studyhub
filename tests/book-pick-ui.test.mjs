@@ -60,15 +60,15 @@ test('an outline without a book: 生成复习全书 stays adjacent to its contro
   // Before async bookScale arrives (`bookScale = null`), no fabricated 2*points..6*points call estimate is drawn; the quota tip still shows.
   const pendingHtml = page({ parts: unbuiltParts, format: 'md' }), pendingText = textOf(pendingHtml);
   assert.doesNotMatch(pendingText, /要写 \d+ 个知识点/, 'never fabricate call counts in UI before estimate: true resolves');
-  assert.match(pendingText, /整本比较费：可以把资料交给网页版 AI 生成后导入，或者用 opencode \/ commandcode 这类套餐再生成/);
+  assert.match(pendingText, /整本比较费：可以只挑几章生成，或者把资料交给网页版 AI 生成后导入/);
 
   // Once bookScale resolves, points + calls + read/write/total tokens render below the control row (even for Markdown where CustomGate never opens).
   const html = page({ parts: unbuiltParts, format: 'md' }, { bookScale: WHOLE_SCALE }), text = textOf(html);
   assert.deepEqual(primary(html), ['生成复习全书'], 'the whole book is still one click');
-  assert.match(text, /生成复习全书 精简 标准 详尽 重新整理/, 'scale text never splits 生成复习全书 from its 讲解详尽程度 Select');
+  assert.match(text, /生成复习全书 讲解详尽程度 精简 标准 详尽 重新整理/, 'scale text never splits 生成复习全书 from its 讲解详尽程度 Select');
   assert.ok(html.indexOf('outline-organise__actions') < html.indexOf('outline-organise__notes'), 'scale and notes render below the control row');
   assert.match(text, /要写 9 个知识点 · 18–54 次模型调用 · 读资料加模型写出的约 61\.2K–284K tok（读资料 45K–90K tok，写出 16\.2K–194K tok，含思考）；提示词另计/);
-  assert.match(text, /整本比较费：可以把资料交给网页版 AI 生成后导入，或者用 opencode \/ commandcode 这类套餐再生成/);
+  assert.match(text, /整本比较费：可以只挑几章生成，或者把资料交给网页版 AI 生成后导入/);
   assert.doesNotMatch(text, PRICE);
   assert.match(text, /只生成部分章节/);
   assert.match(text, /勾选要生成的章：只写这些章的知识点、只读它们的资料；已经写好的不会重写，也不会再花一次。/);
@@ -81,10 +81,10 @@ test('an outline without a book: 生成复习全书 stays adjacent to its contro
 test('a book of some chapters (`rest`): shows remaining scale (points, calls, tokens) and quota-saving tip alongside 生成全部其余章节', () => {
   const html = page({ notes: notesLine() }, { bookScale: REST_SCALE }), text = textOf(html);
   assert.match(text, /已生成 2\/3 章，其余 1 章未生成/);
-  assert.match(text, /生成全部其余章节 精简 标准 详尽 重新整理/, 'controls stay grouped on the control row');
+  assert.match(text, /生成全部其余章节 讲解详尽程度 精简 标准 详尽 重新整理/, 'controls stay grouped on the control row');
   assert.match(text, /生成其他章节/);
   assert.match(text, /要写 6 个知识点 · 12–36 次模型调用 · 读资料加模型写出的约 40\.8K–190K tok（读资料 30K–60K tok，写出 10\.8K–130K tok，含思考）；提示词另计/);
-  assert.match(text, /整本比较费：可以把资料交给网页版 AI 生成后导入，或者用 opencode \/ commandcode 这类套餐再生成/);
+  assert.match(text, /整本比较费：可以只挑几章生成，或者把资料交给网页版 AI 生成后导入/);
   assert.doesNotMatch(text, PRICE);
   assert.match(text, /Thermodynamics 已生成/);
   assert.match(text, /Equilibrium 已生成 1\/4 个知识点/);
@@ -103,12 +103,12 @@ test('no picker or duplicate scale on stale/descriptor outlines, waiting sample,
   const sample = { level: 'standard', written: true, points: [{ id: 'p1', title: 'Entropy' }, { id: 'p2', title: 'Enthalpy' }] };
   const sampleHtml = page({ notes: notesLine({ sample }) }, { bookScale: REST_SCALE });
   assert.doesNotMatch(textOf(sampleHtml), /生成其他章节/, 'the sample card leads');
-  assert.equal((textOf(sampleHtml).match(/opencode \/ commandcode/g) || []).length, 1, 'waiting sample shows the tip once inside BookSample, not twice');
+  assert.equal((textOf(sampleHtml).match(/整本比较费/g) || []).length, 1, 'waiting sample shows the tip once inside BookSample, not twice');
   const builtHtml = page({ notes: notesLine(), parts: PARTS.map(part => ({ ...part, written: part.points })) }, { bookScale: WHOLE_SCALE });
-  assert.doesNotMatch(textOf(builtHtml), /要写 \d+ 个知识点|opencode \/ commandcode/, 'fully built book shows neither pre-run scale nor unbuilt tip');
+  assert.doesNotMatch(textOf(builtHtml), /要写 \d+ 个知识点|整本比较费/, 'fully built book shows neither pre-run scale nor unbuilt tip');
   const bare = render(h(ui.CourseOutlineView, { course: 'SA', outline: { ...outline(), book: null }, details: {}, open: new Set(), pick: ui.emptyPick(), actions, coverage: 'standard' }));
   assert.match(textOf(bare), /想先只生成几章：先点「生成总纲」（只清点资料、排章节，不写讲解），再回来选章节。/);
-  assert.match(textOf(bare), /整本比较费：可以把资料交给网页版 AI 生成后导入，或者用 opencode \/ commandcode 这类套餐再生成/);
+  assert.match(textOf(bare), /整本比较费：可以只挑几章生成，或者把资料交给网页版 AI 生成后导入/);
   assert.doesNotMatch(textOf(bare), PRICE);
 });
 
@@ -118,11 +118,11 @@ test('the scale of a pick: points, calls and tokens (read+write or read-only), s
   assert.match(fullText, /要写 14 个知识点 · 28–84 次模型调用/);
   assert.match(fullText, /读资料加模型写出的约 145K–712K tok（读资料 120K–410K tok，写出 25\.2K–302K tok，含思考）；提示词另计/);
   assert.match(fullText, /先写 2 个样例，按它们实际用的 token 推算其余的，你看过再继续/);
-  assert.match(fullText, /整本比较费：可以把资料交给网页版 AI 生成后导入，或者用 opencode \/ commandcode 这类套餐再生成/);
+  assert.match(fullText, /整本比较费：可以只挑几章生成，或者把资料交给网页版 AI 生成后导入/);
   assert.doesNotMatch(fullText, PRICE);
   const noTipText = textOf(render(h(ui.ScaleLines, { scale: fullScale, showTip: false })));
   assert.match(noTipText, /要写 14 个知识点 · 28–84 次模型调用/);
-  assert.doesNotMatch(noTipText, /opencode \/ commandcode/, 'showTip={false} suppresses duplicate tip when Organise already shows it');
+  assert.doesNotMatch(noTipText, /整本比较费/, 'showTip={false} suppresses duplicate tip when Organise already shows it');
   const readOnly = textOf(render(h(ui.ScaleLines, { scale: { points: 3, chapters: 1, sample: false, calls: range(6, 18), readTokens: range(12000, 41000) } })));
   assert.match(readOnly, /读资料约 12K–41K tok（不含提示和模型写出的内容）/);
   assert.match(textOf(render(h(ui.ScaleLines, { scale: { ...fullScale, points: 0 } }))), /选的章都已经写好，不用再生成/);
@@ -143,7 +143,7 @@ test('English: the outline scale, rest scale, picker and tip have zero Chinese c
   assert.doesNotMatch(unbuiltText.replace(fixtureWords, ''), han);
   assert.doesNotMatch(unbuiltText, PRICE);
   assert.match(unbuiltText, /9 knowledge points to write · 18–54 model calls · Material read plus writing: about 61\.2K–284K tok \(45K–90K tok read, 16\.2K–194K tok written, thinking included\); the prompts are extra/);
-  assert.match(unbuiltText, /web AI.*opencode \/ commandcode/);
+  assert.match(unbuiltText, /build only the chapters you pick.*web AI/);
 
   const pickScale = textOf(render(h(ui.ScaleLines, { scale: REST_SCALE })));
   assert.doesNotMatch(pickScale, han);

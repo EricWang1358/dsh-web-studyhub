@@ -204,6 +204,13 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
      back beside a forward step; only when neither stands under the score does the header keep its 返回学习库. The foot's 回到学习目录 went to the same place. */
   const resultBack = run.complete && (backHere || !!onward?.back || !!(onward && contextReturnLabel));
   const roundSetup = onward && !backHere && !flow && !detour && !run.course ? resultTarget(run, destination, { newBatch: newBatchArgs }) : null;
+  /* What went wrong comes first (#1687): a round with wrong answers has 重练这 N 道错题 as its one filled button and the next step, whatever it is, is the plain
+     button after it. A round with a way back of its own keeps that way back as the filled button: the book, the 总纲 and the reader (backHere), a learning
+     flow, a detour and a prerequisite round that goes back to its question (run.returnTo); the wrong ones are in 本轮题目 below. */
+  const ownWayBack = backHere || !!flow || !!detour || !!run.returnTo || destination?.kind === "original";
+  const wrongRefs = run.complete && run.mode !== "exam" && !ownWayBack && Array.isArray(run.missedCards)
+    ? run.missedCards.map(({ deckId, cardId }) => ({ deckId, cardId })) : [];
+  const practiseWrong = wrongRefs.length > 0;
   const roundCourse = run.complete ? resolveRoundCourse(data, run) : "";
   const roundStage = roundCourse ? (currentMethodStage(data, roundCourse)?.stage?.name || "") : "";
   const missedList = run.complete && run.mode !== "exam"
@@ -313,7 +320,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
         // for the summary, and the ✓ badge inherited .question-area's inline
         // min-height (set by the pinning effect above), stretching into an oval.
         <div key="summary" className="session-summary result-page">
-          <div className="result-reading"><ReadingSettingsButton /></div>
+          <div className="result-reading result-page__reading"><ReadingSettingsButton /></div>
           <div className="result-kicker">{ui("本轮学习结果")}</div>
           <h2 className="result-title">{run.closed ? ui("这一轮，已结束。") : ui("这一轮，完成了。")}</h2>
           <p className="result-subtitle">{uiFormat("{0} · {1} 道题", [shellTitle, run.questions ?? run.total])}</p>
@@ -340,12 +347,14 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               activeSegment={lookBackSegment ? STATUS_TO_SEGMENT[lookBackSegment] : null}
               onSelectSegment={run.mode !== "exam" ? handleSelectSegment : undefined} />
           </div>
-          {/* The next step comes first (the page decided it with today's plan in view): one filled button, then the 点评 and the rest. */}
+          {/* The next step comes first (the page decided it with today's plan in view): one filled button, then 本轮题目, the 点评 and the rest. */}
           {/* A round started in the book (or on the 总纲) goes back there first; the page's own next step is then the second button. */}
-          {(onward || wayBack) && (
+          {(onward || wayBack || practiseWrong) && (
             <div className={cx("result-next", wayBack && "result-next--back")}>
               {wayBack && <ReturnPrimary arrow oneLine label={wayBack.label} place={wayBack.place} disabled={busy} onReturn={wayBack.go} />}
-              {onward && <Button variant={backHere ? "secondary" : "primary"} align={backHere ? "start" : undefined} icon={onward.back ? "arrow-left" : undefined}
+              {practiseWrong && <Button variant="primary" iconEnd="arrow-right" lock={busy} onClick={() => act("review.start", practiceArgs(wrongRefs), enterRun)}>
+                {wrongRefs.length === 1 ? ui("重练这道错题") : uiFormat("重练这 {0} 道错题", [wrongRefs.length])}</Button>}
+              {onward && <Button variant={backHere || practiseWrong ? "secondary" : "primary"} align={backHere ? "start" : undefined} icon={onward.back ? "arrow-left" : undefined}
                 iconEnd={onward.back ? undefined : "arrow-right"} lock={busy} onClick={onward.run}>{onward.label}</Button>}
               {roundSetup && <RoundSetup data={data} context={roundSetup} chapterRefs={run.scope} onStart={(args, options) => act("review.start", args, enterRun, options)} className="result-setup" />}
 
@@ -353,7 +362,21 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             </div>
           )}
           {destination?.note && <p className="muted" role="status">{destination.note}</p>}
-          {/* The 雷霆建议 sits right under the next step: its own suggestion (定制题 or 补薄弱) is one click, so it must not hide inside the fold. */}
+          {/* 本轮题目 (#1009): which questions went wrong or were left, each with a read-only look-back from the run itself. It comes right after the score and
+              the next step (#1688): what went wrong is what a learner looks for first, so the 点评, the seal card and 今日学习总结 come after it. */}
+          <RoundLookBack collapsible key={"look-back-" + run.id} run={run} sources={data?.sources}
+            segment={lookBackSegment} onSegmentChange={setLookBackSegment}
+            onPracticeWrong={(refs) => act("review.start", practiceArgs(refs), enterRun)}
+            onAck={(row) => actions.reviewAct("review.correction.ack", { entryIndex: row.entryIndex, cardId: row.cardId })}
+            onOpenBook={pageAvailable(data, "book") ? ({ course: targetCourse, hid, view } = {}) => {
+              const chosen = targetCourse || data?.focus?.course || null;
+              app?.learn?.rememberContext?.(app.learn.captureContext());
+              keepBook(data?.root, chosen, { target: hid || null, ...(view ? { view } : {}) });
+              if (targetCourse && targetCourse !== data?.focus?.course) void act("focus.set", { course: targetCourse });
+              navigate("book");
+            } : undefined}
+            onOpenWrongBook={pageAvailable(data, "wrongbook") ? (refs) => { askForLeeches(data?.root, refs); navigate("wrongbook"); } : undefined} />
+          {/* The 雷霆建议 comes after the list, outside the fold: its own suggestion (定制题 or 补薄弱) is one click, so it must not hide inside it. */}
           {coachProps && run.mode !== "exam" && run.answered > 0 && (
             <CoachDebrief
               key={"debrief-" + run.id}
@@ -366,7 +389,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               onContinue={coachProps.onContinue}
               destination={coachProps.destination}
               onReviewWeak={coachProps.onReviewWeak}
-              ctaMode={destination?.kind === "original" ? "none" : nextStep ? "secondary-suggestion" : backHere ? "secondary" : "primary"}
+              ctaMode={destination?.kind === "original" ? "none" : nextStep ? "secondary-suggestion" : backHere || practiseWrong ? "secondary" : "primary"}
               suppressNextPromise={backHere && !onward}
               debriefModel={practice.debrief}
               onSettings={goPracticeSettings} onProfileSettings={() => openSettings("settings-profile")}
@@ -376,7 +399,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             <LazyRoundSealSection run={run} title={shellTitle} course={roundCourse} allCorrect={allCorrect} />
           )}
           {call && <DailyRecap root={data.root} runId={run.id} saved={data.settings?.dailyRecap}
-            poll primary={!nextStep && !backHere} onOpenNote={onOpenNote} onSettings={onRecapSettings} onModelSettings={onModelSettings} />}
+            poll primary={!nextStep && !backHere && !practiseWrong} onOpenNote={onOpenNote} onSettings={onRecapSettings} onModelSettings={onModelSettings} />}
           {run.weakTopics?.length > 0 && (
             <div className="summary-topics sh-paper-card">
               <h3>{ui("接下来重点复习 · 最多 3 个主题")}</h3>
@@ -424,7 +447,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           <div className="summary-actions">
             {!run.closed && run.undoable && actions.undoAnswer && (
               <Button variant="quiet" data-usage="review.undo" aria-keyshortcuts="Z" lock={busy} onClick={actions.undoAnswer}>
-                {ui("已记分 · 撤销上一题评分 (Z)")}
+                {ui("撤销上一题评分 (Z)")}
               </Button>
             )}
             {summaryCase && <>
@@ -451,19 +474,6 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               </Tooltip>
             </p>
           )}
-          {/* 本轮题目 (#1009): which questions went wrong or were left, each with a read-only look-back from the run itself. */}
-          <RoundLookBack collapsible key={"look-back-" + run.id} run={run} sources={data?.sources}
-            segment={lookBackSegment} onSegmentChange={setLookBackSegment}
-            onPracticeWrong={(refs) => act("review.start", practiceArgs(refs), enterRun)}
-            onAck={(row) => actions.reviewAct("review.correction.ack", { entryIndex: row.entryIndex, cardId: row.cardId })}
-            onOpenBook={pageAvailable(data, "book") ? ({ course: targetCourse, hid, view } = {}) => {
-              const chosen = targetCourse || data?.focus?.course || null;
-              app?.learn?.rememberContext?.(app.learn.captureContext());
-              keepBook(data?.root, chosen, { target: hid || null, ...(view ? { view } : {}) });
-              if (targetCourse && targetCourse !== data?.focus?.course) void act("focus.set", { course: targetCourse });
-              navigate("book");
-            } : undefined}
-            onOpenWrongBook={pageAvailable(data, "wrongbook") ? (refs) => { askForLeeches(data?.root, refs); navigate("wrongbook"); } : undefined} />
           <details key={run.id} className="result-details">
             <summary>{ui("更多结果与练习")}</summary>
             <p className="muted">{ui("每道题的下次复习时间已保存。")}</p>

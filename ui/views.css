@@ -192,10 +192,13 @@
       margin: 0;
       padding: 0;
     }
+    /* A weak topic is read top to bottom: the name, what is weak about it on the row's full width, then its button. Side by side, a narrow column
+       broke the count from its unit and left one character on a line (#1703). */
     .dash-weak-row {
       display: flex;
-      align-items: center;
-      gap: var(--space-4);
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-2);
       padding: var(--space-3) 0;
       border-bottom: 1px solid var(--line-soft);
     }
@@ -217,6 +220,10 @@
       color: var(--text-muted);
       font-size: var(--fs-md);
       font-variant-numeric: tabular-nums;
+      text-wrap: pretty;
+    }
+    .dash-weak-count {
+      white-space: nowrap;
     }
     .dash-weak-clear {
       display: inline-flex;

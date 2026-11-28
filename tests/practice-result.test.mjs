@@ -388,3 +388,50 @@ test('a round nested inside a book round (a prerequisite round, a detour from th
 });
 
 /* The autopilot countdown does not take the learner past a way back (the book's or the reader's) either: tests/review-autopilot-way-back.test.mjs runs the real page in Chromium. */
+
+/* ---------- #1687: a round with wrong answers leads with practising them ---------- */
+
+const missed = (n) => Array.from({ length: n }, (_, index) => ({ deckId: 'd1', cardId: `m${index}`, topic: 'Context', prompt: `m${index}?` }));
+
+test('#1687: with wrong answers the one filled button practises them and the next step is a plain button after it; nothing wrong leaves the page as it was', () => {
+  setUiLanguage('zh');
+  const two = result({ run: { missedCards: missed(2) } });
+  const [first, second] = buttonsOf(nextBlock(two)).filter((button) => !/round-setup__trigger/.test(button.cls));
+  assert.equal(primaries(two), 1, 'exactly one filled button on the page');
+  assert.match(first.cls, /sh-btn--primary/);
+  assert.equal(first.text, '重练这 2 道错题');
+  assert.match(second.cls, /sh-btn--secondary/);
+  assert.equal(second.text, '继续学习', 'the next step is still there, plain');
+  assert.equal(buttonsOf(nextBlock(result({ run: { missedCards: missed(1) } })))[0].text, '重练这道错题');
+  // The next course batch and the way back to the path go second too.
+  const course = result({ run: { missedCards: missed(2), course: { name: '网络', next: { label: 'x', fresh: 3 }, learned: 1, cards: 5 } } });
+  assert.deepEqual(buttonsOf(nextBlock(course)).filter((button) => !/round-setup__trigger/.test(button.cls)).map((button) => [button.text, /sh-btn--primary/.test(button.cls)]),
+    [['重练这 2 道错题', true], ['继续课程下一批', false]]);
+  const path = result({ run: { missedCards: missed(2) }, coach: { destination: destination('回到学习路径', { reason: 'scope-done' }) } });
+  assert.equal(buttonsOf(nextBlock(path))[0].text, '重练这 2 道错题');
+  assert.equal(primaries(path), 1);
+  // Without a next step of the page the 点评 card's own button is plain beside it.
+  const none = result({ run: { missedCards: missed(2) }, coach: { destination: undefined } });
+  assert.equal(primaries(none), 1);
+  assert.equal(buttonsOf(nextBlock(none))[0].text, '重练这 2 道错题');
+  // Nothing wrong: unchanged.
+  assert.equal(buttonsOf(nextBlock(result({ run: { missedCards: [] } })))[0].text, '继续学习');
+});
+
+test('#1687: a round with its own way back (book, 总纲, reader, learning flow, detour, original question) keeps that way back as the filled button', () => {
+  setUiLanguage('zh');
+  const reading = { sourceId: 's1', sectionTitle: 'Hash indexes', scope: { kind: 'chapter', count: 4 }, before: { percent: 41, total: 5 }, after: { percent: 58, total: 5 } };
+  const cases = {
+    book: result(bookTrail({ run: { missedCards: missed(2) } })),
+    outline: result(bookTrail({ contextKind: 'outline', contextPlace: '', contextReturnLabel: '回到总纲', run: { missedCards: missed(2) } })),
+    reader: result({ run: { reading, missedCards: missed(2) }, onReturnToReading: noop }),
+    flow: result({ run: { missedCards: missed(2), workflow: { sessionId: 's', stepIndex: 0, stepCount: 3, stepTitle: 'x', current: true } }, onBackToWorkflow: noop }),
+    detour: result({ run: { missedCards: missed(2) }, detour: { runId: 'outer', index: 2, title: '课程' }, onReturnFromDetour: noop }),
+    original: result({ run: { returnTo: 'orig', missedCards: missed(2) }, coach: { destination: destination('回到原题', { kind: 'original', runId: 'orig' }) } }),
+  };
+  for (const [kind, html] of Object.entries(cases)) {
+    assert.equal(primaries(html), 1, kind);
+    const filled = buttonsOf(html).find((button) => /sh-btn--primary/.test(button.cls));
+    assert.doesNotMatch(filled.text, /重练/, `${kind}: the filled button is still the way back`);
+  }
+});

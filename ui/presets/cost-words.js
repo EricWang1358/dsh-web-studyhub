@@ -25,7 +25,7 @@ export function questionsText(coverage) {
 }
 
 /** How a rough cost is worked out (the hover card of the line and of the matrix). */
-export const costTip = () => ui('按你选的资料，用出题前的 token 预估上限算出整次出题相对「情境题」的倍数；括号里是其他几种大约出多少题（选中那种的题数在出题按钮旁）。只是粗略比较，不是固定倍数，实际花费因模型而异；逐题精出出的题少，整次可能更省、每题更贵；快问省下的部分是估的，没有实测。');
+export const costTip = () => ui('按你选的资料，用出题前的 token 预估上限算出整次出题相对「情境题」的倍数；括号里是其他几种大约出多少题（选中那种的题数在出题按钮旁）。只是粗略比较，不是固定倍数，实际花费因模型而异；「先设计再写」出的题少，整次可能更省、每题更贵；「直接问」省下的部分是估的，没有实测。');
 export const costLoading = () => ui('正在估算…');
 
 /** One preset on the line: its name, its ratio and, but for the form's own (the summary beside the button says its count), its questions. */
@@ -34,13 +34,18 @@ export function costWords({ label, cost, current }) {
   return `${label}${ratio ? ` ${ratio}` : ''}${questions ? uiFormat('（{0}）', [questions]) : ''}`;
 }
 
+/** What a cell of the matrix has to say: its ratio and its questions. */
+const figures = (cost) => `${ratioText(cost.ratio, { base: cost.base, bare: true })}|${questionsText(cost.coverage)}`;
+
 /** The matrix in words: a column per 覆盖强度 (`columns`: { key, label }), a row per depth, each cell its ratio without 「约」 (the caption says the costs are
     rough) and, but for the form's own cell, its questions. `costs` is cellCosts of every cell; null when nothing is drawn: the default cell could not be
-    estimated. A cell with a typed number of questions marks no cell: none of them is that run. */
+    estimated, or every row reads the same in all its columns (a small material plans the same questions at any strength, so there is nothing to compare,
+    #1686). A cell with a typed number of questions marks no cell: none of them is that run. */
 export function matrixWords(costs, cell, { columns, depths }) {
   const all = [...costs.values()], ready = all.every(cost => cost.ready);
   if (ready && !(all.find(cost => cost.base)?.ratio > 0)) return null;
-  return { ready, caption: ui('各组合的大致花费（相对「情境题」）'), tip: costTip(), loading: costLoading(), columns,
+  if (ready && depths.every(depth => new Set(columns.map(({ key }) => figures(costs.get(cellKey({ density: key, depth }))))).size === 1)) return null;
+  return { ready, caption: ui('各组合的大致花费（相对默认的出题方式「情境题」）'), tip: costTip(), loading: costLoading(), columns,
     rows: depths.map(depth => ({ key: depth, label: depthLabel(depth), cells: columns.map(({ key: density }) => {
       const key = cellKey({ density, depth }), cost = costs.get(key), current = !(cell.count > 0) && cell.density === density && cell.depth === depth;
       return { key, current, ready: Boolean(cost?.ready), ratio: cost?.ready ? ratioText(cost.ratio, { base: cost.base, bare: true }) || '—' : '',

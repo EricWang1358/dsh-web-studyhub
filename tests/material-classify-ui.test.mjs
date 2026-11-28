@@ -18,6 +18,7 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 import { withStudy } from './helpers/study-services.mjs';
 import { nativeSelects } from './helpers/native-selects.mjs';
+import { withOpenSourcesTools } from './helpers/sources-tools.mjs';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({
@@ -527,13 +528,14 @@ test('SSR mounts MaterialCategoryBar in Generate, CaseCreate, and Sources, skips
     assert.match(genEn, /Unfiled \(7\)/);
     assert.doesNotMatch(genEn.replace(/<[^>]+>/g, ' '), han, 'English Generate picker has zero Han characters');
 
-    const sourcesEn = renderToStaticMarkup(
+    // On 资料 the bar is behind 「筛选与分组」, here left open.
+    const sourcesEn = withOpenSourcesTools(data.root, () => renderToStaticMarkup(
       withStudy(StudyServicesContext, h(Sources, { data, setModal: noop, onGenerate: noop }), {
         act: noop,
         call: noop,
         busy: false,
       }),
-    );
+    ));
     assert.match(sourcesEn, /AI classify/);
     assert.match(sourcesEn, /data-classify-estimate/);
     assert.doesNotMatch(sourcesEn.replace(/<[^>]+>/g, ' '), han, 'English Sources page has zero Han characters');

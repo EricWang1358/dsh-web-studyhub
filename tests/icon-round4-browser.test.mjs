@@ -149,6 +149,9 @@ test('round 4 in the browser: answer marks as heavy as their label, the station 
         const { page, context } = await open(browser, server, { lang, width });
         await later(page, lang);
         await page.locator('.first-run-card .frl-step[data-step="model"] .frl-step__text').first().waitFor({ timeout: 30000 });
+        // The pointer the 以后再说 click left behind may rest on the card, which tilts under it: the tilted row's box is some pixels taller than the row. Measured flat.
+        await page.mouse.move(0, 0);
+        await page.waitForFunction(() => getComputedStyle(document.querySelector('.first-run-card')).transform === 'none');
         // The preview's model is "preview · fake-model"; a learner's is longer. The row is given the ids of the free providers the guide names, as the card would say them.
         for (const id of ['preview · fake-model', 'deepseek · deepseek-chat', 'siliconflow · Qwen/Qwen2.5-7B-Instruct', 'SiliconFlow · Qwen/Qwen3-235B-A22B-Instruct-2507']) {
           const seen = await page.evaluate(([label, zh]) => {
@@ -227,8 +230,10 @@ test('round 4 in the browser: answer marks as heavy as their label, the station 
     await t.test(`round 5 (3 / #1074): the ways in on the home row of the sample state are one system: one colour and one size, the hand-off link too`, async () => { for (const [lang, server] of [['zh', zh], ['en', en]]) {
       const { page, context } = await open(browser, server, { lang, width: 1440 });
       await later(page, lang);
+      // The workspace-file hand-off waits under 其他开始方式 (#1696): opened, it looks like the links of the row above it.
+      await page.locator('.desk-more > summary').first().click();
       await page.locator('.desk-also [data-hand-off="import.file"]').first().waitFor({ timeout: 30000 });
-      const row = await page.evaluate(() => [...document.querySelectorAll('.desk-also')].filter((line) => line.querySelector('[data-hand-off="import.file"]')).flatMap((line) => [...line.querySelectorAll('button')].filter((button) => button.getClientRects().length).map((button) => {
+      const row = await page.evaluate(() => [...document.querySelectorAll('.desk-also')].filter((line) => !line.querySelector('[data-hand-off="guide.start"]')).flatMap((line) => [...line.querySelectorAll('button')].filter((button) => button.getClientRects().length).map((button) => {
         const style = getComputedStyle(button);
         return { text: button.textContent.trim().slice(0, 24), color: style.color, size: style.fontSize };
       })));

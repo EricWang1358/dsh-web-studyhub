@@ -119,4 +119,16 @@ test('collectFlaggedCardIndices gathers quality and rejected warnings without ad
   assert.match(flaggedHtml, /class="sh-btn sh-btn--quiet sh-btn--sm draft-next-flagged"[^>]*>下一道待核对 \(0\/3\)</);
   assert.match(flaggedHtml, /data-draft-index="0"/);
   assert.match(flaggedHtml, /data-draft-index="3"/);
+
+  // Each flagged question says so on its row (待处理) and, inside, why: the place 定位待处理题 and 下一道待核对 land on (a sent-back one also offers the way to 交给后台修题).
+  const cardHtml = (index) => flaggedHtml.split(/(?=<details[^>]*data-draft-index=")/).find((part) => part.includes(`data-draft-index="${index}"`)).split('</details>')[0];
+  const flag = /<small class="draft-card__flag">待处理<\/small>/;
+  for (const [index, reason] of [[0, 'Citation missing'], [2, '问题与前面的题目重复'], [3, 'Missing rubric']]) {
+    assert.match(cardHtml(index), flag, `question ${index + 1} is marked on its row`);
+    assert.match(cardHtml(index), new RegExp(`class="[^"]*draft-card__issues[^"]*"[\\s\\S]*${reason}`), `question ${index + 1} says why`);
+  }
+  assert.match(cardHtml(0), />查看修题办法</, 'a sent-back question leads to 交给后台修题');
+  assert.doesNotMatch(cardHtml(2), />查看修题办法</, 'a question with a format problem only is not sent to the repair');
+  assert.doesNotMatch(cardHtml(1), flag);
+  assert.doesNotMatch(cardHtml(1), /draft-card__issues/);
 });

@@ -85,7 +85,7 @@ export default function ExamPrepList({ data, scope, onScope, rows, history = [],
   const failed = builds.filter(build => build.failed).slice(0, 2);
   return (
     <section className="page exam-prep" data-usage-area="examprep">
-      <PageHeader title={ui('备考补习')} description={ui('把课件和样卷整理成考点清单：哪些样卷考过，哪些是补充，每个考点出自哪一页。')}
+      <PageHeader data-tour="examprep-head" title={ui('备考补习')} description={ui('把课件和样卷整理成考点清单：哪些样卷考过，哪些是补充，每个考点出自哪一页。')}
         actions={<Button variant="primary" icon="plus" data-usage="examprep.create" onClick={onCreate}>{ui('新建考点清单')}</Button>}
         scope={<PageScope courses={data.focus?.courses} value={scope} onChange={onScope} />} />
       {failed.map(build => (

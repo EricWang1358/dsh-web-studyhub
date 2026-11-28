@@ -151,6 +151,8 @@
   "共 {0} 份资料，其中 {1} 份置顶。#one": "{0} source, {1} pinned.",
   "待巩固优先": "Needs review first",
   "只看待巩固（{0}）": "Needs review ({0})",
+  "待巩固": "Needs review",
+  "筛选与分组": "Filter & group",
   "显示全部资料": "Show all materials",
   "当前范围没有待巩固的资料。": "No materials need review in this scope.",
   "待巩固资料中没有匹配“{0}”的项。": "No materials needing review match “{0}”.",

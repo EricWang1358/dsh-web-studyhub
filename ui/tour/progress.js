@@ -1,5 +1,6 @@
 import { readJSON, readText, removeKey, writeText } from "../storage.js";
 import { clearCount } from "../guidance/cleared.js";
+import { FULL_TOUR_ORDER } from "./steps.js";
 
 /* Per-library onboarding memory, a per-viewer convenience kept in the
    browser's storage (ui/storage.js): where a paused tour stopped, and whether
@@ -13,12 +14,16 @@ const welcomeKey = (root) => `${WELCOME_PREFIX}${root || ""}`;
 const read = (key) => readText(key, null);
 const write = (key, value) => (value === null ? removeKey(key) : writeText(key, value)); // remembered for this session only when refused
 
-/** { stepId, done } or null; `full: true` when the paused tour is the full one (ui/tour/steps.js), absent for the short one. */
+/** { stepId, done } or null; `full: true` when the paused tour is the full one (ui/tour/steps.js), absent for the short one. A full tour saved under another
+    order of the list has no step to go back to (`stepId: ""`): resuming there would skip the steps that now come before it, so it starts over. */
 export function readTourProgress(root) {
   const value = readJSON(tourKey(root));
-  return value && typeof value === "object" && typeof value.stepId === "string" ? { stepId: value.stepId, done: !!value.done, ...(value.full === true ? { full: true } : {}) } : null;
+  if (!value || typeof value !== "object" || typeof value.stepId !== "string") return null;
+  const full = value.full === true;
+  return { stepId: full && value.order !== FULL_TOUR_ORDER ? "" : value.stepId, done: !!value.done, ...(full ? { full } : {}) };
 }
-export const writeTourProgress = (root, value) => write(tourKey(root), value ? JSON.stringify({ stepId: value.stepId, done: !!value.done, ...(value.full ? { full: true } : {}) }) : null);
+export const writeTourProgress = (root, value) => write(tourKey(root), value
+  ? JSON.stringify({ stepId: value.stepId, done: !!value.done, ...(value.full ? { full: true, order: FULL_TOUR_ORDER } : {}) }) : null);
 
 export const welcomeDismissed = (root) => read(welcomeKey(root)) === "dismissed";
 export const dismissWelcome = (root) => write(welcomeKey(root), "dismissed");

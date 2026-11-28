@@ -98,7 +98,7 @@ test('创建题组 opens ticked with a reason, the main path is one line, the pl
 
       // the main path: 出题方式 is one choice of three presets, the course is one line with a link, nothing else to fill in
       const plan = page.locator('[data-generate-plan]');
-      assert.match(await plan.innerText(), /新题组放进课程：数据库/);
+      assert.match(await plan.innerText(), /新题组放进的课程\s+数据库/);
       assert.equal(await plan.locator('input, select, textarea').count(), 0, 'nothing to fill in on the plan line');
       assert.equal(await page.locator('.generate-page .course-field').count(), 0, 'the field of the deck\'s course waits for 更改: the page has one course field (课程范围)');
       const pressedOf = items => async () => (await items.evaluateAll(list => list.filter(item => item.getAttribute('aria-pressed') === 'true').map(item => item.textContent.trim())));
@@ -120,7 +120,7 @@ test('创建题组 opens ticked with a reason, the main path is one line, the pl
       const openKind = page.locator('[data-tour="generate-kinds"]').getByRole('checkbox', { name: '开放问答' });
       await openKind.click();
       await until(async () => (await page.locator('[data-presets]').getAttribute('data-preset')) === 'off', 'the presets are off for 开放问答');
-      assert.match(await presetNote.innerText(), /快问和情境题只用于单选题/);
+      assert.match(await presetNote.innerText(), /只有单选题能选写法/);
       assert.equal(await page.locator('[data-presets] .sh-seg__item:disabled').count(), 3);
       await openKind.click();
       await until(async () => (await presetOn()).join() === '情境题', 'the presets are back with 情境题 on');
@@ -208,19 +208,19 @@ test('创建题组 opens ticked with a reason, the main path is one line, the pl
           assert.ok(typed >= 1, 'and starts from a number');
           // A typed number is no preset: the main path says 自定义 with that number, and no rough cost is said (each is the estimate of a level, not of this run).
           await until(async () => (await page.locator('[data-presets]').getAttribute('data-preset')) === 'custom', 'a typed number reads 自定义');
-          assert.match(await presetNote.innerText(), new RegExp(`^自定义：${typed} 题 × 情境题。`));
+          assert.match(await presetNote.innerText(), new RegExp(`^自定义：${typed} 题 × 短情境。`));
           assert.equal(await page.locator('[data-preset-cost]').count() + await matrix.count(), 0, 'no ratio and no matrix while a number is typed');
         }
       }
       // a combination that is no preset: the main path says 自定义 and both halves; the depth moves the marked cell
       const depth = page.locator('[data-depth] .sh-seg__item');
       await strength.filter({ hasText: '完整' }).first().click();
-      await depth.filter({ hasText: '快问' }).first().click();
+      await depth.filter({ hasText: '直接问' }).first().click();
       await until(async () => (await page.locator('[data-presets]').getAttribute('data-preset')) === 'custom', 'the form is 自定义');
-      assert.match(await presetNote.innerText(), /^自定义：完整 × 快问。/);
+      assert.match(await presetNote.innerText(), /^自定义：完整 × 直接问。/);
       assert.equal(await matrix.locator('td[data-current="true"]').getAttribute('data-cell'), 'full:quick');
       await presets.filter({ hasText: '情境题' }).first().click();
-      await until(async () => (await pressed()).join() === '标准' && (await pressedOf(depth)()).join() === '情境题', 'a preset sets both halves');
+      await until(async () => (await pressed()).join() === '标准' && (await pressedOf(depth)()).join() === '短情境', 'a preset sets both halves');
       await shot(page, `fold-${width}`);
       await shotForm(page, `fold-form-${width}`);
 
@@ -228,7 +228,7 @@ test('创建题组 opens ticked with a reason, the main path is one line, the pl
       await page.locator('[data-open-settings="settings-generation"]').click();
       await page.locator('[data-tour="settings-generation"]').waitFor({ state: 'visible', timeout: 30000 });
       assert.equal(await page.locator('select[name="coverageLevel"], [name="coverageLevel"]').count() > 0, true, 'the 覆盖强度 default is on that page');
-      assert.equal(await page.locator('[name="depth"]').count() > 0, true, 'and the 出题深度 default (高级生成控制)');
+      assert.equal(await page.locator('[name="depth"]').count() > 0, true, 'and the 写法 default (高级生成控制)');
       assert.equal(await page.locator('[name="strategy"]').count(), 0, 'one control for the depth, not a second one for the strategy');
       await shot(page, `settings-${width}`);
 

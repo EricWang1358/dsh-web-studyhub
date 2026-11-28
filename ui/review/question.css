@@ -799,6 +799,11 @@
        options keep text selection & cursor without firing answer clicks, and marked words stay highlighted. */
     .review-body.is-marking .flashcard .flip-inner { pointer-events: auto; }
     .review-body.is-marking .flashcard .flip-control { pointer-events: none; }
+    /* While marking words the card is what is being read and tapped: a flipped card's grade row does not stick over it (#1678), where a tap on a word
+       under the row would land on a grade instead. */
+    .review-body.is-marking .flash-follow.is-grading { position: static; }
+    .review-body.is-marking .flash-follow.is-grading > .smooth-height-inner { padding-bottom: 0; background: none; }
+    .review-body.is-marking .flash-follow.is-grading > .smooth-height-inner::before { content: none; }
     .review-body.is-marking .options .option {
       user-select: text;
       cursor: text;
@@ -986,6 +991,33 @@
     .flash-follow .response-label {
       animation: follow-in var(--dur-slow) var(--ease) both;
     }
+    /* #1678: under 界面大小 a flipped card can be taller than the window (a 1440×900 window at 150% is 600 px of the app's own), and in a side panel
+       (the reader's 本节题目) it can be taller than the panel, so while the area under the card holds the 0–5 grades it sticks to the bottom of the box
+       it scrolls in, over the card, which scrolls behind it: the grades are in reach without scrolling, and the card's last line still scrolls up above
+       them (the card is above this area, inside the same box). It sits on that box's very edge: --sticky-under is the box's bottom padding, where a
+       sticky box would stop, and stuck it keeps that much room under its buttons. Where the card fits it sits where it always sat and paints nothing
+       (the card's shadow shows through); only while it is stuck (data-stuck, ui/use-sticky-room.js useStuckMark, the same in every engine) is it
+       opaque in the colour of the box (--scroll-surface, which a panel of another colour than the desk sets), with a hairline above it. What takes the focus above it stops above it: review.css, --grade-row-room. */
+    .flash-follow.is-grading {
+      position: sticky;
+      bottom: calc(-1 * var(--sticky-under, 0px));
+      z-index: var(--z-sticky);
+    }
+    /* A row that would cover more than half of the box (the full row stacked in the reader's narrow panel) stays where it is (data-in-flow, use-sticky-room.js). */
+    .flash-follow.is-grading[data-in-flow] {
+      position: static;
+    }
+    .flash-follow.is-grading[data-stuck]:not([data-in-flow]) > .smooth-height-inner {
+      position: relative;
+      padding-bottom: var(--sticky-under, 0px);
+      background: var(--scroll-surface, var(--bg-canvas));
+    }
+    .flash-follow.is-grading[data-stuck]:not([data-in-flow]) > .smooth-height-inner::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto;
+      border-top: 1px solid var(--line-soft);
+    }
     .flashcard.flipped .flip-inner {
       transform: rotateY(180deg);
     }
@@ -994,7 +1026,10 @@
       position: relative;
       grid-area: 1 / 1;
       min-width: 0;
-      min-height: 400px;
+      /* An index card of a fixed size by the width of the page (--flip-face-min), but never so tall that, flipped, the grading row under it
+         (the 0–5 buttons) falls below the window (#1678: 1536×730): the window, less the top bar and that row, bounds it. */
+      --flip-face-min: 400px;
+      min-height: min(var(--flip-face-min), max(15rem, calc(100dvh / var(--study-ui-scale, 1) - 17.5rem)));
       /* Below the head that floats over the face (its height is measured into --flash-head, ui/review/use-flash-head.js), with a gap. */
       --paper-pad-top: calc(var(--flash-head, 4rem) + var(--space-5));
       display: flex;
@@ -1191,10 +1226,6 @@
       align-items: baseline;
       gap: var(--space-1);
     }
-    .grading-side-cue {
-      color: var(--text-muted);
-      font-size: var(--fs-sm);
-    }
     .grading-head small {
       color: var(--text-dim);
       font-size: var(--fs-md);
@@ -1288,15 +1319,63 @@
       font-variant-numeric: tabular-nums;
       line-height: 1.3;
     }
+    /* "1 天" stays on one line (#1697): the words around it may wrap, the number and its unit never part. */
+    .grade .grade-gap__time {
+      display: inline;
+      white-space: nowrap;
+    }
     .grade-gaps-tip {
       cursor: help;
       text-decoration: underline dotted;
       text-underline-offset: 3px;
     }
+    /* A short window (ui/use-short-view.js: under 640 px of the app's own height, e.g. 1440×900 at 界面大小 150%): the row stuck over the card is the
+       six buttons alone, one line each, number and words, so it covers little of the card. The gap each grade gives is in the button's tooltip and name
+       instead; the group names (未达标 / 达标) are the groups' accessible names, and on screen the two groups differ by their colours and the gap between. */
+    .grading--short {
+      margin-top: var(--space-3);
+      padding-bottom: var(--space-2);
+    }
+    .grading--short .grading-head {
+      margin-bottom: var(--space-1-5);
+    }
+    .grading--short .grade-scale {
+      gap: var(--space-2) var(--space-4);
+    }
+    .grading--short .grade-group {
+      padding-top: 0;
+      border-top: 0;
+    }
+    /* The words go beside the number while they fit there, else onto the next line whole (longer English words), never broken inside a word. */
+    .grading--short .grade {
+      flex-flow: row wrap;
+      align-items: baseline;
+      justify-content: center;
+      gap: 0 var(--space-1);
+      min-height: 0;
+      padding: var(--space-1-5) var(--space-1);
+    }
+    .grading--short .grade strong {
+      font-size: var(--fs-xl);
+      margin-bottom: 0;
+    }
+    .grading--short .grade span {
+      flex: 0 0 auto;
+      max-width: 100%;
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+      overflow-wrap: break-word;
+    }
   }
   @container grading (max-width: 640px) {
     :where(.study-app, .study-seat) {
       .grade-scale { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
+    }
+  }
+  /* The one-line buttons need less room: the two groups stay side by side down to a narrower row (below it, each group is a line of its own). */
+  @container grading (min-width: 500px) {
+    :where(.study-app, .study-seat) {
+      .grading--short .grade-scale { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
   }
   :where(.study-app, .study-seat) {
@@ -1346,7 +1425,7 @@
         margin-top: calc(var(--space-9) * 2 + var(--space-7));
       }
       .flip-face {
-        min-height: 480px;
+        --flip-face-min: 480px;
       }
       .question-area {
         margin-top: var(--space-9);
@@ -1362,7 +1441,7 @@
         margin-top: calc(var(--space-9) + var(--space-3-5));
       }
       .flip-face {
-        min-height: 380px;
+        --flip-face-min: 380px;
       }
       .flash-prompt {
         font-size: calc(var(--fs-2xl) * var(--card-scale, 1));
@@ -1400,7 +1479,7 @@
         margin-top: var(--space-5-5);
       }
       .flip-face {
-        min-height: 280px;
+        --flip-face-min: 280px;
         --paper-pad-x: var(--space-5);
         --paper-pad-bottom: var(--space-5);
       }
@@ -1409,9 +1488,6 @@
       }
       .flip-back .flash-prompt {
         font-size: calc(var(--fs-2xl) * var(--card-scale, 1));
-      }
-      .grade-scale {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
       }
       .grade strong {
         font-size: var(--fs-2xl);

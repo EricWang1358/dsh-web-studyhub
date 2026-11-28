@@ -2,14 +2,18 @@
 
 @layer study.features {
   :where(.study-app, .study-seat) {
-    .blog-notes-page { max-width: none; }
-    .note-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); max-width: 44rem; }
+    /* The list keeps the one width and centring of every page (.page); only an open note, read or edited, takes the whole window (#1710). */
+    .blog-notes-page[data-note-open] { max-width: none; }
+    .note-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
     .note-list > * { min-width: 0; }
+    /* One line a row, so every row is as high as the next: a long title is cut, the facts keep their words (#1711). */
     .note-list > .note-list-item {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: var(--space-3);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      /* Centred, with one line height: Han and Latin faces sit on different baselines, which made rows 1px unequal. */
+      align-items: center;
+      gap: var(--space-half) var(--space-3);
+      line-height: var(--lh-snug);
       text-align: left;
       padding: var(--space-3) var(--space-4);
       border: 1px solid var(--line-soft);
@@ -17,6 +21,7 @@
       background: var(--bg-surface);
     }
     .note-list > .note-list-item:hover:not(:disabled) { border-color: var(--line-strong); background: var(--bg-hover); }
+    .note-list-item > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .note-list-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
     .note-list small { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .note-practice-bar {
@@ -34,7 +39,6 @@
     }
     .note-practice-bar__copy { display: grid; gap: var(--space-1); min-width: 0; }
     .note-linking__actions { margin: var(--space-2) 0; }
-    .note-daily-date { display: block; margin-top: var(--space-1); }
     .note-heading { align-items: flex-start; gap: var(--space-5); flex-wrap: wrap; }
     .note-daily-meta { color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.7; margin: 0; font-variant-numeric: tabular-nums; }
     .note-unsaved { display: block; margin-top: var(--space-1-5); font-size: var(--fs-sm); color: var(--text-muted); }
@@ -63,6 +67,7 @@
     .note-preview th, .note-preview td { border: 1px solid var(--line); padding: var(--space-1) var(--space-2); }
     .note-preview section:has(> eqn) { overflow-x: auto; max-width: 100%; }
     .note-preview section > eqn { display: flex; width: max-content; min-width: 100%; justify-content: var(--study-formula-align, center); }
+    .note-list > .note-compose { margin-top: 0; }
     .note-linking, .note-publish { margin-top: var(--space-4); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); }
     .blog-notes-page > .note-linking { max-width: 56rem; }
     .note-linking summary, .note-publish summary { cursor: pointer; }
@@ -112,7 +117,8 @@
   }
   @container study (max-width: 600px) {
     :where(.study-app, .study-seat) {
-      .note-list > .note-list-item { flex-wrap: wrap; padding: var(--space-3); }
+      /* Narrow: every row has two lines, the title and the facts. */
+      .note-list > .note-list-item { grid-template-columns: minmax(0, 1fr); padding: var(--space-3); }
       .note-practice-bar { flex-direction: column; align-items: stretch; }
       .note-card-search { flex-wrap: wrap; }
       .note-reader { min-height: 360px; height: calc(72vh / var(--study-ui-scale, 1)); }

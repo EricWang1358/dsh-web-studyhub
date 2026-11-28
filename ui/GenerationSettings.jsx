@@ -17,7 +17,7 @@ import { drawnScale } from './drawn-scale.js';
 const labels = { kinds: '默认题型', coverageLevel: '默认覆盖强度', selectionCount: '选段补题默认题数', count: '主会话里出题的默认题数', language: '默认语言', difficulty: '默认难度', focus: '默认侧重点', notation: '默认公式写法',
   concurrency: '同时生成的批数', batchSize: '每批题数', jobTimeoutMinutes: '每轮运行时限（分钟）', bookCallTimeoutMinutes: '总纲与全书单次调用时限（分钟）', fillRounds: '自动补题轮数',
   effortPlanning: '规划考点与答案设计', effortReview: '独立审阅', effortWriting: '出题与替换题', effortRepair: '修复题目',
-  lightModel: '机械步骤轻量模型', applySuggestions: '采纳审阅建议', depth: '出题深度' };
+  lightModel: '机械步骤轻量模型', applySuggestions: '采纳审阅建议', depth: '写法' };
 const languages = { auto: '跟随界面语言', 中文: '中文', English: 'English', 中英双语: '中英双语' };
 const difficulties = { mixed: '混合难度', foundation: '基础理解', application: '应用迁移', advanced: '深入辨析' };
 const notations = { auto: '自动', text: '纯文本', latex: '公式（LaTeX）' };
@@ -163,7 +163,7 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
       <Disclosure className="settings-disclosure" summaryClassName="settings-disclosure__summary" bodyClassName="settings-disclosure__body"
         summary={ui('高级生成控制')} meta={ui('并发、批次、推理程度与审阅')} open={advancedOpen} onToggle={setAdvancedOpen}>
         <h3 className="settings-subtitle">{ui('生成安排')}</h3>
-        {/* 出题深度 (lib/contexts/generation/presets.js): ONE control for the saved strategy and write style (快问 / 情境题 / 逐题精出); a saved strategy reads as its depth. */}
+        {/* 写法 (lib/contexts/generation/presets.js): ONE control for the saved strategy and write style (直接问 / 短情境 / 先设计再写, the words of 创建题组); a saved strategy reads as its depth. */}
         <Field key="depth" label={ui(labels.depth)} hint={depthHint()} error={errors.strategy || errors.writeStyle}>
           {({ id, describedBy }) => <Tooltip layer content={depthTip()}>
             <Select id={id} aria-describedby={describedBy} name="depth" value={depthOf(editor.values)} disabled={disabled}

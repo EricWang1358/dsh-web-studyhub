@@ -18,7 +18,7 @@ import { useGenerationPath } from './use-generation-path.js';
 import { MODES, availableModes, effectiveMode, pathSummary, showsChoice } from './too-big-choice.js';
 import { courseForSources } from '../lib/source-courses.js';
 import { generationRulesOf } from '../lib/courses.js';
-import { Button, Disclosure, EmptyState, Hint, Icon, InlineMessage, PageHeader, SegmentedControl, TabPanel, Tabs, Tooltip, addSourceAction } from './components/index.js';
+import { Button, Disclosure, EmptyState, Hint, Icon, InlineMessage, PageHeader, SegmentedControl, Tooltip, addSourceAction } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { freshGeneration, generationFormDefaults, modelReadiness } from './generation-status.js';
 import { startGeneration } from './generate-start.js';
@@ -35,7 +35,7 @@ import { generateAdvice, retrievalReady } from './large-document-advice.js';
 import { useRetrievalStatus } from './retrieval-status.js';
 import {
   DIFFICULTIES, LANGUAGES, LEARNER_LEVELS, appendFocus, applySuggestion, autoOf, customCountOf, courseHasCaseExam, coverageStructure,
-  NOTATION_CHOICES, caseEvidence, chosenOptions, difficultyNote, estimateMinutes, estimateRequestOf, importDialog, kindNote, kindsOfForm, kindsPatch, extraValuesOf, learnerLevelNote, moreValuesOf, notationNote, courseLine, roleOpenByDefault, selectionStats, summaryLine,
+  NOTATION_CHOICES, caseEvidence, chosenOptions, difficultyNote, estimateMinutes, estimateRequestOf, importDialog, kindNote, kindsOfForm, kindsPatch, extraValuesOf, learnerLevelNote, moreValuesOf, notationNote, roleOpenByDefault, selectionStats, summaryLine,
 } from './generate-form.js';
 import { DEFAULT_LEVEL, levelOf } from '../lib/coverage-strength.js';
 import { writesInOnePass } from '../lib/one-pass/route.js';
@@ -56,7 +56,7 @@ import { referenceSelection } from './reference-questions.js';
 import { useLiveEffect } from './use-async.js';
 import { settingsSectionOr } from './settings-groups.js';
 
-// 出题深度 and the matrix of rough costs stand in 更多选项, shut when the page opens: they arrive after the first screen, not with the workspace's first load
+// 写法 and the matrix of rough costs stand in 更多选项, shut when the page opens: they arrive after the first screen, not with the workspace's first load
 // (tests/workspace-closure-pages.test.mjs). Nothing holds their place while the chunk comes: the fold is shut by then, or opens on a row that fills in.
 const PresetsFold = deferredView(() => import('./presets/PresetsFold.jsx'), { loading: () => null });
 
@@ -194,10 +194,10 @@ export default function Generate({
     setOpening(found);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const tabs = [
-    { id: "files", label: ui("用资料出题"), note: ui("AI 按你的资料出题，并逐题检查"), icon: "sparkle", attrs: { "data-tour": "generate-from-sources" } },
-    { id: "json", label: ui("导入 JSON 题组"), note: ui("已有题目，或外部 AI 生成的题"), icon: "file", attrs: { "data-tour": "generate-json" } },
+    { id: "files", label: ui("用资料出题"), note: ui("AI 按你的资料出题，并逐题检查"), attrs: { "data-tour": "generate-from-sources" } },
+    { id: "json", label: ui("导入 JSON 题组"), note: ui("已有题目，或外部 AI 生成的题"), attrs: { "data-tour": "generate-json" } },
     // Case-study papers (WP12): a long case with open questions, graded criterion by criterion.
-    { id: "case", label: ui("案例分析题"), note: ui("长案例 + 开放题，按评分标准逐项批改"), icon: "file", attrs: { "data-tour": "generate-case" } },
+    { id: "case", label: ui("案例分析题"), note: ui("长案例 + 开放题，按评分标准逐项批改"), attrs: { "data-tour": "generate-case" } },
     // Recording into the conversation needs a chat that can take it (plan C3).
     ...(canChat ? [{ id: "chat", label: ui("在主会话里录题"), note: ui("题册、刷题软件、错题或截图") }] : []),
   ];
@@ -221,7 +221,7 @@ export default function Generate({
   const caseExam = courseHasCaseExam(activeCourseRecord);
   // What the chosen 覆盖强度 means for the chosen materials: the backend's plan, priced from the real prompts (lib/token-estimate.js), asked once the choice settles.
   const level = levelOf(gen.coverageLevel ?? DEFAULT_LEVEL), custom = customCountOf(gen);
-  // 出题方式 (lib/contexts/generation/presets.js): the form's cell is its 覆盖强度 and its 出题深度 (the saved one until the learner picks; a pick is sent with this run only),
+  // 出题方式 (lib/contexts/generation/presets.js): the form's cell is its 覆盖强度 and its 写法 (the depth; the saved one until the learner picks; a pick is sent with this run only),
   // and the typed number of questions when there is one (then it is no preset: 自定义, said with that number).
   const depth = gen.depth ?? depthOf(data.settings?.generation), cell = { density: level, depth, count: custom };
   const applies = depthApplies({ kind: gen.kind, kinds: kindsOfForm(gen) });
@@ -249,14 +249,14 @@ export default function Generate({
       <PageHeader className="generate-header" title={ui("出一组新题")}
         description={ui("用你的资料让 AI 出题；已经有现成的题目，也可以直接导入。")}
         actions={pageAvailable(data, 'examcoach') ? <Button iconEnd="arrow-right" variant="quiet" className="sh-btn--flush-start sh-btn--flush-end" onClick={() => setPage?.('examcoach')}>{ui("去教练先校准考法")}</Button> : undefined} />
-      {/* The row measures its own width (generate-home.css): where the cards no longer fit side by side they become one row of
-          titles and the chosen way's line is said once under it (#575). The tab keeps its note, so a screen reader hears the same name. */}
+      {/* The ways in are the app's one segmented control (#1700), so the chosen one looks chosen. What the chosen way does describes the group; the row measures
+          its own width (generate-home.css) and a narrow one says that line once under it (#575). */}
       <div className="source-mode-frame">
-        <Tabs id="generate" className="source-mode" itemClassName="source-tab" noteClassName="source-tab__note" label={ui("创建方式")} value={current} onChange={setGenSource}
-          items={tabs.map((tab) => ({ value: tab.id, label: tab.label, note: tab.note, attrs: tab.attrs }))} />
-        <p className="source-mode-note" aria-hidden="true">{tabs.find((tab) => tab.id === current)?.note}</p>
+        <SegmentedControl className="source-mode" label={ui("创建方式")} wrap value={current} onChange={setGenSource} aria-describedby="generate-way-note"
+          options={tabs.map((tab) => ({ value: tab.id, label: tab.label, attrs: tab.attrs }))} />
+        <p className="source-mode-note" id="generate-way-note">{tabs.find((tab) => tab.id === current)?.note}</p>
       </div>
-      <TabPanel id="generate" value={current} selected={current} className="generate-panel" tabIndex={undefined}>
+      <div className="generate-panel">
       {current === "json" ? (
         <JsonImport data={data} openDraft={openDraft} />
       ) : current === "case" ? (
@@ -314,20 +314,23 @@ export default function Generate({
                   })} />
                   <p className="generate-note">{kindNote(kindsOfForm(gen), undefined, gen.kindCounts)}</p>
                 </FormRow>
-                {/* 出题方式: three presets of 覆盖强度 × 出题深度 (lib/contexts/generation/presets.js); the two axes themselves are in 更多选项. */}
+                {/* 出题方式: three presets of 覆盖强度 × 写法 (lib/contexts/generation/presets.js); the two axes themselves are in 更多选项. */}
                 {!pathMode && <FormRow label={ui("出题方式")} data-tour="generate-preset">
                   <PresetPicker cell={cell} applies={applies} costs={costs} disabled={busy} onPick={pickPreset} />
                 </FormRow>}
+                {/* One course field: 课程范围 above only filters the list of materials. Where the new deck goes follows it (and the ticked materials) and is one more row
+                    here (#1702); 更改 opens the field for the rare other choice (#665). Its links are in ink: the accent is the one primary button's. */}
+                <FormRow label={ui("新题组放进的课程")} data-tour="generate-course" data-generate-plan="">
+                  <div className="generate-plan__line">
+                    <span className="generate-plan__course">{generationCourse || ui("未分类")}</span>
+                    <Button variant="link" size="sm" className="sh-btn--ink" aria-expanded={courseOpen} onClick={() => setCourseOpen(open => !open)}>{courseOpen ? ui("收起") : ui("更改")}</Button>
+                    <Button iconEnd="arrow-right" variant="link" size="sm" className="sh-btn--ink" data-open-settings="settings-generation" onClick={openGenerationSettings}>{ui("前往设置")}</Button>
+                  </div>
+                  {courseOpen && <div className="generate-course"><CourseField courses={data.focus?.courses} label={ui("课程名称")} value={generationCourse} onChange={course => setGen({ ...gen, course })} /></div>}
+                  {caseExam && <p className="generate-note generate-plan__hint">{ui("这门课考案例题，可以切到「案例分析题」出题。")}{" "}
+                    <Button variant="link" size="sm" className="sh-btn--ink" onClick={() => setGenSource("case")}>{ui("切到案例分析题")}</Button></p>}
+                </FormRow>
               </div>
-              {/* One course field: 课程范围 above only filters the list of materials. Where the new deck goes follows it (and the ticked materials) and is said here; 更改 opens the field for the rare other choice (#665). */}
-              <div className="generate-plan" data-generate-plan data-tour="generate-course">
-                <p className="generate-plan__line">{courseLine(generationCourse)}</p>
-                <Button variant="link" size="sm" aria-expanded={courseOpen} onClick={() => setCourseOpen(open => !open)}>{courseOpen ? ui("收起") : ui("更改")}</Button>
-                <Button iconEnd="arrow-right" variant="link" size="sm" data-open-settings="settings-generation" onClick={openGenerationSettings}>{ui("前往设置")}</Button>
-                {caseExam && <span className="generate-plan__hint">{ui("这门课考案例题，可以切到「案例分析题」出题。")}{" "}
-                  <Button variant="link" size="sm" onClick={() => setGenSource("case")}>{ui("切到案例分析题")}</Button></span>}
-              </div>
-              {courseOpen && <div className="generate-course"><CourseField courses={data.focus?.courses} label={ui("新题组放进的课程")} value={generationCourse} onChange={course => setGen({ ...gen, course })} /></div>}
               {/* Shut, its summary says the choices that are not the defaults, each whole (they wrap after a 「·」, ui/generate-form.css); open, its hint on one line,
                   as with none chosen, and the choices are not drawn: a choice picked inside the open fold moves nothing (round 7). */}
               <Disclosure className="generate-more" bodyClassName="generate-more__body" data-tour="generate-more" summary={ui("更多选项")} open={foldOpen} onToggle={setMoreOpen}
@@ -340,7 +343,7 @@ export default function Generate({
                       onChoice={(patch) => setGen({ ...gen, ...patch })} onCustom={(customCount) => setGen({ ...gen, customCount })}
                       auto={autoOf({ ...gen, coverageLevel: level })} onAuto={(autoComplete) => setGen({ ...gen, autoComplete })} />
                   </FormRow>
-                  <FormRow label={ui("出题深度")} data-tour="generate-depth">
+                  <FormRow label={ui("写法")} data-tour="generate-depth">
                     <PresetsFold depth={depth} depths={DEPTHS} applies={applies} offReason={depthOffReason()} disabled={busy} onDepth={(value) => setGen({ ...gen, depth: value })}
                       costs={foldOpen ? costs : null} cell={cell} columns={matrixColumns()} />
                   </FormRow>
@@ -364,7 +367,7 @@ export default function Generate({
                         ? uiFormat("当前课程已设 {0} 个重点知识点：相关章节自动提高题量配额，重点题加深为应用 / 进阶难度。", [activeFocusCount])
                         : ui("手上有老师划的重点图或范围？先录入重点，出题会自动提高重点占比并加深难度。")}
                     </p>
-                    <Button variant="link" size="sm" lock={busy} onClick={openFocusDialog}>
+                    <Button variant="link" size="sm" className="sh-btn--ink" lock={busy} onClick={openFocusDialog}>
                       {activeFocusCount > 0 ? ui("修改重点") : ui("录入重点…")}
                     </Button>
                   </div>
@@ -399,7 +402,7 @@ export default function Generate({
                 </FormGroup>
                 <FormGroup title={ui("题组信息")}>
                   <FormRow label={ui("题组名称（可选）")} htmlFor="generate-title">
-                    <input id="generate-title" className="generate-row__input" value={gen.title || ""} onChange={(e) => setGen({ ...gen, title: e.target.value })} placeholder={ui("例如 SWE5001 · Solution Architecture")} />
+                    <input id="generate-title" className="generate-row__input" value={gen.title || ""} onChange={(e) => setGen({ ...gen, title: e.target.value })} placeholder={ui("例如：数据库 · 索引与事务")} />
                   </FormRow>
                   {/* For interview preparation only: folded away unless the learner's goal is an interview or a role is already typed (#666). */}
                   <Disclosure className="generate-role" bodyClassName="generate-fold__body" summary={ui("面试方向（可选）")} meta={ui("目标岗位")} defaultOpen={roleOpenByDefault({ goal, focus: data.focus, course: activeCourseRecord, role: gen.role })}>
@@ -485,7 +488,7 @@ export default function Generate({
           </form>
         </>
       )}
-      </TabPanel>
+      </div>
     </section>
   );
 }

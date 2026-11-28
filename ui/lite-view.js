@@ -25,7 +25,7 @@ export const LITE_HIDDEN = Object.freeze([
   'home.setup', //          课程准备 (card or chip)
   'home.course-extras', //  the 总纲 button by the course, 课程进度, 学法 and 重点 lines, 掌握度 with 掌握图谱 and pace, 推荐下一步 (the exam countdown stays)
   'home.desk-play', //      今日折纸 and 抽一签
-  'home.catalog-maps', //   总纲 and 查看图谱 on the 学习目录 heading
+  'home.catalog-maps', //   查看图谱 on the 学习目录 heading
   'home.topic-groups', //   the topic-group reminder
   'home.notebooks-open', // what is under the 全局笔记本 heading: it starts folded (publishing and searching have no other way in, so it stays)
 ]);

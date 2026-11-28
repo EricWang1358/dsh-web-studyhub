@@ -93,9 +93,9 @@ test('in a real browser: 音频设置 on the live class and on the audio page as
   await live.page.getByRole('button', { name: '音频设置', exact: true }).click();
   assert.deepEqual(await live.page.evaluate('window.opened'), [{ where: 'live', focusPending: true }], 'live class header');
   const gated = await open('window.mountLive(false)');
-  await gated.page.getByRole('button', { name: '音频设置', exact: true }).click();
   await gated.page.getByRole('button', { name: '打开音频设置', exact: true }).click();
-  assert.deepEqual(await gated.page.evaluate('window.opened'), [{ where: 'live', focusPending: true }, { where: 'live', focusPending: true }], 'live class header and the key card');
+  assert.deepEqual(await gated.page.evaluate('window.opened'), [{ where: 'live', focusPending: true }], 'the key card');
+  assert.equal(await gated.page.getByRole('button', { name: '音频设置', exact: true }).count(), 0, 'the card is the one way while it is on screen (#1708)');
   const audio = await open('window.mountAudio()');
   await audio.page.getByRole('button', { name: '音频设置', exact: true }).first().click();
   assert.deepEqual(await audio.page.evaluate('window.opened'), [{ where: 'audio:settings', focusPending: true }], 'audio page header');

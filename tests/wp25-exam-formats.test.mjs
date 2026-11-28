@@ -11,12 +11,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 const compiled = await build({ stdin: { contents: `export * from './ui/exam-format.js';
   export { default as Exam } from './ui/Exam.jsx'; export { OralSetup } from './ui/OralExam.jsx';
-  export { CasePaper } from './ui/CaseWorkspace.jsx'; export { RecentExams } from './ui/ExamShell.jsx';
+  export { CasePaper } from './ui/CaseWorkspace.jsx'; export { RecentExams, ExamHeader } from './ui/ExamShell.jsx'; export { ICON_PATHS } from './ui/components/icon-paths.js';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: "node", format: "cjs", external: ["react"], plugins: [nativeSelects], loader: { ".css": "text" }, logLevel: "silent" });
 const module = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { defaultExamFormat, recentExams, filterRecent, shortDeckTitles, Exam, OralSetup, CasePaper, RecentExams, setUiLanguage } = module.exports;
+const { defaultExamFormat, recentExams, filterRecent, shortDeckTitles, Exam, OralSetup, CasePaper, RecentExams, ExamHeader, ICON_PATHS, setUiLanguage } = module.exports;
 const han = /[㐀-鿿]/;
 const noop = () => {};
 const render = (type, props, language = "zh") => { setUiLanguage(language); try { return renderToStaticMarkup(React.createElement(type, props)); } finally { setUiLanguage("zh"); } };
@@ -250,3 +250,15 @@ test("English: every format's setup and the recent list are fully translated", (
   assert.match(pages[0], /How it works/);
   assert.match(pages[3], /Speak or type the key points/);
 }));
+
+test("考试形式: no tab carries a check mark, so an unselected 选择题笔试 never looks chosen; 口头面试 shows a microphone (#1683)", () => {
+  const pathOf = (name) => [].concat(ICON_PATHS[name]).join("");
+  for (const format of ["written", "case", "oral"]) {
+    const html = render(ExamHeader, { courses, course: "CS5224", onCourse: noop, format, onFormat: noop });
+    const tabs = [...html.matchAll(/<button[^>]*class="sh-seg__item[^"]*"[^>]*>(?:(?!<\/button>).)*<\/button>/g)].map((match) => match[0]);
+    assert.equal(tabs.length, 3, `${format}: three formats`);
+    for (const tab of tabs) assert.ok(!tab.includes(pathOf("check")), `${format}: no check mark on ${tab.replace(/<[^>]*>/g, "")}`);
+    const oral = tabs.find((tab) => tab.includes("口头面试"));
+    assert.ok(oral.includes(pathOf("microphone")) && !oral.includes(pathOf("audio")), `${format}: 口头面试 is a microphone, not a music note`);
+  }
+});

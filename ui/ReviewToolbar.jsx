@@ -104,7 +104,8 @@ export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, o
             {ui("标生词")}
           </Button>
         )}
-        {canUndo && !run.feedback && <Button variant="quiet" className="tool-action review-undo" data-usage="review.undo" aria-keyshortcuts="Z" lock={busy} onClick={onUndo}>{ui("已记分 · 撤销 (Z)")}</Button>}
+        {/* The grade it takes back is the previous question's, so it says so (#1685), in the ink of the tools beside it: on a question not yet answered, an accent read as "this one is graded". */}
+        {canUndo && !run.feedback && <Button variant="quiet" className="tool-action" data-usage="review.undo" aria-keyshortcuts="Z" lock={busy} onClick={onUndo}>{ui("撤销上一题评分 (Z)")}</Button>}
         {thumbs}
       </div>
       {run.mode === "exam" && <p className="muted small next-due">{ui("这是进行中的模拟考试：这里可以继续作答，交卷和成绩单在「模拟考试」页。")}</p>}

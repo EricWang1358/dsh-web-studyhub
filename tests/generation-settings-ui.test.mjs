@@ -251,15 +251,17 @@ test('lightModel offers following the generation model by default, lists host mo
   assert.equal(calls[0].args.generation.lightModel, JSON.stringify(['preview', 'fast-model']));
 });
 
-// 出题深度 (lib/contexts/generation/presets.js) is the ONE control for the saved strategy and write style: 快问 / 情境题 / 逐题精出, where 出题方式 was a choice of two.
-test('出题深度 is a choice of three under the advanced controls, 情境题 by default, explained by a hover card and never a title attribute', () => {
-  for (const [language, labels, tip] of [['zh', ['快问', '情境题（默认）', '逐题精出'], /快问：每段资料一次写完这一段的题/], ['en', ['Quick', 'Scenario (default)', 'Step by step'], /Quick: each part of the material gets its questions in one call/]]) {
+// 写法 (the depth of lib/contexts/generation/presets.js) is the ONE control for the saved strategy and write style: 直接问 / 短情境 / 先设计再写, the words of 创建题组 (#1686).
+test('写法 is a choice of three under the advanced controls, 短情境 by default, explained by a hover card and never a title attribute', () => {
+  for (const [language, name, labels, tip] of [['zh', '写法', ['直接问', '短情境（默认）', '先设计再写'], /直接问：每段资料一次写完这一段的题/], ['en', 'Writing method', ['Ask directly', 'Short scenario (default)', 'Design first'], /Ask directly: each part of the material gets its questions in one call/]]) {
     ssr.setUiLanguage(language);
     const markup = renderToStaticMarkup(React.createElement(ssr.GenerationSettings, { root: '/temporary/library', act: noop }));
     const select = markup.match(/<select[^>]*name="depth"[^>]*>(.*?)<\/select>/);
     assert.ok(select, `${language}: the select is there`);
     assert.deepEqual([...select[1].matchAll(/<option[^>]*value="([^"]+)"[^>]*>([^<]*)</g)].map(match => [match[1], match[2]]), [['quick', labels[0]], ['scenario', labels[1]], ['blueprint', labels[2]]]);
-    assert.match(select[0], /value="scenario"[^>]*selected|selected[^>]*value="scenario"/, `${language}: 情境题 is chosen by default`);
+    assert.match(select[0], /value="scenario"[^>]*selected|selected[^>]*value="scenario"/, `${language}: 短情境 is chosen by default`);
+    assert.match(markup, new RegExp(`<label[^>]*>${name}</label>`), `${language}: the field is named as on 创建题组`);
+    assert.doesNotMatch(markup, /出题深度|快问|逐题精出/, `${language}: no old name of the depth`);
     assert.match(markup, tip, `${language}: the hover card says what each depth does`);
     assert.doesNotMatch(select[0], /title=/);
     assert.doesNotMatch(markup, /name="strategy"/, `${language}: no second control for the strategy`);
@@ -273,7 +275,7 @@ test('a saved strategy reads as its depth, and choosing a depth saves the strate
   const depthSelect = view => { const field = find(view.render(), node => typeof node.props?.children === 'function' && /depth$/.test(String(node.key))); return field.props.children({ id: 'depth', describedBy: '' }).props.children; };
   const staged = editor({ saved: { ...GENERATION_SETTINGS_DEFAULTS, strategy: 'staged' } });
   staged.render(); staged.effects();
-  assert.equal(depthSelect(staged).props.value, 'blueprint', 'a library on the staged pipeline reads as 逐题精出');
+  assert.equal(depthSelect(staged).props.value, 'blueprint', 'a library on the staged pipeline reads as 先设计再写');
   const calls = [];
   const view = editor({ act: async (action, args, after) => { calls.push(args.generation); after({ generation: args.generation }); } });
   view.render(); view.effects();

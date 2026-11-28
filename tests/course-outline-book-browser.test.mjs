@@ -77,7 +77,7 @@ test('总纲 as a book: chapters open, sections closed, a point opens to its mat
       const scaleText = await page.locator('.outline-book-line [data-book-scale]').innerText();
       assert.match(scaleText, /要写 \d+ 个知识点 · .*次模型调用 · 读资料加模型写出的约 .* tok/);
       assert.doesNotMatch(scaleText, /元|¥|￥|\$|价格|费用|美元|RMB|USD|price|cost/i);
-      assert.match(await page.locator('.outline-book-line [data-book-cost-tip]').innerText(), /opencode \/ commandcode/);
+      assert.match(await page.locator('.outline-book-line [data-book-cost-tip]').innerText(), /整本比较费：可以只挑几章生成/);
       const alignment = await page.evaluate(() => {
         const line = document.querySelector('.outline-book-line').getBoundingClientRect();
         const basis = document.querySelector('.outline-book-line__basis').getBoundingClientRect();
@@ -272,7 +272,7 @@ test('CourseOutline container & BookPage empty state: useBookScale fetches estim
   await page.locator('.book-pick__list input[type="checkbox"]').nth(1).check();
   await page.locator('[data-book-pick-scale]').waitFor();
   assert.match(await page.locator('[data-book-pick-scale]').innerText(), /要写 3 个知识点 · 6–18 次模型调用/);
-  const tipCount = await page.evaluate(() => (document.body.innerText.match(/opencode \/ commandcode/g) || []).length);
+  const tipCount = await page.evaluate(() => (document.body.innerText.match(/整本比较费/g) || []).length);
   assert.equal(tipCount, 1, 'bookCostTipText() appears once on the page even when BookPick scale is open');
 
   // 3. Changing coverage to 'full' clears stale 'standard' scale immediately while 'full' estimate is pending, then updates on resolve.
@@ -295,7 +295,7 @@ test('CourseOutline container & BookPage empty state: useBookScale fetches estim
   await page.locator('.sh-empty').waitFor();
   const emptyText = await page.locator('.sh-empty').innerText();
   assert.match(emptyText, /还没有复习全书/);
-  assert.match(emptyText, /opencode \/ commandcode/);
+  assert.match(emptyText, /整本比较费：可以只挑几章生成/);
   assert.doesNotMatch(emptyText, /元|¥|￥|\$|价格|费用|美元|RMB|USD|price|cost/i);
   await page.locator('.sh-empty__actions button', { hasText: '回到总纲' }).click();
   assert.equal(await page.evaluate(() => window.backClicks), 1);

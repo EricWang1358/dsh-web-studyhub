@@ -10,6 +10,7 @@ import PageScope, { courseMatcher, decksInCourse, scopedAttemptsOf, usePageScope
 import { useCourseActive } from './CourseActive.jsx';
 import { FocusDurationPanel, ForecastPanel, MasteryPanel, TrendPanel } from "./charts/DashboardCharts.jsx";
 import { shortDeckTitles } from "./charts/chart-math.js";
+import { joinMeta, META_DOT } from "./format.js";
 import { ModelUsage } from "./TokenUsage.jsx";
 import { Badge, Button, EmptyState, ErrorState, Icon, LoadingState, PageHeader, Tooltip } from "./components/index.js";
 import { useStudy } from "./study-context.jsx";
@@ -48,8 +49,8 @@ export function nextHeatmapIndex(current, key, length, rows = 7) {
 const showsParked = (data, course) => (data?.focus?.courses || []).some((item) => item?.active === false && (item.count ?? 0) > 0) && course === "*";
 
 /* Weak-topic rows: the topic first; course (only when several courses are
-   shown) and a shortened deck name as secondary text. Decks of one course
-   usually share "Course｜…｜90题" - show only the part that tells them apart. */
+   shown) and a shortened deck name as secondary text (`from`), then the count of weak questions (`count`, drawn whole: it never wraps apart from its
+   unit). Decks of one course usually share "Course｜…｜90题" - show only the part that tells them apart. */
 function weakRows(weak, course) {
   const byCourse = new Map();
   weak.forEach((w, i) => byCourse.set(w.course ?? "", [...(byCourse.get(w.course ?? "") || []), i]));
@@ -60,8 +61,8 @@ function weakRows(weak, course) {
   }
   return weak.map((w, i) => ({
     ...w,
-    detail: [course === "*" && w.course ? w.course : "", short[i], uiFormat("当前薄弱 {0} 题", [w.wrong])]
-      .filter(Boolean).join(" · "),
+    from: joinMeta([course === "*" && w.course ? w.course : "", short[i]]),
+    count: uiFormat("当前薄弱 {0} 题", [w.wrong]),
   }));
 }
 
@@ -251,7 +252,7 @@ export function StatsView({
                 <li key={w.deckId + ":" + w.topic} className="dash-weak-row">
                   <span className="dash-weak-name">
                     <strong>{w.topic || ui("未分类")}</strong>
-                    <small>{w.detail}</small>
+                    <small>{w.from ? `${w.from}${META_DOT}` : ""}<span className="dash-weak-count">{w.count}</span></small>
                   </span>
                   <Button variant="link" size="sm" iconEnd="arrow-right" className="dash-weak-start" lock={busy}
                     onClick={() =>

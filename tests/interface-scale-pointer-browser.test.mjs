@@ -352,7 +352,9 @@ test('below 100% the pointer, the measured widths and the first paint agree with
 
     await t.test('dragging the course graph moves it as far as the pointer went', async (t2) => {
       const { page, errors } = await open(t2);
-      await page.getByRole('button', { name: '查看图谱' }).first().click();
+      // The home has one way to the graph (#1695): 掌握图谱 under the desk's mastery, whose tabs reach 知识结构.
+      await page.getByRole('button', { name: '掌握图谱', exact: true }).first().click();
+      await page.locator('.graph').getByRole('button', { name: '知识结构', exact: true }).click({ timeout: 30000 });
       const view = page.locator('.graph-viewport').first();
       await view.waitFor({ timeout: 30000 });
       const node = view.getByText('Deck 1', { exact: true }).first();

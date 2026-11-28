@@ -90,45 +90,56 @@ export function useDraftDirty({ draft, draftLoaded, draftText, jsonMode, debounc
   return formDirty || jsonDirty;
 }
 
-/** Sorted 0-based indices of draft cards with quality issues or rejection notes. */
-export function collectFlaggedCardIndices(draft) {
+/** What is wrong with each flagged question of a draft (sent back, a quality error, an editorial issue): 0-based index → the readable reasons, "第 n 题：" cut off. A question can be
+    flagged with no reason worded (an issue object with no text): its list is empty. */
+export function collectCardIssues(draft) {
   const cards = Array.isArray(draft?.cards) ? draft.cards : [];
-  if (!cards.length) return [];
-  const indices = new Set();
+  const issues = new Map();
+  if (!cards.length) return issues;
   const byId = new Map(cards.map((card, index) => [card?.id, index]));
   const rejected = draft.editorial?.rejectedIssues || {};
-  const addCardIndex = (cardIndex) => {
-    if (Number.isInteger(cardIndex) && cardIndex >= 0 && cardIndex < cards.length) indices.add(cardIndex);
+  const reasonOf = (issue) => {
+    const text = typeof issue === "string" ? issue : [issue?.message, issue?.text, issue?.detail].find((value) => typeof value === "string");
+    return text ? readableQualityIssue(text).replace(/^(?:第 \d+ 题：|Card \d+: )/, "") : "";
+  };
+  const add = (cardIndex, issue) => {
+    if (!Number.isInteger(cardIndex) || cardIndex < 0 || cardIndex >= cards.length) return;
+    const reasons = issues.get(cardIndex) || [];
+    const reason = issue === undefined ? "" : reasonOf(issue);
+    if (reason && !reasons.includes(reason)) reasons.push(reason);
+    issues.set(cardIndex, reasons);
   };
   const scanIssue = (issue) => {
     if (!issue) return;
     if (typeof issue === "string") {
       const match = /^Card (\d+):/.exec(issue);
-      if (match) addCardIndex(Number(match[1]) - 1);
+      if (match) add(Number(match[1]) - 1, issue);
       return;
     }
     if (typeof issue === "object") {
-      if (issue.cardId && byId.has(issue.cardId)) addCardIndex(byId.get(issue.cardId));
-      else if (Number.isInteger(issue.cardIndex)) addCardIndex(issue.cardIndex);
-      else if (Number.isInteger(issue.index)) addCardIndex(issue.index);
+      if (issue.cardId && byId.has(issue.cardId)) add(byId.get(issue.cardId), issue);
+      else if (Number.isInteger(issue.cardIndex)) add(issue.cardIndex, issue);
+      else if (Number.isInteger(issue.index)) add(issue.index, issue);
     }
   };
-  cards.forEach((card, index) => {
-    if (!card) return;
-    const hasRejected = Array.isArray(rejected[card.id]) ? rejected[card.id].length > 0 : Boolean(rejected[card.id]);
-    if (hasRejected) indices.add(index);
-  });
+  const scanDetail = (index, detail) => {
+    if (Array.isArray(detail)) { if (detail.length) { add(index); detail.forEach((issue) => add(index, issue)); } }
+    else if (detail) add(index, typeof detail === "boolean" ? undefined : detail);
+  };
+  cards.forEach((card, index) => { if (card) scanDetail(index, rejected[card.id]); });
   for (const issue of Array.isArray(draft.quality?.errors) ? draft.quality.errors : []) scanIssue(issue);
   const editorialIssues = draft.editorial?.quality?.issues;
   if (Array.isArray(editorialIssues)) {
     for (const issue of editorialIssues) scanIssue(issue);
   } else if (editorialIssues && typeof editorialIssues === "object") {
-    for (const [cardId, detail] of Object.entries(editorialIssues)) {
-      const nonEmpty = Array.isArray(detail) ? detail.length > 0 : Boolean(detail);
-      if (nonEmpty && byId.has(cardId)) addCardIndex(byId.get(cardId));
-    }
+    for (const [cardId, detail] of Object.entries(editorialIssues)) if (byId.has(cardId)) scanDetail(byId.get(cardId), detail);
   }
-  return [...indices].sort((a, b) => a - b);
+  return issues;
+}
+
+/** Sorted 0-based indices of draft cards with quality issues or rejection notes. */
+export function collectFlaggedCardIndices(draft) {
+  return [...collectCardIssues(draft).keys()].sort((a, b) => a - b);
 }
 
 export default function Draft({
@@ -226,8 +237,10 @@ export default function Draft({
   // Questions that are near-duplicates of another one of the same kind, in this draft or the course's decks (#890): asked with the draft, again when it changes.
   // Not while a job is still changing the draft (it would ask after every batch): the last answer stays on screen, and the page asks once the job is done.
   const similar = useSimilarQuestions(draft.id, { version: `${data.revision}:${draft.draftVersion}`, enabled: draft.draftVersion > 0 && !missingDraft && !updatingDraft });
-  const flaggedIndices = React.useMemo(() => collectFlaggedCardIndices(draft), [draft]);
+  const cardIssues = React.useMemo(() => collectCardIssues(draft), [draft]);
+  const flaggedIndices = React.useMemo(() => [...cardIssues.keys()].sort((a, b) => a - b), [cardIssues]);
   const flaggedPos = flaggedState.id === draft.id && flaggedState.pos >= 0 && flaggedState.pos < flaggedIndices.length ? flaggedState.pos : -1;
+  // A jump to a flagged question opens it on what is wrong with it (the reasons lead the opened question), so the learner lands on the problem, not on a closed row.
   const jumpToFlagged = (step = 1) => {
     if (!flaggedIndices.length) return;
     const nextPos = step < 0
@@ -237,8 +250,17 @@ export default function Draft({
     setFlaggedState({ id: draft.id, pos: nextPos });
     flushSync(() => setDrawnTo({ id: draft.id, index: targetIndex }));
     const cardEl = pageRef.current?.querySelector(`[data-draft-index="${targetIndex}"]`);
-    cardEl?.scrollIntoView?.({ block: "center" });
+    if (cardEl) cardEl.open = true;
+    (cardEl?.querySelector(".draft-card__issues") || cardEl)?.scrollIntoView?.({ block: "center" });
     cardEl?.querySelector("summary")?.focus?.({ preventScroll: true });
+  };
+  // 生成详情 follows the last question: all of them are drawn first, or the next chunk would be drawn between them and the place just scrolled to.
+  const openDetails = (selector) => {
+    flushSync(() => setDrawnTo({ id: draft.id, index: draft.cards.length - 1 }));
+    if (!detailsRef.current) return;
+    detailsRef.current.open = true;
+    const target = (selector && detailsRef.current.querySelector(selector)) || detailsRef.current;
+    target.scrollIntoView?.({ block: selector ? "center" : "nearest" });
   };
   const jumpToNextFlagged = () => jumpToFlagged(1);
   const replaceDraft = React.useCallback((next) => openDraft(next, { skipStash: true }), [openDraft]);
@@ -361,14 +383,7 @@ export default function Draft({
         <InlineMessage tone="warning" boxed className="draft-blocker-summary"
           action={flaggedIndices.length > 0
             ? { label: ui("定位待处理题"), onClick: jumpToNextFlagged }
-            : { label: ui("查看详情"), onClick: () => {
-              // The details follow the last question: all of them are drawn first, or the next chunk would be drawn between them and the details just scrolled to.
-              flushSync(() => setDrawnTo({ id: draft.id, index: draft.cards.length - 1 }));
-              if (detailsRef.current) {
-                detailsRef.current.open = true;
-                detailsRef.current.scrollIntoView?.({ block: "nearest" });
-              }
-            } }}>
+            : { label: ui("查看详情"), onClick: () => openDetails() }}>
           {[
             rejectedCount > 0
               ? (retryPublishCount > 0
@@ -398,13 +413,14 @@ export default function Draft({
       ) : (
         <>
           <ChunkedRows items={draft.cards} chunk={DRAFT_CHUNK} resetKey={draft.id} reveal={revealCard} anchors={{ "draft-similar": draft.cards.findIndex((card) => similar.get(card.id)) }} render={(q, i) => (
-            <Panel as="details" className="draft-card" data-draft-index={i} key={q.id}>
+            <Panel as="details" className="draft-card" data-draft-index={i} key={q.id} {...(i === 0 ? { "data-tour": "draft-question" } : {})}>
               {/* One row layout for every question (#670): the number, the question (two lines at most, whole when the row is open) and, at the end, the kind and what is not as it should be. */}
               <summary className="draft-card__row">
                 <span className="draft-card__no">{formatNumber(i + 1, { minimumIntegerDigits: 2 })}</span>
                 {/* The near-duplicate notice (#890) leads the question, inside its two lines: however many tags the row has, it adds no height. */}
                 <span className="draft-card__prompt"><SimilarTag match={similar.get(q.id)} />{plainStem(q.prompt)}</span>
                 <span className="draft-card__tags">
+                  {cardIssues.has(i) && <small className="draft-card__flag">{ui("待处理")}</small>}
                   <small>{kinds[q.kind]}</small>
                   {!cardMatchesReview(draft.editorial?.reviewedCards?.[q.id], q) &&
                     <small>{ui("未自动审阅")}</small>}
@@ -414,6 +430,11 @@ export default function Draft({
                   {experimentalShown(data) && draft.editorial?.jevDecided?.cards?.[q.id] && <JevDecidedBadge />}
                 </span>
               </summary>
+              {/* Why this question is flagged, first thing in it; a sent-back one leads to the box with 交给后台修题 in 生成详情 (the one place that starts the repair). */}
+              {cardIssues.get(i)?.length > 0 && <InlineMessage tone="warning" className="draft-card__issues"
+                action={rejectedIssues[q.id] ? { label: ui("查看修题办法"), onClick: () => openDetails(".draft-rejected") } : undefined}>
+                {cardIssues.get(i).join(ui("；"))}
+              </InlineMessage>}
               <SimilarDetail match={similar.get(q.id)} />
               {experimentalShown(data) && <JevCardSignals signal={draft.editorial?.jev?.signals?.[q.id]} threshold={draft.editorial?.jev?.threshold} />}
               <label>{q.kind === "task" ? ui("任务说明") : ui("问题")}<textarea
@@ -682,7 +703,7 @@ export default function Draft({
         <Disclosure summary={ui("查看记录")}><ul>{failureLines.map((line, i) => <li key={i}>{line}</li>)}</ul></Disclosure>
       </Banner>}
       {!shortBlock && <OmittedQuestions draft={draft} />}
-      {rejectedCount > 0 && <Banner tone="warning" role="status"
+      {rejectedCount > 0 && <Banner tone="warning" role="status" className="draft-rejected"
         title={retryPublishCount > 0 ? uiFormat("{0} 道题待处理 · {1} 道待重新检查发布", [rejectedCount, retryPublishCount]) : uiFormat("{0} 道题待处理", [rejectedCount])}>
         <p>{[draft.editorial?.partialEdit
           ? ui("通过检查的修改已更新到原题组；未通过的修改留在草稿。原有题目仍按旧内容供学习，新加的题尚未发布。")

@@ -198,7 +198,7 @@ test('发给主会话 on the places that handed over before: the shared control,
 
     // ---------------- 创建题组 › 在主会话里录题: the page's own primary button ----------------
     await go('generate');
-    await page.getByRole('tab', { name: /在主会话里录题/ }).click();
+    await page.getByRole('group', { name: '创建方式' }).getByRole('button', { name: '在主会话里录题' }).click();
     const start = page.getByRole('button', { name: '开始录题并发给主会话' });
     await start.waitFor({ timeout: 30000 });
     assert.equal(await start.getAttribute('title'), null);
@@ -300,7 +300,7 @@ test('发给主会话 on the places that handed over before: the shared control,
 
     // ---------------- 分步出题 and 音频 ----------------
     await go('generate');
-    await page.getByRole('tab', { name: /用资料出题/ }).click();
+    await page.getByRole('group', { name: '创建方式' }).getByRole('button', { name: '用资料出题' }).click();
     // The book is long: the page asks how to go on; 分步出题 draws the plan of steps (and its 发给主会话).
     const way = page.locator('.too-big').getByText('分步出题', { exact: true }).first();
     await way.click({ timeout: 30000 });

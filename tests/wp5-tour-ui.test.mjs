@@ -14,8 +14,8 @@ const compiled = await build({
     export { SampleBanner } from './ui/Welcome.jsx';
     export { default as FirstRunLine } from './ui/first-run/FirstRunLine.jsx';
     export { firstRunLine } from './ui/first-run/line.js';
-    export { TourPopover } from './ui/tour/Tour.jsx';
-    export { placePopover } from './ui/tour/geometry.js';
+    export { default as Tour, TourPopover } from './ui/tour/Tour.jsx';
+    export { placePopover, spotlightBox, driftedOut } from './ui/tour/geometry.js';
     export { readTourProgress, writeTourProgress, welcomeDismissed, dismissWelcome } from './ui/tour/progress.js';
     export { TOUR_STEPS } from './ui/tour/steps.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: "node", format: "cjs", external: ["react", "react-dom"], loader: { ".css": "text" }, logLevel: "silent",
@@ -106,6 +106,29 @@ test("the tour popover is a labelled, non-modal dialog with progress and Back / 
   ui.setUiLanguage("zh");
 });
 
+test("the card's header says the chapter, and only the full tour offers 跳到下一章, never on the last chapter", () => {
+  ui.setUiLanguage("zh");
+  const steps = ui.TOUR_STEPS.filter((item) => item.only !== "core");
+  const render = (id, extra = {}) => html(React.createElement(ui.Tour, { steps, stepId: id, rootRef: { current: null }, sampleLoaded: true,
+    onEnter: noop, onMove: noop, onClose: noop, onFinish: noop, ...extra }));
+  const dashboard = render("dashboard", { onJump: noop });
+  assert.match(text(dashboard), /功能导览 · 复习/);
+  assert.match(dashboard, /<button[^>]*type="button"(?:(?!<\/button>).)*跳到下一章/s, "a real button: Tab reaches it and Enter presses it");
+  assert.doesNotMatch(dashboard.match(/<button(?:(?!<\/button>).)*跳到下一章/s)[0], /sh-btn--primary/, "quiet: 下一步 stays the one filled button");
+  assert.match(text(render("welcome", { onJump: noop })), /跳到下一章/);
+  assert.doesNotMatch(text(render("welcome", { onJump: noop, sampleLoaded: false })), /跳到下一章/, "the sample is chosen first");
+  assert.doesNotMatch(text(render("skeleton", { onJump: noop })), /跳到下一章/, "更多 is the last chapter");
+  assert.doesNotMatch(text(render("finish", { onJump: noop })), /跳到下一章/);
+  assert.doesNotMatch(text(render("dashboard")), /跳到下一章/, "the short tour has no chapter jump");
+  ui.setUiLanguage("en");
+  const english = text(render("dashboard", { onJump: noop }));
+  assert.match(english, /Feature tour · Review/);
+  assert.match(english, /Next chapter/);
+  assert.doesNotMatch(english, han);
+  assert.match(text(render("settings-model", { onJump: noop })), /Feature tour · Setup/);
+  ui.setUiLanguage("zh");
+});
+
 test("the popover sits beside its target, centres without one and docks at the bottom when narrow", () => {
   const bounds = { width: 1440, height: 900 }, popover = { width: 360, height: 220 };
   const centred = ui.placePopover({ target: null, popover, bounds });
@@ -127,6 +150,111 @@ test("the popover sits beside its target, centres without one and docks at the b
   const narrow = ui.placePopover({ target: { left: 10, top: 300, width: 380, height: 100 }, popover: { width: 396, height: 260 }, bounds: { width: 420, height: 860 } });
   assert.equal(narrow.side, "dock");
   assert.equal(narrow.docked, true);
+});
+
+/* #1712: the card keeps off what introduces the page (its title, and for a step that came from the sidebar its first block) and never lies on the lit area. */
+const meet = (a, b) => Math.min(a.left + a.width, b.left + b.width) - Math.max(a.left, b.left) > 0 && Math.min(a.top + a.height, b.top + b.height) - Math.max(a.top, b.top) > 0;
+const cardOf = (placed, popover) => ({ left: placed.left, top: placed.top, width: popover.width, height: popover.height });
+const inside = (placed, popover, bounds) => placed.left >= 0 && placed.top >= 0 && placed.left + popover.width <= bounds.width && placed.top + popover.height <= bounds.height;
+
+test("#1712: with the sidebar put away the card beside the menu button keeps off the page's title and first block", () => {
+  const bounds = { width: 2000, height: 1088 }, popover = { width: 380, height: 256 };
+  // Measured on 学习笔记 with the sidebar put away: the card used to take 76–456 × 16–272 px, on the title, the course picker and 今日学习总结.
+  const menu = { left: 6, top: 6, width: 44, height: 44 };
+  const title = { left: 92, top: 96, width: 120, height: 36 }, block = { left: 92, top: 220, width: 900, height: 240 };
+  const placed = ui.placePopover({ target: menu, popover, bounds, prefer: "right", avoid: [title, block] });
+  const card = cardOf(placed, popover);
+  for (const [name, box] of [["title", title], ["first block", block], ["menu button", menu]]) assert.ok(!meet(card, box), `${name}: ${JSON.stringify(card)}`);
+  assert.ok(inside(placed, popover, bounds), JSON.stringify(placed));
+});
+
+test("#1712: the card keeps off both when the in-page heading is lit, and keeps its preferred side when that side is already clear", () => {
+  const bounds = { width: 1440, height: 900 }, popover = { width: 380, height: 260 };
+  const header = { left: 170, top: 80, width: 1100, height: 110 }, title = { left: 170, top: 80, width: 90, height: 36 };
+  const block = { left: 170, top: 214, width: 1100, height: 220 };
+  const placed = ui.placePopover({ target: header, popover, bounds, prefer: "right", avoid: [title, block] });
+  const card = cardOf(placed, popover);
+  for (const box of [header, title, block]) assert.ok(!meet(card, box), JSON.stringify(card));
+  assert.ok(inside(placed, popover, bounds));
+  // The sidebar's entry, low on the left: beside it is clear of the page's top, so nothing changes.
+  const entry = { left: 8, top: 640, width: 200, height: 36 };
+  assert.deepEqual(ui.placePopover({ target: entry, popover, bounds, prefer: "right", avoid: [title, block] }),
+    ui.placePopover({ target: entry, popover, bounds, prefer: "right" }));
+});
+
+test("#1712: when the first block fills the page the title still stays clear", () => {
+  const bounds = { width: 1440, height: 900 }, popover = { width: 380, height: 280 };
+  const menu = { left: 6, top: 6, width: 44, height: 44 }, title = { left: 80, top: 70, width: 120, height: 36 };
+  const block = { left: 0, top: 120, width: 1440, height: 900 };
+  const placed = ui.placePopover({ target: menu, popover, bounds, prefer: "right", avoid: [title, block] });
+  const card = cardOf(placed, popover);
+  assert.ok(!meet(card, title) && !meet(card, menu), JSON.stringify(card));
+  assert.ok(inside(placed, popover, bounds));
+});
+
+test("a target too tall for any side is lit only above the card: the card never lies on the lit area", () => {
+  const popover = { width: 380, height: 260 };
+  const wide = ui.placePopover({ target: { left: 200, top: 90, width: 1040, height: 1400 }, popover, bounds: { width: 1440, height: 900 } });
+  assert.ok(wide.spot, "the placement says what is lit");
+  assert.ok(!meet(cardOf(wide, popover), wide.spot), JSON.stringify(wide));
+  assert.equal(wide.spot.top, 90, "the target's top stays where it is");
+  assert.ok(wide.spot.height >= 160, "enough of the target stays lit to be recognised");
+  const phone = { width: 420, height: 860 }, sheet = { width: 396, height: 380 };
+  const docked = ui.placePopover({ target: { left: 10, top: 96, width: 400, height: 700 }, popover: sheet, bounds: phone });
+  assert.equal(docked.docked, true);
+  assert.ok(!meet(cardOf(docked, sheet), docked.spot) && docked.spot.top === 96, JSON.stringify(docked));
+  // A short target well above the sheet is lit whole.
+  assert.deepEqual(ui.placePopover({ target: { left: 10, top: 100, width: 400, height: 80 }, popover: sheet, bounds: phone }).spot, undefined);
+});
+
+test("above a bar pinned to the bottom of a narrow panel: the sheet sits on top of it, not over it and not over the page's title", () => {
+  const phone = { width: 420, height: 860 }, sheet = { width: 396, height: 380 }, bar = { left: 10, top: 780, width: 400, height: 70 };
+  const placed = ui.placePopover({ target: bar, popover: sheet, bounds: phone, pinned: true });
+  assert.equal(placed.docked, true);
+  assert.equal(placed.side, "dock-lifted");
+  assert.equal(placed.top, 780 - 8 - 380, "just above the bar, so the top of the page stays in sight");
+  assert.ok(!meet(cardOf(placed, sheet), bar));
+  // A target that can still be scrolled above the sheet keeps it at the bottom (the tour scrolls the page, and the sheet does not jump about).
+  assert.equal(ui.placePopover({ target: bar, popover: sheet, bounds: phone }).top, 860 - 380 - 12);
+});
+
+test("a target that late content pushed out of view is scrolled to again; one the view cuts only at the bottom is left alone", () => {
+  const bounds = { width: 1440, height: 900 };
+  const at = (top, height) => ui.driftedOut({ left: 100, top, width: 600, height }, bounds);
+  assert.equal(at(1400, 400), true, "below the view");
+  assert.equal(at(-700, 400), true, "above it");
+  assert.equal(at(860, 400), true, "only a sliver left at the bottom");
+  assert.equal(at(-60, 300), true, "its top is cut off although it would fit");
+  assert.equal(at(100, 400), false);
+  assert.equal(at(300, 1600), false, "a tall target with its top in view stays where it is");
+  assert.equal(at(-200, 2000), false, "a target taller than the view fills it");
+  assert.equal(at(870, 24), false, "a short bar at the foot is all there");
+});
+
+/* 界面大小 150% on 1440 × 900 leaves the layer 960 × 600 of its own pixels: the measurements below are the walk's. */
+test("a target with no room around it is reported as crowded, so the tour first scrolls it to the top; there it fits", () => {
+  const bounds = { width: 960, height: 600 }, popover = { width: 380, height: 330 };
+  const row = { left: 230, top: 185, width: 702, height: 76 };
+  assert.equal(ui.placePopover({ target: row, popover, bounds }).crowded, true, "below needs 360 px, above too");
+  const raised = ui.placePopover({ target: { ...row, top: 64 }, popover, bounds });
+  assert.equal(raised.crowded, undefined);
+  assert.ok(!meet(cardOf(raised, popover), { ...row, top: 64 }), JSON.stringify(raised));
+  // A whole section at the top is lit down to the card, even where little of it fits.
+  const section = { left: 230, top: 64, width: 702, height: 820 };
+  const cut = ui.placePopover({ target: section, popover: { width: 380, height: 360 }, bounds });
+  assert.equal(cut.crowded, undefined);
+  assert.ok(cut.spot && cut.spot.height >= 96 && !meet(cardOf(cut, { width: 380, height: 360 }), cut.spot), JSON.stringify(cut));
+});
+
+test("a centred card moves under the page's title when it would lie on it", () => {
+  const bounds = { width: 960, height: 600 }, popover = { width: 380, height: 330 };
+  const title = { left: 300, top: 120, width: 260, height: 36 };
+  const placed = ui.placePopover({ target: null, popover, bounds, avoid: [title] });
+  assert.equal(placed.side, "center");
+  assert.ok(!meet(cardOf(placed, popover), title) && inside(placed, popover, bounds), JSON.stringify(placed));
+  assert.equal(placed.left, ui.placePopover({ target: null, popover, bounds }).left);
+  // No room under it: it stays in the middle.
+  assert.deepEqual(ui.placePopover({ target: null, popover: { width: 380, height: 560 }, bounds, avoid: [title] }), ui.placePopover({ target: null, popover: { width: 380, height: 560 }, bounds }));
 });
 
 test("tour progress and the welcome choice are remembered per library, and blocked storage is harmless", () => {

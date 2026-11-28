@@ -87,7 +87,7 @@ function recordFrames() {
     if (window.__from !== null && page) {
       const origin = page.getBoundingClientRect().top;
       const at = selector => { const element = document.querySelector(selector); if (!element) return null; const box = element.getBoundingClientRect(); return [Math.round((box.top - origin) * 100) / 100, Math.round(box.height * 100) / 100]; };
-      window.__frames.push({ t: Math.round(performance.now() - window.__from), header: !!page.querySelector('.generate-header'), tabs: !!page.querySelector('.source-mode [role="tab"]'),
+      window.__frames.push({ t: Math.round(performance.now() - window.__from), header: !!page.querySelector('.generate-header'), tabs: !!page.querySelector('.source-mode .sh-seg__item'),
         list: !!page.querySelector('[data-tour="generate-sources"] .source-picker__item'), form: !!page.querySelector('[data-tour="generate-options"]'),
         place: { window: at('[data-tour="generate-sources"] .sh-scroll__viewport'), foot: at('[data-tour="generate-sources"] .source-picker__foot'),
           options: at('[data-tour="generate-options"]'), main: at('.generate-page .generate-rows--main'), more: at('.generate-page .generate-more') } });

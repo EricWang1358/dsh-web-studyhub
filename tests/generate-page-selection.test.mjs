@@ -25,8 +25,9 @@ test('the tick of a material is neutral', async () => {
   assert.doesNotMatch(check, /--accent/);
 });
 
-test('the chosen way in (用资料出题 / 导入 JSON / 案例分析题) is the selection colour too', async () => {
-  const home = await css('generate-home.css'), active = rule(home, '.generate-page .source-mode > .source-tab.is-active');
-  assert.match(active, /background:\s*var\(--bg-selected\)/);
-  assert.doesNotMatch(active, /--accent/);
+test('the chosen way in (用资料出题 / 导入 JSON / 案例分析题) looks selected as every segmented control does: no rule of the page redraws it (#1700)', async () => {
+  const home = await css('generate-home.css');
+  const selectors = [...home.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{/g)].map(match => match[1].trim());
+  assert.ok(selectors.some(selector => selector.includes('.source-mode')), 'the page still places the row');
+  assert.deepEqual(selectors.filter(selector => /\.source-tab|\.sh-seg|\.source-mode(?!-)[^,]*(\.is-active|button)/.test(selector)), []);
 });

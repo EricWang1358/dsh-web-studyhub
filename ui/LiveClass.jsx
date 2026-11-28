@@ -289,10 +289,12 @@ export default function LiveClass({ data, visible, onQueued, onSettings, onSourc
     const ids = [...feed.current.querySelectorAll('[data-segment-id]')].filter((node) => range.intersectsNode(node)).map((node) => Number(node.dataset.segmentId));
     if (ids.length) { setSelected(new Set(ids)); setFollow(false); }
   }
+  // The setup card (no live engine can run) carries its own way to the audio settings, and then it is the only one on the page (#1708).
+  const setupShown = !active(session) && !!readiness && readiness.live === false;
   return <section className="page live-class" hidden={!visible} aria-label={ui('课堂实录')}>
     <PageHeader title={ui('课堂实录')}
       description={session ? undefined : ui('边听边看简体中文，选中重点就能出题。')}
-      actions={<Button iconEnd="arrow-right" variant="quiet" onClick={openAudio}>{ui('音频设置')}</Button>} />
+      actions={setupShown ? undefined : <Button iconEnd="arrow-right" variant="quiet" onClick={openAudio}>{ui('音频设置')}</Button>} />
     {error && <InlineMessage tone="error" boxed>{uiMessage(error)}</InlineMessage>}
     {error && !active(session) && <CaptureHelp kind={errorKind} facts={errorFacts} activeOp={activeOp} lock={disabled}
       liveLoopback={readiness?.liveLoopback || null} initialLoopback={initialLoopback}
@@ -300,9 +302,9 @@ export default function LiveClass({ data, visible, onQueued, onSettings, onSourc
       onLoopbackReady={() => { setKind('system'); setChecked((value) => value + 1); }}
       onMicrophone={() => { setKind('microphone'); void begin('microphone', 'start-mic'); }}
       onRetry={() => void begin('tab', 'start-tab')} />}
-    {!active(session) && readiness && readiness.live === false && <LiveSetup readiness={readiness} onSettings={openAudio} initialLocal={initialLocal}
+    {setupShown && <LiveSetup readiness={readiness} onSettings={openAudio} initialLocal={initialLocal}
       onReady={() => setChecked((value) => value + 1)} />}
-    {!active(session) && !(readiness && readiness.live === false) && <form className="live-setup" onSubmit={(event) => {
+    {!active(session) && !setupShown && <form className="live-setup" onSubmit={(event) => {
       event.preventDefault(); if (!needsLoopbackInstall) void begin(effectiveKind, 'start');
     }}>
       <div className="live-fields"><label className="live-field">{ui('课堂名称')}<input className="live-input" value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} placeholder={ui('例如：数据库 · 分区与索引')} /></label>
@@ -336,7 +338,7 @@ export default function LiveClass({ data, visible, onQueued, onSettings, onSourc
             onResume={(onEngine) => void perform('resume', async () => { await client.start(effectiveKind, { resumeId: session.id, paidOnly: onEngine !== 'local' && paidOnly, ...(onEngine ? { provider: onEngine } : {}) }); })} />}</div>
         {active(session) && <small className="muted live-after" data-live-after>{ui('结束后点「保存为资料」，会先补完润色和译文，再存下文字稿和课堂笔记。')}</small>}</div>
       <LiveAudioMonitor compact health={client.health} visible={visible} recording={capturing} sentences={total} />
-      {correction && <LiveCorrectionLine correction={correction} total={total} polished={polished} active={active(session)} busy={activeOp === 'correct'} lock={disabled} onSettings={openAudio}
+      {correction && <LiveCorrectionLine correction={correction} total={total} polished={polished} active={active(session)} busy={activeOp === 'correct'} lock={disabled} onSettings={setupShown ? undefined : openAudio}
         onRetry={() => void perform('correct', async () => { client.accept(await call('live.correct', { id: session.id })); })} />}
       {session.message && <p role="status" className="muted">{session.message}</p>}
       {session.warnings?.length > 0 && <details><summary>{ui('连接与额度提示')}</summary>{session.warnings.map((warning, index) => <p key={index}>{warning}</p>)}</details>}

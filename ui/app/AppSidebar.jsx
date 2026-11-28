@@ -15,8 +15,8 @@ import SidebarFooter from './SidebarFooter.jsx';
    - a drawer (#657): when the learner put it away, and whenever the workspace is narrow (a DSH panel is often 420 px wide). It opens inside
      StudyHub's own page (use-drawer-frame.js), never along the edge of the whole DSH window. The top bar's
      menu button (AppTopbar.jsx, data-tour="nav-menu") opens it; it is the shared Dialog, so it holds the focus, closes on Esc, on its close
-     button and on the backdrop, and gives the focus back to the menu button. It has every label: there is no row of bare icons.
-   Both forms draw the same rows (SidebarNav, SidebarFooter). In the drawer, choosing a page closes it. */
+     button and on the backdrop, and then gives the focus back to the menu button. It has every label: there is no row of bare icons.
+   Both forms draw the same rows (SidebarNav, SidebarFooter). In the drawer, choosing a page closes it and the focus goes to that page. */
 
 function Brand({ onCollapse }) {
   return (
@@ -37,6 +37,7 @@ const AppSidebar = React.memo(function AppSidebar() {
   useInjectCss(css, 'study-app-shell');
   useInjectCss(drawerCss, 'study-nav-drawer');
   const shell = useAppSelector((s) => s.shell);
+  const setFocusRequest = useAppSelector((s) => s.set?.setFocusRequest);
   const { alert, reason, tasks } = useNavAlert();
   useDrawerFrame(shell.rootRef, shell.navDrawer && shell.navOpen);
   const body = (<><SidebarNav alert={alert} reason={reason} tasks={tasks} /><SidebarFooter /></>);
@@ -45,8 +46,14 @@ const AppSidebar = React.memo(function AppSidebar() {
   }
   if (!shell.navOpen) return null;
   const close = () => shell.setNavOpen(false);
-  // A row that leads somewhere closes the drawer once it has done its work; a fold (更多, 帮助) and the glossary keep it open.
-  const leave = (event) => { if (event.target.closest?.('button.nav:not([aria-expanded]):not([data-keep-open])')) close(); };
+  /* A row that leads somewhere closes the drawer once it has done its work; a fold (更多, 帮助) and the glossary keep it open. The focus then goes
+     where the row led (#1679: the page's heading, the question card on the practice page, also when it was already on screen), not back to the menu button,
+     which Esc, the close button and the backdrop still return it to: a Space meant for the page must not open the drawer again. */
+  const leave = (event) => {
+    if (!event.target.closest?.('button.nav:not([aria-expanded]):not([data-keep-open])')) return;
+    close();
+    setFocusRequest?.({});
+  };
   return (
     <Dialog className="nav-drawer" headerClassName="nav-drawer__header" titleClassName="nav-drawer__title" bodyClassName="nav-drawer__body" contentClassName="nav-drawer__content" size="full" title={ui('导航')} closeLabel={ui('关闭导航')} onClose={close}>
       <div className="sidebar is-drawer" onClick={leave}>

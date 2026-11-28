@@ -10,8 +10,7 @@ import { useRouteEfforts } from '../use-model-efforts.js';
 
 /* 即时控制: the knobs of a running job, in one block of the same shape for every job, drawn from its contract (actions.set). A change goes to job.control {action: 'set'}
    and applies from the job's next call (a call in flight is never interrupted); the reply says what is now in force and the row says so. The row is
-   always there, so a job that cannot be adjusted, or has ended, says that in the same place (with the contract's own reason) instead of the row
-   appearing or going away. A bar on top (the name and 存为默认, what the row cannot do, and under them a line of its own for what is in force, so a longer sentence there moves nothing) and the controls under it, which wrap as whole
+   always there while a job runs, so one that cannot be adjusted says that in the same place (with the contract's own reason). A bar on top (the name and 存为默认, what the row cannot do, and under them a line of its own for what is in force, so a longer sentence there moves nothing) and the controls under it, which wrap as whole
    units (a label never leaves its select); a select is as wide as its longest word needs, whatever it shows.
    A job that has a model or a level of reasoning to change also says, in one line of its own, that they change the usage a lot (#944); the detail (what the estimate before the run does and does not
    take into account) is in a Tooltip. Whether the line is there follows the contract's settings, which are in the first poll, not the choices that load later, so nothing moves when they arrive. */
@@ -77,6 +76,8 @@ export default function ControlRow({ job }) {
       setNote({ text: ui('已存为默认'), tone: 'success' });
     } catch (error) { setNote({ text: failureText(error), tone: 'error' }); }
   };
+  // An ended task with nothing to set keeps the row only while it says how to go on (接着做); one that could only say the task has ended is not drawn (#1691).
+  if (!isRunningTask(job) && !items.length && !(['failed', 'cancelled', 'interrupted'].includes(contract.status) && contract.actions.retry.available)) return null;
   return (
     <div className="tc-controls" role="group" aria-label={ui('即时控制')} data-empty={items.length ? undefined : 'true'}>
       <div className="tc-controls__bar">

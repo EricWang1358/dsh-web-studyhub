@@ -28,6 +28,7 @@ import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { withStudy } from './helpers/study-services.mjs';
 import { nativeSelects } from './helpers/native-selects.mjs';
+import { openSourcesTools, withOpenSourcesTools } from './helpers/sources-tools.mjs';
 
 const compiled = await build({
   stdin: {
@@ -237,7 +238,8 @@ test('Sources defaults to course grouping, shows multi-course badges once, hides
   // English UI zero Han across Sources, RowMenuItems, and MoveFolderDialog
   try {
     setUiLanguage('en');
-    const en = renderToStaticMarkup(withStudy(StudyServicesContext, React.createElement(Sources, { data, setModal: noop, onGenerate: noop }), { act: noop, call: noop }));
+    // The grouping choices are behind 「筛选与分组」, here left open.
+    const en = withOpenSourcesTools(data.root, () => renderToStaticMarkup(withStudy(StudyServicesContext, React.createElement(Sources, { data, setModal: noop, onGenerate: noop }), { act: noop, call: noop })));
     assert.match(en, /By course/);
     assert.match(en, /By folder/);
     assert.match(en, /By import date/);
@@ -338,6 +340,7 @@ test('Browser E2E: course/folder grouping, persisted fold state, B6 visible-only
   await page.locator('.source-group-head', { hasText: 'DB' }).click();
   assert.equal(await page.locator('.source-group-head', { hasText: 'DB' }).getAttribute('aria-expanded'), 'false');
 
+  await openSourcesTools(page);
   await page.locator('.sources-view-bar .sh-seg__item', { hasText: '按文件夹' }).click();
   await page.locator('.sources-view-bar button', { hasText: '新建文件夹' }).click();
   await page.locator('dialog[open] input').fill('Week 1');

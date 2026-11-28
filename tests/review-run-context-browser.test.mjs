@@ -43,8 +43,8 @@ async function library(t, { mixed = false } = {}) {
 }
 
 const WORDS = {
-  zh: { start: (title) => `开始学习 ${title}`, chapter: '本章', whole: '整课程', fresh: '未学 · 5 题', learned: /^掌握 \d+% · 3 题$/, course: /^掌握 \d+% · 8 题$/, tip: /这道题所在的题组/ },
-  en: { start: (title) => `Start studying ${title}`, chapter: 'This chapter', whole: 'Whole course', fresh: 'New · 5 questions', learned: /^Mastery \d+% · 3 questions$/, course: /^Mastery \d+% · 8 questions$/, tip: /The deck this question is in/ },
+  zh: { start: (title) => `开始学习 ${title}`, chapter: '本组', whole: '整课程', fresh: '未学 · 5 题', learned: /^掌握 \d+% · 3 题$/, course: /^掌握 \d+% · 8 题$/, tip: /这道题所在的题组/ },
+  en: { start: (title) => `Start studying ${title}`, chapter: 'This set', whole: 'Whole course', fresh: 'New · 5 questions', learned: /^Mastery \d+% · 3 questions$/, course: /^Mastery \d+% · 8 questions$/, tip: /The deck this question is in/ },
 };
 
 async function serve(t, root) {

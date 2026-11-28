@@ -194,6 +194,8 @@ function Detail({ task, data, openers, full, onFull, onDelete, undoable }) {
       <QueueNote task={task} />
       <RunLine task={task} shortfall={shortfall} coverage={shortfall && covered.view?.status === 'ok' ? covered.view.coverage : null} now={now} onOpenSource={learn?.openSourceAt} onOpenSettings={settingsEntry?.openSettings} />
       <TimeLimit task={task} now={now} steps={steps} onPick={(id) => setFocusCall({ id, at: Date.now() })} />
+      {/* Why it failed stays in sight: the rest of its story is behind 运行记录 (#1691). */}
+      {summary.state === 'fail' && summary.line && <p className="tc-result" data-state="fail" role="note">{summary.line}</p>}
       {archived ? <ArchivedNote task={task} /> : continued ? <ContinuedNote contract={contract} /> : <ControlRow job={task} />}
       {usage && <p className="tc-usage" aria-label={ui('用量')}>{usage}</p>}
       <TaskBody task={task} archived={archived} marks={marks} focusCall={focusCall} />
@@ -298,7 +300,7 @@ export default function TaskConsole({ data, openers, initialFilter = 'all' }) {
   );
   return (
     <div className="tc" data-usage-area="tasks" data-full={full ? 'true' : 'false'} data-empty={none ? 'all' : empty ? 'filter' : undefined}>
-      <PageHeader className="tc-header" title={ui('任务')} description={ui('出题、转写、转换这些后台工作的进度和记录。')} actions={filterBar} />
+      <PageHeader className="tc-header" data-tour="tasks-head" title={ui('任务')} description={ui('出题、转写、转换这些后台工作的进度和记录。')} actions={filterBar} />
       {none
         ? <EmptyState className="tc-none" icon="nav-tasks" title={ui('还没有任务')}
           description={ui('开始出题、导入录音或转换 PDF 后，任务会出现在这里：可以看进度、调整或停止，结束后留下记录。')} />

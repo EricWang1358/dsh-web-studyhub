@@ -1,5 +1,5 @@
 import { errorMessage, ui, uiFormat } from "./i18n.js";
-import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import React, { useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
 import { handleSaveKeyDown, markdownEditorExtensions } from "./editor/markdown-shortcuts.js";
@@ -20,7 +20,7 @@ import { useStudy } from './study-context.jsx';
 import NoteDraft from './NoteDraft.jsx';
 import { modelReadiness } from './generation-status.js';
 import { useUndoable } from './use-undoable.js';
-import { parseCiteHref } from '../lib/contexts/notes/note-links.js';
+import { noteAutoTitle, parseCiteHref } from '../lib/contexts/notes/note-links.js';
 import { notesPracticeBridge } from '../lib/practice-settings.js';
 import { buildNotePracticeScope, countNotesWithCards, filterNotesWithCards } from './notes-practice-bridge.js';
 
@@ -33,6 +33,17 @@ export const resolveNoteEditLayout = (preferred, wide) => {
   if (preferred === 'split') return wide ? 'split' : 'edit';
   return preferred === 'preview' ? 'preview' : 'edit';
 };
+
+/** What a row of the list says (#1711). A title given by itself shows as its date, with its course only while the list holds every course; the learner's
+    own title stays as written (the stored titles never change). A recap whose title no longer says its day gets it among the facts on the right. */
+function rowWords(item, course) {
+  const auto = noteAutoTitle(item);
+  const title = auto ? [auto.day, course === '*' && auto.course].filter(Boolean).join(' · ') : item.title;
+  if (!isDailyNote(item)) return { title, facts: [uiFormat('{0} 题', [item.cardCount]), item.status === 'published' ? ui('已发布笔记') : ui('笔记草稿')] };
+  const day = item.daily?.day;
+  return { title, facts: [item.kind === 'daily-recap-history' && ui('课程合并前的学习总结'), day && !title.includes(day) && day,
+    uiFormat('已练习 {0} 题', [item.daily?.answeredCount ?? item.cardCount])].filter(Boolean) };
+}
 
 export default function BlogNotes({ data, initialId, initialNote = null, initialEditing = false, initialEditLayout = 'edit', wideViewport, onSelect, onBack, backLabel, onOpenCard, onOpenSource, onPracticeCards, onRecapSettings, onModelSettings, theme = "dark" }) {
   const { call, act, busy } = useStudy();
@@ -54,6 +65,9 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
   const [picked, setPicked] = useState([]), [newTitle, setNewTitle] = useState("");
   const [editing, setEditing] = useState(initialEditing), [materialSaved, setMaterialSaved] = useState(false);
   const [withCardsOnly, setWithCardsOnly] = useState(false);
+  const [composing, setComposing] = useState(false), composeId = useId();
+  // The recaps the card above the list has a read button for.
+  const [carded, setCarded] = useState([]);
   const [preferredLayout, setPreferredLayout] = usePageScope(data.root, 'notes-edit-layout', initialEditLayout);
   const [measuredWide, setMeasuredWide] = useState(() => (typeof window !== 'undefined' ? isSplitNoteViewport(window.innerWidth) : false));
   useEffect(() => {
@@ -140,10 +154,11 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
   const notes = (data.notes || []).filter(item => !undoable.hidden(item.id)).filter(item => course === '*' || (course === '' ? !item.courses?.length : (item.courses || []).some(within)))
     .sort((left, right) => Number(right.kind === 'daily-recap' && right.daily?.day === today) - Number(left.kind === 'daily-recap' && left.daily?.day === today)
       || String(right.updatedAt || '').localeCompare(String(left.updatedAt || '')));
+  const listed = notes.filter(item => !carded.includes(item.id));
   const bridgeOn = notesPracticeBridge(data?.settings?.practice);
-  const linkedNotesCount = bridgeOn ? countNotesWithCards(notes) : 0;
-  const canFilterLinked = bridgeOn && linkedNotesCount > 0 && linkedNotesCount < notes.length;
-  const shownNotes = filterNotesWithCards(notes, canFilterLinked && withCardsOnly);
+  const linkedNotesCount = bridgeOn ? countNotesWithCards(listed) : 0;
+  const canFilterLinked = bridgeOn && linkedNotesCount > 0 && linkedNotesCount < listed.length;
+  const shownNotes = filterNotesWithCards(listed, canFilterLinked && withCardsOnly);
   const practicePlan = bridgeOn && note ? buildNotePracticeScope(note, data?.decks) : { scope: [], totalLinked: 0, skippedCount: 0 };
   function edit(patch) {
     const next = { ...current.current, ...patch };
@@ -295,8 +310,8 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
     if (isImeComposing(event)) return;
     if (event.key === "Enter") { event.preventDefault(); void addCard(); }
   };
-  return <section className="page blog-notes-page" onKeyDown={editing && writable ? (event) => handleSaveKeyDown(event, () => saveShortcutRef.current?.()) : undefined}>
-    <PageHeader className={`note-heading${note && !editing && note.markdown ? ' note-heading-reading' : ''}`}
+  return <section className="page blog-notes-page" data-note-open={note ? '' : undefined} onKeyDown={editing && writable ? (event) => handleSaveKeyDown(event, () => saveShortcutRef.current?.()) : undefined}>
+    <PageHeader data-tour="notes-head" className={`note-heading${note && !editing && note.markdown ? ' note-heading-reading' : ''}`}
       back={note ? { label: ui('全部笔记'), onClick: () => guardLeave(() => { setId(''); setLookup(null); }) } : undefined}
       title={note?.title || ui('学习笔记')} titleProps={{ tabIndex: -1, 'data-context-heading': true }}
       scope={!note ? <PageScope courses={data.focus?.courses} value={course} onChange={setCourse} /> : undefined}
@@ -306,7 +321,8 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
         {note && writable && <Button aria-pressed={editing} disabled={publishing || note.generation?.status === 'running'} lock={saving}
           onClick={() => editing ? returnToReading() : setEditing(true)}>{ui(editing ? dirty ? '保存并返回阅读' : '返回阅读' : '编辑内容')}</Button>}
         {(editing || dirty) && writable && <Button variant="primary" disabled={!dirty || note.generation?.status === 'running'} lock={saving} onClick={save}>{ui(daily ? '保存合集' : '保存草稿')}</Button>}
-        <Button icon="arrow-left" onClick={() => guardLeave(() => onBack?.())}>{backLabel || ui('返回学习库')}</Button>
+        {/* A page of the sidebar: a way back only when the learner came from somewhere (#1709). An open note has 全部笔记 above its title. */}
+        {onBack && <Button icon="arrow-left" onClick={() => guardLeave(() => onBack())}>{backLabel || ui('返回学习库')}</Button>}
         {/* Behind the note's ⋯ (更多操作), never beside 返回: a slip on the way back must not delete. One choice there, then 撤销 in the notice. */}
         {note && <Menu className="note-more" label={ui('更多操作')} items={[{ id: 'delete', label: ui('删除这篇笔记'), danger: true, disabled: saving || publishing, attrs: { 'data-note-delete': '' } }]}
           onSelect={(id) => { if (id === 'delete') removeNote(); }} />}
@@ -318,15 +334,14 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
     {confirmLeave && <ConfirmDialog title={ui('有未保存的修改')} description={ui('浏览器暂存不可用，请及时保存草稿。')} confirmLabel={ui('丢弃暂存')}
       onClose={() => setConfirmLeave(null)} onConfirm={() => { const go = confirmLeave; setConfirmLeave(null); go?.(); }} />}
     {!note && <div className="note-list">
-      <DailyRecap root={data.root} course={course} saved={data.settings?.dailyRecap} poll onOpenNote={setId} onSettings={onRecapSettings} onModelSettings={onModelSettings} />
-      {canFilterLinked && (
-        <div className="note-list-tools">
-          <Button size="sm" variant="quiet" aria-pressed={withCardsOnly} onClick={() => setWithCardsOnly((prev) => !prev)}>
-            {uiFormat('只看含关联题 ({0})', [linkedNotesCount])}
-          </Button>
-        </div>
-      )}
-      <details className="note-linking"><summary>{ui("挑题成文")}</summary>
+      <DailyRecap root={data.root} course={course} saved={data.settings?.dailyRecap} poll onOpenNote={setId} onOffered={setCarded} onSettings={onRecapSettings} onModelSettings={onModelSettings} />
+      <div className="note-list-tools">
+        <Button icon="plus" aria-expanded={composing} aria-controls={composing ? composeId : undefined} onClick={() => setComposing(open => !open)}>{ui("挑题成文")}</Button>
+        {canFilterLinked && <Button size="sm" variant="quiet" aria-pressed={withCardsOnly} onClick={() => setWithCardsOnly((prev) => !prev)}>
+          {uiFormat('只看含关联题 ({0})', [linkedNotesCount])}
+        </Button>}
+      </div>
+      {composing && <div className="note-linking note-compose" id={composeId}>
         <label>{ui("笔记标题")}<TextInput className="note-input" value={newTitle} placeholder={ui("写一个可公开的知识点标题")}
           onChange={(event) => setNewTitle(event.target.value)} /></label>
         <div className="note-card-search"><TextInput className="note-input" aria-label={ui("搜索题目或知识点")} value={query} placeholder={ui("搜索题目或知识点")}
@@ -341,16 +356,18 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
           {item.prompt}</label>)}
         <Button variant="primary" disabled={!newTitle.trim() || !picked.length} lock={busy}
           onClick={() => act("note.create", { title: newTitle, cards: picked }, (created) => {
-            setId(created.id); setPicked([]); setNewTitle(""); setResults([]);
+            setId(created.id); setPicked([]); setNewTitle(""); setResults([]); setComposing(false);
           })}>{uiFormat("创建笔记草稿 · {0} 题", [picked.length])}</Button>
-      </details>
-      {shownNotes.length ? shownNotes.map((item) => {
+      </div>}
+      {shownNotes.map((item) => {
         const hasLocalDraft = !(item.status === 'published' && !isDailyNote(item)) && !!readDraft(draftKey(data.root, 'note', item.id));
-        return <button key={item.id} className={isDailyNote(item) ? 'note-list-item note-daily-item' : 'note-list-item'} onClick={() => setId(item.id)}>
-          <span><strong>{item.title}</strong>{isDailyNote(item) && <small className="note-daily-date">{item.kind === 'daily-recap-history' ? ui('课程合并前的学习总结') : item.daily?.day === today ? ui('今日学习总结') : item.daily?.day}</small>}</span>
-          <small>{isDailyNote(item) ? uiFormat('已练习 {0} 题', [item.daily?.answeredCount ?? item.cardCount]) : <>{uiFormat("{0} 题", [item.cardCount])}{" · "}{item.status === "published" ? ui("已发布笔记") : ui("笔记草稿")}</>}{hasLocalDraft ? ` · ${ui('修改暂存于此设备')}` : ''}</small>
+        const { title, facts } = rowWords(item, course);
+        return <button key={item.id} className="note-list-item" onClick={() => setId(item.id)}>
+          <strong>{title}</strong>
+          <small>{(hasLocalDraft ? [...facts, ui('修改暂存于此设备')] : facts).join(' · ')}</small>
         </button>;
-      }) : <p className="muted">{ui("做题时选择“写笔记”，或在这里搜索并挑选题目。")}</p>}
+      })}
+      {!notes.length && <p className="muted">{ui("做题时选择“写笔记”，或在这里搜索并挑选题目。")}</p>}
     </div>}
     {note && <>
       {daily && note.daily?.unassessedCount > 0 && <p className="muted">{uiFormat('其中 {0} 题尚待批改，合集先回顾作答内容，批改后可更新。', [note.daily.unassessedCount])}</p>}

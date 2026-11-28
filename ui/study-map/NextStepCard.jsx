@@ -6,6 +6,13 @@ import { useInjectCss } from '../shared.js';
 import { useStudy } from '../study-context.jsx';
 import css from './next-step.css';
 
+/** 「不知道从哪开始？」, the home's front door to the main chat (guide.start): one wording wherever the home offers it (this card and ui/study-map/DeskIntro.jsx).
+    Where there is no main chat the button says what it copies (#1696). */
+export function FrontDoor() {
+  const { busy } = useStudy();
+  return <HandOff id="guide.start" lead={ui('不知道从哪开始？')} what={ui('让主会话看一眼你的学习库，再说两三条能马上开始的路。')} copyLabel="复制「怎么开始」的话" disabled={busy} />;
+}
+
 /* The home's one 「下一步」 card (3.7 guidance, step 3), drawn from nextCardView (ui/study-map/next-card-view.js): the state named by nextStep
    (ui/study-map/next-step.js), a fact, ONE primary button (the done state has none) and the quiet 「今天先不」, which hides the card for the local day
    (ui/study-map/next-dismiss.js). Below them the quiet 「不知道从哪开始？」 hand-off to the main chat (guide.start), so the way to the front door stays one
@@ -30,7 +37,7 @@ export default function NextStepCard({ view, onDismiss }) {
         <Button variant="quiet" size="sm" lock={busy} data-usage="home.next-later" data-next-dismiss onClick={onDismiss}>{ui('今天先不')}</Button>
       </div>
       <p className="next-card__help">
-        <HandOff id="guide.start" lead={ui('不知道从哪开始？')} what={ui('让主会话看一眼你的学习库，再说两三条能马上开始的路。')} disabled={busy} />
+        <FrontDoor />
       </p>
     </section>
   );

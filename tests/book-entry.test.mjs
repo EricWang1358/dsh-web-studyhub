@@ -146,6 +146,14 @@ test('the 总纲 page says in one line what the 复习全书 is while none is wr
   assert.doesNotMatch(textOf(english(() => page({ outline: outline(null) }))), han);
 });
 
+test('#1693: with no outline yet, what the book is and what the two buttons do stand in the one box with them', () => {
+  const html = page({ outline: outline(undefined, 3) });
+  const at = html.indexOf('<section class="outline-organise"');
+  assert.ok(at >= 0, 'the offer is drawn');
+  assert.match(html.slice(at), /<p class="outline-book-intro">复习全书：/, 'the line on what the book is, inside the box');
+  assert.equal((html.match(/class="outline-book-intro"/g) || []).length, 1, 'said once');
+});
+
 test('one primary button: 生成总纲, then 生成复习全书, then (updating) 更新全书, and 打开书页 once the book is current', () => {
   assert.deepEqual(primary(page({ outline: { ...outline(undefined), total: 3 } })), ['生成总纲']);
   assert.deepEqual(primary(page()), ['创建题组'], 'a course without questions: 创建题组 is the empty state\'s');

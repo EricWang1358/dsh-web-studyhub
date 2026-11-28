@@ -286,16 +286,16 @@ test("multi-choice shows selection count and 清空 link; multi-blank cloze coun
   assert.match(openHtml, /5 字 · Ctrl\+Enter 看答案/);
 });
 
-test("flashcard grading shows side cue and keeps 0-5 buttons; long explanations add collapse/next footer (#35, #39)", () => {
+test("flashcard grading keeps 0-5 buttons on either side without a Space cue (#1697); long explanations add collapse/next footer (#35, #39)", () => {
   const flashFront = render("flashcard", true, { feedback: null });
-  assert.match(flashFront, /grading-side-cue[^>]*>正在看正面题干 · 按 Space 回背面</);
+  assert.doesNotMatch(flashFront, /grading-side-cue|按 Space/);
   assert.match(flashFront, /data-usage="review\.grade"/);
 
   const flashBack = renderToStaticMarkup(reviewEl({
     run: { id: "r", index: 0, total: 2, card: { id: "q", kind: "flashcard", topic: "Context", prompt: "Q?" }, revealed: true, feedback: null, solution: { answer: "A", explanation: "E" } },
     data: { sources: [] }, host: {}, choice: false, isCloze: false, selected: [], clozeValues: {}, showBack: true, shellTitle: "Review", busy: false,
   }));
-  assert.match(flashBack, /grading-side-cue[^>]*>按 Space 可翻回正面核对题干</);
+  assert.doesNotMatch(flashBack, /grading-side-cue|按 Space/);
   assert.match(flashBack, /data-usage="review\.grade"/);
 
   const longExplanation = "X".repeat(290);

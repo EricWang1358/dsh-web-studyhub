@@ -185,17 +185,18 @@ test('TaskConsole, ControlRow, TaskBody, and task-console.css clean up jargon, c
   const tcCss = read('ui/tasks/task-console.css');
   assert.match(tcCss, /\.tc-controls\[data-empty="true"\]\s*\{[^}]*min-height:\s*0/);
 
-  const makeBodyTask = (kind) => ({
+  // The trace tab is checked on a running build: an ended task keeps its run record, with that tab, behind the closed 运行记录 (#1691).
+  const makeBodyTask = (kind, status = 'complete') => ({
     id: `job-${kind}`,
     type: kind,
-    status: 'complete',
+    status,
     startedAt: '2026-10-05T10:00:00.000Z',
     contract: {
       contractVersion: 1,
       jobId: `job-${kind}`,
       kind,
-      status: 'complete',
-      stage: { code: 'complete', text: 'complete' },
+      status,
+      stage: { code: status, text: status },
       progress: { done: 1, total: 1, unit: 'steps', percent: 100, segments: [] },
       usage: { tokens: null, tokenUsage: null, calls: 1 },
       execution: { mode: 'direct' },
@@ -206,14 +207,17 @@ test('TaskConsole, ControlRow, TaskBody, and task-console.css clean up jargon, c
     },
   });
   const body = renderToStaticMarkup(inApp(m, h(m.TaskBody, { task: makeBodyTask('material-classify') }), { data: {} }));
-  const bookBody = renderToStaticMarkup(inApp(m, h(m.TaskBody, { task: makeBodyTask('course-book-build') }), { data: {} }));
+  const bookBody = renderToStaticMarkup(inApp(m, h(m.TaskBody, { task: makeBodyTask('course-book-build', 'running') }), { data: {} }));
+  const endedBookBody = renderToStaticMarkup(inApp(m, h(m.TaskBody, { task: makeBodyTask('course-book-build') }), { data: {} }));
   assert.match(body, /并发通道 2/);
   assert.match(bookBody, />发送内容</);
   assert.doesNotMatch(bookBody, />实际请求</);
+  assert.match(endedBookBody, /<details class="sh-disclosure tc-record">[\s\S]*>运行记录</, 'an ended build keeps its run record behind 运行记录');
+  assert.doesNotMatch(endedBookBody, />实际请求</);
 
   m.setUiLanguage('en');
   const enBody = renderToStaticMarkup(inApp(m, h(m.TaskBody, { task: makeBodyTask('material-classify') }), { data: {} }));
-  const enBookBody = renderToStaticMarkup(inApp(m, h(m.TaskBody, { task: makeBodyTask('course-book-build') }), { data: {} }));
+  const enBookBody = renderToStaticMarkup(inApp(m, h(m.TaskBody, { task: makeBodyTask('course-book-build', 'running') }), { data: {} }));
   assert.match(enBody, /Parallel lane 2/);
   assert.match(enBookBody, />Request sent</);
   m.setUiLanguage('zh');

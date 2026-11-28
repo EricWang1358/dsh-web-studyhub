@@ -198,6 +198,22 @@ test('kindNote branches task description by canChat, and KindPicker replaces nat
   assert.match(plain(pickerZh), /至少保留一种题型/);
 });
 
+test('the last ticked question type looks like every ticked one, says it cannot be unticked to a screen reader, and a click on it unticks nothing (#1701)', () => {
+  const only = renderToStaticMarkup(h(m.KindPicker, { value: ['quiz'], onChange: noop }));
+  const last = /<input[^>]*name="kinds-quiz"[^>]*>/.exec(only)[0];
+  assert.doesNotMatch(last, /\sdisabled(=|\s|\/|>)/, 'not drawn as unusable: the default type is not grey');
+  assert.match(last, /aria-disabled="true"/);
+  assert.match(last, /checked=""/);
+  assert.doesNotMatch(only, /sh-check[^"]*is-disabled/, 'no disabled look on any row');
+  const card = /aria-describedby="([^"]+)"/.exec(last)?.[1];
+  assert.ok(card, 'the box is described by the reason');
+  assert.match(only, new RegExp(`<span id="${card}" role="tooltip"[^>]*>至少保留一种题型</span>`));
+  const two = renderToStaticMarkup(h(m.KindPicker, { value: ['quiz', 'multi'], onChange: noop }));
+  assert.doesNotMatch(two, /aria-disabled|至少保留一种题型/, 'with two ticked, either can be unticked and nothing is said');
+  const busy = renderToStaticMarkup(h(m.KindPicker, { value: ['quiz', 'multi'], onChange: noop, disabled: true }));
+  assert.match(/<input[^>]*name="kinds-multi"[^>]*>/.exec(busy)[0], /\sdisabled=""/, 'a form that is busy still disables the whole group');
+});
+
 /* ---------- 2. DailyRecapSettings ---------- */
 
 test('DailyRecapSettings unifies title, explains 10-question trigger + model cost, handles matching timezone, and shows unsaved hint in zh & en', () => {

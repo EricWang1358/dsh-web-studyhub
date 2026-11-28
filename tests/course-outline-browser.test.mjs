@@ -89,14 +89,12 @@ test('总纲: open from the home, expand, pick two questions in two chapters, pr
       assert.equal(await page.locator('.course-route details').count(), 0, `${width}px: the folded 课程路线 list is gone`);
       assert.equal(await page.locator('.course-route-outline').count(), 0, `${width}px: the tiny link line under the bar is gone`);
       assert.equal(await page.locator('.today-go').count(), 1, `${width}px: the home keeps one continue button`);
-      const entries = page.locator('.outline-entry');
-      assert.equal(await entries.count(), 1, `${width}px: one 总纲 button beside the course title (deduplicated from 学习目录)`);
-      assert.equal(await page.locator('.map-heading .outline-entry').count(), 0, 'no duplicate 总纲 in 学习目录 heading');
-      const button = page.locator('.course-header .outline-entry');
-      assert.equal(await button.evaluate(element => element.tagName), 'BUTTON', '.course-header: a real button');
-      assert.equal(await button.evaluate(element => element.classList.contains('sh-btn--secondary') && !element.classList.contains('sh-btn--primary') && !element.classList.contains('sh-btn--link')), true, '.course-header: secondary, not primary');
-      assert.equal(await button.innerText(), '总纲');
-      assert.equal(await button.getAttribute('title'), null, 'the words are a Tooltip, not a title attribute');
+      assert.equal(await page.locator('.outline-entry').count(), 1, `${width}px: one 总纲 button, beside the course title (#1695)`);
+      assert.equal(await page.locator('.map-heading .outline-entry').count(), 0, 'the 学习目录 heading does not repeat it');
+      assert.equal(await link.evaluate(element => element.tagName), 'BUTTON', 'a real button');
+      assert.equal(await link.evaluate(element => element.classList.contains('sh-btn--secondary') && !element.classList.contains('sh-btn--primary') && !element.classList.contains('sh-btn--link')), true, 'secondary, not primary');
+      assert.equal(await link.innerText(), '总纲');
+      assert.equal(await link.getAttribute('title'), null, 'the words are a Tooltip, not a title attribute');
       assert.equal(await page.locator('.sh-btn--primary:visible').count(), 1, `${width}px: exactly one primary button on the home`);
       const place = await page.evaluate(() => {
         const rect = selector => document.querySelector(selector).getBoundingClientRect();
@@ -117,6 +115,14 @@ test('总纲: open from the home, expand, pick two questions in two chapters, pr
       const tree = page.locator('.outline-tree');
       await tree.waitFor({ timeout: 30000 });
       assert.match(await page.locator('.outline-page h1').innerText(), /总纲 · Databases/);
+      // The 交互伴学 card: its buttons stay inside it (at 420 新建交互伴学课 used to run past its right edge).
+      const spills = await page.evaluate(() => [...document.querySelectorAll('.outline-page .sh-comp-bar')].flatMap((bar) => {
+        const box = bar.getBoundingClientRect();
+        return [...bar.querySelectorAll('button')].filter((button) => { const own = button.getBoundingClientRect(); return own.left < box.left - 0.5 || own.right > box.right + 0.5; })
+          .map((button) => `${button.innerText.trim()} ${Math.round(button.getBoundingClientRect().right)} > ${Math.round(box.right)}`);
+      }));
+      assert.equal(await page.locator('.outline-page .sh-comp-bar').count(), 1, `${width}px: the 交互伴学 card is on the 总纲`);
+      assert.deepEqual(spills, [], `${width}px: every button of the 交互伴学 card is inside it`);
       const rows = await page.locator('.outline-tree > .outline-row').evaluateAll(list => list.map(row => [row.dataset.key, row.querySelector('.outline-row__title')?.innerText, row.querySelector('.mastery-line__text')?.innerText]));
       assert.deepEqual(rows.map(row => row[1]), ['database-book', 'Lecture notes', 'Unused slides', '未归位'], `${width}px: ${JSON.stringify(rows)}`);
       assert.match(rows[0][2], /3 题/, 'i1, i2 and i3 (cited in both chapters, once)');

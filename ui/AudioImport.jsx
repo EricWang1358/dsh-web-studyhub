@@ -58,6 +58,7 @@ export default function AudioImport({
   recoveryJobId = '',
   onRecoveryChange,
   onOpenSettings,
+  onSetupShown,
   initialReadiness = null,
   initialChecks,
 }) {
@@ -87,6 +88,8 @@ export default function AudioImport({
   const courses = data.focus?.courses?.map(item => item.name) || [...new Set((data.decks || []).map((deck) => deck.course).filter(Boolean))];
   const openSettings = openAudioSettings(onOpenSettings);
   const gated = !!readiness && !readiness.transcription && !files.length && !upload && !recoveryJobId;
+  // While the setup card is up it is the page's one way to the audio settings (#1708): the page's header and the job cards leave theirs out.
+  useEffect(() => { onSetupShown?.(gated); }, [gated, onSetupShown]);
 
   // Recordings and subtitles dropped on the Files tab of the dialog arrive here (their own confirmation, with the estimate, is below).
   useEffect(() => {
@@ -244,7 +247,7 @@ export default function AudioImport({
       {!gated && <Hint>{ui("先把录音转写成文字（用你在音频设置里配置的服务），再校对识别错误的词、翻译，保存为一份资料。出题仍在「创建题组」里另选。")}</Hint>}
       <input ref={picker} type="file" hidden multiple accept={`audio/*,${AUDIO_ACCEPT.join(',')}`}
         onChange={event => { const chosen = Array.from(event.target.files || []); event.target.value = ''; if (chosen.length) void send(chosen); }} />
-      <AudioJobs data={data} openAgent={openAgent} onOpenSources={onOpenSources} onOpenSettings={openSettings} onGenerate={onGenerate}
+      <AudioJobs data={data} openAgent={openAgent} onOpenSources={onOpenSources} onOpenSettings={gated ? undefined : openSettings} onGenerate={onGenerate}
         onLegacyRetry={job => { onRecoveryChange?.(job.id); picker.current?.click(); }} />
       {gated && <>
         <AudioSetupGate language={language} onOpenSettings={openSettings} reason={readiness.reason}
