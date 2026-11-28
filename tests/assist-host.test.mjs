@@ -224,10 +224,18 @@ test('a follow-up with no new completed output never saves the previous answer a
 test('timed-out reused children discard late output, release handles and are not reused again', async t => {
   const f = await fixture(t, async () => {}), { ctx, calls } = reusableHost(f.root);
   await f.start(ctx); await until(() => f.task().status === 'done');
-  const release = gate(); let cancelled = 0;
-  calls.children[0].whenIdle = () => release.promise;
+  const release = gate(); let cancelled = 0, waiting = false;
+  calls.children[0].whenIdle = () => { waiting = true; return release.promise; };
   calls.children[0].cancel = () => { cancelled++; };
+  // The 15 ms deadline must fire only once the follow-up is with the teacher: on a loaded runner the runtime's Job can
+  // otherwise be cancelled before its step runs, and an untouched teacher rightly stays idle in the pool.
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   await f.start(ctx, { text: 'Slow follow-up', timeoutMs: 15 });
+  const end = Date.now() + 10000;
+  while (!waiting && Date.now() < end) { t.mock.timers.tick(0); await new Promise(resolve => setImmediate(resolve)); }
+  assert.ok(waiting, 'the follow-up never reached the teacher');
+  t.mock.timers.tick(15);
+  t.mock.timers.reset();
   await until(() => f.task().status === 'failed');
   release.resolve();
   await until(() => calls.disposed.length === 2);

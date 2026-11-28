@@ -65,7 +65,9 @@ jobs:
           npm run release:pack
           npm run release:check
 
-      - name: Publish GitHub Release with verified assets
+      # The release is filled as a DRAFT: a draft is not "latest", so no StudyHub (plugin or desktop) is told about this version
+      # before its desktop installers and latest.json exist. scripts/release-publish.mjs publishes it once all 19 assets are there.
+      - name: Upload verified assets to the draft GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.meta.outputs.tag }}
@@ -92,20 +94,19 @@ jobs:
             exit 1
           fi
           if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            # Made by release-desktop.yml first (or a re-run): its draft or published state is kept; the notes become the changelog.
             gh release upload "$TAG" "${ASSETS[@]}" -R "$GITHUB_REPOSITORY" --clobber
             gh release edit "$TAG" \
               -R "$GITHUB_REPOSITORY" \
               --title "StudyHub $VERSION" \
-              --notes-file "$NOTES_FILE" \
-              --draft=false \
-              --latest
+              --notes-file "$NOTES_FILE"
           else
             gh release create "$TAG" "${ASSETS[@]}" \
               -R "$GITHUB_REPOSITORY" \
               --verify-tag \
+              --draft \
               --title "StudyHub $VERSION" \
-              --notes-file "$NOTES_FILE" \
-              --latest
+              --notes-file "$NOTES_FILE"
           fi
           gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json tagName,name,isDraft,url,assets \
             | node --input-type=module -e '
@@ -115,9 +116,17 @@ jobs:
               const assets = Array.isArray(rel.assets) ? rel.assets : [];
               const have = new Set(assets.map((asset) => asset.name));
               const missing = expected.filter((name) => !have.has(name));
-              if (rel.isDraft !== false || assets.length < 11 || missing.length) {
+              if (assets.length < 11 || missing.length) {
                 console.error("Release verification failed", { isDraft: rel.isDraft, assetCount: assets.length, missing });
                 process.exit(1);
               }
-              console.log(JSON.stringify({ tagName: rel.tagName, name: rel.name, url: rel.url, assetCount: assets.length }));
+              console.log(JSON.stringify({ tagName: rel.tagName, name: rel.name, isDraft: rel.isDraft, url: rel.url, assetCount: assets.length }));
             ' -- "${ASSETS[@]##*/}"
+
+      # Publishes (not a draft, latest) only when release-desktop.yml has attached its 8 assets too, latest.json among them;
+      # otherwise it leaves the draft for that workflow to publish. See docs/release-policy.md for publishing by hand.
+      - name: Publish the release once every asset is attached
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: node scripts/release-publish.mjs --tag "$TAG" --repo "$GITHUB_REPOSITORY"

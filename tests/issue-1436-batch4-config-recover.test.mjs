@@ -396,3 +396,22 @@ test('#1448 recover: when the backup cannot be written the reset is aborted and 
   await assert.rejects(store.save({ mode: 'openai' }, { force: true }), (err) => err?.code === 'config-backup-failed', 'a forced save stops the same way');
   assert.equal(readFileSync(store.configPath, 'utf8'), raw);
 });
+
+test('#1436 recover: a forced save and a recover in the same millisecond keep two backups and the recover goes through', async (t) => {
+  const first = '{"mode":"openai","libraryRoot":"/first"', second = '{"mode":"openai","libraryRoot":"/second"';
+  const { store, host, backups } = await hostOver(t, (path) => writeFileSync(path, first, 'utf8'));
+  // A fast runner does both inside one millisecond; the fixed clock makes that certain.
+  const clock = mock.method(Date, 'now', () => 1700000000000);
+  t.after(() => clock.mock.restore());
+  await store.save({ mode: 'openai' }, { force: true });
+  writeFileSync(store.configPath, second, 'utf8');
+  const rec = await host.call('desktop.config.recover', { uiLanguage: 'zh' });
+  assert.equal(rec.ok, true, `recover was refused: ${rec.code} ${rec.error}`);
+  assert.equal(rec.value.recovered, true);
+  const names = backups().sort();
+  assert.equal(names.length, 2, `two backups expected, found ${names.join(', ')}`);
+  assert.equal(new Set(names).size, 2);
+  assert.ok(names.every((name) => /\.corrupt-\d+\.bak$/.test(name)), names.join(', '));
+  const dir = dirname(store.configPath);
+  assert.deepEqual(names.map((name) => readFileSync(join(dir, name), 'utf8')).sort(), [first, second].sort(), 'each backup holds the file it was taken from');
+});
