@@ -314,12 +314,13 @@ function SourcesView() {
 /** The 音频转写 page's header: the shared PageHeader, its two links to neighbouring pages as quiet Buttons. While the setup card is on the page
     (`setupShown`), the card is the one way to the audio settings (#1708). */
 export function AudioHeader({ onSettings, onSources, setupShown = false }) {
+  const settings = !setupShown && onSettings, sources = !!onSources;
   return (
     <PageHeader title={ui('音频转写')} description={ui('导入录音文件，后台完成转录、校对和翻译；实时进度在本页和「任务」查看，转好后存入「资料」，完成时信箱会提醒你。')}
-      actions={<>
-        {!setupShown && <Button iconEnd="arrow-right" variant="quiet" onClick={onSettings}>{ui('音频设置')}</Button>}
-        <Button iconEnd="arrow-right" variant="quiet" onClick={onSources}>{ui('查看资料')}</Button>
-      </>} />
+      actions={settings || sources ? <>
+        {settings && <Button iconEnd="arrow-right" variant="quiet" onClick={onSettings}>{ui('音频设置')}</Button>}
+        {sources && <Button iconEnd="arrow-right" variant="quiet" onClick={onSources}>{ui('查看资料')}</Button>}
+      </> : undefined} />
   );
 }
 
