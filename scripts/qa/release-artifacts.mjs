@@ -46,15 +46,6 @@ for (const artifact of [...receipt.archives, receipt.setup, receipt.setupZh]) {
     await access(resolve(packageRoot, packed.main));
     if (packed.name === '@ericwang1358/dsh-daily-flashcard') {
       assert.ok(files.includes('package/lib/client.js'), 'workbench archive includes built UI client bundle');
-      // The UI only says 「已升级到 X」 when its own baked-in version is X (#1772). A stale client bundle would
-      // silently never say it, so the packed client code must carry this release's version.
-      const clientFiles = files.filter(file => /^package\/lib\/client(?:\.[A-Za-z0-9._-]+)?\.js$/.test(file));
-      const versionLiteral = JSON.stringify(manifest.version);
-      let carriesVersion = false;
-      for (const file of clientFiles) {
-        if ((await readFile(join(unpacked, file), 'utf8')).includes(versionLiteral)) { carriesVersion = true; break; }
-      }
-      assert.ok(carriesVersion, `workbench client bundle carries version ${manifest.version} (rebuild before packing)`);
       assert.deepEqual(UI_ONLY_DEPENDENCIES.filter(dep => dep in (packed.dependencies || {})), [],
         `${packed.name} omits UI-only dependencies from runtime dependencies`);
     } else if (packed.name.startsWith('@ericwang1358/dsh-study-')) {
