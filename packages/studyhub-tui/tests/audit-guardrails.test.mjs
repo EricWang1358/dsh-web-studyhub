@@ -17,12 +17,16 @@ import { PassThrough } from 'node:stream';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { Box, render } from 'ink';
+import chalk from 'chalk';
 import React from 'react';
 import stripAnsi from 'strip-ansi';
 import { register } from 'tsx/esm/api';
 
+const prevChalkLevel = chalk.level;
+if (chalk.level < 1) chalk.level = 1;
 const unregisterTsx = register();
 after(() => {
+  chalk.level = prevChalkLevel;
   unregisterTsx?.();
 });
 
@@ -51,12 +55,20 @@ function createInkHarness(element, { cols = 112, rows = 34 } = {}) {
   stdout.isTTY = true;
   stdout.columns = cols;
   stdout.rows = rows;
-  stdout.getColorDepth = () => 1;
+  stdout.getColorDepth = () => 4;
 
   let latest = '';
+  let latestRaw = '';
+  const frameListeners = new Set();
+
   stdout.on('data', (chunk) => {
-    const plain = stripAnsi(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
-    if (plain.trim()) latest = plain;
+    const raw = Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk);
+    const plain = stripAnsi(raw);
+    if (plain.trim()) {
+      latest = plain;
+      latestRaw = raw;
+      for (const fn of [...frameListeners]) fn();
+    }
   });
 
   const instance = render(
@@ -64,23 +76,103 @@ function createInkHarness(element, { cols = 112, rows = 34 } = {}) {
     { stdout, stdin, exitOnCtrlC: false, patchConsole: false, debug: true },
   );
 
+  const waitFrame = (getValue, pred, timeoutMs = 4000, label = 'condition') => {
+    const current = getValue();
+    if (pred(current)) return Promise.resolve(current);
+    return new Promise((resolve, reject) => {
+      let timer;
+      const cleanupListener = () => {
+        clearTimeout(timer);
+        frameListeners.delete(onFrame);
+      };
+      const onFrame = () => {
+        const val = getValue();
+        if (pred(val)) {
+          cleanupListener();
+          resolve(val);
+        }
+      };
+      timer = setTimeout(() => {
+        cleanupListener();
+        reject(new Error(`waitFor(${label}) timed out. Last frame:\n${latest}`));
+      }, timeoutMs);
+      frameListeners.add(onFrame);
+    });
+  };
+
+  const waitReady = (timeoutMs = 4000, label = 'stdin listener ready') => {
+    const hasListener = () => stdin.listenerCount('readable') > 0 || stdin.listenerCount('data') > 0;
+    if (hasListener()) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      let timer;
+      const cleanupListener = () => {
+        clearTimeout(timer);
+        stdin.off('newListener', onNewListener);
+      };
+      const onNewListener = (event) => {
+        if (event === 'readable' || event === 'data') {
+          cleanupListener();
+          queueMicrotask(resolve);
+        }
+      };
+      timer = setTimeout(() => {
+        cleanupListener();
+        reject(new Error(`waitReady(${label}) timed out waiting for Ink stdin listener`));
+      }, timeoutMs);
+      stdin.on('newListener', onNewListener);
+      if (hasListener()) {
+        cleanupListener();
+        queueMicrotask(resolve);
+      }
+    });
+  };
+
   return {
     write: (data) => stdin.write(data),
     frame: () => latest,
-    async waitFor(pred, timeoutMs = 4000, label = 'condition') {
-      const start = Date.now();
-      while (Date.now() - start < timeoutMs) {
-        if (pred(latest)) return latest;
-        await new Promise((r) => setTimeout(r, 20));
-      }
-      throw new Error(`waitFor(${label}) timed out. Last frame:\n${latest}`);
-    },
+    rawFrame: () => latestRaw,
+    waitReady,
+    waitFor: (pred, timeoutMs = 4000, label = 'condition') => waitFrame(() => latest, pred, timeoutMs, label),
+    waitForRaw: (pred, timeoutMs = 4000, label = 'raw condition') => waitFrame(() => latestRaw, pred, timeoutMs, label),
     cleanup() {
+      frameListeners.clear();
       instance.unmount();
       stdin.destroy();
       stdout.destroy();
     },
   };
+}
+
+function waitUntil(pred, timeoutMs = 4000, label = 'condition') {
+  if (pred()) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let pollTimer;
+    let timeoutTimer;
+    let unsubscribe = () => {};
+    const finish = (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutTimer);
+      clearInterval(pollTimer);
+      unsubscribe();
+      if (err) reject(err);
+      else resolve();
+    };
+    const check = () => {
+      try {
+        if (pred()) finish();
+      } catch (err) {
+        finish(err);
+      }
+    };
+    unsubscribe = useTuiStore.subscribe(check);
+    pollTimer = setInterval(check, 10);
+    timeoutTimer = setTimeout(() => {
+      finish(new Error(`waitUntil(${label}) timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+    queueMicrotask(check);
+  });
 }
 
 function resetTuiStore(extra = {}) {
@@ -175,7 +267,11 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
     } finally {
       h.cleanup();
     }
-    await new Promise((r) => setTimeout(r, 30));
+    await waitUntil(
+      () => !useTuiStore.getState().inputCaptured && getModalHintsSnapshot() === null,
+      4000,
+      'AiHelpDrawer unmount cleanup',
+    );
     assert.equal(useTuiStore.getState().inputCaptured, false, 'AiHelpDrawer releases input capture on unmount');
     assert.equal(getModalHintsSnapshot(), null, 'AiHelpDrawer clears modal footer hints on unmount');
   });
@@ -374,18 +470,26 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
     );
     try {
       await noteH.waitFor((s) => s.includes('什么是页表'), 4000, 'NoteEditorModal loaded candidate card');
-      await new Promise((r) => setTimeout(r, 30));
+      await noteH.waitReady();
       noteH.write('Page Table');
-      await new Promise((r) => setTimeout(r, 30));
+      await noteH.waitFor((s) => s.includes('Page Table') && s.includes('未保存'), 4000, 'NoteEditorModal title entered');
       // Tab x3: title -> query -> cards -> markdown
       noteH.write('\t');
-      await new Promise((r) => setTimeout(r, 20));
+      await noteH.waitForRaw(
+        (raw) => /\x1b\[7m输(?:\x1b\[[0-9;]*m)*入关键词/.test(raw),
+        4000,
+        'NoteEditorModal focused query input',
+      );
       noteH.write('\t');
-      await new Promise((r) => setTimeout(r, 20));
+      await noteH.waitFor((s) => s.includes('选/取消题'), 4000, 'NoteEditorModal focused cards list');
       noteH.write('\t');
-      await new Promise((r) => setTimeout(r, 30));
+      await noteH.waitForRaw(
+        (raw) => !stripAnsi(raw).includes('选/取消题') && /\x1b\[7m输(?:\x1b\[[0-9;]*m)*入 Markdown/.test(raw),
+        4000,
+        'NoteEditorModal focused markdown input',
+      );
       noteH.write('Body text');
-      await new Promise((r) => setTimeout(r, 30));
+      await noteH.waitFor((s) => s.includes('Body text'), 4000, 'NoteEditorModal body text entered');
       // Attempt 1: Ctrl+S -> note.create succeeds, note.save fails -> error shown, onSaved NOT called
       noteH.write('\x13');
       await noteH.waitFor((s) => s.includes('Disk full'), 4000, 'NoteEditorModal shows note.save failure');
@@ -395,8 +499,7 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
 
       // Attempt 2: retry Ctrl+S -> must NOT re-call note.create, only retries note.save
       noteH.write('\x13');
-      const deadline = Date.now() + 4000;
-      while (savedNotes.length === 0 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+      await waitUntil(() => savedNotes.length === 1, 4000, 'NoteEditorModal retry invokes onSaved');
       assert.equal(savedNotes.length, 1, 'retry completes note.save and invokes onSaved');
       assert.equal(noteCreateCalls, 1, 'NoteEditorModal caches created note and does NOT duplicate note.create on retry');
       assert.equal(noteSaveCalls, 2);
@@ -444,12 +547,16 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
     );
     try {
       await focusH.waitFor((s) => s.includes('OS'), 4000, 'AddFocusModal mounted');
-      await new Promise((r) => setTimeout(r, 30));
+      await focusH.waitReady();
       focusH.write('Paging; Deadlock');
-      await new Promise((r) => setTimeout(r, 30));
+      await focusH.waitFor((s) => s.includes('Paging; Deadlock'), 4000, 'AddFocusModal raw text entered');
       // Tab from multiline rawText input to single-line topics field, then Enter invokes onSubmit -> handleSave().
       focusH.write('\t');
-      await new Promise((r) => setTimeout(r, 40));
+      await focusH.waitForRaw(
+        (raw) => /\x1b\[7m例(?:\x1b\[[0-9;]*m)*如：动态规划/.test(raw),
+        4000,
+        'AddFocusModal focused topics field',
+      );
       focusH.write('\r');
       await focusH.waitFor((s) => s.includes('参考资料已入库') && s.includes('Temporary save'), 4000, 'AddFocusModal surfaces course.save error');
       assert.equal(sourceAddCalls, 1, 'step-1 source.add called once on attempt 1');
@@ -457,8 +564,7 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
       assert.equal(savedCounts.length, 0);
 
       focusH.write('\r');
-      const deadline = Date.now() + 4000;
-      while (savedCounts.length === 0 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+      await waitUntil(() => savedCounts.length === 1, 4000, 'AddFocusModal retry invokes onSaved');
       assert.equal(savedCounts.length, 1, 'retry completes course.save and calls onSaved');
       assert.equal(sourceAddCalls, 1, 'AddFocusModal caches created sourceId and does NOT duplicate source.add on retry');
       assert.equal(courseSaveCalls, 2);
@@ -550,34 +656,46 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
     );
     try {
       await boardH.waitFor((s) => s.includes('Task Alpha'), 4000, 'BoardView loaded card');
-      await new Promise((r) => setTimeout(r, 40));
+      await boardH.waitReady();
       boardH.write('e');
-      await boardH.waitFor((s) => s.includes('编辑看板任务'), 4000, 'BoardCardModal opened');
-      await new Promise((r) => setTimeout(r, 30));
+      await boardH.waitFor((s) => s.includes('编辑看板任务') && s.includes('Task Alpha'), 4000, 'BoardCardModal opened');
       boardH.write(' v2');
-      await new Promise((r) => setTimeout(r, 30));
+      await boardH.waitFor((s) => s.includes('Task Alpha v2') && s.includes('未保存'), 4000, 'BoardCardModal title updated');
       // Tab x3: title -> course -> dueDate -> column; select '2' (doing) and Enter to submit
       boardH.write('\t');
-      await new Promise((r) => setTimeout(r, 20));
+      await boardH.waitForRaw(
+        (raw) => /\x1b\[7m例(?:\x1b\[[0-9;]*m)*如：线性代数/.test(raw),
+        4000,
+        'BoardCardModal focused course field',
+      );
       boardH.write('\t');
-      await new Promise((r) => setTimeout(r, 20));
+      await boardH.waitForRaw(
+        (raw) => /\x1b\[7m2(?:\x1b\[[0-9;]*m)*026-11-30/.test(raw),
+        4000,
+        'BoardCardModal focused dueDate field',
+      );
       boardH.write('\t');
-      await new Promise((r) => setTimeout(r, 30));
+      await boardH.waitForRaw(
+        (raw) => !/\x1b\[7m/.test(raw),
+        4000,
+        'BoardCardModal focused column selector',
+      );
       boardH.write('2');
-      await new Promise((r) => setTimeout(r, 30));
+      await boardH.waitForRaw(
+        (raw) => /\x1b\[(?:[0-9;]*;)?1(?:;[0-9;]*)?m(?:\x1b\[[0-9;]*m)*\s*2:进行中 Doing/.test(raw),
+        4000,
+        'BoardCardModal selected column 2 (doing)',
+      );
       boardH.write('\r');
 
-      const deadline1 = Date.now() + 4000;
-      while (
-        !(
+      await waitUntil(
+        () =>
           editCalls.length === 2 &&
           moveCalls.length === 1 &&
-          useTuiStore.getState().toasts.some((toast) => toast.text.includes('任务内容已更新，但列移动失败'))
-        ) &&
-        Date.now() < deadline1
-      ) {
-        await new Promise((r) => setTimeout(r, 20));
-      }
+          useTuiStore.getState().toasts.some((toast) => toast.text.includes('任务内容已更新，但列移动失败')),
+        4000,
+        'BoardView partial-sync failure recorded',
+      );
       assert.equal(editCalls.length, 2, 'initial edit + failed rollback edit called once each');
       assert.equal(moveCalls.length, 1, 'initial board.card.move attempted once');
       const partialToast = useTuiStore
@@ -589,16 +707,13 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
 
       // Retry pending upstream ops via [S]: must call board.card.move WITHOUT double-calling board.card.edit!
       boardH.write('S');
-      const deadline2 = Date.now() + 4000;
-      while (
-        !(
+      await waitUntil(
+        () =>
           moveCalls.length === 2 &&
-          useTuiStore.getState().toasts.some((toast) => toast.tone === 'success' && toast.text.includes('已同步'))
-        ) &&
-        Date.now() < deadline2
-      ) {
-        await new Promise((r) => setTimeout(r, 20));
-      }
+          useTuiStore.getState().toasts.some((toast) => toast.tone === 'success' && toast.text.includes('已同步')),
+        4000,
+        'BoardView retry sync succeeded',
+      );
       assert.equal(moveCalls.length, 2, 'retrying [S] must execute pending board.card.move');
       assert.equal(moveCalls[1].column, 'doing');
       assert.equal(editCalls.length, 2, 'retrying [S] must NOT double-call board.card.edit when editApplied was already true');
@@ -630,7 +745,7 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
     assert.equal(await readFile(path.join(dir, bak), 'utf8'), corruptRaw);
   });
 
-  test('[Cat 1: Round-2 Key Conflicts Runtime] ExamSetup, GenerateView, and CoachNudgeModal route k to view action without child scroll/list conflicts (#1385, #1386, #1387)', async () => {
+  test('[Cat 1: Round-2 Key Conflicts Runtime] ExamSetup, GenerateView, and CoachNudgeModal route k to view action without child scroll/list conflicts (#1385, #1386)', async () => {
     // 1) ExamSetup: no stale lowercase 'r 继续未交卷考试' hint; pressing 'k' cycles kinds without moving VirtualList scope cursor up.
     resetTuiStore();
     const { ExamSetup } = await import('../src/views/exam/ExamSetup.tsx');
@@ -663,17 +778,15 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
     try {
       const initFrame = await examH.waitFor((s) => s.includes('全部题型') && s.includes('Deck Alpha'), 4000, 'ExamSetup rendered');
       assert.ok(!initFrame.includes('r 继续未交卷考试'), 'ExamSetup must not display stale lowercase r hint (#1385)');
-      await new Promise((r) => setTimeout(r, 30));
-      // Move scope selection down twice (All -> OS course -> Deck Alpha, or next item), then press 'k'.
+      await examH.waitReady();
+      // Move scope selection down off index 0 (All -> next scope), then press 'k'.
       examH.write('\x1b[B');
-      await new Promise((r) => setTimeout(r, 40));
+      await examH.waitFor((s) => !/❯\s*全部/.test(s), 4000, 'ExamSetup scope cursor moved down');
       examH.write('k');
       await examH.waitFor((s) => s.includes('单双均衡'), 4000, 'ExamSetup k cycles written kinds');
-      await new Promise((r) => setTimeout(r, 40));
       // Press Enter to confirm which scope is selected: must NOT have jumped back up to index 0!
       examH.write('\r');
-      const deadline = Date.now() + 2000;
-      while (!startedArgs && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+      await waitUntil(() => Boolean(startedArgs), 2000, 'ExamSetup Enter starts exam');
       assert.ok(startedArgs, 'Enter starts exam');
       assert.equal(startedArgs.val.kinds, 'balanced', 'k cycled kinds to balanced');
       assert.notEqual(startedArgs.scope?.key, 'all', 'k must NOT move VirtualList scope cursor back up to index 0');
@@ -715,13 +828,16 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
     );
     try {
       await genH.waitFor((s) => s.includes('Lecture 1 Intro') && s.includes('Lecture 2 Paging'), 4000, 'GenerateView rendered');
-      await new Promise((r) => setTimeout(r, 40));
+      await genH.waitReady();
       // Move cursor to source #2 (Lecture 2 Paging), press 'k' to cycle kind, then press Space to toggle selection on cursor item.
       genH.write('\x1b[B');
-      await new Promise((r) => setTimeout(r, 40));
+      await genH.waitForRaw(
+        (raw) => /\x1b\[(?:[0-9;]*;)?1(?:;[0-9;]*)?m(?:\x1b\[[0-9;]*m)*Lecture 2 Paging/.test(raw),
+        4000,
+        'GenerateView cursor moved to Lecture 2 Paging',
+      );
       genH.write('k');
       await genH.waitFor((s) => s.includes('多选'), 4000, 'GenerateView k cycles question kind');
-      await new Promise((r) => setTimeout(r, 40));
       genH.write(' ');
       const afterToggle = await genH.waitFor((s) => /(?:☑|\[(?:✓|x|\*)\])\s*(?:\[TEXT\]\s*)?Lecture 2 Paging/.test(s), 4000, 'GenerateView cursor stayed on Lecture 2 Paging after k');
       assert.match(afterToggle, /(?:☑|\[(?:✓|x|\*)\])\s*(?:\[TEXT\]\s*)?Lecture 2 Paging/, 'pressing k must not move VirtualList cursor up to Lecture 1');
@@ -772,17 +888,17 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
     );
     try {
       await coachH.waitFor((s) => s.includes('混淆虚拟地址'), 4000, 'CoachNudgeModal rendered');
-      await new Promise((r) => setTimeout(r, 40));
+      await coachH.waitReady();
       coachH.write('k');
-      const deadline = Date.now() + 4000;
-      while (replyCalls.length === 0 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+      await waitUntil(() => replyCalls.length === 1, 4000, 'CoachNudgeModal k invokes coach.reply');
       assert.equal(replyCalls.length, 1, 'pressing k in CoachNudgeModal must invoke coach.reply');
       assert.deepEqual(replyCalls[0], { noteId: 'nudge-1386', reply: 'got' });
     } finally {
       coachH.cleanup();
     }
+  });
 
-    // 4) WrongBookView (#1387): Space toggles multi-select in left pane, but NOT when right detail pane is focused.
+  test('[Cat 1: Round-2 Key Conflicts Runtime] WrongBookView Space toggles multi-select only in left pane and pages detail in right pane (#1387)', async () => {
     resetTuiStore({ snapshot: { courses: [{ id: 'c-os', name: 'OS' }], sources: [], decks: [] } });
     const { WrongBookView } = await import('../src/views/wrongbook/WrongBookView.tsx');
     const wbHost = {
@@ -830,7 +946,10 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
             value: {
               prompt: 'What is a TLB miss?',
               correctAnswer: 'TLB lookup miss',
-              explanation: Array.from({ length: 18 }, (_, i) => `- WrongBook detail line ${i + 1}`).join('\n'),
+              explanation: Array.from(
+                { length: 24 },
+                (_, i) => `- WrongBook detail line ${String(i + 1).padStart(2, '0')}`,
+              ).join('\n'),
             },
           };
         }
@@ -849,25 +968,35 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
       { cols: 108, rows: 28 },
     );
     try {
-      await wbH.waitFor((s) => s.includes('What is a TLB miss?'), 4000, 'WrongBookView loaded mistake');
-      await new Promise((r) => setTimeout(r, 40));
+      const initWb = await wbH.waitFor(
+        (s) => s.includes('What is a TLB miss?') && s.includes('WrongBook detail line 01'),
+        4000,
+        'WrongBookView loaded mistake and detail',
+      );
+      assert.ok(!initWb.includes('WrongBook detail line 20'), 'initial WrongBookView detail overflows viewport');
+      await wbH.waitReady();
       // Left pane (default): Space selects item -> badge '已选 1' appears
       wbH.write(' ');
       await wbH.waitFor((s) => s.includes('已选 1'), 4000, 'WrongBookView left-pane Space selects card');
-      await new Promise((r) => setTimeout(r, 30));
       // Toggle off in left pane
       wbH.write(' ');
       await wbH.waitFor((s) => !s.includes('已选 1'), 4000, 'WrongBookView left-pane Space deselects card');
-      await new Promise((r) => setTimeout(r, 30));
       // Switch focus to right detail pane (RightArrow -> activePane === 'right')
       wbH.write('\x1b[C');
-      await wbH.waitFor((s) => s.includes('j/k 滚动'), 4000, 'WrongBookView switched focus to right pane');
-      await new Promise((r) => setTimeout(r, 30));
-      // Space in right pane must NOT toggle left-pane multi-select
-      wbH.write(' ');
-      await new Promise((r) => setTimeout(r, 80));
+      const rightFocused = await wbH.waitFor((s) => s.includes('j/k 滚动'), 4000, 'WrongBookView switched focus to right pane');
       assert.ok(
-        !wbH.frame().includes('已选 1') && !wbH.frame().includes('1 sel'),
+        rightFocused.includes('WrongBook detail line 01') && !rightFocused.includes('WrongBook detail line 20'),
+        'detail starts at top before right-pane Space',
+      );
+      // Space in right pane must page detail down AND must NOT toggle left-pane multi-select
+      wbH.write(' ');
+      const afterSpace = await wbH.waitFor(
+        (s) => !s.includes('WrongBook detail line 01') && s.includes('WrongBook detail line 18'),
+        4000,
+        'WrongBookView right-pane Space paged detail down',
+      );
+      assert.ok(
+        !afterSpace.includes('已选 1') && !afterSpace.includes('1 sel'),
         'WrongBookView Space in right pane must NOT select cards in left pane (#1387)',
       );
     } finally {
@@ -935,10 +1064,10 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
     try {
       const initFrame = await reviewH.waitFor((s) => s.includes('EXPLAIN-LINE-01'), 4000, 'ReviewView revealed explanation');
       assert.ok(!initFrame.includes('EXPLAIN-LINE-20'), 'initial compact ReviewView frame clips tail explanation lines');
-      await new Promise((r) => setTimeout(r, 40));
+      await reviewH.waitReady();
       // Send PageDown twice so postAnswerMarkdown ScrollView advances into later lines
       reviewH.write('\x1b[6~');
-      await new Promise((r) => setTimeout(r, 40));
+      await reviewH.waitFor((s) => !s.includes('EXPLAIN-LINE-01'), 4000, 'ReviewView first PageDown scrolled past line 01');
       reviewH.write('\x1b[6~');
       const scrolledFrame = await reviewH.waitFor(
         (s) => s.includes('EXPLAIN-LINE-16') || s.includes('EXPLAIN-LINE-18') || s.includes('EXPLAIN-LINE-20'),
@@ -996,16 +1125,14 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
     try {
       const initPreview = await dmH.waitFor((s) => s.includes('PREVIEW-LINE-03'), 4000, 'DeckManageModal initial preview');
       assert.ok(!initPreview.includes('PREVIEW-LINE-14'), 'initial DeckManageModal preview clips lower lines');
-      await new Promise((r) => setTimeout(r, 40));
-      for (let i = 0; i < 7; i += 1) {
+      await dmH.waitReady();
+      let scrolledPreview = dmH.frame();
+      for (let step = 0; step < 12 && !scrolledPreview.includes('PREVIEW-LINE-14'); step += 1) {
+        const prev = scrolledPreview;
         dmH.write('J');
-        await new Promise((r) => setTimeout(r, 25));
+        scrolledPreview = await dmH.waitFor((s) => s !== prev, 4000, `DeckManageModal J scroll step ${step + 1}`);
       }
-      const scrolledPreview = await dmH.waitFor(
-        (s) => s.includes('PREVIEW-LINE-14'),
-        4000,
-        'DeckManageModal J scrolled preview viewport',
-      );
+      assert.ok(scrolledPreview.includes('PREVIEW-LINE-14'), 'DeckManageModal J scrolled preview viewport');
       assert.ok(!scrolledPreview.includes('PREVIEW-LINE-03'), 'DeckManageModal preview viewport moved past line 03');
     } finally {
       dmH.cleanup();
@@ -1091,11 +1218,16 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
   });
 
   test('[Cat 4: Round-2 Multi-Write] ModelsTab, DeckManageModal, and shell/actions handle step-2 failures truthfully (#1394)', async (t) => {
-    // 1) ModelsTab (#1394): saving OpenAI config sends ONE atomic desktop.config.save with mode + reasoningEffort and 0 binding.set calls.
+    // 1) ModelsTab (#1394): saving OpenAI config sends ONE atomic desktop.config.save with mode + reasoningEffort and 0 binding.set calls,
+    //    awaits saveTuiPreferences before emitting success, and leaves zero temp dirs behind even when cleanup runs on early failure/unmount (#1605).
     resetTuiStore();
     const { ModelsTab } = await import('../src/views/settings/ModelsTab.tsx');
     const prefsDir = await mkdtemp(path.join(os.tmpdir(), 'studyhub-1394-models-'));
-    t.after(() => rm(prefsDir, { recursive: true, force: true }));
+    const pendingPrefSaves = [];
+    t.after(async () => {
+      await Promise.allSettled(pendingPrefSaves);
+      await rm(prefsDir, { recursive: true, force: true });
+    });
     const modelCalls = [];
     const modelsHost = {
       mode: 'embedded',
@@ -1129,20 +1261,21 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
         height: 28,
         isActive: true,
         onRefreshConfig: async () => {},
+        onPreferencesSave: (pending) => pendingPrefSaves.push(pending),
       }),
       { cols: 108, rows: 28 },
     );
     try {
       await modelsH.waitFor((s) => s.includes('deepseek-chat'), 4000, 'ModelsTab OpenAI mode rendered');
-      await new Promise((r) => setTimeout(r, 40));
+      await modelsH.waitReady();
       modelsH.write('s');
-      const deadline = Date.now() + 4000;
-      while (
-        !(modelCalls.some((c) => c.name === 'desktop.config.save') && useTuiStore.getState().toasts.length > 0) &&
-        Date.now() < deadline
-      ) {
-        await new Promise((r) => setTimeout(r, 20));
-      }
+      await waitUntil(
+        () =>
+          modelCalls.some((c) => c.name === 'desktop.config.save') &&
+          useTuiStore.getState().toasts.some((toast) => toast.tone === 'success'),
+        4000,
+        'ModelsTab OpenAI save completed',
+      );
       const saveCalls = modelCalls.filter((c) => c.name === 'desktop.config.save');
       assert.equal(saveCalls.length, 1, 'ModelsTab must issue one atomic desktop.config.save');
       assert.equal(saveCalls[0].args?.mode, 'openai');
@@ -1152,10 +1285,80 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
         0,
         'ModelsTab must NOT call separate binding.set when saving OpenAI config (#1394)',
       );
+      assert.equal(pendingPrefSaves.length, 1, 'ModelsTab must surface pending preference save via onPreferencesSave');
+      const tuiPrefsPath = path.join(prefsDir, 'study', 'tui.json');
+      assert.equal(
+        fs.existsSync(tuiPrefsPath),
+        true,
+        'ModelsTab must await saveTuiPreferences before emitting the success toast (#1605)',
+      );
+      const persistedPrefs = JSON.parse(await readFile(tuiPrefsPath, 'utf8'));
+      assert.equal(persistedPrefs.lastOpenAiPreset, 'deepseek', 'persisted tui.json must record lastOpenAiPreset');
     } finally {
       modelsH.cleanup();
       resetTuiStore();
     }
+
+    // 1b) Early failure / immediate unmount cleanup regression (#1605):
+    //     When a save is triggered and cleanup runs immediately after an error/unmount, awaiting pendingPrefSaves
+    //     before rm prevents saveTuiPreferences from recreating prefsDir/study/tui.json after cleanup.
+    resetTuiStore();
+    const failPrefsDir = await mkdtemp(path.join(os.tmpdir(), 'studyhub-1605-models-fail-'));
+    const failPendingPrefSaves = [];
+    t.after(async () => {
+      await Promise.allSettled(failPendingPrefSaves);
+      await rm(failPrefsDir, { recursive: true, force: true });
+    });
+    let resolveSaveStarted;
+    const saveStarted = new Promise((resolve) => {
+      resolveSaveStarted = resolve;
+    });
+    const failModelsHost = {
+      mode: 'embedded',
+      dshHome: failPrefsDir,
+      snapshot: async () => null,
+      call: async () => ({ ok: true, value: {} }),
+      stream: async () => {},
+      close: async () => {},
+    };
+    const failModelsH = createInkHarness(
+      React.createElement(ModelsTab, {
+        host: failModelsHost,
+        config: modelsConfig,
+        width: 108,
+        height: 28,
+        isActive: true,
+        onRefreshConfig: async () => {},
+        onPreferencesSave: (pending) => {
+          failPendingPrefSaves.push(pending);
+          resolveSaveStarted();
+        },
+      }),
+      { cols: 108, rows: 28 },
+    );
+    let simulatedFailure = null;
+    try {
+      await failModelsH.waitFor((s) => s.includes('deepseek-chat'), 4000, 'ModelsTab failure-cleanup harness rendered');
+      await failModelsH.waitReady();
+      failModelsH.write('s');
+      await saveStarted;
+      // Simulate an immediate assertion failure mid-flight while saveTuiPreferences is writing to disk
+      throw new Error('simulated mid-save test failure');
+    } catch (err) {
+      simulatedFailure = err;
+    } finally {
+      failModelsH.cleanup();
+      resetTuiStore();
+    }
+    assert.match(String(simulatedFailure?.message), /simulated mid-save test failure/);
+    await Promise.allSettled(failPendingPrefSaves);
+    await rm(failPrefsDir, { recursive: true, force: true });
+    await new Promise((r) => setImmediate(r));
+    assert.equal(
+      fs.existsSync(failPrefsDir),
+      false,
+      'awaiting pendingPrefSaves before rm must leave zero leftover temp dir on early failure/unmount (#1605)',
+    );
 
     // 2) DeckManageModal (#1394): rename failure at draft.save cleans up orphan draft via draft.delete.
     resetTuiStore({ snapshot: { courses: [], sources: [], decks: [], drafts: [] } });
@@ -1203,17 +1406,19 @@ describe('Systematic 5-Category Audit Guardrails (#1374-#1383)', () => {
     );
     try {
       await renameH.waitFor((s) => s.includes('Original Deck'), 4000, 'DeckManageModal loaded for rename');
-      await new Promise((r) => setTimeout(r, 40));
+      await renameH.waitReady();
       renameH.write('n');
-      await renameH.waitFor((s) => s.includes('输入新题组标题'), 4000, 'DeckManageModal entered rename mode');
-      await new Promise((r) => setTimeout(r, 30));
+      await renameH.waitFor((s) => s.includes('输入新题组标题') && s.includes('Original Deck'), 4000, 'DeckManageModal entered rename mode');
       renameH.write(' Renamed');
-      await new Promise((r) => setTimeout(r, 30));
+      await renameH.waitFor((s) => s.includes('Original Deck Renamed'), 4000, 'DeckManageModal rename input updated');
       renameH.write('\r');
-      const deadline = Date.now() + 4000;
-      while (!renameCalls.some((c) => c.name === 'draft.delete') && Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 20));
-      }
+      await waitUntil(
+        () =>
+          renameCalls.some((c) => c.name === 'draft.delete') &&
+          useTuiStore.getState().toasts.some((toast) => toast.tone === 'error' && toast.text.includes('draft.save disk failure')),
+        4000,
+        'DeckManageModal cleaned up orphan draft and surfaced error toast',
+      );
       const deleteCall = renameCalls.find((c) => c.name === 'draft.delete');
       assert.ok(deleteCall, 'DeckManageModal must call draft.delete when draft.save fails during rename');
       assert.deepEqual(deleteCall.args, { id: 'orphan-draft-1394' });

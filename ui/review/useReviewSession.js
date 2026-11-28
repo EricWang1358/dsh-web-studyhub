@@ -762,7 +762,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
       : trimmedText;
     try {
       await submitAssist(call, { deckId: current.deckId, cardId: current.card.id, runId: current.id,
-        mode, text: mergedAskText.slice(0, 1000), helpChoices,
+        mode, text: mode === 'grade' ? trimmedText : mergedAskText.slice(0, 1000), helpChoices,
         ...(mode === 'derive' && extra ? { derive: extra } : {}),
         ...(mode === 'terms' && extra?.terms ? { terms: extra.terms } : {}),
         uiLanguage: getUiLanguage() });

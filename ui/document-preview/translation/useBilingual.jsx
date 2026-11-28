@@ -432,6 +432,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
       if (started?.available === false) { dispatch({ type: 'unavailable', keys: [] }); return; }
       setMenuOpen(false);
       if (started.status === 'nothing') { announce({ text: ui('这里没有还需要翻译的段落。'), tone: 'info' }); return; }
+      if (started.jobId && !seen.current.has(started.jobId)) seen.current.set(started.jobId, 'active');
       for (const paragraph of def.paragraphs) startedScopeKeys.current.add(paragraph.key);
       announce({ text: started.alreadyRunning ? ui('这部分已经在翻译了。') : uiFormat('已开始翻译，共 {0} 段，后台进行；译文会显示在对应段落旁，完成时信箱会提醒你。', [started.job?.total ?? 0]), tone: 'info' });
       await loadJobs();
@@ -471,6 +472,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
   const retranslateMany = useCallback(async passages => {
     const started = await call('generation.translation.start', { ...identity, target, passages, retranslate: true, label: ui('术语表更新') });
     if (started?.available === false) throw new Error(gateMessage('translate'));
+    if (started?.jobId && !seen.current.has(started.jobId)) seen.current.set(started.jobId, 'active');
     await loadJobs();
   }, [call, identity, target, loadJobs]);
 

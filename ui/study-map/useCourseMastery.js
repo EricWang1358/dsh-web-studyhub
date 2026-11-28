@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { courseMatcher } from '../PageScope.jsx';
+import { decksInCourse } from '../PageScope.jsx';
 import { mergeProgress } from './map-model.js';
 
 /* Mastery weighted by card count. Deck rows carry no mastery of their own in
@@ -14,16 +14,15 @@ const measure = (decks, progress) => {
 /** { course, whole, name, others, primary }: the current course's mastery, the library's, and which to headline. */
 export function useCourseMastery(data, progress) {
   return useMemo(() => {
-    const live = data.decks.filter((deck) => !deck.archived);
+    const live = data.decks.filter((deck) => !deck.archived && !deck.inactive);
     const name = data.focus?.course;
-    // A parent course measures the courses inside it too.
-    const within = name != null ? courseMatcher(data, name) : null;
-    const inCourse = within ? live.filter((deck) => !deck.systemKind && within(deck.course ?? deck.folder ?? '')) : [];
+    // A parent course measures active sub-courses inside it; a parked course picked as current is still measured.
+    const inCourse = name != null ? decksInCourse(data, name) : [];
     const course = inCourse.length ? measure(inCourse, progress) : null;
     const whole = measure(live, progress);
     const others = course && live.some((deck) => !inCourse.includes(deck) && progress[deck.id]?.total);
     return { course, whole, name, others, primary: course || whole };
-  }, [data.decks, data.focus?.course, data.focus?.courses, data.focus?.mode, progress]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data, progress]);
 }
 
 export default useCourseMastery;

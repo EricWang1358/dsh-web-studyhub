@@ -1019,7 +1019,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         {marks.chip}
       </div>
       <p className="reader-toolbar__where">{where ? <Tooltip layer content={where}><span tabIndex={0}>{where}</span></Tooltip> : null}</p>
-      {view === 'original' && !localMode && <HelpTip label={ui('在原始 PDF 里怎么提问')} placement="bottom-end">{ui('在原始 PDF 里按页提问（「学习工具」）；要问选中的一段，请切换到「阅读」。')}</HelpTip>}
+      {view === 'original' && <HelpTip label={ui('在原始 PDF 里怎么提问')} placement="bottom-end">{ui('在原始 PDF 里按页提问（「学习工具」）；要问选中的一段，请切换到「阅读」。')}</HelpTip>}
       {!localMode && loop.returnDelta > 0 && <span className="reader-toolbar__delta" role="status">{uiFormat('本轮 +{0}%', [loop.returnDelta])}</span>}
       <div className="reader-toolbar__group reader-toolbar__group--end">
         {/* 文字 | 原始 PDF (#1001): for a PDF whose original file is here; in a narrow reader the views stay in 更多 only, so the toolbar keeps one row. */}
@@ -1045,7 +1045,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       {narrow && (outlineOn || toolsOn) && <button type="button" className="reader-scrim" aria-label={ui('关闭面板')} onClick={() => setOverlay(null)} />}
       {/* While the material opens, the 目录 column it will open in keeps its width, so the text does not slide right when it comes. */}
       {loading && !narrow && settings.outline && !outlineOn && <div className="reader-outline" aria-hidden="true" />}
-      {/* 正在打开资料… floats over the top of the text instead of taking a line above it: when the material comes, nothing on screen moves up. */}
+      {/* 正在打开资料… floats at the bottom of the layout instead of taking a line above the text: when the material comes, nothing on screen moves up. */}
       {loading && <LoadingState className="reader-loading" label={ui('正在打开资料…')} />}
       {outlineOn && <OutlinePanel id={outlineId} data-tour="reader-outline" items={outline} activeId={activeId} labelOf={itemLabel} onJump={jumpTo} meters={meters} upgradedIds={loop.upgradedIds} reads={outlineReads}
         coverage={!localMode && view !== 'original' && loop.coverage?.cards > 0 ? loop.outlineCoverage : null} coverageTotals={loop.coverage}

@@ -91,7 +91,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
   const late = useRef({});
   const nav = useNavigation({ core, lib: handle, motion: shell.motion, rootRef: shell.rootRef, initialPage: warmEntry.initialPage });
   useSessionPerformance(nav.page); // here, not in PageView: the board and the start page are drawn beside it, and the observer stays for the whole session
-  const session = useReviewSession({ core, nav, modalOpen: !!lib.modal, host, rootRef: shell.rootRef, late });
+  const session = useReviewSession({ core, nav, modalOpen: !!(lib.modal || lib.startConfirm), host, rootRef: shell.rootRef, late });
   const resetLibraryState = useLibraryReset({ core, libApi: set, nav, session, defaultGen: () => freshGeneration(core.refs.dataRef.current?.settings),
     abandonPending: abandonUndoable, unsentText: (count) => uiFormat('学习库已更换：刚才的 {0} 项删除没有执行，它们还在原来的学习库里。', [count]),
     onReset: warmEntry.clear });

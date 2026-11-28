@@ -31,12 +31,14 @@ export function TranslationDisplayRow({ mode, target, narrow, onChange }) {
 
 const TARGET_NAMES = () => ({ zh: ui('简体中文'), en: 'English' });
 
-/** "还有 8 段要译 · 已译 4 段" / "这里已经全部译好". */
+/** "还有 8 段要译 · 已译 4 段" / "可沿用 5 段旧译文" / "这里已经全部译好". */
 function scopeLine(scope) {
   if (scope.status === 'loading') return ui('正在数段落…');
   if (scope.status === 'error') return ui('没能估算，稍后再试。');
-  const todo = scope.counts?.toTranslate ?? 0, done = scope.counts?.cached ?? 0;
-  if (!todo) return done ? ui('已经全部译好。') : ui('这里没有需要翻译的段落。');
+  const todo = scope.counts?.toTranslate ?? 0, done = scope.counts?.cached ?? 0, reused = scope.counts?.reused ?? 0;
+  if (!todo && !reused) return done ? ui('已经全部译好。') : ui('这里没有需要翻译的段落。');
+  if (!todo) return done ? uiFormat('可沿用 {0} 段旧译文 · 已译 {1} 段', [reused, done]) : uiFormat('可沿用 {0} 段旧译文', [reused]);
+  if (reused) return done ? uiFormat('还有 {0} 段要译 · 可沿用 {1} 段 · 已译 {2} 段', [todo, reused, done]) : uiFormat('还有 {0} 段要译 · 可沿用 {1} 段', [todo, reused]);
   return done ? uiFormat('还有 {0} 段要译 · 已译 {1} 段', [todo, done]) : uiFormat('还有 {0} 段要译', [todo]);
 }
 
@@ -50,11 +52,14 @@ function TranslationPanel({ scopes, target, modelAvailable, stale, running, hasT
     </div>
     {!modelAvailable && <ReaderModelGate feature="translate" />}
     {!reading && <p className="tr-panel__note">{ui('批量对照翻译与全部展开/收起需切回「阅读」视图；当前「原文」视图仍可划词翻译。')}</p>}
-    {reading && scopes.map(scope => <section key={scope.id} className="tr-scope" data-status={scope.status}>
-      <div className="tr-scope__head"><strong>{scope.label}</strong><small>{scopeLine(scope)}</small></div>
-      {scope.status === 'ready' && scope.estimate && (scope.counts?.toTranslate || 0) > 0 && <TokenEstimateView state={{ status: 'ready', estimate: scope.estimate }} totalOnly />}
-      {(scope.counts?.toTranslate || 0) > 0 && <Button size="sm" variant="secondary" lock={running} disabled={!modelAvailable || scope.status !== 'ready'} onClick={() => onStart(scope.id)}>{ui('开始翻译')}</Button>}
-    </section>)}
+    {reading && scopes.map(scope => {
+      const todo = scope.counts?.toTranslate || 0, reused = scope.counts?.reused || 0;
+      return <section key={scope.id} className="tr-scope" data-status={scope.status}>
+        <div className="tr-scope__head"><strong>{scope.label}</strong><small>{scopeLine(scope)}</small></div>
+        {scope.status === 'ready' && scope.estimate && todo > 0 && <TokenEstimateView state={{ status: 'ready', estimate: scope.estimate }} totalOnly />}
+        {(todo > 0 || reused > 0) && <Button size="sm" variant="secondary" lock={running} disabled={(todo > 0 && !modelAvailable) || scope.status !== 'ready'} onClick={() => onStart(scope.id)}>{todo > 0 ? ui('开始翻译') : ui('沿用旧译文')}</Button>}
+      </section>;
+    })}
     <div className="tr-panel__actions">
       {reading && <Button size="sm" variant="quiet" disabled={!hasTranslations} onClick={onExpandAll}>{ui('展开本页全部译文')}</Button>}
       {reading && <Button size="sm" variant="quiet" disabled={!hasTranslations} onClick={onCollapseAll}>{ui('收起本页全部译文')}</Button>}

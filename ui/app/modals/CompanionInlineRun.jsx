@@ -26,12 +26,12 @@ const NO_HOST = Object.freeze({});
  * and stays inside the active companion when a card's link targets another slide of the same companion.
  */
 export default function CompanionInlineRun({ started, label, companionId, onJumpSlide, onClose, shown = true }) {
-  const { core, nav, intents, set, data, settingsEntry, learn } = useApp();
+  const { core, nav, intents, lib, set, data, settingsEntry, learn } = useApp();
   const study = useStudy();
   const rootRef = useRef(null), late = useRef({});
   const [flagging, setFlagging] = useState(false);
   const compNav = useMemo(() => ({ page: shown ? PAGE : HIDDEN, setPage: () => {}, show: nav.show }), [nav.show, shown]);
-  const session = useReviewSession({ core, nav: compNav, modalOpen: !shown || flagging, host: NO_HOST, rootRef, late, embeddedIn: PAGE });
+  const session = useReviewSession({ core, nav: compNav, modalOpen: !shown || !!lib?.startConfirm || flagging, host: NO_HOST, rootRef, late, embeddedIn: PAGE });
   const { enterRun, shortcutHelp, actions: { closeShortcutHelp } } = session;
   const helpOpen = shown && shortcutHelp;
   useEffect(() => { if (!shown) closeShortcutHelp(); }, [shown, closeShortcutHelp]);
@@ -54,7 +54,7 @@ export default function CompanionInlineRun({ started, label, companionId, onJump
     return () => window.removeEventListener('keydown', onKey, true);
   }, [helpOpen, closeShortcutHelp]);
   useEffect(() => {
-    if (!shown || helpOpen || flagging) return undefined;
+    if (!shown || helpOpen || flagging || lib?.startConfirm) return undefined;
     const onKey = (event) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
       if (typeof document !== 'undefined' && document.querySelector('.sh-pop__popup:not([data-closed])')) return;
@@ -72,7 +72,7 @@ export default function CompanionInlineRun({ started, label, companionId, onJump
     };
     window.addEventListener('keydown', onKey, false);
     return () => window.removeEventListener('keydown', onKey, false);
-  }, [shown, helpOpen, flagging, onClose]);
+  }, [shown, helpOpen, flagging, lib?.startConfirm, onClose]);
   const runRef = useRef(null);
   runRef.current = session.run || started;
   const continueThere = useCallback(async () => {

@@ -35,6 +35,7 @@ function depsEqual(prev, next) {
 function createRuntime(onUnmountedStateWrite) {
   const instances = new Map();
   const contextStack = new Map();
+  const parentStubOf = new WeakMap();
   let currentInst = null;
   let hookCursor = 0;
   let idSeq = 0;
@@ -276,13 +277,13 @@ function createRuntime(onUnmountedStateWrite) {
     }
   }
 
-  function renderNode(node, path) {
+  function renderNode(node, path, parentStub = null) {
     if (node === null || node === undefined || typeof node === 'boolean') return null;
     if (typeof node === 'string' || typeof node === 'number') return node;
     if (Array.isArray(node)) {
       return node.map((child, idx) => {
         const childKey = child && typeof child === 'object' && child.key !== null && child.key !== undefined ? `k:${child.key}` : `i:${idx}`;
-        return renderNode(child, `${path}/${childKey}`);
+        return renderNode(child, `${path}/${childKey}`, parentStub);
       });
     }
     if (typeof node !== 'object' || node.$$typeof !== ELEMENT_TYPE) return node;
@@ -291,14 +292,14 @@ function createRuntime(onUnmountedStateWrite) {
     const keyedPath = key !== null ? `${path}[${key}]` : path;
 
     if (type === FRAGMENT_TYPE || type === SUSPENSE_TYPE) {
-      return renderNode(props.children, keyedPath);
+      return renderNode(props.children, keyedPath, parentStub);
     }
 
     if (type && typeof type === 'object' && (type.$$typeof === PROVIDER_TYPE || type.$$typeof === CONTEXT_TYPE)) {
       const ctx = type.$$typeof === PROVIDER_TYPE ? type._context : type;
       pushContext(ctx, props.value);
       try {
-        return renderNode(props.children, keyedPath);
+        return renderNode(props.children, keyedPath, parentStub);
       } finally {
         popContext(ctx);
       }
@@ -306,7 +307,7 @@ function createRuntime(onUnmountedStateWrite) {
 
     if (type && typeof type === 'object' && type.$$typeof === LAZY_TYPE) {
       if (type._state.status === 'resolved') {
-        return renderNode(React.createElement(type._state.value, { ...props, ...(key !== null ? { key } : {}) }), path);
+        return renderNode(React.createElement(type._state.value, { ...props, ...(key !== null ? { key } : {}) }), path, parentStub);
       }
       if (type._state.status === 'uninitialized') {
         type._state.status = 'pending';
@@ -357,46 +358,67 @@ function createRuntime(onUnmountedStateWrite) {
         currentInst = prevInst;
         hookCursor = prevCursor;
       }
-      const rendered = renderNode(output, `${keyedPath}>`);
+      const rendered = renderNode(output, `${keyedPath}>`, parentStub);
       return { $$typeof: ELEMENT_TYPE, type: fn, key, props, rendered };
     }
 
     // Host element (string tag)
+    let hostStub = parentStub;
     if (ref) {
-      const stub = {
-        tagName: String(type).toUpperCase(),
-        style: {},
-        dataset: {},
-        clientWidth: 600,
-        clientHeight: 800,
-        width: 600,
-        height: 800,
-        scrollTop: 0,
-        scrollLeft: 0,
-        isConnected: true,
-        get ownerDocument() { return globalThis.document; },
-        focus() {},
-        scrollTo() {},
-        scrollIntoView() {},
-        normalize() {},
-        setAttribute() {},
-        removeAttribute() {},
-        getAttribute: () => null,
-        showModal() { this.open = true; },
-        close() { this.open = false; },
-        addEventListener() {},
-        removeEventListener() {},
-        querySelector: () => null,
-        querySelectorAll: () => [],
-        closest: () => null,
-        contains: () => false,
-        getContext: () => ({ drawImage() {}, clearRect() {} }),
-        getBoundingClientRect: () => ({ left: 0, top: 0, right: 600, bottom: 800, width: 600, height: 800 }),
-      };
-      if (typeof ref === 'function') ref(stub);
-      else if (typeof ref === 'object' && ref.current === null) ref.current = stub;
+      const existing = typeof ref === 'object' && ref !== null ? ref.current : null;
+      if (existing) {
+        if (parentStub) parentStubOf.set(existing, parentStub);
+        else parentStubOf.delete(existing);
+        hostStub = existing;
+      } else {
+        const stub = {
+          tagName: String(type).toUpperCase(),
+          style: {},
+          dataset: {},
+          clientWidth: 600,
+          clientHeight: 800,
+          width: 600,
+          height: 800,
+          scrollTop: 0,
+          scrollLeft: 0,
+          isConnected: true,
+          get ownerDocument() { return globalThis.document; },
+          focus() {
+            if (globalThis.document) {
+              try { globalThis.document.activeElement = this; } catch { /* read-only mock */ }
+            }
+          },
+          scrollTo() {},
+          scrollIntoView() {},
+          normalize() {},
+          setAttribute() {},
+          removeAttribute() {},
+          getAttribute: () => null,
+          showModal() { this.open = true; },
+          close() { this.open = false; },
+          addEventListener() {},
+          removeEventListener() {},
+          querySelector: () => null,
+          querySelectorAll: () => [],
+          closest: () => null,
+          contains(target) {
+            let cur = target;
+            while (cur) {
+              if (cur === this) return true;
+              cur = parentStubOf.get(cur) || null;
+            }
+            return false;
+          },
+          getContext: () => ({ drawImage() {}, clearRect() {} }),
+          getBoundingClientRect: () => ({ left: 0, top: 0, right: 600, bottom: 800, width: 600, height: 800 }),
+        };
+        if (parentStub) parentStubOf.set(stub, parentStub);
+        if (typeof ref === 'function') ref(stub);
+        else if (typeof ref === 'object') ref.current = stub;
+        hostStub = stub;
+      }
     }
-    const renderedChildren = props.children !== undefined ? renderNode(props.children, `${keyedPath}.${String(type)}`) : undefined;
+    const renderedChildren = props.children !== undefined ? renderNode(props.children, `${keyedPath}.${String(type)}`, hostStub) : undefined;
     return {
       $$typeof: ELEMENT_TYPE,
       type,
