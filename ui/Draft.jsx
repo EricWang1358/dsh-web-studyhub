@@ -359,14 +359,16 @@ export default function Draft({
       </div>
       {!updatingDraft && (rejectedCount > 0 || qualityErrorCount > 0) && (
         <InlineMessage tone="warning" boxed className="draft-blocker-summary"
-          action={{ label: ui("查看详情"), onClick: () => {
-            // The details follow the last question: all of them are drawn first, or the next chunk would be drawn between them and the details just scrolled to.
-            flushSync(() => setDrawnTo({ id: draft.id, index: draft.cards.length - 1 }));
-            if (detailsRef.current) {
-              detailsRef.current.open = true;
-              detailsRef.current.scrollIntoView?.({ block: "nearest" });
-            }
-          } }}>
+          action={flaggedIndices.length > 0
+            ? { label: ui("定位待处理题"), onClick: jumpToNextFlagged }
+            : { label: ui("查看详情"), onClick: () => {
+              // The details follow the last question: all of them are drawn first, or the next chunk would be drawn between them and the details just scrolled to.
+              flushSync(() => setDrawnTo({ id: draft.id, index: draft.cards.length - 1 }));
+              if (detailsRef.current) {
+                detailsRef.current.open = true;
+                detailsRef.current.scrollIntoView?.({ block: "nearest" });
+              }
+            } }}>
           {[
             rejectedCount > 0
               ? (retryPublishCount > 0
@@ -423,36 +425,16 @@ export default function Draft({
                 />
               </label>
               {science.localImages && <LocalImagePicker key={JSON.stringify([data.root, draft.id, q.id, 'prompt'])} disabled={busy} onInsert={markdown => appendImage(q.id, 'prompt', markdown)} />}
-              <div className="two-col">
-                <label>{ui("主题")}<input
-                    value={q.topic}
-                    onChange={(e) =>
-                      patchCard(i, "topic", e.target.value)
-                    }
-                  />
-                </label>
-                <label>{ui("学习目标")}<input
-                    value={q.objective}
-                    onChange={(e) =>
-                      patchCard(i, "objective", e.target.value)
-                    }
-                  />
-                </label>
-              </div>
               {[
                 "answer",
-                "hint",
                 "explanation",
-                "misconception",
                 ...((q.kind === "open" || q.kind === "task") && !q.rubricCriteria ? ["rubric"] : []),
               ].map((key) => (
                 <React.Fragment key={key}><label>
                   {
                     {
                       answer: q.kind === "task" ? ui("参考实现") : ui("答案"),
-                      hint: ui("提示"),
                       explanation: ui("讲解"),
-                      misconception: ui("易错点"),
                       rubric: q.kind === "task" ? ui("验收标准") : ui("评分标准"),
                     }[key]
                   }
@@ -534,6 +516,108 @@ export default function Draft({
                 onClick={() => patchCard(i, "options", [...(q.options || []),
                   { id: crypto.randomUUID(), text: "", correct: false, explanation: "" }])}>{uiFormat("添加选项（{0}/6）", [q.options?.length || 0])}
               </Button>}
+              <details className="draft-more-fields">
+                <summary>{ui("更多字段")}</summary>
+                <div className="two-col">
+                  <label>{ui("主题")}<input
+                      value={q.topic}
+                      onChange={(e) =>
+                        patchCard(i, "topic", e.target.value)
+                      }
+                    />
+                  </label>
+                  <label>{ui("学习目标")}<input
+                      value={q.objective}
+                      onChange={(e) =>
+                        patchCard(i, "objective", e.target.value)
+                      }
+                    />
+                  </label>
+                </div>
+                {["hint", "misconception"].map((key) => (
+                  <label key={key}>
+                    {key === "hint" ? ui("提示") : ui("易错点")}
+                    <textarea
+                      rows={2}
+                      value={q[key] || ""}
+                      onChange={(e) =>
+                        patchCard(i, key, e.target.value)
+                      }
+                    />
+                  </label>
+                ))}
+                <div className="citations">
+                  {q.citations?.map((c, j) => (
+                    <div key={j}>
+                      <label>{ui("引用来源")}<Select
+                          value={c.sourceId}
+                          onChange={(sourceId) =>
+                            patchCard(
+                              i,
+                              "citations",
+                              q.citations.map((citation, index) =>
+                                index === j
+                                  ? {
+                                      ...citation,
+                                      sourceId,
+                                      quote: "",
+                                    }
+                                  : citation,
+                              ),
+                            )
+                          }
+                          options={data.sources.map((source) => ({ value: source.id, label: source.title }))}
+                        />
+                      </label>
+                      <label>{ui("逐字原文引用")}<textarea
+                          value={c.quote}
+                          onChange={(e) =>
+                            patchCard(
+                              i,
+                              "citations",
+                              q.citations.map((citation, index) =>
+                                index === j
+                                  ? {
+                                      ...citation,
+                                      quote: e.target.value,
+                                    }
+                                  : citation,
+                              ),
+                            )
+                          }
+                          placeholder={ui("从原文复制能支持答案的段落")}
+                        />
+                      </label>
+                      <Button
+                        className="draft-citation-preview sh-btn--lines"
+                        iconEnd="arrow-right"
+                        onClick={() =>
+                          setModal({
+                            type: "source",
+                            source: data.sources.find(
+                              (s) => s.id === c.sourceId,
+                            ),
+                            quote: c.quote,
+                          })
+                        }
+                      >
+                        <span className="draft-citation-text">
+                          <span>
+                            {data.sources.find((s) => s.id === c.sourceId)
+                              ?.title || ui("原文")}
+                          </span>
+                          {c.quote && <span className="draft-citation-quote">{c.quote}</span>}
+                        </span>
+                      </Button>
+                      <Button variant="danger"
+                        onClick={() => patchCard(i, "citations", q.citations.filter((_, index) => index !== j))}>{ui("删除这条引用")}</Button>
+                    </div>
+                  ))}
+                  <Button icon="plus" disabled={!data.sources.length}
+                    onClick={() => patchCard(i, "citations", [...(q.citations || []),
+                      { sourceId: data.sources[0].id, quote: "" }])}>{ui("添加原文引用")}</Button>
+                </div>
+              </details>
               <Button
                 disabled={draft.cards.length <= 1}
                 onClick={() =>
@@ -545,77 +629,6 @@ export default function Draft({
                   })
                 }
               >{ui("从草稿移除此题")}</Button>
-              <div className="citations">
-                {q.citations?.map((c, j) => (
-                  <div key={j}>
-                    <label>{ui("引用来源")}<Select
-                        value={c.sourceId}
-                        onChange={(sourceId) =>
-                          patchCard(
-                            i,
-                            "citations",
-                            q.citations.map((citation, index) =>
-                              index === j
-                                ? {
-                                    ...citation,
-                                    sourceId,
-                                    quote: "",
-                                  }
-                                : citation,
-                            ),
-                          )
-                        }
-                        options={data.sources.map((source) => ({ value: source.id, label: source.title }))}
-                      />
-                    </label>
-                    <label>{ui("逐字原文引用")}<textarea
-                        value={c.quote}
-                        onChange={(e) =>
-                          patchCard(
-                            i,
-                            "citations",
-                            q.citations.map((citation, index) =>
-                              index === j
-                                ? {
-                                    ...citation,
-                                    quote: e.target.value,
-                                  }
-                                : citation,
-                            ),
-                          )
-                        }
-                        placeholder={ui("从原文复制能支持答案的段落")}
-                      />
-                    </label>
-                    <Button
-                      className="draft-citation-preview sh-btn--lines"
-                      iconEnd="arrow-right"
-                      onClick={() =>
-                        setModal({
-                          type: "source",
-                          source: data.sources.find(
-                            (s) => s.id === c.sourceId,
-                          ),
-                          quote: c.quote,
-                        })
-                      }
-                    >
-                      <span className="draft-citation-text">
-                        <span>
-                          {data.sources.find((s) => s.id === c.sourceId)
-                            ?.title || ui("原文")}
-                        </span>
-                        {c.quote && <span className="draft-citation-quote">{c.quote}</span>}
-                      </span>
-                    </Button>
-                    <Button variant="danger"
-                      onClick={() => patchCard(i, "citations", q.citations.filter((_, index) => index !== j))}>{ui("删除这条引用")}</Button>
-                  </div>
-                ))}
-                <Button icon="plus" disabled={!data.sources.length}
-                  onClick={() => patchCard(i, "citations", [...(q.citations || []),
-                    { sourceId: data.sources[0].id, quote: "" }])}>{ui("添加原文引用")}</Button>
-              </div>
             </Panel>
           )} />
           <Button

@@ -80,6 +80,16 @@
     .es-recent__row .es-recent__btn { flex: none; }
     .es-recent__empty { margin: 0; color: var(--text-muted); font-size: var(--fs-md); }
     .es-kind { min-width: 52px; justify-content: center; }
+    .es-tune { border-top: 1px solid var(--line-soft); padding-top: var(--space-3); }
+    .es-tune__summary {
+      --sh-summary-marker-gap: 0;
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2);
+      cursor: pointer; font-size: var(--fs-md); font-weight: var(--fw-medium); color: var(--text);
+    }
+    .es-tune__meta { margin-left: auto; color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-regular); font-variant-numeric: tabular-nums; }
+    .es-tune__body { display: flex; flex-direction: column; gap: var(--space-5); padding-top: var(--space-4); }
+    .es-case-header { display: grid; gap: var(--space-2); }
+    .es-case-cta { display: flex; flex-wrap: wrap; align-items: center; }
   }
   @container study (max-width: 760px) {
     :where(.study-app, .study-seat) {

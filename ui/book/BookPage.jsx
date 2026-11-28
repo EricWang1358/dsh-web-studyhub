@@ -396,6 +396,7 @@ export default function BookPage({ data, onBack, backLabel = '', onReturnBack = 
         onRead={point => { if (plan.day.mode === 'flip') { openView('flip'); return; } where.goTo(point.id); }}
         onPractice={(point, element) => handlers.practice(point.id, 5, point.id, element)} onMarkRead={(point, on) => plan.mark(point.id, 'read', on)}
         onFlip={() => openView('flip')} onMockStarted={onExamRun} />}
+      {/* Compact single-line disclosure by default so the reading canvas stays calm above the fold. */}
       {book.pointGaps && <BookPointGaps course={course} report={book.pointGaps} disabled={busy || !model.ready} modelReady={model.ready} fillingJob={fillingJob}
         onTopUp={onTopUpPoints} onGo={where.goTo} onOutline={onBack} onOpenTask={onOpenTask} />}
       <div className={tocOpen && !narrow ? 'book-layout book-layout--toc' : 'book-layout'}>

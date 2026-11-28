@@ -222,5 +222,11 @@
   "口头评估反馈": "Oral assessment feedback",
   "关闭清零处方": "Hide clear-out plan",
   "开启专项清零建议": "Show targeted clear-out plan",
-  "按同页出处、顽固题与单次失误整理（不消耗模型）": "Group by cited page, stubborn cards & single slips (no model used)"
+  "按同页出处、顽固题与单次失误整理（不消耗模型）": "Group by cited page, stubborn cards & single slips (no model used)",
+  "错题诊断与推荐": "Diagnostics & recommendations",
+  "{0} 条清零建议": "{0} clear-out suggestions",
+  "{0} 条清零建议#one": "{0} clear-out suggestion",
+  "同类题 {0} 道": "Similar: {0}",
+  "分布 {0} 组": "{0} groups",
+  "分布 {0} 组#one": "{0} group"
 }

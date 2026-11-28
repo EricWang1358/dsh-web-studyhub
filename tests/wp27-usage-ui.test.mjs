@@ -109,7 +109,7 @@ test('the 任务 console shows a job\'s usage and DSH\'s speed figures together,
   const body = text(html);
   assert.match(html, /data-task-usage/);
   assert.match(html, /data-task-timing/);
-  for (const part of ['实际用量', '缓存命中', '未缓存输入', '185,616 tok', '缓存读取', '2,863,104 tok', '输出', '45,501 tok', '首 token 平均（TTFT）', '1.6秒', '输出速度（TPS）', '254 tok/s']) {
+  for (const part of ['实际用量', '缓存命中', '未缓存输入', '185,616 tok', '缓存读取', '2,863,104 tok', '输出', '45,501 tok', '首次响应', '1.6秒', '生成速度', '254 tok/s']) {
     assert.ok(body.includes(part), `${part} in: ${body}`);
   }
   assert.doesNotMatch(html, /[¥$￥]|价格|费用|price|cost/i);
@@ -124,8 +124,8 @@ test('the 任务 console shows a job\'s usage and DSH\'s speed figures together,
   setUiLanguage('en');
   const english = text(render(React.createElement(TaskUsage, { contract })));
   assert.ok(!han.test(english), english);
-  assert.match(english, /Avg time to first token \(TTFT\) 1\.6s/);
-  assert.match(english, /Tokens per second \(TPS\) 254 tok\/s/);
+  assert.match(english, /First response 1\.6s/);
+  assert.match(english, /Output speed 254 tok\/s/);
   assert.match(english, /Actual usage/);
 });
 

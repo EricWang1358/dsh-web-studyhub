@@ -49,6 +49,7 @@
     .large-doc__detect { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin: 0; font-size: var(--fs-sm); color: var(--text-dim); }
     .large-doc__detect .large-doc__detect-icon { flex: 0 0 auto; color: var(--info); }
     .large-doc__detect--on .large-doc__detect-icon { color: var(--ok); }
+    .large-doc__alternatives-body { display: grid; gap: var(--space-4); min-width: 0; }
     .large-doc__verified { margin: 0; font-size: var(--fs-sm); color: var(--text-muted); }
     /* Settings: extensions */
     .extensions-settings { display: grid; gap: var(--space-3); }

@@ -277,7 +277,7 @@ test('the keyboard shortcut is documented in the shortcut sheet and does not col
   assert.deepEqual(shortcutAction(key('s'), libraryCtx)?.action, { type: 'resume' });
   assert.deepEqual(shortcutAction(key('h'), reviewCtx)?.action, { type: 'hint' });
   assert.deepEqual(shortcutAction(key('h'), { ...reviewCtx, run: { ...reviewCtx.run, revealed: true } })?.action, { type: 'explain' });
-  assert.deepEqual(shortcutAction(key('t'), reviewCtx)?.action, { type: 'assist-plain' });
+  assert.deepEqual(shortcutAction(key('t'), reviewCtx)?.action, { type: 'assist-open', choice: 'plain' });
   assert.equal(shortcutAction(key('p'), reviewCtx)?.action, null, 'P is not claimed on the review page');
   assert.equal(shortcutAction(key('p'), libraryCtx)?.action, null, 'P is not claimed on the library page');
 });

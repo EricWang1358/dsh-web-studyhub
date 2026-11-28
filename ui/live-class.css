@@ -77,6 +77,8 @@
     .live-correction-more ul { margin: var(--space-1-5) 0; padding-inline-start: var(--space-5); }
     .live-legend { display: inline-flex; align-items: center; gap: var(--space-1) var(--space-3-5); margin-left: auto; color: var(--text-dim); font-size: var(--fs-sm); }
     .live-legend > span { display: inline-flex; align-items: center; gap: var(--space-1-5); }
+    .live-feed-legend { display: inline-flex; align-items: center; gap: var(--space-3); color: var(--text-dim); font-size: var(--fs-sm); }
+    .live-feed-legend > span { display: inline-flex; align-items: center; gap: var(--space-1-5); white-space: nowrap; }
     /* The mark at the far right of a sentence: solid = polished by AI, ring = checked, unchanged */
     .live-dot { display: inline-block; flex: none; box-sizing: border-box; width: 10px; height: 10px; border-radius: 50%; }
     .live-dot.polished { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-halo); }
@@ -124,6 +126,9 @@
     .live-selection .live-count .live-count-btn:disabled { color: var(--text-faint); cursor: default; }
     .live-count output { display: flex; align-items: center; justify-content: center; min-width: 34px; border-left: 1px solid var(--line); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
     .live-footer { padding: var(--space-4) 0; }
+    .live-save-more { color: var(--text-dim); font-size: var(--fs-sm); }
+    .live-save-more > summary { cursor: pointer; }
+    .live-save-more__body { margin-top: var(--space-2); }
     .live-history { margin-top: var(--space-5); }
     /* Class notes and history */
     .live-notes { margin: var(--space-3-5) 0; padding: var(--space-3-5) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); overflow-wrap: anywhere; }

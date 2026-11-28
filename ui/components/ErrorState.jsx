@@ -17,12 +17,12 @@ export const errorText = error => {
 
 /**
  * A failed read or action: an error alert (InlineMessage tone="error") with an
- * optional retry. compact drops the box for use inside a row or a line.
+ * optional retry. `compact` or `inline` drops the outer box for use inside a row, line, or bordered card.
  */
-export function ErrorState({ error, onRetry, retryLabel, compact = false, title, className, ...rest }) {
+export function ErrorState({ error, onRetry, retryLabel, compact = false, inline = false, title, className, ...rest }) {
   useComponentCss(css, 'study-feedback');
   return (
-    <InlineMessage tone="error" boxed={!compact} title={title} className={cx('sh-error-state', compact && 'sh-error-state--compact', className)}
+    <InlineMessage tone="error" boxed={!compact && !inline} title={title} className={cx('sh-error-state', compact && 'sh-error-state--compact', inline && 'sh-error-state--inline', className)}
       action={onRetry ? { label: retryLabel || ui('重试'), onClick: onRetry } : undefined} {...rest}>
       {errorText(error)}
     </InlineMessage>

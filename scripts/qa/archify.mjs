@@ -127,6 +127,10 @@ export async function runArchifyQa(options) {
       await step("open-skeleton-handoff-button", async () => {
         await page.locator(".sk-saved-item").first().click();
         await page.locator(".sk-view").waitFor();
+        const extendFold = page.locator("details.skeleton-extend-fold");
+        if (await extendFold.count() && !(await extendFold.evaluate((el) => el.open))) {
+          await extendFold.locator("summary").click();
+        }
         const button = page.getByRole("button", { name: t("用 Archify 画这门课的知识骨架", "Draw this outline with Archify"), exact: true });
         await button.scrollIntoViewIfNeeded();
         await button.click();

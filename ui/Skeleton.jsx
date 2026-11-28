@@ -460,9 +460,6 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
                     title={!viewingCards.length ? ui("当前没有可练的题目（关联题目可能已归档、斩掉或删除）") : undefined}
                     onClick={() => onPractice(viewingCards.slice(0, 200))}
                   >{ui("练整个骨架")}</Button>
-                  <HandOff id="skeleton.design" lead={ui("更新这份骨架：")} what="让主会话按现在的题目更新这份骨架"
-                    input={{ scope: viewing.scope, lint: null, topics: [...new Set(viewing.scope.map((x) => x.topic).filter(Boolean))], update: viewing }} />
-                  <HandOff id="skeleton.archify" lead={ui("用 Archify 画这份骨架：")} what="让主会话用 Archify 把这份骨架画成可交互的图" input={{ skeleton: viewing }} />
                   <button
                     type="button"
                     className="sk-danger"
@@ -486,10 +483,6 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
                   }
                 }} />}
               {viewing.overview && <Markdown text={viewing.overview} className="sk-overview" />}
-              <SkeletonDiagrams skeletonId={viewing.id} diagrams={viewing.diagrams} revision={viewing.updatedAt} />
-              <HandOffForm key={viewing.id} id="skeleton.extend" rows={2} needsText what="让主会话按你写的要求扩展这个骨架"
-                label="怎么扩展这个骨架" placeholder="告诉主会话怎么扩展，例如：加上 CAP 定理，并和 BASE 对比；为 RPO/RTO 补两道计算题"
-                input={(text) => ({ skeleton: viewing, text })} />
               {/* 脉络 reads in learning order; 结构图 keeps every relation. */}
               <SegmentedControl size="sm" className="sk-view-switch" label={ui("骨架视图")} value={skView} onChange={setSkView}
                 options={[{ value: "spine", label: ui("脉络") }, { value: "canvas", label: ui("结构图") }]} />
@@ -498,24 +491,38 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
               ) : (
                 <SkeletonCanvas skeleton={viewing} onPractice={onPractice} />
               )}
-              <details className="sk-text">
-                <summary>{ui("文字版：概念释义与关系")}</summary>
-                <NodeTree skeleton={viewing} onPractice={onPractice} />
-                {viewing.relations.length > 0 && (
-                  <ul className="sk-relations">
-                    {viewing.relations.map((r, i) => {
-                      const term = (nodeId) => viewing.nodes.find((n) => n.id === nodeId)?.term || nodeId;
-                      return (
-                        <li key={i}>
-                          <span>{term(r.from)}</span>
-                          <span className={"sk-rel r-" + r.type}>{RELATION_LABEL[r.type] || r.type}</span>
-                          <span>{term(r.to)}</span>
-                          {r.note && <small className="muted">{r.note}</small>}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
+              <SkeletonDiagrams skeletonId={viewing.id} diagrams={viewing.diagrams} revision={viewing.updatedAt} />
+              <details className="skeleton-extend-fold">
+                <summary className="skeleton-extend-fold__summary">{ui("调整与扩展骨架")}</summary>
+                <div className="skeleton-extend-fold__body">
+                  <div className="sk-extend-handoffs">
+                    <HandOff id="skeleton.design" lead={ui("更新这份骨架：")} what="让主会话按现在的题目更新这份骨架"
+                      input={{ scope: viewing.scope, lint: null, topics: [...new Set(viewing.scope.map((x) => x.topic).filter(Boolean))], update: viewing }} />
+                    <HandOff id="skeleton.archify" lead={ui("用 Archify 画这份骨架：")} what="让主会话用 Archify 把这份骨架画成可交互的图" input={{ skeleton: viewing }} />
+                  </div>
+                  <HandOffForm key={viewing.id} id="skeleton.extend" rows={2} needsText what="让主会话按你写的要求扩展这个骨架"
+                    label="怎么扩展这个骨架" placeholder="告诉主会话怎么扩展，例如：加上 CAP 定理，并和 BASE 对比；为 RPO/RTO 补两道计算题"
+                    input={(text) => ({ skeleton: viewing, text })} />
+                  <details className="sk-text">
+                    <summary>{ui("文字版：概念释义与关系")}</summary>
+                    <NodeTree skeleton={viewing} onPractice={onPractice} />
+                    {viewing.relations.length > 0 && (
+                      <ul className="sk-relations">
+                        {viewing.relations.map((r, i) => {
+                          const term = (nodeId) => viewing.nodes.find((n) => n.id === nodeId)?.term || nodeId;
+                          return (
+                            <li key={i}>
+                              <span>{term(r.from)}</span>
+                              <span className={"sk-rel r-" + r.type}>{RELATION_LABEL[r.type] || r.type}</span>
+                              <span>{term(r.to)}</span>
+                              {r.note && <small className="muted">{r.note}</small>}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </details>
+                </div>
               </details>
             </article>
             );

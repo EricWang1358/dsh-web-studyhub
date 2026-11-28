@@ -381,10 +381,23 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
   const recent = recentItems ? <RecentExams items={recentItems} format={examMode} onOpen={openRecent} busy={busy} /> : null;
   const deepRun = (kind) => openRun?.kind === kind ? openRun.runId : initialKind === kind ? initialRunId : undefined;
   // 案例分析卷 (WP12): a timed case paper on the same exam runs, timer and report.
-  if (examMode === "case") return <CasePaper key={`case:${deepRun("case") || ""}`} data={data} onExit={onExit}
-    header={header} recent={recent} course={course} onCourseChange={chooseCourse} onSetupModel={onSetupModel}
-    onCreate={onCreateCase || onCreate} onStartRun={onStartRun} onLocation={onLocation}
-    initialRunId={deepRun("case")} />;
+  if (examMode === "case") {
+    const createCase = onCreateCase || onCreate;
+    const caseHeader = createCase ? (
+      <div className="es-case-header">
+        {header}
+        <div className="es-case-cta">
+          <Button size="sm" variant="secondary" iconEnd="arrow-right" onClick={onCreateCase || onCreate}>
+            {ui('用当前资料出一套案例卷')}
+          </Button>
+        </div>
+      </div>
+    ) : header;
+    return <CasePaper key={`case:${deepRun("case") || ""}`} data={data} onExit={onExit}
+      header={caseHeader} recent={recent} course={course} onCourseChange={chooseCourse} onSetupModel={onSetupModel}
+      onCreate={createCase} onStartRun={onStartRun} onLocation={onLocation}
+      initialRunId={deepRun("case")} />;
+  }
   if (examMode === "oral") return <OralExam key={`oral:${deepRun("oral") || ""}`} data={data} onExit={onExit}
     initialRunId={deepRun("oral")} onLocation={onLocation} onStartRun={onStartRun} onSetupModel={onSetupModel}
     header={header} recent={recent}

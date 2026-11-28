@@ -171,6 +171,17 @@
     .draft-part-target {
       margin: 0 0 var(--space-4);
     }
+    .draft-more-fields {
+      margin: var(--space-3) 0;
+      padding-top: var(--space-2);
+      border-top: 1px solid var(--line-soft);
+    }
+    .draft-more-fields > summary {
+      cursor: pointer;
+      color: var(--text-dim);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+    }
     .draft-blocker-summary {
       margin: 0 0 var(--space-3);
     }
@@ -233,25 +244,23 @@
   }
   @container study (max-width:720px) {
     :where(.study-app, .study-seat) {
-      /* On a narrow screen the buttons share ONE row (a two-row bar covers a seventh of the screen for as long as the page scrolls) and the bar spans the width; what the draft holds is
-         said only when there is something to say (unsaved edits, a task at work on it)... */
-      .draft-page .sticky-actions {
-        gap: var(--space-1-5);
-        padding: var(--space-1-5);
-      }
-      .draft-page .sticky-actions__status:not([data-unsaved]) {
-        display: none;
-      }
-      /* ...and then it is one short line above the buttons, cut with an ellipsis, never several lines of a tall bar. */
+      /* On a narrow screen the buttons share ONE row and the card count stays visible as one compact line above them, cut with an ellipsis. */
       .draft-page .sticky-actions {
         flex-wrap: wrap;
+        gap: var(--space-half) var(--space-1-5);
+        padding: var(--space-1) var(--space-1-5);
       }
       .draft-page .sticky-actions__status {
         flex: 1 1 100%;
+        margin: 0;
         overflow: hidden;
         font-size: var(--fs-sm);
+        line-height: 1.2;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+      .draft-page .sticky-actions__status strong {
+        font-size: var(--fs-sm);
       }
       .draft-page .sticky-actions__buttons {
         flex: 1 1 auto;

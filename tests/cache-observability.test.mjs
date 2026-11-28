@@ -403,7 +403,7 @@ test('per-stage & per-call cache observability: stageUsage, unifyCall, job.trace
   assert.match(ui.callFacts({ tokens: 11500, tokenUsage: stepUsage }), /Cache hit 73% \(read 8K \/ write 1K\)/);
   ui.setUiLanguage('zh');
 
-  // TaskBody shows 实际请求 tab for course-book-build and companion-lesson-build
+  // TaskBody shows 发送内容 tab for course-book-build and companion-lesson-build
   for (const kind of ['course-book-build', 'companion-lesson-build']) {
     const task = {
       id: `job-${kind}`, type: kind, status: 'running', startedAt: at(0),
@@ -417,6 +417,6 @@ test('per-stage & per-call cache observability: stageUsage, unifyCall, job.trace
       },
     };
     const bodyHtml = renderInApp(React.createElement(ui.TaskBody, { task }), { language: 'zh' });
-    assert.match(bodyHtml, />实际请求</, `${kind} exposes request trace tab`);
+    assert.match(bodyHtml, />发送内容</, `${kind} exposes request trace tab`);
   }
 });
