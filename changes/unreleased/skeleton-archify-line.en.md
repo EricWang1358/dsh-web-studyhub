@@ -1,1 +1,0 @@
-- **The Archify suggestion at the foot of the knowledge skeleton page is now one line.** It is closed by default; open it to see what it is, its links, the install command and “Maybe later”. Not verified: screen readers.

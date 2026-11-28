@@ -1,1 +1,0 @@
-- **After you open “More” in the sidebar, its explanation card no longer covers the sections and pages it just showed.** “More” and “Help” show no card while they are open; closed, they still do, and the one on “More” still says how to drag a page into the main list. Not verified: checked only in the browser preview, not in the DSH host or the desktop app.

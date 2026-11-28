@@ -1,1 +1,0 @@
-- **While the card that sets up transcription is on screen, it is the only way to audio settings on the page.** The “Audio settings” button in the header of audio transcription and live class waits until a service is set up. Not verified: the live class setup state was only seen in test pages, not with a real microphone or tab.

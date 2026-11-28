@@ -1,1 +1,0 @@
-- **The example in “Deck name” is now a general one.** It no longer shows one school’s course code: it reads “For example: Databases · Indexes and transactions”. Not verified: not looked at in the DSH host or the desktop app.

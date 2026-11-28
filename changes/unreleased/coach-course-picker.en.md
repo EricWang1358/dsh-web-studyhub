@@ -1,1 +1,0 @@
-- **The course picker of the exam coach shows the whole course name.** It is now called “Course scope” as on other pages, and no longer cuts a name while there is room. Not verified: a very long course name in a very narrow window is still shortened.

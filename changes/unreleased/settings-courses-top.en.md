@@ -1,1 +1,0 @@
-- **The Courses page in Settings no longer starts with an extra line and a gap.** Its title sits at the same height as on every other settings page. Not verified: Settings inside the DSH host and the desktop app.

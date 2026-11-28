@@ -1,1 +1,0 @@
-- **On a wide window the Study notes list is centred like every other page.** The header and the list share one column whose edges line up with Sources, so the page no longer jumps to the left; reading or editing a single note looks as before. Not verified: the real window in the DSH host and the desktop app.

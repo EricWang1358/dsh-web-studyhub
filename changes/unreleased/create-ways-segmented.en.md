@@ -1,1 +1,0 @@
-- **The three ways in at the top of “Create deck” are now the same segmented switch as everywhere else.** The chosen one is the raised block, so it no longer looks like the one that is off; arrow keys move along the three and Enter or Space chooses. Not verified: not tried in the DSH host, the desktop app or with a screen reader.

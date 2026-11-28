@@ -1,1 +1,0 @@
-- **In a narrow window, the home page's estimate of the study time left is back under mastery.** Before, it jumped above the course heading and became the first line of the page, a sentence with no subject. Not verified: checked only in the browser preview at 420 px with the sample course, not in the DSH host, the desktop app or on a phone.

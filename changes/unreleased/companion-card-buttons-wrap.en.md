@@ -1,1 +1,0 @@
-- **In a narrow window, the buttons of the Interactive Companions card on the course outline page stay inside the card.** At 420 wide “New interactive companion” ran past the card's right edge; it now moves to the next line when there is no room. Not verified: checked only in the browser preview (420 dark, 1440 light), not in the DSH side panel or the desktop app.

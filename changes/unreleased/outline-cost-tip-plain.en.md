@@ -1,1 +1,0 @@
-- **The cost tip on the course outline page no longer names developer tools.** It says what you can do: build only the chapters you pick, or give the materials to a web AI and import what it writes. Not verified: checked only in the browser preview and in component tests, not in the DSH host or the desktop app.

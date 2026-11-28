@@ -1,1 +1,0 @@
-- **Under a question not yet answered, the undo button now reads "Undo last grade (Z)".** It used to say "Graded · Undo (Z)" in the row's only red text, which read as if this question had already been graded; it is now in the same ink as the tools beside it, and the result page's button uses the same words. Not verified: not looked at inside DSH or the desktop app.
