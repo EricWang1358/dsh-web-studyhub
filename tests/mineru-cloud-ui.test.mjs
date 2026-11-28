@@ -21,7 +21,7 @@ const entry = `
 `;
 const ssr = await loadUi(entry);
 const ui = await loadInteractiveUi(entry);
-const { PdfConversion, PdfConvertJobs, StudyServicesContext, ToastContext } = ui.exports;
+const { MineruSettings, PdfConversion, PdfConvertJobs, StudyServicesContext, ToastContext } = ui.exports;
 const sh = React.createElement;
 const h = ui.React.createElement;
 const han = /[㐀-鿿]/;
@@ -166,6 +166,57 @@ test('cloud failure card renders a working "改用本机" button that triggers m
         ['mineru.retry', { jobId: 'j-auth', route: 'local' }],
         ['mineru.retry', { jobId: 'j-net', route: 'local' }],
       ]);
+    } finally {
+      mounted.unmount();
+    }
+  });
+});
+
+test('permanent cloud failures hide "改用本机"; page-too-large offers "改用本机" without cloud "接着做" in both card and history', () => {
+  const permanentJob = { id: 'j-perm', type: 'pdf-convert', route: 'cloud', filename: 'Broken.pdf', status: 'failed', retryable: false, errorCode: 'damaged', stage: '这个 PDF 读不出来', done: 0, total: 10, startedAt: new Date().toISOString() };
+  const tooLargeJob = { id: 'j-big', type: 'pdf-convert', route: 'cloud', filename: 'HugePage.pdf', status: 'failed', retryable: true, errorCode: 'page-too-large', stage: '第 1 页超过云端上限', done: 0, total: 10, startedAt: new Date().toISOString() };
+  const tooLargeRow = { id: 'j-big', filename: 'HugePage.pdf', bytes: 1024, pages: 10, pieces: 1, route: 'cloud', status: 'failed', phase: 'split', pagesDone: 0, attempts: 1, elapsedMs: 1000, startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), canRetry: true, live: false, failure: { stage: 'split', reason: '第 1 页超过云端上限', code: 'page-too-large' } };
+
+  const permHtml = render(sh(ssr.PdfConvertJobs, { jobs: [permanentJob], onOpenSettings() {} }));
+  assert.doesNotMatch(permHtml, /改用本机/, 'permanent cloud failure must not show a broken 改用本机 button');
+
+  const bigCardHtml = render(sh(ssr.PdfConvertJobs, { jobs: [tooLargeJob], onOpenSettings() {} }));
+  assert.match(bigCardHtml, /改用本机/, 'page-too-large cloud card offers 改用本机');
+  assert.doesNotMatch(bigCardHtml, />接着做</, 'page-too-large cloud card does not offer cloud 接着做');
+
+  const bigHistoryHtml = render(sh(ssr.PdfConvertHistory, { initialRecords: [tooLargeRow], now: Date.now() }));
+  assert.match(bigHistoryHtml, /改用本机/, 'page-too-large history row keeps 改用本机');
+  assert.doesNotMatch(bigHistoryHtml, />接着做</, 'page-too-large history row hides cloud 接着做');
+});
+
+test('MineruSettings reverts optimistic mode selection back to saved mode when mineru.settings.set fails', async () => {
+  await withBrowserGlobals(async () => {
+    const services = {
+      call: async action => {
+        if (action === 'mineru.settings.set') throw new Error('disk write failed');
+        return {};
+      },
+      act: async () => undefined,
+      busy: false,
+    };
+    const mounted = ui.mount(wrap(services, h(MineruSettings, {
+      call: services.call,
+      initialLocal: localMissing,
+      initialSettings: localSettings(),
+    })));
+    try {
+      const cloudRadio = mounted.find(n => n.type === 'input' && n.props.type === 'radio' && n.props.value === 'cloud');
+      assert.ok(cloudRadio, 'cloud radio input is rendered');
+      assert.equal(cloudRadio.props.checked, false, 'starts on local mode');
+
+      await mounted.act(async () => { cloudRadio.props.onChange?.({ target: { checked: true, value: 'cloud' } }); });
+      await mounted.flush(5);
+
+      const afterCloud = mounted.find(n => n.type === 'input' && n.props.type === 'radio' && n.props.value === 'cloud');
+      const afterLocal = mounted.find(n => n.type === 'input' && n.props.type === 'radio' && n.props.value === 'local');
+      assert.equal(afterCloud.props.checked, false, 'mode reverted from cloud on save failure');
+      assert.equal(afterLocal.props.checked, true, 'local mode restored on save failure');
+      assert.match(mounted.text(), /disk write failed/);
     } finally {
       mounted.unmount();
     }

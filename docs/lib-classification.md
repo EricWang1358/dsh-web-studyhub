@@ -298,7 +298,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/mineru-api.js`: context audio; 2 other lib files
 - `lib/mineru-install.js`: context audio
 - `lib/mineru-local.js`: context audio; 2 other lib files
-- `lib/mineru-settings.js`: context audio
+- `lib/mineru-settings.js`: context audio; 1 other lib file
 - `lib/model-usage.js`: context generation; 6 other lib files
 - `lib/note-material.js`: context notes
 - `lib/part-plan.js`: context generation; 3 other lib files

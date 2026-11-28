@@ -60,13 +60,14 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, on
   };
   // A stopped local service is started by the run itself (lib/contexts/audio/pdf/convert-run.js): 接着做 is all it takes.
   const retry = () => run('retry', () => send('mineru.retry', { jobId: job.id }));
-  // When a cloud conversion fails, the learner can always switch it straight to the local MinerU route ("改用本机").
+  // When a cloud conversion fails (and its source is still available on disk), the learner can switch it straight to the local MinerU route ("改用本机").
   const switchToLocal = () => run('switch-local', () => send('mineru.retry', { jobId: job.id, route: 'local' }));
   const cloudFailed = job.route === 'cloud' && ['failed', 'interrupted'].includes(job.status);
   const failureCode = job.errorCode || job.failure?.code;
+  const cloudCanSwitch = cloudFailed && (job.retryable !== false || failureCode === 'page-too-large');
   const cloudConfigError = cloudFailed && ['invalid-token', 'expired', 'invalid-base-url'].includes(failureCode);
-  const cloudSwitchPrimary = cloudFailed && (cloudConfigError || failureCode === 'page-too-large' || !job.retryable);
-  const switchAction = cloudFailed ? { label: ui('改用本机'), here: true, run: switchToLocal, disabled: !!working, tip: ui('改用本机 MinerU 解析这份 PDF，不再上传到云端。') } : null;
+  const cloudSwitchPrimary = cloudCanSwitch && (cloudConfigError || failureCode === 'page-too-large' || !job.retryable);
+  const switchAction = cloudCanSwitch ? { label: ui('改用本机'), here: true, run: switchToLocal, disabled: !!working, tip: ui('改用本机 MinerU 解析这份 PDF，不再上传到云端。') } : null;
   // A failure only the installation can fix (Marker 2.x without Docker, a missing program) leads to the settings; 接着做 helps after that, from the console.
   const needsSettings = !cloudFailed && job.status === 'failed' && job.failure?.fix === 'settings' && !!onOpenSettings;
   const primary = isHeldTask(job) && !isActiveJob(job) ? { label: HELD_ENTRY(), here: true, run: () => setEditing(true) }
@@ -353,11 +354,11 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry,
           {status === 'complete' && document?.exists && <IndexHint variant="link" docs={[hintDocOf({ documentId: row.documentId, sourceIds: document.sourceIds, pages: document.pages, courses: document.courses })]} onOpenSettings={onOpenSettings} />}
           {status === 'running' && row.live && <Button variant="link" size="sm" iconEnd="arrow-right" className="pdf-history__action" aria-label={uiFormat('查看「{0}」的进度', [row.filename])} onClick={() => onShowJob(row)}>{ui('查看进度')}</Button>}
           {status === 'held' && <Button variant="link" size="sm" className="pdf-history__action" aria-label={uiFormat('修改并导入「{0}」', [row.filename])} onClick={() => onEditHeld(row)}>{HELD_ENTRY()}</Button>}
-          {row.canRetry && <Tooltip layer content={row.converter !== 'marker' && row.failure?.code === 'server-stopped' ? ui('会先启动本机 MinerU 服务，再从停下的那一段接着解析。') : ui('已完成的段落会直接复用，不会重复解析。')}>
+          {row.canRetry && !(row.route === 'cloud' && row.failure?.code === 'page-too-large') && <Tooltip layer content={row.converter !== 'marker' && row.failure?.code === 'server-stopped' ? ui('会先启动本机 MinerU 服务，再从停下的那一段接着解析。') : ui('已完成的段落会直接复用，不会重复解析。')}>
             <Button variant="secondary" size="sm" className="pdf-history__action" busy={busy} lock={!!working && !busy} aria-label={uiFormat('接着解析「{0}」', [row.filename])} onClick={() => onRetry(row)}>{ui('接着做')}</Button>
           </Tooltip>}
           {row.canRetry && row.route === 'cloud' && <Tooltip layer content={ui('改用本机 MinerU 解析这份 PDF，不再上传到云端。')}>
-            <Button variant="quiet" size="sm" className="pdf-history__action" lock={!!working} aria-label={uiFormat('改用本机解析「{0}」', [row.filename])} onClick={() => onSwitchLocal(row)}>{ui('改用本机')}</Button>
+            <Button variant={row.failure?.code === 'page-too-large' ? 'secondary' : 'quiet'} size="sm" className="pdf-history__action" lock={!!working} aria-label={uiFormat('改用本机解析「{0}」', [row.filename])} onClick={() => onSwitchLocal(row)}>{ui('改用本机')}</Button>
           </Tooltip>}
           {status !== 'running' && <Button variant="link" size="sm" className="pdf-history__action" lock={!!working} aria-label={uiFormat('删除「{0}」的记录', [row.filename])} onClick={() => onRemove(row)}>{ui('删除记录')}</Button>}
         </div>

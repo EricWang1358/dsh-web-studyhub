@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { MINERU } from '../lib/mineru-api.js';
@@ -50,6 +50,10 @@ test('saves mode, custom baseUrl, and Key (official JWT or third-party key) whil
   assert.equal(saved.effectiveBaseUrl, 'https://parser.example.com/v4');
   assert.equal(saved.token, key);
   assert.ok(saved.acknowledgedAt);
+  if (process.platform !== 'win32') {
+    const info = await stat(mineruSettingsPath());
+    assert.equal(info.mode & 0o777, 0o600, 'settings file with Key is owner-only (0600)');
+  }
 
   const pub = publicMineruSettings(saved);
   assert.equal(pub.mode, 'cloud');

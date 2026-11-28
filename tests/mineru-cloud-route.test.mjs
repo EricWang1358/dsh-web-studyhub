@@ -83,7 +83,7 @@ async function startFakeCloudServer(t, behavior = {}) {
   return { baseUrl: `http://127.0.0.1:${port}/v4`, requests, state };
 }
 
-async function setup(t, { runtime = false, localReady = true } = {}) {
+async function setup(t, { runtime = false, localReady = true, limits = {} } = {}) {
   const home = await mkdtemp(join(tmpdir(), 'study-cloud-home-'));
   const root = await mkdtemp(join(tmpdir(), 'study-cloud-lib-'));
   const work = await mkdtemp(join(tmpdir(), 'study-cloud-fake-'));
@@ -100,7 +100,7 @@ async function setup(t, { runtime = false, localReady = true } = {}) {
     ...(runtime ? managed : {}),
     mineru: {
       sleep: async () => {},
-      limits: { windowPages: 50, livenessMs: 0 },
+      limits: { windowPages: 50, livenessMs: 0, ...limits },
       local: { cli, home: work },
     },
   });
@@ -187,12 +187,16 @@ test('cloud conversion requires both Key and upload acknowledgement, then conver
 });
 
 for (const runtime of [false, true]) {
-  test(`cloud failure -> switch to local ("改用本机") via mineru.retry({ route: "local" }) completes locally (runtime=${runtime})`, async t => {
+  test(`cloud failure -> switch to local ("改用本机") via mineru.retry({ route: "local" }) completes locally and receipt reports cloud (runtime=${runtime})`, async t => {
     const cloud = await startFakeCloudServer(t, { failAuth: true });
     const h = await setup(t, { runtime, localReady: true });
     await h.call('mineru.settings.set', { mode: 'cloud', baseUrl: cloud.baseUrl, token: 'sk-bad-token-000000', acknowledge: true });
 
     const started = await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })), route: 'cloud' });
+    assert.equal(started.route, 'cloud', 'import receipt must report route: cloud');
+    assert.match(started.next, /MinerU 云端/, 'import receipt must name MinerU 云端');
+    assert.doesNotMatch(started.next, /MinerU 本机/, 'import receipt must not say MinerU 本机');
+
     const failed = await h.settled(started.jobId);
     assert.equal(failed.status, 'failed');
     assert.equal(failed.route, 'cloud');
@@ -209,5 +213,30 @@ for (const runtime of [false, true]) {
     const [row] = (await h.call('mineru.history.list')).records;
     assert.equal(row.route, 'local');
     assert.equal(row.status, 'complete');
+  });
+
+  test(`cloud page-too-large failure keeps source.pdf and switches cleanly to local via mineru.retry({ route: "local" }) (runtime=${runtime})`, async t => {
+    const cloud = await startFakeCloudServer(t);
+    // maxBytes: 100 guarantees a single page exceeds cloud piece limit during splitPdf -> PdfChunkError('page-too-large').
+    const h = await setup(t, { runtime, localReady: true, limits: { maxBytes: 100 } });
+    await h.call('mineru.settings.set', { mode: 'cloud', baseUrl: cloud.baseUrl, token: 'sk-valid-token-123456', acknowledge: true });
+
+    const started = await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })), route: 'cloud' });
+    assert.equal(started.route, 'cloud');
+    const failed = await h.settled(started.jobId);
+    assert.equal(failed.status, 'failed');
+    assert.equal(failed.route, 'cloud');
+    assert.equal(failed.errorCode, 'page-too-large');
+
+    // Plain cloud retry on page-too-large is refused clearly instead of looping on cloud.
+    await assert.rejects(h.call('mineru.retry', { jobId: failed.id }), /改用本机/);
+
+    // Switching to local succeeds under both runtime=false and runtime=true!
+    const switched = await h.call('mineru.retry', { jobId: failed.id, route: 'local' });
+    const done = await h.settled(switched.jobId);
+    assert.equal(done.status, 'complete', done.stage);
+    assert.equal(done.route, 'local');
+    assert.equal(done.sourceIds.length, 3);
+    assert.equal((await h.parses()).length, 1);
   });
 }

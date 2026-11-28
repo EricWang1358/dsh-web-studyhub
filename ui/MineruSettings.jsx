@@ -63,6 +63,7 @@ export default function MineruSettings({ initialLocal = null, initialPlan = null
     try {
       await savePatch({ mode: nextMode });
     } catch (failure) {
+      setMode(settings?.mode === 'cloud' ? 'cloud' : 'local');
       setError(errorMessage(failure));
     } finally {
       setSavingMode(false);
