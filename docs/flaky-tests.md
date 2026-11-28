@@ -124,4 +124,4 @@ All verification gates passed after the final edits:
    - Total: **276/276 PASS, 0 FAIL, 0 SKIPPED**.
 4. **Full 45-Suite TUI E2E Timing Run**:
    - `node packages/studyhub-tui/scripts/run-tests.mjs --e2e --timing` -> **`[e2e:PASS(45)]` in `431.29s`** (45/45 PASS, 0 FAIL; wall time measured on the author's machine, not comparable to any other run).
-   - CI shard & list compatibility verified: `--shard=1/3` (47), `--shard=2/3` (48), `--shard=3/3` (48), `--e2e --list` (45), `--unit --list` (100, after the two tests added in the review follow-up), `--quarantine --list` (0).
+   - CI shard & list compatibility verified: `--shard=1/3` (48), `--shard=2/3` (48), `--shard=3/3` (49), 145 files in all, after the review follow-up, `--e2e --list` (45), `--unit --list` (100, after the two tests added in the review follow-up), `--quarantine --list` (0).
