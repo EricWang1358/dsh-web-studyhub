@@ -292,14 +292,50 @@ test("sample.load keeps today's slips and yesterday's history on their intended 
     const d = new Date(value);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   };
-  for (const [label, hour, minute] of [["after midnight", 0, 5], ["before midnight", 23, 55]]) {
+  // Two distinct calendar dates (historical summer + regression date) so a broken `now` forward can never pass by date coincidence.
+  const cases = [
+    ["2024-06-15 after midnight", 2024, 5, 15, 0, 5],
+    ["2024-06-15 before midnight", 2024, 5, 15, 23, 55],
+    ["2026-11-27 after midnight", 2026, 10, 27, 0, 5],
+    ["2026-11-27 before midnight", 2026, 10, 27, 23, 55],
+  ];
+  for (const [label, year, month, day, hour, minute] of cases) {
     const { call, libraryRoot } = await start(t);
-    const fixed = new Date(2026, 10, 27, hour, minute, 0, 0).getTime();
+    const fixed = new Date(year, month, day, hour, minute, 0, 0).getTime();
     await call("sample.load", { language: "zh", now: fixed });
     const state = await new Store(libraryRoot).read();
     const todayKey = localDay(fixed);
+    const yesterdayKey = localDay(new Date(year, month, day - 1, 12, 0, 0, 0));
+    assert.equal(state.sampleLibrary.loadedAt, new Date(fixed).toISOString(), `${label}: host honors args.now`);
     const todayAttempts = state.attempts.filter((a) => a.sample && localDay(a.timestamp) === todayKey);
     assert.equal(todayAttempts.length, zh.weak.length, `${label}: only today's ${zh.weak.length} slips fall on ${todayKey}`);
     assert.ok(todayAttempts.every((a) => a.runId === "sample-round-today"), `${label}: yesterday's attempts never spill into today`);
+    assert.ok(todayAttempts.every((a) => Date.parse(a.timestamp) <= fixed), `${label}: today's slips are never in the future`);
+    const yesterdayAttempts = state.attempts.filter((a) => a.sample && a.runId === "sample-round-1");
+    assert.ok(yesterdayAttempts.length >= 1, `${label}: yesterday's history attempts exist`);
+    assert.ok(yesterdayAttempts.every((a) => localDay(a.timestamp) === yesterdayKey), `${label}: yesterday's attempts stay strictly on ${yesterdayKey}`);
+    const session = state.workflowSessions.find((item) => item.sample === true);
+    assert.equal(localDay(session.createdAt), todayKey, `${label}: seeded workflow session stays on ${todayKey}`);
+  }
+});
+
+test("sample.load accepts ISO date strings and safely falls back on invalid or out-of-range now values", async (t) => {
+  const { call: isoCall, libraryRoot: isoRoot } = await start(t);
+  const isoFixed = new Date(2024, 5, 15, 0, 5, 0, 0).toISOString();
+  await isoCall("sample.load", { language: "zh", now: isoFixed });
+  const isoState = await new Store(isoRoot).read();
+  assert.equal(isoState.sampleLibrary.loadedAt, isoFixed, "ISO timestamp string is honored");
+
+  for (const badNow of ["not-a-date", "", null, 1e20, -1e20]) {
+    const { call, libraryRoot } = await start(t);
+    const before = Date.now() - 120_000;
+    await call("sample.load", { language: "zh", now: badNow });
+    const after = Date.now() + 60_000;
+    const state = await new Store(libraryRoot).read();
+    const loadedMs = Date.parse(state.sampleLibrary.loadedAt);
+    assert.ok(Number.isFinite(loadedMs) && loadedMs >= before && loadedMs <= after,
+      `invalid now (${JSON.stringify(badNow)}) falls back to current clock, got ${state.sampleLibrary.loadedAt}`);
+    assert.ok(state.attempts.filter((a) => a.sample).every((a) => Number.isFinite(Date.parse(a.timestamp))),
+      `invalid now (${JSON.stringify(badNow)}) never produces NaN attempt timestamps`);
   }
 });
