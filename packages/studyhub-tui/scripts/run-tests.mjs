@@ -10,6 +10,8 @@
  *    - Quarantine tier: suites explicitly marked in their leading file header with
  *      `// @quarantine: <reason>` (or alias `// @flaky: <reason>`). Quarantined suites are isolated
  *      out of default runs and reported explicitly; malformed bare markers fail fast with exit 2.
+ *      In GitHub Actions (`GITHUB_ACTIONS=true`) each quarantined suite also prints a `::warning::`
+ *      annotation so the quarantine is visible on the PR, not only in the job log.
  *
  * Flags:
  *   --unit                 Run only the fast unit/static (+ bench) tier
@@ -259,6 +261,27 @@ export async function classifyTestFiles(dir, { baseRoot = pkgRoot } = {}) {
   return { totalDiscovered: allEntries.length, activeFiles, quarantinedFiles, malformedMarkers };
 }
 
+/** Escape a GitHub Actions workflow-command message (`::warning ...::<message>`). */
+function escapeWorkflowData(text) {
+  return String(text).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+}
+
+/**
+ * One GitHub Actions `::warning::` annotation per quarantined suite, so a quarantine shows up on the PR
+ * (the Checks summary and the changed-files view) instead of only inside the job log.
+ * Returns `[]` outside GitHub Actions (`GITHUB_ACTIONS !== 'true'`) or when nothing is quarantined,
+ * so local runs and `--list` output stay unchanged.
+ */
+export function quarantineWarningAnnotations(quarantinedFiles, env = process.env) {
+  if (env.GITHUB_ACTIONS !== 'true') return [];
+  return quarantinedFiles.map((f) => {
+    const message = escapeWorkflowData(
+      `${f.rel} is quarantined (@${f.quarantine.tag}: ${f.quarantine.reason}). Fix it and remove the marker (see docs/flaky-tests.md).`,
+    );
+    return `::warning title=Quarantined TUI test suite::${message}`;
+  });
+}
+
 function matchesTierFilter(record, { unitOnly, e2eOnly }) {
   if (unitOnly) return record.baseTier !== 'e2e';
   if (e2eOnly) return record.baseTier === 'e2e';
@@ -424,6 +447,14 @@ async function main() {
       console.log(f.rel);
     }
     process.exit(0);
+  }
+
+  // Quarantined suites (isolated or run) must be visible on the PR in GitHub Actions, not only in the job log.
+  for (const line of quarantineWarningAnnotations(
+    [...plan.quarantineFiles, ...plan.skippedQuarantined],
+    process.env,
+  )) {
+    console.log(line);
   }
 
   const allTimings = [];

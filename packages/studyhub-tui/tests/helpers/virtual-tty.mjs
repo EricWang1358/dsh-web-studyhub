@@ -18,6 +18,30 @@ import xtermPkg from '@xterm/headless';
 
 const { Terminal } = xtermPkg;
 
+/**
+ * Floor, in ms, for every standard `waitFor` deadline.
+ *
+ * WHY: lazy ESM chunk imports and host snapshot / atomic-write RPCs can take well over 8 s on a contended
+ * runner (`--shard`, `STUDYHUB_E2E_CONCURRENCY=4`, shared CI disks) while the UI is still progressing, and every
+ * per-call `6_000`-`12_000` override that was copied into suites timed out mid-spinner there. One central floor
+ * replaces those hand-tuned numbers.
+ *
+ * WHAT IT MEANS FOR CALLERS: an explicit `timeoutMs` of 2_000 or more is a request, not a limit. It is raised to
+ * at least this value, so `{ timeoutMs: 8_000 }` really waits 20_000 ms and the failure message says
+ * `after 20000ms`. Only a failing wait gets slower: a passing wait resolves on the first frame that satisfies the
+ * predicate, so the floor adds 0 ms to green runs. Do not use `waitFor` to assert latency; latency budgets live in
+ * the bench tier (`perf-budget.test.mjs`, `scale-nfr.test.mjs`).
+ */
+export const WAIT_FOR_FLOOR_MS = 20_000;
+
+/** Explicit `waitFor` timeouts below this are honored verbatim (deliberate short negative/"not yet" checks). */
+export const WAIT_FOR_VERBATIM_BELOW_MS = 2_000;
+
+/** The deadline `waitFor` really uses for a requested `timeoutMs`. */
+export function effectiveWaitTimeoutMs(timeoutMs) {
+  return timeoutMs >= WAIT_FOR_VERBATIM_BELOW_MS ? Math.max(timeoutMs, WAIT_FOR_FLOOR_MS) : timeoutMs;
+}
+
 const SECRET_ENV_KEY_SUFFIX_RE = /(?:_API_KEY|_TOKEN|_SECRET|_ACCESS_KEY)$/i;
 const SECRET_ENV_PROVIDER_PREFIX_RE =
   /^(?:OPENAI|DEEPSEEK|ANTHROPIC|GEMINI|GOOGLE_API|GROQ|OPENROUTER|SILICONFLOW|ZHIPU|ZHIPUAI|GLM|MOONSHOT|KIMI|COHERE|MISTRAL|AZURE_OPENAI|MINERU|DASHSCOPE|AWS_SECRET)/i;
@@ -375,13 +399,13 @@ export function createVirtualTty(cols = 120, rows = 36) {
    * Event-driven `waitFor`: accepts either a `(screen: string) => boolean` predicate or a `RegExp`.
    * Resolves immediately on the xterm frame commit that satisfies the condition (zero polling sleep).
    *
-   * Standard UI/RPC wait deadlines (`timeoutMs >= 2_000`) use a 20_000ms contention-safe floor so
-   * lazy ESM chunk imports and host snapshot/write RPCs under parallel E2E runs (`--shard`,
-   * `STUDYHUB_E2E_CONCURRENCY=4`) do not spuriously time out while actively progressing; explicit
-   * short timeouts (`< 2_000ms`) are honored verbatim.
+   * The deadline is `effectiveWaitTimeoutMs(timeoutMs)`: any `timeoutMs >= 2_000` is raised to at least
+   * `WAIT_FOR_FLOOR_MS` (20_000), so an explicit `8_000` really waits 20_000 ms; only `< 2_000` is honored
+   * verbatim. This slows failures only, never passing runs. See `WAIT_FOR_FLOOR_MS` for why and for where
+   * latency budgets belong.
    */
-  async function waitFor(predicateOrRegex, { timeoutMs = 20_000, label = 'condition' } = {}) {
-    const effectiveTimeoutMs = timeoutMs >= 2_000 ? Math.max(timeoutMs, 20_000) : timeoutMs;
+  async function waitFor(predicateOrRegex, { timeoutMs = WAIT_FOR_FLOOR_MS, label = 'condition' } = {}) {
+    const effectiveTimeoutMs = effectiveWaitTimeoutMs(timeoutMs);
     const check =
       predicateOrRegex instanceof RegExp
         ? (screen) => predicateOrRegex.test(screen)

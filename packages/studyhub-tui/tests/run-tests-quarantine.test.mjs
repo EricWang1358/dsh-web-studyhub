@@ -12,6 +12,7 @@ import {
   classifyTestFiles,
   parseQuarantineMarker,
   parseRunnerArgs,
+  quarantineWarningAnnotations,
   selectTestPlan,
 } from '../scripts/run-tests.mjs';
 
@@ -34,10 +35,13 @@ after(async () => {
 });
 
 async function runRunnerCli(args, envOverrides = {}) {
+  // An override of `undefined` removes the variable (an empty string would still count as "set").
+  const env = { ...process.env, ...envOverrides };
+  for (const [key, value] of Object.entries(env)) if (value === undefined) delete env[key];
   try {
     const res = await execFileAsync(process.execPath, [runnerScript, ...args], {
       cwd: pkgRoot,
-      env: { ...process.env, ...envOverrides },
+      env,
       timeout: 15_000,
     });
     return { code: 0, stdout: res.stdout, stderr: res.stderr };
@@ -232,5 +236,90 @@ describe('run-tests.mjs classification, sharding & CLI isolation behavior', () =
     });
     assert.equal(conflictB.code, 2);
     assert.match(conflictB.stderr, /--quarantine and --include-quarantined/);
+  });
+});
+
+describe('run-tests.mjs GitHub Actions quarantine annotations', () => {
+  const records = [
+    { rel: 'tests/a-flaky.test.mjs', quarantine: { tag: 'flaky', reason: 'timer drift (#1)' } },
+    { rel: 'tests/b-quarantined.test.mjs', quarantine: { tag: 'quarantine', reason: '100% PTY race\nsecond line' } },
+  ];
+
+  test('prints one ::warning:: per quarantined file naming it, with the reason escaped, only when GITHUB_ACTIONS=true', () => {
+    const lines = quarantineWarningAnnotations(records, { GITHUB_ACTIONS: 'true' });
+    assert.equal(lines.length, 2);
+    for (const line of lines) assert.match(line, /^::warning title=Quarantined TUI test suite::/);
+    assert.ok(lines[0].includes('tests/a-flaky.test.mjs'));
+    assert.ok(lines[0].includes('@flaky: timer drift (#1)'));
+    assert.ok(lines[1].includes('tests/b-quarantined.test.mjs'));
+    assert.ok(lines[1].includes('100%25 PTY race%0Asecond line'), 'percent and newline are workflow-command escaped');
+    for (const line of lines) assert.ok(!/[\r\n]/.test(line), 'each annotation stays on one line');
+
+    assert.deepEqual(quarantineWarningAnnotations(records, {}), []);
+    assert.deepEqual(quarantineWarningAnnotations(records, { GITHUB_ACTIONS: 'false' }), []);
+    assert.deepEqual(quarantineWarningAnnotations([], { GITHUB_ACTIONS: 'true' }), []);
+  });
+
+  test('the runner prints the annotation for isolated and for run quarantined suites in GitHub Actions, and never locally', async () => {
+    const dir = await makeFixtureDir('annotations');
+    await Promise.all([
+      writeFile(
+        join(dir, 'ok-unit.test.mjs'),
+        'import assert from "node:assert/strict";\nimport { test } from "node:test";\ntest("ok", () => assert.equal(1, 1));\n',
+        'utf8',
+      ),
+      writeFile(
+        join(dir, 'parked.test.mjs'),
+        '// @quarantine: parked for annotation test (#4242)\nimport assert from "node:assert/strict";\nimport { test } from "node:test";\ntest("parked", () => assert.equal(1, 1));\n',
+        'utf8',
+      ),
+    ]);
+
+    const isolated = await runRunnerCli([], { STUDYHUB_TESTS_DIR: dir, GITHUB_ACTIONS: 'true' });
+    assert.equal(isolated.code, 0, isolated.stderr);
+    assert.match(isolated.stdout, /^::warning title=Quarantined TUI test suite::.*parked\.test\.mjs.*parked for annotation test \(#4242\)/m);
+
+    const ran = await runRunnerCli(['--quarantine'], { STUDYHUB_TESTS_DIR: dir, GITHUB_ACTIONS: 'true' });
+    assert.equal(ran.code, 0, ran.stderr);
+    assert.match(ran.stdout, /^::warning title=Quarantined TUI test suite::.*parked\.test\.mjs/m);
+
+    const local = await runRunnerCli([], { STUDYHUB_TESTS_DIR: dir, GITHUB_ACTIONS: '' });
+    assert.equal(local.code, 0, local.stderr);
+    assert.doesNotMatch(local.stdout, /::warning/);
+    assert.match(local.stdout, /Isolated 1 quarantined suite/);
+
+    const listed = await runRunnerCli(['--quarantine', '--list'], { STUDYHUB_TESTS_DIR: dir, GITHUB_ACTIONS: 'true' });
+    assert.equal(listed.code, 0, listed.stderr);
+    assert.doesNotMatch(listed.stdout, /::warning/, '--list output stays one path per line');
+  });
+
+  test('a failing quarantined suite makes --quarantine exit non-zero, while a default run still isolates it', async () => {
+    const dir = await makeFixtureDir('failing');
+    await Promise.all([
+      writeFile(
+        join(dir, 'ok-unit.test.mjs'),
+        'import assert from "node:assert/strict";\nimport { test } from "node:test";\ntest("ok", () => assert.equal(1, 1));\n',
+        'utf8',
+      ),
+      writeFile(
+        join(dir, 'broken.test.mjs'),
+        '// @quarantine: deliberately failing fixture (#4243)\nimport assert from "node:assert/strict";\nimport { test } from "node:test";\ntest("broken", () => assert.equal(1, 2));\n',
+        'utf8',
+      ),
+    ]);
+    // The nested `node --test` must not think it is a child of this test run.
+    const env = { STUDYHUB_TESTS_DIR: dir, NODE_TEST_CONTEXT: undefined };
+
+    const qRun = await runRunnerCli(['--quarantine'], env);
+    assert.notEqual(qRun.code, 0, `a failing quarantined suite must fail --quarantine\n${qRun.stdout}`);
+    assert.match(qRun.stdout, /quarantine:FAIL\(1\)/);
+
+    const withAll = await runRunnerCli(['--include-quarantined'], env);
+    assert.notEqual(withAll.code, 0, '--include-quarantined also surfaces the failure');
+    assert.match(withAll.stdout, /quarantine:FAIL\(1\)/);
+
+    const defaultRun = await runRunnerCli([], env);
+    assert.equal(defaultRun.code, 0, `default runs isolate quarantined suites\n${defaultRun.stdout}`);
+    assert.match(defaultRun.stdout, /Isolated 1 quarantined suite/);
   });
 });
