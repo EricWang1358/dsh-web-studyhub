@@ -1965,14 +1965,13 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
         : { weak: viewTotal, history: 0 };
       const storedKey = JSON.stringify([scopeKey, answerView]);
       setViewCounts({ scope: scopeKey, ...both });
-      setResult({ key: storedKey, view: answerView, viewCounts: both,
-        counts: { total: viewTotal,
-          graded: res?.gradedTotal ?? res?.items?.filter((item) => item.assessment === "graded").length ?? 0,
-          self: res?.selfTotal ?? res?.items?.filter((item) => item.assessment === "self").length ?? 0,
-          oral: res?.oralTotal ?? res?.items?.filter((item) => item.assessment === "oral").length ?? 0,
-          rubric: res?.rubricTotal ?? res?.items?.filter((item) => item.assessment === "rubric").length ?? 0 },
+      const raw = res?.items || [];
+      const fb = statusCounts(raw);
+      const nextCounts = { total: viewTotal };
+      for (const k of STATUS_KINDS) nextCounts[k] = res?.[`${k}Total`] ?? fb[k];
+      setResult({ key: storedKey, view: answerView, viewCounts: both, counts: nextCounts,
       // Keep this guard for older service versions that still return suspended cards.
-        items: (res?.items || []).filter((it) => it && it.deckId && it.cardId && !it.suspended) });
+        items: raw.filter((it) => it && it.deckId && it.cardId && !it.suspended) });
       setPage(targetPage);
       if (!quiet) {
         asked.current = new Set();
