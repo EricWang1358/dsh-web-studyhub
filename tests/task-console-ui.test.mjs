@@ -123,7 +123,7 @@ test('no task at all is ONE empty state that says which tasks appear here: no fi
 
 test('the filters are the shared SegmentedControl in the page header; a filter with nothing in it says so once, in place of the list and the detail (#568)', () => {
   const html = render();
-  assert.match(html, /<header class="sh-page-header tc-header">/);
+  assert.match(html, /<header class="sh-page-header tc-header"[^>]*>/);
   assert.match(html, /class="sh-seg sh-seg--sm tc-scope"[^>]*>/);
   assert.equal((html.match(/class="sh-seg__item[^"]*"/g) || []).length, 4, 'all, in progress, failed, archived');
   assert.match(html, /aria-pressed="true"[^>]*>全部 3</, 'the current filter is announced as pressed');
