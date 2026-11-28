@@ -9,7 +9,7 @@
  * 3. Direct `dist/App.mjs` & `dist/host.mjs` loading (avoids scanning & importing every `chunk-*.mjs`).
  */
 import assert from 'node:assert/strict';
-import { cp, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { PassThrough } from 'node:stream';
@@ -17,6 +17,30 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import xtermPkg from '@xterm/headless';
 
 const { Terminal } = xtermPkg;
+
+/**
+ * Floor, in ms, for every standard `waitFor` deadline.
+ *
+ * WHY: lazy ESM chunk imports and host snapshot / atomic-write RPCs can take well over 8 s on a contended
+ * runner (`--shard`, `STUDYHUB_E2E_CONCURRENCY=4`, shared CI disks) while the UI is still progressing, and every
+ * per-call `6_000`-`12_000` override that was copied into suites timed out mid-spinner there. One central floor
+ * replaces those hand-tuned numbers.
+ *
+ * WHAT IT MEANS FOR CALLERS: an explicit `timeoutMs` of 2_000 or more is a request, not a limit. It is raised to
+ * at least this value, so `{ timeoutMs: 8_000 }` really waits 20_000 ms and the failure message says
+ * `after 20000ms`. Only a failing wait gets slower: a passing wait resolves on the first frame that satisfies the
+ * predicate, so the floor adds 0 ms to green runs. Do not use `waitFor` to assert latency; latency budgets live in
+ * the bench tier (`perf-budget.test.mjs`, `scale-nfr.test.mjs`).
+ */
+export const WAIT_FOR_FLOOR_MS = 20_000;
+
+/** Explicit `waitFor` timeouts below this are honored verbatim (deliberate short negative/"not yet" checks). */
+export const WAIT_FOR_VERBATIM_BELOW_MS = 2_000;
+
+/** The deadline `waitFor` really uses for a requested `timeoutMs`. */
+export function effectiveWaitTimeoutMs(timeoutMs) {
+  return timeoutMs >= WAIT_FOR_VERBATIM_BELOW_MS ? Math.max(timeoutMs, WAIT_FOR_FLOOR_MS) : timeoutMs;
+}
 
 const SECRET_ENV_KEY_SUFFIX_RE = /(?:_API_KEY|_TOKEN|_SECRET|_ACCESS_KEY)$/i;
 const SECRET_ENV_PROVIDER_PREFIX_RE =
@@ -374,8 +398,14 @@ export function createVirtualTty(cols = 120, rows = 36) {
   /**
    * Event-driven `waitFor`: accepts either a `(screen: string) => boolean` predicate or a `RegExp`.
    * Resolves immediately on the xterm frame commit that satisfies the condition (zero polling sleep).
+   *
+   * The deadline is `effectiveWaitTimeoutMs(timeoutMs)`: any `timeoutMs >= 2_000` is raised to at least
+   * `WAIT_FOR_FLOOR_MS` (20_000), so an explicit `8_000` really waits 20_000 ms; only `< 2_000` is honored
+   * verbatim. This slows failures only, never passing runs. See `WAIT_FOR_FLOOR_MS` for why and for where
+   * latency budgets belong.
    */
-  async function waitFor(predicateOrRegex, { timeoutMs = 8_000, label = 'condition' } = {}) {
+  async function waitFor(predicateOrRegex, { timeoutMs = WAIT_FOR_FLOOR_MS, label = 'condition' } = {}) {
+    const effectiveTimeoutMs = effectiveWaitTimeoutMs(timeoutMs);
     const check =
       predicateOrRegex instanceof RegExp
         ? (screen) => predicateOrRegex.test(screen)
@@ -422,10 +452,10 @@ export function createVirtualTty(cols = 120, rows = 36) {
         cleanup();
         rejectWait(
           new Error(
-            `Timed out waiting for ${label} after ${timeoutMs}ms.\n--- SCREEN ---\n${finalScreen}\n--------------`,
+            `Timed out waiting for ${label} after ${effectiveTimeoutMs}ms.\n--- SCREEN ---\n${finalScreen}\n--------------`,
           ),
         );
-      }, timeoutMs);
+      }, effectiveTimeoutMs);
       activeTimers.add(timer);
 
       frameListeners.add(onFrame);
@@ -495,6 +525,37 @@ export function createVirtualTty(cols = 120, rows = 36) {
     assertAsciiPure,
     dispose,
   };
+}
+
+/**
+ * Wait deterministically for an atomically persisted JSON file (`temp + fsync + rename`)
+ * to satisfy `predicate(parsed)`. Ignores transient `ENOENT` or partial-read parse errors
+ * while an atomic write is in flight, and returns the matching parsed object.
+ */
+export async function waitForJsonFile(
+  filePath,
+  predicate,
+  { timeoutMs = 10_000, intervalMs = 25, label = filePath } = {},
+) {
+  const deadline = Date.now() + timeoutMs;
+  let lastValue = null;
+  let lastError = null;
+  while (true) {
+    try {
+      const raw = await readFile(filePath, 'utf8');
+      const parsed = JSON.parse(raw);
+      lastValue = parsed;
+      lastError = null;
+      if (predicate(parsed)) return parsed;
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+    }
+    if (Date.now() >= deadline) break;
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error(
+    `Timed out waiting for JSON file (${label}) after ${timeoutMs}ms; lastValue=${JSON.stringify(lastValue)}${lastError ? ` lastError=${lastError}` : ''}`,
+  );
 }
 
 /**

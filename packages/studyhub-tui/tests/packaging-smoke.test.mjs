@@ -161,7 +161,7 @@ describe('StudyHub TUI Packaging, Out-of-Repo Bin Smoke & 64-Transition Resize S
     const verRes = await execFileAsync(process.execPath, [binEntry, '--version'], {
       cwd: workDir,
       env,
-      timeout: 10_000,
+      timeout: 20_000,
       windowsHide: true,
     });
     assert.equal(verRes.stderr.trim(), '');
@@ -170,7 +170,7 @@ describe('StudyHub TUI Packaging, Out-of-Repo Bin Smoke & 64-Transition Resize S
     const helpRes = await execFileAsync(process.execPath, [binEntry, '--help'], {
       cwd: workDir,
       env,
-      timeout: 10_000,
+      timeout: 20_000,
       windowsHide: true,
     });
     assert.equal(helpRes.stderr.trim(), '');
@@ -190,7 +190,7 @@ describe('StudyHub TUI Packaging, Out-of-Repo Bin Smoke & 64-Transition Resize S
       ...npmCmd.options,
       cwd: pkgRoot,
       env: sanitizedTestEnv(),
-      timeout: 20_000,
+      timeout: 45_000,
       maxBuffer: 4 * 1024 * 1024,
     });
 
@@ -275,7 +275,7 @@ describe('StudyHub TUI Packaging, Out-of-Repo Bin Smoke & 64-Transition Resize S
       await tty.firstFramePromise;
       await tty.waitFor(
         (s) => isViewReady(s, SOAK_VIEWS[0].match),
-        { timeoutMs: 8_000, label: 'initial library mount' },
+        { timeoutMs: 25_000, label: 'initial library mount' },
       );
 
       gc();
@@ -295,7 +295,7 @@ describe('StudyHub TUI Packaging, Out-of-Repo Bin Smoke & 64-Transition Resize S
             tty.send('1');
             await tty.waitFor(
               (s) => isViewReady(s, SOAK_VIEWS[0].match),
-              { timeoutMs: 8_000, label: `cycle ${cycle + 1} library before review` },
+              { timeoutMs: 15_000, label: `cycle ${cycle + 1} library before review` },
             );
             tty.send('r');
           } else {
@@ -304,7 +304,7 @@ describe('StudyHub TUI Packaging, Out-of-Repo Bin Smoke & 64-Transition Resize S
 
           const screen = await tty.waitFor(
             (s) => isViewReady(s, step.match),
-            { timeoutMs: 8_000, label: `cycle ${cycle + 1} ${step.id} @ ${vp.cols}x${vp.rows}` },
+            { timeoutMs: 15_000, label: `cycle ${cycle + 1} ${step.id} @ ${vp.cols}x${vp.rows}` },
           );
           await tty.flush();
           const settled = tty.readScreen();
@@ -321,7 +321,7 @@ describe('StudyHub TUI Packaging, Out-of-Repo Bin Smoke & 64-Transition Resize S
             tty.send('\u001b');
             await tty.waitFor(
               (s) => isViewReady(s, SOAK_VIEWS[0].match),
-              { timeoutMs: 8_000, label: `cycle ${cycle + 1} Esc back to library` },
+              { timeoutMs: 15_000, label: `cycle ${cycle + 1} Esc back to library` },
             );
           }
         }

@@ -15,6 +15,7 @@ import {
   disposeTerminalPool,
   distDir,
   loadDistRuntime,
+  waitForJsonFile,
 } from './helpers/virtual-tty.mjs';
 
 const screenDumpDir = join(tmpdir(), 'studyhub-tui-screens');
@@ -218,6 +219,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
     await writeFile(join(screenDumpDir, '120x36-00-launchpad.txt'), launchpadScreen, 'utf8');
 
     // Press 's' to load sample course
+    await tty.flush();
     tty.send('s');
     await tty.waitFor(
       (s) =>
@@ -227,7 +229,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
         /\d+%/.test(s) &&
         /\d+\s*题到期|\d+\s*due/i.test(s) &&
         (s.includes('█') || s.includes('░')),
-      { timeoutMs: 12_000, label: 'Library with sample course' },
+      { timeoutMs: 25_000, label: 'Library with sample course' },
     );
     await tty.flush();
     const settled = tty.readScreen();
@@ -266,7 +268,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
                 !s.includes('正在加载页面…') &&
                 !s.includes('Loading view…'),
               {
-                timeoutMs: 8_000,
+                timeoutMs: 20_000,
                 label: `LibraryView before review @ ${cols}x${rows}`,
               },
             );
@@ -292,7 +294,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
               !s.includes('Loading view…')
             );
           },
-          { timeoutMs: 10_000, label: `${step.id} @ ${cols}x${rows}` },
+          { timeoutMs: 20_000, label: `${step.id} @ ${cols}x${rows}` },
         );
         await tty.flush();
         visitedOrder.push(useTuiStore.getState().page);
@@ -321,12 +323,12 @@ describe('StudyHub TUI xterm-headless E2E', () => {
         tty.send('X');
         await tty.waitFor(
           (s) => s.includes('结束本轮练习') || s.includes('End This Round'),
-          { timeoutMs: 6_000, label: `Confirm end round dialog @ ${cols}x${rows}` },
+          { timeoutMs: 15_000, label: `Confirm end round dialog @ ${cols}x${rows}` },
         );
         tty.send('y');
         await tty.waitFor(
           (s) => s.includes('再来一轮') || s.includes('New Round') || s.includes('本轮练习总结'),
-          { timeoutMs: 8_000, label: `Round summary after review @ ${cols}x${rows}` },
+          { timeoutMs: 20_000, label: `Round summary after review @ ${cols}x${rows}` },
         );
         tty.send('b');
       }
@@ -471,12 +473,12 @@ describe('StudyHub TUI xterm-headless E2E', () => {
     tty.send('X');
     await tty.waitFor(
       (s) => s.includes('结束本轮练习') || s.includes('End This Round'),
-      { timeoutMs: 6_000, label: 'Confirm end round dialog' },
+      { timeoutMs: 15_000, label: 'Confirm end round dialog' },
     );
     tty.send('y');
     const summaryScreen = await tty.waitFor(
       (s) => s.includes('再来一轮') || s.includes('New Round') || s.includes('本轮练习总结') || s.includes('Round Summary'),
-      { timeoutMs: 8_000, label: 'Round Summary' },
+      { timeoutMs: 20_000, label: 'Round Summary' },
     );
     assertScreenHealthy(tty, summaryScreen, 120, 36, 'Round Summary');
 
@@ -525,21 +527,11 @@ describe('StudyHub TUI xterm-headless E2E', () => {
     await tty.flush();
 
     const boardFile = join(libraryRoot, 'tui-board.json');
-    let persisted = null;
-    const diskDeadline = Date.now() + 2_000;
-    while (Date.now() < diskDeadline) {
-      try {
-        const raw = await readFile(boardFile, 'utf8');
-        const parsed = JSON.parse(raw);
-        if (parsed?.cards?.[0]?.column === 'doing') {
-          persisted = parsed;
-          break;
-        }
-      } catch {
-        // Wait for async board persistence write to complete
-      }
-      await new Promise((r) => setTimeout(r, 15));
-    }
+    const persisted = await waitForJsonFile(
+      boardFile,
+      (parsed) => parsed?.cards?.[0]?.column === 'doing',
+      { timeoutMs: 10_000, label: 'tui-board.json Doing column' },
+    );
     assert.ok(persisted, 'tui-board.json must be persisted with Doing column');
     assert.equal(persisted.version, 1);
     assert.equal(persisted.cards.length, 1);
@@ -704,7 +696,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
           step.expect.test(s) &&
           !s.includes('正在加载页面…') &&
           !s.includes('Loading view…'),
-        { timeoutMs: 10_000, label: `${step.id} @ 160x44` },
+        { timeoutMs: 20_000, label: `${step.id} @ 160x44` },
       );
       await tty.flush();
       const settled = tty.readScreen();
@@ -715,39 +707,42 @@ describe('StudyHub TUI xterm-headless E2E', () => {
     // Switch to Settings -> Appearance tab (4) and enable ASCII Safe Mode (row index 3)
     tty.send('4');
     await tty.waitFor((s) => /配色主题 \(Theme\)|Color Theme/.test(s), {
-      timeoutMs: 8_000,
+      timeoutMs: 20_000,
       label: 'Settings Appearance tab @ 160x44',
     });
     for (let step = 0; step < 3; step += 1) {
       tty.send('j');
       await tty.flush();
     }
+    await tty.waitFor((s) => /[❯>]\s*ASCII/.test(s), {
+      timeoutMs: 8_000,
+      label: 'Cursor moved to ASCII Safe Mode row',
+    });
     tty.send('l');
     const asciiSettings = await tty.waitFor(
       (s) =>
         s.includes('ASCII') &&
         (s.includes('已开启') || s.includes('Enabled')) &&
         s.includes('+') &&
-        s.includes('-'),
-      { timeoutMs: 8_000, label: 'Enable asciiMode via Appearance tab' },
+        s.includes('-') &&
+        !s.includes('保存中') &&
+        !s.includes('Saving') &&
+        (s.includes('已开启 ASCII 兼容模式') ||
+          s.includes('ASCII Safe Mode enabled') ||
+          s.includes('实时生效') ||
+          s.includes('Live')),
+      { timeoutMs: 15_000, label: 'Enable asciiMode via Appearance tab and settle persistence' },
     );
     await tty.flush();
     assertScreenHealthy(tty, asciiSettings, 160, 44, 'Settings Appearance ASCII @ 160x44');
     await writeFile(join(screenDumpDir, '160x44-14-settings-ascii.txt'), asciiSettings, 'utf8');
     assert.ok(asciiSettings.includes('+') && asciiSettings.includes('-'), 'Settings renders classic ASCII borders');
 
-    let persistedPrefs = null;
-    const persistDeadline = Date.now() + 2_000;
-    while (Date.now() < persistDeadline) {
-      try {
-        const persistedRaw = await readFile(join(dshHome, 'study', 'tui.json'), 'utf8');
-        persistedPrefs = JSON.parse(persistedRaw);
-        if (persistedPrefs.asciiMode === true) break;
-      } catch {
-        // Atomic rename may still be in flight
-      }
-      await new Promise((r) => setTimeout(r, 15));
-    }
+    const persistedPrefs = await waitForJsonFile(
+      join(dshHome, 'study', 'tui.json'),
+      (prefs) => prefs?.asciiMode === true,
+      { timeoutMs: 10_000, label: 'asciiMode persisted to tui.json' },
+    );
     assert.equal(persistedPrefs?.asciiMode, true, 'asciiMode persisted to tui.json');
 
     // Leave Settings (where 1-4 are tab keys) via '6' -> Dashboard, then '1' -> Library
@@ -759,7 +754,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
         !s.includes('Loading view…') &&
         s.includes('+') &&
         s.includes('-'),
-      { timeoutMs: 8_000, label: 'Dashboard in ASCII mode @ 160x44' },
+      { timeoutMs: 20_000, label: 'Dashboard in ASCII mode @ 160x44' },
     );
     await tty.flush();
     await writeFile(join(screenDumpDir, '160x44-06-dashboard-ascii.txt'), dashAscii, 'utf8');
@@ -775,7 +770,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
         s.includes('+') &&
         s.includes('-') &&
         /掌握度|Mastery/.test(s),
-      { timeoutMs: 8_000, label: 'Library in ASCII mode @ 160x44' },
+      { timeoutMs: 20_000, label: 'Library in ASCII mode @ 160x44' },
     );
     await tty.flush();
     await writeFile(join(screenDumpDir, '160x44-01-library-ascii.txt'), libAscii, 'utf8');
@@ -805,7 +800,7 @@ describe('StudyHub TUI xterm-headless E2E', () => {
     await host.dispose();
     tty.dispose();
     disposeTerminalPool();
-    const afterRes = await waitForResourceTeardown(baselineResources, 1500);
+    const afterRes = await waitForResourceTeardown(baselineResources, 5_000);
     for (const kind of ['FSEventWrap', 'StatWatcher', 'ProcessWrap', 'Timeout']) {
       assert.ok(
         (afterRes[kind] || 0) <= (baselineResources[kind] || 0),

@@ -290,7 +290,7 @@ describe('StudyHub TUI Full 16-View --ascii Runtime Purity Sweep', () => {
               useTuiStore.getState().page === step.id &&
               (expectedRe.test(s) || s.includes('页面渲染异常') || s.includes('View Error')) &&
               !STILL_LOADING_RE.test(s),
-            { timeoutMs: 8_000, label: `${step.id} @ ${pass.name}` },
+            { timeoutMs: step.id === 'library' ? 30_000 : 20_000, label: `${step.id} @ ${pass.name}` },
           );
 
           await tty.flush();
