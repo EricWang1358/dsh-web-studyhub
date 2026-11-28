@@ -343,7 +343,7 @@ test("the sources page, the wrong book and a long draft draw their rows in chunk
       await context.close();
     });
 
-    await t.test("草稿: a question added to a draft of 90 is drawn, and 查看详情 draws every question before it scrolls to the details after them", async () => {
+    await t.test("草稿: 定位待处理题 opens the sent-back question past the first chunk with its reason, its 查看修题办法 reaches 交给后台修题, and a question added to a draft of 90 is drawn", async () => {
       const { page, context, errors } = await openApp(browser, running, zone);
       await openNav(page, "library");
       const fold = page.locator("details.home-drafts").first();
@@ -354,13 +354,28 @@ test("the sources page, the wrong book and a long draft draw their rows in chunk
       await settleAnimations(page);
       assert.equal(await count(page, cards), DRAFT_CHUNK, "ninety questions: one chunk of 80 at first");
 
-      // 定位待处理题 (a question past the first chunk was sent back, #1750) goes to that question: it is drawn first, and it is in view.
+      // 定位待处理题 (a question past the first chunk was sent back, #1750) goes to that question: it is drawn first, its row says 待处理, and it opens on the reason it was
+      // sent back, in view (before, the jump landed on a closed row with no sign of what was wrong, and the reason sat in the closed 生成详情 after the last question).
       const sentBack = `.draft-card[data-draft-index="${SENT_BACK_AT}"]`;
+      const reason = `${sentBack} .draft-card__issues`;
       await page.locator(".draft-blocker-summary").getByRole("button", { name: "定位待处理题" }).click();
       await until(async () => (await count(page, sentBack)) === 1, "the sent-back question drawn", { timeoutMs: 15000 });
-      await until(() => inView(page, sentBack), "the sent-back question in view", { timeoutMs: 15000 });
+      await until(() => inView(page, reason), "the reason of the sent-back question in view", { timeoutMs: 15000 });
       await frames(page, 6);
-      assert.ok(await inView(page, sentBack), "and still in view");
+      assert.ok(await inView(page, `${sentBack} > summary`), "its row still in view");
+      assert.ok(await inView(page, reason), "and its reason");
+      assert.equal(await page.locator(sentBack).evaluate((element) => element.open), true, "the question is open");
+      assert.match(await page.locator(`${sentBack} > summary`).innerText(), /待处理/);
+      assert.match(await page.locator(reason).innerText(), /The answer is not in the cited text\./);
+      // Its 查看修题办法 goes to the sent-back questions' box in the opened 生成详情 after the last question: every question is drawn first, and 交给后台修题 is in view.
+      await page.locator(reason).getByRole("button", { name: "查看修题办法" }).click();
+      const repair = page.locator(".draft-rejected").getByRole("button", { name: "交给后台修题" });
+      await until(async () => (await count(page, cards)) === SHORT_DRAFT, "every question drawn for the details", { timeoutMs: 15000 });
+      await until(() => inView(page, ".draft-rejected .draft-banner__actions"), "交给后台修题 in view", { timeoutMs: 15000 });
+      await frames(page, 6);
+      assert.equal(await page.locator(".draft-generation-details").evaluate((element) => element.open), true);
+      assert.ok(await inView(page, ".draft-rejected .draft-banner__actions"), "and still in view");
+      assert.equal(await repair.count(), 1);
 
       // 添加闪卡 appends question 91: it is drawn.
       await page.getByRole("button", { name: /添加闪卡/ }).click();

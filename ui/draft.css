@@ -52,6 +52,11 @@
     .draft-card__tags small {
       white-space: nowrap;
     }
+    /* 待处理: the question was sent back or has a problem; the reason leads the opened question (.draft-card__issues). */
+    .draft-card__tags .draft-card__flag {
+      color: var(--warn-text);
+      font-weight: var(--fw-medium);
+    }
     /* The near-duplicate notice (#890) leads the question inside its two clamped lines, so it never makes a closed row taller, whatever tags the row has.
        Only the deck's title is cut (its own span, a few characters at most), so 「相似」 and the number always show; the opened question says it whole. */
     .draft-card .draft-card__row:has(.draft-card__similar:focus),
