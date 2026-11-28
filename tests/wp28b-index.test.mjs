@@ -109,15 +109,24 @@ test('one page that cannot be read does not stop the rest; many in a row do', as
 });
 
 test('cancelling stops between pages and keeps what was done', async () => {
-  const { port, calls } = fakeServer({ delay: 15 });
+  const { port, calls } = fakeServer();
   const controller = new AbortController();
   const manifest = { sources: {} };
   const many = Array.from({ length: 20 }, (_, i) => page(i + 1, `第 ${i + 1} 页内容`));
-  const running = buildIndex({ port, sources: many, library: many.map(source => source.id), manifest, signal: controller.signal });
-  setTimeout(() => controller.abort(), 60);
+  // Abort deterministically right after page 2 is confirmed in the manifest instead of racing a wall-clock timer against withIndexLock (#1650).
+  const running = buildIndex({
+    port,
+    sources: many,
+    library: many.map(source => source.id),
+    manifest,
+    signal: controller.signal,
+    onProgress: ({ done }) => {
+      if (done >= 2 && !controller.signal.aborted) controller.abort();
+    },
+  });
   await assert.rejects(running, error => error.name === 'AbortError' || /abort/i.test(error.message));
-  assert.ok(calls.length < 20);
-  assert.ok(Object.keys(manifest.sources).length >= 1, 'finished pages stay recorded');
+  assert.equal(calls.length, 2, 'cancelling between pages stops before ingesting the remaining pages');
+  assert.deepEqual(Object.keys(manifest.sources).sort(), ['p1', 'p2'], 'finished pages stay recorded');
 });
 
 test('without the search extension running there is nothing to build with', async () => {
