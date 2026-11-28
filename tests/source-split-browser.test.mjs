@@ -495,6 +495,10 @@ test('对照栏: quote inside a tall Markdown block lands in view with top breat
   t.after(() => context.close());
 
   await answerWrong(page);
+  // Opening the 对照栏 re-wraps the question column. On a slow run the browser's scroll anchoring then moves .study-app by itself
+  // (179 -> 235 on Windows CI, #1618), which is not a scroll this code made. Anchoring is turned off here, so any movement left
+  // comes from a script: what this test guards is that the quote jump scrolls only the reader, never the page around it.
+  await page.addStyleTag({ content: '* { overflow-anchor: none !important; }' });
   const sourceButton = page.locator('.reading-source');
   // A real pointer click may scroll the button past the sticky answer bar. Measure when the reader action is activated.
   await sourceButton.evaluate(button => {
