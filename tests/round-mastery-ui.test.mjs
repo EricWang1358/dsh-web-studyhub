@@ -1,4 +1,4 @@
-/* The result page of every practice round says how the mastery of its questions moved: one line 「这组题掌握度 a% → b%」 between the subtitle and
+/* The result page of every practice round says how the mastery of its questions moved: one line 「本组掌握度 a% → b%」 between the subtitle and
    the score, from the run itself (lib/run-mastery.js), so it is in the page's first draw. A reader round keeps its own card (「这几页的掌握度」 with
    回到阅读) and says it once; a run stored before 3.6 shows no line. Both lines are the same component with the same rounding. */
 import test from 'node:test';
@@ -35,11 +35,11 @@ const at = (html, marker) => html.indexOf(marker);
 const lines = html => (html.match(/data-testid="mastery-change"/g) || []).length;
 const text = html => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
-test('a deck round: one line 这组题掌握度 a% → b% between the subtitle and the score, in the first draw', () => {
+test('a deck round: one line 本组掌握度 a% → b% between the subtitle and the score, in the first draw', () => {
   setUiLanguage('zh');
   const html = result({ run: { mastery: rose } });
   assert.equal(lines(html), 1);
-  assert.match(text(html), /这组题掌握度 40% → 58%/);
+  assert.match(text(html), /本组掌握度 40% → 58%/);
   const line = at(html, 'data-testid="mastery-change"');
   assert.ok(line > at(html, 'class="result-subtitle"') && line < at(html, 'class="result-hero'), 'under the subtitle, above the score');
   assert.match(html, /class="reading-result__change result-mastery"/);
@@ -51,7 +51,7 @@ test('a deck round: one line 这组题掌握度 a% → b% between the subtitle a
 
 test('no change is said plainly; a round with no measurable question, or a run stored before 3.6, shows no line', () => {
   setUiLanguage('zh');
-  assert.match(text(result({ run: { mastery: { before: summary(50), after: summary(50) } } })), /这组题掌握度 50%（这一轮没有变化）/);
+  assert.match(text(result({ run: { mastery: { before: summary(50), after: summary(50) } } })), /本组掌握度 50%（这一轮没有变化）/);
   assert.equal(lines(result({ run: { mastery: { before: summary(null, 0), after: summary(null, 0) } } })), 0);
   const old = result();
   assert.equal(lines(old), 0, 'an old run without the value');
@@ -63,12 +63,12 @@ test('a reader round keeps its own words and card, and says the change once', ()
   const html = result({ run: { reading, mastery: { before: reading.before, after: reading.after } }, onReturnToReading: noop });
   assert.equal(lines(html), 1);
   assert.match(text(html), /这几页的掌握度 41% → 58%/);
-  assert.doesNotMatch(html, /这组题掌握度/);
+  assert.doesNotMatch(html, /本组掌握度/);
   assert.ok(at(html, 'class="reading-result"') > 0 && at(html, 'data-testid="mastery-change"') > at(html, 'class="reading-result"'), 'inside the reader\'s card');
   // Shown where the page has no way back to the reader (no onReturnToReading), the round still says its change, in the round's words.
   const elsewhere = result({ run: { reading, mastery: { before: reading.before, after: reading.after } } });
   assert.equal(lines(elsewhere), 1);
-  assert.match(text(elsewhere), /这组题掌握度 41% → 58%/);
+  assert.match(text(elsewhere), /本组掌握度 41% → 58%/);
 });
 
 test('English: the line is translated', () => {
@@ -76,9 +76,9 @@ test('English: the line is translated', () => {
     setUiLanguage('en');
     const html = result({ run: { mastery: rose } });
     const line = html.slice(at(html, 'data-testid="mastery-change"'), at(html, 'class="result-hero'));
-    assert.match(text(line), /Mastery of these questions 40% → 58%/);
+    assert.match(text(line), /Mastery of this set 40% → 58%/);
     assert.doesNotMatch(line.replace(/<[^>]+>/g, ''), han);
-    assert.match(text(result({ run: { mastery: { before: summary(50), after: summary(50) } } })), /Mastery of these questions 50% \(no change this round\)/);
+    assert.match(text(result({ run: { mastery: { before: summary(50), after: summary(50) } } })), /Mastery of this set 50% \(no change this round\)/);
   } finally { setUiLanguage('zh'); }
 });
 
@@ -110,5 +110,23 @@ test('a real round: the finished projection draws the line with its own numbers'
   }
   assert.equal(run.mastery.before.percent, 0, 'three new questions');
   assert.ok(run.mastery.after.percent > 0);
-  assert.match(text(result({ run })), new RegExp(`这组题掌握度 0% → ${run.mastery.after.percent}%`));
+  assert.match(text(result({ run })), new RegExp(`本组掌握度 0% → ${run.mastery.after.percent}%`));
+});
+
+test('one name for the deck\'s mastery (#1684): the practice header, the question card and the result page all say 本组, never 本章 or 这组题', () => {
+  setUiLanguage('zh');
+  const progress = { a: { total: 9, mastery: 38, counts: { mastered: 0, familiar: 0, learning: 9, weak: 0, new: 0 }, due: 0, status: 'active' } };
+  const data = { sources: [], decks: [{ id: 'a', title: 'a', course: 'Design' }], progress, focus: { courses: [] } };
+  const practice = text(renderToStaticMarkup(reviewElement(Review, StudyServicesContext, {
+    run: { id: 'r', index: 1, total: 9, mode: 'path', deckId: 'a', sourceIds: [], card, liveMastery: { before: summary(41), after: summary(38) } },
+    data, host: {}, choice: true, selected: [], clozeValues: {}, shellTitle: 'Design', busy: false })));
+  assert.match(practice, /本组 掌握 38% · 9 题/, 'the header under the title');
+  assert.match(practice, /本组 41% → 38%/, 'the question card');
+  const done = text(result({ run: { mastery: rose } }));
+  assert.match(done, /本组掌握度 40% → 58%/, 'the result page');
+  for (const words of [practice, done]) assert.doesNotMatch(words.replace(/这道题所在的题组[^。]*。/g, ''), /本章|这组题/);
+  setUiLanguage('en');
+  try {
+    assert.match(text(result({ run: { mastery: rose } })), /Mastery of this set 40% → 58%/);
+  } finally { setUiLanguage('zh'); }
 });

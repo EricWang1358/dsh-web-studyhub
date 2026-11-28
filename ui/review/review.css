@@ -163,9 +163,6 @@
     .question-area[data-bar-stuck="true"] > :is(a[href], :enabled, summary, [tabindex], [contenteditable]):not(.review-sticky-bar) {
       scroll-margin-bottom: calc(var(--review-bar-room) + var(--space-1));
     }
-    .review-undo {
-      color: var(--accent-text);
-    }
     .post-answer-more {
       margin-top: var(--space-4);
       padding-top: var(--space-3);

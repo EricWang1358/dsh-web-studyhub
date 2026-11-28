@@ -15,10 +15,10 @@ import css from './practice.css';
 /* The words of a mastery change, by what was measured: the pages a reader round was started on, or the questions of any other round. */
 const CHANGE_WORDS = {
   pages: ['这几页的掌握度 {0}%（这一轮没有变化）', '这几页的掌握度 {0}% → {1}%'],
-  round: ['这组题掌握度 {0}%（这一轮没有变化）', '这组题掌握度 {0}% → {1}%'],
+  round: ['本组掌握度 {0}%（这一轮没有变化）', '本组掌握度 {0}% → {1}%'],
 };
 
-/** "这几页的掌握度 41% → 58%" (kind 'pages') or "这组题掌握度 41% → 58%" (kind 'round'): the same cards, before the first answer and now
+/** "这几页的掌握度 41% → 58%" (kind 'pages') or "本组掌握度 41% → 58%" (kind 'round'; 本组 is the deck's one name, #1684): the same cards, before the first answer and now
     (`change` is { before, after }: run.reading or run.mastery, lib/run-mastery.js). Empty when either side has no questions. */
 export function masteryChangeText(change, kind = 'pages') {
   const before = change?.before, after = change?.after;

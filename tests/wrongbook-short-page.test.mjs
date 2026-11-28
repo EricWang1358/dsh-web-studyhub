@@ -302,3 +302,25 @@ test('what the page folded away stays findable: the filter bar and the old refre
   assert.ok(byId.get('recommend').aliases.includes('练这几道'), 'the old button name still finds it');
   assert.ok(byId.get('retrain').aliases.includes('练这一组'));
 });
+
+/* #1707: a display switch looks like a switch and says whether it is on; an action looks like a button (not bold text that reads as a heading). */
+const switchOf = (html, label) => {
+  const row = (html.match(/<label class="sh-check sh-switch[^"]*"[\s\S]*?<\/label>/g) || []).find((tag) => text(tag).includes(label));
+  return row ? { checked: /<input[^>]*\schecked=""/.test(row), role: /role="switch"/.test(row), text: text(row) } : null;
+};
+
+test('#1707: 显示靶向清零处方 is one switch that shows on or off; generating variants for every mistake is a plain button', () => {
+  setUiLanguage('zh');
+  const off = render(many(3), { onToggleClinic: noop });
+  const offSwitch = switchOf(off, '显示靶向清零处方');
+  assert.ok(offSwitch?.role, 'a switch, not a quiet text button');
+  assert.equal(offSwitch.checked, false);
+  assert.match(offSwitch.text, /不消耗模型/, 'what it does stays beside it');
+  assert.doesNotMatch(text(off), /开启专项清零建议/);
+  const onData = { ...base.data, settings: { practice: { wrongbookClinic: true } } };
+  const on = render(many(3), { onToggleClinic: noop, data: onData });
+  assert.equal(switchOf(on, '显示靶向清零处方')?.checked, true, 'switched on, the same switch shows it');
+  assert.doesNotMatch(text(on), /关闭清零处方/, 'no second, differently worded way to switch it off');
+  const batch = buttons(render(many(3))).find((tag) => /为全部错题生成变式/.test(text(tag)));
+  assert.match(batch, /sh-btn--secondary/, 'the batch is an action: a secondary button');
+});

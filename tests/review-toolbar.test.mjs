@@ -257,3 +257,20 @@ test("the More menu has 生词表… beside 出前置题… (only for non-exam r
     assert.doesNotMatch(english.replace(/data-usage="[^"]*"/g, ""), han);
   } finally { setUiLanguage("zh"); }
 });
+
+const undoButton = (html) => html.match(/<button[^>]*data-usage="review\.undo"[^>]*>(?:(?!<\/button>).)*<\/button>/)?.[0] || "";
+
+test("on a question not yet answered, the undo says it is the previous question's grade, in the quiet ink of its neighbours (#1685)", () => {
+  setUiLanguage("zh");
+  const html = render({ feedback: null, undoable: { attemptId: "a1" } }, { onUndo() {} });
+  const undo = undoButton(html);
+  assert.match(undo, />撤销上一题评分 \(Z\)<\/button>$/, "it names the previous question, not 已记分 (which read as this question being graded)");
+  assert.match(undo, /aria-keyshortcuts="Z"/);
+  const classes = (button) => button.match(/class="([^"]*)"/)?.[1];
+  assert.equal(classes(undo), classes(improveButton(html)), "the same quiet tool as 修题: no accent class of its own");
+  assert.equal(undoButton(render({ feedback: { correct: true }, undoable: { attemptId: "a1" } }, { onUndo() {} })), "", "an answered question has no undo here");
+  setUiLanguage("en");
+  try {
+    assert.match(undoButton(render({ feedback: null, undoable: { attemptId: "a1" } }, { onUndo() {} })), />Undo last grade \(Z\)<\/button>$/);
+  } finally { setUiLanguage("zh"); }
+});

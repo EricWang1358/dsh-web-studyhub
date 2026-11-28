@@ -1,4 +1,4 @@
-/* 这组题掌握度 a% → b% (lib/run-mastery.js): every round that starts stores the mastery of its own questions before the first answer, and its
+/* 本组掌握度 a% → b% (lib/run-mastery.js): every round that starts stores the mastery of its own questions before the first answer, and its
    finished projection carries { before, after } on the same cards. Reader rounds keep their pages' numbers (run.scope); runs stored before 3.6
    (no `run.mastery`) show nothing, except a reader round, whose `before` was kept in `run.reading`. The real runtime runs here; no model, no network. */
 import test from 'node:test';

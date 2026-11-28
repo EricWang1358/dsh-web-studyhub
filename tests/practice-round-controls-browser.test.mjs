@@ -358,11 +358,12 @@ test('Slice 1 practice controls: multi-choice clear, cloze Shift+Enter, open dra
   // #35: Self-grading op1 advances directly to fl1; flashcard front/back cue + 0-5 grading works on front side too!
   await page.waitForFunction(() => /Front side question\?/.test(document.querySelector('.question-card')?.innerText || ''));
   await page.locator('.flip-control').click();
-  await page.locator('.grading-side-cue').waitFor();
-  assert.match(await page.locator('.grading-side-cue').innerText(), /按 Space 可翻回正面核对题干/);
+  await page.locator('.grading .grade').first().waitFor();
+  // The side that is up is said by the card itself (#1697: no Space cue above the grades any more); the grades stay on the front side too.
   await page.locator('.question-card').focus();
   await page.keyboard.press(' ');
-  assert.match(await page.locator('.grading-side-cue').innerText(), /正在看正面题干 · 按 Space 回背面/);
+  await page.waitForFunction(() => !document.querySelector('.flashcard')?.classList.contains('flipped'));
+  assert.equal(await page.locator('.grading .grade').count(), 6, 'the 0–5 grades stay while the front is up');
   await page.keyboard.press('4');
   // Grading fl1 advances directly to the remaining skipped cl2.
   await page.locator('.cloze-blank--input').first().waitFor();
