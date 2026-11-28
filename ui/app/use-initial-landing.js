@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { hasActiveCoursePlan, shouldLandOnToday } from '../../lib/board-model.js';
+import { getCachedAppearance } from '../appearance-prefs.js';
 import { pageAvailable } from '../capabilities.js';
 import { PAGES, PAGE_IDS } from '../pages.js';
 
@@ -16,12 +17,18 @@ export function fallbackLandingPage(data) {
 /**
  * Decision 1 (#854 / #855): when StudyHub opens, land on 「待办 → 今日」 if the learner has an active 备考计划
  * or open items for today on the board; otherwise stay on 学习库 (or the first available page such as 资料 when
- * 学习库's contexts are disabled). Evaluated once on initial open so explicit navigation is never overridden.
+ * 学习库's contexts are disabled). In Minimal Mode, stay on 学习库 when available instead of auto-jumping to 今日.
+ * Evaluated once on initial open so explicit navigation is never overridden.
  */
-export function useInitialLanding({ loading, data, boardState, nav, setBoardView, navigationCount, restoredPage = false }) {
+export function useInitialLanding({ loading, data, boardState, nav, setBoardView, navigationCount, restoredPage = false, minimal }) {
   const decided = useRef(Boolean(restoredPage)), redirectedFromLibrary = useRef(false);
   useInitialEffect(() => {
     if (decided.current || loading || !data) return;
+    const minimalMode = minimal ?? (getCachedAppearance().minimal === 'on');
+    if (minimalMode && pageAvailable(data, 'library')) {
+      decided.current = true;
+      return;
+    }
     if (navigationCount() === 0 && nav.page === 'library' && !pageAvailable(data, 'library')) {
       if (hasActiveCoursePlan(data)) {
         decided.current = true;
@@ -42,5 +49,5 @@ export function useInitialLanding({ loading, data, boardState, nav, setBoardView
       setBoardView('today');
       nav.forcePage('board');
     }
-  }, [loading, data, boardState.board, boardState.error, nav, setBoardView, navigationCount]);
+  }, [loading, data, boardState.board, boardState.error, nav, setBoardView, navigationCount, minimal]);
 }

@@ -85,7 +85,7 @@ const rule = (rules, selectorStart) => {
 const styleRules = parse(styleCss);
 const darkBase = rule(styleRules, '.study-app,\n.study-seat').decls;
 const lightBase = rule(styleRules, '.study-app[data-theme="light"],').decls;
-const cardBase = rule(parse(dedent(await read('ui/paper.css'))), ':is(.sh-paper').decls;
+const cardBase = rule(parse(dedent(await read('ui/paper.css'))), ":is(.study-app, .study-seat):not([data-minimal='on']) :is(.sh-paper").decls;
 const accentRules = parse(accentCss);
 const presetRule = name => accentRules.find(r => r.selector.includes(`[data-accent=${name}]`));
 /** The tokens a preset sets in one theme (the dark values, with the light ones on top for light). */

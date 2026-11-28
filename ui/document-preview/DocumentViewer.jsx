@@ -192,7 +192,7 @@ export default function DocumentViewer(props) {
 
 function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onPublished, onCaseFromPassage, onGenerate, onGenerateStarted, generateDisabled = false, initialMode = 'read',
   onPracticePages, onGeneratePages, onOpenDraftPages, resume: resumeProp, backLabel, onBack, localContent, moreItems: extraItems, peekPage, pickPages = false, onReconvert, inlinePractice = null, reread = null,
-  fromQuestion = false, seek = null, onSeekMissed, strip = null, onAppendQuestionNote, onOpenCompanion }) {
+  fromQuestion = false, docked = false, seek = null, onSeekMissed, strip = null, onAppendQuestionNote, onOpenCompanion }) {
   const language = useUiLanguage();
   const study = useStudy();
   const localMode = localContent != null;
@@ -969,14 +969,29 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       run: syncExternalOriginal,
     }] : []),
   ];
+  const dockedMoreItems = docked && !localMode ? [
+    ...(onGenerate ? [{
+      id: 'generate',
+      icon: 'sparkle',
+      label: ui('AI 出题'),
+      disabled: generateDisabled,
+      run: onGenerate,
+    }] : []),
+    ...(openCompanion ? [{
+      id: 'companion',
+      icon: 'book',
+      label: ui('交互伴学页'),
+      run: openCompanion,
+    }] : []),
+  ] : [];
   const menu = moreItems({ view, format, fileUrl: !!fileUrl, originalLoading: loadingOriginalPdf, localMode, translate: bilingual.supported, display: true, tools: localMode ? null : { on: toolsOn, count: groups.length },
     quality: qualityText && canOutline ? { text: qualityText } : null, assist: !!(assistTarget && call && view !== 'original'), download: originalHandling(document) === 'download',
-    hostPreview: !!(document?.preview?.kind === 'file' && host?.openDocument), attach: !localMode && format !== 'pdf' && originalNone, extra: [...lifecycleMoreItems, ...marks.moreItems, ...(extraItems || [])] },
+    hostPreview: !!(document?.preview?.kind === 'file' && host?.openDocument), attach: !localMode && format !== 'pdf' && originalNone, extra: [...dockedMoreItems, ...lifecycleMoreItems, ...marks.moreItems, ...(extraItems || [])] },
   { setView: chooseView, find: openFind, translate: bilingual.openDialog, display: () => setDisplayOpen(true), tools: () => toggle('tools'), quality: () => openOutlineAnd(),
     assist: () => openOutlineAnd('.reader-outline__foot button'), download: downloadOriginal, hostPreview: () => host.openDocument(document.preview.path), attach: () => setAttaching('attach') });
 
   return <div className="study-document-viewer reader" ref={root} data-usage-area="reader" data-mode={view} data-tone={settings.tone} data-face={settings.face}
-    data-narrow={narrow || undefined} style={readerVars(settings)} onKeyDown={onKeyDown}>
+    data-narrow={narrow || undefined} data-docked={docked || undefined} style={readerVars(settings)} onKeyDown={onKeyDown}>
     <div className="reader-toolbar">
       <div className="reader-toolbar__group">
         {onBack && <Button size="sm" variant="secondary" icon="arrow-left" className="reader-back-to-question" onClick={onBack}>{backLabel}</Button>}
@@ -985,21 +1000,22 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         {/* While the material opens, 目录's place is held (hidden, not offered), so the toolbar does not grow or move when 目录 comes with the material. */}
         {!canOutline && loading && <IconButton icon="list" className="reader-toolbar__icon-btn" label={ui('目录')} data-reserved="" aria-hidden="true" tabIndex={-1} disabled />}
       </div>
-      {/* 出题 is the one primary control; the arrow beside it opens 做这几页的题 (shortcut P). 错题 and 思维导图 are panels. */}
+      {/* 出题 is the one primary control; the arrow beside it opens 做这几页的题 (shortcut P). 错题 and 思维导图 are panels.
+          When docked beside a question, heavy authoring controls (AI 出题, 伴学页, 思维导图) fold out of the toolbar so the split pane stays calm. */}
       <div className="reader-toolbar__actions">
-        {!localMode && openCompanion && (
+        {!localMode && !docked && openCompanion && (
           <Button size="sm" variant="secondary" iconEnd="arrow-right" onClick={openCompanion}>
             {ui('打开交互伴学页')}
           </Button>
         )}
-        {!localMode && onGenerate && <span className="reader-split" data-tour="reader-generate">
+        {!localMode && !docked && onGenerate && <span className="reader-split" data-tour="reader-generate">
           <Tooltip layer content={ui('从这份资料出题')}><Button variant="primary" size="sm" icon="sparkle" className="reader-split__main" disabled={generateDisabled} onClick={onGenerate}>{ui('AI 出题')}</Button></Tooltip>
           {view !== 'original' && onPracticePages && <ReadingPractice split loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onStartHere={inlinePractice ? practiseHere : undefined} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}
         </span>}
-        {!localMode && !onGenerate && view !== 'original' && onPracticePages && <ReadingPractice loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onStartHere={inlinePractice ? practiseHere : undefined} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}
+        {!localMode && (docked || !onGenerate) && view !== 'original' && onPracticePages && <ReadingPractice loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onStartHere={inlinePractice ? practiseHere : undefined} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}
         {!localMode && document && call && canStudyBank && <WrongPanel read={readWrong} cards={loop.cards} entryOf={loop.entryOf} drawn={drawnIds} chapterTitle={chapter.current ? chapterTitle(chapter.current) : ''}
           disabled={loop.status !== 'ready'} onPractice={practiseRow} onSeek={seekRow} openRequest={wrongRequest} onOpenRequested={() => setWrongRequest(false)} />}
-        {!loading && <MindMapPanel buildMap={buildCurrentMindMap} document={materialName} pages={chapterPages} onJump={jumpMap} />}
+        {!loading && !docked && <MindMapPanel buildMap={buildCurrentMindMap} document={materialName} pages={chapterPages} onJump={jumpMap} />}
         {marks.chip}
       </div>
       <p className="reader-toolbar__where">{where ? <Tooltip layer content={where}><span tabIndex={0}>{where}</span></Tooltip> : null}</p>

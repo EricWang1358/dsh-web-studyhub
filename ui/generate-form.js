@@ -349,7 +349,7 @@ export function moreValuesOf(gen = {}, defaults = {}) {
   const typed = key => String(gen[key] ?? '').trim() !== '';
   if (['focus', 'title', 'role', 'tokenBudget', 'customCount'].some(typed) || (gen.referenceSourceIds || []).length > 0) return true;
   // 自动补到完整 ticked or unticked by hand is in the fold (出题方式与题量); the level and the depth are said on the main path by the preset (or 自定义), so they do not open it.
-  if (typeof gen.autoComplete === 'boolean') return true;
+  if (typeof gen.autoComplete === 'boolean' && gen.autoComplete !== defaults.autoComplete) return true;
   if (extraValuesOf(gen)) return true;
   if (['difficulty', 'language'].some(key => defaults[key] !== undefined && gen[key] !== undefined && gen[key] !== defaults[key])) return true;
   if ((gen.learnerLevel ?? '') !== (defaults.learnerLevel ?? '')) return true;

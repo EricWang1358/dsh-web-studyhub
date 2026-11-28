@@ -359,7 +359,7 @@ test('W1-28: ExamCoachPage avoids dual primary buttons on step 1 without sources
     try {
       await mounted.flush(5);
       assert.match(mounted.text(), /OS Scheduling Proof/, 'OS spec loads into confirm stage');
-      assert.match(mounted.text(), /规格版本 1/);
+      assert.match(mounted.text(), /方案第 1 版/);
 
       // Open the rule editor for fam-os
       const editBtn = mounted.find((n) => n.type === 'button' && textOf(n).includes('编辑推理步骤与评分规则'));
@@ -387,7 +387,7 @@ test('W1-28: ExamCoachPage avoids dual primary buttons on step 1 without sources
       await mounted.flush(5);
       assert.equal(mounted.find((n) => n.type === 'button' && textOf(n).includes('保存规则修改')), null, 'rule editor closes after successful save');
       assert.doesNotMatch(mounted.text(), /Calibration store write failed/, 'error feedback clears after successful save');
-      assert.match(mounted.text(), /规格版本 2/, 'committed spec version updates');
+      assert.match(mounted.text(), /方案第 2 版/, 'committed spec version updates');
       assert.match(mounted.text(), /Verify quantum bound/, 'committed reasoning step renders');
       assert.ok(notices.some((n) => n?.tone === 'success'), 'success toast emitted');
 
@@ -402,7 +402,7 @@ test('W1-28: ExamCoachPage avoids dual primary buttons on step 1 without sources
       await mounted.act(() => courseSelect.props.onChange('DB'));
       assert.doesNotMatch(mounted.text(), /OS Scheduling Proof/, 'prior course task family is cleared on course switch');
       assert.equal(mounted.find((n) => n.type === 'button' && textOf(n).includes('保存规则修改')), null, 'open rule editor is cleared on course switch');
-      assert.match(mounted.text(), /第 1 步：分析考察方式与范围边界/, 'stage resets to analyze on course switch');
+      assert.match(mounted.text(), /第 1 步：分析考法与范围/, 'stage resets to analyze on course switch');
       assert.ok(calls.some((c) => c.action === 'coach.calibration.get' && c.args.course === 'DB'), 'fetches calibration for new course');
 
       resolveDbGet({ spec: null, evidence: null });

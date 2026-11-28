@@ -55,6 +55,7 @@ import { useReviewSession } from './review/useReviewSession.js';
 import { shellTitleOf, useTabTitle } from './app/shell-title.js';
 import { isActiveJob } from './job-visibility.js';
 import AppSidebar from './app/AppSidebar.jsx';
+import { UpdateWatch } from './UpdateCenter.jsx';
 import AppTopbar from './app/AppTopbar.jsx';
 import AppModalHost, { readerOpen } from './app/AppModalHost.jsx';
 import { ContextReturn, IngestBanner, PracticeEndedNotice, StorageIssuesBanner } from './app/AppBanners.jsx';
@@ -159,6 +160,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                   lang={LANG_ATTR[language]} ref={shell.attachRoot} data-usage-area={page} tabIndex={-1} onKeyDown={finder.onKeyDown}
                   onPointerDown={(event) => { if (!event.target.closest('button,input,textarea,select,a')) shell.rootRef.current?.focus(); }}>
                   <AppSidebar />
+                  <UpdateWatch />
                   <main className={nav.pageTarget ? 'is-leaving' : undefined} onClickCapture={nav.pageTarget ? refuseLeavingPress : undefined}>
                     <AppTopbar title={shellTitleOf(page, { run, decks: data?.decks })} />
                     <IngestBanner />

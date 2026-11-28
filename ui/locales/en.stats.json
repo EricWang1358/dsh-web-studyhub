@@ -68,5 +68,6 @@
   "累计作答 {0} 次#one": "{0} attempt in total",
   "今天学一题，就开始新的连续学习": "Answer one question today to start a new streak",
   "已清零": "All clear",
-  "已统计维度均已达标": "All measured dimensions meet target"
+  "已统计维度均已达标": "All measured dimensions meet target",
+  "跨课程汇总": "Across all courses"
 }

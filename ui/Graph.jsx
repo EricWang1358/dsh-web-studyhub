@@ -8,6 +8,7 @@ import MasteryMap from './mastery-map/MasteryMap.jsx';
 import { FullscreenButton, ZoomControls, useCanvasFullscreen, usePanZoom } from "./canvas/index.js";
 import { useInjectCss, LEVEL_LABEL, LEVELS } from "./shared.js";
 import { usePersistentState } from "./storage.js";
+import { useAppearance } from "./use-appearance.js";
 import { joinMeta } from './format.js';
 import {
   layoutStructure,
@@ -114,11 +115,15 @@ export default function Graph({
   const validMode = defaultMode === "mastery" || defaultMode === "path" ? defaultMode : "structure";
   const [mode, setMode] = useState(validMode);
   useEffect(() => { setMode(validMode); }, [validMode]);
+  const [appearance] = useAppearance();
+  const minimal = appearance.minimal === "on";
   const [styleMode, setStyleMode] = usePersistentState(
     GRAPH_STYLE_KEY,
     GRAPH_STYLE_SET.has(defaultStyle) ? defaultStyle : "crisp",
     { parse: parseGraphStyle },
   );
+  const effectiveStyleMode = minimal ? "crisp" : styleMode;
+  const isSketch = effectiveStyleMode === "sketch";
   const [data, setData] = useState(initialData);
   const [loading, setLoading] = useState(!initialData && validMode !== "mastery");
   const [error, setError] = useState("");
@@ -129,7 +134,7 @@ export default function Graph({
   const fullscreen = useCanvasFullscreen();
   const svgRef = useRef(null);
   const palette = useInkPalette(fullscreen.ref);
-  const roughGen = useGraphRoughGenerator(styleMode === "sketch", roughGenerator);
+  const roughGen = useGraphRoughGenerator(isSketch, roughGenerator);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const { viewRef, view, viewport, fit, zoomAt, panHandlers } = usePanZoom(size.w, size.h, {
     maxFit: FIT_MAX, minInitial: 0, zoomMin: ZOOM_MIN, zoomMax: ZOOM_MAX,
@@ -296,7 +301,6 @@ export default function Graph({
     () => computeLineage(layout, spotlightId, activeMode),
     [layout, spotlightId, activeMode],
   );
-  const isSketch = styleMode === "sketch";
   const compactSketch = (layout?.placed.length || 0) > 220;
 
   /* Opened from the study map: the click that navigated here is the user
@@ -328,12 +332,12 @@ export default function Graph({
     if (!layout || !svgRef.current) return;
     const ok = exportGraphSvg(
       svgRef.current,
-      buildGraphFilename(activeMode, styleMode),
+      buildGraphFilename(activeMode, effectiveStyleMode),
       { width: layout.width, height: layout.height, palette },
     );
     if (ok) toast.success(ui("已导出知识图谱 SVG。"));
     else toast.error(ui("导出知识图谱未成功，请重试。"));
-  }, [layout, activeMode, styleMode, palette, toast]);
+  }, [layout, activeMode, effectiveStyleMode, palette, toast]);
   const clickable = !!onStudyCard && !loading && !error;
 
   const spotlightNodeClass = (key, extra = "") => {
@@ -484,7 +488,7 @@ export default function Graph({
   return (
     <section
       className={("graph" + (fullscreen.full ? " graph-canvas" : "") + (fullscreen.expanded ? " graph--expanded" : "") + " " + fullscreen.className).trim()}
-      data-graph-style={styleMode}
+      data-graph-style={effectiveStyleMode}
       ref={fullscreen.ref}
       tabIndex={-1}
       aria-busy={busy || loading}
@@ -498,7 +502,7 @@ export default function Graph({
             { value: "path", label: ui("学习路径") },
             { value: "mastery", label: ui("掌握图谱") },
           ]} />
-        {!isMastery && (
+        {!isMastery && !minimal && (
           <SegmentedControl size="sm" label={ui("画风")} value={styleMode} disabled={busy} onChange={setStyleMode}
             options={[{ value: "crisp", label: ui("精密") }, { value: "sketch", label: ui("手绘墨线") }]} />
         )}

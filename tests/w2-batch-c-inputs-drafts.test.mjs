@@ -37,7 +37,7 @@ test('W2-03: ExamCoachPage uses string drafts for numbers and persists Step 3 ed
   assert.match(src, /const \[timeDrafts, setTimeDrafts\] = useState\(\{\}\);/, 'uses local string drafts for family timeBudgetSec');
   assert.match(src, /function resolveSpecWithDrafts/, 'merges unblurred numeric drafts before saving');
   assert.doesNotMatch(src, /operations:\s*\[\{\s*type:\s*'(?:add|delete)'/, 'add/delete family saves merged taskFamilies instead of wiping pending edits via operations');
-  assert.match(src, /const leavingConfigure = stage === 'configure' && configureDirty;/, 'stage switch flushes pending Step 3 edits');
+  assert.match(src, /const leavingConfigure = stageTab === 'evidence' && configureDirty;/, 'stage switch flushes pending Step 3 edits');
 });
 
 test('W2-16: CaseWorkspace uses local drafts for CriteriaEditor keyPoints/marks and CasePaper numeric settings', () => {

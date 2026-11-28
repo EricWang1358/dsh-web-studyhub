@@ -48,11 +48,13 @@ export function FocusHelp({ mode }) {
 
 /**
  * Props: advice (generateAdvice), stats (selectionStats), modes (availableModes), mode (the one that is on, or null), onMode(mode), disabled,
+ * focus / onFocusChange (inline topic input synced with gen.focus when picking pages by topic),
  * children (the chosen way's panel), card (the long-document card, shown folded when there is no tool to search with).
  */
-export default function TooBigChoice({ advice, stats = {}, modes = [], mode = null, onMode, disabled = false, children, card = null }) {
+export default function TooBigChoice({ advice, stats = {}, modes = [], mode = null, onMode, disabled = false, focus = '', onFocusChange, children, card = null }) {
   useInjectCss(css, 'study-generation-path');
   const titleId = useId();
+  const focusId = useId();
   const limit = formatNumber(LARGE_DOCUMENT_LIMITS.selectionChars), chars = formatNumber(advice?.chars || 0);
   const why = !advice?.tooBig ? ui('这份资料比较长：可以一次出题，也可以分步出题或按主题挑页面。')
     : stats.pages > 0 ? uiFormat('所选资料约 {0} 页、{1} 个字符，一次生成最多 {2} 个字符。', [formatNumber(stats.pages), chars, limit])
@@ -72,6 +74,14 @@ export default function TooBigChoice({ advice, stats = {}, modes = [], mode = nu
           options={modes.map(value => ({ value, label: LABELS[value]() }))} onChange={onMode} />
         <Explanation modes={modes} />
       </div>}
+      {mode === MODES.retrieval && typeof onFocusChange === 'function' && (
+        <div className="too-big__focus" data-too-big-focus>
+          <label className="too-big__focus-label" htmlFor={focusId}>{ui('这次想练什么？')}</label>
+          <input id={focusId} className="too-big__focus-input" value={focus} disabled={disabled}
+            onChange={(event) => onFocusChange(event.target.value)}
+            placeholder={ui('例如：区分相似模式，重点练习工程场景中的取舍')} />
+        </div>
+      )}
       {children}
       {advice?.tooBig && <Hint>{ui('或者在上面少选几份/几页。')}</Hint>}
       {card && <Disclosure className="too-big__card" summary={ui('想按主题挑页面？先装检索工具')} meta={ui('转换与检索工具')}>{card}</Disclosure>}

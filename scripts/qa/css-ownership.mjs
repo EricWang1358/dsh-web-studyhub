@@ -11,7 +11,7 @@ import { ROOT, cssFiles, parseTree, splitSelectorList } from './css-tools.mjs';
 
 /* Sheets that exist to reach across features, so they name classes of other sheets on purpose: the theme and paper tokens, the motion
    switches, the appearance themes and accent presets, the shared floating surface, and the English-layout adjustments. */
-export const CROSS_CUTTING = ['ui/tokens.css', 'ui/paper.css', 'ui/motion.css', 'ui/appearance-themes.css', 'ui/appearance-craft.css', 'ui/accent.css', 'ui/components/overlays.css', 'ui/language.css'];
+export const CROSS_CUTTING = ['ui/tokens.css', 'ui/paper.css', 'ui/motion.css', 'ui/appearance-themes.css', 'ui/appearance-craft.css', 'ui/appearance-minimal.css', 'ui/accent.css', 'ui/components/overlays.css', 'ui/language.css'];
 
 export const ALLOW_FILE = join(ROOT, 'tests/fixtures/css-ownership-allow.json');
 

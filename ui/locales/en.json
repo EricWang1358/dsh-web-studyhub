@@ -426,11 +426,9 @@
   "03 / 错题怎么记": "03 / Record mistakes",
   "。错题会记为「薄弱」，学习路径优先出。": ". Mistakes are marked as weak and prioritised in the study path.",
   "粘贴 JSON 或读取 JSON/TXT 文件（TXT 内也需为 JSON）。支持五种题型混合导入。导入时建议标题和课程，确认后保存草稿；发布时快速校验并直接开始学习。": "Paste JSON or load a JSON/TXT file containing JSON. Import all five question types together. Review suggested titles and courses, save the draft, then publish to start studying.",
-  "01 / 各题型 JSON 提示词": "01 / JSON prompts by question type",
   "复制给 AI，追加你的资料与出题要求": "Copy to AI and append your sources and requirements",
   "复制提示词": "Copy prompt",
   "查看 JSON 格式示例": "View JSON example",
-  "02 / 导入题组": "02 / Import deck",
   "读取 JSON / TXT 文件": "Read JSON / TXT file",
   "JSON 内容": "JSON content",
   "· 原标题：": "· Original title:",
@@ -1984,5 +1982,10 @@
   "撤销批量整理建立的前置链接？": "Undo the links made by batch organize?",
   "撤销自动链接": "Undo automatic links",
   "只会移除批量整理自己建立的链接；手动添加的前置和已缓存的生词都会保留。": "Only links this batch job created are removed; hand-made prerequisites and cached terms are kept.",
-  "已移除 {0} 条自动建立的前置链接；手动添加的链接与生词缓存都保留。": "Removed {0} automatically created prerequisite links; hand-made links and cached terms are kept."
+  "已移除 {0} 条自动建立的前置链接；手动添加的链接与生词缓存都保留。": "Removed {0} automatically created prerequisite links; hand-made links and cached terms are kept.",
+  "极简模式": "Minimal mode",
+  "开启": "On",
+  "开启后隐藏书房声景、小笺、印谱与手绘特效并压平卡片；启动停留在「学习库」不自动跳待办，将待办「今日」收为单列（隐藏上下午分栏与番茄钟）并精简顶栏；同时临时静音互动音效并停用动画，关闭后原样恢复原有设置与印谱记录。": "Hides ambient soundscapes, desk notes, seals, and sketch effects; flattens cards; opens on Library without auto-jumping to Tasks; simplifies Today into a single list without AM/PM lanes or Pomodoro timer; quiets the top bar; and temporarily mutes sound effects and stops animation. Turning it off restores all previous settings and seal records.",
+  "当前已由极简模式临时静音；你的选项仍会保留，关闭极简模式后恢复。": "Temporarily muted by Minimal mode; your choice is kept and will resume when Minimal mode is turned off.",
+  "当前已由极简模式临时停用动画；你的选项仍会保留，关闭极简模式后恢复。": "Motion is temporarily turned off by Minimal mode; your choice is kept and will resume when Minimal mode is turned off."
 }

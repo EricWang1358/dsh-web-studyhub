@@ -12,6 +12,7 @@ import { useNavAlert } from './use-nav-alert.js';
 import { hostPart } from '../host-parts.js';
 import { modelReadiness } from '../generation-status.js';
 import { PracticeReturnChip } from './PracticeReturnChip.jsx';
+import { useAppearance } from '../use-appearance.js';
 import css from './app-shell.css';
 
 /** The folder a learner recognises: the default library is a hidden folder inside its workspace. */
@@ -94,13 +95,14 @@ function NavMenuButton() {
 }
 
 /** Leaf status indicator subscribing to `busy` alone so AppTopbar does not re-render on every single-flight RPC. */
-function TopbarStatus({ data, core, running, publishing, syncIssue, syncTransient, onOpenLibrary }) {
+function TopbarStatus({ data, core, running, publishing, syncIssue, syncTransient, onOpenLibrary, minimal = false }) {
   const busy = useStudyBusy() || !!core?.busy;
   const labelId = React.useId();
   // 已连接 is about the library (the chip beside it names the folder); with no model to run the questions the bar says so (and keeps its words in a narrow pane: it is not the steady state).
   const noModel = !!data && (data.model ? data.model.ready === false : data.modelReady === false);
   const hint = statusHint({ busy, running, publishing, syncIssue, syncTransient });
   const idle = !busy && !running && !syncIssue && data && !noModel;
+  if (minimal && idle) return null;
   // With no model the words are the way to Settings › 学习库与模型 (the library chip's way): the whole area becomes one button that
   // looks exactly like the words it replaced, so the bar does not move. A failing read or a running action keeps its own words and is not a button.
   const fixModel = noModel && !busy && !running && !syncIssue;
@@ -119,8 +121,10 @@ function TopbarStatus({ data, core, running, publishing, syncIssue, syncTransien
 }
 
 /** The top bar: the crumb for the page on screen, where the library lives, whether the host is working, and the mailbox. */
-const AppTopbar = React.memo(function AppTopbar({ title }) {
+const AppTopbar = React.memo(function AppTopbar({ title, minimal: minimalProp }) {
   useInjectCss(css, 'study-app-shell');
+  const [appearance] = useAppearance();
+  const minimal = minimalProp ?? (appearance.minimal === 'on');
   const data = useAppSelector((s) => s.data);
   const core = useAppSelector((s) => s.core);
   const nav = useAppSelector((s) => s.nav);
@@ -155,9 +159,9 @@ const AppTopbar = React.memo(function AppTopbar({ title }) {
         />
       )}
       <div className="top-right">
-        <LibraryChip root={binding.root} onOpen={openLibrary} />
-        <ModelChip label={model.ready ? model.label : ''} note={hostPart('modelCostNote')?.(binding)} onOpen={openLibrary} />
-        <TopbarStatus data={data} core={core} running={running} publishing={publishing} syncIssue={syncIssue} syncTransient={syncTransient} onOpenLibrary={openLibrary} />
+        {!minimal && <LibraryChip root={binding.root} onOpen={openLibrary} />}
+        {!minimal && <ModelChip label={model.ready ? model.label : ''} note={hostPart('modelCostNote')?.(binding)} onOpen={openLibrary} />}
+        <TopbarStatus data={data} core={core} running={running} publishing={publishing} syncIssue={syncIssue} syncTransient={syncTransient} onOpenLibrary={openLibrary} minimal={minimal} />
         {data && (
           <Inbox inbox={data.inbox} onOpen={inbox.openInboxItem} onReadAll={() => markInboxRead(quick)}
             onToggleRead={(letter) => (letter.read ? markInboxUnread(quick, { ids: [letter.id] }) : markInboxRead(quick, { ids: [letter.id] }))}

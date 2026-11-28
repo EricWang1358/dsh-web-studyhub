@@ -50,6 +50,7 @@
       border-bottom: 1px solid var(--line);
       background: var(--bg-raised);
     }
+    .reader[data-docked] .reader-toolbar { padding-block: var(--space-1); }
     .reader-toolbar__group { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
     .reader-toolbar__group--end { margin-left: auto; }
     .reader-toolbar__where {

@@ -37,6 +37,9 @@
     .generate-presets { display: flex; flex-wrap: wrap; gap: var(--space-1); min-width: 0; }
     .generate-preset { min-width: 38px; text-align: center; font-variant-numeric: tabular-nums; }
     /* ── Focus box and its assist ─────────────────────────────────────────── */
+    .too-big__focus { display: grid; gap: var(--space-1-5); min-width: 0; }
+    .too-big__focus-label { margin: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); line-height: var(--lh-snug); }
+    .too-big__focus-input { width: 100%; min-width: 0; margin: 0; }
     .generate-focus { min-height: 62px; padding: var(--space-2) var(--space-3); resize: none; overflow-y: auto; line-height: var(--lh-snug); }
     .generate-assist { display: grid; gap: var(--space-2); width: 100%; min-width: 0; }
     .generate-assist__bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }

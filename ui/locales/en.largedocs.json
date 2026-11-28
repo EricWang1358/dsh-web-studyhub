@@ -27,7 +27,6 @@
   "大教材建议": "Large textbooks",
   "需要整本检索时": "When you need the whole book",
   "可选": "Optional",
-  "还没有转换过 PDF？": "Not converted a PDF yet?",
   "转换工具": "Converters",
   "渠道与协议于 {0} 核对；以各项目官方页面为准。": "Channels and licences checked on {0}; the projects’ own pages are authoritative.",
   "mineru.net（桌面客户端 / 在线解析）": "mineru.net (desktop client / online parsing)",
@@ -278,5 +277,8 @@
   "PaddleOCR 在线解析": "PaddleOCR Online",
   "网页端（免安装）": "Web (no install)",
   "paddleocr.ai（在线解析）": "paddleocr.ai (online conversion)",
-  "paddleocr.ai（国内直连）": "paddleocr.ai (reachable in mainland China)"
+  "paddleocr.ai（国内直连）": "paddleocr.ai (reachable in mainland China)",
+  "其他导入方式": "Other import options",
+  "在线解析、发给主会话、高级工具": "Online parsing, main chat, advanced tools",
+  "转换工具与高级方式": "Converters and advanced options"
 }

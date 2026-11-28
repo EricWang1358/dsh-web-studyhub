@@ -127,6 +127,18 @@ export function PaddleOcrOption() {
   );
 }
 
+function ConverterAlternatives({ showOnline = false, why = '', file = null, picked = null, courses = [], scanned = false }) {
+  const { host } = useStudy();
+  const canChat = hasChatHost(host);
+  return (
+    <>
+      {showOnline && <PaddleOcrOption />}
+      {why && <HandOff id="import.file" input={{ purpose: 'material', area: '添加资料', error: why, files: [file?.name || picked?.name].filter(Boolean), facts: courses.length ? { courses } : null }}
+        lead={showOnline ? '既不想安装也不想上传：' : '不想装转换工具：'} shape="quiet" what={converterHandOffWhat(scanned, canChat)} />}
+    </>
+  );
+}
+
 /**
  * The leading converter: StudyHub runs local MinerU or shows its setup. With `runnable` the whole flow is here (it asks the host through useStudy);
  * without it the card explains local model setup. `file` is the PDF a too-large import was
@@ -134,20 +146,16 @@ export function PaddleOcrOption() {
  * many pages or too much text; `scanned`: no text in it); given, the card also offers 「不想装转换工具：发给主会话」 (the hand-off plan N10), so Settings, which
  * only explains, and the advice for material already imported (a selection too big, a long book) have none.
  */
-export function ConverterMain({ available = true, runnable = false, file = null, courses = [], jobs, onOpenSettings, onStarted, why = '', scanned = false, showOnline = false }) {
+export function ConverterMain({ available = true, runnable = false, file = null, courses = [], jobs, onOpenSettings, onStarted, why = '', scanned = false, showOnline = false, includeAlternatives = true }) {
   const [picked, setPicked] = useState(null);
-  const { host } = useStudy();
-  const canChat = hasChatHost(host);
   return (
     <div className="large-doc__group" data-role="converter">
       <h3 className="large-doc__group-title">{showOnline ? ui('方案一：本机一键解析（推荐，不上传）') : ui('转换：把 PDF 变成带页码的文字')}</h3>
       {runnable
         ? <PdfConversion available={available} compact file={file || picked} onFile={file ? undefined : setPicked} courses={courses} jobs={jobs} onOpenSettings={onOpenSettings} onStarted={onStarted} />
         : <div className="large-doc__tools"><ToolCard tool={byId('mineru-local')} /></div>}
-      {showOnline && <PaddleOcrOption />}
+      {includeAlternatives && <ConverterAlternatives showOnline={showOnline} why={why} file={file} picked={picked} courses={courses} scanned={scanned} />}
       {!showOnline && <Hint>{ui('转换结果带页码，StudyHub 才能按页引用；大书会按这台电脑的速度分段处理。')}</Hint>}
-      {why && <HandOff id="import.file" input={{ purpose: 'material', area: '添加资料', error: why, files: [file?.name || picked?.name].filter(Boolean), facts: courses.length ? { courses } : null }}
-        lead={showOnline ? '既不想安装也不想上传：' : '不想装转换工具：'} shape="quiet" what={converterHandOffWhat(scanned, canChat)} />}
     </div>
   );
 }
@@ -249,15 +257,26 @@ export default function LargeDocumentCard({ reason, detail = {}, document, retri
       </header>
       {!converting && <ol className="large-doc__steps">{steps.map((step, index) => <li key={index} className="large-doc__step">{step()}</li>)}</ol>}
       {converting ? <>
-        <ConverterMain available={canConvert} runnable={runnable && canConvert} file={detail.file} courses={courseNames} jobs={jobs} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} why={reasonText(reason, detail)} showOnline />
-        <Disclosure summary={ui('需要整本检索时')} meta={ui('可选')} className="large-doc__more" defaultOpen={retrieval?.extension?.installed === true}>{search}</Disclosure>
+        <ConverterMain available={canConvert} runnable={runnable && canConvert} file={detail.file} courses={courseNames} jobs={jobs} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} showOnline includeAlternatives={false} />
+        <Disclosure summary={ui('其他导入方式')} meta={ui('在线解析、发给主会话、高级工具')} className="large-doc__more large-doc__alternatives">
+          <div className="large-doc__alternatives-body">
+            <ConverterAlternatives showOnline why={reasonText(reason, detail)} file={detail.file} courses={courseNames} />
+            <Disclosure summary={ui('需要整本检索时')} meta={ui('可选')} className="large-doc__more" defaultOpen={retrieval?.extension?.installed === true}>{search}</Disclosure>
+            <AdvancedTools desktopHost={isDesktopApp} />
+            <p className="large-doc__verified">{uiFormat('渠道与协议于 {0} 核对；以各项目官方页面为准。', [VERIFIED_AT])}</p>
+          </div>
+        </Disclosure>
       </> : <>
         {search}
-        <Disclosure summary={ui('还没有转换过 PDF？')} meta={ui('转换工具')} className="large-doc__more"><ConverterMain available={canConvert} runnable={runnable && canConvert} courses={courseNames} jobs={jobs} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} showOnline /></Disclosure>
+        <Disclosure summary={ui('其他导入方式')} meta={ui('转换工具与高级方式')} className="large-doc__more large-doc__alternatives">
+          <div className="large-doc__alternatives-body">
+            <ConverterMain available={canConvert} runnable={runnable && canConvert} courses={courseNames} jobs={jobs} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} showOnline />
+            <AdvancedTools desktopHost={isDesktopApp} />
+            <p className="large-doc__verified">{uiFormat('渠道与协议于 {0} 核对；以各项目官方页面为准。', [VERIFIED_AT])}</p>
+          </div>
+        </Disclosure>
       </>}
-      <AdvancedTools desktopHost={isDesktopApp} />
       <DetectionLine retrieval={retrieval} onOpenSettings={onOpenSettings} />
-      <p className="large-doc__verified">{uiFormat('渠道与协议于 {0} 核对；以各项目官方页面为准。', [VERIFIED_AT])}</p>
     </section>
   );
 }

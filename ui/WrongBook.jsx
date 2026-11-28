@@ -11,7 +11,7 @@ import StudyMath from "./StudyMath.jsx";
 import { splitStudyMath } from "./study-media.js";
 import { usePolling } from "./use-polling.js";
 import EmptyStudyActions from "./EmptyStudyActions.jsx";
-import { RubricResult, RubricSkills } from "./CaseResult.jsx";
+import { RubricResult, RubricSkills, rubricSkills } from "./CaseResult.jsx";
 import CorrectionCard from "./review/CorrectionCard.jsx";
 import PageScope, { courseMatcher, courseParked, decksInCourse, scopedAttemptsOf, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
 import { Badge, Banner, Button, ChunkedRows, Combobox, DisclosureToggle, foldLabel, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl, Spinner, TextInput, Tooltip, Chip, highlightParts, useToast } from './components/index.js';
@@ -996,6 +996,7 @@ export function WrongBookView({
   useEffect(() => { saveOpenGroups(openKey, openGroups); }, [openKey, openGroups]);
   const [recsAll, setRecsAll] = useState(!!initial.recsAll);
   const [recsOpen, setRecsOpen] = useState(!!initial.recsOpen || !!initial.recsAll);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(Boolean(initial.diagnosticsOpen || initial.recsOpen || initial.recsAll));
   const [recOpen, setRecOpen] = useState(() => new Set());
   const [choice, setChoice] = useState(initial.retrain || null);
   const [ask, setAsk] = useState(initial.askConsent ? { cards: [] } : null);
@@ -1244,6 +1245,15 @@ export function WrongBookView({
   const recsShown = recsAll ? recItems : recItems.slice(0, RECS_PREVIEW);
   // One folded line from the first paint, so the answer never inserts a block above the list (#206).
   const showRecs = !isHistory && total > 0 && (!!recs || recsLoading);
+  const hasRubricSkills = useMemo(() => !isHistory && rubricSkills(scopedAttempts).length > 0, [isHistory, scopedAttempts]);
+  const showClinicOffer = !isHistory && !clinicOn && rows.length >= 2 && typeof onToggleClinic === "function";
+  const showWeaknessBar = !isHistory && total >= filterMin;
+  const hasDiagnostics = !isHistory && (hasRubricSkills || clinicLanes.length > 0 || showClinicOffer || showRecs || showWeaknessBar);
+  const diagnosticsMeta = joinMeta([
+    clinicLanes.length > 0 && uiFormat("{0} 条清零建议", [clinicLanes.length]),
+    recItems.length > 0 && uiFormat("同类题 {0} 道", [recItems.length]),
+    showWeaknessBar && uiFormat("分布 {0} 组", [groups.length]),
+  ]);
   const practiceRec = (rec) => onPractice([refOf(rec)]);
   const groupsId = useId();
   // A group draws its rows in chunks (ChunkedRows); another filter, grouping, view, scope or page starts every group from its first chunk again.
@@ -1516,63 +1526,81 @@ export function WrongBookView({
         );
       })()}
 
-      {/* Weak rubric criteria as skills (WP12): case linkage, assumptions, justification… */}
-      {!isHistory && <RubricSkills attempts={scopedAttempts} practiceLabel={ui("练案例题")}
-        onPractice={scopedCaseDecks.length
-          ? () => onPractice(scopedCaseDecks.map((deck) => ({ deckId: deck.id }))) : undefined} />}
+      {/* Secondary diagnostic blocks fold into one disclosure so wrong questions sit immediately above the fold while preserving all tour anchors. */}
+      {hasDiagnostics && (
+        <details
+          className="wb-diagnostics-fold"
+          open={diagnosticsOpen}
+          onToggle={(event) => setDiagnosticsOpen(event.currentTarget.open)}
+        >
+          <summary className="wb-diagnostics-fold__summary">
+            <span className="wb-diagnostics-fold__title">{ui("错题诊断与推荐")}</span>
+            {diagnosticsMeta && <span className="muted wb-diagnostics-fold__meta">{diagnosticsMeta}</span>}
+          </summary>
+          <div className="wb-diagnostics-fold__body">
+            {/* Weak rubric criteria as skills (WP12): case linkage, assumptions, justification… */}
+            <RubricSkills attempts={scopedAttempts} practiceLabel={ui("练案例题")}
+              onPractice={scopedCaseDecks.length
+                ? () => onPractice(scopedCaseDecks.map((deck) => ({ deckId: deck.id }))) : undefined} />
 
-      {!isHistory && clinicLanes.length > 0 && (
-        <WrongBookClinic lanes={clinicLanes} filterLeech={!!filter.leech} loading={loading}
-          course={course && course !== '*' ? course : ''} canChat={canChat} canOpenModel={!!openModel}
-          canOpenSource={!!openModal} canPractice={!!onPractice}
-          experimentJobs={activeExperimentJobs} rescuePrompt={activeRescuePrompt}
-          onOpenSource={openCardSource} onOpenCompanion={openCardCompanion}
-          onPracticeScope={(refs) => practiceScope(refs)}
-          onToggleLeech={() => patchFilter({ leech: !filter.leech })}
-          onRescueCluster={(onStartClusterExperiment || onStartExperiment) ? triggerClusterExperiment : undefined}
-          onDismissRescue={dismissRescue} onOpenModel={openModel}
-          onHideClinic={typeof onToggleClinic === "function" ? () => handleToggleClinic(false) : null}
-          togglingClinic={togglingClinic} />
-      )}
-      {!isHistory && !clinicOn && rows.length >= 2 && typeof onToggleClinic === "function" && (
-        <div className="wb-plan-offer" data-wrongbook-plan-toggle="">
-          <Button variant="quiet" size="sm" aria-pressed={false} lock={togglingClinic || busy} onClick={() => handleToggleClinic(true)}>
-            {ui("开启专项清零建议")}
-          </Button>
-          <span className="muted wb-plan-offer__hint">{ui("按同页出处、顽固题与单次失误整理（不消耗模型）")}</span>
-        </div>
-      )}
-
-      {showRecs && (
-        <section className={"wb-recs" + (recsOpen && recItems.length ? " is-open" : "")} aria-labelledby="wb-recs-title" data-tour="wrongbook-recs">
-          <div className="wb-recs-bar">
-            {/* The fold arrow's place is kept while there is nothing to fold, so the title does not move when the answer arrives. */}
-            {recItems.length > 0
-              ? <DisclosureToggle open={recsOpen} onToggle={setRecsOpen} controls="wb-recs-body" label={foldLabel(recsOpen, ui("为你推荐"))} />
-              : <span className="wb-recs-spacer" aria-hidden="true" />}
-            <h2 id="wb-recs-title">{ui("为你推荐")}<span className="wb-free">{ui("不消耗模型")}</span></h2>
-            {/* What was found and how it is practised: the page's one start takes it when 「错题 + 同类题」 is the scope. */}
-            <span className="muted wb-recs-status" role="status">{recItems.length === 0 ? (recsLoading ? ui("正在查找同类题…") : ui("题库里没有找到合适的同类题"))
-              : picked === "similar" ? uiFormat("共 {0} 道，已在这一轮重练里", [recItems.length])
-                : uiFormat("共 {0} 道，选「错题 + 同类题」来练", [recItems.length])}</span>
-          </div>
-          {recsOpen && recItems.length > 0 && (
-            <div id="wb-recs-body" className="wb-recs-body">
-              <p className="muted">{ui("题库里已有的相似题：同主题、引用同一页，或关键词相近；已排除你刚答对的。")}</p>
-              <ul className="wb-rec-list">
-                {recsShown.map((rec) => (
-                  <RecRow key={rec.deckId + rec.cardId} rec={rec} shortName={shortName} disabled={busy}
-                    open={recOpen.has(rec.cardId)} onToggle={() => toggle(recOpen, setRecOpen, rec.cardId)} onPractice={() => practiceRec(rec)} />
-                ))}
-              </ul>
-              {recItems.length > RECS_PREVIEW && (
-                <Button className="wb-recs-body__more" variant="link" size="sm" onClick={() => setRecsAll(!recsAll)}>
-                  {recsAll ? ui("收起") : uiFormat("再显示 {0} 道", [recItems.length - RECS_PREVIEW])}
+            {clinicLanes.length > 0 && (
+              <WrongBookClinic lanes={clinicLanes} filterLeech={!!filter.leech} loading={loading}
+                course={course && course !== '*' ? course : ''} canChat={canChat} canOpenModel={!!openModel}
+                canOpenSource={!!openModal} canPractice={!!onPractice}
+                experimentJobs={activeExperimentJobs} rescuePrompt={activeRescuePrompt}
+                onOpenSource={openCardSource} onOpenCompanion={openCardCompanion}
+                onPracticeScope={(refs) => practiceScope(refs)}
+                onToggleLeech={() => patchFilter({ leech: !filter.leech })}
+                onRescueCluster={(onStartClusterExperiment || onStartExperiment) ? triggerClusterExperiment : undefined}
+                onDismissRescue={dismissRescue} onOpenModel={openModel}
+                onHideClinic={typeof onToggleClinic === "function" ? () => handleToggleClinic(false) : null}
+                togglingClinic={togglingClinic} />
+            )}
+            {showClinicOffer && (
+              <div className="wb-plan-offer" data-wrongbook-plan-toggle="">
+                <Button variant="quiet" size="sm" aria-pressed={false} lock={togglingClinic || busy} onClick={() => handleToggleClinic(true)}>
+                  {ui("开启专项清零建议")}
                 </Button>
-              )}
-            </div>
-          )}
-        </section>
+                <span className="muted wb-plan-offer__hint">{ui("按同页出处、顽固题与单次失误整理（不消耗模型）")}</span>
+              </div>
+            )}
+
+            {showRecs && (
+              <section className={"wb-recs" + (recsOpen && recItems.length ? " is-open" : "")} aria-labelledby="wb-recs-title" data-tour="wrongbook-recs">
+                <div className="wb-recs-bar">
+                  {/* The fold arrow's place is kept while there is nothing to fold, so the title does not move when the answer arrives. */}
+                  {recItems.length > 0
+                    ? <DisclosureToggle open={recsOpen} onToggle={setRecsOpen} controls="wb-recs-body" label={foldLabel(recsOpen, ui("为你推荐"))} />
+                    : <span className="wb-recs-spacer" aria-hidden="true" />}
+                  <h2 id="wb-recs-title">{ui("为你推荐")}<span className="wb-free">{ui("不消耗模型")}</span></h2>
+                  {/* What was found and how it is practised: the page's one start takes it when 「错题 + 同类题」 is the scope. */}
+                  <span className="muted wb-recs-status" role="status">{recItems.length === 0 ? (recsLoading ? ui("正在查找同类题…") : ui("题库里没有找到合适的同类题"))
+                    : picked === "similar" ? uiFormat("共 {0} 道，已在这一轮重练里", [recItems.length])
+                      : uiFormat("共 {0} 道，选「错题 + 同类题」来练", [recItems.length])}</span>
+                </div>
+                {recsOpen && recItems.length > 0 && (
+                  <div id="wb-recs-body" className="wb-recs-body">
+                    <p className="muted">{ui("题库里已有的相似题：同主题、引用同一页，或关键词相近；已排除你刚答对的。")}</p>
+                    <ul className="wb-rec-list">
+                      {recsShown.map((rec) => (
+                        <RecRow key={rec.deckId + rec.cardId} rec={rec} shortName={shortName} disabled={busy}
+                          open={recOpen.has(rec.cardId)} onToggle={() => toggle(recOpen, setRecOpen, rec.cardId)} onPractice={() => practiceRec(rec)} />
+                      ))}
+                    </ul>
+                    {recItems.length > RECS_PREVIEW && (
+                      <Button className="wb-recs-body__more" variant="link" size="sm" onClick={() => setRecsAll(!recsAll)}>
+                        {recsAll ? ui("收起") : uiFormat("再显示 {0} 道", [recItems.length - RECS_PREVIEW])}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Where the mistakes are, before a learner opens groups one by one (#748). */}
+            {showWeaknessBar && <WeaknessBar groups={groups} onPick={pickGroup} />}
+          </div>
+        </details>
       )}
 
       {items && !counts.total && (isHistory ? (
@@ -1684,9 +1712,6 @@ export function WrongBookView({
         </div>
       )}
       {total > 0 && !showBar && showBatch && batchButton}
-      {/* Where the mistakes are, before a learner opens groups one by one (#748). The same threshold as the toolbar (#675), and it follows the
-          grouping and the filter the list uses: the bar is the list, seen at once. */}
-      {!isHistory && total >= filterMin && <WeaknessBar groups={groups} onPick={pickGroup} />}
 
       {!isHistory && gated && total > 0 && (
         <ModelSetupGate feature="variants" model={{ ready: false }} onOpenSettings={onOpenSettings} />
