@@ -1479,7 +1479,7 @@ describe('#1608 DeckManageModal: submit returns to browse, replies for a switche
     const deck = makeSampleDeck();
     const snap = makeSampleSnapshot();
     resetStore({ language: 'en', asciiMode: true, snapshot: snap });
-    const { host } = makeHost(async (name, args) => {
+    const { host, calls } = makeHost(async (name, args) => {
       if (name === 'deck.get') return { ok: true, value: deck };
       if (name === 'snapshot') return { ok: true, value: snap };
       if (name === 'deck.move') return { ok: true, value: { id: args.id, folder: args.folder } };
@@ -1497,7 +1497,12 @@ describe('#1608 DeckManageModal: submit returns to browse, replies for a switche
       await h.waitFor((f) => f.includes('/ Paging'), 2000, 'folder typed');
       h.dispatchKey('', { return: true });
       await h.waitFor(() => hasToast('Moved to folder'), 3000, 'folder saved');
-      await h.waitFor((f) => !f.includes('Deck folder') && f.includes('Sel'), 2000, 'back in browse after the folder submit');
+      const afterFolderFrame = await h.waitFor((f) => !f.includes('Deck folder') && f.includes('Sel'), 2000, 'back in browse after the folder submit');
+      const moveCall = calls.find((c) => c.name === 'deck.move');
+      assert.deepEqual(moveCall?.args, { id: deck.id, folder: 'Systems / Kernel / Paging' }, 'folder submit sends expected deck.move payload');
+      assert.equal(hasToast('Moved to folder'), true, 'folder save toast recorded');
+      assert.doesNotMatch(afterFolderFrame, /Deck folder/, 'folder edit form closed after submit');
+      assert.match(afterFolderFrame, /Sel/, 'returned to browse view after folder submit');
 
       h.dispatchKey(' ', {});
       await h.waitFor((f) => f.includes('[1 sel]'), 2000, 'one card selected');
@@ -1507,7 +1512,14 @@ describe('#1608 DeckManageModal: submit returns to browse, replies for a switche
       await h.waitFor((f) => f.includes('Memory'), 2000, 'topic typed');
       h.dispatchKey('', { return: true });
       await h.waitFor(() => hasToast('Retagged 1 card(s)'), 3000, 'topic saved');
-      await h.waitFor((f) => !f.includes('Batch retag topic') && f.includes('Sel'), 2000, 'back in browse after the topic submit');
+      const afterTopicFrame = await h.waitFor((f) => !f.includes('Batch retag topic') && f.includes('Sel'), 2000, 'back in browse after the topic submit');
+      const topicCall = calls.find((c) => c.name === 'card.update.batch');
+      assert.equal(topicCall?.args?.updates?.length, 1, 'topic submit sends one card update');
+      assert.equal(topicCall?.args?.updates?.[0]?.patch?.topic, 'Memory', 'topic submit sends entered topic name');
+      assert.equal(hasToast('Retagged 1 card(s)'), true, 'topic save toast recorded');
+      assert.doesNotMatch(afterTopicFrame, /Batch retag topic/, 'topic edit form closed after submit');
+      assert.match(afterTopicFrame, /Sel/, 'returned to browse view after topic submit');
+      assert.doesNotMatch(afterTopicFrame, /\[1 sel\]/, 'selection cleared after batch retag');
     } finally {
       h.cleanup();
     }

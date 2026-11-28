@@ -1437,7 +1437,7 @@ describe('#1623 TasksView: late delete/purge results, pause/concurrency override
   test('17. Moved behaviour: a status change of the selected job re-fetches its output', async () => {
     const liveGate = deferred();
     let outputText = 'first pass log';
-    const { host } = makeHost(async (name) => {
+    const { calls, host } = makeHost(async (name) => {
       if (name === 'job.live.list') {
         await liveGate.promise;
         return {
@@ -1472,10 +1472,19 @@ describe('#1623 TasksView: late delete/purge results, pause/concurrency override
       { cols: 120, rows: 34, shellActions: makeShellActions() },
     );
     try {
-      await h.waitFor((f) => f.includes('first pass log'), 4000, 'first output');
+      const beforeFrame = await h.waitFor((f) => f.includes('first pass log'), 4000, 'first output');
+      const initialOutputCalls = calls.filter((c) => c.name === 'job.output' && c.args?.jobId === 'job-flip').length;
+      assert.match(beforeFrame, /first pass log/, 'initial output rendered before status flip');
+      assert.doesNotMatch(beforeFrame, /second pass log/, 'updated output has not rendered before status flip');
+      assert.ok(initialOutputCalls >= 1, 'initial job.output fetch occurred for job-flip');
+
       outputText = 'second pass log';
       liveGate.resolve();
-      await h.waitFor((f) => f.includes('second pass log'), 4000, 'output re-fetched after the status change');
+      const afterFrame = await h.waitFor((f) => f.includes('second pass log'), 4000, 'output re-fetched after the status change');
+      const totalOutputCalls = calls.filter((c) => c.name === 'job.output' && c.args?.jobId === 'job-flip').length;
+      assert.match(afterFrame, /second pass log/, 'settled frame displays refreshed job output');
+      assert.doesNotMatch(afterFrame, /first pass log/, 'stale output text is replaced after status flip');
+      assert.ok(totalOutputCalls > initialOutputCalls, 'job.output was re-fetched after status changed');
     } finally {
       liveGate.resolve();
       h.cleanup();
@@ -1559,9 +1568,16 @@ describe('#1623 TasksView: late delete/purge results, pause/concurrency override
     try {
       await h.waitFor((f) => f.includes('Live Modal Job'), 4000, 'job listed');
       h.dispatchKey('o', {});
-      await h.waitFor((f) => f.includes('Job Output: Live Modal Job') && f.includes('(1/1)'), 4000, 'output modal on the snapshot record');
+      const beforeModal = await h.waitFor((f) => f.includes('Job Output: Live Modal Job') && f.includes('(1/1)'), 4000, 'output modal on the snapshot record');
+      assert.match(beforeModal, /Job Output: Live Modal Job/, 'modal opens with job title');
+      assert.match(beforeModal, /\(1\/1\)/, 'modal shows initial snapshot call count (1/1)');
+      assert.doesNotMatch(beforeModal, /\(2\/2\)/, 'modal has not yet switched to live record');
+
       liveGate.resolve();
-      await h.waitFor((f) => f.includes('Job Output: Live Modal Job') && f.includes('(2/2)'), 4000, 'output modal switched to the live record');
+      const afterModal = await h.waitFor((f) => f.includes('Job Output: Live Modal Job') && f.includes('(2/2)'), 4000, 'output modal switched to the live record');
+      assert.match(afterModal, /Job Output: Live Modal Job/, 'modal remains open on the same job');
+      assert.match(afterModal, /\(2\/2\)/, 'modal updates to live record call count (2/2)');
+      assert.doesNotMatch(afterModal, /\(1\/1\)/, 'stale snapshot call count (1/1) is replaced');
     } finally {
       liveGate.resolve();
       h.cleanup();

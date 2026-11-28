@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readText } from '../scripts/qa/css-tools.mjs';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 import { inApp } from './helpers/fake-app.mjs';
 import { loadInteractiveUi, withBrowserGlobals, textOf } from './helpers/react-harness.mjs';
@@ -159,8 +160,18 @@ test('Draft: blocker summary jumps to flagged card when indices exist, falls bac
   assert.match(enHtml, /Jump to flagged question/);
   assert.match(enHtml, /More fields/);
 
-  const draftCss = await readFile(new URL('../ui/draft.css', import.meta.url), 'utf8');
-  assert.doesNotMatch(draftCss, /\.sticky-actions__status:not\(\[data-unsaved\]\)\s*\{\s*display:\s*none/, 'card count remains visible on narrow panes');
+  // Card count status renders visibly without hidden/display:none even when there are no unsaved edits
+  assert.match(flaggedHtml, /<p class="sticky-actions__status">[^<]*<strong>1<\/strong>/, 'rendered DraftBar shows card count status');
+  const { declarations: draftDecls } = parseCss(readText('ui/draft.css'));
+  const statusDecls = draftDecls.filter((d) => /\.sticky-actions__status\b/.test(d.ctx.at(-1) || ''));
+  assert.equal(
+    statusDecls.some((d) => d.prop === 'display' && d.value === 'none'),
+    false,
+    'card count remains visible on narrow panes',
+  );
+  const narrowStatusDecls = statusDecls.filter((d) => d.ctx.some((c) => /@container\s+study\s*\(\s*max-width\s*:\s*720px\s*\)/.test(c)));
+  assert.ok(narrowStatusDecls.some((d) => d.prop === 'white-space' && d.value === 'nowrap'), 'narrow pane keeps status on one line');
+  assert.ok(narrowStatusDecls.some((d) => d.prop === 'text-overflow' && d.value === 'ellipsis'), 'narrow pane clamps status with ellipsis');
 });
 
 /* ---------- 3. Manage ---------- */
@@ -280,11 +291,15 @@ test('TooBigChoice & Generate: retrieval mode shows inline topic input synced wi
 
 /* ---------- 6. AudioImport + LiveClass ---------- */
 
-test('AudioImport: secondary ways render as a single inline bar', async () => {
+test('AudioImport: secondary ways render as a single inline bar', () => {
   const html = render(h(m.AudioImport, { data: { decks: [], jobs: [] }, busy: false, act: noop }));
   assert.match(html, /class="audio-ways" data-audio-ways="inline"/);
-  const audioCss = await readFile(new URL('../ui/audio-import.css', import.meta.url), 'utf8');
-  assert.match(audioCss, /\.audio-ways\s*\{[^}]*display:\s*flex;/);
+  const { declarations: audioDecls } = parseCss(readText('ui/audio-import.css'));
+  const waysDecls = audioDecls.filter((d) => d.ctx.at(-1) === '.audio-ways');
+  assert.ok(waysDecls.some((d) => d.prop === 'display' && d.value === 'flex'), '.audio-ways uses flex layout for inline bar');
+  assert.ok(waysDecls.some((d) => d.prop === 'flex-wrap' && d.value === 'wrap'), '.audio-ways wraps gracefully when opened or narrow');
+  const openDisclosureDecls = audioDecls.filter((d) => (d.ctx.at(-1) || '').includes('.audio-workspace[open]'));
+  assert.ok(openDisclosureDecls.some((d) => d.prop === 'flex' && d.value === '1 0 100%'), 'expanded disclosures span full width below inline bar');
 });
 
 test('LiveClass: hides $0 paid estimate in local/free mode, folds secondary save option, and adds 2-dot legend in live-feed-head', () => {

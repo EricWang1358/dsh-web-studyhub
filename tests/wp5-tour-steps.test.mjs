@@ -6,7 +6,8 @@ import { readFile, readdir, access } from "node:fs/promises";
 import { join } from "node:path";
 import { anchorsInSource, sourceFiles } from "./helpers/tour-anchors.mjs";
 import { TOUR_STEPS, TOUR_CHAPTERS, availableTourSteps, tourNeighbour, tourNextChapter, tourKeyAction, tourStepCopy, chapterHeading,
-  opensFromNav, CORE_TOUR_LENGTH, CORE_ORDER, FULL_TOUR_ORDER } from "../ui/tour/steps.js";
+  opensFromNav, CORE_TOUR_LENGTH, CORE_ORDER } from "../ui/tour/steps.js";
+import { readTourProgress, writeTourProgress } from "../ui/tour/progress.js";
 import { NAV_DEFAULTS, mergeOrder, migrateOrder } from "../ui/nav-order.js";
 
 const han = /[㐀-鿿]/;
@@ -58,7 +59,7 @@ test("the default tour is the first-run line's order in 7 steps: 欢迎, 设置�
   const core = idsOf({ line: true });
   assert.deepEqual(core, ["welcome", "settings-model", "sources", "generate-quick", "draft", "practice", "finish-line"]);
   assert.equal(core.length, CORE_TOUR_LENGTH, "the number the line's sample link says");
-  assert.equal(CORE_TOUR_LENGTH, 7, "8 → 7 steps");
+  assert.equal(core.length, 7, "8 → 7 steps");
   assert.ok(!core.includes("tasks"), "任务 is in the full tour only: on the first run the run's card is in the line's step 3");
   const last = TOUR_STEPS.find((step) => step.id === "finish-line");
   assert.equal(last.page, "library");
@@ -78,8 +79,27 @@ test("the full tour is the explicit extra: every step but the short-tour-only on
     "mastery", "wrongbook", "dashboard", "outline",
     "exam", "examprep", "exam-plan",
     "notes", "skeleton", "book", "board", "settings-audio", "settings-extensions", "backup", "finish"]);
-  // A paused full tour is remembered as a step of THIS order: reorder the list or put a step before others, and this number goes up with the list above.
-  assert.equal(FULL_TOUR_ORDER, 2);
+  // A paused full tour is remembered as a step of THIS order (order 2): reorder the list or put a step before others, and the stored order goes up so stale progress restarts.
+  const store = new Map();
+  const prevStorage = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key) => (store.has(key) ? store.get(key) : null),
+      setItem: (key, val) => { store.set(key, String(val)); },
+      removeItem: (key) => { store.delete(key); },
+    },
+  });
+  try {
+    writeTourProgress("tour-order-root", { stepId: "tasks", done: false, full: true });
+    assert.equal(JSON.parse(store.get("study-tour:tour-order-root")).order, 2, "persisted full-tour progress stamps order 2");
+    assert.deepEqual(readTourProgress("tour-order-root"), { stepId: "tasks", done: false, full: true }, "current order resumes at the saved step");
+    store.set("study-tour:tour-order-root", JSON.stringify({ stepId: "tasks", done: false, full: true, order: 1 }));
+    assert.deepEqual(readTourProgress("tour-order-root"), { stepId: "", done: false, full: true }, "a stale full-tour order resets to the beginning");
+  } finally {
+    if (prevStorage) Object.defineProperty(globalThis, "localStorage", prevStorage);
+    else delete globalThis.localStorage;
+  }
   assert.ok(!idsOf({ full: true }).includes("generate-quick"), "the short generate step has longer siblings in the full tour");
   assert.deepEqual(idsOf({ full: true, line: true }), idsOf({ full: true }), "the full tour is the same whether or not the line is up");
   assert.equal(new Set(TOUR_STEPS.map((step) => step.id)).size, TOUR_STEPS.length, "unique ids");
