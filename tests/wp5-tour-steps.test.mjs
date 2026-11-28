@@ -183,6 +183,23 @@ test("every step has Chinese copy with an English translation", () => {
   }
 });
 
+test("the tour's English calls a control what the English interface calls it", () => {
+  const plain = (name) => name.replace(/…$/, "").toLowerCase();
+  // 「前置」 in 创建题组's note is the tour's own chapter, whose heading is 功能导览 · 前置 (前置 alone is the coverage view's word).
+  const own = new Set(["generate:前置"]);
+  const wrong = [];
+  for (const step of TOUR_STEPS) for (const zh of tourStepCopy(step)) {
+    for (const [, quoted] of zh.matchAll(/「([^」]+)」/g)) for (const name of quoted.split(" › ")) {
+      const product = catalogue[name] ?? catalogue[`${name}…`];
+      if (product && !own.has(`${step.id}:${name}`) && !catalogue[zh].toLowerCase().includes(plain(product))) wrong.push(`${step.id}: ${name} is “${product}”`);
+    }
+  }
+  assert.deepEqual(wrong, []);
+  // The mastery levels are said without quotes: the same words as the legend's.
+  const mastery = TOUR_STEPS.find((step) => step.id === "mastery").body;
+  for (const level of ["未学", "薄弱", "学习中", "熟悉", "已掌握"]) assert.ok(catalogue[mastery].includes(catalogue[level]), `${level} is “${catalogue[level]}”`);
+});
+
 test("steps that need sample data, a page or a component are left out when it is missing", () => {
   const all = { ...ALL, full: true };
   assert.equal(availableTourSteps(TOUR_STEPS, all).length, TOUR_STEPS.filter((step) => step.only !== "core").length);
