@@ -15,7 +15,6 @@ import {
   EXTERNAL_PDF_TOOL_IDS,
   EXTERNAL_PDF_TOOL_URLS,
   EXTERNAL_PDF_TOOLS,
-  PAGE_MARKER,
 } from '../ui/pdf-external-guide.js';
 
 /* The four addresses the owner approved for #1765 (#1778 review): official pages, plain text, no tracking parameters. A change to this list is a decision, so it is
@@ -46,7 +45,7 @@ const mod = await loadUi(`
   export { default as MineruPane } from './ui/settings/MineruPane.jsx';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { ui, uiFormat, setUiLanguage } from './ui/i18n.js';
-  export { toolMetaLine } from './ui/PdfExternalConvertGuide.jsx';
+  export { PAGE_MARKER, toolMetaLine } from './ui/converter-lines.jsx';
   export { PaddleOcrOption } from './ui/LargeDocumentCard.jsx';
 `);
 
@@ -76,6 +75,11 @@ const sampleJob = {
   env: { kind: 'local', mineruVersion: '4.0.10', tier: 'basic' },
 };
 
+/* PdfDetail sits in the workspace's first load, so its guide arrives with a chunk of its own (ui/pdf-external-guide-lazy.jsx): the first render of a failed job
+   draws nothing there and asks for the chunk, as on the page; once it has arrived every render draws the guide at once. */
+assert.equal((render(h(mod.PdfDetail, { job: sampleJob })).match(/data-pdf-external-guide=/g) || []).length, 0, 'the guide is not drawn before its chunk arrives');
+await new Promise(resolve => setImmediate(resolve));
+
 /** The guide's own markup inside a surface: the element carrying data-pdf-external-guide, with everything nested in it. */
 function guideMarkup(html) {
   const at = html.indexOf('data-pdf-external-guide');
@@ -94,7 +98,7 @@ function guideMarkup(html) {
 
 const rendered = html => [...html.matchAll(/<code[^>]*class="pdf-ext-guide__url"[^>]*>([^<]*)<\/code>/g)].map(match => match[1]);
 /** The page marker as rendered: escaped, inside <code>, kept out of machine translation. */
-const MARKER_CODE = `<code translate="no">${PAGE_MARKER.replace('<', '&lt;').replace('>', '&gt;')}</code>`;
+const MARKER_CODE = `<code translate="no">${mod.PAGE_MARKER.replace('<', '&lt;').replace('>', '&gt;')}</code>`;
 
 function assertGuideInZh(html, label) {
   assert.match(html, new RegExp(EXTERNAL_PDF_GUIDE_TITLE), `${label}: renders heading`);

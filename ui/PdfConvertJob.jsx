@@ -23,7 +23,7 @@ import { CUSTOM_BOOK_LABEL, CUSTOM_BOOK_WHAT, customOffered, markCustomOffered, 
 import { useCustomLink } from './custom-convert-link.js';
 import IndexHint, { useIndexLink } from './IndexHint.jsx';
 import { hintDocOf } from './index-hint.js';
-import PdfExternalConvertGuide from './PdfExternalConvertGuide.jsx';
+import { PdfExternalConvertGuide } from './pdf-external-guide-lazy.jsx';
 
 /* The compact card of a PDF conversion, the shared ui/tasks/CompactJobCard: the percent (pages converted over pages in the book, never a
    guess), one status line, a stop, and ONE button for what comes next (continue without redoing finished pieces: a stopped local service is started by

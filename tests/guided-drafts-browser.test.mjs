@@ -1,4 +1,4 @@
-/* global localStorage, window */
+/* global document, localStorage, performance, window */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -10,6 +10,7 @@ import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs'
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { confirmStart } from '../scripts/qa/confirm-start.mjs';
+import { DRAFT_SAVE_DELAY_MS } from '../ui/review/draft-persistence.js';
 
 /* The unsubmitted answer and the help an answer got, in Chromium through the REAL practice page on a real library (#537, #542): typing reaches review.draft.save without the
    page going busy and with no model anywhere near, a reload brings it back, a cleared answer stays cleared, a step waits for the save and is refused when the save fails, and the
@@ -55,6 +56,17 @@ async function openPage(browser, server) {
     try { const { action, args } = JSON.parse(request.postData()); calls.push({ action, args }); } catch { /* not ours */ }
   });
   await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'zh'); });
+  // When, on the page's own clock, each keystroke arrived and each review.draft.save left: what the debounce promises is measured on these.
+  await page.addInitScript(() => {
+    const trace = { inputs: [], saves: [] };
+    window.__draftTrace = trace;
+    document.addEventListener('input', () => { trace.inputs.push(performance.now()); }, true);
+    const send = window.fetch;
+    window.fetch = function (url, init) {
+      if (String(url).endsWith('/api/call') && String(init?.body || '').includes('"review.draft.save"')) trace.saves.push(performance.now());
+      return send.apply(this, arguments);
+    };
+  });
   await page.goto(server.url);
   const saves = () => calls.filter((call) => call.action === 'review.draft.save');
   const startDeck = async (title) => {
@@ -99,8 +111,18 @@ test('the real practice page saves, restores, clears and waits for the unsubmitt
     const box = view.page.locator('.response-label textarea');
     const busyBefore = await view.page.locator('[data-usage="review.next"]').count();
     await box.pressSequentially('half an answer', { delay: 15 });
-    assert.equal(view.saves().length, 0, 'nothing is sent while the learner is still typing');
-    const save = await until(() => view.saves().at(-1), 'the debounced save');
+    const save = await until(() => view.saves().find((call) => call.args.draft.text === 'half an answer'), 'the debounced save');
+    // The debounce, on the page's clock: a save leaves only once DRAFT_SAVE_DELAY_MS passed with no keystroke. How evenly the keystrokes arrive is the
+    // machine's: a loaded runner stalls the page for 500 ms at times (Windows CI), and a stall that long while typing is a pause the learner took. So the
+    // number of saves is not counted against the clock; each save is checked against the keystroke before it, and without such a pause there is one save.
+    const trace = await view.page.evaluate(() => window.__draftTrace);
+    assert.equal(trace.inputs.length, 'half an answer'.length, 'every keystroke is seen');
+    for (const sent of trace.saves) {
+      const before = trace.inputs.filter((at) => at <= sent).at(-1);
+      assert.ok(sent - before >= DRAFT_SAVE_DELAY_MS - 1, `a save waits out ${DRAFT_SAVE_DELAY_MS} ms after the last keystroke (it left after ${Math.round(sent - before)} ms)`);
+    }
+    const pauses = trace.inputs.slice(1).filter((at, index) => at - trace.inputs[index] >= DRAFT_SAVE_DELAY_MS).length;
+    assert.ok(view.saves().length <= pauses + 1, `no more saves than pauses in the typing (${view.saves().length} saves, ${pauses} pauses)`);
     assert.equal(save.args.draft.text, 'half an answer');
     assert.equal(save.args.cardId, 'o1');
     assert.equal(typeof save.args.queueVersion, 'number');
@@ -108,7 +130,7 @@ test('the real practice page saves, restores, clears and waits for the unsubmitt
     assert.equal(await box.inputValue(), 'half an answer');
     assert.equal(await box.isDisabled(), false, 'the field stays usable while it saves');
     assert.equal(await view.page.locator('[data-usage="review.next"]').count(), busyBefore);
-    assert.equal(view.saves().length, 1, 'one save for one burst of typing');
+    if (!pauses) assert.equal(view.saves().length, 1, 'one save for one burst of typing');
     const runId = save.args.runId;
     await until(async () => (await previewCall(server, 'review.get', { runId })).draft?.text === 'half an answer', 'the draft in the library');
 

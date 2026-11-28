@@ -15,13 +15,12 @@ import {
   EXTERNAL_PDF_SCOPE_NOTE,
   EXTERNAL_PDF_TOOLS,
 } from './pdf-external-guide.js';
-import { ConvertedFileFormats, toolMetaLine } from './pdf-tool-meta.jsx';
-import css from './mineru.css';
-
-export { ConvertedFileFormats, toolMetaLine };
+import { ConvertedFileFormats, toolMetaLine } from './converter-lines.jsx';
+import css from './pdf-external-guide.css';
 
 /* 「想用外部工具转换？」 + 「转换完成后怎么导入」 (#1765).
-   Shared across PDF conversion entry (PdfConversion), job detail (PdfDetail), and Settings (MineruPane).
+   Shared across PDF conversion entry (PdfConversion), job detail (PdfDetail), and Settings (MineruPane). Not in the workspace's first load: PdfDetail brings it
+   through ui/pdf-external-guide-lazy.jsx (tests/workspace-closure-pages.test.mjs).
    Plain copyable text URLs only: the guide never invokes the pages it lists or passes files to them. (The optional MinerU official API route is a
    separate, opt-in part of the PDF panel and Settings: lib/contexts/audio/mineru-api.js; it is not reached from here.) */
 
@@ -89,7 +88,7 @@ function ExternalToolRow({ entry }) {
 }
 
 export default function PdfExternalConvertGuide({ defaultOpen = false, className, ...rest }) {
-  useInjectCss(css, 'study-mineru');
+  useInjectCss(css, 'study-pdf-ext-guide');
   return (
     <Disclosure
       summary={ui(EXTERNAL_PDF_GUIDE_TITLE)}

@@ -5,7 +5,6 @@
    Through these links StudyHub does NOT call third-party APIs, proxy files, or guarantee third-party availability. (The optional, opt-in MinerU official
    API route, lib/contexts/audio/mineru-api.js, is separate and is not one of these links.) */
 import { TOOLS } from '../lib/large-documents.js';
-export { PAGE_MARKER } from './pdf-page-marker.js';
 
 export const EXTERNAL_PDF_GUIDE_TITLE = '想用外部工具转换？';
 export const EXTERNAL_PDF_GUIDE_META = '手动转换 · 外链参考';

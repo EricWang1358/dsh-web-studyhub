@@ -15,7 +15,9 @@ const MAX_SHIPPED_BYTES = 4_300_000;
 const MAX_WAVES = 6;
 const ON_DEMAND = ['ui/Exam.jsx', 'ui/Board.jsx', 'ui/Dashboard.jsx', 'ui/book/BookPage.jsx', 'ui/outline/CourseOutline.jsx', 'ui/exam-prep/ExamPrep.jsx',
   'ui/LiveClass.jsx', 'ui/AudioDashboard.jsx', 'ui/BlogNotes.jsx', 'ui/Skeleton.jsx', 'ui/Workflows.jsx', 'ui/Graph.jsx', 'ui/tasks/TaskConsole.jsx',
-  'ui/guided-study/GuidedStudyWorkbench.jsx'];
+  'ui/guided-study/GuidedStudyWorkbench.jsx',
+  // #1778's manual-conversion guide: shown under a failed PDF conversion (ui/pdf-external-guide-lazy.jsx), in the PDF panel and in Settings, never on the daily path.
+  'ui/PdfExternalConvertGuide.jsx'];
 const DAILY = ['ui/StudyMap.jsx', 'ui/Sources.jsx', 'ui/Generate.jsx', 'ui/Draft.jsx', 'ui/Review.jsx', 'ui/WrongBook.jsx', 'ui/Settings.jsx'];
 
 function closure({ metafile, outputFiles }) {

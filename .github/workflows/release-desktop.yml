@@ -176,7 +176,9 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Attach desktop assets to GitHub Release
+      # Attached to a DRAFT release (release.yml makes it, or this step does when it runs first); a draft is not "latest", so the
+      # desktop updater never reads a releases/latest/download/latest.json that is not uploaded yet.
+      - name: Attach desktop assets to the draft GitHub Release
         if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && inputs.publish_release && inputs.tag != '')
         shell: pwsh
         env:
@@ -201,7 +203,23 @@ jobs:
           gh release view $env:TAG -R $env:REPO *> $null
           if ($LASTEXITCODE -eq 0) {
             gh release upload $env:TAG @assets -R $env:REPO --clobber
+            if ($LASTEXITCODE -ne 0) { throw "gh release upload failed ($LASTEXITCODE)" }
           } else {
             $version = $env:TAG.TrimStart('v')
-            gh release create $env:TAG @assets -R $env:REPO --verify-tag --title "StudyHub $version" --notes "StudyHub Desktop $version Windows x64 setup installer (.exe, zero-UAC auto-update), MSI installer (.msi), portable archive (.zip), optional Desktop Retrieval bundle, updater manifest (latest.json), and SHA-256 checksums."
+            # release.yml replaces these notes with the changelog when it uploads the plugin packages.
+            gh release create $env:TAG @assets -R $env:REPO --verify-tag --draft --title "StudyHub $version" --notes "StudyHub Desktop $version Windows x64 setup installer (.exe, zero-UAC auto-update), MSI installer (.msi), portable archive (.zip), optional Desktop Retrieval bundle, updater manifest (latest.json), and SHA-256 checksums."
+            if ($LASTEXITCODE -ne 0) { throw "gh release create failed ($LASTEXITCODE)" }
           }
+
+      # Publishes (not a draft, latest) only when release.yml has attached its 11 assets too; otherwise it leaves the draft for that
+      # workflow to publish. If this workflow fails the release stays a draft: see docs/release-policy.md for publishing by hand.
+      - name: Publish the release once every asset is attached
+        if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && inputs.publish_release && inputs.tag != '')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          node scripts/release-publish.mjs --tag $env:TAG --repo $env:REPO
+          if ($LASTEXITCODE -ne 0) { throw "release-publish.mjs failed ($LASTEXITCODE)" }
