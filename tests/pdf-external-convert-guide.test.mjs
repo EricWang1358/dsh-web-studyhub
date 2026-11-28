@@ -7,6 +7,7 @@ import { loadUi } from './helpers/ui-module.mjs';
 import { click, loadInteractiveUi, textOf, withBrowserGlobals } from './helpers/react-harness.mjs';
 import { LARGE_DOCUMENT_LIMITS, TOOLS } from '../lib/large-documents.js';
 import { MAX_OFFICE_BYTES, MAX_TEXT_DOCUMENT_BYTES, megabytes } from '../lib/office/limits.js';
+import { detectConvertedFormat, parseConvertedDocument } from '../lib/converted-document.js';
 import {
   EXTERNAL_PDF_GUIDE_TITLE,
   EXTERNAL_PDF_IMPORT_TITLE,
@@ -20,11 +21,15 @@ import {
    pinned here by value; hosts are the allow-list a future edit has to widen on purpose. */
 const PINNED_URLS = [
   'https://www.paddleocr.ai',
+  'https://mineru.net/OpenSourceTools/Extractor',
   'https://github.com/datalab-to/marker',
   'https://github.com/docling-project/docling',
   'https://mathpix.com',
 ];
-const ALLOWED_HOSTS = ['www.paddleocr.ai', 'github.com', 'mathpix.com'];
+const ALLOWED_HOSTS = ['www.paddleocr.ai', 'mineru.net', 'github.com', 'mathpix.com'];
+/* MinerU's web parser is the one mineru.net address the guide may print (#1778, owner 2026-11-28): a plain link. The MinerU cloud route (API, token, upload)
+   was deleted on 10-16 and stays deleted, so outside this exact address nothing on the page may name mineru.net. */
+const MINERU_WEB_URL = 'https://mineru.net/OpenSourceTools/Extractor';
 
 
 /* Behavioral regression tests for #1765:
@@ -89,7 +94,7 @@ function assertGuideInZh(html, label) {
     assert.ok(html.includes(`>${url}</code>`), `${label}: renders ${url} as plain copyable <code>`);
     assert.ok(!html.includes(`href="${url}"`), `${label}: does not render ${url} as an <a> link`);
   }
-  assert.doesNotMatch(html, /mineru\.net|type="password"|baseUrl|api[\s_-]?key|云端/i, `${label}: zero cloud/key/baseUrl fields`);
+  assert.doesNotMatch(html.split(MINERU_WEB_URL).join(''), /mineru\.net|type="password"|baseUrl|api[\s_-]?key|token|云端/i, `${label}: zero cloud/key/baseUrl fields; mineru.net only as the web parser's address`);
 
   // Step 1 quotes the limits from their homes, and the page marker sits in <code> (the arrow ligature of `-->` in the UI font).
   assert.ok(html.includes(`PDF 最多 ${LARGE_DOCUMENT_LIMITS.pdfPages} 页，提取出的文字最多 ${LARGE_DOCUMENT_LIMITS.selectionChars.toLocaleString('en-US')} 字符`), `${label}: pages and characters come from LARGE_DOCUMENT_LIMITS`);
@@ -265,11 +270,12 @@ test('docs/pdf-workflow.zh-CN.md and docs/pdf-workflow.md stay in sync with the 
   assert.match(enDoc, /Missing formulas/);
   assert.match(enDoc, /Scanned pages remain images/);
   assert.match(enDoc, /Non-UTF-8 encoding/);
+  assert.ok(zhDoc.includes('解压后导入名字以 `_content_list.json` 结尾的文件') && enDoc.includes('import the file whose name ends in `_content_list.json`'), 'both docs say which file of the MinerU .zip to import');
 });
 
 test('the guide reads the shared catalogue: the same entries as TOOLS, the pinned address list, https, no query string or fragment, hosts on the allow-list', () => {
   assert.deepEqual(EXTERNAL_PDF_TOOL_URLS, PINNED_URLS, 'the full list of addresses is pinned: removing, adding or changing one is a visible decision');
-  assert.deepEqual(EXTERNAL_PDF_TOOLS.map(entry => entry.id), ['paddleocr', 'marker', 'docling', 'mathpix']);
+  assert.deepEqual(EXTERNAL_PDF_TOOLS.map(entry => entry.id), ['paddleocr', 'mineru-web', 'marker', 'docling', 'mathpix']);
   for (const entry of EXTERNAL_PDF_TOOLS) {
     assert.equal(entry.tool, TOOLS.find(tool => tool.id === entry.id), `${entry.id} is the catalogue entry itself, not a second copy`);
     assert.ok(entry.tool.channels.some(channel => channel.url === entry.url), `${entry.id}: the address is one of its catalogue channels`);
@@ -313,4 +319,38 @@ test('PdfDetail shows the external guide only for a failed conversion, never whi
   assert.equal(guideOf('failed'), 1);
   for (const status of ['running', 'queued', 'paused', 'stopped', 'cancelled', 'complete', 'done']) assert.equal(guideOf(status), 0, `no guide for a ${status} conversion`);
   assert.equal((render(h(mod.PdfDetail, { job: { ...sampleJob, status: undefined } })).match(/data-pdf-external-guide=/g) || []).length, 0, 'no guide without a status');
+});
+
+test('MinerU web parser: its own catalogue entry (not the local install, not the desktop client, no cloud route), sign-in said, and the file the guide names imports page by page', () => {
+  const web = TOOLS.find(tool => tool.id === 'mineru-web');
+  assert.ok(web, 'mineru-web is in the catalogue');
+  assert.equal(TOOLS.find(tool => tool.id === 'mineru-cloud'), undefined, 'the MinerU cloud route stays deleted');
+  assert.deepEqual(web.channels.map(channel => channel.url), [MINERU_WEB_URL, 'https://github.com/opendatalab/MinerU'], 'the official web parser and its source: no API endpoint');
+  assert.equal(web.needs, 'online');
+  assert.equal(web.recommended, false);
+  assert.equal(web.verifiedAt, '2026-11-28');
+  assert.equal(web.license, TOOLS.find(tool => tool.id === 'mineru-local').license, 'the same MinerU licence wording as the local install');
+  assert.deepEqual(web.outputs, TOOLS.find(tool => tool.id === 'mineru-local').outputs, 'the same MinerU output wording as the local install');
+  assert.notEqual(web.name, TOOLS.find(tool => tool.id === 'mineru-local').name);
+  assert.notEqual(web.name, TOOLS.find(tool => tool.id === 'mineru').name);
+  assert.match(web.platforms.join(' '), /需登录 OpenXLab 账号/, 'says a sign-in is needed');
+  assert.doesNotMatch(JSON.stringify(web), /token|api[\s_-]?key|baseUrl|\/api\//i, 'a link only: nothing to call');
+
+  const zh = render(h(mod.PdfExternalConvertGuide, { defaultOpen: true }), 'zh');
+  const en = render(h(mod.PdfExternalConvertGuide, { defaultOpen: true }), 'en');
+  assert.match(zh, /需登录 OpenXLab 账号/);
+  assert.match(en, /OpenXLab sign-in required/);
+  assert.match(zh, /解压后导入名字以 _content_list\.json 结尾的文件/);
+  assert.match(en, /import the file whose name ends in _content_list\.json/);
+
+  // What the guide says matches the importer: the zip's content_list.json is MinerU output with pages; full.md has no page markers.
+  const contentList = JSON.stringify([
+    { type: 'text', text: '第一章 绪论：本章介绍课程的基本概念与学习方法。', text_level: 1, page_idx: 0 },
+    { type: 'text', text: '第二页的正文，讲解第一个定理以及它的证明思路。', page_idx: 1 },
+  ]);
+  assert.equal(detectConvertedFormat(contentList), 'mineru-content-list');
+  const book = parseConvertedDocument(contentList, { filename: 'abc_content_list.json' });
+  assert.equal(book.converter, 'mineru');
+  assert.deepEqual(book.pages.map(page => page.page), [1, 2]);
+  assert.equal(detectConvertedFormat('# 第一章 绪论\n\n本章介绍课程的基本概念与学习方法。\n'), null, 'full.md carries no page markers');
 });

@@ -48,6 +48,7 @@ function FormatsStep() {
     <>
       <p><ConvertedFileFormats /></p>
       <p>{ui('支持导入的格式：Markdown（.md / .markdown）、纯文本（.txt）、LaTeX（.tex）、HTML（.html / .htm）、Word（.docx）、PowerPoint（.pptx / .ppt）、带文字层的 PDF（.pdf），以及转换工具导出的结构化 JSON（.json：PaddleOCR / Docling / MinerU）。')}</p>
+      <p>{ui('MinerU 网页版下载的是 .zip：解压后导入名字以 _content_list.json 结尾的文件，StudyHub 会按页保存；其中的 full.md 没有页码标记，只能当普通 Markdown 导入，不分页。')}</p>
       <p>{uiFormat('PDF 最多 {0} 页，提取出的文字最多 {1} 字符', [LARGE_DOCUMENT_LIMITS.pdfPages, formatNumber(LARGE_DOCUMENT_LIMITS.selectionChars)])}</p>
       <p>{uiFormat('PDF 与文本最大 {0} MB，Word / PPT / 转换 JSON 最大 {1} MB', [megabytes(MAX_TEXT_DOCUMENT_BYTES), megabytes(MAX_OFFICE_BYTES)])}</p>
     </>

@@ -226,5 +226,6 @@
   "编码不是 UTF-8": "Non-UTF-8 encoding",
   "StudyHub 要求文本与 JSON 文件为 UTF-8 编码；GBK、GB18030 或 UTF-16 会报编码错误或乱码。请用编辑器（如 VS Code 或记事本）选择「另存为 UTF-8」后再重新导入。": "StudyHub requires UTF-8 encoding for text and JSON files; GBK, GB18030, or UTF-16 will fail with an encoding error or garbled text. Re-save the file as UTF-8 in an editor (such as VS Code or Notepad) and import again.",
   "支持导入的格式：Markdown（.md / .markdown）、纯文本（.txt）、LaTeX（.tex）、HTML（.html / .htm）、Word（.docx）、PowerPoint（.pptx / .ppt）、带文字层的 PDF（.pdf），以及转换工具导出的结构化 JSON（.json：PaddleOCR / Docling / MinerU）。": "Supported formats: Markdown (.md / .markdown), plain text (.txt), LaTeX (.tex), HTML (.html / .htm), Word (.docx), PowerPoint (.pptx / .ppt), text-layer PDF (.pdf), and structured converter JSON (.json from PaddleOCR / Docling / MinerU).",
-  "PDF 最多 {0} 页，提取出的文字最多 {1} 字符": "PDF page limit: {0}; extracted text limit (characters): {1}"
+  "PDF 最多 {0} 页，提取出的文字最多 {1} 字符": "PDF page limit: {0}; extracted text limit (characters): {1}",
+  "MinerU 网页版下载的是 .zip：解压后导入名字以 _content_list.json 结尾的文件，StudyHub 会按页保存；其中的 full.md 没有页码标记，只能当普通 Markdown 导入，不分页。": "MinerU's web parser downloads a .zip: unzip it and import the file whose name ends in _content_list.json, which StudyHub saves page by page; the full.md inside has no page markers and imports as plain Markdown without pages."
 }

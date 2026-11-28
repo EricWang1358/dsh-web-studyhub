@@ -39,6 +39,7 @@ StudyHub 保存的内容：
 > **隐私与边界说明**：文件上传到第三方属于你与该服务之间的事，本产品不经手、不保存。StudyHub 不内置调用、不代传文件、不承诺第三方服务的可用性。
 
 - **PaddleOCR 在线解析**：`https://www.paddleocr.ai` — Apache-2.0 · 网页端（免安装） · JSON, Markdown
+- **MinerU 在线解析（网页版）**：`https://mineru.net/OpenSourceTools/Extractor` — MinerU Open Source License (Apache-2.0 with extra conditions) · 网页端（需登录 OpenXLab 账号） · content_list.json, Markdown
 - **Marker**：`https://github.com/datalab-to/marker` — Apache-2.0 (model weights: modified AI Pubs Open Rail-M) · Windows / macOS / Linux · Markdown (--paginate_output), JSON
 - **Docling**：`https://github.com/docling-project/docling` — MIT · Windows / macOS / Linux · JSON (DoclingDocument), Markdown
 - **Mathpix**：`https://mathpix.com` — Proprietary (commercial service) · 网页端（免安装） · Markdown (.md), LaTeX (.tex)
@@ -47,7 +48,7 @@ StudyHub 保存的内容：
 
 ### 转换完成后怎么导入
 
-1. **确认导出格式**：下载 JSON 结果文件（或带 `<!-- page: N -->` 页码标记的 Markdown）。StudyHub 支持导入 Markdown（`.md` / `.markdown`）、纯文本（`.txt`）、LaTeX（`.tex`）、HTML（`.html` / `.htm`）、Word（`.docx`）、PowerPoint（`.pptx` / `.ppt`）、带文字层的 PDF（`.pdf`），以及转换工具导出的结构化 JSON（`.json`：PaddleOCR / Docling / MinerU）。单文件上限：`.md` / `.txt` / `.tex` / `.html` / `.pdf` 为 8 MB（PDF 最多 200 页，提取文本最多 60 万字符）；`.docx` / `.pptx` / `.ppt` 与转换结果 `.json` 为 40 MB。
+1. **确认导出格式**：下载 JSON 结果文件（或带 `<!-- page: N -->` 页码标记的 Markdown）。StudyHub 支持导入 Markdown（`.md` / `.markdown`）、纯文本（`.txt`）、LaTeX（`.tex`）、HTML（`.html` / `.htm`）、Word（`.docx`）、PowerPoint（`.pptx` / `.ppt`）、带文字层的 PDF（`.pdf`），以及转换工具导出的结构化 JSON（`.json`：PaddleOCR / Docling / MinerU）。单文件上限：`.md` / `.txt` / `.tex` / `.html` / `.pdf` 为 8 MB（PDF 最多 200 页，提取文本最多 60 万字符）；`.docx` / `.pptx` / `.ppt` 与转换结果 `.json` 为 40 MB。MinerU 网页版下载的是 `.zip`：解压后导入名字以 `_content_list.json` 结尾的文件，StudyHub 会按页保存；其中的 `full.md` 没有页码标记，只能当普通 Markdown 导入，不分页。
 2. **放到哪里、怎么导入**：打开「资料」页，点击「添加资料」（或在「创建题组」里点击「添加资料」），选好课程后在「文件」标签拖入转换好的文件或点击「选择文件」；纯文本也可切到「粘贴文本」直接保存。若在主会话中使用学习模式，也可先放到工作区的 `studyhub-work/` 或电脑本地目录后让 AI 导入。
 3. **常见失败与排查**：
    - **公式丢失**：普通转换常把公式丢掉或转成图片。请在外部工具中开启公式转 LaTeX，导出为 `.md` 或 `.tex`（用 `$...$` / `$$...$$` 保留公式），避免只导出纯文本。

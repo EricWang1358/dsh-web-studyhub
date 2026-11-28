@@ -12,7 +12,7 @@ export const EXTERNAL_PDF_PRIVACY_NOTICE = '文件上传到第三方属于你与
 export const EXTERNAL_PDF_SCOPE_NOTE = '以下仅为外部工具参考链接：不内置调用、不代传文件、不承诺第三方服务的可用性。请复制链接到浏览器自行打开。';
 
 /** The catalogue entries the guide shows, in order (never the defunct MinerU hosted service). */
-export const EXTERNAL_PDF_TOOL_IDS = Object.freeze(['paddleocr', 'marker', 'docling', 'mathpix']);
+export const EXTERNAL_PDF_TOOL_IDS = Object.freeze(['paddleocr', 'mineru-web', 'marker', 'docling', 'mathpix']);
 
 /** The one address printed for a tool: the web page of an online tool, the code page of one you run yourself. A plain text address, never a query string. */
 const entryUrl = tool => tool.channels.find(channel => channel.kind === (tool.needs === 'online' ? 'official' : 'source'))?.url;
