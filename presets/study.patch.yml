@@ -4,8 +4,9 @@
 # `agent-preset-registry: { config: { default: study } }`.
 #
 # The same composition as the official DSH `standard` preset
-# (@deepseek-ai/dsh-web-app 0.2.1-rc.2, presets/standard.patch.yml): every row,
-# with the same ids, names, groups, isolate flags and config, so 学习模式 gets
+# (@deepseek-ai/dsh-web-app 0.2.1-rc.2, presets/standard.patch.yml, and on DSH
+# 0.2.2 that release's standard preset): every row, with the same ids, names,
+# groups, isolate flags and config, so 学习模式 gets
 # the same tools (commands, files, search, jobs, schedules, todo, plan mode,
 # workflows, AGENTS.md instructions, ...). The tutor uses them to convert
 # material (split a question book by chapter, OCR a scan, export) and then
@@ -23,6 +24,26 @@
 #     (the main tool-subagent-control row registers list_agents there). An
 #     enabled row that cannot be imported breaks the whole preset, and the host
 #     then leaves 学习模式 out of the preset picker without saying why.
+#   - DSH 0.2.2: five rows take the DSH 0.2.2-rc.5 standard preset's value, so
+#     学习模式 gets the same tools there too: tool-subagent-control
+#     `interrupt: false` (no interrupt_agent), tool-subagent `modelSelection` +
+#     `modelDiscovery` (list_subagent_models), skill-filesystem mounts the
+#     dsh-agent-preset `skills` folder (the dsh-doc skill), tool-office is
+#     enabled, and tool-plugin-manager is enabled inside a profile. Each is a
+#     `!!js` expression that starts with the same detection: the host is 0.2.2
+#     when @deepseek-ai/dsh-tool-subagent-control resolves from `baseUrl` but its
+#     ./list-agents subpath does not. Anywhere else (0.2.0, 0.2.1, no usable
+#     baseUrl) every one of them yields the value this file had before (no
+#     config, the old config, disabled), so those hosts compose what they
+#     composed before and no host gets half of each. The Loader evaluates a
+#     `!!js` node anywhere in a row's config before the plugin's schema sees it
+#     (@deepseek-ai/cordis-plugin-loader src/config/utils.ts `interpolate`; the
+#     0.2.0-rc.2 composition reference documents `!!js` inside `config` too), and
+#     one expression that throws breaks the whole preset, so each catches its
+#     own failure and falls back to the old value.
+#   - Still different on 0.2.2, on purpose: tool-subagent-fork keeps
+#     `backgroundMode: continuable` (0.2.2 reads no such option), and tool-fs has
+#     no config where standard writes `applyPatch: false`, the 0.2.2 default.
 # The StudyHub tools (study_workspace, study_capabilities, study_bank,
 # study_materials, study_generate_selection, study_practice, study_audio) are
 # registered by the plugin on the host tools registry, so every preset sees
@@ -105,7 +126,7 @@
               # variable, so a {{cwd}} here failed every study-mode turn. The host now names the folder itself
               # in the runtime context ("Current working directory: ...").
               suffix: "Workspace files are not library content; the library's own data folder is managed only through the study_* tools."
-          # ── from here on, the rows of the DSH 0.2.1 standard preset, unchanged ──
+          # ── from here on, the rows of the DSH 0.2.1 standard preset (plus tool-office), changed only as the header says ──
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
             config:
@@ -133,6 +154,9 @@
             disabled: !!js "(() => { try { process.getBuiltinModule('node:module').createRequire(new URL('.', baseUrl)).resolve('@deepseek-ai/dsh-tool-schedule/package.json'); return false } catch { return true } })()"
           - id: skill-filesystem
             name: '@deepseek-ai/dsh-skill-filesystem'
+            # DSH 0.2.2 (see the header): the standard preset's customSkillDirs, the dsh-agent-preset `skills` folder.
+            # Elsewhere no config, as before.
+            config: !!js "(() => { try { const req = process.getBuiltinModule('node:module').createRequire(new URL('.', baseUrl)), has = id => { try { req.resolve(id); return true } catch { return false } }, v022 = !has('@deepseek-ai/dsh-tool-subagent-control/list-agents') && has('@deepseek-ai/dsh-tool-subagent-control/package.json'); if (!v022) return void 0; const path = process.getBuiltinModule('node:path'); return { customSkillDirs: [path.join(path.dirname(req.resolve('@deepseek-ai/dsh-agent-preset/package.json')), 'skills')] } } catch { return void 0 } })()"
           - id: tool-skill
             name: '@deepseek-ai/dsh-tool-skill'
           - id: command-goal
@@ -185,24 +209,23 @@
             config:
               - id: tool-subagent-control
                 name: '@deepseek-ai/dsh-tool-subagent-control'
+                # DSH 0.2.2 (see the header): `interrupt: false`, as in its standard preset. Elsewhere no config, as before.
+                config: !!js "(() => { try { const req = process.getBuiltinModule('node:module').createRequire(new URL('.', baseUrl)), has = id => { try { req.resolve(id); return true } catch { return false } }, v022 = !has('@deepseek-ai/dsh-tool-subagent-control/list-agents') && has('@deepseek-ai/dsh-tool-subagent-control/package.json'); return v022 ? { interrupt: false } : void 0 } catch { return void 0 } })()"
               - id: tool-subagent-list-agents
                 name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
                 # Exception (see the header): DSH 0.2.0 and 0.2.1 export this subpath; 0.2.2-rc.5 does not.
                 disabled: !!js "(() => { try { process.getBuiltinModule('node:module').createRequire(new URL('.', baseUrl)).resolve('@deepseek-ai/dsh-tool-subagent-control/list-agents'); return false } catch { return true } })()"
               - id: tool-subagent
                 name: '@deepseek-ai/dsh-tool-subagent'
-                config:
-                  provider: spawn
-                  toolName: subagent
-                  modelSelectionSettings: true
-                  # Exception (see the header): as in the DSH 0.2.0-rc.2 standard preset; 0.2.1 ignores it.
-                  backgroundMode: continuable
+                # DSH 0.2.2 (see the header): its standard config. Elsewhere, as before, the 0.2.1 standard config plus
+                # the 0.2.0-rc.2 `backgroundMode: continuable` exception (see the header; 0.2.1 ignores it).
+                config: !!js "(() => { try { const req = process.getBuiltinModule('node:module').createRequire(new URL('.', baseUrl)), has = id => { try { req.resolve(id); return true } catch { return false } }, v022 = !has('@deepseek-ai/dsh-tool-subagent-control/list-agents') && has('@deepseek-ai/dsh-tool-subagent-control/package.json'); return v022 ? { provider: 'spawn', toolName: 'subagent', modelSelection: true, modelDiscovery: true } : { provider: 'spawn', toolName: 'subagent', modelSelectionSettings: true, backgroundMode: 'continuable' } } catch { return { provider: 'spawn', toolName: 'subagent', modelSelectionSettings: true, backgroundMode: 'continuable' } } })()"
               - id: tool-subagent-fork
                 name: '@deepseek-ai/dsh-tool-subagent'
                 config:
                   provider: fork
                   toolName: subagent_fork
-                  # Exception (see the header): as in the DSH 0.2.0-rc.2 standard preset; 0.2.1 ignores it.
+                  # Exception (see the header): as in the DSH 0.2.0-rc.2 standard preset; 0.2.1 and 0.2.2 ignore it.
                   backgroundMode: continuable
               - id: workflow-ptc
                 name: '@deepseek-ai/dsh-workflow-ptc'
@@ -223,9 +246,17 @@
               searchTimeoutMs: 60000
           - id: present
             name: '@deepseek-ai/dsh-tool-present'
+          - id: tool-office
+            name: '@deepseek-ai/dsh-tool-office'
+            # DSH 0.2.2 (see the header): enabled where its package resolves. Elsewhere disabled: the 0.2.0 and 0.2.1
+            # standard presets compose no such row.
+            disabled: !!js "(() => { try { const req = process.getBuiltinModule('node:module').createRequire(new URL('.', baseUrl)), has = id => { try { req.resolve(id); return true } catch { return false } }, v022 = !has('@deepseek-ai/dsh-tool-subagent-control/list-agents') && has('@deepseek-ai/dsh-tool-subagent-control/package.json'); return !(v022 && has('@deepseek-ai/dsh-tool-office/package.json')) } catch { return true } })()"
           - id: tool-plugin-manager
             name: '@deepseek-ai/dsh-plugin-manager/tools'
-            disabled: true
+            # DSH 0.2.2 (see the header): enabled inside a profile, as in its standard preset. Elsewhere disabled, as
+            # before. Each plugin_manager call asks the learner for approval unless the session already runs with
+            # full access (danger-full-access), where it runs without asking (@deepseek-ai/dsh-plugin-manager tools.ts).
+            disabled: !!js "(() => { try { const req = process.getBuiltinModule('node:module').createRequire(new URL('.', baseUrl)), has = id => { try { req.resolve(id); return true } catch { return false } }, v022 = !has('@deepseek-ai/dsh-tool-subagent-control/list-agents') && has('@deepseek-ai/dsh-tool-subagent-control/package.json'); return v022 ? !ctx.get('profileContext') : true } catch { return true } })()"
           - id: tool-plugin-market
             name: '@deepseek-ai/dsh-plugin-market/tools'
             disabled: true
