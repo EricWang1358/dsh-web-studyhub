@@ -177,7 +177,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
   const seenSpansRef = React.useRef([]);
   const candidateSpansRef = React.useRef([]);
   const pointerDownRef = React.useRef(null);
-  const suppressClickUntilRef = React.useRef(0);
+  const suppressNextClickRef = React.useRef(false);
   const markingRef = React.useRef(marking);
   markingRef.current = marking;
   const handlersRef = React.useRef({});
@@ -739,7 +739,25 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
     if (!body) return undefined;
 
     const doc = body.ownerDocument;
+    let clearSuppressTimer = 0;
+    const armClickSuppression = () => {
+      suppressNextClickRef.current = true;
+      if (clearSuppressTimer) clearTimeout(clearSuppressTimer);
+      clearSuppressTimer = setTimeout(() => {
+        clearSuppressTimer = 0;
+        suppressNextClickRef.current = false;
+      }, 0);
+    };
+    const clearClickSuppression = () => {
+      suppressNextClickRef.current = false;
+      if (clearSuppressTimer) {
+        clearTimeout(clearSuppressTimer);
+        clearSuppressTimer = 0;
+      }
+    };
+
     const onPointerDown = (event) => {
+      clearClickSuppression();
       if (!markingRef.current || event.button !== 0 || isExcludedElement(event.target, body)) {
         pointerDownRef.current = null;
         return;
@@ -782,8 +800,8 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
             while (end > start && /\s/.test(text[end - 1])) end -= 1;
             if (end > start) singleNodeRange = { node: range.startContainer, start, end };
           }
+          armClickSuppression();
           handlersRef.current.applySelectedText(raw, singleNodeRange);
-          suppressClickUntilRef.current = Date.now() + 250;
           return;
         }
       }
@@ -791,7 +809,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
       if (excludedTarget || moved > 6) return;
       const pointHit = charOffsetAtPoint(doc, event.clientX, event.clientY, body);
       if (!pointHit) return;
-      suppressClickUntilRef.current = Date.now() + 250;
+      armClickSuppression();
       handlersRef.current.applyPointHit(pointHit);
     };
 
@@ -801,7 +819,10 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
         event.preventDefault();
         event.stopPropagation();
       }
-      if (Date.now() <= suppressClickUntilRef.current) return;
+      if (suppressNextClickRef.current) {
+        clearClickSuppression();
+        return;
+      }
       if (event.clientX === 0 && event.clientY === 0) return;
       const pointHit = charOffsetAtPoint(body.ownerDocument, event.clientX, event.clientY, body);
       if (pointHit) handlersRef.current.applyPointHit(pointHit);
@@ -815,6 +836,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
       doc.removeEventListener("pointerup", onPointerUp, true);
       body.removeEventListener("click", onClickCapture, true);
       pointerDownRef.current = null;
+      clearClickSuppression();
     };
   }, [reviewBodyRef]);
 
