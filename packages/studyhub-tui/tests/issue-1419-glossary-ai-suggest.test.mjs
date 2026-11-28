@@ -54,6 +54,11 @@ function resetStoreForTest() {
   });
 }
 
+/**
+ * The app on the sources page with the reader opened on `docTitle`. Keys sent before Ink has read the earlier ones arrive as ONE chunk
+ * ("\rG" is neither Enter nor G), so every wait here is for something that is not true until the key before it has taken effect.
+ * `bodyMatch`: text of the loaded page; null when the test holds the page back.
+ */
 async function mountSourcesReader(host, docTitle, bodyMatch) {
   resetStoreForTest();
   const tty = createVirtualTty(120, 36);
@@ -74,27 +79,32 @@ async function mountSourcesReader(host, docTitle, bodyMatch) {
       patchConsole: false,
     },
   );
-  await tty.firstFramePromise;
-  await tty.waitFor((s) => s.includes(docTitle), { timeoutMs: 8_000, label: `Sources list shows ${docTitle}` });
-  tty.send('\r');
-  // Wait for DocumentReader-exclusive header/footer markers alongside body text: SourcesView's
-  // right-hand preview pane also renders `bodyMatch`, which can satisfy a body-only waitFor
-  // before the lazy DocumentReader chunk finishes mounting and registering its `G` handler.
-  await tty.waitFor(
-    (s) => s.includes(bodyMatch) && s.includes('第 1 /') && s.includes('术语译文'),
-    { timeoutMs: 8_000, label: `DocumentReader shows ${bodyMatch}` },
-  );
-  return {
-    tty,
-    unmount: () => {
-      try {
-        inkInstance.unmount();
-      } catch {
-        // ignore cleanup
-      }
-      tty.dispose();
-    },
+  const unmount = () => {
+    try {
+      inkInstance.unmount();
+    } catch {
+      // ignore cleanup
+    }
+    tty.dispose();
   };
+  try {
+    await tty.firstFramePromise;
+    await tty.waitFor((s) => s.includes(docTitle), { timeoutMs: 8_000, label: `Sources list shows ${docTitle}` });
+    tty.send('\r');
+    // Wait for DocumentReader-exclusive header/footer markers alongside body text: SourcesView's
+    // right-hand preview pane also renders `bodyMatch`, which can satisfy a body-only waitFor
+    // before the lazy DocumentReader chunk finishes mounting and registering its `G` handler.
+    // With the page held back there is no body yet: the footer hint says the reader takes keys.
+    await tty.waitFor(
+      (s) => s.includes('术语译文') && (bodyMatch === null || (s.includes(bodyMatch) && s.includes('第 1 /'))),
+      { timeoutMs: 8_000, label: `DocumentReader shows ${bodyMatch ?? 'its keys'}` },
+    );
+  } catch (error) {
+    // A mounted app keeps the process alive: without this a failed wait here hangs the whole file instead of reporting.
+    unmount();
+    throw error;
+  }
+  return { tty, unmount };
 }
 
 after(async () => {
@@ -180,7 +190,7 @@ describe('#1419: TranslationGlossaryModal AI-suggested translation', () => {
       session.tty.send('a');
       await session.tty.waitFor((s) => s.includes('添加术语 (1/2)'), { timeoutMs: 5_000 });
       session.tty.send('amortized analysis');
-      await session.tty.waitFor((s) => s.includes('amortized analysis'), { timeoutMs: 5_000 });
+      await session.tty.waitFor((s) => s.includes('术语原文: amortized analysis'), { timeoutMs: 5_000 });
       session.tty.send('\r');
 
       const confirmScreen = await session.tty.waitFor(
@@ -197,7 +207,7 @@ describe('#1419: TranslationGlossaryModal AI-suggested translation', () => {
       });
       assert.equal(calls.length, 0, 'cancelling AI suggest must make 0 model calls');
       session.tty.send('摊还分析');
-      await session.tty.waitFor((s) => s.includes('摊还分析'), { timeoutMs: 5_000 });
+      await session.tty.waitFor((s) => s.includes('译法(空=原样): 摊还分析'), { timeoutMs: 5_000 });
       session.tty.send('\r');
       await session.tty.waitFor(
         (s) =>
@@ -214,7 +224,7 @@ describe('#1419: TranslationGlossaryModal AI-suggested translation', () => {
       session.tty.send('a');
       await session.tty.waitFor((s) => s.includes('添加术语 (1/2)'), { timeoutMs: 5_000 });
       session.tty.send('invariance');
-      await session.tty.waitFor((s) => s.includes('invariance'), { timeoutMs: 5_000 });
+      await session.tty.waitFor((s) => s.includes('术语原文: invariance'), { timeoutMs: 5_000 });
       session.tty.send('\r');
       await session.tty.waitFor((s) => s.includes('AI 建议译法'), { timeoutMs: 5_000 });
       session.tty.send('y');
@@ -245,7 +255,7 @@ describe('#1419: TranslationGlossaryModal AI-suggested translation', () => {
       session.tty.send('a');
       await session.tty.waitFor((s) => s.includes('添加术语 (1/2)'), { timeoutMs: 5_000 });
       session.tty.send('stability');
-      await session.tty.waitFor((s) => s.includes('stability'), { timeoutMs: 5_000 });
+      await session.tty.waitFor((s) => s.includes('术语原文: stability'), { timeoutMs: 5_000 });
       session.tty.send('\r');
       await session.tty.waitFor((s) => s.includes('AI 建议译法'), { timeoutMs: 5_000 });
       session.tty.send('y');
@@ -256,7 +266,7 @@ describe('#1419: TranslationGlossaryModal AI-suggested translation', () => {
       session.tty.send('\x15'); // Ctrl+U clear
       await session.tty.flush();
       session.tty.send('记忆稳定性');
-      await session.tty.waitFor((s) => s.includes('记忆稳定性'), { timeoutMs: 5_000 });
+      await session.tty.waitFor((s) => s.includes('译法(空=原样): 记忆稳定性'), { timeoutMs: 5_000 });
       session.tty.send('\r');
       await session.tty.waitFor(
         (s) =>
@@ -330,5 +340,145 @@ describe('#1419: TranslationGlossaryModal AI-suggested translation', () => {
       session.unmount();
       await host.dispose();
     }
+  });
+});
+
+/* The reader hands the dialog the page's `revision` only when the page has arrived, so a dialog opened before that loads the same document a
+   second time while it is open. That second load used to draw a spinner over the whole body, the add field with it: what was typed meanwhile
+   was dropped (the CI failure where 「FSRS」 never reached the field). */
+describe('#1419: a glossary that loads again while it is open', () => {
+  /** A library with one document and no model, whose answers can be held back or replaced. */
+  async function openLibrary(name) {
+    const box = await temps.make(name);
+    const dshHome = join(box, 'dsh');
+    const libRoot = join(box, 'lib');
+    await Promise.all([mkdir(dshHome, { recursive: true }), mkdir(libRoot, { recursive: true })]);
+    process.env.DSH_HOME = dshHome;
+    const host = await createTuiHost({ env: { DSH_HOME: dshHome }, home: join(box, 'home'), libraryRoot: libRoot, skipAutoProbe: true, language: 'zh', eventDebounceMs: 30 });
+    const mdPath = join(box, 'refresh.md');
+    await writeFile(mdPath, '# Offline Doc\n\nSpaced repetition updates memory stability.\n', 'utf8');
+    const imported = await host.call('materials.document.import', { path: mdPath, title: 'Offline Doc', format: 'md' });
+    assert.equal(imported.ok, true);
+
+    const answer = host.call.bind(host);
+    const holds = [];
+    let failure = null;
+    host.call = async (action, ...rest) => {
+      if (failure?.match.test(action)) return { ok: false, error: { message: failure.message } };
+      // The ANSWER is held, not the request: it was read before anything the test does while it is held.
+      const result = await answer(action, ...rest);
+      const gate = holds.find((entry) => !entry.open && entry.match.test(action));
+      if (gate) await new Promise((go) => gate.waiting.push(go));
+      return result;
+    };
+    return {
+      host,
+      imported: imported.value,
+      stored: () => answer('materials.translation.glossary.get', { documentId: imported.value.documentId }),
+      fail: (match, message) => { failure = { match, message }; },
+      hold: (match) => {
+        const gate = { match, open: false, waiting: [] };
+        holds.push(gate);
+        return {
+          get pending() { return gate.waiting.length; },
+          release: () => { gate.open = true; for (const go of gate.waiting.splice(0)) go(); },
+        };
+      },
+      releaseAll: () => { for (const gate of holds) { gate.open = true; for (const go of gate.waiting.splice(0)) go(); } },
+    };
+  }
+
+  const PAGE = /^source\.(pages|get)$/;
+  const GLOSSARY = /^materials\.translation\.glossary\.get$/;
+  const wait = (session, check, label) => session.tty.waitFor(check, { timeoutMs: 10_000, label });
+  const screenNow = async (session) => { await session.tty.flush(150); return session.tty.waitFor(() => true); };
+
+  /** The dialog opened while the reader's page is still on its way, with the add field open; then the page arrives and the dialog asks again. */
+  async function typingWhenThePageArrives(library, session, page) {
+    session.tty.send('G');
+    await wait(session, (s) => s.includes('术语表为空'), 'the dialog loaded before the page');
+    session.tty.send('a');
+    await wait(session, (s) => s.includes('添加术语 (1/2)'), 'the add field');
+    const reload = library.hold(GLOSSARY);
+    page.release();
+    await wait(session, () => reload.pending > 0, 'the second load is on its way');
+    return reload;
+  }
+
+  async function withReader(name, body, { holdPage = true, before } = {}) {
+    const library = await openLibrary(name);
+    const page = holdPage ? library.hold(PAGE) : null;
+    const prepared = before?.(library);
+    let session;
+    try {
+      session = await mountSourcesReader(library.host, 'Offline Doc', holdPage ? null : 'Spaced repetition updates');
+      await body({ library, session, page, prepared });
+    } finally {
+      library.releaseAll();
+      session?.unmount();
+      await library.host.dispose();
+    }
+  }
+
+  test('the add field stays, and takes what is typed, while the dialog loads the same document again', async () => {
+    await withReader('refresh-typing', async ({ library, session, page }) => {
+      const reload = await typingWhenThePageArrives(library, session, page);
+      const during = await screenNow(session);
+      assert.ok(during.includes('添加术语 (1/2)'), `the add field is still there\n${during}`);
+      assert.ok(!during.includes('正在加载术语表'), `nothing is covered by a spinner\n${during}`);
+      session.tty.send('FSRS');
+      await wait(session, (s) => s.includes('术语原文: FSRS'), 'typed during the reload');
+      reload.release();
+      const after = await screenNow(session);
+      assert.ok(after.includes('术语原文: FSRS'), `and it is still typed afterwards\n${after}`);
+    });
+  });
+
+  test('an answer read before a save does not put the old list back', async () => {
+    await withReader('refresh-then-save', async ({ library, session, page }) => {
+      const reload = await typingWhenThePageArrives(library, session, page);
+      session.tty.send('FSRS');
+      await wait(session, (s) => s.includes('术语原文: FSRS'), 'the term');
+      session.tty.send('\r');
+      await wait(session, (s) => s.includes('添加术语 (2/2)'), 'step 2');
+      session.tty.send('间隔重复');
+      await wait(session, (s) => s.includes('译法(空=原样): 间隔重复'), 'the translation');
+      session.tty.send('\r');
+      await wait(session, (s) => s.includes('FSRS → 间隔重复') && !s.includes('正在保存更改'), 'saved while the old answer is still held');
+      reload.release();
+      const after = await screenNow(session);
+      assert.ok(after.includes('FSRS → 间隔重复') && after.includes('共 1 条术语'), `the saved term stays on screen\n${after}`);
+      assert.deepEqual((await library.stored()).value.glossary, [{ term: 'FSRS', to: '间隔重复' }]);
+    });
+  });
+
+  test('a reload that fails keeps what is on screen and says why', async () => {
+    await withReader('refresh-fails', async ({ library, session, page }) => {
+      session.tty.send('G');
+      await wait(session, (s) => s.includes('术语表为空'), 'the dialog loaded before the page');
+      session.tty.send('a');
+      await wait(session, (s) => s.includes('添加术语 (1/2)'), 'the add field');
+      library.fail(/^materials\.translation\.(glossary\.get|list)$/, '模拟的读取失败');
+      page.release();
+      await wait(session, () => useTuiStore.getState().toasts.some((toast) => toast.text.includes('模拟的读取失败')), 'the failure is said');
+      const after = await screenNow(session);
+      assert.ok(after.includes('添加术语 (1/2)') && !after.includes('加载失败'), `the dialog keeps what it showed\n${after}`);
+    });
+  });
+
+  test('before the first load there is nothing to type into, so a does not open an unseen field', async () => {
+    await withReader('first-load', async ({ session, prepared: first }) => {
+      session.tty.send('G');
+      const loading = await wait(session, (s) => s.includes('正在加载术语表'), 'the first load is on its way');
+      assert.ok(!/\ba\s+添加/.test(loading), `a is not offered yet\n${loading}`);
+      session.tty.send('a');
+      await session.tty.flush(150);
+      first.release();
+      await wait(session, (s) => s.includes('术语表为空'), 'loaded');
+      const loaded = await screenNow(session);
+      assert.ok(!loaded.includes('添加术语 (1/2)'), `the key pressed during the spinner opened nothing\n${loaded}`);
+      session.tty.send('a');
+      await wait(session, (s) => s.includes('添加术语 (1/2)'), 'a works once the list is shown');
+    }, { holdPage: false, before: (library) => library.hold(GLOSSARY) });
   });
 });
