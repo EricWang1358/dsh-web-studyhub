@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { ui } from '../i18n.js';
 import { Button, Dialog, Icon, focusQuietly } from '../components/index.js';
+import { hasOpenDialog } from '../components/dialog-stack.js';
 import { useInjectCss } from '../shared.js';
 import css from './app-shell.css';
 import drawerCss from './nav-drawer.css';
@@ -51,10 +52,7 @@ const AppSidebar = React.memo(function AppSidebar() {
     if (shell.navOpen || !handoffRef.current) return;
     handoffRef.current = false;
     const root = shell.rootRef.current;
-    if (!root) return;
-    const active = document.activeElement;
-    if (root.querySelector('dialog[open], [role="dialog"]')
-      || (active && active !== document.body && active !== root && active.closest?.('dialog[open], [role="dialog"]'))) return;
+    if (!root || hasOpenDialog(root)) return;
     const card = root.querySelector('.review-body .question-card');
     if (card && typeof card.focus === 'function') {
       focusQuietly(card, { preventScroll: true });

@@ -3,16 +3,13 @@ import { ui, uiFormat } from "../i18n.js";
 import { plainAssistFailure } from "../generation-status.js";
 import { nextDueGap, nextDueWhen, nextDueWord } from "../NextDue.jsx";
 import { focusQuietly } from "../components/index.js";
+import { hasOpenDialog, isFocusInDialog } from "../components/dialog-stack.js";
 import { keysElsewhere } from "./session-logic.js";
 import { drawnScale } from "../drawn-scale.js";
 
-const QUESTION_HEADING_SELECTOR = '[data-question-heading], .question[role="heading"], .question, .flash-prompt, .cloze-text, .question-card';
+export { isFocusInDialog };
 
-export function isFocusInDialog() {
-  if (typeof document === "undefined") return false;
-  const active = document.activeElement;
-  return Boolean(active && active !== document.body && active.closest?.('dialog[open], [role="dialog"]'));
-}
+const QUESTION_HEADING_SELECTOR = '[data-question-heading], .question[role="heading"], .question, .flash-prompt, .cloze-text, .question-card';
 
 /** Programmatically focus the current question's prompt heading without scrolling or opening tooltips. */
 export function focusQuestionHeading(root) {
@@ -167,9 +164,9 @@ export default function usePinQuestion(pageRef, run, { scroller: given } = {}) {
         focusQuestionHeading(card);
         return;
       }
-      if (!isFocusInDialog() && !page.ownerDocument?.querySelector?.("dialog[open]")) {
+      if (typeof card.focus === "function" && !hasOpenDialog(page.ownerDocument)) {
         const active = typeof document !== "undefined" ? document.activeElement : null;
-        if (!keysElsewhere(active, page) && (!active || !card.contains(active))) {
+        if (!keysElsewhere(active, page) && (!active || !card.contains?.(active))) {
           if (card.getAttribute?.("tabindex") == null) card.tabIndex = -1;
           focusQuietly(card, { preventScroll: true });
         }

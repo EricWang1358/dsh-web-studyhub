@@ -55,3 +55,17 @@ export function subscribeToastChannels(listener) {
 
 const NONE = [];
 export const useToastChannels = () => useSyncExternalStore(subscribeToastChannels, toastChannels, () => NONE);
+
+const OPEN_DIALOG_SELECTOR = 'dialog[open], [role="dialog"]';
+
+/** True when document.activeElement sits inside an open dialog (excluding `ignoreRoot` itself). */
+export function isFocusInDialog(ignoreRoot = null) {
+  if (typeof document === 'undefined') return false;
+  const active = document.activeElement;
+  return Boolean(active && active !== document.body && active !== ignoreRoot && active.closest?.(OPEN_DIALOG_SELECTOR));
+}
+
+/** True when `root` contains an open dialog or focus is currently inside one. */
+export function hasOpenDialog(root) {
+  return Boolean(root?.querySelector?.(OPEN_DIALOG_SELECTOR)) || isFocusInDialog(root);
+}

@@ -18,8 +18,9 @@ let quiet = false;
 const userFocus = event => { if (quiet) return false; try { return event.target.matches(':focus-visible'); } catch { return true; } };
 /** element.focus() that opens no tooltip card: focus the program chose (the control the answer suggests), not one the user moved there. */
 export function focusQuietly(element, options) {
+  if (typeof element?.focus !== 'function') return;
   quiet = true;
-  try { element?.focus(options); } finally { quiet = false; }
+  try { element.focus(options); } finally { quiet = false; }
 }
 
 /**
