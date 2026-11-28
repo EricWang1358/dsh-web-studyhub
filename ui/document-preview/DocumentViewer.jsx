@@ -1045,7 +1045,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       {narrow && (outlineOn || toolsOn) && <button type="button" className="reader-scrim" aria-label={ui('关闭面板')} onClick={() => setOverlay(null)} />}
       {/* While the material opens, the 目录 column it will open in keeps its width, so the text does not slide right when it comes. */}
       {loading && !narrow && settings.outline && !outlineOn && <div className="reader-outline" aria-hidden="true" />}
-      {/* 正在打开资料… floats over the top of the text instead of taking a line above it: when the material comes, nothing on screen moves up. */}
+      {/* 正在打开资料… floats at the bottom of the layout instead of taking a line above the text: when the material comes, nothing on screen moves up. */}
       {loading && <LoadingState className="reader-loading" label={ui('正在打开资料…')} />}
       {outlineOn && <OutlinePanel id={outlineId} data-tour="reader-outline" items={outline} activeId={activeId} labelOf={itemLabel} onJump={jumpTo} meters={meters} upgradedIds={loop.upgradedIds} reads={outlineReads}
         coverage={!localMode && view !== 'original' && loop.coverage?.cards > 0 ? loop.outlineCoverage : null} coverageTotals={loop.coverage}
