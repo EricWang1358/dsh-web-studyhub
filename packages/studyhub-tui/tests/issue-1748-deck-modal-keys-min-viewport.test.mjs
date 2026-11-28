@@ -304,6 +304,10 @@ describe('#1748 DeckManageModal j/k symmetry and DeckOpsModal at the 60x18 minim
     const cols = LAYOUT_BP.MIN_VIEWPORT_COLS;
     const rows = LAYOUT_BP.MIN_VIEWPORT_ROWS;
     const longError = 'Import was rejected by the library because every card in this deck failed the duplicate check against an older deck';
+    // Reviewer repro: Ink wraps by words, so a character budget let this one wrap past the error rows and cut the ellipsis line.
+    const wordWrapError =
+      'Import refused: international characterisation requirements unsatisfied; incompatible representations encountered throughout';
+    const scripted = { error: longError };
     const app = await startApp({
       label: 'import-long-error',
       cols,
@@ -324,7 +328,7 @@ describe('#1748 DeckManageModal j/k symmetry and DeckOpsModal at the 60x18 minim
           if (name === 'draft.import.propose') {
             return { ok: true, value: { title: 'Fresh deck', course: 'OS 1748', mergeTargetId: null, method: 'rules' } };
           }
-          if (name === 'deck.import' && args?.path) return { ok: false, error: { message: longError } };
+          if (name === 'deck.import' && args?.path) return { ok: false, error: { message: scripted.error } };
           return realCall(name, args);
         };
         return { good };
@@ -357,6 +361,20 @@ ${errScreen}`);
 ${errScreen}`);
       assert.equal(errRows.includes('older deck'), false, `the error must not be left half-visible:\n${errScreen}`);
       tty.assertHealthyScreen(errScreen, cols, rows, 'DeckOpsModal import long error 60x18');
+
+      // The reviewer's sentence: whole words, so it wraps by words; the ellipsis must still be on the last visible row.
+      scripted.error = wordWrapError;
+      tty.send('\r');
+      const wrapScreen = await tty.waitFor((s) => s.includes('Import refused'), { label: 'word-wrapped import error row' });
+      const wrapRows = modalRows(wrapScreen);
+      assert.match(wrapRows, /\[X\] Import refused/, `error row must be inside the frame:\n${wrapScreen}`);
+      assert.match(wrapRows, /\.\.\.\s*\|?\s*(?:\n|$)/, `the cut error ends with a visible ellipsis:\n${wrapScreen}`);
+      assert.equal(wrapRows.includes('throughout'), false, `the error must not be left half-visible:\n${wrapScreen}`);
+      assert.match(wrapRows, /Tab: /, `completions row stays:\n${wrapScreen}`);
+      assert.match(wrapRows, /Preview:/, `the preview row stays:\n${wrapScreen}`);
+      assert.match(wrapRows, /Suggested: Course/, `AI banner stays:\n${wrapScreen}`);
+      assert.match(wrapRows, /Course Override/, `course field stays:\n${wrapScreen}`);
+      tty.assertHealthyScreen(wrapScreen, cols, rows, 'DeckOpsModal import word-wrapped error 60x18');
     } finally {
       await app.stop();
     }

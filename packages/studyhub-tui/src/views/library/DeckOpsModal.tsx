@@ -12,7 +12,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { Modal, modalChildRows, modalContentWidth } from '../../components/Modal.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
-import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
+import { displayWidth, padDisplay, truncateDisplay, wrapToRows } from '../../render/cjk.js';
 import { useShellActions } from '../../shell/actions.js';
 import { cleanPathInput, tryAction } from '../../host/sample-actions.js';
 import { completeFsPath, expandHomePath } from '../sources/path-complete.js';
@@ -1265,8 +1265,8 @@ export const DeckOpsModal = memo(function DeckOpsModal({
 
             {error ? (
               <Box marginTop={importGap} height={importErrorRows} overflow="hidden">
-                <Text color={theme.error} wrap={importErrorRows === 1 ? 'truncate-end' : 'wrap'}>
-                  {truncateDisplay(`${asciiMode ? '[X]' : '✕'} ${error}`, importErrorRows * (innerW - 2), ell)}
+                <Text color={theme.error} wrap="truncate-end">
+                  {wrapToRows(`${asciiMode ? '[X]' : '✕'} ${error}`, innerW, importErrorRows, ell).join('\n')}
                 </Text>
               </Box>
             ) : null}

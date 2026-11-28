@@ -579,6 +579,23 @@ export function wrapHard(str: string, maxCols: number): string[] {
   return b.finish();
 }
 
+/**
+ * Wrap `str` to `maxCols` columns and keep at most `maxRows` rows; when text is cut the last kept row ends with
+ * `ellipsis` (cut with `truncateDisplay`, so it is display-width and CJK safe). Wrapping happens here, not in Ink:
+ * every returned row fits `maxCols`, so a `<Text wrap="truncate-end">` of `rows.join('\n')` is drawn row for row.
+ * Cutting a character budget (rows * cols) and letting Ink wrap by words is not safe: Ink breaks at spaces, so
+ * the same characters can need more rows than the budget assumed and the ellipsis row is clipped.
+ */
+export function wrapToRows(str: string, maxCols: number, maxRows: number, ellipsis = '…'): string[] {
+  const cols = Math.max(1, Math.floor(maxCols) || 1);
+  const rows = Math.max(1, Math.floor(maxRows) || 1);
+  const lines = wrapDisplay(str, cols);
+  while (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
+  if (lines.length <= rows) return lines;
+  const rest = lines.slice(rows - 1).join(' ');
+  return [...lines.slice(0, rows - 1), truncateDisplay(rest + ellipsis, cols, ellipsis)];
+}
+
 const CODE_PRIMARY_BREAK = new Set([' ', ',', '.']);
 const CODE_SECONDARY_BREAK = new Set([';', '(', '[', '{', '/', '=', ':', '+', '-', '&', '|']);
 
