@@ -35,9 +35,10 @@ export function ErrorState({ error, onRetry, retryLabel, compact = false, inline
  * is selected, so a bug report is never blocked on it. `describe()` runs only when the text is needed: on copy, and while the fold is open.
  */
 export function CopyDiagnosticsButton({ describe, variant = 'quiet', size = 'sm', className, children }) {
-  const { copied, copy } = useCopyFeedback(describe);
   const [refusals, setRefusals] = useState(0), [open, setOpen] = useState(false);
   const field = useRef(null);
+  // When the learner opened the preview fold, copy literally what they inspected so async telemetry (e.g. buffered longtask updates) cannot drift between preview and clipboard.
+  const { copied, copy } = useCopyFeedback(() => (open && field.current ? field.current.value : describe()));
   useEffect(() => { if (refusals) field.current?.focus(); }, [refusals]);
   const press = async () => {
     const worked = await copy();

@@ -14,12 +14,14 @@ import { buildPreview, sourceTreeDigest, UI_MODULE_EXTRA_FILES } from './build.m
 import { scrubSecrets } from './qa/env.mjs';
 import { startTestChromium } from './qa/browser.mjs';
 import { writeTestSources } from './qa/test-source-cache.mjs';
-import { chooseConcurrency, listTestFiles, parseTestArgs, readSlowList, repoRoot } from './qa/test-schedule.mjs';
+import { chooseConcurrency, listTestFiles, parseQuarantineArgs, parseTestArgs, readSlowList, repoRoot } from './qa/test-schedule.mjs';
 import { acquireFullRunLock, fullRunHolder, MAX_WAIT_MS, POLL_MS } from './qa/test-lock.mjs';
 
 const fast = process.argv.includes('--fast');
-const subset = fast || process.argv.some(arg => arg === '--core' || arg === '--smart' || arg === '--changed');
+const subset = fast || process.argv.some(arg => arg === '--core' || arg === '--smart' || arg === '--changed' || arg === '--quarantine');
 const args = process.argv.slice(2).filter(arg => arg !== '--fast');
+const quarantineArgs = parseQuarantineArgs(args);
+if (quarantineArgs.error) { console.error(quarantineArgs.error); process.exit(2); }
 // Only identify file arguments; all options and their values still go to Node unchanged.
 const { files, ordered } = parseTestArgs(args);
 const parent = resolve(tmpdir()), runDir = await mkdtemp(join(parent, 'study-tests-'));

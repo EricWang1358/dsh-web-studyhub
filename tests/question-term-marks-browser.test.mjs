@@ -171,6 +171,15 @@ const WORD_STRIP = ".term-strip:not([data-term-marking-bar])";
 const chipTexts = (page) =>
   page.locator(".term-strip .sh-chip__label").allTextContents();
 
+const waitForChipTexts = async (page, expected, timeoutMs = 5000) => {
+  await until(
+    async () => JSON.stringify(await chipTexts(page)) === JSON.stringify(expected),
+    `term chips ${JSON.stringify(expected)}`,
+    { timeoutMs },
+  ).catch(() => {});
+  return chipTexts(page);
+};
+
 const chipStrip = (page) =>
   page.locator(".term-strip:not(.term-strip--mode)");
 
@@ -253,7 +262,8 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
         assert.equal(await page.locator(".term-strip").count(), 0, `${tag}: no chips before marking`);
 
         // 2. Enter marking mode: click word on back -> chip appears -> click again -> disappears.
-        await termsBtn.click();
+        await enterMarkingMode(page, termsBtn);
+        await settleAnimations(page);
         assert.equal(await termsBtn.getAttribute("aria-pressed"), "true", `${tag}: button reports aria-pressed=true`);
         assert.equal(await page.locator(".review-body.is-marking").count(), 1, `${tag}: .review-body.is-marking set`);
         assert.equal(await modeBar(page).count(), 1, `${tag}: marking-mode bar appears before any word is marked`);
@@ -262,7 +272,7 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
         const backSel = '.flip-back[aria-hidden="false"] .flash-prompt';
         const toggleWord = lang === "en" ? "contrapositive" : "权衡";
         await clickWord(page, backSel, toggleWord, 0);
-        assert.deepEqual(await chipTexts(page), [toggleWord], `${tag}: clicked word appears in chip bar`);
+        assert.deepEqual(await waitForChipTexts(page, [toggleWord]), [toggleWord], `${tag}: clicked word appears in chip bar`);
         const expectedHl = lang === "en" ? 2 : 1;
         const hl = await highlightCount(page);
         if (hl >= 0) assert.ok(hl >= expectedHl, `${tag}: highlight spans all occurrences (${hl})`);
@@ -270,6 +280,7 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
 
         // Click again (on 2nd occurrence in EN, same word in ZH) -> toggles off (chip strip clears back to marking-mode bar).
         await clickWord(page, backSel, toggleWord, lang === "en" ? 1 : 0);
+        await waitForChipStripGone(page);
         assert.equal(await chipStrip(page).count(), 0, `${tag}: clicking marked word cancels it`);
         assert.equal(await modeBar(page).count(), 1, `${tag}: marking-mode bar returns while still in marking mode`);
         assert.equal(await modeBar(page).locator(".term-strip__exit").isVisible(), true, `${tag}: and offers 退出`);
@@ -277,12 +288,12 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
         // 3. Adjacent merge in ZH (`线性` + `一致性` -> `线性一致性`); in EN add first chip `linearizability`.
         if (lang === "zh") {
           await clickWord(page, backSel, "线性", 0);
-          assert.deepEqual(await chipTexts(page), ["线性"]);
+          assert.deepEqual(await waitForChipTexts(page, ["线性"]), ["线性"]);
           await clickWord(page, backSel, "一致性", 0);
-          assert.deepEqual(await chipTexts(page), ["线性一致性"], `${tag}: adjacent segments merged into one term`);
+          assert.deepEqual(await waitForChipTexts(page, ["线性一致性"]), ["线性一致性"], `${tag}: adjacent segments merged into one term`);
         } else {
           await clickWord(page, backSel, "linearizability", 0);
-          assert.deepEqual(await chipTexts(page), ["linearizability"]);
+          assert.deepEqual(await waitForChipTexts(page, ["linearizability"]), ["linearizability"]);
         }
 
         // 4. Drag selection adds a phrase and clears browser selection.
@@ -1487,7 +1498,7 @@ test("term strip clears only filled terms on done, preserves mid-task marks, and
         await clickWord(page, backSel, k1Term1, 0);
         await clickWord(page, backSel, k1Term2, 0);
       }
-      assert.deepEqual(await chipTexts(page), [k1Term1, k1Term2], `${tag}: 2 terms marked on Card 1`);
+      assert.deepEqual(await waitForChipTexts(page, [k1Term1, k1Term2]), [k1Term1, k1Term2], `${tag}: 2 terms marked on Card 1`);
       await lastMarkPromise;
 
       const fillBtn = page.locator(".term-strip__fill");
@@ -1518,7 +1529,7 @@ test("term strip clears only filled terms on done, preserves mid-task marks, and
 
       // Re-stage pale term 1 to open 生词表 and verify both filled terms appear inside TermListDialog, then remove without unmarking.
       await clickWord(page, backSel, k1Term1, 0);
-      assert.deepEqual(await chipTexts(page), [k1Term1], `${tag}: clicking pale term stages it to strip`);
+      assert.deepEqual(await waitForChipTexts(page, [k1Term1]), [k1Term1], `${tag}: clicking pale term stages it to strip`);
       await page.locator(".term-strip__list-btn").click();
       const dlg = page.locator("dialog[open]").last();
       await dlg.waitFor({ state: "visible", timeout: 10000 });
@@ -1534,7 +1545,7 @@ test("term strip clears only filled terms on done, preserves mid-task marks, and
       // Stage an unfilled 3rd term on Card 1 so we can also confirm Card 2's completion leaves Card 1 untouched.
       if (lang === "zh") await dragPhrase(page, backSel, k1Term3, 0);
       else await clickWord(page, backSel, k1Term3, 0);
-      assert.deepEqual(await chipTexts(page), [k1Term3], `${tag}: Card 1 keeps unfilled k1Term3`);
+      assert.deepEqual(await waitForChipTexts(page, [k1Term3]), [k1Term3], `${tag}: Card 1 keeps unfilled k1Term3`);
       await lastMarkPromise;
 
       // Advance to Card 2 (quiz).
@@ -1547,7 +1558,7 @@ test("term strip clears only filled terms on done, preserves mid-task marks, and
       const qSel = ".question-card .question";
       if (lang === "zh") await dragPhrase(page, qSel, k2TermA, 0);
       else await clickWord(page, qSel, k2TermA, 0);
-      assert.deepEqual(await chipTexts(page), [k2TermA], `${tag}: term A marked on Card 2`);
+      assert.deepEqual(await waitForChipTexts(page, [k2TermA]), [k2TermA], `${tag}: term A marked on Card 2`);
       await lastMarkPromise;
 
       pendingHold = controller.armHold();
@@ -1559,7 +1570,7 @@ test("term strip clears only filled terms on done, preserves mid-task marks, and
       // Mark term B while task for term A is still running.
       if (lang === "zh") await dragPhrase(page, qSel, k2TermB, 0);
       else await clickWord(page, qSel, k2TermB, 0);
-      assert.deepEqual(await chipTexts(page), [k2TermA, k2TermB], `${tag}: term B added while task A is running`);
+      assert.deepEqual(await waitForChipTexts(page, [k2TermA, k2TermB]), [k2TermA, k2TermB], `${tag}: term B added while task A is running`);
       await lastMarkPromise;
 
       // Release task A -> finishes done -> A clears from strip while B remains!

@@ -506,12 +506,14 @@ test('chapter basics hint (#1191, #1193): deeper trigger, source dock/dialog, ha
       await startToday(page, errors);
       await page.locator('.question-toolbar').waitFor({ timeout: 30000 });
       const topicTicks = page.locator('.review-navigator .review-tick[aria-label*="分层存储基础"]');
+      await topicTicks.first().waitFor({ timeout: 15000 });
       const tickCount = await topicTicks.count();
       for (let i = tickCount - 1; i >= 0; i -= 1) {
         if (await page.evaluate(() => /上层存储引擎/.test(document.querySelector('.question-card')?.textContent || ''))) break;
         const tick = topicTicks.nth(i);
         if ((await tick.getAttribute('aria-current')) !== 'step') {
           await tick.click();
+          await until(async () => (await tick.getAttribute('aria-current')) === 'step', `navigator tick ${i} to become active`, { timeoutMs: 15000 });
           await settleAnimations(page);
         }
       }

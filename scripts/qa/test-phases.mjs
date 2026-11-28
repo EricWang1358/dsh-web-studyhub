@@ -1,12 +1,19 @@
 import { run } from 'node:test';
 
-/** Files with real browser frame budgets must run without CPU competition from this suite's other workers. */
-export function runWithTimingFiles(options, timingFiles) {
-  if (!timingFiles.length) return run(options);
-  const exclusive = new Set(timingFiles);
+/** Files with real browser frame budgets and quarantined suites must run without CPU competition from this suite's other workers. */
+export function runWithTimingFiles(options, timingFiles, isolatedFiles = []) {
+  const timing = timingFiles.filter(Boolean);
+  const timingSet = new Set(timing);
+  const isolated = isolatedFiles.filter(file => file && !timingSet.has(file));
+  const exclusive = new Set([...timing, ...isolated]);
   const regular = options.files.filter(file => !exclusive.has(file));
-  if (!regular.length) return run({ ...options, concurrency: 1 });
-  return joinRuns(options, [{ files: timingFiles, concurrency: 1 }, { files: regular, concurrency: options.concurrency }]);
+  const phases = [];
+  if (timing.length) phases.push({ files: timing, concurrency: 1 });
+  if (regular.length) phases.push({ files: regular, concurrency: options.concurrency });
+  if (isolated.length) phases.push({ files: isolated, concurrency: 1 });
+  if (!phases.length) return run(options);
+  if (phases.length === 1) return run({ ...options, ...phases[0] });
+  return joinRuns(options, phases);
 }
 
 /** Node emits one root plan and summary per run. Keep all per-file events and give TAP, spec, JUnit and custom reporters

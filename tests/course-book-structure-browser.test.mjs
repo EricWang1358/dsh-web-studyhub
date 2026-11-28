@@ -158,6 +158,8 @@ test('复习全书 structure: 更多 › 改名 / 移动到 / 删除 change the 
           const staleCall = lastCall(sent, 'course.book.rename', args => args.title === `再来 ${width}`);
           assert.equal(staleCall.args.version, before.structureVersion, 'the stale version was the one sent');
           if (width === 1280) await page.locator('.book-toc__go', { hasText: `别处改名 ${width}` }).waitFor({ timeout: 30000 });
+          // At 420 px the TOC is closed, so wait explicitly for the fresh book read to re-enable 保存 before submitting the retry.
+          await until(async () => !(await stale.getByRole('button', { name: '保存' }).isDisabled()), 'retry enabled after fresh book read', { timeoutMs: 30000 });
           await stale.getByLabel('名称').press('Enter');
           await page.locator('.book-step__heading', { hasText: `再来 ${width}` }).waitFor({ timeout: 30000 });
           await stale.waitFor({ state: 'detached', timeout: 30000 });

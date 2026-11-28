@@ -125,3 +125,104 @@ All verification gates passed after the final edits:
 4. **Full 45-Suite TUI E2E Timing Run**:
    - `node packages/studyhub-tui/scripts/run-tests.mjs --e2e --timing` -> **`[e2e:PASS(45)]` in `431.29s`** (45/45 PASS, 0 FAIL; wall time measured on the author's machine, not comparable to any other run).
    - CI shard & list compatibility verified: `--shard=1/3` (48), `--shard=2/3` (48), `--shard=3/3` (49), 145 files in all, after the review follow-up, `--e2e --list` (45), `--unit --list` (100, after the two tests added in the review follow-up), `--quarantine --list` (0).
+
+---
+
+# Root-Repo `npm test` Flake Triage & Quarantine Register
+
+This section records the audit, root-cause fixes, and quarantine/isolation mechanism for the root repository test suite (`npm test`, driven by `scripts/test.mjs`, `scripts/qa/run-tests.mjs`, `scripts/qa/test-schedule.mjs`, and `scripts/qa/test-phases.mjs`).
+
+---
+
+## 6. Root Audit Scope & Executive Summary
+
+- **CI Execution Context**: `.github/workflows/verify.yml` runs `node scripts/test.mjs --shard=${{ matrix.shard }}/${{ matrix.shards }}` across 12 Ubuntu shards and 16 Windows shards.
+- **Evidence Cross-Referenced**:
+  - Recent failed `main` and PR CI runs on Ubuntu and Windows shards (`ubuntu-2/12`, `ubuntu-6/12`, `ubuntu-10/12`, `windows-2/16`, `windows-6/16`, `windows-7/16`, `windows-8/16`, `windows-10/16`, `windows-16/16`).
+  - Local fast-tier (`node scripts/test.mjs --fast --test-concurrency=2`) and sharded contention runs.
+- **Disposition Verdict**: **0 root suites require permanent quarantine.** All 8 concrete, reproducible flakes (7 test/harness races or wall-clock timing assertions + 1 production TOCTOU bug in `ui/components/ErrorState.jsx` and timer-injection support in `lib/assist.js`) were fixed at their root cause without adding arbitrary `sleep()` padding, relaxing thresholds, or weakening assertions. Two heavy browser suites observed in Windows/Ubuntu CI (`tests/reader-one-chapter-browser.test.mjs`, `tests/reader-formula-scroll-browser.test.mjs`) remain active with their full regression assertions intact (`tests/reader-formula-scroll-browser.test.mjs` already runs isolated in phase 1 via `runWithTimingFiles` in `scripts/qa/run-tests.mjs`).
+
+---
+
+## 7. Root Flake Classification & Before/After Triage Matrix
+
+| # | Suite (`File:Line`) | Category | Observed Baseline Evidence | Disposition | Root Cause | Concrete Deterministic Fix (Before -> After) |
+|---|---|---|---|---|---|---|
+| 1 | `tests/passage-links.test.mjs:124-135` | 超时类 (Timeout) | Local fast-tier run: `AssertionError: took 2278 ms` against `< 1000` ms | **可修 (Fixed)** | Single-shot wall-clock `performance.now()` assertion (`elapsed < 1000`) measures OS scheduling preemption under parallel test contention (~60 ms CPU inflated past 2 s wall time), violating `docs/performance.md` rule 2. | Replaced single-shot `performance.now()` with `assertCpuBudget` from `tests/helpers/perf-gate.mjs` (`maxMedianMs: 1000`, `warmup: 1, samples: 3, batch: 1`), preserving the exact `< 1000 ms` budget and `entries.length === 400` / `dom.stats.walks === 1` assertions. |
+| 2 | `tests/assist-host.test.mjs:224,402,580` (and `tests/assist-host.runtime.test.mjs`) + `lib/assist.js:75,209,296` | 竞态类 (Race) | CI `ubuntu-6/12`: `native timeout discards output and disposes even a child admitted after timeout` failed with `Error: Task did not settle`; local `--test-concurrency=4` also hit `Task did not settle` in `timed-out reused children` (`:224`) | **可修 (Fixed)** | Hardcoded `timeoutMs: 10` / `15` armed `setTimeout` inside `startAssist` (`lib/assist.js:209`) before async `context.jobs.submit` / `withAssistChild` entered `subagents.start()` or `child.whenIdle()`. When I/O or CPU contention exceeded 10–15 ms, `signal.throwIfAborted()` fired before admission, leaving `disposed === 0` forever. | Added optional `setTimer` / `clearTimer` dependency injection to `createAssistService` in `lib/assist.js` (defaulting to global `setTimeout` / `clearTimeout`, matching `ui/use-copy-feedback.js`). Reconciled with `#1809`: `timed-out reused children` (`:224`) verifies the 15 ms timer is armed and asserts `whenIdle` (`waiting`) is reached before firing the injected callback (avoiding global `t.mock.timers`), while `:402` and `:580` wait on deterministic `entered` / `resultRead` gates before triggering the timeout callback. |
+| 3 | `tests/page-boundary-browser.test.mjs:62-69` + `ui/components/ErrorState.jsx:37-41` + `tests/setup-diagnostics.test.mjs:141-155` | 竞态类 (Race) | CI `windows-2/16`: `AssertionError` comparing multiline `text` vs `shown` (`what is copied is what was shown`) | **可修 (Fixed)** | `CopyDiagnosticsButton` called `describe()` once when opening `看看会复制什么` (`<textarea>`) and a second time when clicking `复制诊断信息`. On slow Windows runners, a buffered `PerformanceObserver` `longtask` entry could arrive between the two calls, changing the `Long tasks` count between preview and clipboard. | **Production fix** (`ui/components/ErrorState.jsx`): when the preview fold is open (`open && field.current`), `CopyDiagnosticsButton` copies `field.current.value` directly so copied text matches the inspected preview verbatim; closed-fold copies still call `describe()` freshly. Pinned by a new assertion in `tests/setup-diagnostics.test.mjs`. |
+| 4 | `tests/follow-label-fit-browser.test.mjs:124-131` | 竞态类 (Race) | CI `windows-6/16`: `Timed out waiting for the select to follow the session again` | **可修 (Fixed)** | Reopening `effortPlanning` clicked `.sh-opt` option 0 immediately after `data-starting-style` cleared without verifying the select was enabled (`!disabled` after `ControlRow`'s `working` lock) or waiting for the popup CSS transition (`settleAnimations`) and option visibility. | Waited for `!(await planning.isDisabled())`, ran `settleAnimations(page)`, and awaited `followOption.waitFor({ state: 'visible' })` before clicking option 0; full layout, tooltip, and follow-session assertions unchanged. |
+| 5 | `tests/question-chapter-hint-browser.test.mjs:508-520` | 竞态类 (Race) | CI `windows-10/16`: `page.waitForFunction: Timeout 15000ms exceeded.` on Round 2 card navigation | **可修 (Fixed)** | Called non-waiting `topicTicks.count()` before `.review-tick` mounted and iterated after `tick.click()` without waiting for the async `review.move` RPC to set `aria-current="step"` on the clicked tick. | Added `await topicTicks.first().waitFor({ timeout: 15000 })` and waited deterministically for `aria-current === 'step'` after each `tick.click()`. |
+| 6 | `tests/course-book-structure-browser.test.mjs:160-163` | 竞态类 (Race) | CI `windows-8/16`: `TimeoutError` during stale-version retry at 420 px | **可修 (Fixed)** | After releasing the held `course.book.open` refresh, `width === 1280` waited for `.book-toc__go` (which implies refresh finished), whereas `width === 420` skipped that wait and pressed `Enter` while `保存` was still disabled (`retry waits for the current version`). | Added explicit `until(async () => !(await stale.getByRole('button', { name: '保存' }).isDisabled()), ...)` before pressing `Enter` at both 1280 px and 420 px. |
+| 7 | `tests/question-term-marks-browser.test.mjs:171-180,264-295,1493-1575` | 竞态类 (Race) | Local full run (`#1192`: `zh@1280: clicked word appears in chip bar`, `[]` vs `['权衡']`) and repeat verification (`#1214`: `term B added while task A is running`, `['idempotency']` vs `['idempotency', 'snapshotting']`) | **可修 (Fixed)** | `#1192` clicked `termsBtn` without waiting for marking-mode bar layout settlement before measuring word click coordinates, and both `#1192` and `#1214` called non-waiting `locator.allTextContents()` (`chipTexts`) immediately after `page.mouse.click` / drag before React committed the chip DOM. | Used `enterMarkingMode` + `settleAnimations` before word coordinate lookup in `#1192`, added `waitForChipTexts(page, expected)` and `waitForChipStripGone` around mouse-driven term toggles while keeping exact `assert.deepEqual` checks intact. |
+| 8 | `tests/practice-round-controls-browser.test.mjs:100-104` | 竞态类 (Race) | CI `ubuntu-2/12`: `locator.click: Timeout 120000ms exceeded` waiting for `getByRole('button', { name: '继续 Round controls 3' }).first()` | **可修 (Fixed)** | Called non-waiting `showAll.count()` immediately after `page.goto(server.url)` before `ui/StudyMap.jsx` hydrated `snapshot` and mounted `ui/study-map/DeckTree.jsx` (`.map-tree`), returning `0` and leaving the 4th deck (`Round controls 3`) collapsed behind `.show-other-courses[aria-expanded="false"]`. | Awaited `page.locator('.map-tree').waitFor({ timeout: 30000 })` before checking `showAll.count()`, ensuring `DeckTree` and its `show-other-courses` toggle have committed before deciding whether to expand. |
+| 9 | `tests/first-run-tour-browser.test.mjs:211-224` | 竞态类 / 已修复 (Already fixed on `main`) | Earlier CI `windows-7/16` (before commit `738aa1c64`): `420px: 「设置：学习库与 AI 模型」's spotlight ends above the docked card` | **无需再改 (Fixed in `738aa1c64`)** | Prior to `738aa1c64`, narrow-docked spotlight boxes were not clipped to `floor` above the docked popover (`ui/tour/geometry.js`). | Already resolved on `origin/main` in `738aa1c64` (`dock()` clips `spot.height` above `floor`). |
+| 10 | `tests/reader-formula-scroll-browser.test.mjs:238-248` & `tests/reader-one-chapter-browser.test.mjs:112` | 环境依赖类 (Shared VM Jitter) | CI `ubuntu-10/12` (`longest 140` vs `100 ms` on 1 of 20 scroll steps) and `windows-16/16` (`TimeoutError` on 500-page book) | **保持激活 (Keep active)** | Transient shared-CI VM CPU spikes on heavy Chromium scroll/500-page chapter suites. Both guard high-value rendering regressions and `tests/reader-formula-scroll-browser.test.mjs` already runs alone in phase 1 (`scripts/qa/run-tests.mjs`). | Kept active without relaxing assertions or quarantining healthy suites; tracked here for future monitoring. |
+
+---
+
+## 8. Root Active Quarantine Register
+
+| File | Header Marker | Category | Owner | Tracking Issue | Quarantined On | Exit Criteria |
+|---|---|---|---|---|---|---|
+| *(none)* | — | — | — | — | — | All root suites are active. |
+
+---
+
+## 9. Root Quarantine Policy & Isolation Mechanism
+
+The root test runner (`scripts/test.mjs`, `scripts/qa/run-tests.mjs`, `scripts/qa/test-schedule.mjs`, `scripts/qa/test-phases.mjs`) mirrors the exact marker convention and guardrails established for `packages/studyhub-tui`:
+
+### Header Marker Syntax
+Place a single-line comment in the contiguous leading `//` header comment block of any `tests/*.test.mjs` file (after an optional shebang or blank lines, before any code statements):
+
+```js
+// @quarantine: <concrete reason and tracking issue, e.g. Windows Chromium IPC stall (#1763)>
+```
+
+`// @flaky: <reason>` is accepted as an alias.
+
+**Guardrails enforced by `scripts/qa/test-schedule.mjs` + `scripts/qa/run-tests.mjs` + `scripts/test.mjs`**:
+- **Fail-fast on malformed markers**: Any bare `// @quarantine`, `// @quarantine:`, `// @flaky`, or `// @flaky:` without a non-empty reason aborts immediately with **exit code 2** (including under `--list`).
+- **Header-only parsing**: `@quarantine` / `@flaky` strings or comments below the leading comment header are ignored.
+- **No silent skipping**: Whenever default runs isolate quarantined suites, `scripts/qa/run-tests.mjs` logs `[quarantine] Isolated N quarantined suite(s)` with each file path and reason to `stderr`, and emits GitHub Actions `::warning title=Quarantined test suite::...` annotations when `GITHUB_ACTIONS=true` (never locally and never on `--list`).
+- **Isolated execution**: Quarantined suites run unbatched in their own sequential `concurrency=1` phase (`scripts/qa/test-phases.mjs`), and failing quarantined suites exit non-zero under `--quarantine` and `--include-quarantined`.
+
+### Root Runner CLI Usage & CI Compatibility
+
+| Command | Behavior |
+|---|---|
+| `node scripts/test.mjs` / `node scripts/qa/run-tests.mjs` | Runs active suites (timing phase -> parallel batched/unbatched workers); isolates quarantined suites and logs `[quarantine] Isolated N quarantined suite(s)` explicitly if any exist. |
+| `node scripts/test.mjs --shard=1/12` | Deterministic weight-balanced sharding across active suites (100% compatible with `.github/workflows/verify.yml` `--shard=I/N`, `--fast`, `--list`, `--core`, `--smart`). |
+| `node scripts/test.mjs --quarantine` | Runs **only** quarantined suites, unbatched and isolated at `concurrency=1`. Combinable with `--fast`, `--shard=I/N`, `--list`, `--core`, `--smart`. |
+| `node scripts/test.mjs --include-quarantined` | Runs all active suites **plus** quarantined suites (isolated at `concurrency=1`). Combinable with `--fast`, `--shard=I/N`, `--list`, `--core`, `--smart`. |
+| `node scripts/test.mjs tests/run-tests-quarantine.test.mjs` | Always runs explicitly named files directly via `node --test`. |
+
+Conflicting flag combinations (`--quarantine --include-quarantined`) and invalid `--shard` specs fail fast with **exit code 2**.
+
+Unit & subprocess CLI coverage lives in `tests/run-tests-quarantine.test.mjs` (registered in `tests/slow-tests.json` under `cli`).
+
+---
+
+## 10. Root Verification Evidence
+
+1. **Lint, Test-Audit, Docs & Workflow Gates**:
+   - `npx eslint --max-warnings=0` on all 15 touched JS/MJS/JSX files -> **exit 0** (0 errors, 0 warnings).
+   - `node scripts/test-audit.mjs --gate-from=$(git merge-base origin/main HEAD)` -> **exit 0** (`0 new blocking assertion(s)`).
+   - `node --test tests/run-tests-quarantine.test.mjs tests/docs-paths-and-commands-audit.test.mjs tests/docs-links.test.mjs tests/ci-workflow-gates.test.mjs tests/slow-tests-list.test.mjs tests/test-runner-schedule.test.mjs tests/test-runner-shards.test.mjs tests/test-runner-batch.test.mjs` -> **all PASS**.
+   - `git diff --check` -> **exit 0**.
+2. **3x Back-to-Back Verification on Fixed Pure-Node & Quarantine Suites (`--test-concurrency=4`)**:
+   - Suites: `tests/passage-links.test.mjs`, `tests/assist-host.test.mjs`, `tests/assist-host.runtime.test.mjs`, `tests/setup-diagnostics.test.mjs`, `tests/run-tests-quarantine.test.mjs`.
+   - Run 1/3: **99/99 PASS (0 fail)**
+   - Run 2/3: **99/99 PASS (0 fail)**
+   - Run 3/3: **99/99 PASS (0 fail)**
+   - Total: **297/297 PASS, 0 FAIL, 0 SKIPPED**.
+3. **Browser Suite Verification (`STUDY_QA_REQUIRE_BROWSER=1`, `--test-concurrency=1`)**:
+   - `tests/page-boundary-browser.test.mjs`: **3/3 runs PASS (3/3 tests, 0 fail)**.
+   - `tests/follow-label-fit-browser.test.mjs`: **3/3 runs PASS (6/6 tests, 0 fail)**.
+   - `tests/question-chapter-hint-browser.test.mjs`: **3/3 runs PASS (3/3 tests, 0 fail)**.
+   - `tests/course-book-structure-browser.test.mjs`: **3/3 runs PASS (9/9 tests, 0 fail)**.
+   - `tests/question-term-marks-browser.test.mjs`: `#1192` **3/3 runs PASS (0 fail)** and `#1214` **3/3 runs PASS (0 fail)**.
+   - `tests/practice-round-controls-browser.test.mjs`: **4/4 tests PASS (0 fail)**.
+4. **Root Runner `--list` & `--shard` Compatibility**:
+   - Verified `node scripts/qa/run-tests.mjs --quarantine --list` (0 files, exit 0), `--shard=1/12 --list` .. `--shard=12/12 --list`, and `--quarantine --include-quarantined --list` (exit 2).

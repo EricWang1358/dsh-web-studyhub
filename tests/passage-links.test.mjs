@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { groupPassageLinks } from '../ui/document-preview/selection.js';
 import { buildLinkModel, groupKey, linkKind, groupTitle } from '../ui/document-preview/links/link-model.js';
 import { locateGroups, paintLinkHighlights, hitTest, overText, HIGHLIGHT_NAMES } from '../ui/document-preview/links/link-ranges.js';
+import { assertCpuBudget } from './helpers/perf-gate.mjs';
 
 const sel = (quote, extra = {}) => ({ documentId: 'doc', revision: 'r1', sourceId: 's1', quote, prefix: '', suffix: '', start: 0, end: quote.length, ...extra });
 const link = (cardId, selection, extra = {}) => ({ deckId: 'd1', deckTitle: 'Deck one', cardId, prompt: `Prompt ${cardId}`, answer: 'A', selection, status: 'resolved', kind: 'quiz', followups: [], ...extra });
@@ -123,15 +124,16 @@ test('on a paged document a passage is only looked for on its own page, and ever
 
 test('hundreds of links in a long document are located in one pass and well under a second', () => {
   const texts = Array.from({ length: 600 }, (_, index) => `Paragraph ${index} opens a long stretch of ordinary words to read. `.repeat(2) + `Unique-claim-${index} is the point of this paragraph. ` + 'Followed by filler words to make it long. '.repeat(3));
-  const dom = fakeDom(texts);
   assert.ok(texts.join('').length > 150000);
   const groups = Array.from({ length: 400 }, (_, index) => group(sel(`Unique-claim-${index * 1} is the point of this paragraph`, { start: index })));
-  const started = performance.now();
-  const entries = locateGroups(dom.container, groups);
-  const elapsed = performance.now() - started;
-  assert.equal(entries.length, 400);
-  assert.equal(dom.stats.walks, 1);
-  assert.ok(elapsed < 1000, `took ${Math.round(elapsed)} ms`);
+  // Measure process CPU time (median across warmed batches) rather than single-shot wall clock so sibling-worker OS preemption never causes false failures.
+  assertCpuBudget(() => {
+    const dom = fakeDom(texts);
+    const entries = locateGroups(dom.container, groups);
+    assert.equal(entries.length, 400);
+    assert.equal(dom.stats.walks, 1);
+    return entries;
+  }, { maxMedianMs: 1000, warmup: 1, samples: 3, batch: 1, label: 'locateGroups 400 links over 600 paragraphs' });
 });
 
 /* ---------- painting and hitting ---------- */
