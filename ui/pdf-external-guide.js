@@ -2,7 +2,8 @@
    The tools are NOT listed here: they are read from the catalogue in lib/large-documents.js (TOOLS), the one list the import hub, the generate page and Settings
    share. This file only says which of them the guide shows and which of each one's addresses it prints. The limits it quotes come from LARGE_DOCUMENT_LIMITS and
    lib/office/limits.js (see PdfExternalConvertGuide.jsx), never from numbers written into wording.
-   StudyHub does NOT call third-party APIs, proxy files, or guarantee third-party availability. */
+   Through these links StudyHub does NOT call third-party APIs, proxy files, or guarantee third-party availability. (The optional, opt-in MinerU official
+   API route, lib/contexts/audio/mineru-api.js, is separate and is not one of these links.) */
 import { TOOLS } from '../lib/large-documents.js';
 
 export const EXTERNAL_PDF_GUIDE_TITLE = '想用外部工具转换？';

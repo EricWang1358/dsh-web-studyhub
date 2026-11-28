@@ -98,6 +98,8 @@ export default function MineruSettings({ initialLocal = null, initialPlan = null
   };
 
   const effectiveUrl = settings?.effectiveBaseUrl || DEFAULT_BASE_URL;
+  // The official limits and token facts, as the backend reads them from MINERU (lib/contexts/audio/mineru-api.js).
+  const limits = settings?.limits || null;
   const endpoint = hostOf(effectiveUrl);
   const urlDirty = baseUrlInput.trim() !== (settings?.baseUrl || '');
 
@@ -125,6 +127,11 @@ export default function MineruSettings({ initialLocal = null, initialPlan = null
           <InlineMessage tone="info">
             {ui('云端解析会把 PDF 文件上传到下面配置的接口。留空接口地址则默认使用 MinerU 官方服务。')}
           </InlineMessage>
+          {limits && <Hint>
+            {uiFormat('MinerU 官方接口：单个文件最多 {0} 页、{1} MB，更长的书会自动分段；每个账号每天前 {2} 页优先解析，之后照常解析，只是排队更久。', [limits.maxPages, limits.maxMegabytes, limits.dailyPriorityPages])}
+            {' '}
+            {uiFormat('令牌在 mineru.net 的 API 管理页创建，有效期 {0} 天，过期后重新创建并粘贴到这里。接口说明：{1}', [limits.tokenValidityDays, limits.docsUrl])}
+          </Hint>}
 
           <form className="mineru-cloud__url-form" onSubmit={saveBaseUrl}>
             <Field label={ui('接口地址（baseUrl）')} htmlFor={baseUrlId}

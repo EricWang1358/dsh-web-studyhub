@@ -45,6 +45,8 @@ StudyHub 保存的内容：
 
 这份清单来自 `lib/large-documents.js` 里的转换工具目录，与导入页、「创建题组」页和设置页用的是同一份。
 
+这些链接和 StudyHub 里可选的 [MinerU 官方接口](mineru-conversion.zh-CN.md#可选mineru-官方接口会上传-pdf) 是两回事：那条路线由 StudyHub 用你自己的令牌上传 PDF，而且只有在「设置 › PDF 转换（MinerU）」里打开、并确认第一次上传之后才会上传。
+
 ### 转换完成后怎么导入
 
 1. **确认导出格式**：解析完成后，下载 JSON 结果文件（或带 `<!-- page: N -->` 页码标记的 Markdown）。支持导入的格式：Markdown（`.md` / `.markdown`）、纯文本（`.txt`）、LaTeX（`.tex`）、HTML（`.html` / `.htm`）、Word（`.docx`）、PowerPoint（`.pptx` / `.ppt`）、带文字层的 PDF（`.pdf`），以及转换工具导出的结构化 JSON（`.json`：PaddleOCR / Docling / MinerU）。MinerU 网页版下载的是 `.zip`：解压后导入名字以 `_content_list.json` 结尾的文件，StudyHub 会按页保存；其中的 `full.md` 没有页码标记，只能当普通 Markdown 导入，不分页。PDF 最多 200 页，提取出的文字最多 600,000 字符。PDF 与文本最大 8 MB，Word / PPT / 转换 JSON 最大 40 MB。

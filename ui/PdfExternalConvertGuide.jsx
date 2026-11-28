@@ -20,7 +20,8 @@ import css from './mineru.css';
 
 /* 「想用外部工具转换？」 + 「转换完成后怎么导入」 (#1765).
    Shared across PDF conversion entry (PdfConversion), job detail (PdfDetail), and Settings (MineruPane).
-   Plain copyable text URLs only: StudyHub never invokes third-party conversion APIs or proxies files. */
+   Plain copyable text URLs only: the guide never invokes the pages it lists or passes files to them. (The optional MinerU official API route is a
+   separate, opt-in part of the PDF panel and Settings: lib/contexts/audio/mineru-api.js; it is not reached from here.) */
 
 function selectElementText(node) {
   if (!node || typeof document === 'undefined' || typeof window === 'undefined') return;

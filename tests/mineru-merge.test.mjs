@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MineruResultError, mergeChunkResults } from '../lib/mineru-merge.js';
+import { MineruResultError, mergeChunkResults, readResultZip } from '../lib/mineru-merge.js';
 import { parseConvertedDocument } from '../lib/converted-document.js';
+import { zipStored } from './helpers/zip.mjs';
 
 /* Putting the pieces back together: each piece's content_list (pages counted from 0 inside the piece) becomes one list of
    the whole book, in the one format the importer already reads (lib/converted-document.js). */
@@ -22,6 +23,33 @@ test('pages are renumbered to the book: a piece starting at page 201 puts its pa
   assert.equal(book.totalPages, 5);
   assert.deepEqual(book.pages.map(page => [page.page, page.text]), [[1, 'a1'], [2, 'a2'], [3, 'a3'], [4, 'b1'], [5, 'b2']]);
   assert.equal(book.converter, 'mineru');
+});
+
+test('the official API result zip: the flat <uuid>_content_list.json is read, not the v2 list, the model file or full.md, whatever their order', () => {
+  // The six files of a real archive (owner's end-to-end run, 2026-11-28), in an order that puts every wrong candidate first.
+  const uuid = '9d3e6a1c-0b7f-4e2a-8c5d-1f2e3a4b5c6d';
+  const v1 = [textItem('page one', 0), { type: 'equation', text: '$$E=mc^2$$', text_format: 'latex', page_idx: 1 }, textItem('page three', 2)];
+  const zip = zipStored({
+    'full.md': '# FULL-MD-ONLY',
+    [`${uuid}_content_list_v2.json`]: JSON.stringify([[{ type: 'paragraph', content: { paragraph_content: [{ type: 'text', content: 'V2-ONLY' }] } }], [], []]),
+    [`${uuid}_model.json`]: JSON.stringify([{ layout_dets: [], page_info: { page_no: 0 } }]),
+    'layout.json': JSON.stringify({ pdf_info: [], _backend: 'vlm' }),
+    [`${uuid}_content_list.json`]: JSON.stringify(v1),
+    [`${uuid}_origin.pdf`]: Buffer.from('%PDF-1.7'),
+  });
+  const result = readResultZip(zip);
+  assert.equal(result.entry, `${uuid}_content_list.json`);
+  assert.equal(result.format, 'v1');
+  assert.deepEqual(result.content, v1);
+  const book = parseConvertedDocument(JSON.stringify(mergeChunkResults({ totalPages: 3, chunks: [chunk(0, 1, 3, result.content)] }).content), { filename: 'Book.pdf' });
+  assert.deepEqual(book.pages.map(page => page.page), [1, 2, 3]);
+  assert.match(book.pages[0].text, /page one/);
+  assert.match(book.pages[2].text, /page three/);
+  // Only a v2 list in the archive is still read (page-correct), never full.md.
+  const onlyV2 = readResultZip(zipStored({ 'full.md': '# x', [`${uuid}_content_list_v2.json`]: '[[],[]]' }));
+  assert.equal(onlyV2.format, 'v2');
+  // No content list at all: a clear refusal, not full.md.
+  assert.throws(() => readResultZip(zipStored({ 'full.md': '# x', 'layout.json': '{}' })), error => error instanceof MineruResultError && error.code === 'no-content-list');
 });
 
 test('reading order inside a page and across pieces is kept', () => {

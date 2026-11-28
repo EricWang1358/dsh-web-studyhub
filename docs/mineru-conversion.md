@@ -1,10 +1,10 @@
-# Convert a PDF with MinerU (on this computer)
+# Convert a PDF with MinerU (on this computer by default)
 
 [中文](mineru-conversion.zh-CN.md)
 
 StudyHub can run MinerU for you to turn a PDF into pages of text. Use it for scanned PDFs, books with many formulas or tables, Chinese textbooks and books over 200 pages. You do not install a desktop client, type commands, drag files around or type page ranges.
 
-MinerU runs **on this computer**. Nothing is uploaded and no token is needed. StudyHub installs MinerU for you with one button.
+By default MinerU runs **on this computer**: nothing is uploaded and no token is needed. StudyHub installs MinerU for you with one button. If you would rather not install it, you can turn on the [MinerU official API](#optional-the-mineru-official-api-uploads-the-pdf) with your own token instead; that uploads the PDF, and only after you switch it on and confirm the first upload.
 
 MinerU conversion belongs to the **StudyHub · Audio** component. When that component is off, only the manual routes under **Advanced** are available.
 
@@ -130,11 +130,25 @@ Installing and uninstalling stay your buttons: the main chat never calls them. A
 
 When `MINERU_BIN` is set, or `mineru` is on the search path, StudyHub uses it and says **Ready · installed by you**. It only calls it and never changes its settings. StudyHub's own install comes first when both exist; **More** then lists the other one. If both services want the same port, the error offers to stop the other one.
 
-## No more cloud route
+## Optional: the MinerU official API (uploads the PDF)
 
-The MinerU cloud route (a MinerU token, uploading the PDF) was removed in 3.5.5: its entry had stopped working. Old cloud rows still show in the conversion history, but cannot be resumed: choose the PDF again to convert it on this computer. A conversion request that asks for the cloud is refused with that message.
+Off by default. Nothing is uploaded until you turn it on and confirm.
 
-A token saved by an older version stays in `<DSH home>/study/mineru.json`. Nothing reads it any more; you can delete the file by hand. `MINERU_API_KEY` is ignored.
+1. Create a token on the API management page of mineru.net (the API documentation is at `https://mineru.net/apiManage/docs`). A token is valid for 90 days; after that, create a new one and paste it again.
+2. In **Settings › PDF conversion (MinerU)**, choose **Cloud (uploads file)** under **Conversion mode** and paste the token under **Cloud API Key**. Saving checks it with one request that carries no document. Leave **Endpoint URL (baseUrl)** empty for MinerU official (`https://mineru.net/api/v4`), or enter a MinerU-compatible third-party endpoint.
+3. The first time you start a cloud conversion, a dialog names the endpoint the PDF goes to. Nothing is uploaded until you click **Confirm upload and start**. The consent holds for that endpoint only (a different URL asks again); **Withdraw upload consent** in Settings removes it.
+
+The import dialog has the same **Conversion mode** switch for one PDF, and **Local (default)** is always one click away.
+
+Limits of the official API: at most 200 pages and 200 MB per file. StudyHub cuts a longer book into pieces (at chapter starts where the outline allows), uploads each piece and merges the results back into one book with the original page numbers. Each account gets 1000 pages a day at top priority; later pages are still parsed, only more slowly, and a slow piece is shown as slow, not failed. Settings and the import plan quote these numbers from one table in `lib/contexts/audio/mineru-api.js`.
+
+What StudyHub does for each piece: ask for an upload address (`POST /file-urls/batch`, model `vlm`), upload the raw bytes to that pre-signed address (no token and no Content-Type, as the address requires), poll the batch (`waiting-file`, `pending`, `running` with the pages done, `converting`, then `done` or `failed`) and download the result `.zip`. From the zip it imports `<id>_content_list.json`, which keeps the page of every block; `full.md` has no page numbers and is not used. A finished piece is kept: **Continue** goes on with the pieces left and never uploads a finished one again.
+
+When it fails: an invalid or expired token links to Settings; a network or service failure keeps the finished pieces for **Continue**; **Switch to local** converts the same PDF on this computer instead, without uploading anything.
+
+The token is kept in `<DSH home>/study/mineru.json` (owner-only permissions), never in the library, an export, a backup, a snapshot, a log or a message; Settings shows only its last four characters. `MINERU_API_KEY` is used when no token is saved. The main chat can neither change these settings nor start a cloud conversion while the mode is local.
+
+Cloud rows made before 3.5.5 still show in the conversion history; one whose temporary files are gone cannot be continued: choose the PDF again.
 
 ## Convert a PDF
 

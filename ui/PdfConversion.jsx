@@ -109,6 +109,8 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
   const tier = local?.tier || local?.install?.tier;
   const estimate = !isMarker && !isCloud && plan && tier ? localEstimate(plan.pages, tier, local.estimates) : null;
   const effectiveUrl = settings?.effectiveBaseUrl || plan?.effectiveBaseUrl || DEFAULT_BASE_URL;
+  // The official limits, as the backend reads them from MINERU (lib/contexts/audio/mineru-api.js): never numbers written into the wording.
+  const cloudLimits = plan?.limits || settings?.limits || null;
   const endpoint = hostOf(effectiveUrl);
 
   const runImport = async chosenRoute => {
@@ -211,11 +213,16 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
             <span>{uiFormat('共 {0} 页 · {1}', [plan.pages, formatBytes(plan.bytes)])}</span>
           </p>
           {isCloud && <p className="mineru-plan__estimate">{uiFormat('目标接口：{0}', [endpoint])}</p>}
+          {isCloud && cloudLimits && plan.pages > cloudLimits.dailyPriorityPages && <p className="mineru-plan__estimate">
+            {uiFormat('MinerU 官方接口每个账号每天前 {0} 页优先解析；这本书更长，超出的部分会排队、变慢，但不会失败。', [cloudLimits.dailyPriorityPages])}
+          </p>}
           {!isCloud && localReady && estimate && <p className="mineru-plan__estimate">{uiFormat('约 {0} 分钟（估算：每页约 {1} 秒，实际取决于这台电脑）', [minutesOf(estimate), local.estimates?.[tier]])}</p>}
           <Disclosure summary={ui('分段与页码详情')}>
             {adaptiveLocal && <p className="mineru-plan__why">{uiFormat('先做 {0} 页看一看这台电脑有多快，再按它的速度调整每段的页数（每段约 {1} 秒，{2}–{3} 页）。', [plan.adaptive.firstPages, plan.adaptive.targetSeconds, plan.adaptive.minPages, plan.adaptive.maxPages])}</p>}
             {isCloud && pieceCount > 1 && <p className="mineru-plan__why">
-              {ui('云端单次最多处理 200 页或 200 MB，超长书籍会自动分段上传并合并结果。')}
+              {cloudLimits
+                ? uiFormat('MinerU 官方接口单个文件最多 {0} 页、{1} MB，所以这本书会分段上传，解析完再合并成一份。', [cloudLimits.maxPages, cloudLimits.maxMegabytes])
+                : ui('这本书会分段上传，解析完再合并成一份。')}
             </p>}
             {!isCloud && pieceCount > 1 && <p className="mineru-plan__why">
               {uiFormat('本地按每 {0} 页一段推进，这样能看到进度、随时停下，出错也只重做那一段。', [local?.windowPages || 50])}

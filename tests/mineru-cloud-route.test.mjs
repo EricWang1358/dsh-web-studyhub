@@ -13,7 +13,11 @@ import { managedRuntimeOptions } from './helpers/runtime-switch.mjs';
 
 /* Issue #1765: optional MinerU cloud / third-party route with custom baseUrl + Key,
    default remains local (no upload), upload consent required before cloud upload,
-   and failed cloud jobs can switch cleanly to local ("改用本机"). */
+   and failed cloud jobs can switch cleanly to local ("改用本机").
+   The fake server answers as the official API did in the owner's end-to-end run (2026-11-28): the pre-signed PUT refuses a
+   request that carries a Content-Type (OSS: 403 signature mismatch) or the token, the batch goes waiting-file -> pending ->
+   running (extract_progress) -> converting -> done, and the result zip holds full.md, <uuid>_content_list.json,
+   <uuid>_content_list_v2.json, <uuid>_model.json, layout.json and <uuid>_origin.pdf. */
 
 const FAKE_CLI = fileURLToPath(new URL('./helpers/fake-mineru-cli.mjs', import.meta.url));
 
@@ -24,7 +28,7 @@ async function startFakeCloudServer(t, behavior = {}) {
     const parts = [];
     for await (const chunk of req) parts.push(chunk);
     const body = Buffer.concat(parts);
-    requests.push({ method: req.method, url: req.url, auth: req.headers.authorization || '' });
+    requests.push({ method: req.method, url: req.url, auth: req.headers.authorization || '', contentType: req.headers['content-type'] });
 
     if (req.url.startsWith('/v4/') && state.failAuth) {
       res.writeHead(401, { 'Content-Type': 'application/json' });
@@ -45,17 +49,35 @@ async function startFakeCloudServer(t, behavior = {}) {
       return;
     }
     if (req.method === 'PUT' && req.url === '/upload/1') {
+      // Like OSS: a Content-Type (or any auth) that was not signed into the URL breaks the signature.
+      if (req.headers['content-type'] !== undefined || req.headers.authorization !== undefined) {
+        res.writeHead(403, { 'Content-Type': 'application/xml' });
+        res.end('<Error><Code>SignatureDoesNotMatch</Code></Error>');
+        return;
+      }
+      state.uploaded = body.length;
+      state.polls = 0;
       res.writeHead(200);
       res.end();
       return;
     }
     if (req.method === 'GET' && req.url === '/v4/extract-results/batch/batch-1') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
+      const item = { file_name: 'Book.pdf', data_id: state.lastDataId || 'd1' };
       if (state.failConversion) {
-        res.end(JSON.stringify({ code: 0, data: { extract_result: [{ file_name: 'Book.pdf', data_id: state.lastDataId || 'd1', state: 'failed', err_msg: 'boom' }] } }));
+        res.end(JSON.stringify({ code: 0, data: { batch_id: 'batch-1', extract_result: [{ ...item, state: 'failed', err_msg: 'boom' }] } }));
         return;
       }
-      res.end(JSON.stringify({ code: 0, data: { extract_result: [{ file_name: 'Book.pdf', data_id: state.lastDataId || 'd1', state: 'done', full_zip_url: `http://127.0.0.1:${port}/result.zip` }] } }));
+      const step = state.polls = (state.polls ?? 0) + 1;
+      const states = [
+        { state: 'waiting-file' },
+        { state: 'pending' },
+        { state: 'running', extract_progress: { extracted_pages: 1, total_pages: 3, start_time: '2026-11-28 21:00:00' } },
+        { state: 'converting' },
+      ];
+      const now = state.uploaded ? (states[step - 1] ?? { state: 'done', full_zip_url: `http://127.0.0.1:${port}/result.zip` }) : states[0];
+      (state.seenStates ??= []).push(now.state);
+      res.end(JSON.stringify({ code: 0, data: { batch_id: 'batch-1', extract_result: [{ ...item, ...now, err_msg: '' }] } }));
       return;
     }
     if (req.method === 'GET' && req.url === '/result.zip') {
@@ -64,7 +86,16 @@ async function startFakeCloudServer(t, behavior = {}) {
         { type: 'text', text: 'Cloud page 2 body text.', page_idx: 1 },
         { type: 'text', text: 'Cloud page 3 body text.', page_idx: 2 },
       ];
-      const zip = zipStored({ 'book_content_list.json': JSON.stringify(content) });
+      const uuid = '5f0c9a7e-1b2d-4c3e-9f8a-0d1e2f3a4b5c';
+      // The order of the real archive: v2 and the model file come before the flat v1 list, which is the one StudyHub must read.
+      const zip = zipStored({
+        'full.md': '# FULL-MD-ONLY\n\nCloud page text without page markers.',
+        [`${uuid}_content_list_v2.json`]: JSON.stringify([[{ type: 'text', content: { text: 'V2-ONLY page 1' } }], [], []]),
+        [`${uuid}_model.json`]: JSON.stringify([{ layout_dets: [] }]),
+        'layout.json': JSON.stringify({ pdf_info: [] }),
+        [`${uuid}_content_list.json`]: JSON.stringify(content),
+        [`${uuid}_origin.pdf`]: Buffer.from('%PDF-1.7 fake'),
+      });
       res.writeHead(200, { 'Content-Type': 'application/zip' });
       res.end(zip);
       return;
@@ -149,6 +180,24 @@ test('default route is local (zero cloud uploads), even when a cloud Key is save
   assert.equal(cloud.requests.length, 0, 'nothing was uploaded to cloud');
 });
 
+test('"auto" never picks the cloud while the learner\'s mode is local, even with a saved Key and upload consent and no local MinerU', async t => {
+  const cloud = await startFakeCloudServer(t);
+  const h = await setup(t, { localReady: false });
+  // The learner once set up the cloud and confirmed the upload, then switched back to local.
+  await h.call('mineru.settings.set', { mode: 'cloud', baseUrl: cloud.baseUrl, token: 'sk-saved-but-off-123456', acknowledge: true });
+  await h.call('mineru.settings.set', { mode: 'local' });
+  const settings = await h.call('mineru.settings.get');
+  assert.deepEqual([settings.mode, settings.token.set, settings.acknowledged], ['local', true, true]);
+  await assert.rejects(h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })), route: 'auto' }), error => error.code !== 'no-token' && error.code !== 'no-ack');
+  await assert.rejects(h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })) }));
+  assert.deepEqual(cloud.requests, [], 'nothing was sent to the cloud');
+  assert.deepEqual(await h.jobs(), []);
+  // With the mode on cloud, "auto" may use it (the learner turned it on and confirmed).
+  await h.call('mineru.settings.set', { mode: 'cloud' });
+  const started = await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })), route: 'auto' });
+  assert.equal((await h.settled(started.jobId)).route, 'cloud');
+});
+
 test('cloud conversion requires both Key and upload acknowledgement, then converts through custom baseUrl + Key without leaking Key', async t => {
   const cloud = await startFakeCloudServer(t);
   const h = await setup(t, { localReady: false });
@@ -178,6 +227,17 @@ test('cloud conversion requires both Key and upload acknowledgement, then conver
   assert.equal(done.sourceIds.length, 3);
   assert.equal(done.env.kind, 'cloud');
   assert.ok(done.env.endpoint.startsWith('127.0.0.1:'));
+
+  // The real API's shape: one PUT of the raw bytes with no Content-Type and no token, every documented state polled through,
+  // and the pages read from <uuid>_content_list.json (not the v2 list, not full.md).
+  const puts = cloud.requests.filter(r => r.method === 'PUT');
+  assert.equal(puts.length, 1, 'one upload, accepted first time');
+  assert.deepEqual([puts[0].contentType, puts[0].auth], [undefined, ''], 'the pre-signed PUT carries no Content-Type and no token');
+  assert.deepEqual(cloud.state.seenStates, ['waiting-file', 'pending', 'running', 'converting', 'done']);
+  const pages = await Promise.all(done.sourceIds.map(id => h.call('source.get', { id })));
+  const text = JSON.stringify(pages);
+  assert.match(text, /Cloud page 2 body text\./);
+  assert.doesNotMatch(text, /V2-ONLY|FULL-MD-ONLY/, 'the flat <uuid>_content_list.json is the one imported');
 
   // Secret must NEVER leak into snapshot jobs or history
   const snapshotJson = JSON.stringify(await h.call('snapshot'));

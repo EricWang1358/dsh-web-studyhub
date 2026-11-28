@@ -87,6 +87,33 @@ test('createMineruClient routes requests to custom baseUrl with Bearer Key, and 
   assert.ok(apiCalls.every(entry => entry.auth === `Bearer ${secret}`), 'Bearer Key sent to API endpoint');
   assert.equal(presignedCalls.length, 2);
   assert.ok(presignedCalls.every(entry => entry.auth === ''), 'Key NEVER sent to pre-signed upload/download URLs');
+  // The official pre-signed OSS address refuses a PUT with any Content-Type (403 signature mismatch): Node's own fetch must send none.
+  const put = seen.find(entry => entry.method === 'PUT');
+  assert.equal(put.contentType, '', 'the PUT of the raw bytes carries no Content-Type header');
+  assert.equal(put.body.toString('utf8'), '%PDF-1.7', 'the raw bytes, unchanged');
+  const post = seen.find(entry => entry.method === 'POST');
+  assert.equal(post.contentType, 'application/json');
+  assert.deepEqual(Object.keys(JSON.parse(post.body.toString('utf8')).files[0]).slice(0, 2), ['name', 'data_id']);
+  assert.equal(JSON.parse(post.body.toString('utf8')).model_version, 'vlm');
+});
+
+test('the result states of the real API map one to one, with live page progress while running', async () => {
+  const answer = items => new Response(JSON.stringify({ code: 0, data: { batch_id: 'b', extract_result: items } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  const replies = [
+    [{ file_name: 'a.pdf', data_id: 'd', state: 'waiting-file', err_msg: '' }],
+    [{ file_name: 'a.pdf', data_id: 'd', state: 'pending', err_msg: '' }],
+    [{ file_name: 'a.pdf', data_id: 'd', state: 'running', err_msg: '', extract_progress: { extracted_pages: 7, total_pages: 12, start_time: '2026-11-28 21:00:00' } }],
+    [{ file_name: 'a.pdf', data_id: 'd', state: 'converting', err_msg: '' }],
+    [{ file_name: 'a.pdf', data_id: 'd', state: 'done', err_msg: '', full_zip_url: 'https://cdn-mineru.openxlab.org.cn/pdf/x/y.zip' }],
+    [{ file_name: 'a.pdf', data_id: 'd', state: 'failed', err_msg: 'file is encrypted' }],
+  ];
+  const client = createMineruClient({ token: 'eyJ0eXBlIjoiSldUIiwiYWxnIjoiSFM1MTIifQ.state-test', fetch: async () => answer(replies.shift()) });
+  const seen = [];
+  for (let i = 0; i < 6; i++) seen.push((await client.status('b'))[0]);
+  assert.deepEqual(seen.map(item => item.state), ['waiting', 'pending', 'running', 'running', 'done', 'failed']);
+  assert.deepEqual([seen[2].extractedPages, seen[2].totalPages], [7, 12]);
+  assert.equal(seen[4].zipUrl, 'https://cdn-mineru.openxlab.org.cn/pdf/x/y.zip');
+  assert.equal(seen[5].errMsg, 'file is encrypted');
 });
 
 test('createMineruClient falls back to MINERU.baseUrl when baseUrl is blank and never leaks Key in errors', async () => {

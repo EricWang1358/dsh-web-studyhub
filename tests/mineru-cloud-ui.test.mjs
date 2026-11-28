@@ -4,6 +4,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { click, loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
+import { MINERU, cloudLimits } from '../lib/contexts/audio/mineru-api.js';
 
 /* Issue #1765 UI contract:
    1. Settings shows "解析方式：本机（默认）/ 云端（会把文件上传）" with default local, and custom baseUrl + Key when cloud is chosen.
@@ -43,6 +44,7 @@ const cloudSettings = (extra = {}) => ({
   acknowledged: false,
   acknowledgedAt: '',
   docsUrl: 'https://mineru.net/apiManage/docs',
+  limits: cloudLimits(),
   settingsFile: '/home/u/.dsh/study/mineru.json',
   ...extra,
 });
@@ -189,6 +191,29 @@ test('permanent cloud failures hide "改用本机"; page-too-large offers "改�
   assert.doesNotMatch(bigHistoryHtml, />接着做</, 'page-too-large history row hides cloud 接着做');
 });
 
+/** A book past both official limits: more pages than one file may have, and more than one day's top-priority quota. */
+const longPlan = () => {
+  const pages = MINERU.dailyPriorityPages + 200, size = MINERU.maxPages;
+  const pieces = Array.from({ length: Math.ceil(pages / size) }, (_, index) => ({ index: index + 1, startPage: index * size + 1, endPage: Math.min(pages, (index + 1) * size), pages: Math.min(size, pages - index * size), estimatedBytes: 1024, cut: 'pages' }));
+  return { name: 'Long.pdf', pages, bytes: 90 * 1024 * 1024, windows: [{ index: 1, startPage: 1, endPage: 50, pages: 50 }], pieces, limits: cloudLimits() };
+};
+
+test('the official limits and token facts are shown from the one MINERU table (Settings and the cloud plan), never as numbers written into wording', () => {
+  const settings = render(sh(ssr.MineruSettings, { initialLocal: localMissing, initialSettings: cloudSettings() }));
+  assert.match(settings, new RegExp(`单个文件最多 ${MINERU.maxPages} 页、${MINERU.maxBytes / 1024 / 1024} MB`));
+  assert.match(settings, new RegExp(`每天前 ${MINERU.dailyPriorityPages} 页优先解析`));
+  assert.match(settings, new RegExp(`API 管理页创建，有效期 ${MINERU.tokenValidityDays} 天`));
+  assert.ok(settings.includes(MINERU.docsUrl));
+  const long = render(sh(ssr.PdfConversion, { file: sampleFile, initialLocal: localMissing, initialSettings: cloudSettings({ acknowledged: true }), initialPlan: longPlan() }));
+  assert.match(long, new RegExp(`每个账号每天前 ${MINERU.dailyPriorityPages} 页优先解析；这本书更长`));
+  assert.match(long, new RegExp(`单个文件最多 ${MINERU.maxPages} 页、${MINERU.maxBytes / 1024 / 1024} MB，所以这本书会分段上传`));
+  // A book within the daily quota says nothing about it; the local route says nothing about cloud limits.
+  const short = render(sh(ssr.PdfConversion, { file: sampleFile, initialLocal: localMissing, initialSettings: cloudSettings({ acknowledged: true }), initialPlan: samplePlan }));
+  assert.doesNotMatch(short, /优先解析/);
+  const local = render(sh(ssr.PdfConversion, { file: sampleFile, initialLocal: localReady, initialSettings: localSettings(), initialPlan: longPlan() }));
+  assert.doesNotMatch(local, /优先解析|MinerU 官方接口单个文件/);
+});
+
 test('MineruSettings reverts optimistic mode selection back to saved mode when mineru.settings.set fails', async () => {
   await withBrowserGlobals(async () => {
     const services = {
@@ -234,6 +259,7 @@ test('English locale has 0 leaked Han characters across cloud settings, cloud co
     sh(ssr.PdfConversion, { file: sampleFile, initialLocal: localMissing, initialSettings: cloudSettings({ token: { set: false, hint: '', source: '' } }), initialPlan: samplePlan, onOpenSettings() {} }),
     sh(ssr.PdfConversion, { file: sampleFile, initialLocal: localMissing, initialSettings: cloudSettings({ acknowledged: false }), initialPlan: samplePlan, initialConfirmUpload: true }),
     sh(ssr.PdfConversion, { file: sampleFile, initialLocal: localMissing, initialSettings: cloudSettings({ acknowledged: true }), initialPlan: samplePlan }),
+    sh(ssr.PdfConversion, { file: sampleFile, initialLocal: localMissing, initialSettings: cloudSettings({ acknowledged: true }), initialPlan: longPlan() }),
     sh(ssr.PdfConvertJobs, { jobs: [failedAuth, failedNet], onOpenSettings() {} }),
     sh(ssr.PdfDetail, { job: failedAuth }),
     sh(ssr.PdfConvertHistory, { initialRecords: [historyRow], now: Date.now() }),
