@@ -28,9 +28,6 @@ export const EXTERNAL_PDF_TOOL_URLS = Object.freeze(EXTERNAL_PDF_TOOLS.map(entry
 
 export const EXTERNAL_PDF_IMPORT_TITLE = '转换完成后怎么导入';
 
-/** The page marker StudyHub reads in Markdown (lib/converted-document.js). */
-export const PAGE_MARKER = '<!-- page: N -->';
-
 /** Real formats verified against lib/contexts/materials/files.js. Step 1's body is built in the component (it quotes the limits). */
 export const EXTERNAL_PDF_IMPORT_STEPS = Object.freeze([
   Object.freeze({ id: 'formats', title: '1. 确认导出格式' }),

@@ -144,30 +144,5 @@
     .pdf-env__windows summary:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
     .pdf-env__windows ol { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: var(--space-half) var(--space-3); margin: var(--space-1) 0 0; padding: 0; list-style: none; font-variant-numeric: tabular-nums; }
     .pdf-env__windows li { min-width: 0; overflow-wrap: anywhere; }
-    /* External conversion tool reference links & 3-step import guide (ui/PdfExternalConvertGuide.jsx, #1765). */
-    .pdf-ext-guide { min-width: 0; max-width: 100%; }
-    .pdf-ext-guide__body { display: grid; gap: var(--space-3); min-width: 0; }
-    .pdf-ext-guide__notice { margin: 0; }
-    .pdf-ext-guide__privacy { margin: 0; color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-body); }
-    .pdf-ext-guide__scope { margin: var(--space-1) 0 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
-    .pdf-ext-guide__list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; min-width: 0; }
-    .pdf-ext-guide__item { display: grid; gap: var(--space-1); min-width: 0; padding: var(--space-2) var(--space-3); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg-sunken); }
-    .pdf-ext-guide__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-half) var(--space-2); min-width: 0; }
-    .pdf-ext-guide__head strong { color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
-    .pdf-ext-guide__role { color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-    .pdf-ext-guide__url-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); min-width: 0; }
-    .pdf-ext-guide__url { flex: 1 1 200px; min-width: 0; padding: var(--space-half) var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); color: var(--text); font-family: var(--font-stack-mono); font-size: var(--fs-sm); font-variant-ligatures: none; overflow-wrap: anywhere; word-break: break-all; user-select: text; }
-    .pdf-ext-guide__copy-btn { flex: none; }
-    .pdf-ext-guide__copy-error { display: block; color: var(--warn-ink); }
-    .pdf-ext-guide__guide { display: grid; gap: var(--space-2); min-width: 0; padding-top: var(--space-2); border-top: 1px solid var(--line-soft); }
-    .pdf-ext-guide__subtitle { margin: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); line-height: var(--lh-tight); }
-    .pdf-ext-guide__steps { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; min-width: 0; }
-    .pdf-ext-guide__step { display: grid; gap: var(--space-1); min-width: 0; font-size: var(--fs-sm); line-height: var(--lh-body); }
-    .pdf-ext-guide__step > strong { color: var(--text); font-weight: var(--fw-medium); }
-    .pdf-ext-guide__step > p { margin: 0; max-width: 72ch; color: var(--text-dim); overflow-wrap: anywhere; }
-    .pdf-ext-guide__step code { font-family: var(--font-stack-mono); font-size: 0.92em; font-variant-ligatures: none; }
-    .pdf-ext-guide__troubles { display: grid; gap: var(--space-1); margin: 0; padding-left: var(--space-4); color: var(--text-dim); min-width: 0; }
-    .pdf-ext-guide__troubles li { min-width: 0; overflow-wrap: anywhere; }
-    .pdf-ext-guide__troubles strong { color: var(--text); font-weight: var(--fw-medium); }
   }
 }

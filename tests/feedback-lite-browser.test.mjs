@@ -135,10 +135,13 @@ test('time limit on the exam card, a weak topic and a chapter each start practic
       const open = snapshot.runs.filter(run => run.mode === 'exam').at(-1);
       assert.equal((await previewCall(running.server, 'review.get', { runId: open.id })).limitMs, 60 * 60000, 'and the run keeps it');
       await shot(page, `exam-running-${width}`);
-      // Every question answered wrongly (option B): the report has weak topics.
+      // Every question answered wrongly: the report has weak topics. The option named 「Wrong one」, not a position: an exam shows each card's options shuffled
+      // (lib/domain.js optionOrder), so the second one is the right answer about one time in three.
+      const wrongOption = page.locator('.exam-option').filter({ has: page.locator('.exam-option-text', { hasText: /^Wrong one$/ }) });
       const total = await page.locator('.exam-progress').innerText().then(text => Number(text.split('/')[1]));
       for (let index = 0; index < total; index++) {
-        await page.locator('.exam-option').nth(1).click();
+        await wrongOption.click();
+        await until(async () => (await wrongOption.getAttribute('aria-pressed')) === 'true', 'the wrong option picked');
         if (index < total - 1) { await page.getByRole('button', { name: '下一题' }).click(); await until(async () => (await page.locator('.exam-progress').innerText()).startsWith(`${index + 2} `), 'the next question'); }
       }
       await page.locator('.exam-foot').getByRole('button', { name: '交卷', exact: true }).click();

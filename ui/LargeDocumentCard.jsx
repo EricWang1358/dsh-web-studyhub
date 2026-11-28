@@ -10,7 +10,7 @@ import { megabytes } from '../lib/office/limits.js';
 import { useCopyFeedback } from './use-copy-feedback.js';
 import { LARGE_DOCUMENT_LIMITS, TOOLS, VERIFIED_AT, mcpConfigSnippet } from '../lib/large-documents.js';
 import ExtensionPanel from './ExtensionPanel.jsx';
-import { ConvertedFileFormats, toolMetaLine } from './PdfExternalConvertGuide.jsx';
+import { ConvertedFileFormats, toolMetaLine } from './converter-lines.jsx';
 import { PdfConversion } from './pdf-conversion-lazy.jsx';
 import { HandOff } from './hand-off/HandOff.jsx';
 import { hasChatHost } from './hand-off/use-hand-off.js';
