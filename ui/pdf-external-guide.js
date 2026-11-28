@@ -4,6 +4,7 @@
    lib/office/limits.js (see PdfExternalConvertGuide.jsx), never from numbers written into wording.
    StudyHub does NOT call third-party APIs, proxy files, or guarantee third-party availability. */
 import { TOOLS } from '../lib/large-documents.js';
+export { PAGE_MARKER } from './pdf-page-marker.js';
 
 export const EXTERNAL_PDF_GUIDE_TITLE = '想用外部工具转换？';
 export const EXTERNAL_PDF_GUIDE_META = '手动转换 · 外链参考';
@@ -27,9 +28,6 @@ export const EXTERNAL_PDF_TOOLS = Object.freeze(EXTERNAL_PDF_TOOL_IDS.flatMap(id
 export const EXTERNAL_PDF_TOOL_URLS = Object.freeze(EXTERNAL_PDF_TOOLS.map(entry => entry.url));
 
 export const EXTERNAL_PDF_IMPORT_TITLE = '转换完成后怎么导入';
-
-/** The page marker StudyHub reads in Markdown (lib/converted-document.js). */
-export const PAGE_MARKER = '<!-- page: N -->';
 
 /** Real formats verified against lib/contexts/materials/files.js. Step 1's body is built in the component (it quotes the limits). */
 export const EXTERNAL_PDF_IMPORT_STEPS = Object.freeze([

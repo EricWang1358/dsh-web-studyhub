@@ -1,5 +1,7 @@
 import { deferredView } from './deferred-view.jsx';
 
-/* The local PDF converter (ui/PdfConversion.jsx and the install, job and history cards under it) is only needed once a file has been dropped or 「PDF 解析」 is
-   opened, so it arrives with its own chunk then, not with the workspace's first load. Until it is there nothing is drawn: it is shown after a press, and a local chunk arrives at once. */
+/* The PDF converter (ui/PdfConversion.jsx) and the conversion job/history cards on 资料 (ui/PdfConvertJob.jsx, together with ConvertEdit,
+   PdfExternalConvertGuide and mineru.css) stay out of the workspace's first-load static closure (#562) and arrive on demand in their own chunk.
+   Until a chunk arrives nothing is drawn: there is no placeholder height shift when a library has no active conversions. */
 export const PdfConversion = deferredView(() => import('./PdfConversion.jsx'), { loading: () => null });
+export const PdfConvertSection = deferredView(() => import('./PdfConvertJob.jsx').then(mod => ({ default: mod.PdfConvertSection })), { loading: () => null });
