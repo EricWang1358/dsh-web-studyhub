@@ -7,7 +7,7 @@
    Defaults to 'off' in appearance-prefs.js: when off, zero AudioContext instances are constructed;
    automatically mutes whenever microphone / live-class audio capture is active (ui/live-audio.js)
    or the tab is hidden (except for explicit focus timer chimes). */
-import { getAppearanceSound, invalidateAppearanceCache, onAppearanceCacheChange } from './appearance-prefs.js';
+import { getAppearanceSound, invalidateAppearanceCache, isMinimalMode, onAppearanceCacheChange } from './appearance-prefs.js';
 import { isAudioCaptureActive } from './audio-capture-state.js';
 
 export const SOUND_CUES = Object.freeze(['tap', 'flip', 'correct', 'levelUp', 'miss', 'complete']);
@@ -563,6 +563,11 @@ export function scheduleSoundPrebake(sampleRate = sharedCtxRate || 44100) {
 }
 
 onAppearanceCacheChange((prefs) => {
+  if (prefs?.minimal === 'on') {
+    stopSoundPreview();
+    cancelPrebake();
+    return;
+  }
   if (prefs?.sound && prefs.sound !== 'off') scheduleSoundPrebake();
   else cancelPrebake();
 });
@@ -756,15 +761,16 @@ export function playSound(cue, options = {}) {
   }
 }
 
-/** Luminous D-major chime for TodayTimer (allowed in background tabs unless mic/tab capture is active). */
+/** Luminous D-major chime for TodayTimer (allowed in background tabs unless mic/tab capture or Minimal Mode is active). */
 export function playTimerChime() {
+  if (isMinimalMode()) return false;
   return playSound('complete', { force: true, allowHidden: true, skipThrottle: true });
 }
 
-/** Audition the current sound tier from Settings › Appearance (works even when mode is still 'off'). */
+/** Audition the current sound tier from Settings › Appearance (works even when mode is still 'off', muted in Minimal Mode). */
 export function playSoundPreview(mode = 'subtle') {
   stopSoundPreview();
-  if (isAudioCaptureActive()) return false;
+  if (isAudioCaptureActive() || isMinimalMode()) return false;
   const tier = mode === 'standard' ? 'standard' : 'subtle';
   const sequence = tier === 'standard'
     ? [

@@ -10,8 +10,9 @@
        --paper-radius is the one spelling of the card corner (the corner style setting moves --radius-card); the card surface that uses
        it, `.sh-paper-card`, is the second block of this file. */
     --paper-radius: var(--radius-card);
-    :is(.sh-paper, .sh-paper-card, .flash-area .question-meta, .flash-area .card-progress,
-      .study-document-viewer[data-tone='paper'] .reader-page, .study-reading[data-tone='paper']) {
+  }
+  :is(.study-app, .study-seat):not([data-minimal='on']) :is(.sh-paper, .sh-paper-card, .flash-area .question-meta, .flash-area .card-progress),
+  :is(.study-app, .study-seat) :is(.study-document-viewer[data-tone='paper'] .reader-page, .study-reading[data-tone='paper']) {
       --text: var(--paper-ink);
       --text-dim: #463e34;
       --text-muted: var(--paper-dim);
@@ -71,7 +72,6 @@
       --info-solid: color-mix(in srgb, var(--info) 70%, var(--bg-surface));
       color: var(--text);
       color-scheme: light;
-    }
   }
 }
 

@@ -65,9 +65,10 @@ test('界面大小 goes down to 50% and 70%: kept through save, reload, export a
 /* ---------- one definition ---------- */
 
 test('one list of settings with defaults and the values each one allows; interface-prefs keeps exporting the same constants', () => {
-  assert.deepEqual({ ...APPEARANCE_DEFAULTS }, { theme: 'auto', motion: 'auto', sound: 'off', scale: 100, font: 'system', fontTitle: 'follow', fontCustom: '', accent: 'cinnabar', contrast: 'auto', density: 'standard', radius: 'standard', craft: 'standard' });
+  assert.deepEqual({ ...APPEARANCE_DEFAULTS }, { theme: 'auto', motion: 'auto', sound: 'off', scale: 100, font: 'system', fontTitle: 'follow', fontCustom: '', accent: 'cinnabar', contrast: 'auto', density: 'standard', radius: 'standard', craft: 'standard', minimal: 'off' });
   assert.deepEqual(APPEARANCE_OPTIONS.theme, ['auto', 'dark', 'light', 'oled', 'paper']);
   assert.deepEqual(APPEARANCE_OPTIONS.sound, ['off', 'subtle', 'standard']);
+  assert.deepEqual(APPEARANCE_OPTIONS.minimal, ['off', 'on']);
   assert.equal(APPEARANCE_OPTIONS.motion, legacy.MOTIONS);
   assert.equal(APPEARANCE_OPTIONS.scale, legacy.SCALES);
   assert.equal(APPEARANCE_OPTIONS.font, legacy.FONTS);
@@ -129,14 +130,14 @@ test('saving writes the old keys in the old shapes: an older version reads what 
 
 test('appearanceAttrs: the four data-* attributes, with auto resolved from the system and an explicit choice winning', () => {
   const dark = { light: false, reducedMotion: false };
-  assert.deepEqual(appearanceAttrs({ ...APPEARANCE_DEFAULTS }, dark), { 'data-theme': 'dark', 'data-palette': 'standard', 'data-motion': 'full', 'data-ui-scale': 100, 'data-ui-font': 'system',
+  assert.deepEqual(appearanceAttrs({ ...APPEARANCE_DEFAULTS }, dark), { 'data-theme': 'dark', 'data-palette': 'standard', 'data-motion': 'full', 'data-minimal': 'off', 'data-ui-scale': 100, 'data-ui-font': 'system',
     'data-contrast': 'standard', 'data-density': 'standard', 'data-radius': 'standard', 'data-craft': 'standard', 'data-accent': 'cinnabar', 'data-ui-title': 'follow' });
   assert.equal(appearanceAttrs({ theme: 'auto' }, { light: true, reducedMotion: false })['data-theme'], 'light');
   assert.equal(appearanceAttrs({ theme: 'dark' }, { light: true, reducedMotion: false })['data-theme'], 'dark');
   assert.equal(appearanceAttrs({ theme: 'light' }, dark)['data-theme'], 'light');
   assert.equal(appearanceAttrs({ motion: 'auto' }, { light: false, reducedMotion: true })['data-motion'], 'reduced');
   assert.equal(appearanceAttrs({ motion: 'full' }, { light: false, reducedMotion: true })['data-motion'], 'full');
-  assert.deepEqual(appearanceAttrs({ scale: 150, font: 'serif', motion: 'off' }, dark), { 'data-theme': 'dark', 'data-palette': 'standard', 'data-motion': 'off', 'data-ui-scale': 150, 'data-ui-font': 'serif',
+  assert.deepEqual(appearanceAttrs({ scale: 150, font: 'serif', motion: 'off' }, dark), { 'data-theme': 'dark', 'data-palette': 'standard', 'data-motion': 'off', 'data-minimal': 'off', 'data-ui-scale': 150, 'data-ui-font': 'serif',
     'data-contrast': 'standard', 'data-density': 'standard', 'data-radius': 'standard', 'data-craft': 'standard', 'data-accent': 'cinnabar', 'data-ui-title': 'follow' });
   assert.equal(appearanceAttrs({ scale: 999, font: 'x' }, dark)['data-ui-scale'], 100, 'an invalid value never reaches the DOM');
 });

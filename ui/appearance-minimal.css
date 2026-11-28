@@ -1,0 +1,124 @@
+/* 极简模式（设置 › 界面）：开启（data-minimal='on'）时消除纸卡强反差、视觉装饰与光晕动效，
+   保留全部核心学习功能、用户强调色与对错语义色；默认「关闭」（data-minimal='off'）零规则，100% 保持原版视觉不变。 */
+
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.tokens {
+  /* 压平高光、边缘亮线与装饰阴影（全部采用语义令牌，无 raw hex） */
+  .study-app[data-minimal='on'],
+  .study-seat[data-minimal='on'] {
+    --sheen: transparent;
+    --sheen-strong: transparent;
+    --edge-highlight: transparent;
+    --edge-highlight-soft: transparent;
+    --edge-highlight-paper: transparent;
+    --shadow-card: none;
+    --shadow-item: none;
+    --shadow-panel: none;
+    --shadow-popover: 0 0 0 1px var(--line-strong);
+    --shadow-dialog: 0 0 0 1px var(--line-strong);
+  }
+
+  /* 卡片内直接引用 --paper* 的文字与边线自动对齐当前主题的 WCAG AA 令牌；
+     阅读器 Aa 独立纸张色调（.reader-page / .study-reading）与 PDF 白色页（--pdf-page）保持原样。 */
+  .study-app[data-minimal='on'] :is(.sh-paper, .sh-paper-card, .flash-area .question-meta, .flash-area .card-progress),
+  .study-seat[data-minimal='on'] :is(.sh-paper, .sh-paper-card, .flash-area .question-meta, .flash-area .card-progress) {
+    --paper: var(--bg-surface);
+    --paper-ink: var(--text);
+    --paper-dim: var(--text-muted);
+    --paper-rule: var(--line);
+  }
+
+  /* 高对比度 + 极简模式：撤销纸卡专属浅底高对比覆写，继承当前主题的高对比边框与文字令牌，杜绝深底暗字。 */
+  .study-app[data-minimal='on'][data-contrast='high'] :is(.sh-paper, .sh-paper-card, .flash-area .question-meta, .flash-area .card-progress),
+  .study-seat[data-minimal='on'][data-contrast='high'] :is(.sh-paper, .sh-paper-card, .flash-area .question-meta, .flash-area .card-progress) {
+    --line: inherit;
+    --line-strong: inherit;
+    --text-faint: inherit;
+    --decor-faint: inherit;
+  }
+}
+
+@layer study.overrides {
+  /* 1. 纸卡改为同色系素净平面（--bg-surface + 1px var(--line) + 无阴影） */
+  .study-app[data-minimal='on'] :is(.sh-paper-card, .sh-panel.sh-paper-card),
+  .study-seat[data-minimal='on'] :is(.sh-paper-card, .sh-panel.sh-paper-card) {
+    background: var(--bg-surface);
+    border-color: var(--line);
+    box-shadow: none;
+  }
+
+  /* 2. 首页今日卡片：移除叠纸伪元素、横线背景、悬停倾斜与 2px 粗红边 */
+  .study-app[data-minimal='on'] .today-stack::before,
+  .study-app[data-minimal='on'] .today-stack::after,
+  .study-seat[data-minimal='on'] .today-stack::before,
+  .study-seat[data-minimal='on'] .today-stack::after {
+    display: none;
+  }
+  .study-app[data-minimal='on'] .today-card,
+  .study-seat[data-minimal='on'] .today-card {
+    background-image: none;
+    transform: none;
+    animation: none;
+  }
+  .study-app[data-minimal='on'] .today-stack:hover .today-card,
+  .study-seat[data-minimal='on'] .today-stack:hover .today-card {
+    transform: none;
+  }
+  .study-app[data-minimal='on'] .today-card-head,
+  .study-seat[data-minimal='on'] .today-card-head,
+  .study-app[data-minimal='on'] .es-head,
+  .study-seat[data-minimal='on'] .es-head {
+    border-bottom: 1px solid var(--line);
+  }
+
+  /* 3. 去除主按钮悬停抬升与高光、导航图标悬停位移与按钮箭头位移 */
+  .study-app[data-minimal='on'] .sh-btn--primary,
+  .study-seat[data-minimal='on'] .sh-btn--primary,
+  .study-app[data-minimal='on'] .sh-btn--primary:hover:not(:disabled):not([aria-disabled="true"]),
+  .study-seat[data-minimal='on'] .sh-btn--primary:hover:not(:disabled):not([aria-disabled="true"]) {
+    box-shadow: none;
+    transform: none;
+  }
+  .study-app[data-minimal='on'] .nav:hover:not(:disabled):not([aria-current="page"]) .icon,
+  .study-seat[data-minimal='on'] .nav:hover:not(:disabled):not([aria-current="page"]) .icon,
+  .study-app[data-minimal='on'] .today-go:hover:not(:disabled) span,
+  .study-seat[data-minimal='on'] .today-go:hover:not(:disabled) span {
+    transform: none;
+  }
+
+  /* 4. 去除状态点光晕脉冲、装饰径向渐变与引导外光晕 */
+  .study-app[data-minimal='on'] .top-status .dot.is-online,
+  .study-seat[data-minimal='on'] .top-status .dot.is-online,
+  .study-app[data-minimal='on'] .top-status .dot.busy,
+  .study-seat[data-minimal='on'] .top-status .dot.busy,
+  .study-app[data-minimal='on'] .live-state.ok i,
+  .study-seat[data-minimal='on'] .live-state.ok i,
+  .study-app[data-minimal='on'] .voice-input__dot,
+  .study-seat[data-minimal='on'] .voice-input__dot {
+    box-shadow: none;
+    animation: none;
+  }
+  .study-app[data-minimal='on'] .board-today__complete,
+  .study-seat[data-minimal='on'] .board-today__complete,
+  .study-app[data-minimal='on'] .study-progress-panel[data-all-passed="true"],
+  .study-seat[data-minimal='on'] .study-progress-panel[data-all-passed="true"] {
+    background-image: none;
+  }
+  .study-app[data-minimal='on'] .skc-view,
+  .study-seat[data-minimal='on'] .skc-view {
+    background: var(--bg-sunken);
+  }
+  .study-app[data-minimal='on'] .tour-spot,
+  .study-seat[data-minimal='on'] .tour-spot {
+    box-shadow:
+      0 0 0 2px var(--accent-soft),
+      0 0 0 200vmax var(--tour-shade);
+  }
+  .study-app[data-minimal='on'] .tour-pop,
+  .study-seat[data-minimal='on'] .tour-pop,
+  .study-app[data-minimal='on'] .tour-pop::before,
+  .study-seat[data-minimal='on'] .tour-pop::before {
+    border-color: var(--line-strong);
+  }
+}

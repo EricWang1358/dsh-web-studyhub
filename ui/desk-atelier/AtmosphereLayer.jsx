@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNow } from '../components/use-now.js';
 import { useInjectCss } from '../shared.js';
+import { useAppearance } from '../use-appearance.js';
 import { resolveAtmosphereLighting } from './atelier-presets.js';
 import { useAtelierState } from './atelier-storage.js';
 import triggerCss from './desk-atelier-trigger.css';
@@ -12,12 +13,14 @@ const SOLAR_REFRESH_MS = 15 * 60 * 1000;
     Pointer-events: none, opacity <= 0.06, auto-disabled in high contrast and forced-colors. */
 export default function AtmosphereLayer({ anchorRef }) {
   useInjectCss(triggerCss, 'study-desk-atelier-trigger');
+  const [appearance] = useAppearance();
+  const minimal = appearance.minimal === 'on';
   const { atmosphere } = useAtelierState();
-  const nowMs = useNow(SOLAR_REFRESH_MS, { enabled: atmosphere === 'solar' });
+  const nowMs = useNow(SOLAR_REFRESH_MS, { enabled: !minimal && atmosphere === 'solar' });
   const [portalTarget, setPortalTarget] = useState(null);
 
   useEffect(() => {
-    if (atmosphere === 'none' || typeof document === 'undefined') {
+    if (minimal || atmosphere === 'none' || typeof document === 'undefined') {
       setPortalTarget(null);
       return;
     }
@@ -25,11 +28,11 @@ export default function AtmosphereLayer({ anchorRef }) {
       || document.querySelector?.('.study-app')
       || null;
     setPortalTarget(host);
-  }, [atmosphere, anchorRef]);
+  }, [minimal, atmosphere, anchorRef]);
 
   const hour = new Date(nowMs).getHours();
   const resolved = resolveAtmosphereLighting(atmosphere, hour);
-  if (resolved === 'none') return null;
+  if (minimal || resolved === 'none') return null;
 
   const overlay = (
     <div

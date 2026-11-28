@@ -1,6 +1,7 @@
 import React, { useId, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
+import { useAppearance } from '../use-appearance.js';
 import { useLiveEffect } from '../use-async.js';
 import { useStudyBusy } from '../study-context.jsx';
 import { dateLabel } from './chart-math.js';
@@ -181,6 +182,8 @@ export default function ForecastInkTide({
   roughGenerator = null,
 }) {
   useInjectCss(tideCss, 'study-forecast-tide');
+  const [appearance] = useAppearance();
+  const minimal = appearance.minimal === 'on';
   const busy = useStudyBusy();
   const plotRef = useRef(null);
   const titleId = useId();
@@ -189,13 +192,13 @@ export default function ForecastInkTide({
   const palette = useInkPalette(plotRef);
 
   useLiveEffect((isLive) => {
-    if (roughGenerator) return;
+    if (minimal || roughGenerator) return;
     loadRoughGenerator().then((gen) => {
       if (isLive() && gen) setLoadedRough(gen);
     });
-  }, [roughGenerator]);
+  }, [minimal, roughGenerator]);
 
-  const activeRough = roughGenerator || loadedRough;
+  const activeRough = minimal ? null : (roughGenerator || loadedRough);
   const L = margins?.L ?? 34;
   const R = margins?.R ?? 8;
   const T = margins?.T ?? 22;
@@ -229,8 +232,8 @@ export default function ForecastInkTide({
   const peakPoint = rhythm.peakIndex >= 0 ? points[rhythm.peakIndex] : null;
   const peakSeed = hashString(`${rhythm.peakDate}:${rhythm.peakCount}:${total}`);
   const peakHatch = useMemo(
-    () => (rhythm.peakCount > 0 ? buildPeakHatchStrokes(peakPoint, baselineY, palette, activeRough, peakSeed) : []),
-    [rhythm.peakCount, peakPoint, baselineY, palette, activeRough, peakSeed],
+    () => (!minimal && rhythm.peakCount > 0 ? buildPeakHatchStrokes(peakPoint, baselineY, palette, activeRough, peakSeed) : []),
+    [minimal, rhythm.peakCount, peakPoint, baselineY, palette, activeRough, peakSeed],
   );
 
   const dayName = (d, i) => (i === 0 ? ui('今天') : dateLabel(d.date));
@@ -266,7 +269,7 @@ export default function ForecastInkTide({
 
         <line className="forecast-tide__horizon" x1={L} x2={width - R} y1={baselineY} y2={baselineY} />
 
-        {echoAreaD && <path className="forecast-tide__echo" d={echoAreaD} />}
+        {!minimal && echoAreaD && <path className="forecast-tide__echo" d={echoAreaD} />}
         {areaD && <path className="forecast-tide__area" d={areaD} fill={`url(#${gradId})`} stroke="none" />}
         {crestD && <path className="forecast-tide__crest" d={crestD} />}
 

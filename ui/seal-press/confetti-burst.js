@@ -3,7 +3,8 @@
    - ALWAYS pass `useWorker: false` AND `disableForReducedMotion: true` (strict web-demo CSP forbids Blob workers).
    - Never fire under OS `prefers-reduced-motion: reduce`, StudyHub `[data-motion="reduced"|"off"]`, or hidden tabs.
    - Always resolve live StudyHub CSS tokens (--accent, --ok, --warn, --paper) converted to #rrggbb hex. */
-import { cssColorToHex, prefersReducedMotion, resolveThemePalette } from './palette.js';
+import { getCachedAppearance } from '../appearance-prefs.js';
+import { cssColorToHex, findStudyRoot, prefersReducedMotion, resolveThemePalette } from './palette.js';
 
 let confettiModulePromise = null;
 let workerFreeCannon = null;
@@ -102,19 +103,27 @@ async function getCannon() {
   return workerFreeCannon;
 }
 
+function isMinimalModeActive(anchorEl = null) {
+  try {
+    if (getCachedAppearance().minimal === 'on') return true;
+  } catch { /* ignore storage errors */ }
+  const root = findStudyRoot(anchorEl);
+  return root?.getAttribute?.('data-minimal') === 'on';
+}
+
 /**
  * Fire a restrained, palette-locked paper-slip & plum-petal burst.
- * Returns true if fired, false if suppressed by reduced-motion, hidden tab, or SSR.
+ * Returns true if fired, false if suppressed by minimal mode, reduced-motion, hidden tab, or SSR.
  */
 export async function fireSealConfetti({ anchorEl = null, origin = null, variant = 'stamp' } = {}) {
   if (typeof window === 'undefined' || typeof document === 'undefined') return false;
   if (document.hidden === true) return false;
-  if (prefersReducedMotion(anchorEl)) return false;
+  if (prefersReducedMotion(anchorEl) || isMinimalModeActive(anchorEl)) return false;
 
   const palette = resolveThemePalette(anchorEl);
   const cannon = await getCannon();
   if (!cannon) return false;
-  if (document.hidden === true || prefersReducedMotion(anchorEl)) return false;
+  if (document.hidden === true || prefersReducedMotion(anchorEl) || isMinimalModeActive(anchorEl)) return false;
 
   const shapes = buildCustomShapes(cannon.mod);
   const resolvedOrigin = origin || originFromElement(anchorEl);

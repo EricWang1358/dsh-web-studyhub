@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import baseStylesCss from './styles.js';
 import appearanceThemesCss from './appearance-themes.css';
 import appearanceCraftCss from './appearance-craft.css';
+import appearanceMinimalCss from './appearance-minimal.css';
 import accentCss from './accent.css';
 import audioDashboardCss from './audio-dashboard.css';
 import App from './App.jsx';
@@ -56,7 +57,7 @@ const DESKTOP_SHELL_CSS = `
 }
 `;
 
-const GLOBAL_CSS = [baseStylesCss, appearanceThemesCss, appearanceCraftCss, accentCss, audioDashboardCss, DESKTOP_SHELL_CSS]
+const GLOBAL_CSS = [baseStylesCss, appearanceThemesCss, appearanceCraftCss, appearanceMinimalCss, accentCss, audioDashboardCss, DESKTOP_SHELL_CSS]
   .filter((sheet) => typeof sheet === 'string')
   .join('\n');
 

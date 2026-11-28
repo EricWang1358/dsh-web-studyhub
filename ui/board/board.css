@@ -588,4 +588,13 @@
       :is(.board-card, .board-column, .board-today__list, .board-today__lane) { transition: none; }
     }
   }
+  :is(.study-app, .study-seat) {
+    .board-today__extras { min-width: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+    .board-today__daily-cards.is-over {
+      padding: var(--space-2); border: 1px dashed var(--line-strong); border-radius: var(--radius);
+      background: var(--bg-selected);
+    }
+    .board-today[data-minimal="on"] .board-today__workspace { grid-template-columns: minmax(0, 1fr); }
+    .board-today[data-minimal="on"] .board-timer-bar { display: flex; }
+  }
 }

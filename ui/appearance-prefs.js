@@ -19,6 +19,7 @@ export const CONTRASTS = Object.freeze(['auto', 'standard', 'high']);
 export const DENSITIES = Object.freeze(['compact', 'standard', 'comfortable']);
 export const RADII = Object.freeze(['sharp', 'standard', 'soft']);
 export const CRAFTS = Object.freeze(['standard', 'refined']);
+export const MINIMALS = Object.freeze(['off', 'on']);
 export const MOTIONS = Object.freeze(['auto', 'full', 'reduced', 'off']);
 /** Tactile acoustic feedback levels in 设置 › 界面: off by default so quiet rooms stay silent unless opted in. */
 export const SOUNDS = Object.freeze(['off', 'subtle', 'standard']);
@@ -34,9 +35,9 @@ export const autoScaleFor = (width) => AUTO_SCALE_STEPS.find(([min]) => width >=
 export const FONTS = Object.freeze([...FONT_IDS, 'custom']);
 /** The accent colours (强调色, ui/accent.css): cinnabar is the default and needs no override; there is no free colour picker, so contrast stays verifiable. */
 export const ACCENTS = Object.freeze(['cinnabar', 'jade', 'ochre', 'graphite', 'plum']);
-export const APPEARANCE_DEFAULTS = Object.freeze({ theme: 'auto', motion: 'auto', sound: 'off', scale: 100, font: 'system', fontTitle: 'follow', fontCustom: '', accent: 'cinnabar', contrast: 'auto', density: 'standard', radius: 'standard', craft: 'standard' });
+export const APPEARANCE_DEFAULTS = Object.freeze({ theme: 'auto', motion: 'auto', sound: 'off', scale: 100, font: 'system', fontTitle: 'follow', fontCustom: '', accent: 'cinnabar', contrast: 'auto', density: 'standard', radius: 'standard', craft: 'standard', minimal: 'off' });
 /** Per setting, its allowed values (in display order): the whitelist and the option list of the settings page. */
-export const APPEARANCE_OPTIONS = Object.freeze({ theme: THEMES, motion: MOTIONS, sound: SOUNDS, scale: SCALES, font: FONTS, fontTitle: TITLE_MODES, accent: ACCENTS, contrast: CONTRASTS, density: DENSITIES, radius: RADII, craft: CRAFTS });
+export const APPEARANCE_OPTIONS = Object.freeze({ theme: THEMES, motion: MOTIONS, sound: SOUNDS, scale: SCALES, font: FONTS, fontTitle: TITLE_MODES, accent: ACCENTS, contrast: CONTRASTS, density: DENSITIES, radius: RADII, craft: CRAFTS, minimal: MINIMALS });
 /** A setting that is typed, not picked: its own gate instead of a list of values. */
 const GATES = Object.freeze({ fontCustom: cleanFontName });
 /** The zh label of each value, passed through ui() where shown; a scale shows as its percent, a value with no label as itself. */
@@ -52,6 +53,7 @@ export const APPEARANCE_LABELS = Object.freeze({
   density: { compact: '紧凑', standard: '标准', comfortable: '宽松' },
   radius: { sharp: '利落', standard: '标准', soft: '圆润' },
   craft: { standard: '标准', refined: '精致紧凑' },
+  minimal: { off: '关闭', on: '开启' },
 });
 
 const KEYS = Object.keys(APPEARANCE_DEFAULTS);
@@ -118,9 +120,16 @@ export function getCachedAppearance(storage = browserStorage()) {
   return cachedAppearance;
 }
 
-/** O(1) sound preference lookup without repeated localStorage + JSON.parse on every click. */
+/** O(1) Minimal Mode check without repeated localStorage + JSON.parse on hot paths. */
+export function isMinimalMode(storage = browserStorage()) {
+  return getCachedAppearance(storage).minimal === 'on';
+}
+
+/** O(1) sound preference lookup without repeated localStorage + JSON.parse on every click.
+    Minimal Mode temporarily silences interaction sound without mutating the stored sound choice. */
 export function getAppearanceSound(storage = browserStorage()) {
-  return getCachedAppearance(storage).sound;
+  const prefs = getCachedAppearance(storage);
+  return prefs.minimal === 'on' ? 'off' : prefs.sound;
 }
 
 /** Subscribe to cached appearance updates (e.g. sound mode turned on/off). */
@@ -147,6 +156,8 @@ export function saveAppearance(value, storage = browserStorage()) {
     cachedStorage = storage;
     cachedAppearance = normalized;
     if (!prev || !same(prev, normalized)) notifyCache(normalized);
+  } else if (cachedStorage === storage) {
+    cachedAppearance = normalized;
   }
 }
 
@@ -166,7 +177,8 @@ export function appearanceAttrs(value, system = systemNow()) {
   return {
     'data-theme': prefs.theme === 'auto' ? (system.light ? 'light' : 'dark') : BASE_MODE[prefs.theme] ?? prefs.theme,
     'data-palette': BASE_MODE[prefs.theme] ? prefs.theme : 'standard',
-    'data-motion': effectiveMotion(prefs.motion, system.reducedMotion),
+    'data-motion': prefs.minimal === 'on' ? 'off' : effectiveMotion(prefs.motion, system.reducedMotion),
+    'data-minimal': prefs.minimal,
     'data-ui-scale': prefs.scale === 'auto' ? system.autoScale ?? 100 : prefs.scale,
     // `custom` with no valid name is the system typeface, so the DOM never names a typeface it cannot show.
     'data-ui-font': prefs.font === 'custom' && !prefs.fontCustom ? 'system' : prefs.font,
@@ -180,9 +192,9 @@ export function appearanceAttrs(value, system = systemNow()) {
 }
 
 /** What the DSH seat (ui/host/workspace.jsx) wears beside the app inside it: the choices that rules apply to everything under a root
-    (ui/motion.css, the high-contrast focus ring, 控件与字阶 in ui/appearance-craft.css). A `.seat:has(> .study-app[...]) <target>` rule would ask the same, but Chrome then restyles the
+    (ui/motion.css, the high-contrast focus ring, 控件与字阶 in ui/appearance-craft.css, 极简模式 in ui/appearance-minimal.css). A `.seat:has(> .study-app[...]) <target>` rule would ask the same, but Chrome then restyles the
     whole app on every element added anywhere (tests/page-switch-jank.test.mjs). */
-export const seatAttrs = (attrs) => ({ 'data-motion': attrs['data-motion'], 'data-contrast': attrs['data-contrast'], 'data-craft': attrs['data-craft'] });
+export const seatAttrs = (attrs) => ({ 'data-motion': attrs['data-motion'], 'data-contrast': attrs['data-contrast'], 'data-craft': attrs['data-craft'], 'data-minimal': attrs['data-minimal'] });
 
 /** The one inline CSS variable of the app root: the typed font name as `"Name", <system stack>` (only while the typeface is custom). */
 export function appearanceStyle(value) {
@@ -232,6 +244,8 @@ export function createAppearanceStore({ storage } = {}) {
       const next = loadAppearance(storage);
       if (!storage || storage === browserStorage()) {
         cachedStorage = storage ?? browserStorage();
+        cachedAppearance = next;
+      } else if (cachedStorage === storage) {
         cachedAppearance = next;
       }
       set(next);

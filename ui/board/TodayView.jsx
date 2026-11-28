@@ -3,24 +3,28 @@ import { ui, uiFormat } from '../i18n.js';
 import { joinMeta } from '../format.js';
 import { Button, Icon, SegmentedControl } from '../components/index.js';
 import {
-  TODAY_LANES, cardActualMinutes, cardTodaySource, isMeaningfulTitle, locateCard, selectTodayBoard, selectTodayTimeLog, splitMemoDraft, todayBudgetMinutes,
+  TODAY_LANES, cardActualMinutes, cardTodaySource, isMeaningfulTitle, locateCard, selectTodayBoard, selectTodayMemos, selectTodayTimeLog, splitMemoDraft, todayBudgetMinutes,
 } from '../../lib/board-model.js';
+import { useAppearance } from '../use-appearance.js';
 import BoardCard from './Card.jsx';
 import TodayFocusStrip from './TodayFocusStrip.jsx';
 import TodayMemos from './TodayMemos.jsx';
 import TodayTimer, { TodayTimerBar } from './TodayTimer.jsx';
 import TodayUpcomingPlan from './TodayUpcomingPlan.jsx';
+import { selectTodayUpcomingPlan } from './today-upcoming-plan.js';
 import { formatTodayHeading, todayPlanLine } from './today-header.js';
 import { useTodayCoursePlan } from './use-today-course-plan.js';
 
 export default function TodayView({
   board, today, library, readOnly = false, hasDone = true, dailyPlan = null, dailyTaskIds,
-  dailyBudgetMinutes, planAnswer, focusedMinutes = null, nowMs,
+  dailyBudgetMinutes, planAnswer, focusedMinutes = null, nowMs, minimal: minimalProp,
   onToggleDone, onEdit, onAction, onTodayAction, onMoveToday, onQuickAdd, onScheduleToday, onOrigin, onStudyRef,
   onStartTimer, onStartFreeFocus, onStartBreak, onPauseTimer, onResumeTimer, onCancelTimer, onCompleteTimer, onSaveTimerPrefs,
   onAddTimeLog, onEditTimeLog, onRemoveTimeLog,
   onAddMemo, onEditMemo, onArchiveMemo, onDeleteMemo, onOpenPlan, onPracticeScope,
 }) {
+  const [appearance] = useAppearance();
+  const minimal = minimalProp ?? (appearance.minimal === 'on');
   const effectivePlan = useTodayCoursePlan(library, today, planAnswer);
   const [quickTitle, setQuickTitle] = useState('');
   const [quickKind, setQuickKind] = useState('task');
@@ -57,6 +61,15 @@ export default function TodayView({
     ? focusedMinutes
     : (todayLog.totalMinutes > 0 ? todayLog.totalMinutes : null);
   const todayCardsForLog = useMemo(() => [...open, ...done], [open, done]);
+  const todayMemos = useMemo(
+    () => (minimal ? selectTodayMemos(board, { today }) : []),
+    [minimal, board, today],
+  );
+  const upcomingPlan = useMemo(
+    () => (minimal ? selectTodayUpcomingPlan({ library, planAnswer: effectivePlan }) : null),
+    [minimal, library, effectivePlan],
+  );
+  const showUpcomingMinimal = Boolean(upcomingPlan?.visible && upcomingPlan.kind === 'plan');
   const heading = formatTodayHeading(today);
   const planLine = todayPlanLine(library, today);
   const todayEmpty = open.length === 0 && done.length === 0;
@@ -146,11 +159,45 @@ export default function TodayView({
     else onScheduleToday?.(board.cards[id]);
   };
 
+  const laneOfCard = (cardId) => (lanes.pm.cards.some((entry) => entry.id === cardId) ? 'pm' : 'am');
+
+  const finishDailyDrop = (event, openCount) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const id = event.dataTransfer.getData('application/x-study-board-card') || dragRef.current?.id || drag?.id;
+    let targetSlot = dropRef.current?.lane === 'daily' ? dropRef.current.slot : undefined;
+    if (targetSlot === undefined) {
+      const cards = [...event.currentTarget.querySelectorAll('.board-today__daily-cards > .board-card')];
+      targetSlot = cards.length || openCount;
+      for (let at = 0; at < cards.length; at += 1) {
+        const box = cards[at].getBoundingClientRect();
+        if (event.clientY < box.top + box.height / 2) {
+          targetSlot = at;
+          break;
+        }
+      }
+    }
+    clearDragState();
+    if (!id || !board.cards[id] || readOnly) return;
+    const isOpen = open.some((entry) => entry.id === id);
+    if (!isOpen) {
+      onScheduleToday?.(board.cards[id]);
+      return;
+    }
+    if (!onMoveToday) return;
+    // Keep underlying slot intact so turning minimal mode off restores AM/PM lanes without loss.
+    const cardLane = laneOfCard(id);
+    const laneSlot = cardLane === 'pm'
+      ? Math.max(0, targetSlot - lanes.am.cards.length)
+      : Math.min(targetSlot, lanes.am.cards.length);
+    onMoveToday(id, cardLane, laneSlot);
+  };
+
   const renderLaneCard = (card, laneId, slotIndex, laneCount) => {
     const place = locateCard(board, card.id);
     const column = board.columns.find((entry) => entry.id === place?.column) || board.columns[0];
     const extraItems = [
-      { id: laneId === 'am' ? 'slot:pm' : 'slot:am', label: laneId === 'am' ? ui('移到下午') : ui('移到上午'), icon: 'move' },
+      ...(!minimal ? [{ id: laneId === 'am' ? 'slot:pm' : 'slot:am', label: laneId === 'am' ? ui('移到下午') : ui('移到上午'), icon: 'move' }] : []),
       ...(card.plannedDate === today ? [{ id: 'unplan-today', label: ui('移出今天'), icon: 'close' }] : []),
     ];
     const timerActive = board.timer?.mode === 'work' && board.timer?.cardId === card.id;
@@ -173,11 +220,15 @@ export default function TodayView({
           actualMinutes: cardActualMinutes(card),
         }}
         timerActive={timerActive}
-        onStartTimer={onStartTimer ? handleCardTimer : null}
+        onStartTimer={minimal ? null : (onStartTimer ? handleCardTimer : null)}
         extraItems={extraItems}
         onToggleDone={onToggleDone}
         onEdit={onEdit}
-        onAction={(action, target) => (onTodayAction ? onTodayAction(action, target, laneId) : onAction(action, target))}
+        onAction={(action, target) => {
+          if (minimal && (action === 'left' || action === 'right')) return;
+          if (onTodayAction) onTodayAction(action, target, laneId);
+          else onAction(action, target);
+        }}
         onOrigin={onOrigin}
         onStudyRef={onStudyRef}
         articleProps={{
@@ -224,7 +275,7 @@ export default function TodayView({
   };
 
   return (
-    <div className="board-today" data-today-date={today}>
+    <div className="board-today" data-today-date={today} data-minimal={minimal ? 'on' : undefined}>
       <header className="board-today__head">
         <div className="board-today__titles">
           <h2 className="board-today__date">{heading}</h2>
@@ -284,7 +335,18 @@ export default function TodayView({
         <div className="board-today__main">
           {dailyPlan && <div className="board-today__daily">{dailyPlan}</div>}
 
-          <section className="board-today__list" aria-label={ui('今日')}>
+          <section
+            className={`board-today__list${minimal && drop?.lane === 'daily' && open.length === 0 ? ' is-over' : ''}`}
+            aria-label={ui('今日')}
+            onDragOver={minimal ? (event) => aimLane(event, 'daily', open.length) : undefined}
+            onDragLeave={minimal ? (event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) {
+                dropRef.current = null;
+                setDrop(null);
+              }
+            } : undefined}
+            onDrop={minimal ? (event) => finishDailyDrop(event, open.length) : undefined}
+          >
             {todayEmpty && (
               <div className="board-today__empty">
                 <p className="board-today__empty-text">{ui('今天还没有排事。')}</p>
@@ -306,7 +368,56 @@ export default function TodayView({
               </div>
             )}
 
-            <div className="board-today__lanes">
+            {minimal ? (
+              open.length > 0 && (
+                <div
+                  className={`board-today__cards board-today__daily-cards${drop?.lane === 'daily' ? ' is-over' : ''}`}
+                  data-testid="board-today-daily"
+                  onDragOver={(event) => {
+                    const cards = [...event.currentTarget.querySelectorAll(':scope > .board-card')];
+                    let slot = cards.length;
+                    for (let at = 0; at < cards.length; at += 1) {
+                      const box = cards[at].getBoundingClientRect();
+                      if (event.clientY < box.top + box.height / 2) {
+                        slot = at;
+                        break;
+                      }
+                    }
+                    aimLane(event, 'daily', slot);
+                    event.stopPropagation();
+                  }}
+                  onDragLeave={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) {
+                      dropRef.current = null;
+                      setDrop(null);
+                    }
+                  }}
+                  onDrop={(event) => finishDailyDrop(event, open.length)}
+                >
+                  {open.map((card, openIndex) => {
+                    const cardLane = laneOfCard(card.id);
+                    const laneCards = lanes[cardLane].cards;
+                    const slotIndex = laneCards.findIndex((entry) => entry.id === card.id);
+                    const currentIds = open.map((entry) => entry.id);
+                    const showDailyLine = (slot) => drop?.lane === 'daily' && drop.slot === slot && !(
+                      drag && currentIds.includes(drag.id) &&
+                      [currentIds.indexOf(drag.id), currentIds.indexOf(drag.id) + 1].includes(slot)
+                    );
+                    return (
+                      <React.Fragment key={card.id}>
+                        {showDailyLine(openIndex) && <div className="board-drop-line" aria-hidden="true" />}
+                        {renderLaneCard(card, cardLane, slotIndex, laneCards.length)}
+                      </React.Fragment>
+                    );
+                  })}
+                  {drop?.lane === 'daily' && drop.slot === open.length && !(
+                    drag && open.some((entry) => entry.id === drag.id) &&
+                    [open.length - 1, open.length].includes(open.findIndex((entry) => entry.id === drag.id))
+                  ) && <div className="board-drop-line" aria-hidden="true" />}
+                </div>
+              )
+            ) : (
+              <div className="board-today__lanes">
               {TODAY_LANES.map((laneId) => {
                 const lane = lanes[laneId];
                 const laneTitle = laneId === 'pm' ? ui('下午') : ui('上午');
@@ -391,6 +502,7 @@ export default function TodayView({
                 );
               })}
             </div>
+            )}
 
             {done.length > 0 && (
               <div className="board-today__done" aria-label={ui('今天已完成')}>
@@ -438,53 +550,82 @@ export default function TodayView({
           )}
         </div>
 
-        <aside className="board-today__rail" aria-label={ui('专注与记录')}>
-          <TodayTimer
-            board={board}
-            today={today}
-            todayCards={todayCardsForLog}
-            readOnly={readOnly}
-            nowMs={nowMs}
-            fullscreen={timerFullscreen}
-            onFullscreenChange={setTimerFullscreen}
-            onStartFreeFocus={onStartFreeFocus}
-            onStartBreak={onStartBreak}
-            onPause={onPauseTimer}
-            onResume={onResumeTimer}
-            onCancel={onCancelTimer}
-            onComplete={onCompleteTimer}
-            onSavePrefs={onSaveTimerPrefs}
-            onAddLog={onAddTimeLog}
-            onEditLog={onEditTimeLog}
-            onRemoveLog={onRemoveTimeLog}
-          />
-          <TodayMemos
-            board={board}
-            today={today}
-            readOnly={readOnly}
-            onAddMemo={onAddMemo}
-            onEditMemo={onEditMemo}
-            onArchiveMemo={onArchiveMemo}
-            onDeleteMemo={onDeleteMemo}
-          />
-          <TodayUpcomingPlan
-            library={library}
-            today={today}
-            planAnswer={effectivePlan}
-            onOpenPlan={onOpenPlan}
-          />
-        </aside>
+        {minimal ? (
+          (todayMemos.length > 0 || showUpcomingMinimal) && (
+            <div className="board-today__extras">
+              {todayMemos.length > 0 && (
+                <TodayMemos
+                  board={board}
+                  today={today}
+                  readOnly={readOnly}
+                  onAddMemo={onAddMemo}
+                  onEditMemo={onEditMemo}
+                  onArchiveMemo={onArchiveMemo}
+                  onDeleteMemo={onDeleteMemo}
+                />
+              )}
+              {showUpcomingMinimal && (
+                <TodayUpcomingPlan
+                  library={library}
+                  today={today}
+                  planAnswer={effectivePlan}
+                  onOpenPlan={onOpenPlan}
+                />
+              )}
+            </div>
+          )
+        ) : (
+          <aside className="board-today__rail" aria-label={ui('专注与记录')}>
+            <TodayTimer
+              board={board}
+              today={today}
+              todayCards={todayCardsForLog}
+              readOnly={readOnly}
+              nowMs={nowMs}
+              fullscreen={timerFullscreen}
+              onFullscreenChange={setTimerFullscreen}
+              onStartFreeFocus={onStartFreeFocus}
+              onStartBreak={onStartBreak}
+              onPause={onPauseTimer}
+              onResume={onResumeTimer}
+              onCancel={onCancelTimer}
+              onComplete={onCompleteTimer}
+              onSavePrefs={onSaveTimerPrefs}
+              onAddLog={onAddTimeLog}
+              onEditLog={onEditTimeLog}
+              onRemoveLog={onRemoveTimeLog}
+            />
+            <TodayMemos
+              board={board}
+              today={today}
+              readOnly={readOnly}
+              onAddMemo={onAddMemo}
+              onEditMemo={onEditMemo}
+              onArchiveMemo={onArchiveMemo}
+              onDeleteMemo={onDeleteMemo}
+            />
+            <TodayUpcomingPlan
+              library={library}
+              today={today}
+              planAnswer={effectivePlan}
+              onOpenPlan={onOpenPlan}
+            />
+          </aside>
+        )}
       </div>
 
-      <TodayTimerBar
-        board={board}
-        readOnly={readOnly}
-        nowMs={nowMs}
-        onPause={onPauseTimer}
-        onResume={onResumeTimer}
-        onComplete={onCompleteTimer}
-        onOpenFullscreen={() => setTimerFullscreen(true)}
-      />
+      {(!minimal || Boolean(board?.timer)) && (
+        <TodayTimerBar
+          board={board}
+          readOnly={readOnly}
+          nowMs={nowMs}
+          onPause={onPauseTimer}
+          onResume={onResumeTimer}
+          onCancel={minimal ? onCancelTimer : undefined}
+          onComplete={onCompleteTimer}
+          onOpenFullscreen={minimal ? undefined : () => setTimerFullscreen(true)}
+        />
+      )}
     </div>
   );
 }

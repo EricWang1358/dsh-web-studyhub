@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, useUiLanguage } from '../i18n.js';
 import { Icon, IconButton, Popover, Spinner } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
+import { useAppearance } from '../use-appearance.js';
 import { useLiveEffect } from '../use-async.js';
 import { getPresetById } from './atelier-presets.js';
 import { useAtelierState } from './atelier-storage.js';
@@ -17,6 +18,8 @@ let cachedChimeDialog = null;
 const DeskAtelierButton = React.memo(function DeskAtelierButton() {
   useUiLanguage();
   useInjectCss(triggerCss, 'study-desk-atelier-trigger');
+  const [appearance] = useAppearance();
+  const minimal = appearance.minimal === 'on';
   const state = useAtelierState();
   const anchorWrapRef = useRef(null);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -25,7 +28,7 @@ const DeskAtelierButton = React.memo(function DeskAtelierButton() {
   const [ChimeDialog, setChimeDialog] = useState(() => cachedChimeDialog);
 
   useLiveEffect((isLive) => {
-    if (!panelOpen || PanelComponent) return undefined;
+    if (minimal || !panelOpen || PanelComponent) return undefined;
     import('./DeskAtelierPanel.jsx')
       .then((mod) => {
         cachedPanel = mod?.default || null;
@@ -37,10 +40,10 @@ const DeskAtelierButton = React.memo(function DeskAtelierButton() {
         if (isLive()) setPanelOpen(false);
       });
     return undefined;
-  }, [panelOpen, PanelComponent]);
+  }, [minimal, panelOpen, PanelComponent]);
 
   useLiveEffect((isLive) => {
-    if (!chimeOpen || ChimeDialog) return undefined;
+    if (minimal || !chimeOpen || ChimeDialog) return undefined;
     import('./DeskChimeDialog.jsx')
       .then((mod) => {
         cachedChimeDialog = mod?.default || null;
@@ -52,10 +55,23 @@ const DeskAtelierButton = React.memo(function DeskAtelierButton() {
         if (isLive()) setChimeOpen(false);
       });
     return undefined;
-  }, [chimeOpen, ChimeDialog]);
+  }, [minimal, chimeOpen, ChimeDialog]);
 
-  // Global Alt+Shift+A shortcut toggles Desk Atelier (guarded against editable fields & open dialogs).
+  // Stop active soundscape playback and close popovers when Minimal Mode turns on (preserving saved prefs).
   useEffect(() => {
+    if (!minimal) return;
+    setPanelOpen(false);
+    setChimeOpen(false);
+    if (state.playing) {
+      import('./soundscape-engine.js')
+        .then((mod) => mod?.stopSoundscape?.())
+        .catch(() => {});
+    }
+  }, [minimal, state.playing]);
+
+  // Global Alt+Shift+A shortcut toggles Desk Atelier (guarded against editable fields, open dialogs & Minimal Mode).
+  useEffect(() => {
+    if (minimal) return undefined;
     const onKeyDown = (event) => {
       if (event.repeat || !event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey) return;
       if (event.code !== 'KeyA' && String(event.key || '').toUpperCase() !== 'A') return;
@@ -71,12 +87,14 @@ const DeskAtelierButton = React.memo(function DeskAtelierButton() {
       return () => window.removeEventListener('keydown', onKeyDown);
     }
     return undefined;
-  }, []);
+  }, [minimal]);
 
   const handleToggleChime = useCallback(() => {
     setPanelOpen(false);
     setChimeOpen(true);
   }, []);
+
+  if (minimal) return null;
 
   const activePreset = getPresetById(state.preset);
   const presetLabel = activePreset ? ui(activePreset.label) : ui('自定义混音');
