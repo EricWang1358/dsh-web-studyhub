@@ -16,8 +16,8 @@ const ASK = {
   replace: ['学习库的主题太碎了（{0} 个，很多只有 1–2 题），帮我按知识域归并成主题组。', '课程 {1} 的主题太碎了（{0} 个，很多只有 1–2 题），帮我按知识域归并成主题组。'],
 };
 const READ = {
-  merge: '读：用 study_workspace 的 skeleton.topics {0}，一次 {1} 个还没归组的主题，返回的 groups.groups 是已有的主题组；每次返回都直接读，不要用命令行或脚本解析。',
-  replace: '读：用 study_workspace 的 skeleton.topics {0} 分页读全部主题，按 nextOffset 读到没有为止；每条有 key、名称、题数、所在题组和一条示例题干；每次返回都直接读，不要用命令行或脚本解析。',
+  merge: '读：用 study_workspace 的 skeleton.topics {0}，一次 {1} 个还没归组的主题，返回的 groups.groups 是已有的主题组；返回结果直接读，不要另写脚本或命令去解析它。',
+  replace: '读：用 study_workspace 的 skeleton.topics {0} 分页读全部主题，按 nextOffset 读到没有为止；每条有 key、名称、题数、所在题组和一条示例题干；返回结果直接读，不要另写脚本或命令去解析它。',
 };
 const SHAPE = '结果形状：{0}（字段名完全一致；nextOffset 只在还有剩余时出现；{1}）。';
 const COUNTS = { merge: 'total 和 groups.ungroupedCount 都是还没归组的主题数', replace: 'total 是主题总数' };
@@ -41,7 +41,7 @@ const savePayload = (mode, scoped, course, language) => JSON.stringify({ mode, .
 
 /**
  * input: { mode ('merge' | 'replace'), topicCount, ungrouped, course (one course, '' for the unassigned ones; undefined, null or '*' for the whole library),
- * alternative (merge only: the page offered the quicker way, so the learner may ask for the full regroup at the end; the message then ends with 我想：) }.
+ * alternative (merge only: the page offered the quicker way, so the learner may ask for the full regroup at the end; the message then ends with 我想：, which may be left empty) }.
  */
 export function groupPrompt({ mode, topicCount, ungrouped, course, alternative = false }, language = 'zh') {
   const scoped = course !== undefined && course !== null && course !== '*';

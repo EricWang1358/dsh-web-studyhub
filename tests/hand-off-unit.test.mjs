@@ -144,16 +144,17 @@ test('kept: the learner\'s own text stays; the prompt is copied; 去主会话 on
 });
 
 test('copied: no chat (no host, a host without askInChat, a host that says false or throws); 看看内容 opens the card with what was copied', async () => {
+  const expected = `p\n${TAIL}`; // no study-cli path is known here: the copy is the prompt as it was
   for (const host of [null, {}, { askInChat: () => false }, { askInChat: () => { throw new Error('gone'); } }, { askInChat: async () => { throw new Error('gone'); } }]) {
     const sheets = [];
     const { notices, copied, deliver } = fakes({ host, openSheet: (sheet) => sheets.push(sheet) });
     assert.equal(await deliver('p'), 'copied');
-    assert.equal(copied.length, 1);
+    assert.deepEqual(copied, [expected]);
     const [receipt] = notices;
     assert.deepEqual({ ...receipt, action: receipt.action.label }, { receipt: 'copied', title: '已复制到剪贴板', text: '没找到主会话，粘贴到任意对话', timeout: 6000, action: '看看内容' });
     receipt.action.run();
     assert.equal(notices.at(-1), '', 'the slip leaves before the card opens (no second copy of it inside the card)');
-    assert.deepEqual(sheets.map(({ text, mode }) => ({ text, mode })), [{ text: `p\n${TAIL}`, mode: 'copied' }]);
+    assert.deepEqual(sheets.map(({ text, mode }) => ({ text, mode })), [{ text: expected, mode: 'copied' }]);
   }
 });
 
@@ -171,10 +172,11 @@ test('shown: a refused clipboard opens the full-text card at once, with no slip;
   assert.deepEqual({ ...slip, action: slip.action.label }, { receipt: 'shown', title: '需要手动复制', text: '已保存。浏览器没让复制，点「打开全文」', persistent: true, action: '打开全文' });
   slip.action.run();
   assert.equal(sheets.length, 2, '打开全文 opens the card again');
-  // the learner's text in the box was kept and the clipboard refused: the card says both
+  // the learner's text in the box was kept and the clipboard refused: the card says both, and keeps the prompt verbatim for the main chat
   const both = [];
   await fakes({ host: { askInChat: () => 'kept' }, refuse: true, openSheet: (sheet) => both.push(sheet) }).deliver('p');
   assert.equal(both[0].lead, '输入框里你写的字都留着');
+  assert.equal(both[0].text, `p\n${TAIL}`);
   // Without the app around it (no card to open) the slip carries the whole text; a clipboard that is missing altogether (an old webview) is a refusal too.
   const none = [];
   assert.equal(await m.deliverToChat({ host: null, prompt: 'p', notify: (value) => none.push(value), clipboard: undefined }), 'shown');

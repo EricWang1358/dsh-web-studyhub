@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { spawnPipeProcess } from '../adapters/cli/process-runner.mjs';
+import { runProcess, spawnPipeProcess } from '../adapters/cli/process-runner.mjs';
 import { stageRuntime } from './stage-runtime.mjs';
 
 const HANDSHAKE_TIMEOUT_MS = 15_000;
@@ -82,6 +82,59 @@ async function verifyUnauthenticatedRejected(baseUrl) {
   }
 }
 
+async function verifyStagedStudyCli({ nodeBin, cliPath, libraryDir, tempRoot }) {
+  const res = await runProcess({
+    command: nodeBin,
+    args: [cliPath, 'call', 'snapshot', '--root', libraryDir],
+    cwd: tempRoot,
+    env: { ...process.env, NODE_PATH: '' },
+    timeoutMs: 45_000,
+  });
+  if (res.code !== 0) {
+    throw new Error(`Staged study-cli.mjs failed (code=${res.code}, timedOut=${res.timedOut}): ${res.stderr}`);
+  }
+  const parsed = JSON.parse(res.stdout);
+  if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.decks)) {
+    throw new Error(`Unexpected staged study-cli.mjs snapshot output: ${res.stdout.slice(0, 200)}`);
+  }
+}
+
+const samePath = (a, b) => resolve(String(a || '')).toLowerCase() === resolve(String(b || '')).toLowerCase();
+
+function verifyStagedStudyPaths({ cfg, binding, runtimeDir, stagedNode }) {
+  const expectedCliPath = join(runtimeDir, 'scripts', 'study-cli.mjs');
+  const reported = [cfg, binding];
+  if (reported.some((view) => view?.studyCliPath !== expectedCliPath)) {
+    throw new Error(`Expected staged studyCliPath ${expectedCliPath}, got config=${cfg?.studyCliPath} binding=${binding?.studyCliPath}`);
+  }
+  // the hand-off command runs this node: the portable one the app ships, not a node from PATH
+  if (reported.some((view) => !view?.studyNodePath || !samePath(view.studyNodePath, stagedNode))) {
+    throw new Error(`Expected staged studyNodePath ${stagedNode}, got config=${cfg?.studyNodePath} binding=${binding?.studyNodePath}`);
+  }
+  return expectedCliPath;
+}
+
+async function verifyStagedSidecarRpc({ baseUrl, token, runtimeDir, stagedNode, libraryDir, tempRoot }) {
+  await verifyUnauthenticatedRejected(baseUrl);
+  await rpcCall(baseUrl, token, 'snapshot');
+  const cfg = await rpcCall(baseUrl, token, 'desktop.config.get', { uiLanguage: 'zh' });
+  const binding = await rpcCall(baseUrl, token, 'binding.get');
+  const expectedCliPath = verifyStagedStudyPaths({ cfg, binding, runtimeDir, stagedNode });
+  await verifyStagedStudyCli({ nodeBin: stagedNode, cliPath: expectedCliPath, libraryDir, tempRoot });
+  await rpcCall(baseUrl, token, 'desktop.providers.scan', { uiLanguage: 'en' });
+  await rpcCall(baseUrl, token, 'retrieval.status');
+}
+
+async function closeAndWaitForExit(proc) {
+  const exitStart = Date.now();
+  proc.stdin.end();
+  const exitResult = await waitForExit(proc, EXIT_TIMEOUT_MS);
+  if (exitResult.code !== 0) {
+    throw new Error(`Expected staged sidecar clean exit code 0, got code=${exitResult.code} signal=${exitResult.signal}`);
+  }
+  return Date.now() - exitStart;
+}
+
 export async function runStagedRuntimeSmoke() {
   const started = Date.now();
   const tempRoot = await mkdtemp(join(tmpdir(), 'studyhub-staged-smoke-'));
@@ -113,11 +166,11 @@ export async function runStagedRuntimeSmoke() {
         LOCALAPPDATA: localAppData,
       },
     });
-    proc.stderr?.on('data', (chunk) => stderrChunks.push(Buffer.from(chunk)));
-    proc.stdin?.on('error', () => {});
+    proc.stderr.on('data', (chunk) => stderrChunks.push(Buffer.from(chunk)));
+    proc.stdin.on('error', () => {});
 
     const handshakeLinePromise = readFirstStdoutLine(proc, stderrChunks, HANDSHAKE_TIMEOUT_MS);
-    proc.stdin?.write(`${JSON.stringify({ token })}\n`, 'utf8');
+    proc.stdin.write(`${JSON.stringify({ token })}\n`, 'utf8');
     const handshakeLine = await handshakeLinePromise;
     const parsed = JSON.parse(handshakeLine);
     if (!Number.isInteger(parsed?.port) || parsed.port <= 0) {
@@ -125,25 +178,15 @@ export async function runStagedRuntimeSmoke() {
     }
 
     const baseUrl = `http://127.0.0.1:${parsed.port}`;
-    await verifyUnauthenticatedRejected(baseUrl);
-    await rpcCall(baseUrl, token, 'snapshot');
-    await rpcCall(baseUrl, token, 'desktop.config.get', { uiLanguage: 'zh' });
-    await rpcCall(baseUrl, token, 'desktop.providers.scan', { uiLanguage: 'en' });
-    await rpcCall(baseUrl, token, 'retrieval.status');
-
-    const exitStart = Date.now();
-    proc.stdin?.end();
-    const exitResult = await waitForExit(proc, EXIT_TIMEOUT_MS);
+    await verifyStagedSidecarRpc({ baseUrl, token, runtimeDir, stagedNode, libraryDir, tempRoot });
+    const eofExitMs = await closeAndWaitForExit(proc);
     proc = null;
-    if (exitResult.code !== 0) {
-      throw new Error(`Expected staged sidecar clean exit code 0, got code=${exitResult.code} signal=${exitResult.signal}`);
-    }
 
     return {
       version: staged.version,
       productionPackages: staged.productionPackages,
       port: parsed.port,
-      eofExitMs: Date.now() - exitStart,
+      eofExitMs,
       totalMs: Date.now() - started,
     };
   } finally {
