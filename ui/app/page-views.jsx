@@ -452,6 +452,18 @@ function ExamCoachView() {
       key={data.root}
       data={data}
       onGoGenerate={() => intents.goGenerate()}
+      onGoCase={(req) => intents.goGenerate({
+        source: 'case',
+        ...(req?.sourceIds?.length ? { sourceIds: req.sourceIds } : {}),
+        ...(req?.course ? { genPatch: (cur) => ({ ...cur, course: req.course }) } : {}),
+        caseInitial: {
+          ...(typeof req?.course === 'string' ? { course: req.course } : {}),
+          ...(req?.sourceIds?.length ? { sourceIds: req.sourceIds, broughtOver: req.sourceIds.length } : {}),
+          ...(req?.referenceSourceIds?.length ? { referenceSourceIds: req.referenceSourceIds } : {}),
+          nonce: Date.now(),
+        },
+        remember: true,
+      })}
       onApplyToGenerate={onApplyToGenerate}
       onOpenSettings={settingsEntry.openModelSettings}
       onOpenTasks={() => nav.navigate('tasks')}

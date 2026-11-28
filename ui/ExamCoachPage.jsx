@@ -6,6 +6,7 @@ import { useInjectCss } from './shared.js';
 import { useLiveEffect } from './use-async.js';
 import { modelReadiness } from './generation-status.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
+import { courseScope } from '../lib/course-tree.js';
 import {
   Badge,
   Button,
@@ -48,9 +49,48 @@ function originLabel(origin) {
   return ui(ORIGIN_LABELS[origin] || '自定义');
 }
 
+const HIGH_VOLUME_WARNING_RE = /^请求总题量（(\d+) 题）相对当前资料篇幅（(\d+) 份）偏高，若证据不足将按真实可达数量交付并报告缺口。$/;
+const INSUFFICIENT_KINDS_RE = /^题库中符合题型（([^）]+)）的可用题数量不足，拒绝拿无关题型凑数$/;
+
+function localizeShortfallWarning(warning) {
+  const text = String(warning || '').trim();
+  const match = HIGH_VOLUME_WARNING_RE.exec(text);
+  if (match) {
+    return uiFormat(
+      '请求总题量（{0} 题）相对当前资料篇幅（{1} 份）偏高，若证据不足将按真实可达数量交付并报告缺口。',
+      [Number(match[1]), Number(match[2])],
+    );
+  }
+  return ui(text);
+}
+
+function localizeMockReason(reason) {
+  const parts = String(reason || '')
+    .split('；')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (!parts.length) return '';
+  return parts
+    .map((part) => {
+      const match = INSUFFICIENT_KINDS_RE.exec(part);
+      if (match) {
+        const kinds = match[1]
+          .split('/')
+          .map((kind) => kind.trim())
+          .filter(Boolean)
+          .map((kind) => formatLabel(kind))
+          .join('/');
+        return uiFormat('题库中符合题型（{0}）的可用题数量不足，拒绝拿无关题型凑数', [kinds]);
+      }
+      return ui(part);
+    })
+    .join(ui('；'));
+}
+
 export default function ExamCoachPage({
   data,
   onGoGenerate,
+  onGoCase,
   onApplyToGenerate,
   onOpenSettings,
   onOpenTasks,
@@ -462,6 +502,30 @@ export default function ExamCoachPage({
     } finally {
       if (courseSeqRef.current === seq && courseRef.current === reqCourse) setWorking(false);
     }
+  }
+
+  function buildMockCaseJumpRequest() {
+    const activeSources = (data?.sources || []).filter((s) => s && !s.archived && !s.historical && !s.companionId && s.id);
+    const activeAllIds = new Set(activeSources.map((s) => s.id));
+    const trimmedCourse = typeof course === 'string' ? course.trim() : '';
+    const within = !trimmedCourse || trimmedCourse === '*' ? courseScope('*', []) : courseScope(trimmedCourse, knownCourses);
+    const courseSources = activeSources.filter((s) => {
+      if (within.all) return true;
+      const courses = Array.isArray(s.courses) ? s.courses : (s.course ? [s.course] : []);
+      return courses.some(within);
+    });
+    const activeCourseIds = new Set(courseSources.map((s) => s.id));
+    const referenceSourceIds = (spec?.scopeBoundary?.samplePaperIds || []).filter((id) => activeAllIds.has(id));
+    const refSet = new Set(referenceSourceIds);
+    const scopedMaterialIds = (spec?.scopeBoundary?.materialSourceIds || []).filter((id) => activeCourseIds.has(id));
+    const sourceIds = scopedMaterialIds.length
+      ? scopedMaterialIds
+      : courseSources.filter((s) => !refSet.has(s.id)).map((s) => s.id);
+    return {
+      course,
+      sourceIds,
+      ...(referenceSourceIds.length ? { referenceSourceIds } : {}),
+    };
   }
 
   const hasSources = (data?.sources || []).some((s) => !s.archived);
@@ -977,6 +1041,18 @@ export default function ExamCoachPage({
                           {uiFormat('提示：还有 {0} 项考法没有完成全部三项核对。', [compiledPreview.built.uncalibratedFamilies.length])}
                         </div>
                       )}
+                      {compiledPreview.built.shortfallWarnings?.map((warning, idx) => (
+                        <div key={idx} className="exam-coach-note exam-coach-note--warn">
+                          {localizeShortfallWarning(warning)}
+                        </div>
+                      ))}
+                      {onGoCase && compiledPreview.built.needsCasePaper && (
+                        <div className="exam-coach-actions">
+                          <Button variant="secondary" size="sm" iconEnd="arrow-right" onClick={() => onGoCase(compiledPreview.built.request)}>
+                            {ui('去创建案例分析卷')}
+                          </Button>
+                        </div>
+                      )}
                       {compiledPreview.genPreview?.requirementsVersion && (
                         <div className="exam-coach-meta">
                           {uiFormat('出题管线要求版本：{0}', [compiledPreview.genPreview.requirementsVersion])}
@@ -1100,9 +1176,21 @@ export default function ExamCoachPage({
                     </div>
                     {mockReport.report.shortfalls?.map((sf) => (
                       <div key={sf.sectionId} className="exam-coach-note exam-coach-note--warn">
-                        {uiFormat('「{0}」需 {1} 题，实有合格 {2} 题：{3}', [sf.title, sf.requested, sf.fulfilled, sf.reason])}
+                        {uiFormat('「{0}」需 {1} 题，实有合格 {2} 题：{3}', [sf.title, sf.requested, sf.fulfilled, localizeMockReason(sf.reason)])}
                       </div>
                     ))}
+                    {onGoCase && mockReport.report.shortfalls?.some((sf) => sf.rejectedMissingMaterial > 0 || sf.rejectedFlatSubparts > 0) && (
+                      <div className="exam-coach-actions">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          iconEnd="arrow-right"
+                          onClick={() => onGoCase(buildMockCaseJumpRequest())}
+                        >
+                          {ui('去创建案例分析卷')}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

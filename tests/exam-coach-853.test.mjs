@@ -23,6 +23,7 @@ import {
   diagnoseChoiceAttempt,
   isFamilyCalibrated,
   isNearDuplicateOfExposedSample,
+  normalizeCoachSpec,
   normalizeTaskFamily,
   projectCoachSpecForView,
   saveCoachSpec,
@@ -779,4 +780,233 @@ test("#853 StudyService integration: calibration RPCs, zero/unit/crunch request 
     await service.dispose?.();
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("#1455-5 strict mock paper & evidence recognize real case-study decks as single shared-material/subquestion units and keep flat open cards excluded", () => {
+  const caseDeck3 = {
+    id: "deck-case-1",
+    course: "分布式系统",
+    title: "Raft 脑裂案例分析卷",
+    format: "case-study",
+    case: {
+      sourceId: "src-case-1",
+      title: "跨机房 Raft 集群分区故障",
+      totalMarks: 30,
+      minutesPerMark: 3,
+      readingMinutes: 10,
+      origin: "generated",
+    },
+    cards: [
+      {
+        id: "case-q1",
+        kind: "open",
+        topic: "Raft 共识与分区容错",
+        objective: "分析 Raft 少数派分区无法提交日志的原因",
+        prompt: "第1问：结合案例日志分析为什么少数派分区无法提交新日志。",
+        answer: "少数派无法凑齐多数派法定人数，Leader 无法推进 commitIndex。",
+        explanation: "Raft 要求新日志条目必须复制到多数派节点才能提交。",
+        hint: "先检查法定人数条件。",
+        misconception: "误以为旧 Leader 收到客户端请求即可直接提交。",
+        rubric: "说明法定人数条件（5分）；结合案例节点分布分析（5分）。",
+        citations: [{ sourceId: "src-case-1", quote: "某三机房集群在网络分区期间出现日志复制停滞……" }],
+        marks: 10,
+      },
+      {
+        id: "case-q2",
+        kind: "open",
+        topic: "Raft 共识与分区容错",
+        objective: "推导网络恢复后旧 Leader 日志回退与覆盖过程",
+        prompt: "第2问：网络恢复后旧 Leader 的未提交日志将如何被覆盖？",
+        answer: "收到更高 term 的 AppendEntries 后退回 Follower 并按 prevLogIndex 截断。",
+        explanation: "更高任期的新 Leader 通过日志一致性检查强制覆盖冲突条目。",
+        hint: "关注 term 比较与日志一致性检查。",
+        misconception: "误以为网络恢复后两边日志会双向合并。",
+        rubric: "指出 term 比较与回退（5分）；说明日志截断规则（5分）。",
+        citations: [{ sourceId: "src-case-1", quote: "某三机房集群在网络分区期间出现日志复制停滞……" }],
+        marks: 10,
+      },
+      {
+        id: "case-q3",
+        kind: "open",
+        topic: "Raft 共识与分区容错",
+        objective: "权衡线性一致性读请求的工程实现代价",
+        prompt: "第3问：设计一种读请求线性一致性的工程方案并说明代价。",
+        answer: "使用 ReadIndex 或 Lease Read，权衡额外心跳 RTT 与时钟漂移风险。",
+        explanation: "线性一致读需确认当前 Leader 未被分区架空，ReadIndex 增加一次多数派心跳。",
+        hint: "对比 ReadIndex 与 Lease Read。",
+        misconception: "误以为只要发给旧 Leader 就能保证线性一致读。",
+        rubric: "给出可行方案（5分）；指出延迟或时钟代价（5分）。",
+        citations: [{ sourceId: "src-case-1", quote: "某三机房集群在网络分区期间出现日志复制停滞……" }],
+        marks: 10,
+      },
+    ],
+  };
+
+  // A 1-subquestion case deck: satisfies shared-material-group, MUST NOT satisfy subpartsCount: 2
+  const caseDeck1 = {
+    id: "deck-case-short",
+    course: "分布式系统",
+    title: "单问案例卷",
+    format: "case-study",
+    case: { sourceId: "src-case-short", title: "单问案例", totalMarks: 10 },
+    cards: [
+      {
+        id: "short-q1",
+        kind: "open",
+        topic: "Raft 共识与分区容错",
+        prompt: "单问：说明心跳超时设置过短的后果。",
+        answer: "触发频繁选主活锁。",
+        rubric: "指出频繁超时触发选主（10分）。",
+      },
+    ],
+  };
+
+  // A case deck whose scenario source is archived/deleted: MUST NOT count as valid shared-material group
+  const caseDeckBrokenSource = {
+    id: "deck-case-broken",
+    course: "分布式系统",
+    title: "材料已删除案例卷",
+    format: "case-study",
+    case: { sourceId: "src-case-deleted", title: "丢失材料", totalMarks: 20 },
+    cards: [
+      { id: "broken-q1", kind: "open", topic: "Raft 共识与分区容错", prompt: "问1", answer: "答1", rubric: "评分1" },
+      { id: "broken-q2", kind: "open", topic: "Raft 共识与分区容错", prompt: "问2", answer: "答2", rubric: "评分2" },
+    ],
+  };
+
+  // Ordinary non-case deck with flat open cards: MUST still be rejected for shared-material / subpartsCount > 1
+  const flatDeck = {
+    id: "deck-flat-open",
+    course: "分布式系统",
+    title: "普通开放题组",
+    cards: [
+      { id: "flat-open-1", kind: "open", topic: "Raft 共识与分区容错", prompt: "普通开放题 1", answer: "答 1", rubric: "细则 1" },
+      { id: "flat-open-2", kind: "open", topic: "Raft 共识与分区容错", prompt: "普通开放题 2", answer: "答 2", rubric: "细则 2" },
+    ],
+  };
+
+  const state = {
+    sources: [
+      { id: "src-case-1", course: "分布式系统", title: "Raft 案例材料", text: "某三机房集群在网络分区期间出现日志复制停滞……" },
+      { id: "src-case-short", course: "分布式系统", title: "单问案例材料", text: "单问背景材料……" },
+      { id: "src-case-deleted", course: "分布式系统", title: "已归档材料", text: "已归档", archived: true },
+    ],
+    decks: [caseDeck3, caseDeck1, caseDeckBrokenSource, flatDeck],
+  };
+
+  // 1. Shared-material-group count:2 -> deck-case-1 (3 cards) counts as 1 group (occupying all 3 cards),
+  //    deck-case-short (1 card) counts as 1 group; deck-case-broken & flatDeck are NOT counted.
+  const sharedRes = composeStrictMockPaper(state, {
+    course: "分布式系统",
+    examShape: {
+      sections: [
+        {
+          id: "sec-shared",
+          title: "材料题组",
+          allowedKinds: ["open"],
+          count: 3,
+          requiresSharedMaterial: true,
+          marksPerItem: 20,
+          timePerItemSec: 900,
+        },
+      ],
+    },
+  });
+  assert.equal(sharedRes.sections[0].fulfilledCount, 2, "3-card case deck counts as 1 group + 1-card valid case deck = 2 (never 3+1=4)");
+  assert.equal(sharedRes.shortfalls.length, 1);
+  assert.equal(sharedRes.shortfalls[0].missing, 1);
+  assert.ok(sharedRes.selectedCardIds.includes("case-q1") && sharedRes.selectedCardIds.includes("case-q2") && sharedRes.selectedCardIds.includes("case-q3"),
+    "all subquestion cards of the picked case deck are reserved in selectedCardIds");
+  assert.ok(!sharedRes.selectedCardIds.includes("flat-open-1") && !sharedRes.selectedCardIds.includes("broken-q1"),
+    "flat open cards and broken-source case deck must not be picked");
+  assert.doesNotMatch(sharedRes.shortfalls[0].reason, /sharedMaterial|subquestions|\(figure\)|（figure）/i,
+    "shortfall reason must not expose raw English internal field names");
+
+  // 2. Subparts count:2 -> ONLY deck-case-1 (3 subparts >= 2) qualifies; deck-case-short (1 subpart) & flatDeck rejected.
+  const subpartsRes = composeStrictMockPaper(state, {
+    course: "分布式系统",
+    examShape: {
+      sections: [
+        {
+          id: "sec-sub",
+          title: "多小问大题",
+          allowedKinds: ["open"],
+          count: 2,
+          subpartsCount: 2,
+          marksPerItem: 30,
+          timePerItemSec: 1200,
+        },
+      ],
+    },
+  });
+  assert.equal(subpartsRes.sections[0].fulfilledCount, 1, "only the 3-subquestion case deck satisfies subpartsCount: 2");
+  assert.equal(subpartsRes.shortfalls[0].missing, 1);
+  assert.ok(subpartsRes.shortfalls[0].rejectedFlatSubparts >= 2);
+  assert.doesNotMatch(subpartsRes.shortfalls[0].reason, /subquestions/i);
+
+  // 3. allowedKinds: ["case"] recognizes real case-study deck, while allowedKinds: ["quiz"] NEVER pads with it!
+  const caseKindRes = composeStrictMockPaper(state, {
+    course: "分布式系统",
+    examShape: {
+      sections: [
+        { id: "sec-case", title: "案例大题", allowedKinds: ["case"], count: 1, requiresSharedMaterial: true, marksPerItem: 30, timePerItemSec: 1200 },
+        { id: "sec-quiz", title: "材料单选题", allowedKinds: ["quiz"], count: 1, requiresSharedMaterial: true, marksPerItem: 5, timePerItemSec: 120 },
+      ],
+    },
+  });
+  assert.equal(caseKindRes.sections[0].fulfilledCount, 1, "case section accepts real case-study deck");
+  assert.equal(caseKindRes.sections[1].fulfilledCount, 0, "quiz section never padded with case-study open deck");
+
+  // 4. computeCoachEvidence with primaryFormat: "case" counts real case-study open cards & their unseen passes, while excluding flat open cards
+  const caseSpec = normalizeCoachSpec({
+    course: "分布式系统",
+    taskFamilies: [
+      {
+        id: "fam-case",
+        title: "Raft 共识与分区容错案例分析",
+        knowledgePoints: ["Raft 共识与分区容错"],
+        primaryFormat: "case",
+        allowedFormats: ["case"],
+        allowFormSubstitute: false,
+        quota: 1,
+        quotaUnit: "shared-material-group",
+        questionsPerUnit: 3,
+        timeBudgetSec: 600,
+        reasoningSteps: ["分析分区法定人数", "验证日志一致性恢复"],
+        rubricPoints: [{ criterion: "法定人数分析", marks: 10, condition: "写出多数派条件" }],
+      },
+    ],
+  }, "分布式系统");
+
+  const ev = computeCoachEvidence({
+    sources: state.sources,
+    decks: [caseDeck3, flatDeck],
+    attempts: [
+      {
+        quiz_id: "case-q1",
+        deckId: "deck-case-1",
+        assessment: "rubric",
+        score: 9,
+        maxScore: 10,
+        grade: 5,
+        elapsed_ms: 180000,
+        timestamp: "2026-10-01T10:00:00.000Z",
+      },
+    ],
+  }, { course: "分布式系统", spec: caseSpec });
+
+  assert.equal(ev.trainingCoverage.families[0].generated, 3, "3 real case-study open cards count for case task family");
+  assert.equal(ev.trainingCoverage.families[0].verifiedUsable, 3, "real case-study open cards are verified usable");
+  assert.equal(ev.trainingCoverage.families[0].practiced, 1, "practiced case-study open card counted");
+  assert.equal(ev.trainingCoverage.families[0].excludedCount, 2, "only the 2 flat open cards are excluded");
+  assert.equal(ev.capabilityEvidence.unseenIndependentPassCount, 1, "independent pass on case-study card counts as unseen pass");
+  assert.equal(ev.capabilityEvidence.assistedOrExposedCount, 0, "real case-study pass is NOT misclassified as assisted/exposed");
+
+  // 5. compileCoachGenerationRequest warns honestly that case/shared-material/subquestion families need case-study paper creation
+  const compiled = compileCoachGenerationRequest(caseSpec, state);
+  assert.equal(compiled.totalCount, 3, "compileCoachGenerationRequest preserves quota * questionsPerUnit contract");
+  assert.ok(
+    compiled.shortfallWarnings.some((w) => /案例分析卷/.test(w)),
+    "shortfallWarnings honestly tells the learner that case/shared-material groups require creating a case-study paper",
+  );
 });
