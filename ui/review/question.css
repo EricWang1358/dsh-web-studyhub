@@ -1368,7 +1368,7 @@
     }
   }
   /* The one-line buttons need less room: the two groups stay side by side down to a narrower row (below it, each group is a line of its own). */
-  @container grading (min-width: 440px) {
+  @container grading (min-width: 500px) {
     :where(.study-app, .study-seat) {
       .grading--short .grade-scale { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
