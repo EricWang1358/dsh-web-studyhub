@@ -9,16 +9,17 @@
 /** @typedef {import('./contracts.js').DesktopConfig} DesktopConfig */
 /** @typedef {{ executablePath: string, model: string, effort: string, timeoutMs: number }} AgyWarmSpec what a spare was started with; timeoutMs 0 = no limit */
 /** @typedef {'call' | 'config' | 'expiry'} AgyWarmTrigger */
-/** @typedef {{ action: 'release' } | { action: 'keep' } | { action: 'ensure', spec: AgyWarmSpec, idleMs: number, strict: boolean }} AgyWarmPlan */
+/** @typedef {{ action: 'release' } | { action: 'keep' } | { action: 'ensure', spec: AgyWarmSpec, strict: boolean }} AgyWarmPlan */
 
 /** @type {readonly AgyPrewarm[]} */
 export const AGY_PREWARM_MODES = Object.freeze(['off', 'after-use', 'always']);
 /** @type {AgyPrewarm} */
 export const DEFAULT_AGY_PREWARM = 'after-use';
-/** 「用过之后」: how long the spare waits for the next call before it exits. */
-export const AGY_SPARE_KEEP_MS = 10 * 60 * 1000;
-/** 「一直」: how old an unused spare may get before a fresh one takes its place. */
-export const AGY_SPARE_RENEW_MS = 30 * 60 * 1000;
+/**
+ * The oldest a spare gets: then it exits (「用过之后」) or a fresh one takes its place (「一直」). Measured: one that had waited 10 minutes
+ * answered as fast as a new one; one that had waited 30 took 22 s on a busy computer, cause not separated, so none is kept longer.
+ */
+export const AGY_SPARE_MAX_AGE_MS = 10 * 60 * 1000;
 
 const MODES = new Set(AGY_PREWARM_MODES);
 
@@ -100,9 +101,21 @@ export function canServeAgyCall(spare, call) {
 export function agyWarmPlan(mode, trigger, spec) {
   const setting = normalizeAgyPrewarm(mode);
   if (setting === 'off') return { action: 'release' };
-  if (setting === 'always') return { action: 'ensure', spec, idleMs: AGY_SPARE_RENEW_MS, strict: trigger === 'call' };
-  if (trigger === 'call') return { action: 'ensure', spec, idleMs: AGY_SPARE_KEEP_MS, strict: true };
+  if (setting === 'always' || trigger === 'call') return { action: 'ensure', spec, strict: trigger === 'call' };
   return trigger === 'config' ? { action: 'keep' } : { action: 'release' };
+}
+
+/**
+ * The plan when a call is made, from the settings as they are at that moment (a long job may have built its model call before they
+ * changed): what waits for the call after this one. It gets this call's flags and `nextTimeoutMs`, the longest ordinary limit.
+ * @param {DesktopConfig | null | undefined} config
+ * @param {AgyWarmSpec} call
+ * @param {number} nextTimeoutMs
+ * @returns {AgyWarmPlan}
+ */
+export function agyWarmPlanForCall(config, call, nextTimeoutMs) {
+  if (config?.mode !== 'agy') return { action: 'release' };
+  return agyWarmPlan(config.agy?.prewarm, 'call', { ...call, timeoutMs: nextTimeoutMs });
 }
 
 /**

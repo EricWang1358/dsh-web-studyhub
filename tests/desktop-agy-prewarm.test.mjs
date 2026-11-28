@@ -3,6 +3,7 @@
 // spare that was already waiting; a second question sent to the same process continued the first one's conversation, which is why
 // a spare is never reused.
 import test from 'node:test';
+import { getEventListeners } from 'node:events';
 import assert from 'node:assert/strict';
 import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -10,11 +11,11 @@ import { join } from 'node:path';
 
 import {
   AGY_PREWARM_MODES,
-  AGY_SPARE_KEEP_MS,
-  AGY_SPARE_RENEW_MS,
+  AGY_SPARE_MAX_AGE_MS,
   DEFAULT_AGY_PREWARM,
   agyConfigSpec,
   agyWarmPlan,
+  agyWarmPlanForCall,
   agyWarmPlanForConfig,
   agyWarmSpec,
   canServeAgyCall,
@@ -25,9 +26,9 @@ import {
 } from '../packages/studyhub-desktop/domain/agy-warm-policy.js';
 import { applyConfigPatch, defaultDesktopConfig, normalizeDesktopConfig, redactDesktopConfig } from '../packages/studyhub-desktop/domain/config-policy.js';
 import { createAgyCompleteAdapter } from '../packages/studyhub-desktop/adapters/cli/agy-adapter.mjs';
-import { AGY_SPARE_TIMEOUT_MS, createAgyWarm, openAgySpare } from '../packages/studyhub-desktop/adapters/cli/agy-spare.mjs';
+import { createAgyWarm, openAgySpare } from '../packages/studyhub-desktop/adapters/cli/agy-spare.mjs';
 import { createAgyWarmPool } from '../packages/studyhub-desktop/adapters/cli/agy-warm-pool.mjs';
-import { createProcessRunner, holdProcess } from '../packages/studyhub-desktop/adapters/cli/process-runner.mjs';
+import { createProcessRunner, holdProcess, runProcess } from '../packages/studyhub-desktop/adapters/cli/process-runner.mjs';
 import { createDesktopCompletePort } from '../packages/studyhub-desktop/application/complete-port.js';
 import { composeDesktopSidecar } from '../packages/studyhub-desktop/entry/sidecar.mjs';
 
@@ -42,7 +43,7 @@ function pidExists(pid) {
   }
 }
 
-async function waitFor(check, { timeoutMs = 10_000, stepMs = 25, what = 'condition' } = {}) {
+async function waitFor(check, { timeoutMs = 30_000, stepMs = 25, what = 'condition' } = {}) {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     const value = await check();
@@ -74,7 +75,7 @@ test('domain/agy-warm-policy: three settings, the middle one by default, and any
   for (const odd of [undefined, null, '', 'ALWAYS', 'on', 1, {}]) assert.equal(normalizeAgyPrewarm(odd), 'after-use');
   assert.deepEqual(withAgyPrewarm({ executablePath: 'x', model: '', effort: '' }, { prewarm: 'always' }), { executablePath: 'x', model: '', effort: '', prewarm: 'always' });
   assert.equal(withAgyPrewarm({ executablePath: 'x' }, undefined).prewarm, 'after-use', 'a config saved before the setting existed gets the default');
-  assert.ok(AGY_SPARE_KEEP_MS > 0 && AGY_SPARE_RENEW_MS >= AGY_SPARE_KEEP_MS);
+  assert.equal(AGY_SPARE_MAX_AGE_MS, 10 * 60 * 1000, 'no spare is kept longer than the age it was measured quick at');
 });
 
 test('domain/agy-warm-policy: a settings change is taken only when it names one of the three, and says so when it does not', () => {
@@ -105,14 +106,22 @@ test('domain/agy-warm-policy: what each setting does at a call, at a settings ch
   const release = { action: 'release' };
   for (const trigger of ['call', 'config', 'expiry']) assert.deepEqual(agyWarmPlan('off', trigger, s), release, `off never keeps a spare (${trigger})`);
 
-  assert.deepEqual(agyWarmPlan('after-use', 'call', s), { action: 'ensure', spec: s, idleMs: AGY_SPARE_KEEP_MS, strict: true });
+  assert.deepEqual(agyWarmPlan('after-use', 'call', s), { action: 'ensure', spec: s, strict: true });
   assert.deepEqual(agyWarmPlan('after-use', 'config', s), { action: 'keep' }, 'saving settings neither starts nor stops a spare');
-  assert.deepEqual(agyWarmPlan('after-use', 'expiry', s), release, 'unused for the keep time: it exits and gives its memory back');
+  assert.deepEqual(agyWarmPlan('after-use', 'expiry', s), release, 'unused for 10 minutes: it exits and gives its memory back');
 
-  assert.deepEqual(agyWarmPlan('always', 'call', s), { action: 'ensure', spec: s, idleMs: AGY_SPARE_RENEW_MS, strict: true });
-  assert.deepEqual(agyWarmPlan('always', 'config', s), { action: 'ensure', spec: s, idleMs: AGY_SPARE_RENEW_MS, strict: false });
-  assert.deepEqual(agyWarmPlan('always', 'expiry', s), { action: 'ensure', spec: s, idleMs: AGY_SPARE_RENEW_MS, strict: false }, 'an old spare is replaced by a fresh one');
-  assert.deepEqual(agyWarmPlan('nonsense', 'call', s).idleMs, AGY_SPARE_KEEP_MS, 'an unknown setting acts as the default');
+  assert.deepEqual(agyWarmPlan('always', 'call', s), { action: 'ensure', spec: s, strict: true });
+  assert.deepEqual(agyWarmPlan('always', 'config', s), { action: 'ensure', spec: s, strict: false });
+  assert.deepEqual(agyWarmPlan('always', 'expiry', s), { action: 'ensure', spec: s, strict: false }, 'an old spare is replaced by a fresh one');
+  assert.deepEqual(agyWarmPlan('nonsense', 'expiry', s), release, 'an unknown setting acts as the default');
+
+  const config = { ...defaultDesktopConfig(), mode: 'agy' };
+  const call = spec({ timeoutMs: 90_000, effort: 'high' });
+  assert.deepEqual(agyWarmPlanForCall(config, call, 600_000), { action: 'ensure', spec: { ...call, timeoutMs: 600_000 }, strict: true },
+    'the next spare gets this call\'s effort and the longest ordinary time limit');
+  assert.deepEqual(agyWarmPlanForCall({ ...config, agy: { ...config.agy, prewarm: 'off' } }, call, 600_000), release);
+  assert.deepEqual(agyWarmPlanForCall({ ...config, mode: 'openai' }, call, 600_000), release, 'a job still on agy after the model was switched leaves nothing behind');
+  assert.deepEqual(agyWarmPlanForCall(null, call, 600_000), release);
 });
 
 test('domain/agy-warm-policy: the saved settings ask for a spare only while agy is the model in use and its program is known', () => {
@@ -183,6 +192,7 @@ test('adapters/cli/process-runner hold(): the process starts at once, waits with
   assert.equal(result.timedOut, false);
   assert.match(result.stdout, /READY\r?\nGOT:hello/, 'everything it wrote is in the result');
   assert.deepEqual(lines, ['GOT:hello'], 'the turn hears only what came after it was asked');
+  assert.equal(result.silentTurn, false, 'it said something after it was asked');
   assert.equal(await held.run({ stdinText: 'again\n' }), result, 'a second ask gets the first answer: one process, one turn');
   await held.exited;
   await held.terminate();
@@ -199,6 +209,7 @@ test('adapters/cli/process-runner hold(): the time limit and the abort signal co
   assert.ok(pidExists(slowPid), 'waiting longer than the coming limit does not end it');
   const timed = await slow.run({ stdinText: 'x\n', timeoutMs: 400 });
   assert.equal(timed.timedOut, true);
+  assert.equal(timed.silentTurn, true);
   assert.ok(timed.durationMs >= 350, `the limit ran from the turn (took ${timed.durationMs} ms)`);
 
   const abortFile = join(dir, 'abort.pid');
@@ -208,6 +219,18 @@ test('adapters/cli/process-runner hold(): the time limit and the abort signal co
   const running = cancellable.run({ stdinText: 'x\n', timeoutMs: 30_000, signal: controller.signal });
   setTimeout(() => controller.abort(new Error('cancel')), 100);
   assert.equal((await running).aborted, true);
+  assert.equal(getEventListeners(controller.signal, 'abort').length, 0, 'the signal is let go');
+
+  const reused = new AbortController();
+  const finished = await runProcess({ command: quit, signal: reused.signal, timeoutMs: 30_000 });
+  assert.equal(finished.silentTurn, true);
+  assert.equal(getEventListeners(reused.signal, 'abort').length, 0, 'a run lets go of a job\'s shared signal');
+
+  const complaining = join(dir, 'complain.mjs');
+  await writeFile(complaining, 'for await (const c of process.stdin) void c;\nprocess.stderr.write("429 rate limit\\n");\nprocess.exitCode = 1;\n', 'utf8');
+  const refused = await (await holdProcess({ command: complaining, cwd: dir })).run({ stdinText: 'x\n', timeoutMs: 30_000 });
+  assert.equal(refused.code, 1);
+  assert.equal(refused.silentTurn, false, 'a word on stderr counts: it may have asked the model');
 
   const idleFile = join(dir, 'idle.pid');
   const idle = await holdProcess({ command: hang, args: [idleFile], cwd: dir });
@@ -221,6 +244,7 @@ test('adapters/cli/process-runner hold(): the time limit and the abort signal co
   const late = await gone.run({ stdinText: 'too late\n', timeoutMs: 5_000 });
   assert.equal(late.code, 3, 'a process that ended while waiting answers with how it ended');
   assert.equal(late.timedOut, false);
+  assert.equal(late.silentTurn, true, 'nothing came after the question: it had already ended');
   await gone.terminate();
 
   if (process.platform !== 'win32') return;
@@ -261,7 +285,7 @@ test('adapters/cli/agy-warm-pool: a call takes the waiting spare and a new one s
   const { pool, opened, timers } = fakePool();
   assert.equal(pool.claim(spec({ timeoutMs: 90_000 }), callPlan()), null, 'nothing waits before the first call');
   assert.equal(opened.length, 1, 'the first call leaves a spare behind');
-  assert.equal(timers[0].ms, AGY_SPARE_KEEP_MS);
+  assert.equal(timers[0].ms, AGY_SPARE_MAX_AGE_MS);
 
   const first = pool.claim(spec({ timeoutMs: 90_000 }), callPlan());
   assert.equal(first, opened[0], 'the next call gets it');
@@ -274,16 +298,41 @@ test('adapters/cli/agy-warm-pool: a call takes the waiting spare and a new one s
   assert.notEqual(second, first, 'no spare answers twice');
 });
 
-test('adapters/cli/agy-warm-pool: a spare that does not fit the call is not handed out', () => {
+test('adapters/cli/agy-warm-pool: one call that cannot use the spare leaves it; a second in a row replaces it', () => {
+  const { pool, opened } = fakePool();
+  const high = spec({ effort: 'high' });
+  const highPlan = () => callPlan('after-use', { effort: 'high' });
+  pool.claim(spec(), callPlan());
+  assert.equal(pool.claim(high, highPlan()), null, 'another effort: this call starts fresh');
+  assert.equal(opened[0].closed, 0, 'one odd call does not throw the spare away');
+  assert.equal(opened.length, 1, 'and starts nothing');
+  assert.equal(pool.claim(spec(), callPlan()), opened[0], 'the next ordinary call still gets it');
+
+  pool.claim(high, highPlan());
+  pool.claim(high, highPlan());
+  assert.equal(opened[1].closed, 1, 'twice in a row: calls now ask for something else');
+  assert.equal(opened[2].spec.effort, 'high');
+
+  pool.claim(spec({ model: 'other' }), callPlan('after-use', { model: 'other' }));
+  assert.equal(opened[2].closed, 1, 'another model is replaced at once');
+  assert.equal(opened[3].spec.model, 'other');
+
+  for (let again = 0; again < 3; again += 1) {
+    assert.equal(pool.claim(spec({ model: 'other', timeoutMs: 0 }), callPlan('after-use', { model: 'other' })), null, 'a call with no time limit starts fresh');
+  }
+  assert.equal(opened.length, 4, 'and the spare stays for the calls it can serve');
+  assert.equal(opened[3].closed, 0);
+});
+
+test('adapters/cli/agy-warm-pool: calls that alternate between two efforts do not start two processes each', () => {
   const { pool, opened } = fakePool();
   pool.claim(spec(), callPlan());
-  assert.equal(pool.claim(spec({ effort: 'high' }), callPlan('after-use', { effort: 'high' })), null, 'another effort: this call starts fresh');
-  assert.equal(opened[0].closed, 1, 'the spare for the old effort is closed');
-  assert.equal(opened[1].spec.effort, 'high', 'and one for the effort calls now ask for takes its place');
-
-  assert.equal(pool.claim(spec({ effort: 'high', timeoutMs: 0 }), callPlan('after-use', { effort: 'high' })), null, 'a call with no time limit starts fresh');
-  assert.equal(opened.length, 2, 'the spare stays for the calls it can serve');
-  assert.equal(opened[1].closed, 0);
+  for (let round = 0; round < 5; round += 1) {
+    assert.equal(pool.claim(spec({ effort: 'low-light' }), callPlan('after-use', { effort: 'low-light' })), null);
+    assert.ok(pool.claim(spec(), callPlan()), `round ${round}: the ordinary call is still served`);
+  }
+  assert.equal(opened.length, 6, 'one new spare per call that used one, none for the others');
+  assert.deepEqual(opened.map((item) => item.closed), [0, 0, 0, 0, 0, 0], 'none was started only to be thrown away');
 });
 
 test('adapters/cli/agy-warm-pool: off releases, a settings change keeps a spare of the same program and model, another model replaces it', () => {
@@ -313,7 +362,7 @@ test('adapters/cli/agy-warm-pool: a spare that waited its limit is released or r
 
   mode = 'always';
   pool.apply(agyWarmPlan('always', 'config', spec()));
-  assert.equal(timers[1].ms, AGY_SPARE_RENEW_MS);
+  assert.equal(timers[1].ms, AGY_SPARE_MAX_AGE_MS);
   timers[1].fn();
   assert.equal(opened[1].closed, 1, 'always: the old one is closed');
   assert.equal(opened.length, 3, 'and a fresh one waits');
@@ -362,21 +411,14 @@ test('adapters/cli/agy-warm-pool: dispose closes the spare and nothing starts af
   await pool.dispose();
 });
 
-test('adapters/cli/agy-warm-pool: reading the settings again does not restart the spare\'s clock', () => {
+test('adapters/cli/agy-warm-pool: nothing restarts a spare\'s clock, so none gets older than the limit', () => {
   const { pool, opened, timers } = fakePool((expired) => agyWarmPlan('always', 'expiry', expired));
   pool.apply(agyWarmPlan('always', 'config', spec()));
   for (let read = 0; read < 5; read += 1) pool.apply(agyWarmPlan('always', 'config', spec()));
-  assert.equal(timers.length, 1, 'the page reads the backend all the time: the renewal still comes 30 minutes after the start');
-  assert.equal(opened.length, 1);
-
   pool.claim(spec({ timeoutMs: 0 }), callPlan('always'));
-  assert.equal(timers.length, 2, 'a call that leaves it waiting is a use: its clock starts again');
-
-  const later = fakePool();
-  later.pool.claim(spec(), callPlan('after-use'));
-  later.pool.apply(agyWarmPlan('always', 'config', spec()));
-  assert.equal(later.timers.at(-1).ms, AGY_SPARE_RENEW_MS, 'a changed setting changes how long it may wait');
-  assert.equal(later.timers[0].cleared, true);
+  pool.claim(spec({ timeoutMs: 0 }), callPlan('always'));
+  assert.equal(timers.length, 1, 'the page reads the backend all the time, and calls that pass it by do not make it younger');
+  assert.equal(opened.length, 1);
 });
 
 test('application/complete-port: the connection test asks for a fresh start, ordinary calls do not', async () => {
@@ -395,6 +437,73 @@ test('application/complete-port: the connection test asks for a fresh start, ord
 });
 
 /* ============================================================================
+ * 3b. The spare of a running app: the settings are read as they are at each call
+ * ============================================================================ */
+
+function holdingRunner({ failing = false } = {}) {
+  const holds = [];
+  return {
+    holds,
+    run: async () => { throw new Error('not used'); },
+    hold: async (request) => {
+      if (failing) throw new Error('spawn refused');
+      let exit;
+      const child = { request, ended: false, exited: new Promise((resolve) => { exit = resolve; }), run: async () => ({}), terminate: async () => { child.ended = true; exit(); } };
+      holds.push(child);
+      return child;
+    },
+  };
+}
+
+const liveConfig = (over = {}) => ({ ...defaultDesktopConfig(), mode: 'agy', agy: { executablePath: 'C:\\agy.exe', model: 'gemini-test', effort: 'low', prewarm: 'after-use', ...over } });
+
+test('adapters/cli/agy-spare: turning pre-warm off holds for a job that was already running', async (t) => {
+  const runner = holdingRunner();
+  let config = liveConfig();
+  const warm = createAgyWarm({ runner, getConfig: () => config, findExecutablePath: () => '' });
+  t.after(() => warm.dispose());
+  const call = spec({ executablePath: 'C:\\agy.exe' });
+  assert.equal(warm.claim(call), null);
+  await waitFor(() => runner.holds.length === 1, { what: 'a spare after the first call' });
+  config = liveConfig({ prewarm: 'off' });
+  assert.equal(warm.claim(call), null, 'the setting is read now, not when the job built its model call');
+  await waitFor(() => runner.holds[0].ended, { what: 'the spare to be stopped' });
+  await pause(50);
+  assert.equal(runner.holds.length, 1, 'and no other is started');
+});
+
+test('adapters/cli/agy-spare: a changed model or effort drops the old spare at the next settings read', async (t) => {
+  const runner = holdingRunner();
+  let config = liveConfig({ prewarm: 'always' });
+  const warm = createAgyWarm({ runner, getConfig: () => config, findExecutablePath: () => '' });
+  t.after(() => warm.dispose());
+  warm.sync();
+  await waitFor(() => runner.holds.length === 1, { what: 'the first spare' });
+  warm.sync();
+  config = liveConfig({ prewarm: 'always', effort: 'high' });
+  warm.sync();
+  await waitFor(() => runner.holds.length === 2 && runner.holds[0].ended, { what: 'a spare with the new effort' });
+  assert.ok(runner.holds[1].request.args.includes('high'));
+
+  config = liveConfig({ prewarm: 'after-use', effort: 'high' });
+  warm.sync();
+  await pause(50);
+  assert.equal(runner.holds[1].ended, false, 'only the pre-warm choice changed: it stays');
+  config = liveConfig({ prewarm: 'after-use', effort: 'high', model: 'other' });
+  warm.sync();
+  await waitFor(() => runner.holds[1].ended, { what: 'the old model\'s spare to stop' });
+  await pause(50);
+  assert.equal(runner.holds.length, 2, 'after-use: the next call starts the next one');
+});
+
+test('adapters/cli/agy-spare: a spare that could not be started answers null, so the call starts fresh', async () => {
+  const spare = openAgySpare(holdingRunner({ failing: true }), spec());
+  await spare.exited;
+  assert.equal(await spare.run({ stdinText: 'x\n' }), null);
+  await spare.close();
+});
+
+/* ============================================================================
  * 4. The adapter: a spare answers when one is ready, a fresh start otherwise
  * ============================================================================ */
 
@@ -406,7 +515,7 @@ function fakeWarm(spare = null) {
   const calls = { claims: [], faults: 0 };
   return {
     calls,
-    claim(callSpec, plan) { calls.claims.push({ callSpec, plan }); return spare; },
+    claim(callSpec) { calls.claims.push(callSpec); return spare; },
     fault() { calls.faults += 1; },
   };
 }
@@ -441,10 +550,8 @@ test('adapters/cli/agy-adapter: with a spare ready the call goes to it and no fr
   assert.equal(runner.runs.length, 0);
   assert.deepEqual(chunks, ['WARM ', 'ANSWER'], 'the answer streams as it does from a fresh start');
 
-  const [{ callSpec, plan }] = warm.calls.claims;
+  const [callSpec] = warm.calls.claims;
   assert.deepEqual(callSpec, { executablePath: 'fake-agy', model: 'gemini-test', effort: 'low', timeoutMs: 90_000 }, 'the call says what it needs');
-  assert.equal(plan.action, 'ensure');
-  assert.equal(plan.spec.timeoutMs, AGY_SPARE_TIMEOUT_MS, 'the next spare is started with the longest limit a call asks for');
   const [turn] = spare.turns;
   assert.equal(turn.timeoutMs, 90_000, 'the runner keeps this call\'s own limit');
   assert.equal(turn.signal, controller.signal);
@@ -452,21 +559,19 @@ test('adapters/cli/agy-adapter: with a spare ready the call goes to it and no fr
   assert.equal(warm.calls.faults, 0);
 });
 
-test('adapters/cli/agy-adapter: the setting decides the plan, and without a pool nothing changes', async () => {
-  const offWarm = fakeWarm(null);
+test('adapters/cli/agy-adapter: the call says which effort it needs, and without a pool nothing changes', async () => {
   const runner = coldRunner();
-  assert.equal(await createAgyCompleteAdapter(agyConfig({ prewarm: 'off' }), { runner, warm: offWarm, report: null })('S', 'P'), 'COLD');
-  assert.deepEqual(offWarm.calls.claims[0].plan, { action: 'release' });
-  const alwaysWarm = fakeWarm(null);
-  await createAgyCompleteAdapter(agyConfig({ prewarm: 'always', effort: '' }), { runner, warm: alwaysWarm, report: null })('S', 'P', { reasoningEffort: 'high' });
-  assert.equal(alwaysWarm.calls.claims[0].plan.idleMs, AGY_SPARE_RENEW_MS);
-  assert.equal(alwaysWarm.calls.claims[0].callSpec.effort, 'high', 'the effort of this call, not the saved one');
+  const warm = fakeWarm(null);
+  await createAgyCompleteAdapter(agyConfig({ effort: '' }), { runner, warm, report: null })('S', 'P', { reasoningEffort: 'high' });
+  assert.equal(warm.calls.claims[0].effort, 'high', 'the effort of this call, not the saved one');
   assert.equal(await createAgyCompleteAdapter(agyConfig(), { runner, report: null })('S', 'P'), 'COLD', 'no pool: every call starts fresh, as before');
-  assert.equal(runner.runs.length, 3);
+  assert.equal(runner.runs.length, 2);
 });
 
-test('adapters/cli/agy-adapter: a spare that ended before the model said anything hands the call to a fresh start', async () => {
-  for (const dead of [fakeSpare([], { code: 1 }), fakeSpare([JSON.stringify({ event: 'init' })], { code: 0 }), fakeSpare([], { code: null, errorCode: 'ENOENT' })]) {
+test('adapters/cli/agy-adapter: a spare that had already ended, or never started, hands the call to a fresh start', async () => {
+  const quiet = { silentTurn: true };
+  const neverStarted = { run: async () => null };
+  for (const dead of [fakeSpare([], { code: 1, ...quiet }), fakeSpare([], { code: 0, ...quiet }), fakeSpare([], { code: null, errorCode: 'ENOENT', ...quiet }), neverStarted]) {
     const warm = fakeWarm(dead);
     const runner = coldRunner();
     assert.equal(await createAgyCompleteAdapter(agyConfig(), { runner, warm, report: null })('S', 'P'), 'COLD');
@@ -477,7 +582,10 @@ test('adapters/cli/agy-adapter: a spare that ended before the model said anythin
 
 test('adapters/cli/agy-adapter: once the model has answered or the call was cut off, there is no second call', async () => {
   const cases = [
-    { spare: fakeSpare([stepLine('partial')], { code: 1, stderr: 'boom' }), faults: 1, what: 'failed after the model started answering' },
+    { spare: fakeSpare([stepLine('partial')], { code: 1, stderr: 'boom', silentTurn: false }), faults: 1, what: 'failed after the model started answering' },
+    { spare: fakeSpare([], { code: 1, stderr: '429 rate limit', silentTurn: false }), faults: 1, what: 'complained on stderr after the question' },
+    { spare: fakeSpare([JSON.stringify({ event: 'error', message: 'quota' })], { code: 1, silentTurn: false }), faults: 1, what: 'printed an error event after the question' },
+    { spare: { run: async () => { throw new Error('unexpected'); } }, faults: 1, what: 'the turn itself threw' },
     { spare: fakeSpare([JSON.stringify({ event: 'result', result: { status: 'ERROR', error: 'quota' } })], { code: 1 }), faults: 1, what: 'agy itself reported an error' },
     { spare: fakeSpare([], { code: null, timedOut: true }), faults: 1, what: 'ran out of time' },
   ];
@@ -550,7 +658,7 @@ test('pre-warm end to end: each call is answered by a process that was already w
   await pause(150);
   assert.equal((await startsIn(log)).length, 1, 'reading the settings again starts nothing more');
 
-  const complete = () => createAgyCompleteAdapter(current.agy, { runner, warm: warm.pool, report: null, timeoutMs: 20_000 });
+  const complete = () => createAgyCompleteAdapter(current.agy, { runner, warm, report: null, timeoutMs: 20_000 });
   const answerOne = await complete()('System', 'One', {});
   assert.equal(answerOne, `pid ${first.pid} asked 1`, 'the waiting process answered, and it was asked exactly one question');
   const starts = await waitFor(async () => { const all = await startsIn(log); return all.length === 2 ? all : null; }, { what: 'the replacement to start' });

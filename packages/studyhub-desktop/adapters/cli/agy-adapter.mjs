@@ -9,10 +9,10 @@ import {
   parseAgyStreamLine,
   parseAgyStreamOutput,
 } from '../../domain/agy-protocol.js';
-import { agyWarmPlan, agyWarmSpec } from '../../domain/agy-warm-policy.js';
+import { agyWarmSpec } from '../../domain/agy-warm-policy.js';
 import { clipDetail } from '../../domain/redact.js';
 import { parseCliVersion } from '../../domain/shim-parser.js';
-import { AGY_SPARE_TIMEOUT_MS, createAgyWorkDir } from './agy-spare.mjs';
+import { createAgyWorkDir } from './agy-spare.mjs';
 
 const VERSION_PROBE_TIMEOUT_MS = 5_000;
 const MODELS_PROBE_TIMEOUT_MS = 15_000;
@@ -176,32 +176,21 @@ async function runFresh(runner, { spec, turn }) {
   }
 }
 
-/** Has the model said anything, or agy given its verdict? Past this point a call is never sent a second time. */
-function agyHasAnswered(line) {
-  const event = parseAgyStreamLine(line)?.event;
-  return event === 'step_update' || event === 'result';
-}
-
 /**
- * Ask the spare that was already waiting. null means it could not do the job through no fault of the call (it had ended, or its
- * input never reached a running agy): the call then starts fresh. A call that was stopped, ran out of time, or got any answer from
- * the model is not sent again.
+ * Ask the spare that was already waiting. null means it never got the question: there is no such process, or it had ended and not
+ * one byte came after the question. The call then starts fresh. After any output at all, an error included, agy may already have
+ * asked the model, and sending again could be paid twice; neither is a call sent again once it was stopped or ran out of time.
  */
 async function runOnSpare(spare, { turn }) {
-  let answered = false;
-  const onStdoutLine = (line) => {
-    answered ||= agyHasAnswered(line);
-    turn.onStdoutLine?.(line);
-  };
-  const result = await spare.run({ ...turn, onStdoutLine });
-  if (answered || result.aborted || result.timedOut || turn.signal?.aborted) return result;
-  return null;
+  const result = await spare.run(turn);
+  if (!result) return null;
+  const unheard = result.silentTurn && !result.aborted && !result.timedOut && !turn.signal?.aborted;
+  return unheard ? null : result;
 }
 
 /** The result of the call from a waiting spare when there is one that fits, else from a process started now. `warm.claim` also starts the next spare. */
-async function runAgyCall(call, { runner, warm, prewarm }) {
-  const next = { ...call.spec, timeoutMs: AGY_SPARE_TIMEOUT_MS };
-  const spare = warm?.claim(call.spec, agyWarmPlan(prewarm, 'call', next)) ?? null;
+async function runAgyCall(call, { runner, warm }) {
+  const spare = warm?.claim(call.spec) ?? null;
   if (!spare) return runFresh(runner, call);
   try {
     return await runOnSpare(spare, call) ?? await runFresh(runner, call);
@@ -237,15 +226,16 @@ export function createAgyCompleteAdapter(agyConfig, {
 
   return async function agyComplete(system, prompt, execution = {}) {
     const call = planAgyCall({ ...agyConfig, executablePath }, { system, prompt, execution, timeoutMs });
-    const result = await runAgyCall(call, { runner, warm, prewarm: agyConfig.prewarm });
+    let result = null;
     try {
+      result = await runAgyCall(call, { runner, warm });
       assertAgyRunOk(result, execution, call.spec.timeoutMs);
       const parsed = parseAgyRun(result);
       report?.(parsed.usage, execution);
       return parsed.text;
     } catch (error) {
       // A stopped call says nothing about the CLI; any other failure may also hit the spare that is waiting.
-      if (!execution?.signal?.aborted && !result.aborted) warm?.fault();
+      if (!execution?.signal?.aborted && !result?.aborted) warm?.fault();
       throw error;
     }
   };

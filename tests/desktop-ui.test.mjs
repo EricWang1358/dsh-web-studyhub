@@ -262,7 +262,7 @@ test('the agy card lets the learner choose when agy is started ahead of time, an
   assert.match(fresh, /agy plugin list/, 'a very slow agy is usually a plugin: where to look');
 
   assert.match(card({ agy: { prewarm: 'off' } }), /data-desktop-agy-prewarm="off"[\s\S]*不多占内存/);
-  assert.match(card({ agy: { prewarm: 'always' } }), /data-desktop-agy-prewarm="always"[\s\S]*30 分钟/);
+  assert.match(card({ agy: { prewarm: 'always' } }), /data-desktop-agy-prewarm="always"[\s\S]*每 10 分钟换一个新的/);
   assert.doesNotMatch(card({ mode: 'codex' }), /data-desktop-agy-prewarm/, 'codex has no such setting');
   assert.doesNotMatch(card({ compact: true }), /data-desktop-agy-prewarm/, 'the first-run and gate cards stay short');
 

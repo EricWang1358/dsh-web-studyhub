@@ -150,7 +150,7 @@ function buildSidecarHostOptions(opts) {
     configStore: opts.configStore,
     providerDiscovery: opts.providerDiscovery,
     openaiComplete: (config, callOpts) => createOpenAiCompleteAdapter(config, callOpts),
-    agyComplete: (config, callOpts) => createAgyCompleteAdapter(config, { ...callOpts, runner: opts.runner, warm: callOpts?.fresh ? null : opts.agyWarm?.pool }),
+    agyComplete: (config, callOpts) => createAgyCompleteAdapter(config, { ...callOpts, runner: opts.runner, warm: callOpts?.fresh ? null : opts.agyWarm }),
     codexComplete: (config, callOpts) => createCodexCompleteAdapter(config, { ...callOpts, runner: opts.runner }),
     jobExecutor: opts.jobExecutor,
     openExternal: (url) => openExternalUrl(url),

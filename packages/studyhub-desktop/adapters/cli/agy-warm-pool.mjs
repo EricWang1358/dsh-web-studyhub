@@ -1,4 +1,4 @@
-import { canServeAgyCall, sameAgySource } from '../../domain/agy-warm-policy.js';
+import { AGY_SPARE_MAX_AGE_MS, canServeAgyCall, sameAgySource } from '../../domain/agy-warm-policy.js';
 
 /** Timers that never keep the app running just to count a spare's idle time. */
 const UNREF_TIMERS = Object.freeze({
@@ -11,6 +11,16 @@ const UNREF_TIMERS = Object.freeze({
 });
 
 const fits = (waiting, plan) => (plan.strict ? canServeAgyCall(waiting, plan.spec) : sameAgySource(waiting, plan.spec));
+
+/**
+ * One call that cannot use the waiting spare (another effort, no time limit) leaves it for the next one, so calls that alternate do
+ * not start a process each; a second in a row means calls now ask for something else. Another program or model is never left.
+ */
+function passesBy(entry, callSpec) {
+  if (!entry || entry.passedBy || !sameAgySource(entry.spare.spec, callSpec)) return false;
+  entry.passedBy = true;
+  return true;
+}
 
 /**
  * At most one process waiting for the next call. A claimed process belongs to the caller and never comes back.
@@ -46,21 +56,16 @@ export function createAgyWarmPool({ open, planOnExpiry, timers = UNREF_TIMERS })
     return spare ? close(spare) : Promise.resolve();
   };
 
-  function arm(entry, idleMs) {
-    timers.clear(entry.timer);
-    entry.idleMs = idleMs;
+  /* The clock starts with the process and is never set back, so no spare gets older than the limit. */
+  function start(spec) {
+    const spare = open(spec);
+    const entry = { spare, timer: null, passedBy: false };
+    waiting = entry;
     entry.timer = timers.set(() => {
       if (waiting !== entry) return;
       release();
-      apply(planOnExpiry(entry.spare.spec));
-    }, idleMs);
-  }
-
-  function start(spec, idleMs) {
-    const spare = open(spec);
-    const entry = { spare, timer: null, idleMs: 0 };
-    waiting = entry;
-    arm(entry, idleMs);
+      apply(planOnExpiry(spec));
+    }, AGY_SPARE_MAX_AGE_MS);
     spare.exited.then(() => {
       if (waiting !== entry) return;
       backedOff = true;
@@ -76,22 +81,30 @@ export function createAgyWarmPool({ open, planOnExpiry, timers = UNREF_TIMERS })
     }
     if (plan.strict) backedOff = false;
     else if (backedOff) return;
-    if (waiting && fits(waiting.spare.spec, plan)) {
-      // Its clock restarts on a use (a call: strict) or a changed setting, not each time the settings are merely read.
-      if (plan.strict || plan.idleMs !== waiting.idleMs) arm(waiting, plan.idleMs);
-      return;
-    }
+    if (waiting && fits(waiting.spare.spec, plan)) return;
     release();
-    start(plan.spec, plan.idleMs);
+    start(plan.spec);
   }
 
   return Object.freeze({
     apply,
     /** The waiting process when it can answer this call, else null; then `plan` says what waits for the call after this one. */
     claim(callSpec, plan) {
-      const spare = !disposed && waiting && plan.action === 'ensure' && canServeAgyCall(waiting.spare.spec, callSpec) ? take() : null;
+      if (!disposed && plan.action === 'ensure') {
+        if (waiting && canServeAgyCall(waiting.spare.spec, callSpec)) {
+          const spare = take();
+          apply(plan);
+          return spare;
+        }
+        if (passesBy(waiting, callSpec)) return null;
+      }
       apply(plan);
-      return spare;
+      return null;
+    },
+    /** The settings no longer describe what waits: stop it. What comes next is the next plan's business. */
+    drop() {
+      backedOff = false;
+      release();
     },
     /** A call to the CLI failed: whatever waits may share the cause. */
     fault() {

@@ -94,12 +94,14 @@ Good to know about CLI backends:
 | --- | --- | --- | --- |
 | Off | None: every call starts agy | Nothing extra | Little free memory, many programs open, or you rarely use the AI features |
 | After use (default) | The first call waits as usual; the next one within 10 minutes waits a few seconds less | About 200 MB while one waits; it exits after 10 idle minutes | Choose it when unsure: follow-ups, tutoring and question generation get faster |
-| Always | The first call waits less too | About 200 MB for as long as the app is open (an idle one is replaced after about 30 minutes) | You often ask a question or two with long gaps between, and have memory to spare |
+| Always | The first call waits less too | About 200 MB for as long as the app is open (replaced every 10 minutes) | You often ask a question or two with long gaps between, and have memory to spare |
 
 - What is saved is start-up time; the model still takes as long to think and write. Measured a few times on one computer with a one-word reply (`agy` 1.5.18): about 11 to 20 seconds when started on demand, about 5 to 10 with one already waiting. The longer the answer, the smaller the share saved; how much you gain depends on your computer and the plugins `agy` has.
 - Pre-warming only starts the program; StudyHub sends it nothing before you ask. Each waiting process answers once and is replaced: a second question to the same process would continue the first conversation, so it is never reused.
 - While an answer is being written, one `agy` is answering and one is waiting, so count the memory twice.
-- The first call after you change the model or reasoning effort starts on demand. **Test connection** always starts on demand. If the waiting process had already exited, the call starts a new one instead; a call is never sent again once the model has started answering, or after you cancel it or it times out. After a failed call, the next one starts on demand.
+- No process waits longer than 10 minutes. On one computer, one that had waited 10 minutes still answered a one-word question in about 4 seconds; one that had waited 30 took 22 seconds once (the computer was busy then, so age and load were not told apart).
+- Changing the model or reasoning effort ends the waiting process. A call that uses another reasoning effort (some light steps always use a low one) starts on demand and leaves the waiting one for the next call; two such calls in a row replace it. **Test connection** always starts on demand.
+- If the waiting process had exited before your question and printed nothing after it, the call starts a new one instead. Once it has printed anything after receiving the question, an error included, the call is not sent again, so one question is not counted twice; neither is a cancelled or timed-out call. After a failed call, the next one starts on demand.
 - If one call takes more than half a minute, pre-warming cannot help the first one: a plugin with an MCP server inside `agy` is usually slow to connect. Run `agy plugin list` in a terminal and disable the ones you do not use.
 - This applies to `agy` only; `codex` and API-key mode are unchanged.
 

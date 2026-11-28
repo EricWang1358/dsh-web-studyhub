@@ -73,6 +73,7 @@ function createBrokenShimResult(reason, durationMs) {
     timedOut: false,
     aborted: false,
     truncated: false,
+    silentTurn: true,
     errorCode: 'BROKEN_SHIM',
     errorMessage: reason,
     durationMs,
@@ -100,7 +101,7 @@ function createKillSwitch({ child, state, finalize }) {
 function spawnCollected({ command, finalArgs, maxBytes, lineSink, request }) {
   const stdoutCol = createOutputCollector(maxBytes, lineSink);
   const stderrCol = createOutputCollector(maxBytes, null);
-  const state = { settled: false, timedOut: false, aborted: false, spawnError: null, timeoutTimer: null, forceCloseTimer: null, started: Date.now(), detachSignal: null };
+  const state = { settled: false, timedOut: false, aborted: false, asked: false, heard: false, spawnError: null, timeoutTimer: null, forceCloseTimer: null, started: Date.now(), detachSignal: null };
   const child = spawn(command, finalArgs, {
     cwd: request.cwd,
     env: request.env,
@@ -129,14 +130,19 @@ function spawnCollected({ command, finalArgs, maxBytes, lineSink, request }) {
       timedOut: state.timedOut,
       aborted: state.aborted,
       truncated: out.truncated || err.truncated,
+      silentTurn: !state.heard,
       errorCode: state.spawnError?.code || null,
       errorMessage: state.spawnError?.message || null,
       durationMs: Date.now() - state.started,
     });
   };
 
-  child.stdout?.on('data', (chunk) => stdoutCol.push(chunk));
-  child.stderr?.on('data', (chunk) => stderrCol.push(chunk));
+  const collectInto = (collector) => (chunk) => {
+    state.heard ||= state.asked;
+    collector.push(chunk);
+  };
+  child.stdout?.on('data', collectInto(stdoutCol));
+  child.stderr?.on('data', collectInto(stderrCol));
   child.stdin?.on('error', () => {});
   child.on('error', (error) => { state.spawnError = error; finalize(null, null); });
   child.on('close', (code, sig) => finalize(code, sig));
@@ -163,6 +169,8 @@ function beginTurn(proc, request, started) {
   const { child, state, kill } = proc;
   if (state.settled) return proc.result;
   state.started = started;
+  // From here on, anything the process says counts as an answer to this turn (`silentTurn` in the result).
+  state.asked = true;
   watchAbort(proc, request.signal);
   if (Number.isFinite(request.timeoutMs) && request.timeoutMs > 0) {
     state.timeoutTimer = setTimeout(() => {
