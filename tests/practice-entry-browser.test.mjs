@@ -199,3 +199,49 @@ test('#1679: at 420 wide, 回到题目 from the drawer leaves the focus on the q
     } finally { await context.close(); }
   }
 });
+
+/* #1679, every destination: the drawer's rows start a page change with a leave animation, and most pages load their code when first opened. The focus must wait
+   for the page the row leads to and take its heading: taken from the page that is leaving, it falls to <body> when that page goes, and nothing takes it after. */
+const DRAWER_PAGES = ['exam', 'dashboard', 'live', 'book', 'skeleton', 'examprep', 'examcoach', 'tasks', 'notes', 'board', 'sources'];
+
+/** The focus, run in the page: the heading's words when it is on a heading of the page now on screen, else what holds it. */
+function headingFocus() {
+  const active = document.activeElement;
+  const main = document.querySelector('.study-app main');
+  if (active && active !== document.body && main?.contains(active) && !main.classList.contains('is-leaving') && /^H[12]$/.test(active.tagName)) {
+    return { heading: active.innerText.replace(/\s+/g, ' ').trim() };
+  }
+  return { other: `${active?.tagName} ${active?.getAttribute('aria-label') || active?.className || ''}`.trim() };
+}
+
+test('#1679: at 420 wide, every page opened from the drawer takes the focus on its own heading, also the first time its code is loaded', { timeout: 600000 }, async (t) => {
+  const env = await setup(t);
+  if (!env) return;
+  const { context, page, errors } = await openPractice(env, { width: 420, height: 860 });
+  try {
+    const opener = page.getByRole('button', { name: '打开导航', exact: true }).first();
+    await opener.waitFor({ timeout: 30000 });
+    const home = await page.evaluate(() => document.querySelector('.study-app main h1')?.innerText.replace(/\s+/g, ' ').trim() || '');
+    const wrong = [];
+    for (const id of DRAWER_PAGES) {
+      await opener.click();
+      const drawer = page.locator('.nav-drawer[open]');
+      await drawer.waitFor();
+      const row = drawer.locator(`[data-tour="nav-${id}"]`).first();
+      if (!await row.isVisible()) {
+        const folds = drawer.locator('.nav-fold__toggle[aria-expanded="false"]');
+        for (let i = 0; i < 4 && await folds.count(); i += 1) await folds.first().click();
+      }
+      await row.click();
+      await drawer.waitFor({ state: 'detached' });
+      const landed = await until(() => page.evaluate(headingFocus).then((now) => (now.heading && now.heading !== home ? now : null)), `${id}: its heading`, { timeoutMs: 8000 })
+        .catch(() => page.evaluate(headingFocus));
+      // Settled: it stays there once the page has drawn.
+      await new Promise((done) => setTimeout(done, 500));
+      const later = await page.evaluate(headingFocus);
+      if (!later.heading || later.heading === home) wrong.push(`${id}: ${JSON.stringify(landed)} then ${JSON.stringify(later)}`);
+    }
+    assert.deepEqual(wrong, [], 'every destination keeps the focus on its heading');
+    assert.deepEqual(errors, [], 'no page errors');
+  } finally { await context.close(); }
+});
