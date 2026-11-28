@@ -274,6 +274,10 @@ test('the fallback command runs the bundled node the desktop host reports, and p
       const noNode = await run({ capabilities: DESKTOP_HOST.capabilities, studyCliPath: WIN_CLI });
       assert.ok(noNode.includes(`\`node "${WIN_CLI}" call <action> --file <payload.json> --root "${WIN_ROOT}"\``), `${lang}: plain node fallback`);
       assert.doesNotMatch(noNode, new RegExp(WIN_NODE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `${lang}: no node path invented`);
+      // A quoted first token is a parse error in PowerShell, so the bundled-node command carries the `&` call-operator hint;
+      // a command that starts with bare node runs as typed and gets no hint.
+      assert.match(fromHost, /PowerShell[^\n]*`&`/, `${lang}: PowerShell call-operator hint next to a quoted node path`);
+      assert.doesNotMatch(noNode, /PowerShell/, `${lang}: no PowerShell hint for plain node`);
       // a CLI path without a library root keeps the node path as well
       const noRoot = m.withExternalCliNote(prompt, { studyCliPath: WIN_CLI, studyNodePath: WIN_NODE, language: lang });
       assert.ok(noRoot.includes(`"${WIN_NODE}" "${WIN_CLI}" call <action> --file <payload.json> --root "<`), `${lang}: path-only variant uses the node path`);

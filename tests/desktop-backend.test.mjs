@@ -1772,7 +1772,17 @@ test('pack-zip packages NSIS setup.exe, .sig, latest.json updater manifest, .msi
 
 test('stage-runtime bundles runnable scripts/study-cli.mjs, staged sidecar exposes real studyCliPath, and staged CLI executes skeleton.topics / topic.groups.save / snapshot via --file and --root', async (t) => {
   const work = await mkdtemp(join(tmpdir(), 'studyhub-staged-cli-'));
-  t.after(() => rm(work, { recursive: true, force: true }));
+  // One cleanup, child first: after-hooks run in the order they are added, and on Windows rm() of the runtime folder fails
+  // while the staged node.exe in it still runs. A failed assertion must stop the sidecar, or node --test hangs on its pipes.
+  let child = null;
+  t.after(async () => {
+    if (child && child.exitCode === null && child.signalCode === null) {
+      const exited = new Promise((done) => child.once('exit', done));
+      child.kill();
+      await Promise.race([exited, new Promise((done) => setTimeout(done, 5_000))]);
+    }
+    await rm(work, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  });
 
   const runtimeDir = join(work, 'runtime');
   const libraryDir = join(work, 'library');
@@ -1806,7 +1816,7 @@ test('stage-runtime bundles runnable scripts/study-cli.mjs, staged sidecar expos
   const stagedNode = join(runtimeDir, staged.node.binaryName);
   const stagedSidecar = join(runtimeDir, 'packages', 'studyhub-desktop', 'entry', 'sidecar.mjs');
   const token = randomBytes(32).toString('hex');
-  const child = spawn(stagedNode, [stagedSidecar], {
+  child = spawn(stagedNode, [stagedSidecar], {
     cwd: runtimeDir,
     env: {
       ...process.env,
@@ -1817,9 +1827,6 @@ test('stage-runtime bundles runnable scripts/study-cli.mjs, staged sidecar expos
     },
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
-  });
-  t.after(() => {
-    if (child.exitCode === null && !child.killed) child.kill();
   });
 
   let stderr = '';
