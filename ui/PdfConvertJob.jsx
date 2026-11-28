@@ -125,11 +125,12 @@ export function PdfDetail({ job, expandChunks, onChanged }) {
  * `act(action, args)` (single-flight, from the app) or `call` sends the stop / retry / dismiss; `onChanged` refreshes the data afterwards;
  * `onGenerate(sourceIds)` adds 用它出题 to a finished conversion.
  */
-export function PdfConvertJobs({ data, jobs, ids, act, onOpenSources, onOpenSettings, onChanged, onGenerate, expandChunks }) {
+export function PdfConvertJobs({ data, jobs, ids, act, singleFlight = false, onOpenSources, onOpenSettings, onChanged, onGenerate, expandChunks }) {
   useInjectCss(css, 'study-mineru');
-  const { call } = useStudy();
+  const { call, act: appAct } = useStudy();
   const list = (jobs || data?.jobs || []).filter(isConvertJob).filter(job => !ids || ids.includes(job.id));
-  const send = (action, args) => (act ? act(action, args) : call(action, args));
+  const dispatch = act || (singleFlight ? appAct : null);
+  const send = (action, args) => (dispatch ? dispatch(action, args) : call(action, args));
   return list.length ? <div className="cjc-list pdf-convert-jobs">{list.map(job => <PdfConvertJob key={job.id} job={job} send={send} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onChanged={onChanged} onGenerate={onGenerate} expandChunks={expandChunks} />)}</div> : null;
 }
 
@@ -379,17 +380,18 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry,
  * initialShown / now (previews and tests). 删除记录 and 清空历史 ask nothing: the rows leave at once and the notice offers 撤销 (ui/undoable.js); the host
  * forgets them when that notice leaves.
  */
-export function PdfConvertHistory({ act, data, jobs, onOpenSources, onOpenJob, onOpenSettings, onChanged, collapsible = false, defaultOpen = false, hideWhenEmpty = false,
+export function PdfConvertHistory({ act, singleFlight = false, data, jobs, onOpenSources, onOpenJob, onOpenSettings, onChanged, collapsible = false, defaultOpen = false, hideWhenEmpty = false,
   initialRecords = null, initialShown, now: fixedNow, className, ...rest }) {
   useInjectCss(css, 'study-mineru');
-  const { call } = useStudy();
+  const { call, act: appAct } = useStudy();
   const [records, setRecords] = useState(initialRecords), [readError, setReadError] = useState(''), [problem, setProblem] = useState('');
   const [shown, setShown] = useState(initialShown ?? HISTORY_PAGE), [working, setWorking] = useState(''), [editing, setEditing] = useState(null);
   const alive = useRef(true), heading = useRef(null);
   const undoable = useUndoable();
   const key = historyRefreshKey(jobs ?? data?.jobs);
   const mineruAvailable = hasContext(data, 'audio');
-  const send = (action, args) => (act ? act(action, args) : call(action, args));
+  const dispatch = act || (singleFlight ? appAct : null);
+  const send = (action, args) => (dispatch ? dispatch(action, args) : call(action, args));
   const load = useCallback(async () => {
     try {
       const view = await call('mineru.history.list', {});
@@ -473,6 +475,14 @@ export function PdfConvertHistory({ act, data, jobs, onOpenSources, onOpenJob, o
         : <><h4 className="pdf-history__title" ref={heading} tabIndex={-1}>{ui('解析历史')}</h4>{body}</>}
     </section>
   );
+}
+
+/** The Sources page's PDF conversion block (running cards + collapsible history, hidden when empty): loaded lazily through ui/pdf-conversion-lazy.jsx. */
+export function PdfConvertSection({ data, onOpenSources, onOpenSettings, onGenerate }) {
+  return <>
+    <PdfConvertJobs data={data} singleFlight onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onGenerate={onGenerate} />
+    <PdfConvertHistory data={data} singleFlight onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} collapsible hideWhenEmpty />
+  </>;
 }
 
 export default PdfConvertJob;

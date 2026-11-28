@@ -3,7 +3,7 @@ import { formatNumber, formatDay } from "./format.js";
 import React, { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { AudioJobs } from "./audio/AudioJobs.jsx";
-import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
+import { PdfConvertSection } from './pdf-conversion-lazy.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
 import MaterialCategoryBar, { FacetsOnLine } from './MaterialCategoryBar.jsx';
@@ -1254,8 +1254,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
         )}
       </>}
       <AudioJobs data={data} openAgent={openAgent} onOpenSources={onOpenSources} onLegacyRetry={onLegacyRetry} onGenerate={onGenerate} />
-      <PdfConvertJobs data={data} act={act} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onGenerate={onGenerate} />
-      <PdfConvertHistory data={data} act={act} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} collapsible hideWhenEmpty />
+      <PdfConvertSection data={data} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onGenerate={onGenerate} />
       {!items.length && !(groupMode === 'folder' && !showArchived && materialFolders.folders.length > 0) ? (
         <section className="sources-empty" data-tour="sources-list">
           <div className="sources-empty__intro">
