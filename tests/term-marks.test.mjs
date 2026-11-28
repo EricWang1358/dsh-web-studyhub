@@ -711,6 +711,31 @@ test("useTermMarking keeps suppressing a touch tap's paired click that arrives i
   });
 });
 
+test("useTermMarking: a click with no coordinates between a tap and its late paired click does not use up the suppression (#1759 follow-up)", async () => {
+  await withBrowserGlobals(async () => {
+    const { hook, ev, down, up, click } = await mountTermMarkingFixture();
+    try {
+      await hook.act(() => {
+        down(ev);
+        up(ev);
+      });
+      assert.deepEqual(hook.current.terms, ["linearizability"], "marked on pointerup");
+      // Keyboard Enter or el.click() lands in between: it reports 0,0 and is never used for marking.
+      await hook.act(() => {
+        click({ ...ev, clientX: 0, clientY: 0 });
+      });
+      assert.deepEqual(hook.current.terms, ["linearizability"], "a coordinate-less click changes nothing");
+      await sleep(50);
+      await hook.act(() => {
+        click(ev);
+      });
+      assert.deepEqual(hook.current.terms, ["linearizability"], "the tap's own late paired click is still swallowed");
+    } finally {
+      hook.unmount();
+    }
+  });
+});
+
 test("useTermMarking clears click suppression on the next pointerdown (#1759 follow-up)", async () => {
   await withBrowserGlobals(async () => {
     const { hook, ev, down, up, click } = await mountTermMarkingFixture();

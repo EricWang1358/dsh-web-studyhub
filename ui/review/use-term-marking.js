@@ -827,11 +827,13 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
         event.preventDefault();
         event.stopPropagation();
       }
+      // A click with no coordinates (keyboard Enter, el.click()) is never used for marking. It is checked first so it
+      // cannot use up the flag that a tap's own late paired click still needs.
+      if (event.clientX === 0 && event.clientY === 0) return;
       if (suppressNextClickRef.current) {
         clearClickSuppression();
         return;
       }
-      if (event.clientX === 0 && event.clientY === 0) return;
       const pointHit = charOffsetAtPoint(body.ownerDocument, event.clientX, event.clientY, body);
       if (pointHit) handlersRef.current.applyPointHit(pointHit);
     };
