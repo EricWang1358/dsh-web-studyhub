@@ -5,6 +5,7 @@ import { homedir as osHomedir } from 'node:os';
 import { isAbsolute, join, resolve, sep } from 'node:path';
 import { newerVersion, parseJsonObject } from '../../../../lib/atomic-json.js';
 import { workspaceLibrary } from '../../../../lib/host.js';
+import { preserveUnknownKeys } from '../../../../lib/preserve-unknown-keys.js';
 import { defaultDesktopConfig, normalizeDesktopConfig } from '../../domain/config-policy.js';
 
 function resolveStudyHubHome(env, home) {
@@ -253,14 +254,23 @@ export function createConfigStore({
 
   function save(nextConfig, opts) {
     return serializeWrite(async () => {
-      try { await readStoredConfig(configPath, { strictIo: true }); } catch (error) {
+      let existing = null;
+      try { existing = await readStoredConfig(configPath, { strictIo: true }); } catch (error) {
         // `force` resets a corrupt file (after its backup); a file that is only unreadable right now is never overwritten.
         if (!opts?.force || error?.code !== 'config-corrupt') throw error;
         await backupCorruptConfig(configPath);
       }
       const normalized = normalizeDesktopConfig(nextConfig);
-      await atomicWriteJson(configPath, normalized);
-      return normalized;
+      const merged = existing
+        ? preserveUnknownKeys(existing, {
+            ...normalized,
+            openai: preserveUnknownKeys(existing.openai, normalized.openai),
+            agy: preserveUnknownKeys(existing.agy, normalized.agy),
+            codex: preserveUnknownKeys(existing.codex, normalized.codex),
+          })
+        : normalized;
+      await atomicWriteJson(configPath, merged);
+      return merged;
     });
   }
 

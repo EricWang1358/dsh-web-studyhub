@@ -1,4 +1,5 @@
 // @ts-check
+import { preserveUnknownDesktopKeys } from './preserve-unknown-keys.js';
 import { keyLast4 } from './redact.js';
 
 /** @typedef {import('./contracts.js').AgyConfig} AgyConfig */
@@ -184,11 +185,11 @@ export function concurrencyHookForMode(mode) {
 function normalizeCliSection(raw, validEfforts) {
   const src = raw && typeof raw === 'object' ? /** @type {Record<string, unknown>} */ (raw) : {};
   const effortStr = trimText(src.effort);
-  return {
+  return preserveUnknownDesktopKeys(raw, {
     executablePath: trimText(src.executablePath),
     model: trimText(src.model),
     effort: validEfforts.has(effortStr) ? effortStr : '',
-  };
+  });
 }
 
 /**
@@ -198,29 +199,29 @@ function normalizeCliSection(raw, validEfforts) {
  */
 export function normalizeDesktopConfig(raw) {
   const base = defaultDesktopConfig();
-  if (!raw || typeof raw !== 'object') return base;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return base;
   const source = /** @type {Record<string, unknown>} */ (raw);
   const mode = VALID_MODES.has(String(source.mode)) ? /** @type {DesktopMode} */ (source.mode) : base.mode;
-  const rawOpenAi = source.openai && typeof source.openai === 'object'
+  const rawOpenAi = source.openai && typeof source.openai === 'object' && !Array.isArray(source.openai)
     ? /** @type {Record<string, unknown>} */ (source.openai)
     : {};
   const agy = /** @type {AgyConfig} */ (normalizeCliSection(source.agy, VALID_AGY_EFFORTS));
   const codex = /** @type {CodexConfig} */ (normalizeCliSection(source.codex, VALID_CODEX_EFFORTS));
 
-  return {
+  return preserveUnknownDesktopKeys(raw, {
     mode,
-    openai: {
+    openai: preserveUnknownDesktopKeys(source.openai, {
       providerId: trimText(rawOpenAi.providerId) || base.openai.providerId,
       baseUrl: normalizeBaseUrl(rawOpenAi.baseUrl),
       model: trimText(rawOpenAi.model),
       apiKey: trimText(rawOpenAi.apiKey),
-    },
+    }),
     agy,
     codex,
     libraryRoot: trimText(source.libraryRoot),
     libraryPlaceConfirmed: source.libraryPlaceConfirmed === true,
     reasoningEffort: trimText(source.reasoningEffort),
-  };
+  });
 }
 
 /**
