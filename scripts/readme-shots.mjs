@@ -342,6 +342,15 @@ try {
             }
             await page.waitForSelector('.study-document-viewer .reader-toolbar', { timeout: 15000 });
             await page.waitForTimeout(550);
+            // Opening the citation scrolls the question column; put every pane except the reader back at its top
+            // so the shot starts at the question header instead of mid-answer.
+            await page.evaluate(() => {
+              for (const el of globalThis.document.querySelectorAll('*')) {
+                if (el.scrollTop > 0 && !el.closest('.study-document-viewer')) el.scrollTop = 0;
+              }
+              globalThis.window.scrollTo(0, 0);
+            });
+            await page.waitForTimeout(200);
             await saveShot(encoderPage, page, `reader-${lang}-${theme}`, { targetWidth: 1200, quality: 0.85 });
             await closeAnyDialogs(page);
           }
