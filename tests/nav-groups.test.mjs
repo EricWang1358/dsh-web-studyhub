@@ -139,6 +139,20 @@ test('#1689: an open fold says nothing about itself, so no card lies over the ro
   assert.match(draw(false), /<span class="sh-popover-anchor nav-tip"[^>]*><button[^>]*class="nav nav-fold__toggle"/);
 });
 
+test('#1689: a folded fold is described by its card; an open one has no empty card to point at (no aria-describedby)', () => {
+  setUiLanguage('zh');
+  const draw = (open) => html(h(NavFold, { id: 'more', glyph: 'more', label: '更多', purpose: '其余的功能', open, onToggle() {}, 'data-tour': 'nav-more' }, h('i')));
+  const closed = draw(false);
+  const card = closed.match(/<span id="([^"]+)" role="tooltip"[^>]*>其余的功能<\/span>/);
+  assert.ok(card, 'folded: the card says what is inside');
+  const toggle = closed.match(/<button[^>]*class="nav nav-fold__toggle"[^>]*>/)[0];
+  assert.ok(toggle.includes(`aria-describedby="${card[1]}"`), 'folded: the toggle is described by that card');
+  const open = draw(true);
+  assert.match(open, /role="tooltip"[^>]*><\/span>/, 'open: the card is there for the anchor but empty');
+  assert.doesNotMatch(open, /<button[^>]*nav-fold__toggle[^>]*aria-describedby=/, 'open: nothing for a screen reader to be pointed at');
+  assert.doesNotMatch(open, /aria-describedby=/, 'open: no aria-describedby anywhere on the row');
+});
+
 test('English renders without Han, and every label has English text', () => {
   setUiLanguage('en');
   try {

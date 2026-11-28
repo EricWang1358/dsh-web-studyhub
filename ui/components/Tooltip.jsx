@@ -107,7 +107,8 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
   const later = (delay, visible) => { clearTimeout(timer.current); timer.current = setTimeout(() => setOpen((visible || held.current) && worded), delay); };
   const now = visible => { clearTimeout(timer.current); setOpen((visible || held.current) && worded); };
   const child = React.Children.only(children);
-  const describedBy = [child.props['aria-describedby'], id].filter(Boolean).join(' ');
+  // A card with no words is not something to be described by: the anchor stays mounted (a row whose words come and go), but a screen reader is not pointed at an empty card.
+  const describedBy = [child.props['aria-describedby'], worded ? id : null].filter(Boolean).join(' ') || undefined;
   const own = child.props;
   return (
     <span ref={anchor} className={cx('sh-popover-anchor', anchorClassName)}>
