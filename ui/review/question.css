@@ -986,6 +986,31 @@
     .flash-follow .response-label {
       animation: follow-in var(--dur-slow) var(--ease) both;
     }
+    /* #1678: under 界面大小 a flipped card can be taller than the window (a 1440×900 window at 150% is 600 px of the app's own), so while the area under
+       the card holds the 0–5 grades it sticks to the bottom of the scroller over the card, which scrolls behind it: the grades are in reach without
+       scrolling, and the card's last line still scrolls up above them (the card is above this area, inside the same box). Where the card fits, it sits
+       where it always sat and looks the same (the card's shadow shows through): only while it is stuck is it opaque in the desk's own colour, with a
+       hairline above it; an engine that cannot tell (no scroll-state queries) keeps it opaque. What takes the focus above it stops above it: review.css,
+       --grade-row-room. */
+    .flash-follow.is-grading {
+      position: sticky;
+      bottom: 0;
+      z-index: var(--z-sticky);
+      container-type: scroll-state;
+    }
+    @supports not (container-type: scroll-state) {
+      .flash-follow.is-grading { background: var(--bg-canvas); }
+    }
+    .flash-follow.is-grading > .smooth-height-inner {
+      position: relative;
+    }
+    .flash-follow.is-grading > .smooth-height-inner::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto;
+      border-top: 1px solid var(--line-soft);
+      visibility: hidden;
+    }
     .flashcard.flipped .flip-inner {
       transform: rotateY(180deg);
     }
@@ -1297,10 +1322,58 @@
       text-decoration: underline dotted;
       text-underline-offset: 3px;
     }
+    /* A short window (ui/use-short-view.js: under 640 px of the app's own height, e.g. 1440×900 at 界面大小 150%): the row stuck over the card is one
+       line per button, number and words, so it covers little of the card. The gap each grade gives is in the button's tooltip and name instead. */
+    .grading--short {
+      margin-top: var(--space-3);
+      padding-bottom: var(--space-2);
+    }
+    .grading--short .grading-head {
+      margin-bottom: var(--space-1-5);
+    }
+    .grading--short .grade-scale {
+      gap: var(--space-1-5) var(--space-4);
+    }
+    .grading--short .grade-group {
+      gap: var(--space-1);
+      padding-top: var(--space-1-5);
+    }
+    /* The words go beside the number while they fit there, else onto the next line whole (longer English words), never broken inside a word. */
+    .grading--short .grade {
+      flex-flow: row wrap;
+      align-items: baseline;
+      justify-content: center;
+      gap: 0 var(--space-1);
+      min-height: 0;
+      padding: var(--space-1-5) var(--space-1);
+    }
+    .grading--short .grade strong {
+      font-size: var(--fs-xl);
+      margin-bottom: 0;
+    }
+    .grading--short .grade span {
+      flex: 0 0 auto;
+      max-width: 100%;
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+      overflow-wrap: break-word;
+    }
+  }
+  @container scroll-state(stuck: bottom) {
+    :where(.study-app, .study-seat) {
+      .flash-follow.is-grading > .smooth-height-inner { background: var(--bg-canvas); }
+      .flash-follow.is-grading > .smooth-height-inner::before { visibility: visible; }
+    }
   }
   @container grading (max-width: 640px) {
     :where(.study-app, .study-seat) {
       .grade-scale { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
+    }
+  }
+  /* The one-line buttons need less room: the two groups stay side by side down to a narrower row (below it, each group is a line of its own). */
+  @container grading (min-width: 440px) {
+    :where(.study-app, .study-seat) {
+      .grading--short .grade-scale { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1-5) var(--space-4); }
     }
   }
   :where(.study-app, .study-seat) {

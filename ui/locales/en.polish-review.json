@@ -35,6 +35,8 @@
   "已选 {0} 项 · 按 Enter 提交": "{0} selected · Press Enter to submit",
   "快捷键 {0}：{1}（明日再练，不重排本轮）": "Shortcut {0}: {1} (tomorrow, no round retry)",
   "快捷键 {0}：{1}（本轮末尾重练）": "Shortcut {0}: {1} (retry at end of round)",
+  "快捷键 {0}：{1}（{2}）": "Shortcut {0}: {1} ({2})",
+  "快捷键 {0}：{1}，{2}后再复习": "Shortcut {0}: {1}, next review in {2}",
   "批改失败：{0}": "Grading failed: {0}",
   "批改完成，得分 {0}/{1} 分": "Grading complete, scored {0}/{1}",
   "批改未完成，可重新提交批改": "Grading did not finish; you can resubmit for grading",

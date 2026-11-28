@@ -32,6 +32,7 @@ import AnswerState from "./AnswerState.jsx";
 import { Banner, Button, DisclosureToggle, Icon, InlineMessage, Popover, ProgressBar, Spinner, TextInput, Tooltip, foldLabel } from "../components/index.js";
 import { useStudyBusy, useStudyServices } from "../study-context.jsx";
 import { useStickyRoom } from "../use-sticky-room.js";
+import { useShortView } from "../use-short-view.js";
 import { useNarrow } from "../use-narrow.js";
 import { useLiveSession } from "./useReviewSession.js";
 import { LazySimilarTry } from "./LazyLearningLoop.jsx";
@@ -228,6 +229,10 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const barGrading = !!(rubricCard && (run.grading || gradeTask?.status === "running"));
   const barStuck = !!run.feedback || barGrading;
   const barRoom = useStickyRoom("--review-bar-room", ".question-area");
+  // A flipped flashcard's 0–5 grades stick to the bottom of the window over the card, one line per button when the window is short (#1678, question.css).
+  const flashGrading = !choice && !isCloze && !rubricCard && !taskCard && !run.card?.publicationUngrable && !!(run.revealed || showBack) && !run.feedback;
+  const gradeRowRoom = useStickyRoom("--grade-row-room", ".question-area");
+  const [shortView, shortViewRef] = useShortView();
   const liveAnnouncement = useQuestionRunA11y({ entryKey, run, hasFeedback, choice, isCloze, gradeTask, autoAdvanceActive, reviewBodyRef, choiceFeedbackRef, verdictFocusRef });
   const voice = useVoiceAnswer({ session: liveSession, data, model, rubricCard, setAssistMode, setAssistText: setAssistTextForVoice });
   const roundSteps = useRoundSteps({ session: liveSession, run, sources: data?.sources, openModal, onNote: onMakeNote, toggleFocus: toggleCardFocus, toggleSocratic: socratic.toggle, voiceKeys: voice.keys,
@@ -301,6 +306,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           (caseSource ? " has-case" : "")
         }
         data-bar-stuck={barStuck ? "true" : undefined}
+        data-grades-stuck={flashGrading ? "true" : undefined}
+        ref={shortViewRef}
         style={readingMeasure ? { "--reading-measure": readingMeasure, "--review-column": "calc(var(--reading-measure) - 4px)", "--card-scale": cardScale } : undefined}
       >
         {run.contentUpdated && <InlineMessage tone="warning" className="review-updated">{ui("这道题已更新，现在显示的是新版，可以按新版重新作答。之前的作答历史都保留着。")}</InlineMessage>}
@@ -455,7 +462,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           ) : (
             <>
               <FlipCard key={`flip:${run.id}:${run.index}:${run.card.id}`} run={run} showBack={showBack} flipCard={flipCard} enOn={enOn} />
-              <SmoothHeight className="flash-follow" key={`follow:${run.id}:${run.index}:${run.card.id}`}>
+              <SmoothHeight className={"flash-follow" + (flashGrading ? " is-grading" : "")} ref={flashGrading ? gradeRowRoom : undefined} key={`follow:${run.id}:${run.index}:${run.card.id}`}>
               {run.card.kind === "open" && !run.revealed && !showBack && (
                 <OpenResponseField grading={run.grading} value={response} onChange={actions.setResponse} onFlip={flipCard} />
               )}
@@ -467,14 +474,15 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                   </Button>
                 </div>
               )}
-              {(run.revealed || showBack) && !run.feedback && (
-                <div className="grading">
+              {flashGrading && (
+                <div className={"grading" + (shortView ? " grading--short" : "")}>
                   <div className="grading-head">
                     <span>{run.retry ? ui("本轮重练 · 掌握程度") : ui("掌握程度")}</span>
-                    {/* Only what grading needs (#1697): the keys of flipping back (Space) and of the explanation (H) are in the ? sheet, and the card's face says which side is up. */}
+                    {/* Only what grading needs (#1697): the keys of flipping back (Space) and of the explanation (H) are in the ? sheet, and the card's face says which side is up.
+                        A short window's row has no gaps under the buttons (each one's tooltip says it), so it does not point at them. */}
                     <small className="grading-head__meta">
                       {ui("按 0–5 评分")}
-                      {run.intervals && <>{" · "}<Tooltip layer content={`${ui("每个按钮下面是选它以后，隔多久再复习这道题。间隔按上次复习到现在实际隔了几天来算：没到期就复习，间隔涨得少；当天重复答，间隔不再变长。")} ${ui("0–2 分未达标会留在本题看解析，其中 0–1 分还会在本轮末尾再练一次，2 分不重排本轮。")}`}>
+                      {run.intervals && !shortView && <>{" · "}<Tooltip layer content={`${ui("每个按钮下面是选它以后，隔多久再复习这道题。间隔按上次复习到现在实际隔了几天来算：没到期就复习，间隔涨得少；当天重复答，间隔不再变长。")} ${ui("0–2 分未达标会留在本题看解析，其中 0–1 分还会在本轮末尾再练一次，2 分不重排本轮。")}`}>
                       <span tabIndex={0} className="grade-gaps-tip">{ui("下面是下次复习的间隔")}</span>
                     </Tooltip></>}</small>
                   </div>
@@ -519,13 +527,15 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                               : grade === 2
                                 ? uiFormat("快捷键 {0}：{1}（明日再练，不重排本轮）", [grade, label])
                                 : uiFormat("快捷键 {0}：{1}", [grade, label]);
+                            // A short window's button is one line, number and words: its gap is said by the tooltip (and the button's name) instead.
+                            const shortTip = !gap ? tip : grade >= 3 ? uiFormat("快捷键 {0}：{1}，{2}后再复习", [grade, label, gap]) : uiFormat("快捷键 {0}：{1}（{2}）", [grade, label, retryHint]);
                             const pressed = keyGrade === grade || (activePending?.kind === "grade" && activePending.grade === grade);
                             const gradeAriaLabel = grade >= 3
                               ? (gap ? uiFormat("{0} 分：{1}，{2}后再复习", [grade, label, gap]) : uiFormat("{0} 分：{1}", [grade, label]))
                               : (retryHint ? uiFormat("{0} 分：{1}，{2}", [grade, label, retryHint]) : uiFormat("{0} 分：{1}", [grade, label]));
                             // The tooltip says the key (#745); a number key answers from the session, which marks the button it named (keyGrade).
                             return (
-                              <Tooltip key={grade} layer content={tip} anchorClassName="grade-tip">
+                              <Tooltip key={grade} layer content={shortView ? shortTip : tip} anchorClassName="grade-tip">
                                 <button
                                   className={"grade " + (grade < 3 ? "low" : grade === 3 ? "high warn" : "high") + (pressed ? " is-key-pressed" : "") + (voice.suggested === grade ? " is-suggested" : "")}
                                   data-grade={grade}
@@ -537,7 +547,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                                 >
                                   <strong>{grade}</strong>
                                   <span>{label}</span>
-                                  {retryHint && <small className="grade-gap">{retryWords}</small>}
+                                  {retryHint && !shortView && <small className="grade-gap">{retryWords}</small>}
                                 </button>
                               </Tooltip>
                             );
