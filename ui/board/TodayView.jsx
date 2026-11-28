@@ -225,7 +225,7 @@ export default function TodayView({
 
   return (
     <div className="board-today" data-today-date={today}>
-      <header className="board-today__head">
+      <header className="board-today__head" data-tour="board-today-head">
         <div className="board-today__titles">
           <h2 className="board-today__date">{heading}</h2>
           {planLine && <p className="board-today__plan">{planLine}</p>}

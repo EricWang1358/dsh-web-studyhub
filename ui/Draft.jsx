@@ -396,7 +396,7 @@ export default function Draft({
       ) : (
         <>
           <ChunkedRows items={draft.cards} chunk={DRAFT_CHUNK} resetKey={draft.id} reveal={revealCard} anchors={{ "draft-similar": draft.cards.findIndex((card) => similar.get(card.id)) }} render={(q, i) => (
-            <Panel as="details" className="draft-card" data-draft-index={i} key={q.id}>
+            <Panel as="details" className="draft-card" data-draft-index={i} key={q.id} {...(i === 0 ? { "data-tour": "draft-question" } : {})}>
               {/* One row layout for every question (#670): the number, the question (two lines at most, whole when the row is open) and, at the end, the kind and what is not as it should be. */}
               <summary className="draft-card__row">
                 <span className="draft-card__no">{formatNumber(i + 1, { minimumIntegerDigits: 2 })}</span>

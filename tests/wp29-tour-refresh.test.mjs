@@ -20,7 +20,8 @@ test("the default tour stays short: at most 9 steps; the full one is the extra, 
   const core = availableTourSteps(TOUR_STEPS, { sample }), full = availableTourSteps(TOUR_STEPS, { sample, full: true });
   assert.ok(core.length <= 9, `${core.length} steps`);
   assert.equal(core.length, CORE_TOUR_LENGTH);
-  assert.ok(full.length <= 28, `${full.length} steps`);
+  // The full tour was widened from the user manual (5.4.1, owner's request): 38 steps in 7 chapters, each chapter skippable.
+  assert.equal(full.length, 38, `${full.length} steps`);
   assert.ok(full.length > core.length);
   for (const list of [core, full]) {
     assert.equal(list[0].id, "welcome");
@@ -72,9 +73,32 @@ test("copy matches 2.1.x: Word and PowerPoint, one exam page with three formats,
   assert.equal(TOUR_STEPS.some((item) => item.id === "case"), false);
 });
 
+test("the steps taken from the manual say what the product does (5.4.1)", () => {
+  for (const id of ["flow", "round-end", "exam-plan"]) assert.deepEqual(anchorsOf(step(id)), [], `${id} is a centred card`);
+  assert.equal(step("draft-check").prepare, "openSampleDraft");
+  assert.deepEqual(anchorsOf(step("draft-check")), ["draft-question"]);
+  // 发布并开始练 publishes every question (lib/contexts/authoring/operations.js draft.publish.quick): the card must not say that bad ones stay behind.
+  assert.match(step("draft-check").body, /结构有问题的题也会发布/);
+  assert.doesNotMatch(step("draft-check").body, /留在草稿/);
+  assert.match(step("grading").body, /选 5 这道题立刻算「已掌握」/);
+  assert.match(step("round-end").body, /先遮答案自测/);
+  assert.match(step("mastery").body, /不是正确率/);
+  assert.deepEqual(anchorsOf(step("mastery")), ["home-mastery", "home-hero"], "掌握度 is the home's number; 统计 shows 达标率, which is something else");
+  assert.equal(step("outline").page, "outline");
+  // The book is toured where an unwritten one is started (the sidebar's 复习全书 goes there too): opening the book page could write the book's files.
+  assert.equal(step("book").page, "outline");
+  assert.deepEqual(anchorsOf(step("book")), ["outline-book"]);
+  assert.equal(step("board").prepare, "openBoardToday");
+  assert.match(step("backup").body, /选择备份文件/);
+  assert.match(step("home").body, /默认最多 20 题.*到期 → 薄弱 → 新题.*一半/s);
+  assert.match(step("help").body, /「带学」.*一问一答/s);
+  assert.match(step("settings-audio").body, /课堂实录.*声音不上传/s);
+  assert.match(step("nav").body, /收起侧栏/);
+});
+
 test("steps that may find their element missing carry a fallback anchor or a context guard", () => {
   // Rendered only in some states: no mistakes yet, no generation context, no similar questions.
-  const optional = ["wrongbook-recs", "settings-extensions", "settings-audio", "dashboard-charts", "home-course", "home-today"];
+  const optional = ["wrongbook-recs", "settings-extensions", "settings-audio", "dashboard-charts", "home-course", "home-today", "home-mastery"];
   for (const item of TOUR_STEPS) {
     const anchors = anchorsOf(item);
     if (!anchors.some((anchor) => optional.includes(anchor))) continue;

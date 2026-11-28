@@ -37,7 +37,7 @@ export async function tourAfterSample({ refresh, seen, start, setError }) {
    need sample data are left out. */
 export function useTour({ core, lib, nav, session, drafts, intents, data, rootRef, canChat = true }) {
   const { call, act, setError, notify, refresh, refs } = core;
-  const { setModal, setDraft, setSelectedSources, setSkeletonFocus } = lib.set;
+  const { setModal, setDraft, setSelectedSources, setSkeletonFocus, setBoardView } = lib.set;
   const [tourStep, setTourStep] = useState(null), [sampleBusy, setSampleBusy] = useState(false);
   // 载入示例并开始导览 is loading the sample for a tour: until the tour starts (in the same render), the first-run line holds still (no banner above it).
   const [sampleForTour, setSampleForTour] = useState(false);
@@ -180,6 +180,7 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
         return;
       }
     }
+    if (step.prepare === 'openBoardToday') setBoardView('today');
     if (step.prepare === 'openSampleSkeleton' && sample?.skeletonId) setSkeletonFocus(sample.skeletonId);
     if (step.prepare === 'startSamplePractice') {
       await openSamplePractice(sample);

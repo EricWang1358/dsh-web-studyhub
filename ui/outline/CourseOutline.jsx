@@ -329,7 +329,7 @@ function Organise({ book, documents, running, writing, model, quiet, coverage, g
     {asking && <CustomGate kind={asking} gate={gate} scale={scale} onCustom={customBook} onWhole={wholeBook} onClose={closeAsk} busy={sending} />}
     {sample && <BookSample sample={sample} coverage={coverage} off={off} quiet={quiet} onRest={() => actions.writeBook(chosen(), SAMPLE_CONFIRM)}
       onRedo={() => actions.writeBook(chosen())} onOpen={actions.onOpenBook ? point => actions.onOpenBook(`bk:${point.id}`) : undefined} />}
-    <div className="outline-organise__actions">
+    <div className="outline-organise__actions" data-tour="outline-book">
       {!book && <Button variant={main === 'outline' ? 'primary' : 'quiet'} size={main === 'outline' ? undefined : 'sm'} icon="sparkle" disabled={off}
         onClick={ask ? () => setAsking('outline') : startOutline}>{ui('生成总纲')}</Button>}
       {!sample && <Button variant={bookMain ? 'primary' : book ? 'quiet' : 'secondary'} size={bookMain || !book ? undefined : 'sm'} icon="book" disabled={off}

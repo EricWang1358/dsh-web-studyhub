@@ -26,7 +26,7 @@ const overflow = page => page.evaluate(() => document.documentElement.scrollWidt
 // A step by what its card says: the title, and the body where two steps share a title (the short tour's two last steps).
 // The control a core step's body tells the learner to press, where it is smaller than the lit area (otherwise the lit area itself).
 const KEY_CONTROL = { 'generate-quick': 'generate-submit' };
-const stepOf = (title, body) => TOUR_STEPS.find(step => step.title === title && step.body === body) || TOUR_STEPS.find(step => step.title === title);
+const stepOf = (title, body) => TOUR_STEPS.find(step => step.title === title && (step.body === body || step.fullBody === body)) || TOUR_STEPS.find(step => step.title === title);
 
 async function start(distDir) {
   scrubProcessEnv();
@@ -246,8 +246,20 @@ test('the default tour is short and lit, the full tour is one button away, and S
 
         // ---- the full tour: the explicit extra ----
         await last.getByRole('button', { name: '看完整导览' }).click();
+        // 跳到下一章 with the keyboard: from 开始 to the first step of 前置, then 上一步 back to where the walk starts.
+        const first = await card(page);
+        const jump = page.locator('.tour-pop').getByRole('button', { name: '跳到下一章', exact: true });
+        await jump.focus();
+        await page.keyboard.press('Enter');
+        await until(async () => (await card(page)).step?.id === 'settings-model', '跳到下一章 lands on 前置’s first step');
+        assert.match(await page.locator('.tour-pop__eyebrow').innerText(), /功能导览 · 前置/);
+        while ((await card(page)).at > first.at) {
+          const was = (await card(page)).at;
+          await page.locator('.tour-pop').getByRole('button', { name: '上一步', exact: true }).click();
+          await until(async () => (await card(page)).at < was, 'one step back');
+        }
         const full = [];
-        for (let guard = 0; guard < 40; guard++) {
+        for (let guard = 0; guard < 60; guard++) {
           const now = await card(page);
           full.push(now);
           await shot(page, `full-${String(now.at).padStart(2, '0')}-of-${now.total}-${width}`);
@@ -255,11 +267,12 @@ test('the default tour is short and lit, the full tour is one button away, and S
           await page.locator('.tour-pop').getByRole('button', { name: '下一步', exact: true }).click();
           await until(async () => (await page.locator('.tour-pop__count').first().innerText().catch(() => '')).split('/')[0].trim() !== String(now.at), `the full tour leaves step ${now.at}`);
         }
-        assert.equal(full[0].step.id, 'nav', 'it carries on past the welcome step the learner has already read');
+        assert.equal(full[0].step.id, 'flow', 'it carries on past the welcome step the learner has already read');
         assert.equal(full[0].at, 2);
         const ids = full.map(item => item.step?.id);
         for (const id of ['tasks', 'notes', 'examprep', 'reader-practice', 'translation', 'settings-model']) assert.ok(ids.includes(id), `${id} is in the full tour`);
-        assert.ok(ids.indexOf('settings-model') > ids.indexOf('practice'));
+        assert.ok(ids.indexOf('settings-model') < ids.indexOf('sources') && ids.indexOf('practice') < ids.indexOf('wrongbook'), 'the learning order: set up, prepare, practise, review');
+        assert.equal(await page.locator('.tour-pop').getByRole('button', { name: '跳到下一章' }).count(), 0, 'nowhere to jump from the last chapter');
         const standaloneSteps = TOUR_STEPS.filter(step => step.only !== 'core' && step.id !== 'guided-study');
         assert.equal(full.at(-1).total, standaloneSteps.length);
         assert.deepEqual(ids, standaloneSteps.slice(1).map(step => step.id), 'the standalone preview visits every full-tour step with an available action');

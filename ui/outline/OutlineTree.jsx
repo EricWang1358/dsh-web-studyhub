@@ -117,7 +117,7 @@ export default function OutlineTree({ rows, details, pick, papers = 0, unbuilt, 
     } else if (result.toggle !== undefined) onToggle(result.toggle, result.open);
   };
   return (
-    <ul className={rows.some(row => row.ancestors) ? 'outline-tree outline-tree--book' : 'outline-tree'} aria-label={label} onClick={onClick} onKeyDown={onKeyDown}>
+    <ul className={rows.some(row => row.ancestors) ? 'outline-tree outline-tree--book' : 'outline-tree'} data-tour="outline-tree" aria-label={label} onClick={onClick} onKeyDown={onKeyDown}>
       {rows.map((row, index) => <Row key={row.key} row={row} data={details[row.key]} tabStop={row.key === stop} bodyId={`${listId}-${index}`}
         pick={pick} papers={papers} unbuilt={unbuilt} modelReady={modelReady} onPick={onPick} onPickCard={onPickCard} onPractice={onPractice} onGapHint={onGapHint} onGoGenerateRow={onGoGenerateRow}
         onOpenSources={onOpenSources} onOpenSource={onOpenSource} onOpenBook={onOpenBook} onReadMore={onReadMore} />)}
