@@ -169,7 +169,8 @@
       padding-top: var(--space-3);
       border-top: 1px solid var(--line-soft);
     }
-    .tour-pop__spacer { flex: 1; }
+    /* 上一步 and 下一步 stay together at the right end: where the quiet links leave no room (English with 跳到下一章), both go to the next row. */
+    .tour-pop__moves { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; }
   }
   @media (prefers-reduced-motion: no-preference) {
     :where(.study-app, .study-seat) {

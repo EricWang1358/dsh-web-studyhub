@@ -14,7 +14,7 @@ const cx = (...names) => names.filter(Boolean).join(" ");
 const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /**
- * One step's card: its chapter and "3 / 8" progress, title, body, an optional
+ * One step's card: its chapter (the full tour's) and "3 / 8" progress, title, body, an optional
  * note (model missing / connected), and Back / Next / Skip, plus 跳到下一章
  * where `onNextChapter` is given. The final step
  * offers the first import, the full tour (only when this is the short one:
@@ -51,11 +51,12 @@ export function TourPopover({ step, index, total, model, sampleLoaded = true, bu
       <div className="tour-pop__foot">
         {!step.final && <Button variant="link" size="sm" className="tour-pop__skip" onClick={onSkip}>{index === 0 ? ui("以后再说") : ui("跳过导览")}</Button>}
         {onNextChapter && <Button variant="link" size="sm" className="tour-pop__chapter" onClick={onNextChapter}>{ui("跳到下一章")}</Button>}
-        <span className="tour-pop__spacer" />
-        {index > 0 && <Button size="sm" icon="arrow-left" onClick={onBack}>{ui("上一步")}</Button>}
-        {step.final
-          ? <Button size="sm" onClick={onNext}>{ui("完成导览")}</Button>
-          : !offerSample && <Button size="sm" variant="primary" iconEnd="arrow-right" onClick={onNext}>{ui("下一步")}</Button>}
+        <div className="tour-pop__moves">
+          {index > 0 && <Button size="sm" icon="arrow-left" onClick={onBack}>{ui("上一步")}</Button>}
+          {step.final
+            ? <Button size="sm" onClick={onNext}>{ui("完成导览")}</Button>
+            : !offerSample && <Button size="sm" variant="primary" iconEnd="arrow-right" onClick={onNext}>{ui("下一步")}</Button>}
+        </div>
       </div>
     </div>
   );
