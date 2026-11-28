@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { loadUi } from "./helpers/ui-module.mjs";
+import { loadInteractiveUi, withBrowserGlobals } from "./helpers/react-harness.mjs";
 
 const {
   getUiLanguage,
@@ -577,4 +578,93 @@ test("TermChips stays enabled for newly marked pending terms while earlier terms
   } finally {
     setUiLanguage(prev);
   }
+});
+
+test("useTermMarking suppresses the paired click after pointerup even when >250ms elapses (#1759)", async () => {
+  const interactive = await loadInteractiveUi(`
+    export { useTermMarking } from "./ui/review/use-term-marking.js";
+  `);
+  await withBrowserGlobals(async () => {
+    const bodyListeners = new Map();
+    const docListeners = new Map();
+    const listen = (store) => ({
+      addEventListener: (type, fn) => {
+        if (!store.has(type)) store.set(type, new Set());
+        store.get(type).add(fn);
+      },
+      removeEventListener: (type, fn) => {
+        store.get(type)?.delete(fn);
+      },
+    });
+    const textNode = { nodeType: 3, data: "Systems balance linearizability carefully." };
+    const pEl = {
+      nodeType: 1,
+      tagName: "P",
+      parentElement: null,
+      childNodes: [textNode],
+      closest: () => null,
+      matches: () => false,
+    };
+    textNode.parentElement = pEl;
+    const doc = {
+      ...listen(docListeners),
+      defaultView: { getSelection: () => ({ isCollapsed: true, rangeCount: 0 }) },
+      caretPositionFromPoint: () => ({ offsetNode: textNode, offset: 18 }),
+      createRange: () => ({
+        setStart() {},
+        setEnd() {},
+        getClientRects: () => [{ left: 10, right: 120, top: 10, bottom: 30, width: 110, height: 20 }],
+      }),
+    };
+    const body = {
+      ...listen(bodyListeners),
+      nodeType: 1,
+      tagName: "DIV",
+      ownerDocument: doc,
+      childNodes: [pEl],
+      contains: (node) => node === body || node === pEl || node === textNode,
+      closest: () => null,
+      matches: () => false,
+    };
+    pEl.parentElement = body;
+
+    const prevNow = Date.now;
+    let fakeNow = 1000;
+    Date.now = () => fakeNow;
+    const session = {
+      run: { id: "r1", index: 0, mode: "path", card: { id: "c1", prompt: "Q" } },
+      markingTerms: true,
+      actions: { toggleMarkTerms() {}, exitMarkTerms() {} },
+    };
+    const reviewBodyRef = { current: body };
+    const hook = interactive.mountHook(
+      (props) => interactive.exports.useTermMarking(props),
+      { session, reviewBodyRef },
+    );
+    try {
+      const dispatch = (store, type, event) => {
+        for (const fn of [...(store.get(type) || [])]) fn(event);
+      };
+      const ev = { button: 0, clientX: 50, clientY: 20, target: pEl, preventDefault() {}, stopPropagation() {} };
+
+      // 1. Real pointer click whose paired click fires 400ms after pointerup (exceeding the old 250ms wall-clock window).
+      await hook.act(() => {
+        dispatch(bodyListeners, "pointerdown", ev);
+        dispatch(docListeners, "pointerup", ev);
+        fakeNow += 400;
+        dispatch(bodyListeners, "click", ev);
+      });
+      assert.deepEqual(hook.current.terms, ["linearizability"], "paired click does not double-toggle off a word marked on pointerup");
+
+      // 2. After macrotask clears suppression, a standalone synthetic click (no pointerup) still toggles the word off.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await hook.act(() => {
+        dispatch(bodyListeners, "click", ev);
+      });
+      assert.deepEqual(hook.current.terms, [], "standalone synthetic click still toggles cleanly");
+    } finally {
+      hook.unmount();
+      Date.now = prevNow;
+    }
+  });
 });
