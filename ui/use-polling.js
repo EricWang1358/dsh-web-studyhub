@@ -9,9 +9,10 @@ import { backoffDelay } from './poll-schedule.js';
 const browserEnv = () => ({
   hidden: () => typeof document !== 'undefined' && document?.hidden === true,
   onVisibility(callback) {
-    if (typeof document?.addEventListener !== 'function') return () => {};
-    document.addEventListener('visibilitychange', callback);
-    return () => document.removeEventListener('visibilitychange', callback);
+    const doc = typeof document !== 'undefined' ? document : null;
+    if (typeof doc?.addEventListener !== 'function') return () => {};
+    doc.addEventListener('visibilitychange', callback);
+    return () => doc.removeEventListener('visibilitychange', callback);
   },
   // unref: in Node (tests, build scripts) a poll must never be what keeps the process alive; browsers have no unref.
   setTimer: (callback, ms) => { const id = globalThis.setTimeout(callback, ms); id?.unref?.(); return id; },

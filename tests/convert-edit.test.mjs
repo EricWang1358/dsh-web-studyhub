@@ -227,7 +227,7 @@ for (const runtime of [false, true]) {
     assert.equal((await mineruSources(h)).length, 0, 'so a later retry imports nothing');
 
     const refused = await readManifest(dir);
-    refused.route = 'cloud';
+    refused.route = 'unsupported';
     await saveManifest(dir, refused);
     // The original path refuses the start; a Job starts and refuses in its attempt: either way the press is taken back.
     const pressedAgain = h.call('mineru.edit.import', { jobId: job.id });

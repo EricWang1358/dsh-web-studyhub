@@ -178,7 +178,7 @@ test('PDF conversion (mineru.import / pdfConvert): cancel+dismiss and fail->retr
 test('every new sentence of the conversion has its English form', async () => {
   const { localizeAppMessage } = await import('../lib/application-messages.js');
   const { JOB_TEXT } = await import('../lib/mineru-job.js');
-  for (const text of [CONVERT_TEXT.needsSession, CONVERT_TEXT.cloudGone, CONVERT_TEXT.serviceFailed, JOB_TEXT.inputChanged]) assert.notEqual(localizeAppMessage(text), text, text);
+  for (const text of [CONVERT_TEXT.needsSession, CONVERT_TEXT.serviceFailed, CONVERT_TEXT.started({ converter: 'mineru', route: 'cloud' }), JOB_TEXT.inputChanged]) assert.notEqual(localizeAppMessage(text), text, text);
 });
 
 test('a local conversion runs each window as one observed local-process Call; stopping it ends the Job only after the window\'s process is gone, and the folder is dealt with', async t => {

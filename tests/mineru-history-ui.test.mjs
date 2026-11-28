@@ -136,12 +136,15 @@ test('a failed row that cannot resume says why and how to go on', () => {
   assert.doesNotMatch(html, />接着做/);
   assert.match(html, /临时文件已清理/);
   assert.match(html, /重新选择这份 PDF/);
-  // A row of the cloud route (removed in 3.5.5) never resumes, and says what to do instead.
-  const cloud = render(view([failed({ route: 'cloud', tier: undefined, phase: 'parse', failure: { stage: 'parse', piece: 2, reason: 'MinerU 没能转换这一段文件（可能是文件受保护或内容异常）。' }, canRetry: false })]));
-  assert.doesNotMatch(cloud, />接着做/);
-  assert.match(cloud, /在「云端解析」阶段（第 2 段）没能完成/);
-  assert.match(cloud, /云端解析已停用；请重新选择这份 PDF 用本机解析。/);
-  assert.match(cloud, /data-route="cloud"/);
+  // A failed cloud row whose temp files were cleaned shows the honest cleanup hint; one with files on disk offers both 接着做 and 改用本机.
+  const cloudGone = render(view([failed({ route: 'cloud', tier: undefined, phase: 'parse', failure: { stage: 'parse', piece: 2, reason: 'MinerU 没能转换这一段文件（可能是文件受保护或内容异常）。' }, canRetry: false })]));
+  assert.doesNotMatch(cloudGone, />接着做/);
+  assert.match(cloudGone, /在「云端解析」阶段（第 2 段）没能完成/);
+  assert.match(cloudGone, /临时文件已清理/);
+  assert.match(cloudGone, /data-route="cloud"/);
+  const cloudRetryable = render(view([failed({ route: 'cloud', tier: undefined, phase: 'parse', failure: { stage: 'parse', piece: 2, reason: 'MinerU 没能转换这一段文件（可能是文件受保护或内容异常）。' }, canRetry: true })]));
+  assert.match(cloudRetryable, />接着做</);
+  assert.match(cloudRetryable, />改用本机</);
 });
 
 test('an interrupted row has no end and no duration, and offers 接着做 only when it can', () => {

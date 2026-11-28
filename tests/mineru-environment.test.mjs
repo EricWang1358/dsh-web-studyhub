@@ -219,7 +219,7 @@ test('the record reserves the windows and the plan: every piece of the book with
   assert.deepEqual(row.plan, { kind: 'fixed', windowPages: 50 });
 });
 
-test('a row of the removed cloud route keeps its own environment, and a cloud import is refused before anything is read', async t => {
+test('a cloud history row keeps its own environment, and a cloud import without key is refused before anything is read', async t => {
   const h = await harness(t);
   await openRecord(h.root, { id: 'job-cloud-1', filename: 'Old.pdf', bytes: 9, pages: 3, pieces: 1, route: 'cloud',
     env: { kind: 'cloud', modelVersion: 'vlm', language: 'ch', maxPages: 200, maxBytes: 180 * 1024 * 1024, bookBytes: 9 }, plan: { kind: 'chunks', maxPages: 200, maxBytes: 180 * 1024 * 1024 } });
@@ -229,7 +229,7 @@ test('a row of the removed cloud route keeps its own environment, and a cloud im
   assert.equal(row.env.modelVersion, 'vlm');
   assert.equal(row.env.language, 'ch');
   assert.deepEqual(row.plan, { kind: 'chunks', maxPages: 200, maxBytes: 180 * 1024 * 1024 });
-  await assert.rejects(h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })), route: 'cloud' }), error => error.code === 'cloud-removed' && /云端解析已停用/.test(error.message));
+  await assert.rejects(h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })), route: 'cloud' }), error => error.code === 'no-token' && /密钥/.test(error.message));
   assert.deepEqual(await h.jobs(), [], 'no job was made');
 });
 

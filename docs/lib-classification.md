@@ -11,8 +11,8 @@ The report moves nothing (#902): it is the data for deciding what could later go
 | --- | ---: |
 | Used by ui | 105 |
 | Used by several contexts | 72 |
-| Used by exactly one context | 134 |
-| Used by none of these (other lib files, entry points, scripts and tests only) | 111 |
+| Used by exactly one context | 135 |
+| Used by none of these (other lib files, entry points, scripts and tests only) | 110 |
 
 ## Used by ui (105)
 
@@ -31,7 +31,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/case-study.js`: 7 ui files; contexts generation, library, study; 11 other lib files
 - `lib/chemistry-balance.js`: 1 ui file
 - `lib/cloze-text.js`: 3 ui files; 3 other lib files
-- `lib/converted-document.js`: 1 ui file; contexts audio, materials; 2 other lib files
+- `lib/converted-document.js`: 1 ui file; contexts audio, materials; 3 other lib files
 - `lib/course-book-ai-anchor.js`: 1 ui file
 - `lib/course-book-ai-text.js`: 5 ui files; context generation; 5 other lib files
 - `lib/course-book-card-index.js`: 1 ui file; context generation; 1 other lib file
@@ -125,7 +125,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 ## Used by several contexts (72)
 
 - `lib/assessment-quality.js`: contexts authoring, generation; 9 other lib files
-- `lib/atomic-json.js`: contexts generation, library; 31 other lib files
+- `lib/atomic-json.js`: contexts audio, generation, library; 31 other lib files
 - `lib/audio-messages.js`: contexts audio, jobs; 4 other lib files
 - `lib/audio-pool.js`: contexts audio, generation; 6 other lib files
 - `lib/audio-settings.js`: contexts audio, generation; 4 other lib files
@@ -197,7 +197,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/usage-scope.js`: contexts authoring, coach, generation, materials, study, workflows; 9 other lib files
 - `lib/util.js`: contexts audio, authoring, bank, coach, generation, jobs, library, materials, notes, recording, skeleton, study; 47 other lib files
 
-## Used by exactly one context (134)
+## Used by exactly one context (135)
 
 - `lib/answer-card-materials.js`: context generation
 - `lib/answer-time.js`: context study
@@ -320,6 +320,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/snapshot-time.js`: context library
 - `lib/source-archive.js`: context materials; 2 other lib files
 - `lib/stem-similarity.js`: context authoring; 1 other lib file
+- `lib/stored-version.js`: context audio; 3 other lib files
 - `lib/study-branch.js`: context study
 - `lib/study-resume.js`: context study; 1 other lib file
 - `lib/study-scene.js`: context study
@@ -334,7 +335,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/workflows.js`: context workflows; 4 other lib files
 - `lib/wrong-detail.js`: context library
 
-## Used by none of these (other lib files, entry points, scripts and tests only) (111)
+## Used by none of these (other lib files, entry points, scripts and tests only) (110)
 
 - `lib/assigned-plan.js`: 6 other lib files
 - `lib/assist-child.js`: 1 other lib file
@@ -410,7 +411,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/option-cues.js`: 4 other lib files
 - `lib/oral-exam-service.js`: 1 other lib file
 - `lib/panel-bridge.js`: 1 other lib file
-- `lib/pdf-runtime.js`: 1 other lib file
+- `lib/pdf-runtime.js`: 2 other lib files
 - `lib/plan-schedule.js`: 1 other lib file
 - `lib/plan-split.js`: 3 other lib files
 - `lib/plan-target-record.js`: 1 other lib file
@@ -427,7 +428,6 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/short-text-list.js`: 2 other lib files
 - `lib/siliconflow.js`: 3 other lib files
 - `lib/store.js`: 3 other lib files
-- `lib/stored-version.js`: 3 other lib files
 - `lib/study-contracts.js`: 2 other lib files
 - `lib/study-session-cost.js`: 1 other lib file
 - `lib/study-skills.js`: 1 other lib file

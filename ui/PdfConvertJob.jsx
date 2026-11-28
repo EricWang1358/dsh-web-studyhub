@@ -61,15 +61,25 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, on
   };
   // A stopped local service is started by the run itself (lib/contexts/audio/pdf/convert-run.js): 接着做 is all it takes.
   const retry = () => run('retry', () => send('mineru.retry', { jobId: job.id }));
+  // When a cloud conversion fails (and its source is still available on disk), the learner can switch it straight to the local MinerU route ("改用本机").
+  const switchToLocal = () => run('switch-local', () => send('mineru.retry', { jobId: job.id, route: 'local' }));
+  const cloudFailed = job.route === 'cloud' && ['failed', 'interrupted'].includes(job.status);
+  const failureCode = job.errorCode || job.failure?.code;
+  const cloudCanSwitch = cloudFailed && (job.retryable !== false || failureCode === 'page-too-large');
+  const cloudConfigError = cloudFailed && ['invalid-token', 'expired', 'invalid-base-url'].includes(failureCode);
+  const cloudSwitchPrimary = cloudCanSwitch && (cloudConfigError || failureCode === 'page-too-large' || !job.retryable);
+  const switchAction = cloudCanSwitch ? { label: ui('改用本机'), here: true, run: switchToLocal, disabled: !!working, tip: ui('改用本机 MinerU 解析这份 PDF，不再上传到云端。') } : null;
   // A failure only the installation can fix (Marker 2.x without Docker, a missing program) leads to the settings; 接着做 helps after that, from the console.
-  const needsSettings = job.status === 'failed' && job.failure?.fix === 'settings' && !!onOpenSettings;
-  const primary = isHeldTask(job) && !isActiveJob(job) ? { label: HELD_ENTRY(), here: true, run: () => setEditing(true) } : needsSettings ? { label: ui('前往设置'), run: () => onOpenSettings(job.converter === 'marker' ? 'settings-marker' : 'settings-mineru') }
-    : job.status === 'failed' && job.retryable ? { label: ui('接着做'), here: true, run: retry, disabled: !!working, tip: retryTip(job) }
-      : job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources ? { label: ui('打开资料'), run: () => onOpenSources(job.sourceIds) } : undefined;
+  const needsSettings = !cloudFailed && job.status === 'failed' && job.failure?.fix === 'settings' && !!onOpenSettings;
+  const primary = isHeldTask(job) && !isActiveJob(job) ? { label: HELD_ENTRY(), here: true, run: () => setEditing(true) }
+    : cloudSwitchPrimary ? switchAction
+      : needsSettings ? { label: ui('前往设置'), run: () => onOpenSettings(job.converter === 'marker' ? 'settings-marker' : 'settings-mineru') }
+        : job.status === 'failed' && job.retryable ? { label: ui('接着做'), here: true, run: retry, disabled: !!working, tip: retryTip(job) }
+          : job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources ? { label: ui('打开资料'), run: () => onOpenSources(job.sourceIds) } : undefined;
   const follow = followUpLink(job, job.sourceIds, onGenerate), custom = useCustomLink(job);
-  // Before 深度定制 and 用它出题 make anything from a big book, the way to its search index (only for a finished book that has none).
   const index = useIndexLink({ docs: job.status === 'complete' && job.documentId ? [hintDocOf({ documentId: job.documentId, sourceIds: job.sourceIds, pages: job.sourceIds?.length ?? 0, courses: job.courses })] : [], onOpenSettings });
-  const links = [index, follow, custom].filter(Boolean);
+  const cloudSettingsLink = cloudConfigError && onOpenSettings ? { label: ui('前往设置'), run: () => onOpenSettings('settings-mineru') } : null;
+  const links = [!cloudSwitchPrimary && switchAction, cloudSettingsLink, index, follow, custom].filter(Boolean);
   return <>
     <CompactJobCard job={job} primary={primary} links={links.length ? links : undefined} id={`pdf-job-${job.id}`} data-route={job.route || 'local'}
       onStop={() => run('cancel', () => send('job.control', { jobId: job.id, action: 'cancel' }))}
@@ -115,11 +125,12 @@ export function PdfDetail({ job, expandChunks, onChanged }) {
  * `act(action, args)` (single-flight, from the app) or `call` sends the stop / retry / dismiss; `onChanged` refreshes the data afterwards;
  * `onGenerate(sourceIds)` adds 用它出题 to a finished conversion.
  */
-export function PdfConvertJobs({ data, jobs, ids, act, onOpenSources, onOpenSettings, onChanged, onGenerate, expandChunks }) {
+export function PdfConvertJobs({ data, jobs, ids, act, singleFlight = false, onOpenSources, onOpenSettings, onChanged, onGenerate, expandChunks }) {
   useInjectCss(css, 'study-mineru');
-  const { call } = useStudy();
+  const { call, act: appAct } = useStudy();
   const list = (jobs || data?.jobs || []).filter(isConvertJob).filter(job => !ids || ids.includes(job.id));
-  const send = (action, args) => (act ? act(action, args) : call(action, args));
+  const dispatch = act || (singleFlight ? appAct : null);
+  const send = (action, args) => (dispatch ? dispatch(action, args) : call(action, args));
   return list.length ? <div className="cjc-list pdf-convert-jobs">{list.map(job => <PdfConvertJob key={job.id} job={job} send={send} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onChanged={onChanged} onGenerate={onGenerate} expandChunks={expandChunks} />)}</div> : null;
 }
 
@@ -237,6 +248,7 @@ export function ConversionEnvironment({ env, converter, service, stoppedAtFailur
           {env.modelsRealPath && <p>{uiFormat('它是一个链接，实际在：{0}', [env.modelsRealPath])}</p>}
         </details></li>}
         {local && env.device && <li>{uiFormat('设备：{0}', [env.device])}</li>}
+        {!local && env.endpoint && <li>{uiFormat('接口：{0}', [env.endpoint])}</li>}
         {!local && env.language && <li>{uiFormat('识别语言：{0}', [env.language])}</li>}
         {!local && env.maxPages > 0 && env.maxBytes > 0 && <li>{Number.isFinite(env.bookBytes)
           ? uiFormat('每段不超过 {0} 页 / {1} MB · 本书 {2}', [env.maxPages, megabytes(env.maxBytes), formatBytes(env.bookBytes)])
@@ -334,7 +346,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry,
         {status === 'cancelled' && <small>{ui('已解析好的段落会保留，再选同一个文件不会重复解析。')}</small>}
         {status === 'held' && <small>{ui('已转换，还没有存为资料。')}</small>}
         {progress && <small>{progress}</small>}
-        {stuck && <Hint as="small">{row.route === 'local' ? ui('临时文件已清理，没法接着做。重新选择这份 PDF 再解析一次，已解析好的段落会被复用。') : ui('云端解析已停用；请重新选择这份 PDF 用本机解析。')}</Hint>}
+        {stuck && <Hint as="small">{ui('临时文件已清理，没法接着做。重新选择这份 PDF 再解析一次，已解析好的段落会被复用。')}</Hint>}
         {row.env && <details className="pdf-env-details"><summary>{ui('运行环境')}</summary><ConversionEnvironment converter={row.converter} env={row.env} bare stoppedAtFailure={row.failure?.code === 'server-stopped'}
           timings={row.route === 'local' ? { windows: row.windows, secondsPerPage: row.plan?.secondsPerPage } : undefined} /></details>}
         <div className="pdf-history__actions">
@@ -345,8 +357,11 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry,
           {status === 'complete' && document?.exists && <IndexHint variant="link" docs={[hintDocOf({ documentId: row.documentId, sourceIds: document.sourceIds, pages: document.pages, courses: document.courses })]} onOpenSettings={onOpenSettings} />}
           {status === 'running' && row.live && <Button variant="link" size="sm" iconEnd="arrow-right" className="pdf-history__action" aria-label={uiFormat('查看「{0}」的进度', [row.filename])} onClick={() => onShowJob(row)}>{ui('查看进度')}</Button>}
           {status === 'held' && <Button variant="link" size="sm" className="pdf-history__action" aria-label={uiFormat('修改并导入「{0}」', [row.filename])} onClick={() => onEditHeld(row)}>{HELD_ENTRY()}</Button>}
-          {row.canRetry && <Tooltip layer content={row.converter !== 'marker' && row.failure?.code === 'server-stopped' ? ui('会先启动本机 MinerU 服务，再从停下的那一段接着解析。') : ui('已完成的段落会直接复用，不会重复解析。')}>
+          {row.canRetry && !(row.route === 'cloud' && row.failure?.code === 'page-too-large') && <Tooltip layer content={row.converter !== 'marker' && row.failure?.code === 'server-stopped' ? ui('会先启动本机 MinerU 服务，再从停下的那一段接着解析。') : ui('已完成的段落会直接复用，不会重复解析。')}>
             <Button variant="secondary" size="sm" className="pdf-history__action" busy={busy} lock={!!working && !busy} aria-label={uiFormat('接着解析「{0}」', [row.filename])} onClick={() => onRetry(row)}>{ui('接着做')}</Button>
+          </Tooltip>}
+          {row.canRetry && row.route === 'cloud' && <Tooltip layer content={ui('改用本机 MinerU 解析这份 PDF，不再上传到云端。')}>
+            <Button variant={row.failure?.code === 'page-too-large' ? 'secondary' : 'quiet'} size="sm" className="pdf-history__action" lock={!!working} aria-label={uiFormat('改用本机解析「{0}」', [row.filename])} onClick={() => onRetry(row, 'local')}>{ui('改用本机')}</Button>
           </Tooltip>}
           {status !== 'running' && <Button variant="link" size="sm" className="pdf-history__action" lock={!!working} aria-label={uiFormat('删除「{0}」的记录', [row.filename])} onClick={() => onRemove(row)}>{ui('删除记录')}</Button>}
         </div>
@@ -365,17 +380,18 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry,
  * initialShown / now (previews and tests). 删除记录 and 清空历史 ask nothing: the rows leave at once and the notice offers 撤销 (ui/undoable.js); the host
  * forgets them when that notice leaves.
  */
-export function PdfConvertHistory({ act, data, jobs, onOpenSources, onOpenJob, onOpenSettings, onChanged, collapsible = false, defaultOpen = false, hideWhenEmpty = false,
+export function PdfConvertHistory({ act, singleFlight = false, data, jobs, onOpenSources, onOpenJob, onOpenSettings, onChanged, collapsible = false, defaultOpen = false, hideWhenEmpty = false,
   initialRecords = null, initialShown, now: fixedNow, className, ...rest }) {
   useInjectCss(css, 'study-mineru');
-  const { call } = useStudy();
+  const { call, act: appAct } = useStudy();
   const [records, setRecords] = useState(initialRecords), [readError, setReadError] = useState(''), [problem, setProblem] = useState('');
   const [shown, setShown] = useState(initialShown ?? HISTORY_PAGE), [working, setWorking] = useState(''), [editing, setEditing] = useState(null);
   const alive = useRef(true), heading = useRef(null);
   const undoable = useUndoable();
   const key = historyRefreshKey(jobs ?? data?.jobs);
   const mineruAvailable = hasContext(data, 'audio');
-  const send = (action, args) => (act ? act(action, args) : call(action, args));
+  const dispatch = act || (singleFlight ? appAct : null);
+  const send = (action, args) => (dispatch ? dispatch(action, args) : call(action, args));
   const load = useCallback(async () => {
     try {
       const view = await call('mineru.history.list', {});
@@ -415,9 +431,9 @@ export function PdfConvertHistory({ act, data, jobs, onOpenSources, onOpenJob, o
     kept: count => uiFormat('{0} 条记录又在运行，没有删除', [count]),
     failed: reason => uiFormat('没能清空解析记录，已放回原处：{0}', [reason]),
     focus: () => document.querySelector('.pdf-history__bar button') }); };
-  const retry = row => work(row.id, async () => {
+  const retry = (row, route) => work(row.id, async () => {
     // A stopped local service is started by the run itself.
-    await send('mineru.retry', { jobId: row.id });
+    await send('mineru.retry', route ? { jobId: row.id, route } : { jobId: row.id });
     await load(); onChanged?.();
   });
   const showJob = row => {
@@ -459,6 +475,14 @@ export function PdfConvertHistory({ act, data, jobs, onOpenSources, onOpenJob, o
         : <><h4 className="pdf-history__title" ref={heading} tabIndex={-1}>{ui('解析历史')}</h4>{body}</>}
     </section>
   );
+}
+
+/** The Sources page's PDF conversion block (running cards + collapsible history, hidden when empty): loaded lazily through ui/pdf-conversion-lazy.jsx. */
+export function PdfConvertSection({ data, onOpenSources, onOpenSettings, onGenerate }) {
+  return <>
+    <PdfConvertJobs data={data} singleFlight onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onGenerate={onGenerate} />
+    <PdfConvertHistory data={data} singleFlight onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} collapsible hideWhenEmpty />
+  </>;
 }
 
 export default PdfConvertJob;

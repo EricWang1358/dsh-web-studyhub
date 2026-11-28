@@ -64,12 +64,12 @@ test('a PDF that cannot be read is refused with a plain message before any folde
   await assert.rejects(h.prepare(), error => error.code === 'not-pdf');
 });
 
-test('planFile shows the first windows without keeping anything', async t => {
+test('planFile shows both local windows and cloud pieces without keeping anything', async t => {
   const h = await setup(t, { pages: 450 });
   const plan = await planFile({ source: h.source });
   assert.equal(plan.pages, 450);
   assert.ok(plan.adaptive);
-  assert.equal(plan.plan, undefined, 'no cloud pieces');
+  assert.equal(plan.plan.length, 3, '450 pages splits into 3 cloud pieces (200+200+50)');
   assert.deepEqual(plan.windows.map(piece => [piece.startPage, piece.endPage]), [[1, plan.adaptive.firstPages]]);
   assert.deepEqual((await planFile({ source: h.source, limits: { windowPages: 200 } })).windows.map(piece => piece.pages), [200, 200, 50]);
   assert.deepEqual(await readdir(convertHome(h.library)).catch(() => []), []);

@@ -149,7 +149,7 @@ test('clearSecret clears through the page callback and refuses an environment ke
   assert.deepEqual(log, ['clear'], 'an environment key or canClear:false is never cleared');
 });
 
-test('the audio and Jev settings use the shared form; MinerU has no key at all (its token went with the cloud route in 3.5.5)', () => {
+test('the audio and Jev settings use the shared form; MinerU in its default local mode has no key field, and its optional cloud mode uses the shared form (#1765)', () => {
   const renderWithStudy = (element) => renderToStaticMarkup(withStudy(m.StudyServicesContext, element));
 
   const audioView = {
@@ -253,4 +253,12 @@ test('the audio and Jev settings use the shared form; MinerU has no key at all (
       assert.doesNotMatch(mineruCardHtml, /sh-secret/, `MineruInstallCard has no SecretKeyForm (${where})`);
     }
   }
+  // The optional cloud mode (the learner chose it in Settings): one key field, and it is the shared form, never a page-local copy.
+  const cloudSettings = { mode: 'cloud', baseUrl: '', effectiveBaseUrl: 'https://mineru.net/api/v4', defaultBaseUrl: 'https://mineru.net/api/v4',
+    token: { set: true, hint: '••••1234', source: 'file' }, acknowledged: false, acknowledgedAt: '', docsUrl: 'https://mineru.net/apiManage/docs', settingsFile: '' };
+  const cloudHtml = renderWithStudy(h(m.MineruSettings, { initialLocal: mineruLocal, initialPlan: mineruPlan, initialSettings: cloudSettings }));
+  assert.equal((cloudHtml.match(/class="sh-secret(?:\s|")/g) || []).length, 1, 'cloud mode renders the shared SecretKeyForm once');
+  assert.equal((cloudHtml.match(/type="password"/g) || []).length, 1, 'cloud mode has exactly one password input');
+  assert.match(cloudHtml, /name="mineru-token"/);
+  assert.doesNotMatch(cloudHtml, /1234567|sk-/, 'only the masked hint of a saved key is shown');
 });

@@ -15,7 +15,7 @@ What you install yourself and what StudyHub does:
 - The manual tools (MinerU desktop client, Docling, RAGFlow, a hand-configured search server) are yours to install and run.
 - StudyHub says a search tool is available only when DeepSeek Harness (DSH) reports it.
 
-**PDFs are converted on this computer.** The MinerU cloud route (a token, the PDF uploaded) was removed in 3.5.5. The desktop client is also currently reported unavailable; it remains an advanced option for when it recovers.
+**PDFs are converted on this computer by default.** The MinerU official API is an optional route: it needs your own token and uploads the PDF, and only after you turn it on in **Settings › PDF conversion (MinerU)** and confirm the first upload ([details](mineru-conversion.md#optional-the-mineru-official-api-uploads-the-pdf)). The desktop client is currently reported unavailable; it remains an advanced option for when it recovers.
 
 
 ## When StudyHub suggests this

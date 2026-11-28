@@ -68,7 +68,9 @@ test('plan, status and history are instant calls: they answer with data, never a
   assert.deepEqual(await h.jobs(), []);
   assert.equal((await h.call('mineru.install.status')).status, 'idle');
   assert.equal((await h.call('marker.install.status')).status, 'idle');
-  for (const gone of ['mineru.settings.get', 'mineru.settings.set', 'mineru.test', 'mineru.local.setup']) await assert.rejects(h.call(gone, {}), undefined, `${gone} is gone with the cloud route and the old setup`);
+  assert.equal((await h.call('mineru.settings.get', {})).mode, 'local');
+  assert.deepEqual((await h.call('mineru.test', {})).state, 'missing');
+  for (const gone of ['mineru.local.setup']) await assert.rejects(h.call(gone, {}), undefined, `${gone} is gone with the old setup`);
   assert.ok((await h.mineruCalls()).every(argv => ['--version', 'config', 'server'].includes(argv[0]) && argv[1] !== 'start'), 'only read-only CLI calls');
   assert.ok((await h.pyCalls()).every(line => /--version|"-c"/.test(line)), 'python was only probed');
   assert.equal(await exists(mineruInstallStatePath()), false, 'a plan writes nothing');

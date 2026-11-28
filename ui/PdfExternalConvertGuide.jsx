@@ -19,9 +19,10 @@ import { ConvertedFileFormats, toolMetaLine } from './converter-lines.jsx';
 import css from './pdf-external-guide.css';
 
 /* 「想用外部工具转换？」 + 「转换完成后怎么导入」 (#1765).
-   Shared across PDF conversion entry (PdfConversion), job detail (PdfDetail), and Settings (MineruPane). Not in the workspace's first load: PdfDetail, which is,
-   brings it through ui/pdf-external-guide-lazy.jsx (tests/workspace-closure-pages.test.mjs).
-   Plain copyable text URLs only: StudyHub never invokes third-party conversion APIs or proxies files. */
+   Shared across PDF conversion entry (PdfConversion), job detail (PdfDetail), and Settings (MineruPane). Not in the workspace's first load: PdfDetail brings it
+   through ui/pdf-external-guide-lazy.jsx (tests/workspace-closure-pages.test.mjs).
+   Plain copyable text URLs only: the guide never invokes the pages it lists or passes files to them. (The optional MinerU official API route is a
+   separate, opt-in part of the PDF panel and Settings: lib/contexts/audio/mineru-api.js; it is not reached from here.) */
 
 function selectElementText(node) {
   if (!node || typeof document === 'undefined' || typeof window === 'undefined') return;

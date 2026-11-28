@@ -45,6 +45,8 @@ If you prefer not to install a local conversion engine, or want to convert a PDF
 
 The list comes from the converter catalogue in `lib/large-documents.js`, the same one the import hub, the Generate page and Settings use.
 
+These links are separate from the optional [MinerU official API](mineru-conversion.md#optional-the-mineru-official-api-uploads-the-pdf) route inside StudyHub: there StudyHub itself uploads the PDF with your own token, and only after you turn it on in **Settings › PDF conversion (MinerU)** and confirm the first upload.
+
 ### How to import after conversion
 
 1. **Check the exported format**: Download the JSON result (or Markdown with `<!-- page: N -->` page markers). Supported formats: Markdown (`.md` / `.markdown`), plain text (`.txt`), LaTeX (`.tex`), HTML (`.html` / `.htm`), Word (`.docx`), PowerPoint (`.pptx` / `.ppt`), text-layer PDF (`.pdf`), and structured converter JSON (`.json` from PaddleOCR / Docling / MinerU). MinerU's web parser downloads a `.zip`: unzip it and import the file whose name ends in `_content_list.json`, which StudyHub saves page by page; the `full.md` inside has no page markers and imports as plain Markdown without pages. PDF page limit: 200; extracted text limit (characters): 600,000. PDF & text up to 8 MB, Word / PPT / converted JSON up to 40 MB.

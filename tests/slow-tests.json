@@ -274,6 +274,7 @@
     "tests/mineru-adaptive-service.test.mjs",
     "tests/mineru-autostart.test.mjs",
     "tests/mineru-cloud-legacy.test.mjs",
+    "tests/mineru-cloud-route.test.mjs",
     "tests/mineru-environment.test.mjs",
     "tests/mineru-history-service.runtime.test.mjs",
     "tests/mineru-history-service.test.mjs",
