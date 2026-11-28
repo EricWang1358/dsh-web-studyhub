@@ -258,16 +258,31 @@ function buildTauriBridgeCapabilities(installFlavor) {
   };
 }
 
+function normalizeStudyCliPath(value) {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+function concurrencyFields(concurrency) {
+  if (!concurrency) return {};
+  return {
+    ...(concurrency.maxConcurrency ? { maxConcurrency: concurrency.maxConcurrency } : {}),
+    ...(concurrency.defaultConcurrency ? { defaultConcurrency: concurrency.defaultConcurrency } : {}),
+  };
+}
+
 /** Build the StudyHub Desktop host object matching the 4-field PLUGIN_HOST capabilities contract. */
 export function createDesktopHost(desktopCall, concurrency = concurrencyState, subscribeLibraryEvents = null, options = {}) {
   const installFlavor = options?.installFlavor ? String(options.installFlavor) : undefined;
+  const studyCliPath = normalizeStudyCliPath(options?.studyCliPath);
   return {
     capabilities: DESKTOP_CAPABILITIES,
     warmKey: 'studyhub-desktop',
     ...buildTauriBridgeCapabilities(installFlavor),
     openExternal: (url) => openExternalUrl(url, desktopCall),
+    ...(studyCliPath ? { studyCliPath } : {}),
     ...(typeof subscribeLibraryEvents === 'function' ? { subscribeLibraryEvents } : {}),
-    ...(concurrency?.maxConcurrency ? { maxConcurrency: concurrency.maxConcurrency } : {}),
-    ...(concurrency?.defaultConcurrency ? { defaultConcurrency: concurrency.defaultConcurrency } : {}),
+    ...concurrencyFields(concurrency),
   };
 }

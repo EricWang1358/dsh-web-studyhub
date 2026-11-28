@@ -48,6 +48,7 @@ import { createDesktopHost } from '../packages/studyhub-desktop/application/desk
 import { createProviderDiscovery, localizeProviders } from '../packages/studyhub-desktop/application/provider-discovery.js';
 import { desktopUpdateView } from '../packages/studyhub-desktop/application/update-view.js';
 import { buildUpdaterManifest, packPortableZip } from '../packages/studyhub-desktop/scripts/pack-zip.mjs';
+import { stageRuntime } from '../packages/studyhub-desktop/scripts/stage-runtime.mjs';
 import { createAgyCompleteAdapter } from '../packages/studyhub-desktop/adapters/cli/agy-adapter.mjs';
 import { listCandidatePaths } from '../packages/studyhub-desktop/adapters/cli/candidate-paths.mjs';
 import { createCodexCompleteAdapter, probeCodex, probeCodexAuth, probeCodexModels } from '../packages/studyhub-desktop/adapters/cli/codex-adapter.mjs';
@@ -58,6 +59,7 @@ import { createInProcessJobExecutor } from '../packages/studyhub-desktop/adapter
 import { createConfigStore } from '../packages/studyhub-desktop/adapters/storage/config-store.mjs';
 import { effectiveConcurrencyLimit, registerHostConcurrencyCap } from '../lib/generation-settings.js';
 import { callOutcomeOf } from '../lib/jobs/gateway-policy.js';
+import { StudyService } from '../lib/service.js';
 import { totalTokens, usageFromTokenUsage } from '../lib/token-usage.js';
 import { withUsageSink } from '../lib/usage-scope.js';
 
@@ -1574,6 +1576,7 @@ test('entry/sidecar.mjs performs Tauri stdin/stdout handshake, serves authentica
   const parsed = JSON.parse(auth.text);
   assert.equal(parsed.ok, true);
   assert.deepEqual(parsed.value.host, DESKTOP_CAPABILITIES);
+  assert.equal(parsed.value.studyCliPath, join(REPO_ROOT, 'scripts', 'study-cli.mjs'));
 
   // Closing stdin triggers graceful shutdown with exit code 0
   const exitCode = await new Promise((resolveExit, rejectExit) => {
@@ -1763,4 +1766,164 @@ test('pack-zip packages NSIS setup.exe, .sig, latest.json updater manifest, .msi
   );
   assert.equal(manifest.platforms['windows-x86_64'].signature, 'dW50cnVzdGVkLXNpZw==');
   assert.equal(manifest.platforms['windows-x86_64-nsis'].url, manifest.platforms['windows-x86_64'].url);
+});
+
+test('stage-runtime bundles runnable scripts/study-cli.mjs, staged sidecar exposes real studyCliPath, and staged CLI executes skeleton.topics / topic.groups.save / snapshot via --file and --root', async (t) => {
+  const work = await mkdtemp(join(tmpdir(), 'studyhub-staged-cli-'));
+  t.after(() => rm(work, { recursive: true, force: true }));
+
+  const runtimeDir = join(work, 'runtime');
+  const libraryDir = join(work, 'library');
+  const dshHome = join(work, 'dsh-home');
+  await mkdir(libraryDir, { recursive: true });
+  await mkdir(dshHome, { recursive: true });
+
+  // Seed a real temporary library with two ungrouped topics before launching staged runtime tools.
+  const seedService = new StudyService(libraryDir);
+  try {
+    const seeded = await seedService.call('deck.import', {
+      text: JSON.stringify({
+        title: 'Algorithms Quiz',
+        course: 'Algorithms',
+        cards: [
+          { kind: 'flashcard', topic: 'Binary Search', prompt: 'What is the time complexity of binary search?', answer: 'O(log n)' },
+          { kind: 'flashcard', topic: 'Two Pointers', prompt: 'When does the two-pointer technique apply?', answer: 'Monotonic sorted ranges' },
+        ],
+      }),
+    });
+    assert.equal(seeded.added, 2);
+  } finally {
+    await seedService.dispose();
+  }
+
+  const staged = await stageRuntime({ outdir: runtimeDir });
+  assert.ok(staged.cliScripts.includes('study-cli.mjs'));
+  const expectedCliPath = join(runtimeDir, 'scripts', 'study-cli.mjs');
+  await access(expectedCliPath);
+
+  const stagedNode = join(runtimeDir, staged.node.binaryName);
+  const stagedSidecar = join(runtimeDir, 'packages', 'studyhub-desktop', 'entry', 'sidecar.mjs');
+  const token = randomBytes(32).toString('hex');
+  const child = spawn(stagedNode, [stagedSidecar], {
+    cwd: runtimeDir,
+    env: {
+      ...process.env,
+      NODE_PATH: '',
+      DSH_HOME: dshHome,
+      STUDYHUB_LIBRARY: libraryDir,
+      STUDYHUB_DESKTOP_RUNTIME_ROOT: runtimeDir,
+    },
+    stdio: ['pipe', 'pipe', 'pipe'],
+    windowsHide: true,
+  });
+  t.after(() => {
+    if (child.exitCode === null && !child.killed) child.kill();
+  });
+
+  let stderr = '';
+  child.stderr.on('data', (chunk) => { stderr += chunk.toString('utf8'); });
+  const portPromise = new Promise((resolvePort, rejectPort) => {
+    let buf = '';
+    const timer = setTimeout(() => rejectPort(new Error(`Staged sidecar handshake timeout. stderr=${stderr}`)), 30_000);
+    child.stdout.on('data', (chunk) => {
+      buf += chunk.toString('utf8');
+      const nl = buf.indexOf('\n');
+      if (nl < 0) return;
+      clearTimeout(timer);
+      try {
+        resolvePort(JSON.parse(buf.slice(0, nl)).port);
+      } catch (err) {
+        rejectPort(err);
+      }
+    });
+    child.once('exit', (code) => {
+      clearTimeout(timer);
+      rejectPort(new Error(`Staged sidecar exited early (${code}). stderr=${stderr}`));
+    });
+  });
+
+  child.stdin.write(`${JSON.stringify({ token })}\n`);
+  const port = await portPromise;
+  const authHeaders = {
+    host: `127.0.0.1:${port}`,
+    origin: 'tauri://localhost',
+    'content-type': 'application/json',
+    'x-study-token': token,
+  };
+
+  const cfgRes = await rawHttpRequest({
+    port,
+    headers: authHeaders,
+    body: JSON.stringify({ action: 'desktop.config.get', args: {} }),
+  });
+  assert.equal(cfgRes.status, 200);
+  const cfgPayload = JSON.parse(cfgRes.text);
+  assert.equal(cfgPayload.ok, true);
+  assert.equal(cfgPayload.value.studyCliPath, expectedCliPath);
+
+  const bindRes = await rawHttpRequest({
+    port,
+    headers: authHeaders,
+    body: JSON.stringify({ action: 'binding.get', args: {} }),
+  });
+  assert.equal(bindRes.status, 200);
+  const bindPayload = JSON.parse(bindRes.text);
+  assert.equal(bindPayload.ok, true);
+  assert.deepEqual(bindPayload.value.host, DESKTOP_CAPABILITIES);
+  assert.equal(bindPayload.value.studyCliPath, expectedCliPath);
+
+  const exitCode = await new Promise((resolveExit, rejectExit) => {
+    const timer = setTimeout(() => {
+      child.kill();
+      rejectExit(new Error(`Staged sidecar did not exit on stdin EOF. stderr=${stderr}`));
+    }, 10_000);
+    child.once('exit', (code) => {
+      clearTimeout(timer);
+      resolveExit(code);
+    });
+    child.stdin.end();
+  });
+  assert.equal(exitCode, 0);
+
+  // Execute the staged study-cli.mjs from outside the repo with NODE_PATH cleared.
+  const runCli = (args) => runProcess({
+    command: stagedNode,
+    args: [bindPayload.value.studyCliPath, ...args],
+    cwd: work,
+    env: { ...process.env, NODE_PATH: '', DSH_HOME: dshHome },
+    timeoutMs: 90_000,
+  });
+  const formatRunFailure = (label, res) => `${label} failed: ${JSON.stringify({
+    code: res.code, signal: res.signal, timedOut: res.timedOut,
+    errorCode: res.errorCode, errorMessage: res.errorMessage,
+    stdout: res.stdout?.slice(0, 300), stderr: res.stderr?.slice(0, 300),
+  })}`;
+
+  const topicsFile = join(work, 'topics-query.json');
+  await writeFile(topicsFile, JSON.stringify({ ungrouped: true, compact: true }), 'utf8');
+  const topicsRun = await runCli(['call', 'skeleton.topics', '--file', topicsFile, '--root', libraryDir]);
+  assert.equal(topicsRun.code, 0, formatRunFailure('skeleton.topics', topicsRun));
+  const topicsOut = JSON.parse(topicsRun.stdout);
+  assert.equal(topicsOut.total, 2);
+  assert.deepEqual(topicsOut.topics.map((item) => item.key).sort(), ['binarysearch', 'twopointers']);
+
+  const groupsFile = join(work, 'groups-save.json');
+  await writeFile(groupsFile, JSON.stringify({
+    mode: 'replace',
+    groups: [{ title: 'Algorithms Core', topics: ['binarysearch', 'twopointers'] }],
+  }), 'utf8');
+  const groupsRun = await runCli(['call', 'topic.groups.save', '--file', groupsFile, '--root', libraryDir]);
+  assert.equal(groupsRun.code, 0, formatRunFailure('topic.groups.save', groupsRun));
+  const groupsOut = JSON.parse(groupsRun.stdout);
+  assert.equal(groupsOut.groups.length, 1);
+  assert.equal(groupsOut.groups[0].title, 'Algorithms Core');
+  assert.equal(groupsOut.groups[0].count, 2);
+  assert.deepEqual(groupsOut.ungrouped, []);
+
+  const snapRun = await runCli(['call', 'snapshot', '--root', libraryDir]);
+  assert.equal(snapRun.code, 0, formatRunFailure('snapshot', snapRun));
+  const snapOut = JSON.parse(snapRun.stdout);
+  assert.equal(snapOut.decks.length, 1);
+  assert.equal(snapOut.decks[0].title, 'Algorithms Quiz');
+  assert.deepEqual(snapOut.topicGrouping, { topics: 2, groups: 1, ungrouped: 0 });
 });

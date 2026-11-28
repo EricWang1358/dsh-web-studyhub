@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { access, mkdir } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createDesktopHost } from '../application/desktop-host.js';
@@ -22,6 +22,17 @@ import { createDesktopLibraryEvents } from '../adapters/storage/library-watcher.
 const desktopRoot = fileURLToPath(new URL('../', import.meta.url));
 const HANDSHAKE_TIMEOUT_MS = 15_000;
 const HANDSHAKE_MAX_BYTES = 4096;
+
+async function resolveStudyCliPath(env = process.env) {
+  const candidates = [
+    env.STUDYHUB_DESKTOP_RUNTIME_ROOT ? join(resolve(env.STUDYHUB_DESKTOP_RUNTIME_ROOT), 'scripts', 'study-cli.mjs') : '',
+    join(resolve(desktopRoot, '../..'), 'scripts', 'study-cli.mjs'),
+  ].filter(Boolean);
+  for (const candidate of candidates) {
+    if (await access(candidate).then(() => true, () => false)) return candidate;
+  }
+  return '';
+}
 
 function parseCliArgs(argv) {
   const dev = argv.includes('--dev');
@@ -98,29 +109,22 @@ function readHandshakeToken(stdin, timeoutMs = HANDSHAKE_TIMEOUT_MS) {
   });
 }
 
-/**
- * Sole Composition Root wiring domain policies, application use-cases, and Node adapters.
- */
-export async function composeDesktopSidecar({
-  token,
-  port = 0,
-  serveUiDir = '',
-  injectDevToken = false,
-  env = process.env,
-  injectedComplete = null,
-  retrievalRuntime: injectedRetrievalRuntime = null,
-  libraryEvents: injectedLibraryEvents = null,
-} = {}) {
-  const configStore = createConfigStore({ env });
-  const runner = createProcessRunner();
-  const jobExecutor = createInProcessJobExecutor();
-  const currentCustomPaths = { agy: '', codex: '' };
-  const retrievalRuntime = injectedRetrievalRuntime || createRetrievalRuntime(
-    createRetrievalRuntimePorts({ env, dshHome: configStore.dshHome, runner })
-  );
-  const libraryEvents = injectedLibraryEvents || createDesktopLibraryEvents();
+function normalizeSidecarOptions(options = {}) {
+  return {
+    token: options.token,
+    port: options.port ?? 0,
+    serveUiDir: options.serveUiDir ?? '',
+    injectDevToken: options.injectDevToken ?? false,
+    env: options.env ?? process.env,
+    injectedComplete: options.injectedComplete ?? null,
+    retrievalRuntime: options.retrievalRuntime ?? null,
+    libraryEvents: options.libraryEvents ?? null,
+    studyCliPath: options.studyCliPath ?? '',
+  };
+}
 
-  const providerDiscovery = createProviderDiscovery({
+function createSidecarDiscovery(runner, env, currentCustomPaths) {
+  return createProviderDiscovery({
     listCandidates: (id, opts) => listCandidatePaths(id, { ...opts, env }),
     probeVersion: (_id, executablePath) => probeCliVersion(runner, executablePath),
     listAgyModels: (executablePath) => probeAgyModels(runner, executablePath),
@@ -128,23 +132,49 @@ export async function composeDesktopSidecar({
     listCodexModels: (executablePath) => probeCodexModels(runner, executablePath),
     getCustomPath: (id) => currentCustomPaths[id] || '',
   });
+}
 
-  const host = await createDesktopHost({
-    configStore,
-    providerDiscovery,
-    openaiComplete: (config, opts) => createOpenAiCompleteAdapter(config, opts),
-    agyComplete: (config, opts) => createAgyCompleteAdapter(config, { ...opts, runner }),
-    codexComplete: (config, opts) => createCodexCompleteAdapter(config, { ...opts, runner }),
-    jobExecutor,
+function buildSidecarHostOptions(opts) {
+  return {
+    configStore: opts.configStore,
+    providerDiscovery: opts.providerDiscovery,
+    openaiComplete: (config, callOpts) => createOpenAiCompleteAdapter(config, callOpts),
+    agyComplete: (config, callOpts) => createAgyCompleteAdapter(config, { ...callOpts, runner: opts.runner }),
+    codexComplete: (config, callOpts) => createCodexCompleteAdapter(config, { ...callOpts, runner: opts.runner }),
+    jobExecutor: opts.jobExecutor,
     openExternal: (url) => openExternalUrl(url),
-    openCliTerminal: (request) => openCliTerminal(request, { env }),
+    openCliTerminal: (request) => openCliTerminal(request, { env: opts.env }),
     ensureDir: (dirPath) => mkdir(dirPath, { recursive: true }),
-    injectedComplete,
-    retrievalRuntime,
-    libraryEvents,
+    injectedComplete: opts.injectedComplete,
+    retrievalRuntime: opts.retrievalRuntime,
+    libraryEvents: opts.libraryEvents,
     // The drive Windows is installed on; the default is the usual one when the variable is missing.
-    systemDrive: env.SystemDrive || 'C:',
-  });
+    systemDrive: opts.env.SystemDrive || 'C:',
+    studyCliPath: opts.resolvedStudyCliPath,
+  };
+}
+
+/**
+ * Sole Composition Root wiring domain policies, application use-cases, and Node adapters.
+ */
+export async function composeDesktopSidecar(rawOptions) {
+  const options = normalizeSidecarOptions(rawOptions);
+  const { token, port, serveUiDir, injectDevToken, env, injectedComplete, studyCliPath } = options;
+  const configStore = createConfigStore({ env });
+  const runner = createProcessRunner();
+  const jobExecutor = createInProcessJobExecutor();
+  const currentCustomPaths = { agy: '', codex: '' };
+  const retrievalRuntime = options.retrievalRuntime || createRetrievalRuntime(
+    createRetrievalRuntimePorts({ env, dshHome: configStore.dshHome, runner })
+  );
+  const libraryEvents = options.libraryEvents || createDesktopLibraryEvents();
+  const providerDiscovery = createSidecarDiscovery(runner, env, currentCustomPaths);
+  const resolvedStudyCliPath = studyCliPath || await resolveStudyCliPath(env);
+
+  const host = await createDesktopHost(buildSidecarHostOptions({
+    configStore, providerDiscovery, runner, jobExecutor, retrievalRuntime,
+    libraryEvents, env, injectedComplete, resolvedStudyCliPath,
+  }));
   const syncCustomPaths = () => {
     currentCustomPaths.agy = host.config.agy.executablePath;
     currentCustomPaths.codex = host.config.codex.executablePath;
