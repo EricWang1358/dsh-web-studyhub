@@ -8,8 +8,9 @@ import { inApp } from './helpers/fake-app.mjs';
 const h = React.createElement;
 const m = await loadUi(`
   export { DESKTOP_PARTS, desktopGuideUrl } from './ui/desktop/parts.jsx';
-  export { default as DesktopCliCard } from './ui/desktop/DesktopCliCard.jsx';
-  export { createDesktopConfigActions, DesktopSetupBody } from './ui/desktop/DesktopModelSetup.jsx';
+  export { default as DesktopCliCard, CliOpenedNote, cliOpenResult } from './ui/desktop/DesktopCliCard.jsx';
+  export { createDesktopConfigActions, desktopSetupActions, DesktopSetupBody } from './ui/desktop/DesktopModelSetup.jsx';
+  export { cliOpeningMessage } from './ui/agent-prompts/message.js';
   export { recheckSentence } from './ui/first-run/recheck.js';
   export { normalizeAppearance } from './ui/appearance-prefs.js';
   export { default as DesktopOpenAiForm } from './ui/desktop/DesktopOpenAiForm.jsx';
@@ -273,6 +274,142 @@ test('Settings offers 「在学习库里打开 CLI」 for the ready local CLI; t
   });
   assert.equal(await failing.openCli('agy'), null);
   assert.equal(errors.at(-1), '路径里有特殊字符', 'a refusal is shown where the other setup errors are');
+});
+
+/* Group feedback: the CLI opened by 「在学习库里打开 agy / codex」 was never told about the bundled study-cli, so it edited .dsh-study/ by hand or
+   gave up. The button now copies an opening note (the same study-cli command line the copied prompts carry) before the window opens. */
+const BUNDLED_CLI = { libraryRoot: 'D:\\Study', studyCliPath: 'D:\\App\\resources\\runtime\\scripts\\study-cli.mjs', studyNodePath: 'D:\\App\\resources\\runtime\\node\\node.exe' };
+
+test('「在学习库里打开 CLI」 copies an opening note that points the CLI at the bundled study-cli, before the window opens', async () => {
+  const events = [];
+  const actionsWith = ({ paths = BUNDLED_CLI, clipboard }) => m.createDesktopConfigActions({
+    call: async (action, args) => { events.push({ action, args }); return { ok: true, provider: args.provider, cwd: 'D:\\Study' }; },
+    refresh: async () => {}, setConfig: () => {}, setError: () => {}, setWorking: () => {},
+    cliPaths: () => paths, clipboard,
+  });
+  const clipboard = { writeText: async (text) => { events.push({ copied: text }); } };
+
+  const opened = await actionsWith({ clipboard }).openCli('agy');
+  assert.equal(events.length, 2);
+  assert.ok(events[0].copied, 'the note is copied first: once the console window opens, StudyHub loses focus and the clipboard refuses');
+  assert.deepEqual(events[1], { action: 'desktop.cli.open', args: { provider: 'agy' } }, 'the page still sends only the CLI name');
+  const note = events[0].copied;
+  assert.ok(note.includes('"D:\\App\\resources\\runtime\\node\\node.exe" "D:\\App\\resources\\runtime\\scripts\\study-cli.mjs" call <action>'), 'runs the bundled study-cli with the bundled node');
+  assert.ok(note.includes('--root "D:\\Study"'), 'names the library, which the CLI cannot guess from its folder');
+  assert.match(note, /library\.context/, 'says what to call first');
+  assert.match(note, /不要直接手改 \.dsh-study\//, 'keeps the rule against editing the library files by hand');
+  assert.match(note, /PowerShell/);
+  assert.equal(opened.copied, true);
+  assert.equal(opened.opening, note);
+  assert.equal(opened.provider, 'agy');
+
+  m.setUiLanguage('en');
+  try {
+    events.length = 0;
+    await actionsWith({ clipboard }).openCli('codex');
+    const english = events[0].copied;
+    assert.match(english, /library\.context/);
+    assert.doesNotMatch(english, /[㐀-鿿]/, 'the English note has no untranslated text');
+  } finally { m.setUiLanguage('zh'); }
+
+  events.length = 0;
+  const refused = await actionsWith({ clipboard: { writeText: async () => { throw new Error('Document is not focused.'); } } }).openCli('agy');
+  assert.equal(events.length, 1, 'a refused clipboard still opens the CLI');
+  assert.equal(refused.copied, false);
+  assert.match(refused.opening, /study-cli\.mjs/, 'the note comes back so the card can show it');
+
+  events.length = 0;
+  const unknown = await actionsWith({ paths: { libraryRoot: 'D:\\Study' }, clipboard }).openCli('agy');
+  assert.deepEqual(unknown, { ok: true, provider: 'agy', cwd: 'D:\\Study' }, 'no bundled study-cli known: nothing to point at, nothing copied');
+  assert.deepEqual(events, [{ action: 'desktop.cli.open', args: { provider: 'agy' } }]);
+});
+
+test('after 「在学习库里打开 CLI」 the card says the opening note was copied, or shows it to select when the clipboard refused', () => {
+  const opening = '我在用 StudyHub 桌面版学习 study-cli.mjs';
+  const copied = render(h(m.CliOpenedNote, { providerId: 'agy', result: { ok: true, opening, copied: true } }));
+  assert.match(copied, /已在学习库目录打开 agy/);
+  assert.match(copied, /开场提示已复制/);
+  assert.doesNotMatch(copied, /<textarea/);
+  const shown = render(h(m.CliOpenedNote, { providerId: 'agy', result: { ok: true, opening, copied: false } }));
+  assert.match(shown, /<textarea[^>]*readOnly|<textarea[^>]*readonly/i);
+  assert.match(shown, /我在用 StudyHub 桌面版学习 study-cli\.mjs/);
+  const plain = render(h(m.CliOpenedNote, { providerId: 'agy', result: { ok: true } }));
+  assert.match(plain, /已在学习库目录打开 agy/);
+  assert.doesNotMatch(plain, /开场提示/);
+  const english = render(h(m.CliOpenedNote, { providerId: 'agy', result: { ok: true, opening, copied: true } }), 'en');
+  assert.doesNotMatch(english, /[㐀-鿿]/, 'the English receipt has no untranslated text');
+  assert.equal(render(h(m.CliOpenedNote, { providerId: 'agy', result: null })), '');
+});
+
+test('the setup panel hands 「在学习库里打开 CLI」 the bundled node and study-cli from the saved config, and the library from the app core (bound folder first, loaded data next)', async () => {
+  const copied = [];
+  const clipboard = { writeText: async (text) => { copied.push(text); } };
+  const core = ({ bound = '', loaded = null }) => ({
+    call: async (action, args) => ({ ok: true, provider: args.provider }), refresh: async () => {},
+    refs: { bindingRoot: { current: bound }, dataRef: { current: loaded ? { root: loaded } : null } },
+  });
+  const config = { studyCliPath: BUNDLED_CLI.studyCliPath, studyNodePath: BUNDLED_CLI.studyNodePath };
+  const openWith = async (appCore, savedConfig = config) => {
+    copied.length = 0;
+    await m.desktopSetupActions({ core: appCore, config: savedConfig, setConfig: () => {}, setError: () => {}, setWorking: () => {}, clipboard }).openCli('agy');
+    return copied[0];
+  };
+
+  const bound = await openWith(core({ bound: 'D:\\Study', loaded: 'D:\\Loaded' }));
+  assert.ok(bound.includes('"D:\\App\\resources\\runtime\\node\\node.exe" "D:\\App\\resources\\runtime\\scripts\\study-cli.mjs" call <action>'), 'the saved config names the bundled node and study-cli');
+  assert.ok(bound.includes('--root "D:\\Study"'), 'the bound library is the --root');
+  assert.ok(!bound.includes('D:\\Loaded'));
+  assert.ok((await openWith(core({ loaded: 'D:\\Loaded' }))).includes('--root "D:\\Loaded"'), 'no bound folder yet: the loaded library, as 「发给主会话」 does');
+  const rootless = await openWith(core({}));
+  assert.ok(rootless.includes('study-cli.mjs') && !rootless.includes('--root "D:'), 'no library known: the note asks the CLI to confirm the folder instead of guessing');
+  assert.equal(await openWith(core({ bound: 'D:\\Study' }), {}), undefined, 'a config that reports no study-cli copies nothing');
+  assert.equal(typeof await openWith({ ...core({ bound: 'D:\\Study' }), refs: undefined }, config), 'string', 'an app core without refs still copies the note');
+});
+
+test('the opening note asks the CLI to reply ready and wait, and does not also say to proceed when 我想： is blank', () => {
+  for (const language of ['zh', 'en']) {
+    const note = m.cliOpeningMessage({ ...BUNDLED_CLI, language });
+    assert.match(note, language === 'zh' ? /先回复一句你已经准备好，然后等我说要做什么/ : /Reply in one line that you are ready, then wait/);
+    assert.doesNotMatch(note, /我想：|What I want:|留空|left blank/, `${language}: no blank-tail note to contradict "wait"`);
+    assert.match(note, /study-cli\.mjs/);
+    const waits = note.search(language === 'zh' ? /然后等我说要做什么/ : /then wait for me to say what to do/);
+    const firstCall = note.search(/library\.context/);
+    assert.ok(waits >= 0 && firstCall > waits, `${language}: the reply-ready-and-wait line comes before the library.context call`);
+    assert.match(note.slice(waits, firstCall), language === 'zh' ? /开始读写学习库时/ : /you start on the library/, `${language}: library.context is for when the work starts, not a first move`);
+  }
+});
+
+test('what 「在学习库里打开 CLI」 returned reaches the card: copied note, shown note when the clipboard refused, plain receipt otherwise', async () => {
+  const opening = '我在用 StudyHub 桌面版学习 study-cli.mjs';
+  const shownFor = async (answer) => render(h(m.CliOpenedNote, { providerId: 'agy', result: await m.cliOpenResult(async () => answer, 'agy') }));
+  const copied = await shownFor({ ok: true, opening, copied: true });
+  assert.match(copied, /开场提示已复制/);
+  assert.doesNotMatch(copied, /<textarea/);
+  const refused = await shownFor({ ok: true, opening, copied: false });
+  assert.match(refused, /没能复制开场提示/);
+  assert.match(refused, /<textarea[\s\S]*我在用 StudyHub 桌面版学习 study-cli\.mjs/);
+  const plain = await shownFor(true);
+  assert.match(plain, /已在学习库目录打开 agy/);
+  assert.doesNotMatch(plain, /开场提示/);
+  assert.equal(await m.cliOpenResult(async () => null, 'agy'), null, 'a refusal shows nothing');
+  const asked = [];
+  await m.cliOpenResult(async (id) => { asked.push(id); return true; }, 'codex');
+  assert.deepEqual(asked, ['codex']);
+});
+
+test('the first call the opening note names (library.context, no payload) runs through study-cli on a fresh library', async (t) => {
+  const { execFile } = await import('node:child_process');
+  const { mkdtemp, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const root = await mkdtemp(join(tmpdir(), 'studyhub-cli-opening-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const out = await new Promise((resolve, reject) => {
+    execFile(process.execPath, ['scripts/study-cli.mjs', 'call', 'library.context', '--root', root], { timeout: 60_000 }, (error, stdout, stderr) => (
+      error ? reject(new Error(`${error.message}\n${stderr}`)) : resolve(stdout)
+    ));
+  });
+  assert.equal(typeof JSON.parse(out), 'object');
 });
 
 test('createDesktopConfigActions saves & tests codex mode and syncs effective concurrency cap cleanly', async (t) => {
