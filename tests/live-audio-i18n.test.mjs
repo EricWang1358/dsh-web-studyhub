@@ -391,8 +391,13 @@ function findPrivateI18nInJsx(fileName, source) {
   const sf = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JSX);
   const violations = [];
   const lineOf = (node) => sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+  const isLanguageHook = (name) => name === 'getUiLanguage' || name === 'useUiLanguage';
+  // A bare `language`, a member read such as `props.language`, and a call to the hook either bare or through an object (`ui.getUiLanguage()`).
   const isLanguageRead = (node) => (ts.isIdentifier(node) && node.text === 'language')
-    || (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && (node.expression.text === 'getUiLanguage' || node.expression.text === 'useUiLanguage'));
+    || (ts.isPropertyAccessExpression(node) && node.name.text === 'language')
+    || (ts.isCallExpression(node) && (
+      (ts.isIdentifier(node.expression) && isLanguageHook(node.expression.text))
+      || (ts.isPropertyAccessExpression(node.expression) && isLanguageHook(node.expression.name.text))));
   const isLocaleLiteral = (node) => ts.isStringLiteralLike(node) && (node.text === 'en' || node.text === 'zh');
   const isEqualityOp = (kind) => kind === ts.SyntaxKind.EqualsEqualsEqualsToken
     || kind === ts.SyntaxKind.ExclamationEqualsEqualsToken

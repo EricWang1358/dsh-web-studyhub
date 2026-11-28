@@ -244,7 +244,8 @@ describe('#1354 D12 KEYBINDINGS.md inbox rows', () => {
     assert.ok(inboxRow.length > 0 && historyRow.length > 0, 'KEYBINDINGS.md must keep the inbox and Ctrl+O rows');
     for (const row of [inboxRow, historyRow]) {
       assert.equal(
-        new RegExp(`\b${MAX_TOAST_HISTORY}\b`).test(row),
+        // String.raw keeps the \b word boundaries: in a plain template literal \b is a backspace and the pattern never matched.
+        new RegExp(String.raw`\b${MAX_TOAST_HISTORY}\b`).test(row),
         false,
         `KEYBINDINGS.md must reference MAX_TOAST_HISTORY instead of hard-coding ${MAX_TOAST_HISTORY}: ${row}`,
       );

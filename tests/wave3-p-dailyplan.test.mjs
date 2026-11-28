@@ -103,7 +103,9 @@ test('the stylesheet uses tokens only, the UI font for numbers and no box around
     [],
     'no monospace font in daily-plan.css',
   );
-  const rootDecls = declarations.filter((d) => d.ctx.at(-1) === '.daily-plan');
+  // A selector list such as `.x, .daily-plan { ... }` styles the root too, so match any list that names it.
+  const splitSelectors = (sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim());
+  const rootDecls = declarations.filter((d) => splitSelectors(d.ctx.at(-1) || '').includes('.daily-plan'));
   assert.ok(rootDecls.length > 0, '.daily-plan rule exists');
   assert.equal(
     rootDecls.some((d) => (d.prop === 'background' || d.prop === 'background-color') && d.value !== 'none' && d.value !== 'transparent'),
