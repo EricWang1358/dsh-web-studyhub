@@ -260,6 +260,8 @@ test('the page never puts the file into its own DOM and only the isolated frame 
 
         const cardA = libA.find((n) => n.type === ArchifyCard);
         assert.ok(cardA, 'ArchifyCard is shown initially for /lib-a');
+        assert.equal(cardA.props.hasSkeletons, true, 'Skeleton tells ArchifyCard when saved skeletons already exist');
+        assert.equal(libA.text().includes('dsh plugin'), false, 'ArchifyCard does not expose the CLI install command by default');
         await libA.act(() => cardA.props.onLater());
         assert.equal(libA.find((n) => n.type === ArchifyCard), null, 'dismissing ArchifyCard hides it immediately');
       } finally {
@@ -297,27 +299,123 @@ test('the page never puts the file into its own DOM and only the isolated frame 
   }
 });
 
-test('the recommendation card: neutral credit, both links, one install command with a copy button, the profile note and a way to put it off', () => {
+test('the recommendation card: quiet single-line hint collapsed by default; expanding reveals neutral credit, links, install command, copy button and profile note', async () => {
   m.setUiLanguage('zh');
-  const markup = renderToStaticMarkup(React.createElement(m.ArchifyCard, { root: '/lib', onLater: () => {} }));
-  assert.match(markup, /想要更漂亮、可以交互的图？推荐开源插件 Archify/);
-  assert.match(markup, /MIT/);
-  assert.match(markup, /href="https:\/\/github\.com\/tt-a1i\/archify"/);
-  assert.match(markup, /href="https:\/\/tt-a1i\.github\.io\/archify\/gallery\.html"/);
-  assert.equal([...markup.matchAll(/target="_blank"/g)].length, [...markup.matchAll(/rel="noopener noreferrer"/g)].length, 'every outside link opens safely');
-  assert.match(markup, /<code[^>]*>dsh plugin --profile web add @tt-a1i\/archify-dsh@1\.0\.0<\/code>/, 'the whole command is on screen, never cut off in a one-line field');
-  assert.match(markup, />复制</);
-  assert.match(markup, /web[^<]*profile[^<]*desktop/, 'web is the profile name and desktop is the usual one for the desktop app');
-  assert.match(markup, />以后再说</);
-  assert.doesNotMatch(markup, /官方|赞助|合作伙伴|联合出品|认证/, 'no claim of partnership or endorsement by them');
-  assert.match(markup, /与 StudyHub 没有合作关系|没有关联/);
-  assert.doesNotMatch(markup, /\stitle="/, 'no title attribute on plain text');
+  for (const hasSkeletons of [false, true]) {
+    const markup = renderToStaticMarkup(React.createElement(m.ArchifyCard, { root: '/lib', hasSkeletons, onLater: () => {} }));
+    assert.doesNotMatch(markup, /sh-panel--sunken/, 'never uses the heavy sunken panel surface');
+    assert.match(markup, /想要更漂亮、可以交互的图？推荐开源插件 Archify/);
+    assert.match(markup, /aria-expanded="false"[^>]*>了解更多</);
+    assert.match(markup, />以后再说</);
+    assert.doesNotMatch(markup, /dsh plugin/, 'CLI install command stays hidden in the default collapsed state');
+    assert.doesNotMatch(markup, />复制</, 'copy button stays inside the expandable details');
+    assert.doesNotMatch(markup, /\stitle="/, 'no title attribute on plain text');
+  }
+
   m.setUiLanguage('en');
-  const en = renderToStaticMarkup(React.createElement(m.ArchifyCard, { root: '/lib', onLater: () => {} }));
-  assert.doesNotMatch(en, han, 'the card has an English line for every sentence');
-  assert.match(en, /Want a nicer, interactive diagram\? Try the open-source plugin Archify/);
-  assert.match(en, />Copy</);
-  assert.match(en, />Maybe later</);
+  const enCollapsed = renderToStaticMarkup(React.createElement(m.ArchifyCard, { root: '/lib', hasSkeletons: true, onLater: () => {} }));
+  assert.doesNotMatch(enCollapsed, han, 'collapsed card has an English line for every string');
+  assert.match(enCollapsed, /Want a nicer, interactive diagram\? Try the open-source plugin Archify/);
+  assert.match(enCollapsed, />Learn more</);
+  assert.match(enCollapsed, />Maybe later</);
+  assert.doesNotMatch(enCollapsed, /dsh plugin/);
+
+  const interactive = await loadInteractiveUi(`
+    export { default as ArchifyCard } from './ui/ArchifyCard.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const { ArchifyCard, setUiLanguage } = interactive.exports;
+  const hi = interactive.React.createElement;
+
+  await withBrowserGlobals(async () => {
+    setUiLanguage('zh');
+    let laterCalls = 0;
+    let setHasSkeletons;
+    function Harness() {
+      const [hasSkeletons, updateHasSkeletons] = interactive.React.useState(false);
+      setHasSkeletons = updateHasSkeletons;
+      return hi(ArchifyCard, {
+        hasSkeletons,
+        onLater: () => { laterCalls += 1; },
+      });
+    }
+    const card = interactive.mount(() => hi(Harness));
+    try {
+      const toggleBtn = () => card.find((n) => n.type === 'button' && 'aria-expanded' in (n.props || {}));
+      const laterBtn = () => card.find((n) => n.type === 'button' && card.text(n).trim() === '以后再说');
+
+      assert.equal(toggleBtn().props['aria-expanded'], false);
+      assert.equal(card.text(toggleBtn()).trim(), '了解更多');
+      assert.equal(card.text().includes('dsh plugin'), false, 'CLI command is hidden before expanding');
+
+      // Clicking 以后再说 triggers onLater without expanding details
+      await card.act(() => click(laterBtn()));
+      assert.equal(laterCalls, 1);
+      assert.equal(toggleBtn().props['aria-expanded'], false);
+
+      // Clicking 了解更多 expands the details with full neutral credit, safe outside links, CLI command, copy button and profile note
+      await card.act(() => click(toggleBtn()));
+      assert.equal(toggleBtn().props['aria-expanded'], true);
+      assert.equal(card.text(toggleBtn()).trim(), '收起');
+      const panelId = toggleBtn().props['aria-controls'];
+      assert.ok(panelId, 'expanded toggle points aria-controls at the disclosure region');
+      const details = card.find((n) => n.props?.id === panelId);
+      assert.ok(details, 'disclosure region with matching id is mounted');
+
+      const expandedText = card.text(details);
+      assert.match(expandedText, /MIT/);
+      assert.match(expandedText, /与 StudyHub 没有合作关系|没有关联/);
+      assert.doesNotMatch(expandedText, /官方|赞助|合作伙伴|联合出品|认证/, 'no claim of partnership or endorsement by them');
+      assert.match(expandedText, /web.*profile.*desktop/, 'web is the profile name and desktop is the usual one for the desktop app');
+
+      const codeEl = card.find((n) => n.type === 'code', details);
+      assert.ok(codeEl, 'expanded view renders the install command in <code>');
+      assert.equal(card.text(codeEl).trim(), 'dsh plugin --profile web add @tt-a1i/archify-dsh@1.0.0');
+      assert.ok(card.find((n) => n.type === 'button' && card.text(n).trim() === '复制', details), 'expanded view has a 复制 button');
+
+      const links = card.findAll((n) => n.type === 'a', details);
+      assert.deepEqual(links.map((a) => a.props.href), [m.ARCHIFY.repo, m.ARCHIFY.gallery]);
+      for (const link of links) {
+        assert.equal(link.props.target, '_blank', 'outside link opens in a new tab');
+        assert.equal(link.props.rel, 'noopener noreferrer', 'every outside link opens safely');
+      }
+      for (const node of card.findAll(() => true)) {
+        assert.equal(node.props?.title, undefined, 'no title attribute on plain text');
+      }
+
+      // When skeletons become present (false -> true), an open recommendation collapses by default
+      await card.act(() => setHasSkeletons(true));
+      assert.equal(toggleBtn().props['aria-expanded'], false, 'collapses when saved skeletons appear');
+      assert.equal(card.text().includes('dsh plugin'), false);
+
+      // Even with saved skeletons, the learner can still expand and collapse on demand
+      await card.act(() => click(toggleBtn()));
+      assert.equal(toggleBtn().props['aria-expanded'], true);
+      assert.ok(card.text().includes('dsh plugin --profile web add @tt-a1i/archify-dsh@1.0.0'));
+      await card.act(() => click(toggleBtn()));
+      assert.equal(toggleBtn().props['aria-expanded'], false);
+      assert.equal(card.text().includes('dsh plugin'), false);
+    } finally {
+      card.unmount();
+    }
+
+    // Expanded English check: zero leaked Han characters
+    setUiLanguage('en');
+    const enCard = interactive.mount(() => hi(ArchifyCard, { hasSkeletons: false, onLater: () => {} }));
+    try {
+      const enToggle = enCard.find((n) => n.type === 'button' && 'aria-expanded' in (n.props || {}));
+      await enCard.act(() => click(enToggle));
+      const fullEnText = enCard.text();
+      assert.doesNotMatch(fullEnText, han, 'expanded card has an English line for every sentence');
+      assert.match(fullEnText, /Collapse/);
+      assert.match(fullEnText, /Copy/);
+      assert.match(fullEnText, /Maybe later/);
+      assert.match(fullEnText, /dsh plugin --profile web add @tt-a1i\/archify-dsh@1\.0\.0/);
+    } finally {
+      enCard.unmount();
+      setUiLanguage('zh');
+    }
+  });
   m.setUiLanguage('zh');
 });
 

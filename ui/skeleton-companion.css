@@ -2,17 +2,24 @@
 
 @layer study.features {
   :where(.study-app, .study-seat) {
-    /* 推荐 Archify (ui/ArchifyCard.jsx): one quiet recessed block at the end of the 知识骨架 page. Tokens only; it never grows when a copy is made. */
-    .sk-archify { display: grid; gap: var(--space-2); min-width: 0; margin-top: var(--space-4); }
-    .sk-archify__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-    .sk-archify__head strong { font-size: var(--fs-md); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    /* 推荐 Archify (ui/ArchifyCard.jsx): one quiet hairline strip at the end of the 知识骨架 page, collapsed by default. Tokens only; it never grows when a copy is made. */
+    .sk-archify {
+      display: grid; gap: var(--space-2-5); min-width: 0; margin-top: var(--space-4);
+      padding: var(--space-2) var(--space-3); border: 1px solid var(--line-soft); border-radius: var(--radius-sm);
+      background: transparent; color: var(--text-muted); font-size: var(--fs-sm);
+    }
+    .sk-archify__bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-1-5) var(--space-3); min-width: 0; }
+    .sk-archify__hint { min-width: 0; line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .sk-archify__actions { display: flex; align-items: center; flex: none; gap: var(--space-3); --sh-link-ink: var(--text-dim); }
+    .sk-archify__later { --sh-link-ink: var(--text-muted); }
+    .sk-archify__details { display: grid; gap: var(--space-2); min-width: 0; padding-top: var(--space-2-5); border-top: 1px solid var(--line-soft); color: var(--text-dim); }
     .sk-archify__text, .sk-archify__credit, .sk-archify__note { margin: 0; line-height: var(--lh-body); overflow-wrap: anywhere; }
     .sk-archify__credit a { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--accent-text); }
     .sk-archify__install { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
     .sk-archify__label { flex: none; font-size: var(--fs-sm); color: var(--text-muted); }
     .sk-archify__command {
       flex: 1 1 280px; min-width: 0; padding: var(--space-1-5) var(--space-3);
-      border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg-surface);
+      border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg-surface); color: var(--text);
       font-family: var(--font-stack-mono); font-size: var(--fs-xs); line-height: var(--lh-snug);
       white-space: pre-wrap; overflow-wrap: anywhere; user-select: all;
     }
