@@ -226,10 +226,11 @@ test('发给主会话 at the dead ends of adding files and of jobs: only once th
     const panel = page.locator('.generate-panel');
     const before = await panel.locator('[data-hand-off="import.file"]').count();
     assert.equal(before, 1, `${tag}: before anything failed, only the line under the prompts`);
-    // Since #1750 the prompts and this line sit in the closed fold after the import form (获取各题型 JSON 提示词与格式示例).
     const promptFold = panel.locator('details.json-prompt-fold');
-    await promptFold.locator(':scope > summary').click();
-    text = await handOver(promptFold.locator('[data-hand-off="import.file"]'), { name: 'n4-json-word', first: '我在 StudyHub 的「导入 JSON 题组」想把文件里已有的题目原样录进题组' });
+    if (await promptFold.count() && !(await promptFold.evaluate((el) => el.open))) {
+      await promptFold.locator('> summary').click();
+    }
+    text = await handOver(panel.locator('details.json-prompt-fold [data-hand-off="import.file"]'), { name: 'n4-json-word', first: '我在 StudyHub 的「导入 JSON 题组」想把文件里已有的题目原样录进题组' });
     await panel.locator('input[type=file]').first().setInputFiles({ name: '错题本.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.from('x') });
     await roomy(panel.locator('.sh-drop__rejects'), 'n2-json-reject');
     assert.equal(await panel.locator('.sh-drop__rejects .sh-inline__text .sh-inline__actions .sh-inline__secondary').count(), 1, `${tag}: under the list`);
@@ -303,10 +304,10 @@ test('发给主会话 at the dead ends of adding files and of jobs: only once th
     text = await handOver(summary.locator('.sh-inline__secondary'), { name: 'n3-hub-summary', first: '我在 StudyHub 的「添加资料」想把这些 StudyHub 不收的文件导入进来' });
     assert.match(text, /旧讲义\.doc: 暂不支持旧版 \.doc/);
     await hubInput.setInputFiles({ name: '整本教材.pdf', mimeType: 'application/pdf', buffer: Buffer.alloc(9 * 1024 * 1024, 32) });
-    // Since #1750 the hand-off sits with the other ways in the closed 其他导入方式 (online parsing, 发给主会话, advanced tools).
-    const alternatives = hub.locator('.large-doc details.large-doc__alternatives').first();
-    await alternatives.locator(':scope > summary').click({ timeout: 30000 });
-    const large = alternatives.locator('[data-hand-off="import.file"]').first();
+    const altFold = hub.locator('.large-doc .large-doc__alternatives');
+    await altFold.waitFor({ timeout: 30000 });
+    if (!(await altFold.evaluate((el) => el.open))) await altFold.locator('> summary').click();
+    const large = hub.locator('.large-doc [data-hand-off="import.file"]').first();
     text = await handOver(large, { name: 'n10-large-pdf', first: '我在 StudyHub 的「添加资料」想把这份文件导入成学习资料' });
     assert.match(text, /整本教材\.pdf/);
     assert.match(text, /- 拆分：PDF 超过页数上限时，不管 pages 怎么写都会被拒绝：先按章拆成几个文件再导入/);
