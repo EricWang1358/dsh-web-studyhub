@@ -289,3 +289,19 @@ test('a saved strategy reads as its depth, and choosing a depth saves the strate
   await submit(view);
   assert.equal(calls[1].strategy, 'staged');
 });
+
+test('a saved setting from a newer release stays in the editor but is never submitted, so saving an edit still works (#1629)', async () => {
+  const calls = [];
+  const view = editor({ saved: { ...GENERATION_SETTINGS_DEFAULTS, learnerLevel: 'zero', futureGenFlag: 'adaptive-v2' },
+    act: async (action, args, after) => { calls.push({ action, args }); after({ generation: { ...args.generation, futureGenFlag: 'adaptive-v2' } }); } });
+  view.render(); view.effects();
+  edit(view, 'count', '18');
+  await submit(view);
+  assert.equal(calls.length, 1, 'the save reached the server');
+  assert.equal(calls[0].action, 'settings');
+  assert.equal(calls[0].args.generation.count, 18);
+  assert.equal(Object.hasOwn(calls[0].args.generation, 'futureGenFlag'), false, 'only keys the form owns are sent');
+  assert.equal(calls[0].args.generation.learnerLevel, 'zero', 'a key the form owns keeps its saved value');
+  assert.deepEqual(Object.keys(calls[0].args.generation).sort(), Object.keys(GENERATION_SETTINGS_DEFAULTS).sort());
+  assert.equal(find(view.render(), node => node.props?.role === 'alert'), null, 'no error is shown');
+});

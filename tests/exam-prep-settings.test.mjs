@@ -40,7 +40,7 @@ test('resolve gives the full object whether or not anything was saved, as a fres
 
 test('normalizeExamPrepSettings falls back invalid autoRoles/language/showOtherCourses/paperWords values while keeping valid fields', () => {
   for (const raw of [undefined, null, [], 'x', 7]) assert.deepEqual(normalizeExamPrepSettings(raw), expected);
-  assert.deepEqual(normalizeExamPrepSettings({ autoRoles: 'yes', language: 'fr', showOtherCourses: 1, paperWords: 'mock', unknown: 1 }), expected);
+  assert.deepEqual(normalizeExamPrepSettings({ autoRoles: 'yes', language: 'fr', showOtherCourses: 1, paperWords: 'mock', unknown: 1 }), { ...expected, unknown: 1 });
   assert.deepEqual(normalizeExamPrepSettings({ autoRoles: false, language: 'zh', showOtherCourses: true, paperWords: ['mock'] }),
     { autoRoles: false, paperWords: ['mock'], language: 'zh', showOtherCourses: true, enabled: true });
   assert.deepEqual(normalizeExamPrepSettings({ autoRoles: false, language: 'klingon' }), { ...expected, autoRoles: false });
@@ -197,7 +197,7 @@ test('export/restore preserves settings.examPrep and sanitizes malformed paperWo
   const corrupt = JSON.parse(JSON.stringify(backup));
   corrupt.settings.examPrep = { autoRoles: 'x', language: 'zh', paperWords: ['ok', '', 5], showOtherCourses: 'y', extra: 1 };
   await service.call('restore', { state: corrupt });
-  assert.deepEqual(await saved(service), { autoRoles: true, paperWords: ['ok'], language: 'zh', showOtherCourses: false, enabled: true });
+  assert.deepEqual(await saved(service), { autoRoles: true, paperWords: ['ok'], language: 'zh', showOtherCourses: false, enabled: true, extra: 1 });
   corrupt.settings.examPrep = 'garbage';
   await service.call('restore', { state: corrupt });
   assert.deepEqual(await saved(service), expected);

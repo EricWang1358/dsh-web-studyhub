@@ -37,7 +37,7 @@ test('resolve gives the full object whether or not anything was saved', () => {
 
 test('normalizePracticeSettings falls back invalid autopilot/roundSize/newCardOrder/debrief values to defaults while keeping valid siblings', () => {
   for (const raw of [undefined, null, [], 'x', 7]) assert.deepEqual(normalizePracticeSettings(raw), expected);
-  assert.deepEqual(normalizePracticeSettings({ autopilot: 'yes', roundSize: '20', debrief: 0, unknown: 1 }), expected);
+  assert.deepEqual(normalizePracticeSettings({ autopilot: 'yes', roundSize: '20', debrief: 0, unknown: 1 }), { ...expected, unknown: 1 });
   assert.deepEqual(normalizePracticeSettings({ autopilot: true, roundSize: 30, debrief: false }), { ...expected, autopilot: true, roundSize: 30, debrief: false });
   for (const roundSize of [4, 51, 12.5, NaN, Infinity, -1, 0]) assert.equal(normalizePracticeSettings({ roundSize, autopilot: true }).roundSize, 20, String(roundSize));
   assert.equal(normalizePracticeSettings({ roundSize: 5 }).roundSize, 5);
@@ -166,7 +166,7 @@ test('export/restore round-trips settings.practice and heals corrupt practice fi
   const corrupt = JSON.parse(JSON.stringify(backup));
   corrupt.settings.practice = { autopilot: 'x', roundSize: 12, debrief: 'y', extra: 1 };
   await service.call('restore', { state: corrupt });
-  assert.deepEqual(await saved(service), { ...expected, autopilot: false, roundSize: 12, debrief: true });
+  assert.deepEqual(await saved(service), { ...expected, autopilot: false, roundSize: 12, debrief: true, extra: 1 });
   corrupt.settings.practice = 'garbage';
   await service.call('restore', { state: corrupt });
   assert.deepEqual(await saved(service), expected);

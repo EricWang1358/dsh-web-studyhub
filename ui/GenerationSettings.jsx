@@ -107,7 +107,10 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
     event.preventDefault();
     if (busy || pending.current || invalid || !dirty || typeof act !== 'function') return;
     const owner = scope.current, revision = version.current, operation = {};
-    const generation = validateGenerationPatch(numbers(editor.values), capOptions);
+    // The editor also carries settings from a newer release (kept so a rollback loses nothing); the form submits only what it owns and the server merge keeps the rest.
+    const edited = numbers(editor.values);
+    const known = Object.fromEntries(Object.keys(GENERATION_SETTINGS_DEFAULTS).filter(key => Object.hasOwn(edited, key)).map(key => [key, edited[key]]));
+    const generation = validateGenerationPatch(known, capOptions);
     pending.current = operation; setWorking(true); setError('');
     const current = () => owner.live && owner.root === root && scope.current === owner && pending.current === operation;
     try {
