@@ -432,15 +432,17 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
   useEffect(() => {
     if (!focusRequest) return undefined;
     const frame = requestAnimationFrame(() => {
+      if (focusRequest.skipOpenDialog && rootRef.current?.querySelector('dialog[open]')) return;
       // A page that put the learner back at a place of its own (the review book: the point they left) names its heading; that one takes the focus, where it is.
       const placed = rootRef.current?.querySelector('[data-return-focus]');
       const target = focusRequest.element?.isConnected && focusRequest.element.getClientRects().length ? focusRequest.element
         : placed?.getClientRects().length ? placed
-          : [...(rootRef.current?.querySelectorAll('dialog[open] h2, .question[role="heading"], [data-context-heading], main .page h1, main .page h2') || [])]
+          : [...(rootRef.current?.querySelectorAll('dialog[open] h2, .question-card, .question[role="heading"], [data-context-heading], main .page h1, main .page h2') || [])]
             .find((element) => element.getClientRects().length);
       if (target) {
+        if (target.contains(document.activeElement)) return;
         if (!target.matches('button,a,input,select,textarea,[tabindex]')) target.setAttribute('tabindex', '-1');
-        target.focus(target === placed ? { preventScroll: true } : undefined);
+        target.focus(target === placed || focusRequest.preventScroll ? { preventScroll: true } : undefined);
       }
     });
     return () => cancelAnimationFrame(frame);

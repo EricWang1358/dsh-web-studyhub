@@ -15,7 +15,7 @@ import SidebarFooter from './SidebarFooter.jsx';
    - a drawer (#657): when the learner put it away, and whenever the workspace is narrow (a DSH panel is often 420 px wide). It opens inside
      StudyHub's own page (use-drawer-frame.js), never along the edge of the whole DSH window. The top bar's
      menu button (AppTopbar.jsx, data-tour="nav-menu") opens it; it is the shared Dialog, so it holds the focus, closes on Esc, on its close
-     button and on the backdrop, and gives the focus back to the menu button. It has every label: there is no row of bare icons.
+     button and on the backdrop (giving focus back to the menu button), while leaving through a nav item hands focus to the destination page (#1679). It has every label: there is no row of bare icons.
    Both forms draw the same rows (SidebarNav, SidebarFooter). In the drawer, choosing a page closes it. */
 
 function Brand({ onCollapse }) {
@@ -37,7 +37,12 @@ const AppSidebar = React.memo(function AppSidebar() {
   useInjectCss(css, 'study-app-shell');
   useInjectCss(drawerCss, 'study-nav-drawer');
   const shell = useAppSelector((s) => s.shell);
+  const setFocusRequest = useAppSelector((s) => s.set?.setFocusRequest);
   const { alert, reason, tasks } = useNavAlert();
+  // Dismissing the drawer (Esc, backdrop, close button) returns focus to the top-bar menu toggle;
+  // leaving through a nav item hands focus to the destination page instead (#1679).
+  const restoreFocusRef = React.useRef(true);
+  React.useLayoutEffect(() => { if (shell.navOpen) restoreFocusRef.current = true; }, [shell.navOpen]);
   useDrawerFrame(shell.rootRef, shell.navDrawer && shell.navOpen);
   const body = (<><SidebarNav alert={alert} reason={reason} tasks={tasks} /><SidebarFooter /></>);
   if (!shell.navDrawer) {
@@ -46,13 +51,21 @@ const AppSidebar = React.memo(function AppSidebar() {
   if (!shell.navOpen) return null;
   const close = () => shell.setNavOpen(false);
   // A row that leads somewhere closes the drawer once it has done its work; a fold (更多, 帮助) and the glossary keep it open.
-  const leave = (event) => { if (event.target.closest?.('button.nav:not([aria-expanded]):not([data-keep-open])')) close(); };
+  const leave = (event) => {
+    const row = event.target.closest?.('button.nav:not([aria-expanded]):not([data-keep-open])');
+    if (!row) return;
+    restoreFocusRef.current = false;
+    close();
+    if (!row.matches('.finder-nav, .shortcut-nav, .tour-nav')) {
+      setFocusRequest?.({ preventScroll: true, skipOpenDialog: true });
+    }
+  };
   return (
-    <Dialog className="nav-drawer" headerClassName="nav-drawer__header" titleClassName="nav-drawer__title" bodyClassName="nav-drawer__body" contentClassName="nav-drawer__content" size="full" title={ui('导航')} closeLabel={ui('关闭导航')} onClose={close}>
+    <Dialog className="nav-drawer" headerClassName="nav-drawer__header" titleClassName="nav-drawer__title" bodyClassName="nav-drawer__body" contentClassName="nav-drawer__content" size="full" title={ui('导航')} closeLabel={ui('关闭导航')} restoreFocus={() => restoreFocusRef.current} onClose={close}>
       <div className="sidebar is-drawer" onClick={leave}>
         {body}
         {!shell.narrowWindow && (
-          <Button variant="quiet" size="sm" icon="panel" className="nav-dock" data-usage="nav.collapse" onClick={() => { shell.setSidebarCollapsed(false); close(); }}>
+          <Button variant="quiet" size="sm" icon="panel" className="nav-dock" data-usage="nav.collapse" onClick={() => { restoreFocusRef.current = false; shell.setSidebarCollapsed(false); close(); }}>
             {ui('把侧栏固定在左边')}
           </Button>
         )}

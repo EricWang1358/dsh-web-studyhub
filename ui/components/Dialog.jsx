@@ -59,7 +59,8 @@ function lockScroll(dialog) {
  * Every modal in StudyHub. A native <dialog> opened with showModal(): it sits
  * in the browser's top layer (above the DSH composer and any z-index), makes
  * the rest of the page inert, closes on Escape / the close button / a backdrop
- * click, and returns focus to whatever opened it. Mount it to open it and
+ * click, and returns focus to whatever opened it (unless `restoreFocus` is
+ * false or returns false, e.g. a navigation drawer leaving for another page). Mount it to open it and
  * unmount it to close it; onClose(reason) asks the owner to unmount it.
  * size: sm | md | lg | media (fits an image, below 70dvh) | full. `footer` stays visible while the body scrolls.
  * Outside every study surface it carries its own scope (the .study-app class and the saved appearance), so it is styled wherever it opens.
@@ -68,20 +69,20 @@ function lockScroll(dialog) {
  * is aria-busy. `guardDrops` keeps a stray file drop on the dialog (its header
  * or margins) away from the browser and the host chat.
  */
-export default function Dialog({ title, description, onClose, size = 'md', footer, children, dismissible = true, initialFocus,
+export default function Dialog({ title, description, onClose, size = 'md', footer, children, dismissible = true, initialFocus, restoreFocus = true,
   bodyLabel, closeLabel, busy = false, guardDrops = false, className, headerClassName, titleClassName, bodyClassName, contentClassName, footerClassName, open: _open, ...rest }) {
   useComponentCss(css);
   useComponentCss(overlayCss, 'study-overlays');
   useComponentCss(mediaCss, 'study-dialog-media');
   const [own, setOwn] = useState(null);
   const [scrollable, setScrollable] = useState(false);
-  const ref = useRef(null), bodyRef = useRef(null), pointerDown = useRef(null), closing = useRef(false), onCloseRef = useRef(onClose);
+  const ref = useRef(null), bodyRef = useRef(null), pointerDown = useRef(null), closing = useRef(false), onCloseRef = useRef(onClose), restoreFocusRef = useRef(restoreFocus);
   const canDismiss = dismissible && !busy;
   const [entry] = useState(() => ({ dialog: null }));
   const top = useTopDialog();
   const titleId = useId(), descriptionId = useId();
   const kind = SIZES.has(size) ? size : 'md';
-  useLayoutEffect(() => { onCloseRef.current = onClose; });
+  useLayoutEffect(() => { onCloseRef.current = onClose; restoreFocusRef.current = restoreFocus; });
   useLayoutEffect(() => {
     const body = bodyRef.current;
     if (!body) return undefined;
@@ -115,8 +116,11 @@ export default function Dialog({ title, description, onClose, size = 'md', foote
       if (dialog.open) {
         try { dialog.close(); } catch { dialog.removeAttribute('open'); }
       }
+      const shouldRestore = typeof restoreFocusRef.current === 'function'
+        ? restoreFocusRef.current()
+        : restoreFocusRef.current !== false;
       const active = document.activeElement;
-      if (opener?.isConnected && typeof opener.focus === 'function' && (!active || active === document.body || dialog.contains(active)))
+      if (shouldRestore && opener?.isConnected && typeof opener.focus === 'function' && (!active || active === document.body || dialog.contains(active)))
         opener.focus({ preventScroll: true });
     };
     // Opening is tied to mounting; the owner unmounts the dialog to close it.

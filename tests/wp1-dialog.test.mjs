@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
 
 // P04 / P54: every modal is a native <dialog> opened with showModal(), so it
 // lives in the top layer above the DSH composer, with a footer that stays
@@ -97,4 +98,41 @@ test('English dialog chrome contains no Chinese', () => {
   assert.doesNotMatch(out, han);
   assert.match(out, /aria-label="Close"/);
   m.setUiLanguage('zh');
+});
+
+test('Dialog restoreFocus defaults to true and skips returning focus to opener when false or predicate returns false (#1679)', async () => {
+  const interactive = await loadInteractiveUi(`
+    export { default as Dialog } from './ui/components/Dialog.jsx';
+  `);
+  const ih = interactive.React.createElement;
+  await withBrowserGlobals(async () => {
+    const runCase = async (restoreFocus) => {
+      let focused = 0;
+      const opener = { isConnected: true, focus() { focused += 1; } };
+      globalThis.document.activeElement = opener;
+      const mounted = interactive.mount(() => ih(interactive.exports.Dialog, { title: '导航', onClose() {}, restoreFocus }, ih('p', null, 'item')));
+      await mounted.flush(2);
+      // Simulate browser moving focus into/off the modal dialog before unmount.
+      globalThis.document.activeElement = globalThis.document.body;
+      mounted.unmount();
+      await mounted.flush(2);
+      return focused;
+    };
+    assert.equal(await runCase(undefined), 1, 'default restores focus to opener');
+    assert.equal(await runCase(true), 1, 'explicit true restores focus to opener');
+    assert.equal(await runCase(false), 0, 'false skips returning focus to opener');
+    let allow = true;
+    const pred = () => allow;
+    let focused = 0;
+    const opener = { isConnected: true, focus() { focused += 1; } };
+    globalThis.document.activeElement = opener;
+    const mounted = interactive.mount(() => ih(interactive.exports.Dialog, { title: '导航', onClose() {}, restoreFocus: pred }, ih('p', null, 'item')));
+    await mounted.flush(2);
+    globalThis.document.activeElement = globalThis.document.body;
+    // Flip right before unmount, matching AppSidebar leaving through a nav item on the same click that unmounts Dialog.
+    allow = false;
+    mounted.unmount();
+    await mounted.flush(2);
+    assert.equal(focused, 0, 'predicate returning false right before unmount skips returning focus to opener');
+  });
 });
