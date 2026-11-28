@@ -8,11 +8,15 @@ import { loadUi } from './helpers/ui-module.mjs';
 /* 3.0.2: the mistakes page opens grouped by deck with every group folded, and has a filter bar (deck, status, text). The pure functions behind
    it (ui/wrongbook-model.js) and the rendered page are tested here; the real browser at 1280 and 420 px is tests/wrongbook-filters-browser.test.mjs. */
 
-const m = await loadUi(`export { WrongBookView } from './ui/WrongBook.jsx';
+const m = await loadUi(`export { WrongBookView, wrongBookHeadline } from './ui/WrongBook.jsx';
   export * from './ui/wrongbook-model.js';
   export { setUiLanguage, uiCatalogue } from './ui/i18n.js';`);
-Object.assign(m.uiCatalogue(), JSON.parse(readFileSync(new URL('../ui/locales/en.polish-results.json', import.meta.url), 'utf8')));
-const { WrongBookView, groupRows, filterRows, filterActive, NO_FILTER, statusOf, groupSummary, groupSummaryText, deckChoices, scopedFilter, readGroupBy, saveGroupBy,
+Object.assign(
+  m.uiCatalogue(),
+  JSON.parse(readFileSync(new URL('../ui/locales/en.polish-results.json', import.meta.url), 'utf8')),
+  JSON.parse(readFileSync(new URL('../ui/locales/en.case.json', import.meta.url), 'utf8')),
+);
+const { WrongBookView, wrongBookHeadline, groupRows, filterRows, filterActive, NO_FILTER, statusOf, groupSummary, groupSummaryText, deckChoices, scopedFilter, readGroupBy, saveGroupBy,
   readOpenGroups, saveOpenGroups, SORT_KINDS, sortGroupRows, readSortBy, saveSortBy, sameVariantState, variantState, VARIANT_BATCH_CAP, setUiLanguage } = m;
 const noop = () => {};
 const han = /\p{Script=Han}/u;
@@ -566,5 +570,55 @@ test('#50: search query highlights matches with .wb-hit in meta and plain text w
   assert.match(html, /<span class="wb-meta"><span class="wb-hit">状态<\/span>|<span class="wb-meta">[^<]*<span class="wb-hit">状态<\/span>/);
   assert.match(html, /<span class="wb-prompt"><span class="wb-hit">状态<\/span>转移满足 /);
   assert.match(html, /katex|x\^2/, 'inline math stays rendered cleanly alongside highlighted prose');
+});
+
+test('#1449-8: rubric mistakes render headline toggle, filter chip, amber badge/tooltip, and history headline in zh & en', () => {
+  setUiLanguage('zh');
+  const rubricItems = [
+    ...items,
+    row('r1', 'd4', '案例分析', '请结合架构权衡分析该方案', 'rubric', '2026-10-01T14:00:00Z'),
+    row('r2', 'd2', '实操验收', '实现超时重试并验证边界', 'rubric', '2026-10-01T15:00:00Z'),
+  ];
+  const weakHtml = render({
+    items: rubricItems,
+    counts: { total: 7, graded: 4, self: 1, oral: 0, rubric: 2 },
+    initial: { groups: 'all' },
+  });
+  assert.match(buttonWith(weakHtml, '按评分标准批改未达标 2 题') || '', /wb-count-toggle/, 'headline shows rubric count toggle');
+  assert.match(buttonWith(weakHtml, '批改未达标 2') || '', /aria-pressed="false"/, 'filter bar shows rubric status chip');
+  assert.match(weakHtml, /class="wb-grade self"[^>]*>[\s\S]*?批改未达标/, 'rubric row uses amber .wb-grade.self badge with 批改未达标');
+  assert.match(weakHtml, /最近一次按评分标准批改：得分不足六成/, 'rubric tooltip explains rubric threshold');
+
+  // Filtering by rubric narrows strictly to the 2 rubric rows
+  const filteredHtml = render({
+    items: rubricItems,
+    counts: { total: 7, graded: 4, self: 1, oral: 0, rubric: 2 },
+    initial: { groups: 'all', filter: { status: 'rubric' } },
+  });
+  assert.match(text(filteredHtml), /显示 2 \/ 共 7 题/);
+  assert.equal(count(filteredHtml, /class="wb-row[ "]/g), 2);
+  assert.match(buttonWith(filteredHtml, '批改未达标 2') || '', /aria-pressed="true"/);
+
+  // History view with only rubric mistakes must report rubric count instead of empty-state copy
+  const historyOnlyRubric = renderToStaticMarkup(React.createElement(
+    'p',
+    null,
+    wrongBookHeadline({ isHistory: true, counts: { total: 1, graded: 0, self: 0, oral: 0, rubric: 1 } }),
+  ));
+  assert.match(text(historyOnlyRubric), /已订正的错题：按评分标准批改未达标 1 题。/);
+  assert.doesNotMatch(text(historyOnlyRubric), /答对一次后，错题会移到这里/);
+
+  setUiLanguage('en');
+  try {
+    const historyEn = renderToStaticMarkup(React.createElement(
+      'p',
+      null,
+      wrongBookHeadline({ isHistory: true, counts: { total: 1, graded: 0, self: 0, oral: 0, rubric: 1 } }),
+    ));
+    assert.match(text(historyEn), /Below the mark on rubric grading: 1/);
+    assert.doesNotMatch(text(historyEn), han);
+  } finally {
+    setUiLanguage('zh');
+  }
 });
 
