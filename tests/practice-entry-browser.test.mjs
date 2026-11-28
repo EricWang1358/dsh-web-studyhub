@@ -13,7 +13,9 @@ import { until } from '../scripts/qa/layout-late.mjs';
 
 /* Entering a practice round, the way a learner does it (the sidebar's 回到题目), with the sample course and the fake model in the browser preview.
    #1678: the first flashcard sits where the later ones sit (pinned under the top bar), and once it is flipped the six 0–5 grade buttons are wholly on screen
-   without scrolling, at 1440×900, 1536×730 and 1280×720; the first card keeps the focus through its flip, as the next ones do.
+   without scrolling, at 1440×900, 1536×730 and 1280×720; the first card keeps the focus through its flip, as the next ones do. At 界面大小 150% those windows
+   are short (600 px of the app's own or less), so the row is one line per button and sticks to the bottom over the card: all six are in the window and
+   clickable for two cards running, Tab never leaves the focus under the row, and the answer's last line still scrolls above it.
    #1679: in a narrow pane (420 wide) the sidebar is a drawer. Going to the practice page through it, by mouse and by keyboard, leaves the focus on the question
    card, so Space flips the card instead of opening the drawer again, also when the practice page was already on screen; closing the drawer with Esc still gives
    the focus back to the button that opened it.
@@ -115,11 +117,16 @@ async function setup(t) {
   return { browser, server, api };
 }
 
-async function openPractice({ browser, server, api }, { width, height }) {
-  // A fresh round of the sample deck, opened from the sidebar the way the walk-through did it.
-  await api('review.start', { deckId: 'sample-deck-patterns', mode: 'path', fresh: true });
+async function openPractice({ browser, server, api }, { width, height, scale = 100, mode = 'path' }) {
+  // A fresh round of the sample deck, opened from the sidebar the way the walk-through did it; `scale` is 界面大小 (设置 › 界面) in percent.
+  await api('review.start', { deckId: 'sample-deck-patterns', mode, fresh: true });
   const context = await browser.newContext({ viewport: { width, height }, locale: 'zh-CN' });
-  await context.addInitScript(() => { try { localStorage.setItem('study-ui-language', 'zh'); } catch { /* blocked */ } });
+  await context.addInitScript((size) => {
+    try {
+      localStorage.setItem('study-ui-language', 'zh');
+      if (size !== 100) localStorage.setItem('study-interface', JSON.stringify({ scale: size }));
+    } catch { /* blocked */ }
+  }, scale);
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (error) => errors.push(String(error)));
@@ -146,6 +153,9 @@ test('#1678: the first flashcard is pinned like the next ones and, flipped, show
       assert.ok(flipped.bottoms.every((bottom) => bottom <= flipped.vh), `${tag}: every grade button ends inside the window (${JSON.stringify(flipped)})`);
       assert.ok(flipped.tops.every((top) => top >= flipped.barBottom), `${tag}: and starts below the top bar (${JSON.stringify(flipped)})`);
       assertGradingLayout(await gradingLayout(page), tag);
+      // At 100% these windows are not short (ui/use-short-view.js): the row keeps its full look, each button with its gap under the words.
+      assert.equal(await page.locator('.grading--short').count(), 0, `${tag}: the full grade row, not the short window's one-line row`);
+      assert.equal(await page.locator('.grade .grade-gap').count(), 6, `${tag}: every grade button says its gap under its words`);
       // The next card is pinned by the page itself; the first one must open in the same place.
       await page.keyboard.press('4');
       await page.waitForFunction((selector) => document.querySelectorAll(selector).length === 0, GRADES, { timeout: 20000 });
@@ -154,6 +164,103 @@ test('#1678: the first flashcard is pinned like the next ones and, flipped, show
       const second = await settledCardTop(page);
       assert.ok(Math.abs(first.top - second.top) <= 2, `${tag}: the first card opens where the second one does (${first.top} vs ${second.top})`);
       assert.deepEqual(errors, [], `${tag}: no page errors`);
+    } finally { await context.close(); }
+  }
+});
+
+/** The flipped card under 界面大小: each grade button's box, and whether the window shows that button at its middle (nothing drawn over it). */
+const gradeReach = (page) => page.evaluate((selector) => {
+  const bar = document.querySelector('main > .topbar')?.getBoundingClientRect();
+  return { vh: window.innerHeight, barBottom: Math.round(bar?.bottom ?? 0),
+    grades: [...document.querySelectorAll(selector)].filter((button) => button.getClientRects().length).map((button) => {
+      const box = button.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      return { grade: button.dataset.grade, top: Math.round(box.top), bottom: Math.round(box.bottom), hit: !!hit && button.contains(hit) };
+    }) };
+}, GRADES);
+
+/** Scrolls the answer's last line to just above the area under the card (the grade row), as far as the page lets it, and says where that line ends up. */
+const answerLastLine = (page) => page.evaluate(() => {
+  const answer = document.querySelector('.flip-back .flash-prompt');
+  const follow = document.querySelector('.flash-follow');
+  let scroller = answer.parentElement;
+  while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement;
+  const drawn = scroller.getBoundingClientRect().width / scroller.offsetWidth;
+  const lastLine = () => { const range = document.createRange(); range.selectNodeContents(answer); return [...range.getClientRects()].filter((rect) => rect.width > 0).at(-1); };
+  for (let i = 0; i < 3; i++) {
+    const over = lastLine().bottom - follow.getBoundingClientRect().top;
+    if (over <= 0) break;
+    scroller.scrollTop += Math.ceil(over / drawn) + 4;
+  }
+  const line = lastLine(), row = follow.getBoundingClientRect(), bar = document.querySelector('main > .topbar').getBoundingClientRect();
+  // The card's flip button lies over its faces, so what the window shows there is the card (that button), not the row or the top bar.
+  const hit = document.elementFromPoint(line.left + line.width / 2, line.top + line.height / 2);
+  return { top: Math.round(line.top), bottom: Math.round(line.bottom), rowTop: Math.round(row.top), barBottom: Math.round(bar.bottom), shown: !!hit?.closest('.flashcard') };
+});
+
+/** Tabs forward from the question card into the grade row and says, for each stop before the row, its box and the row's top edge then. */
+const tabToGrades = (page) => page.evaluate(() => ({ barBottom: Math.round(document.querySelector('main > .topbar').getBoundingClientRect().bottom) }))
+  .then(async ({ barBottom }) => {
+    const stops = [];
+    for (let i = 0; i < 12; i++) {
+      await page.keyboard.press('Tab');
+      const stop = await page.evaluate(() => {
+        const active = document.activeElement, follow = document.querySelector('.flash-follow');
+        if (!active || follow.contains(active) || !active.closest('.question-card')) return null;
+        const box = active.getBoundingClientRect();
+        return { what: active.getAttribute('aria-label') || active.className, top: Math.round(box.top), bottom: Math.round(box.bottom), rowTop: Math.round(follow.getBoundingClientRect().top) };
+      });
+      if (!stop) break;
+      stops.push(stop);
+    }
+    return { barBottom, stops };
+  });
+
+test('#1678: at 界面大小 150% the six grade buttons of a flipped flashcard stay in the window, over the card, for two cards running', { timeout: 600000 }, async (t) => {
+  const env = await setup(t);
+  if (!env) return;
+  // The three laptop sizes of the walk-through, and a window so short that the card cannot fit above the row: it scrolls behind the row.
+  for (const [width, height] of [[1440, 900], [1536, 730], [1280, 720], [1280, 600]]) {
+    // A flashcard round: the cards graded at one size are no longer due at the next, and a path round would then open on a choice question.
+    const { context, page, errors } = await openPractice(env, { width, height, scale: 150, mode: 'flashcard' });
+    try {
+      await page.getByRole('button', { name: /^回到题目/ }).first().click();
+      await page.locator('[data-tour="review-question"]').waitFor({ timeout: 30000 });
+      assert.equal(await page.locator('.study-app').getAttribute('data-ui-scale'), '150', 'the app is drawn at 150%');
+      await page.mouse.move(width - 5, 5);
+      const cardTops = [];
+      for (const card of [1, 2]) {
+        const tag = `150% ${width}×${height}, card ${card}`;
+        const front = await settledCardTop(page);
+        cardTops.push(front.top);
+        await page.keyboard.press('Space');
+        const flipped = await settledGrades(page);
+        // The flip does not scroll (usePinQuestion keeps the card where it was pinned).
+        assert.ok(Math.abs(flipped.cardTop - front.top) <= 2, `${tag}: the flip leaves the card where it was (${front.top} → ${flipped.cardTop})`);
+        const reach = await gradeReach(page);
+        assert.equal(reach.grades.length, 6, `${tag}: six grade buttons`);
+        for (const grade of reach.grades) {
+          assert.ok(grade.top >= reach.barBottom && grade.bottom <= reach.vh, `${tag}: grade ${grade.grade} is wholly in the window, below the top bar (${JSON.stringify(reach)})`);
+          assert.ok(grade.hit, `${tag}: grade ${grade.grade} is what the window shows at its middle (${JSON.stringify(reach)})`);
+        }
+        assert.equal(await page.locator('.grading--short').count(), 1, `${tag}: the window is short at 150% (under 640 px of the app's own), so the row is one line per button`);
+        // Tabbing through the card never leaves the focus under the row (WCAG 2.4.11): a stop shorter than the room above the row is wholly above it.
+        const tabbed = await tabToGrades(page);
+        for (const stop of tabbed.stops) {
+          assert.ok(stop.top < stop.rowTop && stop.bottom > tabbed.barBottom, `${tag}: the focus on ${stop.what} is not hidden under the grade row (${JSON.stringify(tabbed)})`);
+          if (stop.bottom - stop.top < stop.rowTop - tabbed.barBottom) assert.ok(stop.bottom <= stop.rowTop + 1 && stop.top >= tabbed.barBottom - 1, `${tag}: ${stop.what} is wholly between the top bar and the row (${JSON.stringify(tabbed)})`);
+        }
+        // Nothing of the card is hidden for good: the answer's last line scrolls up above the row.
+        const line = await answerLastLine(page);
+        assert.ok(line.bottom <= line.rowTop + 1 && line.top >= line.barBottom - 1 && line.shown, `${tag}: the answer's last line can be scrolled above the grade row (${JSON.stringify(line)})`);
+        await page.keyboard.press('4');
+        await page.waitForFunction((selector) => document.querySelectorAll(selector).length === 0, GRADES, { timeout: 20000 });
+        // The next card is up, face down (the round's progress bar has moved on).
+        await page.waitForFunction((at) => Number(document.querySelector('[data-tour="review-question"] .card-progress')?.getAttribute('aria-valuenow')) === at
+          && document.querySelector('.flashcard:not(.flipped)'), card + 1, { timeout: 20000 });
+      }
+      assert.ok(Math.abs(cardTops[0] - cardTops[1]) <= 2, `150% ${width}×${height}: the first card opens where the second one does (${cardTops.join(' vs ')})`);
+      assert.deepEqual(errors, [], `150% ${width}×${height}: no page errors`);
     } finally { await context.close(); }
   }
 });
