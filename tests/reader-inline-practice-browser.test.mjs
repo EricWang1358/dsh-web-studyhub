@@ -14,6 +14,7 @@ import { openPage, startLateServer } from '../scripts/qa/layout-late.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 import { until } from './helpers/wait.mjs';
 import { makeTextPdf } from './helpers/text-pdf.mjs';
+import { gradeRowPaint } from './helpers/grade-row.mjs';
 
 /* #1013 in the real page: a converted book of 500 pages (25 chapters of 20) and three questions on its first pages. The learning panel opens with 本节题目
    at the top; opening it changes nothing in the drawn text (no DOM mutation in .study-document-body) and leaves the reading place where it was (the
@@ -21,7 +22,9 @@ import { makeTextPdf } from './helpers/text-pdf.mjs';
    practice page's keys (a number picks an option, Enter goes on); the text does not move meanwhile; 回到题目列表 brings the list back, focus on the row
    the round was opened from, the text still in place, and 错题 1 under the heading (the wrong book the practice page writes). Then 1280 / 420 px in zh and
    en (and 1000 px, where the text column narrows by half as the panel opens: the browser's scroll anchoring keeps the place): the panel fits, and the
-   English panel has no Chinese; 做这几页的题 › 在这里做 starts the round here, 去练习页继续 takes it to the practice page. Pictures go to READER_INLINE_SHOTS when set. */
+   English panel has no Chinese; 做这几页的题 › 在这里做 starts the round here, 去练习页继续 takes it to the practice page. Pictures go to READER_INLINE_SHOTS when set.
+   #1678 in the panel: a flipped flashcard taller than the panel keeps its grade row stuck to the panel's bottom edge, in the panel's own colour, with
+   nothing of the card under it; at 100% the row is the full one (界面大小 150% makes the window short, and then it is the one-line row). */
 
 const at = '2026-11-01T08:00:00.000Z';
 const PAGES = 500, PER_CHAPTER = 20;
@@ -75,7 +78,7 @@ const setup = () => (shared ??= (async () => {
   await buildPreview({ outdir: dist });
   const running = await startLateServer({ distDir: dist, seed });
   cleanups.push(() => running.close?.());
-  return { browser, running };
+  return { browser, running, dist };
 })());
 
 /** 更多 › an item (tests/helpers/reader-more.mjs, in either language). */
@@ -372,4 +375,56 @@ test('本节题目 on an imported PDF: a source link shows its own place; 在这
   assert.match(await round.innerText(), /Lecture question p\?/, 'it is where it was left: p, answered');
   assert.equal(await round.locator('.options button.option.correct').count(), 1, 'with its answer');
   assert.deepEqual(errors.filter(error => !REFUSED.test(error)), [], 'no console or page errors');
+});
+
+/* A small converted book with three flashcards whose answers are longer than the panel is tall (the reader's own seed has choice questions only). */
+const flashSeed = async root => {
+  await mkdir(root, { recursive: true });
+  const service = new StudyService(root);
+  await service.call('snapshot');
+  const card = (id, page) => ({ id, kind: 'flashcard', topic: 'Demand', objective: `Objective ${id}`, prompt: `Question ${id} about page ${page}?`, answer: 'Answer '.repeat(30),
+    explanation: 'Because.', citations: [{ sourceId: `book-p${page}`, quote: `Paragraph 2 of page ${page}` }] });
+  await service.store.update(state => {
+    state.sources.push(...Array.from({ length: 40 }, (_, index) => { const page = source(index + 1); return { ...page, document: { ...page.document, totalPages: 40 } }; }));
+    state.decks.push({ id: 'df', title: 'Demand', course: 'Macro', cards: [card('a', 1), card('b', 1), card('c', 2)] });
+  });
+  await service.dispose();
+};
+
+test('本节题目: a flipped flashcard\'s grade row sticks to the panel\'s bottom edge in the panel\'s colour (#1678)', { timeout: 300000 }, async t => {
+  let browser, dist;
+  try { ({ browser, dist } = await setup()); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
+  const running = await startLateServer({ distDir: dist, seed: flashSeed });
+  t.after(() => running.close());
+  for (const [width, height, theme, scale] of [[1280, 720, 'light', 100], [1280, 720, 'dark', 100], [1440, 900, 'dark', 150]]) {
+    const tag = `${width}×${height} ${theme} ${scale}%`;
+    const { page, errors, context } = await openPage(browser, running, { lang: 'zh', width, height, theme });
+    try {
+      await context.addInitScript(size => { try { if (size !== 100) window.localStorage.setItem('study-interface', JSON.stringify({ scale: size })); } catch { /* blocked */ } }, scale);
+      const viewer = page.locator('.study-document-viewer'), tools = viewer.locator('[data-tour="source-tools"]'), panel = viewer.locator('[data-tour="reader-section-practice"]');
+      await page.goto(running.server.url);
+      await (await revealNavRow(page, 'sources')).dispatchEvent('click');
+      await page.locator('.source-doc', { hasText: 'inline-book' }).first().locator('.source-main').click();
+      await viewer.locator('.reader-section[data-study-page]').first().waitFor({ timeout: 60000 });
+      if (!(await tools.isVisible())) await chooseMore(page, viewer, '更多', '学习工具');
+      await panel.waitFor({ timeout: 30000 });
+      await until(async () => (await panel.locator('[data-section-card]').count()) >= 2, 'the section\'s cards listed', { timeoutMs: 30000 });
+      await panel.locator('[data-section-card="df|b"]').focus();
+      await page.keyboard.press('Enter');
+      const card = panel.locator('[data-inline-run] .flashcard').first();
+      await card.waitFor({ timeout: 30000 });
+      // The round stays open between the windows of this test, so from the second one on the card comes back already turned over.
+      if (!(await card.evaluate(node => node.classList.contains('flipped')))) await card.click();
+      await panel.locator('[data-inline-run] .grade[data-grade="5"]').waitFor({ timeout: 15000 });
+      let row = null;
+      await until(async () => { row = await gradeRowPaint(page, '[data-inline-run]'); return row.stuck && row.paints === row.surface; }, `${tag}: the stuck row painted`, { timeoutMs: 8000 })
+        .catch(() => {});
+      assert.ok(row.stuck && row.rowAtEdge, `${tag}: the row sits on the panel's bottom edge, nothing of the card under it (${JSON.stringify(row)})`);
+      assert.equal(row.paints, row.surface, `${tag}: the stuck row is opaque in the panel's own colour (${JSON.stringify(row)})`);
+      const short = scale !== 100;
+      assert.equal(await panel.locator('.grading--short').count(), short ? 1 : 0, `${tag}: ${short ? 'a short window: the one-line row' : 'at 100% the full row, as on the practice page'}`);
+      assert.equal(await panel.locator('.grade-group__label').count(), short ? 0 : 2, `${tag}: the group names are ${short ? 'left to the groups\' accessible names' : 'on screen'}`);
+      assert.deepEqual(errors.filter(error => !REFUSED.test(error)), [], `${tag}: no console or page errors`);
+    } finally { await context.close(); }
+  }
 });
