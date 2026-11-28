@@ -299,4 +299,66 @@ describe('#1748 DeckManageModal j/k symmetry and DeckOpsModal at the 60x18 minim
       await app.stop();
     }
   });
+
+  test('4) PTY (60x18 en ascii): DeckOpsModal Import with completions, preview, AI banner and a long error keeps every row and cuts a long error with an ellipsis', async () => {
+    const cols = LAYOUT_BP.MIN_VIEWPORT_COLS;
+    const rows = LAYOUT_BP.MIN_VIEWPORT_ROWS;
+    const longError = 'Import was rejected by the library because every card in this deck failed the duplicate check against an older deck';
+    const app = await startApp({
+      label: 'import-long-error',
+      cols,
+      rows,
+      seed: async (host, base) => {
+        await seedTwoTopicDeck(host);
+        const good = join(base, 'n.json');
+        await writeFile(
+          good,
+          JSON.stringify({ title: 'Fresh deck', course: 'OS 1748', cards: [{ kind: 'flashcard', prompt: 'Q?', answer: 'A.' }] }),
+          'utf8',
+        );
+        // A sibling that shares the prefix, so the Tab completions row shows next to the valid file.
+        await writeFile(join(base, 'n.json.json'), '{}', 'utf8');
+        // Scripted replies: no model, no real import. The point is only the rows the modal draws.
+        const realCall = host.call.bind(host);
+        host.call = async (name, args) => {
+          if (name === 'draft.import.propose') {
+            return { ok: true, value: { title: 'Fresh deck', course: 'OS 1748', mergeTargetId: null, method: 'rules' } };
+          }
+          if (name === 'deck.import' && args?.path) return { ok: false, error: { message: longError } };
+          return realCall(name, args);
+        };
+        return { good };
+      },
+    });
+    const { tty, seeded } = app;
+    try {
+      await tty.waitFor((s) => useTuiStore.getState().page === 'library' && s.includes('Kernel Mix'), {
+        label: 'LibraryView ready with the seeded deck',
+      });
+      tty.send('o');
+      await tty.waitFor((s) => s.includes('Deck Operations') && s.includes('Local JSON Path'), { label: 'Import tab' });
+      tty.send(seeded.good);
+      await tty.waitFor((s) => s.includes('[OK]') && /Tab: /.test(modalRows(s)), { label: 'preview and completions rows' });
+      tty.send('\x07');
+      await tty.waitFor((s) => s.includes('Suggest'), { label: 'AI filing confirm dialog' });
+      tty.send('\r');
+      await tty.waitFor((s) => /Suggested: Course/.test(s), { label: 'AI filing banner' });
+      useTuiStore.setState({ toasts: [] }); // the "Filing proposal" toast would cover the modal's bottom border
+      tty.send('\r');
+      const errScreen = await tty.waitFor((s) => s.includes('[X] '), { label: 'long import error row' });
+      const errRows = modalRows(errScreen);
+      assert.match(errRows, /Tab: /, `completions row stays:\n${errScreen}`);
+      assert.match(errRows, /Preview:/, `the preview row must not be squeezed out by the error:
+${errScreen}`);
+      assert.match(errRows, /Suggested: Course/, `AI banner stays:\n${errScreen}`);
+      assert.match(errRows, /Course Override/, `course field stays:\n${errScreen}`);
+      assert.match(errRows, /\[X\] Import was rejected/, `error row must be inside the frame:\n${errScreen}`);
+      assert.match(errRows, /\[X\] [\s\S]*\.\.\./, `a long error is cut with an ellipsis, not clipped mid-line:
+${errScreen}`);
+      assert.equal(errRows.includes('older deck'), false, `the error must not be left half-visible:\n${errScreen}`);
+      tty.assertHealthyScreen(errScreen, cols, rows, 'DeckOpsModal import long error 60x18');
+    } finally {
+      await app.stop();
+    }
+  });
 });

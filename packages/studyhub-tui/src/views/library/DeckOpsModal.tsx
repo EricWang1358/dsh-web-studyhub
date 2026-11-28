@@ -1070,6 +1070,10 @@ export const DeckOpsModal = memo(function DeckOpsModal({
   const bodyH = Math.max(1, modalChildRows(frameH, rows, hints.length > 0) - DECK_OPS_TAB_BAR_ROWS);
   // On a short terminal the Import tab drops its blank spacer rows so the hint and error rows still fit.
   const importGap = bodyH >= IMPORT_SPACED_MIN_ROWS ? 1 : 0;
+  // Rows the Import error may take (what the rows above it leave): a longer one is cut with an ellipsis, so Yoga
+  // never squeezes the preview row out of sight (#1748 follow-up). 4 = path and course label + input.
+  const importErrorRows = Math.max(1, bodyH - (4 + (matches.length > 0 && importFocus === 'path' ? 1 : 0) + 2 * importGap +
+    [jsonPreview || jsonHintErr, proposeBusy || importProposal, busy].filter(Boolean).length * (1 + importGap)));
 
   const renderMergeRow = useCallback(
     (item: DeckItem, ctx: VirtualListRenderContext) => {
@@ -1260,9 +1264,9 @@ export const DeckOpsModal = memo(function DeckOpsModal({
             ) : null}
 
             {error ? (
-              <Box marginTop={importGap}>
-                <Text color={theme.error} wrap="wrap">
-                  {`${asciiMode ? '[X]' : '✕'} ${error}`}
+              <Box marginTop={importGap} height={importErrorRows} overflow="hidden">
+                <Text color={theme.error} wrap={importErrorRows === 1 ? 'truncate-end' : 'wrap'}>
+                  {truncateDisplay(`${asciiMode ? '[X]' : '✕'} ${error}`, importErrorRows * (innerW - 2), ell)}
                 </Text>
               </Box>
             ) : null}

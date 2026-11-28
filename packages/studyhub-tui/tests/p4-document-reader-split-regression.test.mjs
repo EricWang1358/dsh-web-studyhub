@@ -1662,6 +1662,7 @@ describe('#1603 DocumentReader: Esc never drops a note or card save that was alr
       () => historySince(before).some((item) => item.text === 'Saved as passage-linked flashcard'),
       { label: 'the card started by f is still saved and reported after Esc' },
     );
+    assert.equal(countCalls(calls, 'generation.selection.saveAnswer'), 1, 'f saves exactly once: not dropped by Esc, not repeated');
     const saveCall = calls.find((c) => c.name === 'generation.selection.saveAnswer');
     assert.ok(saveCall, 'f must not be silently dropped by Esc');
     assert.equal(saveCall.args?.question, 'Locate?');
