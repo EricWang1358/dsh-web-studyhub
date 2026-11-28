@@ -95,7 +95,7 @@ test('the goal and the points tab fills the panel, scrolls inside it, moves noth
         await until(async () => !(await running.api('snapshot')).jobs.some((job) => ['queued', 'running', 'cancelling'].includes(job.status)), 'the jobs to end', 120000);
         // The page learns it later than the server, and then its controls fold into one line, which shortens the page and pulls its scroll position back.
         // Wait for the page to say so: a scroll position read before that and again after it differs, whatever the plan did.
-        await until(async () => (await page.locator('.tc-controls__idle').count()) > 0, 'the page to show the task has ended', { timeoutMs: 120000 });
+        await until(async () => (await page.locator('.tc-detail > .tc-ended').count()) > 0, 'the page to show the task has ended', { timeoutMs: 120000 });
         await frames(page, 6);
         const after = await inside(page);
         // The run has ended with them, and an ended task gives the list the whole width (#1691), so a row may be lower than before: what the states must not do is make rows unequal.
