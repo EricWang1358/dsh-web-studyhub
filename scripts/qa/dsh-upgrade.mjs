@@ -1,4 +1,5 @@
-/* node scripts/qa/dsh-upgrade.mjs --dsh-bin <lib/bin.js> [--dsh-version <x>] [--offline] [--port 3220] [--lang zh|en] [--out <dir>]
+/* global document, window, MutationObserver -- recordNotices runs in the browser */
+/* node scripts/qa/dsh-upgrade.mjs --dsh-bin <lib/bin.js> [--dsh-version <x>] [--offline] [--port 3220] [--lang zh|en] [--out <dir>] [--from <tgz>]
    WP15 end-to-end proof of the in-app upgrade inside a real, isolated DSH web host: whichever release --dsh-bin is (never
    ~/.dsh, never the owner's keys, SSH_TTY set). --dsh-version only adds a check that it is that release.
    1. packs this plugin twice: as it is, and as the next major "-test" with every module under lib/ changed. A real release
@@ -7,9 +8,13 @@
    3. creates a fresh profile from the `web` template, adds the first with `dsh plugin add`, boots DSH with a local fake model;
    4. opens Study, clicks the update chip, 一键升级 → 确认升级, and waits for the host's own answer to that click, however long it
       takes (DSH may unload StudyHub's page before it has finished installing), then checks the profile on disk against it;
+      a learner comes straight back, so StudyHub is opened again as soon as its page closes, answered or not;
    5. before any restart, opens StudyHub again: Settings › 关于与更新 says which version runs (DSH may load the new code at once,
-      or keep the old until a restart), and the restart chip has to agree;
-   6. restarts DSH and checks that Settings reports the new version.
+      or keep the old until a restart), and the restart chip has to agree; then loads the page once more, an ordinary start;
+   6. restarts DSH and checks that Settings reports the new version;
+   7. every 「已升级到」 notice the page showed from the click on is recorded: exactly one, for the new version, before the restart
+      when the new code already ran then and after it otherwise, and reported to the host once (noticeVerdict).
+   --from <tgz>: the profile starts on that packed release (an earlier published one, say) instead of the current code.
    --offline: pnpm uses only what its store already holds. pnpm 11 reads pnpm_config_offline and ignores npm_config_offline.
    Output: output/qa/wp15-upgrade/*.png, dsh.log, summary.json (also the first 200 failed browser requests and console errors,
    with their step, and how often each action was asked after the click). Not part of npm test; what it decides without a host
@@ -25,14 +30,16 @@ import { scrubSecrets, scrubProcessEnv } from "./env.mjs";
 import { launchChromium } from "./browser.mjs";
 import { createFakeOpenAI } from "./fake-openai.mjs";
 import { dshPatch, FAKE_KEY_ENV, openDsh, stopTree } from "./dsh-e2e.mjs";
-import { REPO, fakeRelease, hostProblem, installVerdict, offlineEnv, parseArgs, relabelRelease, runningBeforeRestart, systemTar, upgradeTestVersion }
-  from "./dsh-upgrade-checks.mjs";
+import { REPO, UPGRADE_NOTICE, fakeRelease, hostProblem, installVerdict, noticeVerdict, offlineEnv, parseArgs, relabelRelease, runningBeforeRestart, systemTar,
+  upgradeTestVersion } from "./dsh-upgrade-checks.mjs";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const PROFILE = "studyhub-upgrade";
 const PACKAGE = "@ericwang1358/dsh-daily-flashcard";
 // One install end to end: the download from the loopback feed, pnpm, and DSH reloading what changed. The host's answer ends the wait.
 const INSTALL_TIMEOUT_MS = 6 * 60 * 1000;
+// How long a start is watched for a notice: it comes with the first update.check, which waits for the library to load.
+const NOTICE_WAIT_MS = 10 * 1000;
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
 function run(command, args, { cwd = repoRoot, env, shell = false } = {}) {
@@ -45,8 +52,8 @@ const npm = (args, options) => process.env.npm_execpath
   : run("npm", args, { shell: process.platform === "win32", ...options });
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
-/** The current package, and release upgradeTestVersion(current) made from it (relabelRelease). */
-async function packBoth(packDir, env) {
+/** The current package (or `from`, a packed release to start on) and release upgradeTestVersion(current) made from the current one (relabelRelease). */
+async function packBoth(packDir, env, from) {
   npm(["run", "build"], { env });
   await rm(packDir, { recursive: true, force: true });
   await mkdir(packDir, { recursive: true });
@@ -59,7 +66,8 @@ async function packBoth(packDir, env) {
   const modules = await relabelRelease(join(staging, "package"), version);
   const packageName = `ericwang1358-dsh-daily-flashcard-${version}.tgz`;
   run(tar, ["-czf", join(packDir, packageName), "-C", staging, "package"], { env });
-  return { current, original, version, modules, next: join(packDir, packageName), packageName };
+  const start = from ? { current: from, original: JSON.parse(run(tar, ["-xzOf", from, "package/package.json"], { env })).version } : { current, original };
+  return { ...start, version, modules, next: join(packDir, packageName), packageName };
 }
 
 /** A loopback stand-in for api.github.com + the release download host. */
@@ -138,12 +146,20 @@ async function readSettings(page) {
   return { section, current: (await running.innerText()).trim() };
 }
 
+const bodyOf = (request) => { try { return JSON.parse(request.postData() || "") ?? {}; } catch { return {}; } };
 /** The host call a browser request carries (study-workspace/call names its action), or the bare RPC method. */
-function actionOf(request) {
-  try {
-    const body = JSON.parse(request.postData() || "");
-    return body.payload?.action || body.method || "";
-  } catch { return ""; }
+const actionOf = (request) => { const body = bodyOf(request); return body.payload?.action || body.method || ""; };
+
+/** Runs in the page: reports each toast that announces an upgrade, once per toast. */
+function recordNotices(pattern) {
+  const seen = new WeakSet(), notice = new RegExp(pattern);
+  new MutationObserver(() => {
+    for (const message of document.querySelectorAll(".sh-toast__message")) {
+      if (seen.has(message) || !notice.test(message.textContent)) continue;
+      seen.add(message);
+      window.studyhubQaNotice(message.textContent.trim());
+    }
+  }).observe(document, { childList: true, subtree: true, characterData: true });
 }
 
 export async function runUpgradeProof(options) {
@@ -155,7 +171,7 @@ export async function runUpgradeProof(options) {
   await mkdir(options.out, { recursive: true });
   const started = Date.now(), at = () => Math.round((Date.now() - started) / 100) / 10;
   const summary = { startedAt: new Date(started).toISOString(), offline: options.offline === true, scrubbedEnv: removed, steps: [],
-    consoleErrors: [], pageErrors: [], failedRequests: [], requestsAfterClick: {}, facts: {} };
+    consoleErrors: [], pageErrors: [], failedRequests: [], requestsAfterClick: {}, notices: [], noticeReports: [], facts: {} };
   let current = "", clickedAt = 0;
   const step = async (name, work) => {
     const began = Date.now();
@@ -168,7 +184,11 @@ export async function runUpgradeProof(options) {
   const watch = (target) => {
     target.on("console", (message) => { if (message.type() === "error") keep(summary.consoleErrors, { text: message.text(), url: message.location().url.replace(/token=\S+/, "token=…") }); });
     target.on("pageerror", (error) => keep(summary.pageErrors, { text: String(error?.message || error) }));
-    target.on("request", (request) => { if (!clickedAt) return; const action = actionOf(request); if (action) summary.requestsAfterClick[action] = (summary.requestsAfterClick[action] || 0) + 1; });
+    target.on("request", (request) => {
+      const action = actionOf(request), told = action === "update.preferences" ? bodyOf(request).payload?.args?.upgradeTold : undefined;
+      if (told !== undefined) summary.noticeReports.push(told);
+      if (clickedAt && action) summary.requestsAfterClick[action] = (summary.requestsAfterClick[action] || 0) + 1;
+    });
     const failed = (request, why) => keep(summary.failedRequests, { why, method: request.method(), path: new URL(request.url()).pathname, action: actionOf(request) });
     target.on("response", (response) => { if (response.status() >= 400) failed(response.request(), `HTTP ${response.status()}`); });
     target.on("requestfailed", (request) => failed(request, request.failure()?.errorText || "failed"));
@@ -180,7 +200,7 @@ export async function runUpgradeProof(options) {
     summary.facts.dshVersion = run(process.execPath, [options.dshBin, "--version"], { env: baseEnv }).trim();
     const problem = hostProblem(summary.facts.dshVersion, options.dshVersion);
     if (problem) throw new Error(problem);
-    const packs = await step("pack-plugin", () => packBoth(packDir, baseEnv));
+    const packs = await step("pack-plugin", () => packBoth(packDir, baseEnv, options.from));
     Object.assign(summary.facts, { startVersion: packs.original, testVersion: packs.version, changedModules: packs.modules });
     feed = await fakeGithub(options.feedPort, packs.next, packs.packageName, packs.version);
     summary.facts.publishedSha256 = feed.sha;
@@ -203,6 +223,13 @@ export async function runUpgradeProof(options) {
     browser = await launchChromium({ args: [`--lang=${options.lang === "en" ? "en-US" : "zh-CN"}`] });
     const newPage = async () => {
       const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: options.lang === "en" ? "en-US" : "zh-CN" });
+      await context.exposeFunction("studyhubQaNotice", (text) => {
+        if (!clickedAt) return;
+        summary.notices.push({ at: at(), step: current, text });
+        // Taken while it is up; a second one would be the failure the summary names.
+        if (summary.notices.length === 1) sleep(400).then(() => shot("05a-notice")).catch(() => {});
+      });
+      await context.addInitScript(recordNotices, UPGRADE_NOTICE.source);
       const page = await context.newPage();
       watch(page);
       return { context, page };
@@ -222,14 +249,28 @@ export async function runUpgradeProof(options) {
       await shot("02-dialog");
       await page.locator(".update-dialog .sh-dialog__footer .sh-btn--primary").click();
       await sleep(300);
+      summary.facts.confirmText = (await page.locator(".update-dialog").innerText({ timeout: 5000 }).catch(() => "")).trim();
       await shot("03-confirm");
       const answered = page.waitForResponse((response) => actionOf(response.request()) === "update.install", { timeout: INSTALL_TIMEOUT_MS });
       answered.catch(() => {});
       clickedAt = Date.now();
       await page.locator(".update-dialog .sh-dialog__footer .sh-btn--primary").click();
       // DSH may unload StudyHub's browser code, the dialog with it, long before the install is over: noted, but it ends nothing.
-      page.locator(".update-dialog").waitFor({ state: "detached", timeout: INSTALL_TIMEOUT_MS })
-        .then(() => { summary.facts.dialogGoneAfterMs = Date.now() - clickedAt; }, () => {});
+      const closed = page.locator(".update-dialog").waitFor({ state: "detached", timeout: INSTALL_TIMEOUT_MS })
+        .then(() => { summary.facts.dialogGoneAfterMs = Date.now() - clickedAt; return true; }, () => false);
+      await sleep(300);
+      const working = page.locator('.update-dialog .update-lead[role="status"]');
+      if (await working.count()) {
+        summary.facts.workingText = await working.innerText({ timeout: 2000 }).then((text) => text.trim(), () => "");
+        await shot("03b-working");
+      }
+      // The learner comes straight back once DSH has closed the page, perhaps before the host has answered: the new code must not miss that opening.
+      let answerCame = false;
+      answered.then(() => { answerCame = true; }, () => {});
+      if (await Promise.race([closed, answered.then(() => false, () => false)])) {
+        summary.facts.reopenedDuringInstall = await ensureStudy(page)
+          .then(() => ({ afterClickMs: Date.now() - clickedAt, beforeTheAnswer: !answerCame }), (error) => ({ error: String(error.message).split("\n")[0] }));
+      }
       let answer;
       try { answer = await (await answered).json(); }
       catch (error) {
@@ -250,6 +291,7 @@ export async function runUpgradeProof(options) {
     await step("before-restart", async () => {
       if (await page.locator(".update-dialog .update-done").count()) await page.locator(".update-dialog .sh-dialog__footer .sh-btn--primary").click();
       await ensureStudy(page);
+      for (let waited = 0; waited < NOTICE_WAIT_MS && !summary.notices.length; waited += 500) await sleep(500);
       const settings = await readSettings(page);
       await shot("05-before-restart");
       summary.facts.settingsBeforeRestart = (await settings.section.innerText()).trim();
@@ -258,6 +300,13 @@ export async function runUpgradeProof(options) {
       // StudyHub's marker: `pending` waits for a restart; code that already runs the new version has cleared it.
       const marker = JSON.parse(await readFile(join(home, "study", "update.json"), "utf8"));
       summary.facts.marker = { pending: marker.pending ?? null, installedAt: marker.installedAt ?? null };
+    });
+    await step("second-start", async () => {
+      // The page loaded afresh on the same host: an ordinary start, which must not repeat what was said.
+      await openStudy(page, dsh.url);
+      await sleep(NOTICE_WAIT_MS);
+      summary.facts.noticesBeforeRestart = summary.notices.length;
+      await shot("05b-second-start");
     });
     await step("restart-dsh", async () => {
       await context.close();
@@ -277,6 +326,10 @@ export async function runUpgradeProof(options) {
       if (settings.current !== packs.version) throw new Error(`after the restart the running version reads ${settings.current}, not ${packs.version}`);
       summary.facts.chipAfterRestart = await page.locator(".update-chip").count();
       if (summary.facts.chipAfterRestart) throw new Error("an update chip is still shown after the restart");
+      await sleep(NOTICE_WAIT_MS);
+    });
+    await step("upgrade-notice", async () => {
+      summary.facts.notice = noticeVerdict({ running: summary.facts.beforeRestart.running, shown: summary.notices, reports: summary.noticeReports }, packs);
     });
   } catch (error) {
     summary.error = String(error?.message || error).slice(0, 4000);

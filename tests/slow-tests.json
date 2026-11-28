@@ -188,6 +188,7 @@
     "tests/topbar-fit-browser.test.mjs",
     "tests/tour-zoom-browser.test.mjs",
     "tests/undoable-browser.test.mjs",
+    "tests/upgrade-notice-browser.test.mjs",
     "tests/variants-console-browser.test.mjs",
     "tests/voice-answer-browser.test.mjs",
     "tests/warm-reopen-browser.test.mjs",

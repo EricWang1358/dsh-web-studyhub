@@ -1,10 +1,10 @@
-/* WP15 · update check and upgrade. One shared store per page: the first App
-   that mounts asks `update.check` (cached on the host for 6 h); the sidebar
-   chip, the 关于与更新 settings section and the upgrade dialog read it.
+/* WP15 · update check and upgrade. One shared store per page: each opening of
+   StudyHub asks `update.check` (<UpdateWatch>; cached on the host for 6 h); the
+   sidebar chip, the 关于与更新 settings section and the upgrade dialog read it.
    An automatic check that fails is silent; a manual one says so, with a retry. The dialog upgrades in one click when the host
    reports DSH's plugin manager (`update.install`), otherwise it guides a
    reinstall from the exact package address. */
-import React, { useEffect, useState, useSyncExternalStore } from 'react';
+import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { ui, uiFormat, errorMessage, useUiLanguage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Badge, Banner, Button, Checkbox, CopyDiagnosticsButton, Dialog, Hint, Icon, InlineMessage, Tooltip, useToast } from './components/index.js';
@@ -17,6 +17,7 @@ import { selectReleaseNotes } from '../lib/release-notes.js';
 import css from './update.css';
 import { setRetrievalStatus, useRetrievalStatus } from './retrieval-status.js';
 import { useStudy } from './study-context.jsx';
+import { ANY_PAGE } from './ActionFeedback.jsx';
 import { useDiagnostics } from './diagnostics.js';
 import { hostPart } from './host-parts.js';
 
@@ -35,7 +36,6 @@ export function upgradeMarkerOf(update) {
 }
 export const currentUpgradeMarker = () => upgradeMarkerOf(snapshot.update);
 
-let started = false;
 /**
  * Ask the host. A failure leaves the last answer in place. An automatic check stays silent about it (null); a forced one (the
  * learner pressed 检查更新) answers `{ error }` so the page can say so. The host's own answer may also carry `error` (GitHub
@@ -48,7 +48,6 @@ export async function refreshUpdate(call, { force = false } = {}) {
     if (update && typeof update === 'object') setStore({ update });
     return update;
   } catch (error) {
-    started = false;
     return force ? { error: errorMessage(error) } : null;
   } finally { setStore({ checking: false }); }
 }
@@ -56,6 +55,34 @@ async function savePreferences(call, preferences) {
   const update = await call('update.preferences', preferences);
   if (update && typeof update === 'object') setStore({ update: { ...snapshot.update, ...update } });
   return update;
+}
+
+/* 「已升级到 X」. DSH may close StudyHub's page while it installs, so the page that asked cannot say how it ended: the first page of the new code does.
+   The host names the version (update.check's `upgraded`); this says it once and tells the host, so no later start repeats it. */
+const UPGRADE_NOTICE_MS = 12000;
+const announced = new Set();
+export async function announceUpgrade(update, { call, toast, said = announced }) {
+  const version = update?.upgraded;
+  if (!version || said.has(version)) return;
+  said.add(version);
+  toast.success(uiFormat('已升级到 {0}', [version]), { scope: ANY_PAGE, timeout: UPGRADE_NOTICE_MS });
+  try { await savePreferences(call, { upgradeTold: version }); } catch { /* all that is lost: the next start says it once more */ }
+}
+
+/** Mounted once by App, outside the sidebar: a narrow panel mounts that (and its chip) only while its drawer is open. Every opening asks again, because DSH
+    can open StudyHub anew in a browser page that kept this module, and its answer, from before an upgrade. */
+export function UpdateWatch() {
+  const { call } = useStudy();
+  const toast = useToast();
+  const { update } = useUpdateStore();
+  const asked = useRef(false);
+  useEffect(() => {
+    if (asked.current) return;
+    asked.current = true;
+    refreshUpdate(call);
+  }, [call]);
+  useEffect(() => { announceUpgrade(update, { call, toast }); }, [update, call, toast]);
+  return null;
 }
 
 // Accept older hosts' views too, while avoiding reinstalling a pending release.
@@ -288,11 +315,12 @@ export function UpdateDialog({ update, onClose, initialPhase = null }) {
           <h3>{ui('更新内容')}</h3>
           <div className="update-notes"><Markdown links={false} text={notes} /></div>
         </section> : update.source === 'fallback' && (!stuck || available) && <p className="update-note">{ui('这次没能取得更新内容，请点「查看发布页」阅读。')}</p>}
-        {inApp && phase.phase === 'idle' && <p className="update-lead">{ui('StudyHub 会从 GitHub 发布页下载安装包，核对 SHA256 校验值后交给 DSH 插件管理安装；安装后重启 DSH 即可使用新版本。')}</p>}
+        {inApp && phase.phase === 'idle' && <p className="update-lead">{ui('StudyHub 会从 GitHub 发布页下载安装包，核对 SHA256 校验值后交给 DSH 插件管理安装。')}</p>}
+        {/* Whether this DSH loads the new code at once (and closes this page) or waits for a restart is known only afterwards, so both are covered. */}
         {inApp && phase.phase === 'confirm' && <InlineMessage tone="info" boxed title={ui('确认升级？')}>
-          {ui('升级需要几十秒。安装完成后要重启 DSH，重启前可以继续学习。')}
+          {uiFormat('升级需要几十秒。DSH 可能在安装时关掉本页：过一会儿重新打开 StudyHub，装好了会提示「已升级到 {0}」；需要重启 DSH 的话也会告诉你。', [update.latest])}
         </InlineMessage>}
-        {inApp && phase.phase === 'working' && <p className="update-lead" role="status">{ui('正在下载并校验安装包，然后交给 DSH 安装…')}</p>}
+        {inApp && phase.phase === 'working' && <p className="update-lead" role="status">{ui('正在下载并校验安装包，然后交给 DSH 安装…')}<br />{ui('本页被关掉也不影响安装，过一会儿重新打开 StudyHub 即可。')}</p>}
         {inApp && phase.phase === 'jobs' && <InlineMessage tone="warning" boxed title={uiFormat('有 {0} 个后台任务正在运行', [phase.jobs])}>
           {ui('升级会先停止这些任务；已完成的部分会保留。也可以等任务结束后再升级。')}
         </InlineMessage>}
@@ -392,16 +420,10 @@ export function UpdateSettingsPanel() {
   </>;
 }
 
-/** Sidebar chip and its dialog. The first mounted App asks once per page load. */
+/** Sidebar chip and its dialog. */
 export default function UpdateCenter({ compact = false }) {
-  const { call } = useStudy();
   const { update } = useUpdateStore();
   const [open, setOpen] = useState(false);
-  useEffect(() => {
-    if (started) return;
-    started = true;
-    refreshUpdate(call);
-  }, [call]);
   return <>
     <UpdateChip update={update} compact={compact} onOpen={() => setOpen(true)} />
     {open && update && <UpdateDialog update={update} onClose={() => setOpen(false)} />}

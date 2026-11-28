@@ -5,8 +5,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { fakeRelease, hostProblem, installVerdict, offlineEnv, parseArgs, relabelRelease, runningBeforeRestart, systemTar, upgradeTestVersion }
+import { join, resolve } from "node:path";
+import { fakeRelease, hostProblem, installVerdict, noticeVerdict, offlineEnv, parseArgs, relabelRelease, runningBeforeRestart, systemTar, upgradeTestVersion }
   from "../scripts/qa/dsh-upgrade-checks.mjs";
 import { isNewerVersion } from "../lib/semver.js";
 import { releaseFromGithub, updateView } from "../lib/update-check.js";
@@ -107,6 +107,30 @@ test("which code runs before the restart is read from Settings, and the restart 
   assert.throws(() => runningBeforeRestart({ current: "6.0.0-test", restartChip: true }, versions), /restart chip/);
   assert.throws(() => runningBeforeRestart({ current: "5.4.0", restartChip: false }, versions), /restart chip/);
   assert.throws(() => runningBeforeRestart({ current: "—", restartChip: false }, versions), /Current version/);
+});
+
+const said = (step, text = "已升级到 6.0.0-test") => ({ step, text });
+const noticeOf = (running, shown, reports = ["6.0.0-test"]) => noticeVerdict({ running, shown, reports }, expected);
+
+test("the upgrade notice is shown once, for the installed version, by whichever code runs first", () => {
+  assert.deepEqual(noticeOf("new", [said("one-click-upgrade")]), { shownIn: "one-click-upgrade" });
+  assert.deepEqual(noticeOf("new", [said("second-start", "Upgraded to 6.0.0-test")]), { shownIn: "second-start" });
+  assert.deepEqual(noticeOf("old", [said("new-version-active")]), { shownIn: "new-version-active" });
+});
+
+test("never, twice, another version, the wrong side of the restart or a wrong report to the host fails the proof", () => {
+  assert.throws(() => noticeOf("new", []), /appeared 0 times/);
+  assert.throws(() => noticeOf("new", [said("before-restart"), said("second-start")]), /appeared 2 times.*before-restart.*second-start/);
+  assert.throws(() => noticeOf("new", [said("before-restart", "已升级到 6.0.0")]), /does not name 6\.0\.0-test/);
+  assert.throws(() => noticeOf("new", [said("new-version-active")]), /until after it/);
+  assert.throws(() => noticeOf("old", [said("before-restart")]), /old code/);
+  assert.throws(() => noticeOf("new", [said("before-restart")], []), /tell the host once/);
+  assert.throws(() => noticeOf("new", [said("before-restart")], ["6.0.0-test", "6.0.0-test"]), /tell the host once/);
+});
+
+test("--from starts the proof on an already packed release instead of the current code", () => {
+  assert.equal(parseArgs(["--from", "old.tgz"]).from, resolve("old.tgz"));
+  assert.equal(parseArgs([]).from, undefined);
 });
 
 test("the proof runs on whichever host release it is given; --dsh-version only adds a check when asked for", () => {
