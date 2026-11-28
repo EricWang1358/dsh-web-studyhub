@@ -11,6 +11,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `export * from './ui/components/Dialog.jsx'; export { default } from './ui/components/Dialog.jsx';
   export * from './ui/components/dialog-stack.js';
+  export { resolveArrivalFocusTarget } from './ui/app/use-learning-navigation.js';
   export { setUiLanguage, ui } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
@@ -97,4 +98,31 @@ test('English dialog chrome contains no Chinese', () => {
   assert.doesNotMatch(out, han);
   assert.match(out, /aria-label="Close"/);
   m.setUiLanguage('zh');
+});
+
+test('shouldRestoreDialogFocus defaults to true and honours booleans, refs and predicates', () => {
+  assert.equal(m.shouldRestoreDialogFocus(undefined), true);
+  assert.equal(m.shouldRestoreDialogFocus(true), true);
+  assert.equal(m.shouldRestoreDialogFocus(false), false);
+  assert.equal(m.shouldRestoreDialogFocus({ current: true }), true);
+  assert.equal(m.shouldRestoreDialogFocus({ current: false }), false);
+  assert.equal(m.shouldRestoreDialogFocus(() => true), true);
+  assert.equal(m.shouldRestoreDialogFocus(() => false), false);
+});
+
+test('resolveArrivalFocusTarget prefers question-card on practice pages and respects open dialogs after nav-drawer closes', () => {
+  const mk = (name, visible = true) => ({ name, isConnected: true, getClientRects: () => (visible ? [{}] : []), closest: () => null });
+  const card = mk('question-card');
+  const h1 = mk('main-h1');
+  const root = {
+    querySelector: () => null,
+    querySelectorAll: (selector) => {
+      if (selector.includes('.question-card')) return [card];
+      if (selector.includes('main h1')) return [h1];
+      return [];
+    },
+  };
+  assert.equal(m.resolveArrivalFocusTarget(root, { source: 'nav-drawer' }, null), card);
+  const inDialog = { closest: (sel) => (sel === 'dialog[open]' ? {} : null) };
+  assert.equal(m.resolveArrivalFocusTarget(root, { source: 'nav-drawer' }, inDialog), null, 'does not steal focus from a follow-up dialog');
 });

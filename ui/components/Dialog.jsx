@@ -27,6 +27,13 @@ export function cancelDecision({ cancelable, dismissible }) {
   return cancelable ? 'close' : 'defer';
 }
 
+/** Whether unmounting a Dialog should return focus to its opener (boolean, ref, or predicate; defaults to true). */
+export function shouldRestoreDialogFocus(restoreFocus) {
+  if (typeof restoreFocus === 'function') return Boolean(restoreFocus());
+  if (restoreFocus && typeof restoreFocus === 'object' && 'current' in restoreFocus) return Boolean(restoreFocus.current);
+  return restoreFocus !== false;
+}
+
 /** A click closes from the backdrop only if it also started there (not a text selection dragged out or a click inside the sheet box). */
 export function isBackdropClick(event, dialog, downTarget) {
   if (event.target !== dialog || downTarget !== dialog) return false;
@@ -68,20 +75,20 @@ function lockScroll(dialog) {
  * is aria-busy. `guardDrops` keeps a stray file drop on the dialog (its header
  * or margins) away from the browser and the host chat.
  */
-export default function Dialog({ title, description, onClose, size = 'md', footer, children, dismissible = true, initialFocus,
+export default function Dialog({ title, description, onClose, size = 'md', footer, children, dismissible = true, initialFocus, restoreFocus = true,
   bodyLabel, closeLabel, busy = false, guardDrops = false, className, headerClassName, titleClassName, bodyClassName, contentClassName, footerClassName, open: _open, ...rest }) {
   useComponentCss(css);
   useComponentCss(overlayCss, 'study-overlays');
   useComponentCss(mediaCss, 'study-dialog-media');
   const [own, setOwn] = useState(null);
   const [scrollable, setScrollable] = useState(false);
-  const ref = useRef(null), bodyRef = useRef(null), pointerDown = useRef(null), closing = useRef(false), onCloseRef = useRef(onClose);
+  const ref = useRef(null), bodyRef = useRef(null), pointerDown = useRef(null), closing = useRef(false), onCloseRef = useRef(onClose), restoreFocusRef = useRef(restoreFocus);
   const canDismiss = dismissible && !busy;
   const [entry] = useState(() => ({ dialog: null }));
   const top = useTopDialog();
   const titleId = useId(), descriptionId = useId();
   const kind = SIZES.has(size) ? size : 'md';
-  useLayoutEffect(() => { onCloseRef.current = onClose; });
+  useLayoutEffect(() => { onCloseRef.current = onClose; restoreFocusRef.current = restoreFocus; });
   useLayoutEffect(() => {
     const body = bodyRef.current;
     if (!body) return undefined;
@@ -116,7 +123,10 @@ export default function Dialog({ title, description, onClose, size = 'md', foote
         try { dialog.close(); } catch { dialog.removeAttribute('open'); }
       }
       const active = document.activeElement;
-      if (opener?.isConnected && typeof opener.focus === 'function' && (!active || active === document.body || dialog.contains(active)))
+      if (shouldRestoreDialogFocus(restoreFocusRef.current)
+        && opener?.isConnected
+        && typeof opener.focus === 'function'
+        && (!active || active === document.body || dialog.contains(active)))
         opener.focus({ preventScroll: true });
     };
     // Opening is tied to mounting; the owner unmounts the dialog to close it.

@@ -37,7 +37,13 @@ const AppSidebar = React.memo(function AppSidebar() {
   useInjectCss(css, 'study-app-shell');
   useInjectCss(drawerCss, 'study-nav-drawer');
   const shell = useAppSelector((s) => s.shell);
+  const page = useAppSelector((s) => s.nav?.page);
+  const setFocusRequest = useAppSelector((s) => s.set?.setFocusRequest);
   const { alert, reason, tasks } = useNavAlert();
+  const restoreFocusRef = React.useRef(true);
+  React.useLayoutEffect(() => {
+    if (shell.navOpen) restoreFocusRef.current = true;
+  }, [shell.navOpen]);
   useDrawerFrame(shell.rootRef, shell.navDrawer && shell.navOpen);
   const body = (<><SidebarNav alert={alert} reason={reason} tasks={tasks} /><SidebarFooter /></>);
   if (!shell.navDrawer) {
@@ -46,9 +52,17 @@ const AppSidebar = React.memo(function AppSidebar() {
   if (!shell.navOpen) return null;
   const close = () => shell.setNavOpen(false);
   // A row that leads somewhere closes the drawer once it has done its work; a fold (更多, 帮助) and the glossary keep it open.
-  const leave = (event) => { if (event.target.closest?.('button.nav:not([aria-expanded]):not([data-keep-open])')) close(); };
+  // Navigating hands focus to the destination page (e.g. question card on review) rather than back to the topbar menu button (#1679);
+  // dismissing with Esc, backdrop click, or the close button still returns focus to the menu button.
+  const leave = (event) => {
+    if (event.target.closest?.('button.nav:not([aria-expanded]):not([data-keep-open])')) {
+      restoreFocusRef.current = false;
+      close();
+      setFocusRequest?.({ source: 'nav-drawer', fromPage: page });
+    }
+  };
   return (
-    <Dialog className="nav-drawer" headerClassName="nav-drawer__header" titleClassName="nav-drawer__title" bodyClassName="nav-drawer__body" contentClassName="nav-drawer__content" size="full" title={ui('导航')} closeLabel={ui('关闭导航')} onClose={close}>
+    <Dialog className="nav-drawer" headerClassName="nav-drawer__header" titleClassName="nav-drawer__title" bodyClassName="nav-drawer__body" contentClassName="nav-drawer__content" size="full" title={ui('导航')} closeLabel={ui('关闭导航')} restoreFocus={restoreFocusRef} onClose={close}>
       <div className="sidebar is-drawer" onClick={leave}>
         {body}
         {!shell.narrowWindow && (

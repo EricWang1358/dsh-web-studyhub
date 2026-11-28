@@ -12,6 +12,30 @@ import {
   pushPracticeFrame, readLastPracticePosition, restorePracticeFrame, rootPracticeFrame, saveLastPracticePosition,
 } from '../practice-context-stack.js';
 
+const ARRIVAL_FOCUS_SELECTORS = [
+  'dialog[open] h2',
+  '.review-body .question-card, .question-card',
+  '.question[role="heading"]',
+  '[data-context-heading]',
+  'main .page h1, main .page h2, main h1, main h2',
+];
+
+/** Pick the destination element to focus after an arrival (practice page -> question card; other pages -> page heading). */
+export function resolveArrivalFocusTarget(root, focusRequest, activeElement = typeof document !== 'undefined' ? document.activeElement : null) {
+  if (!root || !focusRequest) return null;
+  const visible = (element) => Boolean(element?.isConnected && element.getClientRects?.().length);
+  if (visible(focusRequest.element)) return focusRequest.element;
+  // Leaving the nav drawer may open a follow-up modal (e.g. confirmStart); keep focus inside that dialog.
+  if (focusRequest.source === 'nav-drawer' && activeElement?.closest?.('dialog[open]')) return null;
+  const placed = root.querySelector('[data-return-focus]');
+  if (visible(placed)) return placed;
+  for (const selector of ARRIVAL_FOCUS_SELECTORS) {
+    const candidate = [...(root.querySelectorAll(selector) || [])].find(visible);
+    if (candidate) return candidate;
+  }
+  return null;
+}
+
 const restoreFallbackText = () => ui('已回到原位置，但没能切回之前的课程。可以在学习库重新切换当前课程。');
 
 async function restoreCourseFocus({ origin, currentCourse, call, live }) {
@@ -427,24 +451,24 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
     setModal({ type: 'source', source, resume: { at: Math.max(0, Number(offset) || 0), sectionOffset: 0, scrollTop: 0, progress: 0, nonce: Date.now() } });
   }, [notify, refs, setModal]);
 
-  // After an arrival, the heading (or the control the learner came from) takes focus.
+  // After an arrival, the heading (or the control the learner came from, or the question card on review) takes focus.
   const focusRequest = lib.state.focusRequest;
   useEffect(() => {
     if (!focusRequest) return undefined;
     const frame = requestAnimationFrame(() => {
       // A page that put the learner back at a place of its own (the review book: the point they left) names its heading; that one takes the focus, where it is.
       const placed = rootRef.current?.querySelector('[data-return-focus]');
-      const target = focusRequest.element?.isConnected && focusRequest.element.getClientRects().length ? focusRequest.element
-        : placed?.getClientRects().length ? placed
-          : [...(rootRef.current?.querySelectorAll('dialog[open] h2, .question[role="heading"], [data-context-heading], main .page h1, main .page h2') || [])]
-            .find((element) => element.getClientRects().length);
+      const target = resolveArrivalFocusTarget(rootRef.current, focusRequest);
       if (target) {
         if (!target.matches('button,a,input,select,textarea,[tabindex]')) target.setAttribute('tabindex', '-1');
-        target.focus(target === placed ? { preventScroll: true } : undefined);
+        target.focus(target === placed || focusRequest.source === 'nav-drawer' ? { preventScroll: true } : undefined);
+      }
+      if (focusRequest.source === 'nav-drawer' && (nav.page !== focusRequest.fromPage || document.activeElement?.closest?.('dialog[open]'))) {
+        setFocusRequest(null);
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [focusRequest, nav.page]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [focusRequest, nav.page, setFocusRequest]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const trail = lib.state.contextTrail;
   const practiceStack = lib.state.practiceStack || [];
