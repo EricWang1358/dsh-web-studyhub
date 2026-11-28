@@ -32,6 +32,26 @@ What StudyHub saves:
 
 If no page has readable text, nothing is saved and the dialog says the file may be a scan. Convert it with MinerU, which reads scanned pages (if MinerU is not installed yet, **One-click install** is right there in the dialog), or run OCR on it first.
 
+## Want to convert with an external tool?
+
+If you prefer not to install a local conversion engine, or want to convert a PDF to Markdown/text with an external tool before importing, you can use the reference links below (plain copyable URLs — copy and open them in your browser):
+
+> **Privacy and boundary**: Uploading files to a third-party service is strictly between you and that service; StudyHub does not handle or store them. StudyHub does not invoke these tools, does not transmit your files, and makes no guarantee of third-party availability.
+
+- **PaddleOCR Online**: `https://www.paddleocr.ai` — No-install web tool supporting scans, tables, and formulas; exports JSON or Markdown.
+- **Marker (open source)**: `https://github.com/datalab-to/marker` — Open-source PDF-to-Markdown converter with OCR, formulas, and page-marker support.
+- **Docling (open source)**: `https://github.com/docling-project/docling` — Open-source document parser (MIT) exporting paginated JSON (DoclingDocument) or Markdown.
+- **Mathpix**: `https://mathpix.com` — Focused on STEM formulas and papers; converts PDFs to Markdown (`.md`) with LaTeX or `.tex`.
+
+### How to import after conversion
+
+1. **Check the exported format**: StudyHub accepts Markdown (`.md` / `.markdown`, including `<!-- page: N -->` or Marker page markers), plain text (`.txt`), LaTeX (`.tex`), HTML (`.html` / `.htm`), Word (`.docx`), PowerPoint (`.pptx` / `.ppt`), text-layer PDF (`.pdf`), and structured converter JSON (`.json` from PaddleOCR / Docling / MinerU). Size limits per file: 8 MB for `.md` / `.txt` / `.tex` / `.html` / `.pdf` (PDF up to 200 pages; extracted text up to 600,000 characters), and 40 MB for `.docx` / `.pptx` / `.ppt` and converted `.json`.
+2. **Where to put it and how to import**: Open the **Sources** page and click **Add source** (or click **Add source** inside **Create deck**). Pick the course, then drop the converted file on the **Files** tab or click **Choose files**; plain text can also be saved via the **Paste text** tab. In **Study Mode** in the main chat, you can also place the file in `studyhub-work/` or a local folder and ask the assistant to import it.
+3. **Common failures and fixes**:
+   - **Missing formulas**: Basic converters often drop formulas or turn them into images. Enable LaTeX formula output in the external tool and export as `.md` or `.tex` (preserving `$...$` / `$$...$$`) instead of plain text.
+   - **Scanned pages remain images**: If the output is still an image-only PDF or Markdown with only image links, StudyHub cannot extract body text (standalone image lines in `.md` are skipped). Turn on OCR in the external tool and export text or structured JSON.
+   - **Non-UTF-8 encoding**: StudyHub requires UTF-8 encoding for text and JSON files; GBK, GB18030, or UTF-16 will fail with an encoding error or garbled text. Re-save the file as UTF-8 in an editor (such as VS Code or Notepad) and import again.
+
 ## Generate questions
 
 1. Open **Create deck** › **Generate from sources**.

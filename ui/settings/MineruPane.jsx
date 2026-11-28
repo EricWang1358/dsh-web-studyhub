@@ -4,6 +4,7 @@ import { Disclosure, SettingsSection } from '../components/index.js';
 import { partAvailable } from '../settings-groups.js';
 import MineruSettings from '../MineruSettings.jsx';
 import MarkerSettings from '../MarkerSettings.jsx';
+import PdfExternalConvertGuide from '../PdfExternalConvertGuide.jsx';
 import { useStudy } from '../study-context.jsx';
 
 /** PDF 转换: MinerU on this computer leads; Marker stays available inside a collapsed Disclosure (open when audio routes are off). */
@@ -20,5 +21,6 @@ export default function MineruPane({ capabilities }) {
         </SettingsSection>
       </Disclosure>
     </div>
+    <PdfExternalConvertGuide />
   </>;
 }
