@@ -407,3 +407,304 @@ test('ExamCoachPage saves dirty quota/crunch edits before direct generate and wh
     }
   });
 });
+
+test('#1455-5 ExamCoachPage shows honest case-paper warning and jump button in preview and mock shortfall report (zh + en)', async () => {
+  const interactive = await import('./helpers/react-harness.mjs');
+  await interactive.withBrowserGlobals(async () => {
+    const mod = await interactive.loadInteractiveUi(`
+      export { default as ExamCoachPage } from './ui/ExamCoachPage.jsx';
+      export { StudyServicesContext } from './ui/study-context.jsx';
+      export { setUiLanguage } from './ui/i18n.js';
+    `);
+    const hi = mod.React.createElement;
+    const stored = {
+      specVersion: 'v1',
+      stage: 'evidence',
+      templateName: '案例备考',
+      crunchMode: { enabled: false, remainingMinutes: 120 },
+      scopeBoundary: {
+        materialSourceIds: ['s-old'],
+        samplePaperIds: ['s-ref'],
+      },
+      taskFamilies: [
+        {
+          id: 'fam-case',
+          title: '综合案例分析',
+          origin: 'built-in-template',
+          primaryFormat: 'open',
+          allowedFormats: ['open'],
+          allowFormSubstitute: false,
+          quota: 1,
+          quotaUnit: 'shared-material-group',
+          questionsPerUnit: 3,
+          priority: 'high',
+          marksPerItem: 20,
+          timeBudgetSec: 600,
+          reasoningSteps: ['分析材料'],
+          rubricPoints: [],
+          confirmations: {},
+          sample: { format: 'open', stem: '题干', answer: '答案', rubric: '标准' },
+        },
+      ],
+    };
+    const caseJumps = [];
+    const call = async (action) => {
+      if (action === 'coach.calibration.get') return { spec: stored, evidence: null };
+      if (action === 'coach.calibration.buildRequest') {
+        return {
+          coachSpecVersion: 'v1',
+          totalCount: 3,
+          kindCounts: { open: 3 },
+          zeroQuotaFamilies: [],
+          deferredFamilies: [],
+          uncalibratedFamilies: [],
+          unitConversions: [{ familyId: 'fam-case', title: '综合案例分析', quota: 1, quotaUnit: 'shared-material-group', questionsPerUnit: 3, questionCount: 3 }],
+          shortfallWarnings: [
+            '请求总题量（60 题）相对当前资料篇幅（1 份）偏高，若证据不足将按真实可达数量交付并报告缺口。',
+            '材料题组/案例大题需通过创建案例分析卷生成，普通出题仅生成独立开放题。',
+          ],
+          needsCasePaper: true,
+          request: { course: 'OS', sourceIds: ['s1'], referenceSourceIds: ['s-ref'], kind: 'open', count: 3 },
+        };
+      }
+      if (action === 'generate.preview') return { requirementsVersion: 'req-1' };
+      if (action === 'coach.mockPaper.compose') {
+        return {
+          ok: false,
+          complete: false,
+          totalMarks: 0,
+          targetMarks: 20,
+          shortfalls: [{
+            sectionId: 'fam-case',
+            title: '综合案例分析',
+            requested: 1,
+            fulfilled: 0,
+            missing: 1,
+            rejectedMissingMaterial: 2,
+            rejectedFlatSubparts: 1,
+            rejectedMissingFigure: 0,
+            reason: '缺少保留小题层级结构的大题或案例分析卷，拒绝用零散单题平铺替代；缺少带共用材料的案例分析卷或材料题组；题库中符合题型（open/case）的可用题数量不足，拒绝拿无关题型凑数',
+          }],
+        };
+      }
+      return {};
+    };
+    const services = {
+      call,
+      act: async () => {},
+      busy: false,
+      notify: noop,
+      askInChat: noop,
+      host: {},
+      openSettings: noop,
+      navigate: noop,
+      openModal: noop,
+    };
+
+    for (const lang of ['zh', 'en']) {
+      mod.exports.setUiLanguage(lang);
+      const mounted = mod.mount(() => hi(
+        mod.exports.StudyServicesContext.Provider,
+        { value: services },
+        hi(mod.exports.ExamCoachPage, {
+          data: {
+            root: `ux-coach-case-${lang}`,
+            model: { ready: true },
+            courses: [{ name: 'OS' }],
+            focus: { course: 'OS' },
+            sources: [
+              { id: 's1', title: 'Notes', course: 'OS' },
+              { id: 's-ref', title: 'Past Paper', course: 'OS' },
+              { id: 's-old', title: 'Archived Notes', course: 'OS', archived: true },
+              { id: 's-hist', title: 'Historical Notes', course: 'OS', historical: true },
+              { id: 's-other', title: 'Math Notes', course: 'MATH' },
+            ],
+            decks: [],
+            attempts: [],
+          },
+          onGoCase: (req) => caseJumps.push({ lang, req }),
+        }),
+      ));
+      try {
+        await mounted.flush(6);
+        const previewBtn = mounted.find((n) => n.type === 'button' && (mounted.text(n).includes('预览生效要求与配额') || mounted.text(n).includes('Preview effective requirements')));
+        assert.ok(previewBtn, `preview button renders in ${lang}`);
+        await mounted.act(() => interactive.click(previewBtn));
+        await mounted.flush(6);
+
+        const previewBox = mounted.find((n) => n.props?.['data-testid'] === 'coach-compiled-preview');
+        assert.ok(previewBox, `preview box renders in ${lang}`);
+        const previewText = mounted.text(previewBox);
+        if (lang === 'zh') {
+          assert.match(previewText, /案例分析卷/);
+          assert.match(previewText, /请求总题量（60 题）/);
+        } else {
+          assert.match(previewText, /case-study paper/i);
+          assert.match(previewText, /Requested question count \(60\)/);
+          assert.doesNotMatch(previewText.replace(/OS|v1|req-1|综合案例分析/g, ''), han, 'en preview warning has no untranslated Han');
+        }
+
+        const goCasePreviewBtn = mounted.find((n) => n.type === 'button' && (mounted.text(n).includes('去创建案例分析卷') || mounted.text(n).includes('Create case-study paper')), previewBox);
+        assert.ok(goCasePreviewBtn, `preview jump to case-study button renders in ${lang}`);
+        await mounted.act(() => interactive.click(goCasePreviewBtn));
+        assert.equal(caseJumps.at(-1)?.lang, lang);
+        assert.deepEqual(caseJumps.at(-1)?.req?.sourceIds, ['s1']);
+        assert.deepEqual(caseJumps.at(-1)?.req?.referenceSourceIds, ['s-ref']);
+
+        const mockCheckBtn = mounted.find((n) => n.type === 'button' && (mounted.text(n).includes('核对同型组卷缺口') || mounted.text(n).includes('Check mock-paper shortfalls')));
+        assert.ok(mockCheckBtn, `strict mock check button renders in ${lang}`);
+        await mounted.act(() => interactive.click(mockCheckBtn));
+        await mounted.flush(6);
+
+        const mockReportBox = mounted.find((n) => n.props?.['data-testid'] === 'coach-strict-mock-report');
+        assert.ok(mockReportBox, `mock report box renders in ${lang}`);
+        const mockReportText = mounted.text(mockReportBox);
+        if (lang === 'zh') {
+          assert.match(mockReportText, /案例分析卷/);
+          assert.doesNotMatch(mockReportText, /\b(?:sharedMaterial|subquestions|figure)\b/);
+        } else {
+          assert.match(mockReportText, /case-study papers/i);
+          assert.match(mockReportText, /Shared-material case problem/);
+          assert.doesNotMatch(mockReportText.replace(/OS|v1|req-1|综合案例分析/g, ''), han, 'en mock shortfall report has no untranslated Han');
+        }
+
+        const goCaseMockBtn = mounted.find((n) => n.type === 'button' && (mounted.text(n).includes('去创建案例分析卷') || mounted.text(n).includes('Create case-study paper')), mockReportBox);
+        assert.ok(goCaseMockBtn, `mock report jump to case-study button renders in ${lang}`);
+        await mounted.act(() => interactive.click(goCaseMockBtn));
+        assert.equal(caseJumps.at(-1)?.lang, lang);
+        assert.equal(caseJumps.at(-1)?.req?.course, 'OS');
+        assert.deepEqual(caseJumps.at(-1)?.req?.sourceIds, ['s1']);
+        assert.deepEqual(caseJumps.at(-1)?.req?.referenceSourceIds, ['s-ref']);
+      } finally {
+        mounted.unmount();
+      }
+    }
+    mod.exports.setUiLanguage('zh');
+  });
+});
+
+test('#1455-5 PAGE_VIEWS.examcoach onGoCase forwards course, sourceIds, referenceSourceIds, and fresh caseInitial', async () => {
+  const interactive = await import('./helpers/react-harness.mjs');
+  await interactive.withBrowserGlobals(async () => {
+    const mod = await interactive.loadInteractiveUi(`
+      export { PAGE_VIEWS } from './ui/app/page-views.jsx';
+      export { AppContext } from './ui/app/app-context.js';
+      export { StudyServicesContext } from './ui/study-context.jsx';
+      export { setUiLanguage } from './ui/i18n.js';
+    `);
+    const { PAGE_VIEWS, AppContext, StudyServicesContext, setUiLanguage } = mod.exports;
+    setUiLanguage('zh');
+    const hi = mod.React.createElement;
+    const goGenerateCalls = [];
+    const stored = {
+      specVersion: 'v1',
+      stage: 'evidence',
+      templateName: '案例备考',
+      scopeBoundary: {
+        materialSourceIds: ['s-old'],
+        samplePaperIds: ['s-ref'],
+      },
+      taskFamilies: [{
+        id: 'fam-case',
+        title: '综合案例分析',
+        origin: 'built-in-template',
+        primaryFormat: 'open',
+        allowedFormats: ['open'],
+        allowFormSubstitute: false,
+        quota: 1,
+        quotaUnit: 'shared-material-group',
+        questionsPerUnit: 3,
+        priority: 'high',
+        marksPerItem: 20,
+        timeBudgetSec: 600,
+        reasoningSteps: ['分析材料'],
+        rubricPoints: [],
+        confirmations: {},
+        sample: { format: 'open', stem: '题干', answer: '答案', rubric: '标准' },
+      }],
+    };
+    const study = {
+      call: async (action) => {
+        if (action === 'coach.calibration.get') return { spec: stored, evidence: null };
+        if (action === 'coach.mockPaper.compose') {
+          return {
+            ok: false,
+            complete: false,
+            totalMarks: 0,
+            targetMarks: 20,
+            shortfalls: [{
+              sectionId: 'fam-case',
+              title: '综合案例分析',
+              requested: 1,
+              fulfilled: 0,
+              missing: 1,
+              rejectedMissingMaterial: 1,
+              rejectedFlatSubparts: 0,
+              rejectedMissingFigure: 0,
+              reason: '缺少带共用材料的案例分析卷或材料题组',
+            }],
+          };
+        }
+        return {};
+      },
+      act: async () => {},
+      busy: false,
+      notify: noop,
+      askInChat: noop,
+      host: {},
+      openSettings: noop,
+      navigate: noop,
+      openModal: noop,
+    };
+    const app = {
+      data: {
+        root: 'pv-coach-case',
+        model: { ready: true },
+        courses: [{ name: 'OS' }],
+        focus: { course: 'OS' },
+        sources: [
+          { id: 's1', title: 'Notes', course: 'OS' },
+          { id: 's-ref', title: 'Past Paper', course: 'OS' },
+          { id: 's-old', title: 'Old', course: 'OS', archived: true },
+        ],
+        decks: [],
+        attempts: [],
+      },
+      nav: { navigate: noop, show: { page: noop, task: noop } },
+      intents: { goGenerate: (args) => goGenerateCalls.push(args) },
+      settingsEntry: { openModelSettings: noop },
+    };
+    const ExamCoachView = PAGE_VIEWS.examcoach;
+    const mounted = mod.mount(() => hi(
+      AppContext.Provider,
+      { value: app },
+      hi(StudyServicesContext.Provider, { value: study }, hi(ExamCoachView)),
+    ));
+    try {
+      await mounted.flush(6);
+
+      const mockCheckBtn = mounted.find((n) => n.type === 'button' && mounted.text(n).includes('核对同型组卷缺口'));
+      await mounted.act(() => interactive.click(mockCheckBtn));
+      await mounted.flush(6);
+
+      const mockReportBox = mounted.find((n) => n.props?.['data-testid'] === 'coach-strict-mock-report');
+      const goCaseBtn = mounted.find((n) => n.type === 'button' && mounted.text(n).includes('去创建案例分析卷'), mockReportBox);
+      await mounted.act(() => interactive.click(goCaseBtn));
+
+      assert.equal(goGenerateCalls.length, 1);
+      const arg = goGenerateCalls[0];
+      assert.equal(arg.source, 'case');
+      assert.deepEqual(arg.sourceIds, ['s1']);
+      assert.equal(arg.remember, true);
+      assert.equal(typeof arg.genPatch, 'function');
+      assert.deepEqual(arg.genPatch({ course: 'STALE_COURSE', kind: 'quiz' }), { course: 'OS', kind: 'quiz' });
+      assert.equal(arg.caseInitial.course, 'OS');
+      assert.deepEqual(arg.caseInitial.sourceIds, ['s1']);
+      assert.deepEqual(arg.caseInitial.referenceSourceIds, ['s-ref']);
+      assert.equal(arg.caseInitial.broughtOver, 1);
+      assert.equal(typeof arg.caseInitial.nonce, 'number');
+    } finally {
+      mounted.unmount();
+    }
+  });
+});
