@@ -272,7 +272,7 @@ test('3. SourceColumn shows Alt+` focus hint and DocumentViewer hides heavy auth
         mounted.unmount();
       }
 
-      // English: same hint, and the docked reader toolbar carries no untranslated Han text
+      // English: same hint, an English accessible name, and no untranslated Han text anywhere in the docked column
       interactive.exports.setUiLanguage('en');
       const mountedEn = mountColumn();
       try {
@@ -280,11 +280,13 @@ test('3. SourceColumn shows Alt+` focus hint and DocumentViewer hides heavy auth
         const keyHintEn = mountedEn.find((node) => node.type === 'kbd' && node.props?.className === 'source-column__key');
         assert.ok(keyHintEn, 'English SourceColumn renders the focus hint');
         assert.equal(mountedEn.text(keyHintEn).trim(), 'Alt+`');
+        assert.match(keyHintEn.props['aria-label'], /Alt\+`/);
+        assert.doesNotMatch(keyHintEn.props['aria-label'], han, 'English focus hint has an English accessible name');
         const dockedEn = mountedEn.find((node) => node.props?.['data-docked'] === true);
         assert.ok(dockedEn, 'English SourceColumn still mounts the docked DocumentViewer');
         const toolbarEn = mountedEn.find((node) => node.props?.className === 'reader-toolbar', dockedEn);
         assert.ok(toolbarEn, 'English docked reader toolbar is rendered');
-        assert.doesNotMatch(mountedEn.text(toolbarEn), han, 'English docked reader toolbar has zero Han characters');
+        assert.doesNotMatch(mountedEn.text(), han, 'English SourceColumn (docked reader included) has zero Han characters');
       } finally {
         mountedEn.unmount();
         interactive.exports.setUiLanguage('zh');
