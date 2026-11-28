@@ -190,7 +190,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                           if (pageAvailable(data, 'outline')) nav.navigate('outline');
                         } : undefined}
                         dailyPlan={data && pageAvailable(data, 'review') ? <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan}
-                          modelReady={data.model?.ready !== false} openModelSettings={settingsEntry.openModelSettings} /> : null}
+                          modelReady={data.model?.ready !== false} openModelSettings={settingsEntry.openModelSettings} autoPropose={!tour.tourStep} /> : null}
                         onClearStudyRef={() => set.setBoardStudyRef(null)} onStudyRef={learn.openBoardReference} />
                     ) : !data ? <StartPage />
                       : !pageAvailable(data, page) ? <DisabledPage page={page} />

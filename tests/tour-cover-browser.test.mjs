@@ -106,3 +106,42 @@ test('#1712: the steps that open a page from the sidebar leave its title and fir
     await rm(dist, { recursive: true, force: true, maxRetries: 20, retryDelay: 150 });
   }
 });
+
+/* The tour only reads: its board step shows 今日, where the day's plan block would save a proposal of its own the moment it is drawn. */
+test("the tour's steps over pages that save on arrival write nothing to the library", { timeout: 300000 }, async (t) => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
+  scrubProcessEnv();
+  const dist = await mkdtemp(join(tmpdir(), 'study-tour-readonly-dist-'));
+  await buildPreview({ outdir: dist });
+  const base = await mkdtemp(join(tmpdir(), 'study-tour-readonly-'));
+  const server = await createPreviewServer({ libraryRoot: join(base, 'library'), home: join(base, 'home'), port: 0, model: createFakeModel({ latencyMs: 20 }), distDir: dist });
+  try {
+    await previewCall(server, 'sample.load', { language: 'zh' });
+    const before = await previewCall(server, 'snapshot', { uiLanguage: 'zh' });
+    const { page, errors, context } = await openPage(browser, { server }, { lang: 'zh', theme: 'light', width: 1440, height: 900 });
+    const actions = [];
+    page.on('request', (request) => { if (request.url().includes('/api/call')) actions.push(JSON.parse(request.postData() || '{}').action); });
+    await page.goto(server.url);
+    await page.locator('.study-app').waitFor({ timeout: 30000 });
+    await page.evaluate(([key, value]) => localStorage.setItem(key, value), [`study-tour:${before.root}`, JSON.stringify({ stepId: 'book', done: false, full: true })]);
+    await page.locator('[data-tour="nav-settings"]').click();
+    await page.locator('.settings-nav__item[data-category="profile"]').click();
+    await page.getByRole('button', { name: /^继续功能导览/ }).click();
+    await page.locator('.tour-spot').waitFor({ timeout: 30000 });
+    await page.locator('.tour-pop').getByRole('button', { name: '下一步', exact: true }).click();
+    await page.locator('.board-today__daily').waitFor({ timeout: 30000 });
+    await until(async () => actions.includes('daily.plan.get'), 'the plan block has read the day');
+    await page.waitForTimeout(2000);
+    assert.deepEqual(actions.filter((action) => /[.](suggest|accept|save|add|edit|set|generate|build|start)$/.test(action)), [], 'only reads while the tour is on the board');
+    const after = await previewCall(server, 'snapshot', { uiLanguage: 'zh' });
+    assert.equal(after.revision, before.revision, 'the library is as it was');
+    assert.deepEqual(errors, [], 'no console or page errors');
+    await context.close();
+  } finally {
+    await server.close();
+    await rm(base, { recursive: true, force: true, maxRetries: 20, retryDelay: 150 });
+    await browser.close();
+    await rm(dist, { recursive: true, force: true, maxRetries: 20, retryDelay: 150 });
+  }
+});

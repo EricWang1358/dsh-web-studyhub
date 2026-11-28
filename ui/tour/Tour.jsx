@@ -4,7 +4,7 @@ import { ui, uiFormat } from "../i18n.js";
 import { AddSourceButton, Button, IconButton, Icon, ProgressBar } from "../components/index.js";
 import { useTopDialog } from "../components/dialog-stack.js";
 import { useInjectCss } from "../shared.js";
-import { NARROW_WIDTH, inLayer, layerScale, placePopover, spotlightBox } from "./geometry.js";
+import { NARROW_WIDTH, driftedOut, inLayer, layerScale, placePopover, spotlightBox } from "./geometry.js";
 import { ANCHOR_WAIT_MS, findAnchor, isPinned, pageLead } from "./anchor.js";
 import { chapterHeading, opensFromNav, tourKeyAction, tourNextChapter } from "./steps.js";
 import css from "./tour.css";
@@ -63,7 +63,10 @@ export function TourPopover({ step, index, total, model, sampleLoaded = true, bu
 
 /* While the card is docked along the bottom of a narrow panel, the page gets that much room after its end (tour.css), so a control at the
    very end of a short page (创建题组's 生成 button) can still be scrolled above the card instead of staying underneath it. */
-const DOCK_GAP = 24, DOCK_CEILING = 60, DOCK_MARGIN = 12;
+const DOCK_GAP = 24, DOCK_CEILING = 60, DOCK_MARGIN = 12, HEADROOM = 64;
+// How often, and for how long after the anchor wait, a drifted anchor is scrolled to again; the learner's own scroll, press or key ends it.
+const SETTLE_EVERY_MS = 500, SETTLE_FOR_MS = 2000;
+const OWN_MOVES = ["wheel", "touchstart", "pointerdown", "keydown"];
 function setDockRoom(root, height) {
   if (!root) return;
   if (height > 0) {
@@ -124,6 +127,8 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
   const index = Math.max(0, steps.indexOf(step));
   const top = useTopDialog();
   const layerRef = useRef(null), popoverRef = useRef(null), targetRef = useRef(null), dockSizesRef = useRef("");
+  // The step whose target was scrolled to the top to make room for the card (at most once a step; the page keeps the room while the step lasts).
+  const raisedRef = useRef("");
   const [entered, setEntered] = useState(null);
   const [target, setTarget] = useState(null);
   const [layout, setLayout] = useState(null);
@@ -140,9 +145,32 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
     setTarget(null);
     targetRef.current = null;
     dockSizesRef.current = "";
+    raisedRef.current = "";
     Promise.resolve().then(() => enter.current?.(step)).catch(() => {}).finally(() => { if (live) setEntered(step.id); });
     return () => { live = false; };
   }, [step?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scroll the anchor into view: above the docked card on a narrow panel, else only when it is not already whole in the view.
+  const bringIntoView = (found) => {
+    const box = found.getBoundingClientRect(), view = layerRef.current?.getBoundingClientRect();
+    const scale = layerScale(view, layerRef.current), own = view ? inLayer(box, view, scale) : null;
+    // On a narrow panel the card is docked along the bottom: scroll tall or low anchors above the card while keeping their top under the bar.
+    if (view && view.width / scale <= NARROW_WIDTH) {
+      const popH = popoverRef.current?.offsetHeight || view.height / scale * 0.45;
+      const floor = view.height / scale - 12 - popH - DOCK_MARGIN;
+      const top = own.top, bottom = own.top + own.height;
+      if (top < DOCK_CEILING || bottom > floor) {
+        setDockRoom(rootRef.current, popH);
+        const desiredTop = Math.max(DOCK_CEILING, Math.min(96, floor - own.height));
+        scrollRoom(found, top + stuckShift(found) / scale - desiredTop);
+      }
+      dockSizesRef.current = `${step?.id}:${Math.round(own.height)}:${Math.round(popH)}`;
+    } else {
+      const visible = view && box.top >= view.top + 8 && box.bottom <= view.bottom - 8;
+      if (!visible) found.scrollIntoView({ block: box.height > (view?.height || 800) * 0.6 || (view?.width || 1000) <= 560 ? "start" : "center",
+        inline: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
+    }
+  };
 
   // Wait for the anchor; a step whose anchor never shows stays centred.
   useEffect(() => {
@@ -154,31 +182,28 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
       const found = findAnchor(rootRef.current, anchors);
       if (found) {
         targetRef.current = found;
-        const box = found.getBoundingClientRect(), view = layerRef.current?.getBoundingClientRect();
-        const scale = layerScale(view, layerRef.current), own = view ? inLayer(box, view, scale) : null;
-        // On a narrow panel the card is docked along the bottom: scroll tall or low anchors above the card while keeping their top under the bar.
-        if (view && view.width / scale <= NARROW_WIDTH) {
-          const popH = popoverRef.current?.offsetHeight || view.height / scale * 0.45;
-          const floor = view.height / scale - 12 - popH - DOCK_MARGIN;
-          const top = own.top, bottom = own.top + own.height;
-          if (top < DOCK_CEILING || bottom > floor) {
-            setDockRoom(rootRef.current, popH);
-            const desiredTop = Math.max(DOCK_CEILING, Math.min(96, floor - own.height));
-            scrollRoom(found, top + stuckShift(found) / scale - desiredTop);
-          }
-          dockSizesRef.current = `${step?.id}:${Math.round(own.height)}:${Math.round(popH)}`;
-        } else {
-          const visible = view && box.top >= view.top + 8 && box.bottom <= view.bottom - 8;
-          if (!visible) found.scrollIntoView({ block: box.height > (view?.height || 800) * 0.6 || (view?.width || 1000) <= 560 ? "start" : "center",
-            inline: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
-        }
+        bringIntoView(found);
         setTarget(found);
+        timer = setTimeout(hold, SETTLE_EVERY_MS);
         return;
       }
       if (Date.now() - started < ANCHOR_WAIT_MS) timer = setTimeout(look, 80);
     };
+    // A page still drawing (the Settings panes load one by one) can push the anchor away after the scroll: for a while it is brought back, until the learner moves.
+    let moved = false;
+    const own = () => { moved = true; };
+    for (const type of OWN_MOVES) document.addEventListener(type, own, { capture: true, passive: true });
+    const hold = () => {
+      if (!live || moved || Date.now() - started >= ANCHOR_WAIT_MS + SETTLE_FOR_MS) return;
+      const element = targetRef.current, view = layerRef.current?.getBoundingClientRect();
+      if (element?.isConnected && view) {
+        const scale = layerScale(view, layerRef.current);
+        if (driftedOut(inLayer(element.getBoundingClientRect(), view, scale), { width: view.width / scale, height: view.height / scale })) bringIntoView(element);
+      }
+      timer = setTimeout(hold, SETTLE_EVERY_MS);
+    };
     look();
-    return () => { live = false; clearTimeout(timer); };
+    return () => { live = false; clearTimeout(timer); for (const type of OWN_MOVES) document.removeEventListener(type, own, true); };
   }, [entered, step?.id, anchorKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const measure = useCallback(() => {
@@ -206,7 +231,11 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
     });
     const place = placePopover({ target: lit, popover: size, bounds, prefer: step?.placement, avoid, pinned: !!element && isPinned(element) });
     const spot = place.spot || lit;
-    setDockRoom(rootRef.current, place.docked ? size.height : 0);
+    // No room around the target as it stands (a large 界面大小 leaves a small layer): its top goes under the top bar, with room after the page's end to get there.
+    const raise = place.crowded && element && box && raisedRef.current !== step?.id && box.top > HEADROOM + 1;
+    if (raise) raisedRef.current = step.id;
+    setDockRoom(rootRef.current, place.docked || raisedRef.current === step?.id ? size.height : 0);
+    if (raise) scrollRoom(element, stuckShift(element) / scale + box.top - HEADROOM);
     if (place.docked && element && box) {
       const sizeKey = `${step?.id}:${Math.round(box.height)}:${Math.round(size.height)}`;
       if (dockSizesRef.current && dockSizesRef.current.startsWith(`${step?.id}:`) && dockSizesRef.current !== sizeKey) {
@@ -300,7 +329,7 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
       <TourPopover key={step.id} step={step} index={index} total={steps.length} model={model} sampleLoaded={sampleLoaded} busy={busy}
         popoverRef={popoverRef} docked={place?.docked} side={place?.side} onKeyDown={onKeyDown}
         style={place && !place.docked ? { left: 0, top: 0, transform: `translate(${place.left}px, ${place.top}px)`, ...(layout.caret != null ? { "--tour-caret": `${layout.caret}px` } : {}) }
-          : undefined}
+          : place?.side === "dock-lifted" ? { top: place.top } : undefined}
         onNext={next} onBack={() => onMove(-1)} onClose={() => onClose("close")} onSkip={() => onClose("skip")}
         onNextChapter={nextChapter ? () => onJump(nextChapter) : undefined}
         onLoadSample={onLoadSample} onBrowse={onBrowse} onImport={onImport} onFullTour={onFullTour} onRemoveSample={onRemoveSample} />

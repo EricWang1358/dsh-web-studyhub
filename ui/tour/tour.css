@@ -24,8 +24,8 @@
       scroll-margin-bottom: 16px;
     }
   }
-  /* While the card is docked (Tour.jsx sets the room to its height), the page can scroll past its end by that much: the last control of a short page
-     comes up above the card. Only after the end of the page, so nothing on screen moves. */
+  /* While the card is docked, or a target had to be raised to make room for it (Tour.jsx sets the room to the card's height), the page can scroll past its
+     end by that much: the last control of a short page comes up above the card. Only after the end of the page, so nothing on screen moves. */
   .study-app[data-tour-docked] > main::after {
     content: "";
     display: block;
@@ -92,8 +92,8 @@
       width: auto;
       max-height: min(58%, 440px);
     }
-    /* A bar pinned to the bottom is what the step shows: the sheet sits along the top edge (geometry.js). */
-    .tour-pop--dock-top { top: 12px; bottom: auto; }
+    /* A bar pinned to the bottom is what the step shows: the sheet is lifted to sit above it, at the height geometry.js says (an inline top). */
+    .tour-pop--dock-lifted { bottom: auto; }
     .tour-pop__head {
       display: flex;
       align-items: center;

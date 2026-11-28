@@ -15,7 +15,7 @@ const compiled = await build({
     export { default as FirstRunLine } from './ui/first-run/FirstRunLine.jsx';
     export { firstRunLine } from './ui/first-run/line.js';
     export { default as Tour, TourPopover } from './ui/tour/Tour.jsx';
-    export { placePopover, spotlightBox } from './ui/tour/geometry.js';
+    export { placePopover, spotlightBox, driftedOut } from './ui/tour/geometry.js';
     export { readTourProgress, writeTourProgress, welcomeDismissed, dismissWelcome } from './ui/tour/progress.js';
     export { TOUR_STEPS } from './ui/tour/steps.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: "node", format: "cjs", external: ["react", "react-dom"], loader: { ".css": "text" }, logLevel: "silent",
@@ -207,14 +207,54 @@ test("a target too tall for any side is lit only above the card: the card never 
   assert.deepEqual(ui.placePopover({ target: { left: 10, top: 100, width: 400, height: 80 }, popover: sheet, bounds: phone }).spot, undefined);
 });
 
-test("a bar pinned to the bottom of a narrow panel moves the sheet to the top instead of lying under it", () => {
+test("above a bar pinned to the bottom of a narrow panel: the sheet sits on top of it, not over it and not over the page's title", () => {
   const phone = { width: 420, height: 860 }, sheet = { width: 396, height: 380 }, bar = { left: 10, top: 780, width: 400, height: 70 };
   const placed = ui.placePopover({ target: bar, popover: sheet, bounds: phone, pinned: true });
   assert.equal(placed.docked, true);
-  assert.equal(placed.top, 12);
+  assert.equal(placed.side, "dock-lifted");
+  assert.equal(placed.top, 780 - 8 - 380, "just above the bar, so the top of the page stays in sight");
   assert.ok(!meet(cardOf(placed, sheet), bar));
   // A target that can still be scrolled above the sheet keeps it at the bottom (the tour scrolls the page, and the sheet does not jump about).
   assert.equal(ui.placePopover({ target: bar, popover: sheet, bounds: phone }).top, 860 - 380 - 12);
+});
+
+test("a target that late content pushed out of view is scrolled to again; one the view cuts only at the bottom is left alone", () => {
+  const bounds = { width: 1440, height: 900 };
+  const at = (top, height) => ui.driftedOut({ left: 100, top, width: 600, height }, bounds);
+  assert.equal(at(1400, 400), true, "below the view");
+  assert.equal(at(-700, 400), true, "above it");
+  assert.equal(at(860, 400), true, "only a sliver left at the bottom");
+  assert.equal(at(-60, 300), true, "its top is cut off although it would fit");
+  assert.equal(at(100, 400), false);
+  assert.equal(at(300, 1600), false, "a tall target with its top in view stays where it is");
+  assert.equal(at(-200, 2000), false, "a target taller than the view fills it");
+  assert.equal(at(870, 24), false, "a short bar at the foot is all there");
+});
+
+/* 界面大小 150% on 1440 × 900 leaves the layer 960 × 600 of its own pixels: the measurements below are the walk's. */
+test("a target with no room around it is reported as crowded, so the tour first scrolls it to the top; there it fits", () => {
+  const bounds = { width: 960, height: 600 }, popover = { width: 380, height: 330 };
+  const row = { left: 230, top: 185, width: 702, height: 76 };
+  assert.equal(ui.placePopover({ target: row, popover, bounds }).crowded, true, "below needs 360 px, above too");
+  const raised = ui.placePopover({ target: { ...row, top: 64 }, popover, bounds });
+  assert.equal(raised.crowded, undefined);
+  assert.ok(!meet(cardOf(raised, popover), { ...row, top: 64 }), JSON.stringify(raised));
+  // A whole section at the top is lit down to the card, even where little of it fits.
+  const section = { left: 230, top: 64, width: 702, height: 820 };
+  const cut = ui.placePopover({ target: section, popover: { width: 380, height: 360 }, bounds });
+  assert.equal(cut.crowded, undefined);
+  assert.ok(cut.spot && cut.spot.height >= 96 && !meet(cardOf(cut, { width: 380, height: 360 }), cut.spot), JSON.stringify(cut));
+});
+
+test("a centred card moves under the page's title when it would lie on it", () => {
+  const bounds = { width: 960, height: 600 }, popover = { width: 380, height: 330 };
+  const title = { left: 300, top: 120, width: 260, height: 36 };
+  const placed = ui.placePopover({ target: null, popover, bounds, avoid: [title] });
+  assert.equal(placed.side, "center");
+  assert.ok(!meet(cardOf(placed, popover), title) && inside(placed, popover, bounds), JSON.stringify(placed));
+  assert.equal(placed.left, ui.placePopover({ target: null, popover, bounds }).left);
+  // No room under it: it stays in the middle.
+  assert.deepEqual(ui.placePopover({ target: null, popover: { width: 380, height: 560 }, bounds, avoid: [title] }), ui.placePopover({ target: null, popover: { width: 380, height: 560 }, bounds }));
 });
 
 test("tour progress and the welcome choice are remembered per library, and blocked storage is harmless", () => {

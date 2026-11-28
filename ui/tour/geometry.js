@@ -16,7 +16,6 @@ import { drawnScale } from "../drawn-scale.js";
 export const NARROW_WIDTH = 560;
 /** How much of a tall target stays lit at the least (px): less than this is not recognised as the thing the step talks about. */
 const MIN_LIT = 96;
-const MIN_LIT_WIDE = 160;
 /** The docked card's inset from the edges, and the air between it and the lit area. */
 const DOCK_EDGE = 12, DOCK_AIR = 8;
 
@@ -24,14 +23,16 @@ const clamp = (value, low, high) => Math.min(Math.max(value, low), Math.max(low,
 const shared = (a, b) => Math.max(0, Math.min(a.left + a.width, b.left + b.width) - Math.max(a.left, b.left)) *
   Math.max(0, Math.min(a.top + a.height, b.top + b.height) - Math.max(a.top, b.top));
 
+const floorOver = (target, popover) => target.top - DOCK_AIR - popover.height;
+
 /* The narrow panel's sheet. It stays at the bottom, and a target that reaches under it is lit down to its edge. A bar pinned to the bottom of the view
-   (`pinned`) cannot be scrolled above it: the sheet moves to the top instead. */
+   (`pinned`) cannot be scrolled above it: the sheet is lifted to sit just above it, which leaves the top of the page in sight. */
 function dock(target, popover, bounds, pinned) {
   const bottom = { side: "dock", docked: true, left: DOCK_EDGE, top: Math.max(DOCK_EDGE, bounds.height - popover.height - DOCK_EDGE) };
   const floor = bottom.top - DOCK_AIR;
   if (!target || target.top + target.height <= floor) return bottom;
   if (floor - target.top >= Math.min(MIN_LIT, target.height)) return { ...bottom, spot: { ...target, height: floor - target.top } };
-  if (pinned && target.top >= DOCK_EDGE + popover.height + DOCK_AIR) return { ...bottom, side: "dock-top", top: DOCK_EDGE };
+  if (pinned && floorOver(target, popover) >= DOCK_EDGE) return { ...bottom, side: "dock-lifted", top: floorOver(target, popover) };
   return bottom;
 }
 
@@ -41,7 +42,12 @@ export function placePopover({ target, popover, bounds, prefer, avoid = [], pinn
   const centred = { side: "center", docked: false,
     left: clamp((width - popover.width) / 2, margin, width - popover.width - margin),
     top: clamp((height - popover.height) / 2, margin, height - popover.height - margin) };
-  if (!target) return centred;
+  // A centred card (a step with nothing to light) moves under the title when it would lie on it and still fits there.
+  if (!target) {
+    const [title] = avoid;
+    const under = title && shared({ ...centred, width: popover.width, height: popover.height }, title) ? title.top + title.height + gap : null;
+    return under !== null && under + popover.height + margin <= height ? { ...centred, top: under } : centred;
+  }
   const right = target.left + target.width, bottom = target.top + target.height;
   // A target taller than the view: centre on the part that is visible.
   const middleY = (Math.max(target.top, 0) + Math.min(bottom, height)) / 2;
@@ -84,15 +90,17 @@ export function placePopover({ target, popover, bounds, prefer, avoid = [], pinn
   if (free) return free;
   // No room around the target: light its top and put the card under that.
   const floor = height - margin - popover.height - gap;
-  const cut = floor - target.top >= MIN_LIT_WIDE && floor < bottom
+  const cut = floor - target.top >= MIN_LIT && floor < bottom
     ? { side: "bottom", docked: false, left: across, top: floor + gap, spot: { ...target, height: floor - target.top } } : null;
   if (cut && clear(cut)) return cut;
-  if (!avoid.length) return cut || within;
+  // `crowded`: the card would have to lie on the lit area. The tour then scrolls the target to the top, once, and places the card again.
+  const told = (placed) => (!placed.spot && shared(card(placed), target) ? { ...placed, crowded: true } : placed);
+  if (!avoid.length) return told(cut || within);
   // Something has to give: the lit area stays uncovered first, then the boxes in the order they matter.
   const cost = (placed) => [placed.spot ? 0 : shared(card(placed), target), ...avoid.map((box) => shared(card(placed), box))];
   const worse = (a, b) => { for (let at = 0; at < a.length; at += 1) if (a[at] !== b[at]) return a[at] - b[at]; return 0; };
-  return [...beside, ...slid, ...corners, ...(cut ? [cut] : []), within].map((placed) => ({ placed, cost: cost(placed) }))
-    .sort((a, b) => worse(a.cost, b.cost))[0].placed;
+  return told([...beside, ...slid, ...corners, ...(cut ? [cut] : []), within].map((placed) => ({ placed, cost: cost(placed) }))
+    .sort((a, b) => worse(a.cost, b.cost))[0].placed);
 }
 
 /** The zoom between screen pixels and the layer's own CSS pixels (ui/drawn-scale.js); 1 while there is no layer or rectangle. */
@@ -101,6 +109,14 @@ export const layerScale = (view, layer) => (view ? drawnScale(layer, view) : 1);
 /** A screen rectangle in the layer's own coordinates, where the spotlight and the popover are placed. */
 export const inLayer = (box, view, scale = 1) => ({ left: (box.left - view.left) / scale, top: (box.top - view.top) / scale,
   width: box.width / scale, height: box.height / scale });
+
+/** Has the page moved the target away since it was scrolled to (lazily drawn content above it)? Out of the view, only a sliver of it left at the bottom, or
+    its top cut off although it would fit: the tour then scrolls to it again. A target taller than the view that still fills it is where it should be. */
+export function driftedOut(target, bounds) {
+  const shown = Math.min(target.top + target.height, bounds.height) - Math.max(target.top, 0);
+  if (shown < Math.min(MIN_LIT, target.height) - 1) return true;
+  return target.top < -8 && target.height < bounds.height;
+}
 
 /** The spotlight box around a target, padded and kept inside the layer. */
 export function spotlightBox(target, bounds, pad = 6) {
