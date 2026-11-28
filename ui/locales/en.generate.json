@@ -365,6 +365,8 @@
   "题量、想练什么、难度、花费、额外要求": "Count, focus, difficulty, cost, extras",
   "各题型题数、补充要求": "Counts, notes",
   "定位待处理题": "Jump to flagged question",
+  "待处理": "Needs fixing",
+  "查看修题办法": "See how to fix it",
   "更多字段": "More fields",
   "课程归属、排序、合并与拆分": "Course, order, merge and split",
   "筛选题目": "Filter questions",
