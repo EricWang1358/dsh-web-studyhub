@@ -1,0 +1,2 @@
+- **The "Good" series in Settings' review-interval preview now matches its green legend dot.** Previously the legend dot used `--ok` while the curve, nodes, and day labels used `--accent` / `--accent-text` (cinnabar by default). All four now share `--sm2-good: var(--ok)`, staying consistent across all five accent colours and both light and dark themes. (#1682)
+  - Not verified: verified in Chromium preview across all 5 accents × light/dark themes (10 combinations); not visually re-checked inside the DSH host or desktop app window.

@@ -58,22 +58,22 @@
     /* 间隔复习 (FSRS-6; the sm2- class prefix is older than the scheduler) */
     .sm2-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 14rem)); gap: var(--space-3) var(--space-5); }
     .sm2-field-tip { display: inline-flex; vertical-align: -3px; color: var(--text-muted); cursor: help; }
-    .sm2-preview { display: grid; gap: var(--space-2); max-width: 720px; margin: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-soft);
+    .sm2-preview { --sm2-good: var(--ok); display: grid; gap: var(--space-2); max-width: 720px; margin: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-soft);
       border-radius: var(--radius); background: var(--bg-surface); }
     .sm2-preview svg { display: block; width: 100%; height: auto; overflow: visible; }
     .sm2-tick line { stroke: var(--line-soft); stroke-width: 1; stroke-dasharray: 2 4; }
     .sm2-tick text { fill: var(--text-muted); font-size: var(--fs-xs); }
     .sm2-track { stroke-width: 2; stroke-linecap: round; }
     .sm2-series text { font-size: var(--fs-xs); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
-    .sm2-series.is-good .sm2-track { stroke: color-mix(in srgb, var(--accent) 55%, transparent); }
-    .sm2-series.is-good circle { fill: var(--accent); stroke: var(--bg-surface); stroke-width: 2; }
-    .sm2-series.is-good text { fill: var(--accent-text); }
+    .sm2-series.is-good .sm2-track { stroke: color-mix(in srgb, var(--sm2-good) 55%, transparent); }
+    .sm2-series.is-good circle { fill: var(--sm2-good); stroke: var(--bg-surface); stroke-width: 2; }
+    .sm2-series.is-good text { fill: var(--sm2-good); }
     .sm2-series.is-hard .sm2-track { stroke: var(--line-strong); stroke-dasharray: 4 4; }
     .sm2-series.is-hard circle { fill: var(--bg-surface); stroke: var(--text-muted); stroke-width: 1.5; }
     .sm2-series.is-hard text { fill: var(--text-muted); font-weight: var(--fw-medium); }
     .sm2-preview figcaption { display: grid; gap: var(--space-half); color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .sm2-key::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: var(--space-2); border-radius: 50%; vertical-align: 1px; }
-    .sm2-key.is-good::before { background: var(--ok); }
+    .sm2-key.is-good::before { background: var(--sm2-good); }
     .sm2-key.is-hard::before { border: 1.5px solid var(--text-muted); }
     .sm2-exam-align { display: grid; gap: var(--space-2); max-width: 720px; }
     /* 数据备份与恢复 */
