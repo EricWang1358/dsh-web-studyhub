@@ -695,7 +695,7 @@ export async function runJourney(options) {
   return summary;
 }
 
-function journeyContext({ page, server, previewCall, options, english, fixtures, step }) {
+export function journeyContext({ page, server, previewCall, options, english, fixtures, step }) {
   const index = () => String([...JOURNEY_STEPS, ...TOUR_STEPS, ...CASE_STEPS].findIndex((item) => item.name === step()) + 1).padStart(2, "0");
   const t = (zh) => options.lang === "en" && Object.hasOwn(english, zh) ? english[zh] : zh;
   const named = (zh) => controlName(t, zh);
