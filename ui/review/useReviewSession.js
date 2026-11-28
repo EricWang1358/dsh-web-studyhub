@@ -16,6 +16,7 @@ import {
   keysElsewhere, mergeReviewPollWithFollowups, shouldAdvanceOnSelfGrade, shortcutAction, shortcutGate, shouldResetEntry, skipTarget,
 } from './session-logic.js';
 import { continueLabel, continueNote } from './continue-labels.js';
+import { openAssistPanel } from './assist-panel.js';
 import { createDraftSaver, draftKey, draftPayloadOf, draftable, entrySignature, keepTyped, savedSignature } from './draft-persistence.js';
 import { hiddenMsOf, noteVisibility, openClock } from './hidden-time.js';
 import { playSound } from '../sound-effects.js';
@@ -32,6 +33,7 @@ const REVIEW_POLL_MS = 4000;
 const ASSIST_SENT_FAST_MS = 20000;
 
 export { mergeReviewPollWithFollowups } from './session-logic.js';
+export { openAssistPanel };
 
 function createLiveSessionStore() {
   let state = {
@@ -861,7 +863,10 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     else if (action.type === 'flip') flipCard();
     else if (action.type === 'hint') toggleHint();
     else if (action.type === 'explain') { if (runRef.current?.feedback) setExplainHidden((value) => !value); else patch((value) => ({ explain: !value.explain })); }
-    else if (action.type === 'assist-plain') assistCard('ask', '', ['plain']);
+    else if (action.type === 'assist-open' || action.type === 'assist-plain') {
+      if (questionKeys.current['assist-open']) questionKeys.current['assist-open'](action.choice || 'plain');
+      else openAssistPanel(rootRef.current, action.choice || 'plain');
+    }
     else if (action.type === 'choose') choose(action.id);
     else if (action.type === 'clear-choice') patch({ selected: [] });
     else if (action.type === 'skip') skipQuestion();

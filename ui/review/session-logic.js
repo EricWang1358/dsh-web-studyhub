@@ -176,7 +176,7 @@ const BLANK = (value) => String(value).trim();
 /**
  * What a key press means. Returns null when the press is not ours, otherwise { cancelAuto, preventDefault, action }
  * Actions: help, help-close, end-cancel, mark-terms, mark-terms-exit, autopilot, resume, answer{args}, focus-cloze, voice, voice-ask,
- * move{direction}, flip, hint, explain, assist-plain, choose{id}, clear-choice, skip, note, focus, source.
+ * move{direction}, flip, hint, explain, assist-open{choice}, choose{id}, clear-choice, skip, note, focus, source.
  * event: { key, code, shiftKey, repeat, defaultPrevented, ctrlKey, metaKey, altKey, inEditable, onButton }.
  * ctx: { inside, modalOpen, page, run, busy, shortcutHelp, endAsked, markingTerms, choice, isCloze, rubricCard, selected, clozeValues }.
  */
@@ -217,8 +217,8 @@ export function shortcutAction(event, ctx) {
     return result(flipsOnly ? { type: 'flip' } : null, true);
   }
   if (letter === 'h') return result({ type: (run.revealed || !!run.feedback) ? 'explain' : 'hint' }, true);
-  // 通俗详解 in one key: the background assistant explains with an analogy.
-  if (letter === 't' && run.mode !== 'exam') return result({ type: 'assist-plain' }, true);
+  // T opens 帮我弄懂 pre-selected on 通俗详解 without auto-firing a paid model call.
+  if (letter === 't' && run.mode !== 'exam') return result({ type: 'assist-open', choice: 'plain' }, true);
   // The actions of 更多 that have a key of their own (#1008): 先跳过, 写笔记, 标为重点, and the question's own page. An exam has none of them.
   const moreKey = { k: 'skip', n: 'note', f: 'focus', o: 'source' }[letter];
   if (moreKey) return run.mode === 'exam' ? result(null) : result({ type: moreKey }, true);

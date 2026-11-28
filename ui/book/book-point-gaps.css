@@ -138,6 +138,35 @@
       color: var(--text-muted);
       font-size: var(--fs-sm);
     }
+    .book-gaps.book-gaps--compact {
+      padding: var(--space-2) var(--space-3);
+    }
+    .book-gaps__summary {
+      --sh-summary-marker-gap: 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-2);
+      cursor: pointer;
+      font-size: var(--fs-sm);
+    }
+    .book-gaps__summary-title {
+      font-weight: var(--fw-medium);
+      color: var(--text);
+    }
+    .book-gaps__summary-line {
+      color: var(--text-muted);
+    }
+    .book-gaps__fold .book-gaps__meta {
+      margin-inline-start: auto;
+    }
+    .book-gaps__body {
+      display: grid;
+      gap: var(--space-2);
+      padding-top: var(--space-2-5);
+      margin-top: var(--space-2);
+      border-top: 1px solid var(--line-soft);
+    }
     /* Per-point quiet gap hint inside BookGapHint (ui/book/BookGapHint.jsx). */
     .book-point__question-gap {
       display: flex;

@@ -1,0 +1,2 @@
+- **全站主流程减负、聚焦与白话化优化。** 折叠并精简了 JSON 导入、草稿与发布、维护题组、大 PDF 备选导入、模拟考试设置、考试教练、知识骨架、复习全书、错题本、交互伴学、任务控制台与学习统计中的前置/低频控件；阻止做题页单键 `T` 无确认直调模型，为 0 词「标生词」模式补充显式退出条，修复示例导览结束后被首次引导页遮挡的问题，将 `TTFT`/`TPS`/沙箱/考察任务族等工程术语改为平实中文，并为维护题组新增即时关键词搜索与标记筛选。
+  - 未验证：DSH 真实宿主联调（`npm run qa:dsh`）及目标 Chromium 套件（`exam-coach-browser`、`course-outline-browser`、`feedback-lite-browser`、`layout-late-wrongbook`、`wrongbook-distribution-browser`）之外的全部慢速浏览器矩阵。

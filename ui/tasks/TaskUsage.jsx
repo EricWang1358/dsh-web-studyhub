@@ -16,6 +16,8 @@ import { jobTiming } from '../../lib/job-timing.js';
    estimates a figure, and shows nothing rather than a guess when a job could not
    measure one. A running job's numbers are its settled calls' and grow as the rest end. */
 
+const TIMING_LABELS = { ttft: '首次响应', tps: '生成速度' };
+
 export default function TaskUsage({ contract }) {
   const usage = contract?.usage?.tokenUsage || null;
   const rows = timingRows(jobTiming(contract?.calls));
@@ -30,7 +32,7 @@ export default function TaskUsage({ contract }) {
         <span className="tc-figures__k">{ui('速度')}</span>
         <dl className="tc-figures__timings">
           {rows.map((row) => <div key={row.id} className="tc-figures__cell" data-figure={row.id}>
-            <dt>{row.label}</dt><dd>{row.value}</dd>
+            <dt>{TIMING_LABELS[row.id] ? ui(TIMING_LABELS[row.id]) : row.label}</dt><dd>{row.value}</dd>
           </div>)}
         </dl>
       </div>}

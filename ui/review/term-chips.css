@@ -1,0 +1,23 @@
+/* Mode bar shown when 标生词 is active before any word is marked (ui/review/TermChips.jsx). Tokens only. */
+
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    .term-strip--mode {
+      justify-content: space-between;
+      border-color: var(--warn-line);
+      background: var(--warn-bg);
+    }
+    .term-strip__mode-hint {
+      flex: 1 1 auto;
+      min-width: 0;
+      font-size: var(--fs-sm);
+      color: var(--text-dim);
+      line-height: var(--lh-snug);
+    }
+    .term-strip__exit {
+      flex: 0 0 auto;
+    }
+  }
+}

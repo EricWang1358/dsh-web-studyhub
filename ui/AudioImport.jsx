@@ -267,7 +267,7 @@ export default function AudioImport({
           <Button size="sm" lock={busy} onClick={() => picker.current?.click()}>{ui('添加音频')}</Button>
           <Hint as="small">{ui('也可把更多音频拖到这里')}</Hint>
         </div>}
-        <div className="audio-ways">
+        <div className="audio-ways" data-audio-ways="inline">
           <AudioWorkspace onPick={(picked) => pickPath(picked.path, picked.size)} />
           <HandOff id="import.file" shape="quiet" input={{ purpose: 'audio' }} lead="多段录音或别处的文件：" disabled={busy} what="让主会话按你指定的顺序导入这些音频；文件在输入框里用 @ 选" />
           <details className="audio-path"><summary>{ui("粘贴文件路径（高级）")}</summary>

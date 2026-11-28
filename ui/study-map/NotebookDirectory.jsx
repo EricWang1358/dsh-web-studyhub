@@ -7,15 +7,23 @@ import { joinMeta } from '../format.js';
 import { useStudy } from '../study-context.jsx';
 
 const OPEN_KEY = 'study-nb-dir-open';
-const readOpen = () => readText(OPEN_KEY) !== '0';
+const listOf = (notebooks) => (Array.isArray(notebooks) ? notebooks : notebooks?.notebooks) || EMPTY_NOTEBOOKS;
+const hasOtherOrPublished = (rows) => rows.some((n) => !n.current || n.publishedAt);
 
 /* Cross-workspace notebook directory. Entries are links, not copies: each
    published notebook's study data stays in its own workspace, and clicking a
    foreign entry opens a fresh conversation there. */
 export default function NotebookDirectory({ notebooks, error, onPublish, onUnpublish, onOpen, refresh, onSearch, folded = false }) {
   const { busy } = useStudy();
-  // `folded` (简洁版) starts it as its heading line; only the learner's own press saves a fold choice.
-  const [open, setOpen] = useState(() => !folded && readOpen());
+  const savedOpen = readText(OPEN_KEY, null);
+  // `folded` (简洁版) starts it as its heading line; a single-workspace library with no other or published notebooks also folds by default unless the learner chose otherwise.
+  const [open, setOpen] = useState(() => !folded && (savedOpen !== null ? savedOpen !== '0' : hasOtherOrPublished(listOf(notebooks))));
+  const userToggled = useRef(false);
+  useEffect(() => {
+    if (folded || savedOpen !== null || userToggled.current) return;
+    if (!Array.isArray(notebooks) && !notebooks?.notebooks) return;
+    setOpen(hasOtherOrPublished(listOf(notebooks)));
+  }, [folded, savedOpen, notebooks]);
   const [query, setQuery] = useState(''), [searching, setSearching] = useState(false), [results, setResults] = useState(null), [searchError, setSearchError] = useState('');
   const searchRequest = useRef(0);
   useEffect(() => {
@@ -24,7 +32,7 @@ export default function NotebookDirectory({ notebooks, error, onPublish, onUnpub
     setSearchError('');
     setSearching(false);
   }, [notebooks]);
-  const list = notebooks?.notebooks || EMPTY_NOTEBOOKS;
+  const list = listOf(notebooks);
   /* Global due queue: every published notebook's due decks, due first. */
   const dueRows = useMemo(() => {
     const rows = [];
@@ -42,6 +50,7 @@ export default function NotebookDirectory({ notebooks, error, onPublish, onUnpub
   );
   const current = list.find((n) => n.current), others = list.filter((n) => !n.current), published = list.filter((n) => n.publishedAt).length;
   const toggle = () => setOpen((value) => {
+    userToggled.current = true;
     writeText(OPEN_KEY, value ? '0' : '1'); // per-device only
     return !value;
   });
