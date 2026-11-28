@@ -324,6 +324,8 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
   };
   // 跳到下一章: only where `onJump` is given (the full tour), and not before the welcome step's sample is chosen.
   const nextChapter = onJump && !(step.id === "welcome" && !sampleLoaded) ? tourNextChapter(steps, step.id) : null;
+  // It leaves out the rest of this chapter; the tour's card stays where the learner is looking.
+  const skipChapter = () => onJump(nextChapter);
   const place = layout?.place;
   const centred = !anchors.length;
   const layer = (
@@ -335,7 +337,7 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
         style={place && !place.docked ? { left: 0, top: 0, transform: `translate(${place.left}px, ${place.top}px)`, ...(layout.caret != null ? { "--tour-caret": `${layout.caret}px` } : {}) }
           : place?.side === "dock-lifted" ? { top: place.top } : undefined}
         onNext={next} onBack={() => onMove(-1)} onClose={() => onClose("close")} onSkip={() => onClose("skip")}
-        onNextChapter={nextChapter ? () => onJump(nextChapter) : undefined}
+        onNextChapter={nextChapter ? skipChapter : undefined}
         onLoadSample={onLoadSample} onBrowse={onBrowse} onImport={onImport} onFullTour={onFullTour} onRemoveSample={onRemoveSample} />
       <p className="sh-visually-hidden" role="status" aria-live="polite">{uiFormat("功能导览 · 第 {0} / {1} 步：{2}", [index + 1, steps.length, ui(step.title)])}</p>
     </div>

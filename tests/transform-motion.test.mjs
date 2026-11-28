@@ -146,8 +146,8 @@ test('the review ticks and the tour spotlight are moved by transform', async () 
         querySelector: (sel) => (sel === '[data-tour="sample"]' ? anchorEl : null),
       },
     };
-    const layerBox = { getBoundingClientRect: () => ({ left: 0, top: 0, right: 1200, bottom: 800, width: 1200, height: 800 }), clientWidth: 1200, offsetWidth: 1200 };
-    const popBox = { offsetWidth: 320, offsetHeight: 180, isConnected: true, contains: () => true, focus() {} };
+    const layerBox = { getBoundingClientRect: () => ({ left: 0, top: 0, right: 1200, bottom: 800, width: 1200, height: 800 }), clientWidth: 1200, offsetWidth: 1200, closest: () => null };
+    const popBox = { offsetWidth: 320, offsetHeight: 180, isConnected: true, contains: () => true, focus() {}, classList: { contains: () => false } };
     const steps = [{ id: 's1', anchor: 'sample', title: 'Step 1', body: 'Body' }];
     const props = { steps, stepId: 's1', rootRef, sampleLoaded: true, onMove() {}, onClose() {}, onFinish() {} };
 
@@ -187,6 +187,8 @@ test('the review ticks and the tour spotlight are moved by transform', async () 
     assert.equal(spot.props.style.top, 0, 'spotlight pins top to 0 and translates instead of animating top');
     assert.match(spot.props.style.transform, /^translate\(\d+(?:\.\d+)?px,\s*\d+(?:\.\d+)?px\)$/, 'the spotlight is placed with translate');
   } finally {
+    // Unmount as React would, while the stand-in page is still there: the tour's waiting loops stop with it.
+    for (const hook of hooks) hook?.cleanup?.();
     delete globalThis.__TOUR_MOTION_REACT__;
     if (prevWin === undefined) delete globalThis.window; else globalThis.window = prevWin;
     if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
