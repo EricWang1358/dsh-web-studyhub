@@ -926,7 +926,7 @@ export function wrongBookHeadline({ isHistory, counts, historyCount = 0, status 
     { kind: "graded", count: counts.graded, text: uiFormat("客观答错 {0} 题", [counts.graded]) },
     { kind: "self", count: counts.self, text: uiFormat("未掌握 {0} 题", [counts.self]) },
     { kind: "oral", count: counts.oral, text: uiFormat("口头评估待巩固 {0} 题", [counts.oral]) },
-    ...(isHistory ? [] : [{ kind: "rubric", count: counts.rubric, text: uiFormat("按评分标准批改未达标 {0} 题", [counts.rubric]) }]),
+    { kind: "rubric", count: counts.rubric, text: uiFormat("按评分标准批改未达标 {0} 题", [counts.rubric]) },
   ].filter((part) => part.count > 0 || (!isHistory && status === part.kind));
   const kept = !isHistory && historyCount > 0 ? uiFormat("已订正 {0} 题，记录保留", [historyCount]) : "";
   if (isHistory) {
@@ -1901,7 +1901,7 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
   busyRef.current = !!busy;
   const current = result?.key === key ? result : null;
   const items = current?.items;
-  const counts = current?.counts || { total: 0, graded: 0, self: 0, oral: 0 };
+  const counts = current?.counts || { total: 0, graded: 0, self: 0, oral: 0, rubric: 0 };
   // Both views' counts, as last read in this scope: the switch keeps its numbers while the other view loads, and the header stops at the scope edge.
   const knownViewCounts = viewCounts.scope === scopeKey ? viewCounts : null;
   const coach = coachLive || data?.coach || null;
@@ -1965,13 +1965,13 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
         : { weak: viewTotal, history: 0 };
       const storedKey = JSON.stringify([scopeKey, answerView]);
       setViewCounts({ scope: scopeKey, ...both });
-      setResult({ key: storedKey, view: answerView, viewCounts: both,
-        counts: { total: viewTotal,
-          graded: res?.gradedTotal ?? res?.items?.filter((item) => item.assessment === "graded").length ?? 0,
-          self: res?.selfTotal ?? res?.items?.filter((item) => item.assessment === "self").length ?? 0,
-          oral: res?.oralTotal ?? 0, rubric: res?.rubricTotal ?? 0 },
+      const raw = res?.items || [];
+      const fb = statusCounts(raw);
+      const nextCounts = { total: viewTotal };
+      for (const k of STATUS_KINDS) nextCounts[k] = res?.[`${k}Total`] ?? fb[k];
+      setResult({ key: storedKey, view: answerView, viewCounts: both, counts: nextCounts,
       // Keep this guard for older service versions that still return suspended cards.
-        items: (res?.items || []).filter((it) => it && it.deckId && it.cardId && !it.suspended) });
+        items: raw.filter((it) => it && it.deckId && it.cardId && !it.suspended) });
       setPage(targetPage);
       if (!quiet) {
         asked.current = new Set();

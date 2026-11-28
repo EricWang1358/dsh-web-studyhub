@@ -7,7 +7,7 @@ import { StudyService } from '../lib/service.js';
 import { emptyState } from '../lib/store.js';
 import { initialReview } from '../lib/domain.js';
 import { latestOutcomes } from '../lib/mastery.js';
-import { studyMap, studyStats, wrongBook } from '../lib/insights.js';
+import { classifyAttemptAssessment, studyMap, studyStats, wrongBook } from '../lib/insights.js';
 import { recommendSimilar } from '../lib/recommend.js';
 import { wrongDetail } from '../lib/wrong-detail.js';
 
@@ -236,4 +236,83 @@ test('implicit prerequisite credits and #778 unverified self-reports never clear
   assert.equal(wrongDetail(state, { deckId: 'd', cardId: 'imp-miss' }).lastGrade, 1);
   assert.equal(wrongDetail(state, { deckId: 'd', cardId: 'self-miss' }).lastGrade, 1);
   assert.equal(wrongDetail(state, { deckId: 'd', cardId: 'verified-later' }, { view: 'history' }).lastGrade, 4);
+});
+
+test('#1449-8: wrongBook preserves rubric/task-static/taskCheck assessments and rubricTotal across weak & history without changing studyStats', () => {
+  // Default classifier stays unchanged for studyStats (#93/#1308)
+  assert.equal(classifyAttemptAssessment({ assessment: 'rubric' }), 'graded');
+  assert.equal(classifyAttemptAssessment({ assessment: 'task-static' }), 'graded');
+  assert.equal(classifyAttemptAssessment({ assessment: 'graded', taskCheck: { passed: false } }), 'graded');
+  assert.equal(classifyAttemptAssessment({ assessment: 'coach-sync' }), 'graded');
+  assert.equal(classifyAttemptAssessment({ via: 'voice' }), 'graded');
+  assert.equal(classifyAttemptAssessment({ assessment: 'self' }), 'self');
+  assert.equal(classifyAttemptAssessment({ assessment: 'oral' }), 'oral');
+  assert.equal(classifyAttemptAssessment({ assessment: 'self-report', selfReported: true }), 'self-report');
+
+  // preserveRubric keeps rubric / task-static / taskCheck distinct while keeping coach-sync / voice / graded as graded
+  assert.equal(classifyAttemptAssessment({ assessment: 'rubric' }, null, { preserveRubric: true }), 'rubric');
+  assert.equal(classifyAttemptAssessment({ assessment: 'task-static' }, null, { preserveRubric: true }), 'rubric');
+  assert.equal(classifyAttemptAssessment({ assessment: 'graded', taskCheck: { passed: false } }, null, { preserveRubric: true }), 'rubric');
+  assert.equal(classifyAttemptAssessment({ assessment: 'graded' }, null, { preserveRubric: true }), 'graded');
+  assert.equal(classifyAttemptAssessment({ assessment: 'coach-sync' }, null, { preserveRubric: true }), 'graded');
+  assert.equal(classifyAttemptAssessment({ via: 'voice' }, null, { preserveRubric: true }), 'graded');
+  assert.equal(classifyAttemptAssessment({ assessment: 'self' }, null, { preserveRubric: true }), 'self');
+  assert.equal(classifyAttemptAssessment({ assessment: 'oral' }, null, { preserveRubric: true }), 'oral');
+  assert.equal(classifyAttemptAssessment({ assessment: 'self-report', selfReported: true }, null, { preserveRubric: true }), 'self-report');
+
+  const state = emptyState();
+  state.decks = [{
+    id: 'd',
+    title: 'Mixed Deck',
+    course: 'C',
+    cards: [
+      card('c-rubric', 'open'),
+      card('c-task-static', 'task'),
+      card('c-task-check', 'task'),
+      card('c-quiz', 'quiz'),
+      card('c-voice', 'quiz'),
+      card('c-self', 'flashcard'),
+      card('c-oral', 'quiz'),
+      card('c-rubric-fixed', 'open'),
+    ],
+  }];
+  state.attempts = [
+    { deckId: 'd', quiz_id: 'c-rubric', assessment: 'rubric', grade: 1, timestamp: '2026-10-01T01:00:00Z' },
+    { deckId: 'd', quiz_id: 'c-task-static', assessment: 'task-static', grade: 1, timestamp: '2026-10-01T02:00:00Z' },
+    { deckId: 'd', quiz_id: 'c-task-check', assessment: 'graded', taskCheck: { passed: false }, grade: 1, timestamp: '2026-10-01T03:00:00Z' },
+    { deckId: 'd', quiz_id: 'c-quiz', assessment: 'graded', grade: 1, timestamp: '2026-10-01T04:00:00Z' },
+    { deckId: 'd', quiz_id: 'c-voice', via: 'voice', grade: 1, timestamp: '2026-10-01T05:00:00Z' },
+    { deckId: 'd', quiz_id: 'c-self', assessment: 'self', grade: 2, timestamp: '2026-10-01T06:00:00Z' },
+    { deckId: 'd', quiz_id: 'c-oral', assessment: 'oral', grade: 1, timestamp: '2026-10-01T07:00:00Z' },
+    { deckId: 'd', quiz_id: 'c-rubric-fixed', assessment: 'rubric', grade: 1, timestamp: '2026-10-01T08:00:00Z' },
+    { deckId: 'd', quiz_id: 'c-rubric-fixed', assessment: 'rubric', grade: 4, timestamp: '2026-10-02T08:00:00Z' },
+  ];
+
+  const weak = wrongBook(state, { view: 'weak' });
+  assert.equal(weak.total, 7);
+  assert.equal(weak.rubricTotal, 3, 'rubric, task-static, and taskCheck are counted in rubricTotal');
+  assert.equal(weak.gradedTotal, 2, 'only plain graded and voice stay in gradedTotal');
+  assert.equal(weak.selfTotal, 1);
+  assert.equal(weak.oralTotal, 1);
+  const weakById = new Map(weak.items.map((item) => [item.cardId, item.assessment]));
+  assert.equal(weakById.get('c-rubric'), 'rubric');
+  assert.equal(weakById.get('c-task-static'), 'rubric');
+  assert.equal(weakById.get('c-task-check'), 'rubric');
+  assert.equal(weakById.get('c-quiz'), 'graded');
+  assert.equal(weakById.get('c-voice'), 'graded');
+  assert.equal(weakById.get('c-self'), 'self');
+  assert.equal(weakById.get('c-oral'), 'oral');
+
+  const history = wrongBook(state, { view: 'history' });
+  assert.equal(history.total, 1);
+  assert.equal(history.rubricTotal, 1, 'recovered rubric mistake keeps rubricTotal in history view');
+  assert.equal(history.gradedTotal, 0);
+  assert.equal(history.items[0].cardId, 'c-rubric-fixed');
+  assert.equal(history.items[0].assessment, 'rubric');
+
+  // studyStats must still aggregate rubric/task-static/taskCheck into gradedAttempts (unchanged #93/#1308 contract)
+  const stats = studyStats(state, {}, new Date('2026-10-05T00:00:00Z'));
+  assert.equal(stats.totals.gradedAttempts, 7);
+  assert.equal(stats.totals.selfAttempts, 1);
+  assert.equal(stats.totals.oralAttempts, 1);
 });
