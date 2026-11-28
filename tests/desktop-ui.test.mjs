@@ -835,9 +835,16 @@ test('DesktopUpgradeGuide disables NSIS auto-update for MSI/portable flavors and
       return null;
     },
   };
-  const host = m.createDesktopHost(async () => ({}), {}, null, { installFlavor: 'nsis' });
+  const cliPath = 'C:\\StudyHub\\resources\\runtime\\scripts\\study-cli.mjs';
+  const nodePath = 'C:\\StudyHub\\resources\\runtime\\node.exe';
+  const host = m.createDesktopHost(async () => ({}), {}, null, { installFlavor: 'nsis', studyCliPath: `  ${cliPath}  `, studyNodePath: ` ${nodePath} ` });
   assert.equal(host.warmKey, 'studyhub-desktop');
   assert.equal(host.updater.installFlavor, 'nsis');
+  assert.equal(host.studyCliPath, cliPath);
+  assert.equal(host.studyNodePath, nodePath);
+  assert.deepEqual(host.capabilities, DESKTOP_HOST.capabilities);
+  assert.equal('studyCliPath' in m.createDesktopHost(async () => ({}), {}, null, { studyCliPath: '   ' }), false);
+  assert.equal('studyNodePath' in m.createDesktopHost(async () => ({}), {}, null, { studyNodePath: '   ' }), false);
   assert.deepEqual(await host.pickFile({ extensions: ['pdf'] }), { path: 'D:\\book.pdf', size: 1234 });
   assert.deepEqual(invokes, [{ cmd: 'pick_file', args: { extensions: ['pdf'] } }]);
 });

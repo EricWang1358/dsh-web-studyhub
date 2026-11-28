@@ -66,7 +66,7 @@ function localizeEffectiveLabel(effective, language) {
     .replace('OpenAI 兼容接口', 'OpenAI-compatible');
 }
 
-function buildConfigResponse({ config, providers, configPath, configProblem = null, keyDropped, language = 'zh' }) {
+function buildConfigResponse({ config, providers, configPath, configProblem = null, keyDropped, language = 'zh', studyCliPath = '', studyNodePath = '' }) {
   const redacted = redactDesktopConfig(config);
   const localizedProviders = localizeProviders(providers, language);
   const effective = resolveEffectiveModel(config, localizedProviders);
@@ -83,11 +83,13 @@ function buildConfigResponse({ config, providers, configPath, configProblem = nu
     configPath,
     configProblem,
     presets: OPENAI_PRESETS,
+    ...(studyCliPath ? { studyCliPath } : {}),
+    ...(studyNodePath ? { studyNodePath } : {}),
     ...(keyDropped !== undefined ? { keyDropped } : {}),
   };
 }
 
-async function buildBindingView({ ctx, state, route, systemDrive, providerDiscovery }) {
+async function buildBindingView({ ctx, state, route, systemDrive, providerDiscovery, studyCliPath = '', studyNodePath = '' }) {
   const status = await modelStatus(ctx, route);
   // Only a codex model needs discovery here (how it is signed in decides what it costs), and the last scan answers it however old it is: this view
   // is read at every start and after every folder change, which must not wait for the CLI each time. Only a process with no scan yet waits, once.
@@ -112,18 +114,20 @@ async function buildBindingView({ ctx, state, route, systemDrive, providerDiscov
     reasoningEffort: state.config.reasoningEffort || '',
     route,
     modelStatus: status,
+    ...(studyCliPath ? { studyCliPath } : {}),
+    ...(studyNodePath ? { studyNodePath } : {}),
     host: { ...DESKTOP_CAPABILITIES },
   };
 }
 
 const langOf = (args) => (args?.uiLanguage === 'en' ? 'en' : 'zh');
 
-function createConfigHandlers({ configStore, providerDiscovery, completePort, getState, reloadState }) {
+function createConfigHandlers({ configStore, providerDiscovery, completePort, getState, reloadState, studyCliPath = '', studyNodePath = '' }) {
   const configReply = async (args, keyDropped) => {
     const providers = await providerDiscovery.scan({ force: false });
     return buildConfigResponse({
       config: getState().config, providers, configPath: configStore.configPath,
-      configProblem: getState().configProblem || null, keyDropped, language: langOf(args),
+      configProblem: getState().configProblem || null, keyDropped, language: langOf(args), studyCliPath, studyNodePath,
     });
   };
   return {
@@ -158,8 +162,8 @@ function createConfigHandlers({ configStore, providerDiscovery, completePort, ge
 }
 
 function createDesktopActionHandlers(deps) {
-  const { configStore, providerDiscovery, openExternal, openCliTerminal, getState, reloadState, getRoute, ctx, forward, systemDrive, notifyLibraryChanged } = deps;
-  const bindingView = () => buildBindingView({ ctx, state: getState(), route: getRoute() || null, systemDrive, providerDiscovery });
+  const { configStore, providerDiscovery, openExternal, openCliTerminal, getState, reloadState, getRoute, ctx, forward, systemDrive, studyCliPath, studyNodePath, notifyLibraryChanged } = deps;
+  const bindingView = () => buildBindingView({ ctx, state: getState(), route: getRoute() || null, systemDrive, providerDiscovery, studyCliPath, studyNodePath });
   return {
     ...createConfigHandlers(deps),
     'app.open': async (args) => { await openExternal(args?.url); return { ok: true }; },
@@ -250,19 +254,9 @@ function buildRouteResolver(getEffective, getConfig) {
  * `inProcessExecutor`, provider discovery, and desktop-specific RPC actions.
  */
 export async function createDesktopHost({
-  configStore,
-  providerDiscovery,
-  openaiComplete,
-  agyComplete,
-  codexComplete = null,
-  jobExecutor,
-  openExternal,
-  openCliTerminal = terminalUnavailable,
-  ensureDir,
-  injectedComplete = null,
-  retrievalRuntime = null,
-  libraryEvents = null,
-  systemDrive = '',
+  configStore, providerDiscovery, openaiComplete, agyComplete, codexComplete = null,
+  jobExecutor, openExternal, openCliTerminal = terminalUnavailable, ensureDir,
+  injectedComplete = null, retrievalRuntime = null, libraryEvents = null, systemDrive = '', studyCliPath = '', studyNodePath = '',
 }) {
   let state = await configStore.load();
   await ensureDir(state.library.root);
@@ -309,7 +303,7 @@ export async function createDesktopHost({
   const desktopHandlers = {
     ...createDesktopActionHandlers({
       configStore, providerDiscovery, completePort, openExternal, openCliTerminal,
-      getState: () => state, reloadState, getRoute, ctx, forward, systemDrive,
+      getState: () => state, reloadState, getRoute, ctx, forward, systemDrive, studyCliPath, studyNodePath,
       notifyLibraryChanged: (args) => librarySync.notifyChanged(args),
     }),
     ...createRetrievalActionHandlers({ retrievalRuntime, forward }),

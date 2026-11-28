@@ -12,6 +12,8 @@ const CLIENT_BUNDLE_RE = /^client(?:\.[A-Za-z0-9][A-Za-z0-9._-]*)?\.js$/;
 const REQUIRED_HOST_RUNTIME_DEPS = ['@deepseek-ai/cordis'];
 // Fallback retrieval index-heal helpers referenced by desktop retrieval runtime when an installation lacks them.
 const RETRIEVAL_HELPER_FILES = ['heal.js', 'check-index.mjs'];
+// External-agent CLI bridge bundled into the packaged runtime alongside lib/**.
+const CLI_SCRIPT_FILES = ['study-cli.mjs'];
 
 async function pathExists(target) {
   return access(target).then(() => true, () => false);
@@ -151,6 +153,23 @@ async function stageRetrievalHelpers(runtimeDir) {
   return staged;
 }
 
+async function stageCliScripts(runtimeDir, allowIncomplete) {
+  const srcDir = join(repoRoot, 'scripts');
+  const destDir = join(runtimeDir, 'scripts');
+  const staged = [];
+  for (const name of CLI_SCRIPT_FILES) {
+    const src = join(srcDir, name);
+    if (!(await pathExists(src))) {
+      if (allowIncomplete) continue;
+      throw new Error(`Missing CLI script after staging: ${src}`);
+    }
+    await mkdir(destDir, { recursive: true });
+    await copyFile(src, join(destDir, name));
+    staged.push(name);
+  }
+  return staged;
+}
+
 function buildRuntimePackageJson(rootPkg) {
   return {
     name: rootPkg.name,
@@ -198,12 +217,14 @@ export async function stageRuntime({
   const packages = await stageProductionNodeModules(runtimeDir, rootPkg);
   const desktopLayers = await stageDesktopBackend(runtimeDir, allowIncomplete);
   const retrievalHelpers = await stageRetrievalHelpers(runtimeDir);
+  const cliScripts = await stageCliScripts(runtimeDir, allowIncomplete);
   const manifest = {
     version: rootPkg.version,
     node: nodeInfo,
     productionPackages: packages.length,
     desktopLayers,
     retrievalHelpers,
+    cliScripts,
   };
   await writeFile(
     join(runtimeDir, 'runtime-manifest.json'),

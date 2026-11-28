@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { errorMessage, getUiLanguage, ui, uiFormat } from '../i18n.js';
 import { useStudy } from '../study-context.jsx';
 import { handOffText, isHandOff } from '../agent-prompts/index.js';
+import { withExternalCliNote } from '../agent-prompts/message.js';
 import { hasLanguageTail, languageTail } from '../agent-prompts/say.js';
 
 /* 「发给主会话」, the one shared unit (the hand-off plan, section 1): every page that hands work to the main chat goes through here, with an id of the
@@ -77,14 +78,17 @@ export function handOffReceipt(outcome, { lead = '', action = null } = {}) {
 
 /**
  * The delivery behind askInChat (ui/app/use-app-core.js): host.askInChat(text) fills the composer ('filled' or true), keeps the learner's own text ('kept')
- * or has no chat (anything else). Not filled: the prompt goes onto the clipboard. A refused clipboard opens the full-text card (`openSheet({ text, mode:
- * 'shown', lead, onClosed(copied) })`), and only a card closed without copying leaves the 「需要手动复制」 slip, whose action opens the card again; without a
- * card (no app around it) the slip carries the whole text. `said`: what a write before the hand-off did (「已保存。」), said first. `picture` (reader.page,
- * pictureLine): its files join the box after the text (host.attachToChat, a picture never replaces the learner's words), and the receipt, and the box's own line where the host
- * has moved to the chat and the receipt is out of sight (host.noteInChat), say what became of them.
+ * or has no chat (anything else). Filled and kept stay verbatim (zero extra tokens in DSH main chat); without a chat (copied/shown), the external copy
+ * adds the study-cli.mjs fallback note with program-filled `studyCliPath` and `studyNodePath` (or the host's own) and `libraryRoot`; a host that reports no
+ * study-cli path (the web demo) gets the prompt unchanged. A refused clipboard opens the
+ * full-text card (`openSheet({ text, mode: 'shown', lead, onClosed(copied) })`), and only a card closed without copying leaves the 「需要手动复制」 slip,
+ * whose action opens the card again; without a card (no app around it) the slip carries the whole text. `said`: what a write before the hand-off did
+ * (「已保存。」), said first. `picture` (reader.page, pictureLine): its files join the box after the text (host.attachToChat, a picture never replaces the
+ * learner's words), and the receipt, and the box's own line where the host has moved to the chat and the receipt is out of sight (host.noteInChat), say
+ * what became of them.
  * Resolves to 'filled' | 'kept' | 'copied' | 'shown'.
  */
-export async function deliverToChat({ host, prompt, said = '', picture, notify = () => {}, openSheet = null, clipboard = globalThis.navigator?.clipboard }) {
+export async function deliverToChat({ host, prompt, said = '', picture, notify = () => {}, openSheet = null, clipboard = globalThis.navigator?.clipboard, libraryRoot = '', studyCliPath = '', studyNodePath = '' }) {
   const text = withLanguageTail(String(prompt ?? ''));
   let outcome = false, lead = said ? ui(said) : '';
   try { outcome = await host?.askInChat?.(text); } catch { outcome = false; }
@@ -99,9 +103,10 @@ export async function deliverToChat({ host, prompt, said = '', picture, notify =
   // 去主会话 only where the host can show the chat (the top-level page covers it)
   const toChat = typeof host?.showChat === 'function' ? { label: ui(HAND_OFF_RECEIPTS.kept.action), icon: 'external', run: () => host.showChat() } : null;
   if (filled) { notify(handOffReceipt('filled', { lead, action: toChat })); return 'filled'; }
-  const look = mode => () => { notify(''); openSheet?.({ text, mode, lead }); };
+  const copyText = kept ? text : withExternalCliNote(text, { libraryRoot, studyCliPath: studyCliPath || host?.studyCliPath || '', studyNodePath: studyNodePath || host?.studyNodePath || '', language: getUiLanguage() });
+  const look = mode => () => { notify(''); openSheet?.({ text: copyText, mode, lead }); };
   try {
-    await clipboard.writeText(text);
+    await clipboard.writeText(copyText);
     // 看看内容 opens the card with what was copied
     const action = kept ? toChat : openSheet ? { label: ui(HAND_OFF_RECEIPTS.copied.action), run: look('copied') } : null;
     const notice = handOffReceipt(kept ? 'kept' : 'copied', { lead, action });
@@ -109,11 +114,11 @@ export async function deliverToChat({ host, prompt, said = '', picture, notify =
     notify(notice);
     return kept ? 'kept' : 'copied';
   } catch {
-    if (!openSheet) { notify({ ...handOffReceipt('shown', { lead }), text: `${joinSentences([lead, ui(HAND_OFF_RECEIPTS.shown.line)])}\n\n${text}`, copy: true }); return 'shown'; }
+    if (!openSheet) { notify({ ...handOffReceipt('shown', { lead }), text: `${joinSentences([lead, ui(HAND_OFF_RECEIPTS.shown.line)])}\n\n${copyText}`, copy: true }); return 'shown'; }
     // the learner's own text in the box was kept: the card and its slip say so too, before why it was not copied
-    const said = joinSentences([lead, kept ? ui(HAND_OFF_RECEIPTS.kept.title) : '']);
+    const keptLead = joinSentences([lead, kept ? ui(HAND_OFF_RECEIPTS.kept.title) : '']);
     const reopen = { label: ui(HAND_OFF_RECEIPTS.shown.action), run: () => open() };
-    const open = () => { notify(''); openSheet({ text, mode: 'shown', lead: said, onClosed: copied => { if (!copied) notify(handOffReceipt('shown', { lead: said, action: reopen })); } }); };
+    const open = () => { notify(''); openSheet({ text: copyText, mode: 'shown', lead: keptLead, onClosed: copied => { if (!copied) notify(handOffReceipt('shown', { lead: keptLead, action: reopen })); } }); };
     open();
     return 'shown';
   }

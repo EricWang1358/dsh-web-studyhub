@@ -199,6 +199,7 @@
     "changelog:preview": "node scripts/changelog.mjs --preview",
     "changelog:release": "node scripts/changelog.mjs --release",
     "changelog:seal": "node scripts/changelog.mjs --seal",
+    "doc:drift": "node scripts/doc-drift.mjs",
     "sync:main": "node scripts/sync-main.mjs",
     "release:check": "node scripts/qa/release-artifacts.mjs",
     "site:build": "node scripts/site-build.mjs",
