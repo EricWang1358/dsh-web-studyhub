@@ -31,7 +31,7 @@ import { ReadingBlock, useReadingProps } from "../reading-settings/ReadingSettin
 import AnswerState from "./AnswerState.jsx";
 import { Banner, Button, DisclosureToggle, Icon, InlineMessage, Popover, ProgressBar, Spinner, TextInput, Tooltip, foldLabel } from "../components/index.js";
 import { useStudyBusy, useStudyServices } from "../study-context.jsx";
-import { useStickyRoom } from "../use-sticky-room.js";
+import { useStickyRoom, useStuckMark } from "../use-sticky-room.js";
 import { useShortView } from "../use-short-view.js";
 import { useNarrow } from "../use-narrow.js";
 import { useLiveSession } from "./useReviewSession.js";
@@ -232,6 +232,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   // A flipped flashcard's 0–5 grades stick to the bottom of the window over the card, one line per button when the window is short (#1678, question.css).
   const flashGrading = !choice && !isCloze && !rubricCard && !taskCard && !run.card?.publicationUngrable && !!(run.revealed || showBack) && !run.feedback;
   const gradeRowRoom = useStickyRoom("--grade-row-room", ".question-area");
+  const gradeRowStuck = useStuckMark();
+  const gradeRow = React.useCallback((element) => { gradeRowRoom(element); gradeRowStuck(element); }, [gradeRowRoom, gradeRowStuck]);
   const [shortView, shortViewRef] = useShortView();
   const liveAnnouncement = useQuestionRunA11y({ entryKey, run, hasFeedback, choice, isCloze, gradeTask, autoAdvanceActive, reviewBodyRef, choiceFeedbackRef, verdictFocusRef });
   const voice = useVoiceAnswer({ session: liveSession, data, model, rubricCard, setAssistMode, setAssistText: setAssistTextForVoice });
@@ -462,7 +464,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           ) : (
             <>
               <FlipCard key={`flip:${run.id}:${run.index}:${run.card.id}`} run={run} showBack={showBack} flipCard={flipCard} enOn={enOn} />
-              <SmoothHeight className={"flash-follow" + (flashGrading ? " is-grading" : "")} ref={flashGrading ? gradeRowRoom : undefined} key={`follow:${run.id}:${run.index}:${run.card.id}`}>
+              <SmoothHeight className={"flash-follow" + (flashGrading ? " is-grading" : "")} ref={flashGrading ? gradeRow : undefined} key={`follow:${run.id}:${run.index}:${run.card.id}`}>
               {run.card.kind === "open" && !run.revealed && !showBack && (
                 <OpenResponseField grading={run.grading} value={response} onChange={actions.setResponse} onFlip={flipCard} />
               )}
@@ -476,7 +478,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               )}
               {flashGrading && (
                 <div className={"grading" + (shortView ? " grading--short" : "")}>
-                  <div className="grading-head">
+                  {/* A short window's row is the six buttons alone, to cover little of the card (#1678): the numbers say what is asked, each group's name
+                      stays its accessible name and each button's tooltip says what follows; only a round's retry pass still says so above them. */}
+                  {(!shortView || run.retry) && <div className="grading-head">
                     <span>{run.retry ? ui("本轮重练 · 掌握程度") : ui("掌握程度")}</span>
                     {/* Only what grading needs (#1697): the keys of flipping back (Space) and of the explanation (H) are in the ? sheet, and the card's face says which side is up.
                         A short window's row has no gaps under the buttons (each one's tooltip says it), so it does not point at them. */}
@@ -485,7 +489,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                       {run.intervals && !shortView && <>{" · "}<Tooltip layer content={`${ui("每个按钮下面是选它以后，隔多久再复习这道题。间隔按上次复习到现在实际隔了几天来算：没到期就复习，间隔涨得少；当天重复答，间隔不再变长。")} ${ui("0–2 分未达标会留在本题看解析，其中 0–1 分还会在本轮末尾再练一次，2 分不重排本轮。")}`}>
                       <span tabIndex={0} className="grade-gaps-tip">{ui("下面是下次复习的间隔")}</span>
                     </Tooltip></>}</small>
-                  </div>
+                  </div>}
                   <div className="grade-scale" role="group" aria-label={ui("掌握程度评分")}>
                     {[
                       {
@@ -508,7 +512,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                       },
                     ].map((group) => (
                       <div key={group.key} className={`grade-group grade-group--${group.key}`} role="group" aria-label={group.label}>
-                        <span className="grade-group__label">{group.label}</span>
+                        {!shortView && <span className="grade-group__label">{group.label}</span>}
                         <div className="grade-group__buttons">
                           {group.grades.map(({ grade, label }) => {
                             const gap = formatGap(run.intervals?.[grade]);

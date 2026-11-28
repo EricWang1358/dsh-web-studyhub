@@ -986,30 +986,28 @@
     .flash-follow .response-label {
       animation: follow-in var(--dur-slow) var(--ease) both;
     }
-    /* #1678: under 界面大小 a flipped card can be taller than the window (a 1440×900 window at 150% is 600 px of the app's own), so while the area under
-       the card holds the 0–5 grades it sticks to the bottom of the scroller over the card, which scrolls behind it: the grades are in reach without
-       scrolling, and the card's last line still scrolls up above them (the card is above this area, inside the same box). Where the card fits, it sits
-       where it always sat and looks the same (the card's shadow shows through): only while it is stuck is it opaque in the desk's own colour, with a
-       hairline above it; an engine that cannot tell (no scroll-state queries) keeps it opaque. What takes the focus above it stops above it: review.css,
-       --grade-row-room. */
+    /* #1678: under 界面大小 a flipped card can be taller than the window (a 1440×900 window at 150% is 600 px of the app's own), and in a side panel
+       (the reader's 本节题目) it can be taller than the panel, so while the area under the card holds the 0–5 grades it sticks to the bottom of the box
+       it scrolls in, over the card, which scrolls behind it: the grades are in reach without scrolling, and the card's last line still scrolls up above
+       them (the card is above this area, inside the same box). It sits on that box's very edge: --sticky-under is the box's bottom padding, where a
+       sticky box would stop, and stuck it keeps that much room under its buttons. Where the card fits it sits where it always sat and paints nothing
+       (the card's shadow shows through); only while it is stuck (data-stuck, ui/use-sticky-room.js useStuckMark, the same in every engine) is it
+       opaque in the colour of the box (--scroll-surface, which a panel of another colour than the desk sets), with a hairline above it. What takes the focus above it stops above it: review.css, --grade-row-room. */
     .flash-follow.is-grading {
       position: sticky;
-      bottom: 0;
+      bottom: calc(-1 * var(--sticky-under, 0px));
       z-index: var(--z-sticky);
-      container-type: scroll-state;
     }
-    @supports not (container-type: scroll-state) {
-      .flash-follow.is-grading { background: var(--bg-canvas); }
-    }
-    .flash-follow.is-grading > .smooth-height-inner {
+    .flash-follow.is-grading[data-stuck] > .smooth-height-inner {
       position: relative;
+      padding-bottom: var(--sticky-under, 0px);
+      background: var(--scroll-surface, var(--bg-canvas));
     }
-    .flash-follow.is-grading > .smooth-height-inner::before {
+    .flash-follow.is-grading[data-stuck] > .smooth-height-inner::before {
       content: "";
       position: absolute;
       inset: 0 0 auto;
       border-top: 1px solid var(--line-soft);
-      visibility: hidden;
     }
     .flashcard.flipped .flip-inner {
       transform: rotateY(180deg);
@@ -1322,8 +1320,9 @@
       text-decoration: underline dotted;
       text-underline-offset: 3px;
     }
-    /* A short window (ui/use-short-view.js: under 640 px of the app's own height, e.g. 1440×900 at 界面大小 150%): the row stuck over the card is one
-       line per button, number and words, so it covers little of the card. The gap each grade gives is in the button's tooltip and name instead. */
+    /* A short window (ui/use-short-view.js: under 640 px of the app's own height, e.g. 1440×900 at 界面大小 150%): the row stuck over the card is the
+       six buttons alone, one line each, number and words, so it covers little of the card. The gap each grade gives is in the button's tooltip and name
+       instead; the group names (未达标 / 达标) are the groups' accessible names, and on screen the two groups differ by their colours and the gap between. */
     .grading--short {
       margin-top: var(--space-3);
       padding-bottom: var(--space-2);
@@ -1332,11 +1331,11 @@
       margin-bottom: var(--space-1-5);
     }
     .grading--short .grade-scale {
-      gap: var(--space-1-5) var(--space-4);
+      gap: var(--space-2) var(--space-4);
     }
     .grading--short .grade-group {
-      gap: var(--space-1);
-      padding-top: var(--space-1-5);
+      padding-top: 0;
+      border-top: 0;
     }
     /* The words go beside the number while they fit there, else onto the next line whole (longer English words), never broken inside a word. */
     .grading--short .grade {
@@ -1359,12 +1358,6 @@
       overflow-wrap: break-word;
     }
   }
-  @container scroll-state(stuck: bottom) {
-    :where(.study-app, .study-seat) {
-      .flash-follow.is-grading > .smooth-height-inner { background: var(--bg-canvas); }
-      .flash-follow.is-grading > .smooth-height-inner::before { visibility: visible; }
-    }
-  }
   @container grading (max-width: 640px) {
     :where(.study-app, .study-seat) {
       .grade-scale { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
@@ -1373,7 +1366,7 @@
   /* The one-line buttons need less room: the two groups stay side by side down to a narrower row (below it, each group is a line of its own). */
   @container grading (min-width: 440px) {
     :where(.study-app, .study-seat) {
-      .grading--short .grade-scale { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1-5) var(--space-4); }
+      .grading--short .grade-scale { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
   }
   :where(.study-app, .study-seat) {

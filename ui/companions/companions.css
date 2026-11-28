@@ -39,7 +39,9 @@
     .sh-comp-drawer {
       container-type: inline-size;
       border-left: 1px solid var(--line-strong);
-      background: var(--bg-surface);
+      /* What is stuck to the bottom while it scrolls in here (a flipped flashcard's grade row, ui/review/question.css) is painted in this colour. */
+      --scroll-surface: var(--bg-surface);
+      background: var(--scroll-surface);
       display: flex;
       flex-direction: column;
       min-height: 0;
