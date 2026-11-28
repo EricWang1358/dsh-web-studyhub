@@ -247,7 +247,7 @@ const reviewUiBundle = await loadInteractiveUi(`
   export { default as AppModalHost } from './ui/app/AppModalHost.jsx';
   export { useReviewSession, useLiveSession } from './ui/review/useReviewSession.js';
   export { default as QuestionRun } from './ui/review/QuestionRun.jsx';
-  export { ClozeQuestion } from './ui/review/QuestionParts.jsx';
+  export { ClozeQuestion, OpenResponseField } from './ui/review/QuestionParts.jsx';
   export { default as CoachDebrief } from './ui/CoachDebrief.jsx';
   export { ToastContext } from './ui/components/Feedback.jsx';
   export { reviewEntryKey } from './ui/async.js';
@@ -677,6 +677,139 @@ test('Batch 1.1 + 2.5 + 4.4 UI: QuestionRun grade groups/pending option/verdict/
       assert.doesNotMatch(String(secondaryBtn.props.className || ''), /sh-btn--primary/, 'ctaMode="secondary" uses secondary button variant');
     } finally {
       debriefView.unmount();
+    }
+  });
+});
+
+test('#1449-4: assistCard("grade") sends >1000 char answer without truncation to entry.feedback.answer & attempt.learnerAnswer, rejects >30000 honestly, keeps 1000-char cap for ask, and aligns OpenResponseField maxLength', async (t) => {
+  const { mkdtemp } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { StudyService } = await import('../lib/service.js');
+  const { createAssistService } = await import('../lib/assist.js');
+  const { renderRubric } = await import('../lib/case-study.js');
+
+  const {
+    React,
+    mount,
+    mountHook,
+    exports: { createBusyStore, useReviewSession, OpenResponseField },
+  } = reviewUiBundle;
+
+  const tailMarker = 'TAIL_CONCLUSION_BEYOND_1000_CHARS';
+  const longAnswer = `${'A'.repeat(1500)}\n\n${tailMarker}`;
+  assert.ok(longAnswer.length > 1500);
+
+  const root = await mkdtemp(join(tmpdir(), 'study-grade-truncation-'));
+  const service = new StudyService(root, {
+    complete: async () => JSON.stringify({
+      questions: [{
+        cardId: 'q1',
+        criteria: [{ id: 'c1', score: 5, evidence: 'A', missing: [], rewrite: '' }],
+        unanchored: [],
+        assumptions: [],
+        summary: 'Complete answer',
+      }],
+    }),
+  });
+  const assist = createAssistService();
+  t.after(() => assist.dispose());
+
+  const criteria = [{ id: 'c1', label: 'Depth', marks: 5, descriptor: 'Full explanation' }];
+  await service.store.update((s) => {
+    s.sources.push({ id: 'src-case', title: 'Case Scenario', text: 'Case scenario body text.', courses: ['Cloud'] });
+    s.decks.push({
+      id: 'case-deck', title: 'Case Deck', course: 'Cloud', format: 'case-study',
+      case: { sourceId: 'src-case', title: 'Case Deck', totalMarks: 5 },
+      cards: [{
+        id: 'q1', topic: 'Architecture', kind: 'open', objective: 'Design', prompt: 'Explain the trade-offs.',
+        answer: 'Reference answer', marks: 5, rubric: renderRubric(criteria), rubricCriteria: criteria,
+        citations: [{ sourceId: 'src-case', quote: 'Case scenario body text.' }],
+      }],
+    });
+  });
+
+  const started = await service.call('review.start', { mode: 'path', scope: [{ deckId: 'case-deck' }], fresh: true });
+  await withBrowserGlobals(async () => {
+    const rpcCalls = [];
+    const errors = [];
+    const core = {
+      busyStore: createBusyStore(false),
+      call: async (action, args) => {
+        rpcCalls.push({ action, args });
+        if (action === 'assist.start') {
+          const state = await service.store.read();
+          const deck = state.decks.find((d) => d.id === args.deckId);
+          const card = deck.cards.find((c) => c.id === args.cardId);
+          return assist.startAssist({}, {
+            root, service, sessionId: 'review-ui', mode: args.mode,
+            ref: { deckId: args.deckId, cardId: args.cardId }, runId: args.runId,
+            text: args.text, helpChoices: args.helpChoices, card, deckTitle: deck.title, language: 'zh',
+          });
+        }
+        return service.call(action, args);
+      },
+      act: async (action, args, after) => {
+        const result = await service.call(action, args);
+        after?.(result);
+        return result;
+      },
+      notify: () => {},
+      setError: (msg) => errors.push(msg),
+      refresh: async () => {},
+      refs: { dataRef: { current: { root, settings: {} } }, bindingRoot: { current: root } },
+    };
+    const nav = { page: 'review', setPage: () => {}, show: { exam: () => {} } };
+    const sessionHook = mountHook(() => useReviewSession({
+      core, nav, modalOpen: false, host: {}, rootRef: { current: null }, late: { current: {} },
+    }), {});
+    try {
+      sessionHook.current.enterRun(started);
+      sessionHook.rerender({});
+
+      // 1) Long grade answer (>1000 chars) must arrive intact at assist.start, entry.feedback.answer, and attempt.learnerAnswer.
+      const ok = await sessionHook.current.actions.assistCard('grade', longAnswer, [], undefined, { quiet: true });
+      assert.equal(ok, true);
+      const gradeReq = rpcCalls.find((c) => c.action === 'assist.start' && c.args.mode === 'grade');
+      assert.equal(gradeReq.args.text, longAnswer, 'assistCard("grade") must not truncate >1000 char answer');
+
+      for (const deadline = Date.now() + 10_000; Date.now() < deadline && assist.assistView(root).tasks.at(-1)?.status === 'running';) {
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      assert.equal(assist.assistView(root).tasks.at(-1)?.status, 'done', assist.assistView(root).tasks.at(-1)?.message);
+
+      const afterRun = await service.call('review.get', { runId: started.id });
+      assert.equal(afterRun.feedback.answer, longAnswer, 'entry.feedback.answer keeps full >1000 char answer');
+      assert.ok(afterRun.feedback.answer.includes(tailMarker));
+      const state = await service.store.read();
+      const attempt = state.attempts.find((a) => a.assessment === 'rubric' && a.runId === started.id);
+      assert.equal(attempt.learnerAnswer, longAnswer, 'attempt.learnerAnswer keeps full >1000 char answer');
+
+      // 2) Over-30000 char grade answer is NOT silently sliced; backend checkedAnswer error surfaces via setError.
+      errors.length = 0;
+      const tooLong = 'B'.repeat(30001);
+      const rejected = await sessionHook.current.actions.assistCard('grade', tooLong, [], undefined, { quiet: true });
+      assert.equal(rejected, false);
+      assert.match(errors.at(-1) || '', /30000/);
+
+      // 3) Ask mode still caps merged text at 1000 chars so backend 1000-char limit is respected.
+      rpcCalls.length = 0;
+      const asked = await sessionHook.current.actions.assistCard('ask', 'Q'.repeat(1200), [], { thinkingNote: 'stuck note' });
+      assert.equal(asked, true);
+      const askReq = rpcCalls.find((c) => c.action === 'assist.start' && c.args.mode === 'ask');
+      assert.equal(askReq.args.text.length, 1000, 'ask mode retains 1000-char cap');
+
+      // 4) OpenResponseField exposes maxLength={30000} aligned with RubricAnswer / CASE_LIMITS.answerChars.
+      const openView = mount(() => React.createElement(OpenResponseField, {
+        grading: false, value: '', onChange: () => {}, onFlip: () => {},
+      }));
+      try {
+        const textarea = openView.find((n) => n.type === 'textarea');
+        assert.equal(textarea.props.maxLength, 30000);
+      } finally {
+        openView.unmount();
+      }
+    } finally {
+      sessionHook.unmount();
     }
   });
 });

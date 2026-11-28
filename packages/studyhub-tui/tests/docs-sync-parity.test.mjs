@@ -9,6 +9,7 @@
 // 6. AST-verified `CourseSettingsModal` tab shortcuts match `docs/KEYBINDINGS.md` §4.1 (`C` course settings).
 // 7. Live Ink render + AST check of `AppearanceTab` verifies dynamic `${THEME_IDS.length}` theme count in zh & en.
 // 8. Root `README.md` / `README.zh-CN.md` carry no stale TUI claims or broken root-relative links.
+// 9. `README.md` 学习库 row (补题 / 转换 / 批量) names the same deck-manage keys as the live `buildDeckManageHints()` footer.
 // Run: node --test tests/docs-sync-parity.test.mjs
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -697,6 +698,49 @@ describe('Cross-Doc & Runtime Docs-Sync Parity Guard', () => {
         doc.includes('(docs/KEYBINDINGS.md)') || doc.includes('(./docs/KEYBINDINGS.md)'),
         false,
         `${label} must not link to non-existent root docs/KEYBINDINGS.md (TUI keybindings live at packages/studyhub-tui/docs/KEYBINDINGS.md)`,
+      );
+    }
+  });
+
+  test('9. README.md 学习库 row names the same deck-manage keys as the DeckManageModal footer (buildDeckManageHints)', async () => {
+    const { buildDeckManageHints } = await import('../src/views/library/deck-manage-model.ts');
+    const hintsFor = (selectedCount) =>
+      buildDeckManageHints({
+        mode: 'browse',
+        lang: 'zh',
+        suppJobResult: null,
+        convertEditActive: false,
+        convertTargetKind: 'flashcard',
+        selectedCount,
+        isSlainDeck: false,
+        hasSystemKind: false,
+        hasSlainCard: false,
+      });
+    const browseHints = hintsFor(0);
+    const selectionKeys = new Set(hintsFor(1).map((h) => h.key));
+    const keyByLabel = new Map(browseHints.map((h) => [h.label, h.key]));
+
+    const rows = parseMarkdownTableRows(extractH2Section(TUI_README_DOC, '## 常用快捷键', 'packages/studyhub-tui/README.md'));
+    const libraryRow = rows.find(([scope]) => scope.startsWith('学习库'));
+    assert.ok(libraryRow, 'README.md ## 常用快捷键 must have a 学习库 row');
+    const cardOps = new Map([...libraryRow[2].matchAll(/(补题|转换|批量)\(`([^`]+)`\)/g)].map((m) => [m[1], m[2]]));
+
+    // README term -> the zh label the DeckManageModal footer uses for the same action.
+    const footerLabelOf = { 补题: '补题', 转换: '题型' };
+    for (const [term, footerLabel] of Object.entries(footerLabelOf)) {
+      const footerKey = keyByLabel.get(footerLabel);
+      assert.ok(footerKey, `DeckManageModal browse footer must keep a "${footerLabel}" hint`);
+      assert.equal(
+        cardOps.get(term),
+        footerKey,
+        `README.md 学习库 row names \`${cardOps.get(term)}\` for ${term}, but the DeckManageModal footer uses \`${footerKey}\``,
+      );
+    }
+    assert.ok(cardOps.has('批量'), 'README.md 学习库 row must document the batch keys as 批量(`...`)');
+    for (const key of cardOps.get('批量').split('/')) {
+      assert.ok(
+        selectionKeys.has(key),
+        `README.md 学习库 row names batch key \`${key}\`, which is not in the DeckManageModal selection footer (${[...selectionKeys].join(', ')})`,
       );
     }
   });

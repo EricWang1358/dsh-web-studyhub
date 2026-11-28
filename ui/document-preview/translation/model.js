@@ -80,7 +80,7 @@ export function reducer(state, action) {
     case 'settled': {
       const items = { ...state.items }, errors = { ...state.errors }, shown = { ...state.shown };
       for (const result of action.results) {
-        if (result.item && ['translated', 'cached', 'reused'].includes(result.status)) { items[result.key] = result.item; delete errors[result.key]; if (action.reveal && result.status === 'translated') shown[result.key] = true; }
+        if (result.item && ['translated', 'cached', 'reused'].includes(result.status)) { items[result.key] = result.item; delete errors[result.key]; if (action.reveal && ['translated', 'reused'].includes(result.status)) shown[result.key] = true; }
         else if (result.status === 'skipped') errors[result.key] = { code: result.code || 'same-language' };
         else errors[result.key] = { code: result.code || result.status, message: result.message };
       }

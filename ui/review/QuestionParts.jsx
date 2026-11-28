@@ -10,6 +10,7 @@ import { fixedOptionLabel, optionMark } from "../option-label.js";
 import QuestionSourcePage from "./QuestionSourcePage.jsx";
 import LearningActions from "./LearningActions.jsx";
 import { clozeBlankIds } from "../../lib/cloze-text.js";
+import { CASE_LIMITS } from "../../lib/case-study.js";
 import { reviewEntryKey } from "../async.js";
 
 export const MAX_QUESTION_META_BADGES = 2;
@@ -217,7 +218,7 @@ export function ClozeQuestion({ run, clozeValues, clozeFocusTick, enOn, enStem, 
 /** Scratchpad textarea shown on open flashcards before revealing the back, with Ctrl+Enter / Esc support. */
 export function OpenResponseField({ grading, value, onChange, onFlip }) {
   return (
-    <label className="response-label">{ui("先组织你的回答")}<textarea rows={3} value={value} readOnly={!!grading} className={grading ? "response-sent" : undefined}
+    <label className="response-label">{ui("先组织你的回答")}<textarea rows={3} value={value} readOnly={!!grading} maxLength={CASE_LIMITS.answerChars} className={grading ? "response-sent" : undefined}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
           if (e.nativeEvent?.isComposing || e.isComposing || e.keyCode === 229) return;

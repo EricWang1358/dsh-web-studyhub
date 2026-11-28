@@ -23,7 +23,7 @@ export default function BookInlineRun({ started, origin = null, label, onClose, 
   const rootRef = useRef(null), late = useRef({});
   const [flagging, setFlagging] = useState(false);
   const bookNav = useMemo(() => ({ page: shown ? PAGE : HIDDEN, setPage: () => {}, show: nav.show }), [nav.show, shown]);
-  const session = useReviewSession({ core, nav: bookNav, modalOpen: !shown || !!lib?.modal || flagging, host: NO_HOST, rootRef, late, embeddedIn: PAGE });
+  const session = useReviewSession({ core, nav: bookNav, modalOpen: !shown || !!lib?.modal || !!lib?.startConfirm || flagging, host: NO_HOST, rootRef, late, embeddedIn: PAGE });
   const { enterRun, shortcutHelp, actions: { closeShortcutHelp } } = session;
   const helpOpen = shown && shortcutHelp;
   useEffect(() => { if (!shown) closeShortcutHelp(); }, [shown, closeShortcutHelp]);

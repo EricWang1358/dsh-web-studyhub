@@ -20,6 +20,7 @@ import { useStudy } from './study-context.jsx';
 import { ANY_PAGE } from './ActionFeedback.jsx';
 import { useDiagnostics } from './diagnostics.js';
 import { hostPart } from './host-parts.js';
+import { version as builtVersion } from '../package.json';
 
 let snapshot = { update: null, checking: false };
 const listeners = new Set();
@@ -61,14 +62,21 @@ async function savePreferences(call, preferences) {
    The host names the version (update.check's `upgraded`); this says it once and tells the host, so no later start repeats it. */
 const UPGRADE_NOTICE_MS = 12000;
 const announced = new Set();
-/* DSH closes the page around the time the install answers, before or just after. In the second order the page that asked is still open and its dialog hears
-   of the upgrade from the new code; a notice there would be gone at once, and reporting it would leave nothing for the StudyHub opened next. So an
-   <UpdateWatch> that was already open when this page asked for an install says nothing. One opened later does, even in this same module. */
-let installsAsked = 0;
-export const installsAskedSoFar = () => installsAsked;
-export async function announceUpgrade(update, { call, toast, said = announced, openedAt = installsAsked }) {
+const UI_BUILD_MARKER_PREFIX = 'studyhub-ui@';
+/** Dedicated StudyHub UI build marker (`studyhub-ui@<version>`). Injected at build time via esbuild `define` (`__STUDYHUB_UI_BUILD__`) so `release:check` verifies StudyHub's own compiled UI bundle rather than incidental dependency version literals (#1782). */
+export const UI_BUILD_MARKER = typeof __STUDYHUB_UI_BUILD__ === 'string'
+  ? __STUDYHUB_UI_BUILD__
+  : `${UI_BUILD_MARKER_PREFIX}${builtVersion}`;
+/** The version this page's own code was built from, derived directly from `UI_BUILD_MARKER` (backed by package.json, the same file the host reads for the version it runs in lib/update-check.js). */
+export const UI_BUILD_VERSION = UI_BUILD_MARKER.startsWith(UI_BUILD_MARKER_PREFIX)
+  ? UI_BUILD_MARKER.slice(UI_BUILD_MARKER_PREFIX.length)
+  : builtVersion;
+/* Only the code of X says it. On a host that loads the new code at once (DSH 0.2.2) old code still hears update.check say `upgraded`: the page that asked
+   for the install (DSH closes it around the time the install answers, before or just after), another StudyHub window or tab, an <UpdateWatch> mounted again
+   in the old module. A notice there would be the old code's, and reporting it would leave nothing for the new code when it is on screen. `running`: for tests. */
+export async function announceUpgrade(update, { call, toast, said = announced, running = UI_BUILD_VERSION }) {
   const version = update?.upgraded;
-  if (openedAt !== installsAsked || !version || said.has(version)) return;
+  if (!version || version !== running || said.has(version)) return;
   said.add(version);
   toast.success(uiFormat('已升级到 {0}', [version]), { scope: ANY_PAGE, timeout: UPGRADE_NOTICE_MS });
   try { await savePreferences(call, { upgradeTold: version }); } catch { /* all that is lost: the next start says it once more */ }
@@ -80,13 +88,13 @@ export function UpdateWatch() {
   const { call } = useStudy();
   const toast = useToast();
   const { update } = useUpdateStore();
-  const asked = useRef(false), openedAt = useRef(installsAsked);
+  const asked = useRef(false);
   useEffect(() => {
     if (asked.current) return;
     asked.current = true;
     refreshUpdate(call);
   }, [call]);
-  useEffect(() => { announceUpgrade(update, { call, toast, openedAt: openedAt.current }); }, [update, call, toast]);
+  useEffect(() => { announceUpgrade(update, { call, toast }); }, [update, call, toast]);
   return null;
 }
 
@@ -148,7 +156,6 @@ export function failureMessage(code, extra = {}) {
 
 /** One upgrade attempt through the host; answers the dialog phase to show next. */
 export async function startUpgrade(call, update, { confirmJobs = false } = {}) {
-  installsAsked++;
   try {
     const result = await call('update.install', { version: update.latest, ...(confirmJobs ? { confirmJobs: true } : {}) });
     if (result?.status === 'jobs-running') return { phase: 'jobs', jobs: result.jobs };

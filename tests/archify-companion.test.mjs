@@ -193,6 +193,11 @@ test('the page never puts the file into its own DOM and only the isolated frame 
           0,
           'no mounted node uses dangerouslySetInnerHTML',
         );
+        assert.equal(
+          allNodes.filter((n) => n.type === 'script').length,
+          0,
+          'no <script> element is mounted into host DOM',
+        );
 
         const iframes = diagramMount.findAll((n) => n.type === 'iframe');
         assert.equal(iframes.length, 1, 'exactly one iframe is mounted');
@@ -208,14 +213,18 @@ test('the page never puts the file into its own DOM and only the isolated frame 
         assert.equal(diagramMount.text().includes('UNSAFE_HOST_INJECTION'), false, 'canary text never leaks into host DOM text');
         assert.equal(diagramMount.text().includes('__archify_pwned'), false, 'canary script never leaks into host DOM text');
         for (const node of allNodes) {
-          if (typeof node.type !== 'string' || node.type === 'iframe' || !node.props) continue;
+          if (typeof node.type !== 'string' || node.type === 'iframe') continue;
+          if (node.ref && typeof node.ref === 'object' && node.ref.current) {
+            assert.equal(node.ref.current.innerHTML, undefined, `host <${node.type}> ref must not write innerHTML`);
+            assert.equal(node.ref.current.outerHTML, undefined, `host <${node.type}> ref must not write outerHTML`);
+          }
+          if (!node.props) continue;
           for (const [propName, value] of Object.entries(node.props)) {
             if (propName === 'children' || typeof value !== 'string') continue;
             assert.doesNotMatch(value, /UNSAFE_HOST_INJECTION|archify-canary|__archify_pwned/, `host <${node.type}> prop ${propName} must not carry canary HTML`);
           }
         }
-        assert.deepEqual(unsafeCalls, [], 'opening diagram never invokes window.open, URL.createObjectURL, or document.write');
-        assert.equal(globalThis.window.__archify_pwned, undefined, 'canary script never executes on host window');
+        assert.deepEqual(unsafeCalls, [], 'opening diagram never invokes window.open, URL.createObjectURL, document.write, or host DOM HTML injection');
       } finally {
         diagramMount.unmount();
       }

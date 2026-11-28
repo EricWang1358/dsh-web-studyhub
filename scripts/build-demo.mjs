@@ -2,6 +2,7 @@ import { build } from 'esbuild';
 import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { uiBuildDefine } from './ui-build-marker.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const target = resolve(root, 'output/static-demo-site');
 const browserService = {
@@ -43,10 +44,11 @@ const browserService = {
 };
 export async function buildDemoClient({ outdir = resolve(target, 'dist'), write = true } = {}) {
   if (write) await rm(resolve(outdir, 'chunks'), { recursive: true, force: true });
+  const version = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8')).version;
   const result = await build({ absWorkingDir:root, entryPoints:['web-demo/main.jsx'], bundle:true, format:'esm', platform:'browser',
     outdir, entryNames:'app', chunkNames:'chunks/[name]-[hash]', splitting:true, write,
     plugins:[browserService], minify:true, jsx:'automatic',
-    define:{'process.env.NODE_ENV':'"production"','process.env.DSH_HOME':'"/demo"','process.uptime':'Number'}, loader:{'.woff': 'file','.woff2':'file','.ttf':'file'}, metafile:true,
+    define:{...uiBuildDefine(version),'process.env.NODE_ENV':'"production"','process.env.DSH_HOME':'"/demo"','process.uptime':'Number'}, loader:{'.woff': 'file','.woff2':'file','.ttf':'file'}, metafile:true,
   });
   const inputs=Object.keys(result.metafile.inputs);
   if (inputs.some(p=>/lib\/store\.js|proper-lockfile|pdfjs-dist|@deepseek-ai\/dsh-llm/.test(p))) throw new Error('Server-only dependency leaked into demo bundle');

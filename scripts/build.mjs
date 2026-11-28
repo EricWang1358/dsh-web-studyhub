@@ -4,10 +4,12 @@ import { copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 
 import { basename, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { hostReact, shimJsxRuntime } from './host-react.mjs';
+import { uiBuildDefine } from './ui-build-marker.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const packageId = '@ericwang1358/dsh-daily-flashcard';
 const chunkName = /^client\.[A-Za-z0-9][A-Za-z0-9._-]*\.js$/;
+const readPackageVersion = async () => JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8')).version;
 export const buildCacheDir = resolve(root, 'node_modules', '.cache', 'studyhub-tests', 'bundles');
 const cacheEnabled = () => process.env.STUDY_BUILD_CACHE !== '0';
 
@@ -31,7 +33,7 @@ export async function sourceTreeDigest(extraFiles = []) {
   }
   await walk(resolve(root, 'ui'), false);
   await walk(resolve(root, 'lib'), true);
-  for (const file of ['scripts/build.mjs', 'scripts/host-react.mjs', 'package.json', 'package-lock.json', ...extraFiles]) {
+  for (const file of ['scripts/build.mjs', 'scripts/host-react.mjs', 'scripts/ui-build-marker.mjs', 'package.json', 'package-lock.json', ...extraFiles]) {
     const full = resolve(root, file);
     const info = await stat(full, { bigint: true }).catch(() => null);
     if (info) hash.update(`${relative(root, full).split(sep).join('/')}\0${info.size}\0${info.mtimeNs}\n`);
@@ -110,11 +112,13 @@ export async function buildHostClient({ outdir = resolve(root, 'lib'), write = t
       return { errors: [], warnings: [], metafile: cached.metafile, outputFiles };
     }
   }
+  const version = await readPackageVersion();
   const result = await build({
     absWorkingDir: root, entryPoints: { client: 'ui/host.jsx' }, outdir: targetDir,
     chunkNames: 'client.[name]-[hash]', bundle: true, splitting: true,
     write: false, metafile: true, format: 'esm', platform: 'browser',
     plugins: [hostReact, englishOnDemand, entryStorageInline], loader: { '.css': 'text' }, jsx: 'transform',
+    define: uiBuildDefine(version),
     minify: true, logLevel: 'silent',
   });
   const outputs = new Map(Object.entries(result.metafile.outputs).map(([path, output]) => [basename(path), output]));
@@ -186,11 +190,12 @@ export async function buildPreview({ outdir = resolve(root, 'dist'), write = tru
   if (!Array.isArray(files)) {
     // The local preview server exposes app.js/app.css only. Its single IIFE
     // includes the same authored lazy boundaries without extra HTTP resources.
+    const version = await readPackageVersion();
     const built = await build({
       absWorkingDir: root, entryPoints: ['ui/dev.jsx'], plugins: [shimJsxRuntime],
       bundle: true, outdir: targetDir, write: false, entryNames: 'app', platform: 'browser',
       format: 'iife', loader: { '.css': 'css' }, minify: production && !readable,
-      ...(production ? { define: { 'process.env.NODE_ENV': '"production"' } } : {}),
+      define: { ...uiBuildDefine(version), ...(production ? { 'process.env.NODE_ENV': '"production"' } : {}) },
     });
     files = built.outputFiles.map(file => ({ name: basename(file.path), text: file.text }));
     if (cacheFile) await writeCacheAtomically(cacheFile, JSON.stringify(files)).catch(() => {});

@@ -614,9 +614,12 @@ test('offline-first HTML plugin copy is honest and English UI + Markdown export 
     try {
       await viewer.flush(10);
       assert.equal(globalThis.localStorage.getItem('study-reader-annotation'), null, 'starts in default Read mode');
+      const viewerRoot = viewer.find((node) => node.type === 'div' && typeof node.props?.className === 'string' && node.props.className.includes('study-document-viewer'));
+      assert.ok(viewerRoot, 'DocumentViewer root is mounted');
+      assert.equal(viewerRoot.props['data-narrow'], true, 'react-harness 600px host puts DocumentViewer in narrow (< 900px) mode');
       const toolsAside = viewer.find((node) => node.type === 'aside' && typeof node.props?.className === 'string' && node.props.className.includes('reader-tools'));
       assert.ok(toolsAside, 'reader tools aside is mounted');
-      assert.equal(toolsAside.props.hidden, true, 'tools panel is closed (toolsOn === false) in narrow Read mode');
+      assert.equal(toolsAside.props.hidden, true, 'tools overlay starts closed (toolsOn === false) in narrow viewport (600px < 900px) Read mode');
 
       const aux = viewer.find((node) => node.type === 'div' && node.props?.className === 'reader-aux');
       assert.ok(aux, 'reader-aux container renders');

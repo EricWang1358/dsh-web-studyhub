@@ -32,6 +32,28 @@ What StudyHub saves:
 
 If no page has readable text, nothing is saved and the dialog says the file may be a scan. Convert it with MinerU, which reads scanned pages (if MinerU is not installed yet, **One-click install** is right there in the dialog), or run OCR on it first.
 
+## Want to convert with an external tool?
+
+If you prefer not to install a local conversion engine, or want to convert a PDF to Markdown/text with an external tool before importing, you can use the reference links below (plain copyable URLs — copy and open them in your browser):
+
+> **Privacy and boundary**: Uploading files to a third-party service is strictly between you and that service; StudyHub does not handle or store them. These are only links to external pages: StudyHub does not call them or upload files through them, and makes no guarantee of third-party availability.
+
+- **PaddleOCR Online**: `https://www.paddleocr.ai` — Apache-2.0 · Web (no install) · JSON, Markdown
+- **MinerU online parser (web)**: `https://mineru.net/OpenSourceTools/Extractor` — MinerU Open Source License (Apache-2.0 with extra conditions) · Web (OpenXLab sign-in required) · content_list.json, Markdown
+- **Docling**: `https://github.com/docling-project/docling` — MIT · Windows / macOS / Linux · JSON (DoclingDocument), Markdown
+- **Mathpix**: `https://mathpix.com` — Proprietary (commercial service) · Web (no install) · Markdown (.md), LaTeX (.tex)
+
+The list comes from the converter catalogue in `lib/large-documents.js`, the same one the import hub, the Generate page and Settings use.
+
+### How to import after conversion
+
+1. **Check the exported format**: Download the JSON result (or Markdown with `<!-- page: N -->` page markers). Supported formats: Markdown (`.md` / `.markdown`), plain text (`.txt`), LaTeX (`.tex`), HTML (`.html` / `.htm`), Word (`.docx`), PowerPoint (`.pptx` / `.ppt`), text-layer PDF (`.pdf`), and structured converter JSON (`.json` from PaddleOCR / Docling / MinerU). MinerU's web parser downloads a `.zip`: unzip it and import the file whose name ends in `_content_list.json`, which StudyHub saves page by page; the `full.md` inside has no page markers and imports as plain Markdown without pages. PDF page limit: 200; extracted text limit (characters): 600,000. PDF & text up to 8 MB, Word / PPT / converted JSON up to 40 MB.
+2. **Where to put it and how to import**: Open the **Sources** page and click **Add source** (or click **Add source** inside **Create deck**). Pick the course, then drop the converted file on the **Files** tab or click **Choose files**; plain text can also be saved via the **Paste text** tab. In **Study Mode** in the main chat, you can also place the file in `studyhub-work/` or a local folder and ask the assistant to import it.
+3. **Common failures and fixes**:
+   - **Missing formulas**: Basic converters often drop formulas or turn them into images. Enable LaTeX formula output in the external tool and export as `.md` or `.tex` (preserving `$...$` / `$$...$$`) instead of plain text.
+   - **Scanned pages remain images**: If the output is still an image-only PDF or Markdown with only image links, StudyHub cannot extract body text (standalone image lines in `.md` are skipped). Turn on OCR in the external tool and export text or structured JSON.
+   - **Non-UTF-8 encoding**: StudyHub requires UTF-8 encoding for text and JSON files; GBK, GB18030, or UTF-16 will fail with an encoding error or garbled text. Re-save the file as UTF-8 in an editor (such as VS Code or Notepad) and import again.
+
 ## Generate questions
 
 1. Open **Create deck** › **Generate from sources**.

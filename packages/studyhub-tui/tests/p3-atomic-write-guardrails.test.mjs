@@ -348,12 +348,9 @@ describe('P3-b (#1354): Atomic File Persistence, Rollback & Zero Half-Write Guar
     const hookKey = '__studyhubConfigStoreFsHook_p3__';
     const fsHook = { writeFile: null, rename: null };
     globalThis[hookKey] = fsHook;
-    const prevDshHome = process.env.DSH_HOME;
     const dir = await mkdtemp(path.join(os.tmpdir(), 'studyhub-p3-cfg-'));
     t.after(async () => {
       delete globalThis[hookKey];
-      if (prevDshHome === undefined) delete process.env.DSH_HOME;
-      else process.env.DSH_HOME = prevDshHome;
       await rm(dir, { recursive: true, force: true });
     });
 

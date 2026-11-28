@@ -31,7 +31,7 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, acti
   const deckPace = !d.systemKind ? paceForecast?.decks?.[d.id] ?? null : null;
   const { start, confirmStart, resume, manage, archiveDeck, openVoicePack, runsOn } = actions;
   // The ▶ is one small icon next to others, so it asks before it starts; 「继续 →」 resumes at once.
-  const play = (ask, scope) => confirmStart(ask, () => start({ mode: 'path', scope }));
+  const play = (ask, scope) => confirmStart({ ...ask, scope }, () => start({ mode: 'path', scope }));
   const key = topicKey(d.id), whole = tree.selected.has(key), run = runFor([{ deckId: d.id }]);
   const choose = {
     new: () => start({ deckId: d.id, mode: 'new', fresh: true }),

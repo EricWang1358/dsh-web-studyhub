@@ -1,7 +1,5 @@
-import React, { useEffect } from 'react';
-import { ui, uiFormat } from '../i18n.js';
-import ConfirmDialog from '../components/ConfirmDialog.jsx';
-import { useStudy } from '../study-context.jsx';
+import React from 'react';
+import { ui } from '../i18n.js';
 import RemoveDeckDialog from '../RemoveDeckDialog.jsx';
 import CourseSettings from '../CourseSettings.jsx';
 import FocusIntakeDialog from '../FocusIntakeDialog.jsx';
@@ -11,6 +9,7 @@ import AddSourceDialog from './modals/AddSourceDialog.jsx';
 import FlagDialog from './modals/FlagDialog.jsx';
 import SourceListDialog from './modals/SourceListDialog.jsx';
 import SourceReaderDialog from './modals/SourceReaderDialog.jsx';
+import StartConfirmDialog from './modals/StartConfirmDialog.jsx';
 import CompanionViewer from '../companions/CompanionViewer.jsx';
 import { useCompanionInlinePractice } from './modals/CompanionInlineRun.jsx';
 import CompanionBuildDialog from '../companions/CompanionBuildDialog.jsx';
@@ -23,28 +22,8 @@ function CompanionModal({ modal, onClose }) {
   return <CompanionViewer key={modal.id || modal.companionId || 'companion'} modal={modal} onClose={onClose} inlinePractice={inlinePractice} />;
 }
 
-/* The question before a start (intents.confirmStart, ui/app/use-intents.js). No question count: review.start pulls unlearned prerequisites into the
-   round, which the snapshot does not tell, so a row's number is not always what its round holds. A dialog left over from another library is closed. */
-const START_TITLES = {
-  deck: (name) => uiFormat('开始练「{0}」？', [name]),
-  topic: (name) => uiFormat('开始练主题「{0}」？', [name]),
-  today: () => ui('开始今日学习？'),
-};
-function StartConfirm({ modal, onClose, root }) {
-  const { busy } = useStudy();
-  const stale = modal.root !== root;
-  useEffect(() => { if (stale) onClose(); }, [stale, onClose]);
-  if (stale) return null;
-  // The start is not awaited: the dialog closes at once and the round opens as it does from any start button. While another write runs the start would be dropped, so it waits.
-  return <ConfirmDialog className="confirm-start" tone="primary" title={START_TITLES[modal.ask.kind](modal.ask.name)} confirmLabel={ui('开始练习')} blocked={busy}
-    onConfirm={() => { modal.start(); }} onClose={onClose}>
-    {modal.ask.kind === 'today' ? <p>{ui('现在没有没做完的练习。')}</p> : null}
-  </ConfirmDialog>;
-}
-
 /* The app's dialogs, each in its own file. `modal` (library state) says which one is open; any other value is the reader. */
 const DIALOGS = {
-  confirmStart: ({ modal, onClose, app }) => <StartConfirm modal={modal} onClose={onClose} root={app.data?.root} />,
   add: ({ onClose }) => <AddSourceDialog onClose={onClose} />,
   sources: ({ modal, onClose, app }) => <SourceListDialog modal={modal} run={app.session.run} data={app.data} onClose={onClose}
     onOpenSource={(source) => app.set.setModal({ type: 'source', source, ...(modal.pickPages ? { pickPages: true } : {}), ...(modal.back ? { back: true } : {}) })} />,
@@ -73,13 +52,19 @@ const DIALOGS = {
 /** Is the reader the open dialog? (ui/app/app-context.js, where the practice page reads it too.) */
 export { readerOpen } from './app-context.js';
 
-/** ModalRouter: the one open dialog of the library state. */
+/** ModalRouter: the open library dialog, plus any stacked start confirmation above it. */
 export function ModalRouter() {
   const app = useApp();
   const modal = app.lib.modal;
-  if (!modal) return null;
-  const render = DIALOGS[modal.type] || DIALOGS.source;
-  return render({ modal, app, onClose: () => app.set.setModal(null) });
+  const confirm = app.lib.startConfirm;
+  const render = modal ? (DIALOGS[modal.type] || DIALOGS.source) : null;
+  if (!render && !confirm) return null;
+  return (
+    <>
+      {render ? render({ modal, app, onClose: () => app.set.setModal(null) }) : null}
+      {confirm ? <StartConfirmDialog confirm={confirm} onClose={() => app.set.setStartConfirm(null)} data={app.data} /> : null}
+    </>
+  );
 }
 
 const AppModalHost = React.memo(function AppModalHost() {
