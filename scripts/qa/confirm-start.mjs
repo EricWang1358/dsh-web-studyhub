@@ -1,5 +1,5 @@
-/* Browser tests and QA scripts: a row's ▶ without an open run, and S / 回到题目 with nothing to resume, ask before they start (ui/app/AppModalHost.jsx
-   StartConfirm). These press 开始练习 in that dialog. */
+/* Browser tests and QA scripts: a row's ▶ without an open run, and S / 回到题目 with nothing to resume, ask before they start (ui/app/modals/StartConfirmDialog.jsx).
+   These press 开始练习 in that dialog. */
 const DIALOG = 'dialog.confirm-start';
 const CONFIRM = `${DIALOG} .sh-dialog__footer .sh-btn--primary`;
 
