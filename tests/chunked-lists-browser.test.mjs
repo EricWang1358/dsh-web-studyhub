@@ -9,7 +9,7 @@ import { launchChromium } from "../scripts/qa/browser.mjs";
 import { frames, openPage, settleAnimations, startLateServer, until } from "../scripts/qa/layout-late.mjs";
 import { revealNavRow } from "../scripts/qa/nav-reveal.mjs";
 import { openSourcesTools } from "./helpers/sources-tools.mjs";
-import { noonZone, seedChunkLibrary, SHORT_DRAFT, SIMILAR_AT } from "../scripts/qa/chunked-lists.mjs";
+import { noonZone, seedChunkLibrary, SENT_BACK_AT, SHORT_DRAFT, SIMILAR_AT } from "../scripts/qa/chunked-lists.mjs";
 
 /* #900: the sources page, the wrong book and a long draft draw their rows in growing chunks, on the fixture of scripts/qa/chunked-lists.mjs (1000 notes and a 160-page book
    in one day group, 1000 wrong answers in two decks, a draft of 500 questions with two near-duplicates far down). What it proves, in a browser: the first paint draws one
@@ -354,18 +354,40 @@ test("the sources page, the wrong book and a long draft draw their rows in chunk
       await settleAnimations(page);
       assert.equal(await count(page, cards), DRAFT_CHUNK, "ninety questions: one chunk of 80 at first");
 
-      // 查看详情 (a question was sent back) goes to the details that follow the last question: all ninety are drawn first, and the details are in view.
-      await page.getByRole("button", { name: "查看详情" }).click();
+      // 定位待处理题 (a question past the first chunk was sent back, #1750) goes to that question: it is drawn first, and it is in view.
+      const sentBack = `.draft-card[data-draft-index="${SENT_BACK_AT}"]`;
+      await page.locator(".draft-blocker-summary").getByRole("button", { name: "定位待处理题" }).click();
+      await until(async () => (await count(page, sentBack)) === 1, "the sent-back question drawn", { timeoutMs: 15000 });
+      await until(() => inView(page, sentBack), "the sent-back question in view", { timeoutMs: 15000 });
+      await frames(page, 6);
+      assert.ok(await inView(page, sentBack), "and still in view");
+
+      // 添加闪卡 appends question 91: it is drawn.
+      await page.getByRole("button", { name: /添加闪卡/ }).click();
+      await until(async () => (await count(page, cards)) === SHORT_DRAFT + 1, "the added question drawn", { timeoutMs: 15000 });
+      assert.deepEqual(errors.filter((error) => !/favicon/.test(error)), []);
+      await context.close();
+    });
+
+    await t.test("草稿: with a problem of the whole draft, 查看详情 draws every question before it scrolls to the details after them", async () => {
+      const { page, context, errors } = await openApp(browser, running, zone);
+      await openNav(page, "library");
+      const fold = page.locator("details.home-drafts").first();
+      if (await fold.count() && !await fold.evaluate((element) => element.open)) await fold.locator("summary").first().click();
+      await page.locator(".draft-row").filter({ hasText: "A noted draft of ninety" }).locator(".draft-open").click();
+      const cards = ".draft-card";
+      await page.locator(cards).first().waitFor({ timeout: 30000 });
+      await settleAnimations(page);
+      assert.equal(await count(page, cards), DRAFT_CHUNK, "ninety questions: one chunk of 80 at first");
+
+      // 查看详情 goes to the details that follow the last question: all ninety are drawn first, and the details are in view.
+      await page.locator(".draft-blocker-summary").getByRole("button", { name: "查看详情" }).click();
       await until(async () => (await count(page, cards)) === SHORT_DRAFT, "every question drawn for the details", { timeoutMs: 15000 });
       await until(() => inView(page, ".draft-generation-details"), "the details in view", { timeoutMs: 15000 });
       await frames(page, 6);
       assert.equal(await count(page, cards), SHORT_DRAFT);
       assert.ok(await inView(page, ".draft-generation-details"), "and still in view");
       assert.equal(await page.locator(".draft-generation-details").evaluate((element) => element.open), true);
-
-      // 添加闪卡 appends question 91: it is drawn.
-      await page.getByRole("button", { name: /添加闪卡/ }).click();
-      await until(async () => (await count(page, cards)) === SHORT_DRAFT + 1, "the added question drawn", { timeoutMs: 15000 });
       assert.deepEqual(errors.filter((error) => !/favicon/.test(error)), []);
       await context.close();
     });

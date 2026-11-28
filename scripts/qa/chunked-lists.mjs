@@ -18,6 +18,8 @@ import { revealNavRow } from "./nav-reveal.mjs";
 const hash = (n) => n.toString(16).padStart(64, "0");
 const BOOK_PAGES = 160;
 export const SHORT_DRAFT = 90;
+/** The question of the draft of ninety that was sent back: past its first chunk of 80, so 定位待处理题 has to draw it before it can land on it. */
+export const SENT_BACK_AT = 84;
 /** The one course seedLibrary makes (the pages open scoped to it, so the materials belong to it). */
 const COURSE = "Course 01 / Chapter 1";
 const DAY = Date.UTC(2026, 8, 1, 12);
@@ -43,7 +45,7 @@ const stem = (index) => {
 const NEAR = "Explain in your own words why a leader based replication protocol needs a quorum before it acknowledges a write to the client";
 
 /** The library (`bookOlderDays` and `pinned`: see the line that uses them): `documents` notes in one local day, the newest at `newest` (first on the page), a 160-page book older than all of them, two decks with every card answered
-    badly, and two drafts. Returns the ids the tests look for. */
+    badly, and three drafts. Returns the ids the tests look for. */
 export async function seedChunkLibrary(root, { documents = 1000, mistakes = 1000, questions = 500, newest = DAY, similarAt = SIMILAR_AT, bookOlderDays = 0, pinned = 0 } = {}) {
   const perDeck = Math.ceil(mistakes / 2);
   await seedLibrary(root, { sources: 4, decks: 2, cardsPerDeck: perDeck, runs: 2, attempts: 0, courses: 1, largeSources: 0 });
@@ -68,8 +70,10 @@ export async function seedChunkLibrary(root, { documents = 1000, mistakes = 1000
         explanation: `Explanation ${index}`, misconception: `Mistake ${index}`, rubric: `Rubric ${index}`, citations: [] })),
       editorial: { requested: length, generated: length, failures: [], reviewedCards: {}, ...extra } });
     library.drafts.push(draft("chunk-draft", "A long draft", questions, similarAt));
-    // Over one chunk (80) and under the 100 questions a draft can be added to; the second question was sent back, so the page offers 查看详情.
-    library.drafts.push(draft("short-draft", "A draft of ninety", SHORT_DRAFT, -1, { rejectedIssues: { "short-draft-q2": ["The answer is not in the cited text."] } }));
+    // Over one chunk (80) and under the 100 questions a draft can be added to; a question past the first chunk was sent back, so the page offers 定位待处理题.
+    library.drafts.push(draft("short-draft", "A draft of ninety", SHORT_DRAFT, -1, { rejectedIssues: { [`short-draft-q${SENT_BACK_AT}`]: ["The answer is not in the cited text."] } }));
+    // The same length with a problem of the whole draft from its last check (no question to go to), so the page offers 查看详情: the details after the last question.
+    library.drafts.push({ ...draft("note-draft", "A noted draft of ninety", SHORT_DRAFT, -1), quality: { errors: ["Deck title is required"] } });
   });
   return { documents, mistakes, questions, bookKey: `pdf:${hash(1)}`, similarAt };
 }
