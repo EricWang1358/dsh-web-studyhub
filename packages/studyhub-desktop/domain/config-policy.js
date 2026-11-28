@@ -1,4 +1,5 @@
 // @ts-check
+import { DEFAULT_AGY_PREWARM, patchAgyPrewarm, withAgyPrewarm } from './agy-warm-policy.js';
 import { keyLast4 } from './redact.js';
 
 /** @typedef {import('./contracts.js').AgyConfig} AgyConfig */
@@ -133,6 +134,7 @@ export function defaultDesktopConfig() {
       executablePath: '',
       model: '',
       effort: '',
+      prewarm: DEFAULT_AGY_PREWARM,
     },
     codex: {
       executablePath: '',
@@ -204,7 +206,7 @@ export function normalizeDesktopConfig(raw) {
   const rawOpenAi = source.openai && typeof source.openai === 'object'
     ? /** @type {Record<string, unknown>} */ (source.openai)
     : {};
-  const agy = /** @type {AgyConfig} */ (normalizeCliSection(source.agy, VALID_AGY_EFFORTS));
+  const agy = /** @type {AgyConfig} */ (withAgyPrewarm(normalizeCliSection(source.agy, VALID_AGY_EFFORTS), source.agy));
   const codex = /** @type {CodexConfig} */ (normalizeCliSection(source.codex, VALID_CODEX_EFFORTS));
 
   return {
@@ -339,7 +341,7 @@ export function applyConfigPatch(current, patch) {
   }
 
   const agy = patch.agy && typeof patch.agy === 'object'
-    ? mergeCliPatch(base.agy, /** @type {Record<string, unknown>} */ (patch.agy), VALID_AGY_EFFORTS)
+    ? patchAgyPrewarm(mergeCliPatch(base.agy, /** @type {Record<string, unknown>} */ (patch.agy), VALID_AGY_EFFORTS), patch.agy)
     : base.agy;
   const codex = patch.codex && typeof patch.codex === 'object'
     ? mergeCliPatch(base.codex, /** @type {Record<string, unknown>} */ (patch.codex), VALID_CODEX_EFFORTS)
@@ -368,6 +370,7 @@ export function redactDesktopConfig(config) {
       executablePath: config.agy.executablePath,
       model: config.agy.model,
       effort: config.agy.effort,
+      prewarm: config.agy.prewarm,
     },
     codex: {
       executablePath: config.codex.executablePath,

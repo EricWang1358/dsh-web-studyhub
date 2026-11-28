@@ -7,6 +7,7 @@ import { createDesktopHost } from '../application/desktop-host.js';
 import { createProviderDiscovery } from '../application/provider-discovery.js';
 import { createRetrievalRuntime } from '../application/retrieval-runtime.js';
 import { createAgyCompleteAdapter, probeAgyModels, probeCliVersion } from '../adapters/cli/agy-adapter.mjs';
+import { createAgyWarm } from '../adapters/cli/agy-spare.mjs';
 import { createCodexCompleteAdapter, probeCodexAuth, probeCodexModels } from '../adapters/cli/codex-adapter.mjs';
 import { listCandidatePaths } from '../adapters/cli/candidate-paths.mjs';
 import { createProcessRunner } from '../adapters/cli/process-runner.mjs';
@@ -149,7 +150,7 @@ function buildSidecarHostOptions(opts) {
     configStore: opts.configStore,
     providerDiscovery: opts.providerDiscovery,
     openaiComplete: (config, callOpts) => createOpenAiCompleteAdapter(config, callOpts),
-    agyComplete: (config, callOpts) => createAgyCompleteAdapter(config, { ...callOpts, runner: opts.runner }),
+    agyComplete: (config, callOpts) => createAgyCompleteAdapter(config, { ...callOpts, runner: opts.runner, warm: callOpts?.fresh ? null : opts.agyWarm?.pool }),
     codexComplete: (config, callOpts) => createCodexCompleteAdapter(config, { ...callOpts, runner: opts.runner }),
     jobExecutor: opts.jobExecutor,
     openExternal: (url) => openExternalUrl(url),
@@ -182,19 +183,28 @@ export async function composeDesktopSidecar(rawOptions) {
   const providerDiscovery = createSidecarDiscovery(runner, env, currentCustomPaths);
   const resolvedStudyCliPath = studyCliPath || await resolveStudyCliPath(env);
 
-  const host = await createDesktopHost(buildSidecarHostOptions({
+  let host = null;
+  // A stub model needs no agy; otherwise one spare may wait for the next call, as the settings say.
+  const agyWarm = injectedComplete ? null : createAgyWarm({
+    runner,
+    getConfig: () => host?.config ?? null,
+    findExecutablePath: () => providerDiscovery.findReadyAgyPath(),
+  });
+  host = await createDesktopHost(buildSidecarHostOptions({
     configStore, providerDiscovery, runner, jobExecutor, retrievalRuntime,
-    libraryEvents, env, injectedComplete, resolvedStudyCliPath, studyNodePath,
+    libraryEvents, env, injectedComplete, resolvedStudyCliPath, studyNodePath, agyWarm,
   }));
-  const syncCustomPaths = () => {
+  // What lives outside the host follows the settings as they are after each answer.
+  const syncAfterCall = () => {
     currentCustomPaths.agy = host.config.agy.executablePath;
     currentCustomPaths.codex = host.config.codex.executablePath;
+    agyWarm?.sync();
   };
-  syncCustomPaths();
+  syncAfterCall();
 
   const onCall = async (action, args) => {
     const result = await host.call(action, args);
-    syncCustomPaths();
+    syncAfterCall();
     return result;
   };
 
@@ -211,7 +221,7 @@ export async function composeDesktopSidecar(rawOptions) {
   async function shutdown() {
     if (closed) return;
     closed = true;
-    await Promise.allSettled([server.close(), host.dispose()]);
+    await Promise.allSettled([server.close(), host.dispose(), agyWarm?.dispose()]);
   }
 
   return Object.freeze({

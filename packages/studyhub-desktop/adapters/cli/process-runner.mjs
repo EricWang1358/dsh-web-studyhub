@@ -1,55 +1,12 @@
 import { spawn } from 'node:child_process';
-import { access, readFile } from 'node:fs/promises';
-import { dirname, extname } from 'node:path';
-import { StringDecoder } from 'node:string_decoder';
-import { parseCmdShimTarget } from '../../domain/shim-parser.js';
+import { createOutputCollector } from './output-collector.mjs';
+import { unwrapExecutable } from './unwrap-executable.mjs';
 import { terminateWindowsTree } from './windows-process-tree.mjs';
+
+export { unwrapExecutable };
 
 const DEFAULT_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 const KILL_GRACE_MS = 1500;
-const WINDOWS_SHIM_EXTS = new Set(['.cmd', '.bat']);
-const NODE_SCRIPT_EXTS = new Set(['.js', '.mjs', '.cjs']);
-
-async function fileExists(targetPath) {
-  try {
-    await access(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Safely unwrap Windows `.cmd`/`.bat` shims and `.js` scripts without ever using `shell: true`.
- */
-export async function unwrapExecutable(commandPath, { exists = fileExists, readText = (p) => readFile(p, 'utf8') } = {}) {
-  const ext = extname(commandPath).toLowerCase();
-  if (NODE_SCRIPT_EXTS.has(ext)) {
-    return { ok: true, command: process.execPath, prefixArgs: [commandPath] };
-  }
-  if (!WINDOWS_SHIM_EXTS.has(ext)) {
-    return { ok: true, command: commandPath, prefixArgs: [] };
-  }
-
-  let content;
-  try {
-    content = await readText(commandPath);
-  } catch (error) {
-    return { ok: false, errorCode: 'BROKEN_SHIM', reason: `无法读取启动脚本：${error?.message || commandPath}` };
-  }
-
-  const parsed = parseCmdShimTarget(content, dirname(commandPath));
-  if (!parsed) {
-    return { ok: false, errorCode: 'BROKEN_SHIM', reason: `无法解析 .cmd 启动脚本目标：${commandPath}` };
-  }
-  if (!(await exists(parsed.targetPath))) {
-    return { ok: false, errorCode: 'BROKEN_SHIM', reason: `启动脚本指向的目标文件不存在：${parsed.targetPath}` };
-  }
-  if (parsed.kind === 'node-script') {
-    return { ok: true, command: process.execPath, prefixArgs: [parsed.targetPath] };
-  }
-  return { ok: true, command: parsed.targetPath, prefixArgs: [] };
-}
 
 /**
  * Terminate a child process and its entire descendant tree without using a shell.
@@ -107,50 +64,6 @@ export function spawnVerbatimDetached(command, argumentLine, { cwd } = {}) {
   });
 }
 
-function createOutputCollector(maxBytes, onLine) {
-  const chunks = [];
-  const decoder = onLine ? new StringDecoder('utf8') : null;
-  let collected = 0;
-  let truncated = false;
-  let lineBuffer = '';
-
-  function push(buffer) {
-    const chunk = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
-    if (onLine && decoder) {
-      lineBuffer += decoder.write(chunk);
-      const parts = lineBuffer.split(/\r?\n/);
-      lineBuffer = parts.pop() || '';
-      for (const line of parts) onLine(line);
-    }
-    if (collected >= maxBytes) {
-      truncated = true;
-      return;
-    }
-    const remaining = maxBytes - collected;
-    if (chunk.length > remaining) {
-      chunks.push(chunk.subarray(0, remaining));
-      collected += remaining;
-      truncated = true;
-    } else {
-      chunks.push(chunk);
-      collected += chunk.length;
-    }
-  }
-
-  function finish() {
-    if (onLine && decoder) {
-      lineBuffer += decoder.end();
-      if (lineBuffer) {
-        onLine(lineBuffer);
-        lineBuffer = '';
-      }
-    }
-    return { text: Buffer.concat(chunks).toString('utf8'), truncated };
-  }
-
-  return { push, finish };
-}
-
 function createBrokenShimResult(reason, durationMs) {
   return {
     code: null,
@@ -166,8 +79,9 @@ function createBrokenShimResult(reason, durationMs) {
   };
 }
 
-function attachTerminationControls({ child, request, state, finalize }) {
-  const triggerKill = () => {
+/** The one kill of a started process, whoever asks for it (its time limit, its abort signal, terminate): the tree goes, and the result settles even when 'close' never comes. */
+function createKillSwitch({ child, state, finalize }) {
+  return () => {
     if (state.termination || state.forceCloseTimer) return;
     if (state.timeoutTimer) clearTimeout(state.timeoutTimer);
     if (child.pid) state.termination = killProcessTree(child.pid, process.platform, () => child.kill());
@@ -180,74 +94,97 @@ function attachTerminationControls({ child, request, state, finalize }) {
     state.forceCloseTimer = setTimeout(() => finalize(null, 'SIGKILL'), KILL_GRACE_MS + 500);
     state.forceCloseTimer.unref?.();
   };
+}
+
+/** Start a process with its output collected. What it is asked (stdin), its time limit and its abort signal come with `beginTurn`: at once for a run, later for a held process. */
+function spawnCollected({ command, finalArgs, maxBytes, lineSink, request }) {
+  const stdoutCol = createOutputCollector(maxBytes, lineSink);
+  const stderrCol = createOutputCollector(maxBytes, null);
+  const state = { settled: false, timedOut: false, aborted: false, spawnError: null, timeoutTimer: null, forceCloseTimer: null, started: Date.now(), detachSignal: null };
+  const child = spawn(command, finalArgs, {
+    cwd: request.cwd,
+    env: request.env,
+    shell: false,
+    windowsHide: true,
+    detached: process.platform !== 'win32',
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  let settle;
+  const result = new Promise((resolve) => { settle = resolve; });
+
+  const finalize = async (code, sig) => {
+    if (state.settled) return;
+    state.settled = true;
+    if (state.timeoutTimer) clearTimeout(state.timeoutTimer);
+    if (state.forceCloseTimer) clearTimeout(state.forceCloseTimer);
+    state.detachSignal?.();
+    state.spawnError = await state.termination || state.spawnError;
+    const out = stdoutCol.finish();
+    const err = stderrCol.finish();
+    settle({
+      code,
+      signal: sig,
+      stdout: out.text,
+      stderr: err.text,
+      timedOut: state.timedOut,
+      aborted: state.aborted,
+      truncated: out.truncated || err.truncated,
+      errorCode: state.spawnError?.code || null,
+      errorMessage: state.spawnError?.message || null,
+      durationMs: Date.now() - state.started,
+    });
+  };
+
+  child.stdout?.on('data', (chunk) => stdoutCol.push(chunk));
+  child.stderr?.on('data', (chunk) => stderrCol.push(chunk));
+  child.stdin?.on('error', () => {});
+  child.on('error', (error) => { state.spawnError = error; finalize(null, null); });
+  child.on('close', (code, sig) => finalize(code, sig));
+  return { child, state, result, kill: createKillSwitch({ child, state, finalize }) };
+}
+
+/** Kill the process when `signal` aborts (or already has), and stop listening once the result is in. */
+function watchAbort({ state, kill }, signal) {
+  if (!signal) return;
   const onAbort = () => {
     state.aborted = true;
-    triggerKill();
+    kill();
   };
-  if (request.signal) {
-    if (request.signal.aborted) onAbort();
-    else request.signal.addEventListener('abort', onAbort, { once: true });
+  if (signal.aborted) {
+    onAbort();
+    return;
   }
+  signal.addEventListener('abort', onAbort, { once: true });
+  state.detachSignal = () => signal.removeEventListener('abort', onAbort);
+}
+
+/** Give a started process its turn: the abort signal and the time limit count from here, then stdin is written and closed. A process that has already ended answers with how it ended. */
+function beginTurn(proc, request, started) {
+  const { child, state, kill } = proc;
+  if (state.settled) return proc.result;
+  state.started = started;
+  watchAbort(proc, request.signal);
   if (Number.isFinite(request.timeoutMs) && request.timeoutMs > 0) {
     state.timeoutTimer = setTimeout(() => {
       state.timedOut = true;
-      triggerKill();
+      kill();
     }, request.timeoutMs);
     state.timeoutTimer.unref?.();
   }
-  return onAbort;
+  const payload = request.stdinText === undefined || request.stdinText === null ? '' : String(request.stdinText);
+  if (payload) child.stdin?.end(payload, 'utf8');
+  else child.stdin?.end();
+  return proc.result;
 }
 
-function executeSpawnedProcess({ command, finalArgs, maxBytes, request, started }) {
-  return new Promise((resolve) => {
-    const stdoutCol = createOutputCollector(maxBytes, request.onStdoutLine);
-    const stderrCol = createOutputCollector(maxBytes, null);
-    const state = { settled: false, timedOut: false, aborted: false, spawnError: null, timeoutTimer: null, forceCloseTimer: null };
-    let onAbort = null;
-
-    const child = spawn(command, finalArgs, {
-      cwd: request.cwd,
-      env: request.env,
-      shell: false,
-      windowsHide: true,
-      detached: process.platform !== 'win32',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-
-    const finalize = async (code, sig) => {
-      if (state.settled) return;
-      state.settled = true;
-      if (state.timeoutTimer) clearTimeout(state.timeoutTimer);
-      if (state.forceCloseTimer) clearTimeout(state.forceCloseTimer);
-      if (onAbort) request.signal?.removeEventListener('abort', onAbort);
-      state.spawnError = await state.termination || state.spawnError;
-      const out = stdoutCol.finish();
-      const err = stderrCol.finish();
-      resolve({
-        code,
-        signal: sig,
-        stdout: out.text,
-        stderr: err.text,
-        timedOut: state.timedOut,
-        aborted: state.aborted,
-        truncated: out.truncated || err.truncated,
-        errorCode: state.spawnError?.code || null,
-        errorMessage: state.spawnError?.message || null,
-        durationMs: Date.now() - started,
-      });
-    };
-
-    onAbort = attachTerminationControls({ child, request, state, finalize });
-    child.stdout?.on('data', (chunk) => stdoutCol.push(chunk));
-    child.stderr?.on('data', (chunk) => stderrCol.push(chunk));
-    child.stdin?.on('error', () => {});
-    child.on('error', (error) => { state.spawnError = error; finalize(null, null); });
-    child.on('close', (code, sig) => finalize(code, sig));
-
-    const payload = request.stdinText === undefined || request.stdinText === null ? '' : String(request.stdinText);
-    if (payload) child.stdin?.end(payload, 'utf8');
-    else child.stdin?.end();
-  });
+async function spawnForRequest(request, lineSink) {
+  const resolved = await unwrapExecutable(request.command);
+  if (!resolved.ok) return { proc: null, reason: resolved.reason };
+  const finalArgs = [...resolved.prefixArgs, ...(request.args || [])];
+  const maxBytes = Number.isInteger(request.maxOutputBytes) && request.maxOutputBytes > 0
+    ? request.maxOutputBytes
+    : DEFAULT_MAX_OUTPUT_BYTES;
+  return { proc: spawnCollected({ command: resolved.command, finalArgs, maxBytes, lineSink, request }), reason: '' };
 }
 
 /**
@@ -256,15 +193,44 @@ function executeSpawnedProcess({ command, finalArgs, maxBytes, request, started 
  */
 export async function runProcess(request) {
   const started = Date.now();
-  const resolved = await unwrapExecutable(request.command);
-  if (!resolved.ok) {
-    return createBrokenShimResult(resolved.reason, Date.now() - started);
+  const spawned = await spawnForRequest(request, request.onStdoutLine ? { onLine: request.onStdoutLine } : null);
+  if (!spawned.proc) return createBrokenShimResult(spawned.reason, Date.now() - started);
+  return beginTurn(spawned.proc, request, started);
+}
+
+/**
+ * Start a process now and ask it later: the same spawn, collection, limits and kill as `runProcess`, split in two.
+ * `run(turn)` takes what a run takes for its turn (`stdinText`, `timeoutMs`, `signal`, `onStdoutLine`) and resolves to the
+ * same result; it is for one turn (a second call gets the first one's result). Until then the process waits with stdin
+ * open and no time limit, and output it wrote while waiting is in `stdout` but is not handed to `onStdoutLine`.
+ * `terminate()` ends it, asked or not, and resolves when it has gone.
+ */
+export async function holdProcess(request) {
+  const lineSink = { onLine: null };
+  const spawned = await spawnForRequest(request, lineSink);
+  if (!spawned.proc) {
+    const broken = createBrokenShimResult(spawned.reason, 0);
+    return Object.freeze({ pid: null, exited: Promise.resolve(), run: async () => broken, terminate: async () => {} });
   }
-  const finalArgs = [...resolved.prefixArgs, ...(request.args || [])];
-  const maxBytes = Number.isInteger(request.maxOutputBytes) && request.maxOutputBytes > 0
-    ? request.maxOutputBytes
-    : DEFAULT_MAX_OUTPUT_BYTES;
-  return executeSpawnedProcess({ command: resolved.command, finalArgs, maxBytes, request, started });
+  const { proc } = spawned;
+  let asked = false;
+  return Object.freeze({
+    pid: proc.child.pid ?? null,
+    exited: proc.result.then(() => {}),
+    run(turn) {
+      if (asked) return proc.result;
+      asked = true;
+      lineSink.onLine = turn.onStdoutLine || null;
+      return beginTurn(proc, turn, Date.now());
+    },
+    async terminate() {
+      if (!proc.state.settled) {
+        try { proc.child.stdin?.end(); } catch { /* stdin may already be closed */ }
+        proc.kill();
+      }
+      await proc.result;
+    },
+  });
 }
 
 /**
@@ -340,6 +306,7 @@ export function spawnPersistent({ command, args = [], cwd, env }) {
 export function createProcessRunner() {
   return Object.freeze({
     run: runProcess,
+    hold: holdProcess,
     spawnDetached,
     spawnPipeProcess,
     spawnPersistent,

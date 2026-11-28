@@ -4,6 +4,7 @@
 /** @typedef {'ready' | 'unauthenticated' | 'broken-shim' | 'not-installed' | 'coming-soon'} ProviderStatus */
 /** @typedef {'openai' | 'agy' | 'codex'} DesktopMode */
 /** @typedef {'' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'} AgyEffort */
+/** @typedef {'off' | 'after-use' | 'always'} AgyPrewarm when a spare agy waits for the next call (see agy-warm-policy.js) */
 /** @typedef {'' | 'low' | 'medium' | 'high' | 'xhigh'} CodexEffort */
 /** @typedef {'ok' | 'no-credential' | 'no-route'} EffectiveReason */
 
@@ -58,6 +59,7 @@
  * @property {string} executablePath
  * @property {string} model
  * @property {AgyEffort} effort
+ * @property {AgyPrewarm} prewarm
  */
 
 /**
