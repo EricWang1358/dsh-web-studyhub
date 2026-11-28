@@ -391,7 +391,7 @@ const flashSeed = async root => {
   await service.dispose();
 };
 
-test('本节题目: a flipped flashcard\'s grade row sticks to the panel\'s bottom edge in the panel\'s colour (#1678)', { timeout: 300000 }, async t => {
+test('本节题目: a flipped flashcard\'s grade row sticks to the panel\'s bottom edge in its colour only where it leaves the card most of the panel (#1678)', { timeout: 300000 }, async t => {
   let browser, dist;
   try { ({ browser, dist } = await setup()); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
   const running = await startLateServer({ distDir: dist, seed: flashSeed });
@@ -416,12 +416,23 @@ test('本节题目: a flipped flashcard\'s grade row sticks to the panel\'s bott
       // The round stays open between the windows of this test, so from the second one on the card comes back already turned over.
       if (!(await card.evaluate(node => node.classList.contains('flipped')))) await card.click();
       await panel.locator('[data-inline-run] .grade[data-grade="5"]').waitFor({ timeout: 15000 });
-      let row = null;
-      await until(async () => { row = await gradeRowPaint(page, '[data-inline-run]'); return row.stuck && row.paints === row.surface; }, `${tag}: the stuck row painted`, { timeoutMs: 8000 })
-        .catch(() => {});
-      assert.ok(row.stuck && row.rowAtEdge, `${tag}: the row sits on the panel's bottom edge, nothing of the card under it (${JSON.stringify(row)})`);
-      assert.equal(row.paints, row.surface, `${tag}: the stuck row is opaque in the panel's own colour (${JSON.stringify(row)})`);
       const short = scale !== 100;
+      let row = null;
+      if (short) {
+        await until(async () => { row = await gradeRowPaint(page, '[data-inline-run]'); return row.stuck && row.paints === row.surface; }, `${tag}: the stuck row painted`, { timeoutMs: 8000 })
+          .catch(() => {});
+        assert.ok(row.stuck && row.rowAtEdge, `${tag}: the row sits on the panel's bottom edge, nothing of the card under it (${JSON.stringify(row)})`);
+        assert.equal(row.paints, row.surface, `${tag}: the stuck row is opaque in the panel's own colour (${JSON.stringify(row)})`);
+      } else {
+        // At 100% this narrow panel stacks the full row to more than two fifths of its height: stuck, it would cover most of the card. It stays below the card.
+        const follow = panel.locator('[data-inline-run] .flash-follow.is-grading');
+        await until(async () => (await follow.getAttribute('data-in-flow')) !== null, `${tag}: a tall row is left in the page`, { timeoutMs: 8000 }).catch(() => {});
+        assert.equal(await follow.evaluate((element) => window.getComputedStyle(element).position), 'static', `${tag}: a row that would cover most of the panel does not stick`);
+        assert.equal(await follow.getAttribute('data-stuck'), null, `${tag}: and is not painted as stuck`);
+        const five = panel.locator('[data-inline-run] .grade[data-grade="5"]');
+        await five.scrollIntoViewIfNeeded();
+        assert.ok(await five.evaluate((button) => { const r = button.getBoundingClientRect(); return button.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)); }), `${tag}: the grades are reached by scrolling`);
+      }
       assert.equal(await panel.locator('.grading--short').count(), short ? 1 : 0, `${tag}: ${short ? 'a short window: the one-line row' : 'at 100% the full row, as on the practice page'}`);
       assert.equal(await panel.locator('.grade-group__label').count(), short ? 0 : 2, `${tag}: the group names are ${short ? 'left to the groups\' accessible names' : 'on screen'}`);
       assert.deepEqual(errors.filter(error => !REFUSED.test(error)), [], `${tag}: no console or page errors`);

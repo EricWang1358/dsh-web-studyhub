@@ -998,12 +998,16 @@
       bottom: calc(-1 * var(--sticky-under, 0px));
       z-index: var(--z-sticky);
     }
-    .flash-follow.is-grading[data-stuck] > .smooth-height-inner {
+    /* A row that would cover more than two fifths of the box (the full row stacked in a narrow side panel) stays where it is (data-in-flow, use-sticky-room.js). */
+    .flash-follow.is-grading[data-in-flow] {
+      position: static;
+    }
+    .flash-follow.is-grading[data-stuck]:not([data-in-flow]) > .smooth-height-inner {
       position: relative;
       padding-bottom: var(--sticky-under, 0px);
       background: var(--scroll-surface, var(--bg-canvas));
     }
-    .flash-follow.is-grading[data-stuck] > .smooth-height-inner::before {
+    .flash-follow.is-grading[data-stuck]:not([data-in-flow]) > .smooth-height-inner::before {
       content: "";
       position: absolute;
       inset: 0 0 auto;
