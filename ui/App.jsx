@@ -33,6 +33,7 @@ import { AppContext, AppStoreContext, useAppStore } from './app/app-context.js';
 import { practiseRound } from './app/practise-round.js';
 import { useAppShell } from './app/use-app-shell.js';
 import { useAppCore } from './app/use-app-core.js';
+import { libraryRootOf } from './app/library-root.js';
 import { useLibraryReset, useLibraryState } from './app/library-state.js';
 import { useNavigation } from './app/use-navigation.js';
 import { useSessionPerformance } from './use-session-performance.js';
@@ -112,7 +113,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
   const { courseActive } = useHostLinks({ host, core, nav, session, learn, lib: handle, rootRef: shell.rootRef, data, loading: connection.loading });
   const boardState = useBoard(core.call, boardSyncsOnPage(nav.page), {
     initialBoard: warmEntry.warm?.board ?? null,
-    onBoard: (next) => warmEntry.saveBoard(core.refs.bindingRoot.current || core.refs.dataRef.current?.root, next),
+    onBoard: (next) => warmEntry.saveBoard(libraryRootOf(core.refs), next),
   });
   useInitialLanding({ loading: connection.loading, data, boardState, nav, setBoardView: set.setBoardView, navigationCount: () => core.refs.navigation.current, restoredPage: warmEntry.restoredPage });
   const liveReady = useWarmSync({ host, placement: warmEntry.placement, loading: connection.loading, root: connection.binding.root, board: boardState.board, page: nav.page, boardView: lib.boardView });

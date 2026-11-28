@@ -672,7 +672,7 @@ export function buildDeckManageHints(input: DeckManageHintsInput): KeyHint[] {
     { key: 'Enter', label: t(lang, '练此题', 'Study') },
     { key: 'p', label: t(lang, '整组', 'Deck') },
     { key: '+', label: t(lang, '补题', 'Add') },
-    { key: 'k', label: t(lang, '题型', 'Kind') },
+    { key: 'v', label: t(lang, '题型', 'Kind') },
     { key: '/', label: t(lang, '搜索', 'Find') },
     { key: 'n', label: t(lang, '改名', 'Ren') },
     ...(!hasSystemKind ? [{ key: 'C', label: t(lang, '改课程', 'Course') }] : []),
@@ -681,6 +681,16 @@ export function buildDeckManageHints(input: DeckManageHintsInput): KeyHint[] {
     { key: 'e', label: t(lang, '草稿', 'Draft') },
     { key: 'Esc', label: t(lang, '关闭', 'Close') },
   ];
+}
+
+/** What a pending DeckManageModal request is doing: writing deck data, or opening practice / a draft. */
+export type BusyWait = 'save' | 'open';
+
+/** Shown when Esc is pressed while a request is pending: the modal stays open until it lands (#1608). */
+export function busyWaitMessage(wait: BusyWait, lang: 'zh' | 'en'): string {
+  return wait === 'open'
+    ? t(lang, '正在打开，完成后可关闭', 'Still opening; you can close this once it finishes')
+    : t(lang, '正在保存，完成后可关闭', 'Still saving; you can close this once it finishes');
 }
 
 export function buildDeckManageModalTitle(

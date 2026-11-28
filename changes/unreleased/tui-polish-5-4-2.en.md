@@ -1,0 +1,6 @@
+- **Terminal app (TUI): a few keys and windows behave more predictably.** Not verified: only checked in a simulated terminal (xterm), not in Windows Terminal, DSH or other real terminals; the small 60x18 window was only checked in English.
+  - In "Manage deck", `k` now moves up the card list like `j`, the arrow keys and every other list. Converting a card's kind moved to `v`; the footer, the help overlay and the key list show the new key.
+  - In "Deck operations" at a small window (60x18), the split preview, the new deck title and its error, and the import form with its course field and error now stay inside the window instead of being cut off.
+  - In "Manage deck", pressing Esc while a change is still being saved no longer seems to do nothing: it says "Still saving; you can close this once it finishes" (or "Still opening..." while a card is opening).
+  - In "Tasks", a delete or dismiss that finishes late no longer closes the dialog you opened for another task, and pressing confirm while the previous action is still running says "The previous action is still running". A failed refresh after pause now shows an error instead of failing silently.
+  - In the reader, pressing Esc right after `f` (save as flashcard) no longer drops the card: it is still saved and you see the usual "Saved as passage-linked flashcard", like a note saved with `s`.

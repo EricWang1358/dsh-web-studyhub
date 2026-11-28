@@ -1008,8 +1008,8 @@ describe('P4 (#1354 D12): DeckManageModal Split Guardrail & Behavioral Regressio
     try {
       await h.waitFor((f) => f.includes('Operating Systems Core'), 3000, 'deck loaded for convert/supp');
 
-      // Convert sub-mode (k) on quiz card: targets = [flashcard, open, truefalse, cloze]
-      h.dispatchKey('k', {});
+      // Convert sub-mode (v since #1748; the title still says k) on quiz card: targets = [flashcard, open, truefalse, cloze]
+      h.dispatchKey('v', {});
       await h.waitFor((f) => f.includes('Convert Card Kind') && f.includes('MCQ -> Card'), 2000, 'convert open');
       // Cycle to open -> press [e] to edit rubric -> type custom suffix -> Esc exits edit (stays in convert)
       h.dispatchKey('', { tab: true });
@@ -1027,9 +1027,9 @@ describe('P4 (#1354 D12): DeckManageModal Split Guardrail & Behavioral Regressio
       assert.equal(openConvCall.args.kind, 'open');
       assert.match(openConvCall.args.patch.rubric, /TLB miss/);
 
-      // Re-open convert (k) -> cycle to truefalse -> toggle Space -> submit
+      // Re-open convert (v) -> cycle to truefalse -> toggle Space -> submit
       await h.waitFor((f) => f.includes('Manage Deck:'), 2000, 'returned to browse after open convert');
-      h.dispatchKey('k', {});
+      h.dispatchKey('v', {});
       await h.waitFor((f) => f.includes('Convert Card Kind'), 2000, 'convert reopened');
       h.dispatchKey('', { tab: true });
       h.dispatchKey('', { tab: true });
@@ -1187,7 +1187,7 @@ describe('P4 (#1354 D12): DeckManageModal Split Guardrail & Behavioral Regressio
       await h.waitFor((f) => f.includes('Manage Deck:'), 2000, 'returned to browse after supplement finished');
 
       // 2) Convert: same-tick double Enter fires only once, and Esc while in flight does not exit convert mode
-      h.dispatchKey('k', {});
+      h.dispatchKey('v', {});
       await h.waitFor((f) => f.includes('Convert Card Kind'), 2000, 'convert open');
       h.dispatchKey('', { return: true });
       h.dispatchKey('', { return: true });
@@ -1456,6 +1456,227 @@ describe('P4 (#1354 D12): DeckManageModal Split Guardrail & Behavioral Regressio
     } finally {
       moveAGate.resolve();
       moveBGate.resolve();
+      h.cleanup();
+    }
+  });
+});
+
+// #1608 follow-ups to the DeckManageModal split review.
+describe('#1608 DeckManageModal: submit returns to browse, replies for a switched deck are dropped, Esc while saving explains itself', () => {
+  const hasToast = (needle) => useTuiStore.getState().toasts.some((toast) => toast.text.includes(needle));
+  const deckOfCall = (args) => args?.id ?? args?.deckId ?? args?.updates?.[0]?.deckId;
+
+  async function waitCondition(pred, timeoutMs, label) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (pred()) return;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    throw new Error(`waitCondition(${label}) timed out`);
+  }
+
+  test('12. A successful folder or topic submit returns to the browse view (as before the split)', async () => {
+    const deck = makeSampleDeck();
+    const snap = makeSampleSnapshot();
+    resetStore({ language: 'en', asciiMode: true, snapshot: snap });
+    const { host } = makeHost(async (name, args) => {
+      if (name === 'deck.get') return { ok: true, value: deck };
+      if (name === 'snapshot') return { ok: true, value: snap };
+      if (name === 'deck.move') return { ok: true, value: { id: args.id, folder: args.folder } };
+      return { ok: true, value: {} };
+    });
+    const h = createHarness(
+      React.createElement(DeckManageModal, { host, deckId: deck.id, isActive: true, width: 120, height: 36, onClose: () => {} }),
+    );
+    try {
+      await h.waitFor((f) => f.includes('Operating Systems Core') && f.includes('Folder: Systems / Kernel'), 3000, 'deck loaded');
+
+      h.dispatchKey('m', {});
+      await h.waitFor((f) => f.includes('Deck folder'), 2000, 'folder form open');
+      h.write(' / Paging');
+      await h.waitFor((f) => f.includes('/ Paging'), 2000, 'folder typed');
+      h.dispatchKey('', { return: true });
+      await h.waitFor(() => hasToast('Moved to folder'), 3000, 'folder saved');
+      await h.waitFor((f) => !f.includes('Deck folder') && f.includes('Sel'), 2000, 'back in browse after the folder submit');
+
+      h.dispatchKey(' ', {});
+      await h.waitFor((f) => f.includes('[1 sel]'), 2000, 'one card selected');
+      h.dispatchKey('T', {});
+      await h.waitFor((f) => f.includes('Batch retag topic'), 2000, 'topic form open');
+      h.write('Memory');
+      await h.waitFor((f) => f.includes('Memory'), 2000, 'topic typed');
+      h.dispatchKey('', { return: true });
+      await h.waitFor(() => hasToast('Retagged 1 card(s)'), 3000, 'topic saved');
+      await h.waitFor((f) => !f.includes('Batch retag topic') && f.includes('Sel'), 2000, 'back in browse after the topic submit');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test('13. Held course, topic and convert replies made for deck A never change deck B after a switch', async () => {
+    const deckA = makeSampleDeck({ id: 'deck-a', title: 'Deck Alpha', folder: 'Alpha / Root', course: 'CS101' });
+    const deckB = makeSampleDeck({ id: 'deck-b', title: 'Deck Beta', folder: 'Beta / Root', course: 'MATH201' });
+    const snap = makeSampleSnapshot();
+    resetStore({ language: 'en', asciiMode: true, snapshot: snap });
+
+    const gates = { 'deck.course': deferred(), 'card.update.batch': deferred(), 'card.convert': deferred() };
+    const { host, calls } = makeHost(async (name, args) => {
+      if (name === 'deck.get') {
+        if (args.id === 'deck-a') return { ok: true, value: structuredClone(deckA) };
+        if (args.id === 'deck-b') return { ok: true, value: structuredClone(deckB) };
+      }
+      if (name === 'snapshot') return { ok: true, value: snap };
+      const deckOf = deckOfCall(args);
+      if (gates[name] && deckOf === 'deck-a') await gates[name].promise;
+      if (name === 'deck.course') return { ok: true, value: { id: args.id, course: 'LATE_ALPHA_COURSE' } };
+      if (name === 'card.update.batch') {
+        return { ok: true, value: { updated: args.updates.length, failed: 0, results: [] } };
+      }
+      if (name === 'card.convert') return { ok: true, value: { deckId: args.deckId, cardId: args.cardId, kind: args.kind } };
+      return { ok: true, value: {} };
+    });
+    const element = (deckId) =>
+      React.createElement(DeckManageModal, { host, deckId, isActive: true, width: 120, height: 36, onClose: () => {} });
+    const started = (name) => calls.some((c) => c.name === name && deckOfCall(c.args) === 'deck-a');
+    const h = createHarness(element('deck-a'));
+    try {
+      // 1) deck.course for A is held; switch to B, open B's course form, then let A's reply land.
+      await h.waitFor((f) => f.includes('Deck Alpha'), 3000, 'deck-a loaded');
+      h.dispatchKey('C', {});
+      await h.waitFor((f) => f.includes('Reassign deck course'), 2000, 'deck-a course form');
+      h.write('X');
+      await h.waitFor((f) => f.includes('CS101X'), 2000, 'deck-a course typed');
+      h.dispatchKey('', { return: true });
+      await h.waitFor(() => started('deck.course'), 2000, 'deck-a deck.course held');
+      h.rerender(element('deck-b'));
+      await h.waitFor((f) => f.includes('Deck Beta') && !f.includes('Reassign deck course'), 3000, 'deck-b in browse');
+      h.dispatchKey('C', {});
+      await h.waitFor((f) => f.includes('Reassign deck course') && f.includes('MATH201'), 2000, 'deck-b course form shows its own course');
+      gates['deck.course'].resolve();
+      await h.waitFor(() => hasToast('LATE_ALPHA_COURSE'), 3000, 'deck-a late course reply reported');
+      h.write('!');
+      const courseFrame = await h.waitFor((f) => f.includes('MATH201!') || f.includes('LATE_ALPHA_COURSE!'), 2000, 'deck-b course form re-rendered');
+      assert.equal(courseFrame.includes('MATH201!'), true, "deck-a's reply must not overwrite deck-b's course draft");
+      assert.equal(courseFrame.includes('Reassign deck course'), true, "deck-a's reply must not close deck-b's course form");
+      h.dispatchKey('', { escape: true });
+      await h.waitFor((f) => !f.includes('Reassign deck course'), 2000, 'deck-b course form closed');
+
+      // 2) topic retag for A is held; on B a card is selected; A's reply must not clear B's selection.
+      h.rerender(element('deck-a'));
+      await h.waitFor((f) => f.includes('Deck Alpha'), 3000, 'back on deck-a');
+      h.dispatchKey(' ', {});
+      await h.waitFor((f) => f.includes('[1 sel]'), 2000, 'deck-a card selected');
+      h.dispatchKey('T', {});
+      await h.waitFor((f) => f.includes('Batch retag topic'), 2000, 'deck-a topic form');
+      h.write('Late');
+      await h.waitFor((f) => f.includes('Late'), 2000, 'deck-a topic typed');
+      h.dispatchKey('', { return: true });
+      await h.waitFor(() => started('card.update.batch'), 2000, 'deck-a topic update held');
+      h.rerender(element('deck-b'));
+      await h.waitFor((f) => f.includes('Deck Beta') && !f.includes('Batch retag topic'), 3000, 'deck-b in browse');
+      h.dispatchKey(' ', {});
+      await h.waitFor((f) => f.includes('[1 sel]'), 2000, 'deck-b card selected');
+      gates['card.update.batch'].resolve();
+      await h.waitFor(() => hasToast('Retagged'), 3000, 'deck-a late topic reply reported');
+      h.dispatchKey('', { downArrow: true });
+      const topicFrame = await h.waitFor((f) => f.includes('Deck Beta'), 2000, 'deck-b re-rendered');
+      assert.equal(topicFrame.includes('[1 sel]'), true, "deck-a's reply must not clear deck-b's selection");
+      h.dispatchKey('x', {});
+      await h.waitFor((f) => !f.includes('[1 sel]'), 2000, 'deck-b selection cleared');
+
+      // 3) convert for A is held; B is in search mode; A's reply must not pull B back to browse.
+      h.rerender(element('deck-a'));
+      await h.waitFor((f) => f.includes('Deck Alpha'), 3000, 'back on deck-a again');
+      h.dispatchKey('v', {});
+      await h.waitFor((f) => f.includes('Convert Card Kind'), 2000, 'deck-a convert open');
+      h.dispatchKey('', { return: true });
+      await h.waitFor(() => started('card.convert'), 2000, 'deck-a convert held');
+      h.rerender(element('deck-b'));
+      await h.waitFor((f) => f.includes('Deck Beta') && !f.includes('Convert Card Kind'), 3000, 'deck-b in browse');
+      h.dispatchKey('/', {});
+      await h.waitFor((f) => f.includes('Filter cards:'), 2000, 'deck-b search open');
+      gates['card.convert'].resolve();
+      await h.waitFor(() => hasToast('Converted card'), 3000, 'deck-a late convert reply reported');
+      h.write('c');
+      const searchFrame = await h.waitFor((f) => f.includes('Deck Beta'), 2000, 'deck-b re-rendered after the convert reply');
+      assert.equal(searchFrame.includes('Filter cards:'), true, "deck-a's reply must not pull deck-b out of search");
+    } finally {
+      for (const g of Object.values(gates)) g.resolve();
+      h.cleanup();
+    }
+  });
+
+  test('14. Esc while a write hangs keeps the modal open but says what it is waiting for', async () => {
+    const deck = makeSampleDeck();
+    const snap = makeSampleSnapshot();
+    resetStore({ language: 'zh', asciiMode: true, snapshot: snap });
+    const moveGate = deferred();
+    const focusGate = deferred();
+    let closed = 0;
+    const { host } = makeHost(async (name, args) => {
+      if (name === 'deck.get') return { ok: true, value: deck };
+      if (name === 'snapshot') return { ok: true, value: snap };
+      if (name === 'deck.move') {
+        await moveGate.promise;
+        return { ok: true, value: { id: args.id, folder: args.folder } };
+      }
+      if (name === 'card.focus') {
+        await focusGate.promise;
+        return { ok: true, value: { focus: args.focus } };
+      }
+      return { ok: true, value: {} };
+    });
+    const WAITING_ZH = '正在保存，完成后可关闭';
+    const waitingToasts = () => useTuiStore.getState().toasts.filter((toast) => toast.text === WAITING_ZH).length;
+    const h = createHarness(
+      React.createElement(DeckManageModal, {
+        host,
+        deckId: deck.id,
+        isActive: true,
+        width: 120,
+        height: 36,
+        onClose: () => {
+          closed += 1;
+        },
+      }),
+    );
+    try {
+      await h.waitFor((f) => f.includes('Operating Systems Core'), 3000, 'deck loaded');
+
+      // Browse: batch focus hangs; Esc must not close and must say why.
+      h.dispatchKey(' ', {});
+      await h.waitFor((f) => f.includes('已选 1'), 2000, 'one card selected');
+      h.dispatchKey('F', {});
+      await new Promise((r) => setTimeout(r, 30));
+      h.dispatchKey('', { escape: true });
+      await waitCondition(() => waitingToasts() >= 1, 2000, 'Esc while browse write hangs explains the wait');
+      assert.equal(closed, 0, 'Esc must not close the modal while the write hangs');
+      focusGate.resolve();
+      await h.waitFor(() => useTuiStore.getState().toasts.some((toast) => toast.text.includes('重点')), 3000, 'focus write finished');
+
+      // Folder form: deck.move hangs; Esc must keep the form and say why (before, Esc did nothing at all here).
+      h.dispatchKey('x', {});
+      h.dispatchKey('m', {});
+      await h.waitFor((f) => f.includes('设置题组目录'), 2000, 'folder form open');
+      h.write(' / Hold');
+      await h.waitFor((f) => f.includes('/ Hold'), 2000, 'folder typed');
+      h.dispatchKey('', { return: true });
+      await new Promise((r) => setTimeout(r, 30));
+      const before = waitingToasts();
+      useTuiStore.setState({ toasts: [] });
+      h.dispatchKey('', { escape: true });
+      await waitCondition(() => waitingToasts() >= 1, 2000, 'Esc while the folder write hangs explains the wait');
+      assert.ok(before >= 0);
+      assert.equal(h.frame().includes('设置题组目录'), true, 'the folder form stays while its write hangs');
+      assert.equal(closed, 0);
+
+      moveGate.resolve();
+      await h.waitFor((f) => !f.includes('设置题组目录'), 3000, 'folder write finished, back to browse');
+      h.dispatchKey('', { escape: true });
+      await waitCondition(() => closed === 1, 2000, 'Esc closes once nothing is pending');
+    } finally {
+      moveGate.resolve();
+      focusGate.resolve();
       h.cleanup();
     }
   });

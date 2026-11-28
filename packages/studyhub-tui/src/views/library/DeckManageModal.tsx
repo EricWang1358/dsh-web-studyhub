@@ -22,10 +22,12 @@ import {
   buildDeckManageModalTitle,
   buildDeckManageSubtitle,
   buildDefaultConvertDraft,
+  busyWaitMessage,
   filterDeckCards,
   kindLabel,
   sortAvailableSupplementDocs,
   summarizeCardMarkdown,
+  type BusyWait,
   type ConvertDraft,
   type ConvertTargetKind,
   type DeckCardItem,
@@ -33,7 +35,7 @@ import {
   type ModalMode,
   type SuppJobResult,
 } from './deck-manage-model.js';
-import { useDeckManageActions } from './useDeckManageActions.js';
+import { useDeckManageActions, type BusyLock } from './useDeckManageActions.js';
 import {
   DeckManageBrowseMetaStrip,
   DeckManageConvertPanel,
@@ -113,7 +115,7 @@ export const DeckManageModal = memo(function DeckManageModal({
   const [suppError, setSuppError] = useState('');
   const [suppJobResult, setSuppJobResult] = useState<SuppJobResult | null>(null);
 
-  // Convert card kind sub-mode state ([k])
+  // Convert card kind sub-mode state ([v])
   const [convertKindIdx, setConvertKindIdx] = useState(0);
   const convertKindIdxRef = useRef(0);
   const [convertDraft, setConvertDraft] = useState<ConvertDraft>({
@@ -124,11 +126,17 @@ export const DeckManageModal = memo(function DeckManageModal({
   const [convertEditActive, setConvertEditActive] = useState(false);
   const [convertError, setConvertError] = useState('');
 
-  const beginBusy = useCallback((): { token: number; gen: number } | null => {
+  // What the pending request is doing, so a refused Esc can say what it waits for (#1608).
+  const busyWaitRef = useRef<BusyWait>('save');
+
+  // Each lock carries the deck generation it was taken under; every reply checks it against deckGenRef,
+  // which moves on each deckId change, and drops whatever would land on another deck (#1608).
+  const beginBusy = useCallback((wait: BusyWait = 'save'): BusyLock | null => {
     if (busyRef.current || busy) return null;
     const token = busyTokenRef.current + 1;
     busyTokenRef.current = token;
     busyRef.current = true;
+    busyWaitRef.current = wait;
     setBusy(true);
     return { token, gen: deckGenRef.current };
   }, [busy]);
@@ -540,7 +548,7 @@ export const DeckManageModal = memo(function DeckManageModal({
           setSelectedIndex((i) => Math.min(total - 1, i + 1));
           setPreviewScrollTop(0);
         }
-      } else if (key.upArrow) {
+      } else if (key.upArrow || (!key.ctrl && !key.meta && input === 'k')) {
         if (total > 0) {
           setSelectedIndex((i) => Math.max(0, i - 1));
           setPreviewScrollTop(0);
@@ -639,7 +647,8 @@ export const DeckManageModal = memo(function DeckManageModal({
         navigate('review', { deckId: deck.id });
       } else if (input === '+') {
         openSupplementMode();
-      } else if (input === 'k') {
+      } else if (!key.ctrl && !key.meta && input === 'v') {
+        // v = conVert card kind; k stays list-up like everywhere else (#1748).
         openConvertMode();
       }
     },
@@ -710,7 +719,11 @@ export const DeckManageModal = memo(function DeckManageModal({
   );
 
   const handleModalClose = useCallback(() => {
-    if (busyRef.current) return;
+    if (busyRef.current) {
+      // Keep the modal open while a write is pending, but say so instead of ignoring Esc (#1608).
+      notify(busyWaitMessage(busyWaitRef.current, lang), 'info');
+      return;
+    }
     if (mode === 'browse') {
       onClose();
       return;
@@ -726,7 +739,11 @@ export const DeckManageModal = memo(function DeckManageModal({
     setConvertError('');
     setConvertEditActive(false);
     setMode('browse');
-  }, [mode, convertEditActive, onClose]);
+  }, [mode, convertEditActive, onClose, notify, lang]);
+
+  // While busy the form inputs are inactive, so the frame takes Esc in every mode and explains the wait (#1608).
+  const frameTakesEsc =
+    busy || mode === 'browse' || mode === 'link' || mode === 'supplement' || (mode === 'convert' && !convertEditActive);
 
   const modalTitle = buildDeckManageModalTitle(mode, deck, lang);
   const modalSubtitle = buildDeckManageSubtitle({
@@ -750,7 +767,7 @@ export const DeckManageModal = memo(function DeckManageModal({
         width={frameW}
         height={frameH}
         onClose={handleModalClose}
-        isActive={isActive && !confirmBatchSlay && (mode === 'browse' || mode === 'link' || mode === 'supplement' || (mode === 'convert' && !convertEditActive))}
+        isActive={isActive && !confirmBatchSlay && frameTakesEsc}
         hints={hints}
       >
         <DeckManageInputBar

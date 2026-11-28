@@ -313,7 +313,7 @@ function textField(value: unknown): string {
   return '';
 }
 
-export function extractJobControlState(
+function extractJobControlState(
   raw: Record<string, unknown>,
   contract: Record<string, unknown> | undefined,
   status: string,
@@ -467,7 +467,7 @@ export function extractJobControlState(
   };
 }
 
-export function normalizeJob(raw: Record<string, unknown>, archived = false): JobRecord {
+function normalizeJob(raw: Record<string, unknown>, archived = false): JobRecord {
   const contract = (raw.contract && typeof raw.contract === 'object'
     ? (raw.contract as Record<string, unknown>)
     : undefined);

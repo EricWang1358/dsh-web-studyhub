@@ -197,3 +197,16 @@ export function withExternalCliNote(text, { libraryRoot = '', studyCliPath = '',
   const block = [notesHead(resolvedLang), ...bullets, ...(endLine ? [endLine] : [])].join('\n');
   return body ? `${body}\n\n${block}` : block;
 }
+
+const CLI_OPENING_ASK = '我在用 StudyHub 桌面版学习，这个命令行窗口开在我的学习库目录里。先回复一句你已经准备好，然后等我说要做什么。';
+const CLI_OPENING_FIRST = '读写学习库（课程、题组、题目、复习记录）都用下面的 study-cli.mjs 命令；等我说了要做什么、开始读写学习库时，先调用 library.context（不用 --file），看看有哪些课程和题组。';
+
+/**
+ * The opening note 「在学习库里打开 agy / codex」 copies for the CLI it opens (StudyHub Desktop): it is told to read and write the library only through the
+ * bundled study-cli, with the same command line as every copied prompt (withExternalCliNote). '' when no study-cli path is known: there is nothing to point at.
+ */
+export function cliOpeningMessage({ libraryRoot = '', studyCliPath = '', studyNodePath = '', language = getUiLanguage() } = {}) {
+  if (!cleanInlinePath(studyCliPath)) return '';
+  const text = composeMessage({ ask: say(language, CLI_OPENING_ASK), notes: [say(language, CLI_OPENING_FIRST)] }, { tail: null, language }); // no 我想： line: the note says to reply ready and wait, which a 「leave 我想： blank and proceed」 note would contradict
+  return withExternalCliNote(text, { libraryRoot, studyCliPath, studyNodePath, language });
+}

@@ -1183,3 +1183,388 @@ describe('P4 (#1354 D12): TasksView Split Guardrail & Behavioral Regression Suit
     }
   });
 });
+
+// #1623 follow-ups to the TasksView split review: late results, error paths, and behaviour the split moved.
+describe('#1623 TasksView: late delete/purge results, pause/concurrency override cleanup, and moved behaviour', () => {
+  function twoFinishedJobsSnapshot() {
+    return {
+      root: '',
+      courses: [],
+      decks: [],
+      sources: [],
+      drafts: [],
+      archivedJobs: [],
+      jobs: [
+        { id: 'job-beta', title: 'Beta Done Job', type: 'generate', status: 'complete', progress: 1, calls: [] },
+        { id: 'job-alpha', title: 'Alpha Done Job', type: 'generate', status: 'complete', progress: 1, calls: [] },
+      ],
+    };
+  }
+
+  const STILL_RUNNING_EN = 'The previous action is still running';
+  const hasToast = (needle) => useTuiStore.getState().toasts.some((toast) => toast.text.includes(needle));
+
+  test('12. A late delete or purge result for job A never closes the dialog opened for job B, and confirming while busy says why', async () => {
+    for (const variant of [
+      { key: 'd', rpc: 'job.dismiss', dialogFor: (title) => `Remove job record "${title}"`, done: 'Job removed', reply: {} },
+      { key: 'D', rpc: 'job.trace.delete', dialogFor: (title) => `Purge saved request traces for "${title}"`, done: 'Purged 1 trace(s)', reply: { removed: 1 } },
+    ]) {
+      resetStore({ language: 'en', asciiMode: false, snapshot: twoFinishedJobsSnapshot() });
+      const alphaGate = deferred();
+      const { calls, host } = makeHost(async (name, args) => {
+        if (name === variant.rpc) {
+          if ((args.jobId ?? args.jobIds?.[0]) === 'job-alpha') await alphaGate.promise;
+          return { ok: true, value: { jobId: args.jobId, ...variant.reply } };
+        }
+        return { ok: true, value: { calls: [], text: '' } };
+      });
+      const rpcCalls = (jobId) => calls.filter((c) => c.name === variant.rpc && c.args.jobId === jobId);
+      const h = createHarness(
+        React.createElement(TasksView, { host, width: 120, height: 34, isActive: true }),
+        { cols: 120, rows: 34, shellActions: makeShellActions() },
+      );
+      try {
+        await h.waitFor((f) => f.includes('Alpha Done Job') && f.includes('Beta Done Job'), 4000, `${variant.key}: both jobs listed`);
+        h.dispatchKey(variant.key, {});
+        await h.waitFor((f) => f.includes(variant.dialogFor('Alpha Done Job')), 4000, `${variant.key}: dialog for A`);
+        h.dispatchKey('y', {});
+        await waitCondition(() => rpcCalls('job-alpha').length === 1, 2000, `${variant.key}: A request held`);
+
+        h.dispatchKey('', { escape: true });
+        await h.waitFor((f) => !f.includes(variant.dialogFor('Alpha Done Job')), 4000, `${variant.key}: dialog A closed by Esc`);
+        h.dispatchKey('', { downArrow: true });
+        await new Promise((r) => setTimeout(r, 40));
+        h.dispatchKey(variant.key, {});
+        await h.waitFor((f) => f.includes(variant.dialogFor('Beta Done Job')), 4000, `${variant.key}: dialog for B`);
+
+        // B is confirmed while A still runs: refused, but with a reason instead of silently.
+        h.dispatchKey('y', {});
+        await waitCondition(() => hasToast(STILL_RUNNING_EN), 2000, `${variant.key}: busy confirm explains the wait`);
+        assert.equal(rpcCalls('job-beta').length, 0, `${variant.key}: B must not start while A is in flight`);
+
+        alphaGate.resolve();
+        await waitCondition(() => hasToast(variant.done), 2000, `${variant.key}: A finished`);
+        await new Promise((r) => setTimeout(r, 40));
+        assert.equal(
+          h.frame().includes(variant.dialogFor('Beta Done Job')),
+          true,
+          `${variant.key}: A's late result must not close the dialog opened for B`,
+        );
+        h.dispatchKey('y', {});
+        await waitCondition(() => rpcCalls('job-beta').length === 1, 2000, `${variant.key}: B confirmed once A is done`);
+      } finally {
+        alphaGate.resolve();
+        h.cleanup();
+      }
+    }
+  });
+
+  test('13. Pause and concurrency overrides are cleared when the refresh finishes or throws; a throwing refresh shows an error, not an unhandled rejection', async () => {
+    const snap = makeSampleSnapshot();
+    resetStore({ language: 'en', asciiMode: false, snapshot: snap });
+    const rejections = [];
+    const onRejection = (reason) => rejections.push(reason);
+    process.on('unhandledRejection', onRejection);
+
+    let refreshGate = null;
+    let refreshThrows = false;
+    const { calls, host } = makeHost(async (name, args) => {
+      if (name === 'job.live.list') return { ok: true, value: { jobs: [] } };
+      if (name === 'job.control' && args?.action === 'pause') return { ok: true, value: { status: 'paused', paused: true } };
+      if (name === 'job.control' && args?.action === 'set') {
+        return { ok: true, value: { values: { concurrency: args.patch.concurrency } } };
+      }
+      return { ok: true, value: { calls: [], text: '' } };
+    });
+    const refresh = async () => {
+      if (refreshThrows) throw new Error('refresh exploded');
+      if (refreshGate) await refreshGate.promise;
+    };
+    const h = createHarness(
+      React.createElement(TasksView, { host, width: 120, height: 34, isActive: true }),
+      { cols: 120, rows: 34, shellActions: makeShellActions(refresh) },
+    );
+    const pauseCalls = () => calls.filter((c) => c.name === 'job.control' && c.args?.action === 'pause').length;
+    try {
+      await h.waitFor((f) => f.includes('OS Scheduling Generation') && f.includes('2x') && f.includes('Active'), 4000, 'running job, 2x, Active');
+
+      // p: the optimistic Paused override shows while the refresh is held, then is dropped once it lands
+      // (the host data still says running, so the pill returns to Active).
+      refreshGate = deferred();
+      h.dispatchKey('p', {});
+      await h.waitFor((f) => f.includes('Paused'), 4000, 'optimistic Paused while refresh is held');
+      refreshGate.resolve();
+      await h.waitFor((f) => f.includes('Active') && !f.includes('Paused'), 4000, 'pause override cleared after refresh');
+
+      // +: same for the concurrency override.
+      refreshGate = deferred();
+      h.dispatchKey('+', {});
+      await h.waitFor((f) => f.includes('3x'), 4000, 'optimistic 3x while refresh is held');
+      refreshGate.resolve();
+      await h.waitFor((f) => f.includes('2x') && !f.includes('3x'), 4000, 'concurrency override cleared after refresh');
+
+      // p with a throwing refresh: error toast, override cleared, no unhandled rejection, busy released.
+      refreshGate = null;
+      refreshThrows = true;
+      const pausesBefore = pauseCalls();
+      h.dispatchKey('p', {});
+      await waitCondition(() => hasToast('refresh exploded'), 2000, 'error toast for the throwing refresh');
+      const errToast = useTuiStore.getState().toasts.find((toast) => toast.text.includes('refresh exploded'));
+      assert.equal(errToast?.tone, 'error');
+      await h.waitFor((f) => f.includes('Active') && !f.includes('Paused'), 4000, 'override cleared after the throwing refresh');
+      await new Promise((r) => setTimeout(r, 40));
+      assert.deepEqual(rejections, [], 'a throwing refresh must not leak an unhandled rejection');
+      refreshThrows = false;
+      h.dispatchKey('p', {});
+      await waitCondition(() => pauseCalls() === pausesBefore + 2, 2000, 'busy lock released after the error');
+    } finally {
+      process.off('unhandledRejection', onRejection);
+      refreshGate?.resolve();
+      h.cleanup();
+    }
+  });
+
+  test('14. Moved behaviour: a failed output fetch drops the previous job\'s lines instead of keeping them', async () => {
+    resetStore({
+      language: 'en',
+      asciiMode: false,
+      snapshot: {
+        root: '',
+        courses: [],
+        decks: [],
+        sources: [],
+        drafts: [],
+        archivedJobs: [],
+        jobs: [
+          { id: 'job-b', title: 'Output Beta', type: 'generate', status: 'complete', progress: 1, calls: [{ id: 'call-b', status: 'complete' }] },
+          { id: 'job-a', title: 'Output Alpha', type: 'generate', status: 'complete', progress: 1, calls: [{ id: 'call-a', status: 'complete' }] },
+        ],
+      },
+    });
+    const { host } = makeHost(async (name, args) => {
+      if (name === 'job.output') {
+        if (args.jobId === 'job-a') return { ok: true, value: { text: 'alpha stale log line' } };
+        return { ok: false, error: { code: 'E', message: 'output unavailable' } };
+      }
+      return { ok: true, value: { calls: [] } };
+    });
+    const h = createHarness(
+      React.createElement(TasksView, { host, width: 120, height: 34, isActive: true }),
+      { cols: 120, rows: 34, shellActions: makeShellActions() },
+    );
+    try {
+      await h.waitFor((f) => f.includes('alpha stale log line'), 4000, 'job A output shown');
+      h.dispatchKey('', { downArrow: true });
+      const after = await h.waitFor((f) => f.includes('No live output text yet'), 4000, 'job B with failed output');
+      assert.equal(after.includes('alpha stale log line'), false, "job A's lines must not stay under job B");
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test('15. Moved behaviour: purge stays pinned to the job it was opened for when a live poll reorders the list', async () => {
+    const liveGate = deferred();
+    const { calls, host } = makeHost(async (name, args) => {
+      if (name === 'job.live.list') {
+        await liveGate.promise;
+        return {
+          ok: true,
+          value: {
+            jobs: [
+              { id: 'job-old', title: 'Old Target Job', type: 'generate', status: 'running', progress: 0.5, calls: [] },
+              { id: 'job-new', title: 'New Arriving Job', type: 'generate', status: 'running', progress: 0.1, calls: [] },
+            ],
+          },
+        };
+      }
+      if (name === 'job.trace.delete') return { ok: true, value: { jobId: args.jobId, removed: 0 } };
+      return { ok: true, value: { calls: [], text: '' } };
+    });
+    resetStore({
+      language: 'en',
+      asciiMode: false,
+      snapshot: {
+        root: '',
+        courses: [],
+        decks: [],
+        sources: [],
+        drafts: [],
+        archivedJobs: [],
+        jobs: [{ id: 'job-old', title: 'Old Target Job', type: 'generate', status: 'running', progress: 0.5, calls: [] }],
+      },
+    });
+    const h = createHarness(
+      React.createElement(TasksView, { host, width: 120, height: 34, isActive: true }),
+      { cols: 120, rows: 34, shellActions: makeShellActions() },
+    );
+    try {
+      await h.waitFor((f) => f.includes('Old Target Job'), 4000, 'initial single job');
+      h.dispatchKey('D', {});
+      await h.waitFor((f) => f.includes('Purge saved request traces for "Old Target Job"'), 4000, 'purge dialog for the old job');
+      liveGate.resolve();
+      await h.waitFor((f) => f.includes('New Arriving Job'), 4000, 'new job landed in the list');
+      h.dispatchKey('y', {});
+      await waitCondition(() => calls.some((c) => c.name === 'job.trace.delete'), 2000, 'purge called');
+      assert.deepEqual(calls.find((c) => c.name === 'job.trace.delete')?.args, { jobId: 'job-old' });
+    } finally {
+      liveGate.resolve();
+      h.cleanup();
+    }
+  });
+
+  test('16. Moved behaviour: a same-tick double X writes the jobs summary once', async () => {
+    const libRoot = await makeTempDir('studyhub-tasks-double-x-');
+    resetStore({ language: 'en', asciiMode: false, snapshot: makeSampleSnapshot(libRoot) });
+    const { host } = makeHost(async () => ({ ok: true, value: { calls: [], jobs: [], text: '' } }), { libraryRoot: libRoot });
+    const h = createHarness(
+      React.createElement(TasksView, { host, width: 120, height: 34, isActive: true }),
+      { cols: 120, rows: 34, shellActions: makeShellActions() },
+    );
+    const exportToasts = () => useTuiStore.getState().toastHistory.filter((item) => item.text.includes('job(s) summary'));
+    try {
+      await h.waitFor((f) => f.includes('OS Scheduling Generation'), 4000, 'jobs listed');
+      const before = exportToasts().length;
+      h.dispatchKey('X', {});
+      h.dispatchKey('X', {});
+      await waitCondition(() => exportToasts().length > before, 3000, 'summary exported');
+      await new Promise((r) => setTimeout(r, 150));
+      assert.equal(exportToasts().length - before, 1, 'a same-tick double X must export once');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test('17. Moved behaviour: a status change of the selected job re-fetches its output', async () => {
+    const liveGate = deferred();
+    let outputText = 'first pass log';
+    const { host } = makeHost(async (name) => {
+      if (name === 'job.live.list') {
+        await liveGate.promise;
+        return {
+          ok: true,
+          value: {
+            jobs: [
+              { id: 'job-flip', title: 'Status Flip Job', type: 'generate', status: 'complete', progress: 1, calls: [{ id: 'call-flip', status: 'complete' }] },
+            ],
+          },
+        };
+      }
+      if (name === 'job.output') return { ok: true, value: { text: outputText } };
+      return { ok: true, value: { calls: [] } };
+    });
+    resetStore({
+      language: 'en',
+      asciiMode: false,
+      snapshot: {
+        root: '',
+        courses: [],
+        decks: [],
+        sources: [],
+        drafts: [],
+        archivedJobs: [],
+        jobs: [
+          { id: 'job-flip', title: 'Status Flip Job', type: 'generate', status: 'running', progress: 0.5, calls: [{ id: 'call-flip', status: 'complete' }] },
+        ],
+      },
+    });
+    const h = createHarness(
+      React.createElement(TasksView, { host, width: 120, height: 34, isActive: true }),
+      { cols: 120, rows: 34, shellActions: makeShellActions() },
+    );
+    try {
+      await h.waitFor((f) => f.includes('first pass log'), 4000, 'first output');
+      outputText = 'second pass log';
+      liveGate.resolve();
+      await h.waitFor((f) => f.includes('second pass log'), 4000, 'output re-fetched after the status change');
+    } finally {
+      liveGate.resolve();
+      h.cleanup();
+    }
+  });
+
+  test('18. Moved behaviour: navContext.jobId preselects that job, so controls act on it', async () => {
+    resetStore({ language: 'en', asciiMode: false, snapshot: makeSampleSnapshot(), navContext: { jobId: 'job-queued' } });
+    const { calls, host } = makeHost(async (name) => {
+      if (name === 'job.live.list') return { ok: true, value: { jobs: [] } };
+      if (name === 'job.parallel') return { ok: true, value: { parallel: true, note: 'Started in parallel' } };
+      return { ok: true, value: { calls: [], text: '' } };
+    });
+    const h = createHarness(
+      React.createElement(TasksView, { host, width: 120, height: 34, isActive: true }),
+      { cols: 120, rows: 34, shellActions: makeShellActions() },
+    );
+    try {
+      await h.waitFor((f) => f.includes('Queued Physics Batch'), 4000, 'jobs listed');
+      await new Promise((r) => setTimeout(r, 40));
+      h.dispatchKey('P', {});
+      await waitCondition(() => calls.some((c) => c.name === 'job.parallel'), 2000, 'parallel requested');
+      assert.deepEqual(calls.find((c) => c.name === 'job.parallel')?.args, { jobId: 'contract-queued-1' });
+    } finally {
+      h.cleanup();
+    }
+  });
+  test('19. Moved behaviour: the open output modal follows the live record of its job', async () => {
+    const liveGate = deferred();
+    const { host } = makeHost(async (name) => {
+      if (name === 'job.live.list') {
+        await liveGate.promise;
+        return {
+          ok: true,
+          value: {
+            jobs: [
+              {
+                id: 'job-live-modal',
+                title: 'Live Modal Job',
+                type: 'generate',
+                status: 'running',
+                progress: 0.6,
+                calls: [
+                  { id: 'call-1', status: 'complete', stage: 'outline' },
+                  { id: 'call-2', status: 'running', stage: 'drafting' },
+                ],
+              },
+            ],
+          },
+        };
+      }
+      if (name === 'job.output') return { ok: true, value: { text: 'modal text', supported: true } };
+      return { ok: true, value: { calls: [] } };
+    });
+    resetStore({
+      language: 'en',
+      asciiMode: false,
+      snapshot: {
+        root: '',
+        courses: [],
+        decks: [],
+        sources: [],
+        drafts: [],
+        archivedJobs: [],
+        jobs: [
+          {
+            id: 'job-live-modal',
+            title: 'Live Modal Job',
+            type: 'generate',
+            status: 'running',
+            progress: 0.3,
+            calls: [{ id: 'call-1', status: 'running', stage: 'outline' }],
+          },
+        ],
+      },
+    });
+    const h = createHarness(
+      React.createElement(TasksView, { host, width: 120, height: 34, isActive: true }),
+      { cols: 120, rows: 34, shellActions: makeShellActions() },
+    );
+    try {
+      await h.waitFor((f) => f.includes('Live Modal Job'), 4000, 'job listed');
+      h.dispatchKey('o', {});
+      await h.waitFor((f) => f.includes('Job Output: Live Modal Job') && f.includes('(1/1)'), 4000, 'output modal on the snapshot record');
+      liveGate.resolve();
+      await h.waitFor((f) => f.includes('Job Output: Live Modal Job') && f.includes('(2/2)'), 4000, 'output modal switched to the live record');
+    } finally {
+      liveGate.resolve();
+      h.cleanup();
+    }
+  });
+});

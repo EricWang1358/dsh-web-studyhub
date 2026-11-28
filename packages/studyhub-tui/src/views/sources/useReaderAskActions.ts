@@ -347,6 +347,8 @@ export function useReaderAskActions({
       notify(t(lang, '当前页没有可用于定位的原文段落', 'No source passage available on this page to link'), 'error');
       return;
     }
+    // Once f was pressed the card is located, saved and reported even if Esc closes the ask view meanwhile (as before the split, #1603);
+    // only this view's own busy and saved marks follow the ask counter.
     const seq = askActionSeqRef.current;
     saveCardBusyRef.current = true;
     setSavingCard(true);
@@ -368,7 +370,7 @@ export function useReaderAskActions({
             'materials.document.get',
             { sourceId: pageData.sourceId },
           );
-          if (!mountedRef.current || seq !== askActionSeqRef.current) return;
+          if (!mountedRef.current) return;
           if (docRes.ok && docRes.value) {
             resolvedDocId = docRes.value.documentId || docRes.value.id;
             resolvedRev = resolvedRev || docRes.value.currentRevision || docRes.value.revision;
@@ -383,7 +385,7 @@ export function useReaderAskActions({
           ...(resolvedDocId ? { documentId: resolvedDocId } : {}),
           ...(resolvedRev ? { revision: resolvedRev } : {}),
         });
-        if (!mountedRef.current || seq !== askActionSeqRef.current) return;
+        if (!mountedRef.current) return;
         if (resolveRes.ok && resolveRes.value?.status === 'resolved' && resolveRes.value.selection) {
           selection = Object.fromEntries(
             Object.entries(resolveRes.value.selection).filter(([, v]) => v !== undefined),
