@@ -1,16 +1,17 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
 import { useScopedInput as useInput } from '../../components/key-dispatcher.js';
+import { useStableWindowSize } from '../../components/resize.js';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { getReview, tryAction, type ReviewRun } from '../../host/sample-actions.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Divider, EmptyState, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
-import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { Modal, modalChildRows, modalContentWidth, modalFrameHeight } from '../../components/Modal.js';
 import { ScrollView } from '../../components/ScrollView.js';
 import { TextInput } from '../../components/TextInput.js';
-import { displayWidth, truncateDisplay, wrapDisplay } from '../../render/cjk.js';
+import { displayWidth, truncateDisplay, wrapDisplay, wrapToRows } from '../../render/cjk.js';
 import {
   currentDeckIdOf,
   extractFeedback,
@@ -986,12 +987,14 @@ export const CardToolsModal = memo(function CardToolsModal({
     });
   }, [canEditAnswer]);
 
+  const { rows } = useStableWindowSize();
   const frameW = Math.max(50, Math.min(82, width - 4));
   const innerW = modalContentWidth(frameW);
   const inputH = height <= 25 ? 2 : 3;
-  const fixedFrameH = mode === 'terms' || mode === 'prereqs' ? Math.max(14, Math.min(28, height - 2)) : undefined;
-  const subBodyH = fixedFrameH ? Math.max(6, fixedFrameH - 5) : 10;
-  const prereqsContentH = Math.max(5, subBodyH - (busy ? 1 : 0) - (errorText ? 1 : 0));
+  const subFrameH = mode === 'terms' || mode === 'prereqs' ? Math.max(14, Math.min(28, height - 2)) : undefined;
+  const errorLines = errorText ? wrapToRows(`${asciiMode ? 'x' : '✕'} ${errorText}`, Math.max(10, innerW), 2, ell) : [];
+  const subBodyH = subFrameH ? Math.max(6, modalChildRows(subFrameH, rows, true)) : 10;
+  const prereqsContentH = Math.max(5, subBodyH - (busy ? 1 : 0) - errorLines.length);
 
   const hints = useMemo<KeyHint[]>(() => {
     if (mode === 'edit') {
@@ -1188,7 +1191,17 @@ export const CardToolsModal = memo(function CardToolsModal({
     return { sourceText, bookText, courseText };
   }, [cardPlaceInfo, asciiMode, lang]);
 
-  const compactMenu = height <= (placementSummary ? 32 : 28);
+  const placementRows = placementSummary ? (placementSummary.bookText ? 1 : 0) + (placementSummary.sourceText || (!placementSummary.bookText && placementSummary.courseText) ? 1 : 0) + 1 : 0;
+  const menuHeaderRows = placementRows + (busy ? 1 : 0) + errorLines.length + (infoText ? 1 : 0);
+  const maxMenuFrameH = Math.max(10, modalFrameHeight(rows, rows));
+  const menuHasHints = hints.length > 0;
+  const compactMenu = rows <= (placementSummary ? 32 : 28) || height <= (placementSummary ? 32 : 28) || 4 + (menuHasHints ? 1 : 0) + menuHeaderRows + menuItems.length * 2 > maxMenuFrameH;
+  const fixedFrameH = mode === 'menu' ? Math.min(maxMenuFrameH, 4 + (menuHasHints ? 1 : 0) + menuHeaderRows + menuItems.length * (compactMenu ? 1 : 2)) : subFrameH;
+  const menuItemRowsAvail = Math.max(1, (fixedFrameH !== undefined ? modalChildRows(fixedFrameH, rows, menuHasHints) : menuItems.length) - menuHeaderRows);
+  const menuScrollNeeded = compactMenu && menuItemRowsAvail < menuItems.length;
+  const menuSlots = menuScrollNeeded ? Math.max(1, menuItemRowsAvail - 1) : menuItems.length;
+  const menuStart = menuScrollNeeded ? Math.max(0, Math.min(menuCursor - Math.floor(menuSlots / 2), menuItems.length - menuSlots)) : 0;
+  const visibleMenuItems = menuScrollNeeded ? menuItems.slice(menuStart, menuStart + menuSlots) : menuItems;
   const linkedPrereqIds = new Set(prereqs.map((p) => p.cardId));
 
   // Windowed slices for 'prereqs' lists so 80x24 never overflows
@@ -1281,9 +1294,9 @@ export const CardToolsModal = memo(function CardToolsModal({
           </Box>
         ) : null}
 
-        {errorText ? (
-          <Box marginBottom={0}>
-            <Text color={theme.error} wrap="wrap">{`${asciiMode ? 'x' : '✕'} ${errorText}`}</Text>
+        {errorLines.length > 0 ? (
+          <Box flexDirection="column" marginBottom={0}>
+            {errorLines.map((line, i) => <Text key={i} color={theme.error} wrap="truncate-end">{line}</Text>)}
           </Box>
         ) : null}
 
@@ -1295,52 +1308,27 @@ export const CardToolsModal = memo(function CardToolsModal({
 
       {mode === 'menu' ? (
         <Box flexDirection="column" marginY={0}>
-          {menuItems.map((item, idx) => {
-            const focused = idx === menuCursor;
+          {visibleMenuItems.map((item, idx) => {
+            const realIdx = menuStart + idx;
+            const focused = realIdx === menuCursor;
             return (
-              <Box
-                key={item.key}
-                flexDirection="column"
-                paddingX={1}
-                backgroundColor={focused ? theme.selectionBg : undefined}
-              >
+              <Box key={item.key} flexDirection="column" height={compactMenu ? 1 : undefined} paddingX={1} overflow="hidden" backgroundColor={focused ? theme.selectionBg : undefined}>
                 <Box flexDirection="row" justifyContent="space-between" width={Math.max(20, innerW - 2)}>
-                  <Text
-                    color={
-                      focused
-                        ? theme.selectionFg
-                        : item.enabled
-                          ? theme.text
-                          : theme.dim
-                    }
-                    bold={focused}
-                  >
+                  <Text color={focused ? theme.selectionFg : item.enabled ? theme.text : theme.dim} bold={focused} wrap="truncate">
                     {`${focused ? (asciiMode ? '> ' : '▸ ') : '  '}[${item.key}] ${item.title}`}
                   </Text>
-                  <Badge
-                    label={item.badge}
-                    tone={
-                      !item.enabled
-                        ? 'neutral'
-                        : idx === 2
-                          ? 'error'
-                          : idx === 1 && suspended
-                            ? 'warning'
-                            : idx === 4 && focusedCard
-                              ? 'accent'
-                              : 'accent'
-                    }
-                    variant="soft"
-                  />
+                  <Badge label={item.badge} tone={!item.enabled ? 'neutral' : realIdx === 2 ? 'error' : realIdx === 1 && suspended ? 'warning' : 'accent'} variant="soft" />
                 </Box>
-                {!compactMenu ? (
-                  <Text color={focused ? theme.selectionFg : theme.muted}>
-                    {`      ${truncateDisplay(item.desc, Math.max(12, innerW - 8))}`}
-                  </Text>
-                ) : null}
+                {!compactMenu ? <Text color={focused ? theme.selectionFg : theme.muted}>{`      ${truncateDisplay(item.desc, Math.max(12, innerW - 8))}`}</Text> : null}
               </Box>
             );
           })}
+          {menuScrollNeeded ? (
+            <Box height={1} width={innerW} justifyContent="space-between" overflow="hidden">
+              <Text color={theme.dim} wrap="truncate">{`${asciiMode ? 'Up/Dn' : '↑/↓'} ${menuStart + 1}-${menuStart + visibleMenuItems.length}/${menuItems.length}`}</Text>
+              <Text color={theme.dim} wrap="truncate">{menuStart > 0 && menuStart + visibleMenuItems.length < menuItems.length ? (asciiMode ? '^ v' : '▲ ▼') : menuStart > 0 ? (asciiMode ? '^' : '▲') : (asciiMode ? 'v' : '▼')}</Text>
+            </Box>
+          ) : null}
         </Box>
       ) : null}
 

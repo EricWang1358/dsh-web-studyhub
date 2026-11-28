@@ -90,7 +90,7 @@ function resetStore(language, asciiMode) {
   });
 }
 
-async function startApp({ label, cols, rows, sample = false, seed }) {
+async function startApp({ label, cols, rows, sample = false, initialPage = 'library', seed }) {
   const base = await temps.make(label);
   const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
   process.env.DSH_HOME = env.DSH_HOME;
@@ -109,7 +109,7 @@ async function startApp({ label, cols, rows, sample = false, seed }) {
   });
   const seeded = seed ? await seed(host, base) : null;
   const tty = createVirtualTty(cols, rows);
-  const ink = render(React.createElement(StudyHubTuiApp, { host, asciiMode: true }), {
+  const ink = render(React.createElement(StudyHubTuiApp, { host, initialPage, asciiMode: true }), {
     stdin: tty.stdin,
     stdout: tty.stdout,
     stderr: tty.stderr,
@@ -130,14 +130,14 @@ async function startApp({ label, cols, rows, sample = false, seed }) {
   return { host, tty, base, seeded, stop };
 }
 
-/** The rows between the DeckOpsModal title row and its bottom border, i.e. what the user can see of it. */
-function modalRows(screen) {
+/** The rows between a modal's title row and its bottom border, i.e. what the user can see of it. */
+function modalRows(screen, title = 'Deck Operations') {
   const lines = screen.split('\n');
-  const top = lines.findIndex((l) => l.includes('Deck Operations'));
-  assert.ok(top >= 0, `DeckOpsModal title row not found:\n${screen}`);
+  const top = lines.findIndex((l) => l.includes(title));
+  assert.ok(top >= 0, `${title} title row not found:\n${screen}`);
   let bottom = top + 1;
   while (bottom < lines.length && !/\+-{10,}\+/.test(lines[bottom])) bottom += 1;
-  assert.ok(bottom < lines.length, `DeckOpsModal bottom border not found on screen:\n${screen}`);
+  assert.ok(bottom < lines.length, `${title} bottom border not found on screen:\n${screen}`);
   return lines.slice(top, bottom).join('\n');
 }
 
@@ -375,6 +375,129 @@ ${errScreen}`);
       assert.match(wrapRows, /Suggested: Course/, `AI banner stays:\n${wrapScreen}`);
       assert.match(wrapRows, /Course Override/, `course field stays:\n${wrapScreen}`);
       tty.assertHealthyScreen(wrapScreen, cols, rows, 'DeckOpsModal import word-wrapped error 60x18');
+    } finally {
+      await app.stop();
+    }
+  });
+
+  test('5) PTY (60x18 en ascii): CardToolsModal menu mode with placement summary fits within 60x18 without clipping borders, title, or footer and scrolls to [R]', async () => {
+    const cols = LAYOUT_BP.MIN_VIEWPORT_COLS;
+    const rows = LAYOUT_BP.MIN_VIEWPORT_ROWS;
+    const app = await startApp({
+      label: 'card-tools-60x18',
+      cols,
+      rows,
+      initialPage: 'review',
+      seed: async (host) => {
+        const imp = await host.call('deck.import', {
+          text: JSON.stringify({
+            title: 'Kernel Quiz',
+            course: 'OS 1748',
+            cards: [{ kind: 'open', prompt: 'What is a TLB?', answer: 'Translation lookaside buffer.', topic: 'Paging' }],
+          }),
+          folder: 'OS 1748',
+        });
+        assert.equal(imp.ok, true, imp.error?.message);
+        const snap = await host.call('snapshot', {});
+        const deck = (snap.value?.decks ?? []).find((d) => d.title === 'Kernel Quiz');
+        assert.ok(deck?.id, 'Kernel Quiz deck must exist');
+        const startRes = await host.call('review.start', { mode: 'quiz', deckId: deck.id, fresh: true });
+        assert.equal(startRes.ok, true, startRes.error?.message);
+        const realCall = host.call.bind(host);
+        host.call = async (name, args) => {
+          if (name === 'card.place') {
+            return {
+              ok: true,
+              value: {
+                course: 'OS 1748',
+                document: { key: 'd1', title: 'Virtual Memory' },
+                chapter: { key: 'c1', title: 'Paging' },
+                leaf: { key: 'l1', title: 'Page Tables', built: true },
+              },
+            };
+          }
+          if (name === 'card.focus') {
+            return {
+              ok: false,
+              error: { message: 'Unable to update syllabus focus mark because the remote deck index could not be synchronized right now' },
+            };
+          }
+          return realCall(name, args);
+        };
+        useTuiStore.setState({
+          page: 'review',
+          activeRunId: startRes.value.id,
+          navContext: { runId: startRes.value.id },
+        });
+        return { runId: startRes.value.id };
+      },
+    });
+    const { tty } = app;
+    try {
+      await tty.waitFor((s) => useTuiStore.getState().page === 'review' && /OS 1748|Paging|Scheduling/.test(s), {
+        label: 'ReviewView ready at 60x18',
+      });
+      tty.send('D');
+      const toolsScreen = await tty.waitFor(
+        (s) => s.includes('Card Tools') && s.includes('Review Book:') && s.includes('Source:'),
+        { timeoutMs: 8_000, label: 'CardToolsModal menu with placement summary opened at 60x18' },
+      );
+      const screenLines = toolsScreen.split('\n');
+      const titleIdx = screenLines.findIndex((l) => l.includes('Card Tools'));
+      assert.ok(titleIdx >= 1 && /\+-{10,}\+/.test(screenLines[titleIdx - 1]), `top border must stay visible above title:\n${toolsScreen}`);
+      const rowsText = modalRows(toolsScreen, 'Card Tools');
+      assert.match(rowsText, /Review Book: Page Tables/, `review book row must stay visible:\n${toolsScreen}`);
+      assert.match(rowsText, /Source: Virtual Memory/, `source row must stay visible:\n${toolsScreen}`);
+      assert.match(rowsText, /\[1\] Edit Question/, `first menu option must stay visible:\n${toolsScreen}`);
+      assert.match(rowsText, /Esc Close/, `modal hints footer must stay inside frame:\n${toolsScreen}`);
+      tty.assertHealthyScreen(toolsScreen, cols, rows, 'CardToolsModal menu 60x18');
+      tty.assertAsciiPure(toolsScreen, 'CardToolsModal menu 60x18');
+
+      // Wrap upward from [1] to [R] Retry Failed AI Rewrite and verify the scrolled window brings [R] into view cleanly.
+      tty.send('k');
+      const scrolledScreen = await tty.waitFor(
+        (s) => s.includes('Retry Failed AI Rewrite') && s.includes('> [R]'),
+        { timeoutMs: 5_000, label: 'CardToolsModal scrolled to [R] at 60x18' },
+      );
+      const scrolledLines = scrolledScreen.split('\n');
+      const scrolledTitleIdx = scrolledLines.findIndex((l) => l.includes('Card Tools'));
+      assert.ok(scrolledTitleIdx >= 1 && /\+-{10,}\+/.test(scrolledLines[scrolledTitleIdx - 1]), `top border must stay visible after scroll:\n${scrolledScreen}`);
+      const scrolledRows = modalRows(scrolledScreen, 'Card Tools');
+      assert.match(scrolledRows, /> \[R\] Retry Failed AI Rewrite/, `[R] must be visible and selected:\n${scrolledScreen}`);
+      assert.match(scrolledRows, /Esc Close/, `modal hints footer must stay visible after scroll:\n${scrolledScreen}`);
+      tty.assertHealthyScreen(scrolledScreen, cols, rows, 'CardToolsModal scrolled to [R] 60x18');
+      tty.assertAsciiPure(scrolledScreen, 'CardToolsModal scrolled to [R] 60x18');
+
+      // Pressing [4] when unavailable displays a multi-row wrapped error; menu window must shrink so frame stays within 60x18.
+      tty.send('4');
+      const errScreen = await tty.waitFor((s) => s.includes('Available only after'), {
+        timeoutMs: 5_000,
+        label: 'CardToolsModal unavailable error at 60x18',
+      });
+      const errLines = errScreen.split('\n');
+      const errTitleIdx = errLines.findIndex((l) => l.includes('Card Tools'));
+      assert.ok(errTitleIdx >= 1 && /\+-{10,}\+/.test(errLines[errTitleIdx - 1]), `top border must stay visible with error:\n${errScreen}`);
+      const errRows = modalRows(errScreen, 'Card Tools');
+      assert.match(errRows, /x Available only after/, `error row must stay inside frame:\n${errScreen}`);
+      assert.match(errRows, /Esc Close/, `modal hints footer must stay visible with error:\n${errScreen}`);
+      tty.assertHealthyScreen(errScreen, cols, rows, 'CardToolsModal menu with error 60x18');
+      tty.assertAsciiPure(errScreen, 'CardToolsModal menu with error 60x18');
+
+      // Trigger a >2-row error via [5] (card.focus): truncated row 2 must use ASCII '...' (not Unicode '…') and stay inside 60x18.
+      tty.send('5');
+      const longErrScreen = await tty.waitFor((s) => s.includes('Unable to update syllabus focus'), {
+        timeoutMs: 5_000,
+        label: 'CardToolsModal long error truncation at 60x18',
+      });
+      const longErrLines = longErrScreen.split('\n');
+      const longErrTitleIdx = longErrLines.findIndex((l) => l.includes('Card Tools'));
+      assert.ok(longErrTitleIdx >= 1 && /\+-{10,}\+/.test(longErrLines[longErrTitleIdx - 1]), `top border must stay visible with long error:\n${longErrScreen}`);
+      const longErrRows = modalRows(longErrScreen, 'Card Tools');
+      assert.match(longErrRows, /x Unable to update syllabus focus/, `long error must render inside frame:\n${longErrScreen}`);
+      assert.match(longErrRows, /\.\.\./, `truncated >2-row error must end with ASCII '...' in asciiMode:\n${longErrScreen}`);
+      assert.match(longErrRows, /Esc Close/, `modal hints footer must stay visible with long error:\n${longErrScreen}`);
+      tty.assertHealthyScreen(longErrScreen, cols, rows, 'CardToolsModal menu with >2-row error 60x18');
+      tty.assertAsciiPure(longErrScreen, 'CardToolsModal menu with >2-row error 60x18');
     } finally {
       await app.stop();
     }
