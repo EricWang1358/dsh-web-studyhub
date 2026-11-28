@@ -163,6 +163,7 @@
     "tests/reader-multiline-selection-browser.test.mjs",
     "tests/reader-notes-tasks-browser.test.mjs",
     "tests/reader-one-chapter-browser.test.mjs",
+    "tests/reader-opening-placeholder-browser.test.mjs",
     "tests/reader-original-view-browser.test.mjs",
     "tests/reader-page-presets-browser.test.mjs",
     "tests/reader-page-range-browser.test.mjs",
