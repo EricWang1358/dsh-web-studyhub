@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Badge, Button, Field, Hint, Icon, InlineMessage, ProviderCard, SegmentedControl, Select, TextInput } from '../components/index.js';
+import { Badge, Button, Field, Hint, Icon, InlineMessage, ProviderCard, SegmentedControl, Select, TextArea, TextInput } from '../components/index.js';
 
 const EFFORT_OPTIONS = Object.freeze([
   { value: '', label: 'CLI 默认' },
@@ -135,11 +135,12 @@ function CliActionBar({ providerId, active, dirty, working, onActivate, onTest, 
 /* 「在学习库里打开 CLI」: the desktop edition has no main chat, so the local CLI in a command-line window of its own is the chat beside StudyHub.
    Settings only (the first-run and gate cards stay short). The page sends the CLI's name; the program and the folder are the backend's to decide. */
 function CliChatRow({ provider, working, openCli }) {
-  const [opened, setOpened] = useState(false);
+  const [opened, setOpened] = useState(null);
   const tag = `open-${provider.id}`;
   const open = async () => {
-    setOpened(false);
-    if (await openCli(provider.id)) setOpened(true);
+    setOpened(null);
+    const result = await openCli(provider.id);
+    if (result) setOpened(typeof result === 'object' ? result : { ok: true });
   };
   return (
     <div className="desktop-cli__chat" data-desktop-cli-open={provider.id}>
@@ -149,9 +150,31 @@ function CliChatRow({ provider, working, openCli }) {
         </Button>
       </div>
       <Hint>
-        {ui('另开一个命令行窗口和它对话，可以和 StudyHub 左右并排（Win + ← / →）。它能直接读写学习库里的文件，这些改动不经过 StudyHub 的检查。')}
+        {ui('另开一个命令行窗口和它对话，可以和 StudyHub 左右并排（Win + ← / →）。打开时会复制一段开场提示：粘贴进新窗口，它就会用 StudyHub 自带的 study-cli 读写学习库。它也能直接改学习库里的文件，那些改动不经过 StudyHub 的检查。')}
       </Hint>
-      {opened && <InlineMessage tone="success">{uiFormat('已在学习库目录打开 {0}，在新窗口里和它对话。', [provider.id])}</InlineMessage>}
+      <CliOpenedNote providerId={provider.id} result={opened} />
+    </div>
+  );
+}
+
+/** What 「在学习库里打开 CLI」 did: the window is open, and the opening note is on the clipboard, or shown here to select when the clipboard refused. */
+export function CliOpenedNote({ providerId, result }) {
+  if (!result) return null;
+  if (!result.opening) return <InlineMessage tone="success">{uiFormat('已在学习库目录打开 {0}，在新窗口里和它对话。', [providerId])}</InlineMessage>;
+  if (result.copied) {
+    return (
+      <InlineMessage tone="success">
+        {uiFormat('已在学习库目录打开 {0}；开场提示已复制：先在新窗口里粘贴（右键或 Ctrl + V）并回车，{0} 就知道用 study-cli 读写学习库。', [providerId])}
+      </InlineMessage>
+    );
+  }
+  return (
+    <div className="desktop-cli__opening" data-desktop-cli-opening="">
+      <InlineMessage tone="success">
+        {uiFormat('已在学习库目录打开 {0}，但没能复制开场提示：把下面这段复制下来，粘贴进新窗口并回车，{0} 就知道用 study-cli 读写学习库。', [providerId])}
+      </InlineMessage>
+      <TextArea readOnly rows={6} value={result.opening} aria-label={ui('开场提示')}
+        onFocus={(event) => event.currentTarget.select()} />
     </div>
   );
 }

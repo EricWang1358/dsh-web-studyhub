@@ -1,5 +1,6 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { errorMessage, ui, uiFormat, useUiLanguage } from '../i18n.js';
+import { errorMessage, getUiLanguage, ui, uiFormat, useUiLanguage } from '../i18n.js';
+import { cliOpeningMessage } from '../agent-prompts/message.js';
 import { Hint, InlineMessage } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { useLiveEffect } from '../use-async.js';
@@ -9,7 +10,16 @@ import DesktopCliCard from './DesktopCliCard.jsx';
 import DesktopOpenAiForm from './DesktopOpenAiForm.jsx';
 import css from './desktop.css';
 
-export function createDesktopConfigActions({ call, refresh, setConfig, setError, setWorking }) {
+/* 「在学习库里打开 CLI」: the opening note is copied before the console window opens, because the clipboard refuses a page that has lost focus.
+   It is the CLI's only way to learn that the library is read and written through the bundled study-cli. */
+async function copyCliOpening(cliPaths, clipboard) {
+  const opening = cliOpeningMessage({ ...(cliPaths?.() || {}), language: getUiLanguage() });
+  if (!opening) return null;
+  const copied = await Promise.resolve().then(() => clipboard.writeText(opening)).then(() => true, () => false);
+  return { opening, copied };
+}
+
+export function createDesktopConfigActions({ call, refresh, setConfig, setError, setWorking, cliPaths = null, clipboard = globalThis.navigator?.clipboard }) {
   const applyConfig = async (next) => {
     setConfig(next);
     syncDesktopConcurrency(next?.effective);
@@ -53,7 +63,11 @@ export function createDesktopConfigActions({ call, refresh, setConfig, setError,
       setError('');
       return call('desktop.config.test', { mode: 'openai', openai });
     },
-    openCli: (providerId) => runAction(`open-${providerId}`, () => call('desktop.cli.open', { provider: providerId })),
+    openCli: (providerId) => runAction(`open-${providerId}`, async () => {
+      const note = await copyCliOpening(cliPaths, clipboard);
+      const opened = await call('desktop.cli.open', { provider: providerId });
+      return note ? { ...opened, ...note } : opened;
+    }),
     scan: () => runAction('scan', async () => {
       const result = await call('desktop.providers.scan', { force: true });
       setConfig((prev) => (prev ? { ...prev, providers: result?.providers || [] } : prev));
@@ -139,12 +153,14 @@ function useOfferNote(onOffer, offers) {
 /** Desktop model setup panel rendered via hostPart('ModelSetup'), hostPart('ModelGateForm') and hostPart('ModelQuickEnable') (`quick`). */
 export default function DesktopModelSetup({ compact = false, quick = false, onOffer }) {
   useInjectCss(css, 'study-desktop');
-  const { call, refresh } = useContext(AppContext)?.core || {};
+  const { call, refresh, refs } = useContext(AppContext)?.core || {};
   const { config, setConfig, error, setError } = useDesktopConfig(call);
   const [working, setWorking] = useState('');
   useOfferNote(onOffer, quick && hasReadyCli(config?.providers));
 
-  const actions = createDesktopConfigActions({ call, refresh, setConfig, setError, setWorking });
+  // The library study-cli's --root names (not the folder the CLI opens in, which is the DSH workspace around it when one was picked).
+  const cliPaths = () => ({ libraryRoot: refs?.bindingRoot?.current || '', studyCliPath: config?.studyCliPath || '', studyNodePath: config?.studyNodePath || '' });
+  const actions = createDesktopConfigActions({ call, refresh, setConfig, setError, setWorking, cliPaths });
   if (!call) return null;
   if (!config) return error && !quick ? <InlineMessage tone="error">{error}</InlineMessage> : null;
 
