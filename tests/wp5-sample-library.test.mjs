@@ -292,11 +292,19 @@ test("sample.load keeps today's slips and yesterday's history on their intended 
     const d = new Date(value);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   };
+  // The host passes sample.load only its language, so the clock is set for the whole process: the server runs in it.
+  // Only Date is mocked; timers and I/O run as usual.
   for (const [label, hour, minute] of [["after midnight", 0, 5], ["before midnight", 23, 55]]) {
     const { call, libraryRoot } = await start(t);
     const fixed = new Date(2026, 10, 27, hour, minute, 0, 0).getTime();
-    await call("sample.load", { language: "zh", now: fixed });
+    t.mock.timers.enable({ apis: ["Date"], now: fixed });
+    try {
+      await call("sample.load", { language: "zh" });
+    } finally {
+      t.mock.timers.reset();
+    }
     const state = await new Store(libraryRoot).read();
+    assert.equal(state.sampleLibrary.loadedAt, new Date(fixed).toISOString(), `${label}: the load ran on the test's clock, not the machine's`);
     const todayKey = localDay(fixed);
     const todayAttempts = state.attempts.filter((a) => a.sample && localDay(a.timestamp) === todayKey);
     assert.equal(todayAttempts.length, zh.weak.length, `${label}: only today's ${zh.weak.length} slips fall on ${todayKey}`);
