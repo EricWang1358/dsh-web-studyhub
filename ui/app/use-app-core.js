@@ -7,6 +7,7 @@ import { useQuickActionsController } from '../quick-actions.js';
 import { createToastApi } from '../components/Feedback.jsx';
 import { deliverToChat } from '../hand-off/use-hand-off.js';
 import { withLearnerFence } from '../agent-prompts/message.js';
+import { libraryRootOf } from './library-root.js';
 
 /* What every other app hook leans on: the refs that fence late answers (library epoch, navigation request), the host call that
    honours them, the single-flight act(), the quick-action controller and the feedback slots. One place, so a hook never has
@@ -51,7 +52,7 @@ export function useAppCore(transportCall, host, warm = null) {
     picture,
     notify,
     openSheet: setHandOffSheet,
-    libraryRoot: bindingRoot.current || dataRef.current?.root || '',
+    libraryRoot: libraryRootOf({ bindingRoot, dataRef }),
     studyCliPath: hostRef.current?.studyCliPath || '',
     studyNodePath: hostRef.current?.studyNodePath || '',
   }), [notify]);

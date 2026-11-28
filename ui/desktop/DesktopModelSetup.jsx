@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { errorMessage, getUiLanguage, ui, uiFormat, useUiLanguage } from '../i18n.js';
 import { cliOpeningMessage } from '../agent-prompts/message.js';
+import { libraryRootOf } from '../app/library-root.js';
 import { Hint, InlineMessage } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { useLiveEffect } from '../use-async.js';
@@ -82,6 +83,15 @@ export function createDesktopConfigActions({ call, refresh, setConfig, setError,
   };
 }
 
+/* The library study-cli's --root names (not the folder the CLI opens in, which is the DSH workspace around it when one was picked), and the bundled
+   study-cli and node the saved desktop config reports. */
+export const desktopCliPaths = (refs, config) => ({ libraryRoot: libraryRootOf(refs), studyCliPath: config?.studyCliPath || '', studyNodePath: config?.studyNodePath || '' });
+
+/** The setup panel's actions: createDesktopConfigActions with the host call, refresh and the opening note's paths read live from the app core and the config. */
+export function desktopSetupActions({ core, config, ...rest }) {
+  return createDesktopConfigActions({ ...rest, call: core.call, refresh: core.refresh, cliPaths: () => desktopCliPaths(core.refs, config) });
+}
+
 const hasReadyCli = (providers) => Array.isArray(providers) && providers.some((item) => item.supported && item.status === 'ready');
 
 function CorruptConfigBanner({ config, actions, working }) {
@@ -153,14 +163,13 @@ function useOfferNote(onOffer, offers) {
 /** Desktop model setup panel rendered via hostPart('ModelSetup'), hostPart('ModelGateForm') and hostPart('ModelQuickEnable') (`quick`). */
 export default function DesktopModelSetup({ compact = false, quick = false, onOffer }) {
   useInjectCss(css, 'study-desktop');
-  const { call, refresh, refs } = useContext(AppContext)?.core || {};
+  const core = useContext(AppContext)?.core || {};
+  const { call } = core;
   const { config, setConfig, error, setError } = useDesktopConfig(call);
   const [working, setWorking] = useState('');
   useOfferNote(onOffer, quick && hasReadyCli(config?.providers));
 
-  // The library study-cli's --root names (not the folder the CLI opens in, which is the DSH workspace around it when one was picked).
-  const cliPaths = () => ({ libraryRoot: refs?.bindingRoot?.current || '', studyCliPath: config?.studyCliPath || '', studyNodePath: config?.studyNodePath || '' });
-  const actions = createDesktopConfigActions({ call, refresh, setConfig, setError, setWorking, cliPaths });
+  const actions = desktopSetupActions({ core, config, setConfig, setError, setWorking });
   if (!call) return null;
   if (!config) return error && !quick ? <InlineMessage tone="error">{error}</InlineMessage> : null;
 

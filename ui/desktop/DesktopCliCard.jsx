@@ -132,6 +132,13 @@ function CliActionBar({ providerId, active, dirty, working, onActivate, onTest, 
   );
 }
 
+/** What the card keeps of an open: the backend's answer (with the opening note) as it came, { ok: true } when the action only says it worked, null on a refusal. */
+export async function cliOpenResult(openCli, providerId) {
+  const result = await openCli(providerId);
+  if (!result) return null;
+  return typeof result === 'object' ? result : { ok: true };
+}
+
 /* 「在学习库里打开 CLI」: the desktop edition has no main chat, so the local CLI in a command-line window of its own is the chat beside StudyHub.
    Settings only (the first-run and gate cards stay short). The page sends the CLI's name; the program and the folder are the backend's to decide. */
 function CliChatRow({ provider, working, openCli }) {
@@ -139,8 +146,7 @@ function CliChatRow({ provider, working, openCli }) {
   const tag = `open-${provider.id}`;
   const open = async () => {
     setOpened(null);
-    const result = await openCli(provider.id);
-    if (result) setOpened(typeof result === 'object' ? result : { ok: true });
+    setOpened(await cliOpenResult(openCli, provider.id));
   };
   return (
     <div className="desktop-cli__chat" data-desktop-cli-open={provider.id}>

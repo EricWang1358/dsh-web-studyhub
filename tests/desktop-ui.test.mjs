@@ -8,8 +8,9 @@ import { inApp } from './helpers/fake-app.mjs';
 const h = React.createElement;
 const m = await loadUi(`
   export { DESKTOP_PARTS, desktopGuideUrl } from './ui/desktop/parts.jsx';
-  export { default as DesktopCliCard, CliOpenedNote } from './ui/desktop/DesktopCliCard.jsx';
-  export { createDesktopConfigActions, DesktopSetupBody } from './ui/desktop/DesktopModelSetup.jsx';
+  export { default as DesktopCliCard, CliOpenedNote, cliOpenResult } from './ui/desktop/DesktopCliCard.jsx';
+  export { createDesktopConfigActions, desktopSetupActions, DesktopSetupBody } from './ui/desktop/DesktopModelSetup.jsx';
+  export { cliOpeningMessage } from './ui/agent-prompts/message.js';
   export { recheckSentence } from './ui/first-run/recheck.js';
   export { normalizeAppearance } from './ui/appearance-prefs.js';
   export { default as DesktopOpenAiForm } from './ui/desktop/DesktopOpenAiForm.jsx';
@@ -338,6 +339,58 @@ test('after 「在学习库里打开 CLI」 the card says the opening note was c
   const english = render(h(m.CliOpenedNote, { providerId: 'agy', result: { ok: true, opening, copied: true } }), 'en');
   assert.doesNotMatch(english, /[㐀-鿿]/, 'the English receipt has no untranslated text');
   assert.equal(render(h(m.CliOpenedNote, { providerId: 'agy', result: null })), '');
+});
+
+test('the setup panel hands 「在学习库里打开 CLI」 the bundled node and study-cli from the saved config, and the library from the app core (bound folder first, loaded data next)', async () => {
+  const copied = [];
+  const clipboard = { writeText: async (text) => { copied.push(text); } };
+  const core = ({ bound = '', loaded = null }) => ({
+    call: async (action, args) => ({ ok: true, provider: args.provider }), refresh: async () => {},
+    refs: { bindingRoot: { current: bound }, dataRef: { current: loaded ? { root: loaded } : null } },
+  });
+  const config = { studyCliPath: BUNDLED_CLI.studyCliPath, studyNodePath: BUNDLED_CLI.studyNodePath };
+  const openWith = async (appCore, savedConfig = config) => {
+    copied.length = 0;
+    await m.desktopSetupActions({ core: appCore, config: savedConfig, setConfig: () => {}, setError: () => {}, setWorking: () => {}, clipboard }).openCli('agy');
+    return copied[0];
+  };
+
+  const bound = await openWith(core({ bound: 'D:\\Study', loaded: 'D:\\Loaded' }));
+  assert.ok(bound.includes('"D:\\App\\resources\\runtime\\node\\node.exe" "D:\\App\\resources\\runtime\\scripts\\study-cli.mjs" call <action>'), 'the saved config names the bundled node and study-cli');
+  assert.ok(bound.includes('--root "D:\\Study"'), 'the bound library is the --root');
+  assert.ok(!bound.includes('D:\\Loaded'));
+  assert.ok((await openWith(core({ loaded: 'D:\\Loaded' }))).includes('--root "D:\\Loaded"'), 'no bound folder yet: the loaded library, as 「发给主会话」 does');
+  const rootless = await openWith(core({}));
+  assert.ok(rootless.includes('study-cli.mjs') && !rootless.includes('--root "D:'), 'no library known: the note asks the CLI to confirm the folder instead of guessing');
+  assert.equal(await openWith(core({ bound: 'D:\\Study' }), {}), undefined, 'a config that reports no study-cli copies nothing');
+  assert.equal(typeof await openWith({ ...core({ bound: 'D:\\Study' }), refs: undefined }, config), 'string', 'an app core without refs still copies the note');
+});
+
+test('the opening note asks the CLI to reply ready and wait, and does not also say to proceed when 我想： is blank', () => {
+  for (const language of ['zh', 'en']) {
+    const note = m.cliOpeningMessage({ ...BUNDLED_CLI, language });
+    assert.match(note, language === 'zh' ? /先回复一句你已经准备好，然后等我说要做什么/ : /Reply in one line that you are ready, then wait/);
+    assert.doesNotMatch(note, /我想：|What I want:|留空|left blank/, `${language}: no blank-tail note to contradict "wait"`);
+    assert.match(note, /study-cli\.mjs/);
+  }
+});
+
+test('what 「在学习库里打开 CLI」 returned reaches the card: copied note, shown note when the clipboard refused, plain receipt otherwise', async () => {
+  const opening = '我在用 StudyHub 桌面版学习 study-cli.mjs';
+  const shownFor = async (answer) => render(h(m.CliOpenedNote, { providerId: 'agy', result: await m.cliOpenResult(async () => answer, 'agy') }));
+  const copied = await shownFor({ ok: true, opening, copied: true });
+  assert.match(copied, /开场提示已复制/);
+  assert.doesNotMatch(copied, /<textarea/);
+  const refused = await shownFor({ ok: true, opening, copied: false });
+  assert.match(refused, /没能复制开场提示/);
+  assert.match(refused, /<textarea[\s\S]*我在用 StudyHub 桌面版学习 study-cli\.mjs/);
+  const plain = await shownFor(true);
+  assert.match(plain, /已在学习库目录打开 agy/);
+  assert.doesNotMatch(plain, /开场提示/);
+  assert.equal(await m.cliOpenResult(async () => null, 'agy'), null, 'a refusal shows nothing');
+  const asked = [];
+  await m.cliOpenResult(async (id) => { asked.push(id); return true; }, 'codex');
+  assert.deepEqual(asked, ['codex']);
 });
 
 test('the first call the opening note names (library.context, no payload) runs through study-cli on a fresh library', async (t) => {

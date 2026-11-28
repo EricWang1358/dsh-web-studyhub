@@ -207,6 +207,6 @@ const CLI_OPENING_FIRST = '读写学习库（课程、题组、题目、复习�
  */
 export function cliOpeningMessage({ libraryRoot = '', studyCliPath = '', studyNodePath = '', language = getUiLanguage() } = {}) {
   if (!cleanInlinePath(studyCliPath)) return '';
-  const text = composeMessage({ ask: say(language, CLI_OPENING_ASK), notes: [say(language, CLI_OPENING_FIRST)] }, { tail: 'ask', language });
+  const text = composeMessage({ ask: say(language, CLI_OPENING_ASK), notes: [say(language, CLI_OPENING_FIRST)] }, { tail: null, language }); // no 我想： line: the note says to reply ready and wait, which a 「leave 我想： blank and proceed」 note would contradict
   return withExternalCliNote(text, { libraryRoot, studyCliPath, studyNodePath, language });
 }
