@@ -84,6 +84,14 @@ test('the scale without the provider\'s usage: points, calls and time, no token 
   assert.equal(buttons(linked).filter(item => /Entropy|Enthalpy/.test(item.textContent)).length, 2);
 });
 
+test('English: the sample names the setting by the label on the page (one fact, one wording)', () => english(() => {
+  const changed = textOf(page(notesLine({ sample: sample() }), { coverage: 'full' }));
+  assert.match(changed, /Explanation depth/, 'the setting\'s visible label');
+  assert.match(changed, /The explanation depth is now/, 'the changed-settings line says the same words');
+  assert.match(changed, /After changing the explanation depth or the sample papers/, 'and so does the hover of Redo the sample');
+  assert.doesNotMatch(changed, /detail level/i, 'no other name for it');
+}));
+
 test('English: the same card without a Chinese character', () => english(() => {
   const html = page(notesLine({ sample: sample() }));
   const card = textOf(html).slice(textOf(html).indexOf('Sample'));
