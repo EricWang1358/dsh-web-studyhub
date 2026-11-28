@@ -46,7 +46,7 @@ export function rangesText(ranges, english, documents = 1) {
 export async function queueSteps(call, steps, form, { course = '' } = {}) {
   const started = [], failed = [];
   // A step is a plain request with its OWN count. The form-only fields stay at home: its empty spending limit ('') made the backend take every step for a coverage run and refuse
-  // all of them (「tokenBudget 需要是不小于 1000 的整数」), and the level / auto-complete / typed total / 出题深度 belong to a whole-material run, not to one step of a path
+  // all of them (「tokenBudget 需要是不小于 1000 的整数」), and the level / auto-complete / typed total / 写法 belong to a whole-material run, not to one step of a path
   // (a step asks for a number of questions, which one pass does not serve).
   const { customCount: _typed, tokenBudget: _budget, autoComplete: _auto, coverageLevel: _level, depth: _depth, ...base } = form || {};
   for (const step of steps) {

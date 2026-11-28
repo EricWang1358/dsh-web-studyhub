@@ -48,10 +48,10 @@ test('the main path of the options: the question types, the three presets of 出
   // A combination that is no preset says what it is and where it is changed; the other kinds turn the presets off and say why.
   const custom = parts(render({}, { gen: { ...gen, coverageLevel: 'full', depth: 'quick' } })).main;
   assert.deepEqual(pressed(custom).filter(([, on]) => on), [], 'no preset on for 完整 × 快问');
-  assert.match(text(custom), /自定义：完整 × 快问。在「更多选项 › 出题方式与题量」里改/);
+  assert.match(text(custom), /自定义：完整 × 直接问。在「更多选项 › 出题方式与题量」里改/);
   const open = parts(render({}, { gen: { ...gen, kind: 'open', kinds: ['open'] } })).main;
   assert.match(open, /data-preset="off"/);
-  assert.match(text(open), /快问和情境题只用于单选题/);
+  assert.match(text(open), /只有单选题能选写法/);
   assert.match(main, /data-generate-plan/);
   assert.match(text(main.slice(main.indexOf('data-generate-plan'))), /^[^>]*> 新题组放进的课程 数据库 更改 前往设置/, 'where the new deck goes (as the page infers it), 更改, and the way to the defaults');
   assert.match(main, /<div class="generate-row" data-tour="generate-course" data-generate-plan="[^"]*"><div class="generate-row__label">新题组放进的课程<\/div>/, 'one more row of the form, so it lines up with the rows above it (#1702)');
@@ -72,14 +72,17 @@ test('the one course field: 课程范围 filters the materials, and the new deck
 test('every optional control is inside 更多选项, closed unless the form carries values', () => {
   const { fold } = parts(render());
   assert.doesNotMatch(fold.slice(0, 80), /\sopen[\s>=]/, 'the fold is closed with the defaults');
-  for (const label of ['出题方式与题量', '覆盖强度', '自定义', '出题深度', '想练什么', '难度与语言', '高级', '题组信息', '额外要求（可选）', '这次想练什么？', '难度', '语言', '公式写法', '花费上限', '题组名称（可选）', '目标岗位 / 面试方向（可选）', '参考样题（可选）'])
+  for (const label of ['出题方式与题量', '覆盖强度', '自定义', '写法', '想练什么', '难度与语言', '高级', '题组信息', '额外要求（可选）', '这次想练什么？', '难度', '语言', '公式写法', '花费上限', '题组名称（可选）', '目标岗位 / 面试方向（可选）', '参考样题（可选）'])
     assert.ok(text(fold).includes(label), `${label} is in the fold`);
   assert.match(fold, /id="generate-focus"/);
   assert.match(fold, /data-tour="generate-budget"/, 'the spending limit');
   assert.match(fold, /data-tour="generate-coverage"/, 'the 覆盖强度 (with 自定义 and 自动补到完整)');
   assert.match(fold, /data-coverage-auto/);
-  assert.match(fold, /data-tour="generate-depth"/, 'the 出题深度');
-  assert.deepEqual(pressed(fold).slice(0, 7), [['精简', false], ['标准', true], ['完整', false], ['自定义', false], ['快问', false], ['情境题', true], ['逐题精出', false]], 'the two axes of the preset, the cell of the form on');
+  assert.match(fold, /data-tour="generate-depth"/, 'the 写法');
+  assert.deepEqual(pressed(fold).slice(0, 7), [['精简', false], ['标准', true], ['完整', false], ['自定义', false], ['直接问', false], ['短情境', true], ['先设计再写', false]], 'the two axes of the preset, the cell of the form on');
+  const every = pressed(render()).map(([word]) => word);
+  assert.deepEqual(every.filter((word, at) => every.indexOf(word) !== at), [], 'no option words stand twice on the page (#1686)');
+  assert.doesNotMatch(text(render()), /出题深度/, 'the choice has one name');
   assert.doesNotMatch(fold, /kinds-quiz|data-tour="generate-preset"/, 'the question types and the presets are on the main path, not repeated here');
   assert.match(text(fold.slice(0, 600)), /题量、想练什么、难度、花费、额外要求/, 'the closed fold says what is in it');
   // typed values open it, so nothing the learner entered is hidden; what stands on the main path does not

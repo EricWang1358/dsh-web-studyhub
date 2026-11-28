@@ -56,7 +56,7 @@ import { referenceSelection } from './reference-questions.js';
 import { useLiveEffect } from './use-async.js';
 import { settingsSectionOr } from './settings-groups.js';
 
-// 出题深度 and the matrix of rough costs stand in 更多选项, shut when the page opens: they arrive after the first screen, not with the workspace's first load
+// 写法 and the matrix of rough costs stand in 更多选项, shut when the page opens: they arrive after the first screen, not with the workspace's first load
 // (tests/workspace-closure-pages.test.mjs). Nothing holds their place while the chunk comes: the fold is shut by then, or opens on a row that fills in.
 const PresetsFold = deferredView(() => import('./presets/PresetsFold.jsx'), { loading: () => null });
 
@@ -222,7 +222,7 @@ export default function Generate({
   const caseExam = courseHasCaseExam(activeCourseRecord);
   // What the chosen 覆盖强度 means for the chosen materials: the backend's plan, priced from the real prompts (lib/token-estimate.js), asked once the choice settles.
   const level = levelOf(gen.coverageLevel ?? DEFAULT_LEVEL), custom = customCountOf(gen);
-  // 出题方式 (lib/contexts/generation/presets.js): the form's cell is its 覆盖强度 and its 出题深度 (the saved one until the learner picks; a pick is sent with this run only),
+  // 出题方式 (lib/contexts/generation/presets.js): the form's cell is its 覆盖强度 and its 写法 (the depth; the saved one until the learner picks; a pick is sent with this run only),
   // and the typed number of questions when there is one (then it is no preset: 自定义, said with that number).
   const depth = gen.depth ?? depthOf(data.settings?.generation), cell = { density: level, depth, count: custom };
   const applies = depthApplies({ kind: gen.kind, kinds: kindsOfForm(gen) });
@@ -314,7 +314,7 @@ export default function Generate({
                   })} />
                   <p className="generate-note">{kindNote(kindsOfForm(gen), undefined, gen.kindCounts)}</p>
                 </FormRow>
-                {/* 出题方式: three presets of 覆盖强度 × 出题深度 (lib/contexts/generation/presets.js); the two axes themselves are in 更多选项. */}
+                {/* 出题方式: three presets of 覆盖强度 × 写法 (lib/contexts/generation/presets.js); the two axes themselves are in 更多选项. */}
                 {!pathMode && <FormRow label={ui("出题方式")} data-tour="generate-preset">
                   <PresetPicker cell={cell} applies={applies} costs={costs} disabled={busy} onPick={pickPreset} />
                 </FormRow>}
@@ -343,7 +343,7 @@ export default function Generate({
                       onChoice={(patch) => setGen({ ...gen, ...patch })} onCustom={(customCount) => setGen({ ...gen, customCount })}
                       auto={autoOf({ ...gen, coverageLevel: level })} onAuto={(autoComplete) => setGen({ ...gen, autoComplete })} />
                   </FormRow>
-                  <FormRow label={ui("出题深度")} data-tour="generate-depth">
+                  <FormRow label={ui("写法")} data-tour="generate-depth">
                     <PresetsFold depth={depth} depths={DEPTHS} applies={applies} offReason={depthOffReason()} disabled={busy} onDepth={(value) => setGen({ ...gen, depth: value })}
                       costs={foldOpen ? costs : null} cell={cell} columns={matrixColumns()} />
                   </FormRow>

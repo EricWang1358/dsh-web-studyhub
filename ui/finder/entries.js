@@ -141,7 +141,7 @@ export const FEATURES = Object.freeze([
     aliases: ['案例', '案例题', '案例卷', '长案例', '评分标准', 'case study', 'case', 'rubric'],
     path: ['创建题组', '案例分析题'],
     what: '长案例加开放题，按评分标准逐项批改；这门课考案例题时，在这里出题。' }),
-  // 出题方式 (lib/contexts/generation/presets.js): three presets on the main path; its two axes (覆盖强度 × 出题深度) and the rough cost of each combination in 更多选项.
+  // 出题方式 (lib/contexts/generation/presets.js): three presets on the main path; its two axes (覆盖强度 × 写法) and the rough cost of each combination in 更多选项.
   feature({ id: 'generation-preset', area: 'generate', title: '出题方式', page: 'generate', anchors: ['generate-preset', 'generate-from-sources'], prepare: 'materials',
     aliases: ['快问', '情境题', '逐题精出', '预设', '省钱', 'preset', 'quick', 'scenario'],
     path: ['创建题组', '出题方式'],
@@ -150,10 +150,10 @@ export const FEATURES = Object.freeze([
     aliases: ['精简', '标准', '完整', '题量', '覆盖', '覆盖程度', 'coverage', 'strength', 'thorough'],
     path: ['创建题组', MORE, '出题方式与题量', '覆盖强度'],
     what: '出题时资料要覆盖到什么程度：精简、标准、完整，或「自定义」一个题数；选得越完整，题越多，花得也越多。出题前会按真实提示词估算大概要用多少 token。' }),
-  feature({ id: 'generation-depth', area: 'generate', title: '出题深度', page: 'generate', anchors: ['generate-depth', 'generate-from-sources'], prepare: 'materials',
-    aliases: ['深度', '一次写完', '蓝图', '花费对比', 'depth', 'one pass', 'staged'],
-    path: ['创建题组', MORE, '出题方式与题量', '出题深度'],
-    what: '题怎么写：快问和情境题一次写完，逐题精出先定考点再分批出题；下面的表列出各组合的大致花费。只对单选题起作用，默认值在「设置 › 高级生成控制」里改。' }),
+  feature({ id: 'generation-depth', area: 'generate', title: '写法', page: 'generate', anchors: ['generate-depth', 'generate-from-sources'], prepare: 'materials',
+    aliases: ['出题深度', '深度', '直接问', '短情境', '先设计再写', '一次写完', '蓝图', '花费对比', 'depth', 'writing method', 'one pass', 'staged'],
+    path: ['创建题组', MORE, '出题方式与题量', '写法'],
+    what: '题怎么写：直接问和短情境一次写完，先设计再写要先定考点、再分批出题；各组合花费有差别时，下面有一张表。只对单选题起作用，默认值在「设置 › 高级生成控制」里改。' }),
   feature({ id: 'custom-count', area: 'generate', title: '自定义题数', page: 'generate', anchors: ['generate-custom-count', 'generate-coverage', 'generate-from-sources'], prepare: 'materials',
     aliases: ['题数', '题目数量', '几道题', '出多少题', '自定义', 'count', 'number of questions', 'custom'],
     path: ['创建题组', MORE, '出题方式与题量', '覆盖强度', '自定义'],

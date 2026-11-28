@@ -43,6 +43,13 @@ test("花费 finds 花费上限 first, and an English UI user can type the Engli
   } finally { setUiLanguage("zh"); }
 });
 
+test("出题深度 became 写法: the old name and the new options still find it (#1686)", () => {
+  setUiLanguage("zh");
+  assert.equal(FINDER_ENTRIES.find((entry) => entry.id === "generation-depth").title, "写法");
+  for (const word of ["出题深度", "写法", "直接问", "短情境", "先设计再写"]) assert.equal(ids(word)[0], "generation-depth", word);
+  assert.equal(ids("快问")[0], "generation-preset", "the presets keep their names");
+});
+
 test("an old name or a synonym still finds the entry; a page is found by its sidebar label", () => {
   assert.equal(ids("双语")[0], "translation");
   assert.equal(ids("导览")[0], "tour");
