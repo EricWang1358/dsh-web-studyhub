@@ -104,6 +104,11 @@ test('the upgrade notice in the page: asked on open, said once, kept across a pa
   assert.deepEqual(await asked(), ['update.check', 'update.install', 'update.check'], 'the dialog did hear of the upgrade while the old page was open');
   assert.equal(await page.locator('.sh-toast').count(), 0, 'the old page says nothing');
   assert.deepEqual(await reported(), [], 'and does not use the notice up');
+  // What its dialog says meanwhile is the truth too: DSH answered 'applied', so the new version is running and nothing is waiting for a restart.
+  const dialogText = await page.getByRole('dialog').innerText();
+  assert.match(dialogText, /StudyHub 7\.0\.0 已升级/);
+  assert.match(dialogText, /不用重启 DSH/);
+  assert.doesNotMatch(dialogText, /等待重启|请重启 DSH 服务|仍在运行旧版本/);
   // DSH closes the page and the learner opens StudyHub again; DSH may reuse this very module.
   await page.evaluate(() => window.close());
   await open(await page.evaluate(() => window.installed));
