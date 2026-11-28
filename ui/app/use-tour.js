@@ -38,7 +38,7 @@ export async function tourAfterSample({ refresh, seen, start, setError }) {
    need sample data are left out. */
 export function useTour({ core, lib, nav, session, drafts, intents, data, rootRef, canChat = true }) {
   const { call, act, setError, notify, refresh, refs } = core;
-  const { setModal, setDraft, setSelectedSources, setSkeletonFocus } = lib.set;
+  const { setModal, setDraft, setSelectedSources, setSkeletonFocus, setBoardView } = lib.set;
   const [tourStep, setTourStep] = useState(null), [sampleBusy, setSampleBusy] = useState(false);
   // 载入示例并开始导览 is loading the sample for a tour: until the tour starts (in the same render), the first-run line holds still (no banner above it).
   const [sampleForTour, setSampleForTour] = useState(false);
@@ -54,6 +54,7 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
   /** The steps of the short tour or of the full one, for what this library and host can show; while the first-run line is up (the sample never counts in it),
       the short tour ends on its step 2. */
   const stepsFor = (full) => data ? availableTourSteps(TOUR_STEPS, { sample: data.sample, full, line: firstRunLine(data).show, canChat,
+    hasDeck: data.decks.some((deck) => !deck.archived),
     pageAvailable: (id) => pageAvailable(data, id), hasContext: (id) => hasContext(data, id) }) : [];
   const savedTour = data?.root && !tourStep ? readTourProgress(data.root) : null;
   // While paused, the tour on offer is the one that was paused (the sidebar says "继续 3/8" for it).
@@ -97,14 +98,18 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
   }
   /** 看完整导览: the explicit extra, from the end of the short tour or from Settings. */
   const startFullTour = () => startTour({ restart: true, full: true });
+  /** Show step `id` and remember it: 下一步, 上一步 and 跳到下一章 all end here. */
+  function jumpTour(id) {
+    setTourStep(id);
+    if (data?.root) writeTourProgress(data.root, { stepId: id, full: fullTour });
+  }
   function moveTour(direction) {
     const next = tourNeighbour(tourSteps, tourStep, direction);
     if (!next) {
       if (direction > 0) finishTour();
       return;
     }
-    setTourStep(next);
-    if (data?.root) writeTourProgress(data.root, { stepId: next, full: fullTour });
+    jumpTour(next);
   }
   /** Leave the tour: close what it opened, go back to where it started, return focus. */
   function endTour({ then } = {}) {
@@ -182,6 +187,7 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
         return;
       }
     }
+    if (step.prepare === 'openBoardToday') setBoardView('today');
     if (step.prepare === 'openSampleSkeleton' && sample?.skeletonId) setSkeletonFocus(sample.skeletonId);
     if (step.prepare === 'startSamplePractice') {
       await openSamplePractice(sample);
@@ -244,5 +250,5 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
   }
 
   return { tourStep, fullTour, sampleBusy, sampleForTour, removingSample, setRemovingSample, modelState, tourSteps, tourResume, lineLater, hideWelcome, openFirstImport, startTour,
-    startFullTour, moveTour, endTour, closeTour, finishTour, enterTourStep, loadSampleAndTour, loadSampleInTour, loadSampleOnly, removeSampleData };
+    startFullTour, moveTour, jumpTour, endTour, closeTour, finishTour, enterTourStep, loadSampleAndTour, loadSampleInTour, loadSampleOnly, removeSampleData };
 }

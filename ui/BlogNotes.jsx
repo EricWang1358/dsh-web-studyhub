@@ -311,7 +311,7 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
     if (event.key === "Enter") { event.preventDefault(); void addCard(); }
   };
   return <section className="page blog-notes-page" data-note-open={note ? '' : undefined} onKeyDown={editing && writable ? (event) => handleSaveKeyDown(event, () => saveShortcutRef.current?.()) : undefined}>
-    <PageHeader className={`note-heading${note && !editing && note.markdown ? ' note-heading-reading' : ''}`}
+    <PageHeader data-tour="notes-head" className={`note-heading${note && !editing && note.markdown ? ' note-heading-reading' : ''}`}
       back={note ? { label: ui('全部笔记'), onClick: () => guardLeave(() => { setId(''); setLookup(null); }) } : undefined}
       title={note?.title || ui('学习笔记')} titleProps={{ tabIndex: -1, 'data-context-heading': true }}
       scope={!note ? <PageScope courses={data.focus?.courses} value={course} onChange={setCourse} /> : undefined}

@@ -24,8 +24,8 @@
       scroll-margin-bottom: 16px;
     }
   }
-  /* While the card is docked (Tour.jsx sets the room to its height), the page can scroll past its end by that much: the last control of a short page
-     comes up above the card. Only after the end of the page, so nothing on screen moves. */
+  /* While the card is docked, or a target had to be raised to make room for it (Tour.jsx sets the room to the card's height), the page can scroll past its
+     end by that much: the last control of a short page comes up above the card. Only after the end of the page, so nothing on screen moves. */
   .study-app[data-tour-docked] > main::after {
     content: "";
     display: block;
@@ -55,6 +55,8 @@
       top: 30%;
       width: min(380px, calc(100% - 24px));
       max-height: calc(100% - 24px);
+      display: flex;
+      flex-direction: column;
       overflow: auto;
       pointer-events: auto;
       font-family: var(--font-ui);
@@ -63,6 +65,9 @@
       box-shadow: var(--shadow-dialog);
       overscroll-behavior: contain;
     }
+    /* Where the card has less height than its words need, only the body gives way and scrolls: the title and the buttons stay in sight. */
+    .tour-pop > * { flex: none; }
+    .tour-pop > .tour-pop__body { flex: 0 1 auto; min-height: calc(var(--lh-body) * 3em); }
     .tour-pop:focus { outline: none; }
     .tour-pop:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; box-shadow: var(--shadow-dialog); }
     /* Measured before it is shown; opacity (not visibility) keeps it focusable. */
@@ -92,6 +97,8 @@
       width: auto;
       max-height: min(58%, 440px);
     }
+    /* A bar pinned to the bottom is what the step shows: the sheet is lifted to sit above it, at the height geometry.js says (an inline top). */
+    .tour-pop--dock-lifted { bottom: auto; }
     .tour-pop__head {
       display: flex;
       align-items: center;
@@ -155,13 +162,15 @@
     }
     .tour-pop__foot {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: var(--space-2);
       margin-top: var(--space-4);
       padding-top: var(--space-3);
       border-top: 1px solid var(--line-soft);
     }
-    .tour-pop__spacer { flex: 1; }
+    /* 上一步 and 下一步 stay together at the right end: where the quiet links leave no room (English with 跳到下一章), both go to the next row. */
+    .tour-pop__moves { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; }
   }
   @media (prefers-reduced-motion: no-preference) {
     :where(.study-app, .study-seat) {

@@ -209,15 +209,16 @@ function summaryOf({ state, plan, next, proposal, budget, spent }) {
 export const shouldSuggestLocal = ({ state, busy, error }, asked) => !!state && !state.proposal && !state.tasks?.length && !state.accepted && !state.warnings?.length
   && !busy && !error && !asked.has(state.date);
 
-export default function DailyPlan({ plan, onBoard, modelReady = true, openModelSettings, primaryAction = true }) {
+export default function DailyPlan({ plan, onBoard, modelReady = true, openModelSettings, primaryAction = true, autoPropose = true }) {
   useInjectCss(css, 'study-daily-plan');
   // The plan opens with the program's own proposal, so the first click is 接受 (and no model is needed for it): AI 重排 is the optional second step.
   const asked = useRef(new Set());
   useEffect(() => {
-    if (!shouldSuggestLocal(plan, asked.current)) return;
+    // `autoPropose` is off while the feature tour shows this block: the tour only reads, and a proposal is saved in the library.
+    if (!autoPropose || !shouldSuggestLocal(plan, asked.current)) return;
     asked.current.add(plan.state.date);
     plan.suggest({ local: true });
-  }, [plan.state, plan.busy, plan.error]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [plan.state, plan.busy, plan.error, autoPropose]); // eslint-disable-line react-hooks/exhaustive-deps
   const [open, setOpen] = usePersistentState(OPEN_KEY, false);
   const [editor, setEditor] = useState(null);
   const editorId = useId(), bodyId = useId();
