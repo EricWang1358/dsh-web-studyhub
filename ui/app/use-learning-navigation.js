@@ -427,7 +427,9 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
     setModal({ type: 'source', source, resume: { at: Math.max(0, Number(offset) || 0), sectionOffset: 0, scrollTop: 0, progress: 0, nonce: Date.now() } });
   }, [notify, refs, setModal]);
 
-  // After an arrival, the heading (or the control the learner came from) takes focus.
+  // After an arrival, the heading (or the control the learner came from) takes focus. On a page with a question run it is the question card, where the
+  // practice page keeps its focus (Esc comes back to it, and it keeps the focus through a flashcard's flip): also when the arrival did not change the page
+  // (#1679: 回到题目 from the drawer while the question is on screen, where the focus would otherwise stay on the drawer's button and Space reopen it).
   const focusRequest = lib.state.focusRequest;
   useEffect(() => {
     if (!focusRequest) return undefined;
@@ -436,7 +438,7 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
       const placed = rootRef.current?.querySelector('[data-return-focus]');
       const target = focusRequest.element?.isConnected && focusRequest.element.getClientRects().length ? focusRequest.element
         : placed?.getClientRects().length ? placed
-          : [...(rootRef.current?.querySelectorAll('dialog[open] h2, .question[role="heading"], [data-context-heading], main .page h1, main .page h2') || [])]
+          : [...(rootRef.current?.querySelectorAll('dialog[open] h2, .review-body .question-card, .question[role="heading"], [data-context-heading], main .page h1, main .page h2') || [])]
             .find((element) => element.getClientRects().length);
       if (target) {
         if (!target.matches('button,a,input,select,textarea,[tabindex]')) target.setAttribute('tabindex', '-1');

@@ -13,9 +13,10 @@ import { until } from '../scripts/qa/layout-late.mjs';
 
 /* Entering a practice round, the way a learner does it (the sidebar's 回到题目), with the sample course and the fake model in the browser preview.
    #1678: the first flashcard sits where the later ones sit (pinned under the top bar), and once it is flipped the six 0–5 grade buttons are wholly on screen
-   without scrolling, at 1440×900, 1536×730 and 1280×720.
+   without scrolling, at 1440×900, 1536×730 and 1280×720; the first card keeps the focus through its flip, as the next ones do.
    #1679: in a narrow pane (420 wide) the sidebar is a drawer. Going to the practice page through it, by mouse and by keyboard, leaves the focus on the question
-   card, so Space flips the card instead of opening the drawer again; closing the drawer with Esc still gives the focus back to the button that opened it.
+   card, so Space flips the card instead of opening the drawer again, also when the practice page was already on screen; closing the drawer with Esc still gives
+   the focus back to the button that opened it.
    #1697: once flipped, the row above the grade buttons is one line of at most two items, and no grade's gap ("1 天") breaks between number and unit,
    at the three laptop sizes and at 420 wide. */
 
@@ -71,6 +72,13 @@ function assertGradingLayout(layout, tag) {
   assert.ok(layout.metaLines <= 1, `${tag}: the row above the grades is one line (${JSON.stringify(layout)})`);
   assert.ok(layout.metaItems.length <= 2, `${tag}: and says at most two things (${JSON.stringify(layout.metaItems)})`);
   assert.deepEqual(layout.split, [], `${tag}: no number is on another line than its unit`);
+}
+
+/** Where the focus is (run in the page): 'card' when it is on the question card or inside it, else what holds it. */
+function focusWhere() {
+  const active = document.activeElement;
+  if (active && active !== document.body && active.closest('[data-tour="review-question"]')) return 'card';
+  return `${active?.tagName} ${active?.getAttribute('aria-label') || active?.className || ''}`;
 }
 
 /** The first question card's top edge, once it stops moving. */
@@ -133,6 +141,8 @@ test('#1678: the first flashcard is pinned like the next ones and, flipped, show
       const first = await settledCardTop(page);
       await page.keyboard.press('Space');
       const flipped = await settledGrades(page);
+      // The first card's focus survives the flip, as the next cards' does: it is on the card, not on the front face that the flip hides.
+      assert.equal(await page.evaluate(focusWhere), 'card', `${tag}: after the first flip the focus is still on the question card`);
       assert.ok(flipped.bottoms.every((bottom) => bottom <= flipped.vh), `${tag}: every grade button ends inside the window (${JSON.stringify(flipped)})`);
       assert.ok(flipped.tops.every((top) => top >= flipped.barBottom), `${tag}: and starts below the top bar (${JSON.stringify(flipped)})`);
       assertGradingLayout(await gradingLayout(page), tag);
@@ -156,22 +166,23 @@ test('#1679: at 420 wide, 回到题目 from the drawer leaves the focus on the q
     try {
       const opener = page.getByRole('button', { name: '打开导航', exact: true }).first();
       await opener.waitFor({ timeout: 30000 });
-      if (how === 'mouse') await opener.click();
-      else { await opener.focus(); await page.keyboard.press('Enter'); }
-      await page.locator('.nav-drawer[open]').waitFor();
-      const back = page.locator('.nav-drawer[open]').getByRole('button', { name: /^回到题目/ }).first();
-      if (how === 'mouse') await back.click();
-      else { await back.focus(); await page.keyboard.press('Enter'); }
-      await page.locator('.nav-drawer[open]').waitFor({ state: 'detached' });
-      await page.locator('[data-tour="review-question"]').waitFor({ timeout: 30000 });
-      const focus = await until(() => page.evaluate(() => {
-        const active = document.activeElement;
-        return active && active !== document.body && active.closest('[data-tour="review-question"]') ? 'card' : null;
-      }), `${how}: the focus on the question card`, { timeoutMs: 10000 }).catch(() => page.evaluate(() => {
-        const active = document.activeElement;
-        return `${active?.tagName} ${active?.getAttribute('aria-label') || active?.className || ''}`;
-      }));
-      assert.equal(focus, 'card', `${how}: after arriving through the drawer the focus is on the question card`);
+      const backThroughDrawer = async () => {
+        if (how === 'mouse') await opener.click();
+        else { await opener.focus(); await page.keyboard.press('Enter'); }
+        await page.locator('.nav-drawer[open]').waitFor();
+        const back = page.locator('.nav-drawer[open]').getByRole('button', { name: /^回到题目/ }).first();
+        if (how === 'mouse') await back.click();
+        else { await back.focus(); await page.keyboard.press('Enter'); }
+        await page.locator('.nav-drawer[open]').waitFor({ state: 'detached' });
+        await page.locator('[data-tour="review-question"]').waitFor({ timeout: 30000 });
+        // Settled: the focus has to stay on the card, not only pass through it (the drawer hands it back to its button as it closes).
+        await new Promise((done) => setTimeout(done, 400));
+        return until(() => page.evaluate(focusWhere).then((where) => (where === 'card' ? where : null)), `${how}: the focus on the question card`, { timeoutMs: 10000 })
+          .catch(() => page.evaluate(focusWhere));
+      };
+      assert.equal(await backThroughDrawer(), 'card', `${how}: after arriving through the drawer the focus is on the question card`);
+      // Already on the practice page, 回到题目 from the drawer again: the page does not change, and the focus still goes to the question, not back to the drawer button.
+      assert.equal(await backThroughDrawer(), 'card', `${how}: 回到题目 from the drawer while already on the question leaves the focus on the question card`);
       await page.keyboard.press('Space');
       await page.locator(GRADES).first().waitFor({ timeout: 10000 });
       assert.equal(await page.locator('.nav-drawer[open]').count(), 0, `${how}: Space did not open the drawer`);
