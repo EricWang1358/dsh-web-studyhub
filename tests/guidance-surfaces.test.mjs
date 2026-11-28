@@ -220,6 +220,19 @@ test('useTour tracks 以后再说 via visit memory + localStorage, survives stor
     }
   });
 
+  // 以后再说 hands hideWelcome to the button as its onClick (ui/first-run/FirstRunLine.jsx): the click event it is called with is not a library.
+  await withStorageAsync({}, async (storage) => {
+    const hook = ui.mountHook((props) => useTour(props), makeArgs('/lib-e'));
+    try {
+      await hook.act(() => hook.current.hideWelcome({ type: 'click', currentTarget: {}, preventDefault: noop }));
+      assert.equal(hook.current.lineLater, true, 'a click on 以后再说 puts the line away');
+      assert.deepEqual([...storage.map.keys()].filter((key) => key.startsWith('study-welcome:')), ['study-welcome:/lib-e'],
+        'stored under this library, never under the click event');
+    } finally {
+      hook.unmount();
+    }
+  });
+
   // Refusing localStorage (setItem throws) still retains dismissal in memory for the current visit.
   const refusing = memoryStorage();
   refusing.setItem = () => { throw new Error('blocked'); };
