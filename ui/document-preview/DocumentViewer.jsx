@@ -9,7 +9,7 @@ import DocumentLearning from './DocumentLearning.jsx';
 import { ReaderModelContext } from './ReaderModelGate.jsx';
 import { OriginalNotice, OriginalDialog } from './OriginalFile.jsx';
 import { isPagedUrl, originalBytes, pagedFileUrl } from './peek/paged-original.js';
-import { canSyncReferencedText, issueOf } from './original-file.js';
+import { canSyncReferencedText, handOffOriginal, issueOf } from './original-file.js';
 import { peekStatus } from './peek/peek-logic.js';
 import { renderPageImages } from './peek/page-image.js';
 import { captureSelection, fuzzyPassageRange, groupPassageLinks, isPlaced, locateQuote, renderedPassageRange, resolveQuote } from './selection.js';
@@ -905,6 +905,51 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const peekOnOpen = useRef(peekPage);
   useEffect(() => { if (canPeek && peekOnOpen.current) { openPeek(peekOnOpen.current, { figure: true }); peekOnOpen.current = 0; } }, [canPeek, openPeek]);
   const peekBytes = async () => fileUrl ? originalBytes(fileUrl) : null;
+  // Unread-image / skipped-page inline notice + quick handoff in 阅读 mode (#1457).
+  const documentSkippedPages = useMemo(() => {
+    const list = Array.isArray(document?.skippedPages) ? document.skippedPages
+      : Array.isArray(documentItem?.skippedPages) ? documentItem.skippedPages : [];
+    const existing = new Set(sources.map(item => item?.document?.page).filter(Number.isInteger));
+    return [...new Set(list.filter(page => Number.isInteger(page) && page > 0 && !existing.has(page)))].sort((a, b) => a - b);
+  }, [document?.skippedPages, documentItem?.skippedPages, sources]);
+  const chapterIndex = chapter.index, chapterCount = chapter.chapters.length;
+  const visibleSkippedPages = useMemo(() => {
+    if (!documentSkippedPages.length) return [];
+    if (!chaptered || !drawnChapter) return documentSkippedPages;
+    const { startPage, endPage } = drawnChapter;
+    const isFirst = chapterIndex === 0;
+    const isLast = chapterIndex === chapterCount - 1;
+    return documentSkippedPages.filter(page => (
+      (page >= startPage && page <= endPage)
+      || (isFirst && page < startPage)
+      || (isLast && page > endPage)
+    ));
+  }, [documentSkippedPages, chaptered, drawnChapter, chapterIndex, chapterCount]);
+  const loadOnePageImage = useCallback(page => pageImages([page]), [pageImages]);
+  const readerOriginal = useMemo(() => handOffOriginal(document), [document]);
+  const unreadImages = useMemo(() => {
+    if (localMode || !paged) return null;
+    const imageSet = new Set(Array.isArray(document?.imagePages) ? document.imagePages : Array.isArray(documentItem?.imagePages) ? documentItem.imagePages : []);
+    const bySourceId = new Map();
+    for (const item of sources) {
+      if (!item?.id) continue;
+      const docMeta = item.document || {};
+      bySourceId.set(item.id, {
+        hasImages: Boolean(docMeta.hasImages || imageSet.has(docMeta.page)),
+        omittedVisuals: Array.isArray(docMeta.omittedVisuals) ? docMeta.omittedVisuals : [],
+        text: item.text ?? '',
+      });
+    }
+    return {
+      title: materialName || document?.title || document?.filename || source.title || '',
+      format,
+      original: readerOriginal,
+      canRenderImage: format === 'pdf' && !!fileUrl,
+      loadPageImages: format === 'pdf' && fileUrl ? loadOnePageImage : null,
+      bySourceId,
+      skippedPages: visibleSkippedPages,
+    };
+  }, [localMode, paged, sources, document?.imagePages, documentItem?.imagePages, document?.title, document?.filename, materialName, source.title, format, readerOriginal, fileUrl, loadOnePageImage, visibleSkippedPages]);
 
   // 思维导图: the current chapter drawn from its headings, no model (reader/mind-map.js). Built lazily when the popover opens.
   const chapterPages = chapter.current ? { from: chapter.current.startPage, to: chapter.current.endPage } : null;
@@ -1065,7 +1110,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
               ? <PdfOriginal fileUrl={fileUrl} title={source.title || ui('原始 PDF')} page={pdfPage} total={totalPages} onPage={goToPage} settings={pdfView} onSettings={change => setPdfView(current => ({ ...current, ...change }))} />
               : reading
                 ? html ? <div className="reader-html source-md" data-study-text="true" dangerouslySetInnerHTML={{ __html: html }} />
-                  : <ReadingSections key={chapter.current?.id} sections={sections} labelOf={labelOf} onPeek={canPeek ? openPeek : undefined} peekHeld={holdPeek} scrollRoot={scroller} />
+                  : <ReadingSections key={chapter.current?.id} sections={sections} labelOf={labelOf} onPeek={canPeek ? openPeek : undefined} peekHeld={holdPeek} scrollRoot={scroller} unreadImages={unreadImages} />
                 : paged ? sections.map(section => <section key={section.id} className="study-document-page reader-section reader-section--page"
                   data-outline-id={section.id} data-study-page={section.page} data-study-source={section.sourceId}>
                   <span className="reader-section__label" data-find-skip="true">{labelOf(section)}</span>

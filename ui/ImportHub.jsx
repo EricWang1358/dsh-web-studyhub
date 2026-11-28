@@ -23,6 +23,7 @@ import { useStudy } from './study-context.jsx';
 import { canPickNative, pickNativePdf } from './pdf-source.js';
 import { repeatedText, restoreRepeated } from './RepeatedNote.jsx';
 import { useHandOff } from './hand-off/use-hand-off.js';
+import { HandOff } from './hand-off/HandOff.jsx';
 import { failedImportInput, lastingFailures, rejectedFilesInput } from './import-hand-off.js';
 import { CUSTOM_BOOK_LABEL, customOfferOf, customOffered, markCustomOffered } from './custom-entry.js';
 import IndexHint from './IndexHint.jsx';
@@ -171,14 +172,20 @@ async function importDocumentFile(file, { call, courses = [], known = [], conver
   const sourceIds = value?.sourceIds || value?.document?.sourceIds || [];
   const format = value?.document?.format || FORMAT_OF[extensionOf(file.name)];
   const converted = value?.document?.sources?.find(source => source?.document?.converter)?.document.converter;
+  const skippedPages = Array.isArray(value?.skippedPages) ? value.skippedPages : Array.isArray(value?.document?.skippedPages) ? value.document.skippedPages : [];
+  const imagePages = Array.isArray(value?.imagePages) ? value.imagePages : Array.isArray(value?.document?.imagePages) ? value.document.imagePages : [];
+  const omittedVisuals = Array.isArray(value?.omittedVisuals) ? value.omittedVisuals : Array.isArray(value?.document?.omittedVisuals) ? value.document.omittedVisuals : [];
   if (!sourceIds.length) {
     if (format === 'pdf') throw permanentError(convertible
       ? ui('没有读到可用的文字，可能是扫描件或图片。下面可以在本机解析它（带文字识别，不会上传）。')
-      : ui('没有读到可用的文字，可能是扫描件或图片。请先做文字识别（OCR）再导入。'), convertible ? { scanned: true } : {});
-    throw permanentError(isSlideFormat(format) ? ui('没有读到可用的文字，这份幻灯片可能全是图片。请先导出为带文字的 PDF 或补上文字再导入。') : ui('文件里没有可用的文字。'));
+      : ui('没有读到可用的文字，可能是扫描件或图片。请先做文字识别（OCR）再导入。'), convertible ? { scanned: true, allImages: true } : { allImages: true });
+    throw permanentError(isSlideFormat(format)
+      ? ui('没有读到可用的文字，这份幻灯片里的图片不会自动识别。可以发给主会话或 agy CLI 看图，或先导出为带文字的 PDF 再导入。')
+      : ui('文件里没有可用的文字。'), isSlideFormat(format) ? { allImages: true } : {});
   }
   return { kind: 'document', title: value?.document?.title || file.name, format, documentId: value?.documentId, sourceIds,
-    pages: sourceIds.length, skippedPages: value?.skippedPages || [], courses: filed.courses, courseHow: filed.how, ...(converted ? { converted } : {}),
+    pages: sourceIds.length, skippedPages, ...(imagePages.length ? { imagePages } : {}), ...(omittedVisuals.length ? { omittedVisuals } : {}),
+    courses: filed.courses, courseHow: filed.how, ...(converted ? { converted } : {}),
     ...(value?.repeated ? { repeated: value.repeated } : {}) };
 }
 
@@ -227,7 +234,7 @@ export async function runImport(files, { call, courses = [], known = [], audio =
       /* Too large to import as it is (WP28): the hub explains how a big book is used instead. Only a PDF can be converted:
          a text file over the limit is split by chapter, as the message says. */
       const kind = classifyImportFailure(error), large = format === 'pdf' && (kind === 'pdf-size' || kind === 'pdf-pages' || kind === 'text-chars') ? kind : undefined;
-      const flags = { ...(large ? { large } : {}), ...(error?.scanned ? { scanned: true } : {}), ...(error?.carry ? { carry: true } : {}) };
+      const flags = { ...(large ? { large } : {}), ...(error?.scanned ? { scanned: true } : {}), ...(error?.allImages ? { allImages: true } : {}), ...(error?.carry ? { carry: true } : {}) };
       results.push({ file, status: 'error', error: message, permanent, ...flags });
       onUpdate?.(index, { status: 'error', error: message, permanent, ...flags });
     }
@@ -245,6 +252,12 @@ export function importSummary(results) {
     ...(conversions.length ? { conversions } : {}) };
 }
 
+function formatPageList(pages) {
+  const list = Array.isArray(pages) ? pages.filter(Number.isInteger) : [];
+  if (list.length <= 6) return list.join(ui('、'));
+  return uiFormat('{0} 等 {1} 处', [list.slice(0, 5).join(ui('、')), list.length]);
+}
+
 /** The confirmation toast: “已导入「X」（N 页）” and what else happened. */
 export function importDoneMessage({ documents = [], decks = [], conversions = [] } = {}) {
   const parts = [];
@@ -254,7 +267,22 @@ export function importDoneMessage({ documents = [], decks = [], conversions = []
       : document.pages === 1 ? uiFormat('已导入「{0}」（1 页）', [document.title]) : uiFormat('已导入「{0}」（{1} 页）', [document.title, document.pages]));
     // A course the name of the file suggested is said (it was a guess); the learner's own choice is already on the screen.
     if (document.courseHow === 'file-name' && document.courses?.[0]) parts.push(uiFormat('归入「{0}」（文件名里有课程名）', [document.courses[0]]));
-  } else if (documents.length > 1) parts.push(uiFormat('已导入 {0} 份资料', [documents.length]));
+    const slide = isSlideFormat(document.format);
+    if (document.skippedPages?.length) {
+      parts.push(slide
+        ? uiFormat('第 {0} 张仅含图片或没有文字已跳过', [formatPageList(document.skippedPages)])
+        : uiFormat('第 {0} 页仅含图片或没有文字已跳过', [formatPageList(document.skippedPages)]));
+    }
+    if (document.imagePages?.length) {
+      parts.push(slide
+        ? uiFormat('第 {0} 张含未识别图片或图表，可在阅读器发给主会话或 agy CLI', [formatPageList(document.imagePages)])
+        : uiFormat('第 {0} 页含未识别图片，可在阅读器发给主会话或 agy CLI', [formatPageList(document.imagePages)]));
+    }
+  } else if (documents.length > 1) {
+    parts.push(uiFormat('已导入 {0} 份资料', [documents.length]));
+    const withUnread = documents.filter(document => document.imagePages?.length || document.skippedPages?.length).length;
+    if (withUnread > 0) parts.push(uiFormat('其中 {0} 份含未识别图片或仅图片页，可在阅读器发给主会话或 agy CLI', [withUnread]));
+  }
   if (decks.length === 1) parts.push(uiFormat('题组「{0}」已存为草稿（{1} 题）', [decks[0].title, decks[0].cards?.length || 0]));
   else if (decks.length > 1) parts.push(uiFormat('{0} 个题组已存为草稿', [decks.length]));
   const providers = new Set(conversions.map(job => job.converter === 'marker' ? 'Marker' : 'MinerU'));
@@ -327,15 +355,21 @@ export function itemDetail(item) {
       ? uiFormat('{0} · {1} 页 · 已加入解析队列（前序完成后自动开始）', [tool, result.pages || 0])
       : uiFormat('{0} · {1} 页 · 正在后台解析', [tool, result.pages || 0]);
   }
-  const label = result.format === 'docx' ? ui('Word') : isSlideFormat(result.format)
+  const slide = isSlideFormat(result.format);
+  const label = result.format === 'docx' ? ui('Word') : slide
     ? (result.sourceIds.length === 1 ? ui('PowerPoint · 1 页') : uiFormat('PowerPoint · {0} 页', [result.sourceIds.length]))
     : sourceFormatLabel({ format: result.format, sourceIds: result.sourceIds });
   const said = result.skippedPages?.length
-    ? uiFormat('{0} · 第 {1} 页没有文字，已跳过', [label, result.skippedPages.join(ui('、'))])
+    ? uiFormat('{0} · 第 {1} 页没有文字，已跳过', [label, formatPageList(result.skippedPages)])
     : uiFormat('{0} · 已保存到资料', [label]);
+  const unread = result.imagePages?.length
+    ? (slide
+      ? uiFormat('第 {0} 张含未识别图片或图表', [formatPageList(result.imagePages)])
+      : uiFormat('第 {0} 页含未识别图片', [formatPageList(result.imagePages)]))
+    : '';
   // A converted book that left out lines repeated on most pages says so; its row offers 恢复 (ui/RepeatedNote.jsx).
   const removed = result.restored ? ui('已放回这些重复的行。') : repeatedText(result.repeated);
-  return removed ? `${said} · ${removed}` : said;
+  return [said, unread, removed].filter(Boolean).join(' · ');
 }
 
 function PasteForm({ courses, disabled, draft, onDraft, onSaved }) {
@@ -453,6 +487,7 @@ export default function ImportHub({
   // A PDF that is too large gets the 大教材建议 card; what DSH can search with is read once, then. A PDF with no text goes straight to the converter, staged.
   const largeItem = items.find(item => item.status === 'error' && item.large);
   const scannedItem = items.find(item => item.status === 'error' && item.scanned);
+  const allImagesItem = items.find(item => item.status === 'error' && item.allImages && !item.scanned);
   // The PDF conversion panel also handles files refused by the ordinary import size limit.
   const [conversionOpen, setConversionOpen] = useState(!!resumeFile), [conversionFile, setConversionFile] = useState(resumeFile), [conversionHistory, setConversionHistory] = useState(false);
   const { data: retrieval } = useRetrievalStatus({ enabled: !!largeItem });
@@ -597,6 +632,20 @@ export default function ImportHub({
         {/* A PDF with no text: the same staged converter, one press from started. Nothing runs before that press. */}
         {!largeItem && scannedItem && <div ref={converterBox}><ConverterMain key={scannedItem.id} available={convertible} runnable file={scannedItem.file} courses={coursesOf(scannedItem.file)}
           jobs={data?.jobs} onOpenSettings={settingsFor} onStarted={job => conversionStarted(job, scannedItem)} showOnline why={scannedItem.error} scanned /></div>}
+        {/* An all-image PPTX (or PDF when local conversion is off): explain clearly that pictures are not read automatically and offer direct handoff to 主会话 / agy CLI. */}
+        {!largeItem && !scannedItem && allImagesItem && (
+          <InlineMessage tone="info" boxed title={ui('图片内容不会自动识别')}>
+            <p>{ui('这份文件里没有可读文字，StudyHub 不会自动识别图片。可以把文件交给主会话或 agy CLI 来读图并整理导入。')}</p>
+            <HandOff
+              id="import.file"
+              shape="secondary"
+              copyLabel="复制给 agy CLI"
+              what="让主会话按这份文件的原因读取图片内容并整理导入；文件在输入框里用 @ 选"
+              copyWhat="复制导入提示词到剪贴板，粘贴进 agy CLI 来读取这份图片文件并导入"
+              input={() => failedImportInput([allImagesItem], { courses })}
+            />
+          </InlineMessage>
+        )}
         {staged && <>
           <Button variant="link" size="sm" icon="arrow-left" onClick={() => { setConversionOpen(false); setConversionHistory(false); setConversionFile(null); }}>{ui('返回文件导入')}</Button>
           <PdfConversion available={convertible} file={conversionFile} onFile={setConversionFile} courses={coursesOf(conversionFile)} onStarted={conversionStarted} onOpenSettings={settingsFor}

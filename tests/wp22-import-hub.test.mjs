@@ -19,7 +19,7 @@ const { default: ImportHub, routeImportFile, importAccept, runImport, importSumm
 const MB = 1024 * 1024;
 const han = /[㐀-鿿]/;
 const data = { root: 'lib', sources: [], decks: [], drafts: [], focus: { course: '操作系统', courses: [{ name: '操作系统' }] } };
-const render = props => renderToStaticMarkup(React.createElement(ImportHub, { data, call: async () => ({}), course: '操作系统', onCourseChange() {}, ...props }));
+const render = props => renderToStaticMarkup(React.createElement(ImportHub, { data, course: '操作系统', onCourseChange() {}, ...props }));
 const fake = (name, size, bytes = [1, 2, 3]) => ({ name, size, arrayBuffer: async () => new Uint8Array(bytes).buffer, text: async () => '' });
 
 test('Word and PowerPoint files (old .ppt too) are documents; other old formats are recognised as legacy', () => {
@@ -136,9 +136,9 @@ test('Office imports report slides and skipped slides like PDF pages', async () 
   assert.match(results[3].error, /没有可用的文字/);
   assert.doesNotMatch(results[3].error, /OCR/);
   const summary = importSummary(results);
-  assert.equal(importDoneMessage({ ...summary, documents: [summary.documents[0]] }), '已导入「OS Lecture 5」（3 页）');
+  assert.equal(importDoneMessage({ ...summary, documents: [summary.documents[0]] }), '已导入「OS Lecture 5」（3 页）；第 4 张仅含图片或没有文字已跳过');
   assert.equal(importDoneMessage({ ...summary, documents: [summary.documents[1]] }), '已导入「Notes」');
   setUiLanguage('en');
-  try { assert.equal(importDoneMessage({ ...summary, documents: [summary.documents[0]] }), 'Imported “OS Lecture 5” (3 pages)'); }
+  try { assert.equal(importDoneMessage({ ...summary, documents: [summary.documents[0]] }), 'Imported “OS Lecture 5” (3 pages); slide 4 had images only or no text and was skipped'); }
   finally { setUiLanguage('zh'); }
 });

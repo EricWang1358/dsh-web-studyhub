@@ -416,7 +416,7 @@ export const DocumentRow = memo(function DocumentRow({ item, source, companionTa
         {pagesOpen && !chaptered && <ul id={listId} className="source-doc__page-list" role="region" aria-label={ui('页面列表')} tabIndex={0}>
           {item.pages.map(page => <li key={page.sourceId}>
             <Button variant="quiet" block align="start" className="source-doc__row" onClick={() => actions.open(page.sourceId)}>
-              <span>{pageLabel(item, page)}</span><small>{uiFormat("{0} 字符", [formatNumber(page.chars)])}</small>
+              <span>{pageLabel(item, page)}</span><small>{page.hasImages ? `${uiFormat("{0} 字符", [formatNumber(page.chars)])} · ${ui('含未识别图片')}` : uiFormat("{0} 字符", [formatNumber(page.chars)])}</small>
               <MasteryLine className="source-doc__mastery" summary={mastery?.pages?.[page.sourceId] ?? null} title={pageLabel(item, page)} />
             </Button>
           </li>)}

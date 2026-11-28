@@ -1,5 +1,5 @@
 import { ui, uiFormat } from '../i18n.js';
-import { MAX_OFFICE_BYTES } from '../../lib/office/limits.js';
+import { MAX_OFFICE_BYTES, isSlideFormat } from '../../lib/office/limits.js';
 import { formatBytes } from '../format.js';
 import { browserStorage, readJSON, writeJSON } from '../storage.js';
 
@@ -46,13 +46,13 @@ export function shortPath(path, max = 32) {
 }
 
 /**
- * Where the original PDF is, for the message that hands a page to the main chat (ui/agent-prompts/reader.js): the learner's own file when the library holds a reference
- * to it (even one too big for the reader to open), else the copy in the library. Nothing when there is no original, it is not there any more, or it is not a PDF.
+ * Where the original PDF or slide deck is, for the message that hands a page/slide to the main chat (ui/agent-prompts/reader.js): the learner's own file when the library holds a reference
+ * to it (even one too big for the reader to open), else the copy in the library. Nothing when there is no original, it is not there any more, or it is neither a PDF nor a slide file.
  * `document` is the descriptor the reader loaded (materials.document.get).
  */
 export function handOffOriginal(document) {
   const original = document?.original;
-  if (document?.format !== 'pdf' || original?.status !== 'ok') return undefined;
+  if ((document?.format !== 'pdf' && !isSlideFormat(document?.format)) || original?.status !== 'ok') return undefined;
   const path = original.mode === 'reference' ? original.path : original.mode === 'copy' ? document.preview?.absolutePath : '';
   return typeof path === 'string' && path ? { path } : undefined;
 }

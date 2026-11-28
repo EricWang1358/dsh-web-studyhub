@@ -470,7 +470,7 @@ export const WAY_BACK = /^(?:返回|回到|回学习库)/u;
 export const LEAVES_WITHOUT_ARROW = [
   { file: 'ui/review/RoundPending.jsx', label: /^再练$/, why: 'a cell of the round\'s question grid: its words are the question it jumps to (its number, or 再练 for a retry), an entry of a list like a page number' },
   { file: 'ui/tasks/PlanTable.jsx', label: /^第 \{0\} 页$/, why: 'a page number of the plan table: an entry of a list, its words are the page it opens' },
-  { file: 'ui/Sources.jsx', label: /前言与目录|第 \{0\}|^\{0\} 字符$/, why: 'a chapter or document row of the 资料 page: its words are the part it opens (前言与目录, 第 N 页, its title and size), an entry of a list' },
+  { file: 'ui/Sources.jsx', label: /前言与目录|第 \{0\}|^\{0\} 字符$|含未识别图片/, why: 'a chapter or document row of the 资料 page: its words are the part it opens (前言与目录, 第 N 页, its title and size), an entry of a list' },
   { file: 'ui/book/BookToc.jsx', label: /^\{0\} 处$/, why: 'a hit of the book\'s search: its words are the point and the number of hits it opens, an entry of a list (it moves inside the same book)' },
   { file: 'ui/study-map/MethodLine.jsx', label: /^学法 · /, why: 'a status, not an action: the course’s 学法 stage, which opens the whole 学法 (its aria-label says so)' },
   { file: 'ui/CourseSettings.jsx', label: /^设置$/, why: 'opens the course’s panel inside the 设置 page (setCourseSettings): the page stays, the panel is its detail' },

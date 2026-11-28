@@ -169,6 +169,7 @@
     "tests/reader-page-range-browser.test.mjs",
     "tests/reader-pdf-view-browser.test.mjs",
     "tests/reader-slim-browser.test.mjs",
+    "tests/reader-unread-images-browser.test.mjs",
     "tests/report-kit-browser.test.mjs",
     "tests/restore-points.test.mjs",
     "tests/result-page-browser.test.mjs",

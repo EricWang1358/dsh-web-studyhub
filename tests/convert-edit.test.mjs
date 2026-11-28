@@ -316,6 +316,12 @@ for (const runtime of [false, true]) {
     assert.equal(done.status, 'complete', done.stage);
     assert.deepEqual(done.skippedPages, []);
     assert.equal(done.warnings.some(text => /no text|pictures|blank/.test(text)), false, done.warnings.join(' | '));
+    const got = await h.call('materials.document.get', { id: done.documentId });
+    assert.deepEqual(got.skippedPages, [], 'persisted document must not leak learner-emptied page into skippedPages');
+    const historyRecord = (await h.call('mineru.history.list')).records.find(record => record.id === job.id);
+    assert.equal(historyRecord?.document?.skippedPages, undefined, 'mineru history document must not report learner-emptied page as skipped');
+    const snapSources = (await h.call('snapshot')).sources.filter(source => source.document?.materialId === done.documentId);
+    assert.ok(snapSources.length > 0 && snapSources.every(source => !source.document?.skippedPages?.length), 'snapshot sources must not carry learner-emptied skippedPages');
   });
 
   test(`${path}: 接着做 on a waiting job does not import behind the learner's back`, async t => {
