@@ -10,6 +10,7 @@ import { createFakeModel } from '../scripts/fake-model.mjs';
 import { launchChromium, skipMissingChromium } from '../scripts/qa/browser.mjs';
 import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { until } from '../scripts/qa/layout-late.mjs';
+import { FULL_TOUR_ORDER } from '../ui/tour/steps.js';
 import { gradeRowPaint, withoutScrollState } from './helpers/grade-row.mjs';
 
 /* Entering a practice round, the way a learner does it (the sidebar's 回到题目), with the sample course and the fake model in the browser preview.
@@ -406,6 +407,31 @@ test('#1679: at 420 wide, every page opened from the drawer takes the focus on i
       if (!later.heading || later.heading === home) wrong.push(`${id}: ${JSON.stringify(landed)} then ${JSON.stringify(later)}`);
     }
     assert.deepEqual(wrong, [], 'every destination keeps the focus on its heading');
+    assert.deepEqual(errors, [], 'no page errors');
+  } finally { await context.close(); }
+});
+
+/* The arrival's wait belongs to the arrival it was asked for. A tour started later switches pages by itself and keeps the focus on its card (its arrow keys
+   work only there): a drawer visit made before must not take it to the heading of the page the tour opens, which may still be loading its code. */
+test('#1679: after a visit through the drawer, the feature tour keeps the focus on its card on a page that loads late', { timeout: 600000 }, async (t) => {
+  const env = await setup(t);
+  if (!env) return;
+  const { context, page, errors } = await openPractice(env, { width: 420, height: 860 });
+  try {
+    const opener = page.getByRole('button', { name: '打开导航', exact: true }).first();
+    await opener.waitFor({ timeout: 30000 });
+    const { root } = await env.api('snapshot');
+    await page.evaluate(([key, value]) => localStorage.setItem(key, value), [`study-tour:${root}`, JSON.stringify({ stepId: 'dashboard', done: false, full: true, order: FULL_TOUR_ORDER })]);
+    await opener.click();
+    await page.locator('.nav-drawer[open] [data-tour="nav-settings"]').click();
+    await page.locator('.settings-nav__item[data-category="profile"]').click();
+    await page.getByRole('button', { name: /^继续功能导览/ }).click();
+    await page.locator('.tour-layer:not(.is-measuring) .tour-pop').waitFor({ timeout: 30000 });
+    // 学习统计 is opened for the first time here: its heading comes late. Give it time to draw, then see who holds the focus.
+    await page.locator('.dash-trend-panel, .dash-chart-box').first().waitFor({ timeout: 30000 });
+    await new Promise((done) => setTimeout(done, 1200));
+    assert.equal(await page.evaluate(() => !!document.activeElement?.closest('.tour-pop')), true,
+      `the focus is on the tour's card (it is on ${await page.evaluate(() => `${document.activeElement?.tagName} ${document.activeElement?.className}`)})`);
     assert.deepEqual(errors, [], 'no page errors');
   } finally { await context.close(); }
 });

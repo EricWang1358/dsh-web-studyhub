@@ -132,15 +132,16 @@ export function scrollToAnchor(element, options = {}, aborted = null) {
  * opening the folds around it (the page's own toggle handler hears it, as it would a click); an anchor that is a closed <details> itself is opened too,
  * because the control it stands for is inside. `opened` says a fold was opened, so the caller lets it finish drawing. A closed fold is no measure of
  * absence: the shared Disclosure keeps its content laid out inside a clipped box of no height, so an element in it still has a size. One that has none
- * (hidden by its page) is skipped for the next. An anchor that is not there yet may sit on a row of a long list that is drawn in chunks: the list is asked to draw it first.
+ * (hidden by its page) is skipped for the next. `openSelf` false opens only the folds around an anchor: the tour lights a closed
+ * <details> (a question's row) as it stands. An anchor that is not there yet may sit on a row of a long list that is drawn in chunks: the list is asked to draw it first.
  */
-export function locateAnchor(root, anchors) {
+export function locateAnchor(root, anchors, { openSelf = true } = {}) {
   if (root) askForRows(root, anchors);
   for (let index = 0; index < anchors.length; index += 1) {
     const element = root?.querySelector(`[data-tour="${anchors[index]}"]`);
     if (!element?.isConnected) continue;
     const folds = closedFolds(element);
-    if (element.tagName === 'DETAILS' && !element.open) folds.unshift(element);
+    if (openSelf && element.tagName === 'DETAILS' && !element.open) folds.unshift(element);
     if (!hasSize(element) && !folds.length) continue;
     for (const fold of folds.reverse()) fold.open = true;
     if (!hasSize(element)) continue;

@@ -255,3 +255,33 @@ test('the wrong-answer step opens the fold that holds 为你推荐 and lights it
     }
   } finally { await browser.close(); await rm(dist, { recursive: true, force: true }); }
 });
+
+test('the spot-check step lights the first question as a row and leaves it shut', { timeout: 600000 }, async (t) => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
+  scrubProcessEnv();
+  const dist = await mkdtemp(join(tmpdir(), 'study-tour-draft-dist-'));
+  await buildPreview({ outdir: dist });
+  const base = await mkdtemp(join(tmpdir(), 'study-tour-draft-'));
+  const server = await createPreviewServer({ libraryRoot: join(base, 'library'), home: join(base, 'home'), port: 0, model: createFakeModel({ latencyMs: 20 }), distDir: dist });
+  try {
+    await previewCall(server, 'sample.load', { language: 'zh' });
+    const { root } = await previewCall(server, 'snapshot', { uiLanguage: 'zh' });
+    const { page, errors, context } = await openPage(browser, { server }, { lang: 'zh', theme: 'light', width: 1440, height: 900 });
+    await page.goto(server.url);
+    await page.locator('.study-app').waitFor({ timeout: 30000 });
+    await page.evaluate(([key, value]) => localStorage.setItem(key, value), [`study-tour:${root}`, JSON.stringify({ stepId: 'draft-check', done: false, full: true, order: FULL_TOUR_ORDER })]);
+    await page.reload();
+    await page.locator('[data-tour="nav-settings"]').click();
+    await page.locator('.settings-nav__item[data-category="profile"]').click();
+    await page.getByRole('button', { name: /^继续功能导览/ }).click();
+    await page.locator('.tour-layer:not(.is-measuring) .tour-pop').waitFor({ timeout: 30000 });
+    await page.locator('.tour-spot').waitFor({ timeout: 15000 });
+    await settleAnimations(page);
+    await frames(page, 6);
+    await new Promise((done) => setTimeout(done, 800));
+    assert.equal(await page.locator('[data-tour="draft-question"]').evaluate((element) => element.open), false, 'the question row is not opened into its editor');
+    assert.deepEqual(errors, []);
+    await context.close();
+  } finally { await browser.close(); await server.close(); await rm(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); await rm(dist, { recursive: true, force: true }); }
+});

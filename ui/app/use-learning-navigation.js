@@ -7,7 +7,7 @@ import {
   ABORT, captureContext as captureOrigin, currentStudyReference as referenceOf, leavesTrail, loadLearningTarget, loadReturnTarget,
   openLearningTarget as openTarget, openReturnTarget, practiceArgs, returnTargetFor, withoutSelfReturn,
 } from '../learning-navigation.js';
-import { focusOnArrival } from './arrival-focus.js';
+import { ARRIVAL_WAIT_MS, focusOnArrival } from './arrival-focus.js';
 import {
   capturePracticeFrame, clearLastPracticePosition, originKindForDestination, peekPracticeFrame, popPracticeFrame, popToOriginalFrame,
   pushPracticeFrame, readLastPracticePosition, restorePracticeFrame, rootPracticeFrame, saveLastPracticePosition,
@@ -433,8 +433,11 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
   // (#1679: 回到题目 from the drawer while the question is on screen, where the focus would otherwise stay on the drawer's button and Space reopen it).
   // Not while the page on screen is still lifting away (nav.pageTarget): its heading would take the focus and drop it to the body as it goes.
   const focusRequest = lib.state.focusRequest;
+  // A request is for one arrival: it stays in the state, so a page change long after it must not start the wait again (it took the focus from the tour).
+  const asked = useRef({ request: null, at: 0 });
   useEffect(() => {
-    if (!focusRequest || nav.pageTarget) return undefined;
+    if (focusRequest && asked.current.request !== focusRequest) asked.current = { request: focusRequest, at: Date.now() };
+    if (!focusRequest || nav.pageTarget || Date.now() - asked.current.at > ARRIVAL_WAIT_MS) return undefined;
     // A page that put the learner back at a place of its own (the review book: the point they left) names its heading; that one takes the focus, where it is.
     const placedHeading = () => {
       const placed = rootRef.current?.querySelector('[data-return-focus]');
@@ -448,7 +451,7 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
         || (!rootRef.current?.querySelector('main .review-page') && shown('main .sh-page-header__title'))), (target) => {
       if (!target.matches('button,a,input,select,textarea,[tabindex]')) target.setAttribute('tabindex', '-1');
       target.focus(target === placedHeading() ? { preventScroll: true } : undefined);
-    });
+    }, { taken: () => !!rootRef.current?.ownerDocument.querySelector('.tour-layer') });
   }, [focusRequest, nav.page, nav.pageTarget]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const trail = lib.state.contextTrail;

@@ -180,8 +180,8 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
     const started = Date.now();
     const look = () => {
       if (!live) return;
-      // A fold the page keeps shut is opened (as 找功能 does): its content has a size while shut, and a spotlight on it would light nothing.
-      const found = locateAnchor(rootRef.current, anchors)?.element;
+      // A shut fold around the target is opened (as 找功能 does): its content has a size while shut, and a spotlight on it would light nothing.
+      const found = locateAnchor(rootRef.current, anchors, { openSelf: false })?.element;
       if (found) {
         targetRef.current = found;
         bringIntoView(found);
@@ -216,7 +216,7 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
     let element = targetRef.current;
     if (element && (!element.isConnected || !element.getBoundingClientRect().height || closedFolds(element).length)) {
       // The page re-rendered the anchor (or shut the fold around it); follow the new element.
-      element = locateAnchor(rootRef.current, anchors)?.element ?? null;
+      element = locateAnchor(rootRef.current, anchors, { openSelf: false })?.element ?? null;
       targetRef.current = element;
     }
     const view = layer.getBoundingClientRect();
