@@ -197,8 +197,10 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
       if (!live || moved || Date.now() - started >= ANCHOR_WAIT_MS + SETTLE_FOR_MS) return;
       const element = targetRef.current, view = layerRef.current?.getBoundingClientRect();
       if (element?.isConnected && view) {
-        const scale = layerScale(view, layerRef.current);
-        if (driftedOut(inLayer(element.getBoundingClientRect(), view, scale), { width: view.width / scale, height: view.height / scale })) bringIntoView(element);
+        const scale = layerScale(view, layerRef.current), sheet = popoverRef.current;
+        // Under the sheet along the bottom of a narrow panel is out of sight too: the room ends at the sheet.
+        const height = sheet?.classList.contains("tour-pop--dock") ? inLayer(sheet.getBoundingClientRect(), view, scale).top - DOCK_MARGIN : view.height / scale;
+        if (driftedOut(inLayer(element.getBoundingClientRect(), view, scale), { width: view.width / scale, height })) bringIntoView(element);
       }
       timer = setTimeout(hold, SETTLE_EVERY_MS);
     };

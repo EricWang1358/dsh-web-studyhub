@@ -107,6 +107,64 @@ test('#1712: the steps that open a page from the sidebar leave its title and fir
   }
 });
 
+/* The longest cards are the English ones, and a 420 px panel has the least room for them: on every step of the full tour the way on is in sight without
+   scrolling inside the card, and the sheet along the bottom does not lie on what the step lights. */
+test('the full tour in English at 420 px: 下一步 is always in sight and the sheet never lies on the lit area', { timeout: 600000 }, async (t) => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
+  scrubProcessEnv();
+  const dist = await mkdtemp(join(tmpdir(), 'study-tour-english-dist-'));
+  await buildPreview({ outdir: dist });
+  const base = await mkdtemp(join(tmpdir(), 'study-tour-english-'));
+  const server = await createPreviewServer({ libraryRoot: join(base, 'library'), home: join(base, 'home'), port: 0, model: createFakeModel({ latencyMs: 20 }), distDir: dist });
+  try {
+    await previewCall(server, 'sample.load', { language: 'en' });
+    const { page, errors, context } = await openPage(browser, { server }, { lang: 'en', theme: 'dark', width: 420, height: 860 });
+    await page.goto(server.url);
+    await page.locator('.study-app').waitFor({ timeout: 30000 });
+    await page.locator('[data-tour="nav-menu"]').click();
+    await page.locator('[data-tour="nav-settings"]').click();
+    await page.locator('.settings-nav__item[data-category="profile"]').click();
+    await page.getByRole('button', { name: 'See the full tour', exact: true }).click();
+    const failures = [];
+    let walked = 0;
+    for (; walked < 60; walked++) {
+      await page.locator('.tour-layer:not(.is-measuring) .tour-pop').waitFor({ timeout: 30000 });
+      let seen = null;
+      await until(async () => {
+        await settleAnimations(page);
+        await frames(page, 4);
+        const now = await page.evaluate(() => {
+          const pop = document.querySelector('.tour-pop'), spot = document.querySelector('.tour-spot');
+          const a = pop.getBoundingClientRect(), b = [...pop.querySelectorAll('.tour-pop__foot button')].at(-1).getBoundingClientRect(), s = spot?.getBoundingClientRect();
+          return { title: pop.querySelector('.tour-pop__title').textContent, count: pop.querySelector('.tour-pop__count').textContent,
+            onwardHidden: b.top < a.top - 1 || b.bottom > Math.min(a.bottom, innerHeight) + 1,
+            lies: !!s && Math.min(a.right, s.right) - Math.max(a.left, s.left) > 1 && Math.min(a.bottom, s.bottom) - Math.max(a.top, s.top) > 1,
+            card: [Math.round(a.top), Math.round(a.bottom)], spot: s ? [Math.round(s.top), Math.round(s.bottom)] : null };
+        });
+        const same = JSON.stringify(now) === JSON.stringify(seen);
+        seen = now;
+        return same;
+      }, 'the card and its page settle', { timeoutMs: 20000, intervalMs: 800 });
+      if (seen.onwardHidden) failures.push(`${seen.count} ${seen.title}: the way on is outside the card ${JSON.stringify(seen)}`);
+      if (seen.lies) failures.push(`${seen.count} ${seen.title}: the sheet lies on the lit area ${JSON.stringify(seen)}`);
+      const next = page.locator('.tour-pop').getByRole('button', { name: 'Next step', exact: true });
+      if (!await next.count()) break;
+      await next.click();
+      await until(async () => (await page.locator('.tour-pop__count').first().textContent().catch(() => '')) !== seen.count, `the tour leaves ${seen.count}`);
+    }
+    assert.ok(walked >= 30, `the whole full tour was walked (${walked + 1} steps)`);
+    assert.deepEqual(failures, []);
+    assert.deepEqual(errors, [], 'no console or page errors');
+    await context.close();
+  } finally {
+    await server.close();
+    await rm(base, { recursive: true, force: true, maxRetries: 20, retryDelay: 150 });
+    await browser.close();
+    await rm(dist, { recursive: true, force: true, maxRetries: 20, retryDelay: 150 });
+  }
+});
+
 /* The tour only reads: its board step shows 今日, where the day's plan block would save a proposal of its own the moment it is drawn. */
 test("the tour's steps over pages that save on arrival write nothing to the library", { timeout: 300000 }, async (t) => {
   let browser;
