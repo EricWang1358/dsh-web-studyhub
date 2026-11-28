@@ -107,12 +107,20 @@ function UnreadImageNotice({ page, text = '', omittedVisuals = [], skipped = fal
   const slide = isSlideFormat(format);
   const canRenderImage = !!unreadImages?.canRenderImage;
   const showVisionWarn = canHandOff && canChat && visionState === 'unsupported';
-  const what = canRenderImage
-    ? '把这一页的文字、本页图片和你的问题发给主会话'
-    : (slide ? '把这一张幻灯片的文字、页码和你的问题发给主会话' : '把这一页的文字、页码和你的问题发给主会话');
-  const copyWhat = canRenderImage
-    ? '把这一页的文字、你的问题和已存到工作区的页面截图路径复制到剪贴板，贴进 agy CLI 即可看图'
-    : (slide ? '把这一张幻灯片的文字、页码和你的问题复制到剪贴板，贴进 agy CLI 继续看图' : '把这一页的文字、页码和你的问题复制到剪贴板，贴进 agy CLI 继续看图');
+  const what = skipped
+    ? (canRenderImage
+      ? '把资料名、页码、本页图片和你的问题发给主会话'
+      : (slide ? '把资料名、幻灯片页码和你的问题发给主会话' : '把资料名、页码和你的问题发给主会话'))
+    : (canRenderImage
+      ? '把这一页的文字、本页图片和你的问题发给主会话'
+      : (slide ? '把这一张幻灯片的文字、页码和你的问题发给主会话' : '把这一页的文字、页码和你的问题发给主会话'));
+  const copyWhat = skipped
+    ? (canRenderImage
+      ? '把资料名、页码、你的问题和已存到工作区的页面截图路径复制到剪贴板，贴进 agy CLI 即可看图'
+      : (slide ? '把资料名、幻灯片页码和你的问题复制到剪贴板，贴进 agy CLI 继续看图' : '把资料名、页码和你的问题复制到剪贴板，贴进 agy CLI 继续看图'))
+    : (canRenderImage
+      ? '把这一页的文字、你的问题和已存到工作区的页面截图路径复制到剪贴板，贴进 agy CLI 即可看图'
+      : (slide ? '把这一张幻灯片的文字、页码和你的问题复制到剪贴板，贴进 agy CLI 继续看图' : '把这一页的文字、页码和你的问题复制到剪贴板，贴进 agy CLI 继续看图'));
   const buildInput = async () => {
     const handOff = {
       pages: 1,

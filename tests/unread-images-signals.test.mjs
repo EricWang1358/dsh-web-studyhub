@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseConvertedDocument } from '../lib/converted-document.js';
 import { withoutEmptied } from '../lib/converted-edit.js';
+import { parseLocalMarkdown } from '../lib/mineru-local.js';
+import { mergeChunkResults } from '../lib/mineru-merge.js';
 import { extractPptx } from '../lib/office/pptx.js';
 import { readZip } from '../lib/office/zip.js';
 import { Store } from '../lib/store.js';
@@ -371,4 +373,115 @@ test('[C38] legacy stored document without new fields loads cleanly and does not
 test('withoutEmptied keeps imagePages consistent when supplied while preserving legacy return shape when omitted', () => {
   assert.deepEqual(withoutEmptied({ skippedPages: [2, 3], warnings: [] }, [3]), { skippedPages: [2], warnings: [] });
   assert.deepEqual(withoutEmptied({ skippedPages: [2, 3], imagePages: [1, 3, 4], warnings: [] }, [3]), { skippedPages: [2], imagePages: [1, 4], warnings: [] });
+});
+
+test('local MinerU 4.x parseLocalMarkdown -> mergeChunkResults -> parseConvertedDocument detects [Figure] image pages while keeping [Figure] in text', () => {
+  const md = [
+    '<!-- page 1 of 4 -->',
+    '## 第一章 绪论',
+    '纯文字页。',
+    '<!-- page 2 of 4 -->',
+    '下图展示系统架构：',
+    '![Image block](doc:1/tier:basic/page:2/block:1)',
+    '<!-- page 3 of 4 -->',
+    '![Image block](doc:1/tier:basic/page:3/block:1)',
+    '<!-- page 4 of 4 -->',
+  ].join('\n');
+  const parsed = parseLocalMarkdown(md, { startPage: 1, endPage: 4, totalPages: 4 });
+  const merged = mergeChunkResults({
+    totalPages: 4,
+    chunks: [{ index: 0, startPage: 1, endPage: 4, format: 'v1', content: parsed.content }],
+  });
+  const book = parseConvertedDocument(JSON.stringify(merged.content), { filename: 'local-mineru4.json', totalPages: 4 });
+  assert.deepEqual(book.pages.map(p => p.page), [1, 2, 3]);
+  assert.deepEqual(book.skippedPages, [4]);
+  assert.deepEqual(book.imagePages, [2, 3]);
+  assert.equal(book.pages[0].hasImages, undefined);
+  assert.equal(book.pages[1].hasImages, true);
+  assert.equal(book.pages[1].imageCount, 1);
+  assert.match(book.pages[1].text, /\[Figure\]/, 'keeps [Figure] placeholder in text for 看原页 figure peek');
+  assert.equal(book.pages[2].hasImages, true);
+  assert.equal(book.pages[2].imageCount, 1);
+  assert.equal(book.pages[2].text.trim(), '[Figure]');
+
+  // Standalone [Figure]/[图]/[图片] lines in page-marked Markdown also count without being stripped.
+  const marked = [
+    '<!-- page: 1 -->',
+    '说明文字。',
+    '[Figure]',
+    '  [图]  ',
+    '<!-- page: 2 -->',
+    '[图片]',
+  ].join('\n');
+  const mdBook = parseConvertedDocument(marked, { filename: 'placeholders.md' });
+  assert.deepEqual(mdBook.imagePages, [1, 2]);
+  assert.equal(mdBook.pages[0].imageCount, 2);
+  assert.match(mdBook.pages[0].text, /\[Figure\]/);
+  assert.match(mdBook.pages[0].text, /\[图\]/);
+  assert.equal(mdBook.pages[1].imageCount, 1);
+  assert.match(mdBook.pages[1].text, /\[图片\]/);
+});
+
+test('MinerU v2 table and equation blocks with crop img_path/image_source do not falsely trigger imagePages', () => {
+  const v2 = [
+    [
+      { type: 'title', content: { title_content: [{ type: 'text', content: 'Linear Algebra' }], level: 1 }, img_path: 'images/title.png' },
+      { type: 'table', content: { html: '<table><tr><th>K</th><th>V</th></tr><tr><td>a</td><td>1</td></tr></table>', image_source: { path: 'images/table1.png' } } },
+      { type: 'equation', content: { math_content: 'Ax = b', image_source: { path: 'images/eq1.png' } } },
+      { type: 'equation_interline', img_path: 'images/eq2.png', content: { math_content: 'det(A) != 0' } },
+      { type: 'interline_equation', image_source: 'images/eq3.png', content: { math_content: 'x = A^{-1}b' } },
+      { type: 'paragraph', img_path: 'images/p1.png', content: { paragraph_content: [{ type: 'text', content: 'All structured blocks above were already extracted.' }] } },
+    ],
+    [
+      { type: 'paragraph', content: { paragraph_content: [{ type: 'text', content: 'Real figures below.' }] } },
+      { type: 'image', content: { image_source: { path: 'images/real-img.png' } } },
+      { type: 'figure', img_path: 'images/real-fig.png' },
+      { type: 'chart', content: {} },
+      { type: 'picture', content: {} },
+    ],
+  ];
+  const book = parseConvertedDocument(JSON.stringify(v2), { filename: 'mineru-v2-crops.json' });
+  assert.deepEqual(book.imagePages, [2]);
+  assert.equal(book.pages[0].hasImages, undefined);
+  assert.equal(book.pages[0].imageCount, undefined);
+  assert.match(book.pages[0].text, /\| K \| V \|/);
+  assert.match(book.pages[0].text, /Ax = b/);
+  assert.equal(book.pages[1].hasImages, true);
+  assert.equal(book.pages[1].imageCount, 4);
+});
+
+test('materials.document.import honors totalPages for trailing skipped pages and strips emptiedPages before persisting', async t => {
+  const { call, store } = await fixture(t);
+  const content = [
+    { type: 'text', text: 'Page 1 content.', page_idx: 0 },
+    { type: 'text', text: 'Page 2 content.', page_idx: 1 },
+  ];
+  const withTrailing = await call('materials.document.import', {
+    dataBase64: base64(JSON.stringify(content)),
+    filename: 'trailing.json',
+    totalPages: 4,
+  });
+  assert.deepEqual(withTrailing.skippedPages, [3, 4]);
+  const gotTrailing = await call('materials.document.get', { id: withTrailing.documentId });
+  assert.deepEqual(gotTrailing.skippedPages, [3, 4]);
+
+  const withEmptied = await call('materials.document.import', {
+    dataBase64: base64(JSON.stringify([
+      { type: 'text', text: 'Kept page 1.', page_idx: 0 },
+      { type: 'discarded', page_idx: 1 },
+      { type: 'text', text: 'Kept page 3.', page_idx: 2 },
+    ])),
+    filename: 'edited.json',
+    totalPages: 4,
+    emptiedPages: [2, 4],
+  });
+  assert.deepEqual(withEmptied.skippedPages, []);
+  assert.deepEqual(withEmptied.warnings, []);
+  const gotEmptied = await call('materials.document.get', { id: withEmptied.documentId });
+  assert.deepEqual(gotEmptied.skippedPages, []);
+  const state = await store.read();
+  const doc = state.documents.find(d => d.id === withEmptied.documentId);
+  assert.equal(doc.versions[0].skippedPages, undefined);
+  assert.equal(doc.versions[0].warnings, undefined);
+  assert.equal(doc.versions[0].totalPages, 4);
 });

@@ -10,8 +10,8 @@ The report moves nothing (#902): it is the data for deciding what could later go
 | Class | Modules |
 | --- | ---: |
 | Used by ui | 105 |
-| Used by several contexts | 72 |
-| Used by exactly one context | 134 |
+| Used by several contexts | 73 |
+| Used by exactly one context | 133 |
 | Used by none of these (other lib files, entry points, scripts and tests only) | 111 |
 
 ## Used by ui (105)
@@ -122,7 +122,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/token-usage.js`: 9 ui files; contexts audio, generation, jobs, materials, study; 13 other lib files
 - `lib/usage-registry.js`: 1 ui file; 2 other lib files
 
-## Used by several contexts (72)
+## Used by several contexts (73)
 
 - `lib/assessment-quality.js`: contexts authoring, generation; 9 other lib files
 - `lib/atomic-json.js`: contexts generation, library; 31 other lib files
@@ -136,6 +136,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/card-content.js`: contexts authoring, coach, study; 4 other lib files
 - `lib/coach-daily.js`: contexts coach, jobs, library
 - `lib/coach.js`: contexts coach, generation, study; 11 other lib files
+- `lib/converted-edit.js`: contexts audio, materials; 1 other lib file
 - `lib/course-active.js`: contexts generation, library; 12 other lib files
 - `lib/course-book-card-numbers.js`: contexts generation, study; 3 other lib files
 - `lib/course-book-confusables.js`: contexts generation, study; 3 other lib files
@@ -197,7 +198,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/usage-scope.js`: contexts authoring, coach, generation, materials, study, workflows; 9 other lib files
 - `lib/util.js`: contexts audio, authoring, bank, coach, generation, jobs, library, materials, notes, recording, skeleton, study; 47 other lib files
 
-## Used by exactly one context (134)
+## Used by exactly one context (133)
 
 - `lib/answer-card-materials.js`: context generation
 - `lib/answer-time.js`: context study
@@ -228,7 +229,6 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/card-schedule.js`: context study; 10 other lib files
 - `lib/case-types.js`: context generation; 3 other lib files
 - `lib/converted-chapter-stamps.js`: context materials; 3 other lib files
-- `lib/converted-edit.js`: context audio; 1 other lib file
 - `lib/course-book-ai.js`: context library; 1 other lib file
 - `lib/course-book-crunch.js`: context library; 1 other lib file
 - `lib/course-book-edit.js`: context library; 3 other lib files

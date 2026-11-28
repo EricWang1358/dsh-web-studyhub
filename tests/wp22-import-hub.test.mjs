@@ -19,7 +19,7 @@ const { default: ImportHub, routeImportFile, importAccept, runImport, importSumm
 const MB = 1024 * 1024;
 const han = /[㐀-鿿]/;
 const data = { root: 'lib', sources: [], decks: [], drafts: [], focus: { course: '操作系统', courses: [{ name: '操作系统' }] } };
-const render = props => renderToStaticMarkup(React.createElement(ImportHub, { data, call: async () => ({}), course: '操作系统', onCourseChange() {}, ...props }));
+const render = props => renderToStaticMarkup(React.createElement(ImportHub, { data, course: '操作系统', onCourseChange() {}, ...props }));
 const fake = (name, size, bytes = [1, 2, 3]) => ({ name, size, arrayBuffer: async () => new Uint8Array(bytes).buffer, text: async () => '' });
 
 test('Word and PowerPoint files (old .ppt too) are documents; other old formats are recognised as legacy', () => {
