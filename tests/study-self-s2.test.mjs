@@ -65,7 +65,7 @@ async function createLibrary(t) {
   return { root, service };
 }
 
-test('source-provenance: AI_DRAFTED_SOURCE & INDEPENDENT_SOURCE validation, explicit vs legacy title inference, and cited card counting', () => {
+test('source-provenance: independent-source, ai-drafted-unverified & json-card-self-reference validation, explicit vs legacy title inference, and cited card counting', () => {
   assert.equal(normalizeSourceProvenance(undefined), undefined);
   assert.equal(normalizeSourceProvenance(null), undefined);
   assert.equal(normalizeSourceProvenance(''), undefined);

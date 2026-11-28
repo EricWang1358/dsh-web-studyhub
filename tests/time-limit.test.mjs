@@ -189,21 +189,23 @@ test('nothing is drawn for a task whose record has no limit (an older record, an
   assert.equal(strip({ id: 'a', type: 'audio-import', status: 'running', startedAt: at(0), filename: 'x', members: [] }), '');
 });
 
-test('the link opens 设置 › 出题偏好 at the field of the limit: the strip calls openSettings with the one anchor the setting has', async () => {
+test('the link opens 设置 › 出题偏好 at the field of the limit: the strip and JobCard call openSettings with the one anchor the setting has', async () => {
   const ui = await loadInteractiveUi(`
     export { AppContext } from './ui/app/app-context.js';
     export { StudyServicesContext } from './ui/study-context.jsx';
     export { default as TimeLimit } from './ui/tasks/TimeLimit.jsx';
+    export { default as JobCard } from './ui/study-map/JobCard.jsx';
     export { default as GenerationSettings } from './ui/GenerationSettings.jsx';
+    export { LIMIT_ANCHOR } from './ui/tasks/time-limit.js';
     export { setUiLanguage } from './ui/i18n.js';
   `);
-  const { AppContext, StudyServicesContext, TimeLimit, GenerationSettings, setUiLanguage } = ui.exports;
+  const { AppContext, StudyServicesContext, TimeLimit, JobCard, GenerationSettings, LIMIT_ANCHOR, setUiLanguage } = ui.exports;
   const h = ui.React.createElement;
   const noop = () => {};
   const studyValue = { call: async () => ({}), act: async () => undefined, busy: false, notify: noop, askInChat: noop, host: {}, openSettings: noop, navigate: noop, openModal: noop };
-  const wrap = (settingsEntry, child) => () => h(
+  const wrap = (settingsEntry, child, studyOverrides = {}) => () => h(
     StudyServicesContext.Provider,
-    { value: studyValue },
+    { value: { ...studyValue, ...studyOverrides } },
     h(AppContext.Provider, { value: { data: {}, settingsEntry } }, child),
   );
 
@@ -249,13 +251,46 @@ test('the link opens 设置 › 出题偏好 at the field of the limit: the stri
         withoutEntry.unmount();
       }
 
+      const jobCardCalls = [];
+      const jobCardMount = ui.mount(wrap(
+        { openSettings: noop, openModelSettings: noop },
+        h(JobCard, { job: task, jobs: [task], drafts: [], data: { decks: [], jobs: [task] } }),
+        { openSettings: (section) => jobCardCalls.push(section) },
+      ));
+      try {
+        assert.deepEqual(jobCardCalls, [], 'rendering JobCard opens nothing');
+        const jobCardAdjust = jobCardMount.find((node) => node.type === 'button' && textOf(node).trim() === '调整时限');
+        assert.ok(jobCardAdjust, 'JobCard in time-limit failure state renders the 调整时限 button');
+        await jobCardMount.act(() => jobCardAdjust.props.onClick({}));
+        assert.deepEqual(jobCardCalls, [LIMIT_ANCHOR], 'JobCard 调整时限 invokes openSettings with exact LIMIT_ANCHOR');
+        assert.equal(jobCardCalls[0], calls[0], 'JobCard and TimeLimit pass the exact same settings anchor');
+      } finally {
+        jobCardMount.unmount();
+      }
+
+      const nonLimitTask = owner({ id: 'gen-quality-fail', stage: 'Quality gate failed' });
+      const nonLimitCard = ui.mount(wrap(
+        { openSettings: noop, openModelSettings: noop },
+        h(JobCard, { job: nonLimitTask, jobs: [nonLimitTask], drafts: [], data: { decks: [], jobs: [nonLimitTask] } }),
+        { openSettings: (section) => jobCardCalls.push(section) },
+      ));
+      try {
+        assert.equal(
+          nonLimitCard.find((node) => node.type === 'button' && textOf(node).trim() === '调整时限'),
+          null,
+          'JobCard omits 调整时限 for non-time-limit failures',
+        );
+      } finally {
+        nonLimitCard.unmount();
+      }
+
       const settings = ui.mount(wrap(
         { openSettings: noop, openModelSettings: noop },
         h(GenerationSettings, { root: '/lib/time-limit', saved: {} }),
       ));
       try {
-        const anchorField = settings.find((node) => node.props?.['data-tour'] === calls[0]);
-        assert.ok(anchorField, 'GenerationSettings emits the exact data-tour anchor that 调整时限 passes to openSettings');
+        const anchorField = settings.find((node) => typeof node.type === 'string' && node.props?.['data-tour'] === calls[0]);
+        assert.ok(anchorField, 'GenerationSettings emits the exact data-tour anchor on a DOM element that 调整时限 passes to openSettings');
         const timeoutInput = settings.find((node) => node.type === 'input' && node.props?.name === 'jobTimeoutMinutes', anchorField);
         assert.ok(timeoutInput, 'the deep-link anchor wraps the jobTimeoutMinutes field');
       } finally {
