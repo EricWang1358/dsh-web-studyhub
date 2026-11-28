@@ -15,7 +15,7 @@ export function useNavigation({ core, lib, motion, rootRef, initialPage = 'libra
   const [pageTarget, setPageTarget] = useState(null);
   const { setError } = core;
   const { setContextTrail, setExamRunId, setExamKind, setBoardStudyRef, setBoardCompose, setNoteInitialId, setGraphScope, setGraphMode, setSkeletonFocus, setManagedDeck,
-    setFolderDraft, setWorkflowReturn, setTaskFocus } = lib.set;
+    setFolderDraft, setWorkflowReturn, setTaskFocus, setStartConfirm } = lib.set;
   const motionRef = useRef(motion), pageRef = useRef(page), referenceRef = useRef(() => null), leaveReviewRef = useRef(null);
   motionRef.current = motion;
   pageRef.current = page;
@@ -46,12 +46,13 @@ export function useNavigation({ core, lib, motion, rootRef, initialPage = 'libra
   }), []);
   useEffect(() => () => clearTimeout(refs.leaveTimer.current), [refs]);
   const navigate = useCallback((id, options) => gate.leave(id, () => {
+    setStartConfirm?.(null);
     if (pageRef.current === 'review' && id !== 'review') leaveReviewRef.current?.(id, options);
     navigator.navigate(id, options);
-  }), [gate, navigator]);
+  }), [gate, navigator, setStartConfirm]);
   const show = useMemo(() => {
     // The page's own state is set only once the learner has agreed to leave.
-    const to = (id, before) => gate.leave(id, () => { before?.(); rawSetPage(id); });
+    const to = (id, before) => gate.leave(id, () => { setStartConfirm?.(null); before?.(); rawSetPage(id); });
     // Both ways onto the deck page start its course box from the deck on screen: a box left over from another deck would save that course onto this one.
     const manage = (deck) => to('manage', () => { setManagedDeck(deck); setFolderDraft(deckCourseOf(deck)); });
     return {
@@ -65,7 +66,7 @@ export function useNavigation({ core, lib, motion, rootRef, initialPage = 'libra
       library: () => to('library'),
       page: (id) => to(id),
     };
-  }, [gate, setNoteInitialId, setSkeletonFocus, setManagedDeck, setFolderDraft, setWorkflowReturn, setTaskFocus, setExamKind, setExamRunId, rawSetPage]);
+  }, [gate, setNoteInitialId, setSkeletonFocus, setManagedDeck, setFolderDraft, setWorkflowReturn, setTaskFocus, setExamKind, setExamRunId, setStartConfirm, rawSetPage]);
   const setPage = show.page;
   const forcePage = useCallback((id) => rawSetPage(id), [rawSetPage]);
   // A change that is no page but replaces the one on screen (a link that first switches the course) asks before it starts.

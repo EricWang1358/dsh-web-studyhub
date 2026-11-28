@@ -7,7 +7,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { reviewElement } from './helpers/review-render.mjs';
-import { loadInteractiveUi, withBrowserGlobals } from './helpers/react-harness.mjs';
+import { loadInteractiveUi, withBrowserGlobals, click } from './helpers/react-harness.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 
 const require = createRequire(import.meta.url);
@@ -300,6 +300,40 @@ test('reader moreItems and DocumentViewer stay uncluttered after InkScratchpad r
     export { default as DocumentViewer } from './ui/document-preview/DocumentViewer.jsx';
     export { setUiLanguage } from './ui/i18n.js';
   `);
+  const interactiveViewer = await loadInteractiveUi(`
+    export { default as DocumentViewer } from './ui/document-preview/DocumentViewer.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  const hi = interactiveViewer.React.createElement;
+  const nonLocalSource = {
+    id: 'src-1',
+    title: 'Linear Algebra Notes',
+    text: 'Chapter 1: Vector spaces and linear independence.',
+    format: 'pdf',
+    document: { page: 1, totalPages: 1, format: 'pdf' },
+  };
+  const nonLocalCall = async (action) => {
+    if (action === 'materials.document.get') {
+      return {
+        id: 'doc-1',
+        documentId: 'doc-1',
+        revision: 'rev-1',
+        title: 'Linear Algebra Notes',
+        format: 'pdf',
+        originalAvailable: false,
+        sources: [nonLocalSource],
+      };
+    }
+    if (action === 'materials.links.list') return { links: [] };
+    if (action === 'materials.annotation.list') return { items: [], stale: [] };
+    if (action === 'materials.marks.list') return { items: [], stale: [] };
+    if (action === 'runtime.capabilities') return [];
+    if (action === 'snapshot') return { sources: [nonLocalSource], courses: [], decks: [] };
+    return {};
+  };
+  const viewerStudy = { call: nonLocalCall, act: async () => undefined, busy: false, notify: () => {}, host: {} };
+
   try {
     for (const lang of ['zh', 'en']) {
       m.setUiLanguage(lang);
@@ -332,9 +366,59 @@ test('reader moreItems and DocumentViewer stay uncluttered after InkScratchpad r
       if (lang === 'en') {
         assert.doesNotMatch(viewerHtml.replace(/<[^>]*>/g, ' '), hanRe, 'en DocumentViewer localContent SSR has zero Han characters');
       }
+
+      // 4) Interactive mount of DocumentViewer in non-local mode (!localMode) with 更多 menu opened.
+      await withBrowserGlobals(async () => {
+        interactiveViewer.exports.setUiLanguage(lang);
+        const mounted = interactiveViewer.mount(() => hi(
+          interactiveViewer.exports.StudyServicesContext.Provider,
+          { value: viewerStudy },
+          hi(interactiveViewer.exports.DocumentViewer, {
+            source: nonLocalSource,
+            call: nonLocalCall,
+            data: { sources: [nonLocalSource], courses: [], decks: [] },
+            onGenerate: () => {},
+            onOpenCompanion: () => {},
+          }),
+        ));
+        try {
+          await mounted.flush(6);
+          const toolbar = mounted.find((n) => n.type === 'div' && n.props?.className === 'reader-toolbar');
+          assert.ok(toolbar, `${lang}: non-local DocumentViewer mounts .reader-toolbar`);
+          const moreBtn = mounted.find((n) => n.type === 'button' && n.props?.['aria-haspopup'] === 'menu', toolbar);
+          assert.ok(moreBtn, `${lang}: non-local DocumentViewer renders 更多 menu trigger`);
+
+          await mounted.act(() => click(moreBtn));
+          await mounted.flush(4);
+
+          const menuEl = mounted.find((n) => n.type === 'div' && n.props?.role === 'menu');
+          assert.ok(menuEl, `${lang}: clicking 更多 opens the reader menu`);
+          const menuItems = mounted.findAll(
+            (n) => n.type === 'button' && (n.props?.role === 'menuitem' || n.props?.role === 'menuitemcheckbox'),
+            menuEl,
+          );
+          assert.ok(menuItems.length >= 4, `${lang}: 更多 menu lists reader items (got ${menuItems.length})`);
+
+          const toolbarText = mounted.text(toolbar);
+          const menuText = mounted.text(menuEl);
+          assert.doesNotMatch(toolbarText, /毛笔草稿纸|草稿纸|scratchpad/i, `${lang}: non-local toolbar has zero scratchpad controls`);
+          assert.doesNotMatch(menuText, /毛笔草稿纸|草稿纸|scratchpad/i, `${lang}: non-local 更多 menu has zero scratchpad items`);
+          for (const btn of mounted.findAll((n) => n.type === 'button')) {
+            const label = [mounted.text(btn), btn.props?.['aria-label'] || '', btn.props?.title || ''].join(' ');
+            assert.doesNotMatch(label, /毛笔草稿纸|草稿纸|scratchpad/i, `${lang}: no button carries scratchpad label/aria`);
+          }
+          if (lang === 'en') {
+            assert.doesNotMatch(toolbarText, hanRe, 'en non-local DocumentViewer toolbar has zero Han characters');
+            assert.doesNotMatch(menuText, hanRe, 'en non-local DocumentViewer 更多 menu has zero Han characters');
+          }
+        } finally {
+          mounted.unmount();
+        }
+      });
     }
   } finally {
     m.setUiLanguage('zh');
     setViewerLang('zh');
+    interactiveViewer.exports.setUiLanguage('zh');
   }
 });

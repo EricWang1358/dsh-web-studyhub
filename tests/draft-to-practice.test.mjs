@@ -129,13 +129,38 @@ test('the finished card of a clean draft says 发布并开始练, and keeps 检�
   assert.match(text(draw(done(), { language: 'en' })), /Publish and practise/);
 });
 
-test('every other finished card keeps its own button: a draft with something missing, a next part, a failed run', () => {
-  assert.doesNotMatch(draw(done(), { all: false }), /发布并开始练/, 'sections without a question: the card offers the top-up, not publication');
+test('every other finished card keeps its own button: a planned draft stopped short of sections, a next part, a failed run', () => {
+  // A planned coverage run that stopped with uncovered sections still offers top-up, not publication.
+  const plannedStopped = cleanDraft({
+    editorial: {
+      coverageSpec: { version: 1, level: 'lean', goal: 6, leaves: small.ids.length, mustCover: 6, weightSource: 'length', weights: [], quotas: [],
+        rounds: [{ round: 1, questions: 3, sectionIds: small.ids.slice(0, 2), status: 'done' }, { round: 2, questions: 3, sectionIds: small.ids.slice(2, 4), status: 'pending' }] },
+      coverageRun: { jobId: 'j1', autoComplete: false, state: 'waiting', startedAt: '2026-10-06T10:00:00.000Z', tokensUsed: 100 },
+    },
+  });
+  const plannedHtml = draw(done(), { draft: plannedStopped, all: false, props: { topUpDraft: noop } });
+  assert.doesNotMatch(plannedHtml, /发布并开始练/, 'planned run with sections still waiting: offers top-up, not publication');
+  assert.match(buttons(plannedHtml).join('|'), /为没覆盖的部分补题/);
   const html = draw(done(), { draft: cleanDraft({ editorial: { rejectedIssues: { c1: ['x'] } } }) });
   assert.doesNotMatch(html, /发布并开始练/);
   assert.match(buttons(html).join('|'), /检查草稿/);
   assert.doesNotMatch(draw(done(), { app: { drafts: {} } }), /发布并开始练/, 'a host without the publish action does not draw a button that cannot work');
   assert.doesNotMatch(draw(done({ status: 'failed', stage: 'boom' })), /发布并开始练/);
+});
+
+test('#1649: a completed plain count run with uncovered sections offers 发布并开始练 (or 检查草稿 if unreviewed), never 为没覆盖的部分补题 as primary', () => {
+  // Clean & reviewed plain count run (3/3 requested) with uncovered sections left: primary is 发布并开始练, quiet link is 检查草稿.
+  const cleanHtml = draw(done(), { all: false, props: { topUpDraft: noop } });
+  assert.match(cleanHtml, /class="[^"]*cjc__go[^"]*"[^>]*>(?:(?!<\/button>)[\s\S])*发布并开始练/);
+  assert.doesNotMatch(buttons(cleanHtml).join('|'), /为没覆盖的部分补题/);
+  const links = cleanHtml.match(/<div class="cjc__links"[\s\S]*?<\/div>/)?.[0] || '';
+  assert.match(text(links), /检查草稿/);
+  // Unreviewed plain count run (3/3 requested) with uncovered sections left: primary is 检查草稿, not 为没覆盖的部分补题.
+  const unreviewed = cleanDraft();
+  delete unreviewed.editorial.reviewedCards;
+  const unreviewedHtml = draw(done(), { draft: unreviewed, all: false, props: { topUpDraft: noop } });
+  assert.match(unreviewedHtml, /class="[^"]*cjc__go[^"]*"[^>]*>(?:(?!<\/button>)[\s\S])*检查草稿/);
+  assert.doesNotMatch(buttons(unreviewedHtml).join('|'), /发布并开始练|为没覆盖的部分补题/);
 });
 
 test('where the card is all the screen has of the draft, a button that is something else keeps 检查草稿 as the quiet way in, and never says it twice', () => {

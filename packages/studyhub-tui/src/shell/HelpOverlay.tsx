@@ -40,7 +40,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'o', label: t(lang, '题组导入/AI建议/合并拆分', 'Deck import/AI suggest/merge') },
         { key: '[ / ]', label: t(lang, '上移/下移题组顺序', 'Reorder deck up/down') },
         { key: 'R', label: t(lang, '定制本轮练习', 'Custom round config') },
-        { key: 'm: + / k', label: t(lang, '题组补题 / 转换题型', 'Deck supplement / convert') },
+        { key: 'm: + / v', label: t(lang, '题组补题 / 转换题型', 'Deck supplement / convert') },
         { key: 'm: Space/F/S', label: t(lang, '题组批量重点/暂停', 'Deck batch focus/suspend') },
         { key: 'm: T', label: t(lang, '题组批量改主题', 'Deck batch retag topic') },
         { key: 'm: L', label: t(lang, '题组批量关联前置', 'Deck batch link prereq') },

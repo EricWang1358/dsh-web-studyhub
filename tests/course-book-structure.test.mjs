@@ -670,3 +670,83 @@ test('one file of the book holds up to FILE_TEXT_MAX characters (2 000 000, #458
   assert.match(refused.code, /^course-book-text-/);
   assert.match(refused.message, /2000000/);
 });
+
+test('#1508-5: renaming or undoing a rename of a forked point never offers a false generated suggestion; genuine note updates still do', async t => {
+  const { study } = await bookService(t);
+  const toc = await study.call('book.toc'), what = toc.toc[1], who = toc.toc[2];
+  const initial = await study.call('course.book.open');
+  const gen = leafOf(initial, what.hid).files.gen;
+  const handwritten = '**讲解**\n\n我亲手重写的架构师职责讲解，含考前易错点。';
+  await study.call('course.book.save', { file: gen, text: handwritten, version: initial.files[gen].version });
+
+  // Rename the forked point (including a title containing `·`): must keep handwritten text and offer NO false suggestion.
+  let book = await study.call('course.book.rename', { hid: what.hid, title: '架构师职责 · 进阶', version: toc.structureVersion, answer: 'book' });
+  assert.equal(book.write, 'renamed');
+  assert.equal(leafOf(book, what.hid).gen, handwritten, 'handwritten explanation stays untouched after rename');
+  assert.equal(book.files[gen].forked, true);
+  assert.deepEqual(book.files[gen].suggestions, [], 'rename must not offer a false generated suggestion for a footer-only title change');
+
+  // Re-opening after rename is a no-op (no stale diff left behind).
+  const reopened = await study.call('course.book.open');
+  assert.equal(reopened.changed, false);
+  assert.deepEqual(reopened.files[gen].suggestions, []);
+
+  // Undoing the rename must also NOT trigger a secondary false suggestion.
+  book = await study.call('course.book.revert', { file: STRUCTURE_FILE, answer: 'book' });
+  assert.equal(book.write, 'reverted');
+  assert.equal(leafOf(book, what.hid).gen, handwritten);
+  assert.equal(book.files[gen].forked, true);
+  assert.deepEqual(book.files[gen].suggestions, [], 'undoing a rename must not offer a false generated suggestion either');
+
+  // A forked point whose generated file had NO notes body (footer links line only) is also safe across rename.
+  await study.store.update(state => {
+    const notes = state.sources.find(source => source.provenance === 'course-outline-notes');
+    notes.courseNotes.leaves = notes.courseNotes.leaves.filter(leaf => leaf.id !== 'who');
+  });
+  const emptyNotesBook = await study.call('course.book.open');
+  const whoGen = leafOf(emptyNotesBook, who.hid).files.gen;
+  const whoHandwritten = '利益相关者手写总结。';
+  await study.call('course.book.save', { file: whoGen, text: whoHandwritten, version: emptyNotesBook.files[whoGen].version });
+  book = await study.call('course.book.rename', { hid: who.hid, title: '干系人分析', version: emptyNotesBook.structureVersion, answer: 'book' });
+  assert.equal(leafOf(book, who.hid).gen, whoHandwritten);
+  assert.equal(book.files[whoGen].forked, true);
+  assert.deepEqual(book.files[whoGen].suggestions, [], 'footer-only generated file without notes must not offer a false suggestion on rename');
+
+  // Genuine note regeneration still offers a real generated suggestion, and renaming while that suggestion waits keeps it in sync so accepting unforks cleanly.
+  await study.store.update(state => {
+    const notes = state.sources.find(source => source.provenance === 'course-outline-notes');
+    const leaf = notes.courseNotes.leaves.find(item => item.id === 'what');
+    leaf.body = { ...leaf.body, explain: '全新的生成讲解内容。' };
+  });
+  let updated = await study.call('course.book.open');
+  assert.equal(leafOf(updated, what.hid).gen, handwritten, 'learner text still preserved when genuine update arrives');
+  assert.equal(updated.files[gen].suggestions.length, 1);
+  assert.equal(updated.files[gen].suggestions[0].kind, 'generated');
+  assert.match(updated.files[gen].suggestions[0].text, /全新的生成讲解内容。/);
+
+  // Rename while the genuine suggestion is pending: no duplicate suggestion, footer updated, accepting unforks cleanly.
+  book = await study.call('course.book.rename', { hid: what.hid, title: '架构决策与权衡', version: updated.structureVersion, answer: 'book' });
+  assert.equal(book.files[gen].suggestions.length, 1, 'renaming with a pending generated suggestion must not duplicate it');
+  assert.match(book.files[gen].suggestions[0].text, /练 5 道：架构决策与权衡/);
+  const accepted = await study.call('course.book.suggestion', { file: gen, id: book.files[gen].suggestions[0].id, action: 'accept', version: book.files[gen].version });
+  assert.equal(accepted.write, 'accepted');
+  assert.equal(accepted.files[gen].forked, false, 'accepting the synced suggestion unforks cleanly');
+  assert.match(leafOf(accepted, what.hid).gen, /全新的生成讲解内容。/);
+  assert.match(leafOf(accepted, what.hid).gen, /练 5 道：架构决策与权衡/);
+
+  // Ignored suggestion must not resurrect after renaming and undoing rename.
+  await study.call('course.book.save', { file: gen, text: handwritten, version: accepted.files[gen].version });
+  await study.store.update(state => {
+    const notes = state.sources.find(source => source.provenance === 'course-outline-notes');
+    const leaf = notes.courseNotes.leaves.find(item => item.id === 'what');
+    leaf.body = { ...leaf.body, explain: '将被忽略的生成内容。' };
+  });
+  updated = await study.call('course.book.open');
+  assert.equal(updated.files[gen].suggestions.length, 1);
+  const ignored = await study.call('course.book.suggestion', { file: gen, id: updated.files[gen].suggestions[0].id, action: 'ignore', version: updated.files[gen].version });
+  assert.deepEqual(ignored.files[gen].suggestions, []);
+  book = await study.call('course.book.rename', { hid: what.hid, title: '架构决策复盘', version: ignored.structureVersion, answer: 'book' });
+  assert.deepEqual(book.files[gen].suggestions, [], 'ignored suggestion must not reappear on rename');
+  book = await study.call('course.book.revert', { file: STRUCTURE_FILE, answer: 'book' });
+  assert.deepEqual(book.files[gen].suggestions, [], 'ignored suggestion must not reappear on undo rename');
+});

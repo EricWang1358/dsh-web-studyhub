@@ -10,6 +10,7 @@ import { megabytes } from '../lib/office/limits.js';
 import { useCopyFeedback } from './use-copy-feedback.js';
 import { LARGE_DOCUMENT_LIMITS, TOOLS, VERIFIED_AT, mcpConfigSnippet } from '../lib/large-documents.js';
 import ExtensionPanel from './ExtensionPanel.jsx';
+import { ConvertedFileFormats, toolMetaLine } from './PdfExternalConvertGuide.jsx';
 import { PdfConversion } from './pdf-conversion-lazy.jsx';
 import { HandOff } from './hand-off/HandOff.jsx';
 import { hasChatHost } from './hand-off/use-hand-off.js';
@@ -74,7 +75,7 @@ export function ToolCard({ tool }) {
         {NEEDS[tool.needs] && <Badge size="sm">{NEEDS[tool.needs]()}</Badge>}
       </header>
       <p className="large-doc__summary">{SUMMARY[tool.id]()}</p>
-      <p className="large-doc__meta">{[ui(tool.license), tool.platforms.join(' / '), ...(tool.outputs ? [tool.outputs.join(', ')] : [])].join(' · ')}</p>
+      <p className="large-doc__meta">{toolMetaLine(tool)}</p>
       <ul className="large-doc__channels" aria-label={uiFormat('{0} 的下载渠道', [ui(tool.name)])}>
         {tool.channels.map(channel => <li key={channel.url}>
           <a href={channel.url} target="_blank" rel="noreferrer">{ui(channel.label)}<Icon className="sh-icon--inline" name="external" /></a>
@@ -97,7 +98,7 @@ export const converterHandOffWhat = (scanned, canChat = true) => (canChat
     ? '复制提示词，方便你在外部 AI 工具里把这份扫描件转成文字后再导入'
     : '复制提示词，方便你在外部 AI 工具里把这份 PDF 按章拆分后再导入'));
 
-const PADDLEOCR_URL = 'https://www.paddleocr.ai';
+const PADDLEOCR_URL = byId('paddleocr').channels[0].url;
 
 /** Option 2 for large PDFs: zero-install online conversion via PaddleOCR, with clear 3-step import instructions and privacy notice. */
 export function PaddleOcrOption() {
@@ -115,11 +116,7 @@ export function PaddleOcrOption() {
           <a href={PADDLEOCR_URL} target="_blank" rel="noreferrer">paddleocr.ai<Icon className="sh-icon--inline" name="external" /></a>
           {ui('，上传这份 PDF 并开始解析')}
         </li>
-        <li>
-          {ui('解析完成后，下载 JSON 结果文件（或带')}{' '}
-          <code>{'<!-- page: N -->'}</code>{' '}
-          {ui('页码标记的 Markdown）')}
-        </li>
+        <li><ConvertedFileFormats /></li>
         <li>{ui('回到「添加资料」，把下载的文件直接拖进上面的虚线框，StudyHub 会自动按页保存并分章节')}</li>
       </ol>
       <p className="large-doc__meta">{ui('Apache-2.0 · 免费额度与页数上限以 PaddleOCR 官方页面为准')}</p>

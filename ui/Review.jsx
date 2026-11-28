@@ -148,7 +148,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   usePinQuestion(pageRef, run);
   // 对照栏 (#1012): on a wide page a source opened from the question docks beside it (ui/review/use-source-dock.jsx); its openModal is the page's.
   const rail = !run.complete && run.navigation?.length > 0;
-  const dock = useSourceDock({ pageRef, rail, run, sources: data?.sources, study, readerDialogOpen: readerOpen(app?.lib?.modal), modalOpen: !!app?.lib?.modal });
+  const dock = useSourceDock({ pageRef, rail, run, sources: data?.sources, study, readerDialogOpen: readerOpen(app?.lib?.modal), modalOpen: !!(app?.lib?.modal || app?.lib?.startConfirm) });
   const openModal = dock.services.openModal;
   const { docked: dockDocked, focusColumn: focusSourceColumn } = dock;
   React.useEffect(() => {

@@ -30,6 +30,7 @@ export interface ModelsTabProps {
   isActive: boolean;
   onRefreshConfig: () => Promise<void>;
   onEditingChange?: (editing: boolean) => void;
+  onPreferencesSave?: (pending: Promise<void>) => void;
 }
 
 type RouteSelection =
@@ -51,6 +52,7 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
   isActive,
   onRefreshConfig,
   onEditingChange,
+  onPreferencesSave,
 }) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
@@ -269,7 +271,15 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
     if (res.ok) {
       setPreferences({ lastOpenAiPreset: openaiPresetId });
       const dshHome = (host as { dshHome?: string }).dshHome;
-      void saveTuiPreferences({ lastOpenAiPreset: openaiPresetId }, dshHome ? { env: { DSH_HOME: dshHome } } : undefined).catch(() => {});
+      const prefSave = saveTuiPreferences(
+        { lastOpenAiPreset: openaiPresetId },
+        dshHome ? { env: { DSH_HOME: dshHome } } : undefined,
+      ).then(
+        () => undefined,
+        () => undefined,
+      );
+      onPreferencesSave?.(prefSave);
+      await prefSave;
     }
     await onRefreshConfig();
     if (!mountedRef.current) return;
@@ -284,6 +294,7 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
     host,
     lang,
     notify,
+    onPreferencesSave,
     onRefreshConfig,
     openaiApiKey,
     openaiBaseUrl,

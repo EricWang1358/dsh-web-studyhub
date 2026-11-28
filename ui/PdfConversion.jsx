@@ -6,6 +6,7 @@ import { isConvertJob, localEstimate, minutesOf, pageRange } from './mineru-flow
 import { canPickNative, isNativeSource, pickNativePdf, prepareSource, sourceArgs } from './pdf-source.js';
 import { formatBytes } from './components/FileDrop.jsx';
 import { PdfConvertHistory } from './PdfConvertJob.jsx';
+import PdfExternalConvertGuide from './PdfExternalConvertGuide.jsx';
 import css from './mineru.css';
 import { useMineruState } from './use-mineru.js';
 import { STATUS_TEXT, cardState, mineruUsable } from './mineru-install-flow.js';
@@ -257,6 +258,8 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
       {!showSwitcherInline && <Disclosure summary={ui('换用其他本机引擎：Marker')} meta={ui('备选')} className="mineru-more">
         {compact ? compactSwitcher : tools}
       </Disclosure>}
+
+      {!compact && <PdfExternalConvertGuide />}
 
       {!compact && available && <PdfConvertHistory jobs={jobs} collapsible defaultOpen={historyOpen} initialRecords={initialHistory} now={historyNow}
         onOpenSources={onOpenSources} onOpenJob={onOpenJob} onOpenSettings={onOpenSettings} onChanged={onChanged} className="mineru-history" />}

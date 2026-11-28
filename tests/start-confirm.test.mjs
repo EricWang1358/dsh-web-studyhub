@@ -11,6 +11,7 @@ const ui = await loadInteractiveUi(`
   export { dailyPathArgs } from './ui/study-map/home-plan.js';
   export { useLibraryState } from './ui/app/library-state.js';
   export { ModalRouter } from './ui/app/AppModalHost.jsx';
+  export { topDialog } from './ui/components/dialog-stack.js';
   export { default as DeckRow } from './ui/study-map/DeckRow.jsx';
   export { AppContext } from './ui/app/app-context.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
@@ -26,13 +27,22 @@ const tree = { selected: new Set(), toggleOpen() {}, toggleSelect() {} };
 const deckArgs = { mode: 'path', scope: [{ deckId: 'd1' }] };
 const topicArgs = { mode: 'path', scope: [{ deckId: 'd1', topic: 'Memento' }] };
 
+function makeFocusable(name) {
+  return {
+    name,
+    tagName: 'BUTTON',
+    isConnected: true,
+    focus() { globalThis.document.activeElement = this; },
+  };
+}
+
 /** The three places, wired as the app wires them. `world` is what changes under the page: the snapshot, the open runs, the busy flag. */
 function mountPlaces({ data = {}, runs = [], busy = false, page = 'library', run = null } = {}) {
   const calls = [], leaves = [], generated = [];
   const enterRun = () => {};
-  const world = { data: { root: '/lib/a', decks: [deck], today, lastRun: null, ...data }, runs, busy };
+  const world = { data: { root: '/lib/a', decks: [deck], sources: [], today, lastRun: null, ...data }, runs, busy };
   const dataRef = { current: world.data };
-  const core = { act: (...args) => { calls.push(args); return Promise.resolve(); }, setError() {}, refs: { dataRef } };
+  const core = { call: async () => ({}), act: (...args) => { calls.push(args); return Promise.resolve(); }, notify() {}, refresh: async () => {}, setError() {}, refs: { dataRef } };
   const nav = { page, leaving: (go) => { leaves.push(go); }, navigate: (to) => { generated.push(to); }, show: { deck() {} } };
   const session = { run, enterRun };
   const learn = { rememberContext() {} };
@@ -44,19 +54,22 @@ function mountPlaces({ data = {}, runs = [], busy = false, page = 'library', run
   function Places() {
     const [lib, set] = m.useLibraryState({ gen: {}, settings: {} });
     const intents = m.useIntents({ core, lib: { state: lib, set }, nav, session, learn });
-    app = { data: world.data, lib, set, intents, session, core, nav };
+    app = { data: world.data, host: {}, dailyPlan: null, selectionNotices: {}, settingsEntry: { openSettings() {}, openModelSettings() {} }, drafts: {}, lib, set, intents, session, core, nav, learn };
     const actions = { start: intents.startReview, confirmStart: intents.confirmStart, resume: intents.openRun, manage: () => {} };
     return h(m.StudyServicesContext.Provider, { value: { busy: world.busy, call: async () => ({}), act: async () => {}, notify() {}, askInChat() {}, host: {} } },
       h(m.AppContext.Provider, { value: app }, h(Rows, { actions }), h(m.ModalRouter)));
   }
   const mounted = ui.mount(() => h(Places));
   const nodes = (pred) => mounted.findAll(pred);
-  const dialog = () => nodes((node) => node.type === 'dialog')[0] || null;
+  const dialog = () => nodes((node) => node.type === 'dialog' && String(node.props.className || '').includes('confirm-start'))[0] || null;
+  const readerDialog = () => nodes((node) => node.type === 'dialog' && String(node.props.className || '').includes('source-preview'))[0] || null;
   const buttonIn = (root, label) => mounted.find((node) => node.type === 'button' && textOf(node).trim() === label, root);
   return {
     mounted, calls, leaves, generated, enterRun, world,
     get app() { return app; },
     dialog,
+    readerDialog,
+    dialogs: () => nodes((node) => node.type === 'dialog'),
     /** The ▶ of the deck row, or of its topic row. */
     play: (row) => nodes((node) => node.type === 'button' && String(node.props.className || '').startsWith('map-play'))[row === 'topic' ? 1 : 0],
     confirmButton: (label = '开始练习') => buttonIn(dialog(), label),
@@ -211,6 +224,7 @@ test('a pending confirmation does not survive another library, and starts nothin
       places.snapshot({ root: '/lib/b' });
       await places.act(() => {});
       assert.equal(places.dialog(), null, 'the dialog is gone with the library it asked about');
+      assert.equal(places.app.lib.startConfirm, null, 'and no hidden confirmation is left to hold the keys');
       assert.equal(places.app.lib.modal, null, 'and no hidden modal is left to hold the keys');
       // A press that was already under way still starts nothing.
       await places.act(() => stale.props.onClick({}));
@@ -261,7 +275,152 @@ test('the dialog speaks English on an English page', () => withBrowserGlobals(as
     assert.match(seen[1], /Start practising the topic “Memento”\?/);
     assert.match(seen[2], /Start today’s study\?/);
     assert.match(seen[2], /There is no unfinished practice right now\./);
+    // Also check English when an unfinished round appears while the dialog is open.
+    const livePlaces = mountPlaces();
+    try {
+      await livePlaces.act(() => livePlaces.app.intents.resumeOrStart());
+      livePlaces.snapshot({ lastRun: { id: 'run-en' } });
+      await livePlaces.act(() => {});
+      assert.ok(livePlaces.confirmButton('Continue learning') && livePlaces.cancelButton('Cancel'));
+      const resumeText = textOf(livePlaces.dialog());
+      assert.match(resumeText, /Resume unfinished practice\?/);
+      assert.match(resumeText, /An unfinished practice round just appeared\./);
+      seen.push(resumeText);
+    } finally { livePlaces.mounted.unmount(); }
     // The only Chinese left is the learner's own deck title.
     for (const text of seen) assert.doesNotMatch(text.replace('行为型模式', ''), /[㐀-鿿]/);
   } finally { m.setUiLanguage('zh'); }
+}));
+
+test('S / 回到题目: today\'s plan changing while the dialog is open uses fresh dailyPathArgs at confirm time', () => withZh(async () => {
+  const places = mountPlaces();
+  try {
+    await places.act(() => places.app.intents.resumeOrStart());
+    assert.ok(places.dialog(), 'confirmation is open');
+    const updatedToday = { course: 'CS2100', scope: [{ deckId: 'd2' }], due: 2, weak: 0, new: 1, size: 3 };
+    places.snapshot({ today: updatedToday });
+    await places.act(() => {});
+    await places.click(places.confirmButton());
+    assert.equal(places.dialog(), null);
+    assert.equal(places.leaves.length, 1);
+    await places.act(() => places.leaves[0]());
+    assert.deepEqual(places.calls, [['review.start', m.dailyPathArgs(updatedToday), places.enterRun, undefined]]);
+  } finally { places.mounted.unmount(); }
+}));
+
+test('S / 回到题目: if an unfinished round appears while the dialog is open, the dialog updates and confirming resumes it', () => withZh(async () => {
+  const places = mountPlaces();
+  try {
+    await places.act(() => places.app.intents.resumeOrStart());
+    assert.match(textOf(places.dialog()), /现在没有没做完的练习。/);
+    places.snapshot({ lastRun: { id: 'run-99' } });
+    await places.act(() => {});
+    assert.doesNotMatch(textOf(places.dialog()), /现在没有没做完的练习。/, 'no longer claims there is no unfinished practice');
+    assert.match(textOf(places.dialog()), /继续未完成的练习？/);
+    const resumeBtn = places.confirmButton('继续学习');
+    assert.ok(resumeBtn, 'confirm button updates to 继续学习');
+    await places.click(resumeBtn);
+    assert.equal(places.dialog(), null);
+    assert.equal(places.leaves.length, 1);
+    await places.act(() => places.leaves[0]());
+    assert.deepEqual(places.calls, [['review.get', { runId: 'run-99' }, places.enterRun, { refreshAfter: false }]]);
+  } finally { places.mounted.unmount(); }
+}));
+
+for (const { row, args } of rows) {
+  test(`${row} row ▶: if a matching open run appears while the dialog is open, confirming resumes it instead of starting another`, () => withZh(async () => {
+    const places = mountPlaces();
+    try {
+      await places.click(places.play(row));
+      assert.ok(places.dialog());
+      places.snapshot({ runs: [{ id: 'run-55', mode: 'path', scope: args.scope, index: 1, total: 4 }] });
+      await places.act(() => {});
+      assert.match(textOf(places.dialog()), /继续未完成的练习？/);
+      await places.click(places.confirmButton('继续学习'));
+      assert.equal(places.dialog(), null);
+      assert.deepEqual(places.calls, [['review.get', { runId: 'run-55' }, places.enterRun, { refreshAfter: false }]]);
+    } finally { places.mounted.unmount(); }
+  }));
+}
+
+for (const { label, open } of [
+  { label: 'deck row ▶', open: (places) => places.click(places.play('deck')) },
+  { label: 'topic row ▶', open: (places) => places.click(places.play('topic')) },
+  { label: '回到题目', open: (places) => places.act(() => places.app.intents.resumeOrStart()) },
+]) {
+  test(`${label}: default focus lands on 取消 and returns to the trigger after Cancel or Escape`, () => withZh(async () => {
+    const places = mountPlaces();
+    try {
+      const trigger = makeFocusable(label);
+      globalThis.document.activeElement = trigger;
+      await open(places);
+      assert.equal(globalThis.document.activeElement, places.cancelButton().ref.current, 'default focus lands on 取消');
+      await places.click(places.cancelButton());
+      assert.equal(places.dialog(), null);
+      assert.equal(globalThis.document.activeElement, trigger, 'focus returns to trigger after Cancel');
+
+      globalThis.document.activeElement = trigger;
+      await open(places);
+      assert.equal(globalThis.document.activeElement, places.cancelButton().ref.current, 'default focus lands on 取消 on reopen');
+      await places.act(() => places.dialog().props.onCancel({ cancelable: true, preventDefault() {} }));
+      assert.equal(places.dialog(), null);
+      assert.equal(globalThis.document.activeElement, trigger, 'focus returns to trigger after Escape');
+    } finally { places.mounted.unmount(); }
+  }));
+}
+
+test('opening StartConfirm while the reader is open stacks on top without unmounting the reader; Cancel and Escape leave the reader intact', () => withZh(async () => {
+  const places = mountPlaces();
+  try {
+    await places.act(() => places.app.set.setModal({ type: 'source', quote: '原文节选' }));
+    const readerBefore = places.readerDialog();
+    assert.ok(readerBefore, 'reader dialog is mounted');
+    const readerNode = readerBefore.ref.current;
+    assert.equal(m.topDialog()?.dialog, readerNode, 'reader is top of dialog stack');
+
+    const trigger = makeFocusable('回到题目');
+    globalThis.document.activeElement = trigger;
+    await places.act(() => places.app.intents.resumeOrStart());
+
+    assert.equal(places.dialogs().length, 2, 'both reader and StartConfirm dialogs are mounted');
+    assert.equal(places.readerDialog().ref.current, readerNode, 'reader stayed mounted with the same dialog instance');
+    assert.equal(m.topDialog()?.dialog, places.dialog().ref.current, 'StartConfirm is stacked on top of dialog-stack');
+    assert.equal(globalThis.document.activeElement, places.cancelButton().ref.current, 'default focus lands on 取消');
+
+    await places.click(places.cancelButton());
+    assert.equal(places.dialog(), null, 'StartConfirm closed on Cancel');
+    assert.equal(places.readerDialog().ref.current, readerNode, 'reader remained mounted and untouched after Cancel');
+    assert.equal(places.app.lib.modal?.type, 'source');
+    assert.equal(m.topDialog()?.dialog, readerNode, 'reader is top of dialog stack again');
+    assert.equal(globalThis.document.activeElement, trigger, 'focus returned to trigger after Cancel');
+
+    globalThis.document.activeElement = trigger;
+    await places.act(() => places.app.intents.resumeOrStart());
+    assert.equal(places.dialogs().length, 2);
+    await places.act(() => places.dialog().props.onCancel({ cancelable: true, preventDefault() {} }));
+    assert.equal(places.dialog(), null, 'Escape closed only StartConfirm');
+    assert.equal(places.readerDialog().ref.current, readerNode, 'reader stayed mounted and intact after Escape');
+    assert.equal(m.topDialog()?.dialog, readerNode);
+    assert.equal(globalThis.document.activeElement, trigger, 'focus returned to trigger after Escape');
+    assert.deepEqual(places.calls, []);
+    assert.deepEqual(places.leaves, []);
+  } finally { places.mounted.unmount(); }
+}));
+
+test('confirming StartConfirm stacked over the reader clears both dialogs once leaving succeeds and starts the round', () => withZh(async () => {
+  const places = mountPlaces();
+  try {
+    await places.act(() => places.app.set.setModal({ type: 'source', quote: '原文节选' }));
+    assert.ok(places.readerDialog());
+    await places.act(() => places.app.intents.resumeOrStart());
+    assert.equal(places.dialogs().length, 2);
+    await places.click(places.confirmButton());
+    assert.equal(places.dialog(), null, 'StartConfirm closed');
+    assert.equal(places.leaves.length, 1);
+    assert.ok(places.readerDialog(), 'reader stays until leave gate approves');
+    await places.act(() => places.leaves[0]());
+    assert.equal(places.readerDialog(), null, 'reader is cleared once leaving succeeds');
+    assert.equal(places.app.lib.modal, null);
+    assert.deepEqual(places.calls, [['review.start', m.dailyPathArgs(today), places.enterRun, undefined]]);
+  } finally { places.mounted.unmount(); }
 }));

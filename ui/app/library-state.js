@@ -12,7 +12,7 @@ const FRESH = {
   draft: () => null, draftLoaded: () => '', draftText: () => '', jsonMode: () => false, recovery: () => null,
   managedDeck: () => null, folderDraft: () => '', removingDeck: () => null,
   graphScope: () => null, graphCanvas: () => false, graphMode: () => 'structure',
-  selectedSources: () => [], modal: () => null, notebooks: () => null, notebookError: () => '',
+  selectedSources: () => [], modal: () => null, startConfirm: () => null, notebooks: () => null, notebookError: () => '',
   examRunId: () => null, examKind: () => 'exam', caseInitial: () => null, sourceHighlight: () => null,
   guidedSession: () => null,
 };

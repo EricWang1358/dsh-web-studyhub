@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { installUpdate } from '../lib/update-install.js';
-import { checkForUpdate, markUpdateInstalled, markUpdateInstalling, readUpdateView, releaseFromGithub, setUpdatePreferences, updateStatePath } from '../lib/update-check.js';
+import { checkForUpdate, currentVersion, markUpdateInstalled, markUpdateInstalling, readUpdateView, releaseFromGithub, setUpdatePreferences, updateStatePath } from '../lib/update-check.js';
 import { createHostHandler } from '../lib/host.js';
 import { githubRelease } from './helpers/wp15-release.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
@@ -165,7 +165,6 @@ test('the announcement leaves the rest of the update state as it was, and refuse
 
 test('the panel reaches both through its own operations: update.check says it, update.preferences uses it up', async t => {
   const dir = await home(t);
-  const { currentVersion } = await import('../lib/update-check.js');
   await markUpdateInstalled(currentVersion());
   const realFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response(JSON.stringify(githubRelease(`v${currentVersion()}`)));
@@ -277,22 +276,31 @@ test('the install answer decides which installed page the dialog shows', async (
   assert.match(render({ update: offer, initialPhase: await answer(true) }), /等待重启/);
 });
 
+test('an install answer that does not say whether a restart is needed keeps the restart wording (an older DSH)', async () => {
+  const phase = await ui.startUpgrade(async () => ({ status: 'installed', version: '2.1.1' }), { latest: '2.1.1' });
+  assert.equal(phase.restartRequired, true, 'no field is not "applied"');
+  const html = render({ update: offer, initialPhase: phase });
+  assert.match(html, /StudyHub 2\.1\.1 等待重启/);
+  assert.match(html, /重启前，当前页面仍在运行旧版本/);
+  assert.doesNotMatch(html, /已升级到|不用重启/);
+});
+
 test('the notice is said once per version in a page, then reported to the host', async () => {
   const shown = [], calls = [];
   const toast = { success: (message, options) => shown.push({ message, options }) };
   const call = async (action, args) => { calls.push([action, args]); return { upgraded: null }; };
   const said = new Set();
-  for (const update of [null, {}, { upgraded: null, current: '2.1.1' }]) await ui.announceUpgrade(update, { call, toast, said });
+  for (const update of [null, {}, { upgraded: null, current: '2.1.1' }]) await ui.announceUpgrade(update, { call, toast, said, running: '2.1.1' });
   assert.deepEqual([shown, calls], [[], []], 'nothing to say, nothing asked');
-  await ui.announceUpgrade({ upgraded: '2.1.1' }, { call, toast, said });
-  await ui.announceUpgrade({ upgraded: '2.1.1' }, { call, toast, said });
+  await ui.announceUpgrade({ upgraded: '2.1.1' }, { call, toast, said, running: '2.1.1' });
+  await ui.announceUpgrade({ upgraded: '2.1.1' }, { call, toast, said, running: '2.1.1' });
   assert.equal(shown.length, 1, 'a second seat, or the same answer again, does not repeat it');
   assert.equal(shown[0].message, '已升级到 2.1.1');
   assert.equal(shown[0].options.scope, ui.ANY_PAGE, 'the start page may move while the answer arrives');
   assert.ok(shown[0].options.timeout > 6000, 'it stays longer than a routine toast, then leaves by itself');
   assert.equal(shown[0].options.action, undefined, 'no extra control');
   assert.deepEqual(calls, [['update.preferences', { upgradeTold: '2.1.1' }]]);
-  await ui.announceUpgrade({ upgraded: '2.1.2' }, { call: async () => { throw new Error('host gone'); }, toast, said });
+  await ui.announceUpgrade({ upgraded: '2.1.2' }, { call: async () => { throw new Error('host gone'); }, toast, said, running: '2.1.2' });
   assert.equal(shown.length, 2, 'a later version is said too, and a lost report does not break the page');
 });
 
@@ -300,16 +308,42 @@ test('a StudyHub that was open when the install was asked for says nothing and u
   const shown = [], calls = [];
   const toast = { success: message => shown.push(message) };
   const call = async (action) => { calls.push(action); return action === 'update.install' ? { status: 'installed', version: '3.0.0', restartRequired: false } : {}; };
-  const said = new Set();
-  const openedBefore = ui.installsAskedSoFar();
   await ui.startUpgrade(call, { latest: '3.0.0' });
-  // DSH has not closed the page yet, and its dialog has already heard of the upgrade from the new code.
-  await ui.announceUpgrade({ upgraded: '3.0.0' }, { call, toast, said, openedAt: openedBefore });
+  // DSH has not closed the page yet, and its dialog has already heard of the upgrade from the new code. This page is still the code of 2.9.0.
+  await ui.announceUpgrade({ upgraded: '3.0.0' }, { call, toast, said: new Set(), running: '2.9.0' });
   assert.deepEqual(shown, []);
   assert.deepEqual(calls, ['update.install'], 'nothing is reported to the host');
-  await ui.announceUpgrade({ upgraded: '3.0.0' }, { call, toast, said, openedAt: ui.installsAskedSoFar() });
+  // The StudyHub opened afterwards runs the code of 3.0.0 (a module of its own, with its own record of what it said).
+  await ui.announceUpgrade({ upgraded: '3.0.0' }, { call, toast, said: new Set(), running: '3.0.0' });
   assert.deepEqual(shown, ['已升级到 3.0.0']);
   assert.deepEqual(calls, ['update.install', 'update.preferences']);
+});
+
+/* The page that asked is not the only old code that hears of the upgrade on a host that loads the new code at once (DSH 0.2.2): another StudyHub
+   window or tab still on the old code, or an <UpdateWatch> mounted again in the old module (App's loading state during a library switch), hears
+   update.check say `upgraded` too. Only the code of that very version may say it: anything older would use the notice up before the new code is on screen. */
+test('only the code of the announced version says it: another window, or an UpdateWatch mounted again, still on the old code says nothing and uses nothing up', async () => {
+  const shown = [], calls = [];
+  const toast = { success: message => shown.push(message) };
+  const call = async (action, args) => { calls.push([action, args]); return {}; };
+  const oldModule = new Set();
+  for (let mount = 0; mount < 3; mount += 1) await ui.announceUpgrade({ upgraded: '3.0.0' }, { call, toast, said: oldModule, running: '2.9.0' });
+  await ui.announceUpgrade({ upgraded: '3.0.0' }, { call, toast, said: new Set(), running: '3.0.1' });
+  assert.deepEqual([shown, calls], [[], []], 'an older or a later build says nothing and reports nothing');
+  await ui.announceUpgrade({ upgraded: '3.0.0' }, { call, toast, said: new Set(), running: '3.0.0' });
+  assert.deepEqual(shown, ['已升级到 3.0.0']);
+  assert.deepEqual(calls, [['update.preferences', { upgradeTold: '3.0.0' }]]);
+});
+
+test('the page knows its own version from package.json, the file the host reads for the running version, and says only that one', async () => {
+  assert.equal(ui.UI_BUILD_VERSION, currentVersion(), 'one source of truth for both halves');
+  const shown = [];
+  const toast = { success: message => shown.push(message) };
+  const call = async () => ({});
+  await ui.announceUpgrade({ upgraded: '0.0.1' }, { call, toast, said: new Set() });
+  assert.deepEqual(shown, [], 'not this build');
+  await ui.announceUpgrade({ upgraded: currentVersion() }, { call, toast, said: new Set() });
+  assert.deepEqual(shown, [`已升级到 ${currentVersion()}`]);
 });
 
 test('a notice for any page survives a page change; the others still stay on their page', () => {

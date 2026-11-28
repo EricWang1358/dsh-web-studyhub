@@ -4,7 +4,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { StudyService } from "../lib/service.js";
-import { taskProgress } from "../lib/daily-plan/tasks.js";
+import * as mastery from "../lib/mastery.js";
+import { observedPracticeMinutes, taskProgress } from "../lib/daily-plan/tasks.js";
 import { deriveItemStatus, computeSessionProgress } from "../lib/study-progress.js";
 import { buildCompactScene } from "../lib/study-scene.js";
 import { computeCoachEvidence, normalizeCoachSpec } from "../lib/exam-coach.js";
@@ -42,82 +43,103 @@ function tempRoot(tag = "1367") {
   return fs.mkdtempSync(path.join(os.tmpdir(), `studyhub-${tag}-`));
 }
 
-test("#1367-1: Socratic attempts excluded from daily-plan, study-progress, study-scene, and exam-coach formal counts", () => {
-  const socraticAtt = {
-    id: "att-soc-1",
-    runId: "run-1",
-    deckId: "d1",
-    quiz_id: "c1",
-    topic: "Paging",
-    assessment: "socratic",
-    grade: 4,
-    correct: true,
-    timestamp: "2026-11-24T01:00:00.000Z",
-    elapsed_ms: 15000,
-  };
-  const card = {
-    id: "task-1",
-    learningTask: { kind: "practice", scope: [{ deckId: "d1", cardId: "c1" }] },
-  };
-  const state = {
-    decks: [{ id: "d1", cards: [{ id: "c1" }] }],
-    runs: [{ id: "run-1", dailyPlanTaskId: "task-1", deckId: "d1", entries: [{ deckId: "d1", card: { id: "c1" }, feedback: null }] }],
-    attempts: [socraticAtt],
-  };
-  assert.deepEqual(taskProgress(state, card), { done: 0, total: 1 });
-
-  const itemStatus = deriveItemStatus({ id: "ci1", targetCardIds: ["c1"] }, [socraticAtt]);
-  assert.equal(itemStatus.status, "pending");
-
-  const session = { id: "sess-1", createdAt: "2026-11-24T00:00:00.000Z", goal: { checkItems: [{ id: "ci1", title: "Paging", targetCardIds: ["c1"] }] } };
-  const sessProg = computeSessionProgress(session, [socraticAtt]);
-  assert.equal(sessProg.independentPassedCount, 0);
-  assert.equal(sessProg.pendingCount, 1);
-
-  const scene = buildCompactScene(
-    { decks: [{ id: "d1", cards: [{ id: "c1", kind: "open", topic: "Paging", prompt: "What is TLB?" }] }], runs: [], attempts: [socraticAtt] },
-    { session: { id: "sess-1", focus: { kind: "card", deckId: "d1", cardId: "c1" } } },
+test("#1462 (#1367-1): Socratic tutoring never writes to attempts; dead Socratic attempt filter is gone from mastery", async () => {
+  // 1) Dead Socratic attempt predicate is no longer exported by lib/mastery.js (#1462)
+  assert.deepEqual(
+    Object.keys(mastery).filter((name) => /socratic/i.test(name)),
+    [],
+    "lib/mastery.js must not export dead Socratic attempt filters",
   );
-  assert.equal(scene.recentAttempts.length, 0);
 
-  // Exam coach: socratic-only card is NOT practiced/passed, and formal pass AFTER socratic is assistedOrExposedCount (not unseenIndependentPassCount)
+  // 2) isMasteryAttempt still keeps real formal answers and rejects voided, retry, post-open, and null records
+  assert.equal(mastery.isMasteryAttempt({ id: "a1", grade: 4, assessment: "graded" }), true);
+  assert.equal(mastery.isMasteryAttempt({ id: "a2", grade: 4, assessment: "self" }), true);
+  assert.equal(mastery.isMasteryAttempt({ id: "a3", grade: 4, voidedAt: "2026-11-28T00:00:00.000Z" }), false);
+  assert.equal(mastery.isMasteryAttempt({ id: "a4", grade: 4, retry: true }), false);
+  assert.equal(mastery.isMasteryAttempt({ id: "a5", grade: 4, updatedAfterOpening: true }), false);
+  assert.equal(mastery.isMasteryAttempt(null), false);
+
+  // 3) Real Socratic tutoring steps write only to card.socratic, never to state.attempts, so every downstream engine stays at 0 formal answers
   const spec = normalizeCoachSpec({
-    taskFamilies: [{ id: "f1", title: "Paging", primaryFormat: "open", quota: 1, questionsPerUnit: 1, priority: "core", topics: ["Paging"] }],
+    taskFamilies: [{ id: "f1", title: "Paging", primaryFormat: "quiz", quota: 1, questionsPerUnit: 1, priority: "core", topics: ["Paging"] }],
   }, "OS");
-  const openCard = {
-    id: "c1", kind: "open", topic: "Paging", prompt: "Explain TLB hit ratio.", answer: "Hit rate * access time.",
-    explanation: "TLB caches page table entries.", objective: "Compute EAT", hint: "Consider hit and miss.",
+  const quizCard = {
+    id: "c1", kind: "quiz", topic: "Paging", prompt: "What determines effective access time with a TLB?",
+    answer: "TLB hit ratio and memory access time",
+    citations: [], importedFromJson: true,
+    options: [
+      { id: "a", text: "TLB hit ratio and memory access time", correct: true, explanation: "Hits avoid the extra page-table read." },
+      { id: "b", text: "Only disk swap latency", correct: false, explanation: "TLB misses read page tables in memory first." },
+      { id: "c", text: "Only CPU clock speed", correct: false, explanation: "Memory access latency dominates EAT." },
+    ],
+    explanation: "TLB caches page table entries to avoid extra memory accesses.", objective: "Compute EAT", hint: "Consider hit and miss.",
     misconception: "Forgetting memory access.", coachSpecVersion: spec.specVersion,
   };
-  const coachStateOnlySoc = {
-    courses: [{ id: "co1", name: "OS" }],
-    sources: [],
-    decks: [{ id: "d1", title: "OS", course: "OS", cards: [openCard] }],
-    attempts: [socraticAtt],
-    feedback: [],
-    learner: { solutionExposures: [] },
-  };
-  const r1 = computeCoachEvidence(coachStateOnlySoc, { course: "OS", spec });
-  assert.equal(r1.trainingCoverage.practiced, 0);
-  assert.equal(r1.capabilityEvidence.unseenIndependentPassCount, 0);
+  const root = tempRoot("1462-1367-1");
+  const service = new StudyService(root);
+  try {
+    await service.store.update((s) => {
+      s.courses = [{ id: "co1", name: "OS" }];
+      s.decks = [{ id: "d1", title: "OS", course: "OS", cards: [quizCard] }];
+    });
+    const ref = { deckId: "d1", cardId: "c1" };
+    const run = await service.call("review.start", { mode: "path", scope: [ref] });
+    await service.store.update((s) => {
+      const storedRun = s.runs.find((item) => item.id === run.id);
+      storedRun.dailyPlanTaskId = "task-1";
+    });
 
-  const formalAfterSoc = {
-    id: "att-real-1",
-    deckId: "d1",
-    quiz_id: "c1",
-    topic: "Paging",
-    assessment: "rubric",
-    score: 10,
-    maxScore: 10,
-    grade: 4,
-    correct: true,
-    timestamp: "2026-11-24T01:05:00.000Z",
-  };
-  const r2 = computeCoachEvidence({ ...coachStateOnlySoc, attempts: [socraticAtt, formalAfterSoc] }, { course: "OS", spec });
-  // A Socratic step never enters the answer log as an answer, and the log alone cannot prove a hint or the answer was shown:
-  // the formal answer is judged on its own assistance (#1367-1, corrected by the #1395 review).
-  assert.equal(r2.capabilityEvidence.unseenIndependentPassCount, 1);
-  assert.equal(r2.capabilityEvidence.assistedOrExposedCount, 0);
+    await service.call("socratic.step", { ...ref, runId: run.id, action: "hint", offline: true });
+    await service.call("socratic.step", { ...ref, runId: run.id, action: "reveal", offline: true });
+
+    const afterSocratic = await service.store.read();
+    assert.equal(afterSocratic.attempts.length, 0, "real Socratic tutoring never appends to state.attempts");
+    assert.equal(afterSocratic.decks[0].cards[0].socratic?.revealed, true);
+    assert.equal(afterSocratic.decks[0].cards[0].socratic?.helpRunId, run.id);
+
+    const taskCard = {
+      id: "task-1",
+      learningTask: { kind: "practice", scope: [ref] },
+    };
+    assert.equal(mastery.latestOutcomes(afterSocratic.attempts)("d1", "c1"), undefined);
+    assert.deepEqual(taskProgress(afterSocratic, taskCard), { done: 0, total: 1 });
+    assert.equal(observedPracticeMinutes(afterSocratic, taskCard), undefined);
+
+    const itemStatus = deriveItemStatus({ id: "ci1", targetCardIds: ["c1"] }, afterSocratic.attempts);
+    assert.equal(itemStatus.status, "pending");
+
+    const session = { id: "sess-1", createdAt: "2026-11-24T00:00:00.000Z", goal: { checkItems: [{ id: "ci1", title: "Paging", targetCardIds: ["c1"] }] } };
+    const sessProg = computeSessionProgress(session, afterSocratic.attempts);
+    assert.equal(sessProg.independentPassedCount, 0);
+    assert.equal(sessProg.pendingCount, 1);
+
+    const scene = buildCompactScene(
+      afterSocratic,
+      { session: { id: "sess-1", focus: { kind: "card", deckId: "d1", cardId: "c1" } } },
+    );
+    assert.equal(scene.recentAttempts.length, 0);
+
+    const coachBeforeAnswer = computeCoachEvidence(afterSocratic, { course: "OS", spec });
+    assert.equal(coachBeforeAnswer.trainingCoverage.practiced, 0);
+    assert.equal(coachBeforeAnswer.capabilityEvidence.unseenIndependentPassCount, 0);
+    assert.equal(coachBeforeAnswer.capabilityEvidence.assistedOrExposedCount, 0);
+
+    // 4) Once a real formal answer is recorded in the same round, downstream engines count it and socraticHelpAt marks it assisted
+    await service.call("review.answer", { runId: run.id, cardId: "c1", selected: ["a"] });
+    const afterFormal = await service.store.read();
+    assert.equal(afterFormal.attempts.length, 1);
+    assert.equal(afterFormal.attempts[0].assessment, "graded");
+    assert.deepEqual(taskProgress(afterFormal, taskCard), { done: 1, total: 1 });
+    assert.equal(deriveItemStatus({ id: "ci1", targetCardIds: ["c1"] }, afterFormal.attempts).status, "assisted");
+    assert.equal(buildCompactScene(afterFormal, { session: { id: "sess-1", focus: { kind: "card", deckId: "d1", cardId: "c1" } } }).recentAttempts.length, 1);
+    const coachAfterAnswer = computeCoachEvidence(afterFormal, { course: "OS", spec });
+    assert.equal(coachAfterAnswer.trainingCoverage.practiced, 1);
+    assert.equal(coachAfterAnswer.capabilityEvidence.assistedOrExposedCount, 1);
+    assert.equal(coachAfterAnswer.capabilityEvidence.unseenIndependentPassCount, 0);
+  } finally {
+    await service.dispose();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("#1367-1b: open-and-close never disqualifies a later independent pass; a hint or the answer counts only in its own round", async () => {

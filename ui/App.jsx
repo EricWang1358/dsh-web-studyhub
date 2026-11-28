@@ -33,6 +33,7 @@ import { AppContext, AppStoreContext, useAppStore } from './app/app-context.js';
 import { practiseRound } from './app/practise-round.js';
 import { useAppShell } from './app/use-app-shell.js';
 import { useAppCore } from './app/use-app-core.js';
+import { libraryRootOf } from './app/library-root.js';
 import { useLibraryReset, useLibraryState } from './app/library-state.js';
 import { useNavigation } from './app/use-navigation.js';
 import { useSessionPerformance } from './use-session-performance.js';
@@ -90,7 +91,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
   const late = useRef({});
   const nav = useNavigation({ core, lib: handle, motion: shell.motion, rootRef: shell.rootRef, initialPage: warmEntry.initialPage });
   useSessionPerformance(nav.page); // here, not in PageView: the board and the start page are drawn beside it, and the observer stays for the whole session
-  const session = useReviewSession({ core, nav, modalOpen: !!lib.modal, host, rootRef: shell.rootRef, late });
+  const session = useReviewSession({ core, nav, modalOpen: !!(lib.modal || lib.startConfirm), host, rootRef: shell.rootRef, late });
   const resetLibraryState = useLibraryReset({ core, libApi: set, nav, session, defaultGen: () => freshGeneration(core.refs.dataRef.current?.settings),
     abandonPending: abandonUndoable, unsentText: (count) => uiFormat('学习库已更换：刚才的 {0} 项删除没有执行，它们还在原来的学习库里。', [count]),
     onReset: warmEntry.clear });
@@ -112,7 +113,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
   const { courseActive } = useHostLinks({ host, core, nav, session, learn, lib: handle, rootRef: shell.rootRef, data, loading: connection.loading });
   const boardState = useBoard(core.call, boardSyncsOnPage(nav.page), {
     initialBoard: warmEntry.warm?.board ?? null,
-    onBoard: (next) => warmEntry.saveBoard(core.refs.bindingRoot.current || core.refs.dataRef.current?.root, next),
+    onBoard: (next) => warmEntry.saveBoard(libraryRootOf(core.refs), next),
   });
   useInitialLanding({ loading: connection.loading, data, boardState, nav, setBoardView: set.setBoardView, navigationCount: () => core.refs.navigation.current, restoredPage: warmEntry.restoredPage });
   const liveReady = useWarmSync({ host, placement: warmEntry.placement, loading: connection.loading, root: connection.binding.root, board: boardState.board, page: nav.page, boardView: lib.boardView });

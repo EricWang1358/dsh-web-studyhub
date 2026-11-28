@@ -280,5 +280,7 @@
   "paddleocr.ai（国内直连）": "paddleocr.ai (reachable in mainland China)",
   "其他导入方式": "Other import options",
   "在线解析、发给主会话、高级工具": "Online parsing, main chat, advanced tools",
-  "转换工具与高级方式": "Converters and advanced options"
+  "转换工具与高级方式": "Converters and advanced options",
+  "MinerU 在线解析（网页版）": "MinerU online parser (web)",
+  "网页端（需登录 OpenXLab 账号）": "Web (OpenXLab sign-in required)"
 }

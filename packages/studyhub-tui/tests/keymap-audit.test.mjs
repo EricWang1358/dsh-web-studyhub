@@ -735,11 +735,11 @@ test('featureShortcuts documents Rounds 5-26 & PR #1297 shortcuts cleanly in zh 
     }
 
     const allKeys = sections.flatMap((s) => s.items.map((i) => i.key));
-    for (const k of ['p', 'g', 'C', 'o', 'R', 'm: + / k', 'm: Space/F/S', '0-5', 'T', 'S', 'D', 'F', 'G', 'L', 'A', 'Q', '*', 'u', 'X', 'i', 'S / R', 'Ctrl+S/J', 'w', 'P', 'e', 'x', 'Space / B', 'Enter/p', 'f', 's', 'H', 'E', 'V', 'm', 'M', 'O', 'B', 'P / Space', '+/-', 'R', 'w / o / m', '/#?@:']) {
+    for (const k of ['p', 'g', 'C', 'o', 'R', 'm: + / v', 'm: Space/F/S', '0-5', 'T', 'S', 'D', 'F', 'G', 'L', 'A', 'Q', '*', 'u', 'X', 'i', 'S / R', 'Ctrl+S/J', 'w', 'P', 'e', 'x', 'Space / B', 'Enter/p', 'f', 's', 'H', 'E', 'V', 'm', 'M', 'O', 'B', 'P / Space', '+/-', 'R', 'w / o / m', '/#?@:']) {
       assert.ok(allKeys.includes(k), `missing feature shortcut ${k} in ${lang}`);
     }
     const keysJoined = allKeys.join('\n');
-    for (const token of ['o', 'g', '+', 'k', 'L', 'A', 'Q', '*', 'u', 'i', 'w', 'P', 'p', 'f', 's', 'H', 'F', 'G', 'V', 'M', 'S', 'R', 'x', 'B', '/#?@:']) {
+    for (const token of ['o', 'g', '+', 'v', 'L', 'A', 'Q', '*', 'u', 'i', 'w', 'P', 'p', 'f', 's', 'H', 'F', 'G', 'V', 'M', 'S', 'R', 'x', 'B', '/#?@:']) {
       assert.ok(keysJoined.includes(token), `missing token ${token} in ${lang}`);
     }
 
@@ -759,7 +759,7 @@ test('featureShortcuts documents Rounds 5-26 & PR #1297 shortcuts cleanly in zh 
     const paletteSec = sections.find((s) => s.title.includes('Palette'));
     assert.ok(librarySec?.items.some((i) => i.key === 'g' && (i.label.includes('带学') || i.label.includes('Guided Study'))), `missing Library [g] label in ${lang}`);
     assert.ok(librarySec?.items.some((i) => i.key === 'R' && (i.label.includes('定制本轮') || i.label.includes('Custom round'))), `missing Library [R] label in ${lang}`);
-    assert.ok(librarySec?.items.some((i) => i.key === 'm: + / k' && (i.label.includes('补题') || i.label.includes('supplement'))), `missing Library [m: + / k] label in ${lang}`);
+    assert.ok(librarySec?.items.some((i) => i.key === 'm: + / v' && (i.label.includes('补题') || i.label.includes('supplement'))), `missing Library [m: + / v] label in ${lang}`);
     assert.ok(librarySec?.items.some((i) => i.key === 'm: Space/F/S' && (i.label.includes('批量') || i.label.includes('batch'))), `missing Library [m: Space/F/S] label in ${lang}`);
     assert.ok(reviewSec?.items.some((i) => i.key === '0-5' && (i.label.includes('六级') || i.label.includes('six-grade'))), `missing Review [0-5] label in ${lang}`);
     assert.ok(!reviewSec?.items.some((i) => i.key.includes('1-4') || i.label.includes('1-4')), `stale [1-4] rating text in Review (${lang})`);

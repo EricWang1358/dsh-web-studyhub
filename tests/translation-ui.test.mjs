@@ -187,6 +187,42 @@ test('English: the popover has no Chinese', () => {
   assert.match(english, /Translating needs a model connected in the settings first/);
 });
 
+test('unchanged paragraphs after a document update offer one-click reuse even without a model (#1508)', () => {
+  const zeroZh = estimateRun('translate', { target: 'zh', calls: [] }, { measure: createTextMeasure() });
+  const zeroEn = estimateRun('translate', { target: 'en', calls: [] }, { measure: createTextMeasure() });
+  const pureReuse = [{ id: 'page', label: '翻译本页', status: 'ready', counts: { toTranslate: 0, cached: 0, reused: 5 }, estimate: zeroZh }];
+  const noModel = menu({ scopes: pureReuse, modelAvailable: false, hasTranslations: false, stale: [{ revision: 'r0', count: 5 }] });
+  assert.doesNotMatch(noModel, /这里没有需要翻译的段落|已经全部译好/);
+  assert.match(noModel, /可沿用 5 段旧译文/);
+  assert.doesNotMatch(noModel, /预计/);
+  assert.match(noModel, /<button[^>]*>沿用旧译文<\/button>/);
+  assert.doesNotMatch(noModel, /<button[^>]*disabled[^>]*>沿用旧译文<\/button>/, 'pure reuse needs no model');
+  assert.match(menu({ scopes: pureReuse, modelAvailable: false, busy: true }), /<button[^>]*disabled[^>]*>沿用旧译文<\/button>/, 'still locked while another job runs');
+
+  const withDone = menu({ scopes: [{ id: 'page', label: '翻译本页', status: 'ready', counts: { toTranslate: 0, cached: 3, reused: 2 }, estimate: zeroZh }], modelAvailable: false });
+  assert.match(withDone, /可沿用 2 段旧译文 · 已译 3 段/);
+  assert.doesNotMatch(withDone, /<button[^>]*disabled[^>]*>沿用旧译文<\/button>/);
+
+  const mixed = [{ id: 'page', label: '翻译本页', status: 'ready', counts: { toTranslate: 4, cached: 3, reused: 2 }, estimate }];
+  const mixedNoModel = menu({ scopes: mixed, modelAvailable: false });
+  assert.match(mixedNoModel, /还有 4 段要译 · 可沿用 2 段 · 已译 3 段/);
+  assert.match(mixedNoModel, /预计/);
+  assert.match(mixedNoModel, /<button[^>]*disabled[^>]*>开始翻译<\/button>/, 'mixed scope still needs a model');
+
+  const enReuse = render(h(lib.TranslationMenu, { open: true, onOpenChange: noop,
+    scopes: [
+      { id: 'page', label: 'Translate this page', status: 'ready', counts: { toTranslate: 0, cached: 0, reused: 5 }, estimate: zeroEn },
+      { id: 'chapter', label: 'Translate this chapter', status: 'ready', counts: { toTranslate: 2, cached: 1, reused: 3 }, estimate },
+    ],
+    target: 'en', modelAvailable: false, stale: [{ revision: 'r0', count: 5 }], busy: false, hasTranslations: false,
+    onStart: noop, onExpandAll: noop, onCollapseAll: noop, onGlossary: noop, onTarget: noop }), 'en');
+  assert.doesNotMatch(enReuse, han);
+  assert.match(enReuse, /5 reusable from older version/);
+  assert.match(enReuse, /2 to translate · 3 reusable · 1 done/);
+  assert.match(enReuse, />Reuse translations</);
+  assert.doesNotMatch(enReuse, /<button[^>]*disabled[^>]*>Reuse translations<\/button>/);
+});
+
 /* ---------- the job ---------- */
 
 const running = { id: 'j1', status: 'running', startedAt: '2026-10-01T08:00:00.000Z', runStartedAt: '2026-10-01T08:00:00.000Z', total: 15, done: 6, scopeLabel: '本页', rejected: 0, estimate: { totalTokens: { low: 4000, high: 9000 }, calls: { low: 3, high: 3 } }, tokenUsage: { uncachedInputTokens: 900, outputTokens: 300, cacheReadTokens: 0, cacheWriteTokens: 0, calls: 1 } };
