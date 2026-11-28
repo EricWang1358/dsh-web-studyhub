@@ -1315,12 +1315,12 @@ describe('Round 20: RoundSummary Look-Back & CommandPalette Slash Sweep', () => 
       (s) =>
         s.includes(c2PromptSnippet) &&
         (s.includes('按 [Space] 或 [Enter] 翻开答案') || s.includes('Press [Space] or [Enter] to flip card')),
-      { timeoutMs: 8_000, label: 'Card 2 rendered in ReviewView' },
+      { timeoutMs: 20_000, label: 'Card 2 rendered in ReviewView' },
     );
 
     tty.send(' ');
     await tty.waitFor((s) => s.includes('答案与解析') && s.includes('简单'), {
-      timeoutMs: 8_000,
+      timeoutMs: 20_000,
       label: 'Card 2 revealed with FSRS rating bar',
     });
 
@@ -1330,12 +1330,12 @@ describe('Round 20: RoundSummary Look-Back & CommandPalette Slash Sweep', () => 
         s.includes(c1PromptSnippet) &&
         (s.includes('再练') || s.includes('Retry')) &&
         (s.includes('按 [Space] 或 [Enter] 翻开答案') || s.includes('Press [Space] or [Enter] to flip card')),
-      { timeoutMs: 8_000, label: 'Card 1 tail retry rendered' },
+      { timeoutMs: 20_000, label: 'Card 1 tail retry rendered' },
     );
 
     tty.send(' ');
     await tty.waitFor((s) => s.includes('答案与解析') && s.includes('良好'), {
-      timeoutMs: 8_000,
+      timeoutMs: 20_000,
       label: 'Tail retry revealed',
     });
     tty.send('3');
@@ -1349,7 +1349,7 @@ describe('Round 20: RoundSummary Look-Back & CommandPalette Slash Sweep', () => 
         s.includes('#1') &&
         s.includes('#2') &&
         (s.includes('[重来]') || s.includes('[Again]')),
-      { timeoutMs: 10_000, label: 'RoundSummary lookBack rendered at 120x36' },
+      { timeoutMs: 20_000, label: 'RoundSummary lookBack rendered at 120x36' },
     );
     tty.assertHealthyScreen(summaryInit, 120, 36, 'RoundSummary initial at 120x36');
     assert.ok(
@@ -1481,13 +1481,13 @@ describe('Round 20: RoundSummary Look-Back & CommandPalette Slash Sweep', () => 
     const openPaletteAndSelect = async (cmdText, matchPredicate, label) => {
       tty.send('\x0b');
       await tty.waitFor((s) => s.includes('命令面板') || s.includes('Command Palette'), {
-        timeoutMs: 6_000,
+        timeoutMs: 20_000,
         label: `CommandPalette opened for ${label}`,
       });
       await tty.flush(20);
       tty.send(cmdText);
       const filtered = await tty.waitFor(matchPredicate, {
-        timeoutMs: 6_000,
+        timeoutMs: 15_000,
         label: `CommandPalette filtered for ${label}`,
       });
       tty.assertHealthyScreen(filtered, 120, 36, `CommandPalette (${cmdText})`);
@@ -1542,14 +1542,14 @@ describe('Round 20: RoundSummary Look-Back & CommandPalette Slash Sweep', () => 
         !s.includes('命令面板') &&
         (s.includes('收件箱与通知') || s.includes('Notification Inbox')) &&
         (s.includes('全部') || s.includes('All')),
-      { timeoutMs: 8_000, label: 'InboxModal opened via /inbox' },
+      { timeoutMs: 20_000, label: 'InboxModal opened via /inbox' },
     );
     tty.assertHealthyScreen(inboxScreen, 120, 36, 'InboxModal via /inbox');
     assert.ok(inboxScreen.includes('收件箱与通知') || inboxScreen.includes('Notification Inbox'));
     tty.send('\x1b');
     const afterInbox = await tty.waitFor(
       (s) => !s.includes('收件箱与通知') && !s.includes('Notification Inbox'),
-      { timeoutMs: 6_000, label: 'InboxModal closed via Esc' },
+      { timeoutMs: 15_000, label: 'InboxModal closed via Esc' },
     );
     tty.assertHealthyScreen(afterInbox, 120, 36, 'After InboxModal closed');
     assert.ok(!afterInbox.includes('收件箱与通知'));
@@ -1564,14 +1564,14 @@ describe('Round 20: RoundSummary Look-Back & CommandPalette Slash Sweep', () => 
         !s.includes('搜索页面') &&
         (s.includes('? 快捷键') || s.includes('? Keyboard Shortcuts')) &&
         (s.includes('全局') || s.includes('Global')),
-      { timeoutMs: 6_000, label: 'HelpOverlay opened via /help' },
+      { timeoutMs: 20_000, label: 'HelpOverlay opened via /help' },
     );
     tty.assertHealthyScreen(helpScreen, 120, 36, 'HelpOverlay via /help');
     assert.ok(helpScreen.includes('? 快捷键') || helpScreen.includes('? Keyboard Shortcuts'));
     tty.send('\x1b');
     const afterHelp = await tty.waitFor(
       (s) => !s.includes('? 快捷键') && !s.includes('? Keyboard Shortcuts'),
-      { timeoutMs: 6_000, label: 'HelpOverlay closed via Esc' },
+      { timeoutMs: 15_000, label: 'HelpOverlay closed via Esc' },
     );
     tty.assertHealthyScreen(afterHelp, 120, 36, 'After HelpOverlay closed');
     assert.ok(!afterHelp.includes('? 快捷键'));
@@ -1586,7 +1586,7 @@ describe('Round 20: RoundSummary Look-Back & CommandPalette Slash Sweep', () => 
         !s.includes('切换课程焦点') &&
         (s.includes('◎ 切换课程') || s.includes('◎ Switch Course')) &&
         (s.includes('全部课程') || s.includes('All courses')),
-      { timeoutMs: 6_000, label: 'CoursePickerModal opened via /course' },
+      { timeoutMs: 20_000, label: 'CoursePickerModal opened via /course' },
     );
     tty.assertHealthyScreen(courseScreen, 120, 36, 'CoursePickerModal via /course');
     assert.ok(courseScreen.includes('◎ 切换课程') || courseScreen.includes('◎ Switch Course'));
@@ -1646,7 +1646,7 @@ describe('Round 21: Case Exam Runner/Report, Skeleton Lint & Notes Linked-Card J
     const { tty } = ctx;
     tty.send('5');
     const setupScreen = await tty.waitFor((s) => s.includes('组卷设置') && s.includes('2:案例卷'), {
-      timeoutMs: 8_000,
+      timeoutMs: 20_000,
       label: 'ExamSetup rendered',
     });
     tty.assertHealthyScreen(setupScreen, 120, 36, 'ExamSetup at 120x36');

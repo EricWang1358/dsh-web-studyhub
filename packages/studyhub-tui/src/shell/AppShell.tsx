@@ -129,7 +129,7 @@ export const AppShell = memo(function AppShell({
 
   const actions = useMemo<ShellActions>(
     () => ({
-      ...createDefaultShellActions(host, () => rawQuitRef.current()),
+      ...createDefaultShellActions(host, () => rawQuitRef.current(), actionOverrides?.refresh),
       ...actionOverrides,
       quit: () => requestQuit(rawQuitRef.current),
     }),
