@@ -31,9 +31,13 @@ export function requestQuit(quit: () => void): void {
   quit();
 }
 
-export function createDefaultShellActions(host: HostClient, quit: () => void): ShellActions {
+export function createDefaultShellActions(
+  host: HostClient,
+  quit: () => void,
+  refreshOverride?: () => Promise<void>,
+): ShellActions {
   const store = () => useTuiStore.getState();
-  const refresh = async () => {
+  const defaultRefresh = async () => {
     store().setRefreshing(true);
     try {
       const res = await host.call('snapshot');
@@ -45,18 +49,29 @@ export function createDefaultShellActions(host: HostClient, quit: () => void): S
       store().setRefreshing(false);
     }
   };
+  const refresh = refreshOverride ?? defaultRefresh;
+  let sampleLoadInFlight: Promise<void> | null = null;
   return {
     refresh,
     loadSample: async () => {
-      store().notify(store().preferences.language === 'en' ? 'Loading sample course…' : '正在载入示例课程…', 'info');
-      const res = await host.call('sample.load', { language: store().preferences.language });
-      if (!res.ok) {
-        store().notify(errText(res, '示例课程载入失败'), 'error');
-        return;
+      if (sampleLoadInFlight) return sampleLoadInFlight;
+      const run = (async () => {
+        store().notify(store().preferences.language === 'en' ? 'Loading sample course…' : '正在载入示例课程…', 'info');
+        const res = await host.call('sample.load', { language: store().preferences.language });
+        if (!res.ok) {
+          store().notify(errText(res, '示例课程载入失败'), 'error');
+          return;
+        }
+        await refresh();
+        store().setShowLaunchpad(false);
+        store().notify(store().preferences.language === 'en' ? 'Sample course loaded' : '示例课程已载入', 'success');
+      })();
+      sampleLoadInFlight = run;
+      try {
+        await run;
+      } finally {
+        if (sampleLoadInFlight === run) sampleLoadInFlight = null;
       }
-      await refresh();
-      store().setShowLaunchpad(false);
-      store().notify(store().preferences.language === 'en' ? 'Sample course loaded' : '示例课程已载入', 'success');
     },
     importSource: () => store().navigate('sources', { mode: 'import' }),
     openModelSettings: () => store().navigate('settings', { mode: 'model' }),

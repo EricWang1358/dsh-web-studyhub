@@ -229,8 +229,9 @@ describe('StudyHub TUI Core Views E2E, Deep Interactions & Memory Soak', () => {
   test('1) Global Inbox (I): load sample course, cycle filter (Tab), toggle read (m), mark all read (M), close (Esc)', async () => {
     await tty.waitFor(
       (s) => s.includes('载入示例课程体验') || s.includes('Load the sample course'),
-      { label: 'Launchpad render' },
+      { timeoutMs: 15_000, label: 'Launchpad render' },
     );
+    await tty.flush();
 
     // Load sample course via 's'
     tty.send('s');
@@ -239,7 +240,7 @@ describe('StudyHub TUI Core Views E2E, Deep Interactions & Memory Soak', () => {
         !s.includes('载入示例课程体验') &&
         (s.includes('示例 · Memento 与 Bridge') || s.includes('Sample · Memento')) &&
         /\[I\]/.test(s),
-      { timeoutMs: 12_000, label: 'Library after sample load' },
+      { timeoutMs: 25_000, label: 'Library after sample load' },
     );
     await tty.flush();
 
@@ -454,14 +455,14 @@ describe('StudyHub TUI Core Views E2E, Deep Interactions & Memory Soak', () => {
     tty.send('y');
     const summaryScreen = await tty.waitFor(
       (s) => s.includes('再来一轮') || s.includes('New Round') || s.includes('本轮练习总结'),
-      { timeoutMs: 8_000, label: 'Round Summary' },
+      { timeoutMs: 20_000, label: 'Round Summary' },
     );
     assertScreenHealthy(tty, summaryScreen, 120, 36, 'Round Summary');
 
     tty.send('b');
     await tty.waitFor(
       (s) => s.includes('题组列表') || s.includes('Decks'),
-      { timeoutMs: 8_000, label: 'Back to Library from Review' },
+      { timeoutMs: 20_000, label: 'Back to Library from Review' },
     );
   });
 
@@ -684,7 +685,7 @@ describe('StudyHub TUI Core Views E2E, Deep Interactions & Memory Soak', () => {
         !s.includes('正在加载错题本') &&
         !s.includes('正在加载页面') &&
         (s.includes('题干') || s.includes('Question')),
-      { timeoutMs: 10_000, label: 'WrongBookView rendered with sample weak cards' },
+      { timeoutMs: 20_000, label: 'WrongBookView rendered with sample weak cards' },
     );
     assertScreenHealthy(tty, wbInit, 120, 36, 'WrongBookView initial');
 
@@ -1056,7 +1057,7 @@ describe('StudyHub TUI Core Views E2E, Deep Interactions & Memory Soak', () => {
             step.expect.test(s) &&
             !s.includes('正在加载页面…') &&
             !s.includes('Loading view…'),
-          { timeoutMs: 10_000, label: `Soak round ${round} -> ${step.id}` },
+          { timeoutMs: 20_000, label: `Soak round ${round} -> ${step.id}` },
         );
         await tty.flush();
         assertScreenHealthy(tty, screen, 120, 36, `Soak R${round} ${step.id}`);

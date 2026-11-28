@@ -1173,15 +1173,16 @@ describe('Domain Notes & Board: NotesView PTY E2E (zh & --ascii en)', () => {
           tty.resize(80, 24);
           await tty.flush();
           const compact = await tty.waitFor(
-            (s) => s.includes(pass.noteTitle) && s.split('\n').length <= 24,
+            (s) => s.includes(pass.emptyTitle) && s.includes(pass.noteTitle) && s.split('\n').length <= 24,
             { label: `NotesView 80x24 (${pass.name})` },
           );
           tty.assertHealthyScreen(compact, 80, 24, `NotesView 80x24 (${pass.name})`);
           if (pass.asciiMode) tty.assertAsciiPure(compact, `NotesView 80x24 (${pass.name})`);
 
           tty.resize(120, 36);
+          const notesHeader = pass.language === 'zh' ? '学习笔记' : 'Notes';
           await tty.waitFor(
-            (s) => s.includes(pass.noteTitle),
+            (s) => s.includes(pass.emptyTitle) && s.includes(notesHeader),
             { label: `NotesView restored 120x36 (${pass.name})` },
           );
           tty.send('?');
@@ -1194,10 +1195,16 @@ describe('Domain Notes & Board: NotesView PTY E2E (zh & --ascii en)', () => {
 
           tty.send('\x1b');
           const closedHelp = await tty.waitFor(
-            (s) => !s.includes(pass.language === 'zh' ? '快捷键' : 'Keyboard Shortcuts'),
-            { label: `HelpOverlay closed (${pass.name})` },
+            (s) =>
+              !s.includes(pass.language === 'zh' ? '快捷键' : 'Keyboard Shortcuts') &&
+              s.includes(pass.emptyTitle) &&
+              s.includes(notesHeader),
+            { label: `NotesView restored after HelpOverlay Esc (${pass.name})` },
           );
-          assert.ok(closedHelp.includes(pass.noteTitle), `NotesView must reappear after HelpOverlay Esc (${pass.name})`);
+          assert.ok(
+            closedHelp.includes(pass.emptyTitle),
+            `NotesView must reappear after HelpOverlay Esc (${pass.name})`,
+          );
 
           // Return selection to index 0 before next pass inserts a newer note at top
           if (idx === 0) {

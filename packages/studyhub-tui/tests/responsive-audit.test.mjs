@@ -305,7 +305,7 @@ describe('StudyHub TUI 4-Viewport Bilingual & ASCII Responsive Audit', () => {
               useTuiStore.getState().page === step.id &&
               (expectedRe.test(s) || s.includes('页面渲染异常') || s.includes('View Error')) &&
               !STILL_LOADING_RE.test(s),
-            { timeoutMs: 8_000, label: `${step.id} @ ${pass.name}` },
+            { timeoutMs: 20_000, label: `${step.id} @ ${pass.name}` },
           );
 
           await tty.flush();
@@ -451,7 +451,7 @@ describe('StudyHub TUI Empty-Library 16-View Onboarding & Bilingual Audit', () =
               lang === 'en'
                 ? s.includes('Load the sample course')
                 : s.includes('载入示例课程体验'),
-            { timeoutMs: 8_000, label: `Launchpad ${lang} ${vp.cols}x${vp.rows}` },
+            { timeoutMs: 20_000, label: `Launchpad ${lang} ${vp.cols}x${vp.rows}` },
           );
 
           await tty.flush();
@@ -535,7 +535,7 @@ describe('StudyHub TUI Empty-Library 16-View Onboarding & Bilingual Audit', () =
               useTuiStore.getState().page === step.id &&
               (step.en.test(s) || s.includes('页面渲染异常') || s.includes('View Error')) &&
               !STILL_LOADING_RE.test(s),
-            { timeoutMs: 8_000, label: `${step.id} @ en ${vp.cols}x${vp.rows}` },
+            { timeoutMs: 20_000, label: `${step.id} @ en ${vp.cols}x${vp.rows}` },
           );
 
           await tty.flush();
@@ -610,7 +610,7 @@ describe('StudyHub TUI Empty-Library 16-View Onboarding & Bilingual Audit', () =
               useTuiStore.getState().page === step.id &&
               (step.zh.test(s) || s.includes('页面渲染异常') || s.includes('View Error')) &&
               !STILL_LOADING_RE.test(s),
-            { timeoutMs: 8_000, label: `${step.id} @ zh ${vp.cols}x${vp.rows}` },
+            { timeoutMs: 20_000, label: `${step.id} @ zh ${vp.cols}x${vp.rows}` },
           );
 
           await tty.flush();

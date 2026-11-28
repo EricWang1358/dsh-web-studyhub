@@ -6,17 +6,18 @@
 //             `resolveAdaptiveTickMs` 4x low-power blur throttling)
 // node --test tests/round-94-ux.test.mjs
 import assert from 'node:assert/strict';
-import { PassThrough } from 'node:stream';
 import { after, describe, test } from 'node:test';
 import xtermPkg from '@xterm/headless';
 import { render } from 'ink';
 import React from 'react';
 import { register } from 'tsx/esm/api';
+import { createVirtualTty, disposeTerminalPool } from './helpers/virtual-tty.mjs';
 
 const { Terminal } = xtermPkg;
 
 const unregisterTsx = register();
 after(() => {
+  disposeTerminalPool();
   unregisterTsx?.();
 });
 
@@ -53,32 +54,6 @@ const { useTuiStore } = storeMod;
 
 function stripAnsi(s) {
   return String(s || '').replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
-}
-
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-
-function createTtyHarness(columns, rows) {
-  const stdout = new PassThrough();
-  const stdin = new PassThrough();
-  Object.assign(stdout, { isTTY: true, columns, rows });
-  Object.assign(stdin, { isTTY: true, setRawMode: () => {}, ref: () => {}, unref: () => {} });
-  let output = '';
-  stdout.on('data', (chunk) => {
-    output += chunk.toString('utf8');
-  });
-  return {
-    stdout,
-    stdin,
-    async waitFor(pred, timeoutMs = 2000) {
-      const start = Date.now();
-      while (Date.now() - start < timeoutMs) {
-        const plain = stripAnsi(output);
-        if (pred(plain)) return plain;
-        await wait(20);
-      }
-      throw new Error(`waitFor timed out. Last output:\n${stripAnsi(output).slice(-800)}`);
-    },
-  };
 }
 
 describe('Round 94 Track D8 & A12 — Gap-Fill Workflow & Saved-Plan Schedule Table [T]', () => {
@@ -154,19 +129,35 @@ describe('Round 94 Track D8 & A12 — Gap-Fill Workflow & Saved-Plan Schedule Ta
       snapshot: { focus: { course: 'Linear Algebra' }, courses: [{ name: 'Linear Algebra' }] },
     });
 
-    const tty = createTtyHarness(120, 36);
-    const inst = render(React.createElement(ExamPrepView, { host, width: 116, height: 34, isActive: true }), {
-      stdout: tty.stdout,
-      stdin: tty.stdin,
-      exitOnCtrlC: false,
-      interactive: true,
-    });
-    await tty.waitFor((s) => s.includes('Vector Spaces'));
-    tty.stdin.write('T');
-    const tblOut = await tty.waitFor((s) => s.includes('排程与重点矩阵') && s.includes('缺口自动补齐步骤'));
-    assert.match(tblOut, /日期.*阶段.*安排.*分钟/);
-    assert.match(tblOut, /补齐缺题.*Vector Spaces/);
-    inst.unmount();
+    const tty = createVirtualTty(120, 36);
+    let inst = null;
+    try {
+      inst = render(React.createElement(ExamPrepView, { host, width: 116, height: 34, isActive: true }), {
+        stdout: tty.stdout,
+        stdin: tty.stdin,
+        stderr: tty.stderr,
+        exitOnCtrlC: false,
+        interactive: true,
+        patchConsole: false,
+      });
+      await tty.firstFramePromise;
+      await tty.waitFor((s) => s.includes('Vector Spaces'), { label: 'ExamPrepView initial render' });
+      await tty.flush();
+      tty.send('T');
+      const tblOut = await tty.waitFor(
+        (s) => s.includes('排程与重点矩阵') && s.includes('缺口自动补齐步骤'),
+        { label: 'ExamPrepView [T] schedule table and gap-fill steps' },
+      );
+      assert.match(tblOut, /日期.*阶段.*安排.*分钟/);
+      assert.match(tblOut, /补齐缺题.*Vector Spaces/);
+    } finally {
+      try {
+        inst?.unmount();
+      } catch {
+        // Ignore unmount errors during teardown
+      }
+      tty.dispose();
+    }
   });
 });
 

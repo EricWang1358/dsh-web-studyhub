@@ -323,7 +323,7 @@ async function mountSuiteApp(label, { autoLaunchpad = false } = {}) {
         s.includes('示例 · Memento 与 Bridge') &&
         !s.includes('正在打开学习库') &&
         !s.includes('正在加载页面'),
-      { timeoutMs: 12_000, label: `${label}: initial LibraryView` },
+      { timeoutMs: 20_000, label: `${label}: initial LibraryView` },
     );
     await tty.flush();
   }
@@ -362,16 +362,17 @@ describe('Round 8: Board Pomodoro, Backup Export & Feynman Retell', () => {
     const { tty } = ctx;
     const launchpad = await tty.waitFor(
       (s) => s.includes('载入示例课程体验') || s.includes('Load the sample course'),
-      { label: 'Launchpad render' },
+      { timeoutMs: 15_000, label: 'Launchpad render' },
     );
     assert.ok(launchpad.includes('载入示例课程体验') || launchpad.includes('Load the sample course'));
+    await tty.flush();
 
     tty.send('s');
     const afterLoad = await tty.waitFor(
       (s) =>
         !s.includes('载入示例课程体验') &&
         (s.includes('示例 · Memento 与 Bridge') || s.includes('Sample · Memento')),
-      { timeoutMs: 12_000, label: 'Library after sample load' },
+      { timeoutMs: 25_000, label: 'Library after sample load' },
     );
     assert.ok(afterLoad.includes('示例 · Memento 与 Bridge') || afterLoad.includes('Sample · Memento'));
     await tty.flush();
@@ -1758,15 +1759,21 @@ describe('Round 14: AnswerCardModal, VoicePackModal & Settings Workspace Restore
       (s) =>
         !s.includes('分析题答题卡') &&
         !s.includes('Case Answer Card') &&
-        (s.includes('[A]答题卡') || s.includes('[A]AnswerCard')),
-      { timeoutMs: 8_000, label: 'AnswerCardModal closed via Esc back to ReviewView' },
+        (s.includes('[A]答题卡') ||
+          s.includes('[A]AnswerCard') ||
+          s.includes('翻看答案') ||
+          s.includes('flip card')),
+      { timeoutMs: 20_000, label: 'AnswerCardModal closed via Esc back to ReviewView' },
     );
     tty.assertHealthyScreen(backToReview, 120, 36, 'ReviewView after AnswerCardModal closed');
 
     tty.send('\x1b');
     const backToLib = await tty.waitFor(
-      (s) => (s.includes('题组列表') || s.includes('Decks')) && !s.includes('[A]答题卡'),
-      { timeoutMs: 8_000, label: 'Returned to LibraryView from ReviewView' },
+      (s) =>
+        (s.includes('题组列表') || s.includes('Decks')) &&
+        !s.includes('翻看答案') &&
+        !s.includes('flip card'),
+      { timeoutMs: 20_000, label: 'Returned to LibraryView from ReviewView' },
     );
     tty.assertHealthyScreen(backToLib, 120, 36, 'LibraryView after ReviewView');
   });

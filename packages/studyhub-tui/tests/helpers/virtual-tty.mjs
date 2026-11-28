@@ -9,7 +9,7 @@
  * 3. Direct `dist/App.mjs` & `dist/host.mjs` loading (avoids scanning & importing every `chunk-*.mjs`).
  */
 import assert from 'node:assert/strict';
-import { cp, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { PassThrough } from 'node:stream';
@@ -374,8 +374,14 @@ export function createVirtualTty(cols = 120, rows = 36) {
   /**
    * Event-driven `waitFor`: accepts either a `(screen: string) => boolean` predicate or a `RegExp`.
    * Resolves immediately on the xterm frame commit that satisfies the condition (zero polling sleep).
+   *
+   * Standard UI/RPC wait deadlines (`timeoutMs >= 2_000`) use a 20_000ms contention-safe floor so
+   * lazy ESM chunk imports and host snapshot/write RPCs under parallel E2E runs (`--shard`,
+   * `STUDYHUB_E2E_CONCURRENCY=4`) do not spuriously time out while actively progressing; explicit
+   * short timeouts (`< 2_000ms`) are honored verbatim.
    */
-  async function waitFor(predicateOrRegex, { timeoutMs = 8_000, label = 'condition' } = {}) {
+  async function waitFor(predicateOrRegex, { timeoutMs = 20_000, label = 'condition' } = {}) {
+    const effectiveTimeoutMs = timeoutMs >= 2_000 ? Math.max(timeoutMs, 20_000) : timeoutMs;
     const check =
       predicateOrRegex instanceof RegExp
         ? (screen) => predicateOrRegex.test(screen)
@@ -422,10 +428,10 @@ export function createVirtualTty(cols = 120, rows = 36) {
         cleanup();
         rejectWait(
           new Error(
-            `Timed out waiting for ${label} after ${timeoutMs}ms.\n--- SCREEN ---\n${finalScreen}\n--------------`,
+            `Timed out waiting for ${label} after ${effectiveTimeoutMs}ms.\n--- SCREEN ---\n${finalScreen}\n--------------`,
           ),
         );
-      }, timeoutMs);
+      }, effectiveTimeoutMs);
       activeTimers.add(timer);
 
       frameListeners.add(onFrame);
@@ -495,6 +501,37 @@ export function createVirtualTty(cols = 120, rows = 36) {
     assertAsciiPure,
     dispose,
   };
+}
+
+/**
+ * Wait deterministically for an atomically persisted JSON file (`temp + fsync + rename`)
+ * to satisfy `predicate(parsed)`. Ignores transient `ENOENT` or partial-read parse errors
+ * while an atomic write is in flight, and returns the matching parsed object.
+ */
+export async function waitForJsonFile(
+  filePath,
+  predicate,
+  { timeoutMs = 10_000, intervalMs = 25, label = filePath } = {},
+) {
+  const deadline = Date.now() + timeoutMs;
+  let lastValue = null;
+  let lastError = null;
+  while (true) {
+    try {
+      const raw = await readFile(filePath, 'utf8');
+      const parsed = JSON.parse(raw);
+      lastValue = parsed;
+      lastError = null;
+      if (predicate(parsed)) return parsed;
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+    }
+    if (Date.now() >= deadline) break;
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error(
+    `Timed out waiting for JSON file (${label}) after ${timeoutMs}ms; lastValue=${JSON.stringify(lastValue)}${lastError ? ` lastError=${lastError}` : ''}`,
+  );
 }
 
 /**

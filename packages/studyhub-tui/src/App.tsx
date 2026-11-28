@@ -330,12 +330,13 @@ export function StudyHubTuiApp({
   }, [host, initialAsciiMode, initialLanguage, initialPage, initialTheme, syncFromHost]);
 
   const shellActions = useMemo<Partial<ShellActions>>(() => {
-    const base = createDefaultShellActions(host, () => onExit?.());
+    const syncRefresh = async () => {
+      await syncFromHost(false);
+    };
+    const base = createDefaultShellActions(host, () => onExit?.(), syncRefresh);
     return {
       ...base,
-      refresh: async () => {
-        await syncFromHost(false);
-      },
+      refresh: syncRefresh,
       cycleTheme: () => {
         const cur = useTuiStore.getState().preferences.theme;
         const next = nextThemeId(cur);
