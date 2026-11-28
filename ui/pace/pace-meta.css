@@ -32,4 +32,26 @@
       display: inline;
     }
   }
+  /* Narrow home desk order (#1690): owned here (mirrors ui/course-active.css) so .pace-meta stays in one stylesheet. */
+  :is(.study-app, .study-seat) {
+    .desk > .desk-intro > .pace-meta {
+      width: 100%;
+      max-width: var(--desk-measure);
+      margin: 0;
+    }
+  }
+  @container study (max-width: 760px) {
+    :is(.study-app, .study-seat) {
+      .desk > .desk-intro > .pace-meta {
+        order: 6;
+      }
+    }
+  }
+  @media (max-width: 760px) {
+    :is(.study-app, .study-seat) {
+      .desk > .desk-intro > .pace-meta {
+        order: 6;
+      }
+    }
+  }
 }
