@@ -38,14 +38,16 @@ If you prefer not to install a local conversion engine, or want to convert a PDF
 
 > **Privacy and boundary**: Uploading files to a third-party service is strictly between you and that service; StudyHub does not handle or store them. StudyHub does not invoke these tools, does not transmit your files, and makes no guarantee of third-party availability.
 
-- **PaddleOCR Online**: `https://www.paddleocr.ai` — No-install web tool supporting scans, tables, and formulas; exports JSON or Markdown.
-- **Marker (open source)**: `https://github.com/datalab-to/marker` — Open-source PDF-to-Markdown converter with OCR, formulas, and page-marker support.
-- **Docling (open source)**: `https://github.com/docling-project/docling` — Open-source document parser (MIT) exporting paginated JSON (DoclingDocument) or Markdown.
-- **Mathpix**: `https://mathpix.com` — Focused on STEM formulas and papers; converts PDFs to Markdown (`.md`) with LaTeX or `.tex`.
+- **PaddleOCR Online**: `https://www.paddleocr.ai` — Apache-2.0 · Web (no install) · JSON, Markdown
+- **Marker**: `https://github.com/datalab-to/marker` — Apache-2.0 (model weights: modified OpenRAIL-M) · Windows / macOS / Linux · Markdown (--paginate_output), JSON
+- **Docling**: `https://github.com/docling-project/docling` — MIT · Windows / macOS / Linux · JSON (DoclingDocument), Markdown
+- **Mathpix**: `https://mathpix.com` — Proprietary (commercial service) · Web (no install) · Markdown (.md), LaTeX (.tex)
+
+The list comes from the converter catalogue in `lib/large-documents.js`, the same one the import hub, the Generate page and Settings use.
 
 ### How to import after conversion
 
-1. **Check the exported format**: StudyHub accepts Markdown (`.md` / `.markdown`, including `<!-- page: N -->` or Marker page markers), plain text (`.txt`), LaTeX (`.tex`), HTML (`.html` / `.htm`), Word (`.docx`), PowerPoint (`.pptx` / `.ppt`), text-layer PDF (`.pdf`), and structured converter JSON (`.json` from PaddleOCR / Docling / MinerU). Size limits per file: 8 MB for `.md` / `.txt` / `.tex` / `.html` / `.pdf` (PDF up to 200 pages; extracted text up to 600,000 characters), and 40 MB for `.docx` / `.pptx` / `.ppt` and converted `.json`.
+1. **Check the exported format**: download the JSON result (or Markdown with `<!-- page: N -->` page markers). StudyHub accepts Markdown (`.md` / `.markdown`), plain text (`.txt`), LaTeX (`.tex`), HTML (`.html` / `.htm`), Word (`.docx`), PowerPoint (`.pptx` / `.ppt`), text-layer PDF (`.pdf`), and structured converter JSON (`.json` from PaddleOCR / Docling / MinerU). Size limits per file: 8 MB for `.md` / `.txt` / `.tex` / `.html` / `.pdf` (PDF up to 200 pages; extracted text up to 600,000 characters), and 40 MB for `.docx` / `.pptx` / `.ppt` and converted `.json`.
 2. **Where to put it and how to import**: Open the **Sources** page and click **Add source** (or click **Add source** inside **Create deck**). Pick the course, then drop the converted file on the **Files** tab or click **Choose files**; plain text can also be saved via the **Paste text** tab. In **Study Mode** in the main chat, you can also place the file in `studyhub-work/` or a local folder and ask the assistant to import it.
 3. **Common failures and fixes**:
    - **Missing formulas**: Basic converters often drop formulas or turn them into images. Enable LaTeX formula output in the external tool and export as `.md` or `.tex` (preserving `$...$` / `$$...$$`) instead of plain text.
