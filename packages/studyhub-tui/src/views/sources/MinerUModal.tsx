@@ -116,14 +116,9 @@ interface RetryResult {
 const PDF_EXTENSIONS = ['.pdf'] as const;
 const RETRYABLE_STATUSES = new Set(['failed', 'interrupted', 'cancelled', 'stopped']);
 const SETTINGS_ERROR_CODES = new Set([
-  'not-installed',
-  'needs-models',
-  'installing',
-  'unknown',
-  'cloud-removed',
-  'server-start-failed',
-  'service-failed',
-  'models-missing',
+  'not-installed', 'needs-models', 'installing', 'unknown',
+  'server-start-failed', 'service-failed', 'models-missing',
+  'invalid-token', 'expired', 'no-token', 'no-ack', 'invalid-base-url',
 ]);
 
 function resolveUserPath(raw: string): string {
@@ -165,7 +160,7 @@ function formatShortDate(iso: string | undefined): string {
 function isSettingsGuidanceError(code: string | undefined, message: string | undefined): boolean {
   if (code && SETTINGS_ERROR_CODES.has(code)) return true;
   if (!message) return false;
-  return /mineru|设置|settings|一键安装|one-click install|needs-models|not-installed|repair|修复/i.test(message);
+  return /mineru|设置|settings|一键安装|one-click install|needs-models|not-installed|repair|修复|令牌|token|密钥|api key|baseUrl|接口地址|确认上传|隐私说明/i.test(message);
 }
 
 function isPdfInputError(code: string | undefined, message: string | undefined): boolean {
@@ -200,7 +195,6 @@ function statusDisplay(
 function canRetryRecord(rec: MinerUHistoryRecord | undefined): boolean {
   if (!rec) return false;
   if (rec.live || rec.status === 'running' || rec.status === 'complete') return false;
-  if (rec.route === 'cloud') return false;
   if (rec.canRetry === true) return true;
   if (rec.canRetry === false) return false;
   return RETRYABLE_STATUSES.has(rec.status);
@@ -436,13 +430,6 @@ export const MinerUModal = memo(function MinerUModal({
 
   const handleRetrySelected = useCallback(async () => {
     if (busyRef.current || !selectedRecord) return;
-    if (selectedRecord.route === 'cloud') {
-      notify(
-        t(lang, '云端解析记录无法续传，请用本机 MinerU 重新转换', 'Cloud jobs cannot resume; re-convert locally'),
-        'warning',
-      );
-      return;
-    }
     if (selectedRecord.live || selectedRecord.status === 'running') {
       notify(t(lang, '该转换正在运行，按 [t] 可前往任务页查看', 'Conversion is running; press [t] to view in Jobs'), 'info');
       return;
@@ -625,7 +612,7 @@ export const MinerUModal = memo(function MinerUModal({
   return (
     <Modal
       title={t(lang, 'MinerU 扫描/长 PDF 转换', 'MinerU Scanned / Long PDF')}
-      subtitle={t(lang, '本机离线解析', 'Local · Zero Upload')}
+      subtitle={t(lang, '本机默认 · 可选云端', 'Local Default · Optional Cloud')}
       icon={asciiMode ? 'M' : '▤'}
       width={frameWidth}
       height={frameHeight}
@@ -771,8 +758,8 @@ export const MinerUModal = memo(function MinerUModal({
                       {truncateDisplay(
                         t(
                           lang,
-                          `指引：请在 StudyHub Desktop「设置 ${gt} PDF 转换」一键安装或修复本机 MinerU 后重试。`,
-                          'Settings: Open StudyHub Desktop "Settings > PDF conversion" to install or repair local MinerU.',
+                          `指引：请在 StudyHub Desktop「设置 ${gt} PDF 转换」检查本机 MinerU 安装或云端接口/密钥后重试。`,
+                          'Settings: Open StudyHub Desktop "Settings > PDF conversion" to check local MinerU or cloud endpoint/key.',
                         ),
                         Math.max(20, (innerWidth - 4) * 2),
                         ell,
@@ -1020,9 +1007,7 @@ export const MinerUModal = memo(function MinerUModal({
                         ? `${errMark} ${selectedRecord.failure.reason}`
                         : selectedRecord.document?.exists
                           ? `${okMark} ${t(lang, `已导入 ${selectedRecord.document.pages ?? selectedRecord.pages ?? 0} 页`, `Imported ${selectedRecord.document.pages ?? selectedRecord.pages ?? 0} page(s)`)}`
-                          : selectedRecord.route === 'cloud'
-                            ? t(lang, '旧版云端任务记录（仅查看）', 'Legacy cloud record (read-only)')
-                            : t(lang, '按 [j/k] 选择记录，失败/中断记录可按 [r] 继续', 'Use [j/k] to select; press [r] on failed/stopped jobs to retry'),
+                          : t(lang, '按 [j/k] 选择记录，失败/中断记录可按 [r] 继续', 'Use [j/k] to select; press [r] on failed/stopped jobs to retry'),
                       innerWidth,
                       ell,
                     )}
