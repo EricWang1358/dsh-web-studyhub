@@ -12,6 +12,7 @@ import {
   EXTERNAL_PDF_GUIDE_TITLE,
   EXTERNAL_PDF_IMPORT_TITLE,
   EXTERNAL_PDF_PRIVACY_NOTICE,
+  EXTERNAL_PDF_TOOL_IDS,
   EXTERNAL_PDF_TOOL_URLS,
   EXTERNAL_PDF_TOOLS,
   PAGE_MARKER,
@@ -22,13 +23,12 @@ import {
 const PINNED_URLS = [
   'https://www.paddleocr.ai',
   'https://mineru.net/OpenSourceTools/Extractor',
-  'https://github.com/datalab-to/marker',
   'https://github.com/docling-project/docling',
   'https://mathpix.com',
 ];
 const ALLOWED_HOSTS = ['www.paddleocr.ai', 'mineru.net', 'github.com', 'mathpix.com'];
-/* MinerU's web parser is the one mineru.net address the guide may print (#1778, owner 2026-11-28): a plain link. The MinerU cloud route (API, token, upload)
-   was deleted on 10-16 and stays deleted, so outside this exact address nothing on the page may name mineru.net. */
+/* MinerU's web parser is the one mineru.net address the guide may print (#1778, owner 2026-11-28): a link to a web page. Within the guide's own markup nothing
+   else may name mineru.net or ask for a key, token or base URL. Only the guide is checked: the PDF panel and Settings around it may offer routes of their own. */
 const MINERU_WEB_URL = 'https://mineru.net/OpenSourceTools/Extractor';
 
 
@@ -45,7 +45,7 @@ const mod = await loadUi(`
   export { PdfDetail } from './ui/PdfConvertJob.jsx';
   export { default as MineruPane } from './ui/settings/MineruPane.jsx';
   export { StudyServicesContext } from './ui/study-context.jsx';
-  export { ui, setUiLanguage } from './ui/i18n.js';
+  export { ui, uiFormat, setUiLanguage } from './ui/i18n.js';
   export { toolMetaLine } from './ui/PdfExternalConvertGuide.jsx';
   export { PaddleOcrOption } from './ui/LargeDocumentCard.jsx';
 `);
@@ -75,6 +75,22 @@ const sampleJob = {
   total: 120,
   env: { kind: 'local', mineruVersion: '4.0.10', tier: 'basic' },
 };
+
+/** The guide's own markup inside a surface: the element carrying data-pdf-external-guide, with everything nested in it. */
+function guideMarkup(html) {
+  const at = html.indexOf('data-pdf-external-guide');
+  assert.ok(at >= 0, 'the guide is on this surface');
+  const start = html.lastIndexOf('<', at);
+  const tag = /^<([a-z0-9]+)/i.exec(html.slice(start))[1];
+  const pattern = new RegExp(`<${tag}[\\s>]|</${tag}>`, 'gi');
+  pattern.lastIndex = start;
+  let depth = 0;
+  for (let match; (match = pattern.exec(html));) {
+    depth += match[0].startsWith('</') ? -1 : 1;
+    if (depth === 0) return html.slice(start, match.index + match[0].length);
+  }
+  throw new Error(`unclosed <${tag}> around the guide`);
+}
 
 const rendered = html => [...html.matchAll(/<code[^>]*class="pdf-ext-guide__url"[^>]*>([^<]*)<\/code>/g)].map(match => match[1]);
 /** The page marker as rendered: escaped, inside <code>, kept out of machine translation. */
@@ -143,11 +159,11 @@ test('PdfConversion, PdfDetail (PdfConvertJob), and MineruPane all render the sh
   for (const [label, element] of surfaces) {
     const zh = render(element, 'zh');
     assert.equal((zh.match(/data-pdf-external-guide=/g) || []).length, 1, `${label}: renders guide exactly once`);
-    assertGuideInZh(zh, label);
+    assertGuideInZh(guideMarkup(zh), label);
 
     const en = render(element, 'en');
     assert.equal((en.match(/data-pdf-external-guide=/g) || []).length, 1, `${label} (en): renders guide exactly once`);
-    assertGuideInEn(en, label);
+    assertGuideInEn(guideMarkup(en), label);
   }
 });
 
@@ -252,11 +268,17 @@ test('docs/pdf-workflow.zh-CN.md and docs/pdf-workflow.md stay in sync with the 
       }
     } finally { mod.setUiLanguage('zh'); }
   }
+  // Step 1's limits read in each doc exactly as the guide says them, with the numbers from their homes.
   const { pdfPages, selectionChars } = LARGE_DOCUMENT_LIMITS;
-  assert.ok(enDoc.includes(`PDF up to ${pdfPages} pages; extracted text up to ${selectionChars.toLocaleString('en-US')} characters`), 'en doc quotes LARGE_DOCUMENT_LIMITS');
-  assert.ok(zhDoc.includes(`PDF 最多 ${pdfPages} 页，提取文本最多 ${selectionChars / 10000} 万字符`), 'zh doc quotes LARGE_DOCUMENT_LIMITS');
-  assert.ok(enDoc.includes(`${megabytes(MAX_TEXT_DOCUMENT_BYTES)} MB for`) && enDoc.includes(`${megabytes(MAX_OFFICE_BYTES)} MB for`), 'en doc quotes the size limits');
-  assert.ok(zhDoc.includes(`为 ${megabytes(MAX_TEXT_DOCUMENT_BYTES)} MB`) && zhDoc.includes(`为 ${megabytes(MAX_OFFICE_BYTES)} MB`), 'zh doc quotes the size limits');
+  for (const [language, doc] of [['zh', zhDoc], ['en', enDoc]]) {
+    mod.setUiLanguage(language);
+    try {
+      const pages = mod.uiFormat('PDF 最多 {0} 页，提取出的文字最多 {1} 字符', [pdfPages, selectionChars.toLocaleString('en-US')]);
+      const sizes = mod.uiFormat('PDF 与文本最大 {0} MB，Word / PPT / 转换 JSON 最大 {1} MB', [megabytes(MAX_TEXT_DOCUMENT_BYTES), megabytes(MAX_OFFICE_BYTES)]);
+      assert.ok(doc.includes(pages), `${language} doc says the page and character limits as the guide does: ${pages}`);
+      assert.ok(doc.includes(sizes), `${language} doc says the size limits as the guide does: ${sizes}`);
+    } finally { mod.setUiLanguage('zh'); }
+  }
   assert.ok(zhDoc.includes(EXTERNAL_PDF_GUIDE_TITLE), 'zh doc includes guide heading');
   assert.ok(zhDoc.includes(EXTERNAL_PDF_PRIVACY_NOTICE), 'zh doc includes exact privacy notice');
   assert.ok(zhDoc.includes(EXTERNAL_PDF_IMPORT_TITLE), 'zh doc includes 3-step import heading');
@@ -275,7 +297,9 @@ test('docs/pdf-workflow.zh-CN.md and docs/pdf-workflow.md stay in sync with the 
 
 test('the guide reads the shared catalogue: the same entries as TOOLS, the pinned address list, https, no query string or fragment, hosts on the allow-list', () => {
   assert.deepEqual(EXTERNAL_PDF_TOOL_URLS, PINNED_URLS, 'the full list of addresses is pinned: removing, adding or changing one is a visible decision');
-  assert.deepEqual(EXTERNAL_PDF_TOOLS.map(entry => entry.id), ['paddleocr', 'mineru-web', 'marker', 'docling', 'mathpix']);
+  assert.deepEqual(EXTERNAL_PDF_TOOLS.map(entry => entry.id), ['paddleocr', 'mineru-web', 'docling', 'mathpix']);
+  assert.deepEqual(EXTERNAL_PDF_TOOL_IDS, EXTERNAL_PDF_TOOLS.map(entry => entry.id), 'every id the guide asks for is in the catalogue (none dropped silently)');
+  assert.ok(!EXTERNAL_PDF_TOOLS.some(entry => /marker/i.test(entry.id + entry.url)), 'Marker is run by StudyHub (the PDF panel), so it is not an external link');
   for (const entry of EXTERNAL_PDF_TOOLS) {
     assert.equal(entry.tool, TOOLS.find(tool => tool.id === entry.id), `${entry.id} is the catalogue entry itself, not a second copy`);
     assert.ok(entry.tool.channels.some(channel => channel.url === entry.url), `${entry.id}: the address is one of its catalogue channels`);
@@ -289,7 +313,7 @@ test('the guide reads the shared catalogue: the same entries as TOOLS, the pinne
   }
   assert.equal(new Set(EXTERNAL_PDF_TOOL_URLS).size, EXTERNAL_PDF_TOOL_URLS.length, 'no address twice');
   // The tool cards keep working for catalogue entries added for the guide (licence line, no installed claim).
-  for (const id of ['marker', 'mathpix']) {
+  for (const id of ['mineru-web', 'mathpix']) {
     const tool = TOOLS.find(entry => entry.id === id);
     assert.equal(tool.recommended, false, `${id} is listed, not recommended`);
     assert.ok(tool.license && tool.platforms.length && tool.channels.length >= 2, id);
@@ -314,6 +338,12 @@ test('PaddleOCR option (LargeDocumentCard) and guide step 1 say the same downloa
   assert.ok(option.includes(`href="${TOOLS.find(tool => tool.id === 'paddleocr').channels[0].url}"`), 'the option links the catalogue address');
 });
 
+test('the compact PDF panel inside another card (LargeDocumentCard ConverterMain) leaves the guide out; the full panel has it once', () => {
+  const count = props => (render(h(mod.PdfConversion, { available: true, initialLocal: { state: 'ready', tier: 'basic' }, ...props })).match(/data-pdf-external-guide=/g) || []).length;
+  assert.equal(count({ compact: true }), 0, 'compact: no guide');
+  assert.equal(count({}), 1, 'full panel: one guide');
+});
+
 test('PdfDetail shows the external guide only for a failed conversion, never while running, stopped or complete', () => {
   const guideOf = status => (render(h(mod.PdfDetail, { job: { ...sampleJob, status } })).match(/data-pdf-external-guide=/g) || []).length;
   assert.equal(guideOf('failed'), 1);
@@ -321,10 +351,9 @@ test('PdfDetail shows the external guide only for a failed conversion, never whi
   assert.equal((render(h(mod.PdfDetail, { job: { ...sampleJob, status: undefined } })).match(/data-pdf-external-guide=/g) || []).length, 0, 'no guide without a status');
 });
 
-test('MinerU web parser: its own catalogue entry (not the local install, not the desktop client, no cloud route), sign-in said, and the file the guide names imports page by page', () => {
+test('MinerU web parser: its own catalogue entry (not the local install, not the desktop client, nothing to call), sign-in said, and the file the guide names imports page by page', () => {
   const web = TOOLS.find(tool => tool.id === 'mineru-web');
   assert.ok(web, 'mineru-web is in the catalogue');
-  assert.equal(TOOLS.find(tool => tool.id === 'mineru-cloud'), undefined, 'the MinerU cloud route stays deleted');
   assert.deepEqual(web.channels.map(channel => channel.url), [MINERU_WEB_URL, 'https://github.com/opendatalab/MinerU'], 'the official web parser and its source: no API endpoint');
   assert.equal(web.needs, 'online');
   assert.equal(web.recommended, false);
