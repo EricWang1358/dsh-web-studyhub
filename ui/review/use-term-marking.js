@@ -739,6 +739,14 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
     if (!body) return undefined;
 
     const doc = body.ownerDocument;
+    // After pointerup marks a word, the click the browser fires for the same gesture must not toggle it again.
+    // That click is "paired" and must be swallowed whenever it arrives: a mouse click comes right after pointerup,
+    // but Chromium synthesizes the click of a touch or pen tap in a later task, after a delay we do not control
+    // (a slow machine, a heavy render). So the flag is NOT tied to a short timer. It is released by, in order:
+    // the paired click itself, the next pointerdown (a new gesture), or this long backstop. The backstop only
+    // exists so that a drag that ended outside .review-body, whose click never reaches us, cannot make us swallow
+    // an unrelated click much later; it has to be far longer than any realistic click delay.
+    const CLICK_SUPPRESSION_BACKSTOP_MS = 1000;
     let clearSuppressTimer = 0;
     const armClickSuppression = () => {
       suppressNextClickRef.current = true;
@@ -746,7 +754,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
       clearSuppressTimer = setTimeout(() => {
         clearSuppressTimer = 0;
         suppressNextClickRef.current = false;
-      }, 0);
+      }, CLICK_SUPPRESSION_BACKSTOP_MS);
     };
     const clearClickSuppression = () => {
       suppressNextClickRef.current = false;
@@ -819,11 +827,13 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
         event.preventDefault();
         event.stopPropagation();
       }
+      // A click with no coordinates (keyboard Enter, el.click()) is never used for marking. It is checked first so it
+      // cannot use up the flag that a tap's own late paired click still needs.
+      if (event.clientX === 0 && event.clientY === 0) return;
       if (suppressNextClickRef.current) {
         clearClickSuppression();
         return;
       }
-      if (event.clientX === 0 && event.clientY === 0) return;
       const pointHit = charOffsetAtPoint(body.ownerDocument, event.clientX, event.clientY, body);
       if (pointHit) handlersRef.current.applyPointHit(pointHit);
     };

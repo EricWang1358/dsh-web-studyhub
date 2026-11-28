@@ -580,91 +580,219 @@ test("TermChips stays enabled for newly marked pending terms while earlier terms
   }
 });
 
-test("useTermMarking suppresses the paired click after pointerup even when >250ms elapses (#1759)", async () => {
+// Minimal fake DOM for useTermMarking: one paragraph in a .review-body-like container, caret hit-test returns
+// "linearizability". The returned helpers run the listeners the hook registered on the body and the document.
+async function mountTermMarkingFixture() {
   const interactive = await loadInteractiveUi(`
     export { useTermMarking } from "./ui/review/use-term-marking.js";
   `);
-  await withBrowserGlobals(async () => {
-    const bodyListeners = new Map();
-    const docListeners = new Map();
-    const listen = (store) => ({
-      addEventListener: (type, fn) => {
-        if (!store.has(type)) store.set(type, new Set());
-        store.get(type).add(fn);
-      },
-      removeEventListener: (type, fn) => {
-        store.get(type)?.delete(fn);
-      },
-    });
-    const textNode = { nodeType: 3, data: "Systems balance linearizability carefully." };
-    const pEl = {
-      nodeType: 1,
-      tagName: "P",
-      parentElement: null,
-      childNodes: [textNode],
-      closest: () => null,
-      matches: () => false,
-    };
-    textNode.parentElement = pEl;
-    const doc = {
-      ...listen(docListeners),
-      defaultView: { getSelection: () => ({ isCollapsed: true, rangeCount: 0 }) },
-      caretPositionFromPoint: () => ({ offsetNode: textNode, offset: 18 }),
-      createRange: () => ({
-        setStart() {},
-        setEnd() {},
-        getClientRects: () => [{ left: 10, right: 120, top: 10, bottom: 30, width: 110, height: 20 }],
-      }),
-    };
-    const body = {
-      ...listen(bodyListeners),
-      nodeType: 1,
-      tagName: "DIV",
-      ownerDocument: doc,
-      childNodes: [pEl],
-      contains: (node) => node === body || node === pEl || node === textNode,
-      closest: () => null,
-      matches: () => false,
-    };
-    pEl.parentElement = body;
+  const bodyListeners = new Map();
+  const docListeners = new Map();
+  const listen = (store) => ({
+    addEventListener: (type, fn) => {
+      if (!store.has(type)) store.set(type, new Set());
+      store.get(type).add(fn);
+    },
+    removeEventListener: (type, fn) => {
+      store.get(type)?.delete(fn);
+    },
+  });
+  const textNode = { nodeType: 3, data: "Systems balance linearizability carefully." };
+  const pEl = {
+    nodeType: 1,
+    tagName: "P",
+    parentElement: null,
+    childNodes: [textNode],
+    closest: () => null,
+    matches: () => false,
+  };
+  textNode.parentElement = pEl;
+  const doc = {
+    ...listen(docListeners),
+    defaultView: { getSelection: () => ({ isCollapsed: true, rangeCount: 0 }) },
+    caretPositionFromPoint: () => ({ offsetNode: textNode, offset: 18 }),
+    createRange: () => ({
+      setStart() {},
+      setEnd() {},
+      getClientRects: () => [{ left: 10, right: 120, top: 10, bottom: 30, width: 110, height: 20 }],
+    }),
+  };
+  const body = {
+    ...listen(bodyListeners),
+    nodeType: 1,
+    tagName: "DIV",
+    ownerDocument: doc,
+    childNodes: [pEl],
+    contains: (node) => node === body || node === pEl || node === textNode,
+    closest: () => null,
+    matches: () => false,
+  };
+  pEl.parentElement = body;
+  const session = {
+    run: { id: "r1", index: 0, mode: "path", card: { id: "c1", prompt: "Q" } },
+    markingTerms: true,
+    actions: { toggleMarkTerms() {}, exitMarkTerms() {} },
+  };
+  const hook = interactive.mountHook(
+    (props) => interactive.exports.useTermMarking(props),
+    { session, reviewBodyRef: { current: body } },
+  );
+  const fire = (store, type, event) => {
+    for (const fn of [...(store.get(type) || [])]) fn(event);
+  };
+  return {
+    hook,
+    ev: { button: 0, clientX: 50, clientY: 20, target: pEl, preventDefault() {}, stopPropagation() {} },
+    down: (event) => fire(bodyListeners, "pointerdown", event),
+    up: (event) => fire(docListeners, "pointerup", event),
+    click: (event) => fire(bodyListeners, "click", event),
+  };
+}
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+test("useTermMarking suppresses the paired click after pointerup even when >250ms elapses (#1759)", async () => {
+  await withBrowserGlobals(async () => {
+    const { hook, ev, down, up, click } = await mountTermMarkingFixture();
     const prevNow = Date.now;
     let fakeNow = 1000;
     Date.now = () => fakeNow;
-    const session = {
-      run: { id: "r1", index: 0, mode: "path", card: { id: "c1", prompt: "Q" } },
-      markingTerms: true,
-      actions: { toggleMarkTerms() {}, exitMarkTerms() {} },
-    };
-    const reviewBodyRef = { current: body };
-    const hook = interactive.mountHook(
-      (props) => interactive.exports.useTermMarking(props),
-      { session, reviewBodyRef },
-    );
     try {
-      const dispatch = (store, type, event) => {
-        for (const fn of [...(store.get(type) || [])]) fn(event);
-      };
-      const ev = { button: 0, clientX: 50, clientY: 20, target: pEl, preventDefault() {}, stopPropagation() {} };
-
       // 1. Real pointer click whose paired click fires 400ms after pointerup (exceeding the old 250ms wall-clock window).
       await hook.act(() => {
-        dispatch(bodyListeners, "pointerdown", ev);
-        dispatch(docListeners, "pointerup", ev);
+        down(ev);
+        up(ev);
         fakeNow += 400;
-        dispatch(bodyListeners, "click", ev);
+        click(ev);
       });
       assert.deepEqual(hook.current.terms, ["linearizability"], "paired click does not double-toggle off a word marked on pointerup");
 
-      // 2. After macrotask clears suppression, a standalone synthetic click (no pointerup) still toggles the word off.
+      // 2. After the paired click cleared suppression, a standalone synthetic click (no pointerup) still toggles the word off.
       await new Promise((resolve) => setTimeout(resolve, 0));
       await hook.act(() => {
-        dispatch(bodyListeners, "click", ev);
+        click(ev);
       });
       assert.deepEqual(hook.current.terms, [], "standalone synthetic click still toggles cleanly");
     } finally {
       hook.unmount();
       Date.now = prevNow;
+    }
+  });
+});
+
+test("useTermMarking keeps suppressing a touch tap's paired click that arrives in a later task (#1759 follow-up)", async () => {
+  await withBrowserGlobals(async () => {
+    const { hook, ev, down, up, click } = await mountTermMarkingFixture();
+    try {
+      // Chromium synthesizes the click of a touch or pen tap in a later task, so it can land after a macrotask
+      // (a slow machine, a heavy render). The word must stay marked, not be toggled off by the same tap.
+      for (const delay of [50, 300]) {
+        await hook.act(() => {
+          down(ev);
+          up(ev);
+        });
+        assert.deepEqual(hook.current.terms, ["linearizability"], `marked on pointerup (${delay}ms case)`);
+        await sleep(delay);
+        await hook.act(() => {
+          click(ev);
+        });
+        assert.deepEqual(hook.current.terms, ["linearizability"], `late paired click (${delay}ms) is swallowed`);
+        // The paired click consumed the flag, so the next full tap (pointerdown, pointerup, click) unmarks cleanly.
+        await hook.act(() => {
+          down(ev);
+          up(ev);
+          click(ev);
+        });
+        assert.deepEqual(hook.current.terms, [], `next tap unmarks (${delay}ms case)`);
+      }
+    } finally {
+      hook.unmount();
+    }
+  });
+});
+
+test("useTermMarking: a click with no coordinates between a tap and its late paired click does not use up the suppression (#1759 follow-up)", async () => {
+  await withBrowserGlobals(async () => {
+    const { hook, ev, down, up, click } = await mountTermMarkingFixture();
+    try {
+      await hook.act(() => {
+        down(ev);
+        up(ev);
+      });
+      assert.deepEqual(hook.current.terms, ["linearizability"], "marked on pointerup");
+      // Keyboard Enter or el.click() lands in between: it reports 0,0 and is never used for marking.
+      await hook.act(() => {
+        click({ ...ev, clientX: 0, clientY: 0 });
+      });
+      assert.deepEqual(hook.current.terms, ["linearizability"], "a coordinate-less click changes nothing");
+      await sleep(50);
+      await hook.act(() => {
+        click(ev);
+      });
+      assert.deepEqual(hook.current.terms, ["linearizability"], "the tap's own late paired click is still swallowed");
+    } finally {
+      hook.unmount();
+    }
+  });
+});
+
+test("useTermMarking clears click suppression on the next pointerdown (#1759 follow-up)", async () => {
+  await withBrowserGlobals(async () => {
+    const { hook, ev, down, up, click } = await mountTermMarkingFixture();
+    try {
+      await hook.act(() => {
+        down(ev);
+        up(ev);
+      });
+      assert.deepEqual(hook.current.terms, ["linearizability"]);
+      // A new gesture starts but its pointerup never marks anything (excluded target, moved too far) and the
+      // earlier tap's click never came. The stale flag must not eat this gesture's click, so it toggles the word off.
+      await hook.act(() => {
+        down(ev);
+        click(ev);
+      });
+      assert.deepEqual(hook.current.terms, [], "click after a new pointerdown is not swallowed by the previous tap's flag");
+    } finally {
+      hook.unmount();
+    }
+  });
+});
+
+test("useTermMarking backstop timer releases suppression when no paired click arrives (#1759 follow-up)", async () => {
+  await withBrowserGlobals(async () => {
+    const { hook, ev, down, up, click } = await mountTermMarkingFixture();
+    const realSetTimeout = globalThis.setTimeout;
+    const recorded = [];
+    try {
+      // Record the timers armed by the pointerup so the test fires them by hand instead of racing the clock.
+      globalThis.setTimeout = (fn, ms, ...rest) => {
+        const handle = realSetTimeout(fn, ms, ...rest);
+        recorded.push({ fn, ms: ms ?? 0, handle });
+        return handle;
+      };
+      await hook.act(() => {
+        down(ev);
+        up(ev);
+      });
+    } finally {
+      globalThis.setTimeout = realSetTimeout;
+    }
+    try {
+      assert.deepEqual(hook.current.terms, ["linearizability"]);
+      const backstop = recorded.find((t) => t.ms >= 500);
+      assert.ok(backstop, `a long backstop timer (>=500ms) is armed instead of a short wall-clock race; saw ${JSON.stringify(recorded.map((t) => t.ms))}`);
+      assert.ok(!recorded.some((t) => t.ms < 500), "no short timer that could fire before a late touch click");
+      // A drag ended outside .review-body, so no click ever arrives. The backstop fires, then an unrelated click works.
+      await hook.act(() => {
+        backstop.fn();
+      });
+      await hook.act(() => {
+        click(ev);
+      });
+      assert.deepEqual(hook.current.terms, [], "after the backstop an independent click toggles normally");
+    } finally {
+      for (const t of recorded) clearTimeout(t.handle);
+      hook.unmount();
     }
   });
 });
