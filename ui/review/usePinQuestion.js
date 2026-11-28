@@ -167,6 +167,13 @@ export default function usePinQuestion(pageRef, run, { scroller: given } = {}) {
         focusQuestionHeading(card);
         return;
       }
+      if (!isFocusInDialog() && !page.ownerDocument?.querySelector?.("dialog[open]")) {
+        const active = typeof document !== "undefined" ? document.activeElement : null;
+        if (!keysElsewhere(active, page) && (!active || !card.contains(active))) {
+          if (card.getAttribute?.("tabindex") == null) card.tabIndex = -1;
+          focusQuietly(card, { preventScroll: true });
+        }
+      }
     }
     const box = scroller.getBoundingClientRect();
     const offset = (page.getBoundingClientRect().top - box.top) / drawnScale(scroller, box) - bar;

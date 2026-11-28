@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { ui } from '../i18n.js';
-import { Button, Dialog, Icon } from '../components/index.js';
+import { Button, Dialog, Icon, focusQuietly } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import css from './app-shell.css';
 import drawerCss from './nav-drawer.css';
@@ -38,7 +38,30 @@ const AppSidebar = React.memo(function AppSidebar() {
   useInjectCss(drawerCss, 'study-nav-drawer');
   const shell = useAppSelector((s) => s.shell);
   const { alert, reason, tasks } = useNavAlert();
+  const returnFocusRef = useRef(true);
+  const handoffRef = useRef(false);
   useDrawerFrame(shell.rootRef, shell.navDrawer && shell.navOpen);
+  useLayoutEffect(() => {
+    if (shell.navOpen) {
+      returnFocusRef.current = true;
+      handoffRef.current = false;
+    }
+  }, [shell.navOpen]);
+  useEffect(() => {
+    if (shell.navOpen || !handoffRef.current) return;
+    handoffRef.current = false;
+    const root = shell.rootRef.current;
+    if (!root) return;
+    const active = document.activeElement;
+    if (root.querySelector('dialog[open], [role="dialog"]')
+      || (active && active !== document.body && active !== root && active.closest?.('dialog[open], [role="dialog"]'))) return;
+    const card = root.querySelector('.review-body .question-card');
+    if (card && typeof card.focus === 'function') {
+      focusQuietly(card, { preventScroll: true });
+      return;
+    }
+    focusQuietly(root, { preventScroll: true });
+  }, [shell.navOpen, shell.rootRef]);
   const body = (<><SidebarNav alert={alert} reason={reason} tasks={tasks} /><SidebarFooter /></>);
   if (!shell.navDrawer) {
     return <aside className="sidebar"><Brand onCollapse={() => shell.setSidebarCollapsed(true)} />{body}</aside>;
@@ -46,9 +69,16 @@ const AppSidebar = React.memo(function AppSidebar() {
   if (!shell.navOpen) return null;
   const close = () => shell.setNavOpen(false);
   // A row that leads somewhere closes the drawer once it has done its work; a fold (更多, 帮助) and the glossary keep it open.
-  const leave = (event) => { if (event.target.closest?.('button.nav:not([aria-expanded]):not([data-keep-open])')) close(); };
+  // Leaving via a nav item hands focus to the destination page instead of back to the topbar menu toggle (#1679);
+  // Esc, backdrop and the close button still return focus to the menu toggle.
+  const leave = (event) => {
+    if (!event.target.closest?.('button.nav:not([aria-expanded]):not([data-keep-open])')) return;
+    returnFocusRef.current = false;
+    handoffRef.current = true;
+    close();
+  };
   return (
-    <Dialog className="nav-drawer" headerClassName="nav-drawer__header" titleClassName="nav-drawer__title" bodyClassName="nav-drawer__body" contentClassName="nav-drawer__content" size="full" title={ui('导航')} closeLabel={ui('关闭导航')} onClose={close}>
+    <Dialog className="nav-drawer" headerClassName="nav-drawer__header" titleClassName="nav-drawer__title" bodyClassName="nav-drawer__body" contentClassName="nav-drawer__content" size="full" title={ui('导航')} closeLabel={ui('关闭导航')} returnFocus={returnFocusRef} onClose={close}>
       <div className="sidebar is-drawer" onClick={leave}>
         {body}
         {!shell.narrowWindow && (

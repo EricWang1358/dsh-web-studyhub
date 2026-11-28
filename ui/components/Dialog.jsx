@@ -68,20 +68,20 @@ function lockScroll(dialog) {
  * is aria-busy. `guardDrops` keeps a stray file drop on the dialog (its header
  * or margins) away from the browser and the host chat.
  */
-export default function Dialog({ title, description, onClose, size = 'md', footer, children, dismissible = true, initialFocus,
+export default function Dialog({ title, description, onClose, size = 'md', footer, children, dismissible = true, initialFocus, returnFocus = true,
   bodyLabel, closeLabel, busy = false, guardDrops = false, className, headerClassName, titleClassName, bodyClassName, contentClassName, footerClassName, open: _open, ...rest }) {
   useComponentCss(css);
   useComponentCss(overlayCss, 'study-overlays');
   useComponentCss(mediaCss, 'study-dialog-media');
   const [own, setOwn] = useState(null);
   const [scrollable, setScrollable] = useState(false);
-  const ref = useRef(null), bodyRef = useRef(null), pointerDown = useRef(null), closing = useRef(false), onCloseRef = useRef(onClose);
+  const ref = useRef(null), bodyRef = useRef(null), pointerDown = useRef(null), closing = useRef(false), onCloseRef = useRef(onClose), returnFocusRef = useRef(returnFocus);
   const canDismiss = dismissible && !busy;
   const [entry] = useState(() => ({ dialog: null }));
   const top = useTopDialog();
   const titleId = useId(), descriptionId = useId();
   const kind = SIZES.has(size) ? size : 'md';
-  useLayoutEffect(() => { onCloseRef.current = onClose; });
+  useLayoutEffect(() => { onCloseRef.current = onClose; returnFocusRef.current = returnFocus; });
   useLayoutEffect(() => {
     const body = bodyRef.current;
     if (!body) return undefined;
@@ -116,7 +116,9 @@ export default function Dialog({ title, description, onClose, size = 'md', foote
         try { dialog.close(); } catch { dialog.removeAttribute('open'); }
       }
       const active = document.activeElement;
-      if (opener?.isConnected && typeof opener.focus === 'function' && (!active || active === document.body || dialog.contains(active)))
+      const restore = returnFocusRef.current;
+      const shouldReturn = typeof restore === 'object' && restore !== null ? restore.current !== false : restore !== false;
+      if (shouldReturn && opener?.isConnected && typeof opener.focus === 'function' && (!active || active === document.body || dialog.contains(active)))
         opener.focus({ preventScroll: true });
     };
     // Opening is tied to mounting; the owner unmounts the dialog to close it.
