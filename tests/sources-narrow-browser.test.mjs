@@ -19,6 +19,7 @@ import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { holdActions, until } from '../scripts/qa/layout-late.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
+import { openSourcesTools } from './helpers/sources-tools.mjs';
 
 // 580 is the narrowest window with the sidebar docked (a 318px column), 600 a 338px one; 960–1340 is the docked band where the header used to wrap under
 // its description.
@@ -63,6 +64,7 @@ test('资料 holds still and tidy at every width in zh and en: header, controls,
     await page.goto(server.url);
     await (await revealNavRow(page, 'sources')).click();
     await page.locator('.source-doc').first().waitFor();
+    await openSourcesTools(page);
     await page.locator('.sources-view-bar').getByText(lang === 'en' ? 'By import date' : '按导入日期').click();
     await page.locator('.source-group').nth(1).waitFor();
     await page.mouse.move(1, 1);

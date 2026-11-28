@@ -3,13 +3,14 @@ import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { AddSourceButton, Button, CheckboxInput, EmptyState, ScrollWindow, Tooltip, addSourceAction, filterItems } from './components/index.js';
 import PageScope from './PageScope.jsx';
-import MaterialCategoryBar from './MaterialCategoryBar.jsx';
+import MaterialCategoryBar, { FacetsOnLine } from './MaterialCategoryBar.jsx';
 import { AppContext } from './app/app-context.js';
 import {
   ALL_FACET,
   buildMaterialCategoryOptions,
   buildMaterialTypeOptions,
   buildSourceFlags,
+  facetNames,
   filterMaterialsByFacets,
   hasFacetOption,
   itemFolderName,
@@ -129,15 +130,6 @@ export const documentSearchText = (item, materialFolders = null) =>
 
 /* The filter appears once the list is longer than a screenful of rows. */
 const FILTER_AFTER = 6;
-
-/** The name of a facet's chosen option, without its count (「PDF (3)」 → 「PDF」), for the line that says a filter is in use. */
-function facetName(options, value) {
-  for (const option of options) {
-    const name = option.options ? facetName(option.options, value) : option.value === value ? String(option.label).replace(/\s*\(\d+\)$/, '') : '';
-    if (name) return name;
-  }
-  return '';
-}
 
 const pageLabel = (item, page) => isPagedFormat(item.format)
   ? uiFormat('第 {0} 页', [page.page]) + (page.legacy ? ` · ${ui('旧版提取')}` : '')
@@ -428,11 +420,10 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
   useFactsFit(root, nameRows, scope === '*');
   const indexColumn = !!onIndex || indexPending || !!indexCoverage;
   const facetsOn = activeTypeScope !== ALL_FACET || activeCategoryScope !== ALL_FACET;
-  const facetsSaid = [[typeOptions, activeTypeScope], [categoryOptions, activeCategoryScope]].filter(([, value]) => value !== ALL_FACET)
-    .map(([options, value]) => facetName(options, value)).filter(Boolean);
+  const facetsSaid = facetNames([[typeOptions, activeTypeScope], [categoryOptions, activeCategoryScope]]);
   // On the filter's line, beside 「筛选资料…」: a button of the line's height, so the filters cost the first screen nothing while shut (#1182).
   const facetsToggle = showCategoryBar ? <Tooltip layer anchorClassName="source-picker__facets-tip" content={ui('按类型或内容分类筛选资料；AI 智能分类也在这里。')}>
-    <Button size="sm" variant="quiet" icon="filter" className={`sh-btn--icon source-picker__facets-toggle${facetsOn ? ' is-on' : ''}`} aria-label={ui('类型与分类')}
+    <Button size="sm" variant="quiet" icon="filter" className={`sh-btn--icon material-facets-toggle source-picker__facets-toggle${facetsOn ? ' is-on' : ''}`} aria-label={ui('类型与分类')}
       aria-expanded={facetsOpen} aria-controls={facetsId} data-material-filters-toggle data-tour="source-filters" onClick={() => setFacetsOpen(open => !open)} />
   </Tooltip> : null;
   const facetsBelow = showCategoryBar ? <>
@@ -443,10 +434,7 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
       typeScope={activeTypeScope} onTypeScopeChange={setTypeScope}
       categoryScope={activeCategoryScope} onCategoryScopeChange={setCategoryScope}
       disabled={disabled} modelReady={modelReady} />
-    {!facetsOpen && facetsOn && <p className="source-picker__facets-on" data-material-filters-on>
-      <span className="source-picker__facets-said">{uiFormat('只显示：{0}', [facetsSaid.join(' · ')])}</span>
-      <Button variant="link" size="sm" onClick={() => { setTypeScope(ALL_FACET); setCategoryScope(ALL_FACET); }}>{ui('清除筛选')}</Button>
-    </p>}
+    {!facetsOpen && facetsOn && <FacetsOnLine names={facetsSaid} onClear={() => { setTypeScope(ALL_FACET); setCategoryScope(ALL_FACET); }} />}
   </> : null;
   if (!items.length) return (
     <div ref={root} className={`source-picker${className ? ` ${className}` : ''}`} {...rest}>

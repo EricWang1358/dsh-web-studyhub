@@ -43,7 +43,7 @@ test('#1083: the index badge has one place on every row, the status line, in a s
   const css = await read('ui/sources.css');
   assert.match(jsx, /export const ROWS_NARROW = \d+;/);
   assert.match(jsx, /useNarrow\(pageRef, ROWS_NARROW, \{ content: true \}\)/, 'the page measures its own column, not the window');
-  assert.match(jsx, /className=\{`page sources-page\$\{narrow \? ' is-narrow' : ''\}`\}/, 'and says so with one class');
+  assert.match(jsx, /className=\{`page sources-page\$\{narrow \? ' is-narrow' : ''\}\$\{tight \? ' is-tight' : ''\}`\}/, 'and says so with one class (.is-tight is the toolbar\'s alone, #1694)');
   assert.doesNotMatch(css, /@container/, 'sources.css follows that class; no second width of its own');
   const page = await read('ui/sources-page.css');
   assert.doesNotMatch(page.slice(page.indexOf('@container')), /index-badge__full|\.source-main small/, 'no 资料 row rule follows the window width');

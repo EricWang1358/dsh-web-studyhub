@@ -8,6 +8,7 @@ import { StudyService } from '../lib/service.js';
 import { createPreviewServer } from '../scripts/preview-server.mjs';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
+import { openSourcesTools } from './helpers/sources-tools.mjs';
 
 test('Sources filter bar, collapsed-day auto-open, and archived batch restore + permanent delete work end-to-end in browser', { timeout: 120000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'sources-filter-batch-'));
@@ -58,7 +59,8 @@ test('Sources filter bar, collapsed-day auto-open, and archived batch restore + 
   await page.goto(server.url);
   await page.locator('[data-tour="nav-sources"]').click();
 
-  // Collapse the older day, then filter to a row inside it.
+  // Collapse the older day, then filter to a row inside it. (Grouping is behind 「Filter & group」, which stays open from here on.)
+  await openSourcesTools(page);
   await page.locator('.sources-view-bar').getByText('By import date', { exact: true }).click();
   const older = page.locator('.source-doc', { hasText: 'Older Virtual Memory' });
   await page.locator('.source-group').filter({ has: older }).locator('.source-group-head[aria-expanded="true"]').click();

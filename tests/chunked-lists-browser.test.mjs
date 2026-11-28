@@ -8,6 +8,7 @@ import { buildPreview } from "../scripts/build.mjs";
 import { launchChromium } from "../scripts/qa/browser.mjs";
 import { frames, openPage, settleAnimations, startLateServer, until } from "../scripts/qa/layout-late.mjs";
 import { revealNavRow } from "../scripts/qa/nav-reveal.mjs";
+import { openSourcesTools } from "./helpers/sources-tools.mjs";
 import { noonZone, seedChunkLibrary, SHORT_DRAFT, SIMILAR_AT } from "../scripts/qa/chunked-lists.mjs";
 
 /* #900: the sources page, the wrong book and a long draft draw their rows in growing chunks, on the fixture of scripts/qa/chunked-lists.mjs (1000 notes and a 160-page book
@@ -61,6 +62,7 @@ async function openApp(browser, running, zone, { width = 1280, height = 900 } = 
 async function openNav(page, id) {
   await (await revealNavRow(page, id)).dispatchEvent("click");
   if (id !== "sources") return;
+  await openSourcesTools(page);
   await page.locator(".sources-view-bar").getByText("按导入日期", { exact: true }).click();
   // Start each date scenario with the newest day and any pinned group open. Moving the viewport during setup would load extra chunks.
   const days = page.locator(".source-group-head").filter({ hasNotText: "已置顶" });

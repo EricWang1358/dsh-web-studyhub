@@ -19,7 +19,7 @@ export const JEV_REPLACE_META = [
     instead: () => ui('Jev 对每道题回答六个是/否问题。把握够高的题由 Jev 直接通过或淘汰，其余仍交给原来的模型复审；题组里会标出哪些题由 Jev 判定。') },
   { id: 'courseOrganize',
     label: () => ui('课程归属建议（请 AI 建议）'),
-    hint: () => ui('在「资料 › 整理课程归属」里，原本由模型建议每份资料属于哪门课。'),
+    hint: () => ui('在「资料 › 筛选与分组 › 整理课程归属」里，原本由模型建议每份资料属于哪门课。'),
     replaces: () => ui('替换：「请 AI 建议」里的模型调用'),
     instead: () => ui('Jev 在你已有的课程里挑一门；把握够高的由 Jev 给出建议，其余（包括需要新课程名的）交给模型。建议仍要你点「确认应用建议」才会生效。') },
 ];
@@ -39,7 +39,7 @@ export const providerOf = settings => jevProvider(settings?.provider).id ?? DEFA
 /** The experiments, in the order the settings list them: id, label, one sentence on where it shows up. */
 export const JEV_FEATURE_META = [
   { id: 'courseSuggest', label: () => ui('课程归属建议'),
-    hint: () => ui('在「资料 › 整理课程归属」里多一个「Jev 建议」按钮，给出每门课的概率；把握够高才填入，仍要你点「应用」。') },
+    hint: () => ui('在「资料 › 筛选与分组 › 整理课程归属」里多一个「Jev 建议」按钮，给出每门课的概率；把握够高才填入，仍要你点「应用」。') },
   { id: 'preReview', label: () => ui('出题预审'),
     hint: () => ui('出题时，在独立复审之前先让 Jev 粗筛每道题（题干是否泄露答案、脱离资料能否看懂等）；明显有问题的先改写一次。它只是信号，独立复审仍是最后一关。') },
   { id: 'outlineNoise', devOnly: true, label: () => ui('目录噪声判断'),
