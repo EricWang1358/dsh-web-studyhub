@@ -749,3 +749,28 @@ test('#1087: with the sample loaded, step 2 says the sample is there and what st
   m.setUiLanguage('en');
   try { assert.doesNotMatch(text(page(line, { sample: SAMPLE })), han); } finally { m.setUiLanguage('zh'); }
 });
+
+test('#1759: useTour.hideWelcome ignores React SyntheticEvent args (onClick={on.later}) and persists data.root', async () => {
+  const root = '/lib-tour-later';
+  await withTourHook({ data: library({ root }) }, async ({ hook }) => {
+    assert.equal(hook.current.lineLater, false, 'first-run line starts as full page');
+    assert.equal(tourMod.exports.welcomeDismissed(root), false);
+
+    // FirstRunLine passes onClick={on.later} directly to hideWelcome, so React invokes it with a SyntheticMouseEvent.
+    const syntheticMouseEvent = { type: 'click', nativeEvent: { type: 'click' }, preventDefault: noop };
+    await hook.act(() => hook.current.hideWelcome(syntheticMouseEvent));
+
+    assert.equal(hook.current.lineLater, true, 'clicking 以后再说 dismisses the full-page first-run line');
+    assert.equal(tourMod.exports.welcomeDismissed(root), true, 'dismissal persists under data.root');
+    assert.equal(globalThis.localStorage.getItem(`study-welcome:${root}`), 'dismissed');
+    assert.equal(globalThis.localStorage.getItem('study-welcome:[object Object]'), null, 'event object is never coerced into a storage key');
+  });
+
+  // Explicit string root argument (used by closeTour / finishTour with snapshot.root) still takes precedence.
+  const otherRoot = '/lib-tour-snapshot';
+  await withTourHook({ data: library({ root: '/lib-stale' }) }, async ({ hook }) => {
+    await hook.act(() => hook.current.hideWelcome(otherRoot));
+    assert.equal(tourMod.exports.welcomeDismissed(otherRoot), true, 'explicit string root is persisted');
+    assert.equal(tourMod.exports.welcomeDismissed('/lib-stale'), false, 'stale data.root is left untouched when explicit root is passed');
+  });
+});
