@@ -238,32 +238,82 @@ test('home course mastery excludes paused sub-courses, still measures a focused 
     { name: 'OS', count: 1, active: true },
     { name: 'OS / Old', count: 1, active: false, explicit: false },
   ];
-  const decks = [
+  const osDecks = [
     deck('d-os', 'OS'),
     deck('d-old', 'OS / Old', { inactive: true }),
-    deck('d-slain', 'OS', { systemKind: 'slain' }),
   ];
-  const prog = {
+  const osProg = {
     'd-os': { counts: { mastered: 1, familiar: 0, learning: 0, weak: 0, new: 3 }, total: 4, mastery: 25, due: 1, status: 'active', topics: [] },
     'd-old': { counts: { mastered: 6, familiar: 0, learning: 0, weak: 0, new: 0 }, total: 6, mastery: 100, due: 0, status: 'mastered', topics: [] },
-    'd-slain': { counts: { mastered: 2, familiar: 0, learning: 0, weak: 0, new: 0 }, total: 2, mastery: 100, due: 0, status: 'mastered', topics: [] },
   };
-  // Active OS: excludes paused sub-course OS / Old and systemKind deck -> 25% over 4 cards (not 70% over 10 cards).
-  const activeRes = probe({ decks, progress: prog, focus: { mode: 'class', course: 'OS', courses: focusCourses, fresh: [] } });
-  assert.equal(activeRes.course.value, 25);
-  assert.equal(activeRes.course.cards, 4);
-  const activeHtml = library({ decks, progress: prog, focus: { mode: 'class', course: 'OS', courses: focusCourses, fresh: [] } });
-  assert.match(activeHtml, /class="desk-mastery-value"[^>]*>[^<]*25[^<]*<small>%<\/small>/);
 
-  // Focused paused sub-course OS / Old: deliberately selected -> still measured (100% over 6 cards).
-  const pausedRes = probe({ decks, progress: prog, focus: { mode: 'class', course: 'OS / Old', courses: focusCourses, fresh: [] } });
+  // (i) Single active OS + paused OS / Old (no other courses): excludes OS / Old from both course and whole, no false "所有课程".
+  const soloRes = probe({ decks: osDecks, progress: osProg, focus: { mode: 'class', course: 'OS', courses: focusCourses, fresh: [] } });
+  assert.equal(soloRes.course.value, 25);
+  assert.equal(soloRes.course.cards, 4);
+  assert.equal(soloRes.whole.value, 25);
+  assert.equal(soloRes.whole.cards, 4);
+  assert.equal(soloRes.others, false);
+  const soloHtml = library({ decks: osDecks, progress: osProg, focus: { mode: 'class', course: 'OS', courses: focusCourses, fresh: [] } });
+  assert.match(soloHtml, /class="desk-mastery-value"[^>]*>[^<]*25[^<]*<small>%<\/small>/);
+  assert.doesNotMatch(soloHtml, /class="desk-mastery-all"/, 'a single active course with only a paused sub-course must not show a false 所有课程 summary');
+
+  // (ii) Active OS + paused OS / Old + active Databases: others is true and whole excludes OS / Old.
+  const multiCourses = [...focusCourses, { name: 'Databases', count: 1, active: true }];
+  const multiDecks = [...osDecks, deck('d-db', 'Databases')];
+  const multiProg = {
+    ...osProg,
+    'd-db': { counts: { mastered: 3, familiar: 0, learning: 0, weak: 0, new: 1 }, total: 4, mastery: 75, due: 1, status: 'active', topics: [] },
+  };
+  const multiRes = probe({ decks: multiDecks, progress: multiProg, focus: { mode: 'class', course: 'OS', courses: multiCourses, fresh: [] } });
+  assert.equal(multiRes.course.value, 25);
+  assert.equal(multiRes.course.cards, 4);
+  assert.equal(multiRes.whole.value, 50);
+  assert.equal(multiRes.whole.cards, 8);
+  assert.equal(multiRes.others, true);
+  const multiHtml = library({ decks: multiDecks, progress: multiProg, focus: { mode: 'class', course: 'OS', courses: multiCourses, fresh: [] } });
+  assert.match(multiHtml, /class="desk-mastery-all"[^>]*>[\s\S]*50%/);
+
+  // (iii) Empty/zero-card active Quiet + paused Quiet / Old: course, whole, and primary are all null (paused sub-course never leaks via primary).
+  const quietCourses = [
+    { name: 'Quiet', count: 1, active: true },
+    { name: 'Quiet / Old', count: 1, active: false, explicit: false },
+  ];
+  const quietDecks = [
+    deck('d-quiet', 'Quiet'),
+    deck('d-quiet-old', 'Quiet / Old', { inactive: true }),
+  ];
+  const quietProg = {
+    'd-quiet': { counts: { mastered: 0, familiar: 0, learning: 0, weak: 0, new: 0 }, total: 0, mastery: 0, due: 0, status: 'new', topics: [] },
+    'd-quiet-old': { counts: { mastered: 6, familiar: 0, learning: 0, weak: 0, new: 0 }, total: 6, mastery: 100, due: 0, status: 'mastered', topics: [] },
+  };
+  const quietRes = probe({ decks: quietDecks, progress: quietProg, focus: { mode: 'class', course: 'Quiet', courses: quietCourses, fresh: [] } });
+  assert.equal(quietRes.course, null);
+  assert.equal(quietRes.whole, null);
+  assert.equal(quietRes.primary, null);
+
+  // (iv) Focused paused OS / Old alongside active OS: deliberately selected -> course 100% (6c), whole 25% (4c), others true.
+  const pausedRes = probe({ decks: osDecks, progress: osProg, focus: { mode: 'class', course: 'OS / Old', courses: focusCourses, fresh: [] } });
   assert.equal(pausedRes.course.value, 100);
   assert.equal(pausedRes.course.cards, 6);
-  const pausedHtml = library({ decks, progress: prog, focus: { mode: 'class', course: 'OS / Old', courses: focusCourses, fresh: [] } });
+  assert.equal(pausedRes.whole.value, 25);
+  assert.equal(pausedRes.whole.cards, 4);
+  assert.equal(pausedRes.others, true);
+  const pausedHtml = library({ decks: osDecks, progress: osProg, focus: { mode: 'class', course: 'OS / Old', courses: focusCourses, fresh: [] } });
   assert.match(pausedHtml, /class="desk-mastery-value"[^>]*>[^<]*100[^<]*<small>%<\/small>/);
 
-  // Null focus -> course mastery is null (never leaks all decks).
-  const nullRes = probe({ decks, progress: prog, focus: { mode: 'class', course: null, courses: focusCourses, fresh: [] } });
+  // systemKind deck stays excluded from course mastery while counted in whole; null focus yields course === null.
+  const sysDecks = [...osDecks, deck('d-slain', 'OS', { systemKind: 'slain' })];
+  const sysProg = {
+    ...osProg,
+    'd-slain': { counts: { mastered: 2, familiar: 0, learning: 0, weak: 0, new: 0 }, total: 2, mastery: 100, due: 0, status: 'mastered', topics: [] },
+  };
+  const sysRes = probe({ decks: sysDecks, progress: sysProg, focus: { mode: 'class', course: 'OS', courses: focusCourses, fresh: [] } });
+  assert.equal(sysRes.course.value, 25);
+  assert.equal(sysRes.course.cards, 4);
+  assert.equal(sysRes.whole.value, 50);
+  assert.equal(sysRes.whole.cards, 6);
+  const nullRes = probe({ decks: sysDecks, progress: sysProg, focus: { mode: 'class', course: null, courses: focusCourses, fresh: [] } });
   assert.equal(nullRes.course, null);
 });
 

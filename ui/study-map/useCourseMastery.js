@@ -14,7 +14,7 @@ const measure = (decks, progress) => {
 /** { course, whole, name, others, primary }: the current course's mastery, the library's, and which to headline. */
 export function useCourseMastery(data, progress) {
   return useMemo(() => {
-    const live = data.decks.filter((deck) => !deck.archived);
+    const live = data.decks.filter((deck) => !deck.archived && !deck.inactive);
     const name = data.focus?.course;
     // A parent course measures active sub-courses inside it; a parked course picked as current is still measured.
     const inCourse = name != null ? decksInCourse(data, name) : [];
