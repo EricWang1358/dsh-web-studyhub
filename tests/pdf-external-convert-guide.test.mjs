@@ -5,13 +5,27 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { click, loadInteractiveUi, textOf, withBrowserGlobals } from './helpers/react-harness.mjs';
+import { LARGE_DOCUMENT_LIMITS, TOOLS } from '../lib/large-documents.js';
+import { MAX_OFFICE_BYTES, MAX_TEXT_DOCUMENT_BYTES, megabytes } from '../lib/office/limits.js';
 import {
   EXTERNAL_PDF_GUIDE_TITLE,
   EXTERNAL_PDF_IMPORT_TITLE,
   EXTERNAL_PDF_PRIVACY_NOTICE,
   EXTERNAL_PDF_TOOL_URLS,
   EXTERNAL_PDF_TOOLS,
+  PAGE_MARKER,
 } from '../ui/pdf-external-guide.js';
+
+/* The four addresses the owner approved for #1765 (#1778 review): official pages, plain text, no tracking parameters. A change to this list is a decision, so it is
+   pinned here by value; hosts are the allow-list a future edit has to widen on purpose. */
+const PINNED_URLS = [
+  'https://www.paddleocr.ai',
+  'https://github.com/datalab-to/marker',
+  'https://github.com/docling-project/docling',
+  'https://mathpix.com',
+];
+const ALLOWED_HOSTS = ['www.paddleocr.ai', 'github.com', 'mathpix.com'];
+
 
 /* Behavioral regression tests for #1765:
    - External PDF conversion reference links (plain copyable text, no cloud API / baseUrl / API Key)
@@ -26,7 +40,9 @@ const mod = await loadUi(`
   export { PdfDetail } from './ui/PdfConvertJob.jsx';
   export { default as MineruPane } from './ui/settings/MineruPane.jsx';
   export { StudyServicesContext } from './ui/study-context.jsx';
-  export { setUiLanguage } from './ui/i18n.js';
+  export { ui, setUiLanguage } from './ui/i18n.js';
+  export { toolMetaLine } from './ui/PdfExternalConvertGuide.jsx';
+  export { PaddleOcrOption } from './ui/LargeDocumentCard.jsx';
 `);
 
 const h = React.createElement;
@@ -55,6 +71,8 @@ const sampleJob = {
   env: { kind: 'local', mineruVersion: '4.0.10', tier: 'basic' },
 };
 
+const rendered = html => [...html.matchAll(/<code[^>]*translate="no"[^>]*>([^<]*)<\/code>/g)].map(match => match[1]);
+
 function assertGuideInZh(html, label) {
   assert.match(html, new RegExp(EXTERNAL_PDF_GUIDE_TITLE), `${label}: renders heading`);
   assert.match(html, new RegExp(EXTERNAL_PDF_PRIVACY_NOTICE), `${label}: renders privacy notice`);
@@ -63,14 +81,18 @@ function assertGuideInZh(html, label) {
   assert.match(html, /不承诺/, `${label}: states no availability guarantee`);
   assert.match(html, new RegExp(EXTERNAL_PDF_IMPORT_TITLE), `${label}: renders 3-step import title`);
 
-  // 3-4 legitimate plain copyable URLs inside <code>, NOT anchor links or defunct MinerU cloud.
-  assert.ok(EXTERNAL_PDF_TOOLS.length >= 3 && EXTERNAL_PDF_TOOLS.length <= 4, 'canonical list has 3-4 tools');
+  // The four approved plain copyable URLs inside <code> (exactly these, in this order), NOT anchor links or defunct MinerU cloud.
+  assert.deepEqual(rendered(html), PINNED_URLS, `${label}: prints exactly the approved addresses`);
   for (const url of EXTERNAL_PDF_TOOL_URLS) {
     assert.ok(html.includes(`>${url}</code>`), `${label}: renders ${url} as plain copyable <code>`);
     assert.ok(!html.includes(`href="${url}"`), `${label}: does not render ${url} as an <a> link`);
   }
   assert.doesNotMatch(html, /mineru\.net|type="password"|baseUrl|api[\s_-]?key|云端/i, `${label}: zero cloud/key/baseUrl fields`);
 
+  // Step 1 quotes the limits from their homes, and the page marker sits in <code> (the arrow ligature of `-->` in the UI font).
+  assert.ok(html.includes(`PDF 最多 ${LARGE_DOCUMENT_LIMITS.pdfPages} 页，提取出的文字最多 ${LARGE_DOCUMENT_LIMITS.selectionChars.toLocaleString('en-US')} 字符`), `${label}: pages and characters come from LARGE_DOCUMENT_LIMITS`);
+  assert.ok(html.includes(`PDF 与文本最大 ${megabytes(MAX_TEXT_DOCUMENT_BYTES)} MB，Word / PPT / 转换 JSON 最大 ${megabytes(MAX_OFFICE_BYTES)} MB`), `${label}: sizes come from lib/office/limits.js`);
+  assert.ok(html.includes(`<code>${PAGE_MARKER.replace('<', '&lt;').replace('>', '&gt;')}</code>`), `${label}: page marker is inside <code>`);
   // Step 1: verified supported formats from lib/contexts/materials/files.js
   for (const ext of ['.md', '.txt', '.tex', '.html', '.docx', '.pptx', '.ppt', '.pdf', '.json']) {
     assert.ok(html.includes(ext), `${label}: step 1 mentions real supported format ${ext}`);
@@ -96,6 +118,9 @@ function assertGuideInEn(html, label) {
     assert.ok(html.includes(`>${url}</code>`), `${label}: renders ${url} in English mode`);
     assert.ok(!html.includes(`href="${url}"`), `${label}: no anchor link for ${url} in English mode`);
   }
+  assert.ok(html.includes(`PDF page limit: ${LARGE_DOCUMENT_LIMITS.pdfPages}; extracted text limit (characters): ${LARGE_DOCUMENT_LIMITS.selectionChars.toLocaleString('en-US')}`), `${label}: English limits come from LARGE_DOCUMENT_LIMITS`);
+  assert.ok(html.includes(`<code>${PAGE_MARKER.replace('<', '&lt;').replace('>', '&gt;')}</code>`), `${label}: English page marker is inside <code>`);
+  assert.deepEqual(rendered(html), PINNED_URLS, `${label}: English mode prints exactly the approved addresses`);
   assert.match(html, /Missing formulas/, `${label}: English step 3 covers missing formulas`);
   assert.match(html, /Scanned pages remain images/, `${label}: English step 3 covers image-only scans`);
   assert.match(html, /Non-UTF-8 encoding/, `${label}: English step 3 covers non-UTF-8 encoding`);
@@ -205,10 +230,20 @@ test('docs/pdf-workflow.zh-CN.md and docs/pdf-workflow.md stay in sync with the 
   const zhDoc = readFileSync('docs/pdf-workflow.zh-CN.md', 'utf8');
   const enDoc = readFileSync('docs/pdf-workflow.md', 'utf8');
 
-  for (const url of EXTERNAL_PDF_TOOL_URLS) {
-    assert.ok(zhDoc.includes(`\`${url}\``), `zh doc lists plain-text URL ${url}`);
-    assert.ok(enDoc.includes(`\`${url}\``), `en doc lists plain-text URL ${url}`);
+  for (const [language, doc] of [['zh', zhDoc], ['en', enDoc]]) {
+    mod.setUiLanguage(language);
+    try {
+      for (const entry of EXTERNAL_PDF_TOOLS) {
+        const line = `**${mod.ui(entry.tool.name)}**${language === 'zh' ? '：' : ': '}\`${entry.url}\` — ${mod.toolMetaLine(entry.tool)}`;
+        assert.ok(doc.includes(line), `${language} doc says the tool the way the catalogue does: ${line}`);
+      }
+    } finally { mod.setUiLanguage('zh'); }
   }
+  const { pdfPages, selectionChars } = LARGE_DOCUMENT_LIMITS;
+  assert.ok(enDoc.includes(`PDF up to ${pdfPages} pages; extracted text up to ${selectionChars.toLocaleString('en-US')} characters`), 'en doc quotes LARGE_DOCUMENT_LIMITS');
+  assert.ok(zhDoc.includes(`PDF 最多 ${pdfPages} 页，提取文本最多 ${selectionChars / 10000} 万字符`), 'zh doc quotes LARGE_DOCUMENT_LIMITS');
+  assert.ok(enDoc.includes(`${megabytes(MAX_TEXT_DOCUMENT_BYTES)} MB for`) && enDoc.includes(`${megabytes(MAX_OFFICE_BYTES)} MB for`), 'en doc quotes the size limits');
+  assert.ok(zhDoc.includes(`为 ${megabytes(MAX_TEXT_DOCUMENT_BYTES)} MB`) && zhDoc.includes(`为 ${megabytes(MAX_OFFICE_BYTES)} MB`), 'zh doc quotes the size limits');
   assert.ok(zhDoc.includes(EXTERNAL_PDF_GUIDE_TITLE), 'zh doc includes guide heading');
   assert.ok(zhDoc.includes(EXTERNAL_PDF_PRIVACY_NOTICE), 'zh doc includes exact privacy notice');
   assert.ok(zhDoc.includes(EXTERNAL_PDF_IMPORT_TITLE), 'zh doc includes 3-step import heading');
@@ -222,4 +257,52 @@ test('docs/pdf-workflow.zh-CN.md and docs/pdf-workflow.md stay in sync with the 
   assert.match(enDoc, /Missing formulas/);
   assert.match(enDoc, /Scanned pages remain images/);
   assert.match(enDoc, /Non-UTF-8 encoding/);
+});
+
+test('the guide reads the shared catalogue: the same entries as TOOLS, the pinned address list, https, no query string or fragment, hosts on the allow-list', () => {
+  assert.deepEqual(EXTERNAL_PDF_TOOL_URLS, PINNED_URLS, 'the full list of addresses is pinned: removing, adding or changing one is a visible decision');
+  assert.deepEqual(EXTERNAL_PDF_TOOLS.map(entry => entry.id), ['paddleocr', 'marker', 'docling', 'mathpix']);
+  for (const entry of EXTERNAL_PDF_TOOLS) {
+    assert.equal(entry.tool, TOOLS.find(tool => tool.id === entry.id), `${entry.id} is the catalogue entry itself, not a second copy`);
+    assert.ok(entry.tool.channels.some(channel => channel.url === entry.url), `${entry.id}: the address is one of its catalogue channels`);
+    const url = new URL(entry.url);
+    assert.equal(url.protocol, 'https:', entry.url);
+    assert.equal(url.search, '', `${entry.url} has no query string`);
+    assert.equal(url.hash, '', `${entry.url} has no fragment`);
+    assert.equal(url.username + url.password, '', `${entry.url} carries no credentials`);
+    assert.ok(ALLOWED_HOSTS.includes(url.hostname), `${url.hostname} is an allowed host`);
+    assert.ok(!entry.url.includes('?') && !entry.url.includes('#'), entry.url);
+  }
+  assert.equal(new Set(EXTERNAL_PDF_TOOL_URLS).size, EXTERNAL_PDF_TOOL_URLS.length, 'no address twice');
+  // The tool cards keep working for catalogue entries added for the guide (licence line, no installed claim).
+  for (const id of ['marker', 'mathpix']) {
+    const tool = TOOLS.find(entry => entry.id === id);
+    assert.equal(tool.recommended, false, `${id} is listed, not recommended`);
+    assert.ok(tool.license && tool.platforms.length && tool.channels.length >= 2, id);
+  }
+});
+
+test('the guide has no second copy of a limit: no hard-coded 8 MB / 40 MB / 200 pages / 600 000 characters in its two files, and no address (they live in the catalogue)', () => {
+  for (const file of ['ui/pdf-external-guide.js', 'ui/PdfExternalConvertGuide.jsx']) {
+    const source = readFileSync(file, 'utf8');
+    assert.doesNotMatch(source, /\b(?:8|40) ?MB\b|200 ?页|60 ?万|600[,_ ]?000/, `${file} quotes limits from their homes`);
+    assert.doesNotMatch(source, /(?<![\w.#-])(?:8|40|200|600[,_]?000)(?![\w.%-])/, `${file} writes no limit as a bare number`);
+    assert.doesNotMatch(source, /https?:\/\//, `${file} holds no address: they live in the catalogue (lib/large-documents.js)`);
+  }
+});
+
+test('PaddleOCR option (LargeDocumentCard) and guide step 1 say the same download line, and the option takes its address from the catalogue', () => {
+  const option = render(h(mod.PaddleOcrOption), 'zh');
+  const guide = render(h(mod.PdfExternalConvertGuide, { defaultOpen: true }), 'zh');
+  const line = `解析完成后，下载 JSON 结果文件（或带 <code>&lt;!-- page: N --&gt;</code> 页码标记的 Markdown）`;
+  assert.ok(option.includes(line), 'option says it');
+  assert.ok(guide.includes(line), 'guide step 1 says it the same way');
+  assert.ok(option.includes(`href="${TOOLS.find(tool => tool.id === 'paddleocr').channels[0].url}"`), 'the option links the catalogue address');
+});
+
+test('PdfDetail shows the external guide only for a failed conversion, never while running, stopped or complete', () => {
+  const guideOf = status => (render(h(mod.PdfDetail, { job: { ...sampleJob, status } })).match(/data-pdf-external-guide=/g) || []).length;
+  assert.equal(guideOf('failed'), 1);
+  for (const status of ['running', 'queued', 'paused', 'stopped', 'cancelled', 'complete', 'done']) assert.equal(guideOf(status), 0, `no guide for a ${status} conversion`);
+  assert.equal((render(h(mod.PdfDetail, { job: { ...sampleJob, status: undefined } })).match(/data-pdf-external-guide=/g) || []).length, 0, 'no guide without a status');
 });

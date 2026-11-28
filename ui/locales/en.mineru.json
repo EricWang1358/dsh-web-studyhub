@@ -213,15 +213,8 @@
   "复制链接": "Copy link",
   "复制 {0} 的链接": "Copy link for {0}",
   "无法自动复制，请直接选中上方链接手动复制。": "Automatic copy is unavailable. Select the link above and copy it manually.",
-  "免安装网页版，支持扫描件、表格与公式，可导出 JSON 或 Markdown。": "No-install web tool supporting scans, tables, and formulas; exports JSON or Markdown.",
-  "Marker（开源项目）": "Marker (open source)",
-  "开源 PDF 转 Markdown 工具，支持 OCR 与公式（支持分页标记）。": "Open-source PDF-to-Markdown converter with OCR, formulas, and page-marker support.",
-  "Docling（开源项目）": "Docling (open source)",
-  "开源文档解析工具（MIT），可导出带页码的 JSON（DoclingDocument）或 Markdown。": "Open-source document parser (MIT) exporting paginated JSON (DoclingDocument) or Markdown.",
-  "面向理工科公式与论文，可将 PDF 转为带 LaTeX 公式的 Markdown（.md）或 .tex。": "Focused on STEM formulas and papers; converts PDFs to Markdown (.md) with LaTeX or .tex.",
   "转换完成后怎么导入": "How to import after conversion",
   "1. 确认导出格式": "1. Check the exported format",
-  "支持导入：Markdown（.md / .markdown，支持 <!-- page: N --> 或 Marker 分页标记）、纯文本（.txt）、LaTeX（.tex）、HTML（.html / .htm）、Word（.docx）、PowerPoint（.pptx / .ppt）、带文字层的 PDF（.pdf），以及转换工具导出的结构化 JSON（.json：PaddleOCR / Docling / MinerU）。单文件上限：.md / .txt / .tex / .html / .pdf 为 8 MB（PDF 最多 200 页，文本最多 60 万字符）；.docx / .pptx / .ppt 与转换结果 .json 为 40 MB。": "Supported formats: Markdown (.md / .markdown, including <!-- page: N --> or Marker page markers), plain text (.txt), LaTeX (.tex), HTML (.html / .htm), Word (.docx), PowerPoint (.pptx / .ppt), text-layer PDF (.pdf), and structured converter JSON (.json from PaddleOCR / Docling / MinerU). Size limits per file: 8 MB for .md / .txt / .tex / .html / .pdf (PDF up to 200 pages; extracted text up to 600,000 characters), and 40 MB for .docx / .pptx / .ppt and converted .json.",
   "2. 放到哪里、怎么导入": "2. Where to put it and how to import",
   "打开「资料」页，点击「添加资料」（或在「创建题组」里点击「添加资料」），选好课程后在「文件」标签拖入转换好的文件或点击「选择文件」；纯文本也可切到「粘贴文本」直接保存。如在主会话中使用学习模式，也可放到工作区的 studyhub-work/ 或电脑本地目录后让 AI 导入。": "Open the Sources page and click Add source (or click Add source inside Create deck). Pick the course, then drop the converted file on the Files tab or click Choose files; plain text can also be saved via the Paste text tab. In Study Mode in the main chat, you can also place the file in studyhub-work/ or a local folder and ask the assistant to import it.",
   "3. 常见失败与排查": "3. Common failures and fixes",
@@ -231,5 +224,7 @@
   "扫描版仍是图片": "Scanned pages remain images",
   "若导出的仍是图片型 PDF 或只含图片链接的 Markdown，StudyHub 读不出正文（.md 中的独立图片行会被跳过）。请在外部工具中开启 OCR 文字识别后再导出文字或结构化 JSON。": "If the output is still an image-only PDF or Markdown with only image links, StudyHub cannot extract body text (standalone image lines in .md are skipped). Turn on OCR in the external tool and export text or structured JSON.",
   "编码不是 UTF-8": "Non-UTF-8 encoding",
-  "StudyHub 要求文本与 JSON 文件为 UTF-8 编码；GBK、GB18030 或 UTF-16 会报编码错误或乱码。请用编辑器（如 VS Code 或记事本）选择「另存为 UTF-8」后再重新导入。": "StudyHub requires UTF-8 encoding for text and JSON files; GBK, GB18030, or UTF-16 will fail with an encoding error or garbled text. Re-save the file as UTF-8 in an editor (such as VS Code or Notepad) and import again."
+  "StudyHub 要求文本与 JSON 文件为 UTF-8 编码；GBK、GB18030 或 UTF-16 会报编码错误或乱码。请用编辑器（如 VS Code 或记事本）选择「另存为 UTF-8」后再重新导入。": "StudyHub requires UTF-8 encoding for text and JSON files; GBK, GB18030, or UTF-16 will fail with an encoding error or garbled text. Re-save the file as UTF-8 in an editor (such as VS Code or Notepad) and import again.",
+  "支持导入的格式：Markdown（.md / .markdown）、纯文本（.txt）、LaTeX（.tex）、HTML（.html / .htm）、Word（.docx）、PowerPoint（.pptx / .ppt）、带文字层的 PDF（.pdf），以及转换工具导出的结构化 JSON（.json：PaddleOCR / Docling / MinerU）。": "Supported formats: Markdown (.md / .markdown), plain text (.txt), LaTeX (.tex), HTML (.html / .htm), Word (.docx), PowerPoint (.pptx / .ppt), text-layer PDF (.pdf), and structured converter JSON (.json from PaddleOCR / Docling / MinerU).",
+  "PDF 最多 {0} 页，提取出的文字最多 {1} 字符": "PDF page limit: {0}; extracted text limit (characters): {1}"
 }

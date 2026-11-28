@@ -1,6 +1,9 @@
-/* External PDF conversion reference links and 3-step post-conversion import guide (#1765).
-   Pure data shared by the PDF conversion entry, job detail, settings pane, and regression tests.
+/* External PDF conversion reference links and the 3-step post-conversion import guide (#1765).
+   The tools are NOT listed here: they are read from the catalogue in lib/large-documents.js (TOOLS), the one list the import hub, the generate page and Settings
+   share. This file only says which of them the guide shows and which of each one's addresses it prints. The limits it quotes come from LARGE_DOCUMENT_LIMITS and
+   lib/office/limits.js (see PdfExternalConvertGuide.jsx), never from numbers written into wording.
    StudyHub does NOT call third-party APIs, proxy files, or guarantee third-party availability. */
+import { TOOLS } from '../lib/large-documents.js';
 
 export const EXTERNAL_PDF_GUIDE_TITLE = '想用外部工具转换？';
 export const EXTERNAL_PDF_GUIDE_META = '手动转换 · 外链参考';
@@ -8,45 +11,29 @@ export const EXTERNAL_PDF_GUIDE_META = '手动转换 · 外链参考';
 export const EXTERNAL_PDF_PRIVACY_NOTICE = '文件上传到第三方属于你与该服务之间的事，本产品不经手、不保存。';
 export const EXTERNAL_PDF_SCOPE_NOTE = '以下仅为外部工具参考链接：不内置调用、不代传文件、不承诺第三方服务的可用性。请复制链接到浏览器自行打开。';
 
-/** 4 well-known external PDF-to-Markdown/text conversion tools (plain copyable URLs, never MinerU defunct hosted service). */
-export const EXTERNAL_PDF_TOOLS = Object.freeze([
-  Object.freeze({
-    id: 'paddleocr',
-    name: 'PaddleOCR 在线解析',
-    url: 'https://www.paddleocr.ai',
-    role: '免安装网页版，支持扫描件、表格与公式，可导出 JSON 或 Markdown。',
-  }),
-  Object.freeze({
-    id: 'marker',
-    name: 'Marker（开源项目）',
-    url: 'https://github.com/datalab-to/marker',
-    role: '开源 PDF 转 Markdown 工具，支持 OCR 与公式（支持分页标记）。',
-  }),
-  Object.freeze({
-    id: 'docling',
-    name: 'Docling（开源项目）',
-    url: 'https://github.com/docling-project/docling',
-    role: '开源文档解析工具（MIT），可导出带页码的 JSON（DoclingDocument）或 Markdown。',
-  }),
-  Object.freeze({
-    id: 'mathpix',
-    name: 'Mathpix',
-    url: 'https://mathpix.com',
-    role: '面向理工科公式与论文，可将 PDF 转为带 LaTeX 公式的 Markdown（.md）或 .tex。',
-  }),
-]);
+/** The catalogue entries the guide shows, in order (never the defunct MinerU hosted service). */
+export const EXTERNAL_PDF_TOOL_IDS = Object.freeze(['paddleocr', 'marker', 'docling', 'mathpix']);
 
-export const EXTERNAL_PDF_TOOL_URLS = Object.freeze(EXTERNAL_PDF_TOOLS.map(tool => tool.url));
+/** The one address printed for a tool: the web page of an online tool, the code page of one you run yourself. A plain text address, never a query string. */
+const entryUrl = tool => tool.channels.find(channel => channel.kind === (tool.needs === 'online' ? 'official' : 'source'))?.url;
+
+/** { id, tool (the TOOLS entry), url } for each listed tool still in the catalogue. */
+export const EXTERNAL_PDF_TOOLS = Object.freeze(EXTERNAL_PDF_TOOL_IDS.flatMap(id => {
+  const tool = TOOLS.find(entry => entry.id === id);
+  const url = tool && entryUrl(tool);
+  return url ? [Object.freeze({ id, tool, url })] : [];
+}));
+
+export const EXTERNAL_PDF_TOOL_URLS = Object.freeze(EXTERNAL_PDF_TOOLS.map(entry => entry.url));
 
 export const EXTERNAL_PDF_IMPORT_TITLE = '转换完成后怎么导入';
 
-/** Real formats verified against lib/contexts/materials/files.js and lib/office/limits.js. */
+/** The page marker StudyHub reads in Markdown (lib/converted-document.js). */
+export const PAGE_MARKER = '<!-- page: N -->';
+
+/** Real formats verified against lib/contexts/materials/files.js. Step 1's body is built in the component (it quotes the limits). */
 export const EXTERNAL_PDF_IMPORT_STEPS = Object.freeze([
-  Object.freeze({
-    id: 'formats',
-    title: '1. 确认导出格式',
-    body: '支持导入：Markdown（.md / .markdown，支持 <!-- page: N --> 或 Marker 分页标记）、纯文本（.txt）、LaTeX（.tex）、HTML（.html / .htm）、Word（.docx）、PowerPoint（.pptx / .ppt）、带文字层的 PDF（.pdf），以及转换工具导出的结构化 JSON（.json：PaddleOCR / Docling / MinerU）。单文件上限：.md / .txt / .tex / .html / .pdf 为 8 MB（PDF 最多 200 页，文本最多 60 万字符）；.docx / .pptx / .ppt 与转换结果 .json 为 40 MB。',
-  }),
+  Object.freeze({ id: 'formats', title: '1. 确认导出格式' }),
   Object.freeze({
     id: 'where',
     title: '2. 放到哪里、怎么导入',
