@@ -53,6 +53,7 @@ export function useAppCore(transportCall, host, warm = null) {
     openSheet: setHandOffSheet,
     libraryRoot: bindingRoot.current || dataRef.current?.root || '',
     studyCliPath: hostRef.current?.studyCliPath || '',
+    studyNodePath: hostRef.current?.studyNodePath || '',
   }), [notify]);
   // One stable bag: hooks list it as a dependency and it must never change identity.
   const refs = useMemo(() => ({ epoch, navigation, requestSequence, notebookRequest, dataRef, snapshotKey, leaveTimer, examLocation, bindingRoot, actRunner, refreshRef, noticeRef }), []);

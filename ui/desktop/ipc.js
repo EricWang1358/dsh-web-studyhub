@@ -276,12 +276,14 @@ function concurrencyFields(concurrency) {
 export function createDesktopHost(desktopCall, concurrency = concurrencyState, subscribeLibraryEvents = null, options = {}) {
   const installFlavor = options?.installFlavor ? String(options.installFlavor) : undefined;
   const studyCliPath = normalizeStudyCliPath(options?.studyCliPath);
+  const studyNodePath = normalizeStudyCliPath(options?.studyNodePath);
   return {
     capabilities: DESKTOP_CAPABILITIES,
     warmKey: 'studyhub-desktop',
     ...buildTauriBridgeCapabilities(installFlavor),
     openExternal: (url) => openExternalUrl(url, desktopCall),
     ...(studyCliPath ? { studyCliPath } : {}),
+    ...(studyNodePath ? { studyNodePath } : {}),
     ...(typeof subscribeLibraryEvents === 'function' ? { subscribeLibraryEvents } : {}),
     ...concurrencyFields(concurrency),
   };

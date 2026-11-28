@@ -79,7 +79,8 @@ export function handOffReceipt(outcome, { lead = '', action = null } = {}) {
 /**
  * The delivery behind askInChat (ui/app/use-app-core.js): host.askInChat(text) fills the composer ('filled' or true), keeps the learner's own text ('kept')
  * or has no chat (anything else). Filled and kept stay verbatim (zero extra tokens in DSH main chat); without a chat (copied/shown), the external copy
- * adds the study-cli.mjs fallback note with program-filled `studyCliPath` (or `host.studyCliPath`) and `libraryRoot`. A refused clipboard opens the
+ * adds the study-cli.mjs fallback note with program-filled `studyCliPath` and `studyNodePath` (or the host's own) and `libraryRoot`; a host that reports no
+ * study-cli path (the web demo) gets the prompt unchanged. A refused clipboard opens the
  * full-text card (`openSheet({ text, mode: 'shown', lead, onClosed(copied) })`), and only a card closed without copying leaves the 「需要手动复制」 slip,
  * whose action opens the card again; without a card (no app around it) the slip carries the whole text. `said`: what a write before the hand-off did
  * (「已保存。」), said first. `picture` (reader.page, pictureLine): its files join the box after the text (host.attachToChat, a picture never replaces the
@@ -87,7 +88,7 @@ export function handOffReceipt(outcome, { lead = '', action = null } = {}) {
  * what became of them.
  * Resolves to 'filled' | 'kept' | 'copied' | 'shown'.
  */
-export async function deliverToChat({ host, prompt, said = '', picture, notify = () => {}, openSheet = null, clipboard = globalThis.navigator?.clipboard, libraryRoot = '', studyCliPath = '' }) {
+export async function deliverToChat({ host, prompt, said = '', picture, notify = () => {}, openSheet = null, clipboard = globalThis.navigator?.clipboard, libraryRoot = '', studyCliPath = '', studyNodePath = '' }) {
   const text = withLanguageTail(String(prompt ?? ''));
   let outcome = false, lead = said ? ui(said) : '';
   try { outcome = await host?.askInChat?.(text); } catch { outcome = false; }
@@ -102,7 +103,7 @@ export async function deliverToChat({ host, prompt, said = '', picture, notify =
   // 去主会话 only where the host can show the chat (the top-level page covers it)
   const toChat = typeof host?.showChat === 'function' ? { label: ui(HAND_OFF_RECEIPTS.kept.action), icon: 'external', run: () => host.showChat() } : null;
   if (filled) { notify(handOffReceipt('filled', { lead, action: toChat })); return 'filled'; }
-  const copyText = kept ? text : withExternalCliNote(text, { libraryRoot, studyCliPath: studyCliPath || host?.studyCliPath || '', language: getUiLanguage() });
+  const copyText = kept ? text : withExternalCliNote(text, { libraryRoot, studyCliPath: studyCliPath || host?.studyCliPath || '', studyNodePath: studyNodePath || host?.studyNodePath || '', language: getUiLanguage() });
   const look = mode => () => { notify(''); openSheet?.({ text: copyText, mode, lead }); };
   try {
     await clipboard.writeText(copyText);

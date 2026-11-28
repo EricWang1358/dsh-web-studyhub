@@ -18,11 +18,11 @@ import { StudyService } from '../lib/service.js';
 import { loadUi } from './helpers/ui-module.mjs';
 
 const m = await loadUi(`
-  export { deliverToChat } from './ui/hand-off/use-hand-off.js';
+  export { deliverToChat, withLanguageTail } from './ui/hand-off/use-hand-off.js';
   export { default as HandOffSheet } from './ui/hand-off/HandOffSheet.jsx';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { handOffText } from './ui/agent-prompts/index.js';
-  export { messageParts, withExternalCliNote } from './ui/agent-prompts/message.js';
+  export { messageParts, withExternalCliNote, composeMessage } from './ui/agent-prompts/message.js';
   export { languageTail } from './ui/agent-prompts/say.js';
   export { groupPrompt } from './ui/topic-group-prompt.js';
   export { setUiLanguage } from './ui/i18n.js';
@@ -145,22 +145,19 @@ test('withExternalCliNote handles partial/missing paths safely and is idempotent
   for (const lang of ['zh', 'en']) {
     const base = m.handOffText('deck.ask', { deckTitle: 'Algorithms' }, lang);
     const rootOnly = m.withExternalCliNote(base, { libraryRoot: LIB_ROOT, language: lang });
-    assert.ok(rootOnly.includes(`--root "${LIB_ROOT}"`), `${lang}: root-only includes --root`);
-    assert.ok(rootOnly.includes('scripts/study-cli.mjs'), `${lang}: root-only gives safe CLI path fallback`);
-    assert.doesNotMatch(rootOnly, /undefined|null/, `${lang}: no undefined/null in root-only`);
+    assert.equal(rootOnly, base, `${lang}: root-only (no study-cli path known) adds nothing`);
 
     const cliOnly = m.withExternalCliNote(base, { studyCliPath: CLI_PATH, language: lang });
     assert.ok(cliOnly.includes(`node "${CLI_PATH}" call <action> --file <payload.json>`), `${lang}: cli-only includes CLI path`);
     assert.doesNotMatch(cliOnly, /undefined|null/, `${lang}: no undefined/null in cli-only`);
 
     const neither = m.withExternalCliNote(base, { language: lang });
-    assert.ok(neither.includes('scripts/study-cli.mjs') && neither.includes('.dsh-study/'), `${lang}: neither gives safe fallback + stop rule`);
-    assert.doesNotMatch(neither, /undefined|null/, `${lang}: no undefined/null in neither`);
+    assert.equal(neither, base, `${lang}: neither adds nothing`);
 
     const once = m.withExternalCliNote(base, { libraryRoot: LIB_ROOT, studyCliPath: CLI_PATH, language: lang });
     assert.equal(m.withExternalCliNote(once, { libraryRoot: LIB_ROOT, studyCliPath: CLI_PATH, language: lang }), once, `${lang}: idempotent`);
     if (lang === 'en') {
-      for (const variant of [rootOnly, cliOnly, neither, once]) {
+      for (const variant of [cliOnly, once]) {
         assert.doesNotMatch(variant, /[㐀-鿿]/, 'English fallback variants have zero Han characters');
       }
     }
@@ -224,4 +221,143 @@ test('topic-group prompt payloads execute cleanly against a real temporary libra
   const after = await service.call('skeleton.topics', readPayload);
   assert.equal(after.total, 0);
   assert.equal(after.groups.ungroupedCount, 0);
+});
+
+/* The Windows command-line rules (CommandLineToArgvW / the MSVC runtime, what `node` itself gets): a backslash run before a double quote is halved and an odd
+   run escapes the quote; any other backslash is literal; spaces outside quotes split. A copied command must come back from this as the intended arguments. */
+function windowsArgv(line) {
+  const args = [];
+  let cur = '', inQuote = false, started = false;
+  for (let i = 0; i < line.length; i++) {
+    let slashes = 0;
+    while (line[i] === '\\') { slashes++; i++; }
+    if (line[i] === '"') {
+      cur += '\\'.repeat(Math.floor(slashes / 2));
+      started = true;
+      if (slashes % 2) cur += '"'; else inQuote = !inQuote;
+    } else {
+      cur += '\\'.repeat(slashes);
+      if (slashes) started = true;
+      if (i >= line.length) break;
+      if (/\s/.test(line[i]) && !inQuote) { if (started) args.push(cur); cur = ''; started = false; } else { cur += line[i]; started = true; }
+    }
+  }
+  if (started) args.push(cur);
+  return args;
+}
+const commandOf = (text) => text.match(/`((?:"[^"\n]*"|node) [^`\n]*call <action>[^`\n]*)`/)?.[1];
+
+const WIN_NODE = String.raw`C:\Program Files\StudyHub\resources\runtime\node.exe`;
+const WIN_CLI = String.raw`C:\Program Files\StudyHub\resources\runtime\scripts\study-cli.mjs`;
+const WIN_ROOT = String.raw`D:\Study Library`;
+const WEB_DEMO_HOST = { capabilities: { edition: 'web-demo', chat: false, agentTasks: false, landing: false } };
+
+test('the fallback command runs the bundled node the desktop host reports, and plain node only when no node path is known', async () => {
+  for (const lang of ['zh', 'en']) {
+    m.setUiLanguage(lang);
+    try {
+      const prompt = m.handOffText('deck.ask', { deckTitle: 'Algorithms' }, lang);
+      const run = async (host, extra = {}) => {
+        const copied = [];
+        await m.deliverToChat({ host, prompt, libraryRoot: WIN_ROOT, notify: () => {}, clipboard: { writeText: async (text) => copied.push(text) }, ...extra });
+        return copied[0];
+      };
+      // the node path travels with the host, next to studyCliPath
+      const fromHost = await run({ capabilities: DESKTOP_HOST.capabilities, studyCliPath: WIN_CLI, studyNodePath: WIN_NODE });
+      assert.ok(fromHost.includes(`\`"${WIN_NODE}" "${WIN_CLI}" call <action> --file <payload.json> --root "${WIN_ROOT}"\``), `${lang}: bundled node, quoted, runs the bundled CLI:\n${fromHost}`);
+      assert.doesNotMatch(fromHost, /`node "/, `${lang}: no bare node from PATH when the node path is known`);
+      assert.deepEqual(windowsArgv(commandOf(fromHost)), [WIN_NODE, WIN_CLI, 'call', '<action>', '--file', '<payload.json>', '--root', WIN_ROOT], `${lang}: parses as the intended arguments (spaces in the install folder)`);
+      // the same through the arguments askInChat passes
+      const fromArgs = await run({ capabilities: DESKTOP_HOST.capabilities }, { studyCliPath: WIN_CLI, studyNodePath: WIN_NODE });
+      assert.ok(fromArgs.includes(`"${WIN_NODE}" "${WIN_CLI}" call`), `${lang}: explicit argument works too`);
+      // the CLI path known but no node path (a plugin / CLI install where node is on PATH anyway): plain node
+      const noNode = await run({ capabilities: DESKTOP_HOST.capabilities, studyCliPath: WIN_CLI });
+      assert.ok(noNode.includes(`\`node "${WIN_CLI}" call <action> --file <payload.json> --root "${WIN_ROOT}"\``), `${lang}: plain node fallback`);
+      assert.doesNotMatch(noNode, new RegExp(WIN_NODE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `${lang}: no node path invented`);
+      // a CLI path without a library root keeps the node path as well
+      const noRoot = m.withExternalCliNote(prompt, { studyCliPath: WIN_CLI, studyNodePath: WIN_NODE, language: lang });
+      assert.ok(noRoot.includes(`"${WIN_NODE}" "${WIN_CLI}" call <action> --file <payload.json> --root "<`), `${lang}: path-only variant uses the node path`);
+      if (lang === 'en') for (const text of [fromHost, noNode, noRoot]) assert.doesNotMatch(text, /[㐀-鿿]/, 'English fallback has zero Han characters');
+    } finally {
+      m.setUiLanguage('zh');
+    }
+  }
+});
+
+test('no CLI note without a known study-cli path (the web demo, a host that never reported one): the copied prompt is left as it was', async () => {
+  for (const lang of ['zh', 'en']) {
+    m.setUiLanguage(lang);
+    try {
+      const prompt = m.handOffText('deck.ask', { deckTitle: 'Algorithms' }, lang);
+      for (const host of [WEB_DEMO_HOST, { capabilities: { chat: false } }, null]) {
+        const copied = [];
+        const sheets = [];
+        await m.deliverToChat({ host, prompt, libraryRoot: '/demo', notify: () => {}, openSheet: (sheet) => sheets.push(sheet), clipboard: { writeText: async (text) => copied.push(text) } });
+        assert.equal(copied.length, 1, lang);
+        assert.doesNotMatch(copied[0], /study-cli|外部调用：|External CLI:|\/demo/, `${lang}: nothing for an outside agent to run against /demo`);
+        assert.equal(copied[0], m.withLanguageTail(prompt), `${lang}: the copy is the prompt and its language sentence, nothing else`);
+      }
+      const refused = [];
+      await m.deliverToChat({ host: WEB_DEMO_HOST, prompt, libraryRoot: '/demo', notify: () => {}, openSheet: (sheet) => refused.push(sheet), clipboard: { writeText: async () => { throw new Error('denied'); } } });
+      assert.doesNotMatch(refused[0].text, /study-cli|\/demo/, `${lang}: nor in the card shown when the clipboard refuses`);
+      assert.equal(m.withExternalCliNote(prompt, { libraryRoot: '/demo', language: lang }), prompt, `${lang}: root alone adds nothing`);
+      assert.equal(m.withExternalCliNote(prompt, { language: lang }), prompt, `${lang}: nothing known adds nothing`);
+      assert.equal(m.withExternalCliNote(prompt, { libraryRoot: '/demo', studyNodePath: WIN_NODE, language: lang }), prompt, `${lang}: a node path alone adds nothing`);
+    } finally {
+      m.setUiLanguage('zh');
+    }
+  }
+});
+
+test('the blank 我想： / What I want: bullet is added only when the message really ends with that tail', async () => {
+  for (const lang of ['zh', 'en']) {
+    m.setUiLanguage(lang);
+    try {
+      const askTail = m.messageParts(m.handOffText('topics.group', { mode: 'merge', ungrouped: 5, course: 'Networks', alternative: true }, lang), lang).tail;
+      assert.equal(askTail, lang === 'zh' ? '我想：' : 'What I want:');
+      const blankNote = lang === 'zh' ? /留空/ : /left blank/;
+      const opts = { studyCliPath: CLI_PATH, libraryRoot: LIB_ROOT, language: lang };
+      const withAsk = m.withExternalCliNote(m.handOffText('topics.group', { mode: 'merge', ungrouped: 5, course: 'Networks', alternative: true }, lang), opts);
+      assert.match(withAsk, blankNote, `${lang}: a message ending with ${askTail} gets the blank-tail note`);
+      for (const [name, text] of [
+        ['book.edit (no tail)', m.handOffText('book.edit', { course: 'OS', hid: 'p1', title: 'Scheduling', bookLanguage: lang }, lang)],
+        ['deck.ask (no tail)', m.handOffText('deck.ask', { deckTitle: 'Algorithms' }, lang)],
+        ['paste tail', m.composeMessage({ ask: 'x', notes: ['y'] }, { tail: 'paste', language: lang })],
+        ['plain text without a notes block', `just a sentence\n${m.languageTail(lang)}`],
+      ]) {
+        const out = m.withExternalCliNote(text, opts);
+        assert.match(out, /study-cli\.mjs/, `${lang} ${name}: the CLI note itself is still there`);
+        assert.doesNotMatch(out, blankNote, `${lang} ${name}: no blank-tail note when there is no ${askTail} at the end`);
+        assert.doesNotMatch(out, /末尾补充|Trailing note/, `${lang} ${name}: no trailing-note bullet`);
+      }
+      const askMessage = m.composeMessage({ ask: 'x', notes: ['y'] }, { tail: 'ask', language: lang });
+      assert.match(m.withExternalCliNote(askMessage, opts), blankNote, `${lang}: the ask tail of a composed message counts`);
+    } finally {
+      m.setUiLanguage('zh');
+    }
+  }
+});
+
+test('a library on a drive root, or with a trailing backslash, is written so Windows argument parsing reads it back right', async () => {
+  const cases = [
+    ['D:\\', 'D:/'],
+    ['d:\\\\', 'd:/'],
+    ['D:/', 'D:/'],
+    ['C:\\Users\\me\\Study Library\\', 'C:\\Users\\me\\Study Library'],
+    ['C:\\Users\\me\\Study Library\\\\', 'C:\\Users\\me\\Study Library'],
+    ['\\\\nas\\share\\', '\\\\nas\\share'],
+    [String.raw`D:\Study Library`, String.raw`D:\Study Library`],
+    ['/Users/me/Study Library', '/Users/me/Study Library'],
+    ['/', '/'],
+  ];
+  for (const lang of ['zh', 'en']) {
+    for (const [root, expected] of cases) {
+      for (const nodePath of ['', WIN_NODE]) {
+        const text = m.withExternalCliNote(m.handOffText('deck.ask', { deckTitle: 'Algorithms' }, lang), { studyCliPath: WIN_CLI, studyNodePath: nodePath, libraryRoot: root, language: lang });
+        const argv = windowsArgv(commandOf(text));
+        assert.deepEqual(argv.slice(-2), ['--root', expected], `${lang} ${JSON.stringify(root)}: --root reads back as ${expected}`);
+        assert.equal(argv.length, 8, `${lang} ${JSON.stringify(root)}: no argument swallowed by a stray escaped quote`);
+      }
+    }
+  }
 });

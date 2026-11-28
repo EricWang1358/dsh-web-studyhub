@@ -99,15 +99,27 @@ async function verifyStagedStudyCli({ nodeBin, cliPath, libraryDir, tempRoot }) 
   }
 }
 
+const samePath = (a, b) => resolve(String(a || '')).toLowerCase() === resolve(String(b || '')).toLowerCase();
+
+function verifyStagedStudyPaths({ cfg, binding, runtimeDir, stagedNode }) {
+  const expectedCliPath = join(runtimeDir, 'scripts', 'study-cli.mjs');
+  const reported = [cfg, binding];
+  if (reported.some((view) => view?.studyCliPath !== expectedCliPath)) {
+    throw new Error(`Expected staged studyCliPath ${expectedCliPath}, got config=${cfg?.studyCliPath} binding=${binding?.studyCliPath}`);
+  }
+  // the hand-off command runs this node: the portable one the app ships, not a node from PATH
+  if (reported.some((view) => !view?.studyNodePath || !samePath(view.studyNodePath, stagedNode))) {
+    throw new Error(`Expected staged studyNodePath ${stagedNode}, got config=${cfg?.studyNodePath} binding=${binding?.studyNodePath}`);
+  }
+  return expectedCliPath;
+}
+
 async function verifyStagedSidecarRpc({ baseUrl, token, runtimeDir, stagedNode, libraryDir, tempRoot }) {
   await verifyUnauthenticatedRejected(baseUrl);
   await rpcCall(baseUrl, token, 'snapshot');
   const cfg = await rpcCall(baseUrl, token, 'desktop.config.get', { uiLanguage: 'zh' });
   const binding = await rpcCall(baseUrl, token, 'binding.get');
-  const expectedCliPath = join(runtimeDir, 'scripts', 'study-cli.mjs');
-  if (cfg?.studyCliPath !== expectedCliPath || binding?.studyCliPath !== expectedCliPath) {
-    throw new Error(`Expected staged studyCliPath ${expectedCliPath}, got config=${cfg?.studyCliPath} binding=${binding?.studyCliPath}`);
-  }
+  const expectedCliPath = verifyStagedStudyPaths({ cfg, binding, runtimeDir, stagedNode });
   await verifyStagedStudyCli({ nodeBin: stagedNode, cliPath: expectedCliPath, libraryDir, tempRoot });
   await rpcCall(baseUrl, token, 'desktop.providers.scan', { uiLanguage: 'en' });
   await rpcCall(baseUrl, token, 'retrieval.status');

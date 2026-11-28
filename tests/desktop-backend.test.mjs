@@ -6,7 +6,7 @@ import { access, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:f
 import http from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   buildAgyStreamArgs,
@@ -1577,6 +1577,8 @@ test('entry/sidecar.mjs performs Tauri stdin/stdout handshake, serves authentica
   assert.equal(parsed.ok, true);
   assert.deepEqual(parsed.value.host, DESKTOP_CAPABILITIES);
   assert.equal(parsed.value.studyCliPath, join(REPO_ROOT, 'scripts', 'study-cli.mjs'));
+  // the node this sidecar runs on is reported next to the CLI path, so the hand-off command does not depend on `node` being on PATH
+  assert.equal(parsed.value.studyNodePath, process.execPath);
 
   // Closing stdin triggers graceful shutdown with exit code 0
   const exitCode = await new Promise((resolveExit, rejectExit) => {
@@ -1860,6 +1862,7 @@ test('stage-runtime bundles runnable scripts/study-cli.mjs, staged sidecar expos
   const cfgPayload = JSON.parse(cfgRes.text);
   assert.equal(cfgPayload.ok, true);
   assert.equal(cfgPayload.value.studyCliPath, expectedCliPath);
+  assert.equal(resolve(cfgPayload.value.studyNodePath).toLowerCase(), resolve(stagedNode).toLowerCase(), 'the bundled portable node, not a node from PATH');
 
   const bindRes = await rawHttpRequest({
     port,
@@ -1871,6 +1874,7 @@ test('stage-runtime bundles runnable scripts/study-cli.mjs, staged sidecar expos
   assert.equal(bindPayload.ok, true);
   assert.deepEqual(bindPayload.value.host, DESKTOP_CAPABILITIES);
   assert.equal(bindPayload.value.studyCliPath, expectedCliPath);
+  assert.equal(resolve(bindPayload.value.studyNodePath).toLowerCase(), resolve(stagedNode).toLowerCase());
 
   const exitCode = await new Promise((resolveExit, rejectExit) => {
     const timer = setTimeout(() => {
@@ -1926,4 +1930,14 @@ test('stage-runtime bundles runnable scripts/study-cli.mjs, staged sidecar expos
   assert.equal(snapOut.decks.length, 1);
   assert.equal(snapOut.decks[0].title, 'Algorithms Quiz');
   assert.deepEqual(snapOut.topicGrouping, { topics: 2, groups: 1, ungrouped: 0 });
+});
+
+test('the sidecar reports its own executable as studyNodePath only when it really is a node binary (so a hand-off command never runs bun, electron or a shim)', async () => {
+  const { resolveStudyNodePath } = await import(pathToFileURL(SIDECAR_ENTRY).href);
+  assert.equal(resolveStudyNodePath('C:\\StudyHub\\resources\\runtime\\node.exe'), 'C:\\StudyHub\\resources\\runtime\\node.exe');
+  assert.equal(resolveStudyNodePath('/opt/studyhub/runtime/node'), '/opt/studyhub/runtime/node');
+  assert.equal(resolveStudyNodePath('C:\\Apps\\bun.exe'), '');
+  assert.equal(resolveStudyNodePath('/usr/bin/electron'), '');
+  assert.equal(resolveStudyNodePath(''), '');
+  assert.equal(resolveStudyNodePath(undefined), resolveStudyNodePath(process.execPath));
 });

@@ -61,7 +61,7 @@ const GLOBAL_CSS = [baseStylesCss, appearanceThemesCss, appearanceCraftCss, appe
   .filter((sheet) => typeof sheet === 'string')
   .join('\n');
 
-const EMPTY_BOOT = Object.freeze({ status: 'loading', rpc: null, subscribeLibraryEvents: null, installFlavor: undefined, studyCliPath: undefined, error: '' });
+const EMPTY_BOOT = Object.freeze({ status: 'loading', rpc: null, subscribeLibraryEvents: null, installFlavor: undefined, studyCliPath: undefined, studyNodePath: undefined, error: '' });
 
 export function DesktopRoot({ initialBoot = null, initialCrash = null, AppComponent = App } = {}) {
   useUiLanguage();
@@ -130,17 +130,20 @@ export function DesktopRoot({ initialBoot = null, initialCrash = null, AppCompon
         const rpc = createDesktopCall(connection);
         const subscribeLibraryEvents = createDesktopEventSubscription({ connection });
         cleanupLinks = installExternalLinkHandler(rpc);
-        let studyCliPath;
+        let studyCliPath, studyNodePath;
         try {
           const cfg = await rpc('desktop.config.get', {});
           if (active) syncDesktopConcurrency(cfg?.effective);
           if (typeof cfg?.studyCliPath === 'string' && cfg.studyCliPath.trim()) {
             studyCliPath = cfg.studyCliPath.trim();
           }
+          if (typeof cfg?.studyNodePath === 'string' && cfg.studyNodePath.trim()) {
+            studyNodePath = cfg.studyNodePath.trim();
+          }
         } catch {
           // Sidecar config probe is best-effort during bootstrap.
         }
-        if (active) setBoot({ status: 'ready', rpc, subscribeLibraryEvents, installFlavor: info.installFlavor, studyCliPath, error: '' });
+        if (active) setBoot({ status: 'ready', rpc, subscribeLibraryEvents, installFlavor: info.installFlavor, studyCliPath, studyNodePath, error: '' });
       })
       .catch((failure) => {
         if (!active) return;
@@ -157,8 +160,8 @@ export function DesktopRoot({ initialBoot = null, initialCrash = null, AppCompon
   }, [bootAttempt, initialBoot]);
 
   const host = useMemo(
-    () => createDesktopHost(boot.rpc, concurrency, boot.subscribeLibraryEvents, { installFlavor: boot.installFlavor, studyCliPath: boot.studyCliPath }),
-    [boot.rpc, concurrency, boot.subscribeLibraryEvents, boot.installFlavor, boot.studyCliPath],
+    () => createDesktopHost(boot.rpc, concurrency, boot.subscribeLibraryEvents, { installFlavor: boot.installFlavor, studyCliPath: boot.studyCliPath, studyNodePath: boot.studyNodePath }),
+    [boot.rpc, concurrency, boot.subscribeLibraryEvents, boot.installFlavor, boot.studyCliPath, boot.studyNodePath],
   );
 
   if (boot.status === 'loading') {

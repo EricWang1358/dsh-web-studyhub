@@ -34,6 +34,15 @@ async function resolveStudyCliPath(env = process.env) {
   return '';
 }
 
+/**
+ * The node this sidecar runs on (the desktop app ships its own portable node, so `process.execPath` is the bundled one), for the hand-off command an
+ * outside agent runs: desktop users have no Node.js of their own. Empty when the executable is not a node binary, so the command falls back to `node`.
+ */
+export function resolveStudyNodePath(execPath = process.execPath) {
+  const name = String(execPath ?? '').match(/[^\\/]*$/)[0];
+  return /^node(\.exe)?$/i.test(name) ? String(execPath) : '';
+}
+
 function parseCliArgs(argv) {
   const dev = argv.includes('--dev');
   const devToken = argv.find((arg) => arg.startsWith('--dev-token='))?.slice(12) || '';
@@ -120,6 +129,7 @@ function normalizeSidecarOptions(options = {}) {
     retrievalRuntime: options.retrievalRuntime ?? null,
     libraryEvents: options.libraryEvents ?? null,
     studyCliPath: options.studyCliPath ?? '',
+    studyNodePath: options.studyNodePath ?? resolveStudyNodePath(),
   };
 }
 
@@ -151,6 +161,7 @@ function buildSidecarHostOptions(opts) {
     // The drive Windows is installed on; the default is the usual one when the variable is missing.
     systemDrive: opts.env.SystemDrive || 'C:',
     studyCliPath: opts.resolvedStudyCliPath,
+    studyNodePath: opts.studyNodePath,
   };
 }
 
@@ -159,7 +170,7 @@ function buildSidecarHostOptions(opts) {
  */
 export async function composeDesktopSidecar(rawOptions) {
   const options = normalizeSidecarOptions(rawOptions);
-  const { token, port, serveUiDir, injectDevToken, env, injectedComplete, studyCliPath } = options;
+  const { token, port, serveUiDir, injectDevToken, env, injectedComplete, studyCliPath, studyNodePath } = options;
   const configStore = createConfigStore({ env });
   const runner = createProcessRunner();
   const jobExecutor = createInProcessJobExecutor();
@@ -173,7 +184,7 @@ export async function composeDesktopSidecar(rawOptions) {
 
   const host = await createDesktopHost(buildSidecarHostOptions({
     configStore, providerDiscovery, runner, jobExecutor, retrievalRuntime,
-    libraryEvents, env, injectedComplete, resolvedStudyCliPath,
+    libraryEvents, env, injectedComplete, resolvedStudyCliPath, studyNodePath,
   }));
   const syncCustomPaths = () => {
     currentCustomPaths.agy = host.config.agy.executablePath;
