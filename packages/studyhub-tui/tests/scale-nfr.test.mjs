@@ -507,22 +507,17 @@ describe('StudyHub TUI Large-Library Scale NFR Budgets (5,000 cards / 2,000 sour
       assert.ok(R.displayWidth(line) <= 80, `wrapDisplay line exceeded 80 cols: ${R.displayWidth(line)}`);
     }
 
-    assertRelativePerf(
-      'wrapDisplay sustained vs initial CPU stability',
+    // wrapDisplay has no cache: a "warm <= 1.5x cold" ratio would compare the same call with
+    // itself, so only the absolute budget is a gate here.
+    assertPerfBudget(
+      'wrapDisplay of the 200-line doc',
       () => {
         const wrapped = R.wrapDisplay(doc200, 80);
         assert.equal(wrapped.length, wrappedCold.length);
         return wrapped;
       },
-      () => R.wrapDisplay(doc200, 80),
-      {
-        warmup: 2,
-        samples: 9,
-        fastBatch: 3,
-        refBatch: 3,
-        fastBudgetMs: 15,
-        maxRatio: 1.5,
-      },
+      15,
+      { warmup: 2, samples: 9, batch: 3 },
     );
   });
 });

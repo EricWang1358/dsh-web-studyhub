@@ -125,9 +125,11 @@ export function placeInHost({ element, host, rect, placement = 'bottom-end', fli
   element.style.left = '0px';
   element.style.top = '0px';
   const size = element.getBoundingClientRect();
+  // The zoom is the drawn width against the layout width of the element at the origin: a panel with no width of its own (the 词解 card, the menu) is
+  // narrower at an old place near the window's edge, and a zoom taken there is too big. Read it before the element goes back.
+  const scale = element.offsetWidth ? size.width / element.offsetWidth : 1;
   element.style.left = was.left;
   element.style.top = was.top;
-  const scale = element.offsetWidth ? size.width / element.offsetWidth : 1;
   const result = computePlacement({ anchor: rect, size, placement, flip, ...(gap === undefined ? {} : { gap: gap * scale }), ...(margin === undefined ? {} : { margin: margin * scale }),
     bounds: within(box, viewport()) });
   const origin = fixed ? { left: 0, top: 0 } : size;

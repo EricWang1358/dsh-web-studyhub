@@ -72,6 +72,7 @@ function calibrateClockBatch(
     minBatchCpuMs = DEFAULT_MIN_BATCH_CPU_MS,
     maxBatch = 100_000,
     maxCalibrateWallMs = 250,
+    before,
   } = {},
 ) {
   let effectiveBatch = Math.max(1, Math.floor(batch));
@@ -86,6 +87,8 @@ function calibrateClockBatch(
   let sawZeroTick = false;
 
   for (let attempt = 0; attempt < 20; attempt += 1) {
+    // A setup hook (e.g. re-warming a cache the other side cleared) runs outside the measured bracket.
+    if (before) before();
     const token = clock.start();
     for (let b = 0; b < effectiveBatch; b += 1) lastValue = fn();
     const elapsedMs = clock.elapsedMs(token);
@@ -222,25 +225,29 @@ export function assertRelativePerf(label, fastFn, refFn, opts = {}) {
   const shouldCalibrate = minBatchCpuMs !== undefined ? minBatchCpuMs > 0 : clock === cpuClock;
   const targetMinBatchMs = minBatchCpuMs ?? DEFAULT_MIN_BATCH_CPU_MS;
 
+  // Both sides are calibrated, a side with a setup hook too (the hook runs before each calibration
+  // bracket, outside it): a fixed small batch of a microsecond-scale side reads 0 on a 15.625ms clock.
   let effectiveFastBatch = Math.max(1, Math.floor(fastBatch));
-  if (shouldCalibrate && !beforeFast) {
+  if (shouldCalibrate) {
     const calFast = calibrateClockBatch(fastFn, {
       batch: effectiveFastBatch,
       clock,
       minBatchCpuMs: targetMinBatchMs,
       maxBatch,
+      before: beforeFast,
     });
     effectiveFastBatch = calFast.batch;
     if (calFast.lastValue !== undefined) lastFast = calFast.lastValue;
   }
 
   let effectiveRefBatch = Math.max(1, Math.floor(refBatch));
-  if (shouldCalibrate && !beforeRef) {
+  if (shouldCalibrate) {
     const calRef = calibrateClockBatch(refFn, {
       batch: effectiveRefBatch,
       clock,
       minBatchCpuMs: targetMinBatchMs,
       maxBatch,
+      before: beforeRef,
     });
     effectiveRefBatch = calRef.batch;
     if (calRef.lastValue !== undefined) lastRef = calRef.lastValue;
@@ -248,16 +255,28 @@ export function assertRelativePerf(label, fastFn, refFn, opts = {}) {
 
   const fastRaw = new Array(samples);
   const refRaw = new Array(samples);
-  for (let i = 0; i < samples; i++) {
-    if (beforeFast) beforeFast();
-    const ft = clock.start();
-    for (let b = 0; b < effectiveFastBatch; b++) lastFast = fastFn();
-    fastRaw[i] = clock.elapsedMs(ft) / effectiveFastBatch;
+  const sampleBoth = () => {
+    for (let i = 0; i < samples; i++) {
+      if (beforeFast) beforeFast();
+      const ft = clock.start();
+      for (let b = 0; b < effectiveFastBatch; b++) lastFast = fastFn();
+      fastRaw[i] = clock.elapsedMs(ft) / effectiveFastBatch;
 
-    if (beforeRef) beforeRef();
-    const rt = clock.start();
-    for (let b = 0; b < effectiveRefBatch; b++) lastRef = refFn();
-    refRaw[i] = clock.elapsedMs(rt) / effectiveRefBatch;
+      if (beforeRef) beforeRef();
+      const rt = clock.start();
+      for (let b = 0; b < effectiveRefBatch; b++) lastRef = refFn();
+      refRaw[i] = clock.elapsedMs(rt) / effectiveRefBatch;
+    }
+  };
+  const medianOf = (raw) => quantile(raw.slice().sort((a, b) => a - b), 0.5);
+  sampleBoth();
+  // Calibration stops at its wall-time cap; on a loaded machine that can leave a batch shorter than
+  // one tick of the CPU clock, and the side then reads 0 ms. A side that reads 0 is measured again
+  // with a larger batch (bounded), so the ratio compares resolved times instead of 0 against 0.
+  for (let retry = 0; retry < 3 && shouldCalibrate && medianOf(refRaw) === 0; retry++) {
+    if (medianOf(fastRaw) === 0) effectiveFastBatch = Math.min(Math.max(effectiveFastBatch, maxBatch), effectiveFastBatch * 4);
+    effectiveRefBatch = Math.min(Math.max(effectiveRefBatch, maxBatch), effectiveRefBatch * 4);
+    sampleBoth();
   }
 
   const summarize = (raw, lastValue, batch) => {
@@ -288,6 +307,16 @@ export function assertRelativePerf(label, fastFn, refFn, opts = {}) {
       fastMs < fastBudgetMs,
       `${label} fast ${stat} ${fastMs.toFixed(3)}ms (${fast.clock}) exceeded budget < ${fastBudgetMs}ms`,
     );
+  }
+  // Still 0 after the larger batches: the reference is below the clock's resolution and a ratio of
+  // the two sides says nothing. The absolute budget above still holds; the ratio is skipped, loudly.
+  const unresolved = refMs === 0 && fastMs === 0 && (minSpeedup !== undefined || maxRatio !== undefined);
+  if (unresolved) {
+    console.warn(
+      `${label}: ratio skipped, both sides read below the ${fast.clock} clock's resolution ` +
+        `(fast=${fastMs.toFixed(4)}ms x${effectiveFastBatch}, ref=${refMs.toFixed(4)}ms x${effectiveRefBatch})`,
+    );
+    return { fast, ref, speedup, unresolved };
   }
   if (minSpeedup !== undefined) {
     assert.ok(
