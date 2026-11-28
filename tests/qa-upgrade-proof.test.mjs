@@ -124,6 +124,8 @@ test("never, twice, another version, the wrong side of the restart or a wrong re
   assert.throws(() => noticeOf("new", [said("before-restart", "已升级到 6.0.0")]), /does not name 6\.0\.0-test/);
   assert.throws(() => noticeOf("new", [said("new-version-active")]), /until after it/);
   assert.throws(() => noticeOf("old", [said("before-restart")]), /old code/);
+  // DSH may answer the install before it closes the page: a notice there is gone at once, and the next StudyHub would have none left.
+  assert.throws(() => noticeOf("new", [{ ...said("one-click-upgrade"), besideUpgradeDialog: true }]), /page that asked for the install/);
   assert.throws(() => noticeOf("new", [said("before-restart")], []), /tell the host once/);
   assert.throws(() => noticeOf("new", [said("before-restart")], ["6.0.0-test", "6.0.0-test"]), /tell the host once/);
 });

@@ -1,5 +1,6 @@
-/* DSH 0.2.2 loads the new code at once and takes StudyHub's page away before the install has answered, so the page that asked for the upgrade never
-   says how it ended. The dialog says so before and during the install, and the first page of the new code says 「已升级到 X」 once. The host half
+/* DSH 0.2.2 loads the new code at once and takes StudyHub's page away around the time the install answers (usually before, once seen just after), so the
+   page that asked for the upgrade cannot say how it ended. The dialog says so before and during the install, and the first StudyHub opened on the new code
+   says 「已升级到 X」 once. The host half
    (lib/update-check.js, lib/update-install.js) decides when there is something to say; ui/UpdateCenter.jsx says it and tells the host. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -245,6 +246,22 @@ test('the notice is said once per version in a page, then reported to the host',
   assert.deepEqual(calls, [['update.preferences', { upgradeTold: '2.1.1' }]]);
   await ui.announceUpgrade({ upgraded: '2.1.2' }, { call: async () => { throw new Error('host gone'); }, toast, said });
   assert.equal(shown.length, 2, 'a later version is said too, and a lost report does not break the page');
+});
+
+test('a StudyHub that was open when the install was asked for says nothing and uses nothing up: the news is for one opened afterwards', async () => {
+  const shown = [], calls = [];
+  const toast = { success: message => shown.push(message) };
+  const call = async (action) => { calls.push(action); return action === 'update.install' ? { status: 'installed', version: '3.0.0', restartRequired: false } : {}; };
+  const said = new Set();
+  const openedBefore = ui.installsAskedSoFar();
+  await ui.startUpgrade(call, { latest: '3.0.0' });
+  // DSH has not closed the page yet, and its dialog has already heard of the upgrade from the new code.
+  await ui.announceUpgrade({ upgraded: '3.0.0' }, { call, toast, said, openedAt: openedBefore });
+  assert.deepEqual(shown, []);
+  assert.deepEqual(calls, ['update.install'], 'nothing is reported to the host');
+  await ui.announceUpgrade({ upgraded: '3.0.0' }, { call, toast, said, openedAt: ui.installsAskedSoFar() });
+  assert.deepEqual(shown, ['已升级到 3.0.0']);
+  assert.deepEqual(calls, ['update.install', 'update.preferences']);
 });
 
 test('a notice for any page survives a page change; the others still stay on their page', () => {

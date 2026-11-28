@@ -157,7 +157,7 @@ function recordNotices(pattern) {
     for (const message of document.querySelectorAll(".sh-toast__message")) {
       if (seen.has(message) || !notice.test(message.textContent)) continue;
       seen.add(message);
-      window.studyhubQaNotice(message.textContent.trim());
+      window.studyhubQaNotice({ text: message.textContent.trim(), besideUpgradeDialog: !!document.querySelector(".update-dialog") });
     }
   }).observe(document, { childList: true, subtree: true, characterData: true });
 }
@@ -223,9 +223,9 @@ export async function runUpgradeProof(options) {
     browser = await launchChromium({ args: [`--lang=${options.lang === "en" ? "en-US" : "zh-CN"}`] });
     const newPage = async () => {
       const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: options.lang === "en" ? "en-US" : "zh-CN" });
-      await context.exposeFunction("studyhubQaNotice", (text) => {
+      await context.exposeFunction("studyhubQaNotice", (notice) => {
         if (!clickedAt) return;
-        summary.notices.push({ at: at(), step: current, text });
+        summary.notices.push({ at: at(), step: current, ...notice });
         // Taken while it is up; a second one would be the failure the summary names.
         if (summary.notices.length === 1) sleep(400).then(() => shot("05a-notice")).catch(() => {});
       });
@@ -289,7 +289,9 @@ export async function runUpgradeProof(options) {
       if (summary.facts.savedSha256 !== feed.sha) throw new Error("the installed file is not the verified one");
     });
     await step("before-restart", async () => {
-      if (await page.locator(".update-dialog .update-done").count()) await page.locator(".update-dialog .sh-dialog__footer .sh-btn--primary").click();
+      // DSH may answer a moment before it closes the page, so the dialog's last words can vanish while they are being dismissed.
+      if (await page.locator(".update-dialog .update-done").count())
+        await page.locator(".update-dialog .sh-dialog__footer .sh-btn--primary").click({ timeout: 5000 }).catch(() => {});
       await ensureStudy(page);
       for (let waited = 0; waited < NOTICE_WAIT_MS && !summary.notices.length; waited += 500) await sleep(500);
       const settings = await readSettings(page);

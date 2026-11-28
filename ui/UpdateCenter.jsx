@@ -61,9 +61,14 @@ async function savePreferences(call, preferences) {
    The host names the version (update.check's `upgraded`); this says it once and tells the host, so no later start repeats it. */
 const UPGRADE_NOTICE_MS = 12000;
 const announced = new Set();
-export async function announceUpgrade(update, { call, toast, said = announced }) {
+/* DSH closes the page around the time the install answers, before or just after. In the second order the page that asked is still open and its dialog hears
+   of the upgrade from the new code; a notice there would be gone at once, and reporting it would leave nothing for the StudyHub opened next. So an
+   <UpdateWatch> that was already open when this page asked for an install says nothing. One opened later does, even in this same module. */
+let installsAsked = 0;
+export const installsAskedSoFar = () => installsAsked;
+export async function announceUpgrade(update, { call, toast, said = announced, openedAt = installsAsked }) {
   const version = update?.upgraded;
-  if (!version || said.has(version)) return;
+  if (openedAt !== installsAsked || !version || said.has(version)) return;
   said.add(version);
   toast.success(uiFormat('已升级到 {0}', [version]), { scope: ANY_PAGE, timeout: UPGRADE_NOTICE_MS });
   try { await savePreferences(call, { upgradeTold: version }); } catch { /* all that is lost: the next start says it once more */ }
@@ -75,13 +80,13 @@ export function UpdateWatch() {
   const { call } = useStudy();
   const toast = useToast();
   const { update } = useUpdateStore();
-  const asked = useRef(false);
+  const asked = useRef(false), openedAt = useRef(installsAsked);
   useEffect(() => {
     if (asked.current) return;
     asked.current = true;
     refreshUpdate(call);
   }, [call]);
-  useEffect(() => { announceUpgrade(update, { call, toast }); }, [update, call, toast]);
+  useEffect(() => { announceUpgrade(update, { call, toast, openedAt: openedAt.current }); }, [update, call, toast]);
   return null;
 }
 
@@ -143,6 +148,7 @@ export function failureMessage(code, extra = {}) {
 
 /** One upgrade attempt through the host; answers the dialog phase to show next. */
 export async function startUpgrade(call, update, { confirmJobs = false } = {}) {
+  installsAsked++;
   try {
     const result = await call('update.install', { version: update.latest, ...(confirmJobs ? { confirmJobs: true } : {}) });
     if (result?.status === 'jobs-running') return { phase: 'jobs', jobs: result.jobs };

@@ -14,17 +14,22 @@ test('the upgrade notice in the page: asked on open, said once, kept across a pa
     import ActionFeedback, { useNotice, reviewNoticeScope } from './ui/ActionFeedback.jsx';
     import { ToastContext, createToastApi } from './ui/components/Feedback.jsx';
     import { StudyServicesContext } from './ui/study-context.jsx';
-    import { UpdateWatch } from './ui/UpdateCenter.jsx';
+    import { UpdateDialog, UpdateWatch } from './ui/UpdateCenter.jsx';
     window.calls = [];
     window.answer = null;
+    window.installed = null;
     const call = async (action, args) => {
       window.calls.push([action, args]);
       if (action === 'update.preferences') { window.answer = { ...window.answer, upgraded: null }; return window.answer; }
+      if (action === 'update.install') {
+        window.answer = window.installed;
+        return { status: 'installed', version: args.version, restartRequired: false, application: 'applied' };
+      }
       await new Promise((done) => { window.release = done; });
       return window.answer;
     };
     const services = { call };
-    function Harness() {
+    function Harness({ offer }) {
       const [pageName, setPage] = useState('library');
       const [notice, setNotice] = useNotice(reviewNoticeScope('/lib', pageName, null));
       const [error, setError] = useState('');
@@ -32,11 +37,12 @@ test('the upgrade notice in the page: asked on open, said once, kept across a pa
       window.goto = setPage;
       return <StudyServicesContext.Provider value={services}><ToastContext.Provider value={toast}><div className="study-app" data-page={pageName}>
         <UpdateWatch />
+        {offer && <UpdateDialog update={offer} onClose={() => {}} />}
         <ActionFeedback notice={notice} error={error} placement="inline" onCloseNotice={() => setNotice('')} onCloseError={() => setError('')} />
       </div></ToastContext.Provider></StudyServicesContext.Provider>;
     }
     let root;
-    window.open = (answer) => { window.answer = answer; root = createRoot(document.getElementById('root')); root.render(<Harness />); };
+    window.open = (answer, offer) => { window.answer = answer; root = createRoot(document.getElementById('root')); root.render(<Harness offer={offer} />); };
     window.close = () => { root.unmount(); };
   `, resolveDir: process.cwd(), loader: 'jsx' }, bundle: true, write: false, platform: 'browser', format: 'iife', loader: { '.css': 'text' }, logLevel: 'silent' });
   let browser;
@@ -51,8 +57,8 @@ test('the upgrade notice in the page: asked on open, said once, kept across a pa
   const reported = () => page.evaluate(() => window.calls.filter(([action]) => action === 'update.preferences').map(([, args]) => args));
   const notice = page.locator('[role="status"] .sh-toast');
   const answer = (upgraded) => ({ current: upgraded || '5.5.0', latest: upgraded || '5.5.0', newer: false, autoCheck: true, pendingRestart: null, upgraded });
-  const open = async (value) => {
-    await page.evaluate((next) => window.open(next), value);
+  const open = async (value, offer) => {
+    await page.evaluate(([next, upgrade]) => window.open(next, upgrade), [value, offer ?? null]);
     await page.waitForFunction(() => !!window.release);
   };
   const release = () => page.evaluate(() => { const done = window.release; window.release = null; done(); });
@@ -83,5 +89,27 @@ test('the upgrade notice in the page: asked on open, said once, kept across a pa
   assert.equal((await asked()).filter((action) => action === 'update.check').length, 2, 'every opening asks again: the page may have outlived the old code');
   assert.equal(await notice.count(), 0, 'said once');
   assert.deepEqual(await reported(), [{ upgradeTold: '6.0.0' }]);
+
+  // DSH sometimes answers the install a moment before it closes the page. The page that asked is the old code: its dialog asks again and hears of the upgrade,
+  // but anything it showed would be gone at once, so it must leave the news (and the report to the host) to the StudyHub opened afterwards.
+  await page.evaluate(() => { window.close(); window.calls.length = 0; });
+  await open(answer(null), { current: '6.0.0', latest: '7.0.0', newer: true, autoCheck: true, snoozed: false, pendingRestart: null,
+    url: 'https://example.invalid/release', assetUrl: 'https://example.invalid/package.tgz', notes: '', install: { available: true, desktop: false } });
+  await release(); await settle();
+  await page.evaluate(() => { window.installed = { current: '7.0.0', latest: '7.0.0', newer: false, autoCheck: true, pendingRestart: null, upgraded: '7.0.0' }; });
+  await page.getByRole('button', { name: '一键升级到 7.0.0' }).click();
+  await page.getByRole('button', { name: '确认升级' }).click();
+  await page.waitForFunction(() => !!window.release);
+  await release(); await settle();
+  assert.deepEqual(await asked(), ['update.check', 'update.install', 'update.check'], 'the dialog did hear of the upgrade while the old page was open');
+  assert.equal(await page.locator('.sh-toast').count(), 0, 'the old page says nothing');
+  assert.deepEqual(await reported(), [], 'and does not use the notice up');
+  // DSH closes the page and the learner opens StudyHub again; DSH may reuse this very module.
+  await page.evaluate(() => window.close());
+  await open(await page.evaluate(() => window.installed));
+  await release();
+  await notice.waitFor();
+  assert.match(await notice.innerText(), /已升级到 7\.0\.0/);
+  assert.deepEqual(await reported(), [{ upgradeTold: '7.0.0' }]);
   assert.deepEqual(errors, []);
 });

@@ -87,13 +87,14 @@ export function installVerdict(answer, disk, { version, packageName }) {
 export const UPGRADE_NOTICE = /(?:已升级到|Upgraded to)\s+([0-9A-Za-z.+-]+)/;
 const AFTER_RESTART = ["restart-dsh", "new-version-active"];
 
-/** What the learner was told. `shown`: every upgrade notice the page showed from the click on, as { step, text }; `reports`: each version the page told
-    the host it had announced; `running`: what ran before the restart (runningBeforeRestart). It has to be said exactly once, for the installed version:
-    before the restart when the new code already ran then, after it when the old code was still running. */
+/** What the learner was told. `shown`: every upgrade notice the page showed from the click on, as { step, text, besideUpgradeDialog }; `reports`: each
+    version the page told the host it had announced; `running`: what ran before the restart (runningBeforeRestart). It has to be said exactly once, for the
+    installed version, by a StudyHub opened after the upgrade: before the restart when the new code already ran then, after it when the old code still ran. */
 export function noticeVerdict({ running, shown, reports }, { version }) {
   const said = shown.map(({ step, text }) => `${step}: ${text}`).join(" | ") || "never";
   if (shown.length !== 1) throw new Error(`the upgrade notice should appear exactly once, and appeared ${shown.length} times (${said})`);
-  const [{ step, text }] = shown;
+  const [{ step, text, besideUpgradeDialog }] = shown;
+  if (besideUpgradeDialog) throw new Error(`the notice came from the page that asked for the install, its upgrade dialog still open, which DSH then closes (${said})`);
   if (UPGRADE_NOTICE.exec(text)?.[1] !== version) throw new Error(`the notice does not name ${version} (${said})`);
   if (running === "old" && !AFTER_RESTART.includes(step)) throw new Error(`the old code still ran before the restart, yet it announced the upgrade (${said})`);
   if (running === "new" && AFTER_RESTART.includes(step)) throw new Error(`the new code ran before the restart, but nothing was said until after it (${said})`);
