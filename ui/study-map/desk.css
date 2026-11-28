@@ -377,7 +377,7 @@
   :is(.study-app, .study-seat) {
     .desk-more .desk-also { margin-top: var(--space-2); }
     .desk > .desk-intro { --desk-measure: 32.5rem; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-5); min-width: 0; }
-    .desk > .desk-intro > :is(.course-route, .course-method-line, .focus-progress, .desk-mastery, .desk-next, .desk-also, .desk-more, .resume-list) { width: 100%; max-width: var(--desk-measure); margin: 0; }
+    .desk > .desk-intro > :is(.course-route, .course-method-line, .focus-progress, .desk-mastery, .pace-meta, .desk-next, .desk-also, .desk-more, .resume-list) { width: 100%; max-width: var(--desk-measure); margin: 0; }
     .desk > .desk-intro > .desk-next { margin-top: var(--space-2); }
     .today-card-head { align-items: baseline; }
       .desk-more {
@@ -389,11 +389,16 @@
 
 @layer study.features {
   @container study (max-width: 760px) {
+    /* Defensive floor (#1690): any future .desk-intro child without an explicit order lands at the end instead of order:0 above the course heading. */
+    :where(.study-app, .study-seat) {
+      .desk > .desk-intro > * { order: 99; }
+    }
     :is(.study-app, .study-seat) {
       .desk[data-tour="home-hero"] { gap: var(--space-5) 0; padding-top: var(--space-4); }
       .desk > .desk-intro { display: contents; }
       .desk > .today-stack { order: 11; justify-self: stretch; width: auto; max-width: none; margin: 0 var(--space-3-5) var(--space-2) 0; }
       .desk > .desk-intro > .desk-mastery { order: 6; }
+      .desk > .desk-intro > .pace-meta { order: 6; }
       .desk > .desk-intro > .desk-next { order: 7; margin-top: 0; }
       .desk > .desk-intro > .desk-also { order: 8; }
       .desk > .desk-intro > .resume-list { order: 10; }
@@ -412,11 +417,13 @@
         padding-top: var(--space-4-5);
         gap: 0;
       }
+      .desk > .desk-intro > * { order: 99; }
       .today-card-main { min-height: 0; }
     }
     :is(.study-app, .study-seat) {
       .desk[data-tour="home-hero"] { gap: var(--space-5) 0; padding-top: var(--space-4); }
       .desk > .desk-intro { display: contents; }
+      .desk > .desk-intro > .pace-meta { order: 6; }
       .desk > .today-stack { order: 11; justify-self: stretch; width: auto; max-width: none; margin: 0 var(--space-3-5) var(--space-2) 0; }
     }
   }
