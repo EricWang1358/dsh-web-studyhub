@@ -10,6 +10,7 @@ import { readZip } from '../lib/office/zip.js';
 import { Store } from '../lib/store.js';
 import { createMaterialsOperations } from '../lib/contexts/materials/operations.js';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
+import { snapshotSources } from '../lib/source-query.js';
 import { pptxFile, shape, apara, picture, slideTable } from './helpers/office.mjs';
 
 /* Issue #1457: unread images / figures / charts / SmartArt signals across converters,
@@ -300,6 +301,14 @@ test('end-to-end converted document import persists imagePages & skippedPages th
   assert.deepEqual(grouped.imagePages, [1]);
   assert.deepEqual(grouped.skippedPages, [2]);
   assert.deepEqual(grouped.omittedVisuals, []);
+
+  // Client snapshot path: Sources / SourcePicker call groupSourcesByDocument(data.sources) without { documents }.
+  const snapshot = snapshotSources(state.sources, new Set(), state.documents);
+  const [groupedFromSnapshot] = groupSourcesByDocument(snapshot);
+  assert.equal(groupedFromSnapshot.hasImages, true);
+  assert.deepEqual(groupedFromSnapshot.imagePages, [1]);
+  assert.deepEqual(groupedFromSnapshot.skippedPages, [2]);
+  assert.deepEqual(groupedFromSnapshot.omittedVisuals, []);
 });
 
 test('[C38] legacy stored document without new fields loads cleanly and does not falsely flag partial selectedPages imports', async t => {

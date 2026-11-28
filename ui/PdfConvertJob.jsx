@@ -344,10 +344,12 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry,
         {status === 'complete' && (Array.isArray(row.imagePages) ? row.imagePages.length > 0 : Array.isArray(document?.imagePages) && document.imagePages.length > 0) && (
           <Hint as="small">{uiFormat('第 {0} 页含未识别图片，打开资料后可直接发给主会话或 agy CLI 看图。', [pageListText(Array.isArray(row.imagePages) ? row.imagePages : document.imagePages)])}</Hint>
         )}
-        {status === 'complete' && (Array.isArray(row.skippedPages) ? row.skippedPages.length > 0 : row.skippedPages > 0) && (
+        {status === 'complete' && (Array.isArray(row.skippedPages) ? row.skippedPages.length > 0 : Array.isArray(document?.skippedPages) ? document.skippedPages.length > 0 : row.skippedPages > 0) && (
           <Hint as="small">{Array.isArray(row.skippedPages)
             ? uiFormat('第 {0} 页仅含图片或没有可读文字，已跳过；打开资料后可发给主会话或 agy CLI 看图。', [pageListText(row.skippedPages)])
-            : uiFormat('没有可读文字而跳过的页：{0}', [row.skippedPages])}</Hint>
+            : Array.isArray(document?.skippedPages) && document.skippedPages.length > 0
+              ? uiFormat('第 {0} 页仅含图片或没有可读文字，已跳过；打开资料后可发给主会话或 agy CLI 看图。', [pageListText(document.skippedPages)])
+              : uiFormat('没有可读文字而跳过的页：{0}', [row.skippedPages])}</Hint>
         )}
         {status === 'interrupted' && <small>{ui('上次没有做完（应用被关闭，或意外中断）。')}</small>}
         {status === 'cancelled' && <small>{ui('已解析好的段落会保留，再选同一个文件不会重复解析。')}</small>}
