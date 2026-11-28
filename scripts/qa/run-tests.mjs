@@ -1,4 +1,4 @@
-/* node scripts/qa/run-tests.mjs [--fast] [--shard=I/N [--list]] [--test-concurrency=N] [--test-timeout=MS] [--test-reporter=X [--test-reporter-destination=Y]]... [--test-name-pattern=P]... [--test-skip-pattern=P]...
+/* node scripts/qa/run-tests.mjs [--fast] [--quarantine|--include-quarantined] [--shard=I/N [--list]] [--test-concurrency=N] [--test-timeout=MS] [--test-reporter=X [--test-reporter-destination=Y]]... [--test-name-pattern=P]... [--test-skip-pattern=P]...
    The whole suite, with real scroll measurements alone before the longest-first worker pool (scripts/test.mjs sets up the environment).
 
    `node --test` sorts its files by name, so the slowest ones start whenever their name comes up and the run ends with whatever is
@@ -23,7 +23,7 @@ import { once } from 'node:events';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { compose, PassThrough } from 'node:stream';
 import { pathToFileURL } from 'node:url';
-import { durationsFile, listTestFiles, mergeDurations, orderLongestFirst, parseShard, readDurations, readSlowList, readWeights, repoRoot, shardKeys, suiteDir } from './test-schedule.mjs';
+import { classifyQuarantineFiles, durationsFile, listTestFiles, mergeDurations, orderLongestFirst, parseQuarantineArgs, parseShard, quarantineWarningAnnotations, readDurations, readSlowList, readWeights, repoRoot, selectRootTestPlan, suiteDir } from './test-schedule.mjs';
 import { planBatches } from './test-batch.mjs';
 import { runWithTimingFiles } from './test-phases.mjs';
 import { buildReverseDependencyGraph, selectSmartTests } from './test-smart.mjs';
@@ -64,42 +64,98 @@ const fileMs = fileLimit && testMs ? Math.max(fileLimit, testMs) : fileLimit;
 const shardText = values('--shard').at(-1), shard = shardText === undefined ? null : parseShard(shardText);
 if (shardText !== undefined && !shard) { console.error(`--shard needs index/count, for example 2/5 (got "${shardText}")`); process.exit(2); }
 
+const quarantineArgs = parseQuarantineArgs(args);
+if (quarantineArgs.error) { console.error(quarantineArgs.error); process.exit(2); }
+const { quarantineOnly, includeQuarantined } = quarantineArgs;
+
 const slowList = await readSlowList();
 const slow = fast ? slowList : new Set();
 const durations = await readDurations(), weights = await readWeights();
-const all = new Map((await listTestFiles()).map(file => [keyOf(file), file]));
-// A shard is cut from the whole suite, not from what --fast leaves, so a shard names the same files either way.
-const mine = shard ? shardKeys([...all.keys()], weights, shard) : [...all.keys()];
-let candidateKeys = mine.filter(key => !slow.has(key));
+const discovered = await listTestFiles();
+const classified = await classifyQuarantineFiles(discovered, { keyOf });
+if (classified.malformedMarkers.length > 0) {
+  for (const bad of classified.malformedMarkers) {
+    console.error(`[quarantine] ${bad.key}:${bad.line} — ${bad.error}`);
+  }
+  process.exit(2);
+}
+
+const all = new Map(discovered.map(file => [keyOf(file), file]));
+const quarantineByKey = new Map(classified.quarantinedFiles.map(entry => [entry.key, entry]));
+// A shard is cut from the whole active suite (or quarantined/combined pool per flag), not from what --fast leaves, so a shard names the same files either way.
+const plan = selectRootTestPlan({
+  activeKeys: classified.activeFiles.map(entry => entry.key),
+  quarantinedFiles: classified.quarantinedFiles,
+  weights,
+  shard,
+  slow,
+  quarantineOnly,
+  includeQuarantined,
+});
+let activeKeys = plan.activeKeys;
+let quarantinedKeys = plan.quarantinedKeys;
 if (coreOnly || smart) {
   const sinceOpt = values('--since').at(-1) || '';
   const { baseRef, changedPaths } = coreOnly ? { baseRef: 'core', changedPaths: [] } : detectChangedPaths({ root: repoRoot, since: sinceOpt });
   const reverseGraph = coreOnly ? new Map() : await buildReverseDependencyGraph(repoRoot);
+  const fullPool = [...plan.activeKeys, ...plan.quarantinedKeys];
   const picked = selectSmartTests({
     mode: coreOnly ? 'core' : 'smart',
     changedPaths,
-    allTestKeys: fast ? candidateKeys : mine,
+    allTestKeys: fullPool,
     reverseGraph,
     slowSet: slowList,
     includeSlow,
     weights,
     durations,
   });
-  candidateKeys = picked.selected;
+  activeKeys = picked.selected.filter(key => !quarantineByKey.has(key));
+  quarantinedKeys = picked.selected.filter(key => quarantineByKey.has(key));
   process.stderr.write(
     coreOnly
       ? `[test:core] running ${picked.coreCount} core guardrail suites (${concurrency || 'auto'} workers)\n`
-      : `[test:smart] base=${baseRef} · ${changedPaths.length} changed path(s) -> ${picked.coreCount} core + ${picked.affectedCount} affected = ${candidateKeys.length} suites (${concurrency || 'auto'} workers)\n`,
+      : `[test:smart] base=${baseRef} · ${changedPaths.length} changed path(s) -> ${picked.coreCount} core + ${picked.affectedCount} affected = ${picked.selected.length} suites (${concurrency || 'auto'} workers)\n`,
   );
   if (explain) {
-    for (const key of candidateKeys) process.stderr.write(`  ${key}  [${picked.reasons.get(key) || 'core'}]\n`);
+    for (const key of picked.selected) process.stderr.write(`  ${key}  [${picked.reasons.get(key) || 'core'}]\n`);
   }
 }
-const byKey = new Map(candidateKeys.map(key => [key, all.get(key)]).filter(([, abs]) => Boolean(abs)));
+const activeByKey = new Map(activeKeys.map(key => [key, all.get(key)]).filter(([, abs]) => Boolean(abs)));
+const quarantinedRunEntries = quarantinedKeys.map(key => quarantineByKey.get(key)).filter(Boolean);
+const byKey = new Map([
+  ...activeByKey.entries(),
+  ...quarantinedRunEntries.map(entry => [entry.key, entry.file]),
+]);
 // This machine's own timings first, else the committed weights: a fresh machine starts the longest files first too.
 const timings = { ...weights, ...durations };
-const files = orderLongestFirst([...byKey.keys()], timings).map(key => byKey.get(key));
-if (args.includes('--list')) { console.log(files.map(keyOf).join('\n')); process.exit(0); }
+const activeFiles = orderLongestFirst([...activeByKey.keys()], timings).map(key => activeByKey.get(key));
+const quarantineFiles = orderLongestFirst(quarantinedRunEntries.map(entry => entry.key), timings).map(key => quarantineByKey.get(key).file);
+const files = [...activeFiles, ...quarantineFiles];
+if (args.includes('--list')) {
+  if (files.length) console.log(files.map(keyOf).join('\n'));
+  process.exit(0);
+}
+
+for (const line of quarantineWarningAnnotations([...quarantinedRunEntries, ...plan.skippedQuarantined], process.env)) {
+  console.log(line);
+}
+if (quarantinedRunEntries.length > 0) {
+  process.stderr.write(`[quarantine] Running ${quarantinedRunEntries.length} quarantined suite(s) (isolated, concurrency=1):\n`);
+  for (const entry of quarantinedRunEntries) {
+    process.stderr.write(`  - ${entry.key} (@${entry.quarantine.tag}: ${entry.quarantine.reason})\n`);
+  }
+} else if (quarantineOnly) {
+  process.stderr.write('[quarantine] No quarantined suites matched.\n');
+}
+if (plan.skippedQuarantined.length > 0) {
+  process.stderr.write(`[quarantine] Isolated ${plan.skippedQuarantined.length} quarantined suite(s) (pass --quarantine or --include-quarantined to run):\n`);
+  for (const entry of plan.skippedQuarantined) {
+    process.stderr.write(`  - ${entry.key} (@${entry.quarantine.tag}: ${entry.quarantine.reason})\n`);
+  }
+}
+if (!files.length) {
+  process.exit(0);
+}
 
 /** A reporter from `--test-reporter`, read the way node --test reads one: node's own by name, else a module (a path, a URL or a package)
     whose default export is a reporter; a class (or node's spec, a factory) is constructed, a generator function or a stream is used as it is. */
@@ -125,9 +181,11 @@ const sinks = await Promise.all(reporterNames.map(async (name, i) => {
   return { input, done: standard ? once(output, 'end') : once(target, 'finish') };
 }));
 
-const { runFiles, batchMembers, memberBatch, cleanup } = await planBatches(files, {
+const { runFiles: activeRunFiles, batchMembers, memberBatch, cleanup } = await planBatches(activeFiles, {
   keyOf, timings, weights, slow: slowList, suiteRoot: suiteDir(), concurrency,
 });
+// Quarantined suites always run unbatched in their own isolated concurrency=1 phase.
+const runFiles = [...activeRunFiles, ...quarantineFiles];
 const isBatchContainer = file => Boolean(file && batchMembers.has(resolve(file)));
 const isBatchedMember = file => Boolean(file && memberBatch.has(resolve(file)));
 
@@ -203,11 +261,11 @@ let failed = false;
 try {
   // This regression asserts an actual 100 ms Chromium scroll budget. Other workers competing for the same CPU
   // can turn a 54 ms scroll into a 179 ms one despite all formulas being painted. Keep its full assertions intact.
-  const timingFiles = runFiles.filter(file => keyOf(file) === 'tests/reader-formula-scroll-browser.test.mjs');
+  const timingFiles = activeRunFiles.filter(file => keyOf(file) === 'tests/reader-formula-scroll-browser.test.mjs');
   const stream = runWithTimingFiles({ files: runFiles, concurrency, cwd: repoRoot, signal: abort.signal, ...(fileMs ? { timeout: fileMs } : {}),
     execArgv: ['--import', guard, ...((testMs || fileMs) ? ['--import', `${new URL('./test-timeout.mjs', import.meta.url).href}?ms=${testMs}&fileMs=${fileMs}`] : [])],
     ...(values('--test-name-pattern').length ? { testNamePatterns: values('--test-name-pattern') } : {}),
-    ...(values('--test-skip-pattern').length ? { testSkipPatterns: values('--test-skip-pattern') } : {}) }, timingFiles);
+    ...(values('--test-skip-pattern').length ? { testSkipPatterns: values('--test-skip-pattern') } : {}) }, timingFiles, quarantineFiles);
 
   for await (const event of stream) {
     for (const { input } of sinks) if (!input.write(event)) await once(input, 'drain');

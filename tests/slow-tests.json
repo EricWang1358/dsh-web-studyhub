@@ -301,6 +301,7 @@
     "tests/prompt-contract-evals.test.mjs",
     "tests/qa-stop-tree.test.mjs",
     "tests/retrieval-self-heal.test.mjs",
+    "tests/run-tests-quarantine.test.mjs",
     "tests/shared-home-state.test.mjs",
     "tests/skill-forge-scripts.test.mjs",
     "tests/store-shard-integrity.test.mjs",

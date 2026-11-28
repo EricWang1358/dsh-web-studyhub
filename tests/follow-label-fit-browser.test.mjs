@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { buildPreview } from '../scripts/build.mjs';
 import { buildChatPreview } from './helpers/chat-preview.mjs';
 import { focusByKeyboard, launchChromium } from '../scripts/qa/browser.mjs';
-import { frames, until } from '../scripts/qa/layout-late.mjs';
+import { frames, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
 import { startConsole, startJobs, openConsole } from '../scripts/qa/task-console.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
@@ -121,9 +121,13 @@ test('the follow-session select reads clearly and the 即时控制 row holds tog
         assert.equal(await page.locator('.sh-tooltip:popover-open').count(), 0, `${where}: no tooltip while a level is chosen`);
 
         // back to following the session: keyboard focus brings the sentence
+        await until(async () => !(await planning.isDisabled()), 'the select to be ready before reopening');
         await planning.click();
         await page.locator('.sh-pop__popup:not([data-closed]):not([data-starting-style])').waitFor();
-        await page.locator('.sh-pop__popup:not([data-closed]) .sh-opt').nth(0).click();
+        await settleAnimations(page);
+        const followOption = page.locator('.sh-pop__popup:not([data-closed]) .sh-opt').nth(0);
+        await followOption.waitFor({ state: 'visible' });
+        await followOption.click();
         await until(async () => (await planning.innerText()).trim() === words.short, 'the select to follow the session again');
         await page.locator('.sh-pop__popup[data-closed]').first().waitFor({ state: 'attached' }).catch(() => {});
         // The pointer is still where the option was, which may be over another select that follows the session (its own tooltip would open on hover): it is moved off the controls,

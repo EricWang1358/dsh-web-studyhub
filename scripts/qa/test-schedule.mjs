@@ -1,6 +1,6 @@
 /* How a full test run is planned: which files, in which order, with how many workers, and what the last run taught about how long
    each file takes. Used by scripts/test.mjs (arguments, workers) and scripts/qa/run-tests.mjs (files, order, durations). */
-import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -16,8 +16,9 @@ export const suiteDir = () => process.env.STUDY_TEST_SUITE_DIR || join(repoRoot,
 
 // Options the ordered runner understands; their values are never file names. Anything else (or a file) stays with `node --test`.
 // --test-timeout there is a limit per test (node --test applies it to each whole file when files run in their own processes).
-const ORDERED_FLAGS = new Set(['--core', '--smart', '--changed', '--include-slow', '--explain', '--list']);
+const ORDERED_FLAGS = new Set(['--core', '--smart', '--changed', '--include-slow', '--explain', '--list', '--quarantine', '--include-quarantined']);
 const ORDERED_OPTIONS = new Set(['--test-reporter', '--test-reporter-destination', '--test-concurrency', '--test-name-pattern', '--test-skip-pattern', '--shard', '--test-timeout', '--since']);
+const QUARANTINE_DIRECTIVE_RE = /^\/\/\s*@(quarantine|flaky)(?=$|[\s:])(.*)$/i;
 // Every Node test option that takes a value, so that the value is not taken for a file.
 const VALUE_OPTIONS = new Set([...ORDERED_OPTIONS, '--test-shard', '--test-coverage-exclude', '--test-coverage-include',
   '--test-coverage-lines', '--test-coverage-branches', '--test-coverage-functions', '--experimental-test-isolation', '--import', '--require', '-r']);
@@ -107,4 +108,158 @@ export async function mergeDurations(file, update) {
     await writeFile(temporary, JSON.stringify(merged, null, 1), 'utf8');
     await rename(temporary, file);
   } catch { /* a read-only checkout just does not learn */ }
+}
+
+/**
+ * Parse a leading header quarantine marker (`// @quarantine: <reason>` or `// @flaky: <reason>`).
+ * Only contiguous leading `//` comments (after optional shebang / blank lines) are scanned, so
+ * occurrences inside code or test fixtures never trigger false positives.
+ * A bare marker without a non-empty reason is rejected as `malformed: true`.
+ */
+export function parseQuarantineMarker(content) {
+  const lines = String(content ?? '').split(/\r?\n/);
+  let validMatch = null;
+  for (let i = 0; i < lines.length; i += 1) {
+    const trimmed = lines[i].trim();
+    if (i === 0 && trimmed.startsWith('#!')) continue;
+    if (trimmed === '') continue;
+    if (!trimmed.startsWith('//')) break;
+    const match = QUARANTINE_DIRECTIVE_RE.exec(trimmed);
+    if (!match) continue;
+    const tag = match[1].toLowerCase();
+    const tail = match[2] ?? '';
+    const reason = tail.replace(/^\s*:\s*/, '').trim();
+    if (!reason) {
+      return {
+        quarantined: false,
+        malformed: true,
+        tag,
+        reason: null,
+        line: i + 1,
+        error: `Malformed @${tag} marker on line ${i + 1}: must provide a non-empty reason (e.g. // @${tag}: <reason>)`,
+      };
+    }
+    if (!validMatch) {
+      validMatch = {
+        quarantined: true,
+        malformed: false,
+        tag,
+        reason,
+        line: i + 1,
+        error: null,
+      };
+    }
+  }
+  return validMatch ?? {
+    quarantined: false,
+    malformed: false,
+    tag: null,
+    reason: null,
+    line: null,
+    error: null,
+  };
+}
+
+/** Validate root quarantine CLI flags (`--quarantine`, `--include-quarantined`). */
+export function parseQuarantineArgs(args) {
+  const quarantineOnly = args.includes('--quarantine');
+  const includeQuarantined = args.includes('--include-quarantined');
+  const error = quarantineOnly && includeQuarantined
+    ? '--quarantine and --include-quarantined cannot be combined'
+    : null;
+  return { quarantineOnly, includeQuarantined, error };
+}
+
+/** Read enough of a file's top bytes to cover its leading contiguous `//` comment header. */
+async function readLeadingHeader(file) {
+  const chunkSize = 4096;
+  const handle = await open(file, 'r');
+  try {
+    const buffer = Buffer.allocUnsafe(chunkSize);
+    const { bytesRead } = await handle.read(buffer, 0, chunkSize, 0);
+    const head = buffer.toString('utf8', 0, bytesRead);
+    if (bytesRead < chunkSize) return head;
+    const lines = head.split(/\r?\n/);
+    for (let i = 0; i < lines.length - 1; i += 1) {
+      const trimmed = lines[i].trim();
+      if (i === 0 && trimmed.startsWith('#!')) continue;
+      if (trimmed === '' || trimmed.startsWith('//')) continue;
+      return head;
+    }
+  } finally {
+    await handle.close();
+  }
+  return readFile(file, 'utf8');
+}
+
+/** Classify discovered test files into active, quarantined, and malformed-marker lists. */
+export async function classifyQuarantineFiles(files, { keyOf = file => file } = {}) {
+  const records = new Array(files.length);
+  let next = 0;
+  const workerCount = Math.min(32, Math.max(1, files.length));
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (next < files.length) {
+      const idx = next++;
+      const file = files[idx];
+      const key = keyOf(file);
+      const header = await readLeadingHeader(file);
+      records[idx] = { file, key, marker: parseQuarantineMarker(header) };
+    }
+  }));
+
+  const activeFiles = [];
+  const quarantinedFiles = [];
+  const malformedMarkers = [];
+  for (const { file, key, marker } of records) {
+    if (marker.malformed) {
+      malformedMarkers.push({ file, key, ...marker });
+    } else if (marker.quarantined) {
+      quarantinedFiles.push({ file, key, quarantine: marker });
+    } else {
+      activeFiles.push({ file, key, quarantine: null });
+    }
+  }
+  return { totalDiscovered: files.length, activeFiles, quarantinedFiles, malformedMarkers };
+}
+
+/** Select active, quarantined, and skipped-quarantined suites for root runner options. */
+export function selectRootTestPlan({ activeKeys, quarantinedFiles, weights, shard, slow = new Set(), quarantineOnly = false, includeQuarantined = false }) {
+  const quarantinedSet = new Set(quarantinedFiles.map(entry => entry.key));
+  if (quarantineOnly) {
+    const pool = quarantinedFiles.map(entry => entry.key);
+    const sharded = shard ? shardKeys(pool, weights, shard) : pool;
+    const selected = sharded.filter(key => !slow.has(key));
+    return { activeKeys: [], quarantinedKeys: selected, skippedQuarantined: [] };
+  }
+  if (includeQuarantined) {
+    const pool = [...activeKeys, ...quarantinedFiles.map(entry => entry.key)];
+    const sharded = shard ? shardKeys(pool, weights, shard) : pool;
+    const filtered = sharded.filter(key => !slow.has(key));
+    return {
+      activeKeys: filtered.filter(key => !quarantinedSet.has(key)),
+      quarantinedKeys: filtered.filter(key => quarantinedSet.has(key)),
+      skippedQuarantined: [],
+    };
+  }
+  const sharded = shard ? shardKeys(activeKeys, weights, shard) : activeKeys;
+  return {
+    activeKeys: sharded.filter(key => !slow.has(key)),
+    quarantinedKeys: [],
+    skippedQuarantined: quarantinedFiles.filter(entry => !slow.has(entry.key)),
+  };
+}
+
+function escapeWorkflowData(text) {
+  return String(text).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+}
+
+/** One GitHub Actions `::warning::` annotation per quarantined suite when `GITHUB_ACTIONS=true`. */
+export function quarantineWarningAnnotations(quarantinedFiles, env = process.env) {
+  if (env.GITHUB_ACTIONS !== 'true') return [];
+  return quarantinedFiles.map(entry => {
+    const message = escapeWorkflowData(
+      `${entry.key} is quarantined (@${entry.quarantine.tag}: ${entry.quarantine.reason}). Fix it and remove the marker (see docs/flaky-tests.md).`,
+    );
+    return `::warning title=Quarantined test suite::${message}`;
+  });
 }

@@ -142,6 +142,12 @@ test('DiagnosticBar copies through the one CopyDiagnosticsButton: text read when
   shown = draw();
   assert.equal(reads, 1, 'opening the fold reads the text');
   assert.equal(textareaOf(shown).props.value, 'report-1');
+  // While the preview fold is open, copying uses the displayed preview value so async telemetry updates cannot drift between preview and clipboard.
+  textareaOf(shown).props.ref.current = { value: textareaOf(shown).props.value, focus() {} };
+  await find(shown, node => typeof node.props?.onClick === 'function').props.onClick();
+  await flush();
+  assert.deepEqual([reads, written], [1, 'report-1'], 'copy while fold is open preserves what was shown');
+  textareaOf(shown).props.ref.current = null;
   foldOf(shown).props.onToggle(false);
   shown = draw();
   assert.equal(reads, 1, 'a closed fold reads nothing again');

@@ -82,9 +82,9 @@ function reusableHost(cwd) {
   const ctx = { sessions: { get: () => ({ header: { cwd } }) }, get: key => key === 'agents' ? agents : key === 'subagents' ? subagents : undefined };
   return { ctx, calls };
 }
-async function fixture(t, complete) {
+async function fixture(t, complete, assistOptions = {}) {
   const root = await mkdtemp(join(tmpdir(), 'study-assist-host-'));
-  const children = createAssistChildren(), assist = createAssistService({ children });
+  const children = createAssistChildren(), assist = createAssistService({ children, ...assistOptions });
   t.after(async () => { assist.dispose(); await rm(root, { recursive: true, force: true }); });
   const service = new StudyService(root, { complete, ...switchOptions(SWITCH_MODE, { complete, paths: ['assist'] }) });
   await service.store.update(s => { s.sources.push({ id: 's', title: 'Lecture', text: evidence }); s.decks.push({ id: 'd', title: 'Patterns', course: 'Software', cards: [structuredClone(card)] }); });
@@ -222,20 +222,34 @@ test('a follow-up with no new completed output never saves the previous answer a
 });
 
 test('timed-out reused children discard late output, release handles and are not reused again', async t => {
-  const f = await fixture(t, async () => {}), { ctx, calls } = reusableHost(f.root);
+  let fireTimeout = null;
+  const timers = [];
+  const fakeHandle = { unref() {} };
+  const f = await fixture(t, async () => {}, {
+    setTimer: (fn, ms) => {
+      if (ms === 15) {
+        fireTimeout = fn;
+        return fakeHandle;
+      }
+      const handle = setTimeout(fn, ms);
+      timers.push(handle);
+      return handle;
+    },
+    clearTimer: handle => { if (handle !== fakeHandle) clearTimeout(handle); },
+  });
+  t.after(() => { for (const handle of timers) clearTimeout(handle); });
+  const { ctx, calls } = reusableHost(f.root);
   await f.start(ctx); await until(() => f.task().status === 'done');
   const release = gate(); let cancelled = 0, waiting = false;
   calls.children[0].whenIdle = () => { waiting = true; return release.promise; };
   calls.children[0].cancel = () => { cancelled++; };
   // The 15 ms deadline must fire only once the follow-up is with the teacher: on a loaded runner the runtime's Job can
   // otherwise be cancelled before its step runs, and an untouched teacher rightly stays idle in the pool.
-  t.mock.timers.enable({ apis: ['setTimeout'] });
   await f.start(ctx, { text: 'Slow follow-up', timeoutMs: 15 });
-  const end = Date.now() + 10000;
-  while (!waiting && Date.now() < end) { t.mock.timers.tick(0); await new Promise(resolve => setImmediate(resolve)); }
+  assert.equal(typeof fireTimeout, 'function');
+  await until(() => waiting).catch(() => {});
   assert.ok(waiting, 'the follow-up never reached the teacher');
-  t.mock.timers.tick(15);
-  t.mock.timers.reset();
+  fireTimeout();
   await until(() => f.task().status === 'failed');
   release.resolve();
   await until(() => calls.disposed.length === 2);
@@ -387,11 +401,14 @@ test('native admission failure terminates accurately and never invokes the direc
 
 test('timeout and concurrent card edits reject late results without changing the library', async t => {
   for (const mode of ['timeout', 'edit']) {
-    const release = gate();
-    const f = await fixture(t, async () => { await release.promise; return JSON.stringify({ answer: 'Obsolete answer.' }); });
+    let fireTimeout = null;
+    const entered = gate(), release = gate();
+    const f = await fixture(t, async () => { entered.resolve(); await release.promise; return JSON.stringify({ answer: 'Obsolete answer.' }); },
+      mode === 'timeout' ? { setTimer: fn => { fireTimeout = fn; return { unref() {} }; }, clearTimer: () => {} } : {});
     await f.start({}, mode === 'timeout' ? { timeoutMs: 15 } : {});
+    await entered.promise;
     if (mode === 'edit') await f.service.call('card.update', { deckId: 'd', cardId: 'c', patch: { explanation: 'A newer explanation.' } });
-    else await until(() => f.task().status === 'failed');
+    else { fireTimeout(); await until(() => f.task().status === 'failed'); }
     release.resolve(); await until(() => f.task().status === 'failed');
     await new Promise(r => setTimeout(r, 20));
     assert.equal((await f.service.store.read()).decks[0].cards[0].followups?.length || 0, 0);
@@ -562,16 +579,33 @@ test('missing route-override or tool restriction capability uses direct help wit
 
 test('native timeout discards output and disposes even a child admitted after timeout', async t => {
   for (const phase of ['admission', 'result']) {
-    let disposed = 0, calls = 0;
-    const release = gate();
-    const f = await fixture(t, async () => { calls++; return '{}'; });
+    let disposed = 0, calls = 0, fireTimeout = null, scheduledMs = null;
+    const entered = gate(), resultRead = gate(), release = gate();
+    const f = await fixture(t, async () => { calls++; return '{}'; }, {
+      // Hold the assist timeout callback until admission/result is deterministically in flight so async runtime submission can never race ahead of it.
+      setTimer: (fn, ms) => { fireTimeout = fn; scheduledMs = ms; return { unref() {} }; },
+      clearTimer: () => {},
+    });
     const ctx = { get: key => key === 'agents' ? { get: () => ({}) } : {
       getProvider: () => ({ capabilities: { toolFilter: true, agentOptions: true } }), start: async () => {
+        entered.resolve();
         if (phase === 'admission') await release.promise;
-        return { id: 'late-child', result: phase === 'result' ? release.promise : Promise.resolve({ stopReason: 'completed', output: [] }), dispose: async () => { disposed++; } };
+        return {
+          id: 'late-child',
+          get result() {
+            resultRead.resolve();
+            return phase === 'result' ? release.promise : Promise.resolve({ stopReason: 'completed', output: [] });
+          },
+          dispose: async () => { disposed++; },
+        };
       },
     } };
-    await f.start(ctx, { timeoutMs: 10 }); await until(() => f.task().status === 'failed');
+    await f.start(ctx, { timeoutMs: 10 });
+    assert.equal(scheduledMs, 10);
+    await entered.promise;
+    if (phase === 'result') await resultRead.promise;
+    fireTimeout();
+    await until(() => f.task().status === 'failed');
     release.resolve({ stopReason: 'completed', output: [{ type: 'text', text: '{"answer":"Late"}' }] });
     await until(() => disposed === 1);
     assert.equal(calls, 0); assert.equal((await f.service.store.read()).inbox.length, 0);
