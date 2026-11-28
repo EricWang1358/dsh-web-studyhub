@@ -1,9 +1,10 @@
 import { build } from 'esbuild';
-import { access, copyFile, mkdir, rm, stat, writeFile } from 'node:fs/promises';
+import { access, copyFile, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { englishOnDemand } from '../../../scripts/build.mjs';
 import { shimJsxRuntime } from '../../../scripts/host-react.mjs';
+import { uiBuildDefine } from '../../../scripts/ui-build-marker.mjs';
 
 const desktopRoot = fileURLToPath(new URL('../', import.meta.url));
 const repoRoot = resolve(desktopRoot, '../..');
@@ -68,6 +69,7 @@ export async function buildDesktopUi({
   await rm(targetDir, { recursive: true, force: true });
   await mkdir(targetDir, { recursive: true });
 
+  const version = JSON.parse(await readFile(join(repoRoot, 'package.json'), 'utf8')).version;
   const result = await build({
     absWorkingDir: repoRoot,
     entryPoints: { desktop: 'ui/desktop.jsx' },
@@ -88,7 +90,7 @@ export async function buildDesktopUi({
       '.woff2': 'file',
       '.ttf': 'file',
     },
-    define: production ? { 'process.env.NODE_ENV': '"production"' } : {},
+    define: { ...uiBuildDefine(version), ...(production ? { 'process.env.NODE_ENV': '"production"' } : {}) },
     logLevel: 'silent',
   });
 
