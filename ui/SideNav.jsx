@@ -20,7 +20,7 @@ import { ui, uiFormat } from "./i18n.js";
    `alert` is the one attention dot of the sidebar (#655, ui/nav-alert.js): a dot on the icon's corner for something the learner should act
    on now, and its reason is the first line of the tooltip. At most one row carries it; with nothing to act on, none does. */
 export function NavItem({ glyph, icon, label, hint, hintClass = "nav-count", hintTitle, purpose, tail, onTipChange, alert, upkeep = false, active = false, disabled = false, className = "", title,
-  tipInteractive = false, tipPlacement = "bottom-start", ...button }) {
+  tipInteractive = false, tipPlacement = "bottom-start", tipHidden = false, ...button }) {
   const classes = ["nav", className, upkeep && "nav-upkeep", alert && "has-alert"].filter(Boolean).join(" ");
   const row = (
     <button type="button" {...button} className={classes} disabled={disabled} aria-current={active && !disabled ? "page" : undefined}>
@@ -30,9 +30,10 @@ export function NavItem({ glyph, icon, label, hint, hintClass = "nav-count", hin
     </button>
   );
   // What the row says beyond its label (why it has a dot, why it is here, a run's title, what the count means, how to reorder) is a Tooltip: it shows on keyboard focus too.
+  // Passing empty content when `tipHidden` is true keeps the Tooltip anchor mounted so toggling (e.g. NavFold expanding) never remounts the button or drops keyboard focus.
   const words = [alert || "", title !== label && title, purpose, hintTitle, tail].filter(Boolean).join("\n");
   return words
-    ? <Tooltip layer interactive={tipInteractive} anchorClassName="nav-tip" className="nav-tooltip" placement={tipPlacement} content={words} onOpenChange={onTipChange}>{row}</Tooltip>
+    ? <Tooltip layer interactive={tipInteractive} anchorClassName="nav-tip" className="nav-tooltip" placement={tipPlacement} content={tipHidden ? "" : words} onOpenChange={onTipChange}>{row}</Tooltip>
     : row;
 }
 
@@ -49,16 +50,17 @@ export function NavGroup({ id, label, hidden: hideLabel = false, children }) {
   );
 }
 
-/* A row that opens more rows below it (「更多」, 「帮助」). The row is a NavItem like every other (same anatomy and height, the same Tooltip, the
-   attention dot while the row that carries it is folded away) with aria-expanded; what it opens is a native <details>, so the feature finder
-   and the tour open it the way they open every other fold (ui/tour/anchor.js locateAnchor sets .open, and `onToggle` hears it). The fold's own
-   <summary> is hidden: the row above is its one control, and `open` is the one state. */
+/* A row that opens more rows below it (「更多」, 「帮助」). The row is a NavItem like every other (same anatomy and height, the same Tooltip
+   while collapsed so it never covers the expanded rows below it, the attention dot while the row that carries it is folded away) with
+   aria-expanded; what it opens is a native <details>, so the feature finder and the tour open it the way they open every other fold
+   (ui/tour/anchor.js locateAnchor sets .open, and `onToggle` hears it). The fold's own <summary> is hidden: the row above is its one control,
+   and `open` is the one state. */
 export function NavFold({ id, glyph, icon, label, purpose, alert, open, onToggle, className = "", children, ...row }) {
   const itemsId = `nav-fold-${id}`;
   return (
     <div className={["nav-fold", className].filter(Boolean).join(" ")} data-nav-fold={id} data-open={open ? "true" : "false"}>
       <NavItem {...row} className="nav-fold__toggle" icon={icon || <Icon name={glyph} />} label={label} purpose={purpose} alert={alert}
-        aria-expanded={open} aria-controls={itemsId} hint="" hintClass="nav-fold__chevron" onClick={() => onToggle(!open)} />
+        tipHidden={open} aria-expanded={open} aria-controls={itemsId} hint="" hintClass="nav-fold__chevron" onClick={() => onToggle(!open)} />
       <details className="nav-fold__items" id={itemsId} open={open}
         onToggle={(event) => { if (event.currentTarget.open !== open) onToggle(event.currentTarget.open); }}>
         <summary hidden>{label}</summary>

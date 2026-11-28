@@ -119,10 +119,17 @@ test('「更多」 is a row with aria-expanded over a native fold, so the finder
   const closed = html(h(NavFold, { id: 'more', glyph: 'more', label: '更多', purpose: '其余的功能', open: false, onToggle() {}, 'data-tour': 'nav-more' }, child));
   assert.match(closed, /<div class="nav-fold" data-nav-fold="more" data-open="false">/);
   assert.match(closed, /<button type="button" data-tour="nav-more" aria-expanded="false" aria-controls="nav-fold-more"[^>]*class="nav nav-fold__toggle"/);
+  const closedTip = closed.match(/<span id="([^"]+)" role="tooltip"[^>]*>其余的功能<\/span>/);
+  assert.ok(closedTip, 'collapsed fold shows its purpose in the tooltip');
+  assert.match(closed, new RegExp(`<button[^>]*class="nav nav-fold__toggle"[^>]*aria-describedby="${closedTip[1].replace(/:/g, '\\:')}"`), 'collapsed fold links toggle to tooltip via aria-describedby');
   assert.match(closed, /<details class="nav-fold__items" id="nav-fold-more"><summary hidden="">更多<\/summary>.*data-tour="nav-book"/s, 'the rows are there, in a closed <details>');
-  const open = html(h(NavFold, { id: 'more', glyph: 'more', label: '更多', open: true, onToggle() {} }, child));
+  const open = html(h(NavFold, { id: 'more', glyph: 'more', label: '更多', purpose: '其余的功能', open: true, onToggle() {} }, child));
   assert.match(open, /aria-expanded="true"/);
   assert.match(open, /<details class="nav-fold__items" id="nav-fold-more" open="">/);
+  assert.match(open, /<span class="sh-popover-anchor nav-tip">/, 'keeps the tooltip anchor mounted across open/close so focus is not lost');
+  assert.match(open, /role="tooltip"[^>]*><\/span>/, 'expanded fold suppresses its purpose tooltip so it never covers the rows below (#1689)');
+  assert.doesNotMatch(open, /其余的功能/, 'expanded fold omits purpose words from the tooltip');
+  assert.doesNotMatch(open, /<button[^>]*nav-fold__toggle[^>]*aria-describedby=/, 'expanded fold omits aria-describedby when its tooltip is empty');
   const flagged = html(h(NavFold, { id: 'more', glyph: 'more', label: '更多', alert: '1 个任务没有完成，点开看原因', open: false, onToggle() {} }, child));
   assert.match(flagged, /<span class="nav-dot" aria-hidden="true"><\/span>/, 'the dot of a row folded away is on 「更多」');
   assert.match(flagged, /role="tooltip"[^>]*>1 个任务没有完成，点开看原因/, 'with its reason');
